@@ -1,0 +1,13 @@
+# backups & editor junk
+*.bak*
+*.backup*
+*.broken*
+*.swp
+*~
+
+# runtime
+/run/
+/tmp/
+
+# secrets (we keep an example file instead)
+icecast/icecast.xml

@@ -1,0 +1,16 @@
+[Unit]
+Description=Icecast Keepalive (silent fallback)
+After=network-online.target icecast2.service
+Wants=network-online.target icecast2.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/ffmpeg -nostdin -hide_banner -loglevel warning \
+  -re -f lavfi -i anullsrc=channel_layout=mono:sample_rate=44100 \
+  -c:a libmp3lame -b:a 32k -content_type audio/mpeg -f mp3 \
+  icecast://source:062352@127.0.0.1:8000/keepalive.mp3
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
