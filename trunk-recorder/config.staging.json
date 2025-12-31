@@ -1,0 +1,25 @@
+{
+  "config_version": 2,
+  "logLevel": "info",
+  "captureDir": "/var/lib/trunk-recorder/staging",
+  "notes": "Fill in your P25 control frequencies, device settings, and talkgroup file before deployment.",
+  "systems": [
+    {
+      "shortName": "p25-staging",
+      "type": "p25",
+      "control_channels": [
+        451.0000
+      ],
+      "talkgroupsFile": "/etc/trunk-recorder/p25_talkgroups.json"
+    }
+  ],
+  "sources": [
+    {
+      "center": 451.0000,
+      "rate": 2400000,
+      "error": 0,
+      "gain": 0,
+      "device": "rtl=0"
+    }
+  ]
+}
