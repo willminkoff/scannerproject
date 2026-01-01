@@ -2,36 +2,36 @@
   "ver": 2,
   "logLevel": "info",
   "captureDir": "/var/lib/trunk-recorder/staging",
-  "notes": "Staging config for Davidson County simulcast + services sites. Add new talkgroups in /etc/trunk-recorder/p25_talkgroups.json as needed.",
+  "notes": "Staging config for Davidson County simulcast + services sites. Add new talkgroups in /etc/trunk-recorder/p25_talkgroups.csv as needed.",
   "systems": [
     {
       "shortName": "davidson-simulcast",
       "type": "p25",
       "control_channels": [
-        856.4875,
-        856.7125,
-        857.0375,
-        857.4875
+        856487500,
+        856712500,
+        857037500,
+        857487500
       ],
-      "talkgroupsFile": "/etc/trunk-recorder/p25_talkgroups.json"
+      "talkgroupsFile": "/etc/trunk-recorder/p25_talkgroups.csv"
     },
     {
       "shortName": "davidson-services",
       "type": "p25",
       "control_channels": [
-        855.9125,
-        856.4625,
-        856.7625
+        855912500,
+        856462500,
+        856762500
       ],
-      "talkgroupsFile": "/etc/trunk-recorder/p25_talkgroups.json"
+      "talkgroupsFile": "/etc/trunk-recorder/p25_talkgroups.csv"
     }
   ],
   "sources": [
     {
-      "center": 451.0000,
+      "center": 856700000,
       "rate": 2400000,
       "error": 0,
-      "gain": 0,
+      "gain": 30,
       "device": "rtl=0"
     }
   ]

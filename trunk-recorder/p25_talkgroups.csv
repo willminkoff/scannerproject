@@ -1,0 +1,16 @@
+Decimal,Mode,Description,Alpha Tag,Tag
+3207,D,Police: Dispatch,VU Police Disp,Law Dispatch
+3209,D,Police: Tactical 1,VU Police Tac-1,Law Dispatch
+3211,D,Police: Tactical 2,VU Police Tac-2,Law Tac
+3217,D,Criminal Investigations Unit Operations (CIU),VU PD CIU Ops,Law Talk
+3219,D,Police: Campus Operations,VU PD Campus,Law Talk
+3221,D,Police: Medical Operations (?),VU PD Medical,Law Talk
+3223,D,Police: One Hundred Oaks Ops (?),VU PD 100 Oaks,Law Talk
+3225,D,Police: Administrative Ops,VU PD Admin,Law Talk
+3213,D,Special Event 1,VU Event 1,Multi-Tac
+3215,D,Special Event 2,VU Event 2,Multi-Tac
+3205,D,LifeFlight Ground Transport - Dispatch,VLF Ground,EMS Dispatch
+3201,D,LifeFlight Operations 1,VLF Ops 1,EMS-Tac
+3203,D,LifeFlight Operations 2,VLF Ops 2,EMS-Tac
+14203,D,LifeFlight Operations 4,VULF Ops 4,EMS-Tac
+14204,D,LifeFlight Operations 5,VULF Ops 5,EMS-Tac
