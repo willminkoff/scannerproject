@@ -1,5 +1,5 @@
 {
-  "config_version": 2,
+  "ver": 2,
   "logLevel": "info",
   "captureDir": "/var/lib/trunk-recorder/staging",
   "notes": "Staging config for Davidson County simulcast + services sites. Add new talkgroups in /etc/trunk-recorder/p25_talkgroups.json as needed.",
