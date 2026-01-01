@@ -28,6 +28,7 @@
   ],
   "sources": [
     {
+      "driver": "osmosdr",
       "center": 856700000,
       "rate": 2400000,
       "error": 0,
