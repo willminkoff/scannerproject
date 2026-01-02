@@ -3,16 +3,14 @@
   "logLevel": "info",
   "captureDir": "/var/lib/trunk-recorder/staging",
   "audioStreaming": true,
-  "audioArchive": false,
+  "audioArchive": true,
   "notes": "Staging config for Davidson County services site only. Add new talkgroups in /etc/trunk-recorder/p25_talkgroups.csv as needed.",
   "systems": [
     {
       "shortName": "davidson-services",
       "type": "p25",
       "control_channels": [
-        855912500,
-        856462500,
-        856762500
+        856462500
       ],
       "recordUnknown": false,
       "talkgroupsFile": "/etc/trunk-recorder/p25_talkgroups.csv"
@@ -21,7 +19,7 @@
   "sources": [
     {
       "driver": "osmosdr",
-      "center": 855400000,
+      "center": 856200000,
       "rate": 3072000,
       "error": 0,
       "gain": 30,
