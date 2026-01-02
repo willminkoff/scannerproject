@@ -1,0 +1,6 @@
+id,created_at_utc,title,status,description
+1,2026-01-01T00:00:00Z,Analog scanner not scanning,resolved,Analog scanner was not scanning during last attempt; needs investigation.
+2,2026-01-01T00:00:00Z,Remove Nissan Stadium profile from analog scanner profiles and UI,resolved,Remove Nissan Stadium profile from analog scanner profiles and the UI.
+5,2026-01-01T00:00:00Z,Update git on the pi so pushes are faster,resolved,Git already up to date on Pi; remote operations are fast (ls-remote ~0.45s).
+3, 2026-01-01T00:00:00Z,Avoids work and output somewhere,resolved,Confirm avoids work and get avoids logged show summary on the ui.
+4,2026-01-01T00:00:00Z,New design for gain/sq sliders,open,Something lager on the screen esp for iphone ui. Also adjust graduation to the real rtl-sdr gain steps and make the sq a simeple 1-10 scale.

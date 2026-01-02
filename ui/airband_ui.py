@@ -26,12 +26,16 @@ PROFILES = [
     ("airband", "AIRBAND", os.path.join(PROFILES_DIR, "rtl_airband_airband.conf")),
     ("tower",  "TOWER (118.600)", os.path.join(PROFILES_DIR, "rtl_airband_tower.conf")),
     ("gmrs",   "GMRS", os.path.join(PROFILES_DIR, "rtl_airband_gmrs.conf")),
-    ("nissan", "NISSAN STADIUM", os.path.join(PROFILES_DIR, "rtl_airband_nissan_stadium.conf")),
     ("wx",     "WX (162.550)", os.path.join(PROFILES_DIR, "rtl_airband_wx.conf")),
 ]
 
 RE_GAIN = re.compile(r'^(\s*gain\s*=\s*)([0-9.]+)(\s*;\s*#\s*UI_CONTROLLED.*)$')
 RE_SQL  = re.compile(r'^(\s*squelch_snr_threshold\s*=\s*)([0-9.]+)(\s*;\s*#\s*UI_CONTROLLED.*)$')
+GAIN_STEPS = [
+    0.0, 0.9, 1.4, 2.7, 3.7, 7.7, 8.7, 12.5, 14.4, 15.7,
+    16.6, 19.7, 20.7, 22.9, 25.4, 28.0, 29.7, 32.8, 33.8,
+    36.4, 37.2, 38.6, 40.2, 42.1, 43.4, 43.9, 44.5, 48.0, 49.6,
+]
 
 HTML = r"""<!doctype html>
 <html>
@@ -59,7 +63,45 @@ HTML = r"""<!doctype html>
     .ctrl-head { display:flex; justify-content:space-between; align-items:baseline; }
     .ctrl-head b { font-size: 14px; }
     .ctrl-head span { color: var(--muted); font-size: 12px; }
+    .ctrl-readout { margin-top: 8px; font-size: 13px; color: var(--muted); display:flex; justify-content:space-between; }
     input[type="range"] { width: 100%; }
+    .range {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 12px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(34,197,94,.55), rgba(34,197,94,.15));
+      outline: none;
+    }
+    .range::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #e8ebff;
+      border: 2px solid #2a3a6f;
+      box-shadow: 0 4px 12px rgba(0,0,0,.35);
+    }
+    .range::-moz-range-thumb {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #e8ebff;
+      border: 2px solid #2a3a6f;
+      box-shadow: 0 4px 12px rgba(0,0,0,.35);
+    }
+    @media (max-width: 520px) {
+      .ctrl { padding: 14px; }
+      .ctrl-head b { font-size: 16px; }
+      .ctrl-head span { font-size: 13px; }
+      .ctrl-readout { font-size: 14px; }
+      .range { height: 14px; }
+      .range::-webkit-slider-thumb { width: 32px; height: 32px; }
+      .range::-moz-range-thumb { width: 32px; height: 32px; }
+      button { padding: 12px 14px; font-size: 15px; }
+      h1 { font-size: 20px; }
+    }
     .btns { display:flex; gap:10px; flex-wrap:wrap; margin-top: 12px; }
     button { border:1px solid var(--line); background: rgba(255,255,255,.06); color:var(--text); padding:10px 12px; border-radius:12px; cursor:pointer; }
     button.primary { background: rgba(34,197,94,.18); border-color: rgba(34,197,94,.35); }
@@ -87,12 +129,14 @@ HTML = r"""<!doctype html>
       <div class="controls">
         <div class="ctrl">
           <div class="ctrl-head"><b>Gain (dB)</b><span>Applied: <span id="applied-gain">…</span></span></div>
-          <input id="gain" type="range" min="0" max="49.6" step="0.1" />
+          <input id="gain" class="range" type="range" min="0" max="28" step="1" />
+          <div class="ctrl-readout"><span>Selected: <span id="selected-gain">…</span> dB</span><span>RTL-SDR steps</span></div>
         </div>
 
         <div class="ctrl">
-          <div class="ctrl-head"><b>Squelch (SNR threshold)</b><span>Applied: <span id="applied-sql">…</span></span></div>
-          <input id="sql" type="range" min="0" max="30" step="0.1" />
+          <div class="ctrl-head"><b>Squelch (1-10)</b><span>Applied: <span id="applied-sql">…</span></span></div>
+          <input id="sql" class="range" type="range" min="1" max="10" step="1" />
+          <div class="ctrl-readout"><span>Selected: <span id="selected-sql">…</span></span><span>1-10 scale</span></div>
         </div>
       </div>
 
@@ -108,13 +152,47 @@ HTML = r"""<!doctype html>
 <script>
 const profilesEl = document.getElementById('profiles');
 const warnEl = document.getElementById('warn');
+const gainEl = document.getElementById('gain');
+const sqlEl = document.getElementById('sql');
+const selectedGainEl = document.getElementById('selected-gain');
+const selectedSqlEl = document.getElementById('selected-sql');
+
+const GAIN_STEPS = [
+  0.0, 0.9, 1.4, 2.7, 3.7, 7.7, 8.7, 12.5, 14.4, 15.7,
+  16.6, 19.7, 20.7, 22.9, 25.4, 28.0, 29.7, 32.8, 33.8,
+  36.4, 37.2, 38.6, 40.2, 42.1, 43.4, 43.9, 44.5, 48.0, 49.6,
+];
 
 let currentProfile = null;
 let sliderDirty = false;
 
+gainEl.max = String(GAIN_STEPS.length - 1);
+
 function setDot(id, ok) {
   const el = document.getElementById(id);
   if (ok) el.classList.add('good'); else el.classList.remove('good');
+}
+
+function gainIndexFromValue(value) {
+  let best = 0;
+  let bestDiff = Infinity;
+  GAIN_STEPS.forEach((g, idx) => {
+    const diff = Math.abs(g - value);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = idx;
+    }
+  });
+  return best;
+}
+
+function updateSelectedGain() {
+  const idx = Number(gainEl.value || 0);
+  selectedGainEl.textContent = GAIN_STEPS[idx].toFixed(1);
+}
+
+function updateSelectedSql() {
+  selectedSqlEl.textContent = String(sqlEl.value);
 }
 
 function buildProfiles(profiles, selected) {
@@ -158,7 +236,7 @@ async function refresh(allowSetSliders=false) {
   document.getElementById('txt-ice').textContent = st.icecast_active ? 'Running' : 'Stopped';
 
   document.getElementById('applied-gain').textContent = st.gain.toFixed(1);
-  document.getElementById('applied-sql').textContent = st.squelch.toFixed(1);
+  document.getElementById('applied-sql').textContent = Math.round(st.squelch).toString();
 
   warnEl.textContent = st.missing_profiles.length ? ('Missing profile file(s): ' + st.missing_profiles.join(' • ')) : '';
 
@@ -168,13 +246,21 @@ async function refresh(allowSetSliders=false) {
   }
 
   if (allowSetSliders && !sliderDirty) {
-    document.getElementById('gain').value = st.gain;
-    document.getElementById('sql').value = st.squelch;
+    gainEl.value = gainIndexFromValue(st.gain);
+    sqlEl.value = Math.max(1, Math.min(10, Math.round(st.squelch))).toString();
+    updateSelectedGain();
+    updateSelectedSql();
   }
 }
 
-document.getElementById('gain').addEventListener('input', ()=> sliderDirty = true);
-document.getElementById('sql').addEventListener('input', ()=> sliderDirty = true);
+gainEl.addEventListener('input', ()=> {
+  sliderDirty = true;
+  updateSelectedGain();
+});
+sqlEl.addEventListener('input', ()=> {
+  sliderDirty = true;
+  updateSelectedSql();
+});
 
 document.getElementById('btn-refresh').addEventListener('click', async ()=> {
   sliderDirty = false;
@@ -182,8 +268,8 @@ document.getElementById('btn-refresh').addEventListener('click', async ()=> {
 });
 
 document.getElementById('btn-apply').addEventListener('click', async ()=> {
-  const gain = document.getElementById('gain').value;
-  const squelch = document.getElementById('sql').value;
+  const gain = GAIN_STEPS[Number(gainEl.value || 0)];
+  const squelch = sqlEl.value;
   await post('/api/apply', {gain, squelch});
   sliderDirty = false;
   await refresh(true);
@@ -227,9 +313,10 @@ def parse_controls(conf_path: str):
     return gain, squelch
 
 def write_controls(conf_path: str, gain: float, squelch: float):
-    # clamp
-    gain = max(0.0, min(49.6, float(gain)))
-    squelch = max(0.0, min(30.0, float(squelch)))
+    # clamp and snap to tuner steps
+    gain_value = float(gain)
+    gain = min(GAIN_STEPS, key=lambda g: abs(g - gain_value))
+    squelch = max(1.0, min(10.0, float(squelch)))
 
     with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
         lines = f.readlines()
