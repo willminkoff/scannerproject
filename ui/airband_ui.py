@@ -12,6 +12,7 @@ UI_PORT = 5050
 
 CONFIG_SYMLINK = "/usr/local/etc/rtl_airband.conf"
 PROFILES_DIR = "/usr/local/etc/airband-profiles"
+LAST_HIT_PATH = "/run/rtl_airband_last_freq.txt"
 
 ICECAST_PORT = 8000
 MOUNT_NAME = "GND.mp3"
@@ -117,6 +118,7 @@ HTML = r"""<!doctype html>
       <div class="row">
         <div class="pill"><div id="dot-rtl" class="dot"></div><div><div class="label">Scanner</div><div class="val" id="txt-rtl">…</div></div></div>
         <div class="pill"><div id="dot-ice" class="dot"></div><div><div class="label">Icecast</div><div class="val" id="txt-ice">…</div></div></div>
+        <div class="pill"><div class="dot good"></div><div><div class="label">Last hit</div><div class="val" id="txt-hit">…</div></div></div>
       </div>
 
       <div class="btns" style="margin-top:14px;">
@@ -234,6 +236,7 @@ async function refresh(allowSetSliders=false) {
 
   document.getElementById('txt-rtl').textContent = st.rtl_active ? 'Running' : 'Stopped';
   document.getElementById('txt-ice').textContent = st.icecast_active ? 'Running' : 'Stopped';
+  document.getElementById('txt-hit').textContent = st.last_hit || 'No recent hits';
 
   document.getElementById('applied-gain').textContent = st.gain.toFixed(1);
   document.getElementById('applied-sql').textContent = Math.round(st.squelch).toString();
@@ -311,6 +314,16 @@ def parse_controls(conf_path: str):
     except FileNotFoundError:
         pass
     return gain, squelch
+
+def read_last_hit() -> str:
+    try:
+        with open(LAST_HIT_PATH, "r", encoding="utf-8", errors="ignore") as f:
+            value = f.read().strip()
+            if value and value != "-":
+                return value
+    except FileNotFoundError:
+        pass
+    return ""
 
 def write_controls(conf_path: str, gain: float, squelch: float):
     # clamp and snap to tuner steps
@@ -396,6 +409,7 @@ class Handler(BaseHTTPRequestHandler):
                 "missing_profiles": missing,
                 "gain": float(gain),
                 "squelch": float(squelch),
+                "last_hit": read_last_hit(),
             }
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         return self._send(404, "Not found", "text/plain; charset=utf-8")
