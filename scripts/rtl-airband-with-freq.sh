@@ -24,9 +24,10 @@ run_airband 2>&1 \
 | stdbuf -oL awk -v OUT="$OUT" '
   {
     print;
-    if (match($0, /([0-9]{3}\.[0-9]{1,4})/, m)) {
-      if (m[1] != last) {
-        last = m[1];
+    if (match($0, /[0-9]+\.[0-9]+/)) {
+      freq = substr($0, RSTART, RLENGTH);
+      if (freq != last) {
+        last = freq;
         print last > OUT;
         fflush(OUT);
       }
