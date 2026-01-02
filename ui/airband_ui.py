@@ -348,30 +348,30 @@ def parse_controls(conf_path: str):
         pass
     return gain, squelch
 
-def read_last_hit() -> str:
+def read_last_hit_from_journal_cached() -> str:
     # Cache to avoid spawning journalctl on every poll.
     now = time.time()
-    cache = getattr(read_last_hit, "_cache", {"value": "", "ts": 0.0})
+    cache = getattr(read_last_hit_from_journal_cached, "_cache", {"value": "", "ts": 0.0})
     if now - cache["ts"] < 2.0:
         return cache["value"]
+    value = read_last_hit_from_journal()
+    cache = {"value": value, "ts": now}
+    read_last_hit_from_journal_cached._cache = cache
+    return value
 
+def read_last_hit() -> str:
     try:
         with open(LAST_HIT_PATH, "r", encoding="utf-8", errors="ignore") as f:
             lines = [line.strip() for line in f.read().splitlines() if line.strip()]
             if not lines:
-                return ""
+                return read_last_hit_from_journal_cached()
             value = lines[-1]
             if value and value != "-":
-                cache = {"value": value, "ts": now}
-                read_last_hit._cache = cache
                 return value
     except FileNotFoundError:
         pass
 
-    value = read_last_hit_from_journal()
-    cache = {"value": value, "ts": now}
-    read_last_hit._cache = cache
-    return value
+    return read_last_hit_from_journal_cached()
 
 def read_last_hit_from_journal() -> str:
     try:
