@@ -1,0 +1,13 @@
+[Unit]
+Description=RTLSDR-Airband last-hit tracker
+After=rtl-airband.service
+Requires=rtl-airband.service
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -lc 'journalctl -u rtl-airband -f -n 0 -o cat --no-pager | awk -v OUT=/run/rtl_airband_last_freq.txt '\''match($0, /[0-9]+\.[0-9]+/) { print substr($0, RSTART, RLENGTH) > OUT; fflush(OUT); }'\'''
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=multi-user.target
