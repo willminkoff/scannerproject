@@ -11,7 +11,7 @@ JOURNAL_PID=""
 
 start_journal_follow() {
   if command -v journalctl >/dev/null 2>&1; then
-    stdbuf -oL journalctl -u rtl-airband -f -o cat 2>/dev/null \
+    stdbuf -oL -eL journalctl -u rtl-airband -f -n 0 -o cat --no-pager 2>/dev/null \
     | stdbuf -oL awk -v OUT="$OUT" '
       {
         if (match($0, /[0-9]+\.[0-9]+/)) {
