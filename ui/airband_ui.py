@@ -3,6 +3,7 @@ import json
 import os
 import re
 import subprocess
+import time
 import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
@@ -37,6 +38,7 @@ RE_GAIN = re.compile(r'^(\s*gain\s*=\s*)([0-9.]+)(\s*;\s*#\s*UI_CONTROLLED.*)$')
 RE_SQL  = re.compile(r'^(\s*squelch_snr_threshold\s*=\s*)([0-9.]+)(\s*;\s*#\s*UI_CONTROLLED.*)$')
 RE_FREQS_BLOCK = re.compile(r'(^\s*freqs\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)
 RE_LABELS_BLOCK = re.compile(r'(^\s*labels\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)
+RE_ACTIVITY = re.compile(r'Activity on ([0-9]+\.[0-9]+)')
 GAIN_STEPS = [
     0.0, 0.9, 1.4, 2.7, 3.7, 7.7, 8.7, 12.5, 14.4, 15.7,
     16.6, 19.7, 20.7, 22.9, 25.4, 28.0, 29.7, 32.8, 33.8,
@@ -347,6 +349,12 @@ def parse_controls(conf_path: str):
     return gain, squelch
 
 def read_last_hit() -> str:
+    # Cache to avoid spawning journalctl on every poll.
+    now = time.time()
+    cache = getattr(read_last_hit, "_cache", {"value": "", "ts": 0.0})
+    if now - cache["ts"] < 2.0:
+        return cache["value"]
+
     try:
         with open(LAST_HIT_PATH, "r", encoding="utf-8", errors="ignore") as f:
             lines = [line.strip() for line in f.read().splitlines() if line.strip()]
@@ -354,10 +362,32 @@ def read_last_hit() -> str:
                 return ""
             value = lines[-1]
             if value and value != "-":
+                cache = {"value": value, "ts": now}
+                read_last_hit._cache = cache
                 return value
     except FileNotFoundError:
         pass
-    return ""
+
+    value = read_last_hit_from_journal()
+    cache = {"value": value, "ts": now}
+    read_last_hit._cache = cache
+    return value
+
+def read_last_hit_from_journal() -> str:
+    try:
+        result = subprocess.run(
+            ["journalctl", "-u", UNITS["rtl"], "-n", "5", "-o", "cat", "--no-pager"],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+    except Exception:
+        return ""
+    matches = RE_ACTIVITY.findall(result.stdout or "")
+    if not matches:
+        return ""
+    return matches[-1]
 
 def parse_last_hit_freq() -> Optional[float]:
     value = read_last_hit()
