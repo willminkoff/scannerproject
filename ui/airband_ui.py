@@ -329,7 +329,7 @@ def write_controls(conf_path: str, gain: float, squelch: float):
     # clamp and snap to tuner steps
     gain_value = float(gain)
     gain = min(GAIN_STEPS, key=lambda g: abs(g - gain_value))
-    squelch = max(1.0, min(10.0, float(squelch)))
+    squelch = max(0.0, min(10.0, float(squelch)))
 
     with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
         lines = f.readlines()
