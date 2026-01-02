@@ -549,7 +549,11 @@ def write_controls(conf_path: str, gain: float, squelch: float):
     os.replace(tmp, conf_path)
 
 def restart_rtl():
-    subprocess.run(["systemctl", "restart", UNITS["rtl"]], check=False)
+    subprocess.Popen(
+        ["systemctl", "restart", "--no-block", UNITS["rtl"]],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
 def set_profile(profile_id: str):
     for pid, _, path in PROFILES:
