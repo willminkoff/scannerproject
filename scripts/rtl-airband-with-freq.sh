@@ -27,6 +27,7 @@ run_airband 2>&1 \
         last = freq;
         print last > OUT;
         fflush(OUT);
+        close(OUT);
       }
     }
   }

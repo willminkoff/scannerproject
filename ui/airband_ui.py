@@ -349,7 +349,10 @@ def parse_controls(conf_path: str):
 def read_last_hit() -> str:
     try:
         with open(LAST_HIT_PATH, "r", encoding="utf-8", errors="ignore") as f:
-            value = f.read().strip()
+            lines = [line.strip() for line in f.read().splitlines() if line.strip()]
+            if not lines:
+                return ""
+            value = lines[-1]
             if value and value != "-":
                 return value
     except FileNotFoundError:

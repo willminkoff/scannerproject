@@ -14,6 +14,7 @@ stdbuf -oL -eL journalctl -u rtl-airband -f -n 0 -o cat --no-pager \
       sub(/ .*/, "", freq);
       print freq > OUT;
       fflush(OUT);
+      close(OUT);
     }
   }
 '
