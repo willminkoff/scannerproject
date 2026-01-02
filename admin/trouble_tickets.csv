@@ -2,5 +2,8 @@ id,created_at_utc,title,status,description
 1,2026-01-01T00:00:00Z,Analog scanner not scanning,resolved,Analog scanner was not scanning during last attempt; needs investigation.
 2,2026-01-01T00:00:00Z,Remove Nissan Stadium profile from analog scanner profiles and UI,resolved,Remove Nissan Stadium profile from analog scanner profiles and the UI.
 5,2026-01-01T00:00:00Z,Update git on the pi so pushes are faster,resolved,Git already up to date on Pi; remote operations are fast (ls-remote ~0.45s).
-3, 2026-01-01T00:00:00Z,Avoids work and output somewhere,resolved,Confirm avoids work and get avoids logged show summary on the ui.
-4,2026-01-01T00:00:00Z,New design for gain/sq sliders,open,Something lager on the screen esp for iphone ui. Also adjust graduation to the real rtl-sdr gain steps and make the sq a simeple 1-10 scale.
+3,2026-01-01T00:00:00Z,Avoids work and output somewhere,open,Confirm avoids work and get avoids logged show summary on the ui.
+4,2026-01-01T00:00:00Z,New design for gain/sq sliders,resolved,Something lager on the screen esp for iphone ui. Also adjust graduation to the real rtl-sdr gain steps and make the sq a simeple 1-10 scale.
+6,2026-01-02T00:00:00Z,Last hit not updating in UI,open,Last hit pill shows but does not update; verify logging and data source.
+7,2026-01-02T00:00:00Z,what does refresh button on ui do?,open,Clarify function of refresh button on UI; document behavior.
+8,2026-01-02T00:00:00Z,is the squelch working properly?,resolved,Airband profile: gain <20 and squelch at 8 yields lots of noise pops; traffic sounds scratchy (may be location). Need higher gain but squelch at 9-10 does not suppress noise. Check if other profiles show same behavior.
