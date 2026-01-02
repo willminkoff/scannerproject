@@ -1,5 +1,5 @@
 #!/bin/bash
-set -u
+set -euo pipefail
 
 CONF="/usr/local/etc/rtl_airband.conf"
 OUT="/run/rtl_airband_last_freq.txt"
@@ -10,12 +10,7 @@ echo "-" > "$OUT"
 trap "exit 0" TERM INT
 
 run_airband() {
-  # Prefer a pseudo-TTY so rtl_airband emits its scan screen (easier to parse)
-  if command -v script >/dev/null 2>&1; then
-    script -q -f -c "/usr/local/bin/rtl_airband -f -c $CONF" /dev/null
-  else
-    /usr/local/bin/rtl_airband -f -c "$CONF"
-  fi
+  /usr/local/bin/rtl_airband -f -c "$CONF"
 }
 
 run_airband 2>&1 \
@@ -24,8 +19,8 @@ run_airband 2>&1 \
 | stdbuf -oL awk -v OUT="$OUT" '
   {
     print;
-    if (match($0, /[0-9]+\.[0-9]+/)) {
-      freq = substr($0, RSTART, RLENGTH);
+    if (match($0, /Activity on ([0-9]+\.[0-9]+)/, m)) {
+      freq = m[1];
       if (freq != last) {
         last = freq;
         print last > OUT;

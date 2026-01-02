@@ -8,8 +8,8 @@ mkdir -p /run
 stdbuf -oL -eL journalctl -u rtl-airband -f -n 0 -o cat --no-pager \
 | stdbuf -oL awk -v OUT="$OUT" '
   {
-    if (match($0, /[0-9]+\.[0-9]+/)) {
-      freq = substr($0, RSTART, RLENGTH);
+    if (match($0, /Activity on ([0-9]+\.[0-9]+)/, m)) {
+      freq = m[1];
       print freq > OUT;
       fflush(OUT);
     }

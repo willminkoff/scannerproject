@@ -7,12 +7,15 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 from urllib.parse import parse_qs, urlparse
+from typing import Optional
 
 UI_PORT = 5050
 
 CONFIG_SYMLINK = "/usr/local/etc/rtl_airband.conf"
 PROFILES_DIR = "/usr/local/etc/airband-profiles"
 LAST_HIT_PATH = "/run/rtl_airband_last_freq.txt"
+AVOIDS_DIR = "/home/willminkoff/Desktop/scanner_logs"
+AVOIDS_PATH = os.path.join(AVOIDS_DIR, "airband_avoids.json")
 
 ICECAST_PORT = 8000
 MOUNT_NAME = "GND.mp3"
@@ -32,6 +35,8 @@ PROFILES = [
 
 RE_GAIN = re.compile(r'^(\s*gain\s*=\s*)([0-9.]+)(\s*;\s*#\s*UI_CONTROLLED.*)$')
 RE_SQL  = re.compile(r'^(\s*squelch_snr_threshold\s*=\s*)([0-9.]+)(\s*;\s*#\s*UI_CONTROLLED.*)$')
+RE_FREQS_BLOCK = re.compile(r'(^\s*freqs\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)
+RE_LABELS_BLOCK = re.compile(r'(^\s*labels\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)
 GAIN_STEPS = [
     0.0, 0.9, 1.4, 2.7, 3.7, 7.7, 8.7, 12.5, 14.4, 15.7,
     16.6, 19.7, 20.7, 22.9, 25.4, 28.0, 29.7, 32.8, 33.8,
@@ -144,6 +149,8 @@ HTML = r"""<!doctype html>
 
       <div class="btns">
         <button class="primary" id="btn-apply">Apply</button>
+        <button id="btn-avoid">Avoid Current Hit</button>
+        <button id="btn-clear-avoids">Clear Avoids</button>
       </div>
 
       <div class="warn" id="warn"></div>
@@ -158,6 +165,7 @@ const gainEl = document.getElementById('gain');
 const sqlEl = document.getElementById('sql');
 const selectedGainEl = document.getElementById('selected-gain');
 const selectedSqlEl = document.getElementById('selected-sql');
+let actionMsg = '';
 
 const GAIN_STEPS = [
   0.0, 0.9, 1.4, 2.7, 3.7, 7.7, 8.7, 12.5, 14.4, 15.7,
@@ -195,6 +203,17 @@ function updateSelectedGain() {
 
 function updateSelectedSql() {
   selectedSqlEl.textContent = Number(sqlEl.value).toFixed(1);
+}
+
+function updateWarn(missingProfiles) {
+  const parts = [];
+  if (missingProfiles.length) {
+    parts.push('Missing profile file(s): ' + missingProfiles.join(' • '));
+  }
+  if (actionMsg) {
+    parts.push(actionMsg);
+  }
+  warnEl.textContent = parts.join(' • ');
 }
 
 function buildProfiles(profiles, selected) {
@@ -241,7 +260,7 @@ async function refresh(allowSetSliders=false) {
   document.getElementById('applied-gain').textContent = st.gain.toFixed(1);
   document.getElementById('applied-sql').textContent = st.squelch.toFixed(1);
 
-  warnEl.textContent = st.missing_profiles.length ? ('Missing profile file(s): ' + st.missing_profiles.join(' • ')) : '';
+  updateWarn(st.missing_profiles);
 
   if (currentProfile === null || currentProfile !== st.profile) {
     currentProfile = st.profile;
@@ -275,6 +294,18 @@ document.getElementById('btn-apply').addEventListener('click', async ()=> {
   const squelch = sqlEl.value;
   await post('/api/apply', {gain, squelch});
   sliderDirty = false;
+  await refresh(true);
+});
+
+document.getElementById('btn-avoid').addEventListener('click', async ()=> {
+  const res = await post('/api/avoid', {});
+  actionMsg = res.ok ? `Avoided ${res.freq}` : (res.error || 'Avoid failed');
+  await refresh(true);
+});
+
+document.getElementById('btn-clear-avoids').addEventListener('click', async ()=> {
+  const res = await post('/api/avoid-clear', {});
+  actionMsg = res.ok ? 'Cleared avoids' : (res.error || 'Clear avoids failed');
   await refresh(true);
 });
 
@@ -324,6 +355,139 @@ def read_last_hit() -> str:
     except FileNotFoundError:
         pass
     return ""
+
+def parse_last_hit_freq() -> Optional[float]:
+    value = read_last_hit()
+    if not value:
+        return None
+    m = re.search(r'[0-9]+(?:\.[0-9]+)?', value)
+    if not m:
+        return None
+    try:
+        return float(m.group(0))
+    except ValueError:
+        return None
+
+def load_avoids() -> dict:
+    try:
+        with open(AVOIDS_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if isinstance(data, dict):
+                data.setdefault("profiles", {})
+                return data
+    except FileNotFoundError:
+        pass
+    except json.JSONDecodeError:
+        pass
+    return {"profiles": {}}
+
+def save_avoids(data: dict) -> None:
+    os.makedirs(AVOIDS_DIR, exist_ok=True)
+    tmp = AVOIDS_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, sort_keys=True)
+        f.write("\n")
+    os.replace(tmp, AVOIDS_PATH)
+
+def parse_freqs_labels(text: str):
+    m = RE_FREQS_BLOCK.search(text)
+    if not m:
+        raise ValueError("freqs block not found")
+    freqs = [float(x) for x in re.findall(r'[0-9]+(?:\.[0-9]+)?', m.group(2))]
+    labels = None
+    m = RE_LABELS_BLOCK.search(text)
+    if m:
+        labels = re.findall(r'"([^"]+)"', m.group(2))
+    return freqs, labels
+
+def replace_freqs_labels(text: str, freqs, labels):
+    freqs_text = ", ".join(f"{f:.4f}" for f in freqs)
+    text = RE_FREQS_BLOCK.sub(lambda m: f"{m.group(1)}{freqs_text}{m.group(3)}", text, count=1)
+    if labels is not None:
+        labels_text = ", ".join(f"\"{l}\"" for l in labels)
+        text = RE_LABELS_BLOCK.sub(lambda m: f"{m.group(1)}{labels_text}{m.group(3)}", text, count=1)
+    return text
+
+def same_freq(a: float, b: float) -> bool:
+    return abs(a - b) < 0.0005
+
+def filter_freqs_labels(freqs, labels, avoids):
+    if labels is not None and len(labels) != len(freqs):
+        labels = [f"{f:.4f}" for f in freqs]
+    kept_freqs = []
+    kept_labels = [] if labels is not None else None
+    for idx, freq in enumerate(freqs):
+        if any(same_freq(freq, avoid) for avoid in avoids):
+            continue
+        kept_freqs.append(freq)
+        if kept_labels is not None:
+            kept_labels.append(labels[idx])
+    return kept_freqs, kept_labels
+
+def write_freqs_labels(conf_path: str, freqs, labels):
+    with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
+        text = f.read()
+    text = replace_freqs_labels(text, freqs, labels)
+    tmp = conf_path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(text)
+    os.replace(tmp, conf_path)
+
+def avoid_current_hit(conf_path: str):
+    freq = parse_last_hit_freq()
+    if freq is None:
+        return None, "No recent hit to avoid"
+
+    data = load_avoids()
+    profiles = data.setdefault("profiles", {})
+    prof = profiles.get(conf_path)
+
+    if not prof:
+        with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
+            freqs, labels = parse_freqs_labels(f.read())
+        prof = {
+            "original_freqs": freqs,
+            "original_labels": labels,
+            "avoids": [],
+        }
+        profiles[conf_path] = prof
+
+    avoids = prof.get("avoids", [])
+    if not any(same_freq(freq, avoid) for avoid in avoids):
+        avoids.append(freq)
+        prof["avoids"] = avoids
+
+    base_freqs = prof.get("original_freqs") or []
+    base_labels = prof.get("original_labels")
+    if not base_freqs:
+        return None, "No freqs found to avoid"
+
+    new_freqs, new_labels = filter_freqs_labels(base_freqs, base_labels, avoids)
+    if not new_freqs:
+        return None, "Avoid would remove all frequencies"
+
+    write_freqs_labels(conf_path, new_freqs, new_labels)
+    save_avoids(data)
+    restart_rtl()
+    return freq, None
+
+def clear_avoids(conf_path: str):
+    data = load_avoids()
+    profiles = data.get("profiles", {})
+    prof = profiles.get(conf_path)
+    if not prof:
+        return 0, None
+
+    freqs = prof.get("original_freqs") or []
+    labels = prof.get("original_labels")
+    if not freqs:
+        return 0, "No stored freqs to restore"
+
+    write_freqs_labels(conf_path, freqs, labels)
+    profiles.pop(conf_path, None)
+    save_avoids(data)
+    restart_rtl()
+    return len(freqs), None
 
 def write_controls(conf_path: str, gain: float, squelch: float):
     # clamp and snap to tuner steps
@@ -442,6 +606,26 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
 
             restart_rtl()
+            return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
+
+        if p == "/api/avoid":
+            conf_path = read_active_config_path()
+            try:
+                freq, err = avoid_current_hit(conf_path)
+            except Exception as e:
+                return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
+            if err:
+                return self._send(400, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
+            return self._send(200, json.dumps({"ok": True, "freq": f"{freq:.4f}"}), "application/json; charset=utf-8")
+
+        if p == "/api/avoid-clear":
+            conf_path = read_active_config_path()
+            try:
+                _, err = clear_avoids(conf_path)
+            except Exception as e:
+                return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
+            if err:
+                return self._send(400, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
             return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
 
         return self._send(404, json.dumps({"ok": False, "error": "not found"}), "application/json; charset=utf-8")
