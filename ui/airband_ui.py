@@ -70,23 +70,23 @@ HTML = r"""<!doctype html>
       -webkit-appearance: none;
       appearance: none;
       width: 100%;
-      height: 12px;
+      height: 14px;
       border-radius: 999px;
       background: linear-gradient(90deg, rgba(34,197,94,.55), rgba(34,197,94,.15));
       outline: none;
     }
     .range::-webkit-slider-thumb {
       -webkit-appearance: none;
-      width: 28px;
-      height: 28px;
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
       background: #e8ebff;
       border: 2px solid #2a3a6f;
       box-shadow: 0 4px 12px rgba(0,0,0,.35);
     }
     .range::-moz-range-thumb {
-      width: 28px;
-      height: 28px;
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
       background: #e8ebff;
       border: 2px solid #2a3a6f;
@@ -97,9 +97,9 @@ HTML = r"""<!doctype html>
       .ctrl-head b { font-size: 16px; }
       .ctrl-head span { font-size: 13px; }
       .ctrl-readout { font-size: 14px; }
-      .range { height: 14px; }
-      .range::-webkit-slider-thumb { width: 32px; height: 32px; }
-      .range::-moz-range-thumb { width: 32px; height: 32px; }
+      .range { height: 18px; }
+      .range::-webkit-slider-thumb { width: 38px; height: 38px; }
+      .range::-moz-range-thumb { width: 38px; height: 38px; }
       button { padding: 12px 14px; font-size: 15px; }
       h1 { font-size: 20px; }
     }
@@ -136,9 +136,9 @@ HTML = r"""<!doctype html>
         </div>
 
         <div class="ctrl">
-          <div class="ctrl-head"><b>Squelch (1-10)</b><span>Applied: <span id="applied-sql">…</span></span></div>
-          <input id="sql" class="range" type="range" min="1" max="10" step="1" />
-          <div class="ctrl-readout"><span>Selected: <span id="selected-sql">…</span></span><span>1-10 scale</span></div>
+          <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span id="applied-sql">…</span></span></div>
+          <input id="sql" class="range" type="range" min="0" max="10" step="0.1" />
+          <div class="ctrl-readout"><span>Selected: <span id="selected-sql">…</span></span><span>0.0-10.0 SNR threshold</span></div>
         </div>
       </div>
 
@@ -194,7 +194,7 @@ function updateSelectedGain() {
 }
 
 function updateSelectedSql() {
-  selectedSqlEl.textContent = String(sqlEl.value);
+  selectedSqlEl.textContent = Number(sqlEl.value).toFixed(1);
 }
 
 function buildProfiles(profiles, selected) {
@@ -239,7 +239,7 @@ async function refresh(allowSetSliders=false) {
   document.getElementById('txt-hit').textContent = st.last_hit || 'No recent hits';
 
   document.getElementById('applied-gain').textContent = st.gain.toFixed(1);
-  document.getElementById('applied-sql').textContent = Math.round(st.squelch).toString();
+  document.getElementById('applied-sql').textContent = st.squelch.toFixed(1);
 
   warnEl.textContent = st.missing_profiles.length ? ('Missing profile file(s): ' + st.missing_profiles.join(' • ')) : '';
 
@@ -250,7 +250,7 @@ async function refresh(allowSetSliders=false) {
 
   if (allowSetSliders && !sliderDirty) {
     gainEl.value = gainIndexFromValue(st.gain);
-    sqlEl.value = Math.max(1, Math.min(10, Math.round(st.squelch))).toString();
+    sqlEl.value = Math.max(0, Math.min(10, st.squelch)).toFixed(1);
     updateSelectedGain();
     updateSelectedSql();
   }
