@@ -19,8 +19,10 @@ run_airband 2>&1 \
 | stdbuf -oL awk -v OUT="$OUT" '
   {
     print;
-    if (match($0, /Activity on ([0-9]+\.[0-9]+)/, m)) {
-      freq = m[1];
+    if ($0 ~ /Activity on [0-9]+\.[0-9]+/) {
+      freq = $0;
+      sub(/.*Activity on /, "", freq);
+      sub(/ .*/, "", freq);
       if (freq != last) {
         last = freq;
         print last > OUT;
