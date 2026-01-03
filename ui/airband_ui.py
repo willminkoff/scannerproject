@@ -60,6 +60,8 @@ HTML = r"""<!doctype html>
     h1 { font-size: 18px; margin:0 0 12px; letter-spacing:.2px; }
     .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
     .pill { display:flex; gap:10px; align-items:center; padding:10px 12px; border-radius:999px; border:1px solid var(--line); background: rgba(255,255,255,.03); }
+    .pill-text { display:flex; flex-direction:column; }
+    .pill-center .pill-text { align-items:center; text-align:center; flex:1; }
     .dot { width:10px; height:10px; border-radius:50%; background: var(--bad); box-shadow: 0 0 0 4px rgba(239,68,68,.12); }
     .dot.good { background: var(--good); box-shadow: 0 0 0 4px rgba(34,197,94,.12); }
     .label { font-size: 13px; color: var(--muted); }
@@ -129,7 +131,7 @@ HTML = r"""<!doctype html>
       <div class="row">
         <div class="pill"><div id="dot-rtl" class="dot"></div><div><div class="label">Scanner</div><div class="val" id="txt-rtl">…</div></div></div>
         <div class="pill"><div id="dot-ice" class="dot"></div><div><div class="label">Icecast</div><div class="val" id="txt-ice">…</div></div></div>
-        <div class="pill"><div class="dot good"></div><div><div class="label">Last hit</div><div class="val" id="txt-hit">…</div></div></div>
+        <div class="pill pill-center"><div class="dot good"></div><div class="pill-text"><div class="label">Last hit</div><div class="val" id="txt-hit">…</div></div></div>
       </div>
 
       <div class="btns" style="margin-top:14px;">
@@ -271,7 +273,7 @@ async function refresh(allowSetSliders=false) {
 
   document.getElementById('txt-rtl').textContent = st.rtl_active ? 'Running' : 'Stopped';
   document.getElementById('txt-ice').textContent = st.icecast_active ? 'Running' : 'Stopped';
-  document.getElementById('txt-hit').textContent = st.last_hit || 'No recent hits';
+  document.getElementById('txt-hit').textContent = st.last_hit || 'No hits yet';
 
   document.getElementById('applied-gain').textContent = st.gain.toFixed(1);
   document.getElementById('applied-sql').textContent = st.squelch.toFixed(1);

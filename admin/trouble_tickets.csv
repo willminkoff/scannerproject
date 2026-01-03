@@ -10,3 +10,4 @@ id,created_at_utc,title,status,description
 9,2026-01-03T00:00:00Z,Two columns on the ui for profiles,resolved,Profiles now render in two-column grid cards with single selection; radio inputs removed.
 10,2026-01-03T00:00:00Z,optimize for speed,resolved,Profile and apply endpoints now skip restart when no changes; UI avoids redundant profile restarts; remaining latency likely rtl_airband restart time.
 11,2026-01-03T00:00:00Z,Clean up noisy scan output,resolved,rtl-airband service uses wrapper script to strip control codes and sanitize logs.
+12,2026-01-04T00:00:00Z,change to last hit when empty,resolved,Last hit now shows "No hits yet" when empty; last-hit pill text centered.
