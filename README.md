@@ -31,3 +31,11 @@ This repo contains:
 
 ## Ops Brief
 - `assets/Brief from Codex CLI 1-2-26.txt`
+
+## Desktop Buttons
+- Scripts: `scripts/desktop/start_scanner.sh`, `scripts/desktop/stop_scanner.sh`
+- Launchers: `assets/Start Scanner.desktop`, `assets/Stop Scanner.desktop`
+- Install on Pi:
+  - `chmod +x /home/willminkoff/scannerproject/scripts/desktop/*.sh`
+  - `cp /home/willminkoff/scannerproject/scripts/desktop/*.sh /home/willminkoff/Desktop/`
+  - `cp /home/willminkoff/scannerproject/assets/*.desktop /home/willminkoff/Desktop/`
