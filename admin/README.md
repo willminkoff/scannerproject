@@ -15,3 +15,13 @@ This repo contains:
 - Refresh only syncs status + sliders; it does not restart the scanner.
 - Speed: profile/gain/squelch apply skips restart when no changes were made.
 - Logging: `systemd/rtl-airband.service` now points at `scripts/rtl-airband-with-freq.sh` to strip control codes from logs.
+
+## Pi Notes
+- Repo path on SprontPi: `/home/willminkoff/scannerproject`
+- User: `willminkoff` (prompt shows `willminkoff@SprontPi`)
+- Deploy commands:
+  - `cd /home/willminkoff/scannerproject`
+  - `git pull origin main`
+  - `sudo systemctl daemon-reload`
+  - `sudo systemctl restart rtl-airband`
+  - `sudo systemctl restart airband-ui`
