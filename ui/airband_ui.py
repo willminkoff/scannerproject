@@ -16,6 +16,7 @@ CONFIG_SYMLINK = "/usr/local/etc/rtl_airband.conf"
 PROFILES_DIR = "/usr/local/etc/airband-profiles"
 LAST_HIT_PATH = "/run/rtl_airband_last_freq.txt"
 AVOIDS_DIR = "/home/willminkoff/Desktop/scannerlogs"
+DIAGNOSTIC_DIR = "/home/willminkoff/scannerproject/admin/logs"
 AVOIDS_PATH = os.path.join(AVOIDS_DIR, "airband_avoids.json")
 AVOIDS_SUMMARY_PATH = os.path.join(AVOIDS_DIR, "airband_avoids.txt")
 
@@ -119,6 +120,8 @@ HTML = r"""<!doctype html>
     button { border:1px solid var(--line); background: rgba(255,255,255,.06); color:var(--text); padding:10px 12px; border-radius:12px; cursor:pointer; }
     button.primary { background: rgba(34,197,94,.18); border-color: rgba(34,197,94,.35); }
     .foot { margin-top: 12px; color: var(--muted); font-size: 12px; }
+    .foot a { color: var(--muted); text-decoration: underline; }
+    .foot a:hover { color: var(--text); }
     .warn { color: #fbbf24; font-size: 12px; margin-top: 8px; }
     .avoids { margin-top: 8px; color: var(--muted); font-size: 12px; }
   </style>
@@ -139,7 +142,6 @@ HTML = r"""<!doctype html>
         <button id="btn-refresh" title="Refresh status and sync sliders without restarting">↻ Refresh</button>
         <button id="btn-avoid">Avoid Current Hit</button>
         <button id="btn-clear-avoids">Clear Avoids</button>
-        <button id="btn-diagnostic">Generate Log</button>
       </div>
 
       <div class="profiles" id="profiles"></div>
@@ -160,7 +162,7 @@ HTML = r"""<!doctype html>
 
       <div class="warn" id="warn"></div>
       <div class="avoids" id="avoids-summary"></div>
-      <div class="foot">Tip: switching profiles or applying changes restarts the scanner; refresh only syncs status + sliders.</div>
+      <div class="foot">Tip: switching profiles or applying changes restarts the scanner; refresh only syncs status + sliders. <a href="#" id="lnk-diagnostic">Generate log</a></div>
     </div>
   </div>
 
@@ -342,7 +344,8 @@ document.getElementById('btn-play').addEventListener('click', ()=> {
   window.open(url, '_blank', 'noopener');
 });
 
-document.getElementById('btn-diagnostic').addEventListener('click', async ()=> {
+document.getElementById('lnk-diagnostic').addEventListener('click', async (e)=> {
+  e.preventDefault();
   actionMsg = 'Generating log...';
   updateWarn([]);
   const res = await post('/api/diagnostic', {});
@@ -656,9 +659,9 @@ def fetch_local_icecast_status():
         return f"ERROR: {e}"
 
 def write_diagnostic_log():
-    os.makedirs(AVOIDS_DIR, exist_ok=True)
+    os.makedirs(DIAGNOSTIC_DIR, exist_ok=True)
     ts = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
-    path = os.path.join(AVOIDS_DIR, f"diagnostic-{ts}.txt")
+    path = os.path.join(DIAGNOSTIC_DIR, f"diagnostic-{ts}.txt")
 
     lines = []
     lines.append(f"SprontPi Diagnostic Log (UTC {ts})")

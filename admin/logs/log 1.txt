@@ -1,0 +1,948 @@
+fSprontPi Diagnostic Log (UTC 20260103-210455)
+
+### icecast status-json.xsl (localhost)
+{"icestats":{"admin":"admin@localhost","host":"localhost","location":"SprontPi","server_id":"Icecast 2.4.4","server_start":"Fri, 02 Jan 2026 21:08:39 -0600","server_start_iso8601":"2026-01-02T21:08:39-0600","source":[{"listeners":0,"listenurl":"http://localhost:8000/DMR.mp3","dummy":null},{"audio_info":"samplerate=8000;channels=1","channels":1,"genre":"AIRBAND","listener_peak":4,"listeners":0,"listenurl":"http://localhost:8000/GND.mp3","samplerate":8000,"server_description":"Nashville Airband locals","server_name":"SprontPi Radio","server_type":"audio/mpeg","stream_start":"Sat, 03 Jan 2026 10:14:17 -0600","stream_start_iso8601":"2026-01-03T10:14:17-0600","title":119.3500,"dummy":null},{"genre":"various","listener_peak":4,"listeners":0,"listenurl":"http://localhost:8000/keepalive.mp3","server_description":"Unspecified description","server_name":"Unspecified name","server_type":"audio/mpeg","stream_start":"Fri, 02 Jan 2026 21:08:40 -0600","stream_start_iso8601":"2026-01-02T21:08:40-0600","dummy":null}]}}
+
+### command: date -u
+(exit=0)
+stdout:
+Sat  3 Jan 21:04:55 UTC 2026
+
+### command: uname -a
+(exit=0)
+stdout:
+Linux SprontPi 6.12.47+rpt-rpi-2712 #1 SMP PREEMPT Debian 1:6.12.47-1+rpt1 (2025-09-16) aarch64 GNU/Linux
+
+### command: uptime
+(exit=0)
+stdout:
+ 15:04:55 up 17:56,  2 users,  load average: 0.27, 0.19, 0.17
+
+### command: systemctl status icecast2 --no-pager
+(exit=0)
+stdout:
+● icecast2.service - LSB: Icecast2 streaming media server
+     Loaded: loaded (/etc/init.d/icecast2; generated)
+     Active: active (running) since Fri 2026-01-02 21:08:39 CST; 17h ago
+ Invocation: 10be86cf78df409da112b331547c20dd
+       Docs: man:systemd-sysv-generator(8)
+      Tasks: 6 (limit: 9575)
+        CPU: 1min 841ms
+     CGroup: /system.slice/icecast2.service
+             └─1731 /usr/bin/icecast2 -b -c /etc/icecast2/icecast.xml
+
+Jan 02 21:08:39 SprontPi systemd[1]: Starting icecast2.service - LSB: Icecast2 streaming media server...
+Jan 02 21:08:39 SprontPi icecast2[1719]: Starting streaming media server: icecast2
+Jan 02 21:08:39 SprontPi icecast2[1731]: [2026-01-02  21:08:39] WARN CONFIG/_parse_root Warning, <hostname> not configured, using default value "localhost". This will cause problems, e.g. with YP directory listings.
+Jan 02 21:08:39 SprontPi icecast2[1719]: .
+Jan 02 21:08:39 SprontPi systemd[1]: Started icecast2.service - LSB: Icecast2 streaming media server.
+
+### command: systemctl status icecast-keepalive --no-pager
+(exit=0)
+stdout:
+● icecast-keepalive.service - Icecast Keepalive (silent fallback)
+     Loaded: loaded (/etc/systemd/system/icecast-keepalive.service; enabled; preset: enabled)
+     Active: active (running) since Fri 2026-01-02 21:08:39 CST; 17h ago
+ Invocation: 4502a31d27f94869be1c33ff9a2184f8
+   Main PID: 1735 (ffmpeg)
+      Tasks: 14 (limit: 9575)
+        CPU: 8min 19.251s
+     CGroup: /system.slice/icecast-keepalive.service
+             └─1735 /usr/bin/ffmpeg -nostdin -hide_banner -loglevel warning -re -f lavfi -i anullsrc=channel_layout=mono:sample_rate=44100 -c:a libmp3lame -b:a 32k -content_type audio/mpeg -f mp3 icecast://source:062352@127.0.0.1:8000/keepalive.mp3
+
+Jan 02 21:08:39 SprontPi systemd[1]: Started icecast-keepalive.service - Icecast Keepalive (silent fallback).
+
+### command: systemctl status rtl-airband --no-pager
+(exit=0)
+stdout:
+● rtl-airband.service - RTLSDR-Airband (scan -> Icecast)
+     Loaded: loaded (/etc/systemd/system/rtl-airband.service; disabled; preset: enabled)
+    Drop-In: /etc/systemd/system/rtl-airband.service.d
+             └─override.conf
+     Active: active (running) since Sat 2026-01-03 10:14:05 CST; 4h 50min ago
+ Invocation: eeca4d2b2980425b96600e681805c874
+    Process: 23101 ExecStartPre=/usr/bin/pkill -x rtl_airband (code=exited, status=1/FAILURE)
+   Main PID: 23103 (rtl-airband-wit)
+      Tasks: 13 (limit: 9575)
+        CPU: 18min 59.612s
+     CGroup: /system.slice/rtl-airband.service
+             ├─23103 /bin/bash /home/willminkoff/scannerproject/scripts/rtl-airband-with-freq.sh
+             ├─23109 /bin/bash /home/willminkoff/scannerproject/scripts/rtl-airband-with-freq.sh
+             ├─23110 sed -E "s/\033\\[[0-9;]*[A-Za-z]//g"
+             ├─23111 tr "\\r" "\\n"
+             ├─23112 /usr/local/bin/rtl_airband -f -c /usr/local/etc/rtl_airband.conf
+             ├─23113 tr -cd "\\11\\12\\40-\\176"
+             └─23114 awk -v OUT=/run/rtl_airband_last_freq.txt "\n  {\n    line = \$0;\n    gsub(/\\[[0-9;]*[A-Za-z]/, \"\", line);\n    print line;\n    if (line ~ /Activity on [0-9]+\\.[0-9]+/) {\n      freq = line;\n      sub(/.*Activity on /, \"\", freq);\n      sub(/ .*/, \"\", freq);\n      if (freq != last) {\n        last = freq;\n        print last > OUT;\n        fflush(OUT);\n        close(OUT);\n      }\n    }\n  }\n"
+
+Jan 03 15:03:16 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 15:03:19 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 15:03:28 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 15:03:32 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 15:03:55 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 15:04:03 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 15:04:25 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 15:04:32 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 15:04:39 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 15:04:46 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+
+### command: systemctl status airband-ui --no-pager
+(exit=0)
+stdout:
+● airband-ui.service - Airband Gain/Squelch Web UI
+     Loaded: loaded (/etc/systemd/system/airband-ui.service; enabled; preset: enabled)
+    Drop-In: /etc/systemd/system/airband-ui.service.d
+             └─override.conf
+     Active: active (running) since Sat 2026-01-03 15:04:39 CST; 16s ago
+ Invocation: 586ff90411a643c2b123a43d8012d6d1
+   Main PID: 27330 (python3)
+      Tasks: 3 (limit: 9575)
+        CPU: 303ms
+     CGroup: /system.slice/airband-ui.service
+             ├─27330 /usr/bin/python3 /home/willminkoff/scannerproject/ui/airband_ui.py
+             └─27372 systemctl status airband-ui --no-pager
+
+Jan 03 15:04:39 SprontPi systemd[1]: Started airband-ui.service - Airband Gain/Squelch Web UI.
+Jan 03 15:04:46 SprontPi python3[27330]: 192.168.1.66 - - [03/Jan/2026 15:04:46] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:04:48 SprontPi python3[27330]: 192.168.1.66 - - [03/Jan/2026 15:04:48] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:04:49 SprontPi python3[27330]: 192.168.1.66 - - [03/Jan/2026 15:04:49] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:04:51 SprontPi python3[27330]: 192.168.1.66 - - [03/Jan/2026 15:04:51] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:04:51 SprontPi python3[27330]: 192.168.1.66 - - [03/Jan/2026 15:04:51] "GET / HTTP/1.1" 200 -
+Jan 03 15:04:51 SprontPi python3[27330]: 192.168.1.66 - - [03/Jan/2026 15:04:51] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:04:53 SprontPi python3[27330]: 192.168.1.66 - - [03/Jan/2026 15:04:53] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:04:54 SprontPi python3[27330]: 192.168.1.66 - - [03/Jan/2026 15:04:54] "GET /api/status HTTP/1.1" 200 -
+
+### command: journalctl -u icecast2 -n 200 --no-pager
+(exit=0)
+stdout:
+Jan 02 21:08:39 SprontPi systemd[1]: Starting icecast2.service - LSB: Icecast2 streaming media server...
+Jan 02 21:08:39 SprontPi icecast2[1719]: Starting streaming media server: icecast2
+Jan 02 21:08:39 SprontPi icecast2[1731]: [2026-01-02  21:08:39] WARN CONFIG/_parse_root Warning, <hostname> not configured, using default value "localhost". This will cause problems, e.g. with YP directory listings.
+Jan 02 21:08:39 SprontPi icecast2[1719]: .
+Jan 02 21:08:39 SprontPi systemd[1]: Started icecast2.service - LSB: Icecast2 streaming media server.
+
+### command: journalctl -u icecast-keepalive -n 200 --no-pager
+(exit=0)
+stdout:
+Jan 02 21:08:39 SprontPi systemd[1]: Started icecast-keepalive.service - Icecast Keepalive (silent fallback).
+
+### command: journalctl -u rtl-airband -n 200 --no-pager
+(exit=0)
+stdout:
+Jan 03 14:21:33 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:21:37 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:21:55 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:22:00 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:22:09 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:22:16 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 14:22:26 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:22:35 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:22:43 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 14:22:51 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 14:23:11 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:23:19 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:23:24 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 14:23:32 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 14:23:34 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:23:38 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:23:42 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:24:01 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:24:06 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:24:18 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:24:25 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:24:34 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:24:42 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:24:49 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:24:59 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:25:03 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:25:06 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:25:20 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:25:27 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:25:29 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 14:25:35 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:25:39 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:25:44 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:25:53 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 14:26:00 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:26:11 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:26:19 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 14:26:33 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:26:37 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 14:28:02 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:29:05 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:29:10 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:29:18 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:29:45 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:29:54 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:29:59 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 14:30:02 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:30:16 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:30:30 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:30:43 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 14:30:52 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:31:04 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:31:13 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 14:31:17 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:31:21 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:31:29 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:31:34 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:31:41 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:31:57 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:32:07 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:32:24 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:32:28 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:32:37 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:32:44 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:32:47 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:33:00 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:33:06 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:33:11 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:33:19 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:33:38 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:33:46 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:33:52 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:33:57 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:34:26 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:34:40 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:34:56 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:35:05 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:35:19 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:35:25 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:35:44 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:35:51 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:36:15 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:36:31 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:36:39 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:36:50 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:36:54 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:37:03 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:37:16 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:37:35 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:37:46 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:38:05 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:38:21 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:38:30 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:38:39 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:38:48 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:38:53 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:39:02 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 14:39:12 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:39:14 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:39:43 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:40:18 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:40:21 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:40:31 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:40:34 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 14:40:39 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:40:43 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 14:40:53 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:41:07 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:41:23 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:41:26 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 14:41:30 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 14:41:50 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 14:42:03 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:42:20 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:42:27 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:42:36 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:42:59 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:43:22 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:43:25 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:43:42 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:43:48 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:43:54 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:44:14 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:44:25 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:44:59 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:45:08 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:45:52 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:46:49 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:46:55 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:47:16 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:47:35 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:48:21 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:48:29 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:48:32 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:48:41 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:48:48 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:48:56 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 14:49:49 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:50:02 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:50:09 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:50:48 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:50:55 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:51:13 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:51:30 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:51:35 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:51:40 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:51:48 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:51:53 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:51:57 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:52:06 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:52:18 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:53:03 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:53:10 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:53:23 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:53:25 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:53:30 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:53:34 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:53:38 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:53:49 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:54:06 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:54:14 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:54:26 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:54:51 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:55:02 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:55:06 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:55:14 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 14:55:16 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:55:26 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:55:50 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:56:22 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:56:32 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:56:46 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 14:56:57 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:57:03 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:57:17 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:57:36 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:57:39 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:57:52 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:58:09 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:58:18 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:58:35 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:58:48 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 14:58:53 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 14:59:01 SprontPi rtl_airband[23112]: Activity on 118.400 MHz
+Jan 03 14:59:45 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 15:00:21 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 15:00:37 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 15:00:43 SprontPi rtl_airband[23112]: Activity on 119.450 MHz
+Jan 03 15:02:35 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 15:02:58 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 15:03:16 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 15:03:19 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 15:03:28 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 15:03:32 SprontPi rtl_airband[23112]: Activity on 124.750 MHz
+Jan 03 15:03:55 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 15:04:03 SprontPi rtl_airband[23112]: Activity on 118.600 MHz
+Jan 03 15:04:25 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 15:04:32 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 15:04:39 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+Jan 03 15:04:46 SprontPi rtl_airband[23112]: Activity on 119.350 MHz
+
+### command: journalctl -u airband-ui -n 200 --no-pager
+(exit=0)
+stdout:
+Jan 03 14:55:41 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:55:41] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:55:43 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:55:43] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:55:44 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:55:44] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:55:46 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:55:46] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:55:47 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:55:47] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:55:49 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:55:49] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:55:50 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:55:50] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:55:52 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:55:52] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:55:53 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:55:53] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:55:55 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:55:55] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:55:56 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:55:56] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:55:58 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:55:58] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:55:59 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:55:59] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:01 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:01] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:02 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:02] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:04 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:04] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:05 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:05] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:07 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:07] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:08 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:08] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:10 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:10] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:11 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:11] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:13 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:13] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:14 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:14] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:16 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:16] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:17 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:17] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:19 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:19] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:20 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:20] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:22 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:22] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:23 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:23] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:25 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:25] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:26 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:26] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:28 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:28] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:29 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:29] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:31 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:31] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:32 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:32] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:34 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:34] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:35 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:35] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:37 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:37] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:38 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:38] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:40 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:40] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:41 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:41] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:43 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:43] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:44 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:44] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:46 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:46] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:47 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:47] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:49 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:49] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:50 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:50] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:52 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:52] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:53 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:53] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:55 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:55] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:56 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:56] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:58 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:58] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:56:59 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:56:59] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:01 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:01] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:02 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:02] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:04 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:04] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:05 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:05] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:07 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:07] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:08 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:08] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:10 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:10] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:11 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:11] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:13 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:13] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:14 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:14] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:16 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:16] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:17 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:17] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:19 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:19] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:20 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:20] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:22 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:22] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:23 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:23] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:25 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:25] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:26 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:26] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:28 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:28] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:29 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:29] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:31 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:31] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:32 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:32] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:34 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:34] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:35 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:35] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:37 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:37] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:38 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:38] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:40 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:40] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:41 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:41] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:43 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:43] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:44 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:44] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:46 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:46] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:47 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:47] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:49 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:49] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:50 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:50] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:52 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:52] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:53 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:53] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:55 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:55] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:56 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:56] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:58 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:58] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:57:59 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:57:59] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:01 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:01] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:02 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:02] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:04 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:04] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:05 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:05] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:07 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:07] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:08 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:08] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:10 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:10] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:11 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:11] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:13 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:13] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:14 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:14] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:16 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:16] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:17 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:17] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:19 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:19] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:20 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:20] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:22 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:22] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:23 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:23] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:25 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:25] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:26 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:26] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:28 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:28] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:29 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:29] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:31 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:31] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:32 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:32] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:34 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:34] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:35 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:35] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:37 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:37] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:38 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:38] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:40 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:40] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:41 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:41] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:43 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:43] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:44 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:44] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:46 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:46] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:47 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:47] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:49 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:49] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:50 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:50] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:52 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:52] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:53 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:53] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:55 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:55] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:56 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:56] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:58 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:58] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:58:59 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:58:59] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:01 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:01] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:02 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:02] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:04 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:04] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:05 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:05] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:07 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:07] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:08 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:08] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:10 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:10] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:11 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:11] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:13 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:13] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:14 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:14] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:16 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:16] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:17 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:17] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:19 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:19] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:20 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:20] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:22 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:22] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:23 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:23] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:25 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:25] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:26 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:26] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:28 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:28] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:29 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:29] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:31 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:31] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:32 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:32] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:34 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:34] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:35 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:35] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:37 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:37] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:38 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:38] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:40 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:40] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:41 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:41] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:43 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:43] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:44 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:44] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:46 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:46] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:47 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:47] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:49 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:49] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:50 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:50] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:52 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:52] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:53 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:53] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:55 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:55] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:56 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:56] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:58 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:58] "GET /api/status HTTP/1.1" 200 -
+Jan 03 14:59:59 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 14:59:59] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:00:01 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 15:00:01] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:00:02 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 15:00:02] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:00:04 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 15:00:04] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:00:05 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 15:00:05] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:00:07 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 15:00:07] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:00:08 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 15:00:08] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:00:10 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 15:00:10] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:00:11 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 15:00:11] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:00:13 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 15:00:13] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:00:14 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 15:00:14] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:00:46 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 15:00:46] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:01:46 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 15:01:46] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:02:46 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 15:02:46] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:03:46 SprontPi python3[1716]: 192.168.1.66 - - [03/Jan/2026 15:03:46] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:04:39 SprontPi systemd[1]: Stopping airband-ui.service - Airband Gain/Squelch Web UI...
+Jan 03 15:04:39 SprontPi systemd[1]: airband-ui.service: Deactivated successfully.
+Jan 03 15:04:39 SprontPi systemd[1]: Stopped airband-ui.service - Airband Gain/Squelch Web UI.
+Jan 03 15:04:39 SprontPi systemd[1]: airband-ui.service: Consumed 1min 14.031s CPU time.
+Jan 03 15:04:39 SprontPi systemd[1]: Started airband-ui.service - Airband Gain/Squelch Web UI.
+Jan 03 15:04:46 SprontPi python3[27330]: 192.168.1.66 - - [03/Jan/2026 15:04:46] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:04:48 SprontPi python3[27330]: 192.168.1.66 - - [03/Jan/2026 15:04:48] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:04:49 SprontPi python3[27330]: 192.168.1.66 - - [03/Jan/2026 15:04:49] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:04:51 SprontPi python3[27330]: 192.168.1.66 - - [03/Jan/2026 15:04:51] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:04:51 SprontPi python3[27330]: 192.168.1.66 - - [03/Jan/2026 15:04:51] "GET / HTTP/1.1" 200 -
+Jan 03 15:04:51 SprontPi python3[27330]: 192.168.1.66 - - [03/Jan/2026 15:04:51] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:04:53 SprontPi python3[27330]: 192.168.1.66 - - [03/Jan/2026 15:04:53] "GET /api/status HTTP/1.1" 200 -
+Jan 03 15:04:54 SprontPi python3[27330]: 192.168.1.66 - - [03/Jan/2026 15:04:54] "GET /api/status HTTP/1.1" 200 -
+
+### command: tail -n 200 /var/log/icecast2/error.log
+(exit=0)
+stdout:
+[2026-01-03  14:44:28] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:44:28] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "118.4000"
+[2026-01-03  14:46:52] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:46:52] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:46:52] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:46:52] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.3500"
+[2026-01-03  14:46:58] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:46:58] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:46:58] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:46:58] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "124.7500"
+[2026-01-03  14:48:24] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:48:24] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:48:24] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:48:24] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.3500"
+[2026-01-03  14:48:32] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:48:32] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:48:32] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:48:32] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.3500"
+[2026-01-03  14:48:35] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:48:35] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:48:35] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:48:35] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "124.7500"
+[2026-01-03  14:48:44] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:48:44] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:48:44] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:48:44] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.4500"
+[2026-01-03  14:48:51] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:48:51] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:48:51] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:48:51] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "124.7500"
+[2026-01-03  14:48:59] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:48:59] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:48:59] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:48:59] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "118.4000"
+[2026-01-03  14:49:52] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:49:52] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:49:52] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:49:52] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.3500"
+[2026-01-03  14:50:05] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:50:05] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:50:05] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:50:05] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.3500"
+[2026-01-03  14:50:12] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:50:12] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:50:12] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:50:12] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "124.7500"
+[2026-01-03  14:50:51] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:50:51] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:50:51] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:50:51] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.3500"
+[2026-01-03  14:50:58] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:50:58] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:50:58] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:50:58] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.3500"
+[2026-01-03  14:51:16] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:51:16] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:51:16] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:51:16] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.4500"
+[2026-01-03  14:51:33] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:51:33] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:51:33] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:51:33] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.4500"
+[2026-01-03  14:51:43] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:51:43] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:51:43] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:51:43] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "124.7500"
+[2026-01-03  14:51:56] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:51:56] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:51:56] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:51:56] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.4500"
+[2026-01-03  14:52:00] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:52:00] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:52:00] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:52:00] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "124.7500"
+[2026-01-03  14:52:21] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:52:21] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:52:21] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:52:21] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "124.7500"
+[2026-01-03  14:53:06] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:53:06] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:53:06] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:53:06] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "124.7500"
+[2026-01-03  14:53:13] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:53:13] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:53:13] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:53:13] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "118.6000"
+[2026-01-03  14:53:26] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:53:26] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:53:26] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:53:26] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.4500"
+[2026-01-03  14:53:28] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:53:28] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:53:28] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:53:28] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.4500"
+[2026-01-03  14:53:33] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:53:33] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:53:33] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:53:33] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.3500"
+[2026-01-03  14:53:37] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:53:37] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:53:37] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:53:37] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "118.4000"
+[2026-01-03  14:54:09] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:54:09] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:54:09] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:54:09] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.4500"
+[2026-01-03  14:54:17] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:54:17] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:54:17] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:54:17] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.3500"
+[2026-01-03  14:54:29] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:54:29] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:54:29] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:54:29] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.4500"
+[2026-01-03  14:54:54] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:54:54] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:54:54] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:54:54] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.3500"
+[2026-01-03  14:55:05] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:55:05] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:55:05] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:55:05] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "124.7500"
+[2026-01-03  14:55:17] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:55:17] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:55:17] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:55:17] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.4500"
+[2026-01-03  14:55:19] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:55:19] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:55:19] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:55:19] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.4500"
+[2026-01-03  14:55:28] INFO fserve/fserve_client_create checking for file /style.css (/usr/share/icecast2/web/style.css)
+[2026-01-03  14:55:28] INFO fserve/fserve_client_create checking for file /icecast.png (/usr/share/icecast2/web/icecast.png)
+[2026-01-03  14:55:28] INFO fserve/fserve_client_create checking for file /tunein.png (/usr/share/icecast2/web/tunein.png)
+[2026-01-03  14:55:29] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:55:29] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:55:29] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:55:29] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "124.7500"
+[2026-01-03  14:55:29] INFO fserve/fserve_client_create checking for file /favicon.ico (/usr/share/icecast2/web/favicon.ico)
+[2026-01-03  14:55:29] WARN fserve/fserve_client_create req for file "/usr/share/icecast2/web/favicon.ico" No such file or directory
+[2026-01-03  14:56:35] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:56:35] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:56:35] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:56:35] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "124.7500"
+[2026-01-03  14:56:49] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:56:49] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:56:49] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:56:49] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.3500"
+[2026-01-03  14:57:00] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:57:00] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:57:00] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:57:00] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "124.7500"
+[2026-01-03  14:57:06] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:57:06] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:57:06] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:57:06] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "118.4000"
+[2026-01-03  14:57:20] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:57:20] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:57:20] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:57:20] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "124.7500"
+[2026-01-03  14:57:39] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:57:39] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:57:39] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:57:39] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "124.7500"
+[2026-01-03  14:57:42] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:57:42] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:57:42] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:57:42] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "118.6000"
+[2026-01-03  14:58:12] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:58:12] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:58:12] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:58:12] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.4500"
+[2026-01-03  14:58:56] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:58:56] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:58:56] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:58:56] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "124.7500"
+[2026-01-03  14:59:04] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:59:04] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:59:04] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:59:04] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "124.7500"
+[2026-01-03  14:59:48] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  14:59:48] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  14:59:48] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  14:59:48] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "118.4000"
+[2026-01-03  15:01:50] INFO source/source_main listener count on /GND.mp3 now 0
+[2026-01-03  15:02:38] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  15:02:38] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  15:02:38] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  15:02:38] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.3500"
+[2026-01-03  15:03:35] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  15:03:35] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  15:03:35] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  15:03:35] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.4500"
+[2026-01-03  15:03:58] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  15:03:58] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  15:03:58] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  15:03:58] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "124.7500"
+[2026-01-03  15:04:28] INFO admin/admin_handle_request Bad or missing password on mount modification admin request (command: metadata)
+[2026-01-03  15:04:28] INFO admin/admin_handle_request Received admin command metadata on mount "/GND.mp3"
+[2026-01-03  15:04:28] INFO util/util_conv_string converting metadata from UTF-8 to ISO8859-1
+[2026-01-03  15:04:28] INFO admin/command_metadata Metadata on mountpoint /GND.mp3 changed to "119.3500"
+
+### command: tail -n 200 /var/log/icecast2/access.log
+(exit=0)
+stdout:
+127.0.0.1 - - [03/Jan/2026:14:31:24 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:31:32 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:31:32 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:31:37 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:31:37 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:31:44 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:31:44 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:32:00 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:32:00 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:32:27 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:32:27 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:32:31 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:32:31 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:32:47 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:32:47 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:32:50 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:32:50 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:33:03 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:33:03 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:33:09 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:33:09 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:33:22 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:33:22 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:33:41 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:33:41 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:33:49 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:33:49 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:33:55 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:33:55 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:34:29 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:34:29 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:34:43 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:34:43 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:34:59 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:34:59 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:35:08 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:35:08 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:35:22 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:35:22 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:35:28 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:35:28 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:35:54 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:35:54 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:36:57 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:36:57 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:37:19 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:37:19 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:37:38 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:37:38 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:37:49 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:37:49 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:38:08 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:38:08 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:38:24 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:38:24 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:38:33 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:38:33 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:38:51 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:38:51 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:39:05 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:39:05 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:39:15 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:39:15 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:39:17 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:39:17 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:39:46 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:39:46 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:40:21 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:40:21 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:40:24 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:40:24 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:40:34 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:40:34 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:40:37 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:40:37 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:40:42 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:40:42 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:40:46 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:40:46 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:40:56 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:40:56 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:41:10 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:41:10 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:41:29 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:41:29 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:42:06 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:42:06 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:42:23 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:42:23 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:42:39 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:42:39 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:43:45 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:43:45 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:44:17 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:44:17 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:44:28 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:44:28 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:46:52 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:46:52 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:46:58 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:46:58 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:48:24 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:48:24 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:48:32 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:48:32 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:48:35 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:48:35 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:48:44 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:48:44 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:48:51 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:48:51 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:48:59 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:48:59 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:49:52 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:49:52 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:50:05 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:50:05 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:50:12 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:50:12 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:50:51 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:50:51 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:50:58 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:50:58 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:51:16 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:51:16 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:51:33 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:51:33 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:51:43 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:51:43 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:51:56 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:51:56 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:52:00 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:52:00 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:52:21 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:52:21 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:53:06 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:53:06 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:53:13 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:53:13 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:53:26 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:53:26 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:53:28 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:53:28 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:53:33 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:53:33 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:53:37 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:53:37 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:54:09 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:54:09 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:54:17 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:54:17 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:54:29 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:54:29 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:54:54 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:54:54 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:55:05 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:55:05 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:55:17 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:55:17 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:55:19 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:55:19 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+192.168.1.66 - - [03/Jan/2026:14:55:28 -0600] "GET / HTTP/1.1" 200 3615 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" 0
+192.168.1.66 - - [03/Jan/2026:14:55:28 -0600] "GET /style.css HTTP/1.1" 200 4138 "http://192.168.1.124:8000/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" 0
+192.168.1.66 - - [03/Jan/2026:14:55:28 -0600] "GET /icecast.png HTTP/1.1" 200 5333 "http://192.168.1.124:8000/style.css" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" 0
+192.168.1.66 - - [03/Jan/2026:14:55:28 -0600] "GET /tunein.png HTTP/1.1" 200 2302 "http://192.168.1.124:8000/style.css" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" 0
+127.0.0.1 - - [03/Jan/2026:14:55:29 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:55:29 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+192.168.1.66 - - [03/Jan/2026:14:55:29 -0600] "GET /favicon.ico HTTP/1.1" 404 362 "http://192.168.1.124:8000/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" 0
+127.0.0.1 - - [03/Jan/2026:14:56:35 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:56:35 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:56:49 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:56:49 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:57:00 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:57:00 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:57:06 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:57:06 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:57:20 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:57:20 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:57:39 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:57:39 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:57:42 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:57:42 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:58:12 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:58:12 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:58:56 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:58:56 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:59:04 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:59:04 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:59:48 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:14:59:48 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+192.168.1.124 - - [03/Jan/2026:15:01:50 -0600] "GET /GND.mp3 HTTP/1.0" 200 26241660 "-" "VLC/3.0.21 LibVLC/3.0.21" 19652
+127.0.0.1 - - [03/Jan/2026:15:02:38 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:15:02:38 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:15:03:35 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:15:03:35 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:15:03:58 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:15:03:58 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:15:04:28 -0600] "GET /admin/metadata HTTP/1.1" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:15:04:28 -0600] "GET /admin/metadata HTTP/1.1" 200 364 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [03/Jan/2026:15:04:55 -0600] "GET /status-json.xsl HTTP/1.1" 200 1277 "-" "Python-urllib/3.13" 0
+
+### command: grep -n fallback-mount /etc/icecast2/icecast.xml
+(exit=0)
+stdout:
+30:    <fallback-mount>/keepalive.mp3</fallback-mount>
+37:    <fallback-mount>/keepalive.mp3</fallback-mount>
