@@ -15,8 +15,8 @@ UI_PORT = 5050
 CONFIG_SYMLINK = "/usr/local/etc/rtl_airband.conf"
 PROFILES_DIR = "/usr/local/etc/airband-profiles"
 LAST_HIT_PATH = "/run/rtl_airband_last_freq.txt"
-AVOIDS_DIR = "/home/willminkoff/Desktop/scannerlogs"
-DIAGNOSTIC_DIR = "/home/willminkoff/scannerproject/admin/logs"
+AVOIDS_DIR = "/home/willminkoff/scannerproject/admin/logs"
+DIAGNOSTIC_DIR = AVOIDS_DIR
 AVOIDS_PATH = os.path.join(AVOIDS_DIR, "airband_avoids.json")
 AVOIDS_SUMMARY_PATH = os.path.join(AVOIDS_DIR, "airband_avoids.txt")
 
