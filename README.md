@@ -28,3 +28,6 @@ This repo contains:
   - `sudo systemctl daemon-reload`
   - `sudo systemctl restart rtl-airband`
   - `sudo systemctl restart airband-ui`
+
+## Ops Brief
+- `assets/Brief from Codex CLI 1-2-26.txt`
