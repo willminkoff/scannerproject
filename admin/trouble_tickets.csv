@@ -13,3 +13,4 @@ id,created_at_utc,title,status,description
 12,2026-01-04T00:00:00Z,change to last hit when empty,resolved,Last hit now shows "No hits yet" when empty; last-hit pill text centered.
 13,2026-01-05T00:00:00Z,UI up but no streams play,resolved,UI loads but audio streams do not play; user was on the wrong LAN.
 14,2026-01-05T00:00:00Z,Scanner UI flapping red/green due to RTL-SDR busy,resolved,rtl-airband failing to open device; trunk-recorder-staging was holding RTL2838. Stopped and disabled trunk-recorder-staging so rtl-airband owns the dongle.
+15,2026-01-05T00:00:00Z,Confirm restart button functionality in UI,open,Verify what the restart button does and confirm expected behavior in the UI.

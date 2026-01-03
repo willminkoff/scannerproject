@@ -3,6 +3,7 @@ Description=RTLSDR-Airband (scan -> Icecast)
 After=network-online.target icecast2.service
 Wants=network-online.target
 Requires=icecast2.service
+Wants=rtl-airband-last-hit.service
 
 [Service]
 Type=simple
