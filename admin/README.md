@@ -18,6 +18,18 @@ This repo contains:
 - Icecast: example config now reduces buffering (`queue-size`, `burst-size`) and lowers `source-timeout` for faster recovery after restarts.
 - UI: last hit shows "No hits yet" when empty and centers the pill text.
 
+## Ticket 16 checklist (keepalive fallback)
+- Confirm keepalive source is up: `systemctl status icecast-keepalive`
+- Inspect keepalive logs: `journalctl -u icecast-keepalive -n 200 --no-pager`
+- Watch Icecast logs during rtl-airband restart: `tail -f /var/log/icecast2/error.log /var/log/icecast2/access.log`
+- Check mounts live: `curl -s http://127.0.0.1:8000/status-json.xsl | jq '.icestats.source[] | {mount, listeners, listenurl}'`
+- Verify fallback config: `grep -n "fallback-mount" /etc/icecast2/icecast.xml`
+
+Expected observations (when rtl-airband restarts):
+- Icecast logs should show `/GND.mp3` disconnect/reconnect events; if no disconnect, fallback won't trigger.
+- `status-json.xsl` should briefly omit `/GND.mp3` or show it with no source while `/keepalive.mp3` stays present.
+- Browser may still play buffered audio for ~20s; if logs show fallback but audio stays, buffering is the culprit.
+
 ## Pi Notes
 - Repo path on SprontPi: `/home/willminkoff/scannerproject`
 - User: `willminkoff` (prompt shows `willminkoff@SprontPi`)

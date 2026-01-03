@@ -15,7 +15,7 @@ UI_PORT = 5050
 CONFIG_SYMLINK = "/usr/local/etc/rtl_airband.conf"
 PROFILES_DIR = "/usr/local/etc/airband-profiles"
 LAST_HIT_PATH = "/run/rtl_airband_last_freq.txt"
-AVOIDS_DIR = "/home/willminkoff/Desktop/scanner_logs"
+AVOIDS_DIR = "/home/willminkoff/Desktop/scannerlogs"
 AVOIDS_PATH = os.path.join(AVOIDS_DIR, "airband_avoids.json")
 AVOIDS_SUMMARY_PATH = os.path.join(AVOIDS_DIR, "airband_avoids.txt")
 
@@ -139,6 +139,7 @@ HTML = r"""<!doctype html>
         <button id="btn-refresh" title="Refresh status and sync sliders without restarting">↻ Refresh</button>
         <button id="btn-avoid">Avoid Current Hit</button>
         <button id="btn-clear-avoids">Clear Avoids</button>
+        <button id="btn-diagnostic">Generate Log</button>
       </div>
 
       <div class="profiles" id="profiles"></div>
@@ -339,6 +340,18 @@ document.getElementById('btn-clear-avoids').addEventListener('click', async ()=>
 document.getElementById('btn-play').addEventListener('click', ()=> {
   const url = `http://${location.hostname}:8000/GND.mp3`;
   window.open(url, '_blank', 'noopener');
+});
+
+document.getElementById('btn-diagnostic').addEventListener('click', async ()=> {
+  actionMsg = 'Generating log...';
+  updateWarn([]);
+  const res = await post('/api/diagnostic', {});
+  if (res.ok) {
+    actionMsg = `Log saved: ${res.path}`;
+  } else {
+    actionMsg = res.error || 'Log failed';
+  }
+  await refresh(false);
 });
 
 refresh(true);
@@ -621,6 +634,76 @@ def write_controls(conf_path: str, gain: float, squelch: float) -> bool:
     os.replace(tmp, conf_path)
     return True
 
+def run_cmd_capture(cmd):
+    try:
+        result = subprocess.run(
+            cmd,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=15,
+        )
+        return result.returncode, result.stdout, result.stderr
+    except Exception as e:
+        return -1, "", str(e)
+
+def fetch_local_icecast_status():
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{ICECAST_PORT}/status-json.xsl", timeout=5) as resp:
+            return resp.read().decode("utf-8", errors="ignore")
+    except Exception as e:
+        return f"ERROR: {e}"
+
+def write_diagnostic_log():
+    os.makedirs(AVOIDS_DIR, exist_ok=True)
+    ts = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
+    path = os.path.join(AVOIDS_DIR, f"diagnostic-{ts}.txt")
+
+    lines = []
+    lines.append(f"SprontPi Diagnostic Log (UTC {ts})")
+    lines.append("")
+    lines.append("### icecast status-json.xsl (localhost)")
+    lines.append(fetch_local_icecast_status())
+    lines.append("")
+
+    commands = [
+        ["date", "-u"],
+        ["uname", "-a"],
+        ["uptime"],
+        ["systemctl", "status", "icecast2", "--no-pager"],
+        ["systemctl", "status", "icecast-keepalive", "--no-pager"],
+        ["systemctl", "status", "rtl-airband", "--no-pager"],
+        ["systemctl", "status", "airband-ui", "--no-pager"],
+        ["journalctl", "-u", "icecast2", "-n", "200", "--no-pager"],
+        ["journalctl", "-u", "icecast-keepalive", "-n", "200", "--no-pager"],
+        ["journalctl", "-u", "rtl-airband", "-n", "200", "--no-pager"],
+        ["journalctl", "-u", "airband-ui", "-n", "200", "--no-pager"],
+        ["tail", "-n", "200", "/var/log/icecast2/error.log"],
+        ["tail", "-n", "200", "/var/log/icecast2/access.log"],
+        ["grep", "-n", "fallback-mount", "/etc/icecast2/icecast.xml"],
+    ]
+
+    for cmd in commands:
+        lines.append(f"### command: {' '.join(cmd)}")
+        code, out, err = run_cmd_capture(cmd)
+        lines.append(f"(exit={code})")
+        if out:
+            lines.append("stdout:")
+            lines.append(out.rstrip())
+        if err:
+            lines.append("stderr:")
+            lines.append(err.rstrip())
+        if not out and not err:
+            lines.append("no output")
+        lines.append("")
+
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines).rstrip() + "\n")
+    os.replace(tmp, path)
+    return path
+
 def restart_rtl():
     subprocess.Popen(
         ["systemctl", "restart", "--no-block", UNITS["rtl"]],
@@ -743,6 +826,13 @@ class Handler(BaseHTTPRequestHandler):
             if err:
                 return self._send(400, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
             return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
+
+        if p == "/api/diagnostic":
+            try:
+                path = write_diagnostic_log()
+            except Exception as e:
+                return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
+            return self._send(200, json.dumps({"ok": True, "path": path}), "application/json; charset=utf-8")
 
         return self._send(404, json.dumps({"ok": False, "error": "not found"}), "application/json; charset=utf-8")
 
