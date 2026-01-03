@@ -17,6 +17,7 @@ PROFILES_DIR = "/usr/local/etc/airband-profiles"
 LAST_HIT_PATH = "/run/rtl_airband_last_freq.txt"
 AVOIDS_DIR = "/home/willminkoff/Desktop/scanner_logs"
 AVOIDS_PATH = os.path.join(AVOIDS_DIR, "airband_avoids.json")
+AVOIDS_SUMMARY_PATH = os.path.join(AVOIDS_DIR, "airband_avoids.txt")
 
 ICECAST_PORT = 8000
 MOUNT_NAME = "GND.mp3"
@@ -451,6 +452,35 @@ def save_avoids(data: dict) -> None:
         json.dump(data, f, indent=2, sort_keys=True)
         f.write("\n")
     os.replace(tmp, AVOIDS_PATH)
+    write_avoids_summary(data)
+
+def write_avoids_summary(data: dict) -> None:
+    lines = []
+    ts = time.strftime("%Y-%m-%d %H:%M:%SZ", time.gmtime())
+    lines.append(f"SprontPi Avoids Summary (UTC {ts})")
+    lines.append("")
+
+    profiles = data.get("profiles", {})
+    if not profiles:
+        lines.append("No avoids recorded.")
+    else:
+        path_to_label = {path: label for _, label, path in PROFILES}
+        for conf_path in sorted(profiles.keys()):
+            prof = profiles.get(conf_path, {})
+            avoids = sorted(prof.get("avoids", []) or [])
+            label = path_to_label.get(conf_path, os.path.basename(conf_path))
+            lines.append(f"Profile: {label}")
+            lines.append(f"Config: {conf_path}")
+            if avoids:
+                lines.append(f"Avoids ({len(avoids)}): " + ", ".join(f"{f:.4f}" for f in avoids))
+            else:
+                lines.append("Avoids: none")
+            lines.append("")
+
+    tmp = AVOIDS_SUMMARY_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines).rstrip() + "\n")
+    os.replace(tmp, AVOIDS_SUMMARY_PATH)
 
 def parse_freqs_labels(text: str):
     m = RE_FREQS_BLOCK.search(text)

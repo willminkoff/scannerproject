@@ -19,6 +19,7 @@ This repo contains:
 ## Pi Notes
 - Repo path on SprontPi: `/home/willminkoff/scannerproject`
 - User: `willminkoff` (prompt shows `willminkoff@SprontPi`)
+- Avoids summary file: `/home/willminkoff/Desktop/scanner_logs/airband_avoids.txt`
 - Deploy commands:
   - `cd /home/willminkoff/scannerproject`
   - `git pull origin main`
