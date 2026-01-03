@@ -2,11 +2,11 @@ id,created_at_utc,title,status,description
 1,2026-01-01T00:00:00Z,Analog scanner not scanning,resolved,Analog scanner was not scanning during last attempt; needs investigation.
 2,2026-01-01T00:00:00Z,Remove Nissan Stadium profile from analog scanner profiles and UI,resolved,Remove Nissan Stadium profile from analog scanner profiles and the UI.
 5,2026-01-01T00:00:00Z,Update git on the pi so pushes are faster,resolved,Git already up to date on Pi; remote operations are fast (ls-remote ~0.45s).
-3,2026-01-01T00:00:00Z,Avoids work and output somewhere,open,Confirm avoids work and get avoids logged show summary on the ui.
+3,2026-01-01T00:00:00Z,Avoids work and output somewhere,resolved,Avoids confirmed in JSON; UI now shows avoids count and sample for active profile.
 4,2026-01-01T00:00:00Z,New design for gain/sq sliders,resolved,Something lager on the screen esp for iphone ui. Also adjust graduation to the real rtl-sdr gain steps and make the sq a simeple 1-10 scale.
 6,2026-01-02T00:00:00Z,Last hit not updating in UI,resolved,Last hit pill shows but does not update; verify logging and data source.
-7,2026-01-02T00:00:00Z,what does refresh button on ui do?,open,Clarify function of refresh button on UI; document behavior.
+7,2026-01-02T00:00:00Z,what does refresh button on ui do?,resolved,Refresh button now documented and tooltip added; it syncs status and sliders without restarting.
 8,2026-01-02T00:00:00Z,is the squelch working properly?,resolved,Airband profile: gain <20 and squelch at 8 yields lots of noise pops; traffic sounds scratchy (may be location).Need higher gain but squelch at 9-10 does not suppress noise. Check if other profiles show same behavior.
-9,2026-01-03T00:00:00Z,Two columns on the ui for profiles,open,Add a second column on the UI for profiles to reduce scrolling; implement a grid layout. Remove radio buttons if using grid. Mantain radio button selection behavior.
-10,2026-01-03T00:00:00Z,optimize for speed,open,Profile switching is slow (10-15s);investigate optimizations to reduce time from button press to profile active. From transmission hitting the antenna to audio heard.From squelch and gain change to effect heard.
-11,2026-01-03T00:00:00Z,Clean up noisy scan output,open,While scanning, logs show noisy status lines with terminal control codes (e.g. \"[7;0f\" fragments). Strip/clean this output to reduce log noise.
+9,2026-01-03T00:00:00Z,Two columns on the ui for profiles,resolved,Profiles now render in two-column grid cards with single selection; radio inputs removed.
+10,2026-01-03T00:00:00Z,optimize for speed,resolved,Profile and apply endpoints now skip restart when no changes; UI avoids redundant profile restarts; remaining latency likely rtl_airband restart time.
+11,2026-01-03T00:00:00Z,Clean up noisy scan output,resolved,rtl-airband service uses wrapper script to strip control codes and sanitize logs.

@@ -9,3 +9,9 @@ This repo contains:
 ## Notes
 - Replace any `CHANGEME` passwords locally on the Pi.
 - This repo intentionally does NOT include binaries like rtl_airband.
+
+## Sprint Notes (2026-01)
+- UI: profiles render as a two-column grid of selectable cards and show an avoids summary for the active profile.
+- Refresh only syncs status + sliders; it does not restart the scanner.
+- Speed: profile/gain/squelch apply skips restart when no changes were made.
+- Logging: `systemd/rtl-airband.service` now points at `scripts/rtl-airband-with-freq.sh` to strip control codes from logs.

@@ -63,9 +63,10 @@ HTML = r"""<!doctype html>
     .dot.good { background: var(--good); box-shadow: 0 0 0 4px rgba(34,197,94,.12); }
     .label { font-size: 13px; color: var(--muted); }
     .val { font-size: 13px; }
-    .profiles { margin-top: 12px; display:grid; gap:10px; }
-    .profiles label { display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; cursor:pointer; background: rgba(255,255,255,.02); }
-    .profiles small { color: var(--muted); display:block; margin-left: 28px; }
+    .profiles { margin-top: 12px; display:grid; gap:10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .profile-card { text-align:left; padding:10px 12px; border:1px solid var(--line); border-radius:12px; cursor:pointer; background: rgba(255,255,255,.02); color: var(--text); }
+    .profile-card.selected { border-color: rgba(34,197,94,.55); box-shadow: 0 0 0 1px rgba(34,197,94,.25), 0 12px 18px rgba(0,0,0,.2); }
+    .profile-card small { color: var(--muted); display:block; margin-top: 4px; }
     .controls { margin-top: 14px; display:grid; gap:14px; }
     .ctrl { border:1px solid var(--line); border-radius:12px; padding:12px; background: rgba(255,255,255,.02); }
     .ctrl-head { display:flex; justify-content:space-between; align-items:baseline; }
@@ -109,12 +110,14 @@ HTML = r"""<!doctype html>
       .range::-moz-range-thumb { width: 38px; height: 38px; }
       button { padding: 12px 14px; font-size: 15px; }
       h1 { font-size: 20px; }
+      .profiles { grid-template-columns: 1fr; }
     }
     .btns { display:flex; gap:10px; flex-wrap:wrap; margin-top: 12px; }
     button { border:1px solid var(--line); background: rgba(255,255,255,.06); color:var(--text); padding:10px 12px; border-radius:12px; cursor:pointer; }
     button.primary { background: rgba(34,197,94,.18); border-color: rgba(34,197,94,.35); }
     .foot { margin-top: 12px; color: var(--muted); font-size: 12px; }
     .warn { color: #fbbf24; font-size: 12px; margin-top: 8px; }
+    .avoids { margin-top: 8px; color: var(--muted); font-size: 12px; }
   </style>
 </head>
 <body>
@@ -130,7 +133,9 @@ HTML = r"""<!doctype html>
 
       <div class="btns" style="margin-top:14px;">
         <button class="primary" id="btn-play">▶ Play</button>
-        <button id="btn-refresh">↻ Refresh</button>
+        <button id="btn-refresh" title="Refresh status and sync sliders without restarting">↻ Refresh</button>
+        <button id="btn-avoid">Avoid Current Hit</button>
+        <button id="btn-clear-avoids">Clear Avoids</button>
       </div>
 
       <div class="profiles" id="profiles"></div>
@@ -149,20 +154,16 @@ HTML = r"""<!doctype html>
         </div>
       </div>
 
-      <div class="btns">
-        <button class="primary" id="btn-apply">Apply</button>
-        <button id="btn-avoid">Avoid Current Hit</button>
-        <button id="btn-clear-avoids">Clear Avoids</button>
-      </div>
-
       <div class="warn" id="warn"></div>
-      <div class="foot">Tip: switching profiles or applying changes restarts the scanner; playback stays alive via keepalive fallback.</div>
+      <div class="avoids" id="avoids-summary"></div>
+      <div class="foot">Tip: switching profiles or applying changes restarts the scanner; refresh only syncs status + sliders.</div>
     </div>
   </div>
 
 <script>
 const profilesEl = document.getElementById('profiles');
 const warnEl = document.getElementById('warn');
+const avoidsEl = document.getElementById('avoids-summary');
 const gainEl = document.getElementById('gain');
 const sqlEl = document.getElementById('sql');
 const selectedGainEl = document.getElementById('selected-gain');
@@ -177,6 +178,7 @@ const GAIN_STEPS = [
 
 let currentProfile = null;
 let sliderDirty = false;
+let applyInFlight = false;
 
 gainEl.max = String(GAIN_STEPS.length - 1);
 
@@ -218,24 +220,35 @@ function updateWarn(missingProfiles) {
   warnEl.textContent = parts.join(' • ');
 }
 
+function updateAvoids(avoids) {
+  if (!avoidsEl) return;
+  if (!avoids) {
+    avoidsEl.textContent = '';
+    return;
+  }
+  const count = avoids.count || 0;
+  const sample = (avoids.sample || []).filter(Boolean);
+  let text = count ? `Avoids: ${count} for this profile` : 'Avoids: none';
+  if (sample.length) {
+    text += ` (${sample.join(', ')})`;
+  }
+  avoidsEl.textContent = text;
+}
+
 function buildProfiles(profiles, selected) {
   profilesEl.innerHTML = '';
   profiles.forEach(p => {
-    const wrap = document.createElement('label');
-    const r = document.createElement('input');
-    r.type = 'radio';
-    r.name = 'profile';
-    r.value = p.id;
-    r.checked = (p.id === selected);
-    r.addEventListener('change', async () => {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'profile-card' + (p.id === selected ? ' selected' : '');
+    card.setAttribute('aria-pressed', p.id === selected ? 'true' : 'false');
+    card.innerHTML = `<div><b>${p.label}</b></div>` + (p.exists ? '' : `<small>Missing: ${p.path}</small>`);
+    card.addEventListener('click', async () => {
+      if (p.id === selected) return;
       await post('/api/profile', {profile: p.id});
       await refresh(true);
     });
-    const text = document.createElement('div');
-    text.innerHTML = `<div><b>${p.label}</b></div>` + (p.exists ? '' : `<small>Missing: ${p.path}</small>`);
-    wrap.appendChild(r);
-    wrap.appendChild(text);
-    profilesEl.appendChild(wrap);
+    profilesEl.appendChild(card);
   });
 }
 
@@ -263,6 +276,7 @@ async function refresh(allowSetSliders=false) {
   document.getElementById('applied-sql').textContent = st.squelch.toFixed(1);
 
   updateWarn(st.missing_profiles);
+  updateAvoids(st.avoids);
 
   if (currentProfile === null || currentProfile !== st.profile) {
     currentProfile = st.profile;
@@ -285,19 +299,27 @@ sqlEl.addEventListener('input', ()=> {
   sliderDirty = true;
   updateSelectedSql();
 });
+gainEl.addEventListener('change', ()=> applyControls());
+sqlEl.addEventListener('change', ()=> applyControls());
 
 document.getElementById('btn-refresh').addEventListener('click', async ()=> {
   sliderDirty = false;
   await refresh(true);
 });
 
-document.getElementById('btn-apply').addEventListener('click', async ()=> {
-  const gain = GAIN_STEPS[Number(gainEl.value || 0)];
-  const squelch = sqlEl.value;
-  await post('/api/apply', {gain, squelch});
-  sliderDirty = false;
-  await refresh(true);
-});
+async function applyControls() {
+  if (applyInFlight) return;
+  applyInFlight = true;
+  try {
+    const gain = GAIN_STEPS[Number(gainEl.value || 0)];
+    const squelch = sqlEl.value;
+    await post('/api/apply', {gain, squelch});
+    sliderDirty = false;
+    await refresh(true);
+  } finally {
+    applyInFlight = false;
+  }
+}
 
 document.getElementById('btn-avoid').addEventListener('click', async ()=> {
   const res = await post('/api/avoid', {});
@@ -414,6 +436,14 @@ def load_avoids() -> dict:
         pass
     return {"profiles": {}}
 
+def summarize_avoids(conf_path: str) -> dict:
+    data = load_avoids()
+    prof = data.get("profiles", {}).get(conf_path, {})
+    avoids = prof.get("avoids", []) or []
+    avoids_sorted = sorted(avoids)
+    sample = [f"{freq:.4f}" for freq in avoids_sorted[:4]]
+    return {"count": len(avoids), "sample": sample}
+
 def save_avoids(data: dict) -> None:
     os.makedirs(AVOIDS_DIR, exist_ok=True)
     tmp = AVOIDS_PATH + ".tmp"
@@ -522,7 +552,7 @@ def clear_avoids(conf_path: str):
     restart_rtl()
     return len(freqs), None
 
-def write_controls(conf_path: str, gain: float, squelch: float):
+def write_controls(conf_path: str, gain: float, squelch: float) -> bool:
     # clamp and snap to tuner steps
     gain_value = float(gain)
     gain = min(GAIN_STEPS, key=lambda g: abs(g - gain_value))
@@ -532,21 +562,32 @@ def write_controls(conf_path: str, gain: float, squelch: float):
         lines = f.readlines()
 
     out = []
+    changed = False
     for line in lines:
         m = RE_GAIN.match(line)
         if m:
-            out.append(f"{m.group(1)}{gain:.3f}{m.group(3)}\n")
+            new_line = f"{m.group(1)}{gain:.3f}{m.group(3)}\n"
+            if new_line != line:
+                changed = True
+            out.append(new_line)
             continue
         m = RE_SQL.match(line)
         if m:
-            out.append(f"{m.group(1)}{squelch:.3f}{m.group(3)}\n")
+            new_line = f"{m.group(1)}{squelch:.3f}{m.group(3)}\n"
+            if new_line != line:
+                changed = True
+            out.append(new_line)
             continue
         out.append(line)
+
+    if not changed:
+        return False
 
     tmp = conf_path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         f.writelines(out)
     os.replace(tmp, conf_path)
+    return True
 
 def restart_rtl():
     subprocess.Popen(
@@ -555,12 +596,14 @@ def restart_rtl():
         stderr=subprocess.DEVNULL,
     )
 
-def set_profile(profile_id: str):
+def set_profile(profile_id: str, current_conf_path: str):
     for pid, _, path in PROFILES:
         if pid == profile_id:
+            if os.path.realpath(path) == os.path.realpath(current_conf_path):
+                return True, False
             subprocess.run(["ln", "-sf", path, CONFIG_SYMLINK], check=False)
-            return True
-    return False
+            return True, True
+    return False, False
 
 def guess_current_profile(conf_realpath: str):
     for pid, _, path in PROFILES:
@@ -611,6 +654,7 @@ class Handler(BaseHTTPRequestHandler):
                 "gain": float(gain),
                 "squelch": float(squelch),
                 "last_hit": read_last_hit(),
+                "avoids": summarize_avoids(conf_path),
             }
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         return self._send(404, "Not found", "text/plain; charset=utf-8")
@@ -623,10 +667,12 @@ class Handler(BaseHTTPRequestHandler):
 
         if p == "/api/profile":
             pid = form.get("profile", "")
-            ok = set_profile(pid)
+            conf_path = read_active_config_path()
+            ok, changed = set_profile(pid, conf_path)
             if ok:
-                restart_rtl()
-                return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
+                if changed:
+                    restart_rtl()
+                return self._send(200, json.dumps({"ok": True, "changed": changed}), "application/json; charset=utf-8")
             return self._send(400, json.dumps({"ok": False, "error": "unknown profile"}), "application/json; charset=utf-8")
 
         if p == "/api/apply":
@@ -638,12 +684,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, json.dumps({"ok": False, "error": "bad values"}), "application/json; charset=utf-8")
 
             try:
-                write_controls(conf_path, gain, squelch)
+                changed = write_controls(conf_path, gain, squelch)
             except Exception as e:
                 return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
 
-            restart_rtl()
-            return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
+            if changed:
+                restart_rtl()
+            return self._send(200, json.dumps({"ok": True, "changed": changed}), "application/json; charset=utf-8")
 
         if p == "/api/avoid":
             conf_path = read_active_config_path()

@@ -14,13 +14,16 @@ run_airband() {
 }
 
 run_airband 2>&1 \
+| stdbuf -oL -eL sed -E $'s/\x1b\\[[0-9;]*[A-Za-z]//g' \
 | stdbuf -oL tr "\r" "\n" \
 | stdbuf -oL tr -cd "\11\12\40-\176" \
 | stdbuf -oL awk -v OUT="$OUT" '
   {
-    print;
-    if ($0 ~ /Activity on [0-9]+\.[0-9]+/) {
-      freq = $0;
+    line = $0;
+    gsub(/\[[0-9;]*[A-Za-z]/, "", line);
+    print line;
+    if (line ~ /Activity on [0-9]+\.[0-9]+/) {
+      freq = line;
       sub(/.*Activity on /, "", freq);
       sub(/ .*/, "", freq);
       if (freq != last) {

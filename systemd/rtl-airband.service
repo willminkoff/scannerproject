@@ -7,7 +7,7 @@ Requires=icecast2.service
 [Service]
 Type=simple
 ExecStartPre=-/usr/bin/pkill -x rtl_airband
-ExecStart=/usr/local/bin/rtl_airband -f -c /usr/local/etc/rtl_airband.conf
+ExecStart=/home/willminkoff/scannerproject/scripts/rtl-airband-with-freq.sh
 Restart=on-failure
 RestartSec=2
 TimeoutStopSec=3

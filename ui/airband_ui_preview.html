@@ -1,0 +1,146 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SprontPi Radio Control (Preview)</title>
+  <style>
+    :root { --bg:#0b1020; --card:#121a33; --text:#e8ebff; --muted:#9aa3c7; --good:#22c55e; --bad:#ef4444; --line:#22305e; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background:var(--bg); color:var(--text); }
+    .wrap { max-width: 780px; margin: 0 auto; padding: 18px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+    h1 { font-size: 18px; margin:0 0 12px; letter-spacing:.2px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .pill { display:flex; gap:10px; align-items:center; padding:10px 12px; border-radius:999px; border:1px solid var(--line); background: rgba(255,255,255,.03); }
+    .dot { width:10px; height:10px; border-radius:50%; background: var(--bad); box-shadow: 0 0 0 4px rgba(239,68,68,.12); }
+    .dot.good { background: var(--good); box-shadow: 0 0 0 4px rgba(34,197,94,.12); }
+    .label { font-size: 13px; color: var(--muted); }
+    .val { font-size: 13px; }
+    .profiles { margin-top: 12px; display:grid; gap:10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .profile-card { text-align:left; padding:10px 12px; border:1px solid var(--line); border-radius:12px; cursor:pointer; background: rgba(255,255,255,.02); color: var(--text); }
+    .profile-card.selected { border-color: rgba(34,197,94,.55); box-shadow: 0 0 0 1px rgba(34,197,94,.25), 0 12px 18px rgba(0,0,0,.2); }
+    .profile-card small { color: var(--muted); display:block; margin-top: 4px; }
+    .controls { margin-top: 14px; display:grid; gap:14px; }
+    .ctrl { border:1px solid var(--line); border-radius:12px; padding:12px; background: rgba(255,255,255,.02); }
+    .ctrl-head { display:flex; justify-content:space-between; align-items:baseline; }
+    .ctrl-head b { font-size: 14px; }
+    .ctrl-head span { color: var(--muted); font-size: 12px; }
+    .ctrl-readout { margin-top: 8px; font-size: 13px; color: var(--muted); display:flex; justify-content:space-between; }
+    input[type="range"] { width: 100%; }
+    .range {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 14px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(34,197,94,.55), rgba(34,197,94,.15));
+      outline: none;
+    }
+    .range::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #e8ebff;
+      border: 2px solid #2a3a6f;
+      box-shadow: 0 4px 12px rgba(0,0,0,.35);
+    }
+    .range::-moz-range-thumb {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #e8ebff;
+      border: 2px solid #2a3a6f;
+      box-shadow: 0 4px 12px rgba(0,0,0,.35);
+    }
+    @media (max-width: 520px) {
+      .ctrl { padding: 14px; }
+      .ctrl-head b { font-size: 16px; }
+      .ctrl-head span { font-size: 13px; }
+      .ctrl-readout { font-size: 14px; }
+      .range { height: 18px; }
+      .range::-webkit-slider-thumb { width: 38px; height: 38px; }
+      .range::-moz-range-thumb { width: 38px; height: 38px; }
+      button { padding: 12px 14px; font-size: 15px; }
+      h1 { font-size: 20px; }
+      .profiles { grid-template-columns: 1fr; }
+    }
+    .btns { display:flex; gap:10px; flex-wrap:wrap; margin-top: 12px; }
+    button { border:1px solid var(--line); background: rgba(255,255,255,.06); color:var(--text); padding:10px 12px; border-radius:12px; cursor:pointer; }
+    button.primary { background: rgba(34,197,94,.18); border-color: rgba(34,197,94,.35); }
+    .foot { margin-top: 12px; color: var(--muted); font-size: 12px; }
+    .warn { color: #fbbf24; font-size: 12px; margin-top: 8px; }
+    .avoids { margin-top: 8px; color: var(--muted); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>SprontPi Radio Control</h1>
+
+      <div class="row">
+        <div class="pill"><div class="dot good"></div><div><div class="label">Scanner</div><div class="val">Running</div></div></div>
+        <div class="pill"><div class="dot good"></div><div><div class="label">Icecast</div><div class="val">Running</div></div></div>
+        <div class="pill"><div class="dot good"></div><div><div class="label">Last hit</div><div class="val">118.6000</div></div></div>
+      </div>
+
+      <div class="btns" style="margin-top:14px;">
+        <button class="primary">Play</button>
+        <button title="Refresh status and sync sliders without restarting">Refresh</button>
+        <button>Avoid Current Hit</button>
+        <button>Clear Avoids</button>
+      </div>
+
+      <div class="profiles">
+        <button class="profile-card selected" type="button"><div><b>AIRBAND</b></div></button>
+        <button class="profile-card" type="button"><div><b>TOWER (118.600)</b></div></button>
+        <button class="profile-card" type="button"><div><b>GMRS</b></div></button>
+        <button class="profile-card" type="button"><div><b>WX (162.550)</b></div></button>
+      </div>
+
+      <div class="controls">
+        <div class="ctrl">
+          <div class="ctrl-head"><b>Gain (dB)</b><span>Applied: <span id="applied-gain">32.8</span></span></div>
+          <input id="gain" class="range" type="range" min="0" max="28" step="1" value="17" />
+          <div class="ctrl-readout"><span>Selected: <span id="selected-gain">32.8</span> dB</span><span>RTL-SDR steps</span></div>
+        </div>
+
+        <div class="ctrl">
+          <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span id="applied-sql">10.0</span></span></div>
+          <input id="sql" class="range" type="range" min="0" max="10" step="0.1" value="10.0" />
+          <div class="ctrl-readout"><span>Selected: <span id="selected-sql">10.0</span></span><span>0.0-10.0 SNR threshold</span></div>
+        </div>
+      </div>
+
+      <div class="warn">Preview only: no backend calls.</div>
+      <div class="avoids">Avoids: 2 for this profile (118.6000, 121.5000)</div>
+      <div class="foot">Tip: switching profiles or applying changes restarts the scanner; refresh only syncs status + sliders.</div>
+    </div>
+  </div>
+
+<script>
+const gainEl = document.getElementById('gain');
+const sqlEl = document.getElementById('sql');
+const selectedGainEl = document.getElementById('selected-gain');
+const selectedSqlEl = document.getElementById('selected-sql');
+
+const GAIN_STEPS = [
+  0.0, 0.9, 1.4, 2.7, 3.7, 7.7, 8.7, 12.5, 14.4, 15.7,
+  16.6, 19.7, 20.7, 22.9, 25.4, 28.0, 29.7, 32.8, 33.8,
+  36.4, 37.2, 38.6, 40.2, 42.1, 43.4, 43.9, 44.5, 48.0, 49.6,
+];
+
+function updateSelectedGain() {
+  const idx = Number(gainEl.value || 0);
+  selectedGainEl.textContent = GAIN_STEPS[idx].toFixed(1);
+}
+
+function updateSelectedSql() {
+  selectedSqlEl.textContent = Number(sqlEl.value).toFixed(1);
+}
+
+gainEl.addEventListener('input', updateSelectedGain);
+sqlEl.addEventListener('input', updateSelectedSql);
+</script>
+</body>
+</html>
