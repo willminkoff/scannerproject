@@ -1,0 +1,69 @@
+Brief
+
+Analog Scanner on the Pi — Repo Location & Services Brief
+Repo location on the Pi
+The Airband UI systemd unit runs the web UI from /opt/airband-ui/airband_ui.py, which implies the repo is deployed under /opt/airband-ui on the Pi. This is the on‑device path where the UI code is expected to live.
+*Source: systemd/airband-ui.service*
+
+Primary services (systemd)
+The analog scanner stack is wired up via three systemd units:
+
+rtl-airband.service — the analog scanner itself
+
+Launches rtl_airband with the config at /usr/local/etc/rtl_airband.conf.
+
+Requires icecast2.service to be running (audio streaming dependency).
+*Source: systemd/rtl-airband.service*
+
+icecast-keepalive.service — silent fallback stream
+
+Uses ffmpeg to generate a silent MP3 and push it to Icecast at 127.0.0.1:8000/keepalive.mp3.
+
+Depends on icecast2.service being up.
+*Source: systemd/icecast-keepalive.service*
+
+airband-ui.service — web UI for control/status
+
+Runs python3 /opt/airband-ui/airband_ui.py.
+
+Provides a UI on port 5050 for profile switching and gain/squelch control.
+*Source: systemd/airband-ui.service, ui/airband_ui.py*
+
+Key runtime paths & configuration
+Active config symlink: /usr/local/etc/rtl_airband.conf
+
+Profiles directory: /usr/local/etc/airband-profiles
+(The UI expects named profiles in this path.)
+*Source: ui/airband_ui.py*
+
+Streaming components (Icecast)
+The UI assumes Icecast is on port 8000 with a mount called GND.mp3 for playback.
+*Source: ui/airband_ui.py*
+
+Example Icecast config lives in icecast/icecast.xml.example; actual passwords are replaced locally.
+*Source: README.md, icecast/icecast.xml.example*
+
+What this repo contains (relevant to analog scanning)
+ui/airband_ui.py — web UI for scanner control/status.
+
+profiles/*.conf — rtl_airband profile configs (used by the UI).
+
+systemd/*.service — the units described above.
+
+icecast/icecast.xml.example — Icecast sample config.
+*Source: README.md*
+
+Commands used
+rg -n "Pi|Raspberry|analog|scanner|service|systemd|trunk-recorder|icecast" README.md systemd scripts ui trunk-recorder icecast
+
+cat README.md
+
+ls systemd
+
+sed -n '1,200p' systemd/rtl-airband.service
+
+sed -n '1,200p' systemd/icecast-keepalive.service
+
+sed -n '1,200p' systemd/airband-ui.service
+
+sed -n '1,200p' ui/airband_ui.py
