@@ -14,9 +14,10 @@ This repo contains:
 - UI: profiles render as a two-column grid of selectable cards and show an avoids summary for the active profile.
 - Refresh only syncs status + sliders; it does not restart the scanner.
 - Speed: profile/gain/squelch apply skips restart when no changes were made.
-- Logging: `systemd/rtl-airband.service` now points at `scripts/rtl-airband-with-freq.sh` to strip control codes from logs.
+- Logging: `scripts/rtl-airband-with-freq.sh` runs rtl_airband with `-F -e` so systemd captures clean stderr logs (no TUI output).
 - Icecast: example config now reduces buffering (`queue-size`, `burst-size`) and lowers `source-timeout` for faster recovery after restarts.
 - UI: last hit shows "No hits yet" when empty and centers the pill text.
+- UI: hit list uses scan activity logs; durations are inferred with a 10s gap reset and newest hits appear first (not true squelch timing).
 
 ## Ticket 16 checklist (keepalive fallback)
 - Confirm keepalive source is up: `systemctl status icecast-keepalive`
