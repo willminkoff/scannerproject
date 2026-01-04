@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import datetime
 import json
 import os
 import re
@@ -41,6 +42,9 @@ RE_SQL  = re.compile(r'^(\s*squelch_snr_threshold\s*=\s*)([0-9.]+)(\s*;\s*#\s*UI
 RE_FREQS_BLOCK = re.compile(r'(^\s*freqs\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)
 RE_LABELS_BLOCK = re.compile(r'(^\s*labels\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)
 RE_ACTIVITY = re.compile(r'Activity on ([0-9]+\.[0-9]+)')
+RE_ACTIVITY_TS = re.compile(
+    r'^(?P<date>\d{4}-\d{2}-\d{2})[ T](?P<time>\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:\s*(?P<tz>[+-]\d{4}))?\s+.*Activity on (?P<freq>[0-9]+\.[0-9]+)'
+)
 GAIN_STEPS = [
     0.0, 0.9, 1.4, 2.7, 3.7, 7.7, 8.7, 12.5, 14.4, 15.7,
     16.6, 19.7, 20.7, 22.9, 25.4, 28.0, 29.7, 32.8, 33.8,
@@ -118,51 +122,72 @@ HTML = r"""<!doctype html>
     }
     .btns { display:flex; gap:10px; flex-wrap:wrap; margin-top: 12px; }
     button { border:1px solid var(--line); background: rgba(255,255,255,.06); color:var(--text); padding:10px 12px; border-radius:12px; cursor:pointer; }
+    button.pill { background: rgba(255,255,255,.03); }
     button.primary { background: rgba(34,197,94,.18); border-color: rgba(34,197,94,.35); }
     .foot { margin-top: 12px; color: var(--muted); font-size: 12px; }
     .foot a { color: var(--muted); text-decoration: underline; }
     .foot a:hover { color: var(--text); }
     .warn { color: #fbbf24; font-size: 12px; margin-top: 8px; }
     .avoids { margin-top: 8px; color: var(--muted); font-size: 12px; }
+    .hidden { display:none; }
+    .nav { display:flex; align-items:center; gap:10px; margin-bottom: 12px; }
+    .nav button { padding:8px 12px; }
+    .hit-list { display:flex; flex-direction:column; gap:8px; }
+    .hit-row { display:grid; grid-template-columns: 90px 1fr 90px; gap:8px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background: rgba(255,255,255,.02); font-size: 13px; }
+    .hit-row.head { font-size: 12px; color: var(--muted); background: transparent; border-style: dashed; }
+    .hit-empty { color: var(--muted); font-size: 13px; padding: 8px 2px; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="card">
-      <h1>SprontPi Radio Control</h1>
+      <div id="view-main">
+        <h1>SprontPi Radio Control</h1>
 
-      <div class="row">
-        <div class="pill"><div id="dot-rtl" class="dot"></div><div><div class="label">Scanner</div><div class="val" id="txt-rtl">…</div></div></div>
-        <div class="pill"><div id="dot-ice" class="dot"></div><div><div class="label">Icecast</div><div class="val" id="txt-ice">…</div></div></div>
-        <div class="pill pill-center"><div class="dot good"></div><div class="pill-text"><div class="label">Last hit</div><div class="val" id="txt-hit">…</div></div></div>
-      </div>
-
-      <div class="btns" style="margin-top:14px;">
-        <button class="primary" id="btn-play">▶ Play</button>
-        <button id="btn-refresh" title="Refresh status and sync sliders without restarting">↻ Refresh</button>
-        <button id="btn-avoid">Avoid Current Hit</button>
-        <button id="btn-clear-avoids">Clear Avoids</button>
-      </div>
-
-      <div class="profiles" id="profiles"></div>
-
-      <div class="controls">
-        <div class="ctrl">
-          <div class="ctrl-head"><b>Gain (dB)</b><span>Applied: <span id="applied-gain">…</span></span></div>
-          <input id="gain" class="range" type="range" min="0" max="28" step="1" />
-          <div class="ctrl-readout"><span>Selected: <span id="selected-gain">…</span> dB</span><span>RTL-SDR steps</span></div>
+        <div class="row">
+          <div class="pill"><div id="dot-rtl" class="dot"></div><div><div class="label">Scanner</div><div class="val" id="txt-rtl">…</div></div></div>
+          <div class="pill"><div id="dot-ice" class="dot"></div><div><div class="label">Icecast</div><div class="val" id="txt-ice">…</div></div></div>
+          <button type="button" class="pill pill-center" id="btn-hit-list"><div class="dot good"></div><div class="pill-text"><div class="label">Last hit</div><div class="val" id="txt-hit">…</div></div></button>
         </div>
 
-        <div class="ctrl">
-          <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span id="applied-sql">…</span></span></div>
-          <input id="sql" class="range" type="range" min="0" max="10" step="0.1" />
-          <div class="ctrl-readout"><span>Selected: <span id="selected-sql">…</span></span><span>0.0-10.0 SNR threshold</span></div>
+        <div class="btns" style="margin-top:14px;">
+          <button class="primary" id="btn-play">▶ Play</button>
+          <button id="btn-refresh" title="Refresh status and sync sliders without restarting">↻ Refresh</button>
+          <button id="btn-avoid">Avoid Current Hit</button>
+          <button id="btn-clear-avoids">Clear Avoids</button>
         </div>
+
+        <div class="profiles" id="profiles"></div>
+
+        <div class="controls">
+          <div class="ctrl">
+            <div class="ctrl-head"><b>Gain (dB)</b><span>Applied: <span id="applied-gain">…</span></span></div>
+            <input id="gain" class="range" type="range" min="0" max="28" step="1" />
+            <div class="ctrl-readout"><span>Selected: <span id="selected-gain">…</span> dB</span><span>RTL-SDR steps</span></div>
+          </div>
+
+          <div class="ctrl">
+            <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span id="applied-sql">…</span></span></div>
+            <input id="sql" class="range" type="range" min="0" max="10" step="0.1" />
+            <div class="ctrl-readout"><span>Selected: <span id="selected-sql">…</span></span><span>0.0-10.0 SNR threshold</span></div>
+          </div>
+        </div>
+
+        <div class="warn" id="warn"></div>
+        <div class="avoids" id="avoids-summary"></div>
+        <div class="foot">Tip: switching profiles or applying changes restarts the scanner; refresh only syncs status + sliders. <a href="#" id="lnk-diagnostic">Generate log</a></div>
       </div>
 
-      <div class="warn" id="warn"></div>
-      <div class="avoids" id="avoids-summary"></div>
-      <div class="foot">Tip: switching profiles or applying changes restarts the scanner; refresh only syncs status + sliders. <a href="#" id="lnk-diagnostic">Generate log</a></div>
+      <div id="view-hits" class="hidden">
+        <div class="nav">
+          <button type="button" id="btn-hit-back">&larr; Back</button>
+          <h1 style="margin:0;">Live Hit List</h1>
+        </div>
+        <div class="hit-list" id="hit-list">
+          <div class="hit-row head"><div>Time</div><div>Frequency</div><div>Duration</div></div>
+        </div>
+        <div class="foot">Showing the latest 20 hits from the scanner journal.</div>
+      </div>
     </div>
   </div>
 
@@ -174,6 +199,9 @@ const gainEl = document.getElementById('gain');
 const sqlEl = document.getElementById('sql');
 const selectedGainEl = document.getElementById('selected-gain');
 const selectedSqlEl = document.getElementById('selected-sql');
+const viewMainEl = document.getElementById('view-main');
+const viewHitsEl = document.getElementById('view-hits');
+const hitListEl = document.getElementById('hit-list');
 let actionMsg = '';
 
 const GAIN_STEPS = [
@@ -185,6 +213,7 @@ const GAIN_STEPS = [
 let currentProfile = null;
 let sliderDirty = false;
 let applyInFlight = false;
+let hitsView = false;
 
 gainEl.max = String(GAIN_STEPS.length - 1);
 
@@ -297,6 +326,28 @@ async function refresh(allowSetSliders=false) {
   }
 }
 
+function renderHitList(items) {
+  hitListEl.innerHTML = '<div class="hit-row head"><div>Time</div><div>Frequency</div><div>Duration</div></div>';
+  if (!items || !items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'hit-empty';
+    empty.textContent = 'No hits yet.';
+    hitListEl.appendChild(empty);
+    return;
+  }
+  items.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'hit-row';
+    row.innerHTML = `<div>${item.time}</div><div>${item.freq} MHz</div><div>${item.duration}s</div>`;
+    hitListEl.appendChild(row);
+  });
+}
+
+async function refreshHitList() {
+  const data = await getJSON('/api/hits');
+  renderHitList(data.items || []);
+}
+
 gainEl.addEventListener('input', ()=> {
   sliderDirty = true;
   updateSelectedGain();
@@ -344,6 +395,19 @@ document.getElementById('btn-play').addEventListener('click', ()=> {
   window.open(url, '_blank', 'noopener');
 });
 
+document.getElementById('btn-hit-list').addEventListener('click', async ()=> {
+  hitsView = true;
+  viewMainEl.classList.add('hidden');
+  viewHitsEl.classList.remove('hidden');
+  await refreshHitList();
+});
+
+document.getElementById('btn-hit-back').addEventListener('click', ()=> {
+  hitsView = false;
+  viewHitsEl.classList.add('hidden');
+  viewMainEl.classList.remove('hidden');
+});
+
 document.getElementById('lnk-diagnostic').addEventListener('click', async (e)=> {
   e.preventDefault();
   actionMsg = 'Generating log...';
@@ -358,7 +422,12 @@ document.getElementById('lnk-diagnostic').addEventListener('click', async (e)=> 
 });
 
 refresh(true);
-setInterval(()=>refresh(false), 1500);
+setInterval(async ()=> {
+  await refresh(false);
+  if (hitsView) {
+    await refreshHitList();
+  }
+}, 1500);
 </script>
 </body>
 </html>
@@ -429,6 +498,65 @@ def read_last_hit_from_journal() -> str:
     if not matches:
         return ""
     return matches[-1]
+
+def parse_activity_timestamp(date_part: str, time_part: str, tz_part: Optional[str]) -> datetime.datetime:
+    if tz_part:
+        tz_part = f"{tz_part[:3]}:{tz_part[3:]}"
+        return datetime.datetime.fromisoformat(f"{date_part}T{time_part}{tz_part}")
+    return datetime.datetime.fromisoformat(f"{date_part}T{time_part}")
+
+def read_hit_list(limit: int = 20, scan_lines: int = 200) -> list:
+    try:
+        result = subprocess.run(
+            ["journalctl", "-u", UNITS["rtl"], "-n", str(scan_lines), "-o", "short-iso", "--no-pager"],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+    except Exception:
+        return []
+
+    hits = []
+    for line in (result.stdout or "").splitlines():
+        match = RE_ACTIVITY_TS.search(line)
+        if not match:
+            continue
+        ts = parse_activity_timestamp(match.group("date"), match.group("time"), match.group("tz"))
+        freq = match.group("freq")
+        hits.append((ts, freq))
+
+    if not hits:
+        return []
+
+    entries = []
+    current_freq = None
+    start_ts = None
+    for ts, freq in hits:
+        if freq != current_freq:
+            current_freq = freq
+            start_ts = ts
+        duration = int((ts - start_ts).total_seconds()) if start_ts else 0
+        try:
+            freq_text = f"{float(freq):.4f}"
+        except ValueError:
+            freq_text = freq
+        entries.append({
+            "time": ts.strftime("%H:%M:%S"),
+            "freq": freq_text,
+            "duration": duration,
+        })
+    return entries[-limit:]
+
+def read_hit_list_cached() -> list:
+    now = time.time()
+    cache = getattr(read_hit_list_cached, "_cache", {"value": [], "ts": 0.0})
+    if now - cache["ts"] < 2.0:
+        return cache["value"]
+    value = read_hit_list()
+    cache = {"value": value, "ts": now}
+    read_hit_list_cached._cache = cache
+    return value
 
 def parse_last_hit_freq() -> Optional[float]:
     value = read_last_hit()
@@ -774,6 +902,9 @@ class Handler(BaseHTTPRequestHandler):
                 "last_hit": read_last_hit(),
                 "avoids": summarize_avoids(conf_path),
             }
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+        if p == "/api/hits":
+            payload = {"items": read_hit_list_cached()}
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         return self._send(404, "Not found", "text/plain; charset=utf-8")
 
