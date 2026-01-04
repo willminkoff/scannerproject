@@ -1016,6 +1016,21 @@ def restart_rtl():
         stderr=subprocess.DEVNULL,
     )
 
+def stop_rtl():
+    subprocess.run(
+        ["systemctl", "stop", UNITS["rtl"]],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+
+def start_rtl():
+    subprocess.Popen(
+        ["systemctl", "start", "--no-block", UNITS["rtl"]],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
 def set_profile(profile_id: str, current_conf_path: str):
     for pid, _, path in PROFILES:
         if pid == profile_id:
@@ -1096,47 +1111,67 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/profile":
             pid = form.get("profile", "")
             conf_path = read_active_config_path()
+            current_profile = guess_current_profile(conf_path)
+            did_stop = False
+            if pid and pid != current_profile:
+                stop_rtl()
+                did_stop = True
             ok, changed = set_profile(pid, conf_path)
             if ok:
                 if changed:
                     restart_rtl()
+                elif did_stop:
+                    start_rtl()
                 return self._send(200, json.dumps({"ok": True, "changed": changed}), "application/json; charset=utf-8")
+            if did_stop:
+                start_rtl()
             return self._send(400, json.dumps({"ok": False, "error": "unknown profile"}), "application/json; charset=utf-8")
 
         if p == "/api/apply":
             conf_path = read_active_config_path()
+            stop_rtl()
             try:
                 gain = float(form.get("gain", "32.8"))
                 squelch = float(form.get("squelch", "10.0"))
             except ValueError:
+                start_rtl()
                 return self._send(400, json.dumps({"ok": False, "error": "bad values"}), "application/json; charset=utf-8")
 
             try:
                 changed = write_controls(conf_path, gain, squelch)
             except Exception as e:
+                start_rtl()
                 return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
 
             if changed:
                 restart_rtl()
+            else:
+                start_rtl()
             return self._send(200, json.dumps({"ok": True, "changed": changed}), "application/json; charset=utf-8")
 
         if p == "/api/avoid":
             conf_path = read_active_config_path()
+            stop_rtl()
             try:
                 freq, err = avoid_current_hit(conf_path)
             except Exception as e:
+                start_rtl()
                 return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
             if err:
+                start_rtl()
                 return self._send(400, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
             return self._send(200, json.dumps({"ok": True, "freq": f"{freq:.4f}"}), "application/json; charset=utf-8")
 
         if p == "/api/avoid-clear":
             conf_path = read_active_config_path()
+            stop_rtl()
             try:
                 _, err = clear_avoids(conf_path)
             except Exception as e:
+                start_rtl()
                 return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
             if err:
+                start_rtl()
                 return self._send(400, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
             return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
 
