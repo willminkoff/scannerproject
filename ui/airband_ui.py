@@ -249,6 +249,19 @@ function updateSelectedSql() {
   selectedSqlEl.textContent = Number(sqlEl.value).toFixed(1);
 }
 
+function formatHitLabel(value) {
+  if (value === null || value === undefined) return '';
+  const text = String(value).trim();
+  if (!text) return '';
+  if (/^[0-9]+(\.[0-9]+)?$/.test(text)) {
+    const num = Number(text);
+    if (Number.isFinite(num)) {
+      return num.toFixed(2);
+    }
+  }
+  return text;
+}
+
 function updateWarn(missingProfiles) {
   const parts = [];
   if (missingProfiles.length) {
@@ -310,7 +323,7 @@ async function refresh(allowSetSliders=false) {
 
   document.getElementById('txt-rtl').textContent = st.rtl_active ? 'Running' : 'Stopped';
   document.getElementById('txt-ice').textContent = st.icecast_active ? 'Running' : 'Stopped';
-  document.getElementById('txt-hit').textContent = st.last_hit || 'None';
+  document.getElementById('txt-hit').textContent = formatHitLabel(st.last_hit) || 'None';
 
   document.getElementById('applied-gain').textContent = st.gain.toFixed(1);
   document.getElementById('applied-sql').textContent = st.squelch.toFixed(1);
@@ -343,7 +356,7 @@ function renderHitList(items) {
   items.forEach(item => {
     const row = document.createElement('div');
     row.className = 'hit-row';
-    const freqText = (item.freq || '').toString();
+    const freqText = formatHitLabel(item.freq);
     const isNumeric = /^[0-9]+(\.[0-9]+)?$/.test(freqText);
     const displayFreq = isNumeric ? `${freqText} MHz` : (freqText || '—');
     row.innerHTML = `<div>${item.time}</div><div>${displayFreq}</div><div>${item.duration}s</div>`;
