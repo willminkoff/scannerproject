@@ -1,0 +1,15 @@
+[Unit]
+Description=Trunk Recorder
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/trunk-recorder
+ExecStart=/usr/local/bin/trunk-recorder -c /etc/trunk-recorder/config.json
+Restart=on-failure
+RestartSec=2
+User=pi
+
+[Install]
+WantedBy=multi-user.target

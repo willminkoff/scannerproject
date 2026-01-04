@@ -31,6 +31,13 @@
     <fallback-override>1</fallback-override>
   </mount>
 
+  <!-- Staging mount for DMR testing -->
+  <mount>
+    <mount-name>/DMR.mp3</mount-name>
+    <fallback-mount>/keepalive.mp3</fallback-mount>
+    <fallback-override>1</fallback-override>
+  </mount>
+
   <paths>
     <basedir>/usr/share/icecast2</basedir>
     <logdir>/var/log/icecast2</logdir>

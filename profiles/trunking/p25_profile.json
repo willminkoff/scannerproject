@@ -1,0 +1,9 @@
+{
+  "profile": "p25",
+  "description": "P25 staging profile template for Vanderbilt University (Nashville) Site 7078. Replace frequencies with site-specific values before deployment.",
+  "control_channels_mhz": [
+    451.0000
+  ],
+  "voice_channels_mhz": [],
+  "notes": "Update this profile with the correct control and voice channel frequencies for the Vanderbilt University P25 system (RadioReference site 7078)."
+}

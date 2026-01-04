@@ -1,0 +1,15 @@
+[Unit]
+Description=Trunk Recorder (Staging)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/trunk-recorder-staging
+ExecStart=/usr/local/bin/trunk-recorder -c /etc/trunk-recorder/config.staging.json
+Restart=on-failure
+RestartSec=2
+User=pi
+
+[Install]
+WantedBy=multi-user.target
