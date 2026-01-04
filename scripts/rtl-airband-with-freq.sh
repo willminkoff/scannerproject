@@ -10,13 +10,10 @@ echo "-" > "$OUT"
 trap "exit 0" TERM INT
 
 run_airband() {
-  /usr/local/bin/rtl_airband -f -c "$CONF"
+  /usr/local/bin/rtl_airband -F -e -c "$CONF"
 }
 
 run_airband 2>&1 \
-| stdbuf -oL -eL sed -E $'s/\x1b\\[[0-9;]*[A-Za-z]//g' \
-| stdbuf -oL tr "\r" "\n" \
-| stdbuf -oL tr -cd "\11\12\40-\176" \
 | stdbuf -oL awk -v OUT="$OUT" '
   {
     line = $0;
