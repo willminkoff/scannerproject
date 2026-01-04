@@ -683,7 +683,7 @@ def read_icecast_hit_list(limit: int = 20) -> list:
     return items
 
 def parse_last_hit_freq() -> Optional[float]:
-    value = read_last_hit()
+    value = read_last_hit_from_icecast() or read_last_hit()
     if not value:
         return None
     m = re.search(r'[0-9]+(?:\.[0-9]+)?', value)
