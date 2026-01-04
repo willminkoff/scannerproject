@@ -11,8 +11,10 @@ LINE_RE = re.compile(
     r'^(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?P<tz>[+-]\d{4})?\s+.*Activity on (?P<freq>[0-9]+\.[0-9]+)'
 )
 
+HIT_GAP_RESET_SECONDS = 2
 current_freq = None
 start_ts = None
+last_ts = None
 
 def parse_ts(ts, tz):
     if tz:
@@ -26,10 +28,12 @@ for line in sys.stdin:
         continue
     ts = parse_ts(match.group("ts"), match.group("tz"))
     freq = match.group("freq")
-    if freq != current_freq:
+    gap = (ts - last_ts).total_seconds() if last_ts else None
+    if freq != current_freq or (gap is not None and gap > HIT_GAP_RESET_SECONDS):
         current_freq = freq
         start_ts = ts
     duration = int((ts - start_ts).total_seconds()) if start_ts else 0
+    last_ts = ts
     print(f"{ts.strftime('%H:%M:%S')} Activity on {freq} MHz (dur {duration}s)")
     sys.stdout.flush()
 PY

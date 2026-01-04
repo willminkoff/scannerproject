@@ -78,6 +78,7 @@
     .nav { display:flex; align-items:center; gap:10px; margin-bottom: 12px; }
     .nav button { padding:8px 12px; }
     .hit-list { display:flex; flex-direction:column; gap:8px; }
+    .hit-list-body { display:flex; flex-direction:column-reverse; gap:8px; }
     .hit-row { display:grid; grid-template-columns: 90px 1fr 90px; gap:8px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background: rgba(255,255,255,.02); font-size: 13px; }
     .hit-row.head { font-size: 12px; color: var(--muted); background: transparent; border-style: dashed; }
     .hit-empty { color: var(--muted); font-size: 13px; padding: 8px 2px; }
@@ -135,9 +136,11 @@
         </div>
         <div class="hit-list">
           <div class="hit-row head"><div>Time</div><div>Frequency</div><div>Duration</div></div>
-          <div class="hit-row"><div>15:03:16</div><div>119.3500 MHz</div><div>0s</div></div>
-          <div class="hit-row"><div>15:03:19</div><div>119.3500 MHz</div><div>3s</div></div>
-          <div class="hit-row"><div>15:03:32</div><div>124.7500 MHz</div><div>0s</div></div>
+          <div class="hit-list-body">
+            <div class="hit-row"><div>15:03:16</div><div>119.3500 MHz</div><div>0s</div></div>
+            <div class="hit-row"><div>15:03:19</div><div>119.3500 MHz</div><div>3s</div></div>
+            <div class="hit-row"><div>15:03:32</div><div>124.7500 MHz</div><div>0s</div></div>
+          </div>
         </div>
         <div class="foot">Showing the latest 20 hits from the scanner journal.</div>
       </div>

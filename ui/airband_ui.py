@@ -45,6 +45,7 @@ RE_ACTIVITY = re.compile(r'Activity on ([0-9]+\.[0-9]+)')
 RE_ACTIVITY_TS = re.compile(
     r'^(?P<date>\d{4}-\d{2}-\d{2})[ T](?P<time>\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:[+-]\d{2}:?\d{2}|[A-Z]{2,5})?\s+.*Activity on (?P<freq>[0-9]+\.[0-9]+)'
 )
+HIT_GAP_RESET_SECONDS = 2
 GAIN_STEPS = [
     0.0, 0.9, 1.4, 2.7, 3.7, 7.7, 8.7, 12.5, 14.4, 15.7,
     16.6, 19.7, 20.7, 22.9, 25.4, 28.0, 29.7, 32.8, 33.8,
@@ -530,11 +531,14 @@ def read_hit_list(limit: int = 20, scan_lines: int = 200) -> list:
     entries = []
     current_freq = None
     start_ts = None
+    last_ts = None
     for ts, freq in hits:
-        if freq != current_freq:
+        gap = (ts - last_ts).total_seconds() if last_ts else None
+        if freq != current_freq or (gap is not None and gap > HIT_GAP_RESET_SECONDS):
             current_freq = freq
             start_ts = ts
         duration = int((ts - start_ts).total_seconds()) if start_ts else 0
+        last_ts = ts
         try:
             freq_text = f"{float(freq):.4f}"
         except ValueError:
