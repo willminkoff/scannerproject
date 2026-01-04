@@ -43,7 +43,7 @@ RE_FREQS_BLOCK = re.compile(r'(^\s*freqs\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)
 RE_LABELS_BLOCK = re.compile(r'(^\s*labels\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)
 RE_ACTIVITY = re.compile(r'Activity on ([0-9]+\.[0-9]+)')
 RE_ACTIVITY_TS = re.compile(
-    r'^(?P<date>\d{4}-\d{2}-\d{2})[ T](?P<time>\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:\s*(?P<tz>[+-]\d{4}))?\s+.*Activity on (?P<freq>[0-9]+\.[0-9]+)'
+    r'^(?P<date>\d{4}-\d{2}-\d{2})[ T](?P<time>\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:\s+(?P<tz>(?:[+-]\d{4})|[A-Z]{2,5}))?\s+.*Activity on (?P<freq>[0-9]+\.[0-9]+)'
 )
 GAIN_STEPS = [
     0.0, 0.9, 1.4, 2.7, 3.7, 7.7, 8.7, 12.5, 14.4, 15.7,
@@ -500,10 +500,8 @@ def read_last_hit_from_journal() -> str:
     return matches[-1]
 
 def parse_activity_timestamp(date_part: str, time_part: str, tz_part: Optional[str]) -> datetime.datetime:
-    if tz_part:
-        tz_part = f"{tz_part[:3]}:{tz_part[3:]}"
-        return datetime.datetime.fromisoformat(f"{date_part}T{time_part}{tz_part}")
-    return datetime.datetime.fromisoformat(f"{date_part}T{time_part}")
+    del tz_part
+    return datetime.datetime.strptime(f"{date_part} {time_part}", "%Y-%m-%d %H:%M:%S")
 
 def read_hit_list(limit: int = 20, scan_lines: int = 200) -> list:
     try:
