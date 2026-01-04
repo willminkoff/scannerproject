@@ -4,10 +4,10 @@ This repo contains:
 - `ui/airband_ui.py` (SprontPi Radio Control web UI)
 - `profiles/*.conf` (rtl_airband profiles)
 - `systemd/*.service` (systemd units used on the Pi)
-- `icecast/icecast.xml.example` (example Icecast config; real passwords NOT included)
+- `icecast/icecast.xml.example` (example Icecast config; update passwords to match your Icecast instance)
 
 ## Notes
-- Replace any `CHANGEME` passwords locally on the Pi.
+- Keep Icecast source/admin passwords consistent between Icecast and profile outputs.
 - This repo intentionally does NOT include binaries like rtl_airband.
 
 ## Sprint Notes (2026-01)

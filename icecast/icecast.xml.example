@@ -14,10 +14,10 @@
   </limits>
 
   <authentication>
-    <source-password>CHANGEME</source-password>
-    <relay-password>CHANGEME</relay-password>
+    <source-password>062352</source-password>
+    <relay-password>062352</relay-password>
     <admin-user>source</admin-user>
-    <admin-password>CHANGEME</admin-password>
+    <admin-password>062352</admin-password>
   </authentication>
 
   <listen-socket>
@@ -27,6 +27,7 @@
   <!-- Keep /GND.mp3 "always alive": if rtl_airband disconnects, listeners fall back to /keepalive.mp3 -->
   <mount>
     <mount-name>/GND.mp3</mount-name>
+    <type>audio/mpeg</type>
     <fallback-mount>/keepalive.mp3</fallback-mount>
     <fallback-override>1</fallback-override>
   </mount>
@@ -34,6 +35,7 @@
   <!-- Staging mount for DMR testing -->
   <mount>
     <mount-name>/DMR.mp3</mount-name>
+    <type>audio/mpeg</type>
     <fallback-mount>/keepalive.mp3</fallback-mount>
     <fallback-override>1</fallback-override>
   </mount>
