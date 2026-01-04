@@ -11,7 +11,7 @@ LINE_RE = re.compile(
     r'^(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?P<tz>[+-]\d{4})?\s+.*Activity on (?P<freq>[0-9]+\.[0-9]+)'
 )
 
-HIT_GAP_RESET_SECONDS = 2
+HIT_GAP_RESET_SECONDS = 6
 current_freq = None
 start_ts = None
 last_ts = None

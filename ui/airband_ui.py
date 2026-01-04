@@ -45,7 +45,7 @@ RE_ACTIVITY = re.compile(r'Activity on ([0-9]+\.[0-9]+)')
 RE_ACTIVITY_TS = re.compile(
     r'^(?P<date>\d{4}-\d{2}-\d{2})[ T](?P<time>\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:[+-]\d{2}:?\d{2}|[A-Z]{2,5})?\s+.*Activity on (?P<freq>[0-9]+\.[0-9]+)'
 )
-HIT_GAP_RESET_SECONDS = 2
+HIT_GAP_RESET_SECONDS = 6
 GAIN_STEPS = [
     0.0, 0.9, 1.4, 2.7, 3.7, 7.7, 8.7, 12.5, 14.4, 15.7,
     16.6, 19.7, 20.7, 22.9, 25.4, 28.0, 29.7, 32.8, 33.8,
@@ -533,22 +533,42 @@ def read_hit_list(limit: int = 20, scan_lines: int = 200) -> list:
     start_ts = None
     last_ts = None
     for ts, freq in hits:
-        gap = (ts - last_ts).total_seconds() if last_ts else None
-        if freq != current_freq or (gap is not None and gap > HIT_GAP_RESET_SECONDS):
+        if current_freq is None:
             current_freq = freq
             start_ts = ts
-        duration = int((ts - start_ts).total_seconds()) if start_ts else 0
+            last_ts = ts
+            continue
+        gap = (ts - last_ts).total_seconds() if last_ts else None
+        if freq != current_freq or (gap is not None and gap > HIT_GAP_RESET_SECONDS):
+            duration = int((last_ts - start_ts).total_seconds()) if start_ts else 0
+            try:
+                freq_text = f"{float(current_freq):.4f}"
+            except ValueError:
+                freq_text = current_freq
+            entries.append({
+                "time": last_ts.strftime("%H:%M:%S"),
+                "freq": freq_text,
+                "duration": duration,
+            })
+            current_freq = freq
+            start_ts = ts
         last_ts = ts
+
+    if current_freq is not None and start_ts is not None and last_ts is not None:
+        duration = int((last_ts - start_ts).total_seconds())
         try:
-            freq_text = f"{float(freq):.4f}"
+            freq_text = f"{float(current_freq):.4f}"
         except ValueError:
-            freq_text = freq
+            freq_text = current_freq
         entries.append({
-            "time": ts.strftime("%H:%M:%S"),
+            "time": last_ts.strftime("%H:%M:%S"),
             "freq": freq_text,
             "duration": duration,
         })
-    return entries[-limit:]
+
+    entries = entries[-limit:]
+    entries.reverse()
+    return entries
 
 def read_hit_list_cached() -> list:
     now = time.time()
