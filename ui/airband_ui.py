@@ -520,7 +520,7 @@ def read_hit_list(limit: int = 20, scan_lines: int = 200) -> list:
         match = RE_ACTIVITY_TS.search(line)
         if not match:
             continue
-        ts = parse_activity_timestamp(match.group("date"), match.group("time"), match.group("tz"))
+        ts = parse_activity_timestamp(match.group("date"), match.group("time"), None)
         freq = match.group("freq")
         hits.append((ts, freq))
 
