@@ -910,6 +910,15 @@ def fetch_local_icecast_status():
     except Exception as e:
         return f"ERROR: {e}"
 
+def _normalize_icecast_title(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (int, float)):
+        return f"{value}".strip()
+    if isinstance(value, str):
+        return value.strip()
+    return ""
+
 def extract_icecast_title(status_text: str) -> str:
     try:
         data = json.loads(status_text)
@@ -925,9 +934,9 @@ def extract_icecast_title(status_text: str) -> str:
         mount = (source.get("mount") or "")
         if listenurl.endswith(ICECAST_MOUNT_PATH) or mount == ICECAST_MOUNT_PATH:
             for key in ("title", "streamtitle", "yp_currently_playing"):
-                value = source.get(key)
-                if isinstance(value, str) and value.strip():
-                    return value.strip()
+                value = _normalize_icecast_title(source.get(key))
+                if value:
+                    return value
     return ""
 
 def read_last_hit_from_icecast() -> str:
