@@ -23,6 +23,10 @@ AVOIDS_SUMMARY_PATH = os.path.join(AVOIDS_DIR, "airband_avoids.txt")
 
 ICECAST_PORT = 8000
 MOUNT_NAME = "GND.mp3"
+ICECAST_STATUS_URL = f"http://127.0.0.1:{ICECAST_PORT}/status-json.xsl"
+ICECAST_MOUNT_PATH = f"/{MOUNT_NAME}"
+ICECAST_HIT_LOG_PATH = "/run/airband_ui_hitlog.jsonl"
+ICECAST_HIT_LOG_LIMIT = 200
 
 UNITS = {
     "rtl": "rtl-airband",
@@ -339,7 +343,10 @@ function renderHitList(items) {
   items.forEach(item => {
     const row = document.createElement('div');
     row.className = 'hit-row';
-    row.innerHTML = `<div>${item.time}</div><div>${item.freq} MHz</div><div>${item.duration}s</div>`;
+    const freqText = (item.freq || '').toString();
+    const isNumeric = /^[0-9]+(\.[0-9]+)?$/.test(freqText);
+    const displayFreq = isNumeric ? `${freqText} MHz` : (freqText || '—');
+    row.innerHTML = `<div>${item.time}</div><div>${displayFreq}</div><div>${item.duration}s</div>`;
     hitListEl.appendChild(row);
   });
 }
@@ -475,19 +482,25 @@ def read_last_hit() -> str:
         with open(LAST_HIT_PATH, "r", encoding="utf-8", errors="ignore") as f:
             lines = [line.strip() for line in f.read().splitlines() if line.strip()]
             if not lines:
-                return read_last_hit_from_journal_cached()
+                raise ValueError("empty last-hit file")
             value = lines[-1]
             if value and value != "-":
                 return value
     except FileNotFoundError:
         pass
+    except Exception:
+        pass
+
+    items = read_hit_list_cached()
+    if items:
+        return items[0].get("freq", "") or ""
 
     return read_last_hit_from_journal_cached()
 
 def read_last_hit_from_journal() -> str:
     try:
         result = subprocess.run(
-            ["journalctl", "-u", UNITS["rtl"], "-n", "5", "-o", "cat", "--no-pager"],
+            ["journalctl", "-u", UNITS["rtl"], "-n", "200", "-o", "cat", "--no-pager"],
             check=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -579,6 +592,95 @@ def read_hit_list_cached() -> list:
     cache = {"value": value, "ts": now}
     read_hit_list_cached._cache = cache
     return value
+
+def _load_icecast_hit_log():
+    cache = getattr(_load_icecast_hit_log, "_cache", None)
+    if cache is not None:
+        return cache
+    cache = {
+        "entries": [],
+        "current": None,
+    }
+    try:
+        with open(ICECAST_HIT_LOG_PATH, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(entry, dict):
+                    cache["entries"].append(entry)
+    except FileNotFoundError:
+        pass
+    if len(cache["entries"]) > ICECAST_HIT_LOG_LIMIT:
+        cache["entries"] = cache["entries"][-ICECAST_HIT_LOG_LIMIT:]
+    _load_icecast_hit_log._cache = cache
+    return cache
+
+def _append_icecast_hit_entry(entry: dict) -> None:
+    cache = _load_icecast_hit_log()
+    cache["entries"].append(entry)
+    if len(cache["entries"]) > ICECAST_HIT_LOG_LIMIT:
+        cache["entries"] = cache["entries"][-ICECAST_HIT_LOG_LIMIT:]
+    try:
+        with open(ICECAST_HIT_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, sort_keys=True) + "\n")
+    except Exception:
+        pass
+
+def update_icecast_hit_log(title: str) -> None:
+    cache = _load_icecast_hit_log()
+    now = time.time()
+    normalized = (title or "").strip()
+    current = cache.get("current")
+
+    if not normalized:
+        if current is not None:
+            duration = max(0, int(now - current["start_ts"]))
+            entry = {
+                "time": time.strftime("%H:%M:%S", time.localtime(now)),
+                "freq": current["title"],
+                "duration": duration,
+            }
+            _append_icecast_hit_entry(entry)
+            cache["current"] = None
+        return
+
+    if current is None:
+        cache["current"] = {"title": normalized, "start_ts": now}
+        return
+
+    if normalized == current["title"]:
+        return
+
+    duration = max(0, int(now - current["start_ts"]))
+    entry = {
+        "time": time.strftime("%H:%M:%S", time.localtime(now)),
+        "freq": current["title"],
+        "duration": duration,
+    }
+    _append_icecast_hit_entry(entry)
+    cache["current"] = {"title": normalized, "start_ts": now}
+
+def read_icecast_hit_list(limit: int = 20) -> list:
+    cache = _load_icecast_hit_log()
+    items = list(cache.get("entries", []))
+    current = cache.get("current")
+    if current is not None:
+        now = time.time()
+        items.append({
+            "time": time.strftime("%H:%M:%S", time.localtime(now)),
+            "freq": current["title"],
+            "duration": max(0, int(now - current["start_ts"])),
+        })
+    if not items:
+        return []
+    items = items[-limit:]
+    items.reverse()
+    return items
 
 def parse_last_hit_freq() -> Optional[float]:
     value = read_last_hit()
@@ -803,10 +905,38 @@ def run_cmd_capture(cmd):
 
 def fetch_local_icecast_status():
     try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{ICECAST_PORT}/status-json.xsl", timeout=5) as resp:
+        with urllib.request.urlopen(ICECAST_STATUS_URL, timeout=5) as resp:
             return resp.read().decode("utf-8", errors="ignore")
     except Exception as e:
         return f"ERROR: {e}"
+
+def extract_icecast_title(status_text: str) -> str:
+    try:
+        data = json.loads(status_text)
+    except json.JSONDecodeError:
+        return ""
+    sources = data.get("icestats", {}).get("source")
+    if not sources:
+        return ""
+    if not isinstance(sources, list):
+        sources = [sources]
+    for source in sources:
+        listenurl = (source.get("listenurl") or "")
+        mount = (source.get("mount") or "")
+        if listenurl.endswith(ICECAST_MOUNT_PATH) or mount == ICECAST_MOUNT_PATH:
+            for key in ("title", "streamtitle", "yp_currently_playing"):
+                value = source.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+    return ""
+
+def read_last_hit_from_icecast() -> str:
+    try:
+        with urllib.request.urlopen(ICECAST_STATUS_URL, timeout=1.5) as resp:
+            status_text = resp.read().decode("utf-8", errors="ignore")
+    except Exception:
+        return ""
+    return extract_icecast_title(status_text)
 
 def write_diagnostic_log():
     os.makedirs(DIAGNOSTIC_DIR, exist_ok=True)
@@ -911,6 +1041,8 @@ class Handler(BaseHTTPRequestHandler):
                 prof_payload.append({"id": pid, "label": label, "path": path, "exists": exists})
 
             profile = guess_current_profile(conf_path)
+            icecast_hit = read_last_hit_from_icecast() if ice_ok else ""
+            update_icecast_hit_log(icecast_hit)
 
             payload = {
                 "rtl_active": rtl_ok,
@@ -921,12 +1053,15 @@ class Handler(BaseHTTPRequestHandler):
                 "missing_profiles": missing,
                 "gain": float(gain),
                 "squelch": float(squelch),
-                "last_hit": read_last_hit(),
+                "last_hit": icecast_hit or read_last_hit(),
                 "avoids": summarize_avoids(conf_path),
             }
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         if p == "/api/hits":
-            payload = {"items": read_hit_list_cached()}
+            items = read_icecast_hit_list()
+            if not items:
+                items = read_hit_list_cached()
+            payload = {"items": items}
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         return self._send(404, "Not found", "text/plain; charset=utf-8")
 

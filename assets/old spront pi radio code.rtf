@@ -1,0 +1,683 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2822
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 set -euo pipefail\
+\
+PASS="062352"\
+ICECAST_PORT="8000"\
+UI_PORT="5050"\
+MOUNT="GND.mp3"\
+\
+echo "== Apt deps =="\
+sudo apt-get update\
+sudo apt-get install -y \\\
+  icecast2 ffmpeg \\\
+  python3-flask \\\
+  git cmake build-essential pkg-config \\\
+  libconfig++-dev libfftw3-dev libshout3-dev libmp3lame-dev librtlsdr-dev\
+\
+echo "== Ensure icecast2 enabled in /etc/default/icecast2 =="\
+if [ -f /etc/default/icecast2 ]; then\
+  sudo sed -i 's/^ENABLE=.*/ENABLE=true/' /etc/default/icecast2 || true\
+  grep -n '^ENABLE=' /etc/default/icecast2 || true\
+fi\
+\
+echo "== Build rtl_airband (with NFM=ON) =="\
+sudo rm -rf /tmp/RTLSDR-Airband\
+git clone https://github.com/rtl-airband/RTLSDR-Airband.git /tmp/RTLSDR-Airband\
+cd /tmp/RTLSDR-Airband\
+mkdir -p build\
+cd build\
+cmake .. -DCMAKE_BUILD_TYPE=Release -DPLATFORM=native -DNFM=ON\
+make -j"$(nproc)"\
+sudo make install\
+sudo ldconfig\
+\
+echo "== Write Icecast config (/etc/icecast2/icecast.xml) =="\
+HOST_IP="$(hostname -I | awk '\{print $1\}')"\
+sudo cp -a /etc/icecast2/icecast.xml "/etc/icecast2/icecast.xml.bak.$(date +%F-%H%M%S)" 2>/dev/null || true\
+\
+sudo tee /etc/icecast2/icecast.xml >/dev/null <<XML\
+<icecast>\
+  <location>SprontPi</location>\
+  <admin>icemaster@localhost</admin>\
+\
+  <limits>\
+    <clients>50</clients>\
+    <sources>10</sources>\
+    <queue-size>65536</queue-size>\
+    <client-timeout>30</client-timeout>\
+    <header-timeout>10</header-timeout>\
+    <source-timeout>10</source-timeout>\
+\
+    <!-- low-latency-ish defaults -->\
+    <burst-on-connect>0</burst-on-connect>\
+    <burst-size>0</burst-size>\
+  </limits>\
+\
+  <authentication>\
+    <source-password>$\{PASS\}</source-password>\
+    <relay-password>$\{PASS\}</relay-password>\
+    <admin-user>admin</admin-user>\
+    <admin-password>$\{PASS\}</admin-password>\
+  </authentication>\
+\
+  <listen-socket>\
+    <port>$\{ICECAST_PORT\}</port>\
+  </listen-socket>\
+\
+  <hostname>$\{HOST_IP\}</hostname>\
+  <fileserve>1</fileserve>\
+\
+  <!-- Keep /GND.mp3 alive even if rtl_airband restarts -->\
+  <mount>\
+    <mount-name>/$\{MOUNT\}</mount-name>\
+    <fallback-mount>/keepalive.mp3</fallback-mount>\
+    <fallback-override>1</fallback-override>\
+  </mount>\
+\
+  <mount>\
+    <mount-name>/keepalive.mp3</mount-name>\
+  </mount>\
+\
+  <paths>\
+    <basedir>/usr/share/icecast2</basedir>\
+    <logdir>/var/log/icecast2</logdir>\
+    <webroot>/usr/share/icecast2/web</webroot>\
+    <adminroot>/usr/share/icecast2/admin</adminroot>\
+    <pidfile>/run/icecast2/icecast.pid</pidfile>\
+    <alias source="/" destination="/status.xsl"/>\
+  </paths>\
+\
+  <logging>\
+    <accesslog>access.log</accesslog>\
+    <errorlog>error.log</errorlog>\
+    <loglevel>3</loglevel>\
+    <logsize>10000</logsize>\
+  </logging>\
+\
+  <security>\
+    <chroot>0</chroot>\
+  </security>\
+</icecast>\
+XML\
+\
+echo "== Profiles =="\
+sudo mkdir -p /usr/local/etc/airband-profiles\
+sudo tar -czf "/usr/local/etc/airband-profiles.bak.$(date +%F-%H%M%S).tgz" /usr/local/etc/airband-profiles 2>/dev/null || true\
+\
+# AIRBAND (Nashville locals)\
+sudo tee /usr/local/etc/airband-profiles/rtl_airband_airband.conf >/dev/null <<CONF\
+devices:\
+(\{\
+  type = "rtlsdr";\
+  index = 0;\
+  mode = "scan";\
+  gain = 32.800;   # UI_CONTROLLED\
+\
+  channels:\
+  (\
+    \{\
+      freqs = (118.4000, 118.6000, 119.3500, 119.4500, 124.7500);\
+      modulation = "am";\
+      bandwidth = 12000;\
+\
+      squelch_snr_threshold = 10.000;  # UI_CONTROLLED\
+      squelch_delay = 0.8;\
+\
+      outputs:\
+      (\
+        \{\
+          type = "icecast";\
+          server = "127.0.0.1";\
+          port = $\{ICECAST_PORT\};\
+          mountpoint = "$\{MOUNT\}";\
+          username = "source";\
+          password = "$\{PASS\}";\
+          name = "SprontPi Radio";\
+          genre = "Airband";\
+          description = "BNA locals scan";\
+          bitrate = 32;\
+        \}\
+      );\
+    \}\
+  );\
+\});\
+CONF\
+\
+# TOWER only (118.600)\
+sudo tee /usr/local/etc/airband-profiles/rtl_airband_tower.conf >/dev/null <<CONF\
+devices:\
+(\{\
+  type = "rtlsdr";\
+  index = 0;\
+  mode = "scan";\
+  gain = 32.800;   # UI_CONTROLLED\
+\
+  channels:\
+  (\
+    \{\
+      freqs = (118.6000);\
+      modulation = "am";\
+      bandwidth = 12000;\
+\
+      squelch_snr_threshold = 10.000;  # UI_CONTROLLED\
+      squelch_delay = 0.8;\
+\
+      outputs:\
+      (\
+        \{\
+          type = "icecast";\
+          server = "127.0.0.1";\
+          port = $\{ICECAST_PORT\};\
+          mountpoint = "$\{MOUNT\}";\
+          username = "source";\
+          password = "$\{PASS\}";\
+          name = "SprontPi Radio";\
+          genre = "Airband";\
+          description = "BNA Tower 118.600";\
+          bitrate = 32;\
+        \}\
+      );\
+    \}\
+  );\
+\});\
+CONF\
+\
+# GMRS (simplex + repeater outputs on 462 MHz)\
+sudo tee /usr/local/etc/airband-profiles/rtl_airband_gmrs.conf >/dev/null <<CONF\
+devices:\
+(\{\
+  type = "rtlsdr";\
+  index = 0;\
+  mode = "scan";\
+  gain = 32.800;   # UI_CONTROLLED\
+\
+  channels:\
+  (\
+    \{\
+      freqs = (\
+        462.5625, 462.5875, 462.6125, 462.6375, 462.6625, 462.6875, 462.7125,\
+        462.5500, 462.5750, 462.6000, 462.6250, 462.6500, 462.6750, 462.7000, 462.7250\
+      );\
+      modulation = "nfm";\
+      bandwidth = 12500;\
+\
+      squelch_snr_threshold = 10.000;  # UI_CONTROLLED\
+      squelch_delay = 0.8;\
+\
+      outputs:\
+      (\
+        \{\
+          type = "icecast";\
+          server = "127.0.0.1";\
+          port = $\{ICECAST_PORT\};\
+          mountpoint = "$\{MOUNT\}";\
+          username = "source";\
+          password = "$\{PASS\}";\
+          name = "SprontPi Radio";\
+          genre = "GMRS";\
+          description = "GMRS scan (462 simplex + repeater outputs)";\
+          bitrate = 32;\
+        \}\
+      );\
+    \}\
+  );\
+\});\
+CONF\
+\
+# WX (NOAA 162.550)\
+sudo tee /usr/local/etc/airband-profiles/rtl_airband_wx.conf >/dev/null <<CONF\
+devices:\
+(\{\
+  type = "rtlsdr";\
+  index = 0;\
+  mode = "scan";\
+  gain = 32.800;   # UI_CONTROLLED\
+\
+  channels:\
+  (\
+    \{\
+      freqs = (162.5500);\
+      modulation = "nfm";\
+      bandwidth = 15000;\
+\
+      squelch_snr_threshold = 10.000;  # UI_CONTROLLED\
+      squelch_delay = 0.8;\
+\
+      outputs:\
+      (\
+        \{\
+          type = "icecast";\
+          server = "127.0.0.1";\
+          port = $\{ICECAST_PORT\};\
+          mountpoint = "$\{MOUNT\}";\
+          username = "source";\
+          password = "$\{PASS\}";\
+          name = "SprontPi Radio";\
+          genre = "WX";\
+          description = "NOAA Weather Radio 162.550";\
+          bitrate = 32;\
+        \}\
+      );\
+    \}\
+  );\
+\});\
+CONF\
+\
+echo "== Active config symlink =="\
+sudo ln -sf /usr/local/etc/airband-profiles/rtl_airband_airband.conf /usr/local/etc/rtl_airband.conf\
+\
+echo "== systemd: rtl-airband.service =="\
+sudo tee /etc/systemd/system/rtl-airband.service >/dev/null <<'UNIT'\
+[Unit]\
+Description=RTLSDR-Airband (scan -> Icecast)\
+After=network-online.target icecast2.service\
+Wants=network-online.target\
+Requires=icecast2.service\
+\
+[Service]\
+Type=simple\
+ExecStartPre=/usr/bin/pkill -x rtl_airband || true\
+ExecStart=/usr/local/bin/rtl_airband -f -c /usr/local/etc/rtl_airband.conf\
+Restart=always\
+RestartSec=2\
+\
+[Install]\
+WantedBy=multi-user.target\
+UNIT\
+\
+echo "== systemd: icecast-keepalive.service (silent keepalive) =="\
+sudo tee /etc/systemd/system/icecast-keepalive.service >/dev/null <<UNIT\
+[Unit]\
+Description=Icecast Keepalive (silent fallback)\
+After=network-online.target icecast2.service\
+Wants=network-online.target\
+Requires=icecast2.service\
+\
+[Service]\
+Type=simple\
+ExecStart=/usr/bin/ffmpeg -nostdin -hide_banner -loglevel warning -re -f lavfi -i anullsrc=channel_layout=mono:sample_rate=44100 -c:a libmp3lame -b:a 32k -content_type audio/mpeg -f mp3 icecast://source:$\{PASS\}@127.0.0.1:$\{ICECAST_PORT\}/keepalive.mp3\
+Restart=always\
+RestartSec=2\
+\
+[Install]\
+WantedBy=multi-user.target\
+UNIT\
+\
+echo "== airband UI =="\
+sudo mkdir -p /opt/airband-ui\
+sudo tee /opt/airband-ui/airband_ui.py >/dev/null <<'PY'\
+#!/usr/bin/env python3\
+import json\
+import os\
+import re\
+import subprocess\
+import urllib.request\
+from flask import Flask, jsonify, request, Response\
+\
+APP_PORT = 5050\
+ICECAST_STATUS_URL = "http://127.0.0.1:8000/status-json.xsl"\
+ACTIVE_CONF_SYMLINK = "/usr/local/etc/rtl_airband.conf"\
+PROFILES_DIR = "/usr/local/etc/airband-profiles"\
+MOUNT_PATH = "/GND.mp3"\
+\
+PROFILES = \{\
+    "airband": \{"label": "Airband", "file": f"\{PROFILES_DIR\}/rtl_airband_airband.conf"\},\
+    "tower":  \{"label": "Tower",  "file": f"\{PROFILES_DIR\}/rtl_airband_tower.conf"\},\
+    "gmrs":   \{"label": "GMRS",   "file": f"\{PROFILES_DIR\}/rtl_airband_gmrs.conf"\},\
+    "wx":     \{"label": "WX",     "file": f"\{PROFILES_DIR\}/rtl_airband_wx.conf"\},\
+\}\
+\
+app = Flask(__name__)\
+\
+def sh(cmd: list[str]) -> subprocess.CompletedProcess:\
+    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)\
+\
+def is_active(unit: str) -> bool:\
+    return sh(["systemctl", "is-active", "--quiet", unit]).returncode == 0\
+\
+def restart(unit: str) -> None:\
+    sh(["systemctl", "restart", unit])\
+\
+def real_active_conf() -> str:\
+    return os.path.realpath(ACTIVE_CONF_SYMLINK)\
+\
+def current_profile_key() -> str | None:\
+    p = real_active_conf()\
+    for k, meta in PROFILES.items():\
+        if os.path.realpath(meta["file"]) == p:\
+            return k\
+    return None\
+\
+_GAIN_RE = re.compile(r'(^\\s*gain\\s*=\\s*)([0-9.]+)(\\s*;.*UI_CONTROLLED.*$)', re.M)\
+_SQL_RE  = re.compile(r'(^\\s*squelch_snr_threshold\\s*=\\s*)([0-9.]+)(\\s*;.*UI_CONTROLLED.*$)', re.M)\
+\
+def read_controls(conf_path: str) -> tuple[float, float]:\
+    txt = open(conf_path, "r", encoding="utf-8", errors="ignore").read()\
+    mg = _GAIN_RE.search(txt)\
+    ms = _SQL_RE.search(txt)\
+    gain = float(mg.group(2)) if mg else 32.8\
+    sq = float(ms.group(2)) if ms else 10.0\
+    return gain, sq\
+\
+def write_controls(conf_path: str, gain: float, squelch: float) -> None:\
+    txt = open(conf_path, "r", encoding="utf-8", errors="ignore").read()\
+    if _GAIN_RE.search(txt):\
+        txt = _GAIN_RE.sub(rf"\\g<1>\{gain:.3f\}\\g<3>", txt)\
+    if _SQL_RE.search(txt):\
+        txt = _SQL_RE.sub(rf"\\g<1>\{squelch:.3f\}\\g<3>", txt)\
+    with open(conf_path, "w", encoding="utf-8") as f:\
+        f.write(txt)\
+\
+def icecast_mount_present() -> bool:\
+    try:\
+        with urllib.request.urlopen(ICECAST_STATUS_URL, timeout=1.0) as r:\
+            data = json.loads(r.read().decode("utf-8", errors="ignore"))\
+        src = data.get("icestats", \{\}).get("source", None)\
+        if src is None:\
+            return False\
+        # source may be dict (single) or list (multiple)\
+        sources = src if isinstance(src, list) else [src]\
+        for s in sources:\
+            lu = (s.get("listenurl") or "")\
+            if lu.endswith(MOUNT_PATH):\
+                return True\
+        return False\
+    except Exception:\
+        return False\
+\
+HTML = """<!doctype html>\
+<html>\
+<head>\
+  <meta charset="utf-8">\
+  <meta name="viewport" content="width=device-width, initial-scale=1">\
+  <title>SprontPi Radio Control</title>\
+  <style>\
+    body\{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,sans-serif;background:#0b0f14;color:#e8eef6;margin:0;padding:20px\}\
+    .card\{max-width:760px;margin:0 auto;background:#121926;border:1px solid #1f2a3a;border-radius:14px;padding:18px 18px 14px\}\
+    h1\{font-size:20px;margin:0 0 10px\}\
+    .row\{display:flex;gap:12px;flex-wrap:wrap;align-items:center\}\
+    .pill\{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1px solid #1f2a3a;border-radius:12px;background:#0f1623\}\
+    .dot\{width:10px;height:10px;border-radius:50%;background:#6b7280\}\
+    .dot.green\{background:#22c55e\}\
+    .dot.red\{background:#ef4444\}\
+    .section\{margin-top:14px;padding-top:14px;border-top:1px solid #1f2a3a\}\
+    .grid\{display:grid;grid-template-columns:1fr 1fr;gap:12px\}\
+    .control\{padding:12px;border:1px solid #1f2a3a;border-radius:12px;background:#0f1623\}\
+    label\{display:block;font-size:12px;color:#b6c2d6;margin-bottom:6px\}\
+    input[type=range]\{width:100%\}\
+    .val\{font-variant-numeric:tabular-nums;font-weight:600\}\
+    .btn\{appearance:none;border:1px solid #28405f;background:#12243b;color:#e8eef6;padding:10px 12px;border-radius:12px;cursor:pointer\}\
+    .btn:hover\{background:#153051\}\
+    .btn:disabled\{opacity:.5;cursor:not-allowed\}\
+    .profiles\{display:flex;gap:10px;flex-wrap:wrap\}\
+    .radio\{display:flex;gap:8px;align-items:center;padding:10px 12px;border:1px solid #1f2a3a;border-radius:12px;background:#0f1623\}\
+    .topbar\{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap\}\
+    .play\{display:flex;gap:10px;align-items:center\}\
+    .note\{font-size:12px;color:#b6c2d6;margin-top:10px\}\
+  </style>\
+</head>\
+<body>\
+  <div class="card">\
+    <div class="topbar">\
+      <div>\
+        <h1>SprontPi Radio Control</h1>\
+        <div class="row">\
+          <div class="pill"><span id="dotScanner" class="dot"></span><span>Scanner</span></div>\
+          <div class="pill"><span id="dotIcecast" class="dot"></span><span>Broadcast</span></div>\
+          <div class="pill"><span>Profile: <b id="profileName">?</b></span></div>\
+        </div>\
+      </div>\
+      <div class="play">\
+        <button class="btn" id="btnPlay">\uc0\u9654  Play</button>\
+      </div>\
+    </div>\
+\
+    <div class="section">\
+      <div class="profiles" id="profiles"></div>\
+    </div>\
+\
+    <div class="section grid">\
+      <div class="control">\
+        <label>Gain: <span class="val" id="gainVal">?</span> dB</label>\
+        <input id="gain" type="range" min="0" max="49.6" step="0.1">\
+      </div>\
+      <div class="control">\
+        <label>Squelch (SNR threshold): <span class="val" id="sqVal">?</span></label>\
+        <input id="sq" type="range" min="0" max="30" step="0.5">\
+      </div>\
+    </div>\
+\
+    <div class="section row">\
+      <button class="btn" id="btnApply">Apply</button>\
+      <span id="msg" class="note"></span>\
+    </div>\
+  </div>\
+\
+<script>\
+  const state = \{\
+    profile: null,\
+    gain: null,\
+    sq: null,\
+    editing: false\
+  \};\
+\
+  function setDot(el, ok)\{\
+    el.classList.remove('green','red');\
+    el.classList.add(ok ? 'green' : 'red');\
+  \}\
+\
+  function msg(t)\{ document.getElementById('msg').textContent = t || ''; \}\
+\
+  async function api(path, opts)\{\
+    const r = await fetch(path, opts);\
+    if(!r.ok) throw new Error(await r.text());\
+    return await r.json();\
+  \}\
+\
+  function renderProfiles(current)\{\
+    const host = document.getElementById('profiles');\
+    host.innerHTML = '';\
+    const items = [\
+      \{k:'airband', label:'Airband'\},\
+      \{k:'tower', label:'Tower'\},\
+      \{k:'gmrs', label:'GMRS'\},\
+      \{k:'wx', label:'WX'\},\
+    ];\
+    for(const it of items)\{\
+      const wrap = document.createElement('label');\
+      wrap.className = 'radio';\
+      wrap.innerHTML = `<input type="radio" name="profile" value="$\{it.k\}"> <span>$\{it.label\}</span>`;\
+      const inp = wrap.querySelector('input');\
+      inp.checked = (it.k === current);\
+      inp.addEventListener('change', async (e) => \{\
+        try\{\
+          msg('Switching profile\'85');\
+          await api('/api/profile', \{\
+            method:'POST',\
+            headers:\{'Content-Type':'application/json'\},\
+            body: JSON.stringify(\{profile: it.k\})\
+          \});\
+          await loadConfig(); // refresh slider values from new profile\
+          msg('');\
+        \}catch(err)\{\
+          msg('Profile switch failed: ' + err.message);\
+        \}\
+      \});\
+      host.appendChild(wrap);\
+    \}\
+  \}\
+\
+  async function loadConfig()\{\
+    const j = await api('/api/config');\
+    state.profile = j.profile;\
+    state.gain = j.gain;\
+    state.sq = j.squelch;\
+\
+    document.getElementById('profileName').textContent = j.profile_label || j.profile || '?';\
+    renderProfiles(j.profile);\
+\
+    const gain = document.getElementById('gain');\
+    const sq = document.getElementById('sq');\
+\
+    gain.value = j.gain;\
+    sq.value = j.squelch;\
+    document.getElementById('gainVal').textContent = Number(j.gain).toFixed(1);\
+    document.getElementById('sqVal').textContent = Number(j.squelch).toFixed(1);\
+  \}\
+\
+  async function pollStatus()\{\
+    try\{\
+      const j = await api('/api/status');\
+      setDot(document.getElementById('dotScanner'), j.scanner_active);\
+      setDot(document.getElementById('dotIcecast'), j.broadcast_active);\
+    \}catch(e)\{\
+      setDot(document.getElementById('dotScanner'), false);\
+      setDot(document.getElementById('dotIcecast'), false);\
+    \}\
+  \}\
+\
+  window.addEventListener('DOMContentLoaded', async () => \{\
+    document.getElementById('btnPlay').addEventListener('click', () => \{\
+      window.open('/GND.mp3', '_blank');\
+    \});\
+\
+    const gain = document.getElementById('gain');\
+    const sq = document.getElementById('sq');\
+\
+    gain.addEventListener('input', () => \{\
+      document.getElementById('gainVal').textContent = Number(gain.value).toFixed(1);\
+    \});\
+    sq.addEventListener('input', () => \{\
+      document.getElementById('sqVal').textContent = Number(sq.value).toFixed(1);\
+    \});\
+\
+    document.getElementById('btnApply').addEventListener('click', async () => \{\
+      try\{\
+        document.getElementById('btnApply').disabled = true;\
+        msg('Applying\'85');\
+        await api('/api/apply', \{\
+          method:'POST',\
+          headers:\{'Content-Type':'application/json'\},\
+          body: JSON.stringify(\{gain: Number(gain.value), squelch: Number(sq.value)\})\
+        \});\
+        msg('Applied.');\
+        setTimeout(()=>msg(''), 1200);\
+      \}catch(err)\{\
+        msg('Apply failed: ' + err.message);\
+      \}finally\{\
+        document.getElementById('btnApply').disabled = false;\
+      \}\
+    \});\
+\
+    await loadConfig();\
+    await pollStatus();\
+    setInterval(pollStatus, 1500);\
+  \});\
+</script>\
+</body>\
+</html>\
+"""\
+\
+@app.get("/")\
+def index():\
+    return Response(HTML, mimetype="text/html")\
+\
+@app.get("/api/config")\
+def api_config():\
+    prof = current_profile_key()\
+    label = PROFILES.get(prof, \{\}).get("label") if prof else None\
+    conf = real_active_conf()\
+    gain, sq = read_controls(conf)\
+    return jsonify(\{\
+        "profile": prof,\
+        "profile_label": label,\
+        "gain": gain,\
+        "squelch": sq,\
+        "conf": conf,\
+    \})\
+\
+@app.post("/api/profile")\
+def api_profile():\
+    data = request.get_json(force=True, silent=True) or \{\}\
+    prof = data.get("profile")\
+    if prof not in PROFILES:\
+        return Response("unknown profile", status=400)\
+    target = PROFILES[prof]["file"]\
+    if not os.path.exists(target):\
+        return Response(f"missing profile file: \{target\}", status=400)\
+\
+    sh(["ln", "-sf", target, ACTIVE_CONF_SYMLINK])\
+    restart("rtl-airband")\
+    return jsonify(\{"ok": True, "profile": prof\})\
+\
+@app.post("/api/apply")\
+def api_apply():\
+    data = request.get_json(force=True, silent=True) or \{\}\
+    try:\
+        gain = float(data.get("gain"))\
+        squelch = float(data.get("squelch"))\
+    except Exception:\
+        return Response("bad gain/squelch", status=400)\
+\
+    conf = real_active_conf()\
+    write_controls(conf, gain, squelch)\
+    restart("rtl-airband")\
+    return jsonify(\{"ok": True\})\
+\
+@app.get("/api/status")\
+def api_status():\
+    scanner = is_active("rtl-airband")\
+    ice = is_active("icecast2")\
+    mount_ok = icecast_mount_present()\
+    return jsonify(\{\
+        "scanner_active": scanner,\
+        "broadcast_active": bool(ice and mount_ok),\
+    \})\
+\
+if __name__ == "__main__":\
+    app.run(host="0.0.0.0", port=APP_PORT, debug=False)\
+PY\
+sudo chmod +x /opt/airband-ui/airband_ui.py\
+\
+echo "== systemd: airband-ui.service =="\
+sudo tee /etc/systemd/system/airband-ui.service >/dev/null <<UNIT\
+[Unit]\
+Description=Airband Gain/Squelch Web UI\
+After=network-online.target\
+Wants=network-online.target\
+\
+[Service]\
+Type=simple\
+ExecStart=/usr/bin/python3 /opt/airband-ui/airband_ui.py\
+Restart=on-failure\
+RestartSec=2\
+\
+[Install]\
+WantedBy=multi-user.target\
+UNIT\
+\
+echo "== Enable/start services =="\
+sudo systemctl daemon-reload\
+sudo systemctl enable --now icecast2\
+sudo systemctl restart icecast2\
+\
+sudo systemctl enable --now icecast-keepalive\
+sudo systemctl enable --now rtl-airband\
+sudo systemctl enable --now airband-ui\
+\
+echo "== Quick status =="\
+sudo systemctl --no-pager -l status icecast2 icecast-keepalive rtl-airband airband-ui || true\
+echo\
+echo "Icecast status-json (first 400 chars):"\
+curl -s "http://127.0.0.1:$\{ICECAST_PORT\}/status-json.xsl" | head -c 400 || true\
+echo\
+echo\
+echo "UI should be at: http://$\{HOST_IP\}:$\{UI_PORT\}"\
+echo "Stream should be at: http://$\{HOST_IP\}:$\{ICECAST_PORT\}/$\{MOUNT\}"\
+}

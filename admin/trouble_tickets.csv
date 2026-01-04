@@ -18,3 +18,4 @@ id,created_at_utc,title,status,description
 17,2026-01-05T00:00:00Z,Verify GMRS hits are recorded,open,Add test to confirm hits are recorded for GMRS profile.
 18,2026-01-06T00:00:00Z,Live hit list page with time and duration,resolved,Live hit list page added with last 20 hits, time, frequency, and duration; Last Hit pill opens page with back arrow; parser fixed for journal timezone format.
 19,2026-01-06T00:00:00Z,Hit list duration appears too long,resolved,Duration now inferred from Activity-on bursts with a 10s gap reset; newest hits shown first; note that this is not true squelch open/close timing.
+20,2026-01-04T18:42:28Z,Drive last hit and hit list from Icecast metadata,open,Last hit pill should reflect the audio pipeline; log and display hits from Icecast metadata and fall back to journal when metadata is unavailable.
