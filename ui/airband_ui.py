@@ -310,7 +310,7 @@ async function refresh(allowSetSliders=false) {
 
   document.getElementById('txt-rtl').textContent = st.rtl_active ? 'Running' : 'Stopped';
   document.getElementById('txt-ice').textContent = st.icecast_active ? 'Running' : 'Stopped';
-  document.getElementById('txt-hit').textContent = st.last_hit || 'No hits yet';
+  document.getElementById('txt-hit').textContent = st.last_hit || 'None';
 
   document.getElementById('applied-gain').textContent = st.gain.toFixed(1);
   document.getElementById('applied-sql').textContent = st.squelch.toFixed(1);
