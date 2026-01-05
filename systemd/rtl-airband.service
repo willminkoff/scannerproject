@@ -8,10 +8,11 @@ Wants=rtl-airband-last-hit.service
 [Service]
 Type=simple
 ExecStartPre=-/usr/bin/pkill -x rtl_airband
-ExecStart=/home/willminkoff/scannerproject/scripts/rtl-airband-with-freq.sh
+ExecStart=/usr/local/bin/rtl_airband -F -e -c /usr/local/etc/rtl_airband.conf
 Restart=on-failure
-RestartSec=2
-TimeoutStopSec=3
+RestartSec=0
+TimeoutStopSec=1
+KillSignal=SIGINT
 
 [Install]
 WantedBy=multi-user.target
