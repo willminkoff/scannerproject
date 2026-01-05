@@ -45,6 +45,8 @@ PROFILES = [
 
 RE_GAIN = re.compile(r'^(\s*gain\s*=\s*)([0-9.]+)(\s*;\s*#\s*UI_CONTROLLED.*)$')
 RE_SQL  = re.compile(r'^(\s*squelch_snr_threshold\s*=\s*)([0-9.]+)(\s*;\s*#\s*UI_CONTROLLED.*)$')
+RE_AIRBAND = re.compile(r'^\s*airband\s*=\s*(true|false)\s*;\s*$', re.I)
+RE_INDEX = re.compile(r'^(\s*index\s*=\s*)(\d+)(\s*;.*)$')
 RE_FREQS_BLOCK = re.compile(r'(^\s*freqs\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)
 RE_LABELS_BLOCK = re.compile(r'(^\s*labels\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)
 RE_ACTIVITY = re.compile(r'Activity on ([0-9]+\.[0-9]+)')
@@ -470,7 +472,45 @@ def read_active_config_path() -> str:
     except Exception:
         return CONFIG_SYMLINK
 
+def enforce_profile_index(conf_path: str) -> None:
+    try:
+        with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
+            lines = f.readlines()
+    except FileNotFoundError:
+        return
+
+    airband_value = None
+    for line in lines:
+        match = RE_AIRBAND.match(line)
+        if match:
+            airband_value = match.group(1).lower() == "true"
+            break
+    if airband_value is None:
+        return
+
+    desired_index = 0 if airband_value else 1
+    out = []
+    changed = False
+    for line in lines:
+        match = RE_INDEX.match(line)
+        if match:
+            new_line = f"{match.group(1)}{desired_index}{match.group(3)}\n"
+            if new_line != line:
+                changed = True
+            out.append(new_line)
+            continue
+        out.append(line)
+
+    if not changed:
+        return
+
+    tmp = conf_path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.writelines(out)
+    os.replace(tmp, conf_path)
+
 def parse_controls(conf_path: str):
+    enforce_profile_index(conf_path)
     gain = 32.8
     squelch = 10.0
     try:
@@ -1076,6 +1116,7 @@ def set_profile(profile_id: str, current_conf_path: str):
         if pid == profile_id:
             if os.path.realpath(path) == os.path.realpath(current_conf_path):
                 return True, False
+            enforce_profile_index(path)
             subprocess.run(["ln", "-sf", path, CONFIG_SYMLINK], check=False)
             return True, True
     return False, False

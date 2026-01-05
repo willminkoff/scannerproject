@@ -10,19 +10,22 @@ run_tail() {
   local unit="$1"
   local out="$2"
 
-  stdbuf -oL -eL journalctl -u "$unit" -f -n 0 -o cat --no-pager \
-  | stdbuf -oL awk -v OUT="$out" '
-    {
-      if ($0 ~ /Activity on [0-9]+\.[0-9]+/) {
-        freq = $0;
-        sub(/.*Activity on /, "", freq);
-        sub(/ .*/, "", freq);
-        print freq > OUT;
-        fflush(OUT);
-        close(OUT);
+  while true; do
+    stdbuf -oL -eL journalctl -u "$unit" -f -n 0 -o cat --no-pager \
+    | stdbuf -oL awk -v OUT="$out" '
+      {
+        if ($0 ~ /Activity on [0-9]+\.[0-9]+/) {
+          freq = $0;
+          sub(/.*Activity on /, "", freq);
+          sub(/ .*/, "", freq);
+          print freq > OUT;
+          fflush(OUT);
+          close(OUT);
+        }
       }
-    }
-  '
+    ' || true
+    sleep 1
+  done
 }
 
 run_tail "rtl-airband" "$OUT_AIRBAND" &
