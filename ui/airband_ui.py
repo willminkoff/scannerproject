@@ -15,7 +15,8 @@ UI_PORT = 5050
 
 CONFIG_SYMLINK = "/usr/local/etc/rtl_airband.conf"
 PROFILES_DIR = "/usr/local/etc/airband-profiles"
-LAST_HIT_PATH = "/run/rtl_airband_last_freq.txt"
+LAST_HIT_AIRBAND_PATH = "/run/rtl_airband_last_freq_airband.txt"
+LAST_HIT_GROUND_PATH = "/run/rtl_airband_last_freq_ground.txt"
 AVOIDS_DIR = "/home/willminkoff/scannerproject/admin/logs"
 DIAGNOSTIC_DIR = AVOIDS_DIR
 AVOIDS_PATH = os.path.join(AVOIDS_DIR, "airband_avoids.json")
@@ -30,6 +31,7 @@ ICECAST_HIT_LOG_LIMIT = 200
 
 UNITS = {
     "rtl": "rtl-airband",
+    "ground": "rtl-airband-ground",
     "icecast": "icecast2",
     "keepalive": "icecast-keepalive",
 }
@@ -152,12 +154,14 @@ HTML = r"""<!doctype html>
         <div class="row">
           <div class="pill"><div id="dot-rtl" class="dot"></div><div><div class="label">Scanner</div><div class="val" id="txt-rtl">…</div></div></div>
           <div class="pill"><div id="dot-ice" class="dot"></div><div><div class="label">Icecast</div><div class="val" id="txt-ice">…</div></div></div>
-          <button type="button" class="pill pill-center" id="btn-hit-list"><div class="dot good"></div><div class="pill-text"><div class="label">Last hit</div><div class="val" id="txt-hit">…</div></div></button>
+          <div class="pill"><div class="dot good"></div><div><div class="label">Scanner 1 last hit</div><div class="val" id="txt-hit-airband">…</div></div></div>
+          <div class="pill"><div class="dot good"></div><div><div class="label">Scanner 2 last hit</div><div class="val" id="txt-hit-ground">…</div></div></div>
         </div>
 
         <div class="btns" style="margin-top:14px;">
           <button class="primary" id="btn-play">▶ Play</button>
           <button id="btn-refresh" title="Refresh status and sync sliders without restarting">↻ Refresh</button>
+          <button type="button" class="pill" id="btn-hit-list">Live Hit List</button>
           <button id="btn-avoid">Avoid Current Hit</button>
           <button id="btn-clear-avoids">Clear Avoids</button>
         </div>
@@ -323,7 +327,10 @@ async function refresh(allowSetSliders=false) {
 
   document.getElementById('txt-rtl').textContent = st.rtl_active ? 'Running' : 'Stopped';
   document.getElementById('txt-ice').textContent = st.icecast_active ? 'Running' : 'Stopped';
-  document.getElementById('txt-hit').textContent = formatHitLabel(st.last_hit) || 'None';
+  const airbandHit = formatHitLabel(st.last_hit_airband) || '—';
+  const groundHit = formatHitLabel(st.last_hit_ground) || '—';
+  document.getElementById('txt-hit-airband').textContent = airbandHit;
+  document.getElementById('txt-hit-ground').textContent = groundHit;
 
   document.getElementById('applied-gain').textContent = st.gain.toFixed(1);
   document.getElementById('applied-sql').textContent = st.squelch.toFixed(1);
@@ -490,9 +497,9 @@ def read_last_hit_from_journal_cached() -> str:
     read_last_hit_from_journal_cached._cache = cache
     return value
 
-def read_last_hit() -> str:
+def read_last_hit_file(path: str) -> str:
     try:
-        with open(LAST_HIT_PATH, "r", encoding="utf-8", errors="ignore") as f:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
             lines = [line.strip() for line in f.read().splitlines() if line.strip()]
             if not lines:
                 raise ValueError("empty last-hit file")
@@ -503,6 +510,22 @@ def read_last_hit() -> str:
         pass
     except Exception:
         pass
+    return ""
+
+def read_last_hit_airband() -> str:
+    if not unit_active(UNITS["rtl"]):
+        return ""
+    return read_last_hit_file(LAST_HIT_AIRBAND_PATH)
+
+def read_last_hit_ground() -> str:
+    if not unit_active(UNITS["ground"]):
+        return ""
+    return read_last_hit_file(LAST_HIT_GROUND_PATH)
+
+def read_last_hit() -> str:
+    value = read_last_hit_airband()
+    if value:
+        return value
 
     items = read_hit_list_cached()
     if items:
@@ -530,10 +553,10 @@ def parse_activity_timestamp(date_part: str, time_part: str, tz_part: Optional[s
     del tz_part
     return datetime.datetime.strptime(f"{date_part} {time_part}", "%Y-%m-%d %H:%M:%S")
 
-def read_hit_list(limit: int = 20, scan_lines: int = 200) -> list:
+def read_hit_list_for_unit(unit: str, limit: int = 20, scan_lines: int = 200) -> list:
     try:
         result = subprocess.run(
-            ["journalctl", "-u", UNITS["rtl"], "-n", str(scan_lines), "-o", "short-iso", "--no-pager"],
+            ["journalctl", "-u", unit, "-n", str(scan_lines), "-o", "short-iso", "--no-pager"],
             check=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -575,6 +598,7 @@ def read_hit_list(limit: int = 20, scan_lines: int = 200) -> list:
                 "time": last_ts.strftime("%H:%M:%S"),
                 "freq": freq_text,
                 "duration": duration,
+                "ts": last_ts.timestamp(),
             })
             current_freq = freq
             start_ts = ts
@@ -590,10 +614,26 @@ def read_hit_list(limit: int = 20, scan_lines: int = 200) -> list:
             "time": last_ts.strftime("%H:%M:%S"),
             "freq": freq_text,
             "duration": duration,
+            "ts": last_ts.timestamp(),
         })
 
     entries = entries[-limit:]
     entries.reverse()
+    return entries
+
+def read_hit_list(limit: int = 20, scan_lines: int = 200) -> list:
+    entries = []
+    if unit_active(UNITS["rtl"]):
+        entries.extend(read_hit_list_for_unit(UNITS["rtl"], limit=limit, scan_lines=scan_lines))
+    if unit_active(UNITS["ground"]):
+        entries.extend(read_hit_list_for_unit(UNITS["ground"], limit=limit, scan_lines=scan_lines))
+    if not entries:
+        return []
+    entries.sort(key=lambda item: item.get("ts", 0))
+    entries = entries[-limit:]
+    entries.reverse()
+    for item in entries:
+        item.pop("ts", None)
     return entries
 
 def read_hit_list_cached() -> list:
@@ -1080,6 +1120,8 @@ class Handler(BaseHTTPRequestHandler):
             profile = guess_current_profile(conf_path)
             icecast_hit = read_last_hit_from_icecast() if ice_ok else ""
             update_icecast_hit_log(icecast_hit)
+            last_hit_airband = read_last_hit_airband()
+            last_hit_ground = read_last_hit_ground()
 
             payload = {
                 "rtl_active": rtl_ok,
@@ -1091,6 +1133,8 @@ class Handler(BaseHTTPRequestHandler):
                 "gain": float(gain),
                 "squelch": float(squelch),
                 "last_hit": icecast_hit or read_last_hit(),
+                "last_hit_airband": last_hit_airband,
+                "last_hit_ground": last_hit_ground,
                 "avoids": summarize_avoids(conf_path),
             }
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")

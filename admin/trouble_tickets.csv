@@ -20,3 +20,4 @@ id,created_at_utc,title,status,description
 19,2026-01-06T00:00:00Z,Hit list duration appears too long,resolved,Duration now inferred from Activity-on bursts with a 10s gap reset; newest hits shown first; note that this is not true squelch open/close timing.
 20,2026-01-04T18:42:28Z,Drive last hit and hit list from Icecast metadata,resolved,Last hit pill and hit list now read Icecast metadata; numeric titles supported; journal fallback remains when metadata is unavailable.
 21,2026-01-05T00:00:00Z,Optimize systemd and Icecast for faster restarts and reconnections,resolved,Tuned rtl-airband systemd service for fast stops (TimeoutStopSec=1, KillSignal=SIGINT, RestartSec=0); changed ExecStart to direct rtl_airband binary for direct control; reduced Icecast source-timeout to 1s for quicker reconnections.
+22,2026-01-06T00:00:00Z,Change last hit frequency should show 000.000 format,open,Last hit frequency shows in 000.000 format. 3 digits on either side of decimal.

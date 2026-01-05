@@ -1,8 +1,8 @@
 [Unit]
 Description=RTLSDR-Airband last-hit tracker
-After=rtl-airband.service
-Requires=rtl-airband.service
-PartOf=rtl-airband.service
+After=rtl-airband.service rtl-airband-ground.service
+Wants=rtl-airband.service rtl-airband-ground.service
+PartOf=rtl-airband.service rtl-airband-ground.service
 
 [Service]
 Type=simple
@@ -11,4 +11,4 @@ Restart=always
 RestartSec=1
 
 [Install]
-WantedBy=rtl-airband.service
+WantedBy=rtl-airband.service rtl-airband-ground.service

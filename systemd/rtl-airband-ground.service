@@ -1,5 +1,5 @@
 [Unit]
-Description=RTLSDR-Airband (scan -> Icecast)
+Description=RTLSDR-Airband Ground (scan -> Icecast)
 After=network-online.target icecast2.service
 Wants=network-online.target
 Requires=icecast2.service
@@ -7,7 +7,7 @@ Wants=rtl-airband-last-hit.service
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/rtl_airband -F -e -c /usr/local/etc/rtl_airband_airband.conf
+ExecStart=/usr/local/bin/rtl_airband -F -e -c /usr/local/etc/rtl_airband_ground.conf
 Restart=on-failure
 RestartSec=0
 TimeoutStopSec=1

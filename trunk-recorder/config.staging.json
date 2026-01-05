@@ -37,7 +37,7 @@
       "rate": 3072000,
       "error": -18,
       "gain": 30,
-      "device": "rtl=0",
+      "device": "rtl=1",
       "digitalRecorders": 1,
       "analogRecorders": 0,
       "sigmfRecorders": 0
