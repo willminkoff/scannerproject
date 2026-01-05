@@ -13,7 +13,8 @@ from typing import Optional
 
 UI_PORT = 5050
 
-CONFIG_SYMLINK = "/usr/local/etc/rtl_airband.conf"
+CONFIG_AIRBAND = "/usr/local/etc/rtl_airband.conf"
+CONFIG_GROUND = "/usr/local/etc/rtl_airband_ground.conf"
 PROFILES_DIR = "/usr/local/etc/airband-profiles"
 LAST_HIT_AIRBAND_PATH = "/run/rtl_airband_last_freq_airband.txt"
 LAST_HIT_GROUND_PATH = "/run/rtl_airband_last_freq_ground.txt"
@@ -21,6 +22,7 @@ AVOIDS_DIR = "/home/willminkoff/scannerproject/admin/logs"
 DIAGNOSTIC_DIR = AVOIDS_DIR
 AVOIDS_PATH = os.path.join(AVOIDS_DIR, "airband_avoids.json")
 AVOIDS_SUMMARY_PATH = os.path.join(AVOIDS_DIR, "airband_avoids.txt")
+SELECTIONS_PATH = os.path.join(AVOIDS_DIR, "selected_profiles.json")
 
 ICECAST_PORT = 8000
 MOUNT_NAME = "GND.mp3"
@@ -37,10 +39,10 @@ UNITS = {
 }
 
 PROFILES = [
-    ("airband", "AIRBAND", os.path.join(PROFILES_DIR, "rtl_airband_airband.conf")),
-    ("tower",  "TOWER (118.600)", os.path.join(PROFILES_DIR, "rtl_airband_tower.conf")),
-    ("gmrs",   "GMRS", os.path.join(PROFILES_DIR, "rtl_airband_gmrs.conf")),
-    ("wx",     "WX (162.550)", os.path.join(PROFILES_DIR, "rtl_airband_wx.conf")),
+    ("airband", "AIRBAND", os.path.join(PROFILES_DIR, "rtl_airband_airband.conf"), "airband"),
+    ("tower",  "TOWER (118.600)", os.path.join(PROFILES_DIR, "rtl_airband_tower.conf"), "airband"),
+    ("gmrs",   "GMRS", os.path.join(PROFILES_DIR, "rtl_airband_gmrs.conf"), "ground"),
+    ("wx",     "WX (162.550)", os.path.join(PROFILES_DIR, "rtl_airband_wx.conf"), "ground"),
 ]
 
 RE_GAIN = re.compile(r'^(\s*gain\s*=\s*)([0-9.]+)(\s*;\s*#\s*UI_CONTROLLED.*)$')
@@ -49,6 +51,7 @@ RE_AIRBAND = re.compile(r'^\s*airband\s*=\s*(true|false)\s*;\s*$', re.I)
 RE_INDEX = re.compile(r'^(\s*index\s*=\s*)(\d+)(\s*;.*)$')
 RE_FREQS_BLOCK = re.compile(r'(^\s*freqs\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)
 RE_LABELS_BLOCK = re.compile(r'(^\s*labels\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)
+RE_CHANNELS_START = re.compile(r'\bchannels\s*:\s*\(', re.S | re.M)
 RE_ACTIVITY = re.compile(r'Activity on ([0-9]+\.[0-9]+)')
 RE_ACTIVITY_TS = re.compile(
     r'^(?P<date>\d{4}-\d{2}-\d{2})[ T](?P<time>\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:[+-]\d{2}:?\d{2}|[A-Z]{2,5})?\s+.*Activity on (?P<freq>[0-9]+\.[0-9]+)'
@@ -80,7 +83,11 @@ HTML = r"""<!doctype html>
     .dot.good { background: var(--good); box-shadow: 0 0 0 4px rgba(34,197,94,.12); }
     .label { font-size: 13px; color: var(--muted); }
     .val { font-size: 13px; }
-    .profiles { margin-top: 12px; display:grid; gap:10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .profile-group { margin-top: 12px; }
+    .profile-head { display:flex; justify-content:space-between; align-items:baseline; margin-bottom: 6px; }
+    .profile-head b { font-size: 13px; letter-spacing: .2px; }
+    .profile-head span { font-size: 12px; color: var(--muted); }
+    .profiles { display:grid; gap:10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .profile-card { text-align:left; padding:10px 12px; border:1px solid var(--line); border-radius:12px; cursor:pointer; background: rgba(255,255,255,.02); color: var(--text); }
     .profile-card.selected { border-color: rgba(34,197,94,.55); box-shadow: 0 0 0 1px rgba(34,197,94,.25), 0 12px 18px rgba(0,0,0,.2); }
     .profile-card small { color: var(--muted); display:block; margin-top: 4px; }
@@ -168,7 +175,14 @@ HTML = r"""<!doctype html>
           <button id="btn-clear-avoids">Clear Avoids</button>
         </div>
 
-        <div class="profiles" id="profiles"></div>
+        <div class="profile-group">
+          <div class="profile-head"><b>Airband profiles</b><span id="airband-count">0 selected</span></div>
+          <div class="profiles" id="profiles-airband"></div>
+        </div>
+        <div class="profile-group">
+          <div class="profile-head"><b>Ground profiles</b><span id="ground-count">0 selected</span></div>
+          <div class="profiles" id="profiles-ground"></div>
+        </div>
 
         <div class="controls">
           <div class="ctrl">
@@ -186,7 +200,7 @@ HTML = r"""<!doctype html>
 
         <div class="warn" id="warn"></div>
         <div class="avoids" id="avoids-summary"></div>
-        <div class="foot">Tip: switching profiles or applying changes restarts the scanner; refresh only syncs status + sliders. <a href="#" id="lnk-diagnostic">Generate log</a></div>
+        <div class="foot">Tip: selecting profiles restarts scanners; no profiles selected keeps scanners stopped; refresh only syncs status + sliders. <a href="#" id="lnk-diagnostic">Generate log</a></div>
       </div>
 
       <div id="view-hits" class="hidden">
@@ -203,7 +217,10 @@ HTML = r"""<!doctype html>
   </div>
 
 <script>
-const profilesEl = document.getElementById('profiles');
+const profilesAirbandEl = document.getElementById('profiles-airband');
+const profilesGroundEl = document.getElementById('profiles-ground');
+const airbandCountEl = document.getElementById('airband-count');
+const groundCountEl = document.getElementById('ground-count');
 const warnEl = document.getElementById('warn');
 const avoidsEl = document.getElementById('avoids-summary');
 const gainEl = document.getElementById('gain');
@@ -221,10 +238,11 @@ const GAIN_STEPS = [
   36.4, 37.2, 38.6, 40.2, 42.1, 43.4, 43.9, 44.5, 48.0, 49.6,
 ];
 
-let currentProfile = null;
 let sliderDirty = false;
 let applyInFlight = false;
 let hitsView = false;
+let selectedAirband = [];
+let selectedGround = [];
 
 gainEl.max = String(GAIN_STEPS.length - 1);
 
@@ -268,10 +286,16 @@ function formatHitLabel(value) {
   return text;
 }
 
-function updateWarn(missingProfiles) {
+function updateWarn(missingProfiles, airbandSelected, groundSelected) {
   const parts = [];
   if (missingProfiles.length) {
     parts.push('Missing profile file(s): ' + missingProfiles.join(' • '));
+  }
+  if (!airbandSelected.length) {
+    parts.push('No airband profiles selected');
+  }
+  if (!groundSelected.length) {
+    parts.push('No ground profiles selected');
   }
   if (actionMsg) {
     parts.push(actionMsg);
@@ -287,27 +311,42 @@ function updateAvoids(avoids) {
   }
   const count = avoids.count || 0;
   const sample = (avoids.sample || []).filter(Boolean);
-  let text = count ? `Avoids: ${count} for this profile` : 'Avoids: none';
+  let text = count ? `Avoids: ${count} for current config` : 'Avoids: none';
   if (sample.length) {
     text += ` (${sample.join(', ')})`;
   }
   avoidsEl.textContent = text;
 }
 
-function buildProfiles(profiles, selected) {
-  profilesEl.innerHTML = '';
-  profiles.forEach(p => {
+function toggleSelection(list, id) {
+  if (list.includes(id)) {
+    return list.filter(v => v !== id);
+  }
+  return list.concat([id]);
+}
+
+function buildProfiles(profiles, selected, container, group) {
+  container.innerHTML = '';
+  profiles.filter(p => p.group === group).forEach(p => {
     const card = document.createElement('button');
     card.type = 'button';
-    card.className = 'profile-card' + (p.id === selected ? ' selected' : '');
-    card.setAttribute('aria-pressed', p.id === selected ? 'true' : 'false');
+    const isSelected = selected.includes(p.id);
+    card.className = 'profile-card' + (isSelected ? ' selected' : '');
+    card.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
     card.innerHTML = `<div><b>${p.label}</b></div>` + (p.exists ? '' : `<small>Missing: ${p.path}</small>`);
     card.addEventListener('click', async () => {
-      if (p.id === selected) return;
-      await post('/api/profile', {profile: p.id});
+      if (group === 'airband') {
+        selectedAirband = toggleSelection(selectedAirband, p.id);
+      } else {
+        selectedGround = toggleSelection(selectedGround, p.id);
+      }
+      await post('/api/profiles', {
+        airband: selectedAirband.join(','),
+        ground: selectedGround.join(','),
+      });
       await refresh(true);
     });
-    profilesEl.appendChild(card);
+    container.appendChild(card);
   });
 }
 
@@ -337,13 +376,16 @@ async function refresh(allowSetSliders=false) {
   document.getElementById('applied-gain').textContent = st.gain.toFixed(1);
   document.getElementById('applied-sql').textContent = st.squelch.toFixed(1);
 
-  updateWarn(st.missing_profiles);
+  selectedAirband = st.selected_airband || [];
+  selectedGround = st.selected_ground || [];
+  airbandCountEl.textContent = `${selectedAirband.length} selected`;
+  groundCountEl.textContent = `${selectedGround.length} selected`;
+
+  updateWarn(st.missing_profiles, selectedAirband, selectedGround);
   updateAvoids(st.avoids);
 
-  if (currentProfile === null || currentProfile !== st.profile) {
-    currentProfile = st.profile;
-    buildProfiles(st.profiles, st.profile);
-  }
+  buildProfiles(st.profiles || [], selectedAirband, profilesAirbandEl, 'airband');
+  buildProfiles(st.profiles || [], selectedGround, profilesGroundEl, 'ground');
 
   if (allowSetSliders && !sliderDirty) {
     gainEl.value = gainIndexFromValue(st.gain);
@@ -441,7 +483,7 @@ document.getElementById('btn-hit-back').addEventListener('click', ()=> {
 document.getElementById('lnk-diagnostic').addEventListener('click', async (e)=> {
   e.preventDefault();
   actionMsg = 'Generating log...';
-  updateWarn([]);
+  updateWarn([], selectedAirband, selectedGround);
   const res = await post('/api/diagnostic', {});
   if (res.ok) {
     actionMsg = `Log saved: ${res.path}`;
@@ -467,50 +509,137 @@ def unit_active(unit: str) -> bool:
     return subprocess.run(["systemctl", "is-active", "--quiet", unit]).returncode == 0
 
 def read_active_config_path() -> str:
-    try:
-        return os.path.realpath(CONFIG_SYMLINK)
-    except Exception:
-        return CONFIG_SYMLINK
+    return CONFIG_AIRBAND
 
-def enforce_profile_index(conf_path: str) -> None:
+def split_channels_block(text: str):
+    match = RE_CHANNELS_START.search(text)
+    if not match:
+        raise ValueError("channels block not found")
+    start = match.end()
+    depth = 1
+    idx = start
+    while idx < len(text) and depth > 0:
+        char = text[idx]
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+        idx += 1
+    if depth != 0:
+        raise ValueError("channels block unterminated")
+    end = idx - 1
+    return text[:start], text[start:end], text[end:]
+
+def ensure_airband_flag(text: str, is_airband: bool) -> str:
+    value = "true" if is_airband else "false"
+    replaced, count = RE_AIRBAND.subn(f"airband = {value};", text, count=1)
+    if count:
+        return replaced
+    return f"airband = {value};\n\n{replaced}"
+
+def force_device_index(text: str, index: int) -> str:
+    return RE_INDEX.sub(lambda m: f"{m.group(1)}{index}{m.group(3)}", text)
+
+def profile_by_id(pid: str):
+    for item in PROFILES:
+        if item[0] == pid:
+            return item
+    return None
+
+def selection_from_symlink(path: str) -> Optional[str]:
+    if not os.path.islink(path):
+        return None
+    real = os.path.realpath(path)
+    for pid, _, profile_path, _ in PROFILES:
+        if os.path.realpath(profile_path) == real:
+            return pid
+    return None
+
+def normalize_selection(ids, group: str):
+    ordered = []
+    wanted = set(ids or [])
+    for pid, _, _, grp in PROFILES:
+        if grp == group and pid in wanted:
+            ordered.append(pid)
+    return ordered
+
+def load_selected_profiles() -> dict:
+    data = {"airband": [], "ground": []}
     try:
-        with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
-            lines = f.readlines()
+        with open(SELECTIONS_PATH, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+            if isinstance(raw, dict):
+                data["airband"] = normalize_selection(raw.get("airband", []), "airband")
+                data["ground"] = normalize_selection(raw.get("ground", []), "ground")
     except FileNotFoundError:
-        return
+        pass
+    except json.JSONDecodeError:
+        pass
 
-    airband_value = None
-    for line in lines:
-        match = RE_AIRBAND.match(line)
-        if match:
-            airband_value = match.group(1).lower() == "true"
-            break
-    if airband_value is None:
-        return
+    if not data["airband"]:
+        pid = selection_from_symlink(CONFIG_AIRBAND)
+        if pid:
+            data["airband"] = [pid]
+    if not data["ground"]:
+        pid = selection_from_symlink(CONFIG_GROUND)
+        if pid:
+            data["ground"] = [pid]
+    return data
 
-    desired_index = 0 if airband_value else 1
-    out = []
-    changed = False
-    for line in lines:
-        match = RE_INDEX.match(line)
-        if match:
-            new_line = f"{match.group(1)}{desired_index}{match.group(3)}\n"
-            if new_line != line:
-                changed = True
-            out.append(new_line)
-            continue
-        out.append(line)
-
-    if not changed:
-        return
-
-    tmp = conf_path + ".tmp"
+def save_selected_profiles(data: dict) -> None:
+    os.makedirs(AVOIDS_DIR, exist_ok=True)
+    tmp = SELECTIONS_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
-        f.writelines(out)
-    os.replace(tmp, conf_path)
+        json.dump(data, f, indent=2, sort_keys=True)
+        f.write("\n")
+    os.replace(tmp, SELECTIONS_PATH)
+
+def load_profile_text(path: str) -> str:
+    with open(path, "r", encoding="utf-8", errors="ignore") as f:
+        return f.read()
+
+def build_combined_config(profile_ids, group: str) -> str:
+    if not profile_ids:
+        raise ValueError("no profiles selected")
+    base = profile_by_id(profile_ids[0])
+    if not base:
+        raise ValueError("unknown profile")
+    base_text = load_profile_text(base[2])
+    prefix, _, suffix = split_channels_block(base_text)
+
+    channel_chunks = []
+    for pid in profile_ids:
+        prof = profile_by_id(pid)
+        if not prof:
+            continue
+        text = load_profile_text(prof[2])
+        _, channels, _ = split_channels_block(text)
+        channels = channels.strip()
+        if channels:
+            channel_chunks.append(channels)
+
+    combined = "\n\n".join(channel_chunks).strip()
+    text = f"{prefix}\n{combined}\n{suffix}"
+    text = ensure_airband_flag(text, group == "airband")
+    desired_index = 0 if group == "airband" else 1
+    text = force_device_index(text, desired_index)
+    return text
+
+def write_config_if_changed(path: str, text: str) -> bool:
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            existing = f.read()
+        if existing == text:
+            return False
+    except FileNotFoundError:
+        pass
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(text)
+    os.replace(tmp, path)
+    return True
 
 def parse_controls(conf_path: str):
-    enforce_profile_index(conf_path)
     gain = 32.8
     squelch = 10.0
     try:
@@ -827,7 +956,7 @@ def write_avoids_summary(data: dict) -> None:
     if not profiles:
         lines.append("No avoids recorded.")
     else:
-        path_to_label = {path: label for _, label, path in PROFILES}
+        path_to_label = {path: label for _, label, path, _ in PROFILES}
         for conf_path in sorted(profiles.keys()):
             prof = profiles.get(conf_path, {})
             avoids = sorted(prof.get("avoids", []) or [])
@@ -1111,21 +1240,52 @@ def start_rtl():
         stderr=subprocess.DEVNULL,
     )
 
-def set_profile(profile_id: str, current_conf_path: str):
-    for pid, _, path in PROFILES:
-        if pid == profile_id:
-            if os.path.realpath(path) == os.path.realpath(current_conf_path):
-                return True, False
-            enforce_profile_index(path)
-            subprocess.run(["ln", "-sf", path, CONFIG_SYMLINK], check=False)
-            return True, True
-    return False, False
+def restart_ground():
+    subprocess.Popen(
+        ["systemctl", "restart", "--no-block", UNITS["ground"]],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
-def guess_current_profile(conf_realpath: str):
-    for pid, _, path in PROFILES:
-        if os.path.realpath(path) == conf_realpath:
-            return pid
-    return "airband"
+def stop_ground():
+    subprocess.run(
+        ["systemctl", "stop", UNITS["ground"]],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+
+def start_ground():
+    subprocess.Popen(
+        ["systemctl", "start", "--no-block", UNITS["ground"]],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+def apply_selections(state: dict) -> None:
+    state["airband"] = normalize_selection(state.get("airband", []), "airband")
+    state["ground"] = normalize_selection(state.get("ground", []), "ground")
+    save_selected_profiles(state)
+
+    if state["airband"]:
+        text = build_combined_config(state["airband"], "airband")
+        changed = write_config_if_changed(CONFIG_AIRBAND, text)
+        if changed:
+            restart_rtl()
+        elif not unit_active(UNITS["rtl"]):
+            start_rtl()
+    else:
+        stop_rtl()
+
+    if state["ground"]:
+        text = build_combined_config(state["ground"], "ground")
+        changed = write_config_if_changed(CONFIG_GROUND, text)
+        if changed:
+            restart_ground()
+        elif not unit_active(UNITS["ground"]):
+            start_ground()
+    else:
+        stop_ground()
 
 def icecast_up():
     return unit_active(UNITS["icecast"])
@@ -1149,16 +1309,15 @@ class Handler(BaseHTTPRequestHandler):
             gain, squelch = parse_controls(conf_path)
             rtl_ok = unit_active(UNITS["rtl"])
             ice_ok = icecast_up()
+            selected = load_selected_profiles()
 
             missing = []
             prof_payload = []
-            for pid, label, path in PROFILES:
+            for pid, label, path, group in PROFILES:
                 exists = os.path.exists(path)
                 if not exists:
                     missing.append(path)
-                prof_payload.append({"id": pid, "label": label, "path": path, "exists": exists})
-
-            profile = guess_current_profile(conf_path)
+                prof_payload.append({"id": pid, "label": label, "path": path, "exists": exists, "group": group})
             icecast_hit = read_last_hit_from_icecast() if ice_ok else ""
             update_icecast_hit_log(icecast_hit)
             last_hit_airband = read_last_hit_airband()
@@ -1168,9 +1327,10 @@ class Handler(BaseHTTPRequestHandler):
                 "rtl_active": rtl_ok,
                 "icecast_active": ice_ok,
                 "keepalive_active": unit_active(UNITS["keepalive"]),
-                "profile": profile,
                 "profiles": prof_payload,
                 "missing_profiles": missing,
+                "selected_airband": selected.get("airband", []),
+                "selected_ground": selected.get("ground", []),
                 "gain": float(gain),
                 "squelch": float(squelch),
                 "last_hit": icecast_hit or read_last_hit(),
@@ -1194,25 +1354,31 @@ class Handler(BaseHTTPRequestHandler):
         form = {k: v[0] for k, v in parse_qs(raw).items()}
 
         if p == "/api/profile":
+            state = load_selected_profiles()
             pid = form.get("profile", "")
-            conf_path = read_active_config_path()
-            current_profile = guess_current_profile(conf_path)
-            did_stop = False
-            if pid and pid != current_profile:
-                stop_rtl()
-                did_stop = True
-            ok, changed = set_profile(pid, conf_path)
-            if ok:
-                if changed:
-                    restart_rtl()
-                elif did_stop:
-                    start_rtl()
-                return self._send(200, json.dumps({"ok": True, "changed": changed}), "application/json; charset=utf-8")
-            if did_stop:
-                start_rtl()
-            return self._send(400, json.dumps({"ok": False, "error": "unknown profile"}), "application/json; charset=utf-8")
+            if pid:
+                prof = profile_by_id(pid)
+                if not prof:
+                    return self._send(400, json.dumps({"ok": False, "error": "unknown profile"}), "application/json; charset=utf-8")
+                group = prof[3]
+                state[group] = [pid]
+                apply_selections(state)
+                return self._send(200, json.dumps({"ok": True, "changed": True}), "application/json; charset=utf-8")
+            return self._send(400, json.dumps({"ok": False, "error": "missing profile"}), "application/json; charset=utf-8")
+
+        if p == "/api/profiles":
+            state = load_selected_profiles()
+            if "airband" in form:
+                state["airband"] = [v for v in form.get("airband", "").split(",") if v]
+            if "ground" in form:
+                state["ground"] = [v for v in form.get("ground", "").split(",") if v]
+            apply_selections(state)
+            return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
 
         if p == "/api/apply":
+            selected = load_selected_profiles()
+            if not selected.get("airband"):
+                return self._send(400, json.dumps({"ok": False, "error": "no airband profiles selected"}), "application/json; charset=utf-8")
             conf_path = read_active_config_path()
             stop_rtl()
             try:
@@ -1235,6 +1401,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, json.dumps({"ok": True, "changed": changed}), "application/json; charset=utf-8")
 
         if p == "/api/avoid":
+            selected = load_selected_profiles()
+            if not selected.get("airband"):
+                return self._send(400, json.dumps({"ok": False, "error": "no airband profiles selected"}), "application/json; charset=utf-8")
             conf_path = read_active_config_path()
             stop_rtl()
             try:
@@ -1248,6 +1417,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, json.dumps({"ok": True, "freq": f"{freq:.4f}"}), "application/json; charset=utf-8")
 
         if p == "/api/avoid-clear":
+            selected = load_selected_profiles()
+            if not selected.get("airband"):
+                return self._send(400, json.dumps({"ok": False, "error": "no airband profiles selected"}), "application/json; charset=utf-8")
             conf_path = read_active_config_path()
             stop_rtl()
             try:
