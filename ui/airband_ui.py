@@ -15,6 +15,7 @@ UI_PORT = 5050
 
 CONFIG_SYMLINK = "/usr/local/etc/rtl_airband.conf"
 PROFILES_DIR = "/usr/local/etc/airband-profiles"
+GROUND_CONFIG_PATH = "/usr/local/etc/rtl_airband_ground.conf"
 LAST_HIT_AIRBAND_PATH = "/run/rtl_airband_last_freq_airband.txt"
 LAST_HIT_GROUND_PATH = "/run/rtl_airband_last_freq_ground.txt"
 AVOIDS_DIR = "/home/willminkoff/scannerproject/admin/logs"
@@ -133,6 +134,14 @@ HTML = r"""<!doctype html>
     button { border:1px solid var(--line); background: rgba(255,255,255,.06); color:var(--text); padding:10px 12px; border-radius:12px; cursor:pointer; }
     button.pill { background: rgba(255,255,255,.03); }
     button.primary { background: rgba(34,197,94,.18); border-color: rgba(34,197,94,.35); }
+    .tabs { display:flex; gap:10px; margin-top: 14px; }
+    .tab { flex:1; text-align:center; padding:10px 12px; border-radius:999px; border:1px solid var(--line); background: rgba(255,255,255,.04); color: var(--muted); }
+    .tab.active { color: var(--text); background: rgba(34,197,94,.16); border-color: rgba(34,197,94,.35); box-shadow: 0 0 0 1px rgba(34,197,94,.2); }
+    .swipe-hint { margin-top: 8px; font-size: 12px; color: var(--muted); text-align:center; }
+    .pager { margin-top: 12px; overflow:hidden; }
+    .pager-inner { display:flex; transition: transform 0.3s ease; }
+    .page { min-width:100%; box-sizing:border-box; }
+    .page-title { font-size: 15px; color: var(--muted); margin: 4px 0 8px; letter-spacing: .2px; text-transform: uppercase; }
     .foot { margin-top: 12px; color: var(--muted); font-size: 12px; }
     .foot a { color: var(--muted); text-decoration: underline; }
     .foot a:hover { color: var(--text); }
@@ -154,7 +163,8 @@ HTML = r"""<!doctype html>
         <h1>SprontPi Radio Control</h1>
 
         <div class="row">
-          <div class="pill"><div id="dot-rtl" class="dot"></div><div><div class="label">Scanner</div><div class="val" id="txt-rtl">…</div></div></div>
+          <div class="pill"><div id="dot-rtl" class="dot"></div><div><div class="label">Scanner 1 (Airband)</div><div class="val" id="txt-rtl">…</div></div></div>
+          <div class="pill"><div id="dot-ground" class="dot"></div><div><div class="label">Scanner 2 (Ground)</div><div class="val" id="txt-ground">…</div></div></div>
           <div class="pill"><div id="dot-ice" class="dot"></div><div><div class="label">Icecast</div><div class="val" id="txt-ice">…</div></div></div>
           <div class="pill"><div class="dot good"></div><div><div class="label">Scanner 1 last hit</div><div class="val" id="txt-hit-airband">…</div></div></div>
           <div class="pill"><div class="dot good"></div><div><div class="label">Scanner 2 last hit</div><div class="val" id="txt-hit-ground">…</div></div></div>
@@ -168,19 +178,50 @@ HTML = r"""<!doctype html>
           <button id="btn-clear-avoids">Clear Avoids</button>
         </div>
 
-        <div class="profiles" id="profiles"></div>
+        <div class="tabs">
+          <button type="button" class="tab active" id="tab-airband">Airband (Dongle 0)</button>
+          <button type="button" class="tab" id="tab-ground">Ground (Dongle 1)</button>
+        </div>
+        <div class="swipe-hint">Swipe between airband and ground controls.</div>
 
-        <div class="controls">
-          <div class="ctrl">
-            <div class="ctrl-head"><b>Gain (dB)</b><span>Applied: <span id="applied-gain">…</span></span></div>
-            <input id="gain" class="range" type="range" min="0" max="28" step="1" />
-            <div class="ctrl-readout"><span>Selected: <span id="selected-gain">…</span> dB</span><span>RTL-SDR steps</span></div>
-          </div>
+        <div class="pager" id="pager">
+          <div class="pager-inner" id="pager-inner">
+            <section class="page">
+              <div class="page-title">Airband Scanner Controls</div>
+              <div class="profiles" id="profiles"></div>
 
-          <div class="ctrl">
-            <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span id="applied-sql">…</span></span></div>
-            <input id="sql" class="range" type="range" min="0" max="10" step="0.1" />
-            <div class="ctrl-readout"><span>Selected: <span id="selected-sql">…</span></span><span>0.0-10.0 SNR threshold</span></div>
+              <div class="controls">
+                <div class="ctrl">
+                  <div class="ctrl-head"><b>Gain (dB)</b><span>Applied: <span id="applied-gain-airband">…</span></span></div>
+                  <input id="gain-airband" class="range" type="range" min="0" max="28" step="1" />
+                  <div class="ctrl-readout"><span>Selected: <span id="selected-gain-airband">…</span> dB</span><span>RTL-SDR steps</span></div>
+                </div>
+
+                <div class="ctrl">
+                  <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span id="applied-sql-airband">…</span></span></div>
+                  <input id="sql-airband" class="range" type="range" min="0" max="10" step="0.1" />
+                  <div class="ctrl-readout"><span>Selected: <span id="selected-sql-airband">…</span></span><span>0.0-10.0 SNR threshold</span></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="page">
+              <div class="page-title">Ground Scanner Controls</div>
+              <div class="controls">
+                <div class="ctrl">
+                  <div class="ctrl-head"><b>Gain (dB)</b><span>Applied: <span id="applied-gain-ground">…</span></span></div>
+                  <input id="gain-ground" class="range" type="range" min="0" max="28" step="1" />
+                  <div class="ctrl-readout"><span>Selected: <span id="selected-gain-ground">…</span> dB</span><span>RTL-SDR steps</span></div>
+                </div>
+
+                <div class="ctrl">
+                  <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span id="applied-sql-ground">…</span></span></div>
+                  <input id="sql-ground" class="range" type="range" min="0" max="10" step="0.1" />
+                  <div class="ctrl-readout"><span>Selected: <span id="selected-sql-ground">…</span></span><span>0.0-10.0 SNR threshold</span></div>
+                </div>
+              </div>
+              <div class="foot">Both scanners feed the same Icecast stream.</div>
+            </section>
           </div>
         </div>
 
@@ -206,13 +247,13 @@ HTML = r"""<!doctype html>
 const profilesEl = document.getElementById('profiles');
 const warnEl = document.getElementById('warn');
 const avoidsEl = document.getElementById('avoids-summary');
-const gainEl = document.getElementById('gain');
-const sqlEl = document.getElementById('sql');
-const selectedGainEl = document.getElementById('selected-gain');
-const selectedSqlEl = document.getElementById('selected-sql');
 const viewMainEl = document.getElementById('view-main');
 const viewHitsEl = document.getElementById('view-hits');
 const hitListEl = document.getElementById('hit-list');
+const tabAirbandEl = document.getElementById('tab-airband');
+const tabGroundEl = document.getElementById('tab-ground');
+const pagerEl = document.getElementById('pager');
+const pagerInnerEl = document.getElementById('pager-inner');
 let actionMsg = '';
 
 const GAIN_STEPS = [
@@ -222,11 +263,35 @@ const GAIN_STEPS = [
 ];
 
 let currentProfile = null;
-let sliderDirty = false;
-let applyInFlight = false;
 let hitsView = false;
+let activePage = 0;
 
-gainEl.max = String(GAIN_STEPS.length - 1);
+const controlTargets = {
+  airband: {
+    gainEl: document.getElementById('gain-airband'),
+    sqlEl: document.getElementById('sql-airband'),
+    selectedGainEl: document.getElementById('selected-gain-airband'),
+    selectedSqlEl: document.getElementById('selected-sql-airband'),
+    appliedGainEl: document.getElementById('applied-gain-airband'),
+    appliedSqlEl: document.getElementById('applied-sql-airband'),
+    dirty: false,
+    applyInFlight: false,
+  },
+  ground: {
+    gainEl: document.getElementById('gain-ground'),
+    sqlEl: document.getElementById('sql-ground'),
+    selectedGainEl: document.getElementById('selected-gain-ground'),
+    selectedSqlEl: document.getElementById('selected-sql-ground'),
+    appliedGainEl: document.getElementById('applied-gain-ground'),
+    appliedSqlEl: document.getElementById('applied-sql-ground'),
+    dirty: false,
+    applyInFlight: false,
+  },
+};
+
+Object.values(controlTargets).forEach(target => {
+  target.gainEl.max = String(GAIN_STEPS.length - 1);
+});
 
 function setDot(id, ok) {
   const el = document.getElementById(id);
@@ -246,13 +311,15 @@ function gainIndexFromValue(value) {
   return best;
 }
 
-function updateSelectedGain() {
-  const idx = Number(gainEl.value || 0);
-  selectedGainEl.textContent = GAIN_STEPS[idx].toFixed(1);
+function updateSelectedGain(target) {
+  const controls = controlTargets[target];
+  const idx = Number(controls.gainEl.value || 0);
+  controls.selectedGainEl.textContent = GAIN_STEPS[idx].toFixed(1);
 }
 
-function updateSelectedSql() {
-  selectedSqlEl.textContent = Number(sqlEl.value).toFixed(1);
+function updateSelectedSql(target) {
+  const controls = controlTargets[target];
+  controls.selectedSqlEl.textContent = Number(controls.sqlEl.value).toFixed(1);
 }
 
 function formatHitLabel(value) {
@@ -321,21 +388,35 @@ async function post(url, obj) {
   return await r.json();
 }
 
+function setControlsFromStatus(target, gain, squelch, allowSetSliders) {
+  const controls = controlTargets[target];
+  controls.appliedGainEl.textContent = gain.toFixed(1);
+  controls.appliedSqlEl.textContent = squelch.toFixed(1);
+  if (allowSetSliders && !controls.dirty) {
+    controls.gainEl.value = gainIndexFromValue(gain);
+    controls.sqlEl.value = Math.max(0, Math.min(10, squelch)).toFixed(1);
+    updateSelectedGain(target);
+    updateSelectedSql(target);
+  }
+}
+
 async function refresh(allowSetSliders=false) {
   const st = await getJSON('/api/status');
 
   setDot('dot-rtl', st.rtl_active);
+  setDot('dot-ground', st.ground_active);
   setDot('dot-ice', st.icecast_active);
 
   document.getElementById('txt-rtl').textContent = st.rtl_active ? 'Running' : 'Stopped';
+  document.getElementById('txt-ground').textContent = st.ground_active ? 'Running' : 'Stopped';
   document.getElementById('txt-ice').textContent = st.icecast_active ? 'Running' : 'Stopped';
   const airbandHit = formatHitLabel(st.last_hit_airband) || '—';
   const groundHit = formatHitLabel(st.last_hit_ground) || '—';
   document.getElementById('txt-hit-airband').textContent = airbandHit;
   document.getElementById('txt-hit-ground').textContent = groundHit;
 
-  document.getElementById('applied-gain').textContent = st.gain.toFixed(1);
-  document.getElementById('applied-sql').textContent = st.squelch.toFixed(1);
+  setControlsFromStatus('airband', st.airband_gain, st.airband_squelch, allowSetSliders);
+  setControlsFromStatus('ground', st.ground_gain, st.ground_squelch, allowSetSliders);
 
   updateWarn(st.missing_profiles);
   updateAvoids(st.avoids);
@@ -345,11 +426,11 @@ async function refresh(allowSetSliders=false) {
     buildProfiles(st.profiles, st.profile);
   }
 
-  if (allowSetSliders && !sliderDirty) {
-    gainEl.value = gainIndexFromValue(st.gain);
-    sqlEl.value = Math.max(0, Math.min(10, st.squelch)).toFixed(1);
-    updateSelectedGain();
-    updateSelectedSql();
+  if (allowSetSliders) {
+    updateSelectedGain('airband');
+    updateSelectedSql('airband');
+    updateSelectedGain('ground');
+    updateSelectedSql('ground');
   }
 }
 
@@ -378,33 +459,42 @@ async function refreshHitList() {
   renderHitList(data.items || []);
 }
 
-gainEl.addEventListener('input', ()=> {
-  sliderDirty = true;
-  updateSelectedGain();
-});
-sqlEl.addEventListener('input', ()=> {
-  sliderDirty = true;
-  updateSelectedSql();
-});
-gainEl.addEventListener('change', ()=> applyControls());
-sqlEl.addEventListener('change', ()=> applyControls());
+function wireControls(target) {
+  const controls = controlTargets[target];
+  controls.gainEl.addEventListener('input', () => {
+    controls.dirty = true;
+    updateSelectedGain(target);
+  });
+  controls.sqlEl.addEventListener('input', () => {
+    controls.dirty = true;
+    updateSelectedSql(target);
+  });
+  controls.gainEl.addEventListener('change', () => applyControls(target));
+  controls.sqlEl.addEventListener('change', () => applyControls(target));
+}
+
+wireControls('airband');
+wireControls('ground');
 
 document.getElementById('btn-refresh').addEventListener('click', async ()=> {
-  sliderDirty = false;
+  Object.values(controlTargets).forEach(controls => {
+    controls.dirty = false;
+  });
   await refresh(true);
 });
 
-async function applyControls() {
-  if (applyInFlight) return;
-  applyInFlight = true;
+async function applyControls(target) {
+  const controls = controlTargets[target];
+  if (controls.applyInFlight) return;
+  controls.applyInFlight = true;
   try {
-    const gain = GAIN_STEPS[Number(gainEl.value || 0)];
-    const squelch = sqlEl.value;
-    await post('/api/apply', {gain, squelch});
-    sliderDirty = false;
+    const gain = GAIN_STEPS[Number(controls.gainEl.value || 0)];
+    const squelch = controls.sqlEl.value;
+    await post('/api/apply', {gain, squelch, target});
+    controls.dirty = false;
     await refresh(true);
   } finally {
-    applyInFlight = false;
+    controls.applyInFlight = false;
   }
 }
 
@@ -419,6 +509,36 @@ document.getElementById('btn-clear-avoids').addEventListener('click', async ()=>
   actionMsg = res.ok ? 'Cleared avoids' : (res.error || 'Clear avoids failed');
   await refresh(true);
 });
+
+function setPage(index) {
+  activePage = index;
+  pagerInnerEl.style.transform = `translateX(-${index * 100}%)`;
+  tabAirbandEl.classList.toggle('active', index === 0);
+  tabGroundEl.classList.toggle('active', index === 1);
+}
+
+tabAirbandEl.addEventListener('click', () => setPage(0));
+tabGroundEl.addEventListener('click', () => setPage(1));
+
+let touchStartX = null;
+pagerEl.addEventListener('touchstart', (event) => {
+  if (!event.touches.length) return;
+  touchStartX = event.touches[0].clientX;
+}, {passive: true});
+pagerEl.addEventListener('touchend', (event) => {
+  if (touchStartX === null) return;
+  const touch = event.changedTouches[0];
+  if (!touch) return;
+  const delta = touchStartX - touch.clientX;
+  if (Math.abs(delta) > 40) {
+    if (delta > 0 && activePage < 1) {
+      setPage(activePage + 1);
+    } else if (delta < 0 && activePage > 0) {
+      setPage(activePage - 1);
+    }
+  }
+  touchStartX = null;
+}, {passive: true});
 
 document.getElementById('btn-play').addEventListener('click', ()=> {
   const url = `http://${location.hostname}:8000/GND.mp3`;
@@ -451,6 +571,7 @@ document.getElementById('lnk-diagnostic').addEventListener('click', async (e)=> 
   await refresh(false);
 });
 
+setPage(0);
 refresh(true);
 setInterval(async ()=> {
   await refresh(false);
@@ -1096,6 +1217,13 @@ def restart_rtl():
         stderr=subprocess.DEVNULL,
     )
 
+def restart_ground():
+    subprocess.Popen(
+        ["systemctl", "restart", "--no-block", UNITS["ground"]],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
 def stop_rtl():
     subprocess.run(
         ["systemctl", "stop", UNITS["rtl"]],
@@ -1104,9 +1232,24 @@ def stop_rtl():
         check=False,
     )
 
+def stop_ground():
+    subprocess.run(
+        ["systemctl", "stop", UNITS["ground"]],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+
 def start_rtl():
     subprocess.Popen(
         ["systemctl", "start", "--no-block", UNITS["rtl"]],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+def start_ground():
+    subprocess.Popen(
+        ["systemctl", "start", "--no-block", UNITS["ground"]],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -1146,8 +1289,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, HTML)
         if p == "/api/status":
             conf_path = read_active_config_path()
-            gain, squelch = parse_controls(conf_path)
+            airband_gain, airband_squelch = parse_controls(conf_path)
+            ground_gain, ground_squelch = parse_controls(GROUND_CONFIG_PATH)
             rtl_ok = unit_active(UNITS["rtl"])
+            ground_ok = unit_active(UNITS["ground"])
             ice_ok = icecast_up()
 
             missing = []
@@ -1166,13 +1311,18 @@ class Handler(BaseHTTPRequestHandler):
 
             payload = {
                 "rtl_active": rtl_ok,
+                "ground_active": ground_ok,
                 "icecast_active": ice_ok,
                 "keepalive_active": unit_active(UNITS["keepalive"]),
                 "profile": profile,
                 "profiles": prof_payload,
                 "missing_profiles": missing,
-                "gain": float(gain),
-                "squelch": float(squelch),
+                "gain": float(airband_gain),
+                "squelch": float(airband_squelch),
+                "airband_gain": float(airband_gain),
+                "airband_squelch": float(airband_squelch),
+                "ground_gain": float(ground_gain),
+                "ground_squelch": float(ground_squelch),
                 "last_hit": icecast_hit or read_last_hit(),
                 "last_hit_airband": last_hit_airband,
                 "last_hit_ground": last_hit_ground,
@@ -1213,25 +1363,44 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(400, json.dumps({"ok": False, "error": "unknown profile"}), "application/json; charset=utf-8")
 
         if p == "/api/apply":
-            conf_path = read_active_config_path()
-            stop_rtl()
+            target = form.get("target", "airband")
+            if target == "ground":
+                conf_path = GROUND_CONFIG_PATH
+                stop_ground()
+            elif target == "airband":
+                conf_path = read_active_config_path()
+                stop_rtl()
+            else:
+                return self._send(400, json.dumps({"ok": False, "error": "unknown target"}), "application/json; charset=utf-8")
             try:
                 gain = float(form.get("gain", "32.8"))
                 squelch = float(form.get("squelch", "10.0"))
             except ValueError:
-                start_rtl()
+                if target == "ground":
+                    start_ground()
+                else:
+                    start_rtl()
                 return self._send(400, json.dumps({"ok": False, "error": "bad values"}), "application/json; charset=utf-8")
 
             try:
                 changed = write_controls(conf_path, gain, squelch)
             except Exception as e:
-                start_rtl()
+                if target == "ground":
+                    start_ground()
+                else:
+                    start_rtl()
                 return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
 
             if changed:
-                restart_rtl()
+                if target == "ground":
+                    restart_ground()
+                else:
+                    restart_rtl()
             else:
-                start_rtl()
+                if target == "ground":
+                    start_ground()
+                else:
+                    start_rtl()
             return self._send(200, json.dumps({"ok": True, "changed": changed}), "application/json; charset=utf-8")
 
         if p == "/api/avoid":
