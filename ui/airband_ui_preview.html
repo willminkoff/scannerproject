@@ -71,6 +71,14 @@
     button { border:1px solid var(--line); background: rgba(255,255,255,.06); color:var(--text); padding:10px 12px; border-radius:12px; cursor:pointer; }
     button.pill { background: rgba(255,255,255,.03); }
     button.primary { background: rgba(34,197,94,.18); border-color: rgba(34,197,94,.35); }
+    .tabs { display:flex; gap:10px; margin-top: 14px; }
+    .tab { flex:1; text-align:center; padding:10px 12px; border-radius:999px; border:1px solid var(--line); background: rgba(255,255,255,.04); color: var(--muted); }
+    .tab.active { color: var(--text); background: rgba(34,197,94,.16); border-color: rgba(34,197,94,.35); box-shadow: 0 0 0 1px rgba(34,197,94,.2); }
+    .swipe-hint { margin-top: 8px; font-size: 12px; color: var(--muted); text-align:center; }
+    .pager { margin-top: 12px; overflow:hidden; }
+    .pager-inner { display:flex; }
+    .page { min-width:100%; box-sizing:border-box; }
+    .page-title { font-size: 15px; color: var(--muted); margin: 4px 0 8px; letter-spacing: .2px; text-transform: uppercase; }
     .foot { margin-top: 12px; color: var(--muted); font-size: 12px; }
     .warn { color: #fbbf24; font-size: 12px; margin-top: 8px; }
     .avoids { margin-top: 8px; color: var(--muted); font-size: 12px; }
@@ -91,9 +99,11 @@
         <h1>SprontPi Radio Control</h1>
 
         <div class="row">
-          <div class="pill"><div class="dot good"></div><div><div class="label">Scanner</div><div class="val">Running</div></div></div>
+          <div class="pill"><div class="dot good"></div><div><div class="label">Scanner 1 (Airband)</div><div class="val">Running</div></div></div>
+          <div class="pill"><div class="dot good"></div><div><div class="label">Scanner 2 (Ground)</div><div class="val">Running</div></div></div>
           <div class="pill"><div class="dot good"></div><div><div class="label">Icecast</div><div class="val">Running</div></div></div>
-          <button class="pill pill-center" type="button"><div class="dot good"></div><div class="pill-text"><div class="label">Last hit</div><div class="val">118.6000</div></div></button>
+          <div class="pill"><div class="dot good"></div><div><div class="label">Scanner 1 last hit</div><div class="val">118.6000</div></div></div>
+          <div class="pill"><div class="dot good"></div><div><div class="label">Scanner 2 last hit</div><div class="val">121.9000</div></div></div>
         </div>
 
         <div class="btns" style="margin-top:14px;">
@@ -103,24 +113,55 @@
           <button>Clear Avoids</button>
         </div>
 
-        <div class="profiles">
-          <button class="profile-card selected" type="button"><div><b>AIRBAND</b></div></button>
-          <button class="profile-card" type="button"><div><b>TOWER (118.600)</b></div></button>
-          <button class="profile-card" type="button"><div><b>GMRS</b></div></button>
-          <button class="profile-card" type="button"><div><b>WX (162.550)</b></div></button>
+        <div class="tabs">
+          <button type="button" class="tab active">Airband (Dongle 0)</button>
+          <button type="button" class="tab">Ground (Dongle 1)</button>
         </div>
+        <div class="swipe-hint">Swipe between airband and ground controls.</div>
 
-        <div class="controls">
-          <div class="ctrl">
-            <div class="ctrl-head"><b>Gain (dB)</b><span>Applied: <span id="applied-gain">32.8</span></span></div>
-            <input id="gain" class="range" type="range" min="0" max="28" step="1" value="17" />
-            <div class="ctrl-readout"><span>Selected: <span id="selected-gain">32.8</span> dB</span><span>RTL-SDR steps</span></div>
-          </div>
+        <div class="pager">
+          <div class="pager-inner">
+            <section class="page">
+              <div class="page-title">Airband Scanner Controls</div>
+              <div class="profiles">
+                <button class="profile-card selected" type="button"><div><b>AIRBAND</b></div></button>
+                <button class="profile-card" type="button"><div><b>TOWER (118.600)</b></div></button>
+                <button class="profile-card" type="button"><div><b>GMRS</b></div></button>
+                <button class="profile-card" type="button"><div><b>WX (162.550)</b></div></button>
+              </div>
 
-          <div class="ctrl">
-            <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span id="applied-sql">10.0</span></span></div>
-            <input id="sql" class="range" type="range" min="0" max="10" step="0.1" value="10.0" />
-            <div class="ctrl-readout"><span>Selected: <span id="selected-sql">10.0</span></span><span>0.0-10.0 SNR threshold</span></div>
+              <div class="controls">
+                <div class="ctrl">
+                  <div class="ctrl-head"><b>Gain (dB)</b><span>Applied: <span>32.8</span></span></div>
+                  <input class="range" type="range" min="0" max="28" step="1" value="17" />
+                  <div class="ctrl-readout"><span>Selected: <span>32.8</span> dB</span><span>RTL-SDR steps</span></div>
+                </div>
+
+                <div class="ctrl">
+                  <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span>10.0</span></span></div>
+                  <input class="range" type="range" min="0" max="10" step="0.1" value="10.0" />
+                  <div class="ctrl-readout"><span>Selected: <span>10.0</span></span><span>0.0-10.0 SNR threshold</span></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="page">
+              <div class="page-title">Ground Scanner Controls</div>
+              <div class="controls">
+                <div class="ctrl">
+                  <div class="ctrl-head"><b>Gain (dB)</b><span>Applied: <span>28.0</span></span></div>
+                  <input class="range" type="range" min="0" max="28" step="1" value="16" />
+                  <div class="ctrl-readout"><span>Selected: <span>28.0</span> dB</span><span>RTL-SDR steps</span></div>
+                </div>
+
+                <div class="ctrl">
+                  <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span>6.5</span></span></div>
+                  <input class="range" type="range" min="0" max="10" step="0.1" value="6.5" />
+                  <div class="ctrl-readout"><span>Selected: <span>6.5</span></span><span>0.0-10.0 SNR threshold</span></div>
+                </div>
+              </div>
+              <div class="foot">Both scanners feed the same Icecast stream.</div>
+            </section>
           </div>
         </div>
 
@@ -148,28 +189,47 @@
   </div>
 
 <script>
-const gainEl = document.getElementById('gain');
-const sqlEl = document.getElementById('sql');
-const selectedGainEl = document.getElementById('selected-gain');
-const selectedSqlEl = document.getElementById('selected-sql');
-
 const GAIN_STEPS = [
   0.0, 0.9, 1.4, 2.7, 3.7, 7.7, 8.7, 12.5, 14.4, 15.7,
   16.6, 19.7, 20.7, 22.9, 25.4, 28.0, 29.7, 32.8, 33.8,
   36.4, 37.2, 38.6, 40.2, 42.1, 43.4, 43.9, 44.5, 48.0, 49.6,
 ];
 
-function updateSelectedGain() {
-  const idx = Number(gainEl.value || 0);
-  selectedGainEl.textContent = GAIN_STEPS[idx].toFixed(1);
+const controlTargets = {
+  airband: {
+    gainEl: document.querySelector('.page:nth-of-type(1) input[type="range"]:nth-of-type(1)'),
+    sqlEl: document.querySelector('.page:nth-of-type(1) input[type="range"]:nth-of-type(2)'),
+    selectedGainEl: document.querySelector('.page:nth-of-type(1) .ctrl-readout span span'),
+    selectedSqlEl: document.querySelector('.page:nth-of-type(1) .ctrl-readout:last-of-type span span'),
+  },
+  ground: {
+    gainEl: document.querySelector('.page:nth-of-type(2) input[type="range"]:nth-of-type(1)'),
+    sqlEl: document.querySelector('.page:nth-of-type(2) input[type="range"]:nth-of-type(2)'),
+    selectedGainEl: document.querySelector('.page:nth-of-type(2) .ctrl-readout span span'),
+    selectedSqlEl: document.querySelector('.page:nth-of-type(2) .ctrl-readout:last-of-type span span'),
+  },
+};
+
+function updateSelectedGain(target) {
+  const controls = controlTargets[target];
+  if (!controls.gainEl || !controls.selectedGainEl) return;
+  const idx = Number(controls.gainEl.value || 0);
+  controls.selectedGainEl.textContent = GAIN_STEPS[idx].toFixed(1);
 }
 
-function updateSelectedSql() {
-  selectedSqlEl.textContent = Number(sqlEl.value).toFixed(1);
+function updateSelectedSql(target) {
+  const controls = controlTargets[target];
+  if (!controls.sqlEl || !controls.selectedSqlEl) return;
+  controls.selectedSqlEl.textContent = Number(controls.sqlEl.value).toFixed(1);
 }
 
-gainEl.addEventListener('input', updateSelectedGain);
-sqlEl.addEventListener('input', updateSelectedSql);
+Object.keys(controlTargets).forEach((target) => {
+  const controls = controlTargets[target];
+  if (!controls.gainEl || !controls.sqlEl) return;
+  controls.gainEl.max = String(GAIN_STEPS.length - 1);
+  controls.gainEl.addEventListener('input', () => updateSelectedGain(target));
+  controls.sqlEl.addEventListener('input', () => updateSelectedSql(target));
+});
 </script>
 </body>
 </html>
