@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-CONF="/usr/local/etc/rtl_airband_airband.conf"
+CONF="/usr/local/etc/rtl_airband.conf"
 OUT="/run/rtl_airband_last_freq.txt"
 
 mkdir -p /run

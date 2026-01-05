@@ -9,14 +9,12 @@ This repo contains:
 ## Notes
 - Keep Icecast source/admin passwords consistent between Icecast and profile outputs.
 - This repo intentionally does NOT include binaries like rtl_airband.
-- Profiles include `airband = true/false;` to select the dongle group (airband uses RTL-SDR index 0, ground uses index 1).
-- The UI supports multi-select profiles and merges them per dongle into `/usr/local/etc/rtl_airband_airband.conf` and `/usr/local/etc/rtl_airband_ground.conf`.
 
 ## Sprint Notes (2026-01)
 - UI: profiles render as a two-column grid of selectable cards and show an avoids summary for the active profile.
 - Refresh only syncs status + sliders; it does not restart the scanner.
 - Speed: profile/gain/squelch apply skips restart when no changes were made.
-- Logging: rtl_airband services run with `-F -e` so systemd captures clean stderr logs (no TUI output).
+- Logging: `systemd/rtl-airband.service` now points at `scripts/rtl-airband-with-freq.sh` to strip control codes from logs.
 - Icecast: example config now reduces buffering (`queue-size`, `burst-size`) and lowers `source-timeout` for faster recovery after restarts.
 - UI: last hit shows "No hits yet" when empty and centers the pill text.
 
@@ -28,7 +26,7 @@ This repo contains:
   - `cd /home/willminkoff/scannerproject`
   - `git pull origin main`
   - `sudo systemctl daemon-reload`
-  - `sudo systemctl restart rtl-airband rtl-airband-ground`
+  - `sudo systemctl restart rtl-airband`
   - `sudo systemctl restart airband-ui`
 
 ## Ops Brief

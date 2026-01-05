@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-journalctl -u rtl-airband -u rtl-airband-ground -f -n 0 -o short-iso --no-pager \
+journalctl -u rtl-airband -f -n 0 -o short-iso --no-pager \
 | python3 -u - <<'PY'
 import datetime
 import re
