@@ -34,7 +34,7 @@ ICECAST_HIT_LOG_LIMIT = 200
 
 UNITS = {
     "rtl": "rtl-airband",
-    "ground": "rtl-airband",
+    "ground": "rtl-airband-ground",
     "icecast": "icecast2",
     "keepalive": "icecast-keepalive",
 }
@@ -928,14 +928,16 @@ def read_last_hit_file(path: str) -> str:
     return ""
 
 def read_last_hit_airband() -> str:
-    if not unit_active(UNITS["rtl"]):
-        return ""
-    return read_last_hit_file(LAST_HIT_AIRBAND_PATH)
+    value = read_last_hit_file(LAST_HIT_AIRBAND_PATH)
+    if value:
+        return value
+    return read_last_hit_from_journal_unit(UNITS["rtl"])
 
 def read_last_hit_ground() -> str:
-    if not unit_active(UNITS["ground"]):
-        return ""
-    return read_last_hit_file(LAST_HIT_GROUND_PATH)
+    value = read_last_hit_file(LAST_HIT_GROUND_PATH)
+    if value:
+        return value
+    return read_last_hit_from_journal_unit(UNITS["ground"])
 
 def read_last_hit() -> str:
     value = read_last_hit_airband()
@@ -948,10 +950,10 @@ def read_last_hit() -> str:
 
     return read_last_hit_from_journal_cached()
 
-def read_last_hit_from_journal() -> str:
+def read_last_hit_from_journal_unit(unit: str) -> str:
     try:
         result = subprocess.run(
-            ["journalctl", "-u", UNITS["rtl"], "-n", "200", "-o", "cat", "--no-pager"],
+            ["journalctl", "-u", unit, "-n", "200", "-o", "cat", "--no-pager"],
             check=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -963,6 +965,9 @@ def read_last_hit_from_journal() -> str:
     if not matches:
         return ""
     return matches[-1]
+
+def read_last_hit_from_journal() -> str:
+    return read_last_hit_from_journal_unit(UNITS["rtl"])
 
 def parse_activity_timestamp(date_part: str, time_part: str, tz_part: Optional[str]) -> datetime.datetime:
     del tz_part
@@ -1038,10 +1043,8 @@ def read_hit_list_for_unit(unit: str, limit: int = 20, scan_lines: int = 200) ->
 
 def read_hit_list(limit: int = 20, scan_lines: int = 200) -> list:
     entries = []
-    if unit_active(UNITS["rtl"]):
-        entries.extend(read_hit_list_for_unit(UNITS["rtl"], limit=limit, scan_lines=scan_lines))
-    if unit_active(UNITS["ground"]):
-        entries.extend(read_hit_list_for_unit(UNITS["ground"], limit=limit, scan_lines=scan_lines))
+    entries.extend(read_hit_list_for_unit(UNITS["rtl"], limit=limit, scan_lines=scan_lines))
+    entries.extend(read_hit_list_for_unit(UNITS["ground"], limit=limit, scan_lines=scan_lines))
     if not entries:
         return []
     entries.sort(key=lambda item: item.get("ts", 0))
