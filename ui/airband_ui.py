@@ -1684,15 +1684,9 @@ class Handler(BaseHTTPRequestHandler):
             if target == "ground":
                 conf_path = os.path.realpath(GROUND_CONFIG_PATH)
                 profiles = [(p["id"], p["label"], p["path"]) for p in profiles_ground]
-                control_unit = ground_control_unit()
-                if control_unit == "rtl":
-                    unit_stop = stop_rtl
-                    unit_start = start_rtl
-                    unit_restart = restart_rtl
-                else:
-                    unit_stop = stop_ground
-                    unit_start = start_ground
-                    unit_restart = restart_ground
+                unit_stop = stop_rtl
+                unit_start = start_rtl
+                unit_restart = restart_rtl
                 target_symlink = GROUND_CONFIG_PATH
             else:
                 conf_path = read_active_config_path()
@@ -1732,7 +1726,7 @@ class Handler(BaseHTTPRequestHandler):
             target = form.get("target", "airband")
             if target == "ground":
                 conf_path = GROUND_CONFIG_PATH
-                control_unit = ground_control_unit()
+                control_unit = "rtl"
             elif target == "airband":
                 conf_path = read_active_config_path()
                 control_unit = "rtl"
@@ -1743,7 +1737,7 @@ class Handler(BaseHTTPRequestHandler):
                 squelch = float(form.get("squelch", "10.0"))
             except ValueError:
                 if target == "ground":
-                    start_ground()
+                    start_rtl()
                 else:
                     start_rtl()
                 return self._send(400, json.dumps({"ok": False, "error": "bad values"}), "application/json; charset=utf-8")
@@ -1757,10 +1751,7 @@ class Handler(BaseHTTPRequestHandler):
 
             if changed:
                 if target == "ground":
-                    if control_unit == "rtl":
-                        restart_rtl()
-                    else:
-                        restart_ground()
+                    restart_rtl()
                 else:
                     restart_rtl()
             return self._send(200, json.dumps({"ok": True, "changed": changed}), "application/json; charset=utf-8")
@@ -1768,7 +1759,7 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/restart":
             target = form.get("target", "airband")
             if target == "ground":
-                restart_ground()
+                restart_rtl()
             elif target == "airband":
                 restart_rtl()
             else:
