@@ -16,6 +16,8 @@ UI_PORT = 5050
 CONFIG_SYMLINK = "/usr/local/etc/rtl_airband.conf"
 PROFILES_DIR = "/usr/local/etc/airband-profiles"
 GROUND_CONFIG_PATH = "/usr/local/etc/rtl_airband_ground.conf"
+COMBINED_CONFIG_PATH = "/usr/local/etc/rtl_airband_combined.conf"
+MIXER_NAME = "combined"
 LAST_HIT_AIRBAND_PATH = "/run/rtl_airband_last_freq_airband.txt"
 LAST_HIT_GROUND_PATH = "/run/rtl_airband_last_freq_ground.txt"
 AVOIDS_DIR = "/home/willminkoff/scannerproject/admin/logs"
@@ -32,7 +34,7 @@ ICECAST_HIT_LOG_LIMIT = 200
 
 UNITS = {
     "rtl": "rtl-airband",
-    "ground": "rtl-airband-ground",
+    "ground": "rtl-airband",
     "icecast": "icecast2",
     "keepalive": "icecast-keepalive",
 }
@@ -50,6 +52,10 @@ RE_AIRBAND = re.compile(r'^\s*airband\s*=\s*(true|false)\s*;\s*$', re.I)
 RE_INDEX = re.compile(r'^(\s*index\s*=\s*)(\d+)(\s*;.*)$')
 RE_FREQS_BLOCK = re.compile(r'(^\s*freqs\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)
 RE_LABELS_BLOCK = re.compile(r'(^\s*labels\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)
+RE_DEVICES_BLOCK = re.compile(r'devices:\s*\(\s*(.*?)\s*\)\s*;', re.S)
+RE_OUTPUTS_BLOCK = re.compile(r'outputs:\s*\(\s*.*?\)\s*;', re.S)
+RE_ICECAST_BLOCK = re.compile(r'\{\s*[^{}]*type\s*=\s*"icecast"[^{}]*\}', re.S)
+RE_MOUNTPOINT = re.compile(r'(\s*mountpoint\s*=\s*)\"/?([^\";]+)\"(\s*;)', re.I)
 RE_ACTIVITY = re.compile(r'Activity on ([0-9]+\.[0-9]+)')
 RE_ACTIVITY_TS = re.compile(
     r'^(?P<date>\d{4}-\d{2}-\d{2})[ T](?P<time>\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:[+-]\d{2}:?\d{2}|[A-Z]{2,5})?\s+.*Activity on (?P<freq>[0-9]+\.[0-9]+)'
@@ -79,6 +85,7 @@ HTML = r"""<!doctype html>
     .pill-center .pill-text { align-items:center; text-align:center; flex:1; }
     .dot { width:10px; height:10px; border-radius:50%; background: var(--bad); box-shadow: 0 0 0 4px rgba(239,68,68,.12); }
     .dot.good { background: var(--good); box-shadow: 0 0 0 4px rgba(34,197,94,.12); }
+    .dot.neutral { background: #94a3b8; box-shadow: 0 0 0 4px rgba(148,163,184,.18); }
     .label { font-size: 13px; color: var(--muted); }
     .val { font-size: 13px; }
     .profiles { margin-top: 12px; display:grid; gap:10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -311,7 +318,13 @@ Object.values(controlTargets).forEach(target => {
 
 function setDot(id, ok) {
   const el = document.getElementById(id);
-  if (ok) el.classList.add('good'); else el.classList.remove('good');
+  if (!el) return;
+  el.classList.remove('good', 'neutral');
+  if (ok === null) {
+    el.classList.add('neutral');
+  } else if (ok) {
+    el.classList.add('good');
+  }
 }
 
 function gainIndexFromValue(value) {
@@ -425,11 +438,11 @@ async function refresh(allowSetSliders=false) {
   const st = await getJSON('/api/status');
 
   setDot('dot-rtl', st.rtl_active);
-  setDot('dot-ground', st.ground_active);
+  setDot('dot-ground', st.ground_exists ? st.ground_active : null);
   setDot('dot-ice', st.icecast_active);
 
   document.getElementById('txt-rtl').textContent = st.rtl_active ? 'Running' : 'Stopped';
-  document.getElementById('txt-ground').textContent = st.ground_active ? 'Running' : 'Stopped';
+  document.getElementById('txt-ground').textContent = st.ground_exists ? (st.ground_active ? 'Running' : 'Stopped') : 'Unavailable';
   document.getElementById('txt-ice').textContent = st.icecast_active ? 'Running' : 'Stopped';
   const airbandHit = formatHitLabel(st.last_hit_airband) || '—';
   const groundHit = formatHitLabel(st.last_hit_ground) || '—';
@@ -608,6 +621,17 @@ setInterval(async ()=> {
 def unit_active(unit: str) -> bool:
     return subprocess.run(["systemctl", "is-active", "--quiet", unit]).returncode == 0
 
+def unit_exists(unit: str) -> bool:
+    result = subprocess.run(
+        ["systemctl", "show", "-p", "LoadState", "--value", unit],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    )
+    if result.returncode != 0:
+        return False
+    return result.stdout.strip() != "not-found"
+
 def read_active_config_path() -> str:
     try:
         return os.path.realpath(CONFIG_SYMLINK)
@@ -624,6 +648,147 @@ def read_airband_flag(conf_path: str) -> Optional[bool]:
     except FileNotFoundError:
         return None
     return None
+
+def extract_top_level_settings(text: str) -> list:
+    lines = []
+    for line in text.splitlines():
+        if line.strip().startswith("devices:"):
+            break
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if RE_AIRBAND.match(line):
+            continue
+        lines.append(line.rstrip())
+    return lines
+
+def extract_devices_payload(text: str) -> str:
+    match = RE_DEVICES_BLOCK.search(text)
+    if not match:
+        return ""
+    return match.group(1).strip()
+
+def enforce_device_index(text: str, desired_index: int) -> str:
+    changed = False
+    out_lines = []
+    for line in text.splitlines():
+        match = RE_INDEX.match(line)
+        if match:
+            new_line = f\"{match.group(1)}{desired_index}{match.group(3)}\"
+            out_lines.append(new_line)
+            changed = True
+        else:
+            out_lines.append(line)
+    if not changed:
+        out_lines.insert(0, f\"  index = {desired_index};\")
+    return \"\\n\".join(out_lines)
+
+def replace_outputs_with_mixer(text: str) -> str:
+    replacement = (
+        "outputs:\n"
+        "      (\n"
+        "        {\n"
+        f"          type = \"mixer\";\n"
+        f"          name = \"{MIXER_NAME}\";\n"
+        "        }\n"
+        "      );"
+    )
+    return RE_OUTPUTS_BLOCK.sub(replacement, text)
+
+def normalize_mountpoint(text: str) -> str:
+    return RE_MOUNTPOINT.sub(lambda m: f"{m.group(1)}\"{m.group(2)}\"{m.group(3)}", text)
+
+def extract_icecast_block(text: str) -> str:
+    match = RE_ICECAST_BLOCK.search(text)
+    if not match:
+        return ""
+    return normalize_mountpoint(match.group(0))
+
+def indent_block(text: str, spaces: int) -> str:
+    pad = " " * spaces
+    return "\n".join(pad + line.rstrip() for line in text.strip().splitlines())
+
+def build_combined_config(airband_path: str, ground_path: str) -> str:
+    with open(airband_path, "r", encoding="utf-8", errors="ignore") as f:
+        airband_text = f.read()
+    with open(ground_path, "r", encoding="utf-8", errors="ignore") as f:
+        ground_text = f.read()
+
+    top_lines = []
+    seen = set()
+    for line in extract_top_level_settings(airband_text) + extract_top_level_settings(ground_text):
+        if line not in seen:
+            seen.add(line)
+            top_lines.append(line)
+
+    device_payloads = []
+    payloads = [
+        (airband_text, 0),
+        (ground_text, 1),
+    ]
+    for text, desired_index in payloads:
+        payload = extract_devices_payload(text)
+        if payload:
+            payload = enforce_device_index(payload, desired_index)
+            payload = replace_outputs_with_mixer(payload)
+            device_payloads.append(payload.strip().rstrip(","))
+
+    if not device_payloads:
+        raise ValueError("No devices block found in profiles")
+
+    icecast_block = extract_icecast_block(airband_text) or extract_icecast_block(ground_text)
+    if not icecast_block:
+        icecast_block = (
+            "{\n"
+            "  type = \"icecast\";\n"
+            "  server = \"127.0.0.1\";\n"
+            "  port = 8000;\n"
+            "  mountpoint = \"GND.mp3\";\n"
+            "  username = \"source\";\n"
+            "  password = \"062352\";\n"
+            "  name = \"SprontPi Radio\";\n"
+            "  genre = \"Mixed\";\n"
+            "  bitrate = 32;\n"
+            "}"
+        )
+
+    combined = []
+    combined.append("# Auto-generated by airband_ui.py. Do not edit directly.")
+    combined.append("")
+    combined.extend(top_lines)
+    if top_lines:
+        combined.append("")
+    combined.append("mixers: {")
+    combined.append(f"  {MIXER_NAME}: {{")
+    combined.append("    outputs:")
+    combined.append("    (")
+    combined.append(indent_block(icecast_block, 6))
+    combined.append("    );")
+    combined.append("  };")
+    combined.append("};")
+    combined.append("")
+    combined.append("devices:")
+    combined.append("(")
+    combined.append(",\n".join(indent_block(payload, 2) for payload in device_payloads))
+    combined.append(");")
+    combined.append("")
+    return "\n".join(combined)
+
+def write_combined_config() -> bool:
+    airband_path = read_active_config_path()
+    ground_path = os.path.realpath(GROUND_CONFIG_PATH)
+    combined = build_combined_config(airband_path, ground_path)
+    try:
+        with open(COMBINED_CONFIG_PATH, "r", encoding="utf-8", errors="ignore") as f:
+            existing = f.read()
+    except FileNotFoundError:
+        existing = None
+    if existing == combined:
+        return False
+    tmp = COMBINED_CONFIG_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(combined)
+    os.replace(tmp, COMBINED_CONFIG_PATH)
+    return True
 
 def split_profiles():
     prof_payload = []
@@ -1348,7 +1513,8 @@ class Handler(BaseHTTPRequestHandler):
             airband_gain, airband_squelch = parse_controls(conf_path)
             ground_gain, ground_squelch = parse_controls(GROUND_CONFIG_PATH)
             rtl_ok = unit_active(UNITS["rtl"])
-            ground_ok = unit_active(UNITS["ground"])
+            ground_exists = unit_exists(UNITS["ground"])
+            ground_ok = unit_active(UNITS["ground"]) if ground_exists else False
             ice_ok = icecast_up()
 
             prof_payload, profiles_airband, profiles_ground = split_profiles()
@@ -1363,6 +1529,7 @@ class Handler(BaseHTTPRequestHandler):
             payload = {
                 "rtl_active": rtl_ok,
                 "ground_active": ground_ok,
+                "ground_exists": ground_exists,
                 "icecast_active": ice_ok,
                 "keepalive_active": unit_active(UNITS["keepalive"]),
                 "profile_airband": profile_airband,
@@ -1425,6 +1592,13 @@ class Handler(BaseHTTPRequestHandler):
                 did_stop = True
             ok, changed = set_profile(pid, conf_path, profiles, target_symlink)
             if ok:
+                try:
+                    combined_changed = write_combined_config()
+                except Exception as e:
+                    if did_stop:
+                        unit_start()
+                    return self._send(500, json.dumps({"ok": False, "error": f"combine failed: {e}"}), "application/json; charset=utf-8")
+                changed = changed or combined_changed
                 if changed:
                     unit_restart()
                 elif did_stop:
@@ -1456,6 +1630,8 @@ class Handler(BaseHTTPRequestHandler):
 
             try:
                 changed = write_controls(conf_path, gain, squelch)
+                combined_changed = write_combined_config()
+                changed = changed or combined_changed
             except Exception as e:
                 if target == "ground":
                     start_ground()
@@ -1486,6 +1662,12 @@ class Handler(BaseHTTPRequestHandler):
             if err:
                 start_rtl()
                 return self._send(400, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
+            try:
+                write_combined_config()
+            except Exception as e:
+                start_rtl()
+                return self._send(500, json.dumps({"ok": False, "error": f"combine failed: {e}"}), "application/json; charset=utf-8")
+            restart_rtl()
             return self._send(200, json.dumps({"ok": True, "freq": f"{freq:.4f}"}), "application/json; charset=utf-8")
 
         if p == "/api/avoid-clear":
@@ -1499,6 +1681,12 @@ class Handler(BaseHTTPRequestHandler):
             if err:
                 start_rtl()
                 return self._send(400, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
+            try:
+                write_combined_config()
+            except Exception as e:
+                start_rtl()
+                return self._send(500, json.dumps({"ok": False, "error": f"combine failed: {e}"}), "application/json; charset=utf-8")
+            restart_rtl()
             return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
 
         if p == "/api/diagnostic":
