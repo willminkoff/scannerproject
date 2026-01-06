@@ -55,7 +55,7 @@ Quick verification:
   - `sudo systemctl daemon-reload`
   - `sudo systemctl restart rtl-airband`
   - `sudo systemctl restart airband-ui`
-  - `sudo systemctl disable --now rtl-airband-ground` (one-time, if present)
+  - `sudo systemctl disable --now rtl-airband-ground` (one-time, if present; stays disabled after)
 
 ## Ops Brief
 - `assets/Brief from Codex CLI 1-2-26.txt`
