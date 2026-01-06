@@ -160,6 +160,8 @@ HTML = r"""<!doctype html>
   <div class="wrap">
     <div class="card">
       <div id="view-main">
+        <h1>SprontPi Radio Control</h1>
+
         <div class="row">
           <button class="pill hit-pill" id="btn-hit-airband" type="button">
             <div class="dot good"></div>
@@ -177,17 +179,14 @@ HTML = r"""<!doctype html>
           </button>
         </div>
 
-        <h1>SprontPi Radio Control</h1>
-
         <div class="row">
-          <div class="pill"><div id="dot-rtl" class="dot"></div><div><div class="label">Scanner 1 (Airband)</div><div class="val" id="txt-rtl">…</div></div></div>
-          <div class="pill"><div id="dot-ground" class="dot"></div><div><div class="label">Scanner 2 (Ground)</div><div class="val" id="txt-ground">…</div></div></div>
+          <div class="pill"><div id="dot-rtl" class="dot"></div><div><div class="label">Airband Scanner</div><div class="val" id="txt-rtl">…</div></div></div>
+          <div class="pill"><div id="dot-ground" class="dot"></div><div><div class="label">Ground Scanner</div><div class="val" id="txt-ground">…</div></div></div>
           <div class="pill"><div id="dot-ice" class="dot"></div><div><div class="label">Icecast</div><div class="val" id="txt-ice">…</div></div></div>
         </div>
 
         <div class="btns" style="margin-top:14px;">
           <button class="primary" id="btn-play">Play</button>
-          <button id="btn-refresh" title="Refresh status and sync sliders without restarting">Refresh</button>
           <button id="btn-avoid">Avoid</button>
           <button id="btn-clear-avoids">Clear</button>
         </div>
@@ -502,13 +501,6 @@ function wireControls(target) {
 wireControls('airband');
 wireControls('ground');
 
-document.getElementById('btn-refresh').addEventListener('click', async ()=> {
-  Object.values(controlTargets).forEach(controls => {
-    controls.dirty = false;
-  });
-  await refresh(true);
-});
-
 async function applyControls(target) {
   const controls = controlTargets[target];
   if (controls.applyInFlight) return;
@@ -645,7 +637,7 @@ def split_profiles():
             "exists": exists,
             "airband": airband_flag,
         })
-    profiles_airband = [p for p in prof_payload if p.get("airband") is not False]
+    profiles_airband = [p for p in prof_payload if p.get("airband") is True]
     profiles_ground = [p for p in prof_payload if p.get("airband") is False]
     return prof_payload, profiles_airband, profiles_ground
 
