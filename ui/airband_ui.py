@@ -223,6 +223,9 @@ HTML = r"""<!doctype html>
                   <div class="ctrl-readout"><span>Selected: <span id="selected-sql-airband">…</span></span><span>0.0-10.0 SNR threshold</span></div>
                 </div>
               </div>
+              <div class="btns">
+                <button type="button" id="btn-restart-airband">Restart Airband</button>
+              </div>
             </section>
 
             <section class="page">
@@ -240,6 +243,9 @@ HTML = r"""<!doctype html>
                   <input id="sql-ground" class="range" type="range" min="0" max="10" step="0.1" />
                   <div class="ctrl-readout"><span>Selected: <span id="selected-sql-ground">…</span></span><span>0.0-10.0 SNR threshold</span></div>
                 </div>
+              </div>
+              <div class="btns">
+                <button type="button" id="btn-restart-ground">Restart Ground</button>
               </div>
               <div class="foot">Both scanners feed the same Icecast stream.</div>
             </section>
@@ -276,6 +282,8 @@ const tabAirbandEl = document.getElementById('tab-airband');
 const tabGroundEl = document.getElementById('tab-ground');
 const pagerEl = document.getElementById('pager');
 const pagerInnerEl = document.getElementById('pager-inner');
+const btnRestartAirbandEl = document.getElementById('btn-restart-airband');
+const btnRestartGroundEl = document.getElementById('btn-restart-ground');
 let actionMsg = '';
 
 const GAIN_STEPS = [
@@ -519,6 +527,24 @@ async function applyControls(target) {
     controls.applyInFlight = false;
   }
 }
+
+async function restartUnit(target) {
+  const res = await post('/api/restart', {target});
+  if (res.ok) {
+    actionMsg = target === 'ground' ? 'Ground restarted' : 'Airband restarted';
+  } else {
+    actionMsg = res.error || 'Restart failed';
+  }
+  await refresh(false);
+}
+
+btnRestartAirbandEl.addEventListener('click', async ()=> {
+  await restartUnit('airband');
+});
+
+btnRestartGroundEl.addEventListener('click', async ()=> {
+  await restartUnit('ground');
+});
 
 document.getElementById('btn-avoid').addEventListener('click', async ()=> {
   const res = await post('/api/avoid', {});
@@ -1738,6 +1764,16 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     restart_rtl()
             return self._send(200, json.dumps({"ok": True, "changed": changed}), "application/json; charset=utf-8")
+
+        if p == "/api/restart":
+            target = form.get("target", "airband")
+            if target == "ground":
+                restart_ground()
+            elif target == "airband":
+                restart_rtl()
+            else:
+                return self._send(400, json.dumps({"ok": False, "error": "unknown target"}), "application/json; charset=utf-8")
+            return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
 
         if p == "/api/avoid":
             conf_path = read_active_config_path()
