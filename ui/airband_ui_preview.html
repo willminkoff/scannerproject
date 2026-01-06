@@ -96,26 +96,41 @@
   <div class="wrap">
     <div class="card">
       <div id="view-main">
+        <div class="row">
+          <button class="pill hit-pill" type="button">
+            <div class="dot good"></div>
+            <div>
+              <div class="label">Airband Hits</div>
+              <div class="val">118.6000</div>
+            </div>
+          </button>
+          <button class="pill hit-pill" type="button">
+            <div class="dot good"></div>
+            <div>
+              <div class="label">Ground Hits</div>
+              <div class="val">121.9000</div>
+            </div>
+          </button>
+        </div>
+
         <h1>SprontPi Radio Control</h1>
 
         <div class="row">
           <div class="pill"><div class="dot good"></div><div><div class="label">Scanner 1 (Airband)</div><div class="val">Running</div></div></div>
           <div class="pill"><div class="dot good"></div><div><div class="label">Scanner 2 (Ground)</div><div class="val">Running</div></div></div>
           <div class="pill"><div class="dot good"></div><div><div class="label">Icecast</div><div class="val">Running</div></div></div>
-          <div class="pill"><div class="dot good"></div><div><div class="label">Scanner 1 last hit</div><div class="val">118.6000</div></div></div>
-          <div class="pill"><div class="dot good"></div><div><div class="label">Scanner 2 last hit</div><div class="val">121.9000</div></div></div>
         </div>
 
         <div class="btns" style="margin-top:14px;">
           <button class="primary">Play</button>
           <button title="Refresh status and sync sliders without restarting">Refresh</button>
-          <button>Avoid Current Hit</button>
-          <button>Clear Avoids</button>
+          <button>Avoid</button>
+          <button>Clear</button>
         </div>
 
         <div class="tabs">
-          <button type="button" class="tab active">Airband (Dongle 0)</button>
-          <button type="button" class="tab">Ground (Dongle 1)</button>
+          <button type="button" class="tab active">Airband</button>
+          <button type="button" class="tab">Ground</button>
         </div>
         <div class="swipe-hint">Swipe between airband and ground controls.</div>
 
@@ -147,6 +162,7 @@
 
             <section class="page">
               <div class="page-title">Ground Scanner Controls</div>
+              <div class="profiles hidden"></div>
               <div class="controls">
                 <div class="ctrl">
                   <div class="ctrl-head"><b>Gain (dB)</b><span>Applied: <span>28.0</span></span></div>
@@ -172,7 +188,7 @@
 
       <div id="view-hits" class="hidden">
         <div class="nav">
-          <button type="button">&larr; Back</button>
+          <button type="button">Back</button>
           <h1 style="margin:0;">Live Hit List</h1>
         </div>
         <div class="hit-list">

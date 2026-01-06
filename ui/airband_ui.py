@@ -160,27 +160,41 @@ HTML = r"""<!doctype html>
   <div class="wrap">
     <div class="card">
       <div id="view-main">
+        <div class="row">
+          <button class="pill hit-pill" id="btn-hit-airband" type="button">
+            <div class="dot good"></div>
+            <div>
+              <div class="label">Airband Hits</div>
+              <div class="val" id="txt-hit-airband">…</div>
+            </div>
+          </button>
+          <button class="pill hit-pill" id="btn-hit-ground" type="button">
+            <div class="dot good"></div>
+            <div>
+              <div class="label">Ground Hits</div>
+              <div class="val" id="txt-hit-ground">…</div>
+            </div>
+          </button>
+        </div>
+
         <h1>SprontPi Radio Control</h1>
 
         <div class="row">
           <div class="pill"><div id="dot-rtl" class="dot"></div><div><div class="label">Scanner 1 (Airband)</div><div class="val" id="txt-rtl">…</div></div></div>
           <div class="pill"><div id="dot-ground" class="dot"></div><div><div class="label">Scanner 2 (Ground)</div><div class="val" id="txt-ground">…</div></div></div>
           <div class="pill"><div id="dot-ice" class="dot"></div><div><div class="label">Icecast</div><div class="val" id="txt-ice">…</div></div></div>
-          <div class="pill"><div class="dot good"></div><div><div class="label">Scanner 1 last hit</div><div class="val" id="txt-hit-airband">…</div></div></div>
-          <div class="pill"><div class="dot good"></div><div><div class="label">Scanner 2 last hit</div><div class="val" id="txt-hit-ground">…</div></div></div>
         </div>
 
         <div class="btns" style="margin-top:14px;">
-          <button class="primary" id="btn-play">▶ Play</button>
-          <button id="btn-refresh" title="Refresh status and sync sliders without restarting">↻ Refresh</button>
-          <button type="button" class="pill" id="btn-hit-list">Live Hit List</button>
-          <button id="btn-avoid">Avoid Current Hit</button>
-          <button id="btn-clear-avoids">Clear Avoids</button>
+          <button class="primary" id="btn-play">Play</button>
+          <button id="btn-refresh" title="Refresh status and sync sliders without restarting">Refresh</button>
+          <button id="btn-avoid">Avoid</button>
+          <button id="btn-clear-avoids">Clear</button>
         </div>
 
         <div class="tabs">
-          <button type="button" class="tab active" id="tab-airband">Airband (Dongle 0)</button>
-          <button type="button" class="tab" id="tab-ground">Ground (Dongle 1)</button>
+          <button type="button" class="tab active" id="tab-airband">Airband</button>
+          <button type="button" class="tab" id="tab-ground">Ground</button>
         </div>
         <div class="swipe-hint">Swipe between airband and ground controls.</div>
 
@@ -188,7 +202,7 @@ HTML = r"""<!doctype html>
           <div class="pager-inner" id="pager-inner">
             <section class="page">
               <div class="page-title">Airband Scanner Controls</div>
-              <div class="profiles" id="profiles"></div>
+              <div class="profiles" id="profiles-airband"></div>
 
               <div class="controls">
                 <div class="ctrl">
@@ -207,6 +221,7 @@ HTML = r"""<!doctype html>
 
             <section class="page">
               <div class="page-title">Ground Scanner Controls</div>
+              <div class="profiles hidden" id="profiles-ground"></div>
               <div class="controls">
                 <div class="ctrl">
                   <div class="ctrl-head"><b>Gain (dB)</b><span>Applied: <span id="applied-gain-ground">…</span></span></div>
@@ -232,7 +247,7 @@ HTML = r"""<!doctype html>
 
       <div id="view-hits" class="hidden">
         <div class="nav">
-          <button type="button" id="btn-hit-back">&larr; Back</button>
+          <button type="button" id="btn-hit-back">Back</button>
           <h1 style="margin:0;">Live Hit List</h1>
         </div>
         <div class="hit-list" id="hit-list">
@@ -244,7 +259,8 @@ HTML = r"""<!doctype html>
   </div>
 
 <script>
-const profilesEl = document.getElementById('profiles');
+const profilesAirbandEl = document.getElementById('profiles-airband');
+const profilesGroundEl = document.getElementById('profiles-ground');
 const warnEl = document.getElementById('warn');
 const avoidsEl = document.getElementById('avoids-summary');
 const viewMainEl = document.getElementById('view-main');
@@ -262,7 +278,8 @@ const GAIN_STEPS = [
   36.4, 37.2, 38.6, 40.2, 42.1, 43.4, 43.9, 44.5, 48.0, 49.6,
 ];
 
-let currentProfile = null;
+let currentProfileAirband = null;
+let currentProfileGround = null;
 let hitsView = false;
 let activePage = 0;
 
@@ -361,8 +378,13 @@ function updateAvoids(avoids) {
   avoidsEl.textContent = text;
 }
 
-function buildProfiles(profiles, selected) {
+function buildProfiles(profilesEl, profiles, selected, target) {
   profilesEl.innerHTML = '';
+  if (!profiles.length) {
+    profilesEl.classList.add('hidden');
+    return;
+  }
+  profilesEl.classList.remove('hidden');
   profiles.forEach(p => {
     const card = document.createElement('button');
     card.type = 'button';
@@ -371,7 +393,7 @@ function buildProfiles(profiles, selected) {
     card.innerHTML = `<div><b>${p.label}</b></div>` + (p.exists ? '' : `<small>Missing: ${p.path}</small>`);
     card.addEventListener('click', async () => {
       if (p.id === selected) return;
-      await post('/api/profile', {profile: p.id});
+      await post('/api/profile', {profile: p.id, target});
       await refresh(true);
     });
     profilesEl.appendChild(card);
@@ -421,9 +443,13 @@ async function refresh(allowSetSliders=false) {
   updateWarn(st.missing_profiles);
   updateAvoids(st.avoids);
 
-  if (currentProfile === null || currentProfile !== st.profile) {
-    currentProfile = st.profile;
-    buildProfiles(st.profiles, st.profile);
+  if (currentProfileAirband === null || currentProfileAirband !== st.profile_airband) {
+    currentProfileAirband = st.profile_airband;
+    buildProfiles(profilesAirbandEl, st.profiles_airband, st.profile_airband, 'airband');
+  }
+  if (currentProfileGround === null || currentProfileGround !== st.profile_ground) {
+    currentProfileGround = st.profile_ground;
+    buildProfiles(profilesGroundEl, st.profiles_ground, st.profile_ground, 'ground');
   }
 
   if (allowSetSliders) {
@@ -545,12 +571,15 @@ document.getElementById('btn-play').addEventListener('click', ()=> {
   window.open(url, '_blank', 'noopener');
 });
 
-document.getElementById('btn-hit-list').addEventListener('click', async ()=> {
+async function showHitList() {
   hitsView = true;
   viewMainEl.classList.add('hidden');
   viewHitsEl.classList.remove('hidden');
   await refreshHitList();
-});
+}
+
+document.getElementById('btn-hit-airband').addEventListener('click', showHitList);
+document.getElementById('btn-hit-ground').addEventListener('click', showHitList);
 
 document.getElementById('btn-hit-back').addEventListener('click', ()=> {
   hitsView = false;
@@ -591,7 +620,34 @@ def read_active_config_path() -> str:
     try:
         return os.path.realpath(CONFIG_SYMLINK)
     except Exception:
-        return CONFIG_SYMLINK
+    return CONFIG_SYMLINK
+
+def read_airband_flag(conf_path: str) -> Optional[bool]:
+    try:
+        with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                match = RE_AIRBAND.match(line)
+                if match:
+                    return match.group(1).lower() == "true"
+    except FileNotFoundError:
+        return None
+    return None
+
+def split_profiles():
+    prof_payload = []
+    for pid, label, path in PROFILES:
+        exists = os.path.exists(path)
+        airband_flag = read_airband_flag(path) if exists else None
+        prof_payload.append({
+            "id": pid,
+            "label": label,
+            "path": path,
+            "exists": exists,
+            "airband": airband_flag,
+        })
+    profiles_airband = [p for p in prof_payload if p.get("airband") is not False]
+    profiles_ground = [p for p in prof_payload if p.get("airband") is False]
+    return prof_payload, profiles_airband, profiles_ground
 
 def enforce_profile_index(conf_path: str) -> None:
     try:
@@ -1254,21 +1310,21 @@ def start_ground():
         stderr=subprocess.DEVNULL,
     )
 
-def set_profile(profile_id: str, current_conf_path: str):
-    for pid, _, path in PROFILES:
+def set_profile(profile_id: str, current_conf_path: str, profiles, target_symlink: str):
+    for pid, _, path in profiles:
         if pid == profile_id:
             if os.path.realpath(path) == os.path.realpath(current_conf_path):
                 return True, False
             enforce_profile_index(path)
-            subprocess.run(["ln", "-sf", path, CONFIG_SYMLINK], check=False)
+            subprocess.run(["ln", "-sf", path, target_symlink], check=False)
             return True, True
     return False, False
 
-def guess_current_profile(conf_realpath: str):
-    for pid, _, path in PROFILES:
+def guess_current_profile(conf_realpath: str, profiles):
+    for pid, _, path in profiles:
         if os.path.realpath(path) == conf_realpath:
             return pid
-    return "airband"
+    return profiles[0][0] if profiles else ""
 
 def icecast_up():
     return unit_active(UNITS["icecast"])
@@ -1295,15 +1351,10 @@ class Handler(BaseHTTPRequestHandler):
             ground_ok = unit_active(UNITS["ground"])
             ice_ok = icecast_up()
 
-            missing = []
-            prof_payload = []
-            for pid, label, path in PROFILES:
-                exists = os.path.exists(path)
-                if not exists:
-                    missing.append(path)
-                prof_payload.append({"id": pid, "label": label, "path": path, "exists": exists})
-
-            profile = guess_current_profile(conf_path)
+            prof_payload, profiles_airband, profiles_ground = split_profiles()
+            missing = [p["path"] for p in prof_payload if not p.get("exists")]
+            profile_airband = guess_current_profile(conf_path, [(p["id"], p["label"], p["path"]) for p in profiles_airband])
+            profile_ground = guess_current_profile(os.path.realpath(GROUND_CONFIG_PATH), [(p["id"], p["label"], p["path"]) for p in profiles_ground])
             icecast_hit = read_last_hit_from_icecast() if ice_ok else ""
             update_icecast_hit_log(icecast_hit)
             last_hit_airband = read_last_hit_airband()
@@ -1314,8 +1365,10 @@ class Handler(BaseHTTPRequestHandler):
                 "ground_active": ground_ok,
                 "icecast_active": ice_ok,
                 "keepalive_active": unit_active(UNITS["keepalive"]),
-                "profile": profile,
-                "profiles": prof_payload,
+                "profile_airband": profile_airband,
+                "profile_ground": profile_ground,
+                "profiles_airband": profiles_airband,
+                "profiles_ground": profiles_ground,
                 "missing_profiles": missing,
                 "gain": float(airband_gain),
                 "squelch": float(airband_squelch),
@@ -1345,21 +1398,40 @@ class Handler(BaseHTTPRequestHandler):
 
         if p == "/api/profile":
             pid = form.get("profile", "")
-            conf_path = read_active_config_path()
-            current_profile = guess_current_profile(conf_path)
+            target = form.get("target", "airband")
+            _, profiles_airband, profiles_ground = split_profiles()
+            if target == "ground":
+                conf_path = os.path.realpath(GROUND_CONFIG_PATH)
+                profiles = [(p["id"], p["label"], p["path"]) for p in profiles_ground]
+                unit_stop = stop_ground
+                unit_start = start_ground
+                unit_restart = restart_ground
+                target_symlink = GROUND_CONFIG_PATH
+            else:
+                conf_path = read_active_config_path()
+                profiles = [(p["id"], p["label"], p["path"]) for p in profiles_airband]
+                unit_stop = stop_rtl
+                unit_start = start_rtl
+                unit_restart = restart_rtl
+                target_symlink = CONFIG_SYMLINK
+
+            if not profiles:
+                return self._send(400, json.dumps({"ok": False, "error": "no profiles available"}), "application/json; charset=utf-8")
+
+            current_profile = guess_current_profile(conf_path, profiles)
             did_stop = False
             if pid and pid != current_profile:
-                stop_rtl()
+                unit_stop()
                 did_stop = True
-            ok, changed = set_profile(pid, conf_path)
+            ok, changed = set_profile(pid, conf_path, profiles, target_symlink)
             if ok:
                 if changed:
-                    restart_rtl()
+                    unit_restart()
                 elif did_stop:
-                    start_rtl()
+                    unit_start()
                 return self._send(200, json.dumps({"ok": True, "changed": changed}), "application/json; charset=utf-8")
             if did_stop:
-                start_rtl()
+                unit_start()
             return self._send(400, json.dumps({"ok": False, "error": "unknown profile"}), "application/json; charset=utf-8")
 
         if p == "/api/apply":
