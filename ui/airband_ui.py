@@ -38,7 +38,7 @@ UNITS = {
 }
 
 PROFILES = [
-    ("airband", "AIRBAND", os.path.join(PROFILES_DIR, "rtl_airband_airband.conf")),
+    ("airband", "NASHVILLE", os.path.join(PROFILES_DIR, "rtl_airband_airband.conf")),
     ("tower",  "TOWER (118.600)", os.path.join(PROFILES_DIR, "rtl_airband_tower.conf")),
     ("gmrs",   "GMRS", os.path.join(PROFILES_DIR, "rtl_airband_gmrs.conf")),
     ("wx",     "WX (162.550)", os.path.join(PROFILES_DIR, "rtl_airband_wx.conf")),
@@ -627,9 +627,17 @@ def read_airband_flag(conf_path: str) -> Optional[bool]:
 
 def split_profiles():
     prof_payload = []
+    pid_overrides = {
+        "airband": True,
+        "tower": True,
+        "gmrs": False,
+        "wx": False,
+    }
     for pid, label, path in PROFILES:
         exists = os.path.exists(path)
-        airband_flag = read_airband_flag(path) if exists else None
+        airband_flag = pid_overrides.get(pid)
+        if airband_flag is None and exists:
+            airband_flag = read_airband_flag(path)
         prof_payload.append({
             "id": pid,
             "label": label,
