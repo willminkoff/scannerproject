@@ -52,7 +52,7 @@ PROFILES = [
 ]
 
 RE_GAIN = re.compile(r'^(\s*gain\s*=\s*)([0-9.]+)(\s*;\s*#\s*UI_CONTROLLED.*)$')
-RE_SQL  = re.compile(r'^(\s*squelch_snr_threshold\s*=\s*)(-?[0-9.]+)(\s*;\s*#\s*UI_CONTROLLED.*)$')
+RE_SQL  = re.compile(r'^(\s*squelch_snr_threshold\s*=\s*)([0-9.]+)(\s*;\s*#\s*UI_CONTROLLED.*)$')
 RE_AIRBAND = re.compile(r'^\s*airband\s*=\s*(true|false)\s*;\s*$', re.I)
 RE_UI_DISABLED = re.compile(r'^\s*ui_disabled\s*=\s*(true|false)\s*;\s*$', re.I)
 RE_INDEX = re.compile(r'^(\s*index\s*=\s*)(\d+)(\s*;.*)$')
@@ -73,8 +73,6 @@ GAIN_STEPS = [
     16.6, 19.7, 20.7, 22.9, 25.4, 28.0, 29.7, 32.8, 33.8,
     36.4, 37.2, 38.6, 40.2, 42.1, 43.4, 43.9, 44.5, 48.0, 49.6,
 ]
-SQUELCH_MIN = -10.0
-SQUELCH_MAX = 10.0
 
 HTML = r"""<!doctype html>
 <html>
@@ -221,8 +219,8 @@ HTML = r"""<!doctype html>
 
                 <div class="ctrl">
                   <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span id="applied-sql-airband">…</span></span></div>
-                  <input id="sql-airband" class="range" type="range" min="-10" max="10" step="0.1" />
-                  <div class="ctrl-readout"><span>Selected: <span id="selected-sql-airband">…</span></span><span>-10.0-10.0 SNR threshold</span></div>
+                  <input id="sql-airband" class="range" type="range" min="0" max="10" step="0.1" />
+                  <div class="ctrl-readout"><span>Selected: <span id="selected-sql-airband">…</span></span><span>0.0-10.0 SNR threshold</span></div>
                 </div>
               </div>
               <div class="btns">
@@ -242,8 +240,8 @@ HTML = r"""<!doctype html>
 
                 <div class="ctrl">
                   <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span id="applied-sql-ground">…</span></span></div>
-                  <input id="sql-ground" class="range" type="range" min="-10" max="10" step="0.1" />
-                  <div class="ctrl-readout"><span>Selected: <span id="selected-sql-ground">…</span></span><span>-10.0-10.0 SNR threshold</span></div>
+                  <input id="sql-ground" class="range" type="range" min="0" max="10" step="0.1" />
+                  <div class="ctrl-readout"><span>Selected: <span id="selected-sql-ground">…</span></span><span>0.0-10.0 SNR threshold</span></div>
                 </div>
               </div>
               <div class="btns">
@@ -436,7 +434,7 @@ function setControlsFromStatus(target, gain, squelch, allowSetSliders) {
   controls.appliedSqlEl.textContent = squelch.toFixed(1);
   if (allowSetSliders && !controls.dirty) {
     controls.gainEl.value = gainIndexFromValue(gain);
-    controls.sqlEl.value = Math.max(-10, Math.min(10, squelch)).toFixed(1);
+    controls.sqlEl.value = Math.max(0, Math.min(10, squelch)).toFixed(1);
     updateSelectedGain(target);
     updateSelectedSql(target);
   }
@@ -1400,7 +1398,7 @@ def write_controls(conf_path: str, gain: float, squelch: float) -> bool:
     # clamp and snap to tuner steps
     gain_value = float(gain)
     gain = min(GAIN_STEPS, key=lambda g: abs(g - gain_value))
-    squelch = max(SQUELCH_MIN, min(SQUELCH_MAX, float(squelch)))
+    squelch = max(0.0, min(10.0, float(squelch)))
 
     with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
         lines = f.readlines()
