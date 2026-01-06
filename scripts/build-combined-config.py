@@ -11,6 +11,7 @@ RE_AIRBAND = re.compile(r'^\s*airband\s*=\s*(true|false)\s*;\s*$', re.I)
 RE_UI_DISABLED = re.compile(r'^\s*ui_disabled\s*=\s*(true|false)\s*;\s*$', re.I)
 RE_OUTPUTS_BLOCK = re.compile(r'outputs:\s*\(\s*.*?\)\s*;', re.S)
 RE_INDEX = re.compile(r'^\s*index\s*=\s*(\d+)\s*;', re.I)
+RE_SERIAL = re.compile(r'^\s*serial\s*=\s*"[^\"]*"\s*;', re.I)
 RE_ICECAST_BLOCK = re.compile(r'\{\s*[^{}]*type\s*=\s*"icecast"[^{}]*\}', re.S)
 RE_MOUNTPOINT = re.compile(r'(\s*mountpoint\s*=\s*)\"/?([^\";]+)\"(\s*;)', re.I)
 
@@ -73,6 +74,24 @@ def enforce_device_index(text: str, desired_index: int) -> str:
         if insert_at is None:
             insert_at = 0
         out_lines.insert(insert_at, f"  index = {desired_index};")
+    return "\n".join(out_lines)
+
+def enforce_device_serial(text: str, desired_serial: str) -> str:
+    changed = False
+    out_lines = []
+    insert_at = None
+    for idx, line in enumerate(text.splitlines()):
+        if insert_at is None and "{" in line:
+            insert_at = idx + 1
+        if RE_SERIAL.match(line):
+            out_lines.append(f"  serial = \"{desired_serial}\";")
+            changed = True
+        else:
+            out_lines.append(line)
+    if not changed and desired_serial:
+        if insert_at is None:
+            insert_at = 0
+        out_lines.insert(insert_at, f"  serial = \"{desired_serial}\";")
     return "\n".join(out_lines)
 
 
@@ -139,15 +158,16 @@ def build_combined_config(airband_path: str, ground_path: str) -> str:
 
     device_payloads = []
     payloads = [
-        (airband_text, 0, airband_disabled),
-        (ground_text, 1, ground_disabled),
+        (airband_text, 0, airband_disabled, "00000001"),
+        (ground_text, 1, ground_disabled, "70613472"),
     ]
-    for text, desired_index, disabled in payloads:
+    for text, desired_index, disabled, serial in payloads:
         if disabled:
             continue
         payload = extract_devices_payload(text)
         if payload:
             payload = enforce_device_index(payload, desired_index)
+            payload = enforce_device_serial(payload, serial)
             payload = replace_outputs_with_mixer(payload)
             device_payloads.append(payload.strip().rstrip(","))
 
