@@ -670,29 +670,51 @@ def extract_devices_payload(text: str) -> str:
 def enforce_device_index(text: str, desired_index: int) -> str:
     changed = False
     out_lines = []
-    for line in text.splitlines():
+    insert_at = None
+    for idx, line in enumerate(text.splitlines()):
+        if insert_at is None and "{" in line:
+            insert_at = idx + 1
         match = RE_INDEX.match(line)
         if match:
-            new_line = f\"{match.group(1)}{desired_index}{match.group(3)}\"
+            new_line = f"{match.group(1)}{desired_index}{match.group(3)}"
             out_lines.append(new_line)
             changed = True
         else:
             out_lines.append(line)
     if not changed:
-        out_lines.insert(0, f\"  index = {desired_index};\")
-    return \"\\n\".join(out_lines)
+        if insert_at is None:
+            insert_at = 0
+        out_lines.insert(insert_at, f"  index = {desired_index};")
+    return "\n".join(out_lines)
 
 def replace_outputs_with_mixer(text: str) -> str:
-    replacement = (
-        "outputs:\n"
-        "      (\n"
-        "        {\n"
-        f"          type = \"mixer\";\n"
-        f"          name = \"{MIXER_NAME}\";\n"
-        "        }\n"
-        "      );"
-    )
-    return RE_OUTPUTS_BLOCK.sub(replacement, text)
+    replacement = [
+        "      outputs:",
+        "      (",
+        "        {",
+        f"          type = \"mixer\";",
+        f"          name = \"{MIXER_NAME}\";",
+        "        }",
+        "      );",
+    ]
+    lines = text.splitlines()
+    out_lines = []
+    in_outputs = False
+    depth = 0
+    for line in lines:
+        tokens = line.strip().split()
+        if not in_outputs and tokens and tokens[0] == "outputs:":
+            in_outputs = True
+            depth = line.count("(") - line.count(")")
+            out_lines.extend(replacement)
+            continue
+        if in_outputs:
+            depth += line.count("(") - line.count(")")
+            if depth <= 0 and ");" in line:
+                in_outputs = False
+            continue
+        out_lines.append(line)
+    return "\n".join(out_lines)
 
 def normalize_mountpoint(text: str) -> str:
     return RE_MOUNTPOINT.sub(lambda m: f"{m.group(1)}\"{m.group(2)}\"{m.group(3)}", text)
