@@ -158,8 +158,8 @@ def build_combined_config(airband_path: str, ground_path: str) -> str:
 
     device_payloads = []
     payloads = [
-        (airband_text, 0, airband_disabled, "00000001"),
-        (ground_text, 1, ground_disabled, "70613472"),
+        (airband_text, 1, airband_disabled, "00000001"),
+        (ground_text, 0, ground_disabled, "70613472"),
     ]
     for text, desired_index, disabled, serial in payloads:
         if disabled:
