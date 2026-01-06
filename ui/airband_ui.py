@@ -42,7 +42,10 @@ UNITS = {
 PROFILES = [
     ("airband", "NASHVILLE", os.path.join(PROFILES_DIR, "rtl_airband_airband.conf")),
     ("tower",  "TOWER (118.600)", os.path.join(PROFILES_DIR, "rtl_airband_tower.conf")),
+    ("khop",   "KHOP (Campbell)", os.path.join(PROFILES_DIR, "rtl_airband_khop.conf")),
+    ("kmqy",   "KMQY (Smyrna)", os.path.join(PROFILES_DIR, "rtl_airband_kmqy.conf")),
     ("gmrs",   "GMRS", os.path.join(PROFILES_DIR, "rtl_airband_gmrs.conf")),
+    ("mtears", "MTEARS", os.path.join(PROFILES_DIR, "rtl_airband_mtears.conf")),
     ("wx",     "WX (162.550)", os.path.join(PROFILES_DIR, "rtl_airband_wx.conf")),
 ]
 
