@@ -17,17 +17,22 @@ echo "-" > "$OUT_GROUND"
 trap "exit 0" TERM INT
 
 run_airband() {
-  /usr/local/bin/rtl_airband -F -e -c "$CONF"
+  /usr/local/bin/rtl_airband -F -c "$CONF"
 }
 
-run_airband 2>&1 \
+tail_pid=""
+cleanup() {
+  if [[ -n "${tail_pid}" ]]; then
+    kill "${tail_pid}" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT
+
+stdbuf -oL -eL journalctl -t rtl_airband -f -n 0 -o cat --no-pager \
 | stdbuf -oL awk -v OUT="$OUT" -v OUT_AIR="$OUT_AIR" -v OUT_GROUND="$OUT_GROUND" '
   {
-    line = $0;
-    gsub(/\[[0-9;]*[A-Za-z]/, "", line);
-    print line;
-    if (line ~ /Activity on [0-9]+\.[0-9]+/) {
-      freq = line;
+    if ($0 ~ /Activity on [0-9]+\.[0-9]+/) {
+      freq = $0;
       sub(/.*Activity on /, "", freq);
       sub(/ .*/, "", freq);
       if (freq != last) {
@@ -48,4 +53,7 @@ run_airband 2>&1 \
       }
     }
   }
-'
+' &
+tail_pid=$!
+
+run_airband
