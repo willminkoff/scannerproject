@@ -620,7 +620,7 @@ def read_active_config_path() -> str:
     try:
         return os.path.realpath(CONFIG_SYMLINK)
     except Exception:
-    return CONFIG_SYMLINK
+        return CONFIG_SYMLINK
 
 def read_airband_flag(conf_path: str) -> Optional[bool]:
     try:
