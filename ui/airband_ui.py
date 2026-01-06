@@ -220,7 +220,7 @@ HTML = r"""<!doctype html>
                 <div class="ctrl">
                   <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span id="applied-sql-airband">…</span></span></div>
                   <input id="sql-airband" class="range" type="range" min="0" max="10" step="0.1" />
-                  <div class="ctrl-readout"><span>Selected: <span id="selected-sql-airband">…</span></span><span>0.0-10.0 SNR threshold</span></div>
+                  <div class="ctrl-readout"><span>Selected: <span id="selected-sql-airband">…</span></span><span>Scaled to 0.0-2.0 SNR</span></div>
                 </div>
               </div>
               <div class="btns">
@@ -242,7 +242,7 @@ HTML = r"""<!doctype html>
                 <div class="ctrl">
                   <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span id="applied-sql-ground">…</span></span></div>
                   <input id="sql-ground" class="range" type="range" min="0" max="10" step="0.1" />
-                  <div class="ctrl-readout"><span>Selected: <span id="selected-sql-ground">…</span></span><span>0.0-10.0 SNR threshold</span></div>
+                  <div class="ctrl-readout"><span>Selected: <span id="selected-sql-ground">…</span></span><span>Scaled to 0.0-2.0 SNR</span></div>
                 </div>
               </div>
               <div class="btns">
@@ -295,6 +295,7 @@ const GAIN_STEPS = [
   16.6, 19.7, 20.7, 22.9, 25.4, 28.0, 29.7, 32.8, 33.8,
   36.4, 37.2, 38.6, 40.2, 42.1, 43.4, 43.9, 44.5, 48.0, 49.6,
 ];
+const SQL_SCALE = 0.2;
 
 let currentProfileAirband = null;
 let currentProfileGround = null;
@@ -351,7 +352,9 @@ function updateSelectedGain(target) {
 
 function updateSelectedSql(target) {
   const controls = controlTargets[target];
-  controls.selectedSqlEl.textContent = Number(controls.sqlEl.value).toFixed(1);
+  const sliderValue = Number(controls.sqlEl.value || 0);
+  const effective = sliderValue * SQL_SCALE;
+  controls.selectedSqlEl.textContent = `${sliderValue.toFixed(1)} \u2192 ${effective.toFixed(2)}`;
 }
 
 function formatHitLabel(value) {
@@ -437,10 +440,11 @@ async function post(url, obj) {
 function setControlsFromStatus(target, gain, squelch, allowSetSliders) {
   const controls = controlTargets[target];
   controls.appliedGainEl.textContent = gain.toFixed(1);
-  controls.appliedSqlEl.textContent = squelch.toFixed(1);
+  const appliedSlider = Math.max(0, Math.min(10, squelch / SQL_SCALE));
+  controls.appliedSqlEl.textContent = `${squelch.toFixed(2)} (slider ${appliedSlider.toFixed(1)})`;
   if (allowSetSliders && !controls.dirty) {
     controls.gainEl.value = gainIndexFromValue(gain);
-    controls.sqlEl.value = Math.max(0, Math.min(10, squelch)).toFixed(1);
+    controls.sqlEl.value = appliedSlider.toFixed(1);
     updateSelectedGain(target);
     updateSelectedSql(target);
   }
@@ -525,7 +529,7 @@ async function applyControls(target) {
   controls.applyInFlight = true;
   try {
     const gain = GAIN_STEPS[Number(controls.gainEl.value || 0)];
-    const squelch = controls.sqlEl.value;
+    const squelch = Number(controls.sqlEl.value || 0) * SQL_SCALE;
     await post('/api/apply', {gain, squelch, target});
     controls.dirty = false;
     await refresh(true);
