@@ -137,7 +137,7 @@ HTML = r"""<!doctype html>
       .range::-moz-range-thumb { width: 38px; height: 38px; }
       button { padding: 12px 14px; font-size: 15px; }
       h1 { font-size: 20px; }
-      .profiles { grid-template-columns: 1fr; }
+      .profiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     .btns { display:flex; gap:10px; flex-wrap:wrap; margin-top: 12px; }
     .btns.center { justify-content:center; }
