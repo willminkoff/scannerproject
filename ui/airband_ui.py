@@ -947,6 +947,7 @@ def split_profiles():
     return prof_payload, profiles_airband, profiles_ground
 
 def enforce_profile_index(conf_path: str) -> None:
+    conf_path = os.path.realpath(conf_path)
     try:
         with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
             lines = f.readlines()
@@ -1473,6 +1474,7 @@ def write_controls(conf_path: str, gain: float, squelch: float) -> bool:
     gain = min(GAIN_STEPS, key=lambda g: abs(g - gain_value))
     squelch = max(0.0, min(10.0, float(squelch)))
 
+    conf_path = os.path.realpath(conf_path)
     with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
         lines = f.readlines()
 
