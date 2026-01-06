@@ -8,7 +8,6 @@ COMBINED_CONFIG_PATH = "/usr/local/etc/rtl_airband_combined.conf"
 MIXER_NAME = "combined"
 
 RE_AIRBAND = re.compile(r'^\s*airband\s*=\s*(true|false)\s*;\s*$', re.I)
-RE_DEVICES_BLOCK = re.compile(r'devices:\s*\(\s*(.*?)\s*\)\s*;', re.S)
 RE_OUTPUTS_BLOCK = re.compile(r'outputs:\s*\(\s*.*?\)\s*;', re.S)
 RE_INDEX = re.compile(r'^\s*index\s*=\s*(\d+)\s*;', re.I)
 RE_ICECAST_BLOCK = re.compile(r'\{\s*[^{}]*type\s*=\s*"icecast"[^{}]*\}', re.S)
@@ -36,10 +35,22 @@ def extract_top_level_settings(text: str) -> list:
 
 
 def extract_devices_payload(text: str) -> str:
-    match = RE_DEVICES_BLOCK.search(text)
-    if not match:
+    idx = text.find("devices:")
+    if idx == -1:
         return ""
-    return match.group(1).strip()
+    start = text.find("(", idx)
+    if start == -1:
+        return ""
+    depth = 0
+    for i in range(start, len(text)):
+        ch = text[i]
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                return text[start + 1:i].strip()
+    return ""
 
 
 def enforce_device_index(text: str, desired_index: int) -> str:
