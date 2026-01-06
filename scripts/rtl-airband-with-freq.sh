@@ -2,6 +2,9 @@
 set -euo pipefail
 
 CONF="/usr/local/etc/rtl_airband.conf"
+if [[ $# -gt 0 ]]; then
+  CONF="$1"
+fi
 OUT="/run/rtl_airband_last_freq.txt"
 
 mkdir -p /run

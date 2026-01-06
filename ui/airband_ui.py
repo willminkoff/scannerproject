@@ -13,16 +13,17 @@ from typing import Optional
 
 UI_PORT = 5050
 
-CONFIG_AIRBAND = "/usr/local/etc/rtl_airband.conf"
-CONFIG_GROUND = "/usr/local/etc/rtl_airband_ground.conf"
+CONFIG_SYMLINK = "/usr/local/etc/rtl_airband.conf"
 PROFILES_DIR = "/usr/local/etc/airband-profiles"
+GROUND_CONFIG_PATH = "/usr/local/etc/rtl_airband_ground.conf"
+COMBINED_CONFIG_PATH = "/usr/local/etc/rtl_airband_combined.conf"
+MIXER_NAME = "combined"
 LAST_HIT_AIRBAND_PATH = "/run/rtl_airband_last_freq_airband.txt"
 LAST_HIT_GROUND_PATH = "/run/rtl_airband_last_freq_ground.txt"
 AVOIDS_DIR = "/home/willminkoff/scannerproject/admin/logs"
 DIAGNOSTIC_DIR = AVOIDS_DIR
 AVOIDS_PATH = os.path.join(AVOIDS_DIR, "airband_avoids.json")
 AVOIDS_SUMMARY_PATH = os.path.join(AVOIDS_DIR, "airband_avoids.txt")
-SELECTIONS_PATH = os.path.join(AVOIDS_DIR, "selected_profiles.json")
 
 ICECAST_PORT = 8000
 MOUNT_NAME = "GND.mp3"
@@ -33,16 +34,16 @@ ICECAST_HIT_LOG_LIMIT = 200
 
 UNITS = {
     "rtl": "rtl-airband",
-    "ground": "rtl-airband-ground",
+    "ground": "rtl-airband",
     "icecast": "icecast2",
     "keepalive": "icecast-keepalive",
 }
 
 PROFILES = [
-    ("airband", "AIRBAND", os.path.join(PROFILES_DIR, "rtl_airband_airband.conf"), "airband"),
-    ("tower",  "TOWER (118.600)", os.path.join(PROFILES_DIR, "rtl_airband_tower.conf"), "airband"),
-    ("gmrs",   "GMRS", os.path.join(PROFILES_DIR, "rtl_airband_gmrs.conf"), "ground"),
-    ("wx",     "WX (162.550)", os.path.join(PROFILES_DIR, "rtl_airband_wx.conf"), "ground"),
+    ("airband", "NASHVILLE", os.path.join(PROFILES_DIR, "rtl_airband_airband.conf")),
+    ("tower",  "TOWER (118.600)", os.path.join(PROFILES_DIR, "rtl_airband_tower.conf")),
+    ("gmrs",   "GMRS", os.path.join(PROFILES_DIR, "rtl_airband_gmrs.conf")),
+    ("wx",     "WX (162.550)", os.path.join(PROFILES_DIR, "rtl_airband_wx.conf")),
 ]
 
 RE_GAIN = re.compile(r'^(\s*gain\s*=\s*)([0-9.]+)(\s*;\s*#\s*UI_CONTROLLED.*)$')
@@ -51,7 +52,9 @@ RE_AIRBAND = re.compile(r'^\s*airband\s*=\s*(true|false)\s*;\s*$', re.I)
 RE_INDEX = re.compile(r'^(\s*index\s*=\s*)(\d+)(\s*;.*)$')
 RE_FREQS_BLOCK = re.compile(r'(^\s*freqs\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)
 RE_LABELS_BLOCK = re.compile(r'(^\s*labels\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)
-RE_CHANNELS_START = re.compile(r'\bchannels\s*:\s*\(', re.S | re.M)
+RE_OUTPUTS_BLOCK = re.compile(r'outputs:\s*\(\s*.*?\)\s*;', re.S)
+RE_ICECAST_BLOCK = re.compile(r'\{\s*[^{}]*type\s*=\s*"icecast"[^{}]*\}', re.S)
+RE_MOUNTPOINT = re.compile(r'(\s*mountpoint\s*=\s*)\"/?([^\";]+)\"(\s*;)', re.I)
 RE_ACTIVITY = re.compile(r'Activity on ([0-9]+\.[0-9]+)')
 RE_ACTIVITY_TS = re.compile(
     r'^(?P<date>\d{4}-\d{2}-\d{2})[ T](?P<time>\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:[+-]\d{2}:?\d{2}|[A-Z]{2,5})?\s+.*Activity on (?P<freq>[0-9]+\.[0-9]+)'
@@ -81,13 +84,10 @@ HTML = r"""<!doctype html>
     .pill-center .pill-text { align-items:center; text-align:center; flex:1; }
     .dot { width:10px; height:10px; border-radius:50%; background: var(--bad); box-shadow: 0 0 0 4px rgba(239,68,68,.12); }
     .dot.good { background: var(--good); box-shadow: 0 0 0 4px rgba(34,197,94,.12); }
+    .dot.neutral { background: #94a3b8; box-shadow: 0 0 0 4px rgba(148,163,184,.18); }
     .label { font-size: 13px; color: var(--muted); }
     .val { font-size: 13px; }
-    .profile-group { margin-top: 12px; }
-    .profile-head { display:flex; justify-content:space-between; align-items:baseline; margin-bottom: 6px; }
-    .profile-head b { font-size: 13px; letter-spacing: .2px; }
-    .profile-head span { font-size: 12px; color: var(--muted); }
-    .profiles { display:grid; gap:10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .profiles { margin-top: 12px; display:grid; gap:10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .profile-card { text-align:left; padding:10px 12px; border:1px solid var(--line); border-radius:12px; cursor:pointer; background: rgba(255,255,255,.02); color: var(--text); }
     .profile-card.selected { border-color: rgba(34,197,94,.55); box-shadow: 0 0 0 1px rgba(34,197,94,.25), 0 12px 18px rgba(0,0,0,.2); }
     .profile-card small { color: var(--muted); display:block; margin-top: 4px; }
@@ -140,6 +140,14 @@ HTML = r"""<!doctype html>
     button { border:1px solid var(--line); background: rgba(255,255,255,.06); color:var(--text); padding:10px 12px; border-radius:12px; cursor:pointer; }
     button.pill { background: rgba(255,255,255,.03); }
     button.primary { background: rgba(34,197,94,.18); border-color: rgba(34,197,94,.35); }
+    .tabs { display:flex; gap:10px; margin-top: 14px; }
+    .tab { flex:1; text-align:center; padding:10px 12px; border-radius:999px; border:1px solid var(--line); background: rgba(255,255,255,.04); color: var(--muted); }
+    .tab.active { color: var(--text); background: rgba(34,197,94,.16); border-color: rgba(34,197,94,.35); box-shadow: 0 0 0 1px rgba(34,197,94,.2); }
+    .swipe-hint { margin-top: 8px; font-size: 12px; color: var(--muted); text-align:center; }
+    .pager { margin-top: 12px; overflow:hidden; }
+    .pager-inner { display:flex; transition: transform 0.3s ease; }
+    .page { min-width:100%; box-sizing:border-box; }
+    .page-title { font-size: 15px; color: var(--muted); margin: 4px 0 8px; letter-spacing: .2px; text-transform: uppercase; }
     .foot { margin-top: 12px; color: var(--muted); font-size: 12px; }
     .foot a { color: var(--muted); text-decoration: underline; }
     .foot a:hover { color: var(--text); }
@@ -161,51 +169,90 @@ HTML = r"""<!doctype html>
         <h1>SprontPi Radio Control</h1>
 
         <div class="row">
-          <div class="pill"><div id="dot-rtl" class="dot"></div><div><div class="label">Scanner</div><div class="val" id="txt-rtl">…</div></div></div>
+          <button class="pill hit-pill" id="btn-hit-airband" type="button">
+            <div class="dot good"></div>
+            <div>
+              <div class="label">Airband Hits</div>
+              <div class="val" id="txt-hit-airband">…</div>
+            </div>
+          </button>
+          <button class="pill hit-pill" id="btn-hit-ground" type="button">
+            <div class="dot good"></div>
+            <div>
+              <div class="label">Ground Hits</div>
+              <div class="val" id="txt-hit-ground">…</div>
+            </div>
+          </button>
+        </div>
+
+        <div class="row">
+          <div class="pill"><div id="dot-rtl" class="dot"></div><div><div class="label">Airband Scanner</div><div class="val" id="txt-rtl">…</div></div></div>
+          <div class="pill"><div id="dot-ground" class="dot"></div><div><div class="label">Ground Scanner</div><div class="val" id="txt-ground">…</div></div></div>
           <div class="pill"><div id="dot-ice" class="dot"></div><div><div class="label">Icecast</div><div class="val" id="txt-ice">…</div></div></div>
-          <div class="pill"><div class="dot good"></div><div><div class="label">Scanner 1 last hit</div><div class="val" id="txt-hit-airband">…</div></div></div>
-          <div class="pill"><div class="dot good"></div><div><div class="label">Scanner 2 last hit</div><div class="val" id="txt-hit-ground">…</div></div></div>
         </div>
 
         <div class="btns" style="margin-top:14px;">
-          <button class="primary" id="btn-play">▶ Play</button>
-          <button id="btn-refresh" title="Refresh status and sync sliders without restarting">↻ Refresh</button>
-          <button type="button" class="pill" id="btn-hit-list">Live Hit List</button>
-          <button id="btn-avoid">Avoid Current Hit</button>
-          <button id="btn-clear-avoids">Clear Avoids</button>
+          <button class="primary" id="btn-play">Play</button>
+          <button id="btn-avoid">Avoid</button>
+          <button id="btn-clear-avoids">Clear</button>
         </div>
 
-        <div class="profile-group">
-          <div class="profile-head"><b>Airband profiles</b><span id="airband-count">0 selected</span></div>
-          <div class="profiles" id="profiles-airband"></div>
+        <div class="tabs">
+          <button type="button" class="tab active" id="tab-airband">Airband</button>
+          <button type="button" class="tab" id="tab-ground">Ground</button>
         </div>
-        <div class="profile-group">
-          <div class="profile-head"><b>Ground profiles</b><span id="ground-count">0 selected</span></div>
-          <div class="profiles" id="profiles-ground"></div>
-        </div>
+        <div class="swipe-hint">Swipe between airband and ground controls.</div>
 
-        <div class="controls">
-          <div class="ctrl">
-            <div class="ctrl-head"><b>Gain (dB)</b><span>Applied: <span id="applied-gain">…</span></span></div>
-            <input id="gain" class="range" type="range" min="0" max="28" step="1" />
-            <div class="ctrl-readout"><span>Selected: <span id="selected-gain">…</span> dB</span><span>RTL-SDR steps</span></div>
-          </div>
+        <div class="pager" id="pager">
+          <div class="pager-inner" id="pager-inner">
+            <section class="page">
+              <div class="page-title">Airband Scanner Controls</div>
+              <div class="profiles" id="profiles-airband"></div>
 
-          <div class="ctrl">
-            <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span id="applied-sql">…</span></span></div>
-            <input id="sql" class="range" type="range" min="0" max="10" step="0.1" />
-            <div class="ctrl-readout"><span>Selected: <span id="selected-sql">…</span></span><span>0.0-10.0 SNR threshold</span></div>
+              <div class="controls">
+                <div class="ctrl">
+                  <div class="ctrl-head"><b>Gain (dB)</b><span>Applied: <span id="applied-gain-airband">…</span></span></div>
+                  <input id="gain-airband" class="range" type="range" min="0" max="28" step="1" />
+                  <div class="ctrl-readout"><span>Selected: <span id="selected-gain-airband">…</span> dB</span><span>RTL-SDR steps</span></div>
+                </div>
+
+                <div class="ctrl">
+                  <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span id="applied-sql-airband">…</span></span></div>
+                  <input id="sql-airband" class="range" type="range" min="0" max="10" step="0.1" />
+                  <div class="ctrl-readout"><span>Selected: <span id="selected-sql-airband">…</span></span><span>0.0-10.0 SNR threshold</span></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="page">
+              <div class="page-title">Ground Scanner Controls</div>
+              <div class="profiles hidden" id="profiles-ground"></div>
+              <div class="controls">
+                <div class="ctrl">
+                  <div class="ctrl-head"><b>Gain (dB)</b><span>Applied: <span id="applied-gain-ground">…</span></span></div>
+                  <input id="gain-ground" class="range" type="range" min="0" max="28" step="1" />
+                  <div class="ctrl-readout"><span>Selected: <span id="selected-gain-ground">…</span> dB</span><span>RTL-SDR steps</span></div>
+                </div>
+
+                <div class="ctrl">
+                  <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span id="applied-sql-ground">…</span></span></div>
+                  <input id="sql-ground" class="range" type="range" min="0" max="10" step="0.1" />
+                  <div class="ctrl-readout"><span>Selected: <span id="selected-sql-ground">…</span></span><span>0.0-10.0 SNR threshold</span></div>
+                </div>
+              </div>
+              <div class="foot">Both scanners feed the same Icecast stream.</div>
+            </section>
           </div>
         </div>
 
         <div class="warn" id="warn"></div>
         <div class="avoids" id="avoids-summary"></div>
-        <div class="foot">Tip: selecting profiles restarts scanners; no profiles selected keeps scanners stopped; refresh only syncs status + sliders. <a href="#" id="lnk-diagnostic">Generate log</a></div>
+        <div class="foot">Tip: switching profiles or applying changes restarts the scanner; refresh only syncs status + sliders. <a href="#" id="lnk-diagnostic">Generate log</a></div>
       </div>
 
       <div id="view-hits" class="hidden">
         <div class="nav">
-          <button type="button" id="btn-hit-back">&larr; Back</button>
+          <button type="button" id="btn-hit-back">Back</button>
           <h1 style="margin:0;">Live Hit List</h1>
         </div>
         <div class="hit-list" id="hit-list">
@@ -219,17 +266,15 @@ HTML = r"""<!doctype html>
 <script>
 const profilesAirbandEl = document.getElementById('profiles-airband');
 const profilesGroundEl = document.getElementById('profiles-ground');
-const airbandCountEl = document.getElementById('airband-count');
-const groundCountEl = document.getElementById('ground-count');
 const warnEl = document.getElementById('warn');
 const avoidsEl = document.getElementById('avoids-summary');
-const gainEl = document.getElementById('gain');
-const sqlEl = document.getElementById('sql');
-const selectedGainEl = document.getElementById('selected-gain');
-const selectedSqlEl = document.getElementById('selected-sql');
 const viewMainEl = document.getElementById('view-main');
 const viewHitsEl = document.getElementById('view-hits');
 const hitListEl = document.getElementById('hit-list');
+const tabAirbandEl = document.getElementById('tab-airband');
+const tabGroundEl = document.getElementById('tab-ground');
+const pagerEl = document.getElementById('pager');
+const pagerInnerEl = document.getElementById('pager-inner');
 let actionMsg = '';
 
 const GAIN_STEPS = [
@@ -238,17 +283,47 @@ const GAIN_STEPS = [
   36.4, 37.2, 38.6, 40.2, 42.1, 43.4, 43.9, 44.5, 48.0, 49.6,
 ];
 
-let sliderDirty = false;
-let applyInFlight = false;
+let currentProfileAirband = null;
+let currentProfileGround = null;
 let hitsView = false;
-let selectedAirband = [];
-let selectedGround = [];
+let activePage = 0;
 
-gainEl.max = String(GAIN_STEPS.length - 1);
+const controlTargets = {
+  airband: {
+    gainEl: document.getElementById('gain-airband'),
+    sqlEl: document.getElementById('sql-airband'),
+    selectedGainEl: document.getElementById('selected-gain-airband'),
+    selectedSqlEl: document.getElementById('selected-sql-airband'),
+    appliedGainEl: document.getElementById('applied-gain-airband'),
+    appliedSqlEl: document.getElementById('applied-sql-airband'),
+    dirty: false,
+    applyInFlight: false,
+  },
+  ground: {
+    gainEl: document.getElementById('gain-ground'),
+    sqlEl: document.getElementById('sql-ground'),
+    selectedGainEl: document.getElementById('selected-gain-ground'),
+    selectedSqlEl: document.getElementById('selected-sql-ground'),
+    appliedGainEl: document.getElementById('applied-gain-ground'),
+    appliedSqlEl: document.getElementById('applied-sql-ground'),
+    dirty: false,
+    applyInFlight: false,
+  },
+};
+
+Object.values(controlTargets).forEach(target => {
+  target.gainEl.max = String(GAIN_STEPS.length - 1);
+});
 
 function setDot(id, ok) {
   const el = document.getElementById(id);
-  if (ok) el.classList.add('good'); else el.classList.remove('good');
+  if (!el) return;
+  el.classList.remove('good', 'neutral');
+  if (ok === null) {
+    el.classList.add('neutral');
+  } else if (ok) {
+    el.classList.add('good');
+  }
 }
 
 function gainIndexFromValue(value) {
@@ -264,13 +339,15 @@ function gainIndexFromValue(value) {
   return best;
 }
 
-function updateSelectedGain() {
-  const idx = Number(gainEl.value || 0);
-  selectedGainEl.textContent = GAIN_STEPS[idx].toFixed(1);
+function updateSelectedGain(target) {
+  const controls = controlTargets[target];
+  const idx = Number(controls.gainEl.value || 0);
+  controls.selectedGainEl.textContent = GAIN_STEPS[idx].toFixed(1);
 }
 
-function updateSelectedSql() {
-  selectedSqlEl.textContent = Number(sqlEl.value).toFixed(1);
+function updateSelectedSql(target) {
+  const controls = controlTargets[target];
+  controls.selectedSqlEl.textContent = Number(controls.sqlEl.value).toFixed(1);
 }
 
 function formatHitLabel(value) {
@@ -286,16 +363,10 @@ function formatHitLabel(value) {
   return text;
 }
 
-function updateWarn(missingProfiles, airbandSelected, groundSelected) {
+function updateWarn(missingProfiles) {
   const parts = [];
   if (missingProfiles.length) {
     parts.push('Missing profile file(s): ' + missingProfiles.join(' • '));
-  }
-  if (!airbandSelected.length) {
-    parts.push('No airband profiles selected');
-  }
-  if (!groundSelected.length) {
-    parts.push('No ground profiles selected');
   }
   if (actionMsg) {
     parts.push(actionMsg);
@@ -311,42 +382,32 @@ function updateAvoids(avoids) {
   }
   const count = avoids.count || 0;
   const sample = (avoids.sample || []).filter(Boolean);
-  let text = count ? `Avoids: ${count} for current config` : 'Avoids: none';
+  let text = count ? `Avoids: ${count} for this profile` : 'Avoids: none';
   if (sample.length) {
     text += ` (${sample.join(', ')})`;
   }
   avoidsEl.textContent = text;
 }
 
-function toggleSelection(list, id) {
-  if (list.includes(id)) {
-    return list.filter(v => v !== id);
+function buildProfiles(profilesEl, profiles, selected, target) {
+  profilesEl.innerHTML = '';
+  if (!profiles.length) {
+    profilesEl.classList.add('hidden');
+    return;
   }
-  return list.concat([id]);
-}
-
-function buildProfiles(profiles, selected, container, group) {
-  container.innerHTML = '';
-  profiles.filter(p => p.group === group).forEach(p => {
+  profilesEl.classList.remove('hidden');
+  profiles.forEach(p => {
     const card = document.createElement('button');
     card.type = 'button';
-    const isSelected = selected.includes(p.id);
-    card.className = 'profile-card' + (isSelected ? ' selected' : '');
-    card.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+    card.className = 'profile-card' + (p.id === selected ? ' selected' : '');
+    card.setAttribute('aria-pressed', p.id === selected ? 'true' : 'false');
     card.innerHTML = `<div><b>${p.label}</b></div>` + (p.exists ? '' : `<small>Missing: ${p.path}</small>`);
     card.addEventListener('click', async () => {
-      if (group === 'airband') {
-        selectedAirband = toggleSelection(selectedAirband, p.id);
-      } else {
-        selectedGround = toggleSelection(selectedGround, p.id);
-      }
-      await post('/api/profiles', {
-        airband: selectedAirband.join(','),
-        ground: selectedGround.join(','),
-      });
+      if (p.id === selected) return;
+      await post('/api/profile', {profile: p.id, target});
       await refresh(true);
     });
-    container.appendChild(card);
+    profilesEl.appendChild(card);
   });
 }
 
@@ -360,38 +421,53 @@ async function post(url, obj) {
   return await r.json();
 }
 
+function setControlsFromStatus(target, gain, squelch, allowSetSliders) {
+  const controls = controlTargets[target];
+  controls.appliedGainEl.textContent = gain.toFixed(1);
+  controls.appliedSqlEl.textContent = squelch.toFixed(1);
+  if (allowSetSliders && !controls.dirty) {
+    controls.gainEl.value = gainIndexFromValue(gain);
+    controls.sqlEl.value = Math.max(0, Math.min(10, squelch)).toFixed(1);
+    updateSelectedGain(target);
+    updateSelectedSql(target);
+  }
+}
+
 async function refresh(allowSetSliders=false) {
   const st = await getJSON('/api/status');
 
   setDot('dot-rtl', st.rtl_active);
+  setDot('dot-ground', st.ground_exists ? st.ground_active : null);
   setDot('dot-ice', st.icecast_active);
 
   document.getElementById('txt-rtl').textContent = st.rtl_active ? 'Running' : 'Stopped';
+  document.getElementById('txt-ground').textContent = st.ground_exists ? (st.ground_active ? 'Running' : 'Stopped') : 'Unavailable';
   document.getElementById('txt-ice').textContent = st.icecast_active ? 'Running' : 'Stopped';
   const airbandHit = formatHitLabel(st.last_hit_airband) || '—';
   const groundHit = formatHitLabel(st.last_hit_ground) || '—';
   document.getElementById('txt-hit-airband').textContent = airbandHit;
   document.getElementById('txt-hit-ground').textContent = groundHit;
 
-  document.getElementById('applied-gain').textContent = st.gain.toFixed(1);
-  document.getElementById('applied-sql').textContent = st.squelch.toFixed(1);
+  setControlsFromStatus('airband', st.airband_gain, st.airband_squelch, allowSetSliders);
+  setControlsFromStatus('ground', st.ground_gain, st.ground_squelch, allowSetSliders);
 
-  selectedAirband = st.selected_airband || [];
-  selectedGround = st.selected_ground || [];
-  airbandCountEl.textContent = `${selectedAirband.length} selected`;
-  groundCountEl.textContent = `${selectedGround.length} selected`;
-
-  updateWarn(st.missing_profiles, selectedAirband, selectedGround);
+  updateWarn(st.missing_profiles);
   updateAvoids(st.avoids);
 
-  buildProfiles(st.profiles || [], selectedAirband, profilesAirbandEl, 'airband');
-  buildProfiles(st.profiles || [], selectedGround, profilesGroundEl, 'ground');
+  if (currentProfileAirband === null || currentProfileAirband !== st.profile_airband) {
+    currentProfileAirband = st.profile_airband;
+    buildProfiles(profilesAirbandEl, st.profiles_airband, st.profile_airband, 'airband');
+  }
+  if (currentProfileGround === null || currentProfileGround !== st.profile_ground) {
+    currentProfileGround = st.profile_ground;
+    buildProfiles(profilesGroundEl, st.profiles_ground, st.profile_ground, 'ground');
+  }
 
-  if (allowSetSliders && !sliderDirty) {
-    gainEl.value = gainIndexFromValue(st.gain);
-    sqlEl.value = Math.max(0, Math.min(10, st.squelch)).toFixed(1);
-    updateSelectedGain();
-    updateSelectedSql();
+  if (allowSetSliders) {
+    updateSelectedGain('airband');
+    updateSelectedSql('airband');
+    updateSelectedGain('ground');
+    updateSelectedSql('ground');
   }
 }
 
@@ -420,33 +496,35 @@ async function refreshHitList() {
   renderHitList(data.items || []);
 }
 
-gainEl.addEventListener('input', ()=> {
-  sliderDirty = true;
-  updateSelectedGain();
-});
-sqlEl.addEventListener('input', ()=> {
-  sliderDirty = true;
-  updateSelectedSql();
-});
-gainEl.addEventListener('change', ()=> applyControls());
-sqlEl.addEventListener('change', ()=> applyControls());
+function wireControls(target) {
+  const controls = controlTargets[target];
+  controls.gainEl.addEventListener('input', () => {
+    controls.dirty = true;
+    updateSelectedGain(target);
+  });
+  controls.sqlEl.addEventListener('input', () => {
+    controls.dirty = true;
+    updateSelectedSql(target);
+  });
+  controls.gainEl.addEventListener('change', () => applyControls(target));
+  controls.sqlEl.addEventListener('change', () => applyControls(target));
+}
 
-document.getElementById('btn-refresh').addEventListener('click', async ()=> {
-  sliderDirty = false;
-  await refresh(true);
-});
+wireControls('airband');
+wireControls('ground');
 
-async function applyControls() {
-  if (applyInFlight) return;
-  applyInFlight = true;
+async function applyControls(target) {
+  const controls = controlTargets[target];
+  if (controls.applyInFlight) return;
+  controls.applyInFlight = true;
   try {
-    const gain = GAIN_STEPS[Number(gainEl.value || 0)];
-    const squelch = sqlEl.value;
-    await post('/api/apply', {gain, squelch});
-    sliderDirty = false;
+    const gain = GAIN_STEPS[Number(controls.gainEl.value || 0)];
+    const squelch = controls.sqlEl.value;
+    await post('/api/apply', {gain, squelch, target});
+    controls.dirty = false;
     await refresh(true);
   } finally {
-    applyInFlight = false;
+    controls.applyInFlight = false;
   }
 }
 
@@ -462,17 +540,50 @@ document.getElementById('btn-clear-avoids').addEventListener('click', async ()=>
   await refresh(true);
 });
 
+function setPage(index) {
+  activePage = index;
+  pagerInnerEl.style.transform = `translateX(-${index * 100}%)`;
+  tabAirbandEl.classList.toggle('active', index === 0);
+  tabGroundEl.classList.toggle('active', index === 1);
+}
+
+tabAirbandEl.addEventListener('click', () => setPage(0));
+tabGroundEl.addEventListener('click', () => setPage(1));
+
+let touchStartX = null;
+pagerEl.addEventListener('touchstart', (event) => {
+  if (!event.touches.length) return;
+  touchStartX = event.touches[0].clientX;
+}, {passive: true});
+pagerEl.addEventListener('touchend', (event) => {
+  if (touchStartX === null) return;
+  const touch = event.changedTouches[0];
+  if (!touch) return;
+  const delta = touchStartX - touch.clientX;
+  if (Math.abs(delta) > 40) {
+    if (delta > 0 && activePage < 1) {
+      setPage(activePage + 1);
+    } else if (delta < 0 && activePage > 0) {
+      setPage(activePage - 1);
+    }
+  }
+  touchStartX = null;
+}, {passive: true});
+
 document.getElementById('btn-play').addEventListener('click', ()=> {
   const url = `http://${location.hostname}:8000/GND.mp3`;
   window.open(url, '_blank', 'noopener');
 });
 
-document.getElementById('btn-hit-list').addEventListener('click', async ()=> {
+async function showHitList() {
   hitsView = true;
   viewMainEl.classList.add('hidden');
   viewHitsEl.classList.remove('hidden');
   await refreshHitList();
-});
+}
+
+document.getElementById('btn-hit-airband').addEventListener('click', showHitList);
+document.getElementById('btn-hit-ground').addEventListener('click', showHitList);
 
 document.getElementById('btn-hit-back').addEventListener('click', ()=> {
   hitsView = false;
@@ -483,7 +594,7 @@ document.getElementById('btn-hit-back').addEventListener('click', ()=> {
 document.getElementById('lnk-diagnostic').addEventListener('click', async (e)=> {
   e.preventDefault();
   actionMsg = 'Generating log...';
-  updateWarn([], selectedAirband, selectedGround);
+  updateWarn([]);
   const res = await post('/api/diagnostic', {});
   if (res.ok) {
     actionMsg = `Log saved: ${res.path}`;
@@ -493,6 +604,7 @@ document.getElementById('lnk-diagnostic').addEventListener('click', async (e)=> 
   await refresh(false);
 });
 
+setPage(0);
 refresh(true);
 setInterval(async ()=> {
   await refresh(false);
@@ -508,138 +620,272 @@ setInterval(async ()=> {
 def unit_active(unit: str) -> bool:
     return subprocess.run(["systemctl", "is-active", "--quiet", unit]).returncode == 0
 
+def unit_exists(unit: str) -> bool:
+    result = subprocess.run(
+        ["systemctl", "show", "-p", "LoadState", "--value", unit],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    )
+    if result.returncode != 0:
+        return False
+    return result.stdout.strip() != "not-found"
+
 def read_active_config_path() -> str:
-    return CONFIG_AIRBAND
+    try:
+        return os.path.realpath(CONFIG_SYMLINK)
+    except Exception:
+        return CONFIG_SYMLINK
 
-def split_channels_block(text: str):
-    match = RE_CHANNELS_START.search(text)
-    if not match:
-        raise ValueError("channels block not found")
-    start = match.end()
-    depth = 1
-    idx = start
-    while idx < len(text) and depth > 0:
-        char = text[idx]
-        if char == "(":
-            depth += 1
-        elif char == ")":
-            depth -= 1
-        idx += 1
-    if depth != 0:
-        raise ValueError("channels block unterminated")
-    end = idx - 1
-    return text[:start], text[start:end], text[end:]
-
-def ensure_airband_flag(text: str, is_airband: bool) -> str:
-    value = "true" if is_airband else "false"
-    replaced, count = RE_AIRBAND.subn(f"airband = {value};", text, count=1)
-    if count:
-        return replaced
-    return f"airband = {value};\n\n{replaced}"
-
-def force_device_index(text: str, index: int) -> str:
-    return RE_INDEX.sub(lambda m: f"{m.group(1)}{index}{m.group(3)}", text)
-
-def profile_by_id(pid: str):
-    for item in PROFILES:
-        if item[0] == pid:
-            return item
-    return None
-
-def selection_from_symlink(path: str) -> Optional[str]:
-    if not os.path.islink(path):
+def read_airband_flag(conf_path: str) -> Optional[bool]:
+    try:
+        with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                match = RE_AIRBAND.match(line)
+                if match:
+                    return match.group(1).lower() == "true"
+    except FileNotFoundError:
         return None
-    real = os.path.realpath(path)
-    for pid, _, profile_path, _ in PROFILES:
-        if os.path.realpath(profile_path) == real:
-            return pid
     return None
 
-def normalize_selection(ids, group: str):
-    ordered = []
-    wanted = set(ids or [])
-    for pid, _, _, grp in PROFILES:
-        if grp == group and pid in wanted:
-            ordered.append(pid)
-    return ordered
-
-def load_selected_profiles() -> dict:
-    data = {"airband": [], "ground": []}
-    try:
-        with open(SELECTIONS_PATH, "r", encoding="utf-8") as f:
-            raw = json.load(f)
-            if isinstance(raw, dict):
-                data["airband"] = normalize_selection(raw.get("airband", []), "airband")
-                data["ground"] = normalize_selection(raw.get("ground", []), "ground")
-    except FileNotFoundError:
-        pass
-    except json.JSONDecodeError:
-        pass
-
-    if not data["airband"]:
-        pid = selection_from_symlink(CONFIG_AIRBAND)
-        if pid:
-            data["airband"] = [pid]
-    if not data["ground"]:
-        pid = selection_from_symlink(CONFIG_GROUND)
-        if pid:
-            data["ground"] = [pid]
-    return data
-
-def save_selected_profiles(data: dict) -> None:
-    os.makedirs(AVOIDS_DIR, exist_ok=True)
-    tmp = SELECTIONS_PATH + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, sort_keys=True)
-        f.write("\n")
-    os.replace(tmp, SELECTIONS_PATH)
-
-def load_profile_text(path: str) -> str:
-    with open(path, "r", encoding="utf-8", errors="ignore") as f:
-        return f.read()
-
-def build_combined_config(profile_ids, group: str) -> str:
-    if not profile_ids:
-        raise ValueError("no profiles selected")
-    base = profile_by_id(profile_ids[0])
-    if not base:
-        raise ValueError("unknown profile")
-    base_text = load_profile_text(base[2])
-    prefix, _, suffix = split_channels_block(base_text)
-
-    channel_chunks = []
-    for pid in profile_ids:
-        prof = profile_by_id(pid)
-        if not prof:
+def extract_top_level_settings(text: str) -> list:
+    lines = []
+    for line in text.splitlines():
+        if line.strip().startswith("devices:"):
+            break
+        if not line.strip() or line.lstrip().startswith("#"):
             continue
-        text = load_profile_text(prof[2])
-        _, channels, _ = split_channels_block(text)
-        channels = channels.strip()
-        if channels:
-            channel_chunks.append(channels)
+        if RE_AIRBAND.match(line):
+            continue
+        lines.append(line.rstrip())
+    return lines
 
-    combined = "\n\n".join(channel_chunks).strip()
-    text = f"{prefix}\n{combined}\n{suffix}"
-    text = ensure_airband_flag(text, group == "airband")
-    desired_index = 0 if group == "airband" else 1
-    text = force_device_index(text, desired_index)
-    return text
+def extract_devices_payload(text: str) -> str:
+    idx = text.find("devices:")
+    if idx == -1:
+        return ""
+    start = text.find("(", idx)
+    if start == -1:
+        return ""
+    depth = 0
+    for i in range(start, len(text)):
+        ch = text[i]
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                return text[start + 1:i].strip()
+    return ""
 
-def write_config_if_changed(path: str, text: str) -> bool:
+def enforce_device_index(text: str, desired_index: int) -> str:
+    changed = False
+    out_lines = []
+    insert_at = None
+    for idx, line in enumerate(text.splitlines()):
+        if insert_at is None and "{" in line:
+            insert_at = idx + 1
+        match = RE_INDEX.match(line)
+        if match:
+            new_line = f"{match.group(1)}{desired_index}{match.group(3)}"
+            out_lines.append(new_line)
+            changed = True
+        else:
+            out_lines.append(line)
+    if not changed:
+        if insert_at is None:
+            insert_at = 0
+        out_lines.insert(insert_at, f"  index = {desired_index};")
+    return "\n".join(out_lines)
+
+def replace_outputs_with_mixer(text: str) -> str:
+    replacement = [
+        "      outputs:",
+        "      (",
+        "        {",
+        f"          type = \"mixer\";",
+        f"          name = \"{MIXER_NAME}\";",
+        "        }",
+        "      );",
+    ]
+    lines = text.splitlines()
+    out_lines = []
+    in_outputs = False
+    depth = 0
+    for line in lines:
+        tokens = line.strip().split()
+        if not in_outputs and tokens and tokens[0] == "outputs:":
+            in_outputs = True
+            depth = line.count("(") - line.count(")")
+            out_lines.extend(replacement)
+            continue
+        if in_outputs:
+            depth += line.count("(") - line.count(")")
+            if depth <= 0 and ");" in line:
+                in_outputs = False
+            continue
+        out_lines.append(line)
+    return "\n".join(out_lines)
+
+def normalize_mountpoint(text: str) -> str:
+    return RE_MOUNTPOINT.sub(lambda m: f"{m.group(1)}\"{m.group(2)}\"{m.group(3)}", text)
+
+def extract_icecast_block(text: str) -> str:
+    match = RE_ICECAST_BLOCK.search(text)
+    if not match:
+        return ""
+    return normalize_mountpoint(match.group(0))
+
+def indent_block(text: str, spaces: int) -> str:
+    pad = " " * spaces
+    return "\n".join(pad + line.rstrip() for line in text.strip().splitlines())
+
+def build_combined_config(airband_path: str, ground_path: str) -> str:
+    with open(airband_path, "r", encoding="utf-8", errors="ignore") as f:
+        airband_text = f.read()
+    with open(ground_path, "r", encoding="utf-8", errors="ignore") as f:
+        ground_text = f.read()
+
+    top_lines = []
+    seen = set()
+    for line in extract_top_level_settings(airband_text) + extract_top_level_settings(ground_text):
+        if line not in seen:
+            seen.add(line)
+            top_lines.append(line)
+
+    device_payloads = []
+    payloads = [
+        (airband_text, 0),
+        (ground_text, 1),
+    ]
+    for text, desired_index in payloads:
+        payload = extract_devices_payload(text)
+        if payload:
+            payload = enforce_device_index(payload, desired_index)
+            payload = replace_outputs_with_mixer(payload)
+            device_payloads.append(payload.strip().rstrip(","))
+
+    if not device_payloads:
+        raise ValueError("No devices block found in profiles")
+
+    icecast_block = extract_icecast_block(airband_text) or extract_icecast_block(ground_text)
+    if not icecast_block:
+        icecast_block = (
+            "{\n"
+            "  type = \"icecast\";\n"
+            "  server = \"127.0.0.1\";\n"
+            "  port = 8000;\n"
+            "  mountpoint = \"GND.mp3\";\n"
+            "  username = \"source\";\n"
+            "  password = \"062352\";\n"
+            "  name = \"SprontPi Radio\";\n"
+            "  genre = \"Mixed\";\n"
+            "  bitrate = 32;\n"
+            "}"
+        )
+
+    combined = []
+    combined.append("# Auto-generated by airband_ui.py. Do not edit directly.")
+    combined.append("")
+    combined.extend(top_lines)
+    if top_lines:
+        combined.append("")
+    combined.append("mixers: {")
+    combined.append(f"  {MIXER_NAME}: {{")
+    combined.append("    outputs:")
+    combined.append("    (")
+    combined.append(indent_block(icecast_block, 6))
+    combined.append("    );")
+    combined.append("  };")
+    combined.append("};")
+    combined.append("")
+    combined.append("devices:")
+    combined.append("(")
+    combined.append(",\n".join(indent_block(payload, 2) for payload in device_payloads))
+    combined.append(");")
+    combined.append("")
+    return "\n".join(combined)
+
+def write_combined_config() -> bool:
+    airband_path = read_active_config_path()
+    ground_path = os.path.realpath(GROUND_CONFIG_PATH)
+    combined = build_combined_config(airband_path, ground_path)
     try:
-        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+        with open(COMBINED_CONFIG_PATH, "r", encoding="utf-8", errors="ignore") as f:
             existing = f.read()
-        if existing == text:
-            return False
     except FileNotFoundError:
-        pass
-    tmp = path + ".tmp"
+        existing = None
+    if existing == combined:
+        return False
+    tmp = COMBINED_CONFIG_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
-        f.write(text)
-    os.replace(tmp, path)
+        f.write(combined)
+    os.replace(tmp, COMBINED_CONFIG_PATH)
     return True
 
+def split_profiles():
+    prof_payload = []
+    pid_overrides = {
+        "airband": True,
+        "tower": True,
+        "gmrs": False,
+        "wx": False,
+    }
+    for pid, label, path in PROFILES:
+        exists = os.path.exists(path)
+        airband_flag = pid_overrides.get(pid)
+        if airband_flag is None and exists:
+            airband_flag = read_airband_flag(path)
+        prof_payload.append({
+            "id": pid,
+            "label": label,
+            "path": path,
+            "exists": exists,
+            "airband": airband_flag,
+        })
+    profiles_airband = [p for p in prof_payload if p.get("airband") is True]
+    profiles_ground = [p for p in prof_payload if p.get("airband") is False]
+    return prof_payload, profiles_airband, profiles_ground
+
+def enforce_profile_index(conf_path: str) -> None:
+    try:
+        with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
+            lines = f.readlines()
+    except FileNotFoundError:
+        return
+
+    airband_value = None
+    for line in lines:
+        match = RE_AIRBAND.match(line)
+        if match:
+            airband_value = match.group(1).lower() == "true"
+            break
+    if airband_value is None:
+        return
+
+    desired_index = 0 if airband_value else 1
+    out = []
+    changed = False
+    for line in lines:
+        match = RE_INDEX.match(line)
+        if match:
+            new_line = f"{match.group(1)}{desired_index}{match.group(3)}\n"
+            if new_line != line:
+                changed = True
+            out.append(new_line)
+            continue
+        out.append(line)
+
+    if not changed:
+        return
+
+    tmp = conf_path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.writelines(out)
+    os.replace(tmp, conf_path)
+
 def parse_controls(conf_path: str):
+    enforce_profile_index(conf_path)
     gain = 32.8
     squelch = 10.0
     try:
@@ -956,7 +1202,7 @@ def write_avoids_summary(data: dict) -> None:
     if not profiles:
         lines.append("No avoids recorded.")
     else:
-        path_to_label = {path: label for _, label, path, _ in PROFILES}
+        path_to_label = {path: label for _, label, path in PROFILES}
         for conf_path in sorted(profiles.keys()):
             prof = profiles.get(conf_path, {})
             avoids = sorted(prof.get("avoids", []) or [])
@@ -1225,9 +1471,24 @@ def restart_rtl():
         stderr=subprocess.DEVNULL,
     )
 
+def restart_ground():
+    subprocess.Popen(
+        ["systemctl", "restart", "--no-block", UNITS["ground"]],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
 def stop_rtl():
     subprocess.run(
         ["systemctl", "stop", UNITS["rtl"]],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+
+def stop_ground():
+    subprocess.run(
+        ["systemctl", "stop", UNITS["ground"]],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         check=False,
@@ -1240,21 +1501,6 @@ def start_rtl():
         stderr=subprocess.DEVNULL,
     )
 
-def restart_ground():
-    subprocess.Popen(
-        ["systemctl", "restart", "--no-block", UNITS["ground"]],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-
-def stop_ground():
-    subprocess.run(
-        ["systemctl", "stop", UNITS["ground"]],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
-
 def start_ground():
     subprocess.Popen(
         ["systemctl", "start", "--no-block", UNITS["ground"]],
@@ -1262,30 +1508,21 @@ def start_ground():
         stderr=subprocess.DEVNULL,
     )
 
-def apply_selections(state: dict) -> None:
-    state["airband"] = normalize_selection(state.get("airband", []), "airband")
-    state["ground"] = normalize_selection(state.get("ground", []), "ground")
-    save_selected_profiles(state)
+def set_profile(profile_id: str, current_conf_path: str, profiles, target_symlink: str):
+    for pid, _, path in profiles:
+        if pid == profile_id:
+            if os.path.realpath(path) == os.path.realpath(current_conf_path):
+                return True, False
+            enforce_profile_index(path)
+            subprocess.run(["ln", "-sf", path, target_symlink], check=False)
+            return True, True
+    return False, False
 
-    if state["airband"]:
-        text = build_combined_config(state["airband"], "airband")
-        changed = write_config_if_changed(CONFIG_AIRBAND, text)
-        if changed:
-            restart_rtl()
-        elif not unit_active(UNITS["rtl"]):
-            start_rtl()
-    else:
-        stop_rtl()
-
-    if state["ground"]:
-        text = build_combined_config(state["ground"], "ground")
-        changed = write_config_if_changed(CONFIG_GROUND, text)
-        if changed:
-            restart_ground()
-        elif not unit_active(UNITS["ground"]):
-            start_ground()
-    else:
-        stop_ground()
+def guess_current_profile(conf_realpath: str, profiles):
+    for pid, _, path in profiles:
+        if os.path.realpath(path) == conf_realpath:
+            return pid
+    return profiles[0][0] if profiles else ""
 
 def icecast_up():
     return unit_active(UNITS["icecast"])
@@ -1306,18 +1543,17 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, HTML)
         if p == "/api/status":
             conf_path = read_active_config_path()
-            gain, squelch = parse_controls(conf_path)
+            airband_gain, airband_squelch = parse_controls(conf_path)
+            ground_gain, ground_squelch = parse_controls(GROUND_CONFIG_PATH)
             rtl_ok = unit_active(UNITS["rtl"])
+            ground_exists = unit_exists(UNITS["ground"])
+            ground_ok = unit_active(UNITS["ground"]) if ground_exists else False
             ice_ok = icecast_up()
-            selected = load_selected_profiles()
 
-            missing = []
-            prof_payload = []
-            for pid, label, path, group in PROFILES:
-                exists = os.path.exists(path)
-                if not exists:
-                    missing.append(path)
-                prof_payload.append({"id": pid, "label": label, "path": path, "exists": exists, "group": group})
+            prof_payload, profiles_airband, profiles_ground = split_profiles()
+            missing = [p["path"] for p in prof_payload if not p.get("exists")]
+            profile_airband = guess_current_profile(conf_path, [(p["id"], p["label"], p["path"]) for p in profiles_airband])
+            profile_ground = guess_current_profile(os.path.realpath(GROUND_CONFIG_PATH), [(p["id"], p["label"], p["path"]) for p in profiles_ground])
             icecast_hit = read_last_hit_from_icecast() if ice_ok else ""
             update_icecast_hit_log(icecast_hit)
             last_hit_airband = read_last_hit_airband()
@@ -1325,14 +1561,21 @@ class Handler(BaseHTTPRequestHandler):
 
             payload = {
                 "rtl_active": rtl_ok,
+                "ground_active": ground_ok,
+                "ground_exists": ground_exists,
                 "icecast_active": ice_ok,
                 "keepalive_active": unit_active(UNITS["keepalive"]),
-                "profiles": prof_payload,
+                "profile_airband": profile_airband,
+                "profile_ground": profile_ground,
+                "profiles_airband": profiles_airband,
+                "profiles_ground": profiles_ground,
                 "missing_profiles": missing,
-                "selected_airband": selected.get("airband", []),
-                "selected_ground": selected.get("ground", []),
-                "gain": float(gain),
-                "squelch": float(squelch),
+                "gain": float(airband_gain),
+                "squelch": float(airband_squelch),
+                "airband_gain": float(airband_gain),
+                "airband_squelch": float(airband_squelch),
+                "ground_gain": float(ground_gain),
+                "ground_squelch": float(ground_squelch),
                 "last_hit": icecast_hit or read_last_hit(),
                 "last_hit_airband": last_hit_airband,
                 "last_hit_ground": last_hit_ground,
@@ -1354,56 +1597,94 @@ class Handler(BaseHTTPRequestHandler):
         form = {k: v[0] for k, v in parse_qs(raw).items()}
 
         if p == "/api/profile":
-            state = load_selected_profiles()
             pid = form.get("profile", "")
-            if pid:
-                prof = profile_by_id(pid)
-                if not prof:
-                    return self._send(400, json.dumps({"ok": False, "error": "unknown profile"}), "application/json; charset=utf-8")
-                group = prof[3]
-                state[group] = [pid]
-                apply_selections(state)
-                return self._send(200, json.dumps({"ok": True, "changed": True}), "application/json; charset=utf-8")
-            return self._send(400, json.dumps({"ok": False, "error": "missing profile"}), "application/json; charset=utf-8")
+            target = form.get("target", "airband")
+            _, profiles_airband, profiles_ground = split_profiles()
+            if target == "ground":
+                conf_path = os.path.realpath(GROUND_CONFIG_PATH)
+                profiles = [(p["id"], p["label"], p["path"]) for p in profiles_ground]
+                unit_stop = stop_ground
+                unit_start = start_ground
+                unit_restart = restart_ground
+                target_symlink = GROUND_CONFIG_PATH
+            else:
+                conf_path = read_active_config_path()
+                profiles = [(p["id"], p["label"], p["path"]) for p in profiles_airband]
+                unit_stop = stop_rtl
+                unit_start = start_rtl
+                unit_restart = restart_rtl
+                target_symlink = CONFIG_SYMLINK
 
-        if p == "/api/profiles":
-            state = load_selected_profiles()
-            if "airband" in form:
-                state["airband"] = [v for v in form.get("airband", "").split(",") if v]
-            if "ground" in form:
-                state["ground"] = [v for v in form.get("ground", "").split(",") if v]
-            apply_selections(state)
-            return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
+            if not profiles:
+                return self._send(400, json.dumps({"ok": False, "error": "no profiles available"}), "application/json; charset=utf-8")
+
+            current_profile = guess_current_profile(conf_path, profiles)
+            did_stop = False
+            if pid and pid != current_profile:
+                unit_stop()
+                did_stop = True
+            ok, changed = set_profile(pid, conf_path, profiles, target_symlink)
+            if ok:
+                try:
+                    combined_changed = write_combined_config()
+                except Exception as e:
+                    if did_stop:
+                        unit_start()
+                    return self._send(500, json.dumps({"ok": False, "error": f"combine failed: {e}"}), "application/json; charset=utf-8")
+                changed = changed or combined_changed
+                if changed:
+                    unit_restart()
+                elif did_stop:
+                    unit_start()
+                return self._send(200, json.dumps({"ok": True, "changed": changed}), "application/json; charset=utf-8")
+            if did_stop:
+                unit_start()
+            return self._send(400, json.dumps({"ok": False, "error": "unknown profile"}), "application/json; charset=utf-8")
 
         if p == "/api/apply":
-            selected = load_selected_profiles()
-            if not selected.get("airband"):
-                return self._send(400, json.dumps({"ok": False, "error": "no airband profiles selected"}), "application/json; charset=utf-8")
-            conf_path = read_active_config_path()
-            stop_rtl()
+            target = form.get("target", "airband")
+            if target == "ground":
+                conf_path = GROUND_CONFIG_PATH
+                stop_ground()
+            elif target == "airband":
+                conf_path = read_active_config_path()
+                stop_rtl()
+            else:
+                return self._send(400, json.dumps({"ok": False, "error": "unknown target"}), "application/json; charset=utf-8")
             try:
                 gain = float(form.get("gain", "32.8"))
                 squelch = float(form.get("squelch", "10.0"))
             except ValueError:
-                start_rtl()
+                if target == "ground":
+                    start_ground()
+                else:
+                    start_rtl()
                 return self._send(400, json.dumps({"ok": False, "error": "bad values"}), "application/json; charset=utf-8")
 
             try:
                 changed = write_controls(conf_path, gain, squelch)
+                combined_changed = write_combined_config()
+                changed = changed or combined_changed
             except Exception as e:
-                start_rtl()
+                if target == "ground":
+                    start_ground()
+                else:
+                    start_rtl()
                 return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
 
             if changed:
-                restart_rtl()
+                if target == "ground":
+                    restart_ground()
+                else:
+                    restart_rtl()
             else:
-                start_rtl()
+                if target == "ground":
+                    start_ground()
+                else:
+                    start_rtl()
             return self._send(200, json.dumps({"ok": True, "changed": changed}), "application/json; charset=utf-8")
 
         if p == "/api/avoid":
-            selected = load_selected_profiles()
-            if not selected.get("airband"):
-                return self._send(400, json.dumps({"ok": False, "error": "no airband profiles selected"}), "application/json; charset=utf-8")
             conf_path = read_active_config_path()
             stop_rtl()
             try:
@@ -1414,12 +1695,15 @@ class Handler(BaseHTTPRequestHandler):
             if err:
                 start_rtl()
                 return self._send(400, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
+            try:
+                write_combined_config()
+            except Exception as e:
+                start_rtl()
+                return self._send(500, json.dumps({"ok": False, "error": f"combine failed: {e}"}), "application/json; charset=utf-8")
+            restart_rtl()
             return self._send(200, json.dumps({"ok": True, "freq": f"{freq:.4f}"}), "application/json; charset=utf-8")
 
         if p == "/api/avoid-clear":
-            selected = load_selected_profiles()
-            if not selected.get("airband"):
-                return self._send(400, json.dumps({"ok": False, "error": "no airband profiles selected"}), "application/json; charset=utf-8")
             conf_path = read_active_config_path()
             stop_rtl()
             try:
@@ -1430,6 +1714,12 @@ class Handler(BaseHTTPRequestHandler):
             if err:
                 start_rtl()
                 return self._send(400, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
+            try:
+                write_combined_config()
+            except Exception as e:
+                start_rtl()
+                return self._send(500, json.dumps({"ok": False, "error": f"combine failed: {e}"}), "application/json; charset=utf-8")
+            restart_rtl()
             return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
 
         if p == "/api/diagnostic":
