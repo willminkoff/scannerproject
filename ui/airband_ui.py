@@ -220,7 +220,7 @@ HTML = r"""<!doctype html>
                 <div class="ctrl">
                   <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span id="applied-sql-airband">…</span></span></div>
                   <input id="sql-airband" class="range" type="range" min="0" max="10" step="0.1" />
-                  <div class="ctrl-readout"><span>Selected: <span id="selected-sql-airband">…</span></span><span>Scaled to 0.0-2.0 SNR</span></div>
+                  <div class="ctrl-readout"><span>Selected: <span id="selected-sql-airband">…</span></span><span>Scaled to 0.0-1.0 SNR</span></div>
                 </div>
               </div>
               <div class="btns">
@@ -242,7 +242,7 @@ HTML = r"""<!doctype html>
                 <div class="ctrl">
                   <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span id="applied-sql-ground">…</span></span></div>
                   <input id="sql-ground" class="range" type="range" min="0" max="10" step="0.1" />
-                  <div class="ctrl-readout"><span>Selected: <span id="selected-sql-ground">…</span></span><span>Scaled to 0.0-2.0 SNR</span></div>
+                  <div class="ctrl-readout"><span>Selected: <span id="selected-sql-ground">…</span></span><span>Scaled to 0.0-1.0 SNR</span></div>
                 </div>
               </div>
               <div class="btns">
@@ -295,7 +295,7 @@ const GAIN_STEPS = [
   16.6, 19.7, 20.7, 22.9, 25.4, 28.0, 29.7, 32.8, 33.8,
   36.4, 37.2, 38.6, 40.2, 42.1, 43.4, 43.9, 44.5, 48.0, 49.6,
 ];
-const SQL_SCALE = 0.2;
+const SQL_SCALE = 0.1;
 
 let currentProfileAirband = null;
 let currentProfileGround = null;
