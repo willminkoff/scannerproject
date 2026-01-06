@@ -1536,6 +1536,13 @@ def start_ground():
         stderr=subprocess.DEVNULL,
     )
 
+def ground_control_unit():
+    if unit_active(UNITS["ground"]):
+        return "ground"
+    if unit_active(UNITS["rtl"]):
+        return "rtl"
+    return "ground"
+
 def set_profile(profile_id: str, current_conf_path: str, profiles, target_symlink: str):
     for pid, _, path in profiles:
         if pid == profile_id:
@@ -1631,9 +1638,15 @@ class Handler(BaseHTTPRequestHandler):
             if target == "ground":
                 conf_path = os.path.realpath(GROUND_CONFIG_PATH)
                 profiles = [(p["id"], p["label"], p["path"]) for p in profiles_ground]
-                unit_stop = stop_ground
-                unit_start = start_ground
-                unit_restart = restart_ground
+                control_unit = ground_control_unit()
+                if control_unit == "rtl":
+                    unit_stop = stop_rtl
+                    unit_start = start_rtl
+                    unit_restart = restart_rtl
+                else:
+                    unit_stop = stop_ground
+                    unit_start = start_ground
+                    unit_restart = restart_ground
                 target_symlink = GROUND_CONFIG_PATH
             else:
                 conf_path = read_active_config_path()
@@ -1673,7 +1686,11 @@ class Handler(BaseHTTPRequestHandler):
             target = form.get("target", "airband")
             if target == "ground":
                 conf_path = GROUND_CONFIG_PATH
-                stop_ground()
+                control_unit = ground_control_unit()
+                if control_unit == "rtl":
+                    stop_rtl()
+                else:
+                    stop_ground()
             elif target == "airband":
                 conf_path = read_active_config_path()
                 stop_rtl()
@@ -1695,19 +1712,28 @@ class Handler(BaseHTTPRequestHandler):
                 changed = changed or combined_changed
             except Exception as e:
                 if target == "ground":
-                    start_ground()
+                    if control_unit == "rtl":
+                        start_rtl()
+                    else:
+                        start_ground()
                 else:
                     start_rtl()
                 return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
 
             if changed:
                 if target == "ground":
-                    restart_ground()
+                    if control_unit == "rtl":
+                        restart_rtl()
+                    else:
+                        restart_ground()
                 else:
                     restart_rtl()
             else:
                 if target == "ground":
-                    start_ground()
+                    if control_unit == "rtl":
+                        start_rtl()
+                    else:
+                        start_ground()
                 else:
                     start_rtl()
             return self._send(200, json.dumps({"ok": True, "changed": changed}), "application/json; charset=utf-8")
