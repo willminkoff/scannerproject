@@ -386,15 +386,24 @@ function buildProfiles(profilesEl, profiles, selected, target) {
     return;
   }
   profilesEl.classList.remove('hidden');
+  const noneProfile = profiles.find(p => p.label === 'No Profile' || p.id.startsWith('none_'));
   profiles.forEach(p => {
+    if (p.id.startsWith('none_')) {
+      return;
+    }
     const card = document.createElement('button');
     card.type = 'button';
     card.className = 'profile-card' + (p.id === selected ? ' selected' : '');
     card.setAttribute('aria-pressed', p.id === selected ? 'true' : 'false');
     card.innerHTML = `<div><b>${p.label}</b></div>` + (p.exists ? '' : `<small>Missing: ${p.path}</small>`);
     card.addEventListener('click', async () => {
-      if (p.id === selected) return;
-      await post('/api/profile', {profile: p.id, target});
+      let nextId = p.id;
+      if (p.id === selected && noneProfile && noneProfile.id !== selected) {
+        nextId = noneProfile.id;
+      } else if (p.id === selected) {
+        return;
+      }
+      await post('/api/profile', {profile: nextId, target});
       await refresh(true);
     });
     profilesEl.appendChild(card);
