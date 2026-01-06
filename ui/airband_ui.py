@@ -60,6 +60,8 @@ RE_ACTIVITY_TS = re.compile(
     r'^(?P<date>\d{4}-\d{2}-\d{2})[ T](?P<time>\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:[+-]\d{2}:?\d{2}|[A-Z]{2,5})?\s+.*Activity on (?P<freq>[0-9]+\.[0-9]+)'
 )
 HIT_GAP_RESET_SECONDS = 10
+AIRBAND_MIN_MHZ = 118.0
+AIRBAND_MAX_MHZ = 136.0
 GAIN_STEPS = [
     0.0, 0.9, 1.4, 2.7, 3.7, 7.7, 8.7, 12.5, 14.4, 15.7,
     16.6, 19.7, 20.7, 22.9, 25.4, 28.0, 29.7, 32.8, 33.8,
@@ -82,9 +84,6 @@ HTML = r"""<!doctype html>
     .pill { display:flex; gap:10px; align-items:center; padding:10px 12px; border-radius:999px; border:1px solid var(--line); background: rgba(255,255,255,.03); }
     .pill-text { display:flex; flex-direction:column; }
     .pill-center .pill-text { align-items:center; text-align:center; flex:1; }
-    .dot { width:10px; height:10px; border-radius:50%; background: var(--bad); box-shadow: 0 0 0 4px rgba(239,68,68,.12); }
-    .dot.good { background: var(--good); box-shadow: 0 0 0 4px rgba(34,197,94,.12); }
-    .dot.neutral { background: #94a3b8; box-shadow: 0 0 0 4px rgba(148,163,184,.18); }
     .label { font-size: 13px; color: var(--muted); }
     .val { font-size: 13px; }
     .profiles { margin-top: 12px; display:grid; gap:10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -183,12 +182,6 @@ HTML = r"""<!doctype html>
               <div class="val" id="txt-hit-ground">…</div>
             </div>
           </button>
-        </div>
-
-        <div class="row">
-          <div class="pill"><div id="dot-rtl" class="dot"></div><div><div class="label">Airband Scanner</div><div class="val" id="txt-rtl">…</div></div></div>
-          <div class="pill"><div id="dot-ground" class="dot"></div><div><div class="label">Ground Scanner</div><div class="val" id="txt-ground">…</div></div></div>
-          <div class="pill"><div id="dot-ice" class="dot"></div><div><div class="label">Icecast</div><div class="val" id="txt-ice">…</div></div></div>
         </div>
 
         <div class="btns" style="margin-top:14px;">
@@ -315,17 +308,6 @@ Object.values(controlTargets).forEach(target => {
   target.gainEl.max = String(GAIN_STEPS.length - 1);
 });
 
-function setDot(id, ok) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.classList.remove('good', 'neutral');
-  if (ok === null) {
-    el.classList.add('neutral');
-  } else if (ok) {
-    el.classList.add('good');
-  }
-}
-
 function gainIndexFromValue(value) {
   let best = 0;
   let bestDiff = Infinity;
@@ -436,13 +418,6 @@ function setControlsFromStatus(target, gain, squelch, allowSetSliders) {
 async function refresh(allowSetSliders=false) {
   const st = await getJSON('/api/status');
 
-  setDot('dot-rtl', st.rtl_active);
-  setDot('dot-ground', st.ground_exists ? st.ground_active : null);
-  setDot('dot-ice', st.icecast_active);
-
-  document.getElementById('txt-rtl').textContent = st.rtl_active ? 'Running' : 'Stopped';
-  document.getElementById('txt-ground').textContent = st.ground_exists ? (st.ground_active ? 'Running' : 'Stopped') : 'Unavailable';
-  document.getElementById('txt-ice').textContent = st.icecast_active ? 'Running' : 'Stopped';
   const airbandHit = formatHitLabel(st.last_hit_airband) || '—';
   const groundHit = formatHitLabel(st.last_hit_ground) || '—';
   document.getElementById('txt-hit-airband').textContent = airbandHit;
@@ -931,10 +906,19 @@ def read_last_hit_airband() -> str:
     value = read_last_hit_file(LAST_HIT_AIRBAND_PATH)
     if value:
         return value
+    value = read_last_hit_for_range(UNITS["rtl"], True)
+    if value:
+        return value
     return read_last_hit_from_journal_unit(UNITS["rtl"])
 
 def read_last_hit_ground() -> str:
     value = read_last_hit_file(LAST_HIT_GROUND_PATH)
+    if value:
+        return value
+    value = read_last_hit_for_range(UNITS["rtl"], False)
+    if value:
+        return value
+    value = read_last_hit_for_range(UNITS["ground"], False)
     if value:
         return value
     return read_last_hit_from_journal_unit(UNITS["ground"])
@@ -972,6 +956,42 @@ def read_last_hit_from_journal() -> str:
 def parse_activity_timestamp(date_part: str, time_part: str, tz_part: Optional[str]) -> datetime.datetime:
     del tz_part
     return datetime.datetime.strptime(f"{date_part} {time_part}", "%Y-%m-%d %H:%M:%S")
+
+def _freq_in_airband(freq: float) -> bool:
+    return AIRBAND_MIN_MHZ <= freq <= AIRBAND_MAX_MHZ
+
+def read_last_hit_for_range(unit: str, in_airband: bool, scan_lines: int = 400) -> str:
+    try:
+        result = subprocess.run(
+            ["journalctl", "-u", unit, "-n", str(scan_lines), "-o", "short-iso", "--no-pager"],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+    except Exception:
+        return ""
+
+    latest_ts = None
+    latest_freq = None
+    for line in (result.stdout or "").splitlines():
+        match = RE_ACTIVITY_TS.search(line)
+        if not match:
+            continue
+        try:
+            freq_value = float(match.group("freq"))
+        except ValueError:
+            continue
+        if _freq_in_airband(freq_value) != in_airband:
+            continue
+        ts = parse_activity_timestamp(match.group("date"), match.group("time"), None)
+        if latest_ts is None or ts > latest_ts:
+            latest_ts = ts
+            latest_freq = freq_value
+
+    if latest_freq is None:
+        return ""
+    return f"{latest_freq:.4f}"
 
 def read_hit_list_for_unit(unit: str, limit: int = 20, scan_lines: int = 200) -> list:
     try:
