@@ -314,6 +314,8 @@ const controlTargets = {
     dirty: false,
     applyInFlight: false,
     openInFlight: false,
+    lastAppliedGain: null,
+    lastAppliedSql: null,
   },
   ground: {
     gainEl: document.getElementById('gain-ground'),
@@ -325,6 +327,8 @@ const controlTargets = {
     dirty: false,
     applyInFlight: false,
     openInFlight: false,
+    lastAppliedGain: null,
+    lastAppliedSql: null,
   },
 };
 
@@ -443,6 +447,8 @@ function setControlsFromStatus(target, gain, squelch, allowSetSliders) {
   controls.appliedGainEl.textContent = gain.toFixed(1);
   const appliedSlider = Math.max(0, Math.min(10, squelch / SQL_SCALE));
   controls.appliedSqlEl.textContent = `${squelch.toFixed(2)} (slider ${appliedSlider.toFixed(1)})`;
+  controls.lastAppliedGain = gain;
+  controls.lastAppliedSql = squelch;
   if (allowSetSliders && !controls.dirty) {
     controls.gainEl.value = gainIndexFromValue(gain);
     controls.sqlEl.value = appliedSlider.toFixed(1);
@@ -531,8 +537,16 @@ async function applyControls(target) {
   try {
     const gain = GAIN_STEPS[Number(controls.gainEl.value || 0)];
     const squelch = Number(controls.sqlEl.value || 0) * SQL_SCALE;
+    const gainSame = controls.lastAppliedGain !== null && Math.abs(gain - controls.lastAppliedGain) < 0.001;
+    const sqlSame = controls.lastAppliedSql !== null && Math.abs(squelch - controls.lastAppliedSql) < 0.001;
+    if (gainSame && sqlSame) {
+      controls.dirty = false;
+      return;
+    }
     await post('/api/apply', {gain, squelch, target});
     controls.dirty = false;
+    controls.lastAppliedGain = gain;
+    controls.lastAppliedSql = squelch;
     await refresh(true);
   } finally {
     controls.applyInFlight = false;
