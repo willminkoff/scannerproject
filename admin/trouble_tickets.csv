@@ -28,3 +28,6 @@ id,created_at_utc,title,status,description
 27,2026-01-06T03:40:56Z,Refactor apply flow to write config before restart,open,Write and validate updated config first, then restart services only after successful writes to avoid stopped services on failure.
 28,2026-01-06T03:40:56Z,Add structured logging for UI actions,open,Introduce logging for requests and profile/apply actions to improve observability and debugging.
 29,2026-01-06T03:40:56Z,Split airband_ui.py into modules and static assets,open,Move HTML/CSS/JS to static files and split server/scanner/config logic into separate modules for maintainability.
+30,2026-01-06T04:00:00Z,WX gain slider switches profile to GMRS,open,Changing gain on the WX profile causes the active profile to switch to GMRS.
+31,2026-01-06T04:05:00Z,WX ground profile keeps playing after switch,open,Selecting WX on ground causes audio to keep playing even after switching to another ground profile.
+32,2026-01-06T14:06:40Z,Allow no profile selected on airband and ground,open,Allow no profile selected on both airband and ground scanners so nothing pulls from a unit when no profile is selected (even if it just mutes unit output).

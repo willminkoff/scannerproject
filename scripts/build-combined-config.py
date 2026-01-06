@@ -8,6 +8,7 @@ COMBINED_CONFIG_PATH = "/usr/local/etc/rtl_airband_combined.conf"
 MIXER_NAME = "combined"
 
 RE_AIRBAND = re.compile(r'^\s*airband\s*=\s*(true|false)\s*;\s*$', re.I)
+RE_UI_DISABLED = re.compile(r'^\s*ui_disabled\s*=\s*(true|false)\s*;\s*$', re.I)
 RE_OUTPUTS_BLOCK = re.compile(r'outputs:\s*\(\s*.*?\)\s*;', re.S)
 RE_INDEX = re.compile(r'^\s*index\s*=\s*(\d+)\s*;', re.I)
 RE_ICECAST_BLOCK = re.compile(r'\{\s*[^{}]*type\s*=\s*"icecast"[^{}]*\}', re.S)
@@ -29,6 +30,8 @@ def extract_top_level_settings(text: str) -> list:
         if not line.strip() or line.lstrip().startswith("#"):
             continue
         if RE_AIRBAND.match(line):
+            continue
+        if RE_UI_DISABLED.match(line):
             continue
         lines.append(line.rstrip())
     return lines
@@ -124,6 +127,8 @@ def build_combined_config(airband_path: str, ground_path: str) -> str:
         airband_text = f.read()
     with open(ground_path, "r", encoding="utf-8", errors="ignore") as f:
         ground_text = f.read()
+    airband_disabled = bool(RE_UI_DISABLED.search(airband_text))
+    ground_disabled = bool(RE_UI_DISABLED.search(ground_text))
 
     top_lines = []
     seen = set()
@@ -134,17 +139,19 @@ def build_combined_config(airband_path: str, ground_path: str) -> str:
 
     device_payloads = []
     payloads = [
-        (airband_text, 0),
-        (ground_text, 1),
+        (airband_text, 0, airband_disabled),
+        (ground_text, 1, ground_disabled),
     ]
-    for text, desired_index in payloads:
+    for text, desired_index, disabled in payloads:
+        if disabled:
+            continue
         payload = extract_devices_payload(text)
         if payload:
             payload = enforce_device_index(payload, desired_index)
             payload = replace_outputs_with_mixer(payload)
             device_payloads.append(payload.strip().rstrip(","))
 
-    if not device_payloads:
+    if not device_payloads and not (airband_disabled and ground_disabled):
         raise ValueError("No devices block found in profiles")
 
     icecast_block = extract_icecast_block(airband_text) or extract_icecast_block(ground_text)
