@@ -81,6 +81,7 @@ HTML = r"""<!doctype html>
     .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
     h1 { font-size: 18px; margin:0 0 12px; letter-spacing:.2px; }
     .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .row.center { justify-content:center; }
     .pill { display:flex; gap:10px; align-items:center; padding:10px 12px; border-radius:999px; border:1px solid var(--line); background: rgba(255,255,255,.03); }
     .pill-text { display:flex; flex-direction:column; }
     .pill-center .pill-text { align-items:center; text-align:center; flex:1; }
@@ -136,6 +137,7 @@ HTML = r"""<!doctype html>
       .profiles { grid-template-columns: 1fr; }
     }
     .btns { display:flex; gap:10px; flex-wrap:wrap; margin-top: 12px; }
+    .btns.center { justify-content:center; }
     button { border:1px solid var(--line); background: rgba(255,255,255,.06); color:var(--text); padding:10px 12px; border-radius:12px; cursor:pointer; }
     button.pill { background: rgba(255,255,255,.03); }
     button.primary { background: rgba(34,197,94,.18); border-color: rgba(34,197,94,.35); }
@@ -167,7 +169,7 @@ HTML = r"""<!doctype html>
       <div id="view-main">
         <h1>SprontPi Radio Control</h1>
 
-        <div class="row">
+        <div class="row center">
           <button class="pill hit-pill" id="btn-hit-airband" type="button">
             <div class="dot good"></div>
             <div>
@@ -184,7 +186,7 @@ HTML = r"""<!doctype html>
           </button>
         </div>
 
-        <div class="btns" style="margin-top:14px;">
+        <div class="btns center" style="margin-top:14px;">
           <button class="primary" id="btn-play">Play</button>
           <button id="btn-avoid">Avoid</button>
           <button id="btn-clear-avoids">Clear</button>
