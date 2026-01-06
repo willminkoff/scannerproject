@@ -225,6 +225,7 @@ HTML = r"""<!doctype html>
               </div>
               <div class="btns">
                 <button type="button" id="btn-restart-airband">Restart Airband</button>
+                <button type="button" id="btn-open-sql-airband">Open Squelch (2s)</button>
               </div>
             </section>
 
@@ -246,6 +247,7 @@ HTML = r"""<!doctype html>
               </div>
               <div class="btns">
                 <button type="button" id="btn-restart-ground">Restart Ground</button>
+                <button type="button" id="btn-open-sql-ground">Open Squelch (2s)</button>
               </div>
               <div class="foot">Both scanners feed the same Icecast stream.</div>
             </section>
@@ -284,6 +286,8 @@ const pagerEl = document.getElementById('pager');
 const pagerInnerEl = document.getElementById('pager-inner');
 const btnRestartAirbandEl = document.getElementById('btn-restart-airband');
 const btnRestartGroundEl = document.getElementById('btn-restart-ground');
+const btnOpenSqlAirbandEl = document.getElementById('btn-open-sql-airband');
+const btnOpenSqlGroundEl = document.getElementById('btn-open-sql-ground');
 let actionMsg = '';
 
 const GAIN_STEPS = [
@@ -307,6 +311,7 @@ const controlTargets = {
     appliedSqlEl: document.getElementById('applied-sql-airband'),
     dirty: false,
     applyInFlight: false,
+    openInFlight: false,
   },
   ground: {
     gainEl: document.getElementById('gain-ground'),
@@ -317,6 +322,7 @@ const controlTargets = {
     appliedSqlEl: document.getElementById('applied-sql-ground'),
     dirty: false,
     applyInFlight: false,
+    openInFlight: false,
   },
 };
 
@@ -538,12 +544,42 @@ async function restartUnit(target) {
   await refresh(false);
 }
 
+async function openSquelchMomentary(target, durationMs) {
+  const controls = controlTargets[target];
+  if (controls.openInFlight || controls.applyInFlight) return;
+  controls.openInFlight = true;
+  const previous = Math.max(0, Math.min(10, Number(controls.sqlEl.value || 0)));
+  controls.sqlEl.value = '0.0';
+  updateSelectedSql(target);
+  try {
+    await applyControls(target);
+  } finally {
+    setTimeout(async () => {
+      controls.sqlEl.value = previous.toFixed(1);
+      updateSelectedSql(target);
+      try {
+        await applyControls(target);
+      } finally {
+        controls.openInFlight = false;
+      }
+    }, durationMs);
+  }
+}
+
 btnRestartAirbandEl.addEventListener('click', async ()=> {
   await restartUnit('airband');
 });
 
 btnRestartGroundEl.addEventListener('click', async ()=> {
   await restartUnit('ground');
+});
+
+btnOpenSqlAirbandEl.addEventListener('click', async ()=> {
+  await openSquelchMomentary('airband', 2000);
+});
+
+btnOpenSqlGroundEl.addEventListener('click', async ()=> {
+  await openSquelchMomentary('ground', 2000);
 });
 
 document.getElementById('btn-avoid').addEventListener('click', async ()=> {
