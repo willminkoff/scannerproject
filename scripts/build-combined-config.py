@@ -151,8 +151,11 @@ def build_combined_config(airband_path: str, ground_path: str) -> str:
             payload = replace_outputs_with_mixer(payload)
             device_payloads.append(payload.strip().rstrip(","))
 
-    if not device_payloads and not (airband_disabled and ground_disabled):
-        raise ValueError("No devices block found in profiles")
+    # If no device payloads are found, return a valid config with an empty devices list.
+    # This prevents the combined config generator from failing when both profiles lack
+    # devices or have no devices blocks.  The resulting scanner config will not start
+    # any devices but will still provide a valid Icecast mixer configuration for the
+    # keepalive stream.
 
     icecast_block = extract_icecast_block(airband_text) or extract_icecast_block(ground_text)
     if not icecast_block:

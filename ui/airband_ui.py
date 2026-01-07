@@ -52,7 +52,9 @@ PROFILES = [
 ]
 
 RE_GAIN = re.compile(r'^(\s*gain\s*=\s*)([0-9.]+)(\s*;\s*#\s*UI_CONTROLLED.*)$')
-RE_SQL  = re.compile(r'^(\s*squelch_snr_threshold\s*=\s*)([0-9.]+)(\s*;\s*#\s*UI_CONTROLLED.*)$')
+# Allow negative values by matching an optional minus sign.
+# This ensures that write_controls can update any squelch line, even if it has a negative value.
+RE_SQL  = re.compile(r'^(\s*squelch_snr_threshold\s*=\s*)(-?[0-9.]+)(\s*;\s*#\s*UI_CONTROLLED.*)$')
 RE_AIRBAND = re.compile(r'^\s*airband\s*=\s*(true|false)\s*;\s*$', re.I)
 RE_UI_DISABLED = re.compile(r'^\s*ui_disabled\s*=\s*(true|false)\s*;\s*$', re.I)
 RE_INDEX = re.compile(r'^(\s*index\s*=\s*)(\d+)(\s*;.*)$')
@@ -887,6 +889,7 @@ def enforce_profile_index(conf_path: str) -> None:
 def parse_controls(conf_path: str):
     enforce_profile_index(conf_path)
     gain = 32.8
+    # default squelch value
     squelch = 10.0
     try:
         with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -896,7 +899,10 @@ def parse_controls(conf_path: str):
                     gain = float(m.group(2))
                 m = RE_SQL.match(line)
                 if m:
-                    squelch = float(m.group(2))
+                    # Parse squelch and clamp negative values to zero.  rtl_airband requires
+                    # squelch_snr_threshold >= 0, so converting any negative value to 0.0 here
+                    # avoids configuration errors.
+                    squelch = max(0.0, float(m.group(2)))
     except FileNotFoundError:
         pass
     return gain, squelch
