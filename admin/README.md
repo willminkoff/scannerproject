@@ -34,7 +34,7 @@ Expected observations (when rtl-airband restarts):
 ## Pi Notes
 - Repo path on SprontPi: `/home/willminkoff/scannerproject`
 - User: `willminkoff` (prompt shows `willminkoff@SprontPi`)
-- Avoids summary file: `/home/willminkoff/Desktop/scanner_logs/airband_avoids.txt`
+- Avoids summary files: `/home/willminkoff/Desktop/scanner_logs/airband_avoids.txt`, `/home/willminkoff/Desktop/scanner_logs/ground_avoids.txt`
 - Deploy commands:
   - `cd /home/willminkoff/scannerproject`
   - `git pull origin main`

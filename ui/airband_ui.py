@@ -22,8 +22,14 @@ LAST_HIT_AIRBAND_PATH = "/run/rtl_airband_last_freq_airband.txt"
 LAST_HIT_GROUND_PATH = "/run/rtl_airband_last_freq_ground.txt"
 AVOIDS_DIR = "/home/willminkoff/scannerproject/admin/logs"
 DIAGNOSTIC_DIR = AVOIDS_DIR
-AVOIDS_PATH = os.path.join(AVOIDS_DIR, "airband_avoids.json")
-AVOIDS_SUMMARY_PATH = os.path.join(AVOIDS_DIR, "airband_avoids.txt")
+AVOIDS_PATHS = {
+    "airband": os.path.join(AVOIDS_DIR, "airband_avoids.json"),
+    "ground": os.path.join(AVOIDS_DIR, "ground_avoids.json"),
+}
+AVOIDS_SUMMARY_PATHS = {
+    "airband": os.path.join(AVOIDS_DIR, "airband_avoids.txt"),
+    "ground": os.path.join(AVOIDS_DIR, "ground_avoids.txt"),
+}
 
 ICECAST_PORT = 8000
 MOUNT_NAME = "GND.mp3"
@@ -304,6 +310,8 @@ let currentProfileAirband = null;
 let currentProfileGround = null;
 let hitsView = false;
 let activePage = 0;
+let avoidsAirband = null;
+let avoidsGround = null;
 
 const controlTargets = {
   airband: {
@@ -403,6 +411,11 @@ function updateAvoids(avoids) {
   avoidsEl.textContent = text;
 }
 
+function updateAvoidsForPage() {
+  const avoids = activePage === 1 ? avoidsGround : avoidsAirband;
+  updateAvoids(avoids);
+}
+
 function buildProfiles(profilesEl, profiles, selected, target) {
   profilesEl.innerHTML = '';
   if (!profiles.length) {
@@ -471,7 +484,9 @@ async function refresh(allowSetSliders=false) {
   setControlsFromStatus('ground', st.ground_gain, st.ground_squelch, allowSetSliders);
 
   updateWarn(st.missing_profiles);
-  updateAvoids(st.avoids);
+  avoidsAirband = st.avoids_airband;
+  avoidsGround = st.avoids_ground;
+  updateAvoidsForPage();
 
   if (currentProfileAirband === null || currentProfileAirband !== st.profile_airband) {
     currentProfileAirband = st.profile_airband;
@@ -604,13 +619,15 @@ btnOpenSqlGroundEl.addEventListener('click', async ()=> {
 });
 
 document.getElementById('btn-avoid').addEventListener('click', async ()=> {
-  const res = await post('/api/avoid', {});
+  const target = activePage === 1 ? 'ground' : 'airband';
+  const res = await post('/api/avoid', {target});
   actionMsg = res.ok ? `Avoided ${res.freq}` : (res.error || 'Avoid failed');
   await refresh(true);
 });
 
 document.getElementById('btn-clear-avoids').addEventListener('click', async ()=> {
-  const res = await post('/api/avoid-clear', {});
+  const target = activePage === 1 ? 'ground' : 'airband';
+  const res = await post('/api/avoid-clear', {target});
   actionMsg = res.ok ? 'Cleared avoids' : (res.error || 'Clear avoids failed');
   await refresh(true);
 });
@@ -620,6 +637,7 @@ function setPage(index) {
   pagerInnerEl.style.transform = `translateX(-${index * 100}%)`;
   tabAirbandEl.classList.toggle('active', index === 0);
   tabGroundEl.classList.toggle('active', index === 1);
+  updateAvoidsForPage();
 }
 
 tabAirbandEl.addEventListener('click', () => setPage(0));
@@ -1304,8 +1322,11 @@ def read_icecast_hit_list(limit: int = 20) -> list:
     items.reverse()
     return items
 
-def parse_last_hit_freq() -> Optional[float]:
-    value = read_last_hit_from_icecast() or read_last_hit()
+def parse_last_hit_freq(target: str) -> Optional[float]:
+    if target == "ground":
+        value = read_last_hit_ground()
+    else:
+        value = read_last_hit_from_icecast() or read_last_hit_airband() or read_last_hit()
     if not value:
         return None
     m = re.search(r'[0-9]+(?:\.[0-9]+)?', value)
@@ -1315,10 +1336,10 @@ def parse_last_hit_freq() -> Optional[float]:
         return float(m.group(0))
     except ValueError:
         return None
-
-def load_avoids() -> dict:
+def load_avoids(target: str) -> dict:
+    path = AVOIDS_PATHS.get(target, AVOIDS_PATHS["airband"])
     try:
-        with open(AVOIDS_PATH, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
             if isinstance(data, dict):
                 data.setdefault("profiles", {})
@@ -1329,27 +1350,29 @@ def load_avoids() -> dict:
         pass
     return {"profiles": {}}
 
-def summarize_avoids(conf_path: str) -> dict:
-    data = load_avoids()
+def summarize_avoids(conf_path: str, target: str) -> dict:
+    data = load_avoids(target)
     prof = data.get("profiles", {}).get(conf_path, {})
     avoids = prof.get("avoids", []) or []
     avoids_sorted = sorted(avoids)
     sample = [f"{freq:.4f}" for freq in avoids_sorted[:4]]
     return {"count": len(avoids), "sample": sample}
 
-def save_avoids(data: dict) -> None:
+def save_avoids(target: str, data: dict) -> None:
+    path = AVOIDS_PATHS.get(target, AVOIDS_PATHS["airband"])
     os.makedirs(AVOIDS_DIR, exist_ok=True)
-    tmp = AVOIDS_PATH + ".tmp"
+    tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, sort_keys=True)
         f.write("\n")
-    os.replace(tmp, AVOIDS_PATH)
-    write_avoids_summary(data)
+    os.replace(tmp, path)
+    write_avoids_summary(target, data)
 
-def write_avoids_summary(data: dict) -> None:
+def write_avoids_summary(target: str, data: dict) -> None:
     lines = []
     ts = time.strftime("%Y-%m-%d %H:%M:%SZ", time.gmtime())
-    lines.append(f"SprontPi Avoids Summary (UTC {ts})")
+    label = "Ground" if target == "ground" else "Airband"
+    lines.append(f"SprontPi {label} Avoids Summary (UTC {ts})")
     lines.append("")
 
     profiles = data.get("profiles", {})
@@ -1369,10 +1392,11 @@ def write_avoids_summary(data: dict) -> None:
                 lines.append("Avoids: none")
             lines.append("")
 
-    tmp = AVOIDS_SUMMARY_PATH + ".tmp"
+    path = AVOIDS_SUMMARY_PATHS.get(target, AVOIDS_SUMMARY_PATHS["airband"])
+    tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         f.write("\n".join(lines).rstrip() + "\n")
-    os.replace(tmp, AVOIDS_SUMMARY_PATH)
+    os.replace(tmp, path)
 
 def parse_freqs_labels(text: str):
     m = RE_FREQS_BLOCK.search(text)
@@ -1418,12 +1442,12 @@ def write_freqs_labels(conf_path: str, freqs, labels):
         f.write(text)
     os.replace(tmp, conf_path)
 
-def avoid_current_hit(conf_path: str):
-    freq = parse_last_hit_freq()
+def avoid_current_hit(conf_path: str, target: str):
+    freq = parse_last_hit_freq(target)
     if freq is None:
         return None, "No recent hit to avoid"
 
-    data = load_avoids()
+    data = load_avoids(target)
     profiles = data.setdefault("profiles", {})
     prof = profiles.get(conf_path)
 
@@ -1452,12 +1476,12 @@ def avoid_current_hit(conf_path: str):
         return None, "Avoid would remove all frequencies"
 
     write_freqs_labels(conf_path, new_freqs, new_labels)
-    save_avoids(data)
+    save_avoids(target, data)
     restart_rtl()
     return freq, None
 
-def clear_avoids(conf_path: str):
-    data = load_avoids()
+def clear_avoids(conf_path: str, target: str):
+    data = load_avoids(target)
     profiles = data.get("profiles", {})
     prof = profiles.get(conf_path)
     if not prof:
@@ -1470,7 +1494,7 @@ def clear_avoids(conf_path: str):
 
     write_freqs_labels(conf_path, freqs, labels)
     profiles.pop(conf_path, None)
-    save_avoids(data)
+    save_avoids(target, data)
     restart_rtl()
     return len(freqs), None
 
@@ -1741,7 +1765,8 @@ class Handler(BaseHTTPRequestHandler):
                 "last_hit": icecast_hit or read_last_hit(),
                 "last_hit_airband": last_hit_airband,
                 "last_hit_ground": last_hit_ground,
-                "avoids": summarize_avoids(conf_path),
+                "avoids_airband": summarize_avoids(conf_path, "airband"),
+                "avoids_ground": summarize_avoids(os.path.realpath(GROUND_CONFIG_PATH), "ground"),
             }
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         if p == "/api/hits":
@@ -1848,10 +1873,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
 
         if p == "/api/avoid":
-            conf_path = read_active_config_path()
+            target = form.get("target", "airband")
+            if target not in ("airband", "ground"):
+                return self._send(400, json.dumps({"ok": False, "error": "unknown target"}), "application/json; charset=utf-8")
+            conf_path = os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path()
             stop_rtl()
             try:
-                freq, err = avoid_current_hit(conf_path)
+                freq, err = avoid_current_hit(conf_path, target)
             except Exception as e:
                 start_rtl()
                 return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
@@ -1867,10 +1895,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, json.dumps({"ok": True, "freq": f"{freq:.4f}"}), "application/json; charset=utf-8")
 
         if p == "/api/avoid-clear":
-            conf_path = read_active_config_path()
+            target = form.get("target", "airband")
+            if target not in ("airband", "ground"):
+                return self._send(400, json.dumps({"ok": False, "error": "unknown target"}), "application/json; charset=utf-8")
+            conf_path = os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path()
             stop_rtl()
             try:
-                _, err = clear_avoids(conf_path)
+                _, err = clear_avoids(conf_path, target)
             except Exception as e:
                 start_rtl()
                 return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
