@@ -1713,13 +1713,9 @@ class Handler(BaseHTTPRequestHandler):
             if target == "ground":
                 conf_path = GROUND_CONFIG_PATH
                 control_unit = ground_control_unit()
-                if control_unit == "rtl":
-                    stop_rtl()
-                else:
-                    stop_ground()
             elif target == "airband":
                 conf_path = read_active_config_path()
-                stop_rtl()
+                control_unit = "rtl"
             else:
                 return self._send(400, json.dumps({"ok": False, "error": "unknown target"}), "application/json; charset=utf-8")
             try:
@@ -1737,13 +1733,6 @@ class Handler(BaseHTTPRequestHandler):
                 combined_changed = write_combined_config()
                 changed = changed or combined_changed
             except Exception as e:
-                if target == "ground":
-                    if control_unit == "rtl":
-                        start_rtl()
-                    else:
-                        start_ground()
-                else:
-                    start_rtl()
                 return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
 
             if changed:
@@ -1754,14 +1743,6 @@ class Handler(BaseHTTPRequestHandler):
                         restart_ground()
                 else:
                     restart_rtl()
-            else:
-                if target == "ground":
-                    if control_unit == "rtl":
-                        start_rtl()
-                    else:
-                        start_ground()
-                else:
-                    start_rtl()
             return self._send(200, json.dumps({"ok": True, "changed": changed}), "application/json; charset=utf-8")
 
         if p == "/api/avoid":
