@@ -6,7 +6,7 @@ PartOf=rtl-airband.service
 
 [Service]
 Type=simple
-ExecStart=/home/willminkoff/scannerproject/scripts/rtl-airband-last-hit.sh
+ExecStart=/bin/bash /home/willminkoff/scannerproject/scripts/rtl-airband-last-hit.sh
 Restart=always
 RestartSec=1
 

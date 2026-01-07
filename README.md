@@ -10,6 +10,7 @@ This repo contains:
 - Keep Icecast source/admin passwords consistent between Icecast and profile outputs.
 - This repo intentionally does NOT include binaries like rtl_airband.
 - SprontPi uses a single Icecast mount (`/GND.mp3`) fed by a mixer that combines Airband + Ground in one rtl_airband process.
+- `systemd/rtl-airband-last-hit.service` uses `ExecStart=/bin/bash ...` so it works even if the script loses its executable bit; keep the script executable for manual runs.
 
 ## Sprint Notes (2026-01)
 - UI: profiles render as a two-column grid of selectable cards and show an avoids summary for the active profile.
@@ -56,6 +57,10 @@ Quick verification:
   - `sudo systemctl restart rtl-airband`
   - `sudo systemctl restart airband-ui`
   - `sudo systemctl disable --now rtl-airband-ground` (one-time, if present; stays disabled after)
+- Unit update (last-hit):
+  - `sudo cp /home/willminkoff/scannerproject/systemd/rtl-airband-last-hit.service /etc/systemd/system/`
+  - `sudo systemctl daemon-reload`
+  - `sudo systemctl restart rtl-airband-last-hit`
 
 ## Ops Brief
 - `assets/Brief from Codex CLI 1-2-26.txt`
