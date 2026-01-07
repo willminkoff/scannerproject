@@ -1,0 +1,51 @@
+*** Begin Patch
+*** Update File: ui/airband_ui.py
+@@
+-RE_SQL  = re.compile(r'^(\s*squelch_snr_threshold\s*=\s*)([0-9.]+)(\s*;\s*#\s*UI_CONTROLLED.*)$')
++# Allow negative values by matching an optional minus sign.
++# This ensures that write_controls can update any squelch line, even if it has a negative value.
++RE_SQL  = re.compile(r'^(\s*squelch_snr_threshold\s*=\s*)(-?[0-9.]+)(\s*;\s*#\s*UI_CONTROLLED.*)$')
+@@ def parse_controls(conf_path: str):
+-    gain = 32.8
+-    squelch = 10.0
++    gain = 32.8
++    # default squelch value
++    squelch = 10.0
+@@ def parse_controls(conf_path: str):
+-                m = RE_GAIN.match(line)
+-                if m:
+-                    gain = float(m.group(2))
+-                m = RE_SQL.match(line)
+-                if m:
+-                    squelch = float(m.group(2))
++                m = RE_GAIN.match(line)
++                if m:
++                    gain = float(m.group(2))
++                m = RE_SQL.match(line)
++                if m:
++                    # Parse squelch and clamp negative values to zero.  rtl_airband requires
++                    # squelch_snr_threshold >= 0, so converting any negative value to 0.0 here
++                    # avoids configuration errors.
++                    squelch = max(0.0, float(m.group(2)))
+@@ def build_combined_config(airband_path: str, ground_path: str) -> str:
+-    if not device_payloads and not (airband_disabled and ground_disabled):
+-        raise ValueError("No devices block found in profiles")
++    # If no device payloads are found, return a valid config with an empty devices list.
++    # This prevents the combined config generator from failing when both profiles lack
++    # devices or have no devices blocks.  The resulting scanner config will not start
++    # any devices but will still provide a valid Icecast mixer configuration for the
++    # keepalive stream.
++    
+*** End Patch
+
+*** Update File: scripts/build-combined-config.py
+@@ def build_combined_config(airband_path: str, ground_path: str) -> str:
+-    if not device_payloads and not (airband_disabled and ground_disabled):
+-        raise ValueError("No devices block found in profiles")
++    # If no device payloads are found, return a valid config with an empty devices list.
++    # This prevents the combined config generator from failing when both profiles lack
++    # devices or have no devices blocks.  The resulting scanner config will not start
++    # any devices but will still provide a valid Icecast mixer configuration for the
++    # keepalive stream.
++    
+*** End Patch
