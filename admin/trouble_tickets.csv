@@ -32,3 +32,4 @@ id,created_at_utc,title,status,description
 31,2026-01-06T04:05:00Z,WX ground profile keeps playing after switch,resolved,Selecting WX on ground causes audio to keep playing even after switching to another ground profile.
 32,2026-01-06T14:06:40Z,Allow no profile selected on airband and ground,resolved,Allow no profile selected on both airband and ground scanners so nothing pulls from a unit when no profile is selected (even if it just mutes unit output).
 33,2026-01-06T15:31:28Z,Add UI button to play GND.mp3 on Pi audio output,open,Add a UI control to trigger playback of http://192.168.1.124:8000/GND.mp3 on the Pi default audio output; prefer a lightweight player over VLC if possible.
+34,2026-01-06T20:55:00Z,Improve squelch scale to find noise floor,open,Allow squelch range below 0 (ex: -10 to +10) or otherwise re-scale UI so users can reliably open the noise floor while tuning.

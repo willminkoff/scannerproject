@@ -58,6 +58,7 @@ RE_SQL  = re.compile(r'^(\s*squelch_snr_threshold\s*=\s*)(-?[0-9.]+)(\s*;\s*#\s*
 RE_AIRBAND = re.compile(r'^\s*airband\s*=\s*(true|false)\s*;\s*$', re.I)
 RE_UI_DISABLED = re.compile(r'^\s*ui_disabled\s*=\s*(true|false)\s*;\s*$', re.I)
 RE_INDEX = re.compile(r'^(\s*index\s*=\s*)(\d+)(\s*;.*)$')
+RE_SERIAL = re.compile(r'^\s*serial\s*=\s*"[^\"]*"\s*;\s*$', re.I)
 RE_FREQS_BLOCK = re.compile(r'(^\s*freqs\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)
 RE_LABELS_BLOCK = re.compile(r'(^\s*labels\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)
 RE_OUTPUTS_BLOCK = re.compile(r'outputs:\s*\(\s*.*?\)\s*;', re.S)
@@ -222,8 +223,12 @@ HTML = r"""<!doctype html>
                 <div class="ctrl">
                   <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span id="applied-sql-airband">…</span></span></div>
                   <input id="sql-airband" class="range" type="range" min="0" max="10" step="0.1" />
-                  <div class="ctrl-readout"><span>Selected: <span id="selected-sql-airband">…</span></span><span>0.0-10.0 SNR threshold</span></div>
+                  <div class="ctrl-readout"><span>Selected: <span id="selected-sql-airband">…</span></span><span>Scaled to 0.0-1.0 SNR</span></div>
                 </div>
+              </div>
+              <div class="btns">
+                <button type="button" id="btn-restart-airband">Restart Airband</button>
+                <button type="button" id="btn-open-sql-airband">Open Squelch (2s)</button>
               </div>
             </section>
 
@@ -240,8 +245,12 @@ HTML = r"""<!doctype html>
                 <div class="ctrl">
                   <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span id="applied-sql-ground">…</span></span></div>
                   <input id="sql-ground" class="range" type="range" min="0" max="10" step="0.1" />
-                  <div class="ctrl-readout"><span>Selected: <span id="selected-sql-ground">…</span></span><span>0.0-10.0 SNR threshold</span></div>
+                  <div class="ctrl-readout"><span>Selected: <span id="selected-sql-ground">…</span></span><span>Scaled to 0.0-1.0 SNR</span></div>
                 </div>
+              </div>
+              <div class="btns">
+                <button type="button" id="btn-restart-ground">Restart Ground</button>
+                <button type="button" id="btn-open-sql-ground">Open Squelch (2s)</button>
               </div>
               <div class="foot">Both scanners feed the same Icecast stream.</div>
             </section>
@@ -278,6 +287,10 @@ const tabAirbandEl = document.getElementById('tab-airband');
 const tabGroundEl = document.getElementById('tab-ground');
 const pagerEl = document.getElementById('pager');
 const pagerInnerEl = document.getElementById('pager-inner');
+const btnRestartAirbandEl = document.getElementById('btn-restart-airband');
+const btnRestartGroundEl = document.getElementById('btn-restart-ground');
+const btnOpenSqlAirbandEl = document.getElementById('btn-open-sql-airband');
+const btnOpenSqlGroundEl = document.getElementById('btn-open-sql-ground');
 let actionMsg = '';
 
 const GAIN_STEPS = [
@@ -285,6 +298,7 @@ const GAIN_STEPS = [
   16.6, 19.7, 20.7, 22.9, 25.4, 28.0, 29.7, 32.8, 33.8,
   36.4, 37.2, 38.6, 40.2, 42.1, 43.4, 43.9, 44.5, 48.0, 49.6,
 ];
+const SQL_SCALE = 0.1;
 
 let currentProfileAirband = null;
 let currentProfileGround = null;
@@ -301,6 +315,9 @@ const controlTargets = {
     appliedSqlEl: document.getElementById('applied-sql-airband'),
     dirty: false,
     applyInFlight: false,
+    openInFlight: false,
+    lastAppliedGain: null,
+    lastAppliedSql: null,
   },
   ground: {
     gainEl: document.getElementById('gain-ground'),
@@ -311,6 +328,9 @@ const controlTargets = {
     appliedSqlEl: document.getElementById('applied-sql-ground'),
     dirty: false,
     applyInFlight: false,
+    openInFlight: false,
+    lastAppliedGain: null,
+    lastAppliedSql: null,
   },
 };
 
@@ -339,7 +359,9 @@ function updateSelectedGain(target) {
 
 function updateSelectedSql(target) {
   const controls = controlTargets[target];
-  controls.selectedSqlEl.textContent = Number(controls.sqlEl.value).toFixed(1);
+  const sliderValue = Number(controls.sqlEl.value || 0);
+  const effective = sliderValue * SQL_SCALE;
+  controls.selectedSqlEl.textContent = `${sliderValue.toFixed(1)} \u2192 ${effective.toFixed(2)}`;
 }
 
 function formatHitLabel(value) {
@@ -425,10 +447,13 @@ async function post(url, obj) {
 function setControlsFromStatus(target, gain, squelch, allowSetSliders) {
   const controls = controlTargets[target];
   controls.appliedGainEl.textContent = gain.toFixed(1);
-  controls.appliedSqlEl.textContent = squelch.toFixed(1);
+  const appliedSlider = Math.max(0, Math.min(10, squelch / SQL_SCALE));
+  controls.appliedSqlEl.textContent = `${squelch.toFixed(2)} (slider ${appliedSlider.toFixed(1)})`;
+  controls.lastAppliedGain = gain;
+  controls.lastAppliedSql = squelch;
   if (allowSetSliders && !controls.dirty) {
     controls.gainEl.value = gainIndexFromValue(gain);
-    controls.sqlEl.value = Math.max(0, Math.min(10, squelch)).toFixed(1);
+    controls.sqlEl.value = appliedSlider.toFixed(1);
     updateSelectedGain(target);
     updateSelectedSql(target);
   }
@@ -513,14 +538,70 @@ async function applyControls(target) {
   controls.applyInFlight = true;
   try {
     const gain = GAIN_STEPS[Number(controls.gainEl.value || 0)];
-    const squelch = controls.sqlEl.value;
+    const squelch = Number(controls.sqlEl.value || 0) * SQL_SCALE;
+    const gainSame = controls.lastAppliedGain !== null && Math.abs(gain - controls.lastAppliedGain) < 0.001;
+    const sqlSame = controls.lastAppliedSql !== null && Math.abs(squelch - controls.lastAppliedSql) < 0.001;
+    if (gainSame && sqlSame) {
+      controls.dirty = false;
+      return;
+    }
     await post('/api/apply', {gain, squelch, target});
     controls.dirty = false;
+    controls.lastAppliedGain = gain;
+    controls.lastAppliedSql = squelch;
     await refresh(true);
   } finally {
     controls.applyInFlight = false;
   }
 }
+
+async function restartUnit(target) {
+  const res = await post('/api/restart', {target});
+  if (res.ok) {
+    actionMsg = target === 'ground' ? 'Ground restarted' : 'Airband restarted';
+  } else {
+    actionMsg = res.error || 'Restart failed';
+  }
+  await refresh(false);
+}
+
+async function openSquelchMomentary(target, durationMs) {
+  const controls = controlTargets[target];
+  if (controls.openInFlight || controls.applyInFlight) return;
+  controls.openInFlight = true;
+  const previous = Math.max(0, Math.min(10, Number(controls.sqlEl.value || 0)));
+  controls.sqlEl.value = '0.0';
+  updateSelectedSql(target);
+  try {
+    await applyControls(target);
+  } finally {
+    setTimeout(async () => {
+      controls.sqlEl.value = previous.toFixed(1);
+      updateSelectedSql(target);
+      try {
+        await applyControls(target);
+      } finally {
+        controls.openInFlight = false;
+      }
+    }, durationMs);
+  }
+}
+
+btnRestartAirbandEl.addEventListener('click', async ()=> {
+  await restartUnit('airband');
+});
+
+btnRestartGroundEl.addEventListener('click', async ()=> {
+  await restartUnit('ground');
+});
+
+btnOpenSqlAirbandEl.addEventListener('click', async ()=> {
+  await openSquelchMomentary('airband', 2000);
+});
+
+btnOpenSqlGroundEl.addEventListener('click', async ()=> {
+  await openSquelchMomentary('ground', 2000);
+});
 
 document.getElementById('btn-avoid').addEventListener('click', async ()=> {
   const res = await post('/api/avoid', {});
@@ -683,8 +764,7 @@ def enforce_device_index(text: str, desired_index: int) -> str:
             insert_at = idx + 1
         match = RE_INDEX.match(line)
         if match:
-            new_line = f"{match.group(1)}{desired_index}{match.group(3)}"
-            out_lines.append(new_line)
+            out_lines.append(f"  index = {desired_index};")
             changed = True
         else:
             out_lines.append(line)
@@ -692,6 +772,24 @@ def enforce_device_index(text: str, desired_index: int) -> str:
         if insert_at is None:
             insert_at = 0
         out_lines.insert(insert_at, f"  index = {desired_index};")
+    return "\n".join(out_lines)
+
+def enforce_device_serial(text: str, desired_serial: str) -> str:
+    changed = False
+    out_lines = []
+    insert_at = None
+    for idx, line in enumerate(text.splitlines()):
+        if insert_at is None and "{" in line:
+            insert_at = idx + 1
+        if RE_SERIAL.match(line):
+            out_lines.append(f"  serial = \"{desired_serial}\";")
+            changed = True
+        else:
+            out_lines.append(line)
+    if not changed and desired_serial:
+        if insert_at is None:
+            insert_at = 0
+        out_lines.insert(insert_at, f"  serial = \"{desired_serial}\";")
     return "\n".join(out_lines)
 
 def replace_outputs_with_mixer(text: str) -> str:
@@ -753,15 +851,16 @@ def build_combined_config(airband_path: str, ground_path: str) -> str:
 
     device_payloads = []
     payloads = [
-        (airband_text, 0, airband_disabled),
-        (ground_text, 1, ground_disabled),
+        (airband_text, 1, airband_disabled, "00000001"),
+        (ground_text, 0, ground_disabled, "70613472"),
     ]
-    for text, desired_index, disabled in payloads:
+    for text, desired_index, disabled, serial in payloads:
         if disabled:
             continue
         payload = extract_devices_payload(text)
         if payload:
             payload = enforce_device_index(payload, desired_index)
+            payload = enforce_device_serial(payload, serial)
             payload = replace_outputs_with_mixer(payload)
             device_payloads.append(payload.strip().rstrip(","))
 
@@ -785,7 +884,7 @@ def build_combined_config(airband_path: str, ground_path: str) -> str:
         )
 
     combined = []
-    combined.append("# Auto-generated by airband_ui.py. Do not edit directly.")
+    combined.append("# Auto-generated by build-combined-config.py. Do not edit directly.")
     combined.append("")
     combined.extend(top_lines)
     if top_lines:
@@ -850,6 +949,7 @@ def split_profiles():
     return prof_payload, profiles_airband, profiles_ground
 
 def enforce_profile_index(conf_path: str) -> None:
+    conf_path = os.path.realpath(conf_path)
     try:
         with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
             lines = f.readlines()
@@ -1380,6 +1480,7 @@ def write_controls(conf_path: str, gain: float, squelch: float) -> bool:
     gain = min(GAIN_STEPS, key=lambda g: abs(g - gain_value))
     squelch = max(0.0, min(10.0, float(squelch)))
 
+    conf_path = os.path.realpath(conf_path)
     with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
         lines = f.readlines()
 
@@ -1664,15 +1765,9 @@ class Handler(BaseHTTPRequestHandler):
             if target == "ground":
                 conf_path = os.path.realpath(GROUND_CONFIG_PATH)
                 profiles = [(p["id"], p["label"], p["path"]) for p in profiles_ground]
-                control_unit = ground_control_unit()
-                if control_unit == "rtl":
-                    unit_stop = stop_rtl
-                    unit_start = start_rtl
-                    unit_restart = restart_rtl
-                else:
-                    unit_stop = stop_ground
-                    unit_start = start_ground
-                    unit_restart = restart_ground
+                unit_stop = stop_rtl
+                unit_start = start_rtl
+                unit_restart = restart_rtl
                 target_symlink = GROUND_CONFIG_PATH
             else:
                 conf_path = read_active_config_path()
@@ -1712,7 +1807,7 @@ class Handler(BaseHTTPRequestHandler):
             target = form.get("target", "airband")
             if target == "ground":
                 conf_path = GROUND_CONFIG_PATH
-                control_unit = ground_control_unit()
+                control_unit = "rtl"
             elif target == "airband":
                 conf_path = read_active_config_path()
                 control_unit = "rtl"
@@ -1723,7 +1818,7 @@ class Handler(BaseHTTPRequestHandler):
                 squelch = float(form.get("squelch", "10.0"))
             except ValueError:
                 if target == "ground":
-                    start_ground()
+                    start_rtl()
                 else:
                     start_rtl()
                 return self._send(400, json.dumps({"ok": False, "error": "bad values"}), "application/json; charset=utf-8")
@@ -1737,13 +1832,20 @@ class Handler(BaseHTTPRequestHandler):
 
             if changed:
                 if target == "ground":
-                    if control_unit == "rtl":
-                        restart_rtl()
-                    else:
-                        restart_ground()
+                    restart_rtl()
                 else:
                     restart_rtl()
             return self._send(200, json.dumps({"ok": True, "changed": changed}), "application/json; charset=utf-8")
+
+        if p == "/api/restart":
+            target = form.get("target", "airband")
+            if target == "ground":
+                restart_rtl()
+            elif target == "airband":
+                restart_rtl()
+            else:
+                return self._send(400, json.dumps({"ok": False, "error": "unknown target"}), "application/json; charset=utf-8")
+            return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
 
         if p == "/api/avoid":
             conf_path = read_active_config_path()
