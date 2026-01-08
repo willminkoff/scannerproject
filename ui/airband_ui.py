@@ -379,7 +379,7 @@ function formatHitLabel(value) {
   if (/^[0-9]+(\.[0-9]+)?$/.test(text)) {
     const num = Number(text);
     if (Number.isFinite(num)) {
-      return num.toFixed(2);
+      return num.toFixed(3);
     }
   }
   return text;

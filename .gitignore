@@ -4,6 +4,7 @@
 *.broken*
 *.swp
 *~
+.DS_Store
 
 # runtime
 /run/
