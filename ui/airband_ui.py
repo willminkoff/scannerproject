@@ -281,8 +281,8 @@ HTML = r"""<!doctype html>
 
         <div class="btns center" style="margin-top:14px;">
           <button class="primary" id="btn-play">Play</button>
-          <button id="btn-avoid">Avoid</button>
-          <button id="btn-clear-avoids">Clear</button>
+          <button id="btn-avoid">Avoid <span id="avoid-target-label"></span></button>
+          <button id="btn-clear-avoids">Clear <span id="clear-target-label"></span></button>
         </div>
 
         <div class="tabs">
@@ -343,7 +343,7 @@ HTML = r"""<!doctype html>
 
         <div class="warn" id="warn"></div>
         <div class="avoids" id="avoids-summary"></div>
-        <div class="foot">Tip: switching profiles or applying changes restarts the scanner; refresh only syncs status + sliders. <a href="#" id="lnk-diagnostic">Generate log</a></div>
+        <div class="foot">© 2026 Will Minkoff • <a href="#" id="lnk-diagnostic">Generate log</a></div>
       </div>
 
       <div id="view-hits" class="hidden">
@@ -376,6 +376,7 @@ const btnRestartGroundEl = document.getElementById('btn-restart-ground');
 const btnOpenSqlAirbandEl = document.getElementById('btn-open-sql-airband');
 const btnOpenSqlGroundEl = document.getElementById('btn-open-sql-ground');
 let actionMsg = '';
+let actionMsgTarget = null;
 
 const GAIN_STEPS = [
   0.0, 0.9, 1.4, 2.7, 3.7, 7.7, 8.7, 12.5, 14.4, 15.7,
@@ -468,7 +469,8 @@ function updateWarn(missingProfiles) {
   if (missingProfiles.length) {
     parts.push('Missing profile file(s): ' + missingProfiles.join(' • '));
   }
-  if (actionMsg) {
+  // Only show action message if it's for the current page
+  if (actionMsg && (actionMsgTarget === null || (actionMsgTarget === 'airband' && activePage === 0) || (actionMsgTarget === 'ground' && activePage === 1))) {
     parts.push(actionMsg);
   }
   warnEl.textContent = parts.join(' • ');
@@ -700,6 +702,7 @@ document.getElementById('btn-avoid').addEventListener('click', async ()=> {
   const target = activePage === 1 ? 'ground' : 'airband';
   const res = await post('/api/avoid', {target});
   actionMsg = res.ok ? `Avoided ${res.freq}` : (res.error || 'Avoid failed');
+  actionMsgTarget = target;
   await refresh(true);
 });
 
@@ -707,6 +710,7 @@ document.getElementById('btn-clear-avoids').addEventListener('click', async ()=>
   const target = activePage === 1 ? 'ground' : 'airband';
   const res = await post('/api/avoid-clear', {target});
   actionMsg = res.ok ? 'Cleared avoids' : (res.error || 'Clear avoids failed');
+  actionMsgTarget = target;
   await refresh(true);
 });
 
