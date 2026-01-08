@@ -1,0 +1,24 @@
+{
+  "profiles": [
+    {
+      "id": "gmrs",
+      "label": "GMRS",
+      "type": "conventional"
+    },
+    {
+      "id": "mtears",
+      "label": "MTEARS",
+      "type": "conventional"
+    },
+    {
+      "id": "wx",
+      "label": "WX (162.550)",
+      "type": "conventional"
+    },
+    {
+      "id": "vanderbilt_p25",
+      "label": "Vanderbilt P25 (Site 7078)",
+      "type": "p25"
+    }
+  ]
+}

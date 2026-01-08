@@ -9,6 +9,8 @@ This repo contains:
 ## Notes
 - Replace any `CHANGEME` passwords locally on the Pi.
 - This repo intentionally does NOT include binaries like rtl_airband.
+- SDRTrunk ground backend mixes `/AIR.mp3` + `/GROUND.mp3` into `/GND.mp3` via `scanner-mixer.service`.
+- `sdrtrunk-staging.service` uses a separate home at `/var/lib/sdrtrunk-staging` for testing.
 
 ## Sprint Notes (2026-01)
 - UI: profiles render as a two-column grid of selectable cards and show an avoids summary for the active profile.
@@ -40,6 +42,7 @@ Expected observations (when rtl-airband restarts):
   - `git pull origin main`
   - `sudo systemctl daemon-reload`
   - `sudo systemctl restart rtl-airband`
+  - `sudo systemctl restart sdrtrunk scanner-mixer` (SDRTrunk mode)
   - `sudo systemctl restart airband-ui`
 
 ## Ops Brief

@@ -5,6 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+EnvironmentFile=-/etc/default/airband-ui
 ExecStart=/usr/bin/python3 /opt/airband-ui/airband_ui.py
 Restart=on-failure
 RestartSec=2

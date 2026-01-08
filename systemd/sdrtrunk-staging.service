@@ -1,0 +1,15 @@
+[Unit]
+Description=SDRTrunk (Ground backend - Staging)
+After=network-online.target icecast2.service
+Wants=network-online.target icecast2.service
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/default/sdrtrunk-staging
+Environment=SDRTRUNK_HOME=/var/lib/sdrtrunk-staging
+ExecStart=/home/willminkoff/scannerproject/scripts/sdrtrunk-headless.sh
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

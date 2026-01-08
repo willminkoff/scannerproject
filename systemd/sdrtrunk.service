@@ -1,0 +1,14 @@
+[Unit]
+Description=SDRTrunk (Ground backend)
+After=network-online.target icecast2.service
+Wants=network-online.target icecast2.service
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/default/sdrtrunk
+ExecStart=/home/willminkoff/scannerproject/scripts/sdrtrunk-headless.sh
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

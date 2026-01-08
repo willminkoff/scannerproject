@@ -1,0 +1,14 @@
+[Unit]
+Description=Scanner Mixer (Airband + SDRTrunk -> Icecast)
+After=network-online.target icecast2.service rtl-airband.service sdrtrunk.service
+Wants=network-online.target icecast2.service rtl-airband.service sdrtrunk.service
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/default/scanner-mixer
+ExecStart=/home/willminkoff/scannerproject/scripts/icecast-mix.sh
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

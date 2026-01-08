@@ -27,6 +27,17 @@ PROFILES_DIR = "/usr/local/etc/airband-profiles"
 GROUND_CONFIG_PATH = "/usr/local/etc/rtl_airband_ground.conf"
 COMBINED_CONFIG_PATH = "/usr/local/etc/rtl_airband_combined.conf"
 MIXER_NAME = "combined"
+GROUND_BACKEND = os.environ.get("GROUND_BACKEND", "sdrtrunk").strip().lower()
+SDRTRUNK_PROFILES_DIR = os.environ.get(
+    "SDRTRUNK_PROFILES_DIR",
+    os.path.join(REPO_ROOT, "profiles", "sdrtrunk"),
+)
+SDRTRUNK_HOME = os.environ.get("SDRTRUNK_HOME", "/var/lib/sdrtrunk")
+SDRTRUNK_ACTIVE_PROFILE_PATH = os.environ.get(
+    "SDRTRUNK_ACTIVE_PROFILE_PATH",
+    os.path.join(SDRTRUNK_HOME, "active_profile"),
+)
+SDRTRUNK_PROFILE_SYNC_PATH = os.path.join(REPO_ROOT, "scripts", "sdrtrunk_profile_sync.py")
 LAST_HIT_AIRBAND_PATH = "/run/rtl_airband_last_freq_airband.txt"
 LAST_HIT_GROUND_PATH = "/run/rtl_airband_last_freq_ground.txt"
 AVOIDS_DIR = "/home/willminkoff/scannerproject/admin/logs"
@@ -40,30 +51,30 @@ AVOIDS_SUMMARY_PATHS = {
     "ground": os.path.join(AVOIDS_DIR, "ground_avoids.txt"),
 }
 
-ICECAST_PORT = 8000
-MOUNT_NAME = "GND.mp3"
-ICECAST_STATUS_URL = f"http://127.0.0.1:{ICECAST_PORT}/status-json.xsl"
-ICECAST_MOUNT_PATH = f"/{MOUNT_NAME}"
+ICECAST_HOST = os.environ.get("ICECAST_HOST", "127.0.0.1")
+ICECAST_PORT = int(os.environ.get("ICECAST_PORT", "8000"))
+ICECAST_MOUNT_MIXED = os.environ.get("MIX_MOUNT", "GND.mp3")
+ICECAST_MOUNT_AIR = os.environ.get("AIR_MOUNT", "AIR.mp3")
+ICECAST_MOUNT_GROUND = os.environ.get("GROUND_MOUNT", "GROUND.mp3")
+ICECAST_STATUS_URL = f"http://{ICECAST_HOST}:{ICECAST_PORT}/status-json.xsl"
+ICECAST_MOUNT_PATH = f"/{ICECAST_MOUNT_MIXED}"
 ICECAST_HIT_LOG_PATH = "/run/airband_ui_hitlog.jsonl"
 ICECAST_HIT_LOG_LIMIT = 200
 
+GROUND_UNIT = "sdrtrunk" if GROUND_BACKEND == "sdrtrunk" else "rtl-airband-ground"
 UNITS = {
     "rtl": "rtl-airband",
-    "ground": "rtl-airband-ground",
+    "ground": GROUND_UNIT,
     "icecast": "icecast2",
     "keepalive": "icecast-keepalive",
 }
 
-PROFILES = [
+AIRBAND_PROFILES = [
     ("airband", "KBNA (Nashville)", os.path.join(PROFILES_DIR, "rtl_airband_airband.conf")),
     ("none_airband", "No Profile", os.path.join(PROFILES_DIR, "rtl_airband_none_airband.conf")),
     ("tower",  "TOWER (118.600)", os.path.join(PROFILES_DIR, "rtl_airband_tower.conf")),
     ("khop",   "KHOP (Campbell)", os.path.join(PROFILES_DIR, "rtl_airband_khop.conf")),
     ("kmqy",   "KMQY (Smyrna)", os.path.join(PROFILES_DIR, "rtl_airband_kmqy.conf")),
-    ("none_ground", "No Profile", os.path.join(PROFILES_DIR, "rtl_airband_none_ground.conf")),
-    ("gmrs",   "GMRS", os.path.join(PROFILES_DIR, "rtl_airband_gmrs.conf")),
-    ("mtears", "MTEARS", os.path.join(PROFILES_DIR, "rtl_airband_mtears.conf")),
-    ("wx",     "WX (162.550)", os.path.join(PROFILES_DIR, "rtl_airband_wx.conf")),
 ]
 
 RE_GAIN = re.compile(r'^(\s*gain\s*=\s*)([0-9.]+)(\s*;\s*#\s*UI_CONTROLLED.*)$')
@@ -822,7 +833,8 @@ def read_airband_flag(conf_path: str) -> Optional[bool]:
 def write_combined_config() -> bool:
     airband_path = read_active_config_path()
     ground_path = os.path.realpath(GROUND_CONFIG_PATH)
-    combined = build_combined_config(airband_path, ground_path, MIXER_NAME)
+    icecast_mount = ICECAST_MOUNT_AIR if GROUND_BACKEND == "sdrtrunk" else ""
+    combined = build_combined_config(airband_path, ground_path, MIXER_NAME, icecast_mount)
     try:
         with open(COMBINED_CONFIG_PATH, "r", encoding="utf-8", errors="ignore") as f:
             existing = f.read()
@@ -836,21 +848,88 @@ def write_combined_config() -> bool:
     os.replace(tmp, COMBINED_CONFIG_PATH)
     return True
 
+def read_sdrtrunk_active_profile() -> Optional[str]:
+    try:
+        with open(SDRTRUNK_ACTIVE_PROFILE_PATH, "r", encoding="utf-8", errors="ignore") as f:
+            value = f.read().strip()
+            return value or None
+    except FileNotFoundError:
+        return None
+
+def load_sdrtrunk_profiles() -> list:
+    profiles = []
+    manifest_path = os.path.join(SDRTRUNK_PROFILES_DIR, "profiles.json")
+    manifest = None
+    if os.path.exists(manifest_path):
+        try:
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                manifest = json.load(f)
+        except json.JSONDecodeError:
+            manifest = None
+
+    if manifest and isinstance(manifest.get("profiles"), list):
+        entries = manifest.get("profiles", [])
+    else:
+        entries = []
+        try:
+            for name in sorted(os.listdir(SDRTRUNK_PROFILES_DIR)):
+                path = os.path.join(SDRTRUNK_PROFILES_DIR, name)
+                if os.path.isdir(path):
+                    entries.append({"id": name})
+        except FileNotFoundError:
+            entries = []
+
+    for entry in entries:
+        pid = entry.get("id")
+        if not pid:
+            continue
+        profile_dir = os.path.join(SDRTRUNK_PROFILES_DIR, pid)
+        profile_json_path = os.path.join(profile_dir, "profile.json")
+        label = entry.get("label", pid)
+        if os.path.exists(profile_json_path):
+            try:
+                with open(profile_json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    label = data.get("label", label)
+            except json.JSONDecodeError:
+                pass
+        playlist_path = os.path.join(profile_dir, "sdrtrunk", "playlist", "default.xml")
+        exists = os.path.exists(playlist_path)
+        profiles.append({
+            "id": pid,
+            "label": label,
+            "path": playlist_path,
+            "exists": exists,
+            "airband": False,
+        })
+    return profiles
+
+def sync_sdrtrunk_profile(profile_id: str) -> tuple[bool, str]:
+    if not os.path.exists(SDRTRUNK_PROFILE_SYNC_PATH):
+        return False, f"missing sync script: {SDRTRUNK_PROFILE_SYNC_PATH}"
+    cmd = [
+        "/usr/bin/python3",
+        SDRTRUNK_PROFILE_SYNC_PATH,
+        "--profile",
+        profile_id,
+        "--profiles-dir",
+        SDRTRUNK_PROFILES_DIR,
+        "--home",
+        SDRTRUNK_HOME,
+    ]
+    code, out, err = run_cmd_capture(cmd)
+    if code != 0:
+        message = err.strip() or out.strip() or "profile sync failed"
+        return False, message
+    if err.strip():
+        return True, err.strip()
+    return True, ""
+
 def split_profiles():
     prof_payload = []
-    pid_overrides = {
-        "airband": True,
-        "tower": True,
-        "none_airband": True,
-        "gmrs": False,
-        "wx": False,
-        "none_ground": False,
-    }
-    for pid, label, path in PROFILES:
+    for pid, label, path in AIRBAND_PROFILES:
         exists = os.path.exists(path)
-        airband_flag = pid_overrides.get(pid)
-        if airband_flag is None and exists:
-            airband_flag = read_airband_flag(path)
+        airband_flag = True
         prof_payload.append({
             "id": pid,
             "label": label,
@@ -858,8 +937,26 @@ def split_profiles():
             "exists": exists,
             "airband": airband_flag,
         })
-    profiles_airband = [p for p in prof_payload if p.get("airband") is True]
-    profiles_ground = [p for p in prof_payload if p.get("airband") is False]
+    profiles_airband = list(prof_payload)
+
+    profiles_ground = load_sdrtrunk_profiles() if GROUND_BACKEND == "sdrtrunk" else []
+    if GROUND_BACKEND != "sdrtrunk":
+        for pid, label, path in [
+            ("none_ground", "No Profile", os.path.join(PROFILES_DIR, "rtl_airband_none_ground.conf")),
+            ("gmrs", "GMRS", os.path.join(PROFILES_DIR, "rtl_airband_gmrs.conf")),
+            ("mtears", "MTEARS", os.path.join(PROFILES_DIR, "rtl_airband_mtears.conf")),
+            ("wx", "WX (162.550)", os.path.join(PROFILES_DIR, "rtl_airband_wx.conf")),
+        ]:
+            exists = os.path.exists(path)
+            profiles_ground.append({
+                "id": pid,
+                "label": label,
+                "path": path,
+                "exists": exists,
+                "airband": False,
+            })
+
+    prof_payload.extend(profiles_ground)
     return prof_payload, profiles_airband, profiles_ground
 
 def enforce_profile_index(conf_path: str) -> None:
@@ -951,12 +1048,20 @@ def read_last_hit_airband() -> str:
     value = read_last_hit_file(LAST_HIT_AIRBAND_PATH)
     if value:
         return value
+    if GROUND_BACKEND == "sdrtrunk":
+        value = read_last_hit_from_icecast(ICECAST_MOUNT_AIR)
+        if value:
+            return value
     value = read_last_hit_for_range(UNITS["rtl"], True)
     if value:
         return value
     return read_last_hit_from_journal_unit(UNITS["rtl"])
 
 def read_last_hit_ground() -> str:
+    if GROUND_BACKEND == "sdrtrunk":
+        value = read_last_hit_from_icecast(ICECAST_MOUNT_GROUND)
+        if value:
+            return value
     value = read_last_hit_file(LAST_HIT_GROUND_PATH)
     if value:
         return value
@@ -1222,7 +1327,8 @@ def parse_last_hit_freq(target: str) -> Optional[float]:
     if target == "ground":
         value = read_last_hit_ground()
     else:
-        value = read_last_hit_from_icecast() or read_last_hit_airband() or read_last_hit()
+        icecast_mount = ICECAST_MOUNT_AIR if GROUND_BACKEND == "sdrtrunk" else ICECAST_MOUNT_MIXED
+        value = read_last_hit_from_icecast(icecast_mount) or read_last_hit_airband() or read_last_hit()
     if not value:
         return None
     m = re.search(r'[0-9]+(?:\.[0-9]+)?', value)
@@ -1275,7 +1381,14 @@ def write_avoids_summary(target: str, data: dict) -> None:
     if not profiles:
         lines.append("No avoids recorded.")
     else:
-        path_to_label = {path: label for _, label, path in PROFILES}
+        path_to_label = {path: label for _, label, path in AIRBAND_PROFILES}
+        for pid, label, path in [
+            ("none_ground", "No Profile", os.path.join(PROFILES_DIR, "rtl_airband_none_ground.conf")),
+            ("gmrs", "GMRS", os.path.join(PROFILES_DIR, "rtl_airband_gmrs.conf")),
+            ("mtears", "MTEARS", os.path.join(PROFILES_DIR, "rtl_airband_mtears.conf")),
+            ("wx", "WX (162.550)", os.path.join(PROFILES_DIR, "rtl_airband_wx.conf")),
+        ]:
+            path_to_label.setdefault(path, label)
         for conf_path in sorted(profiles.keys()):
             prof = profiles.get(conf_path, {})
             avoids = sorted(prof.get("avoids", []) or [])
@@ -1494,7 +1607,7 @@ def _normalize_icecast_title(value) -> str:
         return value.strip()
     return ""
 
-def extract_icecast_title(status_text: str) -> str:
+def extract_icecast_title(status_text: str, mount_path: str) -> str:
     try:
         data = json.loads(status_text)
     except json.JSONDecodeError:
@@ -1504,23 +1617,24 @@ def extract_icecast_title(status_text: str) -> str:
         return ""
     if not isinstance(sources, list):
         sources = [sources]
+    mount_path = mount_path if mount_path.startswith("/") else f"/{mount_path}"
     for source in sources:
         listenurl = (source.get("listenurl") or "")
         mount = (source.get("mount") or "")
-        if listenurl.endswith(ICECAST_MOUNT_PATH) or mount == ICECAST_MOUNT_PATH:
+        if listenurl.endswith(mount_path) or mount == mount_path:
             for key in ("title", "streamtitle", "yp_currently_playing"):
                 value = _normalize_icecast_title(source.get(key))
                 if value:
                     return value
     return ""
 
-def read_last_hit_from_icecast() -> str:
+def read_last_hit_from_icecast(mount_path: str) -> str:
     try:
         with urllib.request.urlopen(ICECAST_STATUS_URL, timeout=1.5) as resp:
             status_text = resp.read().decode("utf-8", errors="ignore")
     except Exception:
         return ""
-    return extract_icecast_title(status_text)
+    return extract_icecast_title(status_text, mount_path)
 
 def write_diagnostic_log():
     os.makedirs(DIAGNOSTIC_DIR, exist_ok=True)
@@ -1658,6 +1772,22 @@ def execute_action(action: dict) -> dict:
 
 def action_set_profile(profile_id: str, target: str) -> dict:
     _, profiles_airband, profiles_ground = split_profiles()
+    if target == "ground" and GROUND_BACKEND == "sdrtrunk":
+        if not profiles_ground:
+            return {"status": 400, "payload": {"ok": False, "error": "no ground profiles available"}}
+        profile_map = {p["id"]: p for p in profiles_ground}
+        if profile_id not in profile_map:
+            return {"status": 400, "payload": {"ok": False, "error": "unknown profile"}}
+        if not profile_map[profile_id].get("exists"):
+            return {"status": 400, "payload": {"ok": False, "error": "profile missing playlist"}}
+        current_profile = read_sdrtrunk_active_profile()
+        if profile_id == current_profile:
+            return {"status": 200, "payload": {"ok": True, "changed": False}}
+        ok, message = sync_sdrtrunk_profile(profile_id)
+        if not ok:
+            return {"status": 500, "payload": {"ok": False, "error": message}}
+        restart_ground()
+        return {"status": 200, "payload": {"ok": True, "changed": True, "warning": message}}
     if target == "ground":
         conf_path = os.path.realpath(GROUND_CONFIG_PATH)
         profiles = [(p["id"], p["label"], p["path"]) for p in profiles_ground]
@@ -1701,6 +1831,8 @@ def action_set_profile(profile_id: str, target: str) -> dict:
 
 def action_apply_controls(target: str, gain: float, squelch: float) -> dict:
     if target == "ground":
+        if GROUND_BACKEND == "sdrtrunk":
+            return {"status": 200, "payload": {"ok": True, "changed": False}}
         conf_path = GROUND_CONFIG_PATH
     elif target == "airband":
         conf_path = read_active_config_path()
@@ -1718,7 +1850,7 @@ def action_apply_controls(target: str, gain: float, squelch: float) -> dict:
 
 def action_restart(target: str) -> dict:
     if target == "ground":
-        restart_rtl()
+        restart_ground()
     elif target == "airband":
         restart_rtl()
     else:
@@ -1728,6 +1860,8 @@ def action_restart(target: str) -> dict:
 def action_avoid(target: str) -> dict:
     if target not in ("airband", "ground"):
         return {"status": 400, "payload": {"ok": False, "error": "unknown target"}}
+    if target == "ground" and GROUND_BACKEND == "sdrtrunk":
+        return {"status": 400, "payload": {"ok": False, "error": "Avoids not supported for SDRTrunk"}}
     conf_path = os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path()
     stop_rtl()
     try:
@@ -1749,6 +1883,8 @@ def action_avoid(target: str) -> dict:
 def action_avoid_clear(target: str) -> dict:
     if target not in ("airband", "ground"):
         return {"status": 400, "payload": {"ok": False, "error": "unknown target"}}
+    if target == "ground" and GROUND_BACKEND == "sdrtrunk":
+        return {"status": 400, "payload": {"ok": False, "error": "Avoids not supported for SDRTrunk"}}
     conf_path = os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path()
     stop_rtl()
     try:
@@ -1793,8 +1929,22 @@ class Handler(BaseHTTPRequestHandler):
             prof_payload, profiles_airband, profiles_ground = split_profiles()
             missing = [p["path"] for p in prof_payload if not p.get("exists")]
             profile_airband = guess_current_profile(conf_path, [(p["id"], p["label"], p["path"]) for p in profiles_airband])
-            profile_ground = guess_current_profile(os.path.realpath(GROUND_CONFIG_PATH), [(p["id"], p["label"], p["path"]) for p in profiles_ground])
-            icecast_hit = read_last_hit_from_icecast() if ice_ok else ""
+            if GROUND_BACKEND == "sdrtrunk":
+                active_ground = read_sdrtrunk_active_profile()
+                profile_ids = [p["id"] for p in profiles_ground]
+                if active_ground in profile_ids:
+                    profile_ground = active_ground
+                elif profiles_ground:
+                    profile_ground = profiles_ground[0]["id"]
+                else:
+                    profile_ground = ""
+            else:
+                profile_ground = guess_current_profile(os.path.realpath(GROUND_CONFIG_PATH), [(p["id"], p["label"], p["path"]) for p in profiles_ground])
+            if ice_ok:
+                icecast_mount = ICECAST_MOUNT_GROUND if GROUND_BACKEND == "sdrtrunk" else ICECAST_MOUNT_MIXED
+                icecast_hit = read_last_hit_from_icecast(icecast_mount)
+            else:
+                icecast_hit = ""
             update_icecast_hit_log(icecast_hit)
             last_hit_airband = read_last_hit_airband()
             last_hit_ground = read_last_hit_ground()

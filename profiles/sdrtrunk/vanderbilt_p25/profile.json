@@ -1,0 +1,12 @@
+{
+  "id": "vanderbilt_p25",
+  "label": "Vanderbilt P25 (Site 7078)",
+  "type": "p25",
+  "system": "Vanderbilt University (Nashville) Site 7078",
+  "control_channels_mhz": [
+    451.0
+  ],
+  "voice_channels_mhz": [],
+  "talkgroups_file": "trunk-recorder/p25_talkgroups.json",
+  "notes": "From profiles/trunking/p25_profile.json; update control/voice channels as needed."
+}

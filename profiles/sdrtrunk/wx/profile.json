@@ -1,0 +1,14 @@
+{
+  "id": "wx",
+  "label": "WX (162.550)",
+  "type": "conventional",
+  "modulation": "NBFM",
+  "bandwidth_hz": 5000,
+  "frequencies_mhz": [
+    162.55
+  ],
+  "labels": [
+    "162.550 WX"
+  ],
+  "notes": "Derived from profiles/rtl_airband_wx.conf"
+}

@@ -7,6 +7,7 @@ Wants=rtl-airband-last-hit.service
 
 [Service]
 Type=simple
+EnvironmentFile=-/etc/default/rtl-airband
 ExecStartPre=-/usr/bin/pkill -x rtl_airband
 ExecStartPre=/usr/bin/python3 /home/willminkoff/scannerproject/scripts/build-combined-config.py
 ExecStart=/usr/local/bin/rtl_airband -F -e -c /usr/local/etc/rtl_airband_combined.conf

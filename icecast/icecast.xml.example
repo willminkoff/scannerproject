@@ -24,7 +24,23 @@
     <port>8000</port>
   </listen-socket>
 
-  <!-- Keep /GND.mp3 "always alive": if rtl_airband disconnects, listeners fall back to /keepalive.mp3 -->
+  <!-- Airband source (rtl_airband) -->
+  <mount>
+    <mount-name>/AIR.mp3</mount-name>
+    <type>audio/mpeg</type>
+    <fallback-mount>/keepalive.mp3</fallback-mount>
+    <fallback-override>1</fallback-override>
+  </mount>
+
+  <!-- Ground source (SDRTrunk) -->
+  <mount>
+    <mount-name>/GROUND.mp3</mount-name>
+    <type>audio/mpeg</type>
+    <fallback-mount>/keepalive.mp3</fallback-mount>
+    <fallback-override>1</fallback-override>
+  </mount>
+
+  <!-- Mixed output -->
   <mount>
     <mount-name>/GND.mp3</mount-name>
     <type>audio/mpeg</type>
