@@ -1453,6 +1453,38 @@ def fetch_local_icecast_status():
     except Exception as e:
         return f"ERROR: {e}"
 
+def _find_git_root(start_path: str) -> Optional[str]:
+    path = os.path.abspath(start_path)
+    if os.path.isfile(path):
+        path = os.path.dirname(path)
+    while True:
+        if os.path.isdir(os.path.join(path, ".git")):
+            return path
+        parent = os.path.dirname(path)
+        if parent == path:
+            return None
+        path = parent
+
+def _commit_diagnostic_log(path: str) -> None:
+    repo_root = _find_git_root(path)
+    if not repo_root:
+        raise RuntimeError("Unable to locate git repo for diagnostic log")
+    rel_path = os.path.relpath(path, repo_root)
+    code, _, err = run_cmd_capture(["git", "-C", repo_root, "add", rel_path])
+    if code != 0:
+        raise RuntimeError(f"git add failed: {err.strip()}")
+    code, out, err = run_cmd_capture(
+        ["git", "-C", repo_root, "diff", "--cached", "--name-only", "--", rel_path]
+    )
+    if code != 0:
+        raise RuntimeError(f"git diff failed: {err.strip()}")
+    if not out.strip():
+        return
+    message = f"Add diagnostic log {os.path.basename(path)}"
+    code, _, err = run_cmd_capture(["git", "-C", repo_root, "commit", "-m", message])
+    if code != 0:
+        raise RuntimeError(f"git commit failed: {err.strip()}")
+
 def _normalize_icecast_title(value) -> str:
     if value is None:
         return ""
@@ -1537,6 +1569,7 @@ def write_diagnostic_log():
     with open(tmp, "w", encoding="utf-8") as f:
         f.write("\n".join(lines).rstrip() + "\n")
     os.replace(tmp, path)
+    _commit_diagnostic_log(path)
     return path
 
 def restart_rtl():
