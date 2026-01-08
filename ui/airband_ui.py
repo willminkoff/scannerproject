@@ -6,10 +6,19 @@ import re
 import subprocess
 import time
 import urllib.request
+import threading
+import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 from urllib.parse import parse_qs, urlparse
 from typing import Optional
+from collections import deque
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
+from combined_config import build_combined_config
 
 UI_PORT = 5050
 
@@ -67,9 +76,6 @@ RE_INDEX = re.compile(r'^(\s*index\s*=\s*)(\d+)(\s*;.*)$')
 RE_SERIAL = re.compile(r'^\s*serial\s*=\s*"[^\"]*"\s*;\s*$', re.I)
 RE_FREQS_BLOCK = re.compile(r'(^\s*freqs\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)
 RE_LABELS_BLOCK = re.compile(r'(^\s*labels\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)
-RE_OUTPUTS_BLOCK = re.compile(r'outputs:\s*\(\s*.*?\)\s*;', re.S)
-RE_ICECAST_BLOCK = re.compile(r'\{\s*[^{}]*type\s*=\s*"icecast"[^{}]*\}', re.S)
-RE_MOUNTPOINT = re.compile(r'(\s*mountpoint\s*=\s*)\"/?([^\";]+)\"(\s*;)', re.I)
 RE_ACTIVITY = re.compile(r'Activity on ([0-9]+\.[0-9]+)')
 RE_ACTIVITY_TS = re.compile(
     r'^(?P<date>\d{4}-\d{2}-\d{2})[ T](?P<time>\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:[+-]\d{2}:?\d{2}|[A-Z]{2,5})?\s+.*Activity on (?P<freq>[0-9]+\.[0-9]+)'
@@ -82,6 +88,78 @@ GAIN_STEPS = [
     16.6, 19.7, 20.7, 22.9, 25.4, 28.0, 29.7, 32.8, 33.8,
     36.4, 37.2, 38.6, 40.2, 42.1, 43.4, 43.9, 44.5, 48.0, 49.6,
 ]
+
+APPLY_DEBOUNCE_SEC = 0.35
+ACTION_QUEUE = deque()
+ACTION_COND = threading.Condition()
+
+def enqueue_action(action: dict) -> dict:
+    waiter = {"event": threading.Event(), "result": None}
+    action["waiters"] = [waiter]
+    with ACTION_COND:
+        ACTION_QUEUE.append(action)
+        ACTION_COND.notify()
+    waiter["event"].wait()
+    return waiter["result"] or {"status": 500, "payload": {"ok": False, "error": "no result"}}
+
+def enqueue_apply(target: str, gain: float, squelch: float) -> dict:
+    waiter = {"event": threading.Event(), "result": None}
+    now = time.monotonic()
+    with ACTION_COND:
+        if ACTION_QUEUE:
+            last = ACTION_QUEUE[-1]
+            if last.get("type") == "apply" and last.get("target") == target:
+                last["gain"] = gain
+                last["squelch"] = squelch
+                last["ready_at"] = now + APPLY_DEBOUNCE_SEC
+                last["waiters"].append(waiter)
+                ACTION_COND.notify()
+            else:
+                ACTION_QUEUE.append({
+                    "type": "apply",
+                    "target": target,
+                    "gain": gain,
+                    "squelch": squelch,
+                    "ready_at": now + APPLY_DEBOUNCE_SEC,
+                    "waiters": [waiter],
+                })
+                ACTION_COND.notify()
+        else:
+            ACTION_QUEUE.append({
+                "type": "apply",
+                "target": target,
+                "gain": gain,
+                "squelch": squelch,
+                "ready_at": now + APPLY_DEBOUNCE_SEC,
+                "waiters": [waiter],
+            })
+            ACTION_COND.notify()
+    waiter["event"].wait()
+    return waiter["result"] or {"status": 500, "payload": {"ok": False, "error": "no result"}}
+
+def _finish_action(action: dict, result: dict) -> None:
+    for waiter in action.get("waiters", []):
+        waiter["result"] = result
+        waiter["event"].set()
+
+def config_worker() -> None:
+    while True:
+        with ACTION_COND:
+            while not ACTION_QUEUE:
+                ACTION_COND.wait()
+            action = ACTION_QUEUE[0]
+            if action.get("type") == "apply":
+                delay = action.get("ready_at", 0) - time.monotonic()
+                if delay > 0:
+                    ACTION_COND.wait(timeout=delay)
+                    continue
+            action = ACTION_QUEUE.popleft()
+
+        try:
+            result = execute_action(action)
+        except Exception as e:
+            result = {"status": 500, "payload": {"ok": False, "error": str(e)}}
+        _finish_action(action, result)
 
 HTML = r"""<!doctype html>
 <html>
@@ -741,192 +819,10 @@ def read_airband_flag(conf_path: str) -> Optional[bool]:
         return None
     return None
 
-def extract_top_level_settings(text: str) -> list:
-    lines = []
-    for line in text.splitlines():
-        if line.strip().startswith("devices:"):
-            break
-        if not line.strip() or line.lstrip().startswith("#"):
-            continue
-        if RE_AIRBAND.match(line):
-            continue
-        if RE_UI_DISABLED.match(line):
-            continue
-        lines.append(line.rstrip())
-    return lines
-
-def extract_devices_payload(text: str) -> str:
-    idx = text.find("devices:")
-    if idx == -1:
-        return ""
-    start = text.find("(", idx)
-    if start == -1:
-        return ""
-    depth = 0
-    for i in range(start, len(text)):
-        ch = text[i]
-        if ch == "(":
-            depth += 1
-        elif ch == ")":
-            depth -= 1
-            if depth == 0:
-                return text[start + 1:i].strip()
-    return ""
-
-def enforce_device_index(text: str, desired_index: int) -> str:
-    changed = False
-    out_lines = []
-    insert_at = None
-    for idx, line in enumerate(text.splitlines()):
-        if insert_at is None and "{" in line:
-            insert_at = idx + 1
-        match = RE_INDEX.match(line)
-        if match:
-            out_lines.append(f"  index = {desired_index};")
-            changed = True
-        else:
-            out_lines.append(line)
-    if not changed:
-        if insert_at is None:
-            insert_at = 0
-        out_lines.insert(insert_at, f"  index = {desired_index};")
-    return "\n".join(out_lines)
-
-def enforce_device_serial(text: str, desired_serial: str) -> str:
-    changed = False
-    out_lines = []
-    insert_at = None
-    for idx, line in enumerate(text.splitlines()):
-        if insert_at is None and "{" in line:
-            insert_at = idx + 1
-        if RE_SERIAL.match(line):
-            out_lines.append(f"  serial = \"{desired_serial}\";")
-            changed = True
-        else:
-            out_lines.append(line)
-    if not changed and desired_serial:
-        if insert_at is None:
-            insert_at = 0
-        out_lines.insert(insert_at, f"  serial = \"{desired_serial}\";")
-    return "\n".join(out_lines)
-
-def replace_outputs_with_mixer(text: str) -> str:
-    replacement = [
-        "      outputs:",
-        "      (",
-        "        {",
-        f"          type = \"mixer\";",
-        f"          name = \"{MIXER_NAME}\";",
-        "        }",
-        "      );",
-    ]
-    lines = text.splitlines()
-    out_lines = []
-    in_outputs = False
-    depth = 0
-    for line in lines:
-        tokens = line.strip().split()
-        if not in_outputs and tokens and tokens[0] == "outputs:":
-            in_outputs = True
-            depth = line.count("(") - line.count(")")
-            out_lines.extend(replacement)
-            continue
-        if in_outputs:
-            depth += line.count("(") - line.count(")")
-            if depth <= 0 and ");" in line:
-                in_outputs = False
-            continue
-        out_lines.append(line)
-    return "\n".join(out_lines)
-
-def normalize_mountpoint(text: str) -> str:
-    return RE_MOUNTPOINT.sub(lambda m: f"{m.group(1)}\"{m.group(2)}\"{m.group(3)}", text)
-
-def extract_icecast_block(text: str) -> str:
-    match = RE_ICECAST_BLOCK.search(text)
-    if not match:
-        return ""
-    return normalize_mountpoint(match.group(0))
-
-def indent_block(text: str, spaces: int) -> str:
-    pad = " " * spaces
-    return "\n".join(pad + line.rstrip() for line in text.strip().splitlines())
-
-def build_combined_config(airband_path: str, ground_path: str) -> str:
-    with open(airband_path, "r", encoding="utf-8", errors="ignore") as f:
-        airband_text = f.read()
-    with open(ground_path, "r", encoding="utf-8", errors="ignore") as f:
-        ground_text = f.read()
-    airband_disabled = bool(RE_UI_DISABLED.search(airband_text))
-    ground_disabled = bool(RE_UI_DISABLED.search(ground_text))
-
-    top_lines = []
-    seen = set()
-    for line in extract_top_level_settings(airband_text) + extract_top_level_settings(ground_text):
-        if line not in seen:
-            seen.add(line)
-            top_lines.append(line)
-
-    device_payloads = []
-    payloads = [
-        (airband_text, 1, airband_disabled, "00000001"),
-        (ground_text, 0, ground_disabled, "70613472"),
-    ]
-    for text, desired_index, disabled, serial in payloads:
-        if disabled:
-            continue
-        payload = extract_devices_payload(text)
-        if payload:
-            payload = enforce_device_index(payload, desired_index)
-            payload = enforce_device_serial(payload, serial)
-            payload = replace_outputs_with_mixer(payload)
-            device_payloads.append(payload.strip().rstrip(","))
-
-    if not device_payloads and not (airband_disabled and ground_disabled):
-        raise ValueError("No devices block found in profiles")
-
-    icecast_block = extract_icecast_block(airband_text) or extract_icecast_block(ground_text)
-    if not icecast_block:
-        icecast_block = (
-            "{\n"
-            "  type = \"icecast\";\n"
-            "  server = \"127.0.0.1\";\n"
-            "  port = 8000;\n"
-            "  mountpoint = \"GND.mp3\";\n"
-            "  username = \"source\";\n"
-            "  password = \"062352\";\n"
-            "  name = \"SprontPi Radio\";\n"
-            "  genre = \"Mixed\";\n"
-            "  bitrate = 32;\n"
-            "}"
-        )
-
-    combined = []
-    combined.append("# Auto-generated by build-combined-config.py. Do not edit directly.")
-    combined.append("")
-    combined.extend(top_lines)
-    if top_lines:
-        combined.append("")
-    combined.append("mixers: {")
-    combined.append(f"  {MIXER_NAME}: {{")
-    combined.append("    outputs:")
-    combined.append("    (")
-    combined.append(indent_block(icecast_block, 6))
-    combined.append("    );")
-    combined.append("  };")
-    combined.append("};")
-    combined.append("")
-    combined.append("devices:")
-    combined.append("(")
-    combined.append(",\n".join(indent_block(payload, 2) for payload in device_payloads))
-    combined.append(");")
-    combined.append("")
-    return "\n".join(combined)
-
 def write_combined_config() -> bool:
     airband_path = read_active_config_path()
     ground_path = os.path.realpath(GROUND_CONFIG_PATH)
-    combined = build_combined_config(airband_path, ground_path)
+    combined = build_combined_config(airband_path, ground_path, MIXER_NAME)
     try:
         with open(COMBINED_CONFIG_PATH, "r", encoding="utf-8", errors="ignore") as f:
             existing = f.read()
@@ -1713,6 +1609,131 @@ def guess_current_profile(conf_realpath: str, profiles):
 def icecast_up():
     return unit_active(UNITS["icecast"])
 
+def execute_action(action: dict) -> dict:
+    action_type = action.get("type")
+    if action_type == "apply":
+        return action_apply_controls(action.get("target"), action.get("gain"), action.get("squelch"))
+    if action_type == "profile":
+        return action_set_profile(action.get("profile"), action.get("target"))
+    if action_type == "restart":
+        return action_restart(action.get("target"))
+    if action_type == "avoid":
+        return action_avoid(action.get("target"))
+    if action_type == "avoid_clear":
+        return action_avoid_clear(action.get("target"))
+    return {"status": 400, "payload": {"ok": False, "error": "unknown action"}}
+
+def action_set_profile(profile_id: str, target: str) -> dict:
+    _, profiles_airband, profiles_ground = split_profiles()
+    if target == "ground":
+        conf_path = os.path.realpath(GROUND_CONFIG_PATH)
+        profiles = [(p["id"], p["label"], p["path"]) for p in profiles_ground]
+        unit_stop = stop_rtl
+        unit_start = start_rtl
+        unit_restart = restart_rtl
+        target_symlink = GROUND_CONFIG_PATH
+    else:
+        conf_path = read_active_config_path()
+        profiles = [(p["id"], p["label"], p["path"]) for p in profiles_airband]
+        unit_stop = stop_rtl
+        unit_start = start_rtl
+        unit_restart = restart_rtl
+        target_symlink = CONFIG_SYMLINK
+
+    if not profiles:
+        return {"status": 400, "payload": {"ok": False, "error": "no profiles available"}}
+
+    current_profile = guess_current_profile(conf_path, profiles)
+    did_stop = False
+    if profile_id and profile_id != current_profile:
+        unit_stop()
+        did_stop = True
+    ok, changed = set_profile(profile_id, conf_path, profiles, target_symlink)
+    if ok:
+        try:
+            combined_changed = write_combined_config()
+        except Exception as e:
+            if did_stop:
+                unit_start()
+            return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
+        changed = changed or combined_changed
+        if changed:
+            unit_restart()
+        elif did_stop:
+            unit_start()
+        return {"status": 200, "payload": {"ok": True, "changed": changed}}
+    if did_stop:
+        unit_start()
+    return {"status": 400, "payload": {"ok": False, "error": "unknown profile"}}
+
+def action_apply_controls(target: str, gain: float, squelch: float) -> dict:
+    if target == "ground":
+        conf_path = GROUND_CONFIG_PATH
+    elif target == "airband":
+        conf_path = read_active_config_path()
+    else:
+        return {"status": 400, "payload": {"ok": False, "error": "unknown target"}}
+    try:
+        changed = write_controls(conf_path, gain, squelch)
+        combined_changed = write_combined_config()
+        changed = changed or combined_changed
+    except Exception as e:
+        return {"status": 500, "payload": {"ok": False, "error": str(e)}}
+    if changed:
+        restart_rtl()
+    return {"status": 200, "payload": {"ok": True, "changed": changed}}
+
+def action_restart(target: str) -> dict:
+    if target == "ground":
+        restart_rtl()
+    elif target == "airband":
+        restart_rtl()
+    else:
+        return {"status": 400, "payload": {"ok": False, "error": "unknown target"}}
+    return {"status": 200, "payload": {"ok": True}}
+
+def action_avoid(target: str) -> dict:
+    if target not in ("airband", "ground"):
+        return {"status": 400, "payload": {"ok": False, "error": "unknown target"}}
+    conf_path = os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path()
+    stop_rtl()
+    try:
+        freq, err = avoid_current_hit(conf_path, target)
+    except Exception as e:
+        start_rtl()
+        return {"status": 500, "payload": {"ok": False, "error": str(e)}}
+    if err:
+        start_rtl()
+        return {"status": 400, "payload": {"ok": False, "error": err}}
+    try:
+        write_combined_config()
+    except Exception as e:
+        start_rtl()
+        return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
+    restart_rtl()
+    return {"status": 200, "payload": {"ok": True, "freq": f"{freq:.4f}"}}
+
+def action_avoid_clear(target: str) -> dict:
+    if target not in ("airband", "ground"):
+        return {"status": 400, "payload": {"ok": False, "error": "unknown target"}}
+    conf_path = os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path()
+    stop_rtl()
+    try:
+        _, err = clear_avoids(conf_path, target)
+    except Exception as e:
+        start_rtl()
+        return {"status": 500, "payload": {"ok": False, "error": str(e)}}
+    if err:
+        start_rtl()
+        return {"status": 400, "payload": {"ok": False, "error": err}}
+    try:
+        write_combined_config()
+    except Exception as e:
+        start_rtl()
+        return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
+    restart_rtl()
+    return {"status": 200, "payload": {"ok": True}}
+
 class Handler(BaseHTTPRequestHandler):
     def _send(self, code, body, ctype="text/html; charset=utf-8"):
         self.send_response(code)
@@ -1786,135 +1807,36 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/profile":
             pid = form.get("profile", "")
             target = form.get("target", "airband")
-            _, profiles_airband, profiles_ground = split_profiles()
-            if target == "ground":
-                conf_path = os.path.realpath(GROUND_CONFIG_PATH)
-                profiles = [(p["id"], p["label"], p["path"]) for p in profiles_ground]
-                unit_stop = stop_rtl
-                unit_start = start_rtl
-                unit_restart = restart_rtl
-                target_symlink = GROUND_CONFIG_PATH
-            else:
-                conf_path = read_active_config_path()
-                profiles = [(p["id"], p["label"], p["path"]) for p in profiles_airband]
-                unit_stop = stop_rtl
-                unit_start = start_rtl
-                unit_restart = restart_rtl
-                target_symlink = CONFIG_SYMLINK
-
-            if not profiles:
-                return self._send(400, json.dumps({"ok": False, "error": "no profiles available"}), "application/json; charset=utf-8")
-
-            current_profile = guess_current_profile(conf_path, profiles)
-            did_stop = False
-            if pid and pid != current_profile:
-                unit_stop()
-                did_stop = True
-            ok, changed = set_profile(pid, conf_path, profiles, target_symlink)
-            if ok:
-                try:
-                    combined_changed = write_combined_config()
-                except Exception as e:
-                    if did_stop:
-                        unit_start()
-                    return self._send(500, json.dumps({"ok": False, "error": f"combine failed: {e}"}), "application/json; charset=utf-8")
-                changed = changed or combined_changed
-                if changed:
-                    unit_restart()
-                elif did_stop:
-                    unit_start()
-                return self._send(200, json.dumps({"ok": True, "changed": changed}), "application/json; charset=utf-8")
-            if did_stop:
-                unit_start()
-            return self._send(400, json.dumps({"ok": False, "error": "unknown profile"}), "application/json; charset=utf-8")
+            result = enqueue_action({"type": "profile", "profile": pid, "target": target})
+            return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
 
         if p == "/api/apply":
             target = form.get("target", "airband")
-            if target == "ground":
-                conf_path = GROUND_CONFIG_PATH
-                control_unit = "rtl"
-            elif target == "airband":
-                conf_path = read_active_config_path()
-                control_unit = "rtl"
-            else:
+            if target not in ("airband", "ground"):
                 return self._send(400, json.dumps({"ok": False, "error": "unknown target"}), "application/json; charset=utf-8")
             try:
                 gain = float(form.get("gain", "32.8"))
                 squelch = float(form.get("squelch", "10.0"))
             except ValueError:
-                if target == "ground":
-                    start_rtl()
-                else:
-                    start_rtl()
+                start_rtl()
                 return self._send(400, json.dumps({"ok": False, "error": "bad values"}), "application/json; charset=utf-8")
-
-            try:
-                changed = write_controls(conf_path, gain, squelch)
-                combined_changed = write_combined_config()
-                changed = changed or combined_changed
-            except Exception as e:
-                return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
-
-            if changed:
-                if target == "ground":
-                    restart_rtl()
-                else:
-                    restart_rtl()
-            return self._send(200, json.dumps({"ok": True, "changed": changed}), "application/json; charset=utf-8")
+            result = enqueue_apply(target, gain, squelch)
+            return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
 
         if p == "/api/restart":
             target = form.get("target", "airband")
-            if target == "ground":
-                restart_rtl()
-            elif target == "airband":
-                restart_rtl()
-            else:
-                return self._send(400, json.dumps({"ok": False, "error": "unknown target"}), "application/json; charset=utf-8")
-            return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
+            result = enqueue_action({"type": "restart", "target": target})
+            return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
 
         if p == "/api/avoid":
             target = form.get("target", "airband")
-            if target not in ("airband", "ground"):
-                return self._send(400, json.dumps({"ok": False, "error": "unknown target"}), "application/json; charset=utf-8")
-            conf_path = os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path()
-            stop_rtl()
-            try:
-                freq, err = avoid_current_hit(conf_path, target)
-            except Exception as e:
-                start_rtl()
-                return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
-            if err:
-                start_rtl()
-                return self._send(400, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
-            try:
-                write_combined_config()
-            except Exception as e:
-                start_rtl()
-                return self._send(500, json.dumps({"ok": False, "error": f"combine failed: {e}"}), "application/json; charset=utf-8")
-            restart_rtl()
-            return self._send(200, json.dumps({"ok": True, "freq": f"{freq:.4f}"}), "application/json; charset=utf-8")
+            result = enqueue_action({"type": "avoid", "target": target})
+            return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
 
         if p == "/api/avoid-clear":
             target = form.get("target", "airband")
-            if target not in ("airband", "ground"):
-                return self._send(400, json.dumps({"ok": False, "error": "unknown target"}), "application/json; charset=utf-8")
-            conf_path = os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path()
-            stop_rtl()
-            try:
-                _, err = clear_avoids(conf_path, target)
-            except Exception as e:
-                start_rtl()
-                return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
-            if err:
-                start_rtl()
-                return self._send(400, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
-            try:
-                write_combined_config()
-            except Exception as e:
-                start_rtl()
-                return self._send(500, json.dumps({"ok": False, "error": f"combine failed: {e}"}), "application/json; charset=utf-8")
-            restart_rtl()
-            return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
+            result = enqueue_action({"type": "avoid_clear", "target": target})
+            return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
 
         if p == "/api/diagnostic":
             try:
@@ -1928,7 +1850,12 @@ class Handler(BaseHTTPRequestHandler):
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
 
+def start_config_worker() -> None:
+    thread = threading.Thread(target=config_worker, daemon=True)
+    thread.start()
+
 def main():
+    start_config_worker()
     server = ThreadedHTTPServer(("0.0.0.0", UI_PORT), Handler)
     print(f"UI listening on 0.0.0.0:{UI_PORT}")
     server.serve_forever()
