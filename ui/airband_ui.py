@@ -251,9 +251,6 @@ HTML = r"""<!doctype html>
     .hidden { display:none; }
     .nav { display:flex; align-items:center; gap:10px; margin-bottom: 12px; }
     .nav button { padding:8px 12px; }
-    .traffic-indicator { display:inline-block; width:8px; height:8px; border-radius:50%; background:transparent; margin-left:6px; transition:all 0.2s ease; }
-    .traffic-indicator.active { background:#22c55e; box-shadow:0 0 8px rgba(34,197,94,0.6); animation:pulse 1s infinite; }
-    @keyframes pulse { 0%, 100% { opacity:1; } 50% { opacity:0.5; } }
     .hit-list { display:flex; flex-direction:column; gap:8px; }
     .hit-row { display:grid; grid-template-columns: 90px 1fr 90px; gap:8px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background: rgba(255,255,255,.02); font-size: 13px; }
     .hit-row.head { font-size: 12px; color: var(--muted); background: transparent; border-style: dashed; }
@@ -290,8 +287,8 @@ HTML = r"""<!doctype html>
         </div>
 
         <div class="tabs">
-          <button type="button" class="tab active" id="tab-airband">Airband <span class="traffic-indicator" id="traffic-airband"></span></button>
-          <button type="button" class="tab" id="tab-ground">Ground <span class="traffic-indicator" id="traffic-ground"></span></button>
+          <button type="button" class="tab active" id="tab-airband">Airband</button>
+          <button type="button" class="tab" id="tab-ground">Ground</button>
         </div>
         <div class="swipe-hint">Swipe between airband and ground controls.</div>
 
@@ -373,12 +370,6 @@ const viewHitsEl = document.getElementById('view-hits');
 const hitListEl = document.getElementById('hit-list');
 const tabAirbandEl = document.getElementById('tab-airband');
 const tabGroundEl = document.getElementById('tab-ground');
-const trafficAirbandEl = document.getElementById('traffic-airband');
-const trafficGroundEl = document.getElementById('traffic-ground');
-let lastAirbandListeners = 0;
-let lastGroundListeners = 0;
-let trafficTimeoutAirband = null;
-let trafficTimeoutGround = null;
 const pagerEl = document.getElementById('pager');
 const pagerInnerEl = document.getElementById('pager-inner');
 const btnRestartAirbandEl = document.getElementById('btn-restart-airband');
@@ -564,30 +555,11 @@ function setControlsFromStatus(target, gain, squelch, allowSetSliders) {
 
 async function refresh(allowSetSliders=false) {
   const st = await getJSON('/api/status');
-  const statusData = st;  // Store for later use
 
   const airbandHit = formatHitLabel(st.last_hit_airband) || '—';
   const groundHit = formatHitLabel(st.last_hit_ground) || '—';
   document.getElementById('txt-hit-airband').textContent = airbandHit;
   document.getElementById('txt-hit-ground').textContent = groundHit;
-  
-  // Update traffic indicators based on listener/audio activity (most reliable)
-  if (statusData && statusData.icecast_sources && Array.isArray(statusData.icecast_sources)) {
-    const gndSource = statusData.icecast_sources.find(s => s.listenurl && s.listenurl.includes('/GND.mp3'));
-    if (gndSource) {
-      const currentListeners = gndSource.listeners || 0;
-      // When listeners spike (audio being streamed), light up indicator
-      if (currentListeners > lastAirbandListeners) {
-        lastAirbandListeners = currentListeners;
-        trafficAirbandEl.classList.add('active');
-        clearTimeout(trafficTimeoutAirband);
-        trafficTimeoutAirband = setTimeout(() => {
-          trafficAirbandEl.classList.remove('active');
-          lastAirbandListeners = 0;
-        }, 2000);
-      }
-    }
-  }
 
   setControlsFromStatus('airband', st.airband_gain, st.airband_squelch, allowSetSliders);
   setControlsFromStatus('ground', st.ground_gain, st.ground_squelch, allowSetSliders);
@@ -1831,19 +1803,6 @@ class Handler(BaseHTTPRequestHandler):
             update_icecast_hit_log(icecast_hit)
             last_hit_airband = read_last_hit_airband()
             last_hit_ground = read_last_hit_ground()
-            
-            # Get icecast sources for stream activity monitoring
-            icecast_sources = []
-            if ice_ok:
-                try:
-                    with urllib.request.urlopen(f"http://127.0.0.1:{ICECAST_PORT}/status-json.xsl", timeout=1.5) as resp:
-                        icecast_data = json.loads(resp.read().decode("utf-8", errors="ignore"))
-                        sources = icecast_data.get("icestats", {}).get("source", [])
-                        if not isinstance(sources, list):
-                            sources = [sources]
-                        icecast_sources = sources
-                except Exception:
-                    pass
 
             payload = {
                 "rtl_active": rtl_ok,
@@ -1867,7 +1826,6 @@ class Handler(BaseHTTPRequestHandler):
                 "last_hit_ground": last_hit_ground,
                 "avoids_airband": summarize_avoids(conf_path, "airband"),
                 "avoids_ground": summarize_avoids(os.path.realpath(GROUND_CONFIG_PATH), "ground"),
-                "icecast_sources": icecast_sources,
             }
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         if p == "/api/hits":
