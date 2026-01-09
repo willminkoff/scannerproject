@@ -44,16 +44,23 @@ def format_metadata(status):
         return None, None
     
     try:
-        # Extract relevant fields
-        frequency = status.get("frequency", "Unknown")
-        mode = status.get("mode", "Unknown")
-        gain = status.get("gain", "N/A")
-        squelch = status.get("squelch", "N/A")
+        # Determine which profile is active and get corresponding frequency
+        airband_active = status.get("rtl_active", False) and not status.get("ground_active", False)
+        ground_active = status.get("ground_active", False)
         
-        # Format: "Freq - Mode (Gain/Squelch)"
-        title = f"{frequency} - {mode}"
-        artist = f"SprontPi Scanner"
-        comment = f"Gain: {gain}dB | Squelch: {squelch}"
+        if airband_active:
+            frequency = status.get("last_hit_airband", "Unknown")
+            profile = status.get("profile_airband", "Airband").upper()
+        elif ground_active:
+            frequency = status.get("last_hit_ground", "Unknown")
+            profile = status.get("profile_ground", "Ground").upper()
+        else:
+            frequency = "Scanning"
+            profile = "Scanner"
+        
+        # Format: "Frequency - Profile"
+        title = f"{frequency} - {profile}"
+        artist = "SprontPi Scanner"
         
         return title, artist
     except (KeyError, TypeError) as e:
