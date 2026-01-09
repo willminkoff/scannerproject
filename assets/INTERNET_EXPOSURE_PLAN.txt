@@ -1,0 +1,93 @@
+PLAN TO EXPOSE UI AND ICECAST TO THE INTERNET
+==============================================
+
+CURRENT SETUP
+- UI: Runs on 0.0.0.0:5050 (Python HTTP server in ui/airband_ui.py)
+- Icecast: Runs on localhost port 8000 (configured in ui/airband_ui.py)
+- Both are isolated to localhost/internal network
+
+
+STEP 1: NETWORK INFRASTRUCTURE
+1. Choose a forwarding approach:
+   - Option A (Recommended): Reverse proxy (Nginx/Apache) on the local machine
+     * Single entry point, better security
+     * Handles HTTPS termination
+     * Can add authentication
+   
+   - Option B: Port forwarding on your router
+     * Direct exposure (less secure)
+     * Simpler setup but requires managing firewall rules
+
+2. Security prerequisites:
+   - Set up a domain name (for HTTPS certificates)
+   - Obtain SSL/TLS certificate (Let's Encrypt - free)
+   - Configure firewall rules on the host machine
+
+
+STEP 2: REVERSE PROXY SETUP (NGINX) - RECOMMENDED
+1. Install Nginx and configure it to:
+   - Listen on ports 80 (HTTP) and 443 (HTTPS)
+   - Route /ui/* or root / to localhost:5050 (your UI)
+   - Route /stream/* or dedicated subdomain to localhost:8000 (Icecast)
+
+2. Enable HTTPS with Let's Encrypt (auto-renewal)
+
+3. Add authentication (optional):
+   - HTTP Basic Auth or more sophisticated auth to protect the UI
+   - Stream can remain public or be protected
+
+
+STEP 3: ICECAST CONFIGURATION CHANGES
+Current: Icecast only listens on 127.0.0.1:8000
+
+1. Modify icecast.xml.example to:
+   - Change bind address from 127.0.0.1 to 0.0.0.0 or keep it behind proxy
+   - Ensure source password is secure
+   - Update mountpoint URL references
+
+2. If using proxy: Keep Icecast on localhost (safer)
+   If direct exposure: Bind to 0.0.0.0 and secure with firewall rules
+
+
+STEP 4: UI CONFIGURATION CHANGES
+1. Update ui/airband_ui.py if needed:
+   - Already listens on 0.0.0.0:5050 ✓
+   - Update hardcoded 127.0.0.1:8000 references to work with proxy URLs
+   - Modify ICECAST_STATUS_URL to use proxied path
+
+2. Client-side (HTML in airband_ui.py):
+   - Update fetch URLs to use relative paths or proxy URLs
+   - Ensure stream URLs point to the public address
+
+
+STEP 5: SYSTEMD SERVICE UPDATES
+Update systemd/airband-ui.service and systemd/icecast-keepalive.service:
+- Add environment variables for public URL base
+- Update keepalive stream to use proxy URL instead of localhost
+
+
+STEP 6: DNS & DYNAMIC DNS (IF HOME NETWORK)
+1. Register domain or use Dynamic DNS service (if home IP changes)
+2. Point DNS to your public IP
+3. Configure firewall to forward traffic to internal services
+
+
+STEP 7: SECURITY HARDENING
+1. Firewall rules: Only expose necessary ports (80, 443)
+2. Rate limiting: Add to Nginx to prevent abuse
+3. Authentication: Protect UI admin endpoints
+4. Logging: Monitor access logs for suspicious activity
+5. CORS: Configure if serving from different domain
+
+
+STEP 8: TESTING & MONITORING
+1. Test from external network (mobile hotspot)
+2. Monitor Icecast and UI logs for errors
+3. Set up health checks / uptime monitoring
+4. Test stream quality and latency from various locations
+
+
+QUICK IMPLEMENTATION PRIORITY
+Phase 1 (Essential): Nginx reverse proxy + HTTPS
+Phase 2 (Important): Update service URLs, test streaming
+Phase 3 (Security): Add authentication, hardening
