@@ -19,6 +19,19 @@ This repo contains:
 - Icecast: example config now reduces buffering (`queue-size`, `burst-size`) and lowers `source-timeout` for faster recovery after restarts.
 - UI: last hit shows "No hits yet" when empty and centers the pill text.
 
+## Last Hit Pills
+The UI displays two "hit pills" showing the most recent frequency detected on each scanner:
+- **Airband Hits**: Shows frequencies in the 118.0–136.0 MHz range
+- **Ground Hits**: Shows all other frequencies (VHF/UHF)
+
+How it works:
+- `scripts/rtl-airband-last-hit.sh` monitors the journalctl output from `rtl-airband` unit
+- Each detected frequency is filtered by range: if it falls within 118–136 MHz, it updates the airband pill; otherwise it updates the ground pill
+- Files: `/run/rtl_airband_last_freq_airband.txt` and `/run/rtl_airband_last_freq_ground.txt`
+- The UI refreshes these pills every 1.5 seconds from the backend API
+
+This approach works correctly even though both scanners run in a single combined rtl_airband process, since they output to the same journalctl unit and need to be separated by frequency range rather than by unit.
+
 ## Combined Mixer Setup (Single Icecast Mount)
 SprontPi runs both dongles inside one rtl_airband process and mixes them into a single Icecast mount:
 - Airband/Tower profiles run on device index 0.
