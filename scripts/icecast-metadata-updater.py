@@ -9,10 +9,12 @@ import json
 import time
 import sys
 import logging
+import re
 from urllib.parse import quote
 
 # Configuration
 UI_API_URL = "http://127.0.0.1:5050/api/status"
+ICECAST_STATUS_URL = "http://127.0.0.1:8000/status-json.xsl"
 ICECAST_HOST = "127.0.0.1"
 ICECAST_PORT = 8000
 ICECAST_MOUNT = "GND.mp3"
@@ -27,8 +29,36 @@ logging.basicConfig(
 logger = logging.getLogger("icecast-metadata-updater")
 
 
+def get_icecast_current_frequency():
+    """Extract frequency from Icecast stream metadata"""
+    try:
+        response = requests.get(ICECAST_STATUS_URL, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+        
+        # Find the GND.mp3 source
+        sources = data.get("icestats", {}).get("source", [])
+        if not isinstance(sources, list):
+            sources = [sources] if sources else []
+        
+        for source in sources:
+            if source.get("mount") == f"/{ICECAST_MOUNT}":
+                title = source.get("title", "")
+                if title:
+                    return title
+        
+        return None
+    except Exception as e:
+        logger.error(f"Failed to fetch Icecast status: {e}")
+        return None
+
+
 def get_current_status():
-    """Fetch current status from UI API"""
+    """Fetch current status from Icecast - this is now the primary source"""
+    freq = get_icecast_current_frequency()
+    if freq:
+        return {"frequency": freq}
+    # Fall back to UI API if Icecast is unavailable
     try:
         response = requests.get(UI_API_URL, timeout=5)
         response.raise_for_status()
@@ -44,20 +74,27 @@ def format_metadata(status):
         return None, None
     
     try:
-        # Get the last hit frequency that's actually broadcasting
+        # If we have a frequency directly from Icecast, rtl_airband already has it
+        # so we just pass it through
+        if "frequency" in status:
+            frequency = status.get("frequency", "")
+            if frequency:
+                return frequency, "SprontPi Scanner"
+        
+        # Fall back to UI API response format (has last_hit_airband and last_hit_ground)
         airband_freq = status.get("last_hit_airband", "Unknown")
         ground_freq = status.get("last_hit_ground", "Unknown")
         
         # Prefer whichever has a valid frequency (not "Unknown")
         if airband_freq != "Unknown":
             frequency = airband_freq
-            profile = status.get("profile_airband", "Airband").upper()
+            profile = status.get("profile_airband", "AIRBAND").upper()
         elif ground_freq != "Unknown":
             frequency = ground_freq
-            profile = status.get("profile_ground", "Ground").upper()
+            profile = status.get("profile_ground", "GROUND").upper()
         else:
             frequency = "Scanning"
-            profile = "Scanner"
+            profile = "SCANNER"
         
         # Format: "Frequency - Profile"
         title = f"{frequency} - {profile}"
