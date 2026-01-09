@@ -16,7 +16,7 @@ UI_API_URL = "http://127.0.0.1:5050/api/status"
 ICECAST_HOST = "127.0.0.1"
 ICECAST_PORT = 8000
 ICECAST_MOUNT = "GND.mp3"
-ICECAST_ADMIN_PASSWORD = "062352"  # Admin password from icecast.xml
+ICECAST_ADMIN_PASSWORD = "hackme"  # Admin password from icecast.xml
 UPDATE_INTERVAL = 2  # seconds
 
 # Logging
