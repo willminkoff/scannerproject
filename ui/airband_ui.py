@@ -375,8 +375,6 @@ const tabAirbandEl = document.getElementById('tab-airband');
 const tabGroundEl = document.getElementById('tab-ground');
 const trafficAirbandEl = document.getElementById('traffic-airband');
 const trafficGroundEl = document.getElementById('traffic-ground');
-let lastAirbandHit = '';
-let lastGroundHit = '';
 let lastAirbandStreamStart = '';
 let lastGroundStreamStart = '';
 let trafficTimeoutAirband = null;
@@ -573,29 +571,13 @@ async function refresh(allowSetSliders=false) {
   document.getElementById('txt-hit-airband').textContent = airbandHit;
   document.getElementById('txt-hit-ground').textContent = groundHit;
   
-  // Update traffic indicators based on hits AND stream activity
-  if (airbandHit && airbandHit !== lastAirbandHit) {
-    lastAirbandHit = airbandHit;
-    trafficAirbandEl.classList.add('active');
-    clearTimeout(trafficTimeoutAirband);
-    trafficTimeoutAirband = setTimeout(() => {
-      trafficAirbandEl.classList.remove('active');
-    }, 2000);
-  }
-  if (groundHit && groundHit !== lastGroundHit) {
-    lastGroundHit = groundHit;
-    trafficGroundEl.classList.add('active');
-    clearTimeout(trafficTimeoutGround);
-    trafficTimeoutGround = setTimeout(() => {
-      trafficGroundEl.classList.remove('active');
-    }, 2000);
-  }
-  
-  // Also check for stream activity (handles continuous streams like WX)
+  // Update traffic indicators based on stream activity
   if (statusData && statusData.icecast_sources) {
+    // Check GND stream for traffic
     const gndSource = statusData.icecast_sources.find(s => s.listenurl && s.listenurl.includes('/GND.mp3'));
     if (gndSource && gndSource.stream_start) {
       const currentStreamStart = gndSource.stream_start;
+      // Stream restart = traffic indicator
       if (currentStreamStart && currentStreamStart !== lastAirbandStreamStart) {
         lastAirbandStreamStart = currentStreamStart;
         trafficAirbandEl.classList.add('active');
