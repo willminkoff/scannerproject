@@ -251,6 +251,9 @@ HTML = r"""<!doctype html>
     .hidden { display:none; }
     .nav { display:flex; align-items:center; gap:10px; margin-bottom: 12px; }
     .nav button { padding:8px 12px; }
+    .traffic-indicator { display:inline-block; width:8px; height:8px; border-radius:50%; background:transparent; margin-left:6px; transition:all 0.2s ease; }
+    .traffic-indicator.active { background:#22c55e; box-shadow:0 0 8px rgba(34,197,94,0.6); animation:pulse 1s infinite; }
+    @keyframes pulse { 0%, 100% { opacity:1; } 50% { opacity:0.5; } }
     .hit-list { display:flex; flex-direction:column; gap:8px; }
     .hit-row { display:grid; grid-template-columns: 90px 1fr 90px; gap:8px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background: rgba(255,255,255,.02); font-size: 13px; }
     .hit-row.head { font-size: 12px; color: var(--muted); background: transparent; border-style: dashed; }
@@ -287,8 +290,8 @@ HTML = r"""<!doctype html>
         </div>
 
         <div class="tabs">
-          <button type="button" class="tab active" id="tab-airband">Airband</button>
-          <button type="button" class="tab" id="tab-ground">Ground</button>
+          <button type="button" class="tab active" id="tab-airband">Airband <span class="traffic-indicator" id="traffic-airband"></span></button>
+          <button type="button" class="tab" id="tab-ground">Ground <span class="traffic-indicator" id="traffic-ground"></span></button>
         </div>
         <div class="swipe-hint">Swipe between airband and ground controls.</div>
 
@@ -370,6 +373,12 @@ const viewHitsEl = document.getElementById('view-hits');
 const hitListEl = document.getElementById('hit-list');
 const tabAirbandEl = document.getElementById('tab-airband');
 const tabGroundEl = document.getElementById('tab-ground');
+const trafficAirbandEl = document.getElementById('traffic-airband');
+const trafficGroundEl = document.getElementById('traffic-ground');
+let lastAirbandHit = '';
+let lastGroundHit = '';
+let trafficTimeoutAirband = null;
+let trafficTimeoutGround = null;
 const pagerEl = document.getElementById('pager');
 const pagerInnerEl = document.getElementById('pager-inner');
 const btnRestartAirbandEl = document.getElementById('btn-restart-airband');
@@ -560,6 +569,24 @@ async function refresh(allowSetSliders=false) {
   const groundHit = formatHitLabel(st.last_hit_ground) || '—';
   document.getElementById('txt-hit-airband').textContent = airbandHit;
   document.getElementById('txt-hit-ground').textContent = groundHit;
+  
+  // Update traffic indicators
+  if (airbandHit && airbandHit !== lastAirbandHit) {
+    lastAirbandHit = airbandHit;
+    trafficAirbandEl.classList.add('active');
+    clearTimeout(trafficTimeoutAirband);
+    trafficTimeoutAirband = setTimeout(() => {
+      trafficAirbandEl.classList.remove('active');
+    }, 2000);
+  }
+  if (groundHit && groundHit !== lastGroundHit) {
+    lastGroundHit = groundHit;
+    trafficGroundEl.classList.add('active');
+    clearTimeout(trafficTimeoutGround);
+    trafficTimeoutGround = setTimeout(() => {
+      trafficGroundEl.classList.remove('active');
+    }, 2000);
+  }
 
   setControlsFromStatus('airband', st.airband_gain, st.airband_squelch, allowSetSliders);
   setControlsFromStatus('ground', st.ground_gain, st.ground_squelch, allowSetSliders);
