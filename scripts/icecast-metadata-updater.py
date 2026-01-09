@@ -103,8 +103,6 @@ def main():
     logger.info(f"UI API: {UI_API_URL}")
     logger.info(f"Icecast: {ICECAST_HOST}:{ICECAST_PORT}/{ICECAST_MOUNT}")
     
-    last_metadata = None
-    
     while True:
         try:
             # Fetch current status
@@ -114,11 +112,9 @@ def main():
                 # Format metadata
                 title, artist = format_metadata(status)
                 
-                # Only update if changed
-                current_metadata = (title, artist)
-                if current_metadata != last_metadata and title:
-                    if update_icecast_metadata(title, artist):
-                        last_metadata = current_metadata
+                # Always update (don't check if changed)
+                if title:
+                    update_icecast_metadata(title, artist)
             
             time.sleep(UPDATE_INTERVAL)
             
