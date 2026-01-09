@@ -375,8 +375,8 @@ const tabAirbandEl = document.getElementById('tab-airband');
 const tabGroundEl = document.getElementById('tab-ground');
 const trafficAirbandEl = document.getElementById('traffic-airband');
 const trafficGroundEl = document.getElementById('traffic-ground');
-let lastAirbandStreamStart = '';
-let lastGroundStreamStart = '';
+let lastAirbandListeners = 0;
+let lastGroundListeners = 0;
 let trafficTimeoutAirband = null;
 let trafficTimeoutGround = null;
 const pagerEl = document.getElementById('pager');
@@ -571,19 +571,19 @@ async function refresh(allowSetSliders=false) {
   document.getElementById('txt-hit-airband').textContent = airbandHit;
   document.getElementById('txt-hit-ground').textContent = groundHit;
   
-  // Update traffic indicators based on stream activity
-  if (statusData && statusData.icecast_sources) {
-    // Check GND stream for traffic
+  // Update traffic indicators based on listener/audio activity (most reliable)
+  if (statusData && statusData.icecast_sources && Array.isArray(statusData.icecast_sources)) {
     const gndSource = statusData.icecast_sources.find(s => s.listenurl && s.listenurl.includes('/GND.mp3'));
-    if (gndSource && gndSource.stream_start) {
-      const currentStreamStart = gndSource.stream_start;
-      // Stream restart = traffic indicator
-      if (currentStreamStart && currentStreamStart !== lastAirbandStreamStart) {
-        lastAirbandStreamStart = currentStreamStart;
+    if (gndSource) {
+      const currentListeners = gndSource.listeners || 0;
+      // When listeners spike (audio being streamed), light up indicator
+      if (currentListeners > lastAirbandListeners) {
+        lastAirbandListeners = currentListeners;
         trafficAirbandEl.classList.add('active');
         clearTimeout(trafficTimeoutAirband);
         trafficTimeoutAirband = setTimeout(() => {
           trafficAirbandEl.classList.remove('active');
+          lastAirbandListeners = 0;
         }, 2000);
       }
     }
