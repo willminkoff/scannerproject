@@ -21,7 +21,7 @@ UPDATE_INTERVAL = 5  # seconds - only update every 5 seconds to avoid feedback
 
 # Logging
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger("icecast-metadata-updater")
