@@ -16,7 +16,7 @@ UI_API_URL = "http://127.0.0.1:5050/api/status"
 ICECAST_HOST = "127.0.0.1"
 ICECAST_PORT = 8000
 ICECAST_MOUNT = "GND.mp3"
-ICECAST_PASSWORD = "062352"
+ICECAST_ADMIN_PASSWORD = "hackme"  # Admin password from icecast.xml
 UPDATE_INTERVAL = 2  # seconds
 
 # Logging
@@ -73,7 +73,7 @@ def update_icecast_metadata(title, artist):
             "song": f"{title} - {artist}"
         }
         
-        auth = ("admin", ICECAST_PASSWORD)
+        auth = ("admin", ICECAST_ADMIN_PASSWORD)
         
         response = requests.get(url, params=params, auth=auth, timeout=5)
         
