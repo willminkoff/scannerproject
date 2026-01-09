@@ -377,6 +377,8 @@ const trafficAirbandEl = document.getElementById('traffic-airband');
 const trafficGroundEl = document.getElementById('traffic-ground');
 let lastAirbandHit = '';
 let lastGroundHit = '';
+let lastAirbandStreamStart = '';
+let lastGroundStreamStart = '';
 let trafficTimeoutAirband = null;
 let trafficTimeoutGround = null;
 const pagerEl = document.getElementById('pager');
@@ -564,13 +566,14 @@ function setControlsFromStatus(target, gain, squelch, allowSetSliders) {
 
 async function refresh(allowSetSliders=false) {
   const st = await getJSON('/api/status');
+  const statusData = st;  // Store for later use
 
   const airbandHit = formatHitLabel(st.last_hit_airband) || '—';
   const groundHit = formatHitLabel(st.last_hit_ground) || '—';
   document.getElementById('txt-hit-airband').textContent = airbandHit;
   document.getElementById('txt-hit-ground').textContent = groundHit;
   
-  // Update traffic indicators
+  // Update traffic indicators based on hits AND stream activity
   if (airbandHit && airbandHit !== lastAirbandHit) {
     lastAirbandHit = airbandHit;
     trafficAirbandEl.classList.add('active');
@@ -586,6 +589,22 @@ async function refresh(allowSetSliders=false) {
     trafficTimeoutGround = setTimeout(() => {
       trafficGroundEl.classList.remove('active');
     }, 2000);
+  }
+  
+  // Also check for stream activity (handles continuous streams like WX)
+  if (statusData && statusData.icecast_sources) {
+    const gndSource = statusData.icecast_sources.find(s => s.listenurl && s.listenurl.includes('/GND.mp3'));
+    if (gndSource && gndSource.stream_start) {
+      const currentStreamStart = gndSource.stream_start;
+      if (currentStreamStart && currentStreamStart !== lastAirbandStreamStart) {
+        lastAirbandStreamStart = currentStreamStart;
+        trafficAirbandEl.classList.add('active');
+        clearTimeout(trafficTimeoutAirband);
+        trafficTimeoutAirband = setTimeout(() => {
+          trafficAirbandEl.classList.remove('active');
+        }, 2000);
+      }
+    }
   }
 
   setControlsFromStatus('airband', st.airband_gain, st.airband_squelch, allowSetSliders);
@@ -1830,6 +1849,19 @@ class Handler(BaseHTTPRequestHandler):
             update_icecast_hit_log(icecast_hit)
             last_hit_airband = read_last_hit_airband()
             last_hit_ground = read_last_hit_ground()
+            
+            # Get icecast sources for stream activity monitoring
+            icecast_sources = []
+            if ice_ok:
+                try:
+                    with urllib.request.urlopen(f"http://127.0.0.1:{ICECAST_PORT}/status-json.xsl", timeout=1.5) as resp:
+                        icecast_data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+                        sources = icecast_data.get("icestats", {}).get("source", [])
+                        if not isinstance(sources, list):
+                            sources = [sources]
+                        icecast_sources = sources
+                except Exception:
+                    pass
 
             payload = {
                 "rtl_active": rtl_ok,
@@ -1853,6 +1885,7 @@ class Handler(BaseHTTPRequestHandler):
                 "last_hit_ground": last_hit_ground,
                 "avoids_airband": summarize_avoids(conf_path, "airband"),
                 "avoids_ground": summarize_avoids(os.path.realpath(GROUND_CONFIG_PATH), "ground"),
+                "icecast_sources": icecast_sources,
             }
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         if p == "/api/hits":
