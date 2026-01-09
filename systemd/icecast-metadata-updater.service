@@ -1,0 +1,14 @@
+[Unit]
+Description=Icecast Metadata Updater
+After=icecast2.service rtl-airband.service airband-ui.service
+Wants=icecast2.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/willminkoff/scannerproject/scripts/icecast-metadata-updater.py
+Restart=on-failure
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target
