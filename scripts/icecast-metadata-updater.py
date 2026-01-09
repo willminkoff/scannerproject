@@ -21,7 +21,7 @@ UPDATE_INTERVAL = 5  # seconds - only update every 5 seconds to avoid feedback
 
 # Logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger("icecast-metadata-updater")
@@ -103,8 +103,12 @@ def main():
     logger.info(f"UI API: {UI_API_URL}")
     logger.info(f"Icecast: {ICECAST_HOST}:{ICECAST_PORT}/{ICECAST_MOUNT}")
     
+    loop_count = 0
     while True:
         try:
+            loop_count += 1
+            logger.debug(f"Loop iteration {loop_count} starting")
+            
             # Fetch current status
             status = get_current_status()
             
@@ -115,14 +119,17 @@ def main():
                 # Always update (don't check if changed)
                 if title:
                     update_icecast_metadata(title, artist)
+            else:
+                logger.debug("No status received from API")
             
+            logger.debug(f"Sleeping for {UPDATE_INTERVAL} seconds")
             time.sleep(UPDATE_INTERVAL)
             
         except KeyboardInterrupt:
             logger.info("Shutting down...")
             sys.exit(0)
         except Exception as e:
-            logger.error(f"Unexpected error: {e}")
+            logger.error(f"Unexpected error in loop iteration {loop_count}: {e}", exc_info=True)
             time.sleep(UPDATE_INTERVAL)
 
 
