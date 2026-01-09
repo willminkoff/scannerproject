@@ -6,33 +6,33 @@ OUT_GROUND="/run/rtl_airband_last_freq_ground.txt"
 
 mkdir -p /run
 
+# Function to process activity line
+process_activity() {
+  local line="$1"
+  if [[ $line =~ Activity\ on\ ([0-9]+\.[0-9]+) ]]; then
+    freq="${BASH_REMATCH[1]}"
+    freq_num=$(echo "$freq" | awk '{print $1 + 0}')
+    
+    # Airband: 118.0 - 136.0 MHz
+    if (( $(echo "$freq_num >= 118.0 && $freq_num <= 136.0" | bc -l) )); then
+      echo "$freq" > "$OUT_AIRBAND"
+    # Ground: everything else
+    else
+      echo "$freq" > "$OUT_GROUND"
+    fi
+  fi
+}
+
 # Initialize files
 echo "-" > "$OUT_AIRBAND"
 echo "-" > "$OUT_GROUND"
 
-# Monitor rtl-airband unit for both airband and ground frequencies
-# Filter by frequency range: airband is 118-136 MHz, ground is everything else
-stdbuf -oL -eL journalctl -u rtl-airband -f -n 0 -o cat --no-pager \
-| stdbuf -oL awk -v OUT_AIR="$OUT_AIRBAND" -v OUT_GND="$OUT_GROUND" '
-  {
-    if ($0 ~ /Activity on [0-9]+\.[0-9]+/) {
-      freq = $0;
-      sub(/.*Activity on /, "", freq);
-      sub(/ .*/, "", freq);
-      freq_num = freq + 0.0;
-      
-      # Airband: 118.0 - 136.0 MHz
-      if (freq_num >= 118.0 && freq_num <= 136.0) {
-        print freq > OUT_AIR;
-        fflush(OUT_AIR);
-        close(OUT_AIR);
-      }
-      # Ground: everything else
-      else {
-        print freq > OUT_GND;
-        fflush(OUT_GND);
-        close(OUT_GND);
-      }
-    }
-  }
-'
+# First, read recent history (last 100 lines)
+journalctl -u rtl-airband -n 100 -o cat --no-pager | while read -r line; do
+  process_activity "$line"
+done
+
+# Then follow new entries in real time
+journalctl -u rtl-airband -f -n 0 -o cat --no-pager | while read -r line; do
+  process_activity "$line"
+done
