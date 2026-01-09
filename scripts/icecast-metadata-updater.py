@@ -44,23 +44,10 @@ def format_metadata(status):
         return None, None
     
     try:
-        # Determine which profile is active and get corresponding frequency
-        airband_active = status.get("rtl_active", False) and not status.get("ground_active", False)
-        ground_active = status.get("ground_active", False)
-        
-        if airband_active:
-            frequency = status.get("last_hit_airband", "Unknown")
-            profile = status.get("profile_airband", "Airband").upper()
-        elif ground_active:
-            frequency = status.get("last_hit_ground", "Unknown")
-            profile = status.get("profile_ground", "Ground").upper()
-        else:
-            frequency = "Scanning"
-            profile = "Scanner"
-        
-        # Format: "Frequency - Profile"
-        title = f"{frequency} - {profile}"
+        # Use static metadata that doesn't create feedback loop
+        # Just show scanner status, not actual frequencies
         artist = "SprontPi Scanner"
+        title = "Live Ground/Airband Mix"
         
         return title, artist
     except (KeyError, TypeError) as e:
