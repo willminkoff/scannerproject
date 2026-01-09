@@ -17,7 +17,7 @@ ICECAST_HOST = "127.0.0.1"
 ICECAST_PORT = 8000
 ICECAST_MOUNT = "GND.mp3"
 ICECAST_ADMIN_PASSWORD = "hackme"  # Admin password from icecast.xml
-UPDATE_INTERVAL = 2  # seconds
+UPDATE_INTERVAL = 5  # seconds - only update every 5 seconds to avoid feedback
 
 # Logging
 logging.basicConfig(
@@ -44,10 +44,24 @@ def format_metadata(status):
         return None, None
     
     try:
-        # Use static metadata that doesn't create feedback loop
-        # Just show scanner status, not actual frequencies
+        # Get the last hit frequency that's actually broadcasting
+        airband_freq = status.get("last_hit_airband", "Unknown")
+        ground_freq = status.get("last_hit_ground", "Unknown")
+        
+        # Prefer whichever has a valid frequency (not "Unknown")
+        if airband_freq != "Unknown":
+            frequency = airband_freq
+            profile = status.get("profile_airband", "Airband").upper()
+        elif ground_freq != "Unknown":
+            frequency = ground_freq
+            profile = status.get("profile_ground", "Ground").upper()
+        else:
+            frequency = "Scanning"
+            profile = "Scanner"
+        
+        # Format: "Frequency - Profile"
+        title = f"{frequency} - {profile}"
         artist = "SprontPi Scanner"
-        title = "Live Ground/Airband Mix"
         
         return title, artist
     except (KeyError, TypeError) as e:
