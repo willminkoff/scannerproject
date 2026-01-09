@@ -1,0 +1,938 @@
+SprontPi Diagnostic Log (UTC 20260109-021143)
+
+### icecast status-json.xsl (localhost)
+{"icestats":{"admin":"admin@localhost","host":"localhost","location":"SprontPi","server_id":"Icecast 2.4.4","server_start":"Thu, 08 Jan 2026 17:41:54 -0600","server_start_iso8601":"2026-01-08T17:41:54-0600","source":[{"listeners":0,"listenurl":"http://localhost:8000/DMR.mp3","dummy":null},{"listeners":0,"listenurl":"http://localhost:8000/GND.mp3","dummy":null},{"genre":"various","listener_peak":2,"listeners":1,"listenurl":"http://localhost:8000/keepalive.mp3","server_description":"Unspecified description","server_name":"Unspecified name","server_type":"audio/mpeg","stream_start":"Thu, 08 Jan 2026 17:41:54 -0600","stream_start_iso8601":"2026-01-08T17:41:54-0600","dummy":null}]}}
+
+### command: date -u
+(exit=0)
+stdout:
+Fri  9 Jan 02:11:43 UTC 2026
+
+### command: uname -a
+(exit=0)
+stdout:
+Linux SprontPi 6.12.47+rpt-rpi-2712 #1 SMP PREEMPT Debian 1:6.12.47-1+rpt1 (2025-09-16) aarch64 GNU/Linux
+
+### command: uptime
+(exit=0)
+stdout:
+ 20:11:43 up  2:30,  3 users,  load average: 0.07, 0.12, 0.18
+
+### command: systemctl status icecast2 --no-pager
+(exit=0)
+stdout:
+● icecast2.service - LSB: Icecast2 streaming media server
+     Loaded: loaded (/etc/init.d/icecast2; generated)
+     Active: active (running) since Thu 2026-01-08 17:41:54 CST; 2h 29min ago
+ Invocation: 2b12fb90bee648f5b6d4a6aa6516caa0
+       Docs: man:systemd-sysv-generator(8)
+    Process: 1730 ExecStart=/etc/init.d/icecast2 start (code=exited, status=0/SUCCESS)
+      Tasks: 5 (limit: 9570)
+        CPU: 13.471s
+     CGroup: /system.slice/icecast2.service
+             └─1745 /usr/bin/icecast2 -b -c /etc/icecast2/icecast.xml
+
+Jan 08 17:41:54 SprontPi systemd[1]: Starting icecast2.service - LSB: Icecast2 streaming media server...
+Jan 08 17:41:54 SprontPi icecast2[1730]: Starting streaming media server: icecast2
+Jan 08 17:41:54 SprontPi icecast2[1745]: [2026-01-08  17:41:54] WARN CONFIG/_parse_root Warning, <hostname> not configured, using default value "localhost". This will cause problems, e.g. with YP directory listings.
+Jan 08 17:41:54 SprontPi icecast2[1730]: .
+Jan 08 17:41:54 SprontPi systemd[1]: Started icecast2.service - LSB: Icecast2 streaming media server.
+
+### command: systemctl status icecast-keepalive --no-pager
+(exit=0)
+stdout:
+● icecast-keepalive.service - Icecast Keepalive (silent fallback)
+     Loaded: loaded (/etc/systemd/system/icecast-keepalive.service; enabled; preset: enabled)
+     Active: active (running) since Thu 2026-01-08 17:41:54 CST; 2h 29min ago
+ Invocation: a91ebf3fc2aa4f7db5c472b876cb9725
+   Main PID: 1747 (ffmpeg)
+      Tasks: 14 (limit: 9570)
+        CPU: 20.881s
+     CGroup: /system.slice/icecast-keepalive.service
+             └─1747 /usr/bin/ffmpeg -nostdin -hide_banner -loglevel warning -re -f lavfi -i anullsrc=channel_layout=mono:sample_rate=8000 -c:a libmp3lame -b:a 32k -ar 8000 -ac 1 -content_type audio/mpeg -f mp3 icecast://source:062352@127.0.0.1:8000/keepalive.mp3
+
+Jan 08 17:41:54 SprontPi systemd[1]: Started icecast-keepalive.service - Icecast Keepalive (silent fallback).
+
+### command: systemctl status rtl-airband --no-pager
+(exit=3)
+stdout:
+× rtl-airband.service - RTLSDR-Airband (scan -> Icecast)
+     Loaded: loaded (/etc/systemd/system/rtl-airband.service; enabled; preset: enabled)
+     Active: failed (Result: exit-code) since Thu 2026-01-08 20:11:00 CST; 43s ago
+   Duration: 54ms
+ Invocation: 683e61c734194a2f80db5b1f62d4ce02
+    Process: 49015 ExecStartPre=/usr/bin/pkill -x rtl_airband (code=exited, status=1/FAILURE)
+    Process: 49017 ExecStartPre=/usr/bin/python3 /home/willminkoff/scannerproject/scripts/build-combined-config.py (code=exited, status=0/SUCCESS)
+    Process: 49019 ExecStart=/usr/local/bin/rtl_airband -F -e -c /usr/local/etc/rtl_airband_combined.conf (code=exited, status=1/FAILURE)
+   Main PID: 49019 (code=exited, status=1/FAILURE)
+
+Jan 08 20:11:00 SprontPi systemd[1]: rtl-airband.service: Scheduled restart job, restart counter is at 5.
+Jan 08 20:11:00 SprontPi systemd[1]: rtl-airband.service: Start request repeated too quickly.
+Jan 08 20:11:00 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:11:00 SprontPi systemd[1]: Failed to start rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:11:07 SprontPi systemd[1]: rtl-airband.service: Start request repeated too quickly.
+Jan 08 20:11:07 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:11:07 SprontPi systemd[1]: Failed to start rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+
+### command: systemctl status airband-ui --no-pager
+(exit=0)
+stdout:
+● airband-ui.service - Airband Gain/Squelch Web UI
+     Loaded: loaded (/etc/systemd/system/airband-ui.service; enabled; preset: enabled)
+    Drop-In: /etc/systemd/system/airband-ui.service.d
+             └─override.conf
+     Active: active (running) since Thu 2026-01-08 20:03:17 CST; 8min ago
+ Invocation: b2166d321fa74bdf8bcbca740b2a271e
+   Main PID: 45683 (python3)
+      Tasks: 4 (limit: 9570)
+        CPU: 20.771s
+     CGroup: /system.slice/airband-ui.service
+             ├─45683 /usr/bin/python3 /home/willminkoff/scannerproject/ui/airband_ui.py
+             └─49377 systemctl status airband-ui --no-pager
+
+Jan 08 20:11:29 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:29] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:30 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:30] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:32 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:32] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:33 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:33] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:35 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:35] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:36 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:36] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:38 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:38] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:39 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:39] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:41 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:41] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:42 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:42] "GET /api/status HTTP/1.1" 200 -
+
+### command: journalctl -u icecast2 -n 200 --no-pager
+(exit=0)
+stdout:
+Jan 08 17:41:54 SprontPi systemd[1]: Starting icecast2.service - LSB: Icecast2 streaming media server...
+Jan 08 17:41:54 SprontPi icecast2[1730]: Starting streaming media server: icecast2
+Jan 08 17:41:54 SprontPi icecast2[1745]: [2026-01-08  17:41:54] WARN CONFIG/_parse_root Warning, <hostname> not configured, using default value "localhost". This will cause problems, e.g. with YP directory listings.
+Jan 08 17:41:54 SprontPi icecast2[1730]: .
+Jan 08 17:41:54 SprontPi systemd[1]: Started icecast2.service - LSB: Icecast2 streaming media server.
+
+### command: journalctl -u icecast-keepalive -n 200 --no-pager
+(exit=0)
+stdout:
+Jan 08 17:41:54 SprontPi systemd[1]: Started icecast-keepalive.service - Icecast Keepalive (silent fallback).
+
+### command: journalctl -u rtl-airband -n 200 --no-pager
+(exit=0)
+stdout:
+Jan 08 20:02:17 SprontPi rtl_airband[43879]: Activity on 118.600 MHz
+Jan 08 20:02:18 SprontPi rtl_airband[43879]: Activity on 467.612 MHz
+Jan 08 20:02:32 SprontPi rtl_airband[43879]: Activity on 462.562 MHz
+Jan 08 20:02:39 SprontPi rtl_airband[43879]: Activity on 118.600 MHz
+Jan 08 20:02:41 SprontPi rtl_airband[43879]: Activity on 467.725 MHz
+Jan 08 20:02:46 SprontPi rtl_airband[43879]: Got signal 2, exiting
+Jan 08 20:02:46 SprontPi systemd[1]: Stopping rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 08 20:02:46 SprontPi rtl_airband[43879]: Cleaning up
+Jan 08 20:02:46 SprontPi rtl_airband[43879]: Input threads closed
+Jan 08 20:02:46 SprontPi rtl_airband[43879]: Disabling device outputs
+Jan 08 20:02:46 SprontPi rtl_airband[43879]: Disabling device outputs
+Jan 08 20:02:46 SprontPi rtl_airband[43879]: Disabling mixer 'combined' - all inputs died
+Jan 08 20:02:46 SprontPi rtl_airband[43879]: Closing connection to 127.0.0.1:8000/GND.mp3
+Jan 08 20:02:46 SprontPi rtl_airband[43879]: Closing mixer thread
+Jan 08 20:02:46 SprontPi rtl_airband[43879]: Closing output thread(s)
+Jan 08 20:02:46 SprontPi systemd[1]: rtl-airband.service: Deactivated successfully.
+Jan 08 20:02:46 SprontPi systemd[1]: Stopped rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:02:46 SprontPi systemd[1]: rtl-airband.service: Consumed 18.754s CPU time.
+Jan 08 20:02:46 SprontPi systemd[1]: Starting rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 08 20:02:46 SprontPi systemd[1]: Started rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:02:46 SprontPi rtl_airband[45025]: RTLSDR-Airband version v5.1.1-1-g6fc7017 starting
+Jan 08 20:02:46 SprontPi rtl_airband[45025]: Connecting to 127.0.0.1:8000/GND.mp3...
+Jan 08 20:02:47 SprontPi rtl_airband[45025]: Connected to 127.0.0.1:8000/GND.mp3
+Jan 08 20:02:47 SprontPi rtl_airband[45025]: Found Rafael Micro R828D tuner
+Jan 08 20:02:47 SprontPi rtl_airband[45025]: RTL-SDR Blog V4 Detected
+Jan 08 20:02:47 SprontPi rtl_airband[45025]: Device #1: gain set to 43.40 dB
+Jan 08 20:02:47 SprontPi rtl_airband[45025]: RTLSDR device 1 initialized
+Jan 08 20:02:47 SprontPi rtl_airband[45025]: Allocating 10 zero-copy buffers
+Jan 08 20:02:48 SprontPi rtl_airband[45025]: Found Rafael Micro R820T tuner
+Jan 08 20:02:48 SprontPi rtl_airband[45025]: [R82XX] PLL not locked!
+Jan 08 20:02:48 SprontPi rtl_airband[45025]: Device #0: gain set to 25.40 dB
+Jan 08 20:02:48 SprontPi rtl_airband[45025]: RTLSDR device 0 initialized
+Jan 08 20:02:48 SprontPi rtl_airband[45025]: Allocating 10 zero-copy buffers
+Jan 08 20:03:01 SprontPi rtl_airband[45025]: Activity on 119.450 MHz
+Jan 08 20:03:05 SprontPi rtl_airband[45025]: Activity on 467.562 MHz
+Jan 08 20:03:09 SprontPi rtl_airband[45025]: Activity on 119.450 MHz
+Jan 08 20:03:12 SprontPi rtl_airband[45025]: Activity on 119.350 MHz
+Jan 08 20:03:14 SprontPi rtl_airband[45025]: Activity on 119.350 MHz
+Jan 08 20:03:27 SprontPi rtl_airband[45025]: Activity on 118.600 MHz
+Jan 08 20:03:35 SprontPi rtl_airband[45025]: Activity on 462.562 MHz
+Jan 08 20:03:36 SprontPi rtl_airband[45025]: Activity on 119.350 MHz
+Jan 08 20:03:44 SprontPi rtl_airband[45025]: Activity on 462.562 MHz
+Jan 08 20:03:48 SprontPi rtl_airband[45025]: Activity on 119.450 MHz
+Jan 08 20:03:49 SprontPi rtl_airband[45025]: Activity on 467.662 MHz
+Jan 08 20:03:52 SprontPi rtl_airband[45025]: Activity on 118.400 MHz
+Jan 08 20:03:54 SprontPi rtl_airband[45025]: Activity on 118.600 MHz
+Jan 08 20:04:05 SprontPi rtl_airband[45025]: Activity on 119.350 MHz
+Jan 08 20:04:09 SprontPi rtl_airband[45025]: Activity on 467.725 MHz
+Jan 08 20:04:15 SprontPi rtl_airband[45025]: Activity on 462.550 MHz
+Jan 08 20:04:15 SprontPi systemd[1]: Stopping rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 08 20:04:15 SprontPi rtl_airband[45025]: Got signal 2, exiting
+Jan 08 20:04:15 SprontPi rtl_airband[45025]: Cleaning up
+Jan 08 20:04:16 SprontPi rtl_airband[45025]: Input threads closed
+Jan 08 20:04:16 SprontPi rtl_airband[45025]: Disabling device outputs
+Jan 08 20:04:16 SprontPi rtl_airband[45025]: Disabling device outputs
+Jan 08 20:04:16 SprontPi rtl_airband[45025]: Disabling mixer 'combined' - all inputs died
+Jan 08 20:04:16 SprontPi rtl_airband[45025]: Closing connection to 127.0.0.1:8000/GND.mp3
+Jan 08 20:04:16 SprontPi rtl_airband[45025]: Closing mixer thread
+Jan 08 20:04:16 SprontPi rtl_airband[45025]: Closing output thread(s)
+Jan 08 20:04:16 SprontPi systemd[1]: rtl-airband.service: Deactivated successfully.
+Jan 08 20:04:16 SprontPi systemd[1]: Stopped rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:04:16 SprontPi systemd[1]: rtl-airband.service: Consumed 17.543s CPU time.
+Jan 08 20:04:16 SprontPi systemd[1]: Starting rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 08 20:04:16 SprontPi systemd[1]: Started rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:04:16 SprontPi rtl_airband[46131]: Configuration error: devices.[1] channels.[0]: labels should be a list with at least 25 elements
+Jan 08 20:04:16 SprontPi systemd[1]: rtl-airband.service: Main process exited, code=exited, status=1/FAILURE
+Jan 08 20:04:16 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:04:16 SprontPi systemd[1]: rtl-airband.service: Scheduled restart job, restart counter is at 1.
+Jan 08 20:04:16 SprontPi systemd[1]: Starting rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 08 20:04:16 SprontPi systemd[1]: Started rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:04:16 SprontPi rtl_airband[46153]: Configuration error: devices.[1] channels.[0]: labels should be a list with at least 25 elements
+Jan 08 20:04:16 SprontPi systemd[1]: rtl-airband.service: Main process exited, code=exited, status=1/FAILURE
+Jan 08 20:04:16 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:04:16 SprontPi systemd[1]: rtl-airband.service: Scheduled restart job, restart counter is at 2.
+Jan 08 20:04:16 SprontPi systemd[1]: Starting rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 08 20:04:16 SprontPi systemd[1]: Started rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:04:16 SprontPi rtl_airband[46168]: Configuration error: devices.[1] channels.[0]: labels should be a list with at least 25 elements
+Jan 08 20:04:16 SprontPi systemd[1]: rtl-airband.service: Main process exited, code=exited, status=1/FAILURE
+Jan 08 20:04:16 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:04:16 SprontPi systemd[1]: rtl-airband.service: Scheduled restart job, restart counter is at 3.
+Jan 08 20:04:16 SprontPi systemd[1]: Starting rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 08 20:04:16 SprontPi systemd[1]: Started rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:04:16 SprontPi rtl_airband[46179]: Configuration error: devices.[1] channels.[0]: labels should be a list with at least 25 elements
+Jan 08 20:04:16 SprontPi systemd[1]: rtl-airband.service: Main process exited, code=exited, status=1/FAILURE
+Jan 08 20:04:16 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:04:16 SprontPi systemd[1]: rtl-airband.service: Scheduled restart job, restart counter is at 4.
+Jan 08 20:04:16 SprontPi systemd[1]: Starting rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 08 20:04:16 SprontPi systemd[1]: Started rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:04:16 SprontPi rtl_airband[46192]: Configuration error: devices.[1] channels.[0]: labels should be a list with at least 25 elements
+Jan 08 20:04:16 SprontPi systemd[1]: rtl-airband.service: Main process exited, code=exited, status=1/FAILURE
+Jan 08 20:04:16 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:04:16 SprontPi systemd[1]: rtl-airband.service: Scheduled restart job, restart counter is at 5.
+Jan 08 20:04:16 SprontPi systemd[1]: rtl-airband.service: Start request repeated too quickly.
+Jan 08 20:04:16 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:04:16 SprontPi systemd[1]: Failed to start rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:04:19 SprontPi systemd[1]: rtl-airband.service: Start request repeated too quickly.
+Jan 08 20:04:19 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:04:19 SprontPi systemd[1]: Failed to start rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:05:22 SprontPi systemd[1]: Starting rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 08 20:05:23 SprontPi systemd[1]: Started rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:05:23 SprontPi rtl_airband[46731]: Configuration error: devices.[1] channels.[0]: labels should be a list with at least 25 elements
+Jan 08 20:05:23 SprontPi systemd[1]: rtl-airband.service: Main process exited, code=exited, status=1/FAILURE
+Jan 08 20:05:23 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:05:23 SprontPi systemd[1]: rtl-airband.service: Scheduled restart job, restart counter is at 1.
+Jan 08 20:05:23 SprontPi systemd[1]: Starting rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 08 20:05:23 SprontPi systemd[1]: Started rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:05:23 SprontPi rtl_airband[46749]: Configuration error: devices.[1] channels.[0]: labels should be a list with at least 25 elements
+Jan 08 20:05:23 SprontPi systemd[1]: rtl-airband.service: Main process exited, code=exited, status=1/FAILURE
+Jan 08 20:05:23 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:05:23 SprontPi systemd[1]: rtl-airband.service: Scheduled restart job, restart counter is at 2.
+Jan 08 20:05:23 SprontPi systemd[1]: Starting rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 08 20:05:23 SprontPi systemd[1]: Started rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:05:23 SprontPi rtl_airband[46763]: Configuration error: devices.[1] channels.[0]: labels should be a list with at least 25 elements
+Jan 08 20:05:23 SprontPi systemd[1]: rtl-airband.service: Main process exited, code=exited, status=1/FAILURE
+Jan 08 20:05:23 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:05:23 SprontPi systemd[1]: rtl-airband.service: Scheduled restart job, restart counter is at 3.
+Jan 08 20:05:23 SprontPi systemd[1]: Starting rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 08 20:05:23 SprontPi systemd[1]: Started rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:05:23 SprontPi rtl_airband[46777]: Configuration error: devices.[1] channels.[0]: labels should be a list with at least 25 elements
+Jan 08 20:05:23 SprontPi systemd[1]: rtl-airband.service: Main process exited, code=exited, status=1/FAILURE
+Jan 08 20:05:23 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:05:23 SprontPi systemd[1]: rtl-airband.service: Scheduled restart job, restart counter is at 4.
+Jan 08 20:05:23 SprontPi systemd[1]: Starting rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 08 20:05:23 SprontPi systemd[1]: Started rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:05:23 SprontPi rtl_airband[46804]: Configuration error: devices.[1] channels.[0]: labels should be a list with at least 25 elements
+Jan 08 20:05:23 SprontPi systemd[1]: rtl-airband.service: Main process exited, code=exited, status=1/FAILURE
+Jan 08 20:05:23 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:05:23 SprontPi systemd[1]: rtl-airband.service: Scheduled restart job, restart counter is at 5.
+Jan 08 20:05:23 SprontPi systemd[1]: rtl-airband.service: Start request repeated too quickly.
+Jan 08 20:05:23 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:05:23 SprontPi systemd[1]: Failed to start rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:07:26 SprontPi systemd[1]: Starting rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 08 20:07:26 SprontPi systemd[1]: Started rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:07:26 SprontPi rtl_airband[47772]: Configuration error: devices.[1] channels.[0]: labels should be a list with at least 25 elements
+Jan 08 20:07:26 SprontPi systemd[1]: rtl-airband.service: Main process exited, code=exited, status=1/FAILURE
+Jan 08 20:07:26 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:07:26 SprontPi systemd[1]: rtl-airband.service: Scheduled restart job, restart counter is at 1.
+Jan 08 20:07:26 SprontPi systemd[1]: Starting rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 08 20:07:26 SprontPi systemd[1]: Started rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:07:26 SprontPi rtl_airband[47794]: Configuration error: devices.[1] channels.[0]: labels should be a list with at least 25 elements
+Jan 08 20:07:26 SprontPi systemd[1]: rtl-airband.service: Main process exited, code=exited, status=1/FAILURE
+Jan 08 20:07:26 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:07:26 SprontPi systemd[1]: rtl-airband.service: Scheduled restart job, restart counter is at 2.
+Jan 08 20:07:26 SprontPi systemd[1]: Starting rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 08 20:07:26 SprontPi systemd[1]: Started rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:07:26 SprontPi rtl_airband[47805]: Configuration error: devices.[1] channels.[0]: labels should be a list with at least 25 elements
+Jan 08 20:07:26 SprontPi systemd[1]: rtl-airband.service: Main process exited, code=exited, status=1/FAILURE
+Jan 08 20:07:26 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:07:26 SprontPi systemd[1]: rtl-airband.service: Scheduled restart job, restart counter is at 3.
+Jan 08 20:07:26 SprontPi systemd[1]: Starting rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 08 20:07:26 SprontPi systemd[1]: Started rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:07:26 SprontPi rtl_airband[47822]: Configuration error: devices.[1] channels.[0]: labels should be a list with at least 25 elements
+Jan 08 20:07:26 SprontPi systemd[1]: rtl-airband.service: Main process exited, code=exited, status=1/FAILURE
+Jan 08 20:07:26 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:07:26 SprontPi systemd[1]: rtl-airband.service: Scheduled restart job, restart counter is at 4.
+Jan 08 20:07:26 SprontPi systemd[1]: Starting rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 08 20:07:26 SprontPi systemd[1]: Started rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:07:26 SprontPi rtl_airband[47833]: Configuration error: devices.[1] channels.[0]: labels should be a list with at least 25 elements
+Jan 08 20:07:26 SprontPi systemd[1]: rtl-airband.service: Main process exited, code=exited, status=1/FAILURE
+Jan 08 20:07:26 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:07:26 SprontPi systemd[1]: rtl-airband.service: Scheduled restart job, restart counter is at 5.
+Jan 08 20:07:26 SprontPi systemd[1]: rtl-airband.service: Start request repeated too quickly.
+Jan 08 20:07:26 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:07:26 SprontPi systemd[1]: Failed to start rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:10:59 SprontPi systemd[1]: Starting rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 08 20:10:59 SprontPi systemd[1]: Started rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:10:59 SprontPi rtl_airband[48974]: Configuration error: devices.[1] channels.[0]: labels should be a list with at least 25 elements
+Jan 08 20:10:59 SprontPi systemd[1]: rtl-airband.service: Main process exited, code=exited, status=1/FAILURE
+Jan 08 20:10:59 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:10:59 SprontPi systemd[1]: rtl-airband.service: Scheduled restart job, restart counter is at 1.
+Jan 08 20:10:59 SprontPi systemd[1]: Starting rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 08 20:10:59 SprontPi systemd[1]: Started rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:10:59 SprontPi rtl_airband[48986]: Configuration error: devices.[1] channels.[0]: labels should be a list with at least 25 elements
+Jan 08 20:10:59 SprontPi systemd[1]: rtl-airband.service: Main process exited, code=exited, status=1/FAILURE
+Jan 08 20:10:59 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:10:59 SprontPi systemd[1]: rtl-airband.service: Scheduled restart job, restart counter is at 2.
+Jan 08 20:10:59 SprontPi systemd[1]: Starting rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 08 20:10:59 SprontPi systemd[1]: Started rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:10:59 SprontPi rtl_airband[48997]: Configuration error: devices.[1] channels.[0]: labels should be a list with at least 25 elements
+Jan 08 20:10:59 SprontPi systemd[1]: rtl-airband.service: Main process exited, code=exited, status=1/FAILURE
+Jan 08 20:10:59 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:10:59 SprontPi systemd[1]: rtl-airband.service: Scheduled restart job, restart counter is at 3.
+Jan 08 20:10:59 SprontPi systemd[1]: Starting rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 08 20:10:59 SprontPi systemd[1]: Started rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:10:59 SprontPi rtl_airband[49008]: Configuration error: devices.[1] channels.[0]: labels should be a list with at least 25 elements
+Jan 08 20:10:59 SprontPi systemd[1]: rtl-airband.service: Main process exited, code=exited, status=1/FAILURE
+Jan 08 20:10:59 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:10:59 SprontPi systemd[1]: rtl-airband.service: Scheduled restart job, restart counter is at 4.
+Jan 08 20:10:59 SprontPi systemd[1]: Starting rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 08 20:10:59 SprontPi systemd[1]: Started rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:11:00 SprontPi rtl_airband[49019]: Configuration error: devices.[1] channels.[0]: labels should be a list with at least 25 elements
+Jan 08 20:11:00 SprontPi systemd[1]: rtl-airband.service: Main process exited, code=exited, status=1/FAILURE
+Jan 08 20:11:00 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:11:00 SprontPi systemd[1]: rtl-airband.service: Scheduled restart job, restart counter is at 5.
+Jan 08 20:11:00 SprontPi systemd[1]: rtl-airband.service: Start request repeated too quickly.
+Jan 08 20:11:00 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:11:00 SprontPi systemd[1]: Failed to start rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 08 20:11:07 SprontPi systemd[1]: rtl-airband.service: Start request repeated too quickly.
+Jan 08 20:11:07 SprontPi systemd[1]: rtl-airband.service: Failed with result 'exit-code'.
+Jan 08 20:11:07 SprontPi systemd[1]: Failed to start rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+
+### command: journalctl -u airband-ui -n 200 --no-pager
+(exit=0)
+stdout:
+Jan 08 20:05:50 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:05:50] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:05:51 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:05:51] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:05:53 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:05:53] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:05:54 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:05:54] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:05:56 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:05:56] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:05:57 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:05:57] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:05:59 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:05:59] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:00 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:00] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:02 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:02] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:03 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:03] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:05 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:05] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:06 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:06] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:08 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:08] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:10 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:10] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:11 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:11] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:12 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:12] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:14 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:14] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:16 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:16] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:17 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:17] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:18 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:18] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:20 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:20] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:21 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:21] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:23 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:23] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:24 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:24] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:26 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:26] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:27 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:27] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:29 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:29] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:30 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:30] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:32 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:32] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:33 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:33] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:35 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:35] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:36 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:36] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:38 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:38] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:39 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:39] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:41 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:41] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:42 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:42] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:44 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:44] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:45 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:45] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:47 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:47] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:48 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:48] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:50 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:50] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:51 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:51] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:53 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:53] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:54 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:54] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:56 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:56] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:57 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:57] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:06:59 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:06:59] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:00 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:00] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:02 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:02] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:03 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:03] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:05 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:05] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:06 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:06] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:08 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:08] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:09 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:09] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:11 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:11] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:12 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:12] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:14 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:14] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:15 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:15] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:17 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:17] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:18 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:18] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:20 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:20] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:21 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:21] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:23 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:23] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:24 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:24] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:26 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:26] "POST /api/apply HTTP/1.1" 200 -
+Jan 08 20:07:26 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:26] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:26 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:26] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:27 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:27] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:29 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:29] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:30 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:30] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:32 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:32] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:33 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:33] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:35 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:35] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:36 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:36] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:38 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:38] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:39 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:39] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:41 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:41] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:42 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:42] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:44 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:44] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:45 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:45] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:47 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:47] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:48 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:48] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:50 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:50] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:51 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:51] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:53 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:53] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:54 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:54] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:56 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:56] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:57 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:57] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:07:59 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:07:59] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:00 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:00] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:02 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:02] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:03 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:03] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:05 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:05] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:06 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:06] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:08 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:08] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:09 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:09] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:11 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:11] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:12 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:12] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:14 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:14] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:15 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:15] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:18 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:18] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:19 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:19] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:21 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:21] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:22 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:22] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:24 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:24] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:25 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:25] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:27 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:27] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:28 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:28] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:30 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:30] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:31 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:31] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:33 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:33] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:34 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:34] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:36 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:36] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:37 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:37] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:39 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:39] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:40 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:40] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:42 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:42] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:43 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:43] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:45 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:45] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:46 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:46] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:48 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:48] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:49 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:49] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:51 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:51] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:52 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:52] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:54 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:54] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:55 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:55] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:57 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:57] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:08:58 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:08:58] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:09:00 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:09:00] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:09:01 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:09:01] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:09:03 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:09:03] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:09:04 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:09:04] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:09:06 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:09:06] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:09:07 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:09:07] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:09:09 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:09:09] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:09:10 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:09:10] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:09:12 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:09:12] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:09:13 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:09:13] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:09:15 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:09:15] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:09:16 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:09:16] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:09:58 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:09:58] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:10:36 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:36] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:10:36 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:36] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:10:38 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:38] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:10:39 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:39] "GET /api/hits HTTP/1.1" 200 -
+Jan 08 20:10:39 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:39] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:10:39 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:39] "GET /api/hits HTTP/1.1" 200 -
+Jan 08 20:10:41 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:41] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:10:41 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:41] "GET /api/hits HTTP/1.1" 200 -
+Jan 08 20:10:42 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:42] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:10:42 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:42] "GET /api/hits HTTP/1.1" 200 -
+Jan 08 20:10:44 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:44] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:10:44 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:44] "GET /api/hits HTTP/1.1" 200 -
+Jan 08 20:10:45 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:45] "GET /api/hits HTTP/1.1" 200 -
+Jan 08 20:10:45 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:45] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:10:45 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:45] "GET /api/hits HTTP/1.1" 200 -
+Jan 08 20:10:47 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:47] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:10:47 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:47] "GET /api/hits HTTP/1.1" 200 -
+Jan 08 20:10:48 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:48] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:10:48 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:48] "GET /api/hits HTTP/1.1" 200 -
+Jan 08 20:10:50 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:50] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:10:51 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:51] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:10:53 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:53] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:10:54 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:54] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:10:56 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:56] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:10:58 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:58] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:10:59 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:59] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:10:59 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:59] "POST /api/apply HTTP/1.1" 200 -
+Jan 08 20:10:59 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:10:59] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:00 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:00] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:02 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:02] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:03 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:03] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:05 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:05] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:06 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:06] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:07 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:07] "POST /api/apply HTTP/1.1" 200 -
+Jan 08 20:11:07 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:07] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:08 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:08] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:09 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:09] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:11 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:11] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:12 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:12] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:14 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:14] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:15 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:15] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:17 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:17] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:19 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:19] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:20 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:20] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:21 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:21] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:23 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:23] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:24 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:24] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:26 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:26] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:27 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:27] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:29 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:29] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:30 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:30] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:32 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:32] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:33 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:33] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:35 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:35] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:36 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:36] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:38 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:38] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:39 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:39] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:41 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:41] "GET /api/status HTTP/1.1" 200 -
+Jan 08 20:11:42 SprontPi python3[45683]: 192.168.1.66 - - [08/Jan/2026 20:11:42] "GET /api/status HTTP/1.1" 200 -
+
+### command: tail -n 200 /var/log/icecast2/error.log
+(exit=0)
+stdout:
+[2026-01-08  17:55:28] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  17:55:28] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  17:55:28] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  17:55:28] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  17:55:28] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  17:55:28] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  17:55:28] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  17:55:28] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  17:55:29] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  17:55:29] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  17:56:21] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-08  17:56:23] INFO source/source_main listener count on /GND.mp3 now 3
+[2026-01-08  17:56:24] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-08  17:56:43] INFO source/source_main listener count on /GND.mp3 now 3
+[2026-01-08  17:56:44] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-08  17:56:44] INFO source/source_main listener count on /GND.mp3 now 3
+[2026-01-08  17:56:45] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-08  17:57:05] INFO source/source_main listener count on /GND.mp3 now 3
+[2026-01-08  17:57:06] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-08  17:58:28] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  17:58:35] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-08  17:58:37] INFO source/source_main listener count on /GND.mp3 now 3
+[2026-01-08  17:58:40] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-08  17:59:56] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  17:59:58] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-08  18:00:01] INFO source/source_main listener count on /GND.mp3 now 3
+[2026-01-08  18:00:04] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-08  18:00:45] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  18:01:00] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-08  18:01:03] INFO source/source_main listener count on /GND.mp3 now 3
+[2026-01-08  18:01:06] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-08  18:01:10] INFO source/source_main listener count on /GND.mp3 now 3
+[2026-01-08  18:01:12] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-08  18:01:13] INFO source/source_main listener count on /GND.mp3 now 3
+[2026-01-08  18:01:16] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-08  18:01:21] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  18:02:42] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  18:02:42] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  18:02:42] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  18:02:42] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  18:02:42] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  18:02:42] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  18:02:42] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  18:02:42] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  18:02:42] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  18:02:43] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  18:02:43] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  18:03:05] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  18:03:05] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  18:03:05] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  18:03:05] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  18:03:05] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  18:03:05] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  18:03:05] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  18:03:05] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  18:03:05] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  18:04:12] INFO source/source_main listener count on /GND.mp3 now 0
+[2026-01-08  18:04:15] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  18:04:16] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-08  18:04:17] INFO source/source_main listener count on /GND.mp3 now 3
+[2026-01-08  18:04:18] INFO source/source_main listener count on /GND.mp3 now 4
+[2026-01-08  18:04:19] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-08  18:04:29] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  18:04:29] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  18:04:29] INFO source/source_move_clients passing 2 listeners to "/keepalive.mp3"
+[2026-01-08  18:04:29] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  18:04:29] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  18:04:30] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  18:04:30] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  18:04:30] INFO source/source_move_clients passing 2 listeners to "/GND.mp3"
+[2026-01-08  18:04:30] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-08  18:04:38] INFO source/source_main listener count on /GND.mp3 now 3
+[2026-01-08  18:04:39] INFO source/source_main listener count on /GND.mp3 now 4
+[2026-01-08  18:04:43] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-08  18:05:00] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  18:07:40] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-08  18:07:42] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  18:08:24] INFO source/source_main listener count on /GND.mp3 now 0
+[2026-01-08  18:27:54] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  18:27:56] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-08  18:27:58] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  18:28:04] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-08  18:28:06] INFO source/source_main listener count on /GND.mp3 now 3
+[2026-01-08  18:28:09] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-08  18:28:14] INFO source/source_main listener count on /GND.mp3 now 3
+[2026-01-08  18:28:15] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-08  18:28:15] INFO source/source_main listener count on /GND.mp3 now 3
+[2026-01-08  18:28:16] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-08  18:28:36] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  18:29:26] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  18:29:26] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  18:29:26] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  18:29:26] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  18:29:26] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  18:29:26] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  18:29:26] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  18:29:26] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  18:29:26] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  18:29:26] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  18:29:26] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  18:39:16] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  18:39:16] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  18:39:16] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  18:39:16] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  18:39:16] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  18:39:16] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  18:39:17] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  18:39:17] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  18:39:17] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  18:39:17] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  18:39:17] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  18:39:25] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  18:39:25] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  18:39:25] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  18:39:25] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  18:39:25] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  18:39:25] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  18:39:25] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  18:39:25] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  18:39:25] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  18:39:25] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  18:39:26] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  19:22:44] INFO source/send_to_listener Client 1781 (192.168.1.98) has fallen too far behind, removing
+[2026-01-08  19:22:44] INFO source/source_main listener count on /GND.mp3 now 0
+[2026-01-08  19:31:23] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  19:31:26] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-08  19:31:29] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  19:31:52] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  19:31:52] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  19:31:52] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  19:31:52] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  19:31:52] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  19:31:52] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  19:31:52] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  19:31:52] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  19:31:52] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  19:42:26] INFO source/send_to_listener Client 3341 (192.168.1.66) has fallen too far behind, removing
+[2026-01-08  19:42:26] INFO source/source_main listener count on /GND.mp3 now 0
+[2026-01-08  19:43:57] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  19:44:12] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  19:44:12] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  19:44:12] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  19:44:12] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  19:44:12] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  19:44:12] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  19:44:12] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  19:44:12] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  19:44:12] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  19:44:12] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  19:44:13] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  19:46:14] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  19:46:14] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  19:46:14] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  19:46:14] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  19:46:14] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  19:46:15] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  19:46:15] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  19:46:15] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  19:46:15] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  19:46:15] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  19:46:15] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  19:47:21] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  19:47:21] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  19:47:21] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  19:47:21] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  19:47:21] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  19:47:21] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  19:47:22] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  19:47:22] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  19:47:22] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  19:47:22] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  19:47:22] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  20:01:10] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  20:01:10] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  20:01:10] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  20:01:10] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  20:01:10] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  20:01:10] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  20:01:10] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  20:01:10] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  20:01:10] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  20:01:10] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  20:01:10] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  20:02:46] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  20:02:46] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  20:02:46] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  20:02:46] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  20:02:46] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  20:02:46] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  20:02:46] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  20:02:46] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  20:02:46] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  20:02:47] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  20:02:47] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  20:04:16] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  20:04:16] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  20:04:16] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  20:04:16] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  20:11:30] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  20:11:32] INFO source/source_main listener count on /keepalive.mp3 now 1
+
+### command: tail -n 200 /var/log/icecast2/access.log
+(exit=0)
+stdout:
+127.0.0.1 - - [08/Jan/2026:20:05:35 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:05:36 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:05:38 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:05:39 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:05:41 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:05:42 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:05:44 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:05:45 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:05:47 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:05:48 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:05:50 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:05:51 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:05:53 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:05:54 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:05:56 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:05:57 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:05:59 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:00 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:02 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:03 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:05 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:06 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:08 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:09 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:11 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:12 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:14 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:15 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:17 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:18 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:20 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:21 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:23 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:24 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:26 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:27 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:29 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:30 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:32 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:33 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:35 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:36 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:38 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:39 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:41 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:42 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:44 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:45 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:47 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:48 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:50 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:51 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:53 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:54 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:56 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:57 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:06:59 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:00 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:02 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:03 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:05 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:06 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:08 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:09 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:11 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:12 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:14 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:15 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:17 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:18 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:20 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:21 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:23 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:24 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:26 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:26 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:27 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:29 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:30 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:32 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:33 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:35 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:36 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:38 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:39 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:41 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:42 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:44 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:45 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:47 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:48 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:50 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:51 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:53 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:54 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:56 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:57 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:07:59 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:00 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:02 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:03 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:05 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:06 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:08 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:09 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:11 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:12 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:14 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:15 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:18 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:19 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:21 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:22 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:24 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:25 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:27 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:28 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:30 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:31 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:33 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:34 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:36 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:37 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:39 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:40 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:42 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:43 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:45 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:46 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:48 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:49 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:51 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:52 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:54 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:55 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:57 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:08:58 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:09:00 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:09:01 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:09:03 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:09:04 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:09:06 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:09:07 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:09:09 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:09:10 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:09:12 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:09:13 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:09:15 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:09:16 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:09:58 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:10:36 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:10:36 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:10:38 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:10:39 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:10:41 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:10:42 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:10:44 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:10:45 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:10:47 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:10:48 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:10:50 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:10:51 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:10:53 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:10:54 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:10:56 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:10:58 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:10:59 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:10:59 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:00 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:02 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:03 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:05 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:06 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:07 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:08 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:09 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:11 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:12 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:14 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:15 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:17 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:18 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:20 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:21 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:23 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:24 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:26 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:27 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:29 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+192.168.1.66 - - [08/Jan/2026:20:11:30 -0600] "GET /GND.mp3 HTTP/1.0" 200 4077511 "-" "VLC/3.0.21 LibVLC/3.0.21" 1653
+127.0.0.1 - - [08/Jan/2026:20:11:30 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:32 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:33 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:35 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:36 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:38 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:39 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:41 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:42 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:20:11:43 -0600] "GET /status-json.xsl HTTP/1.1" 200 945 "-" "Python-urllib/3.13" 0
+
+### command: grep -n fallback-mount /etc/icecast2/icecast.xml
+(exit=0)
+stdout:
+30:    <fallback-mount>/keepalive.mp3</fallback-mount>
+37:    <fallback-mount>/keepalive.mp3</fallback-mount>
