@@ -78,13 +78,13 @@ button.primary { background: rgba(34,197,94,.18); border-color: rgba(34,197,94,.
 .spectrum-header #spectrum-toggle { display:inline-block; width:16px; text-align:center; transition: transform 0.3s ease; font-size:12px; color:var(--muted); }
 .spectrum-header #spectrum-label { font-size: 13px; font-weight:600; color:var(--text); }
 .spectrum-content { 
-  max-height:0; overflow:hidden; transition: max-height 0.3s ease; 
-  background: #050a15; padding:0;
+  max-height:0; overflow:hidden; transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1); 
+  background: #050a15; padding:0; display:flex;
 }
-.spectrum-content.expanded { max-height:300px; }
+.spectrum-content.expanded { max-height:280px; }
 #spectrum-waterfall { 
-  display:block; width:100%; height:200px; background:#050a15; 
-  border:none; image-rendering:pixelated;
+  display:block; width:100%; height:100%; min-height:250px; background:#050a15; 
+  border:none; image-rendering:pixelated; flex:1;
 }
 .spectrum-header.collapsed #spectrum-toggle { transform: rotate(180deg); }
 .pager { margin-top: 12px; overflow:hidden; }

@@ -85,8 +85,11 @@ class SpectrumWaterfall {
       this.content.classList.add('expanded');
       this.header.classList.add('expanded');
       this.toggle.textContent = '▼';
-      this.resizeCanvas();
-      this.redraw();
+      // Give CSS time to expand before resizing canvas
+      setTimeout(() => {
+        this.resizeCanvas();
+        this.redraw();
+      }, 50);
     } else {
       this.content.classList.remove('expanded');
       this.header.classList.remove('expanded');
@@ -96,23 +99,21 @@ class SpectrumWaterfall {
   
   resizeCanvas() {
     // Resize canvas to fit container
-    const rect = this.content.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
+    const displayWidth = this.content.offsetWidth || 400;
+    const displayHeight = this.content.offsetHeight || 250;
     
-    // Get actual displayed dimensions
-    const displayWidth = this.content.clientWidth;
-    const displayHeight = this.content.clientHeight;
+    if (displayWidth <= 0 || displayHeight <= 0) {
+      // Fallback if not visible
+      this.canvas.width = 400 * dpr;
+      this.canvas.height = 250 * dpr;
+    } else {
+      this.canvas.width = displayWidth * dpr;
+      this.canvas.height = displayHeight * dpr;
+    }
     
-    // Set canvas resolution
-    this.canvas.width = displayWidth * dpr;
-    this.canvas.height = displayHeight * dpr;
-    
-    // Scale context
+    // Scale context for HiDPI
     this.ctx.scale(dpr, dpr);
-    
-    // Ensure canvas fills container
-    this.canvas.style.width = displayWidth + 'px';
-    this.canvas.style.height = displayHeight + 'px';
   }
   
   async fetchSpectrumData() {
@@ -238,5 +239,9 @@ class SpectrumWaterfall {
 let spectrumWaterfall = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-  spectrumWaterfall = new SpectrumWaterfall();
+  try {
+    spectrumWaterfall = new SpectrumWaterfall();
+  } catch (e) {
+    console.error('Failed to initialize SpectrumWaterfall:', e);
+  }
 });
