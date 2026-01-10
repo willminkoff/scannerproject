@@ -1,12 +1,13 @@
 /**
  * Spectrum Waterfall Visualization
- * Renders frequency activity as a scrolling waterfall using Canvas API
+ * Proper waterfall rendering using ImageData for efficient scrolling
+ * Based on RTL-SDR and radio receiver patterns
  */
 
 class SpectrumWaterfall {
   constructor() {
     this.canvas = document.getElementById('spectrum-waterfall');
-    this.ctx = this.canvas.getContext('2d');
+    this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
     this.header = document.getElementById('spectrum-header');
     this.content = document.getElementById('spectrum-content');
     this.toggle = document.getElementById('spectrum-toggle');
@@ -15,10 +16,14 @@ class SpectrumWaterfall {
     this.isExpanded = false;
     this.currentTarget = 'airband';
     this.spectrumData = null;
-    this.pixelBuffer = []; // Rolling buffer of spectrum rows
-    this.updateInterval = null;
     this.lastUpdate = 0;
-    this.gridPixels = 20; // Height of each time row in pixels
+    this.updateInterval = null;
+    
+    // ImageData for efficient scrolling waterfall
+    this.imageData = null;
+    this.pixelArray = null;
+    this.rowIndex = 0; // Current row in the waterfall
+    
     this.colorMap = this.createColorMap();
     
     this.setupEventListeners();
@@ -27,36 +32,53 @@ class SpectrumWaterfall {
   }
   
   createColorMap() {
-    // Create a color gradient: dark -> green -> yellow -> red
-    // Returns a canvas gradient that maps power levels to colors
-    const map = {};
-    for (let i = 0; i <= 10; i++) {
-      const ratio = i / 10;
-      let color;
-      if (ratio < 0.2) {
-        // Dark gray for quiet
-        color = this.lerpColor([20, 20, 30], [20, 20, 30], ratio / 0.2);
-      } else if (ratio < 0.4) {
-        // Dark to green
-        color = this.lerpColor([20, 20, 30], [34, 197, 94], (ratio - 0.2) / 0.2);
-      } else if (ratio < 0.7) {
-        // Green to yellow
-        color = this.lerpColor([34, 197, 94], [251, 191, 36], (ratio - 0.4) / 0.3);
+    // Create proper color table: dark -> green -> yellow -> orange -> red
+    // Index 0-255 maps to intensity
+    const colorTable = new Uint8ClampedArray(256 * 4);
+    
+    for (let i = 0; i < 256; i++) {
+      const ratio = i / 255;
+      let r, g, b;
+      
+      if (ratio < 0.15) {
+        // Very quiet: almost black
+        r = Math.round(10 + ratio * 20);
+        g = Math.round(10 + ratio * 20);
+        b = Math.round(20 + ratio * 10);
+      } else if (ratio < 0.35) {
+        // Quiet: dark blue-green
+        const t = (ratio - 0.15) / 0.2;
+        r = Math.round(30 + t * 20);
+        g = Math.round(30 + t * 50);
+        b = Math.round(30 + t * 10);
+      } else if (ratio < 0.55) {
+        // Light: green
+        const t = (ratio - 0.35) / 0.2;
+        r = Math.round(50 + t * 100);
+        g = Math.round(80 + t * 150);
+        b = Math.round(40 + t * 20);
+      } else if (ratio < 0.75) {
+        // Medium: yellow-green to yellow
+        const t = (ratio - 0.55) / 0.2;
+        r = Math.round(150 + t * 100);
+        g = Math.round(230 + t * 20);
+        b = Math.round(60 - t * 50);
       } else {
-        // Yellow to red
-        color = this.lerpColor([251, 191, 36], [239, 68, 68], (ratio - 0.7) / 0.3);
+        // Bright: orange to red
+        const t = (ratio - 0.75) / 0.25;
+        r = Math.round(250);
+        g = Math.round(250 - t * 150);
+        b = Math.round(10);
       }
-      map[i] = `rgb(${Math.round(color[0])},${Math.round(color[1])},${Math.round(color[2])})`;
+      
+      const idx = i * 4;
+      colorTable[idx + 0] = r;      // R
+      colorTable[idx + 1] = g;      // G
+      colorTable[idx + 2] = b;      // B
+      colorTable[idx + 3] = 255;    // A
     }
-    return map;
-  }
-  
-  lerpColor(color1, color2, t) {
-    return [
-      color1[0] + (color2[0] - color1[0]) * t,
-      color1[1] + (color2[1] - color1[1]) * t,
-      color1[2] + (color2[2] - color1[2]) * t,
-    ];
+    
+    return colorTable;
   }
   
   setupEventListeners() {
@@ -64,7 +86,6 @@ class SpectrumWaterfall {
     window.addEventListener('resize', () => {
       if (this.isExpanded) {
         this.resizeCanvas();
-        this.redraw();
       }
     });
   }
@@ -85,9 +106,9 @@ class SpectrumWaterfall {
       this.content.classList.add('expanded');
       this.header.classList.add('expanded');
       this.toggle.textContent = '▼';
-      // Give CSS time to expand before resizing canvas
       setTimeout(() => {
         this.resizeCanvas();
+        this.initImageData();
         this.redraw();
       }, 50);
     } else {
@@ -98,13 +119,11 @@ class SpectrumWaterfall {
   }
   
   resizeCanvas() {
-    // Resize canvas to fit container
     const dpr = window.devicePixelRatio || 1;
     const displayWidth = this.content.offsetWidth || 400;
     const displayHeight = this.content.offsetHeight || 250;
     
     if (displayWidth <= 0 || displayHeight <= 0) {
-      // Fallback if not visible
       this.canvas.width = 400 * dpr;
       this.canvas.height = 250 * dpr;
     } else {
@@ -112,13 +131,28 @@ class SpectrumWaterfall {
       this.canvas.height = displayHeight * dpr;
     }
     
-    // Scale context for HiDPI
     this.ctx.scale(dpr, dpr);
+  }
+  
+  initImageData() {
+    const width = this.canvas.width / (window.devicePixelRatio || 1);
+    const height = this.canvas.height / (window.devicePixelRatio || 1);
+    this.imageData = this.ctx.createImageData(width, height);
+    this.pixelArray = this.imageData.data;
+    this.rowIndex = 0;
+    
+    // Initialize with background color
+    for (let i = 0; i < this.pixelArray.length; i += 4) {
+      this.pixelArray[i + 0] = 5;      // R
+      this.pixelArray[i + 1] = 10;     // G
+      this.pixelArray[i + 2] = 21;     // B
+      this.pixelArray[i + 3] = 255;    // A
+    }
   }
   
   async fetchSpectrumData() {
     try {
-      const response = await fetch(`/api/spectrum-data?target=${this.currentTarget}&minutes=60`);
+      const response = await fetch(`/api/spectrum-data?target=${this.currentTarget}&minutes=60`, { cache: 'no-store' });
       const data = await response.json();
       return data.spectrum;
     } catch (e) {
@@ -130,15 +164,15 @@ class SpectrumWaterfall {
   startUpdates() {
     this.updateInterval = setInterval(() => {
       const now = Date.now();
-      if (now - this.lastUpdate > 3000) { // Update every 3 seconds
+      if (now - this.lastUpdate > 2000) { // Update every 2 seconds
         this.updateSpectrum();
         this.lastUpdate = now;
       }
-    }, 1000);
+    }, 500);
   }
   
   async updateSpectrum() {
-    if (!this.isExpanded) return;
+    if (!this.isExpanded || !this.imageData) return;
     
     const newData = await this.fetchSpectrumData();
     if (!newData || !newData.data || newData.data.length === 0) {
@@ -146,62 +180,78 @@ class SpectrumWaterfall {
     }
     
     this.spectrumData = newData;
+    
+    // Use the latest spectrum row
+    if (newData.data.length > 0) {
+      const latestRow = newData.data[newData.data.length - 1];
+      this.scrollWaterfall(latestRow.powers);
+    }
+    
     this.redraw();
   }
   
-  redraw() {
-    if (!this.ctx || !this.spectrumData) return;
+  scrollWaterfall(powers) {
+    if (!this.imageData || !this.spectrumData) return;
     
-    const spectrum = this.spectrumData;
-    const width = this.canvas.width;
-    const height = this.canvas.height;
-    const numBins = spectrum.bins.length;
+    const width = this.imageData.width;
+    const height = this.imageData.height;
+    const numBins = this.spectrumData.bins.length;
     
-    if (numBins === 0 || spectrum.data.length === 0) {
-      this.drawEmpty();
-      return;
+    // Scroll existing data down by one row
+    for (let i = 0; i < (height - 1) * width * 4; i++) {
+      this.pixelArray[i] = this.pixelArray[i + width * 4];
     }
     
-    // Clear canvas with dark background
-    this.ctx.fillStyle = '#050a15';
-    this.ctx.fillRect(0, 0, width, height);
+    // Draw new data at top
+    const topRowStart = (height - 1) * width * 4;
+    const pixelWidth = width / numBins;
     
-    // Draw spectrum rows
-    const rowHeight = Math.max(2, Math.floor(height / Math.max(1, spectrum.data.length)));
-    
-    for (let rowIdx = 0; rowIdx < spectrum.data.length; rowIdx++) {
-      const row = spectrum.data[rowIdx];
-      const powers = row.powers || [];
-      const y = rowIdx * rowHeight;
+    for (let binIdx = 0; binIdx < numBins; binIdx++) {
+      const power = powers[binIdx] || 0;
+      // Scale power (0-10) to intensity (0-255)
+      const intensity = Math.min(255, Math.max(0, Math.round((power / 10) * 255)));
       
-      // Draw each frequency bin
-      const binWidth = width / numBins;
+      // Get color from color map
+      const colorIdx = intensity * 4;
+      const r = this.colorMap[colorIdx + 0];
+      const g = this.colorMap[colorIdx + 1];
+      const b = this.colorMap[colorIdx + 2];
       
-      for (let binIdx = 0; binIdx < numBins; binIdx++) {
-        const power = powers[binIdx] || 0;
-        const colorKey = Math.min(10, Math.max(0, Math.round(power)));
-        this.ctx.fillStyle = this.colorMap[colorKey];
-        this.ctx.fillRect(binIdx * binWidth, y, binWidth + 1, rowHeight + 1);
+      // Fill pixels for this bin
+      const pixelStartX = Math.floor(binIdx * pixelWidth);
+      const pixelEndX = Math.floor((binIdx + 1) * pixelWidth);
+      
+      for (let x = pixelStartX; x < pixelEndX && x < width; x++) {
+        const pixelIdx = topRowStart + x * 4;
+        this.pixelArray[pixelIdx + 0] = r;
+        this.pixelArray[pixelIdx + 1] = g;
+        this.pixelArray[pixelIdx + 2] = b;
+        this.pixelArray[pixelIdx + 3] = 255;
       }
     }
-    
-    // Draw grid overlay
-    this.drawGridOverlay(spectrum);
   }
   
-  drawGridOverlay(spectrum) {
-    const width = this.canvas.width;
-    const height = this.canvas.height;
-    const numBins = spectrum.bins.length;
+  redraw() {
+    if (!this.ctx || !this.imageData) return;
     
-    // Draw frequency bin grid on X-axis
-    const binWidth = width / numBins;
-    const freqMin = spectrum.range.min;
-    const freqMax = spectrum.range.max;
+    // Draw the waterfall image
+    this.ctx.putImageData(this.imageData, 0, 0);
     
-    // Draw vertical grid lines and frequency labels
-    this.ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-    this.ctx.lineWidth = 1;
+    // Draw frequency labels and grid
+    if (this.spectrumData) {
+      this.drawGridOverlay();
+    }
+  }
+  
+  drawGridOverlay() {
+    const width = this.canvas.width / (window.devicePixelRatio || 1);
+    const height = this.canvas.height / (window.devicePixelRatio || 1);
+    const numBins = this.spectrumData.bins.length;
+    
+    const freqMin = this.spectrumData.range.min;
+    const freqMax = this.spectrumData.range.max;
+    
+    // Draw frequency labels at bottom
     this.ctx.font = '10px monospace';
     this.ctx.fillStyle = '#9aa3c7';
     this.ctx.textAlign = 'center';
@@ -210,10 +260,16 @@ class SpectrumWaterfall {
     for (let f = Math.ceil(freqMin / step) * step; f <= freqMax; f += step) {
       const ratio = (f - freqMin) / (freqMax - freqMin);
       const x = ratio * width;
+      
+      // Draw subtle grid line
+      this.ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      this.ctx.lineWidth = 1;
       this.ctx.beginPath();
       this.ctx.moveTo(x, 0);
-      this.ctx.lineTo(x, height - 15);
+      this.ctx.lineTo(x, height - 14);
       this.ctx.stroke();
+      
+      // Draw frequency label
       this.ctx.fillText(f.toFixed(0), x, height - 2);
     }
   }
@@ -221,7 +277,7 @@ class SpectrumWaterfall {
   setTarget(target) {
     if (target !== this.currentTarget) {
       this.currentTarget = target;
-      this.pixelBuffer = [];
+      this.initImageData();
       if (this.isExpanded) {
         this.updateSpectrum();
       }
