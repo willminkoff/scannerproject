@@ -274,12 +274,15 @@ class SpectrumWaterfall {
   }
   
   redraw() {
-    if (!this.ctx || !this.imageData) return;
+    if (!this.ctx) return;
     
-    // Draw the waterfall image
-    this.ctx.putImageData(this.imageData, 0, 0);
+    // Only put imageData if we're using waterfall mode
+    // (bar graph mode doesn't use imageData)
+    // if (this.imageData) {
+    //   this.ctx.putImageData(this.imageData, 0, 0);
+    // }
     
-    // Draw frequency labels and grid
+    // Draw frequency labels and grid overlay on top
     if (this.spectrumData) {
       this.drawGridOverlay();
     }
