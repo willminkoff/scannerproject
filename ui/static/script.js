@@ -16,12 +16,6 @@ const btnOpenSqlGroundEl = document.getElementById('btn-open-sql-ground');
 let actionMsg = '';
 let actionMsgTarget = null;
 
-// Initialize spectrum waterfall visualization
-let spectrumWaterfall = null;
-document.addEventListener('DOMContentLoaded', () => {
-  spectrumWaterfall = new SpectrumWaterfall();
-});
-
 const GAIN_STEPS = [
   0.0, 0.9, 1.4, 2.7, 3.7, 7.7, 8.7, 12.5, 14.4, 15.7,
   16.6, 19.7, 20.7, 22.9, 25.4, 28.0, 29.7, 32.8, 33.8,
