@@ -184,7 +184,6 @@ class SpectrumWaterfall {
     // Use the latest spectrum row
     if (newData.data.length > 0) {
       const latestRow = newData.data[newData.data.length - 1];
-      console.log('[Spectrum] Drawing', newData.bins.length, 'bins, powers:', latestRow.powers.slice(0, 5));
       this.drawBarGraph(latestRow.powers);
     }
     
@@ -207,6 +206,7 @@ class SpectrumWaterfall {
     // Draw bars using actual power data with colors
     for (let i = 0; i < numBins; i++) {
       const power = powers[i] || 0;
+      // Boost intensity for visibility
       const intensity = Math.min(255, Math.round((power / maxPower) * 255));
       
       // Get color from color map
@@ -215,13 +215,16 @@ class SpectrumWaterfall {
       const g = this.colorMap[colorIdx + 1];
       const b = this.colorMap[colorIdx + 2];
       
-      // Bar height proportional to power
-      const barHeight = (power / maxPower) * height;
-      const barX = i * binWidth;
-      const barY = height - barHeight;
+      // Bar height proportional to power - use more of the canvas height
+      const barHeight = (power / maxPower) * (height * 0.85);
       
-      this.ctx.fillStyle = `rgb(${r},${g},${b})`;
-      this.ctx.fillRect(barX, barY, binWidth - 0.5, barHeight);
+      if (barHeight > 0) {
+        const barX = i * binWidth;
+        const barY = height - barHeight;
+        
+        this.ctx.fillStyle = `rgb(${r},${g},${b})`;
+        this.ctx.fillRect(barX, barY, Math.max(1, binWidth - 0.5), barHeight);
+      }
     }
   }
   
