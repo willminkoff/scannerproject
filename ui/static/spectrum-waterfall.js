@@ -161,7 +161,7 @@ class SpectrumWaterfall {
   startUpdates() {
     this.updateInterval = setInterval(() => {
       this.updateSpectrum();
-    }, 500); // Update every 500ms for more responsiveness
+    }, 2000); // Update every 2 seconds for real-time feel
   }
   
   async updateSpectrum() {

@@ -401,8 +401,8 @@ def aggregate_spectrum_data(target: str = "airband", minutes: int = 60) -> dict:
     num_bins = int((freq_max - freq_min) / bin_width) + 1
     bins = [round(freq_min + i * bin_width, 3) for i in range(num_bins)]
     
-    # Group hits into time windows (1-minute buckets for more responsive updates)
-    time_window = 60  # 1 minute in seconds
+    # Group hits into time windows (10-second buckets for real-time responsiveness)
+    time_window = 10  # 10 seconds in seconds
     time_data = {}
     
     now = time.time()
