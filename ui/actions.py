@@ -29,15 +29,11 @@ def action_set_profile(profile_id: str, target: str) -> dict:
     if target == "ground":
         conf_path = os.path.realpath(GROUND_CONFIG_PATH)
         profiles = [(p["id"], p["label"], p["path"]) for p in profiles_ground]
-        unit_stop = stop_rtl
-        unit_start = start_rtl
         unit_restart = restart_rtl
         target_symlink = GROUND_CONFIG_PATH
     else:
         conf_path = read_active_config_path()
         profiles = [(p["id"], p["label"], p["path"]) for p in profiles_airband]
-        unit_stop = stop_rtl
-        unit_start = start_rtl
         unit_restart = restart_rtl
         target_symlink = CONFIG_SYMLINK
 
@@ -45,27 +41,27 @@ def action_set_profile(profile_id: str, target: str) -> dict:
         return {"status": 400, "payload": {"ok": False, "error": "no profiles available"}}
 
     current_profile = guess_current_profile(conf_path, profiles)
-    did_stop = False
+    
+    # Only proceed if profile actually changed
     if profile_id and profile_id != current_profile:
-        unit_stop()
-        did_stop = True
-    ok, changed = set_profile(profile_id, conf_path, profiles, target_symlink)
-    if ok:
+        ok, changed = set_profile(profile_id, conf_path, profiles, target_symlink)
+        if not ok:
+            return {"status": 400, "payload": {"ok": False, "error": "unknown profile"}}
+        
         try:
             combined_changed = write_combined_config()
         except Exception as e:
-            if did_stop:
-                unit_start()
             return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
-        changed = changed or combined_changed
-        if changed:
+        
+        # Only restart if combined config actually changed
+        # This avoids unnecessary restarts when frequency lists are identical
+        if combined_changed:
             unit_restart()
-        elif did_stop:
-            unit_start()
-        return {"status": 200, "payload": {"ok": True, "changed": changed}}
-    if did_stop:
-        unit_start()
-    return {"status": 400, "payload": {"ok": False, "error": "unknown profile"}}
+        
+        return {"status": 200, "payload": {"ok": True, "changed": changed or combined_changed}}
+    
+    # No profile change requested
+    return {"status": 200, "payload": {"ok": True, "changed": False}}
 
 
 def action_apply_controls(target: str, gain: float, squelch: float) -> dict:

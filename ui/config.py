@@ -89,4 +89,4 @@ GAIN_STEPS = [
 ]
 
 # Action Queueing
-APPLY_DEBOUNCE_SEC = float(os.getenv("APPLY_DEBOUNCE_SEC", "0.35"))
+APPLY_DEBOUNCE_SEC = float(os.getenv("APPLY_DEBOUNCE_SEC", "0.2"))
