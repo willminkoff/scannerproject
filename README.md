@@ -1,18 +1,407 @@
 # SprontPi Scanner Project
 
-This repo contains:
-- `ui/airband_ui.py` (SprontPi Radio Control web UI)
-- `profiles/*.conf` (rtl_airband profiles)
-- `systemd/*.service` (systemd units used on the Pi)
-- `icecast/icecast.xml.example` (example Icecast config; update passwords to match your Icecast instance)
+Scanner control UI and configuration for RTL-SDR dual-dongle airband/GMRS/WX receiver on Raspberry Pi.
 
-## Notes
-- Keep Icecast source/admin passwords consistent between Icecast and profile outputs.
-- This repo intentionally does NOT include binaries like rtl_airband.
-- SprontPi uses a single Icecast mount (`/GND.mp3`) fed by a mixer that combines Airband + Ground in one rtl_airband process.
-- `systemd/rtl-airband-last-hit.service` uses `ExecStart=/bin/bash ...` so it works even if the script loses its executable bit; keep the script executable for manual runs.
+**Current Architecture**: Refactored (Jan 2026) from 1,928-line monolith to 11 modular Python units + static web assets.
 
-## Sprint Notes (2026-01)
+## Directory Structure
+
+```
+.
+├── ui/                           # Web UI application (refactored modular architecture)
+│   ├── airband_ui.py            # Entry point (14 lines, thin wrapper)
+│   ├── app.py                   # HTTP server orchestration
+│   ├── config.py                # Centralized constants & env var overrides
+│   ├── handlers.py              # HTTP request routing & REST API
+│   ├── scanner.py               # Hit detection from journalctl & Icecast
+│   ├── profile_config.py        # Profile/control file I/O
+│   ├── actions.py               # Business logic dispatcher
+│   ├── systemd.py               # systemd unit control
+│   ├── icecast.py               # Icecast stream monitoring
+│   ├── server_workers.py        # Background worker threads
+│   ├── diagnostic.py            # Diagnostic log generation
+│   ├── __init__.py              # Package marker
+│   └── static/                  # Web assets
+│       ├── index.html           # UI structure (5.2 KB)
+│       ├── style.css            # Styling with CSS variables (5 KB)
+│       └── script.js            # Client-side logic (14.3 KB)
+├── profiles/                    # rtl_airband frequency profiles
+│   ├── rtl_airband_*.conf       # Individual scanner profiles
+│   └── trunking/                # P25 talkgroup configs
+├── scripts/
+│   ├── build-combined-config.py # Generates combined dual-scanner config
+│   ├── rtl-airband              # Launch wrapper (preserves SIGHUP capability)
+│   ├── rtl-airband-*.sh         # Utility scripts for hit logging
+│   └── desktop/                 # Desktop button scripts
+├── systemd/                     # systemd service units
+│   ├── rtl-airband.service      # Main scanner service
+│   ├── airband-ui.service       # Web UI service
+│   ├── icecast-keepalive.service
+│   └── trunk-recorder*.service
+├── icecast/                     # Icecast configuration
+├── admin/                       # Operational files
+│   ├── trouble_tickets.csv      # Issue tracking
+│   └── logs/                    # Diagnostic logs
+├── combined_config.py           # Config generator core logic
+└── README.md
+```
+
+## Architecture Overview
+
+### High-Level Data Flow
+
+```
+RTL-SDR Devices (2)
+    ↓
+rtl-airband (combined process)
+    ├─ Airband scanner (118-136 MHz)
+    └─ Ground scanner (VHF/UHF other)
+    ↓
+Mixer (in rtl-airband)
+    ↓
+Icecast Mount (/GND.mp3) @ 16 kbps
+    ├→ Browser (audio player)
+    ├→ Journalctl (activity logging)
+    └→ Frequency metadata
+    ↓
+airband-ui.service (Web UI backend)
+    ├─ Reads: journalctl, Icecast status, config files
+    ├─ Writes: profile configs, control values
+    └─ Exposes: REST API on port 5050
+    ↓
+Browser (http://sprontpi.local:5050)
+    ├─ Displays: profile cards, gain/squelch sliders
+    ├─ Shows: last hit pills, hit list, avoids
+    └─ Sends: profile/control changes via API
+```
+
+### Web UI Architecture (Refactored)
+
+**Before (Jan 2026)**: Single 1,928-line file with no separation of concerns.
+
+**After (Jan 2026)**: Layered modular architecture with clear responsibilities:
+
+1. **Entry Point** (`airband_ui.py`)
+   - Sets up Python path
+   - Calls `ui.app.main()` via relative imports with absolute fallback
+   - Allows systemd execution without package context
+
+2. **HTTP Server** (`app.py`)
+   - Initializes `ThreadedHTTPServer` for concurrent requests
+   - Starts background worker threads
+   - Calls `serve_forever()`
+
+3. **Request Handling** (`handlers.py`)
+   - Routes GET/POST requests
+   - Serves index.html for `/`
+   - Serves static assets with MIME detection
+   - Handles REST API endpoints:
+     - `GET /api/status` → system status JSON
+     - `GET /api/hits` → last 50 hits with time/freq/duration
+     - `POST /api/profile` → switch profile
+     - `POST /api/apply` → set gain/squelch
+     - `POST /api/avoid` → add/clear avoid frequencies
+     - `POST /api/diagnostic` → generate diagnostic log
+
+4. **Configuration** (`config.py`)
+   - Centralized constants: paths, ports, regex patterns, UI settings
+   - Environment variable overrides (prefix: `UI_*`)
+   - Sensible defaults for all values
+   - Single source of truth for configuration
+
+5. **Scanner Logic** (`scanner.py`)
+   - Reads frequency hits from journalctl (`Activity on XXX MHz` patterns)
+   - Filters by frequency range (airband 118-136 MHz, ground other)
+   - Caches results to reduce journalctl overhead
+   - Supports Icecast metadata fallback (if available)
+
+6. **Profile Management** (`profile_config.py`)
+   - Read/write rtl_airband.conf and rtl_airband_ground.conf
+   - Parse gain/squelch controls with regex
+   - Manage avoids (frequency filtering)
+   - Symlink-based profile switching
+   - Write combined config for dual-scanner setup
+
+7. **System Integration** (`systemd.py`)
+   - Control rtl-airband/ground/keepalive services
+   - Query service status
+   - Non-blocking service restarts
+
+8. **Icecast Monitoring** (`icecast.py`)
+   - Query Icecast stream status
+   - Extract metadata from audio title
+   - Monitor keepalive mount
+
+9. **Business Logic** (`actions.py`)
+   - Dispatcher for user actions
+   - Profile switching with smart restart (skip if no frequency change)
+   - Control apply with debounce
+   - Atomic config writes before restart
+   - Error handling with rollback support
+
+10. **Background Workers** (`server_workers.py`)
+    - Action queue with debounce (0.2 seconds)
+    - Icecast monitor thread (updates stream status)
+    - Hit log cache updates
+    - Runs independently from request handlers
+
+11. **Diagnostics** (`diagnostic.py`)
+    - Generates timestamped log bundles
+    - Includes system info, service status, recent journalctl logs
+    - Supports git commit tagging for correlation
+
+### Tech Stack
+
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **Frontend** | HTML5 + CSS3 + Vanilla JS | Web UI (no frameworks) |
+| **Backend HTTP** | Python 3.13 `http.server` | HTTP server with threading |
+| **OS Integration** | systemd `systemctl` + journalctl | Service control & logging |
+| **Audio Stream** | Icecast2 @ 16 kbps mono | Low-latency audio delivery |
+| **SDR Hardware** | rtl-airband v5.1.1 | Dual RTL-SDR device control |
+| **Data Format** | JSON (REST API) + INI-style `.conf` | Configuration & communication |
+| **Version Control** | Git + GitHub | Change tracking & deployment |
+| **Process Model** | Threading (background workers) | Concurrent request handling |
+
+### Performance Characteristics
+
+| Metric | Value | Notes |
+|--------|-------|-------|
+| Profile switch latency | 10-14s | Only restarts if frequency list changes; otherwise instant |
+| Audio latency (Tx→Ear) | ~11s | 16 kbps bitrate + Icecast buffering + browser buffer |
+| Control debounce | 0.2s | Gain/squelch apply waits 200ms for batching |
+| API response time | <100ms | Journalctl scan (200 lines) + JSON serialize |
+| Hit detection refresh | 1.5s | Browser poll interval |
+| Service restart time | ~10-14s | Device init + Icecast reconnect |
+| Web UI load time | ~1-2s | HTML + static assets + first API call |
+| HTTP server concurrency | 10+ threads | ThreadingMixIn allows parallel requests |
+
+### Import Pattern
+
+All UI modules support dual import modes for compatibility:
+
+```python
+try:
+    # Relative imports (package context - preferred)
+    from .config import CONFIG_SYMLINK
+    from .scanner import read_last_hit_airband
+except ImportError:
+    # Absolute fallback (systemd context without package setup)
+    from ui.config import CONFIG_SYMLINK
+    from ui.scanner import read_last_hit_airband
+```
+
+This enables:
+- Running via systemd (which doesn't set up package context)
+- Manual execution with `python3 ui/airband_ui.py`
+- Interactive debugging
+- Import from other scripts in the repo
+
+## REST API Reference
+
+All endpoints respond with JSON unless otherwise noted.
+
+### GET /
+Returns `index.html` (serves entire single-page app).
+
+### GET /api/status
+System status snapshot.
+
+**Response** (JSON):
+```json
+{
+  "rtl_active": true,
+  "ground_active": false,
+  "ground_exists": true,
+  "icecast_active": true,
+  "keepalive_active": true,
+  "profile_airband": "airband",
+  "profile_ground": "none_ground",
+  "profiles_airband": [
+    {"id": "airband", "label": "Airband", "path": "...", "exists": true},
+    ...
+  ],
+  "profiles_ground": [...],
+  "missing_profiles": [],
+  "gain": 32.8,
+  "squelch": 5.0,
+  "airband_gain": 32.8,
+  "airband_squelch": 5.0,
+  "ground_gain": 36.4,
+  "ground_squelch": 3.0,
+  "last_hit": "119.3500",
+  "last_hit_airband": "119.3500",
+  "last_hit_ground": "",
+  "avoids_airband": ["121.900"],
+  "avoids_ground": []
+}
+```
+
+### GET /api/hits
+Last 50 detected hits (from journalctl activity logs).
+
+**Response** (JSON):
+```json
+{
+  "items": [
+    {"time": "10:55:48", "freq": "119.3500", "duration": 0},
+    {"time": "10:55:27", "freq": "118.4000", "duration": 0},
+    ...
+  ]
+}
+```
+
+**Notes**:
+- Duration inferred from time gaps between activity logs (10s reset threshold)
+- Frequencies from journalctl `Activity on X.XXX MHz` pattern matches
+- Fallback to Icecast metadata if journalctl is empty
+
+### POST /api/profile
+Switch to a profile.
+
+**Request** (JSON):
+```json
+{
+  "profile": "airband",
+  "target": "airband"
+}
+```
+
+**Response** (JSON):
+```json
+{"ok": true, "changed": true}
+```
+
+**Behavior**:
+- Regenerates combined config
+- Skips restart if frequency list unchanged
+- Restarts rtl-airband only when device config differs
+
+### POST /api/apply
+Set gain and squelch for a target scanner.
+
+**Request** (JSON):
+```json
+{
+  "gain": 32.8,
+  "squelch": 5.0,
+  "target": "airband"
+}
+```
+
+**Response** (JSON):
+```json
+{"ok": true, "changed": true}
+```
+
+**Behavior**:
+- Validated gain/squelch ranges
+- Writes config file
+- Debounced 0.2 seconds (batches rapid changes)
+- Restarts rtl-airband if change detected
+
+### POST /api/avoid
+Add or clear avoid frequencies.
+
+**Request** (JSON):
+```json
+{
+  "action": "add",
+  "freq": "121.900",
+  "target": "airband"
+}
+```
+
+Or to clear:
+```json
+{
+  "action": "clear",
+  "target": "airband"
+}
+```
+
+**Response** (JSON):
+```json
+{"ok": true}
+```
+
+**Notes**:
+- Avoids stored in rtl_airband config as notch list
+- Survives profile changes (moves with config)
+
+### POST /api/diagnostic
+Generate diagnostic log bundle.
+
+**Request** (JSON):
+```json
+{}
+```
+
+**Response** (JSON):
+```json
+{"path": "/home/willminkoff/scannerproject/admin/logs/diagnostic-20260110-165106.txt"}
+```
+
+**Contents**: System info, systemd status, journalctl logs, Icecast status, git commit info.
+
+### GET /static/*
+Serve static web assets.
+
+**Supported files**:
+- `static/index.html` (5.2 KB)
+- `static/style.css` (5 KB)
+- `static/script.js` (14.3 KB)
+
+**MIME types**:
+- `.html` → `text/html`
+- `.css` → `text/css`
+- `.js` → `application/javascript`
+
+### Error Responses
+
+**400 Bad Request**:
+```json
+{"ok": false, "error": "unknown profile"}
+```
+
+**500 Server Error**:
+```json
+{"ok": false, "error": "combine failed: ..."}
+```
+
+## Deployment
+
+### Quick Deploy
+```bash
+cd /home/willminkoff/scannerproject
+git pull origin main
+sudo python3 scripts/build-combined-config.py
+sudo systemctl restart rtl-airband airband-ui
+```
+
+### Full Deploy (from Mac)
+```bash
+# Deploy code
+rsync -av ui/ willminkoff@sprontpi.local:/home/willminkoff/scannerproject/ui/
+
+# Rebuild config
+ssh willminkoff@sprontpi.local "cd /home/willminkoff/scannerproject && sudo python3 scripts/build-combined-config.py"
+
+# Restart services
+ssh willminkoff@sprontpi.local "sudo systemctl restart rtl-airband airband-ui"
+```
+
+### Verify Deployment
+```bash
+# Check UI is responsive
+curl -s http://sprontpi.local:5050/api/status | jq '.profile_airband'
+
+# Check rtl-airband logs
+ssh willminkoff@sprontpi.local "journalctl -u rtl-airband -n 20 --no-pager"
+
+# Check Icecast stream
+curl -s http://sprontpi.local:8000/status-json.xsl | jq '.icestats.source[] | {mount, listeners}'
+```
 - UI: profiles render as a two-column grid of selectable cards and show an avoids summary for the active profile.
 - Speed: profile/gain/squelch apply skips restart when no changes were made.
 - Logging: `systemd/rtl-airband.service` now points at `scripts/rtl-airband-with-freq.sh` to strip control codes from logs.
@@ -32,32 +421,46 @@ How it works:
 
 This approach works correctly even though both scanners run in a single combined rtl_airband process, since they output to the same journalctl unit and need to be separated by frequency range rather than by unit.
 
-## Combined Mixer Setup (Single Icecast Mount)
-SprontPi runs both dongles inside one rtl_airband process and mixes them into a single Icecast mount:
-- Airband/Tower profiles run on device index 0.
-- GMRS/WX profiles run on device index 1.
-- Both channel outputs are routed into a mixer named `combined`.
-- The mixer outputs a single Icecast stream at `http://127.0.0.1:8000/GND.mp3`.
+## Combined Config Generation
 
-How it works:
-- `scripts/build-combined-config.py` generates `/usr/local/etc/rtl_airband_combined.conf`.
-- The generator pulls the active Airband profile from `/usr/local/etc/rtl_airband.conf` and the active Ground profile from `/usr/local/etc/rtl_airband_ground.conf`.
-- It replaces per-channel `outputs` with a mixer output and defines a single Icecast output at the mixer.
-- The generator hard-enforces device indexes (0 for Airband, 1 for Ground) so dongles do not collide.
-- The UI regenerates the combined config when profiles or gain/squelch values change.
+SprontPi runs two RTL-SDR dongles and two scanner profiles in a single `rtl-airband` process:
+- **Device 0**: Airband profiles (118–136 MHz, aviation)
+- **Device 1**: Ground profiles (GMRS, WX, other VHF/UHF)
 
-Systemd service expectations:
-- `rtl-airband.service` should run the combined config:
-  - `ExecStartPre=/usr/bin/python3 /home/willminkoff/scannerproject/scripts/build-combined-config.py`
-  - `ExecStart=/home/willminkoff/scannerproject/scripts/rtl-airband-with-freq.sh /usr/local/etc/rtl_airband_combined.conf`
-- The old `rtl-airband-ground.service` should be disabled to avoid mount conflicts.
+### How It Works
 
-Quick verification:
-- Confirm combined config exists:
-  - `sudo /usr/bin/python3 /home/willminkoff/scannerproject/scripts/build-combined-config.py`
-  - `sudo head -n 120 /usr/local/etc/rtl_airband_combined.conf`
-- Confirm Icecast stream is live:
-  - `curl -s http://127.0.0.1:8000/status-json.xsl | grep -E '"mount"|listenurl|listeners'`
+The `combined_config.py` script generates `/usr/local/etc/rtl_airband_combined.conf` from:
+- Active Airband profile: symlink target of `/usr/local/etc/rtl_airband.conf`
+- Active Ground profile: `/usr/local/etc/rtl_airband_ground.conf`
+
+**Generation steps**:
+1. Extract device configs from airband + ground profiles
+2. Enforce device indexes (0, 1) and serials to prevent collisions
+3. Replace per-channel outputs with mixer references
+4. Define single Icecast output at mixer (16 kbps mono)
+5. Write atomically to `/usr/local/etc/rtl_airband_combined.conf`
+
+**Bitrate override**: All profiles' bitrate is overridden to **16 kbps** for low-latency streaming (less buffering = faster audio startup).
+
+### Profile Switching Logic
+
+When user selects new profile:
+
+1. **Write config** to symlink target (`/usr/local/etc/rtl_airband.conf`)
+2. **Regenerate combined config** via `build-combined-config.py`
+3. **Check if changed**: Only restart rtl-airband if combined config differs from previous version
+4. **Avoid unnecessary restarts**: If frequency list is identical, skip restart entirely
+
+This optimization eliminates 10-15 second delays when switching between profiles with same frequencies.
+
+### Systemd Integration
+
+The `rtl-airband.service` runs:
+- **ExecStartPre**: Regenerate combined config
+- **ExecStart**: Launch rtl-airband with combined config + logging wrapper
+- **RestartSec=0**: Immediate restart on failure
+- **TimeoutStopSec=1**: Fast shutdown (1 second)
+- **KillSignal=SIGINT**: Clean shutdown signal
 
 ## Pi Notes
 - Repo path on SprontPi: `/home/willminkoff/scannerproject`
