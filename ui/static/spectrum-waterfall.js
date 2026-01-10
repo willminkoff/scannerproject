@@ -274,10 +274,30 @@ class SpectrumWaterfall {
   redraw() {
     if (!this.ctx) return;
     
-    // Grid overlay disabled for now - bars should be visible
-    // if (this.spectrumData) {
-    //   this.drawGridOverlay();
-    // }
+    // Draw subtle frequency labels at bottom
+    if (this.spectrumData) {
+      this.drawFrequencyLabels();
+    }
+  }
+  
+  drawFrequencyLabels() {
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+    const freqMin = this.spectrumData.range.min;
+    const freqMax = this.spectrumData.range.max;
+    
+    // Draw frequency labels at bottom
+    this.ctx.font = '11px monospace';
+    this.ctx.fillStyle = 'rgba(150, 163, 199, 0.6)';
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'top';
+    
+    const step = Math.max(1, Math.round((freqMax - freqMin) / 4));
+    for (let f = Math.ceil(freqMin / step) * step; f <= freqMax; f += step) {
+      const ratio = (f - freqMin) / (freqMax - freqMin);
+      const x = ratio * width;
+      this.ctx.fillText(Math.round(f), x, height - 18);
+    }
   }
   
   drawGridOverlay() {
