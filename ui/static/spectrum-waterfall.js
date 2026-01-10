@@ -161,7 +161,7 @@ class SpectrumWaterfall {
   startUpdates() {
     this.updateInterval = setInterval(() => {
       this.updateSpectrum();
-    }, 1000); // Update every second
+    }, 500); // Update every 500ms for more responsiveness
   }
   
   async updateSpectrum() {
@@ -206,8 +206,8 @@ class SpectrumWaterfall {
     // Draw bars using actual power data with colors
     for (let i = 0; i < numBins; i++) {
       const power = powers[i] || 0;
-      // Boost intensity for visibility
-      const intensity = Math.min(255, Math.round((power / maxPower) * 255));
+      // Boost intensity - make even small signals visible
+      const intensity = Math.min(255, Math.round(Math.pow(power / maxPower, 0.5) * 255));
       
       // Get color from color map
       const colorIdx = intensity * 4;
@@ -215,10 +215,10 @@ class SpectrumWaterfall {
       const g = this.colorMap[colorIdx + 1];
       const b = this.colorMap[colorIdx + 2];
       
-      // Bar height proportional to power - use more of the canvas height
-      const barHeight = (power / maxPower) * (height * 0.85);
+      // Bar height - use more vertical space for better visibility
+      const barHeight = Math.pow(power / maxPower, 0.5) * height;
       
-      if (barHeight > 0) {
+      if (barHeight > 0.5) {
         const barX = i * binWidth;
         const barY = height - barHeight;
         
