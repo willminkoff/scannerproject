@@ -194,15 +194,32 @@ class SpectrumWaterfall {
     this.ctx.fillStyle = '#000a15';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     
+    if (!powers || powers.length === 0) return;
+    
     const width = this.canvas.width;
     const height = this.canvas.height;
-    const numBins = powers ? powers.length : 180;
+    const numBins = powers.length;
     const binWidth = width / numBins;
+    const maxPower = 10;
     
-    // Draw hardcoded red bars for testing
+    // Draw bars using actual power data with colors
     for (let i = 0; i < numBins; i++) {
-      this.ctx.fillStyle = '#ff0000';
-      this.ctx.fillRect(i * binWidth, height - 20, binWidth - 1, 20);
+      const power = powers[i] || 0;
+      const intensity = Math.min(255, Math.round((power / maxPower) * 255));
+      
+      // Get color from color map
+      const colorIdx = intensity * 4;
+      const r = this.colorMap[colorIdx + 0];
+      const g = this.colorMap[colorIdx + 1];
+      const b = this.colorMap[colorIdx + 2];
+      
+      // Bar height proportional to power
+      const barHeight = (power / maxPower) * height;
+      const barX = i * binWidth;
+      const barY = height - barHeight;
+      
+      this.ctx.fillStyle = `rgb(${r},${g},${b})`;
+      this.ctx.fillRect(barX, barY, binWidth - 0.5, barHeight);
     }
   }
   
@@ -255,16 +272,10 @@ class SpectrumWaterfall {
   redraw() {
     if (!this.ctx) return;
     
-    // Only put imageData if we're using waterfall mode
-    // (bar graph mode doesn't use imageData)
-    // if (this.imageData) {
-    //   this.ctx.putImageData(this.imageData, 0, 0);
-    // }
-    
-    // Draw frequency labels and grid overlay on top - DISABLED FOR NOW
-    // if (this.spectrumData) {
-    //   this.drawGridOverlay();
-    // }
+    // Draw frequency labels and grid overlay on top
+    if (this.spectrumData) {
+      this.drawGridOverlay();
+    }
   }
   
   drawGridOverlay() {
