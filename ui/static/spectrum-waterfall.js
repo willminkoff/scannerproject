@@ -122,19 +122,12 @@ class SpectrumWaterfall {
   }
   
   resizeCanvas() {
-    const dpr = window.devicePixelRatio || 1;
     const displayWidth = this.content.offsetWidth || 400;
     const displayHeight = this.content.offsetHeight || 250;
     
-    if (displayWidth <= 0 || displayHeight <= 0) {
-      this.canvas.width = 400 * dpr;
-      this.canvas.height = 250 * dpr;
-    } else {
-      this.canvas.width = displayWidth * dpr;
-      this.canvas.height = displayHeight * dpr;
-    }
-    
-    this.ctx.scale(dpr, dpr);
+    // Set canvas resolution to match display size (no DPR scaling)
+    this.canvas.width = displayWidth;
+    this.canvas.height = displayHeight;
   }
   
   initImageData() {
