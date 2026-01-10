@@ -1,0 +1,567 @@
+SprontPi Diagnostic Log (UTC 20260109-153645)
+
+### icecast status-json.xsl (localhost)
+{"icestats":{"admin":"admin@localhost","host":"localhost","location":"SprontPi","server_id":"Icecast 2.4.4","server_start":"Fri, 09 Jan 2026 08:21:57 -0600","server_start_iso8601":"2026-01-09T08:21:57-0600","source":[{"audio_info":"samplerate=8000;channels=1","channels":1,"genre":"AIRBAND","listener_peak":2,"listeners":1,"listenurl":"http://localhost:8000/GND.mp3","samplerate":8000,"server_description":"Nashville Airband locals","server_name":"SprontPi Radio","server_type":"audio/mpeg","stream_start":"Fri, 09 Jan 2026 08:21:58 -0600","stream_start_iso8601":"2026-01-09T08:21:58-0600","dummy":null},{"genre":"various","listener_peak":0,"listeners":0,"listenurl":"http://localhost:8000/keepalive.mp3","server_description":"Unspecified description","server_name":"Unspecified name","server_type":"audio/mpeg","stream_start":"Fri, 09 Jan 2026 08:21:57 -0600","stream_start_iso8601":"2026-01-09T08:21:57-0600","dummy":null}]}}
+
+### command: date -u
+(exit=0)
+stdout:
+Fri  9 Jan 15:36:45 UTC 2026
+
+### command: uname -a
+(exit=0)
+stdout:
+Linux SprontPi 6.12.47+rpt-rpi-2712 #1 SMP PREEMPT Debian 1:6.12.47-1+rpt1 (2025-09-16) aarch64 GNU/Linux
+
+### command: uptime
+(exit=0)
+stdout:
+ 09:36:45 up 40 min,  2 users,  load average: 1.72, 1.45, 1.17
+
+### command: systemctl status icecast2 --no-pager
+(exit=0)
+stdout:
+● icecast2.service - LSB: Icecast2 streaming media server
+     Loaded: loaded (/etc/init.d/icecast2; generated)
+     Active: active (running) since Fri 2026-01-09 08:21:57 CST; 1h 14min ago
+ Invocation: bb0b6f6963ca4041a6d9a35f0fbc5247
+       Docs: man:systemd-sysv-generator(8)
+    Process: 1718 ExecStart=/etc/init.d/icecast2 start (code=exited, status=0/SUCCESS)
+      Tasks: 6 (limit: 9570)
+        CPU: 1.989s
+     CGroup: /system.slice/icecast2.service
+             └─1728 /usr/bin/icecast2 -b -c /etc/icecast2/icecast.xml
+
+Jan 09 08:21:57 SprontPi systemd[1]: Starting icecast2.service - LSB: Icecast2 streaming media server...
+Jan 09 08:21:57 SprontPi icecast2[1718]: Starting streaming media server: icecast2
+Jan 09 08:21:57 SprontPi icecast2[1728]: [2026-01-09  08:21:57] WARN CONFIG/_parse_root Warning, <hostname> not configured, using default value "localhost". This will cause problems, e.g. with YP directory listings.
+Jan 09 08:21:57 SprontPi icecast2[1718]: .
+Jan 09 08:21:57 SprontPi systemd[1]: Started icecast2.service - LSB: Icecast2 streaming media server.
+
+### command: systemctl status icecast-keepalive --no-pager
+(exit=0)
+stdout:
+● icecast-keepalive.service - Icecast Keepalive (silent fallback)
+     Loaded: loaded (/etc/systemd/system/icecast-keepalive.service; enabled; preset: enabled)
+     Active: active (running) since Fri 2026-01-09 08:21:57 CST; 1h 14min ago
+ Invocation: 2c5c7d84188b4073bace511036a163c6
+   Main PID: 1730 (ffmpeg)
+      Tasks: 14 (limit: 9570)
+        CPU: 7.928s
+     CGroup: /system.slice/icecast-keepalive.service
+             └─1730 /usr/bin/ffmpeg -nostdin -hide_banner -loglevel warning -re -f lavfi -i anullsrc=channel_layout=mono:sample_rate=8000 -c:a libmp3lame -b:a 32k -ar 8000 -ac 1 -content_type audio/mpeg -f mp3 icecast://source:062352@127.0.0.1:8000/keepalive.mp3
+
+Jan 09 08:21:57 SprontPi systemd[1]: Started icecast-keepalive.service - Icecast Keepalive (silent fallback).
+
+### command: systemctl status rtl-airband --no-pager
+(exit=0)
+stdout:
+● rtl-airband.service - RTLSDR-Airband (scan -> Icecast)
+     Loaded: loaded (/etc/systemd/system/rtl-airband.service; enabled; preset: enabled)
+     Active: active (running) since Fri 2026-01-09 08:21:57 CST; 1h 14min ago
+ Invocation: b99f64dcdedf46f198c23a64ef7bf91d
+    Process: 1735 ExecStartPre=/usr/bin/pkill -x rtl_airband (code=exited, status=1/FAILURE)
+    Process: 1745 ExecStartPre=/usr/bin/python3 /home/willminkoff/scannerproject/scripts/build-combined-config.py (code=exited, status=0/SUCCESS)
+   Main PID: 1747 (rtl_airband)
+      Tasks: 8 (limit: 9570)
+        CPU: 2min 28.258s
+     CGroup: /system.slice/rtl-airband.service
+             └─1747 /usr/local/bin/rtl_airband -F -e -c /usr/local/etc/rtl_airband_combined.conf
+
+Jan 09 08:21:57 SprontPi systemd[1]: Starting rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 09 08:21:57 SprontPi systemd[1]: Started rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 09 08:21:57 SprontPi rtl_airband[1747]: RTLSDR-Airband version v5.1.1-1-g6fc7017 starting
+Jan 09 08:21:57 SprontPi rtl_airband[1747]: Connecting to 127.0.0.1:8000/GND.mp3...
+Jan 09 08:21:58 SprontPi rtl_airband[1747]: Connected to 127.0.0.1:8000/GND.mp3
+Jan 09 08:21:58 SprontPi rtl_airband[1747]: Found Rafael Micro R828D tuner
+Jan 09 08:21:58 SprontPi rtl_airband[1747]: RTL-SDR Blog V4 Detected
+Jan 09 08:21:59 SprontPi rtl_airband[1747]: Device #0: gain set to 15.70 dB
+Jan 09 08:21:59 SprontPi rtl_airband[1747]: RTLSDR device 0 initialized
+Jan 09 08:21:59 SprontPi rtl_airband[1747]: Allocating 10 zero-copy buffers
+
+### command: systemctl status airband-ui --no-pager
+(exit=0)
+stdout:
+● airband-ui.service - Airband Gain/Squelch Web UI
+     Loaded: loaded (/etc/systemd/system/airband-ui.service; enabled; preset: enabled)
+    Drop-In: /etc/systemd/system/airband-ui.service.d
+             └─override.conf
+     Active: active (running) since Fri 2026-01-09 08:21:57 CST; 1h 14min ago
+ Invocation: f15ffc885b5e4922922910f36a7aa19f
+   Main PID: 1715 (python3)
+      Tasks: 4 (limit: 9570)
+        CPU: 1.497s
+     CGroup: /system.slice/airband-ui.service
+             ├─1715 /usr/bin/python3 /home/willminkoff/scannerproject/ui/airband_ui.py
+             └─6188 systemctl status airband-ui --no-pager
+
+Jan 09 09:36:31 SprontPi python3[1715]: 192.168.86.34 - - [09/Jan/2026 09:36:31] "GET /api/status HTTP/1.1" 200 -
+Jan 09 09:36:32 SprontPi python3[1715]: 192.168.86.34 - - [09/Jan/2026 09:36:32] "GET /api/status HTTP/1.1" 200 -
+Jan 09 09:36:34 SprontPi python3[1715]: 192.168.86.34 - - [09/Jan/2026 09:36:34] "GET /api/status HTTP/1.1" 200 -
+Jan 09 09:36:35 SprontPi python3[1715]: 192.168.86.34 - - [09/Jan/2026 09:36:35] "GET /api/status HTTP/1.1" 200 -
+Jan 09 09:36:37 SprontPi python3[1715]: 192.168.86.34 - - [09/Jan/2026 09:36:37] "GET /api/status HTTP/1.1" 200 -
+Jan 09 09:36:38 SprontPi python3[1715]: 192.168.86.34 - - [09/Jan/2026 09:36:38] "GET /api/status HTTP/1.1" 200 -
+Jan 09 09:36:40 SprontPi python3[1715]: 192.168.86.34 - - [09/Jan/2026 09:36:40] "GET /api/status HTTP/1.1" 200 -
+Jan 09 09:36:41 SprontPi python3[1715]: 192.168.86.34 - - [09/Jan/2026 09:36:41] "GET /api/status HTTP/1.1" 200 -
+Jan 09 09:36:43 SprontPi python3[1715]: 192.168.86.34 - - [09/Jan/2026 09:36:43] "GET /api/status HTTP/1.1" 200 -
+Jan 09 09:36:44 SprontPi python3[1715]: 192.168.86.34 - - [09/Jan/2026 09:36:44] "GET /api/status HTTP/1.1" 200 -
+
+### command: journalctl -u icecast2 -n 200 --no-pager
+(exit=0)
+stdout:
+Jan 09 08:21:57 SprontPi systemd[1]: Starting icecast2.service - LSB: Icecast2 streaming media server...
+Jan 09 08:21:57 SprontPi icecast2[1718]: Starting streaming media server: icecast2
+Jan 09 08:21:57 SprontPi icecast2[1728]: [2026-01-09  08:21:57] WARN CONFIG/_parse_root Warning, <hostname> not configured, using default value "localhost". This will cause problems, e.g. with YP directory listings.
+Jan 09 08:21:57 SprontPi icecast2[1718]: .
+Jan 09 08:21:57 SprontPi systemd[1]: Started icecast2.service - LSB: Icecast2 streaming media server.
+
+### command: journalctl -u icecast-keepalive -n 200 --no-pager
+(exit=0)
+stdout:
+Jan 09 08:21:57 SprontPi systemd[1]: Started icecast-keepalive.service - Icecast Keepalive (silent fallback).
+
+### command: journalctl -u rtl-airband -n 200 --no-pager
+(exit=0)
+stdout:
+Jan 09 08:21:57 SprontPi systemd[1]: Starting rtl-airband.service - RTLSDR-Airband (scan -> Icecast)...
+Jan 09 08:21:57 SprontPi systemd[1]: Started rtl-airband.service - RTLSDR-Airband (scan -> Icecast).
+Jan 09 08:21:57 SprontPi rtl_airband[1747]: RTLSDR-Airband version v5.1.1-1-g6fc7017 starting
+Jan 09 08:21:57 SprontPi rtl_airband[1747]: Connecting to 127.0.0.1:8000/GND.mp3...
+Jan 09 08:21:58 SprontPi rtl_airband[1747]: Connected to 127.0.0.1:8000/GND.mp3
+Jan 09 08:21:58 SprontPi rtl_airband[1747]: Found Rafael Micro R828D tuner
+Jan 09 08:21:58 SprontPi rtl_airband[1747]: RTL-SDR Blog V4 Detected
+Jan 09 08:21:59 SprontPi rtl_airband[1747]: Device #0: gain set to 15.70 dB
+Jan 09 08:21:59 SprontPi rtl_airband[1747]: RTLSDR device 0 initialized
+Jan 09 08:21:59 SprontPi rtl_airband[1747]: Allocating 10 zero-copy buffers
+
+### command: journalctl -u airband-ui -n 200 --no-pager
+(exit=0)
+stdout:
+Jan 09 08:21:57 SprontPi systemd[1]: Started airband-ui.service - Airband Gain/Squelch Web UI.
+Jan 09 09:36:29 SprontPi python3[1715]: 192.168.86.34 - - [09/Jan/2026 09:36:29] "GET / HTTP/1.1" 200 -
+Jan 09 09:36:29 SprontPi python3[1715]: 192.168.86.34 - - [09/Jan/2026 09:36:29] "GET /favicon.ico HTTP/1.1" 404 -
+Jan 09 09:36:29 SprontPi python3[1715]: 192.168.86.34 - - [09/Jan/2026 09:36:29] "GET /api/status HTTP/1.1" 200 -
+Jan 09 09:36:31 SprontPi python3[1715]: 192.168.86.34 - - [09/Jan/2026 09:36:31] "GET /api/status HTTP/1.1" 200 -
+Jan 09 09:36:32 SprontPi python3[1715]: 192.168.86.34 - - [09/Jan/2026 09:36:32] "GET /api/status HTTP/1.1" 200 -
+Jan 09 09:36:34 SprontPi python3[1715]: 192.168.86.34 - - [09/Jan/2026 09:36:34] "GET /api/status HTTP/1.1" 200 -
+Jan 09 09:36:35 SprontPi python3[1715]: 192.168.86.34 - - [09/Jan/2026 09:36:35] "GET /api/status HTTP/1.1" 200 -
+Jan 09 09:36:37 SprontPi python3[1715]: 192.168.86.34 - - [09/Jan/2026 09:36:37] "GET /api/status HTTP/1.1" 200 -
+Jan 09 09:36:38 SprontPi python3[1715]: 192.168.86.34 - - [09/Jan/2026 09:36:38] "GET /api/status HTTP/1.1" 200 -
+Jan 09 09:36:40 SprontPi python3[1715]: 192.168.86.34 - - [09/Jan/2026 09:36:40] "GET /api/status HTTP/1.1" 200 -
+Jan 09 09:36:41 SprontPi python3[1715]: 192.168.86.34 - - [09/Jan/2026 09:36:41] "GET /api/status HTTP/1.1" 200 -
+Jan 09 09:36:43 SprontPi python3[1715]: 192.168.86.34 - - [09/Jan/2026 09:36:43] "GET /api/status HTTP/1.1" 200 -
+Jan 09 09:36:44 SprontPi python3[1715]: 192.168.86.34 - - [09/Jan/2026 09:36:44] "GET /api/status HTTP/1.1" 200 -
+
+### command: tail -n 200 /var/log/icecast2/error.log
+(exit=0)
+stdout:
+[2026-01-08  22:01:45] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  22:01:45] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  22:01:45] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:01:45] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  22:01:45] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  22:01:45] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:01:45] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  22:01:45] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  22:01:45] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  22:01:45] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  22:02:28] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  22:02:28] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  22:02:28] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  22:02:28] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:02:28] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  22:02:28] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  22:02:28] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:02:28] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  22:02:28] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  22:02:28] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  22:02:28] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  22:02:37] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  22:02:37] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  22:02:37] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  22:02:37] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:02:37] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  22:02:37] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  22:02:37] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:02:37] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  22:02:37] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  22:02:37] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  22:02:37] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  22:03:33] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  22:03:33] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  22:03:33] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  22:03:33] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  22:03:33] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:03:33] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  22:03:33] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:03:33] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  22:03:33] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  22:03:33] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  22:03:33] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  22:05:49] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  22:05:49] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  22:05:49] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  22:05:49] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:05:49] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  22:05:49] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  22:05:50] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:05:50] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  22:05:50] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  22:05:50] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  22:05:50] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  22:05:54] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  22:05:54] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  22:05:54] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  22:05:54] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:05:54] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  22:05:55] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  22:05:55] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:05:55] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  22:05:55] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  22:05:55] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  22:05:55] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  22:05:58] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  22:05:58] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  22:05:58] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  22:05:58] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:05:58] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  22:05:58] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  22:05:58] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:05:58] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  22:05:58] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  22:05:58] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  22:05:59] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  22:06:34] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  22:06:34] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  22:06:34] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  22:06:34] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  22:06:34] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:06:34] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  22:06:34] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:06:34] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  22:06:34] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  22:06:34] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  22:06:34] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  22:06:37] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  22:06:37] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  22:06:37] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  22:06:37] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  22:06:37] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:06:37] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  22:06:37] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:06:37] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  22:06:37] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  22:06:37] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  22:06:37] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  22:07:47] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  22:07:47] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  22:07:47] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  22:07:47] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:07:47] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  22:07:47] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  22:07:47] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:07:47] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  22:07:47] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  22:07:47] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  22:07:47] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  22:09:14] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  22:09:14] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  22:09:14] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  22:09:14] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:09:14] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  22:09:14] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  22:09:14] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:09:14] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  22:09:14] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  22:09:14] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  22:09:14] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  22:09:25] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  22:09:25] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  22:09:25] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  22:09:25] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  22:09:25] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:09:25] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  22:09:26] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:09:26] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  22:09:26] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  22:09:26] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  22:09:26] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  22:11:17] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  22:11:17] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  22:11:17] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  22:11:17] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:11:17] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  22:11:17] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  22:11:18] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:11:18] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  22:11:18] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  22:11:18] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  22:11:18] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  22:12:05] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  22:12:05] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  22:12:05] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  22:12:05] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:12:05] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  22:12:05] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  22:12:05] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:12:05] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  22:12:05] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  22:12:06] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  22:12:06] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  22:12:59] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  22:12:59] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  22:12:59] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  22:12:59] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:12:59] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  22:12:59] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  22:12:59] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:12:59] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  22:12:59] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  22:13:00] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  22:13:00] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  22:14:23] INFO source/get_next_buffer End of Stream /GND.mp3
+[2026-01-08  22:14:23] INFO source/source_shutdown Source from 127.0.0.1 at "/GND.mp3" exiting
+[2026-01-08  22:14:23] INFO source/source_move_clients passing 1 listeners to "/keepalive.mp3"
+[2026-01-08  22:14:23] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:14:23] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-08  22:14:23] INFO source/source_main listener count on /keepalive.mp3 now 1
+[2026-01-08  22:14:23] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-08  22:14:23] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-08  22:14:23] INFO source/source_move_clients passing 1 listeners to "/GND.mp3"
+[2026-01-08  22:14:23] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-08  22:14:23] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-08  22:14:38] INFO source/source_main listener count on /GND.mp3 now 0
+[2026-01-09  08:21:57] INFO main/main Icecast 2.4.4 server started
+[2026-01-09  08:21:57] INFO yp/yp_update_thread YP update thread started
+[2026-01-09  08:21:57] INFO connection/get_ssl_certificate No SSL capability on any configured ports
+[2026-01-09  08:21:57] WARN source/source_fallback_file unable to open file "/usr/share/icecast2/web/keepalive.mp3"
+[2026-01-09  08:21:57] WARN source/source_fallback_file unable to open file "/usr/share/icecast2/web/keepalive.mp3"
+[2026-01-09  08:21:57] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-09  08:21:57] INFO connection/_handle_source_request Source (/GND.mp3) attempted to login with invalid or missing password
+[2026-01-09  08:21:57] INFO connection/_handle_source_request Source logging in at mountpoint "/keepalive.mp3" from 127.0.0.1
+[2026-01-09  08:21:57] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-09  08:21:57] INFO source/source_main listener count on /keepalive.mp3 now 0
+[2026-01-09  08:21:58] INFO connection/_handle_source_request Source logging in at mountpoint "/GND.mp3" from 127.0.0.1
+[2026-01-09  08:21:58] WARN format/format_get_type Unsupported or legacy stream type: "audio/mpeg". Falling back to generic minimal handler for best effort.
+[2026-01-09  08:21:58] INFO source/source_move_clients passing 0 listeners to "/GND.mp3"
+[2026-01-09  08:21:58] INFO source/source_main listener count on /GND.mp3 now 0
+[2026-01-09  09:35:58] INFO fserve/fserve_client_create checking for file /style.css (/usr/share/icecast2/web/style.css)
+[2026-01-09  09:35:58] INFO fserve/fserve_client_create checking for file /icecast.png (/usr/share/icecast2/web/icecast.png)
+[2026-01-09  09:35:58] INFO fserve/fserve_client_create checking for file /tunein.png (/usr/share/icecast2/web/tunein.png)
+[2026-01-09  09:35:58] INFO fserve/fserve_client_create checking for file /icecast.png (/usr/share/icecast2/web/icecast.png)
+[2026-01-09  09:35:58] INFO fserve/fserve_client_create checking for file /tunein.png (/usr/share/icecast2/web/tunein.png)
+[2026-01-09  09:35:58] INFO fserve/fserve_client_create checking for file /favicon.ico (/usr/share/icecast2/web/favicon.ico)
+[2026-01-09  09:35:58] WARN fserve/fserve_client_create req for file "/usr/share/icecast2/web/favicon.ico" No such file or directory
+[2026-01-09  09:36:19] INFO source/source_main listener count on /GND.mp3 now 1
+[2026-01-09  09:36:22] INFO source/source_main listener count on /GND.mp3 now 2
+[2026-01-09  09:36:25] INFO source/source_main listener count on /GND.mp3 now 1
+
+### command: tail -n 200 /var/log/icecast2/access.log
+(exit=0)
+stdout:
+127.0.0.1 - - [08/Jan/2026:22:10:58 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:00 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:01 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:03 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:04 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:06 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:07 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:09 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:10 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:12 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:13 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:15 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:16 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:17 -0600] "SOURCE /GND.mp3 HTTP/1.0" 200 19 "-" "libshout/2.4.6" 112
+127.0.0.1 - - [08/Jan/2026:22:11:17 -0600] "SOURCE /GND.mp3 HTTP/1.0" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [08/Jan/2026:22:11:18 -0600] "GET /status-json.xsl HTTP/1.1" 200 797 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:19 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:20 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:21 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:23 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:24 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:25 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:27 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:28 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:30 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:31 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:33 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:34 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:36 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:37 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:39 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:40 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:42 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:43 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:45 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:46 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:48 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:49 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:51 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:52 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:54 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:55 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:57 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:11:58 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:00 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:01 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:03 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:04 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:05 -0600] "SOURCE /GND.mp3 HTTP/1.0" 200 19 "-" "libshout/2.4.6" 48
+127.0.0.1 - - [08/Jan/2026:22:12:05 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:05 -0600] "SOURCE /GND.mp3 HTTP/1.0" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [08/Jan/2026:22:12:06 -0600] "GET /status-json.xsl HTTP/1.1" 200 1186 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:07 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:09 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:10 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:12 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:13 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:15 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:16 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:18 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:19 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:21 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:22 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:24 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:25 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:27 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:28 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:30 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:31 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:33 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:34 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:36 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:37 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:39 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:40 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:42 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:43 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:45 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:46 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:48 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:49 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:51 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:52 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:54 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:55 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:57 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:58 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:59 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:12:59 -0600] "SOURCE /GND.mp3 HTTP/1.0" 200 19 "-" "libshout/2.4.6" 54
+127.0.0.1 - - [08/Jan/2026:22:12:59 -0600] "SOURCE /GND.mp3 HTTP/1.0" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [08/Jan/2026:22:13:00 -0600] "GET /status-json.xsl HTTP/1.1" 200 1186 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:01 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:03 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:04 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:06 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:07 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:09 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:10 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:12 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:13 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:15 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:16 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:18 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:19 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:21 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:22 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:24 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:25 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:27 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:28 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:30 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:31 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:33 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:34 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:36 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:37 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:39 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:40 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:42 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:43 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:45 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:46 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:48 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:49 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:51 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:52 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:54 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:55 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:57 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:13:58 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:00 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:01 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:03 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:04 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:06 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:07 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:09 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:10 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:12 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:13 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:15 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:16 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:18 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:19 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:21 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:22 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:23 -0600] "SOURCE /GND.mp3 HTTP/1.0" 200 19 "-" "libshout/2.4.6" 84
+127.0.0.1 - - [08/Jan/2026:22:14:23 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:23 -0600] "SOURCE /GND.mp3 HTTP/1.0" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [08/Jan/2026:22:14:24 -0600] "GET /status-json.xsl HTTP/1.1" 200 1186 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:25 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:27 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:28 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:30 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:31 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:33 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:34 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [08/Jan/2026:22:14:36 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+192.168.1.66 - - [08/Jan/2026:22:14:38 -0600] "GET /GND.mp3 HTTP/1.1" 200 1764358 "http://192.168.1.124:8000/GND.mp3" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" 1143
+127.0.0.1 - - [09/Jan/2026:06:27:14 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:06:27:14 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:06:27:16 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:06:27:17 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:06:27:19 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:06:27:20 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:06:27:22 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:06:27:23 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:06:27:25 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:06:27:26 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:06:27:28 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:06:27:29 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:06:27:31 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:06:27:32 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:06:28:07 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:06:32:21 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:06:32:22 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:06:32:24 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:06:32:25 -0600] "GET /status-json.xsl HTTP/1.1" 200 1260 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:08:21:57 -0600] "SOURCE /GND.mp3 HTTP/1.0" 401 328 "-" "libshout/2.4.6" 0
+127.0.0.1 - - [09/Jan/2026:09:35:25 -0600] "GET /status.xsl HTTP/1.1" 200 3138 "-" "curl/8.14.1" 0
+192.168.86.34 - - [09/Jan/2026:09:35:58 -0600] "GET / HTTP/1.1" 200 3138 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" 0
+192.168.86.34 - - [09/Jan/2026:09:35:58 -0600] "GET /style.css HTTP/1.1" 200 4138 "http://192.168.86.86:8000/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" 0
+192.168.86.34 - - [09/Jan/2026:09:35:58 -0600] "GET /tunein.png HTTP/1.1" 200 2302 "http://192.168.86.86:8000/style.css" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" 0
+192.168.86.34 - - [09/Jan/2026:09:35:58 -0600] "GET /icecast.png HTTP/1.1" 200 5333 "http://192.168.86.86:8000/style.css" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" 0
+192.168.86.34 - - [09/Jan/2026:09:35:58 -0600] "GET /icecast.png HTTP/1.1" 200 5333 "http://192.168.86.86:8000/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" 0
+192.168.86.34 - - [09/Jan/2026:09:35:58 -0600] "GET /tunein.png HTTP/1.1" 200 2302 "http://192.168.86.86:8000/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" 0
+192.168.86.34 - - [09/Jan/2026:09:35:58 -0600] "GET /favicon.ico HTTP/1.1" 404 362 "http://192.168.86.86:8000/" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" 0
+192.168.86.34 - - [09/Jan/2026:09:36:25 -0600] "GET /GND.mp3 HTTP/1.1" 200 3158 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" 7
+127.0.0.1 - - [09/Jan/2026:09:36:29 -0600] "GET /status-json.xsl HTTP/1.1" 200 1186 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:09:36:31 -0600] "GET /status-json.xsl HTTP/1.1" 200 1186 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:09:36:32 -0600] "GET /status-json.xsl HTTP/1.1" 200 1186 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:09:36:34 -0600] "GET /status-json.xsl HTTP/1.1" 200 1186 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:09:36:35 -0600] "GET /status-json.xsl HTTP/1.1" 200 1186 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:09:36:37 -0600] "GET /status-json.xsl HTTP/1.1" 200 1186 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:09:36:38 -0600] "GET /status-json.xsl HTTP/1.1" 200 1186 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:09:36:40 -0600] "GET /status-json.xsl HTTP/1.1" 200 1186 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:09:36:41 -0600] "GET /status-json.xsl HTTP/1.1" 200 1186 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:09:36:43 -0600] "GET /status-json.xsl HTTP/1.1" 200 1186 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:09:36:44 -0600] "GET /status-json.xsl HTTP/1.1" 200 1186 "-" "Python-urllib/3.13" 0
+127.0.0.1 - - [09/Jan/2026:09:36:45 -0600] "GET /status-json.xsl HTTP/1.1" 200 1186 "-" "Python-urllib/3.13" 0
+
+### command: grep -n fallback-mount /etc/icecast2/icecast.xml
+(exit=0)
+stdout:
+30:    <fallback-mount>/keepalive.mp3</fallback-mount>
+37:    <fallback-mount>/keepalive.mp3</fallback-mount>

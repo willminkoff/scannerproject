@@ -56,6 +56,7 @@ UNITS = {
 
 PROFILES = [
     ("airband", "KBNA (Nashville)", os.path.join(PROFILES_DIR, "rtl_airband_airband.conf")),
+    ("nashville_centers", "Nashville Centers", os.path.join(PROFILES_DIR, "rtl_airband_nashville_centers.conf")),
     ("none_airband", "No Profile", os.path.join(PROFILES_DIR, "rtl_airband_none_airband.conf")),
     ("tower",  "TOWER (118.600)", os.path.join(PROFILES_DIR, "rtl_airband_tower.conf")),
     ("khop",   "KHOP (Campbell)", os.path.join(PROFILES_DIR, "rtl_airband_khop.conf")),
@@ -161,6 +162,19 @@ def config_worker() -> None:
         except Exception as e:
             result = {"status": 500, "payload": {"ok": False, "error": str(e)}}
         _finish_action(action, result)
+
+def icecast_monitor_worker() -> None:
+    """Background thread that continuously monitors Icecast stream title and logs hits."""
+    prev_title = None
+    while True:
+        try:
+            current_title = read_last_hit_from_icecast()
+            if current_title != prev_title:
+                update_icecast_hit_log(current_title)
+                prev_title = current_title
+        except Exception:
+            pass
+        time.sleep(0.5)
 
 HTML = r"""<!doctype html>
 <html>
@@ -1127,7 +1141,7 @@ def read_hit_list(limit: int = 20, scan_lines: int = 200) -> list:
 def read_hit_list_cached() -> list:
     now = time.time()
     cache = getattr(read_hit_list_cached, "_cache", {"value": [], "ts": 0.0})
-    if now - cache["ts"] < 2.0:
+    if now - cache["ts"] < 0.5:
         return cache["value"]
     value = read_hit_list()
     cache = {"value": value, "ts": now}
@@ -1799,10 +1813,9 @@ class Handler(BaseHTTPRequestHandler):
             missing = [p["path"] for p in prof_payload if not p.get("exists")]
             profile_airband = guess_current_profile(conf_path, [(p["id"], p["label"], p["path"]) for p in profiles_airband])
             profile_ground = guess_current_profile(os.path.realpath(GROUND_CONFIG_PATH), [(p["id"], p["label"], p["path"]) for p in profiles_ground])
-            icecast_hit = read_last_hit_from_icecast() if ice_ok else ""
-            update_icecast_hit_log(icecast_hit)
             last_hit_airband = read_last_hit_airband()
             last_hit_ground = read_last_hit_ground()
+            icecast_hit = read_last_hit_from_icecast() if ice_ok else ""
 
             payload = {
                 "rtl_active": rtl_ok,
@@ -1829,10 +1842,17 @@ class Handler(BaseHTTPRequestHandler):
             }
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         if p == "/api/hits":
-            items = read_icecast_hit_list()
-            if not items:
-                items = read_hit_list_cached()
-            payload = {"items": items}
+            items = read_icecast_hit_list(limit=50)
+            # Append journalctl-based hits if needed for broader coverage
+            if len(items) < 20:
+                journal_items = read_hit_list_cached()
+                # Merge and deduplicate based on time and frequency
+                existing_times = {(item.get("time"), item.get("freq")) for item in items}
+                for item in journal_items:
+                    if (item.get("time"), item.get("freq")) not in existing_times:
+                        items.append(item)
+                        existing_times.add((item.get("time"), item.get("freq")))
+            payload = {"items": items[:50]}
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         return self._send(404, "Not found", "text/plain; charset=utf-8")
 
@@ -1892,8 +1912,13 @@ def start_config_worker() -> None:
     thread = threading.Thread(target=config_worker, daemon=True)
     thread.start()
 
+def start_icecast_monitor() -> None:
+    thread = threading.Thread(target=icecast_monitor_worker, daemon=True)
+    thread.start()
+
 def main():
     start_config_worker()
+    start_icecast_monitor()
     server = ThreadedHTTPServer(("0.0.0.0", UI_PORT), Handler)
     print(f"UI listening on 0.0.0.0:{UI_PORT}")
     server.serve_forever()
