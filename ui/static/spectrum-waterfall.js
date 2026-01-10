@@ -138,8 +138,10 @@ class SpectrumWaterfall {
   }
   
   initImageData() {
-    const width = this.canvas.width / (window.devicePixelRatio || 1);
-    const height = this.canvas.height / (window.devicePixelRatio || 1);
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+    console.debug(`[Waterfall] initImageData: canvas is ${width}x${height}, devicePixelRatio=${window.devicePixelRatio}`);
+    
     this.imageData = this.ctx.createImageData(width, height);
     this.pixelArray = this.imageData.data;
     this.rowIndex = 0;
@@ -151,6 +153,21 @@ class SpectrumWaterfall {
       this.pixelArray[i + 2] = 21;     // B
       this.pixelArray[i + 3] = 255;    // A
     }
+    
+    // TEST: Draw a test gradient pattern
+    console.debug('[Waterfall] Drawing test pattern...');
+    for (let x = 0; x < Math.min(width, 100); x++) {
+      for (let y = 0; y < 10; y++) {
+        const pixelIdx = (y * width + x) * 4;
+        this.pixelArray[pixelIdx + 0] = 0;
+        this.pixelArray[pixelIdx + 1] = 255;
+        this.pixelArray[pixelIdx + 2] = 0;
+        this.pixelArray[pixelIdx + 3] = 255;
+      }
+    }
+    
+    this.ctx.putImageData(this.imageData, 0, 0);
+    console.debug('[Waterfall] putImageData called with test pattern');
   }
   
   async fetchSpectrumData() {
@@ -175,9 +192,13 @@ class SpectrumWaterfall {
   }
   
   async updateSpectrum() {
-    if (!this.isExpanded || !this.imageData) {
-      console.debug('[Waterfall] Skipping update - expanded:', this.isExpanded, 'hasImageData:', !!this.imageData);
+    if (!this.isExpanded) {
       return;
+    }
+    
+    if (!this.imageData) {
+      console.debug('[Waterfall] No imageData yet, initializing...');
+      this.initImageData();
     }
     
     const newData = await this.fetchSpectrumData();
@@ -192,7 +213,7 @@ class SpectrumWaterfall {
     // Use the latest spectrum row
     if (newData.data.length > 0) {
       const latestRow = newData.data[newData.data.length - 1];
-      console.debug('[Waterfall] Scrolling with powers:', latestRow.powers.slice(0, 5));
+      console.debug('[Waterfall] Latest powers (first 5):', latestRow.powers.slice(0, 5));
       this.scrollWaterfall(latestRow.powers);
     }
     
