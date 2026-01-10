@@ -405,6 +405,11 @@ function setPage(index) {
   tabAirbandEl.classList.toggle('active', index === 0);
   tabGroundEl.classList.toggle('active', index === 1);
   updateAvoidsForPage();
+  
+  // Update spectrum visualization target
+  if (spectrumWaterfall) {
+    spectrumWaterfall.setTarget(index === 0 ? 'airband' : 'ground');
+  }
 }
 
 tabAirbandEl.addEventListener('click', () => setPage(0));

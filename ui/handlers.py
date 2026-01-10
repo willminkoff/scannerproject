@@ -12,7 +12,7 @@ try:
     )
     from .scanner import (
         read_last_hit_airband, read_last_hit_ground, read_icecast_hit_list,
-        read_hit_list_cached
+        read_hit_list_cached, aggregate_spectrum_data
     )
     from .icecast import icecast_up, read_last_hit_from_icecast
     from .systemd import unit_active, unit_exists
@@ -26,7 +26,7 @@ except ImportError:
     )
     from ui.scanner import (
         read_last_hit_airband, read_last_hit_ground, read_icecast_hit_list,
-        read_hit_list_cached
+        read_hit_list_cached, aggregate_spectrum_data
     )
     from ui.icecast import icecast_up, read_last_hit_from_icecast
     from ui.systemd import unit_active, unit_exists
@@ -144,6 +144,21 @@ class Handler(BaseHTTPRequestHandler):
                         items.append(item)
                         existing_times.add((item.get("time"), item.get("freq")))
             payload = {"items": items[:50]}
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+        if p == "/api/spectrum-data":
+            # Get target (airband or ground) from query params
+            parsed_url = urlparse(self.path)
+            query_params = parse_qs(parsed_url.query)
+            target = query_params.get("target", ["airband"])[0]
+            minutes = int(query_params.get("minutes", ["60"])[0])
+            
+            # Aggregate spectrum data
+            spectrum = aggregate_spectrum_data(target=target, minutes=minutes)
+            payload = {
+                "target": target,
+                "minutes": minutes,
+                "spectrum": spectrum,
+            }
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         return self._send(404, "Not found", "text/plain; charset=utf-8")
 

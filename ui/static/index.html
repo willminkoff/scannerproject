@@ -41,6 +41,16 @@
         </div>
         <div class="swipe-hint">Swipe between airband and ground controls.</div>
 
+        <div class="spectrum-panel">
+          <div class="spectrum-header" id="spectrum-header">
+            <span id="spectrum-toggle">▲</span>
+            <span id="spectrum-label">Spectrum</span>
+          </div>
+          <div class="spectrum-content" id="spectrum-content">
+            <canvas id="spectrum-waterfall" width="400" height="200"></canvas>
+          </div>
+        </div>
+
         <div class="pager" id="pager">
           <div class="pager-inner" id="pager-inner">
             <section class="page">
@@ -121,6 +131,7 @@
     </div>
   </div>
 
+  <script src="/static/spectrum-waterfall.js"></script>
   <script src="/static/script.js"></script>
 </body>
 </html>

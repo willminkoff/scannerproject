@@ -354,6 +354,123 @@ def read_icecast_hit_list(limit: int = 20) -> list:
     return items
 
 
+def aggregate_spectrum_data(target: str = "airband", minutes: int = 60) -> dict:
+    """
+    Aggregate frequency activity into spectrum bins for waterfall visualization.
+    
+    Returns: {
+        "bins": [100.000, 100.100, 100.200, ...],  # Frequency bins (100 kHz spacing)
+        "data": [
+            {"ts": 1704900600, "powers": [0, 1, 3, 1, 0, ...]},  # Time slice with power per bin
+            ...
+        ],
+        "range": {"min": 100.0, "max": 140.0}
+    }
+    """
+    # Get hit list
+    if target == "ground":
+        items = read_hit_list_for_unit(UNITS["ground"], limit=200, scan_lines=400)
+    else:
+        items = read_hit_list_for_unit(UNITS["rtl"], limit=200, scan_lines=400)
+    
+    if not items:
+        return {"bins": [], "data": [], "range": {"min": 0, "max": 0}}
+    
+    # Determine frequency range based on target
+    if target == "airband":
+        freq_min = AIRBAND_MIN_MHZ
+        freq_max = AIRBAND_MAX_MHZ
+    else:
+        # Estimate ground range from data
+        freqs = []
+        for item in items:
+            try:
+                f = float(item.get("freq", 0))
+                if f > 0:
+                    freqs.append(f)
+            except (ValueError, TypeError):
+                pass
+        if freqs:
+            freq_min = max(0, min(freqs) - 5)
+            freq_max = min(freqs) + 5
+        else:
+            return {"bins": [], "data": [], "range": {"min": 0, "max": 0}}
+    
+    # Create frequency bins (100 kHz spacing = 0.1 MHz)
+    bin_width = 0.1  # 100 kHz
+    num_bins = int((freq_max - freq_min) / bin_width) + 1
+    bins = [round(freq_min + i * bin_width, 3) for i in range(num_bins)]
+    
+    # Group hits into time windows (5-minute buckets)
+    time_window = 300  # 5 minutes in seconds
+    time_data = {}
+    
+    now = time.time()
+    cutoff_ts = now - (minutes * 60)
+    
+    for item in items:
+        try:
+            freq = float(item.get("freq", 0))
+            duration = int(item.get("duration", 0))
+        except (ValueError, TypeError):
+            continue
+        
+        if freq <= 0 or freq < freq_min or freq > freq_max:
+            continue
+        
+        # Find closest bin for this frequency
+        bin_idx = round((freq - freq_min) / bin_width)
+        bin_idx = max(0, min(bin_idx, len(bins) - 1))
+        
+        # Assign to time window (use item time if available, else current)
+        time_str = item.get("time", "")
+        if time_str:
+            try:
+                # Parse "HH:MM:SS" format
+                parts = time_str.split(":")
+                if len(parts) == 3:
+                    item_ts = now - (
+                        (int(time.localtime(now).tm_hour) - int(parts[0])) * 3600 +
+                        (int(time.localtime(now).tm_min) - int(parts[1])) * 60 +
+                        (int(time.localtime(now).tm_sec) - int(parts[2]))
+                    ) % (24 * 3600)
+                else:
+                    item_ts = now
+            except (ValueError, IndexError):
+                item_ts = now
+        else:
+            item_ts = now
+        
+        if item_ts < cutoff_ts:
+            continue
+        
+        # Bucket into time window
+        bucket_ts = int(item_ts / time_window) * time_window
+        
+        if bucket_ts not in time_data:
+            time_data[bucket_ts] = [0] * len(bins)
+        
+        # Add duration as power (capped at 10 for visualization scaling)
+        power = min(10, max(1, duration // 10))
+        time_data[bucket_ts][bin_idx] += power
+    
+    if not time_data:
+        return {"bins": bins, "data": [], "range": {"min": freq_min, "max": freq_max}}
+    
+    # Sort by timestamp and convert to list
+    sorted_times = sorted(time_data.keys())
+    data = [
+        {"ts": ts, "powers": time_data[ts]}
+        for ts in sorted_times
+    ]
+    
+    return {
+        "bins": bins,
+        "data": data,
+        "range": {"min": freq_min, "max": freq_max},
+    }
+
+
 def parse_last_hit_freq(target: str) -> Optional[float]:
     """Parse the last hit frequency for a target."""
     if target == "ground":
