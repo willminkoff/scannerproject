@@ -282,10 +282,10 @@ class SpectrumWaterfall {
     //   this.ctx.putImageData(this.imageData, 0, 0);
     // }
     
-    // Draw frequency labels and grid overlay on top
-    if (this.spectrumData) {
-      this.drawGridOverlay();
-    }
+    // Draw frequency labels and grid overlay on top - DISABLED FOR NOW
+    // if (this.spectrumData) {
+    //   this.drawGridOverlay();
+    // }
   }
   
   drawGridOverlay() {
