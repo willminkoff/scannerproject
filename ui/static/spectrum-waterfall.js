@@ -172,18 +172,24 @@ class SpectrumWaterfall {
   }
   
   async updateSpectrum() {
-    if (!this.isExpanded || !this.imageData) return;
-    
-    const newData = await this.fetchSpectrumData();
-    if (!newData || !newData.data || newData.data.length === 0) {
+    if (!this.isExpanded || !this.imageData) {
+      console.debug('[Waterfall] Skipping update - expanded:', this.isExpanded, 'hasImageData:', !!this.imageData);
       return;
     }
     
+    const newData = await this.fetchSpectrumData();
+    if (!newData || !newData.data || newData.data.length === 0) {
+      console.warn('[Waterfall] No spectrum data received');
+      return;
+    }
+    
+    console.debug('[Waterfall] Got spectrum data - rows:', newData.data.length, 'bins:', newData.bins.length);
     this.spectrumData = newData;
     
     // Use the latest spectrum row
     if (newData.data.length > 0) {
       const latestRow = newData.data[newData.data.length - 1];
+      console.debug('[Waterfall] Scrolling with powers:', latestRow.powers.slice(0, 5));
       this.scrollWaterfall(latestRow.powers);
     }
     
@@ -191,11 +197,16 @@ class SpectrumWaterfall {
   }
   
   scrollWaterfall(powers) {
-    if (!this.imageData || !this.spectrumData) return;
+    if (!this.imageData || !this.spectrumData) {
+      console.warn('[Waterfall] Missing imageData or spectrumData');
+      return;
+    }
     
     const width = this.imageData.width;
     const height = this.imageData.height;
     const numBins = this.spectrumData.bins.length;
+    
+    console.debug(`[Waterfall] Scrolling: ${width}x${height}, ${numBins} bins`);
     
     // Scroll existing data down by one row
     for (let i = 0; i < (height - 1) * width * 4; i++) {
@@ -206,6 +217,7 @@ class SpectrumWaterfall {
     const topRowStart = (height - 1) * width * 4;
     const pixelWidth = width / numBins;
     
+    let colored = 0;
     for (let binIdx = 0; binIdx < numBins; binIdx++) {
       const power = powers[binIdx] || 0;
       // Scale power (0-10) to intensity (0-255)
@@ -216,6 +228,8 @@ class SpectrumWaterfall {
       const r = this.colorMap[colorIdx + 0];
       const g = this.colorMap[colorIdx + 1];
       const b = this.colorMap[colorIdx + 2];
+      
+      if (intensity > 0) colored++;
       
       // Fill pixels for this bin
       const pixelStartX = Math.floor(binIdx * pixelWidth);
@@ -229,6 +243,7 @@ class SpectrumWaterfall {
         this.pixelArray[pixelIdx + 3] = 255;
       }
     }
+    console.debug(`[Waterfall] Drew ${colored} colored bins`);
   }
   
   redraw() {
