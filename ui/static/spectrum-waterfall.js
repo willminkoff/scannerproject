@@ -274,10 +274,10 @@ class SpectrumWaterfall {
   redraw() {
     if (!this.ctx) return;
     
-    // Draw frequency labels and grid overlay on top
-    if (this.spectrumData) {
-      this.drawGridOverlay();
-    }
+    // Grid overlay disabled for now - bars should be visible
+    // if (this.spectrumData) {
+    //   this.drawGridOverlay();
+    // }
   }
   
   drawGridOverlay() {
