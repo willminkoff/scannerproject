@@ -11,7 +11,8 @@ try:
         CONFIG_SYMLINK, PROFILES_DIR, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH,
         AVOIDS_DIR, AVOIDS_PATHS, AVOIDS_SUMMARY_PATHS, PROFILES, GAIN_STEPS,
         RE_GAIN, RE_SQL, RE_AIRBAND, RE_INDEX, RE_FREQS_BLOCK, RE_LABELS_BLOCK,
-        MIXER_NAME
+        MIXER_NAME, FILTER_AIRBAND_PATH, FILTER_GROUND_PATH, FILTER_DEFAULT_CUTOFF,
+        FILTER_MIN_CUTOFF, FILTER_MAX_CUTOFF
     )
     from .systemd import restart_rtl, stop_rtl, start_rtl
 except ImportError:
@@ -19,7 +20,8 @@ except ImportError:
         CONFIG_SYMLINK, PROFILES_DIR, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH,
         AVOIDS_DIR, AVOIDS_PATHS, AVOIDS_SUMMARY_PATHS, PROFILES, GAIN_STEPS,
         RE_GAIN, RE_SQL, RE_AIRBAND, RE_INDEX, RE_FREQS_BLOCK, RE_LABELS_BLOCK,
-        MIXER_NAME
+        MIXER_NAME, FILTER_AIRBAND_PATH, FILTER_GROUND_PATH, FILTER_DEFAULT_CUTOFF,
+        FILTER_MIN_CUTOFF, FILTER_MAX_CUTOFF
     )
     from ui.systemd import restart_rtl, stop_rtl, start_rtl
 
@@ -193,6 +195,47 @@ def write_controls(conf_path: str, gain: float, squelch: float) -> bool:
     with open(tmp, "w", encoding="utf-8") as f:
         f.writelines(out)
     os.replace(tmp, conf_path)
+    return True
+
+
+def parse_filter(target: str) -> float:
+    """Parse filter cutoff frequency for a target (airband or ground)."""
+    filter_path = FILTER_GROUND_PATH if target == "ground" else FILTER_AIRBAND_PATH
+    try:
+        with open(filter_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            cutoff = float(data.get("cutoff_hz", FILTER_DEFAULT_CUTOFF))
+            return max(FILTER_MIN_CUTOFF, min(FILTER_MAX_CUTOFF, cutoff))
+    except (FileNotFoundError, json.JSONDecodeError, ValueError):
+        return FILTER_DEFAULT_CUTOFF
+
+
+def write_filter(target: str, cutoff_hz: float) -> bool:
+    """Write filter configuration for a target."""
+    filter_path = FILTER_GROUND_PATH if target == "ground" else FILTER_AIRBAND_PATH
+    cutoff = max(FILTER_MIN_CUTOFF, min(FILTER_MAX_CUTOFF, float(cutoff_hz)))
+    
+    # Read current config
+    try:
+        with open(filter_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        data = {}
+    
+    # Check if changed
+    old_cutoff = data.get("cutoff_hz", FILTER_DEFAULT_CUTOFF)
+    if abs(old_cutoff - cutoff) < 0.01:
+        return False
+    
+    data["cutoff_hz"] = cutoff
+    data["updated_at"] = time.time()
+    
+    # Write atomically
+    os.makedirs(os.path.dirname(filter_path), exist_ok=True)
+    tmp = filter_path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+    os.replace(tmp, filter_path)
     return True
 
 

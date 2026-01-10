@@ -8,7 +8,7 @@ try:
     from .config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, UI_PORT, UNITS
     from .profile_config import (
         read_active_config_path, parse_controls, split_profiles,
-        guess_current_profile, summarize_avoids
+        guess_current_profile, summarize_avoids, parse_filter
     )
     from .scanner import (
         read_last_hit_airband, read_last_hit_ground, read_icecast_hit_list,
@@ -22,7 +22,7 @@ except ImportError:
     from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, UI_PORT, UNITS
     from ui.profile_config import (
         read_active_config_path, parse_controls, split_profiles,
-        guess_current_profile, summarize_avoids
+        guess_current_profile, summarize_avoids, parse_filter
     )
     from ui.scanner import (
         read_last_hit_airband, read_last_hit_ground, read_icecast_hit_list,
@@ -91,6 +91,8 @@ class Handler(BaseHTTPRequestHandler):
             conf_path = read_active_config_path()
             airband_gain, airband_squelch = parse_controls(conf_path)
             ground_gain, ground_squelch = parse_controls(GROUND_CONFIG_PATH)
+            airband_filter = parse_filter("airband")
+            ground_filter = parse_filter("ground")
             rtl_ok = unit_active(UNITS["rtl"])
             ground_exists = unit_exists(UNITS["ground"])
             ground_ok = unit_active(UNITS["ground"]) if ground_exists else False
@@ -119,8 +121,10 @@ class Handler(BaseHTTPRequestHandler):
                 "squelch": float(airband_squelch),
                 "airband_gain": float(airband_gain),
                 "airband_squelch": float(airband_squelch),
+                "airband_filter": float(airband_filter),
                 "ground_gain": float(ground_gain),
                 "ground_squelch": float(ground_squelch),
+                "ground_filter": float(ground_filter),
                 "last_hit": icecast_hit or read_last_hit_from_icecast() or "",
                 "last_hit_airband": last_hit_airband,
                 "last_hit_ground": last_hit_ground,
@@ -168,6 +172,17 @@ class Handler(BaseHTTPRequestHandler):
                 start_rtl()
                 return self._send(400, json.dumps({"ok": False, "error": "bad values"}), "application/json; charset=utf-8")
             result = enqueue_apply(target, gain, squelch)
+            return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
+
+        if p == "/api/filter":
+            target = form.get("target", "airband")
+            if target not in ("airband", "ground"):
+                return self._send(400, json.dumps({"ok": False, "error": "unknown target"}), "application/json; charset=utf-8")
+            try:
+                cutoff_hz = float(form.get("cutoff_hz", "3500"))
+            except ValueError:
+                return self._send(400, json.dumps({"ok": False, "error": "bad values"}), "application/json; charset=utf-8")
+            result = enqueue_action({"type": "filter", "target": target, "cutoff_hz": cutoff_hz})
             return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
 
         if p == "/api/restart":

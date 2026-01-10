@@ -9,7 +9,7 @@ try:
     from .profile_config import (
         split_profiles, guess_current_profile, set_profile, write_controls,
         write_combined_config, read_active_config_path, avoid_current_hit,
-        clear_avoids
+        clear_avoids, write_filter
     )
 except ImportError:
     from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH
@@ -19,7 +19,7 @@ except ImportError:
     from ui.profile_config import (
         split_profiles, guess_current_profile, set_profile, write_controls,
         write_combined_config, read_active_config_path, avoid_current_hit,
-        clear_avoids
+        clear_avoids, write_filter
     )
 
 
@@ -76,6 +76,19 @@ def action_apply_controls(target: str, gain: float, squelch: float) -> dict:
         changed = write_controls(conf_path, gain, squelch)
         combined_changed = write_combined_config()
         changed = changed or combined_changed
+    except Exception as e:
+        return {"status": 500, "payload": {"ok": False, "error": str(e)}}
+    if changed:
+        restart_rtl()
+    return {"status": 200, "payload": {"ok": True, "changed": changed}}
+
+
+def action_apply_filter(target: str, cutoff_hz: float) -> dict:
+    """Action: Apply noise filter."""
+    if target not in ("airband", "ground"):
+        return {"status": 400, "payload": {"ok": False, "error": "unknown target"}}
+    try:
+        changed = write_filter(target, cutoff_hz)
     except Exception as e:
         return {"status": 500, "payload": {"ok": False, "error": str(e)}}
     if changed:
@@ -145,6 +158,8 @@ def execute_action(action: dict) -> dict:
     action_type = action.get("type")
     if action_type == "apply":
         return action_apply_controls(action.get("target"), action.get("gain"), action.get("squelch"))
+    if action_type == "filter":
+        return action_apply_filter(action.get("target"), action.get("cutoff_hz"))
     if action_type == "profile":
         return action_set_profile(action.get("profile"), action.get("target"))
     if action_type == "restart":

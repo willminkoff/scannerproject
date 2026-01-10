@@ -7,7 +7,7 @@ Wants=rtl-airband-last-hit.service
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/rtl_airband -F -e -c /usr/local/etc/rtl_airband_ground.conf
+ExecStart=/bin/bash /home/willminkoff/scannerproject/scripts/rtl-airband-filter.sh /usr/local/etc/rtl_airband_ground.conf
 Restart=on-failure
 RestartSec=0
 TimeoutStopSec=1

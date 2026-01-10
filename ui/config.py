@@ -18,6 +18,14 @@ COMBINED_CONFIG_PATH = os.getenv("COMBINED_CONFIG_PATH", "/usr/local/etc/rtl_air
 LAST_HIT_AIRBAND_PATH = os.getenv("LAST_HIT_AIRBAND_PATH", "/run/rtl_airband_last_freq_airband.txt")
 LAST_HIT_GROUND_PATH = os.getenv("LAST_HIT_GROUND_PATH", "/run/rtl_airband_last_freq_ground.txt")
 
+# Filter Configuration
+FILTER_CONFIG_DIR = os.getenv("FILTER_CONFIG_DIR", "/run")
+FILTER_AIRBAND_PATH = os.path.join(FILTER_CONFIG_DIR, "rtl_airband_filter.json")
+FILTER_GROUND_PATH = os.path.join(FILTER_CONFIG_DIR, "rtl_airband_ground_filter.json")
+FILTER_DEFAULT_CUTOFF = float(os.getenv("FILTER_DEFAULT_CUTOFF", "3500"))  # Hz for low-pass
+FILTER_MIN_CUTOFF = float(os.getenv("FILTER_MIN_CUTOFF", "2000"))  # Hz
+FILTER_MAX_CUTOFF = float(os.getenv("FILTER_MAX_CUTOFF", "5000"))  # Hz
+
 # Avoids & Logs
 AVOIDS_DIR = os.getenv("AVOIDS_DIR", "/home/willminkoff/scannerproject/admin/logs")
 DIAGNOSTIC_DIR = AVOIDS_DIR

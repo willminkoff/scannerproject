@@ -59,6 +59,12 @@
                   <input id="sql-airband" class="range" type="range" min="0" max="10" step="0.1" />
                   <div class="ctrl-readout"><span>Selected: <span id="selected-sql-airband">…</span></span><span>Scaled to 0.0-1.0 SNR</span></div>
                 </div>
+
+                <div class="ctrl">
+                  <div class="ctrl-head"><b>Noise Filter (Hz)</b><span>Applied: <span id="applied-filter-airband">…</span></span></div>
+                  <input id="filter-airband" class="range" type="range" min="2000" max="5000" step="100" />
+                  <div class="ctrl-readout"><span>Selected: <span id="selected-filter-airband">…</span> Hz</span><span>Low-pass filter cutoff</span></div>
+                </div>
               </div>
               <div class="btns">
                 <button type="button" id="btn-restart-airband">Restart Airband</button>
@@ -80,6 +86,12 @@
                   <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span id="applied-sql-ground">…</span></span></div>
                   <input id="sql-ground" class="range" type="range" min="0" max="10" step="0.1" />
                   <div class="ctrl-readout"><span>Selected: <span id="selected-sql-ground">…</span></span><span>Scaled to 0.0-1.0 SNR</span></div>
+                </div>
+
+                <div class="ctrl">
+                  <div class="ctrl-head"><b>Noise Filter (Hz)</b><span>Applied: <span id="applied-filter-ground">…</span></span></div>
+                  <input id="filter-ground" class="range" type="range" min="2000" max="5000" step="100" />
+                  <div class="ctrl-readout"><span>Selected: <span id="selected-filter-ground">…</span> Hz</span><span>Low-pass filter cutoff</span></div>
                 </div>
               </div>
               <div class="btns">

@@ -34,28 +34,40 @@ const controlTargets = {
   airband: {
     gainEl: document.getElementById('gain-airband'),
     sqlEl: document.getElementById('sql-airband'),
+    filterEl: document.getElementById('filter-airband'),
     selectedGainEl: document.getElementById('selected-gain-airband'),
     selectedSqlEl: document.getElementById('selected-sql-airband'),
+    selectedFilterEl: document.getElementById('selected-filter-airband'),
     appliedGainEl: document.getElementById('applied-gain-airband'),
     appliedSqlEl: document.getElementById('applied-sql-airband'),
+    appliedFilterEl: document.getElementById('applied-filter-airband'),
     dirty: false,
+    filterDirty: false,
     applyInFlight: false,
+    filterApplyInFlight: false,
     openInFlight: false,
     lastAppliedGain: null,
     lastAppliedSql: null,
+    lastAppliedFilter: null,
   },
   ground: {
     gainEl: document.getElementById('gain-ground'),
     sqlEl: document.getElementById('sql-ground'),
+    filterEl: document.getElementById('filter-ground'),
     selectedGainEl: document.getElementById('selected-gain-ground'),
     selectedSqlEl: document.getElementById('selected-sql-ground'),
+    selectedFilterEl: document.getElementById('selected-filter-ground'),
     appliedGainEl: document.getElementById('applied-gain-ground'),
     appliedSqlEl: document.getElementById('applied-sql-ground'),
+    appliedFilterEl: document.getElementById('applied-filter-ground'),
     dirty: false,
+    filterDirty: false,
     applyInFlight: false,
+    filterApplyInFlight: false,
     openInFlight: false,
     lastAppliedGain: null,
     lastAppliedSql: null,
+    lastAppliedFilter: null,
   },
 };
 
@@ -87,6 +99,12 @@ function updateSelectedSql(target) {
   const sliderValue = Number(controls.sqlEl.value || 0);
   const effective = sliderValue * SQL_SCALE;
   controls.selectedSqlEl.textContent = `${sliderValue.toFixed(1)} \u2192 ${effective.toFixed(2)}`;
+}
+
+function updateSelectedFilter(target) {
+  const controls = controlTargets[target];
+  const cutoff = Number(controls.filterEl.value || 3500);
+  controls.selectedFilterEl.textContent = `${cutoff.toFixed(0)}`;
 }
 
 function formatHitLabel(value) {
@@ -175,18 +193,22 @@ async function post(url, obj) {
   return await r.json();
 }
 
-function setControlsFromStatus(target, gain, squelch, allowSetSliders) {
+function setControlsFromStatus(target, gain, squelch, filter, allowSetSliders) {
   const controls = controlTargets[target];
   controls.appliedGainEl.textContent = gain.toFixed(1);
   const appliedSlider = Math.max(0, Math.min(10, squelch / SQL_SCALE));
   controls.appliedSqlEl.textContent = `${squelch.toFixed(2)} (slider ${appliedSlider.toFixed(1)})`;
+  controls.appliedFilterEl.textContent = `${filter.toFixed(0)}`;
   controls.lastAppliedGain = gain;
   controls.lastAppliedSql = squelch;
-  if (allowSetSliders && !controls.dirty) {
+  controls.lastAppliedFilter = filter;
+  if (allowSetSliders && !controls.dirty && !controls.filterDirty) {
     controls.gainEl.value = gainIndexFromValue(gain);
     controls.sqlEl.value = appliedSlider.toFixed(1);
+    controls.filterEl.value = filter.toFixed(0);
     updateSelectedGain(target);
     updateSelectedSql(target);
+    updateSelectedFilter(target);
   }
 }
 
@@ -198,8 +220,8 @@ async function refresh(allowSetSliders=false) {
   document.getElementById('txt-hit-airband').textContent = airbandHit;
   document.getElementById('txt-hit-ground').textContent = groundHit;
 
-  setControlsFromStatus('airband', st.airband_gain, st.airband_squelch, allowSetSliders);
-  setControlsFromStatus('ground', st.ground_gain, st.ground_squelch, allowSetSliders);
+  setControlsFromStatus('airband', st.airband_gain, st.airband_squelch, st.airband_filter || 3500, allowSetSliders);
+  setControlsFromStatus('ground', st.ground_gain, st.ground_squelch, st.ground_filter || 3500, allowSetSliders);
 
   updateWarn(st.missing_profiles);
   avoidsAirband = st.avoids_airband;
@@ -258,8 +280,13 @@ function wireControls(target) {
     controls.dirty = true;
     updateSelectedSql(target);
   });
+  controls.filterEl.addEventListener('input', () => {
+    controls.filterDirty = true;
+    updateSelectedFilter(target);
+  });
   controls.gainEl.addEventListener('change', () => applyControls(target));
   controls.sqlEl.addEventListener('change', () => applyControls(target));
+  controls.filterEl.addEventListener('change', () => applyFilter(target));
 }
 
 wireControls('airband');
@@ -285,6 +312,26 @@ async function applyControls(target) {
     await refresh(true);
   } finally {
     controls.applyInFlight = false;
+  }
+}
+
+async function applyFilter(target) {
+  const controls = controlTargets[target];
+  if (controls.filterApplyInFlight) return;
+  controls.filterApplyInFlight = true;
+  try {
+    const cutoff_hz = Number(controls.filterEl.value || 3500);
+    const filterSame = controls.lastAppliedFilter !== null && Math.abs(cutoff_hz - controls.lastAppliedFilter) < 0.01;
+    if (filterSame) {
+      controls.filterDirty = false;
+      return;
+    }
+    await post('/api/filter', {cutoff_hz, target});
+    controls.filterDirty = false;
+    controls.lastAppliedFilter = cutoff_hz;
+    await refresh(true);
+  } finally {
+    controls.filterApplyInFlight = false;
   }
 }
 
