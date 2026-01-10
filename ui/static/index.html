@@ -1,0 +1,114 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SprontPi Radio Control</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div id="view-main">
+        <h1>SprontPi Radio Control</h1>
+
+        <div class="row center">
+          <button class="pill hit-pill" id="btn-hit-airband" type="button">
+            <div class="dot good"></div>
+            <div>
+              <div class="label">Airband Hits</div>
+              <div class="val" id="txt-hit-airband">…</div>
+            </div>
+          </button>
+          <button class="pill hit-pill" id="btn-hit-ground" type="button">
+            <div class="dot good"></div>
+            <div>
+              <div class="label">Ground Hits</div>
+              <div class="val" id="txt-hit-ground">…</div>
+            </div>
+          </button>
+        </div>
+
+        <div class="btns center" style="margin-top:14px;">
+          <button class="primary" id="btn-play">Play</button>
+          <button id="btn-avoid">Avoid <span id="avoid-target-label"></span></button>
+          <button id="btn-clear-avoids">Clear <span id="clear-target-label"></span></button>
+        </div>
+
+        <div class="tabs">
+          <button type="button" class="tab active" id="tab-airband">Airband</button>
+          <button type="button" class="tab" id="tab-ground">Ground</button>
+        </div>
+        <div class="swipe-hint">Swipe between airband and ground controls.</div>
+
+        <div class="pager" id="pager">
+          <div class="pager-inner" id="pager-inner">
+            <section class="page">
+              <div class="page-title">Airband Scanner Controls</div>
+              <div class="profiles" id="profiles-airband"></div>
+
+              <div class="controls">
+                <div class="ctrl">
+                  <div class="ctrl-head"><b>Gain (dB)</b><span>Applied: <span id="applied-gain-airband">…</span></span></div>
+                  <input id="gain-airband" class="range" type="range" min="0" max="28" step="1" />
+                  <div class="ctrl-readout"><span>Selected: <span id="selected-gain-airband">…</span> dB</span><span>RTL-SDR steps</span></div>
+                </div>
+
+                <div class="ctrl">
+                  <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span id="applied-sql-airband">…</span></span></div>
+                  <input id="sql-airband" class="range" type="range" min="0" max="10" step="0.1" />
+                  <div class="ctrl-readout"><span>Selected: <span id="selected-sql-airband">…</span></span><span>Scaled to 0.0-1.0 SNR</span></div>
+                </div>
+              </div>
+              <div class="btns">
+                <button type="button" id="btn-restart-airband">Restart Airband</button>
+                <button type="button" id="btn-open-sql-airband">Open Squelch (2s)</button>
+              </div>
+            </section>
+
+            <section class="page">
+              <div class="page-title">Ground Scanner Controls</div>
+              <div class="profiles hidden" id="profiles-ground"></div>
+              <div class="controls">
+                <div class="ctrl">
+                  <div class="ctrl-head"><b>Gain (dB)</b><span>Applied: <span id="applied-gain-ground">…</span></span></div>
+                  <input id="gain-ground" class="range" type="range" min="0" max="28" step="1" />
+                  <div class="ctrl-readout"><span>Selected: <span id="selected-gain-ground">…</span> dB</span><span>RTL-SDR steps</span></div>
+                </div>
+
+                <div class="ctrl">
+                  <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span id="applied-sql-ground">…</span></span></div>
+                  <input id="sql-ground" class="range" type="range" min="0" max="10" step="0.1" />
+                  <div class="ctrl-readout"><span>Selected: <span id="selected-sql-ground">…</span></span><span>Scaled to 0.0-1.0 SNR</span></div>
+                </div>
+              </div>
+              <div class="btns">
+                <button type="button" id="btn-restart-ground">Restart Ground</button>
+                <button type="button" id="btn-open-sql-ground">Open Squelch (2s)</button>
+              </div>
+              <div class="foot">Both scanners feed the same Icecast stream.</div>
+            </section>
+          </div>
+        </div>
+
+        <div class="warn" id="warn"></div>
+        <div class="avoids" id="avoids-summary"></div>
+        <div class="foot">© 2026 Will Minkoff • <a href="#" id="lnk-diagnostic">Generate log</a></div>
+      </div>
+
+      <div id="view-hits" class="hidden">
+        <div class="nav">
+          <button type="button" id="btn-hit-back">Back</button>
+          <h1 style="margin:0;">Live Hit List</h1>
+        </div>
+        <div class="hit-list" id="hit-list">
+          <div class="hit-row head"><div>Time</div><div>Frequency</div><div>Duration</div></div>
+        </div>
+        <div class="foot">Showing the latest 20 hits from the scanner journal.</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/script.js"></script>
+</body>
+</html>

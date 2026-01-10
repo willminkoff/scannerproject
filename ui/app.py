@@ -1,0 +1,30 @@
+"""Main server application."""
+from http.server import HTTPServer
+from socketserver import ThreadingMixIn
+
+try:
+    from .config import UI_PORT
+    from .handlers import Handler
+    from .server_workers import start_config_worker, start_icecast_monitor
+except ImportError:
+    from ui.config import UI_PORT
+    from ui.handlers import Handler
+    from ui.server_workers import start_config_worker, start_icecast_monitor
+
+
+class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
+    """HTTP server with threading support."""
+    daemon_threads = True
+
+
+def main():
+    """Start the UI server."""
+    start_config_worker()
+    start_icecast_monitor()
+    server = ThreadedHTTPServer(("0.0.0.0", UI_PORT), Handler)
+    print(f"UI listening on 0.0.0.0:{UI_PORT}")
+    server.serve_forever()
+
+
+if __name__ == "__main__":
+    main()
