@@ -61,6 +61,12 @@ class SpectrumWaterfall {
   
   setupEventListeners() {
     this.header.addEventListener('click', () => this.toggleExpanded());
+    window.addEventListener('resize', () => {
+      if (this.isExpanded) {
+        this.resizeCanvas();
+        this.redraw();
+      }
+    });
   }
   
   toggleExpanded() {
@@ -92,9 +98,21 @@ class SpectrumWaterfall {
     // Resize canvas to fit container
     const rect = this.content.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
-    this.canvas.width = rect.width * dpr;
-    this.canvas.height = rect.height * dpr;
+    
+    // Get actual displayed dimensions
+    const displayWidth = this.content.clientWidth;
+    const displayHeight = this.content.clientHeight;
+    
+    // Set canvas resolution
+    this.canvas.width = displayWidth * dpr;
+    this.canvas.height = displayHeight * dpr;
+    
+    // Scale context
     this.ctx.scale(dpr, dpr);
+    
+    // Ensure canvas fills container
+    this.canvas.style.width = displayWidth + 'px';
+    this.canvas.style.height = displayHeight + 'px';
   }
   
   async fetchSpectrumData() {
@@ -127,19 +145,6 @@ class SpectrumWaterfall {
     }
     
     this.spectrumData = newData;
-    
-    // Extract just the latest powers row if we have new data
-    if (newData.data.length > 0) {
-      const latestRow = newData.data[newData.data.length - 1];
-      this.pixelBuffer.push(latestRow.powers);
-      
-      // Keep buffer size reasonable
-      const maxRows = Math.ceil(this.canvas.height / this.gridPixels);
-      if (this.pixelBuffer.length > maxRows) {
-        this.pixelBuffer.shift();
-      }
-    }
-    
     this.redraw();
   }
   
@@ -151,96 +156,65 @@ class SpectrumWaterfall {
     const height = this.canvas.height;
     const numBins = spectrum.bins.length;
     
-    if (numBins === 0) {
+    if (numBins === 0 || spectrum.data.length === 0) {
       this.drawEmpty();
       return;
     }
     
-    // Clear canvas
+    // Clear canvas with dark background
     this.ctx.fillStyle = '#050a15';
     this.ctx.fillRect(0, 0, width, height);
     
-    // Draw grid and frequency labels
-    this.drawGrid(spectrum);
+    // Draw spectrum rows
+    const rowHeight = Math.max(2, Math.floor(height / Math.max(1, spectrum.data.length)));
     
-    // Draw spectrum data
-    this.drawSpectrum(spectrum);
+    for (let rowIdx = 0; rowIdx < spectrum.data.length; rowIdx++) {
+      const row = spectrum.data[rowIdx];
+      const powers = row.powers || [];
+      const y = rowIdx * rowHeight;
+      
+      // Draw each frequency bin
+      const binWidth = width / numBins;
+      
+      for (let binIdx = 0; binIdx < numBins; binIdx++) {
+        const power = powers[binIdx] || 0;
+        const colorKey = Math.min(10, Math.max(0, Math.round(power)));
+        this.ctx.fillStyle = this.colorMap[colorKey];
+        this.ctx.fillRect(binIdx * binWidth, y, binWidth + 1, rowHeight + 1);
+      }
+    }
+    
+    // Draw grid overlay
+    this.drawGridOverlay(spectrum);
   }
   
-  drawEmpty() {
-    const width = this.canvas.width;
-    const height = this.canvas.height;
-    this.ctx.fillStyle = '#050a15';
-    this.ctx.fillRect(0, 0, width, height);
-    this.ctx.fillStyle = '#9aa3c7';
-    this.ctx.font = '12px system-ui';
-    this.ctx.textAlign = 'center';
-    this.ctx.fillText('Waiting for data...', width / 2, height / 2);
-  }
-  
-  drawGrid(spectrum) {
+  drawGridOverlay(spectrum) {
     const width = this.canvas.width;
     const height = this.canvas.height;
     const numBins = spectrum.bins.length;
     
-    // Draw frequency bins on X-axis
+    // Draw frequency bin grid on X-axis
     const binWidth = width / numBins;
     const freqMin = spectrum.range.min;
     const freqMax = spectrum.range.max;
     
-    // Draw vertical grid lines every ~50 MHz
-    this.ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    // Draw vertical grid lines and frequency labels
+    this.ctx.strokeStyle = 'rgba(255,255,255,0.1)';
     this.ctx.lineWidth = 1;
     this.ctx.font = '10px monospace';
     this.ctx.fillStyle = '#9aa3c7';
     this.ctx.textAlign = 'center';
     
-    const step = Math.max(1, Math.round((freqMax - freqMin) / 4)); // 4-5 labels
+    const step = Math.max(1, Math.round((freqMax - freqMin) / 4));
     for (let f = Math.ceil(freqMin / step) * step; f <= freqMax; f += step) {
       const ratio = (f - freqMin) / (freqMax - freqMin);
       const x = ratio * width;
       this.ctx.beginPath();
       this.ctx.moveTo(x, 0);
-      this.ctx.lineTo(x, height);
+      this.ctx.lineTo(x, height - 15);
       this.ctx.stroke();
       this.ctx.fillText(f.toFixed(0), x, height - 2);
     }
-    
-    // Draw horizontal grid lines every 20 pixels
-    this.ctx.strokeStyle = 'rgba(255,255,255,0.03)';
-    for (let y = 0; y < height; y += 20) {
-      this.ctx.beginPath();
-      this.ctx.moveTo(0, y);
-      this.ctx.lineTo(width, y);
-      this.ctx.stroke();
-    }
-  }
-  
-  drawSpectrum(spectrum) {
-    const width = this.canvas.width;
-    const height = this.canvas.height;
-    const numBins = spectrum.bins.length;
-    
-    if (numBins === 0) return;
-    
-    const binWidth = width / numBins;
-    
-    // Draw all spectrum data
-    let y = 0;
-    for (const row of spectrum.data) {
-      const powers = row.powers;
-      for (let binIdx = 0; binIdx < numBins; binIdx++) {
-        const power = powers[binIdx] || 0;
-        const colorKey = Math.min(10, Math.max(0, Math.round(power)));
-        this.ctx.fillStyle = this.colorMap[colorKey];
-        this.ctx.fillRect(binIdx * binWidth, y, binWidth, this.gridPixels);
-      }
-      y += this.gridPixels;
-      if (y >= height) break;
-    }
-    
-    // Draw rolling buffer if enabled (optional smooth scrolling)
-    // For now, we just redraw all data
   }
   
   setTarget(target) {
