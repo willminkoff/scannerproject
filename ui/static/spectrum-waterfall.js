@@ -201,23 +201,21 @@ class SpectrumWaterfall {
     this.ctx.fillStyle = '#000a15';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     
-    // TEST: Draw white line to verify function is called
-    this.ctx.strokeStyle = '#ffffff';
-    this.ctx.lineWidth = 2;
-    this.ctx.beginPath();
-    this.ctx.moveTo(0, this.canvas.height / 2);
-    this.ctx.lineTo(this.canvas.width, this.canvas.height / 2);
-    this.ctx.stroke();
+    // TEST: Draw bright green rect to verify color drawing works
+    this.ctx.fillStyle = '#00ff00';
+    this.ctx.fillRect(10, 10, 50, 50);
     
-    // Draw frequency bars
     const width = this.canvas.width;
     const height = this.canvas.height;
     const numBins = powers.length;
     const binWidth = width / numBins;
     const maxPower = 10;
     
+    let nonZeroBins = 0;
     for (let binIdx = 0; binIdx < numBins; binIdx++) {
       const power = powers[binIdx] || 0;
+      if (power > 0) nonZeroBins++;
+      
       const intensity = Math.min(255, Math.round((power / maxPower) * 255));
       
       if (intensity > 0) {
