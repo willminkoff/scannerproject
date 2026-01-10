@@ -175,6 +175,7 @@ class SpectrumWaterfall {
     
     const newData = await this.fetchSpectrumData();
     if (!newData || !newData.data || newData.data.length === 0) {
+      console.warn('[Spectrum] No data');
       return;
     }
     
@@ -183,6 +184,7 @@ class SpectrumWaterfall {
     // Use the latest spectrum row
     if (newData.data.length > 0) {
       const latestRow = newData.data[newData.data.length - 1];
+      console.log('[Spectrum] Drawing', newData.bins.length, 'bins, powers:', latestRow.powers.slice(0, 5));
       this.drawBarGraph(latestRow.powers);
     }
     
