@@ -140,7 +140,6 @@ class SpectrumWaterfall {
   initImageData() {
     const width = this.canvas.width;
     const height = this.canvas.height;
-    console.debug(`[Waterfall] initImageData: canvas is ${width}x${height}, devicePixelRatio=${window.devicePixelRatio}`);
     
     this.imageData = this.ctx.createImageData(width, height);
     this.pixelArray = this.imageData.data;
@@ -153,21 +152,6 @@ class SpectrumWaterfall {
       this.pixelArray[i + 2] = 21;     // B
       this.pixelArray[i + 3] = 255;    // A
     }
-    
-    // TEST: Draw a test gradient pattern
-    console.debug('[Waterfall] Drawing test pattern...');
-    for (let x = 0; x < Math.min(width, 100); x++) {
-      for (let y = 0; y < 10; y++) {
-        const pixelIdx = (y * width + x) * 4;
-        this.pixelArray[pixelIdx + 0] = 0;
-        this.pixelArray[pixelIdx + 1] = 255;
-        this.pixelArray[pixelIdx + 2] = 0;
-        this.pixelArray[pixelIdx + 3] = 255;
-      }
-    }
-    
-    this.ctx.putImageData(this.imageData, 0, 0);
-    console.debug('[Waterfall] putImageData called with test pattern');
   }
   
   async fetchSpectrumData() {
@@ -183,12 +167,8 @@ class SpectrumWaterfall {
   
   startUpdates() {
     this.updateInterval = setInterval(() => {
-      const now = Date.now();
-      if (now - this.lastUpdate > 2000) { // Update every 2 seconds
-        this.updateSpectrum();
-        this.lastUpdate = now;
-      }
-    }, 500);
+      this.updateSpectrum();
+    }, 1000); // Update every second
   }
   
   async updateSpectrum() {
@@ -222,7 +202,6 @@ class SpectrumWaterfall {
   
   scrollWaterfall(powers) {
     if (!this.imageData || !this.spectrumData) {
-      console.warn('[Waterfall] Missing imageData or spectrumData');
       return;
     }
     
@@ -230,15 +209,13 @@ class SpectrumWaterfall {
     const height = this.imageData.height;
     const numBins = this.spectrumData.bins.length;
     
-    console.debug(`[Waterfall] Scrolling: ${width}x${height}, ${numBins} bins`);
-    
-    // Scroll existing data down by one row
+    // Scroll existing data up by one row (shift everything up, new data goes at top)
     for (let i = 0; i < (height - 1) * width * 4; i++) {
-      this.pixelArray[i] = this.pixelArray[i + width * 4];
+      this.pixelArray[i + width * 4] = this.pixelArray[i];
     }
     
-    // Draw new data at top
-    const topRowStart = (height - 1) * width * 4;
+    // Draw new data at top (row 0)
+    const topRowStart = 0;
     const pixelWidth = width / numBins;
     
     let colored = 0;
@@ -267,7 +244,6 @@ class SpectrumWaterfall {
         this.pixelArray[pixelIdx + 3] = 255;
       }
     }
-    console.debug(`[Waterfall] Drew ${colored} colored bins`);
   }
   
   redraw() {
