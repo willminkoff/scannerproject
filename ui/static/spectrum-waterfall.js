@@ -177,27 +177,54 @@ class SpectrumWaterfall {
     }
     
     if (!this.imageData) {
-      console.debug('[Waterfall] No imageData yet, initializing...');
       this.initImageData();
     }
     
     const newData = await this.fetchSpectrumData();
     if (!newData || !newData.data || newData.data.length === 0) {
-      console.warn('[Waterfall] No spectrum data received');
       return;
     }
     
-    console.debug('[Waterfall] Got spectrum data - rows:', newData.data.length, 'bins:', newData.bins.length);
     this.spectrumData = newData;
     
     // Use the latest spectrum row
     if (newData.data.length > 0) {
       const latestRow = newData.data[newData.data.length - 1];
-      console.debug('[Waterfall] Latest powers (first 5):', latestRow.powers.slice(0, 5));
-      this.scrollWaterfall(latestRow.powers);
+      this.drawBarGraph(latestRow.powers);
     }
     
     this.redraw();
+  }
+  
+  drawBarGraph(powers) {
+    // Clear canvas
+    this.ctx.fillStyle = '#000a15';
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    // Draw frequency bars
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+    const numBins = powers.length;
+    const binWidth = width / numBins;
+    const maxPower = 10;
+    
+    for (let binIdx = 0; binIdx < numBins; binIdx++) {
+      const power = powers[binIdx] || 0;
+      const intensity = Math.min(255, Math.round((power / maxPower) * 255));
+      
+      if (intensity > 0) {
+        const colorIdx = intensity * 4;
+        const r = this.colorMap[colorIdx + 0];
+        const g = this.colorMap[colorIdx + 1];
+        const b = this.colorMap[colorIdx + 2];
+        
+        this.ctx.fillStyle = `rgb(${r},${g},${b})`;
+        const barHeight = (power / maxPower) * height * 0.8;
+        const barX = binIdx * binWidth;
+        const barY = height - barHeight;
+        this.ctx.fillRect(barX, barY, binWidth - 1, barHeight);
+      }
+    }
   }
   
   scrollWaterfall(powers) {
