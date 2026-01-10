@@ -110,6 +110,9 @@ class SpectrumWaterfall {
         this.resizeCanvas();
         this.initImageData();
         this.redraw();
+        // Trigger immediate update when expanding
+        this.lastUpdate = 0;
+        this.updateSpectrum();
       }, 50);
     } else {
       this.content.classList.remove('expanded');
