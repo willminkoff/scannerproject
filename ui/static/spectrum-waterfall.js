@@ -207,25 +207,26 @@ class SpectrumWaterfall {
     const binWidth = width / numBins;
     const maxPower = 10;
     
-    // Draw bars for every bin, with visible minimum height for testing
+    // Draw bars for every bin
     for (let binIdx = 0; binIdx < numBins; binIdx++) {
       const power = powers[binIdx] || 0;
-      const intensity = Math.min(255, Math.round((power / maxPower) * 255));
+      // Force minimum intensity of 80 so bars are always visible
+      const intensity = Math.min(255, Math.max(80, Math.round((power / maxPower) * 255)));
       
       // Get color from color map
       const colorIdx = Math.max(0, intensity * 4);
-      const r = this.colorMap[colorIdx + 0] || 0;
-      const g = this.colorMap[colorIdx + 1] || 0;
-      const b = this.colorMap[colorIdx + 2] || 0;
+      const r = this.colorMap[colorIdx + 0] || 100;
+      const g = this.colorMap[colorIdx + 1] || 100;
+      const b = this.colorMap[colorIdx + 2] || 100;
       
-      // Draw bar with minimum visible height even if power is 0
-      const minBarHeight = 3; // At least 3 pixels
-      const barHeight = Math.max(minBarHeight, (power / maxPower) * height * 0.8);
+      // Draw bar 
+      const barHeight = Math.max(5, (power / maxPower) * height * 0.9);
       const barX = binIdx * binWidth;
       const barY = height - barHeight;
       
       this.ctx.fillStyle = `rgb(${r},${g},${b})`;
-      this.ctx.fillRect(barX, barY, Math.max(1, binWidth - 1), barHeight);
+      const barWidth = Math.max(1, binWidth - 0.5);
+      this.ctx.fillRect(Math.floor(barX), Math.floor(barY), Math.ceil(barWidth), Math.ceil(barHeight));
     }
   }
   
