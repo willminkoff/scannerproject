@@ -203,30 +203,13 @@ class SpectrumWaterfall {
     
     const width = this.canvas.width;
     const height = this.canvas.height;
-    const numBins = powers.length;
+    const numBins = powers ? powers.length : 180;
     const binWidth = width / numBins;
-    const maxPower = 10;
     
-    // Draw bars for every bin
-    for (let binIdx = 0; binIdx < numBins; binIdx++) {
-      const power = powers[binIdx] || 0;
-      // Force minimum intensity of 80 so bars are always visible
-      const intensity = Math.min(255, Math.max(80, Math.round((power / maxPower) * 255)));
-      
-      // Get color from color map
-      const colorIdx = Math.max(0, intensity * 4);
-      const r = this.colorMap[colorIdx + 0] || 100;
-      const g = this.colorMap[colorIdx + 1] || 100;
-      const b = this.colorMap[colorIdx + 2] || 100;
-      
-      // Draw bar 
-      const barHeight = Math.max(5, (power / maxPower) * height * 0.9);
-      const barX = binIdx * binWidth;
-      const barY = height - barHeight;
-      
-      this.ctx.fillStyle = `rgb(${r},${g},${b})`;
-      const barWidth = Math.max(1, binWidth - 0.5);
-      this.ctx.fillRect(Math.floor(barX), Math.floor(barY), Math.ceil(barWidth), Math.ceil(barHeight));
+    // Draw hardcoded red bars for testing
+    for (let i = 0; i < numBins; i++) {
+      this.ctx.fillStyle = '#ff0000';
+      this.ctx.fillRect(i * binWidth, height - 20, binWidth - 1, 20);
     }
   }
   
