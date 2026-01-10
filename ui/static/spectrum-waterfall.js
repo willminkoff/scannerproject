@@ -312,10 +312,19 @@ class SpectrumWaterfall {
 // Create global instance
 let spectrumWaterfall = null;
 
-document.addEventListener('DOMContentLoaded', () => {
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    try {
+      spectrumWaterfall = new SpectrumWaterfall();
+    } catch (e) {
+      console.error('Failed to initialize SpectrumWaterfall:', e);
+    }
+  });
+} else {
+  // DOM already loaded
   try {
     spectrumWaterfall = new SpectrumWaterfall();
   } catch (e) {
     console.error('Failed to initialize SpectrumWaterfall:', e);
   }
-});
+}
