@@ -201,6 +201,14 @@ class SpectrumWaterfall {
     this.ctx.fillStyle = '#000a15';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     
+    // TEST: Draw white line to verify function is called
+    this.ctx.strokeStyle = '#ffffff';
+    this.ctx.lineWidth = 2;
+    this.ctx.beginPath();
+    this.ctx.moveTo(0, this.canvas.height / 2);
+    this.ctx.lineTo(this.canvas.width, this.canvas.height / 2);
+    this.ctx.stroke();
+    
     // Draw frequency bars
     const width = this.canvas.width;
     const height = this.canvas.height;
