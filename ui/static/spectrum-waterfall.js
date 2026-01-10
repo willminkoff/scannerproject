@@ -184,8 +184,6 @@ class SpectrumWaterfall {
     // Use the latest spectrum row
     if (newData.data.length > 0) {
       const latestRow = newData.data[newData.data.length - 1];
-      const maxPower = Math.max(...latestRow.powers);
-      console.log('[Spectrum] Max power:', maxPower, 'Timestamp:', latestRow.ts);
       this.drawBarGraph(latestRow.powers);
     }
     
