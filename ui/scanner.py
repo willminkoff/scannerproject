@@ -109,13 +109,16 @@ def read_last_hit_for_range(unit: str, in_airband: bool, scan_lines: int = 400) 
 
 def read_last_hit_airband() -> str:
     """Read the last airband hit."""
-    value = read_last_hit_file(LAST_HIT_AIRBAND_PATH)
-    if value:
-        return value
+    # Try journalctl first with frequency filtering
     value = read_last_hit_for_range(UNITS["rtl"], True)
     if value:
         return value
-    return read_last_hit_from_journal_unit(UNITS["rtl"])
+    # Fall back to simple last activity from journalctl
+    value = read_last_hit_from_journal_unit(UNITS["rtl"])
+    if value:
+        return value
+    # Last resort: check file if nothing in journal
+    return read_last_hit_file(LAST_HIT_AIRBAND_PATH)
 
 
 def read_last_hit_ground() -> str:
