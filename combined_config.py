@@ -2,6 +2,8 @@ import re
 
 RE_AIRBAND = re.compile(r'^\s*airband\s*=\s*(true|false)\s*;\s*$', re.I)
 RE_UI_DISABLED = re.compile(r'^\s*ui_disabled\s*=\s*(true|false)\s*;\s*$', re.I)
+RE_LOG_SCAN = re.compile(r'^\s*log_scan_activity\s*=', re.I)
+RE_STATS_PATH = re.compile(r'^\s*stats_filepath\s*=', re.I)
 RE_INDEX = re.compile(r'^\s*index\s*=\s*(\d+)\s*;', re.I)
 RE_SERIAL = re.compile(r'^\s*serial\s*=\s*"[^\"]*"\s*;', re.I)
 RE_ICECAST_BLOCK = re.compile(r'\{\s*[^{}]*type\s*=\s*"icecast"[^{}]*\}', re.S)
@@ -18,6 +20,10 @@ def extract_top_level_settings(text: str) -> list:
         if RE_AIRBAND.match(line):
             continue
         if RE_UI_DISABLED.match(line):
+            continue
+        if RE_LOG_SCAN.match(line):
+            continue
+        if RE_STATS_PATH.match(line):
             continue
         lines.append(line.rstrip())
     return lines
