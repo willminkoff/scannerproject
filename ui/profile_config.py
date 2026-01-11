@@ -375,17 +375,13 @@ def filter_freqs_labels(freqs, labels, avoids):
 
 def write_freqs_labels(conf_path: str, freqs, labels):
     """Write frequencies and labels to config."""
-    import sys
-    print(f"DEBUG: write_freqs_labels called with {len(freqs)} freqs to {conf_path}", file=sys.stderr)
     with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
         text = f.read()
     text = replace_freqs_labels(text, freqs, labels)
     tmp = conf_path + ".tmp"
-    print(f"DEBUG: writing to {tmp}", file=sys.stderr)
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(text)
     os.replace(tmp, conf_path)
-    print(f"DEBUG: write_freqs_labels complete", file=sys.stderr)
 
 
 def avoid_current_hit(conf_path: str, target: str):
