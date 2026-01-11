@@ -182,6 +182,21 @@
       letter-spacing: 0.5px;
       display: flex;
       align-items: center;
+      justify-content: space-between;
+    }
+
+    .collapse-btn {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 12px;
+      cursor: pointer;
+      padding: 0;
+      margin: 0;
+    }
+
+    .collapse-btn:hover {
+      color: var(--text-primary);
     }
 
     .widget-body {
@@ -567,8 +582,11 @@
 
       <!-- Row 3: ADS-B (full width) -->
       <div class="widget grid-full">
-        <div class="widget-header">✈️ ADS-B Traffic</div>
-        <div class="widget-body" style="padding: 0;">
+        <div class="widget-header">
+          ✈️ ADS-B Traffic
+          <button class="collapse-btn" id="adsb-collapse" onclick="toggleAdsb()">▼</button>
+        </div>
+        <div class="widget-body" id="adsb-body" style="padding: 0;">
           <iframe src="https://adsb.lol" class="adsb-frame" id="adsb-frame" allow="geolocation"></iframe>
         </div>
       </div>
@@ -646,6 +664,22 @@
       tabAirband: document.getElementById('tab-airband'),
       tabGround: document.getElementById('tab-ground'),
     };
+    
+    // ============================================
+    // ADSB TOGGLE
+    // ============================================
+    
+    function toggleAdsb() {
+      const body = document.getElementById('adsb-body');
+      const btn = document.getElementById('adsb-collapse');
+      if (body.style.display === 'none') {
+        body.style.display = '';
+        btn.textContent = '▼';
+      } else {
+        body.style.display = 'none';
+        btn.textContent = '▶';
+      }
+    }
     
     // ============================================
     // API
