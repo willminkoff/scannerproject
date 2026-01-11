@@ -389,6 +389,10 @@ document.getElementById('btn-avoid').addEventListener('click', async ()=> {
   actionMsg = res.ok ? `Avoided ${res.freq}` : (res.error || 'Avoid failed');
   actionMsgTarget = target;
   await refresh(true);
+  // Momentarily open squelch to skip past the avoided frequency
+  if (res.ok) {
+    await openSquelchMomentary(target, 800);
+  }
 });
 
 document.getElementById('btn-clear-avoids').addEventListener('click', async ()=> {
