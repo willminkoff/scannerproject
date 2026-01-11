@@ -94,7 +94,17 @@
       font-size: 13px;
     }
 
-    /* Main Grid */
+    .connection-status {
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      background: var(--bg-panel);
+    }
+
+    .connection-status.connected { color: var(--good); }
+    .connection-status.disconnected { color: var(--bad); }
+
+    /* Main Layout */
     .main {
       padding: 16px;
       max-width: 1200px;
@@ -103,8 +113,12 @@
 
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      grid-template-columns: 1fr 1fr;
       gap: 16px;
+    }
+
+    .grid-full {
+      grid-column: 1 / -1;
     }
 
     /* Widget */
@@ -124,10 +138,42 @@
       color: var(--text-secondary);
       text-transform: uppercase;
       letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
     }
 
     .widget-body {
       padding: 16px;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-left: auto;
+    }
+
+    .tab {
+      padding: 4px 12px;
+      font-size: 11px;
+      font-weight: 500;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .tab:hover {
+      border-color: var(--accent);
+      color: var(--text-primary);
+    }
+
+    .tab.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--bg-dark);
     }
 
     /* Controls */
@@ -198,6 +244,8 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 8px;
+      max-height: 200px;
+      overflow-y: auto;
     }
 
     .profile-btn {
@@ -229,48 +277,6 @@
       font-size: 10px;
       color: var(--text-secondary);
       margin-top: 2px;
-    }
-
-    /* Hit List */
-    .hit-list {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      max-height: 300px;
-      overflow-y: auto;
-    }
-
-    .hit-row {
-      display: grid;
-      grid-template-columns: 70px 1fr 50px;
-      gap: 8px;
-      padding: 8px 10px;
-      background: var(--bg-panel);
-      border-radius: 4px;
-      font-size: 12px;
-      font-family: monospace;
-    }
-
-    .hit-row .time {
-      color: var(--text-secondary);
-    }
-
-    .hit-row .freq {
-      color: var(--accent);
-    }
-
-    .hit-row .duration {
-      color: var(--text-secondary);
-      text-align: right;
-    }
-
-    .hit-row.header {
-      background: transparent;
-      color: var(--text-secondary);
-      font-family: inherit;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
     }
 
     /* Counters */
@@ -308,6 +314,41 @@
       margin-top: 4px;
     }
 
+    /* Hit List */
+    .hit-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      max-height: 250px;
+      overflow-y: auto;
+    }
+
+    .hit-row {
+      display: grid;
+      grid-template-columns: 70px 1fr 50px;
+      gap: 8px;
+      padding: 8px 10px;
+      background: var(--bg-panel);
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: monospace;
+    }
+
+    .hit-row .time { color: var(--text-secondary); }
+    .hit-row .freq { color: var(--accent); }
+    .hit-row .duration { color: var(--text-secondary); text-align: right; }
+
+    .hit-row.header {
+      background: transparent;
+      color: var(--text-secondary);
+      font-family: inherit;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      position: sticky;
+      top: 0;
+    }
+
     /* Buttons */
     .btn-row {
       display: flex;
@@ -328,69 +369,30 @@
       transition: all 0.15s;
     }
 
-    button.action:hover {
-      border-color: var(--accent);
-    }
+    button.action:hover { border-color: var(--accent); }
+    button.action:disabled { opacity: 0.5; cursor: not-allowed; }
 
-    button.action:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    button.action.primary {
-      background: var(--accent);
-      color: var(--bg-dark);
-      border-color: var(--accent);
-    }
-
-    button.action.primary:hover {
-      background: #5eead4;
-    }
-
-    /* Connection status */
-    .connection-status {
-      font-size: 11px;
-      padding: 4px 8px;
+    /* ADS-B */
+    .adsb-frame {
+      width: 100%;
+      height: 400px;
+      border: none;
       border-radius: 4px;
       background: var(--bg-panel);
     }
 
-    .connection-status.connected {
-      color: var(--good);
-    }
-
-    .connection-status.disconnected {
-      color: var(--bad);
-    }
-
-    /* Tabs */
-    .tabs {
+    .adsb-placeholder {
       display: flex;
-      gap: 4px;
-      margin-left: auto;
-    }
-
-    .tab {
-      padding: 4px 12px;
-      font-size: 11px;
-      font-weight: 500;
-      background: transparent;
-      border: 1px solid var(--border);
-      border-radius: 4px;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 400px;
       color: var(--text-secondary);
-      cursor: pointer;
-      transition: all 0.15s;
+      gap: 12px;
     }
 
-    .tab:hover {
-      border-color: var(--accent);
-      color: var(--text-primary);
-    }
-
-    .tab.active {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: var(--bg-dark);
+    .adsb-placeholder .icon {
+      font-size: 48px;
     }
 
     /* Empty state */
@@ -403,6 +405,13 @@
     .empty-state .icon {
       font-size: 32px;
       margin-bottom: 12px;
+    }
+
+    /* Responsive */
+    @media (max-width: 700px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
@@ -434,9 +443,9 @@
   <div class="main">
     <div class="grid">
 
-      <!-- Controls Widget -->
+      <!-- Row 1: Controls + Profiles -->
       <div class="widget">
-        <div class="widget-header" style="display: flex; align-items: center;">
+        <div class="widget-header">
           <span>⚙️ Radio Controls</span>
           <div class="tabs">
             <button class="tab active" id="tab-airband" onclick="switchTarget('airband')">Airband</button>
@@ -480,7 +489,6 @@
         </div>
       </div>
 
-      <!-- Profiles Widget -->
       <div class="widget">
         <div class="widget-header">🎯 Profiles</div>
         <div class="widget-body">
@@ -493,7 +501,7 @@
         </div>
       </div>
 
-      <!-- Hit Counters Widget -->
+      <!-- Row 2: Hit Counters + Hit List -->
       <div class="widget">
         <div class="widget-header">📊 Signal Activity</div>
         <div class="widget-body">
@@ -512,7 +520,6 @@
         </div>
       </div>
 
-      <!-- Hit List Widget -->
       <div class="widget">
         <div class="widget-header">📋 Recent Hits</div>
         <div class="widget-body">
@@ -522,11 +529,15 @@
               <div>Frequency</div>
               <div>Dur</div>
             </div>
-            <div class="empty-state">
-              <div class="icon">📻</div>
-              <div>Waiting for hits...</div>
-            </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Row 3: ADS-B (full width) -->
+      <div class="widget grid-full">
+        <div class="widget-header">✈️ ADS-B Traffic</div>
+        <div class="widget-body" style="padding: 0;">
+          <iframe src="https://adsb.lol" class="adsb-frame" id="adsb-frame" allow="geolocation"></iframe>
         </div>
       </div>
 
@@ -550,12 +561,12 @@
     // STATE
     // ============================================
     
-    let activeTarget = 'airband';  // 'airband' or 'ground'
+    let activeTarget = 'airband';
     
     let state = {
       connected: false,
-      sdr1Active: false,  // RTL Blog v4 (serial 00000001) - airband
-      sdr2Active: false,  // Nooelec (serial 70613472) - ground
+      sdr1Active: false,
+      sdr2Active: false,
       icecastActive: false,
       lastHit: '',
       hits: [],
@@ -563,7 +574,6 @@
       sessionStart: Date.now(),
       applyTimeout: null,
       filterTimeout: null,
-      // Per-target state
       airband: {
         gain: 32.8,
         squelch: 0.5,
@@ -669,19 +679,16 @@
     function updateControls() {
       const t = state[activeTarget];
       
-      // Gain
       const gainIdx = gainIndexFromValue(t.gain);
       els.gainSlider.value = gainIdx;
       els.gainValue.textContent = GAIN_STEPS[gainIdx].toFixed(1);
       els.gainApplied.textContent = t.gain.toFixed(1) + ' dB';
       
-      // Squelch (backend stores as 0-1, slider is 0-10)
       const sqlSliderVal = t.squelch / SQL_SCALE;
       els.sqlSlider.value = sqlSliderVal;
       els.sqlValue.textContent = sqlSliderVal.toFixed(1);
       els.sqlApplied.textContent = t.squelch.toFixed(2);
       
-      // Filter
       els.filterSlider.value = t.filter;
       els.filterValue.textContent = t.filter;
       els.filterApplied.textContent = t.filter + ' Hz';
@@ -706,23 +713,6 @@
         `).join('');
     }
     
-    function switchTarget(target) {
-      activeTarget = target;
-      
-      // Update tabs
-      els.tabAirband.classList.toggle('active', target === 'airband');
-      els.tabGround.classList.toggle('active', target === 'ground');
-      
-      // Clear dirty state
-      els.gainSlider.classList.remove('dirty');
-      els.sqlSlider.classList.remove('dirty');
-      els.filterSlider.classList.remove('dirty');
-      
-      // Update UI for new target
-      updateControls();
-      updateProfiles();
-    }
-    
     function updateHitList() {
       const header = '<div class="hit-row header"><div>Time</div><div>Frequency</div><div>Dur</div></div>';
       
@@ -731,7 +721,7 @@
         return;
       }
       
-      const rows = state.hits.slice(0, 20).map(hit => `
+      const rows = state.hits.slice(0, 50).map(hit => `
         <div class="hit-row">
           <div class="time">${hit.time || '--'}</div>
           <div class="freq">${formatFreq(hit.freq)} MHz</div>
@@ -746,13 +736,11 @@
       els.hitCount.textContent = state.hits.length || '--';
       els.sessionCount.textContent = state.sessionHits;
       
-      // Calculate rate
-      const elapsed = (Date.now() - state.sessionStart) / 3600000; // hours
+      const elapsed = (Date.now() - state.sessionStart) / 3600000;
       if (elapsed > 0.01 && state.sessionHits > 0) {
         els.hitRate.textContent = Math.round(state.sessionHits / elapsed) + '/hr';
       }
       
-      // Session start time
       const startDate = new Date(state.sessionStart);
       els.sessionStart.textContent = 'Since ' + startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
@@ -763,8 +751,19 @@
       return isNaN(num) ? freq : num.toFixed(3);
     }
     
+    function switchTarget(target) {
+      activeTarget = target;
+      els.tabAirband.classList.toggle('active', target === 'airband');
+      els.tabGround.classList.toggle('active', target === 'ground');
+      els.gainSlider.classList.remove('dirty');
+      els.sqlSlider.classList.remove('dirty');
+      els.filterSlider.classList.remove('dirty');
+      updateControls();
+      updateProfiles();
+    }
+    
     // ============================================
-    // SLIDER HANDLERS (auto-apply with debounce)
+    // SLIDER HANDLERS
     // ============================================
     
     function onGainChange() {
@@ -772,7 +771,6 @@
       const gain = gainValueFromIndex(idx);
       els.gainValue.textContent = gain.toFixed(1);
       els.gainSlider.classList.add('dirty');
-      
       clearTimeout(state.applyTimeout);
       state.applyTimeout = setTimeout(() => applyGainSql(), DEBOUNCE_MS);
     }
@@ -781,7 +779,6 @@
       const val = parseFloat(els.sqlSlider.value);
       els.sqlValue.textContent = val.toFixed(1);
       els.sqlSlider.classList.add('dirty');
-      
       clearTimeout(state.applyTimeout);
       state.applyTimeout = setTimeout(() => applyGainSql(), DEBOUNCE_MS);
     }
@@ -790,7 +787,6 @@
       const val = parseInt(els.filterSlider.value);
       els.filterValue.textContent = val;
       els.filterSlider.classList.add('dirty');
-      
       clearTimeout(state.filterTimeout);
       state.filterTimeout = setTimeout(() => applyFilter(), DEBOUNCE_MS);
     }
@@ -806,7 +802,6 @@
         els.sqlSlider.classList.remove('dirty');
         els.gainApplied.textContent = gain.toFixed(1) + ' dB';
         els.sqlApplied.textContent = squelch.toFixed(2);
-        // Update state
         state[activeTarget].gain = gain;
         state[activeTarget].squelch = squelch;
       } catch (e) {
@@ -855,7 +850,6 @@
       els.btnOpenSql.disabled = true;
       const t = state[activeTarget];
       try {
-        // Open squelch by setting it very low temporarily
         await postAPI('/api/apply', { target: activeTarget, gain: t.gain, squelch: 0.01 });
         setTimeout(async () => {
           await postAPI('/api/apply', { target: activeTarget, gain: t.gain, squelch: t.squelch });
@@ -875,19 +869,17 @@
       try {
         const data = await fetchJSON('/api/status');
         
-        state.sdr1Active = data.rtl_active;      // SDR1 = airband unit
-        state.sdr2Active = data.ground_active;    // SDR2 = ground unit
+        state.sdr1Active = data.rtl_active;
+        state.sdr2Active = data.ground_active;
         state.icecastActive = data.icecast_active;
-        state.lastHit = data.last_hit || '';
+        state.lastHit = data.last_hit || data.last_hit_airband || data.last_hit_ground || '';
         
-        // Airband state
         state.airband.gain = data.airband_gain || data.gain || 32.8;
         state.airband.squelch = data.airband_squelch || data.squelch || 0.5;
         state.airband.filter = data.airband_filter || 3500;
         state.airband.profiles = data.profiles_airband || [];
         state.airband.currentProfile = data.profile_airband || '';
         
-        // Ground state
         state.ground.gain = data.ground_gain || 32.8;
         state.ground.squelch = data.ground_squelch || 0.5;
         state.ground.filter = data.ground_filter || 3500;
@@ -912,7 +904,7 @@
         const data = await fetchJSON('/api/hits');
         const newHits = data.items || [];
         
-        // Count new hits
+        // Count new hits for session
         if (state.hits.length > 0 && newHits.length > 0) {
           const lastTime = state.hits[0]?.time;
           const newCount = newHits.filter(h => h.time > lastTime).length;
@@ -937,11 +929,9 @@
       es.addEventListener('status', (e) => {
         try {
           const data = JSON.parse(e.data);
-          state.sdr1Active = data.rtl_active;      // SDR1 = airband
-          state.sdr2Active = data.ground_active;    // SDR2 = ground
+          state.sdr1Active = data.rtl_active;
+          state.sdr2Active = data.ground_active;
           state.icecastActive = data.icecast_active;
-          state.gain = data.gain || state.gain;
-          state.squelch = data.squelch || state.squelch;
           state.lastHit = data.last_hit || state.lastHit;
           state.connected = true;
           updateStatus();
@@ -955,14 +945,27 @@
           const data = JSON.parse(e.data);
           const newHits = data.items || [];
           
-          // Count new hits for session
-          if (state.hits.length > 0 && newHits.length > 0 && newHits[0]?.time !== state.hits[0]?.time) {
-            state.sessionHits++;
-          }
+          // Only update if SSE has newer data (don't overwrite polling data with less)
+          if (newHits.length === 0) return;
           
-          state.hits = newHits;
-          updateHitList();
-          updateCounters();
+          // Check if we have a genuinely new hit at the top
+          const currentTop = state.hits[0]?.time;
+          const newTop = newHits[0]?.time;
+          
+          if (newTop && newTop !== currentTop) {
+            state.sessionHits++;
+            // Merge: prepend new hits we don't have
+            const existingTimes = new Set(state.hits.map(h => h.time + h.freq));
+            for (let i = newHits.length - 1; i >= 0; i--) {
+              const key = newHits[i].time + newHits[i].freq;
+              if (!existingTimes.has(key)) {
+                state.hits.unshift(newHits[i]);
+              }
+            }
+            state.hits = state.hits.slice(0, 50);
+            updateHitList();
+            updateCounters();
+          }
         } catch (err) {
           console.error('SSE hits parse error:', err);
         }
@@ -972,7 +975,6 @@
         state.connected = false;
         updateStatus();
         es.close();
-        // Reconnect after delay
         setTimeout(connectSSE, 3000);
       };
       
@@ -987,27 +989,21 @@
     // ============================================
     
     function init() {
-      // Bind sliders
       els.gainSlider.addEventListener('input', onGainChange);
       els.sqlSlider.addEventListener('input', onSqlChange);
       els.filterSlider.addEventListener('input', onFilterChange);
-      
-      // Bind buttons
       els.btnRestart.addEventListener('click', restartScanner);
       els.btnOpenSql.addEventListener('click', openSquelch);
       
-      // Initial fetch
       refresh();
       refreshHits();
-      
-      // Start SSE
       connectSSE();
       
-      // Periodic full refresh
+      // Poll hits more frequently to catch activity
+      setInterval(refreshHits, 2000);
       setInterval(refresh, 10000);
     }
     
-    // Start
     init();
   </script>
 </body>
