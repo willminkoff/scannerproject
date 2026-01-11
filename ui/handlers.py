@@ -261,6 +261,7 @@ class Handler(BaseHTTPRequestHandler):
                     "gain": float(airband_gain),
                     "squelch": float(airband_squelch),
                     "last_hit": last_hit,
+                    "server_time": time.time(),
                 }
                 self.wfile.write(f"event: status\ndata: {json.dumps(status_data)}\n\n".encode())
                 spectrum_data = {

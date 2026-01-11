@@ -554,9 +554,9 @@
         <div class="widget-body">
           <div class="counter-grid">
             <div class="counter-item">
-              <div class="counter-label">Total Hits</div>
+              <div class="counter-label">Hits/Hour</div>
               <div class="counter-value" id="hit-count">--</div>
-              <div class="counter-rate" id="hit-rate">--/hr</div>
+              <div class="counter-rate" id="hit-rate"></div>
             </div>
             <div class="counter-item">
               <div class="counter-label">Session</div>
@@ -799,13 +799,16 @@
     }
     
     function updateCounters() {
-      els.hitCount.textContent = state.hits.length || '--';
-      els.sessionCount.textContent = state.sessionHits;
-      
       const elapsed = (Date.now() - state.sessionStart) / 3600000;
+      let rate = '--';
       if (elapsed > 0.01 && state.sessionHits > 0) {
-        els.hitRate.textContent = Math.round(state.sessionHits / elapsed) + '/hr';
+        rate = Math.round(state.sessionHits / elapsed);
       }
+      
+      els.hitCount.textContent = rate;
+      els.hitRate.textContent = '';
+      
+      els.sessionCount.textContent = state.sessionHits;
       
       const startDate = new Date(state.sessionStart);
       els.sessionStart.textContent = 'Since ' + startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -994,8 +997,10 @@
           state.sdr2Active = data.ground_active;
           state.icecastActive = data.icecast_active;
           state.lastHit = data.last_hit || state.lastHit;
+          state.serverTime = data.server_time;
           state.connected = true;
           updateStatus();
+          updateCounters();
         } catch (err) {
           console.error('SSE status parse error:', err);
         }
