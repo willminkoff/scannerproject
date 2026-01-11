@@ -21,6 +21,7 @@ Scanner control UI and configuration for RTL-SDR dual-dongle airband/GMRS/WX rec
 │   ├── server_workers.py        # Background worker threads
 │   ├── diagnostic.py            # Diagnostic log generation
 │   ├── __init__.py              # Package marker
+│   ├── sb3.html                 # Scanner Box 3 dashboard (standalone)
 │   └── static/                  # Web assets
 │       ├── index.html           # UI structure (5.2 KB)
 │       ├── style.css            # Styling with CSS variables (5 KB)
@@ -356,6 +357,97 @@ Serve static web assets.
 - `.html` → `text/html`
 - `.css` → `text/css`
 - `.js` → `application/javascript`
+
+### GET /sb3.html
+Scanner Box 3 (SB3) - Alternative dashboard UI with modern widget-based layout.
+
+**Access**: `http://sprontpi.local:5050/sb3.html`
+
+---
+
+## SB3 Dashboard (Scanner Box 3)
+
+A production-ready alternative UI built as a single-page HTML file with embedded CSS and JavaScript. Designed for at-a-glance monitoring with a utilitarian, widget-based layout.
+
+### Layout
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ SB3   [SDR1●] [SDR2○] [Ice●]   119.3500    Connected    │  ← Header
+├────────────────────────┬────────────────────────────────┤
+│ ⚙️ Radio Controls      │ 🎯 Profiles                    │  ← Row 1
+│ [Airband] [Ground]     │                                │
+│ Gain ────●──── 22.9    │ [KBNA (Nashville)]  ●          │
+│ Squelch ──●──── 5.0    │ [Nashville Centers]            │
+│ Filter ───●──── 2900   │ [TOWER (118.600)]              │
+│                        │ [KHOP (Campbell)]              │
+│ [Restart] [Open SQL]   │ [KMQY (Smyrna)]                │
+├────────────────────────┼────────────────────────────────┤
+│ 📊 Signal Activity     │ 📋 Recent Hits                 │  ← Row 2
+│   Total Hits   Session │ Time     Frequency      Dur    │
+│     ███        ███     │ 14:06:28  119.350 MHz   7s     │
+│     47         12      │ 14:06:14  119.450 MHz   --     │
+│   240/hr    Since 2:00 │ 14:06:04  127.175 MHz   --     │
+├────────────────────────┴────────────────────────────────┤
+│ ✈️ ADS-B Traffic                                        │  ← Row 3
+│ ┌─────────────────────────────────────────────────────┐ │
+│ │                   adsb.lol iframe                   │ │
+│ │                   (live flight map)                 │ │
+│ └─────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| **Dual SDR Status** | SDR1 (airband) and SDR2 (ground) indicators with pulsing animation |
+| **Icecast Status** | Shows streaming server health |
+| **Airband/Ground Tabs** | Switch between radio targets with independent settings |
+| **Auto-Apply Sliders** | Changes apply automatically after 500ms debounce (no Apply button) |
+| **GAIN_STEPS Array** | 29 discrete RTL-SDR gain values (0.0 to 49.6 dB) |
+| **Profile Switching** | Visual profile grid, active profile highlighted |
+| **Hit List** | Scrollable list of recent frequency hits with duration |
+| **Session Counter** | Tracks hits since page load with hits/hour rate |
+| **ADS-B Map** | Embedded adsb.lol iframe for live flight tracking |
+| **SSE + Polling** | Real-time updates via Server-Sent Events, polling fallback |
+
+### Technical Details
+
+**Data Sources**:
+- `/api/status` - SDR states, Icecast status, current profiles, gain/squelch values
+- `/api/hits` - Last 50 hits from Icecast hit log + journalctl fallback
+- `/api/stream` (SSE) - Real-time status and hit updates
+
+**Gain Control**:
+```javascript
+const GAIN_STEPS = [
+  0.0, 0.9, 1.4, 2.7, 3.7, 7.7, 8.7, 12.5, 14.4, 15.7,
+  16.6, 19.7, 20.7, 22.9, 25.4, 28.0, 29.7, 32.8, 33.8,
+  36.4, 37.2, 38.6, 40.2, 42.1, 43.4, 43.9, 44.5, 48.0, 49.6,
+];
+```
+Slider maps to index (0-28), value sent to backend is the actual dB value.
+
+**Squelch Control**:
+```javascript
+const SQL_SCALE = 0.1;  // UI slider 0-10 → backend 0.0-1.0
+```
+
+**Update Strategy**:
+- SSE merges new hits (doesn't overwrite) to prevent flashing
+- Polling every 2 seconds as backup
+- Last hit display falls back: `last_hit` → `last_hit_airband` → `last_hit_ground`
+
+**CSS Grid Layout**:
+```css
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.grid-full { grid-column: 1 / -1; }  /* ADS-B spans full width */
+```
 
 ### Error Responses
 
