@@ -1,0 +1,919 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SB3 - Scanner Box 3</title>
+  <style>
+    :root {
+      --bg-dark: #0a0d11;
+      --bg-card: #0f1318;
+      --bg-panel: #121618;
+      --text-primary: #e4e8f0;
+      --text-secondary: #8a92a8;
+      --accent: #2dd4bf;
+      --accent-dim: rgba(45, 212, 191, 0.3);
+      --border: #1e2530;
+      --good: #10b981;
+      --bad: #ef4444;
+      --warn: #f59e0b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 16px;
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: var(--accent);
+      text-transform: uppercase;
+      padding: 4px 8px;
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+    }
+
+    .status-indicators {
+      display: flex;
+      gap: 12px;
+      font-size: 12px;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--bad);
+    }
+
+    .status-dot.active {
+      background: var(--good);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .last-hit {
+      font-family: monospace;
+      color: var(--accent);
+      font-size: 13px;
+    }
+
+    /* Main Grid */
+    .main {
+      padding: 16px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+    }
+
+    /* Widget */
+    .widget {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .widget-header {
+      padding: 12px 16px;
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .widget-body {
+      padding: 16px;
+    }
+
+    /* Controls */
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .control-item {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .control-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .control-value {
+      font-family: monospace;
+      color: var(--accent);
+    }
+
+    .control-applied {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .slider {
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: var(--bg-panel);
+      -webkit-appearance: none;
+      appearance: none;
+      cursor: pointer;
+    }
+
+    .slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      border: 2px solid var(--bg-dark);
+    }
+
+    .slider::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid var(--bg-dark);
+      cursor: pointer;
+    }
+
+    .slider.dirty {
+      background: linear-gradient(90deg, var(--accent-dim), var(--bg-panel));
+    }
+
+    /* Profiles */
+    .profiles-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .profile-btn {
+      padding: 10px 12px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-primary);
+      cursor: pointer;
+      font-size: 12px;
+      text-align: left;
+      transition: all 0.15s;
+    }
+
+    .profile-btn:hover {
+      border-color: var(--accent);
+    }
+
+    .profile-btn.active {
+      border-color: var(--accent);
+      background: rgba(45, 212, 191, 0.1);
+    }
+
+    .profile-btn .label {
+      font-weight: 500;
+    }
+
+    .profile-btn .meta {
+      font-size: 10px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    /* Hit List */
+    .hit-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .hit-row {
+      display: grid;
+      grid-template-columns: 70px 1fr 50px;
+      gap: 8px;
+      padding: 8px 10px;
+      background: var(--bg-panel);
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: monospace;
+    }
+
+    .hit-row .time {
+      color: var(--text-secondary);
+    }
+
+    .hit-row .freq {
+      color: var(--accent);
+    }
+
+    .hit-row .duration {
+      color: var(--text-secondary);
+      text-align: right;
+    }
+
+    .hit-row.header {
+      background: transparent;
+      color: var(--text-secondary);
+      font-family: inherit;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Counters */
+    .counter-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .counter-item {
+      text-align: center;
+      padding: 16px;
+      background: var(--bg-panel);
+      border-radius: 6px;
+    }
+
+    .counter-label {
+      font-size: 11px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .counter-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--accent);
+      font-family: monospace;
+    }
+
+    .counter-rate {
+      font-size: 11px;
+      color: var(--good);
+      margin-top: 4px;
+    }
+
+    /* Buttons */
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    button.action {
+      flex: 1;
+      padding: 10px 16px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+
+    button.action:hover {
+      border-color: var(--accent);
+    }
+
+    button.action:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    button.action.primary {
+      background: var(--accent);
+      color: var(--bg-dark);
+      border-color: var(--accent);
+    }
+
+    button.action.primary:hover {
+      background: #5eead4;
+    }
+
+    /* Connection status */
+    .connection-status {
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      background: var(--bg-panel);
+    }
+
+    .connection-status.connected {
+      color: var(--good);
+    }
+
+    .connection-status.disconnected {
+      color: var(--bad);
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-secondary);
+    }
+
+    .empty-state .icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="logo">SB3</div>
+      <div class="status-indicators">
+        <div class="status-item">
+          <div class="status-dot" id="rtl-status"></div>
+          <span>RTL</span>
+        </div>
+        <div class="status-item">
+          <div class="status-dot" id="ice-status"></div>
+          <span>Icecast</span>
+        </div>
+      </div>
+      <div class="last-hit" id="last-hit">--</div>
+    </div>
+    <div class="connection-status disconnected" id="connection-status">Connecting...</div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main">
+    <div class="grid">
+
+      <!-- Controls Widget -->
+      <div class="widget">
+        <div class="widget-header">⚙️ Radio Controls</div>
+        <div class="widget-body">
+          <div class="control-group">
+            <div class="control-item">
+              <div class="control-label">
+                <span>Gain (dB)</span>
+                <span class="control-value" id="gain-value">--</span>
+              </div>
+              <input type="range" class="slider" id="gain-slider" min="0" max="28" step="1" value="14">
+              <div class="control-applied">Applied: <span id="gain-applied">--</span></div>
+            </div>
+
+            <div class="control-item">
+              <div class="control-label">
+                <span>Squelch (SNR)</span>
+                <span class="control-value" id="sql-value">--</span>
+              </div>
+              <input type="range" class="slider" id="sql-slider" min="0" max="10" step="0.1" value="5">
+              <div class="control-applied">Applied: <span id="sql-applied">--</span></div>
+            </div>
+
+            <div class="control-item">
+              <div class="control-label">
+                <span>Filter (Hz)</span>
+                <span class="control-value" id="filter-value">--</span>
+              </div>
+              <input type="range" class="slider" id="filter-slider" min="2000" max="5000" step="100" value="3500">
+              <div class="control-applied">Applied: <span id="filter-applied">--</span></div>
+            </div>
+          </div>
+
+          <div class="btn-row">
+            <button class="action" id="btn-restart">Restart Scanner</button>
+            <button class="action" id="btn-open-sql">Open Squelch</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Profiles Widget -->
+      <div class="widget">
+        <div class="widget-header">🎯 Profiles</div>
+        <div class="widget-body">
+          <div class="profiles-grid" id="profiles-list">
+            <div class="empty-state">
+              <div class="icon">📡</div>
+              <div>Loading profiles...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hit Counters Widget -->
+      <div class="widget">
+        <div class="widget-header">📊 Signal Activity</div>
+        <div class="widget-body">
+          <div class="counter-grid">
+            <div class="counter-item">
+              <div class="counter-label">Total Hits</div>
+              <div class="counter-value" id="hit-count">--</div>
+              <div class="counter-rate" id="hit-rate">--/hr</div>
+            </div>
+            <div class="counter-item">
+              <div class="counter-label">Session</div>
+              <div class="counter-value" id="session-count">0</div>
+              <div class="counter-rate" id="session-start">--</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hit List Widget -->
+      <div class="widget">
+        <div class="widget-header">📋 Recent Hits</div>
+        <div class="widget-body">
+          <div class="hit-list" id="hit-list">
+            <div class="hit-row header">
+              <div>Time</div>
+              <div>Frequency</div>
+              <div>Dur</div>
+            </div>
+            <div class="empty-state">
+              <div class="icon">📻</div>
+              <div>Waiting for hits...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // ============================================
+    // CONFIGURATION
+    // ============================================
+    
+    const GAIN_STEPS = [
+      0.0, 0.9, 1.4, 2.7, 3.7, 7.7, 8.7, 12.5, 14.4, 15.7,
+      16.6, 19.7, 20.7, 22.9, 25.4, 28.0, 29.7, 32.8, 33.8,
+      36.4, 37.2, 38.6, 40.2, 42.1, 43.4, 43.9, 44.5, 48.0, 49.6,
+    ];
+    const SQL_SCALE = 0.1;
+    const DEBOUNCE_MS = 500;
+    
+    // ============================================
+    // STATE
+    // ============================================
+    
+    let state = {
+      connected: false,
+      rtlActive: false,
+      icecastActive: false,
+      gain: 0,
+      squelch: 0,
+      filter: 3500,
+      lastHit: '',
+      profiles: [],
+      currentProfile: '',
+      hits: [],
+      sessionHits: 0,
+      sessionStart: Date.now(),
+      applyTimeout: null,
+      filterTimeout: null,
+    };
+    
+    // ============================================
+    // ELEMENTS
+    // ============================================
+    
+    const els = {
+      rtlStatus: document.getElementById('rtl-status'),
+      iceStatus: document.getElementById('ice-status'),
+      connectionStatus: document.getElementById('connection-status'),
+      lastHit: document.getElementById('last-hit'),
+      gainSlider: document.getElementById('gain-slider'),
+      gainValue: document.getElementById('gain-value'),
+      gainApplied: document.getElementById('gain-applied'),
+      sqlSlider: document.getElementById('sql-slider'),
+      sqlValue: document.getElementById('sql-value'),
+      sqlApplied: document.getElementById('sql-applied'),
+      filterSlider: document.getElementById('filter-slider'),
+      filterValue: document.getElementById('filter-value'),
+      filterApplied: document.getElementById('filter-applied'),
+      profilesList: document.getElementById('profiles-list'),
+      hitList: document.getElementById('hit-list'),
+      hitCount: document.getElementById('hit-count'),
+      hitRate: document.getElementById('hit-rate'),
+      sessionCount: document.getElementById('session-count'),
+      sessionStart: document.getElementById('session-start'),
+      btnRestart: document.getElementById('btn-restart'),
+      btnOpenSql: document.getElementById('btn-open-sql'),
+    };
+    
+    // ============================================
+    // API
+    // ============================================
+    
+    async function fetchJSON(url) {
+      const r = await fetch(url, { cache: 'no-store' });
+      return r.json();
+    }
+    
+    async function postAPI(endpoint, data) {
+      const body = new URLSearchParams(data).toString();
+      const r = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body
+      });
+      return r.json();
+    }
+    
+    // ============================================
+    // GAIN HELPERS
+    // ============================================
+    
+    function gainIndexFromValue(value) {
+      let best = 0;
+      let bestDiff = Infinity;
+      GAIN_STEPS.forEach((g, idx) => {
+        const diff = Math.abs(g - value);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          best = idx;
+        }
+      });
+      return best;
+    }
+    
+    function gainValueFromIndex(idx) {
+      return GAIN_STEPS[Math.min(idx, GAIN_STEPS.length - 1)];
+    }
+    
+    // ============================================
+    // UI UPDATES
+    // ============================================
+    
+    function updateStatus() {
+      els.rtlStatus.classList.toggle('active', state.rtlActive);
+      els.iceStatus.classList.toggle('active', state.icecastActive);
+      els.lastHit.textContent = state.lastHit || '--';
+      
+      els.connectionStatus.textContent = state.connected ? 'Connected' : 'Disconnected';
+      els.connectionStatus.classList.toggle('connected', state.connected);
+      els.connectionStatus.classList.toggle('disconnected', !state.connected);
+    }
+    
+    function updateControls() {
+      // Gain
+      const gainIdx = gainIndexFromValue(state.gain);
+      els.gainSlider.value = gainIdx;
+      els.gainValue.textContent = GAIN_STEPS[gainIdx].toFixed(1);
+      els.gainApplied.textContent = state.gain.toFixed(1) + ' dB';
+      
+      // Squelch (backend stores as 0-1, slider is 0-10)
+      const sqlSliderVal = state.squelch / SQL_SCALE;
+      els.sqlSlider.value = sqlSliderVal;
+      els.sqlValue.textContent = sqlSliderVal.toFixed(1);
+      els.sqlApplied.textContent = state.squelch.toFixed(2);
+      
+      // Filter
+      els.filterSlider.value = state.filter;
+      els.filterValue.textContent = state.filter;
+      els.filterApplied.textContent = state.filter + ' Hz';
+    }
+    
+    function updateProfiles() {
+      if (!state.profiles.length) {
+        els.profilesList.innerHTML = '<div class="empty-state"><div class="icon">📡</div><div>No profiles found</div></div>';
+        return;
+      }
+      
+      els.profilesList.innerHTML = state.profiles
+        .filter(p => !p.id.startsWith('none_'))
+        .map(p => `
+          <button class="profile-btn ${p.id === state.currentProfile ? 'active' : ''}" 
+                  onclick="selectProfile('${p.id}')">
+            <div class="label">${p.label}</div>
+            <div class="meta">${p.exists ? '' : 'Missing'}</div>
+          </button>
+        `).join('');
+    }
+    
+    function updateHitList() {
+      const header = '<div class="hit-row header"><div>Time</div><div>Frequency</div><div>Dur</div></div>';
+      
+      if (!state.hits.length) {
+        els.hitList.innerHTML = header + '<div class="empty-state"><div class="icon">📻</div><div>Waiting for hits...</div></div>';
+        return;
+      }
+      
+      const rows = state.hits.slice(0, 20).map(hit => `
+        <div class="hit-row">
+          <div class="time">${hit.time || '--'}</div>
+          <div class="freq">${formatFreq(hit.freq)} MHz</div>
+          <div class="duration">${hit.duration ? hit.duration + 's' : '--'}</div>
+        </div>
+      `).join('');
+      
+      els.hitList.innerHTML = header + rows;
+    }
+    
+    function updateCounters() {
+      els.hitCount.textContent = state.hits.length || '--';
+      els.sessionCount.textContent = state.sessionHits;
+      
+      // Calculate rate
+      const elapsed = (Date.now() - state.sessionStart) / 3600000; // hours
+      if (elapsed > 0.01 && state.sessionHits > 0) {
+        els.hitRate.textContent = Math.round(state.sessionHits / elapsed) + '/hr';
+      }
+      
+      // Session start time
+      const startDate = new Date(state.sessionStart);
+      els.sessionStart.textContent = 'Since ' + startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    
+    function formatFreq(freq) {
+      if (!freq) return '--';
+      const num = parseFloat(freq);
+      return isNaN(num) ? freq : num.toFixed(3);
+    }
+    
+    // ============================================
+    // SLIDER HANDLERS (auto-apply with debounce)
+    // ============================================
+    
+    function onGainChange() {
+      const idx = parseInt(els.gainSlider.value);
+      const gain = gainValueFromIndex(idx);
+      els.gainValue.textContent = gain.toFixed(1);
+      els.gainSlider.classList.add('dirty');
+      
+      clearTimeout(state.applyTimeout);
+      state.applyTimeout = setTimeout(() => applyGainSql(), DEBOUNCE_MS);
+    }
+    
+    function onSqlChange() {
+      const val = parseFloat(els.sqlSlider.value);
+      els.sqlValue.textContent = val.toFixed(1);
+      els.sqlSlider.classList.add('dirty');
+      
+      clearTimeout(state.applyTimeout);
+      state.applyTimeout = setTimeout(() => applyGainSql(), DEBOUNCE_MS);
+    }
+    
+    function onFilterChange() {
+      const val = parseInt(els.filterSlider.value);
+      els.filterValue.textContent = val;
+      els.filterSlider.classList.add('dirty');
+      
+      clearTimeout(state.filterTimeout);
+      state.filterTimeout = setTimeout(() => applyFilter(), DEBOUNCE_MS);
+    }
+    
+    async function applyGainSql() {
+      const gainIdx = parseInt(els.gainSlider.value);
+      const gain = gainValueFromIndex(gainIdx);
+      const squelch = parseFloat(els.sqlSlider.value) * SQL_SCALE;
+      
+      try {
+        await postAPI('/api/apply', { target: 'airband', gain, squelch });
+        els.gainSlider.classList.remove('dirty');
+        els.sqlSlider.classList.remove('dirty');
+        els.gainApplied.textContent = gain.toFixed(1) + ' dB';
+        els.sqlApplied.textContent = squelch.toFixed(2);
+      } catch (e) {
+        console.error('Apply failed:', e);
+      }
+    }
+    
+    async function applyFilter() {
+      const cutoff = parseInt(els.filterSlider.value);
+      
+      try {
+        await postAPI('/api/filter', { target: 'airband', cutoff_hz: cutoff });
+        els.filterSlider.classList.remove('dirty');
+        els.filterApplied.textContent = cutoff + ' Hz';
+      } catch (e) {
+        console.error('Filter apply failed:', e);
+      }
+    }
+    
+    // ============================================
+    // ACTIONS
+    // ============================================
+    
+    async function selectProfile(id) {
+      try {
+        await postAPI('/api/profile', { profile: id, target: 'airband' });
+        await refresh();
+      } catch (e) {
+        console.error('Profile switch failed:', e);
+      }
+    }
+    
+    async function restartScanner() {
+      els.btnRestart.disabled = true;
+      try {
+        await postAPI('/api/restart', { target: 'airband' });
+        await refresh();
+      } catch (e) {
+        console.error('Restart failed:', e);
+      }
+      els.btnRestart.disabled = false;
+    }
+    
+    async function openSquelch() {
+      els.btnOpenSql.disabled = true;
+      try {
+        // Open squelch by setting it very low temporarily
+        await postAPI('/api/apply', { target: 'airband', gain: state.gain, squelch: 0.01 });
+        setTimeout(async () => {
+          await postAPI('/api/apply', { target: 'airband', gain: state.gain, squelch: state.squelch });
+          els.btnOpenSql.disabled = false;
+        }, 2000);
+      } catch (e) {
+        console.error('Open squelch failed:', e);
+        els.btnOpenSql.disabled = false;
+      }
+    }
+    
+    // ============================================
+    // DATA REFRESH
+    // ============================================
+    
+    async function refresh() {
+      try {
+        const data = await fetchJSON('/api/status');
+        
+        state.rtlActive = data.rtl_active;
+        state.icecastActive = data.icecast_active;
+        state.gain = data.gain || data.airband_gain || 32.8;
+        state.squelch = data.squelch || data.airband_squelch || 0.5;
+        state.filter = data.airband_filter || 3500;
+        state.lastHit = data.last_hit || '';
+        state.profiles = data.profiles_airband || [];
+        state.currentProfile = data.profile_airband || '';
+        state.connected = true;
+        
+        updateStatus();
+        updateControls();
+        updateProfiles();
+        updateCounters();
+      } catch (e) {
+        state.connected = false;
+        updateStatus();
+        console.error('Refresh failed:', e);
+      }
+    }
+    
+    async function refreshHits() {
+      try {
+        const data = await fetchJSON('/api/hits');
+        const newHits = data.items || [];
+        
+        // Count new hits
+        if (state.hits.length > 0 && newHits.length > 0) {
+          const lastTime = state.hits[0]?.time;
+          const newCount = newHits.filter(h => h.time > lastTime).length;
+          state.sessionHits += newCount;
+        }
+        
+        state.hits = newHits;
+        updateHitList();
+        updateCounters();
+      } catch (e) {
+        console.error('Hits refresh failed:', e);
+      }
+    }
+    
+    // ============================================
+    // SSE STREAM
+    // ============================================
+    
+    function connectSSE() {
+      const es = new EventSource('/api/stream');
+      
+      es.addEventListener('status', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          state.rtlActive = data.rtl_active;
+          state.icecastActive = data.icecast_active;
+          state.gain = data.gain || state.gain;
+          state.squelch = data.squelch || state.squelch;
+          state.lastHit = data.last_hit || state.lastHit;
+          state.connected = true;
+          updateStatus();
+        } catch (err) {
+          console.error('SSE status parse error:', err);
+        }
+      });
+      
+      es.addEventListener('hits', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          const newHits = data.items || [];
+          
+          // Count new hits for session
+          if (state.hits.length > 0 && newHits.length > 0 && newHits[0]?.time !== state.hits[0]?.time) {
+            state.sessionHits++;
+          }
+          
+          state.hits = newHits;
+          updateHitList();
+          updateCounters();
+        } catch (err) {
+          console.error('SSE hits parse error:', err);
+        }
+      });
+      
+      es.onerror = () => {
+        state.connected = false;
+        updateStatus();
+        es.close();
+        // Reconnect after delay
+        setTimeout(connectSSE, 3000);
+      };
+      
+      es.onopen = () => {
+        state.connected = true;
+        updateStatus();
+      };
+    }
+    
+    // ============================================
+    // INIT
+    // ============================================
+    
+    function init() {
+      // Bind sliders
+      els.gainSlider.addEventListener('input', onGainChange);
+      els.sqlSlider.addEventListener('input', onSqlChange);
+      els.filterSlider.addEventListener('input', onFilterChange);
+      
+      // Bind buttons
+      els.btnRestart.addEventListener('click', restartScanner);
+      els.btnOpenSql.addEventListener('click', openSquelch);
+      
+      // Initial fetch
+      refresh();
+      refreshHits();
+      
+      // Start SSE
+      connectSSE();
+      
+      // Periodic full refresh
+      setInterval(refresh, 10000);
+    }
+    
+    // Start
+    init();
+  </script>
+</body>
+</html>

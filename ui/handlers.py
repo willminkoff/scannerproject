@@ -71,10 +71,10 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/":
             return self._send(200, HTML_TEMPLATE)
         
-        # Serve SB3 mockup
+        # Serve SB3 UI
         if p == "/sb3" or p == "/sb3.html" or p == "/mockup_sb3.html":
             ui_dir = os.path.dirname(os.path.abspath(__file__))
-            mockup_path = os.path.join(ui_dir, "mockup_sb3.html")
+            mockup_path = os.path.join(ui_dir, "sb3.html")
             try:
                 with open(mockup_path, "r", encoding="utf-8") as f:
                     return self._send(200, f.read())
