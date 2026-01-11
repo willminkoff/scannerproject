@@ -1,0 +1,898 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SB3 - Scanner Box 3 Control</title>
+  <style>
+    :root {
+      --bg-dark: #0a0d11;
+      --bg-card: #0f1318;
+      --bg-panel: #121618;
+      --text-primary: #e4e8f0;
+      --text-secondary: #8a92a8;
+      --accent: #2dd4bf;
+      --accent-alt: #3b82f6;
+      --border: #1e2530;
+      --good: #10b981;
+      --bad: #ef4444;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Menlo, monospace;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      font-size: 13px;
+      user-select: none;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .logo {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: var(--accent);
+      text-transform: uppercase;
+      padding: 4px 6px;
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+    }
+
+    .status {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--good);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .header-right {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .selector {
+      display: flex;
+      gap: 4px;
+    }
+
+    select {
+      padding: 4px 6px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    select:hover {
+      border-color: var(--accent);
+    }
+
+    select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    /* Main Container */
+    .main {
+      padding: 12px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* Grid Layout */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      grid-auto-rows: max-content;
+      gap: 10px;
+      grid-auto-flow: dense;
+    }
+
+    .grid.flavor-widescreen {
+      grid-template-columns: repeat(4, 1fr);
+    }
+
+    .grid.flavor-compact {
+      grid-template-columns: 1fr;
+    }
+
+    /* Widget Base */
+    .widget {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.2s;
+      cursor: move;
+      position: relative;
+    }
+
+    .widget:hover {
+      border-color: var(--accent-alt);
+    }
+
+    .widget.dragging {
+      opacity: 0.7;
+      border-color: var(--accent);
+    }
+
+    /* Resize Handle */
+    .widget-resize {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      width: 24px;
+      height: 24px;
+      cursor: nwse-resize;
+      opacity: 0;
+      transition: opacity 0.2s;
+      background: linear-gradient(135deg, transparent 50%, var(--accent) 50%);
+      border-radius: 0 0 6px 0;
+      z-index: 10;
+    }
+
+    .widget:hover .widget-resize {
+      opacity: 0.8;
+    }
+
+    .widget-resize:active {
+      opacity: 1;
+    }
+
+    .widget-header {
+      padding: 8px 10px;
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      cursor: grab;
+    }
+
+    .widget-header::before {
+      content: '⋮⋮';
+      color: var(--text-secondary);
+      font-size: 10px;
+      margin-right: 6px;
+      opacity: 0.4;
+      transition: all 0.2s;
+      letter-spacing: 0.5px;
+    }
+
+    .widget:hover .widget-header::before {
+      opacity: 0.7;
+      color: var(--accent);
+    }
+
+    .widget-title {
+      color: var(--text-secondary);
+    }
+
+    .widget-content {
+      padding: 12px;
+      flex: 1;
+      overflow-y: auto;
+      max-height: 300px;
+    }
+
+    /* Counter Widget */
+    .counter-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .counter-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 12px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      text-align: center;
+    }
+
+    .counter-label {
+      font-size: 11px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .counter-number {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--accent);
+      font-family: 'Monaco', monospace;
+    }
+
+    .counter-trend {
+      font-size: 11px;
+      color: var(--good);
+    }
+
+    /* Controls Widget */
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .control-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .control-label {
+      font-size: 11px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .control-value {
+      color: var(--accent);
+      font-family: monospace;
+      font-size: 12px;
+    }
+
+    .slider {
+      width: 100%;
+      height: 4px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, rgba(45, 212, 191, 0.2), rgba(45, 212, 191, 0.1));
+      -webkit-appearance: none;
+      appearance: none;
+      outline: none;
+    }
+
+    .slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .slider::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+
+    .slider::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: none;
+      cursor: pointer;
+    }
+
+    /* Spectrum Widget */
+    .spectrum-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 2px;
+      height: 100px;
+      margin: 8px 0;
+    }
+
+    .bar {
+      flex: 1;
+      background: linear-gradient(180deg, var(--accent), rgba(45, 212, 191, 0.3));
+      border-radius: 2px 2px 0 0;
+      min-height: 4px;
+      animation: dance 0.5s ease-in-out infinite;
+    }
+
+    @keyframes dance {
+      0%, 100% { transform: scaleY(1); }
+      50% { transform: scaleY(1.1); }
+    }
+
+    .bar:nth-child(1) { animation-delay: 0s; }
+    .bar:nth-child(2) { animation-delay: 0.05s; }
+    .bar:nth-child(3) { animation-delay: 0.1s; }
+    .bar:nth-child(4) { animation-delay: 0.15s; }
+    .bar:nth-child(5) { animation-delay: 0.2s; }
+    .bar:nth-child(6) { animation-delay: 0.25s; }
+    .bar:nth-child(7) { animation-delay: 0.3s; }
+    .bar:nth-child(8) { animation-delay: 0.35s; }
+
+    /* Log Widget */
+    .log-entry {
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(142, 158, 171, 0.05);
+      font-family: 'Monaco', monospace;
+      font-size: 11px;
+      display: grid;
+      grid-template-columns: 60px 1fr;
+      gap: 8px;
+    }
+
+    .log-entry:last-child {
+      border-bottom: none;
+    }
+
+    .log-time {
+      color: var(--text-secondary);
+    }
+
+    .log-msg {
+      color: var(--text-primary);
+    }
+
+    .log-msg.info {
+      color: var(--accent-alt);
+    }
+
+    .log-msg.good {
+      color: var(--good);
+    }
+
+    .log-msg.warn {
+      color: #f59e0b;
+    }
+
+    /* Buttons */
+    .btn-group {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    button {
+      flex: 1;
+      padding: 6px 10px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.2s;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    button:hover {
+      border-color: var(--accent);
+      background: rgba(45, 212, 191, 0.05);
+    }
+
+    button.primary {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    button.primary:hover {
+      background: rgba(45, 212, 191, 0.1);
+    }
+
+    /* Theme Variation */
+    .theme-blue {
+      --accent: #3b82f6;
+      --accent-alt: #06b6d4;
+    }
+
+    .theme-purple {
+      --accent: #a855f7;
+      --accent-alt: #ec4899;
+    }
+
+    .theme-amber {
+      --accent: #f59e0b;
+      --accent-alt: #fbbf24;
+    }
+
+    .theme-red {
+      --accent: #dc2626;
+      --accent-alt: #991b1b;
+      --bg-dark: #0a0606;
+      --bg-card: #1a0f0f;
+      --bg-panel: #2d1515;
+      --text-primary: #fde8e8;
+      --text-secondary: #a07070;
+      --border: #451515;
+      --good: #b91c1c;
+    }
+
+    /* Grid positioning */
+    .widget-counter { }
+    .widget-controls { }
+    .widget-spectrum { }
+    .widget-log { }
+
+    /* Profiles Widget */
+    .profiles {
+      display: grid;
+      gap: 6px;
+    }
+
+    .profile-btn {
+      padding: 8px 10px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-primary);
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.2s;
+      text-align: left;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .profile-btn:hover {
+      border-color: var(--accent);
+    }
+
+    .profile-btn.active {
+      border-color: var(--accent);
+      background: rgba(45, 212, 191, 0.1);
+    }
+
+    .profile-signal {
+      font-size: 11px;
+      color: var(--accent);
+      font-family: monospace;
+    }
+
+    /* Iframe Widget */
+    .widget-iframe {
+      overflow: hidden;
+    }
+
+    .widget-iframe .widget-content {
+      padding: 0;
+      height: 400px;
+    }
+
+    .widget-iframe iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      border-radius: 0 0 6px 6px;
+      display: block;
+    }
+
+    .widget-iframe.compact .widget-content {
+      height: 250px;
+    }
+
+    .widget-iframe.tall .widget-content {
+      height: 600px;
+    }
+
+    @media (max-width: 768px) {
+      .widget-iframe .widget-content {
+        height: 300px;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      .header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .header-right {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="logo">SB3</div>
+      <div class="status">
+        <span class="status-dot"></span>
+        <span>Ready</span>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <div class="selector">
+        <select id="theme-select" onchange="changeTheme(this.value)">
+          <option value="default">Teal</option>
+          <option value="theme-blue">Blue</option>
+          <option value="theme-purple">Purple</option>
+          <option value="theme-amber">Amber</option>
+          <option value="theme-red">Red</option>
+        </select>
+
+        <select id="flavor-select" onchange="changeFlavor(this.value)">
+          <option value="flavor-default">Balanced</option>
+          <option value="flavor-widescreen">Widescreen</option>
+          <option value="flavor-compact">Compact</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main">
+    <div class="grid flavor-default" id="grid">
+
+      <!-- Counter Widget -->
+      <div class="widget widget-counter" draggable="true">
+        <div class="widget-header">
+          <span class="widget-title">📊 Signal Counts</span>
+        </div>
+        <div class="widget-content">
+          <div class="counter-grid">
+            <div class="counter-item">
+              <div class="counter-label">Airband</div>
+              <div class="counter-number">247</div>
+              <div class="counter-trend">↑ 12/hr</div>
+            </div>
+            <div class="counter-item">
+              <div class="counter-label">Ground</div>
+              <div class="counter-number">89</div>
+              <div class="counter-trend">↑ 4/hr</div>
+            </div>
+          </div>
+        </div>
+        <div class="widget-resize"></div>
+      </div>
+
+      <!-- Controls Widget -->
+      <div class="widget widget-controls" draggable="true">
+        <div class="widget-header">
+          <span class="widget-title">⚙️ Radio Controls</span>
+        </div>
+        <div class="widget-content">
+          <div class="control-group">
+            <div class="control-item">
+              <div class="control-label">
+                <span>Gain</span>
+                <span class="control-value" id="gain-val">16</span>
+              </div>
+              <input type="range" class="slider" min="0" max="28" value="16" id="gain-slider" oninput="updateValue('gain', this.value)">
+            </div>
+
+            <div class="control-item">
+              <div class="control-label">
+                <span>Squelch</span>
+                <span class="control-value" id="sql-val">4.2</span>
+              </div>
+              <input type="range" class="slider" min="0" max="10" value="4.2" step="0.1" id="sql-slider" oninput="updateValue('sql', this.value)">
+            </div>
+
+            <div class="control-item">
+              <div class="control-label">
+                <span>Filter (Hz)</span>
+                <span class="control-value" id="filter-val">3500</span>
+              </div>
+              <input type="range" class="slider" min="2000" max="5000" step="100" value="3500" id="filter-slider" oninput="updateValue('filter', this.value)">
+            </div>
+          </div>
+
+          <div class="btn-group">
+            <button class="primary">Apply</button>
+            <button>Reset</button>
+          </div>
+        </div>
+        <div class="widget-resize"></div>
+      </div>
+
+      <!-- Profiles Widget -->
+      <div class="widget widget-profiles" draggable="true">
+        <div class="widget-header">
+          <span class="widget-title">🎯 Profiles</span>
+        </div>
+        <div class="widget-content">
+          <div class="profiles">
+            <div class="profile-btn active">
+              <span>Airband</span>
+              <span class="profile-signal">+16dB</span>
+            </div>
+            <div class="profile-btn">
+              <span>Tower</span>
+              <span class="profile-signal">+14dB</span>
+            </div>
+            <div class="profile-btn">
+              <span>ATIS</span>
+              <span class="profile-signal">+12dB</span>
+            </div>
+            <div class="profile-btn">
+              <span>Weather</span>
+              <span class="profile-signal">+10dB</span>
+            </div>
+          </div>
+        </div>
+        <div class="widget-resize"></div>
+      </div>
+
+      <!-- Spectrum Widget -->
+      <div class="widget widget-spectrum" draggable="true">
+        <div class="widget-header">
+          <span class="widget-title">📈 Spectrum</span>
+        </div>
+        <div class="widget-content">
+          <div class="spectrum-bars">
+            <div class="bar" style="height: 45%;"></div>
+            <div class="bar" style="height: 65%;"></div>
+            <div class="bar" style="height: 38%;"></div>
+            <div class="bar" style="height: 72%;"></div>
+            <div class="bar" style="height: 52%;"></div>
+            <div class="bar" style="height: 68%;"></div>
+            <div class="bar" style="height: 41%;"></div>
+            <div class="bar" style="height: 55%;"></div>
+          </div>
+          <div style="text-align: center; font-size: 11px; color: var(--text-secondary); margin-top: 8px;">121.5 - 137.0 MHz</div>
+        </div>
+        <div class="widget-resize"></div>
+      </div>
+
+      <!-- Log Widget -->
+      <div class="widget widget-log" draggable="true">
+        <div class="widget-header">
+          <span class="widget-title">📋 Activity Log</span>
+        </div>
+        <div class="widget-content">
+          <div class="log-entry">
+            <div class="log-time">14:23:18</div>
+            <div class="log-msg good">✓ Airband hit 134.225 MHz (2.3s)</div>
+          </div>
+          <div class="log-entry">
+            <div class="log-time">14:22:45</div>
+            <div class="log-msg good">✓ Ground hit 127.850 MHz (1.8s)</div>
+          </div>
+          <div class="log-entry">
+            <div class="log-time">14:22:12</div>
+            <div class="log-msg info">ℹ Squelch opened on Airband</div>
+          </div>
+          <div class="log-entry">
+            <div class="log-time">14:21:30</div>
+            <div class="log-msg warn">⚠ Airband gain increased to 18 dB</div>
+          </div>
+          <div class="log-entry">
+            <div class="log-time">14:20:45</div>
+            <div class="log-msg">RTL-SDR initialized</div>
+          </div>
+        </div>
+        <div class="widget-resize"></div>
+      </div>
+
+      <!-- ADSB Browser Widget -->
+      <div class="widget widget-iframe widget-adsb" draggable="true">
+        <div class="widget-header">
+          <span class="widget-title">✈️ Live ADSB</span>
+        </div>
+        <div class="widget-content">
+          <iframe src="https://adsb.lol/" title="Live ADSB Map"></iframe>
+        </div>
+        <div class="widget-resize"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    function changeTheme(theme) {
+      const body = document.body;
+      body.className = body.className.replace(/theme-\w+/, '').trim();
+      if (theme !== 'default') {
+        body.classList.add(theme);
+      }
+    }
+
+    function changeFlavor(flavor) {
+      const grid = document.getElementById('grid');
+      grid.className = grid.className.replace(/flavor-\w+/, 'flavor-default').trim();
+      if (flavor !== 'flavor-default') {
+        grid.classList.remove('flavor-default');
+        grid.classList.add(flavor);
+      }
+    }
+
+    function updateValue(type, value) {
+      document.getElementById(type + '-val').textContent = value;
+    }
+
+    // Drag and drop
+    let draggedElement = null;
+
+    document.addEventListener('dragstart', (e) => {
+      if (e.target.classList.contains('widget')) {
+        draggedElement = e.target;
+        e.target.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      }
+    });
+
+    document.addEventListener('dragend', (e) => {
+      if (e.target.classList.contains('widget')) {
+        e.target.classList.remove('dragging');
+      }
+    });
+
+    document.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      
+      const grid = document.getElementById('grid');
+      if (!grid.contains(e.target)) return;
+      
+      const afterElement = getDragAfterElement(grid, e.clientY);
+      if (afterElement == null) {
+        grid.appendChild(draggedElement);
+      } else {
+        grid.insertBefore(draggedElement, afterElement);
+      }
+    });
+
+    function getDragAfterElement(container, y) {
+      const draggableElements = [...container.querySelectorAll('.widget:not(.dragging)')];
+      
+      return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        
+        if (offset < 0 && offset > (closest?.offset ?? Number.NEGATIVE_INFINITY)) {
+          return { offset: offset, element: child };
+        } else {
+          return closest;
+        }
+      }, null)?.element;
+    }
+
+    // Profile selection
+    document.querySelectorAll('.profile-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.profile-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+
+    // Widget Factory - Easy way to create and add new widgets
+    function createWidget(config) {
+      const {
+        id = 'widget-' + Date.now(),
+        title = 'Widget',
+        emoji = '📦',
+        content = '',
+        type = 'default',
+        height = 'auto',
+        gridArea = null
+      } = config;
+
+      const widget = document.createElement('div');
+      widget.className = `widget widget-${type}`;
+      widget.id = id;
+      widget.draggable = true;
+      if (gridArea) widget.style.gridArea = gridArea;
+
+      widget.innerHTML = `
+        <div class="widget-header">
+          <span class="widget-title">${emoji} ${title}</span>
+        </div>
+        <div class="widget-content" style="${height ? 'height: ' + height : ''}">
+          ${content}
+        </div>
+        <div class="widget-resize"></div>
+      `;
+
+      return widget;
+    }
+
+    // Example: Add a new widget programmatically
+    // const newWidget = createWidget({
+    //   title: 'Custom Widget',
+    //   emoji: '🎯',
+    //   content: '<p>Your HTML here</p>',
+    //   height: '300px'
+    // });
+    // document.getElementById('grid').appendChild(newWidget);
+
+    // Resize functionality with snap-to-grid sizing
+    const RESIZE_SNAP_SIZES = [250, 350, 400, 500, 600, 700]; // Height options in px
+    let resizing = null;
+
+    function snapToGrid(value) {
+      return RESIZE_SNAP_SIZES.reduce((closest, size) => {
+        return Math.abs(size - value) < Math.abs(closest - value) ? size : closest;
+      });
+    }
+
+    document.addEventListener('mousedown', (e) => {
+      if (e.target.classList.contains('widget-resize')) {
+        e.stopPropagation();
+        e.preventDefault();
+        
+        const widget = e.target.closest('.widget');
+        const content = widget.querySelector('.widget-content');
+        const startY = e.clientY;
+        const startHeight = content.offsetHeight;
+        
+        resizing = { widget, content, startY, startHeight };
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'nwse-resize';
+      }
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!resizing) return;
+      
+      const { content, startY, startHeight } = resizing;
+      const delta = e.clientY - startY;
+      const newHeight = Math.max(100, startHeight + delta);
+      
+      // Live update while dragging (don't snap yet)
+      content.style.height = newHeight + 'px';
+    });
+
+    document.addEventListener('mouseup', (e) => {
+      if (!resizing) return;
+      
+      const { content } = resizing;
+      const currentHeight = content.offsetHeight;
+      
+      // Snap to nearest grid size
+      const snapped = snapToGrid(currentHeight);
+      content.style.height = snapped + 'px';
+      
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      resizing = null;
+    });
+  </script>
+</body>
+</html>
