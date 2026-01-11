@@ -463,24 +463,9 @@
   <div class="header">
     <div class="header-left">
       <div class="logo">SB3</div>
-      <div class="status-indicators">
-        <div class="status-item">
-          <div class="status-dot" id="sdr1-status"></div>
-          <span>SDR1</span>
-        </div>
-        <div class="status-item">
-          <div class="status-dot" id="sdr2-status"></div>
-          <span>SDR2</span>
-        </div>
-        <div class="status-item">
-          <div class="status-dot" id="ice-status"></div>
-          <span>Stream</span>
-        </div>
-      </div>
       <div class="last-hit" id="last-hit">--</div>
     </div>
     <div style="display: flex; align-items: center;">
-      <div class="connection-status disconnected" id="connection-status">Connecting...</div>
       <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle red theme">🔴</button>
     </div>
   </div>
@@ -529,8 +514,10 @@
           </div>
 
           <div class="btn-row">
-            <button class="action" id="btn-restart">Restart Scanner</button>
             <button class="action" id="btn-open-sql">Open Squelch</button>
+            <button class="action" id="btn-play">Play</button>
+            <button class="action" id="btn-avoid">Avoid</button>
+            <button class="action" id="btn-clear-avoids">Clear</button>
           </div>
         </div>
       </div>
@@ -661,7 +648,7 @@
       hitRate: document.getElementById('hit-rate'),
       sessionCount: document.getElementById('session-count'),
       sessionStart: document.getElementById('session-start'),
-      btnRestart: document.getElementById('btn-restart'),
+      btnOpenSql: document.getElementById('btn-open-sql'),
       btnOpenSql: document.getElementById('btn-open-sql'),
       tabAirband: document.getElementById('tab-airband'),
       tabGround: document.getElementById('tab-ground'),
@@ -1057,8 +1044,27 @@
       els.gainSlider.addEventListener('input', onGainChange);
       els.sqlSlider.addEventListener('input', onSqlChange);
       els.filterSlider.addEventListener('input', onFilterChange);
-      els.btnRestart.addEventListener('click', restartScanner);
+      // Remove Open Squelch button handler, add new handlers
       els.btnOpenSql.addEventListener('click', openSquelch);
+      document.getElementById('btn-play').addEventListener('click', function() {
+        window.open(`http://${location.hostname}:8000/GND.mp3`, '_blank', 'noopener');
+      });
+      document.getElementById('btn-avoid').addEventListener('click', async function() {
+        try {
+          await postAPI('/api/avoid', { target: activeTarget });
+          await refresh();
+        } catch (e) {
+          console.error('Avoid failed:', e);
+        }
+      });
+      document.getElementById('btn-clear-avoids').addEventListener('click', async function() {
+        try {
+          await postAPI('/api/avoid-clear', { target: activeTarget });
+          await refresh();
+        } catch (e) {
+          console.error('Clear avoids failed:', e);
+        }
+      });
       
       refresh();
       refreshHits();
