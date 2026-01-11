@@ -694,8 +694,8 @@
           </div>
 
           <div class="btn-group">
-            <button class="primary">Apply</button>
-            <button>Reset</button>
+            <button class="primary" onclick="applySettings()">Apply</button>
+            <button onclick="resetSettings()">Reset</button>
           </div>
         </div>
       </div>
@@ -824,6 +824,34 @@
 
     function updateValue(type, value) {
       document.getElementById(type + '-val').textContent = value;
+    }
+    
+    // Apply settings to real backend
+    async function applySettings() {
+      const gain = document.getElementById('gain-slider').value;
+      const squelch = document.getElementById('sql-slider').value;
+      
+      try {
+        const response = await fetch(API_BASE + '/api/apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `target=airband&gain=${gain}&squelch=${squelch}`
+        });
+        const data = await response.json();
+        if (data.ok) {
+          console.log('Settings applied');
+        } else {
+          alert('Error: ' + (data.error || 'Failed to apply'));
+        }
+      } catch (e) {
+        console.error('Apply failed:', e);
+      }
+    }
+    
+    // Reset to values from server
+    function resetSettings() {
+      // SSE will update with current values
+      console.log('Waiting for SSE to refresh values...');
     }
 
     // Size presets - S, M, L, XL
@@ -1015,22 +1043,35 @@
     }
     
     function renderSpectrum() {
-      if (!spectrumCtx || !spectrumCanvas || spectrumData.length === 0) {
+      if (!spectrumCtx || !spectrumCanvas) {
         requestAnimationFrame(renderSpectrum);
         return;
       }
       
       const w = spectrumCanvas.width;
       const h = spectrumCanvas.height;
+      
+      // Clear
+      spectrumCtx.fillStyle = '#0a0f0f';
+      spectrumCtx.fillRect(0, 0, w, h);
+      
+      // If no data, show message
+      if (spectrumData.length === 0) {
+        spectrumCtx.fillStyle = '#8a92a8';
+        spectrumCtx.font = '14px -apple-system, sans-serif';
+        spectrumCtx.textAlign = 'center';
+        spectrumCtx.fillText('Spectrum data unavailable', w/2, h/2 - 10);
+        spectrumCtx.font = '11px -apple-system, sans-serif';
+        spectrumCtx.fillText('(requires rtl_airband with stats_filepath)', w/2, h/2 + 10);
+        requestAnimationFrame(renderSpectrum);
+        return;
+      }
+      
       const numBins = spectrumData.length;
       // Use consistent bar width from constant
       const barWidth = MIN_BAR_WIDTH;
       const historyH = h * 0.35;
       const barsH = h - historyH - 25;
-      
-      // Clear
-      spectrumCtx.fillStyle = '#0a0f0f';
-      spectrumCtx.fillRect(0, 0, w, h);
       
       // Draw history (mini waterfall)
       const histRowH = historyH / HISTORY_DEPTH;

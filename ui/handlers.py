@@ -180,14 +180,12 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         
-        # Auto-detect: simulate if stats file doesn't exist
-        stats_path = os.getenv("RTL_AIRBAND_STATS_PATH", "/run/rtl_airband_stats.txt")
-        simulate = not os.path.exists(stats_path)
-        start_spectrum("airband", simulate=simulate)
+        # Note: stats_filepath not supported in rtl_airband v5.1.1
+        # Spectrum bins will be empty - using last_hit and status instead
         
         try:
             while True:
-                # Send status update
+                # Send status update (REAL data from config/systemd)
                 conf_path = read_active_config_path()
                 airband_gain, airband_squelch = parse_controls(conf_path)
                 rtl_ok = unit_active(UNITS["rtl"])
@@ -204,15 +202,16 @@ class Handler(BaseHTTPRequestHandler):
                 }
                 self.wfile.write(f"event: status\ndata: {json.dumps(status_data)}\n\n".encode())
                 
-                # Send spectrum update
+                # Spectrum bins empty until rtl_airband upgraded with stats_filepath
                 spectrum_data = {
                     "type": "spectrum",
-                    "bins": get_spectrum_bins("airband"),
+                    "bins": [],
                     "timestamp": time.time(),
+                    "note": "stats_filepath not supported in rtl_airband v5.1.1"
                 }
                 self.wfile.write(f"event: spectrum\ndata: {json.dumps(spectrum_data)}\n\n".encode())
                 
-                # Send recent hits
+                # Send recent hits (REAL data from icecast logs)
                 hits = read_icecast_hit_list(limit=10)
                 hits_data = {
                     "type": "hits",
