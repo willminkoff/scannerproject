@@ -421,7 +421,6 @@ def avoid_current_hit(conf_path: str, target: str):
 
     write_freqs_labels(conf_path, new_freqs, new_labels)
     save_avoids(target, data)
-    restart_rtl()
     return freq, None
 
 
@@ -441,5 +440,4 @@ def clear_avoids(conf_path: str, target: str):
     write_freqs_labels(conf_path, freqs, labels)
     profiles.pop(conf_path, None)
     save_avoids(target, data)
-    restart_rtl()
     return len(freqs), None
