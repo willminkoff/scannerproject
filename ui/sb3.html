@@ -563,6 +563,11 @@
               <div class="counter-value" id="session-count">0</div>
               <div class="counter-rate" id="session-start">--</div>
             </div>
+            <div class="counter-item">
+              <div class="counter-label">Active Avoids</div>
+              <div class="counter-value" id="avoids-count">--</div>
+              <div class="counter-rate">Airband</div>
+            </div>
           </div>
         </div>
       </div>
@@ -661,6 +666,7 @@
       hitRate: document.getElementById('hit-rate'),
       sessionCount: document.getElementById('session-count'),
       sessionStart: document.getElementById('session-start'),
+      avoidsCount: document.getElementById('avoids-count'),
       tabAirband: document.getElementById('tab-airband'),
       tabGround: document.getElementById('tab-ground'),
     };
@@ -796,6 +802,8 @@
       
       const startDate = new Date(state.sessionStart);
       els.sessionStart.textContent = 'Since ' + startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      
+      els.avoidsCount.textContent = state[activeTarget].avoids.length || '--';
     }
     
     function formatFreq(freq) {
