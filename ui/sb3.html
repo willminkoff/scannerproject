@@ -514,7 +514,6 @@
           </div>
 
           <div class="btn-row">
-            <button class="action" id="btn-open-sql">Open Squelch</button>
             <button class="action" id="btn-play">Play</button>
             <button class="action" id="btn-avoid">Avoid</button>
             <button class="action" id="btn-clear-avoids">Clear</button>
@@ -644,8 +643,6 @@
       hitRate: document.getElementById('hit-rate'),
       sessionCount: document.getElementById('session-count'),
       sessionStart: document.getElementById('session-start'),
-      btnOpenSql: document.getElementById('btn-open-sql'),
-      btnOpenSql: document.getElementById('btn-open-sql'),
       tabAirband: document.getElementById('tab-airband'),
       tabGround: document.getElementById('tab-ground'),
     };
@@ -868,21 +865,6 @@
       els.btnRestart.disabled = false;
     }
     
-    async function openSquelch() {
-      els.btnOpenSql.disabled = true;
-      const t = state[activeTarget];
-      try {
-        await postAPI('/api/apply', { target: activeTarget, gain: t.gain, squelch: 0.01 });
-        setTimeout(async () => {
-          await postAPI('/api/apply', { target: activeTarget, gain: t.gain, squelch: t.squelch });
-          els.btnOpenSql.disabled = false;
-        }, 2000);
-      } catch (e) {
-        console.error('Open squelch failed:', e);
-        els.btnOpenSql.disabled = false;
-      }
-    }
-    
     // ============================================
     // DATA REFRESH
     // ============================================
@@ -1034,7 +1016,6 @@
       els.sqlSlider.addEventListener('input', onSqlChange);
       els.filterSlider.addEventListener('input', onFilterChange);
       // Remove Open Squelch button handler, add new handlers
-      els.btnOpenSql.addEventListener('click', openSquelch);
       document.getElementById('btn-play').addEventListener('click', function() {
         window.open(`http://${location.hostname}:8000/GND.mp3`, '_blank', 'noopener');
       });
