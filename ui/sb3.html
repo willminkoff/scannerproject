@@ -363,6 +363,36 @@
       color: var(--bad);
     }
 
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-left: auto;
+    }
+
+    .tab {
+      padding: 4px 12px;
+      font-size: 11px;
+      font-weight: 500;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .tab:hover {
+      border-color: var(--accent);
+      color: var(--text-primary);
+    }
+
+    .tab.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--bg-dark);
+    }
+
     /* Empty state */
     .empty-state {
       text-align: center;
@@ -406,7 +436,13 @@
 
       <!-- Controls Widget -->
       <div class="widget">
-        <div class="widget-header">⚙️ Radio Controls</div>
+        <div class="widget-header" style="display: flex; align-items: center;">
+          <span>⚙️ Radio Controls</span>
+          <div class="tabs">
+            <button class="tab active" id="tab-airband" onclick="switchTarget('airband')">Airband</button>
+            <button class="tab" id="tab-ground" onclick="switchTarget('ground')">Ground</button>
+          </div>
+        </div>
         <div class="widget-body">
           <div class="control-group">
             <div class="control-item">
@@ -514,22 +550,34 @@
     // STATE
     // ============================================
     
+    let activeTarget = 'airband';  // 'airband' or 'ground'
+    
     let state = {
       connected: false,
       sdr1Active: false,  // RTL Blog v4 (serial 00000001) - airband
       sdr2Active: false,  // Nooelec (serial 70613472) - ground
       icecastActive: false,
-      gain: 0,
-      squelch: 0,
-      filter: 3500,
       lastHit: '',
-      profiles: [],
-      currentProfile: '',
       hits: [],
       sessionHits: 0,
       sessionStart: Date.now(),
       applyTimeout: null,
       filterTimeout: null,
+      // Per-target state
+      airband: {
+        gain: 32.8,
+        squelch: 0.5,
+        filter: 3500,
+        profiles: [],
+        currentProfile: '',
+      },
+      ground: {
+        gain: 32.8,
+        squelch: 0.5,
+        filter: 3500,
+        profiles: [],
+        currentProfile: '',
+      },
     };
     
     // ============================================
@@ -559,6 +607,8 @@
       sessionStart: document.getElementById('session-start'),
       btnRestart: document.getElementById('btn-restart'),
       btnOpenSql: document.getElementById('btn-open-sql'),
+      tabAirband: document.getElementById('tab-airband'),
+      tabGround: document.getElementById('tab-ground'),
     };
     
     // ============================================
@@ -617,39 +667,60 @@
     }
     
     function updateControls() {
+      const t = state[activeTarget];
+      
       // Gain
-      const gainIdx = gainIndexFromValue(state.gain);
+      const gainIdx = gainIndexFromValue(t.gain);
       els.gainSlider.value = gainIdx;
       els.gainValue.textContent = GAIN_STEPS[gainIdx].toFixed(1);
-      els.gainApplied.textContent = state.gain.toFixed(1) + ' dB';
+      els.gainApplied.textContent = t.gain.toFixed(1) + ' dB';
       
       // Squelch (backend stores as 0-1, slider is 0-10)
-      const sqlSliderVal = state.squelch / SQL_SCALE;
+      const sqlSliderVal = t.squelch / SQL_SCALE;
       els.sqlSlider.value = sqlSliderVal;
       els.sqlValue.textContent = sqlSliderVal.toFixed(1);
-      els.sqlApplied.textContent = state.squelch.toFixed(2);
+      els.sqlApplied.textContent = t.squelch.toFixed(2);
       
       // Filter
-      els.filterSlider.value = state.filter;
-      els.filterValue.textContent = state.filter;
-      els.filterApplied.textContent = state.filter + ' Hz';
+      els.filterSlider.value = t.filter;
+      els.filterValue.textContent = t.filter;
+      els.filterApplied.textContent = t.filter + ' Hz';
     }
     
     function updateProfiles() {
-      if (!state.profiles.length) {
+      const t = state[activeTarget];
+      
+      if (!t.profiles.length) {
         els.profilesList.innerHTML = '<div class="empty-state"><div class="icon">📡</div><div>No profiles found</div></div>';
         return;
       }
       
-      els.profilesList.innerHTML = state.profiles
+      els.profilesList.innerHTML = t.profiles
         .filter(p => !p.id.startsWith('none_'))
         .map(p => `
-          <button class="profile-btn ${p.id === state.currentProfile ? 'active' : ''}" 
+          <button class="profile-btn ${p.id === t.currentProfile ? 'active' : ''}" 
                   onclick="selectProfile('${p.id}')">
             <div class="label">${p.label}</div>
             <div class="meta">${p.exists ? '' : 'Missing'}</div>
           </button>
         `).join('');
+    }
+    
+    function switchTarget(target) {
+      activeTarget = target;
+      
+      // Update tabs
+      els.tabAirband.classList.toggle('active', target === 'airband');
+      els.tabGround.classList.toggle('active', target === 'ground');
+      
+      // Clear dirty state
+      els.gainSlider.classList.remove('dirty');
+      els.sqlSlider.classList.remove('dirty');
+      els.filterSlider.classList.remove('dirty');
+      
+      // Update UI for new target
+      updateControls();
+      updateProfiles();
     }
     
     function updateHitList() {
@@ -730,11 +801,14 @@
       const squelch = parseFloat(els.sqlSlider.value) * SQL_SCALE;
       
       try {
-        await postAPI('/api/apply', { target: 'airband', gain, squelch });
+        await postAPI('/api/apply', { target: activeTarget, gain, squelch });
         els.gainSlider.classList.remove('dirty');
         els.sqlSlider.classList.remove('dirty');
         els.gainApplied.textContent = gain.toFixed(1) + ' dB';
         els.sqlApplied.textContent = squelch.toFixed(2);
+        // Update state
+        state[activeTarget].gain = gain;
+        state[activeTarget].squelch = squelch;
       } catch (e) {
         console.error('Apply failed:', e);
       }
@@ -744,9 +818,10 @@
       const cutoff = parseInt(els.filterSlider.value);
       
       try {
-        await postAPI('/api/filter', { target: 'airband', cutoff_hz: cutoff });
+        await postAPI('/api/filter', { target: activeTarget, cutoff_hz: cutoff });
         els.filterSlider.classList.remove('dirty');
         els.filterApplied.textContent = cutoff + ' Hz';
+        state[activeTarget].filter = cutoff;
       } catch (e) {
         console.error('Filter apply failed:', e);
       }
@@ -758,7 +833,7 @@
     
     async function selectProfile(id) {
       try {
-        await postAPI('/api/profile', { profile: id, target: 'airband' });
+        await postAPI('/api/profile', { profile: id, target: activeTarget });
         await refresh();
       } catch (e) {
         console.error('Profile switch failed:', e);
@@ -768,7 +843,7 @@
     async function restartScanner() {
       els.btnRestart.disabled = true;
       try {
-        await postAPI('/api/restart', { target: 'airband' });
+        await postAPI('/api/restart', { target: activeTarget });
         await refresh();
       } catch (e) {
         console.error('Restart failed:', e);
@@ -778,11 +853,12 @@
     
     async function openSquelch() {
       els.btnOpenSql.disabled = true;
+      const t = state[activeTarget];
       try {
         // Open squelch by setting it very low temporarily
-        await postAPI('/api/apply', { target: 'airband', gain: state.gain, squelch: 0.01 });
+        await postAPI('/api/apply', { target: activeTarget, gain: t.gain, squelch: 0.01 });
         setTimeout(async () => {
-          await postAPI('/api/apply', { target: 'airband', gain: state.gain, squelch: state.squelch });
+          await postAPI('/api/apply', { target: activeTarget, gain: t.gain, squelch: t.squelch });
           els.btnOpenSql.disabled = false;
         }, 2000);
       } catch (e) {
@@ -802,12 +878,22 @@
         state.sdr1Active = data.rtl_active;      // SDR1 = airband unit
         state.sdr2Active = data.ground_active;    // SDR2 = ground unit
         state.icecastActive = data.icecast_active;
-        state.gain = data.gain || data.airband_gain || 32.8;
-        state.squelch = data.squelch || data.airband_squelch || 0.5;
-        state.filter = data.airband_filter || 3500;
         state.lastHit = data.last_hit || '';
-        state.profiles = data.profiles_airband || [];
-        state.currentProfile = data.profile_airband || '';
+        
+        // Airband state
+        state.airband.gain = data.airband_gain || data.gain || 32.8;
+        state.airband.squelch = data.airband_squelch || data.squelch || 0.5;
+        state.airband.filter = data.airband_filter || 3500;
+        state.airband.profiles = data.profiles_airband || [];
+        state.airband.currentProfile = data.profile_airband || '';
+        
+        // Ground state
+        state.ground.gain = data.ground_gain || 32.8;
+        state.ground.squelch = data.ground_squelch || 0.5;
+        state.ground.filter = data.ground_filter || 3500;
+        state.ground.profiles = data.profiles_ground || [];
+        state.ground.currentProfile = data.profile_ground || '';
+        
         state.connected = true;
         
         updateStatus();
