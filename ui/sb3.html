@@ -13,10 +13,23 @@
       --text-secondary: #8a92a8;
       --accent: #2dd4bf;
       --accent-dim: rgba(45, 212, 191, 0.3);
+      --accent-glow: rgba(45, 212, 191, 0.15);
       --border: #1e2530;
       --good: #10b981;
       --bad: #ef4444;
       --warn: #f59e0b;
+      --slider-track: rgba(45, 212, 191, 0.08);
+      --slider-glow: 0 0 8px rgba(45, 212, 191, 0.25), inset 0 1px 2px rgba(45, 212, 191, 0.1);
+    }
+
+    /* Red theme for dark environments */
+    body.red-theme {
+      --accent: #dc2626;
+      --accent-dim: rgba(220, 38, 38, 0.3);
+      --accent-glow: rgba(220, 38, 38, 0.15);
+      --good: #dc2626;
+      --slider-track: rgba(220, 38, 38, 0.08);
+      --slider-glow: 0 0 8px rgba(220, 38, 38, 0.25), inset 0 1px 2px rgba(220, 38, 38, 0.1);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -103,6 +116,33 @@
 
     .connection-status.connected { color: var(--good); }
     .connection-status.disconnected { color: var(--bad); }
+
+    .theme-toggle {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--bg-panel);
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+      margin-left: 8px;
+    }
+
+    .theme-toggle:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    body.red-theme .theme-toggle {
+      background: rgba(220, 38, 38, 0.2);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
 
     /* Main Layout */
     .main {
@@ -210,7 +250,8 @@
       width: 100%;
       height: 6px;
       border-radius: 3px;
-      background: var(--bg-panel);
+      background: var(--slider-track);
+      box-shadow: var(--slider-glow);
       -webkit-appearance: none;
       appearance: none;
       cursor: pointer;
@@ -436,7 +477,10 @@
       </div>
       <div class="last-hit" id="last-hit">--</div>
     </div>
-    <div class="connection-status disconnected" id="connection-status">Connecting...</div>
+    <div style="display: flex; align-items: center;">
+      <div class="connection-status disconnected" id="connection-status">Connecting...</div>
+      <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle red theme">🔴</button>
+    </div>
   </div>
 
   <!-- Main Content -->
@@ -985,10 +1029,29 @@
     }
     
     // ============================================
+    // THEME
+    // ============================================
+    
+    function toggleTheme() {
+      document.body.classList.toggle('red-theme');
+      const isRed = document.body.classList.contains('red-theme');
+      localStorage.setItem('sb3-theme', isRed ? 'red' : 'default');
+    }
+    
+    function loadTheme() {
+      const saved = localStorage.getItem('sb3-theme');
+      if (saved === 'red') {
+        document.body.classList.add('red-theme');
+      }
+    }
+    
+    // ============================================
     // INIT
     // ============================================
     
     function init() {
+      loadTheme();
+      
       els.gainSlider.addEventListener('input', onGainChange);
       els.sqlSlider.addEventListener('input', onSqlChange);
       els.filterSlider.addEventListener('input', onFilterChange);
