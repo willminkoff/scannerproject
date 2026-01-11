@@ -266,8 +266,8 @@ if __name__ == "__main__":
         for freq, data in sorted(stats.items(), key=lambda x: float(x[0])):
             print(f"  {freq} MHz: noise={data.get('noise_floor', 'N/A')} dB, count={data.get('active_counter', 0)}")
     else:
-        print("No stats file found, starting simulation...")
-        start_spectrum("airband", simulate=True)
+        print("No stats file found. Waiting for real stats...")
+        # start_spectrum("airband", simulate=False)
         
         try:
             while True:

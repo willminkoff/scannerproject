@@ -872,7 +872,7 @@
     const SIGNAL_MAX = -60;
     
     // Simulation mode (when API unavailable)
-    let simulationMode = true;
+    let simulationMode = false;
     
     // Your actual configured frequencies from rtl_airband_airband.conf
     const CONFIGURED_FREQS = [
@@ -970,13 +970,13 @@
         });
         
         eventSource.onerror = () => {
-          console.log('SSE not available, using simulation');
-          simulationMode = true;
+          console.log('SSE connection failed');
+          // simulationMode = true;  // Stay false - wait for real data
           eventSource.close();
         };
       } catch (e) {
-        console.log('SSE connection failed, using simulation');
-        simulationMode = true;
+        console.log('SSE connection failed');
+        // simulationMode = true;  // Stay false - wait for real data
       }
     }
     
