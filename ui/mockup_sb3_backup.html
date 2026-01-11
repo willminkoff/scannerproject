@@ -157,43 +157,27 @@
       border-color: var(--accent);
     }
 
-    /* Widget Size Presets */
-    .widget.size-s .widget-content { height: 150px; }
-    .widget.size-m .widget-content { height: 250px; }
-    .widget.size-l .widget-content { height: 400px; }
-    .widget.size-xl {
-      grid-column: span 2;
-    }
-    .widget.size-xl .widget-content {
-      height: 450px; /* 12:9 ratio for ~600px wide widget */
+    /* Resize Handle */
+    .widget-resize {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      width: 24px;
+      height: 24px;
+      cursor: nwse-resize;
+      opacity: 0;
+      transition: opacity 0.2s;
+      background: linear-gradient(135deg, transparent 50%, var(--accent) 50%);
+      border-radius: 0 0 6px 0;
+      z-index: 10;
     }
 
-    /* Size buttons in header */
-    .size-btns {
-      display: flex;
-      gap: 2px;
-      margin-left: auto;
+    .widget:hover .widget-resize {
+      opacity: 0.8;
     }
-    .size-btn {
-      padding: 2px 6px;
-      font-size: 9px;
-      background: var(--bg-input);
-      border: 1px solid var(--border);
-      border-radius: 3px;
-      color: var(--text-secondary);
-      cursor: pointer;
-      transition: all 0.15s;
-      font-weight: 600;
-    }
-    .size-btn:hover {
-      background: var(--accent);
-      color: var(--bg-card);
-      border-color: var(--accent);
-    }
-    .size-btn.active {
-      background: var(--accent);
-      color: var(--bg-card);
-      border-color: var(--accent);
+
+    .widget-resize:active {
+      opacity: 1;
     }
 
     .widget-header {
@@ -231,9 +215,9 @@
 
     .widget-content {
       padding: 12px;
+      flex: 1;
       overflow-y: auto;
-      height: 250px;
-      transition: height 0.2s ease;
+      height: 300px;
     }
 
     /* Counter Widget */
@@ -335,62 +319,6 @@
     }
 
     /* Spectrum Widget */
-    .spectrum-container {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      min-height: 150px;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .spectrum-scroll {
-      flex: 1;
-      overflow-x: auto;
-      overflow-y: hidden;
-      background: var(--bg-dark);
-      border-radius: 4px;
-    }
-
-    .spectrum-scroll::-webkit-scrollbar {
-      height: 6px;
-    }
-
-    .spectrum-scroll::-webkit-scrollbar-track {
-      background: var(--bg-panel);
-      border-radius: 3px;
-    }
-
-    .spectrum-scroll::-webkit-scrollbar-thumb {
-      background: var(--border);
-      border-radius: 3px;
-    }
-
-    .spectrum-scroll::-webkit-scrollbar-thumb:hover {
-      background: var(--accent);
-    }
-
-    .spectrum-canvas {
-      height: 100%;
-      min-width: 100%;
-      display: block;
-    }
-
-    .spectrum-info {
-      display: flex;
-      justify-content: space-between;
-      font-size: 10px;
-      color: var(--text-secondary);
-      padding: 4px 0;
-      flex-shrink: 0;
-    }
-
-    .spectrum-freq {
-      color: var(--accent);
-      font-weight: 600;
-    }
-
-    /* Legacy bar display fallback */
     .spectrum-bars {
       display: flex;
       align-items: flex-end;
@@ -404,8 +332,22 @@
       background: linear-gradient(180deg, var(--accent), rgba(45, 212, 191, 0.3));
       border-radius: 2px 2px 0 0;
       min-height: 4px;
-      transition: height 0.1s ease-out;
+      animation: dance 0.5s ease-in-out infinite;
     }
+
+    @keyframes dance {
+      0%, 100% { transform: scaleY(1); }
+      50% { transform: scaleY(1.1); }
+    }
+
+    .bar:nth-child(1) { animation-delay: 0s; }
+    .bar:nth-child(2) { animation-delay: 0.05s; }
+    .bar:nth-child(3) { animation-delay: 0.1s; }
+    .bar:nth-child(4) { animation-delay: 0.15s; }
+    .bar:nth-child(5) { animation-delay: 0.2s; }
+    .bar:nth-child(6) { animation-delay: 0.25s; }
+    .bar:nth-child(7) { animation-delay: 0.3s; }
+    .bar:nth-child(8) { animation-delay: 0.35s; }
 
     /* Log Widget */
     .log-entry {
@@ -629,15 +571,9 @@
     <div class="grid flavor-default" id="grid">
 
       <!-- Counter Widget -->
-      <div class="widget widget-counter size-m">
+      <div class="widget widget-counter">
         <div class="widget-header">
           <span class="widget-title">📊 Signal Counts</span>
-          <div class="size-btns">
-            <button class="size-btn" onclick="setSize(this, 's')">S</button>
-            <button class="size-btn active" onclick="setSize(this, 'm')">M</button>
-            <button class="size-btn" onclick="setSize(this, 'l')">L</button>
-            <button class="size-btn" onclick="setSize(this, 'xl')">XL</button>
-          </div>
         </div>
         <div class="widget-content">
           <div class="counter-grid">
@@ -653,18 +589,13 @@
             </div>
           </div>
         </div>
+        <div class="widget-resize"></div>
       </div>
 
       <!-- Controls Widget -->
-      <div class="widget widget-controls size-m">
+      <div class="widget widget-controls">
         <div class="widget-header">
           <span class="widget-title">⚙️ Radio Controls</span>
-          <div class="size-btns">
-            <button class="size-btn" onclick="setSize(this, 's')">S</button>
-            <button class="size-btn active" onclick="setSize(this, 'm')">M</button>
-            <button class="size-btn" onclick="setSize(this, 'l')">L</button>
-            <button class="size-btn" onclick="setSize(this, 'xl')">XL</button>
-          </div>
         </div>
         <div class="widget-content">
           <div class="control-group">
@@ -698,18 +629,13 @@
             <button>Reset</button>
           </div>
         </div>
+        <div class="widget-resize"></div>
       </div>
 
       <!-- Profiles Widget -->
-      <div class="widget widget-profiles size-m">
+      <div class="widget widget-profiles">
         <div class="widget-header">
           <span class="widget-title">🎯 Profiles</span>
-          <div class="size-btns">
-            <button class="size-btn" onclick="setSize(this, 's')">S</button>
-            <button class="size-btn active" onclick="setSize(this, 'm')">M</button>
-            <button class="size-btn" onclick="setSize(this, 'l')">L</button>
-            <button class="size-btn" onclick="setSize(this, 'xl')">XL</button>
-          </div>
         </div>
         <div class="widget-content">
           <div class="profiles">
@@ -731,43 +657,34 @@
             </div>
           </div>
         </div>
+        <div class="widget-resize"></div>
       </div>
 
       <!-- Spectrum Widget -->
-      <div class="widget widget-spectrum size-m">
+      <div class="widget widget-spectrum">
         <div class="widget-header">
           <span class="widget-title">📈 Spectrum</span>
-          <div class="size-btns">
-            <button class="size-btn" onclick="setSize(this, 's')">S</button>
-            <button class="size-btn active" onclick="setSize(this, 'm')">M</button>
-            <button class="size-btn" onclick="setSize(this, 'l')">L</button>
-            <button class="size-btn" onclick="setSize(this, 'xl')">XL</button>
-          </div>
         </div>
         <div class="widget-content">
-          <div class="spectrum-container">
-            <div class="spectrum-scroll" id="spectrum-scroll">
-              <canvas id="spectrum-canvas" class="spectrum-canvas"></canvas>
-            </div>
-            <div class="spectrum-info">
-              <span id="spectrum-count">15 frequencies</span>
-              <span class="spectrum-freq" id="spectrum-peak">Monitoring...</span>
-              <span>← scroll →</span>
-            </div>
+          <div class="spectrum-bars">
+            <div class="bar" style="height: 45%;"></div>
+            <div class="bar" style="height: 65%;"></div>
+            <div class="bar" style="height: 38%;"></div>
+            <div class="bar" style="height: 72%;"></div>
+            <div class="bar" style="height: 52%;"></div>
+            <div class="bar" style="height: 68%;"></div>
+            <div class="bar" style="height: 41%;"></div>
+            <div class="bar" style="height: 55%;"></div>
           </div>
+          <div style="text-align: center; font-size: 11px; color: var(--text-secondary); margin-top: 8px;">121.5 - 137.0 MHz</div>
         </div>
+        <div class="widget-resize"></div>
       </div>
 
       <!-- Log Widget -->
-      <div class="widget widget-log size-m">
+      <div class="widget widget-log">
         <div class="widget-header">
           <span class="widget-title">📋 Activity Log</span>
-          <div class="size-btns">
-            <button class="size-btn" onclick="setSize(this, 's')">S</button>
-            <button class="size-btn active" onclick="setSize(this, 'm')">M</button>
-            <button class="size-btn" onclick="setSize(this, 'l')">L</button>
-            <button class="size-btn" onclick="setSize(this, 'xl')">XL</button>
-          </div>
         </div>
         <div class="widget-content">
           <div class="log-entry">
@@ -791,63 +708,201 @@
             <div class="log-msg">RTL-SDR initialized</div>
           </div>
         </div>
+        <div class="widget-resize"></div>
       </div>
 
       <!-- ADSB Browser Widget -->
-      <div class="widget widget-iframe widget-adsb size-m">
+      <div class="widget widget-iframe widget-adsb">
         <div class="widget-header">
           <span class="widget-title">✈️ Live ADSB</span>
-          <div class="size-btns">
-            <button class="size-btn" onclick="setSize(this, 's')">S</button>
-            <button class="size-btn active" onclick="setSize(this, 'm')">M</button>
-            <button class="size-btn" onclick="setSize(this, 'l')">L</button>
-            <button class="size-btn" onclick="setSize(this, 'xl')">XL</button>
-          </div>
         </div>
         <div class="widget-content">
           <iframe src="https://adsb.lol/" title="Live ADSB Map"></iframe>
         </div>
+        <div class="widget-resize"></div>
       </div>
 
     </div>
   </div>
 
   <script>
-    // Theme and flavor controls
+    // ============ DEFINE ALL FUNCTIONS FIRST ============
+    
     function changeTheme(theme) {
-      document.body.className = theme === 'default' ? '' : theme;
+      const body = document.body;
+      body.className = body.className.replace(/theme-\w+/, '').trim();
+      if (theme !== 'default') {
+        body.classList.add(theme);
+      }
     }
 
     function changeFlavor(flavor) {
-      document.getElementById('grid').className = 'grid ' + flavor;
+      const grid = document.getElementById('grid');
+      grid.className = grid.className.replace(/flavor-\w+/, 'flavor-default').trim();
+      if (flavor !== 'flavor-default') {
+        grid.classList.remove('flavor-default');
+        grid.classList.add(flavor);
+      }
     }
 
     function updateValue(type, value) {
       document.getElementById(type + '-val').textContent = value;
     }
 
-    // Size presets - S, M, L, XL
-    function setSize(btn, size) {
-      const widget = btn.closest('.widget');
+    // Resize setup function
+    function attachResizeListener(handle) {
+      if (!handle) return;
       
-      // Remove all size classes
-      widget.classList.remove('size-s', 'size-m', 'size-l', 'size-xl');
-      
-      // Add new size class
-      widget.classList.add('size-' + size);
-      
-      // Update active button
-      const btns = widget.querySelectorAll('.size-btn');
-      btns.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      
-      // Resize canvas if it's the spectrum widget
-      if (widget.classList.contains('widget-spectrum')) {
-        setTimeout(resizeSpectrumCanvas, 100);
-      }
+      handle.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const widget = this.closest('.widget');
+        const content = widget.querySelector('.widget-content');
+        const startY = e.clientY;
+        const startHeight = content.offsetHeight;
+        
+        window.resizing = {
+          content: content,
+          startY: startY,
+          startHeight: startHeight
+        };
+        
+        document.body.style.cursor = 'ns-resize';
+        document.body.style.userSelect = 'none';
+      });
     }
 
-    // Profile buttons
+    // Widget Factory
+    function createWidget(config) {
+      const {
+        id = 'widget-' + Date.now(),
+        title = 'Widget',
+        emoji = '📦',
+        content = '',
+        type = 'default',
+        height = 'auto',
+        gridArea = null
+      } = config;
+
+      const widget = document.createElement('div');
+      widget.className = `widget widget-${type}`;
+      widget.id = id;
+      if (gridArea) widget.style.gridArea = gridArea;
+
+      widget.innerHTML = `
+        <div class="widget-header">
+          <span class="widget-title">${emoji} ${title}</span>
+        </div>
+        <div class="widget-content" style="${height ? 'height: ' + height : ''}">
+          ${content}
+        </div>
+        <div class="widget-resize"></div>
+      `;
+
+      // Attach resize listener to new widget
+      const resizeHandle = widget.querySelector('.widget-resize');
+      attachResizeListener(resizeHandle);
+
+      return widget;
+    }
+
+    // ============ SETUP EVENT LISTENERS ============
+
+    // Resize constants and state
+    const RESIZE_SNAP_SIZES = [250, 350, 400, 500, 600, 700];
+    let resizing = null;
+
+    function snapToGrid(value) {
+      return RESIZE_SNAP_SIZES.reduce((closest, size) => {
+        return Math.abs(size - value) < Math.abs(closest - value) ? size : closest;
+      });
+    }
+
+    // Setup resize on all existing widgets
+    document.querySelectorAll('.widget-resize').forEach(handle => {
+      attachResizeListener(handle);
+    });
+
+    // Global mousemove for resizing
+    document.addEventListener('mousemove', function(e) {
+      if (!resizing) return;
+      
+      const delta = e.clientY - resizing.startY;
+      const newHeight = Math.max(100, resizing.startHeight + delta);
+      resizing.content.style.height = newHeight + 'px';
+    });
+
+    // Global mouseup for resizing
+    document.addEventListener('mouseup', function(e) {
+      if (!resizing) return;
+      
+      const currentHeight = resizing.content.offsetHeight;
+      const snapped = snapToGrid(currentHeight);
+      
+      resizing.content.style.height = snapped + 'px';
+      resizing = null;
+      
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    });
+
+    // Drag and drop state
+    let draggedWidget = null;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let isDragging = false;
+
+    document.addEventListener('mousedown', (e) => {
+      const header = e.target.closest('.widget-header');
+      if (!header || e.target.classList.contains('widget-resize')) return;
+      
+      draggedWidget = header.closest('.widget');
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      isDragging = false;
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!draggedWidget || resizing) return;
+      
+      const moveX = Math.abs(e.clientX - dragStartX);
+      const moveY = Math.abs(e.clientY - dragStartY);
+      
+      // Only trigger reordering if moved > 10px
+      if ((moveX > 10 || moveY > 10) && !isDragging) {
+        isDragging = true;
+        draggedWidget.classList.add('dragging');
+      }
+      
+      if (!isDragging) return;
+      
+      // Find widget under cursor
+      const target = document.elementFromPoint(e.clientX, e.clientY)?.closest('.widget');
+      if (target && target !== draggedWidget) {
+        const grid = document.getElementById('grid');
+        const draggedRect = draggedWidget.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+        
+        // If dragging down, insert after
+        if (draggedRect.top < targetRect.top) {
+          target.parentNode.insertBefore(draggedWidget, target.nextSibling);
+        } else {
+          // If dragging up, insert before
+          target.parentNode.insertBefore(draggedWidget, target);
+        }
+      }
+    });
+
+    document.addEventListener('mouseup', (e) => {
+      if (draggedWidget) {
+        draggedWidget.classList.remove('dragging');
+        isDragging = false;
+        draggedWidget = null;
+      }
+    });
+
+    // Profile selection
     document.querySelectorAll('.profile-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.profile-btn').forEach(b => b.classList.remove('active'));
@@ -855,291 +910,76 @@
       });
     });
 
-    // ============================================
-    // FREQUENCY MONITOR (stats_filepath based)
-    // ============================================
-    
-    const API_BASE = window.location.port === '8889' 
-      ? 'http://localhost:5050'  // Dev: mockup on 8889, API on 5050
-      : '';                       // Prod: same origin
-    
-    // Spectrum state
-    let spectrumCanvas, spectrumCtx;
-    let spectrumData = [];
-    let spectrumHistory = [];
-    const HISTORY_DEPTH = 30;
-    const NOISE_FLOOR = -100;
-    const SIGNAL_MAX = -60;
-    
-    // Simulation mode (when API unavailable)
-    let simulationMode = true;
-    
-    // Your actual configured frequencies from rtl_airband_airband.conf
-    const CONFIGURED_FREQS = [
-      { freq: 118.4, label: 'Dep E' },
-      { freq: 118.6, label: 'Tower' },
-      { freq: 119.35, label: 'Dep W' },
-      { freq: 119.45, label: 'App' },
-      { freq: 121.9, label: 'Gnd' },
-      { freq: 124.75, label: 'Final' },
-      { freq: 126.05, label: 'Clnc' },
-      { freq: 127.175, label: 'App2' },
-      { freq: 128.825, label: 'UAL' },
-      { freq: 129.95, label: 'Ramp' },
-      { freq: 130.125, label: 'SWA' },
-      { freq: 130.725, label: 'FFT' },
-      { freq: 131.375, label: 'Ramp2' },
-      { freq: 131.45, label: 'DAL' },
-      { freq: 135.1, label: 'ATIS' }
-    ];
-    
-    const MIN_BAR_WIDTH = 35; // Minimum pixels per frequency bar
-    const BAR_GAP = 3;
-    
-    function initSpectrum() {
-      spectrumCanvas = document.getElementById('spectrum-canvas');
-      if (!spectrumCanvas) return;
-      
-      spectrumCtx = spectrumCanvas.getContext('2d');
-      
-      // Initialize spectrum data with configured frequencies
-      spectrumData = CONFIGURED_FREQS.map(f => ({
-        ...f,
-        power: NOISE_FLOOR,
-        active: false,
-        count: 0
-      }));
-      
-      resizeSpectrumCanvas();
-      
-      // Try to connect to SSE stream
-      connectSSE();
-      
-      // Start simulation as fallback
-      setTimeout(() => {
-        if (simulationMode) {
-          simulateSpectrum();
-        }
-      }, 2000);
-      
-      // Render loop
-      requestAnimationFrame(renderSpectrum);
-    }
-    
-    function resizeSpectrumCanvas() {
-      if (!spectrumCanvas) return;
-      const scroll = document.getElementById('spectrum-scroll');
-      if (!scroll) return;
-      
-      const numBins = spectrumData.length || CONFIGURED_FREQS.length;
-      const containerWidth = scroll.clientWidth;
-      const neededWidth = numBins * (MIN_BAR_WIDTH + BAR_GAP) + 20;
-      
-      // Use larger of container width or needed width
-      spectrumCanvas.width = Math.max(containerWidth, neededWidth);
-      spectrumCanvas.height = scroll.clientHeight || 200;
-      
-      // Update frequency count display
-      const countEl = document.getElementById('spectrum-count');
-      if (countEl) {
-        countEl.textContent = `${numBins} frequencies`;
-      }
-    }
-    
-    function connectSSE() {
-      try {
-        const eventSource = new EventSource(API_BASE + '/api/stream');
-        
-        eventSource.addEventListener('spectrum', (e) => {
-          const data = JSON.parse(e.data);
-          if (data.bins && data.bins.length > 0) {
-            simulationMode = false;
-            spectrumData = data.bins;
-            updateHistory();
-          }
-        });
-        
-        eventSource.addEventListener('status', (e) => {
-          const data = JSON.parse(e.data);
-          updateStatusWidgets(data);
-        });
-        
-        eventSource.addEventListener('hits', (e) => {
-          const data = JSON.parse(e.data);
-          updateHitsWidget(data.items);
-        });
-        
-        eventSource.onerror = () => {
-          console.log('SSE not available, using simulation');
-          simulationMode = true;
-          eventSource.close();
-        };
-      } catch (e) {
-        console.log('SSE connection failed, using simulation');
-        simulationMode = true;
-      }
-    }
-    
-    function simulateSpectrum() {
-      if (!simulationMode) return;
-      
-      // Simulate noise floor changes and occasional activity
-      spectrumData = spectrumData.map((bin, i) => {
-        let power = NOISE_FLOOR + Math.random() * 5;
-        let active = false;
-        
-        // Some frequencies are more active than others
-        const activityChance = [1,3,5,7,8].includes(i) ? 0.2 : 0.05;
-        if (Math.random() < activityChance) {
-          power = NOISE_FLOOR + 20 + Math.random() * 20;
-          active = true;
-        }
-        
-        return {
-          ...bin,
-          power: power,
-          active: active,
-          count: bin.count + (active ? 1 : 0)
-        };
+    // Example: Add a new widget programmatically
+    // const newWidget = createWidget({
+    //   title: 'Custom Widget',
+    //   emoji: '🎯',
+    //   content: '<p>Your HTML here</p>',
+    //   height: '300px'
+    // });
+    // document.getElementById('grid').appendChild(newWidget);
+
+    // Resize functionality with snap-to-grid sizing
+    const RESIZE_SNAP_SIZES = [250, 350, 400, 500, 600, 700];
+    let resizing = null;
+
+    function snapToGrid(value) {
+      return RESIZE_SNAP_SIZES.reduce((closest, size) => {
+        return Math.abs(size - value) < Math.abs(closest - value) ? size : closest;
       });
-      
-      updateHistory();
-      setTimeout(simulateSpectrum, 1000);
     }
-    
-    function updateHistory() {
-      spectrumHistory.unshift(spectrumData.map(b => ({ power: b.power, active: b.active })));
-      if (spectrumHistory.length > HISTORY_DEPTH) {
-        spectrumHistory.pop();
-      }
-    }
-    
-    function renderSpectrum() {
-      if (!spectrumCtx || !spectrumCanvas || spectrumData.length === 0) {
-        requestAnimationFrame(renderSpectrum);
-        return;
-      }
+
+    // Attach resize listeners to all resize handles
+    function attachResizeListener(handle) {
+      if (!handle) return;
       
-      const w = spectrumCanvas.width;
-      const h = spectrumCanvas.height;
-      const numBins = spectrumData.length;
-      // Use consistent bar width from constant
-      const barWidth = MIN_BAR_WIDTH;
-      const historyH = h * 0.35;
-      const barsH = h - historyH - 25;
-      
-      // Clear
-      spectrumCtx.fillStyle = '#0a0f0f';
-      spectrumCtx.fillRect(0, 0, w, h);
-      
-      // Draw history (mini waterfall)
-      const histRowH = historyH / HISTORY_DEPTH;
-      for (let row = 0; row < spectrumHistory.length; row++) {
-        const rowData = spectrumHistory[row];
-        for (let i = 0; i < rowData.length; i++) {
-          const x = 10 + i * (barWidth + BAR_GAP);
-          const y = row * histRowH;
-          const normalized = Math.max(0, Math.min(1, (rowData[i].power - NOISE_FLOOR) / (SIGNAL_MAX - NOISE_FLOOR)));
-          
-          if (rowData[i].active) {
-            spectrumCtx.fillStyle = `hsl(${160 - normalized * 160}, 90%, ${20 + normalized * 35}%)`;
-          } else {
-            spectrumCtx.fillStyle = `hsl(200, 30%, ${8 + normalized * 12}%)`;
-          }
-          spectrumCtx.fillRect(x, y, barWidth, histRowH);
-        }
-      }
-      
-      // Draw separator line
-      spectrumCtx.strokeStyle = 'rgba(45, 212, 191, 0.3)';
-      spectrumCtx.beginPath();
-      spectrumCtx.moveTo(0, historyH);
-      spectrumCtx.lineTo(w, historyH);
-      spectrumCtx.stroke();
-      
-      // Draw frequency bars
-      let activeFreq = null;
-      for (let i = 0; i < numBins; i++) {
-        const bin = spectrumData[i];
-        const x = 10 + i * (barWidth + BAR_GAP);
-        const normalized = Math.max(0, Math.min(1, (bin.power - NOISE_FLOOR) / (SIGNAL_MAX - NOISE_FLOOR)));
-        const barH = Math.max(4, barsH * normalized);
-        const y = historyH + 5 + (barsH - barH);
+      handle.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
         
-        // Bar gradient
-        const gradient = spectrumCtx.createLinearGradient(x, y + barH, x, y);
-        if (bin.active) {
-          gradient.addColorStop(0, 'rgba(45, 212, 191, 0.4)');
-          gradient.addColorStop(1, '#2dd4bf');
-          activeFreq = bin;
-        } else {
-          gradient.addColorStop(0, 'rgba(45, 212, 191, 0.1)');
-          gradient.addColorStop(1, 'rgba(45, 212, 191, 0.4)');
-        }
+        const widget = this.closest('.widget');
+        const content = widget.querySelector('.widget-content');
+        const startY = e.clientY;
+        const startHeight = content.offsetHeight;
         
-        spectrumCtx.fillStyle = gradient;
-        spectrumCtx.fillRect(x, y, barWidth, barH);
+        resizing = {
+          content: content,
+          startY: startY,
+          startHeight: startHeight
+        };
         
-        // Activity indicator dot
-        if (bin.active) {
-          spectrumCtx.fillStyle = '#2dd4bf';
-          spectrumCtx.beginPath();
-          spectrumCtx.arc(x + barWidth/2, historyH + 5 + barsH + 8, 3, 0, Math.PI * 2);
-          spectrumCtx.fill();
-        }
-        
-        // Frequency label - show all since we have scroll room
-        spectrumCtx.fillStyle = bin.active ? '#2dd4bf' : 'rgba(142, 158, 171, 0.6)';
-        spectrumCtx.font = '9px Monaco, monospace';
-        spectrumCtx.textAlign = 'center';
-        spectrumCtx.fillText(bin.label || bin.freq.toFixed(1), x + barWidth/2, h - 2);
-      }
-      
-      // Update peak display
-      const peakEl = document.getElementById('spectrum-peak');
-      if (peakEl) {
-        if (activeFreq) {
-          peakEl.textContent = `Active: ${activeFreq.freq.toFixed(3)} MHz (${activeFreq.label})`;
-          peakEl.style.color = '#2dd4bf';
-        } else {
-          peakEl.textContent = 'Monitoring...';
-          peakEl.style.color = '';
-        }
-      }
-      
-      requestAnimationFrame(renderSpectrum);
+        document.body.style.cursor = 'ns-resize';
+        document.body.style.userSelect = 'none';
+      });
     }
-    
-    function updateStatusWidgets(data) {
-      if (data.gain !== undefined) {
-        const gainSlider = document.getElementById('gain-slider');
-        const gainVal = document.getElementById('gain-val');
-        if (gainSlider) gainSlider.value = data.gain;
-        if (gainVal) gainVal.textContent = data.gain;
-      }
-      if (data.squelch !== undefined) {
-        const sqlSlider = document.getElementById('sql-slider');
-        const sqlVal = document.getElementById('sql-val');
-        if (sqlSlider) sqlSlider.value = data.squelch;
-        if (sqlVal) sqlVal.textContent = data.squelch;
-      }
-    }
-    
-    function updateHitsWidget(hits) {
-      const logContent = document.querySelector('.widget-log .widget-content');
-      if (!logContent || !hits || hits.length === 0) return;
+
+    // Setup resize on all existing widgets
+    document.querySelectorAll('.widget-resize').forEach(handle => {
+      attachResizeListener(handle);
+    });
+
+    // Global mousemove for resizing
+    document.addEventListener('mousemove', function(e) {
+      if (!resizing) return;
       
-      logContent.innerHTML = hits.slice(0, 10).map(hit => `
-        <div class="log-entry">
-          <div class="log-time">${hit.time || '--:--:--'}</div>
-          <div class="log-msg good">✓ ${hit.freq} MHz (${hit.duration || 0}s)</div>
-        </div>
-      `).join('');
-    }
-    
-    // Initialize on load
-    window.addEventListener('load', initSpectrum);
-    window.addEventListener('resize', resizeSpectrumCanvas);
+      const delta = e.clientY - resizing.startY;
+      const newHeight = Math.max(100, resizing.startHeight + delta);
+      resizing.content.style.height = newHeight + 'px';
+    });
+
+    // Global mouseup for resizing
+    document.addEventListener('mouseup', function(e) {
+      if (!resizing) return;
+      
+      const currentHeight = resizing.content.offsetHeight;
+      const snapped = snapToGrid(currentHeight);
+      
+      resizing.content.style.height = snapped + 'px';
+      resizing = null;
+      
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    });
   </script>
 </body>
 </html>

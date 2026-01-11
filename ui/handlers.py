@@ -1,6 +1,8 @@
 """HTTP request handlers."""
 import json
 import os
+import time
+import queue
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 
@@ -18,6 +20,7 @@ try:
     from .systemd import unit_active, unit_exists
     from .server_workers import enqueue_action, enqueue_apply
     from .diagnostic import write_diagnostic_log
+    from .spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
 except ImportError:
     from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, UI_PORT, UNITS
     from ui.profile_config import (
@@ -32,6 +35,7 @@ except ImportError:
     from ui.systemd import unit_active, unit_exists
     from ui.server_workers import enqueue_action, enqueue_apply
     from ui.diagnostic import write_diagnostic_log
+    from ui.spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
 
 
 def _read_html_template():
@@ -66,6 +70,16 @@ class Handler(BaseHTTPRequestHandler):
         p = urlparse(self.path).path
         if p == "/":
             return self._send(200, HTML_TEMPLATE)
+        
+        # Serve SB3 mockup
+        if p == "/sb3" or p == "/sb3.html" or p == "/mockup_sb3.html":
+            ui_dir = os.path.dirname(os.path.abspath(__file__))
+            mockup_path = os.path.join(ui_dir, "mockup_sb3.html")
+            try:
+                with open(mockup_path, "r", encoding="utf-8") as f:
+                    return self._send(200, f.read())
+            except FileNotFoundError:
+                return self._send(404, "SB3 mockup not found", "text/plain; charset=utf-8")
         
         # Serve static files
         if p.startswith("/static/"):
@@ -145,7 +159,72 @@ class Handler(BaseHTTPRequestHandler):
                         existing_times.add((item.get("time"), item.get("freq")))
             payload = {"items": items[:50]}
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+        
+        if p == "/api/spectrum":
+            # One-shot spectrum data
+            band = parse_qs(urlparse(self.path).query).get("band", ["airband"])[0]
+            return self._send(200, spectrum_to_json(band), "application/json; charset=utf-8")
+        
+        if p == "/api/stream":
+            # Server-Sent Events stream for real-time updates
+            return self._handle_sse_stream()
+        
         return self._send(404, "Not found", "text/plain; charset=utf-8")
+
+    def _handle_sse_stream(self):
+        """Handle SSE stream for real-time data."""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        
+        # Auto-detect: simulate if stats file doesn't exist
+        stats_path = os.getenv("RTL_AIRBAND_STATS_PATH", "/run/rtl_airband_stats.txt")
+        simulate = not os.path.exists(stats_path)
+        start_spectrum("airband", simulate=simulate)
+        
+        try:
+            while True:
+                # Send status update
+                conf_path = read_active_config_path()
+                airband_gain, airband_squelch = parse_controls(conf_path)
+                rtl_ok = unit_active(UNITS["rtl"])
+                ice_ok = icecast_up()
+                last_hit = read_last_hit_from_icecast() if ice_ok else read_last_hit_airband()
+                
+                status_data = {
+                    "type": "status",
+                    "rtl_active": rtl_ok,
+                    "icecast_active": ice_ok,
+                    "gain": float(airband_gain),
+                    "squelch": float(airband_squelch),
+                    "last_hit": last_hit,
+                }
+                self.wfile.write(f"event: status\ndata: {json.dumps(status_data)}\n\n".encode())
+                
+                # Send spectrum update
+                spectrum_data = {
+                    "type": "spectrum",
+                    "bins": get_spectrum_bins("airband"),
+                    "timestamp": time.time(),
+                }
+                self.wfile.write(f"event: spectrum\ndata: {json.dumps(spectrum_data)}\n\n".encode())
+                
+                # Send recent hits
+                hits = read_icecast_hit_list(limit=10)
+                hits_data = {
+                    "type": "hits",
+                    "items": hits,
+                }
+                self.wfile.write(f"event: hits\ndata: {json.dumps(hits_data)}\n\n".encode())
+                
+                self.wfile.flush()
+                time.sleep(1)  # Update every second
+                
+        except (BrokenPipeError, ConnectionResetError):
+            pass  # Client disconnected
 
     def do_POST(self):
         """Handle POST requests."""
