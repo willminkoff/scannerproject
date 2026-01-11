@@ -628,10 +628,6 @@
     // ============================================
     
     const els = {
-      sdr1Status: document.getElementById('sdr1-status'),
-      sdr2Status: document.getElementById('sdr2-status'),
-      iceStatus: document.getElementById('ice-status'),
-      connectionStatus: document.getElementById('connection-status'),
       lastHit: document.getElementById('last-hit'),
       gainSlider: document.getElementById('gain-slider'),
       gainValue: document.getElementById('gain-value'),
@@ -699,14 +695,7 @@
     // ============================================
     
     function updateStatus() {
-      els.sdr1Status.classList.toggle('active', state.sdr1Active);
-      els.sdr2Status.classList.toggle('active', state.sdr2Active);
-      els.iceStatus.classList.toggle('active', state.icecastActive);
       els.lastHit.textContent = state.lastHit || '--';
-      
-      els.connectionStatus.textContent = state.connected ? 'Connected' : 'Disconnected';
-      els.connectionStatus.classList.toggle('connected', state.connected);
-      els.connectionStatus.classList.toggle('disconnected', !state.connected);
     }
     
     function updateControls() {
