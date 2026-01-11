@@ -8,6 +8,7 @@ Wants=rtl-airband-last-hit.service
 [Service]
 Type=simple
 ExecStartPre=-/usr/bin/pkill -x rtl_airband
+ExecStartPre=/bin/bash -c 'cp /home/willminkoff/scannerproject/profiles/*.conf /usr/local/etc/airband-profiles/ 2>/dev/null || true'
 ExecStartPre=/usr/bin/python3 /home/willminkoff/scannerproject/scripts/build-combined-config.py
 ExecStart=/bin/bash /home/willminkoff/scannerproject/scripts/rtl-airband-filter.sh /usr/local/etc/rtl_airband_combined.conf
 Restart=on-failure
