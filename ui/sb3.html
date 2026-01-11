@@ -566,7 +566,12 @@
             <div class="counter-item">
               <div class="counter-label">Active Avoids</div>
               <div class="counter-value" id="avoids-count">--</div>
-              <div class="counter-rate">Airband</div>
+              <div class="counter-rate" id="avoids-target">Airband</div>
+            </div>
+            <div class="counter-item">
+              <div class="counter-label">Pi Time</div>
+              <div class="counter-value" id="pi-time">--</div>
+              <div class="counter-rate">UTC</div>
             </div>
           </div>
         </div>
@@ -667,6 +672,8 @@
       sessionCount: document.getElementById('session-count'),
       sessionStart: document.getElementById('session-start'),
       avoidsCount: document.getElementById('avoids-count'),
+      avoidsTarget: document.getElementById('avoids-target'),
+      piTime: document.getElementById('pi-time'),
       tabAirband: document.getElementById('tab-airband'),
       tabGround: document.getElementById('tab-ground'),
     };
@@ -804,6 +811,12 @@
       els.sessionStart.textContent = 'Since ' + startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       
       els.avoidsCount.textContent = state[activeTarget].avoids.length || '--';
+      els.avoidsTarget.textContent = activeTarget.charAt(0).toUpperCase() + activeTarget.slice(1);
+      
+      if (state.serverTime) {
+        const serverDate = new Date(state.serverTime * 1000);
+        els.piTime.textContent = serverDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      }
     }
     
     function formatFreq(freq) {
@@ -931,6 +944,8 @@
         state.ground.filter = data.ground_filter || 3500;
         state.ground.profiles = data.profiles_ground || [];
         state.ground.currentProfile = data.profile_ground || '';
+        
+        state.serverTime = data.server_time;
         
         state.connected = true;
         

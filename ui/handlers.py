@@ -108,8 +108,47 @@ class Handler(BaseHTTPRequestHandler):
             airband_filter = parse_filter("airband")
             ground_filter = parse_filter("ground")
             rtl_ok = unit_active(UNITS["rtl"])
-            ground_exists = unit_exists(UNITS["ground"])
-            ground_ok = unit_active(UNITS["ground"]) if ground_exists else False
+            # Robustly count top-level device blocks using regex
+            def count_device_blocks(conf_path):
+                try:
+                    with open(conf_path, "r", encoding="utf-8") as f:
+                        conf = f.read()
+                    # Find the devices section
+                    start = conf.find('devices:')
+                    if start == -1:
+                        return 1
+                    start = conf.find('(', start)
+                    end = conf.find(');', start)
+                    if start == -1 or end == -1:
+                        return 1
+                    devices_blob = conf[start+1:end]
+                    # Minimal parser: count top-level curly-brace blocks
+                    count = 0
+                    depth = 0
+                    in_string = False
+                    for c in devices_blob:
+                        if c == '"':
+                            in_string = not in_string
+                        elif not in_string:
+                            if c == '{':
+                                if depth == 0:
+                                    count += 1
+                                depth += 1
+                            elif c == '}':
+                                depth = max(0, depth - 1)
+                    return count
+                except Exception:
+                    return 1
+
+            num_devices = count_device_blocks(conf_path)
+            print(f"[DEBUG] Config path: {conf_path}")
+            print(f"[DEBUG] Detected device blocks: {num_devices}")
+            ground_exists = num_devices > 1
+            rtl_exists = num_devices >= 1
+            # If main rtl-airband service is running and device exists, airband is active
+            rtl_ok = rtl_ok and rtl_exists
+            # If main rtl-airband service is running and more than one device, ground is active
+            ground_ok = rtl_ok and ground_exists
             ice_ok = icecast_up()
 
             prof_payload, profiles_airband, profiles_ground = split_profiles()
@@ -126,6 +165,7 @@ class Handler(BaseHTTPRequestHandler):
                 "ground_exists": ground_exists,
                 "icecast_active": ice_ok,
                 "keepalive_active": unit_active(UNITS["keepalive"]),
+                "server_time": time.time(),
                 "profile_airband": profile_airband,
                 "profile_ground": profile_ground,
                 "profiles_airband": profiles_airband,
@@ -179,32 +219,50 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Connection", "keep-alive")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
-        
-        # Note: stats_filepath not supported in rtl_airband v5.1.1
-        # Spectrum bins will be empty - using last_hit and status instead
-        
+        import re
         try:
             while True:
-                # Send status update (REAL data from config/systemd)
                 conf_path = read_active_config_path()
                 airband_gain, airband_squelch = parse_controls(conf_path)
-                rtl_ok = unit_active(UNITS["rtl"])        # SDR1 - RTL Blog v4
-                ground_ok = unit_active(UNITS["ground"]) if unit_exists(UNITS["ground"]) else False  # SDR2 - Nooelec
+                rtl_ok = unit_active(UNITS["rtl"])
+                # Unified device block counting
+                def count_device_blocks(conf_path):
+                    try:
+                        with open(conf_path, "r", encoding="utf-8") as f:
+                            conf = f.read()
+                        m = re.search(r'devices:\s*\((.*)\)\s*;', conf, re.S)
+                        if not m:
+                            return 1
+                        devices_blob = m.group(1)
+                        depth = 0
+                        count = 0
+                        for c in devices_blob:
+                            if c == '{':
+                                if depth == 0:
+                                    count += 1
+                                depth += 1
+                            elif c == '}':
+                                depth = max(0, depth - 1)
+                        return count
+                    except Exception:
+                        return 1
+                num_devices = count_device_blocks(conf_path)
+                ground_exists = num_devices > 1
+                rtl_exists = num_devices >= 1
+                rtl_active = rtl_ok and rtl_exists
+                ground_active = rtl_ok and ground_exists
                 ice_ok = icecast_up()
                 last_hit = read_last_hit_from_icecast() if ice_ok else read_last_hit_airband()
-                
                 status_data = {
                     "type": "status",
-                    "rtl_active": rtl_ok,
-                    "ground_active": ground_ok,
+                    "rtl_active": rtl_active,
+                    "ground_active": ground_active,
                     "icecast_active": ice_ok,
                     "gain": float(airband_gain),
                     "squelch": float(airband_squelch),
                     "last_hit": last_hit,
                 }
                 self.wfile.write(f"event: status\ndata: {json.dumps(status_data)}\n\n".encode())
-                
-                # Spectrum bins empty until rtl_airband upgraded with stats_filepath
                 spectrum_data = {
                     "type": "spectrum",
                     "bins": [],
@@ -212,23 +270,20 @@ class Handler(BaseHTTPRequestHandler):
                     "note": "stats_filepath not supported in rtl_airband v5.1.1"
                 }
                 self.wfile.write(f"event: spectrum\ndata: {json.dumps(spectrum_data)}\n\n".encode())
-                
-                # Send recent hits (REAL data from icecast logs)
                 hits = read_icecast_hit_list(limit=10)
                 hits_data = {
                     "type": "hits",
                     "items": hits,
                 }
                 self.wfile.write(f"event: hits\ndata: {json.dumps(hits_data)}\n\n".encode())
-                
                 self.wfile.flush()
-                time.sleep(1)  # Update every second
-                
+                time.sleep(1)
         except (BrokenPipeError, ConnectionResetError):
-            pass  # Client disconnected
+            pass
 
     def do_POST(self):
         """Handle POST requests."""
+
         p = urlparse(self.path).path
         length = int(self.headers.get("Content-Length", "0") or "0")
         raw = self.rfile.read(length).decode("utf-8", errors="ignore")
@@ -241,18 +296,20 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
 
         if p == "/api/apply":
-            target = form.get("target", "airband")
-            if target not in ("airband", "ground"):
-                return self._send(400, json.dumps({"ok": False, "error": "unknown target"}), "application/json; charset=utf-8")
-            try:
-                gain = float(form.get("gain", "32.8"))
-                squelch = float(form.get("squelch", "10.0"))
-            except ValueError:
-                from systemd import start_rtl
-                start_rtl()
-                return self._send(400, json.dumps({"ok": False, "error": "bad values"}), "application/json; charset=utf-8")
-            result = enqueue_apply(target, gain, squelch)
-            return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
+        print(f"[DEBUG] Config path: {conf_path}", file=sys.stderr, flush=True)
+        print(f"[DEBUG] Detected device blocks: {num_devices}", file=sys.stderr, flush=True)
+        target = form.get("target", "airband")
+        if target not in ("airband", "ground"):
+            return self._send(400, json.dumps({"ok": False, "error": "unknown target"}), "application/json; charset=utf-8")
+        try:
+            gain = float(form.get("gain", "32.8"))
+            squelch = float(form.get("squelch", "10.0"))
+        except ValueError:
+            from systemd import start_rtl
+            start_rtl()
+            return self._send(400, json.dumps({"ok": False, "error": "bad values"}), "application/json; charset=utf-8")
+        result = enqueue_apply(target, gain, squelch)
+        return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
 
         if p == "/api/filter":
             target = form.get("target", "airband")
