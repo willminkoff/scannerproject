@@ -188,13 +188,15 @@ class Handler(BaseHTTPRequestHandler):
                 # Send status update (REAL data from config/systemd)
                 conf_path = read_active_config_path()
                 airband_gain, airband_squelch = parse_controls(conf_path)
-                rtl_ok = unit_active(UNITS["rtl"])
+                rtl_ok = unit_active(UNITS["rtl"])        # SDR1 - RTL Blog v4
+                ground_ok = unit_active(UNITS["ground"]) if unit_exists(UNITS["ground"]) else False  # SDR2 - Nooelec
                 ice_ok = icecast_up()
                 last_hit = read_last_hit_from_icecast() if ice_ok else read_last_hit_airband()
                 
                 status_data = {
                     "type": "status",
                     "rtl_active": rtl_ok,
+                    "ground_active": ground_ok,
                     "icecast_active": ice_ok,
                     "gain": float(airband_gain),
                     "squelch": float(airband_squelch),

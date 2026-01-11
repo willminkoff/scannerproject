@@ -383,12 +383,16 @@
       <div class="logo">SB3</div>
       <div class="status-indicators">
         <div class="status-item">
-          <div class="status-dot" id="rtl-status"></div>
-          <span>RTL</span>
+          <div class="status-dot" id="sdr1-status"></div>
+          <span>SDR1</span>
+        </div>
+        <div class="status-item">
+          <div class="status-dot" id="sdr2-status"></div>
+          <span>SDR2</span>
         </div>
         <div class="status-item">
           <div class="status-dot" id="ice-status"></div>
-          <span>Icecast</span>
+          <span>Ice</span>
         </div>
       </div>
       <div class="last-hit" id="last-hit">--</div>
@@ -512,7 +516,8 @@
     
     let state = {
       connected: false,
-      rtlActive: false,
+      sdr1Active: false,  // RTL Blog v4 (serial 00000001) - airband
+      sdr2Active: false,  // Nooelec (serial 70613472) - ground
       icecastActive: false,
       gain: 0,
       squelch: 0,
@@ -532,7 +537,8 @@
     // ============================================
     
     const els = {
-      rtlStatus: document.getElementById('rtl-status'),
+      sdr1Status: document.getElementById('sdr1-status'),
+      sdr2Status: document.getElementById('sdr2-status'),
       iceStatus: document.getElementById('ice-status'),
       connectionStatus: document.getElementById('connection-status'),
       lastHit: document.getElementById('last-hit'),
@@ -600,7 +606,8 @@
     // ============================================
     
     function updateStatus() {
-      els.rtlStatus.classList.toggle('active', state.rtlActive);
+      els.sdr1Status.classList.toggle('active', state.sdr1Active);
+      els.sdr2Status.classList.toggle('active', state.sdr2Active);
       els.iceStatus.classList.toggle('active', state.icecastActive);
       els.lastHit.textContent = state.lastHit || '--';
       
@@ -792,7 +799,8 @@
       try {
         const data = await fetchJSON('/api/status');
         
-        state.rtlActive = data.rtl_active;
+        state.sdr1Active = data.rtl_active;      // SDR1 = airband unit
+        state.sdr2Active = data.ground_active;    // SDR2 = ground unit
         state.icecastActive = data.icecast_active;
         state.gain = data.gain || data.airband_gain || 32.8;
         state.squelch = data.squelch || data.airband_squelch || 0.5;
@@ -843,7 +851,8 @@
       es.addEventListener('status', (e) => {
         try {
           const data = JSON.parse(e.data);
-          state.rtlActive = data.rtl_active;
+          state.sdr1Active = data.rtl_active;      // SDR1 = airband
+          state.sdr2Active = data.ground_active;    // SDR2 = ground
           state.icecastActive = data.icecast_active;
           state.gain = data.gain || state.gain;
           state.squelch = data.squelch || state.squelch;
