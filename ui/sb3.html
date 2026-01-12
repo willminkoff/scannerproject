@@ -634,12 +634,14 @@
       sessionStart: Date.now(),
       applyTimeout: null,
       filterTimeout: null,
+      serverTime: null,
       airband: {
         gain: 32.8,
         squelch: 0.5,
         filter: 3500,
         profiles: [],
         currentProfile: '',
+        avoids: [],
       },
       ground: {
         gain: 32.8,
@@ -647,6 +649,7 @@
         filter: 3500,
         profiles: [],
         currentProfile: '',
+        avoids: [],
       },
     };
     
