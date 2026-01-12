@@ -12,3 +12,8 @@
 
 # secrets (we keep an example file instead)
 icecast/icecast.xml
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*.pyo
