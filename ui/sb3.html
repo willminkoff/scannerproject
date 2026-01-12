@@ -180,6 +180,11 @@
       border: 1px solid var(--border);
       border-radius: 8px;
       overflow: hidden;
+      position: relative;
+    }
+
+    .widget.collapsed .widget-body {
+      display: none;
     }
 
     .widget-header {
@@ -194,6 +199,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      cursor: pointer;
     }
 
     .collapse-btn {
@@ -691,16 +697,37 @@
     // ADSB TOGGLE
     // ============================================
     
-    function toggleAdsb() {
-      const body = document.getElementById('adsb-body');
-      const btn = document.getElementById('adsb-collapse');
-      if (body.style.display === 'none') {
-        body.style.display = '';
-        btn.textContent = '▼';
-      } else {
-        body.style.display = 'none';
-        btn.textContent = '▶';
+    function toggleWidget(widget, collapsedState) {
+      if (!widget) return;
+      const shouldCollapse = typeof collapsedState === 'boolean'
+        ? collapsedState
+        : !widget.classList.contains('collapsed');
+      widget.classList.toggle('collapsed', shouldCollapse);
+      const btn = widget.querySelector('.collapse-btn');
+      if (btn) {
+        btn.textContent = shouldCollapse ? '▶' : '▼';
       }
+    }
+    
+    function setupCollapsibleWidgets() {
+      document.querySelectorAll('.widget').forEach(widget => {
+        const header = widget.querySelector('.widget-header');
+        const body = widget.querySelector('.widget-body');
+        if (!header || !body) return;
+        
+        header.addEventListener('click', (e) => {
+          // Ignore clicks on interactive elements inside the header (e.g. tabs)
+          if (e.target.closest('button, .tab, a, input, select, textarea')) {
+            return;
+          }
+          toggleWidget(widget);
+        });
+      });
+    }
+    
+    function toggleAdsb() {
+      const widget = document.getElementById('adsb-body')?.closest('.widget');
+      toggleWidget(widget);
     }
     
     // ============================================
@@ -1105,6 +1132,7 @@
     
     function init() {
       loadTheme();
+      setupCollapsibleWidgets();
       
       els.gainSlider.addEventListener('input', onGainChange);
       els.sqlSlider.addEventListener('input', onSqlChange);
