@@ -1091,6 +1091,8 @@
         try {
           await postAPI('/api/avoid', { target: activeTarget });
           await refresh();
+          // Refresh again after 2 seconds to catch the config update
+          setTimeout(refresh, 2000);
         } catch (e) {
           console.error('Avoid failed:', e);
         }
