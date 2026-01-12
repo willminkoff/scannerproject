@@ -954,12 +954,14 @@
         state.airband.filter = data.airband_filter || 3500;
         state.airband.profiles = data.profiles_airband || [];
         state.airband.currentProfile = data.profile_airband || '';
+        state.airband.avoids = data.avoids_airband?.sample || [];
         
         state.ground.gain = data.ground_gain || 32.8;
         state.ground.squelch = data.ground_squelch || 0.5;
         state.ground.filter = data.ground_filter || 3500;
         state.ground.profiles = data.profiles_ground || [];
         state.ground.currentProfile = data.profile_ground || '';
+        state.ground.avoids = data.avoids_ground?.sample || [];
         
         state.serverTime = data.server_time;
         
