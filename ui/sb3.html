@@ -564,7 +564,7 @@
               <div class="counter-rate" id="session-start">--</div>
             </div>
             <div class="counter-item">
-              <div class="counter-label">Avoids</div>
+              <div class="counter-label">Avoided Frequencies</div>
               <div class="counter-value" id="avoids-count">--</div>
               <div class="counter-rate" id="avoids-target"></div>
             </div>
@@ -816,7 +816,8 @@
       const startDate = new Date(state.sessionStart);
       els.sessionStart.textContent = 'Since ' + startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       
-      els.avoidsCount.textContent = state[activeTarget].avoids.map(a => a.freq || a).join(', ') || '--';
+      const allAvoids = [...state.airband.avoids, ...state.ground.avoids];
+      els.avoidsCount.textContent = allAvoids.map(a => a.freq || a).join(', ') || '--';
       els.avoidsTarget.textContent = '';
       
       if (state.serverTime) {
