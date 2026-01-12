@@ -46,7 +46,7 @@
     /* Header */
     .header {
       display: flex;
-      justify-content: space-between;
+      justify-content: center;
       align-items: center;
       padding: 10px 16px;
       background: var(--bg-panel);
@@ -54,10 +54,21 @@
       position: sticky;
       top: 0;
       z-index: 100;
+      position: relative;
     }
 
     .header-left {
+      position: absolute;
+      left: 16px;
       display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-right {
+      position: absolute;
+      right: 16px;
+    }
       align-items: center;
       gap: 12px;
     }
@@ -105,7 +116,7 @@
     .last-hit {
       font-family: monospace;
       color: var(--accent);
-      font-size: 18px;
+      font-size: 24px;
       font-weight: 600;
     }
 
@@ -471,9 +482,9 @@
   <div class="header">
     <div class="header-left">
       <div class="logo">SB3</div>
-      <div class="last-hit" id="last-hit">--</div>
     </div>
-    <div style="display: flex; align-items: center;">
+    <div class="last-hit" id="last-hit">--</div>
+    <div class="header-right">
       <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle red theme">🔴</button>
     </div>
   </div>
