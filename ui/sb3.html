@@ -532,6 +532,7 @@
 
           <div class="btn-row">
             <button class="action" id="btn-play">Play</button>
+            <button class="action" id="btn-tune">Tune</button>
             <button class="action" id="btn-avoid">Avoid</button>
             <button class="action" id="btn-clear-avoids">Clear</button>
             <button class="action" id="btn-reconnect">Reconnect</button>
@@ -633,6 +634,7 @@
       lastHit: '',
       hits: [],
       holdFreq: null,
+      holdTarget: null,
       sessionHits: 0,
       sessionStart: Date.now(),
       applyTimeout: null,
@@ -761,6 +763,19 @@
     // UI UPDATES
     // ============================================
     
+    function getLiveFreqValue() {
+      const topHit = state.hits[0];
+      if (topHit && topHit.freq) {
+        const num = parseFloat(topHit.freq);
+        if (!isNaN(num)) return num;
+      }
+      if (state.lastHit) {
+        const num = parseFloat(state.lastHit);
+        if (!isNaN(num)) return num;
+      }
+      return null;
+    }
+
     function getLiveDisplayFreq() {
       const topHit = state.hits[0];
       if (topHit && topHit.freq) {
@@ -958,17 +973,66 @@
     // ACTIONS
     // ============================================
     
-    function toggleHold() {
+    async function toggleHold() {
+      // Release current hold
       if (state.holdFreq) {
-        state.holdFreq = null;
-        updateStatus();
+        const target = state.holdTarget || activeTarget;
+        const resetState = () => {
+          state.holdFreq = null;
+          state.holdTarget = null;
+          updateStatus();
+        };
+        resetState();
+        try {
+          await postAPI('/api/hold', { target, action: 'stop' });
+        } catch (e) {
+          console.error('Hold stop failed:', e);
+          refresh();
+        }
         return;
       }
-      const live = getLiveDisplayFreq();
-      if (live && live !== '--') {
-        state.holdFreq = live;
+
+      // Start hold on the live freq
+      const freqVal = getLiveFreqValue();
+      if (freqVal === null || isNaN(freqVal)) {
+        return;
       }
+      state.holdFreq = formatFreq(freqVal) + ' MHz';
+      state.holdTarget = activeTarget;
       updateStatus();
+      try {
+        await postAPI('/api/hold', { target: activeTarget, action: 'start', freq: freqVal });
+      } catch (e) {
+        console.error('Hold start failed:', e);
+        state.holdFreq = null;
+        state.holdTarget = null;
+        updateStatus();
+        refresh();
+      }
+    }
+
+    async function directTune() {
+      const raw = prompt('Enter frequency (MHz) to tune');
+      if (!raw) return;
+      const freq = parseFloat(raw);
+      if (!freq || isNaN(freq)) {
+        alert('Invalid frequency');
+        return;
+      }
+      try {
+        await postAPI('/api/tune', { target: activeTarget, freq });
+        state.lastHit = freq.toString();
+        state.holdFreq = null;
+        updateStatus();
+        // Refresh to pick up new config state
+        setTimeout(() => {
+          refresh();
+          refreshHits();
+        }, 1500);
+      } catch (e) {
+        console.error('Tune failed:', e);
+        alert('Tune failed');
+      }
     }
 
     async function selectProfile(id) {
@@ -1182,6 +1246,7 @@
           console.error('Clear avoids failed:', e);
         }
       });
+      document.getElementById('btn-tune').addEventListener('click', directTune);
       els.btnReconnect.addEventListener('click', function() {
         reconnectUI();
       });

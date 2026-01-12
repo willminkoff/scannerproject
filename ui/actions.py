@@ -1,26 +1,79 @@
 """Business logic for scanner actions."""
 import os
+import json
+import time
+import re
 
 try:
-    from .config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH
+    from .config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, HOLD_STATE_PATH
     from .systemd import (
         unit_active, stop_rtl, start_rtl, restart_rtl, stop_ground
     )
     from .profile_config import (
         split_profiles, guess_current_profile, set_profile, write_controls,
         write_combined_config, read_active_config_path, avoid_current_hit,
-        clear_avoids, write_filter
+        clear_avoids, write_filter, parse_freqs_labels, replace_freqs_labels
     )
 except ImportError:
-    from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH
+    from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, HOLD_STATE_PATH
     from ui.systemd import (
         unit_active, stop_rtl, start_rtl, restart_rtl, stop_ground
     )
     from ui.profile_config import (
         split_profiles, guess_current_profile, set_profile, write_controls,
         write_combined_config, read_active_config_path, avoid_current_hit,
-        clear_avoids, write_filter
+        clear_avoids, write_filter, parse_freqs_labels, replace_freqs_labels
     )
+
+
+def _load_hold_state():
+    """Load persisted hold state."""
+    try:
+        with open(HOLD_STATE_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+    except Exception:
+        return {}
+
+
+def _save_hold_state(data: dict) -> None:
+    """Persist hold state to disk."""
+    try:
+        os.makedirs(os.path.dirname(HOLD_STATE_PATH) or ".", exist_ok=True)
+    except Exception:
+        pass
+    tmp = HOLD_STATE_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f)
+    os.replace(tmp, HOLD_STATE_PATH)
+
+
+def _clear_hold_state() -> None:
+    """Clear hold state file."""
+    try:
+        os.remove(HOLD_STATE_PATH)
+    except FileNotFoundError:
+        pass
+    except Exception:
+        pass
+
+
+_FREQ_BLOCK_RE = re.compile(r'(^\s*freqs\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)
+_LABEL_BLOCK_RE = re.compile(r'(^\s*labels\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)
+
+
+def _rewrite_single_freq(text: str, freq_val: float, label: str) -> str:
+    """Rewrite all freq/label blocks to a single frequency."""
+    def replace_freq(m):
+        return f"{m.group(1)}{freq_val:.4f}{m.group(3)}"
+
+    def replace_label(m):
+        return f'{m.group(1)}"{label}"{m.group(3)}'
+
+    text = _FREQ_BLOCK_RE.sub(replace_freq, text)
+    text = _LABEL_BLOCK_RE.sub(replace_label, text)
+    return text
 
 
 def action_set_profile(profile_id: str, target: str) -> dict:
@@ -153,6 +206,139 @@ def action_avoid_clear(target: str) -> dict:
     return {"status": 200, "payload": {"ok": True}}
 
 
+def _write_text(path: str, text: str) -> None:
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(text)
+    os.replace(tmp, path)
+
+
+def action_hold_start(target: str, freq) -> dict:
+    """Action: Enter hold by replacing target config with single frequency."""
+    if target not in ("airband", "ground"):
+        return {"status": 400, "payload": {"ok": False, "error": "unknown target"}}
+    try:
+        freq_val = float(freq)
+    except (TypeError, ValueError):
+        return {"status": 400, "payload": {"ok": False, "error": "bad freq"}}
+
+    state = _load_hold_state() or {}
+    if state.get("active"):
+        return {"status": 400, "payload": {"ok": False, "error": f"already holding {state.get('freq')}"}}
+
+    conf_path = os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path()
+    try:
+        with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
+            original = f.read()
+    except FileNotFoundError:
+        return {"status": 400, "payload": {"ok": False, "error": "config not found"}}
+
+    label = f"{freq_val:.4f}"
+    try:
+        new_text = _rewrite_single_freq(original, freq_val, label)
+    except Exception as e:
+        return {"status": 400, "payload": {"ok": False, "error": f"rewrite failed: {e}"}}
+
+    try:
+        _write_text(conf_path, new_text)
+    except Exception as e:
+        return {"status": 500, "payload": {"ok": False, "error": f"write failed: {e}"}}
+
+    hold_state = {
+        "active": True,
+        "target": target,
+        "freq": f"{freq_val:.4f}",
+        "conf_path": conf_path,
+        "original_text": original,
+        "ts": time.time(),
+    }
+    try:
+        _save_hold_state(hold_state)
+    except Exception:
+        pass
+
+    try:
+        write_combined_config()
+    except Exception as e:
+        # rollback to original config if combine fails
+        try:
+            _write_text(conf_path, original)
+            _clear_hold_state()
+        except Exception:
+            pass
+        return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
+
+    restart_rtl()
+    return {"status": 200, "payload": {"ok": True, "freq": f"{freq_val:.4f}", "target": target}}
+
+
+def action_hold_stop(target: str) -> dict:
+    """Action: Exit hold and restore original config."""
+    state = _load_hold_state() or {}
+    if not state.get("active"):
+        return {"status": 200, "payload": {"ok": True, "restored": False}}
+
+    conf_path = state.get("conf_path") or (os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path())
+    original = state.get("original_text")
+    if not conf_path or original is None:
+        _clear_hold_state()
+        return {"status": 400, "payload": {"ok": False, "error": "hold state incomplete"}}
+
+    try:
+        _write_text(conf_path, original)
+    except Exception as e:
+        return {"status": 500, "payload": {"ok": False, "error": f"restore failed: {e}"}}
+
+    _clear_hold_state()
+
+    try:
+        write_combined_config()
+    except Exception as e:
+        return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
+
+    restart_rtl()
+    return {"status": 200, "payload": {"ok": True, "restored": True}}
+
+
+def action_tune(target: str, freq) -> dict:
+    """Action: Directly tune target config to a single frequency (no auto-restore)."""
+    if target not in ("airband", "ground"):
+        return {"status": 400, "payload": {"ok": False, "error": "unknown target"}}
+    state = _load_hold_state() or {}
+    if state.get("active"):
+        return {"status": 400, "payload": {"ok": False, "error": "cannot tune while hold is active"}}
+    try:
+        freq_val = float(freq)
+    except (TypeError, ValueError):
+        return {"status": 400, "payload": {"ok": False, "error": "bad freq"}}
+
+    conf_path = os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path()
+    try:
+        with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
+            original = f.read()
+    except FileNotFoundError:
+        return {"status": 400, "payload": {"ok": False, "error": "config not found"}}
+
+    label = f"{freq_val:.4f}"
+    try:
+        new_text = _rewrite_single_freq(original, freq_val, label)
+    except Exception as e:
+        return {"status": 400, "payload": {"ok": False, "error": f"rewrite failed: {e}"}}
+
+    try:
+        _write_text(conf_path, new_text)
+    except Exception as e:
+        return {"status": 500, "payload": {"ok": False, "error": f"write failed: {e}"}}
+
+    try:
+        write_combined_config()
+    except Exception as e:
+        return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
+
+    restart_rtl()
+    return {"status": 200, "payload": {"ok": True, "freq": f"{freq_val:.4f}", "target": target}}
+
+
 def execute_action(action: dict) -> dict:
     """Execute an action based on its type."""
     action_type = action.get("type")
@@ -168,4 +354,11 @@ def execute_action(action: dict) -> dict:
         return action_avoid(action.get("target"))
     if action_type == "avoid_clear":
         return action_avoid_clear(action.get("target"))
+    if action_type == "hold":
+        mode = action.get("mode") or "start"
+        if mode == "stop":
+            return action_hold_stop(action.get("target"))
+        return action_hold_start(action.get("target"), action.get("freq"))
+    if action_type == "tune":
+        return action_tune(action.get("target"), action.get("freq"))
     return {"status": 400, "payload": {"ok": False, "error": "unknown action"}}

@@ -46,6 +46,9 @@ ICECAST_MOUNT_PATH = f"/{MOUNT_NAME}"
 ICECAST_HIT_LOG_PATH = os.getenv("ICECAST_HIT_LOG_PATH", "/run/airband_ui_hitlog.jsonl")
 ICECAST_HIT_LOG_LIMIT = int(os.getenv("ICECAST_HIT_LOG_LIMIT", "200"))
 
+# Hold/lock state
+HOLD_STATE_PATH = os.getenv("HOLD_STATE_PATH", "/run/airband_ui_hold.json")
+
 # Systemd Units
 UNITS = {
     "rtl": os.getenv("UNIT_RTL", "rtl-airband"),
