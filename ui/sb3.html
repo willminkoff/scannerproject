@@ -118,6 +118,12 @@
       color: var(--accent);
       font-size: 24px;
       font-weight: 600;
+      cursor: pointer;
+      transition: color 0.15s ease;
+    }
+
+    .last-hit.holding {
+      color: var(--warn);
     }
 
     .connection-status {
@@ -626,6 +632,7 @@
       eventSource: null,
       lastHit: '',
       hits: [],
+      holdFreq: null,
       sessionHits: 0,
       sessionStart: Date.now(),
       applyTimeout: null,
@@ -754,15 +761,23 @@
     // UI UPDATES
     // ============================================
     
-    function updateStatus() {
+    function getLiveDisplayFreq() {
       const topHit = state.hits[0];
       if (topHit && topHit.freq) {
         const num = parseFloat(topHit.freq);
-        const formatted = isNaN(num) ? topHit.freq : formatFreq(num) + ' MHz';
-        els.lastHit.textContent = formatted || '--';
-        return;
+        return isNaN(num) ? (topHit.freq || '--') : formatFreq(num) + ' MHz';
       }
-      els.lastHit.textContent = state.lastHit || '--';
+      if (state.lastHit) {
+        const num = parseFloat(state.lastHit);
+        return isNaN(num) ? state.lastHit : formatFreq(num) + ' MHz';
+      }
+      return '--';
+    }
+
+    function updateStatus() {
+      const display = state.holdFreq || getLiveDisplayFreq();
+      els.lastHit.textContent = display || '--';
+      els.lastHit.classList.toggle('holding', Boolean(state.holdFreq));
     }
     
     function updateControls() {
@@ -943,6 +958,19 @@
     // ACTIONS
     // ============================================
     
+    function toggleHold() {
+      if (state.holdFreq) {
+        state.holdFreq = null;
+        updateStatus();
+        return;
+      }
+      const live = getLiveDisplayFreq();
+      if (live && live !== '--') {
+        state.holdFreq = live;
+      }
+      updateStatus();
+    }
+
     async function selectProfile(id) {
       try {
         await postAPI('/api/profile', { profile: id, target: activeTarget });
@@ -1126,6 +1154,7 @@
       els.gainSlider.addEventListener('input', onGainChange);
       els.sqlSlider.addEventListener('input', onSqlChange);
       els.filterSlider.addEventListener('input', onFilterChange);
+      els.lastHit.addEventListener('click', toggleHold);
       // Remove Open Squelch button handler, add new handlers
       document.getElementById('btn-play').addEventListener('click', function() {
         window.open(`http://${location.hostname}:8000/GND.mp3`, '_blank', 'noopener');
