@@ -810,7 +810,23 @@
       els.sessionStart.textContent = 'Since ' + startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       
       const allAvoids = [...state.airband.avoids, ...state.ground.avoids];
-      els.avoidsCount.textContent = allAvoids.map(a => a.freq || a).join(', ') || '--';
+      const freqs = allAvoids.map(a => a.freq || a);
+      let tableHtml = '--';
+      if (freqs.length > 0) {
+        tableHtml = '<table style="width:100%; font-size:10px; line-height:1.2;">';
+        for (let i = 0; i < freqs.length; i += 2) {
+          tableHtml += '<tr>';
+          tableHtml += '<td style="text-align:left;">' + freqs[i] + '</td>';
+          if (i + 1 < freqs.length) {
+            tableHtml += '<td style="text-align:left;">' + freqs[i + 1] + '</td>';
+          } else {
+            tableHtml += '<td></td>';
+          }
+          tableHtml += '</tr>';
+        }
+        tableHtml += '</table>';
+      }
+      els.avoidsCount.innerHTML = tableHtml;
       els.avoidsTarget.textContent = '';
       
       if (state.serverTime) {
