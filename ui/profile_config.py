@@ -160,7 +160,9 @@ def parse_controls(conf_path: str):
     except FileNotFoundError:
         pass
 
-    logger.debug(f"parse_controls: {conf_path} gain={gain} squelch={squelch}")
+    # Only emit verbose parse logs when explicitly enabled via env var
+    if os.environ.get("AIRBAND_DEBUG"):
+        logger.debug(f"parse_controls: {conf_path} gain={gain} squelch={squelch}")
     return gain, squelch
 
 
