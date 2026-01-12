@@ -755,6 +755,13 @@
     // ============================================
     
     function updateStatus() {
+      const topHit = state.hits[0];
+      if (topHit && topHit.freq) {
+        const num = parseFloat(topHit.freq);
+        const formatted = isNaN(num) ? topHit.freq : formatFreq(num) + ' MHz';
+        els.lastHit.textContent = formatted || '--';
+        return;
+      }
       els.lastHit.textContent = state.lastHit || '--';
     }
     
@@ -1012,6 +1019,7 @@
         state.hits = newHits;
         updateHitList();
         updateCounters();
+        updateStatus();
       } catch (e) {
         console.error('Hits refresh failed:', e);
       }
@@ -1069,6 +1077,7 @@
             state.hits = state.hits.slice(0, 50);
             updateHitList();
             updateCounters();
+            updateStatus();
           }
         } catch (err) {
           console.error('SSE hits parse error:', err);
