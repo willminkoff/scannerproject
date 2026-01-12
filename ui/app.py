@@ -20,11 +20,14 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
 def main():
     """Start the UI server."""
     import logging
-    logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
+    # Ensure existing handlers are reconfigured so DEBUG traffic is suppressed by default
+    logging.basicConfig(level=logging.INFO, force=True, format='%(levelname)s %(name)s: %(message)s')
+    # Explicitly set root logger level to INFO to be extra-safe
+    logging.getLogger().setLevel(logging.INFO)
     start_config_worker()
     start_icecast_monitor()
     server = ThreadedHTTPServer(("0.0.0.0", UI_PORT), Handler)
-    print(f"UI listening on 0.0.0.0:{UI_PORT}")
+    logging.info(f"UI listening on 0.0.0.0:{UI_PORT}")
     server.serve_forever()
 
 
