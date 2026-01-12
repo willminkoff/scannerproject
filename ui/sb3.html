@@ -344,11 +344,13 @@
       gap: 12px;
     }
 
-    .counter-item {
-      text-align: center;
-      padding: 16px;
-      background: var(--bg-panel);
-      border-radius: 6px;
+    .counter-item.avoids-item {
+      grid-column: span 2;
+    }
+
+    .counter-item.avoids-item .counter-value {
+      font-size: 12px;
+      line-height: 1.4;
     }
 
     .counter-label {
@@ -563,7 +565,7 @@
               <div class="counter-value" id="session-count">0</div>
               <div class="counter-rate" id="session-start">--</div>
             </div>
-            <div class="counter-item">
+            <div class="counter-item avoids-item">
               <div class="counter-label">Avoids</div>
               <div class="counter-value" id="avoids-count">--</div>
               <div class="counter-rate" id="avoids-target"></div>
@@ -817,7 +819,7 @@
       els.sessionStart.textContent = 'Since ' + startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       
       const allAvoids = [...state.airband.avoids, ...state.ground.avoids];
-      els.avoidsCount.textContent = allAvoids.map(a => a.freq || a).join(', ') || '--';
+      els.avoidsCount.innerHTML = allAvoids.map(a => a.freq || a).join('<br>') || '--';
       els.avoidsTarget.textContent = '';
       
       if (state.serverTime) {
