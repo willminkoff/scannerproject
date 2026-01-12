@@ -202,20 +202,6 @@
       cursor: pointer;
     }
 
-    .collapse-btn {
-      background: none;
-      border: none;
-      color: var(--text-secondary);
-      font-size: 12px;
-      cursor: pointer;
-      padding: 0;
-      margin: 0;
-    }
-
-    .collapse-btn:hover {
-      color: var(--text-primary);
-    }
-
     .widget-body {
       padding: 16px;
     }
@@ -604,7 +590,6 @@
       <div class="widget grid-full">
         <div class="widget-header">
           ✈️ ADS-B Traffic
-          <button class="collapse-btn" id="adsb-collapse" onclick="toggleAdsb()">▼</button>
         </div>
         <div class="widget-body" id="adsb-body" style="padding: 0;">
           <iframe src="https://adsb.lol" class="adsb-frame" id="adsb-frame" allow="geolocation"></iframe>
@@ -694,7 +679,7 @@
     };
     
     // ============================================
-    // ADSB TOGGLE
+    // COLLAPSIBLE WIDGETS
     // ============================================
     
     function toggleWidget(widget, collapsedState) {
@@ -723,11 +708,6 @@
           toggleWidget(widget);
         });
       });
-    }
-    
-    function toggleAdsb() {
-      const widget = document.getElementById('adsb-body')?.closest('.widget');
-      toggleWidget(widget);
     }
     
     // ============================================
