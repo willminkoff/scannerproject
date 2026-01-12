@@ -564,9 +564,9 @@
               <div class="counter-rate" id="session-start">--</div>
             </div>
             <div class="counter-item">
-              <div class="counter-label">Active Avoids</div>
+              <div class="counter-label">Avoids</div>
               <div class="counter-value" id="avoids-count">--</div>
-              <div class="counter-rate" id="avoids-target">Airband</div>
+              <div class="counter-rate" id="avoids-target"></div>
             </div>
             <div class="counter-item">
               <div class="counter-label">Pi Time</div>
@@ -816,8 +816,8 @@
       const startDate = new Date(state.sessionStart);
       els.sessionStart.textContent = 'Since ' + startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       
-      els.avoidsCount.textContent = state[activeTarget].avoids.length || '--';
-      els.avoidsTarget.textContent = activeTarget.charAt(0).toUpperCase() + activeTarget.slice(1);
+      els.avoidsCount.textContent = state[activeTarget].avoids.map(a => a.freq || a).join(', ') || '--';
+      els.avoidsTarget.textContent = '';
       
       if (state.serverTime) {
         const serverDate = new Date(state.serverTime * 1000);
@@ -1085,12 +1085,17 @@
         window.open(`http://${location.hostname}:8000/GND.mp3`, '_blank', 'noopener');
       });
       document.getElementById('btn-avoid').addEventListener('click', async function() {
+        const btn = document.getElementById('btn-avoid');
+        btn.disabled = true;
+        btn.textContent = 'Avoiding...';
         try {
           await postAPI('/api/avoid', { target: activeTarget });
           await refresh();
         } catch (e) {
           console.error('Avoid failed:', e);
         }
+        btn.disabled = false;
+        btn.textContent = 'Avoid';
       });
       document.getElementById('btn-clear-avoids').addEventListener('click', async function() {
         try {
