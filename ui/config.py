@@ -60,6 +60,7 @@ MIXER_NAME = os.getenv("MIXER_NAME", "combined")
 # Profile Definitions (id, label, path)
 PROFILES = [
     ("airband", "KBNA (Nashville)", os.path.join(PROFILES_DIR, "rtl_airband_airband.conf")),
+    ("atl", "KATL (Atlanta)", os.path.join(PROFILES_DIR, "rtl_airband_atl.conf")),
     ("nashville_centers", "Nashville Centers", os.path.join(PROFILES_DIR, "rtl_airband_nashville_centers.conf")),
     ("none_airband", "No Profile", os.path.join(PROFILES_DIR, "rtl_airband_none_airband.conf")),
     ("tower",  "TOWER (118.600)", os.path.join(PROFILES_DIR, "rtl_airband_tower.conf")),

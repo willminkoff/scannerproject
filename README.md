@@ -29,6 +29,17 @@ Scanner control UI and configuration for RTL-SDR dual-dongle airband/GMRS/WX rec
 ├── profiles/                    # rtl_airband frequency profiles
 │   ├── rtl_airband_*.conf       # Individual scanner profiles
 │   └── trunking/                # P25 talkgroup configs
+
+Profiles notes:
+- **Labeling convention:** Profiles use the ICAO airport code as the human-facing label (e.g., **KATL (Atlanta)**). The profile *id* should be short and lowercase (e.g., `"atl"`).
+- **Frequency rules:** Only VHF airband frequencies (118.0–136.0 MHz) should be placed in `freqs = (...)` blocks. Out-of-band entries (UHF/other) may be ignored by the UI or treated as invalid.
+- **Icecast mount convention:** All profiles must use the single mountpoint `GND.mp3` (do not create profile-specific mount names like `ATL_TWR.mp3`). Metadata and frequency tags are still sent with each hit.
+- **Deploying a profile:** Copy or symlink the profile into `/usr/local/etc/airband-profiles` and restart the UI service to pick up label changes:
+
+  sudo cp profiles/rtl_airband_atl.conf /usr/local/etc/airband-profiles/
+  sudo systemctl restart airband-ui.service
+
+- **Example:** `profiles/rtl_airband_atl.conf` implements **KATL (Atlanta)** and contains Tower, Approach, and Departure channels (all VHF) and uses `GND.mp3` as the single Icecast mount.
 ├── scripts/
 │   ├── build-combined-config.py # Generates combined dual-scanner config
 │   ├── rtl-airband              # Launch wrapper (preserves SIGHUP capability)
