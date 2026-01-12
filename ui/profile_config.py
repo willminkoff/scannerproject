@@ -5,6 +5,9 @@ import time
 import re
 import sys
 from typing import Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 try:
     from .config import (
@@ -157,6 +160,7 @@ def parse_controls(conf_path: str):
     except FileNotFoundError:
         pass
 
+    logger.debug(f"parse_controls: {conf_path} gain={gain} squelch={squelch}")
     return gain, squelch
 
 
@@ -167,6 +171,8 @@ def write_controls(conf_path: str, gain: float, squelch: float) -> bool:
     squelch = max(0.0, min(10.0, float(squelch)))
 
     conf_path = os.path.realpath(conf_path)
+
+    logger.info(f"write_controls: {conf_path} gain={gain} squelch={squelch}")
 
     with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
         lines = f.readlines()
@@ -191,7 +197,7 @@ def write_controls(conf_path: str, gain: float, squelch: float) -> bool:
         out.append(line)
 
     if not changed:
-
+        logger.debug("write_controls: no change")
         return False
 
     tmp = conf_path + ".tmp"
@@ -199,6 +205,7 @@ def write_controls(conf_path: str, gain: float, squelch: float) -> bool:
         f.writelines(out)
     os.replace(tmp, conf_path)
 
+    logger.info("write_controls: updated config")
     return True
 
 
