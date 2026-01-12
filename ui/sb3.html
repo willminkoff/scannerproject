@@ -455,6 +455,58 @@
       font-size: 48px;
     }
 
+    /* Dialog */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+    }
+    .modal-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      width: 260px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .modal-card h3 {
+      margin-bottom: 12px;
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+    .modal-card input {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg-panel);
+      color: var(--text-primary);
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .modal-actions button {
+      flex: 1;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg-panel);
+      color: var(--text-primary);
+      cursor: pointer;
+    }
+    .modal-actions button.confirm {
+      border-color: var(--accent);
+      color: var(--bg-dark);
+      background: var(--accent);
+    }
+
     /* Empty state */
     .empty-state {
       text-align: center;
@@ -535,7 +587,6 @@
             <button class="action" id="btn-tune">Tune</button>
             <button class="action" id="btn-avoid">Avoid</button>
             <button class="action" id="btn-clear-avoids">Clear</button>
-            <button class="action" id="btn-reconnect">Reconnect</button>
           </div>
         </div>
       </div>
@@ -684,7 +735,7 @@
       piTime: document.getElementById('pi-time'),
       tabAirband: document.getElementById('tab-airband'),
       tabGround: document.getElementById('tab-ground'),
-      btnReconnect: document.getElementById('btn-reconnect'),
+      btnReconnect: null,
     };
     
     // ============================================
@@ -1011,8 +1062,46 @@
       }
     }
 
+    function promptTuneFreq() {
+      return new Promise((resolve) => {
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop';
+        const card = document.createElement('div');
+        card.className = 'modal-card';
+        card.innerHTML = `
+          <h3>Direct Tune (MHz)</h3>
+          <input id="tune-input" type="text" inputmode="decimal" pattern="[0-9.]*" autofocus />
+          <div class="modal-actions">
+            <button class="cancel">Cancel</button>
+            <button class="confirm">Tune</button>
+          </div>
+        `;
+        backdrop.appendChild(card);
+        document.body.appendChild(backdrop);
+        const input = card.querySelector('#tune-input');
+        input.value = state.lastHit || '';
+        input.focus();
+        const cleanup = () => backdrop.remove();
+        card.querySelector('.cancel').onclick = () => { cleanup(); resolve(null); };
+        card.querySelector('.confirm').onclick = () => {
+          const v = input.value.trim();
+          cleanup();
+          resolve(v || null);
+        };
+        input.onkeydown = (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            card.querySelector('.confirm').click();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            card.querySelector('.cancel').click();
+          }
+        };
+      });
+    }
+
     async function directTune() {
-      const raw = prompt('Enter frequency (MHz) to tune');
+      const raw = await promptTuneFreq();
       if (!raw) return;
       const freq = parseFloat(raw);
       if (!freq || isNaN(freq)) {
@@ -1021,9 +1110,11 @@
       }
       try {
         await postAPI('/api/tune', { target: activeTarget, freq });
-        state.lastHit = freq.toString();
+        state.hits = [];
+        state.lastHit = freq.toFixed(3);
         state.holdFreq = null;
         updateStatus();
+        updateHitList();
         // Refresh to pick up new config state
         setTimeout(() => {
           refresh();
@@ -1247,9 +1338,7 @@
         }
       });
       document.getElementById('btn-tune').addEventListener('click', directTune);
-      els.btnReconnect.addEventListener('click', function() {
-        reconnectUI();
-      });
+      // Reconnect button removed
       
       refresh();
       refreshHits();
