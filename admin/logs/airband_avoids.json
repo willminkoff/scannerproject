@@ -1,0 +1,141 @@
+{
+  "profiles": {
+    "/home/willminkoff/scannerproject/profiles/rtl_airband_airband.conf": {
+      "avoids": [
+        135.1
+      ],
+      "original_freqs": [
+        118.4,
+        118.6,
+        119.35,
+        119.45,
+        121.9,
+        124.75,
+        126.05,
+        127.175,
+        128.825,
+        129.95,
+        130.125,
+        130.725,
+        131.375,
+        131.45,
+        135.1
+      ],
+      "original_labels": [
+        "BNA Dep East",
+        "BNA Tower",
+        "BNA Dep West",
+        "BNA App 127.175",
+        "BNA Gnd Ctrl",
+        "BNA Final",
+        "BNA Clnc Del",
+        "BNA App 127.175",
+        "United Ops",
+        "Ramp 129.95",
+        "SWA Ops",
+        "Frontier Ops",
+        "Ramp 131.37",
+        "Delta Ops",
+        "BNA ATIS"
+      ]
+    },
+    "/usr/local/etc/airband-profiles/rtl_airband_airband.conf": {
+      "avoids": [
+        135.1
+      ],
+      "original_freqs": [
+        118.4,
+        118.6,
+        119.35,
+        119.45,
+        121.9,
+        124.75,
+        126.05,
+        127.175,
+        128.825,
+        129.95,
+        130.125,
+        130.725,
+        131.375,
+        131.45,
+        135.1
+      ],
+      "original_labels": [
+        "BNA Dep East",
+        "BNA Tower",
+        "BNA Dep West",
+        "BNA App 127.175",
+        "BNA Gnd Ctrl",
+        "BNA Final",
+        "BNA Clnc Del",
+        "BNA App 127.175",
+        "United Ops",
+        "Ramp 129.95",
+        "SWA Ops",
+        "Frontier Ops",
+        "Ramp 131.37",
+        "Delta Ops",
+        "BNA ATIS"
+      ]
+    },
+    "/usr/local/etc/airband-profiles/rtl_airband_nashville_centers.conf": {
+      "avoids": [
+        135.1
+      ],
+      "original_freqs": [
+        118.4,
+        118.6,
+        118.875,
+        119.35,
+        119.45,
+        121.9,
+        124.125,
+        124.35,
+        124.75,
+        126.05,
+        126.45,
+        127.175,
+        127.975,
+        128.15,
+        128.825,
+        129.95,
+        130.125,
+        130.725,
+        131.375,
+        131.45,
+        132.9,
+        133.85,
+        134.65,
+        135.1,
+        135.5
+      ],
+      "original_labels": [
+        "BNA Dep East",
+        "BNA Tower",
+        "Smyrna Sector 62",
+        "BNA Dep West",
+        "BNA App 127.175",
+        "BNA Gnd Ctrl",
+        "Clarksville Sector 61",
+        "Jackson Holly Springs",
+        "BNA Final",
+        "BNA Clnc Del",
+        "Jackson Jacks Creek",
+        "BNA App 127.175",
+        "Troy Elvis Sector 33",
+        "Shelbyville Sector 60",
+        "United Ops",
+        "Ramp 129.95",
+        "SWA Ops",
+        "Frontier Ops",
+        "Ramp 131.37",
+        "Delta Ops",
+        "Nashville Low Sector 40",
+        "Bowling Green Low Sector 41",
+        "Jackson McKellar",
+        "BNA ATIS",
+        "Troy TNGS Sector 25"
+      ]
+    }
+  }
+}
