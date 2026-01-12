@@ -68,7 +68,7 @@
     .header-right {
       position: absolute;
       right: 16px;
-    }
+      display: flex;
       align-items: center;
       gap: 12px;
     }
@@ -536,6 +536,7 @@
             <button class="action" id="btn-play">Play</button>
             <button class="action" id="btn-avoid">Avoid</button>
             <button class="action" id="btn-clear-avoids">Clear</button>
+            <button class="action" id="btn-reconnect">Reconnect</button>
           </div>
         </div>
       </div>
@@ -631,6 +632,7 @@
       sdr1Active: false,
       sdr2Active: false,
       icecastActive: false,
+      eventSource: null,
       lastHit: '',
       hits: [],
       sessionHits: 0,
@@ -682,6 +684,7 @@
       piTime: document.getElementById('pi-time'),
       tabAirband: document.getElementById('tab-airband'),
       tabGround: document.getElementById('tab-ground'),
+      btnReconnect: document.getElementById('btn-reconnect'),
     };
     
     // ============================================
@@ -935,15 +938,14 @@
       }
     }
     
-    async function restartScanner() {
-      els.btnRestart.disabled = true;
-      try {
-        await postAPI('/api/restart', { target: activeTarget });
-        await refresh();
-      } catch (e) {
-        console.error('Restart failed:', e);
+    function reconnectUI() {
+      if (state.eventSource) {
+        state.eventSource.close();
+        state.eventSource = null;
       }
-      els.btnRestart.disabled = false;
+      connectSSE();
+      refresh();
+      refreshHits();
     }
     
     // ============================================
@@ -1013,7 +1015,11 @@
     // ============================================
     
     function connectSSE() {
+      if (state.eventSource) {
+        state.eventSource.close();
+      }
       const es = new EventSource('/api/stream');
+      state.eventSource = es;
       
       es.addEventListener('status', (e) => {
         try {
@@ -1066,6 +1072,7 @@
         state.connected = false;
         updateStatus();
         es.close();
+        state.eventSource = null;
         setTimeout(connectSSE, 3000);
       };
       
@@ -1128,6 +1135,9 @@
         } catch (e) {
           console.error('Clear avoids failed:', e);
         }
+      });
+      els.btnReconnect.addEventListener('click', function() {
+        reconnectUI();
       });
       
       refresh();

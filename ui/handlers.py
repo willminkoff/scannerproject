@@ -73,20 +73,21 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, HTML_TEMPLATE)
         
         # Serve SB3 UI
-        if p == "/sb3" or p == "/sb3.html" or p == "/mockup_sb3.html":
+        if p == "/sb3" or p == "/sb3.html":
             ui_dir = os.path.dirname(os.path.abspath(__file__))
             mockup_path = os.path.join(ui_dir, "sb3.html")
             try:
                 with open(mockup_path, "r", encoding="utf-8") as f:
                     return self._send(200, f.read())
             except FileNotFoundError:
-                return self._send(404, "SB3 mockup not found", "text/plain; charset=utf-8")
+                return self._send(404, "SB3 UI not found", "text/plain; charset=utf-8")
         
         # Serve static files
         if p.startswith("/static/"):
             ui_dir = os.path.dirname(os.path.abspath(__file__))
-            file_path = os.path.normpath(os.path.join(ui_dir, p[1:]))
-            if not file_path.startswith(os.path.join(ui_dir, "static")):
+            static_dir = os.path.realpath(os.path.join(ui_dir, "static"))
+            file_path = os.path.realpath(os.path.join(ui_dir, p.lstrip("/")))
+            if not (file_path == static_dir or file_path.startswith(static_dir + os.sep)):
                 return self._send(403, "Forbidden", "text/plain; charset=utf-8")
             try:
                 with open(file_path, "rb") as f:
