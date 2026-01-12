@@ -299,8 +299,6 @@ class Handler(BaseHTTPRequestHandler):
 
         if p == "/api/apply":
             print(f"[DEBUG] /api/apply called", file=sys.stderr, flush=True)
-            print(f"[DEBUG] Config path: {conf_path}", file=sys.stderr, flush=True)
-            print(f"[DEBUG] Detected device blocks: {num_devices}", file=sys.stderr, flush=True)
             target = form.get("target", "airband")
             if target not in ("airband", "ground"):
                 return self._send(400, json.dumps({"ok": False, "error": "unknown target"}), "application/json; charset=utf-8")
