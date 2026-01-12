@@ -12,27 +12,11 @@
       <div id="view-main">
         <h1>SprontPi Radio Control</h1>
 
-        <div class="row center">
-          <button class="pill hit-pill" id="btn-hit-airband" type="button">
-            <div class="dot good"></div>
-            <div>
-              <div class="label">Airband Hits</div>
-              <div class="val" id="txt-hit-airband">…</div>
-            </div>
-          </button>
-          <button class="pill hit-pill" id="btn-hit-ground" type="button">
-            <div class="dot good"></div>
-            <div>
-              <div class="label">Ground Hits</div>
-              <div class="val" id="txt-hit-ground">…</div>
-            </div>
-          </button>
-        </div>
-
         <div class="btns center" style="margin-top:14px;">
-          <button class="primary" id="btn-play">Play</button>
-          <button id="btn-avoid">Avoid <span id="avoid-target-label"></span></button>
-          <button id="btn-clear-avoids">Clear <span id="clear-target-label"></span></button>
+          <button class="primary">Play</button>
+          <button>Avoid</button>
+          <button>Clear</button>
+          <button>Open Squelch</button>
         </div>
 
         <div class="tabs">
@@ -66,10 +50,7 @@
                   <div class="ctrl-readout"><span>Selected: <span id="selected-filter-airband">…</span> Hz</span><span>Low-pass filter cutoff</span></div>
                 </div>
               </div>
-              <div class="btns">
-                <button type="button" id="btn-restart-airband">Restart Airband</button>
-                <button type="button" id="btn-open-sql-airband">Open Squelch (2s)</button>
-              </div>
+              <!-- Removed extra Airband control buttons -->
             </section>
 
             <section class="page">
@@ -94,10 +75,7 @@
                   <div class="ctrl-readout"><span>Selected: <span id="selected-filter-ground">…</span> Hz</span><span>Low-pass filter cutoff</span></div>
                 </div>
               </div>
-              <div class="btns">
-                <button type="button" id="btn-restart-ground">Restart Ground</button>
-                <button type="button" id="btn-open-sql-ground">Open Squelch (2s)</button>
-              </div>
+              <!-- Removed extra Ground control buttons -->
               <div class="foot">Both scanners feed the same Icecast stream.</div>
             </section>
           </div>

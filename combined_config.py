@@ -154,6 +154,39 @@ def build_combined_config(airband_path: str, ground_path: str, mixer_name: str) 
             top_lines.append(line)
 
     device_payloads = []
+    # Detect if WX profile is selected for ground
+    wx_selected = False
+    wx_freq = None
+    wx_modulation = None
+    wx_bandwidth = None
+    wx_squelch = None
+    wx_gain = None
+    wx_output = None
+    # Parse ground profile for WX
+    if "freqs = (162.5500)" in ground_text:
+        wx_selected = True
+        # Extract WX channel block
+        match = re.search(r"channels:\s*\(\s*\{([^}]*)\}\s*\)\s*;", ground_text, re.S)
+        if match:
+            ch_block = match.group(1)
+            freq_match = re.search(r"freqs\s*=\s*\(([^)]*)\)", ch_block)
+            if freq_match:
+                wx_freq = freq_match.group(1).strip()
+            mod_match = re.search(r'modulation\s*=\s*"([^"]+)"', ch_block)
+            if mod_match:
+                wx_modulation = mod_match.group(1)
+            bw_match = re.search(r"bandwidth\s*=\s*(\d+)", ch_block)
+            if bw_match:
+                wx_bandwidth = bw_match.group(1)
+            squelch_match = re.search(r"squelch_snr_threshold\s*=\s*([\d.]+)", ch_block)
+            if squelch_match:
+                wx_squelch = squelch_match.group(1)
+            gain_match = re.search(r"gain\s*=\s*([\d.]+)", ground_text)
+            if gain_match:
+                wx_gain = gain_match.group(1)
+            output_match = re.search(r"outputs:\s*\(([^)]*)\)", ch_block, re.S)
+            if output_match:
+                wx_output = output_match.group(1)
     payloads = [
         (airband_text, 1, airband_disabled, "00000001"),
         (ground_text, 0, ground_disabled, "70613472"),
@@ -162,6 +195,21 @@ def build_combined_config(airband_path: str, ground_path: str, mixer_name: str) 
         if disabled:
             continue
         payload = extract_devices_payload(text)
+        # If WX profile is selected, merge WX channel into ground SDR
+        if wx_selected and desired_index == 0 and payload:
+            # Find channels block and add WX channel
+            # Find insertion point after 'channels:('
+            lines = payload.splitlines()
+            new_lines = []
+            inserted = False
+            for line in lines:
+                new_lines.append(line)
+                if not inserted and "channels:" in line:
+                    new_lines.append("      (")
+                    # Insert WX channel
+                    new_lines.append(f"        {{\n          freqs = ({wx_freq});\n          labels = (\"162.550 WX\");\n          modulation = \"{wx_modulation}\";\n          bandwidth = {wx_bandwidth};\n          squelch_snr_threshold = {wx_squelch};\n          squelch_delay = 0.8;\n          outputs: (\n{wx_output}\n          );\n        }}")
+                    inserted = True
+            payload = "\n".join(new_lines)
         if payload:
             payload = enforce_device_index(payload, desired_index)
             payload = enforce_device_serial(payload, serial)
@@ -182,7 +230,6 @@ def build_combined_config(airband_path: str, ground_path: str, mixer_name: str) 
             "  genre = \"Mixed\";\n"
             "  bitrate = 16;\n"
             "  send_scan_freq_tags = true;\n"
-            "}"
         )
     else:
         # Override bitrate for low-latency streaming

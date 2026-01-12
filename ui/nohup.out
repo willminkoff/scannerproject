@@ -1,0 +1,13 @@
+::1 - - [11/Jan/2026 15:10:08] code 404, message File not found
+::1 - - [11/Jan/2026 15:10:08] "GET /api/status HTTP/1.1" 404 -
+Traceback (most recent call last):
+  File "/Users/willminkoff/Library/Mobile Documents/com~apple~CloudDocs/Documents/scannerproject/ui/app.py", line 6, in <module>
+    from .config import UI_PORT
+ImportError: attempted relative import with no known parent package
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/willminkoff/Library/Mobile Documents/com~apple~CloudDocs/Documents/scannerproject/ui/app.py", line 10, in <module>
+    from ui.config import UI_PORT
+ModuleNotFoundError: No module named 'ui'

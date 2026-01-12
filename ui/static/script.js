@@ -220,6 +220,18 @@ async function refresh(allowSetSliders=false) {
   document.getElementById('txt-hit-airband').textContent = airbandHit;
   document.getElementById('txt-hit-ground').textContent = groundHit;
 
+  // LED indicator logic for SDR2 (ground)
+  const dotGround = document.getElementById('dot-ground');
+  if (dotGround) {
+    if (st.ground_active) {
+      dotGround.classList.remove('bad', 'neutral', 'good');
+      dotGround.classList.add('pulse');
+    } else {
+      dotGround.classList.remove('pulse', 'good');
+      dotGround.classList.add('bad');
+    }
+  }
+
   setControlsFromStatus('airband', st.airband_gain, st.airband_squelch, st.airband_filter || 3500, allowSetSliders);
   setControlsFromStatus('ground', st.ground_gain, st.ground_squelch, st.ground_filter || 3500, allowSetSliders);
 
