@@ -156,6 +156,7 @@ def parse_controls(conf_path: str):
                     squelch = max(0.0, float(m.group(2)))
     except FileNotFoundError:
         pass
+    print(f"[DEBUG] parse_controls: {conf_path} gain={gain} squelch={squelch}", file=sys.stderr, flush=True)
     return gain, squelch
 
 
@@ -166,6 +167,7 @@ def write_controls(conf_path: str, gain: float, squelch: float) -> bool:
     squelch = max(0.0, min(10.0, float(squelch)))
 
     conf_path = os.path.realpath(conf_path)
+    print(f"[DEBUG] write_controls: {conf_path} gain={gain} squelch={squelch}", file=sys.stderr, flush=True)
     with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
         lines = f.readlines()
 
@@ -189,12 +191,14 @@ def write_controls(conf_path: str, gain: float, squelch: float) -> bool:
         out.append(line)
 
     if not changed:
+        print(f"[DEBUG] write_controls: no change", file=sys.stderr, flush=True)
         return False
 
     tmp = conf_path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         f.writelines(out)
     os.replace(tmp, conf_path)
+    print(f"[DEBUG] write_controls: updated config", file=sys.stderr, flush=True)
     return True
 
 

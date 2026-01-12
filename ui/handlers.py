@@ -298,6 +298,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
 
         if p == "/api/apply":
+            print(f"[DEBUG] /api/apply called", file=sys.stderr, flush=True)
             print(f"[DEBUG] Config path: {conf_path}", file=sys.stderr, flush=True)
             print(f"[DEBUG] Detected device blocks: {num_devices}", file=sys.stderr, flush=True)
             target = form.get("target", "airband")
@@ -306,11 +307,22 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 gain = float(form.get("gain", "32.8"))
                 squelch = float(form.get("squelch", "10.0"))
+                print(f"[DEBUG] Received gain from frontend: {gain}", file=sys.stderr, flush=True)
+                print(f"[DEBUG] Received squelch from frontend: {squelch}", file=sys.stderr, flush=True)
             except ValueError:
                 from systemd import start_rtl
                 start_rtl()
                 return self._send(400, json.dumps({"ok": False, "error": "bad values"}), "application/json; charset=utf-8")
             result = enqueue_apply(target, gain, squelch)
+            # Log what was actually written to the config
+            from .profile_config import parse_controls
+            if target == "ground":
+                conf_path = GROUND_CONFIG_PATH
+            else:
+                conf_path = read_active_config_path()
+            written_gain, written_squelch = parse_controls(conf_path)
+            print(f"[DEBUG] Written gain in config: {written_gain}", file=sys.stderr, flush=True)
+            print(f"[DEBUG] Written squelch in config: {written_squelch}", file=sys.stderr, flush=True)
             return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
 
         if p == "/api/filter":

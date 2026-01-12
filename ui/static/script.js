@@ -309,7 +309,9 @@ async function applyControls(target) {
   if (controls.applyInFlight) return;
   controls.applyInFlight = true;
   try {
-    const gain = GAIN_STEPS[Number(controls.gainEl.value || 0)];
+    // Snap gain to nearest valid step before sending
+    let gainIdx = Number(controls.gainEl.value || 0);
+    let gain = GAIN_STEPS[gainIdx];
     const squelch = Number(controls.sqlEl.value || 0) * SQL_SCALE;
     const gainSame = controls.lastAppliedGain !== null && Math.abs(gain - controls.lastAppliedGain) < 0.001;
     const sqlSame = controls.lastAppliedSql !== null && Math.abs(squelch - controls.lastAppliedSql) < 0.001;
@@ -317,11 +319,17 @@ async function applyControls(target) {
       controls.dirty = false;
       return;
     }
-    await post('/api/apply', {gain, squelch, target});
-    controls.dirty = false;
-    controls.lastAppliedGain = gain;
-    controls.lastAppliedSql = squelch;
-    await refresh(true);
+    const result = await post('/api/apply', {gain, squelch, target});
+    if (result && result.ok !== false) {
+      // After apply, snap slider to the actual step index (in case backend rounded)
+      // Use refresh(true) to update slider to backend value
+      controls.dirty = false;
+      await refresh(true);
+    } else {
+      // On error, revert to backend value
+      controls.dirty = false;
+      await refresh(true);
+    }
   } finally {
     controls.applyInFlight = false;
   }
