@@ -914,8 +914,10 @@
       const groundTuned = state.tuned && state.tunedTarget === 'ground';
       els.lastHitAirband.classList.toggle('holding', airbandHolding);
       els.lastHitGround.classList.toggle('holding', groundHolding);
-      els.lastHitAirband.classList.toggle('scanning', state.sdr1Active && !airbandHolding && !airbandTuned);
-      els.lastHitGround.classList.toggle('scanning', state.sdr2Active && !groundHolding && !groundTuned);
+      const airbandScanning = state.connected && state.sdr1Active && !airbandHolding && !airbandTuned;
+      const groundScanning = state.connected && state.sdr2Active && !groundHolding && !groundTuned;
+      els.lastHitAirband.classList.toggle('scanning', airbandScanning);
+      els.lastHitGround.classList.toggle('scanning', groundScanning);
     }
 
     function getDisplayForTarget(target) {
