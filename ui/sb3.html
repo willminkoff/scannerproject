@@ -917,8 +917,8 @@
       els.lastHitAirband.classList.toggle('holding', airbandHolding);
       els.lastHitGround.classList.toggle('holding', groundHolding);
       const activeTarget = getActiveHitTarget();
-      const airbandActive = activeTarget === 'airband';
-      const groundActive = activeTarget === 'ground';
+      const airbandActive = activeTarget === 'airband' || (!activeTarget && Boolean(state.lastHitAirband));
+      const groundActive = activeTarget === 'ground' || (!activeTarget && Boolean(state.lastHitGround));
       const airbandScanning = state.connected && state.sdr1Active && !airbandHolding && !airbandTuned && !airbandActive;
       const groundScanning = state.connected && state.sdr1Active && state.groundExists && !groundHolding && !groundTuned && !groundActive;
       els.lastHitAirband.classList.toggle('scanning', airbandScanning);
