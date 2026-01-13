@@ -965,6 +965,13 @@
       return null;
     }
 
+    function resetHitActivity() {
+      state.activeHitTarget = null;
+      state.activeHitTs = 0;
+      state.topHitFreq = '';
+      state.topHitDuration = 0;
+    }
+
     function getDisplayForTarget(target) {
       if (state.holdTarget === target && state.holdFreq) {
         return state.holdFreq;
@@ -1090,6 +1097,7 @@
       els.gainSlider.classList.remove('dirty');
       els.sqlSlider.classList.remove('dirty');
       els.filterSlider.classList.remove('dirty');
+      resetHitActivity();
       updateControls();
       updateProfiles();
     }
@@ -1258,6 +1266,7 @@
       state.tunedTarget = null;
       state.holdFreq = null;
       state.holdTarget = null;
+      resetHitActivity();
       updateStatus();
       updateTuneButton();
       setTimeout(() => {
@@ -1336,6 +1345,7 @@
       state.holdFreq = null;
       state.holdTarget = null;
       state.lastProfile[activeTarget] = id;
+      resetHitActivity();
       await refresh();
       updateTuneButton();
       } catch (e) {
