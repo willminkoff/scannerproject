@@ -427,11 +427,18 @@
       font-size: 12px;
       font-weight: 500;
       transition: all 0.15s;
+      -webkit-tap-highlight-color: transparent;
     }
 
     button.action:hover { border-color: var(--accent); }
     button.action:disabled { opacity: 0.5; cursor: not-allowed; }
-    button.action:focus { outline: none; border-color: var(--border); }
+    button.action:focus,
+    button.action:focus-visible,
+    button.action:active {
+      outline: none;
+      border-color: var(--border);
+      box-shadow: none;
+    }
 
     /* ADS-B */
     .adsb-frame {
