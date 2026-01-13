@@ -731,6 +731,7 @@
       lastProfile: { airband: '', ground: '' },
       tuned: false,
       tunedFreq: null,
+      tunedTarget: null,
       sessionHits: 0,
       sessionStart: Date.now(),
       applyTimeout: null,
@@ -1178,7 +1179,8 @@
       }
       state.tuned = false;
       state.tunedFreq = null;
-      state.hold = { airband: null, ground: null };
+      state.tunedTarget = null;
+      state.hold[activeTarget] = null;
       updateStatus();
       updateTuneButton();
       setTimeout(() => {
@@ -1224,9 +1226,10 @@
         } else {
           state.lastHitGround = state.lastHit;
         }
-        state.hold = { airband: null, ground: null };
+        state.hold[activeTarget] = null;
         state.tuned = true;
         state.tunedFreq = freq.toFixed(3);
+        state.tunedTarget = activeTarget;
         state.lastProfile[activeTarget] = state[activeTarget].currentProfile;
         updateStatus();
         updateHitList();
@@ -1251,7 +1254,8 @@
         await postAPI('/api/profile', { profile: id, target: activeTarget });
       state.tuned = false;
       state.tunedFreq = null;
-      state.hold = { airband: null, ground: null };
+      state.tunedTarget = null;
+      state.hold[activeTarget] = null;
       state.lastProfile[activeTarget] = id;
       await refresh();
       updateTuneButton();
