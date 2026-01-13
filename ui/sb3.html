@@ -688,6 +688,8 @@
       hits: [],
       holdFreq: null,
       holdTarget: null,
+      lastProfile: { airband: '', ground: '' },
+      tuned: false,
       sessionHits: 0,
       sessionStart: Date.now(),
       applyTimeout: null,
@@ -890,7 +892,7 @@
         .filter(p => !p.id.startsWith('none_'))
         .map(p => `
           <button class="profile-btn ${p.id === t.currentProfile ? 'active' : ''}" 
-                  onclick="selectProfile('${p.id}')">
+                  onclick="selectProfile('${p.id}', true)">
             <div class="label">${p.label}</div>
             <div class="meta">${p.exists ? '' : 'Missing'}</div>
           </button>
@@ -1114,6 +1116,31 @@
       });
     }
 
+    function updateTuneButton() {
+      const btn = document.getElementById('btn-tune');
+      const hasProfile = Boolean(state.lastProfile[activeTarget]);
+      if (state.tuned && hasProfile) {
+        btn.textContent = 'Scan';
+        btn.title = 'Return to previous profile';
+      } else {
+        btn.textContent = 'Tune';
+        btn.title = 'Direct tune';
+      }
+    }
+
+    function onTuneButtonClick() {
+      if (state.tuned && state.lastProfile[activeTarget]) {
+        selectProfile(state.lastProfile[activeTarget], true);
+        state.tuned = false;
+        state.holdFreq = null;
+        state.holdTarget = null;
+        updateStatus();
+        updateTuneButton();
+        return;
+      }
+      directTune();
+    }
+
     async function directTune() {
       const raw = await promptTuneFreq();
       if (!raw) return;
@@ -1127,8 +1154,11 @@
         state.hits = [];
         state.lastHit = freq.toFixed(3);
         state.holdFreq = null;
+        state.tuned = true;
+        state.lastProfile[activeTarget] = state[activeTarget].currentProfile;
         updateStatus();
         updateHitList();
+        updateTuneButton();
         // Refresh to pick up new config state
         setTimeout(() => {
           refresh();
@@ -1140,10 +1170,19 @@
       }
     }
 
-    async function selectProfile(id) {
+    async function selectProfile(id, force = false) {
       try {
+        const t = state[activeTarget];
+        if (!force && t.currentProfile === id) {
+          return;
+        }
         await postAPI('/api/profile', { profile: id, target: activeTarget });
+        state.tuned = false;
+        state.holdFreq = null;
+        state.holdTarget = null;
+        state.lastProfile[activeTarget] = id;
         await refresh();
+        updateTuneButton();
       } catch (e) {
         console.error('Profile switch failed:', e);
       }
@@ -1173,6 +1212,12 @@
         state.lastHit = data.last_hit || data.last_hit_airband || data.last_hit_ground || '';
         state.lastHitAirband = data.last_hit_airband || '';
         state.lastHitGround = data.last_hit_ground || '';
+        if (!state.lastProfile.airband && data.profile_airband) {
+          state.lastProfile.airband = data.profile_airband;
+        }
+        if (!state.lastProfile.ground && data.profile_ground) {
+          state.lastProfile.ground = data.profile_ground;
+        }
         
         state.airband.gain = data.airband_gain || data.gain || 32.8;
         state.airband.squelch = data.airband_squelch || data.squelch || 0.5;
@@ -1196,6 +1241,7 @@
         updateControls();
         updateProfiles();
         updateCounters();
+        updateTuneButton();
       } catch (e) {
         state.connected = false;
         updateStatus();
@@ -1321,6 +1367,7 @@
     function init() {
       loadTheme();
       setupCollapsibleWidgets();
+      updateTuneButton();
       
       els.gainSlider.addEventListener('input', onGainChange);
       els.sqlSlider.addEventListener('input', onSqlChange);
@@ -1353,7 +1400,7 @@
           console.error('Clear avoids failed:', e);
         }
       });
-      document.getElementById('btn-tune').addEventListener('click', directTune);
+      document.getElementById('btn-tune').addEventListener('click', onTuneButtonClick);
       // Reconnect button removed
       
       refresh();
