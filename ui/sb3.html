@@ -683,6 +683,8 @@
       icecastActive: false,
       eventSource: null,
       lastHit: '',
+      lastHitAirband: '',
+      lastHitGround: '',
       hits: [],
       holdFreq: null,
       holdTarget: null,
@@ -815,9 +817,21 @@
     // ============================================
     
     function getLiveFreqValue() {
-      const topHit = state.hits[0];
-      if (topHit && topHit.freq) {
-        const num = parseFloat(topHit.freq);
+      const isAirband = activeTarget === 'airband';
+      const inAirband = (f) => f >= 118 && f <= 136;
+
+      for (let i = 0; i < state.hits.length; i++) {
+        const hit = state.hits[i];
+        if (!hit || !hit.freq) continue;
+        const num = parseFloat(hit.freq);
+        if (isNaN(num)) continue;
+        if (isAirband && inAirband(num)) return num;
+        if (!isAirband && !inAirband(num)) return num;
+      }
+
+      const fallback = isAirband ? state.lastHitAirband : state.lastHitGround;
+      if (fallback) {
+        const num = parseFloat(fallback);
         if (!isNaN(num)) return num;
       }
       if (state.lastHit) {
@@ -1157,6 +1171,8 @@
         state.sdr2Active = data.ground_active;
         state.icecastActive = data.icecast_active;
         state.lastHit = data.last_hit || data.last_hit_airband || data.last_hit_ground || '';
+        state.lastHitAirband = data.last_hit_airband || '';
+        state.lastHitGround = data.last_hit_ground || '';
         
         state.airband.gain = data.airband_gain || data.gain || 32.8;
         state.airband.squelch = data.airband_squelch || data.squelch || 0.5;
