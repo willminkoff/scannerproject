@@ -261,6 +261,8 @@ class Handler(BaseHTTPRequestHandler):
                     "gain": float(airband_gain),
                     "squelch": float(airband_squelch),
                     "last_hit": last_hit,
+                    "last_hit_airband": last_hit_airband,
+                    "last_hit_ground": last_hit_ground,
                     "server_time": time.time(),
                 }
                 self.wfile.write(f"event: status\ndata: {json.dumps(status_data)}\n\n".encode())

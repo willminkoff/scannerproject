@@ -924,8 +924,11 @@
       els.lastHitAirband.classList.toggle('holding', airbandHolding);
       els.lastHitGround.classList.toggle('holding', groundHolding);
       const activeTarget = getActiveHitTarget();
-      const airbandActive = activeTarget === 'airband';
-      const groundActive = activeTarget === 'ground';
+      const now = Date.now();
+      const airbandRecent = state.lastHitAirbandTs && (now - state.lastHitAirbandTs) < 6000;
+      const groundRecent = state.lastHitGroundTs && (now - state.lastHitGroundTs) < 6000;
+      const airbandActive = activeTarget === 'airband' || airbandRecent;
+      const groundActive = activeTarget === 'ground' || groundRecent;
       const airbandScanning = state.connected && state.sdr1Active && !airbandHolding && !airbandTuned && !airbandActive;
       const groundScanning = state.connected && state.sdr1Active && state.groundExists && !groundHolding && !groundTuned && !groundActive;
       els.lastHitAirband.classList.toggle('scanning', airbandScanning);
@@ -1381,10 +1384,10 @@
         state.liveHit = data.last_hit || '';
         state.groundExists = data.ground_exists || Boolean(data.last_hit_ground);
         state.lastHit = data.last_hit || data.last_hit_airband || data.last_hit_ground || '';
-        if (data.last_hit_airband && data.last_hit_airband !== state.lastHitAirband) {
+        if (data.last_hit_airband) {
           state.lastHitAirbandTs = Date.now();
         }
-        if (data.last_hit_ground && data.last_hit_ground !== state.lastHitGround) {
+        if (data.last_hit_ground) {
           state.lastHitGroundTs = Date.now();
         }
         state.lastHitAirband = data.last_hit_airband || '';
@@ -1466,6 +1469,14 @@
           state.sdr2Active = data.ground_active;
           state.icecastActive = data.icecast_active;
           state.liveHit = data.last_hit || '';
+          if (data.last_hit_airband) {
+            state.lastHitAirband = data.last_hit_airband;
+            state.lastHitAirbandTs = Date.now();
+          }
+          if (data.last_hit_ground) {
+            state.lastHitGround = data.last_hit_ground;
+            state.lastHitGroundTs = Date.now();
+          }
           state.lastHit = data.last_hit || state.lastHit;
           state.serverTime = data.server_time;
           state.connected = true;
