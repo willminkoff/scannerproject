@@ -738,6 +738,8 @@
       liveHit: '',
       activeHitTarget: null,
       activeHitTs: 0,
+      topHitFreq: '',
+      topHitDuration: 0,
       lastHitAirbandTs: 0,
       lastHitGroundTs: 0,
       groundExists: false,
@@ -933,10 +935,20 @@
       if (!items || !items.length) return;
       const top = items[0];
       if (!top || !top.freq) return;
-      const num = parseFloat(top.freq);
+      const freq = String(top.freq);
+      const num = parseFloat(freq);
       if (isNaN(num)) return;
-      state.activeHitTarget = num >= 118 && num <= 136 ? 'airband' : 'ground';
-      state.activeHitTs = Date.now();
+      const duration = Number(top.duration || 0);
+      const isNewFreq = freq !== state.topHitFreq;
+      const durationIncreased = !isNewFreq && Number.isFinite(duration) && duration > state.topHitDuration;
+      if (isNewFreq || durationIncreased) {
+        state.activeHitTarget = num >= 118 && num <= 136 ? 'airband' : 'ground';
+        state.activeHitTs = Date.now();
+      }
+      state.topHitFreq = freq;
+      if (Number.isFinite(duration)) {
+        state.topHitDuration = duration;
+      }
     }
 
     function getActiveHitTarget() {
@@ -947,7 +959,7 @@
           return num >= 118 && num <= 136 ? 'airband' : 'ground';
         }
       }
-      if (state.activeHitTarget && (Date.now() - state.activeHitTs) < 2500) {
+      if (state.activeHitTarget && (Date.now() - state.activeHitTs) < 3000) {
         return state.activeHitTarget;
       }
       return null;
