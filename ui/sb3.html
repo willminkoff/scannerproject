@@ -736,6 +736,8 @@
       lastHitAirband: '',
       lastHitGround: '',
       liveHit: '',
+      lastHitAirbandTs: 0,
+      lastHitGroundTs: 0,
       groundExists: false,
       hits: [],
       holdFreq: null,
@@ -917,12 +919,18 @@
       els.lastHitAirband.classList.toggle('holding', airbandHolding);
       els.lastHitGround.classList.toggle('holding', groundHolding);
       const activeTarget = getActiveHitTarget();
-      const airbandActive = activeTarget === 'airband' || (!activeTarget && Boolean(state.lastHitAirband));
-      const groundActive = activeTarget === 'ground' || (!activeTarget && Boolean(state.lastHitGround));
+      const airbandActive = activeTarget === 'airband' || hasRecentHit('airband');
+      const groundActive = activeTarget === 'ground' || hasRecentHit('ground');
       const airbandScanning = state.connected && state.sdr1Active && !airbandHolding && !airbandTuned && !airbandActive;
       const groundScanning = state.connected && state.sdr1Active && state.groundExists && !groundHolding && !groundTuned && !groundActive;
       els.lastHitAirband.classList.toggle('scanning', airbandScanning);
       els.lastHitGround.classList.toggle('scanning', groundScanning);
+    }
+
+    function hasRecentHit(target) {
+      const now = Date.now();
+      const ts = target === 'airband' ? state.lastHitAirbandTs : state.lastHitGroundTs;
+      return ts > 0 && (now - ts) < 5000;
     }
 
     function getActiveHitTarget() {
@@ -1335,6 +1343,12 @@
         state.liveHit = data.last_hit || '';
         state.groundExists = data.ground_exists;
         state.lastHit = data.last_hit || data.last_hit_airband || data.last_hit_ground || '';
+        if (data.last_hit_airband && data.last_hit_airband !== state.lastHitAirband) {
+          state.lastHitAirbandTs = Date.now();
+        }
+        if (data.last_hit_ground && data.last_hit_ground !== state.lastHitGround) {
+          state.lastHitGroundTs = Date.now();
+        }
         state.lastHitAirband = data.last_hit_airband || '';
         state.lastHitGround = data.last_hit_ground || '';
         if (!state.lastProfile.airband && data.profile_airband) {
