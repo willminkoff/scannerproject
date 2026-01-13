@@ -1,13 +1,3 @@
-SprontPi Airband Avoids Summary (UTC 2026-01-12 02:29:45Z)
+SprontPi Airband Avoids Summary (UTC 2026-01-13 16:31:00Z)
 
-Profile: rtl_airband_airband.conf
-Config: /home/willminkoff/scannerproject/profiles/rtl_airband_airband.conf
-Avoids (1): 135.1000
-
-Profile: KBNA (Nashville)
-Config: /usr/local/etc/airband-profiles/rtl_airband_airband.conf
-Avoids (1): 135.1000
-
-Profile: Nashville Centers
-Config: /usr/local/etc/airband-profiles/rtl_airband_nashville_centers.conf
-Avoids (1): 135.1000
+No avoids recorded.

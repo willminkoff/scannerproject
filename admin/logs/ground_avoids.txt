@@ -1,5 +1,3 @@
-SprontPi Ground Avoids Summary (UTC 2026-01-12 00:41:49Z)
+SprontPi Ground Avoids Summary (UTC 2026-01-13 16:31:00Z)
 
-Profile: Ft. Campbell
-Config: /usr/local/etc/airband-profiles/rtl_airband_campbell_ground.conf
-Avoids (1): 139.9000
+No avoids recorded.
