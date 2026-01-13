@@ -5,7 +5,7 @@ import time
 import re
 
 try:
-    from .config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, HOLD_STATE_PATH
+    from .config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, HOLD_STATE_PATH, TUNE_BACKUP_PATH
     from .systemd import (
         unit_active, stop_rtl, start_rtl, restart_rtl, stop_ground
     )
@@ -15,7 +15,7 @@ try:
         clear_avoids, write_filter, parse_freqs_labels, replace_freqs_labels
     )
 except ImportError:
-    from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, HOLD_STATE_PATH
+    from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, HOLD_STATE_PATH, TUNE_BACKUP_PATH
     from ui.systemd import (
         unit_active, stop_rtl, start_rtl, restart_rtl, stop_ground
     )
@@ -74,6 +74,36 @@ def _rewrite_single_freq(text: str, freq_val: float, label: str) -> str:
     text = _FREQ_BLOCK_RE.sub(replace_freq, text)
     text = _LABEL_BLOCK_RE.sub(replace_label, text)
     return text
+
+
+def _load_tune_backup():
+    try:
+        with open(TUNE_BACKUP_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+    except Exception:
+        return {}
+
+
+def _save_tune_backup(data: dict):
+    try:
+        os.makedirs(os.path.dirname(TUNE_BACKUP_PATH) or ".", exist_ok=True)
+    except Exception:
+        pass
+    tmp = TUNE_BACKUP_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f)
+    os.replace(tmp, TUNE_BACKUP_PATH)
+
+
+def _clear_tune_backup():
+    try:
+        os.remove(TUNE_BACKUP_PATH)
+    except FileNotFoundError:
+        pass
+    except Exception:
+        pass
 
 
 def action_set_profile(profile_id: str, target: str) -> dict:
@@ -319,6 +349,18 @@ def action_tune(target: str, freq) -> dict:
     except FileNotFoundError:
         return {"status": 400, "payload": {"ok": False, "error": "config not found"}}
 
+    # Save backup for restore
+    backup = _load_tune_backup()
+    backup[target] = {
+        "conf_path": conf_path,
+        "original_text": original,
+        "ts": time.time(),
+    }
+    try:
+        _save_tune_backup(backup)
+    except Exception:
+        pass
+
     label = f"{freq_val:.4f}"
     try:
         new_text = _rewrite_single_freq(original, freq_val, label)
@@ -337,6 +379,35 @@ def action_tune(target: str, freq) -> dict:
 
     restart_rtl()
     return {"status": 200, "payload": {"ok": True, "freq": f"{freq_val:.4f}", "target": target}}
+
+
+def action_tune_restore(target: str) -> dict:
+    """Restore config from tune backup."""
+    if target not in ("airband", "ground"):
+        return {"status": 400, "payload": {"ok": False, "error": "unknown target"}}
+    backup = _load_tune_backup()
+    entry = backup.get(target)
+    if not entry:
+        return {"status": 400, "payload": {"ok": False, "error": "no tune backup"}}
+    conf_path = entry.get("conf_path")
+    original = entry.get("original_text")
+    if not conf_path or original is None:
+        return {"status": 400, "payload": {"ok": False, "error": "invalid backup"}}
+    try:
+        _write_text(conf_path, original)
+    except Exception as e:
+        return {"status": 500, "payload": {"ok": False, "error": f"restore failed: {e}"}}
+    backup.pop(target, None)
+    try:
+        _save_tune_backup(backup)
+    except Exception:
+        pass
+    try:
+        write_combined_config()
+    except Exception as e:
+        return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
+    restart_rtl()
+    return {"status": 200, "payload": {"ok": True}}
 
 
 def execute_action(action: dict) -> dict:
@@ -361,4 +432,6 @@ def execute_action(action: dict) -> dict:
         return action_hold_start(action.get("target"), action.get("freq"))
     if action_type == "tune":
         return action_tune(action.get("target"), action.get("freq"))
+    if action_type == "tune_restore":
+        return action_tune_restore(action.get("target"))
     return {"status": 400, "payload": {"ok": False, "error": "unknown action"}}

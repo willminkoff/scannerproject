@@ -690,6 +690,7 @@
       holdTarget: null,
       lastProfile: { airband: '', ground: '' },
       tuned: false,
+      tunedFreq: null,
       sessionHits: 0,
       sessionStart: Date.now(),
       applyTimeout: null,
@@ -1116,6 +1117,28 @@
       });
     }
 
+    async function restoreTuneOrProfile() {
+      try {
+        await postAPI('/api/tune-restore', { target: activeTarget });
+      } catch (e) {
+        console.error('Tune restore failed, falling back to profile:', e);
+        const profileId = state.lastProfile[activeTarget];
+        if (profileId) {
+          await selectProfile(profileId, true);
+        }
+      }
+      state.tuned = false;
+      state.tunedFreq = null;
+      state.holdFreq = null;
+      state.holdTarget = null;
+      updateStatus();
+      updateTuneButton();
+      setTimeout(() => {
+        refresh();
+        refreshHits();
+      }, 1500);
+    }
+
     function updateTuneButton() {
       const btn = document.getElementById('btn-tune');
       const hasProfile = Boolean(state.lastProfile[activeTarget]);
@@ -1130,12 +1153,7 @@
 
     function onTuneButtonClick() {
       if (state.tuned && state.lastProfile[activeTarget]) {
-        selectProfile(state.lastProfile[activeTarget], true);
-        state.tuned = false;
-        state.holdFreq = null;
-        state.holdTarget = null;
-        updateStatus();
-        updateTuneButton();
+        restoreTuneOrProfile();
         return;
       }
       directTune();
@@ -1155,6 +1173,7 @@
         state.lastHit = freq.toFixed(3);
         state.holdFreq = null;
         state.tuned = true;
+        state.tunedFreq = freq.toFixed(3);
         state.lastProfile[activeTarget] = state[activeTarget].currentProfile;
         updateStatus();
         updateHitList();

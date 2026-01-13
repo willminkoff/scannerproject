@@ -48,6 +48,7 @@ ICECAST_HIT_LOG_LIMIT = int(os.getenv("ICECAST_HIT_LOG_LIMIT", "200"))
 
 # Hold/lock state
 HOLD_STATE_PATH = os.getenv("HOLD_STATE_PATH", "/run/airband_ui_hold.json")
+TUNE_BACKUP_PATH = os.getenv("TUNE_BACKUP_PATH", "/run/airband_ui_tune_backup.json")
 
 # Systemd Units
 UNITS = {

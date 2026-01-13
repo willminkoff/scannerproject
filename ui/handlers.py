@@ -342,6 +342,11 @@ class Handler(BaseHTTPRequestHandler):
             result = enqueue_action({"type": "tune", "target": target, "freq": freq})
             return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
 
+        if p == "/api/tune-restore":
+            target = form.get("target", "airband")
+            result = enqueue_action({"type": "tune_restore", "target": target})
+            return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
+
         if p == "/api/hold":
             target = form.get("target", "airband")
             mode = form.get("action", "start")
