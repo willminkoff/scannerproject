@@ -736,6 +736,8 @@
       lastHitAirband: '',
       lastHitGround: '',
       liveHit: '',
+      activeHitTarget: null,
+      activeHitTs: 0,
       lastHitAirbandTs: 0,
       lastHitGroundTs: 0,
       groundExists: false,
@@ -919,26 +921,36 @@
       els.lastHitAirband.classList.toggle('holding', airbandHolding);
       els.lastHitGround.classList.toggle('holding', groundHolding);
       const activeTarget = getActiveHitTarget();
-      const airbandActive = activeTarget === 'airband' || hasRecentHit('airband');
-      const groundActive = activeTarget === 'ground' || hasRecentHit('ground');
+      const airbandActive = activeTarget === 'airband';
+      const groundActive = activeTarget === 'ground';
       const airbandScanning = state.connected && state.sdr1Active && !airbandHolding && !airbandTuned && !airbandActive;
       const groundScanning = state.connected && state.sdr1Active && state.groundExists && !groundHolding && !groundTuned && !groundActive;
       els.lastHitAirband.classList.toggle('scanning', airbandScanning);
       els.lastHitGround.classList.toggle('scanning', groundScanning);
     }
 
-    function hasRecentHit(target) {
-      const now = Date.now();
-      const ts = target === 'airband' ? state.lastHitAirbandTs : state.lastHitGroundTs;
-      return ts > 0 && (now - ts) < 5000;
+    function setActiveHitFromHits(items) {
+      if (!items || !items.length) return;
+      const top = items[0];
+      if (!top || !top.freq) return;
+      const num = parseFloat(top.freq);
+      if (isNaN(num)) return;
+      state.activeHitTarget = num >= 118 && num <= 136 ? 'airband' : 'ground';
+      state.activeHitTs = Date.now();
     }
 
     function getActiveHitTarget() {
       const raw = (state.liveHit || '').trim();
-      if (!raw) return null;
-      const num = parseFloat(raw);
-      if (isNaN(num)) return null;
-      return num >= 118 && num <= 136 ? 'airband' : 'ground';
+      if (raw) {
+        const num = parseFloat(raw);
+        if (!isNaN(num)) {
+          return num >= 118 && num <= 136 ? 'airband' : 'ground';
+        }
+      }
+      if (state.activeHitTarget && (Date.now() - state.activeHitTs) < 2500) {
+        return state.activeHitTarget;
+      }
+      return null;
     }
 
     function getDisplayForTarget(target) {
@@ -1341,7 +1353,7 @@
         state.sdr2Active = data.ground_active;
         state.icecastActive = data.icecast_active;
         state.liveHit = data.last_hit || '';
-        state.groundExists = data.ground_exists;
+        state.groundExists = data.ground_exists || Boolean(data.last_hit_ground);
         state.lastHit = data.last_hit || data.last_hit_airband || data.last_hit_ground || '';
         if (data.last_hit_airband && data.last_hit_airband !== state.lastHitAirband) {
           state.lastHitAirbandTs = Date.now();
@@ -1401,6 +1413,7 @@
         }
         
         state.hits = newHits;
+        setActiveHitFromHits(newHits);
         updateHitList();
         updateCounters();
         updateStatus();
