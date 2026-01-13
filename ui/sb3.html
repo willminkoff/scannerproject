@@ -150,15 +150,7 @@
       color: var(--warn);
     }
 
-    .last-hit-btn.scanning .value {
-      animation: scan-blink 1.1s ease-in-out infinite;
-    }
-
-    @keyframes scan-blink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.35; }
-    }
-
+    
     .connection-status {
       font-size: 11px;
       padding: 4px 8px;
@@ -933,8 +925,6 @@
       const groundActive = activeTarget === 'ground' || state.groundActiveStats || groundRecent;
       const airbandScanning = state.connected && state.sdr1Active && !airbandHolding && !airbandTuned && !airbandActive;
       const groundScanning = state.connected && state.sdr1Active && state.groundExists && !groundHolding && !groundTuned && !groundActive;
-      els.lastHitAirband.classList.toggle('scanning', airbandScanning);
-      els.lastHitGround.classList.toggle('scanning', groundScanning);
     }
 
     function setActiveHitFromHits(items) {
