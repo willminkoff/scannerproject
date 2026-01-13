@@ -26,15 +26,24 @@ except ImportError:
     )
 
 
+def _normalize_hold_state(state):
+    if not isinstance(state, dict):
+        return {}
+    if state.get("active") and state.get("target") in ("airband", "ground"):
+        return {state["target"]: state}
+    return state
+
+
 def _load_hold_state():
     """Load persisted hold state."""
     try:
         with open(HOLD_STATE_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
     except FileNotFoundError:
         return {}
     except Exception:
         return {}
+    return _normalize_hold_state(data)
 
 
 def _save_hold_state(data: dict) -> None:
@@ -57,6 +66,20 @@ def _clear_hold_state() -> None:
         pass
     except Exception:
         pass
+
+
+def _has_active_hold(state: dict) -> bool:
+    for entry in (state or {}).values():
+        if isinstance(entry, dict) and entry.get("active"):
+            return True
+    return False
+
+
+def _save_or_clear_hold_state(state: dict) -> None:
+    if _has_active_hold(state):
+        _save_hold_state(state)
+    else:
+        _clear_hold_state()
 
 
 _FREQ_BLOCK_RE = re.compile(r'(^\s*freqs\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)
@@ -253,8 +276,9 @@ def action_hold_start(target: str, freq) -> dict:
         return {"status": 400, "payload": {"ok": False, "error": "bad freq"}}
 
     state = _load_hold_state() or {}
-    if state.get("active"):
-        return {"status": 400, "payload": {"ok": False, "error": f"already holding {state.get('freq')}"}}
+    target_state = state.get(target) or {}
+    if target_state.get("active"):
+        return {"status": 400, "payload": {"ok": False, "error": f"already holding {target_state.get('freq')}"}}
 
     conf_path = os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path()
     try:
@@ -282,8 +306,9 @@ def action_hold_start(target: str, freq) -> dict:
         "original_text": original,
         "ts": time.time(),
     }
+    state[target] = hold_state
     try:
-        _save_hold_state(hold_state)
+        _save_hold_state(state)
     except Exception:
         pass
 
@@ -293,7 +318,8 @@ def action_hold_start(target: str, freq) -> dict:
         # rollback to original config if combine fails
         try:
             _write_text(conf_path, original)
-            _clear_hold_state()
+            state.pop(target, None)
+            _save_or_clear_hold_state(state)
         except Exception:
             pass
         return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
@@ -305,13 +331,15 @@ def action_hold_start(target: str, freq) -> dict:
 def action_hold_stop(target: str) -> dict:
     """Action: Exit hold and restore original config."""
     state = _load_hold_state() or {}
-    if not state.get("active"):
+    target_state = state.get(target) or {}
+    if not target_state.get("active"):
         return {"status": 200, "payload": {"ok": True, "restored": False}}
 
-    conf_path = state.get("conf_path") or (os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path())
-    original = state.get("original_text")
+    conf_path = target_state.get("conf_path") or (os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path())
+    original = target_state.get("original_text")
     if not conf_path or original is None:
-        _clear_hold_state()
+        state.pop(target, None)
+        _save_or_clear_hold_state(state)
         return {"status": 400, "payload": {"ok": False, "error": "hold state incomplete"}}
 
     try:
@@ -319,7 +347,8 @@ def action_hold_stop(target: str) -> dict:
     except Exception as e:
         return {"status": 500, "payload": {"ok": False, "error": f"restore failed: {e}"}}
 
-    _clear_hold_state()
+    state.pop(target, None)
+    _save_or_clear_hold_state(state)
 
     try:
         write_combined_config()
@@ -335,7 +364,7 @@ def action_tune(target: str, freq) -> dict:
     if target not in ("airband", "ground"):
         return {"status": 400, "payload": {"ok": False, "error": "unknown target"}}
     state = _load_hold_state() or {}
-    if state.get("active"):
+    if (state.get(target) or {}).get("active"):
         return {"status": 400, "payload": {"ok": False, "error": "cannot tune while hold is active"}}
     try:
         freq_val = float(freq)
