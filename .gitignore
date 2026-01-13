@@ -10,6 +10,9 @@
 /run/
 /tmp/
 
+# runtime logs
+admin/logs/
+
 # secrets (we keep an example file instead)
 icecast/icecast.xml
 
