@@ -858,7 +858,13 @@
     }
 
     function updateStatus() {
-      const display = state.holdFreq || getLiveDisplayFreq();
+      let display = state.holdFreq;
+      if (!display && state.tuned && state.tunedFreq) {
+        display = formatFreq(state.tunedFreq) + ' MHz';
+      }
+      if (!display) {
+        display = getLiveDisplayFreq();
+      }
       els.lastHit.textContent = display || '--';
       els.lastHit.classList.toggle('holding', Boolean(state.holdFreq));
     }
@@ -1196,12 +1202,13 @@
           return;
         }
         await postAPI('/api/profile', { profile: id, target: activeTarget });
-        state.tuned = false;
-        state.holdFreq = null;
-        state.holdTarget = null;
-        state.lastProfile[activeTarget] = id;
-        await refresh();
-        updateTuneButton();
+      state.tuned = false;
+      state.tunedFreq = null;
+      state.holdFreq = null;
+      state.holdTarget = null;
+      state.lastProfile[activeTarget] = id;
+      await refresh();
+      updateTuneButton();
       } catch (e) {
         console.error('Profile switch failed:', e);
       }
