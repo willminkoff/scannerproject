@@ -113,16 +113,40 @@
       50% { opacity: 0.5; }
     }
 
-    .last-hit {
-      font-family: monospace;
-      color: var(--accent);
-      font-size: 24px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: color 0.15s ease;
+    .last-hit-group {
+      display: flex;
+      gap: 10px;
     }
 
-    .last-hit.holding {
+    .last-hit-btn {
+      display: grid;
+      gap: 4px;
+      min-width: 110px;
+      padding: 6px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg-panel);
+      color: var(--text);
+      cursor: pointer;
+      text-align: left;
+      transition: color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .last-hit-btn .label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-secondary);
+    }
+
+    .last-hit-btn .value {
+      font-family: monospace;
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .last-hit-btn.holding .value {
       color: var(--warn);
     }
 
@@ -541,7 +565,16 @@
     <div class="header-left">
       <div class="logo">SB3</div>
     </div>
-    <div class="last-hit" id="last-hit">--</div>
+    <div class="last-hit-group">
+      <button class="last-hit-btn" id="last-hit-airband" type="button">
+        <span class="label">Airband</span>
+        <span class="value" id="last-hit-airband-value">--</span>
+      </button>
+      <button class="last-hit-btn" id="last-hit-ground" type="button">
+        <span class="label">Ground</span>
+        <span class="value" id="last-hit-ground-value">--</span>
+      </button>
+    </div>
     <div class="header-right">
       <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle red theme">🔴</button>
     </div>
@@ -694,8 +727,7 @@
       lastHitAirband: '',
       lastHitGround: '',
       hits: [],
-      holdFreq: null,
-      holdTarget: null,
+      hold: { airband: null, ground: null },
       lastProfile: { airband: '', ground: '' },
       tuned: false,
       tunedFreq: null,
@@ -727,7 +759,10 @@
     // ============================================
     
     const els = {
-      lastHit: document.getElementById('last-hit'),
+      lastHitAirband: document.getElementById('last-hit-airband'),
+      lastHitGround: document.getElementById('last-hit-ground'),
+      lastHitAirbandValue: document.getElementById('last-hit-airband-value'),
+      lastHitGroundValue: document.getElementById('last-hit-ground-value'),
       gainSlider: document.getElementById('gain-slider'),
       gainValue: document.getElementById('gain-value'),
       gainApplied: document.getElementById('gain-applied'),
@@ -828,25 +863,22 @@
     // ============================================
     
     function getLiveFreqValue() {
-      const isAirband = activeTarget === 'airband';
-      const inAirband = (f) => f >= 118 && f <= 136;
+      return getLiveFreqValueForTarget(activeTarget);
+    }
 
+    function getLiveFreqValueForTarget(target) {
+      const inAirband = (f) => f >= 118 && f <= 136;
       for (let i = 0; i < state.hits.length; i++) {
         const hit = state.hits[i];
         if (!hit || !hit.freq) continue;
         const num = parseFloat(hit.freq);
         if (isNaN(num)) continue;
-        if (isAirband && inAirband(num)) return num;
-        if (!isAirband && !inAirband(num)) return num;
+        if (target === 'airband' && inAirband(num)) return num;
+        if (target === 'ground' && !inAirband(num)) return num;
       }
-
-      const fallback = isAirband ? state.lastHitAirband : state.lastHitGround;
+      const fallback = target === 'airband' ? state.lastHitAirband : state.lastHitGround;
       if (fallback) {
         const num = parseFloat(fallback);
-        if (!isNaN(num)) return num;
-      }
-      if (state.lastHit) {
-        const num = parseFloat(state.lastHit);
         if (!isNaN(num)) return num;
       }
       return null;
@@ -866,15 +898,26 @@
     }
 
     function updateStatus() {
-      let display = state.holdFreq;
-      if (!display && state.tuned && state.tunedFreq) {
-        display = formatFreq(state.tunedFreq) + ' MHz';
+      const airbandDisplay = getDisplayForTarget('airband');
+      const groundDisplay = getDisplayForTarget('ground');
+      els.lastHitAirbandValue.textContent = airbandDisplay || '--';
+      els.lastHitGroundValue.textContent = groundDisplay || '--';
+      els.lastHitAirband.classList.toggle('holding', Boolean(state.hold.airband));
+      els.lastHitGround.classList.toggle('holding', Boolean(state.hold.ground));
+    }
+
+    function getDisplayForTarget(target) {
+      const holdFreq = state.hold[target];
+      if (holdFreq) return holdFreq;
+      if (state.tuned && state.tunedFreq && state.tunedTarget === target) {
+        return formatFreq(state.tunedFreq) + ' MHz';
       }
-      if (!display) {
-        display = getLiveDisplayFreq();
+      const fallback = target === 'airband' ? state.lastHitAirband : state.lastHitGround;
+      if (fallback) {
+        const num = parseFloat(fallback);
+        return isNaN(num) ? fallback : formatFreq(num) + ' MHz';
       }
-      els.lastHit.textContent = display || '--';
-      els.lastHit.classList.toggle('holding', Boolean(state.holdFreq));
+      return '--';
     }
     
     function updateControls() {
@@ -1055,16 +1098,11 @@
     // ACTIONS
     // ============================================
     
-    async function toggleHold() {
-      // Release current hold
-      if (state.holdFreq) {
-        const target = state.holdTarget || activeTarget;
-        const resetState = () => {
-          state.holdFreq = null;
-          state.holdTarget = null;
-          updateStatus();
-        };
-        resetState();
+    async function toggleHoldFor(target) {
+      // Release current hold for this target
+      if (state.hold[target]) {
+        state.hold[target] = null;
+        updateStatus();
         try {
           await postAPI('/api/hold', { target, action: 'stop' });
         } catch (e) {
@@ -1074,20 +1112,17 @@
         return;
       }
 
-      // Start hold on the live freq
-      const freqVal = getLiveFreqValue();
+      const freqVal = getLiveFreqValueForTarget(target);
       if (freqVal === null || isNaN(freqVal)) {
         return;
       }
-      state.holdFreq = formatFreq(freqVal) + ' MHz';
-      state.holdTarget = activeTarget;
+      state.hold[target] = formatFreq(freqVal) + ' MHz';
       updateStatus();
       try {
-        await postAPI('/api/hold', { target: activeTarget, action: 'start', freq: freqVal });
+        await postAPI('/api/hold', { target, action: 'start', freq: freqVal });
       } catch (e) {
         console.error('Hold start failed:', e);
-        state.holdFreq = null;
-        state.holdTarget = null;
+        state.hold[target] = null;
         updateStatus();
         refresh();
       }
@@ -1143,8 +1178,7 @@
       }
       state.tuned = false;
       state.tunedFreq = null;
-      state.holdFreq = null;
-      state.holdTarget = null;
+      state.hold = { airband: null, ground: null };
       updateStatus();
       updateTuneButton();
       setTimeout(() => {
@@ -1190,7 +1224,7 @@
         } else {
           state.lastHitGround = state.lastHit;
         }
-        state.holdFreq = null;
+        state.hold = { airband: null, ground: null };
         state.tuned = true;
         state.tunedFreq = freq.toFixed(3);
         state.lastProfile[activeTarget] = state[activeTarget].currentProfile;
@@ -1217,8 +1251,7 @@
         await postAPI('/api/profile', { profile: id, target: activeTarget });
       state.tuned = false;
       state.tunedFreq = null;
-      state.holdFreq = null;
-      state.holdTarget = null;
+      state.hold = { airband: null, ground: null };
       state.lastProfile[activeTarget] = id;
       await refresh();
       updateTuneButton();
@@ -1411,7 +1444,8 @@
       els.gainSlider.addEventListener('input', onGainChange);
       els.sqlSlider.addEventListener('input', onSqlChange);
       els.filterSlider.addEventListener('input', onFilterChange);
-      els.lastHit.addEventListener('click', toggleHold);
+      els.lastHitAirband.addEventListener('click', () => toggleHoldFor('airband'));
+      els.lastHitGround.addEventListener('click', () => toggleHoldFor('ground'));
       // Remove Open Squelch button handler, add new handlers
       document.getElementById('btn-play').addEventListener('click', function() {
         window.open(`http://${location.hostname}:8000/GND.mp3`, '_blank', 'noopener');
