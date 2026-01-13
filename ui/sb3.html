@@ -150,6 +150,15 @@
       color: var(--warn);
     }
 
+    .last-hit-btn.scanning .value {
+      animation: scan-blink 1.1s ease-in-out infinite;
+    }
+
+    @keyframes scan-blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.35; }
+    }
+
     .connection-status {
       font-size: 11px;
       padding: 4px 8px;
@@ -899,8 +908,14 @@
       const groundDisplay = getDisplayForTarget('ground');
       els.lastHitAirbandValue.textContent = airbandDisplay || '--';
       els.lastHitGroundValue.textContent = groundDisplay || '--';
-      els.lastHitAirband.classList.toggle('holding', state.holdTarget === 'airband');
-      els.lastHitGround.classList.toggle('holding', state.holdTarget === 'ground');
+      const airbandHolding = state.holdTarget === 'airband';
+      const groundHolding = state.holdTarget === 'ground';
+      const airbandTuned = state.tuned && state.tunedTarget === 'airband';
+      const groundTuned = state.tuned && state.tunedTarget === 'ground';
+      els.lastHitAirband.classList.toggle('holding', airbandHolding);
+      els.lastHitGround.classList.toggle('holding', groundHolding);
+      els.lastHitAirband.classList.toggle('scanning', state.sdr1Active && !airbandHolding && !airbandTuned);
+      els.lastHitGround.classList.toggle('scanning', state.sdr2Active && !groundHolding && !groundTuned);
     }
 
     function getDisplayForTarget(target) {
