@@ -735,6 +735,8 @@
       lastHit: '',
       lastHitAirband: '',
       lastHitGround: '',
+      liveHit: '',
+      groundExists: false,
       hits: [],
       holdFreq: null,
       holdTarget: null,
@@ -914,10 +916,21 @@
       const groundTuned = state.tuned && state.tunedTarget === 'ground';
       els.lastHitAirband.classList.toggle('holding', airbandHolding);
       els.lastHitGround.classList.toggle('holding', groundHolding);
-      const airbandScanning = state.connected && state.sdr1Active && !airbandHolding && !airbandTuned;
-      const groundScanning = state.connected && state.sdr2Active && !groundHolding && !groundTuned;
+      const activeTarget = getActiveHitTarget();
+      const airbandActive = activeTarget === 'airband';
+      const groundActive = activeTarget === 'ground';
+      const airbandScanning = state.connected && state.sdr1Active && !airbandHolding && !airbandTuned && !airbandActive;
+      const groundScanning = state.connected && state.sdr1Active && state.groundExists && !groundHolding && !groundTuned && !groundActive;
       els.lastHitAirband.classList.toggle('scanning', airbandScanning);
       els.lastHitGround.classList.toggle('scanning', groundScanning);
+    }
+
+    function getActiveHitTarget() {
+      const raw = (state.liveHit || '').trim();
+      if (!raw) return null;
+      const num = parseFloat(raw);
+      if (isNaN(num)) return null;
+      return num >= 118 && num <= 136 ? 'airband' : 'ground';
     }
 
     function getDisplayForTarget(target) {
@@ -1319,6 +1332,8 @@
         state.sdr1Active = data.rtl_active;
         state.sdr2Active = data.ground_active;
         state.icecastActive = data.icecast_active;
+        state.liveHit = data.last_hit || '';
+        state.groundExists = data.ground_exists;
         state.lastHit = data.last_hit || data.last_hit_airband || data.last_hit_ground || '';
         state.lastHitAirband = data.last_hit_airband || '';
         state.lastHitGround = data.last_hit_ground || '';
@@ -1397,6 +1412,7 @@
           state.sdr1Active = data.rtl_active;
           state.sdr2Active = data.ground_active;
           state.icecastActive = data.icecast_active;
+          state.liveHit = data.last_hit || '';
           state.lastHit = data.last_hit || state.lastHit;
           state.serverTime = data.server_time;
           state.connected = true;
