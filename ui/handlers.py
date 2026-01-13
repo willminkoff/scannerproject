@@ -21,7 +21,7 @@ try:
     from .systemd import unit_active, unit_exists
     from .server_workers import enqueue_action, enqueue_apply
     from .diagnostic import write_diagnostic_log
-    from .spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
+    from .spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum, parse_stats_file
 except ImportError:
     from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, UI_PORT, UNITS
     from ui.profile_config import (
@@ -36,7 +36,7 @@ except ImportError:
     from ui.systemd import unit_active, unit_exists
     from ui.server_workers import enqueue_action, enqueue_apply
     from ui.diagnostic import write_diagnostic_log
-    from ui.spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
+    from ui.spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum, parse_stats_file
 
 
 def _read_html_template():
@@ -159,10 +159,27 @@ class Handler(BaseHTTPRequestHandler):
             last_hit_ground = read_last_hit_ground()
             icecast_hit = read_last_hit_from_icecast() if ice_ok else ""
 
+            airband_active_stats = False
+            ground_active_stats = False
+            try:
+                stats = parse_stats_file()
+                for freq_str, data in (stats or {}).items():
+                    delta = data.get("active_delta", 0)
+                    if delta and delta > 0:
+                        try:
+                            num = float(freq_str)
+                            if 118.0 <= num <= 136.0:
+                                airband_active_stats = True
+                            else:
+                                ground_active_stats = True
+                        except (TypeError, ValueError):
+                            continue
+            except Exception:
+                pass
+
             payload = {
                 "rtl_active": rtl_ok,
-                "ground_active": ground_ok,
-                "ground_exists": ground_exists,
+                "ground_active": ground_ok,                "ground_exists": ground_exists,
                 "icecast_active": ice_ok,
                 "keepalive_active": unit_active(UNITS["keepalive"]),
                 "server_time": time.time(),
@@ -182,6 +199,8 @@ class Handler(BaseHTTPRequestHandler):
                 "last_hit": icecast_hit or read_last_hit_from_icecast() or "",
                 "last_hit_airband": last_hit_airband,
                 "last_hit_ground": last_hit_ground,
+                "airband_active_stats": airband_active_stats,
+                "ground_active_stats": ground_active_stats,
                 "avoids_airband": summarize_avoids(conf_path, "airband"),
                 "avoids_ground": summarize_avoids(os.path.realpath(GROUND_CONFIG_PATH), "ground"),
             }
@@ -252,7 +271,26 @@ class Handler(BaseHTTPRequestHandler):
                 rtl_active = rtl_ok and rtl_exists
                 ground_active = rtl_ok and ground_exists
                 ice_ok = icecast_up()
-                last_hit = read_last_hit_from_icecast() if ice_ok else read_last_hit_airband()
+                last_hit_airband = read_last_hit_airband()
+                last_hit_ground = read_last_hit_ground()
+                last_hit = read_last_hit_from_icecast() if ice_ok else last_hit_airband
+                airband_active_stats = False
+                ground_active_stats = False
+                try:
+                    stats = parse_stats_file()
+                    for freq_str, data in (stats or {}).items():
+                        delta = data.get("active_delta", 0)
+                        if delta and delta > 0:
+                            try:
+                                num = float(freq_str)
+                                if 118.0 <= num <= 136.0:
+                                    airband_active_stats = True
+                                else:
+                                    ground_active_stats = True
+                            except (TypeError, ValueError):
+                                continue
+                except Exception:
+                    pass
                 status_data = {
                     "type": "status",
                     "rtl_active": rtl_active,
@@ -263,6 +301,8 @@ class Handler(BaseHTTPRequestHandler):
                     "last_hit": last_hit,
                     "last_hit_airband": last_hit_airband,
                     "last_hit_ground": last_hit_ground,
+                    "airband_active_stats": airband_active_stats,
+                    "ground_active_stats": ground_active_stats,
                     "server_time": time.time(),
                 }
                 self.wfile.write(f"event: status\ndata: {json.dumps(status_data)}\n\n".encode())

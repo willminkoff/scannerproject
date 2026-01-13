@@ -743,6 +743,8 @@
       topHitDuration: 0,
       lastHitAirbandTs: 0,
       lastHitGroundTs: 0,
+      airbandActiveStats: false,
+      groundActiveStats: false,
       groundExists: false,
       hits: [],
       holdFreq: null,
@@ -927,8 +929,8 @@
       const now = Date.now();
       const airbandRecent = state.lastHitAirbandTs && (now - state.lastHitAirbandTs) < 6000;
       const groundRecent = state.lastHitGroundTs && (now - state.lastHitGroundTs) < 6000;
-      const airbandActive = activeTarget === 'airband' || airbandRecent;
-      const groundActive = activeTarget === 'ground' || groundRecent;
+      const airbandActive = activeTarget === 'airband' || state.airbandActiveStats || airbandRecent;
+      const groundActive = activeTarget === 'ground' || state.groundActiveStats || groundRecent;
       const airbandScanning = state.connected && state.sdr1Active && !airbandHolding && !airbandTuned && !airbandActive;
       const groundScanning = state.connected && state.sdr1Active && state.groundExists && !groundHolding && !groundTuned && !groundActive;
       els.lastHitAirband.classList.toggle('scanning', airbandScanning);
@@ -1382,6 +1384,8 @@
         state.sdr2Active = data.ground_active;
         state.icecastActive = data.icecast_active;
         state.liveHit = data.last_hit || '';
+        state.airbandActiveStats = Boolean(data.airband_active_stats);
+        state.groundActiveStats = Boolean(data.ground_active_stats);
         state.groundExists = data.ground_exists || Boolean(data.last_hit_ground);
         state.lastHit = data.last_hit || data.last_hit_airband || data.last_hit_ground || '';
         if (data.last_hit_airband) {
@@ -1469,6 +1473,8 @@
           state.sdr2Active = data.ground_active;
           state.icecastActive = data.icecast_active;
           state.liveHit = data.last_hit || '';
+          state.airbandActiveStats = Boolean(data.airband_active_stats);
+          state.groundActiveStats = Boolean(data.ground_active_stats);
           if (data.last_hit_airband) {
             state.lastHitAirband = data.last_hit_airband;
             state.lastHitAirbandTs = Date.now();
