@@ -1559,6 +1559,7 @@
         btn.textContent = 'Avoiding...';
         try {
           await postAPI('/api/avoid', { target: activeTarget });
+          resetHitActivity();
           await refresh();
           // Refresh again after 2 seconds to catch the config update
           setTimeout(refresh, 2000);
@@ -1571,6 +1572,7 @@
       document.getElementById('btn-clear-avoids').addEventListener('click', async function() {
         try {
           await postAPI('/api/avoid-clear', { target: activeTarget });
+          resetHitActivity();
           await refresh();
         } catch (e) {
           console.error('Clear avoids failed:', e);
