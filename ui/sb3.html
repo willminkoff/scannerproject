@@ -431,6 +431,7 @@
 
     button.action:hover { border-color: var(--accent); }
     button.action:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.action:focus { outline: none; border-color: var(--border); }
 
     /* ADS-B */
     .adsb-frame {
@@ -1100,10 +1101,10 @@
           </div>
         `;
         backdrop.appendChild(card);
-        document.body.appendChild(backdrop);
-        const input = card.querySelector('#tune-input');
-        input.value = state.lastHit || '';
-        input.focus();
+      document.body.appendChild(backdrop);
+      const input = card.querySelector('#tune-input');
+      input.value = state.lastHit || '';
+      input.focus();
         const cleanup = () => backdrop.remove();
         card.querySelector('.cancel').onclick = () => { cleanup(); resolve(null); };
         card.querySelector('.confirm').onclick = () => {
@@ -1177,6 +1178,11 @@
         await postAPI('/api/tune', { target: activeTarget, freq });
         state.hits = [];
         state.lastHit = freq.toFixed(3);
+        if (activeTarget === 'airband') {
+          state.lastHitAirband = state.lastHit;
+        } else {
+          state.lastHitGround = state.lastHit;
+        }
         state.holdFreq = null;
         state.tuned = true;
         state.tunedFreq = freq.toFixed(3);
@@ -1427,6 +1433,9 @@
         }
       });
       document.getElementById('btn-tune').addEventListener('click', onTuneButtonClick);
+      document.querySelectorAll('button.action').forEach(btn => {
+        btn.addEventListener('click', () => setTimeout(() => btn.blur(), 300));
+      });
       // Reconnect button removed
       
       refresh();
