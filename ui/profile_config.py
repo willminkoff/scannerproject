@@ -220,7 +220,8 @@ def write_controls(conf_path: str, gain: float, squelch_mode: str, squelch_snr: 
         m = RE_SQL_DBFS.match(line)
         if m:
             value = squelch_dbfs if squelch_mode == "dbfs" else 0.0
-            new_line = f"{m.group(1)}{value:.3f}{m.group(3)}\n"
+            value_int = int(round(value))
+            new_line = f"{m.group(1)}{value_int}{m.group(3)}\n"
             if new_line != line:
                 changed = True
             out.append(new_line)
@@ -230,12 +231,13 @@ def write_controls(conf_path: str, gain: float, squelch_mode: str, squelch_snr: 
 
     if not saw_dbfs:
         value = squelch_dbfs if squelch_mode == "dbfs" else 0.0
+        value_int = int(round(value))
         indent = "      "
         if snr_insert_idx is not None and snr_insert_idx - 1 < len(out):
             indent_match = re.match(r'^(\s*)', out[snr_insert_idx - 1])
             if indent_match:
                 indent = indent_match.group(1)
-        new_line = f"{indent}squelch_threshold = {value:.3f};  # UI_CONTROLLED\n"
+        new_line = f"{indent}squelch_threshold = {value_int};  # UI_CONTROLLED\n"
         if snr_insert_idx is not None:
             out.insert(snr_insert_idx, new_line)
         else:
