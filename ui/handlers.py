@@ -6,6 +6,17 @@ import time
 import queue
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
+def combined_num_devices(conf_path="/usr/local/etc/rtl_airband_combined.conf") -> int:
+    """Count devices declared in the combined rtl_airband config.
+
+    More stable than probing USB at runtime (devices may be busy/in-use).
+    """
+    try:
+        with open(conf_path, "r") as f:
+            txt = f.read()
+        return txt.count('serial = "')
+    except Exception:
+        return 0
 
 try:
     from .config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, UI_PORT, UNITS
@@ -143,7 +154,8 @@ class Handler(BaseHTTPRequestHandler):
                     return 1
 
             num_devices = count_device_blocks(conf_path)
-            ground_exists = num_devices > 1
+            num_devices_cfg = combined_num_devices()
+            ground_exists = num_devices_cfg > 1
             rtl_exists = num_devices >= 1
             # If main rtl-airband service is running and device exists, airband is active
             rtl_ok = rtl_ok and rtl_exists
@@ -253,7 +265,8 @@ class Handler(BaseHTTPRequestHandler):
                     except Exception:
                         return 1
                 num_devices = count_device_blocks(conf_path)
-                ground_exists = num_devices > 1
+                num_devices_cfg = combined_num_devices()
+                ground_exists = num_devices_cfg > 1
                 rtl_exists = num_devices >= 1
                 rtl_active = rtl_ok and rtl_exists
                 ground_active = rtl_ok and ground_exists
