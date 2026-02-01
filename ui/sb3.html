@@ -339,9 +339,17 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 8px;
-      max-height: 200px;
+      max-height: 360px;
       overflow-y: auto;
+      padding-right: 4px; /* room for scrollbar */
+      scrollbar-gutter: stable;
     }
+    .profiles-grid::-webkit-scrollbar { width: 10px; }
+    .profiles-grid::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,.10);
+      border-radius: 999px;
+    }
+    .profiles-grid::-webkit-scrollbar-track { background: transparent; }
 
     .profile-btn {
       padding: 10px 12px;
@@ -373,6 +381,43 @@
       color: var(--text-secondary);
       margin-top: 2px;
     }
+
+    .player-box {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 14px;
+      background: rgba(0,0,0,.22);
+      border: 1px solid rgba(255,255,255,.10);
+      /* Encourage browsers to render native media controls in a dark theme. */
+      color-scheme: dark;
+    }
+    .player-box audio {
+      width: 100%;
+      margin-top: 6px;
+      height: 36px;
+      border-radius: 999px;
+      /* Native <audio> controls are mostly UA-drawn; this makes them less "giant white pill". */
+      color-scheme: dark;
+      filter: invert(1) hue-rotate(180deg) saturate(0.9);
+      opacity: 0.88;
+    }
+
+    .freq-editor textarea {
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.30);
+      color: var(--text-primary);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      line-height: 1.35;
+      resize: vertical;
+      color-scheme: dark;
+    }
+    .freq-editor textarea:focus { outline: 2px solid rgba(45, 212, 191, 0.35); outline-offset: 2px; }
 
     /* Counters */
     .counter-grid {
@@ -633,6 +678,14 @@
             <button class="action" id="btn-avoid">Avoid</button>
             <button class="action" id="btn-clear-avoids">Clear</button>
           </div>
+
+          <div class="player-box">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px;">
+              <div style="font-weight:700;">Player</div>
+              <a id="lnk-stream" href="#" target="_blank" rel="noopener" style="font-size:12px; opacity:0.85;">Open stream</a>
+            </div>
+            <audio id="audio-player" controls preload="none"></audio>
+          </div>
         </div>
       </div>
 
@@ -643,6 +696,51 @@
             <div class="empty-state">
               <div class="icon">📡</div>
               <div>Loading profiles...</div>
+            </div>
+          </div>
+          <div class="control-group" style="margin-top:12px;">
+            <div class="control-item">
+              <div class="control-label">
+                <span>Manage Profiles</span>
+                <span class="control-value">Clone/Rename/Delete</span>
+              </div>
+              <div class="control-applied">
+                <label><input type="radio" name="manage-target" id="manage-target-airband" value="airband" checked> Airband</label>
+                <label><input type="radio" name="manage-target" id="manage-target-ground" value="ground"> Ground</label>
+              </div>
+              <div class="control-applied">
+                <span style="opacity:0.85;">Create is blank (then edit freqs below)</span>
+              </div>
+              <div class="control-applied">
+                <label>New ID:
+                  <input id="manage-id" type="text" placeholder="kbna_custom">
+                </label>
+              </div>
+              <div class="control-applied">
+                <label>Label:
+                  <input id="manage-label" type="text" placeholder="Profile label">
+                </label>
+              </div>
+              <div class="control-applied">
+                <button class="action" id="manage-create">Create</button>
+                <button class="action" id="manage-rename">Rename Selected</button>
+                <button class="action" id="manage-delete">Delete Selected</button>
+              </div>
+            </div>
+            <div class="control-item freq-editor">
+              <div class="control-label">
+                <span>Edit Frequencies</span>
+                <span class="control-value">One per line: 118.600 TOWER</span>
+              </div>
+              <div class="control-applied" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <label>Profile:
+                  <select id="freq-edit-profile"></select>
+                </label>
+                <button class="action" id="freq-edit-load">Load</button>
+                <button class="action" id="freq-edit-save">Save</button>
+              </div>
+              <textarea id="freq-edit-text" rows="8" spellcheck="false" placeholder="118.600 TOWER&#10;119.350 APP"></textarea>
+              <div class="control-applied"><span id="freq-edit-status" style="opacity:0.85;"></span></div>
             </div>
           </div>
         </div>
@@ -784,6 +882,20 @@
       filterValue: document.getElementById('filter-value'),
       filterApplied: document.getElementById('filter-applied'),
       profilesList: document.getElementById('profiles-list'),
+      audioPlayer: document.getElementById('audio-player'),
+      lnkStream: document.getElementById('lnk-stream'),
+      manageTargetAirband: document.getElementById('manage-target-airband'),
+      manageTargetGround: document.getElementById('manage-target-ground'),
+      manageId: document.getElementById('manage-id'),
+      manageLabel: document.getElementById('manage-label'),
+      manageCreate: document.getElementById('manage-create'),
+      manageRename: document.getElementById('manage-rename'),
+      manageDelete: document.getElementById('manage-delete'),
+      freqEditProfile: document.getElementById('freq-edit-profile'),
+      freqEditText: document.getElementById('freq-edit-text'),
+      freqEditLoad: document.getElementById('freq-edit-load'),
+      freqEditSave: document.getElementById('freq-edit-save'),
+      freqEditStatus: document.getElementById('freq-edit-status'),
       hitList: document.getElementById('hit-list'),
       hitCount: document.getElementById('hit-count'),
       hitRate: document.getElementById('hit-rate'),
@@ -839,13 +951,74 @@
     }
     
     async function postAPI(endpoint, data) {
-      const body = new URLSearchParams(data).toString();
+      const params = new URLSearchParams();
+      Object.entries(data || {}).forEach(([k, v]) => {
+        if (v === undefined || v === null) return;
+        params.append(k, String(v));
+      });
+      const body = params.toString();
       const r = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body
       });
       return r.json();
+    }
+
+    function streamUrl() {
+      return `http://${location.hostname}:8000/GND.mp3`;
+    }
+
+    function sanitizeProfileId(label) {
+      return String(label || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9 _-]/g, '')
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .slice(0, 40);
+    }
+
+    function getManageTarget() {
+      return els.manageTargetGround && els.manageTargetGround.checked ? 'ground' : 'airband';
+    }
+
+    function refreshManageCloneOptions() {
+      // Clone UI removed; keep function for older calls as a no-op.
+      return;
+    }
+
+    function refreshFreqEditOptions() {
+      if (!els.freqEditProfile) return;
+      const target = getManageTarget();
+      const list = target === 'ground' ? state.ground.profiles : state.airband.profiles;
+      els.freqEditProfile.innerHTML = '';
+      list.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.label;
+        els.freqEditProfile.appendChild(opt);
+      });
+      const activeId = target === 'ground' ? state.ground.currentProfile : state.airband.currentProfile;
+      if (activeId) {
+        els.freqEditProfile.value = activeId;
+      }
+    }
+
+    function formatFreqsText(freqs, labels) {
+      const out = [];
+      const hasLabels = Array.isArray(labels) && labels.length === freqs.length && labels.length > 0;
+      for (let i = 0; i < freqs.length; i++) {
+        const f = String(freqs[i] || '').trim();
+        if (!f) continue;
+        if (hasLabels) {
+          const l = String(labels[i] || '').trim();
+          out.push(l ? `${f} ${l}` : f);
+        } else {
+          out.push(f);
+        }
+      }
+      return out.join('\n');
     }
     
     // ============================================
@@ -973,6 +1146,8 @@
             <div class="meta">${p.exists ? '' : 'Missing'}</div>
           </button>
         `).join('');
+      refreshManageCloneOptions();
+      refreshFreqEditOptions();
     }
     
     function updateHitList() {
@@ -1305,6 +1480,7 @@
     async function refresh() {
       try {
         const data = await fetchJSON('/api/status');
+        const profilesData = await fetchJSON('/api/profiles');
 
         const pickNumber = (value, fallback) => (value === 0 || value) ? value : fallback;
         
@@ -1327,8 +1503,8 @@
         state.airband.squelch_dbfs = pickNumber(data.airband_squelch_dbfs, 0);
         state.airband.squelch = state.airband.squelch_dbfs;
         state.airband.filter = pickNumber(data.airband_filter, 3500);
-        state.airband.profiles = data.profiles_airband || [];
-        state.airband.currentProfile = data.profile_airband || '';
+        state.airband.profiles = profilesData.profiles_airband || [];
+        state.airband.currentProfile = profilesData.active_airband_id || data.profile_airband || '';
         state.airband.avoids = data.avoids_airband?.sample || [];
         
         state.ground.gain = pickNumber(data.ground_gain, 32.8);
@@ -1337,8 +1513,8 @@
         state.ground.squelch_dbfs = pickNumber(data.ground_squelch_dbfs, 0);
         state.ground.squelch = state.ground.squelch_dbfs;
         state.ground.filter = pickNumber(data.ground_filter, 3500);
-        state.ground.profiles = data.profiles_ground || [];
-        state.ground.currentProfile = data.profile_ground || '';
+        state.ground.profiles = profilesData.profiles_ground || [];
+        state.ground.currentProfile = profilesData.active_ground_id || data.profile_ground || '';
         state.ground.avoids = data.avoids_ground?.sample || [];
         
         state.serverTime = data.server_time;
@@ -1476,6 +1652,13 @@
       loadTheme();
       setupCollapsibleWidgets();
       updateTuneButton();
+
+      if (els.audioPlayer) {
+        els.audioPlayer.src = streamUrl();
+      }
+      if (els.lnkStream) {
+        els.lnkStream.href = streamUrl();
+      }
       
       els.gainSlider.addEventListener('input', onGainChange);
       els.dbfsSlider.addEventListener('input', onDbfsChange);
@@ -1513,6 +1696,90 @@
       document.querySelectorAll('button.action').forEach(btn => {
         btn.addEventListener('click', () => setTimeout(() => btn.blur(), 300));
       });
+      if (els.manageTargetAirband) {
+        els.manageTargetAirband.addEventListener('change', refreshManageCloneOptions);
+        els.manageTargetAirband.addEventListener('change', refreshFreqEditOptions);
+      }
+      if (els.manageTargetGround) {
+        els.manageTargetGround.addEventListener('change', refreshManageCloneOptions);
+        els.manageTargetGround.addEventListener('change', refreshFreqEditOptions);
+      }
+      if (els.manageLabel) {
+        els.manageLabel.addEventListener('input', () => {
+          if (!els.manageId || els.manageId.value.trim()) return;
+          els.manageId.value = sanitizeProfileId(els.manageLabel.value);
+        });
+      }
+      if (els.manageCreate) {
+        els.manageCreate.addEventListener('click', async () => {
+          const target = getManageTarget();
+          const label = (els.manageLabel && els.manageLabel.value || '').trim();
+          let profileId = (els.manageId && els.manageId.value || '').trim();
+          if (!profileId) profileId = sanitizeProfileId(label);
+          const res = await postAPI('/api/profile/create', {
+            id: profileId,
+            label,
+            airband: target === 'airband',
+          });
+          if (!res.ok) {
+            console.error('Create failed:', res.error);
+          }
+          refresh();
+        });
+      }
+      if (els.manageRename) {
+        els.manageRename.addEventListener('click', async () => {
+          const target = getManageTarget();
+          const profileId = target === 'ground' ? state.ground.currentProfile : state.airband.currentProfile;
+          const label = (els.manageLabel && els.manageLabel.value || '').trim();
+          if (!profileId || !label) return;
+          const res = await postAPI('/api/profile/update', {id: profileId, label});
+          if (!res.ok) {
+            console.error('Rename failed:', res.error);
+          }
+          refresh();
+        });
+      }
+      if (els.manageDelete) {
+        els.manageDelete.addEventListener('click', async () => {
+          const target = getManageTarget();
+          const profileId = target === 'ground' ? state.ground.currentProfile : state.airband.currentProfile;
+          if (!profileId) return;
+          if (!confirm(`Delete profile ${profileId}?`)) return;
+          const res = await postAPI('/api/profile/delete', {id: profileId});
+          if (!res.ok) {
+            console.error('Delete failed:', res.error);
+          }
+          refresh();
+        });
+      }
+      if (els.freqEditLoad) {
+        els.freqEditLoad.addEventListener('click', async () => {
+          const id = els.freqEditProfile && els.freqEditProfile.value;
+          if (!id) return;
+          const res = await fetchJSON(`/api/profile?id=${encodeURIComponent(id)}`);
+          if (!res.ok) {
+            if (els.freqEditStatus) els.freqEditStatus.textContent = res.error || 'Load failed';
+            return;
+          }
+          if (els.freqEditText) els.freqEditText.value = formatFreqsText(res.freqs || [], res.labels || []);
+          if (els.freqEditStatus) els.freqEditStatus.textContent = `Loaded: ${id}`;
+        });
+      }
+      if (els.freqEditSave) {
+        els.freqEditSave.addEventListener('click', async () => {
+          const id = els.freqEditProfile && els.freqEditProfile.value;
+          const freqs_text = (els.freqEditText && els.freqEditText.value || '').trim();
+          if (!id || !freqs_text) return;
+          const res = await postAPI('/api/profile/update_freqs', {id, freqs_text});
+          if (!res.ok) {
+            if (els.freqEditStatus) els.freqEditStatus.textContent = res.error || 'Save failed';
+            return;
+          }
+          if (els.freqEditStatus) els.freqEditStatus.textContent = res.changed ? 'Saved (scanner updated)' : 'Saved';
+          refresh();
+        });
+      }
       // Reconnect button removed
       
       refresh();
