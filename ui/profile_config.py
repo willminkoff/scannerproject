@@ -4,14 +4,14 @@ import json
 import time
 import re
 import sys
-from typing import Optional
+from typing import Optional, List, Dict
 import logging
 
 logger = logging.getLogger(__name__)
 
 try:
     from .config import (
-        CONFIG_SYMLINK, PROFILES_DIR, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH,
+        CONFIG_SYMLINK, PROFILES_DIR, PROFILES_REGISTRY_PATH, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH,
         AVOIDS_DIR, AVOIDS_PATHS, AVOIDS_SUMMARY_PATHS, PROFILES, GAIN_STEPS,
         RE_GAIN, RE_SQL, RE_SQL_DBFS, RE_AIRBAND, RE_INDEX, RE_FREQS_BLOCK, RE_LABELS_BLOCK,
         MIXER_NAME, FILTER_AIRBAND_PATH, FILTER_GROUND_PATH, FILTER_DEFAULT_CUTOFF,
@@ -20,7 +20,7 @@ try:
     from .systemd import restart_rtl, stop_rtl, start_rtl
 except ImportError:
     from ui.config import (
-        CONFIG_SYMLINK, PROFILES_DIR, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH,
+        CONFIG_SYMLINK, PROFILES_DIR, PROFILES_REGISTRY_PATH, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH,
         AVOIDS_DIR, AVOIDS_PATHS, AVOIDS_SUMMARY_PATHS, PROFILES, GAIN_STEPS,
         RE_GAIN, RE_SQL, RE_SQL_DBFS, RE_AIRBAND, RE_INDEX, RE_FREQS_BLOCK, RE_LABELS_BLOCK,
         MIXER_NAME, FILTER_AIRBAND_PATH, FILTER_GROUND_PATH, FILTER_DEFAULT_CUTOFF,
@@ -56,6 +56,105 @@ def read_airband_flag(conf_path: str) -> Optional[bool]:
     return None
 
 
+def _infer_airband_flag(profile_id: str, path: str) -> Optional[bool]:
+    """Infer airband flag using overrides or file contents."""
+    pid_overrides = {
+        "airband": True,
+        "tower": True,
+        "none_airband": True,
+        "gmrs": False,
+        "wx": False,
+        "none_ground": False,
+    }
+    if profile_id in pid_overrides:
+        return pid_overrides[profile_id]
+    if "ground" in profile_id:
+        return False
+    if "airband" in profile_id:
+        return True
+    if os.path.exists(path):
+        return read_airband_flag(path)
+    return None
+
+
+def validate_profile_id(profile_id: str) -> bool:
+    return bool(re.match(r'^[a-z0-9_-]{2,40}$', profile_id or ""))
+
+
+def safe_profile_path(path: str) -> Optional[str]:
+    root = os.path.realpath(PROFILES_DIR)
+    real = os.path.realpath(path)
+    if real == root:
+        return None
+    if not real.startswith(root + os.sep):
+        return None
+    return real
+
+
+def _registry_payload_from_profiles(profiles) -> List[Dict]:
+    payload = []
+    for pid, label, path in profiles:
+        airband_flag = _infer_airband_flag(pid, path)
+        payload.append({
+            "id": pid,
+            "label": label,
+            "path": path,
+            "airband": airband_flag if airband_flag is not None else True,
+        })
+    return payload
+
+
+def save_profiles_registry(profiles: List[Dict]) -> None:
+    os.makedirs(PROFILES_DIR, exist_ok=True)
+    tmp = PROFILES_REGISTRY_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump({"profiles": profiles}, f, indent=2)
+        f.write("\n")
+    os.replace(tmp, PROFILES_REGISTRY_PATH)
+
+
+def load_profiles_registry() -> List[Dict]:
+    if not os.path.exists(PROFILES_REGISTRY_PATH):
+        profiles = _registry_payload_from_profiles(PROFILES)
+        save_profiles_registry(profiles)
+        return profiles
+    try:
+        with open(PROFILES_REGISTRY_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        profiles = data.get("profiles", [])
+        if isinstance(profiles, list):
+            cleaned = []
+            for p in profiles:
+                if not isinstance(p, dict):
+                    continue
+                pid = p.get("id")
+                label = p.get("label")
+                path = p.get("path")
+                airband = p.get("airband")
+                if not pid or not label or not path:
+                    continue
+                cleaned.append({
+                    "id": pid,
+                    "label": label,
+                    "path": path,
+                    "airband": bool(airband),
+                })
+            if cleaned:
+                return cleaned
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+    profiles = _registry_payload_from_profiles(PROFILES)
+    save_profiles_registry(profiles)
+    return profiles
+
+
+def find_profile(profiles: List[Dict], profile_id: str) -> Optional[Dict]:
+    for p in profiles:
+        if p.get("id") == profile_id:
+            return p
+    return None
+
+
 def write_combined_config() -> bool:
     """Write the combined configuration."""
     airband_path = read_active_config_path()
@@ -78,25 +177,15 @@ def write_combined_config() -> bool:
 def split_profiles():
     """Split profiles into airband and ground categories."""
     prof_payload = []
-    pid_overrides = {
-        "airband": True,
-        "tower": True,
-        "none_airband": True,
-        "gmrs": False,
-        "wx": False,
-        "none_ground": False,
-    }
-    for pid, label, path in PROFILES:
+    for p in load_profiles_registry():
+        path = p.get("path", "")
         exists = os.path.exists(path)
-        airband_flag = pid_overrides.get(pid)
-        if airband_flag is None and exists:
-            airband_flag = read_airband_flag(path)
         prof_payload.append({
-            "id": pid,
-            "label": label,
+            "id": p.get("id", ""),
+            "label": p.get("label", ""),
             "path": path,
             "exists": exists,
-            "airband": airband_flag,
+            "airband": p.get("airband") is True,
         })
     profiles_airband = [p for p in prof_payload if p.get("airband") is True]
     profiles_ground = [p for p in prof_payload if p.get("airband") is False]
@@ -374,7 +463,7 @@ def write_avoids_summary(target: str, data: dict) -> None:
     if not profiles:
         lines.append("No avoids recorded.")
     else:
-        path_to_label = {path: label for _, label, path in PROFILES}
+        path_to_label = {p["path"]: p["label"] for p in load_profiles_registry()}
         for conf_path in sorted(profiles.keys()):
             prof = profiles.get(conf_path, {})
             avoids = sorted(prof.get("avoids", []) or [])

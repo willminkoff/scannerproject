@@ -645,6 +645,38 @@
               <div>Loading profiles...</div>
             </div>
           </div>
+          <div class="control-group" style="margin-top:12px;">
+            <div class="control-item">
+              <div class="control-label">
+                <span>Manage Profiles</span>
+                <span class="control-value">Clone/Rename/Delete</span>
+              </div>
+              <div class="control-applied">
+                <label><input type="radio" name="manage-target" id="manage-target-airband" value="airband" checked> Airband</label>
+                <label><input type="radio" name="manage-target" id="manage-target-ground" value="ground"> Ground</label>
+              </div>
+              <div class="control-applied">
+                <label>Clone from:
+                  <select id="manage-clone"></select>
+                </label>
+              </div>
+              <div class="control-applied">
+                <label>New ID:
+                  <input id="manage-id" type="text" placeholder="kbna_custom">
+                </label>
+              </div>
+              <div class="control-applied">
+                <label>Label:
+                  <input id="manage-label" type="text" placeholder="Profile label">
+                </label>
+              </div>
+              <div class="control-applied">
+                <button class="action" id="manage-create">Create</button>
+                <button class="action" id="manage-rename">Rename Selected</button>
+                <button class="action" id="manage-delete">Delete Selected</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -784,6 +816,14 @@
       filterValue: document.getElementById('filter-value'),
       filterApplied: document.getElementById('filter-applied'),
       profilesList: document.getElementById('profiles-list'),
+      manageTargetAirband: document.getElementById('manage-target-airband'),
+      manageTargetGround: document.getElementById('manage-target-ground'),
+      manageClone: document.getElementById('manage-clone'),
+      manageId: document.getElementById('manage-id'),
+      manageLabel: document.getElementById('manage-label'),
+      manageCreate: document.getElementById('manage-create'),
+      manageRename: document.getElementById('manage-rename'),
+      manageDelete: document.getElementById('manage-delete'),
       hitList: document.getElementById('hit-list'),
       hitCount: document.getElementById('hit-count'),
       hitRate: document.getElementById('hit-rate'),
@@ -846,6 +886,33 @@
         body
       });
       return r.json();
+    }
+
+    function sanitizeProfileId(label) {
+      return String(label || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9 _-]/g, '')
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .slice(0, 40);
+    }
+
+    function getManageTarget() {
+      return els.manageTargetGround && els.manageTargetGround.checked ? 'ground' : 'airband';
+    }
+
+    function refreshManageCloneOptions() {
+      if (!els.manageClone) return;
+      const target = getManageTarget();
+      const list = target === 'ground' ? state.ground.profiles : state.airband.profiles;
+      els.manageClone.innerHTML = '';
+      list.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.label;
+        els.manageClone.appendChild(opt);
+      });
     }
     
     // ============================================
@@ -973,6 +1040,7 @@
             <div class="meta">${p.exists ? '' : 'Missing'}</div>
           </button>
         `).join('');
+      refreshManageCloneOptions();
     }
     
     function updateHitList() {
@@ -1305,6 +1373,7 @@
     async function refresh() {
       try {
         const data = await fetchJSON('/api/status');
+        const profilesData = await fetchJSON('/api/profiles');
 
         const pickNumber = (value, fallback) => (value === 0 || value) ? value : fallback;
         
@@ -1327,8 +1396,8 @@
         state.airband.squelch_dbfs = pickNumber(data.airband_squelch_dbfs, 0);
         state.airband.squelch = state.airband.squelch_dbfs;
         state.airband.filter = pickNumber(data.airband_filter, 3500);
-        state.airband.profiles = data.profiles_airband || [];
-        state.airband.currentProfile = data.profile_airband || '';
+        state.airband.profiles = profilesData.profiles_airband || [];
+        state.airband.currentProfile = profilesData.active_airband_id || data.profile_airband || '';
         state.airband.avoids = data.avoids_airband?.sample || [];
         
         state.ground.gain = pickNumber(data.ground_gain, 32.8);
@@ -1337,8 +1406,8 @@
         state.ground.squelch_dbfs = pickNumber(data.ground_squelch_dbfs, 0);
         state.ground.squelch = state.ground.squelch_dbfs;
         state.ground.filter = pickNumber(data.ground_filter, 3500);
-        state.ground.profiles = data.profiles_ground || [];
-        state.ground.currentProfile = data.profile_ground || '';
+        state.ground.profiles = profilesData.profiles_ground || [];
+        state.ground.currentProfile = profilesData.active_ground_id || data.profile_ground || '';
         state.ground.avoids = data.avoids_ground?.sample || [];
         
         state.serverTime = data.server_time;
@@ -1513,6 +1582,59 @@
       document.querySelectorAll('button.action').forEach(btn => {
         btn.addEventListener('click', () => setTimeout(() => btn.blur(), 300));
       });
+      if (els.manageTargetAirband) els.manageTargetAirband.addEventListener('change', refreshManageCloneOptions);
+      if (els.manageTargetGround) els.manageTargetGround.addEventListener('change', refreshManageCloneOptions);
+      if (els.manageLabel) {
+        els.manageLabel.addEventListener('input', () => {
+          if (!els.manageId || els.manageId.value.trim()) return;
+          els.manageId.value = sanitizeProfileId(els.manageLabel.value);
+        });
+      }
+      if (els.manageCreate) {
+        els.manageCreate.addEventListener('click', async () => {
+          const target = getManageTarget();
+          const label = (els.manageLabel && els.manageLabel.value || '').trim();
+          let profileId = (els.manageId && els.manageId.value || '').trim();
+          if (!profileId) profileId = sanitizeProfileId(label);
+          const cloneFrom = els.manageClone && els.manageClone.value;
+          const res = await postAPI('/api/profile/create', {
+            id: profileId,
+            label,
+            airband: target === 'airband',
+            clone_from_id: cloneFrom,
+          });
+          if (!res.ok) {
+            console.error('Create failed:', res.error);
+          }
+          refresh();
+        });
+      }
+      if (els.manageRename) {
+        els.manageRename.addEventListener('click', async () => {
+          const target = getManageTarget();
+          const profileId = target === 'ground' ? state.ground.currentProfile : state.airband.currentProfile;
+          const label = (els.manageLabel && els.manageLabel.value || '').trim();
+          if (!profileId || !label) return;
+          const res = await postAPI('/api/profile/update', {id: profileId, label});
+          if (!res.ok) {
+            console.error('Rename failed:', res.error);
+          }
+          refresh();
+        });
+      }
+      if (els.manageDelete) {
+        els.manageDelete.addEventListener('click', async () => {
+          const target = getManageTarget();
+          const profileId = target === 'ground' ? state.ground.currentProfile : state.airband.currentProfile;
+          if (!profileId) return;
+          if (!confirm(`Delete profile ${profileId}?`)) return;
+          const res = await postAPI('/api/profile/delete', {id: profileId});
+          if (!res.ok) {
+            console.error('Delete failed:', res.error);
+          }
+          refresh();
+        });
+      }
       // Reconnect button removed
       
       refresh();

@@ -13,6 +13,14 @@ const btnRestartAirbandEl = document.getElementById('btn-restart-airband');
 const btnRestartGroundEl = document.getElementById('btn-restart-ground');
 const btnOpenSqlAirbandEl = document.getElementById('btn-open-sql-airband');
 const btnOpenSqlGroundEl = document.getElementById('btn-open-sql-ground');
+const manageTargetAirbandEl = document.getElementById('manage-target-airband');
+const manageTargetGroundEl = document.getElementById('manage-target-ground');
+const manageCloneEl = document.getElementById('manage-clone');
+const manageIdEl = document.getElementById('manage-id');
+const manageLabelEl = document.getElementById('manage-label');
+const manageCreateEl = document.getElementById('manage-create');
+const manageRenameEl = document.getElementById('manage-rename');
+const manageDeleteEl = document.getElementById('manage-delete');
 let actionMsg = '';
 let actionMsgTarget = null;
 
@@ -30,6 +38,8 @@ let hitsView = false;
 let activePage = 0;
 let avoidsAirband = null;
 let avoidsGround = null;
+let profilesCache = null;
+let profilesCacheAt = 0;
 
 const controlTargets = {
   airband: {
@@ -211,6 +221,51 @@ function setControlsFromStatus(target, gain, squelchDbfs, filter, allowSetSlider
   }
 }
 
+function getManageTarget() {
+  return manageTargetGroundEl && manageTargetGroundEl.checked ? 'ground' : 'airband';
+}
+
+function sanitizeProfileId(label) {
+  return String(label || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9 _-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 40);
+}
+
+function refreshManageCloneOptions() {
+  if (!profilesCache || !manageCloneEl) return;
+  const target = getManageTarget();
+  const list = target === 'ground' ? profilesCache.profiles_ground : profilesCache.profiles_airband;
+  manageCloneEl.innerHTML = '';
+  list.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.label;
+    manageCloneEl.appendChild(opt);
+  });
+}
+
+function getSelectedProfileId(target) {
+  if (!profilesCache) return '';
+  return target === 'ground' ? profilesCache.active_ground_id : profilesCache.active_airband_id;
+}
+
+async function refreshProfiles() {
+  const data = await getJSON('/api/profiles');
+  profilesCache = data;
+  profilesCacheAt = Date.now();
+  if (profilesCache) {
+    currentProfileAirband = data.active_airband_id || currentProfileAirband;
+    currentProfileGround = data.active_ground_id || currentProfileGround;
+    buildProfiles(profilesAirbandEl, data.profiles_airband || [], currentProfileAirband, 'airband');
+    buildProfiles(profilesGroundEl, data.profiles_ground || [], currentProfileGround, 'ground');
+    refreshManageCloneOptions();
+  }
+}
+
 async function refresh(allowSetSliders=false) {
   const st = await getJSON('/api/status');
 
@@ -251,13 +306,8 @@ async function refresh(allowSetSliders=false) {
   avoidsGround = st.avoids_ground;
   updateAvoidsForPage();
 
-  if (currentProfileAirband === null || currentProfileAirband !== st.profile_airband) {
-    currentProfileAirband = st.profile_airband;
-    buildProfiles(profilesAirbandEl, st.profiles_airband, st.profile_airband, 'airband');
-  }
-  if (currentProfileGround === null || currentProfileGround !== st.profile_ground) {
-    currentProfileGround = st.profile_ground;
-    buildProfiles(profilesGroundEl, st.profiles_ground, st.profile_ground, 'ground');
+  if (!profilesCache || Date.now() - profilesCacheAt > 5000) {
+    await refreshProfiles();
   }
 
   if (allowSetSliders) {
@@ -314,6 +364,57 @@ function wireControls(target) {
 
 wireControls('airband');
 wireControls('ground');
+if (manageTargetAirbandEl) manageTargetAirbandEl.addEventListener('change', refreshManageCloneOptions);
+if (manageTargetGroundEl) manageTargetGroundEl.addEventListener('change', refreshManageCloneOptions);
+if (manageLabelEl) {
+  manageLabelEl.addEventListener('input', () => {
+    if (!manageIdEl || manageIdEl.value.trim()) return;
+    manageIdEl.value = sanitizeProfileId(manageLabelEl.value);
+  });
+}
+if (manageCreateEl) {
+  manageCreateEl.addEventListener('click', async () => {
+    const target = getManageTarget();
+    const label = (manageLabelEl && manageLabelEl.value || '').trim();
+    let profileId = (manageIdEl && manageIdEl.value || '').trim();
+    if (!profileId) profileId = sanitizeProfileId(label);
+    const cloneFrom = manageCloneEl && manageCloneEl.value;
+    const res = await post('/api/profile/create', {
+      id: profileId,
+      label,
+      airband: target === 'airband',
+      clone_from_id: cloneFrom,
+    });
+    if (!res.ok) {
+      actionMsg = res.error || 'Create failed';
+    } else {
+      actionMsg = 'Profile created';
+    }
+    await refreshProfiles();
+  });
+}
+if (manageRenameEl) {
+  manageRenameEl.addEventListener('click', async () => {
+    const target = getManageTarget();
+    const profileId = getSelectedProfileId(target);
+    const label = (manageLabelEl && manageLabelEl.value || '').trim();
+    if (!profileId || !label) return;
+    const res = await post('/api/profile/update', {id: profileId, label});
+    actionMsg = res.ok ? 'Profile renamed' : (res.error || 'Rename failed');
+    await refreshProfiles();
+  });
+}
+if (manageDeleteEl) {
+  manageDeleteEl.addEventListener('click', async () => {
+    const target = getManageTarget();
+    const profileId = getSelectedProfileId(target);
+    if (!profileId) return;
+    if (!confirm(`Delete profile ${profileId}?`)) return;
+    const res = await post('/api/profile/delete', {id: profileId});
+    actionMsg = res.ok ? 'Profile deleted' : (res.error || 'Delete failed');
+    await refreshProfiles();
+  });
+}
 
 async function applyControls(target) {
   const controls = controlTargets[target];

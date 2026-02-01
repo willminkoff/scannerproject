@@ -479,6 +479,21 @@ Slider maps to index (0-28), value sent to backend is the actual dB value.
 {"ok": false, "error": "combine failed: ..."}
 ```
 
+## Profiles Registry
+Profiles are now stored in a JSON registry at:
+`/usr/local/etc/airband-profiles/profiles.json`
+
+Format:
+```json
+{
+  "profiles": [
+    {"id":"airband","label":"KBNA (Nashville)","path":"/usr/local/etc/airband-profiles/rtl_airband_airband.conf","airband":true}
+  ]
+}
+```
+
+If the registry does not exist, it is bootstrapped from the legacy `PROFILES` list.
+
 ## Deployment
 
 ### Quick Deploy

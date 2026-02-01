@@ -51,6 +51,33 @@
                 </div>
               </div>
               <!-- Removed extra Airband control buttons -->
+              <div class="ctrl" id="manage-profiles">
+                <div class="ctrl-head"><b>Manage Profiles</b></div>
+                <div class="ctrl-readout">
+                  <label><input type="radio" name="manage-target" id="manage-target-airband" value="airband" checked /> Airband</label>
+                  <label><input type="radio" name="manage-target" id="manage-target-ground" value="ground" /> Ground</label>
+                </div>
+                <div class="ctrl-readout">
+                  <label>Clone from:
+                    <select id="manage-clone"></select>
+                  </label>
+                </div>
+                <div class="ctrl-readout">
+                  <label>New ID:
+                    <input id="manage-id" type="text" placeholder="e.g. kbna_custom" />
+                  </label>
+                </div>
+                <div class="ctrl-readout">
+                  <label>Label:
+                    <input id="manage-label" type="text" placeholder="Profile label" />
+                  </label>
+                </div>
+                <div class="ctrl-readout">
+                  <button type="button" id="manage-create">Create</button>
+                  <button type="button" id="manage-rename">Rename Selected</button>
+                  <button type="button" id="manage-delete">Delete Selected</button>
+                </div>
+              </div>
             </section>
 
             <section class="page">

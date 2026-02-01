@@ -11,6 +11,7 @@ UI_PORT = int(os.getenv("UI_PORT", "5050"))
 # Paths
 CONFIG_SYMLINK = os.getenv("CONFIG_SYMLINK", "/usr/local/etc/rtl_airband.conf")
 PROFILES_DIR = os.getenv("PROFILES_DIR", "/usr/local/etc/airband-profiles")
+PROFILES_REGISTRY_PATH = os.path.join(PROFILES_DIR, "profiles.json")
 GROUND_CONFIG_PATH = os.getenv("GROUND_CONFIG_PATH", "/usr/local/etc/rtl_airband_ground.conf")
 COMBINED_CONFIG_PATH = os.getenv("COMBINED_CONFIG_PATH", "/usr/local/etc/rtl_airband_combined.conf")
 
