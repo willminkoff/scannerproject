@@ -923,19 +923,25 @@
     
     function updateControls() {
       const t = state[activeTarget];
-      
+
       const gainIdx = gainIndexFromValue(t.gain);
-      els.gainSlider.value = gainIdx;
-      els.gainValue.textContent = GAIN_STEPS[gainIdx].toFixed(1);
+      if (!els.gainSlider.classList.contains('dirty')) {
+        els.gainSlider.value = gainIdx;
+        els.gainValue.textContent = GAIN_STEPS[gainIdx].toFixed(1);
+      }
       els.gainApplied.textContent = t.gain.toFixed(1) + ' dB';
-      
+
       const sqlSliderVal = t.squelch / SQL_SCALE;
-      els.sqlSlider.value = sqlSliderVal;
-      els.sqlValue.textContent = sqlSliderVal.toFixed(1);
+      if (!els.sqlSlider.classList.contains('dirty')) {
+        els.sqlSlider.value = sqlSliderVal;
+        els.sqlValue.textContent = sqlSliderVal.toFixed(1);
+      }
       els.sqlApplied.textContent = t.squelch.toFixed(2);
-      
-      els.filterSlider.value = t.filter;
-      els.filterValue.textContent = t.filter;
+
+      if (!els.filterSlider.classList.contains('dirty')) {
+        els.filterSlider.value = t.filter;
+        els.filterValue.textContent = t.filter;
+      }
       els.filterApplied.textContent = t.filter + ' Hz';
     }
     
