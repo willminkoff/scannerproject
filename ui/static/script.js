@@ -321,10 +321,9 @@ async function applyControls(target) {
     }
     const result = await post('/api/apply', {gain, squelch, target});
     if (result && result.ok !== false) {
-      // After apply, snap slider to the actual step index (in case backend rounded)
-      // Use refresh(true) to update slider to backend value
+      // After apply, refresh status but keep slider position to avoid snap-back
       controls.dirty = false;
-      await refresh(true);
+      await refresh(false);
     } else {
       // On error, revert to backend value
       controls.dirty = false;
