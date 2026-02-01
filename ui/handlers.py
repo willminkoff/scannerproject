@@ -408,9 +408,6 @@ class Handler(BaseHTTPRequestHandler):
             profiles = load_profiles_registry()
             if find_profile(profiles, profile_id):
                 return self._send(400, json.dumps({"ok": False, "error": "id already exists"}), "application/json; charset=utf-8")
-            src = find_profile(profiles, clone_from)
-            if not src:
-                return self._send(400, json.dumps({"ok": False, "error": "clone profile not found"}), "application/json; charset=utf-8")
             new_path = os.path.join(PROFILES_DIR, f"rtl_airband_{profile_id}.conf")
             safe_path = safe_profile_path(new_path)
             if not safe_path:
@@ -418,7 +415,49 @@ class Handler(BaseHTTPRequestHandler):
             if os.path.exists(safe_path):
                 return self._send(400, json.dumps({"ok": False, "error": "profile file exists"}), "application/json; charset=utf-8")
             try:
-                shutil.copyfile(src["path"], safe_path)
+                src = find_profile(profiles, clone_from) if clone_from else None
+                if src:
+                    shutil.copyfile(src["path"], safe_path)
+                else:
+                    # Minimal blank template with freqs block so the textarea editor can save immediately.
+                    desired_index = 0 if bool(airband_flag) else 1
+                    template = f"""airband = {'true' if bool(airband_flag) else 'false'};\n\n""" + \
+                        "devices:\n" + \
+                        "({\n" + \
+                        "  type = \"rtlsdr\";\n" + \
+                        f"  index = {desired_index};\n" + \
+                        "  mode = \"scan\";\n" + \
+                        "  gain = 32.800;   # UI_CONTROLLED\n\n" + \
+                        "  channels:\n" + \
+                        "  (\n" + \
+                        "    {\n" + \
+                        "      freqs = ();\n\n" + \
+                        "      modulation = \"am\";\n" + \
+                        "      bandwidth = 12000;\n" + \
+                        "      squelch_threshold = -70;  # UI_CONTROLLED\n" + \
+                        "      squelch_delay = 0.8;\n\n" + \
+                        "      outputs:\n" + \
+                        "      (\n" + \
+                        "        {\n" + \
+                        "          type = \"icecast\";\n" + \
+                        "          send_scan_freq_tags = true;\n" + \
+                        "          server = \"127.0.0.1\";\n" + \
+                        "          port = 8000;\n" + \
+                        "          mountpoint = \"GND.mp3\";\n" + \
+                        "          username = \"source\";\n" + \
+                        "          password = \"062352\";\n" + \
+                        "          name = \"SprontPi Radio\";\n" + \
+                        "          genre = \"AIRBAND\";\n" + \
+                        "          description = \"Custom\";\n" + \
+                        "          bitrate = 16;\n" + \
+                        "        }\n" + \
+                        "      );\n" + \
+                        "    }\n" + \
+                        "  );\n" + \
+                        "});\n"
+                    with open(safe_path, "w", encoding="utf-8") as f:
+                        f.write(template)
+
                 write_airband_flag(safe_path, bool(airband_flag))
                 enforce_profile_index(safe_path)
                 freqs_text = get_str("freqs_text").strip()

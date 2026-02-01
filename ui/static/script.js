@@ -15,7 +15,6 @@ const btnOpenSqlAirbandEl = document.getElementById('btn-open-sql-airband');
 const btnOpenSqlGroundEl = document.getElementById('btn-open-sql-ground');
 const manageTargetAirbandEl = document.getElementById('manage-target-airband');
 const manageTargetGroundEl = document.getElementById('manage-target-ground');
-const manageCloneEl = document.getElementById('manage-clone');
 const manageIdEl = document.getElementById('manage-id');
 const manageLabelEl = document.getElementById('manage-label');
 const manageCreateEl = document.getElementById('manage-create');
@@ -249,16 +248,8 @@ function sanitizeProfileId(label) {
 }
 
 function refreshManageCloneOptions() {
-  if (!profilesCache || !manageCloneEl) return;
-  const target = getManageTarget();
-  const list = target === 'ground' ? profilesCache.profiles_ground : profilesCache.profiles_airband;
-  manageCloneEl.innerHTML = '';
-  list.forEach(p => {
-    const opt = document.createElement('option');
-    opt.value = p.id;
-    opt.textContent = p.label;
-    manageCloneEl.appendChild(opt);
-  });
+  // Clone UI removed; keep function for older calls as a no-op.
+  return;
 }
 
 function refreshEditProfileOptions() {
@@ -441,12 +432,10 @@ if (manageCreateEl) {
     const label = (manageLabelEl && manageLabelEl.value || '').trim();
     let profileId = (manageIdEl && manageIdEl.value || '').trim();
     if (!profileId) profileId = sanitizeProfileId(label);
-    const cloneFrom = manageCloneEl && manageCloneEl.value;
     const res = await post('/api/profile/create', {
       id: profileId,
       label,
       airband: target === 'airband',
-      clone_from_id: cloneFrom,
     });
     if (!res.ok) {
       actionMsg = res.error || 'Create failed';
