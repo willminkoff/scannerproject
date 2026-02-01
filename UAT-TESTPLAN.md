@@ -155,9 +155,9 @@ curl -s http://sprontpi.local:5050/api/hits | python3 -m json.tool
 - [ ] Service remains running (no restart needed)
 - [ ] **Status**: PASS / FAIL
 
-#### 3.7 - Squelch Control
-- [ ] Find "Squelch" slider (shows 0-10 range)
-- [ ] Current squelch value displays
+#### 3.7 - Squelch Control (dBFS)
+- [ ] Find "Squelch (dBFS)" slider (shows -120 to 0 range)
+- [ ] Current dBFS value displays
 - [ ] Drag slider left/right
 - [ ] Value updates in real-time
 - [ ] After 2 seconds of inactivity, control is applied
@@ -180,7 +180,7 @@ curl -s http://sprontpi.local:5050/api/hits | python3 -m json.tool
 ```bash
 curl -s -X POST http://sprontpi.local:5050/api/apply \
   -H 'Content-Type: application/json' \
-  -d '{"target":"airband","gain":25,"squelch":5}' | python3 -m json.tool
+  -d '{"target":"airband","gain":25,"squelch_mode":"dbfs","squelch_dbfs":-80}' | python3 -m json.tool
 ```
 
 **Verify**:
@@ -193,7 +193,7 @@ curl -s -X POST http://sprontpi.local:5050/api/apply \
 ```bash
 curl -s -X POST http://sprontpi.local:5050/api/apply \
   -H 'Content-Type: application/json' \
-  -d '{"target":"airband","gain":20,"squelch":8}' | python3 -m json.tool
+  -d '{"target":"airband","gain":20,"squelch_mode":"dbfs","squelch_dbfs":-90}' | python3 -m json.tool
 ```
 
 **Verify**:
@@ -206,7 +206,7 @@ curl -s -X POST http://sprontpi.local:5050/api/apply \
 ```bash
 curl -s -X POST http://sprontpi.local:5050/api/apply \
   -H 'Content-Type: application/json' \
-  -d '{"target":"ground","gain":22,"squelch":6}' | python3 -m json.tool
+  -d '{"target":"ground","gain":22,"squelch_mode":"dbfs","squelch_dbfs":-85}' | python3 -m json.tool
 ```
 
 **Verify**:

@@ -238,9 +238,11 @@ System status snapshot.
   "gain": 32.8,
   "squelch": 5.0,
   "airband_gain": 32.8,
-  "airband_squelch": 5.0,
+  "airband_squelch_mode": "dbfs",
+  "airband_squelch_dbfs": -80,
   "ground_gain": 36.4,
-  "ground_squelch": 3.0,
+  "ground_squelch_mode": "dbfs",
+  "ground_squelch_dbfs": -90,
   "last_hit": "119.3500",
   "last_hit_airband": "119.3500",
   "last_hit_ground": "",
@@ -248,6 +250,9 @@ System status snapshot.
   "avoids_ground": []
 }
 ```
+**Notes**:
+- `*_squelch_dbfs` is the active squelch value (dBFS).
+- Legacy `squelch` fields may still appear for backward compatibility.
 
 ### GET /api/hits
 Last 50 detected hits (from journalctl activity logs).
@@ -290,16 +295,18 @@ Switch to a profile.
 - Restarts rtl-airband only when device config differs
 
 ### POST /api/apply
-Set gain and squelch for a target scanner.
+Set gain and squelch for a target scanner (dBFS squelch).
 
 **Request** (JSON):
 ```json
 {
   "gain": 32.8,
-  "squelch": 5.0,
+  "squelch_mode": "dbfs",
+  "squelch_dbfs": -80,
   "target": "airband"
 }
 ```
+Legacy clients may still POST `squelch` (SNR). Backend defaults to dBFS mode in the current UI.
 
 **Response** (JSON):
 ```json
@@ -307,7 +314,8 @@ Set gain and squelch for a target scanner.
 ```
 
 **Behavior**:
-- Validated gain/squelch ranges
+- Validated gain ranges
+- dBFS squelch: `0` = auto, negative opens more (try -70 to -100)
 - Writes config file
 - Debounced 0.2 seconds (batches rapid changes)
 - Restarts rtl-airband if change detected
@@ -389,10 +397,10 @@ A production-ready alternative UI built as a single-page HTML file with embedded
 │ ⚙️ Radio Controls      │ 🎯 Profiles                    │  ← Row 1
 │ [Airband] [Ground]     │                                │
 │ Gain ────●──── 22.9    │ [KBNA (Nashville)]  ●          │
-│ Squelch ──●──── 5.0    │ [Nashville Centers]            │
+│ Squelch ──●──── -80    │ [Nashville Centers]            │
 │ Filter ───●──── 2900   │ [TOWER (118.600)]              │
 │                        │ [KHOP (Campbell)]              │
-│ [Restart] [Open SQL]   │ [KMQY (Smyrna)]                │
+│ [Restart] [Tune] [Avoid]│ [KMQY (Smyrna)]               │
 ├────────────────────────┼────────────────────────────────┤
 │ 📊 Signal Activity     │ 📋 Recent Hits                 │  ← Row 2
 │   Total Hits   Session │ Time     Frequency      Dur    │
@@ -440,10 +448,9 @@ const GAIN_STEPS = [
 ```
 Slider maps to index (0-28), value sent to backend is the actual dB value.
 
-**Squelch Control**:
-```javascript
-const SQL_SCALE = 0.1;  // UI slider 0-10 → backend 0.0-1.0
-```
+**Squelch Control (dBFS)**:
+- UI slider ranges from **-120 to 0**
+- `0` = auto (most closed), more negative opens more (try -70 to -100)
 
 **Update Strategy**:
 - SSE merges new hits (doesn't overwrite) to prevent flashing
