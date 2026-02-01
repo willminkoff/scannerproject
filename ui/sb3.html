@@ -30,7 +30,11 @@
       --good: #b91c1c;
       --slider-track: rgba(185, 28, 28, 0.08);
       --slider-glow: 0 0 8px rgba(185, 28, 28, 0.25), inset 0 1px 2px rgba(185, 28, 28, 0.1);
-      --text-primary: #8a92a8;
+      --text-primary: #7f8798;
+      --text-secondary: #5f6878;
+      --border: #1c222a;
+      --bg-panel: #0f1317;
+      --bg-card: #0e1216;
     }
 
     body.red-theme select {
@@ -50,6 +54,17 @@
       background: #1a1f24;
       color: #c7cedb;
       border-color: #2a3139;
+    }
+
+    body.red-theme .widget,
+    body.red-theme .control-item,
+    body.red-theme .profile-btn,
+    body.red-theme .last-hit-btn,
+    body.red-theme .tab,
+    body.red-theme .player-box,
+    body.red-theme .status-indicators {
+      border-color: var(--border);
+      box-shadow: none;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
