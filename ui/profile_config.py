@@ -56,6 +56,43 @@ def read_airband_flag(conf_path: str) -> Optional[bool]:
     return None
 
 
+def write_airband_flag(conf_path: str, airband: bool) -> None:
+    """Ensure the config contains an explicit airband=true/false line."""
+    conf_path = os.path.realpath(conf_path)
+    try:
+        with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
+            lines = f.readlines()
+    except FileNotFoundError:
+        return
+
+    out = []
+    changed = False
+    wrote = False
+    for line in lines:
+        match = RE_AIRBAND.match(line)
+        if match:
+            indent_match = re.match(r'^(\s*)', line)
+            indent = indent_match.group(1) if indent_match else ""
+            new_line = f"{indent}airband = {'true' if airband else 'false'};\n"
+            out.append(new_line)
+            changed = changed or (new_line != line)
+            wrote = True
+            continue
+        out.append(line)
+
+    if not wrote:
+        out.insert(0, f"airband = {'true' if airband else 'false'};\n\n")
+        changed = True
+
+    if not changed:
+        return
+
+    tmp = conf_path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.writelines(out)
+    os.replace(tmp, conf_path)
+
+
 def _infer_airband_flag(profile_id: str, path: str) -> Optional[bool]:
     """Infer airband flag using overrides or file contents."""
     pid_overrides = {

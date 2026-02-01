@@ -25,7 +25,7 @@ try:
         read_active_config_path, parse_controls, split_profiles,
         guess_current_profile, summarize_avoids, parse_filter,
         load_profiles_registry, find_profile, validate_profile_id, safe_profile_path,
-        enforce_profile_index, set_profile
+        enforce_profile_index, set_profile, save_profiles_registry, write_airband_flag
     )
     from .scanner import (
         read_last_hit_airband, read_last_hit_ground, read_icecast_hit_list,
@@ -42,7 +42,7 @@ except ImportError:
         read_active_config_path, parse_controls, split_profiles,
         guess_current_profile, summarize_avoids, parse_filter,
         load_profiles_registry, find_profile, validate_profile_id, safe_profile_path,
-        enforce_profile_index, set_profile
+        enforce_profile_index, set_profile, save_profiles_registry, write_airband_flag
     )
     from ui.scanner import (
         read_last_hit_airband, read_last_hit_ground, read_icecast_hit_list,
@@ -337,13 +337,31 @@ class Handler(BaseHTTPRequestHandler):
         p = urlparse(self.path).path
         length = int(self.headers.get("Content-Length", "0") or "0")
         raw = self.rfile.read(length).decode("utf-8", errors="ignore")
-        form = {k: v[0] for k, v in parse_qs(raw).items()}
+        ctype = (self.headers.get("Content-Type") or "").lower()
+        if "application/json" in ctype:
+            try:
+                data = json.loads(raw) if raw.strip() else {}
+                form = data if isinstance(data, dict) else {}
+            except json.JSONDecodeError:
+                form = {}
+        else:
+            form = {k: v[0] for k, v in parse_qs(raw).items()}
+
+        def get_str(key: str, default: str = "") -> str:
+            v = form.get(key, default)
+            if v is None:
+                return default
+            return str(v)
 
         if p == "/api/profile/create":
-            profile_id = form.get("id", "").strip()
-            label = form.get("label", "").strip()
-            airband_flag = form.get("airband", "true").lower() in ("1", "true", "yes", "on")
-            clone_from = form.get("clone_from_id", "").strip()
+            profile_id = get_str("id").strip()
+            label = get_str("label").strip()
+            airband_raw = form.get("airband", True)
+            if isinstance(airband_raw, bool):
+                airband_flag = airband_raw
+            else:
+                airband_flag = str(airband_raw).lower() in ("1", "true", "yes", "on")
+            clone_from = get_str("clone_from_id").strip()
             if not validate_profile_id(profile_id):
                 return self._send(400, json.dumps({"ok": False, "error": "invalid id"}), "application/json; charset=utf-8")
             if not label:
@@ -362,6 +380,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, json.dumps({"ok": False, "error": "profile file exists"}), "application/json; charset=utf-8")
             try:
                 shutil.copyfile(src["path"], safe_path)
+                write_airband_flag(safe_path, bool(airband_flag))
                 enforce_profile_index(safe_path)
             except Exception as e:
                 return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
@@ -371,13 +390,12 @@ class Handler(BaseHTTPRequestHandler):
                 "path": safe_path,
                 "airband": bool(airband_flag),
             })
-            from ui.profile_config import save_profiles_registry
             save_profiles_registry(profiles)
             return self._send(200, json.dumps({"ok": True, "profile": profiles[-1]}), "application/json; charset=utf-8")
 
         if p == "/api/profile/update":
-            profile_id = form.get("id", "").strip()
-            label = form.get("label", "").strip()
+            profile_id = get_str("id").strip()
+            label = get_str("label").strip()
             if not profile_id or not label:
                 return self._send(400, json.dumps({"ok": False, "error": "missing fields"}), "application/json; charset=utf-8")
             profiles = load_profiles_registry()
@@ -385,12 +403,11 @@ class Handler(BaseHTTPRequestHandler):
             if not prof:
                 return self._send(404, json.dumps({"ok": False, "error": "profile not found"}), "application/json; charset=utf-8")
             prof["label"] = label
-            from ui.profile_config import save_profiles_registry
             save_profiles_registry(profiles)
             return self._send(200, json.dumps({"ok": True, "profile": prof}), "application/json; charset=utf-8")
 
         if p == "/api/profile/delete":
-            profile_id = form.get("id", "").strip()
+            profile_id = get_str("id").strip()
             profiles = load_profiles_registry()
             prof = find_profile(profiles, profile_id)
             if not prof:
@@ -406,7 +423,6 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception as e:
                     return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
             profiles = [p for p in profiles if p.get("id") != profile_id]
-            from ui.profile_config import save_profiles_registry
             save_profiles_registry(profiles)
             return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
 
