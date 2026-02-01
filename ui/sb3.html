@@ -394,6 +394,23 @@
       opacity: 0.88;
     }
 
+    .freq-editor textarea {
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.30);
+      color: var(--text-primary);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      line-height: 1.35;
+      resize: vertical;
+      color-scheme: dark;
+    }
+    .freq-editor textarea:focus { outline: 2px solid rgba(45, 212, 191, 0.35); outline-offset: 2px; }
+
     /* Counters */
     .counter-grid {
       display: grid;
@@ -704,6 +721,21 @@
                 <button class="action" id="manage-delete">Delete Selected</button>
               </div>
             </div>
+            <div class="control-item freq-editor">
+              <div class="control-label">
+                <span>Edit Frequencies</span>
+                <span class="control-value">One per line: 118.600 TOWER</span>
+              </div>
+              <div class="control-applied" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <label>Profile:
+                  <select id="freq-edit-profile"></select>
+                </label>
+                <button class="action" id="freq-edit-load">Load</button>
+                <button class="action" id="freq-edit-save">Save</button>
+              </div>
+              <textarea id="freq-edit-text" rows="8" spellcheck="false" placeholder="118.600 TOWER&#10;119.350 APP"></textarea>
+              <div class="control-applied"><span id="freq-edit-status" style="opacity:0.85;"></span></div>
+            </div>
           </div>
         </div>
       </div>
@@ -854,6 +886,11 @@
       manageCreate: document.getElementById('manage-create'),
       manageRename: document.getElementById('manage-rename'),
       manageDelete: document.getElementById('manage-delete'),
+      freqEditProfile: document.getElementById('freq-edit-profile'),
+      freqEditText: document.getElementById('freq-edit-text'),
+      freqEditLoad: document.getElementById('freq-edit-load'),
+      freqEditSave: document.getElementById('freq-edit-save'),
+      freqEditStatus: document.getElementById('freq-edit-status'),
       hitList: document.getElementById('hit-list'),
       hitCount: document.getElementById('hit-count'),
       hitRate: document.getElementById('hit-rate'),
@@ -947,6 +984,39 @@
         opt.textContent = p.label;
         els.manageClone.appendChild(opt);
       });
+    }
+
+    function refreshFreqEditOptions() {
+      if (!els.freqEditProfile) return;
+      const target = getManageTarget();
+      const list = target === 'ground' ? state.ground.profiles : state.airband.profiles;
+      els.freqEditProfile.innerHTML = '';
+      list.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.label;
+        els.freqEditProfile.appendChild(opt);
+      });
+      const activeId = target === 'ground' ? state.ground.currentProfile : state.airband.currentProfile;
+      if (activeId) {
+        els.freqEditProfile.value = activeId;
+      }
+    }
+
+    function formatFreqsText(freqs, labels) {
+      const out = [];
+      const hasLabels = Array.isArray(labels) && labels.length === freqs.length && labels.length > 0;
+      for (let i = 0; i < freqs.length; i++) {
+        const f = String(freqs[i] || '').trim();
+        if (!f) continue;
+        if (hasLabels) {
+          const l = String(labels[i] || '').trim();
+          out.push(l ? `${f} ${l}` : f);
+        } else {
+          out.push(f);
+        }
+      }
+      return out.join('\\n');
     }
     
     // ============================================
@@ -1075,6 +1145,7 @@
           </button>
         `).join('');
       refreshManageCloneOptions();
+      refreshFreqEditOptions();
     }
     
     function updateHitList() {
@@ -1623,8 +1694,14 @@
       document.querySelectorAll('button.action').forEach(btn => {
         btn.addEventListener('click', () => setTimeout(() => btn.blur(), 300));
       });
-      if (els.manageTargetAirband) els.manageTargetAirband.addEventListener('change', refreshManageCloneOptions);
-      if (els.manageTargetGround) els.manageTargetGround.addEventListener('change', refreshManageCloneOptions);
+      if (els.manageTargetAirband) {
+        els.manageTargetAirband.addEventListener('change', refreshManageCloneOptions);
+        els.manageTargetAirband.addEventListener('change', refreshFreqEditOptions);
+      }
+      if (els.manageTargetGround) {
+        els.manageTargetGround.addEventListener('change', refreshManageCloneOptions);
+        els.manageTargetGround.addEventListener('change', refreshFreqEditOptions);
+      }
       if (els.manageLabel) {
         els.manageLabel.addEventListener('input', () => {
           if (!els.manageId || els.manageId.value.trim()) return;
@@ -1673,6 +1750,33 @@
           if (!res.ok) {
             console.error('Delete failed:', res.error);
           }
+          refresh();
+        });
+      }
+      if (els.freqEditLoad) {
+        els.freqEditLoad.addEventListener('click', async () => {
+          const id = els.freqEditProfile && els.freqEditProfile.value;
+          if (!id) return;
+          const res = await fetchJSON(`/api/profile?id=${encodeURIComponent(id)}`);
+          if (!res.ok) {
+            if (els.freqEditStatus) els.freqEditStatus.textContent = res.error || 'Load failed';
+            return;
+          }
+          if (els.freqEditText) els.freqEditText.value = formatFreqsText(res.freqs || [], res.labels || []);
+          if (els.freqEditStatus) els.freqEditStatus.textContent = `Loaded: ${id}`;
+        });
+      }
+      if (els.freqEditSave) {
+        els.freqEditSave.addEventListener('click', async () => {
+          const id = els.freqEditProfile && els.freqEditProfile.value;
+          const freqs_text = (els.freqEditText && els.freqEditText.value || '').trim();
+          if (!id || !freqs_text) return;
+          const res = await postAPI('/api/profile/update_freqs', {id, freqs_text});
+          if (!res.ok) {
+            if (els.freqEditStatus) els.freqEditStatus.textContent = res.error || 'Save failed';
+            return;
+          }
+          if (els.freqEditStatus) els.freqEditStatus.textContent = res.changed ? 'Saved (scanner updated)' : 'Saved';
           refresh();
         });
       }

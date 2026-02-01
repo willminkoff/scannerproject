@@ -191,7 +191,6 @@ def find_profile(profiles: List[Dict], profile_id: str) -> Optional[Dict]:
             return p
     return None
 
-
 def write_combined_config() -> bool:
     """Write the combined configuration."""
     airband_path = read_active_config_path()
@@ -521,26 +520,156 @@ def write_avoids_summary(target: str, data: dict) -> None:
 
 
 def parse_freqs_labels(text: str):
-    """Parse frequencies and labels from config."""
-    m = RE_FREQS_BLOCK.search(text)
+    """Parse frequencies and labels from config.
+
+    Returns:
+      (freqs, labels) where:
+        - freqs: list[float]
+        - labels: Optional[list[str]] (None when labels block missing)
+    """
+    m = RE_FREQS_BLOCK.search(text or "")
     if not m:
         raise ValueError("freqs block not found")
-    freqs = [float(x) for x in re.findall(r'[0-9]+(?:\.[0-9]+)?', m.group(2))]
+    freqs = []
+    for tok in re.findall(r'-?\d+(?:\.\d+)?', m.group(2) or ""):
+        try:
+            freqs.append(float(tok))
+        except ValueError:
+            continue
+
     labels = None
-    m = RE_LABELS_BLOCK.search(text)
-    if m:
-        labels = re.findall(r'"([^"]+)"', m.group(2))
+    lm = RE_LABELS_BLOCK.search(text or "")
+    if lm:
+        # Keep labels as raw strings (no unescaping needed for our usage).
+        labels = re.findall(r'"([^"]*)"', lm.group(2) or "")
     return freqs, labels
 
 
+def parse_freqs_text(freqs_text: str):
+    """Parse textarea freqs input into (freqs, labels?).
+
+    Format per line:
+      - "118.600"
+      - "118.600 TOWER"
+    If any line has a label, we synthesize labels for all lines (unlabeled lines
+    fall back to the frequency string), so lengths always match.
+    """
+    freqs = []
+    raw_labels: List[Optional[str]] = []
+    saw_label = False
+    for raw_line in (freqs_text or "").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("#"):
+            continue
+        parts = line.split()
+        if not parts:
+            continue
+        try:
+            fval = float(parts[0])
+        except ValueError as e:
+            raise ValueError(f"bad frequency: {parts[0]}") from e
+        freqs.append(fval)
+        if len(parts) > 1:
+            saw_label = True
+            raw_labels.append(" ".join(parts[1:]).strip())
+        else:
+            raw_labels.append(None)
+
+    if not freqs:
+        raise ValueError("no frequencies provided")
+
+    if not saw_label:
+        return freqs, None
+
+    labels: List[str] = []
+    for fval, lab in zip(freqs, raw_labels):
+        fstr = f"{fval:.4f}"
+        labels.append(lab if lab is not None and lab != "" else fstr)
+    return freqs, labels
+
+
+def _format_list_block(base_indent: str, values: List[str]) -> str:
+    if not values:
+        return "();"
+    # First "(" stays on the same line after "= ".
+    lines = ["("]
+    for i, v in enumerate(values):
+        comma = "," if i < len(values) - 1 else ""
+        lines.append(f"{base_indent}  {v}{comma}")
+    lines.append(f"{base_indent});")
+    return "\n".join(lines)
+
+
 def replace_freqs_labels(text: str, freqs, labels):
-    """Replace frequencies and labels in config."""
-    freqs_text = ", ".join(f"{f:.4f}" for f in freqs)
-    text = RE_FREQS_BLOCK.sub(lambda m: f"{m.group(1)}{freqs_text}{m.group(3)}", text, count=1)
-    if labels is not None:
-        labels_text = ", ".join(f"\"{l}\"" for l in labels)
-        text = RE_LABELS_BLOCK.sub(lambda m: f"{m.group(1)}{labels_text}{m.group(3)}", text, count=1)
-    return text
+    """Replace freqs/labels blocks in config.
+
+    If labels is None:
+      - preserve existing labels only if count matches new freqs count
+      - otherwise remove labels block (if present)
+    If labels is provided:
+      - require len(labels) == len(freqs)
+    """
+    # Normalize/validate frequencies.
+    if not isinstance(freqs, list) or not freqs:
+        raise ValueError("freqs must be a non-empty list")
+    norm_freqs = []
+    for f in freqs:
+        try:
+            norm_freqs.append(float(f))
+        except ValueError as e:
+            raise ValueError(f"bad frequency: {f}") from e
+    freqs = norm_freqs
+
+    m = RE_FREQS_BLOCK.search(text or "")
+    if not m:
+        raise ValueError("freqs block not found")
+    indent_match = re.match(r'^(\s*)', m.group(1) or "")
+    base_indent = indent_match.group(1) if indent_match else ""
+
+    # Determine labels to write.
+    existing_labels = None
+    lm_existing = RE_LABELS_BLOCK.search(text or "")
+    if lm_existing:
+        existing_labels = re.findall(r'"([^"]*)"', lm_existing.group(2) or "")
+    if labels is None:
+        if existing_labels is not None and len(existing_labels) == len(freqs):
+            labels_to_write = existing_labels
+        else:
+            labels_to_write = None
+    else:
+        if not isinstance(labels, list):
+            raise ValueError("labels must be a list")
+        if len(labels) != len(freqs):
+            raise ValueError("labels must match freqs length")
+        labels_to_write = [str(s) for s in labels]
+
+    # Build freqs replacement (one per line).
+    freqs_values = [f"{f:.4f}" for f in freqs]
+    freqs_block = f"{base_indent}freqs = " + _format_list_block(base_indent, freqs_values)
+    out = RE_FREQS_BLOCK.sub(freqs_block, text, count=1)
+
+    # Labels: replace, insert, or remove.
+    lm = RE_LABELS_BLOCK.search(out)
+    if labels_to_write is None:
+        if lm:
+            out = RE_LABELS_BLOCK.sub("", out, count=1)
+        return out
+
+    labels_values = [json.dumps(s) for s in labels_to_write]  # includes quotes
+    labels_block = f"{base_indent}labels = " + _format_list_block(base_indent, labels_values)
+    if lm:
+        out = RE_LABELS_BLOCK.sub(labels_block, out, count=1)
+    else:
+        # Insert labels block after freqs block.
+        m2 = RE_FREQS_BLOCK.search(out)
+        if m2:
+            insert_at = m2.end()
+            out = out[:insert_at] + "\n\n" + labels_block + out[insert_at:]
+        else:
+            out = out.rstrip() + "\n\n" + labels_block + "\n"
+    return out
 
 
 def same_freq(a: float, b: float) -> bool:
@@ -564,14 +693,18 @@ def filter_freqs_labels(freqs, labels, avoids):
 
 
 def write_freqs_labels(conf_path: str, freqs, labels):
-    """Write frequencies and labels to config."""
+    """Write frequencies and labels to config atomically; returns True if changed."""
+    conf_path = os.path.realpath(conf_path)
     with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
-        text = f.read()
-    text = replace_freqs_labels(text, freqs, labels)
+        original = f.read()
+    updated = replace_freqs_labels(original, freqs, labels)
+    if updated == original:
+        return False
     tmp = conf_path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
-        f.write(text)
+        f.write(updated)
     os.replace(tmp, conf_path)
+    return True
 
 
 def avoid_current_hit(conf_path: str, target: str):

@@ -36,6 +36,21 @@ h1 { font-size: 18px; margin:0 0 12px; letter-spacing:.2px; }
 .ctrl-head span { color: var(--muted); font-size: 12px; }
 .ctrl-readout { margin-top: 8px; font-size: 13px; color: var(--muted); display:flex; justify-content:space-between; }
 input[type="range"] { width: 100%; }
+.textarea {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.30);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.35;
+  resize: vertical;
+}
+.textarea:focus { outline: 2px solid rgba(34,197,94,.35); outline-offset: 2px; }
 .range {
   -webkit-appearance: none;
   appearance: none;

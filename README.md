@@ -494,6 +494,27 @@ Format:
 
 If the registry does not exist, it is bootstrapped from the legacy `PROFILES` list.
 
+### Profile API (CRUD + Frequency Editor)
+
+- `GET /api/profiles` -> lists all profiles and active ids
+- `POST /api/profile` -> switch active scan profile (existing behavior)
+- `POST /api/profile/create` -> clone a profile (optionally accepts `freqs_text`)
+- `POST /api/profile/update` -> update a profile label
+- `POST /api/profile/delete` -> delete a non-active profile
+- `GET /api/profile?id=<profile_id>` -> read frequencies/labels for a profile
+- `POST /api/profile/update_freqs` -> update frequencies (and optional labels) for a profile
+
+Frequency editor textarea format (one per line):
+```
+118.600 TOWER
+119.350 APP
+124.750
+```
+
+Notes:
+- Labels are optional. If you omit labels, existing labels are preserved only when the count still matches.
+- If you edit the currently-active profile, the backend regenerates the combined config and restarts `rtl-airband` only when needed (skip restart when nothing changed).
+
 ## Deployment
 
 ### Quick Deploy

@@ -21,6 +21,11 @@ const manageLabelEl = document.getElementById('manage-label');
 const manageCreateEl = document.getElementById('manage-create');
 const manageRenameEl = document.getElementById('manage-rename');
 const manageDeleteEl = document.getElementById('manage-delete');
+const editProfileEl = document.getElementById('edit-profile');
+const editTextEl = document.getElementById('edit-text');
+const editLoadEl = document.getElementById('edit-load');
+const editSaveEl = document.getElementById('edit-save');
+const editStatusEl = document.getElementById('edit-status');
 const audioAirbandEl = document.getElementById('audio-airband');
 const audioGroundEl = document.getElementById('audio-ground');
 const lnkStreamAirbandEl = document.getElementById('lnk-stream-airband');
@@ -256,6 +261,39 @@ function refreshManageCloneOptions() {
   });
 }
 
+function refreshEditProfileOptions() {
+  if (!profilesCache || !editProfileEl) return;
+  const target = getManageTarget();
+  const list = target === 'ground' ? profilesCache.profiles_ground : profilesCache.profiles_airband;
+  editProfileEl.innerHTML = '';
+  list.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.label;
+    editProfileEl.appendChild(opt);
+  });
+  const activeId = getSelectedProfileId(target);
+  if (activeId) {
+    editProfileEl.value = activeId;
+  }
+}
+
+function formatFreqsText(freqs, labels) {
+  const out = [];
+  const hasLabels = Array.isArray(labels) && labels.length === freqs.length && labels.length > 0;
+  for (let i = 0; i < freqs.length; i++) {
+    const f = String(freqs[i] || '').trim();
+    if (!f) continue;
+    if (hasLabels) {
+      const l = String(labels[i] || '').trim();
+      out.push(l ? `${f} ${l}` : f);
+    } else {
+      out.push(f);
+    }
+  }
+  return out.join('\n');
+}
+
 function getSelectedProfileId(target) {
   if (!profilesCache) return '';
   return target === 'ground' ? profilesCache.active_ground_id : profilesCache.active_airband_id;
@@ -271,6 +309,7 @@ async function refreshProfiles() {
     buildProfiles(profilesAirbandEl, data.profiles_airband || [], currentProfileAirband, 'airband');
     buildProfiles(profilesGroundEl, data.profiles_ground || [], currentProfileGround, 'ground');
     refreshManageCloneOptions();
+    refreshEditProfileOptions();
   }
 }
 
@@ -388,6 +427,8 @@ if (lnkStreamGroundEl) {
 }
 if (manageTargetAirbandEl) manageTargetAirbandEl.addEventListener('change', refreshManageCloneOptions);
 if (manageTargetGroundEl) manageTargetGroundEl.addEventListener('change', refreshManageCloneOptions);
+if (manageTargetAirbandEl) manageTargetAirbandEl.addEventListener('change', refreshEditProfileOptions);
+if (manageTargetGroundEl) manageTargetGroundEl.addEventListener('change', refreshEditProfileOptions);
 if (manageLabelEl) {
   manageLabelEl.addEventListener('input', () => {
     if (!manageIdEl || manageIdEl.value.trim()) return;
@@ -435,6 +476,38 @@ if (manageDeleteEl) {
     const res = await post('/api/profile/delete', {id: profileId});
     actionMsg = res.ok ? 'Profile deleted' : (res.error || 'Delete failed');
     await refreshProfiles();
+  });
+}
+
+if (editLoadEl) {
+  editLoadEl.addEventListener('click', async () => {
+    const target = getManageTarget();
+    const id = editProfileEl && editProfileEl.value;
+    if (!id) return;
+    const res = await getJSON(`/api/profile?id=${encodeURIComponent(id)}`);
+    if (!res.ok) {
+      if (editStatusEl) editStatusEl.textContent = res.error || 'Load failed';
+      return;
+    }
+    if (editTextEl) editTextEl.value = formatFreqsText(res.freqs || [], res.labels || []);
+    if (editStatusEl) editStatusEl.textContent = `${target} loaded: ${id}`;
+  });
+}
+
+if (editSaveEl) {
+  editSaveEl.addEventListener('click', async () => {
+    const target = getManageTarget();
+    const id = editProfileEl && editProfileEl.value;
+    const freqs_text = (editTextEl && editTextEl.value || '').trim();
+    if (!id || !freqs_text) return;
+    const res = await post('/api/profile/update_freqs', {id, freqs_text});
+    if (!res.ok) {
+      if (editStatusEl) editStatusEl.textContent = res.error || 'Save failed';
+      return;
+    }
+    if (editStatusEl) editStatusEl.textContent = res.changed ? `${target} saved (scanner updated)` : `${target} saved`;
+    await refreshProfiles();
+    await refresh(false);
   });
 }
 

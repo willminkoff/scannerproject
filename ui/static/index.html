@@ -79,6 +79,21 @@
                 </div>
               </div>
 
+              <div class="ctrl" id="edit-freqs">
+                <div class="ctrl-head"><b>Edit Frequencies</b><span>One per line: <code>118.600 TOWER</code></span></div>
+                <div class="ctrl-readout" style="gap:10px; flex-wrap:wrap;">
+                  <label>Profile:
+                    <select id="edit-profile"></select>
+                  </label>
+                  <span>
+                    <button type="button" id="edit-load">Load</button>
+                    <button type="button" id="edit-save">Save</button>
+                  </span>
+                </div>
+                <textarea id="edit-text" class="textarea" rows="8" spellcheck="false" placeholder="118.600 TOWER&#10;119.350 APP"></textarea>
+                <div class="ctrl-readout"><span id="edit-status"></span><span>Edits persist to the profile file</span></div>
+              </div>
+
               <div class="ctrl player" id="player-airband">
                 <div class="ctrl-head"><b>Player</b><span><a href="#" id="lnk-stream-airband">Open stream</a></span></div>
                 <audio id="audio-airband" controls preload="none" style="width:100%"></audio>

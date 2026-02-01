@@ -25,14 +25,15 @@ try:
         read_active_config_path, parse_controls, split_profiles,
         guess_current_profile, summarize_avoids, parse_filter,
         load_profiles_registry, find_profile, validate_profile_id, safe_profile_path,
-        enforce_profile_index, set_profile, save_profiles_registry, write_airband_flag
+        enforce_profile_index, set_profile, save_profiles_registry, write_airband_flag,
+        parse_freqs_labels, parse_freqs_text, write_freqs_labels, write_combined_config
     )
     from .scanner import (
         read_last_hit_airband, read_last_hit_ground, read_icecast_hit_list,
         read_hit_list_cached
     )
     from .icecast import icecast_up, read_last_hit_from_icecast
-    from .systemd import unit_active, unit_exists
+    from .systemd import unit_active, unit_exists, restart_rtl
     from .server_workers import enqueue_action, enqueue_apply
     from .diagnostic import write_diagnostic_log
     from .spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
@@ -42,14 +43,15 @@ except ImportError:
         read_active_config_path, parse_controls, split_profiles,
         guess_current_profile, summarize_avoids, parse_filter,
         load_profiles_registry, find_profile, validate_profile_id, safe_profile_path,
-        enforce_profile_index, set_profile, save_profiles_registry, write_airband_flag
+        enforce_profile_index, set_profile, save_profiles_registry, write_airband_flag,
+        parse_freqs_labels, parse_freqs_text, write_freqs_labels, write_combined_config
     )
     from ui.scanner import (
         read_last_hit_airband, read_last_hit_ground, read_icecast_hit_list,
         read_hit_list_cached
     )
     from ui.icecast import icecast_up, read_last_hit_from_icecast
-    from ui.systemd import unit_active, unit_exists
+    from ui.systemd import unit_active, unit_exists, restart_rtl
     from ui.server_workers import enqueue_action, enqueue_apply
     from ui.diagnostic import write_diagnostic_log
     from ui.spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
@@ -84,7 +86,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         """Handle GET requests."""
-        p = urlparse(self.path).path
+        u = urlparse(self.path)
+        p = u.path
         if p == "/":
             return self._send(200, HTML_TEMPLATE)
         
@@ -119,6 +122,42 @@ class Handler(BaseHTTPRequestHandler):
             except FileNotFoundError:
                 return self._send(404, "Not found", "text/plain; charset=utf-8")
         
+        if p == "/api/profile":
+            q = parse_qs(u.query or "")
+            profile_id = (q.get("id") or [""])[0].strip()
+            if not profile_id:
+                return self._send(400, json.dumps({"ok": False, "error": "missing id"}), "application/json; charset=utf-8")
+            profiles = load_profiles_registry()
+            prof = find_profile(profiles, profile_id)
+            if not prof:
+                return self._send(404, json.dumps({"ok": False, "error": "profile not found"}), "application/json; charset=utf-8")
+            path = prof.get("path", "")
+            exists = bool(path) and os.path.exists(path)
+            freqs = []
+            labels = []
+            if exists:
+                try:
+                    with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                        text = f.read()
+                    fvals, labs = parse_freqs_labels(text)
+                    freqs = [f"{v:.4f}" for v in (fvals or [])]
+                    labels = labs or []
+                except Exception as e:
+                    return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
+            payload = {
+                "ok": True,
+                "profile": {
+                    "id": prof.get("id", ""),
+                    "label": prof.get("label", ""),
+                    "path": path,
+                    "airband": bool(prof.get("airband")),
+                    "exists": exists,
+                },
+                "freqs": freqs,
+                "labels": labels,
+            }
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
         if p == "/api/status":
             conf_path = read_active_config_path()
             airband_gain, airband_snr, airband_dbfs, airband_mode = parse_controls(conf_path)
@@ -382,6 +421,10 @@ class Handler(BaseHTTPRequestHandler):
                 shutil.copyfile(src["path"], safe_path)
                 write_airband_flag(safe_path, bool(airband_flag))
                 enforce_profile_index(safe_path)
+                freqs_text = get_str("freqs_text").strip()
+                if freqs_text:
+                    freqs, labels = parse_freqs_text(freqs_text)
+                    write_freqs_labels(safe_path, freqs, labels)
             except Exception as e:
                 return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
             profiles.append({
@@ -392,6 +435,68 @@ class Handler(BaseHTTPRequestHandler):
             })
             save_profiles_registry(profiles)
             return self._send(200, json.dumps({"ok": True, "profile": profiles[-1]}), "application/json; charset=utf-8")
+
+        if p == "/api/profile/update_freqs":
+            profile_id = get_str("id").strip()
+            if not profile_id:
+                return self._send(400, json.dumps({"ok": False, "error": "missing id"}), "application/json; charset=utf-8")
+            profiles = load_profiles_registry()
+            prof = find_profile(profiles, profile_id)
+            if not prof:
+                return self._send(404, json.dumps({"ok": False, "error": "profile not found"}), "application/json; charset=utf-8")
+            path = prof.get("path", "")
+            safe_path = safe_profile_path(path) if path else None
+            if not safe_path or not os.path.exists(safe_path):
+                return self._send(404, json.dumps({"ok": False, "error": "profile file not found"}), "application/json; charset=utf-8")
+
+            # Prefer freqs_text input (textarea format). Otherwise accept arrays.
+            freqs_text = get_str("freqs_text").strip()
+            labels_present = "labels" in form
+            freqs_present = "freqs" in form
+            try:
+                if freqs_text:
+                    freqs, labels = parse_freqs_text(freqs_text)
+                else:
+                    raw_freqs = form.get("freqs")
+                    if isinstance(raw_freqs, list):
+                        freqs = [float(x) for x in raw_freqs]
+                    elif isinstance(raw_freqs, str) and raw_freqs.strip():
+                        freqs = [float(x) for x in raw_freqs.split(",") if x.strip()]
+                    else:
+                        return self._send(400, json.dumps({"ok": False, "error": "missing freqs"}), "application/json; charset=utf-8")
+
+                    if labels_present:
+                        raw_labels = form.get("labels")
+                        if not isinstance(raw_labels, list):
+                            return self._send(400, json.dumps({"ok": False, "error": "labels must be an array"}), "application/json; charset=utf-8")
+                        labels = [str(x) for x in raw_labels]
+                        if len(labels) != len(freqs):
+                            return self._send(400, json.dumps({"ok": False, "error": "labels must match freqs length"}), "application/json; charset=utf-8")
+                    else:
+                        labels = None
+            except ValueError as e:
+                return self._send(400, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
+
+            try:
+                changed = write_freqs_labels(safe_path, freqs, labels)
+                enforce_profile_index(safe_path)
+            except Exception as e:
+                return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
+
+            # If editing the active profile, regenerate combined config and restart rtl only if needed.
+            active_airband = os.path.realpath(read_active_config_path())
+            active_ground = os.path.realpath(GROUND_CONFIG_PATH)
+            is_active = os.path.realpath(safe_path) in (active_airband, active_ground)
+            if is_active:
+                try:
+                    combined_changed = write_combined_config()
+                    changed = changed or combined_changed
+                    if combined_changed:
+                        restart_rtl()
+                except Exception as e:
+                    return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
+
+            return self._send(200, json.dumps({"ok": True, "changed": bool(changed)}), "application/json; charset=utf-8")
 
         if p == "/api/profile/update":
             profile_id = get_str("id").strip()
