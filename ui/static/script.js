@@ -20,6 +20,7 @@ const manageLabelEl = document.getElementById('manage-label');
 const manageCreateEl = document.getElementById('manage-create');
 const manageRenameEl = document.getElementById('manage-rename');
 const manageDeleteEl = document.getElementById('manage-delete');
+const manageStatusEl = document.getElementById('manage-status');
 const editProfileEl = document.getElementById('edit-profile');
 const editTextEl = document.getElementById('edit-text');
 const editLoadEl = document.getElementById('edit-load');
@@ -186,7 +187,7 @@ function buildProfiles(profilesEl, profiles, selected, target) {
     card.type = 'button';
     card.className = 'profile-card' + (p.id === selected ? ' selected' : '');
     card.setAttribute('aria-pressed', p.id === selected ? 'true' : 'false');
-    card.innerHTML = `<div><b>${p.label}</b></div>` + (p.exists ? '' : `<small>Missing: ${p.path}</small>`);
+    card.innerHTML = `<div><b>${p.label}</b></div><small>${p.id}</small>` + (p.exists ? '' : `<small>Missing: ${p.path}</small>`);
     card.addEventListener('click', async () => {
       let nextId = p.id;
       if (p.id === selected && noneProfile && noneProfile.id !== selected) {
@@ -260,13 +261,19 @@ function refreshEditProfileOptions() {
   list.forEach(p => {
     const opt = document.createElement('option');
     opt.value = p.id;
-    opt.textContent = p.label;
+    opt.textContent = `${p.label} (${p.id})`;
     editProfileEl.appendChild(opt);
   });
   const activeId = getSelectedProfileId(target);
   if (activeId) {
     editProfileEl.value = activeId;
   }
+}
+
+function setManageStatus(message, isError=false) {
+  if (!manageStatusEl) return;
+  manageStatusEl.textContent = message || '';
+  manageStatusEl.style.color = isError ? '#f59e0b' : '';
 }
 
 function formatFreqsText(freqs, labels) {
@@ -432,6 +439,12 @@ if (manageCreateEl) {
     const label = (manageLabelEl && manageLabelEl.value || '').trim();
     let profileId = (manageIdEl && manageIdEl.value || '').trim();
     if (!profileId) profileId = sanitizeProfileId(label);
+    profileId = sanitizeProfileId(profileId);
+    if (manageIdEl) manageIdEl.value = profileId;
+    if (!profileId) {
+      setManageStatus('Enter an ID or label to create a profile.', true);
+      return;
+    }
     const res = await post('/api/profile/create', {
       id: profileId,
       label,
@@ -439,10 +452,16 @@ if (manageCreateEl) {
     });
     if (!res.ok) {
       actionMsg = res.error || 'Create failed';
+      setManageStatus(actionMsg, true);
     } else {
       actionMsg = 'Profile created';
+      setManageStatus(actionMsg, false);
     }
     await refreshProfiles();
+    if (res.ok && res.profile && editProfileEl) {
+      editProfileEl.value = res.profile.id;
+      if (editStatusEl) editStatusEl.textContent = `${target} ready: ${res.profile.id}`;
+    }
   });
 }
 if (manageRenameEl) {
@@ -453,6 +472,7 @@ if (manageRenameEl) {
     if (!profileId || !label) return;
     const res = await post('/api/profile/update', {id: profileId, label});
     actionMsg = res.ok ? 'Profile renamed' : (res.error || 'Rename failed');
+    setManageStatus(actionMsg, !res.ok);
     await refreshProfiles();
   });
 }
@@ -464,6 +484,7 @@ if (manageDeleteEl) {
     if (!confirm(`Delete profile ${profileId}?`)) return;
     const res = await post('/api/profile/delete', {id: profileId});
     actionMsg = res.ok ? 'Profile deleted' : (res.error || 'Delete failed');
+    setManageStatus(actionMsg, !res.ok);
     await refreshProfiles();
   });
 }
@@ -488,7 +509,14 @@ if (editSaveEl) {
     const target = getManageTarget();
     const id = editProfileEl && editProfileEl.value;
     const freqs_text = (editTextEl && editTextEl.value || '').trim();
-    if (!id || !freqs_text) return;
+    if (!id) {
+      if (editStatusEl) editStatusEl.textContent = 'Pick a profile to save.';
+      return;
+    }
+    if (!freqs_text) {
+      if (editStatusEl) editStatusEl.textContent = 'Add at least one frequency before saving.';
+      return;
+    }
     const res = await post('/api/profile/update_freqs', {id, freqs_text});
     if (!res.ok) {
       if (editStatusEl) editStatusEl.textContent = res.error || 'Save failed';

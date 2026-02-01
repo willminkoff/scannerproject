@@ -726,6 +726,7 @@
                 <button class="action" id="manage-rename">Rename Selected</button>
                 <button class="action" id="manage-delete">Delete Selected</button>
               </div>
+              <div class="control-applied"><span id="manage-status" style="opacity:0.85;"></span></div>
             </div>
             <div class="control-item freq-editor">
               <div class="control-label">
@@ -891,6 +892,7 @@
       manageCreate: document.getElementById('manage-create'),
       manageRename: document.getElementById('manage-rename'),
       manageDelete: document.getElementById('manage-delete'),
+      manageStatus: document.getElementById('manage-status'),
       freqEditProfile: document.getElementById('freq-edit-profile'),
       freqEditText: document.getElementById('freq-edit-text'),
       freqEditLoad: document.getElementById('freq-edit-load'),
@@ -996,7 +998,7 @@
       list.forEach(p => {
         const opt = document.createElement('option');
         opt.value = p.id;
-        opt.textContent = p.label;
+        opt.textContent = `${p.label} (${p.id})`;
         els.freqEditProfile.appendChild(opt);
       });
       const activeId = target === 'ground' ? state.ground.currentProfile : state.airband.currentProfile;
@@ -1143,11 +1145,17 @@
           <button class="profile-btn ${p.id === t.currentProfile ? 'active' : ''}" 
                   onclick="selectProfile('${p.id}', true)">
             <div class="label">${p.label}</div>
-            <div class="meta">${p.exists ? '' : 'Missing'}</div>
+            <div class="meta">${p.id}${p.exists ? '' : ' • Missing'}</div>
           </button>
         `).join('');
       refreshManageCloneOptions();
       refreshFreqEditOptions();
+    }
+
+    function setManageStatus(message, isError=false) {
+      if (!els.manageStatus) return;
+      els.manageStatus.textContent = message || '';
+      els.manageStatus.style.color = isError ? '#f59e0b' : '';
     }
     
     function updateHitList() {
@@ -1716,15 +1724,27 @@
           const label = (els.manageLabel && els.manageLabel.value || '').trim();
           let profileId = (els.manageId && els.manageId.value || '').trim();
           if (!profileId) profileId = sanitizeProfileId(label);
+          profileId = sanitizeProfileId(profileId);
+          if (els.manageId) els.manageId.value = profileId;
+          if (!profileId) {
+            setManageStatus('Enter an ID or label to create a profile.', true);
+            return;
+          }
           const res = await postAPI('/api/profile/create', {
             id: profileId,
             label,
             airband: target === 'airband',
           });
           if (!res.ok) {
-            console.error('Create failed:', res.error);
+            setManageStatus(res.error || 'Create failed', true);
+            return;
           }
-          refresh();
+          setManageStatus('Profile created', false);
+          await refresh();
+          if (res.profile && els.freqEditProfile) {
+            els.freqEditProfile.value = res.profile.id;
+            if (els.freqEditStatus) els.freqEditStatus.textContent = `Ready to edit: ${res.profile.id}`;
+          }
         });
       }
       if (els.manageRename) {
@@ -1735,8 +1755,10 @@
           if (!profileId || !label) return;
           const res = await postAPI('/api/profile/update', {id: profileId, label});
           if (!res.ok) {
-            console.error('Rename failed:', res.error);
+            setManageStatus(res.error || 'Rename failed', true);
+            return;
           }
+          setManageStatus('Profile renamed', false);
           refresh();
         });
       }
@@ -1748,8 +1770,10 @@
           if (!confirm(`Delete profile ${profileId}?`)) return;
           const res = await postAPI('/api/profile/delete', {id: profileId});
           if (!res.ok) {
-            console.error('Delete failed:', res.error);
+            setManageStatus(res.error || 'Delete failed', true);
+            return;
           }
+          setManageStatus('Profile deleted', false);
           refresh();
         });
       }
@@ -1770,7 +1794,14 @@
         els.freqEditSave.addEventListener('click', async () => {
           const id = els.freqEditProfile && els.freqEditProfile.value;
           const freqs_text = (els.freqEditText && els.freqEditText.value || '').trim();
-          if (!id || !freqs_text) return;
+          if (!id) {
+            if (els.freqEditStatus) els.freqEditStatus.textContent = 'Pick a profile to save.';
+            return;
+          }
+          if (!freqs_text) {
+            if (els.freqEditStatus) els.freqEditStatus.textContent = 'Add at least one frequency before saving.';
+            return;
+          }
           const res = await postAPI('/api/profile/update_freqs', {id, freqs_text});
           if (!res.ok) {
             if (els.freqEditStatus) els.freqEditStatus.textContent = res.error || 'Save failed';
