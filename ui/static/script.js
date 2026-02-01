@@ -21,6 +21,7 @@ const manageCreateEl = document.getElementById('manage-create');
 const manageRenameEl = document.getElementById('manage-rename');
 const manageDeleteEl = document.getElementById('manage-delete');
 const manageStatusEl = document.getElementById('manage-status');
+const manageProfilesEl = document.getElementById('manage-profiles');
 const editProfileEl = document.getElementById('edit-profile');
 const editTextEl = document.getElementById('edit-text');
 const editLoadEl = document.getElementById('edit-load');
@@ -49,6 +50,7 @@ let avoidsAirband = null;
 let avoidsGround = null;
 let profilesCache = null;
 let profilesCacheAt = 0;
+const manageSelected = {airband: null, ground: null};
 
 const controlTargets = {
   airband: {
@@ -266,7 +268,9 @@ function refreshEditProfileOptions() {
     editProfileEl.appendChild(opt);
   });
   const activeId = getSelectedProfileId(target);
-  if (currentSelection && list.some(p => p.id === currentSelection)) {
+  if (manageSelected[target] && list.some(p => p.id === manageSelected[target])) {
+    editProfileEl.value = manageSelected[target];
+  } else if (currentSelection && list.some(p => p.id === currentSelection)) {
     editProfileEl.value = currentSelection;
   } else if (activeId) {
     editProfileEl.value = activeId;
@@ -282,9 +286,37 @@ function setManageStatus(message, isError=false) {
 }
 
 function getManageSelectedId() {
-  const selected = editProfileEl && editProfileEl.value;
+  const target = getManageTarget();
+  const selected = manageSelected[target] || (editProfileEl && editProfileEl.value);
   if (selected) return selected;
-  return getSelectedProfileId(getManageTarget());
+  return getSelectedProfileId(target);
+}
+
+function renderManageProfiles() {
+  if (!profilesCache || !manageProfilesEl) return;
+  const target = getManageTarget();
+  const list = target === 'ground' ? profilesCache.profiles_ground : profilesCache.profiles_airband;
+  manageProfilesEl.innerHTML = '';
+  if (!list.length) {
+    manageProfilesEl.classList.add('hidden');
+    return;
+  }
+  manageProfilesEl.classList.remove('hidden');
+  const current = manageSelected[target] || getSelectedProfileId(target);
+  list.forEach(p => {
+    if (p.id.startsWith('none_')) return;
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'profile-card' + (p.id === current ? ' selected' : '');
+    card.setAttribute('aria-pressed', p.id === current ? 'true' : 'false');
+    card.innerHTML = `<div><b>${p.label}</b></div><small>${p.id}</small>`;
+    card.addEventListener('click', () => {
+      manageSelected[target] = p.id;
+      if (editProfileEl) editProfileEl.value = p.id;
+      renderManageProfiles();
+    });
+    manageProfilesEl.appendChild(card);
+  });
 }
 
 function formatFreqsText(freqs, labels) {
@@ -319,6 +351,7 @@ async function refreshProfiles() {
     buildProfiles(profilesGroundEl, data.profiles_ground || [], currentProfileGround, 'ground');
     refreshManageCloneOptions();
     refreshEditProfileOptions();
+    renderManageProfiles();
   }
 }
 
@@ -438,6 +471,13 @@ if (manageTargetAirbandEl) manageTargetAirbandEl.addEventListener('change', refr
 if (manageTargetGroundEl) manageTargetGroundEl.addEventListener('change', refreshManageCloneOptions);
 if (manageTargetAirbandEl) manageTargetAirbandEl.addEventListener('change', refreshEditProfileOptions);
 if (manageTargetGroundEl) manageTargetGroundEl.addEventListener('change', refreshEditProfileOptions);
+if (manageTargetAirbandEl) manageTargetAirbandEl.addEventListener('change', renderManageProfiles);
+if (manageTargetGroundEl) manageTargetGroundEl.addEventListener('change', renderManageProfiles);
+if (editProfileEl) editProfileEl.addEventListener('change', () => {
+  const target = getManageTarget();
+  manageSelected[target] = editProfileEl.value;
+  renderManageProfiles();
+});
 if (manageLabelEl) {
   manageLabelEl.addEventListener('input', () => {
     if (!manageIdEl || manageIdEl.value.trim()) return;
@@ -470,8 +510,10 @@ if (manageCreateEl) {
     }
     await refreshProfiles();
     if (res.ok && res.profile && editProfileEl) {
+      manageSelected[target] = res.profile.id;
       editProfileEl.value = res.profile.id;
       if (editStatusEl) editStatusEl.textContent = `${target} ready: ${res.profile.id}`;
+      renderManageProfiles();
     }
   });
 }

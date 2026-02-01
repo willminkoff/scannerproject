@@ -727,6 +727,8 @@
                 <button class="action" id="manage-delete">Delete Selected</button>
               </div>
               <div class="control-applied"><span id="manage-status" style="opacity:0.85;"></span></div>
+              <div class="control-applied" style="opacity:0.85;">Select profile to edit/delete:</div>
+              <div class="profiles-list" id="manage-profiles-list"></div>
             </div>
             <div class="control-item freq-editor">
               <div class="control-label">
@@ -831,6 +833,7 @@
       hits: [],
       hold: { airband: null, ground: null },
       lastProfile: { airband: '', ground: '' },
+      manageSelected: { airband: '', ground: '' },
       tuned: false,
       tunedFreq: null,
       tunedTarget: null,
@@ -893,6 +896,7 @@
       manageRename: document.getElementById('manage-rename'),
       manageDelete: document.getElementById('manage-delete'),
       manageStatus: document.getElementById('manage-status'),
+      manageProfilesList: document.getElementById('manage-profiles-list'),
       freqEditProfile: document.getElementById('freq-edit-profile'),
       freqEditText: document.getElementById('freq-edit-text'),
       freqEditLoad: document.getElementById('freq-edit-load'),
@@ -1003,7 +1007,9 @@
         els.freqEditProfile.appendChild(opt);
       });
       const activeId = target === 'ground' ? state.ground.currentProfile : state.airband.currentProfile;
-      if (currentSelection && list.some(p => p.id === currentSelection)) {
+      if (state.manageSelected[target] && list.some(p => p.id === state.manageSelected[target])) {
+        els.freqEditProfile.value = state.manageSelected[target];
+      } else if (currentSelection && list.some(p => p.id === currentSelection)) {
         els.freqEditProfile.value = currentSelection;
       } else if (activeId) {
         els.freqEditProfile.value = activeId;
@@ -1155,6 +1161,7 @@
         `).join('');
       refreshManageCloneOptions();
       refreshFreqEditOptions();
+      renderManageProfiles();
     }
 
     function setManageStatus(message, isError=false) {
@@ -1164,9 +1171,39 @@
     }
 
     function getManageSelectedId() {
-      const selected = els.freqEditProfile && els.freqEditProfile.value;
+      const target = getManageTarget();
+      const selected = state.manageSelected[target] || (els.freqEditProfile && els.freqEditProfile.value);
       if (selected) return selected;
-      return getManageTarget() === 'ground' ? state.ground.currentProfile : state.airband.currentProfile;
+      return target === 'ground' ? state.ground.currentProfile : state.airband.currentProfile;
+    }
+
+    function renderManageProfiles() {
+      if (!els.manageProfilesList) return;
+      const target = getManageTarget();
+      const list = target === 'ground' ? state.ground.profiles : state.airband.profiles;
+      const current = state.manageSelected[target] || (target === 'ground' ? state.ground.currentProfile : state.airband.currentProfile);
+      if (!list.length) {
+        els.manageProfilesList.innerHTML = '<div class="empty-state"><div class="icon">📡</div><div>No profiles found</div></div>';
+        return;
+      }
+      els.manageProfilesList.innerHTML = list
+        .filter(p => !p.id.startsWith('none_'))
+        .map(p => `
+          <button class="profile-btn ${p.id === current ? 'active' : ''}"
+                  onclick="selectManageProfile('${p.id}')">
+            <div class="label">${p.label}</div>
+            <div class="meta">${p.id}</div>
+          </button>
+        `).join('');
+    }
+
+    function selectManageProfile(id) {
+      const target = getManageTarget();
+      state.manageSelected[target] = id;
+      if (els.freqEditProfile) {
+        els.freqEditProfile.value = id;
+      }
+      renderManageProfiles();
     }
     
     function updateHitList() {
@@ -1718,10 +1755,19 @@
       if (els.manageTargetAirband) {
         els.manageTargetAirband.addEventListener('change', refreshManageCloneOptions);
         els.manageTargetAirband.addEventListener('change', refreshFreqEditOptions);
+        els.manageTargetAirband.addEventListener('change', renderManageProfiles);
       }
       if (els.manageTargetGround) {
         els.manageTargetGround.addEventListener('change', refreshManageCloneOptions);
         els.manageTargetGround.addEventListener('change', refreshFreqEditOptions);
+        els.manageTargetGround.addEventListener('change', renderManageProfiles);
+      }
+      if (els.freqEditProfile) {
+        els.freqEditProfile.addEventListener('change', () => {
+          const target = getManageTarget();
+          state.manageSelected[target] = els.freqEditProfile.value;
+          renderManageProfiles();
+        });
       }
       if (els.manageLabel) {
         els.manageLabel.addEventListener('input', () => {
@@ -1753,8 +1799,10 @@
           setManageStatus('Profile created', false);
           await refresh();
           if (res.profile && els.freqEditProfile) {
+            state.manageSelected[target] = res.profile.id;
             els.freqEditProfile.value = res.profile.id;
             if (els.freqEditStatus) els.freqEditStatus.textContent = `Ready to edit: ${res.profile.id}`;
+            renderManageProfiles();
           }
         });
       }
