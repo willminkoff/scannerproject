@@ -78,9 +78,8 @@ def _has_active_hold(state: dict) -> bool:
 def _save_or_clear_hold_state(state: dict) -> None:
     if _has_active_hold(state):
         _save_hold_state(state)
-    else:
-        state.pop(target, None)
-    _save_or_clear_hold_state(state)
+        return
+    _clear_hold_state()
 
 
 _FREQ_BLOCK_RE = re.compile(r'(^\s*freqs\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)

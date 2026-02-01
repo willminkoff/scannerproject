@@ -304,8 +304,6 @@ class Handler(BaseHTTPRequestHandler):
                 gain = float(form.get("gain", "32.8"))
                 squelch = float(form.get("squelch", "10.0"))
             except ValueError:
-                from systemd import start_rtl
-                start_rtl()
                 return self._send(400, json.dumps({"ok": False, "error": "bad values"}), "application/json; charset=utf-8")
             result = enqueue_apply(target, gain, squelch)
             return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
