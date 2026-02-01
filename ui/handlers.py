@@ -105,8 +105,8 @@ class Handler(BaseHTTPRequestHandler):
         
         if p == "/api/status":
             conf_path = read_active_config_path()
-            airband_gain, airband_squelch = parse_controls(conf_path)
-            ground_gain, ground_squelch = parse_controls(GROUND_CONFIG_PATH)
+            airband_gain, airband_snr, airband_dbfs, airband_mode = parse_controls(conf_path)
+            ground_gain, ground_snr, ground_dbfs, ground_mode = parse_controls(GROUND_CONFIG_PATH)
             airband_filter = parse_filter("airband")
             ground_filter = parse_filter("ground")
             rtl_ok = unit_active(UNITS["rtl"])
@@ -172,12 +172,18 @@ class Handler(BaseHTTPRequestHandler):
                 "profiles_ground": profiles_ground,
                 "missing_profiles": missing,
                 "gain": float(airband_gain),
-                "squelch": float(airband_squelch),
+                "squelch": float(airband_snr),
                 "airband_gain": float(airband_gain),
-                "airband_squelch": float(airband_squelch),
+                "airband_squelch": float(airband_snr),
+                "airband_squelch_mode": airband_mode,
+                "airband_squelch_snr": float(airband_snr),
+                "airband_squelch_dbfs": float(airband_dbfs),
                 "airband_filter": float(airband_filter),
                 "ground_gain": float(ground_gain),
-                "ground_squelch": float(ground_squelch),
+                "ground_squelch": float(ground_snr),
+                "ground_squelch_mode": ground_mode,
+                "ground_squelch_snr": float(ground_snr),
+                "ground_squelch_dbfs": float(ground_dbfs),
                 "ground_filter": float(ground_filter),
                 "last_hit": icecast_hit or read_last_hit_from_icecast() or "",
                 "last_hit_airband": last_hit_airband,
@@ -223,7 +229,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             while True:
                 conf_path = read_active_config_path()
-                airband_gain, airband_squelch = parse_controls(conf_path)
+                airband_gain, airband_snr, airband_dbfs, airband_mode = parse_controls(conf_path)
                 rtl_ok = unit_active(UNITS["rtl"])
                 # Unified device block counting
                 def count_device_blocks(conf_path):
@@ -259,7 +265,10 @@ class Handler(BaseHTTPRequestHandler):
                     "ground_active": ground_active,
                     "icecast_active": ice_ok,
                     "gain": float(airband_gain),
-                    "squelch": float(airband_squelch),
+                    "squelch": float(airband_snr),
+                    "squelch_mode": airband_mode,
+                    "squelch_snr": float(airband_snr),
+                    "squelch_dbfs": float(airband_dbfs),
                     "last_hit": last_hit,
                     "server_time": time.time(),
                 }
@@ -302,10 +311,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, json.dumps({"ok": False, "error": "unknown target"}), "application/json; charset=utf-8")
             try:
                 gain = float(form.get("gain", "32.8"))
-                squelch = float(form.get("squelch", "10.0"))
+                squelch_mode = (form.get("squelch_mode") or "snr").lower()
+                squelch_snr = form.get("squelch_snr", form.get("squelch", "10.0"))
+                squelch_dbfs = form.get("squelch_dbfs", "0")
+                squelch_snr = float(squelch_snr)
+                squelch_dbfs = float(squelch_dbfs)
             except ValueError:
                 return self._send(400, json.dumps({"ok": False, "error": "bad values"}), "application/json; charset=utf-8")
-            result = enqueue_apply(target, gain, squelch)
+            result = enqueue_apply(target, gain, squelch_mode, squelch_snr, squelch_dbfs)
             return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
 
         if p == "/api/filter":

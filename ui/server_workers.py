@@ -27,7 +27,7 @@ def enqueue_action(action: dict) -> dict:
     return waiter["result"] or {"status": 500, "payload": {"ok": False, "error": "no result"}}
 
 
-def enqueue_apply(target: str, gain: float, squelch: float) -> dict:
+def enqueue_apply(target: str, gain: float, squelch_mode: str, squelch_snr: float, squelch_dbfs: float) -> dict:
     """Enqueue an apply action with debouncing."""
     waiter = {"event": threading.Event(), "result": None}
     now = time.monotonic()
@@ -36,7 +36,9 @@ def enqueue_apply(target: str, gain: float, squelch: float) -> dict:
             last = ACTION_QUEUE[-1]
             if last.get("type") == "apply" and last.get("target") == target:
                 last["gain"] = gain
-                last["squelch"] = squelch
+                last["squelch_mode"] = squelch_mode
+                last["squelch_snr"] = squelch_snr
+                last["squelch_dbfs"] = squelch_dbfs
                 last["ready_at"] = now + APPLY_DEBOUNCE_SEC
                 last["waiters"].append(waiter)
                 ACTION_COND.notify()
@@ -45,7 +47,9 @@ def enqueue_apply(target: str, gain: float, squelch: float) -> dict:
                     "type": "apply",
                     "target": target,
                     "gain": gain,
-                    "squelch": squelch,
+                    "squelch_mode": squelch_mode,
+                    "squelch_snr": squelch_snr,
+                    "squelch_dbfs": squelch_dbfs,
                     "ready_at": now + APPLY_DEBOUNCE_SEC,
                     "waiters": [waiter],
                 })
@@ -55,7 +59,9 @@ def enqueue_apply(target: str, gain: float, squelch: float) -> dict:
                 "type": "apply",
                 "target": target,
                 "gain": gain,
-                "squelch": squelch,
+                "squelch_mode": squelch_mode,
+                "squelch_snr": squelch_snr,
+                "squelch_dbfs": squelch_dbfs,
                 "ready_at": now + APPLY_DEBOUNCE_SEC,
                 "waiters": [waiter],
             })

@@ -113,6 +113,10 @@
       50% { opacity: 0.5; }
     }
 
+    .hidden {
+      display: none !important;
+    }
+
     .last-hit-group {
       display: flex;
       gap: 10px;
@@ -615,6 +619,26 @@
 
             <div class="control-item">
               <div class="control-label">
+                <span>Squelch Mode</span>
+                <span class="control-value" id="sql-mode-value">--</span>
+              </div>
+              <div class="control-applied">
+                <label><input type="radio" name="sql-mode" id="sql-mode-snr" value="snr" checked> SNR</label>
+                <label><input type="radio" name="sql-mode" id="sql-mode-dbfs" value="dbfs"> dBFS</label>
+              </div>
+            </div>
+
+            <div class="control-item hidden" id="dbfs-control">
+              <div class="control-label">
+                <span>Squelch (dBFS)</span>
+                <span class="control-value" id="dbfs-value">--</span>
+              </div>
+              <input type="range" class="slider" id="dbfs-slider" min="-120" max="0" step="1" value="-70">
+              <div class="control-applied">Applied: <span id="dbfs-applied">--</span></div>
+            </div>
+
+            <div class="control-item">
+              <div class="control-label">
                 <span>Filter (Hz)</span>
                 <span class="control-value" id="filter-value">--</span>
               </div>
@@ -740,6 +764,9 @@
       airband: {
         gain: 32.8,
         squelch: 0.5,
+        squelch_mode: 'snr',
+        squelch_snr: 0.5,
+        squelch_dbfs: 0,
         filter: 3500,
         profiles: [],
         currentProfile: '',
@@ -748,6 +775,9 @@
       ground: {
         gain: 32.8,
         squelch: 0.5,
+        squelch_mode: 'snr',
+        squelch_snr: 0.5,
+        squelch_dbfs: 0,
         filter: 3500,
         profiles: [],
         currentProfile: '',
@@ -770,6 +800,13 @@
       sqlSlider: document.getElementById('sql-slider'),
       sqlValue: document.getElementById('sql-value'),
       sqlApplied: document.getElementById('sql-applied'),
+      sqlModeValue: document.getElementById('sql-mode-value'),
+      sqlModeSnr: document.getElementById('sql-mode-snr'),
+      sqlModeDbfs: document.getElementById('sql-mode-dbfs'),
+      dbfsControl: document.getElementById('dbfs-control'),
+      dbfsSlider: document.getElementById('dbfs-slider'),
+      dbfsValue: document.getElementById('dbfs-value'),
+      dbfsApplied: document.getElementById('dbfs-applied'),
       filterSlider: document.getElementById('filter-slider'),
       filterValue: document.getElementById('filter-value'),
       filterApplied: document.getElementById('filter-applied'),
@@ -920,24 +957,44 @@
       }
       return '--';
     }
+
+    function getSquelchMode() {
+      return els.sqlModeDbfs && els.sqlModeDbfs.checked ? 'dbfs' : 'snr';
+    }
+
+    function setSquelchMode(mode) {
+      const isDbfs = mode === 'dbfs';
+      if (els.sqlModeSnr) els.sqlModeSnr.checked = !isDbfs;
+      if (els.sqlModeDbfs) els.sqlModeDbfs.checked = isDbfs;
+      if (els.sqlModeValue) els.sqlModeValue.textContent = isDbfs ? 'dBFS' : 'SNR';
+      if (els.dbfsControl) els.dbfsControl.classList.toggle('hidden', !isDbfs);
+    }
     
     function updateControls() {
       const t = state[activeTarget];
-
+      
       const gainIdx = gainIndexFromValue(t.gain);
       if (!els.gainSlider.classList.contains('dirty')) {
         els.gainSlider.value = gainIdx;
         els.gainValue.textContent = GAIN_STEPS[gainIdx].toFixed(1);
       }
       els.gainApplied.textContent = t.gain.toFixed(1) + ' dB';
-
-      const sqlSliderVal = t.squelch / SQL_SCALE;
+      
+      const sqlSliderVal = t.squelch_snr / SQL_SCALE;
       if (!els.sqlSlider.classList.contains('dirty')) {
         els.sqlSlider.value = sqlSliderVal;
         els.sqlValue.textContent = sqlSliderVal.toFixed(1);
       }
-      els.sqlApplied.textContent = t.squelch.toFixed(2);
-
+      if (els.dbfsSlider && !els.dbfsSlider.classList.contains('dirty')) {
+        els.dbfsSlider.value = Math.round(t.squelch_dbfs);
+        els.dbfsValue.textContent = Math.round(t.squelch_dbfs);
+      }
+      setSquelchMode(t.squelch_mode);
+      els.sqlApplied.textContent = t.squelch_snr.toFixed(2);
+      if (els.dbfsApplied) {
+        els.dbfsApplied.textContent = Math.round(t.squelch_dbfs);
+      }
+      
       if (!els.filterSlider.classList.contains('dirty')) {
         els.filterSlider.value = t.filter;
         els.filterValue.textContent = t.filter;
@@ -1061,7 +1118,21 @@
       clearTimeout(state.applyTimeout);
       state.applyTimeout = setTimeout(() => applyGainSql(), DEBOUNCE_MS);
     }
-    
+
+    function onDbfsChange() {
+      const val = parseInt(els.dbfsSlider.value);
+      els.dbfsValue.textContent = val;
+      els.dbfsSlider.classList.add('dirty');
+      clearTimeout(state.applyTimeout);
+      state.applyTimeout = setTimeout(() => applyGainSql(), DEBOUNCE_MS);
+    }
+
+    function onSqlModeChange() {
+      setSquelchMode(getSquelchMode());
+      clearTimeout(state.applyTimeout);
+      state.applyTimeout = setTimeout(() => applyGainSql(), DEBOUNCE_MS);
+    }
+
     function onFilterChange() {
       const val = parseInt(els.filterSlider.value);
       els.filterValue.textContent = val;
@@ -1073,16 +1144,30 @@
     async function applyGainSql() {
       const gainIdx = parseInt(els.gainSlider.value);
       const gain = gainValueFromIndex(gainIdx);
-      const squelch = parseFloat(els.sqlSlider.value) * SQL_SCALE;
+      const squelchMode = getSquelchMode();
+      const squelchSnr = parseFloat(els.sqlSlider.value) * SQL_SCALE;
+      const squelchDbfs = parseFloat(els.dbfsSlider.value);
       
       try {
-        await postAPI('/api/apply', { target: activeTarget, gain, squelch });
+        await postAPI('/api/apply', {
+          target: activeTarget,
+          gain,
+          squelch_mode: squelchMode,
+          squelch_snr: squelchSnr,
+          squelch_dbfs: squelchDbfs,
+        });
         els.gainSlider.classList.remove('dirty');
         els.sqlSlider.classList.remove('dirty');
+        els.dbfsSlider.classList.remove('dirty');
         els.gainApplied.textContent = gain.toFixed(1) + ' dB';
-        els.sqlApplied.textContent = squelch.toFixed(2);
+        els.sqlApplied.textContent = squelchSnr.toFixed(2);
+        if (els.dbfsApplied) {
+          els.dbfsApplied.textContent = Math.round(squelchDbfs);
+        }
         state[activeTarget].gain = gain;
-        state[activeTarget].squelch = squelch;
+        state[activeTarget].squelch_mode = squelchMode;
+        state[activeTarget].squelch_snr = squelchSnr;
+        state[activeTarget].squelch_dbfs = squelchDbfs;
       } catch (e) {
         console.error('Apply failed:', e);
       }
@@ -1304,14 +1389,20 @@
         }
         
         state.airband.gain = pickNumber(data.airband_gain, pickNumber(data.gain, 32.8));
-        state.airband.squelch = pickNumber(data.airband_squelch, pickNumber(data.squelch, 0.5));
+        state.airband.squelch_mode = data.airband_squelch_mode || 'snr';
+        state.airband.squelch_snr = pickNumber(data.airband_squelch_snr, pickNumber(data.airband_squelch, pickNumber(data.squelch, 0.5)));
+        state.airband.squelch_dbfs = pickNumber(data.airband_squelch_dbfs, 0);
+        state.airband.squelch = state.airband.squelch_snr;
         state.airband.filter = pickNumber(data.airband_filter, 3500);
         state.airband.profiles = data.profiles_airband || [];
         state.airband.currentProfile = data.profile_airband || '';
         state.airband.avoids = data.avoids_airband?.sample || [];
         
         state.ground.gain = pickNumber(data.ground_gain, 32.8);
-        state.ground.squelch = pickNumber(data.ground_squelch, 0.5);
+        state.ground.squelch_mode = data.ground_squelch_mode || 'snr';
+        state.ground.squelch_snr = pickNumber(data.ground_squelch_snr, pickNumber(data.ground_squelch, 0.5));
+        state.ground.squelch_dbfs = pickNumber(data.ground_squelch_dbfs, 0);
+        state.ground.squelch = state.ground.squelch_snr;
         state.ground.filter = pickNumber(data.ground_filter, 3500);
         state.ground.profiles = data.profiles_ground || [];
         state.ground.currentProfile = data.profile_ground || '';
@@ -1455,6 +1546,9 @@
       
       els.gainSlider.addEventListener('input', onGainChange);
       els.sqlSlider.addEventListener('input', onSqlChange);
+      els.dbfsSlider.addEventListener('input', onDbfsChange);
+      els.sqlModeSnr.addEventListener('change', onSqlModeChange);
+      els.sqlModeDbfs.addEventListener('change', onSqlModeChange);
       els.filterSlider.addEventListener('input', onFilterChange);
       els.lastHitAirband.addEventListener('click', () => toggleHoldFor('airband'));
       els.lastHitGround.addEventListener('click', () => toggleHoldFor('ground'));

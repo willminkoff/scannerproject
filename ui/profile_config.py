@@ -13,7 +13,7 @@ try:
     from .config import (
         CONFIG_SYMLINK, PROFILES_DIR, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH,
         AVOIDS_DIR, AVOIDS_PATHS, AVOIDS_SUMMARY_PATHS, PROFILES, GAIN_STEPS,
-        RE_GAIN, RE_SQL, RE_AIRBAND, RE_INDEX, RE_FREQS_BLOCK, RE_LABELS_BLOCK,
+        RE_GAIN, RE_SQL, RE_SQL_DBFS, RE_AIRBAND, RE_INDEX, RE_FREQS_BLOCK, RE_LABELS_BLOCK,
         MIXER_NAME, FILTER_AIRBAND_PATH, FILTER_GROUND_PATH, FILTER_DEFAULT_CUTOFF,
         FILTER_MIN_CUTOFF, FILTER_MAX_CUTOFF
     )
@@ -22,7 +22,7 @@ except ImportError:
     from ui.config import (
         CONFIG_SYMLINK, PROFILES_DIR, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH,
         AVOIDS_DIR, AVOIDS_PATHS, AVOIDS_SUMMARY_PATHS, PROFILES, GAIN_STEPS,
-        RE_GAIN, RE_SQL, RE_AIRBAND, RE_INDEX, RE_FREQS_BLOCK, RE_LABELS_BLOCK,
+        RE_GAIN, RE_SQL, RE_SQL_DBFS, RE_AIRBAND, RE_INDEX, RE_FREQS_BLOCK, RE_LABELS_BLOCK,
         MIXER_NAME, FILTER_AIRBAND_PATH, FILTER_GROUND_PATH, FILTER_DEFAULT_CUTOFF,
         FILTER_MIN_CUTOFF, FILTER_MAX_CUTOFF
     )
@@ -147,7 +147,9 @@ def parse_controls(conf_path: str):
     """Parse gain and squelch from configuration."""
     enforce_profile_index(conf_path)
     gain = 32.8
-    squelch = 10.0
+    squelch_snr = 10.0
+    squelch_dbfs = 0.0
+    has_dbfs = False
     try:
         with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
             for line in f:
@@ -156,31 +158,48 @@ def parse_controls(conf_path: str):
                     gain = float(m.group(2))
                 m = RE_SQL.match(line)
                 if m:
-                    squelch = max(0.0, float(m.group(2)))
+                    squelch_snr = max(0.0, float(m.group(2)))
+                m = RE_SQL_DBFS.match(line)
+                if m:
+                    squelch_dbfs = float(m.group(2))
+                    has_dbfs = True
     except FileNotFoundError:
         pass
 
+    mode = "dbfs" if has_dbfs and abs(squelch_dbfs) > 1e-6 else "snr"
+
     # Only emit verbose parse logs when explicitly enabled via env var
     if os.environ.get("AIRBAND_DEBUG"):
-        logger.debug(f"parse_controls: {conf_path} gain={gain} squelch={squelch}")
-    return gain, squelch
+        logger.debug(
+            f"parse_controls: {conf_path} gain={gain} snr={squelch_snr} dbfs={squelch_dbfs} mode={mode}"
+        )
+    return gain, squelch_snr, squelch_dbfs, mode
 
 
-def write_controls(conf_path: str, gain: float, squelch: float) -> bool:
+def write_controls(conf_path: str, gain: float, squelch_mode: str, squelch_snr: float, squelch_dbfs: float) -> bool:
     """Write gain and squelch to configuration."""
     gain_value = float(gain)
     gain = min(GAIN_STEPS, key=lambda g: abs(g - gain_value))
-    squelch = max(0.0, min(10.0, float(squelch)))
+    squelch_mode = (squelch_mode or "snr").lower()
+    squelch_snr = max(0.0, min(10.0, float(squelch_snr)))
+    squelch_dbfs = float(squelch_dbfs)
+    if squelch_dbfs > 0:
+        squelch_dbfs = 0.0
 
     conf_path = os.path.realpath(conf_path)
 
-    logger.info(f"write_controls: {conf_path} gain={gain} squelch={squelch}")
+    logger.info(
+        f"write_controls: {conf_path} gain={gain} mode={squelch_mode} snr={squelch_snr} dbfs={squelch_dbfs}"
+    )
 
     with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
         lines = f.readlines()
 
     out = []
     changed = False
+    saw_snr = False
+    saw_dbfs = False
+    snr_insert_idx = None
     for line in lines:
         m = RE_GAIN.match(line)
         if m:
@@ -191,12 +210,37 @@ def write_controls(conf_path: str, gain: float, squelch: float) -> bool:
             continue
         m = RE_SQL.match(line)
         if m:
-            new_line = f"{m.group(1)}{squelch:.3f}{m.group(3)}\n"
+            new_line = f"{m.group(1)}{squelch_snr:.3f}{m.group(3)}\n"
             if new_line != line:
                 changed = True
             out.append(new_line)
+            saw_snr = True
+            snr_insert_idx = len(out)
+            continue
+        m = RE_SQL_DBFS.match(line)
+        if m:
+            value = squelch_dbfs if squelch_mode == "dbfs" else 0.0
+            new_line = f"{m.group(1)}{value:.3f}{m.group(3)}\n"
+            if new_line != line:
+                changed = True
+            out.append(new_line)
+            saw_dbfs = True
             continue
         out.append(line)
+
+    if not saw_dbfs:
+        value = squelch_dbfs if squelch_mode == "dbfs" else 0.0
+        indent = "      "
+        if snr_insert_idx is not None and snr_insert_idx - 1 < len(out):
+            indent_match = re.match(r'^(\s*)', out[snr_insert_idx - 1])
+            if indent_match:
+                indent = indent_match.group(1)
+        new_line = f"{indent}squelch_threshold = {value:.3f};  # UI_CONTROLLED\n"
+        if snr_insert_idx is not None:
+            out.insert(snr_insert_idx, new_line)
+        else:
+            out.append(new_line)
+        changed = True
 
     if not changed:
         logger.debug("write_controls: no change")

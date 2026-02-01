@@ -170,7 +170,7 @@ def action_set_profile(profile_id: str, target: str) -> dict:
     return {"status": 200, "payload": {"ok": True, "changed": False}}
 
 
-def action_apply_controls(target: str, gain: float, squelch: float) -> dict:
+def action_apply_controls(target: str, gain: float, squelch_mode: str, squelch_snr: float, squelch_dbfs: float) -> dict:
     """Action: Apply gain/squelch controls."""
     if target == "ground":
         conf_path = GROUND_CONFIG_PATH
@@ -179,7 +179,7 @@ def action_apply_controls(target: str, gain: float, squelch: float) -> dict:
     else:
         return {"status": 400, "payload": {"ok": False, "error": "unknown target"}}
     try:
-        changed = write_controls(conf_path, gain, squelch)
+        changed = write_controls(conf_path, gain, squelch_mode, squelch_snr, squelch_dbfs)
         combined_changed = write_combined_config()
         changed = changed or combined_changed
     except Exception as e:
@@ -518,7 +518,13 @@ def execute_action(action: dict) -> dict:
     """Execute an action based on its type."""
     action_type = action.get("type")
     if action_type == "apply":
-        return action_apply_controls(action.get("target"), action.get("gain"), action.get("squelch"))
+        return action_apply_controls(
+            action.get("target"),
+            action.get("gain"),
+            action.get("squelch_mode"),
+            action.get("squelch_snr"),
+            action.get("squelch_dbfs"),
+        )
     if action_type == "filter":
         return action_apply_filter(action.get("target"), action.get("cutoff_hz"))
     if action_type == "profile":
