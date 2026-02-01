@@ -436,6 +436,9 @@
       resize: vertical;
       color-scheme: dark;
     }
+    .freq-editor.collapsed .freq-edit-body {
+      display: none;
+    }
     .freq-editor textarea:focus { outline: 2px solid rgba(45, 212, 191, 0.35); outline-offset: 2px; }
 
     /* Counters */
@@ -734,36 +737,40 @@
             </div>
             <audio id="audio-player" controls preload="none"></audio>
           </div>
-          <div class="control-item" style="margin-top:10px;">
-            <div class="control-label">
-              <span>Pi Health</span>
-              <span class="control-value" id="sys-uptime">--</span>
+            <div class="control-item" style="margin-top:10px;">
+              <div class="control-label">
+                <span>Pi Health</span>
+                <span class="control-value" id="sys-uptime">--</span>
+              </div>
+              <div class="system-grid">
+                <div class="system-item">
+                  <div class="label">CPU Temp</div>
+                  <div class="value" id="sys-cpu-temp">--</div>
+                </div>
+                <div class="system-item">
+                  <div class="label">GPU Temp</div>
+                  <div class="value" id="sys-gpu-temp">--</div>
+                </div>
+                <div class="system-item">
+                  <div class="label">CPU Usage</div>
+                  <div class="value" id="sys-cpu-usage">--</div>
+                </div>
+                <div class="system-item">
+                  <div class="label">IO Pressure</div>
+                  <div class="value" id="sys-io-pressure">--</div>
+                </div>
+                <div class="system-item">
+                  <div class="label">Network RX</div>
+                  <div class="value" id="sys-net-rx">--</div>
+                  <div class="sub" id="sys-net-rx-rate">--</div>
+                </div>
+                <div class="system-item">
+                  <div class="label">Network TX</div>
+                  <div class="value" id="sys-net-tx">--</div>
+                  <div class="sub" id="sys-net-tx-rate">--</div>
+                </div>
+              </div>
             </div>
-            <div class="system-grid">
-              <div class="system-item">
-                <div class="label">CPU Temp</div>
-                <div class="value" id="sys-cpu-temp">--</div>
-              </div>
-              <div class="system-item">
-                <div class="label">GPU Temp</div>
-                <div class="value" id="sys-gpu-temp">--</div>
-              </div>
-              <div class="system-item">
-                <div class="label">CPU Usage</div>
-                <div class="value" id="sys-cpu-usage">--</div>
-              </div>
-              <div class="system-item">
-                <div class="label">Network RX</div>
-                <div class="value" id="sys-net-rx">--</div>
-                <div class="sub" id="sys-net-rx-rate">--</div>
-              </div>
-              <div class="system-item">
-                <div class="label">Network TX</div>
-                <div class="value" id="sys-net-tx">--</div>
-                <div class="sub" id="sys-net-tx-rate">--</div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -804,7 +811,7 @@
               </div>
               <div class="control-applied"><span id="manage-status" style="opacity:0.85;"></span></div>
             </div>
-            <div class="control-item freq-editor">
+            <div class="control-item freq-editor" id="freq-editor">
               <div class="control-label">
                 <span>Edit Frequencies</span>
                 <span class="control-value">One per line: 118.600 TOWER</span>
@@ -817,9 +824,12 @@
                 <button class="action" id="freq-edit-save">Save</button>
                 <button class="action" id="manage-rename">Rename Selected</button>
                 <button class="action" id="manage-delete">Delete Selected</button>
+                <button class="action" id="freq-edit-toggle">Hide</button>
               </div>
-              <textarea id="freq-edit-text" rows="8" spellcheck="false" placeholder="118.600 TOWER&#10;119.350 APP"></textarea>
-              <div class="control-applied"><span id="freq-edit-status" style="opacity:0.85;"></span></div>
+              <div class="freq-edit-body">
+                <textarea id="freq-edit-text" rows="8" spellcheck="false" placeholder="118.600 TOWER&#10;119.350 APP"></textarea>
+                <div class="control-applied"><span id="freq-edit-status" style="opacity:0.85;"></span></div>
+              </div>
             </div>
           </div>
         </div>
@@ -972,6 +982,7 @@
       sysCpuTemp: document.getElementById('sys-cpu-temp'),
       sysGpuTemp: document.getElementById('sys-gpu-temp'),
       sysCpuUsage: document.getElementById('sys-cpu-usage'),
+      sysIoPressure: document.getElementById('sys-io-pressure'),
       sysNetRx: document.getElementById('sys-net-rx'),
       sysNetTx: document.getElementById('sys-net-tx'),
       sysNetRxRate: document.getElementById('sys-net-rx-rate'),
@@ -988,6 +999,8 @@
       freqEditText: document.getElementById('freq-edit-text'),
       freqEditLoad: document.getElementById('freq-edit-load'),
       freqEditSave: document.getElementById('freq-edit-save'),
+      freqEditToggle: document.getElementById('freq-edit-toggle'),
+      freqEditor: document.getElementById('freq-editor'),
       freqEditStatus: document.getElementById('freq-edit-status'),
       hitList: document.getElementById('hit-list'),
       hitCount: document.getElementById('hit-count'),
@@ -1364,14 +1377,21 @@
     function updateSystemUI(stats) {
       if (!stats || stats.ok === false) return;
       if (els.sysUptime) els.sysUptime.textContent = formatUptime(stats.uptime_s);
+      const cpuF = Number.isFinite(stats.cpu_temp_c) ? (stats.cpu_temp_c * 9 / 5 + 32) : null;
+      const gpuF = Number.isFinite(stats.gpu_temp_c) ? (stats.gpu_temp_c * 9 / 5 + 32) : null;
       if (els.sysCpuTemp) {
-        els.sysCpuTemp.textContent = Number.isFinite(stats.cpu_temp_c) ? `${stats.cpu_temp_c.toFixed(1)}°C` : '--';
+        els.sysCpuTemp.textContent = Number.isFinite(cpuF) ? `${cpuF.toFixed(1)}°F` : '--';
       }
       if (els.sysGpuTemp) {
-        els.sysGpuTemp.textContent = Number.isFinite(stats.gpu_temp_c) ? `${stats.gpu_temp_c.toFixed(1)}°C` : '--';
+        els.sysGpuTemp.textContent = Number.isFinite(gpuF) ? `${gpuF.toFixed(1)}°F` : '--';
       }
       if (els.sysCpuUsage) {
         els.sysCpuUsage.textContent = Number.isFinite(stats.cpu_usage) ? `${stats.cpu_usage.toFixed(0)}%` : '--';
+      }
+      if (els.sysIoPressure) {
+        const io = stats.io_pressure || {};
+        const avg10 = Number(io.avg10);
+        els.sysIoPressure.textContent = Number.isFinite(avg10) ? `${avg10.toFixed(2)}%` : '--';
       }
       const net = stats.net || {};
       const rx = Number(net.rx_bytes || 0);
@@ -1889,6 +1909,18 @@
         els.manageLabel.addEventListener('input', () => {
           if (!els.manageId || els.manageId.value.trim()) return;
           els.manageId.value = sanitizeProfileId(els.manageLabel.value);
+        });
+      }
+      if (els.freqEditToggle && els.freqEditor) {
+        const saved = localStorage.getItem('sb3-freq-collapsed');
+        if (saved === '1') {
+          els.freqEditor.classList.add('collapsed');
+          els.freqEditToggle.textContent = 'Show';
+        }
+        els.freqEditToggle.addEventListener('click', () => {
+          const collapsed = els.freqEditor.classList.toggle('collapsed');
+          els.freqEditToggle.textContent = collapsed ? 'Show' : 'Hide';
+          localStorage.setItem('sb3-freq-collapsed', collapsed ? '1' : '0');
         });
       }
       if (els.manageCreate) {

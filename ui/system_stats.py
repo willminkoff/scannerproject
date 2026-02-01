@@ -100,6 +100,24 @@ def read_net_bytes():
         ifaces.append({"name": iface, "rx_bytes": rx, "tx_bytes": tx})
     return {"rx_bytes": total_rx, "tx_bytes": total_tx, "ifaces": ifaces}
 
+def read_pressure(path: str):
+    line = _read_first_line(path)
+    if not line:
+        return None
+    parts = line.split()
+    if len(parts) < 2:
+        return None
+    data = {}
+    for tok in parts[1:]:
+        if "=" not in tok:
+            continue
+        key, val = tok.split("=", 1)
+        try:
+            data[key] = float(val)
+        except ValueError:
+            continue
+    return data or None
+
 
 def get_system_stats():
     return {
@@ -110,4 +128,5 @@ def get_system_stats():
         "uptime_s": read_uptime_s(),
         "cpu_usage": read_cpu_usage_percent(),
         "net": read_net_bytes(),
+        "io_pressure": read_pressure("/proc/pressure/io"),
     }
