@@ -756,8 +756,8 @@
                   <div class="value" id="sys-cpu-usage">--</div>
                 </div>
                 <div class="system-item">
-                  <div class="label">IO Pressure</div>
-                  <div class="value" id="sys-io-pressure">--</div>
+                  <div class="label">Uptime</div>
+                  <div class="value" id="sys-uptime-tile">--</div>
                 </div>
                 <div class="system-item">
                   <div class="label">Network RX</div>
@@ -982,7 +982,7 @@
       sysCpuTemp: document.getElementById('sys-cpu-temp'),
       sysGpuTemp: document.getElementById('sys-gpu-temp'),
       sysCpuUsage: document.getElementById('sys-cpu-usage'),
-      sysIoPressure: document.getElementById('sys-io-pressure'),
+      sysUptimeTile: document.getElementById('sys-uptime-tile'),
       sysNetRx: document.getElementById('sys-net-rx'),
       sysNetTx: document.getElementById('sys-net-tx'),
       sysNetRxRate: document.getElementById('sys-net-rx-rate'),
@@ -1377,6 +1377,7 @@
     function updateSystemUI(stats) {
       if (!stats || stats.ok === false) return;
       if (els.sysUptime) els.sysUptime.textContent = formatUptime(stats.uptime_s);
+      if (els.sysUptimeTile) els.sysUptimeTile.textContent = formatUptime(stats.uptime_s);
       const cpuF = Number.isFinite(stats.cpu_temp_c) ? (stats.cpu_temp_c * 9 / 5 + 32) : null;
       const gpuF = Number.isFinite(stats.gpu_temp_c) ? (stats.gpu_temp_c * 9 / 5 + 32) : null;
       if (els.sysCpuTemp) {
@@ -1387,11 +1388,6 @@
       }
       if (els.sysCpuUsage) {
         els.sysCpuUsage.textContent = Number.isFinite(stats.cpu_usage) ? `${stats.cpu_usage.toFixed(0)}%` : '--';
-      }
-      if (els.sysIoPressure) {
-        const io = stats.io_pressure || {};
-        const avg10 = Number(io.avg10);
-        els.sysIoPressure.textContent = Number.isFinite(avg10) ? `${avg10.toFixed(2)}%` : '--';
       }
       const net = stats.net || {};
       const rx = Number(net.rx_bytes || 0);
