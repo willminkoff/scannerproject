@@ -266,6 +266,21 @@ def _write_text(path: str, text: str) -> None:
     os.replace(tmp, path)
 
 
+def _write_temp_config(target: str, purpose: str, text: str) -> str:
+    tmp_dir = "/run"
+    os.makedirs(tmp_dir, exist_ok=True)
+    path = os.path.join(tmp_dir, f"airband_ui_{purpose}_{target}.conf")
+    _write_text(path, text)
+    return path
+
+
+def _get_symlink_target(path: str) -> str:
+    try:
+        return os.path.realpath(path)
+    except Exception:
+        return path
+
+
 def action_hold_start(target: str, freq) -> dict:
     """Action: Enter hold by replacing target config with single frequency."""
     if target not in ("airband", "ground"):
@@ -280,7 +295,14 @@ def action_hold_start(target: str, freq) -> dict:
     if target_state.get("active"):
         return {"status": 400, "payload": {"ok": False, "error": f"already holding {target_state.get('freq')}"}}
 
-    conf_path = os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path()
+    symlink_path = None
+    original_target = None
+    if target == "airband" and os.path.islink(CONFIG_SYMLINK):
+        symlink_path = CONFIG_SYMLINK
+        original_target = _get_symlink_target(CONFIG_SYMLINK)
+        conf_path = original_target
+    else:
+        conf_path = os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path()
     try:
         with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
             original = f.read()
@@ -293,16 +315,27 @@ def action_hold_start(target: str, freq) -> dict:
     except Exception as e:
         return {"status": 400, "payload": {"ok": False, "error": f"rewrite failed: {e}"}}
 
-    try:
-        _write_text(conf_path, new_text)
-    except Exception as e:
-        return {"status": 500, "payload": {"ok": False, "error": f"write failed: {e}"}}
+    temp_path = None
+    if symlink_path:
+        try:
+            temp_path = _write_temp_config(target, "hold", new_text)
+            os.system(f"ln -sf {temp_path} {symlink_path}")
+        except Exception as e:
+            return {"status": 500, "payload": {"ok": False, "error": f"write failed: {e}"}}
+    else:
+        try:
+            _write_text(conf_path, new_text)
+        except Exception as e:
+            return {"status": 500, "payload": {"ok": False, "error": f"write failed: {e}"}}
 
     hold_state = {
         "active": True,
         "target": target,
         "freq": f"{freq_val:.4f}",
         "conf_path": conf_path,
+        "symlink_path": symlink_path,
+        "original_target": original_target,
+        "temp_path": temp_path,
         "original_text": original,
         "ts": time.time(),
     }
@@ -317,7 +350,12 @@ def action_hold_start(target: str, freq) -> dict:
     except Exception as e:
         # rollback to original config if combine fails
         try:
-            _write_text(conf_path, original)
+            if symlink_path and state.get(target):
+                original_target = state[target].get("original_target")
+                if original_target:
+                    os.system(f"ln -sf {original_target} {symlink_path}")
+            else:
+                _write_text(conf_path, original)
             state.pop(target, None)
             _save_or_clear_hold_state(state)
         except Exception:
@@ -337,13 +375,24 @@ def action_hold_stop(target: str) -> dict:
 
     conf_path = target_state.get("conf_path") or (os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path())
     original = target_state.get("original_text")
+    symlink_path = target_state.get("symlink_path")
+    original_target = target_state.get("original_target")
+    temp_path = target_state.get("temp_path")
     if not conf_path or original is None:
         state.pop(target, None)
         _save_or_clear_hold_state(state)
         return {"status": 400, "payload": {"ok": False, "error": "hold state incomplete"}}
 
     try:
-        _write_text(conf_path, original)
+        if symlink_path and original_target:
+            os.system(f"ln -sf {original_target} {symlink_path}")
+            if temp_path:
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
+        else:
+            _write_text(conf_path, original)
     except Exception as e:
         return {"status": 500, "payload": {"ok": False, "error": f"restore failed: {e}"}}
 
@@ -370,7 +419,14 @@ def action_tune(target: str, freq) -> dict:
     except (TypeError, ValueError):
         return {"status": 400, "payload": {"ok": False, "error": "bad freq"}}
 
-    conf_path = os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path()
+    symlink_path = None
+    original_target = None
+    if target == "airband" and os.path.islink(CONFIG_SYMLINK):
+        symlink_path = CONFIG_SYMLINK
+        original_target = _get_symlink_target(CONFIG_SYMLINK)
+        conf_path = original_target
+    else:
+        conf_path = os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path()
     try:
         with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
             original = f.read()
@@ -382,6 +438,9 @@ def action_tune(target: str, freq) -> dict:
     backup[target] = {
         "conf_path": conf_path,
         "original_text": original,
+        "symlink_path": symlink_path,
+        "original_target": original_target,
+        "temp_path": None,
         "ts": time.time(),
     }
     try:
@@ -396,7 +455,13 @@ def action_tune(target: str, freq) -> dict:
         return {"status": 400, "payload": {"ok": False, "error": f"rewrite failed: {e}"}}
 
     try:
-        _write_text(conf_path, new_text)
+        if symlink_path:
+            temp_path = _write_temp_config(target, "tune", new_text)
+            backup[target]["temp_path"] = temp_path
+            _save_tune_backup(backup)
+            os.system(f"ln -sf {temp_path} {symlink_path}")
+        else:
+            _write_text(conf_path, new_text)
     except Exception as e:
         return {"status": 500, "payload": {"ok": False, "error": f"write failed: {e}"}}
 
@@ -419,10 +484,21 @@ def action_tune_restore(target: str) -> dict:
         return {"status": 400, "payload": {"ok": False, "error": "no tune backup"}}
     conf_path = entry.get("conf_path")
     original = entry.get("original_text")
+    symlink_path = entry.get("symlink_path")
+    original_target = entry.get("original_target")
+    temp_path = entry.get("temp_path")
     if not conf_path or original is None:
         return {"status": 400, "payload": {"ok": False, "error": "invalid backup"}}
     try:
-        _write_text(conf_path, original)
+        if symlink_path and original_target:
+            os.system(f"ln -sf {original_target} {symlink_path}")
+            if temp_path:
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
+        else:
+            _write_text(conf_path, original)
     except Exception as e:
         return {"status": 500, "payload": {"ok": False, "error": f"restore failed: {e}"}}
     backup.pop(target, None)
