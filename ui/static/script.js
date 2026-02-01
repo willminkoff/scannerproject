@@ -21,7 +21,6 @@ const GAIN_STEPS = [
   16.6, 19.7, 20.7, 22.9, 25.4, 28.0, 29.7, 32.8, 33.8,
   36.4, 37.2, 38.6, 40.2, 42.1, 43.4, 43.9, 44.5, 48.0, 49.6,
 ];
-const SQL_SCALE = 0.1;
 const DBFS_MIN = -120;
 const DBFS_MAX = 0;
 
@@ -35,20 +34,13 @@ let avoidsGround = null;
 const controlTargets = {
   airband: {
     gainEl: document.getElementById('gain-airband'),
-    sqlEl: document.getElementById('sql-airband'),
     filterEl: document.getElementById('filter-airband'),
     selectedGainEl: document.getElementById('selected-gain-airband'),
-    selectedSqlEl: document.getElementById('selected-sql-airband'),
     selectedFilterEl: document.getElementById('selected-filter-airband'),
     selectedDbfsEl: document.getElementById('selected-dbfs-airband'),
     appliedGainEl: document.getElementById('applied-gain-airband'),
-    appliedSqlEl: document.getElementById('applied-sql-airband'),
     appliedFilterEl: document.getElementById('applied-filter-airband'),
     appliedDbfsEl: document.getElementById('applied-dbfs-airband'),
-    appliedSqlModeEl: document.getElementById('applied-sql-mode-airband'),
-    sqlModeSnrEl: document.getElementById('sql-mode-snr-airband'),
-    sqlModeDbfsEl: document.getElementById('sql-mode-dbfs-airband'),
-    dbfsCtrlEl: document.getElementById('dbfs-ctrl-airband'),
     sqlDbfsEl: document.getElementById('dbfs-airband'),
     dirty: false,
     filterDirty: false,
@@ -56,27 +48,18 @@ const controlTargets = {
     filterApplyInFlight: false,
     openInFlight: false,
     lastAppliedGain: null,
-    lastAppliedSql: null,
     lastAppliedDbfs: null,
-    lastAppliedMode: 'snr',
     lastAppliedFilter: null,
   },
   ground: {
     gainEl: document.getElementById('gain-ground'),
-    sqlEl: document.getElementById('sql-ground'),
     filterEl: document.getElementById('filter-ground'),
     selectedGainEl: document.getElementById('selected-gain-ground'),
-    selectedSqlEl: document.getElementById('selected-sql-ground'),
     selectedFilterEl: document.getElementById('selected-filter-ground'),
     selectedDbfsEl: document.getElementById('selected-dbfs-ground'),
     appliedGainEl: document.getElementById('applied-gain-ground'),
-    appliedSqlEl: document.getElementById('applied-sql-ground'),
     appliedFilterEl: document.getElementById('applied-filter-ground'),
     appliedDbfsEl: document.getElementById('applied-dbfs-ground'),
-    appliedSqlModeEl: document.getElementById('applied-sql-mode-ground'),
-    sqlModeSnrEl: document.getElementById('sql-mode-snr-ground'),
-    sqlModeDbfsEl: document.getElementById('sql-mode-dbfs-ground'),
-    dbfsCtrlEl: document.getElementById('dbfs-ctrl-ground'),
     sqlDbfsEl: document.getElementById('dbfs-ground'),
     dirty: false,
     filterDirty: false,
@@ -84,9 +67,7 @@ const controlTargets = {
     filterApplyInFlight: false,
     openInFlight: false,
     lastAppliedGain: null,
-    lastAppliedSql: null,
     lastAppliedDbfs: null,
-    lastAppliedMode: 'snr',
     lastAppliedFilter: null,
   },
 };
@@ -114,37 +95,10 @@ function updateSelectedGain(target) {
   controls.selectedGainEl.textContent = GAIN_STEPS[idx].toFixed(1);
 }
 
-function updateSelectedSql(target) {
-  const controls = controlTargets[target];
-  const sliderValue = Number(controls.sqlEl.value || 0);
-  const effective = sliderValue * SQL_SCALE;
-  controls.selectedSqlEl.textContent = `${sliderValue.toFixed(1)} \u2192 ${effective.toFixed(2)}`;
-}
-
 function updateSelectedDbfs(target) {
   const controls = controlTargets[target];
   const dbfs = Number(controls.sqlDbfsEl.value || 0);
   controls.selectedDbfsEl.textContent = dbfs.toFixed(0);
-}
-
-function getSquelchMode(target) {
-  const controls = controlTargets[target];
-  return controls.sqlModeDbfsEl && controls.sqlModeDbfsEl.checked ? 'dbfs' : 'snr';
-}
-
-function setSquelchMode(target, mode, allowSetSliders) {
-  const controls = controlTargets[target];
-  const isDbfs = mode === 'dbfs';
-  if (allowSetSliders && !controls.dirty) {
-    if (controls.sqlModeSnrEl) controls.sqlModeSnrEl.checked = !isDbfs;
-    if (controls.sqlModeDbfsEl) controls.sqlModeDbfsEl.checked = isDbfs;
-  }
-  if (controls.appliedSqlModeEl) {
-    controls.appliedSqlModeEl.textContent = isDbfs ? 'dBFS' : 'SNR';
-  }
-  if (controls.dbfsCtrlEl) {
-    controls.dbfsCtrlEl.classList.toggle('hidden', !isDbfs);
-  }
 }
 
 function updateSelectedFilter(target) {
@@ -239,31 +193,22 @@ async function post(url, obj) {
   return await r.json();
 }
 
-function setControlsFromStatus(target, gain, squelchSnr, squelchDbfs, squelchMode, filter, allowSetSliders) {
+function setControlsFromStatus(target, gain, squelchDbfs, filter, allowSetSliders) {
   const controls = controlTargets[target];
   controls.appliedGainEl.textContent = gain.toFixed(1);
-  const appliedSlider = Math.max(0, Math.min(10, squelchSnr / SQL_SCALE));
-  controls.appliedSqlEl.textContent = `${squelchSnr.toFixed(2)} (slider ${appliedSlider.toFixed(1)})`;
-  if (controls.appliedDbfsEl) {
-    controls.appliedDbfsEl.textContent = squelchDbfs.toFixed(0);
-  }
+  controls.appliedDbfsEl.textContent = squelchDbfs.toFixed(0);
   controls.appliedFilterEl.textContent = `${filter.toFixed(0)}`;
   controls.lastAppliedGain = gain;
-  controls.lastAppliedSql = squelchSnr;
   controls.lastAppliedDbfs = squelchDbfs;
-  controls.lastAppliedMode = squelchMode;
   controls.lastAppliedFilter = filter;
   if (allowSetSliders && !controls.dirty && !controls.filterDirty) {
     controls.gainEl.value = gainIndexFromValue(gain);
-    controls.sqlEl.value = appliedSlider.toFixed(1);
     controls.sqlDbfsEl.value = Math.max(DBFS_MIN, Math.min(DBFS_MAX, Math.round(squelchDbfs))).toFixed(0);
     controls.filterEl.value = filter.toFixed(0);
     updateSelectedGain(target);
-    updateSelectedSql(target);
     updateSelectedDbfs(target);
     updateSelectedFilter(target);
   }
-  setSquelchMode(target, squelchMode, allowSetSliders);
 }
 
 async function refresh(allowSetSliders=false) {
@@ -289,18 +234,14 @@ async function refresh(allowSetSliders=false) {
   setControlsFromStatus(
     'airband',
     st.airband_gain,
-    st.airband_squelch_snr ?? st.airband_squelch,
     st.airband_squelch_dbfs ?? 0,
-    st.airband_squelch_mode || 'snr',
     st.airband_filter || 3500,
     allowSetSliders
   );
   setControlsFromStatus(
     'ground',
     st.ground_gain,
-    st.ground_squelch_snr ?? st.ground_squelch,
     st.ground_squelch_dbfs ?? 0,
-    st.ground_squelch_mode || 'snr',
     st.ground_filter || 3500,
     allowSetSliders
   );
@@ -321,9 +262,9 @@ async function refresh(allowSetSliders=false) {
 
   if (allowSetSliders) {
     updateSelectedGain('airband');
-    updateSelectedSql('airband');
     updateSelectedGain('ground');
-    updateSelectedSql('ground');
+    updateSelectedDbfs('airband');
+    updateSelectedDbfs('ground');
   }
 }
 
@@ -358,31 +299,16 @@ function wireControls(target) {
     controls.dirty = true;
     updateSelectedGain(target);
   });
-  controls.sqlEl.addEventListener('input', () => {
-    controls.dirty = true;
-    updateSelectedSql(target);
-  });
   controls.sqlDbfsEl.addEventListener('input', () => {
     controls.dirty = true;
     updateSelectedDbfs(target);
-  });
-  controls.sqlModeSnrEl.addEventListener('change', () => {
-    controls.dirty = true;
-    setSquelchMode(target, 'snr', false);
-  });
-  controls.sqlModeDbfsEl.addEventListener('change', () => {
-    controls.dirty = true;
-    setSquelchMode(target, 'dbfs', false);
   });
   controls.filterEl.addEventListener('input', () => {
     controls.filterDirty = true;
     updateSelectedFilter(target);
   });
   controls.gainEl.addEventListener('change', () => applyControls(target));
-  controls.sqlEl.addEventListener('change', () => applyControls(target));
   controls.sqlDbfsEl.addEventListener('change', () => applyControls(target));
-  controls.sqlModeSnrEl.addEventListener('change', () => applyControls(target));
-  controls.sqlModeDbfsEl.addEventListener('change', () => applyControls(target));
   controls.filterEl.addEventListener('change', () => applyFilter(target));
 }
 
@@ -397,22 +323,17 @@ async function applyControls(target) {
     // Snap gain to nearest valid step before sending
     let gainIdx = Number(controls.gainEl.value || 0);
     let gain = GAIN_STEPS[gainIdx];
-    const squelchMode = getSquelchMode(target);
-    const squelchSnr = Number(controls.sqlEl.value || 0) * SQL_SCALE;
     const squelchDbfs = Number(controls.sqlDbfsEl.value || 0);
     const gainSame = controls.lastAppliedGain !== null && Math.abs(gain - controls.lastAppliedGain) < 0.001;
-    const sqlSame = controls.lastAppliedSql !== null && Math.abs(squelchSnr - controls.lastAppliedSql) < 0.001;
     const dbfsSame = controls.lastAppliedDbfs !== null && Math.abs(squelchDbfs - controls.lastAppliedDbfs) < 0.001;
-    const modeSame = controls.lastAppliedMode === squelchMode;
-    if (gainSame && sqlSame && dbfsSame && modeSame) {
+    if (gainSame && dbfsSame) {
       controls.dirty = false;
       return;
     }
     const result = await post('/api/apply', {
       gain,
       target,
-      squelch_mode: squelchMode,
-      squelch_snr: squelchSnr,
+      squelch_mode: 'dbfs',
       squelch_dbfs: squelchDbfs,
     });
     if (result && result.ok !== false) {
@@ -463,21 +384,14 @@ async function openSquelchMomentary(target, durationMs) {
   const controls = controlTargets[target];
   if (controls.openInFlight || controls.applyInFlight) return;
   controls.openInFlight = true;
-  const previous = Math.max(0, Math.min(10, Number(controls.sqlEl.value || 0)));
   const previousDbfs = Number(controls.sqlDbfsEl.value || 0);
-  const previousMode = getSquelchMode(target);
-  controls.sqlEl.value = '0.0';
   controls.sqlDbfsEl.value = String(DBFS_MIN);
-  updateSelectedSql(target);
   updateSelectedDbfs(target);
   try {
     await applyControls(target);
   } finally {
     setTimeout(async () => {
-      controls.sqlEl.value = previous.toFixed(1);
       controls.sqlDbfsEl.value = String(previousDbfs);
-      setSquelchMode(target, previousMode, true);
-      updateSelectedSql(target);
       updateSelectedDbfs(target);
       try {
         await applyControls(target);

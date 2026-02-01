@@ -166,7 +166,7 @@ def parse_controls(conf_path: str):
     except FileNotFoundError:
         pass
 
-    mode = "dbfs" if has_dbfs and abs(squelch_dbfs) > 1e-6 else "snr"
+    mode = "dbfs" if has_dbfs else "dbfs"
 
     # Only emit verbose parse logs when explicitly enabled via env var
     if os.environ.get("AIRBAND_DEBUG"):
@@ -180,7 +180,7 @@ def write_controls(conf_path: str, gain: float, squelch_mode: str, squelch_snr: 
     """Write gain and squelch to configuration."""
     gain_value = float(gain)
     gain = min(GAIN_STEPS, key=lambda g: abs(g - gain_value))
-    squelch_mode = (squelch_mode or "snr").lower()
+    squelch_mode = (squelch_mode or "dbfs").lower()
     squelch_snr = max(0.0, min(10.0, float(squelch_snr)))
     squelch_dbfs = float(squelch_dbfs)
     if squelch_dbfs > 0:

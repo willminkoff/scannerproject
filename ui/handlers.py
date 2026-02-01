@@ -324,9 +324,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, json.dumps({"ok": False, "error": "unknown target"}), "application/json; charset=utf-8")
             try:
                 gain = float(form.get("gain", "32.8"))
-                squelch_mode = (form.get("squelch_mode") or "snr").lower()
+                squelch_mode = (form.get("squelch_mode") or "dbfs").lower()
                 squelch_snr = form.get("squelch_snr", form.get("squelch", "10.0"))
-                squelch_dbfs = form.get("squelch_dbfs", "0")
+                squelch_dbfs = form.get("squelch_dbfs", form.get("squelch", "0"))
                 squelch_snr = float(squelch_snr)
                 squelch_dbfs = float(squelch_dbfs)
             except ValueError:

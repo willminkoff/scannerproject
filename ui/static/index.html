@@ -38,21 +38,7 @@
                   <div class="ctrl-readout"><span>Selected: <span id="selected-gain-airband">…</span> dB</span><span>RTL-SDR steps</span></div>
                 </div>
 
-                <div class="ctrl">
-                  <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span id="applied-sql-airband">…</span></span></div>
-                  <input id="sql-airband" class="range" type="range" min="0" max="10" step="0.1" />
-                  <div class="ctrl-readout"><span>Selected: <span id="selected-sql-airband">…</span></span><span>Scaled to 0.0-1.0 SNR</span></div>
-                </div>
-
-                <div class="ctrl">
-                  <div class="ctrl-head"><b>Squelch Mode</b><span>Applied: <span id="applied-sql-mode-airband">…</span></span></div>
-                  <div class="ctrl-readout">
-                    <label><input type="radio" name="sql-mode-airband" id="sql-mode-snr-airband" value="snr" checked /> SNR</label>
-                    <label><input type="radio" name="sql-mode-airband" id="sql-mode-dbfs-airband" value="dbfs" /> dBFS (manual)</label>
-                  </div>
-                </div>
-
-                <div class="ctrl hidden" id="dbfs-ctrl-airband">
+                <div class="ctrl" id="dbfs-ctrl-airband">
                   <div class="ctrl-head"><b>Squelch (dBFS)</b><span>Applied: <span id="applied-dbfs-airband">…</span></span></div>
                   <input id="dbfs-airband" class="range" type="range" min="-120" max="0" step="1" />
                   <div class="ctrl-readout"><span>Selected: <span id="selected-dbfs-airband">…</span> dBFS</span><span>0 = auto; negative opens more (try -70 to -100)</span></div>
@@ -77,21 +63,7 @@
                   <div class="ctrl-readout"><span>Selected: <span id="selected-gain-ground">…</span> dB</span><span>RTL-SDR steps</span></div>
                 </div>
 
-                <div class="ctrl">
-                  <div class="ctrl-head"><b>Squelch (SNR)</b><span>Applied: <span id="applied-sql-ground">…</span></span></div>
-                  <input id="sql-ground" class="range" type="range" min="0" max="10" step="0.1" />
-                  <div class="ctrl-readout"><span>Selected: <span id="selected-sql-ground">…</span></span><span>Scaled to 0.0-1.0 SNR</span></div>
-                </div>
-
-                <div class="ctrl">
-                  <div class="ctrl-head"><b>Squelch Mode</b><span>Applied: <span id="applied-sql-mode-ground">…</span></span></div>
-                  <div class="ctrl-readout">
-                    <label><input type="radio" name="sql-mode-ground" id="sql-mode-snr-ground" value="snr" checked /> SNR</label>
-                    <label><input type="radio" name="sql-mode-ground" id="sql-mode-dbfs-ground" value="dbfs" /> dBFS (manual)</label>
-                  </div>
-                </div>
-
-                <div class="ctrl hidden" id="dbfs-ctrl-ground">
+                <div class="ctrl" id="dbfs-ctrl-ground">
                   <div class="ctrl-head"><b>Squelch (dBFS)</b><span>Applied: <span id="applied-dbfs-ground">…</span></span></div>
                   <input id="dbfs-ground" class="range" type="range" min="-120" max="0" step="1" />
                   <div class="ctrl-readout"><span>Selected: <span id="selected-dbfs-ground">…</span> dBFS</span><span>0 = auto; negative opens more (try -70 to -100)</span></div>
