@@ -20,6 +20,7 @@ const manageLabelEl = document.getElementById('manage-label');
 const manageCreateEl = document.getElementById('manage-create');
 const manageRenameEl = document.getElementById('manage-rename');
 const manageDeleteEl = document.getElementById('manage-delete');
+const manageStatusEl = document.getElementById('manage-status');
 const editProfileEl = document.getElementById('edit-profile');
 const editTextEl = document.getElementById('edit-text');
 const editLoadEl = document.getElementById('edit-load');
@@ -186,7 +187,7 @@ function buildProfiles(profilesEl, profiles, selected, target) {
     card.type = 'button';
     card.className = 'profile-card' + (p.id === selected ? ' selected' : '');
     card.setAttribute('aria-pressed', p.id === selected ? 'true' : 'false');
-    card.innerHTML = `<div><b>${p.label}</b></div>` + (p.exists ? '' : `<small>Missing: ${p.path}</small>`);
+    card.innerHTML = `<div><b>${p.label}</b></div><small>${p.id}</small>` + (p.exists ? '' : `<small>Missing: ${p.path}</small>`);
     card.addEventListener('click', async () => {
       let nextId = p.id;
       if (p.id === selected && noneProfile && noneProfile.id !== selected) {
@@ -256,17 +257,35 @@ function refreshEditProfileOptions() {
   if (!profilesCache || !editProfileEl) return;
   const target = getManageTarget();
   const list = target === 'ground' ? profilesCache.profiles_ground : profilesCache.profiles_airband;
+  const currentSelection = editProfileEl.value;
   editProfileEl.innerHTML = '';
   list.forEach(p => {
     const opt = document.createElement('option');
     opt.value = p.id;
-    opt.textContent = p.label;
+    opt.textContent = `${p.label} (${p.id})`;
     editProfileEl.appendChild(opt);
   });
   const activeId = getSelectedProfileId(target);
-  if (activeId) {
+  if (currentSelection && list.some(p => p.id === currentSelection)) {
+    editProfileEl.value = currentSelection;
+  } else if (activeId) {
     editProfileEl.value = activeId;
+  } else if (list.length) {
+    editProfileEl.value = list[0].id;
   }
+}
+
+function setManageStatus(message, isError=false) {
+  if (!manageStatusEl) return;
+  manageStatusEl.textContent = message || '';
+  manageStatusEl.style.color = isError ? '#f59e0b' : '';
+}
+
+function getManageSelectedId() {
+  const target = getManageTarget();
+  const selected = editProfileEl && editProfileEl.value;
+  if (selected) return selected;
+  return getSelectedProfileId(target);
 }
 
 function formatFreqsText(freqs, labels) {
@@ -420,6 +439,7 @@ if (manageTargetAirbandEl) manageTargetAirbandEl.addEventListener('change', refr
 if (manageTargetGroundEl) manageTargetGroundEl.addEventListener('change', refreshManageCloneOptions);
 if (manageTargetAirbandEl) manageTargetAirbandEl.addEventListener('change', refreshEditProfileOptions);
 if (manageTargetGroundEl) manageTargetGroundEl.addEventListener('change', refreshEditProfileOptions);
+// dropdown change preserved by refreshEditProfileOptions
 if (manageLabelEl) {
   manageLabelEl.addEventListener('input', () => {
     if (!manageIdEl || manageIdEl.value.trim()) return;
@@ -432,6 +452,12 @@ if (manageCreateEl) {
     const label = (manageLabelEl && manageLabelEl.value || '').trim();
     let profileId = (manageIdEl && manageIdEl.value || '').trim();
     if (!profileId) profileId = sanitizeProfileId(label);
+    profileId = sanitizeProfileId(profileId);
+    if (manageIdEl) manageIdEl.value = profileId;
+    if (!profileId) {
+      setManageStatus('Enter an ID or label to create a profile.', true);
+      return;
+    }
     const res = await post('/api/profile/create', {
       id: profileId,
       label,
@@ -439,31 +465,38 @@ if (manageCreateEl) {
     });
     if (!res.ok) {
       actionMsg = res.error || 'Create failed';
+      setManageStatus(actionMsg, true);
     } else {
       actionMsg = 'Profile created';
+      setManageStatus(actionMsg, false);
     }
     await refreshProfiles();
+    if (res.ok && res.profile && editProfileEl) {
+      editProfileEl.value = res.profile.id;
+      if (editStatusEl) editStatusEl.textContent = `${target} ready: ${res.profile.id}`;
+    }
   });
 }
 if (manageRenameEl) {
   manageRenameEl.addEventListener('click', async () => {
     const target = getManageTarget();
-    const profileId = getSelectedProfileId(target);
+    const profileId = getManageSelectedId();
     const label = (manageLabelEl && manageLabelEl.value || '').trim();
     if (!profileId || !label) return;
     const res = await post('/api/profile/update', {id: profileId, label});
     actionMsg = res.ok ? 'Profile renamed' : (res.error || 'Rename failed');
+    setManageStatus(actionMsg, !res.ok);
     await refreshProfiles();
   });
 }
 if (manageDeleteEl) {
   manageDeleteEl.addEventListener('click', async () => {
-    const target = getManageTarget();
-    const profileId = getSelectedProfileId(target);
+    const profileId = getManageSelectedId();
     if (!profileId) return;
     if (!confirm(`Delete profile ${profileId}?`)) return;
     const res = await post('/api/profile/delete', {id: profileId});
     actionMsg = res.ok ? 'Profile deleted' : (res.error || 'Delete failed');
+    setManageStatus(actionMsg, !res.ok);
     await refreshProfiles();
   });
 }
@@ -488,7 +521,14 @@ if (editSaveEl) {
     const target = getManageTarget();
     const id = editProfileEl && editProfileEl.value;
     const freqs_text = (editTextEl && editTextEl.value || '').trim();
-    if (!id || !freqs_text) return;
+    if (!id) {
+      if (editStatusEl) editStatusEl.textContent = 'Pick a profile to save.';
+      return;
+    }
+    if (!freqs_text) {
+      if (editStatusEl) editStatusEl.textContent = 'Add at least one frequency before saving.';
+      return;
+    }
     const res = await post('/api/profile/update_freqs', {id, freqs_text});
     if (!res.ok) {
       if (editStatusEl) editStatusEl.textContent = res.error || 'Save failed';
