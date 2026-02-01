@@ -150,6 +150,24 @@ def action_set_profile(profile_id: str, target: str) -> dict:
     
     # Only proceed if profile actually changed
     if profile_id and profile_id != current_profile:
+        # Safety: refuse to activate a profile with an empty freqs list.
+        # rtl_airband will refuse to start if freqs is empty.
+        next_path = None
+        for pid, _, path in profiles:
+            if pid == profile_id:
+                next_path = path
+                break
+        if next_path and os.path.exists(next_path):
+            try:
+                with open(next_path, "r", encoding="utf-8", errors="ignore") as f:
+                    text = f.read()
+                freqs, _labels = parse_freqs_labels(text)
+                if not freqs:
+                    return {"status": 400, "payload": {"ok": False, "error": "profile has no frequencies; add freqs and save first"}}
+            except Exception:
+                # If parsing fails, continue; rtl_airband will surface config errors.
+                pass
+
         ok, changed = set_profile(profile_id, conf_path, profiles, target_symlink)
         if not ok:
             return {"status": 400, "payload": {"ok": False, "error": "unknown profile"}}

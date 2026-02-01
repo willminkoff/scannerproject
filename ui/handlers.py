@@ -422,6 +422,10 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     # Minimal blank template with freqs block so the textarea editor can save immediately.
                     desired_index = 0 if bool(airband_flag) else 1
+                    # Avoid creating an empty freqs list: rtl_airband refuses to start if freqs is empty.
+                    default_freq = "118.6000" if bool(airband_flag) else "462.6500"
+                    default_mod = "am" if bool(airband_flag) else "nfm"
+                    default_bw = "12000" if bool(airband_flag) else "12000"
                     template = f"""airband = {'true' if bool(airband_flag) else 'false'};\n\n""" + \
                         "devices:\n" + \
                         "({\n" + \
@@ -432,9 +436,9 @@ class Handler(BaseHTTPRequestHandler):
                         "  channels:\n" + \
                         "  (\n" + \
                         "    {\n" + \
-                        "      freqs = ();\n\n" + \
-                        "      modulation = \"am\";\n" + \
-                        "      bandwidth = 12000;\n" + \
+                        f"      freqs = ({default_freq});\n\n" + \
+                        f"      modulation = \"{default_mod}\";\n" + \
+                        f"      bandwidth = {default_bw};\n" + \
                         "      squelch_threshold = -70;  # UI_CONTROLLED\n" + \
                         "      squelch_delay = 0.8;\n\n" + \
                         "      outputs:\n" + \
