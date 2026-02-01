@@ -403,8 +403,9 @@ class Handler(BaseHTTPRequestHandler):
             clone_from = get_str("clone_from_id").strip()
             if not validate_profile_id(profile_id):
                 return self._send(400, json.dumps({"ok": False, "error": "invalid id"}), "application/json; charset=utf-8")
+            # Allow minimalist create: if label omitted, default to id.
             if not label:
-                return self._send(400, json.dumps({"ok": False, "error": "missing label"}), "application/json; charset=utf-8")
+                label = profile_id
             profiles = load_profiles_registry()
             if find_profile(profiles, profile_id):
                 return self._send(400, json.dumps({"ok": False, "error": "id already exists"}), "application/json; charset=utf-8")
