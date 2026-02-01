@@ -21,6 +21,10 @@ const manageLabelEl = document.getElementById('manage-label');
 const manageCreateEl = document.getElementById('manage-create');
 const manageRenameEl = document.getElementById('manage-rename');
 const manageDeleteEl = document.getElementById('manage-delete');
+const audioAirbandEl = document.getElementById('audio-airband');
+const audioGroundEl = document.getElementById('audio-ground');
+const lnkStreamAirbandEl = document.getElementById('lnk-stream-airband');
+const lnkStreamGroundEl = document.getElementById('lnk-stream-ground');
 let actionMsg = '';
 let actionMsgTarget = null;
 
@@ -191,6 +195,10 @@ function buildProfiles(profilesEl, profiles, selected, target) {
     });
     profilesEl.appendChild(card);
   });
+}
+
+function streamUrl() {
+  return `http://${location.hostname}:8000/GND.mp3`;
 }
 
 async function getJSON(url) {
@@ -364,6 +372,20 @@ function wireControls(target) {
 
 wireControls('airband');
 wireControls('ground');
+
+// Wire embedded players
+if (audioAirbandEl) audioAirbandEl.src = streamUrl();
+if (audioGroundEl) audioGroundEl.src = streamUrl();
+if (lnkStreamAirbandEl) {
+  lnkStreamAirbandEl.href = streamUrl();
+  lnkStreamAirbandEl.target = '_blank';
+  lnkStreamAirbandEl.rel = 'noopener';
+}
+if (lnkStreamGroundEl) {
+  lnkStreamGroundEl.href = streamUrl();
+  lnkStreamGroundEl.target = '_blank';
+  lnkStreamGroundEl.rel = 'noopener';
+}
 if (manageTargetAirbandEl) manageTargetAirbandEl.addEventListener('change', refreshManageCloneOptions);
 if (manageTargetGroundEl) manageTargetGroundEl.addEventListener('change', refreshManageCloneOptions);
 if (manageLabelEl) {

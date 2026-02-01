@@ -633,6 +633,14 @@
             <button class="action" id="btn-avoid">Avoid</button>
             <button class="action" id="btn-clear-avoids">Clear</button>
           </div>
+
+          <div style="margin-top:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px;">
+              <div style="font-weight:700;">Player</div>
+              <a id="lnk-stream" href="#" target="_blank" rel="noopener" style="font-size:12px; opacity:0.85;">Open stream</a>
+            </div>
+            <audio id="audio-player" controls preload="none" style="width:100%;"></audio>
+          </div>
         </div>
       </div>
 
@@ -816,6 +824,8 @@
       filterValue: document.getElementById('filter-value'),
       filterApplied: document.getElementById('filter-applied'),
       profilesList: document.getElementById('profiles-list'),
+      audioPlayer: document.getElementById('audio-player'),
+      lnkStream: document.getElementById('lnk-stream'),
       manageTargetAirband: document.getElementById('manage-target-airband'),
       manageTargetGround: document.getElementById('manage-target-ground'),
       manageClone: document.getElementById('manage-clone'),
@@ -886,6 +896,10 @@
         body
       });
       return r.json();
+    }
+
+    function streamUrl() {
+      return `http://${location.hostname}:8000/GND.mp3`;
     }
 
     function sanitizeProfileId(label) {
@@ -1545,6 +1559,13 @@
       loadTheme();
       setupCollapsibleWidgets();
       updateTuneButton();
+
+      if (els.audioPlayer) {
+        els.audioPlayer.src = streamUrl();
+      }
+      if (els.lnkStream) {
+        els.lnkStream.href = streamUrl();
+      }
       
       els.gainSlider.addEventListener('input', onGainChange);
       els.dbfsSlider.addEventListener('input', onDbfsChange);
