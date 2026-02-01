@@ -607,6 +607,35 @@
       background: var(--accent);
     }
 
+    .system-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .system-item {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      display: grid;
+      gap: 4px;
+    }
+    .system-item .label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-secondary);
+    }
+    .system-item .value {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .system-item .sub {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
     /* Empty state */
     .empty-state {
       text-align: center;
@@ -704,6 +733,36 @@
               <a id="lnk-stream" href="#" target="_blank" rel="noopener" style="font-size:12px; opacity:0.85;">Open stream</a>
             </div>
             <audio id="audio-player" controls preload="none"></audio>
+          </div>
+          <div class="control-item" style="margin-top:10px;">
+            <div class="control-label">
+              <span>Pi Health</span>
+              <span class="control-value" id="sys-uptime">--</span>
+            </div>
+            <div class="system-grid">
+              <div class="system-item">
+                <div class="label">CPU Temp</div>
+                <div class="value" id="sys-cpu-temp">--</div>
+              </div>
+              <div class="system-item">
+                <div class="label">GPU Temp</div>
+                <div class="value" id="sys-gpu-temp">--</div>
+              </div>
+              <div class="system-item">
+                <div class="label">CPU Usage</div>
+                <div class="value" id="sys-cpu-usage">--</div>
+              </div>
+              <div class="system-item">
+                <div class="label">Network RX</div>
+                <div class="value" id="sys-net-rx">--</div>
+                <div class="sub" id="sys-net-rx-rate">--</div>
+              </div>
+              <div class="system-item">
+                <div class="label">Network TX</div>
+                <div class="value" id="sys-net-tx">--</div>
+                <div class="sub" id="sys-net-tx-rate">--</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -858,6 +917,11 @@
       applyTimeout: null,
       filterTimeout: null,
       serverTime: null,
+      system: {
+        lastNetTs: 0,
+        lastRx: 0,
+        lastTx: 0,
+      },
       airband: {
         gain: 32.8,
         squelch: 0.5,
@@ -904,6 +968,14 @@
       profilesList: document.getElementById('profiles-list'),
       audioPlayer: document.getElementById('audio-player'),
       lnkStream: document.getElementById('lnk-stream'),
+      sysUptime: document.getElementById('sys-uptime'),
+      sysCpuTemp: document.getElementById('sys-cpu-temp'),
+      sysGpuTemp: document.getElementById('sys-gpu-temp'),
+      sysCpuUsage: document.getElementById('sys-cpu-usage'),
+      sysNetRx: document.getElementById('sys-net-rx'),
+      sysNetTx: document.getElementById('sys-net-tx'),
+      sysNetRxRate: document.getElementById('sys-net-rx-rate'),
+      sysNetTxRate: document.getElementById('sys-net-tx-rate'),
       manageTargetAirband: document.getElementById('manage-target-airband'),
       manageTargetGround: document.getElementById('manage-target-ground'),
       manageId: document.getElementById('manage-id'),
@@ -1254,6 +1326,72 @@
       const num = parseFloat(freq);
       return isNaN(num) ? freq : num.toFixed(3);
     }
+
+    function formatBytes(bytes) {
+      if (bytes === null || bytes === undefined) return '--';
+      const b = Number(bytes);
+      if (!Number.isFinite(b)) return '--';
+      const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+      let idx = 0;
+      let val = b;
+      while (val >= 1024 && idx < units.length - 1) {
+        val /= 1024;
+        idx += 1;
+      }
+      return `${val.toFixed(val >= 10 ? 0 : 1)} ${units[idx]}`;
+    }
+
+    function formatRate(bytesPerSec) {
+      if (!Number.isFinite(bytesPerSec)) return '--';
+      return `${formatBytes(bytesPerSec)}/s`;
+    }
+
+    function formatUptime(seconds) {
+      if (!Number.isFinite(seconds)) return '--';
+      let s = Math.floor(seconds);
+      const days = Math.floor(s / 86400);
+      s -= days * 86400;
+      const hrs = Math.floor(s / 3600);
+      s -= hrs * 3600;
+      const mins = Math.floor(s / 60);
+      const parts = [];
+      if (days) parts.push(`${days}d`);
+      if (hrs || days) parts.push(`${hrs}h`);
+      parts.push(`${mins}m`);
+      return parts.join(' ');
+    }
+
+    function updateSystemUI(stats) {
+      if (!stats || stats.ok === false) return;
+      if (els.sysUptime) els.sysUptime.textContent = formatUptime(stats.uptime_s);
+      if (els.sysCpuTemp) {
+        els.sysCpuTemp.textContent = Number.isFinite(stats.cpu_temp_c) ? `${stats.cpu_temp_c.toFixed(1)}°C` : '--';
+      }
+      if (els.sysGpuTemp) {
+        els.sysGpuTemp.textContent = Number.isFinite(stats.gpu_temp_c) ? `${stats.gpu_temp_c.toFixed(1)}°C` : '--';
+      }
+      if (els.sysCpuUsage) {
+        els.sysCpuUsage.textContent = Number.isFinite(stats.cpu_usage) ? `${stats.cpu_usage.toFixed(0)}%` : '--';
+      }
+      const net = stats.net || {};
+      const rx = Number(net.rx_bytes || 0);
+      const tx = Number(net.tx_bytes || 0);
+      if (els.sysNetRx) els.sysNetRx.textContent = formatBytes(rx);
+      if (els.sysNetTx) els.sysNetTx.textContent = formatBytes(tx);
+      const now = Date.now();
+      if (state.system.lastNetTs) {
+        const dt = (now - state.system.lastNetTs) / 1000;
+        if (dt > 0) {
+          const rxRate = (rx - state.system.lastRx) / dt;
+          const txRate = (tx - state.system.lastTx) / dt;
+          if (els.sysNetRxRate) els.sysNetRxRate.textContent = formatRate(rxRate);
+          if (els.sysNetTxRate) els.sysNetTxRate.textContent = formatRate(txRate);
+        }
+      }
+      state.system.lastNetTs = now;
+      state.system.lastRx = rx;
+      state.system.lastTx = tx;
+    }
     
     function switchTarget(target) {
       activeTarget = target;
@@ -1518,8 +1656,11 @@
     
     async function refresh() {
       try {
-        const data = await fetchJSON('/api/status');
-        const profilesData = await fetchJSON('/api/profiles');
+        const [data, profilesData, systemData] = await Promise.all([
+          fetchJSON('/api/status'),
+          fetchJSON('/api/profiles'),
+          fetchJSON('/api/system'),
+        ]);
 
         const pickNumber = (value, fallback) => (value === 0 || value) ? value : fallback;
         
@@ -1563,6 +1704,7 @@
         updateStatus();
         updateControls();
         updateProfiles();
+        updateSystemUI(systemData);
         updateCounters();
         updateTuneButton();
       } catch (e) {

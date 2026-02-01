@@ -37,6 +37,7 @@ try:
     from .server_workers import enqueue_action, enqueue_apply
     from .diagnostic import write_diagnostic_log
     from .spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
+    from .system_stats import get_system_stats
 except ImportError:
     from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, PROFILES_DIR, UI_PORT, UNITS
     from ui.profile_config import (
@@ -55,6 +56,7 @@ except ImportError:
     from ui.server_workers import enqueue_action, enqueue_apply
     from ui.diagnostic import write_diagnostic_log
     from ui.spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
+    from ui.system_stats import get_system_stats
 
 
 def _read_html_template():
@@ -156,6 +158,14 @@ class Handler(BaseHTTPRequestHandler):
                 "freqs": freqs,
                 "labels": labels,
             }
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/system":
+            try:
+                payload = get_system_stats()
+            except Exception as e:
+                payload = {"ok": False, "error": str(e)}
+                return self._send(500, json.dumps(payload), "application/json; charset=utf-8")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/status":
