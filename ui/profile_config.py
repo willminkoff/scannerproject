@@ -210,7 +210,12 @@ def write_controls(conf_path: str, gain: float, squelch_mode: str, squelch_snr: 
             continue
         m = RE_SQL.match(line)
         if m:
-            new_line = f"{m.group(1)}{squelch_snr:.3f}{m.group(3)}\n"
+            if squelch_mode == "dbfs":
+                indent_match = re.match(r'^(\s*)', line)
+                indent = indent_match.group(1) if indent_match else ""
+                new_line = f"{indent}// squelch_snr_threshold = {squelch_snr:.3f};  # UI_CONTROLLED\n"
+            else:
+                new_line = f"{m.group(1)}{squelch_snr:.3f}{m.group(3)}\n"
             if new_line != line:
                 changed = True
             out.append(new_line)
