@@ -994,6 +994,7 @@
       if (!els.freqEditProfile) return;
       const target = getManageTarget();
       const list = target === 'ground' ? state.ground.profiles : state.airband.profiles;
+      const currentSelection = els.freqEditProfile.value;
       els.freqEditProfile.innerHTML = '';
       list.forEach(p => {
         const opt = document.createElement('option');
@@ -1002,8 +1003,12 @@
         els.freqEditProfile.appendChild(opt);
       });
       const activeId = target === 'ground' ? state.ground.currentProfile : state.airband.currentProfile;
-      if (activeId) {
+      if (currentSelection && list.some(p => p.id === currentSelection)) {
+        els.freqEditProfile.value = currentSelection;
+      } else if (activeId) {
         els.freqEditProfile.value = activeId;
+      } else if (list.length) {
+        els.freqEditProfile.value = list[0].id;
       }
     }
 
@@ -1156,6 +1161,12 @@
       if (!els.manageStatus) return;
       els.manageStatus.textContent = message || '';
       els.manageStatus.style.color = isError ? '#f59e0b' : '';
+    }
+
+    function getManageSelectedId() {
+      const selected = els.freqEditProfile && els.freqEditProfile.value;
+      if (selected) return selected;
+      return getManageTarget() === 'ground' ? state.ground.currentProfile : state.airband.currentProfile;
     }
     
     function updateHitList() {
@@ -1749,8 +1760,7 @@
       }
       if (els.manageRename) {
         els.manageRename.addEventListener('click', async () => {
-          const target = getManageTarget();
-          const profileId = target === 'ground' ? state.ground.currentProfile : state.airband.currentProfile;
+          const profileId = getManageSelectedId();
           const label = (els.manageLabel && els.manageLabel.value || '').trim();
           if (!profileId || !label) return;
           const res = await postAPI('/api/profile/update', {id: profileId, label});
@@ -1764,8 +1774,7 @@
       }
       if (els.manageDelete) {
         els.manageDelete.addEventListener('click', async () => {
-          const target = getManageTarget();
-          const profileId = target === 'ground' ? state.ground.currentProfile : state.airband.currentProfile;
+          const profileId = getManageSelectedId();
           if (!profileId) return;
           if (!confirm(`Delete profile ${profileId}?`)) return;
           const res = await postAPI('/api/profile/delete', {id: profileId});

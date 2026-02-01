@@ -257,6 +257,7 @@ function refreshEditProfileOptions() {
   if (!profilesCache || !editProfileEl) return;
   const target = getManageTarget();
   const list = target === 'ground' ? profilesCache.profiles_ground : profilesCache.profiles_airband;
+  const currentSelection = editProfileEl.value;
   editProfileEl.innerHTML = '';
   list.forEach(p => {
     const opt = document.createElement('option');
@@ -265,8 +266,12 @@ function refreshEditProfileOptions() {
     editProfileEl.appendChild(opt);
   });
   const activeId = getSelectedProfileId(target);
-  if (activeId) {
+  if (currentSelection && list.some(p => p.id === currentSelection)) {
+    editProfileEl.value = currentSelection;
+  } else if (activeId) {
     editProfileEl.value = activeId;
+  } else if (list.length) {
+    editProfileEl.value = list[0].id;
   }
 }
 
@@ -274,6 +279,12 @@ function setManageStatus(message, isError=false) {
   if (!manageStatusEl) return;
   manageStatusEl.textContent = message || '';
   manageStatusEl.style.color = isError ? '#f59e0b' : '';
+}
+
+function getManageSelectedId() {
+  const selected = editProfileEl && editProfileEl.value;
+  if (selected) return selected;
+  return getSelectedProfileId(getManageTarget());
 }
 
 function formatFreqsText(freqs, labels) {
@@ -467,7 +478,7 @@ if (manageCreateEl) {
 if (manageRenameEl) {
   manageRenameEl.addEventListener('click', async () => {
     const target = getManageTarget();
-    const profileId = getSelectedProfileId(target);
+    const profileId = getManageSelectedId();
     const label = (manageLabelEl && manageLabelEl.value || '').trim();
     if (!profileId || !label) return;
     const res = await post('/api/profile/update', {id: profileId, label});
@@ -478,8 +489,7 @@ if (manageRenameEl) {
 }
 if (manageDeleteEl) {
   manageDeleteEl.addEventListener('click', async () => {
-    const target = getManageTarget();
-    const profileId = getSelectedProfileId(target);
+    const profileId = getManageSelectedId();
     if (!profileId) return;
     if (!confirm(`Delete profile ${profileId}?`)) return;
     const res = await post('/api/profile/delete', {id: profileId});
