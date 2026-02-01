@@ -4,14 +4,18 @@ import os
 import sys
 import time
 import queue
+import shutil
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 
 try:
-    from .config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, UI_PORT, UNITS
+    from .config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, PROFILES_DIR, UI_PORT, UNITS
     from .profile_config import (
         read_active_config_path, parse_controls, split_profiles,
-        guess_current_profile, summarize_avoids, parse_filter
+        guess_current_profile, summarize_avoids, parse_filter,
+        load_profiles_registry, find_profile, validate_profile_id, safe_profile_path,
+        enforce_profile_index, save_profiles_registry, write_airband_flag,
+        parse_freqs_labels, parse_freqs_text, write_freqs_labels
     )
     from .scanner import (
         read_last_hit_airband, read_last_hit_ground, read_icecast_hit_list,
@@ -23,10 +27,13 @@ try:
     from .diagnostic import write_diagnostic_log
     from .spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
 except ImportError:
-    from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, UI_PORT, UNITS
+    from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, PROFILES_DIR, UI_PORT, UNITS
     from ui.profile_config import (
         read_active_config_path, parse_controls, split_profiles,
-        guess_current_profile, summarize_avoids, parse_filter
+        guess_current_profile, summarize_avoids, parse_filter,
+        load_profiles_registry, find_profile, validate_profile_id, safe_profile_path,
+        enforce_profile_index, save_profiles_registry, write_airband_flag,
+        parse_freqs_labels, parse_freqs_text, write_freqs_labels
     )
     from ui.scanner import (
         read_last_hit_airband, read_last_hit_ground, read_icecast_hit_list,
@@ -288,8 +295,94 @@ class Handler(BaseHTTPRequestHandler):
         p = urlparse(self.path).path
         length = int(self.headers.get("Content-Length", "0") or "0")
         raw = self.rfile.read(length).decode("utf-8", errors="ignore")
-        form = {k: v[0] for k, v in parse_qs(raw).items()}
+        ctype = (self.headers.get("Content-Type") or "").lower()
+        if "application/json" in ctype:
+            try:
+                data = json.loads(raw) if raw.strip() else {}
+                form = data if isinstance(data, dict) else {}
+            except json.JSONDecodeError:
+                form = {}
+        else:
+            form = {k: v[0] for k, v in parse_qs(raw).items()}
 
+        def get_str(key: str, default: str = "") -> str:
+            v = form.get(key, default)
+            if v is None:
+                return default
+            return str(v)
+
+        if p == "/api/profile/create":
+            profile_id = get_str("id").strip()
+            label = get_str("label").strip()
+            airband_raw = form.get("airband", True)
+            if isinstance(airband_raw, bool):
+                airband_flag = airband_raw
+            else:
+                airband_flag = str(airband_raw).lower() in ("1", "true", "yes", "on")
+            clone_from = get_str("clone_from_id").strip()
+            if not validate_profile_id(profile_id):
+                return self._send(400, json.dumps({"ok": False, "error": "invalid id"}), "application/json; charset=utf-8")
+            if not label:
+                return self._send(400, json.dumps({"ok": False, "error": "missing label"}), "application/json; charset=utf-8")
+            profiles = load_profiles_registry()
+            if find_profile(profiles, profile_id):
+                return self._send(400, json.dumps({"ok": False, "error": "id already exists"}), "application/json; charset=utf-8")
+            src = find_profile(profiles, clone_from)
+            if not src:
+                return self._send(400, json.dumps({"ok": False, "error": "clone profile not found"}), "application/json; charset=utf-8")
+            new_path = os.path.join(PROFILES_DIR, f"rtl_airband_{profile_id}.conf")
+            safe_path = safe_profile_path(new_path)
+            if not safe_path:
+                return self._send(400, json.dumps({"ok": False, "error": "invalid path"}), "application/json; charset=utf-8")
+            if os.path.exists(safe_path):
+                return self._send(400, json.dumps({"ok": False, "error": "profile file exists"}), "application/json; charset=utf-8")
+            try:
+                shutil.copyfile(src["path"], safe_path)
+                write_airband_flag(safe_path, bool(airband_flag))
+                enforce_profile_index(safe_path)
+            except Exception as e:
+                return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
+            profiles.append({
+                "id": profile_id,
+                "label": label,
+                "path": safe_path,
+                "airband": bool(airband_flag),
+            })
+            save_profiles_registry(profiles)
+            return self._send(200, json.dumps({"ok": True, "profile": profiles[-1]}), "application/json; charset=utf-8")
+
+        if p == "/api/profile/update":
+            profile_id = get_str("id").strip()
+            label = get_str("label").strip()
+            if not profile_id or not label:
+                return self._send(400, json.dumps({"ok": False, "error": "missing fields"}), "application/json; charset=utf-8")
+            profiles = load_profiles_registry()
+            prof = find_profile(profiles, profile_id)
+            if not prof:
+                return self._send(404, json.dumps({"ok": False, "error": "profile not found"}), "application/json; charset=utf-8")
+            prof["label"] = label
+            save_profiles_registry(profiles)
+            return self._send(200, json.dumps({"ok": True, "profile": prof}), "application/json; charset=utf-8")
+
+        if p == "/api/profile/delete":
+            profile_id = get_str("id").strip()
+            profiles = load_profiles_registry()
+            prof = find_profile(profiles, profile_id)
+            if not prof:
+                return self._send(404, json.dumps({"ok": False, "error": "profile not found"}), "application/json; charset=utf-8")
+            airband_conf = read_active_config_path()
+            ground_conf = os.path.realpath(GROUND_CONFIG_PATH)
+            if os.path.realpath(prof["path"]) in (os.path.realpath(airband_conf), os.path.realpath(ground_conf)):
+                return self._send(400, json.dumps({"ok": False, "error": "profile is active"}), "application/json; charset=utf-8")
+            safe_path = safe_profile_path(prof["path"])
+            if safe_path and os.path.exists(safe_path):
+                try:
+                    os.remove(safe_path)
+                except Exception as e:
+                    return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
+            profiles = [p for p in profiles if p.get("id") != profile_id]
+            save_profiles_registry(profiles)
+            return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
         if p == "/api/profile":
             pid = form.get("profile", "")
             target = form.get("target", "airband")
