@@ -238,11 +238,9 @@ System status snapshot.
   "gain": 32.8,
   "squelch": 5.0,
   "airband_gain": 32.8,
-  "airband_squelch_mode": "dbfs",
-  "airband_squelch_dbfs": -80,
+  "airband_squelch": 5.0,
   "ground_gain": 36.4,
-  "ground_squelch_mode": "dbfs",
-  "ground_squelch_dbfs": -90,
+  "ground_squelch": 3.0,
   "last_hit": "119.3500",
   "last_hit_airband": "119.3500",
   "last_hit_ground": "",
@@ -250,9 +248,6 @@ System status snapshot.
   "avoids_ground": []
 }
 ```
-**Notes**:
-- `*_squelch_dbfs` is the active squelch value (dBFS).
-- Legacy `squelch` fields may still appear for backward compatibility.
 
 ### GET /api/hits
 Last 50 detected hits (from journalctl activity logs).
@@ -295,18 +290,16 @@ Switch to a profile.
 - Restarts rtl-airband only when device config differs
 
 ### POST /api/apply
-Set gain and squelch for a target scanner (dBFS squelch).
+Set gain and squelch for a target scanner.
 
 **Request** (JSON):
 ```json
 {
   "gain": 32.8,
-  "squelch_mode": "dbfs",
-  "squelch_dbfs": -80,
+  "squelch": 5.0,
   "target": "airband"
 }
 ```
-Legacy clients may still POST `squelch` (SNR). Backend defaults to dBFS mode in the current UI.
 
 **Response** (JSON):
 ```json
@@ -314,8 +307,7 @@ Legacy clients may still POST `squelch` (SNR). Backend defaults to dBFS mode in 
 ```
 
 **Behavior**:
-- Validated gain ranges
-- dBFS squelch: `0` = auto, negative opens more (try -70 to -100)
+- Validated gain/squelch ranges
 - Writes config file
 - Debounced 0.2 seconds (batches rapid changes)
 - Restarts rtl-airband if change detected
@@ -397,10 +389,10 @@ A production-ready alternative UI built as a single-page HTML file with embedded
 │ ⚙️ Radio Controls      │ 🎯 Profiles                    │  ← Row 1
 │ [Airband] [Ground]     │                                │
 │ Gain ────●──── 22.9    │ [KBNA (Nashville)]  ●          │
-│ Squelch ──●──── -80    │ [Nashville Centers]            │
+│ Squelch ──●──── 5.0    │ [Nashville Centers]            │
 │ Filter ───●──── 2900   │ [TOWER (118.600)]              │
 │                        │ [KHOP (Campbell)]              │
-│ [Restart] [Tune] [Avoid]│ [KMQY (Smyrna)]               │
+│ [Restart] [Open SQL]   │ [KMQY (Smyrna)]                │
 ├────────────────────────┼────────────────────────────────┤
 │ 📊 Signal Activity     │ 📋 Recent Hits                 │  ← Row 2
 │   Total Hits   Session │ Time     Frequency      Dur    │
@@ -448,9 +440,10 @@ const GAIN_STEPS = [
 ```
 Slider maps to index (0-28), value sent to backend is the actual dB value.
 
-**Squelch Control (dBFS)**:
-- UI slider ranges from **-120 to 0**
-- `0` = auto (most closed), more negative opens more (try -70 to -100)
+**Squelch Control**:
+```javascript
+const SQL_SCALE = 0.1;  // UI slider 0-10 → backend 0.0-1.0
+```
 
 **Update Strategy**:
 - SSE merges new hits (doesn't overwrite) to prevent flashing
@@ -478,42 +471,6 @@ Slider maps to index (0-28), value sent to backend is the actual dB value.
 ```json
 {"ok": false, "error": "combine failed: ..."}
 ```
-
-## Profiles Registry
-Profiles are now stored in a JSON registry at:
-`/usr/local/etc/airband-profiles/profiles.json`
-
-Format:
-```json
-{
-  "profiles": [
-    {"id":"airband","label":"KBNA (Nashville)","path":"/usr/local/etc/airband-profiles/rtl_airband_airband.conf","airband":true}
-  ]
-}
-```
-
-If the registry does not exist, it is bootstrapped from the legacy `PROFILES` list.
-
-### Profile API (CRUD + Frequency Editor)
-
-- `GET /api/profiles` -> lists all profiles and active ids
-- `POST /api/profile` -> switch active scan profile (existing behavior)
-- `POST /api/profile/create` -> clone a profile (optionally accepts `freqs_text`)
-- `POST /api/profile/update` -> update a profile label
-- `POST /api/profile/delete` -> delete a non-active profile
-- `GET /api/profile?id=<profile_id>` -> read frequencies/labels for a profile
-- `POST /api/profile/update_freqs` -> update frequencies (and optional labels) for a profile
-
-Frequency editor textarea format (one per line):
-```
-118.600 TOWER
-119.350 APP
-124.750
-```
-
-Notes:
-- Labels are optional. If you omit labels, existing labels are preserved only when the count still matches.
-- If you edit the currently-active profile, the backend regenerates the combined config and restarts `rtl-airband` only when needed (skip restart when nothing changed).
 
 ## Deployment
 
