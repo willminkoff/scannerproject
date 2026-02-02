@@ -947,6 +947,10 @@
         lastRx: 0,
         lastTx: 0,
       },
+      vlc: {
+        running: false,
+        busy: false,
+      },
       airband: {
         gain: 32.8,
         squelch: 0.5,
@@ -990,6 +994,7 @@
       filterSlider: document.getElementById('filter-slider'),
       filterValue: document.getElementById('filter-value'),
       filterApplied: document.getElementById('filter-applied'),
+      btnPlay: document.getElementById('btn-play'),
       profilesList: document.getElementById('profiles-list'),
       audioPlayer: document.getElementById('audio-player'),
       lnkStream: document.getElementById('lnk-stream'),
@@ -1088,6 +1093,45 @@
 
     function streamUrl() {
       return `http://${location.hostname}:8000/GND.mp3`;
+    }
+
+    function setVlcButtonState(running) {
+      state.vlc.running = !!running;
+      if (!els.btnPlay) return;
+      els.btnPlay.textContent = running ? 'Stop' : 'Play';
+      els.btnPlay.dataset.vlcState = running ? 'running' : 'stopped';
+    }
+
+    async function refreshVlcStatus() {
+      if (!els.btnPlay) return;
+      try {
+        const res = await postAPI('/api/vlc', { action: 'status' });
+        if (res && res.ok) {
+          setVlcButtonState(!!res.running);
+        }
+      } catch (e) {
+        console.error('VLC status failed:', e);
+      }
+    }
+
+    async function toggleVlcPlayback() {
+      if (!els.btnPlay || state.vlc.busy) return;
+      state.vlc.busy = true;
+      const action = state.vlc.running ? 'stop' : 'start';
+      els.btnPlay.disabled = true;
+      try {
+        const res = await postAPI('/api/vlc', { action });
+        if (res && res.ok) {
+          setVlcButtonState(action === 'start');
+        } else {
+          console.error('VLC action failed:', res);
+        }
+      } catch (e) {
+        console.error('VLC action failed:', e);
+      } finally {
+        state.vlc.busy = false;
+        els.btnPlay.disabled = false;
+      }
     }
 
     function sanitizeProfileId(label) {
@@ -1871,6 +1915,7 @@
       if (els.lnkStream) {
         els.lnkStream.href = streamUrl();
       }
+      refreshVlcStatus();
       
       els.gainSlider.addEventListener('input', onGainChange);
       els.dbfsSlider.addEventListener('input', onDbfsChange);
@@ -1878,9 +1923,9 @@
       els.lastHitAirband.addEventListener('click', () => toggleHoldFor('airband'));
       els.lastHitGround.addEventListener('click', () => toggleHoldFor('ground'));
       // Remove Open Squelch button handler, add new handlers
-      document.getElementById('btn-play').addEventListener('click', function() {
-        window.open(`http://${location.hostname}:8000/GND.mp3`, '_blank', 'noopener');
-      });
+      if (els.btnPlay) {
+        els.btnPlay.addEventListener('click', toggleVlcPlayback);
+      }
       document.getElementById('btn-avoid').addEventListener('click', async function() {
         const btn = document.getElementById('btn-avoid');
         btn.disabled = true;

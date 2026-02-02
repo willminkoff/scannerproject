@@ -38,6 +38,7 @@ try:
     from .diagnostic import write_diagnostic_log
     from .spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
     from .system_stats import get_system_stats
+    from .vlc import start_vlc, stop_vlc, vlc_running
 except ImportError:
     from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, PROFILES_DIR, UI_PORT, UNITS
     from ui.profile_config import (
@@ -57,6 +58,7 @@ except ImportError:
     from ui.diagnostic import write_diagnostic_log
     from ui.spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
     from ui.system_stats import get_system_stats
+    from ui.vlc import start_vlc, stop_vlc, vlc_running
 
 
 def _read_html_template():
@@ -632,6 +634,24 @@ class Handler(BaseHTTPRequestHandler):
             target = form.get("target", "airband")
             result = enqueue_action({"type": "avoid_clear", "target": target})
             return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
+
+        if p == "/api/vlc":
+            action = get_str("action", "start").strip().lower()
+            if action == "status":
+                return self._send(200, json.dumps({"ok": True, "running": vlc_running()}), "application/json; charset=utf-8")
+            if action == "start":
+                ok, err = start_vlc()
+                running = True if ok else vlc_running()
+            elif action == "stop":
+                ok, err = stop_vlc()
+                running = False if ok else vlc_running()
+            else:
+                return self._send(400, json.dumps({"ok": False, "error": "unknown action"}), "application/json; charset=utf-8")
+            payload = {"ok": ok, "running": running}
+            if not ok:
+                payload["error"] = err or "command failed"
+                return self._send(500, json.dumps(payload), "application/json; charset=utf-8")
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/tune":
             target = form.get("target", "airband")
