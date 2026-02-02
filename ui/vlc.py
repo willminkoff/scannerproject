@@ -6,6 +6,8 @@ STREAM_URL = "http://localhost:8000/GND.mp3"
 
 def start_vlc(stream_url: str = STREAM_URL):
     """Start background VLC playback."""
+    if vlc_running():
+        return True, "already running"
     cmd = ["cvlc", "--intf", "dummy", "--aout=pulse", "--quiet", stream_url]
     try:
         subprocess.Popen(
