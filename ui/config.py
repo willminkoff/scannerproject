@@ -11,7 +11,6 @@ UI_PORT = int(os.getenv("UI_PORT", "5050"))
 # Paths
 CONFIG_SYMLINK = os.getenv("CONFIG_SYMLINK", "/usr/local/etc/rtl_airband.conf")
 PROFILES_DIR = os.getenv("PROFILES_DIR", "/usr/local/etc/airband-profiles")
-PROFILES_REGISTRY_PATH = os.path.join(PROFILES_DIR, "profiles.json")
 GROUND_CONFIG_PATH = os.getenv("GROUND_CONFIG_PATH", "/usr/local/etc/rtl_airband_ground.conf")
 COMBINED_CONFIG_PATH = os.getenv("COMBINED_CONFIG_PATH", "/usr/local/etc/rtl_airband_combined.conf")
 
@@ -74,7 +73,6 @@ PROFILES = [
     ("tune_atis", "Tune ATIS", os.path.join(PROFILES_DIR, "rtl_airband_tune_atis.conf")),
     ("none_ground", "No Profile", os.path.join(PROFILES_DIR, "rtl_airband_none_ground.conf")),
     ("campbell_ground", "Ft. Campbell", os.path.join(PROFILES_DIR, "rtl_airband_campbell_ground.conf")),
-    ("campbell_nfm", "Ft. Campbell NFM", os.path.join(PROFILES_DIR, "rtl_airband_campbell_nfm.conf")),
     ("gmrs",   "GMRS", os.path.join(PROFILES_DIR, "rtl_airband_gmrs.conf")),
     ("mtears", "MTEARS", os.path.join(PROFILES_DIR, "rtl_airband_mtears.conf")),
     ("wx",     "WX (162.550)", os.path.join(PROFILES_DIR, "rtl_airband_wx.conf")),
@@ -83,7 +81,6 @@ PROFILES = [
 # Regex Patterns
 RE_GAIN = re.compile(r'^(\s*gain\s*=\s*)([0-9.]+)(\s*;\s*#\s*UI_CONTROLLED.*)$')
 RE_SQL  = re.compile(r'^(\s*squelch_snr_threshold\s*=\s*)(-?[0-9.]+)(\s*;\s*#\s*UI_CONTROLLED.*)$')
-RE_SQL_DBFS = re.compile(r'^(\s*squelch_threshold\s*=\s*)\(?\s*(-?[0-9.]+)\s*\)?(\s*;\s*#\s*UI_CONTROLLED.*)$')
 RE_AIRBAND = re.compile(r'^\s*airband\s*=\s*(true|false)\s*;\s*$', re.I)
 RE_UI_DISABLED = re.compile(r'^\s*ui_disabled\s*=\s*(true|false)\s*;\s*$', re.I)
 RE_INDEX = re.compile(r'^(\s*index\s*=\s*)(\d+)(\s*;.*)$')

@@ -78,8 +78,9 @@ def _has_active_hold(state: dict) -> bool:
 def _save_or_clear_hold_state(state: dict) -> None:
     if _has_active_hold(state):
         _save_hold_state(state)
-        return
-    _clear_hold_state()
+    else:
+        state.pop(target, None)
+    _save_or_clear_hold_state(state)
 
 
 _FREQ_BLOCK_RE = re.compile(r'(^\s*freqs\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)
@@ -150,24 +151,6 @@ def action_set_profile(profile_id: str, target: str) -> dict:
     
     # Only proceed if profile actually changed
     if profile_id and profile_id != current_profile:
-        # Safety: refuse to activate a profile with an empty freqs list.
-        # rtl_airband will refuse to start if freqs is empty.
-        next_path = None
-        for pid, _, path in profiles:
-            if pid == profile_id:
-                next_path = path
-                break
-        if next_path and os.path.exists(next_path):
-            try:
-                with open(next_path, "r", encoding="utf-8", errors="ignore") as f:
-                    text = f.read()
-                freqs, _labels = parse_freqs_labels(text)
-                if not freqs:
-                    return {"status": 400, "payload": {"ok": False, "error": "profile has no frequencies; add freqs and save first"}}
-            except Exception:
-                # If parsing fails, continue; rtl_airband will surface config errors.
-                pass
-
         ok, changed = set_profile(profile_id, conf_path, profiles, target_symlink)
         if not ok:
             return {"status": 400, "payload": {"ok": False, "error": "unknown profile"}}
@@ -188,7 +171,7 @@ def action_set_profile(profile_id: str, target: str) -> dict:
     return {"status": 200, "payload": {"ok": True, "changed": False}}
 
 
-def action_apply_controls(target: str, gain: float, squelch_mode: str, squelch_snr: float, squelch_dbfs: float) -> dict:
+def action_apply_controls(target: str, gain: float, squelch: float) -> dict:
     """Action: Apply gain/squelch controls."""
     if target == "ground":
         conf_path = GROUND_CONFIG_PATH
@@ -197,7 +180,7 @@ def action_apply_controls(target: str, gain: float, squelch_mode: str, squelch_s
     else:
         return {"status": 400, "payload": {"ok": False, "error": "unknown target"}}
     try:
-        changed = write_controls(conf_path, gain, squelch_mode, squelch_snr, squelch_dbfs)
+        changed = write_controls(conf_path, gain, squelch)
         combined_changed = write_combined_config()
         changed = changed or combined_changed
     except Exception as e:
@@ -284,21 +267,6 @@ def _write_text(path: str, text: str) -> None:
     os.replace(tmp, path)
 
 
-def _write_temp_config(target: str, purpose: str, text: str) -> str:
-    tmp_dir = "/run"
-    os.makedirs(tmp_dir, exist_ok=True)
-    path = os.path.join(tmp_dir, f"airband_ui_{purpose}_{target}.conf")
-    _write_text(path, text)
-    return path
-
-
-def _get_symlink_target(path: str) -> str:
-    try:
-        return os.path.realpath(path)
-    except Exception:
-        return path
-
-
 def action_hold_start(target: str, freq) -> dict:
     """Action: Enter hold by replacing target config with single frequency."""
     if target not in ("airband", "ground"):
@@ -313,14 +281,7 @@ def action_hold_start(target: str, freq) -> dict:
     if target_state.get("active"):
         return {"status": 400, "payload": {"ok": False, "error": f"already holding {target_state.get('freq')}"}}
 
-    symlink_path = None
-    original_target = None
-    if target == "airband" and os.path.islink(CONFIG_SYMLINK):
-        symlink_path = CONFIG_SYMLINK
-        original_target = _get_symlink_target(CONFIG_SYMLINK)
-        conf_path = original_target
-    else:
-        conf_path = os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path()
+    conf_path = os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path()
     try:
         with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
             original = f.read()
@@ -333,27 +294,16 @@ def action_hold_start(target: str, freq) -> dict:
     except Exception as e:
         return {"status": 400, "payload": {"ok": False, "error": f"rewrite failed: {e}"}}
 
-    temp_path = None
-    if symlink_path:
-        try:
-            temp_path = _write_temp_config(target, "hold", new_text)
-            os.system(f"ln -sf {temp_path} {symlink_path}")
-        except Exception as e:
-            return {"status": 500, "payload": {"ok": False, "error": f"write failed: {e}"}}
-    else:
-        try:
-            _write_text(conf_path, new_text)
-        except Exception as e:
-            return {"status": 500, "payload": {"ok": False, "error": f"write failed: {e}"}}
+    try:
+        _write_text(conf_path, new_text)
+    except Exception as e:
+        return {"status": 500, "payload": {"ok": False, "error": f"write failed: {e}"}}
 
     hold_state = {
         "active": True,
         "target": target,
         "freq": f"{freq_val:.4f}",
         "conf_path": conf_path,
-        "symlink_path": symlink_path,
-        "original_target": original_target,
-        "temp_path": temp_path,
         "original_text": original,
         "ts": time.time(),
     }
@@ -368,12 +318,7 @@ def action_hold_start(target: str, freq) -> dict:
     except Exception as e:
         # rollback to original config if combine fails
         try:
-            if symlink_path and state.get(target):
-                original_target = state[target].get("original_target")
-                if original_target:
-                    os.system(f"ln -sf {original_target} {symlink_path}")
-            else:
-                _write_text(conf_path, original)
+            _write_text(conf_path, original)
             state.pop(target, None)
             _save_or_clear_hold_state(state)
         except Exception:
@@ -393,24 +338,13 @@ def action_hold_stop(target: str) -> dict:
 
     conf_path = target_state.get("conf_path") or (os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path())
     original = target_state.get("original_text")
-    symlink_path = target_state.get("symlink_path")
-    original_target = target_state.get("original_target")
-    temp_path = target_state.get("temp_path")
     if not conf_path or original is None:
         state.pop(target, None)
         _save_or_clear_hold_state(state)
         return {"status": 400, "payload": {"ok": False, "error": "hold state incomplete"}}
 
     try:
-        if symlink_path and original_target:
-            os.system(f"ln -sf {original_target} {symlink_path}")
-            if temp_path:
-                try:
-                    os.remove(temp_path)
-                except Exception:
-                    pass
-        else:
-            _write_text(conf_path, original)
+        _write_text(conf_path, original)
     except Exception as e:
         return {"status": 500, "payload": {"ok": False, "error": f"restore failed: {e}"}}
 
@@ -437,14 +371,7 @@ def action_tune(target: str, freq) -> dict:
     except (TypeError, ValueError):
         return {"status": 400, "payload": {"ok": False, "error": "bad freq"}}
 
-    symlink_path = None
-    original_target = None
-    if target == "airband" and os.path.islink(CONFIG_SYMLINK):
-        symlink_path = CONFIG_SYMLINK
-        original_target = _get_symlink_target(CONFIG_SYMLINK)
-        conf_path = original_target
-    else:
-        conf_path = os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path()
+    conf_path = os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path()
     try:
         with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
             original = f.read()
@@ -456,9 +383,6 @@ def action_tune(target: str, freq) -> dict:
     backup[target] = {
         "conf_path": conf_path,
         "original_text": original,
-        "symlink_path": symlink_path,
-        "original_target": original_target,
-        "temp_path": None,
         "ts": time.time(),
     }
     try:
@@ -473,13 +397,7 @@ def action_tune(target: str, freq) -> dict:
         return {"status": 400, "payload": {"ok": False, "error": f"rewrite failed: {e}"}}
 
     try:
-        if symlink_path:
-            temp_path = _write_temp_config(target, "tune", new_text)
-            backup[target]["temp_path"] = temp_path
-            _save_tune_backup(backup)
-            os.system(f"ln -sf {temp_path} {symlink_path}")
-        else:
-            _write_text(conf_path, new_text)
+        _write_text(conf_path, new_text)
     except Exception as e:
         return {"status": 500, "payload": {"ok": False, "error": f"write failed: {e}"}}
 
@@ -502,21 +420,10 @@ def action_tune_restore(target: str) -> dict:
         return {"status": 400, "payload": {"ok": False, "error": "no tune backup"}}
     conf_path = entry.get("conf_path")
     original = entry.get("original_text")
-    symlink_path = entry.get("symlink_path")
-    original_target = entry.get("original_target")
-    temp_path = entry.get("temp_path")
     if not conf_path or original is None:
         return {"status": 400, "payload": {"ok": False, "error": "invalid backup"}}
     try:
-        if symlink_path and original_target:
-            os.system(f"ln -sf {original_target} {symlink_path}")
-            if temp_path:
-                try:
-                    os.remove(temp_path)
-                except Exception:
-                    pass
-        else:
-            _write_text(conf_path, original)
+        _write_text(conf_path, original)
     except Exception as e:
         return {"status": 500, "payload": {"ok": False, "error": f"restore failed: {e}"}}
     backup.pop(target, None)
@@ -536,13 +443,7 @@ def execute_action(action: dict) -> dict:
     """Execute an action based on its type."""
     action_type = action.get("type")
     if action_type == "apply":
-        return action_apply_controls(
-            action.get("target"),
-            action.get("gain"),
-            action.get("squelch_mode"),
-            action.get("squelch_snr"),
-            action.get("squelch_dbfs"),
-        )
+        return action_apply_controls(action.get("target"), action.get("gain"), action.get("squelch"))
     if action_type == "filter":
         return action_apply_filter(action.get("target"), action.get("cutoff_hz"))
     if action_type == "profile":

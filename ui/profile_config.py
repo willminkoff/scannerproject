@@ -4,25 +4,25 @@ import json
 import time
 import re
 import sys
-from typing import Optional, List, Dict
+from typing import Optional
 import logging
 
 logger = logging.getLogger(__name__)
 
 try:
     from .config import (
-        CONFIG_SYMLINK, PROFILES_DIR, PROFILES_REGISTRY_PATH, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH,
+        CONFIG_SYMLINK, PROFILES_DIR, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH,
         AVOIDS_DIR, AVOIDS_PATHS, AVOIDS_SUMMARY_PATHS, PROFILES, GAIN_STEPS,
-        RE_GAIN, RE_SQL, RE_SQL_DBFS, RE_AIRBAND, RE_INDEX, RE_FREQS_BLOCK, RE_LABELS_BLOCK,
+        RE_GAIN, RE_SQL, RE_AIRBAND, RE_INDEX, RE_FREQS_BLOCK, RE_LABELS_BLOCK,
         MIXER_NAME, FILTER_AIRBAND_PATH, FILTER_GROUND_PATH, FILTER_DEFAULT_CUTOFF,
         FILTER_MIN_CUTOFF, FILTER_MAX_CUTOFF
     )
     from .systemd import restart_rtl, stop_rtl, start_rtl
 except ImportError:
     from ui.config import (
-        CONFIG_SYMLINK, PROFILES_DIR, PROFILES_REGISTRY_PATH, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH,
+        CONFIG_SYMLINK, PROFILES_DIR, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH,
         AVOIDS_DIR, AVOIDS_PATHS, AVOIDS_SUMMARY_PATHS, PROFILES, GAIN_STEPS,
-        RE_GAIN, RE_SQL, RE_SQL_DBFS, RE_AIRBAND, RE_INDEX, RE_FREQS_BLOCK, RE_LABELS_BLOCK,
+        RE_GAIN, RE_SQL, RE_AIRBAND, RE_INDEX, RE_FREQS_BLOCK, RE_LABELS_BLOCK,
         MIXER_NAME, FILTER_AIRBAND_PATH, FILTER_GROUND_PATH, FILTER_DEFAULT_CUTOFF,
         FILTER_MIN_CUTOFF, FILTER_MAX_CUTOFF
     )
@@ -56,141 +56,6 @@ def read_airband_flag(conf_path: str) -> Optional[bool]:
     return None
 
 
-def write_airband_flag(conf_path: str, airband: bool) -> None:
-    """Ensure the config contains an explicit airband=true/false line."""
-    conf_path = os.path.realpath(conf_path)
-    try:
-        with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
-            lines = f.readlines()
-    except FileNotFoundError:
-        return
-
-    out = []
-    changed = False
-    wrote = False
-    for line in lines:
-        match = RE_AIRBAND.match(line)
-        if match:
-            indent_match = re.match(r'^(\s*)', line)
-            indent = indent_match.group(1) if indent_match else ""
-            new_line = f"{indent}airband = {'true' if airband else 'false'};\n"
-            out.append(new_line)
-            changed = changed or (new_line != line)
-            wrote = True
-            continue
-        out.append(line)
-
-    if not wrote:
-        out.insert(0, f"airband = {'true' if airband else 'false'};\n\n")
-        changed = True
-
-    if not changed:
-        return
-
-    tmp = conf_path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        f.writelines(out)
-    os.replace(tmp, conf_path)
-
-
-def _infer_airband_flag(profile_id: str, path: str) -> Optional[bool]:
-    """Infer airband flag using overrides or file contents."""
-    pid_overrides = {
-        "airband": True,
-        "tower": True,
-        "none_airband": True,
-        "gmrs": False,
-        "wx": False,
-        "none_ground": False,
-    }
-    if profile_id in pid_overrides:
-        return pid_overrides[profile_id]
-    if "ground" in profile_id:
-        return False
-    if "airband" in profile_id:
-        return True
-    if os.path.exists(path):
-        return read_airband_flag(path)
-    return None
-
-
-def validate_profile_id(profile_id: str) -> bool:
-    return bool(re.match(r'^[a-z0-9_-]{2,40}$', profile_id or ""))
-
-
-def safe_profile_path(path: str) -> Optional[str]:
-    root = os.path.realpath(PROFILES_DIR)
-    real = os.path.realpath(path)
-    if real == root:
-        return None
-    if not real.startswith(root + os.sep):
-        return None
-    return real
-
-
-def _registry_payload_from_profiles(profiles) -> List[Dict]:
-    payload = []
-    for pid, label, path in profiles:
-        airband_flag = _infer_airband_flag(pid, path)
-        payload.append({
-            "id": pid,
-            "label": label,
-            "path": path,
-            "airband": airband_flag if airband_flag is not None else True,
-        })
-    return payload
-
-
-def save_profiles_registry(profiles: List[Dict]) -> None:
-    os.makedirs(PROFILES_DIR, exist_ok=True)
-    tmp = PROFILES_REGISTRY_PATH + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump({"profiles": profiles}, f, indent=2)
-        f.write("\n")
-    os.replace(tmp, PROFILES_REGISTRY_PATH)
-
-
-def load_profiles_registry() -> List[Dict]:
-    if not os.path.exists(PROFILES_REGISTRY_PATH):
-        profiles = _registry_payload_from_profiles(PROFILES)
-        save_profiles_registry(profiles)
-        return profiles
-    try:
-        with open(PROFILES_REGISTRY_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        profiles = data.get("profiles", [])
-        if isinstance(profiles, list):
-            cleaned = []
-            for p in profiles:
-                if not isinstance(p, dict):
-                    continue
-                pid = p.get("id")
-                label = p.get("label")
-                path = p.get("path")
-                airband = p.get("airband")
-                if not pid or not label or not path:
-                    continue
-                cleaned.append({
-                    "id": pid,
-                    "label": label,
-                    "path": path,
-                    "airband": bool(airband),
-                })
-            if cleaned:
-                return cleaned
-    except (FileNotFoundError, json.JSONDecodeError):
-        pass
-    profiles = _registry_payload_from_profiles(PROFILES)
-    save_profiles_registry(profiles)
-    return profiles
-
-
-def find_profile(profiles: List[Dict], profile_id: str) -> Optional[Dict]:
-    for p in profiles:
-        if p.get("id") == profile_id:
-            return p
-    return None
-
 def write_combined_config() -> bool:
     """Write the combined configuration."""
     airband_path = read_active_config_path()
@@ -213,15 +78,25 @@ def write_combined_config() -> bool:
 def split_profiles():
     """Split profiles into airband and ground categories."""
     prof_payload = []
-    for p in load_profiles_registry():
-        path = p.get("path", "")
+    pid_overrides = {
+        "airband": True,
+        "tower": True,
+        "none_airband": True,
+        "gmrs": False,
+        "wx": False,
+        "none_ground": False,
+    }
+    for pid, label, path in PROFILES:
         exists = os.path.exists(path)
+        airband_flag = pid_overrides.get(pid)
+        if airband_flag is None and exists:
+            airband_flag = read_airband_flag(path)
         prof_payload.append({
-            "id": p.get("id", ""),
-            "label": p.get("label", ""),
+            "id": pid,
+            "label": label,
             "path": path,
             "exists": exists,
-            "airband": p.get("airband") is True,
+            "airband": airband_flag,
         })
     profiles_airband = [p for p in prof_payload if p.get("airband") is True]
     profiles_ground = [p for p in prof_payload if p.get("airband") is False]
@@ -272,9 +147,7 @@ def parse_controls(conf_path: str):
     """Parse gain and squelch from configuration."""
     enforce_profile_index(conf_path)
     gain = 32.8
-    squelch_snr = 10.0
-    squelch_dbfs = 0.0
-    has_dbfs = False
+    squelch = 10.0
     try:
         with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
             for line in f:
@@ -283,48 +156,31 @@ def parse_controls(conf_path: str):
                     gain = float(m.group(2))
                 m = RE_SQL.match(line)
                 if m:
-                    squelch_snr = max(0.0, float(m.group(2)))
-                m = RE_SQL_DBFS.match(line)
-                if m:
-                    squelch_dbfs = float(m.group(2))
-                    has_dbfs = True
+                    squelch = max(0.0, float(m.group(2)))
     except FileNotFoundError:
         pass
 
-    mode = "dbfs" if has_dbfs else "dbfs"
-
     # Only emit verbose parse logs when explicitly enabled via env var
     if os.environ.get("AIRBAND_DEBUG"):
-        logger.debug(
-            f"parse_controls: {conf_path} gain={gain} snr={squelch_snr} dbfs={squelch_dbfs} mode={mode}"
-        )
-    return gain, squelch_snr, squelch_dbfs, mode
+        logger.debug(f"parse_controls: {conf_path} gain={gain} squelch={squelch}")
+    return gain, squelch
 
 
-def write_controls(conf_path: str, gain: float, squelch_mode: str, squelch_snr: float, squelch_dbfs: float) -> bool:
+def write_controls(conf_path: str, gain: float, squelch: float) -> bool:
     """Write gain and squelch to configuration."""
     gain_value = float(gain)
     gain = min(GAIN_STEPS, key=lambda g: abs(g - gain_value))
-    squelch_mode = (squelch_mode or "dbfs").lower()
-    squelch_snr = max(0.0, min(10.0, float(squelch_snr)))
-    squelch_dbfs = float(squelch_dbfs)
-    if squelch_dbfs > 0:
-        squelch_dbfs = 0.0
+    squelch = max(0.0, min(10.0, float(squelch)))
 
     conf_path = os.path.realpath(conf_path)
 
-    logger.info(
-        f"write_controls: {conf_path} gain={gain} mode={squelch_mode} snr={squelch_snr} dbfs={squelch_dbfs}"
-    )
+    logger.info(f"write_controls: {conf_path} gain={gain} squelch={squelch}")
 
     with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
         lines = f.readlines()
 
     out = []
     changed = False
-    saw_snr = False
-    saw_dbfs = False
-    snr_insert_idx = None
     for line in lines:
         m = RE_GAIN.match(line)
         if m:
@@ -335,44 +191,12 @@ def write_controls(conf_path: str, gain: float, squelch_mode: str, squelch_snr: 
             continue
         m = RE_SQL.match(line)
         if m:
-            if squelch_mode == "dbfs":
-                indent_match = re.match(r'^(\s*)', line)
-                indent = indent_match.group(1) if indent_match else ""
-                new_line = f"{indent}// squelch_snr_threshold = {squelch_snr:.3f};  # UI_CONTROLLED\n"
-            else:
-                new_line = f"{m.group(1)}{squelch_snr:.3f}{m.group(3)}\n"
+            new_line = f"{m.group(1)}{squelch:.3f}{m.group(3)}\n"
             if new_line != line:
                 changed = True
             out.append(new_line)
-            saw_snr = True
-            snr_insert_idx = len(out)
-            continue
-        m = RE_SQL_DBFS.match(line)
-        if m:
-            value = squelch_dbfs if squelch_mode == "dbfs" else 0.0
-            value_int = int(round(value))
-            new_line = f"{m.group(1)}{value_int}{m.group(3)}\n"
-            if new_line != line:
-                changed = True
-            out.append(new_line)
-            saw_dbfs = True
             continue
         out.append(line)
-
-    if not saw_dbfs:
-        value = squelch_dbfs if squelch_mode == "dbfs" else 0.0
-        value_int = int(round(value))
-        indent = "      "
-        if snr_insert_idx is not None and snr_insert_idx - 1 < len(out):
-            indent_match = re.match(r'^(\s*)', out[snr_insert_idx - 1])
-            if indent_match:
-                indent = indent_match.group(1)
-        new_line = f"{indent}squelch_threshold = {value_int};  # UI_CONTROLLED\n"
-        if snr_insert_idx is not None:
-            out.insert(snr_insert_idx, new_line)
-        else:
-            out.append(new_line)
-        changed = True
 
     if not changed:
         logger.debug("write_controls: no change")
@@ -499,7 +323,7 @@ def write_avoids_summary(target: str, data: dict) -> None:
     if not profiles:
         lines.append("No avoids recorded.")
     else:
-        path_to_label = {p["path"]: p["label"] for p in load_profiles_registry()}
+        path_to_label = {path: label for _, label, path in PROFILES}
         for conf_path in sorted(profiles.keys()):
             prof = profiles.get(conf_path, {})
             avoids = sorted(prof.get("avoids", []) or [])
@@ -520,156 +344,26 @@ def write_avoids_summary(target: str, data: dict) -> None:
 
 
 def parse_freqs_labels(text: str):
-    """Parse frequencies and labels from config.
-
-    Returns:
-      (freqs, labels) where:
-        - freqs: list[float]
-        - labels: Optional[list[str]] (None when labels block missing)
-    """
-    m = RE_FREQS_BLOCK.search(text or "")
+    """Parse frequencies and labels from config."""
+    m = RE_FREQS_BLOCK.search(text)
     if not m:
         raise ValueError("freqs block not found")
-    freqs = []
-    for tok in re.findall(r'-?\d+(?:\.\d+)?', m.group(2) or ""):
-        try:
-            freqs.append(float(tok))
-        except ValueError:
-            continue
-
+    freqs = [float(x) for x in re.findall(r'[0-9]+(?:\.[0-9]+)?', m.group(2))]
     labels = None
-    lm = RE_LABELS_BLOCK.search(text or "")
-    if lm:
-        # Keep labels as raw strings (no unescaping needed for our usage).
-        labels = re.findall(r'"([^"]*)"', lm.group(2) or "")
+    m = RE_LABELS_BLOCK.search(text)
+    if m:
+        labels = re.findall(r'"([^"]+)"', m.group(2))
     return freqs, labels
-
-
-def parse_freqs_text(freqs_text: str):
-    """Parse textarea freqs input into (freqs, labels?).
-
-    Format per line:
-      - "118.600"
-      - "118.600 TOWER"
-    If any line has a label, we synthesize labels for all lines (unlabeled lines
-    fall back to the frequency string), so lengths always match.
-    """
-    freqs = []
-    raw_labels: List[Optional[str]] = []
-    saw_label = False
-    for raw_line in (freqs_text or "").splitlines():
-        line = raw_line.strip()
-        if not line:
-            continue
-        if line.startswith("#"):
-            continue
-        parts = line.split()
-        if not parts:
-            continue
-        try:
-            fval = float(parts[0])
-        except ValueError as e:
-            raise ValueError(f"bad frequency: {parts[0]}") from e
-        freqs.append(fval)
-        if len(parts) > 1:
-            saw_label = True
-            raw_labels.append(" ".join(parts[1:]).strip())
-        else:
-            raw_labels.append(None)
-
-    if not freqs:
-        raise ValueError("no frequencies provided")
-
-    if not saw_label:
-        return freqs, None
-
-    labels: List[str] = []
-    for fval, lab in zip(freqs, raw_labels):
-        fstr = f"{fval:.4f}"
-        labels.append(lab if lab is not None and lab != "" else fstr)
-    return freqs, labels
-
-
-def _format_list_block(base_indent: str, values: List[str]) -> str:
-    if not values:
-        return "();"
-    # First "(" stays on the same line after "= ".
-    lines = ["("]
-    for i, v in enumerate(values):
-        comma = "," if i < len(values) - 1 else ""
-        lines.append(f"{base_indent}  {v}{comma}")
-    lines.append(f"{base_indent});")
-    return "\n".join(lines)
 
 
 def replace_freqs_labels(text: str, freqs, labels):
-    """Replace freqs/labels blocks in config.
-
-    If labels is None:
-      - preserve existing labels only if count matches new freqs count
-      - otherwise remove labels block (if present)
-    If labels is provided:
-      - require len(labels) == len(freqs)
-    """
-    # Normalize/validate frequencies.
-    if not isinstance(freqs, list) or not freqs:
-        raise ValueError("freqs must be a non-empty list")
-    norm_freqs = []
-    for f in freqs:
-        try:
-            norm_freqs.append(float(f))
-        except ValueError as e:
-            raise ValueError(f"bad frequency: {f}") from e
-    freqs = norm_freqs
-
-    m = RE_FREQS_BLOCK.search(text or "")
-    if not m:
-        raise ValueError("freqs block not found")
-    indent_match = re.match(r'^(\s*)', m.group(1) or "")
-    base_indent = indent_match.group(1) if indent_match else ""
-
-    # Determine labels to write.
-    existing_labels = None
-    lm_existing = RE_LABELS_BLOCK.search(text or "")
-    if lm_existing:
-        existing_labels = re.findall(r'"([^"]*)"', lm_existing.group(2) or "")
-    if labels is None:
-        if existing_labels is not None and len(existing_labels) == len(freqs):
-            labels_to_write = existing_labels
-        else:
-            labels_to_write = None
-    else:
-        if not isinstance(labels, list):
-            raise ValueError("labels must be a list")
-        if len(labels) != len(freqs):
-            raise ValueError("labels must match freqs length")
-        labels_to_write = [str(s) for s in labels]
-
-    # Build freqs replacement (one per line).
-    freqs_values = [f"{f:.4f}" for f in freqs]
-    freqs_block = f"{base_indent}freqs = " + _format_list_block(base_indent, freqs_values)
-    out = RE_FREQS_BLOCK.sub(freqs_block, text, count=1)
-
-    # Labels: replace, insert, or remove.
-    lm = RE_LABELS_BLOCK.search(out)
-    if labels_to_write is None:
-        if lm:
-            out = RE_LABELS_BLOCK.sub("", out, count=1)
-        return out
-
-    labels_values = [json.dumps(s) for s in labels_to_write]  # includes quotes
-    labels_block = f"{base_indent}labels = " + _format_list_block(base_indent, labels_values)
-    if lm:
-        out = RE_LABELS_BLOCK.sub(labels_block, out, count=1)
-    else:
-        # Insert labels block after freqs block.
-        m2 = RE_FREQS_BLOCK.search(out)
-        if m2:
-            insert_at = m2.end()
-            out = out[:insert_at] + "\n\n" + labels_block + out[insert_at:]
-        else:
-            out = out.rstrip() + "\n\n" + labels_block + "\n"
-    return out
+    """Replace frequencies and labels in config."""
+    freqs_text = ", ".join(f"{f:.4f}" for f in freqs)
+    text = RE_FREQS_BLOCK.sub(lambda m: f"{m.group(1)}{freqs_text}{m.group(3)}", text, count=1)
+    if labels is not None:
+        labels_text = ", ".join(f"\"{l}\"" for l in labels)
+        text = RE_LABELS_BLOCK.sub(lambda m: f"{m.group(1)}{labels_text}{m.group(3)}", text, count=1)
+    return text
 
 
 def same_freq(a: float, b: float) -> bool:
@@ -693,18 +387,14 @@ def filter_freqs_labels(freqs, labels, avoids):
 
 
 def write_freqs_labels(conf_path: str, freqs, labels):
-    """Write frequencies and labels to config atomically; returns True if changed."""
-    conf_path = os.path.realpath(conf_path)
+    """Write frequencies and labels to config."""
     with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
-        original = f.read()
-    updated = replace_freqs_labels(original, freqs, labels)
-    if updated == original:
-        return False
+        text = f.read()
+    text = replace_freqs_labels(text, freqs, labels)
     tmp = conf_path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
-        f.write(updated)
+        f.write(text)
     os.replace(tmp, conf_path)
-    return True
 
 
 def avoid_current_hit(conf_path: str, target: str):

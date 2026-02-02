@@ -113,17 +113,12 @@ def read_last_hit_airband() -> str:
     value = read_last_hit_for_range(UNITS["rtl"], True)
     if value:
         return value
-    # Fall back to last-hit file if nothing in journal
-    value = read_last_hit_file(LAST_HIT_AIRBAND_PATH)
+    # Fall back to simple last activity from journalctl
+    value = read_last_hit_from_journal_unit(UNITS["rtl"])
     if value:
         return value
-    # Final fallback: only accept journal value if it is in airband range
-    value = read_last_hit_from_journal_unit(UNITS["rtl"])
-    try:
-        freq_value = float(value)
-    except (TypeError, ValueError):
-        return ""
-    return value if _freq_in_airband(freq_value) else ""
+    # Last resort: check file if nothing in journal
+    return read_last_hit_file(LAST_HIT_AIRBAND_PATH)
 
 
 def read_last_hit_ground() -> str:
