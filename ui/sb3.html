@@ -24,36 +24,36 @@
 
     /* Red theme for dark environments */
     body.red-theme {
-      --accent: #b91c1c;
-      --accent-dim: rgba(185, 28, 28, 0.3);
-      --accent-glow: rgba(185, 28, 28, 0.15);
-      --good: #b91c1c;
-      --slider-track: rgba(185, 28, 28, 0.08);
-      --slider-glow: 0 0 8px rgba(185, 28, 28, 0.25), inset 0 1px 2px rgba(185, 28, 28, 0.1);
+      --accent: #6d1212;
+      --accent-dim: rgba(109, 18, 18, 0.35);
+      --accent-glow: rgba(109, 18, 18, 0.12);
+      --good: #6d1212;
+      --slider-track: rgba(109, 18, 18, 0.12);
+      --slider-glow: 0 0 6px rgba(109, 18, 18, 0.2), inset 0 1px 2px rgba(109, 18, 18, 0.12);
       --text-primary: #7f8798;
       --text-secondary: #5f6878;
-      --border: #1c222a;
-      --bg-panel: #0f1317;
-      --bg-card: #0e1216;
+      --border: #191f25;
+      --bg-panel: #0c0f13;
+      --bg-card: #0b0e12;
     }
 
     body.red-theme select {
-      background: #1a1f24;
+      background: var(--bg-panel);
       color: #c7cedb;
-      border-color: #2a3139;
+      border-color: var(--border);
     }
 
     body.red-theme input[type="text"],
     body.red-theme input:not([type]) {
-      background: #1a1f24;
+      background: var(--bg-panel);
       color: #c7cedb;
-      border-color: #2a3139;
+      border-color: var(--border);
     }
 
     body.red-theme textarea {
-      background: #1a1f24;
+      background: var(--bg-panel);
       color: #c7cedb;
-      border-color: #2a3139;
+      border-color: var(--border);
     }
 
     body.red-theme .widget,
@@ -244,7 +244,7 @@
     }
 
     body.red-theme .theme-toggle {
-      background: rgba(220, 38, 38, 0.2);
+      background: var(--accent-dim);
       border-color: var(--accent);
       color: var(--accent);
     }
@@ -991,6 +991,32 @@
       padding: 18px 0;
     }
 
+    .heartbeat {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .heartbeat-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-secondary);
+      box-shadow: none;
+    }
+
+    .heartbeat-dot.active {
+      background: var(--accent);
+      box-shadow: 0 0 10px var(--accent-dim);
+      animation: heartbeatPulse 1.6s ease-in-out infinite;
+    }
+
+    @keyframes heartbeatPulse {
+      0% { transform: scale(0.9); opacity: 0.65; }
+      50% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(0.9); opacity: 0.65; }
+    }
+
     /* Responsive */
     @media (max-width: 700px) {
       .grid {
@@ -1015,7 +1041,6 @@
     <div class="header-left">
       <button class="logo" id="logo-toggle" type="button" aria-pressed="false" title="Open situation report">
         SB3
-        <span class="logo-tag">SITREP</span>
       </button>
     </div>
     <div class="last-hit-group">
@@ -1404,6 +1429,20 @@
               <span class="config-label">Ground Filter</span>
               <span class="config-value" id="sitrep-filter-ground">--</span>
             </div>
+            <div class="config-row">
+              <span class="config-label">Airband Heartbeat</span>
+              <span class="config-value heartbeat">
+                <span class="heartbeat-dot" id="sitrep-airband-dot"></span>
+                <span id="sitrep-airband-heartbeat">--</span>
+              </span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Ground Heartbeat</span>
+              <span class="config-value heartbeat">
+                <span class="heartbeat-dot" id="sitrep-ground-dot"></span>
+                <span id="sitrep-ground-heartbeat">--</span>
+              </span>
+            </div>
           </div>
         </div>
 
@@ -1467,6 +1506,9 @@
       icecastActive: false,
       sseConnected: false,
       adsbLoaded: false,
+      lastStatusTick: null,
+      sdr1LastSeen: null,
+      sdr2LastSeen: null,
       eventSource: null,
       lastHit: '',
       lastHitAirband: '',
@@ -1596,6 +1638,10 @@
       sitrepSquelchGround: document.getElementById('sitrep-squelch-ground'),
       sitrepFilterAirband: document.getElementById('sitrep-filter-airband'),
       sitrepFilterGround: document.getElementById('sitrep-filter-ground'),
+      sitrepAirbandHeartbeat: document.getElementById('sitrep-airband-heartbeat'),
+      sitrepGroundHeartbeat: document.getElementById('sitrep-ground-heartbeat'),
+      sitrepAirbandDot: document.getElementById('sitrep-airband-dot'),
+      sitrepGroundDot: document.getElementById('sitrep-ground-dot'),
       sitrepAvoids: document.getElementById('sitrep-avoids'),
       sitrepTuneMode: document.getElementById('sitrep-tune-mode'),
       sitrepConnection: document.getElementById('sitrep-connection'),
@@ -2109,6 +2155,30 @@
         els.sitrepFilterGround.textContent = Number.isFinite(state.ground.filter) ? `${state.ground.filter} Hz` : '--';
       }
 
+      const now = Date.now();
+      const airbandAge = state.sdr1LastSeen ? formatDurationCompact(now - state.sdr1LastSeen) : '--';
+      const groundAge = state.sdr2LastSeen ? formatDurationCompact(now - state.sdr2LastSeen) : '--';
+      if (els.sitrepAirbandHeartbeat) {
+        if (state.sdr1Active) {
+          els.sitrepAirbandHeartbeat.textContent = state.sdr1LastSeen ? `active • ${airbandAge} ago` : 'active';
+        } else {
+          els.sitrepAirbandHeartbeat.textContent = state.sdr1LastSeen ? `last ${airbandAge} ago` : '--';
+        }
+      }
+      if (els.sitrepAirbandDot) {
+        els.sitrepAirbandDot.classList.toggle('active', Boolean(state.sdr1Active));
+      }
+      if (els.sitrepGroundHeartbeat) {
+        if (state.sdr2Active) {
+          els.sitrepGroundHeartbeat.textContent = state.sdr2LastSeen ? `active • ${groundAge} ago` : 'active';
+        } else {
+          els.sitrepGroundHeartbeat.textContent = state.sdr2LastSeen ? `last ${groundAge} ago` : '--';
+        }
+      }
+      if (els.sitrepGroundDot) {
+        els.sitrepGroundDot.classList.toggle('active', Boolean(state.sdr2Active));
+      }
+
       const tuneMode = state.tuned ? 'Direct Tune' : (state.hold.airband || state.hold.ground ? 'Hold' : 'Scan');
       if (els.sitrepTuneMode) els.sitrepTuneMode.textContent = tuneMode;
 
@@ -2561,6 +2631,9 @@
         
         state.sdr1Active = data.rtl_active;
         state.sdr2Active = data.ground_active;
+        state.lastStatusTick = Date.now();
+        if (state.sdr1Active) state.sdr1LastSeen = state.lastStatusTick;
+        if (state.sdr2Active) state.sdr2LastSeen = state.lastStatusTick;
         state.icecastActive = data.icecast_active;
         state.lastHit = data.last_hit || data.last_hit_airband || data.last_hit_ground || '';
         state.lastHitAirband = data.last_hit_airband || '';
@@ -2660,12 +2733,15 @@
       es.addEventListener('status', (e) => {
         try {
           const data = JSON.parse(e.data);
-          state.sdr1Active = data.rtl_active;
-          state.sdr2Active = data.ground_active;
-          state.icecastActive = data.icecast_active;
-          state.lastHit = data.last_hit || state.lastHit;
-          state.serverTime = data.server_time;
-          state.connected = true;
+        state.sdr1Active = data.rtl_active;
+        state.sdr2Active = data.ground_active;
+        state.icecastActive = data.icecast_active;
+        state.lastHit = data.last_hit || state.lastHit;
+        state.serverTime = data.server_time;
+        state.lastStatusTick = Date.now();
+        if (state.sdr1Active) state.sdr1LastSeen = state.lastStatusTick;
+        if (state.sdr2Active) state.sdr2LastSeen = state.lastStatusTick;
+        state.connected = true;
           updateStatus();
           updateCounters();
         } catch (err) {
