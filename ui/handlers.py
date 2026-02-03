@@ -95,7 +95,7 @@ class Handler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         p = u.path
         if p == "/":
-            return self._send(200, HTML_TEMPLATE)
+            p = "/sb3"
         
         # Serve SB3 UI
         if p == "/sb3" or p == "/sb3.html":
