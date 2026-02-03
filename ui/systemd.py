@@ -26,16 +26,23 @@ def unit_exists(unit: str) -> bool:
     return result.stdout.strip() != "not-found"
 
 
-def _restart_unit(unit: str) -> Tuple[bool, str]:
+def _run_systemctl(args, use_sudo: bool = False):
+    cmd = ["systemctl"] + list(args)
+    if use_sudo:
+        cmd = ["sudo"] + cmd
+    return subprocess.run(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+
+
+def _restart_unit(unit: str, use_sudo: bool = False) -> Tuple[bool, str]:
     """Restart a systemd unit and return (ok, error)."""
     try:
-        result = subprocess.run(
-            ["systemctl", "restart", unit],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=False,
-        )
+        result = _run_systemctl(["restart", unit], use_sudo=use_sudo)
     except Exception as e:
         return False, str(e)
     if result.returncode == 0:
@@ -48,30 +55,31 @@ def _restart_unit(unit: str) -> Tuple[bool, str]:
 
 def unit_active_enter_epoch(unit: str):
     """Return ActiveEnterTimestampUSec as epoch seconds, or None."""
+    def parse_epoch(result):
+        if result.returncode != 0:
+            return None
+        val = (result.stdout or "").strip()
+        if not val.isdigit():
+            return None
+        try:
+            return int(val) / 1_000_000.0
+        except Exception:
+            return None
+
     try:
-        result = subprocess.run(
-            ["systemctl", "show", "-p", "ActiveEnterTimestampUSec", "--value", unit],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
-            check=False,
-        )
-    except Exception:
-        return None
-    if result.returncode != 0:
-        return None
-    val = (result.stdout or "").strip()
-    if not val.isdigit():
-        return None
-    try:
-        return int(val) / 1_000_000.0
+        result = _run_systemctl(["show", "-p", "ActiveEnterTimestampUSec", "--value", unit], use_sudo=False)
+        epoch = parse_epoch(result)
+        if epoch is not None:
+            return epoch
+        result = _run_systemctl(["show", "-p", "ActiveEnterTimestampUSec", "--value", unit], use_sudo=True)
+        return parse_epoch(result)
     except Exception:
         return None
 
 
 def restart_rtl() -> Tuple[bool, str]:
     """Restart the rtl-airband scanner."""
-    return _restart_unit(UNITS["rtl"])
+    return _restart_unit(UNITS["rtl"], use_sudo=True)
 
 
 def restart_ground() -> Tuple[bool, str]:
