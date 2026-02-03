@@ -9,11 +9,12 @@ import re
 UI_PORT = int(os.getenv("UI_PORT", "5050"))
 
 # Paths
-CONFIG_SYMLINK = os.getenv("CONFIG_SYMLINK", "/usr/local/etc/rtl_airband.conf")
+CONFIG_DIR = os.getenv("CONFIG_DIR", "/usr/local/etc")
+CONFIG_SYMLINK = os.getenv("CONFIG_SYMLINK", os.path.join(CONFIG_DIR, "rtl_airband.conf"))
 PROFILES_DIR = os.getenv("PROFILES_DIR", "/usr/local/etc/airband-profiles")
 PROFILES_REGISTRY_PATH = os.path.join(PROFILES_DIR, "profiles.json")
-GROUND_CONFIG_PATH = os.getenv("GROUND_CONFIG_PATH", "/usr/local/etc/rtl_airband_ground.conf")
-COMBINED_CONFIG_PATH = os.getenv("COMBINED_CONFIG_PATH", "/usr/local/etc/rtl_airband_combined.conf")
+GROUND_CONFIG_PATH = os.getenv("GROUND_CONFIG_PATH", os.path.join(CONFIG_DIR, "rtl_airband_ground.conf"))
+COMBINED_CONFIG_PATH = os.getenv("COMBINED_CONFIG_PATH", os.path.join(CONFIG_DIR, "rtl_airband_combined.conf"))
 
 # Last Hit Tracking
 LAST_HIT_AIRBAND_PATH = os.getenv("LAST_HIT_AIRBAND_PATH", "/run/rtl_airband_last_freq_airband.txt")

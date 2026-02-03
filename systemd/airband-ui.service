@@ -5,6 +5,11 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+Environment=CONFIG_DIR=/usr/local/etc
+Environment=CONFIG_SYMLINK=/usr/local/etc/rtl_airband.conf
+Environment=GROUND_CONFIG_PATH=/usr/local/etc/rtl_airband_ground.conf
+Environment=COMBINED_CONFIG_PATH=/usr/local/etc/rtl_airband_combined.conf
+EnvironmentFile=-/etc/airband-ui.conf
 ExecStart=/usr/bin/python3 /opt/airband-ui/airband_ui.py
 Restart=on-failure
 RestartSec=2
