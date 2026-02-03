@@ -327,6 +327,21 @@ def _get_symlink_target(path: str) -> str:
         return path
 
 
+def _resolve_config_target(target: str):
+    """Resolve config path + symlink info for a target."""
+    if target == "airband":
+        symlink_path = CONFIG_SYMLINK if os.path.islink(CONFIG_SYMLINK) else None
+        original_target = _get_symlink_target(CONFIG_SYMLINK) if symlink_path else None
+        conf_path = original_target if symlink_path else read_active_config_path()
+        return conf_path, symlink_path, original_target
+    if target == "ground":
+        symlink_path = GROUND_CONFIG_PATH if os.path.islink(GROUND_CONFIG_PATH) else None
+        original_target = _get_symlink_target(GROUND_CONFIG_PATH) if symlink_path else None
+        conf_path = original_target if symlink_path else os.path.realpath(GROUND_CONFIG_PATH)
+        return conf_path, symlink_path, original_target
+    return None, None, None
+
+
 def action_hold_start(target: str, freq) -> dict:
     """Action: Enter hold by replacing target config with single frequency."""
     if target not in ("airband", "ground"):
@@ -341,14 +356,7 @@ def action_hold_start(target: str, freq) -> dict:
     if target_state.get("active"):
         return {"status": 400, "payload": {"ok": False, "error": f"already holding {target_state.get('freq')}"}}
 
-    symlink_path = None
-    original_target = None
-    if target == "airband" and os.path.islink(CONFIG_SYMLINK):
-        symlink_path = CONFIG_SYMLINK
-        original_target = _get_symlink_target(CONFIG_SYMLINK)
-        conf_path = original_target
-    else:
-        conf_path = os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path()
+    conf_path, symlink_path, original_target = _resolve_config_target(target)
     try:
         with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
             original = f.read()
@@ -465,14 +473,7 @@ def action_tune(target: str, freq) -> dict:
     except (TypeError, ValueError):
         return {"status": 400, "payload": {"ok": False, "error": "bad freq"}}
 
-    symlink_path = None
-    original_target = None
-    if target == "airband" and os.path.islink(CONFIG_SYMLINK):
-        symlink_path = CONFIG_SYMLINK
-        original_target = _get_symlink_target(CONFIG_SYMLINK)
-        conf_path = original_target
-    else:
-        conf_path = os.path.realpath(GROUND_CONFIG_PATH) if target == "ground" else read_active_config_path()
+    conf_path, symlink_path, original_target = _resolve_config_target(target)
     try:
         with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
             original = f.read()
