@@ -1125,6 +1125,7 @@
                 <span class="control-value" id="dbfs-value">--</span>
               </div>
               <input type="range" class="slider" id="dbfs-slider" min="-120" max="0" step="1" value="-70">
+              <div class="control-applied" style="opacity:0.75;">Tightest = -1 (0 is treated as open)</div>
               <div class="control-applied">Applied: <span id="dbfs-applied">--</span></div>
             </div>
 
@@ -1972,8 +1973,9 @@
       }
       
       if (els.dbfsSlider && !els.dbfsSlider.classList.contains('dirty')) {
-        els.dbfsSlider.value = Math.round(t.squelch_dbfs);
-        els.dbfsValue.textContent = Math.round(t.squelch_dbfs);
+        const dbfsDisplay = Number.isFinite(t.squelch_dbfs) && t.squelch_dbfs > -1 ? -1 : t.squelch_dbfs;
+        els.dbfsSlider.value = Math.round(dbfsDisplay);
+        els.dbfsValue.textContent = Math.round(dbfsDisplay);
       }
       
       if (!els.filterSlider.classList.contains('dirty')) {
@@ -2508,7 +2510,8 @@
     async function applyGainSql() {
       const gainIdx = parseInt(els.gainSlider.value);
       const gain = gainValueFromIndex(gainIdx);
-      const squelchDbfs = parseFloat(els.dbfsSlider.value);
+      let squelchDbfs = parseFloat(els.dbfsSlider.value);
+      if (squelchDbfs >= -1) squelchDbfs = -1;
       
       try {
         const res = await postAPI('/api/apply', {

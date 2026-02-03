@@ -308,8 +308,9 @@ def write_controls(conf_path: str, gain: float, squelch_mode: str, squelch_snr: 
     squelch_mode = (squelch_mode or "dbfs").lower()
     squelch_snr = max(0.0, min(10.0, float(squelch_snr)))
     squelch_dbfs = float(squelch_dbfs)
-    if squelch_dbfs > 0:
-        squelch_dbfs = 0.0
+    # rtl_airband treats 0 dBFS as effectively open; clamp to -1 for "closed"
+    if squelch_dbfs > -1.0:
+        squelch_dbfs = -1.0
 
     conf_path = os.path.realpath(conf_path)
 
