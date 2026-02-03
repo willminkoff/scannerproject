@@ -43,6 +43,33 @@ def restart_ground():
     )
 
 
+def restart_icecast():
+    """Restart the Icecast service."""
+    subprocess.Popen(
+        ["systemctl", "restart", "--no-block", UNITS["icecast"]],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+def restart_keepalive():
+    """Restart the Icecast keepalive service."""
+    subprocess.Popen(
+        ["systemctl", "restart", "--no-block", UNITS["keepalive"]],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+def restart_ui():
+    """Restart the UI service."""
+    subprocess.Popen(
+        ["systemctl", "restart", "--no-block", UNITS["ui"]],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
 def stop_rtl():
     """Stop the rtl-airband scanner."""
     subprocess.run(

@@ -14,7 +14,7 @@
       --accent: #2dd4bf;
       --accent-dim: rgba(45, 212, 191, 0.3);
       --accent-glow: rgba(45, 212, 191, 0.15);
-      --border: #1e2530;
+      --border: #141a21;
       --good: #10b981;
       --bad: #ef4444;
       --warn: #f59e0b;
@@ -24,36 +24,36 @@
 
     /* Red theme for dark environments */
     body.red-theme {
-      --accent: #b91c1c;
-      --accent-dim: rgba(185, 28, 28, 0.3);
-      --accent-glow: rgba(185, 28, 28, 0.15);
-      --good: #b91c1c;
-      --slider-track: rgba(185, 28, 28, 0.08);
-      --slider-glow: 0 0 8px rgba(185, 28, 28, 0.25), inset 0 1px 2px rgba(185, 28, 28, 0.1);
-      --text-primary: #7f8798;
-      --text-secondary: #5f6878;
-      --border: #1c222a;
-      --bg-panel: #0f1317;
-      --bg-card: #0e1216;
+      --accent: #6d1212;
+      --accent-dim: rgba(109, 18, 18, 0.35);
+      --accent-glow: rgba(109, 18, 18, 0.12);
+      --good: #6d1212;
+      --slider-track: rgba(109, 18, 18, 0.12);
+      --slider-glow: 0 0 6px rgba(109, 18, 18, 0.2), inset 0 1px 2px rgba(109, 18, 18, 0.12);
+      --text-primary: #4f5666;
+      --text-secondary: #3f4654;
+      --border: #0c1014;
+      --bg-panel: #0c0f13;
+      --bg-card: #0b0e12;
     }
 
     body.red-theme select {
-      background: #1a1f24;
+      background: var(--bg-panel);
       color: #c7cedb;
-      border-color: #2a3139;
+      border-color: var(--border);
     }
 
     body.red-theme input[type="text"],
     body.red-theme input:not([type]) {
-      background: #1a1f24;
+      background: var(--bg-panel);
       color: #c7cedb;
-      border-color: #2a3139;
+      border-color: var(--border);
     }
 
     body.red-theme textarea {
-      background: #1a1f24;
+      background: var(--bg-panel);
       color: #c7cedb;
-      border-color: #2a3139;
+      border-color: var(--border);
     }
 
     body.red-theme .widget,
@@ -116,6 +116,30 @@
       padding: 4px 8px;
       border: 1px solid var(--accent);
       border-radius: 4px;
+      background: transparent;
+      cursor: pointer;
+      font: inherit;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .logo-tag {
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      color: var(--text-secondary);
+      border-left: 1px solid var(--border);
+      padding-left: 6px;
+    }
+
+    body.sitrep-mode .logo-tag {
+      color: var(--accent);
+      border-left-color: var(--accent-dim);
+    }
+
+    .logo:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
     }
 
     .status-indicators {
@@ -220,7 +244,7 @@
     }
 
     body.red-theme .theme-toggle {
-      background: rgba(220, 38, 38, 0.2);
+      background: var(--accent-dim);
       border-color: var(--accent);
       color: var(--accent);
     }
@@ -240,6 +264,37 @@
 
     .grid-full {
       grid-column: 1 / -1;
+    }
+
+    .view-stack {
+      perspective: 1400px;
+    }
+
+    .view {
+      transform-style: preserve-3d;
+      transform-origin: left center;
+    }
+
+    .view.hidden {
+      display: none;
+    }
+
+    .view.flip-in {
+      animation: flipIn 0.45s ease;
+    }
+
+    .view.flip-out {
+      animation: flipOut 0.45s ease forwards;
+    }
+
+    @keyframes flipIn {
+      from { opacity: 0; transform: rotateY(-90deg); }
+      to { opacity: 1; transform: rotateY(0deg); }
+    }
+
+    @keyframes flipOut {
+      from { opacity: 1; transform: rotateY(0deg); }
+      to { opacity: 0; transform: rotateY(90deg); }
     }
 
     /* Widget */
@@ -666,10 +721,351 @@
       margin-bottom: 12px;
     }
 
+    /* Sitrep */
+    .sitrep {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px 16px 40px;
+      position: relative;
+    }
+
+    .sitrep::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(900px 320px at 12% -10%, rgba(45, 212, 191, 0.12), transparent),
+        radial-gradient(700px 240px at 90% 0%, rgba(45, 212, 191, 0.08), transparent);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .sitrep > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    .sitrep-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .sitrep-eyebrow {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.32em;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .sitrep-headline {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      margin-bottom: 6px;
+    }
+
+    .sitrep-meta {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .sitrep-summary {
+      display: grid;
+      gap: 8px;
+      justify-items: end;
+    }
+
+    .sitrep-chip {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(18, 22, 24, 0.8);
+      color: var(--text-secondary);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .sitrep-chip.good {
+      border-color: var(--good);
+      color: var(--good);
+    }
+
+    .sitrep-chip.bad {
+      border-color: var(--bad);
+      color: var(--bad);
+    }
+
+    .sitrep-grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+
+    .sitrep-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+      min-height: 160px;
+    }
+
+    .sitrep-card-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--text-secondary);
+    }
+
+    .metric-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    }
+
+    .metric-item {
+      display: grid;
+      gap: 4px;
+    }
+
+    .metric-label {
+      font-size: 11px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .metric-value {
+      font-size: 18px;
+      font-weight: 700;
+      font-family: "SFMono-Regular", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      color: var(--text-primary);
+    }
+
+    .metric-sub {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .service-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .service-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(18, 22, 24, 0.7);
+    }
+
+    .service-name {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .service-meta {
+      font-size: 11px;
+      color: var(--text-secondary);
+      font-family: "SFMono-Regular", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    .service-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--text-secondary);
+      box-shadow: 0 0 10px rgba(45, 212, 191, 0.08);
+    }
+
+    .service-item.online {
+      border-color: rgba(16, 185, 129, 0.5);
+    }
+
+    .service-item.online .service-dot {
+      background: var(--good);
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+    }
+
+    .service-item.offline {
+      border-color: rgba(239, 68, 68, 0.4);
+    }
+
+    .service-item.offline .service-dot {
+      background: var(--bad);
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.35);
+    }
+
+    .config-grid {
+      display: grid;
+      gap: 8px;
+    }
+
+    .config-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(30, 37, 48, 0.6);
+    }
+
+    .config-row:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .config-label {
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .config-value {
+      font-family: "SFMono-Regular", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      color: var(--text-primary);
+    }
+
+    .activity-log {
+      background: #0b0f14;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      max-height: 220px;
+      overflow: auto;
+      font-family: "SFMono-Regular", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 11px;
+      line-height: 1.4;
+      display: grid;
+      gap: 6px;
+    }
+
+    .log-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      color: var(--text-secondary);
+    }
+
+    .log-time {
+      color: var(--accent);
+      min-width: 70px;
+    }
+
+    .log-level {
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .log-level.warn {
+      color: var(--warn);
+    }
+
+    .log-level.error {
+      color: var(--bad);
+    }
+
+    .log-message {
+      color: var(--text-primary);
+    }
+
+    .log-empty {
+      color: var(--text-secondary);
+      text-align: center;
+      padding: 18px 0;
+    }
+
+    .sitrep-actions {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .sitrep-btn {
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg-panel);
+      color: var(--text-primary);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: border-color 0.15s ease, color 0.15s ease;
+    }
+
+    .sitrep-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .sitrep-btn.danger {
+      border-color: rgba(239, 68, 68, 0.5);
+      color: #ef4444;
+    }
+
+    .sitrep-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .heartbeat {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .heartbeat-dot {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--text-secondary);
+      box-shadow: none;
+    }
+
+    .heartbeat-dot.active {
+      background: var(--accent);
+      box-shadow: 0 0 18px var(--accent-dim);
+      animation: heartbeatPulse 1.6s ease-in-out infinite;
+    }
+
+    @keyframes heartbeatPulse {
+      0% { transform: scale(0.9); opacity: 0.65; }
+      50% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(0.9); opacity: 0.65; }
+    }
+
     /* Responsive */
     @media (max-width: 700px) {
       .grid {
         grid-template-columns: 1fr;
+      }
+
+      .sitrep-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .sitrep-summary {
+        justify-items: start;
+        width: 100%;
       }
     }
   </style>
@@ -678,7 +1074,9 @@
   <!-- Header -->
   <div class="header">
     <div class="header-left">
-      <div class="logo">SB3</div>
+      <button class="logo" id="logo-toggle" type="button" aria-pressed="false" title="Open situation report">
+        SB3
+      </button>
     </div>
     <div class="last-hit-group">
       <button class="last-hit-btn" id="last-hit-airband" type="button">
@@ -695,9 +1093,10 @@
     </div>
   </div>
 
-  <!-- Main Content -->
-  <div class="main">
-    <div class="grid">
+  <div class="view-stack">
+    <!-- Main Content -->
+    <div class="main view view-main">
+      <div class="grid">
 
       <!-- Row 1: Controls + Profiles -->
       <div class="widget">
@@ -901,6 +1300,223 @@
         </div>
       </div>
 
+      </div>
+    </div>
+
+    <!-- Sitrep -->
+    <div class="sitrep view view-sitrep hidden" aria-live="polite">
+      <div class="sitrep-header">
+        <div>
+          <div class="sitrep-eyebrow">Situation Report</div>
+          <div class="sitrep-headline">SB3 Operations Console</div>
+          <div class="sitrep-meta">Updated <span id="sitrep-updated">--</span> | Session <span id="sitrep-session">--</span></div>
+        </div>
+        <div class="sitrep-summary">
+          <div class="sitrep-chip" id="sitrep-connection">Core link --</div>
+          <div class="sitrep-chip" id="sitrep-stream">Audio stream --</div>
+        </div>
+      </div>
+
+      <div class="sitrep-grid">
+        <div class="sitrep-card">
+          <div class="sitrep-card-title">Operational Metrics</div>
+          <div class="metric-grid">
+            <div class="metric-item">
+              <div class="metric-label">Hit Rate/hr</div>
+              <div class="metric-value" id="sitrep-hit-rate">--</div>
+              <div class="metric-sub">Session hits: <span id="sitrep-session-hits">0</span></div>
+            </div>
+            <div class="metric-item">
+              <div class="metric-label">Last Hit</div>
+              <div class="metric-value" id="sitrep-last-hit">--</div>
+              <div class="metric-sub">Airband: <span id="sitrep-last-airband">--</span></div>
+            </div>
+            <div class="metric-item">
+              <div class="metric-label">Active Target</div>
+              <div class="metric-value" id="sitrep-active-target">--</div>
+              <div class="metric-sub">Mode: <span id="sitrep-tune">--</span></div>
+            </div>
+            <div class="metric-item">
+              <div class="metric-label">Hold Status</div>
+              <div class="metric-value" id="sitrep-hold">--</div>
+              <div class="metric-sub">Ground: <span id="sitrep-last-ground">--</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sitrep-card">
+          <div class="sitrep-card-title">Service + Microservice Health</div>
+          <div class="service-list">
+            <div class="service-item" data-service="api">
+              <div>
+                <div class="service-name">API Core</div>
+                <div class="service-meta">Status: <span id="service-api">--</span></div>
+              </div>
+              <span class="service-dot"></span>
+            </div>
+            <div class="service-item" data-service="sse">
+              <div>
+                <div class="service-name">SSE Stream</div>
+                <div class="service-meta">Status: <span id="service-sse">--</span></div>
+              </div>
+              <span class="service-dot"></span>
+            </div>
+            <div class="service-item" data-service="airband">
+              <div>
+                <div class="service-name">RTL-Airband</div>
+                <div class="service-meta">Status: <span id="service-airband">--</span></div>
+              </div>
+              <span class="service-dot"></span>
+            </div>
+            <div class="service-item" data-service="ground">
+              <div>
+                <div class="service-name">RTL-Ground</div>
+                <div class="service-meta">Status: <span id="service-ground">--</span></div>
+              </div>
+              <span class="service-dot"></span>
+            </div>
+            <div class="service-item" data-service="icecast">
+              <div>
+                <div class="service-name">Icecast Audio</div>
+                <div class="service-meta">Status: <span id="service-icecast">--</span></div>
+              </div>
+              <span class="service-dot"></span>
+            </div>
+            <div class="service-item" data-service="vlc">
+              <div>
+                <div class="service-name">VLC Playback</div>
+                <div class="service-meta">Status: <span id="service-vlc">--</span></div>
+              </div>
+              <span class="service-dot"></span>
+            </div>
+            <div class="service-item" data-service="adsb">
+              <div>
+                <div class="service-name">ADS-B Panel</div>
+                <div class="service-meta">Status: <span id="service-adsb">--</span></div>
+              </div>
+              <span class="service-dot"></span>
+            </div>
+          </div>
+          <div class="sitrep-actions">
+            <button class="sitrep-btn" id="btn-restart-airband" type="button">Restart Airband</button>
+            <button class="sitrep-btn" id="btn-restart-ground" type="button">Restart Ground</button>
+            <button class="sitrep-btn" id="btn-restart-icecast" type="button">Restart Icecast</button>
+            <button class="sitrep-btn" id="btn-restart-keepalive" type="button">Restart Keepalive</button>
+            <button class="sitrep-btn danger" id="btn-restart-ui" type="button">Restart UI</button>
+          </div>
+        </div>
+
+        <div class="sitrep-card">
+          <div class="sitrep-card-title">System Telemetry</div>
+          <div class="config-grid">
+            <div class="config-row">
+              <span class="config-label">CPU Temp</span>
+              <span class="config-value" id="sitrep-cpu-temp">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">GPU Temp</span>
+              <span class="config-value" id="sitrep-gpu-temp">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">CPU Usage</span>
+              <span class="config-value" id="sitrep-cpu-usage">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Uptime</span>
+              <span class="config-value" id="sitrep-uptime">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Net RX</span>
+              <span class="config-value" id="sitrep-net-rx">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Net TX</span>
+              <span class="config-value" id="sitrep-net-tx">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">RX Rate</span>
+              <span class="config-value" id="sitrep-net-rx-rate">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">TX Rate</span>
+              <span class="config-value" id="sitrep-net-tx-rate">--</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sitrep-card">
+          <div class="sitrep-card-title">Signal Pipeline</div>
+          <div class="config-grid">
+            <div class="config-row">
+              <span class="config-label">Airband Gain</span>
+              <span class="config-value" id="sitrep-gain-airband">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Ground Gain</span>
+              <span class="config-value" id="sitrep-gain-ground">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Airband Squelch</span>
+              <span class="config-value" id="sitrep-squelch-airband">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Ground Squelch</span>
+              <span class="config-value" id="sitrep-squelch-ground">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Airband Filter</span>
+              <span class="config-value" id="sitrep-filter-airband">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Ground Filter</span>
+              <span class="config-value" id="sitrep-filter-ground">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Airband Heartbeat</span>
+              <span class="config-value heartbeat">
+                <span class="heartbeat-dot" id="sitrep-airband-dot"></span>
+                <span id="sitrep-airband-heartbeat">--</span>
+              </span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Ground Heartbeat</span>
+              <span class="config-value heartbeat">
+                <span class="heartbeat-dot" id="sitrep-ground-dot"></span>
+                <span id="sitrep-ground-heartbeat">--</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sitrep-card">
+          <div class="sitrep-card-title">Profiles + Routing</div>
+          <div class="config-grid">
+            <div class="config-row">
+              <span class="config-label">Airband Profile</span>
+              <span class="config-value" id="sitrep-airband-profile">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Ground Profile</span>
+              <span class="config-value" id="sitrep-ground-profile">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Avoids Loaded</span>
+              <span class="config-value" id="sitrep-avoids">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Tune Mode</span>
+              <span class="config-value" id="sitrep-tune-mode">--</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sitrep-card grid-full">
+          <div class="sitrep-card-title">Live Activity Log</div>
+          <div class="activity-log" id="activity-log">
+            <div class="log-empty">Waiting for events...</div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -915,6 +1531,9 @@
       36.4, 37.2, 38.6, 40.2, 42.1, 43.4, 43.9, 44.5, 48.0, 49.6,
     ];
     const DEBOUNCE_MS = 500;
+    const VIEW_FLIP_MS = 480;
+    const MAX_LOG = 120;
+    const LOG_DEDUPE_MS = 4000;
     
     // ============================================
     // STATE
@@ -927,6 +1546,11 @@
       sdr1Active: false,
       sdr2Active: false,
       icecastActive: false,
+      sseConnected: false,
+      adsbLoaded: false,
+      lastStatusTick: null,
+      sdr1LastSeen: null,
+      sdr2LastSeen: null,
       eventSource: null,
       lastHit: '',
       lastHitAirband: '',
@@ -942,10 +1566,13 @@
       applyTimeout: null,
       filterTimeout: null,
       serverTime: null,
+      systemStats: null,
       system: {
         lastNetTs: 0,
         lastRx: 0,
         lastTx: 0,
+        lastRxRate: null,
+        lastTxRate: null,
       },
       vlc: {
         running: false,
@@ -1032,8 +1659,55 @@
       piTime: document.getElementById('pi-time'),
       tabAirband: document.getElementById('tab-airband'),
       tabGround: document.getElementById('tab-ground'),
+      logoToggle: document.getElementById('logo-toggle'),
+      viewMain: document.querySelector('.view-main'),
+      viewSitrep: document.querySelector('.view-sitrep'),
+      sitrepUpdated: document.getElementById('sitrep-updated'),
+      sitrepSession: document.getElementById('sitrep-session'),
+      sitrepHitRate: document.getElementById('sitrep-hit-rate'),
+      sitrepSessionHits: document.getElementById('sitrep-session-hits'),
+      sitrepLastHit: document.getElementById('sitrep-last-hit'),
+      sitrepLastAirband: document.getElementById('sitrep-last-airband'),
+      sitrepLastGround: document.getElementById('sitrep-last-ground'),
+      sitrepActiveTarget: document.getElementById('sitrep-active-target'),
+      sitrepTune: document.getElementById('sitrep-tune'),
+      sitrepHold: document.getElementById('sitrep-hold'),
+      sitrepAirbandProfile: document.getElementById('sitrep-airband-profile'),
+      sitrepGroundProfile: document.getElementById('sitrep-ground-profile'),
+      sitrepGainAirband: document.getElementById('sitrep-gain-airband'),
+      sitrepGainGround: document.getElementById('sitrep-gain-ground'),
+      sitrepSquelchAirband: document.getElementById('sitrep-squelch-airband'),
+      sitrepSquelchGround: document.getElementById('sitrep-squelch-ground'),
+      sitrepFilterAirband: document.getElementById('sitrep-filter-airband'),
+      sitrepFilterGround: document.getElementById('sitrep-filter-ground'),
+      sitrepAirbandHeartbeat: document.getElementById('sitrep-airband-heartbeat'),
+      sitrepGroundHeartbeat: document.getElementById('sitrep-ground-heartbeat'),
+      sitrepAirbandDot: document.getElementById('sitrep-airband-dot'),
+      sitrepGroundDot: document.getElementById('sitrep-ground-dot'),
+      sitrepAvoids: document.getElementById('sitrep-avoids'),
+      sitrepTuneMode: document.getElementById('sitrep-tune-mode'),
+      sitrepConnection: document.getElementById('sitrep-connection'),
+      sitrepStream: document.getElementById('sitrep-stream'),
+      sitrepCpuTemp: document.getElementById('sitrep-cpu-temp'),
+      sitrepGpuTemp: document.getElementById('sitrep-gpu-temp'),
+      sitrepCpuUsage: document.getElementById('sitrep-cpu-usage'),
+      sitrepUptime: document.getElementById('sitrep-uptime'),
+      sitrepNetRx: document.getElementById('sitrep-net-rx'),
+      sitrepNetTx: document.getElementById('sitrep-net-tx'),
+      sitrepNetRxRate: document.getElementById('sitrep-net-rx-rate'),
+      sitrepNetTxRate: document.getElementById('sitrep-net-tx-rate'),
+      activityLog: document.getElementById('activity-log'),
+      btnRestartAirband: document.getElementById('btn-restart-airband'),
+      btnRestartGround: document.getElementById('btn-restart-ground'),
+      btnRestartIcecast: document.getElementById('btn-restart-icecast'),
+      btnRestartKeepalive: document.getElementById('btn-restart-keepalive'),
+      btnRestartUi: document.getElementById('btn-restart-ui'),
       btnReconnect: null,
     };
+
+    const activityLog = [];
+    const logDedupe = new Map();
+    let currentView = 'main';
     
     // ============================================
     // COLLAPSIBLE WIDGETS
@@ -1097,9 +1771,11 @@
 
     function setVlcButtonState(running) {
       state.vlc.running = !!running;
-      if (!els.btnPlay) return;
-      els.btnPlay.textContent = running ? 'Stop' : 'Play';
-      els.btnPlay.dataset.vlcState = running ? 'running' : 'stopped';
+      if (els.btnPlay) {
+        els.btnPlay.textContent = running ? 'Stop' : 'Play';
+        els.btnPlay.dataset.vlcState = running ? 'running' : 'stopped';
+      }
+      updateSitrep();
     }
 
     async function refreshVlcStatus() {
@@ -1123,6 +1799,7 @@
         const res = await postAPI('/api/vlc', { action });
         if (res && res.ok) {
           setVlcButtonState(action === 'start');
+          logActivity(`Audio playback ${action === 'start' ? 'started' : 'stopped'}`, 'info', `vlc-${action}`);
         } else {
           console.error('VLC action failed:', res);
         }
@@ -1258,6 +1935,7 @@
       els.lastHitGroundValue.textContent = groundDisplay || '--';
       els.lastHitAirband.classList.toggle('holding', Boolean(state.hold.airband));
       els.lastHitGround.classList.toggle('holding', Boolean(state.hold.ground));
+      updateSitrep();
     }
 
     function getDisplayForTarget(target) {
@@ -1297,6 +1975,7 @@
         els.filterValue.textContent = t.filter;
       }
       els.filterApplied.textContent = t.filter + ' Hz';
+      updateSitrep();
     }
     
     function updateProfiles() {
@@ -1318,6 +1997,7 @@
         `).join('');
       refreshManageCloneOptions();
       refreshFreqEditOptions();
+      updateSitrep();
     }
 
     function setManageStatus(message, isError=false) {
@@ -1391,6 +2071,7 @@
         const serverDate = new Date(state.serverTime * 1000);
         els.piTime.textContent = serverDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
       }
+      updateSitrep();
     }
     
     function formatFreq(freq) {
@@ -1433,8 +2114,291 @@
       return parts.join(' ');
     }
 
+    function formatDurationCompact(ms) {
+      if (ms === null || ms === undefined || ms < 0) return '--';
+      const totalSec = Math.floor(ms / 1000);
+      const hours = Math.floor(totalSec / 3600);
+      const minutes = Math.floor((totalSec % 3600) / 60);
+      const seconds = totalSec % 60;
+      if (hours > 0) return `${hours}h ${minutes}m`;
+      if (minutes > 0) return `${minutes}m ${seconds}s`;
+      return `${seconds}s`;
+    }
+
+    function getProfileLabel(target, id) {
+      if (!id) return '--';
+      const profiles = state[target]?.profiles || [];
+      const match = profiles.find(p => p.id === id);
+      return match ? match.label : id;
+    }
+
+    function setServiceStatus(key, ok, detail) {
+      const row = document.querySelector(`[data-service="${key}"]`);
+      const meta = document.getElementById(`service-${key}`);
+      if (!row || !meta) return;
+      row.classList.toggle('online', ok);
+      row.classList.toggle('offline', !ok);
+      meta.textContent = detail;
+    }
+
+    function updateSitrep() {
+      if (!els.sitrepUpdated) return;
+      const updated = state.serverTime ? new Date(state.serverTime * 1000) : new Date();
+      els.sitrepUpdated.textContent = updated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+      const sessionMs = Date.now() - state.sessionStart;
+      els.sitrepSession.textContent = formatDurationCompact(sessionMs);
+
+      const elapsed = sessionMs / 3600000;
+      let rate = '--';
+      if (elapsed > 0.01 && state.sessionHits > 0) {
+        rate = Math.round(state.sessionHits / elapsed);
+      }
+      if (els.sitrepHitRate) els.sitrepHitRate.textContent = rate;
+      if (els.sitrepSessionHits) els.sitrepSessionHits.textContent = state.sessionHits.toString();
+
+      if (els.sitrepLastHit) els.sitrepLastHit.textContent = getLiveDisplayFreq();
+      if (els.sitrepLastAirband) {
+        els.sitrepLastAirband.textContent = state.lastHitAirband ? `${formatFreq(state.lastHitAirband)} MHz` : '--';
+      }
+      if (els.sitrepLastGround) {
+        els.sitrepLastGround.textContent = state.lastHitGround ? `${formatFreq(state.lastHitGround)} MHz` : '--';
+      }
+
+      if (els.sitrepActiveTarget) els.sitrepActiveTarget.textContent = activeTarget.toUpperCase();
+      const tuneText = state.tuned && state.tunedFreq ? `${formatFreq(state.tunedFreq)} MHz` : 'Scan';
+      if (els.sitrepTune) els.sitrepTune.textContent = tuneText;
+
+      const holdAir = state.hold.airband ? state.hold.airband : '--';
+      const holdGround = state.hold.ground ? state.hold.ground : '--';
+      if (els.sitrepHold) els.sitrepHold.textContent = `AIR ${holdAir} / GND ${holdGround}`;
+
+      if (els.sitrepAirbandProfile) {
+        els.sitrepAirbandProfile.textContent = getProfileLabel('airband', state.airband.currentProfile);
+      }
+      if (els.sitrepGroundProfile) {
+        els.sitrepGroundProfile.textContent = getProfileLabel('ground', state.ground.currentProfile);
+      }
+
+      const avoidCount = (state.airband.avoids || []).length + (state.ground.avoids || []).length;
+      if (els.sitrepAvoids) els.sitrepAvoids.textContent = avoidCount.toString();
+
+      if (els.sitrepGainAirband) {
+        els.sitrepGainAirband.textContent = Number.isFinite(state.airband.gain) ? `${state.airband.gain.toFixed(1)} dB` : '--';
+      }
+      if (els.sitrepGainGround) {
+        els.sitrepGainGround.textContent = Number.isFinite(state.ground.gain) ? `${state.ground.gain.toFixed(1)} dB` : '--';
+      }
+      if (els.sitrepSquelchAirband) {
+        els.sitrepSquelchAirband.textContent = Number.isFinite(state.airband.squelch_dbfs) ? `${Math.round(state.airband.squelch_dbfs)} dBFS` : '--';
+      }
+      if (els.sitrepSquelchGround) {
+        els.sitrepSquelchGround.textContent = Number.isFinite(state.ground.squelch_dbfs) ? `${Math.round(state.ground.squelch_dbfs)} dBFS` : '--';
+      }
+      if (els.sitrepFilterAirband) {
+        els.sitrepFilterAirband.textContent = Number.isFinite(state.airband.filter) ? `${state.airband.filter} Hz` : '--';
+      }
+      if (els.sitrepFilterGround) {
+        els.sitrepFilterGround.textContent = Number.isFinite(state.ground.filter) ? `${state.ground.filter} Hz` : '--';
+      }
+
+      const now = Date.now();
+      const airbandDelta = state.sdr1LastSeen ? (now - state.sdr1LastSeen) : null;
+      const groundDelta = state.sdr2LastSeen ? (now - state.sdr2LastSeen) : null;
+      const airbandAge = state.sdr1LastSeen ? formatDurationCompact(airbandDelta) : '--';
+      const groundAge = state.sdr2LastSeen ? formatDurationCompact(groundDelta) : '--';
+      if (els.sitrepAirbandHeartbeat) {
+        if (state.sdr1Active) {
+          if (airbandDelta !== null && airbandDelta < 1500) {
+            els.sitrepAirbandHeartbeat.textContent = 'active • now';
+          } else {
+            els.sitrepAirbandHeartbeat.textContent = state.sdr1LastSeen ? `active • ${airbandAge} ago` : 'active';
+          }
+        } else {
+          els.sitrepAirbandHeartbeat.textContent = state.sdr1LastSeen ? `last ${airbandAge} ago` : '--';
+        }
+      }
+      if (els.sitrepAirbandDot) {
+        els.sitrepAirbandDot.classList.toggle('active', Boolean(state.sdr1Active));
+      }
+      if (els.sitrepGroundHeartbeat) {
+        if (state.sdr2Active) {
+          if (groundDelta !== null && groundDelta < 1500) {
+            els.sitrepGroundHeartbeat.textContent = 'active • now';
+          } else {
+            els.sitrepGroundHeartbeat.textContent = state.sdr2LastSeen ? `active • ${groundAge} ago` : 'active';
+          }
+        } else {
+          els.sitrepGroundHeartbeat.textContent = state.sdr2LastSeen ? `last ${groundAge} ago` : '--';
+        }
+      }
+      if (els.sitrepGroundDot) {
+        els.sitrepGroundDot.classList.toggle('active', Boolean(state.sdr2Active));
+      }
+
+      const tuneMode = state.tuned ? 'Direct Tune' : (state.hold.airband || state.hold.ground ? 'Hold' : 'Scan');
+      if (els.sitrepTuneMode) els.sitrepTuneMode.textContent = tuneMode;
+
+      if (els.sitrepConnection) {
+        const ok = Boolean(state.connected);
+        els.sitrepConnection.textContent = ok ? 'Core link online' : 'Core link offline';
+        els.sitrepConnection.classList.toggle('good', ok);
+        els.sitrepConnection.classList.toggle('bad', !ok);
+      }
+
+      if (els.sitrepStream) {
+        const ok = Boolean(state.icecastActive);
+        els.sitrepStream.textContent = ok ? 'Audio stream online' : 'Audio stream offline';
+        els.sitrepStream.classList.toggle('good', ok);
+        els.sitrepStream.classList.toggle('bad', !ok);
+      }
+
+      setServiceStatus('api', Boolean(state.connected), state.connected ? 'online' : 'offline');
+      setServiceStatus('sse', Boolean(state.sseConnected), state.sseConnected ? 'streaming' : 'down');
+      setServiceStatus('airband', Boolean(state.sdr1Active), state.sdr1Active ? 'scanning' : 'idle');
+      setServiceStatus('ground', Boolean(state.sdr2Active), state.sdr2Active ? 'scanning' : 'idle');
+      setServiceStatus('icecast', Boolean(state.icecastActive), state.icecastActive ? 'serving' : 'offline');
+      setServiceStatus('vlc', Boolean(state.vlc.running), state.vlc.running ? 'playing' : 'stopped');
+      setServiceStatus('adsb', Boolean(state.adsbLoaded), state.adsbLoaded ? 'linked' : 'pending');
+
+      const hasStats = Boolean(state.systemStats);
+      const stats = state.systemStats || {};
+      const cpuF = Number.isFinite(stats.cpu_temp_c) ? (stats.cpu_temp_c * 9 / 5 + 32) : null;
+      const gpuF = Number.isFinite(stats.gpu_temp_c) ? (stats.gpu_temp_c * 9 / 5 + 32) : null;
+      if (els.sitrepCpuTemp) {
+        els.sitrepCpuTemp.textContent = Number.isFinite(cpuF) ? `${cpuF.toFixed(1)}°F` : '--';
+      }
+      if (els.sitrepGpuTemp) {
+        els.sitrepGpuTemp.textContent = Number.isFinite(gpuF) ? `${gpuF.toFixed(1)}°F` : '--';
+      }
+      if (els.sitrepCpuUsage) {
+        els.sitrepCpuUsage.textContent = Number.isFinite(stats.cpu_usage) ? `${stats.cpu_usage.toFixed(0)}%` : '--';
+      }
+      if (els.sitrepUptime) {
+        els.sitrepUptime.textContent = Number.isFinite(stats.uptime_s) ? formatUptime(stats.uptime_s) : '--';
+      }
+      if (els.sitrepNetRx) {
+        els.sitrepNetRx.textContent = hasStats ? formatBytes(stats.net?.rx_bytes || 0) : '--';
+      }
+      if (els.sitrepNetTx) {
+        els.sitrepNetTx.textContent = hasStats ? formatBytes(stats.net?.tx_bytes || 0) : '--';
+      }
+      if (els.sitrepNetRxRate) {
+        els.sitrepNetRxRate.textContent = Number.isFinite(state.system.lastRxRate) ? formatRate(state.system.lastRxRate) : '--';
+      }
+      if (els.sitrepNetTxRate) {
+        els.sitrepNetTxRate.textContent = Number.isFinite(state.system.lastTxRate) ? formatRate(state.system.lastTxRate) : '--';
+      }
+    }
+
+    function renderActivityLog() {
+      if (!els.activityLog) return;
+      if (!activityLog.length) {
+        els.activityLog.innerHTML = '<div class="log-empty">Waiting for events...</div>';
+        return;
+      }
+      els.activityLog.innerHTML = '';
+      activityLog.forEach(entry => {
+        const row = document.createElement('div');
+        row.className = 'log-row';
+
+        const time = document.createElement('span');
+        time.className = 'log-time';
+        time.textContent = entry.time;
+
+        const level = document.createElement('span');
+        level.className = `log-level ${entry.level}`;
+        level.textContent = entry.level.toUpperCase();
+
+        const msg = document.createElement('span');
+        msg.className = 'log-message';
+        msg.textContent = entry.message;
+
+        row.appendChild(time);
+        row.appendChild(level);
+        row.appendChild(msg);
+        els.activityLog.appendChild(row);
+      });
+    }
+
+    function logActivity(message, level = 'info', key = null) {
+      if (!els.activityLog) return;
+      const now = Date.now();
+      if (key) {
+        const last = logDedupe.get(key) || 0;
+        if (now - last < LOG_DEDUPE_MS) return;
+        logDedupe.set(key, now);
+      }
+      const stamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+      activityLog.unshift({ time: stamp, level, message });
+      if (activityLog.length > MAX_LOG) {
+        activityLog.pop();
+      }
+      renderActivityLog();
+    }
+
+    async function restartService(target, label) {
+      if (!confirm(`Restart ${label}?`)) return;
+      const btnMap = {
+        airband: els.btnRestartAirband,
+        ground: els.btnRestartGround,
+        icecast: els.btnRestartIcecast,
+        keepalive: els.btnRestartKeepalive,
+        ui: els.btnRestartUi,
+      };
+      const btn = btnMap[target];
+      if (btn) {
+        btn.disabled = true;
+      }
+      try {
+        const res = await postAPI('/api/restart', { target });
+        if (!res || !res.ok) {
+          logActivity(`${label} restart failed`, 'warn', `restart-${target}-fail`);
+        } else {
+          logActivity(`${label} restart issued`, 'info', `restart-${target}`);
+        }
+      } catch (e) {
+        console.error('Restart failed:', e);
+        logActivity(`${label} restart failed`, 'warn', `restart-${target}-error`);
+      } finally {
+        if (btn) {
+          setTimeout(() => { btn.disabled = false; }, 1500);
+        }
+      }
+    }
+
+    function toggleSitrep(force) {
+      if (!els.viewMain || !els.viewSitrep) return;
+      const targetIsSitrep = typeof force === 'boolean' ? force : currentView !== 'sitrep';
+      if (targetIsSitrep && currentView === 'sitrep') return;
+      if (!targetIsSitrep && currentView === 'main') return;
+
+      const incoming = targetIsSitrep ? els.viewSitrep : els.viewMain;
+      const outgoing = targetIsSitrep ? els.viewMain : els.viewSitrep;
+
+      incoming.classList.remove('hidden', 'flip-out');
+      outgoing.classList.remove('flip-in');
+      incoming.classList.add('flip-in');
+      outgoing.classList.add('flip-out');
+
+      setTimeout(() => {
+        outgoing.classList.add('hidden');
+        outgoing.classList.remove('flip-out');
+        incoming.classList.remove('flip-in');
+      }, VIEW_FLIP_MS);
+
+      currentView = targetIsSitrep ? 'sitrep' : 'main';
+      document.body.classList.toggle('sitrep-mode', targetIsSitrep);
+      if (els.logoToggle) {
+        els.logoToggle.setAttribute('aria-pressed', targetIsSitrep ? 'true' : 'false');
+        els.logoToggle.title = targetIsSitrep ? 'Back to SB3 controls' : 'Open situation report';
+      }
+      updateSitrep();
+    }
+
     function updateSystemUI(stats) {
       if (!stats || stats.ok === false) return;
+      state.systemStats = stats;
       if (els.sysUptime) els.sysUptime.textContent = formatUptime(stats.uptime_s);
       if (els.sysUptimeTile) els.sysUptimeTile.textContent = formatUptime(stats.uptime_s);
       const cpuF = Number.isFinite(stats.cpu_temp_c) ? (stats.cpu_temp_c * 9 / 5 + 32) : null;
@@ -1459,6 +2423,8 @@
         if (dt > 0) {
           const rxRate = (rx - state.system.lastRx) / dt;
           const txRate = (tx - state.system.lastTx) / dt;
+          state.system.lastRxRate = rxRate;
+          state.system.lastTxRate = txRate;
           if (els.sysNetRxRate) els.sysNetRxRate.textContent = formatRate(rxRate);
           if (els.sysNetTxRate) els.sysNetTxRate.textContent = formatRate(txRate);
         }
@@ -1466,6 +2432,7 @@
       state.system.lastNetTs = now;
       state.system.lastRx = rx;
       state.system.lastTx = tx;
+      updateSitrep();
     }
     
     function switchTarget(target) {
@@ -1553,10 +2520,12 @@
     async function toggleHoldFor(target) {
       // Release current hold for this target
       if (state.hold[target]) {
+        const label = target === 'airband' ? 'Airband' : 'Ground';
         state.hold[target] = null;
         updateStatus();
         try {
           await postAPI('/api/hold', { target, action: 'stop' });
+          logActivity(`Hold released: ${label}`, 'info', `hold-stop-${target}`);
         } catch (e) {
           console.error('Hold stop failed:', e);
           refresh();
@@ -1572,6 +2541,8 @@
       updateStatus();
       try {
         await postAPI('/api/hold', { target, action: 'start', freq: freqVal });
+        const label = target === 'airband' ? 'Airband' : 'Ground';
+        logActivity(`Hold engaged: ${label} ${state.hold[target]}`, 'info', `hold-start-${target}-${state.hold[target]}`);
       } catch (e) {
         console.error('Hold start failed:', e);
         state.hold[target] = null;
@@ -1650,6 +2621,7 @@
         btn.textContent = 'Tune';
         btn.title = 'Direct tune';
       }
+      updateSitrep();
     }
 
     function onTuneButtonClick() {
@@ -1685,6 +2657,8 @@
         updateStatus();
         updateHitList();
         updateTuneButton();
+        const label = activeTarget === 'airband' ? 'Airband' : 'Ground';
+        logActivity(`Direct tune: ${label} ${state.tunedFreq} MHz`, 'info', `tune-${activeTarget}-${state.tunedFreq}`);
         // Refresh to pick up new config state
         setTimeout(() => {
           refresh();
@@ -1710,6 +2684,8 @@
       state.lastProfile[activeTarget] = id;
       await refresh();
       updateTuneButton();
+      const label = activeTarget === 'airband' ? 'Airband' : 'Ground';
+      logActivity(`Profile set: ${label} ${getProfileLabel(activeTarget, id)}`, 'info', `profile-${activeTarget}-${id}`);
       } catch (e) {
         console.error('Profile switch failed:', e);
       }
@@ -1730,6 +2706,7 @@
     // ============================================
     
     async function refresh() {
+      const wasConnected = state.connected;
       try {
         const [data, profilesData, systemData] = await Promise.all([
           fetchJSON('/api/status'),
@@ -1741,6 +2718,9 @@
         
         state.sdr1Active = data.rtl_active;
         state.sdr2Active = data.ground_active;
+        state.lastStatusTick = Date.now();
+        if (state.sdr1Active) state.sdr1LastSeen = state.lastStatusTick;
+        if (state.sdr2Active) state.sdr2LastSeen = state.lastStatusTick;
         state.icecastActive = data.icecast_active;
         state.lastHit = data.last_hit || data.last_hit_airband || data.last_hit_ground || '';
         state.lastHitAirband = data.last_hit_airband || '';
@@ -1775,6 +2755,9 @@
         state.serverTime = data.server_time;
         
         state.connected = true;
+        if (!wasConnected) {
+          logActivity('API connection restored', 'info', 'api-up');
+        }
         
         updateStatus();
         updateControls();
@@ -1783,6 +2766,9 @@
         updateCounters();
         updateTuneButton();
       } catch (e) {
+        if (wasConnected) {
+          logActivity('API connection lost', 'warn', 'api-down');
+        }
         state.connected = false;
         updateStatus();
         console.error('Refresh failed:', e);
@@ -1793,6 +2779,7 @@
       try {
         const data = await fetchJSON('/api/hits');
         const newHits = data.items || [];
+        const prevTop = state.hits[0]?.time;
         
         // Count new hits for session
         if (state.hits.length > 0 && newHits.length > 0) {
@@ -1805,6 +2792,14 @@
         updateHitList();
         updateCounters();
         updateStatus();
+        if (!state.sseConnected && newHits.length > 0) {
+          const topHit = newHits[0];
+          if (topHit && topHit.time && topHit.time !== prevTop) {
+            const label = `${formatFreq(topHit.freq)} MHz`;
+            const detail = topHit.duration ? ` ${topHit.duration}s` : '';
+            logActivity(`Hit ${label}${detail}`, 'info', `poll-hit-${topHit.time}-${topHit.freq}`);
+          }
+        }
       } catch (e) {
         console.error('Hits refresh failed:', e);
       }
@@ -1818,18 +2813,22 @@
       if (state.eventSource) {
         state.eventSource.close();
       }
+      state.sseConnected = false;
       const es = new EventSource('/api/stream');
       state.eventSource = es;
       
       es.addEventListener('status', (e) => {
         try {
           const data = JSON.parse(e.data);
-          state.sdr1Active = data.rtl_active;
-          state.sdr2Active = data.ground_active;
-          state.icecastActive = data.icecast_active;
-          state.lastHit = data.last_hit || state.lastHit;
-          state.serverTime = data.server_time;
-          state.connected = true;
+        state.sdr1Active = data.rtl_active;
+        state.sdr2Active = data.ground_active;
+        state.icecastActive = data.icecast_active;
+        state.lastHit = data.last_hit || state.lastHit;
+        state.serverTime = data.server_time;
+        state.lastStatusTick = Date.now();
+        if (state.sdr1Active) state.sdr1LastSeen = state.lastStatusTick;
+        if (state.sdr2Active) state.sdr2LastSeen = state.lastStatusTick;
+        state.connected = true;
           updateStatus();
           updateCounters();
         } catch (err) {
@@ -1851,6 +2850,7 @@
           
           if (newTop && newTop !== currentTop) {
             state.sessionHits++;
+            const topHit = newHits[0];
             // Merge: prepend new hits we don't have
             const existingTimes = new Set(state.hits.map(h => h.time + h.freq));
             for (let i = newHits.length - 1; i >= 0; i--) {
@@ -1863,6 +2863,11 @@
             updateHitList();
             updateCounters();
             updateStatus();
+            if (topHit && topHit.freq) {
+              const label = `${formatFreq(topHit.freq)} MHz`;
+              const detail = topHit.duration ? ` ${topHit.duration}s` : '';
+              logActivity(`Hit ${label}${detail}`, 'info', `hit-${topHit.time}-${topHit.freq}`);
+            }
           }
         } catch (err) {
           console.error('SSE hits parse error:', err);
@@ -1870,16 +2875,22 @@
       });
       
       es.onerror = () => {
+        state.sseConnected = false;
         state.connected = false;
         updateStatus();
+        updateSitrep();
+        logActivity('SSE stream disconnected - retrying', 'warn', 'sse-down');
         es.close();
         state.eventSource = null;
         setTimeout(connectSSE, 3000);
       };
       
       es.onopen = () => {
+        state.sseConnected = true;
         state.connected = true;
         updateStatus();
+        updateSitrep();
+        logActivity('SSE stream connected', 'info', 'sse-open');
       };
     }
     
@@ -1922,6 +2933,14 @@
       els.filterSlider.addEventListener('input', onFilterChange);
       els.lastHitAirband.addEventListener('click', () => toggleHoldFor('airband'));
       els.lastHitGround.addEventListener('click', () => toggleHoldFor('ground'));
+      if (els.logoToggle) {
+        els.logoToggle.addEventListener('click', () => toggleSitrep());
+      }
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && currentView === 'sitrep') {
+          toggleSitrep(false);
+        }
+      });
       // Remove Open Squelch button handler, add new handlers
       if (els.btnPlay) {
         els.btnPlay.addEventListener('click', toggleVlcPlayback);
@@ -1933,6 +2952,7 @@
         try {
           await postAPI('/api/avoid', { target: activeTarget });
           await refresh();
+          logActivity(`Avoid added for ${activeTarget}`, 'info', `avoid-${activeTarget}`);
           // Refresh again after 2 seconds to catch the config update
           setTimeout(refresh, 2000);
         } catch (e) {
@@ -1945,6 +2965,7 @@
         try {
           await postAPI('/api/avoid-clear', { target: activeTarget });
           await refresh();
+          logActivity(`Avoids cleared for ${activeTarget}`, 'info', `avoid-clear-${activeTarget}`);
         } catch (e) {
           console.error('Clear avoids failed:', e);
         }
@@ -1953,6 +2974,14 @@
       document.querySelectorAll('button.action').forEach(btn => {
         btn.addEventListener('click', () => setTimeout(() => btn.blur(), 300));
       });
+      const adsbFrame = document.getElementById('adsb-frame');
+      if (adsbFrame) {
+        adsbFrame.addEventListener('load', () => {
+          state.adsbLoaded = true;
+          updateSitrep();
+          logActivity('ADS-B panel linked', 'info', 'adsb');
+        });
+      }
       if (els.manageTargetAirband) {
         els.manageTargetAirband.addEventListener('change', refreshManageCloneOptions);
         els.manageTargetAirband.addEventListener('change', refreshFreqEditOptions);
@@ -2036,6 +3065,21 @@
           refresh();
         });
       }
+      if (els.btnRestartAirband) {
+        els.btnRestartAirband.addEventListener('click', () => restartService('airband', 'Airband'));
+      }
+      if (els.btnRestartGround) {
+        els.btnRestartGround.addEventListener('click', () => restartService('ground', 'Ground'));
+      }
+      if (els.btnRestartIcecast) {
+        els.btnRestartIcecast.addEventListener('click', () => restartService('icecast', 'Icecast'));
+      }
+      if (els.btnRestartKeepalive) {
+        els.btnRestartKeepalive.addEventListener('click', () => restartService('keepalive', 'Keepalive'));
+      }
+      if (els.btnRestartUi) {
+        els.btnRestartUi.addEventListener('click', () => restartService('ui', 'UI'));
+      }
       if (els.freqEditLoad) {
         els.freqEditLoad.addEventListener('click', async () => {
           const id = els.freqEditProfile && els.freqEditProfile.value;
@@ -2072,9 +3116,11 @@
       }
       // Reconnect button removed
       
+      logActivity('SB3 UI initialized', 'info', 'init');
       refresh();
       refreshHits();
       connectSSE();
+      updateSitrep();
       
       // Poll hits more frequently to catch activity
       setInterval(refreshHits, 2000);

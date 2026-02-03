@@ -57,6 +57,7 @@ UNITS = {
     "ground": os.getenv("UNIT_GROUND", "rtl-airband-ground"),
     "icecast": os.getenv("UNIT_ICECAST", "icecast2"),
     "keepalive": os.getenv("UNIT_KEEPALIVE", "icecast-keepalive"),
+    "ui": os.getenv("UNIT_UI", "airband-ui"),
 }
 
 # Mixer Configuration

@@ -7,7 +7,15 @@ import re
 try:
     from .config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, HOLD_STATE_PATH, TUNE_BACKUP_PATH
     from .systemd import (
-        unit_active, stop_rtl, start_rtl, restart_rtl, stop_ground
+        unit_active,
+        stop_rtl,
+        start_rtl,
+        restart_rtl,
+        restart_ground,
+        restart_icecast,
+        restart_keepalive,
+        restart_ui,
+        stop_ground,
     )
     from .profile_config import (
         split_profiles, guess_current_profile, set_profile, write_controls,
@@ -17,7 +25,15 @@ try:
 except ImportError:
     from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, HOLD_STATE_PATH, TUNE_BACKUP_PATH
     from ui.systemd import (
-        unit_active, stop_rtl, start_rtl, restart_rtl, stop_ground
+        unit_active,
+        stop_rtl,
+        start_rtl,
+        restart_rtl,
+        restart_ground,
+        restart_icecast,
+        restart_keepalive,
+        restart_ui,
+        stop_ground,
     )
     from ui.profile_config import (
         split_profiles, guess_current_profile, set_profile, write_controls,
@@ -223,9 +239,21 @@ def action_apply_filter(target: str, cutoff_hz: float) -> dict:
 def action_restart(target: str) -> dict:
     """Action: Restart a scanner."""
     if target == "ground":
-        restart_rtl()
+        restart_ground()
     elif target == "airband":
         restart_rtl()
+    elif target == "icecast":
+        restart_icecast()
+    elif target == "keepalive":
+        restart_keepalive()
+    elif target == "ui":
+        restart_ui()
+    elif target == "all":
+        restart_rtl()
+        restart_ground()
+        restart_icecast()
+        restart_keepalive()
+        restart_ui()
     else:
         return {"status": 400, "payload": {"ok": False, "error": "unknown target"}}
     return {"status": 200, "payload": {"ok": True}}
