@@ -575,16 +575,16 @@ SprontPi runs two RTL-SDR dongles and two scanner profiles in a single `rtl-airb
 
 ### How It Works
 
-The `combined_config.py` script generates `/usr/local/etc/rtl_airband_combined.conf` from:
-- Active Airband profile: symlink target of `/usr/local/etc/rtl_airband.conf`
-- Active Ground profile: `/usr/local/etc/rtl_airband_ground.conf`
+The `combined_config.py` script generates `${COMBINED_CONFIG_PATH}` (defaults to `/usr/local/etc/rtl_airband_combined.conf`) from:
+- Active Airband profile: symlink target of `${CONFIG_SYMLINK}` (defaults to `/usr/local/etc/rtl_airband.conf`)
+- Active Ground profile: `${GROUND_CONFIG_PATH}` (defaults to `/usr/local/etc/rtl_airband_ground.conf`)
 
 **Generation steps**:
 1. Extract device configs from airband + ground profiles
 2. Enforce device indexes (0, 1) and serials to prevent collisions
 3. Replace per-channel outputs with mixer references
 4. Define single Icecast output at mixer (16 kbps mono)
-5. Write atomically to `/usr/local/etc/rtl_airband_combined.conf`
+5. Write atomically to `${COMBINED_CONFIG_PATH}`
 
 **Bitrate override**: All profiles' bitrate is overridden to **16 kbps** for low-latency streaming (less buffering = faster audio startup).
 
@@ -592,7 +592,7 @@ The `combined_config.py` script generates `/usr/local/etc/rtl_airband_combined.c
 
 When user selects new profile:
 
-1. **Write config** to symlink target (`/usr/local/etc/rtl_airband.conf`)
+1. **Write config** to symlink target (`${CONFIG_SYMLINK}`)
 2. **Regenerate combined config** via `build-combined-config.py`
 3. **Check if changed**: Only restart rtl-airband if combined config differs from previous version
 4. **Avoid unnecessary restarts**: If frequency list is identical, skip restart entirely
@@ -612,6 +612,8 @@ The `rtl-airband.service` runs:
 - Repo path on SprontPi: `/home/willminkoff/scannerproject`
 - User: `willminkoff` (prompt shows `willminkoff@SprontPi`)
 - Avoids summary files: `/home/willminkoff/Desktop/scanner_logs/airband_avoids.txt`, `/home/willminkoff/Desktop/scanner_logs/ground_avoids.txt`
+- Config overrides:
+  - `/etc/airband-ui.conf` (EnvironmentFile) can set `CONFIG_DIR`, `CONFIG_SYMLINK`, `GROUND_CONFIG_PATH`, `COMBINED_CONFIG_PATH`.
 - Deploy commands:
   - `cd /home/willminkoff/scannerproject`
   - `git pull origin main`

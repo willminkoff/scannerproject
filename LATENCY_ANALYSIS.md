@@ -28,7 +28,7 @@ Audio Playback (speaker/headphones)
 - **Typical hardware latency**: **8-17 ms**
 
 ### [2] rtl_airband Processing
-**Current Configuration (from `/usr/local/etc/rtl_airband_combined.conf`):**
+**Current Configuration (from `${COMBINED_CONFIG_PATH}`; defaults to `/usr/local/etc/rtl_airband_combined.conf`):**
 - **Sample Rate**: 8000 Hz (8 kHz audio)
 - **MP3 Bitrate**: 16 kbps
 - **Encoder Frame Size**: MP3 frames = 1152 samples @ 8kHz = **144 ms per frame**
@@ -167,8 +167,7 @@ ssh willminkoff@sprontpi.local 'journalctl -u rtl-airband -f'
 ```
 
 ## Files Referenced
-- Config: `/usr/local/etc/rtl_airband_combined.conf` (bitrate: 16 kbps)
+- Config: `${COMBINED_CONFIG_PATH}` (defaults to `/usr/local/etc/rtl_airband_combined.conf`, bitrate: 16 kbps)
 - Icecast: `/etc/icecast2/icecast.xml` (queue-size, burst settings)
 - Service: `systemd/rtl-airband.service` (rtl_airband execution)
 - Encoder: rtl_airband MP3 encoder (libmp3lame, frame-based)
-
