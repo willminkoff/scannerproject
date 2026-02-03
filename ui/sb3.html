@@ -991,6 +991,41 @@
       padding: 18px 0;
     }
 
+    .sitrep-actions {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .sitrep-btn {
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg-panel);
+      color: var(--text-primary);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: border-color 0.15s ease, color 0.15s ease;
+    }
+
+    .sitrep-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .sitrep-btn.danger {
+      border-color: rgba(239, 68, 68, 0.5);
+      color: #ef4444;
+    }
+
+    .sitrep-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
     .heartbeat {
       display: inline-flex;
       align-items: center;
@@ -998,8 +1033,8 @@
     }
 
     .heartbeat-dot {
-      width: 8px;
-      height: 8px;
+      width: 24px;
+      height: 24px;
       border-radius: 50%;
       background: var(--text-secondary);
       box-shadow: none;
@@ -1007,7 +1042,7 @@
 
     .heartbeat-dot.active {
       background: var(--accent);
-      box-shadow: 0 0 10px var(--accent-dim);
+      box-shadow: 0 0 18px var(--accent-dim);
       animation: heartbeatPulse 1.6s ease-in-out infinite;
     }
 
@@ -1362,6 +1397,13 @@
               <span class="service-dot"></span>
             </div>
           </div>
+          <div class="sitrep-actions">
+            <button class="sitrep-btn" id="btn-restart-airband" type="button">Restart Airband</button>
+            <button class="sitrep-btn" id="btn-restart-ground" type="button">Restart Ground</button>
+            <button class="sitrep-btn" id="btn-restart-icecast" type="button">Restart Icecast</button>
+            <button class="sitrep-btn" id="btn-restart-keepalive" type="button">Restart Keepalive</button>
+            <button class="sitrep-btn danger" id="btn-restart-ui" type="button">Restart UI</button>
+          </div>
         </div>
 
         <div class="sitrep-card">
@@ -1655,6 +1697,11 @@
       sitrepNetRxRate: document.getElementById('sitrep-net-rx-rate'),
       sitrepNetTxRate: document.getElementById('sitrep-net-tx-rate'),
       activityLog: document.getElementById('activity-log'),
+      btnRestartAirband: document.getElementById('btn-restart-airband'),
+      btnRestartGround: document.getElementById('btn-restart-ground'),
+      btnRestartIcecast: document.getElementById('btn-restart-icecast'),
+      btnRestartKeepalive: document.getElementById('btn-restart-keepalive'),
+      btnRestartUi: document.getElementById('btn-restart-ui'),
       btnReconnect: null,
     };
 
@@ -2156,11 +2203,17 @@
       }
 
       const now = Date.now();
-      const airbandAge = state.sdr1LastSeen ? formatDurationCompact(now - state.sdr1LastSeen) : '--';
-      const groundAge = state.sdr2LastSeen ? formatDurationCompact(now - state.sdr2LastSeen) : '--';
+      const airbandDelta = state.sdr1LastSeen ? (now - state.sdr1LastSeen) : null;
+      const groundDelta = state.sdr2LastSeen ? (now - state.sdr2LastSeen) : null;
+      const airbandAge = state.sdr1LastSeen ? formatDurationCompact(airbandDelta) : '--';
+      const groundAge = state.sdr2LastSeen ? formatDurationCompact(groundDelta) : '--';
       if (els.sitrepAirbandHeartbeat) {
         if (state.sdr1Active) {
-          els.sitrepAirbandHeartbeat.textContent = state.sdr1LastSeen ? `active • ${airbandAge} ago` : 'active';
+          if (airbandDelta !== null && airbandDelta < 1500) {
+            els.sitrepAirbandHeartbeat.textContent = 'active • now';
+          } else {
+            els.sitrepAirbandHeartbeat.textContent = state.sdr1LastSeen ? `active • ${airbandAge} ago` : 'active';
+          }
         } else {
           els.sitrepAirbandHeartbeat.textContent = state.sdr1LastSeen ? `last ${airbandAge} ago` : '--';
         }
@@ -2170,7 +2223,11 @@
       }
       if (els.sitrepGroundHeartbeat) {
         if (state.sdr2Active) {
-          els.sitrepGroundHeartbeat.textContent = state.sdr2LastSeen ? `active • ${groundAge} ago` : 'active';
+          if (groundDelta !== null && groundDelta < 1500) {
+            els.sitrepGroundHeartbeat.textContent = 'active • now';
+          } else {
+            els.sitrepGroundHeartbeat.textContent = state.sdr2LastSeen ? `active • ${groundAge} ago` : 'active';
+          }
         } else {
           els.sitrepGroundHeartbeat.textContent = state.sdr2LastSeen ? `last ${groundAge} ago` : '--';
         }
@@ -2278,6 +2335,36 @@
         activityLog.pop();
       }
       renderActivityLog();
+    }
+
+    async function restartService(target, label) {
+      if (!confirm(`Restart ${label}?`)) return;
+      const btnMap = {
+        airband: els.btnRestartAirband,
+        ground: els.btnRestartGround,
+        icecast: els.btnRestartIcecast,
+        keepalive: els.btnRestartKeepalive,
+        ui: els.btnRestartUi,
+      };
+      const btn = btnMap[target];
+      if (btn) {
+        btn.disabled = true;
+      }
+      try {
+        const res = await postAPI('/api/restart', { target });
+        if (!res || !res.ok) {
+          logActivity(`${label} restart failed`, 'warn', `restart-${target}-fail`);
+        } else {
+          logActivity(`${label} restart issued`, 'info', `restart-${target}`);
+        }
+      } catch (e) {
+        console.error('Restart failed:', e);
+        logActivity(`${label} restart failed`, 'warn', `restart-${target}-error`);
+      } finally {
+        if (btn) {
+          setTimeout(() => { btn.disabled = false; }, 1500);
+        }
+      }
     }
 
     function toggleSitrep(force) {
@@ -2977,6 +3064,21 @@
           setManageStatus('Profile deleted', false);
           refresh();
         });
+      }
+      if (els.btnRestartAirband) {
+        els.btnRestartAirband.addEventListener('click', () => restartService('airband', 'Airband'));
+      }
+      if (els.btnRestartGround) {
+        els.btnRestartGround.addEventListener('click', () => restartService('ground', 'Ground'));
+      }
+      if (els.btnRestartIcecast) {
+        els.btnRestartIcecast.addEventListener('click', () => restartService('icecast', 'Icecast'));
+      }
+      if (els.btnRestartKeepalive) {
+        els.btnRestartKeepalive.addEventListener('click', () => restartService('keepalive', 'Keepalive'));
+      }
+      if (els.btnRestartUi) {
+        els.btnRestartUi.addEventListener('click', () => restartService('ui', 'UI'));
       }
       if (els.freqEditLoad) {
         els.freqEditLoad.addEventListener('click', async () => {
