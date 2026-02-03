@@ -195,10 +195,17 @@ def action_set_profile(profile_id: str, target: str) -> dict:
         
         # Only restart if combined config actually changed
         # This avoids unnecessary restarts when frequency lists are identical
+        restart_ok = True
+        restart_error = ""
         if combined_changed:
-            unit_restart()
+            restart_ok, restart_error = unit_restart()
         
-        return {"status": 200, "payload": {"ok": True, "changed": changed or combined_changed}}
+        payload = {"ok": True, "changed": changed or combined_changed}
+        if combined_changed:
+            payload["restart_ok"] = restart_ok
+            if not restart_ok and restart_error:
+                payload["restart_error"] = restart_error
+        return {"status": 200, "payload": payload}
     
     # No profile change requested
     return {"status": 200, "payload": {"ok": True, "changed": False}}
@@ -218,9 +225,16 @@ def action_apply_controls(target: str, gain: float, squelch_mode: str, squelch_s
         changed = changed or combined_changed
     except Exception as e:
         return {"status": 500, "payload": {"ok": False, "error": str(e)}}
+    restart_ok = True
+    restart_error = ""
     if changed:
-        restart_rtl()
-    return {"status": 200, "payload": {"ok": True, "changed": changed}}
+        restart_ok, restart_error = restart_rtl()
+    payload = {"ok": True, "changed": changed}
+    if changed:
+        payload["restart_ok"] = restart_ok
+        if not restart_ok and restart_error:
+            payload["restart_error"] = restart_error
+    return {"status": 200, "payload": payload}
 
 
 def action_apply_filter(target: str, cutoff_hz: float) -> dict:
@@ -231,32 +245,46 @@ def action_apply_filter(target: str, cutoff_hz: float) -> dict:
         changed = write_filter(target, cutoff_hz)
     except Exception as e:
         return {"status": 500, "payload": {"ok": False, "error": str(e)}}
+    restart_ok = True
+    restart_error = ""
     if changed:
-        restart_rtl()
-    return {"status": 200, "payload": {"ok": True, "changed": changed}}
+        restart_ok, restart_error = restart_rtl()
+    payload = {"ok": True, "changed": changed}
+    if changed:
+        payload["restart_ok"] = restart_ok
+        if not restart_ok and restart_error:
+            payload["restart_error"] = restart_error
+    return {"status": 200, "payload": payload}
 
 
 def action_restart(target: str) -> dict:
     """Action: Restart a scanner."""
     if target == "ground":
-        restart_ground()
+        ok, err = restart_ground()
     elif target == "airband":
-        restart_rtl()
+        ok, err = restart_rtl()
     elif target == "icecast":
-        restart_icecast()
+        ok, err = restart_icecast()
     elif target == "keepalive":
-        restart_keepalive()
+        ok, err = restart_keepalive()
     elif target == "ui":
-        restart_ui()
+        ok, err = restart_ui()
     elif target == "all":
-        restart_rtl()
-        restart_ground()
-        restart_icecast()
-        restart_keepalive()
-        restart_ui()
+        results = {
+            "airband": restart_rtl(),
+            "ground": restart_ground(),
+            "icecast": restart_icecast(),
+            "keepalive": restart_keepalive(),
+            "ui": restart_ui(),
+        }
+        ok = all(v[0] for v in results.values())
+        err = "; ".join(f"{k}:{v[1]}" for k, v in results.items() if v[1])
     else:
         return {"status": 400, "payload": {"ok": False, "error": "unknown target"}}
-    return {"status": 200, "payload": {"ok": True}}
+    payload = {"ok": bool(ok)}
+    if err:
+        payload["restart_error"] = err
+    return {"status": 200 if ok else 500, "payload": payload}
 
 
 def action_avoid(target: str) -> dict:
@@ -278,8 +306,11 @@ def action_avoid(target: str) -> dict:
     except Exception as e:
         start_rtl()
         return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
-    restart_rtl()
-    return {"status": 200, "payload": {"ok": True, "freq": f"{freq:.4f}"}}
+    restart_ok, restart_error = restart_rtl()
+    payload = {"ok": True, "freq": f"{freq:.4f}", "restart_ok": restart_ok}
+    if not restart_ok and restart_error:
+        payload["restart_error"] = restart_error
+    return {"status": 200, "payload": payload}
 
 
 def action_avoid_clear(target: str) -> dict:
@@ -301,8 +332,11 @@ def action_avoid_clear(target: str) -> dict:
     except Exception as e:
         start_rtl()
         return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
-    restart_rtl()
-    return {"status": 200, "payload": {"ok": True}}
+    restart_ok, restart_error = restart_rtl()
+    payload = {"ok": True, "restart_ok": restart_ok}
+    if not restart_ok and restart_error:
+        payload["restart_error"] = restart_error
+    return {"status": 200, "payload": payload}
 
 
 def _write_text(path: str, text: str) -> None:
@@ -416,8 +450,11 @@ def action_hold_start(target: str, freq) -> dict:
             pass
         return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
 
-    restart_rtl()
-    return {"status": 200, "payload": {"ok": True, "freq": f"{freq_val:.4f}", "target": target}}
+    restart_ok, restart_error = restart_rtl()
+    payload = {"ok": True, "freq": f"{freq_val:.4f}", "target": target, "restart_ok": restart_ok}
+    if not restart_ok and restart_error:
+        payload["restart_error"] = restart_error
+    return {"status": 200, "payload": payload}
 
 
 def action_hold_stop(target: str) -> dict:
@@ -457,8 +494,11 @@ def action_hold_stop(target: str) -> dict:
     except Exception as e:
         return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
 
-    restart_rtl()
-    return {"status": 200, "payload": {"ok": True, "restored": True}}
+    restart_ok, restart_error = restart_rtl()
+    payload = {"ok": True, "restored": True, "restart_ok": restart_ok}
+    if not restart_ok and restart_error:
+        payload["restart_error"] = restart_error
+    return {"status": 200, "payload": payload}
 
 
 def action_tune(target: str, freq) -> dict:
@@ -517,8 +557,11 @@ def action_tune(target: str, freq) -> dict:
     except Exception as e:
         return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
 
-    restart_rtl()
-    return {"status": 200, "payload": {"ok": True, "freq": f"{freq_val:.4f}", "target": target}}
+    restart_ok, restart_error = restart_rtl()
+    payload = {"ok": True, "freq": f"{freq_val:.4f}", "target": target, "restart_ok": restart_ok}
+    if not restart_ok and restart_error:
+        payload["restart_error"] = restart_error
+    return {"status": 200, "payload": payload}
 
 
 def action_tune_restore(target: str) -> dict:
@@ -557,8 +600,11 @@ def action_tune_restore(target: str) -> dict:
         write_combined_config()
     except Exception as e:
         return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
-    restart_rtl()
-    return {"status": 200, "payload": {"ok": True}}
+    restart_ok, restart_error = restart_rtl()
+    payload = {"ok": True, "restart_ok": restart_ok}
+    if not restart_ok and restart_error:
+        payload["restart_error"] = restart_error
+    return {"status": 200, "payload": payload}
 
 
 def execute_action(action: dict) -> dict:

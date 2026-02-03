@@ -36,7 +36,7 @@ try:
         read_hit_list_cached
     )
     from .icecast import icecast_up, read_last_hit_from_icecast
-    from .systemd import unit_active, unit_exists, restart_rtl
+    from .systemd import unit_active, unit_exists, restart_rtl, unit_active_enter_epoch
     from .server_workers import enqueue_action, enqueue_apply
     from .diagnostic import write_diagnostic_log
     from .spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
@@ -57,7 +57,7 @@ except ImportError:
         read_hit_list_cached
     )
     from ui.icecast import icecast_up, read_last_hit_from_icecast
-    from ui.systemd import unit_active, unit_exists, restart_rtl
+    from ui.systemd import unit_active, unit_exists, restart_rtl, unit_active_enter_epoch
     from ui.server_workers import enqueue_action, enqueue_apply
     from ui.diagnostic import write_diagnostic_log
     from ui.spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
@@ -176,6 +176,8 @@ class Handler(BaseHTTPRequestHandler):
 
         if p == "/api/status":
             conf_path = read_active_config_path()
+            ground_conf_path = os.path.realpath(GROUND_CONFIG_PATH)
+            combined_conf_path = COMBINED_CONFIG_PATH
             airband_gain, airband_snr, airband_dbfs, airband_mode = parse_controls(conf_path)
             ground_gain, ground_snr, ground_dbfs, ground_mode = parse_controls(GROUND_CONFIG_PATH)
             airband_filter = parse_filter("airband")
@@ -196,10 +198,20 @@ class Handler(BaseHTTPRequestHandler):
             prof_payload, profiles_airband, profiles_ground = split_profiles()
             missing = [p["path"] for p in prof_payload if not p.get("exists")]
             profile_airband = guess_current_profile(conf_path, [(p["id"], p["label"], p["path"]) for p in profiles_airband])
-            profile_ground = guess_current_profile(os.path.realpath(GROUND_CONFIG_PATH), [(p["id"], p["label"], p["path"]) for p in profiles_ground])
+            profile_ground = guess_current_profile(ground_conf_path, [(p["id"], p["label"], p["path"]) for p in profiles_ground])
             last_hit_airband = read_last_hit_airband()
             last_hit_ground = read_last_hit_ground()
             icecast_hit = read_last_hit_from_icecast() if ice_ok else ""
+            config_mtimes = {}
+            for key, path in (("airband", conf_path), ("ground", ground_conf_path), ("combined", combined_conf_path)):
+                try:
+                    config_mtimes[key] = os.path.getmtime(path)
+                except Exception:
+                    config_mtimes[key] = None
+            rtl_active_enter = unit_active_enter_epoch(UNITS["rtl"])
+            rtl_restart_required = False
+            if rtl_active_enter and config_mtimes.get("combined"):
+                rtl_restart_required = config_mtimes["combined"] > rtl_active_enter
 
             payload = {
                 "rtl_active": rtl_ok,
@@ -209,11 +221,20 @@ class Handler(BaseHTTPRequestHandler):
                 "ground_unit_active": ground_unit_active,
                 "combined_config_stale": combined_stale,
                 "combined_devices": len(combined_info.get("devices") or []),
+                "combined_devices_detail": combined_info.get("devices") or [],
                 "airband_present": airband_present,
                 "ground_present": ground_present,
                 "icecast_active": ice_ok,
                 "keepalive_active": unit_active(UNITS["keepalive"]),
                 "server_time": time.time(),
+                "rtl_active_enter": rtl_active_enter,
+                "rtl_restart_required": rtl_restart_required,
+                "config_paths": {
+                    "airband": conf_path,
+                    "ground": ground_conf_path,
+                    "combined": combined_conf_path,
+                },
+                "config_mtimes": config_mtimes,
                 "profile_airband": profile_airband,
                 "profile_ground": profile_ground,
                 "profiles_airband": profiles_airband,

@@ -1,5 +1,6 @@
 """System unit control via systemd."""
 import subprocess
+from typing import Tuple
 
 try:
     from .config import UNITS
@@ -25,49 +26,72 @@ def unit_exists(unit: str) -> bool:
     return result.stdout.strip() != "not-found"
 
 
-def restart_rtl():
+def _restart_unit(unit: str) -> Tuple[bool, str]:
+    """Restart a systemd unit and return (ok, error)."""
+    try:
+        result = subprocess.run(
+            ["systemctl", "restart", unit],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+    except Exception as e:
+        return False, str(e)
+    if result.returncode == 0:
+        return True, ""
+    err = (result.stderr or result.stdout or "").strip()
+    if not err:
+        err = f"restart failed (code {result.returncode})"
+    return False, err
+
+
+def unit_active_enter_epoch(unit: str):
+    """Return ActiveEnterTimestampUSec as epoch seconds, or None."""
+    try:
+        result = subprocess.run(
+            ["systemctl", "show", "-p", "ActiveEnterTimestampUSec", "--value", unit],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        return None
+    if result.returncode != 0:
+        return None
+    val = (result.stdout or "").strip()
+    if not val.isdigit():
+        return None
+    try:
+        return int(val) / 1_000_000.0
+    except Exception:
+        return None
+
+
+def restart_rtl() -> Tuple[bool, str]:
     """Restart the rtl-airband scanner."""
-    subprocess.Popen(
-        ["systemctl", "restart", "--no-block", UNITS["rtl"]],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    return _restart_unit(UNITS["rtl"])
 
 
-def restart_ground():
+def restart_ground() -> Tuple[bool, str]:
     """Restart the ground scanner."""
-    subprocess.Popen(
-        ["systemctl", "restart", "--no-block", UNITS["ground"]],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    return _restart_unit(UNITS["ground"])
 
 
-def restart_icecast():
+def restart_icecast() -> Tuple[bool, str]:
     """Restart the Icecast service."""
-    subprocess.Popen(
-        ["systemctl", "restart", "--no-block", UNITS["icecast"]],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    return _restart_unit(UNITS["icecast"])
 
 
-def restart_keepalive():
+def restart_keepalive() -> Tuple[bool, str]:
     """Restart the Icecast keepalive service."""
-    subprocess.Popen(
-        ["systemctl", "restart", "--no-block", UNITS["keepalive"]],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    return _restart_unit(UNITS["keepalive"])
 
 
-def restart_ui():
+def restart_ui() -> Tuple[bool, str]:
     """Restart the UI service."""
-    subprocess.Popen(
-        ["systemctl", "restart", "--no-block", UNITS["ui"]],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    return _restart_unit(UNITS["ui"])
 
 
 def stop_rtl():

@@ -1551,6 +1551,7 @@
       sseConnected: false,
       adsbLoaded: false,
       combinedStale: false,
+      rtlRestartRequired: false,
       groundUnitActive: false,
       lastStatusTick: null,
       sdr1LastSeen: null,
@@ -1981,11 +1982,17 @@
       }
       els.filterApplied.textContent = t.filter + ' Hz';
 
-      const appliedGain = Number.isFinite(t.applied_gain) ? t.applied_gain : t.gain;
-      els.gainApplied.textContent = appliedGain.toFixed(1) + ' dB';
+      if (Number.isFinite(t.applied_gain)) {
+        els.gainApplied.textContent = t.applied_gain.toFixed(1) + ' dB';
+      } else {
+        els.gainApplied.textContent = 'pending';
+      }
       if (els.dbfsApplied) {
-        const appliedDbfs = Number.isFinite(t.applied_squelch_dbfs) ? t.applied_squelch_dbfs : t.squelch_dbfs;
-        els.dbfsApplied.textContent = Math.round(appliedDbfs);
+        if (Number.isFinite(t.applied_squelch_dbfs)) {
+          els.dbfsApplied.textContent = Math.round(t.applied_squelch_dbfs);
+        } else {
+          els.dbfsApplied.textContent = 'pending';
+        }
       }
       updateSitrep();
     }
@@ -2195,21 +2202,21 @@
       const avoidCount = (state.airband.avoids || []).length + (state.ground.avoids || []).length;
       if (els.sitrepAvoids) els.sitrepAvoids.textContent = avoidCount.toString();
 
-      const airbandAppliedGain = Number.isFinite(state.airband.applied_gain) ? state.airband.applied_gain : state.airband.gain;
-      const groundAppliedGain = Number.isFinite(state.ground.applied_gain) ? state.ground.applied_gain : state.ground.gain;
-      const airbandAppliedDbfs = Number.isFinite(state.airband.applied_squelch_dbfs) ? state.airband.applied_squelch_dbfs : state.airband.squelch_dbfs;
-      const groundAppliedDbfs = Number.isFinite(state.ground.applied_squelch_dbfs) ? state.ground.applied_squelch_dbfs : state.ground.squelch_dbfs;
+      const airbandAppliedGain = Number.isFinite(state.airband.applied_gain) ? state.airband.applied_gain : null;
+      const groundAppliedGain = Number.isFinite(state.ground.applied_gain) ? state.ground.applied_gain : null;
+      const airbandAppliedDbfs = Number.isFinite(state.airband.applied_squelch_dbfs) ? state.airband.applied_squelch_dbfs : null;
+      const groundAppliedDbfs = Number.isFinite(state.ground.applied_squelch_dbfs) ? state.ground.applied_squelch_dbfs : null;
       if (els.sitrepGainAirband) {
-        els.sitrepGainAirband.textContent = Number.isFinite(airbandAppliedGain) ? `${airbandAppliedGain.toFixed(1)} dB` : '--';
+        els.sitrepGainAirband.textContent = Number.isFinite(airbandAppliedGain) ? `${airbandAppliedGain.toFixed(1)} dB` : 'pending';
       }
       if (els.sitrepGainGround) {
-        els.sitrepGainGround.textContent = Number.isFinite(groundAppliedGain) ? `${groundAppliedGain.toFixed(1)} dB` : '--';
+        els.sitrepGainGround.textContent = Number.isFinite(groundAppliedGain) ? `${groundAppliedGain.toFixed(1)} dB` : 'pending';
       }
       if (els.sitrepSquelchAirband) {
-        els.sitrepSquelchAirband.textContent = Number.isFinite(airbandAppliedDbfs) ? `${Math.round(airbandAppliedDbfs)} dBFS` : '--';
+        els.sitrepSquelchAirband.textContent = Number.isFinite(airbandAppliedDbfs) ? `${Math.round(airbandAppliedDbfs)} dBFS` : 'pending';
       }
       if (els.sitrepSquelchGround) {
-        els.sitrepSquelchGround.textContent = Number.isFinite(groundAppliedDbfs) ? `${Math.round(groundAppliedDbfs)} dBFS` : '--';
+        els.sitrepSquelchGround.textContent = Number.isFinite(groundAppliedDbfs) ? `${Math.round(groundAppliedDbfs)} dBFS` : 'pending';
       }
       if (els.sitrepFilterAirband) {
         els.sitrepFilterAirband.textContent = Number.isFinite(state.airband.filter) ? `${state.airband.filter} Hz` : '--';
@@ -2270,16 +2277,17 @@
       }
 
       if (els.sitrepConfig) {
-        const ok = !state.combinedStale;
-        els.sitrepConfig.textContent = ok ? 'Config synced' : 'Config stale';
+        const needsRestart = Boolean(state.rtlRestartRequired);
+        const ok = !state.combinedStale && !needsRestart;
+        els.sitrepConfig.textContent = needsRestart ? 'Restart required' : (ok ? 'Config synced' : 'Config stale');
         els.sitrepConfig.classList.toggle('good', ok);
-        els.sitrepConfig.classList.toggle('bad', !ok);
+        els.sitrepConfig.classList.toggle('bad', !ok || needsRestart);
       }
 
       setServiceStatus('api', Boolean(state.connected), state.connected ? 'online' : 'offline');
       setServiceStatus('sse', Boolean(state.sseConnected), state.sseConnected ? 'streaming' : 'down');
       setServiceStatus('airband', Boolean(state.sdr1Active), state.sdr1Active ? 'scanning' : 'idle');
-      setServiceStatus('ground', Boolean(state.groundUnitActive), state.groundUnitActive ? 'running' : 'stopped');
+      setServiceStatus('ground', Boolean(state.sdr2Active), state.sdr2Active ? 'scanning' : 'idle');
       setServiceStatus('icecast', Boolean(state.icecastActive), state.icecastActive ? 'serving' : 'offline');
       setServiceStatus('vlc', Boolean(state.vlc.running), state.vlc.running ? 'playing' : 'stopped');
       setServiceStatus('adsb', Boolean(state.adsbLoaded), state.adsbLoaded ? 'linked' : 'pending');
@@ -2503,7 +2511,7 @@
       const squelchDbfs = parseFloat(els.dbfsSlider.value);
       
       try {
-        await postAPI('/api/apply', {
+        const res = await postAPI('/api/apply', {
           target: activeTarget,
           gain,
           squelch_mode: 'dbfs',
@@ -2511,13 +2519,20 @@
         });
         els.gainSlider.classList.remove('dirty');
         els.dbfsSlider.classList.remove('dirty');
-        els.gainApplied.textContent = gain.toFixed(1) + ' dB';
+        els.gainApplied.textContent = 'pending';
         if (els.dbfsApplied) {
-          els.dbfsApplied.textContent = Math.round(squelchDbfs);
+          els.dbfsApplied.textContent = 'pending';
         }
         state[activeTarget].gain = gain;
         state[activeTarget].squelch_mode = 'dbfs';
         state[activeTarget].squelch_dbfs = squelchDbfs;
+        state[activeTarget].applied_gain = null;
+        state[activeTarget].applied_squelch_dbfs = null;
+        if (res && res.restart_ok === false) {
+          logActivity('Restart required to apply controls', 'warn', `restart-required-${activeTarget}`);
+          if (els.dbfsApplied) els.dbfsApplied.textContent = 'restart';
+          if (els.gainApplied) els.gainApplied.textContent = 'restart';
+        }
       } catch (e) {
         console.error('Apply failed:', e);
       }
@@ -2745,6 +2760,7 @@
         state.sdr2Active = Boolean(data.rtl_active && groundPresent);
         state.groundUnitActive = data.ground_unit_active ?? false;
         state.combinedStale = Boolean(data.combined_config_stale);
+        state.rtlRestartRequired = Boolean(data.rtl_restart_required);
         state.lastStatusTick = Date.now();
         if (state.sdr1Active) state.sdr1LastSeen = state.lastStatusTick;
         if (state.sdr2Active) state.sdr2LastSeen = state.lastStatusTick;
