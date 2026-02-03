@@ -7,12 +7,14 @@ import queue
 import shutil
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
-def combined_num_devices(conf_path="/usr/local/etc/rtl_airband_combined.conf") -> int:
+def combined_num_devices(conf_path=None) -> int:
     """Count devices declared in the combined rtl_airband config.
 
     More stable than probing USB at runtime (devices may be busy/in-use).
     """
     try:
+        if not conf_path:
+            conf_path = COMBINED_CONFIG_PATH
         with open(conf_path, "r") as f:
             txt = f.read()
         return txt.count('serial = "')
@@ -20,7 +22,7 @@ def combined_num_devices(conf_path="/usr/local/etc/rtl_airband_combined.conf") -
         return 0
 
 try:
-    from .config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, PROFILES_DIR, UI_PORT, UNITS
+    from .config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, PROFILES_DIR, UI_PORT, UNITS, COMBINED_CONFIG_PATH
     from .profile_config import (
         read_active_config_path, parse_controls, split_profiles,
         guess_current_profile, summarize_avoids, parse_filter,
@@ -41,7 +43,7 @@ try:
     from .system_stats import get_system_stats
     from .vlc import start_vlc, stop_vlc, vlc_running
 except ImportError:
-    from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, PROFILES_DIR, UI_PORT, UNITS
+    from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, PROFILES_DIR, UI_PORT, UNITS, COMBINED_CONFIG_PATH
     from ui.profile_config import (
         read_active_config_path, parse_controls, split_profiles,
         guess_current_profile, summarize_avoids, parse_filter,

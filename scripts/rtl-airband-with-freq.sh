@@ -1,7 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-CONF="/usr/local/etc/rtl_airband.conf"
+CONFIG_DIR="${CONFIG_DIR:-/usr/local/etc}"
+CONF="${CONFIG_SYMLINK:-${CONFIG_DIR}/rtl_airband.conf}"
 if [[ $# -gt 0 ]]; then
   CONF="$1"
 fi
