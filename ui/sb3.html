@@ -1314,6 +1314,7 @@
         <div class="sitrep-summary">
           <div class="sitrep-chip" id="sitrep-connection">Core link --</div>
           <div class="sitrep-chip" id="sitrep-stream">Audio stream --</div>
+          <div class="sitrep-chip" id="sitrep-config">Config sync --</div>
         </div>
       </div>
 
@@ -1363,14 +1364,14 @@
             </div>
             <div class="service-item" data-service="airband">
               <div>
-                <div class="service-name">RTL-Airband</div>
+                <div class="service-name">Combined Scanner</div>
                 <div class="service-meta">Status: <span id="service-airband">--</span></div>
               </div>
               <span class="service-dot"></span>
             </div>
             <div class="service-item" data-service="ground">
               <div>
-                <div class="service-name">RTL-Ground</div>
+                <div class="service-name">Ground Unit</div>
                 <div class="service-meta">Status: <span id="service-ground">--</span></div>
               </div>
               <span class="service-dot"></span>
@@ -1548,6 +1549,8 @@
       icecastActive: false,
       sseConnected: false,
       adsbLoaded: false,
+      combinedStale: false,
+      groundUnitActive: false,
       lastStatusTick: null,
       sdr1LastSeen: null,
       sdr2LastSeen: null,
@@ -1584,6 +1587,8 @@
         squelch_mode: 'dbfs',
         squelch_snr: 0.5,
         squelch_dbfs: 0,
+        applied_gain: null,
+        applied_squelch_dbfs: null,
         filter: 3500,
         profiles: [],
         currentProfile: '',
@@ -1595,6 +1600,8 @@
         squelch_mode: 'dbfs',
         squelch_snr: 0.5,
         squelch_dbfs: 0,
+        applied_gain: null,
+        applied_squelch_dbfs: null,
         filter: 3500,
         profiles: [],
         currentProfile: '',
@@ -1688,6 +1695,7 @@
       sitrepTuneMode: document.getElementById('sitrep-tune-mode'),
       sitrepConnection: document.getElementById('sitrep-connection'),
       sitrepStream: document.getElementById('sitrep-stream'),
+      sitrepConfig: document.getElementById('sitrep-config'),
       sitrepCpuTemp: document.getElementById('sitrep-cpu-temp'),
       sitrepGpuTemp: document.getElementById('sitrep-gpu-temp'),
       sitrepCpuUsage: document.getElementById('sitrep-cpu-usage'),
@@ -1960,14 +1968,10 @@
         els.gainSlider.value = gainIdx;
         els.gainValue.textContent = GAIN_STEPS[gainIdx].toFixed(1);
       }
-      els.gainApplied.textContent = t.gain.toFixed(1) + ' dB';
       
       if (els.dbfsSlider && !els.dbfsSlider.classList.contains('dirty')) {
         els.dbfsSlider.value = Math.round(t.squelch_dbfs);
         els.dbfsValue.textContent = Math.round(t.squelch_dbfs);
-      }
-      if (els.dbfsApplied) {
-        els.dbfsApplied.textContent = Math.round(t.squelch_dbfs);
       }
       
       if (!els.filterSlider.classList.contains('dirty')) {
@@ -1975,6 +1979,13 @@
         els.filterValue.textContent = t.filter;
       }
       els.filterApplied.textContent = t.filter + ' Hz';
+
+      const appliedGain = Number.isFinite(t.applied_gain) ? t.applied_gain : t.gain;
+      els.gainApplied.textContent = appliedGain.toFixed(1) + ' dB';
+      if (els.dbfsApplied) {
+        const appliedDbfs = Number.isFinite(t.applied_squelch_dbfs) ? t.applied_squelch_dbfs : t.squelch_dbfs;
+        els.dbfsApplied.textContent = Math.round(appliedDbfs);
+      }
       updateSitrep();
     }
     
@@ -2183,17 +2194,21 @@
       const avoidCount = (state.airband.avoids || []).length + (state.ground.avoids || []).length;
       if (els.sitrepAvoids) els.sitrepAvoids.textContent = avoidCount.toString();
 
+      const airbandAppliedGain = Number.isFinite(state.airband.applied_gain) ? state.airband.applied_gain : state.airband.gain;
+      const groundAppliedGain = Number.isFinite(state.ground.applied_gain) ? state.ground.applied_gain : state.ground.gain;
+      const airbandAppliedDbfs = Number.isFinite(state.airband.applied_squelch_dbfs) ? state.airband.applied_squelch_dbfs : state.airband.squelch_dbfs;
+      const groundAppliedDbfs = Number.isFinite(state.ground.applied_squelch_dbfs) ? state.ground.applied_squelch_dbfs : state.ground.squelch_dbfs;
       if (els.sitrepGainAirband) {
-        els.sitrepGainAirband.textContent = Number.isFinite(state.airband.gain) ? `${state.airband.gain.toFixed(1)} dB` : '--';
+        els.sitrepGainAirband.textContent = Number.isFinite(airbandAppliedGain) ? `${airbandAppliedGain.toFixed(1)} dB` : '--';
       }
       if (els.sitrepGainGround) {
-        els.sitrepGainGround.textContent = Number.isFinite(state.ground.gain) ? `${state.ground.gain.toFixed(1)} dB` : '--';
+        els.sitrepGainGround.textContent = Number.isFinite(groundAppliedGain) ? `${groundAppliedGain.toFixed(1)} dB` : '--';
       }
       if (els.sitrepSquelchAirband) {
-        els.sitrepSquelchAirband.textContent = Number.isFinite(state.airband.squelch_dbfs) ? `${Math.round(state.airband.squelch_dbfs)} dBFS` : '--';
+        els.sitrepSquelchAirband.textContent = Number.isFinite(airbandAppliedDbfs) ? `${Math.round(airbandAppliedDbfs)} dBFS` : '--';
       }
       if (els.sitrepSquelchGround) {
-        els.sitrepSquelchGround.textContent = Number.isFinite(state.ground.squelch_dbfs) ? `${Math.round(state.ground.squelch_dbfs)} dBFS` : '--';
+        els.sitrepSquelchGround.textContent = Number.isFinite(groundAppliedDbfs) ? `${Math.round(groundAppliedDbfs)} dBFS` : '--';
       }
       if (els.sitrepFilterAirband) {
         els.sitrepFilterAirband.textContent = Number.isFinite(state.airband.filter) ? `${state.airband.filter} Hz` : '--';
@@ -2253,10 +2268,17 @@
         els.sitrepStream.classList.toggle('bad', !ok);
       }
 
+      if (els.sitrepConfig) {
+        const ok = !state.combinedStale;
+        els.sitrepConfig.textContent = ok ? 'Config synced' : 'Config stale';
+        els.sitrepConfig.classList.toggle('good', ok);
+        els.sitrepConfig.classList.toggle('bad', !ok);
+      }
+
       setServiceStatus('api', Boolean(state.connected), state.connected ? 'online' : 'offline');
       setServiceStatus('sse', Boolean(state.sseConnected), state.sseConnected ? 'streaming' : 'down');
       setServiceStatus('airband', Boolean(state.sdr1Active), state.sdr1Active ? 'scanning' : 'idle');
-      setServiceStatus('ground', Boolean(state.sdr2Active), state.sdr2Active ? 'scanning' : 'idle');
+      setServiceStatus('ground', Boolean(state.groundUnitActive), state.groundUnitActive ? 'running' : 'stopped');
       setServiceStatus('icecast', Boolean(state.icecastActive), state.icecastActive ? 'serving' : 'offline');
       setServiceStatus('vlc', Boolean(state.vlc.running), state.vlc.running ? 'playing' : 'stopped');
       setServiceStatus('adsb', Boolean(state.adsbLoaded), state.adsbLoaded ? 'linked' : 'pending');
@@ -2716,8 +2738,12 @@
 
         const pickNumber = (value, fallback) => (value === 0 || value) ? value : fallback;
         
-        state.sdr1Active = data.rtl_active;
-        state.sdr2Active = data.ground_active;
+        const airbandPresent = (typeof data.airband_present === 'boolean') ? data.airband_present : true;
+        const groundPresent = (typeof data.ground_present === 'boolean') ? data.ground_present : true;
+        state.sdr1Active = Boolean(data.rtl_active && airbandPresent);
+        state.sdr2Active = Boolean(data.rtl_active && groundPresent);
+        state.groundUnitActive = data.ground_unit_active ?? false;
+        state.combinedStale = Boolean(data.combined_config_stale);
         state.lastStatusTick = Date.now();
         if (state.sdr1Active) state.sdr1LastSeen = state.lastStatusTick;
         if (state.sdr2Active) state.sdr2LastSeen = state.lastStatusTick;
@@ -2736,6 +2762,8 @@
         state.airband.squelch_mode = data.airband_squelch_mode || 'dbfs';
         state.airband.squelch_snr = pickNumber(data.airband_squelch_snr, pickNumber(data.airband_squelch, pickNumber(data.squelch, 0.5)));
         state.airband.squelch_dbfs = pickNumber(data.airband_squelch_dbfs, 0);
+        state.airband.applied_gain = Number.isFinite(data.airband_applied_gain) ? data.airband_applied_gain : null;
+        state.airband.applied_squelch_dbfs = Number.isFinite(data.airband_applied_squelch_dbfs) ? data.airband_applied_squelch_dbfs : null;
         state.airband.squelch = state.airband.squelch_dbfs;
         state.airband.filter = pickNumber(data.airband_filter, 3500);
         state.airband.profiles = profilesData.profiles_airband || [];
@@ -2746,6 +2774,8 @@
         state.ground.squelch_mode = data.ground_squelch_mode || 'dbfs';
         state.ground.squelch_snr = pickNumber(data.ground_squelch_snr, pickNumber(data.ground_squelch, 0.5));
         state.ground.squelch_dbfs = pickNumber(data.ground_squelch_dbfs, 0);
+        state.ground.applied_gain = Number.isFinite(data.ground_applied_gain) ? data.ground_applied_gain : null;
+        state.ground.applied_squelch_dbfs = Number.isFinite(data.ground_applied_squelch_dbfs) ? data.ground_applied_squelch_dbfs : null;
         state.ground.squelch = state.ground.squelch_dbfs;
         state.ground.filter = pickNumber(data.ground_filter, 3500);
         state.ground.profiles = profilesData.profiles_ground || [];
@@ -2820,15 +2850,21 @@
       es.addEventListener('status', (e) => {
         try {
           const data = JSON.parse(e.data);
-        state.sdr1Active = data.rtl_active;
-        state.sdr2Active = data.ground_active;
-        state.icecastActive = data.icecast_active;
-        state.lastHit = data.last_hit || state.lastHit;
-        state.serverTime = data.server_time;
-        state.lastStatusTick = Date.now();
-        if (state.sdr1Active) state.sdr1LastSeen = state.lastStatusTick;
-        if (state.sdr2Active) state.sdr2LastSeen = state.lastStatusTick;
-        state.connected = true;
+          state.sdr1Active = data.rtl_active;
+          state.sdr2Active = data.ground_active;
+          state.icecastActive = data.icecast_active;
+          if (typeof data.ground_unit_active === 'boolean') {
+            state.groundUnitActive = data.ground_unit_active;
+          }
+          if (typeof data.combined_config_stale === 'boolean') {
+            state.combinedStale = data.combined_config_stale;
+          }
+          state.lastHit = data.last_hit || state.lastHit;
+          state.serverTime = data.server_time;
+          state.lastStatusTick = Date.now();
+          if (state.sdr1Active) state.sdr1LastSeen = state.lastStatusTick;
+          if (state.sdr2Active) state.sdr2LastSeen = state.lastStatusTick;
+          state.connected = true;
           updateStatus();
           updateCounters();
         } catch (err) {

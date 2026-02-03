@@ -28,6 +28,7 @@ try:
         enforce_profile_index, set_profile, save_profiles_registry, write_airband_flag,
         parse_freqs_labels, parse_freqs_text, write_freqs_labels, write_combined_config
     )
+    from .combined_status import combined_device_summary, combined_config_stale
     from .scanner import (
         read_last_hit_airband, read_last_hit_ground, read_icecast_hit_list,
         read_hit_list_cached
@@ -48,6 +49,7 @@ except ImportError:
         enforce_profile_index, set_profile, save_profiles_registry, write_airband_flag,
         parse_freqs_labels, parse_freqs_text, write_freqs_labels, write_combined_config
     )
+    from ui.combined_status import combined_device_summary, combined_config_stale
     from ui.scanner import (
         read_last_hit_airband, read_last_hit_ground, read_icecast_hit_list,
         read_hit_list_cached
@@ -177,47 +179,17 @@ class Handler(BaseHTTPRequestHandler):
             airband_filter = parse_filter("airband")
             ground_filter = parse_filter("ground")
             rtl_ok = unit_active(UNITS["rtl"])
-            # Robustly count top-level device blocks using regex
-            def count_device_blocks(conf_path):
-                try:
-                    with open(conf_path, "r", encoding="utf-8") as f:
-                        conf = f.read()
-                    # Find the devices section
-                    start = conf.find('devices:')
-                    if start == -1:
-                        return 1
-                    start = conf.find('(', start)
-                    end = conf.find(');', start)
-                    if start == -1 or end == -1:
-                        return 1
-                    devices_blob = conf[start+1:end]
-                    # Minimal parser: count top-level curly-brace blocks
-                    count = 0
-                    depth = 0
-                    in_string = False
-                    for c in devices_blob:
-                        if c == '"':
-                            in_string = not in_string
-                        elif not in_string:
-                            if c == '{':
-                                if depth == 0:
-                                    count += 1
-                                depth += 1
-                            elif c == '}':
-                                depth = max(0, depth - 1)
-                    return count
-                except Exception:
-                    return 1
-
-            num_devices = count_device_blocks(conf_path)
-            num_devices_cfg = combined_num_devices()
-            ground_exists = num_devices_cfg > 1
-            rtl_exists = num_devices >= 1
-            # If main rtl-airband service is running and device exists, airband is active
-            rtl_ok = rtl_ok and rtl_exists
-            # If main rtl-airband service is running and more than one device, ground is active
-            ground_ok = rtl_ok and ground_exists
+            rtl_unit_active = unit_active(UNITS["rtl"])
+            ground_unit_active = unit_active(UNITS["ground"])
+            combined_info = combined_device_summary()
+            airband_device = combined_info.get("airband")
+            ground_device = combined_info.get("ground")
+            airband_present = airband_device is not None
+            ground_present = ground_device is not None
+            rtl_ok = rtl_unit_active
+            ground_ok = rtl_ok and ground_present
             ice_ok = icecast_up()
+            combined_stale = combined_config_stale()
 
             prof_payload, profiles_airband, profiles_ground = split_profiles()
             missing = [p["path"] for p in prof_payload if not p.get("exists")]
@@ -230,7 +202,13 @@ class Handler(BaseHTTPRequestHandler):
             payload = {
                 "rtl_active": rtl_ok,
                 "ground_active": ground_ok,
-                "ground_exists": ground_exists,
+                "ground_exists": ground_present,
+                "rtl_unit_active": rtl_unit_active,
+                "ground_unit_active": ground_unit_active,
+                "combined_config_stale": combined_stale,
+                "combined_devices": len(combined_info.get("devices") or []),
+                "airband_present": airband_present,
+                "ground_present": ground_present,
                 "icecast_active": ice_ok,
                 "keepalive_active": unit_active(UNITS["keepalive"]),
                 "server_time": time.time(),
@@ -253,6 +231,10 @@ class Handler(BaseHTTPRequestHandler):
                 "ground_squelch_snr": float(ground_snr),
                 "ground_squelch_dbfs": float(ground_dbfs),
                 "ground_filter": float(ground_filter),
+                "airband_applied_gain": airband_device.get("gain") if airband_device else None,
+                "airband_applied_squelch_dbfs": airband_device.get("squelch_dbfs") if airband_device else None,
+                "ground_applied_gain": ground_device.get("gain") if ground_device else None,
+                "ground_applied_squelch_dbfs": ground_device.get("squelch_dbfs") if ground_device else None,
                 "last_hit": icecast_hit or read_last_hit_from_icecast() or "",
                 "last_hit_airband": last_hit_airband,
                 "last_hit_ground": last_hit_ground,
@@ -320,34 +302,12 @@ class Handler(BaseHTTPRequestHandler):
             while True:
                 conf_path = read_active_config_path()
                 airband_gain, airband_snr, airband_dbfs, airband_mode = parse_controls(conf_path)
-                rtl_ok = unit_active(UNITS["rtl"])
-                # Unified device block counting
-                def count_device_blocks(conf_path):
-                    try:
-                        with open(conf_path, "r", encoding="utf-8") as f:
-                            conf = f.read()
-                        m = re.search(r'devices:\s*\((.*)\)\s*;', conf, re.S)
-                        if not m:
-                            return 1
-                        devices_blob = m.group(1)
-                        depth = 0
-                        count = 0
-                        for c in devices_blob:
-                            if c == '{':
-                                if depth == 0:
-                                    count += 1
-                                depth += 1
-                            elif c == '}':
-                                depth = max(0, depth - 1)
-                        return count
-                    except Exception:
-                        return 1
-                num_devices = count_device_blocks(conf_path)
-                num_devices_cfg = combined_num_devices()
-                ground_exists = num_devices_cfg > 1
-                rtl_exists = num_devices >= 1
-                rtl_active = rtl_ok and rtl_exists
-                ground_active = rtl_ok and ground_exists
+                rtl_unit_active = unit_active(UNITS["rtl"])
+                ground_unit_active = unit_active(UNITS["ground"])
+                combined_info = combined_device_summary()
+                ground_present = combined_info.get("ground") is not None
+                rtl_active = rtl_unit_active
+                ground_active = rtl_active and ground_present
                 ice_ok = icecast_up()
                 last_hit = read_last_hit_from_icecast() if ice_ok else read_last_hit_airband()
                 status_data = {
@@ -355,6 +315,8 @@ class Handler(BaseHTTPRequestHandler):
                     "rtl_active": rtl_active,
                     "ground_active": ground_active,
                     "icecast_active": ice_ok,
+                    "ground_unit_active": ground_unit_active,
+                    "combined_config_stale": combined_config_stale(),
                     "gain": float(airband_gain),
                     "squelch": float(airband_snr),
                     "squelch_mode": airband_mode,
