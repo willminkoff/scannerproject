@@ -594,6 +594,31 @@ class Handler(BaseHTTPRequestHandler):
             result = enqueue_apply(target, gain, squelch_mode, squelch_snr, squelch_dbfs)
             return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
 
+        if p == "/api/apply-batch":
+            target = form.get("target", "airband")
+            if target not in ("airband", "ground"):
+                return self._send(400, json.dumps({"ok": False, "error": "unknown target"}), "application/json; charset=utf-8")
+            try:
+                gain = float(form.get("gain", "32.8"))
+                squelch_mode = (form.get("squelch_mode") or "dbfs").lower()
+                squelch_snr = form.get("squelch_snr", form.get("squelch", "10.0"))
+                squelch_dbfs = form.get("squelch_dbfs", form.get("squelch", "0"))
+                cutoff_hz = float(form.get("cutoff_hz", "3500"))
+                squelch_snr = float(squelch_snr)
+                squelch_dbfs = float(squelch_dbfs)
+            except ValueError:
+                return self._send(400, json.dumps({"ok": False, "error": "bad values"}), "application/json; charset=utf-8")
+            result = enqueue_action({
+                "type": "apply_batch",
+                "target": target,
+                "gain": gain,
+                "squelch_mode": squelch_mode,
+                "squelch_snr": squelch_snr,
+                "squelch_dbfs": squelch_dbfs,
+                "cutoff_hz": cutoff_hz,
+            })
+            return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
+
         if p == "/api/filter":
             target = form.get("target", "airband")
             if target not in ("airband", "ground"):

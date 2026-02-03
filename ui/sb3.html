@@ -578,7 +578,7 @@
     /* Buttons */
     .btn-row {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       margin-top: 12px;
     }
 
@@ -1144,6 +1144,7 @@
             <button class="action" id="btn-tune">Tune</button>
             <button class="action" id="btn-avoid">Avoid</button>
             <button class="action" id="btn-clear-avoids">Clear</button>
+            <button class="action" id="btn-apply">Apply</button>
           </div>
 
           <div class="player-box">
@@ -1632,6 +1633,7 @@
       filterValue: document.getElementById('filter-value'),
       filterApplied: document.getElementById('filter-applied'),
       btnPlay: document.getElementById('btn-play'),
+      btnApply: document.getElementById('btn-apply'),
       profilesList: document.getElementById('profiles-list'),
       audioPlayer: document.getElementById('audio-player'),
       lnkStream: document.getElementById('lnk-stream'),
@@ -1778,6 +1780,21 @@
 
     function streamUrl() {
       return `http://${location.hostname}:8000/GND.mp3`;
+    }
+
+    function reloadAudioStream(reason) {
+      if (!els.audioPlayer) return;
+      const base = streamUrl();
+      const url = `${base}?t=${Date.now()}`;
+      const wasPaused = els.audioPlayer.paused;
+      els.audioPlayer.src = url;
+      els.audioPlayer.load();
+      if (!wasPaused) {
+        els.audioPlayer.play().catch(() => {});
+      }
+      if (reason) {
+        logActivity(reason, 'info', `stream-reload-${reason}`);
+      }
     }
 
     function setVlcButtonState(running) {
@@ -2389,6 +2406,9 @@
           logActivity(`${label} restart failed`, 'warn', `restart-${target}-fail`);
         } else {
           logActivity(`${label} restart issued`, 'info', `restart-${target}`);
+          if (target === 'airband' || target === 'ground') {
+            setTimeout(() => reloadAudioStream('restart'), 500);
+          }
         }
       } catch (e) {
         console.error('Restart failed:', e);
@@ -2487,24 +2507,18 @@
       const gain = gainValueFromIndex(idx);
       els.gainValue.textContent = gain.toFixed(1);
       els.gainSlider.classList.add('dirty');
-      clearTimeout(state.applyTimeout);
-      state.applyTimeout = setTimeout(() => applyGainSql(), DEBOUNCE_MS);
     }
     
     function onDbfsChange() {
       const val = parseInt(els.dbfsSlider.value);
       els.dbfsValue.textContent = val;
       els.dbfsSlider.classList.add('dirty');
-      clearTimeout(state.applyTimeout);
-      state.applyTimeout = setTimeout(() => applyGainSql(), DEBOUNCE_MS);
     }
 
     function onFilterChange() {
       const val = parseInt(els.filterSlider.value);
       els.filterValue.textContent = val;
       els.filterSlider.classList.add('dirty');
-      clearTimeout(state.filterTimeout);
-      state.filterTimeout = setTimeout(() => applyFilter(), DEBOUNCE_MS);
     }
     
     async function applyGainSql() {
@@ -2538,6 +2552,46 @@
         }
       } catch (e) {
         console.error('Apply failed:', e);
+      }
+    }
+
+    async function applyBatch() {
+      const gainIdx = parseInt(els.gainSlider.value);
+      const gain = gainValueFromIndex(gainIdx);
+      let squelchDbfs = parseFloat(els.dbfsSlider.value);
+      if (squelchDbfs >= -1) squelchDbfs = -1;
+      const cutoff = parseInt(els.filterSlider.value);
+      try {
+        const res = await postAPI('/api/apply-batch', {
+          target: activeTarget,
+          gain,
+          squelch_mode: 'dbfs',
+          squelch_dbfs: squelchDbfs,
+          cutoff_hz: cutoff,
+        });
+        els.gainSlider.classList.remove('dirty');
+        els.dbfsSlider.classList.remove('dirty');
+        els.filterSlider.classList.remove('dirty');
+        els.gainApplied.textContent = 'pending';
+        if (els.dbfsApplied) {
+          els.dbfsApplied.textContent = 'pending';
+        }
+        els.filterApplied.textContent = cutoff + ' Hz';
+        state[activeTarget].gain = gain;
+        state[activeTarget].squelch_mode = 'dbfs';
+        state[activeTarget].squelch_dbfs = squelchDbfs;
+        state[activeTarget].applied_gain = null;
+        state[activeTarget].applied_squelch_dbfs = null;
+        state[activeTarget].filter = cutoff;
+        if (res && res.restart_ok === false) {
+          logActivity('Restart required to apply controls', 'warn', `restart-required-${activeTarget}`);
+          if (els.dbfsApplied) els.dbfsApplied.textContent = 'restart';
+          if (els.gainApplied) els.gainApplied.textContent = 'restart';
+        } else {
+          reloadAudioStream('restart');
+        }
+      } catch (e) {
+        console.error('Apply batch failed:', e);
       }
     }
     
@@ -2717,16 +2771,21 @@
         if (!force && t.currentProfile === id) {
           return;
         }
-        await postAPI('/api/profile', { profile: id, target: activeTarget });
-      state.tuned = false;
-      state.tunedFreq = null;
-      state.tunedTarget = null;
-      state.hold[activeTarget] = null;
-      state.lastProfile[activeTarget] = id;
-      await refresh();
-      updateTuneButton();
-      const label = activeTarget === 'airband' ? 'Airband' : 'Ground';
-      logActivity(`Profile set: ${label} ${getProfileLabel(activeTarget, id)}`, 'info', `profile-${activeTarget}-${id}`);
+        const res = await postAPI('/api/profile', { profile: id, target: activeTarget });
+        state.tuned = false;
+        state.tunedFreq = null;
+        state.tunedTarget = null;
+        state.hold[activeTarget] = null;
+        state.lastProfile[activeTarget] = id;
+        await refresh();
+        updateTuneButton();
+        const label = activeTarget === 'airband' ? 'Airband' : 'Ground';
+        logActivity(`Profile set: ${label} ${getProfileLabel(activeTarget, id)}`, 'info', `profile-${activeTarget}-${id}`);
+        if (res && res.restart_ok === false) {
+          logActivity('Restart required after profile change', 'warn', `restart-required-profile-${activeTarget}`);
+        } else {
+          reloadAudioStream('profile');
+        }
       } catch (e) {
         console.error('Profile switch failed:', e);
       }
@@ -3000,6 +3059,9 @@
       // Remove Open Squelch button handler, add new handlers
       if (els.btnPlay) {
         els.btnPlay.addEventListener('click', toggleVlcPlayback);
+      }
+      if (els.btnApply) {
+        els.btnApply.addEventListener('click', applyBatch);
       }
       document.getElementById('btn-avoid').addEventListener('click', async function() {
         const btn = document.getElementById('btn-avoid');

@@ -237,6 +237,33 @@ def action_apply_controls(target: str, gain: float, squelch_mode: str, squelch_s
     return {"status": 200, "payload": payload}
 
 
+def action_apply_batch(target: str, gain: float, squelch_mode: str, squelch_snr: float, squelch_dbfs: float, cutoff_hz: float) -> dict:
+    """Apply gain/squelch and filter in a single restart."""
+    if target == "ground":
+        conf_path = GROUND_CONFIG_PATH
+    elif target == "airband":
+        conf_path = read_active_config_path()
+    else:
+        return {"status": 400, "payload": {"ok": False, "error": "unknown target"}}
+    try:
+        changed_controls = write_controls(conf_path, gain, squelch_mode, squelch_snr, squelch_dbfs)
+        changed_filter = write_filter(target, cutoff_hz)
+        combined_changed = write_combined_config() if changed_controls else False
+        changed = changed_controls or changed_filter or combined_changed
+    except Exception as e:
+        return {"status": 500, "payload": {"ok": False, "error": str(e)}}
+    restart_ok = True
+    restart_error = ""
+    if changed:
+        restart_ok, restart_error = restart_rtl()
+    payload = {"ok": True, "changed": changed}
+    if changed:
+        payload["restart_ok"] = restart_ok
+        if not restart_ok and restart_error:
+            payload["restart_error"] = restart_error
+    return {"status": 200, "payload": payload}
+
+
 def action_apply_filter(target: str, cutoff_hz: float) -> dict:
     """Action: Apply noise filter."""
     if target not in ("airband", "ground"):
@@ -617,6 +644,15 @@ def execute_action(action: dict) -> dict:
             action.get("squelch_mode"),
             action.get("squelch_snr"),
             action.get("squelch_dbfs"),
+        )
+    if action_type == "apply_batch":
+        return action_apply_batch(
+            action.get("target"),
+            action.get("gain"),
+            action.get("squelch_mode"),
+            action.get("squelch_snr"),
+            action.get("squelch_dbfs"),
+            action.get("cutoff_hz"),
         )
     if action_type == "filter":
         return action_apply_filter(action.get("target"), action.get("cutoff_hz"))
