@@ -55,6 +55,7 @@ Profiles notes:
 │   ├── trouble_tickets.csv      # Issue tracking
 │   └── logs/                    # Diagnostic logs
 ├── combined_config.py           # Config generator core logic
+├── RELEASE_NOTES.md             # Release notes
 └── README.md
 ```
 
@@ -380,7 +381,7 @@ Serve static web assets.
 ### GET /sb3.html
 Scanner Box 3 (SB3) - Alternative dashboard UI with modern widget-based layout.
 
-**Access**: `http://sprontpi.local:5050/sb3.html`
+**Access**: `http://sprontpi.local:5050/sb3` (or `http://sprontpi.local:5050/sb3.html`)
 
 ---
 
@@ -400,7 +401,7 @@ A production-ready alternative UI built as a single-page HTML file with embedded
 │ Squelch ──●──── -80    │ [Nashville Centers]            │
 │ Filter ───●──── 2900   │ [TOWER (118.600)]              │
 │                        │ [KHOP (Campbell)]              │
-│ [Restart] [Tune] [Avoid]│ [KMQY (Smyrna)]               │
+│ [Play] [Tune] [Avoid] [Clear] [Apply]                  │
 ├────────────────────────┼────────────────────────────────┤
 │ 📊 Signal Activity     │ 📋 Recent Hits                 │  ← Row 2
 │   Total Hits   Session │ Time     Frequency      Dur    │
@@ -423,13 +424,15 @@ A production-ready alternative UI built as a single-page HTML file with embedded
 | **Dual SDR Status** | SDR1 (airband) and SDR2 (ground) indicators with pulsing animation |
 | **Icecast Status** | Shows streaming server health |
 | **Airband/Ground Tabs** | Switch between radio targets with independent settings |
-| **Auto-Apply Sliders** | Changes apply automatically after 500ms debounce (no Apply button) |
+| **Apply Button** | Slider changes batch until you click **Apply** (single restart) |
 | **GAIN_STEPS Array** | 29 discrete RTL-SDR gain values (0.0 to 49.6 dB) |
 | **Profile Switching** | Visual profile grid, active profile highlighted |
 | **Hit List** | Scrollable list of recent frequency hits with duration |
 | **Session Counter** | Tracks hits since page load with hits/hour rate |
 | **ADS-B Map** | Embedded adsb.lol iframe for live flight tracking |
 | **SSE + Polling** | Real-time updates via Server-Sent Events, polling fallback |
+| **Embedded Player** | Built-in audio player for the Icecast stream |
+| **Sitrep** | Flip view for system status, config sync, and health |
 
 ### Technical Details
 
@@ -450,7 +453,8 @@ Slider maps to index (0-28), value sent to backend is the actual dB value.
 
 **Squelch Control (dBFS)**:
 - UI slider ranges from **-120 to 0**
-- `0` = auto (most closed), more negative opens more (try -70 to -100)
+- `-120` = fully open
+- `-1` = tightest/closed (UI clamps 0 to -1 for rtl_airband behavior)
 
 **Update Strategy**:
 - SSE merges new hits (doesn't overwrite) to prevent flashing
