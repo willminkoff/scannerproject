@@ -8,11 +8,10 @@ if REPO_ROOT not in sys.path:
 
 from combined_config import build_combined_config
 
-CONFIG_DIR = os.getenv("CONFIG_DIR", "/usr/local/etc")
-CONFIG_SYMLINK = os.getenv("CONFIG_SYMLINK", os.path.join(CONFIG_DIR, "rtl_airband.conf"))
-GROUND_CONFIG_PATH = os.getenv("GROUND_CONFIG_PATH", os.path.join(CONFIG_DIR, "rtl_airband_ground.conf"))
-COMBINED_CONFIG_PATH = os.getenv("COMBINED_CONFIG_PATH", os.path.join(CONFIG_DIR, "rtl_airband_combined.conf"))
-MIXER_NAME = os.getenv("MIXER_NAME", "combined")
+CONFIG_SYMLINK = "/usr/local/etc/rtl_airband.conf"
+GROUND_CONFIG_PATH = "/usr/local/etc/rtl_airband_ground.conf"
+COMBINED_CONFIG_PATH = "/usr/local/etc/rtl_airband_combined.conf"
+MIXER_NAME = "combined"
 
 
 def read_active_config_path() -> str:
