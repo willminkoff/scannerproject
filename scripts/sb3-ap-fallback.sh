@@ -39,6 +39,7 @@ start_ap() {
   local hostapd_bin="${11}"
   local dnsmasq_bin="${12}"
   local state_dir="${13}"
+  local netmask
 
   if [[ ! -x "$hostapd_bin" ]]; then
     log "ERROR: hostapd not found at $hostapd_bin"
@@ -67,10 +68,17 @@ start_ap() {
     rfkill unblock wlan >/dev/null 2>&1 || true
   fi
 
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl stop hostapd >/dev/null 2>&1 || true
+    systemctl stop dnsmasq >/dev/null 2>&1 || true
+  fi
+
   ip link set "$iface" down || true
   ip addr flush dev "$iface" || true
   ip link set "$iface" up
   ip addr add "${ap_ip}/${ap_cidr}" dev "$iface"
+
+  netmask=$(cidr_to_netmask "$ap_cidr")
 
   mkdir -p "$state_dir"
 
@@ -103,7 +111,7 @@ EOF_HOSTAPD_WPA
 interface=$iface
 bind-interfaces
 listen-address=$ap_ip
-dhcp-range=$dhcp_start,$dhcp_end,255.255.255.0,$lease_time
+dhcp-range=$dhcp_start,$dhcp_end,$netmask,$lease_time
 dhcp-option=3,$ap_ip
 dhcp-option=6,$ap_ip
 EOF_DNSMASQ
@@ -118,6 +126,38 @@ EOF_DNSMASQ
     --pid-file="$state_dir/dnsmasq.pid"
 
   log "AP online: $ssid ($ap_ip/$ap_cidr)"
+}
+
+cidr_to_netmask() {
+  local cidr="$1"
+  local mask=""
+  local i bits val
+
+  for i in 1 2 3 4; do
+    if (( cidr >= 8 )); then
+      bits=8
+    elif (( cidr > 0 )); then
+      bits=$cidr
+    else
+      bits=0
+    fi
+
+    if (( bits == 0 )); then
+      val=0
+    else
+      val=$(( 256 - (1 << (8 - bits)) ))
+    fi
+
+    if [[ -z "$mask" ]]; then
+      mask="$val"
+    else
+      mask="${mask}.${val}"
+    fi
+
+    cidr=$(( cidr - bits ))
+  done
+
+  echo "$mask"
 }
 
 require_root

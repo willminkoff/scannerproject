@@ -12,3 +12,4 @@ Release Notes
 2026-02-06
 ----------
 - AP fallback: boot-time reachability check; starts `SB3-CTRL` access point at `192.168.4.1` when LAN is unreachable and keeps it up until reboot.
+- AP fallback: stop any existing `hostapd`/`dnsmasq` services before launching; systemd unit uses `/usr/local/sbin/sb3-ap-fallback` and `network-online.target`.

@@ -42,6 +42,7 @@ Expected observations (when rtl-airband restarts):
   - `sudo systemctl restart rtl-airband`
   - `sudo systemctl restart airband-ui`
 - AP fallback (start AP when LAN unreachable):
+  - Install script: `sudo install -m 755 /home/willminkoff/scannerproject/scripts/sb3-ap-fallback.sh /usr/local/sbin/sb3-ap-fallback`
   - Install unit: `sudo cp /home/willminkoff/scannerproject/systemd/sb3-ap-fallback.service /etc/systemd/system/`
   - Optional config: `/etc/sb3-ap-fallback.conf` (defaults: `PING_IP=1.1.1.1`, `BOOT_WAIT_SEC=25`, `AP_SSID=SB3-CTRL`, `AP_IP=192.168.4.1`)
   - Enable on boot: `sudo systemctl daemon-reload && sudo systemctl enable --now sb3-ap-fallback`
