@@ -58,6 +58,7 @@ start_ap() {
   if command -v systemctl >/dev/null 2>&1; then
     systemctl stop "wpa_supplicant@${iface}.service" >/dev/null 2>&1 || true
     systemctl stop wpa_supplicant.service >/dev/null 2>&1 || true
+    systemctl stop NetworkManager >/dev/null 2>&1 || true
   fi
 
   if command -v nmcli >/dev/null 2>&1; then
