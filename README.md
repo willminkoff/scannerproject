@@ -44,11 +44,13 @@ Profiles notes:
 │   ├── build-combined-config.py # Generates combined dual-scanner config
 │   ├── rtl-airband              # Launch wrapper (preserves SIGHUP capability)
 │   ├── rtl-airband-*.sh         # Utility scripts for hit logging
+│   ├── sb3-ap-fallback.sh       # Boot-time AP fallback when LAN unreachable
 │   └── desktop/                 # Desktop button scripts
 ├── systemd/                     # systemd service units
 │   ├── rtl-airband.service      # Main scanner service
 │   ├── airband-ui.service       # Web UI service
 │   ├── icecast-keepalive.service
+│   ├── sb3-ap-fallback.service  # AP fallback (hostapd + dnsmasq)
 │   └── trunk-recorder*.service
 ├── icecast/                     # Icecast configuration
 ├── admin/                       # Operational files
@@ -639,6 +641,10 @@ The `rtl-airband.service` runs:
   - `sudo cp /home/willminkoff/scannerproject/systemd/rtl-airband-last-hit.service /etc/systemd/system/`
   - `sudo systemctl daemon-reload`
   - `sudo systemctl restart rtl-airband-last-hit`
+- AP fallback (optional, start AP when LAN unreachable):
+  - `sudo cp /home/willminkoff/scannerproject/systemd/sb3-ap-fallback.service /etc/systemd/system/`
+  - Optional config: `/etc/sb3-ap-fallback.conf` (defaults: `PING_IP=1.1.1.1`, `BOOT_WAIT_SEC=25`, `AP_SSID=SB3-CTRL`, `AP_IP=192.168.4.1`)
+  - `sudo systemctl daemon-reload && sudo systemctl enable --now sb3-ap-fallback`
 
 ## Ops Brief
 - `assets/Brief from Codex CLI 1-2-26.txt`

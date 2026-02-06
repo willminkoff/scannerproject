@@ -1,0 +1,13 @@
+[Unit]
+Description=SB3 AP Fallback (start AP when LAN unreachable)
+After=network.target
+Wants=network.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/sb3-ap-fallback.conf
+ExecStart=/bin/bash /home/willminkoff/scannerproject/scripts/sb3-ap-fallback.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
