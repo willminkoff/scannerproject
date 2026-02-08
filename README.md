@@ -72,10 +72,43 @@ DMR decode runs as a separate pipeline that follows ground hits and retunes a de
 - Icecast: default mount is `/DMR.mp3` (see `icecast/icecast.xml.example`).
 
 Key env vars (set in `/etc/airband-ui.conf` if needed):
-- `DMR_PROFILE_PATH`, `DMR_TUNE_PATH`, `DMR_STATE_PATH`, `DMR_HOLD_SECONDS`
-- `DMR_DSD_CMD` to select your decoder command
+- `DMR_PROFILE_PATH`, `DMR_TUNE_PATH`, `DMR_STATE_PATH`, `LAST_HIT_GROUND_PATH`
+- `DMR_HOLD_SECS`, `DMR_DEBOUNCE_MS`, `DMR_MIN_DWELL_MS`, `DMR_COOLDOWN_SECS`, `DMR_DEFAULT_FREQ`
+- `DMR_DSD_ARGS` to tune `dsd-fme` flags
 - `DMR_RTL_DEVICE`, `DMR_PPM`, `DMR_RTL_FM_ARGS` for tuner settings
 - `DMR_ICECAST_URL`, `DMR_AUDIO_RATE`, `DMR_AUDIO_CHANNELS` for streaming
+
+## DMR (DMR26)
+
+<!--
+Layout verdict:
+- `profiles/rtl_airband_dmr_nashville.conf`: Ground-side DMR hunt profile containing the target conventional freqs.
+- `scripts/dmr/dmr_controller.sh`: Follows ground last-hit updates and writes the tuned DMR frequency with hold/debounce.
+- `scripts/dmr/rtl_fm_dmr.sh`: Runs `rtl_fm` on the tuned DMR frequency and emits raw baseband audio.
+- `scripts/dmr/dsd_wrapper.sh`: Runs `dsd-fme` on stdin and emits decoded PCM to stdout.
+- `scripts/dmr/icecast_source_dmr.sh`: Encodes decoded audio and pushes it to the DMR Icecast mount.
+- `systemd/dmr-decode.service`: Service wrapper for the rtl_fm -> dsd -> Icecast pipeline.
+- `systemd/dmr-controller.service`: Service wrapper for the hit-following controller.
+- `ui/actions.py`: Adds DMR enable/disable action handling for the UI.
+- `ui/config.py`: Registers DMR units and the default DMR profile path.
+- `ui/handlers.py`: Exposes DMR enable/disable endpoints and status fields.
+- `ui/profile_config.py`: Ensures the DMR profile is treated as a ground profile and merged into the registry.
+- `ui/systemd.py`: Adds start/stop/restart helpers for DMR systemd units.
+- `ui/static/index.html`: Adds a Ground tab DMR toggle control.
+- `ui/static/script.js`: Wires the DMR toggle to API calls and status updates.
+- `README.md`: Documents the DMR pipeline, env vars, and run-state files.
+
+Services for end-to-end audio:
+- `rtl-airband.service` (RF activity detection)
+- `icecast2.service` (streaming endpoint)
+- `dmr-decode.service` (decode pipeline)
+- `dmr-controller.service` (hit-following control)
+
+Run files:
+- `/run/rtl_airband_last_freq_ground.txt` (written by `rtl-airband-last-hit.sh`; read by `dmr_controller.sh`)
+- `/run/dmr_tune_freq.txt` (written by `dmr_controller.sh`; read by `rtl_fm_dmr.sh`)
+- `/run/dmr_state.json` (written by `dmr_controller.sh` for status/telemetry)
+-->
 
 ## Architecture Overview
 

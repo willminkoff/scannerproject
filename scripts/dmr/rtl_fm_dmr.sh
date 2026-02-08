@@ -9,7 +9,9 @@ DMR_TUNE_POLL="${DMR_TUNE_POLL:-0.5}"
 RTL_FM_BIN="${RTL_FM_BIN:-/usr/bin/rtl_fm}"
 DMR_RTL_DEVICE="${DMR_RTL_DEVICE:-}"
 DMR_PPM="${DMR_PPM:-}"
-DMR_RTL_FM_ARGS="${DMR_RTL_FM_ARGS:--M fm -s 48000 -g 25 -l 0}"
+DMR_RTL_FM_ARGS="${DMR_RTL_FM_ARGS:--M fm -s 48000 -A fast -g 35 -l 0}"
+
+RTL_FM_SUPPORTS_DC=""
 
 log() {
   echo "[dmr-rtl_fm] $*" >&2
@@ -79,6 +81,20 @@ build_rtl_args() {
   fi
   read -r -a extra <<< "$DMR_RTL_FM_ARGS"
   args+=("${extra[@]}")
+  local has_e=0
+  for arg in "${args[@]}"; do
+    if [[ "$arg" == "-E" ]]; then
+      has_e=1
+      break
+    fi
+  done
+  if [[ "$has_e" -eq 0 ]]; then
+    local help
+    help=$("$RTL_FM_BIN" -h 2>&1 || true)
+    if echo "$help" | grep -qE '(^|[[:space:]])-E[[:space:]]' && echo "$help" | grep -qi 'dc'; then
+      args+=("-E" "dc")
+    fi
+  fi
   printf '%s\n' "${args[@]}"
 }
 
@@ -88,6 +104,10 @@ current_freq=""
 action_start() {
   local mhz="$1"
   local hz
+  if [[ -n "$rtl_pid" ]] && kill -0 "$rtl_pid" 2>/dev/null; then
+    log "rtl_fm already running (pid $rtl_pid); skip start"
+    return
+  fi
   hz=$(freq_to_hz "$mhz")
   mapfile -t args < <(build_rtl_args)
   log "Starting rtl_fm on ${mhz} MHz (${hz} Hz)"

@@ -5,9 +5,13 @@ DMR_PROFILE_PATH="${DMR_PROFILE_PATH:-${PROFILES_DIR:-/usr/local/etc/airband-pro
 DMR_LAST_HIT_PATH="${DMR_LAST_HIT_PATH:-${LAST_HIT_GROUND_PATH:-/run/rtl_airband_last_freq_ground.txt}}"
 DMR_TUNE_PATH="${DMR_TUNE_PATH:-/run/dmr_tune_freq.txt}"
 DMR_STATE_PATH="${DMR_STATE_PATH:-/run/dmr_state.json}"
-DMR_HOLD_SECONDS="${DMR_HOLD_SECONDS:-12}"
+DMR_DEFAULT_FREQ="${DMR_DEFAULT_FREQ:-}"
+
+DMR_HOLD_SECS="${DMR_HOLD_SECS:-${DMR_HOLD_SECONDS:-3.0}}"
+DMR_DEBOUNCE_MS="${DMR_DEBOUNCE_MS:-250}"
+DMR_MIN_DWELL_MS="${DMR_MIN_DWELL_MS:-1200}"
+DMR_COOLDOWN_SECS="${DMR_COOLDOWN_SECS:-1.0}"
 DMR_POLL_INTERVAL="${DMR_POLL_INTERVAL:-0.5}"
-DMR_FREQS_REFRESH_SEC="${DMR_FREQS_REFRESH_SEC:-10}"
 
 log() {
   echo "[dmr-controller] $*" >&2
@@ -18,16 +22,20 @@ normalize_freq() {
   awk -v f="$val" 'BEGIN{if(f=="" || f=="-") exit 1; printf "%.4f", f+0}'
 }
 
-profile_mtime() {
-  if [[ -f "$DMR_PROFILE_PATH" ]]; then
-    if stat -c %Y "$DMR_PROFILE_PATH" >/dev/null 2>&1; then
-      stat -c %Y "$DMR_PROFILE_PATH"
-    else
-      stat -f %m "$DMR_PROFILE_PATH"
-    fi
+now_ms() {
+  if date +%s%3N >/dev/null 2>&1; then
+    date +%s%3N
   else
-    echo 0
+    python3 - <<'PY'
+import time
+print(int(time.time() * 1000))
+PY
   fi
+}
+
+secs_to_ms() {
+  local sec="$1"
+  awk -v s="$sec" 'BEGIN{printf "%d", s*1000}'
 }
 
 load_freqs() {
@@ -54,6 +62,24 @@ for f in freqs:
 PY
 }
 
+read_hit() {
+  python3 - "$DMR_LAST_HIT_PATH" <<'PY'
+import os
+import sys
+
+path = sys.argv[1]
+try:
+    st = os.stat(path)
+    with open(path, "r", encoding="utf-8", errors="ignore") as f:
+        line = f.readline().strip()
+except FileNotFoundError:
+    sys.exit(0)
+except Exception:
+    line = ""
+print(f"{st.st_mtime_ns} {line}")
+PY
+}
+
 write_state() {
   local freq="$1"
   local now
@@ -64,51 +90,179 @@ write_state() {
   mv "$tmp" "$DMR_STATE_PATH"
 }
 
+write_tune() {
+  local freq="$1"
+  local reason="$2"
+  local when_ms="$3"
+  if [[ "${DMR_CONTROLLER_TEST:-0}" == "1" ]]; then
+    echo "TEST write ${freq}ms=${when_ms} reason=${reason}"
+    return
+  fi
+  echo "$freq" > "$DMR_TUNE_PATH"
+  write_state "$freq"
+}
+
+switch_to() {
+  local freq="$1"
+  local reason="$2"
+  local when_ms="$3"
+  last_tuned="$freq"
+  last_switch_ms="$when_ms"
+  hold_until_ms=$(( when_ms + HOLD_MS ))
+  write_tune "$freq" "$reason" "$when_ms"
+  log "switch: ${reason} ${freq}"
+}
+
+extend_hold() {
+  local freq="$1"
+  local when_ms="$2"
+  hold_until_ms=$(( when_ms + HOLD_MS ))
+  log "extend_hold ${freq}"
+}
+
+process_hit() {
+  local freq="$1"
+  local when_ms="$2"
+  if [[ "$DMR_FREQS_OK" -ne 1 ]]; then
+    return
+  fi
+  if [[ -z "${DMR_FREQS[$freq]:-}" ]]; then
+    return
+  fi
+
+  local last_hit="${LAST_HIT_MS[$freq]:-0}"
+  if (( when_ms - last_hit < DMR_DEBOUNCE_MS )); then
+    return
+  fi
+  LAST_HIT_MS[$freq]="$when_ms"
+
+  if [[ "$freq" == "$last_tuned" ]]; then
+    extend_hold "$freq" "$when_ms"
+    return
+  fi
+
+  if [[ -n "$last_tuned" ]]; then
+    local since_switch=$(( when_ms - last_switch_ms ))
+    if (( since_switch < DMR_MIN_DWELL_MS )); then
+      log "skip: min_dwell ${freq}"
+      return
+    fi
+    if (( since_switch < COOLDOWN_MS )); then
+      log "skip: cooldown ${freq}"
+      return
+    fi
+  fi
+
+  switch_to "$freq" "new_hit" "$when_ms"
+}
+
+check_hold() {
+  local now_ms_val="$1"
+  if [[ -z "$last_tuned" ]]; then
+    return
+  fi
+  if (( now_ms_val <= hold_until_ms )); then
+    return
+  fi
+  if [[ -n "$DEFAULT_FREQ_NORM" && "$DEFAULT_FREQ_NORM" != "$last_tuned" ]]; then
+    local since_switch=$(( now_ms_val - last_switch_ms ))
+    if (( since_switch < DMR_MIN_DWELL_MS )); then
+      log "skip: min_dwell default"
+      return
+    fi
+    if (( since_switch < COOLDOWN_MS )); then
+      log "skip: cooldown default"
+      return
+    fi
+    switch_to "$DEFAULT_FREQ_NORM" "default" "$now_ms_val"
+  fi
+}
+
+run_test() {
+  log "TEST MODE: simulating hits (no /run writes)"
+  DMR_FREQS_OK=1
+  DMR_FREQS=( ["451.0000"]=1 ["451.0125"]=1 )
+  LAST_HIT_MS=()
+  DEFAULT_FREQ_NORM="451.0000"
+  last_tuned=""
+  last_switch_ms=0
+  hold_until_ms=0
+
+  local events=(
+    "0 451.0000"
+    "200 451.0000"
+    "800 451.0125"
+    "1400 451.0125"
+    "2600 451.0000"
+    "6000 -"
+    "9000 -"
+  )
+
+  for ev in "${events[@]}"; do
+    local t_ms="${ev%% *}"
+    local freq="${ev#* }"
+    if [[ "$freq" != "-" ]]; then
+      process_hit "$freq" "$t_ms"
+    fi
+    check_hold "$t_ms"
+  done
+}
+
 mkdir -p /run
 
+HOLD_MS=$(secs_to_ms "$DMR_HOLD_SECS")
+COOLDOWN_MS=$(secs_to_ms "$DMR_COOLDOWN_SECS")
+
 declare -A DMR_FREQS=()
-last_profile_mtime=0
-last_refresh=0
+declare -A LAST_HIT_MS=()
+DMR_FREQS_OK=1
+
+if [[ "${DMR_CONTROLLER_TEST:-0}" == "1" ]]; then
+  run_test
+  exit 0
+fi
+
+while read -r f; do
+  if nf=$(normalize_freq "$f" 2>/dev/null); then
+    DMR_FREQS["$nf"]=1
+  fi
+done < <(load_freqs)
+
+if [[ ${#DMR_FREQS[@]} -eq 0 ]]; then
+  log "error: no DMR freqs loaded from $DMR_PROFILE_PATH; controller idle"
+  DMR_FREQS_OK=0
+fi
+
+DEFAULT_FREQ_NORM=""
+if [[ -n "$DMR_DEFAULT_FREQ" ]]; then
+  if nf=$(normalize_freq "$DMR_DEFAULT_FREQ" 2>/dev/null); then
+    if [[ ${#DMR_FREQS[@]} -gt 0 && -z "${DMR_FREQS[$nf]:-}" ]]; then
+      log "default freq $nf not in DMR profile; ignoring"
+    else
+      DEFAULT_FREQ_NORM="$nf"
+    fi
+  fi
+fi
+
 last_tuned=""
-hold_until=0
+last_switch_ms=0
+hold_until_ms=0
+last_mtime_ns=0
 
 while true; do
-  now_epoch=$(date +%s)
-  if (( now_epoch - last_refresh >= DMR_FREQS_REFRESH_SEC )); then
-    new_mtime=$(profile_mtime)
-    if (( new_mtime != last_profile_mtime )); then
-      DMR_FREQS=()
-      while read -r f; do
-        if nf=$(normalize_freq "$f" 2>/dev/null); then
-          DMR_FREQS["$nf"]=1
-        fi
-      done < <(load_freqs)
-      last_profile_mtime=$new_mtime
-      log "Loaded ${#DMR_FREQS[@]} DMR freqs from $DMR_PROFILE_PATH"
-    fi
-    last_refresh=$now_epoch
-  fi
-
-  hit=""
-  if [[ -f "$DMR_LAST_HIT_PATH" ]]; then
-    hit=$(head -n1 "$DMR_LAST_HIT_PATH" | tr -d '\r\n')
-  fi
-
-  if nf=$(normalize_freq "$hit" 2>/dev/null); then
-    if [[ -n "${DMR_FREQS[$nf]:-}" ]]; then
-      if [[ "$nf" != "$last_tuned" ]]; then
-        if (( now_epoch >= hold_until )); then
-          echo "$nf" > "$DMR_TUNE_PATH"
-          write_state "$nf"
-          last_tuned="$nf"
-          hold_until=$(( now_epoch + DMR_HOLD_SECONDS ))
-          log "Tuned DMR to ${nf} MHz"
-        fi
-      else
-        hold_until=$(( now_epoch + DMR_HOLD_SECONDS ))
+  now_ms_val=$(now_ms)
+  hit_line="$(read_hit || true)"
+  if [[ -n "$hit_line" ]]; then
+    mtime_ns="${hit_line%% *}"
+    hit_val="${hit_line#* }"
+    if [[ "$mtime_ns" != "$last_mtime_ns" ]]; then
+      last_mtime_ns="$mtime_ns"
+      event_ms=$((mtime_ns / 1000000))
+      if nf=$(normalize_freq "$hit_val" 2>/dev/null); then
+        process_hit "$nf" "$event_ms"
       fi
     fi
   fi
-
+  check_hold "$now_ms_val"
   sleep "$DMR_POLL_INTERVAL"
 done
