@@ -13,6 +13,11 @@ DMR_MIN_DWELL_MS="${DMR_MIN_DWELL_MS:-1200}"
 DMR_COOLDOWN_SECS="${DMR_COOLDOWN_SECS:-1.0}"
 DMR_POLL_INTERVAL="${DMR_POLL_INTERVAL:-0.5}"
 
+# Hold/dwell/cooldown semantics (Option A):
+# - DMR_MIN_DWELL_MS: minimum time to stay on a tuned freq before switching away.
+# - DMR_COOLDOWN_SECS: minimum time between *switch attempts* to a different freq.
+#   This uses last_switch_attempt_ms to damp rapid A/B hit ping-pong.
+
 log() {
   echo "[dmr-controller] $*" >&2
 }
@@ -141,14 +146,16 @@ process_hit() {
     return
   fi
 
+  if (( when_ms - last_switch_attempt_ms < COOLDOWN_MS )); then
+    log "skip: cooldown ${freq}"
+    return
+  fi
+  last_switch_attempt_ms="$when_ms"
+
   if [[ -n "$last_tuned" ]]; then
     local since_switch=$(( when_ms - last_switch_ms ))
     if (( since_switch < DMR_MIN_DWELL_MS )); then
       log "skip: min_dwell ${freq}"
-      return
-    fi
-    if (( since_switch < COOLDOWN_MS )); then
-      log "skip: cooldown ${freq}"
       return
     fi
   fi
@@ -165,13 +172,14 @@ check_hold() {
     return
   fi
   if [[ -n "$DEFAULT_FREQ_NORM" && "$DEFAULT_FREQ_NORM" != "$last_tuned" ]]; then
+    if (( now_ms_val - last_switch_attempt_ms < COOLDOWN_MS )); then
+      log "skip: cooldown default"
+      return
+    fi
+    last_switch_attempt_ms="$now_ms_val"
     local since_switch=$(( now_ms_val - last_switch_ms ))
     if (( since_switch < DMR_MIN_DWELL_MS )); then
       log "skip: min_dwell default"
-      return
-    fi
-    if (( since_switch < COOLDOWN_MS )); then
-      log "skip: cooldown default"
       return
     fi
     switch_to "$DEFAULT_FREQ_NORM" "default" "$now_ms_val"
@@ -186,14 +194,18 @@ run_test() {
   DEFAULT_FREQ_NORM="451.0000"
   last_tuned=""
   last_switch_ms=0
+  last_switch_attempt_ms=0
   hold_until_ms=0
 
   local events=(
     "0 451.0000"
-    "200 451.0000"
-    "800 451.0125"
-    "1400 451.0125"
+    "200 451.0125"
+    "400 451.0000"
+    "600 451.0125"
+    "1300 451.0125"
+    "1500 451.0000"
     "2600 451.0000"
+    "3600 451.0125"
     "6000 -"
     "9000 -"
   )
@@ -246,6 +258,7 @@ fi
 
 last_tuned=""
 last_switch_ms=0
+last_switch_attempt_ms=0
 hold_until_ms=0
 last_mtime_ns=0
 

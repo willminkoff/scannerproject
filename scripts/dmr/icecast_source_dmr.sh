@@ -21,6 +21,8 @@ if ! command -v "$FFMPEG_BIN" >/dev/null 2>&1; then
   exit 1
 fi
 
+echo "[dmr-icecast] PCM in: ${DMR_AUDIO_RATE}Hz ${DMR_AUDIO_CHANNELS}ch -> mount ${DMR_MOUNT}" >&2
+
 echo "[dmr-icecast] Streaming to $DMR_ICECAST_URL" >&2
 exec "$FFMPEG_BIN" -hide_banner -loglevel warning \
   -f s16le -ar "$DMR_AUDIO_RATE" -ac "$DMR_AUDIO_CHANNELS" -i - \
