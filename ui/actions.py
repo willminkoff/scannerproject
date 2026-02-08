@@ -15,7 +15,13 @@ try:
         restart_icecast,
         restart_keepalive,
         restart_ui,
+        restart_dmr,
+        restart_dmr_controller,
         stop_ground,
+        start_dmr,
+        stop_dmr,
+        start_dmr_controller,
+        stop_dmr_controller,
     )
     from .profile_config import (
         split_profiles, guess_current_profile, set_profile, write_controls,
@@ -33,7 +39,13 @@ except ImportError:
         restart_icecast,
         restart_keepalive,
         restart_ui,
+        restart_dmr,
+        restart_dmr_controller,
         stop_ground,
+        start_dmr,
+        stop_dmr,
+        start_dmr_controller,
+        stop_dmr_controller,
     )
     from ui.profile_config import (
         split_profiles, guess_current_profile, set_profile, write_controls,
@@ -296,6 +308,10 @@ def action_restart(target: str) -> dict:
         ok, err = restart_keepalive()
     elif target == "ui":
         ok, err = restart_ui()
+    elif target == "dmr":
+        ok, err = restart_dmr()
+    elif target == "dmr_controller":
+        ok, err = restart_dmr_controller()
     elif target == "all":
         results = {
             "airband": restart_rtl(),
@@ -303,6 +319,8 @@ def action_restart(target: str) -> dict:
             "icecast": restart_icecast(),
             "keepalive": restart_keepalive(),
             "ui": restart_ui(),
+            "dmr": restart_dmr(),
+            "dmr_controller": restart_dmr_controller(),
         }
         ok = all(v[0] for v in results.values())
         err = "; ".join(f"{k}:{v[1]}" for k, v in results.items() if v[1])
@@ -312,6 +330,20 @@ def action_restart(target: str) -> dict:
     if err:
         payload["restart_error"] = err
     return {"status": 200 if ok else 500, "payload": payload}
+
+
+def action_dmr(mode: str) -> dict:
+    """Action: Enable/disable DMR decode."""
+    mode = (mode or "enable").strip().lower()
+    if mode in ("enable", "start", "on"):
+        start_dmr()
+        start_dmr_controller()
+        return {"status": 200, "payload": {"ok": True, "active": True}}
+    if mode in ("disable", "stop", "off"):
+        stop_dmr_controller()
+        stop_dmr()
+        return {"status": 200, "payload": {"ok": True, "active": False}}
+    return {"status": 400, "payload": {"ok": False, "error": "unknown mode"}}
 
 
 def action_avoid(target: str) -> dict:
@@ -673,4 +705,6 @@ def execute_action(action: dict) -> dict:
         return action_tune(action.get("target"), action.get("freq"))
     if action_type == "tune_restore":
         return action_tune_restore(action.get("target"))
+    if action_type == "dmr":
+        return action_dmr(action.get("mode"))
     return {"status": 400, "payload": {"ok": False, "error": "unknown action"}}

@@ -102,6 +102,16 @@ def restart_ui() -> Tuple[bool, str]:
     return _restart_unit(UNITS["ui"])
 
 
+def restart_dmr() -> Tuple[bool, str]:
+    """Restart the DMR decode service."""
+    return _restart_unit(UNITS["dmr"])
+
+
+def restart_dmr_controller() -> Tuple[bool, str]:
+    """Restart the DMR controller service."""
+    return _restart_unit(UNITS["dmr_controller"])
+
+
 def stop_rtl():
     """Stop the rtl-airband scanner."""
     subprocess.run(
@@ -122,6 +132,26 @@ def stop_ground():
     )
 
 
+def stop_dmr():
+    """Stop the DMR decode service."""
+    subprocess.run(
+        ["systemctl", "stop", UNITS["dmr"]],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+
+
+def stop_dmr_controller():
+    """Stop the DMR controller service."""
+    subprocess.run(
+        ["systemctl", "stop", UNITS["dmr_controller"]],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+
+
 def start_rtl():
     """Start the rtl-airband scanner."""
     subprocess.Popen(
@@ -135,6 +165,24 @@ def start_ground():
     """Start the ground scanner."""
     subprocess.Popen(
         ["systemctl", "start", "--no-block", UNITS["ground"]],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+def start_dmr():
+    """Start the DMR decode service."""
+    subprocess.Popen(
+        ["systemctl", "start", "--no-block", UNITS["dmr"]],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+def start_dmr_controller():
+    """Start the DMR controller service."""
+    subprocess.Popen(
+        ["systemctl", "start", "--no-block", UNITS["dmr_controller"]],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )

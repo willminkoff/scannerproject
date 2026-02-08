@@ -185,6 +185,11 @@ class Handler(BaseHTTPRequestHandler):
             rtl_ok = unit_active(UNITS["rtl"])
             rtl_unit_active = unit_active(UNITS["rtl"])
             ground_unit_active = unit_active(UNITS["ground"])
+            dmr_unit = UNITS.get("dmr")
+            dmr_controller_unit = UNITS.get("dmr_controller")
+            dmr_active = unit_active(dmr_unit) if dmr_unit else False
+            dmr_controller_active = unit_active(dmr_controller_unit) if dmr_controller_unit else False
+            dmr_exists = unit_exists(dmr_unit) if dmr_unit else False
             combined_info = combined_device_summary()
             airband_device = combined_info.get("airband")
             ground_device = combined_info.get("ground")
@@ -226,6 +231,9 @@ class Handler(BaseHTTPRequestHandler):
                 "ground_present": ground_present,
                 "icecast_active": ice_ok,
                 "keepalive_active": unit_active(UNITS["keepalive"]),
+                "dmr_active": dmr_active,
+                "dmr_controller_active": dmr_controller_active,
+                "dmr_exists": dmr_exists,
                 "server_time": time.time(),
                 "rtl_active_enter": rtl_active_enter,
                 "rtl_restart_required": rtl_restart_required,
@@ -340,6 +348,7 @@ class Handler(BaseHTTPRequestHandler):
                     "icecast_active": ice_ok,
                     "ground_unit_active": ground_unit_active,
                     "combined_config_stale": combined_config_stale(),
+                    "dmr_active": unit_active(UNITS.get("dmr")) if UNITS.get("dmr") else False,
                     "gain": float(airband_gain),
                     "squelch": float(airband_snr),
                     "squelch_mode": airband_mode,
@@ -628,6 +637,14 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError:
                 return self._send(400, json.dumps({"ok": False, "error": "bad values"}), "application/json; charset=utf-8")
             result = enqueue_action({"type": "filter", "target": target, "cutoff_hz": cutoff_hz})
+            return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
+
+        if p == "/api/dmr/enable":
+            result = enqueue_action({"type": "dmr", "mode": "enable"})
+            return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
+
+        if p == "/api/dmr/disable":
+            result = enqueue_action({"type": "dmr", "mode": "disable"})
             return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
 
         if p == "/api/restart":

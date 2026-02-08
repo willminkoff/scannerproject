@@ -102,6 +102,7 @@ def _infer_airband_flag(profile_id: str, path: str) -> Optional[bool]:
         "gmrs": False,
         "wx": False,
         "none_ground": False,
+        "dmr_nashville": False,
     }
     if profile_id in pid_overrides:
         return pid_overrides[profile_id]
@@ -177,6 +178,16 @@ def load_profiles_registry() -> List[Dict]:
                     "airband": bool(airband),
                 })
             if cleaned:
+                defaults = _registry_payload_from_profiles(PROFILES)
+                default_ids = {p.get("id"): p for p in defaults if p.get("id")}
+                changed = False
+                existing_ids = {p.get("id") for p in cleaned}
+                for pid, prof in default_ids.items():
+                    if pid not in existing_ids:
+                        cleaned.append(prof)
+                        changed = True
+                if changed:
+                    save_profiles_registry(cleaned)
                 return cleaned
     except (FileNotFoundError, json.JSONDecodeError):
         pass

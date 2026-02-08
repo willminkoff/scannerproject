@@ -1,0 +1,14 @@
+[Unit]
+Description=DMR Controller (follow ground hits)
+After=rtl-airband.service dmr-decode.service
+Wants=rtl-airband.service dmr-decode.service
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/airband-ui.conf
+ExecStart=/bin/bash /home/willminkoff/scannerproject/scripts/dmr/dmr_controller.sh
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=multi-user.target

@@ -30,6 +30,8 @@ const audioAirbandEl = document.getElementById('audio-airband');
 const audioGroundEl = document.getElementById('audio-ground');
 const lnkStreamAirbandEl = document.getElementById('lnk-stream-airband');
 const lnkStreamGroundEl = document.getElementById('lnk-stream-ground');
+const btnDmrToggleEl = document.getElementById('btn-dmr-toggle');
+const dmrStatusEl = document.getElementById('dmr-status');
 let actionMsg = '';
 let actionMsgTarget = null;
 
@@ -49,6 +51,8 @@ let avoidsAirband = null;
 let avoidsGround = null;
 let profilesCache = null;
 let profilesCacheAt = 0;
+let dmrActive = false;
+let dmrToggleInFlight = false;
 
 const controlTargets = {
   airband: {
@@ -169,6 +173,18 @@ function updateAvoids(avoids) {
 function updateAvoidsForPage() {
   const avoids = activePage === 1 ? avoidsGround : avoidsAirband;
   updateAvoids(avoids);
+}
+
+function updateDmrToggle(st) {
+  if (!btnDmrToggleEl) return;
+  const supported = st && Object.prototype.hasOwnProperty.call(st, 'dmr_exists') ? !!st.dmr_exists : true;
+  dmrActive = !!(st && st.dmr_active);
+  if (dmrStatusEl) {
+    dmrStatusEl.textContent = supported ? (dmrActive ? 'On' : 'Off') : 'Unavailable';
+  }
+  btnDmrToggleEl.disabled = !supported || dmrToggleInFlight;
+  btnDmrToggleEl.textContent = supported ? (dmrActive ? 'Disable' : 'Enable') : 'Unavailable';
+  btnDmrToggleEl.classList.toggle('primary', dmrActive);
 }
 
 function buildProfiles(profilesEl, profiles, selected, target) {
@@ -362,6 +378,8 @@ async function refresh(allowSetSliders=false) {
   avoidsAirband = st.avoids_airband;
   avoidsGround = st.avoids_ground;
   updateAvoidsForPage();
+
+  updateDmrToggle(st);
 
   if (!profilesCache || Date.now() - profilesCacheAt > 5000) {
     await refreshProfiles();
@@ -642,6 +660,22 @@ btnOpenSqlAirbandEl.addEventListener('click', async ()=> {
 btnOpenSqlGroundEl.addEventListener('click', async ()=> {
   await openSquelchMomentary('ground', 2000);
 });
+
+if (btnDmrToggleEl) {
+  btnDmrToggleEl.addEventListener('click', async () => {
+    if (dmrToggleInFlight) return;
+    dmrToggleInFlight = true;
+    try {
+      const endpoint = dmrActive ? '/api/dmr/disable' : '/api/dmr/enable';
+      const res = await post(endpoint, {});
+      actionMsg = res.ok ? (dmrActive ? 'DMR disabled' : 'DMR enabled') : (res.error || 'DMR toggle failed');
+      actionMsgTarget = 'ground';
+      await refresh(false);
+    } finally {
+      dmrToggleInFlight = false;
+    }
+  });
+}
 
 document.getElementById('btn-avoid').addEventListener('click', async ()=> {
   const target = activePage === 1 ? 'ground' : 'airband';

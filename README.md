@@ -44,11 +44,14 @@ Profiles notes:
 │   ├── build-combined-config.py # Generates combined dual-scanner config
 │   ├── rtl-airband              # Launch wrapper (preserves SIGHUP capability)
 │   ├── rtl-airband-*.sh         # Utility scripts for hit logging
+│   ├── dmr/                     # DMR decode pipeline scripts
 │   └── desktop/                 # Desktop button scripts
 ├── systemd/                     # systemd service units
 │   ├── rtl-airband.service      # Main scanner service
 │   ├── airband-ui.service       # Web UI service
 │   ├── icecast-keepalive.service
+│   ├── dmr-decode.service       # DMR decode pipeline
+│   ├── dmr-controller.service   # DMR follow/tune controller
 │   └── trunk-recorder*.service
 ├── icecast/                     # Icecast configuration
 ├── admin/                       # Operational files
@@ -58,6 +61,21 @@ Profiles notes:
 ├── RELEASE_NOTES.md             # Release notes
 └── README.md
 ```
+
+## DMR Decode (Optional)
+
+DMR decode runs as a separate pipeline that follows ground hits and retunes a dedicated SDR.
+
+- Profile: `profiles/rtl_airband_dmr_nashville.conf` (copy to `/usr/local/etc/airband-profiles` and replace the placeholder freqs).
+- Services: `systemd/dmr-decode.service` and `systemd/dmr-controller.service`.
+- Pipeline: `scripts/dmr/rtl_fm_dmr.sh` -> `scripts/dmr/dsd_wrapper.sh` -> `scripts/dmr/icecast_source_dmr.sh`.
+- Icecast: default mount is `/DMR.mp3` (see `icecast/icecast.xml.example`).
+
+Key env vars (set in `/etc/airband-ui.conf` if needed):
+- `DMR_PROFILE_PATH`, `DMR_TUNE_PATH`, `DMR_STATE_PATH`, `DMR_HOLD_SECONDS`
+- `DMR_DSD_CMD` to select your decoder command
+- `DMR_RTL_DEVICE`, `DMR_PPM`, `DMR_RTL_FM_ARGS` for tuner settings
+- `DMR_ICECAST_URL`, `DMR_AUDIO_RATE`, `DMR_AUDIO_CHANNELS` for streaming
 
 ## Architecture Overview
 

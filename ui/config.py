@@ -16,6 +16,12 @@ PROFILES_REGISTRY_PATH = os.path.join(PROFILES_DIR, "profiles.json")
 GROUND_CONFIG_PATH = os.getenv("GROUND_CONFIG_PATH", os.path.join(CONFIG_DIR, "rtl_airband_ground.conf"))
 COMBINED_CONFIG_PATH = os.getenv("COMBINED_CONFIG_PATH", os.path.join(CONFIG_DIR, "rtl_airband_combined.conf"))
 
+# DMR Configuration
+DMR_PROFILE_PATH = os.getenv("DMR_PROFILE_PATH", os.path.join(PROFILES_DIR, "rtl_airband_dmr_nashville.conf"))
+DMR_TUNE_PATH = os.getenv("DMR_TUNE_PATH", "/run/dmr_tune_freq.txt")
+DMR_STATE_PATH = os.getenv("DMR_STATE_PATH", "/run/dmr_state.json")
+DMR_HOLD_SECONDS = int(os.getenv("DMR_HOLD_SECONDS", "12"))
+
 # Last Hit Tracking
 LAST_HIT_AIRBAND_PATH = os.getenv("LAST_HIT_AIRBAND_PATH", "/run/rtl_airband_last_freq_airband.txt")
 LAST_HIT_GROUND_PATH = os.getenv("LAST_HIT_GROUND_PATH", "/run/rtl_airband_last_freq_ground.txt")
@@ -59,6 +65,8 @@ UNITS = {
     "icecast": os.getenv("UNIT_ICECAST", "icecast2"),
     "keepalive": os.getenv("UNIT_KEEPALIVE", "icecast-keepalive"),
     "ui": os.getenv("UNIT_UI", "airband-ui"),
+    "dmr": os.getenv("UNIT_DMR", "dmr-decode"),
+    "dmr_controller": os.getenv("UNIT_DMR_CONTROLLER", "dmr-controller"),
 }
 
 # Mixer Configuration
@@ -77,6 +85,7 @@ PROFILES = [
     ("none_ground", "No Profile", os.path.join(PROFILES_DIR, "rtl_airband_none_ground.conf")),
     ("campbell_ground", "Ft. Campbell", os.path.join(PROFILES_DIR, "rtl_airband_campbell_ground.conf")),
     ("campbell_nfm", "Ft. Campbell NFM", os.path.join(PROFILES_DIR, "rtl_airband_campbell_nfm.conf")),
+    ("dmr_nashville", "DMR Nashville", os.path.join(PROFILES_DIR, "rtl_airband_dmr_nashville.conf")),
     ("gmrs",   "GMRS", os.path.join(PROFILES_DIR, "rtl_airband_gmrs.conf")),
     ("mtears", "MTEARS", os.path.join(PROFILES_DIR, "rtl_airband_mtears.conf")),
     ("wx",     "WX (162.550)", os.path.join(PROFILES_DIR, "rtl_airband_wx.conf")),
