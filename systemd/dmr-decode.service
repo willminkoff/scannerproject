@@ -7,6 +7,7 @@ Requires=icecast2.service
 [Service]
 Type=simple
 EnvironmentFile=-/etc/airband-ui.conf
+Environment=DMR_MOUNT=/GND.mp3
 ExecStart=/bin/bash -lc 'set -o pipefail; /home/willminkoff/scannerproject/scripts/dmr/rtl_fm_dmr.sh | /home/willminkoff/scannerproject/scripts/dmr/dsd_wrapper.sh | /home/willminkoff/scannerproject/scripts/dmr/icecast_source_dmr.sh'
 Restart=on-failure
 RestartSec=1

@@ -336,12 +336,16 @@ def action_dmr(mode: str) -> dict:
     """Action: Enable/disable DMR decode."""
     mode = (mode or "enable").strip().lower()
     if mode in ("enable", "start", "on"):
+        # Prevent double-source conflicts on /GND.mp3 by stopping rtl-airband first.
+        stop_rtl()
         start_dmr()
         start_dmr_controller()
         return {"status": 200, "payload": {"ok": True, "active": True}}
     if mode in ("disable", "stop", "off"):
         stop_dmr_controller()
         stop_dmr()
+        # Restore rtl-airband as the /GND.mp3 source when DMR is disabled.
+        start_rtl()
         return {"status": 200, "payload": {"ok": True, "active": False}}
     return {"status": 400, "payload": {"ok": False, "error": "unknown mode"}}
 

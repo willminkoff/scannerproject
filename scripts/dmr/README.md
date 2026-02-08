@@ -7,3 +7,5 @@ DMR_DEFAULT_FREQ=461.0375 ./rtl_fm_dmr.sh | ./dsd_wrapper.sh | aplay -f S16_LE -
 ```
 
 These scripts target conventional DMR voice. Trunking control/channel following is not handled here.
+
+Default Icecast mount is `/GND.mp3` (override with `DMR_MOUNT`).

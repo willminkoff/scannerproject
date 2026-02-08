@@ -69,7 +69,7 @@ DMR decode runs as a separate pipeline that follows ground hits and retunes a de
 - Profile: `profiles/rtl_airband_dmr_nashville.conf` (copy to `/usr/local/etc/airband-profiles` and replace the placeholder freqs).
 - Services: `systemd/dmr-decode.service` and `systemd/dmr-controller.service`.
 - Pipeline: `scripts/dmr/rtl_fm_dmr.sh` -> `scripts/dmr/dsd_wrapper.sh` -> `scripts/dmr/icecast_source_dmr.sh`.
-- Icecast: default mount is `/DMR.mp3` (see `icecast/icecast.xml.example`).
+- Icecast: default mount is `/GND.mp3` (see `icecast/icecast.xml.example`).
 
 Key env vars (set in `/etc/airband-ui.conf` if needed):
 - `DMR_PROFILE_PATH`, `DMR_TUNE_PATH`, `DMR_STATE_PATH`, `LAST_HIT_GROUND_PATH`
@@ -77,6 +77,12 @@ Key env vars (set in `/etc/airband-ui.conf` if needed):
 - `DMR_DSD_ARGS` to tune `dsd-fme` flags
 - `DMR_RTL_DEVICE`, `DMR_PPM`, `DMR_RTL_FM_ARGS` for tuner settings
 - `DMR_ICECAST_URL`, `DMR_AUDIO_RATE`, `DMR_AUDIO_CHANNELS` for streaming
+
+
+Quick verification:
+- Start DMR decode (UI toggle or `systemctl start dmr-decode.service`).
+- Confirm Icecast mount `/GND.mp3` is live.
+- Confirm `rtl-airband.service` is not simultaneously streaming to `/GND.mp3`.
 
 ## DMR (DMR26)
 
@@ -86,7 +92,7 @@ Layout verdict:
 - `scripts/dmr/dmr_controller.sh`: Follows ground last-hit updates and writes the tuned DMR frequency with hold/debounce.
 - `scripts/dmr/rtl_fm_dmr.sh`: Runs `rtl_fm` on the tuned DMR frequency and emits raw baseband audio.
 - `scripts/dmr/dsd_wrapper.sh`: Runs `dsd-fme` on stdin and emits decoded PCM to stdout.
-- `scripts/dmr/icecast_source_dmr.sh`: Encodes decoded audio and pushes it to the DMR Icecast mount.
+- `scripts/dmr/icecast_source_dmr.sh`: Encodes decoded audio and pushes it to the Icecast mount.
 - `systemd/dmr-decode.service`: Service wrapper for the rtl_fm -> dsd -> Icecast pipeline.
 - `systemd/dmr-controller.service`: Service wrapper for the hit-following controller.
 - `ui/actions.py`: Adds DMR enable/disable action handling for the UI.
