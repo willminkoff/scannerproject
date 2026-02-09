@@ -2,6 +2,7 @@
 set -euo pipefail
 
 DMR_PROFILE_PATH="${DMR_PROFILE_PATH:-${PROFILES_DIR:-/usr/local/etc/airband-profiles}/rtl_airband_dmr_nashville.conf}"
+DMR_PROFILE_PATH_FILE="${DMR_PROFILE_PATH_FILE:-/run/dmr_profile_path.txt}"
 DMR_LAST_HIT_PATH="${DMR_LAST_HIT_PATH:-${LAST_HIT_GROUND_PATH:-/run/rtl_airband_last_freq_ground.txt}}"
 DMR_TUNE_PATH="${DMR_TUNE_PATH:-/run/dmr_tune_freq.txt}"
 DMR_STATE_PATH="${DMR_STATE_PATH:-/run/dmr_state.json}"
@@ -20,6 +21,18 @@ DMR_POLL_INTERVAL="${DMR_POLL_INTERVAL:-0.5}"
 
 log() {
   echo "[dmr-controller] $*" >&2
+}
+
+resolve_profile_path() {
+  local path="$DMR_PROFILE_PATH"
+  if [[ -n "${DMR_PROFILE_PATH_FILE:-}" && -f "$DMR_PROFILE_PATH_FILE" ]]; then
+    local file_path
+    file_path=$(head -n1 "$DMR_PROFILE_PATH_FILE" | tr -d "\r\n")
+    if [[ -n "$file_path" ]]; then
+      path="$file_path"
+    fi
+  fi
+  echo "$path"
 }
 
 normalize_freq() {
@@ -44,7 +57,8 @@ secs_to_ms() {
 }
 
 load_freqs() {
-  python3 - "$DMR_PROFILE_PATH" <<'PY'
+  local profile_path="$1"
+  python3 - "$profile_path" <<'PY'
 import re
 import sys
 
@@ -222,6 +236,8 @@ run_test() {
 
 mkdir -p /run
 
+PROFILE_PATH=$(resolve_profile_path)
+
 HOLD_MS=$(secs_to_ms "$DMR_HOLD_SECS")
 COOLDOWN_MS=$(secs_to_ms "$DMR_COOLDOWN_SECS")
 
@@ -238,10 +254,10 @@ while read -r f; do
   if nf=$(normalize_freq "$f" 2>/dev/null); then
     DMR_FREQS["$nf"]=1
   fi
-done < <(load_freqs)
+done < <(load_freqs "$PROFILE_PATH")
 
 if [[ ${#DMR_FREQS[@]} -eq 0 ]]; then
-  log "error: no DMR freqs loaded from $DMR_PROFILE_PATH; controller idle"
+  log "error: no DMR freqs loaded from ${PROFILE_PATH:-$DMR_PROFILE_PATH}; controller idle"
   DMR_FREQS_OK=0
 fi
 

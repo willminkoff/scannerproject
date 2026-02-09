@@ -11,19 +11,21 @@ logger = logging.getLogger(__name__)
 
 try:
     from .config import (
-        CONFIG_SYMLINK, PROFILES_DIR, PROFILES_REGISTRY_PATH, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, AIRONLY_CONFIG_PATH,
+        CONFIG_SYMLINK, PROFILES_DIR, PROFILES_REGISTRY_PATH, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH,
         AVOIDS_DIR, AVOIDS_PATHS, AVOIDS_SUMMARY_PATHS, PROFILES, GAIN_STEPS,
         RE_GAIN, RE_SQL, RE_SQL_DBFS, RE_AIRBAND, RE_INDEX, RE_FREQS_BLOCK, RE_LABELS_BLOCK,
         MIXER_NAME, FILTER_AIRBAND_PATH, FILTER_GROUND_PATH, FILTER_DEFAULT_CUTOFF,
+        GROUND_SELECTED_PATH, DMR_PROFILE_PATH_FILE,
         FILTER_MIN_CUTOFF, FILTER_MAX_CUTOFF
     )
     from .systemd import restart_rtl, stop_rtl, start_rtl
 except ImportError:
     from ui.config import (
-        CONFIG_SYMLINK, PROFILES_DIR, PROFILES_REGISTRY_PATH, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, AIRONLY_CONFIG_PATH,
+        CONFIG_SYMLINK, PROFILES_DIR, PROFILES_REGISTRY_PATH, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH,
         AVOIDS_DIR, AVOIDS_PATHS, AVOIDS_SUMMARY_PATHS, PROFILES, GAIN_STEPS,
         RE_GAIN, RE_SQL, RE_SQL_DBFS, RE_AIRBAND, RE_INDEX, RE_FREQS_BLOCK, RE_LABELS_BLOCK,
         MIXER_NAME, FILTER_AIRBAND_PATH, FILTER_GROUND_PATH, FILTER_DEFAULT_CUTOFF,
+        GROUND_SELECTED_PATH, DMR_PROFILE_PATH_FILE,
         FILTER_MIN_CUTOFF, FILTER_MAX_CUTOFF
     )
     from ui.systemd import restart_rtl, stop_rtl, start_rtl
@@ -32,7 +34,7 @@ except ImportError:
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
-from combined_config import build_combined_config, build_aironly_config
+from combined_config import build_combined_config
 
 
 def read_active_config_path() -> str:
@@ -237,6 +239,52 @@ def load_profiles_registry() -> List[Dict]:
     return profiles
 
 
+
+
+def write_ground_selected(profile_id: str, path: str, mode: str) -> None:
+    data = {"id": profile_id, "path": path, "mode": mode}
+    tmp = GROUND_SELECTED_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f)
+    os.replace(tmp, GROUND_SELECTED_PATH)
+
+
+def clear_ground_selected() -> None:
+    try:
+        os.remove(GROUND_SELECTED_PATH)
+    except FileNotFoundError:
+        pass
+    except Exception:
+        pass
+
+
+def read_ground_selected():
+    try:
+        with open(GROUND_SELECTED_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return None
+    except Exception:
+        return None
+
+
+def write_dmr_profile_path(path: str) -> None:
+    if not path:
+        return
+    tmp = DMR_PROFILE_PATH_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(path.strip() + "\n")
+    os.replace(tmp, DMR_PROFILE_PATH_FILE)
+
+
+def clear_dmr_profile_path() -> None:
+    try:
+        os.remove(DMR_PROFILE_PATH_FILE)
+    except FileNotFoundError:
+        pass
+    except Exception:
+        pass
+
 def find_profile(profiles: List[Dict], profile_id: str) -> Optional[Dict]:
     for p in profiles:
         if p.get("id") == profile_id:
@@ -245,29 +293,11 @@ def find_profile(profiles: List[Dict], profile_id: str) -> Optional[Dict]:
 
 
 
-def write_aironly_config(publish: bool = False) -> bool:
-    """Write the air-only configuration (Scanner1 only)."""
-    airband_path = read_active_config_path()
-    aironly = build_aironly_config(airband_path, MIXER_NAME, publish=publish)
-    try:
-        with open(AIRONLY_CONFIG_PATH, "r", encoding="utf-8", errors="ignore") as f:
-            existing = f.read()
-    except FileNotFoundError:
-        existing = None
-    if existing == aironly:
-        return False
-    tmp = AIRONLY_CONFIG_PATH + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        f.write(aironly)
-    os.replace(tmp, AIRONLY_CONFIG_PATH)
-    return True
-
 def write_combined_config() -> bool:
     """Write the combined configuration."""
     airband_path = read_active_config_path()
     ground_path = os.path.realpath(GROUND_CONFIG_PATH)
     combined = build_combined_config(airband_path, ground_path, MIXER_NAME)
-    write_aironly_config(publish=False)
     try:
         with open(COMBINED_CONFIG_PATH, "r", encoding="utf-8", errors="ignore") as f:
             existing = f.read()

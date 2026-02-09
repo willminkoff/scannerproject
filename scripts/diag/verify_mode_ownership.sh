@@ -12,11 +12,41 @@ UNIT_DMR="${UNIT_DMR:-dmr-decode}"
 UNIT_DMR_CONTROLLER="${UNIT_DMR_CONTROLLER:-dmr-controller}"
 UNIT_GROUND="${UNIT_GROUND:-rtl-airband-ground}"
 
+SCANNER1_RTL_DEVICE="${SCANNER1_RTL_DEVICE:-00000002}"
 SCANNER2_RTL_DEVICE="${SCANNER2_RTL_DEVICE:-70613472}"
-ACTIVE_CONF="${RTLAIRBAND_ACTIVE_CONFIG_PATH:-/usr/local/etc/rtl_airband_active.conf}"
 COMBINED_CONF="${COMBINED_CONFIG_PATH:-/usr/local/etc/rtl_airband_combined.conf}"
-AIRONLY_CONF="${AIRONLY_CONFIG_PATH:-/usr/local/etc/rtl_airband_aironly.conf}"
+GROUND_SELECTED_PATH="${GROUND_SELECTED_PATH:-/run/airband_ui_ground_selected.json}"
 
+read_ground_mode() {
+  if [[ ! -f "$GROUND_SELECTED_PATH" ]]; then
+    return 0
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$GROUND_SELECTED_PATH" <<'PY'
+import json
+import sys
+path = sys.argv[1]
+try:
+    data = json.load(open(path, "r", encoding="utf-8"))
+except Exception:
+    sys.exit(0)
+mode = data.get("mode")
+if mode in ("analog", "dmr"):
+    print(mode)
+PY
+  fi
+}
+
+conf_has_serial() {
+  local conf="$1"
+  local serial="$2"
+  if [[ -f "$conf" ]] && grep -q "serial = \"$serial\"" "$conf"; then
+    return 0
+  fi
+  return 1
+}
+
+printf '[diag] SCANNER1_RTL_DEVICE=%s\n' "$SCANNER1_RTL_DEVICE"
 printf '[diag] SCANNER2_RTL_DEVICE=%s\n' "$SCANNER2_RTL_DEVICE"
 
 if command -v rtl_test >/dev/null 2>&1; then
@@ -52,36 +82,48 @@ elif [[ "$rtl_active" -eq 1 ]]; then
   mode="analog"
 fi
 
+selected_mode="$(read_ground_mode || true)"
+if [[ -n "$selected_mode" ]]; then
+  mode="$selected_mode"
+fi
+
 echo "[diag] services: rtl=${rtl_active} ground=${ground_active} dmr=${dmr_active} dmr_controller=${dmr_controller_active}"
 echo "[diag] mode=${mode}"
+echo "[diag] combined_conf=${COMBINED_CONF}"
 
-active_conf_real=""
-if [[ -e "$ACTIVE_CONF" ]]; then
-  active_conf_real=$(readlink -f "$ACTIVE_CONF" 2>/dev/null || echo "$ACTIVE_CONF")
+has_s1=0
+has_s2=0
+if conf_has_serial "$COMBINED_CONF" "$SCANNER1_RTL_DEVICE"; then
+  has_s1=1
+fi
+if conf_has_serial "$COMBINED_CONF" "$SCANNER2_RTL_DEVICE"; then
+  has_s2=1
 fi
 
-echo "[diag] active_conf=${ACTIVE_CONF} -> ${active_conf_real}"
+echo "[diag] combined_conf serials: scanner1=${has_s1} scanner2=${has_s2}"
 
-has_scanner2=0
-if [[ -f "$ACTIVE_CONF" ]] && grep -q "serial = \"$SCANNER2_RTL_DEVICE\"" "$ACTIVE_CONF"; then
-  has_scanner2=1
-elif [[ -f "$active_conf_real" ]] && grep -q "serial = \"$SCANNER2_RTL_DEVICE\"" "$active_conf_real"; then
-  has_scanner2=1
+if [[ "$mode" == "dmr" ]]; then
+  if [[ "$has_s2" -eq 1 ]]; then
+    echo "[diag] FAIL: DMR mode but combined config still includes Scanner2" >&2
+    echo "[diag] check: GROUND_CONFIG_PATH symlink should point to rtl_airband_none_ground.conf" >&2
+    exit 2
+  fi
+  if [[ "$has_s1" -ne 1 ]]; then
+    echo "[diag] FAIL: DMR mode but combined config missing Scanner1" >&2
+    exit 3
+  fi
 fi
 
-if [[ "$dmr_active" -eq 1 && "$has_scanner2" -eq 1 ]]; then
-  echo "[diag] FAIL: DMR active but rtl_airband config still binds Scanner2" >&2
-  exit 2
-fi
-
-if [[ "$dmr_active" -eq 1 && "$rtl_active" -eq 1 && "$active_conf_real" == "$COMBINED_CONF" ]]; then
-  echo "[diag] FAIL: DMR active but rtl_airband is running combined config" >&2
-  exit 3
+if [[ "$mode" == "analog" ]]; then
+  if [[ "$has_s1" -ne 1 || "$has_s2" -ne 1 ]]; then
+    echo "[diag] FAIL: Analog mode expects both Scanner1 + Scanner2 in combined config" >&2
+    exit 4
+  fi
 fi
 
 if [[ "$dmr_active" -eq 1 && "$ground_active" -eq 1 ]]; then
   echo "[diag] FAIL: rtl-airband-ground active during DMR mode" >&2
-  exit 4
+  exit 5
 fi
 
 echo "[diag] PASS: ownership looks sane"

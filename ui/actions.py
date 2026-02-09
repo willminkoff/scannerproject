@@ -8,7 +8,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 try:
-    from .config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, AIRONLY_CONFIG_PATH, RTLAIRBAND_ACTIVE_CONFIG_PATH, HOLD_STATE_PATH, TUNE_BACKUP_PATH, UNITS
+    from .config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, HOLD_STATE_PATH, TUNE_BACKUP_PATH, UNITS
     from .systemd import (
         unit_active,
         stop_rtl,
@@ -29,10 +29,11 @@ try:
     from .profile_config import (
         split_profiles, guess_current_profile, set_profile, write_controls,
         write_combined_config, read_active_config_path, avoid_current_hit,
-        clear_avoids, write_filter, parse_freqs_labels, replace_freqs_labels
+        clear_avoids, write_filter, parse_freqs_labels, replace_freqs_labels,
+        write_ground_selected, clear_ground_selected, write_dmr_profile_path, clear_dmr_profile_path
     )
 except ImportError:
-    from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, AIRONLY_CONFIG_PATH, RTLAIRBAND_ACTIVE_CONFIG_PATH, HOLD_STATE_PATH, TUNE_BACKUP_PATH, UNITS
+    from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, HOLD_STATE_PATH, TUNE_BACKUP_PATH, UNITS
     from ui.systemd import (
         unit_active,
         stop_rtl,
@@ -53,7 +54,8 @@ except ImportError:
     from ui.profile_config import (
         split_profiles, guess_current_profile, set_profile, write_controls,
         write_combined_config, read_active_config_path, avoid_current_hit,
-        clear_avoids, write_filter, parse_freqs_labels, replace_freqs_labels
+        clear_avoids, write_filter, parse_freqs_labels, replace_freqs_labels,
+        write_ground_selected, clear_ground_selected, write_dmr_profile_path, clear_dmr_profile_path
     )
 
 
@@ -162,16 +164,12 @@ def _clear_tune_backup():
 
 
 
-def _set_airband_active_config(target_path: str) -> None:
-    try:
-        os.makedirs(os.path.dirname(RTLAIRBAND_ACTIVE_CONFIG_PATH) or ".", exist_ok=True)
-    except Exception:
-        pass
-    try:
-        import subprocess
-        subprocess.run(["ln", "-sf", target_path, RTLAIRBAND_ACTIVE_CONFIG_PATH], check=False)
-    except Exception:
-        pass
+
+def _find_profile_path(profile_id: str, profiles_ground):
+    for p in profiles_ground or []:
+        if p.get("id") == profile_id:
+            return p.get("path")
+    return None
 
 def _ground_mode_for_profile(profile_id: str, profiles_ground) -> str:
     for p in profiles_ground or []:
@@ -264,20 +262,27 @@ def action_set_profile(profile_id: str, target: str) -> dict:
             payload["ground_mode"] = mode
             if mode == "dmr":
                 logger.info("ground mode: dmr")
+                none_path = _find_profile_path("none_ground", profiles_ground)
+                if not none_path:
+                    return {"status": 500, "payload": {"ok": False, "error": "none_ground profile missing"}}
+                # Point ground config to none_ground so combined config omits Scanner2.
+                import subprocess
+                subprocess.run(["ln", "-sf", none_path, GROUND_CONFIG_PATH], check=False)
+                write_ground_selected(profile_id, _find_profile_path(profile_id, profiles_ground) or "", "dmr")
+                write_dmr_profile_path(_find_profile_path(profile_id, profiles_ground) or "")
                 stop_dmr_controller()
                 stop_dmr()
-                # Switch rtl-airband to air-only before starting DMR pipeline.
-                _set_airband_active_config(AIRONLY_CONFIG_PATH)
                 restart_rtl()
                 time.sleep(0.5)
                 start_dmr_controller()
                 start_dmr()
             else:
                 logger.info("ground mode: analog")
+                clear_ground_selected()
+                clear_dmr_profile_path()
                 stop_dmr_controller()
                 stop_dmr()
                 stop_ground()
-                _set_airband_active_config(COMBINED_CONFIG_PATH)
                 restart_rtl()
             _ensure_single_mount(mode)
         if combined_changed:
@@ -409,9 +414,15 @@ def action_dmr(mode: str) -> dict:
         return {"status": 400, "payload": {"ok": False, "error": "ground profile mode is analog"}}
     if mode in ("enable", "start", "on"):
         logger.info("ground mode: dmr")
+        none_path = _find_profile_path("none_ground", _p_ground)
+        if not none_path:
+            return {"status": 500, "payload": {"ok": False, "error": "none_ground profile missing"}}
+        import subprocess
+        subprocess.run(["ln", "-sf", none_path, GROUND_CONFIG_PATH], check=False)
+        write_ground_selected(current_ground, _find_profile_path(current_ground, _p_ground) or "", "dmr")
+        write_dmr_profile_path(_find_profile_path(current_ground, _p_ground) or "")
         stop_dmr_controller()
         stop_dmr()
-        _set_airband_active_config(AIRONLY_CONFIG_PATH)
         restart_rtl()
         time.sleep(0.5)
         start_dmr_controller()
@@ -420,10 +431,11 @@ def action_dmr(mode: str) -> dict:
         return {"status": 200, "payload": {"ok": True, "active": True}}
     if mode in ("disable", "stop", "off"):
         logger.info("ground mode: analog")
+        clear_ground_selected()
+        clear_dmr_profile_path()
         stop_dmr_controller()
         stop_dmr()
         stop_ground()
-        _set_airband_active_config(COMBINED_CONFIG_PATH)
         restart_rtl()
         _ensure_single_mount("analog")
         return {"status": 200, "payload": {"ok": True, "active": False}}

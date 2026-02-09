@@ -3,6 +3,7 @@ set -euo pipefail
 
 DMR_TUNE_PATH="${DMR_TUNE_PATH:-/run/dmr_tune_freq.txt}"
 DMR_PROFILE_PATH="${DMR_PROFILE_PATH:-${PROFILES_DIR:-/usr/local/etc/airband-profiles}/rtl_airband_dmr_nashville.conf}"
+DMR_PROFILE_PATH_FILE="${DMR_PROFILE_PATH_FILE:-/run/dmr_profile_path.txt}"
 DMR_DEFAULT_FREQ="${DMR_DEFAULT_FREQ:-}"
 DMR_TUNE_POLL="${DMR_TUNE_POLL:-0.5}"
 
@@ -19,6 +20,55 @@ log() {
   echo "[dmr-rtl_fm] $*" >&2
 }
 
+resolve_profile_path() {
+  local path="$DMR_PROFILE_PATH"
+  if [[ -n "${DMR_PROFILE_PATH_FILE:-}" && -f "$DMR_PROFILE_PATH_FILE" ]]; then
+    local file_path
+    file_path=$(head -n1 "$DMR_PROFILE_PATH_FILE" | tr -d "\r\n")
+    if [[ -n "$file_path" ]]; then
+      path="$file_path"
+    fi
+  fi
+  echo "$path"
+}
+
+find_usb_path_by_serial() {
+  local serial="$1"
+  local dev
+  for dev in /sys/bus/usb/devices/*; do
+    [[ -f "$dev/serial" ]] || continue
+    if grep -q "$serial" "$dev/serial"; then
+      local bus
+      local num
+      bus=$(cat "$dev/busnum" 2>/dev/null || true)
+      num=$(cat "$dev/devnum" 2>/dev/null || true)
+      if [[ -n "$bus" && -n "$num" ]]; then
+        printf "/dev/bus/usb/%03d/%03d" "$bus" "$num"
+        return 0
+      fi
+    fi
+  done
+  return 1
+}
+
+check_scanner2_busy() {
+  if [[ -z "${SCANNER2_RTL_DEVICE:-}" ]]; then
+    return 0
+  fi
+  local usb_path
+  usb_path=$(find_usb_path_by_serial "$SCANNER2_RTL_DEVICE" || true)
+  if [[ -z "$usb_path" ]]; then
+    return 0
+  fi
+  if command -v lsof >/dev/null 2>&1; then
+    if lsof "$usb_path" 2>/dev/null | grep -q 'rtl_airband'; then
+      log "error: Scanner2 busy (rtl_airband holds $usb_path); exiting"
+      sleep "$DMR_RTL_BACKOFF_SECS"
+      exit 1
+    fi
+  fi
+}
+
 normalize_freq() {
   local val="$1"
   awk -v f="$val" 'BEGIN{if(f=="" || f=="-") exit 1; printf "%.4f", f+0}'
@@ -30,7 +80,8 @@ freq_to_hz() {
 }
 
 first_profile_freq() {
-  python3 - "$DMR_PROFILE_PATH" <<'PY'
+  local profile_path="$1"
+  python3 - "$profile_path" <<'PY'
 import re
 import sys
 
@@ -63,7 +114,9 @@ resolve_start_freq() {
   else
     raw=$(read_tune)
     if [[ -z "$raw" ]]; then
-      raw=$(first_profile_freq)
+      local profile_path
+      profile_path=$(resolve_profile_path)
+      raw=$(first_profile_freq "$profile_path")
     fi
   fi
   if nf=$(normalize_freq "$raw" 2>/dev/null); then
@@ -118,6 +171,7 @@ action_start() {
     return
   fi
   hz=$(freq_to_hz "$mhz")
+  check_scanner2_busy
   mapfile -t args < <(build_rtl_args)
   log "Starting rtl_fm on ${mhz} MHz (${hz} Hz)"
   log "rtl_fm device: ${SCANNER2_RTL_DEVICE:-default(0)}"

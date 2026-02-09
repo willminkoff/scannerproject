@@ -15,8 +15,6 @@ PROFILES_DIR = os.getenv("PROFILES_DIR", "/usr/local/etc/airband-profiles")
 PROFILES_REGISTRY_PATH = os.path.join(PROFILES_DIR, "profiles.json")
 GROUND_CONFIG_PATH = os.getenv("GROUND_CONFIG_PATH", os.path.join(CONFIG_DIR, "rtl_airband_ground.conf"))
 COMBINED_CONFIG_PATH = os.getenv("COMBINED_CONFIG_PATH", os.path.join(CONFIG_DIR, "rtl_airband_combined.conf"))
-AIRONLY_CONFIG_PATH = os.getenv("AIRONLY_CONFIG_PATH", os.path.join(CONFIG_DIR, "rtl_airband_aironly.conf"))
-RTLAIRBAND_ACTIVE_CONFIG_PATH = os.getenv("RTLAIRBAND_ACTIVE_CONFIG_PATH", os.path.join(CONFIG_DIR, "rtl_airband_active.conf"))
 
 # DMR Configuration
 DMR_PROFILE_PATH = os.getenv("DMR_PROFILE_PATH", os.path.join(PROFILES_DIR, "rtl_airband_dmr_nashville.conf"))
@@ -59,6 +57,8 @@ ICECAST_HIT_LOG_LIMIT = int(os.getenv("ICECAST_HIT_LOG_LIMIT", "200"))
 # Hold/lock state
 HOLD_STATE_PATH = os.getenv("HOLD_STATE_PATH", "/run/airband_ui_hold.json")
 TUNE_BACKUP_PATH = os.getenv("TUNE_BACKUP_PATH", "/run/airband_ui_tune_backup.json")
+GROUND_SELECTED_PATH = os.getenv("GROUND_SELECTED_PATH", "/run/airband_ui_ground_selected.json")
+DMR_PROFILE_PATH_FILE = os.getenv("DMR_PROFILE_PATH_FILE", "/run/dmr_profile_path.txt")
 
 # Systemd Units
 UNITS = {

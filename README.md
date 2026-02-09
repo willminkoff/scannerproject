@@ -73,7 +73,7 @@ DMR decode runs as a separate pipeline that follows ground hits and retunes a de
 - Ground profile mode controls DMR: selecting a DMR ground profile enables the DMR pipeline; analog profiles stop it.
 
 Key env vars (set in `/etc/airband-ui.conf` if needed):
-- `DMR_PROFILE_PATH`, `DMR_TUNE_PATH`, `DMR_STATE_PATH`, `LAST_HIT_GROUND_PATH`
+- `DMR_PROFILE_PATH`, `DMR_PROFILE_PATH_FILE`, `DMR_TUNE_PATH`, `DMR_STATE_PATH`, `LAST_HIT_GROUND_PATH`
 - `DMR_HOLD_SECS`, `DMR_DEBOUNCE_MS`, `DMR_MIN_DWELL_MS`, `DMR_COOLDOWN_SECS`, `DMR_DEFAULT_FREQ`
 - `DMR_DSD_ARGS` to tune `dsd-fme` flags
 - `SCANNER2_RTL_DEVICE`, `DMR_PPM`, `DMR_RTL_FM_ARGS` for tuner settings
@@ -82,8 +82,8 @@ Key env vars (set in `/etc/airband-ui.conf` if needed):
 
 Quick verification:
 - Start DMR decode (UI toggle or `systemctl start dmr-decode.service`).
-- Confirm Icecast mount `/GND.mp3` is live.
-- Confirm `rtl-airband.service` is not simultaneously streaming to `/GND.mp3`.
+- Confirm combined config omits Scanner2: `grep -n '70613472' /usr/local/etc/rtl_airband_combined.conf` returns nothing.
+- Confirm `/run/dmr_rtl_fm.err` has no `usb_claim_interface error -6` and `/GND.mp3` is live.
 
 ## DMR (DMR26)
 
@@ -123,16 +123,16 @@ Run files:
 - It carries Scanner1 (SDR1 airband) + Scanner2 (SDR2 ground).
 - Scanner2 ground mode is profile-driven: analog profiles use rtl-airband ground; DMR profiles use the DMR decode pipeline.
 
-Only one publisher can own a mount at a time. In DMR mode, rtl-airband runs air-only with publishing disabled and the DMR pipeline is the sole `/GND.mp3` source; a true airband+DMR mix would require an external mixer stage.
+Only one publisher can own a mount at a time. In DMR mode, the UI swaps the ground config to `rtl_airband_none_ground.conf` (ui_disabled) so the generated combined config omits Scanner2; rtl-airband only opens Scanner1, and the DMR pipeline exclusively owns Scanner2.
 
 ## Scanner Ownership Contract
 
 - Scanner1 (SDR #0) is always airband and binds to `SCANNER1_RTL_DEVICE` (default `00000002`).
 - Scanner2 (SDR #1) is always ground and binds to `SCANNER2_RTL_DEVICE` (default `70613472`).
 - Profiles select ground mode (analog vs DMR) and freqs/behavior; they do not select hardware.
-- DMR mode forces rtl-airband to run `rtl_airband_aironly.conf` (Scanner1 only) and releases Scanner2 for rtl_fm.
-- Active rtl-airband config is selected via `RTLAIRBAND_ACTIVE_CONFIG_PATH` (symlink).
+- DMR mode points `GROUND_CONFIG_PATH` at `rtl_airband_none_ground.conf` (ui_disabled) so the combined config omits Scanner2, releasing it for rtl_fm.
 - The UI/backend enforces mutual exclusion so only one pipeline owns Scanner2 at a time.
+- rtl-airband always runs the generated combined config at `COMBINED_CONFIG_PATH`.
 - `/GND.mp3` remains the single Icecast mount.
 
 Troubleshooting: `usb_claim_interface` errors mean two processes tried to own Scanner2; check ground mode switching and active services.

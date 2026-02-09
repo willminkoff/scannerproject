@@ -22,10 +22,10 @@ def combined_num_devices(conf_path=None) -> int:
         return 0
 
 try:
-    from .config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, PROFILES_DIR, UI_PORT, UNITS, COMBINED_CONFIG_PATH, AIRONLY_CONFIG_PATH, RTLAIRBAND_ACTIVE_CONFIG_PATH
+    from .config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, PROFILES_DIR, UI_PORT, UNITS, COMBINED_CONFIG_PATH
     from .profile_config import (
         read_active_config_path, parse_controls, split_profiles,
-        guess_current_profile, summarize_avoids, parse_filter,
+        read_ground_selected, guess_current_profile, summarize_avoids, parse_filter,
         load_profiles_registry, find_profile, validate_profile_id, safe_profile_path,
         enforce_profile_index, set_profile, save_profiles_registry, write_airband_flag,
         parse_freqs_labels, parse_freqs_text, write_freqs_labels, write_combined_config
@@ -43,10 +43,10 @@ try:
     from .system_stats import get_system_stats
     from .vlc import start_vlc, stop_vlc, vlc_running
 except ImportError:
-    from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, PROFILES_DIR, UI_PORT, UNITS, COMBINED_CONFIG_PATH, AIRONLY_CONFIG_PATH, RTLAIRBAND_ACTIVE_CONFIG_PATH
+    from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, PROFILES_DIR, UI_PORT, UNITS, COMBINED_CONFIG_PATH
     from ui.profile_config import (
         read_active_config_path, parse_controls, split_profiles,
-        guess_current_profile, summarize_avoids, parse_filter,
+        read_ground_selected, guess_current_profile, summarize_avoids, parse_filter,
         load_profiles_registry, find_profile, validate_profile_id, safe_profile_path,
         enforce_profile_index, set_profile, save_profiles_registry, write_airband_flag,
         parse_freqs_labels, parse_freqs_text, write_freqs_labels, write_combined_config
@@ -179,8 +179,6 @@ class Handler(BaseHTTPRequestHandler):
             conf_path = read_active_config_path()
             ground_conf_path = os.path.realpath(GROUND_CONFIG_PATH)
             combined_conf_path = COMBINED_CONFIG_PATH
-            aironly_conf_path = AIRONLY_CONFIG_PATH
-            active_conf_path = RTLAIRBAND_ACTIVE_CONFIG_PATH
             airband_gain, airband_snr, airband_dbfs, airband_squelch_mode = parse_controls(conf_path)
             ground_gain, ground_snr, ground_dbfs, ground_squelch_mode = parse_controls(GROUND_CONFIG_PATH)
             airband_filter = parse_filter("airband")
@@ -193,7 +191,7 @@ class Handler(BaseHTTPRequestHandler):
             dmr_active = unit_active(dmr_unit) if dmr_unit else False
             dmr_controller_active = unit_active(dmr_controller_unit) if dmr_controller_unit else False
             dmr_exists = unit_exists(dmr_unit) if dmr_unit else False
-            combined_info = combined_device_summary(active_conf_path)
+            combined_info = combined_device_summary(combined_conf_path)
             airband_device = combined_info.get("airband")
             ground_device = combined_info.get("ground")
             airband_present = airband_device is not None
@@ -201,30 +199,37 @@ class Handler(BaseHTTPRequestHandler):
             rtl_ok = rtl_unit_active
             ground_ok = rtl_ok and ground_present
             ice_ok = icecast_up()
-            combined_stale = combined_config_stale(active_conf_path)
+            combined_stale = combined_config_stale(combined_conf_path)
 
             prof_payload, profiles_airband, profiles_ground = split_profiles()
             missing = [p["path"] for p in prof_payload if not p.get("exists")]
             profile_airband = guess_current_profile(conf_path, [(p["id"], p["label"], p["path"]) for p in profiles_airband])
-            profile_ground = guess_current_profile(ground_conf_path, [(p["id"], p["label"], p["path"]) for p in profiles_ground])
+            ground_selected = read_ground_selected() or {}
+            if ground_selected.get("id"):
+                profile_ground = ground_selected.get("id", "")
+            else:
+                profile_ground = guess_current_profile(ground_conf_path, [(p["id"], p["label"], p["path"]) for p in profiles_ground])
             ground_mode = "analog"
-            for p in profiles_ground:
-                if p.get("id") == profile_ground:
-                    ground_mode = p.get("mode") or "analog"
-                    break
+            if ground_selected.get("mode") in ("analog", "dmr"):
+                ground_mode = ground_selected.get("mode")
+            else:
+                for p in profiles_ground:
+                    if p.get("id") == profile_ground:
+                        ground_mode = p.get("mode") or "analog"
+                        break
             last_hit_airband = read_last_hit_airband()
             last_hit_ground = read_last_hit_ground()
             icecast_hit = read_last_hit_from_icecast() if ice_ok else ""
             config_mtimes = {}
-            for key, path in (("airband", conf_path), ("ground", ground_conf_path), ("combined", combined_conf_path), ("aironly", aironly_conf_path), ("active", active_conf_path)):
+            for key, path in (("airband", conf_path), ("ground", ground_conf_path), ("combined", combined_conf_path)):
                 try:
                     config_mtimes[key] = os.path.getmtime(path)
                 except Exception:
                     config_mtimes[key] = None
             rtl_active_enter = unit_active_enter_epoch(UNITS["rtl"])
             rtl_restart_required = False
-            if rtl_active_enter and config_mtimes.get("active"):
-                rtl_restart_required = config_mtimes["active"] > rtl_active_enter
+            if rtl_active_enter and config_mtimes.get("combined"):
+                rtl_restart_required = config_mtimes["combined"] > rtl_active_enter
 
             payload = {
                 "rtl_active": rtl_ok,
@@ -249,8 +254,6 @@ class Handler(BaseHTTPRequestHandler):
                     "airband": conf_path,
                     "ground": ground_conf_path,
                     "combined": combined_conf_path,
-                    "aironly": aironly_conf_path,
-                    "active": active_conf_path,
                 },
                 "config_mtimes": config_mtimes,
                 "profile_airband": profile_airband,
@@ -284,6 +287,7 @@ class Handler(BaseHTTPRequestHandler):
                 "avoids_ground": summarize_avoids(os.path.realpath(GROUND_CONFIG_PATH), "ground"),
             }
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
         if p == "/api/profiles":
             profiles = load_profiles_registry()
             prof_payload, profiles_airband, profiles_ground = split_profiles()
@@ -297,6 +301,9 @@ class Handler(BaseHTTPRequestHandler):
                     active_airband_id = pitem.get("id", "")
                 if path and os.path.realpath(path) == os.path.realpath(ground_conf):
                     active_ground_id = pitem.get("id", "")
+            ground_selected = read_ground_selected() or {}
+            if ground_selected.get("id"):
+                active_ground_id = ground_selected.get("id", "")
             payload = {
                 "ok": True,
                 "profiles": prof_payload,
@@ -306,6 +313,7 @@ class Handler(BaseHTTPRequestHandler):
                 "active_ground_id": active_ground_id,
             }
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
         if p == "/api/hits":
             items = read_icecast_hit_list(limit=50)
             # Append journalctl-based hits if needed for broader coverage
@@ -343,11 +351,11 @@ class Handler(BaseHTTPRequestHandler):
         try:
             while True:
                 conf_path = read_active_config_path()
-                active_conf_path = RTLAIRBAND_ACTIVE_CONFIG_PATH
+                combined_conf_path = COMBINED_CONFIG_PATH
                 airband_gain, airband_snr, airband_dbfs, airband_mode = parse_controls(conf_path)
                 rtl_unit_active = unit_active(UNITS["rtl"])
                 ground_unit_active = unit_active(UNITS["ground"])
-                combined_info = combined_device_summary(active_conf_path)
+                combined_info = combined_device_summary(combined_conf_path)
                 ground_present = combined_info.get("ground") is not None
                 rtl_active = rtl_unit_active
                 ground_active = rtl_active and ground_present
@@ -359,7 +367,7 @@ class Handler(BaseHTTPRequestHandler):
                     "ground_active": ground_active,
                     "icecast_active": ice_ok,
                     "ground_unit_active": ground_unit_active,
-                    "combined_config_stale": combined_config_stale(),
+                    "combined_config_stale": combined_config_stale(combined_conf_path),
                     "dmr_active": unit_active(UNITS.get("dmr")) if UNITS.get("dmr") else False,
                     "gain": float(airband_gain),
                     "squelch": float(airband_snr),

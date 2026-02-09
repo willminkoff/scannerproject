@@ -4,10 +4,10 @@ import re
 from typing import Dict, List, Optional
 
 try:
-    from .config import COMBINED_CONFIG_PATH, AIRONLY_CONFIG_PATH, RTLAIRBAND_ACTIVE_CONFIG_PATH, AIRBAND_MIN_MHZ, AIRBAND_MAX_MHZ, GROUND_CONFIG_PATH
+    from .config import COMBINED_CONFIG_PATH, AIRBAND_MIN_MHZ, AIRBAND_MAX_MHZ, GROUND_CONFIG_PATH
     from .profile_config import read_active_config_path
 except ImportError:
-    from ui.config import COMBINED_CONFIG_PATH, AIRONLY_CONFIG_PATH, RTLAIRBAND_ACTIVE_CONFIG_PATH, AIRBAND_MIN_MHZ, AIRBAND_MAX_MHZ, GROUND_CONFIG_PATH
+    from ui.config import COMBINED_CONFIG_PATH, AIRBAND_MIN_MHZ, AIRBAND_MAX_MHZ, GROUND_CONFIG_PATH
     from ui.profile_config import read_active_config_path
 
 RE_SERIAL = re.compile(r'serial\s*=\s*"([^"]+)"', re.I)
@@ -68,7 +68,7 @@ def _freq_in_airband(freq: float) -> bool:
     return AIRBAND_MIN_MHZ <= freq <= AIRBAND_MAX_MHZ
 
 
-def read_combined_devices(conf_path: str = RTLAIRBAND_ACTIVE_CONFIG_PATH) -> List[Dict]:
+def read_combined_devices(conf_path: str = COMBINED_CONFIG_PATH) -> List[Dict]:
     try:
         with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
             text = f.read()
@@ -117,7 +117,7 @@ def read_combined_devices(conf_path: str = RTLAIRBAND_ACTIVE_CONFIG_PATH) -> Lis
     return devices
 
 
-def combined_device_summary(conf_path: str = RTLAIRBAND_ACTIVE_CONFIG_PATH) -> Dict[str, Optional[Dict]]:
+def combined_device_summary(conf_path: str = COMBINED_CONFIG_PATH) -> Dict[str, Optional[Dict]]:
     devices = read_combined_devices(conf_path)
     airband = next((d for d in devices if d["is_airband"]), None)
     ground = next((d for d in devices if not d["is_airband"] and d["freqs"]), None)
@@ -128,7 +128,7 @@ def combined_device_summary(conf_path: str = RTLAIRBAND_ACTIVE_CONFIG_PATH) -> D
     }
 
 
-def combined_config_stale(conf_path: str = RTLAIRBAND_ACTIVE_CONFIG_PATH) -> bool:
+def combined_config_stale(conf_path: str = COMBINED_CONFIG_PATH) -> bool:
     try:
         combined_mtime = os.path.getmtime(conf_path)
     except FileNotFoundError:
