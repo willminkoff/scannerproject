@@ -20,7 +20,7 @@ args=()
 
 supports_flag() {
   local flag="$1"
-  echo "$help" | grep -qE "(^|[[:space:]])${flag}([[:space:]]|,|$)"
+  echo "$help" | grep -qE -- "(^|[[:space:]])${flag}([[:space:]]|,|$)"
 }
 
 supports_text() {
@@ -57,14 +57,14 @@ fi
 # Auto mode
 if supports_flag "-a" && supports_text "auto"; then
   args+=("-a")
-elif echo "$help" | grep -qE "--auto"; then
+elif echo "$help" | grep -qE -- "--auto"; then
   args+=("--auto")
 fi
 
 # Quiet / low-verbosity
 if supports_flag "-q" && supports_text "quiet"; then
   args+=("-q")
-elif echo "$help" | grep -qE "--quiet"; then
+elif echo "$help" | grep -qE -- "--quiet"; then
   args+=("--quiet")
 elif supports_flag "-v" && supports_text "verbose"; then
   args+=("-v" "0")
@@ -72,22 +72,22 @@ fi
 
 # Explicit raw PCM output when supported
 raw_set=0
-if echo "$help" | grep -qE "--out-raw"; then
+if echo "$help" | grep -qE -- "--out-raw"; then
   args+=("--out-raw")
   raw_set=1
-elif echo "$help" | grep -qE "--output-raw"; then
+elif echo "$help" | grep -qE -- "--output-raw"; then
   args+=("--output-raw")
   raw_set=1
-elif echo "$help" | grep -qE "--raw" && supports_text "raw"; then
+elif echo "$help" | grep -qE -- "--raw" && supports_text "raw"; then
   args+=("--raw")
   raw_set=1
 elif supports_flag "-R" && supports_text "raw"; then
   args+=("-R")
   raw_set=1
-elif echo "$help" | grep -qE "--output-format" && supports_text "raw"; then
+elif echo "$help" | grep -qE -- "--output-format" && supports_text "raw"; then
   args+=("--output-format" "raw")
   raw_set=1
-elif echo "$help" | grep -qE "--out-fmt" && supports_text "raw"; then
+elif echo "$help" | grep -qE -- "--out-fmt" && supports_text "raw"; then
   args+=("--out-fmt" "raw")
   raw_set=1
 fi
