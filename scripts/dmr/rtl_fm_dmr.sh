@@ -75,22 +75,21 @@ resolve_start_freq() {
 
 build_rtl_args() {
   local args=()
-  if [[ -n "$SCANNER2_RTL_DEVICE" ]]; then
+  read -r -a extra <<< "$DMR_RTL_FM_ARGS"
+  local has_d=0
+  for ((i=0; i<${#extra[@]}; i++)); do
+    if [[ "${extra[i]}" == "-d" ]]; then
+      has_d=1
+      i=$((i+1))
+    fi
+  done
+  if [[ -n "$SCANNER2_RTL_DEVICE" && "$has_d" -eq 0 ]]; then
     args+=("-d" "$SCANNER2_RTL_DEVICE")
   fi
   if [[ -n "$DMR_PPM" ]]; then
     args+=("-p" "$DMR_PPM")
   fi
-  read -r -a extra <<< "$DMR_RTL_FM_ARGS"
-  local filtered=()
-  for ((i=0; i<${#extra[@]}; i++)); do
-    if [[ "${extra[i]}" == "-d" ]]; then
-      i=$((i+1))
-      continue
-    fi
-    filtered+=("${extra[i]}")
-  done
-  args+=("${filtered[@]}")
+  args+=("${extra[@]}")
   local has_e=0
   for arg in "${args[@]}"; do
     if [[ "$arg" == "-E" ]]; then
