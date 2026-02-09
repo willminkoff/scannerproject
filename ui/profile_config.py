@@ -131,13 +131,24 @@ def safe_profile_path(path: str) -> Optional[str]:
 
 def _registry_payload_from_profiles(profiles) -> List[Dict]:
     payload = []
-    for pid, label, path in profiles:
+    for entry in profiles:
+        if len(entry) >= 4:
+            pid, label, path, mode = entry[0], entry[1], entry[2], entry[3]
+        else:
+            pid, label, path = entry[0], entry[1], entry[2]
+            mode = None
         airband_flag = _infer_airband_flag(pid, path)
+        airband_value = airband_flag if airband_flag is not None else True
+        if airband_value is True:
+            mode_value = None
+        else:
+            mode_value = mode if mode in ("analog", "dmr") else "analog"
         payload.append({
             "id": pid,
             "label": label,
             "path": path,
-            "airband": airband_flag if airband_flag is not None else True,
+            "airband": airband_value,
+            "mode": mode_value,
         })
     return payload
 
@@ -169,13 +180,19 @@ def load_profiles_registry() -> List[Dict]:
                 label = p.get("label")
                 path = p.get("path")
                 airband = p.get("airband")
+                mode = p.get("mode")
                 if not pid or not label or not path:
                     continue
+                airband_value = bool(airband)
+                mode_value = None
+                if not airband_value:
+                    mode_value = mode if mode in ("analog", "dmr") else "analog"
                 cleaned.append({
                     "id": pid,
                     "label": label,
                     "path": path,
-                    "airband": bool(airband),
+                    "airband": airband_value,
+                    "mode": mode_value,
                 })
             if cleaned:
                 defaults = _registry_payload_from_profiles(PROFILES)
@@ -186,6 +203,13 @@ def load_profiles_registry() -> List[Dict]:
                     if pid not in existing_ids:
                         cleaned.append(prof)
                         changed = True
+                    else:
+                        if prof.get("mode") and not next((c for c in cleaned if c.get("id") == pid and c.get("mode")), None):
+                            for c in cleaned:
+                                if c.get("id") == pid:
+                                    c["mode"] = prof.get("mode")
+                                    changed = True
+                                    break
                 if changed:
                     save_profiles_registry(cleaned)
                 return cleaned
@@ -233,6 +257,7 @@ def split_profiles():
             "path": path,
             "exists": exists,
             "airband": p.get("airband") is True,
+            "mode": p.get("mode") if p.get("airband") is False else None,
         })
     profiles_airband = [p for p in prof_payload if p.get("airband") is True]
     profiles_ground = [p for p in prof_payload if p.get("airband") is False]

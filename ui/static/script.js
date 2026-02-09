@@ -26,12 +26,11 @@ const editTextEl = document.getElementById('edit-text');
 const editLoadEl = document.getElementById('edit-load');
 const editSaveEl = document.getElementById('edit-save');
 const editStatusEl = document.getElementById('edit-status');
-const audioAirbandEl = document.getElementById('audio-airband');
 const audioGroundEl = document.getElementById('audio-ground');
-const lnkStreamAirbandEl = document.getElementById('lnk-stream-airband');
 const lnkStreamGroundEl = document.getElementById('lnk-stream-ground');
 const btnDmrToggleEl = document.getElementById('btn-dmr-toggle');
 const dmrStatusEl = document.getElementById('dmr-status');
+const groundModeEl = document.getElementById('ground-mode');
 let actionMsg = '';
 let actionMsgTarget = null;
 
@@ -179,6 +178,10 @@ function updateDmrToggle(st) {
   if (!btnDmrToggleEl) return;
   const supported = st && Object.prototype.hasOwnProperty.call(st, 'dmr_exists') ? !!st.dmr_exists : true;
   dmrActive = !!(st && st.dmr_active);
+  const groundMode = (st && st.ground_mode) ? String(st.ground_mode) : 'analog';
+  if (groundModeEl) {
+    groundModeEl.textContent = groundMode === 'dmr' ? 'DMR' : 'Analog';
+  }
   if (dmrStatusEl) {
     dmrStatusEl.textContent = supported ? (dmrActive ? 'On' : 'Off') : 'Unavailable';
   }
@@ -441,13 +444,7 @@ wireControls('airband');
 wireControls('ground');
 
 // Wire embedded players
-if (audioAirbandEl) audioAirbandEl.src = streamUrl();
 if (audioGroundEl) audioGroundEl.src = streamUrl();
-if (lnkStreamAirbandEl) {
-  lnkStreamAirbandEl.href = streamUrl();
-  lnkStreamAirbandEl.target = '_blank';
-  lnkStreamAirbandEl.rel = 'noopener';
-}
 if (lnkStreamGroundEl) {
   lnkStreamGroundEl.href = streamUrl();
   lnkStreamGroundEl.target = '_blank';

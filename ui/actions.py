@@ -3,9 +3,12 @@ import os
 import json
 import time
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 try:
-    from .config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, HOLD_STATE_PATH, TUNE_BACKUP_PATH
+    from .config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, HOLD_STATE_PATH, TUNE_BACKUP_PATH, UNITS
     from .systemd import (
         unit_active,
         stop_rtl,
@@ -29,7 +32,7 @@ try:
         clear_avoids, write_filter, parse_freqs_labels, replace_freqs_labels
     )
 except ImportError:
-    from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, HOLD_STATE_PATH, TUNE_BACKUP_PATH
+    from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, HOLD_STATE_PATH, TUNE_BACKUP_PATH, UNITS
     from ui.systemd import (
         unit_active,
         stop_rtl,
@@ -157,6 +160,27 @@ def _clear_tune_backup():
         pass
 
 
+def _ground_mode_for_profile(profile_id: str, profiles_ground) -> str:
+    for p in profiles_ground or []:
+        if p.get("id") == profile_id:
+            return p.get("mode") or "analog"
+    return "analog"
+
+
+def _ensure_single_mount(mode: str) -> None:
+    # Best-effort guard against multiple publishers on /GND.mp3.
+    rtl_active = unit_active(UNITS["rtl"])
+    dmr_active = unit_active(UNITS["dmr"])
+    if rtl_active and dmr_active:
+        logger.warning("mount conflict: rtl-airband + dmr-decode active; resolving for mode=%s", mode)
+        if mode == "dmr":
+            stop_rtl()
+        else:
+            stop_dmr()
+            stop_dmr_controller()
+
+
+
 def action_set_profile(profile_id: str, target: str) -> dict:
     """Action: Set a profile."""
     _, profiles_airband, profiles_ground = split_profiles()
@@ -175,7 +199,7 @@ def action_set_profile(profile_id: str, target: str) -> dict:
         return {"status": 400, "payload": {"ok": False, "error": "no profiles available"}}
 
     current_profile = guess_current_profile(conf_path, profiles)
-    
+
     # Only proceed if profile actually changed
     if profile_id and profile_id != current_profile:
         # Safety: refuse to activate a profile with an empty freqs list.
@@ -199,26 +223,47 @@ def action_set_profile(profile_id: str, target: str) -> dict:
         ok, changed = set_profile(profile_id, conf_path, profiles, target_symlink)
         if not ok:
             return {"status": 400, "payload": {"ok": False, "error": "unknown profile"}}
-        
+
         try:
             combined_changed = write_combined_config()
         except Exception as e:
             return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
-        
+
         # Only restart if combined config actually changed
         # This avoids unnecessary restarts when frequency lists are identical
         restart_ok = True
         restart_error = ""
         if combined_changed:
-            restart_ok, restart_error = unit_restart()
-        
+            # Defer restart handling for DMR ground mode.
+            if target == "ground":
+                mode = _ground_mode_for_profile(profile_id, profiles_ground)
+                if mode != "dmr":
+                    restart_ok, restart_error = unit_restart()
+            else:
+                restart_ok, restart_error = unit_restart()
+
         payload = {"ok": True, "changed": changed or combined_changed}
+        if target == "ground" and profile_id:
+            mode = _ground_mode_for_profile(profile_id, profiles_ground)
+            payload["ground_mode"] = mode
+            if mode == "dmr":
+                logger.info("ground mode: dmr")
+                # Stop rtl-airband to avoid double-publishing /GND.mp3, then start DMR pipeline.
+                stop_rtl()
+                start_dmr()
+                start_dmr_controller()
+            else:
+                logger.info("ground mode: analog")
+                stop_dmr_controller()
+                stop_dmr()
+                start_rtl()
+            _ensure_single_mount(mode)
         if combined_changed:
             payload["restart_ok"] = restart_ok
             if not restart_ok and restart_error:
                 payload["restart_error"] = restart_error
         return {"status": 200, "payload": payload}
-    
+
     # No profile change requested
     return {"status": 200, "payload": {"ok": True, "changed": False}}
 
@@ -335,17 +380,24 @@ def action_restart(target: str) -> dict:
 def action_dmr(mode: str) -> dict:
     """Action: Enable/disable DMR decode."""
     mode = (mode or "enable").strip().lower()
+    _profiles, _p_air, _p_ground = split_profiles()
+    current_ground = guess_current_profile(os.path.realpath(GROUND_CONFIG_PATH), [(p["id"], p["label"], p["path"]) for p in _p_ground])
+    current_mode = _ground_mode_for_profile(current_ground, _p_ground)
+    if mode in ("enable", "start", "on") and current_mode != "dmr":
+        return {"status": 400, "payload": {"ok": False, "error": "ground profile mode is analog"}}
     if mode in ("enable", "start", "on"):
-        # Prevent double-source conflicts on /GND.mp3 by stopping rtl-airband first.
+        logger.info("ground mode: dmr")
         stop_rtl()
         start_dmr()
         start_dmr_controller()
+        _ensure_single_mount("dmr")
         return {"status": 200, "payload": {"ok": True, "active": True}}
     if mode in ("disable", "stop", "off"):
+        logger.info("ground mode: analog")
         stop_dmr_controller()
         stop_dmr()
-        # Restore rtl-airband as the /GND.mp3 source when DMR is disabled.
         start_rtl()
+        _ensure_single_mount("analog")
         return {"status": 200, "payload": {"ok": True, "active": False}}
     return {"status": 400, "payload": {"ok": False, "error": "unknown mode"}}
 

@@ -159,6 +159,7 @@ class Handler(BaseHTTPRequestHandler):
                     "label": prof.get("label", ""),
                     "path": path,
                     "airband": bool(prof.get("airband")),
+                    "mode": prof.get("mode") if prof.get("airband") is False else None,
                     "exists": exists,
                 },
                 "freqs": freqs,
@@ -178,8 +179,8 @@ class Handler(BaseHTTPRequestHandler):
             conf_path = read_active_config_path()
             ground_conf_path = os.path.realpath(GROUND_CONFIG_PATH)
             combined_conf_path = COMBINED_CONFIG_PATH
-            airband_gain, airband_snr, airband_dbfs, airband_mode = parse_controls(conf_path)
-            ground_gain, ground_snr, ground_dbfs, ground_mode = parse_controls(GROUND_CONFIG_PATH)
+            airband_gain, airband_snr, airband_dbfs, airband_squelch_mode = parse_controls(conf_path)
+            ground_gain, ground_snr, ground_dbfs, ground_squelch_mode = parse_controls(GROUND_CONFIG_PATH)
             airband_filter = parse_filter("airband")
             ground_filter = parse_filter("ground")
             rtl_ok = unit_active(UNITS["rtl"])
@@ -204,6 +205,11 @@ class Handler(BaseHTTPRequestHandler):
             missing = [p["path"] for p in prof_payload if not p.get("exists")]
             profile_airband = guess_current_profile(conf_path, [(p["id"], p["label"], p["path"]) for p in profiles_airband])
             profile_ground = guess_current_profile(ground_conf_path, [(p["id"], p["label"], p["path"]) for p in profiles_ground])
+            ground_mode = "analog"
+            for p in profiles_ground:
+                if p.get("id") == profile_ground:
+                    ground_mode = p.get("mode") or "analog"
+                    break
             last_hit_airband = read_last_hit_airband()
             last_hit_ground = read_last_hit_ground()
             icecast_hit = read_last_hit_from_icecast() if ice_ok else ""
@@ -247,18 +253,19 @@ class Handler(BaseHTTPRequestHandler):
                 "profile_ground": profile_ground,
                 "profiles_airband": profiles_airband,
                 "profiles_ground": profiles_ground,
+                "ground_mode": ground_mode,
                 "missing_profiles": missing,
                 "gain": float(airband_gain),
                 "squelch": float(airband_snr),
                 "airband_gain": float(airband_gain),
                 "airband_squelch": float(airband_snr),
-                "airband_squelch_mode": airband_mode,
+                "airband_squelch_mode": airband_squelch_mode,
                 "airband_squelch_snr": float(airband_snr),
                 "airband_squelch_dbfs": float(airband_dbfs),
                 "airband_filter": float(airband_filter),
                 "ground_gain": float(ground_gain),
                 "ground_squelch": float(ground_snr),
-                "ground_squelch_mode": ground_mode,
+                "ground_squelch_mode": ground_squelch_mode,
                 "ground_squelch_snr": float(ground_snr),
                 "ground_squelch_dbfs": float(ground_dbfs),
                 "ground_filter": float(ground_filter),

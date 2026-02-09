@@ -93,11 +93,6 @@
                 <div class="ctrl-readout"><span id="edit-status"></span><span>Edits persist to the profile file</span></div>
               </div>
 
-              <div class="ctrl player" id="player-airband">
-                <div class="ctrl-head"><b>Player</b><span><a href="#" id="lnk-stream-airband">Open stream</a></span></div>
-                <audio id="audio-airband" controls preload="none" style="width:100%"></audio>
-                <div class="ctrl-readout"><span>Mount: <code>GND.mp3</code></span><span>Use headphones; browser autoplay may require a click</span></div>
-              </div>
             </section>
 
             <section class="page">
@@ -127,7 +122,7 @@
                 <div class="ctrl-head"><b>DMR Decode</b><span id="dmr-status">…</span></div>
                 <div class="ctrl-readout">
                   <button type="button" id="btn-dmr-toggle">Enable</button>
-                  <span>DMR replaces Ground Audio (GND.mp3)</span>
+                  <span>Ground (SDR2) mode: <span id="ground-mode">…</span> (depends on selected ground profile)</span>
                 </div>
               </div>
               <!-- Removed extra Ground control buttons -->
@@ -136,7 +131,7 @@
                 <audio id="audio-ground" controls preload="none" style="width:100%"></audio>
                 <div class="ctrl-readout"><span>Mount: <code>GND.mp3</code></span><span>Use headphones; browser autoplay may require a click</span></div>
               </div>
-              <div class="foot">Both scanners feed the same Icecast stream.</div>
+              <div class="foot">Single mount: <code>GND.mp3</code> carries SDR1 (airband) + SDR2 (ground) audio.</div>
             </section>
           </div>
         </div>

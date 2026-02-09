@@ -70,6 +70,7 @@ DMR decode runs as a separate pipeline that follows ground hits and retunes a de
 - Services: `systemd/dmr-decode.service` and `systemd/dmr-controller.service`.
 - Pipeline: `scripts/dmr/rtl_fm_dmr.sh` -> `scripts/dmr/dsd_wrapper.sh` -> `scripts/dmr/icecast_source_dmr.sh`.
 - Icecast: default mount is `/GND.mp3` (see `icecast/icecast.xml.example`).
+- Ground profile mode controls DMR: selecting a DMR ground profile enables the DMR pipeline; analog profiles stop it.
 
 Key env vars (set in `/etc/airband-ui.conf` if needed):
 - `DMR_PROFILE_PATH`, `DMR_TUNE_PATH`, `DMR_STATE_PATH`, `LAST_HIT_GROUND_PATH`
@@ -115,6 +116,14 @@ Run files:
 - `/run/dmr_tune_freq.txt` (written by `dmr_controller.sh`; read by `rtl_fm_dmr.sh`)
 - `/run/dmr_state.json` (written by `dmr_controller.sh` for status/telemetry)
 -->
+
+## Single Mount Model (GND.mp3)
+
+- `/GND.mp3` is the only Icecast mount.
+- It carries Scanner1 (SDR1 airband) + Scanner2 (SDR2 ground).
+- Scanner2 ground mode is profile-driven: analog profiles use rtl-airband ground; DMR profiles use the DMR decode pipeline.
+
+Only one publisher can own a mount at a time. The UI enforces mutual exclusion by stopping the conflicting publisher whenever ground mode switches between analog and DMR; a true airband+DMR mix would require an external mixer stage.
 
 ## Architecture Overview
 
