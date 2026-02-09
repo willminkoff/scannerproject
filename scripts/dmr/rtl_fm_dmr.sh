@@ -120,6 +120,7 @@ action_start() {
   hz=$(freq_to_hz "$mhz")
   mapfile -t args < <(build_rtl_args)
   log "Starting rtl_fm on ${mhz} MHz (${hz} Hz)"
+  log "rtl_fm device: ${SCANNER2_RTL_DEVICE:-default(0)}"
   : > "$RTL_FM_ERR_LOG"
   "$RTL_FM_BIN" -f "$hz" "${args[@]}" 2> "$RTL_FM_ERR_LOG" &
   rtl_pid=$!
