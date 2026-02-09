@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from .config import (
-        CONFIG_SYMLINK, PROFILES_DIR, PROFILES_REGISTRY_PATH, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH,
+        CONFIG_SYMLINK, PROFILES_DIR, PROFILES_REGISTRY_PATH, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, AIRONLY_CONFIG_PATH,
         AVOIDS_DIR, AVOIDS_PATHS, AVOIDS_SUMMARY_PATHS, PROFILES, GAIN_STEPS,
         RE_GAIN, RE_SQL, RE_SQL_DBFS, RE_AIRBAND, RE_INDEX, RE_FREQS_BLOCK, RE_LABELS_BLOCK,
         MIXER_NAME, FILTER_AIRBAND_PATH, FILTER_GROUND_PATH, FILTER_DEFAULT_CUTOFF,
@@ -20,7 +20,7 @@ try:
     from .systemd import restart_rtl, stop_rtl, start_rtl
 except ImportError:
     from ui.config import (
-        CONFIG_SYMLINK, PROFILES_DIR, PROFILES_REGISTRY_PATH, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH,
+        CONFIG_SYMLINK, PROFILES_DIR, PROFILES_REGISTRY_PATH, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, AIRONLY_CONFIG_PATH,
         AVOIDS_DIR, AVOIDS_PATHS, AVOIDS_SUMMARY_PATHS, PROFILES, GAIN_STEPS,
         RE_GAIN, RE_SQL, RE_SQL_DBFS, RE_AIRBAND, RE_INDEX, RE_FREQS_BLOCK, RE_LABELS_BLOCK,
         MIXER_NAME, FILTER_AIRBAND_PATH, FILTER_GROUND_PATH, FILTER_DEFAULT_CUTOFF,
@@ -32,7 +32,7 @@ except ImportError:
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
-from combined_config import build_combined_config
+from combined_config import build_combined_config, build_aironly_config
 
 
 def read_active_config_path() -> str:
@@ -243,11 +243,31 @@ def find_profile(profiles: List[Dict], profile_id: str) -> Optional[Dict]:
             return p
     return None
 
+
+
+def write_aironly_config(publish: bool = False) -> bool:
+    """Write the air-only configuration (Scanner1 only)."""
+    airband_path = read_active_config_path()
+    aironly = build_aironly_config(airband_path, MIXER_NAME, publish=publish)
+    try:
+        with open(AIRONLY_CONFIG_PATH, "r", encoding="utf-8", errors="ignore") as f:
+            existing = f.read()
+    except FileNotFoundError:
+        existing = None
+    if existing == aironly:
+        return False
+    tmp = AIRONLY_CONFIG_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(aironly)
+    os.replace(tmp, AIRONLY_CONFIG_PATH)
+    return True
+
 def write_combined_config() -> bool:
     """Write the combined configuration."""
     airband_path = read_active_config_path()
     ground_path = os.path.realpath(GROUND_CONFIG_PATH)
     combined = build_combined_config(airband_path, ground_path, MIXER_NAME)
+    write_aironly_config(publish=False)
     try:
         with open(COMBINED_CONFIG_PATH, "r", encoding="utf-8", errors="ignore") as f:
             existing = f.read()

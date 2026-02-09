@@ -15,6 +15,8 @@ PROFILES_DIR = os.getenv("PROFILES_DIR", "/usr/local/etc/airband-profiles")
 PROFILES_REGISTRY_PATH = os.path.join(PROFILES_DIR, "profiles.json")
 GROUND_CONFIG_PATH = os.getenv("GROUND_CONFIG_PATH", os.path.join(CONFIG_DIR, "rtl_airband_ground.conf"))
 COMBINED_CONFIG_PATH = os.getenv("COMBINED_CONFIG_PATH", os.path.join(CONFIG_DIR, "rtl_airband_combined.conf"))
+AIRONLY_CONFIG_PATH = os.getenv("AIRONLY_CONFIG_PATH", os.path.join(CONFIG_DIR, "rtl_airband_aironly.conf"))
+RTLAIRBAND_ACTIVE_CONFIG_PATH = os.getenv("RTLAIRBAND_ACTIVE_CONFIG_PATH", os.path.join(CONFIG_DIR, "rtl_airband_active.conf"))
 
 # DMR Configuration
 DMR_PROFILE_PATH = os.getenv("DMR_PROFILE_PATH", os.path.join(PROFILES_DIR, "rtl_airband_dmr_nashville.conf"))

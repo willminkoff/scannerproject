@@ -8,9 +8,10 @@ Wants=rtl-airband-last-hit.service
 [Service]
 Type=simple
 EnvironmentFile=-/etc/airband-ui.conf
+Environment=RTLAIRBAND_ACTIVE_CONFIG_PATH=/usr/local/etc/rtl_airband_active.conf
 ExecStartPre=-/usr/bin/pkill -x rtl_airband
 ExecStartPre=/usr/bin/python3 /home/willminkoff/scannerproject/scripts/build-combined-config.py
-ExecStart=/bin/bash /home/willminkoff/scannerproject/scripts/rtl-airband-filter.sh ${COMBINED_CONFIG_PATH}
+ExecStart=/bin/bash /home/willminkoff/scannerproject/scripts/rtl-airband-filter.sh ${RTLAIRBAND_ACTIVE_CONFIG_PATH}
 Restart=on-failure
 RestartSec=0
 TimeoutStopSec=1

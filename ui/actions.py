@@ -8,7 +8,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 try:
-    from .config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, HOLD_STATE_PATH, TUNE_BACKUP_PATH, UNITS
+    from .config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, AIRONLY_CONFIG_PATH, RTLAIRBAND_ACTIVE_CONFIG_PATH, HOLD_STATE_PATH, TUNE_BACKUP_PATH, UNITS
     from .systemd import (
         unit_active,
         stop_rtl,
@@ -32,7 +32,7 @@ try:
         clear_avoids, write_filter, parse_freqs_labels, replace_freqs_labels
     )
 except ImportError:
-    from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, HOLD_STATE_PATH, TUNE_BACKUP_PATH, UNITS
+    from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, AIRONLY_CONFIG_PATH, RTLAIRBAND_ACTIVE_CONFIG_PATH, HOLD_STATE_PATH, TUNE_BACKUP_PATH, UNITS
     from ui.systemd import (
         unit_active,
         stop_rtl,
@@ -160,6 +160,19 @@ def _clear_tune_backup():
         pass
 
 
+
+
+def _set_airband_active_config(target_path: str) -> None:
+    try:
+        os.makedirs(os.path.dirname(RTLAIRBAND_ACTIVE_CONFIG_PATH) or ".", exist_ok=True)
+    except Exception:
+        pass
+    try:
+        import subprocess
+        subprocess.run(["ln", "-sf", target_path, RTLAIRBAND_ACTIVE_CONFIG_PATH], check=False)
+    except Exception:
+        pass
+
 def _ground_mode_for_profile(profile_id: str, profiles_ground) -> str:
     for p in profiles_ground or []:
         if p.get("id") == profile_id:
@@ -169,22 +182,18 @@ def _ground_mode_for_profile(profile_id: str, profiles_ground) -> str:
 
 def _ensure_single_mount(mode: str) -> None:
     # Best-effort guard against multiple publishers on /GND.mp3.
-    rtl_active = unit_active(UNITS["rtl"])
     ground_active = unit_active(UNITS["ground"])
     dmr_active = unit_active(UNITS["dmr"])
     if mode == "dmr":
-        if rtl_active or ground_active:
-            logger.warning("mount conflict: analog publisher active; resolving for mode=%s", mode)
-            stop_rtl()
+        if ground_active:
+            logger.warning("mount conflict: rtl-airband-ground active; stopping")
             stop_ground()
     else:
         if dmr_active:
             logger.warning("mount conflict: dmr-decode active; resolving for mode=%s", mode)
             stop_dmr()
             stop_dmr_controller()
-        if rtl_active and ground_active:
-            logger.warning("mount conflict: rtl-airband + rtl-airband-ground active; stopping ground")
-            stop_ground()
+
 
 
 
@@ -255,17 +264,21 @@ def action_set_profile(profile_id: str, target: str) -> dict:
             payload["ground_mode"] = mode
             if mode == "dmr":
                 logger.info("ground mode: dmr")
-                # Stop analog publishers to avoid double-publishing /GND.mp3, then start DMR pipeline.
-                stop_rtl()
-                stop_ground()
-                start_dmr()
+                stop_dmr_controller()
+                stop_dmr()
+                # Switch rtl-airband to air-only before starting DMR pipeline.
+                _set_airband_active_config(AIRONLY_CONFIG_PATH)
+                restart_rtl()
+                time.sleep(0.5)
                 start_dmr_controller()
+                start_dmr()
             else:
                 logger.info("ground mode: analog")
                 stop_dmr_controller()
                 stop_dmr()
                 stop_ground()
-                start_rtl()
+                _set_airband_active_config(COMBINED_CONFIG_PATH)
+                restart_rtl()
             _ensure_single_mount(mode)
         if combined_changed:
             payload["restart_ok"] = restart_ok
@@ -396,10 +409,13 @@ def action_dmr(mode: str) -> dict:
         return {"status": 400, "payload": {"ok": False, "error": "ground profile mode is analog"}}
     if mode in ("enable", "start", "on"):
         logger.info("ground mode: dmr")
-        stop_rtl()
-        stop_ground()
-        start_dmr()
+        stop_dmr_controller()
+        stop_dmr()
+        _set_airband_active_config(AIRONLY_CONFIG_PATH)
+        restart_rtl()
+        time.sleep(0.5)
         start_dmr_controller()
+        start_dmr()
         _ensure_single_mount("dmr")
         return {"status": 200, "payload": {"ok": True, "active": True}}
     if mode in ("disable", "stop", "off"):
@@ -407,7 +423,8 @@ def action_dmr(mode: str) -> dict:
         stop_dmr_controller()
         stop_dmr()
         stop_ground()
-        start_rtl()
+        _set_airband_active_config(COMBINED_CONFIG_PATH)
+        restart_rtl()
         _ensure_single_mount("analog")
         return {"status": 200, "payload": {"ok": True, "active": False}}
     return {"status": 400, "payload": {"ok": False, "error": "unknown mode"}}

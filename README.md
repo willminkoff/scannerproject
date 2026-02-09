@@ -123,19 +123,22 @@ Run files:
 - It carries Scanner1 (SDR1 airband) + Scanner2 (SDR2 ground).
 - Scanner2 ground mode is profile-driven: analog profiles use rtl-airband ground; DMR profiles use the DMR decode pipeline.
 
-Only one publisher can own a mount at a time. The UI enforces mutual exclusion by stopping the conflicting publisher whenever ground mode switches between analog and DMR; a true airband+DMR mix would require an external mixer stage.
+Only one publisher can own a mount at a time. In DMR mode, rtl-airband runs air-only with publishing disabled and the DMR pipeline is the sole `/GND.mp3` source; a true airband+DMR mix would require an external mixer stage.
 
 ## Scanner Ownership Contract
 
 - Scanner1 (SDR #0) is always airband and binds to `SCANNER1_RTL_DEVICE` (default `00000002`).
 - Scanner2 (SDR #1) is always ground and binds to `SCANNER2_RTL_DEVICE` (default `70613472`).
 - Profiles select ground mode (analog vs DMR) and freqs/behavior; they do not select hardware.
+- DMR mode forces rtl-airband to run `rtl_airband_aironly.conf` (Scanner1 only) and releases Scanner2 for rtl_fm.
+- Active rtl-airband config is selected via `RTLAIRBAND_ACTIVE_CONFIG_PATH` (symlink).
 - The UI/backend enforces mutual exclusion so only one pipeline owns Scanner2 at a time.
 - `/GND.mp3` remains the single Icecast mount.
 
 Troubleshooting: `usb_claim_interface` errors mean two processes tried to own Scanner2; check ground mode switching and active services.
 
 Quick check: `scripts/diag/verify_sdr_ownership.sh`
+Quick mode check: `scripts/diag/verify_mode_ownership.sh`
 
 ## Architecture Overview
 
