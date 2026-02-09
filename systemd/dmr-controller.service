@@ -1,14 +1,17 @@
 [Unit]
 Description=DMR Controller (follow ground hits)
-After=rtl-airband.service dmr-decode.service
-Wants=rtl-airband.service dmr-decode.service
+After=dmr-decode.service
+Wants=dmr-decode.service
+StartLimitIntervalSec=30
+StartLimitBurst=5
 
 [Service]
 Type=simple
 EnvironmentFile=-/etc/airband-ui.conf
+ExecStartPre=/bin/sh -c 'echo "[dmr-controller] DSD_BIN=${DSD_BIN:-dsd-fme} SCANNER2_RTL_DEVICE=${SCANNER2_RTL_DEVICE:-unset} MOUNT=${DMR_MOUNT:-/GND.mp3}"'
 ExecStart=/bin/bash /home/willminkoff/scannerproject/scripts/dmr/dmr_controller.sh
 Restart=always
-RestartSec=1
+RestartSec=2
 
 [Install]
 WantedBy=multi-user.target

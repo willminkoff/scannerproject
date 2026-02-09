@@ -7,12 +7,61 @@
 RTLAIRBAND_BIN="${RTLAIRBAND_BIN:-/usr/local/bin/rtl_airband}"
 CONFIG_FILE="${1:-}"
 FILTER_CONFIG_DIR="${FILTER_CONFIG_DIR:-/run}"
+SCANNER1_RTL_DEVICE="${SCANNER1_RTL_DEVICE:-}"
+SCANNER2_RTL_DEVICE="${SCANNER2_RTL_DEVICE:-}"
 
 # Validate config file
 if [[ -z "$CONFIG_FILE" ]]; then
     echo "Usage: rtl-airband-filter.sh <config_file>" >&2
     exit 1
 fi
+
+
+# Inject serial/index bindings for standalone configs when missing
+TMP_CONFIG=""
+cleanup_tmp() {
+    if [[ -n "$TMP_CONFIG" ]] && [[ -f "$TMP_CONFIG" ]]; then
+        rm -f "$TMP_CONFIG"
+    fi
+}
+trap cleanup_tmp EXIT
+
+inject_device_binding() {
+    if grep -qE '^\s*serial\s*=' "$CONFIG_FILE"; then
+        return
+    fi
+    local airband_flag
+    airband_flag=$(grep -m1 -E '^\s*airband\s*=' "$CONFIG_FILE" | tr -d ' ;' | awk -F= '{print $2}')
+    local serial=""
+    local index=""
+    if [[ "$airband_flag" == "true" ]]; then
+        serial="$SCANNER1_RTL_DEVICE"
+        index="0"
+    else
+        serial="$SCANNER2_RTL_DEVICE"
+        index="1"
+    fi
+    if [[ -z "$serial" ]]; then
+        return
+    fi
+    TMP_CONFIG="/run/rtl_airband_injected_$$.conf"
+    awk -v serial="$serial" -v index="$index" '
+        {print}
+        /type[[:space:]]*=[[:space:]]"rtlsdr"/ && !inserted {
+            print "  serial = \"" serial "\";";
+            print "  index = " index ";";
+            inserted=1
+        }
+    ' "$CONFIG_FILE" > "$TMP_CONFIG"
+    if grep -qE '^\s*serial\s*=' "$TMP_CONFIG"; then
+        CONFIG_FILE="$TMP_CONFIG"
+    else
+        rm -f "$TMP_CONFIG"
+        TMP_CONFIG=""
+    fi
+}
+
+inject_device_binding
 
 # Determine which filter config file to use based on config file path
 if [[ "$CONFIG_FILE" == *"ground"* ]]; then

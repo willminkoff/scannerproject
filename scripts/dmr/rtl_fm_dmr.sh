@@ -7,9 +7,11 @@ DMR_DEFAULT_FREQ="${DMR_DEFAULT_FREQ:-}"
 DMR_TUNE_POLL="${DMR_TUNE_POLL:-0.5}"
 
 RTL_FM_BIN="${RTL_FM_BIN:-/usr/bin/rtl_fm}"
-DMR_RTL_DEVICE="${DMR_RTL_DEVICE:-}"
+SCANNER2_RTL_DEVICE="${SCANNER2_RTL_DEVICE:-}"
 DMR_PPM="${DMR_PPM:-}"
 DMR_RTL_FM_ARGS="${DMR_RTL_FM_ARGS:--M fm -s 48000 -A fast -g 35 -l 0}"
+DMR_RTL_BACKOFF_SECS="${DMR_RTL_BACKOFF_SECS:-2}"
+RTL_FM_ERR_LOG="${RTL_FM_ERR_LOG:-/run/dmr_rtl_fm.err}"
 
 RTL_FM_SUPPORTS_DC=""
 
@@ -73,14 +75,22 @@ resolve_start_freq() {
 
 build_rtl_args() {
   local args=()
-  if [[ -n "$DMR_RTL_DEVICE" ]]; then
-    args+=("-d" "$DMR_RTL_DEVICE")
+  if [[ -n "$SCANNER2_RTL_DEVICE" ]]; then
+    args+=("-d" "$SCANNER2_RTL_DEVICE")
   fi
   if [[ -n "$DMR_PPM" ]]; then
     args+=("-p" "$DMR_PPM")
   fi
   read -r -a extra <<< "$DMR_RTL_FM_ARGS"
-  args+=("${extra[@]}")
+  local filtered=()
+  for ((i=0; i<${#extra[@]}; i++)); do
+    if [[ "${extra[i]}" == "-d" ]]; then
+      i=$((i+1))
+      continue
+    fi
+    filtered+=("${extra[i]}")
+  done
+  args+=("${filtered[@]}")
   local has_e=0
   for arg in "${args[@]}"; do
     if [[ "$arg" == "-E" ]]; then
@@ -111,8 +121,22 @@ action_start() {
   hz=$(freq_to_hz "$mhz")
   mapfile -t args < <(build_rtl_args)
   log "Starting rtl_fm on ${mhz} MHz (${hz} Hz)"
-  "$RTL_FM_BIN" -f "$hz" "${args[@]}" &
+  : > "$RTL_FM_ERR_LOG"
+  "$RTL_FM_BIN" -f "$hz" "${args[@]}" 2> "$RTL_FM_ERR_LOG" &
   rtl_pid=$!
+  sleep 0.2
+  if [[ -n "$rtl_pid" ]] && ! kill -0 "$rtl_pid" 2>/dev/null; then
+    local err_line
+    err_line=$(tail -n 1 "$RTL_FM_ERR_LOG" 2>/dev/null || true)
+    if echo "$err_line" | grep -qi "Failed to open rtlsdr device"; then
+      log "error: Failed to open rtlsdr device (SCANNER2_RTL_DEVICE=${SCANNER2_RTL_DEVICE:-unset}); backing off"
+    else
+      log "rtl_fm exited early; backing off"
+    fi
+    sleep "$DMR_RTL_BACKOFF_SECS"
+    rtl_pid=""
+    return
+  fi
 }
 
 action_stop() {

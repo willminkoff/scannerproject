@@ -170,14 +170,21 @@ def _ground_mode_for_profile(profile_id: str, profiles_ground) -> str:
 def _ensure_single_mount(mode: str) -> None:
     # Best-effort guard against multiple publishers on /GND.mp3.
     rtl_active = unit_active(UNITS["rtl"])
+    ground_active = unit_active(UNITS["ground"])
     dmr_active = unit_active(UNITS["dmr"])
-    if rtl_active and dmr_active:
-        logger.warning("mount conflict: rtl-airband + dmr-decode active; resolving for mode=%s", mode)
-        if mode == "dmr":
+    if mode == "dmr":
+        if rtl_active or ground_active:
+            logger.warning("mount conflict: analog publisher active; resolving for mode=%s", mode)
             stop_rtl()
-        else:
+            stop_ground()
+    else:
+        if dmr_active:
+            logger.warning("mount conflict: dmr-decode active; resolving for mode=%s", mode)
             stop_dmr()
             stop_dmr_controller()
+        if rtl_active and ground_active:
+            logger.warning("mount conflict: rtl-airband + rtl-airband-ground active; stopping ground")
+            stop_ground()
 
 
 
@@ -248,14 +255,16 @@ def action_set_profile(profile_id: str, target: str) -> dict:
             payload["ground_mode"] = mode
             if mode == "dmr":
                 logger.info("ground mode: dmr")
-                # Stop rtl-airband to avoid double-publishing /GND.mp3, then start DMR pipeline.
+                # Stop analog publishers to avoid double-publishing /GND.mp3, then start DMR pipeline.
                 stop_rtl()
+                stop_ground()
                 start_dmr()
                 start_dmr_controller()
             else:
                 logger.info("ground mode: analog")
                 stop_dmr_controller()
                 stop_dmr()
+                stop_ground()
                 start_rtl()
             _ensure_single_mount(mode)
         if combined_changed:
@@ -388,6 +397,7 @@ def action_dmr(mode: str) -> dict:
     if mode in ("enable", "start", "on"):
         logger.info("ground mode: dmr")
         stop_rtl()
+        stop_ground()
         start_dmr()
         start_dmr_controller()
         _ensure_single_mount("dmr")
@@ -396,6 +406,7 @@ def action_dmr(mode: str) -> dict:
         logger.info("ground mode: analog")
         stop_dmr_controller()
         stop_dmr()
+        stop_ground()
         start_rtl()
         _ensure_single_mount("analog")
         return {"status": 200, "payload": {"ok": True, "active": False}}

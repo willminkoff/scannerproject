@@ -76,7 +76,7 @@ Key env vars (set in `/etc/airband-ui.conf` if needed):
 - `DMR_PROFILE_PATH`, `DMR_TUNE_PATH`, `DMR_STATE_PATH`, `LAST_HIT_GROUND_PATH`
 - `DMR_HOLD_SECS`, `DMR_DEBOUNCE_MS`, `DMR_MIN_DWELL_MS`, `DMR_COOLDOWN_SECS`, `DMR_DEFAULT_FREQ`
 - `DMR_DSD_ARGS` to tune `dsd-fme` flags
-- `DMR_RTL_DEVICE`, `DMR_PPM`, `DMR_RTL_FM_ARGS` for tuner settings
+- `SCANNER2_RTL_DEVICE`, `DMR_PPM`, `DMR_RTL_FM_ARGS` for tuner settings
 - `DMR_ICECAST_URL`, `DMR_AUDIO_RATE`, `DMR_AUDIO_CHANNELS` for streaming
 
 
@@ -124,6 +124,18 @@ Run files:
 - Scanner2 ground mode is profile-driven: analog profiles use rtl-airband ground; DMR profiles use the DMR decode pipeline.
 
 Only one publisher can own a mount at a time. The UI enforces mutual exclusion by stopping the conflicting publisher whenever ground mode switches between analog and DMR; a true airband+DMR mix would require an external mixer stage.
+
+## Scanner Ownership Contract
+
+- Scanner1 (SDR #0) is always airband and binds to `SCANNER1_RTL_DEVICE` (default `00000002`).
+- Scanner2 (SDR #1) is always ground and binds to `SCANNER2_RTL_DEVICE` (default `70613472`).
+- Profiles select ground mode (analog vs DMR) and freqs/behavior; they do not select hardware.
+- The UI/backend enforces mutual exclusion so only one pipeline owns Scanner2 at a time.
+- `/GND.mp3` remains the single Icecast mount.
+
+Troubleshooting: `usb_claim_interface` errors mean two processes tried to own Scanner2; check ground mode switching and active services.
+
+Quick check: `scripts/diag/verify_sdr_ownership.sh`
 
 ## Architecture Overview
 

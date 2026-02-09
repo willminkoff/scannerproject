@@ -434,16 +434,16 @@ class Handler(BaseHTTPRequestHandler):
                     shutil.copyfile(src["path"], safe_path)
                 else:
                     # Minimal blank template with freqs block so the textarea editor can save immediately.
-                    desired_index = 0 if bool(airband_flag) else 1
                     # Avoid creating an empty freqs list: rtl_airband refuses to start if freqs is empty.
                     default_freq = "118.6000" if bool(airband_flag) else "462.6500"
                     default_mod = "am" if bool(airband_flag) else "nfm"
                     default_bw = "12000" if bool(airband_flag) else "12000"
-                    template = f"""airband = {'true' if bool(airband_flag) else 'false'};\n\n""" + \
+                    mode_line = "mode = \"analog\";\n\n" if not bool(airband_flag) else ""
+                    template = f"""airband = {'true' if bool(airband_flag) else 'false'};\n""" + mode_line + \
+                        "\n" + \
                         "devices:\n" + \
                         "({\n" + \
                         "  type = \"rtlsdr\";\n" + \
-                        f"  index = {desired_index};\n" + \
                         "  mode = \"scan\";\n" + \
                         "  gain = 32.800;   # UI_CONTROLLED\n\n" + \
                         "  channels:\n" + \

@@ -79,11 +79,15 @@ def unit_active_enter_epoch(unit: str):
 
 def restart_rtl() -> Tuple[bool, str]:
     """Restart the rtl-airband scanner."""
+    if unit_active(UNITS["dmr"]):
+        return False, "dmr active; rtl-airband restart blocked"
     return _restart_unit(UNITS["rtl"], use_sudo=True)
 
 
 def restart_ground() -> Tuple[bool, str]:
     """Restart the ground scanner."""
+    if unit_active(UNITS["dmr"]):
+        return False, "dmr active; ground restart blocked"
     return _restart_unit(UNITS["ground"])
 
 

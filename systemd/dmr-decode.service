@@ -3,14 +3,17 @@ Description=DMR Decode (rtl_fm -> dsd -> Icecast)
 After=network-online.target icecast2.service
 Wants=network-online.target
 Requires=icecast2.service
+StartLimitIntervalSec=30
+StartLimitBurst=5
 
 [Service]
 Type=simple
 EnvironmentFile=-/etc/airband-ui.conf
 Environment=DMR_MOUNT=/GND.mp3
+ExecStartPre=/bin/sh -c 'echo "[dmr-decode] DSD_BIN=${DSD_BIN:-dsd-fme} SCANNER2_RTL_DEVICE=${SCANNER2_RTL_DEVICE:-unset} MOUNT=${DMR_MOUNT:-/GND.mp3}"'
 ExecStart=/bin/bash -lc 'set -o pipefail; /home/willminkoff/scannerproject/scripts/dmr/rtl_fm_dmr.sh | /home/willminkoff/scannerproject/scripts/dmr/dsd_wrapper.sh | /home/willminkoff/scannerproject/scripts/dmr/icecast_source_dmr.sh'
 Restart=on-failure
-RestartSec=1
+RestartSec=2
 TimeoutStopSec=1
 KillSignal=SIGINT
 

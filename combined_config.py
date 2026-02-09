@@ -1,14 +1,20 @@
+import os
 import re
 
 RE_AIRBAND = re.compile(r'^\s*airband\s*=\s*(true|false)\s*;\s*$', re.I)
 RE_UI_DISABLED = re.compile(r'^\s*ui_disabled\s*=\s*(true|false)\s*;\s*$', re.I)
 RE_LOG_SCAN = re.compile(r'^\s*log_scan_activity\s*=', re.I)
 RE_STATS_PATH = re.compile(r'^\s*stats_filepath\s*=', re.I)
+RE_MODE = re.compile(r'^\s*mode\s*=\s*"?(analog|dmr)"?\s*;\s*$', re.I)
 RE_INDEX = re.compile(r'^\s*index\s*=\s*(\d+)\s*;', re.I)
 RE_SERIAL = re.compile(r'^\s*serial\s*=\s*"[^\"]*"\s*;', re.I)
 RE_ICECAST_BLOCK = re.compile(r'\{\s*[^{}]*type\s*=\s*"icecast"[^{}]*\}', re.S)
 RE_MOUNTPOINT = re.compile(r'(\s*mountpoint\s*=\s*)\"/?([^\"];+)\"(\s*;)', re.I)
 RE_BITRATE = re.compile(r'(\s*bitrate\s*=\s*)\d+(\s*;)', re.I)
+SCANNER1_RTL_DEVICE = os.getenv("SCANNER1_RTL_DEVICE", "00000002")
+SCANNER2_RTL_DEVICE = os.getenv("SCANNER2_RTL_DEVICE", "70613472")
+SCANNER1_INDEX = 0
+SCANNER2_INDEX = 1
 
 def extract_top_level_settings(text: str) -> list:
     lines = []
@@ -24,6 +30,8 @@ def extract_top_level_settings(text: str) -> list:
         if RE_LOG_SCAN.match(line):
             continue
         if RE_STATS_PATH.match(line):
+            continue
+        if RE_MODE.match(line):
             continue
         lines.append(line.rstrip())
     return lines
@@ -155,8 +163,8 @@ def build_combined_config(airband_path: str, ground_path: str, mixer_name: str) 
 
     device_payloads = []
     payloads = [
-        (airband_text, 1, airband_disabled, "00000002"),
-        (ground_text, 0, ground_disabled, "70613472"),
+        (airband_text, SCANNER1_INDEX, airband_disabled, SCANNER1_RTL_DEVICE),
+        (ground_text, SCANNER2_INDEX, ground_disabled, SCANNER2_RTL_DEVICE),
     ]
     for text, desired_index, disabled, serial in payloads:
         if disabled:

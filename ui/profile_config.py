@@ -129,6 +129,21 @@ def safe_profile_path(path: str) -> Optional[str]:
     return real
 
 
+
+
+def _read_ground_mode_from_file(path: str) -> str:
+    if not path or not os.path.exists(path):
+        return ""
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                m = re.match(r"^\s*mode\s*=\s*\"?(analog|dmr)\"?\s*;", line, re.I)
+                if m:
+                    return m.group(1).lower()
+    except Exception:
+        return ""
+    return ""
+
 def _registry_payload_from_profiles(profiles) -> List[Dict]:
     payload = []
     for entry in profiles:
@@ -142,7 +157,8 @@ def _registry_payload_from_profiles(profiles) -> List[Dict]:
         if airband_value is True:
             mode_value = None
         else:
-            mode_value = mode if mode in ("analog", "dmr") else "analog"
+            file_mode = _read_ground_mode_from_file(path)
+            mode_value = mode if mode in ("analog", "dmr") else (file_mode or "analog")
         payload.append({
             "id": pid,
             "label": label,
@@ -181,12 +197,13 @@ def load_profiles_registry() -> List[Dict]:
                 path = p.get("path")
                 airband = p.get("airband")
                 mode = p.get("mode")
+                file_mode = _read_ground_mode_from_file(path)
                 if not pid or not label or not path:
                     continue
                 airband_value = bool(airband)
                 mode_value = None
                 if not airband_value:
-                    mode_value = mode if mode in ("analog", "dmr") else "analog"
+                    mode_value = mode if mode in ("analog", "dmr") else (file_mode or "analog")
                 cleaned.append({
                     "id": pid,
                     "label": label,
@@ -265,43 +282,8 @@ def split_profiles():
 
 
 def enforce_profile_index(conf_path: str) -> None:
-    """Enforce correct profile index based on airband flag."""
-    conf_path = os.path.realpath(conf_path)
-    try:
-        with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
-            lines = f.readlines()
-    except FileNotFoundError:
-        return
-
-    airband_value = None
-    for line in lines:
-        match = RE_AIRBAND.match(line)
-        if match:
-            airband_value = match.group(1).lower() == "true"
-            break
-    if airband_value is None:
-        return
-
-    desired_index = 0 if airband_value else 1
-    out = []
-    changed = False
-    for line in lines:
-        match = RE_INDEX.match(line)
-        if match:
-            new_line = f"{match.group(1)}{desired_index}{match.group(3)}\n"
-            if new_line != line:
-                changed = True
-            out.append(new_line)
-            continue
-        out.append(line)
-
-    if not changed:
-        return
-
-    tmp = conf_path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        f.writelines(out)
-    os.replace(tmp, conf_path)
+    """Profiles should not bind hardware; device selection is centralized."""
+    return
 
 
 def parse_controls(conf_path: str):
