@@ -1207,34 +1207,6 @@
                 <button class="action" id="digital-mute">Mute</button>
               </div>
 
-              <div class="control-item">
-                <div class="control-label">
-                  <span>Profile</span>
-                  <span class="control-value" id="digital-profile-status"></span>
-                </div>
-                <div class="control-applied">
-                  <select id="digital-profile-select"></select>
-                </div>
-                <div class="control-applied" id="digital-error"></div>
-              </div>
-
-              <div class="control-item">
-                <div class="control-label">
-                  <span>Manage Profiles</span>
-                  <span class="control-value">Create/Delete</span>
-                </div>
-                <div class="control-applied" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-                  <label>New ID:
-                    <input id="digital-manage-id" type="text" placeholder="metro-p25">
-                  </label>
-                  <button class="action" id="digital-manage-create">Create</button>
-                  <button class="action" id="digital-manage-delete">Delete Selected</button>
-                </div>
-                <div class="control-applied"><span id="digital-manage-status" style="opacity:0.85;"></span></div>
-                <div class="control-applied" style="opacity:0.75;">
-                  Profiles are directories under <code>/etc/scannerproject/digital/profiles</code>. Copy your SDRTrunk export into the new folder.
-                </div>
-              </div>
             </div>
           </div>
 
@@ -1330,6 +1302,50 @@
               <div class="freq-edit-body">
                 <textarea id="freq-edit-text" rows="8" spellcheck="false" placeholder="118.600 TOWER&#10;119.350 APP"></textarea>
                 <div class="control-applied"><span id="freq-edit-status" style="opacity:0.85;"></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="widget hidden" id="digital-profiles-widget">
+        <div class="widget-header">🎛️ Digital Profiles</div>
+        <div class="widget-body">
+          <div class="profiles-grid" id="digital-profiles-list">
+            <div class="empty-state">
+              <div class="icon">📡</div>
+              <div>No digital profiles yet</div>
+            </div>
+          </div>
+          <div class="control-group" style="margin-top:12px;">
+            <div class="control-item">
+              <div class="control-label">
+                <span>Active Profile</span>
+                <span class="control-value" id="digital-profile-status"></span>
+              </div>
+              <div class="control-applied">
+                <label>Profile:
+                  <select id="digital-profile-select"></select>
+                </label>
+              </div>
+              <div class="control-applied" id="digital-error"></div>
+            </div>
+
+            <div class="control-item">
+              <div class="control-label">
+                <span>Manage Profiles</span>
+                <span class="control-value">Create/Delete</span>
+              </div>
+              <div class="control-applied" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <label>New ID:
+                  <input id="digital-manage-id" type="text" placeholder="metro-p25">
+                </label>
+                <button class="action" id="digital-manage-create">Create</button>
+                <button class="action" id="digital-manage-delete">Delete Selected</button>
+              </div>
+              <div class="control-applied"><span id="digital-manage-status" style="opacity:0.85;"></span></div>
+              <div class="control-applied" style="opacity:0.75;">
+                Profiles are directories under <code>/etc/scannerproject/digital/profiles</code>. Copy your SDRTrunk export into the new folder.
               </div>
             </div>
           </div>
@@ -1735,6 +1751,8 @@
       btnApply: document.getElementById('btn-apply'),
       profilesList: document.getElementById('profiles-list'),
       profilesWidget: document.getElementById('profiles-widget'),
+      digitalProfilesWidget: document.getElementById('digital-profiles-widget'),
+      digitalProfilesList: document.getElementById('digital-profiles-list'),
       audioPlayer: document.getElementById('audio-player'),
       lnkStream: document.getElementById('lnk-stream'),
       sysUptime: document.getElementById('sys-uptime'),
@@ -2196,6 +2214,22 @@
       }
     }
 
+    function updateDigitalProfilesList() {
+      if (!els.digitalProfilesList) return;
+      const profiles = state.digital.profiles || [];
+      if (!profiles.length) {
+        els.digitalProfilesList.innerHTML = '<div class="empty-state"><div class="icon">📡</div><div>No digital profiles yet</div></div>';
+        return;
+      }
+      const current = state.digital.activeProfile || state.digital.profile;
+      els.digitalProfilesList.innerHTML = profiles.map((id) => (
+        `<button class="profile-btn ${id === current ? 'active' : ''}" onclick="applyDigitalProfile('${id}')">
+          <div class="label">${id}</div>
+          <div class="meta">${id === current ? 'Active' : 'Select'}</div>
+        </button>`
+      )).join('');
+    }
+
     async function refreshDigitalProfiles(force=false) {
       if (digitalProfilesLoaded && !force) return;
       if (activeView !== 'digital' && !force) return;
@@ -2206,6 +2240,7 @@
           state.digital.activeProfile = data.active || '';
           digitalProfilesLoaded = true;
           updateDigitalProfileSelect();
+          updateDigitalProfilesList();
           return;
         }
         setDigitalStatusMessage((data && data.error) || 'Digital profiles unavailable', true);
@@ -2240,6 +2275,7 @@
         els.digitalMute.textContent = d.muted ? 'Unmute' : 'Mute';
       }
       updateDigitalProfileSelect();
+      updateDigitalProfilesList();
     }
 
     async function runDigitalAction(action) {
@@ -2274,9 +2310,7 @@
       }
     }
 
-    async function onDigitalProfileChange() {
-      if (!els.digitalProfileSelect) return;
-      const profileId = els.digitalProfileSelect.value;
+    async function applyDigitalProfile(profileId) {
       if (!profileId) return;
       setDigitalStatusMessage('Applying profile...', false);
       try {
@@ -2291,6 +2325,12 @@
       }
       await refreshDigitalProfiles(true);
       await refresh();
+    }
+
+    async function onDigitalProfileChange() {
+      if (!els.digitalProfileSelect) return;
+      const profileId = els.digitalProfileSelect.value;
+      await applyDigitalProfile(profileId);
     }
 
     async function createDigitalProfile() {
@@ -2804,6 +2844,7 @@
       if (els.controlsAnalog) els.controlsAnalog.classList.toggle('hidden', target === 'digital');
       if (els.controlsDigital) els.controlsDigital.classList.toggle('hidden', target !== 'digital');
       if (els.profilesWidget) els.profilesWidget.classList.toggle('hidden', target === 'digital');
+      if (els.digitalProfilesWidget) els.digitalProfilesWidget.classList.toggle('hidden', target !== 'digital');
       if (target !== 'digital') {
         els.gainSlider.classList.remove('dirty');
         els.filterSlider.classList.remove('dirty');
