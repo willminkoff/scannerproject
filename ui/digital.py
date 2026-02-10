@@ -419,6 +419,21 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         err = (result.stderr or result.stdout or "").strip()
         if not err:
             err = f"systemctl failed (code {result.returncode})"
+        # Retry with sudo if policykit blocks non-root control.
+        if "interactive authentication required" in err.lower() or "access denied" in err.lower():
+            try:
+                result = subprocess.run(
+                    ["sudo"] + cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    check=False,
+                )
+            except Exception as e:
+                return False, str(e)
+            if result.returncode == 0:
+                return True, ""
+            err = (result.stderr or result.stdout or "").strip() or err
         return False, err
 
     def _refresh_log_cache(self):

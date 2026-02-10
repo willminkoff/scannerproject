@@ -426,6 +426,16 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now scanner-digital
 ```
 
+**Allow UI to control `scanner-digital` (no interactive auth prompts)**:
+The UI runs as a non-root user. To allow start/stop/restart from the browser, add a sudoers rule:
+```bash
+sudo visudo -f /etc/sudoers.d/airband-ui
+```
+Add (replace `willminkoff` with your user):
+```
+willminkoff ALL=NOPASSWD: /bin/systemctl start scanner-digital, /bin/systemctl stop scanner-digital, /bin/systemctl restart scanner-digital
+```
+
 **Digital audio mixing (optional)**:
 Mix SDRTrunk audio into the existing `GND.mp3` stream via a lightweight ffmpeg mixer.
 
