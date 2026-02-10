@@ -32,6 +32,10 @@ _NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@-]{0,127}$")
 _MODE_RE = re.compile(r"\b(P25|P25P1|P25P2|DMR|NXDN|D-STAR|TETRA|YSF|EDACS|LTR)\b", re.I)
 _LABEL_RE = re.compile(r"\b(label|alias|name|talkgroup|tgid|channel)[=:]\s*([^|]+)", re.I)
 _TS_RE = re.compile(r"(?P<date>\d{4}-\d{2}-\d{2})[ T](?P<time>\d{2}:\d{2}:\d{2})")
+_TS_COMPACT_RE = re.compile(r"(?P<date>\d{8})\s+(?P<time>\d{6})(?:\.\d+)?")
+_LOG_PREFIX_RE = re.compile(r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?\s+")
+_LOG_PREFIX_COMPACT_RE = re.compile(r"^\d{8}\s+\d{6}(?:\.\d+)?\s+")
+_LOG_LEVEL_RE = re.compile(r"^(INFO|WARN|ERROR|DEBUG|TRACE)\s+", re.I)
 _MUTE_STATE_PATH = "/run/airband_ui_digital_mute.json"
 _DIGITAL_MUTED = False
 _DEFAULT_PROFILE_NOTE = (
@@ -89,17 +93,39 @@ def _read_tail_lines(path: str, max_bytes: int = 8192, max_lines: int = 120):
 
 def _parse_time_ms(line: str, fallback_ms: int) -> int:
     m = _TS_RE.search(line or "")
-    if not m:
-        return fallback_ms
-    try:
-        dt = datetime.strptime(f"{m.group('date')} {m.group('time')}", "%Y-%m-%d %H:%M:%S")
-        return int(time.mktime(dt.timetuple()) * 1000)
-    except Exception:
-        return fallback_ms
+    if m:
+        try:
+            dt = datetime.strptime(f"{m.group('date')} {m.group('time')}", "%Y-%m-%d %H:%M:%S")
+            return int(time.mktime(dt.timetuple()) * 1000)
+        except Exception:
+            return fallback_ms
+    m2 = _TS_COMPACT_RE.search(line or "")
+    if m2:
+        try:
+            dt = datetime.strptime(f"{m2.group('date')} {m2.group('time')}", "%Y%m%d %H%M%S")
+            return int(time.mktime(dt.timetuple()) * 1000)
+        except Exception:
+            return fallback_ms
+    return fallback_ms
+
+
+def _strip_log_prefix(line: str) -> str:
+    line = (line or "").strip()
+    if not line:
+        return ""
+    line = _LOG_PREFIX_RE.sub("", line)
+    line = _LOG_PREFIX_COMPACT_RE.sub("", line)
+    line = re.sub(r"^\[[^\]]+\]\s+", "", line)
+    line = _LOG_LEVEL_RE.sub("", line)
+    if " - " in line:
+        left, right = line.split(" - ", 1)
+        if "." in left or left.isupper():
+            line = right
+    return line.strip()
 
 
 def _extract_label_mode(line: str):
-    line = (line or "").strip()
+    line = _strip_log_prefix(line or "")
     if not line:
         return "", ""
     label = ""
