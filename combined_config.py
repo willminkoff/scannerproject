@@ -7,7 +7,7 @@ RE_STATS_PATH = re.compile(r'^\s*stats_filepath\s*=', re.I)
 RE_INDEX = re.compile(r'^\s*index\s*=\s*(\d+)\s*;', re.I)
 RE_SERIAL = re.compile(r'^\s*serial\s*=\s*"[^\"]*"\s*;', re.I)
 RE_ICECAST_BLOCK = re.compile(r'\{\s*[^{}]*type\s*=\s*"icecast"[^{}]*\}', re.S)
-RE_MOUNTPOINT = re.compile(r'(\s*mountpoint\s*=\s*)\"/?([^\"];+)\"(\s*;)', re.I)
+RE_MOUNTPOINT = re.compile(r'(\s*mountpoint\s*=\s*)\"/?([^\";]+)\"(\s*;)', re.I)
 RE_BITRATE = re.compile(r'(\s*bitrate\s*=\s*)\d+(\s*;)', re.I)
 
 def extract_top_level_settings(text: str) -> list:
