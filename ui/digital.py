@@ -34,6 +34,11 @@ _LABEL_RE = re.compile(r"\b(label|alias|name|talkgroup|tgid|channel)[=:]\s*([^|]
 _TS_RE = re.compile(r"(?P<date>\d{4}-\d{2}-\d{2})[ T](?P<time>\d{2}:\d{2}:\d{2})")
 _MUTE_STATE_PATH = "/run/airband_ui_digital_mute.json"
 _DIGITAL_MUTED = False
+_DEFAULT_PROFILE_NOTE = (
+    "This is a placeholder SDRTrunk profile directory.\n"
+    "Export or copy your SDRTrunk configuration into this folder.\n"
+    "Then set this profile active from the UI or by updating the active symlink.\n"
+)
 
 
 def validate_digital_profile_id(profile_id: str) -> bool:
@@ -135,6 +140,62 @@ def set_digital_muted(muted: bool) -> bool:
     _DIGITAL_MUTED = bool(muted)
     _write_mute_state(_DIGITAL_MUTED)
     return _DIGITAL_MUTED
+
+
+def _digital_profile_paths(profile_id: str):
+    base = _safe_realpath(DIGITAL_PROFILES_DIR)
+    target = _safe_realpath(os.path.join(DIGITAL_PROFILES_DIR, profile_id))
+    return base, target
+
+
+def create_digital_profile_dir(profile_id: str):
+    pid = _normalize_name(profile_id)
+    if not validate_digital_profile_id(pid):
+        return False, "invalid profileId"
+    base, target = _digital_profile_paths(pid)
+    if not base:
+        return False, "profiles dir not configured"
+    if not target.startswith(base + os.sep):
+        return False, "invalid profile path"
+    if os.path.exists(target):
+        return False, "profile already exists"
+    try:
+        os.makedirs(target, exist_ok=False)
+        note_path = os.path.join(target, "README.txt")
+        with open(note_path, "w", encoding="utf-8") as f:
+            f.write(_DEFAULT_PROFILE_NOTE)
+    except Exception as e:
+        return False, str(e)
+    return True, ""
+
+
+def delete_digital_profile_dir(profile_id: str):
+    pid = _normalize_name(profile_id)
+    if not validate_digital_profile_id(pid):
+        return False, "invalid profileId"
+    base, target = _digital_profile_paths(pid)
+    if not base:
+        return False, "profiles dir not configured"
+    if not target.startswith(base + os.sep):
+        return False, "invalid profile path"
+    if not os.path.isdir(target):
+        return False, "profile not found"
+    if os.path.islink(target):
+        return False, "profile path is a symlink"
+    active_link = DIGITAL_ACTIVE_PROFILE_LINK
+    if active_link and os.path.islink(active_link):
+        try:
+            active_target = _safe_realpath(active_link)
+        except Exception:
+            active_target = ""
+        if active_target and active_target == target:
+            return False, "profile is active"
+    try:
+        import shutil
+        shutil.rmtree(target)
+    except Exception as e:
+        return False, str(e)
+    return True, ""
 
 
 class DigitalAdapter:

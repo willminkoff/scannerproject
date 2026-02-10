@@ -42,7 +42,12 @@ try:
     from .spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
     from .system_stats import get_system_stats
     from .vlc import start_vlc, stop_vlc, vlc_running
-    from .digital import get_digital_manager, validate_digital_profile_id
+    from .digital import (
+        get_digital_manager,
+        validate_digital_profile_id,
+        create_digital_profile_dir,
+        delete_digital_profile_dir,
+    )
 except ImportError:
     from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, PROFILES_DIR, UI_PORT, UNITS, COMBINED_CONFIG_PATH
     from ui.profile_config import (
@@ -64,7 +69,12 @@ except ImportError:
     from ui.spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
     from ui.system_stats import get_system_stats
     from ui.vlc import start_vlc, stop_vlc, vlc_running
-    from ui.digital import get_digital_manager, validate_digital_profile_id
+    from ui.digital import (
+        get_digital_manager,
+        validate_digital_profile_id,
+        create_digital_profile_dir,
+        delete_digital_profile_dir,
+    )
 
 
 def _read_html_template():
@@ -472,6 +482,22 @@ class Handler(BaseHTTPRequestHandler):
             if muted is None:
                 return self._send(400, json.dumps({"ok": False, "error": "invalid muted"}), "application/json; charset=utf-8")
             get_digital_manager().setMuted(muted)
+            return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
+
+        if p == "/api/digital/profile/create":
+            profile_id = get_str("profileId").strip()
+            ok, err = create_digital_profile_dir(profile_id)
+            if not ok:
+                status = 400 if err in ("invalid profileId", "profile already exists") else 500
+                return self._send(status, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
+            return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
+
+        if p == "/api/digital/profile/delete":
+            profile_id = get_str("profileId").strip()
+            ok, err = delete_digital_profile_dir(profile_id)
+            if not ok:
+                status = 400 if err in ("invalid profileId", "profile is active", "profile not found", "profile path is a symlink") else 500
+                return self._send(status, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
             return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
 
         if p == "/api/profile/create":

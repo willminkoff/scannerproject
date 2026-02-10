@@ -1217,6 +1217,24 @@
                 </div>
                 <div class="control-applied" id="digital-error"></div>
               </div>
+
+              <div class="control-item">
+                <div class="control-label">
+                  <span>Manage Profiles</span>
+                  <span class="control-value">Create/Delete</span>
+                </div>
+                <div class="control-applied" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                  <label>New ID:
+                    <input id="digital-manage-id" type="text" placeholder="metro-p25">
+                  </label>
+                  <button class="action" id="digital-manage-create">Create</button>
+                  <button class="action" id="digital-manage-delete">Delete Selected</button>
+                </div>
+                <div class="control-applied"><span id="digital-manage-status" style="opacity:0.85;"></span></div>
+                <div class="control-applied" style="opacity:0.75;">
+                  Profiles are directories under <code>/etc/scannerproject/digital/profiles</code>. Copy your SDRTrunk export into the new folder.
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1740,6 +1758,10 @@
       digitalProfileSelect: document.getElementById('digital-profile-select'),
       digitalProfileStatus: document.getElementById('digital-profile-status'),
       digitalError: document.getElementById('digital-error'),
+      digitalManageId: document.getElementById('digital-manage-id'),
+      digitalManageCreate: document.getElementById('digital-manage-create'),
+      digitalManageDelete: document.getElementById('digital-manage-delete'),
+      digitalManageStatus: document.getElementById('digital-manage-status'),
       digitalStart: document.getElementById('digital-start'),
       digitalStop: document.getElementById('digital-stop'),
       digitalRestart: document.getElementById('digital-restart'),
@@ -1948,6 +1970,13 @@
         .slice(0, 40);
     }
 
+    function sanitizeDigitalProfileId(label) {
+      let value = String(label || '').trim();
+      value = value.replace(/[^A-Za-z0-9._@-]/g, '-').replace(/-+/g, '-');
+      value = value.replace(/^[^A-Za-z0-9]+/, '');
+      return value.slice(0, 64);
+    }
+
     function getManageTarget() {
       return els.manageTargetGround && els.manageTargetGround.checked ? 'ground' : 'airband';
     }
@@ -2143,6 +2172,12 @@
       els.digitalProfileStatus.style.color = isError ? '#f59e0b' : '';
     }
 
+    function setDigitalManageStatus(message, isError=false) {
+      if (!els.digitalManageStatus) return;
+      els.digitalManageStatus.textContent = message || '';
+      els.digitalManageStatus.style.color = isError ? '#f59e0b' : '';
+    }
+
     function updateDigitalProfileSelect() {
       if (!els.digitalProfileSelect) return;
       const profiles = state.digital.profiles || [];
@@ -2256,6 +2291,50 @@
       }
       await refreshDigitalProfiles(true);
       await refresh();
+    }
+
+    async function createDigitalProfile() {
+      if (!els.digitalManageId) return;
+      let profileId = sanitizeDigitalProfileId(els.digitalManageId.value || '');
+      els.digitalManageId.value = profileId;
+      if (!profileId) {
+        setDigitalManageStatus('Enter a profile ID.', true);
+        return;
+      }
+      setDigitalManageStatus('Creating...', false);
+      try {
+        const res = await postAPI('/api/digital/profile/create', { profileId });
+        if (!res || !res.ok) {
+          setDigitalManageStatus((res && res.error) || 'Create failed', true);
+          return;
+        }
+        setDigitalManageStatus('Profile created', false);
+        await refreshDigitalProfiles(true);
+        if (els.digitalProfileSelect) {
+          els.digitalProfileSelect.value = profileId;
+        }
+      } catch (e) {
+        setDigitalManageStatus('Create failed', true);
+      }
+    }
+
+    async function deleteDigitalProfile() {
+      const selected = els.digitalProfileSelect ? els.digitalProfileSelect.value : '';
+      const profileId = selected || sanitizeDigitalProfileId(els.digitalManageId?.value || '');
+      if (!profileId) return;
+      if (!confirm(`Delete digital profile ${profileId}?`)) return;
+      setDigitalManageStatus('Deleting...', false);
+      try {
+        const res = await postAPI('/api/digital/profile/delete', { profileId });
+        if (!res || !res.ok) {
+          setDigitalManageStatus((res && res.error) || 'Delete failed', true);
+          return;
+        }
+        setDigitalManageStatus('Profile deleted', false);
+        await refreshDigitalProfiles(true);
+      } catch (e) {
+        setDigitalManageStatus('Delete failed', true);
+      }
     }
 
     function setManageStatus(message, isError=false) {
@@ -3356,6 +3435,12 @@
       }
       if (els.digitalProfileSelect) {
         els.digitalProfileSelect.addEventListener('change', onDigitalProfileChange);
+      }
+      if (els.digitalManageCreate) {
+        els.digitalManageCreate.addEventListener('click', createDigitalProfile);
+      }
+      if (els.digitalManageDelete) {
+        els.digitalManageDelete.addEventListener('click', deleteDigitalProfile);
       }
       const adsbFrame = document.getElementById('adsb-frame');
       if (adsbFrame) {
