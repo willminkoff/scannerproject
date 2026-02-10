@@ -2187,12 +2187,12 @@
       const holdFreq = state.hold[target];
       if (holdFreq) return holdFreq;
       if (state.tuned && state.tunedFreq && state.tunedTarget === target) {
-        return formatFreq(state.tunedFreq) + ' MHz';
+        return formatFreq(state.tunedFreq);
       }
       const fallback = target === 'airband' ? state.lastHitAirband : state.lastHitGround;
       if (fallback) {
         const num = parseFloat(fallback);
-        return isNaN(num) ? fallback : formatFreq(num) + ' MHz';
+        return isNaN(num) ? fallback : formatFreq(num);
       }
       return '--';
     }
