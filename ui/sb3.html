@@ -179,6 +179,7 @@
     .last-hit-group {
       display: flex;
       gap: 10px;
+      flex-wrap: wrap;
     }
 
     .last-hit-btn {
@@ -1111,6 +1112,16 @@
         justify-items: start;
         width: 100%;
       }
+
+      .last-hit-group {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .last-hit-btn {
+        width: 100%;
+        min-width: 0;
+      }
     }
   </style>
 </head>
@@ -1130,6 +1141,10 @@
       <button class="last-hit-btn" id="last-hit-ground" type="button">
         <span class="label">Ground</span>
         <span class="value" id="last-hit-ground-value">--</span>
+      </button>
+      <button class="last-hit-btn" id="last-hit-digital" type="button">
+        <span class="label">Digital</span>
+        <span class="value" id="last-hit-digital-value">--</span>
       </button>
     </div>
     <div class="header-right">
@@ -1701,6 +1716,7 @@
       lastHit: '',
       lastHitAirband: '',
       lastHitGround: '',
+      lastHitDigital: '',
       hits: [],
       hold: { airband: null, ground: null },
       lastProfile: { airband: '', ground: '' },
@@ -1773,8 +1789,10 @@
     const els = {
       lastHitAirband: document.getElementById('last-hit-airband'),
       lastHitGround: document.getElementById('last-hit-ground'),
+      lastHitDigital: document.getElementById('last-hit-digital'),
       lastHitAirbandValue: document.getElementById('last-hit-airband-value'),
       lastHitGroundValue: document.getElementById('last-hit-ground-value'),
+      lastHitDigitalValue: document.getElementById('last-hit-digital-value'),
       gainSlider: document.getElementById('gain-slider'),
       gainValue: document.getElementById('gain-value'),
       gainApplied: document.getElementById('gain-applied'),
@@ -2150,6 +2168,11 @@
       const groundDisplay = getDisplayForTarget('ground');
       els.lastHitAirbandValue.textContent = airbandDisplay || '--';
       els.lastHitGroundValue.textContent = groundDisplay || '--';
+      const digitalLabel = formatDigitalLabel(state.lastHitDigital || state.digital.lastLabel || '');
+      if (els.lastHitDigitalValue) {
+        els.lastHitDigitalValue.textContent = digitalLabel || '--';
+        els.lastHitDigitalValue.title = state.lastHitDigital || state.digital.lastLabel || '';
+      }
       els.lastHitAirband.classList.toggle('holding', Boolean(state.hold.airband));
       els.lastHitGround.classList.toggle('holding', Boolean(state.hold.ground));
       updateSitrep();
@@ -2544,6 +2567,14 @@
       if (!freq) return '--';
       const num = parseFloat(freq);
       return isNaN(num) ? freq : num.toFixed(3);
+    }
+
+    function formatDigitalLabel(label) {
+      const raw = String(label || '').trim();
+      if (!raw) return '--';
+      const maxLen = 10;
+      if (raw.length <= maxLen) return raw;
+      return raw.slice(0, maxLen - 1) + '…';
     }
 
     function formatBytes(bytes) {
@@ -3317,6 +3348,7 @@
         state.digital.lastTime = Number.isFinite(data.digital_last_time) ? data.digital_last_time : 0;
         state.digital.lastError = data.digital_last_error || '';
         state.digital.muted = Boolean(data.digital_muted);
+        state.lastHitDigital = state.digital.lastLabel || '';
         
         state.serverTime = data.server_time;
         
@@ -3507,6 +3539,11 @@
       els.filterSlider.addEventListener('input', onFilterChange);
       els.lastHitAirband.addEventListener('click', () => toggleHoldFor('airband'));
       els.lastHitGround.addEventListener('click', () => toggleHoldFor('ground'));
+      if (els.lastHitDigital) {
+        els.lastHitDigital.addEventListener('click', () => {
+          // No tune/hold behavior for digital; keep for future actions.
+        });
+      }
       if (els.logoToggle) {
         els.logoToggle.addEventListener('click', () => toggleSitrep());
       }
