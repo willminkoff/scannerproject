@@ -1257,7 +1257,7 @@
         </div>
       </div>
 
-      <div class="widget">
+      <div class="widget" id="profiles-widget">
         <div class="widget-header">🎯 Profiles</div>
         <div class="widget-body">
           <div class="profiles-grid" id="profiles-list">
@@ -1716,6 +1716,7 @@
       btnPlay: document.getElementById('btn-play'),
       btnApply: document.getElementById('btn-apply'),
       profilesList: document.getElementById('profiles-list'),
+      profilesWidget: document.getElementById('profiles-widget'),
       audioPlayer: document.getElementById('audio-player'),
       lnkStream: document.getElementById('lnk-stream'),
       sysUptime: document.getElementById('sys-uptime'),
@@ -2723,6 +2724,7 @@
       if (els.tabDigital) els.tabDigital.classList.toggle('active', target === 'digital');
       if (els.controlsAnalog) els.controlsAnalog.classList.toggle('hidden', target === 'digital');
       if (els.controlsDigital) els.controlsDigital.classList.toggle('hidden', target !== 'digital');
+      if (els.profilesWidget) els.profilesWidget.classList.toggle('hidden', target === 'digital');
       if (target !== 'digital') {
         els.gainSlider.classList.remove('dirty');
         els.filterSlider.classList.remove('dirty');
