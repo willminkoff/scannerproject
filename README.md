@@ -1,5 +1,7 @@
 # SprontPi Scanner Project
 
+**Version:** 2.0.0 (2026-02-10)
+
 Scanner control UI and configuration for RTL-SDR dual-dongle airband/GMRS/WX receiver on Raspberry Pi.
 
 **Current Architecture**: Refactored (Jan 2026) from 1,928-line monolith to 11 modular Python units + static web assets.
@@ -431,6 +433,7 @@ sudo systemctl restart scanner-digital
 - `digital_active` (boolean)
 - `digital_backend` (string)
 - `digital_profile` (string)
+- `digital_muted` (boolean)
 - `digital_last_label` (string)
 - `digital_last_mode` (string, optional)
 - `digital_last_time` (epoch ms, 0 if none)
@@ -440,8 +443,33 @@ sudo systemctl restart scanner-digital
 - `POST /api/digital/start`
 - `POST /api/digital/stop`
 - `POST /api/digital/restart`
+- `POST /api/digital/mute` → body: `{ "muted": true }`
 - `GET  /api/digital/profiles`
 - `POST /api/digital/profile` → body: `{ "profileId": "..." }`
+- `POST /api/digital/profile/create` → body: `{ "profileId": "..." }`
+- `POST /api/digital/profile/delete` → body: `{ "profileId": "..." }`
+- `POST /api/digital/profile/inspect` → body: `{ "profileId": "..." }`
+
+**SB3 Digital profile management**:
+- Digital tab → Digital Profiles widget lets you create/delete profile folders, select an active profile, and load a preview of files in the profile directory.
+
+**Adding control channels + talkgroups (RadioReference workflow)**:
+1. **Find the system on RadioReference**: note the system type (P25/DMR/etc.), site(s), and **control channels** (primary + alternate).
+2. **Create the trunked system in SDRTrunk**:
+   - Add a new trunked system matching the RadioReference system type.
+   - Add a site and paste the control channels (RR lists them as red/blue).
+3. **Add talkgroups**:
+   - Create a talkgroup/alias list and import from RadioReference (CSV export if you have a premium account), or paste/enter TGIDs manually.
+   - Keep labels short; these show up as the Digital “last hit” pill (truncated to ~10 chars in SB3).
+4. **Bind the tuner**:
+   - In SDRTrunk, select the RTL device index or serial that matches `DIGITAL_RTL_DEVICE`.
+5. **Export/copy the SDRTrunk config into your profile folder**:
+   - Use the Digital Profiles widget to create a folder, then copy your SDRTrunk export into `/etc/scannerproject/digital/profiles/<profile>`.
+   - Activate it in the UI (or update the `DIGITAL_ACTIVE_PROFILE_LINK` symlink) and restart `scanner-digital`.
+
+**Notes**:
+- RadioReference data is subject to their terms; use it as your source and avoid redistributing proprietary exports.
+- SDRTrunk configuration file names may vary by version; the “Inspect” endpoint lets you confirm what’s inside a profile.
 
 ### GET /static/*
 Serve static web assets.
