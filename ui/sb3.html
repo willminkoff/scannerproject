@@ -949,6 +949,10 @@
       background: rgba(18, 22, 24, 0.6);
     }
 
+    .digital-listen.collapsed .digital-listen-body {
+      display: none;
+    }
+
     .digital-listen-toolbar {
       display: flex;
       gap: 8px;
@@ -1472,10 +1476,13 @@
                 </select>
                 <button class="action" id="digital-listen-load">Load</button>
                 <button class="action" id="digital-listen-save">Save</button>
+                <button class="action" id="digital-listen-toggle">Hide</button>
               </div>
-              <div class="digital-listen-list" id="digital-listen-list"></div>
-              <div class="control-applied" style="opacity:0.75;">
-                Listen flags only affect SB3 hit display for now (SDRTrunk still scans everything).
+              <div class="digital-listen-body">
+                <div class="digital-listen-list" id="digital-listen-list"></div>
+                <div class="control-applied" style="opacity:0.75;">
+                  Listen flags only affect SB3 hit display for now (SDRTrunk still scans everything).
+                </div>
               </div>
             </div>
           </div>
@@ -1958,6 +1965,7 @@
       digitalListenFilter: document.getElementById('digital-listen-filter'),
       digitalListenLoad: document.getElementById('digital-listen-load'),
       digitalListenSave: document.getElementById('digital-listen-save'),
+      digitalListenToggle: document.getElementById('digital-listen-toggle'),
       digitalListenStatus: document.getElementById('digital-listen-status'),
       digitalStart: document.getElementById('digital-start'),
       digitalStop: document.getElementById('digital-stop'),
@@ -3990,6 +3998,20 @@
       }
       if (els.digitalPreviewLoad) {
         els.digitalPreviewLoad.addEventListener('click', loadDigitalPreview);
+      }
+      if (els.digitalListen) {
+        const saved = localStorage.getItem('sb3-digital-listen-collapsed');
+        if (saved === '1') {
+          els.digitalListen.classList.add('collapsed');
+          if (els.digitalListenToggle) els.digitalListenToggle.textContent = 'Show';
+        }
+      }
+      if (els.digitalListenToggle && els.digitalListen) {
+        els.digitalListenToggle.addEventListener('click', () => {
+          const collapsed = els.digitalListen.classList.toggle('collapsed');
+          els.digitalListenToggle.textContent = collapsed ? 'Show' : 'Hide';
+          localStorage.setItem('sb3-digital-listen-collapsed', collapsed ? '1' : '0');
+        });
       }
       if (els.digitalListenLoad) {
         els.digitalListenLoad.addEventListener('click', () => refreshDigitalListen(true));
