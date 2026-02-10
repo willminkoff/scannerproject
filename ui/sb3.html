@@ -893,6 +893,25 @@
       box-shadow: 0 0 10px rgba(45, 212, 191, 0.08);
     }
 
+    .digital-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .digital-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--bad);
+      box-shadow: 0 0 8px rgba(239, 68, 68, 0.25);
+    }
+
+    .digital-dot.active {
+      background: var(--good);
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
+    }
+
     .service-item.online {
       border-color: rgba(16, 185, 129, 0.5);
     }
@@ -1106,10 +1125,12 @@
           <div class="tabs">
             <button class="tab active" id="tab-airband" onclick="switchTarget('airband')">Airband</button>
             <button class="tab" id="tab-ground" onclick="switchTarget('ground')">Ground</button>
+            <button class="tab" id="tab-digital" onclick="switchTarget('digital')">Digital</button>
           </div>
         </div>
         <div class="widget-body">
-          <div class="control-group">
+          <div id="controls-analog">
+            <div class="control-group">
             <div class="control-item">
               <div class="control-label">
                 <span>Gain (dB)</span>
@@ -1137,57 +1158,102 @@
               <input type="range" class="slider" id="filter-slider" min="2000" max="5000" step="100" value="3500">
               <div class="control-applied">Applied: <span id="filter-applied">--</span></div>
             </div>
+            </div>
+
+            <div class="btn-row">
+              <button class="action" id="btn-play">Play</button>
+              <button class="action" id="btn-tune">Tune</button>
+              <button class="action" id="btn-avoid">Avoid</button>
+              <button class="action" id="btn-clear-avoids">Clear</button>
+              <button class="action" id="btn-apply">Apply</button>
+            </div>
+
+            <div class="player-box">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px;">
+                <div style="font-weight:700;">Player</div>
+                <a id="lnk-stream" href="#" target="_blank" rel="noopener" style="font-size:12px; opacity:0.85;">Open stream</a>
+              </div>
+              <audio id="audio-player" controls preload="none"></audio>
+            </div>
           </div>
 
-          <div class="btn-row">
-            <button class="action" id="btn-play">Play</button>
-            <button class="action" id="btn-tune">Tune</button>
-            <button class="action" id="btn-avoid">Avoid</button>
-            <button class="action" id="btn-clear-avoids">Clear</button>
-            <button class="action" id="btn-apply">Apply</button>
+          <div id="controls-digital" class="hidden">
+            <div class="control-group">
+              <div class="control-item">
+                <div class="control-label">
+                  <span>Status</span>
+                  <span class="control-value digital-status">
+                    <span class="digital-dot" id="digital-dot"></span>
+                    <span id="digital-status">--</span>
+                  </span>
+                </div>
+                <div class="control-applied">Backend: <span id="digital-backend">--</span></div>
+                <div class="control-applied">Profile: <span id="digital-profile">--</span></div>
+              </div>
+
+              <div class="control-item">
+                <div class="control-label">
+                  <span>Last Activity</span>
+                  <span class="control-value" id="digital-last-time">--</span>
+                </div>
+                <div class="control-applied"><span id="digital-last-label">--</span></div>
+                <div class="control-applied" id="digital-last-mode"></div>
+              </div>
+
+              <div class="btn-row">
+                <button class="action" id="digital-start">Start</button>
+                <button class="action" id="digital-stop">Stop</button>
+                <button class="action" id="digital-restart">Restart</button>
+                <button class="action" id="digital-mute">Mute</button>
+              </div>
+
+              <div class="control-item">
+                <div class="control-label">
+                  <span>Profile</span>
+                  <span class="control-value" id="digital-profile-status"></span>
+                </div>
+                <div class="control-applied">
+                  <select id="digital-profile-select"></select>
+                </div>
+                <div class="control-applied" id="digital-error"></div>
+              </div>
+            </div>
           </div>
 
-          <div class="player-box">
-            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px;">
-              <div style="font-weight:700;">Player</div>
-              <a id="lnk-stream" href="#" target="_blank" rel="noopener" style="font-size:12px; opacity:0.85;">Open stream</a>
+          <div class="control-item" style="margin-top:10px;">
+            <div class="control-label">
+              <span>Pi Health</span>
+              <span class="control-value" id="sys-uptime">--</span>
             </div>
-            <audio id="audio-player" controls preload="none"></audio>
+            <div class="system-grid">
+              <div class="system-item">
+                <div class="label">CPU Temp</div>
+                <div class="value" id="sys-cpu-temp">--</div>
+              </div>
+              <div class="system-item">
+                <div class="label">GPU Temp</div>
+                <div class="value" id="sys-gpu-temp">--</div>
+              </div>
+              <div class="system-item">
+                <div class="label">CPU Usage</div>
+                <div class="value" id="sys-cpu-usage">--</div>
+              </div>
+              <div class="system-item">
+                <div class="label">Uptime</div>
+                <div class="value" id="sys-uptime-tile">--</div>
+              </div>
+              <div class="system-item">
+                <div class="label">Network RX</div>
+                <div class="value" id="sys-net-rx">--</div>
+                <div class="sub" id="sys-net-rx-rate">--</div>
+              </div>
+              <div class="system-item">
+                <div class="label">Network TX</div>
+                <div class="value" id="sys-net-tx">--</div>
+                <div class="sub" id="sys-net-tx-rate">--</div>
+              </div>
+            </div>
           </div>
-            <div class="control-item" style="margin-top:10px;">
-              <div class="control-label">
-                <span>Pi Health</span>
-                <span class="control-value" id="sys-uptime">--</span>
-              </div>
-              <div class="system-grid">
-                <div class="system-item">
-                  <div class="label">CPU Temp</div>
-                  <div class="value" id="sys-cpu-temp">--</div>
-                </div>
-                <div class="system-item">
-                  <div class="label">GPU Temp</div>
-                  <div class="value" id="sys-gpu-temp">--</div>
-                </div>
-                <div class="system-item">
-                  <div class="label">CPU Usage</div>
-                  <div class="value" id="sys-cpu-usage">--</div>
-                </div>
-                <div class="system-item">
-                  <div class="label">Uptime</div>
-                  <div class="value" id="sys-uptime-tile">--</div>
-                </div>
-                <div class="system-item">
-                  <div class="label">Network RX</div>
-                  <div class="value" id="sys-net-rx">--</div>
-                  <div class="sub" id="sys-net-rx-rate">--</div>
-                </div>
-                <div class="system-item">
-                  <div class="label">Network TX</div>
-                  <div class="value" id="sys-net-tx">--</div>
-                  <div class="sub" id="sys-net-tx-rate">--</div>
-                </div>
-              </div>
-            </div>
         </div>
       </div>
 
@@ -1544,6 +1610,7 @@
     // ============================================
     
     let activeTarget = 'airband';
+    let activeView = 'airband';
     
     let state = {
       connected: false,
@@ -1611,7 +1678,21 @@
         currentProfile: '',
         avoids: [],
       },
+      digital: {
+        active: false,
+        backend: '',
+        profile: '',
+        lastLabel: '',
+        lastMode: '',
+        lastTime: 0,
+        lastError: '',
+        muted: false,
+        profiles: [],
+        activeProfile: '',
+      },
     };
+
+    let digitalProfilesLoaded = false;
     
     // ============================================
     // ELEMENTS
@@ -1646,6 +1727,22 @@
       sysNetTx: document.getElementById('sys-net-tx'),
       sysNetRxRate: document.getElementById('sys-net-rx-rate'),
       sysNetTxRate: document.getElementById('sys-net-tx-rate'),
+      controlsAnalog: document.getElementById('controls-analog'),
+      controlsDigital: document.getElementById('controls-digital'),
+      digitalDot: document.getElementById('digital-dot'),
+      digitalStatus: document.getElementById('digital-status'),
+      digitalBackend: document.getElementById('digital-backend'),
+      digitalProfile: document.getElementById('digital-profile'),
+      digitalLastTime: document.getElementById('digital-last-time'),
+      digitalLastLabel: document.getElementById('digital-last-label'),
+      digitalLastMode: document.getElementById('digital-last-mode'),
+      digitalProfileSelect: document.getElementById('digital-profile-select'),
+      digitalProfileStatus: document.getElementById('digital-profile-status'),
+      digitalError: document.getElementById('digital-error'),
+      digitalStart: document.getElementById('digital-start'),
+      digitalStop: document.getElementById('digital-stop'),
+      digitalRestart: document.getElementById('digital-restart'),
+      digitalMute: document.getElementById('digital-mute'),
       manageTargetAirband: document.getElementById('manage-target-airband'),
       manageTargetGround: document.getElementById('manage-target-ground'),
       manageId: document.getElementById('manage-id'),
@@ -1671,6 +1768,7 @@
       piTime: document.getElementById('pi-time'),
       tabAirband: document.getElementById('tab-airband'),
       tabGround: document.getElementById('tab-ground'),
+      tabDigital: document.getElementById('tab-digital'),
       logoToggle: document.getElementById('logo-toggle'),
       viewMain: document.querySelector('.view-main'),
       viewSitrep: document.querySelector('.view-sitrep'),
@@ -2038,6 +2136,127 @@
       updateSitrep();
     }
 
+    function setDigitalStatusMessage(message, isError=false) {
+      if (!els.digitalProfileStatus) return;
+      els.digitalProfileStatus.textContent = message || '';
+      els.digitalProfileStatus.style.color = isError ? '#f59e0b' : '';
+    }
+
+    function updateDigitalProfileSelect() {
+      if (!els.digitalProfileSelect) return;
+      const profiles = state.digital.profiles || [];
+      if (!profiles.length) {
+        els.digitalProfileSelect.innerHTML = '<option value="">No profiles</option>';
+        els.digitalProfileSelect.disabled = true;
+        return;
+      }
+      els.digitalProfileSelect.disabled = false;
+      els.digitalProfileSelect.innerHTML = profiles.map((id) => (
+        `<option value="${id}">${id}</option>`
+      )).join('');
+      const current = state.digital.activeProfile || state.digital.profile;
+      if (current && profiles.includes(current)) {
+        els.digitalProfileSelect.value = current;
+      }
+    }
+
+    async function refreshDigitalProfiles(force=false) {
+      if (digitalProfilesLoaded && !force) return;
+      if (activeView !== 'digital' && !force) return;
+      try {
+        const data = await fetchJSON('/api/digital/profiles');
+        if (data && data.ok) {
+          state.digital.profiles = data.profiles || [];
+          state.digital.activeProfile = data.active || '';
+          digitalProfilesLoaded = true;
+          updateDigitalProfileSelect();
+          return;
+        }
+        setDigitalStatusMessage((data && data.error) || 'Digital profiles unavailable', true);
+      } catch (e) {
+        setDigitalStatusMessage('Digital profiles unavailable', true);
+      }
+    }
+
+    function updateDigitalUI() {
+      if (!els.digitalStatus) return;
+      const d = state.digital;
+      els.digitalStatus.textContent = d.active ? 'Running' : 'Stopped';
+      if (els.digitalDot) els.digitalDot.classList.toggle('active', Boolean(d.active));
+      if (els.digitalBackend) els.digitalBackend.textContent = d.backend || '--';
+      if (els.digitalProfile) els.digitalProfile.textContent = d.profile || d.activeProfile || '--';
+      if (els.digitalLastLabel) els.digitalLastLabel.textContent = d.lastLabel || '--';
+      if (els.digitalLastTime) els.digitalLastTime.textContent = formatTimeMs(d.lastTime);
+      if (els.digitalLastMode) {
+        if (d.lastMode) {
+          els.digitalLastMode.textContent = `Mode: ${d.lastMode}`;
+          els.digitalLastMode.style.display = '';
+        } else {
+          els.digitalLastMode.textContent = '';
+          els.digitalLastMode.style.display = 'none';
+        }
+      }
+      if (els.digitalError) {
+        els.digitalError.textContent = d.lastError || '';
+        els.digitalError.style.color = d.lastError ? '#f59e0b' : '';
+      }
+      if (els.digitalMute) {
+        els.digitalMute.textContent = d.muted ? 'Unmute' : 'Mute';
+      }
+      updateDigitalProfileSelect();
+    }
+
+    async function runDigitalAction(action) {
+      setDigitalStatusMessage(`Digital ${action}...`, false);
+      try {
+        const res = await postAPI(`/api/digital/${action}`, {});
+        if (res && res.ok) {
+          setDigitalStatusMessage(`Digital ${action} ok`, false);
+        } else {
+          setDigitalStatusMessage((res && res.error) || `${action} failed`, true);
+        }
+      } catch (e) {
+        setDigitalStatusMessage(`${action} failed`, true);
+      }
+      await refresh();
+    }
+
+    async function toggleDigitalMute() {
+      const next = !state.digital.muted;
+      setDigitalStatusMessage(next ? 'Muting...' : 'Unmuting...', false);
+      try {
+        const res = await postAPI('/api/digital/mute', { muted: next });
+        if (res && res.ok) {
+          state.digital.muted = next;
+          updateDigitalUI();
+          setDigitalStatusMessage(next ? 'Digital muted' : 'Digital unmuted', false);
+        } else {
+          setDigitalStatusMessage((res && res.error) || 'Mute failed', true);
+        }
+      } catch (e) {
+        setDigitalStatusMessage('Mute failed', true);
+      }
+    }
+
+    async function onDigitalProfileChange() {
+      if (!els.digitalProfileSelect) return;
+      const profileId = els.digitalProfileSelect.value;
+      if (!profileId) return;
+      setDigitalStatusMessage('Applying profile...', false);
+      try {
+        const res = await postAPI('/api/digital/profile', { profileId });
+        if (res && res.ok) {
+          setDigitalStatusMessage('Profile updated', false);
+        } else {
+          setDigitalStatusMessage((res && res.error) || 'Profile update failed', true);
+        }
+      } catch (e) {
+        setDigitalStatusMessage('Profile update failed', true);
+      }
+      await refreshDigitalProfiles(true);
+      await refresh();
+    }
+
     function setManageStatus(message, isError=false) {
       if (!els.manageStatus) return;
       els.manageStatus.textContent = message || '';
@@ -2161,6 +2380,12 @@
       if (hours > 0) return `${hours}h ${minutes}m`;
       if (minutes > 0) return `${minutes}m ${seconds}s`;
       return `${seconds}s`;
+    }
+
+    function formatTimeMs(ms) {
+      if (!Number.isFinite(ms) || ms <= 0) return '--';
+      const d = new Date(ms);
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
     }
 
     function getProfileLabel(target, id) {
@@ -2489,13 +2714,25 @@
     }
     
     function switchTarget(target) {
-      activeTarget = target;
+      activeView = target;
+      if (target === 'airband' || target === 'ground') {
+        activeTarget = target;
+      }
       els.tabAirband.classList.toggle('active', target === 'airband');
       els.tabGround.classList.toggle('active', target === 'ground');
-      els.gainSlider.classList.remove('dirty');
-      els.filterSlider.classList.remove('dirty');
-      updateControls();
-      updateProfiles();
+      if (els.tabDigital) els.tabDigital.classList.toggle('active', target === 'digital');
+      if (els.controlsAnalog) els.controlsAnalog.classList.toggle('hidden', target === 'digital');
+      if (els.controlsDigital) els.controlsDigital.classList.toggle('hidden', target !== 'digital');
+      if (target !== 'digital') {
+        els.gainSlider.classList.remove('dirty');
+        els.filterSlider.classList.remove('dirty');
+        updateControls();
+        updateProfiles();
+      } else {
+        updateDigitalUI();
+        refreshDigitalProfiles(true);
+      }
+      updateTuneButton();
     }
     
     // ============================================
@@ -2860,6 +3097,15 @@
         state.ground.profiles = profilesData.profiles_ground || [];
         state.ground.currentProfile = profilesData.active_ground_id || data.profile_ground || '';
         state.ground.avoids = data.avoids_ground?.sample || [];
+
+        state.digital.active = Boolean(data.digital_active);
+        state.digital.backend = data.digital_backend || '';
+        state.digital.profile = data.digital_profile || '';
+        state.digital.lastLabel = data.digital_last_label || '';
+        state.digital.lastMode = data.digital_last_mode || '';
+        state.digital.lastTime = Number.isFinite(data.digital_last_time) ? data.digital_last_time : 0;
+        state.digital.lastError = data.digital_last_error || '';
+        state.digital.muted = Boolean(data.digital_muted);
         
         state.serverTime = data.server_time;
         
@@ -2869,11 +3115,13 @@
         }
         
         updateStatus();
+        updateDigitalUI();
         updateControls();
         updateProfiles();
         updateSystemUI(systemData);
         updateCounters();
         updateTuneButton();
+        refreshDigitalProfiles();
       } catch (e) {
         if (wasConnected) {
           logActivity('API connection lost', 'warn', 'api-down');
@@ -3092,6 +3340,21 @@
       document.querySelectorAll('button.action').forEach(btn => {
         btn.addEventListener('click', () => setTimeout(() => btn.blur(), 300));
       });
+      if (els.digitalStart) {
+        els.digitalStart.addEventListener('click', () => runDigitalAction('start'));
+      }
+      if (els.digitalStop) {
+        els.digitalStop.addEventListener('click', () => runDigitalAction('stop'));
+      }
+      if (els.digitalRestart) {
+        els.digitalRestart.addEventListener('click', () => runDigitalAction('restart'));
+      }
+      if (els.digitalMute) {
+        els.digitalMute.addEventListener('click', () => toggleDigitalMute());
+      }
+      if (els.digitalProfileSelect) {
+        els.digitalProfileSelect.addEventListener('change', onDigitalProfileChange);
+      }
       const adsbFrame = document.getElementById('adsb-frame');
       if (adsbFrame) {
         adsbFrame.addEventListener('load', () => {
