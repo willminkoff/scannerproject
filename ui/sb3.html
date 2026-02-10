@@ -1355,20 +1355,6 @@
               <div class="control-applied" id="digital-error"></div>
             </div>
 
-            <div class="digital-preview" id="digital-preview">
-              <div class="control-label" style="margin-bottom:8px;">
-                <span>Profile Contents</span>
-                <span class="control-value" id="digital-preview-status"></span>
-              </div>
-              <div class="control-applied" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
-                <button class="action" id="digital-preview-load">Load</button>
-                <button class="action" id="digital-preview-toggle">Hide</button>
-              </div>
-              <div class="digital-preview-body">
-                <textarea id="digital-preview-text" rows="10" spellcheck="false" readonly></textarea>
-              </div>
-            </div>
-
             <div class="control-item">
               <div class="control-label">
                 <span>Manage Profiles</span>
@@ -1384,6 +1370,20 @@
               <div class="control-applied"><span id="digital-manage-status" style="opacity:0.85;"></span></div>
               <div class="control-applied" style="opacity:0.75;">
                 Profiles are directories under <code>/etc/scannerproject/digital/profiles</code>. Copy your SDRTrunk export into the new folder.
+              </div>
+            </div>
+
+            <div class="digital-preview" id="digital-preview">
+              <div class="control-label" style="margin-bottom:8px;">
+                <span>Profile Contents</span>
+                <span class="control-value" id="digital-preview-status"></span>
+              </div>
+              <div class="control-applied" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
+                <button class="action" id="digital-preview-load">Load</button>
+                <button class="action" id="digital-preview-toggle">Hide</button>
+              </div>
+              <div class="digital-preview-body">
+                <textarea id="digital-preview-text" rows="10" spellcheck="false" readonly></textarea>
               </div>
             </div>
           </div>
