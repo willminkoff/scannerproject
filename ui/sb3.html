@@ -180,19 +180,24 @@
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
+      width: min(660px, 70vw);
+      justify-content: center;
     }
 
     .last-hit-btn {
       display: grid;
       gap: 4px;
       min-width: 110px;
+      flex: 1 1 0;
       padding: 6px 10px;
       border-radius: 10px;
       border: 1px solid var(--border);
       background: var(--bg-panel);
       color: var(--text);
       cursor: pointer;
-      text-align: left;
+      text-align: center;
+      align-items: center;
+      justify-items: center;
       transition: color 0.15s ease, border-color 0.15s ease;
     }
 
