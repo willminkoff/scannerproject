@@ -1,0 +1,15 @@
+[Unit]
+Description=Digital Audio Mixer (RTL-Airband + SDRTrunk -> Icecast)
+After=network-online.target icecast2.service rtl-airband.service scanner-digital.service
+Wants=network-online.target icecast2.service
+Requires=icecast2.service
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/airband-ui.conf
+ExecStart=/usr/bin/python3 /home/willminkoff/scannerproject/scripts/digital-mixer.py
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

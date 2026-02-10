@@ -6,11 +6,21 @@ from collections import deque
 try:
     from .config import APPLY_DEBOUNCE_SEC
     from .actions import execute_action
-    from .scanner import update_icecast_hit_log, read_last_hit_from_icecast
+    from .scanner import (
+        update_icecast_hit_log,
+        read_last_hit_from_icecast,
+        read_last_hit_airband,
+        read_last_hit_ground,
+    )
 except ImportError:
     from ui.config import APPLY_DEBOUNCE_SEC
     from ui.actions import execute_action
-    from ui.scanner import update_icecast_hit_log, read_last_hit_from_icecast
+    from ui.scanner import (
+        update_icecast_hit_log,
+        read_last_hit_from_icecast,
+        read_last_hit_airband,
+        read_last_hit_ground,
+    )
 
 ACTION_QUEUE = deque()
 ACTION_COND = threading.Condition()
@@ -104,6 +114,8 @@ def icecast_monitor_worker() -> None:
     while True:
         try:
             current_title = read_last_hit_from_icecast()
+            if not current_title:
+                current_title = read_last_hit_airband() or read_last_hit_ground()
             if current_title != prev_title:
                 update_icecast_hit_log(current_title)
                 prev_title = current_title

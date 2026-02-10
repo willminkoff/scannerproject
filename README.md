@@ -379,6 +379,11 @@ Live-only digital backend control with in-memory metadata (no recording or persi
 - `DIGITAL_ACTIVE_PROFILE_LINK` (symlink pointing at the active profile dir)
 - `DIGITAL_LOG_PATH` (sdrtrunk log path used for last-event parsing)
 - `DIGITAL_RTL_DEVICE` (RTL-SDR device index or serial; used by your SDRTrunk profile configuration)
+- `DIGITAL_MIXER_ENABLED` (default: `0`) - enable mixing SDRTrunk audio into `GND.mp3`
+- `DIGITAL_MIXER_AIRBAND_MOUNT` (default: `GND-air.mp3`) - raw airband+ground input mount for the mixer
+- `DIGITAL_MIXER_DIGITAL_MOUNT` (default: `DIGITAL.mp3`) - SDRTrunk input mount for the mixer
+- `DIGITAL_MIXER_OUTPUT_MOUNT` (default: `GND.mp3`) - final mixed output mount
+- `ICECAST_SOURCE_PASSWORD` (default: `062352`) - must match your Icecast source password if customized
 
 **Profile model**:
 - Each profile is a directory under `DIGITAL_PROFILES_DIR` (e.g. `metro-p25`, `regional-dmr`).
@@ -420,6 +425,43 @@ sudo install -m 0644 /home/willminkoff/scannerproject/systemd/scanner-digital.se
 sudo systemctl daemon-reload
 sudo systemctl enable --now scanner-digital
 ```
+
+**Digital audio mixing (optional)**:
+Mix SDRTrunk audio into the existing `GND.mp3` stream via a lightweight ffmpeg mixer.
+
+1. **Set mixer env vars** (example in `/etc/airband-ui.conf`):
+```bash
+DIGITAL_MIXER_ENABLED=1
+DIGITAL_MIXER_AIRBAND_MOUNT=GND-air.mp3
+DIGITAL_MIXER_DIGITAL_MOUNT=DIGITAL.mp3
+DIGITAL_MIXER_OUTPUT_MOUNT=GND.mp3
+# ICECAST_SOURCE_PASSWORD=062352  # set if you changed your Icecast password
+```
+
+2. **Restart rtl-airband** (so combined config uses the new airband mount):
+```bash
+sudo systemctl restart rtl-airband
+```
+
+3. **Configure SDRTrunk streaming**:
+   - In **Streaming** tab, add an Icecast stream:
+     - Server: `127.0.0.1`
+     - Port: `8000`
+     - Mount: `DIGITAL.mp3`
+     - User: `source`
+     - Password: your Icecast source password
+   - Save and enable the stream.
+
+4. **Install + enable mixer service**:
+```bash
+sudo install -m 0644 /home/willminkoff/scannerproject/systemd/scanner-digital-mixer.service /etc/systemd/system/scanner-digital-mixer.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now scanner-digital-mixer
+```
+
+Notes:
+- The mixer reads the runtime mute flag from `/run/airband_ui_digital_mute.json`; the Digital mute toggle will drop SDRTrunk audio from the mix.
+- If the digital stream is offline, the mixer falls back to silence on that input.
 
 **Create profiles + set active**:
 ```bash

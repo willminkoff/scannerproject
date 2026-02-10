@@ -272,7 +272,7 @@ class Handler(BaseHTTPRequestHandler):
                 "airband_applied_squelch_dbfs": airband_device.get("squelch_dbfs") if airband_device else None,
                 "ground_applied_gain": ground_device.get("gain") if ground_device else None,
                 "ground_applied_squelch_dbfs": ground_device.get("squelch_dbfs") if ground_device else None,
-                "last_hit": icecast_hit or read_last_hit_from_icecast() or "",
+                "last_hit": icecast_hit or last_hit_airband or last_hit_ground or "",
                 "last_hit_airband": last_hit_airband,
                 "last_hit_ground": last_hit_ground,
                 "avoids_airband": summarize_avoids(conf_path, "airband"),
