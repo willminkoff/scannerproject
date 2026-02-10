@@ -1,6 +1,6 @@
 # Middle Tennessee Regional Trunked Radio System
 
-Generated: 2026-02-10 10:15:05
+Generated: 2026-02-10 10:27:20
 
 Site used for control channels: **Davidson Co Simulcast**
 

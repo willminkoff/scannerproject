@@ -1,0 +1,490 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+1875,753,D,SO 1DISP,Sheriff Dispatch,Law Dispatch
+1877,755,D,SO 2WAR,Sheriff Warrants,Law Tac
+1879,757,D,SO 3TRAN,Sheriff Transportation,Law Tac
+1881,759,D,SO 4INV,Sheriff Investigation,Law Tac
+1883,75b,D,SO 5SOR1,Sheriff Special Operations Response Team 1,Law Tac
+1885,75d,D,SO 6SOR2,Sheriff Special Operations Response Team 2,Law Tac
+1887,75f,D,SO 7 ADM,Sheriff Administrative,Law Tac
+1889,761,D,SO 8SCS,Sheriff Community Service,Law Tac
+1897,769,D,SO 9CJC,Sheriff Facility Criminal Justice Center (CJC),Corrections
+1899,76b,D,SO 10HDC,Hill Detention Center (HDC),Law Tac
+1901,76d,D,SO11CDM,Correctional Development Center - Male (CCDCM),Corrections
+10469,28e5,D,SO11CDCM,Correctional Development Center - Male (CCDCM),Corrections
+1903,76f,D,SO12CDCF,Correctional Development Center - Female (CCDCF),Corrections
+1905,771,D,SO 13ORC,Offender Reentry Center (ORC),Corrections
+1907,773,D,SO14CRTS,Sheriff Facility Courthouse Security,Corrections
+1909,775,D,SO15TRAIN,Sheriff Training,Law Tac
+10439,28c7,D,SO DDC MC,Downtown Detention Center: Master Control (DDC),Corrections
+10467,28e3,D,SO DDC INT,Downtown Detention Center: Internal (DDC),Corrections
+10468,28e4,D,SO DDC SEC,Downtown Detention Center: Secondary (DDC),Corrections
+2165,875,D,USM01,US Marshal Service,Law Tac
+2329,919,D,TWRA,Tennessee Wildlife Resource Agency,Law Tac
+2107,83b,DE,PRPL 1,Park Rangers Operations 1,Law Tac
+2109,83d,DE,PRPL 2,Park Rangers Operations 2,Law Tac
+2111,83f,DE,PRPL 3,Park Rangers Operations 3,Law Tac
+2131,853,D,SCH1SS,School Security,Schools
+2115,843,D,SCH2ADM,School Administration,Schools
+2117,845,D,SCH3ST,Safety Training,Schools
+2119,847,D,SCH4RE1,Regular Education Buses 1,Schools
+2121,849,D,SCH5RE2,Regular Education Buses 2,Schools
+2123,84b,D,SCH6SE,Special Education Buses,Schools
+2125,84d,D,SCH7FT,Field Trips,Schools
+2127,84f,D,SCH8TMS,Transportation Maintance Shop,Schools
+2129,851,D,SCH9TA,Transportation Administration,Schools
+2133,855,D,SCH10PS,Operations,Schools
+2135,857,D,SCH11MA,Maintenance,Schools
+2137,859,D,SCH12CL1,"Antioch, Glencliff Clusters",Schools
+2139,85b,D,SCH13CL2,"Hillsboro, Hillwood Clusters",Schools
+2141,85d,D,SCH14CL3,"Hunters, Lance, Maplewood Clusters",Schools
+2143,85f,D,SCH15CL4,"McGavock, Overton Clusters",Schools
+2145,861,D,SCH16CL5,"Pearl, Cohn, Stratford, Whites Creek Clusters",Schools
+3701,e75,D,COD 1DA,Dispatch and Administration,Public Works
+3703,e77,D,COD 2BU,Building Inspections,Public Works
+3705,e79,D,COD 3EL,Electrical Inspections,Public Works
+3707,e7b,D,COD 4ME,Mechanical Inspections,Public Works
+3709,e7d,D,COD 5PL,Plumbing Inspections,Public Works
+3711,e7f,D,COD 6HZ,Housing Inspections,Public Works
+2075,81b,D,GS 1GSA,Administration,Public Works
+2097,831,D,GS 2GSS1D,Court House Security,Security
+2081,821,D,GS 3RS1,Radio Shop 1,Public Works
+2083,823,D,GS 4RS2,Radio Shop 2,Public Works
+2089,829,D,GS 5BOSS1,BOSS Operations 1,Public Works
+2087,827,D,GS 6BOSS2,BOSS Operations 2,Public Works
+2093,82d,D,GS 7HAZM,Hazmat Operations,Emergency Ops
+4091,ffb,D,GS 8WWS,Weather Warning Sirens,Emergency Ops
+4093,ffd,D,GS WWS P25,Weather Warning Sirens (P25 system),Emergency Ops
+2079,81f,D,GS 9FMP,Fleet Motor Pool,Public Works
+2099,833,D,GS 10 RV,Riverview,Public Works
+2101,835,D,GS 11 SEC,Security TOD,Security
+2103,837,D,GS SEC HLTH,Security Public Health Center,Schools
+2105,839,D,GS SEC 2105,Security 2105,Security
+10080,2760,D,GS WWS NEW,Weather Warning Sirens (New),Emergency Ops
+2161,871,D,METRO DA 1,District Attorney Office,Law Tac
+2241,8c1,D,METRO TV 1,Traffic Violations Bureau,Law Tac
+2327,917,D,METRO ABC 1,Alcohol Beverage Control Board,Law Tac
+2331,91b,D,METRO TWRC 1,Taxi and Wrecker Regulatory Control Board,Law Tac
+3073,c01,D,PW 1PWAD,Administration,Public Works
+3075,c03,D,PW 2 OPS,Operations,Public Works
+3077,c05,D,PW 3TOPS,Traffic Operations,Public Works
+3079,c07,D,PW 4COM1,Command 1,Public Works
+3081,c09,D,PW 5COM2,Command 2,Public Works
+2401,961,D,MTA1 BUS,Dispatch,Transportation
+2403,963,D,MTA2 AC,Access Ride,Transportation
+2405,965,D,MTA3 MAT,Maintenance,Transportation
+2407,967,D,MTA4 ADM,Administration,Transportation
+2409,969,D,MTA5 SAF,Safety,Transportation
+2411,96b,D,MTA6 SUP1,Supervisor 1,Transportation
+2413,96d,D,MTA7 SUP2,Supervisor 2,Transportation
+2415,96f,D,EMRV,Emergency Revert,Transportation
+10560,2940,D,MTA1 BUS,Dispatch,Transportation
+10561,2941,D,MTA2 AC,Access Ride,Transportation
+10562,2942,D,MTA3 MAT,Maintenance,Transportation
+10563,2943,D,MTA4 ADM,Administration,Transportation
+3653,e45,D,A1 ADM,Administrative 1,Utilities
+3617,e21,D,A2 SER,System Services,Utilities
+3619,e23,D,A3 OPS,Operations,Utilities
+3621,e25,D,A4 4CS,Customer Service,Utilities
+3623,e27,D,A5 WENG,Engineering,Utilities
+3625,e29,D,A6 W FM,Fleet Maintenance,Utilities
+3627,e2b,D,B1 WSTRS,Stores,Utilities
+3629,e2d,D,B2 WPRMT,Permits,Utilities
+3631,e2f,D,B3 W CSO,Storm Sewer Overflow Response,Utilities
+3633,e31,D,B4 W MR,Meter Reading,Utilities
+3635,e33,D,B5 OMOH,OmohundroWaste Water Treatment Plant,Utilities
+3637,e35,D,B6 CWWTP,Central Waste Water Treatment Plant,Utilities
+3639,e37,D,B7 KRH,KR Harrington Waste Water Treatment Plant,Utilities
+3641,e39,D,B8DCWWTP,Dry Creek Waste Water Treatment Plant,Utilities
+3643,e3b,D,B9WCWWTP,White Creek Waste Water Treatment Plant,Utilities
+3645,e3d,D,B10 W SM,Sewer Maintenance,Utilities
+3647,e3f,D,B11 W WM,Water Maintenance,Utilities
+3649,e41,D,B12WTOOF,Service Turn Ons Offs,Utilities
+3651,e43,D,B13WINSP,Inspection,Utilities
+2321,911,D,ME 1,Medical Examiners Office,Law Tac
+2501,9c5,D,HEA 1MAC,Animal Control Services,Law Tac
+2503,9c7,D,HEA 2 BT,Bio Terrorism Operations,Emergency Ops
+2505,9c9,D,HEA 3EMT,Executive Management,Emergency Ops
+2507,9cb,D,HEA 4LOG,Logistics,Emergency Ops
+2509,9cd,D,HEA 5OPS,Operations,Emergency Ops
+2511,9cf,D,HEA6ICBT,ICBT Management,Emergency Ops
+10604,296c,D,Davidsn OEM Disp,Dispatch,Emergency Ops
+1943,797,D,01 OEMP,Primary,Emergency Ops
+1959,7a7,D,02 ESU-TOC1,Emergency Situation Unit: Tactical 1,Emergency Ops
+1947,79b,D,03 ESU-TOC2,Emergency Situation Unit: Tactical 2,Emergency Ops
+1949,79d,D,04 ESC-NWS,Emergency Situation Command/NWS,Emergency Ops
+1963,7ab,D,05 USAR,Urban Search and Rescue,Emergency Ops
+1945,799,D,06 MAYOR,Mayor Office,Emergency Ops
+2911,b5f,DE,ECC PRI,Primary,Emergency Ops
+2915,b63,DE,ECCT1,Training 1,Emergency Ops
+2917,b65,DE,ECCT2,Training 2,Emergency Ops
+10175,27bf,DE,ECC1,Ops 1,Emergency Ops
+10176,27c0,DE,ECC2,Ops 2,Emergency Ops
+10177,27c1,DE,ECC3,Ops 3,Emergency Ops
+10178,27c2,DE,ECC4,Ops 4,Emergency Ops
+10179,27c3,De,ECC5,Ops 5,Emergency Ops
+10180,27c4,De,ECC6,Ops 6,Emergency Ops
+10181,27c5,De,ECC7,Ops 7,Emergency Ops
+10182,27c6,De,ECC8,Ops 8,Emergency Ops
+3001,bb9,D,A1 UNI 1,Unified Command 1,Interop
+3003,bbb,D,A2 UNI 2,Unified Command 2,Interop
+3005,bbd,D,A3 UNI 3,Unified Command 3,Interop
+3007,bbf,D,A4 UNI 4,Unified Command 4,Interop
+3009,bc1,D,A5 UNI 5,Unified Command 5,Interop
+3011,bc3,D,A6 JOPS 6,Joint Operations 6,Interop
+3013,bc5,D,A7 JOPS 7,Joint Operations 7,Interop
+3015,bc7,D,A8 JOPS 8,Joint Operations 8,Interop
+3017,bc9,D,A9 JOPS 9,Joint Operations 9,Interop
+3019,bcb,D,A10 OEM HAIL,Hailing for OEM,Emergency Ops
+10011,271b,DE,A11 SEC 11,Secure Operations 11,Interop
+10012,271c,DE,A12 SEC 12,Secure Operations 12,Interop
+10013,271d,DE,A13 SEC 13,Secure Operations 13,Interop
+10014,271e,DE,A14 SEC 14,Secure Operations 14,Interop
+10015,271f,DE,A15 SEC 15,Secure Operations 15,Interop
+10016,2720,DE,A16 SEC 16,Secure Operations 16,Interop
+723,2d3,DE,P602SRT1,NPD SWAT Negotiation 1,Law Tac
+725,2d5,DE,P603SRT2,NPD SWAT Negotiation 2,Law Tac
+741,2e5,DE,P604SWT3,NPD SWAT Negotiation 3,Law Tac
+717,2cd,DE,P605SWT4,NPD SWAT Operations 4,Law Tac
+719,2cf,DE,P606SWT5,NPD SWAT Operations 5,Law Tac
+721,2d1,DE,P607SWT6,NPD SWAT Operations 6,Law Tac
+731,2db,DE,P608SWT7,NPD SWAT Operations 7,Law Tac
+735,2df,DE,P609SWT8,NPD SWAT Operations 8,Law Tac
+727,2d7,DE,P610NEG1,NPD Negotiators 1,Law Tac
+729,2d9,DE,P611NEG2,NPD Negotiators 2,Law Tac
+3029,bd5,D,PSRES01,Unified Command Reserve Pool 1,Interop
+3031,bd7,D,PSRES02,Unified Command Reserve Pool 2,Interop
+3033,bd9,D,PSRES03,Unified Command Reserve Pool 3,Interop
+3035,bdb,D,PSRES04,Unified Command Reserve Pool 4,Interop
+3037,bdd,D,PSRES05,Unified Command Reserve Pool 5,Interop
+3039,bdf,D,PSRES06,Unified Command Reserve Pool 6,Interop
+3041,be1,D,PSRES07,Unified Command Reserve Pool 7,Interop
+3043,be3,D,PSRES08,Unified Command Reserve Pool 8,Interop
+3045,be5,D,PSRES09,Unified Command Reserve Pool 9,Interop
+3047,be7,D,PSRES10,Unified Command Reserve Pool 10,Interop
+3049,be9,D,PSRES11,Unified Command Reserve Pool 11,Interop
+3051,beb,D,PSRES12,Unified Command Reserve Pool 12,Interop
+3053,bed,D,PSRES13,Unified Command Reserve Pool 13,Interop
+3055,bef,D,PSRES14,Unified Command Reserve Pool 14,Interop
+3057,bf1,D,PSRES15,Unified Command Reserve Pool 15,Interop
+3059,bf3,D,PSRES16,Unified Command Reserve Pool 16,Interop
+10017,2721,D,SYSMA01,System Wide Mutual Aid 01,Interop
+10018,2722,D,SYSMA02,System Wide Mutual Aid 02,Interop
+10019,2723,D,SYSMA03,System Wide Mutual Aid 03,Interop
+10020,2724,D,SYSMA04,System Wide Mutual Aid 04,Interop
+10021,2725,D,SYSMA05,System Wide Mutual Aid 05,Interop
+10022,2726,D,SYSMA06,System Wide Mutual Aid 06,Interop
+10023,2727,D,SYSMA07,System Wide Mutual Aid 07,Interop
+10024,2728,D,SYSMA08,System Wide Mutual Aid 08,Interop
+10025,2729,D,SYSMA09,System Wide Mutual Aid 09,Interop
+10026,272a,D,SYSMA10,System Wide Mutual Aid 10,Interop
+10027,272b,D,SYSMA11,System Wide Mutual Aid 11,Interop
+10028,272c,D,SYSMA12,System Wide Mutual Aid 12,Interop
+10029,272d,D,SYSMA13,System Wide Mutual Aid 13,Interop
+10030,272e,D,SYSMA14,System Wide Mutual Aid 14,Interop
+10031,272f,D,SYSMA15,System Wide Mutual Aid 15,Interop
+10032,2730,D,SYSMA16,System Wide Mutual Aid 16,Interop
+10049,2741,D,SPEV D01,Special Event 01 Nissan Stadium Admin,Multi-Tac
+10050,2742,D,SPEV D02,Special Event 02 Nissan Stadium Traffic,Multi-Tac
+10051,2743,D,SPEV D03,Special Event 03 Nissan Stadium Security,Multi-Tac
+10052,2744,D,SPEV D04,Special Event 04 Nissan Stadium Special Ops,Multi-Tac
+10053,2745,D,SPEV D05,Special Event 05 Vanderbilt University,Multi-Tac
+10054,2746,D,SPEV D06,Special Event 06 TN State University,Multi-Tac
+10055,2747,D,SPEV D07,Special Event 07 Bridgestone Arena,Multi-Tac
+10056,2748,D,SPEV D08,Special Event 08 First Horizon Park,Multi-Tac
+10057,2749,D,SPEV D09,Special Event 09 Ascend Ampitheater,Multi-Tac
+10058,274a,D,SPEV D10,Special Event 10 New MLS Stadium,Multi-Tac
+10059,274b,D,SPEV D11,Special Event 11,Multi-Tac
+10060,274c,D,SPEV D12,Special Event 12,Multi-Tac
+10061,274d,D,SPEV D13,Special Event 13,Multi-Tac
+10062,274e,D,SPEV D14,Special Event 14,Multi-Tac
+10063,274f,D,SPEV D15,Special Event 15,Multi-Tac
+10350,286e,TE,NFD B1 Disp,Main Dispatch B1,Fire Dispatch
+10351,286f,TE,NFD B2 SOC,Special Operations B2,Fire-Tac
+10352,2870,TE,NFD B3 FD Admin,Fire: Admin B3,Fire-Talk
+10353,2871,TE,NFD B4 SOC,Special Operations B4,Fire-Tac
+10354,2872,TE,NFD B5 EMS Admin,EMS: Admin B5,EMS-Talk
+10355,2873,TE,NFD B6 TOC,Tactical Operations B6,Fire-Tac
+10356,2874,TE,NFD B7 TOC,Tactical Operations B7,Fire-Tac
+10357,2875,TE,NFD B8 TOC,Tactical Operations B8,Fire-Tac
+10358,2876,TE,NFD B9 TOC,Tactical Operations B9,Fire-Tac
+10359,2877,TE,NFD B10 TOC,Tactical Operations B10,Fire-Tac
+10360,2878,TE,NFD B11 TOC,Tactical Operations B11,Fire-Tac
+10361,2879,TE,NFD B12 TOC,Tactical Operations B12,Fire-Tac
+10362,287a,TE,NFD B13 TOC,Tactical Operations B13,Fire-Tac
+10363,287b,TE,NFD B14 TOC,Tactical Operations B14,Fire-Tac
+10364,287c,TE,NFD B15 TOC,Tactical Operations B15,Fire-Tac
+10365,287d,TE,NFD B16 TOC,Tactical Operations B16,Fire-Tac
+10365,287d,D,NFD C2,Tactical Operations C2,Fire-Tac
+10366,287e,D,NFD C3,Tactical Operations C3,Fire-Tac
+10367,287f,D,NFD C4,Tactical Operations C4,Fire-Tac
+10368,2880,D,NFD C5,Tactical Operations C5,Fire-Tac
+10369,2881,D,NFD C6,Tactical Operations C6,Fire-Tac
+10370,2882,D,NFD C7,Tactical Operations C7,Fire-Tac
+10371,2883,D,NFD C8,Tactical Operations C8,Fire-Tac
+10372,2884,D,NFD C9,Tactical Operations C9,Fire-Tac
+10373,2885,D,NFD C10,Tactical Operations C10,Fire-Tac
+10374,2886,D,NFD C11,Tactical Operations C11,Fire-Tac
+10375,2887,D,NFD C12,Tactical Operations C12,Fire-Tac
+10376,2888,D,NFD C13,Tactical Operations C13,Fire-Tac
+10377,2889,D,NFD C14,Tactical Operations C14,Fire-Tac
+10378,288a,D,NFD C15,Tactical Operations C15,Fire-Tac
+10701,29cd,DE,NFD C2 ENC,Tactical Operations C2,Fire-Tac
+10702,29ce,DE,NFD C3 ENC,Tactical Operations C3,Fire-Tac
+10703,29cf,DE,NFD C4 ENC,Tactical Operations C4,Fire-Tac
+10704,29d0,DE,NFD C5 ENC,Tactical Operations C5,Fire-Tac
+10705,29d1,DE,NFD C6 ENC,Tactical Operations C6,Fire-Tac
+10706,29d2,DE,NFD C7 ENC,Tactical Operations C7,Fire-Tac
+10707,29d3,DE,NFD C8 ENC,Tactical Operations C8,Fire-Tac
+10708,29d4,DE,NFD C9 ENC,Tactical Operations C9,Fire-Tac
+10709,29d5,DE,NFD C10 ENC,Tactical Operations C10,Fire-Tac
+10710,29d6,DE,NFD C11 ENC,Tactical Operations C11,Fire-Tac
+10711,29d7,DE,NFD C12 ENC,Tactical Operations C12,Fire-Tac
+10712,29d8,DE,NFD C13 ENC,Tactical Operations C13,Fire-Tac
+10713,29d9,DE,NFD C14 ENC,Tactical Operations C14,Fire-Tac
+10714,29da,DE,NFD C15 ENC,Tactical Operations C15,Fire-Tac
+10715,29db,DE,NFD C16 ENC,Tactical Operations C16,Fire-Tac
+1343,53f,DE,F D2DIR,NFD Unit-to-Unit D2,Fire-Tac
+1345,541,DE,F D3ADM,NFD Administration D3,Fire-Tac
+1413,585,DE,F D4PIO,NFD Public Information Officer D4,Fire-Tac
+1415,587,DE,F D5ADM,NFD Administration D5,Fire-Tac
+1355,54b,DE,F D6TA1,NFD Training 1 D6,Fire-Tac
+1357,54d,DE,F D7TA2,NFD Training 2 D7,Fire-Tac
+1421,58d,DE,F D8TA3,NFD Training 3 D8,Fire-Tac
+1359,54f,DE,F D9FMO-1,NFD Fire Marshall 1 D9,Fire-Tac
+1361,551,DE,F D10FM0-2,NFD Fire Marshall 2 D10,Fire-Tac
+1411,583,DE,F D11FM0-3,NFD Fire Safety D11,Fire-Tac
+1347,543,DE,F D12FMO-4,NFD Fire Arson D12,Fire-Tac
+1417,589,DE,F D13ADM,NFD Administration D13,Fire-Tac
+1391,56f,DE,F D14REB,NFD Fire Buff Rehab D14,Fire-Tac
+1363,553,DE,E1 BAPT,NFD Baptist Hospital,Hospital
+1365,555,DE,E2 VANDY,NFD Vandy Hospital,Hospital
+1367,557,DE,E3 VPED,NFD Vandy Pediatric Hospital,Hospital
+1369,559,DE,E4 MEDCT,NFD Medical Control,Hospital
+1371,55b,DE,E5 GENER,NFD General Hospital,Hospital
+1373,55d,DE,E6 STTOM,NFD St Thomas Hospital,Hospital
+1375,55f,DE,E7 CMD,NFD Centennial Medical Center,Hospital
+1377,561,DE,E8 SUMMT,NFD Summit Hospital,Hospital
+1379,563,DE,E9 SKYLN,NFD Sky Line Hospital,Hospital
+1381,565,DE,E10 SHIL,NFD Southern Hills Hospital,Hospital
+1385,569,DE,E11 VA,NFD Veterans Administration Hospital,Hospital
+1387,56b,DE,E12 HOS1,NFD Hospital to Hospital 1,Hospital
+1389,56d,DE,E13 HOS2,NFD Hospital to Hospital 2,Hospital
+10406,28a6,DE,E14 CCH,NFD Centennial Childrens Hospital,Hospital
+003,D,NB1OHC,Central Emergency Line Dispatch,Utilities,5
+005,D,NB2OHC1,Central Field 1 Storm Dispatch 1,Utilities,7
+007,D,NB3OHC2,Central Field 1 Storm Dispatch 2,Utilities,9
+009,D,NB4OHC3,Central Field 1 Storm Dispatch 3,Utilities,11
+13,00d,D,NB6OW,West Dispatch,Utilities
+15,00f,D,NB7OH1,West Field 1,Utilities
+17,011,D,NB8OH2,West Field 2,Utilities
+19,013,D,NB9OH3,West Field 3,Utilities
+21,015,D,NB10OD,Donelson Dispatch,Utilities
+23,017,D,NB11OD1,Donelson Field 1,Utilities
+25,019,D,NB12OD2,Donelson Field 2,Utilities
+27,01b,D,NB13OD3,Donelson Field 3,Utilities
+29,01d,D,NB14LD3,Load Dispatch 3,Utilities
+31,01f,D,NB15LD2,Load Dispatch 2,Utilities
+33,021,D,NB16LD1,Load Dispatch 1,Utilities
+10149,27a5,D,LOAD DISP 1,Load Dispatch 1 (P25),Utilities
+35,023,D,NC1US,U S Dispatch,Utilities
+37,025,D,NC2US1,U S Field 1,Utilities
+39,027,D,NC3US2,U S Field 2,Utilities
+41,029,D,NC4US3,U S Field 3,Utilities
+43,02b,D,NC5TST1,Test Field 1,Utilities
+45,02d,D,NC6TST2,Test Field 2,Utilities
+47,02f,D,NC7MTR,Meter Dispatch,Utilities
+49,031,D,NC8MTR1,Meter Field 2,Utilities
+51,033,D,NC9RE,Meter Reconnect Dispatch,Utilities
+53,035,D,NC10RE1,Meter Reconnect Field 1,Utilities
+55,037,D,NC11EG1,Engineering 1,Utilities
+57,039,D,NC12EG2,Engineering 2,Utilities
+99,063,D,NC13SFT,Safety Operations,Utilities
+61,03d,D,NC14GS,General Services,Utilities
+63,03f,D,NC15FLT,Fleet Maintenance,Utilities
+65,041,D,NC16SEC,Facilities Security,Utilities
+67,043,D,ND1TEL,Telecommunications 1,Utilities
+59,03b,D,ND2SPR,Security Private,Utilities
+139,08b,D,ND3TEL2,Telecommunications 2,Utilities
+137,089,D,ND4LF,Lost Radio Location,Utilities
+101,065,D,ND5911,Mutual Aid To E911 Center,Multi-Dispatch
+69,045,D,NES3,NES Spare 3,Utilities
+71,047,D,NES4,NES Spare 4,Utilities
+73,049,D,NES5,NES Spare 5,Utilities
+75,04b,D,NES6,NES Spare 6,Utilities
+77,04d,D,NES7,NES Spare 7,Utilities
+79,04f,D,NES8,NES Spare 8,Utilities
+81,051,D,NES9,NES Spare 9,Utilities
+83,053,D,NES10,NES Spare 10,Utilities
+85,055,D,NES11,NES Spare 11,Utilities
+87,057,D,NES12,NES Spare 12,Utilities
+89,059,D,NES13,NES Spare 13,Utilities
+91,05b,D,NES14,NES Spare 14,Utilities
+93,05d,D,NES15,NES Spare 15,Utilities
+95,05f,D,NES16,NES Spare 16,Utilities
+97,061,D,NES17,NES Spare 17,Utilities
+3067,bfb,D,OFFSITE 1,Airport Authority Ops 1 (offsite),Emergency Ops
+3069,bfd,D,OFFSITE 2,Airport Authority Ops 2 (offsite),Emergency Ops
+10204,27dc,DE,* P104CNTD E,Central Dispatch,Law Dispatch
+10212,27e4,DE,* P112PCMD E,Command 2 Dispatch,Law Tac
+10213,27e5,DE,* P113PCMD E,Command 3 Dispatch,Law Tac
+10214,27e6,DE,* P114PCMD E,Command 4 Dispatch,Law Tac
+10215,27e7,DE,* P115PCMD E,Command 5 Dispatch,Law Tac
+10210,27e2,DE,* P110CWID E,Countywide Dispatch,Law Dispatch
+10202,27da,DE,* P102ESTD E,East Dispatch,Law Dispatch
+10205,27dd,DE,* P105HRMD E,Hermitage Dispatch,Law Dispatch
+10207,27df,DE,* P107MADD E,Madison Dispatch,Law Dispatch
+10208,27e0,DE,NPD Midtown H E,Midtown Hills Dispatch,Law Dispatch
+10206,27de,DE,* P106NRTD E,North Dispatch,Law Dispatch
+10211,27e3,DE,* P108RW E,NPD Records/Warrants,Law Dispatch
+10209,27e1,DE,* P109MHD E,Records Warrants,Law Tac
+10203,27db,DE,* P103STHD E,South Dispatch,Law Dispatch
+10201,27d9,DE,* P101WSTD E,West Dispatch,Law Dispatch
+659,293,DE,P201WSTA,NPD West Administrative,Law Tac
+667,29b,DE,P202ESTA,NPD East Administrative,Law Tac
+669,29d,DE,P203STHA,NPD South Administrative,Law Tac
+671,29f,DE,P204CNTA,NPD Central Administrative,Law Tac
+673,2a1,DE,P205HRMA,NPD Hermitage Administrative,Law Tac
+661,295,DE,P206NRTA,NPD North Administrative,Law Tac
+665,299,DE,P207MADA,NPD Madison Sector Administrative,Law Tac
+675,2a3,DE,P208ALA1,NPD Common Administrative,Law Tac
+663,297,DE,P209ALA2,NPD All Sector Administrative,Law Tac
+657,291,DE,P210CWIA,NPD Countywide Administrative,Law Tac
+677,2a5,DE,P211TAC1,NPD Tactical Pool 1,Law Tac
+679,2a7,DE,P212TAC2,NPD Tactical Pool 2,Law Tac
+681,2a9,DE,P213TAC3,NPD Tactical Pool 3,Law Tac
+683,2ab,DE,P214TAC4,NPD Tactical Pool 4,Law Tac
+685,2ad,DE,P215TAC5,NPD Tactical Pool 5,Law Tac
+687,2af,DE,P216TAC6,NPD Tactical Pool 6,Law Tac
+739,2e3,DE,P302BOMB,NPD Bomb Squad,Law Tac
+697,2b9,DE,P304YTHS,NPD YouthSchool Services,Law Tac
+763,2fb,DE,P305SCHL,NPD School Services,Law Tac
+737,2e1,DE,P306AVK9,NPD K9 Officers,Law Tac
+689,2b1,DE,P307SRV1,NPD Investigative Services 1,Law Tac
+691,2b3,DE,P308SRV2,NPD Investigative Services 2,Law Tac
+693,2b5,DE,P309SRV3,NPD Investigative Services 3,Law Tac
+695,2b7,DE,P310SRV4,NPD Investigative Services 4,Law Tac
+733,2dd,DE,P401TRN1,Training 1,Law Tac
+757,2f5,DE,P402TRN2,Training 2,Law Tac
+767,2ff,DE,P403TRN3,Training 3,Law Tac
+769,301,DE,P404TRN4,Training 4,Law Tac
+745,2e9,DE,P405TRN5,Training 5,Law Tac
+715,2cb,DE,P406FACS,Facilities Security,Law Tac
+747,2eb,DE,P407FLET,Fleet Maintenance,Law Tac
+749,2ed,DE,P408VIMP,Vehicle Impound,Law Tac
+751,2ef,DE,P409 R4,Reserve 4,Law Tac
+753,2f1,DE,P410 R5,Reserve 5,Law Tac
+755,2f3,DE,P411 R6,Reserve 6,Law Tac
+765,2fd,DE,P412 R7,Reserve 7,Law Tac
+711,2c7,DE,P413 R8,Reserve 8,Law Tac
+643,283,DE,P414 R9,Reserve 9,Law Tac
+771,303,DE,P415R10,Reserve 10,Law Tac
+775,307,DE,P416R11,Reserve 11,Law Tac
+707,2c3,DE,P502SIDP,Intelligence Primary,Law Tac
+743,2e7,DE,P503SIDA,Intelligence Alternate,Law Tac
+699,2bb,DE,P504VIC1,Vice Operations 1,Law Tac
+701,2bd,DE,P505VIC2,Vice Operations 2,Law Tac
+703,2bf,DE,P506VIC3,Vice Operations 3,Law Tac
+705,2c1,DE,P507VIC4,Vice Operations 4,Law Tac
+709,2c5,DE,P508VIC5,Vice Operations 5,Law Tac
+777,309,DE,P509TF20,Task Force 20,Law Tac
+779,30b,DE,P511WCSU,ND West Crime Suppression Unit,Law Tac
+781,30d,DE,P512ECSU,East Crime Suppression Unit,Law Tac
+783,30f,DE,P513SCSU,South Crime Suppression Unit,Law Tac
+785,311,DE,P514CCSU,Central Crime Suppression Unit,Law Tac
+787,313,DE,P515HCSU,Hermitage Crime Suppression Unit,Law Tac
+789,315,DE,P516NCSU,North Crime Suppression Unit,Law Tac
+791,317,DE,P MAD-CSU,Madison Crime Suppression Unit,Law Tac
+793,319,DE,P MID-CSU,Midtown Hills Crime Suppression Unit,Law Tac
+759,2f7,DE,P701OPA1,Office of Accountability 1,Law Tac
+761,2f9,DE,P702OPA2,Office of Accountability 2,Law Tac
+2305,901,D,JUV 1,Juvenile Court Operations 1,Law Tac
+2307,903,D,JUV 2,Juvenile Court Operations 2,Law Tac
+2309,905,D,JUV 3,Juvenile Court Operations 3,Law Tac
+2151,867,D,BELMED D,Police: Dispatch,Law Dispatch
+2153,869,D,BELMED A,Police: Administration,Law Tac
+2171,87b,D,BERHL D,Police Dispatch,Law Dispatch
+2173,87d,D,BERHL A,Police Administration,Law Tac
+3301,ce5,D,GDLVL PD 1,Police: Dispatch,Law Dispatch
+3303,ce7,D,GDLVL PD 2,Police: Secondary,Law Tac
+3311,cef,D,GDLVL PD 11,Police: 3311 (??),Law Tac
+3319,cf7,D,GDLVL FD 1,Fire: Dispatch,Fire Dispatch
+3321,cf9,D,GDLVL FD 2,Fire: Secondary,Fire-Tac
+20100,4e84,DE,WCESTAC1,Tactical 1 (Franklin Fire),Multi-Tac
+20101,4e85,DE,WCESTAC2,Tactical 2 (Franklin Fire),Multi-Tac
+20102,4e86,DE,WCESTAC3,Tactical 3 (Franklin Fire),Multi-Tac
+20103,4e87,DE,WCESTAC4,Tactical 4 (Franklin Fire),Multi-Tac
+20104,4e88,DE,WCESTAC5,Tactical 5 (Franklin Fire),Multi-Tac
+20105,4e89,DE,WCESTAC6,Tactical 6 (Brentwood Fire),Multi-Tac
+20106,4e8a,DE,WCESTAC7,Tactical 7 (Brentwood Fire),Multi-Tac
+20107,4e8b,DE,WCESTAC8,Tactical 8 (Brentwood Fire),Multi-Tac
+20108,4e8c,DE,WCESTAC9,Tactical 9 (County FD/EMS),Multi-Tac
+20109,4e8d,DE,WCESTAC10,Tactical 10 (County FD/EMS),Multi-Tac
+20110,4e8e,DE,WCESTAC11,Tactical 11 (County FD/EMS),Multi-Tac
+20111,4e8f,DE,WCESTAC12,Tactical 12 (County FD/EMS),Multi-Tac
+20112,4e90,DE,WCESTAC13,Tactical 13,Multi-Tac
+20113,4e91,DE,WCESTAC14,Tactical 14,Multi-Tac
+20114,4e92,DE,WCESTAC15,Tactical 15,Multi-Tac
+20115,4e93,DE,WCESTAC16,Tactical 16,Multi-Tac
+20116,4e94,DE,WCESTAC17,Tactical 17 (Spring Hill Fire),Multi-Tac
+20117,4e95,DE,WCESTAC18,Tactical 18 (Spring Hill Fire),Multi-Tac
+20118,4e96,DE,WCESTAC19,Tactical 19 (Spring Hill Fire),Multi-Tac
+20119,4e97,DE,WCESTAC20,Tactical 20 (Spring Hill Fire),Multi-Tac
+20120,4e98,DE,WCESTAC21,Tactical 21 (WOPS 1),Interop
+20121,4e99,DE,WCESTAC22,Tactical 22 (WOPS 1),Interop
+20122,4e9a,DE,WCESTAC23,Tactical 23 (WOPS 1),Interop
+20123,4e9b,DE,WCESTAC24,Tactical 24 (WOPS 1),Interop
+20124,4e9c,DE,WCESTAC25,Tactical 25 (WOPS 5),Interop
+20125,4e9d,DE,WCESTAC26,Tactical 26 (WOPS 6),Interop
+20126,4e9e,DE,WCESTAC27,Tactical 27 (WOPS 7),Interop
+20127,4e9f,DE,WCESTAC28,Tactical 28,Multi-Tac
+20128,4ea0,DE,WCESTAC29,Tactical 29,Multi-Tac
+20129,4ea1,DE,WCESTAC30,Tactical 30,Multi-Tac
+20130,4ea2,DE,WCESTAC31,Tactical 31,Multi-Tac
+20131,4ea3,DE,WCESTAC32,Tactical 32,Multi-Tac
+20080,4e70,DE,WCFD DISP,Fire Dispatch,Fire Dispatch
+20532,5034,DE,WCFD ALERT,Fire Station Alerting,Fire Dispatch
+20190,4ede,DE,WCEMS DISP,Williamson County EMS Dispatch,EMS Dispatch
+20533,5035,DE,WCEMS ALERT,Williamson County EMS Station Alerting,EMS Dispatch
+20230,4f06,DE,WCSO-DISP,Sheriff Dispatch,Law Dispatch
+20040,4e48,DE,BWPD-DISP1,Police - Primary,Law Dispatch
+20041,4e49,DE,BWPD-TAC-2,Police - Tactical 2,Law Tac
+20046,4e4e,DE,BWFD-DISP,Fire - Dispatch,Fire Dispatch
+20531,5033,DE,BWFD-TONES,Fire - Station Alerting,Fire Dispatch
+20390,4fa6,DE,Fairview Fire,Fire: Dispatch,Fire Dispatch
+20392,4fa8,DE,Fairview Police,Police: Dispatch,Law Dispatch
+20000,4e20,DE,Franklin Police,Police: Dispatch,Law Dispatch
+20010,4e2a,DE,Frankln PD Tac-1,Police: Tac-1,Law Tac
+20001,4e21,DE,Frankln PD Tac-2,Police: Tac-2,Law Tac
+20033,4e41,D,Franklin-Event-1,Special Event 1,Multi-Tac
+20034,4e42,D,Franklin-Event-2,Special Event 2,Multi-Tac
+20035,4e43,D,Franklin-Event-3,Special Event 3,Multi-Tac
+20036,4e44,D,Franklin-Event-4,Special Event 4,Multi-Tac
+20037,4e45,D,Franklin-Event-5,Special Event 5,Multi-Tac
+20530,5032,D,FFD-ALERT,Fire: Station Alerting,Fire Dispatch
+20541,503d,D,FFD-ATG,Fire: Announcement,Fire Dispatch
+20015,4e2f,DE,FFD-DISP,Fire: Dispatch,Fire Dispatch
+20016,4e30,DE,FFD-TAC-1,Fire: Training Tactical,Fire-Tac
+20017,4e31,D,FFD-PREVENT,Fire: Prevention,Fire-Talk
+20028,4e3c,D,FPW-C-WASTE,Commercial Waste (Public Works),Public Works
+20029,4e3d,D,FPW-R-WASTE,Residential Waste (Public Works),Public Works
+20030,4e3e,D,FPW-FLEET,Fleet (Public Works),Public Works
+20031,4e3f,D,FPW-TRAFFIC,Traffic (Public Works),Public Works
+20038,4e46,D,FKTMA1,Transit 1 (Transit On Demand),Transportation
+20039,4e47,D,FKTMA2,Transit 2 (Fixed Routes),Transportation
+20014,4e2e,D,CSM-SECURITY,Cool Springs Mall Security,Security
+20409,4fb9,DE,Nolensv Police,Police: Dispatch,Law Dispatch
+20424,4fc8,DE,SprngHill Police,Police: Dispatch,Law Dispatch
+20534,5036,DE,SprHl FD StaAlrt,Fire: Station Alerting,Fire Dispatch
+20421,4fc5,DE,Spring Hill Fire,Fire: Dispatch,Fire Dispatch
+20331,4f6b,D,WCSE1,Special Event 1,Multi-Tac
+20332,4f6c,D,WCSE2,Special Event 2,Multi-Tac
+20333,4f6d,D,WCSE3,Special Event 3,Multi-Tac
+20334,4f6e,D,WCSE4,Special Event 4,Multi-Tac
+20335,4f6f,D,WCSE5,Special Event 5,Multi-Tac
+20336,4f70,D,WCSE6,Special Event 6,Multi-Tac
+20337,4f71,D,WCSE7,Special Event 7,Multi-Tac
+20338,4f72,D,WCSE8,Special Event 8,Multi-Tac
+20339,4f73,D,WCSE9,Special Event 9,Multi-Tac
+20548,5044,D,WCSE-ATG,Special Event Announcement,Multi-Dispatch
+1425,591,D,NFDLF,Nashville Fire Lost Radio Location,Fire-Tac
+773,305,D,NPDLF,Nashville Police Lost Radio Location,Law Tac

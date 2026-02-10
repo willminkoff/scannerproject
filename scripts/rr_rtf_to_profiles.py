@@ -218,11 +218,21 @@ def write_csv(path: Path, rows: list[dict]) -> None:
             writer.writerow([r["dec"], r["hex"], r["mode"], r["alpha"], r["description"], r["tag"]])
 
 
+def write_csv_with_group(path: Path, rows: list[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Group", "DEC", "HEX", "Mode", "Alpha Tag", "Description", "Tag"])
+        for r in rows:
+            writer.writerow([r["group"], r["dec"], r["hex"], r["mode"], r["alpha"], r["description"], r["tag"]])
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--rtf", required=True, help="Path to RadioReference RTF export")
     ap.add_argument("--out", required=True, help="Output directory")
     ap.add_argument("--site", default="Davidson Co Simulcast", help="Site name for control channels")
+    ap.add_argument("--combined-slug", default="mtrtrs-all", help="Folder name for combined profile")
     args = ap.parse_args()
 
     rtf_path = Path(args.rtf).expanduser()
@@ -264,6 +274,7 @@ def main() -> int:
         for a in agencies:
             writer.writerow([a["name"], a["slug"], a["count"]])
 
+    combined_rows = []
     # per-agency folders
     for group, rows in talkgroups.items():
         if is_noise_group(group):
@@ -272,6 +283,8 @@ def main() -> int:
         agency_dir = out_dir / slug
         agency_dir.mkdir(parents=True, exist_ok=True)
         write_csv(agency_dir / "talkgroups.csv", rows)
+        for r in rows:
+            combined_rows.append({**r, "group": group})
         (agency_dir / "control_channels.txt").write_text("\n".join(control_channels) + "\n", encoding="utf-8")
         readme = (
             f"# {group}\n\n"
@@ -282,6 +295,28 @@ def main() -> int:
             "Copy your SDRTrunk export into this folder, then import or merge the talkgroups list.\n"
         )
         (agency_dir / "README.md").write_text(readme, encoding="utf-8")
+
+    if combined_rows:
+        combined_dir = out_dir / args.combined_slug
+        combined_dir.mkdir(parents=True, exist_ok=True)
+        # Standard CSV for SDRTrunk import (no group column)
+        write_csv(combined_dir / "talkgroups.csv", [
+            {k: r[k] for k in ("dec", "hex", "mode", "alpha", "description", "tag")}
+            for r in combined_rows
+        ])
+        # Optional grouped CSV for reference
+        write_csv_with_group(combined_dir / "talkgroups_with_group.csv", combined_rows)
+        (combined_dir / "control_channels.txt").write_text("\n".join(control_channels) + "\n", encoding="utf-8")
+        combined_readme = (
+            f"# Combined Talkgroups\n\n"
+            f"All talkgroups merged into a single list.\n\n"
+            f"- Site: {args.site}\n"
+            f"- Control channels: `control_channels.txt`\n"
+            f"- Talkgroups: `talkgroups.csv`\n"
+            f"- Grouped reference: `talkgroups_with_group.csv`\n\n"
+            "Import `talkgroups.csv` into SDRTrunk for a single combined profile.\n"
+        )
+        (combined_dir / "README.md").write_text(combined_readme, encoding="utf-8")
 
     # summary readme
     summary = (
