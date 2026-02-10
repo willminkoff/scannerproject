@@ -1,0 +1,17 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+659,293,DE,P201WSTA,NPD West Administrative,Law Tac
+667,29b,DE,P202ESTA,NPD East Administrative,Law Tac
+669,29d,DE,P203STHA,NPD South Administrative,Law Tac
+671,29f,DE,P204CNTA,NPD Central Administrative,Law Tac
+673,2a1,DE,P205HRMA,NPD Hermitage Administrative,Law Tac
+661,295,DE,P206NRTA,NPD North Administrative,Law Tac
+665,299,DE,P207MADA,NPD Madison Sector Administrative,Law Tac
+675,2a3,DE,P208ALA1,NPD Common Administrative,Law Tac
+663,297,DE,P209ALA2,NPD All Sector Administrative,Law Tac
+657,291,DE,P210CWIA,NPD Countywide Administrative,Law Tac
+677,2a5,DE,P211TAC1,NPD Tactical Pool 1,Law Tac
+679,2a7,DE,P212TAC2,NPD Tactical Pool 2,Law Tac
+681,2a9,DE,P213TAC3,NPD Tactical Pool 3,Law Tac
+683,2ab,DE,P214TAC4,NPD Tactical Pool 4,Law Tac
+685,2ad,DE,P215TAC5,NPD Tactical Pool 5,Law Tac
+687,2af,DE,P216TAC6,NPD Tactical Pool 6,Law Tac

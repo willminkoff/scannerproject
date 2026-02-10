@@ -1,0 +1,17 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+733,2dd,DE,P401TRN1,Training 1,Law Tac
+757,2f5,DE,P402TRN2,Training 2,Law Tac
+767,2ff,DE,P403TRN3,Training 3,Law Tac
+769,301,DE,P404TRN4,Training 4,Law Tac
+745,2e9,DE,P405TRN5,Training 5,Law Tac
+715,2cb,DE,P406FACS,Facilities Security,Law Tac
+747,2eb,DE,P407FLET,Fleet Maintenance,Law Tac
+749,2ed,DE,P408VIMP,Vehicle Impound,Law Tac
+751,2ef,DE,P409 R4,Reserve 4,Law Tac
+753,2f1,DE,P410 R5,Reserve 5,Law Tac
+755,2f3,DE,P411 R6,Reserve 6,Law Tac
+765,2fd,DE,P412 R7,Reserve 7,Law Tac
+711,2c7,DE,P413 R8,Reserve 8,Law Tac
+643,283,DE,P414 R9,Reserve 9,Law Tac
+771,303,DE,P415R10,Reserve 10,Law Tac
+775,307,DE,P416R11,Reserve 11,Law Tac

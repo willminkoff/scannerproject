@@ -1,0 +1,8 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+2321,911,D,ME 1,Medical Examiners Office,Law Tac
+2501,9c5,D,HEA 1MAC,Animal Control Services,Law Tac
+2503,9c7,D,HEA 2 BT,Bio Terrorism Operations,Emergency Ops
+2505,9c9,D,HEA 3EMT,Executive Management,Emergency Ops
+2507,9cb,D,HEA 4LOG,Logistics,Emergency Ops
+2509,9cd,D,HEA 5OPS,Operations,Emergency Ops
+2511,9cf,D,HEA6ICBT,ICBT Management,Emergency Ops

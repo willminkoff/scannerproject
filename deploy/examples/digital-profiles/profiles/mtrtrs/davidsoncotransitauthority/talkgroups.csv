@@ -1,0 +1,13 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+2401,961,D,MTA1 BUS,Dispatch,Transportation
+2403,963,D,MTA2 AC,Access Ride,Transportation
+2405,965,D,MTA3 MAT,Maintenance,Transportation
+2407,967,D,MTA4 ADM,Administration,Transportation
+2409,969,D,MTA5 SAF,Safety,Transportation
+2411,96b,D,MTA6 SUP1,Supervisor 1,Transportation
+2413,96d,D,MTA7 SUP2,Supervisor 2,Transportation
+2415,96f,D,EMRV,Emergency Revert,Transportation
+10560,2940,D,MTA1 BUS,Dispatch,Transportation
+10561,2941,D,MTA2 AC,Access Ride,Transportation
+10562,2942,D,MTA3 MAT,Maintenance,Transportation
+10563,2943,D,MTA4 ADM,Administration,Transportation

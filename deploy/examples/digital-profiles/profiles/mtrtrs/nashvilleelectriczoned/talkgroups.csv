@@ -1,0 +1,6 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+67,043,D,ND1TEL,Telecommunications 1,Utilities
+59,03b,D,ND2SPR,Security Private,Utilities
+139,08b,D,ND3TEL2,Telecommunications 2,Utilities
+137,089,D,ND4LF,Lost Radio Location,Utilities
+101,065,D,ND5911,Mutual Aid To E911 Center,Multi-Dispatch

@@ -1,0 +1,12 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+2911,b5f,DE,ECC PRI,Primary,Emergency Ops
+2915,b63,DE,ECCT1,Training 1,Emergency Ops
+2917,b65,DE,ECCT2,Training 2,Emergency Ops
+10175,27bf,DE,ECC1,Ops 1,Emergency Ops
+10176,27c0,DE,ECC2,Ops 2,Emergency Ops
+10177,27c1,DE,ECC3,Ops 3,Emergency Ops
+10178,27c2,DE,ECC4,Ops 4,Emergency Ops
+10179,27c3,De,ECC5,Ops 5,Emergency Ops
+10180,27c4,De,ECC6,Ops 6,Emergency Ops
+10181,27c5,De,ECC7,Ops 7,Emergency Ops
+10182,27c6,De,ECC8,Ops 8,Emergency Ops

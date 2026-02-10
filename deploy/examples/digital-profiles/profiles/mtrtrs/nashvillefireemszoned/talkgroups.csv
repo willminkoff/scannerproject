@@ -1,0 +1,14 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+1343,53f,DE,F D2DIR,NFD Unit-to-Unit D2,Fire-Tac
+1345,541,DE,F D3ADM,NFD Administration D3,Fire-Tac
+1413,585,DE,F D4PIO,NFD Public Information Officer D4,Fire-Tac
+1415,587,DE,F D5ADM,NFD Administration D5,Fire-Tac
+1355,54b,DE,F D6TA1,NFD Training 1 D6,Fire-Tac
+1357,54d,DE,F D7TA2,NFD Training 2 D7,Fire-Tac
+1421,58d,DE,F D8TA3,NFD Training 3 D8,Fire-Tac
+1359,54f,DE,F D9FMO-1,NFD Fire Marshall 1 D9,Fire-Tac
+1361,551,DE,F D10FM0-2,NFD Fire Marshall 2 D10,Fire-Tac
+1411,583,DE,F D11FM0-3,NFD Fire Safety D11,Fire-Tac
+1347,543,DE,F D12FMO-4,NFD Fire Arson D12,Fire-Tac
+1417,589,DE,F D13ADM,NFD Administration D13,Fire-Tac
+1391,56f,DE,F D14REB,NFD Fire Buff Rehab D14,Fire-Tac

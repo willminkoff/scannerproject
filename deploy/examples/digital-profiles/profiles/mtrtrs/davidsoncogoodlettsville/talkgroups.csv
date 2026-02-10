@@ -1,0 +1,6 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+3301,ce5,D,GDLVL PD 1,Police: Dispatch,Law Dispatch
+3303,ce7,D,GDLVL PD 2,Police: Secondary,Law Tac
+3311,cef,D,GDLVL PD 11,Police: 3311 (??),Law Tac
+3319,cf7,D,GDLVL FD 1,Fire: Dispatch,Fire Dispatch
+3321,cf9,D,GDLVL FD 2,Fire: Secondary,Fire-Tac

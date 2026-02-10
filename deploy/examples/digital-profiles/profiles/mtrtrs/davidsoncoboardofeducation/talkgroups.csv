@@ -1,0 +1,17 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+2131,853,D,SCH1SS,School Security,Schools
+2115,843,D,SCH2ADM,School Administration,Schools
+2117,845,D,SCH3ST,Safety Training,Schools
+2119,847,D,SCH4RE1,Regular Education Buses 1,Schools
+2121,849,D,SCH5RE2,Regular Education Buses 2,Schools
+2123,84b,D,SCH6SE,Special Education Buses,Schools
+2125,84d,D,SCH7FT,Field Trips,Schools
+2127,84f,D,SCH8TMS,Transportation Maintance Shop,Schools
+2129,851,D,SCH9TA,Transportation Administration,Schools
+2133,855,D,SCH10PS,Operations,Schools
+2135,857,D,SCH11MA,Maintenance,Schools
+2137,859,D,SCH12CL1,"Antioch, Glencliff Clusters",Schools
+2139,85b,D,SCH13CL2,"Hillsboro, Hillwood Clusters",Schools
+2141,85d,D,SCH14CL3,"Hunters, Lance, Maplewood Clusters",Schools
+2143,85f,D,SCH15CL4,"McGavock, Overton Clusters",Schools
+2145,861,D,SCH16CL5,"Pearl, Cohn, Stratford, Whites Creek Clusters",Schools

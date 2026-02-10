@@ -1,0 +1,290 @@
+[
+  {
+    "rfss": "3 (3)",
+    "site": "003 (3)",
+    "name": "Davidson Co Simulcast",
+    "county": "Davidson",
+    "frequencies": [
+      {
+        "freq": "851.550",
+        "control": false
+      },
+      {
+        "freq": "852.075",
+        "control": false
+      },
+      {
+        "freq": "853.3125",
+        "control": false
+      },
+      {
+        "freq": "853.6125",
+        "control": false
+      },
+      {
+        "freq": "854.0125",
+        "control": false
+      },
+      {
+        "freq": "854.5875",
+        "control": false
+      },
+      {
+        "freq": "856.2125",
+        "control": false
+      },
+      {
+        "freq": "856.2625",
+        "control": false
+      },
+      {
+        "freq": "856.4875",
+        "control": true
+      },
+      {
+        "freq": "856.7125",
+        "control": true
+      },
+      {
+        "freq": "856.9875",
+        "control": false
+      },
+      {
+        "freq": "857.0375",
+        "control": true
+      },
+      {
+        "freq": "857.4875",
+        "control": true
+      },
+      {
+        "freq": "857.7125",
+        "control": false
+      },
+      {
+        "freq": "857.7625",
+        "control": false
+      },
+      {
+        "freq": "858.2625",
+        "control": false
+      },
+      {
+        "freq": "858.4875",
+        "control": false
+      },
+      {
+        "freq": "858.7125",
+        "control": false
+      },
+      {
+        "freq": "858.9375",
+        "control": false
+      },
+      {
+        "freq": "858.9875",
+        "control": false
+      },
+      {
+        "freq": "859.4875",
+        "control": false
+      },
+      {
+        "freq": "859.7125",
+        "control": false
+      },
+      {
+        "freq": "859.9875",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "3 (3)",
+    "site": "004 (4)",
+    "name": "Davidson Co Services",
+    "county": "Davidson",
+    "frequencies": [
+      {
+        "freq": "851.9625",
+        "control": false
+      },
+      {
+        "freq": "852.125",
+        "control": false
+      },
+      {
+        "freq": "853.850",
+        "control": false
+      },
+      {
+        "freq": "855.9125",
+        "control": true
+      },
+      {
+        "freq": "856.4625",
+        "control": true
+      },
+      {
+        "freq": "856.7625",
+        "control": true
+      },
+      {
+        "freq": "856.9375",
+        "control": false
+      },
+      {
+        "freq": "857.4625",
+        "control": true
+      },
+      {
+        "freq": "859.4625",
+        "control": false
+      },
+      {
+        "freq": "859.7625",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "3 (3)",
+    "site": "011 (B)",
+    "name": "Mount Juliet",
+    "county": "Wilson",
+    "frequencies": [
+      {
+        "freq": "851.1375",
+        "control": true
+      },
+      {
+        "freq": "851.3875",
+        "control": true
+      },
+      {
+        "freq": "852.550",
+        "control": true
+      },
+      {
+        "freq": "853.125",
+        "control": true
+      },
+      {
+        "freq": "853.550",
+        "control": false
+      }
+    ]
+  },
+  {
+    "rfss": "3 (3)",
+    "site": "016 (10)",
+    "name": "Goodlettsville",
+    "county": "Davidson",
+    "frequencies": [
+      {
+        "freq": "851.7375",
+        "control": true
+      },
+      {
+        "freq": "852.4625",
+        "control": true
+      },
+      {
+        "freq": "853.4875",
+        "control": true
+      },
+      {
+        "freq": "853.925",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "3 (3)",
+    "site": "020 (14)",
+    "name": "Williamson Co Simulcast",
+    "county": "Williamson",
+    "frequencies": [
+      {
+        "freq": "769.11875",
+        "control": false
+      },
+      {
+        "freq": "771.10625",
+        "control": false
+      },
+      {
+        "freq": "771.48125",
+        "control": false
+      },
+      {
+        "freq": "771.83125",
+        "control": false
+      },
+      {
+        "freq": "772.13125",
+        "control": false
+      },
+      {
+        "freq": "772.38125",
+        "control": false
+      },
+      {
+        "freq": "772.58125",
+        "control": false
+      },
+      {
+        "freq": "772.78125",
+        "control": false
+      },
+      {
+        "freq": "773.13125",
+        "control": true
+      },
+      {
+        "freq": "773.88125",
+        "control": true
+      },
+      {
+        "freq": "774.63125",
+        "control": true
+      },
+      {
+        "freq": "774.90625",
+        "control": true
+      }
+    ]
+  },
+  {
+    "rfss": "3 (3)",
+    "site": "021 (15)",
+    "name": "Franklin (*)",
+    "county": "Williamson",
+    "frequencies": [
+      {
+        "freq": "769.23125",
+        "control": false
+      },
+      {
+        "freq": "769.38125",
+        "control": false
+      },
+      {
+        "freq": "769.73125",
+        "control": false
+      },
+      {
+        "freq": "769.88125",
+        "control": false
+      },
+      {
+        "freq": "774.51875",
+        "control": false
+      },
+      {
+        "freq": "774.86875",
+        "control": true
+      }
+    ]
+  }
+]

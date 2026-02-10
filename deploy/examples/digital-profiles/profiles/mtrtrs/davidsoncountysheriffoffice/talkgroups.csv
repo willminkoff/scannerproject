@@ -1,0 +1,20 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+1875,753,D,SO 1DISP,Sheriff Dispatch,Law Dispatch
+1877,755,D,SO 2WAR,Sheriff Warrants,Law Tac
+1879,757,D,SO 3TRAN,Sheriff Transportation,Law Tac
+1881,759,D,SO 4INV,Sheriff Investigation,Law Tac
+1883,75b,D,SO 5SOR1,Sheriff Special Operations Response Team 1,Law Tac
+1885,75d,D,SO 6SOR2,Sheriff Special Operations Response Team 2,Law Tac
+1887,75f,D,SO 7 ADM,Sheriff Administrative,Law Tac
+1889,761,D,SO 8SCS,Sheriff Community Service,Law Tac
+1897,769,D,SO 9CJC,Sheriff Facility Criminal Justice Center (CJC),Corrections
+1899,76b,D,SO 10HDC,Hill Detention Center (HDC),Law Tac
+1901,76d,D,SO11CDM,Correctional Development Center - Male (CCDCM),Corrections
+10469,28e5,D,SO11CDCM,Correctional Development Center - Male (CCDCM),Corrections
+1903,76f,D,SO12CDCF,Correctional Development Center - Female (CCDCF),Corrections
+1905,771,D,SO 13ORC,Offender Reentry Center (ORC),Corrections
+1907,773,D,SO14CRTS,Sheriff Facility Courthouse Security,Corrections
+1909,775,D,SO15TRAIN,Sheriff Training,Law Tac
+10439,28c7,D,SO DDC MC,Downtown Detention Center: Master Control (DDC),Corrections
+10467,28e3,D,SO DDC INT,Downtown Detention Center: Internal (DDC),Corrections
+10468,28e4,D,SO DDC SEC,Downtown Detention Center: Secondary (DDC),Corrections

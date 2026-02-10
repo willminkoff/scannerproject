@@ -1,0 +1,17 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+10017,2721,D,SYSMA01,System Wide Mutual Aid 01,Interop
+10018,2722,D,SYSMA02,System Wide Mutual Aid 02,Interop
+10019,2723,D,SYSMA03,System Wide Mutual Aid 03,Interop
+10020,2724,D,SYSMA04,System Wide Mutual Aid 04,Interop
+10021,2725,D,SYSMA05,System Wide Mutual Aid 05,Interop
+10022,2726,D,SYSMA06,System Wide Mutual Aid 06,Interop
+10023,2727,D,SYSMA07,System Wide Mutual Aid 07,Interop
+10024,2728,D,SYSMA08,System Wide Mutual Aid 08,Interop
+10025,2729,D,SYSMA09,System Wide Mutual Aid 09,Interop
+10026,272a,D,SYSMA10,System Wide Mutual Aid 10,Interop
+10027,272b,D,SYSMA11,System Wide Mutual Aid 11,Interop
+10028,272c,D,SYSMA12,System Wide Mutual Aid 12,Interop
+10029,272d,D,SYSMA13,System Wide Mutual Aid 13,Interop
+10030,272e,D,SYSMA14,System Wide Mutual Aid 14,Interop
+10031,272f,D,SYSMA15,System Wide Mutual Aid 15,Interop
+10032,2730,D,SYSMA16,System Wide Mutual Aid 16,Interop

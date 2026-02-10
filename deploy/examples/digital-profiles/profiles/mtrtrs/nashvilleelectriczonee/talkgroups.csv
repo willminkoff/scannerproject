@@ -1,0 +1,16 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+69,045,D,NES3,NES Spare 3,Utilities
+71,047,D,NES4,NES Spare 4,Utilities
+73,049,D,NES5,NES Spare 5,Utilities
+75,04b,D,NES6,NES Spare 6,Utilities
+77,04d,D,NES7,NES Spare 7,Utilities
+79,04f,D,NES8,NES Spare 8,Utilities
+81,051,D,NES9,NES Spare 9,Utilities
+83,053,D,NES10,NES Spare 10,Utilities
+85,055,D,NES11,NES Spare 11,Utilities
+87,057,D,NES12,NES Spare 12,Utilities
+89,059,D,NES13,NES Spare 13,Utilities
+91,05b,D,NES14,NES Spare 14,Utilities
+93,05d,D,NES15,NES Spare 15,Utilities
+95,05f,D,NES16,NES Spare 16,Utilities
+97,061,D,NES17,NES Spare 17,Utilities

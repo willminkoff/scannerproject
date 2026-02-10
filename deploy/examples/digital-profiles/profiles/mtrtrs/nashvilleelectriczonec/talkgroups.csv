@@ -1,0 +1,17 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+35,023,D,NC1US,U S Dispatch,Utilities
+37,025,D,NC2US1,U S Field 1,Utilities
+39,027,D,NC3US2,U S Field 2,Utilities
+41,029,D,NC4US3,U S Field 3,Utilities
+43,02b,D,NC5TST1,Test Field 1,Utilities
+45,02d,D,NC6TST2,Test Field 2,Utilities
+47,02f,D,NC7MTR,Meter Dispatch,Utilities
+49,031,D,NC8MTR1,Meter Field 2,Utilities
+51,033,D,NC9RE,Meter Reconnect Dispatch,Utilities
+53,035,D,NC10RE1,Meter Reconnect Field 1,Utilities
+55,037,D,NC11EG1,Engineering 1,Utilities
+57,039,D,NC12EG2,Engineering 2,Utilities
+99,063,D,NC13SFT,Safety Operations,Utilities
+61,03d,D,NC14GS,General Services,Utilities
+63,03f,D,NC15FLT,Fleet Maintenance,Utilities
+65,041,D,NC16SEC,Facilities Security,Utilities

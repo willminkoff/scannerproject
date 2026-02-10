@@ -1,0 +1,11 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+723,2d3,DE,P602SRT1,NPD SWAT Negotiation 1,Law Tac
+725,2d5,DE,P603SRT2,NPD SWAT Negotiation 2,Law Tac
+741,2e5,DE,P604SWT3,NPD SWAT Negotiation 3,Law Tac
+717,2cd,DE,P605SWT4,NPD SWAT Operations 4,Law Tac
+719,2cf,DE,P606SWT5,NPD SWAT Operations 5,Law Tac
+721,2d1,DE,P607SWT6,NPD SWAT Operations 6,Law Tac
+731,2db,DE,P608SWT7,NPD SWAT Operations 7,Law Tac
+735,2df,DE,P609SWT8,NPD SWAT Operations 8,Law Tac
+727,2d7,DE,P610NEG1,NPD Negotiators 1,Law Tac
+729,2d9,DE,P611NEG2,NPD Negotiators 2,Law Tac

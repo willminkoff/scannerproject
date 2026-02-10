@@ -1,0 +1,5 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+20040,4e48,DE,BWPD-DISP1,Police - Primary,Law Dispatch
+20041,4e49,DE,BWPD-TAC-2,Police - Tactical 2,Law Tac
+20046,4e4e,DE,BWFD-DISP,Fire - Dispatch,Fire Dispatch
+20531,5033,DE,BWFD-TONES,Fire - Station Alerting,Fire Dispatch

@@ -1,0 +1,17 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+3001,bb9,D,A1 UNI 1,Unified Command 1,Interop
+3003,bbb,D,A2 UNI 2,Unified Command 2,Interop
+3005,bbd,D,A3 UNI 3,Unified Command 3,Interop
+3007,bbf,D,A4 UNI 4,Unified Command 4,Interop
+3009,bc1,D,A5 UNI 5,Unified Command 5,Interop
+3011,bc3,D,A6 JOPS 6,Joint Operations 6,Interop
+3013,bc5,D,A7 JOPS 7,Joint Operations 7,Interop
+3015,bc7,D,A8 JOPS 8,Joint Operations 8,Interop
+3017,bc9,D,A9 JOPS 9,Joint Operations 9,Interop
+3019,bcb,D,A10 OEM HAIL,Hailing for OEM,Emergency Ops
+10011,271b,DE,A11 SEC 11,Secure Operations 11,Interop
+10012,271c,DE,A12 SEC 12,Secure Operations 12,Interop
+10013,271d,DE,A13 SEC 13,Secure Operations 13,Interop
+10014,271e,DE,A14 SEC 14,Secure Operations 14,Interop
+10015,271f,DE,A15 SEC 15,Secure Operations 15,Interop
+10016,2720,DE,A16 SEC 16,Secure Operations 16,Interop

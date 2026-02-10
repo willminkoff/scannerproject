@@ -1,0 +1,16 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+2075,81b,D,GS 1GSA,Administration,Public Works
+2097,831,D,GS 2GSS1D,Court House Security,Security
+2081,821,D,GS 3RS1,Radio Shop 1,Public Works
+2083,823,D,GS 4RS2,Radio Shop 2,Public Works
+2089,829,D,GS 5BOSS1,BOSS Operations 1,Public Works
+2087,827,D,GS 6BOSS2,BOSS Operations 2,Public Works
+2093,82d,D,GS 7HAZM,Hazmat Operations,Emergency Ops
+4091,ffb,D,GS 8WWS,Weather Warning Sirens,Emergency Ops
+4093,ffd,D,GS WWS P25,Weather Warning Sirens (P25 system),Emergency Ops
+2079,81f,D,GS 9FMP,Fleet Motor Pool,Public Works
+2099,833,D,GS 10 RV,Riverview,Public Works
+2101,835,D,GS 11 SEC,Security TOD,Security
+2103,837,D,GS SEC HLTH,Security Public Health Center,Schools
+2105,839,D,GS SEC 2105,Security 2105,Security
+10080,2760,D,GS WWS NEW,Weather Warning Sirens (New),Emergency Ops

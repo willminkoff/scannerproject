@@ -1,0 +1,17 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+3029,bd5,D,PSRES01,Unified Command Reserve Pool 1,Interop
+3031,bd7,D,PSRES02,Unified Command Reserve Pool 2,Interop
+3033,bd9,D,PSRES03,Unified Command Reserve Pool 3,Interop
+3035,bdb,D,PSRES04,Unified Command Reserve Pool 4,Interop
+3037,bdd,D,PSRES05,Unified Command Reserve Pool 5,Interop
+3039,bdf,D,PSRES06,Unified Command Reserve Pool 6,Interop
+3041,be1,D,PSRES07,Unified Command Reserve Pool 7,Interop
+3043,be3,D,PSRES08,Unified Command Reserve Pool 8,Interop
+3045,be5,D,PSRES09,Unified Command Reserve Pool 9,Interop
+3047,be7,D,PSRES10,Unified Command Reserve Pool 10,Interop
+3049,be9,D,PSRES11,Unified Command Reserve Pool 11,Interop
+3051,beb,D,PSRES12,Unified Command Reserve Pool 12,Interop
+3053,bed,D,PSRES13,Unified Command Reserve Pool 13,Interop
+3055,bef,D,PSRES14,Unified Command Reserve Pool 14,Interop
+3057,bf1,D,PSRES15,Unified Command Reserve Pool 15,Interop
+3059,bf3,D,PSRES16,Unified Command Reserve Pool 16,Interop

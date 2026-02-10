@@ -1,0 +1,17 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+707,2c3,DE,P502SIDP,Intelligence Primary,Law Tac
+743,2e7,DE,P503SIDA,Intelligence Alternate,Law Tac
+699,2bb,DE,P504VIC1,Vice Operations 1,Law Tac
+701,2bd,DE,P505VIC2,Vice Operations 2,Law Tac
+703,2bf,DE,P506VIC3,Vice Operations 3,Law Tac
+705,2c1,DE,P507VIC4,Vice Operations 4,Law Tac
+709,2c5,DE,P508VIC5,Vice Operations 5,Law Tac
+777,309,DE,P509TF20,Task Force 20,Law Tac
+779,30b,DE,P511WCSU,ND West Crime Suppression Unit,Law Tac
+781,30d,DE,P512ECSU,East Crime Suppression Unit,Law Tac
+783,30f,DE,P513SCSU,South Crime Suppression Unit,Law Tac
+785,311,DE,P514CCSU,Central Crime Suppression Unit,Law Tac
+787,313,DE,P515HCSU,Hermitage Crime Suppression Unit,Law Tac
+789,315,DE,P516NCSU,North Crime Suppression Unit,Law Tac
+791,317,DE,P MAD-CSU,Madison Crime Suppression Unit,Law Tac
+793,319,DE,P MID-CSU,Midtown Hills Crime Suppression Unit,Law Tac

@@ -1,0 +1,8 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+10604,296c,D,Davidsn OEM Disp,Dispatch,Emergency Ops
+1943,797,D,01 OEMP,Primary,Emergency Ops
+1959,7a7,D,02 ESU-TOC1,Emergency Situation Unit: Tactical 1,Emergency Ops
+1947,79b,D,03 ESU-TOC2,Emergency Situation Unit: Tactical 2,Emergency Ops
+1949,79d,D,04 ESC-NWS,Emergency Situation Command/NWS,Emergency Ops
+1963,7ab,D,05 USAR,Urban Search and Rescue,Emergency Ops
+1945,799,D,06 MAYOR,Mayor Office,Emergency Ops

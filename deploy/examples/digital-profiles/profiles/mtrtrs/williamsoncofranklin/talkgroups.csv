@@ -1,0 +1,21 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+20000,4e20,DE,Franklin Police,Police: Dispatch,Law Dispatch
+20010,4e2a,DE,Frankln PD Tac-1,Police: Tac-1,Law Tac
+20001,4e21,DE,Frankln PD Tac-2,Police: Tac-2,Law Tac
+20033,4e41,D,Franklin-Event-1,Special Event 1,Multi-Tac
+20034,4e42,D,Franklin-Event-2,Special Event 2,Multi-Tac
+20035,4e43,D,Franklin-Event-3,Special Event 3,Multi-Tac
+20036,4e44,D,Franklin-Event-4,Special Event 4,Multi-Tac
+20037,4e45,D,Franklin-Event-5,Special Event 5,Multi-Tac
+20530,5032,D,FFD-ALERT,Fire: Station Alerting,Fire Dispatch
+20541,503d,D,FFD-ATG,Fire: Announcement,Fire Dispatch
+20015,4e2f,DE,FFD-DISP,Fire: Dispatch,Fire Dispatch
+20016,4e30,DE,FFD-TAC-1,Fire: Training Tactical,Fire-Tac
+20017,4e31,D,FFD-PREVENT,Fire: Prevention,Fire-Talk
+20028,4e3c,D,FPW-C-WASTE,Commercial Waste (Public Works),Public Works
+20029,4e3d,D,FPW-R-WASTE,Residential Waste (Public Works),Public Works
+20030,4e3e,D,FPW-FLEET,Fleet (Public Works),Public Works
+20031,4e3f,D,FPW-TRAFFIC,Traffic (Public Works),Public Works
+20038,4e46,D,FKTMA1,Transit 1 (Transit On Demand),Transportation
+20039,4e47,D,FKTMA2,Transit 2 (Fixed Routes),Transportation
+20014,4e2e,D,CSM-SECURITY,Cool Springs Mall Security,Security

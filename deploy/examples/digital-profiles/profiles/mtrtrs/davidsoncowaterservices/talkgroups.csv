@@ -1,0 +1,20 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+3653,e45,D,A1 ADM,Administrative 1,Utilities
+3617,e21,D,A2 SER,System Services,Utilities
+3619,e23,D,A3 OPS,Operations,Utilities
+3621,e25,D,A4 4CS,Customer Service,Utilities
+3623,e27,D,A5 WENG,Engineering,Utilities
+3625,e29,D,A6 W FM,Fleet Maintenance,Utilities
+3627,e2b,D,B1 WSTRS,Stores,Utilities
+3629,e2d,D,B2 WPRMT,Permits,Utilities
+3631,e2f,D,B3 W CSO,Storm Sewer Overflow Response,Utilities
+3633,e31,D,B4 W MR,Meter Reading,Utilities
+3635,e33,D,B5 OMOH,OmohundroWaste Water Treatment Plant,Utilities
+3637,e35,D,B6 CWWTP,Central Waste Water Treatment Plant,Utilities
+3639,e37,D,B7 KRH,KR Harrington Waste Water Treatment Plant,Utilities
+3641,e39,D,B8DCWWTP,Dry Creek Waste Water Treatment Plant,Utilities
+3643,e3b,D,B9WCWWTP,White Creek Waste Water Treatment Plant,Utilities
+3645,e3d,D,B10 W SM,Sewer Maintenance,Utilities
+3647,e3f,D,B11 W WM,Water Maintenance,Utilities
+3649,e41,D,B12WTOOF,Service Turn Ons Offs,Utilities
+3651,e43,D,B13WINSP,Inspection,Utilities

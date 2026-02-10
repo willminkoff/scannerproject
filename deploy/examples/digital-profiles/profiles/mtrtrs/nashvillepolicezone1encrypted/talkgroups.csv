@@ -1,0 +1,16 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+10204,27dc,DE,* P104CNTD E,Central Dispatch,Law Dispatch
+10212,27e4,DE,* P112PCMD E,Command 2 Dispatch,Law Tac
+10213,27e5,DE,* P113PCMD E,Command 3 Dispatch,Law Tac
+10214,27e6,DE,* P114PCMD E,Command 4 Dispatch,Law Tac
+10215,27e7,DE,* P115PCMD E,Command 5 Dispatch,Law Tac
+10210,27e2,DE,* P110CWID E,Countywide Dispatch,Law Dispatch
+10202,27da,DE,* P102ESTD E,East Dispatch,Law Dispatch
+10205,27dd,DE,* P105HRMD E,Hermitage Dispatch,Law Dispatch
+10207,27df,DE,* P107MADD E,Madison Dispatch,Law Dispatch
+10208,27e0,DE,NPD Midtown H E,Midtown Hills Dispatch,Law Dispatch
+10206,27de,DE,* P106NRTD E,North Dispatch,Law Dispatch
+10211,27e3,DE,* P108RW E,NPD Records/Warrants,Law Dispatch
+10209,27e1,DE,* P109MHD E,Records Warrants,Law Tac
+10203,27db,DE,* P103STHD E,South Dispatch,Law Dispatch
+10201,27d9,DE,* P101WSTD E,West Dispatch,Law Dispatch

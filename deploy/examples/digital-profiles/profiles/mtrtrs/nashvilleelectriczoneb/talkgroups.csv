@@ -1,0 +1,17 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+003,D,NB1OHC,Central Emergency Line Dispatch,Utilities,5
+005,D,NB2OHC1,Central Field 1 Storm Dispatch 1,Utilities,7
+007,D,NB3OHC2,Central Field 1 Storm Dispatch 2,Utilities,9
+009,D,NB4OHC3,Central Field 1 Storm Dispatch 3,Utilities,11
+13,00d,D,NB6OW,West Dispatch,Utilities
+15,00f,D,NB7OH1,West Field 1,Utilities
+17,011,D,NB8OH2,West Field 2,Utilities
+19,013,D,NB9OH3,West Field 3,Utilities
+21,015,D,NB10OD,Donelson Dispatch,Utilities
+23,017,D,NB11OD1,Donelson Field 1,Utilities
+25,019,D,NB12OD2,Donelson Field 2,Utilities
+27,01b,D,NB13OD3,Donelson Field 3,Utilities
+29,01d,D,NB14LD3,Load Dispatch 3,Utilities
+31,01f,D,NB15LD2,Load Dispatch 2,Utilities
+33,021,D,NB16LD1,Load Dispatch 1,Utilities
+10149,27a5,D,LOAD DISP 1,Load Dispatch 1 (P25),Utilities

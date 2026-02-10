@@ -1,0 +1,7 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+3701,e75,D,COD 1DA,Dispatch and Administration,Public Works
+3703,e77,D,COD 2BU,Building Inspections,Public Works
+3705,e79,D,COD 3EL,Electrical Inspections,Public Works
+3707,e7b,D,COD 4ME,Mechanical Inspections,Public Works
+3709,e7d,D,COD 5PL,Plumbing Inspections,Public Works
+3711,e7f,D,COD 6HZ,Housing Inspections,Public Works

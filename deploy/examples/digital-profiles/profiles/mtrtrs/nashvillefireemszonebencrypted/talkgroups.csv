@@ -1,0 +1,17 @@
+DEC,HEX,Mode,Alpha Tag,Description,Tag
+10350,286e,TE,NFD B1 Disp,Main Dispatch B1,Fire Dispatch
+10351,286f,TE,NFD B2 SOC,Special Operations B2,Fire-Tac
+10352,2870,TE,NFD B3 FD Admin,Fire: Admin B3,Fire-Talk
+10353,2871,TE,NFD B4 SOC,Special Operations B4,Fire-Tac
+10354,2872,TE,NFD B5 EMS Admin,EMS: Admin B5,EMS-Talk
+10355,2873,TE,NFD B6 TOC,Tactical Operations B6,Fire-Tac
+10356,2874,TE,NFD B7 TOC,Tactical Operations B7,Fire-Tac
+10357,2875,TE,NFD B8 TOC,Tactical Operations B8,Fire-Tac
+10358,2876,TE,NFD B9 TOC,Tactical Operations B9,Fire-Tac
+10359,2877,TE,NFD B10 TOC,Tactical Operations B10,Fire-Tac
+10360,2878,TE,NFD B11 TOC,Tactical Operations B11,Fire-Tac
+10361,2879,TE,NFD B12 TOC,Tactical Operations B12,Fire-Tac
+10362,287a,TE,NFD B13 TOC,Tactical Operations B13,Fire-Tac
+10363,287b,TE,NFD B14 TOC,Tactical Operations B14,Fire-Tac
+10364,287c,TE,NFD B15 TOC,Tactical Operations B15,Fire-Tac
+10365,287d,TE,NFD B16 TOC,Tactical Operations B16,Fire-Tac
