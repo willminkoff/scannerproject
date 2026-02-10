@@ -340,6 +340,7 @@ class Handler(BaseHTTPRequestHandler):
                 "digital_muted": False,
                 "digital_last_label": "",
                 "digital_last_time": 0,
+                "digital_last_warning": "",
             }
             try:
                 digital_payload = get_digital_manager().status_payload()

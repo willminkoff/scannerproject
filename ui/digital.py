@@ -41,6 +41,10 @@ _TS_COMPACT_RE = re.compile(r"(?P<date>\d{8})\s+(?P<time>\d{6})(?:\.\d+)?")
 _LOG_PREFIX_RE = re.compile(r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?\s+")
 _LOG_PREFIX_COMPACT_RE = re.compile(r"^\d{8}\s+\d{6}(?:\.\d+)?\s+")
 _LOG_LEVEL_RE = re.compile(r"^(INFO|WARN|ERROR|DEBUG|TRACE)\s+", re.I)
+_NON_FATAL_ERROR_RE = re.compile(
+    r"(no audio playback devices available|couldn't obtain master gain|usb.*in-use|device is busy|unable to set usb configuration)",
+    re.I,
+)
 _MUTE_STATE_PATH = "/run/airband_ui_digital_mute.json"
 _DIGITAL_MUTED = False
 _DEFAULT_PROFILE_NOTE = (
@@ -186,6 +190,10 @@ def _extract_tgid(text: str) -> str:
     if text.strip().isdigit():
         return text.strip()
     return ""
+
+
+def _is_non_fatal_error(line: str) -> bool:
+    return bool(_NON_FATAL_ERROR_RE.search(line or ""))
 
 
 def _write_mute_state(muted: bool) -> None:
@@ -468,6 +476,9 @@ class DigitalAdapter:
     def getLastError(self):
         raise NotImplementedError
 
+    def getLastWarning(self):
+        raise NotImplementedError
+
     def getRecentEvents(self, limit: int = 20):
         raise NotImplementedError
 
@@ -479,6 +490,7 @@ class _BaseDigitalAdapter(DigitalAdapter):
         self._profile = ""
         self._last_event = None
         self._last_error = ""
+        self._last_warning = ""
         self._last_event_time_ms = 0
         self._recent_events = []
         self._recent_event_keys = set()
@@ -487,8 +499,14 @@ class _BaseDigitalAdapter(DigitalAdapter):
     def _set_last_error(self, msg: str):
         self._last_error = (msg or "").strip()
 
+    def _set_last_warning(self, msg: str):
+        self._last_warning = (msg or "").strip()
+
     def _clear_error(self):
         self._last_error = ""
+
+    def _clear_warning(self):
+        self._last_warning = ""
 
     def _set_last_event(self, label: str, mode: str | None = None, raw=None):
         event = {
@@ -535,6 +553,8 @@ class _BaseDigitalAdapter(DigitalAdapter):
     def getLastError(self):
         return self._last_error or None
 
+    def getLastWarning(self):
+        return self._last_warning or None
 
 class NullDigitalAdapter(_BaseDigitalAdapter):
     """No-op adapter when digital is disabled or misconfigured."""
@@ -657,14 +677,25 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             latest = max(events, key=lambda item: item.get("timeMs", 0))
             self._last_event = latest
             self._last_event_time_ms = int(latest.get("timeMs") or fallback_ms)
-        # Last error (best-effort)
+        # Last error/warning (best-effort)
         last_err = None
+        last_warn = None
         for line in reversed(lines):
             if re.search(r"(error|exception)", line, re.I):
+                if _is_non_fatal_error(line):
+                    if not last_warn:
+                        last_warn = line.strip()
+                    continue
                 last_err = line.strip()
                 break
         if last_err:
             self._set_last_error(last_err)
+        else:
+            self._clear_error()
+        if last_warn:
+            self._set_last_warning(last_warn)
+        else:
+            self._clear_warning()
 
         if self._last_event:
             return
@@ -936,6 +967,10 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         self._refresh_log_cache()
         return super().getLastError()
 
+    def getLastWarning(self):
+        self._refresh_log_cache()
+        return super().getLastWarning()
+
     def getRecentEvents(self, limit: int = 20):
         self._refresh_log_cache()
         return super().getRecentEvents(limit)
@@ -989,6 +1024,8 @@ class DigitalManager:
     def getLastError(self):
         return self._adapter.getLastError()
 
+    def getLastWarning(self):
+        return self._adapter.getLastWarning()
     def getRecentEvents(self, limit: int = 20):
         return self._adapter.getRecentEvents(limit)
 
@@ -1010,6 +1047,9 @@ class DigitalManager:
         err = self.getLastError()
         if err:
             payload["digital_last_error"] = err
+        warn = self.getLastWarning()
+        if warn:
+            payload["digital_last_warning"] = warn
         return payload
 
     def isMuted(self):

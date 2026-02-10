@@ -891,6 +891,14 @@
       font-family: "SFMono-Regular", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
     }
 
+    .service-meta.warn {
+      color: var(--warn);
+    }
+
+    .service-meta.bad {
+      color: var(--bad);
+    }
+
     .service-dot {
       width: 10px;
       height: 10px;
@@ -1620,6 +1628,7 @@
               <div>
                 <div class="service-name">Digital Decoder</div>
                 <div class="service-meta">Status: <span id="service-digital">--</span></div>
+                <div class="service-meta" id="service-digital-note"></div>
               </div>
               <span class="service-dot"></span>
             </div>
@@ -1883,6 +1892,7 @@
         lastMode: '',
         lastTime: 0,
         lastError: '',
+        lastWarning: '',
         muted: false,
         profiles: [],
         activeProfile: '',
@@ -2028,6 +2038,7 @@
       sitrepConnection: document.getElementById('sitrep-connection'),
       sitrepStream: document.getElementById('sitrep-stream'),
       sitrepConfig: document.getElementById('sitrep-config'),
+      serviceDigitalNote: document.getElementById('service-digital-note'),
       sitrepCpuTemp: document.getElementById('sitrep-cpu-temp'),
       sitrepGpuTemp: document.getElementById('sitrep-gpu-temp'),
       sitrepCpuUsage: document.getElementById('sitrep-cpu-usage'),
@@ -2923,6 +2934,13 @@
       return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
     }
 
+    function trimServiceNote(value, maxLen = 120) {
+      const text = String(value || '').trim();
+      if (!text) return '';
+      if (text.length <= maxLen) return text;
+      return `${text.slice(0, maxLen - 1)}…`;
+    }
+
     function getProfileLabel(target, id) {
       if (!id) return '--';
       const profiles = state[target]?.profiles || [];
@@ -3089,6 +3107,22 @@
       setServiceStatus('icecast', Boolean(state.icecastActive), state.icecastActive ? 'serving' : 'offline');
       setServiceStatus('vlc', Boolean(state.vlc.running), state.vlc.running ? 'playing' : 'stopped');
       setServiceStatus('adsb', Boolean(state.adsbLoaded), state.adsbLoaded ? 'linked' : 'pending');
+      if (els.serviceDigitalNote) {
+        const err = state.digital.lastError;
+        const warn = state.digital.lastWarning;
+        let note = '';
+        let tone = '';
+        if (err) {
+          note = `Error: ${trimServiceNote(err)}`;
+          tone = 'bad';
+        } else if (warn) {
+          note = `Warn: ${trimServiceNote(warn)}`;
+          tone = 'warn';
+        }
+        els.serviceDigitalNote.textContent = note;
+        els.serviceDigitalNote.classList.toggle('bad', tone === 'bad');
+        els.serviceDigitalNote.classList.toggle('warn', tone === 'warn');
+      }
 
       const hasStats = Boolean(state.systemStats);
       const stats = state.systemStats || {};
@@ -3703,6 +3737,7 @@
         state.digital.lastMode = data.digital_last_mode || '';
         state.digital.lastTime = Number.isFinite(data.digital_last_time) ? data.digital_last_time : 0;
         state.digital.lastError = data.digital_last_error || '';
+        state.digital.lastWarning = data.digital_last_warning || '';
         state.digital.muted = Boolean(data.digital_muted);
         state.digitalMixerActive = Boolean(data.digital_mixer_active);
         state.lastHitDigital = state.digital.lastLabel || '';
