@@ -200,6 +200,8 @@ def is_noise_group(name: str) -> bool:
         return True
     if "phase ii" in lower or "tdma" in lower or "fdma" in lower:
         return True
+    if lower.startswith("see "):
+        return True
     if re.search(r"\\b\\d{1,2}/\\d{1,2}\\b", lower):
         return True
     if len(name) > 70:
