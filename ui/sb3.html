@@ -942,6 +942,57 @@
       resize: vertical;
     }
 
+    .digital-listen {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      background: rgba(18, 22, 24, 0.6);
+    }
+
+    .digital-listen-toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .digital-listen-toolbar input,
+    .digital-listen-toolbar select {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 12px;
+    }
+
+    .digital-listen-list {
+      max-height: 280px;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg-panel);
+    }
+
+    .digital-listen-row {
+      display: grid;
+      grid-template-columns: 28px 70px 1fr 140px;
+      gap: 8px;
+      align-items: center;
+      padding: 6px 10px;
+      border-bottom: 1px solid rgba(20, 26, 33, 0.8);
+      font-size: 12px;
+    }
+
+    .digital-listen-row:last-child {
+      border-bottom: none;
+    }
+
+    .digital-listen-row .muted {
+      color: var(--text-secondary);
+    }
+
     .service-item.online {
       border-color: rgba(16, 185, 129, 0.5);
     }
@@ -1406,6 +1457,27 @@
                 <textarea id="digital-preview-text" rows="10" spellcheck="false" readonly></textarea>
               </div>
             </div>
+
+            <div class="digital-listen" id="digital-listen">
+              <div class="control-label" style="margin-bottom:8px;">
+                <span>Talkgroup Listen</span>
+                <span class="control-value" id="digital-listen-status"></span>
+              </div>
+              <div class="digital-listen-toolbar">
+                <input id="digital-listen-search" type="text" placeholder="Search TGID or tag">
+                <select id="digital-listen-filter">
+                  <option value="all">All</option>
+                  <option value="listen">Listening</option>
+                  <option value="muted">Muted</option>
+                </select>
+                <button class="action" id="digital-listen-load">Load</button>
+                <button class="action" id="digital-listen-save">Save</button>
+              </div>
+              <div class="digital-listen-list" id="digital-listen-list"></div>
+              <div class="control-applied" style="opacity:0.75;">
+                Listen flags only affect SB3 hit display for now (SDRTrunk still scans everything).
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1537,6 +1609,20 @@
               </div>
               <span class="service-dot"></span>
             </div>
+            <div class="service-item" data-service="digital">
+              <div>
+                <div class="service-name">Digital Decoder</div>
+                <div class="service-meta">Status: <span id="service-digital">--</span></div>
+              </div>
+              <span class="service-dot"></span>
+            </div>
+            <div class="service-item" data-service="mixer">
+              <div>
+                <div class="service-name">Digital Mixer</div>
+                <div class="service-meta">Status: <span id="service-mixer">--</span></div>
+              </div>
+              <span class="service-dot"></span>
+            </div>
             <div class="service-item" data-service="icecast">
               <div>
                 <div class="service-name">Icecast Audio</div>
@@ -1562,6 +1648,8 @@
           <div class="sitrep-actions">
             <button class="sitrep-btn" id="btn-restart-airband" type="button">Restart Airband</button>
             <button class="sitrep-btn" id="btn-restart-ground" type="button">Restart Ground</button>
+            <button class="sitrep-btn" id="btn-restart-digital" type="button">Restart Digital</button>
+            <button class="sitrep-btn" id="btn-restart-mixer" type="button">Restart Mixer</button>
             <button class="sitrep-btn" id="btn-restart-icecast" type="button">Restart Icecast</button>
             <button class="sitrep-btn" id="btn-restart-keepalive" type="button">Restart Keepalive</button>
             <button class="sitrep-btn danger" id="btn-restart-ui" type="button">Restart UI</button>
@@ -1632,6 +1720,10 @@
             <div class="config-row">
               <span class="config-label">Ground Filter</span>
               <span class="config-value" id="sitrep-filter-ground">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Audio Mounts</span>
+              <span class="config-value" id="sitrep-mounts">--</span>
             </div>
             <div class="config-row">
               <span class="config-label">Airband Heartbeat</span>
@@ -1709,6 +1801,11 @@
       sdr1Active: false,
       sdr2Active: false,
       icecastActive: false,
+      icecastMounts: [],
+      icecastExpectedMounts: [],
+      icecastPort: 8000,
+      streamMount: 'GND.mp3',
+      streamBaseUrl: '',
       sseConnected: false,
       adsbLoaded: false,
       combinedStale: false,
@@ -1723,7 +1820,7 @@
       lastHitGround: '',
       lastHitDigital: '',
       hits: [],
-      hold: { airband: null, ground: null },
+      hold: { airband: null, ground: null, digital: null },
       lastProfile: { airband: '', ground: '' },
       tuned: false,
       tunedFreq: null,
@@ -1783,9 +1880,18 @@
         profiles: [],
         activeProfile: '',
       },
+      digitalListen: {
+        items: [],
+        search: '',
+        filter: 'all',
+        dirty: false,
+        profile: '',
+      },
+      digitalMixerActive: false,
     };
 
     let digitalProfilesLoaded = false;
+    let digitalListenLoaded = false;
     
     // ============================================
     // ELEMENTS
@@ -1846,6 +1952,13 @@
       digitalPreviewStatus: document.getElementById('digital-preview-status'),
       digitalPreviewLoad: document.getElementById('digital-preview-load'),
       digitalPreviewToggle: document.getElementById('digital-preview-toggle'),
+      digitalListen: document.getElementById('digital-listen'),
+      digitalListenList: document.getElementById('digital-listen-list'),
+      digitalListenSearch: document.getElementById('digital-listen-search'),
+      digitalListenFilter: document.getElementById('digital-listen-filter'),
+      digitalListenLoad: document.getElementById('digital-listen-load'),
+      digitalListenSave: document.getElementById('digital-listen-save'),
+      digitalListenStatus: document.getElementById('digital-listen-status'),
       digitalStart: document.getElementById('digital-start'),
       digitalStop: document.getElementById('digital-stop'),
       digitalRestart: document.getElementById('digital-restart'),
@@ -1897,6 +2010,7 @@
       sitrepSquelchGround: document.getElementById('sitrep-squelch-ground'),
       sitrepFilterAirband: document.getElementById('sitrep-filter-airband'),
       sitrepFilterGround: document.getElementById('sitrep-filter-ground'),
+      sitrepMounts: document.getElementById('sitrep-mounts'),
       sitrepAirbandHeartbeat: document.getElementById('sitrep-airband-heartbeat'),
       sitrepGroundHeartbeat: document.getElementById('sitrep-ground-heartbeat'),
       sitrepAirbandDot: document.getElementById('sitrep-airband-dot'),
@@ -1917,6 +2031,8 @@
       activityLog: document.getElementById('activity-log'),
       btnRestartAirband: document.getElementById('btn-restart-airband'),
       btnRestartGround: document.getElementById('btn-restart-ground'),
+      btnRestartDigital: document.getElementById('btn-restart-digital'),
+      btnRestartMixer: document.getElementById('btn-restart-mixer'),
       btnRestartIcecast: document.getElementById('btn-restart-icecast'),
       btnRestartKeepalive: document.getElementById('btn-restart-keepalive'),
       btnRestartUi: document.getElementById('btn-restart-ui'),
@@ -1983,13 +2099,44 @@
       return r.json();
     }
 
+    async function postJSON(endpoint, payload) {
+      const r = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload || {}),
+      });
+      return r.json();
+    }
+
     function streamUrl() {
-      return `http://${location.hostname}:8000/GND.mp3`;
+      const port = Number.isFinite(state.icecastPort) ? state.icecastPort : 8000;
+      const mount = (state.streamMount || 'GND.mp3').replace(/^\/+/, '');
+      return `http://${location.hostname}:${port}/${mount}`;
+    }
+
+    function syncStreamLinks() {
+      const base = streamUrl();
+      if (els.lnkStream) {
+        els.lnkStream.href = base;
+      }
+      if (els.audioPlayer) {
+        const current = (els.audioPlayer.src || '').split('?')[0];
+        if (current !== base) {
+          const wasPaused = els.audioPlayer.paused;
+          els.audioPlayer.src = base;
+          els.audioPlayer.load();
+          if (!wasPaused) {
+            els.audioPlayer.play().catch(() => {});
+          }
+        }
+      }
+      state.streamBaseUrl = base;
     }
 
     function reloadAudioStream(reason) {
       if (!els.audioPlayer) return;
       const base = streamUrl();
+      state.streamBaseUrl = base;
       const url = `${base}?t=${Date.now()}`;
       const wasPaused = els.audioPlayer.paused;
       els.audioPlayer.src = url;
@@ -2173,13 +2320,18 @@
       const groundDisplay = getDisplayForTarget('ground');
       els.lastHitAirbandValue.textContent = airbandDisplay || '--';
       els.lastHitGroundValue.textContent = groundDisplay || '--';
-      const digitalLabel = formatDigitalLabel(state.lastHitDigital || state.digital.lastLabel || '');
+      const digitalHold = state.hold.digital;
+      const digitalRaw = (digitalHold && digitalHold.label) || state.lastHitDigital || state.digital.lastLabel || '';
+      const digitalLabel = formatDigitalLabel(digitalRaw);
       if (els.lastHitDigitalValue) {
         els.lastHitDigitalValue.textContent = digitalLabel || '--';
-        els.lastHitDigitalValue.title = state.lastHitDigital || state.digital.lastLabel || '';
+        els.lastHitDigitalValue.title = digitalRaw || '';
       }
       els.lastHitAirband.classList.toggle('holding', Boolean(state.hold.airband));
       els.lastHitGround.classList.toggle('holding', Boolean(state.hold.ground));
+      if (els.lastHitDigital) {
+        els.lastHitDigital.classList.toggle('holding', Boolean(state.hold.digital));
+      }
       updateSitrep();
     }
 
@@ -2324,6 +2476,15 @@
       return lines.join('\n');
     }
 
+    function escapeHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
     async function refreshDigitalProfiles(force=false) {
       if (digitalProfilesLoaded && !force) return;
       if (activeView !== 'digital' && !force) return;
@@ -2350,11 +2511,15 @@
       if (els.digitalDot) els.digitalDot.classList.toggle('active', Boolean(d.active));
       if (els.digitalBackend) els.digitalBackend.textContent = d.backend || '--';
       if (els.digitalProfile) els.digitalProfile.textContent = d.profile || d.activeProfile || '--';
-      if (els.digitalLastLabel) els.digitalLastLabel.textContent = d.lastLabel || '--';
-      if (els.digitalLastTime) els.digitalLastTime.textContent = formatTimeMs(d.lastTime);
+      const hold = state.hold.digital;
+      const label = (hold && hold.label) || d.lastLabel;
+      const timeMs = (hold && hold.timeMs) || d.lastTime;
+      const mode = (hold && hold.mode) || d.lastMode;
+      if (els.digitalLastLabel) els.digitalLastLabel.textContent = label || '--';
+      if (els.digitalLastTime) els.digitalLastTime.textContent = formatTimeMs(timeMs);
       if (els.digitalLastMode) {
-        if (d.lastMode) {
-          els.digitalLastMode.textContent = `Mode: ${d.lastMode}`;
+        if (mode) {
+          els.digitalLastMode.textContent = `Mode: ${mode}`;
           els.digitalLastMode.style.display = '';
         } else {
           els.digitalLastMode.textContent = '';
@@ -2494,6 +2659,116 @@
       }
     }
 
+    function setDigitalListenStatus(message, isError=false) {
+      if (!els.digitalListenStatus) return;
+      els.digitalListenStatus.textContent = message || '';
+      els.digitalListenStatus.style.color = isError ? '#f59e0b' : '';
+    }
+
+    function renderDigitalListenList() {
+      if (!els.digitalListenList) return;
+      if (els.digitalListenSearch && els.digitalListenSearch.value !== state.digitalListen.search) {
+        els.digitalListenSearch.value = state.digitalListen.search || '';
+      }
+      if (els.digitalListenFilter && els.digitalListenFilter.value !== state.digitalListen.filter) {
+        els.digitalListenFilter.value = state.digitalListen.filter || 'all';
+      }
+      const items = state.digitalListen.items || [];
+      if (!items.length) {
+        els.digitalListenList.innerHTML = '<div class="empty-state"><div class="icon">📻</div><div>Load talkgroups to edit Listen flags</div></div>';
+        setDigitalListenStatus('No talkgroups loaded', false);
+        return;
+      }
+      const search = (state.digitalListen.search || '').toLowerCase();
+      const filter = state.digitalListen.filter || 'all';
+      const filtered = items.filter((item) => {
+        const listen = Boolean(item.listen);
+        if (filter === 'listen' && !listen) return false;
+        if (filter === 'muted' && listen) return false;
+        if (!search) return true;
+        const hay = [
+          item.dec,
+          item.alpha,
+          item.description,
+          item.tag,
+          item.mode,
+        ].join(' ').toLowerCase();
+        return hay.includes(search);
+      });
+      const rows = filtered.map((item) => {
+        const listen = Boolean(item.listen);
+        const label = item.alpha || item.description || '';
+        const meta = item.tag || item.mode || '';
+        return `
+        <div class="digital-listen-row">
+          <input type="checkbox" data-dec="${escapeHtml(item.dec)}" ${listen ? 'checked' : ''}>
+          <div>${escapeHtml(item.dec || '--')}</div>
+          <div class="${listen ? '' : 'muted'}">${escapeHtml(label || '--')}</div>
+          <div class="${listen ? '' : 'muted'}">${escapeHtml(meta || '')}</div>
+        </div>
+        `;
+      }).join('');
+      els.digitalListenList.innerHTML = rows || '<div class="empty-state"><div class="icon">📻</div><div>No matches</div></div>';
+      const statusBits = [`${filtered.length}/${items.length}`];
+      if (state.digitalListen.dirty) statusBits.push('Unsaved');
+      setDigitalListenStatus(statusBits.join(' • '), false);
+    }
+
+    async function refreshDigitalListen(force=false) {
+      if (!els.digitalListenList) return;
+      if (digitalListenLoaded && !force) {
+        renderDigitalListenList();
+        return;
+      }
+      if (activeView !== 'digital' && !force) return;
+      const profileId = state.digital.activeProfile || state.digital.profile;
+      if (!profileId) {
+        setDigitalListenStatus('Select a profile first', true);
+        return;
+      }
+      setDigitalListenStatus('Loading...', false);
+      try {
+        const res = await fetchJSON(`/api/digital/talkgroups?profileId=${encodeURIComponent(profileId)}`);
+        if (!res || res.ok === false) {
+          setDigitalListenStatus((res && res.error) || 'Load failed', true);
+          return;
+        }
+        state.digitalListen.items = res.items || [];
+        state.digitalListen.profile = profileId;
+        state.digitalListen.dirty = false;
+        digitalListenLoaded = true;
+        renderDigitalListenList();
+      } catch (e) {
+        setDigitalListenStatus('Load failed', true);
+      }
+    }
+
+    async function saveDigitalListen() {
+      if (!els.digitalListenList) return;
+      const profileId = state.digitalListen.profile || state.digital.activeProfile || state.digital.profile;
+      if (!profileId) {
+        setDigitalListenStatus('Select a profile first', true);
+        return;
+      }
+      setDigitalListenStatus('Saving...', false);
+      try {
+        const items = (state.digitalListen.items || []).map((item) => ({
+          dec: item.dec,
+          listen: Boolean(item.listen),
+        }));
+        const res = await postJSON('/api/digital/talkgroups/listen', { profileId, items });
+        if (!res || !res.ok) {
+          setDigitalListenStatus((res && res.error) || 'Save failed', true);
+          return;
+        }
+        state.digitalListen.dirty = false;
+        setDigitalListenStatus('Saved', false);
+        renderDigitalListenList();
+      } catch (e) {
+        setDigitalListenStatus('Save failed', true);
+      }
+    }
+
     function setManageStatus(message, isError=false) {
       if (!els.manageStatus) return;
       els.manageStatus.textContent = message || '';
@@ -2515,13 +2790,20 @@
         return;
       }
       
-      const rows = state.hits.slice(0, 50).map(hit => `
+      const rows = state.hits.slice(0, 50).map(hit => {
+        const label = (hit.label || hit.freq || '--');
+        const labelText = String(label || '').trim();
+        const isNumeric = /^[0-9]+(\.[0-9]+)?$/.test(labelText);
+        const freqText = isNumeric ? `${formatFreq(labelText)} MHz` : (labelText || '--');
+        const durationText = hit.duration ? `${hit.duration}s` : (hit.mode ? hit.mode : '--');
+        return `
         <div class="hit-row">
           <div class="time">${hit.time || '--'}</div>
-          <div class="freq">${formatFreq(hit.freq)} MHz</div>
-          <div class="duration">${hit.duration ? hit.duration + 's' : '--'}</div>
+          <div class="freq">${freqText}</div>
+          <div class="duration">${durationText}</div>
         </div>
-      `).join('');
+      `;
+      }).join('');
       
       els.hitList.innerHTML = header + rows;
     }
@@ -2679,7 +2961,8 @@
 
       const holdAir = state.hold.airband ? state.hold.airband : '--';
       const holdGround = state.hold.ground ? state.hold.ground : '--';
-      if (els.sitrepHold) els.sitrepHold.textContent = `AIR ${holdAir} / GND ${holdGround}`;
+      const holdDigital = state.hold.digital ? formatDigitalLabel(state.hold.digital.label) : '--';
+      if (els.sitrepHold) els.sitrepHold.textContent = `AIR ${holdAir} / GND ${holdGround} / DIG ${holdDigital}`;
 
       if (els.sitrepAirbandProfile) {
         els.sitrepAirbandProfile.textContent = getProfileLabel('airband', state.airband.currentProfile);
@@ -2712,6 +2995,19 @@
       }
       if (els.sitrepFilterGround) {
         els.sitrepFilterGround.textContent = Number.isFinite(state.ground.filter) ? `${state.ground.filter} Hz` : '--';
+      }
+      if (els.sitrepMounts) {
+        const mounts = state.icecastMounts || [];
+        const expected = state.icecastExpectedMounts || [];
+        if (!expected.length) {
+          els.sitrepMounts.textContent = mounts.length ? mounts.join(', ') : '--';
+        } else {
+          const display = expected.map((m) => {
+            const label = m.replace(/^\//, '');
+            return mounts.includes(m) ? label : `${label} ✗`;
+          });
+          els.sitrepMounts.textContent = display.join('  ');
+        }
       }
 
       const now = Date.now();
@@ -2748,7 +3044,7 @@
         els.sitrepGroundDot.classList.toggle('active', Boolean(state.sdr2Active));
       }
 
-      const tuneMode = state.tuned ? 'Direct Tune' : (state.hold.airband || state.hold.ground ? 'Hold' : 'Scan');
+      const tuneMode = state.tuned ? 'Direct Tune' : (state.hold.airband || state.hold.ground || state.hold.digital ? 'Hold' : 'Scan');
       if (els.sitrepTuneMode) els.sitrepTuneMode.textContent = tuneMode;
 
       if (els.sitrepConnection) {
@@ -2759,7 +3055,10 @@
       }
 
       if (els.sitrepStream) {
-        const ok = Boolean(state.icecastActive);
+        const mounts = state.icecastMounts || [];
+        const expected = state.icecastExpectedMounts || [];
+        const mountsOk = expected.length ? expected.every(m => mounts.includes(m)) : true;
+        const ok = Boolean(state.icecastActive) && mountsOk;
         els.sitrepStream.textContent = ok ? 'Audio stream online' : 'Audio stream offline';
         els.sitrepStream.classList.toggle('good', ok);
         els.sitrepStream.classList.toggle('bad', !ok);
@@ -2777,6 +3076,8 @@
       setServiceStatus('sse', Boolean(state.sseConnected), state.sseConnected ? 'streaming' : 'down');
       setServiceStatus('airband', Boolean(state.sdr1Active), state.sdr1Active ? 'scanning' : 'idle');
       setServiceStatus('ground', Boolean(state.sdr2Active), state.sdr2Active ? 'scanning' : 'idle');
+      setServiceStatus('digital', Boolean(state.digital.active), state.digital.active ? 'running' : 'stopped');
+      setServiceStatus('mixer', Boolean(state.digitalMixerActive), state.digitalMixerActive ? 'mixing' : 'stopped');
       setServiceStatus('icecast', Boolean(state.icecastActive), state.icecastActive ? 'serving' : 'offline');
       setServiceStatus('vlc', Boolean(state.vlc.running), state.vlc.running ? 'playing' : 'stopped');
       setServiceStatus('adsb', Boolean(state.adsbLoaded), state.adsbLoaded ? 'linked' : 'pending');
@@ -2862,6 +3163,8 @@
       const btnMap = {
         airband: els.btnRestartAirband,
         ground: els.btnRestartGround,
+        digital: els.btnRestartDigital,
+        mixer: els.btnRestartMixer,
         icecast: els.btnRestartIcecast,
         keepalive: els.btnRestartKeepalive,
         ui: els.btnRestartUi,
@@ -2978,6 +3281,7 @@
       } else {
         updateDigitalUI();
         refreshDigitalProfiles(true);
+        refreshDigitalListen(true);
       }
       updateTuneButton();
     }
@@ -3097,10 +3401,38 @@
     // ============================================
     
     async function toggleHoldFor(target) {
+      if (target === 'digital') {
+        if (state.hold.digital) {
+          state.hold.digital = null;
+          updateStatus();
+          updateDigitalUI();
+          logActivity('Hold released: Digital', 'info', 'hold-stop-digital');
+          return;
+        }
+        const label = (state.digital.lastLabel || state.lastHitDigital || '').trim();
+        if (!label) {
+          return;
+        }
+        const timeMs = Number.isFinite(state.digital.lastTime) && state.digital.lastTime > 0
+          ? state.digital.lastTime
+          : Date.now();
+        state.hold.digital = {
+          label,
+          timeMs,
+          mode: state.digital.lastMode || '',
+        };
+        updateStatus();
+        updateDigitalUI();
+        logActivity(`Hold engaged: Digital ${label}`, 'info', `hold-start-digital-${label}`);
+        return;
+      }
       // Release current hold for this target
       if (state.hold[target]) {
         const label = target === 'airband' ? 'Airband' : 'Ground';
         state.hold[target] = null;
+        if (state.streamBaseUrl !== streamUrl()) {
+          syncStreamLinks();
+        }
         updateStatus();
         try {
           await postAPI('/api/hold', { target, action: 'stop' });
@@ -3311,6 +3643,17 @@
         if (state.sdr1Active) state.sdr1LastSeen = state.lastStatusTick;
         if (state.sdr2Active) state.sdr2LastSeen = state.lastStatusTick;
         state.icecastActive = data.icecast_active;
+        state.icecastMounts = Array.isArray(data.icecast_mounts) ? data.icecast_mounts : [];
+        state.icecastExpectedMounts = Array.isArray(data.icecast_expected_mounts)
+          ? data.icecast_expected_mounts
+          : [];
+        const port = Number(data.icecast_port);
+        if (Number.isFinite(port)) {
+          state.icecastPort = port;
+        }
+        if (typeof data.stream_mount === 'string' && data.stream_mount.trim()) {
+          state.streamMount = data.stream_mount.trim();
+        }
         state.lastHit = data.last_hit || data.last_hit_airband || data.last_hit_ground || '';
         state.lastHitAirband = data.last_hit_airband || '';
         state.lastHitGround = data.last_hit_ground || '';
@@ -3353,7 +3696,24 @@
         state.digital.lastTime = Number.isFinite(data.digital_last_time) ? data.digital_last_time : 0;
         state.digital.lastError = data.digital_last_error || '';
         state.digital.muted = Boolean(data.digital_muted);
+        state.digitalMixerActive = Boolean(data.digital_mixer_active);
         state.lastHitDigital = state.digital.lastLabel || '';
+        {
+          const activeProfile = state.digital.activeProfile || state.digital.profile;
+          if (activeProfile) {
+            if (activeProfile !== state.digitalListen.profile) {
+              state.digitalListen.profile = activeProfile;
+              state.digitalListen.items = [];
+              state.digitalListen.dirty = false;
+              digitalListenLoaded = false;
+            }
+          } else if (state.digitalListen.profile) {
+            state.digitalListen.profile = '';
+            state.digitalListen.items = [];
+            state.digitalListen.dirty = false;
+            digitalListenLoaded = false;
+          }
+        }
         
         state.serverTime = data.server_time;
         
@@ -3370,6 +3730,7 @@
         updateCounters();
         updateTuneButton();
         refreshDigitalProfiles();
+        refreshDigitalListen();
       } catch (e) {
         if (wasConnected) {
           logActivity('API connection lost', 'warn', 'api-down');
@@ -3400,7 +3761,9 @@
         if (!state.sseConnected && newHits.length > 0) {
           const topHit = newHits[0];
           if (topHit && topHit.time && topHit.time !== prevTop) {
-            const label = `${formatFreq(topHit.freq)} MHz`;
+            const raw = String(topHit.label || topHit.freq || '').trim();
+            const isNumeric = /^[0-9]+(\.[0-9]+)?$/.test(raw);
+            const label = isNumeric ? `${formatFreq(raw)} MHz` : (raw || '--');
             const detail = topHit.duration ? ` ${topHit.duration}s` : '';
             logActivity(`Hit ${label}${detail}`, 'info', `poll-hit-${topHit.time}-${topHit.freq}`);
           }
@@ -3475,7 +3838,9 @@
             updateCounters();
             updateStatus();
             if (topHit && topHit.freq) {
-              const label = `${formatFreq(topHit.freq)} MHz`;
+              const raw = String(topHit.label || topHit.freq || '').trim();
+              const isNumeric = /^[0-9]+(\.[0-9]+)?$/.test(raw);
+              const label = isNumeric ? `${formatFreq(raw)} MHz` : (raw || '--');
               const detail = topHit.duration ? ` ${topHit.duration}s` : '';
               logActivity(`Hit ${label}${detail}`, 'info', `hit-${topHit.time}-${topHit.freq}`);
             }
@@ -3531,12 +3896,7 @@
       setupCollapsibleWidgets();
       updateTuneButton();
 
-      if (els.audioPlayer) {
-        els.audioPlayer.src = streamUrl();
-      }
-      if (els.lnkStream) {
-        els.lnkStream.href = streamUrl();
-      }
+      syncStreamLinks();
       refreshVlcStatus();
       
       els.gainSlider.addEventListener('input', onGainChange);
@@ -3546,7 +3906,7 @@
       els.lastHitGround.addEventListener('click', () => toggleHoldFor('ground'));
       if (els.lastHitDigital) {
         els.lastHitDigital.addEventListener('click', () => {
-          // No tune/hold behavior for digital; keep for future actions.
+          toggleHoldFor('digital');
         });
       }
       if (els.logoToggle) {
@@ -3630,6 +3990,40 @@
       }
       if (els.digitalPreviewLoad) {
         els.digitalPreviewLoad.addEventListener('click', loadDigitalPreview);
+      }
+      if (els.digitalListenLoad) {
+        els.digitalListenLoad.addEventListener('click', () => refreshDigitalListen(true));
+      }
+      if (els.digitalListenSave) {
+        els.digitalListenSave.addEventListener('click', saveDigitalListen);
+      }
+      if (els.digitalListenSearch) {
+        els.digitalListenSearch.addEventListener('input', (e) => {
+          state.digitalListen.search = e.target.value || '';
+          renderDigitalListenList();
+        });
+      }
+      if (els.digitalListenFilter) {
+        els.digitalListenFilter.addEventListener('change', (e) => {
+          state.digitalListen.filter = e.target.value || 'all';
+          renderDigitalListenList();
+        });
+      }
+      if (els.digitalListenList) {
+        els.digitalListenList.addEventListener('change', (e) => {
+          const target = e.target;
+          if (!target || target.tagName !== 'INPUT') return;
+          const dec = target.getAttribute('data-dec');
+          if (!dec) return;
+          const items = state.digitalListen.items || [];
+          const item = items.find((row) => String(row.dec) === String(dec));
+          if (!item) return;
+          item.listen = target.checked;
+          state.digitalListen.dirty = true;
+          const scrollTop = els.digitalListenList.scrollTop;
+          renderDigitalListenList();
+          els.digitalListenList.scrollTop = scrollTop;
+        });
       }
       const adsbFrame = document.getElementById('adsb-frame');
       if (adsbFrame) {
@@ -3727,6 +4121,12 @@
       }
       if (els.btnRestartGround) {
         els.btnRestartGround.addEventListener('click', () => restartService('ground', 'Ground'));
+      }
+      if (els.btnRestartDigital) {
+        els.btnRestartDigital.addEventListener('click', () => restartService('digital', 'Digital'));
+      }
+      if (els.btnRestartMixer) {
+        els.btnRestartMixer.addEventListener('click', () => restartService('mixer', 'Mixer'));
       }
       if (els.btnRestartIcecast) {
         els.btnRestartIcecast.addEventListener('click', () => restartService('icecast', 'Icecast'));

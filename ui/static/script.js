@@ -30,6 +30,8 @@ const audioAirbandEl = document.getElementById('audio-airband');
 const audioGroundEl = document.getElementById('audio-ground');
 const lnkStreamAirbandEl = document.getElementById('lnk-stream-airband');
 const lnkStreamGroundEl = document.getElementById('lnk-stream-ground');
+const mountAirbandEl = document.getElementById('mount-name-airband');
+const mountGroundEl = document.getElementById('mount-name-ground');
 const digitalDotEl = document.getElementById('digital-dot');
 const digitalStatusEl = document.getElementById('digital-status');
 const digitalBackendEl = document.getElementById('digital-backend');
@@ -65,6 +67,9 @@ let profilesCacheAt = 0;
 let digitalProfilesCache = null;
 let digitalProfilesCacheAt = 0;
 let digitalMuted = false;
+let streamMount = 'GND.mp3';
+let icecastPort = 8000;
+let streamBaseUrl = '';
 
 const controlTargets = {
   airband: {
@@ -312,7 +317,27 @@ function buildProfiles(profilesEl, profiles, selected, target) {
 }
 
 function streamUrl() {
-  return `http://${location.hostname}:8000/GND.mp3`;
+  const mount = (streamMount || 'GND.mp3').replace(/^\/+/, '');
+  return `http://${location.hostname}:${icecastPort}/${mount}`;
+}
+
+function syncStreamLinks() {
+  const base = streamUrl();
+  streamBaseUrl = base;
+  if (audioAirbandEl) audioAirbandEl.src = base;
+  if (audioGroundEl) audioGroundEl.src = base;
+  if (lnkStreamAirbandEl) {
+    lnkStreamAirbandEl.href = base;
+    lnkStreamAirbandEl.target = '_blank';
+    lnkStreamAirbandEl.rel = 'noopener';
+  }
+  if (lnkStreamGroundEl) {
+    lnkStreamGroundEl.href = base;
+    lnkStreamGroundEl.target = '_blank';
+    lnkStreamGroundEl.rel = 'noopener';
+  }
+  if (mountAirbandEl) mountAirbandEl.textContent = streamMount || 'GND.mp3';
+  if (mountGroundEl) mountGroundEl.textContent = streamMount || 'GND.mp3';
 }
 
 async function getJSON(url) {
@@ -434,6 +459,17 @@ async function refreshProfiles() {
 
 async function refresh(allowSetSliders=false) {
   const st = await getJSON('/api/status');
+  const port = Number(st.icecast_port);
+  if (Number.isFinite(port)) {
+    icecastPort = port;
+  }
+  if (typeof st.stream_mount === 'string' && st.stream_mount.trim()) {
+    streamMount = st.stream_mount.trim();
+  }
+  const base = streamUrl();
+  if (streamBaseUrl !== base) {
+    syncStreamLinks();
+  }
 
   const airbandHit = formatHitLabel(st.last_hit_airband) || '—';
   const groundHit = formatHitLabel(st.last_hit_ground) || '—';
@@ -537,18 +573,7 @@ wireControls('airband');
 wireControls('ground');
 
 // Wire embedded players
-if (audioAirbandEl) audioAirbandEl.src = streamUrl();
-if (audioGroundEl) audioGroundEl.src = streamUrl();
-if (lnkStreamAirbandEl) {
-  lnkStreamAirbandEl.href = streamUrl();
-  lnkStreamAirbandEl.target = '_blank';
-  lnkStreamAirbandEl.rel = 'noopener';
-}
-if (lnkStreamGroundEl) {
-  lnkStreamGroundEl.href = streamUrl();
-  lnkStreamGroundEl.target = '_blank';
-  lnkStreamGroundEl.rel = 'noopener';
-}
+syncStreamLinks();
 if (manageTargetAirbandEl) manageTargetAirbandEl.addEventListener('change', refreshManageCloneOptions);
 if (manageTargetGroundEl) manageTargetGroundEl.addEventListener('change', refreshManageCloneOptions);
 if (manageTargetAirbandEl) manageTargetAirbandEl.addEventListener('change', refreshEditProfileOptions);
@@ -851,8 +876,7 @@ pagerEl.addEventListener('touchend', (event) => {
 }, {passive: true});
 
 document.getElementById('btn-play').addEventListener('click', ()=> {
-  const url = `http://${location.hostname}:8000/GND.mp3`;
-  window.open(url, '_blank', 'noopener');
+  window.open(streamUrl(), '_blank', 'noopener');
 });
 
 async function showHitList() {

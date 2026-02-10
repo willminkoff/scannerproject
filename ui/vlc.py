@@ -1,7 +1,12 @@
 """VLC playback control for the local Icecast stream."""
 import subprocess
 
-STREAM_URL = "http://localhost:8000/GND.mp3"
+try:
+    from .config import ICECAST_HOST, ICECAST_PORT, PLAYER_MOUNT
+except ImportError:
+    from ui.config import ICECAST_HOST, ICECAST_PORT, PLAYER_MOUNT
+
+STREAM_URL = f"http://{ICECAST_HOST}:{ICECAST_PORT}/{PLAYER_MOUNT}"
 
 
 def start_vlc(stream_url: str = STREAM_URL):

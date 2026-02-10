@@ -132,7 +132,12 @@ def restart_ui() -> Tuple[bool, str]:
 
 def restart_digital() -> Tuple[bool, str]:
     """Restart the digital backend service."""
-    return _restart_unit(UNITS["digital"])
+    return _restart_unit(UNITS["digital"], use_sudo=True)
+
+
+def restart_digital_mixer() -> Tuple[bool, str]:
+    """Restart the digital mixer service."""
+    return _restart_unit(UNITS["digital_mixer"], use_sudo=True)
 
 
 def stop_rtl():

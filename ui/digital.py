@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import csv
 import os
 import re
 import subprocess
@@ -30,7 +31,11 @@ except ImportError:
 
 _NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@-]{0,127}$")
 _MODE_RE = re.compile(r"\b(P25|P25P1|P25P2|DMR|NXDN|D-STAR|TETRA|YSF|EDACS|LTR)\b", re.I)
-_LABEL_RE = re.compile(r"\b(label|alias|name|talkgroup|tgid|channel)[=:]\s*([^|]+)", re.I)
+_PHASE1_RE = re.compile(r"\bP25\s*Phase\s*1\b", re.I)
+_PHASE2_RE = re.compile(r"\bP25\s*Phase\s*2\b", re.I)
+_LABEL_RE = re.compile(r"\b(label|alias|alpha\s*tag|name|talkgroup|tgid|channel|group)[=:]\s*([^|,]+)", re.I)
+_TGID_RE = re.compile(r"\b(?:tgid|talkgroup|tg)\b[=: ]+(\d+)\b", re.I)
+_EVENT_HINT_RE = re.compile(r"(call|voice|traffic|talkgroup|tgid|alias|alpha\s*tag|channel\s*event|from:|to:)", re.I)
 _TS_RE = re.compile(r"(?P<date>\d{4}-\d{2}-\d{2})[ T](?P<time>\d{2}:\d{2}:\d{2})")
 _TS_COMPACT_RE = re.compile(r"(?P<date>\d{8})\s+(?P<time>\d{6})(?:\.\d+)?")
 _LOG_PREFIX_RE = re.compile(r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?\s+")
@@ -43,6 +48,7 @@ _DEFAULT_PROFILE_NOTE = (
     "Export or copy your SDRTrunk configuration into this folder.\n"
     "Then set this profile active from the UI or by updating the active symlink.\n"
 )
+_LISTEN_FILENAME = "talkgroups_listen.json"
 
 
 def validate_digital_profile_id(profile_id: str) -> bool:
@@ -127,18 +133,59 @@ def _strip_log_prefix(line: str) -> str:
 def _extract_label_mode(line: str):
     line = _strip_log_prefix(line or "")
     if not line:
-        return "", ""
+        return "", "", False
     label = ""
     mode = ""
+    label_from_field = False
     m_label = _LABEL_RE.search(line)
     if m_label:
         label = m_label.group(2).strip().strip('"')
-    m_mode = _MODE_RE.search(line)
-    if m_mode:
-        mode = m_mode.group(1).upper()
+        label_from_field = True
+    m_tg = _TGID_RE.search(line)
+    if not label and m_tg:
+        label = f"TG {m_tg.group(1)}"
+        label_from_field = True
+    if _PHASE2_RE.search(line):
+        mode = "P25P2"
+    elif _PHASE1_RE.search(line):
+        mode = "P25P1"
+    else:
+        m_mode = _MODE_RE.search(line)
+        if m_mode:
+            mode = m_mode.group(1).upper()
     if not label:
         label = line
-    return label, mode
+    return label, mode, label_from_field
+
+
+def _extract_event_from_line(line: str, fallback_ms: int) -> dict | None:
+    raw = (line or "").strip()
+    if not raw:
+        return None
+    stripped = _strip_log_prefix(raw)
+    if not stripped:
+        return None
+    label, mode, label_from_field = _extract_label_mode(stripped)
+    if not label:
+        return None
+    if not (label_from_field or _EVENT_HINT_RE.search(stripped)):
+        return None
+    time_ms = _parse_time_ms(raw, fallback_ms)
+    event = {"label": label, "timeMs": time_ms, "raw": stripped}
+    if mode:
+        event["mode"] = mode
+    return event
+
+
+def _extract_tgid(text: str) -> str:
+    if not text:
+        return ""
+    m = _TGID_RE.search(text)
+    if m:
+        return m.group(1)
+    if text.strip().isdigit():
+        return text.strip()
+    return ""
 
 
 def _write_mute_state(muted: bool) -> None:
@@ -285,6 +332,111 @@ def inspect_digital_profile(profile_id: str, max_files: int = 200, max_depth: in
     return True, payload
 
 
+def _get_profile_dir(profile_id: str):
+    pid = _normalize_name(profile_id)
+    if not validate_digital_profile_id(pid):
+        return "", "invalid profileId"
+    base, target = _digital_profile_paths(pid)
+    if not base:
+        return "", "profiles dir not configured"
+    if not target.startswith(base + os.sep):
+        return "", "invalid profile path"
+    if not os.path.isdir(target):
+        return "", "profile not found"
+    return target, ""
+
+
+def read_digital_talkgroups(profile_id: str, max_rows: int = 5000):
+    profile_dir, err = _get_profile_dir(profile_id)
+    if err:
+        return False, err
+    candidates = ("talkgroups.csv", "talkgroups_with_group.csv")
+    path = ""
+    for name in candidates:
+        candidate = os.path.join(profile_dir, name)
+        if os.path.isfile(candidate):
+            path = candidate
+            break
+    if not path:
+        return False, "talkgroups file not found"
+
+    listen_map = {}
+    listen_path = os.path.join(profile_dir, _LISTEN_FILENAME)
+    if os.path.isfile(listen_path):
+        try:
+            with open(listen_path, "r", encoding="utf-8", errors="ignore") as f:
+                payload = json.load(f) or {}
+            if isinstance(payload, dict):
+                items = payload.get("items")
+                if isinstance(items, dict):
+                    listen_map = {str(k): bool(v) for k, v in items.items()}
+        except Exception:
+            listen_map = {}
+
+    items = []
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if not row:
+                    continue
+                row_norm = {str(k or "").strip().lower(): str(v or "").strip() for k, v in row.items()}
+                dec = row_norm.get("dec") or row_norm.get("decimal") or ""
+                if not dec.isdigit():
+                    continue
+                item = {
+                    "dec": dec,
+                    "hex": row_norm.get("hex") or "",
+                    "mode": row_norm.get("mode") or "",
+                    "alpha": row_norm.get("alpha tag") or row_norm.get("alpha_tag") or "",
+                    "description": row_norm.get("description") or "",
+                    "tag": row_norm.get("tag") or "",
+                }
+                if listen_map:
+                    item["listen"] = bool(listen_map.get(dec, True))
+                else:
+                    item["listen"] = True
+                items.append(item)
+                if len(items) >= max_rows:
+                    break
+    except Exception as e:
+        return False, str(e)
+
+    return True, {
+        "ok": True,
+        "profileId": _normalize_name(profile_id),
+        "items": items,
+        "source": os.path.basename(path),
+    }
+
+
+def write_digital_listen(profile_id: str, items: list):
+    profile_dir, err = _get_profile_dir(profile_id)
+    if err:
+        return False, err
+    listen_path = os.path.join(profile_dir, _LISTEN_FILENAME)
+    mapping = {}
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        dec = str(item.get("dec") or "").strip()
+        if not dec.isdigit():
+            continue
+        mapping[dec] = bool(item.get("listen"))
+    payload = {
+        "updated": int(time.time()),
+        "items": mapping,
+    }
+    try:
+        tmp = listen_path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, sort_keys=True)
+        os.replace(tmp, listen_path)
+    except Exception as e:
+        return False, str(e)
+    return True, ""
+
+
 class DigitalAdapter:
     """Interface for digital backends."""
     name = "base"
@@ -316,6 +468,9 @@ class DigitalAdapter:
     def getLastError(self):
         raise NotImplementedError
 
+    def getRecentEvents(self, limit: int = 20):
+        raise NotImplementedError
+
 
 class _BaseDigitalAdapter(DigitalAdapter):
     """Shared in-memory state for adapters."""
@@ -325,6 +480,9 @@ class _BaseDigitalAdapter(DigitalAdapter):
         self._last_event = None
         self._last_error = ""
         self._last_event_time_ms = 0
+        self._recent_events = []
+        self._recent_event_keys = set()
+        self._recent_limit = 50
 
     def _set_last_error(self, msg: str):
         self._last_error = (msg or "").strip()
@@ -343,6 +501,31 @@ class _BaseDigitalAdapter(DigitalAdapter):
             event["raw"] = raw
         self._last_event = event
         self._last_event_time_ms = int(event.get("timeMs") or 0)
+
+    def _record_event(self, event: dict) -> None:
+        if not event:
+            return
+        key = f"{event.get('timeMs')}|{event.get('label')}|{event.get('mode','')}"
+        if key in self._recent_event_keys:
+            return
+        event = dict(event)
+        event["_key"] = key
+        self._recent_event_keys.add(key)
+        self._recent_events.append(event)
+        if len(self._recent_events) > self._recent_limit:
+            old = self._recent_events.pop(0)
+            old_key = old.get("_key")
+            if old_key:
+                self._recent_event_keys.discard(old_key)
+
+    def getRecentEvents(self, limit: int = 20):
+        items = list(self._recent_events)[-max(1, limit):]
+        cleaned = []
+        for item in items:
+            item = dict(item)
+            item.pop("_key", None)
+            cleaned.append(item)
+        return cleaned
 
     def getLastEvent(self):
         if self._last_event:
@@ -384,6 +567,9 @@ class NullDigitalAdapter(_BaseDigitalAdapter):
     def setProfile(self, profileId: str):
         return False, self._reason
 
+    def getRecentEvents(self, limit: int = 20):
+        return []
+
 
 class SdrtrunkAdapter(_BaseDigitalAdapter):
     """Systemd-backed adapter for sdrtrunk."""
@@ -397,6 +583,12 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         self._log_path = DIGITAL_LOG_PATH
         self._last_log_mtime = None
         self._last_log_size = None
+        self._tg_map = {}
+        self._tg_map_profile = ""
+        self._tg_map_mtime = None
+        self._listen_map = {}
+        self._listen_map_profile = ""
+        self._listen_map_mtime = None
         if not validate_digital_service_name(self._service_name):
             self._set_last_error("invalid digital service name")
 
@@ -450,6 +642,21 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         lines = _read_tail_lines(self._log_path)
         if not lines:
             return
+        fallback_ms = int(mtime * 1000) if mtime else int(time.time() * 1000)
+        events = []
+        for line in lines:
+            event = _extract_event_from_line(line, fallback_ms)
+            if event:
+                mapped = self._map_event_label(event)
+                if mapped and mapped.get("muted"):
+                    continue
+                events.append(mapped)
+        if events:
+            for event in events:
+                self._record_event(event)
+            latest = max(events, key=lambda item: item.get("timeMs", 0))
+            self._last_event = latest
+            self._last_event_time_ms = int(latest.get("timeMs") or fallback_ms)
         # Last error (best-effort)
         last_err = None
         for line in reversed(lines):
@@ -459,7 +666,9 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         if last_err:
             self._set_last_error(last_err)
 
-        # Last event (best-effort)
+        if self._last_event:
+            return
+        # Last event fallback: use last non-empty line
         last_line = ""
         for line in reversed(lines):
             if line.strip():
@@ -467,12 +676,12 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 break
         if not last_line:
             return
-        fallback_ms = int(mtime * 1000) if mtime else int(time.time() * 1000)
         time_ms = _parse_time_ms(last_line, fallback_ms)
-        label, mode = _extract_label_mode(last_line)
+        label, mode, _ = _extract_label_mode(last_line)
         event = {"label": label, "timeMs": time_ms, "raw": last_line}
         if mode:
             event["mode"] = mode
+        event = self._map_event_label(event)
         self._last_event = event
         self._last_event_time_ms = time_ms
 
@@ -540,6 +749,137 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             return os.path.basename(target)
         return ""
 
+    def _read_active_profile_dir(self) -> str:
+        link = self._active_link
+        if not link or not os.path.islink(link):
+            return ""
+        try:
+            target = _safe_realpath(link)
+        except Exception:
+            return ""
+        if target and os.path.isdir(target):
+            return target
+        return ""
+
+    def _load_talkgroup_map(self) -> dict:
+        profile_dir = self._read_active_profile_dir()
+        if not profile_dir:
+            self._tg_map = {}
+            self._tg_map_profile = ""
+            self._tg_map_mtime = None
+            return self._tg_map
+        if profile_dir == self._tg_map_profile and self._tg_map_mtime:
+            try:
+                if os.path.getmtime(self._tg_map_mtime[0]) == self._tg_map_mtime[1]:
+                    return self._tg_map
+            except Exception:
+                pass
+        candidates = ["talkgroups.csv", "talkgroups_with_group.csv"]
+        path = ""
+        for name in candidates:
+            candidate = os.path.join(profile_dir, name)
+            if os.path.isfile(candidate):
+                path = candidate
+                break
+        if not path:
+            self._tg_map = {}
+            self._tg_map_profile = profile_dir
+            self._tg_map_mtime = None
+            return self._tg_map
+        try:
+            mtime = os.path.getmtime(path)
+        except Exception:
+            mtime = None
+        if self._tg_map_profile == profile_dir and self._tg_map_mtime and self._tg_map_mtime[0] == path:
+            if mtime == self._tg_map_mtime[1]:
+                return self._tg_map
+        tg_map = {}
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    if not row:
+                        continue
+                    row_norm = {str(k or "").strip().lower(): str(v or "").strip() for k, v in row.items()}
+                    dec = row_norm.get("dec") or row_norm.get("decimal") or ""
+                    if not dec.isdigit():
+                        continue
+                    alpha = row_norm.get("alpha tag") or row_norm.get("alpha_tag") or ""
+                    desc = row_norm.get("description") or ""
+                    label = alpha or desc
+                    if label:
+                        tg_map[dec] = label
+        except Exception:
+            tg_map = {}
+        self._tg_map = tg_map
+        self._tg_map_profile = profile_dir
+        self._tg_map_mtime = (path, mtime)
+        return self._tg_map
+
+    def _load_listen_map(self) -> dict:
+        profile_dir = self._read_active_profile_dir()
+        if not profile_dir:
+            self._listen_map = {}
+            self._listen_map_profile = ""
+            self._listen_map_mtime = None
+            return self._listen_map
+        listen_path = os.path.join(profile_dir, _LISTEN_FILENAME)
+        if not os.path.isfile(listen_path):
+            self._listen_map = {}
+            self._listen_map_profile = profile_dir
+            self._listen_map_mtime = None
+            return self._listen_map
+        try:
+            mtime = os.path.getmtime(listen_path)
+        except Exception:
+            mtime = None
+        if self._listen_map_profile == profile_dir and self._listen_map_mtime and self._listen_map_mtime[0] == listen_path:
+            if mtime == self._listen_map_mtime[1]:
+                return self._listen_map
+        mapping = {}
+        try:
+            with open(listen_path, "r", encoding="utf-8", errors="ignore") as f:
+                payload = json.load(f) or {}
+            if isinstance(payload, dict):
+                items = payload.get("items")
+                if isinstance(items, dict):
+                    mapping = {str(k): bool(v) for k, v in items.items()}
+        except Exception:
+            mapping = {}
+        self._listen_map = mapping
+        self._listen_map_profile = profile_dir
+        self._listen_map_mtime = (listen_path, mtime)
+        return self._listen_map
+
+    def _map_event_label(self, event: dict) -> dict:
+        if not event:
+            return event
+        label = str(event.get("label") or "").strip()
+        raw = str(event.get("raw") or "")
+        tg_map = self._load_talkgroup_map()
+        if not tg_map:
+            return event
+        tgid = ""
+        if label:
+            if label.isdigit() or _TGID_RE.search(label):
+                tgid = _extract_tgid(label)
+        if not tgid and raw:
+            tgid = _extract_tgid(raw)
+        if tgid:
+            listen_map = self._load_listen_map()
+            listen = listen_map.get(tgid, True) if listen_map else True
+            if not listen:
+                event = dict(event)
+                event["muted"] = True
+                event["tgid"] = tgid
+                return event
+            event = dict(event)
+            event["tgid"] = tgid
+            mapped_label = tg_map.get(tgid)
+            if mapped_label:
+                event["label"] = mapped_label
+        return event
+
     def getProfile(self):
         current = self._read_active_profile_id()
         if current:
@@ -596,6 +936,10 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         self._refresh_log_cache()
         return super().getLastError()
 
+    def getRecentEvents(self, limit: int = 20):
+        self._refresh_log_cache()
+        return super().getRecentEvents(limit)
+
 
 class DigitalManager:
     """Selects and owns exactly one digital adapter."""
@@ -644,6 +988,9 @@ class DigitalManager:
 
     def getLastError(self):
         return self._adapter.getLastError()
+
+    def getRecentEvents(self, limit: int = 20):
+        return self._adapter.getRecentEvents(limit)
 
     def status_payload(self):
         event = self.getLastEvent() or {}

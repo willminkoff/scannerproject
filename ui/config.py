@@ -42,9 +42,9 @@ AVOIDS_SUMMARY_PATHS = {
 
 # Icecast Configuration
 ICECAST_PORT = int(os.getenv("ICECAST_PORT", "8000"))
-MOUNT_NAME = os.getenv("MOUNT_NAME", "GND.mp3")
-ICECAST_STATUS_URL = f"http://127.0.0.1:{ICECAST_PORT}/status-json.xsl"
-ICECAST_MOUNT_PATH = f"/{MOUNT_NAME}"
+ICECAST_HOST = os.getenv("ICECAST_HOST", "127.0.0.1").strip() or "127.0.0.1"
+MOUNT_NAME = os.getenv("MOUNT_NAME", "GND.mp3").strip().lstrip("/")
+ICECAST_STATUS_URL = f"http://{ICECAST_HOST}:{ICECAST_PORT}/status-json.xsl"
 ICECAST_HIT_LOG_PATH = os.getenv("ICECAST_HIT_LOG_PATH", "/run/airband_ui_hitlog.jsonl")
 ICECAST_HIT_LOG_LIMIT = int(os.getenv("ICECAST_HIT_LOG_LIMIT", "200"))
 
@@ -59,6 +59,14 @@ DIGITAL_PROFILES_DIR = os.getenv("DIGITAL_PROFILES_DIR", "/etc/scannerproject/di
 DIGITAL_ACTIVE_PROFILE_LINK = os.getenv("DIGITAL_ACTIVE_PROFILE_LINK", "/etc/scannerproject/digital/active")
 DIGITAL_LOG_PATH = os.getenv("DIGITAL_LOG_PATH", "/var/log/sdrtrunk/sdrtrunk.log")
 DIGITAL_RTL_DEVICE = os.getenv("DIGITAL_RTL_DEVICE", "")
+DIGITAL_MIXER_ENABLED = os.getenv("DIGITAL_MIXER_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
+DIGITAL_MIXER_AIRBAND_MOUNT = os.getenv("DIGITAL_MIXER_AIRBAND_MOUNT", "GND-air.mp3").strip().lstrip("/")
+DIGITAL_MIXER_DIGITAL_MOUNT = os.getenv("DIGITAL_MIXER_DIGITAL_MOUNT", "DIGITAL.mp3").strip().lstrip("/")
+DIGITAL_MIXER_OUTPUT_MOUNT = os.getenv("DIGITAL_MIXER_OUTPUT_MOUNT", "GND.mp3").strip().lstrip("/")
+PLAYER_MOUNT = os.getenv("PLAYER_MOUNT", "").strip().lstrip("/")
+if not PLAYER_MOUNT:
+    PLAYER_MOUNT = DIGITAL_MIXER_OUTPUT_MOUNT if DIGITAL_MIXER_ENABLED else MOUNT_NAME
+ICECAST_MOUNT_PATH = f"/{PLAYER_MOUNT}"
 
 # Systemd Units
 UNITS = {
@@ -68,6 +76,7 @@ UNITS = {
     "keepalive": os.getenv("UNIT_KEEPALIVE", "icecast-keepalive"),
     "ui": os.getenv("UNIT_UI", "airband-ui"),
     "digital": DIGITAL_SERVICE_NAME,
+    "digital_mixer": os.getenv("UNIT_DIGITAL_MIXER", "scanner-digital-mixer"),
 }
 
 # Mixer Configuration

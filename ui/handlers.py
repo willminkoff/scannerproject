@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import time
+from datetime import datetime
 import queue
 import shutil
 from http.server import BaseHTTPRequestHandler
@@ -22,7 +23,20 @@ def combined_num_devices(conf_path=None) -> int:
         return 0
 
 try:
-    from .config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, PROFILES_DIR, UI_PORT, UNITS, COMBINED_CONFIG_PATH
+    from .config import (
+        CONFIG_SYMLINK,
+        GROUND_CONFIG_PATH,
+        PROFILES_DIR,
+        UI_PORT,
+        UNITS,
+        COMBINED_CONFIG_PATH,
+        DIGITAL_MIXER_ENABLED,
+        DIGITAL_MIXER_AIRBAND_MOUNT,
+        DIGITAL_MIXER_DIGITAL_MOUNT,
+        DIGITAL_MIXER_OUTPUT_MOUNT,
+        ICECAST_PORT,
+        PLAYER_MOUNT,
+    )
     from .profile_config import (
         read_active_config_path, parse_controls, split_profiles,
         guess_current_profile, summarize_avoids, parse_filter,
@@ -35,7 +49,12 @@ try:
         read_last_hit_airband, read_last_hit_ground, read_icecast_hit_list,
         read_hit_list_cached
     )
-    from .icecast import icecast_up, read_last_hit_from_icecast
+    from .icecast import (
+        icecast_up,
+        read_last_hit_from_icecast,
+        fetch_local_icecast_status,
+        list_icecast_mounts,
+    )
     from .systemd import unit_active, unit_exists, restart_rtl, unit_active_enter_epoch
     from .server_workers import enqueue_action, enqueue_apply
     from .diagnostic import write_diagnostic_log
@@ -48,9 +67,24 @@ try:
         create_digital_profile_dir,
         delete_digital_profile_dir,
         inspect_digital_profile,
+        read_digital_talkgroups,
+        write_digital_listen,
     )
 except ImportError:
-    from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, PROFILES_DIR, UI_PORT, UNITS, COMBINED_CONFIG_PATH
+    from ui.config import (
+        CONFIG_SYMLINK,
+        GROUND_CONFIG_PATH,
+        PROFILES_DIR,
+        UI_PORT,
+        UNITS,
+        COMBINED_CONFIG_PATH,
+        DIGITAL_MIXER_ENABLED,
+        DIGITAL_MIXER_AIRBAND_MOUNT,
+        DIGITAL_MIXER_DIGITAL_MOUNT,
+        DIGITAL_MIXER_OUTPUT_MOUNT,
+        ICECAST_PORT,
+        PLAYER_MOUNT,
+    )
     from ui.profile_config import (
         read_active_config_path, parse_controls, split_profiles,
         guess_current_profile, summarize_avoids, parse_filter,
@@ -63,7 +97,12 @@ except ImportError:
         read_last_hit_airband, read_last_hit_ground, read_icecast_hit_list,
         read_hit_list_cached
     )
-    from ui.icecast import icecast_up, read_last_hit_from_icecast
+    from ui.icecast import (
+        icecast_up,
+        read_last_hit_from_icecast,
+        fetch_local_icecast_status,
+        list_icecast_mounts,
+    )
     from ui.systemd import unit_active, unit_exists, restart_rtl, unit_active_enter_epoch
     from ui.server_workers import enqueue_action, enqueue_apply
     from ui.diagnostic import write_diagnostic_log
@@ -76,6 +115,8 @@ except ImportError:
         create_digital_profile_dir,
         delete_digital_profile_dir,
         inspect_digital_profile,
+        read_digital_talkgroups,
+        write_digital_listen,
     )
 
 
@@ -207,6 +248,13 @@ class Handler(BaseHTTPRequestHandler):
             rtl_ok = rtl_unit_active
             ground_ok = rtl_ok and ground_present
             ice_ok = icecast_up()
+            icecast_mounts = []
+            if ice_ok:
+                try:
+                    status_text = fetch_local_icecast_status()
+                    icecast_mounts = list_icecast_mounts(status_text)
+                except Exception:
+                    icecast_mounts = []
             combined_stale = combined_config_stale()
 
             prof_payload, profiles_airband, profiles_ground = split_profiles()
@@ -239,6 +287,13 @@ class Handler(BaseHTTPRequestHandler):
                 "airband_present": airband_present,
                 "ground_present": ground_present,
                 "icecast_active": ice_ok,
+                "icecast_mounts": icecast_mounts,
+                "icecast_port": ICECAST_PORT,
+                "stream_mount": PLAYER_MOUNT,
+                "icecast_expected_mounts": (
+                    [f"/{DIGITAL_MIXER_AIRBAND_MOUNT}", f"/{DIGITAL_MIXER_DIGITAL_MOUNT}", f"/{DIGITAL_MIXER_OUTPUT_MOUNT}"]
+                    if DIGITAL_MIXER_ENABLED else [f"/{DIGITAL_MIXER_OUTPUT_MOUNT}"]
+                ),
                 "keepalive_active": unit_active(UNITS["keepalive"]),
                 "server_time": time.time(),
                 "rtl_active_enter": rtl_active_enter,
@@ -290,6 +345,7 @@ class Handler(BaseHTTPRequestHandler):
                 digital_payload = get_digital_manager().status_payload()
             except Exception as e:
                 digital_payload["digital_last_error"] = str(e)
+            digital_payload["digital_mixer_active"] = unit_active(UNITS["digital_mixer"])
             payload.update(digital_payload)
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         if p == "/api/profiles":
@@ -326,6 +382,15 @@ class Handler(BaseHTTPRequestHandler):
                 payload = {"ok": False, "error": str(e)}
                 return self._send(500, json.dumps(payload), "application/json; charset=utf-8")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+        if p == "/api/digital/talkgroups":
+            q = parse_qs(u.query or "")
+            profile_id = (q.get("profileId") or [""])[0].strip()
+            if not profile_id:
+                return self._send(400, json.dumps({"ok": False, "error": "missing profileId"}), "application/json; charset=utf-8")
+            ok, payload = read_digital_talkgroups(profile_id)
+            if not ok:
+                return self._send(400, json.dumps({"ok": False, "error": payload}), "application/json; charset=utf-8")
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         if p == "/api/hits":
             items = read_icecast_hit_list(limit=50)
             # Append journalctl-based hits if needed for broader coverage
@@ -337,7 +402,49 @@ class Handler(BaseHTTPRequestHandler):
                     if (item.get("time"), item.get("freq")) not in existing_times:
                         items.append(item)
                         existing_times.add((item.get("time"), item.get("freq")))
-            payload = {"items": items[:50]}
+            def parse_time_ts(value: str) -> float:
+                if not value:
+                    return 0.0
+                try:
+                    dt = datetime.strptime(value, "%H:%M:%S")
+                    now = datetime.now()
+                    dt = dt.replace(year=now.year, month=now.month, day=now.day)
+                    return dt.timestamp()
+                except Exception:
+                    return 0.0
+            for item in items:
+                item["_ts"] = parse_time_ts(item.get("time"))
+
+            digital_items = []
+            try:
+                events = get_digital_manager().getRecentEvents(limit=50)
+            except Exception:
+                events = []
+            for event in events:
+                label = str(event.get("label") or "").strip()
+                if not label:
+                    continue
+                time_ms = int(event.get("timeMs") or 0)
+                ts = time_ms / 1000.0 if time_ms else time.time()
+                time_str = time.strftime("%H:%M:%S", time.localtime(ts))
+                entry = {
+                    "time": time_str,
+                    "freq": label,
+                    "duration": 0,
+                    "label": label,
+                    "mode": event.get("mode"),
+                    "source": "digital",
+                    "_ts": ts,
+                }
+                digital_items.append(entry)
+
+            merged = items + digital_items
+            merged.sort(key=lambda item: item.get("_ts", 0.0))
+            merged = merged[-50:]
+            merged.reverse()
+            for item in merged:
+                item.pop("_ts", None)
+            payload = {"items": merged}
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         
         if p == "/api/spectrum":
@@ -509,6 +616,23 @@ class Handler(BaseHTTPRequestHandler):
                 status = 400 if payload in ("invalid profileId", "profile not found") else 500
                 return self._send(status, json.dumps({"ok": False, "error": payload}), "application/json; charset=utf-8")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/digital/talkgroups/listen":
+            profile_id = get_str("profileId").strip()
+            if not profile_id:
+                return self._send(400, json.dumps({"ok": False, "error": "missing profileId"}), "application/json; charset=utf-8")
+            items = form.get("items")
+            if isinstance(items, str):
+                try:
+                    items = json.loads(items)
+                except json.JSONDecodeError:
+                    items = []
+            if not isinstance(items, list):
+                items = []
+            ok, err = write_digital_listen(profile_id, items)
+            if not ok:
+                return self._send(400, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
+            return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
 
         if p == "/api/profile/create":
             profile_id = get_str("id").strip()

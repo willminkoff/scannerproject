@@ -15,6 +15,8 @@ try:
         restart_icecast,
         restart_keepalive,
         restart_ui,
+        restart_digital,
+        restart_digital_mixer,
         stop_ground,
     )
     from .profile_config import (
@@ -33,6 +35,8 @@ except ImportError:
         restart_icecast,
         restart_keepalive,
         restart_ui,
+        restart_digital,
+        restart_digital_mixer,
         stop_ground,
     )
     from ui.profile_config import (
@@ -296,6 +300,10 @@ def action_restart(target: str) -> dict:
         ok, err = restart_keepalive()
     elif target == "ui":
         ok, err = restart_ui()
+    elif target == "digital":
+        ok, err = restart_digital()
+    elif target == "mixer":
+        ok, err = restart_digital_mixer()
     elif target == "all":
         results = {
             "airband": restart_rtl(),
@@ -303,6 +311,8 @@ def action_restart(target: str) -> dict:
             "icecast": restart_icecast(),
             "keepalive": restart_keepalive(),
             "ui": restart_ui(),
+            "digital": restart_digital(),
+            "mixer": restart_digital_mixer(),
         }
         ok = all(v[0] for v in results.values())
         err = "; ".join(f"{k}:{v[1]}" for k, v in results.items() if v[1])

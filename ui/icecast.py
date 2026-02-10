@@ -1,6 +1,7 @@
 """Icecast stream monitoring and metadata."""
 import json
 import urllib.request
+from urllib.parse import urlparse
 
 try:
     from .config import ICECAST_STATUS_URL, ICECAST_MOUNT_PATH, UNITS
@@ -65,3 +66,46 @@ def read_last_hit_from_icecast() -> str:
     except Exception:
         return ""
     return extract_icecast_title(status_text)
+
+
+def parse_icecast_sources(status_text: str) -> list:
+    """Parse Icecast status JSON into a list of sources."""
+    try:
+        data = json.loads(status_text)
+    except json.JSONDecodeError:
+        return []
+    sources = data.get("icestats", {}).get("source")
+    if not sources:
+        return []
+    if not isinstance(sources, list):
+        sources = [sources]
+    results = []
+    for source in sources:
+        listenurl = (source.get("listenurl") or "").strip()
+        mount = (source.get("mount") or "").strip()
+        if not mount and listenurl:
+            try:
+                mount = urlparse(listenurl).path or ""
+            except Exception:
+                mount = ""
+        listeners = source.get("listeners")
+        try:
+            listeners = int(listeners)
+        except Exception:
+            listeners = 0
+        results.append({
+            "mount": mount,
+            "listenurl": listenurl,
+            "listeners": listeners,
+        })
+    return results
+
+
+def list_icecast_mounts(status_text: str) -> list:
+    """Return a list of mounts from Icecast status JSON."""
+    mounts = []
+    for source in parse_icecast_sources(status_text):
+        mount = source.get("mount") or ""
+        if mount:
+            mounts.append(mount)
+    return mounts
