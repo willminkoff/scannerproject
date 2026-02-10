@@ -52,6 +52,14 @@ ICECAST_HIT_LOG_LIMIT = int(os.getenv("ICECAST_HIT_LOG_LIMIT", "200"))
 HOLD_STATE_PATH = os.getenv("HOLD_STATE_PATH", "/run/airband_ui_hold.json")
 TUNE_BACKUP_PATH = os.getenv("TUNE_BACKUP_PATH", "/run/airband_ui_tune_backup.json")
 
+# Digital backend configuration
+DIGITAL_BACKEND = os.getenv("DIGITAL_BACKEND", "sdrtrunk").strip().lower()
+DIGITAL_SERVICE_NAME = os.getenv("DIGITAL_SERVICE_NAME", os.getenv("UNIT_DIGITAL", "scanner-digital"))
+DIGITAL_PROFILES_DIR = os.getenv("DIGITAL_PROFILES_DIR", "/etc/scannerproject/digital/profiles")
+DIGITAL_ACTIVE_PROFILE_LINK = os.getenv("DIGITAL_ACTIVE_PROFILE_LINK", "/etc/scannerproject/digital/active")
+DIGITAL_LOG_PATH = os.getenv("DIGITAL_LOG_PATH", "/var/log/sdrtrunk/sdrtrunk.log")
+DIGITAL_RTL_DEVICE = os.getenv("DIGITAL_RTL_DEVICE", "")
+
 # Systemd Units
 UNITS = {
     "rtl": os.getenv("UNIT_RTL", "rtl-airband"),
@@ -59,6 +67,7 @@ UNITS = {
     "icecast": os.getenv("UNIT_ICECAST", "icecast2"),
     "keepalive": os.getenv("UNIT_KEEPALIVE", "icecast-keepalive"),
     "ui": os.getenv("UNIT_UI", "airband-ui"),
+    "digital": DIGITAL_SERVICE_NAME,
 }
 
 # Mixer Configuration

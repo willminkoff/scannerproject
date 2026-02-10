@@ -30,6 +30,19 @@ const audioAirbandEl = document.getElementById('audio-airband');
 const audioGroundEl = document.getElementById('audio-ground');
 const lnkStreamAirbandEl = document.getElementById('lnk-stream-airband');
 const lnkStreamGroundEl = document.getElementById('lnk-stream-ground');
+const digitalDotEl = document.getElementById('digital-dot');
+const digitalStatusEl = document.getElementById('digital-status');
+const digitalBackendEl = document.getElementById('digital-backend');
+const digitalProfileEl = document.getElementById('digital-profile');
+const digitalLastLabelEl = document.getElementById('digital-last-label');
+const digitalLastMetaEl = document.getElementById('digital-last-meta');
+const digitalErrorEl = document.getElementById('digital-error');
+const digitalStartEl = document.getElementById('digital-start');
+const digitalStopEl = document.getElementById('digital-stop');
+const digitalRestartEl = document.getElementById('digital-restart');
+const digitalMuteEl = document.getElementById('digital-mute');
+const digitalProfileSelectEl = document.getElementById('digital-profile-select');
+const digitalProfileStatusEl = document.getElementById('digital-profile-status');
 let actionMsg = '';
 let actionMsgTarget = null;
 
@@ -49,6 +62,9 @@ let avoidsAirband = null;
 let avoidsGround = null;
 let profilesCache = null;
 let profilesCacheAt = 0;
+let digitalProfilesCache = null;
+let digitalProfilesCacheAt = 0;
+let digitalMuted = false;
 
 const controlTargets = {
   airband: {
@@ -137,6 +153,99 @@ function formatHitLabel(value) {
     }
   }
   return text;
+}
+
+function formatTimeMs(timeMs) {
+  if (!timeMs) return '—';
+  const d = new Date(timeMs);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleTimeString();
+}
+
+function setDigitalStatusMessage(message, isError=false) {
+  if (!digitalProfileStatusEl) return;
+  digitalProfileStatusEl.textContent = message || '';
+  if (!message) {
+    digitalProfileStatusEl.classList.remove('ok', 'bad');
+    return;
+  }
+  digitalProfileStatusEl.classList.toggle('ok', !isError);
+  digitalProfileStatusEl.classList.toggle('bad', isError);
+}
+
+function updateDigitalStatus(st) {
+  if (!digitalStatusEl) return;
+  const active = !!st.digital_active;
+  digitalMuted = !!st.digital_muted;
+  if (digitalDotEl) {
+    digitalDotEl.classList.remove('good', 'bad', 'neutral', 'pulse');
+    digitalDotEl.classList.add(active ? 'pulse' : 'bad');
+    if (active) digitalDotEl.classList.add('good');
+  }
+  digitalStatusEl.textContent = active ? 'Running' : 'Stopped';
+  if (digitalBackendEl) digitalBackendEl.textContent = st.digital_backend || '—';
+  if (digitalProfileEl) digitalProfileEl.textContent = st.digital_profile || '—';
+  if (digitalLastLabelEl) digitalLastLabelEl.textContent = st.digital_last_label || '—';
+  if (digitalLastMetaEl) {
+    const meta = [];
+    const timeText = formatTimeMs(Number(st.digital_last_time || 0));
+    if (timeText !== '—') meta.push(timeText);
+    if (st.digital_last_mode) meta.push(st.digital_last_mode);
+    digitalLastMetaEl.textContent = meta.length ? meta.join(' · ') : '—';
+  }
+  if (digitalErrorEl) {
+    const err = st.digital_last_error || '';
+    digitalErrorEl.textContent = err;
+    digitalErrorEl.classList.toggle('bad', !!err);
+  }
+  if (digitalMuteEl) {
+    digitalMuteEl.textContent = digitalMuted ? 'Unmute' : 'Mute';
+    digitalMuteEl.classList.toggle('primary', digitalMuted);
+  }
+}
+
+function updateDigitalProfileSelect(data) {
+  if (!digitalProfileSelectEl) return;
+  const list = (data && data.profiles) || [];
+  digitalProfileSelectEl.innerHTML = '';
+  if (!list.length) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = '(no profiles)';
+    digitalProfileSelectEl.appendChild(opt);
+    digitalProfileSelectEl.disabled = true;
+    return;
+  }
+  digitalProfileSelectEl.disabled = false;
+  list.forEach(profileId => {
+    const opt = document.createElement('option');
+    opt.value = profileId;
+    opt.textContent = profileId;
+    digitalProfileSelectEl.appendChild(opt);
+  });
+  const active = (data && data.active) || '';
+  if (active && list.includes(active)) {
+    digitalProfileSelectEl.value = active;
+  } else if (list.length) {
+    digitalProfileSelectEl.value = list[0];
+  }
+}
+
+async function refreshDigitalProfiles(force=false) {
+  if (!digitalProfileSelectEl) return;
+  if (!force && digitalProfilesCache && Date.now() - digitalProfilesCacheAt < 8000) {
+    updateDigitalProfileSelect(digitalProfilesCache);
+    return;
+  }
+  const data = await getJSON('/api/digital/profiles');
+  if (data && data.ok !== false) {
+    digitalProfilesCache = data;
+    digitalProfilesCacheAt = Date.now();
+    updateDigitalProfileSelect(data);
+    return;
+  }
+  const err = (data && data.error) || 'Digital profiles unavailable';
+  setDigitalStatusMessage(err, true);
 }
 
 function updateWarn(missingProfiles) {
@@ -358,6 +467,8 @@ async function refresh(allowSetSliders=false) {
     allowSetSliders
   );
 
+  updateDigitalStatus(st);
+
   updateWarn(st.missing_profiles);
   avoidsAirband = st.avoids_airband;
   avoidsGround = st.avoids_ground;
@@ -365,6 +476,9 @@ async function refresh(allowSetSliders=false) {
 
   if (!profilesCache || Date.now() - profilesCacheAt > 5000) {
     await refreshProfiles();
+  }
+  if (!digitalProfilesCache || Date.now() - digitalProfilesCacheAt > 8000) {
+    await refreshDigitalProfiles();
   }
 
   if (allowSetSliders) {
@@ -498,6 +612,48 @@ if (manageDeleteEl) {
     actionMsg = res.ok ? 'Profile deleted' : (res.error || 'Delete failed');
     setManageStatus(actionMsg, !res.ok);
     await refreshProfiles();
+  });
+}
+
+async function digitalAction(action) {
+  const res = await post(`/api/digital/${action}`, {});
+  if (res.ok) {
+    setDigitalStatusMessage(`Digital ${action} ok`, false);
+  } else {
+    setDigitalStatusMessage(res.error || `${action} failed`, true);
+  }
+  await refresh(false);
+}
+
+if (digitalStartEl) digitalStartEl.addEventListener('click', () => digitalAction('start'));
+if (digitalStopEl) digitalStopEl.addEventListener('click', () => digitalAction('stop'));
+if (digitalRestartEl) digitalRestartEl.addEventListener('click', () => digitalAction('restart'));
+if (digitalMuteEl) {
+  digitalMuteEl.addEventListener('click', async () => {
+    const next = !digitalMuted;
+    const res = await post('/api/digital/mute', {muted: next});
+    if (res.ok) {
+      setDigitalStatusMessage(next ? 'Digital muted' : 'Digital unmuted', false);
+    } else {
+      setDigitalStatusMessage(res.error || 'Mute failed', true);
+    }
+    await refresh(false);
+  });
+}
+
+if (digitalProfileSelectEl) {
+  digitalProfileSelectEl.addEventListener('change', async () => {
+    const profileId = digitalProfileSelectEl.value;
+    if (!profileId) return;
+    setDigitalStatusMessage('Applying profile...', false);
+    const res = await post('/api/digital/profile', {profileId});
+    if (res.ok) {
+      setDigitalStatusMessage('Profile updated', false);
+    } else {
+      setDigitalStatusMessage(res.error || 'Profile update failed', true);
+    }
+    await refreshDigitalProfiles(true);
+    await refresh(false);
   });
 }
 

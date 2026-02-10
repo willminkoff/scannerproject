@@ -53,6 +53,34 @@ def _restart_unit(unit: str, use_sudo: bool = False) -> Tuple[bool, str]:
     return False, err
 
 
+def _start_unit(unit: str, use_sudo: bool = False) -> Tuple[bool, str]:
+    """Start a systemd unit and return (ok, error)."""
+    try:
+        result = _run_systemctl(["start", unit], use_sudo=use_sudo)
+    except Exception as e:
+        return False, str(e)
+    if result.returncode == 0:
+        return True, ""
+    err = (result.stderr or result.stdout or "").strip()
+    if not err:
+        err = f"start failed (code {result.returncode})"
+    return False, err
+
+
+def _stop_unit(unit: str, use_sudo: bool = False) -> Tuple[bool, str]:
+    """Stop a systemd unit and return (ok, error)."""
+    try:
+        result = _run_systemctl(["stop", unit], use_sudo=use_sudo)
+    except Exception as e:
+        return False, str(e)
+    if result.returncode == 0:
+        return True, ""
+    err = (result.stderr or result.stdout or "").strip()
+    if not err:
+        err = f"stop failed (code {result.returncode})"
+    return False, err
+
+
 def unit_active_enter_epoch(unit: str):
     """Return ActiveEnterTimestampUSec as epoch seconds, or None."""
     def parse_epoch(result):
@@ -102,6 +130,11 @@ def restart_ui() -> Tuple[bool, str]:
     return _restart_unit(UNITS["ui"])
 
 
+def restart_digital() -> Tuple[bool, str]:
+    """Restart the digital backend service."""
+    return _restart_unit(UNITS["digital"])
+
+
 def stop_rtl():
     """Stop the rtl-airband scanner."""
     subprocess.run(
@@ -122,6 +155,11 @@ def stop_ground():
     )
 
 
+def stop_digital() -> Tuple[bool, str]:
+    """Stop the digital backend service."""
+    return _stop_unit(UNITS["digital"])
+
+
 def start_rtl():
     """Start the rtl-airband scanner."""
     subprocess.Popen(
@@ -138,6 +176,11 @@ def start_ground():
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+
+
+def start_digital() -> Tuple[bool, str]:
+    """Start the digital backend service."""
+    return _start_unit(UNITS["digital"])
 
 
 def ground_control_unit():

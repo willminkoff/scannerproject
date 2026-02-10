@@ -367,6 +367,82 @@ Generate diagnostic log bundle.
 
 **Contents**: System info, systemd status, journalctl logs, Icecast status, git commit info.
 
+### Digital (Experimental)
+Live-only digital backend control with in-memory metadata (no recording or persistence).
+
+**Environment variables**:
+- `DIGITAL_BACKEND` (default: `sdrtrunk`)
+- `DIGITAL_SERVICE_NAME` (systemd unit name, default: `scanner-digital`)
+- `DIGITAL_PROFILES_DIR` (profiles root directory)
+- `DIGITAL_ACTIVE_PROFILE_LINK` (symlink pointing at the active profile dir)
+- `DIGITAL_LOG_PATH` (sdrtrunk log path used for last-event parsing)
+- `DIGITAL_RTL_DEVICE` (RTL-SDR device index or serial; used by your SDRTrunk profile configuration)
+
+**Profile model**:
+- Each profile is a directory under `DIGITAL_PROFILES_DIR` (e.g. `metro-p25`, `regional-dmr`).
+- `POST /api/digital/profile` updates the `DIGITAL_ACTIVE_PROFILE_LINK` symlink and restarts the service.
+
+**RTL device binding (SDRTrunk)**:
+Set `DIGITAL_RTL_DEVICE` to the RTL device index or serial you want SDRTrunk to use, then reference that value in your SDRTrunk profile configuration (exact field name depends on your SDRTrunk version/export).
+This repo already tracks RTL-SDR serials for the analog scanners in `profiles/rtl_airband_*.conf` and enforces serials in the combined config; reuse the same serials to avoid device collisions.
+
+**Digital profiles (filesystem layout)**:
+Profiles live under `DIGITAL_PROFILES_DIR` and the active profile is pointed to by `DIGITAL_ACTIVE_PROFILE_LINK`.
+Example scaffolding lives in `deploy/examples/digital-profiles/profiles/` (includes `profiles/example/`).
+Each profile directory should contain the SDRTrunk config exports you want to run for that profile.
+
+**Install steps (profiles)**:
+```bash
+sudo mkdir -p /etc/scannerproject/digital/profiles
+sudo cp -R /home/willminkoff/scannerproject/deploy/examples/digital-profiles/profiles/vanderbilt-university /etc/scannerproject/digital/profiles/
+sudo ln -sfn /etc/scannerproject/digital/profiles/vanderbilt-university /etc/scannerproject/digital/active
+sudo systemctl restart scanner-digital
+```
+Permissions: ensure the service user (e.g. `pi` or your dedicated account) can read the profile directories and write to `/var/log/sdrtrunk/`. If you run as a non-root user, set ownership accordingly, for example:
+```bash
+sudo chown -R pi:pi /etc/scannerproject/digital/profiles
+sudo chown -R pi:pi /var/log/sdrtrunk
+```
+
+**Systemd unit (headless SDRTrunk)**:
+Unit file: `systemd/scanner-digital.service`
+Notes:
+Defaults to `User=pi`; update the unit if your service account differs.
+`WorkingDirectory` points at `DIGITAL_ACTIVE_PROFILE_LINK` so the active profile is the runtime directory.
+Logs append to `/var/log/sdrtrunk/sdrtrunk.log` (systemd `LogsDirectory=sdrtrunk` ensures the folder exists).
+Adjust `ExecStart` if your SDRTrunk binary path or headless flag differs.
+
+**Install/enable**:
+```bash
+sudo install -m 0644 /home/willminkoff/scannerproject/systemd/scanner-digital.service /etc/systemd/system/scanner-digital.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now scanner-digital
+```
+
+**Create profiles + set active**:
+```bash
+sudo mkdir -p /etc/scannerproject/digital/profiles/metro-p25
+sudo mkdir -p /etc/scannerproject/digital/profiles/regional-dmr
+sudo ln -sfn /etc/scannerproject/digital/profiles/metro-p25 /etc/scannerproject/digital/active
+sudo systemctl restart scanner-digital
+```
+
+**/api/status fields**:
+- `digital_active` (boolean)
+- `digital_backend` (string)
+- `digital_profile` (string)
+- `digital_last_label` (string)
+- `digital_last_mode` (string, optional)
+- `digital_last_time` (epoch ms, 0 if none)
+- `digital_last_error` (string, optional)
+
+**Endpoints**:
+- `POST /api/digital/start`
+- `POST /api/digital/stop`
+- `POST /api/digital/restart`
+- `GET  /api/digital/profiles`
+- `POST /api/digital/profile` → body: `{ "profileId": "..." }`
+
 ### GET /static/*
 Serve static web assets.
 

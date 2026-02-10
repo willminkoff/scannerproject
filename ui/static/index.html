@@ -133,6 +133,40 @@
           </div>
         </div>
 
+        <div class="ctrl" id="digital-module">
+          <div class="ctrl-head">
+            <b>Digital</b>
+            <span class="digital-head">
+              <span class="dot" id="digital-dot"></span>
+              <span id="digital-status">…</span>
+            </span>
+          </div>
+          <div class="ctrl-readout">
+            <span>Backend: <span id="digital-backend">…</span></span>
+            <span>Profile: <span id="digital-profile">…</span></span>
+          </div>
+          <div class="ctrl-readout">
+            <span>Last: <span id="digital-last-label">…</span></span>
+            <span id="digital-last-meta">…</span>
+          </div>
+          <div class="btns" style="margin-top:10px;">
+            <button type="button" id="digital-start">Start</button>
+            <button type="button" id="digital-stop">Stop</button>
+            <button type="button" id="digital-restart">Restart</button>
+            <button type="button" id="digital-mute">Mute</button>
+          </div>
+          <div class="ctrl-readout">
+            <label>Profile:
+              <select id="digital-profile-select"></select>
+            </label>
+            <span id="digital-profile-status" class="inline-status"></span>
+          </div>
+          <div class="ctrl-readout">
+            <span id="digital-error" class="inline-status"></span>
+            <span></span>
+          </div>
+        </div>
+
         <div class="warn" id="warn"></div>
         <div class="avoids" id="avoids-summary"></div>
         <div class="foot">© 2026 Will Minkoff • <a href="#" id="lnk-diagnostic">Generate log</a></div>

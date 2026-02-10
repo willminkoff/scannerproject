@@ -1,0 +1,21 @@
+[Unit]
+Description=SDRTrunk Digital (Headless)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/etc/scannerproject/digital/active
+ExecStart=/usr/local/bin/sdrtrunk --headless
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=10
+KillSignal=SIGINT
+LimitNOFILE=16384
+LogsDirectory=sdrtrunk
+StandardOutput=append:/var/log/sdrtrunk/sdrtrunk.log
+StandardError=append:/var/log/sdrtrunk/sdrtrunk.log
+
+[Install]
+WantedBy=multi-user.target

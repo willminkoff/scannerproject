@@ -42,6 +42,7 @@ try:
     from .spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
     from .system_stats import get_system_stats
     from .vlc import start_vlc, stop_vlc, vlc_running
+    from .digital import get_digital_manager, validate_digital_profile_id
 except ImportError:
     from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, PROFILES_DIR, UI_PORT, UNITS, COMBINED_CONFIG_PATH
     from ui.profile_config import (
@@ -63,6 +64,7 @@ except ImportError:
     from ui.spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
     from ui.system_stats import get_system_stats
     from ui.vlc import start_vlc, stop_vlc, vlc_running
+    from ui.digital import get_digital_manager, validate_digital_profile_id
 
 
 def _read_html_template():
@@ -264,6 +266,19 @@ class Handler(BaseHTTPRequestHandler):
                 "avoids_airband": summarize_avoids(conf_path, "airband"),
                 "avoids_ground": summarize_avoids(os.path.realpath(GROUND_CONFIG_PATH), "ground"),
             }
+            digital_payload = {
+                "digital_active": False,
+                "digital_backend": "",
+                "digital_profile": "",
+                "digital_muted": False,
+                "digital_last_label": "",
+                "digital_last_time": 0,
+            }
+            try:
+                digital_payload = get_digital_manager().status_payload()
+            except Exception as e:
+                digital_payload["digital_last_error"] = str(e)
+            payload.update(digital_payload)
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         if p == "/api/profiles":
             profiles = load_profiles_registry()
@@ -286,6 +301,18 @@ class Handler(BaseHTTPRequestHandler):
                 "active_airband_id": active_airband_id,
                 "active_ground_id": active_ground_id,
             }
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+        if p == "/api/digital/profiles":
+            try:
+                manager = get_digital_manager()
+                payload = {
+                    "ok": True,
+                    "profiles": manager.listProfiles(),
+                    "active": manager.getProfile(),
+                }
+            except Exception as e:
+                payload = {"ok": False, "error": str(e)}
+                return self._send(500, json.dumps(payload), "application/json; charset=utf-8")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         if p == "/api/hits":
             items = read_icecast_hit_list(limit=50)
@@ -388,6 +415,64 @@ class Handler(BaseHTTPRequestHandler):
             if v is None:
                 return default
             return str(v)
+
+        if p == "/api/digital/start":
+            ok, err = get_digital_manager().start()
+            payload = {"ok": bool(ok)}
+            if not ok:
+                payload["error"] = err or "start failed"
+                return self._send(500, json.dumps(payload), "application/json; charset=utf-8")
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/digital/stop":
+            ok, err = get_digital_manager().stop()
+            payload = {"ok": bool(ok)}
+            if not ok:
+                payload["error"] = err or "stop failed"
+                return self._send(500, json.dumps(payload), "application/json; charset=utf-8")
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/digital/restart":
+            ok, err = get_digital_manager().restart()
+            payload = {"ok": bool(ok)}
+            if not ok:
+                payload["error"] = err or "restart failed"
+                return self._send(500, json.dumps(payload), "application/json; charset=utf-8")
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/digital/profile":
+            profile_id = get_str("profileId").strip()
+            if not profile_id:
+                return self._send(400, json.dumps({"ok": False, "error": "missing profileId"}), "application/json; charset=utf-8")
+            if not validate_digital_profile_id(profile_id):
+                return self._send(400, json.dumps({"ok": False, "error": "invalid profileId"}), "application/json; charset=utf-8")
+            ok, err = get_digital_manager().setProfile(profile_id)
+            payload = {"ok": bool(ok)}
+            if not ok:
+                payload["error"] = err or "set profile failed"
+                status = 400 if err in ("invalid profileId", "unknown profileId") else 500
+                return self._send(status, json.dumps(payload), "application/json; charset=utf-8")
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/digital/mute":
+            raw_muted = form.get("muted")
+            if raw_muted is None:
+                return self._send(400, json.dumps({"ok": False, "error": "missing muted"}), "application/json; charset=utf-8")
+            muted = None
+            if isinstance(raw_muted, bool):
+                muted = raw_muted
+            elif isinstance(raw_muted, (int, float)):
+                muted = bool(raw_muted)
+            else:
+                sval = str(raw_muted).strip().lower()
+                if sval in ("1", "true", "yes", "on"):
+                    muted = True
+                elif sval in ("0", "false", "no", "off"):
+                    muted = False
+            if muted is None:
+                return self._send(400, json.dumps({"ok": False, "error": "invalid muted"}), "application/json; charset=utf-8")
+            get_digital_manager().setMuted(muted)
+            return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
 
         if p == "/api/profile/create":
             profile_id = get_str("id").strip()
