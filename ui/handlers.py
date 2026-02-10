@@ -47,6 +47,7 @@ try:
         validate_digital_profile_id,
         create_digital_profile_dir,
         delete_digital_profile_dir,
+        inspect_digital_profile,
     )
 except ImportError:
     from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, PROFILES_DIR, UI_PORT, UNITS, COMBINED_CONFIG_PATH
@@ -74,6 +75,7 @@ except ImportError:
         validate_digital_profile_id,
         create_digital_profile_dir,
         delete_digital_profile_dir,
+        inspect_digital_profile,
     )
 
 
@@ -499,6 +501,14 @@ class Handler(BaseHTTPRequestHandler):
                 status = 400 if err in ("invalid profileId", "profile is active", "profile not found", "profile path is a symlink") else 500
                 return self._send(status, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
             return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
+
+        if p == "/api/digital/profile/inspect":
+            profile_id = get_str("profileId").strip()
+            ok, payload = inspect_digital_profile(profile_id)
+            if not ok:
+                status = 400 if payload in ("invalid profileId", "profile not found") else 500
+                return self._send(status, json.dumps({"ok": False, "error": payload}), "application/json; charset=utf-8")
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/profile/create":
             profile_id = get_str("id").strip()

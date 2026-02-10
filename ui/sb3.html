@@ -912,6 +912,30 @@
       box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
     }
 
+    .digital-preview {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      background: rgba(18, 22, 24, 0.6);
+    }
+
+    .digital-preview.collapsed .digital-preview-body {
+      display: none;
+    }
+
+    .digital-preview textarea {
+      width: 100%;
+      min-height: 160px;
+      background: var(--bg-panel);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px;
+      font-family: "SFMono-Regular", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 11px;
+      resize: vertical;
+    }
+
     .service-item.online {
       border-color: rgba(16, 185, 129, 0.5);
     }
@@ -1329,6 +1353,20 @@
                 </label>
               </div>
               <div class="control-applied" id="digital-error"></div>
+            </div>
+
+            <div class="digital-preview" id="digital-preview">
+              <div class="control-label" style="margin-bottom:8px;">
+                <span>Profile Contents</span>
+                <span class="control-value" id="digital-preview-status"></span>
+              </div>
+              <div class="control-applied" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
+                <button class="action" id="digital-preview-load">Load</button>
+                <button class="action" id="digital-preview-toggle">Hide</button>
+              </div>
+              <div class="digital-preview-body">
+                <textarea id="digital-preview-text" rows="10" spellcheck="false" readonly></textarea>
+              </div>
             </div>
 
             <div class="control-item">
@@ -1780,6 +1818,11 @@
       digitalManageCreate: document.getElementById('digital-manage-create'),
       digitalManageDelete: document.getElementById('digital-manage-delete'),
       digitalManageStatus: document.getElementById('digital-manage-status'),
+      digitalPreview: document.getElementById('digital-preview'),
+      digitalPreviewText: document.getElementById('digital-preview-text'),
+      digitalPreviewStatus: document.getElementById('digital-preview-status'),
+      digitalPreviewLoad: document.getElementById('digital-preview-load'),
+      digitalPreviewToggle: document.getElementById('digital-preview-toggle'),
       digitalStart: document.getElementById('digital-start'),
       digitalStop: document.getElementById('digital-stop'),
       digitalRestart: document.getElementById('digital-restart'),
@@ -2196,6 +2239,12 @@
       els.digitalManageStatus.style.color = isError ? '#f59e0b' : '';
     }
 
+    function setDigitalPreviewStatus(message, isError=false) {
+      if (!els.digitalPreviewStatus) return;
+      els.digitalPreviewStatus.textContent = message || '';
+      els.digitalPreviewStatus.style.color = isError ? '#f59e0b' : '';
+    }
+
     function updateDigitalProfileSelect() {
       if (!els.digitalProfileSelect) return;
       const profiles = state.digital.profiles || [];
@@ -2228,6 +2277,23 @@
           <div class="meta">${id === current ? 'Active' : 'Select'}</div>
         </button>`
       )).join('');
+    }
+
+    function formatDigitalPreview(data) {
+      const lines = [];
+      const profileId = data.profileId || '';
+      if (profileId) lines.push(`Profile: ${profileId}`);
+      if (data.previewName) {
+        lines.push(`Preview: ${data.previewName}`);
+        lines.push('');
+        if (data.preview) lines.push(data.preview);
+        lines.push('');
+      }
+      const files = data.files || [];
+      const suffix = data.has_more ? '+' : '';
+      lines.push(`Files (${files.length}${suffix}):`);
+      files.forEach((f) => lines.push(`- ${f}`));
+      return lines.join('\n');
     }
 
     async function refreshDigitalProfiles(force=false) {
@@ -2374,6 +2440,29 @@
         await refreshDigitalProfiles(true);
       } catch (e) {
         setDigitalManageStatus('Delete failed', true);
+      }
+    }
+
+    async function loadDigitalPreview() {
+      const profileId = els.digitalProfileSelect ? els.digitalProfileSelect.value : '';
+      if (!profileId) {
+        setDigitalPreviewStatus('Select a profile first', true);
+        return;
+      }
+      setDigitalPreviewStatus('Loading...', false);
+      try {
+        const res = await postAPI('/api/digital/profile/inspect', { profileId });
+        if (!res || !res.ok) {
+          setDigitalPreviewStatus((res && res.error) || 'Load failed', true);
+          return;
+        }
+        const text = formatDigitalPreview(res);
+        if (els.digitalPreviewText) {
+          els.digitalPreviewText.value = text;
+        }
+        setDigitalPreviewStatus('Loaded', false);
+      } catch (e) {
+        setDigitalPreviewStatus('Load failed', true);
       }
     }
 
@@ -3482,6 +3571,23 @@
       }
       if (els.digitalManageDelete) {
         els.digitalManageDelete.addEventListener('click', deleteDigitalProfile);
+      }
+      if (els.digitalPreview) {
+        const saved = localStorage.getItem('sb3-digital-preview-collapsed');
+        if (saved === '1') {
+          els.digitalPreview.classList.add('collapsed');
+          if (els.digitalPreviewToggle) els.digitalPreviewToggle.textContent = 'Show';
+        }
+      }
+      if (els.digitalPreviewToggle && els.digitalPreview) {
+        els.digitalPreviewToggle.addEventListener('click', () => {
+          const collapsed = els.digitalPreview.classList.toggle('collapsed');
+          els.digitalPreviewToggle.textContent = collapsed ? 'Show' : 'Hide';
+          localStorage.setItem('sb3-digital-preview-collapsed', collapsed ? '1' : '0');
+        });
+      }
+      if (els.digitalPreviewLoad) {
+        els.digitalPreviewLoad.addEventListener('click', loadDigitalPreview);
       }
       const adsbFrame = document.getElementById('adsb-frame');
       if (adsbFrame) {

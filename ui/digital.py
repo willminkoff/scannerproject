@@ -198,6 +198,67 @@ def delete_digital_profile_dir(profile_id: str):
     return True, ""
 
 
+def inspect_digital_profile(profile_id: str, max_files: int = 200, max_depth: int = 3, max_preview_bytes: int = 20000):
+    pid = _normalize_name(profile_id)
+    if not validate_digital_profile_id(pid):
+        return False, "invalid profileId"
+    base, target = _digital_profile_paths(pid)
+    if not base:
+        return False, "profiles dir not configured"
+    if not target.startswith(base + os.sep):
+        return False, "invalid profile path"
+    if not os.path.isdir(target):
+        return False, "profile not found"
+
+    files = []
+    has_more = False
+    for dirpath, dirnames, filenames in os.walk(target, topdown=True, followlinks=False):
+        rel_dir = os.path.relpath(dirpath, target)
+        depth = 0 if rel_dir == "." else rel_dir.count(os.sep) + 1
+        if depth >= max_depth:
+            dirnames[:] = []
+        else:
+            dirnames[:] = [d for d in dirnames if not os.path.islink(os.path.join(dirpath, d))]
+        for name in filenames:
+            if len(files) >= max_files:
+                has_more = True
+                break
+            fpath = os.path.join(dirpath, name)
+            if os.path.islink(fpath):
+                continue
+            rel = os.path.relpath(fpath, target)
+            files.append(rel)
+        if has_more:
+            break
+
+    files = sorted(files)
+
+    preview_name = ""
+    preview = ""
+    preview_candidates = ("README.txt", "README.md", "notes.txt")
+    for candidate in preview_candidates:
+        candidate_path = os.path.join(target, candidate)
+        if os.path.isfile(candidate_path) and not os.path.islink(candidate_path):
+            preview_name = candidate
+            try:
+                with open(candidate_path, "rb") as f:
+                    data = f.read(max_preview_bytes)
+                preview = data.decode("utf-8", errors="ignore")
+            except Exception:
+                preview = ""
+            break
+
+    payload = {
+        "ok": True,
+        "profileId": pid,
+        "files": files,
+        "has_more": bool(has_more),
+        "previewName": preview_name,
+        "preview": preview,
+    }
+    return True, payload
+
+
 class DigitalAdapter:
     """Interface for digital backends."""
     name = "base"
