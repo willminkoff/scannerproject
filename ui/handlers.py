@@ -46,12 +46,10 @@ try:
     )
     from .combined_status import combined_device_summary, combined_config_stale
     from .scanner import (
-        read_last_hit_airband, read_last_hit_ground, read_icecast_hit_list,
-        read_hit_list_cached
+        read_last_hit_airband, read_last_hit_ground, read_hit_list_cached
     )
     from .icecast import (
         icecast_up,
-        read_last_hit_from_icecast,
         fetch_local_icecast_status,
         list_icecast_mounts,
     )
@@ -94,12 +92,10 @@ except ImportError:
     )
     from ui.combined_status import combined_device_summary, combined_config_stale
     from ui.scanner import (
-        read_last_hit_airband, read_last_hit_ground, read_icecast_hit_list,
-        read_hit_list_cached
+        read_last_hit_airband, read_last_hit_ground, read_hit_list_cached
     )
     from ui.icecast import (
         icecast_up,
-        read_last_hit_from_icecast,
         fetch_local_icecast_status,
         list_icecast_mounts,
     )
@@ -263,7 +259,8 @@ class Handler(BaseHTTPRequestHandler):
             profile_ground = guess_current_profile(ground_conf_path, [(p["id"], p["label"], p["path"]) for p in profiles_ground])
             last_hit_airband = read_last_hit_airband()
             last_hit_ground = read_last_hit_ground()
-            icecast_hit = read_last_hit_from_icecast() if ice_ok else ""
+            hit_items = read_hit_list_cached(limit=20)
+            latest_hit = hit_items[0].get("freq") if hit_items else ""
             config_mtimes = {}
             for key, path in (("airband", conf_path), ("ground", ground_conf_path), ("combined", combined_conf_path)):
                 try:
@@ -327,7 +324,7 @@ class Handler(BaseHTTPRequestHandler):
                 "airband_applied_squelch_dbfs": airband_device.get("squelch_dbfs") if airband_device else None,
                 "ground_applied_gain": ground_device.get("gain") if ground_device else None,
                 "ground_applied_squelch_dbfs": ground_device.get("squelch_dbfs") if ground_device else None,
-                "last_hit": icecast_hit or last_hit_airband or last_hit_ground or "",
+                "last_hit": latest_hit or last_hit_airband or last_hit_ground or "",
                 "last_hit_airband": last_hit_airband,
                 "last_hit_ground": last_hit_ground,
                 "avoids_airband": summarize_avoids(conf_path, "airband"),
@@ -393,16 +390,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, json.dumps({"ok": False, "error": payload}), "application/json; charset=utf-8")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         if p == "/api/hits":
-            items = read_icecast_hit_list(limit=50)
-            # Append journalctl-based hits if needed for broader coverage
-            if len(items) < 20:
-                journal_items = read_hit_list_cached()
-                # Merge and deduplicate based on time and frequency
-                existing_times = {(item.get("time"), item.get("freq")) for item in items}
-                for item in journal_items:
-                    if (item.get("time"), item.get("freq")) not in existing_times:
-                        items.append(item)
-                        existing_times.add((item.get("time"), item.get("freq")))
+            items = read_hit_list_cached(limit=50)
             def parse_time_ts(value: str) -> float:
                 if not value:
                     return 0.0
@@ -479,7 +467,8 @@ class Handler(BaseHTTPRequestHandler):
                 rtl_active = rtl_unit_active
                 ground_active = rtl_active and ground_present
                 ice_ok = icecast_up()
-                last_hit = read_last_hit_from_icecast() if ice_ok else read_last_hit_airband()
+                hit_items = read_hit_list_cached(limit=20)
+                last_hit = hit_items[0].get("freq") if hit_items else (read_last_hit_airband() or read_last_hit_ground())
                 status_data = {
                     "type": "status",
                     "rtl_active": rtl_active,
@@ -503,7 +492,7 @@ class Handler(BaseHTTPRequestHandler):
                     "note": "stats_filepath not supported in rtl_airband v5.1.1"
                 }
                 self.wfile.write(f"event: spectrum\ndata: {json.dumps(spectrum_data)}\n\n".encode())
-                hits = read_icecast_hit_list(limit=10)
+                hits = read_hit_list_cached(limit=10)
                 hits_data = {
                     "type": "hits",
                     "items": hits,

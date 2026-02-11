@@ -8,18 +8,14 @@ try:
     from .actions import execute_action
     from .scanner import (
         update_icecast_hit_log,
-        read_last_hit_from_icecast,
-        read_last_hit_airband,
-        read_last_hit_ground,
+        read_hit_list_cached,
     )
 except ImportError:
     from ui.config import APPLY_DEBOUNCE_SEC
     from ui.actions import execute_action
     from ui.scanner import (
         update_icecast_hit_log,
-        read_last_hit_from_icecast,
-        read_last_hit_airband,
-        read_last_hit_ground,
+        read_hit_list_cached,
     )
 
 ACTION_QUEUE = deque()
@@ -109,13 +105,12 @@ def config_worker() -> None:
 
 
 def icecast_monitor_worker() -> None:
-    """Background thread that continuously monitors Icecast stream title and logs hits."""
+    """Background thread that monitors RTL-airband activity and logs hits."""
     prev_title = None
     while True:
         try:
-            current_title = read_last_hit_from_icecast()
-            if not current_title:
-                current_title = read_last_hit_airband() or read_last_hit_ground()
+            items = read_hit_list_cached()
+            current_title = items[0].get("freq") if items else ""
             if current_title != prev_title:
                 update_icecast_hit_log(current_title)
                 prev_title = current_title

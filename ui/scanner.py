@@ -13,7 +13,6 @@ try:
         LAST_HIT_GROUND_PATH, ICECAST_HIT_LOG_PATH, ICECAST_HIT_LOG_LIMIT,
         ICECAST_HIT_MIN_DURATION, UNITS
     )
-    from .icecast import read_last_hit_from_icecast
     from .systemd import unit_active
 except ImportError:
     from ui.config import (
@@ -22,7 +21,6 @@ except ImportError:
         LAST_HIT_GROUND_PATH, ICECAST_HIT_LOG_PATH, ICECAST_HIT_LOG_LIMIT,
         ICECAST_HIT_MIN_DURATION, UNITS
     )
-    from ui.icecast import read_last_hit_from_icecast
     from ui.systemd import unit_active
 
 
@@ -250,13 +248,13 @@ def read_hit_list(limit: int = 20, scan_lines: int = 200) -> list:
     return entries
 
 
-def read_hit_list_cached() -> list:
+def read_hit_list_cached(limit: int = 20) -> list:
     """Read hit list with caching."""
     now = time.time()
     cache = getattr(read_hit_list_cached, "_cache", {"value": [], "ts": 0.0})
-    if now - cache["ts"] < 0.5:
-        return cache["value"]
-    value = read_hit_list()
+    if now - cache["ts"] < 0.5 and len(cache["value"]) >= limit:
+        return cache["value"][:limit]
+    value = read_hit_list(limit=limit)
     cache = {"value": value, "ts": now}
     read_hit_list_cached._cache = cache
     return value
@@ -368,7 +366,7 @@ def parse_last_hit_freq(target: str) -> Optional[float]:
     if target == "ground":
         value = read_last_hit_ground()
     else:
-        value = read_last_hit_from_icecast() or read_last_hit_airband() or read_last_hit()
+        value = read_last_hit_airband() or read_last_hit()
     if not value:
         return None
     m = re.search(r'[0-9]+(?:\.[0-9]+)?', value)
