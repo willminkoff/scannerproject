@@ -21,7 +21,14 @@ try:
         DIGITAL_LOG_PATH,
         DIGITAL_PROFILES_DIR,
         DIGITAL_RTL_SERIAL,
+<<<<<<< ours
+<<<<<<< ours
         DIGITAL_RTL_SERIAL_HINT,
+=======
+        DIGITAL_RTL_DEVICE,
+>>>>>>> theirs
+=======
+>>>>>>> theirs
         DIGITAL_SERVICE_NAME,
     )
     from .systemd import unit_active
@@ -37,7 +44,14 @@ except ImportError:
         DIGITAL_LOG_PATH,
         DIGITAL_PROFILES_DIR,
         DIGITAL_RTL_SERIAL,
+<<<<<<< ours
+<<<<<<< ours
         DIGITAL_RTL_SERIAL_HINT,
+=======
+        DIGITAL_RTL_DEVICE,
+>>>>>>> theirs
+=======
+>>>>>>> theirs
         DIGITAL_SERVICE_NAME,
     )
     from ui.systemd import unit_active
@@ -304,6 +318,16 @@ def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
     time_only = _row_value(row, _EVENT_TIME_ONLY_KEYS)
     freq = _row_value(row, _EVENT_FREQ_KEYS)
     site = _row_value(row, _EVENT_SITE_KEYS)
+    to_val = _row_value(row, ("to", "from"))
+    if to_val:
+        if not label:
+            label = to_val
+        if not tgid:
+            m = re.search(r"\((\d+)\)", to_val)
+            if not m:
+                m = re.search(r"\b(\d{3,})\b", to_val)
+            if m:
+                tgid = m.group(1)
 
     time_ms = _parse_time_value(time_val, fallback_ms)
     if not time_val and (date_val or time_only):
@@ -947,9 +971,12 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 mtime = os.path.getmtime(path)
             except Exception:
                 mtime = 0
-            candidates.append((mtime, path))
+            candidates.append((mtime, path, name))
+        call_candidates = [item for item in candidates if "call_events" in item[2].lower()]
+        if call_candidates:
+            candidates = call_candidates
         candidates.sort(key=lambda item: item[0], reverse=True)
-        return [path for _, path in candidates[:5]]
+        return [path for _, path, _ in candidates[:5]]
 
     def _ensure_event_log_header(self, path: str) -> None:
         if path in self._event_log_headers:
@@ -1446,6 +1473,8 @@ class DigitalManager:
         payload["digital_tuner_busy_count"] = int(preflight.get("tuner_busy_count") or 0)
         payload["digital_tuner_busy_time"] = int(preflight.get("tuner_busy_last_time_ms") or 0)
         if preflight.get("tuner_busy"):
+<<<<<<< ours
+<<<<<<< ours
             air_serial = os.getenv("AIRBAND_RTL_SERIAL", "").strip()
             ground_serial = os.getenv("GROUND_RTL_SERIAL", "").strip()
             digital_serial = DIGITAL_RTL_SERIAL or ""
@@ -1454,6 +1483,13 @@ class DigitalManager:
                 f"ground={ground_serial or 'unknown'}, digital={digital_serial or 'unknown'}"
             )
             serial_note = f" (serial {DIGITAL_RTL_SERIAL})" if DIGITAL_RTL_SERIAL else ""
+=======
+            expected_serial = expected_digital_rtl_serial()
+            serial_note = f" (serial {expected_serial})" if expected_serial else ""
+>>>>>>> theirs
+=======
+            serial_note = f" (serial {DIGITAL_RTL_SERIAL})" if DIGITAL_RTL_SERIAL else ""
+>>>>>>> theirs
             msg = (
                 f"SDRTrunk tuner busy{serial_note}: likely dongle conflict with rtl-airband; "
                 f"{serials_note}. In SDRTrunk, disable other RTL tuners and bind to serial {digital_serial or 'your digital dongle'}."
