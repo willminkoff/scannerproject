@@ -33,7 +33,10 @@ _NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@-]{0,127}$")
 _MODE_RE = re.compile(r"\b(P25|P25P1|P25P2|DMR|NXDN|D-STAR|TETRA|YSF|EDACS|LTR)\b", re.I)
 _PHASE1_RE = re.compile(r"\bP25\s*Phase\s*1\b", re.I)
 _PHASE2_RE = re.compile(r"\bP25\s*Phase\s*2\b", re.I)
-_LABEL_RE = re.compile(r"\b(label|alias|alpha\s*tag|name|talkgroup|tgid|channel|group)[=:]\s*([^|,]+)", re.I)
+_LABEL_RE = re.compile(
+    r"\b(label|alias|alpha\s*tag|talkgroup|tgid|channel|channel\s*name|alias\s*name|group)[=:]\s*([^|,]+)",
+    re.I,
+)
 _TGID_RE = re.compile(r"\b(?:tgid|talkgroup|tg)\b[=: ]+(\d+)\b", re.I)
 _EVENT_HINT_RE = re.compile(r"(call|voice|traffic|talkgroup|tgid|alias|alpha\s*tag|channel\s*event|from:|to:)", re.I)
 _TS_RE = re.compile(r"(?P<date>\d{4}-\d{2}-\d{2})[ T](?P<time>\d{2}:\d{2}:\d{2})")
@@ -706,6 +709,8 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 last_line = line.strip()
                 break
         if not last_line:
+            return
+        if not (_EVENT_HINT_RE.search(last_line) or _TGID_RE.search(last_line)):
             return
         time_ms = _parse_time_ms(last_line, fallback_ms)
         label, mode, _ = _extract_label_mode(last_line)

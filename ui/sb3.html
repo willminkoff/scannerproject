@@ -181,13 +181,14 @@
       gap: 10px;
       flex-wrap: wrap;
       width: min(660px, 70vw);
+      max-width: calc(100% - 160px);
       justify-content: center;
     }
 
     .last-hit-btn {
       display: grid;
       gap: 4px;
-      min-width: 110px;
+      min-width: 90px;
       flex: 1 1 0;
       padding: 6px 10px;
       border-radius: 10px;
@@ -213,6 +214,10 @@
       font-size: 20px;
       font-weight: 600;
       color: var(--accent);
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .last-hit-btn.holding .value {
