@@ -422,6 +422,8 @@ class Handler(BaseHTTPRequestHandler):
                     "duration": 0,
                     "label": label,
                     "mode": event.get("mode"),
+                    "tgid": event.get("tgid"),
+                    "type": "digital",
                     "source": "digital",
                     "_ts": ts,
                 }

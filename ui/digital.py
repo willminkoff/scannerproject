@@ -13,6 +13,9 @@ try:
     from .config import (
         DIGITAL_ACTIVE_PROFILE_LINK,
         DIGITAL_BACKEND,
+        DIGITAL_EVENT_LOG_DIR,
+        DIGITAL_EVENT_LOG_MODE,
+        DIGITAL_EVENT_LOG_TAIL_LINES,
         DIGITAL_LOG_PATH,
         DIGITAL_PROFILES_DIR,
         DIGITAL_SERVICE_NAME,
@@ -22,6 +25,9 @@ except ImportError:
     from ui.config import (
         DIGITAL_ACTIVE_PROFILE_LINK,
         DIGITAL_BACKEND,
+        DIGITAL_EVENT_LOG_DIR,
+        DIGITAL_EVENT_LOG_MODE,
+        DIGITAL_EVENT_LOG_TAIL_LINES,
         DIGITAL_LOG_PATH,
         DIGITAL_PROFILES_DIR,
         DIGITAL_SERVICE_NAME,
@@ -44,6 +50,7 @@ _TS_COMPACT_RE = re.compile(r"(?P<date>\d{8})\s+(?P<time>\d{6})(?:\.\d+)?")
 _LOG_PREFIX_RE = re.compile(r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?\s+")
 _LOG_PREFIX_COMPACT_RE = re.compile(r"^\d{8}\s+\d{6}(?:\.\d+)?\s+")
 _LOG_LEVEL_RE = re.compile(r"^(INFO|WARN|ERROR|DEBUG|TRACE)\s+", re.I)
+_KEY_NORMALIZE_RE = re.compile(r"[^a-z0-9]+")
 _NON_FATAL_ERROR_RE = re.compile(
     r"(no audio playback devices available|couldn't obtain master gain|usb.*in-use|device is busy|unable to set usb configuration)",
     re.I,
@@ -61,6 +68,74 @@ _DEFAULT_PROFILE_NOTE = (
     "Then set this profile active from the UI or by updating the active symlink.\n"
 )
 _LISTEN_FILENAME = "talkgroups_listen.json"
+_EVENT_HEADER_KEYS = (
+    "timestamp",
+    "time",
+    "date",
+    "talkgroup",
+    "tgid",
+    "alias",
+    "alpha",
+    "system",
+    "site",
+    "frequency",
+    "freq",
+)
+_EVENT_LABEL_KEYS = (
+    "alias",
+    "alpha tag",
+    "alpha",
+    "talkgroup name",
+    "group",
+    "description",
+    "name",
+    "channel name",
+)
+_EVENT_TGID_KEYS = (
+    "tgid",
+    "talkgroup",
+    "talkgroup id",
+    "dec",
+    "decimal",
+    "tg",
+)
+_EVENT_MODE_KEYS = (
+    "mode",
+    "protocol",
+    "type",
+    "system type",
+    "decoder",
+)
+_EVENT_TIME_KEYS = (
+    "timestamp",
+    "time",
+    "start time",
+    "event time",
+    "date time",
+    "start",
+    "received",
+)
+_EVENT_DATE_KEYS = (
+    "date",
+    "event date",
+)
+_EVENT_TIME_ONLY_KEYS = (
+    "time",
+    "start time",
+    "event time",
+)
+_EVENT_FREQ_KEYS = (
+    "frequency",
+    "freq",
+    "control channel",
+    "control frequency",
+)
+_EVENT_SITE_KEYS = (
+    "site",
+    "system",
+    "site name",
+    "system name",
+)
 
 
 def validate_digital_profile_id(profile_id: str) -> bool:
@@ -81,6 +156,10 @@ def _normalize_name(value: str) -> str:
     if not value:
         return ""
     return value.strip()
+
+
+def _norm_key(value: str) -> str:
+    return _KEY_NORMALIZE_RE.sub(" ", str(value or "").lower()).strip()
 
 
 def _safe_realpath(path: str) -> str:
@@ -127,6 +206,24 @@ def _parse_time_ms(line: str, fallback_ms: int) -> int:
     return fallback_ms
 
 
+def _parse_time_value(value: str, fallback_ms: int) -> int:
+    raw = str(value or "").strip()
+    if not raw:
+        return fallback_ms
+    if raw.isdigit():
+        if len(raw) >= 13:
+            try:
+                return int(raw[:13])
+            except Exception:
+                return fallback_ms
+        if len(raw) == 10:
+            try:
+                return int(raw) * 1000
+            except Exception:
+                return fallback_ms
+    return _parse_time_ms(raw, fallback_ms)
+
+
 def _strip_log_prefix(line: str) -> str:
     line = (line or "").strip()
     if not line:
@@ -170,6 +267,62 @@ def _extract_label_mode(line: str):
     return label, mode, label_from_field
 
 
+def _coerce_mode(value: str) -> str:
+    if not value:
+        return ""
+    _, mode, _ = _extract_label_mode(str(value))
+    return mode or ""
+
+
+def _row_value(row: dict, keys: tuple) -> str:
+    for key in keys:
+        val = row.get(key)
+        if val:
+            return str(val).strip()
+    return ""
+
+
+def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
+    label = _row_value(row, _EVENT_LABEL_KEYS)
+    tgid = _row_value(row, _EVENT_TGID_KEYS)
+    mode_val = _row_value(row, _EVENT_MODE_KEYS)
+    time_val = _row_value(row, _EVENT_TIME_KEYS)
+    date_val = _row_value(row, _EVENT_DATE_KEYS)
+    time_only = _row_value(row, _EVENT_TIME_ONLY_KEYS)
+    freq = _row_value(row, _EVENT_FREQ_KEYS)
+    site = _row_value(row, _EVENT_SITE_KEYS)
+
+    time_ms = _parse_time_value(time_val, fallback_ms)
+    if not time_val and (date_val or time_only):
+        time_ms = _parse_time_ms(f"{date_val} {time_only}".strip(), fallback_ms)
+
+    if not label and tgid:
+        label = f"TG {tgid}"
+
+    if not label and not tgid:
+        return None
+
+    mode = _coerce_mode(mode_val)
+    if not mode:
+        mode = _coerce_mode(raw_line)
+
+    event = {
+        "type": "digital",
+        "label": label,
+        "timeMs": int(time_ms or fallback_ms),
+        "raw": raw_line,
+    }
+    if mode:
+        event["mode"] = mode
+    if tgid:
+        event["tgid"] = tgid
+    if freq:
+        event["frequency"] = freq
+    if site:
+        event["site"] = site
+    return event
+
+
 def _extract_event_from_line(line: str, fallback_ms: int) -> dict | None:
     raw = (line or "").strip()
     if not raw:
@@ -185,9 +338,12 @@ def _extract_event_from_line(line: str, fallback_ms: int) -> dict | None:
     if not (label_from_field or _EVENT_HINT_RE.search(stripped)):
         return None
     time_ms = _parse_time_ms(raw, fallback_ms)
-    event = {"label": label, "timeMs": time_ms, "raw": stripped}
+    event = {"type": "digital", "label": label, "timeMs": time_ms, "raw": stripped}
     if mode:
         event["mode"] = mode
+    tgid = _extract_tgid(stripped)
+    if tgid:
+        event["tgid"] = tgid
     return event
 
 
@@ -533,6 +689,9 @@ class _BaseDigitalAdapter(DigitalAdapter):
     def _record_event(self, event: dict) -> None:
         if not event:
             return
+        if "type" not in event:
+            event = dict(event)
+            event["type"] = "digital"
         key = f"{event.get('timeMs')}|{event.get('label')}|{event.get('mode','')}"
         if key in self._recent_event_keys:
             return
@@ -613,6 +772,11 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         self._log_path = DIGITAL_LOG_PATH
         self._last_log_mtime = None
         self._last_log_size = None
+        self._event_log_dir = DIGITAL_EVENT_LOG_DIR
+        self._event_log_mode = (DIGITAL_EVENT_LOG_MODE or "auto").strip().lower()
+        self._event_log_tail_lines = int(DIGITAL_EVENT_LOG_TAIL_LINES or 500)
+        self._event_log_offsets = {}
+        self._event_log_headers = {}
         self._tg_map = {}
         self._tg_map_profile = ""
         self._tg_map_mtime = None
@@ -659,74 +823,239 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         return False, err
 
     def _refresh_log_cache(self):
+        mode = self._event_log_mode or "auto"
+        mode = mode if mode in ("auto", "event_logs", "app_log") else "auto"
+        lines = []
+        fallback_ms = int(time.time() * 1000)
+        app_events = []
+
         try:
             stat = os.stat(self._log_path)
             mtime = stat.st_mtime
             size = stat.st_size
         except Exception:
-            return
-        if self._last_log_mtime == mtime and self._last_log_size == size:
-            return
-        self._last_log_mtime = mtime
-        self._last_log_size = size
-        lines = _read_tail_lines(self._log_path)
-        if not lines:
-            return
-        fallback_ms = int(mtime * 1000) if mtime else int(time.time() * 1000)
+            mtime = None
+            size = None
+        if mtime and size is not None:
+            if self._last_log_mtime != mtime or self._last_log_size != size:
+                self._last_log_mtime = mtime
+                self._last_log_size = size
+                lines = _read_tail_lines(self._log_path)
+            if lines:
+                fallback_ms = int(mtime * 1000) if mtime else fallback_ms
+                if mode in ("auto", "app_log"):
+                    for line in lines:
+                        event = _extract_event_from_line(line, fallback_ms)
+                        if event:
+                            mapped = self._map_event_label(event)
+                            if mapped and mapped.get("muted"):
+                                continue
+                            app_events.append(mapped)
+
+                # Last error/warning (best-effort) from app log regardless of mode.
+                last_err = None
+                last_warn = None
+                for line in reversed(lines):
+                    if re.search(r"(error|exception)", line, re.I):
+                        if _is_non_fatal_error(line):
+                            if not last_warn:
+                                last_warn = line.strip()
+                            continue
+                        last_err = line.strip()
+                        break
+                if last_err:
+                    self._set_last_error(last_err)
+                else:
+                    self._clear_error()
+                if last_warn:
+                    self._set_last_warning(last_warn)
+                else:
+                    self._clear_warning()
+
+        event_log_events = []
+        if mode in ("auto", "event_logs"):
+            event_log_events = self._read_event_logs()
+
         events = []
-        for line in lines:
-            event = _extract_event_from_line(line, fallback_ms)
-            if event:
-                mapped = self._map_event_label(event)
-                if mapped and mapped.get("muted"):
-                    continue
-                events.append(mapped)
+        if mode == "app_log":
+            events = app_events
+        elif mode == "event_logs":
+            events = event_log_events
+        else:
+            events = app_events if app_events else event_log_events
+
         if events:
             for event in events:
                 self._record_event(event)
             latest = max(events, key=lambda item: item.get("timeMs", 0))
             self._last_event = latest
             self._last_event_time_ms = int(latest.get("timeMs") or fallback_ms)
-        # Last error/warning (best-effort)
-        last_err = None
-        last_warn = None
-        for line in reversed(lines):
-            if re.search(r"(error|exception)", line, re.I):
-                if _is_non_fatal_error(line):
-                    if not last_warn:
-                        last_warn = line.strip()
-                    continue
-                last_err = line.strip()
-                break
-        if last_err:
-            self._set_last_error(last_err)
-        else:
-            self._clear_error()
-        if last_warn:
-            self._set_last_warning(last_warn)
-        else:
-            self._clear_warning()
+            return
 
-        if self._last_event:
+        if mode == "app_log" and lines:
+            # Last event fallback: use last non-empty line only for app_log mode.
+            last_line = ""
+            for line in reversed(lines):
+                if line.strip():
+                    last_line = line.strip()
+                    break
+            if not last_line:
+                return
+            if not (_EVENT_HINT_RE.search(last_line) or _TGID_RE.search(last_line)):
+                return
+            time_ms = _parse_time_ms(last_line, fallback_ms)
+            label, mode_label, _ = _extract_label_mode(last_line)
+            event = {"type": "digital", "label": label, "timeMs": time_ms, "raw": last_line}
+            if mode_label:
+                event["mode"] = mode_label
+            event = self._map_event_label(event)
+            self._last_event = event
+            self._last_event_time_ms = time_ms
             return
-        # Last event fallback: use last non-empty line
-        last_line = ""
-        for line in reversed(lines):
-            if line.strip():
-                last_line = line.strip()
-                break
-        if not last_line:
+
+    def _list_event_log_files(self):
+        base = self._event_log_dir
+        if not base or not os.path.isdir(base):
+            return []
+        candidates = []
+        try:
+            entries = os.listdir(base)
+        except Exception:
+            return []
+        for name in entries:
+            if name.startswith("."):
+                continue
+            path = os.path.join(base, name)
+            if not os.path.isfile(path):
+                continue
+            if not re.search(r"\.(csv|log|txt|json)$", name, re.I):
+                continue
+            try:
+                mtime = os.path.getmtime(path)
+            except Exception:
+                mtime = 0
+            candidates.append((mtime, path))
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        return [path for _, path in candidates[:5]]
+
+    def _ensure_event_log_header(self, path: str) -> None:
+        if path in self._event_log_headers:
             return
-        if not (_EVENT_HINT_RE.search(last_line) or _TGID_RE.search(last_line)):
-            return
-        time_ms = _parse_time_ms(last_line, fallback_ms)
-        label, mode, _ = _extract_label_mode(last_line)
-        event = {"label": label, "timeMs": time_ms, "raw": last_line}
-        if mode:
-            event["mode"] = mode
-        event = self._map_event_label(event)
-        self._last_event = event
-        self._last_event_time_ms = time_ms
+        header = None
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                first = f.readline()
+            if first:
+                row = next(csv.reader([first]))
+                if row:
+                    norm = [_norm_key(x) for x in row]
+                    joined = " ".join(norm)
+                    if any(_norm_key(k) in joined for k in _EVENT_HEADER_KEYS):
+                        header = norm
+        except Exception:
+            header = None
+        self._event_log_headers[path] = header
+
+    def _read_event_log_lines(self, path: str):
+        try:
+            size = os.path.getsize(path)
+        except Exception:
+            return []
+        last_offset = self._event_log_offsets.get(path)
+        if last_offset is None:
+            self._ensure_event_log_header(path)
+            lines = _read_tail_lines(path, max_bytes=65536, max_lines=self._event_log_tail_lines)
+            self._event_log_offsets[path] = size
+            return lines
+        if size < last_offset:
+            last_offset = 0
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                f.seek(last_offset)
+                data = f.read()
+                self._event_log_offsets[path] = f.tell()
+        except Exception:
+            return []
+        return data.splitlines()
+
+    def _parse_event_log_line(self, raw: str, path: str, fallback_ms: int):
+        text = (raw or "").strip()
+        if not text:
+            return None
+        if _IGNORE_EVENT_RE.search(text):
+            return None
+        if text.startswith("{") and text.endswith("}"):
+            try:
+                payload = json.loads(text)
+            except Exception:
+                payload = None
+            if isinstance(payload, dict):
+                row = {_norm_key(k): str(v) for k, v in payload.items()}
+                return _row_to_event(row, text, fallback_ms)
+        header = self._event_log_headers.get(path)
+        try:
+            row = next(csv.reader([text]))
+        except Exception:
+            row = []
+        if row and header is None:
+            norm = [_norm_key(x) for x in row]
+            joined = " ".join(norm)
+            if any(_norm_key(k) in joined for k in _EVENT_HEADER_KEYS):
+                self._event_log_headers[path] = norm
+                return None
+            header = None
+        if row and header:
+            if row and all(_norm_key(x) == (header[i] if i < len(header) else "") for i, x in enumerate(row[: len(header)])):
+                return None
+            row_norm = {}
+            for idx, key in enumerate(header):
+                if idx >= len(row):
+                    break
+                row_norm[key] = row[idx]
+            event = _row_to_event(row_norm, text, fallback_ms)
+            if event:
+                return event
+        kv = {}
+        if ":" in text or "=" in text:
+            parts = re.split(r"[|,]", text)
+            for part in parts:
+                if ":" in part:
+                    key, val = part.split(":", 1)
+                elif "=" in part:
+                    key, val = part.split("=", 1)
+                else:
+                    continue
+                key = _norm_key(key)
+                if key:
+                    kv[key] = val.strip()
+        if kv:
+            event = _row_to_event(kv, text, fallback_ms)
+            if event:
+                return event
+        return _extract_event_from_line(text, fallback_ms)
+
+    def _read_event_logs(self):
+        events = []
+        paths = self._list_event_log_files()
+        now_ms = int(time.time() * 1000)
+        for path in paths:
+            self._ensure_event_log_header(path)
+            lines = self._read_event_log_lines(path)
+            if not lines:
+                continue
+            try:
+                mtime = os.path.getmtime(path)
+            except Exception:
+                mtime = None
+            fallback_ms = int(mtime * 1000) if mtime else now_ms
+            for line in lines:
+                event = self._parse_event_log_line(line, path, fallback_ms)
+                if event:
+                    mapped = self._map_event_label(event)
+                    if mapped and mapped.get("muted"):
+                        continue
+                    events.append(mapped)
+        return events
 
     def start(self):
         ok, err = self._systemctl(["start"])
@@ -899,15 +1228,15 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             return event
         label = str(event.get("label") or "").strip()
         raw = str(event.get("raw") or "")
+        tgid = str(event.get("tgid") or "").strip()
         tg_map = self._load_talkgroup_map()
         if not tg_map:
             return event
-        tgid = ""
-        if label:
-            if label.isdigit() or _TGID_RE.search(label):
+        if not tgid:
+            if label and (label.isdigit() or _TGID_RE.search(label)):
                 tgid = _extract_tgid(label)
-        if not tgid and raw:
-            tgid = _extract_tgid(raw)
+            if not tgid and raw:
+                tgid = _extract_tgid(raw)
         if tgid:
             listen_map = self._load_listen_map()
             listen = listen_map.get(tgid, True) if listen_map else True

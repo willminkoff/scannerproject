@@ -59,6 +59,12 @@ DIGITAL_SERVICE_NAME = os.getenv("DIGITAL_SERVICE_NAME", os.getenv("UNIT_DIGITAL
 DIGITAL_PROFILES_DIR = os.getenv("DIGITAL_PROFILES_DIR", "/etc/scannerproject/digital/profiles")
 DIGITAL_ACTIVE_PROFILE_LINK = os.getenv("DIGITAL_ACTIVE_PROFILE_LINK", "/etc/scannerproject/digital/active")
 DIGITAL_LOG_PATH = os.getenv("DIGITAL_LOG_PATH", "/var/log/sdrtrunk/sdrtrunk.log")
+DIGITAL_EVENT_LOG_DIR = os.getenv(
+    "DIGITAL_EVENT_LOG_DIR",
+    os.path.join(os.path.expanduser("~"), "SDRTrunk", "event_logs"),
+)
+DIGITAL_EVENT_LOG_MODE = os.getenv("DIGITAL_EVENT_LOG_MODE", "auto").strip().lower()
+DIGITAL_EVENT_LOG_TAIL_LINES = int(os.getenv("DIGITAL_EVENT_LOG_TAIL_LINES", "500"))
 DIGITAL_RTL_DEVICE = os.getenv("DIGITAL_RTL_DEVICE", "")
 DIGITAL_MIXER_ENABLED = os.getenv("DIGITAL_MIXER_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
 DIGITAL_MIXER_AIRBAND_MOUNT = os.getenv("DIGITAL_MIXER_AIRBAND_MOUNT", "GND-air.mp3").strip().lstrip("/")
