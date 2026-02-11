@@ -11,6 +11,8 @@ from datetime import datetime
 
 try:
     from .config import (
+        AIRBAND_RTL_SERIAL,
+        GROUND_RTL_SERIAL,
         DIGITAL_ACTIVE_PROFILE_LINK,
         DIGITAL_BACKEND,
         DIGITAL_EVENT_LOG_DIR,
@@ -19,11 +21,14 @@ try:
         DIGITAL_LOG_PATH,
         DIGITAL_PROFILES_DIR,
         DIGITAL_RTL_SERIAL,
+        DIGITAL_RTL_SERIAL_HINT,
         DIGITAL_SERVICE_NAME,
     )
     from .systemd import unit_active
 except ImportError:
     from ui.config import (
+        AIRBAND_RTL_SERIAL,
+        GROUND_RTL_SERIAL,
         DIGITAL_ACTIVE_PROFILE_LINK,
         DIGITAL_BACKEND,
         DIGITAL_EVENT_LOG_DIR,
@@ -32,6 +37,7 @@ except ImportError:
         DIGITAL_LOG_PATH,
         DIGITAL_PROFILES_DIR,
         DIGITAL_RTL_SERIAL,
+        DIGITAL_RTL_SERIAL_HINT,
         DIGITAL_SERVICE_NAME,
     )
     from ui.systemd import unit_active
@@ -57,7 +63,11 @@ _NON_FATAL_ERROR_RE = re.compile(
     r"(no audio playback devices available|couldn't obtain master gain|usb.*in-use|device is busy|unable to set usb configuration)",
     re.I,
 )
-_TUNER_BUSY_RE = re.compile(r"USB tuner is in-use by another application", re.I)
+_TUNER_BUSY_RE = re.compile(
+    r"(in[- ]use by another application|device is busy|usb_claim_interface error|"
+    r"unable to set usb configuration|failed to open rtlsdr device)",
+    re.I,
+)
 _IGNORE_EVENT_RE = re.compile(
     r"(auto-start failed|no tuner available|mountpoint in use|unable to connect|audiooutput|playbackpreference|"
     r"audio streaming broadcaster|status: connected|starting main application|loading playlist|discovering tuners)",
@@ -1066,17 +1076,29 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
 
     def _detect_tuner_busy(self, lines: list) -> list:
         hits = []
+        now_ms = int(time.time() * 1000)
         for line in lines or []:
             if _TUNER_BUSY_RE.search(line or ""):
-                hits.append((line or "").strip())
-        return hits[-3:]
+                raw = (line or "").strip()
+                ts = _parse_time_ms(raw, now_ms)
+                hits.append({"line": raw, "timeMs": ts})
+        return hits
 
     def preflight(self):
         lines = self._read_log_tail()
-        busy_lines = self._detect_tuner_busy(lines)
+        busy_hits = self._detect_tuner_busy(lines)
+        busy_lines = [h.get("line") for h in busy_hits if h.get("line")]
+        busy_lines = busy_lines[-10:]
+        last_time = 0
+        for hit in reversed(busy_hits):
+            if hit.get("timeMs"):
+                last_time = int(hit.get("timeMs"))
+                break
         return {
             "tuner_busy": bool(busy_lines),
             "tuner_busy_lines": busy_lines,
+            "tuner_busy_count": len(busy_hits),
+            "tuner_busy_last_time_ms": last_time,
         }
 
     def start(self):
@@ -1421,13 +1443,24 @@ class DigitalManager:
         if warn:
             payload["digital_last_warning"] = warn
         preflight = self.preflight() or {}
+        payload["digital_tuner_busy_count"] = int(preflight.get("tuner_busy_count") or 0)
+        payload["digital_tuner_busy_time"] = int(preflight.get("tuner_busy_last_time_ms") or 0)
         if preflight.get("tuner_busy"):
+            air_serial = os.getenv("AIRBAND_RTL_SERIAL", "").strip()
+            ground_serial = os.getenv("GROUND_RTL_SERIAL", "").strip()
+            digital_serial = DIGITAL_RTL_SERIAL or ""
+            serials_note = (
+                f"expected serials: airband={air_serial or 'unknown'}, "
+                f"ground={ground_serial or 'unknown'}, digital={digital_serial or 'unknown'}"
+            )
             serial_note = f" (serial {DIGITAL_RTL_SERIAL})" if DIGITAL_RTL_SERIAL else ""
             msg = (
-                f"SDRTrunk tuner busy{serial_note}: likely dongle conflict with rtl-airband. "
-                "Bind SDRTrunk to a dedicated RTL serial."
+                f"SDRTrunk tuner busy{serial_note}: likely dongle conflict with rtl-airband; "
+                f"{serials_note}. In SDRTrunk, disable other RTL tuners and bind to serial {digital_serial or 'your digital dongle'}."
             )
             payload["digital_last_warning"] = msg
+        elif not DIGITAL_RTL_SERIAL and DIGITAL_RTL_SERIAL_HINT:
+            payload.setdefault("digital_last_warning", DIGITAL_RTL_SERIAL_HINT)
         return payload
 
     def isMuted(self):

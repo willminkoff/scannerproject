@@ -4,10 +4,24 @@ import re
 from typing import Dict, List, Optional
 
 try:
-    from .config import COMBINED_CONFIG_PATH, AIRBAND_MIN_MHZ, AIRBAND_MAX_MHZ, GROUND_CONFIG_PATH
+    from .config import (
+        COMBINED_CONFIG_PATH,
+        AIRBAND_MIN_MHZ,
+        AIRBAND_MAX_MHZ,
+        GROUND_CONFIG_PATH,
+        AIRBAND_RTL_SERIAL,
+        GROUND_RTL_SERIAL,
+    )
     from .profile_config import read_active_config_path
 except ImportError:
-    from ui.config import COMBINED_CONFIG_PATH, AIRBAND_MIN_MHZ, AIRBAND_MAX_MHZ, GROUND_CONFIG_PATH
+    from ui.config import (
+        COMBINED_CONFIG_PATH,
+        AIRBAND_MIN_MHZ,
+        AIRBAND_MAX_MHZ,
+        GROUND_CONFIG_PATH,
+        AIRBAND_RTL_SERIAL,
+        GROUND_RTL_SERIAL,
+    )
     from ui.profile_config import read_active_config_path
 
 RE_SERIAL = re.compile(r'serial\s*=\s*"([^"]+)"', re.I)
@@ -119,12 +133,25 @@ def read_combined_devices(conf_path: str = COMBINED_CONFIG_PATH) -> List[Dict]:
 
 def combined_device_summary(conf_path: str = COMBINED_CONFIG_PATH) -> Dict[str, Optional[Dict]]:
     devices = read_combined_devices(conf_path)
-    airband = next((d for d in devices if d["is_airband"]), None)
-    ground = next((d for d in devices if not d["is_airband"] and d["freqs"]), None)
+    airband = None
+    ground = None
+    if AIRBAND_RTL_SERIAL:
+        airband = next((d for d in devices if d.get("serial") == AIRBAND_RTL_SERIAL), None)
+    if not airband:
+        airband = next((d for d in devices if d["is_airband"]), None)
+    if GROUND_RTL_SERIAL:
+        ground = next((d for d in devices if d.get("serial") == GROUND_RTL_SERIAL), None)
+    if not ground:
+        ground = next((d for d in devices if not d["is_airband"] and d["freqs"]), None)
+    expected_serials = {
+        "airband": AIRBAND_RTL_SERIAL or (airband.get("serial") if airband else None),
+        "ground": GROUND_RTL_SERIAL or (ground.get("serial") if ground else None),
+    }
     return {
         "devices": devices,
         "airband": airband,
         "ground": ground,
+        "expected_serials": expected_serials,
     }
 
 

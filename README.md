@@ -381,6 +381,8 @@ Live-only digital backend control with in-memory metadata (no recording or persi
 - `DIGITAL_EVENT_LOG_DIR` (SDRTrunk event logs directory; default: `~/SDRTrunk/event_logs`)
 - `DIGITAL_EVENT_LOG_MODE` (`auto` | `event_logs` | `app_log`)
 - `DIGITAL_EVENT_LOG_TAIL_LINES` (default: `500`)
+- `AIRBAND_RTL_SERIAL` (preferred airband RTL serial; optional)
+- `GROUND_RTL_SERIAL` (preferred ground RTL serial; optional)
 - `DIGITAL_RTL_SERIAL` (dedicated RTL-SDR serial for SDRTrunk; recommended)
 - `DIGITAL_RTL_DEVICE` (RTL-SDR device index or serial; used by your SDRTrunk profile configuration)
 - `DIGITAL_MIXER_ENABLED` (default: `0`) - enable mixing SDRTrunk audio into `GND.mp3`
@@ -408,6 +410,14 @@ Enforcement:
 - Airband/Ground serials are set in `profiles/rtl_airband_*.conf` and flow into the combined config.
 - Digital serial is set via `DIGITAL_RTL_SERIAL` and selected in SDRTrunk’s tuner configuration.
 - `/api/digital/preflight` reports recent tuner-busy errors and expected serials.
+
+**SprontPi recommended defaults**:
+If you are on SprontPi, set these in `/etc/airband-ui.conf` (or your UI EnvironmentFile):
+```bash
+AIRBAND_RTL_SERIAL=00000002
+GROUND_RTL_SERIAL=70613472
+DIGITAL_RTL_SERIAL=56919602
+```
 
 **Digital profiles (filesystem layout)**:
 Profiles live under `DIGITAL_PROFILES_DIR` and the active profile is pointed to by `DIGITAL_ACTIVE_PROFILE_LINK`.
@@ -506,6 +516,9 @@ sudo systemctl restart scanner-digital
 - `digital_last_mode` (string, optional)
 - `digital_last_time` (epoch ms, 0 if none)
 - `digital_last_error` (string, optional)
+- `expected_serials` (object with airband/ground/digital expected RTL serials)
+- `serial_mismatch` (boolean)
+- `serial_mismatch_detail` (array with mismatch details)
 
 **Endpoints**:
 - `POST /api/digital/start`

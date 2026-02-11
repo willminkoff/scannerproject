@@ -34,7 +34,10 @@ try:
         DIGITAL_MIXER_AIRBAND_MOUNT,
         DIGITAL_MIXER_DIGITAL_MOUNT,
         DIGITAL_MIXER_OUTPUT_MOUNT,
+        AIRBAND_RTL_SERIAL,
+        GROUND_RTL_SERIAL,
         DIGITAL_RTL_SERIAL,
+        DIGITAL_RTL_SERIAL_HINT,
         ICECAST_PORT,
         PLAYER_MOUNT,
     )
@@ -81,7 +84,10 @@ except ImportError:
         DIGITAL_MIXER_AIRBAND_MOUNT,
         DIGITAL_MIXER_DIGITAL_MOUNT,
         DIGITAL_MIXER_OUTPUT_MOUNT,
+        AIRBAND_RTL_SERIAL,
+        GROUND_RTL_SERIAL,
         DIGITAL_RTL_SERIAL,
+        DIGITAL_RTL_SERIAL_HINT,
         ICECAST_PORT,
         PLAYER_MOUNT,
     )
@@ -241,6 +247,45 @@ class Handler(BaseHTTPRequestHandler):
             combined_info = combined_device_summary()
             airband_device = combined_info.get("airband")
             ground_device = combined_info.get("ground")
+            expected_serials = dict(combined_info.get("expected_serials") or {})
+            if AIRBAND_RTL_SERIAL:
+                expected_serials["airband"] = AIRBAND_RTL_SERIAL
+            if GROUND_RTL_SERIAL:
+                expected_serials["ground"] = GROUND_RTL_SERIAL
+            expected_serials["digital"] = DIGITAL_RTL_SERIAL or ""
+            serial_mismatch_detail = []
+            if AIRBAND_RTL_SERIAL:
+                actual = airband_device.get("serial") if airband_device else ""
+                if not actual:
+                    serial_mismatch_detail.append({
+                        "device": "airband",
+                        "expected": AIRBAND_RTL_SERIAL,
+                        "actual": "",
+                        "reason": "airband device not found in combined config",
+                    })
+                elif actual != AIRBAND_RTL_SERIAL:
+                    serial_mismatch_detail.append({
+                        "device": "airband",
+                        "expected": AIRBAND_RTL_SERIAL,
+                        "actual": actual,
+                        "reason": "airband serial mismatch",
+                    })
+            if GROUND_RTL_SERIAL:
+                actual = ground_device.get("serial") if ground_device else ""
+                if not actual:
+                    serial_mismatch_detail.append({
+                        "device": "ground",
+                        "expected": GROUND_RTL_SERIAL,
+                        "actual": "",
+                        "reason": "ground device not found in combined config",
+                    })
+                elif actual != GROUND_RTL_SERIAL:
+                    serial_mismatch_detail.append({
+                        "device": "ground",
+                        "expected": GROUND_RTL_SERIAL,
+                        "actual": actual,
+                        "reason": "ground serial mismatch",
+                    })
             airband_present = airband_device is not None
             ground_present = ground_device is not None
             rtl_ok = rtl_unit_active
@@ -293,6 +338,9 @@ class Handler(BaseHTTPRequestHandler):
                     [f"/{DIGITAL_MIXER_AIRBAND_MOUNT}", f"/{DIGITAL_MIXER_DIGITAL_MOUNT}", f"/{DIGITAL_MIXER_OUTPUT_MOUNT}"]
                     if DIGITAL_MIXER_ENABLED else [f"/{DIGITAL_MIXER_OUTPUT_MOUNT}"]
                 ),
+                "expected_serials": expected_serials,
+                "serial_mismatch": bool(serial_mismatch_detail),
+                "serial_mismatch_detail": serial_mismatch_detail,
                 "keepalive_active": unit_active(UNITS["keepalive"]),
                 "server_time": time.time(),
                 "rtl_active_enter": rtl_active_enter,
@@ -389,8 +437,9 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 preflight = {"tuner_busy": False, "tuner_busy_lines": [], "error": str(e)}
             combined_info = combined_device_summary()
-            airband_serial = (combined_info.get("airband") or {}).get("serial")
-            ground_serial = (combined_info.get("ground") or {}).get("serial")
+            airband_serial = AIRBAND_RTL_SERIAL or (combined_info.get("airband") or {}).get("serial")
+            ground_serial = GROUND_RTL_SERIAL or (combined_info.get("ground") or {}).get("serial")
+            digital_serial_configured = bool(DIGITAL_RTL_SERIAL)
             payload = {
                 "ok": True,
                 "expected_serials": {
@@ -398,12 +447,18 @@ class Handler(BaseHTTPRequestHandler):
                     "ground": ground_serial,
                     "digital": DIGITAL_RTL_SERIAL or "",
                 },
+                "digital_serial_configured": digital_serial_configured,
                 "tuner_busy": bool(preflight.get("tuner_busy")),
                 "tuner_busy_lines": preflight.get("tuner_busy_lines") or [],
+                "tuner_busy_count": int(preflight.get("tuner_busy_count") or 0),
+                "tuner_busy_last_time_ms": int(preflight.get("tuner_busy_last_time_ms") or 0),
                 "rtl_devices": [],
                 "rtl_devices_note": "not implemented",
                 "device_holders": {"ok": False, "error": "not implemented"},
             }
+            if not digital_serial_configured:
+                payload["digital_serial_hint"] = DIGITAL_RTL_SERIAL_HINT
+                payload["digital_serial_help"] = "Set DIGITAL_RTL_SERIAL in your EnvironmentFile and restart airband-ui."
             if preflight.get("error"):
                 payload["error"] = preflight.get("error")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
