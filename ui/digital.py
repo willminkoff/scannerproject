@@ -48,6 +48,11 @@ _NON_FATAL_ERROR_RE = re.compile(
     r"(no audio playback devices available|couldn't obtain master gain|usb.*in-use|device is busy|unable to set usb configuration)",
     re.I,
 )
+_IGNORE_EVENT_RE = re.compile(
+    r"(auto-start failed|no tuner available|mountpoint in use|unable to connect|audiooutput|playbackpreference|"
+    r"audio streaming broadcaster|status: connected|starting main application|loading playlist|discovering tuners)",
+    re.I,
+)
 _MUTE_STATE_PATH = "/run/airband_ui_digital_mute.json"
 _DIGITAL_MUTED = False
 _DEFAULT_PROFILE_NOTE = (
@@ -171,6 +176,8 @@ def _extract_event_from_line(line: str, fallback_ms: int) -> dict | None:
         return None
     stripped = _strip_log_prefix(raw)
     if not stripped:
+        return None
+    if _IGNORE_EVENT_RE.search(stripped):
         return None
     label, mode, label_from_field = _extract_label_mode(stripped)
     if not label:
