@@ -1,0 +1,1734 @@
+Group,DEC,HEX,Mode,Alpha Tag,Description,Tag
+Interoperability/Mutual Aid (Systemwide),65535,ffff,D,Systemwide,Systemwide,Multi-Tac
+Interoperability/Mutual Aid (Systemwide),1033,409,D,LAW MA 01,Law Mutual Aid 1,Law Tac
+Interoperability/Mutual Aid (Systemwide),1297,511,D,LAW MA 02,Law Mutual Aid 2,Law Tac
+Interoperability/Mutual Aid (Systemwide),1299,513,D,LAW MA 03,Law Mutual Aid 3,Law Tac
+Interoperability/Mutual Aid (Systemwide),4017,fb1,D,LAW MA 04,Law Mutual Aid 4,Law Tac
+Interoperability/Mutual Aid (Systemwide),4019,fb3,D,LAW MA 05,Law Mutual Aid 5,Law Tac
+Interoperability/Mutual Aid (Systemwide),4021,fb5,D,LAW MA 06,Law Mutual Aid 6,Law Tac
+Interoperability/Mutual Aid (Systemwide),4055,fd7,D,LAW MA 07,Law Mutual Aid 7,Law Tac
+Interoperability/Mutual Aid (Systemwide),4057,fd9,D,LAW MA 08,Law Mutual Aid 8,Law Tac
+Interoperability/Mutual Aid (Systemwide),4059,fdb,D,LAW MA 09,Law Mutual Aid 9,Law Tac
+Interoperability/Mutual Aid (Systemwide),4061,fdd,D,LAW MA 10,Law Mutual Aid 10,Law Tac
+Interoperability/Mutual Aid (Systemwide),4063,fdf,D,LAW MA 11,Law Mutual Aid 11,Law Tac
+Interoperability/Mutual Aid (Systemwide),4065,fe1,D,LAW MA 12,Law Mutual Aid 12,Law Tac
+Interoperability/Mutual Aid (Systemwide),4067,fe3,D,LAW MA 13,Law Mutual Aid 13,Law Tac
+Interoperability/Mutual Aid (Systemwide),4069,fe5,D,LAW MA 14,Law Mutual Aid 14,Law Tac
+Interoperability/Mutual Aid (Systemwide),4071,fe7,D,LAW MA 15,Law Mutual Aid 15,Law Tac
+Interoperability/Mutual Aid (Systemwide),4073,fe9,D,LAW MA 16,Law Mutual Aid 16,Law Tac
+Interoperability/Mutual Aid (Systemwide),4075,feb,D,LAW MA 17,Law Mutual Aid 17,Law Tac
+Interoperability/Mutual Aid (Systemwide),4077,fed,D,LAW MA 18,Law Mutual Aid 18,Law Tac
+Interoperability/Mutual Aid (Systemwide),4079,fef,D,LAW MA 19,Law Mutual Aid 19,Law Tac
+Interoperability/Mutual Aid (Systemwide),4081,ff1,D,LAW MA 20,Law Mutual Aid 20,Law Tac
+Interoperability/Mutual Aid (Systemwide),4083,ff3,D,LAW MA 21,Law Mutual Aid 21,Law Tac
+Interoperability/Mutual Aid (Systemwide),4085,ff5,D,LAW MA 22,Law Mutual Aid 22,Law Tac
+Interoperability/Mutual Aid (Systemwide),4087,ff7,D,LAW MA 23,Law Mutual Aid 23,Law Tac
+Interoperability/Mutual Aid (Systemwide),4089,ff9,D,LAW MA 24,Law Mutual Aid 24,Law Tac
+Interoperability/Mutual Aid (Systemwide),1501,5dd,D,PSAP-1 THP D2,PSAP THP District 2 Counties [PSAP-1],Multi-Dispatch
+Interoperability/Mutual Aid (Systemwide),1559,617,D,PSAP-2 THP D1,PSAP THP District 1 Counties [PSAP-2],Multi-Dispatch
+Interoperability/Mutual Aid (Systemwide),47101,b7fd,D,PSAP-3 THP D5,PSAP THP District 5 Counties [PSAP-3],Multi-Dispatch
+Interoperability/Mutual Aid (Systemwide),47102,b7fe,D,PSAP-4 THP D6,PSAP THP District 2 Counties [PSAP-4],Multi-Dispatch
+Interoperability/Mutual Aid (Systemwide),47103,b7ff,D,PSAP-5 THP D3/7,PSAP THP Districts 3/7 Counties [PSAP-5],Multi-Dispatch
+Interoperability/Mutual Aid (Systemwide),47106,b802,D,PSAP-7 THP D4/8,PSAP THP Districts 4/8 Counties [PSAP-7],Multi-Dispatch
+Interoperability/Mutual Aid (Systemwide),4023,fb7,D,FF MA 01,Fire Mutual Aid 1,Fire-Tac
+Interoperability/Mutual Aid (Systemwide),4025,fb9,D,FF MA 02,Fire Mutual Aid 2,Fire-Tac
+Interoperability/Mutual Aid (Systemwide),4027,fbb,D,FF MA 03,Fire Mutual Aid 3,Fire-Tac
+Interoperability/Mutual Aid (Systemwide),4029,fbd,D,FF MA 04,Fire Mutual Aid 4,Fire-Tac
+Interoperability/Mutual Aid (Systemwide),4031,fbf,D,FF MA 05,Fire Mutual Aid 5,Fire-Tac
+Interoperability/Mutual Aid (Systemwide),4033,fc1,D,FF MA 06,Fire Mutual Aid 6,Fire-Tac
+Interoperability/Mutual Aid (Systemwide),3929,f59,D,FF MA 07,Fire Mutual Aid 7,Fire-Tac
+Interoperability/Mutual Aid (Systemwide),3931,f5b,D,FF MA 08,Fire Mutual Aid 8,Fire-Tac
+Interoperability/Mutual Aid (Systemwide),3933,f5d,D,FF MA 09,Fire Mutual Aid 9,Fire-Tac
+Interoperability/Mutual Aid (Systemwide),3935,f5f,D,FF MA 10,Fire Mutual Aid 10,Fire-Tac
+Interoperability/Mutual Aid (Systemwide),3937,f61,D,FF MA 11,Fire Mutual Aid 11,Fire-Tac
+Interoperability/Mutual Aid (Systemwide),3939,f63,D,FF MA 12,Fire Mutual Aid 12,Fire-Tac
+Interoperability/Mutual Aid (Systemwide),3941,f65,D,FF MA 13,Fire Mutual Aid 13,Fire-Tac
+Interoperability/Mutual Aid (Systemwide),3943,f67,D,FF MA 14,Fire Mutual Aid 14,Fire-Tac
+Interoperability/Mutual Aid (Systemwide),3945,f69,D,FF MA 15,Fire Mutual Aid 15,Fire-Tac
+Interoperability/Mutual Aid (Systemwide),3947,f6b,D,FF MA 16,Fire Mutual Aid 16,Fire-Tac
+Interoperability/Mutual Aid (Systemwide),3949,f6d,D,FF MA 17,Fire Mutual Aid 17,Fire-Tac
+Interoperability/Mutual Aid (Systemwide),3951,f6f,D,FF MA 18,Fire Mutual Aid 18,Fire-Tac
+Interoperability/Mutual Aid (Systemwide),3953,f71,D,FF MA 19,Fire Mutual Aid 19,Fire-Tac
+Interoperability/Mutual Aid (Systemwide),3955,f73,D,FF MA 20,Fire Mutual Aid 20,Fire-Tac
+Interoperability/Mutual Aid (Systemwide),3957,f75,D,FF MA 21,Fire Mutual Aid 21,Fire-Tac
+Interoperability/Mutual Aid (Systemwide),3959,f77,D,FF MA 22,Fire Mutual Aid 22,Fire-Tac
+Interoperability/Mutual Aid (Systemwide),3961,f79,D,FF MA 23,Fire Mutual Aid 23,Fire-Tac
+Interoperability/Mutual Aid (Systemwide),3963,f7b,D,FF MA 24,Fire Mutual Aid 24,Fire-Tac
+Interoperability/Mutual Aid (Systemwide),3965,f7d,D,EMS MA 07,EMS Mutual Aid 7,EMS-Tac
+Interoperability/Mutual Aid (Systemwide),3967,f7f,D,EMS MA 08,EMS Mutual Aid 8,EMS-Tac
+Interoperability/Mutual Aid (Systemwide),3969,f81,D,EMS MA 09,EMS Mutual Aid 9,EMS-Tac
+Interoperability/Mutual Aid (Systemwide),3971,f83,D,EMS MA 10,EMS Mutual Aid 10,EMS-Tac
+Interoperability/Mutual Aid (Systemwide),3973,f85,D,EMS MA 11,EMS Mutual Aid 11,EMS-Tac
+Interoperability/Mutual Aid (Systemwide),3975,f87,D,EMS MA 12,EMS Mutual Aid 12,EMS-Tac
+Interoperability/Mutual Aid (Systemwide),3977,f89,D,EMS MA 13,EMS Mutual Aid 13,EMS-Tac
+Interoperability/Mutual Aid (Systemwide),3979,f8b,D,EMS MA 14,EMS Mutual Aid 14,EMS-Tac
+Interoperability/Mutual Aid (Systemwide),3981,f8d,D,EMS MA 15,EMS Mutual Aid 15,EMS-Tac
+Interoperability/Mutual Aid (Systemwide),3983,f8f,D,EMS MA 16,EMS Mutual Aid 16,EMS-Tac
+Interoperability/Mutual Aid (Systemwide),3985,f91,D,EMS MA 17,EMS Mutual Aid 17,EMS-Tac
+Interoperability/Mutual Aid (Systemwide),3987,f93,D,EMS MA 18,EMS Mutual Aid 18,EMS-Tac
+Interoperability/Mutual Aid (Systemwide),3989,f95,D,EMS MA 19,EMS Mutual Aid 19,EMS-Tac
+Interoperability/Mutual Aid (Systemwide),3991,f97,D,EMS MA 20,EMS Mutual Aid 20,EMS-Tac
+Interoperability/Mutual Aid (Systemwide),3993,f99,D,EMS MA 21,EMS Mutual Aid 21,EMS-Tac
+Interoperability/Mutual Aid (Systemwide),3995,f9b,D,EMS MA 22,EMS Mutual Aid 22,EMS-Tac
+Interoperability/Mutual Aid (Systemwide),3997,f9d,D,EMS MA 23,EMS Mutual Aid 23,EMS-Tac
+Interoperability/Mutual Aid (Systemwide),3999,f9f,D,EMS MA 24,EMS Mutual Aid 24,EMS-Tac
+Interoperability/Mutual Aid (Systemwide),4035,fc3,D,EMS MA 01,EMS Mutual Aid 1,EMS-Tac
+Interoperability/Mutual Aid (Systemwide),4037,fc5,D,EMS MA 02,EMS Mutual Aid 2,EMS-Tac
+Interoperability/Mutual Aid (Systemwide),4039,fc7,D,EMS MA 03,EMS Mutual Aid 3,EMS-Tac
+Interoperability/Mutual Aid (Systemwide),4041,fc9,D,EMS MA 04,EMS Mutual Aid 4,EMS-Tac
+Interoperability/Mutual Aid (Systemwide),4043,fcb,D,EMS MA 05,EMS Mutual Aid 5,EMS-Tac
+Interoperability/Mutual Aid (Systemwide),4045,fcd,D,EMS MA 06,EMS Mutual Aid 6,EMS-Tac
+Interoperability/Mutual Aid (Systemwide),4047,fcf,D,AirMed LZ UpperE,Air Medical-Landing Zone Upper East [LZ Upper East (TN)],EMS-Tac
+Interoperability/Mutual Aid (Systemwide),4049,fd1,D,AirMed LZ Middle,Air Medical-Landing Zone Middle [LZ Middle (TN)],EMS-Tac
+Interoperability/Mutual Aid (Systemwide),4051,fd3,D,AirMed LZ LowerE,Air Medical-Landing Zone Lower East [LZ Lower East (TN)],EMS-Tac
+Interoperability/Mutual Aid (Systemwide),4053,fd5,D,AirMed LZ West,Air Medical-Landing Zone West [LZ West (TN)],EMS-Tac
+Interoperability/Mutual Aid (Systemwide),3917,f4d,D,UTILTY MA EAST,Utilities Mutual Aid East Tennessee,Utilities
+Interoperability/Mutual Aid (Systemwide),3919,f4f,D,UTILTY MA MIDL,Utilities Mutual Aid Middle Tennessee,Utilities
+Interoperability/Mutual Aid (Systemwide),3921,f51,D,UTILTY MA WEST,Utilities Mutual Aid West Tennessee,Utilities
+TN - Interop (Statewide),1471,5bf,D,TN CALL,Hailing Channel,Interop
+TN - Interop (Statewide),1473,5c1,D,TN IO 1,Interop 1,Interop
+TN - Interop (Statewide),1475,5c3,D,TN IO 2,Interop 2,Interop
+TN - Interop (Statewide),1477,5c5,D,TN IO 3,Interop 3,Interop
+TN - Interop (Statewide),1479,5c7,D,TN IO 4,Interop 4,Interop
+TN - Interop (Statewide),1481,5c9,D,TN IO 5,Interop 5,Interop
+TN - Interop (Statewide),1483,5cb,D,TN IO 6,Interop 6,Interop
+TN - Interop (Statewide),1485,5cd,D,TN IO 7,Interop 7,Interop
+TN - Interop (Statewide),4001,fa1,D,TN IO 8,Interop 8,Interop
+TN - Interop (Statewide),4003,fa3,D,TN IO 9,Interop 9,Interop
+TN - Interop (Statewide),4005,fa5,D,TN IO 10,Interop 10,Interop
+TN - Interop (Statewide),4007,fa7,D,TN IO 11,Interop 11,Interop
+TN - Interop (Statewide),4009,fa9,D,TN IO 12,Interop 12,Interop
+TN - Interop (Statewide),4011,fab,D,TN IO 13,Interop 13,Interop
+TN - Interop (Statewide),4013,fad,D,TN IO 14,Interop 14,Interop
+TN - Interop (Statewide),4015,faf,D,TN IO 15,Interop 15,Interop
+TN - Emergency Management Agency,1539,603,D,TEMA,TEMA,Emergency Ops
+TN - Emergency Management Agency,3923,f53,T,TEMA EOC 1,Emergency Operations Center 1,Emergency Ops
+TN - Emergency Management Agency,3925,f55,T,TEMA EOC 2,Emergency Operations Center 2,Emergency Ops
+TN - Emergency Management Agency,3927,f57,T,TEMA EMA MA,Mutual Aid,Emergency Ops
+TN - Emergency Management Agency,16005,3e85,D,TEMA SOW 1,Site-on Wheels 1,Emergency Ops
+TN - Emergency Management Agency,16006,3e86,D,TEMA SOW 2,Site-on Wheels 2,Emergency Ops
+TN - Emergency Management Agency,16007,3e87,D,TEMA SOW 3,Site-on Wheels 3,Emergency Ops
+TN - Emergency Management Agency,16008,3e88,D,TEMA SOW 4,Site-on Wheels 4,Emergency Ops
+TN - Emergency Management Agency,16009,3e89,D,TEMA SOW 5,Site-on Wheels 5,Emergency Ops
+TN - Emergency Management Agency,16010,3e8a,D,TEMA SOW 6,Site-on Wheels 6,Emergency Ops
+TN - Emergency Management Agency,16011,3e8b,D,TEMA SOW 7,Site-on Wheels 7,Emergency Ops
+TN - Emergency Management Agency,16012,3e8c,D,TEMA SOW 8,Site-on Wheels 8,Emergency Ops
+TN - Emergency Management Agency,16013,3e8d,D,TEMA Comm U,Comm U,Emergency Ops
+TN - Emergency Management Agency,16022,3e96,D,TEMA Center,Center,Emergency Ops
+TN - Emergency Management Agency,16023,3e97,D,TEMA East,East,Emergency Ops
+TN - Emergency Management Agency,16024,3e98,D,TEMA Common 1,Statewide Common 1,Emergency Ops
+TN - Emergency Management Agency,16025,3e99,D,TEMA Common 2,Statewide Common 2,Emergency Ops
+TN - Emergency Management Agency,16019,3e93,D,TEMA OPS,State Emergency Operations Center,Emergency Ops
+TN - Emergency Management Agency,16001,3e81,D,TEMA TAC-1,Tactical 1,Emergency Ops
+TN - Emergency Management Agency,16002,3e82,D,TEMA TAC-2,Tactical 2,Emergency Ops
+TN - Emergency Management Agency,16003,3e83,D,TEMA TAC-3,Tactical 3,Emergency Ops
+TN - Emergency Management Agency,16004,3e84,D,TEMA TAC-4,Tactical 4,Emergency Ops
+TN - Emergency Management Agency,16000,3e80,D,TEMA TN StateNet,TN State Net,Emergency Ops
+TN - Emergency Management Agency,16021,3e95,D,TEMA West,West TN Operations,Emergency Ops
+TN - National Guard,16015,3e8f,D,NG TAC-1,Tactical 1,Military
+TN - National Guard,16016,3e90,D,NG TAC-2,Tactical 2,Military
+TN - National Guard,16017,3e91,D,NG TAC-3,Tactical 3,Military
+TN - National Guard,16018,3e92,D,NG TAC-4,Tactical 4,Military
+TN - National Guard,16026,3e9a,D,NG OPS,Statewide Operations,Military
+TN - National Guard,16027,3e9b,D,NG FLT OPS,Air Operations,Military
+TN - State Highway Patrol: Statewide,47034,b7ba,TE,THP-Pursuit1,Statewide Pursuit 1,Law Tac
+TN - State Highway Patrol: Statewide,47035,b7bb,T,THP-Pursuit2,Statewide Pursuit 2,Law Tac
+TN - State Highway Patrol: Statewide,47038,b7be,TE,THP-SW Event,Statewide Events,Law Tac
+TN - State Highway Patrol: Statewide,47046,b7c6,T,THP-Calling,Statewide Calling (Station-to-Station),Law Tac
+TN - State Highway Patrol: Statewide,47049,b7c9,D,THP Radio 47049,"Radio Techs (D2, D6)",Public Works
+TN - State Highway Patrol: Statewide,47051,b7cb,T,THP-Air Disp,Air Dispatch,Law Dispatch
+TN - State Highway Patrol: Statewide,47052,b7cc,T,THP-Calling,Statewide Calling (Station-to-Station),Law Tac
+"Anderson, Blount, Campbell, Knox, Loudon, Monroe, Morgan, Roane, Scott, Sevier, Union",47000,b798,T,THP-D1-Disp1,Dispatch 1,Law Dispatch
+"Anderson, Blount, Campbell, Knox, Loudon, Monroe, Morgan, Roane, Scott, Sevier, Union",47001,b799,TE,THP-D1-Disp2,Dispatch 2,Law Dispatch
+"Anderson, Blount, Campbell, Knox, Loudon, Monroe, Morgan, Roane, Scott, Sevier, Union",47050,b7ca,T,THP-D1-Disp3,Dispatch 3,Law Dispatch
+"Anderson, Blount, Campbell, Knox, Loudon, Monroe, Morgan, Roane, Scott, Sevier, Union",47002,b79a,TE,THP-D1-C2C,Car-to-Car,Law Talk
+"Anderson, Blount, Campbell, Knox, Loudon, Monroe, Morgan, Roane, Scott, Sevier, Union",47003,b79b,TE,THP-D1-Event1,Event 1,Law Tac
+"Bledsoe, Bradley, Coffee, Franklin, Grundy, Hamilton, Marion, McMinn, Meigs, Polk, Rhea, Sequatchie",47004,b79c,T,THP-D2-Disp1,Dispatch 1,Law Dispatch
+"Bledsoe, Bradley, Coffee, Franklin, Grundy, Hamilton, Marion, McMinn, Meigs, Polk, Rhea, Sequatchie",47005,b79d,TE,THP-D2-Disp2,Dispatch 2,Law Dispatch
+"Bledsoe, Bradley, Coffee, Franklin, Grundy, Hamilton, Marion, McMinn, Meigs, Polk, Rhea, Sequatchie",47006,b79e,TE,THP-D2-C2C,Car-to-Car,Law Talk
+"Bledsoe, Bradley, Coffee, Franklin, Grundy, Hamilton, Marion, McMinn, Meigs, Polk, Rhea, Sequatchie",47007,b79f,TE,THP-D2-Event1,Event 1,Law Tac
+"Cheatham, Davidson, Dickson, Houston, Humphreys, Montgomery, Robertson, Rutherford, Stewart, Sumner, Williamson, Wilson",47008,b7a0,T,THP-D3-Disp1,Dispatch 1,Law Dispatch
+"Cheatham, Davidson, Dickson, Houston, Humphreys, Montgomery, Robertson, Rutherford, Stewart, Sumner, Williamson, Wilson",47009,b7a1,TE,THP-D3-Disp2,Dispatch 2,Law Dispatch
+"Cheatham, Davidson, Dickson, Houston, Humphreys, Montgomery, Robertson, Rutherford, Stewart, Sumner, Williamson, Wilson",47010,b7a2,TE,THP-D3-C2C,Car-to-Car,Law Talk
+"Cheatham, Davidson, Dickson, Houston, Humphreys, Montgomery, Robertson, Rutherford, Stewart, Sumner, Williamson, Wilson",47011,b7a3,T,THP-D3-Event1,Events 1,Law Tac
+"Cheatham, Davidson, Dickson, Houston, Humphreys, Montgomery, Robertson, Rutherford, Stewart, Sumner, Williamson, Wilson",47012,b7a4,TE,THP-D3-Event2,Events 2,Law Tac
+"Cheatham, Davidson, Dickson, Houston, Humphreys, Montgomery, Robertson, Rutherford, Stewart, Sumner, Williamson, Wilson",47013,b7a5,TE,THP-D3-Event3,Events 3,Law Tac
+"Crockett, Dyer, Fayette, Hardeman, Haywood, Lake, Lauderdale, Obion, Shelby, Tipton",47014,b7a6,T,THP-D4-Disp1,Dispatch 1,Law Dispatch
+"Crockett, Dyer, Fayette, Hardeman, Haywood, Lake, Lauderdale, Obion, Shelby, Tipton",47015,b7a7,TE,THP-D4-Disp2,Dispatch 2,Law Dispatch
+"Crockett, Dyer, Fayette, Hardeman, Haywood, Lake, Lauderdale, Obion, Shelby, Tipton",47016,b7a8,TE,THP-D4-C2C,Car-to-Car,Law Talk
+"Crockett, Dyer, Fayette, Hardeman, Haywood, Lake, Lauderdale, Obion, Shelby, Tipton",47017,b7a9,TE,THP-D4-Event1,Event 1,Law Tac
+"Carter, Claiborne, Cocke, Grainger, Greene, Hamblen, Hancock, Hawkins, Jefferson, Johnson, Sullivan, Unicoi, Washington",47018,b7aa,T,THP-D5-Disp1,Dispatch 1,Law Dispatch
+"Carter, Claiborne, Cocke, Grainger, Greene, Hamblen, Hancock, Hawkins, Jefferson, Johnson, Sullivan, Unicoi, Washington",47019,b7ab,TE,THP-D5-Disp2,Dispatch 2,Law Dispatch
+"Carter, Claiborne, Cocke, Grainger, Greene, Hamblen, Hancock, Hawkins, Jefferson, Johnson, Sullivan, Unicoi, Washington",47020,b7ac,TE,THP-D5-C2C,Car-to-Car,Law Talk
+"Carter, Claiborne, Cocke, Grainger, Greene, Hamblen, Hancock, Hawkins, Jefferson, Johnson, Sullivan, Unicoi, Washington",47021,b7ad,TE,THP-D5-Event1,Event 1,Law Tac
+"TN - State Highway Patrol, District 6: Cookeville",47022,b7ae,T,THP-D6-Disp1,Dispatch 1,Law Dispatch
+"TN - State Highway Patrol, District 6: Cookeville",47023,b7af,TE,THP-D6-Disp2,Dispatch 2,Law Dispatch
+"TN - State Highway Patrol, District 6: Cookeville",47024,b7b0,TE,THP-D6-C2C,Car-to-Car,Law Talk
+"TN - State Highway Patrol, District 6: Cookeville",47025,b7b1,TE,THP-D6-Event1,Event 1,Law Tac
+"Bedford, Giles, Hickman, Lawrence, Lewis, Lincoln, Marshall, Maury, Moore, Perry, Wayne",47026,b7b2,T,THP-D7-Disp1,Dispatch 1,Law Dispatch
+"Bedford, Giles, Hickman, Lawrence, Lewis, Lincoln, Marshall, Maury, Moore, Perry, Wayne",47027,b7b3,TE,THP-D7-Disp2,Dispatch 2,Law Dispatch
+"Bedford, Giles, Hickman, Lawrence, Lewis, Lincoln, Marshall, Maury, Moore, Perry, Wayne",47028,b7b4,TE,THP-D7-C2C,Car-to-Car,Law Talk
+"Bedford, Giles, Hickman, Lawrence, Lewis, Lincoln, Marshall, Maury, Moore, Perry, Wayne",47029,b7b5,TE,THP-D7-Event1,Event 1,Law Tac
+"Benton, Carroll, Chester, Decatur, Gibson, Hardin, Henderson, Henry, Madison, McNairy, Weakley",47030,b7b6,T,THP-D8-Disp1,Dispatch 1,Law Dispatch
+"Benton, Carroll, Chester, Decatur, Gibson, Hardin, Henderson, Henry, Madison, McNairy, Weakley",47031,b7b7,TE,THP-D8-Disp2,Dispatch 2,Law Dispatch
+"Benton, Carroll, Chester, Decatur, Gibson, Hardin, Henderson, Henry, Madison, McNairy, Weakley",47032,b7b8,TE,THP-D8-C2C,Car-to-Car,Law Talk
+"Benton, Carroll, Chester, Decatur, Gibson, Hardin, Henderson, Henry, Madison, McNairy, Weakley",47033,b7b9,TE,THP-D8-Event1,Event 1,Law Tac
+TN - State Highway Patrol - Capital Protection Unit,47097,b7f9,TE,THP-CPU OPS1,Security Operations 1,Law Dispatch
+TN - State Highway Patrol - Capital Protection Unit,47099,b7fb,TE,THP CPU GSD1,Governor Security Detail 1,Law Tac
+TN - State Highway Patrol - Capital Protection Unit,47100,b7fc,TE,THP-CPU GSD2,Governor Security Detail 2,Law Tac
+TN - Tennessee Bureau of Investigation,47201,b861,De,TBI 1,Operations (Ch 1),Law Tac
+TN - Tennessee Bureau of Investigation,47202,b862,De,TBI 2,Operations (Ch 2),Law Tac
+TN - Tennessee Bureau of Investigation,47203,b863,De,TBI 3,Operations (Ch 3),Law Tac
+TN - Tennessee Bureau of Investigation,47204,b864,Te,TBI 4,Operations (Ch 4),Law Tac
+TN - Tennessee Bureau of Investigation,47205,b865,Te,TBI 5,Operations (Ch 5),Law Tac
+"Covers Bradley, McMinn, Monroe, and Polk counties.",5538,15a2,D,10th JDTF c2c,Car-to-Car,Law Tac
+"Covers Bradley, McMinn, Monroe, and Polk counties.",5539,15a3,DE,10th JDTF Ops 1,Operations 1,Law Tac
+"Covers Bradley, McMinn, Monroe, and Polk counties.",5540,15a4,DE,10th JDTF Ops 2,Operations 2,Law Tac
+"Covers Bradley, McMinn, Monroe, and Polk counties.",5541,15a5,DE,10th JDTF Ops 3,Operations 3,Law Tac
+TN - DOC - Miscellaneous,92,05c,D,TNDOC Transport,Transports,Corrections
+TN - DOC - Miscellaneous,15107,3b03,D,TNDOC 15107,Operations,Corrections
+TN - DOC - Miscellaneous,15356,3bfc,D,TNDOC 15356 A,Jail Operations A,Corrections
+TN - DOC - Miscellaneous,15361,3c01,D,TNDOC 15361 B,Jail Operations B,Corrections
+TN - DOC - Strike Force,15301,3bc5,D,TNDOC-SF 15301A,Operations A,Corrections
+TN - DOC - Strike Force,15302,3bc6,D,TNDOC-SF 15302B,Operations B,Corrections
+TN - DOC - Strike Force,15303,3bc7,D,TNDOC-SF 15303C,Operations C,Corrections
+TN - DOC - Strike Force,15307,3bcb,D,TNDOC-SF 15307D,Operations D,Corrections
+TN - DOC - Strike Force,15310,3bce,D,TNDOC-SF 15310E,Operations E,Corrections
+TN - DOC - Strike Force,15311,3bcf,D,TNDOC-SF 153011F,Operations F,Corrections
+TN - DOC - Bledsoe County Correctional Facility (*),15152,3b30,D,TNDOC-BCC Guards,Gaurds,Corrections
+TN - DOC - Bledsoe County Correctional Facility (*),15164,3b3c,D,TNDOC-BCC Ops1,Operations 1,Corrections
+TN - DOC - Bledsoe County Correctional Facility (*),15165,3b3d,D,TNDOC-BCC Ops2,Operations 2,Corrections
+TN - DOC - Mark H. Luttrell Correctional Center (*),15175,3b47,T,TNDOC-MLCC 15175,Operations,Corrections
+TN - DOC - Mark H. Luttrell Correctional Center (*),15177,3b49,D,TNDOC-MLCC Ops 1,Operations 1,Corrections
+TN - DOC - Mark H. Luttrell Correctional Center (*),15178,3b4a,D,TNDOC-MLCC Ops 2,Operations 2,Corrections
+TN - DOC - Mark H. Luttrell Correctional Center (*),15179,3b4b,T,TNDOC-MLCC Ops 3,Operations 3,Corrections
+TN - DOC - Mark H. Luttrell Correctional Center (*),15180,3b4c,D,TNDOC-MLCC Ops 4,Operations 4,Corrections
+TN - DOC - Mark H. Luttrell Correctional Center (*),15181,3b4d,D,TNDOC-MLCC Ops 5,Operations 5,Corrections
+TN - DOC - Mark H. Luttrell Correctional Center (*),15182,3b4e,D,TNDOC-MLCC Ops 6,Operations 5,Corrections
+TN - DOC - Northeast Correctional Complex (*),15188,3b54,T,NECX-SEC,Security,Corrections
+TN - DOC - Northeast Correctional Complex (*),15189,3b55,T,NECX-U MGT,U Management,Corrections
+TN - DOC - Northeast Correctional Complex (*),15190,3b56,D,NECX-MTNC,Mountain City,Corrections
+TN - DOC - Northeast Correctional Complex (*),15191,3b57,D,NECX-CERT,CERT Team,Corrections
+TN - DOC - Northeast Correctional Complex (*),15192,3b58,D,NECX-ADMIN,Administration,Corrections
+TN - DOC - Northeast Correctional Complex (*),15193,3b59,D,NECX-LLINES,L-Lines,Corrections
+TN - DOC - Northeast Correctional Complex (*),15194,3b5a,D,NECX-TALK,Talk,Corrections
+TN - DOC - Northeast Correctional Complex (*),15195,3b5b,D,NECX-MIS,Miscellaneous,Corrections
+TN - DOC - Northeast Correctional Complex (*),15196,3b5c,D,NECX-WORK,Work Crew,Corrections
+TN - DOC - Northeast Correctional Complex (*),15197,3b5d,D,NECX-10,Operations (Ch 10),Corrections
+TN - DOC - Northeast Correctional Complex (*),15198,3b5e,D,NECX-EMER,Emergency,Corrections
+TN - DOC - Northwest Correctional Complex (*),15115,3b0b,D,NWCX Control 1,Jail Control 1,Corrections
+TN - DOC - Northwest Correctional Complex (*),15033,3ab9,D,NWCX Control 2,Jail Control 2,Corrections
+TN - DOC - Northwest Correctional Complex (*),15091,3af3,D,NWCX Control 3,Jail Control 3,Corrections
+TN - DOC - Northwest Correctional Complex (*),15092,3af4,D,NWCX Jail,Jail Operations,Corrections
+TN - DOC - Northwest Correctional Complex (*),15357,3bfd,D,NWCX Site 1,Site 1 Operations,Corrections
+TN - DOC - Northwest Correctional Complex (*),15355,3bfb,D,NWCX Site 2,Site 2 Operations,Corrections
+TN - DOC - Northwest Correctional Complex (*),15359,3bff,D,NWCX Unit 1,Unit 1,Corrections
+TN - DOC - Northwest Correctional Complex (*),15354,3bfa,D,NWCX 15354,Operations (patch?),Corrections
+TN - DOC - Northwest Correctional Complex (*),15365,3c05,D,NWCX 15365,Operations,Corrections
+TN - DOC - Northwest Correctional Complex (*),15369,3c09,D,NWCX 15369,Operations,Corrections
+"Brushy Mountain State Penitentiary (closed in 2009, now an Historic Site)",15001,3a99,D,TNDOC-PCF Transp,Transportation,Corrections
+"Brushy Mountain State Penitentiary (closed in 2009, now an Historic Site)",15004,3a9c,D,TNDOC-PCF 15004,Operations 15004,Corrections
+"Brushy Mountain State Penitentiary (closed in 2009, now an Historic Site)",15011,3aa3,D,TNDOC-PCF Custod,Custodian Crew,Corrections
+"Brushy Mountain State Penitentiary (closed in 2009, now an Historic Site)",15012,3aa4,D,TNDOC-PCF Guards,Guards,Corrections
+TN - DOC - Riverbend Maximum Security Institution (*),101,065,D,TNDOC-RMSI A,Operations A,Corrections
+TN - DOC - Riverbend Maximum Security Institution (*),102,066,D,TNDOC-RMSI B,Operations B,Corrections
+TN - DOC - Riverbend Maximum Security Institution (*),105,069,D,TNDOC-RMSI C,Operations C,Corrections
+TN - DOC - Riverbend Maximum Security Institution (*),107,06b,D,TNDOC-RMSI Cntrl,Control,Corrections
+TN - DOC - Riverbend Maximum Security Institution (*),108,06c,T,TNDOC-RMSI E,Operations E,Corrections
+TN - DOC - Riverbend Maximum Security Institution (*),15036,3abc,D,TNDOC-RMSI F,Operations F,Corrections
+TN - DOC - Riverbend Maximum Security Institution (*),15038,3abe,D,TNDOC-RMSI G,Operations G,Corrections
+TN - DOC - Riverbend Maximum Security Institution (*),15039,3abf,D,TNDOC-RMSI H,Operations H,Corrections
+TN - DOC - Riverbend Maximum Security Institution (*),15094,3af6,D,TNDOC-RMSI I,Operations I,Corrections
+TN - DOC - Riverbend Maximum Security Institution (*),15105,3b01,D,TNDOC-RMSI Ops 1,Ops 1,Corrections
+TN - DOC - Riverbend Maximum Security Institution (*),15106,3b02,D,TNDOC-RMSI Ops 2,Ops 2,Corrections
+TN - DOC - South Central Correctional Facility (*),15187,3b53,D,TNDOC-SCC 1,Main,Corrections
+TN - DOC - Tennessee Prison For Women (*),20,014,T,TNDOC-TPFW A,Operations A,Corrections
+TN - DOC - Tennessee Prison For Women (*),21,015,T,TNDOC-TPFW Cntrl,Control,Corrections
+TN - DOC - Tennessee Prison For Women (*),22,016,T,TNDOC-TPFW C,Operations C,Corrections
+TN - DOC - Tennessee Prison For Women (*),23,017,T,TNDOC-TPFW D,Operations D,Corrections
+TN - DOC - Tennessee Prison For Women (*),24,018,T,TNDOC-TPFW E,Operations E,Corrections
+TN - DOC - Turney Correctional Facility (*),15037,3abd,D,TNDOC-TCF A,Operations A,Corrections
+TN - DOC - Turney Correctional Facility (*),15045,3ac5,D,TNDOC-TCF B,Operations B,Corrections
+TN - DOC - Turney Correctional Facility (*),15049,3ac9,D,TNDOC-TCF C,Operations C,Corrections
+TN - DOC - West Tennessee State Penitentiary (*),15266,3ba2,D,TNDOC-WTSP Cntrl,Control,Corrections
+TN - DOC - West Tennessee State Penitentiary (*),15267,3ba3,D,TNDOC-WTSP Talk1,Talk 1,Corrections
+TN - DOC - West Tennessee State Penitentiary (*),15268,3ba4,D,TNDOC-WTSP A,Operations A,Corrections
+TN - DOC - West Tennessee State Penitentiary (*),15270,3ba6,D,TNDOC-WTSP B,Operations B,Corrections
+TN - DOC - West Tennessee State Penitentiary (*),15278,3bae,D,TNDOC-WTSP C,Operations C,Corrections
+TN - DOC - West Tennessee State Penitentiary (*),15283,3bb3,D,TNDOC-WTSP D,Operations D,Corrections
+TN - DOC - West Tennessee State Penitentiary (*),15286,3bb6,D,TNDOC-WTSP E,Operations E,Corrections
+TN - DOC - West Tennessee State Penitentiary (*),15287,3bb7,D,TNDOC-WTSP F,Operations F,Corrections
+TN - DOC - Whiteville Correctional Facility (*),15062,3ad6,D,Whtv Corr Fac,Operations,Corrections
+TN Wildlife Resources Agency (TWRA),15201,3b61,T,TWRA R1 DISP1,Region 1 Dispatch 1 - West Tennessee,Law Dispatch
+TN Wildlife Resources Agency (TWRA),15203,3b63,TE,TWRA R1 DISP2,Region 1 Dispatch 2 - West Tennessee,Law Dispatch
+TN Wildlife Resources Agency (TWRA),15204,3b64,Te,TWRA R1 TAC,Region 1 Tactical - West Tennessee,Law Tac
+TN Wildlife Resources Agency (TWRA),15202,3b62,T,TWRA R1 MNT,Region 1 Maintenance - West Tennessee,Public Works
+TN Wildlife Resources Agency (TWRA),15205,3b65,T,TWRA R2 DISP1,Region 2 Dispatch 1 - Middle Tennessee,Law Dispatch
+TN Wildlife Resources Agency (TWRA),15207,3b67,TE,TWRA R2 DISP2,Region 2 Dispatch 2 - Middle Tennessee,Law Dispatch
+TN Wildlife Resources Agency (TWRA),15208,3b68,Te,TWRA R2 TAC,Region 2 Tactical - Middle Tennessee,Law Tac
+TN Wildlife Resources Agency (TWRA),15206,3b66,T,TWRA R2 MNT,Region 2 Maintenance - Middle Tennessee,Public Works
+TN Wildlife Resources Agency (TWRA),15209,3b69,T,TWRA R3 DISP1,Region 3 Dispatch 1 - Cumberland Plateau,Law Dispatch
+TN Wildlife Resources Agency (TWRA),15211,3b6b,TE,TWRA R3 DISP2,Region 3 Dispatch 2 - Cumberland Plateau,Law Dispatch
+TN Wildlife Resources Agency (TWRA),15212,3b6c,Te,TWRA R3 TAC,Region 3 Tactical - Cumberland Plateau,Law Tac
+TN Wildlife Resources Agency (TWRA),15210,3b6a,T,TWRA R3 MNT,Region 3 Maintenance - Cumberland Plateau,Public Works
+TN Wildlife Resources Agency (TWRA),15213,3b6d,T,TWRA R4 DISP1,Region 4 Dispatch 1 - East Tennessee,Law Dispatch
+TN Wildlife Resources Agency (TWRA),15215,3b6f,TE,TWRA R4 DISP2,Region 4 Dispatch 2 - East Tennessee,Law Dispatch
+TN Wildlife Resources Agency (TWRA),15216,3b70,Te,TWRA R4 TAC,Region 4 Tactical - East Tennessee,Law Tac
+TN Wildlife Resources Agency (TWRA),15214,3b6e,T,TWRA R4 MNT,Region 4 Maintenance - East Tennessee,Public Works
+TN Wildlife Resources Agency (TWRA),15217,3b71,T,TWRA COMMT,Communications Tech,Public Works
+TN - Department of Environment and Conservation (TDEC),16043,3eab,D,TDEC BCMSP OP1,Bicentennial Capitol Mall State Park (Ch 1),Law Dispatch
+TN - Department of Environment and Conservation (TDEC),16044,3eac,D,TDEC BCMSP OP2,Bicentennial Capitol Mall State Park (Ch 2),Law Tac
+TN - Department of Environment and Conservation (TDEC),47172,b844,D,TDEC LONGHSP OP1,Long Hunters State Park (Ch 1),Law Dispatch
+TN - Department of Environment and Conservation (TDEC),47270,b8a6,D,Cmbrlnd Trail SP,Cumberland Trail State Park Rangers,Law Tac
+TN - Department of Health,47115,b80b,D,TDOH-RMCC,Regional Medical Communications Centers,Emergency Ops
+TN - Department of Health,47116,b80c,D,TDOH-EMS OPS,EMS: Statewide Operations,Emergency Ops
+TN - Department of Health,47117,b80d,D,TDOH-PH,Public Health,Emergency Ops
+TN - Department of Health,47118,b80e,D,TDOH-WTR,West TN Regional Public Health Office,Emergency Ops
+TN - Department of Health,47119,b80f,D,TDOH-MCR,Mid Cumberland Regional Public Health Office,Emergency Ops
+TN - Department of Health,47120,b810,D,TDOH-ETR,East TN Regional Public Health Office,Emergency Ops
+TN - Department of Health,47121,b811,D,TDOH-SCR,South Central TN Regional Public Health Office,Emergency Ops
+TN - Department of Health,47122,b812,D,TDOH-SER,Southeast TN Regional Public Health Office,Emergency Ops
+TN - Department of Health,47123,b813,D,TDOH-NER,Northeast TN Regional Public Health Office,Emergency Ops
+TN - Department of Health,47149,b82d,D,TDOH-UCR,Upper Cumberland Regional Public Health Office,Emergency Ops
+TN - Medevac Helicopters (HEMS),1389,56d,D,Lifeforce Disp,Erlanger Life Force: Dispatch,EMS Dispatch
+TN - Medevac Helicopters (HEMS),1390,56e,D,Lifeforce Tac-1,Erlanger Life Force: Tac-1,EMS-Tac
+TN - Medevac Helicopters (HEMS),1392,570,D,Lifeforce Tac-2,Erlanger Life Force: Tac-2,EMS-Tac
+TN - Medevac Helicopters (HEMS),1391,56f,D,Lifeforce MedNet,Erlanger Life Force: Med Net,Hospital
+TN - Medevac Helicopters (HEMS),48255,bc7f,T,Highlands Air,Highlands Emergency Air Rescue/Transport,EMS Dispatch
+TN - Medevac Helicopters (HEMS),47310,b8ce,D,Lifestar AirGrnd,University of Tennessee Lifestar: Air-to-Ground Dispatch,EMS Dispatch
+TN - Medevac Helicopters (HEMS),47311,b8cf,D,Lifestar AirTac1,University of Tennessee Lifestar: Air-to-Air Tac-1,EMS-Tac
+TN - Medevac Helicopters (HEMS),47312,b8d0,D,Lifestar Landing,University of Tennessee Lifestar: Landing Zone Tac-2,EMS-Tac
+TN - Medevac Helicopters (HEMS),47313,b8d1,D,Lifestar Admin,University of Tennessee Lifestar: Ground Ops Admin/Talkaround,EMS-Talk
+TN - Medevac Helicopters (HEMS),48250,bc7a,D,Vandr LifeFlight,Vanderbilt University Medical Center LifeFlight: Statewide Ops,EMS-Tac
+TN - RMCC Region 1 (*),30448,76f0,T,JOHNSON CITY,EMS Encode: Johnson City Medical Center (Washington County),Hospital
+TN - RMCC Region 1 (*),30449,76f1,T,FRANKLIN WOODS,EMS Encode: Franklin Woods Hospital (Washington County),Hospital
+TN - RMCC Region 1 (*),30450,76f2,T,VA J QUILLEN,EMS Encode: Veterans Admin Hospital (Washington County),Hospital
+TN - RMCC Region 1 (*),48209,bc51,T,GREENVLLE EAST,EMS Encode: Greeneville East,Hospital
+TN - RMCC Region 1 (*),49600,c1c0,T,JCITY MEDCOM1,Johnson City MEDCOM 1,EMS Dispatch
+TN - RMCC Region 1 (*),49601,c1c1,T,SYCAMORE SHLS,EMS Encode: Sycamore Shoals,Hospital
+TN - RMCC Region 1 (*),49602,c1c2,T,DICKENSEN,EMS Encode: Dickensen,Hospital
+TN - RMCC Region 1 (*),49603,c1c3,T,HANCOCK,EMS Encode: Hancock,Hospital
+TN - RMCC Region 1 (*),49604,c1c4,T,HAWKINS,EMS Encode: Hawkins,Hospital
+TN - RMCC Region 1 (*),49605,c1c5,T,JOHNSON,EMS Encode: Johnson,Hospital
+TN - RMCC Region 1 (*),49606,c1c6,T,LEE,EMS Encode: Lee,Hospital
+TN - RMCC Region 1 (*),49607,c1c7,T,RUSSELL,EMS Encode: Russell,Hospital
+TN - RMCC Region 1 (*),49608,c1c8,T,SMYTH,EMS Encode: Smyth,Hospital
+TN - RMCC Region 1 (*),49609,c1c9,T,BRISTOL,EMS Encode: Bristol,Hospital
+TN - RMCC Region 1 (*),49610,c1ca,T,HOLSTON VALLY,EMS Encode: Holston Valley,Hospital
+TN - RMCC Region 1 (*),49611,c1cb,T,INDIAN PATH,EMS Encode: Indian Path,Hospital
+TN - RMCC Region 1 (*),49612,c1cc,T,UNICOI,EMS Encode: Unicoi,Hospital
+TN - RMCC Region 1 (*),49613,c1cd,T,JCITY MEDCOM2,Johnson City MEDCOM 2,EMS Dispatch
+TN - RMCC Region 1 (*),49614,c1ce,T,JCITY MEDCTRL,Johnson City Medical Control,EMS Dispatch
+TN - RMCC Region 1 (*),49615,c1cf,T,ED 10,EMS Encode: ED 10,Hospital
+TN - RMCC Region 1 (*),49616,c1d0,T,JOHNSTON MEM,EMS Encode: Johnston Memorial,Hospital
+TN - RMCC Region 1 (*),49617,c1d1,T,NISWONGER,EMS Encode: Niswonger,Hospital
+TN - RMCC Region 1 (*),49618,c1d2,T,LONESOME PINE,EMS Encode: Lonesome Pine,Hospital
+TN - RMCC Region 1 (*),49619,c1d3,T,NORTON,EMS Encode: Norton,Hospital
+TN - RMCC Region 1 (*),49640,c1e8,T,ED 11,EMS Encode: ED 11,Hospital
+TN - RMCC Region 1 (*),49649,c1f1,T,ED 12,EMS Encode: ED 12,Hospital
+TN - RMCC Region 2 (*),49620,c1d4,T,KNOX MEDCOM1,Knoxville MEDCOM 1,EMS Dispatch
+TN - RMCC Region 2 (*),49621,c1d5,T,METHODIST MED,EMS Encode: Methodist Med Ctr,Hospital
+TN - RMCC Region 2 (*),49622,c1d6,T,BLOUNT,EMS Encode: Blount Memorial,Hospital
+TN - RMCC Region 2 (*),49623,c1d7,T,LAFOLLETTE,EMS Encode: LaFollette,Hospital
+TN - RMCC Region 2 (*),49624,c1d8,T,CLAIBORNE,EMS Encode: Claiborne,Hospital
+TN - RMCC Region 2 (*),49625,c1d9,T,NEWPORT,EMS Encode: Newport,Hospital
+TN - RMCC Region 2 (*),49626,c1da,T,MORRISTOWN,EMS Encode: Morristown,Hospital
+TN - RMCC Region 2 (*),49627,c1db,T,JEFFERSON,EMS Encode: Jefferson Mem,Hospital
+TN - RMCC Region 2 (*),49628,c1dc,T,EAST TN CHILD,EMS Encode: E TN Childrens,Hospital
+TN - RMCC Region 2 (*),49629,c1dd,T,FORT SANDERS,EMS Encode: Fort Sanders,Hospital
+TN - RMCC Region 2 (*),49630,c1de,T,NORTH KNOX,EMS Encode: North Knox,Hospital
+TN - RMCC Region 2 (*),49631,c1df,T,PARK WEST,EMS Encode: Park West,Hospital
+TN - RMCC Region 2 (*),49632,c1e0,T,TURKEY CRK,EMS Encode: Turkey Creek,Hospital
+TN - RMCC Region 2 (*),49633,c1e1,T,UT MED CENTER,EMS Encode: UT Med Ctr,Hospital
+TN - RMCC Region 2 (*),49634,c1e2,T,FORT LOUDOUN,EMS Encode: Fort Loudoun,Hospital
+TN - RMCC Region 2 (*),49635,c1e3,T,SWEETWATER,EMS Encode: Sweetwater,Hospital
+TN - RMCC Region 2 (*),49636,c1e4,T,ROANE,EMS Encode: Roane Med Ctr,Hospital
+TN - RMCC Region 2 (*),49637,c1e5,T,BIG STH FORK,EMS Encode: Big South Fork,Hospital
+TN - RMCC Region 2 (*),49638,c1e6,T,LECONTE,EMS Encode: Leconte,Hospital
+TN - RMCC Region 2 (*),49646,c1ee,T,ED 22,EMS Encode: ED 22,Hospital
+TN - RMCC Region 2 (*),49648,c1f0,T,ED 20,EMS Encode: ED 20,Hospital
+TN - RMCC Region 2 (*),49650,c1f2,T,KNOX MEDCTRL,Knoxville Medical Control,EMS Dispatch
+TN - RMCC Region 2 (*),49651,c1f3,T,KNOX MEDCOM2,Knoxville MEDCOM 2,EMS Dispatch
+TN - RMCC Region 2 (*),49653,c1f5,T,ED 21,EMS Encode: ED 21,Hospital
+TN - RMCC Region 2 (*),49654,c1f6,T,JELLICO,EMS Encode: Jellico,Hospital
+TN - RMCC Region 3 (*),1187,4a3,T,CHAT MEDCOM 1,Chattanooga MEDCOM 1 (Hamilton County),EMS Dispatch
+TN - RMCC Region 3 (*),1203,4b3,T,ERLANGER,EMS Encode: Erlanger Medical Center (Hamilton County),Hospital
+TN - RMCC Region 3 (*),1205,4b5,T,ERL NORTH,EMS Encode: Erlanger North Hospital (Hamilton County),Hospital
+TN - RMCC Region 3 (*),1207,4b7,T,MEMORIAL,EMS Encode: Memorial Hospital (Hamilton County),Hospital
+TN - RMCC Region 3 (*),1209,4b9,T,MEM HIXON,EMS Encode: Memorial Hixon Hospital (Hamilton County),Hospital
+TN - RMCC Region 3 (*),1211,4bb,T,PARKRDG,EMS Encode: Parkridge Hospital (Hamilton County),Hospital
+TN - RMCC Region 3 (*),1212,4bc,T,PMC CAMP JORDN,EMS Encode: Parkridge Camp Jordan (Hamilton County),Hospital
+TN - RMCC Region 3 (*),1213,4bd,T,PARKRDG EAST,EMS Encode: Parkridge East Hospital (Hamilton County),Hospital
+TN - RMCC Region 3 (*),1214,4be,T,PMC SODDY,EMS Encode: Parkridge Soddy-Daisy (Hamilton County),Hospital
+TN - RMCC Region 3 (*),1215,4bf,T,TCTCH ER,EMS Encode: TC Thompson Children's Hospital (Hamilton County),Hospital
+TN - RMCC Region 3 (*),1259,4eb,T,CHAT MEDCOM 2,Chattanooga MEDCOM 2 (Hamilton County),EMS Dispatch
+TN - RMCC Region 3 (*),1423,58f,T,CHAT MED CTRL,Chattanooga Medical Control (Hamilton County),EMS Dispatch
+TN - RMCC Region 3 (*),1565,61d,T,MEM N GA,EMS Encode: Memorial (GA) (Hamilton County),Hospital
+TN - RMCC Region 3 (*),1567,61f,T,ERL EAST,EMS Encode: Erlanger East (Gunbarrel Campus) (Hamilton County),Hospital
+TN - RMCC Region 3 (*),2123,84b,T,PARKRDG NORTH,EMS Encode: Parkridge North Hospital (Hamilton County),Hospital
+TN - RMCC Region 3 (*),5534,159e,T,Vitruvian CLV,EMS Encode: Cleveland Vitruvian Bradley Medical Center (Bradley County),Hospital
+TN - RMCC Region 3 (*),7025,1b71,T,RHEA MED CTR,EMS Encode: Rhea Medical Center (Rhea County),Hospital
+TN - RMCC Region 3 (*),12021,2ef5,T,HAMILTON MC,EMS Encode: Hamilton (GA) (Whitfield County),Hospital
+TN - RMCC Region 3 (*),49642,c1ea,T,ED 32,EMS Encode: ED 32,Hospital
+TN - RMCC Region 3 (*),49643,c1eb,T,ED 31,EMS Encode: ED 31,Hospital
+TN - RMCC Region 3 (*),49644,c1ec,T,SEWANEE,EMS Encode: Sewanee,Hospital
+TN - RMCC Region 3 (*),49645,c1ed,T,WINCHESTER,EMS Encode: Winchester,Hospital
+TN - RMCC Region 3 (*),49652,c1f4,T,ED 30,EMS Encode: ED 30,Hospital
+TN - RMCC Region 3 (*),49655,c1f7,T,PARKRDG WEST,EMS Encode: Parkridge West,Hospital
+TN - RMCC Region 3 (*),49656,c1f8,T,STARR ETOWAH,EMS Encode: STARR Etowah,Hospital
+TN - RMCC Region 3 (*),49657,c1f9,T,STARR ATHENS,EMS Encode: STARR Athens,Hospital
+TN - RMCC Region 3 (*),49658,c1fa,T,ERL BLEDSOE,EMS Encode: Erlanger Bledsoe,Hospital
+TN - RMCC Region 3 (*),49659,c1fb,T,ERL SEQ VALY,EMS Encode: Erlanger Sequatchie Valley,Hospital
+TN - RMCC Region 4 (*),49550,c18e,T,C-VILLE MEDCOM 1,Cookeville MEDCOM 1,EMS Dispatch
+TN - RMCC Region 4 (*),49551,c18f,T,STONES RIVER,EMS Encode: Stones River,Hospital
+TN - RMCC Region 4 (*),49552,c190,T,CUMBERLAND,EMS Encode: Cumberland,Hospital
+TN - RMCC Region 4 (*),49553,c191,T,DEKALB,EMS Encode: Dekalb,Hospital
+TN - RMCC Region 4 (*),49554,c192,T,MACON,EMS Encode: Macon,Hospital
+TN - RMCC Region 4 (*),49555,c193,T,LIVINGSTON,EMS Encode: Livingston,Hospital
+TN - RMCC Region 4 (*),49556,c194,T,COOKEVILLE,EMS Encode: Cookeville,Hospital
+TN - RMCC Region 4 (*),49557,c195,T,Riverview RMC ER,EMS: Riverview RMC ER (Smith Co) [RIVERVIEW],Hospital
+TN - RMCC Region 4 (*),49558,c196,T,RIVER PARK,EMS Encode: River Park,Hospital
+TN - RMCC Region 4 (*),49559,c197,T,HIGHLANDS,EMS Encode: Highlands,Hospital
+TN - RMCC Region 4 (*),49660,c1fc,T,C-VILLE MEDCOM 2,Cookeville MEDCOM 2,EMS Dispatch
+TN - RMCC Region 4 (*),49661,c1fd,T,C-VILLE MED CTRL,Cookeville Medical Control,EMS Dispatch
+TN - RMCC Region 4 (*),49662,c1fe,T,UT JAMESTOWN,EMS Encode: UT Jamestown,Hospital
+TN - RMCC Region 4 (*),49663,c1ff,T,ED 40,EMS Encode: ED 40,Hospital
+TN - RMCC Region 4 (*),49664,c200,T,ED 41,EMS Encode: ED 41,Hospital
+TN - RMCC Region 4 (*),49665,c201,T,ED 42,EMS Encode: ED 42,Hospital
+TN - RMCC Region 5 (*),48251,bc7b,T,VANBLT WILSON,EMS Encode: Vanderbilt Wilson,Hospital
+TN - RMCC Region 5 (*),48254,bc7e,T,VANDBLT ADULT,EMS Encode: Vanderbilt Adult,Hospital
+TN - RMCC Region 5 (*),48260,bc84,T,VANDBLT PED,EMS Encode: Vanderbilt Ped,Hospital
+TN - RMCC Region 5 (*),48261,bc85,T,ST RUTHERFORD,EMS Encode: St Thomas Rutherford,Hospital
+TN - RMCC Region 5 (*),48262,bc86,T,STONECREST,EMS Encode: Stonecrest,Hospital
+TN - RMCC Region 5 (*),49500,c15c,T,NASH MEDCOM1,Nashville MEDCOM 1,EMS Dispatch
+TN - RMCC Region 5 (*),49501,c15d,T,ASHLAND CITY,EMS Encode: Ashland City,Hospital
+TN - RMCC Region 5 (*),49502,c15e,T,ST WEST,EMS Encode: St Thomas West,Hospital
+TN - RMCC Region 5 (*),49503,c15f,T,NASH GENERAL,EMS Encode: Nashville General,Hospital
+TN - RMCC Region 5 (*),49504,c160,T,SKYLINE,EMS Encode: Skyline,Hospital
+TN - RMCC Region 5 (*),49505,c161,T,SOUTHERN HILLS,EMS Encode: Southern Hills,Hospital
+TN - RMCC Region 5 (*),49506,c162,T,CENTENNIAL,EMS Encode: Centennial,Hospital
+TN - RMCC Region 5 (*),49507,c163,T,ST MIDTOWN,EMS Encode: St Thomas Midtown,Hospital
+TN - RMCC Region 5 (*),49508,c164,T,SUMMIT,EMS Encode: Summit,Hospital
+TN - RMCC Region 5 (*),49509,c165,T,VA NASHVILLE,EMS Encode: VA Nashville,Hospital
+TN - RMCC Region 5 (*),49510,c166,T,HORIZON,EMS Encode: Horizon,Hospital
+TN - RMCC Region 5 (*),49511,c167,T,HOUSTON CO,EMS Encode: Houston Co,Hospital
+TN - RMCC Region 5 (*),49512,c168,T,TENOVA CLARKVL,EMS Encode: Tennova Clarksville,Hospital
+TN - RMCC Region 5 (*),49513,c169,T,NORTHCREST,EMS Encode: Northcrest,Hospital
+TN - RMCC Region 5 (*),49514,c16a,T,SUMNER REG,EMS Encode: Sumner Regional,Hospital
+TN - RMCC Region 5 (*),49515,c16b,T,HENDERSONVILLE,EMS Encode: Hendersonville,Hospital
+TN - RMCC Region 5 (*),49516,c16c,T,TROUSDALE,EMS Encode: Trousdale,Hospital
+TN - RMCC Region 5 (*),49517,c16d,T,WILLIAMSON,EMS Encode: Williamson,Hospital
+TN - RMCC Region 5 (*),49518,c16e,T,THREE RIVERS,EMS Encode: Three Rivers,Hospital
+TN - RMCC Region 5 (*),49519,c16f,T,VA MURFRESBORO,EMS Encode: VA Murfreesboro,Hospital
+TN - RMCC Region 5 (*),49520,c170,T,CENTENNIAL PED,EMS Encode: Centennial Pediatric,Hospital
+TN - RMCC Region 5 (*),49521,c171,T,BLANCHFLD ARMY,EMS Encode: Blanchfield Army,Hospital
+TN - RMCC Region 5 (*),49522,c172,T,TENOVA SANGOER,EMS Encode: Tennova Sangoer,Hospital
+TN - RMCC Region 5 (*),49523,c173,T,PORTLAND ER,EMS Encode: Portland ER,Hospital
+TN - RMCC Region 5 (*),49524,c174,T,SPRING HILL ER,EMS Encode: Springhill ER,Hospital
+TN - RMCC Region 5 (*),49525,c175,T,NATCHEZ ER,EMS Encode: Natchez ER,Hospital
+TN - RMCC Region 5 (*),49526,c176,T,MT JULIET ER,EMS Encode: Mt Juliet ER,Hospital
+TN - RMCC Region 5 (*),49527,c177,T,CENTURYFARMSER,EMS Encode: Century Farmser,Hospital
+TN - RMCC Region 5 (*),49528,c178,T,SKYLNE MADISON,EMS Encode: Skyline Madison,Hospital
+TN - RMCC Region 5 (*),49529,c179,T,ST RUTH WSTLWN,EMS Encode: St Ruth Westlawn,Hospital
+TN - RMCC Region 5 (*),49666,c202,T,NASH MEDCOM2,Nashville MEDCOM 2,EMS Dispatch
+TN - RMCC Region 5 (*),49670,c206,T,NASH MEDCTRL1,Nashville Medical Control 1,EMS Dispatch
+TN - RMCC Region 5 (*),49671,c207,T,NASH MEDCTRL2,Nashville Medical Control 2,EMS Dispatch
+TN - RMCC Region 5 (*),49672,c208,T,CENTENNIAL WMN,EMS Encode: Centennial Women,Hospital
+TN - RMCC Region 5 (*),49673,c209,T,SUMNER STN ER,EMS Encode: Sumner Station ER,Hospital
+TN - RMCC Region 5 (*),49674,c20a,T,ED 50,EMS Encode: ED 50,Hospital
+TN - RMCC Region 5 (*),49675,c20b,T,ED 51,EMS Encode: ED 51,Hospital
+TN - RMCC Region 5 (*),49676,c20c,T,ED 52,EMS Encode: ED 52,Hospital
+TN - RMCC Region 6 (*),48252,bc7c,T,TULLAHOMA,EMS Encode: Tullahoma,Hospital
+TN - RMCC Region 6 (*),48253,bc7d,T,BEDFORD,EMS Encode: Bedford,Hospital
+TN - RMCC Region 6 (*),49530,c17a,T,MAURY MEDCOM1,Maury MEDCOM 1,EMS Dispatch
+TN - RMCC Region 6 (*),49531,c17b,T,UNITY MEDICAL,EMS Encode: Unity Medical,Hospital
+TN - RMCC Region 6 (*),49532,c17c,T,PULASKI,EMS Encode: Pulaski,Hospital
+TN - RMCC Region 6 (*),49533,c17d,T,HICKMAN,EMS Encode: Hickman,Hospital
+TN - RMCC Region 6 (*),49534,c17e,T,LAWRENCEBURG,EMS Encode: Lawrenceburg,Hospital
+TN - RMCC Region 6 (*),49535,c17f,T,LINCOLN,EMS Encode: Lincoln,Hospital
+TN - RMCC Region 6 (*),49536,c180,T,HUNTSVILLE,EMS Encode: Hunstville,Hospital
+TN - RMCC Region 6 (*),49537,c181,T,MARSHALL,EMS Encode: Marshall,Hospital
+TN - RMCC Region 6 (*),49539,c183,T,MAURY,EMS Encode: Maury,Hospital
+TN - RMCC Region 6 (*),49540,c184,T,WAYNE,EMS Encode: Wayne,Hospital
+TN - RMCC Region 6 (*),49541,c185,T,ED 60,EMS Encode: ED 60,Hospital
+TN - RMCC Region 6 (*),49542,c186,T,ED 61,EMS Encode: ED 61,Hospital
+TN - RMCC Region 6 (*),49543,c187,T,ED 62,EMS Encode: ED 62,Hospital
+TN - RMCC Region 6 (*),49677,c20d,T,MAURY MEDCOM2,Maury MEDCOM 2,EMS Dispatch
+TN - RMCC Region 6 (*),49678,c20e,T,MAURY MEDCTRL,Maury Medical Control,EMS Dispatch
+TN - RMCC Region 7 (*),49560,c198,T,BapMcNry EMS MC1,Baptist McNairy EMS MEDCOM1,EMS Dispatch
+TN - RMCC Region 7 (*),49561,c199,T,WTH CAMDEN,EMS Encode: WTH Camden - Patient Reports,Hospital
+TN - RMCC Region 7 (*),49562,c19a,T,Carroll Hosp ER,EMS Encode: Carroll County Hospital - Patient Reports,Hospital
+TN - RMCC Region 7 (*),49563,c19b,T,WTH DYERSBURG,EMS Encode: WTH Dyersburg - Patient Reports,Hospital
+TN - RMCC Region 7 (*),49564,c19c,T,WTH MILAN,EMS Encode: WTH Milan - Patient Reports,Hospital
+TN - RMCC Region 7 (*),49565,c19d,T,WTH BOLIVER,EMS Encode: WTH Boliver - Patient Reports,Hospital
+TN - RMCC Region 7 (*),49566,c19e,T,HARDIN,EMS Encode: Hardin - Patient Reports,Hospital
+TN - RMCC Region 7 (*),49567,c19f,T,HENDERSON,EMS Encode: Henderson - Patient Reports,Hospital
+TN - RMCC Region 7 (*),49568,c1a0,T,HENRY,EMS Encode: Henry - Patient Reports,Hospital
+TN - RMCC Region 7 (*),49569,c1a1,T,WTH JACKSON,EMS Encode: WTH Jackson - Patient Reports,Hospital
+TN - RMCC Region 7 (*),49570,c1a2,T,WTH NORTH,EMS Encode: WTH North - Patient Reports,Hospital
+TN - RMCC Region 7 (*),49571,c1a3,T,UNION CITY,EMS Encode: Union City - Patient Reports,Hospital
+TN - RMCC Region 7 (*),49572,c1a4,T,WTH VOLUNTEER,EMS Encode: WTH Volunteer - Patient Reports,Hospital
+TN - RMCC Region 7 (*),49573,c1a5,T,MAGNOLIA REG,EMS Encode: Magnolia Regional - Patient Reports,Hospital
+TN - RMCC Region 7 (*),49574,c1a6,T,BROWNSVILLE,EMS Encode: Brownsville - Patient Reports,Hospital
+TN - RMCC Region 7 (*),49575,c1a7,T,DECATUR,EMS Encode: Decatur - Patient Reports,Hospital
+TN - RMCC Region 7 (*),49576,c1a8,T,MAGNOLIA MCNRY,EMS Encode: Magnolia McNairy - Patient Reports,Hospital
+TN - RMCC Region 7 (*),49577,c1a9,T,ED 70,EMS Encode: ED 70 - Patient Reports,Hospital
+TN - RMCC Region 7 (*),49578,c1aa,T,ED 71,EMS Encode: ED 71 - Patient Reports,Hospital
+TN - RMCC Region 7 (*),49579,c1ab,T,ED 72,EMS Encode: ED 72 - Patient Reports,Hospital
+TN - RMCC Region 7 (*),49679,c20f,T,BapMcNry EMS MC2,Baptist McNairy EMS MEDCOM2,EMS Dispatch
+TN - RMCC Region 7 (*),49680,c210,T,BapMcNry MedCtrl,Baptist McNairy Medical Control,EMS Dispatch
+TN - RMCC Region 8 (*),49580,c1ac,T,MEMPHS MEDCOM1,Memphis MEDCOM 1,EMS Dispatch
+TN - RMCC Region 8 (*),49581,c1ad,T,CRITTENDEN,EMS Encode: Crittenden,Hospital
+TN - RMCC Region 8 (*),49582,c1ae,T,DESOTO,EMS Encode: Desoto,Hospital
+TN - RMCC Region 8 (*),49583,c1af,T,OLIVE BRANCH,EMS Encode: Olive Branch,Hospital
+TN - RMCC Region 8 (*),49584,c1b0,T,LAUDERDALE,EMS Encode: Lauderdale,Hospital
+TN - RMCC Region 8 (*),49585,c1b1,T,BAPTIST MEM,EMS Encode: Baptist Memorial,Hospital
+TN - RMCC Region 8 (*),49586,c1b2,T,BAPTIST PEDS,EMS Encode: Baptist Pediatric,Hospital
+TN - RMCC Region 8 (*),49587,c1b3,T,COLLIERVILLE,EMS Encode: Collierville,Hospital
+TN - RMCC Region 8 (*),49588,c1b4,T,LEBONHEUR,EMS Encode: Lebonheur,Hospital
+TN - RMCC Region 8 (*),49589,c1b5,T,GERMANTOWN,EMS Encode: Germantown,Hospital
+TN - RMCC Region 8 (*),49590,c1b6,T,METHODIST NTH,EMS Encode: Methodist North,Hospital
+TN - RMCC Region 8 (*),49591,c1b7,T,METHODIST STH,EMS Encode: Methodist South,Hospital
+TN - RMCC Region 8 (*),49592,c1b8,T,METHODIST UNIV,EMS Encode: Methodist University,Hospital
+TN - RMCC Region 8 (*),49593,c1b9,T,REGIONAL ONE,EMS Encode: Regional One,Hospital
+TN - RMCC Region 8 (*),49594,c1ba,T,BARTLETT,EMS Encode: Bartlett,Hospital
+TN - RMCC Region 8 (*),49595,c1bb,T,ST FRANCIS,EMS Encode: St Francis,Hospital
+TN - RMCC Region 8 (*),49596,c1bc,T,ST JUDE,EMS Encode: St Jude,Hospital
+TN - RMCC Region 8 (*),49597,c1bd,T,VA MEMPHIS,EMS Encode: VA Memphis,Hospital
+TN - RMCC Region 8 (*),49598,c1be,T,TIPTON,EMS Encode: Tipton,Hospital
+TN - RMCC Region 8 (*),49681,c211,T,MEMPHS MEDCOM2,Memphis MEDCOM 2,EMS Dispatch
+TN - RMCC Region 8 (*),49682,c212,T,MEMPHS MEDCTRL,Memphis Medical Control,EMS Dispatch
+TN - RMCC Region 8 (*),49683,c213,T,ED 80,EMS Encode: ED 80,Hospital
+TN - RMCC Region 8 (*),49684,c214,T,ED 81,EMS Encode: ED 81,Hospital
+TN - RMCC Region 8 (*),49685,c215,T,ED 82,EMS Encode: ED 82,Hospital
+TN - RMCC Region 8 (*),49686,c216,T,BAPTIST WOMENS,EMS Encode: Baptist Womens,Hospital
+TN - RMCC Region 8 (*),49687,c217,T,BAPTIST ARLGTN,EMS Encode: Baptist Arlington,Hospital
+TN - Department of Transportation HELP,47158,b836,T,DOT HELP SW,State Wide Operations,Public Works
+TN - Department of Transportation HELP,47150,b82e,T,DOT HELP R1,Region 1 Dispatch - Knoxville,Public Works
+TN - Department of Transportation HELP,47154,b832,T,DOT HTAC1 R1,Region 1 Tactical 1,Public Works
+TN - Department of Transportation HELP,47151,b82f,T,DOT HELP R2,Region 2 Dispatch - Chattanooga,Public Works
+TN - Department of Transportation HELP,47155,b833,T,DOT HTAC1 R2,Region 2 Tactical 1,Public Works
+TN - Department of Transportation HELP,47152,b830,T,DOT HELP R3,Region 3 Dispatch - Nashville,Public Works
+TN - Department of Transportation HELP,47156,b834,T,DOT HTAC1 R3,Region 3 Tactical 1,Public Works
+TN - Department of Transportation HELP,47161,b839,T,DOT HTAC2 R3,Region 3 Tactical 2,Public Works
+TN - Department of Transportation HELP,47163,b83b,T,DOT HTAC3 R3,Region 3 Tactical 3,Public Works
+TN - Department of Transportation HELP,47153,b831,T,DOT HELP R4,Region 4 Dispatch - Jackson,Public Works
+TN - Department of Transportation HELP,47157,b835,T,DOT HTAC1 R4,Region 4 Tactical 1,Public Works
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8520,2148,D,01-ACSD-OPS1,Sheriff: Operations 1 - Dispatch,Law Dispatch
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8521,2149,DE,01-ACSD-OPS2,Sheriff: Operations 2,Law Tac
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8522,214a,D,01-ACSO TAC1,Sheriff: Tactical 1,Law Tac
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8523,214b,DE,01-ACSO TAC2,Sheriff: Tactical 2,Law Tac
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8524,214c,DE,01-ACSD CAR1,Sheriff: Car-to-Car 1,Law Talk
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8525,214d,DE,01-ACSO CAR2,Sheriff: Car-to-Car 2,Law Talk
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8526,214e,DE,01-ACSO COMMAND,Sheriff: Command,Law Tac
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8527,214f,DE,01-ACSO CID,Sheriff: Criminal Investigations Division (CID),Law Tac
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8528,2150,DE,01-ACSO DRUG,Sheriff: Drug Interdiction Unit,Law Tac
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8501,2135,D,01-AC NET,County Net,Multi-Dispatch
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8503,2137,D,01-AC EVNT 1,County Events 1,Multi-Tac
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8504,2138,D,01-AC EVNT 2,County Events 2,Multi-Tac
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8505,2139,D,01-AC EVNT 3,County Events 3,Multi-Tac
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8533,2155,D,And Co OEM Ops 1,OEM Operations 1,Emergency Ops
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8534,2156,DE,And Co OEM Ops 2,OEM Operations 2,Emergency Ops
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8529,2151,D,AndCo Fire Ops 1,Fire: Operations 1 (County),Fire-Tac
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8530,2152,DE,AndCo Fire Ops 2,Fire: Operations 2 (County),Fire-Tac
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8531,2153,D,AndCo Fire Tac-1,Fire: Tactical 1 (County),Fire-Tac
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8532,2154,DE,AndCo Fire Tac-2,Fire: Tactical 2 (County),Fire-Tac
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8535,2157,DE,01-ACEMS ALS,Anderson EMS: ALS Dispatch,EMS Dispatch
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8536,2158,DE,01-ACEMS BLS,Anderson EMS: BLS Dispatch,EMS Dispatch
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8537,2159,DE,Anderson EMS Tac,Anderson EMS: Tactical,EMS-Tac
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8583,2187,DE,Anderson EMS INc,EMS: Incident (County),EMS Dispatch
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8584,2188,DE,AndersnEMS Admin,EMS: Admin (County),EMS Dispatch
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8585,2189,D,AndersnEMS Alert,EMS: Alerting (County),EMS Dispatch
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8538,215a,D,01-AC ROAD 1,County Highway 1,Public Works
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8539,215b,D,01-AC ROAD 2,County Highway 2,Public Works
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8540,215c,D,01-AC PUB WK 1,County Public Works 1,Public Works
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8541,215d,D,01-AC PUB WK 2,County Public Works 2,Public Works
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8542,215e,D,01-AC GOV 1,County Government 1,Public Works
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8543,215f,DE,01-AC GOV 2,County Government 2,Public Works
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8544,2160,D,01-AC SCH OPS 1,County School Ops 1,Schools
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8545,2161,D,01-AC SCH OPS 2,County School Ops 2,Schools
+Talkgroup 8529 is used for Dispatch and Fireground for all Volunteer Fire Departments and Rescue Squads,8546,2162,D,01-AC SCH NET,County School Net,Schools
+See the Anderson County database page,8612,21a4,D,Clinton PD Ops 1,Police: Ops 1-Dispatch (Future Use),Law Dispatch
+See the Anderson County database page,8613,21a5,D,Clinton PD Tac-1,Police: Tac-1,Law Tac
+See the Anderson County database page,8614,21a6,DE,Clinton PD Tac-2,Police: Tac-2,Law Tac
+See the Anderson County database page,8618,21aa,D,Clinton FD Ops 1,Fire: Ops 1-Dispatch (Future Use),Fire Dispatch
+See the Anderson County database page,8619,21ab,D,Clinton FD Tac-1,Fire: Tac-1,Fire-Tac
+See the Anderson County database page,8620,21ac,DE,Clinton FD Tac-2,Fire: Tac-2,Fire-Tac
+See the Anderson County database page,8630,21b6,D,Clinton CW 1,Citywide 1,Multi-Tac
+See the Anderson County database page,8631,21b7,D,Clinton CW 2,Citywide 2,Multi-Tac
+TN - Anderson County - Norris,8591,218f,D,Norris PD/FD,Police/Fire: Dispatch,Multi-Dispatch
+TN - Anderson County - Norris,8592,2190,D,Norris PD Tac-1,Police: Tac-1,Law Tac
+TN - Anderson County - Norris,8593,2191,DE,Norris PD Tac-2,Police: Tac-2,Law Tac
+TN - Anderson County - Norris,8594,2192,D,Norris FD Tac-1,Fire: Tac-1,Fire-Tac
+TN - Anderson County - Norris,8595,2193,DE,Norris FD Tac-2,Fire: Tac-2,Fire-Tac
+TN - Anderson County - Oak Ridge,8514,2142,DE,01-ORPD DISP,Police: Dispatch,Law Dispatch
+TN - Anderson County - Oak Ridge,8515,2143,DE,OakRidg PD Tac-1,Police: Tac-1,Law Tac
+TN - Anderson County - Oak Ridge,8516,2144,DE,OakRidg PD Tac-2,Police: Tac-2,Law Tac
+TN - Anderson County - Oak Ridge,8566,2176,D,01-OR EVENT 1,Event 1,Multi-Tac
+TN - Anderson County - Oak Ridge,8567,2177,D,01-OR EVENT 2,Event 2,Multi-Tac
+TN - Anderson County - Oak Ridge,8568,2178,D,01-OR EVENT 3,Event 3,Multi-Tac
+TN - Anderson County - Oak Ridge,8569,2179,D,01-OR EVENT 4,Event 4,Multi-Tac
+TN - Anderson County - Oak Ridge,8555,216b,TE,01-OR ANIMAL CTL,Animal Control,Public Works
+TN - Anderson County - Oak Ridge,8570,217a,D,01-OR NET,"Net (Police Convoys, etc)",Multi-Tac
+TN - Anderson County - Oak Ridge,8573,217d,D,OkRdg CourtPanic,Courts: Panic Alert Notification,Security
+TN - Anderson County - Oak Ridge,8511,213f,DE,01-ORFD-DISP,Fire: Dispatch,Fire Dispatch
+TN - Anderson County - Oak Ridge,8512,2140,DE,01-ORFD-TAC1,Fire: Tactical 1,Fire-Tac
+TN - Anderson County - Oak Ridge,8513,2141,DE,01-ORFD-TAC2,Fire: Tactical 2,Fire-Tac
+TN - Anderson County - Oak Ridge,8556,216c,DE,01-ORFD-TAC3,Fire: Tactical 3,Fire-Tac
+TN - Anderson County - Oak Ridge,8557,216d,DE,01-ORFD-TAC4,Fire: Tactical 4,Fire-Tac
+TN - Anderson County - Oak Ridge,8558,216e,DE,01-ORFD-TAC5,Fire: Tactical 5,Fire-Tac
+TN - Anderson County - Oak Ridge,8559,216f,DE,01-ORFD-MED,Fire: Medical,EMS-Tac
+TN - Anderson County - Oak Ridge,8560,2170,DE,01-ORFD-STAGING,Fire: Staging,Fire-Tac
+TN - Anderson County - Oak Ridge,8561,2171,DE,01-ORFD-HAZMAT,Fire: HazMat,Fire-Tac
+TN - Anderson County - Oak Ridge,8509,213d,D,01-ORPW-1,Public Works 1,Public Works
+TN - Anderson County - Oak Ridge,8550,2166,D,01-ORPW-2,Public Works 2,Public Works
+TN - Anderson County - Oak Ridge,8551,2167,T,01-OR PARKS,Parks,Public Works
+TN - Anderson County - Oak Ridge,8506,213a,T,01-ORED OPS,Electric Dept: Dispatch,Utilities
+TN - Anderson County - Oak Ridge,8548,2164,T,01-ORED ALL,Electric Dept: All Call,Utilities
+TN - Anderson County - Oak Ridge,8549,2165,T,01-ORED TALK,Electric Dept: Talk,Utilities
+TN - Anderson County - Oak Ridge,8572,217c,D,01-ORED SW,Electric Dept: Switching,Utilities
+TN - Anderson County - Oak Ridge,8552,2168,T,01-ORSD TRANS,Oak Ridge Schools: Transportation,Schools
+TN - Anderson County - Oak Ridge,8553,2169,D,01-ORSD MAINT,Oak Ridge Schools: Maintenance,Schools
+TN - Anderson County - Oak Ridge,8554,216a,D,01-ORSD OPS A,Oak Ridge Schools: Operations A,Schools
+TN - Anderson County - Oak Ridge,8633,21b9,D,01-ORSD OPS B,Oak Ridge Schools: Operations B,Schools
+TN - Anderson County - Oliver Springs,8574,217e,D,OSpr Police Disp,Police: Dispatch,Law Dispatch
+TN - Anderson County - Oliver Springs,8575,217f,D,OSpr Police Tac1,Police: Tac-1,Law Tac
+TN - Anderson County - Oliver Springs,8576,2180,DE,OSpr Police Tac2,Police: Tac-2,Law Tac
+TN - Anderson County - Oliver Springs,8577,2181,D,OSpr Fire Ops,Fire: Ops (Dispatch),Fire Dispatch
+TN - Anderson County - Oliver Springs,8578,2182,D,OSpr Fire Tac-1,Fire: Tac-1,Fire-Tac
+TN - Anderson County - Oliver Springs,8579,2183,DE,OSpr Fire Tac-2,Fire: Tac-2,Fire-Tac
+TN - Anderson County - Oliver Springs,8580,2184,D,OSpr City Ops,City Ops,Multi-Tac
+TN - Anderson County - Oliver Springs,8581,2185,D,OSpr Event 1,Event 1,Multi-Tac
+TN - Anderson County - Oliver Springs,8582,2186,D,OSpr Event 2,Event 2,Multi-Tac
+TN - Anderson County - Rocky Top,8586,218a,D,Rocky Top PD Ops,Police: Ops (Dispatch),Law Dispatch
+TN - Anderson County - Rocky Top,8587,218b,D,RockyTop PD Tac1,Police: Tac-1,Law Tac
+TN - Anderson County - Rocky Top,8588,218c,D,RockyTop PD Tac2,Police: Tac-2,Law Tac
+TN - Anderson County - Rocky Top,8589,218d,D,RockyTop FD Tac1,Fire: Tac-1,Fire-Tac
+TN - Anderson County - Rocky Top,8590,218e,DE,RockyTop FD Tac2,Fire: Tac-2,Fire-Tac
+See the Bedford County database page,49711,c22f,T,Bedford Sheriff,Sheriff: Dispatch,Law Dispatch
+See the Bedford County database page,49715,c233,T,Bedford Event 1,Shelbyville Police: Dispatch // Event 1,Law Dispatch
+See the Bedford County database page,49716,c234,T,Bedford Event 2,Event 2,Multi-Tac
+See the Bedford County database page,49717,c235,T,Bedford FIre/Rsq,Fire/Rescue: Dispatch,Fire Dispatch
+See the Bedford County database page,49727,c23f,T,Bedford Law49727,Law: Ops,Law Tac
+See the Bedford County database page,49728,c240,T,Bedford EMS Disp,EMS: Dispatch,EMS Dispatch
+TN - Blount County (09) - Alcoa,10012,271c,De,Alcoa Police,Police: Dispatch,Law Dispatch
+TN - Blount County (09) - Alcoa,10006,2716,D,Alcoa Events,Events,Multi-Tac
+TN - Blount County (09) - Alcoa,10002,2712,De,Alcoa Fire DIsp,Fire: Dispatch,Fire Dispatch
+TN - Blount County (09) - Alcoa,10010,271a,D,Alcoa Fire Train,Fire: Training,Fire-Talk
+TN - Blount County (09) - Alcoa,10007,2717,D,Alcoa Firegrnd 3,Fireground 3,Fire-Tac
+TN - Blount County (09) - Alcoa,10008,2718,D,Alcoa Firegrnd 4,Fireground 4,Fire-Tac
+TN - Blount County (09) - Alcoa,10022,2726,D,Alcoa PW Roads,Public Works: Roads,Public Works
+TN - Blount County (09) - Alcoa,10019,2723,D,Alcoa Electric,City Electric Department,Utilities
+TN - Blount County (09) - Maryville,10032,2730,De,Maryv Police 2,Police: Dispatch (Ch 2),Law Dispatch
+TN - Blount County (09) - Maryville,10033,2731,De,Maryv Police Det,Police: Detectives,Law Tac
+TN - Blount County (09) - Maryville,10034,2732,D,Maryv PoliceSWAT,Police: SWAT,Law Tac
+TN - Blount County (09) - Maryville,10025,2729,De,Maryville Fire,Fire: Dispatch,Fire Dispatch
+TN - Blount County (09) - Maryville,10015,271f,De,Maryville Fire 2,Fire: Ch 2,Fire-Tac
+TN - Blount County (09) - Maryville,10026,272a,De,Maryv Firegrnd 1,Fireground 1,Fire-Tac
+TN - Blount County (09) - Maryville,10027,272b,De,Maryv Firegrnd 2,Fireground 2,Fire-Tac
+TN - Blount County (09) - Maryville,10028,272c,De,Maryv Firegrnd 3,Fireground 3,Fire-Tac
+TN - Blount County (09) - Maryville,10029,272d,De,Maryv Firegrnd 4,Fireground 4,Fire-Tac
+TN - Blount County (09) - Maryville,10031,272f,D,Maryv FD OffDuty,Fire: Off-Duty,Fire-Talk
+TN - Blount County (09) - Maryville,10040,2738,D,Maryville Road,Road Department,Public Works
+TN - Blount County (09) - Maryville,10042,273a,D,Maryville PubWrk,Public Works: Primary,Public Works
+TN - Blount County (09) - Maryville,10038,2736,D,Maryville Electr,Maryville Electric Utilities,Utilities
+TN - Blount County (09) - Maryville,10039,2737,D,Maryville Water,Maryville Water Department,Utilities
+Law and Fire talkgroups are encryption-capable.,10001,2711,D,Blount C/W Net,Countywide Net,Multi-Tac
+Law and Fire talkgroups are encryption-capable.,10044,273c,De,Blount Sheriff 1,Sheriff: Primary,Law Dispatch
+Law and Fire talkgroups are encryption-capable.,10045,273d,De,Blount Sheriff 2,Sheriff: Secondary,Law Dispatch
+Law and Fire talkgroups are encryption-capable.,10043,273b,De,Blount Shrf Tac,Sheriff: Tactical,Law Tac
+Law and Fire talkgroups are encryption-capable.,10047,273f,De,Blount Shrf C2C,Sheriff: Car-to-Car,Law Talk
+Law and Fire talkgroups are encryption-capable.,10051,2743,De,Blount Shrf SRO,Sheriff: School Resource Officers,Law Tac
+Law and Fire talkgroups are encryption-capable.,10048,2740,De,Blount Shrf Det,Sheriff: Detectives,Law Tac
+Law and Fire talkgroups are encryption-capable.,10049,2741,De,Blount ShrfCourt,Sheriff: Court Security/Bailiffs,Law Tac
+Law and Fire talkgroups are encryption-capable.,10046,273e,De,Blount Jail Sec,Sheriff: Jail Security,Corrections
+Law and Fire talkgroups are encryption-capable.,10050,2742,De,Blount Jail Trns,Sheriff: Jail Transport,Corrections
+Law and Fire talkgroups are encryption-capable.,10061,274d,D,Blount EMA 61,Emergency Management,Emergency Ops
+Law and Fire talkgroups are encryption-capable.,10003,2713,De,Blount C/W FIre,Fire: Mutual Aid (County),Fire-Talk
+Law and Fire talkgroups are encryption-capable.,10009,2719,D,Blount Fire10009,Fire: Patch,Fire Dispatch
+Law and Fire talkgroups are encryption-capable.,10065,2751,D,FDBC Dispatch,FDBC: Dispatch (Blount County Fire Protection District),Fire Dispatch
+Law and Fire talkgroups are encryption-capable.,10066,2752,D,FDBC Firegrnd 1,FDBC: Fireground 1 (Blount County Fire Protection District),Fire-Tac
+Law and Fire talkgroups are encryption-capable.,10067,2753,D,FDBC Firegrnd 2,FDBC: Fireground 2 (Blount County Fire Protection District),Fire-Tac
+Law and Fire talkgroups are encryption-capable.,10068,2754,D,FDBC Firegrnd 3,FDBC: Fireground 3 (Blount County Fire Protection District),Fire-Tac
+Law and Fire talkgroups are encryption-capable.,10069,2755,D,FDBC Firegrnd 4,FDBC: Fireground 4 (Blount County Fire Protection District),Fire-Tac
+Law and Fire talkgroups are encryption-capable.,10064,2750,D,AMR EMS Blount,AMR EMS: Blount Dispatch,EMS Dispatch
+TN - Bradley County (11) - Public Safety,5536,15a0,D,Brad P/S MutAid1,Public Safety Mutual Aid 1 (Countywide),Interop
+TN - Bradley County (11) - Public Safety,5537,15a1,D,Brad P/S MutAid2,Public Safety Mutual Aid 2 (Countywide),Interop
+TN - Bradley County (11) - Public Safety,5535,159f,D,Brad Mutual Aid,Mutual Aid Channel (Countywide),Interop
+TN - Bradley County (11) - Public Safety,5501,157d,D,Bradley C/W Net,Countywide Net,Interop
+TN - Bradley County (11) - Public Safety,5521,1591,D,Bradley SheriffA,Sheriff: Dispatch A,Law Dispatch
+TN - Bradley County (11) - Public Safety,5522,1592,DE,Bradley Sheriff2,Sheriff: Dispatch 2,Law Tac
+TN - Bradley County (11) - Public Safety,5517,158d,De,Brad Shrf Admin,Sheriff: Administration,Law Talk
+TN - Bradley County (11) - Public Safety,5533,159d,D,Bradley Shrf CID,Sheriff: Criminal Investigations Division (CID),Law Tac
+TN - Bradley County (11) - Public Safety,5542,15a6,DE,Brad Shrf SWAT,Sheriff: SWAT,Law Tac
+TN - Bradley County (11) - Public Safety,5532,159c,De,Brad Shrf c2c,Sheriff: Car-to-Car,Law Talk
+TN - Bradley County (11) - Public Safety,5519,158f,DE,Brad Shrf Cmmnd,Sheriff: Command Staff,Law Talk
+TN - Bradley County (11) - Public Safety,5520,1590,DE,Brad Shrf Sprvsr,Sheriff: Supervisor,Law Talk
+TN - Bradley County (11) - Public Safety,5502,157e,D,Bradley Co EMA,County EMA,Emergency Ops
+TN - Bradley County (11) - Public Safety,5503,157f,D,Bradley Co EMA 2,County EMA 2,Emergency Ops
+TN - Bradley County (11) - Public Safety,5511,1587,D,Brad Fire Main,Fire/Rescue: Main (Countywide),Fire Dispatch
+TN - Bradley County (11) - Public Safety,5513,1589,D,Brad Fireground1,Fireground 1 (Countywide),Fire-Tac
+TN - Bradley County (11) - Public Safety,33360,8250,D,Brad Fire C2C,Fire Rescue: Car-to-Car (Countywide),Fire-Tac
+TN - Bradley County (11) - Public Safety,5510,1586,D,Brad Fire Admin,Fire Rescue: Administration (Countywide),Fire-Talk
+TN - Bradley County (11) - Public Safety,5508,1584,D,Bradley EMS DIsp,EMS: Dispatch (Countywide),EMS Dispatch
+TN - Bradley County (11) - Public Safety,33424,8290,D,Bradley EMS c2c,EMS: Car-to-Car (Countywide),EMS-Tac
+TN - Bradley County (11) - Public Safety,5528,1598,D,Cleveland Police,Cleveland Police: Dispatch,Law Dispatch
+TN - Bradley County (11) - Public Safety,5529,1599,D,ClevelandPD Tac2,Cleveland Police: Tac-2,Law Tac
+TN - Bradley County (11) - Public Safety,5531,159b,De,Cleve Police c2c,Cleveland Police: Car-to-Car,Law Talk
+TN - Bradley County (11) - Public Safety,5518,158e,DE,Cleve Police CID,Cleveland Police: Criminal Investigations Division (CID),Law Tac
+TN - Bradley County (11) - Public Safety,5550,15ae,DE,Clev Police Narc,Cleveland Police: Narcotics,Law Tac
+TN - Bradley County (11) - Public Safety,5526,1596,D,Cleveland Fire,Cleveland Fire: Dispatch,Fire Dispatch
+TN - Bradley County (11) - Public Safety,33328,8230,D,Cleve Fire c2c,Cleveland Fire: Car-to-Car,Fire-Tac
+TN - Bradley County (11) - Public Safety,5525,1595,D,Cleve Fire Spprt,Cleveland Fire: Support,Fire-Tac
+TN - Bradley County (11) - Public Safety,5545,15a9,D,LeeUnivSecurity1,Lee University: Security 1,Security
+TN - Bradley County (11) - Public Safety,5546,15aa,D,LeeUnivSecurity2,Lee University: Security 2,Security
+TN - Bradley County (11) - Public Safety,5547,15ab,D,CSCC Ops,Cleveland State Community College,Schools
+TN - Bradley County (11) - Public Safety,5548,15ac,D,Brad Sch Admin,County Schools: Administration,Schools
+TN - Bradley County (11) - Public Safety,5549,15ad,D,Brad Sch Bus Ops,County Schools: Bus Operations,Schools
+TN - Coffee County (16) - Public Safety,48140,bc0c,D,Coffee Co Net,Coffee County Net [Coffee Net],Multi-Dispatch
+TN - Coffee County (16) - Public Safety,48139,bc0b,D,Coffee Shrf Law2,Sheriff: Law 2-Dispatch,Law Dispatch
+TN - Coffee County (16) - Public Safety,48138,bc0a,D,Coffee Shrf Law1,Sheriff: Law 1,Law Talk
+TN - Coffee County (16) - Public Safety,48148,bc14,D,Coffee Co Fire,Fire: Dispatch,Fire Dispatch
+TN - Coffee County (16) - Public Safety,48147,bc13,D,Coffee Co EMS,EMS: Dispatch,EMS Dispatch
+TN - Coffee County (16) - Public Safety,48149,bc15,D,Coffee Co Rescue,Rescue Squad,EMS Dispatch
+TN - Coffee County (16) - Public Safety,48301,bcad,D,Hickerson Sta FG,Hickerson Station Fireground,Fire-Tac
+TN - Coffee County (16) - Public Safety,48305,bcb1,D,Hillsboro FG,Hillsboro Fireground,Fire-Tac
+TN - Coffee County (16) - Public Safety,48144,bc10,D,ManchesterPolice,Manchester Police: Dispatch,Law Dispatch
+TN - Coffee County (16) - Public Safety,48146,bc12,D,Manchester Fire,Manchester Fire: Dispatch,Fire Dispatch
+TN - Coffee County (16) - Public Safety,48303,bcaf,D,New Union FG,New Union Fireground,Fire-Tac
+TN - Coffee County (16) - Public Safety,48302,bcae,D,NorthCoffee FG,North Coffee Fireground,Fire-Tac
+TN - Coffee County (16) - Public Safety,48307,bcb3,D,Tullahoma Police,Tullahoma Police: Dispatch,Law Dispatch
+TN - Coffee County (16) - Public Safety,48309,bcb5,D,Tullahoma Fire,Tullahoma Fire: Dispatch,Fire Dispatch
+TN - Coffee County (16) - Public Safety,48304,bcb0,D,Summitville FG,Summitville Fireground,Fire-Tac
+See Crockett County Database page,49855,c2bf,TE,Crockett Tac,County Tac,Multi-Tac
+See Crockett County Database page,50593,c5a1,TE,Crockett Net,County Net,Multi-Dispatch
+See Crockett County Database page,50594,c5a2,TE,Crockett Sheriff,Sheriff: Dispatch,Law Dispatch
+See Crockett County Database page,50598,c5a6,TE,Crockett EMS,EMS: Dispatch (County),EMS Dispatch
+Nashsville-Davidson County uses their own P25 system:,17100,42cc,D,TSU Police Disp1,Tennessee State University Police: Dispatch (Ch 1),Law Dispatch
+Nashsville-Davidson County uses their own P25 system:,17101,42cd,T,TSU Police Sec 2,Tennessee State University Police: Secondary (Ch 2),Law Tac
+Nashsville-Davidson County uses their own P25 system:,17102,42ce,D,TSU Police Evnt3,Tennessee State University Police: Events (Ch 3),Law Tac
+Nashsville-Davidson County uses their own P25 system:,17103,42cf,D,TSU Ops 4,Tennessee State University: Ops (Ch 4),Schools
+Nashsville-Davidson County uses their own P25 system:,17104,42d0,D,TSU PD Parking 5,Tennessee State University Police: Parking (Ch 5),Law Tac
+Nashsville-Davidson County uses their own P25 system:,17105,42d1,D,TSU Ops 6,Tennessee State University: Ops (Ch 6),Schools
+Nashsville-Davidson County uses their own P25 system:,17106,42d2,D,TSU Ops 7,Tennessee State University: Ops (Ch 7),Schools
+Nashsville-Davidson County uses their own P25 system:,17107,42d3,D,TSU Ops 8,Tennessee State University: Ops (Ch 8),Schools
+TN - DeKalb County (xx) - Public Safety,49841,c2b1,D,DeKalb Statewide,Statewide (Travel),Multi-Dispatch
+TN - DeKalb County (xx) - Public Safety,49842,c2b2,DE,DeKalb Sheriff,Sheriff: Dispatch,Law Dispatch
+TN - DeKalb County (xx) - Public Safety,49843,c2b3,DE,SmithvillePolice,Smithville Police: Dispatch,Law Dispatch
+TN - DeKalb County (xx) - Public Safety,49840,c2b0,D,Dekalb Co 911,911 (County),Multi-Dispatch
+TN - DeKalb County (xx) - Public Safety,49846,c2b6,D,Dekalb Co Fire,Fire: Tone-Outs/Dispatch (County),Fire Dispatch
+TN - DeKalb County (xx) - Public Safety,49845,c2b5,D,DeKalb Co EMS,EMS: Dispatch (County),EMS Dispatch
+Also see Dyer County Database page,48100,bbe4,T,Dyer Statewide,Statewide Access,Multi-Dispatch
+Also see Dyer County Database page,48130,bc02,T,Dyer Sheriff,Sheriff: Dispatch,Law Dispatch
+Also see Dyer County Database page,48113,bbf1,DE,Dyer Tac 48113,Tac,Law Tac
+Also see Dyer County Database page,48114,bbf2,T,Dyer EMA EOC,Emergency Operations Center,Emergency Ops
+Also see Dyer County Database page,48133,bc05,T,Dyer Fire Disp,County Fire: Dispatch,Fire Dispatch
+Also see Dyer County Database page,48101,bbe5,TE,Dyersbrg Police1,Dyersburg Police: Dispatch 1,Law Dispatch
+Also see Dyer County Database page,40001,9c41,T,Dyersbrg Police2,Dyersburg Police: Dispatch 2,Law Dispatch
+Also see Dyer County Database page,48112,bbf0,T,Dyersburg EMS,Dyersburg EMS: Dispatch,EMS Dispatch
+Also see Dyer County Database page,48127,bbff,T,Dyer Utility Gas,"Dyersburg Utilities (Gas, Water, Sewer)",Utilities
+Also see Dyer County Database page,48131,bc03,T,Newbern Police,Newbern Police: Dispatch,Law Dispatch
+Also see Dyer County Database page,48132,bc04,T,Newbern FireLink,Newbern Fire: Link (to ???),Fire Dispatch
+TN - Greene County (59) - Public Safety,30800,7850,TE,Greeneville PD 1,Greeneville Police 1,Law Dispatch
+TN - Greene County (59) - Public Safety,30801,7851,TE,Greeneville PD 2,Greeneville Police 2,Law Dispatch
+TN - Greene County (59) - Public Safety,30813,785d,T,Greeneville FD 1,Greeneville Fire: Dispatch,Fire Dispatch
+TN - Greene County (59) - Public Safety,48200,bc48,TE,Greene Sheriff,Sheriff: Dispatch,Law Dispatch
+TN - Greene County (59) - Public Safety,48207,bc4f,TE,Greene Co EMS,EMS: Dispatch,EMS Dispatch
+TN - Greene County (59) - Public Safety,48213,bc55,D,Greene AnimCntrl,Animal Contol,Law Talk
+See the Hamblen County Database page,49000,bf68,T,Hamblin Co Net,Hamblen County Net,Multi-Dispatch
+See the Hamblen County Database page,49001,bf69,TE,Hamblin Sheriff,Sheriff: Main (Dispatch),Law Dispatch
+See the Hamblen County Database page,49002,bf6a,TE,Hamblin Law 1,County Law 1: Dispatch,Law Dispatch
+See the Hamblen County Database page,49026,bf82,T,Hamblin EMA Talk,County EMA: Talk,Emergency Ops
+See the Hamblen County Database page,49005,bf6d,T,Hamblin Evet 3,County Event 3,Multi-Tac
+See the Hamblen County Database page,49025,bf81,T,Hamblen EMA Main,Hamblen County EMA: Main,Emergency Ops
+See the Hamblen County Database page,49013,bf75,TE,Morristwn Police,Morristown Police: Primary (Dispatch),Law Dispatch
+See the Hamblen County Database page,49021,bf7d,T,Morristown Fire,Morristown Fire: Main,Fire Dispatch
+See the Hamblen County Database page,49023,bf7f,T,Morristown FG 3,Morristown Fireground 3,Fire-Tac
+See the Hamblen County Database page,49024,bf80,T,Morristown FD Tr,Morristown Fire: Training,Fire-Talk
+See the Hamblen County Database page,49047,bf97,T,Morristown Rescu,Morristown Rescue Squad Main,Fire Dispatch
+See the Hamblen County Database page,49022,bf7e,T,MrstwnHmblm EMS,Morristown-Hamblen EMS: Main,EMS Dispatch
+See the Hamblen County Database page,49040,bf90,T,Hamblen VFD Main,Volunteer Fire: Main,Fire Dispatch
+See the Hamblen County Database page,49041,bf91,T,Hamblen VFD N,North Hamblen Fire,Fire-Tac
+See the Hamblen County Database page,49042,bf92,T,Hamblen VFD S,South Hamblen Fire,Fire-Tac
+See the Hamblen County Database page,49043,bf93,T,Hamblen VFD E,East Hamblen Fire,Fire-Tac
+See the Hamblen County Database page,49044,bf94,T,Hamblen VFD W,West Hamblen Fire,Fire-Tac
+See the Hamblen County Database page,49048,bf98,T,WSCC Main,Walters State Community College: Main,Schools
+See the Hamblen County Database page,49027,bf83,T,Hamblen PblicWrk,Public Works: Primary (County?),Public Works
+TN - Hamilton County (65) - Public Safety,1223,4c7,D,HCSO-EAST,Sheriff: Dispatch-East,Law Dispatch
+TN - Hamilton County (65) - Public Safety,1225,4c9,D,HCSO-WEST,Sheriff: Dispatch-West,Law Dispatch
+TN - Hamilton County (65) - Public Safety,1323,52b,D,HCSO-TALK,Sheriff: Talk,Law Talk
+TN - Hamilton County (65) - Public Safety,1491,5d3,D,HCSO-INFO,Sheriff: Info,Law Tac
+TN - Hamilton County (65) - Public Safety,1233,4d1,D,HCSO-SWAT1,Sheriff: SWAT 1,Law Tac
+TN - Hamilton County (65) - Public Safety,1493,5d5,D,HCSO-SWAT2,Sheriff: SWAT 2,Law Tac
+TN - Hamilton County (65) - Public Safety,1229,4cd,D,HCSO-NARCS,Sheriff: Narcotics,Law Tac
+TN - Hamilton County (65) - Public Safety,1235,4d3,D,HCSO-FUGITIV,Sheriff: Fugitive,Law Tac
+TN - Hamilton County (65) - Public Safety,2061,80d,D,HCSO - NARC SPEC,Sheriff: Narcotics/Special Ops,Law Tac
+TN - Hamilton County (65) - Public Safety,1227,4cb,D,HCSO-CID,Sheriff: CID (Criminal Investigations Division),Law Tac
+TN - Hamilton County (65) - Public Safety,1237,4d5,D,HCSO-CIVIL,Sheriff: Civil,Law Tac
+TN - Hamilton County (65) - Public Safety,1125,465,DE,HC Law,Law Ops,Law Tac
+TN - Hamilton County (65) - Public Safety,1127,467,DE,HC Sheriff SRO,Sheriff: School Resource Officers,Law Tac
+TN - Hamilton County (65) - Public Safety,1281,501,D,HCSO-RNGR,Sheriff: Park Rangers,Law Dispatch
+TN - Hamilton County (65) - Public Safety,1395,573,D,HCSO-COURTS,Sheriff: Court Security,Law Tac
+TN - Hamilton County (65) - Public Safety,1287,507,D,HC Corrections 2,Corrections 2: Litter Pick-up,Corrections
+TN - Hamilton County (65) - Public Safety,1325,52d,T,HCSO-JAIL,Sheriff: Jail Ops,Corrections
+TN - Hamilton County (65) - Public Safety,2113,841,T,HC-JVDC,Juvenile Detention Center (County),Corrections
+TN - Hamilton County (65) - Public Safety,1307,51b,D,HC NET-1,County Net (Ch 1),Multi-Tac
+TN - Hamilton County (65) - Public Safety,1309,51d,D,HC NET-2,County Net (Ch 2),Multi-Tac
+TN - Hamilton County (65) - Public Safety,1163,48b,D,HCEMA-OPS,Emergency Management Agency: Operations,Emergency Ops
+TN - Hamilton County (65) - Public Safety,1169,491,D,HC DISASTER1,Countywide Disaster (Ch 1),Emergency Ops
+TN - Hamilton County (65) - Public Safety,1171,493,D,HC DISASTER2,Countywide Disaster (Ch 2),Emergency Ops
+TN - Hamilton County (65) - Public Safety,1173,495,D,HC DISASTER3,Countywide Disaster (Ch 3),Emergency Ops
+TN - Hamilton County (65) - Public Safety,1445,5a5,D,HC DISASTER4,Countywide Disaster (Ch 4),Emergency Ops
+TN - Hamilton County (65) - Public Safety,1447,5a7,D,HC DISASTER5,Countywide Disaster (Ch 5),Emergency Ops
+TN - Hamilton County (65) - Public Safety,1437,59d,D,HC RACES,Radio Amateur Civil Emergency Services,Emergency Ops
+TN - Hamilton County (65) - Public Safety,1241,4d9,D,HC-FIRE MAIN,Fire: Dispatch - Main (County),Fire Dispatch
+TN - Hamilton County (65) - Public Safety,1243,4db,D,HC-FIRE EAST,Fire: Dispatch - East (County),Fire Dispatch
+TN - Hamilton County (65) - Public Safety,1245,4dd,D,HC-FIRE WEST,Fire: Dispatch - West (County),Fire Dispatch
+TN - Hamilton County (65) - Public Safety,1247,4df,D,HC-FGND5,Fireground 5 (County),Fire-Tac
+TN - Hamilton County (65) - Public Safety,1249,4e1,D,HC-FGND6,Fireground 6 (County),Fire-Tac
+TN - Hamilton County (65) - Public Safety,1251,4e3,D,HC-FGND7,Fireground 7 (County),Fire-Tac
+TN - Hamilton County (65) - Public Safety,1253,4e5,D,HC-FGND8,Fireground 8 (County),Fire-Tac
+TN - Hamilton County (65) - Public Safety,1443,5a3,D,HC-HAZMAT,HazMat (County),Fire-Tac
+TN - Hamilton County (65) - Public Safety,1469,5bd,D,HC STARS,Special Tactics/Rescue Services (STARS),Fire-Tac
+TN - Hamilton County (65) - Public Safety,1465,5b9,D,HAMCO RESCUE,Rescue (County),EMS-Tac
+TN - Hamilton County (65) - Public Safety,1467,5bb,D,HC WATER RES,Water Rescue (County),EMS-Tac
+TN - Hamilton County (65) - Public Safety,1487,5cf,D,HC-1STRESP-E,First Responder-East (County),EMS-Tac
+TN - Hamilton County (65) - Public Safety,1499,5db,D,HC-1STRESP-W,First Responder-West (County),EMS-Tac
+TN - Hamilton County (65) - Public Safety,2117,845,D,Ham Crthse Maint,Courthouse Maintenance,Public Works
+TN - Hamilton County (65) - Public Safety,1275,4fb,D,HC Highway Dept,Highway Department,Public Works
+TN - Hamilton County (65) - Public Safety,1349,545,D,Ham Hwy Striping,Highway Department: Striping Crew,Public Works
+TN - Hamilton County (65) - Public Safety,1129,469,D,HC School Bus,School Bus,Schools
+TN - Hamilton County (65) - Public Safety,2066,812,D,HC School Bus 1,School Bus 1,Schools
+TN - Hamilton County (65) - Public Safety,2067,813,D,HC School Bus 2,School Bus 2,Schools
+TN - Hamilton County (65) - Public Safety,2121,849,D,HC Sch Bus Shop,School Bus: Shop,Schools
+TN - Hamilton County (65) - Public Safety,2065,811,D,HC DOE TRANS,Department of Education: Transportation (County),Schools
+TN - Hamilton County (65) - EMS / Hospitals,1165,48d,D,HC EMS-MAIN,EMS: Main,EMS Dispatch
+TN - Hamilton County (65) - EMS / Hospitals,1257,4e9,D,HC EMS-TAC1,EMS: Tactical 1,EMS-Tac
+TN - Hamilton County (65) - EMS / Hospitals,1261,4ed,D,HC EMS-TAC2,EMS: Tactical 2,EMS-Tac
+TN - Hamilton County (65) - EMS / Hospitals,1263,4ef,D,HC EMS-TAC3,EMS: Tactical 3,EMS-Tac
+TN - Hamilton County (65) - EMS / Hospitals,1265,4f1,D,HC EMS-ADMIN,EMS: Admin,EMS-Talk
+TN - Hamilton County (65) - EMS / Hospitals,1439,59f,D,Mem Hosp EMS,Memorial Hospital EMS,EMS Dispatch
+TN - Hamilton County (65) - EMS / Hospitals,1503,5df,D,HC HOSP NET,Hospital Network-Countywide,Hospital
+TN - Hamilton County (65) - EMS / Hospitals,2119,847,D,EM Life Force T1,Erlanger Medical Life Force: Tac-1,EMS-Tac
+TN - Hamilton County (65) - EMS / Hospitals,1429,595,D,HC EMC East,Erlanger Medical Center: East,Business
+TN - Hamilton County (65) - EMS / Hospitals,1413,585,D,EMC Police 1,Erlanger Medical Center: Police 1,Law Dispatch
+TN - Hamilton County (65) - EMS / Hospitals,1415,587,D,EMC Police,Erlanger Medical Center: Police 2,Law Tac
+TN - Hamilton County (65) - EMS / Hospitals,1425,591,D,EMC Valet Park,Erlanger Medical Center: Valet Parking,Business
+TN - Hamilton County (65) - EMS / Hospitals,1427,593,D,EMC Bed Control,Erlanger Medical Center: Bed Control,Business
+TN - Hamilton County (65) - EMS / Hospitals,1417,589,D,EMC Engineering1,Erlanger Medical Center: Engineering 1,Business
+TN - Hamilton County (65) - EMS / Hospitals,1419,58b,D,EMC Engineering2,Erlanger Medical Center: Engineering 2,Business
+TN - Hamilton County (65) - EMS / Hospitals,1421,58d,D,EMC Ops 1421,Erlanger Medical Center,Business
+TN - Hamilton County (65) - EMS / Hospitals,1495,5d7,D,EMC Maintenance,Erlanger Medical Center - Maintenance,Business
+TN - Hamilton County (65) - Municipalities,1333,535,D,HC CDPD TAC,Collegedale Police: Tactical,Law Tac
+TN - Hamilton County (65) - Municipalities,1455,5af,D,HC DBVFD OPS,Dallas Bay Fire,Fire-Tac
+TN - Hamilton County (65) - Municipalities,1201,4b1,D,HC ERFD 1,East Ridge Fire/Rescue,Fire Dispatch
+TN - Hamilton County (65) - Municipalities,1195,4ab,D,HC ERPD-4,East Ridge Police: CID (Criminal Investigations Division),Law Tac
+TN - Hamilton County (65) - Municipalities,1191,4a7,D,HC ERPD-1,East Ridge Police: Main,Law Dispatch
+TN - Hamilton County (65) - Municipalities,1197,4ad,D,HC ERPD-2,East Ridge Police: Tac (Ch 2),Law Tac
+TN - Hamilton County (65) - Municipalities,1193,4a9,D,HC ERPD-3,East Ridge Police: Tac (Ch 3),Law Tac
+TN - Hamilton County (65) - Municipalities,1457,5b1,D,HC FTFD OPS,Flat Top Mountain Fire: Tac,Fire-Tac
+TN - Hamilton County (65) - Municipalities,1451,5ab,D,HC H58 FD OP,Highway 58 Fire: Tac,Fire-Tac
+TN - Hamilton County (65) - Municipalities,1381,565,D,HC LM PS 1,Lookout Mountain Police/Fire: Main,Multi-Dispatch
+TN - Hamilton County (65) - Municipalities,1383,567,D,HC LM PS 2,Lookout Mountain Police/Fire: Tac,Multi-Tac
+TN - Hamilton County (65) - Municipalities,1107,453,D,MBWTP 1107,Moccasin Bend Wastewater Treatment Plant,Utilities
+TN - Hamilton County (65) - Municipalities,1109,455,D,MBWTP 1109,Moccasin Bend Wastewater Treatment Plant,Utilities
+TN - Hamilton County (65) - Municipalities,1459,5b3,D,HC MMFD OPS,Mowbray Mountain Fire: Tac,Fire-Tac
+TN - Hamilton County (65) - Municipalities,1179,49b,D,HC RBFD 1,Red Bank Fire: Dispatch,Fire Dispatch
+TN - Hamilton County (65) - Municipalities,1181,49d,D,HC RBPD TAC,Red Bank Police: Tactical,Law Tac
+TN - Hamilton County (65) - Municipalities,1177,499,D,HC RB PW,Red Bank Public Works,Public Works
+TN - Hamilton County (65) - Municipalities,1453,5ad,D,HC SCVFD OPS,Sale Creek Fire: Tac,Fire-Tac
+TN - Hamilton County (65) - Municipalities,1461,5b5,D,HC SQVFD OPS,Sequoyah Fire: Tac,Fire-Tac
+TN - Hamilton County (65) - Municipalities,1167,48f,D,HC SMFD 1,Signal Mountain Fire: Dispatch,Fire Dispatch
+TN - Hamilton County (65) - Municipalities,1071,42f,D,HC SMPD TAC,Signal Mountain Police: Tactical,Law Tac
+TN - Hamilton County (65) - Municipalities,1489,5d1,D,HC SDFD 1,Soddy Daisy Fire: Main,Fire Dispatch
+TN - Hamilton County (65) - Municipalities,1373,55d,D,HC SDPD DIST,Soddy Daisy Police District: Tac,Law Tac
+TN - Hamilton County (65) - Municipalities,1375,55f,D,HC SDPD-CID1,Soddy Daisy Police: CID (Ch 1),Law Tac
+TN - Hamilton County (65) - Municipalities,1377,561,D,HC SDPD-CID2,Soddy Daisy Police: CID (Ch 2),Law Tac
+TN - Hamilton County (65) - Municipalities,1367,557,D,HC SDPD DISP,Soddy Daisy Police: Main,Law Dispatch
+TN - Hamilton County (65) - Municipalities,1369,559,D,HC SDPD-TAC1,Soddy Daisy Police: Tactical 1,Law Tac
+TN - Hamilton County (65) - Municipalities,1371,55b,D,HC SDPD-TAC2,Soddy Daisy Police: Tactical 2,Law Tac
+TN - Hamilton County (65) - Municipalities,1435,59b,D,HC TCVFD OPS,Tri Community Fire: Tac,Fire-Tac
+TN - Hamilton County (65) - Municipalities,1463,5b7,D,HC WRES OPS,Walden Ridge Emergency Services,Fire-Tac
+TN - Hamilton County (65) - Chattanooga,1027,403,D,HC CPD A,Police: Adam Dispatch,Law Dispatch
+TN - Hamilton County (65) - Chattanooga,1029,405,D,HC CPD B,Police: Baker Dispatch,Law Dispatch
+TN - Hamilton County (65) - Chattanooga,1051,41b,D,HC CPD C,Police: Charlie Dispatch,Law Dispatch
+TN - Hamilton County (65) - Chattanooga,1035,40b,D,HC CPD CAR,Police: Car-to-Car,Law Talk
+TN - Hamilton County (65) - Chattanooga,1041,411,D,HC CPD SOPS,Police: Special Ops,Law Tac
+TN - Hamilton County (65) - Chattanooga,1031,407,D,HC CPD-INFO,Police: Info,Law Tac
+TN - Hamilton County (65) - Chattanooga,1053,41d,D,HC CPD DET,Police: Detectives,Law Tac
+TN - Hamilton County (65) - Chattanooga,1055,41f,D,HC CPD-SWAT,Police: SWAT 1,Law Tac
+TN - Hamilton County (65) - Chattanooga,1569,621,D,HC CPD TAC1,Police: Tactical 1,Law Tac
+TN - Hamilton County (65) - Chattanooga,1049,419,D,HC CPD NET1,Police: City Net 1,Law Tac
+TN - Hamilton County (65) - Chattanooga,1043,413,D,HC CPD NET2,Police: City Net 2,Law Tac
+TN - Hamilton County (65) - Chattanooga,1571,623,D,HC CPD TAC2,Police: Tac-2,Law Tac
+TN - Hamilton County (65) - Chattanooga,1573,625,D,HC CPD TAC3,Police: Tac-3,Law Tac
+TN - Hamilton County (65) - Chattanooga,1061,425,D,HC CFD DISP,Fire: Main,Fire Dispatch
+TN - Hamilton County (65) - Chattanooga,1075,433,D,HC CFD FG1,Fireground 1,Fire-Tac
+TN - Hamilton County (65) - Chattanooga,1077,435,D,HC CFD FG2,Fireground 2,Fire-Tac
+TN - Hamilton County (65) - Chattanooga,1217,4c1,D,HC CFD FG3,Fireground 3,Fire-Tac
+TN - Hamilton County (65) - Chattanooga,1329,531,D,HC CFD FG4,Fireground 4,Fire-Tac
+TN - Hamilton County (65) - Chattanooga,1219,4c3,D,HC CFD FR,Fire: First Responder,EMS-Tac
+TN - Hamilton County (65) - Chattanooga,1067,42b,D,HC CFD SUP,Fire: Supply,Fire-Tac
+TN - Hamilton County (65) - Chattanooga,1063,427,D,HC CFD FP,Fire: Prevention,Fire-Talk
+TN - Hamilton County (65) - Chattanooga,1069,42d,D,HC CFD-ADMIN,Fire: Administration,Fire-Talk
+TN - Hamilton County (65) - Chattanooga,5008,1390,D,HC CFD TRAIN 1,Fire: Training 1,Fire-Tac
+TN - Hamilton County (65) - Chattanooga,5009,1391,D,HC CFD TRAIN 2,Fire: Training 2,Fire-Tac
+TN - Hamilton County (65) - Chattanooga,1315,523,D,Chat PublicWorks,Public Works,Public Works
+TN - Hamilton County (65) - Chattanooga,1317,525,D,HC CHAT PW CW,Public Works - Citywide Service,Public Works
+TN - Hamilton County (65) - Chattanooga,1313,521,D,Chat PW Sanit 1,Sanitation 1,Public Works
+TN - Hamilton County (65) - Chattanooga,1111,457,D,Chat Wastewater,Chattanooga Wastewater Department,Utilities
+TN - Hamilton County (65) - Chattanooga,1101,44d,D,HC CHAT MACS,McKamey Animal Control Services,Public Works
+TN - Hamilton County (65) - Chattanooga,1543,607,D,Chat SC Security,Chattanooga State College: Security,Security
+TN - Hamilton County (65) - Chattanooga,1081,439,D,HC CARTA MAIN,Main (Chattanooga Area Regional Transport/CARTA),Transportation
+TN - Hamilton County (65) - Chattanooga,1145,479,D,HC CARTA SP,Special (Chattanooga Area Regional Transport/CARTA),Transportation
+TN - Hamilton County (65) - Chattanooga,1147,47b,D,HC CARTA,Electric Shuttle (Chattanooga Area Regional Transport/CARTA),Transportation
+TN - Hamilton County (65) - Chattanooga,1155,483,D,HC CARTA 1155,Regional Transportation Authority (Chattanooga Area Regional Transport/CARTA),Transportation
+TN - Hamilton County (65) - Chattanooga,1157,485,D,HC CARTA CAV,Care-a-Van (Chattanooga Area Regional Transport/CARTA),Transportation
+TN - Hamilton County (65) - Chattanooga,2107,83b,D,HC CARTA BusShop,Bus Shop (Chattanooga Area Regional Transport/CARTA),Transportation
+TN - Hamilton County (65) - Chattanooga Metropolitan Airport CHA,1139,473,D,CHA Fire Disp,Fire: Dispatch,Fire Dispatch
+TN - Hamilton County (65) - Chattanooga Metropolitan Airport CHA,1143,477,D,CHA Fire Tac,Fire: Tactical (Crash),Fire-Tac
+TN - Hamilton County (65) - Chattanooga Metropolitan Airport CHA,1137,471,D,CHA Police Disp,Police: Dispatch,Law Dispatch
+TN - Hamilton County (65) - Chattanooga Metropolitan Airport CHA,1141,475,D,CHA Police Tac,Police: Tactical,Law Tac
+TN - Hamilton County (65) - University of Tennessee Chattanooga,1401,579,D,UTC Police Disp,Police: Dispatch,Law Dispatch
+TN - Hamilton County (65) - University of Tennessee Chattanooga,1403,57b,D,UTC Police Arena,Police: Arena Operations,Law Tac
+TN - Hamilton County (65) - University of Tennessee Chattanooga,1405,57d,D,UTC Police Talk,Police: Talk,Law Talk
+TN - Hamilton County (65) - University of Tennessee Chattanooga,1409,581,D,UTC Maintenance1,Facilities Maintenance 1,Schools
+TN - Hamilton County (65) - University of Tennessee Chattanooga,1411,583,D,UTC Maintenance2,Facilities Maintenance 2,Schools
+TN - Hamilton County (65) - University of Tennessee Chattanooga,1547,60b,D,UTC Arena Mgt,Arena Management,Schools
+TN - Hawkins County (??) - Public Safety,6400,1900,D,Hawkins Co Fire,Fire: Dispatch (patch/multicast ?),Fire Dispatch
+See Haywood County Database page,48512,bd80,DE,Haywood Sheriff,Sheriff: Dispatch,Law Dispatch
+"Jefferson County Law Enforcement has begun transitioning to TACN, as of 5/31/24. Fire is still using LAC at this time.",50700,c60c,T,Jefferson Co Net,County Net [JEFFERSON NET],Multi-Tac
+"Jefferson County Law Enforcement has begun transitioning to TACN, as of 5/31/24. Fire is still using LAC at this time.",50701,c60d,TE,Jeff City Police,Jefferson City Police: Dispatch [JEFF CITY PD],Law Dispatch
+"Jefferson County Law Enforcement has begun transitioning to TACN, as of 5/31/24. Fire is still using LAC at this time.",50702,c60e,TE,Jeffrsn Co Law 1,County Law 1 [JC LAW 1],Law Dispatch
+"Jefferson County Law Enforcement has begun transitioning to TACN, as of 5/31/24. Fire is still using LAC at this time.",50703,c60f,TE,WhitePine Police,White Pine Police: Dispatch [WHITE PINE PD],Law Dispatch
+"Jefferson County Law Enforcement has begun transitioning to TACN, as of 5/31/24. Fire is still using LAC at this time.",50704,c610,TE,Jefferson Co Tac,County Tac [JEFF CO TAC],Multi-Tac
+"Jefferson County Law Enforcement has begun transitioning to TACN, as of 5/31/24. Fire is still using LAC at this time.",50705,c611,TE,JeffersonCo EMS,County EMS: Dispatch [JEFFERSON EMS],EMS Dispatch
+"Jefferson County Law Enforcement has begun transitioning to TACN, as of 5/31/24. Fire is still using LAC at this time.",50706,c612,TE,JeffersonCo Fire,County Fire: Dispatch [JEFFERSON Fire],Fire Dispatch
+"Jefferson County Law Enforcement has begun transitioning to TACN, as of 5/31/24. Fire is still using LAC at this time.",50707,c613,T,CNU DPS EagleTac,Carson-Newman University Public Safety: Eagle Tac,Multi-Tac
+"For more information, see the Knox County TN Database page",8035,1f63,T,KNOX SO TRANSP,Sheriff: Prisoner Transports Statewide,Corrections
+"For more information, see the Knox County TN Database page",10570,294a,TE,KNOX SO DISP1,Sheriff: Dispatch 1,Law Dispatch
+"For more information, see the Knox County TN Database page",10571,294b,TE,KNOX SO DISP2,Sheriff: Dispatch 2,Law Dispatch
+"For more information, see the Knox County TN Database page",10572,294c,TE,KNOX SO RECORDS,Sheriff: Records (LEIDS),Law Tac
+"For more information, see the Knox County TN Database page",10573,294d,TE,KNOX SO EMERG,Sheriff: Emergency 1,Law Tac
+"For more information, see the Knox County TN Database page",10574,294e,TE,KNOX SO SUPVSR,Sheriff: Supervisors,Law Tac
+"For more information, see the Knox County TN Database page",10575,294f,TE,KNOX SO SWAT,Sheriff: SWAT,Law Tac
+"For more information, see the Knox County TN Database page",10576,2950,TE,KNOX SO NARC,Sheriff: Narcotics,Law Tac
+"For more information, see the Knox County TN Database page",10577,2951,TE,KNOX SO INV,Sheriff: Investigations,Law Tac
+"For more information, see the Knox County TN Database page",10578,2952,TE,KNOX SO WARRANTS,Sheriff: Warrants Division,Law Tac
+"For more information, see the Knox County TN Database page",10579,2953,TE,KNOX SO COURTS,Sheriff: Courts,Law Tac
+"For more information, see the Knox County TN Database page",10580,2954,TE,KNOX SO ADMIN,Sheriff: Administration,Law Tac
+"For more information, see the Knox County TN Database page",10581,2955,TE,KNOX SO C2C,Sheriff: Car-to-Car,Law Talk
+"For more information, see the Knox County TN Database page",10582,2956,TE,KNOX SO EVENTS,Sheriff: Events,Law Tac
+"For more information, see the Knox County TN Database page",10583,2957,TE,KNOX SO EMERG 2,Sheriff: Emergency 2,Law Dispatch
+"For more information, see the Knox County TN Database page",10584,2958,T,KNOX SO TRAIN 1,Sheriff: Training 1,Law Tac
+"For more information, see the Knox County TN Database page",10585,2959,TE,KNOX SO TRAIN 2,Sheriff: Training 2,Law Tac
+"For more information, see the Knox County TN Database page",10586,295a,TE,KNOX SO TRAIN 3,Sheriff: Training 3,Law Tac
+"For more information, see the Knox County TN Database page",10587,295b,T,KX-SO SPARE 1,Sheriff: Spare 1 (Future Use),Law Tac
+"For more information, see the Knox County TN Database page",10588,295c,T,KX-SO SPARE 2,Sheriff: Spare 2 (Future Use),Law Tac
+"For more information, see the Knox County TN Database page",10589,295d,T,KX-SO SPARE 3,Sheriff: Spare 3 (Future Use),Law Tac
+"For more information, see the Knox County TN Database page",10590,295e,T,KX-SO SPARE 4,Sheriff: Spare 4 (Future Use),Law Tac
+"For more information, see the Knox County TN Database page",10591,295f,T,KX-SO SPARE 5,Sheriff: Spare 5 (Future Use),Law Tac
+"For more information, see the Knox County TN Database page",10592,2960,T,KX-SO SPARE 6,Sheriff: Spare 6 (Future Use),Law Tac
+"For more information, see the Knox County TN Database page",10593,2961,T,KX-SO SPARE 7,Sheriff: Spare 7 (Future Use),Law Tac
+"For more information, see the Knox County TN Database page",10594,2962,T,KX-SO SPARE 8,Sheriff: Spare 8 (Future Use),Law Tac
+"For more information, see the Knox County TN Database page",10595,2963,T,KX-SO SPARE 9,Sheriff: Spare 9 (Future Use),Law Tac
+"For more information, see the Knox County TN Database page",10596,2964,T,KX-SO SPARE 10,Sheriff: Spare 10 (Future Use),Law Tac
+"For more information, see the Knox County TN Database page",10597,2965,T,KX-SO SPARE 11,Sheriff: Spare 11 (Future Use),Law Tac
+"For more information, see the Knox County TN Database page",10598,2966,T,KX-SO SPARE 12,Sheriff: Spare 12 (Future Use),Law Tac
+"For more information, see the Knox County TN Database page",10599,2967,T,KX-SO SPARE 13,Sheriff: Spare 13 (Future Use),Law Tac
+"For more information, see the Knox County TN Database page",10539,292b,T,KX-YWAC A,Young-Williams Animal Center - Animal Services A,Public Works
+"For more information, see the Knox County TN Database page",10540,292c,T,KX-YWAC B,Young-Williams Animal Center - Animal Services B,Public Works
+"For more information, see the Knox County TN Database page",10541,292d,T,KX-YWAC C,Young-Williams Animal Center - Animal Services C,Public Works
+"For more information, see the Knox County TN Database page",10526,291e,T,KX-KC SPARE 1,Emergency Communications District: Spare 1,Public Works
+"For more information, see the Knox County TN Database page",10527,291f,T,KX-KC SPARE 2,Emergency Communications District: Spare 2,Public Works
+"For more information, see the Knox County TN Database page",10528,2920,T,KX-KC SPARE 3,Emergency Communications District: Spare 3,Public Works
+"For more information, see the Knox County TN Database page",10529,2921,T,KX-KC SPARE 4,Emergency Communications District: Spare 4,Public Works
+"For more information, see the Knox County TN Database page",10530,2922,T,KX-KC SPARE 5,Emergency Communications District: Spare 5,Public Works
+"For more information, see the Knox County TN Database page",10531,2923,T,KX-KC SPARE 6,Emergency Communications District: Spare 6,Public Works
+"For more information, see the Knox County TN Database page",10532,2924,T,KX-KC SPARE 7,Emergency Communications District: Spare 7,Public Works
+"For more information, see the Knox County TN Database page",10533,2925,T,KX-KC SPARE 8,Emergency Communications District: Spare 8,Public Works
+"For more information, see the Knox County TN Database page",10534,2926,T,KX-KC SPARE 9,Emergency Communications District: Spare 9,Public Works
+"For more information, see the Knox County TN Database page",10535,2927,T,KX-KC SPARE 10,Emergency Communications District: Spare 10,Public Works
+"For more information, see the Knox County TN Database page",10536,2928,T,KX-KC SPARE 11,Emergency Communications District: Spare 11,Public Works
+"For more information, see the Knox County TN Database page",10537,2929,T,KX-KC SPARE 12,Emergency Communications District: Spare 12,Public Works
+"For more information, see the Knox County TN Database page",10538,292a,T,KX-KC SPARE 13,Emergency Communications District: Spare 13,Public Works
+"For more information, see the Knox County TN Database page",10501,2905,T,KX EMA NET,Knox/Knoxville EMA: County Net,Emergency Ops
+"For more information, see the Knox County TN Database page",10502,2906,TE,KX EMA OPS1,Knox/Knoxville EMA: Operations,Emergency Ops
+"For more information, see the Knox County TN Database page",10503,2907,T,KX EMA DISP,Knox/Knoxville EMA: Dispatch,Emergency Ops
+"For more information, see the Knox County TN Database page",10504,2908,T,KX EMA EOC,Knox/Knoxville EMA: EOC (Emergency Operations Center),Emergency Ops
+"For more information, see the Knox County TN Database page",10505,2909,T,KX-EMA INOP1,Knox/Knoxville EMA: Interoperability 1,Interop
+"For more information, see the Knox County TN Database page",10506,290a,T,KX-EMA INOP2,Knox/Knoxville EMA: Interoperability 2,Interop
+"For more information, see the Knox County TN Database page",10507,290b,T,KX-EMA INOP3,Knox/Knoxville EMA: Interoperability 3,Interop
+"For more information, see the Knox County TN Database page",10508,290c,T,KX-EMA INOP4,Knox/Knoxville EMA: Interoperability 4,Interop
+"For more information, see the Knox County TN Database page",10509,290d,T,KX-EMA LEMA,Knox/Knoxville EMA: Law Mutual Aid,Law Tac
+"For more information, see the Knox County TN Database page",10510,290e,T,KX-EMA FIMA,Knox/Knoxville EMA: Fire Mutual Aid,Fire-Tac
+"For more information, see the Knox County TN Database page",10511,290f,T,KX-EMA EMS MA,Knox/Knoxville EMA: EMS Mutual Aid,EMS-Tac
+"For more information, see the Knox County TN Database page",10512,2910,T,KX-EMA COMMAND,Knox/Knoxville EMA: Command,Emergency Ops
+"For more information, see the Knox County TN Database page",10513,2911,T,KX-EMA PLAN,Knox/Knoxville EMA: Pre-Plan,Emergency Ops
+"For more information, see the Knox County TN Database page",10514,2912,T,KX-EMA LOGISTICS,Knox/Knoxville EMA: Logistics,Emergency Ops
+"For more information, see the Knox County TN Database page",10515,2913,T,KX-EMA FINADMIN,Knox/Knoxville EMA: FINADMIN,Emergency Ops
+"For more information, see the Knox County TN Database page",10516,2914,T,KX-EM INOP 5,EMA: Interop 5,Emergency Ops
+"For more information, see the Knox County TN Database page",10517,2915,T,KX-EM INOP 6,EMA: Interop 6,Emergency Ops
+"For more information, see the Knox County TN Database page",10518,2916,T,KX-EM SPARE 3,EMA: Spare 3 (Future Use),Emergency Ops
+"For more information, see the Knox County TN Database page",10519,2917,T,KX-EM SPARE 4,EMA: Spare 4 (Future Use),Emergency Ops
+"For more information, see the Knox County TN Database page",10521,2919,TE,KX-KC DSP2DSP,Dispatch-to-Dispatch,Multi-Dispatch
+"For more information, see the Knox County TN Database page",10650,299a,T,KX-RM DISP 1,Rural Metro Fire: Dispatch 1,Fire Dispatch
+"For more information, see the Knox County TN Database page",10651,299b,T,KX-RM TAC2,Rural Metro Fire: Tactical 2,Fire-Tac
+"For more information, see the Knox County TN Database page",10652,299c,T,KX-RM TAC3,Rural Metro Fire: Tactical 3,Fire-Tac
+"For more information, see the Knox County TN Database page",10653,299d,T,KX-RM TAC4,Rural Metro Fire: Tactical 4,Fire-Tac
+"For more information, see the Knox County TN Database page",10654,299e,T,KX-RM TAC5,Rural Metro Fire: Tactical 5,Fire-Tac
+"For more information, see the Knox County TN Database page",10655,299f,T,KX-RM TAC6,Rural Metro Fire: Tactical 6,Fire-Tac
+"For more information, see the Knox County TN Database page",10656,29a0,T,KX-RM TAC7,Rural Metro Fire: Tactical 7,Fire-Tac
+"For more information, see the Knox County TN Database page",10658,29a2,TE,KX-RM ADMIN,Rural Metro Fire: Administration,Fire-Talk
+"For more information, see the Knox County TN Database page",10659,29a3,T,KX-RM SAFETY,Rural Metro Fire: Safety,Fire-Tac
+"For more information, see the Knox County TN Database page",10660,29a4,T,KX-RM COMMAND,Rural Metro Fire: Command,Fire-Talk
+"For more information, see the Knox County TN Database page",10661,29a5,T,KX-RM TRAINING,Rural Metro Fire: Training,Fire-Talk
+"For more information, see the Knox County TN Database page",10663,29a7,T,KX-RM HAZMAT,Rural Metro Fire: Hazardous Materials Ops,Fire-Tac
+"For more information, see the Knox County TN Database page",10664,29a8,T,KX-RM FGROUND1,Rural Metro Fireground 1,Fire-Tac
+"For more information, see the Knox County TN Database page",10665,29a9,T,KX-RM FGROUND2,Rural Metro Fireground 2,Fire-Tac
+"For more information, see the Knox County TN Database page",10668,29ac,T,KX-RM SPARE 3,Rural Metro Fire: Spare 3 (Future Use),Fire-Tac
+"For more information, see the Knox County TN Database page",10669,29ad,T,KX-RM SPARE 4,Rural Metro Fire: Spare 4 (Future Use),Fire-Tac
+"For more information, see the Knox County TN Database page",10657,29a1,T,KX-SVFD 1,Seymour VFD 1,Fire-Tac
+"For more information, see the Knox County TN Database page",10662,29a6,T,KX-SVFD 2,Seymour VFD 2,Fire-Tac
+"For more information, see the Knox County TN Database page",10666,29aa,T,KX-SVFD 3,Seymour VFD 3,Fire-Tac
+"For more information, see the Knox County TN Database page",10667,29ab,T,KX-SVFD 4,Seymour VFD 4,Fire-Tac
+"For more information, see the Knox County TN Database page",10681,29b9,T,KX-RS DISP,County Rescue Squad: Dispatch,EMS Dispatch
+"For more information, see the Knox County TN Database page",10682,29ba,T,KX-RS TAC 1,County Rescue Squad: Tactical 1,EMS-Tac
+"For more information, see the Knox County TN Database page",10683,29bb,T,KX-RS TAC 2,County Rescue Squad: Tactical 2 (Future Use),EMS-Tac
+"For more information, see the Knox County TN Database page",10684,29bc,T,KX-RS SPARE 1,Rescue Squad: Spare 1 (Future Use),EMS-Tac
+"For more information, see the Knox County TN Database page",10685,29bd,T,KX-RS SPARE 2,Rescue Squad: Spare 2 (Future Use),EMS-Tac
+"For more information, see the Knox County TN Database page",10686,29be,T,KX-RS SPARE 3,Rescue Squad: Spare 3 (Future Use),EMS-Tac
+"For more information, see the Knox County TN Database page",10687,29bf,T,KX-RS SPARE 4,Rescue Squad: Spare 4 (Future Use),EMS-Tac
+"For more information, see the Knox County TN Database page",10688,29c0,T,KX-RS SPARE 5,Rescue Squad: Spare 5 (Future Use),EMS-Tac
+"For more information, see the Knox County TN Database page",10689,29c1,T,KX-RS SPARE 6,Rescue Squad: Spare 6 (Future Use),EMS-Tac
+"For more information, see the Knox County TN Database page",10690,29c2,T,KX-AM AMR ALS,AMR: ALS Dispatch,EMS Dispatch
+"For more information, see the Knox County TN Database page",10691,29c3,T,KX-AM AMR BLS,AMR: BLS Dispatch,EMS Dispatch
+"For more information, see the Knox County TN Database page",10692,29c4,T,KX-AM AMR TAC 1,AMR: Tac-1,EMS-Tac
+"For more information, see the Knox County TN Database page",10693,29c5,Te,KX-AM AMR ADMIN,AMR: Administration,EMS-Talk
+"For more information, see the Knox County TN Database page",10694,29c6,T,KX-AM AMR TAC 2,AMR: Tac 2,EMS-Tac
+"For more information, see the Knox County TN Database page",10695,29c7,T,KX-AM AMR TAC 3,AMR: Tac 3 - Paging,EMS-Tac
+"For more information, see the Knox County TN Database page",10696,29c8,T,KX-AM AMR EVENTS,AMR: Events,EMS-Tac
+"For more information, see the Knox County TN Database page",10697,29c9,T,KX-AM AMR SPARE3,AMR: Spare 3-Future Use,EMS-Tac
+"For more information, see the Knox County TN Database page",10698,29ca,T,KX-AM AMR SPARE4,AMR: Spare 4-Future Use,EMS-Tac
+"For more information, see the Knox County TN Database page",10699,29cb,T,KX-AM AMR SPARE5,AMR: Spare 5-Future Use,EMS-Tac
+"For more information, see the Knox County TN Database page",10542,292e,T,KX-KC HEALTH A,Health Department A,Public Works
+"For more information, see the Knox County TN Database page",10543,292f,T,KX-KC HEALTH B,Health Department B,Public Works
+"For more information, see the Knox County TN Database page",10544,2930,T,KX-KC HEALTH C,Health Department C,Public Works
+"For more information, see the Knox County TN Database page",10720,29e0,T,KnoxCo Highway A,County Highways A,Public Works
+"For more information, see the Knox County TN Database page",10721,29e1,T,KnoxCo Highway B,County Highways B,Public Works
+"For more information, see the Knox County TN Database page",10722,29e2,T,KnoxCo Highway C,County Highways C,Public Works
+"For more information, see the Knox County TN Database page",10723,29e3,T,KX-KC HUMANE,County Humane Dispatch (KCSO Humane Deputies use KX-SO DISP 2),Public Works
+"For more information, see the Knox County TN Database page",10727,29e7,T,KX-KC SPARE 1,County Highways: Spare 1,Public Works
+"For more information, see the Knox County TN Database page",10728,29e8,T,KX-KC SPARE 2,County Highways: Spare 2,Public Works
+"For more information, see the Knox County TN Database page",10729,29e9,T,KX-KC SPARE 3,County Highways: Spare 3,Public Works
+"For more information, see the Knox County TN Database page",10724,29e4,T,KX-KC MAINT A,County Maintenance Ops A,Public Works
+"For more information, see the Knox County TN Database page",10725,29e5,T,KX-KC MAINT B,County Maintenance Ops B,Public Works
+"For more information, see the Knox County TN Database page",10726,29e6,T,KX-KC MAINT C,County Maintenance Ops C,Public Works
+"For more information, see the Knox County TN Database page",10610,2972,TE,KX ED DISPATCH,County Schools Security: Dispatch,Law Dispatch
+"For more information, see the Knox County TN Database page",10611,2973,T,KX ED OPS 1,County Schools Security: Ops 1,Law Tac
+"For more information, see the Knox County TN Database page",10612,2974,T,KX ED OPS 2,County Schools Security: Ops 2,Law Tac
+"For more information, see the Knox County TN Database page",10613,2975,T,KX ED OPS 3,County Schools Security: Ops 3,Law Tac
+"For more information, see the Knox County TN Database page",10614,2976,T,KX ED OPS 4,County Schools Security: Ops 4,Law Tac
+"For more information, see the Knox County TN Database page",10615,2977,T,KX ED OPS 5,County Schools Security: Ops 5,Law Tac
+"For more information, see the Knox County TN Database page",10616,2978,TE,KX ED EMERG,County Schools Security: Emergency Traffic,Law Tac
+"For more information, see the Knox County TN Database page",10617,2979,T,KX-ED SPARE 1,School Security Division: Spare 1 (Future Use),Law Tac
+"For more information, see the Knox County TN Database page",10618,297a,T,KX-ED SPARE 2,School Security Division: Spare 2 (Future Use),Law Tac
+"For more information, see the Knox County TN Database page",10619,297b,T,KX-ED SPARE 3,School Security Division: Spare 3 (Future Use),Law Tac
+"For more information, see the Knox County TN Database page",10520,2918,TE,KX-KC SUPERVIS,Emergency Communications District: Supervisor,Public Works
+"For more information, see the Knox County TN Database page",10522,291a,TE,KX-KC ADMIN,Emergency Communications District: Administration,Public Works
+"For more information, see the Knox County TN Database page",10523,291b,T,KX-KC TECHNICAL,Emergency Communications District: Technical Use,Public Works
+"For more information, see the Knox County TN Database page",10524,291c,T,KX-KC SPECIAL,Emergency Communications District: Special Use,Public Works
+"For more information, see the Knox County TN Database page",10525,291d,T,KX-KC DIST2NET,Emergency Communications District: TN District 2 Mutual Aid Network,Interop
+"For more information, see the Knox County TN Database page",10730,29ea,T,KX CAC CH A,Community Action Committee A,Transportation
+"For more information, see the Knox County TN Database page",10731,29eb,T,KX CAC CH B,Community Action Committee B,Transportation
+"For more information, see the Knox County TN Database page",10732,29ec,T,KX CAC CH C,Community Action Committee C,Transportation
+"For more information, see the Knox County TN Database page",10733,29ed,T,KX-CA SPARE 1,Community Action Committee: Spare 1,Transportation
+"For more information, see the Knox County TN Database page",10734,29ee,T,KX-CA SPARE 2,Community Action Committee :Spare 2,Transportation
+"For more information, see the Knox County TN Database page",10735,29ef,T,KX-CA SPARE 3,Community Action Committee: Spare 3,Transportation
+"For more information, see the Knox County TN Database page",10736,29f0,T,KX-CA SPARE 4,Community Action Committee: Spare 4,Transportation
+"For more information, see the Knox County TN Database page",10737,29f1,T,KX-CA SPARE 5,Community Action Committee: Spare 5,Transportation
+"For more information, see the Knox County TN Database page",10738,29f2,T,KX-CA SPARE 6,Community Action Committee: Spare 6,Transportation
+"For more information, see the Knox County TN Database page",10739,29f3,T,KX-CA SPARE 7,Community Action Committee: Spare 7,Transportation
+"Located in Knoxville (35.94,-83.943), but talkgroups may possibly be used at other locations",47316,b8d4,D,UTMCK EventMed 1,Event Medicine 1,EMS-Tac
+"Located in Knoxville (35.94,-83.943), but talkgroups may possibly be used at other locations",47317,b8d5,D,UTMCK EventMed 2,Event Medicine 2,EMS-Tac
+TN - Knox County (93) - Farragut (*),10710,29d6,TE,KX FARRAGUT MAIN,Main (Town),Multi-Dispatch
+TN - Knox County (93) - Farragut (*),10711,29d7,T,KX FARRAGUT OPS,Ops (Town),Multi-Tac
+TN - Knox County (93) - Farragut (*),10712,29d8,T,KX-TF SPARE 1,Spare 1 (Town),Public Works
+TN - Knox County (93) - Farragut (*),10713,29d9,T,KX-TF SPARE 2,Spare 2 (Town),Public Works
+TN - Knox County (93) - Farragut (*),10714,29da,T,KX-TF SPARE 3,Spare 3 (Town),Public Works
+TN - Knox County (93) - Farragut (*),10715,29db,T,KX-TF SPARE 4,Spare 4 (Town),Public Works
+TN - Knox County (93) - Farragut (*),10716,29dc,T,KX-TF SPARE 5,Spare 5 (Town),Public Works
+TN - Knox County (93) - Farragut (*),10717,29dd,T,KX-TF SPARE 6,Spare 6 (Town),Public Works
+TN - Knox County (93) - Farragut (*),10718,29de,T,KX-TF SPARE 7,Spare 7 (Town),Public Works
+TN - Knox County (93) - Farragut (*),10719,29df,T,KX-TF SPARE 8,Spare 8 (Town),Public Works
+TN - Knox County (93) - Karns,10670,29ae,T,KX-KARNS DISP,Fire: Dispatch,Fire Dispatch
+TN - Knox County (93) - Karns,10671,29af,T,KX-KARNS TAC 1,Fire: Tactical 1,Fire-Tac
+TN - Knox County (93) - Karns,10672,29b0,T,KX-KARNS TAC 2,Fire: Tactical 2,Fire-Tac
+TN - Knox County (93) - Karns,10673,29b1,T,KX-KARNS TAC 3,Fire: Tactical 3,Fire-Tac
+TN - Knox County (93) - Karns,10674,29b2,T,KX-KARNS TAC 4,Fire: Tactical 4,Fire-Tac
+TN - Knox County (93) - Karns,10675,29b3,TE,KX-KARNS TAC 5,Fire: Tactical 5,Fire-Tac
+TN - Knox County (93) - Karns,10676,29b4,T,KX-KARNS TRAIN,Fire: Training,Fire-Talk
+TN - Knox County (93) - Karns,10677,29b5,T,KX-KARNS EVENTS,Fire: Special Events,Fire-Talk
+TN - Knox County (93) - Karns,10678,29b6,TE,KX-KARNS SUPV,Fire: Supervisors,Fire-Talk
+TN - Knox County (93) - Karns,10679,29b7,T,KX-KARNS SAFETY,Fire: Safety,Fire-Tac
+TN - Knox County (93) - Karns,10680,29b8,TE,KX-KARNS ADMIN,Fire: Administration,Fire-Talk
+EMA is Knoxville-Knox County Emergency Management Agency,10545,2931,TE,KX-PD EAST,Police: East,Law Dispatch
+EMA is Knoxville-Knox County Emergency Management Agency,10546,2932,TE,KX-PD CENTRAL,Police: Central,Law Dispatch
+EMA is Knoxville-Knox County Emergency Management Agency,10547,2933,TE,KX-PD WEST,Police: West,Law Dispatch
+EMA is Knoxville-Knox County Emergency Management Agency,10548,2934,TE,KX-PD CID,Police: Criminal Investigations Division,Law Dispatch
+EMA is Knoxville-Knox County Emergency Management Agency,10549,2935,TE,KX-PD RECORDS,Police: Records,Law Talk
+EMA is Knoxville-Knox County Emergency Management Agency,10550,2936,TE,KX-PD F TALK,Police: Talk (Ch. Fox),Law Talk
+EMA is Knoxville-Knox County Emergency Management Agency,10551,2937,TE,KX-PD G SUPRV,Police: Supervisory (Ch. Golf),Law Talk
+EMA is Knoxville-Knox County Emergency Management Agency,10552,2938,TE,KX-PD EVENT 1,Police: Special Events 1,Law Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10553,2939,TE,KX-PD EVENT 2,Police: Special Events 2,Law Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10554,293a,TE,KX-PD EVENT 3,Police: Special Events 3,Law Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10558,293e,TE,KX-PD EVENT 4,Police: Special Events 4,Law Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10559,293f,TE,KX-PD EVENT 5,Police: Special Events 5,Law Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10563,2943,TE,KX-PD EVENT 6,Police: Special Events 6,Law Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10555,293b,TE,KX-PD CRIT INC,Police: Critical Incident,Law Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10556,293c,TE,KX-PD HUMANE,Police: Humane Dispatch,Law Dispatch
+EMA is Knoxville-Knox County Emergency Management Agency,10557,293d,TE,KX-PD TRAIN 1,Police: Training 1,Law Talk
+EMA is Knoxville-Knox County Emergency Management Agency,10560,2940,TE,KX-PD ROS,Police: Repeat Offender Squad,Law Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10561,2941,TE,KX-PD SOS,Police: Special Operations Squad,Law Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10562,2942,TE,KX-PD SEARCH,Police: Search and Recovery Team,Law Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10564,2944,T,KX-PD SPARE 1,Police: Spare 1 (Future Use),Law Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10565,2945,T,KX-PD SPARE 2,Police: Spare 2 (Future Use),Law Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10566,2946,T,KX-PD SPARE 3,Police: Spare 3 (Future Use),Law Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10567,2947,T,KX-PD SPARE 4,Police: Spare 4 (Future Use),Law Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10568,2948,T,KX-PD SPARE 5,Police: Spare 5 (Future Use),Law Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10569,2949,T,KX-PD SPARE 6,Police: Spare 6 (Future Use),Law Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10620,297c,T,KX FD DISP,Fire: Dispatch,Fire Dispatch
+EMA is Knoxville-Knox County Emergency Management Agency,10621,297d,T,KX FD TAC1,Fire: Tactical 1,Fire-Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10622,297e,T,KX FD TAC2,Fire: Tactical 2,Fire-Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10623,297f,T,KX FD TAC3,Fire: Tactical 3,Fire-Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10624,2980,T,KX FD TAC4,Fire: Tactical 4,Fire-Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10625,2981,T,KX FD TAC5,Fire: Tactical 5,Fire-Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10626,2982,T,KX FD TAC6,Fire: Tactical 6,Fire-Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10627,2983,T,KX FD TAC7,Fire: Tactical 7,Fire-Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10628,2984,T,KX FD TAC8,Fire: Tactical 8,Fire-Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10629,2985,T,KX FD TAC9,Fire: Tactical 9,Fire-Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10630,2986,T,KX FD TAC10,Fire: Tactical 10,Fire-Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10631,2987,T,KX FD TAC11,Fire: Tactical 11,Fire-Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10632,2988,TE,KX FD OPS,Fire: Special Operations,Fire-Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10633,2989,TE,KX FD ADMIN,Fire: Administration,Fire-Talk
+EMA is Knoxville-Knox County Emergency Management Agency,10634,298a,T,KX-FD SAFETY,Fire: Safety,Fire-Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10635,298b,T,KX-FD TALK,Fire: Talk,Fire-Talk
+EMA is Knoxville-Knox County Emergency Management Agency,10636,298c,T,KX FD ARSON,Fire: Arson,Fire-Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10646,2996,T,KX-FD DATA,Fire: Data,Fire-Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10647,2997,T,KX-FD SPARE 2,Fire: Spare 2 (Future Use),Fire-Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10648,2998,T,KX-FD SPARE 3,Fire: Spare 3 (Future Use),Fire-Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10649,2999,T,KX-FD SPARE 4,Fire: Spare 4 (Future Use),Fire-Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10637,298d,T,KX-FD EMS,Fire: EMS Division,EMS-Tac
+EMA is Knoxville-Knox County Emergency Management Agency,10638,298e,T,KX-FD INSPECT,Fire: Inspections Division,Fire-Talk
+EMA is Knoxville-Knox County Emergency Management Agency,10639,298f,T,KX-FD Maint,Fire: Maintenance Division,Fire-Talk
+EMA is Knoxville-Knox County Emergency Management Agency,10640,2990,T,KX-FD LOGISTIC,Fire: Logistics Division,Fire-Talk
+EMA is Knoxville-Knox County Emergency Management Agency,10641,2991,T,KX-FD PUB ED,Fire: Public Education Division,Fire-Talk
+EMA is Knoxville-Knox County Emergency Management Agency,10642,2992,T,KX-FD RADIOSHOP,Fire: Radio Shop Division,Fire-Talk
+EMA is Knoxville-Knox County Emergency Management Agency,10643,2993,T,KX-FD TRAIN1,Fire: Training 1,Fire-Talk
+EMA is Knoxville-Knox County Emergency Management Agency,10644,2994,T,KX-FD TRAIN2,Fire: Training 2,Fire-Talk
+EMA is Knoxville-Knox County Emergency Management Agency,10645,2995,T,KX-FD TRAIN3,Fire: Training 3,Fire-Talk
+EMA is Knoxville-Knox County Emergency Management Agency,10705,29d1,T,KX-CI SPARE 3,Spare 3,Public Works
+EMA is Knoxville-Knox County Emergency Management Agency,10706,29d2,T,KX-CI SPARE 4,Spare 4,Public Works
+EMA is Knoxville-Knox County Emergency Management Agency,10707,29d3,T,KX-CI SPARE 5,Spare 5,Public Works
+EMA is Knoxville-Knox County Emergency Management Agency,10708,29d4,T,KX-CI SPARE 6,Spare 6,Public Works
+EMA is Knoxville-Knox County Emergency Management Agency,10709,29d5,T,KX-CI SPARE 7,Spare 7,Public Works
+EMA is Knoxville-Knox County Emergency Management Agency,10700,29cc,T,KX-CI SERVIC A,Service (Ch. A),Public Works
+EMA is Knoxville-Knox County Emergency Management Agency,10701,29cd,T,KX-CI SERVIC B,Service (Ch. B),Public Works
+EMA is Knoxville-Knox County Emergency Management Agency,10702,29ce,T,KX-CI CODES,Codes Enforcement,Public Works
+EMA is Knoxville-Knox County Emergency Management Agency,10740,29f4,T,KAT A Bus,Knoxville Area Transit: Bus Ops (Ch. A),Transportation
+EMA is Knoxville-Knox County Emergency Management Agency,10741,29f5,T,KAT B Van,Knoxville Area Transit: Van Ops (Ch. B),Transportation
+EMA is Knoxville-Knox County Emergency Management Agency,10742,29f6,T,KAT C,Knoxville Area Transit (Ch. C),Transportation
+EMA is Knoxville-Knox County Emergency Management Agency,10743,29f7,T,KAT D,Knoxville Area Transit (Ch. D),Transportation
+EMA is Knoxville-Knox County Emergency Management Agency,10744,29f8,T,KAT E,Knoxville Area Transit (Ch. E),Transportation
+EMA is Knoxville-Knox County Emergency Management Agency,10745,29f9,T,KX-KT SPARE 1,Knoxville Area Transit: Spare 1,Transportation
+EMA is Knoxville-Knox County Emergency Management Agency,10746,29fa,T,KX-KT SPARE 2,Knoxville Area Transit: Spare 2,Transportation
+EMA is Knoxville-Knox County Emergency Management Agency,10747,29fb,T,KX-KT SPARE 3,Knoxville Area Transit: Spare 3,Transportation
+EMA is Knoxville-Knox County Emergency Management Agency,10748,29fc,T,KX-KT SPARE 4,Knoxville Area Transit: Spare 4,Transportation
+EMA is Knoxville-Knox County Emergency Management Agency,10749,29fd,T,KX-KT SPARE 5,Knoxville Area Transit: Spare 5,Transportation
+EMA is Knoxville-Knox County Emergency Management Agency,10703,29cf,T,KX-CI TR ENG A,Transportation Engineering A,Public Works
+EMA is Knoxville-Knox County Emergency Management Agency,10704,29d0,T,KX-CI TR ENG B,Transportation Engineering B,Public Works
+TN - University of Tennessee Knoxville (Knox Co),10600,2968,TE,UT KX DISP,Police: Dispatch (Ch A),Law Dispatch
+TN - University of Tennessee Knoxville (Knox Co),10601,2969,TE,UT KX B,Police: Ops (Ch B),Law Tac
+TN - University of Tennessee Knoxville (Knox Co),10602,296a,TE,UT KX C,Police: Ops (Ch C),Law Tac
+TN - University of Tennessee Knoxville (Knox Co),10603,296b,TE,UT KX ADMIN,Police: Admin,Law Tac
+TN - University of Tennessee Knoxville (Knox Co),10604,296c,TE,UT KX OPS1,Police: Ops 1,Law Tac
+TN - University of Tennessee Knoxville (Knox Co),10605,296d,TE,UT KX OPS 2,Police: Ops 2,Law Tac
+TN - University of Tennessee Knoxville (Knox Co),10606,296e,T,KX-UT PD Interop,Police: Interoperability,Law Tac
+TN - University of Tennessee Knoxville (Knox Co),10607,296f,T,KX-UT SPARE 2,Police: Spare 2 (Future Use),Law Tac
+TN - University of Tennessee Knoxville (Knox Co),10608,2970,T,KX-UT SPARE 3,Police: Spare 3 (Future Use),Law Tac
+TN - University of Tennessee Knoxville (Knox Co),10609,2971,T,KX-UT SPARE 4,Police: Spare 4 (Future Use),Law Tac
+Also see Loundon County Database page,7501,1d4d,T,Loudon CountyNet,Countywide Net [LOUDON NET],Multi-Tac
+Also see Loundon County Database page,7502,1d4e,TE,LoudnCo Sheriff,Sheriff: Dispatch,Law Dispatch
+Also see Loundon County Database page,7541,1d75,TE,LoudnCo Shrf Det,Sheriff: Detectives Division,Law Talk
+Also see Loundon County Database page,7513,1d59,TE,LoudnCo ShrfNarc,Sheriff: Narcotics Division,Law Talk
+Also see Loundon County Database page,7542,1d76,Te,LoudnCo ShrfEvnt,Sheriff: Events,Law Tac
+Also see Loundon County Database page,7512,1d58,Te,Loudon Co EMA,Emergency Management Agency,Emergency Ops
+Also see Loundon County Database page,7522,1d62,Te,Greenback Fire,Greenback Fire (multicast of 460.575),Fire Dispatch
+Also see Loundon County Database page,7523,1d63,De,LoudnCo FireResq,County Fire/Rescue,Fire Dispatch
+Also see Loundon County Database page,7508,1d54,TE,LenCi Police,Lenoir City Police: Dispatch,Law Dispatch
+Also see Loundon County Database page,7543,1d77,TE,LenCi PoliceTac,Lenoir City Police: Tactical,Law Tac
+Also see Loundon County Database page,7546,1d7a,TE,LenCi PD Admin,Lenoir City Police: Administration,Law Talk
+Also see Loundon County Database page,7547,1d7b,Te,LenCi PD Events,Lenoir City Police: Events,Law Tac
+Also see Loundon County Database page,7520,1d60,Te,LenCi Fire Disp,Lenoir City Fire: Dispatch,Fire Dispatch
+Also see Loundon County Database page,7557,1d85,Te,LenCi Fire Tac1,Lenoir City Fire: Tactical 1,Fire-Tac
+Also see Loundon County Database page,7536,1d70,T,LCUB Dispatch,Lenoir City Utilities Board: County Dispatch,Utilities
+Also see Loundon County Database page,7548,1d7c,T,LCUB Main,Lenoir City Utilities Board: Main,Utilities
+Also see Loundon County Database page,7549,1d7d,T,LCUB Secondary,Lenoir City Utilities Board: Secondary,Utilities
+Also see Loundon County Database page,7510,1d56,Te,LoudonCi Police,Loudon (city) Police: Dispatch,Law Dispatch
+Also see Loundon County Database page,7524,1d64,Te,Tellico FireDisp,Tellico Village Fire,Fire Dispatch
+Also see Loundon County Database page,7564,1d8c,Te,Tellico Firegrnd,Tellico Village Fireground 1,Fire-Tac
+See Marion County Database page for more info.,49192,c028,D,Marion Law Disp,Law: Dispatch,Law Dispatch
+See Marion County Database page for more info.,49193,c029,D,Marion Law Tac,Law: Tac,Law Tac
+See Marion County Database page for more info.,49202,c032,D,Marion Net,Net,Multi-Dispatch
+See Marion County Database page for more info.,49191,c027,D,Marion EMA,EMA,Emergency Ops
+See Marion County Database page for more info.,49199,c02f,D,Marion Disaster,Disaster 1,Emergency Ops
+See Marion County Database page for more info.,49197,c02d,D,Marion Fire Disp,Fire: Dispatch,Fire Dispatch
+See Marion County Database page for more info.,49198,c02e,D,Marion Fire Tac,Fire: Tac,Fire-Tac
+See Marion County Database page for more info.,49201,c031,D,Marion EMS,EMS,EMS Dispatch
+See Marion County Database page for more info.,49200,c030,D,Marion PubWorks,Public Works,Public Works
+Also see McMinn County database page,6001,1771,D,McMinn CountyNet,County Net,Multi-Tac
+Also see McMinn County database page,6002,1772,D,McMinn Sheriff,Sheriff: Dispatch,Law Dispatch
+Also see McMinn County database page,6003,1773,D,McMinn Shrf Tac1,Sheriff: Tac-1,Law Tac
+Also see McMinn County database page,6004,1774,D,McMinn Shrf Tac2,Sheriff: Tac-2,Law Tac
+Also see McMinn County database page,6005,1775,D,McMinn Shrf Tac3,Sheriff: Tac-3,Law Tac
+Also see McMinn County database page,6006,1776,D,McMinn Shrf Tac4,Sheriff: Tac-4,Law Tac
+Also see McMinn County database page,6007,1777,D,McMinn Shrf Peri,Sheriff: Perimeter Team,Law Tac
+Also see McMinn County database page,6013,177d,D,McMinn Fire Disp,Fire Dispatch (Countywide),Law Tac
+Also see McMinn County database page,6014,177e,D,McMinn Firegrnd1,Fireground 1 (Countywide),Fire-Tac
+Also see McMinn County database page,6015,177f,D,McMinn Firegrnd2,Fireground 2 (Countywide),Fire-Tac
+Also see McMinn County database page,6016,1780,D,McMinn Firegrnd3,Fireground 3 (Countywide),Fire-Tac
+Also see McMinn County database page,6017,1781,D,McMinn Firegrnd4,Fireground 4 (Countywide),Fire-Tac
+Also see McMinn County database page,6018,1782,D,McMinn HazMat,HazMat Operations,Fire-Tac
+Also see McMinn County database page,6019,1783,D,McMinn EMA Ops,EMA: Operations,Emergency Ops
+Also see McMinn County database page,6020,1784,D,McMinn EMA Tac-1,EMA: Tac-1,Emergency Ops
+Also see McMinn County database page,6021,1785,D,McMinn EMS Disp,EMS: Dispatch,EMS Dispatch
+Also see McMinn County database page,6008,1778,D,Athens Police,Athens Police: Dispatch,Law Dispatch
+Also see McMinn County database page,6009,1779,D,Athens PD Tac-1,Athens Police: Tac-1,Law Tac
+Also see McMinn County database page,6010,177a,D,Athens PD Tac-2,Athens Police: Tac-2,Law Tac
+Also see McMinn County database page,6011,177b,D,Athens PD Tac-3,Athens Police: Tac-3,Law Tac
+Also see McMinn County database page,6012,177c,D,Athens PD Tac-4,Athens Police: Tac-4,Law Tac
+Also see McMinn County database page,6027,178b,D,Athens Fire,Athens Fire: Dispatch,Fire Dispatch
+Also see McMinn County database page,6022,1786,D,Etowah/Englwd PD,Etowah Police: Dispatch (w/Englewood),Law Dispatch
+Also see McMinn County database page,6025,1789,D,Etowah Fire,Etowah Fire: Dispatch,Fire Dispatch
+Also see McMinn County database page,6031,178f,D,Niota/Calhoun PD,Niota/Calhoun Police: Dispatch,Law Dispatch
+TN - Meigs County (121) - Public Safety,6501,1965,D,Meigs County Net,County Net,Interop
+TN - Meigs County (121) - Public Safety,6502,1966,D,Meigs Fire/EMS,Fire/EMS: Dispatch,Fire Dispatch
+TN - Meigs County (121) - Public Safety,6503,1967,D,Meigs EMS Admin,EMS: Admin,EMS-Tac
+TN - Meigs County (121) - Public Safety,6504,1968,D,Meigs Firegrnd 1,Fireground 1 (Countywide),Fire-Tac
+TN - Meigs County (121) - Public Safety,6505,1969,D,Meigs Firegrnd 2,Fireground 2 (Countywide),Fire-Tac
+TN - Meigs County (121) - Public Safety,6506,196a,D,Meigs Fire Admin,Fire: Admin,Fire-Tac
+TN - Meigs County (121) - Public Safety,6507,196b,D,Meigs Sheriff,Sheriff: Dispatch,Law Dispatch
+TN - Meigs County (121) - Public Safety,6508,196c,D,Meigs Shrf Admin,Sheriff: Admin,Law Tac
+TN - Meigs County (121) - Public Safety,6509,196d,D,Meigs Shrf Tac-1,Sheriff: Tac-1,Law Tac
+TN - Meigs County (121) - Public Safety,6510,196e,D,Meigs Shrf Tac-2,Sheriff: Tac-2,Law Tac
+TN - Meigs County (121) - Public Safety,6511,196f,D,Meigs Shrf Detct,Sheriff: Detectives,Law Tac
+TN - Meigs County (121) - Public Safety,6512,1970,D,Decatur Police,Decatur Police: Dispatch,Law Dispatch
+TN - Meigs County (121) - Public Safety,6513,1971,D,Decatur PD Tac-1,Decatur Police: Tac-1,Law Tac
+TN - Meigs County (121) - Public Safety,6514,1972,D,Decatur PD Tac-2,Decatur Police: Tac-2,Law Tac
+TN - Monroe County,9504,2520,Te,Monroe Shrf Patr,Sheriff: Patrol/Dispatch,Law Dispatch
+TN - Monroe County,9505,2521,TE,Monroe Shrf Talk,Sheriff: Talk,Law Talk
+TN - Monroe County,9506,2522,T,Monroe ShrfAdmin,Sheriff: Administration,Law Talk
+TN - Monroe County,9510,2526,TE,Monroe Shrf SRT,Special Response Team,Law Tac
+TN - Monroe County,9509,2525,TE,Monr School SRO,School Resource Officers,Schools
+TN - Monroe County,9507,2523,T,Monroe Court,County Court,Corrections
+TN - Monroe County,9508,2524,T,Monroe Co Jail,Jail,Corrections
+TN - Monroe County,9501,251d,T,Monroe CountyNet,County Net,Multi-Dispatch
+TN - Monroe County,9502,251e,T,MonroeCo Event 1,Event 1,Law Talk
+TN - Monroe County,9503,251f,T,MonroeCo Event 2,Event 2,Law Talk
+TN - Monroe County,9530,253a,T,Monroe Incident1,Incident 1,Multi-Tac
+TN - Monroe County,9531,253b,T,Monroe Incident2,Incident 2,Multi-Tac
+TN - Monroe County,9532,253c,TE,Monroe Incident4,Incident 4,Multi-Tac
+TN - Monroe County,9533,253d,T,Monroe Co EMA,Emergency Management (EMA),Emergency Ops
+TN - Monroe County,9519,252f,T,Monroe Fire Main,Fire: Main (County Volunteers),Fire Dispatch
+TN - Monroe County,9520,2530,TE,Monroe Fire Talk,Fire: Talk,Fire-Talk
+TN - Monroe County,9521,2531,T,MonroeCo Rescue,Rescue Squad: Dispatch,Fire Dispatch
+TN - Monroe County,9522,2532,TE,Monroe RescueT/A,Rescue Squad: Talk-Around,Fire Dispatch
+TN - Monroe County,9529,2539,T,Monroe Fire Inc1,Fire: Incident 1,Fire-Tac
+TN - Monroe County,9523,2533,T,MonroeCoEMS Disp,EMS: Dispatch,EMS Dispatch
+TN - Monroe County,9524,2534,TE,MonroeCo EMS T/A,EMS: Talk-Around,EMS-Talk
+TN - Monroe County,9513,2529,T,Madisonville PD,Madisonville Police: Dispatch,Law Dispatch
+TN - Monroe County,9514,252a,TE,Madisnvl PD Talk,Madisonville Police: Talk,Law Talk
+TN - Monroe County,9525,2535,T,MadisonvilleFire,Madisonville Fire: Dispatch,Fire Dispatch
+TN - Monroe County,9526,2536,TE,Madsnvl FD Inc2,Madisonville Fire: Talk-Around,Fire-Talk
+TN - Monroe County,9515,252b,T,SweetwaterPolice,Sweetwater Police: Dispatch,Law Dispatch
+TN - Monroe County,9516,252c,TE,Sweetwtr PD Talk,Sweetwater Police: Talk,Law Talk
+TN - Monroe County,9527,2537,T,Sweetwater Fire,Sweetwater Fire: Main,Fire Dispatch
+TN - Monroe County,9528,2538,TE,Sweetwtr FD Talk,Sweetware Fire: Talk,Fire-Talk
+TN - Monroe County,9517,252d,T,Vonore Police,Vonore/Tellico Plains Police: Dispatch,Law Dispatch
+TN - Monroe County,9518,252e,TE,Vonore PD Talk,Vonore/Tellico Plains Police: Talk,Law Talk
+TN - Monroe County,9534,253e,T,MonroeCo Highway,Highway Department,Public Works
+TN - Monroe County,9535,253f,T,Monroe SolidWast,Solid Waste Department,Public Works
+Also see the Montgomery County database page,17400,43f8,Te,Clrksv PD Alpha,Police: Dispatch Alpha,Law Dispatch
+Also see the Montgomery County database page,17401,43f9,Te,Clrksv PD Bravo,Police: Dispatch Bravo,Law Dispatch
+Also see the Montgomery County database page,17402,43fa,Te,Clrksv PD Charli,Police: Dispatch Charlie,Law Dispatch
+Also see the Montgomery County database page,17403,43fb,Te,Clrksv PD NCIC,Police: NCIC Records,Law Talk
+Also see the Montgomery County database page,17406,43fe,Te,Clrksv PD Talk-1,Police: Talk-1,Law Talk
+Also see the Montgomery County database page,17407,43ff,TE,Clrksv PD Talk-2,Police: Talk-2,Law Talk
+Also see the Montgomery County database page,17408,4400,TE,Clrksv PD Talk-3,Police: Talk-3,Law Talk
+Also see the Montgomery County database page,17409,4401,Te,Clrksv PD Talk-A,Police: Talk-A,Law Talk
+Also see the Montgomery County database page,17415,4407,Te,Clrksv PD Talk-B,Police: Talk-B,Law Talk
+Also see the Montgomery County database page,17418,440a,Te,Clrksv PD Talk-C,Police: Talk-C,Law Talk
+Also see the Montgomery County database page,17421,440d,Te,Clrksv PD Talk-D,Police: Talk-D,Law Talk
+Also see the Montgomery County database page,17423,440f,Te,Clarksville Fire,Fire: Dispatch,Fire Dispatch
+Also see the Montgomery County database page,17424,4410,Te,Clrksv Fire Tac1,Fire: Tac-1,Fire-Tac
+Also see the Montgomery County database page,17430,4416,TE,Clrksv Fire Talk,Fire: Talk,Fire-Talk
+Also see the Montgomery County database page,17431,4417,TE,Clrksv FD Train1,Fire: Training 1,Fire-Talk
+Also see the Montgomery County database page,17432,4418,TE,Clrksv FD Tac-A,Fire: Tac-A,Fire-Tac
+Also see the Montgomery County database page,17433,4419,Te,Clrksv FD Tac-B,Fire: Tac-B,Fire-Tac
+Also see the Montgomery County database page,17434,441a,Te,Clrksv PD Event1,Police: Event 1,Law Tac
+Also see the Montgomery County database page,17444,4424,Te,Clrksv FD Tac-C,Fire: Tac-C,Fire-Tac
+Also see the Montgomery County database page,17445,4425,T,CTS Admin,Transit: Administrators,Transportation
+Also see the Montgomery County database page,17446,4426,T,CTS Buses,Transit System Buses (CTS),Transportation
+Also see the Montgomery County database page,17447,4427,T,CTS Transport,Transit System Transport Service (CTS),Transportation
+Also see the Montgomery County database page,17451,442b,Te,Clrksv FD Train2,Fire: Training 2,Fire-Talk
+Also see the Montgomery County database page,17462,4436,TE,APSU Police Tac,Austin Peay State University Police: Tac,Law Tac
+Also see the Montgomery County database page,17463,4437,Te,APSU Police,Austin Peay State University Police,Law Dispatch
+TN - Obion County,49100,bfcc,T,Obion County Net,County Net (Statewide),Multi-Dispatch
+TN - Obion County,49101,bfcd,T,Obion Sheriff,Sheriff: Dispatch,Law Dispatch
+TN - Obion County,49102,bfce,TE,Obion Shrf Tac,Sheriff: Tac,Law Tac
+TN - Obion County,49103,bfcf,TE,Obion Shrf C2C,Sheriff: Car-to-Car,Law Talk
+TN - Obion County,49104,bfd0,T,UnionCity Police,Union City Police: Dispatch,Law Dispatch
+TN - Obion County,49105,bfd1,TE,UnionCity PD Tac,Union City Police: Tac,Law Tac
+TN - Obion County,49106,bfd2,TE,UnionCity PD C2c,Union City Police: Car-to-Car,Law Talk
+TN - Obion County,49107,bfd3,T,Obion Co EMA,Emergency Management (EMA),Emergency Ops
+TN - Obion County,49108,bfd4,TE,Obion Co Event 1,County Event 1,Multi-Tac
+TN - Obion County,49109,bfd5,T,Obion Co Event 2,County Event 2,Multi-Tac
+TN - Putnam County - Public Safety,50751,c63f,T,CookevillePolice,Cookeville Police: Dispatch (Patched to DMR Conventional),Law Dispatch
+TN - Putnam County - Public Safety,50770,c652,D,Putnam Sheriff,Sheriff: Dispatch - Future (late 2024),Law Dispatch
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7015,1b67,D,Rhea County Net,County Net,Multi-Tac
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7016,1b68,D,Rhea SheriffDisp,Sheriff: Dispatch,Law Dispatch
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7021,1b6d,D,Rhea Shrf Tac-1,Sheriff: Tac-1,Law Tac
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7022,1b6e,D,Rhea Shrf Tac-2,Sheriff: Tac-2,Law Tac
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7023,1b6f,D,Rhea Shrf Tac-3,Sheriff: Tac-3,Law Tac
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7024,1b70,D,Rhea Shrf Tac-4,Sheriff: Tac-4,Law Tac
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7032,1b78,DE,Rhea Shrf Tac 32,Sheriff: Tac,Law Tac
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7017,1b69,DE,Rhea Shrf Dtctv,Sheriff: Detectives,Law Tac
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7018,1b6a,D,Rhea Shrf PTO,Sheriff: Perimeter Team Ops,Law Tac
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7031,1b77,DE,Rhea Shrf Jail,Jail: Operations,Corrections
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7010,1b62,D,Rhea First Respn,County First Responder,Emergency Ops
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7013,1b65,D,Rhea EMS Disp,EMS: Dispatch,EMS Dispatch
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7014,1b66,D,Rhea Resq Admin,Rescue Admin,EMS-Tac
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7012,1b64,D,Rhea Fire Disp,Fire: Dispatch (Countywide),Fire Dispatch
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7003,1b5b,D,Rhea Fireground1,Fireground 1 (Countywide),Fire-Tac
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7004,1b5c,D,Rhea Fireground2,Fireground 2 (Countywide),Fire-Tac
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7005,1b5d,D,Rhea Fireground3,Fireground 3 (Countywide),Fire-Tac
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7006,1b5e,D,Rhea Fireground4,Fireground 4 (Countywide),Fire-Tac
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7011,1b63,D,Rhea Fire Admin,Fire: Admin (Countywide),Fire-Tac
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7026,1b72,D,Rhea Schools,Schools,Schools
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7009,1b61,D,SprngCity Police,Spring City Police: Dispatch,Law Dispatch
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7027,1b73,D,Dayton Police,Dayton Police: Dispatch,Law Dispatch
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7028,1b74,D,Dayton PD Tac-1,Dayton Police: Tac-1,Law Tac
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7029,1b75,D,Dayton PD c2c,Dayton Police: Car-to-Car,Law Tac
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7030,1b76,D,Dayton PD Invest,Dayton Police: Investigations,Law Tac
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7002,1b5a,D,Dayton Fire Disp,Dayton Fire: Dispatch,Fire Dispatch
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7001,1b59,D,Dayton FD Admin,Dayton Fire: Admin,Fire-Tac
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7008,1b60,D,Grysv PD Admin,Graysville Police: Admin,Law Tac
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7007,1b5f,D,Grysv Fire Admin,Graysville Fire: Admin,Fire-Tac
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7020,1b6c,D,SprCity PD Admin,Spring City Police: Admin,Law Tac
+TG 7025 - Rhea Medical Center EMS-to-Emergency Room,7019,1b6b,D,SprCity Fire Adm,Spring City Fire: Admin,Fire-Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8001,1f41,T,ROC CW NET,Countywide Net,Multi-Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8020,1f54,Te,ROC SO DISP,Sheriff: Dispatch,Law Dispatch
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8033,1f61,Te,ROC SO TAC,Sheriff: Tac [SO TAC],Law Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8031,1f5f,Te,ROC SO OPS,Sheriff: Operations,Law Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8030,1f5e,D,Roane Law MutAia,County Law Mutual Aid [LAW MUTUAL AID],Law Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8022,1f56,T,Roane Anim Cntrl,County Animal Control (Law Enforcement),Law Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8017,1f51,T,ROC KPS MA,Kingston Public Safety: Mutual Aid,Multi-Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8021,1f55,Te,ROC HRM PD1,Harriman Police: Dispatch,Law Dispatch
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8036,1f64,Te,HPD TAC,Harriman Police: Tac [HPD TAC],Law Talk
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8032,1f60,Te,King Police Tac,Kingston: Police Tac [KPD TAC],Law Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8024,1f58,Te,Rckwd Police Tac,Rockwood Police: Tac [RPD TAC],Law Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8040,1f68,T,Roane Co EMA,Roane County EMA,Emergency Ops
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8003,1f43,T,ROC FD DISP,County Fire Dispatch,Fire Dispatch
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8010,1f4a,T,ROC S-FG1,County Fireground 1: South,Fire-Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8011,1f4b,T,ROC W-FG1,County Fireground 1: West,Fire-Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8042,1f6a,T,Fire Ops South,Fire Ops: South County,Fire-Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8006,1f46,T,ROC FD OPS2,County Fire Operations 2,Fire-Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8007,1f47,T,Kngstn Firegrnd1,Kingston Fireground 1,Fire-Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8009,1f49,T,ROC E-FG1,County Fireground 1: East,Fire-Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8012,1f4c,T,ROC FD FG2,County Fireground 2,Fire-Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8013,1f4d,T,ROC Fireground 3,County Fireground 3,Fire-Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8014,1f4e,T,ROC Fireground 4,County Fireground 4,Fire-Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8039,1f67,T,West Roane Fire,West Roane County Fire,Fire Dispatch
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8005,1f45,T,E Roane VFD FG1,East Roane County Volunteer Fireground 1,Fire-Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8041,1f69,T,E Roane Fire Ops,East Roane County Fire: Ops,Fire-Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8015,1f4f,T,ROC Fire Mut Aid,Fire: Mutual Aid Countywide,Fire-Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8059,1f7b,T,ROC EMS DISP,County EMS: Dispatch,EMS Dispatch
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8049,1f71,T,ROC EMS OPS,County EMS: Ops,EMS-Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8019,1f53,Te,Roanae FirstResp,First Responders,Fire-Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8016,1f50,T,Harri FIreMutAid,Harriman Fire: Mutual AId,Fire-Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8018,1f52,T,Rockw FIreMutAid,Rockwood Fire: Mutual Aid,Fire-Tac
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8061,1f7d,T,ROC HIGHWAY,County Highway Department,Public Works
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8060,1f7c,T,ROC PW CODE,County Codes Enforcement,Public Works
+Roane County Sheriff and Harriman Police are planning to transition to TDMA. Law Enforcement talkgroups are encryption-capable.,8064,1f80,D,Roane School Bus,Roane County Schools Transportation Department,Schools
+"49820 - Departments heard: White House, Greenbrier",49802,c28a,Te,RobertsonSheriff,Sheriff: Dispatch,Law Dispatch
+"49820 - Departments heard: White House, Greenbrier",49801,c289,DE,Rob Law Common E,Law Common E (County),Law Tac
+"49820 - Departments heard: White House, Greenbrier",49803,c28b,DE,Rob Sheriff Narc,Sheriff: Narcotics,Law Tac
+"49820 - Departments heard: White House, Greenbrier",49804,c28c,DE,Rob Sheriff SWAT,Sheriff: SWAT,Law Tac
+"49820 - Departments heard: White House, Greenbrier",49822,c29e,D,Rob Gen Court,General Sessions Court,Corrections
+"49820 - Departments heard: White House, Greenbrier",49823,c29f,D,Rob CircuitCourt,Circuit Court,Corrections
+"49820 - Departments heard: White House, Greenbrier",49800,c288,D,Rob C/W Net,Countywide Net,Multi-Tac
+"49820 - Departments heard: White House, Greenbrier",49811,c293,D,Rob Incident 1,Incident 1 (County),Multi-Tac
+"49820 - Departments heard: White House, Greenbrier",49812,c294,D,Rob Incident 2,Incident 2 (County),Multi-Tac
+"49820 - Departments heard: White House, Greenbrier",49813,c295,D,Rob Incident 3,Incident 3 (County),Multi-Tac
+"49820 - Departments heard: White House, Greenbrier",49814,c296,D,Rob Incident 4,Incident 4 (County),Multi-Tac
+"49820 - Departments heard: White House, Greenbrier",49815,c297,D,Rob Incident 5,Incident 5 (County),Multi-Tac
+"49820 - Departments heard: White House, Greenbrier",49818,c29a,D,Rob Event 1,Event 1 (County),Multi-Tac
+"49820 - Departments heard: White House, Greenbrier",49819,c29b,D,Rob Event 2,Event 2 (County),Multi-Tac
+"49820 - Departments heard: White House, Greenbrier",49820,c29c,T,Rbrtsn FD/EMS PG,Fire/EMS: Paging,Fire Dispatch
+"49820 - Departments heard: White House, Greenbrier",49810,c292,D,Rob Fire,County Fire,Fire Dispatch
+"49820 - Departments heard: White House, Greenbrier",49816,c298,D,Rob EMS/EMA,County EMS/EMA,EMS Dispatch
+"49820 - Departments heard: White House, Greenbrier",49817,c299,D,Rob EMA Admin,County EMA: Admin,Emergency Ops
+"49820 - Departments heard: White House, Greenbrier",49821,c29d,D,Rob Highway Dept,County Highway Dept,Public Works
+"49820 - Departments heard: White House, Greenbrier",49836,c2ac,DE,Rob RTF E,County RTF (???),Multi-Tac
+"49820 - Departments heard: White House, Greenbrier",49807,c28f,DE,Spfld Police,Springfield Police: Dispatch,Law Dispatch
+"49820 - Departments heard: White House, Greenbrier",49808,c290,DE,Spfld PD SPEAR,Springfield Police Emergency Assistance and Rescue (SPEAR),Law Tac
+"49820 - Departments heard: White House, Greenbrier",49809,c291,DE,Spfld Police Tac,Springfield Police: Tac,Law Tac
+"49820 - Departments heard: White House, Greenbrier",49824,c2a0,D,Spfld Citywide,Springfield Citywide,Multi-Tac
+"49820 - Departments heard: White House, Greenbrier",49805,c28d,T,Springfield Fire,Springfield Fire: Dispatch,Fire Dispatch
+"49820 - Departments heard: White House, Greenbrier",49806,c28e,D,Spfld Fire Tac,Springfield Fire: Tac,Fire-Tac
+"49820 - Departments heard: White House, Greenbrier",49825,c2a1,D,Spfld ComDev,Springfield Community Development & Planning,Public Works
+"49820 - Departments heard: White House, Greenbrier",49826,c2a2,D,Spfld Cust Srvc,Springfield Customer Service,Public Works
+"49820 - Departments heard: White House, Greenbrier",49827,c2a3,D,Spfld Electric,Springfield Electric,Utilities
+"49820 - Departments heard: White House, Greenbrier",49828,c2a4,D,Spfld Gas,Springfield Gas,Utilities
+"49820 - Departments heard: White House, Greenbrier",49829,c2a5,D,Spfld Parks,Springfield Parks,Public Works
+"49820 - Departments heard: White House, Greenbrier",49830,c2a6,D,Spfld PublicWrks,Springfield Public Works,Public Works
+"49820 - Departments heard: White House, Greenbrier",49831,c2a7,D,Spfld Water,Springfield Water,Utilities
+"49820 - Departments heard: White House, Greenbrier",49832,c2a8,D,Spfld Utilities,Springfield Utilities,Utilities
+"49820 - Departments heard: White House, Greenbrier",49834,c2aa,DE,RC WH PD E,White House Police: Tac (?),Law Tac
+"49820 - Departments heard: White House, Greenbrier",47165,b83d,T,WHCVFD-TACN OPS,White House Fire: Ops,Fire Dispatch
+"49820 - Departments heard: White House, Greenbrier",49833,c2a9,T,White House Fire,White House Fire: Dispatch,Fire Dispatch
+Note: Murfreesboro utilizes the Middle Tennessee Regional Trunked System,30399,76bf,D,75-RC-EMA 1,County EMA: Operations 1,Emergency Ops
+Note: Murfreesboro utilizes the Middle Tennessee Regional Trunked System,30400,76c0,DE,75-RC-EMA 2,County EMA: Operations 2,Emergency Ops
+Rutherford Co-LaVergne,48161,bc21,T,75-LPD-DISP-1,Police: Dispatch 1,Law Dispatch
+Rutherford Co-LaVergne,48162,bc22,T,75-LPD-DISP-2,Police: Dispatch 2,Law Dispatch
+Rutherford Co-LaVergne,48163,bc23,TE,75-LPD-3,Police: Channel 3,Law Tac
+Rutherford Co-LaVergne,48164,bc24,TE,75-LPD-4,Police: Channel 4,Law Tac
+Rutherford Co-LaVergne,48165,bc25,TE,75-LPD-5,Police: Channel 5,Law Tac
+Rutherford Co-LaVergne,48166,bc26,TE,75-LPD-6,Police: Channel 6,Law Tac
+Rutherford Co-LaVergne,48167,bc27,TE,75-LPD-7,Police: Channel 7,Law Tac
+Rutherford Co-LaVergne,48168,bc28,T,75-LFD-DISP 1,Fire: Dispatch 1,Fire Dispatch
+Rutherford Co-LaVergne,48169,bc29,TE,75-LFD-DISP 2,Fire: Dispatch 2,Fire-Tac
+Rutherford Co-LaVergne,48170,bc2a,TE,75-LFD-3,Fire: Channel 3,Fire-Tac
+Rutherford Co-LaVergne,48171,bc2b,TE,75-LFD-4,Fire: Channel 4,Fire-Tac
+Rutherford Co-LaVergne,48172,bc2c,T,75-LFD-STAT 41,Fire: Station 41,Fire-Tac
+Rutherford Co-LaVergne,48173,bc2d,T,75-LFD-STAT 42,Fire: Station 42,Fire-Tac
+Rutherford Co-LaVergne,48174,bc2e,T,75-LFD-STAT 43,Fire: Station 43,Fire-Tac
+Rutherford Co-LaVergne,48175,bc2f,T,75-LFD TRAIN,Fire: Training,Fire-Tac
+Rutherford Co-LaVergne,48176,bc30,TE,75-L-EVENT 1,Fire: Event 1,Fire-Tac
+Rutherford Co-LaVergne,48177,bc31,T,75-LFD-10,Fire: Channel 10,Fire-Tac
+Rutherford Co-LaVergne,48178,bc32,T,75-LFD-11,Fire: Channel 11,Fire-Tac
+Rutherford Co-LaVergne,48179,bc33,D,75-LFD-PATCH,Fire: Patch,Fire-Tac
+Rutherford Co-Smyrna Fire,30316,766c,D,75-SFD DISP,Fire: Dispatch,Fire Dispatch
+Rutherford Co-Smyrna Fire,30317,766d,D,75-SFD OPS,Fire: Operations,Fire-Tac
+Rutherford Co-Smyrna Fire,30318,766e,D,75-SFD T/A,Fire: Talkaround,Fire-Tac
+Rutherford Co-Smyrna Fire,30319,766f,D,75-SFD SCBA,Fire: SCBA,Fire-Tac
+Rutherford Co-Smyrna Fire,30320,7670,D,75-SFD HAZMAT,Fire: HazMat,Fire-Tac
+Law went to full encryption (12/8/25),30300,765c,DE,75-SPD DISP1,Police: Dispatch 1,Law Dispatch
+Law went to full encryption (12/8/25),30301,765d,DE,75-SPD DISP2,Police: Dispatch 2,Law Dispatch
+Law went to full encryption (12/8/25),30302,765e,DE,75-SPD TALK1,Police: Talk 1,Law Talk
+Law went to full encryption (12/8/25),30303,765f,DE,75-SPD TALK2,Police: Talk 2,Law Talk
+Law went to full encryption (12/8/25),30304,7660,DE,75-SPD TALK3,Police: Talk 3,Law Talk
+Law went to full encryption (12/8/25),30305,7661,DE,75-SPD WARRANTS,Police: Warrants,Law Tac
+Law went to full encryption (12/8/25),30306,7662,DE,75-SPD TAC,Police: Tactical,Law Tac
+Law went to full encryption (12/8/25),30307,7663,DE,75-SPD-COMMAND,Police: Command,Law Tac
+Law went to full encryption (12/8/25),30308,7664,DE,75-SPD-DETECTV,Police: Detective,Law Tac
+Law went to full encryption (12/8/25),30309,7665,DE,75-SPD-ADMIN,Police: Administration,Law Tac
+Law went to full encryption (12/8/25),30310,7666,DE,75-SPD-NARC 1,Police: Narcotics 1,Law Tac
+Law went to full encryption (12/8/25),30311,7667,DE,75-SPD-NARC 2,Police: Narcotics 2,Law Tac
+Law went to full encryption (12/8/25),30312,7668,DE,75-SPD SWAT,Police: SWAT,Law Tac
+Law went to full encryption (12/8/25),30313,7669,D,75-S-EVENT-1,Special Events 1,Multi-Tac
+Law went to full encryption (12/8/25),30314,766a,D,75-S-EVENT-2,Special Events 2,Multi-Tac
+Law went to full encryption (12/8/25),30315,766b,D,75-S-PATCH,Patch,Interop
+Rutherford Co-Smyrna Public Services,30321,7671,D,75-SUTIL 1,Utilities: Primary,Utilities
+Rutherford Co-Smyrna Public Services,30322,7672,D,75-SUTIL WTO,Utilities: Water Treatment Operations,Utilities
+Rutherford Co-Smyrna Public Services,30323,7673,D,75-SUTIL WWTO,Utilities: Wastewater Treatment Operations,Utilities
+Rutherford Co-Smyrna Public Services,30324,7674,D,75-SDPW MAINT,Public Works: Vehicle Maintenance,Public Works
+Rutherford Co-Smyrna Public Services,30325,7675,D,75-SUTIL CODES,Utilities: Codes,Utilities
+Rutherford Co-Smyrna Public Services,30326,7676,D,75-SUTIL WTP EM,Utilities: Water Treatment Plant Emergency,Utilities
+Rutherford Co-Smyrna Public Services,30327,7677,D,75-S TECH SERV.,Technical Services,Public Works
+Rutherford Co-Smyrna Public Services,30328,7678,D,75-SDPW BLDNG,Public Works: Building and Grounds,Public Works
+Rutherford Co-Smyrna Public Services,30330,767a,D,75-S INFO SERV,Information Services,Public Works
+Rutherford Co-Smyrna Public Services,30331,767b,D,75-S PARKS PRI,Parks: Primary,Public Works
+Rutherford Co-Smyrna Public Services,30332,767c,D,75-S PARKS SEC,Parks: Secondary,Public Works
+Rutherford Co-Smyrna Public Services,30333,767d,D,75-S TECH ASST,Technology Assistant,Public Works
+Rutherford Co-Smyrna Public Services,30329,7679,D,75-SDPW ROAD,Public Works: Streets,Public Works
+Middle Tennessee State University (Rutherford Co) (*),16050,3eb2,DE,MTSU-PD-1,Police: Dispatch (Ch 1),Law Dispatch
+Middle Tennessee State University (Rutherford Co) (*),16052,3eb4,DE,MTSU-PD-TAC2,Police: Ops (Ch 2),Law Tac
+Middle Tennessee State University (Rutherford Co) (*),16051,3eb3,D,MTSU-PD-RP,Police: Raider Patrol,Law Tac
+Middle Tennessee State University (Rutherford Co) (*),16053,3eb5,D,MTSU-MURPHY,Police: Special Events,Law Tac
+Middle Tennessee State University (Rutherford Co) (*),16054,3eb6,D,MTSU-E911,Campus Access to E-911,Emergency Ops
+Middle Tennessee State University (Rutherford Co) (*),16057,3eb9,D,MTSU-Call,Campus Call Boxes,Security
+Middle Tennessee State University (Rutherford Co) (*),16090,3eda,D,MTSU-Parking,Parking Enforcement,Law Tac
+Middle Tennessee State University (Rutherford Co) (*),16071,3ec7,D,MTSU Maint 1,Facilities Maintenance 1,Schools
+Middle Tennessee State University (Rutherford Co) (*),16080,3ed0,D,MTSU Maint 2,Facilities Maintenance 2,Schools
+Middle Tennessee State University (Rutherford Co) (*),16095,3edf,D,MTSU Union,Student Unions,Schools
+Middle Tennessee State University (Rutherford Co) (*),16072,3ec8,D,MTSU HVAC,HVAC Technicians,Schools
+Middle Tennessee State University (Rutherford Co) (*),16081,3ed1,D,MTSU RecCtr,Student Recreation Center,Schools
+Middle Tennessee State University (Rutherford Co) (*),16091,3edb,D,MTSU Shuttle,Shuttle Buses,Transportation
+Middle Tennessee State University (Rutherford Co) (*),16087,3ed7,D,MTSU IUD,IUD (?),Schools
+Middle Tennessee State University (Rutherford Co) (*),16088,3ed8,D,MTSU ITD Classrm,ITD Classroom (Information Technology Division),Schools
+Middle Tennessee State University (Rutherford Co) (*),16089,3ed9,D,MTSU ITD DeskSup,ITD Desk Support (Information Technology Division),Schools
+See Sevier County Database page,48000,bb80,D,SevierCounty Net,Countywide Net,Interop
+See Sevier County Database page,48001,bb81,D,PF Police Disp,Pigeon Forge Police: Dispatch,Law Dispatch
+See Sevier County Database page,48002,bb82,De,PF Police Tac-1,Pigeon Forge Police: Tac-1,Law Tac
+See Sevier County Database page,48003,bb83,De,PF Police Tac-2,Pigeon Forge Police: Tac-2/Events,Law Tac
+See Sevier County Database page,48009,bb89,T,PF Fire Paging,Pigeon Forge Fire: Paging,Fire Dispatch
+See Sevier County Database page,48010,bb8a,T,PF Fire Response,Pigeon Forge Fire: Response/Dispatch,Fire Dispatch
+See Sevier County Database page,48015,bb8f,T,PF Trolley Dept,Pigeon Forge Trolley Department 1?,Transportation
+See Sevier County Database page,48016,bb90,T,PF TrolleyDept 2,Pigeon Forge Trolley Department 2,Transportation
+See Sevier County Database page,48026,bb9a,T,SevierCounty EMA,County EMA,Emergency Ops
+TN - Sullivan County (163) - Public Safety,30000,7530,DE,SLVN SO DSP1,Sheriff: Dispatch 1,Law Dispatch
+TN - Sullivan County (163) - Public Safety,30001,7531,DE,SLVN SO DSP2,Sheriff: Dispatch 2,Law Dispatch
+TN - Sullivan County (163) - Public Safety,30002,7532,DE,SLVN SO DSP3,Sheriff: Dispatch 3,Law Tac
+TN - Sullivan County (163) - Public Safety,30003,7533,DE,SLVN SO TAC1,Sheriff: Tac-1,Law Tac
+TN - Sullivan County (163) - Public Safety,30004,7534,DE,SLVN SO TAC2,Sheriff: Tac-2,Law Tac
+TN - Sullivan County (163) - Public Safety,30005,7535,DE,SLVN SO CSBL,Sheriff: Court Services - Blountville,Law Tac
+TN - Sullivan County (163) - Public Safety,30006,7536,DE,SLVN SO CSBR,Sheriff: Court Services - Bristol,Law Tac
+TN - Sullivan County (163) - Public Safety,30007,7537,DE,SLVN SO CSKP,Sheriff: Court Services - Kingsport,Law Tac
+TN - Sullivan County (163) - Public Safety,30008,7538,DE,SLVN JAIL,Jail Operations,Corrections
+TN - Sullivan County (163) - Public Safety,30009,7539,DE,SLVN JAIL 2,Jail Operations 2,Corrections
+TN - Sullivan County (163) - Public Safety,30010,753a,DE,SLVN SO EVNT1,Sheriff: Events 1,Law Tac
+TN - Sullivan County (163) - Public Safety,30013,753d,DE,SLVN EMS,EMS: Dispatch,EMS Dispatch
+TN - Sullivan County (163) - Public Safety,30014,753e,DE,SLVN EMS 2,EMS 2,EMS-Tac
+TN - Sullivan County (163) - Public Safety,30017,7541,DE,SLVN EMS SAR,Search and Rescue 1,EMS-Tac
+TN - Sullivan County (163) - Public Safety,30020,7544,D,SLVN AIRMED,EMS: Air Med,EMS-Tac
+TN - Sullivan County (163) - Public Safety,30023,7547,DE,SLVN EMS ADM,EMS: Administration,EMS-Talk
+TN - Sullivan County (163) - Public Safety,30025,7549,DE,SLVN EMSHVMC,EMS: Encode - Holston Valley Medical Center,Hospital
+TN - Sullivan County (163) - Public Safety,30026,754a,DE,SLVN EMS IPH,EMS: Encode - Indian Path Hospital,Hospital
+TN - Sullivan County (163) - Public Safety,30027,754b,DE,SLVN EMSBRMC,EMS: Encode - Bristol Regional Medical Center,Hospital
+TN - Sullivan County (163) - Public Safety,30028,754c,DE,SLVN EMSJCMC,EMS: Encode - Johnson City Medical Center,Hospital
+TN - Sullivan County (163) - Public Safety,30029,754d,DE,SLVN EMS SSH,EMS: Encode - Sycamore Shoals Hospital,Hospital
+TN - Sullivan County (163) - Public Safety,30030,754e,DE,SLVN EMS FWH,EMS: Encode - Franklin Woods Community Hospital,Hospital
+TN - Sullivan County (163) - Public Safety,30031,754f,DE,SLVN EMS JMH,EMS: Encode - Johnston Memorial Hospital,Hospital
+TN - Sullivan County (163) - Public Safety,30032,7550,DE,SLVN EMSJCVA,EMS: Encode - Johnson City Veterans Hospital,Hospital
+TN - Sullivan County (163) - Public Safety,30042,755a,De,SLVN HDCMD,Health Department: Command,EMS-Tac
+TN - Sullivan County (163) - Public Safety,30043,755b,DE,SLVN HDOPS1,Health Department: Ops 1,EMS-Tac
+TN - Sullivan County (163) - Public Safety,30044,755c,DE,SLVN HDOPS2,Health Department: Ops 2,EMS-Tac
+TN - Sullivan County (163) - Public Safety,30045,755d,D,SLVN RAD 1,Sullivan County - RAD 1,Public Works
+TN - Sullivan County (163) - Public Safety,30049,7561,D,SLVN 911OPS,911 Operations,Emergency Ops
+TN - Sullivan County (163) - Public Safety,30050,7562,D,SLVN CORNER,Corner Operations,Public Works
+TN - Sullivan County (163) - Public Safety,30052,7564,D,SLVN RCOPS1,Sullivan County RC: Ops 1 (?),Public Works
+TN - Sullivan County (163) - Public Safety,30054,7566,DE,SLVN VFD UP,Sullivan County Fire: Dispatch Upper Region,Fire Dispatch
+TN - Sullivan County (163) - Public Safety,30055,7567,D,AVOCA VFD,Avoca Fire: Ops,Fire-Tac
+TN - Sullivan County (163) - Public Safety,30056,7568,DE,BLUFFCITYVFD,Bluff City Fire: Ops,Fire-Tac
+TN - Sullivan County (163) - Public Safety,30057,7569,DE,SULVEASTVFD,Sullivan East Fire: Ops,Fire-Tac
+TN - Sullivan County (163) - Public Safety,30058,756a,DE,421 VFD,421 Fire: Ops,Fire-Tac
+TN - Sullivan County (163) - Public Safety,30059,756b,DE,HTREE VFD,Hickory Tree Vol Fire: Ops,Fire-Tac
+TN - Sullivan County (163) - Public Safety,30060,756c,DE,PFLATS VFD,Piney Flats Fire: Ops,Fire-Tac
+TN - Sullivan County (163) - Public Safety,30061,756d,D,SLVN CO VFD,Sullivan County Fire Ops (Blountville),Fire-Tac
+TN - Sullivan County (163) - Public Safety,30062,756e,D,SLVNCO VFDS1,County Fire Scene 1,Fire-Tac
+TN - Sullivan County (163) - Public Safety,30063,756f,DE,SLVNCO VFDS2,County Fire Scene 2,Fire-Tac
+TN - Sullivan County (163) - Public Safety,30066,7572,DE,SLVN VFD LOW,Sullivan County Fire Dispatch Lower Region,Fire Dispatch
+TN - Sullivan County (163) - Public Safety,30067,7573,D,BLOMDALE VFD,Bloomingdale Fire: Ops,Fire-Tac
+TN - Sullivan County (163) - Public Safety,30068,7574,D,SLVN WESTVFD,Sullivan West Fire: Ops,Fire-Tac
+TN - Sullivan County (163) - Public Safety,30069,7575,D,WPATH VFD,Warriors Path Fire: Ops,Fire-Tac
+TN - Sullivan County (163) - Public Safety,30071,7577,D,SC MAC 1,County Mutual Aid 1,Interop
+TN - Sullivan County (163) - Public Safety,30072,7578,D,SC MAC 2,County Mutual Aid 2,Interop
+TN - Sullivan County (163) - Public Safety,30086,7586,D,SC MAC ALL,County Mutual Aid All,Interop
+TN - Sullivan County (163) - Public Safety,30087,7587,D,SLVN SCHL1,Schools 1,Schools
+TN - Sullivan County (163) - Public Safety,30088,7588,D,SLVN SCHL2,Schools 2,Schools
+TN - Sullivan County (163) - Public Safety,30089,7589,D,SLVN NSTCC,Northeast State Tech Comm College,Schools
+TN - Sullivan County (163) - Public Safety,30090,758a,DE,BCPD 1,Bluff City Police,Law Dispatch
+TN - Sullivan County (163) - Public Safety,30091,758b,DE,BCPD 2,Bluff City Police 2,Law Tac
+TN - Sullivan County (163) - Public Safety,30092,758c,DE,TCAA PS 1,Tri-Cities Airport Authority Public Safety 1,Multi-Dispatch
+TN - Sullivan County (163) - Public Safety,30093,758d,D,TCAA PS 2,Tri-Cities Airport Authority Public Safety 2,Multi-Dispatch
+TN - Sullivan County (163) - Public Safety,30094,758e,DE,TCAA MAIN,Tri-Cities Airport Authority Main,Multi-Dispatch
+TN - Sullivan County (163) - Public Safety,30095,758f,DE,TCAA SUPV,Tri-Cities Airport Authority Supervisors,Multi-Dispatch
+TN - Sullivan County (163) - Public Safety,30096,7590,D,TCAA EMERG,Tri-Cities Airport Authority Emergency,Emergency Ops
+TN - Sullivan County (163) - Public Safety,30097,7591,DE,SLVN CW SWAT,Countywide SWAT,Law Tac
+TN - Sullivan County (163) - Public Safety,30098,7592,DE,SLVN DTF 1,DTF Ops 1,Law Tac
+TN - Sullivan County (163) - Public Safety,30101,7595,D,SLVN CW,Countywide Dispatch,Multi-Dispatch
+TN - Sullivan County (163) - Public Safety,30102,7596,D,SLVN SULLNET,Sullivan County Countywide SULLNET,Interop
+TN - Sullivan County (163) - Bristol (*),30200,75f8,DE,BPD TN PTL 1,Police: Patrol 1,Law Dispatch
+TN - Sullivan County (163) - Bristol (*),30201,75f9,D,BPD TN PTL 2,Police: Patrol 2-Supervisors,Law Tac
+TN - Sullivan County (163) - Bristol (*),30202,75fa,D,BPD TN PTL 3,Police: Patrol 3,Law Tac
+TN - Sullivan County (163) - Bristol (*),30203,75fb,DE,BPD TN TAC1,Police: Tac-1,Law Tac
+TN - Sullivan County (163) - Bristol (*),30204,75fc,DE,BPD TN TAC2,Police: Tac-2 Race Command BMS Events,Law Tac
+TN - Sullivan County (163) - Bristol (*),30205,75fd,D,BPD TN TAC3,Police: Tac-3,Law Tac
+TN - Sullivan County (163) - Bristol (*),30206,75fe,D,BPD TN TAC4,Police: Tac-4,Law Tac
+TN - Sullivan County (163) - Bristol (*),30207,75ff,DE,BPD TN CID,Police: CID (Criminal Investigation Department),Law Tac
+TN - Sullivan County (163) - Bristol (*),30208,7600,DE,BPD TN SCU,Police: Street Crimes Unit,Law Tac
+TN - Sullivan County (163) - Bristol (*),30209,7601,DE,BPD TN SWAT,Police: SWAT,Law Tac
+TN - Sullivan County (163) - Bristol (*),30210,7602,DE,BPD TN AC,Animal Control,Law Tac
+TN - Sullivan County (163) - Bristol (*),30214,7606,DE,BFD TN DISP,Fire: Command 1 Dispatch,Fire Dispatch
+TN - Sullivan County (163) - Bristol (*),30215,7607,DE,BFD TN COMM2,Fire: Command 2,Fire-Tac
+TN - Sullivan County (163) - Bristol (*),30216,7608,D,BFD TN COMM3,Fire: Command 3,Fire-Tac
+TN - Sullivan County (163) - Bristol (*),30217,7609,D,BFD TN COMM4,Fire: Command 4 Race Ops,Fire-Tac
+TN - Sullivan County (163) - Bristol (*),30223,760f,D,BRSTL TN PW,Public Works,Public Works
+TN - Sullivan County (163) - Bristol (*),30224,7610,D,BRSTL TN UTL,Utilities,Utilities
+TN - Sullivan County (163) - Bristol (*),30229,7615,D,BRSTL TN PR,Parks and Rec,Public Works
+TN - Sullivan County (163) - Kingsport (*),30151,75c7,DE,KNGPT PD 1,Police: Dispatch,Law Dispatch
+TN - Sullivan County (163) - Kingsport (*),30152,75c8,DE,KNGPT PD 2,Police: Secondary,Law Tac
+TN - Sullivan County (163) - Kingsport (*),30153,75c9,DE,KNGPT PD 3,Police: Tertiary,Law Tac
+TN - Sullivan County (163) - Kingsport (*),30154,75ca,DE,KNGPT PD CID,Police: CID (Criminal Investigation Department),Law Tac
+TN - Sullivan County (163) - Kingsport (*),30155,75cb,DE,KNGPT PD SRO,Police: SRO,Law Tac
+TN - Sullivan County (163) - Kingsport (*),30156,75cc,D,KNGPT PD SPO,Police: Special Ops,Law Tac
+TN - Sullivan County (163) - Kingsport (*),30157,75cd,DE,KNGPT PDSWAT,Police: SWAT,Law Tac
+TN - Sullivan County (163) - Kingsport (*),30158,75ce,DE,KNGPT PD VICE,Police: Vice Units,Law Tac
+TN - Sullivan County (163) - Kingsport (*),30161,75d1,D,KNGPT FD EAST1,Fire: East 1,Fire-Tac
+TN - Sullivan County (163) - Kingsport (*),30162,75d2,D,KNGPT FD EAST2,Fire: East 2,Fire-Tac
+TN - Sullivan County (163) - Kingsport (*),30163,75d3,D,KNGPT FD WEST1,Fire: West 1,Fire-Tac
+TN - Sullivan County (163) - Kingsport (*),30164,75d4,D,KNGPT FD WEST2,Fire: West 2,Fire-Tac
+TN - Sullivan County (163) - Kingsport (*),30165,75d5,D,KNGPT FD CENT1,Fire: Central 1,Fire-Tac
+TN - Sullivan County (163) - Kingsport (*),30166,75d6,D,KNGPT FD CENT2,Fire: Central 2,Fire-Tac
+TN - Sullivan County (163) - Kingsport (*),30167,75d7,D,KNGPT FD TRAIN,Fire: Training,Fire-Tac
+TN - Sullivan County (163) - Kingsport (*),30168,75d8,D,KNGPT FD HM,Fire: Hazmat 1,Fire-Tac
+TN - Sullivan County (163) - Kingsport (*),30169,75d9,D,KNGPT FD HM2,Fire: Hazmat 2,Fire-Tac
+TN - Sullivan County (163) - Kingsport (*),30170,75da,D,KNGPT FD SPO,Fire: Special Ops,Fire-Tac
+TN - Sullivan County (163) - Kingsport (*),30171,75db,D,KNGPT FD ADM,Fire: Admin,Fire-Tac
+TN - Sullivan County (163) - Kingsport (*),30172,75dc,D,KNGPT LSC 1,Life Saving Crew Main,EMS Dispatch
+TN - Sullivan County (163) - Kingsport (*),30175,75df,DE,KNGPT FD DSP,Fire: Dispatch,Fire Dispatch
+TN - Sullivan County (163) - Kingsport (*),30177,75e1,DE,KNGPT BUSES,City Schools: Buses,Schools
+TN - Sullivan County (163) - Kingsport (*),30178,75e2,DE,KNGPT CS MNT,City Schools: Maintenance,Schools
+TN - Sullivan County (163) - Kingsport (*),30179,75e3,DE,KNGPT CS DB,City Schools: Dobyns Bennett High School,Schools
+TN - Sullivan County (163) - Kingsport (*),30180,75e4,DE,KNGPT CS RMS,City Schools: Robinson Middle School,Schools
+TN - Sullivan County (163) - Kingsport (*),30181,75e5,DE,KNGPT CS JSM,City Schools: John Sevier Middle School,Schools
+TN - Sullivan County (163) - Kingsport (*),30182,75e6,DE,KNGPT CS WST,City Schools: West,Schools
+TN - Sullivan County (163) - Kingsport (*),30183,75e7,DE,KNGPT CS EST,City Schools: East,Schools
+TN - Sullivan County (163) - Kingsport (*),30185,75e9,D,KNGPT PW STR,Public Works: Street Department,Public Works
+TN - Sullivan County (163) - Kingsport (*),30186,75ea,D,KNGPT PW SNT,Public Works: Sanitation Department,Public Works
+TN - Sullivan County (163) - Kingsport (*),30187,75eb,D,KNGPT PW EVN,Public Works: Events,Public Works
+TN - Sullivan County (163) - Kingsport (*),30188,75ec,D,KNGPT PW ADM,Public Works: Admin,Public Works
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30571,776b,DE,WASH SO PATR,Sheriff: Patrol,Law Dispatch
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30572,776c,DE,WASH SO PAT2,Sheriff: Patrol 2,Law Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30573,776d,DE,WASH SO REC,Sheriff: Records,Law Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30574,776e,DE,WASH SO SUPR,Sheriff: Support / Court Services,Law Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30575,776f,DE,WASH SO TAC,Sheriff: Tac-1,Law Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30576,7770,DE,WASH SO TRAIN,Sheriff: Training,Law Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30577,7771,DE,WASH SO CID,Sheriff: CID,Law Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30578,7772,DE,WCSO SP OPS,Sheriff: Special Ops,Law Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30579,7773,DE,WASH SO SWAT,Sheriff: SWAT Ops,Law Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30580,7774,DE,WASH SO SWAT2,Sheriff: SWAT Ops 2,Law Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30581,7775,DE,WASH SO WC,Sheriff: Watch Commander,Law Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30582,7776,DE,WASH SO ADMIN,Sheriff: Administration,Law Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30583,7777,DE,WASH CONSTB,Constables,Law Talk
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30542,774e,DE,JBPD DISP,Jonesborough Police: Dispatch,Law Dispatch
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30501,7725,De,WASH MARC1,Mutual Aid Response (Ch 1),Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30502,7726,DE,WASH MARC 2,Mutual Aid Response (Ch 2),Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30503,7727,DE,WASH MARC 3,Mutual Aid Response (Ch 3),Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30504,7728,De,WASH MARC 4,Mutual Aid Response (Ch 4),Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30505,7729,De,WASH MARC 5,Mutual Aid Response (Ch 5),Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30506,772a,DE,WASH MARC 6,Mutual Aid Response (Ch 6),Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30507,772b,De,WASH MARC 7,Mutual Aid Response (Ch 7),Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30508,772c,De,WASH MARC 8,Mutual Aid Response (Ch 8),Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30509,772d,De,WASH MARC 9,Mutual Aid Response (Ch 9),Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30510,772e,DE,WASH MARC 10,Mutual Aid Response (Ch 10),Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30511,772f,DE,WASH MARC 11,Mutual Aid Response (Ch 11),Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30512,7730,DE,WASH MARC 12,Mutual Aid Response (Ch 12),Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30513,7731,DE,WASH MARC 13,Mutual Aid Response (Ch 13),Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30514,7732,DE,WASH MARC 14,Mutual Aid Response (Ch 14),Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30515,7733,DE,WASH MARC 15,Mutual Aid Response (Ch 15),Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30516,7734,D,WASH MARC 16,Mutual Aid Response (Ch 16) / Water Plant Ops (10/24),Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30517,7735,DE,WASH I/O 1,County Interop 1,Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30518,7736,DE,WASH I/O 2,County Interop 2,Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30519,7737,DE,WASH I/O 3,County Interop 3,Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30520,7738,DE,WASH I/O 4,County Interop 4,Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30521,7739,DE,WASH I/O 5,County Interop 5,Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30522,773a,DE,WASH I/O 6,County Interop 6,Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30523,773b,DE,WASH I/O 7,County Interop 7,Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30524,773c,DE,WASH I/O 8,County Interop 8,Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30525,773d,DE,WASH I/O 9,County Interop 9,Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30526,773e,DE,WASH I/O 10,County Interop 10,Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30527,773f,DE,WASH I/O 11,County Interop 11,Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30528,7740,DE,WASH I/O 12,County Interop 12,Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30529,7741,DE,WASH I/O 13,County Interop 13,Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30530,7742,DE,WASH I/O 14,County Interop 14,Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30531,7743,DE,WASH I/O 15,County Interop 15,Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30532,7744,DE,WASH I/O 16,County Interop 16,Interop
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30591,777f,De,WASH CO FIRE,County Fire: Dispatch,Fire Dispatch
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30592,7780,De,WASH CO FS1,County Fire: Scene 1,Fire-Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30593,7781,DE,WASH CO FS 2,County Fire: Scene 2,Fire-Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30594,7782,DE,WASH CO FS 3,County Fire: Scene 3,Fire-Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30595,7783,DE,WASH CO FS4,County Fire: Scene 4,Fire-Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30546,7752,DE,JBFD TAC,Jonesborough Fire: Tac,Fire-Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30596,7784,DE,EVFD OPS,Embreeville Fire: Ops,Fire-Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30597,7785,DE,FBVFD OPS,Fall Branch Fire: Ops,Fire-Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30598,7786,DE,GVFD OPS,Gray Fire: Ops,Fire-Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30599,7787,DE,LVFD OPS,Limestone Fire: Ops,Fire-Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30600,7788,DE,NVFD OPS,Nolichuckey Fire: Ops,Fire-Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30601,7789,DE,SSVFD OPS,Sulphur Springs Fire: Ops,Fire-Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30441,76e9,DE,WASH EMSDISP,EMS: Dispatch,EMS Dispatch
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30442,76ea,DE,WASH EMS 2,EMS: Dispatch 2,EMS-Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30443,76eb,DE,WASH EMS 3,EMS: Dispatch 3,EMS-Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30444,76ec,DE,WASH EMSCNVL,EMS: Convalescent,EMS-Talk
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30445,76ed,DE,WASH EMS OPS 1,EMS: Ops 1,EMS-Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30446,76ee,DE,WASH EMS OPS 2,EMS: Ops 2,EMS-Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30447,76ef,DE,WASH EMS OPS 3,EMS: Ops 3,EMS-Tac
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30585,7779,De,WASH CO AC,Animal Control,Public Works
+"Hospital ER talkgroups 30448-30450, see TN - RMCC Region 1",30540,774c,DE,WASH NET,County Net,Emergency Ops
+TN - Washington County (179) - Johnson CIty,30421,76d5,DE,JCPD DISP 1,Police: Dispatch,Law Dispatch
+TN - Washington County (179) - Johnson CIty,30402,76c2,DE,JCPD DISP 2,Police: Dispatch 2,Law Dispatch
+TN - Washington County (179) - Johnson CIty,30422,76d6,DE,JCPD TAC 1,Police: Tac-1,Law Tac
+TN - Washington County (179) - Johnson CIty,30406,76c6,DE,JCPD TAC 2,Police: Tac-2,Law Tac
+TN - Washington County (179) - Johnson CIty,30413,76cd,DE,JCPD SUPV,Police: Supervisors,Law Tac
+TN - Washington County (179) - Johnson CIty,30401,76c1,DE,JCPD ANNC E,Police: Announcement,Law Dispatch
+TN - Washington County (179) - Johnson CIty,30403,76c3,DE,JCPD PIN,Police: PIN,Law Tac
+TN - Washington County (179) - Johnson CIty,30404,76c4,DE,JCPD REC,Police: Records,Law Dispatch
+TN - Washington County (179) - Johnson CIty,30405,76c5,DE,JCPD TRAFFIC,Police: Traffic,Law Dispatch
+TN - Washington County (179) - Johnson CIty,30407,76c7,DE,JCPD SP OPS1,Police: Special Ops 1,Law Tac
+TN - Washington County (179) - Johnson CIty,30408,76c8,DE,JCPD SP OPS2,Police: Special Ops 2,Law Tac
+TN - Washington County (179) - Johnson CIty,30410,76ca,DE,JCPD CID,Police: CID,Law Tac
+TN - Washington County (179) - Johnson CIty,30411,76cb,DE,JCPD NARC SWAT,Police: NARC/SWAT,Law Tac
+TN - Washington County (179) - Johnson CIty,30412,76cc,DE,JCPD SWAT,Police: SWAT Ops,Law Tac
+TN - Washington County (179) - Johnson CIty,30414,76ce,DE,JCPD JAIL,Police: Jail Ops,Corrections
+TN - Washington County (179) - Johnson CIty,30420,76d4,DE,JCPD ANNC C,Police: Announcement,Law Dispatch
+TN - Washington County (179) - Johnson CIty,30471,7707,DE,JC CS 911 CH,Services 911,Emergency Ops
+TN - Washington County (179) - Johnson CIty,30431,76df,DE,JCFD DISP,Fire: Dispatch,Fire Dispatch
+TN - Washington County (179) - Johnson CIty,30432,76e0,DE,JCFD FG 1,Fireground 1,Fire-Tac
+TN - Washington County (179) - Johnson CIty,30433,76e1,DE,JCFD FG 2,Fireground 2,Fire-Tac
+TN - Washington County (179) - Johnson CIty,30434,76e2,DE,JCFD FG 3,Fireground 3,Fire-Tac
+TN - Washington County (179) - Johnson CIty,30435,76e3,DE,JCFD FG 4,Fireground 4,Fire-Tac
+TN - Washington County (179) - Johnson CIty,30436,76e4,DE,JCFD HAZMAT,Fire: Hazmat,Fire-Tac
+TN - Washington County (179) - Johnson CIty,30437,76e5,DE,JCFD USAR,Fire: USAR,Fire-Tac
+TN - Washington County (179) - Johnson CIty,30438,76e6,DE,JCFD TRAIN,Fire: Training,Fire-Tac
+TN - Washington County (179) - Johnson CIty,30472,7708,DE,JC FREEDOM 1,Freedom Hall Ops 1,Public Works
+TN - Washington County (179) - Johnson CIty,30473,7709,DE,JC FREEDOM 2,Freedom Hall Ops 2,Public Works
+TN - Washington County (179) - Johnson CIty,30474,770a,DE,JC FLEET / RS,Fleet Management / Radio Shop,Public Works
+TN - Washington County (179) - Johnson CIty,30475,770b,DE,JC LANDFILL,Landfill,Public Works
+TN - Washington County (179) - Johnson CIty,30476,770c,DE,JC PARKSREC1,Parks and Rec 1,Public Works
+TN - Washington County (179) - Johnson CIty,30477,770d,DE,JC PARKSREC2,Parks and Rec 2,Public Works
+TN - Washington County (179) - Johnson CIty,30478,770e,De,JC BRUSH,Brush Department,Public Works
+TN - Washington County (179) - Johnson CIty,30479,770f,DE,JC BLDG DEPT,Building Department,Public Works
+TN - Washington County (179) - Johnson CIty,30480,7710,DE,JC ENGINEER,Engineering Department,Public Works
+TN - Washington County (179) - Johnson CIty,30481,7711,DE,JC LANDSCP,Landscaping Department,Public Works
+TN - Washington County (179) - Johnson CIty,30482,7712,De,JC SOLIDWST,Solid Waste,Public Works
+TN - Washington County (179) - Johnson CIty,30483,7713,DE,JC STREET,Street Department 1,Public Works
+TN - Washington County (179) - Johnson CIty,30484,7714,DE,JC STREET 2,Street Department 2,Public Works
+TN - Washington County (179) - Johnson CIty,30485,7715,DE,JC TRAFFIC,Traffic Department,Public Works
+TN - Washington County (179) - Johnson CIty,30486,7716,DE,JC WS DISP,Water/Sewer Dispatch,Utilities
+TN - Washington County (179) - Johnson CIty,30487,7717,DE,JC WS FACMT,Water/Sewer Facility Maintenance,Utilities
+TN - Washington County (179) - Johnson CIty,30488,7718,DE,JC WS DIST,Water Distribution,Utilities
+TN - Washington County (179) - Johnson CIty,30489,7719,DE,JC WS COLL,Sewer Collections,Utilities
+TN - Washington County (179) - Johnson CIty,30490,771a,DE,JC WS METER,Water/Sewer Meter Readers,Utilities
+TN - Washington County (179) - Johnson CIty,30461,76fd,DE,JCTD PRIMARY,Transit: Primary,Transportation
+TN - Washington County (179) - Johnson CIty,30462,76fe,DE,JCTD SCHBUS,Transit: School Buses,Transportation
+TN - Washington County (179) - Johnson CIty,30463,76ff,DE,JCTD PARA,Transit: Para-Trans,Transportation
+TN - Washington County (179) - Johnson CIty,30464,7700,DE,JCTD SPEC ED,Transit: Special Ed Buses,Transportation
+TN - Washington County (179) - Johnson CIty,30465,7701,DE,JCTD BUCSHOT,Transit: Bucshot ETSU,Transportation
+TN - Washington County (179) - Johnson CIty,30561,7761,DE,ETSU PS 1,East Tennessee State University: Public Safety Dispatch 1,Law Dispatch
+TN - Washington County (179) - Johnson CIty,30562,7762,D,ETSU PS 2,East Tennessee State University: Public Safety Dispatch 2,Law Dispatch
+TN - Washington County (179) - Johnson CIty,30563,7763,D,ETSU PS ADMN,East Tennessee State University: Public Safety Admin,Law Talk
+TN - Washington County (179) - Johnson CIty,30564,7764,D,ETSU ADMIN,East Tennessee State University: Staff Admin,Schools
+TN - Washington County (179) - Johnson CIty,30611,7793,DE,JC SHHS,Science Hill High School Campus,Schools
+See Weakley County database,49179,c01b,D,Weakley Sheriff,Sheriff: Dispatch,Law Dispatch
+See Weakley County database,47127,b817,D,Martin Police,Martin Police: Dispatch,Law Dispatch
+See Weakley County database,49704,c228,De,Carroll Electric,Carroll County Electric: Dispatch (95% Enc),Utilities
+Volunteer State Community College has a campus in 3 or 4 different counties as well as TCAT in multiple locations. LINK Dyersburg State is similar as well. LINK,47186,b852,T,Pell SCC Police,Pellissippi SCC Police: Dispatch,Law Dispatch
+Volunteer State Community College has a campus in 3 or 4 different counties as well as TCAT in multiple locations. LINK Dyersburg State is similar as well. LINK,8054,1f76,D,RSCC DPS,Roane SCC Public Safety,Law Dispatch
+Volunteer State Community College has a campus in 3 or 4 different counties as well as TCAT in multiple locations. LINK Dyersburg State is similar as well. LINK,47139,b823,D,MSCC Police,Motlow SCC Public Safety,Law Dispatch
+Volunteer State Community College has a campus in 3 or 4 different counties as well as TCAT in multiple locations. LINK Dyersburg State is similar as well. LINK,47291,b8bb,T,DSCC Police,Dyersburg SCC Police: Dispatch,Law Dispatch
+Volunteer State Community College has a campus in 3 or 4 different counties as well as TCAT in multiple locations. LINK Dyersburg State is similar as well. LINK,47293,b8bd,T,VSCC Police,Volunteer SCC Police: Dispatch,Law Dispatch
+TN - Middle Tennessee Electric,48150,bc16,TE,MTE MURFREEBRO 1,Murfreesboro Control,Utilities
+TN - Middle Tennessee Electric,48151,bc17,TE,MTE MURFREEBRO 2,Murfreesboro Alternate,Utilities
+TN - Middle Tennessee Electric,48152,bc18,TE,MTE LEBANON 1,Lebanon Control,Utilities
+TN - Middle Tennessee Electric,48153,bc19,TE,MTE LEBANON 2,Lebanon Alternate,Utilities
+TN - Middle Tennessee Electric,48154,bc1a,TE,MTE FRANKLIN 1,Franklin Control,Utilities
+TN - Middle Tennessee Electric,48155,bc1b,TE,MTE FRANKLIN 2,Franklin Alternate,Utilities
+TN - Middle Tennessee Electric,48156,bc1c,TE,MTE Operations 1,Operations 1,Utilities
+TN - Middle Tennessee Electric,48157,bc1d,TE,MTE Operations 2,Operations 2,Utilities
+"See the WIKI for more info on NET Trans, which is operated by FTHRA",49898,c2ea,T,FTHRA 1,First Tennessee Human Resource Agency: Operations 1,Transportation
+"See the WIKI for more info on NET Trans, which is operated by FTHRA",49899,c2eb,T,FTHRA 2,First Tennessee Human Resource Agency: Operations 2,Transportation
+GA - Catoosa County (023) - Interop/Mutual Aid,1531,5fb,D,Catoosa Net 1,All Agencies Net 1,Multi-Tac
+GA - Catoosa County (023) - Interop/Mutual Aid,1533,5fd,D,Catoosa Net 2,All Agencies Net 2,Multi-Tac
+GA - Catoosa County (023) - Law Enforcement,2069,815,D,CCSO-PRIORITY,Sheriff: Priority,Law Dispatch
+GA - Catoosa County (023) - Law Enforcement,1507,5e3,D,CATOOSA TAC1,Law: Tactical 1,Law Tac

@@ -59,6 +59,10 @@ DIGITAL_SERVICE_NAME = os.getenv("DIGITAL_SERVICE_NAME", os.getenv("UNIT_DIGITAL
 DIGITAL_PROFILES_DIR = os.getenv("DIGITAL_PROFILES_DIR", "/etc/scannerproject/digital/profiles")
 DIGITAL_ACTIVE_PROFILE_LINK = os.getenv("DIGITAL_ACTIVE_PROFILE_LINK", "/etc/scannerproject/digital/active")
 DIGITAL_LOG_PATH = os.getenv("DIGITAL_LOG_PATH", "/var/log/sdrtrunk/sdrtrunk.log")
+DIGITAL_PLAYLIST_PATH = os.getenv(
+    "DIGITAL_PLAYLIST_PATH",
+    os.path.join(os.path.expanduser("~"), "SDRTrunk", "playlist", "default.xml"),
+)
 DIGITAL_EVENT_LOG_DIR = os.getenv(
     "DIGITAL_EVENT_LOG_DIR",
     os.path.join(os.path.expanduser("~"), "SDRTrunk", "event_logs"),

@@ -8,6 +8,7 @@ import re
 import subprocess
 import time
 from datetime import datetime
+from xml.etree import ElementTree as ET
 
 try:
     from .config import (
@@ -19,16 +20,10 @@ try:
         DIGITAL_EVENT_LOG_MODE,
         DIGITAL_EVENT_LOG_TAIL_LINES,
         DIGITAL_LOG_PATH,
+        DIGITAL_PLAYLIST_PATH,
         DIGITAL_PROFILES_DIR,
         DIGITAL_RTL_SERIAL,
-<<<<<<< ours
-<<<<<<< ours
         DIGITAL_RTL_SERIAL_HINT,
-=======
-        DIGITAL_RTL_DEVICE,
->>>>>>> theirs
-=======
->>>>>>> theirs
         DIGITAL_SERVICE_NAME,
     )
     from .systemd import unit_active
@@ -42,16 +37,10 @@ except ImportError:
         DIGITAL_EVENT_LOG_MODE,
         DIGITAL_EVENT_LOG_TAIL_LINES,
         DIGITAL_LOG_PATH,
+        DIGITAL_PLAYLIST_PATH,
         DIGITAL_PROFILES_DIR,
         DIGITAL_RTL_SERIAL,
-<<<<<<< ours
-<<<<<<< ours
         DIGITAL_RTL_SERIAL_HINT,
-=======
-        DIGITAL_RTL_DEVICE,
->>>>>>> theirs
-=======
->>>>>>> theirs
         DIGITAL_SERVICE_NAME,
     )
     from ui.systemd import unit_active
@@ -1204,6 +1193,111 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             return target
         return ""
 
+    @staticmethod
+    def _read_control_channels(profile_dir: str) -> list[int]:
+        path = os.path.join(profile_dir, "control_channels.txt")
+        if not os.path.isfile(path):
+            return []
+        channels = []
+        seen = set()
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    raw = line.split("#", 1)[0].strip()
+                    if not raw:
+                        continue
+                    m = re.search(r"\d+\.\d+", raw)
+                    if not m:
+                        continue
+                    try:
+                        hz = int(round(float(m.group(0)) * 1_000_000))
+                    except Exception:
+                        continue
+                    if hz <= 0 or hz in seen:
+                        continue
+                    seen.add(hz)
+                    channels.append(hz)
+        except Exception:
+            return []
+        return channels
+
+    def _apply_profile_runtime(self, profile_dir: str, profile_id: str):
+        control_channels = self._read_control_channels(profile_dir)
+        if not control_channels:
+            return False, "profile has no control channels"
+
+        playlist_path = _safe_realpath(DIGITAL_PLAYLIST_PATH)
+        if not playlist_path:
+            return False, "digital playlist path not configured"
+        if not os.path.isfile(playlist_path):
+            return False, f"playlist not found: {playlist_path}"
+
+        try:
+            tree = ET.parse(playlist_path)
+            root = tree.getroot()
+        except Exception as e:
+            return False, f"failed to parse playlist: {e}"
+
+        channel = root.find("channel")
+        if channel is None:
+            channel = ET.SubElement(
+                root,
+                "channel",
+                {
+                    "system": "P25",
+                    "name": profile_id,
+                    "enabled": "true",
+                    "order": "1",
+                },
+            )
+
+        channel.set("enabled", "true")
+        channel.set("name", profile_id)
+
+        event_conf = channel.find("event_log_configuration")
+        if event_conf is None:
+            event_conf = ET.SubElement(channel, "event_log_configuration")
+        existing_loggers = {
+            str(logger.text or "").strip()
+            for logger in event_conf.findall("logger")
+        }
+        for logger_name in ("CALL_EVENT", "TRAFFIC_CALL_EVENT", "DECODED_MESSAGE"):
+            if logger_name not in existing_loggers:
+                logger = ET.SubElement(event_conf, "logger")
+                logger.text = logger_name
+
+        source_conf = channel.find("source_configuration")
+        if source_conf is None:
+            source_conf = ET.SubElement(channel, "source_configuration")
+        source_conf.set("type", "sourceConfigTuner")
+        source_conf.set("source_type", "TUNER")
+        source_conf.set("frequency", str(control_channels[0]))
+
+        alias_list = channel.find("alias_list_name")
+        if alias_list is None:
+            alias_list = ET.SubElement(channel, "alias_list_name")
+        alias_list.text = profile_id.upper()
+
+        if channel.find("decode_configuration") is None:
+            ET.SubElement(
+                channel,
+                "decode_configuration",
+                {
+                    "type": "decodeConfigP25Phase1",
+                    "modulation": "C4FM",
+                    "traffic_channel_pool_size": "20",
+                    "ignore_data_calls": "false",
+                },
+            )
+        if channel.find("record_configuration") is None:
+            ET.SubElement(channel, "record_configuration")
+
+        try:
+            tree.write(playlist_path, encoding="utf-8", xml_declaration=False)
+        except Exception as e:
+            return False, f"failed to write playlist: {e}"
+        return True, ""
+
     def _load_talkgroup_map(self) -> dict:
         profile_dir = self._read_active_profile_dir()
         if not profile_dir:
@@ -1346,6 +1440,9 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         if not link:
             self._set_last_error("active profile link not configured")
             return False, "active profile link not configured"
+        previous_target = ""
+        if os.path.islink(link):
+            previous_target = _safe_realpath(link)
         link_dir = os.path.dirname(link) or "."
         try:
             os.makedirs(link_dir, exist_ok=True)
@@ -1363,6 +1460,26 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         except Exception as e:
             self._set_last_error(str(e))
             return False, str(e)
+
+        ok, err = self._apply_profile_runtime(target_dir, pid)
+        if not ok:
+            if previous_target and os.path.isdir(previous_target):
+                restore_tmp = f"{link}.restore.tmp"
+                try:
+                    if os.path.exists(restore_tmp):
+                        os.remove(restore_tmp)
+                    os.symlink(previous_target, restore_tmp)
+                    os.replace(restore_tmp, link)
+                except Exception:
+                    pass
+            self._set_last_error(err or "runtime profile apply failed")
+            return False, err or "runtime profile apply failed"
+
+        # Force reload of talkgroup/listen maps after profile change.
+        self._tg_map_profile = ""
+        self._tg_map_mtime = None
+        self._listen_map_profile = ""
+        self._listen_map_mtime = None
 
         self._profile = pid
         ok, err = self.restart()
@@ -1473,8 +1590,6 @@ class DigitalManager:
         payload["digital_tuner_busy_count"] = int(preflight.get("tuner_busy_count") or 0)
         payload["digital_tuner_busy_time"] = int(preflight.get("tuner_busy_last_time_ms") or 0)
         if preflight.get("tuner_busy"):
-<<<<<<< ours
-<<<<<<< ours
             air_serial = os.getenv("AIRBAND_RTL_SERIAL", "").strip()
             ground_serial = os.getenv("GROUND_RTL_SERIAL", "").strip()
             digital_serial = DIGITAL_RTL_SERIAL or ""
@@ -1483,13 +1598,6 @@ class DigitalManager:
                 f"ground={ground_serial or 'unknown'}, digital={digital_serial or 'unknown'}"
             )
             serial_note = f" (serial {DIGITAL_RTL_SERIAL})" if DIGITAL_RTL_SERIAL else ""
-=======
-            expected_serial = expected_digital_rtl_serial()
-            serial_note = f" (serial {expected_serial})" if expected_serial else ""
->>>>>>> theirs
-=======
-            serial_note = f" (serial {DIGITAL_RTL_SERIAL})" if DIGITAL_RTL_SERIAL else ""
->>>>>>> theirs
             msg = (
                 f"SDRTrunk tuner busy{serial_note}: likely dongle conflict with rtl-airband; "
                 f"{serials_note}. In SDRTrunk, disable other RTL tuners and bind to serial {digital_serial or 'your digital dongle'}."

@@ -378,6 +378,7 @@ Live-only digital backend control with in-memory metadata (no recording or persi
 - `DIGITAL_PROFILES_DIR` (profiles root directory)
 - `DIGITAL_ACTIVE_PROFILE_LINK` (symlink pointing at the active profile dir)
 - `DIGITAL_LOG_PATH` (sdrtrunk log path used for last-event parsing)
+- `DIGITAL_PLAYLIST_PATH` (SDRTrunk playlist XML updated on profile switch; default: `~/SDRTrunk/playlist/default.xml`)
 - `DIGITAL_EVENT_LOG_DIR` (SDRTrunk event logs directory; default: `~/SDRTrunk/event_logs`)
 - `DIGITAL_EVENT_LOG_MODE` (`auto` | `event_logs` | `app_log`)
 - `DIGITAL_EVENT_LOG_TAIL_LINES` (default: `500`)
@@ -393,7 +394,7 @@ Live-only digital backend control with in-memory metadata (no recording or persi
 
 **Profile model**:
 - Each profile is a directory under `DIGITAL_PROFILES_DIR` (e.g. `metro-p25`, `regional-dmr`).
-- `POST /api/digital/profile` updates the `DIGITAL_ACTIVE_PROFILE_LINK` symlink and restarts the service.
+- `POST /api/digital/profile` updates the `DIGITAL_ACTIVE_PROFILE_LINK` symlink, updates `DIGITAL_PLAYLIST_PATH` runtime frequency to the first entry in `control_channels.txt`, and restarts the service.
 
 **RTL device binding (SDRTrunk)**:
 Set `DIGITAL_RTL_SERIAL` to the RTL serial you want SDRTrunk to use, then reference that serial in your SDRTrunk profile configuration (exact field name depends on your SDRTrunk version/export).
