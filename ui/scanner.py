@@ -11,7 +11,7 @@ try:
         RE_ACTIVITY, RE_ACTIVITY_TS, HIT_GAP_RESET_SECONDS,
         AIRBAND_MIN_MHZ, AIRBAND_MAX_MHZ, LAST_HIT_AIRBAND_PATH,
         LAST_HIT_GROUND_PATH, ICECAST_HIT_LOG_PATH, ICECAST_HIT_LOG_LIMIT,
-        UNITS
+        ICECAST_HIT_MIN_DURATION, UNITS
     )
     from .icecast import read_last_hit_from_icecast
     from .systemd import unit_active
@@ -20,7 +20,7 @@ except ImportError:
         RE_ACTIVITY, RE_ACTIVITY_TS, HIT_GAP_RESET_SECONDS,
         AIRBAND_MIN_MHZ, AIRBAND_MAX_MHZ, LAST_HIT_AIRBAND_PATH,
         LAST_HIT_GROUND_PATH, ICECAST_HIT_LOG_PATH, ICECAST_HIT_LOG_LIMIT,
-        UNITS
+        ICECAST_HIT_MIN_DURATION, UNITS
     )
     from ui.icecast import read_last_hit_from_icecast
     from ui.systemd import unit_active
@@ -314,12 +314,13 @@ def update_icecast_hit_log(title: str) -> None:
     if not normalized:
         if current is not None:
             duration = max(0, int(now - current["start_ts"]))
-            entry = {
-                "time": time.strftime("%H:%M:%S", time.localtime(now)),
-                "freq": current["title"],
-                "duration": duration,
-            }
-            _append_icecast_hit_entry(entry)
+            if duration >= ICECAST_HIT_MIN_DURATION:
+                entry = {
+                    "time": time.strftime("%H:%M:%S", time.localtime(now)),
+                    "freq": current["title"],
+                    "duration": duration,
+                }
+                _append_icecast_hit_entry(entry)
             cache["current"] = None
         return
 
@@ -331,12 +332,13 @@ def update_icecast_hit_log(title: str) -> None:
         return
 
     duration = max(0, int(now - current["start_ts"]))
-    entry = {
-        "time": time.strftime("%H:%M:%S", time.localtime(now)),
-        "freq": current["title"],
-        "duration": duration,
-    }
-    _append_icecast_hit_entry(entry)
+    if duration >= ICECAST_HIT_MIN_DURATION:
+        entry = {
+            "time": time.strftime("%H:%M:%S", time.localtime(now)),
+            "freq": current["title"],
+            "duration": duration,
+        }
+        _append_icecast_hit_entry(entry)
     cache["current"] = {"title": normalized, "start_ts": now}
 
 
@@ -347,11 +349,13 @@ def read_icecast_hit_list(limit: int = 20) -> list:
     current = cache.get("current")
     if current is not None:
         now = time.time()
-        items.append({
-            "time": time.strftime("%H:%M:%S", time.localtime(now)),
-            "freq": current["title"],
-            "duration": max(0, int(now - current["start_ts"])),
-        })
+        duration = max(0, int(now - current["start_ts"]))
+        if duration >= ICECAST_HIT_MIN_DURATION:
+            items.append({
+                "time": time.strftime("%H:%M:%S", time.localtime(now)),
+                "freq": current["title"],
+                "duration": duration,
+            })
     if not items:
         return []
     items = items[-limit:]
