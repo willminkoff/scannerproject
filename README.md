@@ -378,6 +378,10 @@ Live-only digital backend control with in-memory metadata (no recording or persi
 - `DIGITAL_PROFILES_DIR` (profiles root directory)
 - `DIGITAL_ACTIVE_PROFILE_LINK` (symlink pointing at the active profile dir)
 - `DIGITAL_LOG_PATH` (sdrtrunk log path used for last-event parsing)
+- `DIGITAL_EVENT_LOG_DIR` (SDRTrunk event logs directory; default: `~/SDRTrunk/event_logs`)
+- `DIGITAL_EVENT_LOG_MODE` (`auto` | `event_logs` | `app_log`)
+- `DIGITAL_EVENT_LOG_TAIL_LINES` (default: `500`)
+- `DIGITAL_RTL_SERIAL` (dedicated RTL-SDR serial for SDRTrunk; recommended)
 - `DIGITAL_RTL_DEVICE` (RTL-SDR device index or serial; used by your SDRTrunk profile configuration)
 - `DIGITAL_MIXER_ENABLED` (default: `0`) - enable mixing SDRTrunk audio into `GND.mp3`
 - `DIGITAL_MIXER_AIRBAND_MOUNT` (default: `GND-air.mp3`) - raw airband+ground input mount for the mixer
@@ -390,8 +394,20 @@ Live-only digital backend control with in-memory metadata (no recording or persi
 - `POST /api/digital/profile` updates the `DIGITAL_ACTIVE_PROFILE_LINK` symlink and restarts the service.
 
 **RTL device binding (SDRTrunk)**:
-Set `DIGITAL_RTL_DEVICE` to the RTL device index or serial you want SDRTrunk to use, then reference that value in your SDRTrunk profile configuration (exact field name depends on your SDRTrunk version/export).
+Set `DIGITAL_RTL_SERIAL` to the RTL serial you want SDRTrunk to use, then reference that serial in your SDRTrunk profile configuration (exact field name depends on your SDRTrunk version/export).
+If you must use indexes, use `DIGITAL_RTL_DEVICE`, but serial binding is strongly recommended.
 This repo already tracks RTL-SDR serials for the analog scanners in `profiles/rtl_airband_*.conf` and enforces serials in the combined config; reuse the same serials to avoid device collisions.
+
+**Dongle serial locking**:
+These mappings prevent device-busy conflicts:
+- Airband (rtl-airband): `00000002`
+- Ground (rtl-airband): `70613472`
+- Digital (SDRTrunk): `56919602`
+
+Enforcement:
+- Airband/Ground serials are set in `profiles/rtl_airband_*.conf` and flow into the combined config.
+- Digital serial is set via `DIGITAL_RTL_SERIAL` and selected in SDRTrunk’s tuner configuration.
+- `/api/digital/preflight` reports recent tuner-busy errors and expected serials.
 
 **Digital profiles (filesystem layout)**:
 Profiles live under `DIGITAL_PROFILES_DIR` and the active profile is pointed to by `DIGITAL_ACTIVE_PROFILE_LINK`.
@@ -501,6 +517,7 @@ sudo systemctl restart scanner-digital
 - `POST /api/digital/profile/create` → body: `{ "profileId": "..." }`
 - `POST /api/digital/profile/delete` → body: `{ "profileId": "..." }`
 - `POST /api/digital/profile/inspect` → body: `{ "profileId": "..." }`
+- `GET  /api/digital/preflight` → tuner-busy detection + expected serials
 
 **SB3 Digital profile management**:
 - Digital tab → Digital Profiles widget lets you create/delete profile folders, select an active profile, and load a preview of files in the profile directory.
@@ -514,7 +531,7 @@ sudo systemctl restart scanner-digital
    - Create a talkgroup/alias list and import from RadioReference (CSV export if you have a premium account), or paste/enter TGIDs manually.
    - Keep labels short; these show up as the Digital “last hit” pill (truncated to ~10 chars in SB3).
 4. **Bind the tuner**:
-   - In SDRTrunk, select the RTL device index or serial that matches `DIGITAL_RTL_DEVICE`.
+   - In SDRTrunk, select the RTL device serial that matches `DIGITAL_RTL_SERIAL`.
 5. **Export/copy the SDRTrunk config into your profile folder**:
    - Use the Digital Profiles widget to create a folder, then copy your SDRTrunk export into `/etc/scannerproject/digital/profiles/<profile>`.
    - Activate it in the UI (or update the `DIGITAL_ACTIVE_PROFILE_LINK` symlink) and restart `scanner-digital`.

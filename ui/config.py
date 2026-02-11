@@ -66,6 +66,7 @@ DIGITAL_EVENT_LOG_DIR = os.getenv(
 DIGITAL_EVENT_LOG_MODE = os.getenv("DIGITAL_EVENT_LOG_MODE", "auto").strip().lower()
 DIGITAL_EVENT_LOG_TAIL_LINES = int(os.getenv("DIGITAL_EVENT_LOG_TAIL_LINES", "500"))
 DIGITAL_RTL_DEVICE = os.getenv("DIGITAL_RTL_DEVICE", "")
+DIGITAL_RTL_SERIAL = os.getenv("DIGITAL_RTL_SERIAL", "")
 DIGITAL_MIXER_ENABLED = os.getenv("DIGITAL_MIXER_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
 DIGITAL_MIXER_AIRBAND_MOUNT = os.getenv("DIGITAL_MIXER_AIRBAND_MOUNT", "GND-air.mp3").strip().lstrip("/")
 DIGITAL_MIXER_DIGITAL_MOUNT = os.getenv("DIGITAL_MIXER_DIGITAL_MOUNT", "DIGITAL.mp3").strip().lstrip("/")

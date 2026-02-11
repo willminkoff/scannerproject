@@ -34,6 +34,7 @@ try:
         DIGITAL_MIXER_AIRBAND_MOUNT,
         DIGITAL_MIXER_DIGITAL_MOUNT,
         DIGITAL_MIXER_OUTPUT_MOUNT,
+        DIGITAL_RTL_SERIAL,
         ICECAST_PORT,
         PLAYER_MOUNT,
     )
@@ -80,6 +81,7 @@ except ImportError:
         DIGITAL_MIXER_AIRBAND_MOUNT,
         DIGITAL_MIXER_DIGITAL_MOUNT,
         DIGITAL_MIXER_OUTPUT_MOUNT,
+        DIGITAL_RTL_SERIAL,
         ICECAST_PORT,
         PLAYER_MOUNT,
     )
@@ -379,6 +381,31 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 payload = {"ok": False, "error": str(e)}
                 return self._send(500, json.dumps(payload), "application/json; charset=utf-8")
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+        if p == "/api/digital/preflight":
+            try:
+                manager = get_digital_manager()
+                preflight = manager.preflight() or {}
+            except Exception as e:
+                preflight = {"tuner_busy": False, "tuner_busy_lines": [], "error": str(e)}
+            combined_info = combined_device_summary()
+            airband_serial = (combined_info.get("airband") or {}).get("serial")
+            ground_serial = (combined_info.get("ground") or {}).get("serial")
+            payload = {
+                "ok": True,
+                "expected_serials": {
+                    "airband": airband_serial,
+                    "ground": ground_serial,
+                    "digital": DIGITAL_RTL_SERIAL or "",
+                },
+                "tuner_busy": bool(preflight.get("tuner_busy")),
+                "tuner_busy_lines": preflight.get("tuner_busy_lines") or [],
+                "rtl_devices": [],
+                "rtl_devices_note": "not implemented",
+                "device_holders": {"ok": False, "error": "not implemented"},
+            }
+            if preflight.get("error"):
+                payload["error"] = preflight.get("error")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         if p == "/api/digital/talkgroups":
             q = parse_qs(u.query or "")

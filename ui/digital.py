@@ -18,6 +18,7 @@ try:
         DIGITAL_EVENT_LOG_TAIL_LINES,
         DIGITAL_LOG_PATH,
         DIGITAL_PROFILES_DIR,
+        DIGITAL_RTL_SERIAL,
         DIGITAL_SERVICE_NAME,
     )
     from .systemd import unit_active
@@ -30,6 +31,7 @@ except ImportError:
         DIGITAL_EVENT_LOG_TAIL_LINES,
         DIGITAL_LOG_PATH,
         DIGITAL_PROFILES_DIR,
+        DIGITAL_RTL_SERIAL,
         DIGITAL_SERVICE_NAME,
     )
     from ui.systemd import unit_active
@@ -55,6 +57,7 @@ _NON_FATAL_ERROR_RE = re.compile(
     r"(no audio playback devices available|couldn't obtain master gain|usb.*in-use|device is busy|unable to set usb configuration)",
     re.I,
 )
+_TUNER_BUSY_RE = re.compile(r"USB tuner is in-use by another application", re.I)
 _IGNORE_EVENT_RE = re.compile(
     r"(auto-start failed|no tuner available|mountpoint in use|unable to connect|audiooutput|playbackpreference|"
     r"audio streaming broadcaster|status: connected|starting main application|loading playlist|discovering tuners)",
@@ -1057,6 +1060,25 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                     events.append(mapped)
         return events
 
+    def _read_log_tail(self, max_lines: int | None = None):
+        max_lines = max_lines or self._event_log_tail_lines or 500
+        return _read_tail_lines(self._log_path, max_lines=max_lines)
+
+    def _detect_tuner_busy(self, lines: list) -> list:
+        hits = []
+        for line in lines or []:
+            if _TUNER_BUSY_RE.search(line or ""):
+                hits.append((line or "").strip())
+        return hits[-3:]
+
+    def preflight(self):
+        lines = self._read_log_tail()
+        busy_lines = self._detect_tuner_busy(lines)
+        return {
+            "tuner_busy": bool(busy_lines),
+            "tuner_busy_lines": busy_lines,
+        }
+
     def start(self):
         ok, err = self._systemctl(["start"])
         if not ok:
@@ -1369,6 +1391,13 @@ class DigitalManager:
         return self._adapter.getLastWarning()
     def getRecentEvents(self, limit: int = 20):
         return self._adapter.getRecentEvents(limit)
+    def preflight(self):
+        if hasattr(self._adapter, "preflight"):
+            try:
+                return self._adapter.preflight()
+            except Exception:
+                return {"tuner_busy": False, "tuner_busy_lines": []}
+        return {"tuner_busy": False, "tuner_busy_lines": []}
 
     def status_payload(self):
         event = self.getLastEvent() or {}
@@ -1391,6 +1420,14 @@ class DigitalManager:
         warn = self.getLastWarning()
         if warn:
             payload["digital_last_warning"] = warn
+        preflight = self.preflight() or {}
+        if preflight.get("tuner_busy"):
+            serial_note = f" (serial {DIGITAL_RTL_SERIAL})" if DIGITAL_RTL_SERIAL else ""
+            msg = (
+                f"SDRTrunk tuner busy{serial_note}: likely dongle conflict with rtl-airband. "
+                "Bind SDRTrunk to a dedicated RTL serial."
+            )
+            payload["digital_last_warning"] = msg
         return payload
 
     def isMuted(self):
