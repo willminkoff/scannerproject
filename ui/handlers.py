@@ -56,6 +56,7 @@ try:
         icecast_up,
         fetch_local_icecast_status,
         list_icecast_mounts,
+        extract_icecast_title_for_mount,
     )
     from .systemd import unit_active, unit_exists, restart_rtl, unit_active_enter_epoch
     from .server_workers import enqueue_action, enqueue_apply
@@ -106,6 +107,7 @@ except ImportError:
         icecast_up,
         fetch_local_icecast_status,
         list_icecast_mounts,
+        extract_icecast_title_for_mount,
     )
     from ui.systemd import unit_active, unit_exists, restart_rtl, unit_active_enter_epoch
     from ui.server_workers import enqueue_action, enqueue_apply
@@ -139,6 +141,22 @@ HTML_TEMPLATE = _read_html_template()
 # Digital call-event logs can emit rapid "grant/continue" updates for the same talkgroup.
 # Use a wider default coalesce window to align UI hits with perceived audible traffic.
 DIGITAL_HIT_COALESCE_SEC = max(0.0, float(os.getenv("DIGITAL_HIT_COALESCE_SEC", "20")))
+DIGITAL_HITS_REQUIRE_ACTIVE_STREAM = os.getenv(
+    "DIGITAL_HITS_REQUIRE_ACTIVE_STREAM",
+    "1",
+).strip().lower() in ("1", "true", "yes", "on")
+_DIGITAL_IDLE_TITLES = {"", "-", "idle", "n/a", "scanning", "scanning..."}
+
+
+def _digital_stream_active_for_hits() -> bool:
+    """Treat digital events as user-audible only when DIGITAL mount is not idle."""
+    if not DIGITAL_MIXER_DIGITAL_MOUNT:
+        return True
+    status_text = fetch_local_icecast_status()
+    if not status_text or status_text.startswith("ERROR:"):
+        return False
+    title = extract_icecast_title_for_mount(status_text, f"/{DIGITAL_MIXER_DIGITAL_MOUNT}")
+    return title.strip().lower() not in _DIGITAL_IDLE_TITLES
 
 
 def _coalesce_digital_hits(items: list[dict], window_sec: float = DIGITAL_HIT_COALESCE_SEC) -> list[dict]:
@@ -514,9 +532,15 @@ class Handler(BaseHTTPRequestHandler):
                 item["_ts"] = parse_time_ts(item.get("time"))
 
             digital_items = []
-            try:
-                events = get_digital_manager().getRecentEvents(limit=50)
-            except Exception:
+            include_digital_events = True
+            if DIGITAL_HITS_REQUIRE_ACTIVE_STREAM:
+                include_digital_events = _digital_stream_active_for_hits()
+            if include_digital_events:
+                try:
+                    events = get_digital_manager().getRecentEvents(limit=50)
+                except Exception:
+                    events = []
+            else:
                 events = []
             for event in events:
                 label = str(event.get("label") or "").strip()

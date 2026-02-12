@@ -36,8 +36,13 @@ def _normalize_icecast_title(value) -> str:
     return ""
 
 
-def extract_icecast_title(status_text: str) -> str:
-    """Extract the current stream title from Icecast status JSON."""
+def extract_icecast_title_for_mount(status_text: str, mount_path: str) -> str:
+    """Extract stream title for a specific Icecast mount path."""
+    wanted = (mount_path or "").strip()
+    if not wanted:
+        return ""
+    if not wanted.startswith("/"):
+        wanted = f"/{wanted}"
     try:
         data = json.loads(status_text)
     except json.JSONDecodeError:
@@ -50,12 +55,17 @@ def extract_icecast_title(status_text: str) -> str:
     for source in sources:
         listenurl = (source.get("listenurl") or "")
         mount = (source.get("mount") or "")
-        if listenurl.endswith(ICECAST_MOUNT_PATH) or mount == ICECAST_MOUNT_PATH:
+        if listenurl.endswith(wanted) or mount == wanted:
             for key in ("title", "streamtitle", "yp_currently_playing"):
                 value = _normalize_icecast_title(source.get(key))
                 if value:
                     return value
     return ""
+
+
+def extract_icecast_title(status_text: str) -> str:
+    """Extract the current stream title from the configured primary mount."""
+    return extract_icecast_title_for_mount(status_text, ICECAST_MOUNT_PATH)
 
 
 def read_last_hit_from_icecast() -> str:
