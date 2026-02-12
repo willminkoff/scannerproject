@@ -61,6 +61,17 @@ ssh willminkoff@sprontpi.local "systemctl is-active airband-ui && echo '✓ Serv
 ssh willminkoff@sprontpi.local "curl -s http://localhost:5050/api/status | head -5"
 ```
 
+### Deploy Icecast Status Page Template
+```bash
+cd "/Users/willminkoff/Library/Mobile Documents/com~apple~CloudDocs/Documents/scannerproject"
+./scripts/deploy-icecast-status-page.sh
+```
+
+Optional target override:
+```bash
+PI_HOST=192.168.86.91 PI_USER=willminkoff ./scripts/deploy-icecast-status-page.sh
+```
+
 ---
 
 ## Verification Commands
