@@ -74,7 +74,10 @@ def _liq_bool(value: bool) -> str:
 
 def _build_liq_script(muted: bool) -> str:
     output_channels = 2 if CHANNELS >= 2 else 1
-    digital_source = "blank()" if muted else f"mksafe(input.http({_liq_quote(DIGITAL_URL)}))"
+    # Keep HTTP inputs on the shared main clock; per-input mksafe wrappers
+    # spawn extra safe_blank clocks and can trigger sync-source conflicts.
+    air_input = f"input.http(self_sync=false,{_liq_quote(AIRBAND_URL)})"
+    digital_input = "blank()" if muted else f"input.http(self_sync=false,{_liq_quote(DIGITAL_URL)})"
     return "\n".join(
         [
             "#!/usr/bin/liquidsoap",
@@ -83,13 +86,12 @@ def _build_liq_script(muted: bool) -> str:
             "settings.init.allow_root := true",
             "",
             "def with_silence(src) =",
-            "  fallback(track_sensitive=false,[mksafe(src),blank()])",
+            "  fallback(track_sensitive=false,[src,blank()])",
             "end",
             "",
-            f"air_source = with_silence(input.http({_liq_quote(AIRBAND_URL)}))",
-            f"digital_source = with_silence({digital_source})",
+            f"air_source = with_silence({air_input})",
+            f"digital_source = with_silence({digital_input})",
             "mixed = add(normalize=false,[air_source,digital_source])",
-            "mixed = mksafe(mixed)",
             "",
             "output.icecast(",
             f"  %mp3(bitrate={BITRATE},samplerate={SAMPLE_RATE},stereo={_liq_bool(output_channels == 2)}),",
