@@ -63,7 +63,8 @@ _LOG_PREFIX_COMPACT_RE = re.compile(r"^\d{8}\s+\d{6}(?:\.\d+)?\s+")
 _LOG_LEVEL_RE = re.compile(r"^(INFO|WARN|ERROR|DEBUG|TRACE)\s+", re.I)
 _KEY_NORMALIZE_RE = re.compile(r"[^a-z0-9]+")
 _NON_FATAL_ERROR_RE = re.compile(
-    r"(no audio playback devices available|couldn't obtain master gain|usb.*in-use|device is busy|unable to set usb configuration)",
+    r"(no audio playback devices available|couldn't obtain master gain|usb.*in-use|device is busy|"
+    r"unable to set usb configuration|mMainGui\" is null|error while broadcasting.*tunerevent)",
     re.I,
 )
 _TUNER_BUSY_RE = re.compile(
@@ -76,6 +77,8 @@ _IGNORE_EVENT_RE = re.compile(
     r"audio streaming broadcaster|status: connected|starting main application|loading playlist|discovering tuners)",
     re.I,
 )
+_JAVA_STACK_FRAME_RE = re.compile(r"^\s*at\s+[A-Za-z0-9_.$<>]+\([^)]*\)\s*$")
+_JAVA_STACK_OMIT_RE = re.compile(r"^\s*\.\.\.\s+\d+\s+more\s*$", re.I)
 _MUTE_STATE_PATH = "/run/airband_ui_digital_mute.json"
 _DIGITAL_MUTED = False
 _DEFAULT_PROFILE_NOTE = (
@@ -174,6 +177,7 @@ _EVENT_SITE_KEYS = (
     "system name",
 )
 _DIGITAL_HIT_MIN_DURATION_MS = int(os.getenv("DIGITAL_HIT_MIN_DURATION_MS", "1500"))
+_DIGITAL_STATUS_CLEAR_MS = max(0, int(os.getenv("DIGITAL_STATUS_CLEAR_MS", "180000")))
 _DIGITAL_EVENT_DROP_RE = re.compile(r"(rejected|tuner unavailable|encrypted|encryption)", re.I)
 
 
@@ -449,6 +453,13 @@ def _extract_tgid(text: str) -> str:
 
 def _is_non_fatal_error(line: str) -> bool:
     return bool(_NON_FATAL_ERROR_RE.search(line or ""))
+
+
+def _is_java_stack_line(line: str) -> bool:
+    text = (line or "").strip()
+    if not text:
+        return False
+    return bool(_JAVA_STACK_FRAME_RE.match(text) or _JAVA_STACK_OMIT_RE.match(text))
 
 
 def _write_mute_state(muted: bool) -> None:
@@ -745,23 +756,29 @@ class _BaseDigitalAdapter(DigitalAdapter):
         self._profile = ""
         self._last_event = None
         self._last_error = ""
+        self._last_error_time_ms = 0
         self._last_warning = ""
+        self._last_warning_time_ms = 0
         self._last_event_time_ms = 0
         self._recent_events = []
         self._recent_event_keys = set()
         self._recent_limit = 50
 
-    def _set_last_error(self, msg: str):
+    def _set_last_error(self, msg: str, time_ms: int = 0):
         self._last_error = (msg or "").strip()
+        self._last_error_time_ms = int(time_ms) if int(time_ms or 0) > 0 else int(time.time() * 1000)
 
-    def _set_last_warning(self, msg: str):
+    def _set_last_warning(self, msg: str, time_ms: int = 0):
         self._last_warning = (msg or "").strip()
+        self._last_warning_time_ms = int(time_ms) if int(time_ms or 0) > 0 else int(time.time() * 1000)
 
     def _clear_error(self):
         self._last_error = ""
+        self._last_error_time_ms = 0
 
     def _clear_warning(self):
         self._last_warning = ""
+        self._last_warning_time_ms = 0
 
     def _set_last_event(self, label: str, mode: str | None = None, raw=None):
         event = {
@@ -947,21 +964,33 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
 
                 # Last error/warning (best-effort) from app log regardless of mode.
                 last_err = None
+                last_err_time_ms = 0
                 last_warn = None
+                last_warn_time_ms = 0
                 for line in reversed(lines):
-                    if re.search(r"(error|exception)", line, re.I):
-                        if _is_non_fatal_error(line):
-                            if not last_warn:
-                                last_warn = line.strip()
-                            continue
-                        last_err = line.strip()
-                        break
+                    raw = (line or "").strip()
+                    if not raw:
+                        continue
+                    clean = _strip_log_prefix(raw)
+                    if _is_java_stack_line(raw) or _is_java_stack_line(clean):
+                        continue
+                    if not re.search(r"(error|exception)", clean, re.I):
+                        continue
+                    line_time_ms = _parse_time_ms(raw, fallback_ms)
+                    if _is_non_fatal_error(clean):
+                        if not last_warn:
+                            last_warn = clean
+                            last_warn_time_ms = line_time_ms
+                        continue
+                    last_err = clean
+                    last_err_time_ms = line_time_ms
+                    break
                 if last_err:
-                    self._set_last_error(last_err)
+                    self._set_last_error(last_err, last_err_time_ms)
                 else:
                     self._clear_error()
                 if last_warn:
-                    self._set_last_warning(last_warn)
+                    self._set_last_warning(last_warn, last_warn_time_ms)
                 else:
                     self._clear_warning()
 
@@ -1672,6 +1701,25 @@ class DigitalManager:
             payload["digital_last_warning"] = msg
         elif not DIGITAL_RTL_SERIAL and DIGITAL_RTL_SERIAL_HINT:
             payload.setdefault("digital_last_warning", DIGITAL_RTL_SERIAL_HINT)
+
+        # Auto-clear stale error/warning once digital has recovered and is producing activity.
+        if payload.get("digital_active") and not preflight.get("tuner_busy"):
+            now_ms = int(time.time() * 1000)
+            last_event_ms = int(payload.get("digital_last_time") or 0)
+            err_time_ms = int(getattr(self._adapter, "_last_error_time_ms", 0) or 0)
+            warn_time_ms = int(getattr(self._adapter, "_last_warning_time_ms", 0) or 0)
+            last_warn_text = str(payload.get("digital_last_warning") or "")
+            recovered_after_error = last_event_ms > 0 and err_time_ms > 0 and last_event_ms >= err_time_ms
+            stale_error = err_time_ms > 0 and _DIGITAL_STATUS_CLEAR_MS > 0 and (now_ms - err_time_ms) >= _DIGITAL_STATUS_CLEAR_MS
+            if recovered_after_error or stale_error:
+                payload.pop("digital_last_error", None)
+            recovered_after_warn = last_event_ms > 0 and warn_time_ms > 0 and last_event_ms >= warn_time_ms
+            stale_warn = warn_time_ms > 0 and _DIGITAL_STATUS_CLEAR_MS > 0 and (now_ms - warn_time_ms) >= _DIGITAL_STATUS_CLEAR_MS
+            if (
+                (recovered_after_warn or stale_warn)
+                and last_warn_text != DIGITAL_RTL_SERIAL_HINT
+            ):
+                payload.pop("digital_last_warning", None)
         return payload
 
     def isMuted(self):

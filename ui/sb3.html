@@ -1353,14 +1353,9 @@
               </div>
 
               <div class="btn-row">
-                <button class="action" id="digital-start">Start</button>
+                <button class="action" id="btn-play-digital">Play</button>
                 <button class="action" id="digital-stop">Stop</button>
                 <button class="action" id="digital-restart">Restart</button>
-                <button class="action" id="digital-mute">Mute</button>
-              </div>
-
-              <div class="btn-row">
-                <button class="action" id="btn-play-digital">Play</button>
               </div>
 
               <div class="player-box" id="player-box-digital">
@@ -2063,10 +2058,8 @@
       digitalListenSave: document.getElementById('digital-listen-save'),
       digitalListenToggle: document.getElementById('digital-listen-toggle'),
       digitalListenStatus: document.getElementById('digital-listen-status'),
-      digitalStart: document.getElementById('digital-start'),
       digitalStop: document.getElementById('digital-stop'),
       digitalRestart: document.getElementById('digital-restart'),
-      digitalMute: document.getElementById('digital-mute'),
       manageTargetAirband: document.getElementById('manage-target-airband'),
       manageTargetGround: document.getElementById('manage-target-ground'),
       manageId: document.getElementById('manage-id'),
@@ -2257,14 +2250,15 @@
       state.digitalStreamBaseUrl = digitalBase;
     }
 
-    function reloadStreamPlayer(audioEl, base, stateKey, reason, keyPrefix) {
+    function reloadStreamPlayer(audioEl, base, stateKey, reason, keyPrefix, forcePlay = false) {
       if (!audioEl) return;
       state[stateKey] = base;
       const url = `${base}?t=${Date.now()}`;
       const wasPaused = audioEl.paused;
+      const shouldPlay = forcePlay || !wasPaused;
       audioEl.src = url;
       audioEl.load();
-      if (!wasPaused) {
+      if (shouldPlay) {
         audioEl.play().catch(() => {});
       }
       if (reason) {
@@ -2272,12 +2266,23 @@
       }
     }
 
-    function reloadAnalogStream(reason) {
-      reloadStreamPlayer(els.audioPlayerAnalog, analogStreamUrl(), 'streamBaseUrl', reason, 'stream-reload-analog');
+    function reloadAnalogStream(reason, forcePlay = false) {
+      reloadStreamPlayer(els.audioPlayerAnalog, analogStreamUrl(), 'streamBaseUrl', reason, 'stream-reload-analog', forcePlay);
     }
 
-    function reloadDigitalStream(reason) {
-      reloadStreamPlayer(els.audioPlayerDigital, digitalStreamUrl(), 'digitalStreamBaseUrl', reason, 'stream-reload-digital');
+    function reloadDigitalStream(reason, forcePlay = false) {
+      reloadStreamPlayer(els.audioPlayerDigital, digitalStreamUrl(), 'digitalStreamBaseUrl', reason, 'stream-reload-digital', forcePlay);
+    }
+
+    function scheduleStreamRecovery(kind, reason, forcePlay = false) {
+      const normalized = kind === 'digital' ? 'digital' : 'analog';
+      const reloadFn = normalized === 'digital' ? reloadDigitalStream : reloadAnalogStream;
+      const delays = [500, 2000, 5000, 10000];
+      delays.forEach((delay, idx) => {
+        setTimeout(() => {
+          reloadFn(`${reason}-${idx + 1}`, forcePlay);
+        }, delay);
+      });
     }
 
     function getAudioRecoverTracker(audioEl) {
@@ -2811,19 +2816,20 @@
         els.digitalError.textContent = d.lastError || '';
         els.digitalError.style.color = d.lastError ? '#f59e0b' : '';
       }
-      if (els.digitalMute) {
-        els.digitalMute.textContent = d.muted ? 'Unmute' : 'Mute';
-      }
       updateDigitalProfileSelect();
       updateDigitalProfilesList();
     }
 
     async function runDigitalAction(action) {
+      const digitalWasPlaying = Boolean(els.audioPlayerDigital && !els.audioPlayerDigital.paused);
       setDigitalStatusMessage(`Digital ${action}...`, false);
       try {
         const res = await postAPI(`/api/digital/${action}`, {});
         if (res && res.ok) {
           setDigitalStatusMessage(`Digital ${action} ok`, false);
+          if (action === 'restart') {
+            scheduleStreamRecovery('digital', 'digital-restart', digitalWasPlaying);
+          }
         } else {
           setDigitalStatusMessage((res && res.error) || `${action} failed`, true);
         }
@@ -2833,30 +2839,15 @@
       await refresh();
     }
 
-    async function toggleDigitalMute() {
-      const next = !state.digital.muted;
-      setDigitalStatusMessage(next ? 'Muting...' : 'Unmuting...', false);
-      try {
-        const res = await postAPI('/api/digital/mute', { muted: next });
-        if (res && res.ok) {
-          state.digital.muted = next;
-          updateDigitalUI();
-          setDigitalStatusMessage(next ? 'Digital muted' : 'Digital unmuted', false);
-        } else {
-          setDigitalStatusMessage((res && res.error) || 'Mute failed', true);
-        }
-      } catch (e) {
-        setDigitalStatusMessage('Mute failed', true);
-      }
-    }
-
     async function applyDigitalProfile(profileId) {
       if (!profileId) return;
+      const digitalWasPlaying = Boolean(els.audioPlayerDigital && !els.audioPlayerDigital.paused);
       setDigitalStatusMessage('Applying profile...', false);
       try {
         const res = await postAPI('/api/digital/profile', { profileId });
         if (res && res.ok) {
           setDigitalStatusMessage('Profile updated', false);
+          scheduleStreamRecovery('digital', 'digital-profile', digitalWasPlaying);
         } else {
           setDigitalStatusMessage((res && res.error) || 'Profile update failed', true);
         }
@@ -4071,6 +4062,7 @@
 
     async function selectProfile(id, force = false) {
       try {
+        const analogWasPlaying = Boolean(els.audioPlayerAnalog && !els.audioPlayerAnalog.paused);
         const t = state[activeTarget];
         if (!force && t.currentProfile === id) {
           return;
@@ -4088,7 +4080,7 @@
         if (res && res.restart_ok === false) {
           logActivity('Restart required after profile change', 'warn', `restart-required-profile-${activeTarget}`);
         } else {
-          reloadAnalogStream('profile');
+          scheduleStreamRecovery('analog', `profile-${activeTarget}`, analogWasPlaying);
         }
       } catch (e) {
         console.error('Profile switch failed:', e);
@@ -4483,17 +4475,11 @@
       document.querySelectorAll('button.action').forEach(btn => {
         btn.addEventListener('click', () => setTimeout(() => btn.blur(), 300));
       });
-      if (els.digitalStart) {
-        els.digitalStart.addEventListener('click', () => runDigitalAction('start'));
-      }
       if (els.digitalStop) {
         els.digitalStop.addEventListener('click', () => runDigitalAction('stop'));
       }
       if (els.digitalRestart) {
         els.digitalRestart.addEventListener('click', () => runDigitalAction('restart'));
-      }
-      if (els.digitalMute) {
-        els.digitalMute.addEventListener('click', () => toggleDigitalMute());
       }
       if (els.digitalProfileSelect) {
         els.digitalProfileSelect.addEventListener('change', onDigitalProfileChange);
