@@ -4,6 +4,7 @@ After=network-online.target icecast2.service
 Wants=network-online.target
 Requires=icecast2.service
 Wants=rtl-airband-last-hit.service
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -12,7 +13,7 @@ ExecStartPre=-/usr/bin/pkill -x rtl_airband
 ExecStartPre=/usr/bin/python3 /home/willminkoff/scannerproject/scripts/build-combined-config.py
 ExecStart=/bin/bash /home/willminkoff/scannerproject/scripts/rtl-airband-filter.sh ${COMBINED_CONFIG_PATH}
 Restart=on-failure
-RestartSec=0
+RestartSec=2
 TimeoutStopSec=1
 KillSignal=SIGINT
 

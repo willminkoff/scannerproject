@@ -2,15 +2,23 @@
 Description=Icecast Keepalive (silent fallback)
 After=network-online.target icecast2.service
 Wants=network-online.target icecast2.service
+Requires=icecast2.service
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
+EnvironmentFile=-/etc/airband-ui.conf
+Environment=ICECAST_HOST=127.0.0.1
+Environment=ICECAST_PORT=8000
+Environment=ICECAST_SOURCE_USER=source
+Environment=ICECAST_SOURCE_PASSWORD=062352
+Environment=ICECAST_KEEPALIVE_MOUNT=keepalive.mp3
 ExecStart=/usr/bin/ffmpeg -nostdin -hide_banner -loglevel warning \
   -re -f lavfi -i anullsrc=channel_layout=mono:sample_rate=44100 \
   -c:a libmp3lame -b:a 32k -content_type audio/mpeg -f mp3 \
-  icecast://source:062352@127.0.0.1:8000/keepalive.mp3
+  icecast://${ICECAST_SOURCE_USER}:${ICECAST_SOURCE_PASSWORD}@${ICECAST_HOST}:${ICECAST_PORT}/${ICECAST_KEEPALIVE_MOUNT}
 Restart=always
-RestartSec=2
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target

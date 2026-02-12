@@ -3041,6 +3041,17 @@
       
       els.hitList.innerHTML = header + rows;
     }
+
+    function hitKey(hit) {
+      if (!hit) return '';
+      return [
+        String(hit.time || ''),
+        String(hit.freq || ''),
+        String(hit.type || ''),
+        String(hit.tgid || ''),
+        String(hit.mode || ''),
+      ].join('|');
+    }
     
     function updateCounters() {
       const elapsed = (Date.now() - state.sessionStart) / 3600000;
@@ -4005,11 +4016,13 @@
         const newHits = data.items || [];
         const prevTop = state.hits[0]?.time;
         
-        // Count new hits for session
+        // Count new hits by identity (prevents runaway counts on poll refresh).
         if (state.hits.length > 0 && newHits.length > 0) {
-          const lastTime = state.hits[0]?.time;
-          const newCount = newHits.filter(h => h.time > lastTime).length;
-          state.sessionHits += newCount;
+          const prevKeys = new Set(state.hits.map(hitKey));
+          const newCount = newHits.filter((h) => !prevKeys.has(hitKey(h))).length;
+          if (newCount > 0) {
+            state.sessionHits += newCount;
+          }
         }
         
         state.hits = newHits;
@@ -4081,15 +4094,20 @@
           const newTop = newHits[0]?.time;
           
           if (newTop && newTop !== currentTop) {
-            state.sessionHits++;
             const topHit = newHits[0];
             // Merge: prepend new hits we don't have
-            const existingTimes = new Set(state.hits.map(h => h.time + h.freq));
+            const existingTimes = new Set(state.hits.map(hitKey));
+            let added = 0;
             for (let i = newHits.length - 1; i >= 0; i--) {
-              const key = newHits[i].time + newHits[i].freq;
+              const key = hitKey(newHits[i]);
               if (!existingTimes.has(key)) {
                 state.hits.unshift(newHits[i]);
+                existingTimes.add(key);
+                added += 1;
               }
+            }
+            if (added > 0) {
+              state.sessionHits += added;
             }
             state.hits = state.hits.slice(0, 50);
             updateHitList();

@@ -122,6 +122,11 @@ _EVENT_MODE_KEYS = (
     "system type",
     "decoder",
 )
+_EVENT_KIND_KEYS = (
+    "event",
+    "event type",
+    "event_name",
+)
 _EVENT_TIME_KEYS = (
     "timestamp",
     "time",
@@ -139,6 +144,11 @@ _EVENT_TIME_ONLY_KEYS = (
     "time",
     "start time",
     "event time",
+)
+_EVENT_ID_KEYS = (
+    "event id",
+    "event_id",
+    "id",
 )
 _EVENT_FREQ_KEYS = (
     "frequency",
@@ -301,6 +311,8 @@ def _row_value(row: dict, keys: tuple) -> str:
 def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
     label = _row_value(row, _EVENT_LABEL_KEYS)
     tgid = _row_value(row, _EVENT_TGID_KEYS)
+    event_id = _row_value(row, _EVENT_ID_KEYS)
+    event_kind = _row_value(row, _EVENT_KIND_KEYS).lower()
     mode_val = _row_value(row, _EVENT_MODE_KEYS)
     time_val = _row_value(row, _EVENT_TIME_KEYS)
     date_val = _row_value(row, _EVENT_DATE_KEYS)
@@ -317,6 +329,11 @@ def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
                 m = re.search(r"\b(\d{3,})\b", to_val)
             if m:
                 tgid = m.group(1)
+
+    # Call/event logs include high-volume non-audio control events (register/response/etc).
+    # Keep only call-type events when an explicit event field is present.
+    if event_kind and "call" not in event_kind:
+        return None
 
     time_ms = _parse_time_value(time_val, fallback_ms)
     if not time_val and (date_val or time_only):
@@ -342,6 +359,8 @@ def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
         event["mode"] = mode
     if tgid:
         event["tgid"] = tgid
+    if event_id:
+        event["event_id"] = event_id
     if freq:
         event["frequency"] = freq
     if site:
@@ -718,7 +737,11 @@ class _BaseDigitalAdapter(DigitalAdapter):
         if "type" not in event:
             event = dict(event)
             event["type"] = "digital"
-        key = f"{event.get('timeMs')}|{event.get('label')}|{event.get('mode','')}"
+        event_id = str(event.get("event_id") or "").strip()
+        if event_id:
+            key = f"id:{event_id}"
+        else:
+            key = f"{event.get('timeMs')}|{event.get('label')}|{event.get('mode','')}"
         if key in self._recent_event_keys:
             return
         event = dict(event)
@@ -908,7 +931,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         elif mode == "event_logs":
             events = event_log_events
         else:
-            events = app_events if app_events else event_log_events
+            events = event_log_events if event_log_events else app_events
 
         if events:
             for event in events:
@@ -1042,8 +1065,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                     break
                 row_norm[key] = row[idx]
             event = _row_to_event(row_norm, text, fallback_ms)
-            if event:
-                return event
+            return event
         kv = {}
         if ":" in text or "=" in text:
             parts = re.split(r"[|,]", text)
@@ -1059,8 +1081,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                     kv[key] = val.strip()
         if kv:
             event = _row_to_event(kv, text, fallback_ms)
-            if event:
-                return event
+            return event
         return _extract_event_from_line(text, fallback_ms)
 
     def _read_event_logs(self):

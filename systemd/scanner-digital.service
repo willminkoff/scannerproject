@@ -2,14 +2,18 @@
 Description=SDRTrunk Digital (Headless)
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
+EnvironmentFile=-/etc/airband-ui.conf
 User=pi
+ExecStartPre=/usr/bin/python3 /home/willminkoff/scannerproject/scripts/ensure-digital-runtime.py
 WorkingDirectory=/etc/scannerproject/digital/active
 ExecStart=/usr/local/bin/sdrtrunk --headless
-Restart=on-failure
-RestartSec=2
+ExecStartPost=-/usr/bin/python3 /home/willminkoff/scannerproject/scripts/sdrtrunk-local-monitor.py apply
+Restart=always
+RestartSec=3
 TimeoutStopSec=10
 KillSignal=SIGINT
 LimitNOFILE=16384

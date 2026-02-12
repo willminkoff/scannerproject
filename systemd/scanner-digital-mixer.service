@@ -1,8 +1,9 @@
 [Unit]
 Description=Digital Audio Mixer (RTL-Airband + SDRTrunk -> Icecast)
 After=network-online.target icecast2.service rtl-airband.service scanner-digital.service
-Wants=network-online.target icecast2.service
+Wants=network-online.target icecast2.service rtl-airband.service scanner-digital.service
 Requires=icecast2.service
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple

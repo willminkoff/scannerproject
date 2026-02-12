@@ -377,6 +377,7 @@ Live-only digital backend control with in-memory metadata (no recording or persi
 - `DIGITAL_SERVICE_NAME` (systemd unit name, default: `scanner-digital`)
 - `DIGITAL_PROFILES_DIR` (profiles root directory)
 - `DIGITAL_ACTIVE_PROFILE_LINK` (symlink pointing at the active profile dir)
+- `DIGITAL_BOOT_DEFAULT_PROFILE` (default: `default`; used at boot if active symlink is missing/broken)
 - `DIGITAL_LOG_PATH` (sdrtrunk log path used for last-event parsing)
 - `DIGITAL_PLAYLIST_PATH` (SDRTrunk playlist XML updated on profile switch; default: `~/SDRTrunk/playlist/default.xml`)
 - `DIGITAL_EVENT_LOG_DIR` (SDRTrunk event logs directory; default: `~/SDRTrunk/event_logs`)
@@ -390,6 +391,9 @@ Live-only digital backend control with in-memory metadata (no recording or persi
 - `DIGITAL_MIXER_AIRBAND_MOUNT` (default: `GND-air.mp3`) - raw airband+ground input mount for the mixer
 - `DIGITAL_MIXER_DIGITAL_MOUNT` (default: `DIGITAL.mp3`) - SDRTrunk input mount for the mixer
 - `DIGITAL_MIXER_OUTPUT_MOUNT` (default: `GND.mp3`) - final mixed output mount
+- `DIGITAL_LOCAL_MONITOR` (default: `0`) - when `0`, SDRTrunk direct local Java sink inputs are auto-muted on service startup
+- `DIGITAL_LOCAL_MONITOR_WAIT_SEC` (default: `20`) - startup wait window to find SDRTrunk sink inputs before giving up
+- `DIGITAL_LOCAL_MONITOR_POLL_SEC` (default: `1`) - poll interval while waiting for SDRTrunk sink inputs
 - `ICECAST_SOURCE_PASSWORD` (default: `062352`) - must match your Icecast source password if customized
 
 **Profile model**:
@@ -418,7 +422,13 @@ If you are on SprontPi, set these in `/etc/airband-ui.conf` (or your UI Environm
 AIRBAND_RTL_SERIAL=00000002
 GROUND_RTL_SERIAL=70613472
 DIGITAL_RTL_SERIAL=56919602
+DIGITAL_BOOT_DEFAULT_PROFILE=tacn-all
+DIGITAL_LOCAL_MONITOR=0
+AIRBAND_FALLBACK_PROFILE_PATH=/usr/local/etc/airband-profiles/rtl_airband_airband.conf
+GROUND_FALLBACK_PROFILE_PATH=/usr/local/etc/airband-profiles/rtl_airband_wx.conf
 ```
+
+For local-audio debugging sessions, set `DIGITAL_LOCAL_MONITOR=1` and restart `scanner-digital` to leave SDRTrunk's direct monitor path unmuted.
 
 **Digital profiles (filesystem layout)**:
 Profiles live under `DIGITAL_PROFILES_DIR` and the active profile is pointed to by `DIGITAL_ACTIVE_PROFILE_LINK`.
@@ -816,14 +826,31 @@ When user selects new profile:
 
 This optimization eliminates 10-15 second delays when switching between profiles with same frequencies.
 
+**Startup fallback behavior**:
+- If `${CONFIG_SYMLINK}` or `${GROUND_CONFIG_PATH}` is missing/broken at service startup, `build-combined-config.py` falls back to:
+  - `${AIRBAND_FALLBACK_PROFILE_PATH}` (default: `/usr/local/etc/airband-profiles/rtl_airband_airband.conf`)
+  - `${GROUND_FALLBACK_PROFILE_PATH}` (default: `/usr/local/etc/airband-profiles/rtl_airband_wx.conf`)
+- Combined config output directory is created automatically before atomic write.
+
 ### Systemd Integration
 
 The `rtl-airband.service` runs:
 - **ExecStartPre**: Regenerate combined config
 - **ExecStart**: Launch rtl-airband with combined config + logging wrapper
-- **RestartSec=0**: Immediate restart on failure
+- **RestartSec=2**: Controlled restart loop on failure
 - **TimeoutStopSec=1**: Fast shutdown (1 second)
 - **KillSignal=SIGINT**: Clean shutdown signal
+- **StartLimitIntervalSec=0**: Prevent lockout after repeated startup failures (keeps retrying)
+
+The `scanner-digital.service` runs:
+- **ExecStartPre**: `scripts/ensure-digital-runtime.py`
+  - Repairs/creates `${DIGITAL_ACTIVE_PROFILE_LINK}` if missing/broken
+  - Picks `${DIGITAL_BOOT_DEFAULT_PROFILE}` or first profile directory as fallback
+  - Syncs `${DIGITAL_PLAYLIST_PATH}` channel frequency from active profile `control_channels.txt`
+- **ExecStartPost**: `scripts/sdrtrunk-local-monitor.py apply`
+  - Mutes SDRTrunk's direct local Java sink inputs by default (`DIGITAL_LOCAL_MONITOR=0`) so local speakers follow the mixed Icecast/VLC path
+  - Skip mute for debug by setting `DIGITAL_LOCAL_MONITOR=1`
+- **Restart=always + StartLimitIntervalSec=0**: Keeps recovering after boot-time or runtime failures
 
 ## Pi Notes
 - Repo path on SprontPi: `/home/willminkoff/scannerproject`
@@ -838,6 +865,16 @@ The `rtl-airband.service` runs:
   - `sudo systemctl restart rtl-airband`
   - `sudo systemctl restart airband-ui`
   - `sudo systemctl disable --now rtl-airband-ground` (one-time, if present; stays disabled after)
+- Power-loss hardening rollout:
+  - `chmod +x /home/willminkoff/scannerproject/scripts/ensure-digital-runtime.py /home/willminkoff/scannerproject/scripts/reboot-stack-check.sh`
+  - `sudo install -m 0644 /home/willminkoff/scannerproject/systemd/rtl-airband.service /etc/systemd/system/rtl-airband.service`
+  - `sudo install -m 0644 /home/willminkoff/scannerproject/systemd/scanner-digital.service /etc/systemd/system/scanner-digital.service`
+  - `sudo install -m 0644 /home/willminkoff/scannerproject/systemd/scanner-digital-mixer.service /etc/systemd/system/scanner-digital-mixer.service`
+  - `sudo install -m 0644 /home/willminkoff/scannerproject/systemd/airband-ui.service /etc/systemd/system/airband-ui.service`
+  - `sudo systemctl daemon-reload`
+  - `sudo systemctl enable --now icecast2 rtl-airband scanner-digital scanner-digital-mixer airband-ui rtl-airband-last-hit`
+  - `sudo systemctl restart rtl-airband scanner-digital scanner-digital-mixer airband-ui`
+  - `sudo /home/willminkoff/scannerproject/scripts/reboot-stack-check.sh 90`
 - Unit update (last-hit):
   - `sudo cp /home/willminkoff/scannerproject/systemd/rtl-airband-last-hit.service /etc/systemd/system/`
   - `sudo systemctl daemon-reload`

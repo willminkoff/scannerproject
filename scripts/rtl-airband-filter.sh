@@ -3,6 +3,8 @@
 # Wrapper for rtl_airband that applies a low-pass filter via SoX
 # Reads filter configuration from JSON files
 
+set -euo pipefail
+
 # Configuration
 RTLAIRBAND_BIN="${RTLAIRBAND_BIN:-/usr/local/bin/rtl_airband}"
 CONFIG_FILE="${1:-}"
@@ -11,6 +13,14 @@ FILTER_CONFIG_DIR="${FILTER_CONFIG_DIR:-/run}"
 # Validate config file
 if [[ -z "$CONFIG_FILE" ]]; then
     echo "Usage: rtl-airband-filter.sh <config_file>" >&2
+    exit 1
+fi
+if [[ ! -x "$RTLAIRBAND_BIN" ]]; then
+    echo "rtl_airband binary not executable: $RTLAIRBAND_BIN" >&2
+    exit 1
+fi
+if ! command -v sox >/dev/null 2>&1; then
+    echo "sox not found in PATH" >&2
     exit 1
 fi
 

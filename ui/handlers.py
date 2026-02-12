@@ -136,6 +136,31 @@ def _read_html_template():
 
 
 HTML_TEMPLATE = _read_html_template()
+DIGITAL_HIT_COALESCE_SEC = max(0.0, float(os.getenv("DIGITAL_HIT_COALESCE_SEC", "8")))
+
+
+def _coalesce_digital_hits(items: list[dict], window_sec: float = DIGITAL_HIT_COALESCE_SEC) -> list[dict]:
+    """Collapse repeated digital updates for the same talkgroup/label within a short window."""
+    if not items or window_sec <= 0:
+        return items
+    kept = []
+    last_by_key: dict[str, float] = {}
+    for item in sorted(items, key=lambda row: float(row.get("_ts", 0.0))):
+        ts = float(item.get("_ts", 0.0))
+        tgid = str(item.get("tgid") or "").strip()
+        label = str(item.get("label") or item.get("freq") or "").strip().lower()
+        if tgid:
+            key = f"tgid:{tgid}"
+        elif label:
+            key = f"label:{label}"
+        else:
+            continue
+        prev = last_by_key.get(key)
+        if prev is not None and (ts - prev) < window_sec:
+            continue
+        last_by_key[key] = ts
+        kept.append(item)
+    return kept
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -510,6 +535,7 @@ class Handler(BaseHTTPRequestHandler):
                     "_ts": ts,
                 }
                 digital_items.append(entry)
+            digital_items = _coalesce_digital_hits(digital_items)
 
             merged = items + digital_items
             merged.sort(key=lambda item: item.get("_ts", 0.0))
