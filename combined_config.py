@@ -184,7 +184,7 @@ def build_combined_config(airband_path: str, ground_path: str, mixer_name: str, 
             "  type = \"icecast\";\n"
             "  server = \"127.0.0.1\";\n"
             "  port = 8000;\n"
-            "  mountpoint = \"GND.mp3\";\n"
+            "  mountpoint = \"scannerbox.mp3\";\n"
             "  username = \"source\";\n"
             "  password = \"062352\";\n"
             "  name = \"SprontPi Radio\";\n"

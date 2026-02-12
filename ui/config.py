@@ -77,7 +77,7 @@ DIGITAL_RTL_SERIAL_HINT = "DIGITAL_RTL_SERIAL not set; set it to your digital do
 DIGITAL_MIXER_ENABLED = os.getenv("DIGITAL_MIXER_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
 DIGITAL_MIXER_AIRBAND_MOUNT = os.getenv("DIGITAL_MIXER_AIRBAND_MOUNT", "GND-air.mp3").strip().lstrip("/")
 DIGITAL_MIXER_DIGITAL_MOUNT = os.getenv("DIGITAL_MIXER_DIGITAL_MOUNT", "DIGITAL.mp3").strip().lstrip("/")
-DIGITAL_MIXER_OUTPUT_MOUNT = os.getenv("DIGITAL_MIXER_OUTPUT_MOUNT", "GND.mp3").strip().lstrip("/")
+DIGITAL_MIXER_OUTPUT_MOUNT = os.getenv("DIGITAL_MIXER_OUTPUT_MOUNT", "scannerbox.mp3").strip().lstrip("/")
 PLAYER_MOUNT = os.getenv("PLAYER_MOUNT", "").strip().lstrip("/")
 if not PLAYER_MOUNT:
     PLAYER_MOUNT = DIGITAL_MIXER_OUTPUT_MOUNT if DIGITAL_MIXER_ENABLED else MOUNT_NAME

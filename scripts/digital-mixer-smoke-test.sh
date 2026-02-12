@@ -4,7 +4,7 @@ set -euo pipefail
 SERVICE_NAME=${DIGITAL_MIXER_SERVICE:-scanner-digital-mixer.service}
 ICECAST_HOST=${ICECAST_HOST:-127.0.0.1}
 ICECAST_PORT=${ICECAST_PORT:-8000}
-OUTPUT_MOUNT=${DIGITAL_MIXER_OUTPUT_MOUNT:-${MOUNT_NAME:-GND.mp3}}
+OUTPUT_MOUNT=${DIGITAL_MIXER_OUTPUT_MOUNT:-${MOUNT_NAME:-scannerbox.mp3}}
 OUTPUT_MOUNT=${OUTPUT_MOUNT#/}
 OUTPUT_HTTP_URL=${DIGITAL_MIXER_OUTPUT_HTTP_URL:-http://${ICECAST_HOST}:${ICECAST_PORT}/${OUTPUT_MOUNT}}
 DURATION=${DIGITAL_MIXER_SMOKE_SECONDS:-30}
@@ -20,7 +20,7 @@ if [ -z "$before_restarts" ]; then
 fi
 
 echo "[digital-mixer-smoke-test] Checking output: $OUTPUT_HTTP_URL"
-headers=$(curl -sS -D - -o /dev/null "$OUTPUT_HTTP_URL" || true)
+headers=$(curl -sS --max-time 5 -D - -o /dev/null "$OUTPUT_HTTP_URL" || true)
 if ! echo "$headers" | tr -d '\r' | grep -qi '^Content-Type: audio/mpeg'; then
   echo "FAIL: Content-Type is not audio/mpeg" >&2
   echo "$headers" | tr -d '\r' | head -20 >&2

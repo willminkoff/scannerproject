@@ -46,7 +46,7 @@ for unit in "${UNITS[@]}"; do
   fi
 done
 
-MOUNTS=("GND.mp3")
+MOUNTS=("scannerbox.mp3")
 if [[ "$CHECK_DIGITAL_MOUNTS" == "1" ]]; then
   MOUNTS+=("GND-air.mp3" "DIGITAL.mp3")
 fi

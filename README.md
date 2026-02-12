@@ -387,12 +387,13 @@ Live-only digital backend control with in-memory metadata (no recording or persi
 - `GROUND_RTL_SERIAL` (preferred ground RTL serial; optional)
 - `DIGITAL_RTL_SERIAL` (dedicated RTL-SDR serial for SDRTrunk; recommended)
 - `DIGITAL_RTL_DEVICE` (RTL-SDR device index or serial; used by your SDRTrunk profile configuration)
-- `DIGITAL_MIXER_ENABLED` (default: `0`) - enable mixing SDRTrunk audio into `GND.mp3`
+- `DIGITAL_MIXER_ENABLED` (default: `0`) - enable mixing SDRTrunk audio into `scannerbox.mp3`
 - `DIGITAL_MIXER_AIRBAND_MOUNT` (default: `GND-air.mp3`) - raw airband+ground input mount for the mixer
 - `DIGITAL_MIXER_DIGITAL_MOUNT` (default: `DIGITAL.mp3`) - SDRTrunk input mount for the mixer
-- `DIGITAL_MIXER_OUTPUT_MOUNT` (default: `GND.mp3`) - final mixed output mount
-- `DIGITAL_MIXER_RECONNECT_ON_NETWORK_ERROR` (default: `1`) - ffmpeg reconnect on input network errors
-- `DIGITAL_MIXER_RECONNECT_ON_HTTP_ERROR` (default: `4xx,5xx`) - ffmpeg reconnect on HTTP input errors
+- `DIGITAL_MIXER_OUTPUT_MOUNT` (default: `scannerbox.mp3`) - final mixed output mount
+- `LIQUIDSOAP_BIN` (default: `/usr/bin/liquidsoap`) - liquidsoap binary path for mixer runtime
+- `DIGITAL_MIXER_LIQ_PATH` (default: `/run/scanner-digital-mixer.liq`) - generated runtime liquidsoap script
+- `DIGITAL_MIXER_LIQ_QUIET` (default: `1`) - run liquidsoap with `-q` for quieter logs
 - `DIGITAL_LOCAL_MONITOR` (default: `0`) - when `0`, SDRTrunk direct local Java sink inputs are auto-muted on service startup
 - `DIGITAL_LOCAL_MONITOR_WAIT_SEC` (default: `20`) - startup wait window to find SDRTrunk sink inputs before giving up
 - `DIGITAL_LOCAL_MONITOR_POLL_SEC` (default: `1`) - poll interval while waiting for SDRTrunk sink inputs
@@ -478,14 +479,14 @@ willminkoff ALL=NOPASSWD: /bin/systemctl start scanner-digital, /bin/systemctl s
 ```
 
 **Digital audio mixing (optional)**:
-Mix SDRTrunk audio into the existing `GND.mp3` stream via a lightweight ffmpeg mixer.
+Mix SDRTrunk audio into the `scannerbox.mp3` stream via a resilient Liquidsoap mixer.
 
 1. **Set mixer env vars** (example in `/etc/airband-ui.conf`):
 ```bash
 DIGITAL_MIXER_ENABLED=1
 DIGITAL_MIXER_AIRBAND_MOUNT=GND-air.mp3
 DIGITAL_MIXER_DIGITAL_MOUNT=DIGITAL.mp3
-DIGITAL_MIXER_OUTPUT_MOUNT=GND.mp3
+DIGITAL_MIXER_OUTPUT_MOUNT=scannerbox.mp3
 # ICECAST_SOURCE_PASSWORD=062352  # set if you changed your Icecast password
 ```
 
@@ -505,6 +506,8 @@ sudo systemctl restart rtl-airband
 
 4. **Install + enable mixer service**:
 ```bash
+sudo apt-get update
+sudo apt-get install -y liquidsoap
 sudo install -m 0644 /home/willminkoff/scannerproject/systemd/scanner-digital-mixer.service /etc/systemd/system/scanner-digital-mixer.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now scanner-digital-mixer
@@ -512,7 +515,7 @@ sudo systemctl enable --now scanner-digital-mixer
 
 Notes:
 - The mixer reads the runtime mute flag from `/run/airband_ui_digital_mute.json`; the Digital mute toggle will drop SDRTrunk audio from the mix.
-- If the digital stream is offline, the mixer falls back to silence on that input.
+- If one input stream goes offline, Liquidsoap keeps the output alive and substitutes silence for the missing leg.
 
 **Create profiles + set active**:
 ```bash
