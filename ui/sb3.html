@@ -1863,6 +1863,8 @@
     const LOG_DEDUPE_MS = 4000;
     const AUDIO_RECOVER_COOLDOWN_MS = 8000;
     const AUDIO_WAITING_GRACE_MS = 2500;
+    const AUDIO_PROGRESS_CHECK_MS = 3000;
+    const AUDIO_PROGRESS_STALL_MS = 12000;
     
     // ============================================
     // STATE
@@ -1872,6 +1874,9 @@
     let activeView = 'airband';
     let audioRecoverLastTs = 0;
     let audioWaitingTimer = null;
+    let audioProgressTimer = null;
+    let audioLastPosition = -1;
+    let audioLastAdvanceTs = 0;
     
     let state = {
       connected: false,
@@ -2248,6 +2253,14 @@
       }
     }
 
+    function markAudioProgress() {
+      if (!els.audioPlayer) return;
+      const pos = Number(els.audioPlayer.currentTime || 0);
+      if (!Number.isFinite(pos)) return;
+      audioLastPosition = pos;
+      audioLastAdvanceTs = Date.now();
+    }
+
     function maybeAutoRecoverAudio(reason) {
       if (!els.audioPlayer) return;
       if (els.audioPlayer.paused) return;
@@ -2257,12 +2270,39 @@
       reloadAudioStream(`auto-${reason}`);
     }
 
+    function checkAudioProgress() {
+      if (!els.audioPlayer || els.audioPlayer.paused) return;
+      const pos = Number(els.audioPlayer.currentTime || 0);
+      if (!Number.isFinite(pos)) return;
+      const now = Date.now();
+      if (audioLastPosition < 0 || pos > (audioLastPosition + 0.05)) {
+        audioLastPosition = pos;
+        audioLastAdvanceTs = now;
+        return;
+      }
+      if (!audioLastAdvanceTs) {
+        audioLastAdvanceTs = now;
+        return;
+      }
+      if ((now - audioLastAdvanceTs) >= AUDIO_PROGRESS_STALL_MS) {
+        maybeAutoRecoverAudio('no-progress');
+        audioLastAdvanceTs = now;
+      }
+    }
+
     function setupAudioAutoRecover() {
       if (!els.audioPlayer) return;
       if (els.audioPlayer.dataset.autorecoverBound === '1') return;
       els.audioPlayer.dataset.autorecoverBound = '1';
-      els.audioPlayer.addEventListener('playing', clearAudioWaitingTimer);
-      els.audioPlayer.addEventListener('canplay', clearAudioWaitingTimer);
+      els.audioPlayer.addEventListener('playing', () => {
+        clearAudioWaitingTimer();
+        markAudioProgress();
+      });
+      els.audioPlayer.addEventListener('canplay', () => {
+        clearAudioWaitingTimer();
+        markAudioProgress();
+      });
+      els.audioPlayer.addEventListener('timeupdate', markAudioProgress);
       els.audioPlayer.addEventListener('stalled', () => maybeAutoRecoverAudio('stalled'));
       els.audioPlayer.addEventListener('error', () => maybeAutoRecoverAudio('error'));
       els.audioPlayer.addEventListener('ended', () => maybeAutoRecoverAudio('ended'));
@@ -2275,6 +2315,7 @@
           }
         }, AUDIO_WAITING_GRACE_MS);
       });
+      audioProgressTimer = setInterval(checkAudioProgress, AUDIO_PROGRESS_CHECK_MS);
     }
 
     function setVlcButtonState(running) {

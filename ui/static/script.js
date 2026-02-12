@@ -57,6 +57,8 @@ const DBFS_MIN = -120;
 const DBFS_MAX = 0;
 const AUDIO_RECOVER_COOLDOWN_MS = 8000;
 const AUDIO_WAITING_GRACE_MS = 2500;
+const AUDIO_PROGRESS_CHECK_MS = 3000;
+const AUDIO_PROGRESS_STALL_MS = 12000;
 
 let currentProfileAirband = null;
 let currentProfileGround = null;
@@ -354,6 +356,15 @@ function clearAudioWaitingTimer(audioEl) {
   state.waitingTimer = null;
 }
 
+function markAudioProgress(audioEl) {
+  const state = audioRecoverState.get(audioEl);
+  if (!state) return;
+  const pos = Number(audioEl.currentTime || 0);
+  if (!Number.isFinite(pos)) return;
+  state.lastPosition = pos;
+  state.lastAdvanceTs = Date.now();
+}
+
 function reloadAudioElement(audioEl, reason) {
   if (!audioEl) return;
   const base = streamUrl();
@@ -370,21 +381,29 @@ function maybeAutoRecoverAudio(audioEl, reason) {
   const now = Date.now();
   let state = audioRecoverState.get(audioEl);
   if (!state) {
-    state = {lastReloadTs: 0, waitingTimer: null};
+    state = {lastReloadTs: 0, waitingTimer: null, watchTimer: null, lastPosition: -1, lastAdvanceTs: 0};
     audioRecoverState.set(audioEl, state);
   }
   if ((now - state.lastReloadTs) < AUDIO_RECOVER_COOLDOWN_MS) return;
   state.lastReloadTs = now;
   reloadAudioElement(audioEl, `auto-${reason}`);
+  state.lastAdvanceTs = now;
 }
 
 function attachAudioAutoRecover(audioEl) {
   if (!audioEl) return;
   if (audioEl.dataset.autorecoverBound === '1') return;
   audioEl.dataset.autorecoverBound = '1';
-  audioRecoverState.set(audioEl, {lastReloadTs: 0, waitingTimer: null});
-  audioEl.addEventListener('playing', () => clearAudioWaitingTimer(audioEl));
-  audioEl.addEventListener('canplay', () => clearAudioWaitingTimer(audioEl));
+  audioRecoverState.set(audioEl, {lastReloadTs: 0, waitingTimer: null, watchTimer: null, lastPosition: -1, lastAdvanceTs: 0});
+  audioEl.addEventListener('playing', () => {
+    clearAudioWaitingTimer(audioEl);
+    markAudioProgress(audioEl);
+  });
+  audioEl.addEventListener('canplay', () => {
+    clearAudioWaitingTimer(audioEl);
+    markAudioProgress(audioEl);
+  });
+  audioEl.addEventListener('timeupdate', () => markAudioProgress(audioEl));
   audioEl.addEventListener('stalled', () => maybeAutoRecoverAudio(audioEl, 'stalled'));
   audioEl.addEventListener('error', () => maybeAutoRecoverAudio(audioEl, 'error'));
   audioEl.addEventListener('ended', () => maybeAutoRecoverAudio(audioEl, 'ended'));
@@ -398,6 +417,27 @@ function attachAudioAutoRecover(audioEl) {
       }
     }, AUDIO_WAITING_GRACE_MS);
   });
+  const state = audioRecoverState.get(audioEl);
+  if (state && !state.watchTimer) {
+    state.watchTimer = setInterval(() => {
+      if (audioEl.paused) return;
+      const pos = Number(audioEl.currentTime || 0);
+      if (!Number.isFinite(pos)) return;
+      const now = Date.now();
+      if (state.lastPosition < 0 || pos > (state.lastPosition + 0.05)) {
+        state.lastPosition = pos;
+        state.lastAdvanceTs = now;
+        return;
+      }
+      if (!state.lastAdvanceTs) {
+        state.lastAdvanceTs = now;
+        return;
+      }
+      if ((now - state.lastAdvanceTs) >= AUDIO_PROGRESS_STALL_MS) {
+        maybeAutoRecoverAudio(audioEl, 'no-progress');
+      }
+    }, AUDIO_PROGRESS_CHECK_MS);
+  }
 }
 
 async function getJSON(url) {
