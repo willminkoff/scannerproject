@@ -15,8 +15,8 @@ Environment=ICECAST_SOURCE_PASSWORD=062352
 Environment=ICECAST_KEEPALIVE_MOUNT=keepalive-digital.mp3
 ExecStartPre=-/bin/sh -c '/usr/bin/curl -s -u "${ICECAST_SOURCE_USER}:${ICECAST_SOURCE_PASSWORD}" "http://${ICECAST_HOST}:${ICECAST_PORT}/admin/killsource?mount=/${ICECAST_KEEPALIVE_MOUNT}" >/dev/null 2>&1 || true'
 ExecStart=/usr/bin/ffmpeg -nostdin -hide_banner -loglevel warning \
-  -re -f lavfi -i anullsrc=channel_layout=mono:sample_rate=44100 \
-  -c:a libmp3lame -b:a 32k -content_type audio/mpeg -f mp3 \
+  -re -f lavfi -i anullsrc=channel_layout=mono:sample_rate=16000 \
+  -ar 16000 -c:a libmp3lame -b:a 16k -content_type audio/mpeg -f mp3 \
   icecast://${ICECAST_SOURCE_USER}:${ICECAST_SOURCE_PASSWORD}@${ICECAST_HOST}:${ICECAST_PORT}/${ICECAST_KEEPALIVE_MOUNT}
 Restart=always
 RestartSec=5

@@ -562,7 +562,7 @@
 
     .hit-row {
       display: grid;
-      grid-template-columns: 70px 1fr 50px;
+      grid-template-columns: 70px 56px 1fr 50px;
       gap: 8px;
       padding: 8px 10px;
       background: var(--bg-panel);
@@ -572,6 +572,7 @@
     }
 
     .hit-row .time { color: var(--text-secondary); }
+    .hit-row .src { color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
     .hit-row .freq { color: var(--accent); }
     .hit-row .duration { color: var(--text-secondary); text-align: right; }
 
@@ -2256,6 +2257,9 @@
       const url = `${base}?t=${Date.now()}`;
       const wasPaused = audioEl.paused;
       const shouldPlay = forcePlay || !wasPaused;
+      if (shouldPlay) {
+        audioEl.dataset.wantplay = '1';
+      }
       audioEl.src = url;
       audioEl.load();
       if (shouldPlay) {
@@ -2277,7 +2281,9 @@
     function scheduleStreamRecovery(kind, reason, forcePlay = false) {
       const normalized = kind === 'digital' ? 'digital' : 'analog';
       const reloadFn = normalized === 'digital' ? reloadDigitalStream : reloadAnalogStream;
-      const delays = [500, 2000, 5000, 10000, 20000];
+      const delays = normalized === 'digital'
+        ? [500, 2000, 5000, 10000, 20000, 30000, 45000, 60000, 90000, 120000]
+        : [500, 2000, 5000, 10000, 20000];
       delays.forEach((delay, idx) => {
         setTimeout(() => {
           reloadFn(`${reason}-${idx + 1}`, forcePlay);
@@ -2321,7 +2327,8 @@
 
     function maybeAutoRecoverAudio(audioEl, reloadFn, reason, allowPaused = false) {
       if (!audioEl || typeof reloadFn !== 'function') return;
-      if (!allowPaused && audioEl.paused) return;
+      const wantsPlay = audioEl.dataset.wantplay === '1';
+      if (!allowPaused && audioEl.paused && !wantsPlay) return;
       const tracker = getAudioRecoverTracker(audioEl);
       if (!tracker) return;
       const now = Date.now();
@@ -2331,7 +2338,13 @@
     }
 
     function checkAudioProgress(audioEl, reloadFn) {
-      if (!audioEl || audioEl.paused) return;
+      if (!audioEl) return;
+      if (audioEl.paused) {
+        if (audioEl.dataset.wantplay === '1') {
+          maybeAutoRecoverAudio(audioEl, reloadFn, 'paused', true);
+        }
+        return;
+      }
       const pos = Number(audioEl.currentTime || 0);
       if (!Number.isFinite(pos)) return;
       const tracker = getAudioRecoverTracker(audioEl);
@@ -2358,6 +2371,12 @@
       if (!tracker) return;
       if (audioEl.dataset.autorecoverBound === '1') return;
       audioEl.dataset.autorecoverBound = '1';
+      audioEl.addEventListener('play', () => {
+        audioEl.dataset.wantplay = '1';
+      });
+      audioEl.addEventListener('pause', () => {
+        audioEl.dataset.wantplay = '0';
+      });
       audioEl.addEventListener('playing', () => {
         clearAudioWaitingTimer(audioEl);
         markAudioProgress(audioEl);
@@ -2367,14 +2386,15 @@
         markAudioProgress(audioEl);
       });
       audioEl.addEventListener('timeupdate', () => markAudioProgress(audioEl));
-      audioEl.addEventListener('stalled', () => maybeAutoRecoverAudio(audioEl, reloadFn, 'stalled'));
-      audioEl.addEventListener('error', () => maybeAutoRecoverAudio(audioEl, reloadFn, 'error'));
+      audioEl.addEventListener('stalled', () => maybeAutoRecoverAudio(audioEl, reloadFn, 'stalled', true));
+      audioEl.addEventListener('error', () => maybeAutoRecoverAudio(audioEl, reloadFn, 'error', true));
       audioEl.addEventListener('ended', () => maybeAutoRecoverAudio(audioEl, reloadFn, 'ended', true));
       audioEl.addEventListener('waiting', () => {
         clearAudioWaitingTimer(audioEl);
         tracker.waitingTimer = setTimeout(() => {
-          if (!audioEl.paused && audioEl.readyState < 3) {
-            maybeAutoRecoverAudio(audioEl, reloadFn, 'waiting');
+          const wantsPlay = audioEl.dataset.wantplay === '1';
+          if ((wantsPlay || !audioEl.paused) && audioEl.readyState < 3) {
+            maybeAutoRecoverAudio(audioEl, reloadFn, 'waiting', true);
           }
         }, AUDIO_WAITING_GRACE_MS);
       });
@@ -2821,14 +2841,17 @@
     }
 
     async function runDigitalAction(action) {
-      const digitalWasPlaying = Boolean(els.audioPlayerDigital && !els.audioPlayerDigital.paused);
+      const digitalShouldResume = Boolean(
+        els.audioPlayerDigital
+        && (!els.audioPlayerDigital.paused || els.audioPlayerDigital.dataset.wantplay === '1')
+      );
       setDigitalStatusMessage(`Digital ${action}...`, false);
       try {
         const res = await postAPI(`/api/digital/${action}`, {});
         if (res && res.ok) {
           setDigitalStatusMessage(`Digital ${action} ok`, false);
           if (action === 'restart') {
-            scheduleStreamRecovery('digital', 'digital-restart', digitalWasPlaying);
+            scheduleStreamRecovery('digital', 'digital-restart', digitalShouldResume);
           }
         } else {
           setDigitalStatusMessage((res && res.error) || `${action} failed`, true);
@@ -2841,13 +2864,16 @@
 
     async function applyDigitalProfile(profileId) {
       if (!profileId) return;
-      const digitalWasPlaying = Boolean(els.audioPlayerDigital && !els.audioPlayerDigital.paused);
+      const digitalShouldResume = Boolean(
+        els.audioPlayerDigital
+        && (!els.audioPlayerDigital.paused || els.audioPlayerDigital.dataset.wantplay === '1')
+      );
       setDigitalStatusMessage('Applying profile...', false);
       try {
         const res = await postAPI('/api/digital/profile', { profileId });
         if (res && res.ok) {
           setDigitalStatusMessage('Profile updated', false);
-          scheduleStreamRecovery('digital', 'digital-profile', digitalWasPlaying);
+          scheduleStreamRecovery('digital', 'digital-profile', digitalShouldResume);
         } else {
           setDigitalStatusMessage((res && res.error) || 'Profile update failed', true);
         }
@@ -3206,7 +3232,7 @@
     }
     
     function updateHitList() {
-      const header = '<div class="hit-row header"><div>Time</div><div>Frequency</div><div>Dur</div></div>';
+      const header = '<div class="hit-row header"><div>Time</div><div>Src</div><div>Frequency</div><div>Dur</div></div>';
       
       if (!state.hits.length) {
         els.hitList.innerHTML = header + '<div class="empty-state"><div class="icon">📻</div><div>Waiting for hits...</div></div>';
@@ -3218,10 +3244,23 @@
         const labelText = String(label || '').trim();
         const isNumeric = /^[0-9]+(\.[0-9]+)?$/.test(labelText);
         const freqText = isNumeric ? `${formatFreq(labelText)} MHz` : (labelText || '--');
+        const source = (() => {
+          const type = String(hit.type || hit.source || '').trim().toLowerCase();
+          if (type === 'digital') return 'DIG';
+          if (type === 'airband') return 'AIR';
+          if (type === 'ground') return 'GND';
+          const n = parseFloat(String(hit.freq || ''));
+          if (Number.isFinite(n)) {
+            if (n >= 118 && n <= 136) return 'AIR';
+            return 'GND';
+          }
+          return '--';
+        })();
         const durationText = hit.duration ? `${hit.duration}s` : (hit.mode ? hit.mode : '--');
         return `
         <div class="hit-row">
           <div class="time">${hit.time || '--'}</div>
+          <div class="src">${source}</div>
           <div class="freq">${freqText}</div>
           <div class="duration">${durationText}</div>
         </div>
