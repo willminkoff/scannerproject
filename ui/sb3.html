@@ -1313,19 +1313,19 @@
             </div>
 
             <div class="btn-row">
-              <button class="action" id="btn-play">Play</button>
+              <button class="action" id="btn-play-analog">Play</button>
               <button class="action" id="btn-tune">Tune</button>
               <button class="action" id="btn-avoid">Avoid</button>
               <button class="action" id="btn-clear-avoids">Clear</button>
               <button class="action" id="btn-apply">Apply</button>
             </div>
 
-            <div class="player-box">
+            <div class="player-box" id="player-box-analog">
               <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px;">
-                <div style="font-weight:700;">Player</div>
-                <a id="lnk-stream" href="#" target="_blank" rel="noopener" style="font-size:12px; opacity:0.85;">Open Icecast</a>
+                <div style="font-weight:700;">Analog Player</div>
+                <a id="lnk-stream-analog" href="#" target="_blank" rel="noopener" style="font-size:12px; opacity:0.85;">Open Analog</a>
               </div>
-              <audio id="audio-player" controls preload="none"></audio>
+              <audio id="audio-player-analog" controls preload="none"></audio>
             </div>
           </div>
 
@@ -1357,6 +1357,18 @@
                 <button class="action" id="digital-stop">Stop</button>
                 <button class="action" id="digital-restart">Restart</button>
                 <button class="action" id="digital-mute">Mute</button>
+              </div>
+
+              <div class="btn-row">
+                <button class="action" id="btn-play-digital">Play</button>
+              </div>
+
+              <div class="player-box" id="player-box-digital">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px;">
+                  <div style="font-weight:700;">Digital Player</div>
+                  <a id="lnk-stream-digital" href="#" target="_blank" rel="noopener" style="font-size:12px; opacity:0.85;">Open Digital</a>
+                </div>
+                <audio id="audio-player-digital" controls preload="none"></audio>
               </div>
 
             </div>
@@ -1872,11 +1884,7 @@
     
     let activeTarget = 'airband';
     let activeView = 'airband';
-    let audioRecoverLastTs = 0;
-    let audioWaitingTimer = null;
-    let audioProgressTimer = null;
-    let audioLastPosition = -1;
-    let audioLastAdvanceTs = 0;
+    const audioRecoverState = new WeakMap();
     
     let state = {
       connected: false,
@@ -1886,8 +1894,10 @@
       icecastMounts: [],
       icecastExpectedMounts: [],
       icecastPort: 8000,
-      streamMount: 'scannerbox.mp3',
+      streamMount: 'ANALOG.mp3',
+      digitalStreamMount: 'DIGITAL.mp3',
       streamBaseUrl: '',
+      digitalStreamBaseUrl: '',
       sseConnected: false,
       adsbLoaded: false,
       combinedStale: false,
@@ -1921,8 +1931,8 @@
         lastTxRate: null,
       },
       vlc: {
-        running: false,
-        busy: false,
+        analog: { running: false, busy: false },
+        digital: { running: false, busy: false },
       },
       airband: {
         gain: 32.8,
@@ -2000,14 +2010,17 @@
       filterSlider: document.getElementById('filter-slider'),
       filterValue: document.getElementById('filter-value'),
       filterApplied: document.getElementById('filter-applied'),
-      btnPlay: document.getElementById('btn-play'),
+      btnPlayAnalog: document.getElementById('btn-play-analog'),
+      btnPlayDigital: document.getElementById('btn-play-digital'),
       btnApply: document.getElementById('btn-apply'),
       profilesList: document.getElementById('profiles-list'),
       profilesWidget: document.getElementById('profiles-widget'),
       digitalProfilesWidget: document.getElementById('digital-profiles-widget'),
       digitalProfilesList: document.getElementById('digital-profiles-list'),
-      audioPlayer: document.getElementById('audio-player'),
-      lnkStream: document.getElementById('lnk-stream'),
+      audioPlayerAnalog: document.getElementById('audio-player-analog'),
+      audioPlayerDigital: document.getElementById('audio-player-digital'),
+      lnkStreamAnalog: document.getElementById('lnk-stream-analog'),
+      lnkStreamDigital: document.getElementById('lnk-stream-digital'),
       sysUptime: document.getElementById('sys-uptime'),
       sysCpuTemp: document.getElementById('sys-cpu-temp'),
       sysGpuTemp: document.getElementById('sys-gpu-temp'),
@@ -2202,163 +2215,260 @@
       return r.json();
     }
 
-    function streamUrl() {
+    function buildStreamUrl(mountName, fallbackMount) {
       const port = Number.isFinite(state.icecastPort) ? state.icecastPort : 8000;
-      const mount = (state.streamMount || 'scannerbox.mp3').replace(/^\/+/, '');
+      const mount = (mountName || fallbackMount).replace(/^\/+/, '');
       return `http://${location.hostname}:${port}/${mount}`;
     }
 
-    function icecastRootUrl() {
-      const port = Number.isFinite(state.icecastPort) ? state.icecastPort : 8000;
-      return `http://${location.hostname}:${port}/`;
+    function analogStreamUrl() {
+      return buildStreamUrl(state.streamMount, 'ANALOG.mp3');
+    }
+
+    function digitalStreamUrl() {
+      return buildStreamUrl(state.digitalStreamMount, 'DIGITAL.mp3');
+    }
+
+    function syncAudioSource(audioEl, base) {
+      if (!audioEl) return;
+      const current = (audioEl.src || '').split('?')[0];
+      if (current !== base) {
+        const wasPaused = audioEl.paused;
+        audioEl.src = base;
+        audioEl.load();
+        if (!wasPaused) {
+          audioEl.play().catch(() => {});
+        }
+      }
     }
 
     function syncStreamLinks() {
-      const base = streamUrl();
-      if (els.lnkStream) {
-        els.lnkStream.href = icecastRootUrl();
+      const analogBase = analogStreamUrl();
+      const digitalBase = digitalStreamUrl();
+      if (els.lnkStreamAnalog) {
+        els.lnkStreamAnalog.href = analogBase;
       }
-      if (els.audioPlayer) {
-        const current = (els.audioPlayer.src || '').split('?')[0];
-        if (current !== base) {
-          const wasPaused = els.audioPlayer.paused;
-          els.audioPlayer.src = base;
-          els.audioPlayer.load();
-          if (!wasPaused) {
-            els.audioPlayer.play().catch(() => {});
-          }
-        }
+      if (els.lnkStreamDigital) {
+        els.lnkStreamDigital.href = digitalBase;
       }
-      state.streamBaseUrl = base;
+      syncAudioSource(els.audioPlayerAnalog, analogBase);
+      syncAudioSource(els.audioPlayerDigital, digitalBase);
+      state.streamBaseUrl = analogBase;
+      state.digitalStreamBaseUrl = digitalBase;
     }
 
-    function reloadAudioStream(reason) {
-      if (!els.audioPlayer) return;
-      const base = streamUrl();
-      state.streamBaseUrl = base;
+    function reloadStreamPlayer(audioEl, base, stateKey, reason, keyPrefix) {
+      if (!audioEl) return;
+      state[stateKey] = base;
       const url = `${base}?t=${Date.now()}`;
-      const wasPaused = els.audioPlayer.paused;
-      els.audioPlayer.src = url;
-      els.audioPlayer.load();
+      const wasPaused = audioEl.paused;
+      audioEl.src = url;
+      audioEl.load();
       if (!wasPaused) {
-        els.audioPlayer.play().catch(() => {});
+        audioEl.play().catch(() => {});
       }
       if (reason) {
-        logActivity(reason, 'info', `stream-reload-${reason}`);
+        logActivity(reason, 'info', `${keyPrefix}-${reason}`);
       }
     }
 
-    function clearAudioWaitingTimer() {
-      if (audioWaitingTimer) {
-        clearTimeout(audioWaitingTimer);
-        audioWaitingTimer = null;
+    function reloadAnalogStream(reason) {
+      reloadStreamPlayer(els.audioPlayerAnalog, analogStreamUrl(), 'streamBaseUrl', reason, 'stream-reload-analog');
+    }
+
+    function reloadDigitalStream(reason) {
+      reloadStreamPlayer(els.audioPlayerDigital, digitalStreamUrl(), 'digitalStreamBaseUrl', reason, 'stream-reload-digital');
+    }
+
+    function getAudioRecoverTracker(audioEl) {
+      if (!audioEl) return null;
+      let tracker = audioRecoverState.get(audioEl);
+      if (!tracker) {
+        tracker = {
+          waitingTimer: null,
+          progressTimer: null,
+          lastPosition: -1,
+          lastAdvanceTs: 0,
+          recoverLastTs: 0,
+        };
+        audioRecoverState.set(audioEl, tracker);
+      }
+      return tracker;
+    }
+
+    function clearAudioWaitingTimer(audioEl) {
+      const tracker = getAudioRecoverTracker(audioEl);
+      if (tracker && tracker.waitingTimer) {
+        clearTimeout(tracker.waitingTimer);
+        tracker.waitingTimer = null;
       }
     }
 
-    function markAudioProgress() {
-      if (!els.audioPlayer) return;
-      const pos = Number(els.audioPlayer.currentTime || 0);
+    function markAudioProgress(audioEl) {
+      if (!audioEl) return;
+      const pos = Number(audioEl.currentTime || 0);
       if (!Number.isFinite(pos)) return;
-      audioLastPosition = pos;
-      audioLastAdvanceTs = Date.now();
+      const tracker = getAudioRecoverTracker(audioEl);
+      if (!tracker) return;
+      tracker.lastPosition = pos;
+      tracker.lastAdvanceTs = Date.now();
     }
 
-    function maybeAutoRecoverAudio(reason) {
-      if (!els.audioPlayer) return;
-      if (els.audioPlayer.paused) return;
+    function maybeAutoRecoverAudio(audioEl, reloadFn, reason) {
+      if (!audioEl || typeof reloadFn !== 'function') return;
+      if (audioEl.paused) return;
+      const tracker = getAudioRecoverTracker(audioEl);
+      if (!tracker) return;
       const now = Date.now();
-      if ((now - audioRecoverLastTs) < AUDIO_RECOVER_COOLDOWN_MS) return;
-      audioRecoverLastTs = now;
-      reloadAudioStream(`auto-${reason}`);
+      if ((now - tracker.recoverLastTs) < AUDIO_RECOVER_COOLDOWN_MS) return;
+      tracker.recoverLastTs = now;
+      reloadFn(`auto-${reason}`);
     }
 
-    function checkAudioProgress() {
-      if (!els.audioPlayer || els.audioPlayer.paused) return;
-      const pos = Number(els.audioPlayer.currentTime || 0);
+    function checkAudioProgress(audioEl, reloadFn) {
+      if (!audioEl || audioEl.paused) return;
+      const pos = Number(audioEl.currentTime || 0);
       if (!Number.isFinite(pos)) return;
+      const tracker = getAudioRecoverTracker(audioEl);
+      if (!tracker) return;
       const now = Date.now();
-      if (audioLastPosition < 0 || pos > (audioLastPosition + 0.05)) {
-        audioLastPosition = pos;
-        audioLastAdvanceTs = now;
+      if (tracker.lastPosition < 0 || pos > (tracker.lastPosition + 0.05)) {
+        tracker.lastPosition = pos;
+        tracker.lastAdvanceTs = now;
         return;
       }
-      if (!audioLastAdvanceTs) {
-        audioLastAdvanceTs = now;
+      if (!tracker.lastAdvanceTs) {
+        tracker.lastAdvanceTs = now;
         return;
       }
-      if ((now - audioLastAdvanceTs) >= AUDIO_PROGRESS_STALL_MS) {
-        maybeAutoRecoverAudio('no-progress');
-        audioLastAdvanceTs = now;
+      if ((now - tracker.lastAdvanceTs) >= AUDIO_PROGRESS_STALL_MS) {
+        maybeAutoRecoverAudio(audioEl, reloadFn, 'no-progress');
+        tracker.lastAdvanceTs = now;
       }
     }
 
-    function setupAudioAutoRecover() {
-      if (!els.audioPlayer) return;
-      if (els.audioPlayer.dataset.autorecoverBound === '1') return;
-      els.audioPlayer.dataset.autorecoverBound = '1';
-      els.audioPlayer.addEventListener('playing', () => {
-        clearAudioWaitingTimer();
-        markAudioProgress();
+    function bindAudioAutoRecover(audioEl, reloadFn) {
+      if (!audioEl || typeof reloadFn !== 'function') return;
+      const tracker = getAudioRecoverTracker(audioEl);
+      if (!tracker) return;
+      if (audioEl.dataset.autorecoverBound === '1') return;
+      audioEl.dataset.autorecoverBound = '1';
+      audioEl.addEventListener('playing', () => {
+        clearAudioWaitingTimer(audioEl);
+        markAudioProgress(audioEl);
       });
-      els.audioPlayer.addEventListener('canplay', () => {
-        clearAudioWaitingTimer();
-        markAudioProgress();
+      audioEl.addEventListener('canplay', () => {
+        clearAudioWaitingTimer(audioEl);
+        markAudioProgress(audioEl);
       });
-      els.audioPlayer.addEventListener('timeupdate', markAudioProgress);
-      els.audioPlayer.addEventListener('stalled', () => maybeAutoRecoverAudio('stalled'));
-      els.audioPlayer.addEventListener('error', () => maybeAutoRecoverAudio('error'));
-      els.audioPlayer.addEventListener('ended', () => maybeAutoRecoverAudio('ended'));
-      els.audioPlayer.addEventListener('waiting', () => {
-        clearAudioWaitingTimer();
-        audioWaitingTimer = setTimeout(() => {
-          if (!els.audioPlayer) return;
-          if (!els.audioPlayer.paused && els.audioPlayer.readyState < 3) {
-            maybeAutoRecoverAudio('waiting');
+      audioEl.addEventListener('timeupdate', () => markAudioProgress(audioEl));
+      audioEl.addEventListener('stalled', () => maybeAutoRecoverAudio(audioEl, reloadFn, 'stalled'));
+      audioEl.addEventListener('error', () => maybeAutoRecoverAudio(audioEl, reloadFn, 'error'));
+      audioEl.addEventListener('ended', () => maybeAutoRecoverAudio(audioEl, reloadFn, 'ended'));
+      audioEl.addEventListener('waiting', () => {
+        clearAudioWaitingTimer(audioEl);
+        tracker.waitingTimer = setTimeout(() => {
+          if (!audioEl.paused && audioEl.readyState < 3) {
+            maybeAutoRecoverAudio(audioEl, reloadFn, 'waiting');
           }
         }, AUDIO_WAITING_GRACE_MS);
       });
-      audioProgressTimer = setInterval(checkAudioProgress, AUDIO_PROGRESS_CHECK_MS);
+      tracker.progressTimer = setInterval(() => checkAudioProgress(audioEl, reloadFn), AUDIO_PROGRESS_CHECK_MS);
     }
 
-    function setVlcButtonState(running) {
-      state.vlc.running = !!running;
-      if (els.btnPlay) {
-        els.btnPlay.textContent = running ? 'Stop' : 'Play';
-        els.btnPlay.dataset.vlcState = running ? 'running' : 'stopped';
+    function setupAudioAutoRecover() {
+      bindAudioAutoRecover(els.audioPlayerAnalog, reloadAnalogStream);
+      bindAudioAutoRecover(els.audioPlayerDigital, reloadDigitalStream);
+    }
+
+    function normalizeVlcTarget(target) {
+      return target === 'digital' ? 'digital' : 'analog';
+    }
+
+    function vlcStateFor(target) {
+      return state.vlc[normalizeVlcTarget(target)];
+    }
+
+    function vlcButtonFor(target) {
+      return normalizeVlcTarget(target) === 'digital' ? els.btnPlayDigital : els.btnPlayAnalog;
+    }
+
+    function vlcMountFor(target) {
+      return normalizeVlcTarget(target) === 'digital' ? state.digitalStreamMount : state.streamMount;
+    }
+
+    function applyVlcTargetsStatus(targets) {
+      const analogRunning = !!targets?.analog;
+      const digitalRunning = !!targets?.digital;
+      const analogBtn = vlcButtonFor('analog');
+      const digitalBtn = vlcButtonFor('digital');
+      state.vlc.analog.running = analogRunning;
+      state.vlc.digital.running = digitalRunning;
+      if (analogBtn) {
+        analogBtn.textContent = analogRunning ? 'Stop' : 'Play';
+        analogBtn.dataset.vlcState = analogRunning ? 'running' : 'stopped';
+      }
+      if (digitalBtn) {
+        digitalBtn.textContent = digitalRunning ? 'Stop' : 'Play';
+        digitalBtn.dataset.vlcState = digitalRunning ? 'running' : 'stopped';
       }
       updateSitrep();
     }
 
     async function refreshVlcStatus() {
-      if (!els.btnPlay) return;
       try {
         const res = await postAPI('/api/vlc', { action: 'status' });
         if (res && res.ok) {
-          setVlcButtonState(!!res.running);
+          if (res.targets && typeof res.targets === 'object') {
+            applyVlcTargetsStatus(res.targets);
+          } else {
+            applyVlcTargetsStatus({ analog: !!res.running, digital: false });
+          }
         }
       } catch (e) {
         console.error('VLC status failed:', e);
       }
     }
 
-    async function toggleVlcPlayback() {
-      if (!els.btnPlay || state.vlc.busy) return;
-      state.vlc.busy = true;
-      const action = state.vlc.running ? 'stop' : 'start';
-      els.btnPlay.disabled = true;
+    async function toggleVlcPlayback(target) {
+      const resolvedTarget = normalizeVlcTarget(target);
+      const targetState = vlcStateFor(resolvedTarget);
+      const button = vlcButtonFor(resolvedTarget);
+      if (!targetState || !button || targetState.busy) return;
+      targetState.busy = true;
+      const action = targetState.running ? 'stop' : 'start';
+      button.disabled = true;
       try {
-        const res = await postAPI('/api/vlc', { action });
+        const res = await postAPI('/api/vlc', {
+          action,
+          target: resolvedTarget,
+          mount: vlcMountFor(resolvedTarget),
+        });
         if (res && res.ok) {
-          setVlcButtonState(action === 'start');
-          logActivity(`Audio playback ${action === 'start' ? 'started' : 'stopped'}`, 'info', `vlc-${action}`);
+          if (res.targets && typeof res.targets === 'object') {
+            applyVlcTargetsStatus(res.targets);
+          } else {
+            applyVlcTargetsStatus({
+              analog: resolvedTarget === 'analog' ? action === 'start' : state.vlc.analog.running,
+              digital: resolvedTarget === 'digital' ? action === 'start' : state.vlc.digital.running,
+            });
+          }
+          const label = resolvedTarget === 'digital' ? 'Digital' : 'Analog';
+          logActivity(
+            `${label} local playback ${action === 'start' ? 'started' : 'stopped'}`,
+            'info',
+            `vlc-${resolvedTarget}-${action}`
+          );
         } else {
           console.error('VLC action failed:', res);
+          await refreshVlcStatus();
         }
       } catch (e) {
         console.error('VLC action failed:', e);
+        await refreshVlcStatus();
       } finally {
-        state.vlc.busy = false;
-        els.btnPlay.disabled = false;
+        targetState.busy = false;
+        button.disabled = false;
       }
     }
 
@@ -3428,7 +3538,18 @@
       setServiceStatus('digital', Boolean(state.digital.active), state.digital.active ? 'running' : 'stopped');
       setServiceStatus('mixer', Boolean(state.digitalMixerActive), state.digitalMixerActive ? 'mixing' : 'stopped');
       setServiceStatus('icecast', Boolean(state.icecastActive), state.icecastActive ? 'serving' : 'offline');
-      setServiceStatus('vlc', Boolean(state.vlc.running), state.vlc.running ? 'playing' : 'stopped');
+      const vlcAnalogRunning = Boolean(state.vlc.analog.running);
+      const vlcDigitalRunning = Boolean(state.vlc.digital.running);
+      const vlcAnyRunning = vlcAnalogRunning || vlcDigitalRunning;
+      let vlcDetail = 'stopped';
+      if (vlcAnalogRunning && vlcDigitalRunning) {
+        vlcDetail = 'analog + digital';
+      } else if (vlcAnalogRunning) {
+        vlcDetail = 'analog';
+      } else if (vlcDigitalRunning) {
+        vlcDetail = 'digital';
+      }
+      setServiceStatus('vlc', vlcAnyRunning, vlcDetail);
       setServiceStatus('adsb', Boolean(state.adsbLoaded), state.adsbLoaded ? 'linked' : 'pending');
       if (els.serviceDigitalNote) {
         const err = state.digital.lastError;
@@ -3545,7 +3666,9 @@
         } else {
           logActivity(`${label} restart issued`, 'info', `restart-${target}`);
           if (target === 'airband' || target === 'ground') {
-            setTimeout(() => reloadAudioStream('restart'), 500);
+            setTimeout(() => reloadAnalogStream('restart'), 500);
+          } else if (target === 'digital') {
+            setTimeout(() => reloadDigitalStream('restart'), 500);
           }
         }
       } catch (e) {
@@ -3741,7 +3864,7 @@
           if (els.dbfsApplied) els.dbfsApplied.textContent = 'restart';
           if (els.gainApplied) els.gainApplied.textContent = 'restart';
         } else {
-          reloadAudioStream('restart');
+          reloadAnalogStream('restart');
         }
       } catch (e) {
         console.error('Apply batch failed:', e);
@@ -3795,7 +3918,7 @@
       if (state.hold[target]) {
         const label = target === 'airband' ? 'Airband' : 'Ground';
         state.hold[target] = null;
-        if (state.streamBaseUrl !== streamUrl()) {
+        if (state.streamBaseUrl !== analogStreamUrl()) {
           syncStreamLinks();
         }
         updateStatus();
@@ -3965,7 +4088,7 @@
         if (res && res.restart_ok === false) {
           logActivity('Restart required after profile change', 'warn', `restart-required-profile-${activeTarget}`);
         } else {
-          reloadAudioStream('profile');
+          reloadAnalogStream('profile');
         }
       } catch (e) {
         console.error('Profile switch failed:', e);
@@ -3996,6 +4119,8 @@
         ]);
 
         const pickNumber = (value, fallback) => (value === 0 || value) ? value : fallback;
+        const prevAnalogBase = state.streamBaseUrl;
+        const prevDigitalBase = state.digitalStreamBaseUrl;
         
         const airbandPresent = (typeof data.airband_present === 'boolean') ? data.airband_present : true;
         const groundPresent = (typeof data.ground_present === 'boolean') ? data.ground_present : true;
@@ -4018,6 +4143,11 @@
         }
         if (typeof data.stream_mount === 'string' && data.stream_mount.trim()) {
           state.streamMount = data.stream_mount.trim();
+        }
+        if (typeof data.digital_stream_mount === 'string' && data.digital_stream_mount.trim()) {
+          state.digitalStreamMount = data.digital_stream_mount.trim();
+        } else if (typeof data.stream_mount_digital === 'string' && data.stream_mount_digital.trim()) {
+          state.digitalStreamMount = data.stream_mount_digital.trim();
         }
         state.lastHit = data.last_hit || data.last_hit_airband || data.last_hit_ground || '';
         state.lastHitAirband = data.last_hit_airband || '';
@@ -4086,6 +4216,11 @@
         state.connected = true;
         if (!wasConnected) {
           logActivity('API connection restored', 'info', 'api-up');
+        }
+        const analogBase = analogStreamUrl();
+        const digitalBase = digitalStreamUrl();
+        if (prevAnalogBase !== analogBase || prevDigitalBase !== digitalBase) {
+          syncStreamLinks();
         }
         
         updateStatus();
@@ -4309,9 +4444,12 @@
           toggleSitrep(false);
         }
       });
-      // Remove Open Squelch button handler, add new handlers
-      if (els.btnPlay) {
-        els.btnPlay.addEventListener('click', toggleVlcPlayback);
+      // Local playback handlers
+      if (els.btnPlayAnalog) {
+        els.btnPlayAnalog.addEventListener('click', () => toggleVlcPlayback('analog'));
+      }
+      if (els.btnPlayDigital) {
+        els.btnPlayDigital.addEventListener('click', () => toggleVlcPlayback('digital'));
       }
       if (els.btnApply) {
         els.btnApply.addEventListener('click', applyBatch);
