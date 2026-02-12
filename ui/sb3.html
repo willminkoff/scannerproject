@@ -2277,7 +2277,7 @@
     function scheduleStreamRecovery(kind, reason, forcePlay = false) {
       const normalized = kind === 'digital' ? 'digital' : 'analog';
       const reloadFn = normalized === 'digital' ? reloadDigitalStream : reloadAnalogStream;
-      const delays = [500, 2000, 5000, 10000];
+      const delays = [500, 2000, 5000, 10000, 20000];
       delays.forEach((delay, idx) => {
         setTimeout(() => {
           reloadFn(`${reason}-${idx + 1}`, forcePlay);
@@ -2319,9 +2319,9 @@
       tracker.lastAdvanceTs = Date.now();
     }
 
-    function maybeAutoRecoverAudio(audioEl, reloadFn, reason) {
+    function maybeAutoRecoverAudio(audioEl, reloadFn, reason, allowPaused = false) {
       if (!audioEl || typeof reloadFn !== 'function') return;
-      if (audioEl.paused) return;
+      if (!allowPaused && audioEl.paused) return;
       const tracker = getAudioRecoverTracker(audioEl);
       if (!tracker) return;
       const now = Date.now();
@@ -2369,7 +2369,7 @@
       audioEl.addEventListener('timeupdate', () => markAudioProgress(audioEl));
       audioEl.addEventListener('stalled', () => maybeAutoRecoverAudio(audioEl, reloadFn, 'stalled'));
       audioEl.addEventListener('error', () => maybeAutoRecoverAudio(audioEl, reloadFn, 'error'));
-      audioEl.addEventListener('ended', () => maybeAutoRecoverAudio(audioEl, reloadFn, 'ended'));
+      audioEl.addEventListener('ended', () => maybeAutoRecoverAudio(audioEl, reloadFn, 'ended', true));
       audioEl.addEventListener('waiting', () => {
         clearAudioWaitingTimer(audioEl);
         tracker.waitingTimer = setTimeout(() => {
@@ -4079,9 +4079,8 @@
         logActivity(`Profile set: ${label} ${getProfileLabel(activeTarget, id)}`, 'info', `profile-${activeTarget}-${id}`);
         if (res && res.restart_ok === false) {
           logActivity('Restart required after profile change', 'warn', `restart-required-profile-${activeTarget}`);
-        } else {
-          scheduleStreamRecovery('analog', `profile-${activeTarget}`, analogWasPlaying);
         }
+        scheduleStreamRecovery('analog', `profile-${activeTarget}`, analogWasPlaying);
       } catch (e) {
         console.error('Profile switch failed:', e);
       }
