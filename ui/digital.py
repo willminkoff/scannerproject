@@ -54,7 +54,7 @@ _LABEL_RE = re.compile(
     r"\b(label|alias|alpha\s*tag|talkgroup|tgid|channel|channel\s*name|alias\s*name|group)[=:]\s*([^|,]+)",
     re.I,
 )
-_TGID_RE = re.compile(r"\b(?:tgid|talkgroup|tg)\b[=: ]+(\d+)\b", re.I)
+_TGID_RE = re.compile(r"\b(?:tgid|talkgroup|tg)\b\s*[:=#-]?\s*\(?\s*(\d+)\s*\)?", re.I)
 _EVENT_HINT_RE = re.compile(r"(call|voice|traffic|talkgroup|tgid|alias|alpha\s*tag|channel\s*event|from:|to:)", re.I)
 _TS_RE = re.compile(r"(?P<date>\d{4}-\d{2}-\d{2})[ T](?P<time>\d{2}:\d{2}:\d{2})")
 _TS_COMPACT_RE = re.compile(r"(?P<date>\d{8})\s+(?P<time>\d{6})(?:\.\d+)?")
@@ -395,11 +395,19 @@ def _extract_event_from_line(line: str, fallback_ms: int) -> dict | None:
 def _extract_tgid(text: str) -> str:
     if not text:
         return ""
-    m = _TGID_RE.search(text)
+    raw = str(text).strip()
+    m = _TGID_RE.search(raw)
     if m:
         return m.group(1)
-    if text.strip().isdigit():
-        return text.strip()
+
+    # Common standalone forms from event logs, e.g. "(10101)", "TG 10101", "10101".
+    compact = raw
+    if compact.startswith("(") and compact.endswith(")"):
+        compact = compact[1:-1].strip()
+    compact = re.sub(r"^\s*(?:tgid|talkgroup|tg)\s*[:=#-]?\s*", "", compact, flags=re.I)
+    compact = compact.strip()
+    if compact.isdigit():
+        return compact
     return ""
 
 
@@ -1419,7 +1427,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         if not tg_map:
             return event
         if not tgid:
-            if label and (label.isdigit() or _TGID_RE.search(label)):
+            if label:
                 tgid = _extract_tgid(label)
             if not tgid and raw:
                 tgid = _extract_tgid(raw)
@@ -1436,6 +1444,8 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             mapped_label = tg_map.get(tgid)
             if mapped_label:
                 event["label"] = mapped_label
+            elif not str(event.get("label") or "").strip():
+                event["label"] = f"TG {tgid}"
         return event
 
     def getProfile(self):
