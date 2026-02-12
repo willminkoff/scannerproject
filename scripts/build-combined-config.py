@@ -15,6 +15,7 @@ MIXER_NAME = os.getenv("MIXER_NAME", "combined")
 DIGITAL_MIXER_ENABLED = os.getenv("DIGITAL_MIXER_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
 DIGITAL_MIXER_AIRBAND_MOUNT = os.getenv("DIGITAL_MIXER_AIRBAND_MOUNT", "GND-air.mp3").strip()
 MOUNT_NAME = os.getenv("MOUNT_NAME", "").strip()
+ANALOG_CONTINUOUS = os.getenv("ANALOG_CONTINUOUS", "1").strip().lower() in ("1", "true", "yes", "on")
 AIRBAND_FALLBACK_PROFILE_PATH = os.getenv(
     "AIRBAND_FALLBACK_PROFILE_PATH",
     "/usr/local/etc/airband-profiles/rtl_airband_airband.conf",
@@ -69,7 +70,13 @@ def main() -> None:
     # Always honor an explicit mount override so non-mixer deployments can
     # rename the analog stream mount without editing profile files.
     mount_override = MOUNT_NAME or (DIGITAL_MIXER_AIRBAND_MOUNT if DIGITAL_MIXER_ENABLED else "")
-    combined = build_combined_config(airband_path, ground_path, MIXER_NAME, mount_name=mount_override)
+    combined = build_combined_config(
+        airband_path,
+        ground_path,
+        MIXER_NAME,
+        mount_name=mount_override,
+        analog_continuous=ANALOG_CONTINUOUS,
+    )
     out_dir = os.path.dirname(COMBINED_CONFIG_PATH)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)

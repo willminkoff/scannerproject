@@ -142,12 +142,42 @@ def override_icecast_mountpoint(icecast_block: str, mountpoint: str) -> str:
     return RE_MOUNTPOINT.sub(lambda m: f'{m.group(1)}"{mount}"{m.group(3)}', icecast_block)
 
 
+def upsert_icecast_bool_option(icecast_block: str, option: str, enabled: bool) -> str:
+    value = "true" if enabled else "false"
+    pattern = re.compile(rf'(\s*{re.escape(option)}\s*=\s*)(true|false)(\s*;)', re.I)
+    if pattern.search(icecast_block):
+        return pattern.sub(rf'\g<1>{value}\g<3>', icecast_block)
+
+    lines = icecast_block.splitlines()
+    insert_idx = len(lines)
+    indent = "  "
+    for idx, line in enumerate(lines):
+        if RE_BITRATE.search(line):
+            insert_idx = idx + 1
+            indent = re.match(r'^\s*', line).group(0)
+            break
+    if insert_idx == len(lines):
+        for idx, line in enumerate(lines):
+            if line.strip() == "}":
+                insert_idx = idx
+                indent = re.match(r'^\s*', line).group(0) + "  "
+                break
+    lines.insert(insert_idx, f"{indent}{option} = {value};")
+    return "\n".join(lines)
+
+
 def indent_block(text: str, spaces: int) -> str:
     pad = " " * spaces
     return "\n".join(pad + line.rstrip() for line in text.strip().splitlines())
 
 
-def build_combined_config(airband_path: str, ground_path: str, mixer_name: str, mount_name: str = "") -> str:
+def build_combined_config(
+    airband_path: str,
+    ground_path: str,
+    mixer_name: str,
+    mount_name: str = "",
+    analog_continuous: bool = True,
+) -> str:
     with open(airband_path, "r", encoding="utf-8", errors="ignore") as f:
         airband_text = f.read()
     with open(ground_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -196,6 +226,7 @@ def build_combined_config(airband_path: str, ground_path: str, mixer_name: str, 
     else:
         # Override bitrate for low-latency streaming
         icecast_block = override_icecast_bitrate(icecast_block, 16)
+    icecast_block = upsert_icecast_bool_option(icecast_block, "continuous", analog_continuous)
     if mount_name:
         icecast_block = override_icecast_mountpoint(icecast_block, mount_name)
 
