@@ -150,6 +150,17 @@ _EVENT_ID_KEYS = (
     "event_id",
     "id",
 )
+_EVENT_DURATION_KEYS = (
+    "duration_ms",
+    "duration",
+    "duration ms",
+)
+_EVENT_DETAILS_KEYS = (
+    "details",
+    "detail",
+    "message",
+    "status",
+)
 _EVENT_FREQ_KEYS = (
     "frequency",
     "freq",
@@ -162,6 +173,8 @@ _EVENT_SITE_KEYS = (
     "site name",
     "system name",
 )
+_DIGITAL_HIT_MIN_DURATION_MS = int(os.getenv("DIGITAL_HIT_MIN_DURATION_MS", "1500"))
+_DIGITAL_EVENT_DROP_RE = re.compile(r"(rejected|tuner unavailable|encrypted|encryption)", re.I)
 
 
 def validate_digital_profile_id(profile_id: str) -> bool:
@@ -313,6 +326,8 @@ def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
     tgid = _row_value(row, _EVENT_TGID_KEYS)
     event_id = _row_value(row, _EVENT_ID_KEYS)
     event_kind = _row_value(row, _EVENT_KIND_KEYS).lower()
+    duration_raw = _row_value(row, _EVENT_DURATION_KEYS)
+    details = _row_value(row, _EVENT_DETAILS_KEYS)
     mode_val = _row_value(row, _EVENT_MODE_KEYS)
     time_val = _row_value(row, _EVENT_TIME_KEYS)
     date_val = _row_value(row, _EVENT_DATE_KEYS)
@@ -334,6 +349,27 @@ def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
     # Keep only call-type events when an explicit event field is present.
     if event_kind and "call" not in event_kind:
         return None
+
+    # Drop known non-audible call log rows (rejected/encrypted control updates).
+    if details and _DIGITAL_EVENT_DROP_RE.search(details):
+        return None
+
+    duration_ms = None
+    if duration_raw:
+        m = re.search(r"\d+", duration_raw)
+        if m:
+            try:
+                duration_ms = int(m.group(0))
+            except Exception:
+                duration_ms = None
+
+    # For structured call event rows, wait until the call has lasted long enough
+    # to be considered an audible "hit" before surfacing it.
+    if event_id:
+        if duration_ms is None:
+            return None
+        if duration_ms < _DIGITAL_HIT_MIN_DURATION_MS:
+            return None
 
     time_ms = _parse_time_value(time_val, fallback_ms)
     if not time_val and (date_val or time_only):

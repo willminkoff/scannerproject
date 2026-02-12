@@ -136,7 +136,9 @@ def _read_html_template():
 
 
 HTML_TEMPLATE = _read_html_template()
-DIGITAL_HIT_COALESCE_SEC = max(0.0, float(os.getenv("DIGITAL_HIT_COALESCE_SEC", "8")))
+# Digital call-event logs can emit rapid "grant/continue" updates for the same talkgroup.
+# Use a wider default coalesce window to align UI hits with perceived audible traffic.
+DIGITAL_HIT_COALESCE_SEC = max(0.0, float(os.getenv("DIGITAL_HIT_COALESCE_SEC", "20")))
 
 
 def _coalesce_digital_hits(items: list[dict], window_sec: float = DIGITAL_HIT_COALESCE_SEC) -> list[dict]:
