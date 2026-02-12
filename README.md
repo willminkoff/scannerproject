@@ -531,10 +531,24 @@ sudo systemctl restart scanner-digital
 - `POST /api/digital/profile/create` → body: `{ "profileId": "..." }`
 - `POST /api/digital/profile/delete` → body: `{ "profileId": "..." }`
 - `POST /api/digital/profile/inspect` → body: `{ "profileId": "..." }`
+- `GET  /api/digital/talkgroups?profileId=...`
+- `POST /api/digital/talkgroups/listen` → body: `{ "profileId": "...", "items": [{"dec":"47008","listen":true}] }`
 - `GET  /api/digital/preflight` → tuner-busy detection + expected serials
 
 **SB3 Digital profile management**:
 - Digital tab → Digital Profiles widget lets you create/delete profile folders, select an active profile, and load a preview of files in the profile directory.
+- Talkgroup Listen panel now includes Mode-aware controls:
+  - Columns: `TGID`, `Mode`, `Label`, `Tag`
+  - Filters: listen-state (`All`/`Listening`/`Muted`) + mode (`All Modes`/`Clear`/`Encrypted`/`D`/`T`/`DE`/`TE`)
+  - Bulk actions: `Select Filtered`, `Unselect Filtered`, and `Mute Encrypted`
+  - Sorting: click `TGID`/`Mode`/`Label`/`Tag` headers to sort asc/desc
+  - `Mute Encrypted` mutes encrypted-only TGIDs (it does not auto-mute TGIDs that have both clear and encrypted entries)
+
+**RadioReference TXT import helper**:
+- `scripts/rr_txt_to_profiles.py` parses RR TXT exports into digital-profile scaffolding.
+- TACN example output is tracked at `deploy/examples/digital-profiles/profiles/tacn/tacn-all/`:
+  - `control_channels.txt` (all TACN control channels)
+  - `talkgroups.csv` / `talkgroups_with_group.csv` (combined TACN talkgroups)
 
 **Adding control channels + talkgroups (RadioReference workflow)**:
 1. **Find the system on RadioReference**: note the system type (P25/DMR/etc.), site(s), and **control channels** (primary + alternate).

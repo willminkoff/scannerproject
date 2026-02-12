@@ -1536,6 +1536,7 @@
                   <option value="DE">DE</option>
                   <option value="TE">TE</option>
                 </select>
+                <button class="action" id="digital-listen-mute-encrypted">Mute Encrypted</button>
                 <button class="action" id="digital-listen-load">Load</button>
                 <button class="action" id="digital-listen-enable-filtered">Select Filtered</button>
                 <button class="action" id="digital-listen-disable-filtered">Unselect Filtered</button>
@@ -2033,6 +2034,7 @@
       digitalListenSearch: document.getElementById('digital-listen-search'),
       digitalListenFilter: document.getElementById('digital-listen-filter'),
       digitalListenModeFilter: document.getElementById('digital-listen-mode-filter'),
+      digitalListenMuteEncrypted: document.getElementById('digital-listen-mute-encrypted'),
       digitalListenLoad: document.getElementById('digital-listen-load'),
       digitalListenEnableFiltered: document.getElementById('digital-listen-enable-filtered'),
       digitalListenDisableFiltered: document.getElementById('digital-listen-disable-filtered'),
@@ -2897,6 +2899,53 @@
       state.digitalListen.dirty = true;
       renderDigitalListenList();
       setDigitalListenStatus(`${listen ? 'Selected' : 'Unselected'} ${filtered.length} talkgroups`, false);
+    }
+
+    function getEncryptedOnlyTalkgroupDecs(items) {
+      const stateByDec = new Map();
+      (items || []).forEach((item) => {
+        const dec = String(item.dec || '').trim();
+        if (!dec) return;
+        if (!stateByDec.has(dec)) {
+          stateByDec.set(dec, { hasEncrypted: false, hasClear: false });
+        }
+        const mode = normalizeDigitalListenMode(item.mode);
+        const info = stateByDec.get(dec);
+        if (mode.includes('E')) info.hasEncrypted = true;
+        else info.hasClear = true;
+      });
+      const decs = new Set();
+      stateByDec.forEach((info, dec) => {
+        if (info.hasEncrypted && !info.hasClear) decs.add(dec);
+      });
+      return decs;
+    }
+
+    function muteEncryptedTalkgroups() {
+      const items = state.digitalListen.items || [];
+      if (!items.length) {
+        setDigitalListenStatus('Load talkgroups first', true);
+        return;
+      }
+      const encryptedOnly = getEncryptedOnlyTalkgroupDecs(items);
+      if (!encryptedOnly.size) {
+        setDigitalListenStatus('No encrypted talkgroups found', false);
+        return;
+      }
+      let changed = 0;
+      items.forEach((item) => {
+        const dec = String(item.dec || '').trim();
+        if (!dec || !encryptedOnly.has(dec)) return;
+        if (item.listen !== false) {
+          item.listen = false;
+          changed += 1;
+        }
+      });
+      if (changed > 0) {
+        state.digitalListen.dirty = true;
+      }
+      renderDigitalListenList();
+      setDigitalListenStatus(`Muted encrypted talkgroups (${encryptedOnly.size} TGIDs)`, false);
     }
 
     async function refreshDigitalListen(force=false) {
@@ -4237,6 +4286,9 @@
           state.digitalListen.modeFilter = e.target.value || 'all';
           renderDigitalListenList();
         });
+      }
+      if (els.digitalListenMuteEncrypted) {
+        els.digitalListenMuteEncrypted.addEventListener('click', muteEncryptedTalkgroups);
       }
       if (els.digitalListenEnableFiltered) {
         els.digitalListenEnableFiltered.addEventListener('click', () => setDigitalListenForFiltered(true));
