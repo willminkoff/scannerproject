@@ -80,6 +80,7 @@ def _build_liq_script(muted: bool) -> str:
             "#!/usr/bin/liquidsoap",
             "set(\"log.stdout\",true)",
             "set(\"server.telnet\",false)",
+            "settings.init.allow_root := true",
             "",
             "def with_silence(src) =",
             "  fallback(track_sensitive=false,[mksafe(src),blank()])",

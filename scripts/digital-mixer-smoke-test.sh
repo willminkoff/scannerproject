@@ -20,7 +20,7 @@ if [ -z "$before_restarts" ]; then
 fi
 
 echo "[digital-mixer-smoke-test] Checking output: $OUTPUT_HTTP_URL"
-headers=$(curl -sS -D - -o /dev/null "$OUTPUT_HTTP_URL" || true)
+headers=$(curl -sS --max-time 5 -D - -o /dev/null "$OUTPUT_HTTP_URL" || true)
 if ! echo "$headers" | tr -d '\r' | grep -qi '^Content-Type: audio/mpeg'; then
   echo "FAIL: Content-Type is not audio/mpeg" >&2
   echo "$headers" | tr -d '\r' | head -20 >&2
