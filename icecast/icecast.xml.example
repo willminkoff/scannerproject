@@ -24,9 +24,9 @@
     <port>8000</port>
   </listen-socket>
 
-  <!-- Keep /GND.mp3 "always alive": if rtl_airband disconnects, listeners fall back to /keepalive.mp3 -->
+  <!-- Keep /scannerbox.mp3 "always alive": if mixer disconnects, listeners fall back to /keepalive.mp3 -->
   <mount>
-    <mount-name>/GND.mp3</mount-name>
+    <mount-name>/scannerbox.mp3</mount-name>
     <type>audio/mpeg</type>
     <fallback-mount>/keepalive.mp3</fallback-mount>
     <fallback-override>1</fallback-override>

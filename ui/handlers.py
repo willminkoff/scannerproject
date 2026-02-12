@@ -790,7 +790,7 @@ class Handler(BaseHTTPRequestHandler):
                         "          send_scan_freq_tags = true;\n" + \
                         "          server = \"127.0.0.1\";\n" + \
                         "          port = 8000;\n" + \
-                        "          mountpoint = \"GND.mp3\";\n" + \
+                        "          mountpoint = \"scannerbox.mp3\";\n" + \
                         "          username = \"source\";\n" + \
                         "          password = \"062352\";\n" + \
                         "          name = \"SprontPi Radio\";\n" + \

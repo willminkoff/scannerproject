@@ -1886,7 +1886,7 @@
       icecastMounts: [],
       icecastExpectedMounts: [],
       icecastPort: 8000,
-      streamMount: 'GND.mp3',
+      streamMount: 'scannerbox.mp3',
       streamBaseUrl: '',
       sseConnected: false,
       adsbLoaded: false,
@@ -2202,7 +2202,7 @@
 
     function streamUrl() {
       const port = Number.isFinite(state.icecastPort) ? state.icecastPort : 8000;
-      const mount = (state.streamMount || 'GND.mp3').replace(/^\/+/, '');
+      const mount = (state.streamMount || 'scannerbox.mp3').replace(/^\/+/, '');
       return `http://${location.hostname}:${port}/${mount}`;
     }
 

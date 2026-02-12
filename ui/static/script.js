@@ -71,7 +71,7 @@ let profilesCacheAt = 0;
 let digitalProfilesCache = null;
 let digitalProfilesCacheAt = 0;
 let digitalMuted = false;
-let streamMount = 'GND.mp3';
+let streamMount = 'scannerbox.mp3';
 let icecastPort = 8000;
 let streamBaseUrl = '';
 const audioRecoverState = new WeakMap();
@@ -322,7 +322,7 @@ function buildProfiles(profilesEl, profiles, selected, target) {
 }
 
 function streamUrl() {
-  const mount = (streamMount || 'GND.mp3').replace(/^\/+/, '');
+  const mount = (streamMount || 'scannerbox.mp3').replace(/^\/+/, '');
   return `http://${location.hostname}:${icecastPort}/${mount}`;
 }
 
@@ -345,8 +345,8 @@ function syncStreamLinks() {
     lnkStreamGroundEl.target = '_blank';
     lnkStreamGroundEl.rel = 'noopener';
   }
-  if (mountAirbandEl) mountAirbandEl.textContent = streamMount || 'GND.mp3';
-  if (mountGroundEl) mountGroundEl.textContent = streamMount || 'GND.mp3';
+  if (mountAirbandEl) mountAirbandEl.textContent = streamMount || 'scannerbox.mp3';
+  if (mountGroundEl) mountGroundEl.textContent = streamMount || 'scannerbox.mp3';
 }
 
 function clearAudioWaitingTimer(audioEl) {
