@@ -1,4 +1,6 @@
 """Main server application."""
+import os
+import sys
 from http.server import HTTPServer
 from socketserver import ThreadingMixIn
 
@@ -7,6 +9,11 @@ try:
     from .handlers import Handler
     from .server_workers import start_config_worker, start_icecast_monitor
 except ImportError:
+    # Support direct execution (`python ui/app.py`) by adding repo root.
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.dirname(script_dir)
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
     from ui.config import UI_PORT
     from ui.handlers import Handler
     from ui.server_workers import start_config_worker, start_icecast_monitor
