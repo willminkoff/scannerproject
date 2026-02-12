@@ -1,5 +1,5 @@
 [Unit]
-Description=Icecast Keepalive (silent fallback)
+Description=Icecast Keepalive Digital (silent fallback)
 After=network-online.target icecast2.service
 Wants=network-online.target icecast2.service
 Requires=icecast2.service
@@ -12,7 +12,7 @@ Environment=ICECAST_HOST=127.0.0.1
 Environment=ICECAST_PORT=8000
 Environment=ICECAST_SOURCE_USER=source
 Environment=ICECAST_SOURCE_PASSWORD=062352
-Environment=ICECAST_KEEPALIVE_MOUNT=keepalive-analog.mp3
+Environment=ICECAST_KEEPALIVE_MOUNT=keepalive-digital.mp3
 ExecStartPre=-/bin/sh -c '/usr/bin/curl -s -u "${ICECAST_SOURCE_USER}:${ICECAST_SOURCE_PASSWORD}" "http://${ICECAST_HOST}:${ICECAST_PORT}/admin/killsource?mount=/${ICECAST_KEEPALIVE_MOUNT}" >/dev/null 2>&1 || true'
 ExecStart=/usr/bin/ffmpeg -nostdin -hide_banner -loglevel warning \
   -re -f lavfi -i anullsrc=channel_layout=mono:sample_rate=44100 \

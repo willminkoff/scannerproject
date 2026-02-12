@@ -9,7 +9,7 @@
     <queue-size>16384</queue-size>
     <client-timeout>30</client-timeout>
     <header-timeout>15</header-timeout>
-    <source-timeout>1</source-timeout>
+    <source-timeout>10</source-timeout>
     <burst-size>4096</burst-size>
   </limits>
 
@@ -24,19 +24,18 @@
     <port>8000</port>
   </listen-socket>
 
-  <!-- Keep /scannerbox.mp3 "always alive": if mixer disconnects, listeners fall back to /keepalive.mp3 -->
+  <!-- Keep analog and digital mounts isolated during source restarts. -->
   <mount>
-    <mount-name>/scannerbox.mp3</mount-name>
+    <mount-name>/ANALOG.mp3</mount-name>
     <type>audio/mpeg</type>
-    <fallback-mount>/keepalive.mp3</fallback-mount>
+    <fallback-mount>/keepalive-analog.mp3</fallback-mount>
     <fallback-override>1</fallback-override>
   </mount>
 
-  <!-- Staging mount for DMR testing -->
   <mount>
-    <mount-name>/DMR.mp3</mount-name>
+    <mount-name>/DIGITAL.mp3</mount-name>
     <type>audio/mpeg</type>
-    <fallback-mount>/keepalive.mp3</fallback-mount>
+    <fallback-mount>/keepalive-digital.mp3</fallback-mount>
     <fallback-override>1</fallback-override>
   </mount>
 

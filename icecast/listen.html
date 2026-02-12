@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stream Player</title>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #0b1220;
+      color: #d1e7ff;
+      font: 16px/1.4 "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 20px;
+      color: #9ad0ff;
+    }
+    .meta {
+      margin: 0 0 16px;
+      color: #88a9c9;
+      font-size: 13px;
+      word-break: break-all;
+    }
+    audio {
+      width: 100%;
+      margin-bottom: 12px;
+    }
+    .status {
+      font-size: 13px;
+      color: #7ee787;
+    }
+    .status.warn {
+      color: #ffcc66;
+    }
+  </style>
+</head>
+<body>
+  <h1 id="title">Loading stream...</h1>
+  <div class="meta" id="url">--</div>
+  <audio id="player" controls autoplay preload="none"></audio>
+  <div class="status" id="status">Connecting...</div>
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const mountRaw = (params.get("mount") || "ANALOG.mp3").trim();
+      const mount = mountRaw.replace(/^\/+/, "") || "ANALOG.mp3";
+      const fallbackParam = (params.get("fallback") || "").trim();
+      const defaultFallback = /digital/i.test(mount) ? "keepalive-digital.mp3" : "keepalive-analog.mp3";
+      const fallbackRaw = fallbackParam || defaultFallback;
+      const fallbackMount = fallbackRaw.replace(/^\/+/, "") || defaultFallback;
+      const streamBase = `${window.location.protocol}//${window.location.host}/${mount}`;
+      const fallbackBase = `${window.location.protocol}//${window.location.host}/${fallbackMount}`;
+
+      const titleEl = document.getElementById("title");
+      const urlEl = document.getElementById("url");
+      const player = document.getElementById("player");
+      const statusEl = document.getElementById("status");
+
+      let lastPos = -1;
+      let lastAdvanceMs = Date.now();
+      let lastReloadMs = 0;
+      let usingFallback = false;
+      let fallbackUntilMs = 0;
+      const RELOAD_COOLDOWN_MS = 2500;
+      const STALL_LIMIT_MS = 8000;
+      const FALLBACK_HOLD_MS = 8000;
+
+      function setStatus(message, warn) {
+        statusEl.textContent = message;
+        statusEl.classList.toggle("warn", !!warn);
+      }
+
+      function setSource(base, reason, forcePlay) {
+        const wasPaused = player.paused;
+        const shouldPlay = forcePlay || !wasPaused;
+        const now = Date.now();
+        player.src = `${base}?t=${now}`;
+        player.load();
+        if (shouldPlay) {
+          player.play().catch(() => {});
+        }
+        setStatus(`Reconnecting (${reason})...`, true);
+        lastAdvanceMs = now;
+      }
+
+      function switchToFallback(reason) {
+        if (usingFallback) {
+          reload(reason);
+          return;
+        }
+        usingFallback = true;
+        fallbackUntilMs = Date.now() + FALLBACK_HOLD_MS;
+        setSource(fallbackBase, `${reason} -> fallback`, true);
+      }
+
+      function switchToPrimary(reason) {
+        usingFallback = false;
+        fallbackUntilMs = 0;
+        setSource(streamBase, `${reason} -> primary`, true);
+      }
+
+      function reload(reason) {
+        const now = Date.now();
+        if (now - lastReloadMs < RELOAD_COOLDOWN_MS) return;
+        lastReloadMs = now;
+        if (!usingFallback) {
+          switchToFallback(reason);
+        } else if (Date.now() >= fallbackUntilMs) {
+          switchToPrimary(reason);
+        } else {
+          setSource(fallbackBase, reason, true);
+        }
+      }
+
+      titleEl.textContent = `Stream: ${mount}`;
+      urlEl.textContent = streamBase;
+      player.src = `${streamBase}?t=${Date.now()}`;
+
+      player.addEventListener("playing", () => {
+        lastPos = Number(player.currentTime || 0);
+        lastAdvanceMs = Date.now();
+        const mode = usingFallback ? `Fallback (${fallbackMount})` : "Live";
+        setStatus(mode, usingFallback);
+      });
+      player.addEventListener("canplay", () => setStatus("Buffering complete", false));
+      player.addEventListener("stalled", () => reload("stalled"));
+      player.addEventListener("error", () => reload("error"));
+      player.addEventListener("ended", () => reload("ended"));
+      player.addEventListener("waiting", () => setStatus("Waiting for stream data...", true));
+      player.addEventListener("timeupdate", () => {
+        const pos = Number(player.currentTime || 0);
+        if (Number.isFinite(pos) && pos > lastPos + 0.05) {
+          lastPos = pos;
+          lastAdvanceMs = Date.now();
+        }
+      });
+
+      setInterval(() => {
+        if (player.paused) return;
+        const now = Date.now();
+        if (usingFallback && now >= fallbackUntilMs) {
+          switchToPrimary("fallback-window");
+          return;
+        }
+        if (now - lastAdvanceMs >= STALL_LIMIT_MS) {
+          reload("no-progress");
+          lastAdvanceMs = now;
+        }
+      }, 2000);
+
+      player.play().catch(() => {
+        setStatus("Autoplay blocked by browser. Press Play.", true);
+      });
+    })();
+  </script>
+</body>
+</html>

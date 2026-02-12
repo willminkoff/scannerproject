@@ -41,7 +41,17 @@
 							</xsl:when>
 							<xsl:otherwise>
 								<ul class="mountlist">
-									<li><a class="play" href="{@mount}" target="_blank" rel="noopener">MP3</a></li>
+										<li>
+											<xsl:variable name="fallbackMount">
+												<xsl:choose>
+													<xsl:when test="@mount='/ANALOG.mp3'">/keepalive-analog.mp3</xsl:when>
+													<xsl:when test="@mount='/DIGITAL.mp3'">/keepalive-digital.mp3</xsl:when>
+													<xsl:when test="@mount='/keepalive-digital.mp3'">/keepalive-digital.mp3</xsl:when>
+													<xsl:otherwise>/keepalive-analog.mp3</xsl:otherwise>
+												</xsl:choose>
+											</xsl:variable>
+											<a class="play" href="listen.html?mount={@mount}&amp;fallback={$fallbackMount}" target="_blank" rel="noopener">MP3</a>
+										</li>
 									<li><a class="play" href="{@mount}.xspf">XSPF</a></li>
 									<!-- <li><a class="play" href="{@mount}.vclt">VCLT</a></li> -->
 								</ul>
