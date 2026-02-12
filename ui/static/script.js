@@ -321,18 +321,22 @@ function streamUrl() {
   return `http://${location.hostname}:${icecastPort}/${mount}`;
 }
 
+function icecastRootUrl() {
+  return `http://${location.hostname}:${icecastPort}/`;
+}
+
 function syncStreamLinks() {
   const base = streamUrl();
   streamBaseUrl = base;
   if (audioAirbandEl) audioAirbandEl.src = base;
   if (audioGroundEl) audioGroundEl.src = base;
   if (lnkStreamAirbandEl) {
-    lnkStreamAirbandEl.href = base;
+    lnkStreamAirbandEl.href = icecastRootUrl();
     lnkStreamAirbandEl.target = '_blank';
     lnkStreamAirbandEl.rel = 'noopener';
   }
   if (lnkStreamGroundEl) {
-    lnkStreamGroundEl.href = base;
+    lnkStreamGroundEl.href = icecastRootUrl();
     lnkStreamGroundEl.target = '_blank';
     lnkStreamGroundEl.rel = 'noopener';
   }

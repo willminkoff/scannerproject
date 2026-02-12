@@ -1323,7 +1323,7 @@
             <div class="player-box">
               <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px;">
                 <div style="font-weight:700;">Player</div>
-                <a id="lnk-stream" href="#" target="_blank" rel="noopener" style="font-size:12px; opacity:0.85;">Open stream</a>
+                <a id="lnk-stream" href="#" target="_blank" rel="noopener" style="font-size:12px; opacity:0.85;">Open Icecast</a>
               </div>
               <audio id="audio-player" controls preload="none"></audio>
             </div>
@@ -2197,10 +2197,15 @@
       return `http://${location.hostname}:${port}/${mount}`;
     }
 
+    function icecastRootUrl() {
+      const port = Number.isFinite(state.icecastPort) ? state.icecastPort : 8000;
+      return `http://${location.hostname}:${port}/`;
+    }
+
     function syncStreamLinks() {
       const base = streamUrl();
       if (els.lnkStream) {
-        els.lnkStream.href = base;
+        els.lnkStream.href = icecastRootUrl();
       }
       if (els.audioPlayer) {
         const current = (els.audioPlayer.src || '').split('?')[0];
