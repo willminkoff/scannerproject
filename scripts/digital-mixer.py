@@ -28,6 +28,8 @@ FFMPEG_RW_TIMEOUT = int(os.getenv("DIGITAL_MIXER_RW_TIMEOUT", "8000000"))  # mic
 FFMPEG_ANALYZE_DURATION = int(os.getenv("DIGITAL_MIXER_ANALYZE_DURATION", "2000000"))
 FFMPEG_PROBE_SIZE = int(os.getenv("DIGITAL_MIXER_PROBE_SIZE", "2000000"))
 FFMPEG_USER_AGENT = os.getenv("DIGITAL_MIXER_USER_AGENT", "scannerproject-digital-mixer/1.0")
+FFMPEG_RECONNECT_ON_NETWORK_ERROR = env_flag("DIGITAL_MIXER_RECONNECT_ON_NETWORK_ERROR", True)
+FFMPEG_RECONNECT_ON_HTTP_ERROR = os.getenv("DIGITAL_MIXER_RECONNECT_ON_HTTP_ERROR", "4xx,5xx").strip()
 
 ICECAST_HOST = os.getenv("ICECAST_HOST", "127.0.0.1")
 ICECAST_PORT = int(os.getenv("ICECAST_PORT", "8000"))
@@ -149,11 +151,14 @@ def build_cmd(airband_ok: bool, digital_ok: bool) -> list:
             "-reconnect", "1",
             "-reconnect_streamed", "1",
             "-reconnect_at_eof", "1",
+            "-reconnect_on_network_error", "1" if FFMPEG_RECONNECT_ON_NETWORK_ERROR else "0",
             "-reconnect_delay_max", "2",
             "-method", "GET",
             "-user_agent", FFMPEG_USER_AGENT,
-            "-i", url,
         ])
+        if FFMPEG_RECONNECT_ON_HTTP_ERROR:
+            cmd.extend(["-reconnect_on_http_error", FFMPEG_RECONNECT_ON_HTTP_ERROR])
+        cmd.extend(["-i", url])
 
     def add_silence() -> None:
         cmd.extend([

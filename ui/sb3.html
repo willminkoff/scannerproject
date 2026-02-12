@@ -1861,6 +1861,8 @@
     const VIEW_FLIP_MS = 480;
     const MAX_LOG = 120;
     const LOG_DEDUPE_MS = 4000;
+    const AUDIO_RECOVER_COOLDOWN_MS = 8000;
+    const AUDIO_WAITING_GRACE_MS = 2500;
     
     // ============================================
     // STATE
@@ -1868,6 +1870,8 @@
     
     let activeTarget = 'airband';
     let activeView = 'airband';
+    let audioRecoverLastTs = 0;
+    let audioWaitingTimer = null;
     
     let state = {
       connected: false,
@@ -2235,6 +2239,42 @@
       if (reason) {
         logActivity(reason, 'info', `stream-reload-${reason}`);
       }
+    }
+
+    function clearAudioWaitingTimer() {
+      if (audioWaitingTimer) {
+        clearTimeout(audioWaitingTimer);
+        audioWaitingTimer = null;
+      }
+    }
+
+    function maybeAutoRecoverAudio(reason) {
+      if (!els.audioPlayer) return;
+      if (els.audioPlayer.paused) return;
+      const now = Date.now();
+      if ((now - audioRecoverLastTs) < AUDIO_RECOVER_COOLDOWN_MS) return;
+      audioRecoverLastTs = now;
+      reloadAudioStream(`auto-${reason}`);
+    }
+
+    function setupAudioAutoRecover() {
+      if (!els.audioPlayer) return;
+      if (els.audioPlayer.dataset.autorecoverBound === '1') return;
+      els.audioPlayer.dataset.autorecoverBound = '1';
+      els.audioPlayer.addEventListener('playing', clearAudioWaitingTimer);
+      els.audioPlayer.addEventListener('canplay', clearAudioWaitingTimer);
+      els.audioPlayer.addEventListener('stalled', () => maybeAutoRecoverAudio('stalled'));
+      els.audioPlayer.addEventListener('error', () => maybeAutoRecoverAudio('error'));
+      els.audioPlayer.addEventListener('ended', () => maybeAutoRecoverAudio('ended'));
+      els.audioPlayer.addEventListener('waiting', () => {
+        clearAudioWaitingTimer();
+        audioWaitingTimer = setTimeout(() => {
+          if (!els.audioPlayer) return;
+          if (!els.audioPlayer.paused && els.audioPlayer.readyState < 3) {
+            maybeAutoRecoverAudio('waiting');
+          }
+        }, AUDIO_WAITING_GRACE_MS);
+      });
     }
 
     function setVlcButtonState(running) {
@@ -4488,6 +4528,7 @@
         });
       }
       // Reconnect button removed
+      setupAudioAutoRecover();
       
       logActivity('SB3 UI initialized', 'info', 'init');
       refresh();

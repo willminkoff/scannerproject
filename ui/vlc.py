@@ -1,4 +1,5 @@
 """VLC playback control for the local Icecast stream."""
+import os
 import subprocess
 
 try:
@@ -7,6 +8,11 @@ except ImportError:
     from ui.config import ICECAST_HOST, ICECAST_PORT, PLAYER_MOUNT
 
 STREAM_URL = f"http://{ICECAST_HOST}:{ICECAST_PORT}/{PLAYER_MOUNT}"
+VLC_HTTP_RECONNECT = str(os.getenv("VLC_HTTP_RECONNECT", "1")).strip().lower() in ("1", "true", "yes", "on")
+try:
+    VLC_NETWORK_CACHING_MS = max(0, int(str(os.getenv("VLC_NETWORK_CACHING_MS", "1000")).strip()))
+except Exception:
+    VLC_NETWORK_CACHING_MS = 1000
 
 
 def _is_sdrtrunk_java_pid(pid: str) -> bool:
@@ -91,7 +97,12 @@ def start_vlc(stream_url: str = STREAM_URL):
     if vlc_running():
         _mute_sdrtrunk_pulse_streams()
         return True, "already running"
-    cmd = ["cvlc", "--intf", "dummy", "--aout=pulse", "--quiet", stream_url]
+    cmd = ["cvlc", "--intf", "dummy", "--aout=pulse", "--quiet"]
+    if VLC_HTTP_RECONNECT:
+        cmd.append("--http-reconnect")
+    if VLC_NETWORK_CACHING_MS > 0:
+        cmd.extend(["--network-caching", str(VLC_NETWORK_CACHING_MS)])
+    cmd.append(stream_url)
     try:
         subprocess.Popen(
             cmd,

@@ -391,9 +391,13 @@ Live-only digital backend control with in-memory metadata (no recording or persi
 - `DIGITAL_MIXER_AIRBAND_MOUNT` (default: `GND-air.mp3`) - raw airband+ground input mount for the mixer
 - `DIGITAL_MIXER_DIGITAL_MOUNT` (default: `DIGITAL.mp3`) - SDRTrunk input mount for the mixer
 - `DIGITAL_MIXER_OUTPUT_MOUNT` (default: `GND.mp3`) - final mixed output mount
+- `DIGITAL_MIXER_RECONNECT_ON_NETWORK_ERROR` (default: `1`) - ffmpeg reconnect on input network errors
+- `DIGITAL_MIXER_RECONNECT_ON_HTTP_ERROR` (default: `4xx,5xx`) - ffmpeg reconnect on HTTP input errors
 - `DIGITAL_LOCAL_MONITOR` (default: `0`) - when `0`, SDRTrunk direct local Java sink inputs are auto-muted on service startup
 - `DIGITAL_LOCAL_MONITOR_WAIT_SEC` (default: `20`) - startup wait window to find SDRTrunk sink inputs before giving up
 - `DIGITAL_LOCAL_MONITOR_POLL_SEC` (default: `1`) - poll interval while waiting for SDRTrunk sink inputs
+- `VLC_HTTP_RECONNECT` (default: `1`) - enables local Pi VLC reconnect for Play button stream playback
+- `VLC_NETWORK_CACHING_MS` (default: `1000`) - local Pi VLC network buffer/caching for stream stability
 - `ICECAST_SOURCE_PASSWORD` (default: `062352`) - must match your Icecast source password if customized
 
 **Profile model**:

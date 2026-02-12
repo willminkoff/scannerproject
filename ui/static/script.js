@@ -55,6 +55,8 @@ const GAIN_STEPS = [
 ];
 const DBFS_MIN = -120;
 const DBFS_MAX = 0;
+const AUDIO_RECOVER_COOLDOWN_MS = 8000;
+const AUDIO_WAITING_GRACE_MS = 2500;
 
 let currentProfileAirband = null;
 let currentProfileGround = null;
@@ -70,6 +72,7 @@ let digitalMuted = false;
 let streamMount = 'GND.mp3';
 let icecastPort = 8000;
 let streamBaseUrl = '';
+const audioRecoverState = new WeakMap();
 
 const controlTargets = {
   airband: {
@@ -344,6 +347,59 @@ function syncStreamLinks() {
   if (mountGroundEl) mountGroundEl.textContent = streamMount || 'GND.mp3';
 }
 
+function clearAudioWaitingTimer(audioEl) {
+  const state = audioRecoverState.get(audioEl);
+  if (!state || !state.waitingTimer) return;
+  clearTimeout(state.waitingTimer);
+  state.waitingTimer = null;
+}
+
+function reloadAudioElement(audioEl, reason) {
+  if (!audioEl) return;
+  const base = streamUrl();
+  const wasPaused = audioEl.paused;
+  audioEl.src = `${base}?t=${Date.now()}`;
+  audioEl.load();
+  if (!wasPaused) {
+    audioEl.play().catch(() => {});
+  }
+}
+
+function maybeAutoRecoverAudio(audioEl, reason) {
+  if (!audioEl || audioEl.paused) return;
+  const now = Date.now();
+  let state = audioRecoverState.get(audioEl);
+  if (!state) {
+    state = {lastReloadTs: 0, waitingTimer: null};
+    audioRecoverState.set(audioEl, state);
+  }
+  if ((now - state.lastReloadTs) < AUDIO_RECOVER_COOLDOWN_MS) return;
+  state.lastReloadTs = now;
+  reloadAudioElement(audioEl, `auto-${reason}`);
+}
+
+function attachAudioAutoRecover(audioEl) {
+  if (!audioEl) return;
+  if (audioEl.dataset.autorecoverBound === '1') return;
+  audioEl.dataset.autorecoverBound = '1';
+  audioRecoverState.set(audioEl, {lastReloadTs: 0, waitingTimer: null});
+  audioEl.addEventListener('playing', () => clearAudioWaitingTimer(audioEl));
+  audioEl.addEventListener('canplay', () => clearAudioWaitingTimer(audioEl));
+  audioEl.addEventListener('stalled', () => maybeAutoRecoverAudio(audioEl, 'stalled'));
+  audioEl.addEventListener('error', () => maybeAutoRecoverAudio(audioEl, 'error'));
+  audioEl.addEventListener('ended', () => maybeAutoRecoverAudio(audioEl, 'ended'));
+  audioEl.addEventListener('waiting', () => {
+    clearAudioWaitingTimer(audioEl);
+    const state = audioRecoverState.get(audioEl);
+    if (!state) return;
+    state.waitingTimer = setTimeout(() => {
+      if (!audioEl.paused && audioEl.readyState < 3) {
+        maybeAutoRecoverAudio(audioEl, 'waiting');
+      }
+    }, AUDIO_WAITING_GRACE_MS);
+  });
+}
+
 async function getJSON(url) {
   const r = await fetch(url, {cache:'no-store'});
   return await r.json();
@@ -578,6 +634,8 @@ wireControls('ground');
 
 // Wire embedded players
 syncStreamLinks();
+attachAudioAutoRecover(audioAirbandEl);
+attachAudioAutoRecover(audioGroundEl);
 if (manageTargetAirbandEl) manageTargetAirbandEl.addEventListener('change', refreshManageCloneOptions);
 if (manageTargetGroundEl) manageTargetGroundEl.addEventListener('change', refreshManageCloneOptions);
 if (manageTargetAirbandEl) manageTargetAirbandEl.addEventListener('change', refreshEditProfileOptions);
