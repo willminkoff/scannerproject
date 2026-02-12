@@ -2133,6 +2133,8 @@
 
     const activityLog = [];
     const logDedupe = new Map();
+    const sessionHitKeys = new Set();
+    let hitBaselineReady = false;
     let currentView = 'main';
     
     // ============================================
@@ -3138,6 +3140,15 @@
         String(hit.mode || ''),
       ].join('|');
     }
+
+    function seedHitBaseline(items) {
+      sessionHitKeys.clear();
+      for (const hit of (items || [])) {
+        const key = hitKey(hit);
+        if (key) sessionHitKeys.add(key);
+      }
+      hitBaselineReady = true;
+    }
     
     function updateCounters() {
       const elapsed = (Date.now() - state.sessionStart) / 3600000;
@@ -4101,14 +4112,26 @@
         const data = await fetchJSON('/api/hits');
         const newHits = data.items || [];
         const prevTop = state.hits[0]?.time;
-        
-        // Count new hits by identity (prevents runaway counts on poll refresh).
-        if (state.hits.length > 0 && newHits.length > 0) {
-          const prevKeys = new Set(state.hits.map(hitKey));
-          const newCount = newHits.filter((h) => !prevKeys.has(hitKey(h))).length;
-          if (newCount > 0) {
-            state.sessionHits += newCount;
-          }
+
+        // First successful /api/hits call establishes baseline; do not count history.
+        if (!hitBaselineReady) {
+          state.hits = newHits;
+          seedHitBaseline(newHits);
+          updateHitList();
+          updateCounters();
+          updateStatus();
+          return;
+        }
+
+        let newCount = 0;
+        for (const hit of newHits) {
+          const key = hitKey(hit);
+          if (!key || sessionHitKeys.has(key)) continue;
+          sessionHitKeys.add(key);
+          newCount += 1;
+        }
+        if (newCount > 0) {
+          state.sessionHits += newCount;
         }
         
         state.hits = newHits;
@@ -4174,6 +4197,14 @@
           
           // Only update if SSE has newer data (don't overwrite polling data with less)
           if (newHits.length === 0) return;
+
+          // Wait for /api/hits baseline before counting session events.
+          if (!hitBaselineReady) {
+            state.hits = newHits.slice(0, 50);
+            updateHitList();
+            updateStatus();
+            return;
+          }
           
           // Check if we have a genuinely new hit at the top
           const currentTop = state.hits[0]?.time;
@@ -4182,13 +4213,12 @@
           if (newTop && newTop !== currentTop) {
             const topHit = newHits[0];
             // Merge: prepend new hits we don't have
-            const existingTimes = new Set(state.hits.map(hitKey));
             let added = 0;
             for (let i = newHits.length - 1; i >= 0; i--) {
               const key = hitKey(newHits[i]);
-              if (!existingTimes.has(key)) {
+              if (key && !sessionHitKeys.has(key)) {
                 state.hits.unshift(newHits[i]);
-                existingTimes.add(key);
+                sessionHitKeys.add(key);
                 added += 1;
               }
             }
@@ -4253,7 +4283,7 @@
     // INIT
     // ============================================
     
-    function init() {
+    async function init() {
       loadTheme();
       setupCollapsibleWidgets();
       updateTuneButton();
@@ -4572,8 +4602,8 @@
       setupAudioAutoRecover();
       
       logActivity('SB3 UI initialized', 'info', 'init');
-      refresh();
-      refreshHits();
+      await refresh();
+      await refreshHits();
       connectSSE();
       updateSitrep();
       
