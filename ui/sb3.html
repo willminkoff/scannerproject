@@ -994,12 +994,52 @@
 
     .digital-listen-row {
       display: grid;
-      grid-template-columns: 28px 70px 1fr 140px;
+      grid-template-columns: 28px 78px 52px 1fr 140px;
       gap: 8px;
       align-items: center;
       padding: 6px 10px;
       border-bottom: 1px solid rgba(20, 26, 33, 0.8);
       font-size: 12px;
+    }
+
+    .digital-listen-row-head {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: rgba(10, 14, 18, 0.95);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-size: 10px;
+      color: var(--text-secondary);
+      font-weight: 700;
+    }
+
+    .digital-listen-sort {
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      text-transform: inherit;
+      letter-spacing: inherit;
+      font-size: inherit;
+      font-weight: inherit;
+      cursor: pointer;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .digital-listen-sort .arrow {
+      opacity: 0.6;
+      font-size: 9px;
+      line-height: 1;
+    }
+
+    .digital-listen-sort.active .arrow {
+      opacity: 1;
+      color: var(--accent-cyan);
     }
 
     .digital-listen-row:last-child {
@@ -1481,13 +1521,24 @@
                 <span class="control-value" id="digital-listen-status"></span>
               </div>
               <div class="digital-listen-toolbar">
-                <input id="digital-listen-search" type="text" placeholder="Search TGID or tag">
+                <input id="digital-listen-search" type="text" placeholder="Search TGID, mode, tag">
                 <select id="digital-listen-filter">
                   <option value="all">All</option>
                   <option value="listen">Listening</option>
                   <option value="muted">Muted</option>
                 </select>
+                <select id="digital-listen-mode-filter">
+                  <option value="all">All Modes</option>
+                  <option value="clear">Clear</option>
+                  <option value="encrypted">Encrypted</option>
+                  <option value="D">D</option>
+                  <option value="T">T</option>
+                  <option value="DE">DE</option>
+                  <option value="TE">TE</option>
+                </select>
                 <button class="action" id="digital-listen-load">Load</button>
+                <button class="action" id="digital-listen-enable-filtered">Select Filtered</button>
+                <button class="action" id="digital-listen-disable-filtered">Unselect Filtered</button>
                 <button class="action" id="digital-listen-save">Save</button>
                 <button class="action" id="digital-listen-toggle">Hide</button>
               </div>
@@ -1906,6 +1957,9 @@
         items: [],
         search: '',
         filter: 'all',
+        modeFilter: 'all',
+        sortKey: 'dec',
+        sortDir: 'asc',
         dirty: false,
         profile: '',
       },
@@ -1978,7 +2032,10 @@
       digitalListenList: document.getElementById('digital-listen-list'),
       digitalListenSearch: document.getElementById('digital-listen-search'),
       digitalListenFilter: document.getElementById('digital-listen-filter'),
+      digitalListenModeFilter: document.getElementById('digital-listen-mode-filter'),
       digitalListenLoad: document.getElementById('digital-listen-load'),
+      digitalListenEnableFiltered: document.getElementById('digital-listen-enable-filtered'),
+      digitalListenDisableFiltered: document.getElementById('digital-listen-disable-filtered'),
       digitalListenSave: document.getElementById('digital-listen-save'),
       digitalListenToggle: document.getElementById('digital-listen-toggle'),
       digitalListenStatus: document.getElementById('digital-listen-status'),
@@ -2689,6 +2746,89 @@
       els.digitalListenStatus.style.color = isError ? '#f59e0b' : '';
     }
 
+    function normalizeDigitalListenMode(mode) {
+      return String(mode || '').trim().toUpperCase();
+    }
+
+    function digitalListenModeMatches(itemMode, modeFilter) {
+      const mode = normalizeDigitalListenMode(itemMode);
+      if (modeFilter === 'all') return true;
+      if (modeFilter === 'encrypted') return mode.includes('E');
+      if (modeFilter === 'clear') return Boolean(mode) && !mode.includes('E');
+      return mode === String(modeFilter || '').toUpperCase();
+    }
+
+    function getFilteredDigitalListenItems() {
+      const items = state.digitalListen.items || [];
+      const search = (state.digitalListen.search || '').toLowerCase();
+      const filter = state.digitalListen.filter || 'all';
+      const modeFilter = state.digitalListen.modeFilter || 'all';
+      return items.filter((item) => {
+        const listen = Boolean(item.listen);
+        if (filter === 'listen' && !listen) return false;
+        if (filter === 'muted' && listen) return false;
+        if (!digitalListenModeMatches(item.mode, modeFilter)) return false;
+        if (!search) return true;
+        const hay = [
+          item.dec,
+          item.hex,
+          item.alpha,
+          item.description,
+          item.tag,
+          item.mode,
+        ].join(' ').toLowerCase();
+        return hay.includes(search);
+      });
+    }
+
+    function getDigitalListenSortValue(item, key) {
+      if (key === 'dec') {
+        const dec = parseInt(item.dec, 10);
+        return Number.isFinite(dec) ? dec : Number.MAX_SAFE_INTEGER;
+      }
+      if (key === 'mode') {
+        return normalizeDigitalListenMode(item.mode);
+      }
+      if (key === 'label') {
+        return String(item.alpha || item.description || '').toLowerCase();
+      }
+      if (key === 'tag') {
+        return String(item.tag || '').toLowerCase();
+      }
+      return String(item[key] || '').toLowerCase();
+    }
+
+    function getSortedDigitalListenItems(items) {
+      const key = state.digitalListen.sortKey || 'dec';
+      const dir = state.digitalListen.sortDir === 'desc' ? -1 : 1;
+      return items.slice().sort((a, b) => {
+        const av = getDigitalListenSortValue(a, key);
+        const bv = getDigitalListenSortValue(b, key);
+        if (av < bv) return -1 * dir;
+        if (av > bv) return 1 * dir;
+        return 0;
+      });
+    }
+
+    function getDigitalListenSortArrow(key) {
+      const activeKey = state.digitalListen.sortKey || 'dec';
+      const activeDir = state.digitalListen.sortDir || 'asc';
+      if (activeKey !== key) return '↕';
+      return activeDir === 'desc' ? '▼' : '▲';
+    }
+
+    function setDigitalListenSort(key) {
+      const nextKey = String(key || '').trim();
+      if (!nextKey) return;
+      if (state.digitalListen.sortKey === nextKey) {
+        state.digitalListen.sortDir = state.digitalListen.sortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        state.digitalListen.sortKey = nextKey;
+        state.digitalListen.sortDir = 'asc';
+      }
+      renderDigitalListenList();
+    }
+
     function renderDigitalListenList() {
       if (!els.digitalListenList) return;
       if (els.digitalListenSearch && els.digitalListenSearch.value !== state.digitalListen.search) {
@@ -2697,45 +2837,66 @@
       if (els.digitalListenFilter && els.digitalListenFilter.value !== state.digitalListen.filter) {
         els.digitalListenFilter.value = state.digitalListen.filter || 'all';
       }
+      if (els.digitalListenModeFilter && els.digitalListenModeFilter.value !== state.digitalListen.modeFilter) {
+        els.digitalListenModeFilter.value = state.digitalListen.modeFilter || 'all';
+      }
       const items = state.digitalListen.items || [];
       if (!items.length) {
         els.digitalListenList.innerHTML = '<div class="empty-state"><div class="icon">📻</div><div>Load talkgroups to edit Listen flags</div></div>';
         setDigitalListenStatus('No talkgroups loaded', false);
         return;
       }
-      const search = (state.digitalListen.search || '').toLowerCase();
-      const filter = state.digitalListen.filter || 'all';
-      const filtered = items.filter((item) => {
-        const listen = Boolean(item.listen);
-        if (filter === 'listen' && !listen) return false;
-        if (filter === 'muted' && listen) return false;
-        if (!search) return true;
-        const hay = [
-          item.dec,
-          item.alpha,
-          item.description,
-          item.tag,
-          item.mode,
-        ].join(' ').toLowerCase();
-        return hay.includes(search);
-      });
+      const filtered = getSortedDigitalListenItems(getFilteredDigitalListenItems());
       const rows = filtered.map((item) => {
         const listen = Boolean(item.listen);
+        const mode = normalizeDigitalListenMode(item.mode) || '--';
         const label = item.alpha || item.description || '';
-        const meta = item.tag || item.mode || '';
+        const tag = item.tag || '--';
         return `
         <div class="digital-listen-row">
           <input type="checkbox" data-dec="${escapeHtml(item.dec)}" ${listen ? 'checked' : ''}>
           <div>${escapeHtml(item.dec || '--')}</div>
+          <div class="${listen ? '' : 'muted'}">${escapeHtml(mode)}</div>
           <div class="${listen ? '' : 'muted'}">${escapeHtml(label || '--')}</div>
-          <div class="${listen ? '' : 'muted'}">${escapeHtml(meta || '')}</div>
+          <div class="${listen ? '' : 'muted'}">${escapeHtml(tag)}</div>
         </div>
         `;
       }).join('');
-      els.digitalListenList.innerHTML = rows || '<div class="empty-state"><div class="icon">📻</div><div>No matches</div></div>';
+      const header = `
+        <div class="digital-listen-row digital-listen-row-head">
+          <div></div>
+          <div><button class="digital-listen-sort ${state.digitalListen.sortKey === 'dec' ? 'active' : ''}" data-sort-key="dec">TGID <span class="arrow">${getDigitalListenSortArrow('dec')}</span></button></div>
+          <div><button class="digital-listen-sort ${state.digitalListen.sortKey === 'mode' ? 'active' : ''}" data-sort-key="mode">Mode <span class="arrow">${getDigitalListenSortArrow('mode')}</span></button></div>
+          <div><button class="digital-listen-sort ${state.digitalListen.sortKey === 'label' ? 'active' : ''}" data-sort-key="label">Label <span class="arrow">${getDigitalListenSortArrow('label')}</span></button></div>
+          <div><button class="digital-listen-sort ${state.digitalListen.sortKey === 'tag' ? 'active' : ''}" data-sort-key="tag">Tag <span class="arrow">${getDigitalListenSortArrow('tag')}</span></button></div>
+        </div>
+      `;
+      els.digitalListenList.innerHTML = rows
+        ? header + rows
+        : header + '<div class="empty-state"><div class="icon">📻</div><div>No matches</div></div>';
       const statusBits = [`${filtered.length}/${items.length}`];
+      const modeFilter = state.digitalListen.modeFilter || 'all';
+      if (modeFilter !== 'all') {
+        if (modeFilter === 'encrypted') statusBits.push('Mode:Encrypted');
+        else if (modeFilter === 'clear') statusBits.push('Mode:Clear');
+        else statusBits.push(`Mode:${String(modeFilter).toUpperCase()}`);
+      }
       if (state.digitalListen.dirty) statusBits.push('Unsaved');
       setDigitalListenStatus(statusBits.join(' • '), false);
+    }
+
+    function setDigitalListenForFiltered(listen) {
+      const filtered = getFilteredDigitalListenItems();
+      if (!filtered.length) {
+        setDigitalListenStatus('No matching talkgroups', true);
+        return;
+      }
+      filtered.forEach((item) => {
+        item.listen = Boolean(listen);
+      });
+      state.digitalListen.dirty = true;
+      renderDigitalListenList();
+      setDigitalListenStatus(`${listen ? 'Selected' : 'Unselected'} ${filtered.length} talkgroups`, false);
     }
 
     async function refreshDigitalListen(force=false) {
@@ -4071,7 +4232,25 @@
           renderDigitalListenList();
         });
       }
+      if (els.digitalListenModeFilter) {
+        els.digitalListenModeFilter.addEventListener('change', (e) => {
+          state.digitalListen.modeFilter = e.target.value || 'all';
+          renderDigitalListenList();
+        });
+      }
+      if (els.digitalListenEnableFiltered) {
+        els.digitalListenEnableFiltered.addEventListener('click', () => setDigitalListenForFiltered(true));
+      }
+      if (els.digitalListenDisableFiltered) {
+        els.digitalListenDisableFiltered.addEventListener('click', () => setDigitalListenForFiltered(false));
+      }
       if (els.digitalListenList) {
+        els.digitalListenList.addEventListener('click', (e) => {
+          const btn = e.target && e.target.closest ? e.target.closest('button[data-sort-key]') : null;
+          if (!btn) return;
+          const sortKey = btn.getAttribute('data-sort-key') || '';
+          setDigitalListenSort(sortKey);
+        });
         els.digitalListenList.addEventListener('change', (e) => {
           const target = e.target;
           if (!target || target.tagName !== 'INPUT') return;
