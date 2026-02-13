@@ -16,6 +16,12 @@ PROFILES_REGISTRY_PATH = os.path.join(PROFILES_DIR, "profiles.json")
 GROUND_CONFIG_PATH = os.getenv("GROUND_CONFIG_PATH", os.path.join(CONFIG_DIR, "rtl_airband_ground.conf"))
 COMBINED_CONFIG_PATH = os.getenv("COMBINED_CONFIG_PATH", os.path.join(CONFIG_DIR, "rtl_airband_combined.conf"))
 
+# HomePatrol DB Builder paths
+HPDB_ZIP_PATH = os.getenv("HPDB_ZIP_PATH", "/home/willminkoff/Desktop/HPCOPY.zip")
+HPDB_EXTRACT_DIR = os.getenv("HPDB_EXTRACT_DIR", "/home/willminkoff/scanner-db/source")
+HPDB_ROOT_PATH = os.getenv("HPDB_ROOT_PATH", os.path.join(HPDB_EXTRACT_DIR, "HPCOPY", "HPDB"))
+HPDB_DB_PATH = os.getenv("HPDB_DB_PATH", "/home/willminkoff/scanner-db/homepatrol.db")
+
 # Last Hit Tracking
 LAST_HIT_AIRBAND_PATH = os.getenv("LAST_HIT_AIRBAND_PATH", "/run/rtl_airband_last_freq_airband.txt")
 LAST_HIT_GROUND_PATH = os.getenv("LAST_HIT_GROUND_PATH", "/run/rtl_airband_last_freq_ground.txt")
@@ -71,8 +77,18 @@ DIGITAL_EVENT_LOG_MODE = os.getenv("DIGITAL_EVENT_LOG_MODE", "auto").strip().low
 DIGITAL_EVENT_LOG_TAIL_LINES = int(os.getenv("DIGITAL_EVENT_LOG_TAIL_LINES", "500"))
 AIRBAND_RTL_SERIAL = os.getenv("AIRBAND_RTL_SERIAL", "").strip()
 GROUND_RTL_SERIAL = os.getenv("GROUND_RTL_SERIAL", "").strip()
-DIGITAL_RTL_DEVICE = os.getenv("DIGITAL_RTL_DEVICE", "")
+DIGITAL_RTL_DEVICE = os.getenv("DIGITAL_RTL_DEVICE", "").strip()
 DIGITAL_RTL_SERIAL = os.getenv("DIGITAL_RTL_SERIAL", "").strip()
+DIGITAL_RTL_SERIAL_SECONDARY = os.getenv(
+    "DIGITAL_RTL_SERIAL_SECONDARY",
+    os.getenv("DIGITAL_RTL_SERIAL_2", ""),
+).strip()
+DIGITAL_PREFERRED_TUNER = os.getenv("DIGITAL_PREFERRED_TUNER", "").strip()
+DIGITAL_USE_MULTI_FREQ_SOURCE = os.getenv(
+    "DIGITAL_USE_MULTI_FREQ_SOURCE",
+    "1",
+).strip().lower() in ("1", "true", "yes", "on")
+DIGITAL_SOURCE_ROTATION_DELAY_MS = int(os.getenv("DIGITAL_SOURCE_ROTATION_DELAY_MS", "500"))
 DIGITAL_RTL_SERIAL_HINT = "DIGITAL_RTL_SERIAL not set; set it to your digital dongle serial"
 DIGITAL_MIXER_ENABLED = os.getenv("DIGITAL_MIXER_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
 DIGITAL_MIXER_AIRBAND_MOUNT = os.getenv("DIGITAL_MIXER_AIRBAND_MOUNT", "GND-air.mp3").strip().lstrip("/")

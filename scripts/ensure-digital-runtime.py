@@ -15,6 +15,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 FREQ_RE = re.compile(r"\d+\.\d+")
+_TRUTHY = ("1", "true", "yes", "on")
 
 PROFILES_DIR = Path(os.getenv("DIGITAL_PROFILES_DIR", "/etc/scannerproject/digital/profiles")).expanduser()
 ACTIVE_LINK = Path(os.getenv("DIGITAL_ACTIVE_PROFILE_LINK", "/etc/scannerproject/digital/active")).expanduser()
@@ -22,6 +23,27 @@ PLAYLIST_PATH = Path(
     os.getenv("DIGITAL_PLAYLIST_PATH", str(Path.home() / "SDRTrunk" / "playlist" / "default.xml"))
 ).expanduser()
 DEFAULT_PROFILE = os.getenv("DIGITAL_BOOT_DEFAULT_PROFILE", "default").strip()
+DIGITAL_RTL_DEVICE = os.getenv("DIGITAL_RTL_DEVICE", "").strip()
+DIGITAL_RTL_SERIAL = os.getenv("DIGITAL_RTL_SERIAL", "").strip()
+DIGITAL_RTL_SERIAL_SECONDARY = os.getenv(
+    "DIGITAL_RTL_SERIAL_SECONDARY",
+    os.getenv("DIGITAL_RTL_SERIAL_2", ""),
+).strip()
+DIGITAL_PREFERRED_TUNER = os.getenv("DIGITAL_PREFERRED_TUNER", "").strip()
+DIGITAL_USE_MULTI_FREQ_SOURCE = os.getenv("DIGITAL_USE_MULTI_FREQ_SOURCE", "1").strip().lower() in _TRUTHY
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return int(str(raw).strip())
+    except Exception:
+        return default
+
+
+DIGITAL_SOURCE_ROTATION_DELAY_MS = max(100, _env_int("DIGITAL_SOURCE_ROTATION_DELAY_MS", 500))
 
 
 def _log(msg: str) -> None:
@@ -85,7 +107,7 @@ def _point_active_link(target: Path) -> None:
     os.replace(tmp_link, ACTIVE_LINK)
 
 
-def _read_first_control_channel_hz(profile_dir: Path) -> int:
+def _read_control_channels_hz(profile_dir: Path) -> list[int]:
     path = profile_dir / "control_channels.txt"
     if not path.is_file():
         raise RuntimeError(f"missing control_channels.txt in {profile_dir}")
@@ -93,6 +115,8 @@ def _read_first_control_channel_hz(profile_dir: Path) -> int:
         lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
     except Exception as e:
         raise RuntimeError(f"failed to read {path}: {e}") from e
+    channels_hz: list[int] = []
+    seen: set[int] = set()
     for line in lines:
         raw = line.split("#", 1)[0].strip()
         if not raw:
@@ -101,9 +125,15 @@ def _read_first_control_channel_hz(profile_dir: Path) -> int:
         if not match:
             continue
         try:
-            return int(round(float(match.group(0)) * 1_000_000))
+            hz = int(round(float(match.group(0)) * 1_000_000))
         except Exception:
             continue
+        if hz <= 0 or hz in seen:
+            continue
+        seen.add(hz)
+        channels_hz.append(hz)
+    if channels_hz:
+        return channels_hz
     raise RuntimeError(f"no control channel frequencies in {path}")
 
 
@@ -129,7 +159,53 @@ def _ensure_child(parent: ET.Element, tag: str) -> ET.Element:
     return child
 
 
-def _sync_playlist(profile_dir: Path, control_hz: int) -> None:
+def _preferred_tuner_target() -> str:
+    if DIGITAL_PREFERRED_TUNER:
+        return DIGITAL_PREFERRED_TUNER
+    if DIGITAL_RTL_SERIAL:
+        return DIGITAL_RTL_SERIAL
+    if DIGITAL_RTL_DEVICE and not DIGITAL_RTL_DEVICE.isdigit():
+        return DIGITAL_RTL_DEVICE
+    return ""
+
+
+def _sync_source_configuration(source_conf: ET.Element, control_channels_hz: list[int]) -> dict[str, object]:
+    use_multi = DIGITAL_USE_MULTI_FREQ_SOURCE and len(control_channels_hz) > 1
+    if use_multi:
+        source_conf.set("type", "sourceConfigTunerMultipleFrequency")
+        source_conf.set("source_type", "TUNER_MULTIPLE_FREQUENCIES")
+        source_conf.set("frequency_rotation_delay", str(DIGITAL_SOURCE_ROTATION_DELAY_MS))
+        if "frequency" in source_conf.attrib:
+            del source_conf.attrib["frequency"]
+        for child in list(source_conf):
+            if child.tag == "frequency":
+                source_conf.remove(child)
+        for hz in control_channels_hz:
+            child = ET.SubElement(source_conf, "frequency")
+            child.text = str(hz)
+    else:
+        source_conf.set("type", "sourceConfigTuner")
+        source_conf.set("source_type", "TUNER")
+        source_conf.set("frequency", str(control_channels_hz[0]))
+        if "frequency_rotation_delay" in source_conf.attrib:
+            del source_conf.attrib["frequency_rotation_delay"]
+        for child in list(source_conf):
+            if child.tag == "frequency":
+                source_conf.remove(child)
+
+    preferred_tuner = _preferred_tuner_target()
+    if preferred_tuner:
+        source_conf.set("preferred_tuner", preferred_tuner)
+
+    return {
+        "source_mode": "multi" if use_multi else "single",
+        "control_count": len(control_channels_hz),
+        "control_hz": int(control_channels_hz[0]),
+        "preferred_tuner": preferred_tuner,
+    }
+
+
+def _sync_playlist(profile_dir: Path, control_channels_hz: list[int]) -> dict[str, object]:
     PLAYLIST_PATH.parent.mkdir(parents=True, exist_ok=True)
     tree = _load_playlist(PLAYLIST_PATH)
     root = tree.getroot()
@@ -176,9 +252,7 @@ def _sync_playlist(profile_dir: Path, control_hz: int) -> None:
             logger.text = logger_name
 
     source_conf = _ensure_child(channel, "source_configuration")
-    source_conf.set("type", "sourceConfigTuner")
-    source_conf.set("source_type", "TUNER")
-    source_conf.set("frequency", str(control_hz))
+    source_state = _sync_source_configuration(source_conf, control_channels_hz)
 
     if channel.find("decode_configuration") is None:
         ET.SubElement(
@@ -195,15 +269,23 @@ def _sync_playlist(profile_dir: Path, control_hz: int) -> None:
     _ensure_child(channel, "record_configuration")
 
     tree.write(PLAYLIST_PATH, encoding="utf-8", xml_declaration=False)
+    return source_state
 
 
 def main() -> int:
     try:
         target = _choose_profile()
         _point_active_link(target)
-        control_hz = _read_first_control_channel_hz(target)
-        _sync_playlist(target, control_hz)
-        _log(f"active profile={target.name} control_hz={control_hz}")
+        control_channels_hz = _read_control_channels_hz(target)
+        source_state = _sync_playlist(target, control_channels_hz)
+        _log(
+            "active profile="
+            f"{target.name} control_hz={source_state['control_hz']} "
+            f"control_count={source_state['control_count']} "
+            f"source_mode={source_state['source_mode']} "
+            f"preferred_tuner={source_state['preferred_tuner'] or 'auto'} "
+            f"digital_secondary={DIGITAL_RTL_SERIAL_SECONDARY or 'unset'}"
+        )
         return 0
     except Exception as e:
         _log(f"ERROR: {e}")
