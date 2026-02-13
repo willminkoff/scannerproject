@@ -151,8 +151,22 @@ def _sync_playlist(profile_dir: Path, control_hz: int) -> None:
     channel.set("enabled", "true")
     channel.set("name", profile_id)
 
+    # Optional profile-local alias list override allows sub-profiles to reuse
+    # an existing SDRTrunk alias list name (without duplicating exports).
+    alias_name = profile_id.upper()
+    alias_name_path = profile_dir / "alias_list_name.txt"
+    if alias_name_path.is_file():
+        try:
+            for raw in alias_name_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+                value = raw.strip()
+                if value:
+                    alias_name = value
+                    break
+        except Exception:
+            alias_name = profile_id.upper()
+
     alias_list = _ensure_child(channel, "alias_list_name")
-    alias_list.text = profile_id.upper()
+    alias_list.text = alias_name
 
     event_conf = _ensure_child(channel, "event_log_configuration")
     existing = {str(e.text or "").strip() for e in event_conf.findall("logger")}

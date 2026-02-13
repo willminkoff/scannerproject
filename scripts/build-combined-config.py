@@ -16,6 +16,7 @@ DIGITAL_MIXER_ENABLED = os.getenv("DIGITAL_MIXER_ENABLED", "").strip().lower() i
 DIGITAL_MIXER_AIRBAND_MOUNT = os.getenv("DIGITAL_MIXER_AIRBAND_MOUNT", "GND-air.mp3").strip()
 MOUNT_NAME = os.getenv("MOUNT_NAME", "").strip()
 ANALOG_CONTINUOUS = os.getenv("ANALOG_CONTINUOUS", "1").strip().lower() in ("1", "true", "yes", "on")
+MIXER_OUTPUT_CONTINUOUS = os.getenv("MIXER_OUTPUT_CONTINUOUS", "1").strip().lower() in ("1", "true", "yes", "on")
 AIRBAND_FALLBACK_PROFILE_PATH = os.getenv(
     "AIRBAND_FALLBACK_PROFILE_PATH",
     "/usr/local/etc/airband-profiles/rtl_airband_airband.conf",
@@ -76,6 +77,7 @@ def main() -> None:
         MIXER_NAME,
         mount_name=mount_override,
         analog_continuous=ANALOG_CONTINUOUS,
+        mixer_output_continuous=MIXER_OUTPUT_CONTINUOUS,
     )
     out_dir = os.path.dirname(COMBINED_CONFIG_PATH)
     if out_dir:

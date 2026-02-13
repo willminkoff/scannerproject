@@ -87,13 +87,15 @@ def enforce_device_serial(text: str, desired_serial: str) -> str:
     return "\n".join(out_lines)
 
 
-def replace_outputs_with_mixer(text: str, mixer_name: str) -> str:
+def replace_outputs_with_mixer(text: str, mixer_name: str, continuous: bool = True) -> str:
+    continuous_value = "true" if continuous else "false"
     replacement = [
         "      outputs:",
         "      (",
         "        {",
         "          type = \"mixer\";",
         f"          name = \"{mixer_name}\";",
+        f"          continuous = {continuous_value};",
         "        }",
         "      );",
     ]
@@ -177,6 +179,7 @@ def build_combined_config(
     mixer_name: str,
     mount_name: str = "",
     analog_continuous: bool = True,
+    mixer_output_continuous: bool = True,
 ) -> str:
     with open(airband_path, "r", encoding="utf-8", errors="ignore") as f:
         airband_text = f.read()
@@ -204,7 +207,7 @@ def build_combined_config(
         if payload:
             payload = enforce_device_index(payload, desired_index)
             payload = enforce_device_serial(payload, serial)
-            payload = replace_outputs_with_mixer(payload, mixer_name)
+            payload = replace_outputs_with_mixer(payload, mixer_name, continuous=mixer_output_continuous)
             device_payloads.append(payload.strip().rstrip(","))
 
     icecast_block = extract_icecast_block(airband_text) or extract_icecast_block(ground_text)

@@ -567,6 +567,94 @@ sudo systemctl restart scanner-digital
   - `control_channels.txt` (all TACN control channels)
   - `talkgroups.csv` / `talkgroups_with_group.csv` (combined TACN talkgroups)
 
+**HomePatrol HPDB offline database workflow**:
+- `scripts/homepatrol_db.py` imports Uniden HomePatrol `.hpd` files into SQLite so you can build new profiles locally without web lookups.
+- Example import from a mounted HomePatrol SD card:
+```bash
+mkdir -p /home/willminkoff/scanner-db
+python3 scripts/homepatrol_db.py \
+  --db /home/willminkoff/scanner-db/homepatrol.db \
+  import \
+  --hpdb-root "/media/willminkoff/NO NAME/HomePatrol/HPDB"
+```
+- Fast lookups:
+```bash
+# Find systems
+python3 scripts/homepatrol_db.py --db /home/willminkoff/scanner-db/homepatrol.db \
+  find-system "middle tennessee"
+
+# Find talkgroups by keyword/TGID
+python3 scripts/homepatrol_db.py --db /home/willminkoff/scanner-db/homepatrol.db \
+  find-talkgroup "vanderbilt" --system "middle tennessee"
+
+# List site frequencies (for control/channel planning)
+python3 scripts/homepatrol_db.py --db /home/willminkoff/scanner-db/homepatrol.db \
+  site-freqs --system "Middle Tennessee Regional Trunked Radio System" --site "Goodlettsville"
+```
+- Build a digital profile directory directly:
+```bash
+python3 scripts/homepatrol_db.py --db /home/willminkoff/scanner-db/homepatrol.db \
+  build-profile \
+  --system "Middle Tennessee Regional Trunked Radio System" \
+  --site "Davidson County Simulcast" \
+  --site "Goodlettsville" \
+  --group "Vanderbilt University" \
+  --group "Davidson County - Goodlettsville" \
+  --group "Davidson County - Belle Meade" \
+  --out /etc/scannerproject/digital/profiles \
+  --profile-name "MTRTRS Metro Clear" \
+  --profile-slug mtrtrs-metro-clear
+```
+- Build an analog `rtl_airband` profile directly from conventional channels in DB:
+```bash
+# Airband example
+python3 scripts/homepatrol_db.py --db /home/willminkoff/scanner-db/homepatrol.db \
+  build-analog-profile \
+  --system "Nashville International Airport (BNA)" \
+  --state TN \
+  --profile-type airband \
+  --out /usr/local/etc/airband-profiles \
+  --profile-id bna-hpdb
+
+# Ground example
+python3 scripts/homepatrol_db.py --db /home/willminkoff/scanner-db/homepatrol.db \
+  build-analog-profile \
+  --system "Highway Patrol (THP)" \
+  --state TN \
+  --profile-type ground \
+  --out /usr/local/etc/airband-profiles \
+  --profile-id thp-ground
+```
+- Output files match the Digital UI expectations:
+  - `control_channels.txt`
+  - `talkgroups.csv`
+  - `talkgroups_with_group.csv`
+- Note: HomePatrol exports do not mark control channels explicitly, so generated `control_channels.txt` contains site frequencies for selected sites.
+
+**HomePatrol Favorites (HPCOPY.zip) converter**:
+- `scripts/homepatrol_favorites.py` reads `HPCOPY.zip` backups and converts a Favorites list into scannerproject files.
+- List available Favorites and quick counts:
+```bash
+python3 scripts/homepatrol_favorites.py \
+  --zip /home/willminkoff/Desktop/HPCOPY.zip \
+  list
+```
+- Export one Favorites list (example: active `POLICE`) into a profile folder:
+```bash
+python3 scripts/homepatrol_favorites.py \
+  --zip /home/willminkoff/Desktop/HPCOPY.zip \
+  export \
+  --favorite POLICE \
+  --out /etc/scannerproject/digital/profiles
+```
+- Export creates:
+  - `control_channels.txt`
+  - `talkgroups.csv`
+  - `talkgroups_with_group.csv`
+  - `conventional.csv` (analog reference)
+  - `README.md` with source details
+- This is useful when your HomePatrol Favorites lists are better-curated than broad HPDB/system-wide imports.
+
 **Adding control channels + talkgroups (RadioReference workflow)**:
 1. **Find the system on RadioReference**: note the system type (P25/DMR/etc.), site(s), and **control channels** (primary + alternate).
 2. **Create the trunked system in SDRTrunk**:

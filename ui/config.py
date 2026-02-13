@@ -16,6 +16,12 @@ PROFILES_REGISTRY_PATH = os.path.join(PROFILES_DIR, "profiles.json")
 GROUND_CONFIG_PATH = os.getenv("GROUND_CONFIG_PATH", os.path.join(CONFIG_DIR, "rtl_airband_ground.conf"))
 COMBINED_CONFIG_PATH = os.getenv("COMBINED_CONFIG_PATH", os.path.join(CONFIG_DIR, "rtl_airband_combined.conf"))
 
+# HomePatrol DB Builder paths
+HPDB_ZIP_PATH = os.getenv("HPDB_ZIP_PATH", "/home/willminkoff/Desktop/HPCOPY.zip")
+HPDB_EXTRACT_DIR = os.getenv("HPDB_EXTRACT_DIR", "/home/willminkoff/scanner-db/source")
+HPDB_ROOT_PATH = os.getenv("HPDB_ROOT_PATH", os.path.join(HPDB_EXTRACT_DIR, "HPCOPY", "HPDB"))
+HPDB_DB_PATH = os.getenv("HPDB_DB_PATH", "/home/willminkoff/scanner-db/homepatrol.db")
+
 # Last Hit Tracking
 LAST_HIT_AIRBAND_PATH = os.getenv("LAST_HIT_AIRBAND_PATH", "/run/rtl_airband_last_freq_airband.txt")
 LAST_HIT_GROUND_PATH = os.getenv("LAST_HIT_GROUND_PATH", "/run/rtl_airband_last_freq_ground.txt")
