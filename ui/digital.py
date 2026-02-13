@@ -101,6 +101,10 @@ _DEFAULT_PROFILE_NOTE = (
     "Then set this profile active from the UI or by updating the active symlink.\n"
 )
 _LISTEN_FILENAME = "talkgroups_listen.json"
+_REJECT_SCAN_MAX_LINES = max(200, int(os.getenv("DIGITAL_REJECT_SCAN_MAX_LINES", "5000")))
+_REJECT_SCAN_MAX_BYTES = max(16384, int(os.getenv("DIGITAL_REJECT_SCAN_MAX_BYTES", "1048576")))
+_REJECT_SCAN_MAX_FILES = max(1, int(os.getenv("DIGITAL_REJECT_SCAN_MAX_FILES", "3")))
+_REJECT_GRANT_RE = re.compile(r"channel start rejected", re.I)
 _EVENT_HEADER_KEYS = (
     "timestamp",
     "time",
@@ -326,6 +330,134 @@ def _ensure_alias_broadcast_channel(root: ET.Element, alias_list_name: str) -> i
         )
         added += 1
 
+    return added
+
+
+def _read_profile_alias_seed_rows(profile_dir: str) -> list[tuple[str, str, str]]:
+    if not profile_dir:
+        return []
+
+    candidates = ("talkgroups.csv", "talkgroups_with_group.csv")
+    path = ""
+    for name in candidates:
+        candidate = os.path.join(profile_dir, name)
+        if os.path.isfile(candidate):
+            path = candidate
+            break
+    if not path:
+        return []
+
+    rows: list[tuple[str, str, str]] = []
+    seen: set[str] = set()
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if not row:
+                    continue
+                row_norm = {str(k or "").strip().lower(): str(v or "").strip() for k, v in row.items()}
+                dec = row_norm.get("dec") or row_norm.get("decimal") or ""
+                if not dec.isdigit() or dec in seen:
+                    continue
+                mode = str(row_norm.get("mode") or "").strip().upper()
+                if mode and "E" in mode:
+                    continue
+                alpha = row_norm.get("alpha tag") or row_norm.get("alpha_tag") or row_norm.get("alpha") or ""
+                desc = row_norm.get("description") or ""
+                group = row_norm.get("group") or row_norm.get("tag") or "Imported"
+                name = alpha or desc or f"TG {dec}"
+                seen.add(dec)
+                rows.append((dec, name, group))
+    except Exception:
+        return []
+    return rows
+
+
+def _alias_list_talkgroup_count(root: ET.Element, alias_list_name: str) -> int:
+    count = 0
+    for alias in root.findall("alias"):
+        if str(alias.get("list", "")).strip() != alias_list_name:
+            continue
+        for alias_id in alias.findall("id"):
+            if str(alias_id.get("type", "")).strip().lower() in {
+                "talkgroup",
+                "talkgrouprange",
+                "p25fullyqualifiedtalkgroup",
+                "talkgroupid",
+            }:
+                count += 1
+                break
+    return count
+
+
+def _seed_alias_list_from_profile(root: ET.Element, alias_list_name: str, profile_dir: str) -> int:
+    if not alias_list_name or not profile_dir:
+        return 0
+    if _alias_list_talkgroup_count(root, alias_list_name) > 0:
+        return 0
+
+    seed_rows = _read_profile_alias_seed_rows(profile_dir)
+    if not seed_rows:
+        return 0
+
+    stream_name = str(DIGITAL_SDRTRUNK_STREAM_NAME or "").strip()
+    added = 0
+    for dec, name, group in seed_rows:
+        alias = ET.SubElement(
+            root,
+            "alias",
+            {
+                "group": group or "Imported",
+                "color": "0",
+                "name": name,
+                "list": alias_list_name,
+            },
+        )
+        ET.SubElement(
+            alias,
+            "id",
+            {
+                "type": "talkgroup",
+                "value": dec,
+                "protocol": "APCO25",
+            },
+        )
+        if DIGITAL_ATTACH_BROADCAST_CHANNEL and stream_name:
+            ET.SubElement(
+                alias,
+                "id",
+                {
+                    "type": "broadcastChannel",
+                    "channel": stream_name,
+                },
+            )
+        added += 1
+
+    has_priority = False
+    for alias in root.findall("alias"):
+        if str(alias.get("list", "")).strip() != alias_list_name:
+            continue
+        if any(str(alias_id.get("type", "")).strip().lower() == "priority" for alias_id in alias.findall("id")):
+            has_priority = True
+            break
+    if not has_priority:
+        priority_alias = ET.SubElement(
+            root,
+            "alias",
+            {
+                "color": "0",
+                "name": f"{alias_list_name}-ALL",
+                "list": alias_list_name,
+            },
+        )
+        ET.SubElement(
+            priority_alias,
+            "id",
+            {
+                "type": "priority",
+                "priority": "1",
+            },
+        )
     return added
 
 
@@ -750,6 +882,158 @@ def _get_profile_dir(profile_id: str):
     return target, ""
 
 
+def _list_profile_call_event_logs(profile_id: str) -> list[str]:
+    base = str(DIGITAL_EVENT_LOG_DIR or "").strip()
+    pid = str(profile_id or "").strip().lower()
+    if not base or not pid or not os.path.isdir(base):
+        return []
+    matches: list[tuple[float, str]] = []
+    try:
+        entries = os.listdir(base)
+    except Exception:
+        return []
+    suffix = f"_{pid}_call_events.log"
+    for name in entries:
+        lower = str(name or "").strip().lower()
+        if not lower.endswith("_call_events.log"):
+            continue
+        if suffix not in lower:
+            continue
+        path = os.path.join(base, name)
+        if not os.path.isfile(path):
+            continue
+        try:
+            mtime = float(os.path.getmtime(path))
+        except Exception:
+            mtime = 0.0
+        matches.append((mtime, path))
+    matches.sort(key=lambda item: item[0], reverse=True)
+    return [path for _, path in matches[:_REJECT_SCAN_MAX_FILES]]
+
+
+def _extract_reject_tgid_from_row(row: dict) -> str:
+    tgid = _normalize_tgid(_row_value(row, _EVENT_TGID_KEYS))
+    if tgid:
+        return tgid
+
+    to_val = _row_value(row, ("to", "from"))
+    if to_val:
+        m = re.search(r"\((\d+)\)", to_val)
+        if not m:
+            m = re.search(r"\b(\d{3,7})\b", to_val)
+        if m:
+            tgid = _normalize_tgid(m.group(1))
+            if tgid:
+                return tgid
+
+    label = _row_value(row, _EVENT_LABEL_KEYS)
+    if label:
+        tgid = _extract_tgid(label)
+        if tgid:
+            return tgid
+
+    return ""
+
+
+def _read_profile_rejected_grants(profile_id: str) -> tuple[dict, dict]:
+    reject_map: dict[str, dict] = {}
+    files = _list_profile_call_event_logs(profile_id)
+    summary = {
+        "events": 0,
+        "tgids": 0,
+        "files": [os.path.basename(path) for path in files],
+        "maxFiles": int(_REJECT_SCAN_MAX_FILES),
+        "maxLinesPerFile": int(_REJECT_SCAN_MAX_LINES),
+    }
+    if not files:
+        return reject_map, summary
+
+    for path in files:
+        try:
+            mtime = os.path.getmtime(path)
+        except Exception:
+            mtime = time.time()
+        fallback_ms = int(float(mtime or time.time()) * 1000)
+        lines = _read_tail_lines(path, max_bytes=_REJECT_SCAN_MAX_BYTES, max_lines=_REJECT_SCAN_MAX_LINES)
+        if not lines:
+            continue
+
+        header = None
+        for raw in lines:
+            text = str(raw or "").strip()
+            if not text:
+                continue
+            try:
+                row = next(csv.reader([text]))
+            except Exception:
+                continue
+            if not row:
+                continue
+            if header is None:
+                norm = [_norm_key(x) for x in row]
+                joined = " ".join(norm)
+                if any(_norm_key(k) in joined for k in _EVENT_HEADER_KEYS):
+                    header = norm
+                    continue
+                # Tail reads usually omit CSV headers; use the known CALL_EVENT schema.
+                if len(row) >= 11:
+                    header = [
+                        "timestamp",
+                        "duration_ms",
+                        "protocol",
+                        "event",
+                        "from",
+                        "to",
+                        "channel_number",
+                        "frequency",
+                        "timeslot",
+                        "details",
+                        "event_id",
+                    ]
+                else:
+                    continue
+            if not header:
+                continue
+
+            row_norm = {}
+            for idx, key in enumerate(header):
+                if idx >= len(row):
+                    break
+                row_norm[key] = row[idx]
+
+            details = _row_value(row_norm, _EVENT_DETAILS_KEYS)
+            if not details or not _REJECT_GRANT_RE.search(details):
+                continue
+
+            tgid = _extract_reject_tgid_from_row(row_norm)
+            if not tgid:
+                continue
+
+            time_val = _row_value(row_norm, _EVENT_TIME_KEYS)
+            date_val = _row_value(row_norm, _EVENT_DATE_KEYS)
+            time_only = _row_value(row_norm, _EVENT_TIME_ONLY_KEYS)
+            time_ms = _parse_time_value(time_val, fallback_ms)
+            if not time_val and (date_val or time_only):
+                time_ms = _parse_time_ms(f"{date_val} {time_only}".strip(), fallback_ms)
+
+            summary["events"] = int(summary["events"]) + 1
+            entry = reject_map.get(tgid)
+            if not entry:
+                entry = {
+                    "count": 0,
+                    "lastTimeMs": 0,
+                    "lastReason": "",
+                }
+                reject_map[tgid] = entry
+            entry["count"] = int(entry.get("count") or 0) + 1
+            if int(time_ms or 0) >= int(entry.get("lastTimeMs") or 0):
+                entry["lastTimeMs"] = int(time_ms or 0)
+                entry["lastReason"] = details
+
+    summary["tgids"] = len(reject_map)
+    return reject_map, summary
+
+
 def read_digital_talkgroups(profile_id: str, max_rows: int = 5000):
     profile_dir, err = _get_profile_dir(profile_id)
     if err:
@@ -777,6 +1061,8 @@ def read_digital_talkgroups(profile_id: str, max_rows: int = 5000):
         except Exception:
             listen_map = {}
 
+    reject_map, reject_summary = _read_profile_rejected_grants(profile_id)
+
     items = []
     try:
         with open(path, "r", encoding="utf-8", errors="ignore") as f:
@@ -800,6 +1086,13 @@ def read_digital_talkgroups(profile_id: str, max_rows: int = 5000):
                     item["listen"] = bool(listen_map.get(dec, True))
                 else:
                     item["listen"] = True
+                reject_entry = reject_map.get(dec) or {}
+                reject_count = int(reject_entry.get("count") or 0)
+                item["rejectedGrantCount"] = reject_count
+                item["rejectedGrantRecent"] = bool(reject_count > 0)
+                item["rejectedGrantLastTimeMs"] = int(reject_entry.get("lastTimeMs") or 0)
+                if reject_count > 0:
+                    item["rejectedGrantReason"] = str(reject_entry.get("lastReason") or "")
                 items.append(item)
                 if len(items) >= max_rows:
                     break
@@ -811,6 +1104,7 @@ def read_digital_talkgroups(profile_id: str, max_rows: int = 5000):
         "profileId": _normalize_name(profile_id),
         "items": items,
         "source": os.path.basename(path),
+        "rejectedGrantSummary": reject_summary,
     }
 
 
@@ -1605,6 +1899,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         if alias_list is None:
             alias_list = ET.SubElement(channel, "alias_list_name")
         alias_list.text = alias_list_name
+        _seed_alias_list_from_profile(root, alias_list_name, profile_dir)
         _ensure_alias_broadcast_channel(root, alias_list_name)
 
         if channel.find("decode_configuration") is None:

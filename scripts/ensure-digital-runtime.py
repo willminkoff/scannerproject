@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import re
+import csv
 import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -242,6 +243,131 @@ def _sync_alias_broadcast_channels(root: ET.Element, alias_list_name: str) -> in
     return added
 
 
+def _profile_alias_seed_rows(profile_dir: Path) -> list[tuple[str, str, str]]:
+    candidates = (profile_dir / "talkgroups.csv", profile_dir / "talkgroups_with_group.csv")
+    source = None
+    for candidate in candidates:
+        if candidate.is_file():
+            source = candidate
+            break
+    if source is None:
+        return []
+
+    rows: list[tuple[str, str, str]] = []
+    seen: set[str] = set()
+    try:
+        with source.open("r", encoding="utf-8", errors="ignore", newline="") as handle:
+            reader = csv.DictReader(handle)
+            for row in reader:
+                if not row:
+                    continue
+                row_norm = {str(k or "").strip().lower(): str(v or "").strip() for k, v in row.items()}
+                dec = row_norm.get("dec") or row_norm.get("decimal") or ""
+                if not dec.isdigit() or dec in seen:
+                    continue
+                mode = str(row_norm.get("mode") or "").strip().upper()
+                if mode and "E" in mode:
+                    continue
+                alpha = row_norm.get("alpha tag") or row_norm.get("alpha_tag") or row_norm.get("alpha") or ""
+                desc = row_norm.get("description") or ""
+                group = row_norm.get("group") or row_norm.get("tag") or "Imported"
+                name = alpha or desc or f"TG {dec}"
+                seen.add(dec)
+                rows.append((dec, name, group))
+    except Exception:
+        return []
+    return rows
+
+
+def _alias_list_talkgroup_count(root: ET.Element, alias_list_name: str) -> int:
+    count = 0
+    for alias in root.findall("alias"):
+        if str(alias.get("list", "")).strip() != alias_list_name:
+            continue
+        for alias_id in alias.findall("id"):
+            if str(alias_id.get("type", "")).strip().lower() in {
+                "talkgroup",
+                "talkgrouprange",
+                "p25fullyqualifiedtalkgroup",
+                "talkgroupid",
+            }:
+                count += 1
+                break
+    return count
+
+
+def _seed_aliases_from_profile(root: ET.Element, alias_list_name: str, profile_dir: Path) -> int:
+    if not alias_list_name:
+        return 0
+    if _alias_list_talkgroup_count(root, alias_list_name) > 0:
+        return 0
+
+    seed_rows = _profile_alias_seed_rows(profile_dir)
+    if not seed_rows:
+        return 0
+
+    stream_name = str(DIGITAL_SDRTRUNK_STREAM_NAME or "").strip()
+    added = 0
+    for dec, name, group in seed_rows:
+        alias = ET.SubElement(
+            root,
+            "alias",
+            {
+                "group": group or "Imported",
+                "color": "0",
+                "name": name,
+                "list": alias_list_name,
+            },
+        )
+        ET.SubElement(
+            alias,
+            "id",
+            {
+                "type": "talkgroup",
+                "value": dec,
+                "protocol": "APCO25",
+            },
+        )
+        if DIGITAL_ATTACH_BROADCAST_CHANNEL and stream_name:
+            ET.SubElement(
+                alias,
+                "id",
+                {
+                    "type": "broadcastChannel",
+                    "channel": stream_name,
+                },
+            )
+        added += 1
+
+    has_priority = False
+    for alias in root.findall("alias"):
+        if str(alias.get("list", "")).strip() != alias_list_name:
+            continue
+        if any(str(alias_id.get("type", "")).strip().lower() == "priority" for alias_id in alias.findall("id")):
+            has_priority = True
+            break
+    if not has_priority:
+        priority_alias = ET.SubElement(
+            root,
+            "alias",
+            {
+                "color": "0",
+                "name": f"{alias_list_name}-ALL",
+                "list": alias_list_name,
+            },
+        )
+        ET.SubElement(
+            priority_alias,
+            "id",
+            {
+                "type": "priority",
+                "priority": "1",
+            },
+        )
+
+    return added
+
+
 def _sync_playlist(profile_dir: Path, control_channels_hz: list[int]) -> dict[str, object]:
     PLAYLIST_PATH.parent.mkdir(parents=True, exist_ok=True)
     tree = _load_playlist(PLAYLIST_PATH)
@@ -280,6 +406,7 @@ def _sync_playlist(profile_dir: Path, control_channels_hz: list[int]) -> dict[st
 
     alias_list = _ensure_child(channel, "alias_list_name")
     alias_list.text = alias_name
+    seeded_aliases = _seed_aliases_from_profile(root, alias_name, profile_dir)
     stream_alias_updates = _sync_alias_broadcast_channels(root, alias_name)
 
     event_conf = _ensure_child(channel, "event_log_configuration")
@@ -307,6 +434,7 @@ def _sync_playlist(profile_dir: Path, control_channels_hz: list[int]) -> dict[st
     _ensure_child(channel, "record_configuration")
 
     tree.write(PLAYLIST_PATH, encoding="utf-8", xml_declaration=False)
+    source_state["seeded_aliases"] = seeded_aliases
     source_state["stream_alias_updates"] = stream_alias_updates
     source_state["stream_name"] = DIGITAL_SDRTRUNK_STREAM_NAME
     return source_state
@@ -325,6 +453,7 @@ def main() -> int:
             f"source_mode={source_state['source_mode']} "
             f"preferred_tuner={source_state['preferred_tuner'] or 'auto'} "
             f"stream={source_state.get('stream_name') or 'unset'} "
+            f"seeded_aliases={source_state.get('seeded_aliases', 0)} "
             f"stream_alias_updates={source_state.get('stream_alias_updates', 0)} "
             f"digital_secondary={DIGITAL_RTL_SERIAL_SECONDARY or 'unset'}"
         )

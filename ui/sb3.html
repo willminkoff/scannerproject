@@ -1050,6 +1050,10 @@
     .digital-listen-row .muted {
       color: var(--text-secondary);
     }
+    .digital-listen-row .rejected {
+      color: #f59e0b;
+      font-weight: 600;
+    }
 
     .service-item.online {
       border-color: rgba(16, 185, 129, 0.5);
@@ -2993,6 +2997,8 @@
           item.description,
           item.tag,
           item.mode,
+          item.rejectedGrantCount,
+          item.rejectedGrantReason,
         ].join(' ').toLowerCase();
         return hay.includes(search);
       });
@@ -3068,14 +3074,18 @@
         const listen = Boolean(item.listen);
         const mode = normalizeDigitalListenMode(item.mode) || '--';
         const label = item.alpha || item.description || '';
-        const tag = item.tag || '--';
+        const rejectCount = Number(item.rejectedGrantCount || 0);
+        const hasRejected = Number.isFinite(rejectCount) && rejectCount >= 3;
+        const tagBase = item.tag || '--';
+        const tag = hasRejected ? `${tagBase} | REJ:${rejectCount}` : tagBase;
+        const tagClass = `${listen ? '' : 'muted'}${hasRejected ? ' rejected' : ''}`.trim();
         return `
         <div class="digital-listen-row">
           <input type="checkbox" data-dec="${escapeHtml(item.dec)}" ${listen ? 'checked' : ''}>
           <div>${escapeHtml(item.dec || '--')}</div>
           <div class="${listen ? '' : 'muted'}">${escapeHtml(mode)}</div>
           <div class="${listen ? '' : 'muted'}">${escapeHtml(label || '--')}</div>
-          <div class="${listen ? '' : 'muted'}">${escapeHtml(tag)}</div>
+          <div class="${escapeHtml(tagClass)}">${escapeHtml(tag)}</div>
         </div>
         `;
       }).join('');
@@ -3098,6 +3108,8 @@
         else if (modeFilter === 'clear') statusBits.push('Mode:Clear');
         else statusBits.push(`Mode:${String(modeFilter).toUpperCase()}`);
       }
+      const rejectedCount = items.filter((item) => Number(item.rejectedGrantCount || 0) >= 3).length;
+      if (rejectedCount > 0) statusBits.push(`Rejected:${rejectedCount}`);
       if (state.digitalListen.dirty) statusBits.push('Unsaved');
       setDigitalListenStatus(statusBits.join(' • '), false);
     }
