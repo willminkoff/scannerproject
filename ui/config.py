@@ -77,8 +77,23 @@ DIGITAL_EVENT_LOG_MODE = os.getenv("DIGITAL_EVENT_LOG_MODE", "auto").strip().low
 DIGITAL_EVENT_LOG_TAIL_LINES = int(os.getenv("DIGITAL_EVENT_LOG_TAIL_LINES", "500"))
 AIRBAND_RTL_SERIAL = os.getenv("AIRBAND_RTL_SERIAL", "").strip()
 GROUND_RTL_SERIAL = os.getenv("GROUND_RTL_SERIAL", "").strip()
-DIGITAL_RTL_DEVICE = os.getenv("DIGITAL_RTL_DEVICE", "")
+DIGITAL_RTL_DEVICE = os.getenv("DIGITAL_RTL_DEVICE", "").strip()
 DIGITAL_RTL_SERIAL = os.getenv("DIGITAL_RTL_SERIAL", "").strip()
+DIGITAL_RTL_SERIAL_SECONDARY = os.getenv(
+    "DIGITAL_RTL_SERIAL_SECONDARY",
+    os.getenv("DIGITAL_RTL_SERIAL_2", ""),
+).strip()
+DIGITAL_PREFERRED_TUNER = os.getenv("DIGITAL_PREFERRED_TUNER", "").strip()
+DIGITAL_USE_MULTI_FREQ_SOURCE = os.getenv(
+    "DIGITAL_USE_MULTI_FREQ_SOURCE",
+    "1",
+).strip().lower() in ("1", "true", "yes", "on")
+DIGITAL_SOURCE_ROTATION_DELAY_MS = int(os.getenv("DIGITAL_SOURCE_ROTATION_DELAY_MS", "500"))
+DIGITAL_SDRTRUNK_STREAM_NAME = os.getenv("DIGITAL_SDRTRUNK_STREAM_NAME", "DIGITAL").strip()
+DIGITAL_ATTACH_BROADCAST_CHANNEL = os.getenv(
+    "DIGITAL_ATTACH_BROADCAST_CHANNEL",
+    "1",
+).strip().lower() in ("1", "true", "yes", "on")
 DIGITAL_RTL_SERIAL_HINT = "DIGITAL_RTL_SERIAL not set; set it to your digital dongle serial"
 DIGITAL_MIXER_ENABLED = os.getenv("DIGITAL_MIXER_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
 DIGITAL_MIXER_AIRBAND_MOUNT = os.getenv("DIGITAL_MIXER_AIRBAND_MOUNT", "GND-air.mp3").strip().lstrip("/")

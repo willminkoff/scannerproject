@@ -22,9 +22,16 @@ try:
         DIGITAL_LOG_PATH,
         DIGITAL_PLAYLIST_PATH,
         DIGITAL_PROFILES_DIR,
+        DIGITAL_PREFERRED_TUNER,
+        DIGITAL_RTL_DEVICE,
         DIGITAL_RTL_SERIAL,
+        DIGITAL_RTL_SERIAL_SECONDARY,
         DIGITAL_RTL_SERIAL_HINT,
+        DIGITAL_SDRTRUNK_STREAM_NAME,
+        DIGITAL_ATTACH_BROADCAST_CHANNEL,
+        DIGITAL_SOURCE_ROTATION_DELAY_MS,
         DIGITAL_SERVICE_NAME,
+        DIGITAL_USE_MULTI_FREQ_SOURCE,
     )
     from .systemd import unit_active
 except ImportError:
@@ -39,9 +46,16 @@ except ImportError:
         DIGITAL_LOG_PATH,
         DIGITAL_PLAYLIST_PATH,
         DIGITAL_PROFILES_DIR,
+        DIGITAL_PREFERRED_TUNER,
+        DIGITAL_RTL_DEVICE,
         DIGITAL_RTL_SERIAL,
+        DIGITAL_RTL_SERIAL_SECONDARY,
         DIGITAL_RTL_SERIAL_HINT,
+        DIGITAL_SDRTRUNK_STREAM_NAME,
+        DIGITAL_ATTACH_BROADCAST_CHANNEL,
+        DIGITAL_SOURCE_ROTATION_DELAY_MS,
         DIGITAL_SERVICE_NAME,
+        DIGITAL_USE_MULTI_FREQ_SOURCE,
     )
     from ui.systemd import unit_active
 
@@ -183,6 +197,7 @@ _DIGITAL_EVENT_DROP_RE = re.compile(
     r"(rejected|tuner unavailable|encrypted|encryption|data channel grant|nsapi)",
     re.I,
 )
+_DIGITAL_SOURCE_ROTATION_DELAY_MS = max(100, int(DIGITAL_SOURCE_ROTATION_DELAY_MS or 500))
 
 
 def validate_digital_profile_id(profile_id: str) -> bool:
@@ -214,6 +229,104 @@ def _safe_realpath(path: str) -> str:
         return os.path.realpath(path)
     except Exception:
         return path
+
+
+def _digital_tuner_targets() -> list[str]:
+    targets: list[str] = []
+    for candidate in (
+        DIGITAL_PREFERRED_TUNER,
+        DIGITAL_RTL_SERIAL,
+        DIGITAL_RTL_SERIAL_SECONDARY,
+        DIGITAL_RTL_DEVICE,
+    ):
+        value = str(candidate or "").strip()
+        if value and value not in targets:
+            targets.append(value)
+    return targets
+
+
+def _preferred_tuner_target() -> str:
+    if DIGITAL_PREFERRED_TUNER:
+        return DIGITAL_PREFERRED_TUNER
+    if DIGITAL_RTL_SERIAL:
+        return DIGITAL_RTL_SERIAL
+    if DIGITAL_RTL_DEVICE and not str(DIGITAL_RTL_DEVICE).isdigit():
+        return str(DIGITAL_RTL_DEVICE).strip()
+    return ""
+
+
+def _sync_source_configuration(source_conf: ET.Element, control_channels: list[int]) -> dict:
+    use_multi = DIGITAL_USE_MULTI_FREQ_SOURCE and len(control_channels) > 1
+    if use_multi:
+        source_conf.set("type", "sourceConfigTunerMultipleFrequency")
+        source_conf.set("source_type", "TUNER_MULTIPLE_FREQUENCIES")
+        source_conf.set("frequency_rotation_delay", str(_DIGITAL_SOURCE_ROTATION_DELAY_MS))
+        if "frequency" in source_conf.attrib:
+            del source_conf.attrib["frequency"]
+        for child in list(source_conf):
+            if child.tag == "frequency":
+                source_conf.remove(child)
+        for hz in control_channels:
+            child = ET.SubElement(source_conf, "frequency")
+            child.text = str(hz)
+    else:
+        source_conf.set("type", "sourceConfigTuner")
+        source_conf.set("source_type", "TUNER")
+        source_conf.set("frequency", str(control_channels[0]))
+        if "frequency_rotation_delay" in source_conf.attrib:
+            del source_conf.attrib["frequency_rotation_delay"]
+        for child in list(source_conf):
+            if child.tag == "frequency":
+                source_conf.remove(child)
+
+    preferred_tuner = _preferred_tuner_target()
+    if preferred_tuner:
+        source_conf.set("preferred_tuner", preferred_tuner)
+
+    return {
+        "source_mode": "multi" if use_multi else "single",
+        "source_type": source_conf.get("source_type", ""),
+        "source_config_type": source_conf.get("type", ""),
+        "control_count": len(control_channels),
+        "control_hz": int(control_channels[0]),
+        "preferred_tuner": preferred_tuner,
+        "tuner_targets": _digital_tuner_targets(),
+    }
+
+
+def _ensure_alias_broadcast_channel(root: ET.Element, alias_list_name: str) -> int:
+    stream_name = str(DIGITAL_SDRTRUNK_STREAM_NAME or "").strip()
+    if not DIGITAL_ATTACH_BROADCAST_CHANNEL or not alias_list_name or not stream_name:
+        return 0
+
+    added = 0
+    for alias in root.findall("alias"):
+        if str(alias.get("list", "")).strip() != alias_list_name:
+            continue
+
+        has_talkgroup_id = False
+        has_stream_binding = False
+        for alias_id in alias.findall("id"):
+            id_type = str(alias_id.get("type", "")).strip().lower()
+            if id_type in {"talkgroup", "talkgrouprange", "p25fullyqualifiedtalkgroup", "talkgroupid"}:
+                has_talkgroup_id = True
+            if id_type == "broadcastchannel" and str(alias_id.get("channel", "")).strip() == stream_name:
+                has_stream_binding = True
+
+        if not has_talkgroup_id or has_stream_binding:
+            continue
+
+        ET.SubElement(
+            alias,
+            "id",
+            {
+                "type": "broadcastChannel",
+                "channel": stream_name,
+            },
+        )
+        added += 1
+
+    return added
 
 
 def _read_tail_lines(path: str, max_bytes: int = 8192, max_lines: int = 120):
@@ -1237,6 +1350,69 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 hits.append({"line": raw, "timeMs": ts})
         return hits
 
+    def _playlist_source_summary(self) -> dict:
+        playlist_path = _safe_realpath(DIGITAL_PLAYLIST_PATH)
+        if not playlist_path:
+            return {
+                "playlist_source_ok": False,
+                "playlist_source_error": "digital playlist path not configured",
+            }
+        if not os.path.isfile(playlist_path):
+            return {
+                "playlist_source_ok": False,
+                "playlist_source_error": f"playlist not found: {playlist_path}",
+                "playlist_path": playlist_path,
+            }
+        try:
+            tree = ET.parse(playlist_path)
+            root = tree.getroot()
+        except Exception as e:
+            return {
+                "playlist_source_ok": False,
+                "playlist_source_error": f"failed to parse playlist: {e}",
+                "playlist_path": playlist_path,
+            }
+        channel = root.find("channel")
+        if channel is None:
+            return {
+                "playlist_source_ok": False,
+                "playlist_source_error": "playlist has no channel node",
+                "playlist_path": playlist_path,
+            }
+        source_conf = channel.find("source_configuration")
+        if source_conf is None:
+            return {
+                "playlist_source_ok": False,
+                "playlist_source_error": "playlist channel has no source_configuration",
+                "playlist_path": playlist_path,
+            }
+        frequencies: list[int] = []
+        seen: set[int] = set()
+        freq_attr = str(source_conf.get("frequency", "")).strip()
+        if freq_attr.isdigit():
+            hz = int(freq_attr)
+            if hz > 0 and hz not in seen:
+                frequencies.append(hz)
+                seen.add(hz)
+        for node in source_conf.findall("frequency"):
+            value = str(node.text or "").strip()
+            if not value.isdigit():
+                continue
+            hz = int(value)
+            if hz <= 0 or hz in seen:
+                continue
+            frequencies.append(hz)
+            seen.add(hz)
+        return {
+            "playlist_source_ok": True,
+            "playlist_path": playlist_path,
+            "playlist_source_type": str(source_conf.get("source_type", "")).strip(),
+            "playlist_source_config_type": str(source_conf.get("type", "")).strip(),
+            "playlist_preferred_tuner": str(source_conf.get("preferred_tuner", "")).strip(),
+            "playlist_frequency_count": len(frequencies),
+            "playlist_frequency_hz": frequencies[:64],
+        }
+
     def preflight(self):
         lines = self._read_log_tail()
         busy_hits = self._detect_tuner_busy(lines)
@@ -1247,12 +1423,14 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             if hit.get("timeMs"):
                 last_time = int(hit.get("timeMs"))
                 break
-        return {
+        payload = {
             "tuner_busy": bool(busy_lines),
             "tuner_busy_lines": busy_lines,
             "tuner_busy_count": len(busy_hits),
             "tuner_busy_last_time_ms": last_time,
         }
+        payload.update(self._playlist_source_summary())
+        return payload
 
     def start(self):
         ok, err = self._systemctl(["start"])
@@ -1406,9 +1584,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         source_conf = channel.find("source_configuration")
         if source_conf is None:
             source_conf = ET.SubElement(channel, "source_configuration")
-        source_conf.set("type", "sourceConfigTuner")
-        source_conf.set("source_type", "TUNER")
-        source_conf.set("frequency", str(control_channels[0]))
+        _sync_source_configuration(source_conf, control_channels)
 
         # Allow profile-local alias list override so sub-profiles can reuse an
         # existing SDRTrunk alias list without requiring duplicate exports.
@@ -1429,6 +1605,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         if alias_list is None:
             alias_list = ET.SubElement(channel, "alias_list_name")
         alias_list.text = alias_list_name
+        _ensure_alias_broadcast_channel(root, alias_list_name)
 
         if channel.find("decode_configuration") is None:
             ET.SubElement(
@@ -1750,21 +1927,40 @@ class DigitalManager:
         preflight = self.preflight() or {}
         payload["digital_tuner_busy_count"] = int(preflight.get("tuner_busy_count") or 0)
         payload["digital_tuner_busy_time"] = int(preflight.get("tuner_busy_last_time_ms") or 0)
+        payload["digital_playlist_source_ok"] = bool(preflight.get("playlist_source_ok"))
+        if "playlist_source_type" in preflight:
+            payload["digital_playlist_source_type"] = preflight.get("playlist_source_type")
+        if "playlist_source_config_type" in preflight:
+            payload["digital_playlist_source_config_type"] = preflight.get("playlist_source_config_type")
+        if "playlist_frequency_count" in preflight:
+            payload["digital_playlist_frequency_count"] = int(preflight.get("playlist_frequency_count") or 0)
+        if preflight.get("playlist_preferred_tuner"):
+            payload["digital_playlist_preferred_tuner"] = str(preflight.get("playlist_preferred_tuner"))
+        if preflight.get("playlist_source_error"):
+            payload["digital_playlist_source_error"] = str(preflight.get("playlist_source_error"))
         if preflight.get("tuner_busy"):
             air_serial = os.getenv("AIRBAND_RTL_SERIAL", "").strip()
             ground_serial = os.getenv("GROUND_RTL_SERIAL", "").strip()
             digital_serial = DIGITAL_RTL_SERIAL or ""
+            digital_secondary = DIGITAL_RTL_SERIAL_SECONDARY or ""
+            tuner_targets = _digital_tuner_targets()
+            tuner_target_note = (
+                ", ".join(tuner_targets)
+                if tuner_targets else "auto"
+            )
             serials_note = (
                 f"expected serials: airband={air_serial or 'unknown'}, "
-                f"ground={ground_serial or 'unknown'}, digital={digital_serial or 'unknown'}"
+                f"ground={ground_serial or 'unknown'}, digital={digital_serial or 'unknown'}, "
+                f"digital_secondary={digital_secondary or 'unset'}"
             )
             serial_note = f" (serial {DIGITAL_RTL_SERIAL})" if DIGITAL_RTL_SERIAL else ""
             msg = (
                 f"SDRTrunk tuner busy{serial_note}: likely dongle conflict with rtl-airband; "
-                f"{serials_note}. In SDRTrunk, disable other RTL tuners and bind to serial {digital_serial or 'your digital dongle'}."
+                f"{serials_note}. Preferred tuner targets: {tuner_target_note}. "
+                f"In SDRTrunk, disable unrelated RTL tuners and bind control to {digital_serial or 'your digital dongle'}."
             )
             payload["digital_last_warning"] = msg
-        elif not DIGITAL_RTL_SERIAL and DIGITAL_RTL_SERIAL_HINT:
+        elif not _preferred_tuner_target() and DIGITAL_RTL_SERIAL_HINT:
             payload.setdefault("digital_last_warning", DIGITAL_RTL_SERIAL_HINT)
 
         # Auto-clear stale error/warning once digital has recovered and is producing activity.

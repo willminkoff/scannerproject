@@ -386,7 +386,13 @@ Live-only digital backend control with in-memory metadata (no recording or persi
 - `AIRBAND_RTL_SERIAL` (preferred airband RTL serial; optional)
 - `GROUND_RTL_SERIAL` (preferred ground RTL serial; optional)
 - `DIGITAL_RTL_SERIAL` (dedicated RTL-SDR serial for SDRTrunk; recommended)
+- `DIGITAL_RTL_SERIAL_SECONDARY` (optional second digital RTL serial for traffic capacity)
 - `DIGITAL_RTL_DEVICE` (RTL-SDR device index or serial; used by your SDRTrunk profile configuration)
+- `DIGITAL_PREFERRED_TUNER` (optional explicit SDRTrunk tuner name; overrides `DIGITAL_RTL_SERIAL` when set)
+- `DIGITAL_USE_MULTI_FREQ_SOURCE` (default: `1`; when enabled, runtime writes multi-frequency control-channel source config)
+- `DIGITAL_SOURCE_ROTATION_DELAY_MS` (default: `500`; rotation delay for multi-frequency control scanning)
+- `DIGITAL_SDRTRUNK_STREAM_NAME` (default: `DIGITAL`; SDRTrunk stream name used for alias `broadcastChannel` wiring)
+- `DIGITAL_ATTACH_BROADCAST_CHANNEL` (default: `1`; auto-adds `broadcastChannel` IDs for active profile alias talkgroups)
 - `DIGITAL_MIXER_ENABLED` (default: `0`) - enable mixing SDRTrunk audio into `scannerbox.mp3`
 - `DIGITAL_MIXER_AIRBAND_MOUNT` (default: `GND-air.mp3`) - raw airband+ground input mount for the mixer
 - `DIGITAL_MIXER_DIGITAL_MOUNT` (default: `DIGITAL.mp3`) - SDRTrunk input mount for the mixer
@@ -409,6 +415,10 @@ Live-only digital backend control with in-memory metadata (no recording or persi
 Set `DIGITAL_RTL_SERIAL` to the RTL serial you want SDRTrunk to use, then reference that serial in your SDRTrunk profile configuration (exact field name depends on your SDRTrunk version/export).
 If you must use indexes, use `DIGITAL_RTL_DEVICE`, but serial binding is strongly recommended.
 This repo already tracks RTL-SDR serials for the analog scanners in `profiles/rtl_airband_*.conf` and enforces serials in the combined config; reuse the same serials to avoid device collisions.
+At runtime, `ensure-digital-runtime.py` and profile switches now write the SDRTrunk `source_configuration` from `control_channels.txt`:
+- first control channel is still honored
+- when multiple control channels exist, it uses a multi-frequency tuner source
+- preferred tuner is set from `DIGITAL_PREFERRED_TUNER`, or `DIGITAL_RTL_SERIAL` if no explicit preferred tuner is provided
 
 **Dongle serial locking**:
 These mappings prevent device-busy conflicts:
@@ -420,6 +430,29 @@ Enforcement:
 - Airband/Ground serials are set in `profiles/rtl_airband_*.conf` and flow into the combined config.
 - Digital serial is set via `DIGITAL_RTL_SERIAL` and selected in SDRTrunk’s tuner configuration.
 - `/api/digital/preflight` reports recent tuner-busy errors and expected serials.
+
+**Second digital dongle (P25 ready)**:
+Use this when you want one digital tuner pinned for control-channel tracking and an extra tuner available for traffic channels.
+
+Example `/etc/airband-ui.conf`:
+```bash
+DIGITAL_RTL_SERIAL=56919602
+DIGITAL_RTL_SERIAL_SECONDARY=56919603
+DIGITAL_USE_MULTI_FREQ_SOURCE=1
+DIGITAL_SOURCE_ROTATION_DELAY_MS=500
+```
+
+Optional exact tuner-name pinning (from SDRTrunk tuner label):
+```bash
+DIGITAL_PREFERRED_TUNER="RTL2832 SDR/R820T 56919602"
+```
+
+Verification:
+- `GET /api/digital/preflight` should show:
+  - `expected_serials.digital` and `expected_serials.digital_secondary`
+  - `playlist_source_ok=true`
+  - `playlist_source_type=TUNER_MULTIPLE_FREQUENCIES` (when profile has >1 control channel)
+  - `playlist_preferred_tuner` matching your configured control tuner
 
 **SprontPi recommended defaults**:
 If you are on SprontPi, set these in `/etc/airband-ui.conf` (or your UI EnvironmentFile):
