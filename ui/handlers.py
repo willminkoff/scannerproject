@@ -145,18 +145,32 @@ DIGITAL_HITS_REQUIRE_ACTIVE_STREAM = os.getenv(
     "DIGITAL_HITS_REQUIRE_ACTIVE_STREAM",
     "1",
 ).strip().lower() in ("1", "true", "yes", "on")
+DIGITAL_HIT_RECENT_SEC = max(5.0, float(os.getenv("DIGITAL_HIT_RECENT_SEC", "180")))
 _DIGITAL_IDLE_TITLES = {"", "-", "idle", "n/a", "scanning", "scanning..."}
 
 
+def _digital_has_recent_event(max_age_sec: float = DIGITAL_HIT_RECENT_SEC) -> bool:
+    """Fallback activity signal when Icecast title stays idle."""
+    try:
+        event = get_digital_manager().getLastEvent() or {}
+        time_ms = int(event.get("timeMs") or 0)
+    except Exception:
+        return False
+    if time_ms <= 0:
+        return False
+    return (int(time.time() * 1000) - time_ms) <= int(max_age_sec * 1000)
+
+
 def _digital_stream_active_for_hits() -> bool:
-    """Treat digital events as user-audible only when DIGITAL mount is not idle."""
+    """Treat digital events as active via mount title, with recent-event fallback."""
     if not DIGITAL_MIXER_DIGITAL_MOUNT:
         return True
     status_text = fetch_local_icecast_status()
-    if not status_text or status_text.startswith("ERROR:"):
-        return False
-    title = extract_icecast_title_for_mount(status_text, f"/{DIGITAL_MIXER_DIGITAL_MOUNT}")
-    return title.strip().lower() not in _DIGITAL_IDLE_TITLES
+    if status_text and not status_text.startswith("ERROR:"):
+        title = extract_icecast_title_for_mount(status_text, f"/{DIGITAL_MIXER_DIGITAL_MOUNT}")
+        if title.strip().lower() not in _DIGITAL_IDLE_TITLES:
+            return True
+    return _digital_has_recent_event()
 
 
 def _coalesce_digital_hits(items: list[dict], window_sec: float = DIGITAL_HIT_COALESCE_SEC) -> list[dict]:
@@ -439,6 +453,19 @@ class Handler(BaseHTTPRequestHandler):
                 digital_payload = get_digital_manager().status_payload()
             except Exception as e:
                 digital_payload["digital_last_error"] = str(e)
+            digital_stream_active_for_hits = True
+            if DIGITAL_HITS_REQUIRE_ACTIVE_STREAM:
+                try:
+                    digital_stream_active_for_hits = _digital_stream_active_for_hits()
+                except Exception:
+                    digital_stream_active_for_hits = False
+                if not digital_stream_active_for_hits:
+                    # Keep status+warnings, but suppress non-audible event pills so
+                    # header indicators align with the hit list and audible stream.
+                    digital_payload["digital_last_label"] = ""
+                    digital_payload["digital_last_time"] = 0
+                    digital_payload.pop("digital_last_mode", None)
+            digital_payload["digital_stream_active_for_hits"] = bool(digital_stream_active_for_hits)
             digital_payload["digital_mixer_active"] = unit_active(UNITS["digital_mixer"])
             payload.update(digital_payload)
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")

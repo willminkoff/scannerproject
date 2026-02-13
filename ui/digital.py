@@ -176,9 +176,13 @@ _EVENT_SITE_KEYS = (
     "site name",
     "system name",
 )
-_DIGITAL_HIT_MIN_DURATION_MS = int(os.getenv("DIGITAL_HIT_MIN_DURATION_MS", "1500"))
+_DIGITAL_HIT_MIN_DURATION_MS = int(os.getenv("DIGITAL_HIT_MIN_DURATION_MS", "250"))
 _DIGITAL_STATUS_CLEAR_MS = max(0, int(os.getenv("DIGITAL_STATUS_CLEAR_MS", "180000")))
-_DIGITAL_EVENT_DROP_RE = re.compile(r"(rejected|tuner unavailable|encrypted|encryption)", re.I)
+_DIGITAL_TGID_MAX = max(1, int(os.getenv("DIGITAL_TGID_MAX", "65535")))
+_DIGITAL_EVENT_DROP_RE = re.compile(
+    r"(rejected|tuner unavailable|encrypted|encryption|data channel grant|nsapi)",
+    re.I,
+)
 
 
 def validate_digital_profile_id(profile_id: str) -> bool:
@@ -325,9 +329,22 @@ def _row_value(row: dict, keys: tuple) -> str:
     return ""
 
 
+def _normalize_tgid(value: str) -> str:
+    raw = str(value or "").strip()
+    if not raw.isdigit():
+        return ""
+    try:
+        dec = int(raw)
+    except Exception:
+        return ""
+    if dec <= 0 or dec > _DIGITAL_TGID_MAX:
+        return ""
+    return str(dec)
+
+
 def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
     label = _row_value(row, _EVENT_LABEL_KEYS)
-    tgid = _row_value(row, _EVENT_TGID_KEYS)
+    tgid = _normalize_tgid(_row_value(row, _EVENT_TGID_KEYS))
     event_id = _row_value(row, _EVENT_ID_KEYS)
     event_kind = _row_value(row, _EVENT_KIND_KEYS).lower()
     duration_raw = _row_value(row, _EVENT_DURATION_KEYS)
@@ -347,7 +364,7 @@ def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
             if not m:
                 m = re.search(r"\b(\d{3,})\b", to_val)
             if m:
-                tgid = m.group(1)
+                tgid = _normalize_tgid(m.group(1))
 
     # Call/event logs include high-volume non-audio control events (register/response/etc).
     # Keep only call-type events when an explicit event field is present.
@@ -438,7 +455,7 @@ def _extract_tgid(text: str) -> str:
     raw = str(text).strip()
     m = _TGID_RE.search(raw)
     if m:
-        return m.group(1)
+        return _normalize_tgid(m.group(1))
 
     # Common standalone forms from event logs, e.g. "(10101)", "TG 10101", "10101".
     compact = raw
@@ -447,7 +464,7 @@ def _extract_tgid(text: str) -> str:
     compact = re.sub(r"^\s*(?:tgid|talkgroup|tg)\s*[:=#-]?\s*", "", compact, flags=re.I)
     compact = compact.strip()
     if compact.isdigit():
-        return compact
+        return _normalize_tgid(compact)
     return ""
 
 
@@ -697,9 +714,20 @@ def write_digital_listen(profile_id: str, items: list):
         if not dec.isdigit():
             continue
         mapping[dec] = bool(item.get("listen"))
+    default_listen = True
+    if os.path.isfile(listen_path):
+        try:
+            with open(listen_path, "r", encoding="utf-8", errors="ignore") as f:
+                existing = json.load(f) or {}
+            if isinstance(existing, dict):
+                default_listen = bool(existing.get("default_listen", existing.get("default", True)))
+        except Exception:
+            default_listen = True
+
     payload = {
         "updated": int(time.time()),
         "items": mapping,
+        "default_listen": bool(default_listen),
     }
     try:
         tmp = listen_path + ".tmp"
@@ -893,6 +921,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         self._listen_map = {}
         self._listen_map_profile = ""
         self._listen_map_mtime = None
+        self._listen_default = True
         if not validate_digital_service_name(self._service_name):
             self._set_last_error("invalid digital service name")
 
@@ -1054,14 +1083,28 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 continue
             try:
                 mtime = os.path.getmtime(path)
+                size = os.path.getsize(path)
             except Exception:
                 mtime = 0
-            candidates.append((mtime, path, name))
+                size = 0
+            candidates.append((mtime, size, path, name))
         call_candidates = [item for item in candidates if "call_events" in item[2].lower()]
         if call_candidates:
             candidates = call_candidates
-        candidates.sort(key=lambda item: item[0], reverse=True)
-        return [path for _, path, _ in candidates[:5]]
+
+        # SDRTrunk can create many short-lived call_event files that only contain
+        # a CSV header. Prefer files with actual rows so digital hits don't vanish.
+        data_candidates = [item for item in candidates if int(item[1] or 0) > 128]
+        header_only_candidates = [item for item in candidates if int(item[1] or 0) <= 128]
+
+        data_candidates.sort(key=lambda item: item[0], reverse=True)
+        header_only_candidates.sort(key=lambda item: item[0], reverse=True)
+
+        selected = list(data_candidates[:5])
+        if len(selected) < 5:
+            selected.extend(header_only_candidates[: 5 - len(selected)])
+
+        return [path for _, _, path, _ in selected]
 
     def _ensure_event_log_header(self, path: str) -> None:
         if path in self._event_log_headers:
@@ -1367,10 +1410,25 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         source_conf.set("source_type", "TUNER")
         source_conf.set("frequency", str(control_channels[0]))
 
+        # Allow profile-local alias list override so sub-profiles can reuse an
+        # existing SDRTrunk alias list without requiring duplicate exports.
+        alias_list_name = profile_id.upper()
+        alias_name_path = os.path.join(profile_dir, "alias_list_name.txt")
+        if os.path.isfile(alias_name_path):
+            try:
+                with open(alias_name_path, "r", encoding="utf-8", errors="ignore") as f:
+                    for raw in f:
+                        value = str(raw or "").strip()
+                        if value:
+                            alias_list_name = value
+                            break
+            except Exception:
+                alias_list_name = profile_id.upper()
+
         alias_list = channel.find("alias_list_name")
         if alias_list is None:
             alias_list = ET.SubElement(channel, "alias_list_name")
-        alias_list.text = profile_id.upper()
+        alias_list.text = alias_list_name
 
         if channel.find("decode_configuration") is None:
             ET.SubElement(
@@ -1453,12 +1511,14 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             self._listen_map = {}
             self._listen_map_profile = ""
             self._listen_map_mtime = None
+            self._listen_default = True
             return self._listen_map
         listen_path = os.path.join(profile_dir, _LISTEN_FILENAME)
         if not os.path.isfile(listen_path):
             self._listen_map = {}
             self._listen_map_profile = profile_dir
             self._listen_map_mtime = None
+            self._listen_default = True
             return self._listen_map
         try:
             mtime = os.path.getmtime(listen_path)
@@ -1468,18 +1528,23 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             if mtime == self._listen_map_mtime[1]:
                 return self._listen_map
         mapping = {}
+        default_listen = True
         try:
             with open(listen_path, "r", encoding="utf-8", errors="ignore") as f:
                 payload = json.load(f) or {}
             if isinstance(payload, dict):
+                default_raw = payload.get("default_listen", payload.get("default", True))
+                default_listen = bool(default_raw)
                 items = payload.get("items")
                 if isinstance(items, dict):
                     mapping = {str(k): bool(v) for k, v in items.items()}
         except Exception:
             mapping = {}
+            default_listen = True
         self._listen_map = mapping
         self._listen_map_profile = profile_dir
         self._listen_map_mtime = (listen_path, mtime)
+        self._listen_default = bool(default_listen)
         return self._listen_map
 
     def _map_event_label(self, event: dict) -> dict:
@@ -1498,7 +1563,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 tgid = _extract_tgid(raw)
         if tgid:
             listen_map = self._load_listen_map()
-            listen = listen_map.get(tgid, True) if listen_map else True
+            listen = listen_map.get(tgid, self._listen_default) if listen_map else self._listen_default
             if not listen:
                 event = dict(event)
                 event["muted"] = True
