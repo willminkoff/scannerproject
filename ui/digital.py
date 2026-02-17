@@ -6,6 +6,7 @@ import csv
 import os
 import re
 import subprocess
+import threading
 import time
 from datetime import datetime
 from xml.etree import ElementTree as ET
@@ -1322,6 +1323,13 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         self._event_log_tail_lines = int(DIGITAL_EVENT_LOG_TAIL_LINES or 500)
         self._event_log_offsets = {}
         self._event_log_headers = {}
+        self._event_log_files_cache: list[str] = []
+        self._event_log_files_cache_at = 0.0
+        self._event_log_files_cache_ready = False
+        self._event_log_scan_interval_sec = max(
+            1.0,
+            float(os.getenv("DIGITAL_EVENT_LOG_SCAN_INTERVAL_SEC", "20")),
+        )
         self._tg_map = {}
         self._tg_map_profile = ""
         self._tg_map_mtime = None
@@ -1329,6 +1337,12 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         self._listen_map_profile = ""
         self._listen_map_mtime = None
         self._listen_default = True
+        self._refresh_lock = threading.Lock()
+        self._last_refresh_monotonic = 0.0
+        self._refresh_min_interval_sec = max(
+            0.0,
+            float(os.getenv("DIGITAL_LOG_REFRESH_MIN_INTERVAL_SEC", "0.40")),
+        )
         if not validate_digital_service_name(self._service_name):
             self._set_last_error("invalid digital service name")
 
@@ -1369,149 +1383,201 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         return False, err
 
     def _refresh_log_cache(self):
-        mode = self._event_log_mode or "auto"
-        mode = mode if mode in ("auto", "event_logs", "app_log") else "auto"
-        lines = []
-        fallback_ms = int(time.time() * 1000)
-        app_events = []
+        now_mono = time.monotonic()
+        if (
+            self._last_refresh_monotonic
+            and (now_mono - self._last_refresh_monotonic) < self._refresh_min_interval_sec
+        ):
+            return
 
+        if not self._refresh_lock.acquire(blocking=False):
+            return
         try:
-            stat = os.stat(self._log_path)
-            mtime = stat.st_mtime
-            size = stat.st_size
-        except Exception:
-            mtime = None
-            size = None
-        if mtime and size is not None:
-            if self._last_log_mtime != mtime or self._last_log_size != size:
-                self._last_log_mtime = mtime
-                self._last_log_size = size
-                lines = _read_tail_lines(self._log_path)
-            if lines:
-                fallback_ms = int(mtime * 1000) if mtime else fallback_ms
-                if mode in ("auto", "app_log"):
-                    for line in lines:
-                        event = _extract_event_from_line(line, fallback_ms)
-                        if event:
-                            mapped = self._map_event_label(event)
-                            if mapped and mapped.get("muted"):
-                                continue
-                            app_events.append(mapped)
+            now_mono = time.monotonic()
+            if (
+                self._last_refresh_monotonic
+                and (now_mono - self._last_refresh_monotonic) < self._refresh_min_interval_sec
+            ):
+                return
+            self._last_refresh_monotonic = now_mono
 
-                # Last error/warning (best-effort) from app log regardless of mode.
-                last_err = None
-                last_err_time_ms = 0
-                last_warn = None
-                last_warn_time_ms = 0
+            mode = self._event_log_mode or "auto"
+            mode = mode if mode in ("auto", "event_logs", "app_log") else "auto"
+            lines = []
+            fallback_ms = int(time.time() * 1000)
+            app_events = []
+
+            try:
+                stat = os.stat(self._log_path)
+                mtime = stat.st_mtime
+                size = stat.st_size
+            except Exception:
+                mtime = None
+                size = None
+            if mtime and size is not None:
+                if self._last_log_mtime != mtime or self._last_log_size != size:
+                    self._last_log_mtime = mtime
+                    self._last_log_size = size
+                    lines = _read_tail_lines(self._log_path)
+                if lines:
+                    fallback_ms = int(mtime * 1000) if mtime else fallback_ms
+                    if mode in ("auto", "app_log"):
+                        for line in lines:
+                            event = _extract_event_from_line(line, fallback_ms)
+                            if event:
+                                mapped = self._map_event_label(event)
+                                if mapped and mapped.get("muted"):
+                                    continue
+                                app_events.append(mapped)
+
+                    # Last error/warning (best-effort) from app log regardless of mode.
+                    last_err = None
+                    last_err_time_ms = 0
+                    last_warn = None
+                    last_warn_time_ms = 0
+                    for line in reversed(lines):
+                        raw = (line or "").strip()
+                        if not raw:
+                            continue
+                        clean = _strip_log_prefix(raw)
+                        if _is_java_stack_line(raw) or _is_java_stack_line(clean):
+                            continue
+                        if not re.search(r"(error|exception)", clean, re.I):
+                            continue
+                        line_time_ms = _parse_time_ms(raw, fallback_ms)
+                        if _is_non_fatal_error(clean):
+                            if not last_warn:
+                                last_warn = clean
+                                last_warn_time_ms = line_time_ms
+                            continue
+                        last_err = clean
+                        last_err_time_ms = line_time_ms
+                        break
+                    if last_err:
+                        self._set_last_error(last_err, last_err_time_ms)
+                    else:
+                        self._clear_error()
+                    if last_warn:
+                        self._set_last_warning(last_warn, last_warn_time_ms)
+                    else:
+                        self._clear_warning()
+
+            event_log_events = []
+            if mode in ("auto", "event_logs"):
+                event_log_events = self._read_event_logs()
+
+            events = []
+            if mode == "app_log":
+                events = app_events
+            elif mode == "event_logs":
+                events = event_log_events
+            else:
+                events = event_log_events if event_log_events else app_events
+
+            if events:
+                for event in events:
+                    self._record_event(event)
+                latest = max(events, key=lambda item: item.get("timeMs", 0))
+                self._last_event = latest
+                self._last_event_time_ms = int(latest.get("timeMs") or fallback_ms)
+                return
+
+            if mode == "app_log" and lines:
+                # Last event fallback: use last non-empty line only for app_log mode.
+                last_line = ""
                 for line in reversed(lines):
-                    raw = (line or "").strip()
-                    if not raw:
-                        continue
-                    clean = _strip_log_prefix(raw)
-                    if _is_java_stack_line(raw) or _is_java_stack_line(clean):
-                        continue
-                    if not re.search(r"(error|exception)", clean, re.I):
-                        continue
-                    line_time_ms = _parse_time_ms(raw, fallback_ms)
-                    if _is_non_fatal_error(clean):
-                        if not last_warn:
-                            last_warn = clean
-                            last_warn_time_ms = line_time_ms
-                        continue
-                    last_err = clean
-                    last_err_time_ms = line_time_ms
-                    break
-                if last_err:
-                    self._set_last_error(last_err, last_err_time_ms)
-                else:
-                    self._clear_error()
-                if last_warn:
-                    self._set_last_warning(last_warn, last_warn_time_ms)
-                else:
-                    self._clear_warning()
-
-        event_log_events = []
-        if mode in ("auto", "event_logs"):
-            event_log_events = self._read_event_logs()
-
-        events = []
-        if mode == "app_log":
-            events = app_events
-        elif mode == "event_logs":
-            events = event_log_events
-        else:
-            events = event_log_events if event_log_events else app_events
-
-        if events:
-            for event in events:
-                self._record_event(event)
-            latest = max(events, key=lambda item: item.get("timeMs", 0))
-            self._last_event = latest
-            self._last_event_time_ms = int(latest.get("timeMs") or fallback_ms)
-            return
-
-        if mode == "app_log" and lines:
-            # Last event fallback: use last non-empty line only for app_log mode.
-            last_line = ""
-            for line in reversed(lines):
-                if line.strip():
-                    last_line = line.strip()
-                    break
-            if not last_line:
+                    if line.strip():
+                        last_line = line.strip()
+                        break
+                if not last_line:
+                    return
+                if not (_EVENT_HINT_RE.search(last_line) or _TGID_RE.search(last_line)):
+                    return
+                time_ms = _parse_time_ms(last_line, fallback_ms)
+                label, mode_label, _ = _extract_label_mode(last_line)
+                event = {"type": "digital", "label": label, "timeMs": time_ms, "raw": last_line}
+                if mode_label:
+                    event["mode"] = mode_label
+                event = self._map_event_label(event)
+                self._last_event = event
+                self._last_event_time_ms = time_ms
                 return
-            if not (_EVENT_HINT_RE.search(last_line) or _TGID_RE.search(last_line)):
-                return
-            time_ms = _parse_time_ms(last_line, fallback_ms)
-            label, mode_label, _ = _extract_label_mode(last_line)
-            event = {"type": "digital", "label": label, "timeMs": time_ms, "raw": last_line}
-            if mode_label:
-                event["mode"] = mode_label
-            event = self._map_event_label(event)
-            self._last_event = event
-            self._last_event_time_ms = time_ms
-            return
+        finally:
+            self._refresh_lock.release()
 
     def _list_event_log_files(self):
+        now_mono = time.monotonic()
+        if self._event_log_files_cache_ready:
+            cache_age = now_mono - self._event_log_files_cache_at
+            if cache_age < self._event_log_scan_interval_sec:
+                return [
+                    path for path in self._event_log_files_cache
+                    if os.path.isfile(path)
+                ]
+
         base = self._event_log_dir
         if not base or not os.path.isdir(base):
+            self._event_log_files_cache = []
+            self._event_log_files_cache_at = now_mono
+            self._event_log_files_cache_ready = True
             return []
-        candidates = []
+        all_candidates: list[tuple[str, str]] = []
+        call_candidates: list[tuple[str, str]] = []
         try:
-            entries = os.listdir(base)
+            it = os.scandir(base)
         except Exception:
+            self._event_log_files_cache = []
+            self._event_log_files_cache_at = now_mono
+            self._event_log_files_cache_ready = True
             return []
-        for name in entries:
-            if name.startswith("."):
-                continue
-            path = os.path.join(base, name)
-            if not os.path.isfile(path):
-                continue
-            if not re.search(r"\.(csv|log|txt|json)$", name, re.I):
-                continue
+        with it:
+            for entry in it:
+                name = str(entry.name or "")
+                if name.startswith("."):
+                    continue
+                if not re.search(r"\.(csv|log|txt|json)$", name, re.I):
+                    continue
+                try:
+                    if not entry.is_file(follow_symlinks=False):
+                        continue
+                except Exception:
+                    continue
+                item = (name, entry.path)
+                all_candidates.append(item)
+                if "call_events" in name.lower():
+                    call_candidates.append(item)
+
+        # Prefer call_event files when present.
+        candidates = call_candidates if call_candidates else all_candidates
+        # Most SDRTrunk files use timestamp-prefixed names; newest tend to sort last.
+        # Scan newest-first and stop early once we have enough candidates.
+        candidates.sort(key=lambda item: item[0], reverse=True)
+
+        data_paths: list[str] = []
+        header_only_paths: list[str] = []
+        for _, path in candidates:
             try:
-                mtime = os.path.getmtime(path)
-                size = os.path.getsize(path)
+                size = int(os.path.getsize(path))
             except Exception:
-                mtime = 0
                 size = 0
-            candidates.append((mtime, size, path, name))
-        call_candidates = [item for item in candidates if "call_events" in item[2].lower()]
-        if call_candidates:
-            candidates = call_candidates
+            if size > 128:
+                data_paths.append(path)
+            else:
+                header_only_paths.append(path)
 
-        # SDRTrunk can create many short-lived call_event files that only contain
-        # a CSV header. Prefer files with actual rows so digital hits don't vanish.
-        data_candidates = [item for item in candidates if int(item[1] or 0) > 128]
-        header_only_candidates = [item for item in candidates if int(item[1] or 0) <= 128]
+            # Keep scan bounded even if the directory has many thousands of files.
+            if len(data_paths) >= 5:
+                break
+            if len(data_paths) + len(header_only_paths) >= 12:
+                break
 
-        data_candidates.sort(key=lambda item: item[0], reverse=True)
-        header_only_candidates.sort(key=lambda item: item[0], reverse=True)
-
-        selected = list(data_candidates[:5])
-        if len(selected) < 5:
-            selected.extend(header_only_candidates[: 5 - len(selected)])
-
-        return [path for _, _, path, _ in selected]
+        selected_paths = list(data_paths[:5])
+        if len(selected_paths) < 5:
+            selected_paths.extend(header_only_paths[: 5 - len(selected_paths)])
+        self._event_log_files_cache = selected_paths
+        self._event_log_files_cache_at = now_mono
+        self._event_log_files_cache_ready = True
+        return list(selected_paths)
 
     def _ensure_event_log_header(self, path: str) -> None:
         if path in self._event_log_headers:
@@ -2113,6 +2179,11 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         self._tg_map_mtime = None
         self._listen_map_profile = ""
         self._listen_map_mtime = None
+        self._event_log_files_cache = []
+        self._event_log_files_cache_at = 0.0
+        self._event_log_files_cache_ready = False
+        self._event_log_offsets = {}
+        self._event_log_headers = {}
 
         self._profile = pid
         ok, err = self.restart()
