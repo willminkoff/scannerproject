@@ -278,10 +278,11 @@ class Handler(BaseHTTPRequestHandler):
                         self.send_header(header, value)
                 self.end_headers()
                 while True:
-                    chunk = upstream_resp.read(16384)
+                    chunk = upstream_resp.read(1024)
                     if not chunk:
                         break
                     self.wfile.write(chunk)
+                    self.wfile.flush()
         except HTTPError as e:
             return self._send(int(e.code or 502), f"upstream error: {e.reason}", "text/plain; charset=utf-8")
         except (URLError, TimeoutError) as e:
