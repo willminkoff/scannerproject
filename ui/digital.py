@@ -202,6 +202,10 @@ _DIGITAL_EVENT_DROP_RE = re.compile(
     r"(rejected|tuner unavailable|encrypted|encryption|data channel grant|nsapi)",
     re.I,
 )
+_DIGITAL_DEBUG_INCLUDE_GRANTS = os.getenv(
+    "DIGITAL_DEBUG_INCLUDE_GRANTS",
+    "0",
+).strip().lower() in ("1", "true", "yes", "on")
 _DIGITAL_SOURCE_ROTATION_DELAY_MS = max(100, int(DIGITAL_SOURCE_ROTATION_DELAY_MS or 500))
 
 
@@ -612,13 +616,17 @@ def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
             if m:
                 tgid = _normalize_tgid(m.group(1))
 
+    details_l = details.lower() if details else ""
+    is_channel_grant = "channel grant" in details_l
+    include_grant_debug = _DIGITAL_DEBUG_INCLUDE_GRANTS and is_channel_grant
+
     # Call/event logs include high-volume non-audio control events (register/response/etc).
     # Keep only call-type events when an explicit event field is present.
-    if event_kind and "call" not in event_kind:
+    if event_kind and "call" not in event_kind and not include_grant_debug:
         return None
 
     # Drop known non-audible call log rows (rejected/encrypted control updates).
-    if details and _DIGITAL_EVENT_DROP_RE.search(details):
+    if details and _DIGITAL_EVENT_DROP_RE.search(details) and not include_grant_debug:
         return None
 
     duration_ms = None
@@ -633,9 +641,9 @@ def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
     # For structured call event rows, wait until the call has lasted long enough
     # to be considered an audible "hit" before surfacing it.
     if event_id:
-        if duration_ms is None:
+        if duration_ms is None and not include_grant_debug:
             return None
-        if duration_ms < _DIGITAL_HIT_MIN_DURATION_MS:
+        if duration_ms is not None and duration_ms < _DIGITAL_HIT_MIN_DURATION_MS and not include_grant_debug:
             return None
 
     time_ms = _parse_time_value(time_val, fallback_ms)
@@ -668,6 +676,8 @@ def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
         event["frequency"] = freq
     if site:
         event["site"] = site
+    if include_grant_debug:
+        event["debug_grant"] = True
     return event
 
 
