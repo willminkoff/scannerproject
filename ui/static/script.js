@@ -73,6 +73,7 @@ let digitalProfilesCacheAt = 0;
 let digitalMuted = false;
 let streamMount = 'scannerbox.mp3';
 let icecastPort = 8000;
+let streamProxyEnabled = true;
 let streamBaseUrl = '';
 const audioRecoverState = new WeakMap();
 
@@ -323,6 +324,9 @@ function buildProfiles(profilesEl, profiles, selected, target) {
 
 function streamUrl() {
   const mount = (streamMount || 'scannerbox.mp3').replace(/^\/+/, '');
+  if (streamProxyEnabled) {
+    return `${location.origin}/stream/${encodeURIComponent(mount)}`;
+  }
   return `http://${location.hostname}:${icecastPort}/${mount}`;
 }
 
@@ -559,6 +563,9 @@ async function refreshProfiles() {
 
 async function refresh(allowSetSliders=false) {
   const st = await getJSON('/api/status');
+  if (typeof st.stream_proxy_enabled === 'boolean') {
+    streamProxyEnabled = st.stream_proxy_enabled;
+  }
   const port = Number(st.icecast_port);
   if (Number.isFinite(port)) {
     icecastPort = port;

@@ -28,7 +28,6 @@ h1 { font-size: 18px; margin:0 0 12px; letter-spacing:.2px; }
   height: 36px;
   border-radius: 999px;
   color-scheme: dark;
-  filter: invert(1) hue-rotate(180deg) saturate(0.9);
   opacity: 0.88;
 }
 .ctrl-head { display:flex; justify-content:space-between; align-items:baseline; }

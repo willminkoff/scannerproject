@@ -7,7 +7,9 @@ from datetime import datetime
 import queue
 import shutil
 from http.server import BaseHTTPRequestHandler
-from urllib.parse import parse_qs, urlparse
+from urllib.error import HTTPError, URLError
+from urllib.parse import parse_qs, unquote, urlparse
+from urllib.request import Request, urlopen
 def combined_num_devices(conf_path=None) -> int:
     """Count devices declared in the combined rtl_airband config.
 
@@ -231,6 +233,62 @@ class Handler(BaseHTTPRequestHandler):
             body = body.encode("utf-8")
         self.wfile.write(body)
 
+    def _sanitize_mount_name(self, mount_name: str) -> str:
+        mount = unquote(str(mount_name or "")).strip().lstrip("/")
+        if not mount:
+            mount = str(PLAYER_MOUNT or "").strip().lstrip("/")
+        if not mount:
+            return ""
+        if "/" in mount or "\\" in mount:
+            return ""
+        for ch in mount:
+            if not (ch.isalnum() or ch in "._-"):
+                return ""
+        return mount
+
+    def _proxy_icecast_mount(self, mount_name: str):
+        mount = self._sanitize_mount_name(mount_name)
+        if not mount:
+            return self._send(400, "invalid mount", "text/plain; charset=utf-8")
+        upstream = f"http://127.0.0.1:{ICECAST_PORT}/{mount}"
+        req = Request(
+            upstream,
+            headers={
+                "Icy-MetaData": "1",
+                "User-Agent": "airband-ui/stream-proxy",
+                "Connection": "close",
+            },
+        )
+        try:
+            with urlopen(req, timeout=10) as upstream_resp:
+                self.send_response(200)
+                self.send_header("Content-Type", upstream_resp.headers.get("Content-Type") or "audio/mpeg")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                for header in (
+                    "icy-name",
+                    "icy-genre",
+                    "icy-description",
+                    "icy-br",
+                    "icy-metaint",
+                    "ice-audio-info",
+                ):
+                    value = upstream_resp.headers.get(header)
+                    if value:
+                        self.send_header(header, value)
+                self.end_headers()
+                while True:
+                    chunk = upstream_resp.read(16384)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+        except HTTPError as e:
+            return self._send(int(e.code or 502), f"upstream error: {e.reason}", "text/plain; charset=utf-8")
+        except (URLError, TimeoutError) as e:
+            return self._send(502, f"upstream unavailable: {e}", "text/plain; charset=utf-8")
+        except (BrokenPipeError, ConnectionResetError):
+            return
+
     def do_GET(self):
         """Handle GET requests."""
         u = urlparse(self.path)
@@ -268,6 +326,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, content, ctype)
             except FileNotFoundError:
                 return self._send(404, "Not found", "text/plain; charset=utf-8")
+
+        if p == "/stream" or p == "/stream/":
+            return self._proxy_icecast_mount("")
+        if p.startswith("/stream/"):
+            return self._proxy_icecast_mount(p[len("/stream/"):])
         
         if p == "/api/profile":
             q = parse_qs(u.query or "")
@@ -415,6 +478,7 @@ class Handler(BaseHTTPRequestHandler):
                 "icecast_mounts": icecast_mounts,
                 "icecast_port": ICECAST_PORT,
                 "stream_mount": PLAYER_MOUNT,
+                "stream_proxy_enabled": True,
                 "digital_stream_mount": DIGITAL_MIXER_DIGITAL_MOUNT,
                 "icecast_expected_mounts": (
                     [f"/{DIGITAL_MIXER_AIRBAND_MOUNT}", f"/{DIGITAL_MIXER_DIGITAL_MOUNT}", f"/{DIGITAL_MIXER_OUTPUT_MOUNT}"]
