@@ -163,13 +163,139 @@ def _read_html_template():
 HTML_TEMPLATE = _read_html_template()
 # Digital call-event logs can emit rapid "grant/continue" updates for the same talkgroup.
 # Use a wider default coalesce window to align UI hits with perceived audible traffic.
-DIGITAL_HIT_COALESCE_SEC = max(0.0, float(os.getenv("DIGITAL_HIT_COALESCE_SEC", "20")))
+DIGITAL_HIT_COALESCE_SEC = max(0.0, float(os.getenv("DIGITAL_HIT_COALESCE_SEC", "8")))
 DIGITAL_HITS_REQUIRE_ACTIVE_STREAM = os.getenv(
     "DIGITAL_HITS_REQUIRE_ACTIVE_STREAM",
     "1",
 ).strip().lower() in ("1", "true", "yes", "on")
 DIGITAL_HIT_RECENT_SEC = max(5.0, float(os.getenv("DIGITAL_HIT_RECENT_SEC", "180")))
 _DIGITAL_IDLE_TITLES = {"", "-", "idle", "n/a", "scanning", "scanning..."}
+_ANALOG_LABEL_CACHE: dict[str, dict] = {}
+_LOCAL_PROFILES_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "profiles"))
+
+
+def _short_label(text: str, max_len: int = 48) -> str:
+    raw = str(text or "").strip()
+    if not raw:
+        return ""
+    if len(raw) <= max_len:
+        return raw
+    return raw[: max_len - 1].rstrip() + "…"
+
+
+def _normalize_freq_key(value) -> str:
+    try:
+        return f"{float(str(value).strip()):.4f}"
+    except Exception:
+        return ""
+
+
+def _load_profile_label_map(conf_path: str) -> dict[str, str]:
+    path = os.path.realpath(str(conf_path or ""))
+    if not path or not os.path.isfile(path):
+        return {}
+    try:
+        mtime = os.path.getmtime(path)
+    except Exception:
+        return {}
+
+    cached = _ANALOG_LABEL_CACHE.get(path)
+    if cached and cached.get("mtime") == mtime:
+        return dict(cached.get("map") or {})
+
+    mapping: dict[str, str] = {}
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            text = f.read()
+        freqs, labels = parse_freqs_labels(text)
+    except Exception:
+        freqs, labels = [], None
+
+    if labels and len(labels) == len(freqs):
+        for freq, label in zip(freqs, labels):
+            key = _normalize_freq_key(freq)
+            clean = str(label or "").strip()
+            if key and clean:
+                mapping[key] = clean
+
+    _ANALOG_LABEL_CACHE[path] = {"mtime": mtime, "map": mapping}
+    return dict(mapping)
+
+
+def _resolve_analog_label_map(conf_path: str, profile_id: str, profile_rows: list[dict]) -> dict[str, str]:
+    mapping = _load_profile_label_map(conf_path)
+    if mapping:
+        return mapping
+    basename = os.path.basename(str(conf_path or "").strip())
+    if basename:
+        candidate = os.path.realpath(os.path.join(PROFILES_DIR, basename))
+        fallback = _load_profile_label_map(candidate)
+        if fallback:
+            return fallback
+        local_candidate = os.path.realpath(os.path.join(_LOCAL_PROFILES_DIR, basename))
+        fallback = _load_profile_label_map(local_candidate)
+        if fallback:
+            return fallback
+    pid = str(profile_id or "").strip()
+    if not pid:
+        return mapping
+    for row in profile_rows or []:
+        if str(row.get("id") or "").strip() != pid:
+            continue
+        path = str(row.get("path") or "").strip()
+        if not path:
+            continue
+        fallback = _load_profile_label_map(path)
+        if fallback:
+            return fallback
+    return mapping
+
+
+def _infer_analog_source(freq_text: str) -> str:
+    try:
+        num = float(str(freq_text or "").strip())
+    except Exception:
+        return "analog"
+    if 118.0 <= num <= 136.991:
+        return "airband"
+    return "ground"
+
+
+def _lookup_analog_label(
+    freq_text: str,
+    source: str,
+    airband_labels: dict[str, str],
+    ground_labels: dict[str, str],
+) -> str:
+    key = _normalize_freq_key(freq_text)
+    if not key:
+        return ""
+
+    if source == "airband":
+        label = airband_labels.get(key, "")
+    elif source == "ground":
+        label = ground_labels.get(key, "")
+    else:
+        label = ""
+
+    if not label:
+        label = airband_labels.get(key, "") or ground_labels.get(key, "")
+    return str(label or "").strip()
+
+
+def _annotate_analog_hits(items: list[dict], airband_labels: dict[str, str], ground_labels: dict[str, str]) -> list[dict]:
+    out = []
+    for item in items or []:
+        row = dict(item or {})
+        source = _infer_analog_source(row.get("freq"))
+        row["source"] = source
+        row["type"] = source
+        label_full = _lookup_analog_label(row.get("freq"), source, airband_labels, ground_labels)
+        if label_full:
+            row["label_full"] = label_full
+            row["label"] = _short_label(label_full, max_len=48)
+        out.append(row)
+    return out
 
 
 def _digital_has_recent_event(max_age_sec: float = DIGITAL_HIT_RECENT_SEC) -> bool:
@@ -450,8 +576,38 @@ class Handler(BaseHTTPRequestHandler):
             profile_ground = guess_current_profile(ground_conf_path, [(p["id"], p["label"], p["path"]) for p in profiles_ground])
             last_hit_airband = read_last_hit_airband()
             last_hit_ground = read_last_hit_ground()
-            hit_items = read_hit_list_cached(limit=20)
+            airband_labels = _resolve_analog_label_map(conf_path, profile_airband, profiles_airband)
+            ground_labels = _resolve_analog_label_map(ground_conf_path, profile_ground, profiles_ground)
+            hit_items = _annotate_analog_hits(
+                read_hit_list_cached(limit=20),
+                airband_labels,
+                ground_labels,
+            )
             latest_hit = hit_items[0].get("freq") if hit_items else ""
+            last_hit_airband_label = ""
+            last_hit_ground_label = ""
+            for item in hit_items:
+                src = str(item.get("source") or "").strip().lower()
+                if src == "airband" and not last_hit_airband_label:
+                    last_hit_airband_label = str(item.get("label_full") or item.get("label") or "").strip()
+                if src == "ground" and not last_hit_ground_label:
+                    last_hit_ground_label = str(item.get("label_full") or item.get("label") or "").strip()
+                if last_hit_airband_label and last_hit_ground_label:
+                    break
+            if not last_hit_airband_label:
+                last_hit_airband_label = _lookup_analog_label(
+                    last_hit_airband,
+                    "airband",
+                    airband_labels,
+                    ground_labels,
+                )
+            if not last_hit_ground_label:
+                last_hit_ground_label = _lookup_analog_label(
+                    last_hit_ground,
+                    "ground",
+                    airband_labels,
+                    ground_labels,
+                )
             config_mtimes = {}
             for key, path in (("airband", conf_path), ("ground", ground_conf_path), ("combined", combined_conf_path)):
                 try:
@@ -524,6 +680,8 @@ class Handler(BaseHTTPRequestHandler):
                 "last_hit": latest_hit or last_hit_airband or last_hit_ground or "",
                 "last_hit_airband": last_hit_airband,
                 "last_hit_ground": last_hit_ground,
+                "last_hit_airband_label": _short_label(last_hit_airband_label, max_len=48),
+                "last_hit_ground_label": _short_label(last_hit_ground_label, max_len=48),
                 "avoids_airband": summarize_avoids(conf_path, "airband"),
                 "avoids_ground": summarize_avoids(os.path.realpath(GROUND_CONFIG_PATH), "ground"),
             }
@@ -643,7 +801,24 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, json.dumps({"ok": False, "error": payload}), "application/json; charset=utf-8")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         if p == "/api/hits":
-            items = read_hit_list_cached(limit=50)
+            airband_conf = read_active_config_path()
+            ground_conf = os.path.realpath(GROUND_CONFIG_PATH)
+            _, profiles_airband, profiles_ground = split_profiles()
+            profile_airband = guess_current_profile(
+                airband_conf,
+                [(p["id"], p["label"], p["path"]) for p in profiles_airband],
+            )
+            profile_ground = guess_current_profile(
+                ground_conf,
+                [(p["id"], p["label"], p["path"]) for p in profiles_ground],
+            )
+            airband_labels = _resolve_analog_label_map(airband_conf, profile_airband, profiles_airband)
+            ground_labels = _resolve_analog_label_map(ground_conf, profile_ground, profiles_ground)
+            items = _annotate_analog_hits(
+                read_hit_list_cached(limit=50),
+                airband_labels,
+                ground_labels,
+            )
             def parse_time_ts(value: str) -> float:
                 if not value:
                     return 0.0
@@ -670,6 +845,11 @@ class Handler(BaseHTTPRequestHandler):
                 events = []
             for event in events:
                 label = str(event.get("label") or "").strip()
+                tgid = str(event.get("tgid") or "").strip()
+                if not label and tgid:
+                    label = f"TG {tgid}"
+                if label and label.strip("()").isdigit() and tgid:
+                    label = f"TG {tgid}"
                 if not label:
                     continue
                 time_ms = int(event.get("timeMs") or 0)
@@ -679,9 +859,10 @@ class Handler(BaseHTTPRequestHandler):
                     "time": time_str,
                     "freq": label,
                     "duration": 0,
-                    "label": label,
+                    "label": _short_label(label, max_len=48),
+                    "label_full": label,
                     "mode": event.get("mode"),
-                    "tgid": event.get("tgid"),
+                    "tgid": tgid,
                     "type": "digital",
                     "source": "digital",
                     "_ts": ts,

@@ -166,6 +166,13 @@ function formatHitLabel(value) {
   return text;
 }
 
+function abbreviateHitText(value, maxLen=36) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  if (text.length <= maxLen) return text;
+  return text.slice(0, maxLen - 1).trimEnd() + '…';
+}
+
 function formatTimeMs(timeMs) {
   if (!timeMs) return '—';
   const d = new Date(timeMs);
@@ -578,8 +585,10 @@ async function refresh(allowSetSliders=false) {
     syncStreamLinks();
   }
 
-  const airbandHit = formatHitLabel(st.last_hit_airband) || '—';
-  const groundHit = formatHitLabel(st.last_hit_ground) || '—';
+  const airbandRaw = st.last_hit_airband_label || st.last_hit_airband;
+  const groundRaw = st.last_hit_ground_label || st.last_hit_ground;
+  const airbandHit = abbreviateHitText(formatHitLabel(airbandRaw), 36) || '—';
+  const groundHit = abbreviateHitText(formatHitLabel(groundRaw), 36) || '—';
   document.getElementById('txt-hit-airband').textContent = airbandHit;
   document.getElementById('txt-hit-ground').textContent = groundHit;
 
@@ -633,7 +642,7 @@ async function refresh(allowSetSliders=false) {
 }
 
 function renderHitList(items) {
-  hitListEl.innerHTML = '<div class="hit-row head"><div>Time</div><div>Frequency</div><div>Duration</div></div>';
+  hitListEl.innerHTML = '<div class="hit-row head"><div>Time</div><div>Hit</div><div>Duration</div></div>';
   if (!items || !items.length) {
     const empty = document.createElement('div');
     empty.className = 'hit-empty';
@@ -644,10 +653,23 @@ function renderHitList(items) {
   items.forEach(item => {
     const row = document.createElement('div');
     row.className = 'hit-row';
-    const freqText = formatHitLabel(item.freq);
-    const isNumeric = /^[0-9]+(\.[0-9]+)?$/.test(freqText);
-    const displayFreq = isNumeric ? `${freqText} MHz` : (freqText || '—');
-    row.innerHTML = `<div>${item.time}</div><div>${displayFreq}</div><div>${item.duration}s</div>`;
+    const rawHit = formatHitLabel(item.label_full || item.label || item.freq);
+    const isNumeric = /^[0-9]+(\.[0-9]+)?$/.test(rawHit);
+    const displayHit = isNumeric ? `${rawHit} MHz` : (abbreviateHitText(rawHit, 56) || '—');
+    const durationVal = Number(item.duration || 0);
+    const durationText = durationVal > 0 ? `${durationVal}s` : (item.mode || '—');
+
+    const cTime = document.createElement('div');
+    cTime.textContent = item.time || '--';
+    const cHit = document.createElement('div');
+    cHit.textContent = displayHit;
+    cHit.title = rawHit || '';
+    const cDur = document.createElement('div');
+    cDur.textContent = durationText;
+
+    row.appendChild(cTime);
+    row.appendChild(cHit);
+    row.appendChild(cDur);
     hitListEl.appendChild(row);
   });
 }

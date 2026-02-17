@@ -1910,6 +1910,8 @@
       lastHit: '',
       lastHitAirband: '',
       lastHitGround: '',
+      lastHitAirbandLabel: '',
+      lastHitGroundLabel: '',
       lastHitDigital: '',
       hits: [],
       hold: { airband: null, ground: null, digital: null },
@@ -2617,15 +2619,33 @@
 
     function getLiveDisplayFreq() {
       const topHit = state.hits[0];
-      if (topHit && topHit.freq) {
-        const num = parseFloat(topHit.freq);
-        return isNaN(num) ? (topHit.freq || '--') : formatFreq(num) + ' MHz';
+      if (topHit) {
+        const raw = String(topHit.label_full || topHit.label || topHit.freq || '').trim();
+        if (raw) {
+          const num = parseFloat(raw);
+          return isNaN(num) ? abbreviateHitText(raw, 40) : formatFreq(num) + ' MHz';
+        }
       }
       if (state.lastHit) {
         const num = parseFloat(state.lastHit);
         return isNaN(num) ? state.lastHit : formatFreq(num) + ' MHz';
       }
       return '--';
+    }
+
+    function latestHitForTarget(target) {
+      const inAirband = (f) => f >= 118 && f <= 136.991;
+      for (let i = 0; i < state.hits.length; i++) {
+        const hit = state.hits[i];
+        if (!hit) continue;
+        const src = String(hit.source || hit.type || '').trim().toLowerCase();
+        if (src === target) return hit;
+        const n = parseFloat(String(hit.freq || ''));
+        if (!Number.isFinite(n)) continue;
+        if (target === 'airband' && inAirband(n)) return hit;
+        if (target === 'ground' && !inAirband(n)) return hit;
+      }
+      return null;
     }
 
     function updateStatus() {
@@ -2653,6 +2673,17 @@
       if (holdFreq) return holdFreq;
       if (state.tuned && state.tunedFreq && state.tunedTarget === target) {
         return formatFreq(state.tunedFreq);
+      }
+      const recentHit = latestHitForTarget(target);
+      if (recentHit) {
+        const raw = String(recentHit.label_full || recentHit.label || '').trim();
+        if (raw) return abbreviateHitText(raw, 24);
+      }
+      const fallbackLabel = target === 'airband'
+        ? state.lastHitAirbandLabel
+        : state.lastHitGroundLabel;
+      if (fallbackLabel) {
+        return abbreviateHitText(fallbackLabel, 24);
       }
       const fallback = target === 'airband' ? state.lastHitAirband : state.lastHitGround;
       if (fallback) {
@@ -3247,7 +3278,7 @@
     }
     
     function updateHitList() {
-      const header = '<div class="hit-row header"><div>Time</div><div>Src</div><div>Frequency</div><div>Dur</div></div>';
+      const header = '<div class="hit-row header"><div>Time</div><div>Src</div><div>Hit</div><div>Dur</div></div>';
       
       if (!state.hits.length) {
         els.hitList.innerHTML = header + '<div class="empty-state"><div class="icon">📻</div><div>Waiting for hits...</div></div>';
@@ -3255,12 +3286,17 @@
       }
       
       const rows = state.hits.slice(0, 50).map(hit => {
-        const label = (hit.label || hit.freq || '--');
-        const labelText = String(label || '').trim();
-        const isNumeric = /^[0-9]+(\.[0-9]+)?$/.test(labelText);
-        const freqText = isNumeric ? `${formatFreq(labelText)} MHz` : (labelText || '--');
+        const labelRaw = String(hit.label_full || hit.label || hit.freq || '--').trim();
+        const isNumeric = /^[0-9]+(\.[0-9]+)?$/.test(labelRaw);
+        const hitText = isNumeric
+          ? `${formatFreq(labelRaw)} MHz`
+          : (abbreviateHitText(labelRaw, 52) || '--');
         const source = (() => {
-          const type = String(hit.type || hit.source || '').trim().toLowerCase();
+          const sourceName = String(hit.source || '').trim().toLowerCase();
+          if (sourceName === 'digital') return 'DIG';
+          if (sourceName === 'airband') return 'AIR';
+          if (sourceName === 'ground') return 'GND';
+          const type = String(hit.type || '').trim().toLowerCase();
           if (type === 'digital') return 'DIG';
           if (type === 'airband') return 'AIR';
           if (type === 'ground') return 'GND';
@@ -3271,13 +3307,14 @@
           }
           return '--';
         })();
-        const durationText = hit.duration ? `${hit.duration}s` : (hit.mode ? hit.mode : '--');
+        const durationVal = Number(hit.duration || 0);
+        const durationText = durationVal > 0 ? `${durationVal}s` : (hit.mode ? hit.mode : '--');
         return `
         <div class="hit-row">
-          <div class="time">${hit.time || '--'}</div>
-          <div class="src">${source}</div>
-          <div class="freq">${freqText}</div>
-          <div class="duration">${durationText}</div>
+          <div class="time">${escapeHtml(hit.time || '--')}</div>
+          <div class="src">${escapeHtml(source)}</div>
+          <div class="freq" title="${escapeHtml(labelRaw || '--')}">${escapeHtml(hitText)}</div>
+          <div class="duration">${escapeHtml(durationText)}</div>
         </div>
       `;
       }).join('');
@@ -3353,12 +3390,17 @@
       return isNaN(num) ? freq : num.toFixed(3);
     }
 
+    function abbreviateHitText(text, maxLen=24) {
+      const raw = String(text || '').trim();
+      if (!raw) return '';
+      if (raw.length <= maxLen) return raw;
+      return raw.slice(0, maxLen - 1).trimEnd() + '…';
+    }
+
     function formatDigitalLabel(label) {
       const raw = String(label || '').trim();
       if (!raw) return '--';
-      const maxLen = 10;
-      if (raw.length <= maxLen) return raw;
-      return raw.slice(0, maxLen - 1) + '…';
+      return abbreviateHitText(raw, 18) || '--';
     }
 
     function formatBytes(bytes) {
@@ -4200,6 +4242,8 @@
         state.lastHit = data.last_hit || data.last_hit_airband || data.last_hit_ground || '';
         state.lastHitAirband = data.last_hit_airband || '';
         state.lastHitGround = data.last_hit_ground || '';
+        state.lastHitAirbandLabel = data.last_hit_airband_label || '';
+        state.lastHitGroundLabel = data.last_hit_ground_label || '';
         if (!state.lastProfile.airband && data.profile_airband) {
           state.lastProfile.airband = data.profile_airband;
         }

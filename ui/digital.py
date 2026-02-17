@@ -92,7 +92,8 @@ _TUNER_BUSY_RE = re.compile(
 )
 _IGNORE_EVENT_RE = re.compile(
     r"(auto-start failed|no tuner available|mountpoint in use|unable to connect|audiooutput|playbackpreference|"
-    r"audio streaming broadcaster|status: connected|starting main application|loading playlist|discovering tuners)",
+    r"audio streaming broadcaster|status: connected|starting main application|loading playlist|discovering tuners|"
+    r"ensure-digital-runtime)",
     re.I,
 )
 _JAVA_STACK_FRAME_RE = re.compile(r"^\s*at\s+[A-Za-z0-9_.$<>]+\([^)]*\)\s*$")
@@ -200,7 +201,7 @@ _EVENT_SITE_KEYS = (
 )
 _DIGITAL_HIT_MIN_DURATION_MS = int(os.getenv("DIGITAL_HIT_MIN_DURATION_MS", "250"))
 _DIGITAL_STATUS_CLEAR_MS = max(0, int(os.getenv("DIGITAL_STATUS_CLEAR_MS", "180000")))
-_DIGITAL_TGID_MAX = max(1, int(os.getenv("DIGITAL_TGID_MAX", "65535")))
+_DIGITAL_TGID_MAX = max(1, int(os.getenv("DIGITAL_TGID_MAX", "16777215")))
 _DIGITAL_EVENT_DROP_RE = re.compile(
     r"(rejected|tuner unavailable|encrypted|encryption|data channel grant|nsapi)",
     re.I,
@@ -2104,8 +2105,9 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                     if not dec.isdigit():
                         continue
                     alpha = row_norm.get("alpha tag") or row_norm.get("alpha_tag") or ""
-                    desc = row_norm.get("description") or ""
-                    label = alpha or desc
+                    desc = row_norm.get("description") or row_norm.get("desc") or ""
+                    # Prefer RR Description for hit text; fall back to Alpha Tag.
+                    label = desc or alpha
                     if label:
                         tg_map[dec] = label
         except Exception:
@@ -2184,8 +2186,12 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             mapped_label = tg_map.get(tgid)
             if mapped_label:
                 event["label"] = mapped_label
-            elif not str(event.get("label") or "").strip():
-                event["label"] = f"TG {tgid}"
+            else:
+                current = str(event.get("label") or "").strip()
+                if re.fullmatch(r"\(?\d+\)?", current):
+                    event["label"] = f"TG {tgid}"
+                elif not current:
+                    event["label"] = f"TG {tgid}"
         return event
 
     def getProfile(self):
