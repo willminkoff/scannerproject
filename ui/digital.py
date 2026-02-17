@@ -65,6 +65,9 @@ _NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@-]{0,127}$")
 _MODE_RE = re.compile(r"\b(P25|P25P1|P25P2|DMR|NXDN|D-STAR|TETRA|YSF|EDACS|LTR)\b", re.I)
 _PHASE1_RE = re.compile(r"\bP25\s*Phase\s*1\b", re.I)
 _PHASE2_RE = re.compile(r"\bP25\s*Phase\s*2\b", re.I)
+_P25_HINT_RE = re.compile(r"\b(P25|PROJECT\s*25|APCO\s*25)\b", re.I)
+_DMR_HINT_RE = re.compile(r"\b(DMR|MOTOTRBO|CAP\+|CAPACITY\s*PLUS|CONNECT\s*PLUS|TIER\s*III)\b", re.I)
+_NXDN_HINT_RE = re.compile(r"\b(NXDN|NEXEDGE|IDAS)\b", re.I)
 _LABEL_RE = re.compile(
     r"\b(label|alias|alpha\s*tag|talkgroup|tgid|channel|channel\s*name|alias\s*name|group)[=:]\s*([^|,]+)",
     re.I,
@@ -238,6 +241,67 @@ def _safe_realpath(path: str) -> str:
         return os.path.realpath(path)
     except Exception:
         return path
+
+
+def _profile_decoder_mode(profile_dir: str) -> tuple[str, str]:
+    """Resolve decoder mode for a profile: P25 (default), DMR, or NXDN."""
+    system_path = os.path.join(profile_dir, "system.json")
+    if not os.path.isfile(system_path):
+        return "P25", "default"
+    try:
+        with open(system_path, "r", encoding="utf-8", errors="ignore") as f:
+            data = json.load(f)
+    except Exception:
+        return "P25", "default"
+    if not isinstance(data, dict):
+        return "P25", "default"
+
+    for key in ("decoder", "protocol", "mode"):
+        value = str(data.get(key) or "").strip()
+        if not value:
+            continue
+        if _NXDN_HINT_RE.search(value):
+            return "NXDN", f"system.json:{key}"
+        if _DMR_HINT_RE.search(value):
+            return "DMR", f"system.json:{key}"
+        if _P25_HINT_RE.search(value):
+            return "P25", f"system.json:{key}"
+
+    hint = " ".join(
+        str(data.get(key) or "")
+        for key in ("system_type", "system_name", "note")
+    )
+    if _NXDN_HINT_RE.search(hint):
+        return "NXDN", "system.json:system_type/system_name/note"
+    if _DMR_HINT_RE.search(hint):
+        return "DMR", "system.json:system_type/system_name/note"
+    return "P25", "default"
+
+
+def _apply_decode_configuration(channel: ET.Element, decoder_mode: str) -> None:
+    decode_conf = channel.find("decode_configuration")
+    target_type = "decodeConfigP25Phase1"
+    if decoder_mode == "DMR":
+        target_type = "decodeConfigDMR"
+
+    if decode_conf is None or str(decode_conf.get("type", "")).strip() != target_type:
+        if decode_conf is not None:
+            channel.remove(decode_conf)
+        decode_conf = ET.SubElement(channel, "decode_configuration")
+
+    decode_conf.attrib.clear()
+    decode_conf.set("type", target_type)
+
+    if decoder_mode == "DMR":
+        decode_conf.set("traffic_channel_pool_size", "20")
+        decode_conf.set("ignore_data_calls", "false")
+        decode_conf.set("ignore_crc", "false")
+        decode_conf.set("use_compressed_talkgroups", "false")
+        return
+
+    decode_conf.set("modulation", "C4FM")
+    decode_conf.set("traffic_channel_pool_size", "20")
+    decode_conf.set("ignore_data_calls", "false")
 
 
 def _digital_tuner_targets() -> list[str]:
@@ -1911,6 +1975,13 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         if not control_channels:
             return False, "profile has no control channels"
 
+        decoder_mode, _decoder_source = _profile_decoder_mode(profile_dir)
+        if decoder_mode == "NXDN":
+            return False, (
+                "profile requires NXDN decode, but current SDRTrunk runtime "
+                "supports P25/DMR only"
+            )
+
         playlist_path = _safe_realpath(DIGITAL_PLAYLIST_PATH)
         if not playlist_path:
             return False, "digital playlist path not configured"
@@ -1929,7 +2000,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 root,
                 "channel",
                 {
-                    "system": "P25",
+                    "system": "DMR" if decoder_mode == "DMR" else "P25",
                     "name": profile_id,
                     "enabled": "true",
                     "order": "1",
@@ -1937,6 +2008,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             )
 
         channel.set("enabled", "true")
+        channel.set("system", "DMR" if decoder_mode == "DMR" else "P25")
         channel.set("name", profile_id)
 
         event_conf = channel.find("event_log_configuration")
@@ -1978,17 +2050,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         _seed_alias_list_from_profile(root, alias_list_name, profile_dir)
         _ensure_alias_broadcast_channel(root, alias_list_name)
 
-        if channel.find("decode_configuration") is None:
-            ET.SubElement(
-                channel,
-                "decode_configuration",
-                {
-                    "type": "decodeConfigP25Phase1",
-                    "modulation": "C4FM",
-                    "traffic_channel_pool_size": "20",
-                    "ignore_data_calls": "false",
-                },
-            )
+        _apply_decode_configuration(channel, decoder_mode)
         if channel.find("record_configuration") is None:
             ET.SubElement(channel, "record_configuration")
 
