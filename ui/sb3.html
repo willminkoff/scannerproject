@@ -499,7 +499,6 @@
       border-radius: 999px;
       /* Native <audio> controls are mostly UA-drawn; this makes them less "giant white pill". */
       color-scheme: dark;
-      filter: invert(1) hue-rotate(180deg) saturate(0.9);
       opacity: 0.88;
     }
 
@@ -1874,9 +1873,9 @@
     const MAX_LOG = 120;
     const LOG_DEDUPE_MS = 4000;
     const AUDIO_RECOVER_COOLDOWN_MS = 8000;
-    const AUDIO_WAITING_GRACE_MS = 2500;
+    const AUDIO_WAITING_GRACE_MS = 12000;
     const AUDIO_PROGRESS_CHECK_MS = 3000;
-    const AUDIO_PROGRESS_STALL_MS = 12000;
+    const AUDIO_PROGRESS_STALL_MS = 30000;
     
     // ============================================
     // STATE
@@ -1896,6 +1895,7 @@
       icecastPort: 8000,
       streamMount: 'ANALOG.mp3',
       digitalStreamMount: 'DIGITAL.mp3',
+      streamProxyEnabled: true,
       streamBaseUrl: '',
       digitalStreamBaseUrl: '',
       sseConnected: false,
@@ -2214,8 +2214,11 @@
     }
 
     function buildStreamUrl(mountName, fallbackMount) {
-      const port = Number.isFinite(state.icecastPort) ? state.icecastPort : 8000;
       const mount = (mountName || fallbackMount).replace(/^\/+/, '');
+      if (state.streamProxyEnabled) {
+        return `${location.origin}/stream/${encodeURIComponent(mount)}`;
+      }
+      const port = Number.isFinite(state.icecastPort) ? state.icecastPort : 8000;
       return `http://${location.hostname}:${port}/${mount}`;
     }
 
@@ -4182,6 +4185,9 @@
         const port = Number(data.icecast_port);
         if (Number.isFinite(port)) {
           state.icecastPort = port;
+        }
+        if (typeof data.stream_proxy_enabled === 'boolean') {
+          state.streamProxyEnabled = data.stream_proxy_enabled;
         }
         if (typeof data.stream_mount === 'string' && data.stream_mount.trim()) {
           state.streamMount = data.stream_mount.trim();

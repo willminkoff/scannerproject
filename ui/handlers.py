@@ -254,7 +254,6 @@ class Handler(BaseHTTPRequestHandler):
         req = Request(
             upstream,
             headers={
-                "Icy-MetaData": "1",
                 "User-Agent": "airband-ui/stream-proxy",
                 "Connection": "close",
             },
