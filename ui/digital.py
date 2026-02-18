@@ -686,7 +686,6 @@ def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
 
     details_l = details.lower() if details else ""
     is_channel_grant = "channel grant" in details_l
-    is_continue = "continue" in details_l
     include_grant_debug = _DIGITAL_DEBUG_INCLUDE_GRANTS and is_channel_grant
 
     # Call/event logs include high-volume non-audio control events (register/response/etc).
@@ -711,14 +710,15 @@ def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
 
     # For structured call event rows, wait until the call has lasted long enough
     # to be considered an audible "hit" before surfacing it.
-    if event_id:
-        # Raw channel grant rows are control-plane events; wait for call
-        # continuation rows before surfacing them as audible hits.
-        if is_channel_grant and not is_continue and not include_grant_debug:
+    if event_id and not include_grant_debug:
+        # SDRTrunk call-event files often emit a short control "CHANNEL GRANT"
+        # row first, then repeat the same event_id with a populated duration.
+        # Keep only rows that have a real call duration.
+        if is_channel_grant and duration_ms is None:
             return None
-        if duration_ms is None and not include_grant_debug:
+        if duration_ms is None:
             return None
-        if duration_ms is not None and duration_ms < _DIGITAL_HIT_MIN_DURATION_MS and not include_grant_debug:
+        if duration_ms < _DIGITAL_HIT_MIN_DURATION_MS:
             return None
 
     time_ms = _parse_time_value(time_val, fallback_ms)
