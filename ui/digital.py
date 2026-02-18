@@ -1557,6 +1557,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             event_log_events = []
             if mode in ("auto", "event_logs"):
                 event_log_events = self._read_event_logs()
+            has_event_log_files = bool(self._event_log_files_cache)
 
             events = []
             if mode == "app_log":
@@ -1564,7 +1565,13 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             elif mode == "event_logs":
                 events = event_log_events
             else:
-                events = event_log_events if event_log_events else app_events
+                # In auto mode, trust structured call-event logs whenever they
+                # exist to avoid surfacing control/metadata lines from app logs
+                # as synthetic "hits".
+                if has_event_log_files:
+                    events = event_log_events
+                else:
+                    events = app_events
 
             if events:
                 for event in events:
