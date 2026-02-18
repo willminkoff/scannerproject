@@ -3883,6 +3883,35 @@
       els.filterValue.textContent = val;
       els.filterSlider.classList.add('dirty');
     }
+
+    function scheduleApplyRefreshes() {
+      if (state.applyTimeout) {
+        clearTimeout(state.applyTimeout);
+        state.applyTimeout = null;
+      }
+      const delays = [400, 1200, 2500, 5000];
+      let idx = 0;
+      const runRefresh = async () => {
+        try {
+          await refresh();
+        } catch (e) {
+          console.error('Apply refresh failed:', e);
+        }
+      };
+      runRefresh();
+      const queueNext = () => {
+        if (idx >= delays.length) {
+          state.applyTimeout = null;
+          return;
+        }
+        const delay = delays[idx++];
+        state.applyTimeout = setTimeout(async () => {
+          await runRefresh();
+          queueNext();
+        }, delay);
+      };
+      queueNext();
+    }
     
     async function applyGainSql() {
       const gainIdx = parseInt(els.gainSlider.value);
@@ -3912,6 +3941,8 @@
           logActivity('Restart required to apply controls', 'warn', `restart-required-${activeTarget}`);
           if (els.dbfsApplied) els.dbfsApplied.textContent = 'restart';
           if (els.gainApplied) els.gainApplied.textContent = 'restart';
+        } else {
+          scheduleApplyRefreshes();
         }
       } catch (e) {
         console.error('Apply failed:', e);
@@ -3951,6 +3982,7 @@
           if (els.dbfsApplied) els.dbfsApplied.textContent = 'restart';
           if (els.gainApplied) els.gainApplied.textContent = 'restart';
         } else {
+          scheduleApplyRefreshes();
           reloadAnalogStream('restart');
         }
       } catch (e) {
