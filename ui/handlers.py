@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import time
+import threading
 from datetime import datetime
 import queue
 import shutil
@@ -73,7 +74,6 @@ try:
         read_last_hit_airband, read_last_hit_ground, read_hit_list_cached
     )
     from .icecast import (
-        icecast_up,
         fetch_local_icecast_status,
         list_icecast_mounts,
         extract_icecast_title_for_mount,
@@ -127,7 +127,6 @@ except ImportError:
         read_last_hit_airband, read_last_hit_ground, read_hit_list_cached
     )
     from ui.icecast import (
-        icecast_up,
         fetch_local_icecast_status,
         list_icecast_mounts,
         extract_icecast_title_for_mount,
@@ -160,6 +159,13 @@ DIGITAL_HIT_RECENT_SEC = max(5.0, float(os.getenv("DIGITAL_HIT_RECENT_SEC", "180
 _DIGITAL_IDLE_TITLES = {"", "-", "idle", "n/a", "scanning", "scanning..."}
 _ANALOG_LABEL_CACHE: dict[str, dict] = {}
 _LOCAL_PROFILES_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "profiles"))
+_STATUS_CACHE_TTL_SEC = max(0.1, float(os.getenv("STATUS_CACHE_TTL_SEC", "0.75")))
+_HITS_CACHE_TTL_SEC = max(0.1, float(os.getenv("HITS_CACHE_TTL_SEC", "1.0")))
+_UNIT_ACTIVE_CACHE_TTL_SEC = max(0.1, float(os.getenv("UNIT_ACTIVE_CACHE_TTL_SEC", "1.0")))
+_CACHE_LOCK = threading.Lock()
+_STATUS_CACHE: dict[str, object] = {"ts": 0.0, "payload": None}
+_HITS_CACHE: dict[str, object] = {"ts": 0.0, "payload": None}
+_UNIT_ACTIVE_CACHE: dict[str, tuple[float, bool]] = {}
 
 
 def _short_label(text: str, max_len: int = 48) -> str:
@@ -334,6 +340,128 @@ def _coalesce_digital_hits(items: list[dict], window_sec: float = DIGITAL_HIT_CO
     return kept
 
 
+def _unit_active_cached(unit: str) -> bool:
+    now = time.monotonic()
+    with _CACHE_LOCK:
+        entry = _UNIT_ACTIVE_CACHE.get(unit)
+        if entry and (now - float(entry[0])) <= _UNIT_ACTIVE_CACHE_TTL_SEC:
+            return bool(entry[1])
+    value = bool(unit_active(unit))
+    with _CACHE_LOCK:
+        _UNIT_ACTIVE_CACHE[unit] = (now, value)
+    return value
+
+
+def _parse_time_ts(value: str) -> float:
+    if not value:
+        return 0.0
+    try:
+        dt = datetime.strptime(value, "%H:%M:%S")
+        now = datetime.now()
+        dt = dt.replace(year=now.year, month=now.month, day=now.day)
+        return dt.timestamp()
+    except Exception:
+        return 0.0
+
+
+def _clone_hit_items(items: list[dict]) -> list[dict]:
+    return [dict(item or {}) for item in (items or [])]
+
+
+def _build_hits_payload(limit: int = 50) -> dict:
+    limit = max(1, int(limit or 50))
+    scan_limit = max(50, limit)
+
+    airband_conf = read_active_config_path()
+    ground_conf = os.path.realpath(GROUND_CONFIG_PATH)
+    _, profiles_airband, profiles_ground = split_profiles()
+    profile_airband = guess_current_profile(
+        airband_conf,
+        [(p["id"], p["label"], p["path"]) for p in profiles_airband],
+    )
+    profile_ground = guess_current_profile(
+        ground_conf,
+        [(p["id"], p["label"], p["path"]) for p in profiles_ground],
+    )
+    airband_labels = _resolve_analog_label_map(airband_conf, profile_airband, profiles_airband)
+    ground_labels = _resolve_analog_label_map(ground_conf, profile_ground, profiles_ground)
+    items = _annotate_analog_hits(
+        read_hit_list_cached(limit=scan_limit),
+        airband_labels,
+        ground_labels,
+    )
+    for item in items:
+        item["_ts"] = _parse_time_ts(item.get("time"))
+
+    digital_items = []
+    include_digital_events = True
+    if DIGITAL_HITS_REQUIRE_ACTIVE_STREAM:
+        include_digital_events = _digital_stream_active_for_hits()
+    if include_digital_events:
+        try:
+            events = get_digital_manager().getRecentEvents(limit=scan_limit)
+        except Exception:
+            events = []
+    else:
+        events = []
+    for event in events:
+        label = str(event.get("label") or "").strip()
+        tgid = str(event.get("tgid") or "").strip()
+        if not label and tgid:
+            label = f"TG {tgid}"
+        if label and label.strip("()").isdigit() and tgid:
+            label = f"TG {tgid}"
+        if not label:
+            continue
+        time_ms = int(event.get("timeMs") or 0)
+        ts = time_ms / 1000.0 if time_ms else time.time()
+        time_str = time.strftime("%H:%M:%S", time.localtime(ts))
+        digital_items.append({
+            "time": time_str,
+            "freq": label,
+            "duration": 0,
+            "label": _short_label(label, max_len=48),
+            "label_full": label,
+            "mode": event.get("mode"),
+            "tgid": tgid,
+            "type": "digital",
+            "source": "digital",
+            "_ts": ts,
+        })
+    digital_items = _coalesce_digital_hits(digital_items)
+
+    merged = items + digital_items
+    merged.sort(key=lambda item: item.get("_ts", 0.0))
+    merged = merged[-scan_limit:]
+    merged.reverse()
+    for item in merged:
+        item.pop("_ts", None)
+    if len(merged) > limit:
+        merged = merged[:limit]
+    return {"items": merged}
+
+
+def _get_hits_payload_cached(limit: int = 50) -> dict:
+    limit = max(1, int(limit or 50))
+    now = time.monotonic()
+    with _CACHE_LOCK:
+        cached_payload = _HITS_CACHE.get("payload")
+        cached_ts = float(_HITS_CACHE.get("ts") or 0.0)
+        if isinstance(cached_payload, dict) and (now - cached_ts) <= _HITS_CACHE_TTL_SEC:
+            items = _clone_hit_items(cached_payload.get("items") or [])
+            if len(items) > limit:
+                items = items[:limit]
+            return {"items": items}
+    payload = _build_hits_payload(limit=max(50, limit))
+    with _CACHE_LOCK:
+        _HITS_CACHE["ts"] = now
+        _HITS_CACHE["payload"] = {"items": _clone_hit_items(payload.get("items") or [])}
+    items = _clone_hit_items(payload.get("items") or [])
+    if len(items) > limit:
+        items = items[:limit]
+    return {"items": items}
+
+
 class Handler(BaseHTTPRequestHandler):
     """HTTP request handler for the UI."""
 
@@ -498,6 +626,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/status":
+            now_monotonic = time.monotonic()
+            with _CACHE_LOCK:
+                cached_payload = _STATUS_CACHE.get("payload")
+                cached_ts = float(_STATUS_CACHE.get("ts") or 0.0)
+            if isinstance(cached_payload, dict) and (now_monotonic - cached_ts) <= _STATUS_CACHE_TTL_SEC:
+                payload = dict(cached_payload)
+                payload["server_time"] = time.time()
+                return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
             conf_path = read_active_config_path()
             ground_conf_path = os.path.realpath(GROUND_CONFIG_PATH)
             combined_conf_path = COMBINED_CONFIG_PATH
@@ -505,10 +641,10 @@ class Handler(BaseHTTPRequestHandler):
             ground_gain, ground_snr, ground_dbfs, ground_mode = parse_controls(GROUND_CONFIG_PATH)
             airband_filter = parse_filter("airband")
             ground_filter = parse_filter("ground")
-            rtl_unit_active = unit_active(UNITS["rtl"])
-            ground_unit_active = unit_active(UNITS["ground"])
-            keepalive_unit_active = unit_active(UNITS["keepalive"])
-            digital_mixer_unit_active = unit_active(UNITS["digital_mixer"])
+            rtl_unit_active = _unit_active_cached(UNITS["rtl"])
+            ground_unit_active = _unit_active_cached(UNITS["ground"])
+            keepalive_unit_active = _unit_active_cached(UNITS["keepalive"])
+            digital_mixer_unit_active = _unit_active_cached(UNITS["digital_mixer"])
             combined_info = combined_device_summary()
             airband_device = combined_info.get("airband")
             ground_device = combined_info.get("ground")
@@ -556,7 +692,7 @@ class Handler(BaseHTTPRequestHandler):
             ground_present = ground_device is not None
             rtl_ok = rtl_unit_active
             ground_ok = rtl_ok and ground_present
-            ice_ok = icecast_up()
+            ice_ok = _unit_active_cached(UNITS["icecast"])
             icecast_mounts = []
             if ice_ok:
                 try:
@@ -709,6 +845,9 @@ class Handler(BaseHTTPRequestHandler):
             digital_payload["digital_stream_active_for_hits"] = bool(digital_stream_active_for_hits)
             digital_payload["digital_mixer_active"] = digital_mixer_unit_active
             payload.update(digital_payload)
+            with _CACHE_LOCK:
+                _STATUS_CACHE["ts"] = now_monotonic
+                _STATUS_CACHE["payload"] = dict(payload)
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         if p == "/api/profiles":
             profiles = load_profiles_registry()
@@ -797,82 +936,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, json.dumps({"ok": False, "error": payload}), "application/json; charset=utf-8")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         if p == "/api/hits":
-            airband_conf = read_active_config_path()
-            ground_conf = os.path.realpath(GROUND_CONFIG_PATH)
-            _, profiles_airband, profiles_ground = split_profiles()
-            profile_airband = guess_current_profile(
-                airband_conf,
-                [(p["id"], p["label"], p["path"]) for p in profiles_airband],
-            )
-            profile_ground = guess_current_profile(
-                ground_conf,
-                [(p["id"], p["label"], p["path"]) for p in profiles_ground],
-            )
-            airband_labels = _resolve_analog_label_map(airband_conf, profile_airband, profiles_airband)
-            ground_labels = _resolve_analog_label_map(ground_conf, profile_ground, profiles_ground)
-            items = _annotate_analog_hits(
-                read_hit_list_cached(limit=50),
-                airband_labels,
-                ground_labels,
-            )
-            def parse_time_ts(value: str) -> float:
-                if not value:
-                    return 0.0
-                try:
-                    dt = datetime.strptime(value, "%H:%M:%S")
-                    now = datetime.now()
-                    dt = dt.replace(year=now.year, month=now.month, day=now.day)
-                    return dt.timestamp()
-                except Exception:
-                    return 0.0
-            for item in items:
-                item["_ts"] = parse_time_ts(item.get("time"))
-
-            digital_items = []
-            include_digital_events = True
-            if DIGITAL_HITS_REQUIRE_ACTIVE_STREAM:
-                include_digital_events = _digital_stream_active_for_hits()
-            if include_digital_events:
-                try:
-                    events = get_digital_manager().getRecentEvents(limit=50)
-                except Exception:
-                    events = []
-            else:
-                events = []
-            for event in events:
-                label = str(event.get("label") or "").strip()
-                tgid = str(event.get("tgid") or "").strip()
-                if not label and tgid:
-                    label = f"TG {tgid}"
-                if label and label.strip("()").isdigit() and tgid:
-                    label = f"TG {tgid}"
-                if not label:
-                    continue
-                time_ms = int(event.get("timeMs") or 0)
-                ts = time_ms / 1000.0 if time_ms else time.time()
-                time_str = time.strftime("%H:%M:%S", time.localtime(ts))
-                entry = {
-                    "time": time_str,
-                    "freq": label,
-                    "duration": 0,
-                    "label": _short_label(label, max_len=48),
-                    "label_full": label,
-                    "mode": event.get("mode"),
-                    "tgid": tgid,
-                    "type": "digital",
-                    "source": "digital",
-                    "_ts": ts,
-                }
-                digital_items.append(entry)
-            digital_items = _coalesce_digital_hits(digital_items)
-
-            merged = items + digital_items
-            merged.sort(key=lambda item: item.get("_ts", 0.0))
-            merged = merged[-50:]
-            merged.reverse()
-            for item in merged:
-                item.pop("_ts", None)
-            payload = {"items": merged}
+            payload = _get_hits_payload_cached(limit=50)
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         
         if p == "/api/spectrum":
@@ -894,19 +958,19 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Connection", "keep-alive")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
-        import re
         try:
             while True:
                 conf_path = read_active_config_path()
                 airband_gain, airband_snr, airband_dbfs, airband_mode = parse_controls(conf_path)
-                rtl_unit_active = unit_active(UNITS["rtl"])
-                ground_unit_active = unit_active(UNITS["ground"])
+                rtl_unit_active = _unit_active_cached(UNITS["rtl"])
+                ground_unit_active = _unit_active_cached(UNITS["ground"])
                 combined_info = combined_device_summary()
                 ground_present = combined_info.get("ground") is not None
                 rtl_active = rtl_unit_active
                 ground_active = rtl_active and ground_present
-                ice_ok = icecast_up()
-                hit_items = read_hit_list_cached(limit=20)
+                ice_ok = _unit_active_cached(UNITS["icecast"])
+                hits_payload = _get_hits_payload_cached(limit=10)
+                hit_items = hits_payload.get("items") or []
                 last_hit = hit_items[0].get("freq") if hit_items else (read_last_hit_airband() or read_last_hit_ground())
                 status_data = {
                     "type": "status",
@@ -931,10 +995,9 @@ class Handler(BaseHTTPRequestHandler):
                     "note": "stats_filepath not supported in rtl_airband v5.1.1"
                 }
                 self.wfile.write(f"event: spectrum\ndata: {json.dumps(spectrum_data)}\n\n".encode())
-                hits = read_hit_list_cached(limit=10)
                 hits_data = {
                     "type": "hits",
-                    "items": hits,
+                    "items": hit_items,
                 }
                 self.wfile.write(f"event: hits\ndata: {json.dumps(hits_data)}\n\n".encode())
                 self.wfile.flush()

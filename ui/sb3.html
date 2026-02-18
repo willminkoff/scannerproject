@@ -4831,9 +4831,32 @@
       connectSSE();
       updateSitrep();
       
-      // Poll hits more frequently to catch activity
-      setInterval(refreshHits, 2000);
-      setInterval(refresh, 10000);
+      // Poll only as fallback when SSE is disconnected.
+      setInterval(async () => {
+        if (state.sseConnected) return;
+        try {
+          await refreshHits();
+        } catch (e) {
+          console.error('Fallback hit poll failed:', e);
+        }
+      }, 2000);
+      setInterval(async () => {
+        if (state.sseConnected) return;
+        try {
+          await refresh();
+        } catch (e) {
+          console.error('Fallback status poll failed:', e);
+        }
+      }, 10000);
+      // Keep a low-frequency sync while SSE is connected.
+      setInterval(async () => {
+        if (!state.sseConnected) return;
+        try {
+          await refresh();
+        } catch (e) {
+          console.error('Connected status sync failed:', e);
+        }
+      }, 60000);
     }
     
     init();
