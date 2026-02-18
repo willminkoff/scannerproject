@@ -439,13 +439,25 @@ def guess_current_profile(conf_realpath: str, profiles):
 
 def set_profile(profile_id: str, current_conf_path: str, profiles, target_symlink: str):
     """Set a profile and return whether it changed."""
+    def _swap_symlink(link_path: str, target_path: str) -> None:
+        link_path = str(link_path)
+        parent = os.path.dirname(link_path) or "."
+        os.makedirs(parent, exist_ok=True)
+        tmp_link = os.path.join(parent, f".{os.path.basename(link_path)}.tmp")
+        try:
+            if os.path.lexists(tmp_link):
+                os.unlink(tmp_link)
+        except Exception:
+            pass
+        os.symlink(target_path, tmp_link)
+        os.replace(tmp_link, link_path)
+
     for pid, _, path in profiles:
         if pid == profile_id:
             if os.path.realpath(path) == os.path.realpath(current_conf_path):
                 return True, False
             enforce_profile_index(path)
-            import subprocess
-            subprocess.run(["ln", "-sf", path, target_symlink], check=False)
+            _swap_symlink(target_symlink, path)
             return True, True
     return False, False
 
@@ -710,7 +722,10 @@ def write_freqs_labels(conf_path: str, freqs, labels):
 
 def avoid_current_hit(conf_path: str, target: str):
     """Add the current hit to the avoid list."""
-    from scanner import parse_last_hit_freq
+    try:
+        from .scanner import parse_last_hit_freq
+    except ImportError:
+        from ui.scanner import parse_last_hit_freq
     freq = parse_last_hit_freq(target)
     if freq is None:
         return None, "No recent hit to avoid"

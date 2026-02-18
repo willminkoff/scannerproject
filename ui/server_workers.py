@@ -4,14 +4,14 @@ import threading
 from collections import deque
 
 try:
-    from .config import APPLY_DEBOUNCE_SEC
+    from .config import APPLY_DEBOUNCE_SEC, ACTION_WAIT_TIMEOUT_SEC
     from .actions import execute_action
     from .scanner import (
         update_icecast_hit_log,
         read_hit_list_cached,
     )
 except ImportError:
-    from ui.config import APPLY_DEBOUNCE_SEC
+    from ui.config import APPLY_DEBOUNCE_SEC, ACTION_WAIT_TIMEOUT_SEC
     from ui.actions import execute_action
     from ui.scanner import (
         update_icecast_hit_log,
@@ -29,7 +29,8 @@ def enqueue_action(action: dict) -> dict:
     with ACTION_COND:
         ACTION_QUEUE.append(action)
         ACTION_COND.notify()
-    waiter["event"].wait()
+    if not waiter["event"].wait(timeout=ACTION_WAIT_TIMEOUT_SEC):
+        return {"status": 504, "payload": {"ok": False, "error": "action timed out"}}
     return waiter["result"] or {"status": 500, "payload": {"ok": False, "error": "no result"}}
 
 
@@ -72,7 +73,8 @@ def enqueue_apply(target: str, gain: float, squelch_mode: str, squelch_snr: floa
                 "waiters": [waiter],
             })
             ACTION_COND.notify()
-    waiter["event"].wait()
+    if not waiter["event"].wait(timeout=ACTION_WAIT_TIMEOUT_SEC):
+        return {"status": 504, "payload": {"ok": False, "error": "action timed out"}}
     return waiter["result"] or {"status": 500, "payload": {"ok": False, "error": "no result"}}
 
 

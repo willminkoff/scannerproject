@@ -163,3 +163,4 @@ GAIN_STEPS = [
 
 # Action Queueing
 APPLY_DEBOUNCE_SEC = float(os.getenv("APPLY_DEBOUNCE_SEC", "0.2"))
+ACTION_WAIT_TIMEOUT_SEC = max(1.0, float(os.getenv("ACTION_WAIT_TIMEOUT_SEC", "45")))

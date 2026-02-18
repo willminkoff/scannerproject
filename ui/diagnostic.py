@@ -1,7 +1,6 @@
 """Diagnostic log generation."""
 import os
 import subprocess
-import sys
 from typing import Optional
 
 # Handle both relative and absolute imports
@@ -11,6 +10,8 @@ try:
 except ImportError:
     from ui.config import DIAGNOSTIC_DIR
     from ui.icecast import fetch_local_icecast_status
+
+DIAGNOSTIC_AUTO_COMMIT = str(os.getenv("DIAGNOSTIC_AUTO_COMMIT", "0")).strip().lower() in ("1", "true", "yes", "on")
 
 
 def run_cmd_capture(cmd):
@@ -79,7 +80,10 @@ def write_diagnostic_log():
     lines.append(fetch_local_icecast_status())
     lines.append("")
 
-    from config import UNITS
+    try:
+        from .config import UNITS
+    except ImportError:
+        from ui.config import UNITS
     commands = [
         ["date", "-u"],
         ["uname", "-a"],
@@ -115,5 +119,10 @@ def write_diagnostic_log():
     with open(tmp, "w", encoding="utf-8") as f:
         f.write("\n".join(lines).rstrip() + "\n")
     os.replace(tmp, path)
-    _commit_diagnostic_log(path)
+    if DIAGNOSTIC_AUTO_COMMIT:
+        try:
+            _commit_diagnostic_log(path)
+        except Exception:
+            # Keep diagnostics usable even when git identity/repo state is unavailable.
+            pass
     return path

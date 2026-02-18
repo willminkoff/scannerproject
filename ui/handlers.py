@@ -149,18 +149,6 @@ except ImportError:
     )
 
 
-def _read_html_template():
-    """Read the static HTML template."""
-    ui_dir = os.path.dirname(os.path.abspath(__file__))
-    html_path = os.path.join(ui_dir, "static", "index.html")
-    try:
-        with open(html_path, "r", encoding="utf-8") as f:
-            return f.read()
-    except FileNotFoundError:
-        return "<!doctype html><html><body>Static files not found</body></html>"
-
-
-HTML_TEMPLATE = _read_html_template()
 # Digital call-event logs can emit rapid "grant/continue" updates for the same talkgroup.
 # Use a wider default coalesce window to align UI hits with perceived audible traffic.
 DIGITAL_HIT_COALESCE_SEC = max(0.0, float(os.getenv("DIGITAL_HIT_COALESCE_SEC", "8")))
@@ -359,6 +347,13 @@ class Handler(BaseHTTPRequestHandler):
             body = body.encode("utf-8")
         self.wfile.write(body)
 
+    def _send_redirect(self, location: str, code: int = 302):
+        """Send a redirect response."""
+        self.send_response(code)
+        self.send_header("Location", location)
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+
     def _sanitize_mount_name(self, mount_name: str) -> str:
         mount = unquote(str(mount_name or "")).strip().lstrip("/")
         if not mount:
@@ -420,7 +415,7 @@ class Handler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         p = u.path
         if p == "/":
-            return self._send(200, HTML_TEMPLATE)
+            return self._send_redirect("/sb3")
         
         # Serve SB3 UI
         if p == "/sb3" or p == "/sb3.html":
@@ -510,9 +505,10 @@ class Handler(BaseHTTPRequestHandler):
             ground_gain, ground_snr, ground_dbfs, ground_mode = parse_controls(GROUND_CONFIG_PATH)
             airband_filter = parse_filter("airband")
             ground_filter = parse_filter("ground")
-            rtl_ok = unit_active(UNITS["rtl"])
             rtl_unit_active = unit_active(UNITS["rtl"])
             ground_unit_active = unit_active(UNITS["ground"])
+            keepalive_unit_active = unit_active(UNITS["keepalive"])
+            digital_mixer_unit_active = unit_active(UNITS["digital_mixer"])
             combined_info = combined_device_summary()
             airband_device = combined_info.get("airband")
             ground_device = combined_info.get("ground")
@@ -638,13 +634,13 @@ class Handler(BaseHTTPRequestHandler):
                 "digital_stream_mount": DIGITAL_MIXER_DIGITAL_MOUNT,
                 "icecast_expected_mounts": (
                     [f"/{DIGITAL_MIXER_AIRBAND_MOUNT}", f"/{DIGITAL_MIXER_DIGITAL_MOUNT}", f"/{DIGITAL_MIXER_OUTPUT_MOUNT}"]
-                    if DIGITAL_MIXER_ENABLED else [f"/{DIGITAL_MIXER_OUTPUT_MOUNT}"]
+                    if DIGITAL_MIXER_ENABLED else [f"/{PLAYER_MOUNT}"]
                 ),
                 "expected_serials": expected_serials,
                 "digital_tuner_targets": _digital_tuner_targets(),
                 "serial_mismatch": bool(serial_mismatch_detail),
                 "serial_mismatch_detail": serial_mismatch_detail,
-                "keepalive_active": unit_active(UNITS["keepalive"]),
+                "keepalive_active": keepalive_unit_active,
                 "server_time": time.time(),
                 "rtl_active_enter": rtl_active_enter,
                 "rtl_restart_required": rtl_restart_required,
@@ -711,7 +707,7 @@ class Handler(BaseHTTPRequestHandler):
                     digital_payload["digital_last_time"] = 0
                     digital_payload.pop("digital_last_mode", None)
             digital_payload["digital_stream_active_for_hits"] = bool(digital_stream_active_for_hits)
-            digital_payload["digital_mixer_active"] = unit_active(UNITS["digital_mixer"])
+            digital_payload["digital_mixer_active"] = digital_mixer_unit_active
             payload.update(digital_payload)
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         if p == "/api/profiles":

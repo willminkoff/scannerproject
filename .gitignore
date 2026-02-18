@@ -4,6 +4,8 @@
 *.broken*
 *.swp
 *~
+nohup.out
+patch.diff
 .DS_Store
 
 # runtime
