@@ -8,6 +8,7 @@ frequency from control_channels.txt.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import csv
@@ -34,6 +35,15 @@ DIGITAL_PREFERRED_TUNER = os.getenv("DIGITAL_PREFERRED_TUNER", "").strip()
 DIGITAL_USE_MULTI_FREQ_SOURCE = os.getenv("DIGITAL_USE_MULTI_FREQ_SOURCE", "1").strip().lower() in _TRUTHY
 DIGITAL_SDRTRUNK_STREAM_NAME = os.getenv("DIGITAL_SDRTRUNK_STREAM_NAME", "DIGITAL").strip()
 DIGITAL_ATTACH_BROADCAST_CHANNEL = os.getenv("DIGITAL_ATTACH_BROADCAST_CHANNEL", "1").strip().lower() in _TRUTHY
+AIRBAND_RTL_SERIAL = os.getenv("AIRBAND_RTL_SERIAL", os.getenv("SCANNER1_RTL_DEVICE", "")).strip()
+GROUND_RTL_SERIAL = os.getenv("GROUND_RTL_SERIAL", os.getenv("SCANNER2_RTL_DEVICE", "")).strip()
+SDRTRUNK_TUNER_CONFIG_PATH = Path(
+    os.getenv(
+        "DIGITAL_TUNER_CONFIG_PATH",
+        str(Path.home() / "SDRTrunk" / "configuration" / "tuner_configuration.json"),
+    )
+).expanduser()
+USB_SYSFS_ROOT = Path(os.getenv("DIGITAL_USB_SYSFS_ROOT", "/sys/bus/usb/devices")).expanduser()
 
 
 def _env_int(name: str, default: int) -> int:
@@ -52,6 +62,154 @@ DIGITAL_SOURCE_ROTATION_DELAY_MS = max(100, _env_int("DIGITAL_SOURCE_ROTATION_DE
 def _log(msg: str) -> None:
     ts = time.strftime("%Y-%m-%d %H:%M:%S")
     print(f"{ts} ensure-digital-runtime: {msg}")
+
+
+def _sysfs_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8", errors="ignore").strip()
+    except Exception:
+        return ""
+
+
+def _discover_rtl_unique_ids_by_serial() -> dict[str, str]:
+    out: dict[str, str] = {}
+    root = USB_SYSFS_ROOT
+    if not root.is_dir():
+        return out
+
+    for dev in root.iterdir():
+        serial_path = dev / "serial"
+        if not serial_path.is_file():
+            continue
+        serial = _sysfs_text(serial_path)
+        if not serial:
+            continue
+        if _sysfs_text(dev / "idVendor").lower() != "0bda":
+            continue
+        if _sysfs_text(dev / "idProduct").lower() != "2838":
+            continue
+
+        # Example device directory name: "3-1.1.2" => Bus 3, Port 1.1.2
+        name = dev.name
+        if "-" not in name:
+            continue
+        bus, port = name.split("-", 1)
+        if not bus or not port:
+            continue
+        out[serial] = f"RTL-2832 USB Bus:{bus} Port:{port}"
+    return out
+
+
+def _default_tuner_config(unique_id: str, template: dict[str, object] | None = None) -> dict[str, object]:
+    if template:
+        cfg = dict(template)
+        cfg["uniqueID"] = unique_id
+        return cfg
+
+    return {
+        "type": "r820TTunerConfiguration",
+        "masterGain": "GAIN_327",
+        "mixerGain": "GAIN_105",
+        "lnagain": "GAIN_222",
+        "vgagain": "GAIN_210",
+        "sampleRate": "RATE_2_400MHZ",
+        "biasT": False,
+        "frequency": 101100000,
+        "frequencyCorrection": 0.0,
+        "uniqueID": unique_id,
+        "autoPPMCorrectionEnabled": True,
+        "minimumFrequency": 0,
+        "maximumFrequency": 0,
+    }
+
+
+def _sync_tuner_configuration() -> dict[str, object]:
+    if not SDRTRUNK_TUNER_CONFIG_PATH.is_file():
+        return {"updated": False, "reason": "missing_tuner_config"}
+
+    try:
+        raw = SDRTRUNK_TUNER_CONFIG_PATH.read_text(encoding="utf-8", errors="ignore")
+        data = json.loads(raw)
+    except Exception:
+        return {"updated": False, "reason": "invalid_tuner_config"}
+
+    if not isinstance(data, dict):
+        return {"updated": False, "reason": "invalid_tuner_config_type"}
+
+    serial_to_uid = _discover_rtl_unique_ids_by_serial()
+    digital_serials = [s for s in (DIGITAL_RTL_SERIAL, DIGITAL_RTL_SERIAL_SECONDARY) if s]
+    analog_serials = [s for s in (AIRBAND_RTL_SERIAL, GROUND_RTL_SERIAL) if s]
+
+    digital_uids = {serial_to_uid[s] for s in digital_serials if s in serial_to_uid}
+    analog_uids = {serial_to_uid[s] for s in analog_serials if s in serial_to_uid}
+
+    changed = False
+    disabled_in = data.get("disabledTuners")
+    disabled = disabled_in if isinstance(disabled_in, list) else []
+
+    kept: list[dict[str, str]] = []
+    seen_ids: set[str] = set()
+    for entry in disabled:
+        if not isinstance(entry, dict):
+            continue
+        tuner_class = str(entry.get("tunerClass") or "").strip()
+        tuner_id = str(entry.get("id") or "").strip()
+        if not tuner_id:
+            continue
+
+        if tuner_class != "RTL2832":
+            if tuner_id not in seen_ids:
+                kept.append({"tunerClass": tuner_class or "RTL2832", "id": tuner_id})
+                seen_ids.add(tuner_id)
+            continue
+
+        # Never keep a disabled entry for currently mapped digital tuner ports.
+        if tuner_id in digital_uids:
+            changed = True
+            continue
+
+        if tuner_id not in seen_ids:
+            kept.append({"tunerClass": "RTL2832", "id": tuner_id})
+            seen_ids.add(tuner_id)
+
+    for uid in sorted(analog_uids):
+        if uid not in seen_ids:
+            kept.append({"tunerClass": "RTL2832", "id": uid})
+            seen_ids.add(uid)
+            changed = True
+
+    if disabled != kept:
+        data["disabledTuners"] = kept
+        changed = True
+
+    cfg_in = data.get("tunerConfigurations")
+    cfgs = cfg_in if isinstance(cfg_in, list) else []
+    template = next((c for c in cfgs if isinstance(c, dict) and c.get("uniqueID")), None)
+    existing_ids = {
+        str(c.get("uniqueID")).strip()
+        for c in cfgs
+        if isinstance(c, dict) and str(c.get("uniqueID") or "").strip()
+    }
+    for uid in sorted(digital_uids):
+        if uid in existing_ids:
+            continue
+        cfgs.append(_default_tuner_config(uid, template=template if isinstance(template, dict) else None))
+        existing_ids.add(uid)
+        changed = True
+
+    if cfg_in != cfgs:
+        data["tunerConfigurations"] = cfgs
+        changed = True
+
+    if changed:
+        SDRTRUNK_TUNER_CONFIG_PATH.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+    return {
+        "updated": changed,
+        "reason": "ok",
+        "digital_uids": sorted(digital_uids),
+        "analog_uids": sorted(analog_uids),
+    }
 
 
 def _profile_dirs(root: Path) -> list[Path]:
@@ -444,6 +602,7 @@ def main() -> int:
     try:
         target = _choose_profile()
         _point_active_link(target)
+        tuner_state = _sync_tuner_configuration()
         control_channels_hz = _read_control_channels_hz(target)
         source_state = _sync_playlist(target, control_channels_hz)
         _log(
@@ -455,7 +614,10 @@ def main() -> int:
             f"stream={source_state.get('stream_name') or 'unset'} "
             f"seeded_aliases={source_state.get('seeded_aliases', 0)} "
             f"stream_alias_updates={source_state.get('stream_alias_updates', 0)} "
-            f"digital_secondary={DIGITAL_RTL_SERIAL_SECONDARY or 'unset'}"
+            f"digital_secondary={DIGITAL_RTL_SERIAL_SECONDARY or 'unset'} "
+            f"tuner_config_updated={bool(tuner_state.get('updated'))} "
+            f"digital_uids={','.join(tuner_state.get('digital_uids', [])) or 'none'} "
+            f"analog_uids={','.join(tuner_state.get('analog_uids', [])) or 'none'}"
         )
         return 0
     except Exception as e:
