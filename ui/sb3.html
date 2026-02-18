@@ -1923,6 +1923,7 @@
       sessionStart: Date.now(),
       applyTimeout: null,
       filterTimeout: null,
+      streamRecoveryTimers: { analog: [], digital: [] },
       serverTime: null,
       systemStats: null,
       system: {
@@ -2302,13 +2303,19 @@
     function scheduleStreamRecovery(kind, reason, forcePlay = false) {
       const normalized = kind === 'digital' ? 'digital' : 'analog';
       const reloadFn = normalized === 'digital' ? reloadDigitalStream : reloadAnalogStream;
+      const timers = state.streamRecoveryTimers?.[normalized] || [];
+      if (timers.length) {
+        timers.forEach((id) => clearTimeout(id));
+      }
+      state.streamRecoveryTimers[normalized] = [];
       const delays = normalized === 'digital'
-        ? [500, 2000, 5000, 10000, 20000, 30000, 45000, 60000, 90000, 120000]
-        : [500, 2000, 5000, 10000, 20000];
+        ? [1200, 4000, 9000]
+        : [1200, 4000];
       delays.forEach((delay, idx) => {
-        setTimeout(() => {
+        const timerId = setTimeout(() => {
           reloadFn(`${reason}-${idx + 1}`, forcePlay);
         }, delay);
+        state.streamRecoveryTimers[normalized].push(timerId);
       });
     }
 
@@ -2366,6 +2373,11 @@
         }
         return;
       }
+      // Live streams frequently report static/unknown duration and non-advancing
+      // currentTime, so "no-progress" detection produces false recover loops.
+      const duration = Number(audioEl.duration);
+      const liveLike = !Number.isFinite(duration) || duration <= 0;
+      if (liveLike) return;
       const pos = Number(audioEl.currentTime || 0);
       if (!Number.isFinite(pos)) return;
       const tracker = getAudioRecoverTracker(audioEl);
@@ -2392,8 +2404,17 @@
       if (!tracker) return;
       if (audioEl.dataset.autorecoverBound === '1') return;
       audioEl.dataset.autorecoverBound = '1';
-      audioEl.addEventListener('play', () => {
+      audioEl.addEventListener('play', (ev) => {
         audioEl.dataset.wantplay = '1';
+        // If a user explicitly presses play and media is still not ready shortly
+        // after, force a reconnect once using a cache-busted URL.
+        if (ev && ev.isTrusted) {
+          setTimeout(() => {
+            if (audioEl.paused) return;
+            if (audioEl.readyState >= 3) return;
+            maybeAutoRecoverAudio(audioEl, reloadFn, 'user-play', true);
+          }, 400);
+        }
       });
       audioEl.addEventListener('pause', () => {
         audioEl.dataset.wantplay = '0';
