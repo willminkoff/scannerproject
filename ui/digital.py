@@ -1644,15 +1644,24 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         # Most SDRTrunk files use timestamp-prefixed names; newest tend to sort last.
         # Scan newest-first and stop early once we have enough candidates.
         candidates.sort(key=lambda item: item[0], reverse=True)
-        # SDRTrunk may emit many tiny per-frequency call logs; prioritize the
-        # aggregate 0_Hz call log when available because it contains all events.
-        aggregate_candidates = [item for item in candidates if "_0_hz_" in item[0].lower()]
-        if aggregate_candidates:
-            aggregate_paths = {path for _, path in aggregate_candidates}
-            candidates = aggregate_candidates + [
-                item for item in candidates
-                if item[1] not in aggregate_paths
-            ]
+
+        def _prefer_aggregate(items: list[tuple[str, str]]) -> list[tuple[str, str]]:
+            aggregate = [item for item in items if "_0_hz_" in item[0].lower()]
+            if not aggregate:
+                return items
+            aggregate_paths = {path for _, path in aggregate}
+            return aggregate + [item for item in items if item[1] not in aggregate_paths]
+
+        # Prioritize logs for the active profile first so stale files from other
+        # profiles do not starve current events in very large event_log dirs.
+        active_profile = str(self._read_active_profile_id() or "").strip().lower()
+        if active_profile:
+            token = f"{active_profile}_call_events.log"
+            active_candidates = [item for item in candidates if token in item[0].lower()]
+            other_candidates = [item for item in candidates if token not in item[0].lower()]
+            candidates = _prefer_aggregate(active_candidates) + _prefer_aggregate(other_candidates)
+        else:
+            candidates = _prefer_aggregate(candidates)
 
         data_paths: list[str] = []
         header_only_paths: list[str] = []
