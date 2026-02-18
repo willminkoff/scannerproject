@@ -202,6 +202,9 @@ _EVENT_SITE_KEYS = (
 _DIGITAL_HIT_MIN_DURATION_MS = int(os.getenv("DIGITAL_HIT_MIN_DURATION_MS", "250"))
 _DIGITAL_STATUS_CLEAR_MS = max(0, int(os.getenv("DIGITAL_STATUS_CLEAR_MS", "180000")))
 _DIGITAL_TGID_MAX = max(1, int(os.getenv("DIGITAL_TGID_MAX", "16777215")))
+_DIGITAL_EVENT_MIN_DATA_BYTES = max(128, int(os.getenv("DIGITAL_EVENT_MIN_DATA_BYTES", "128")))
+_DIGITAL_EVENT_SCAN_MAX_FILES = max(50, int(os.getenv("DIGITAL_EVENT_SCAN_MAX_FILES", "2000")))
+_DIGITAL_TUNER_BUSY_WINDOW_MS = max(30000, int(os.getenv("DIGITAL_TUNER_BUSY_WINDOW_MS", "180000")))
 _DIGITAL_EVENT_DROP_RE = re.compile(
     r"(rejected|tuner unavailable|encrypted|encryption|data channel grant|nsapi)",
     re.I,
@@ -683,11 +686,14 @@ def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
 
     details_l = details.lower() if details else ""
     is_channel_grant = "channel grant" in details_l
+    is_continue = "continue" in details_l
     include_grant_debug = _DIGITAL_DEBUG_INCLUDE_GRANTS and is_channel_grant
 
     # Call/event logs include high-volume non-audio control events (register/response/etc).
     # Keep only call-type events when an explicit event field is present.
     if event_kind and "call" not in event_kind and not include_grant_debug:
+        return None
+    if event_kind and "data call" in event_kind and not include_grant_debug:
         return None
 
     # Drop known non-audible call log rows (rejected/encrypted control updates).
@@ -706,6 +712,10 @@ def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
     # For structured call event rows, wait until the call has lasted long enough
     # to be considered an audible "hit" before surfacing it.
     if event_id:
+        # Raw channel grant rows are control-plane events; wait for call
+        # continuation rows before surfacing them as audible hits.
+        if is_channel_grant and not is_continue and not include_grant_debug:
+            return None
         if duration_ms is None and not include_grant_debug:
             return None
         if duration_ms is not None and duration_ms < _DIGITAL_HIT_MIN_DURATION_MS and not include_grant_debug:
@@ -714,6 +724,13 @@ def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
     time_ms = _parse_time_value(time_val, fallback_ms)
     if not time_val and (date_val or time_only):
         time_ms = _parse_time_ms(f"{date_val} {time_only}".strip(), fallback_ms)
+
+    if freq:
+        try:
+            if float(str(freq).strip()) <= 0.0 and not include_grant_debug:
+                return None
+        except Exception:
+            pass
 
     if not label and tgid:
         label = f"TG {tgid}"
@@ -1627,23 +1644,36 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         # Most SDRTrunk files use timestamp-prefixed names; newest tend to sort last.
         # Scan newest-first and stop early once we have enough candidates.
         candidates.sort(key=lambda item: item[0], reverse=True)
+        # SDRTrunk may emit many tiny per-frequency call logs; prioritize the
+        # aggregate 0_Hz call log when available because it contains all events.
+        aggregate_candidates = [item for item in candidates if "_0_hz_" in item[0].lower()]
+        if aggregate_candidates:
+            aggregate_paths = {path for _, path in aggregate_candidates}
+            candidates = aggregate_candidates + [
+                item for item in candidates
+                if item[1] not in aggregate_paths
+            ]
 
         data_paths: list[str] = []
         header_only_paths: list[str] = []
+        scanned = 0
         for _, path in candidates:
+            scanned += 1
             try:
                 size = int(os.path.getsize(path))
             except Exception:
                 size = 0
-            if size > 128:
+            if size > _DIGITAL_EVENT_MIN_DATA_BYTES:
                 data_paths.append(path)
             else:
-                header_only_paths.append(path)
+                # Keep a small fallback list if every file appears header-only.
+                if len(header_only_paths) < 5:
+                    header_only_paths.append(path)
 
-            # Keep scan bounded even if the directory has many thousands of files.
             if len(data_paths) >= 5:
                 break
-            if len(data_paths) + len(header_only_paths) >= 12:
+            # Keep scan bounded even if the directory has many thousands of files.
+            if scanned >= _DIGITAL_EVENT_SCAN_MAX_FILES:
                 break
 
         selected_paths = list(data_paths[:5])
@@ -1851,6 +1881,12 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
     def preflight(self):
         lines = self._read_log_tail()
         busy_hits = self._detect_tuner_busy(lines)
+        now_ms = int(time.time() * 1000)
+        busy_hits = [
+            hit for hit in busy_hits
+            if int(hit.get("timeMs") or 0) <= 0
+            or (now_ms - int(hit.get("timeMs") or 0)) <= _DIGITAL_TUNER_BUSY_WINDOW_MS
+        ]
         busy_lines = [h.get("line") for h in busy_hits if h.get("line")]
         busy_lines = busy_lines[-10:]
         last_time = 0
@@ -2272,7 +2308,19 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
 
     def getLastEvent(self):
         self._refresh_log_cache()
-        return super().getLastEvent()
+        event = super().getLastEvent()
+        if not event:
+            return {"label": "", "timeMs": 0}
+        mapped = self._map_event_label(dict(event))
+        if mapped and not mapped.get("muted"):
+            return mapped
+
+        # Fall back to the newest unmuted cached event when listen settings changed.
+        for candidate in reversed(super().getRecentEvents(self._recent_limit)):
+            mapped_candidate = self._map_event_label(dict(candidate))
+            if mapped_candidate and not mapped_candidate.get("muted"):
+                return mapped_candidate
+        return {"label": "", "timeMs": 0}
 
     def getLastError(self):
         self._refresh_log_cache()
@@ -2284,7 +2332,16 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
 
     def getRecentEvents(self, limit: int = 20):
         self._refresh_log_cache()
-        return super().getRecentEvents(limit)
+        items = super().getRecentEvents(max(1, int(limit or 20)))
+        filtered = []
+        for item in items:
+            mapped = self._map_event_label(dict(item))
+            if not mapped or mapped.get("muted"):
+                continue
+            filtered.append(mapped)
+        if len(filtered) > int(limit or 20):
+            filtered = filtered[-int(limit or 20):]
+        return filtered
 
 
 class DigitalManager:
