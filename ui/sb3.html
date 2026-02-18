@@ -2237,9 +2237,14 @@
       const current = (audioEl.src || '').split('?')[0];
       if (current !== base) {
         const wasPaused = audioEl.paused;
+        const wantsPlay = audioEl.dataset.wantplay === '1';
+        const shouldPlay = wantsPlay || !wasPaused;
+        if (shouldPlay) {
+          audioEl.dataset.wantplay = '1';
+        }
         audioEl.src = base;
         audioEl.load();
-        if (!wasPaused) {
+        if (shouldPlay) {
           audioEl.play().catch(() => {});
         }
       }
@@ -2265,7 +2270,8 @@
       state[stateKey] = base;
       const url = `${base}?t=${Date.now()}`;
       const wasPaused = audioEl.paused;
-      const shouldPlay = forcePlay || !wasPaused;
+      const wantsPlay = audioEl.dataset.wantplay === '1';
+      const shouldPlay = forcePlay || wantsPlay || !wasPaused;
       if (shouldPlay) {
         audioEl.dataset.wantplay = '1';
       }
@@ -4190,7 +4196,10 @@
 
     async function selectProfile(id, force = false) {
       try {
-        const analogWasPlaying = Boolean(els.audioPlayerAnalog && !els.audioPlayerAnalog.paused);
+        const analogShouldResume = Boolean(
+          els.audioPlayerAnalog
+          && (!els.audioPlayerAnalog.paused || els.audioPlayerAnalog.dataset.wantplay === '1')
+        );
         const t = state[activeTarget];
         if (!force && t.currentProfile === id) {
           return;
@@ -4208,7 +4217,7 @@
         if (res && res.restart_ok === false) {
           logActivity('Restart required after profile change', 'warn', `restart-required-profile-${activeTarget}`);
         }
-        scheduleStreamRecovery('analog', `profile-${activeTarget}`, analogWasPlaying);
+        scheduleStreamRecovery('analog', `profile-${activeTarget}`, analogShouldResume);
       } catch (e) {
         console.error('Profile switch failed:', e);
       }
