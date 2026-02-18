@@ -2215,7 +2215,7 @@
       return r.json();
     }
 
-    function buildStreamUrl(mountName, fallbackMount) {
+    function buildProxyStreamUrl(mountName, fallbackMount) {
       const mount = (mountName || fallbackMount).replace(/^\/+/, '');
       if (state.streamProxyEnabled) {
         return `${location.origin}/stream/${encodeURIComponent(mount)}`;
@@ -2224,12 +2224,18 @@
       return `http://${location.hostname}:${port}/${mount}`;
     }
 
+    function buildIcecastUrl(mountName, fallbackMount) {
+      const mount = (mountName || fallbackMount).replace(/^\/+/, '');
+      const port = Number.isFinite(state.icecastPort) ? state.icecastPort : 8000;
+      return `http://${location.hostname}:${port}/${mount}`;
+    }
+
     function analogStreamUrl() {
-      return buildStreamUrl(state.streamMount, 'ANALOG.mp3');
+      return buildIcecastUrl(state.streamMount, 'ANALOG.mp3');
     }
 
     function digitalStreamUrl() {
-      return buildStreamUrl(state.digitalStreamMount, 'DIGITAL.mp3');
+      return buildIcecastUrl(state.digitalStreamMount, 'DIGITAL.mp3');
     }
 
     function syncAudioSource(audioEl, base) {
@@ -2254,10 +2260,10 @@
       const analogBase = analogStreamUrl();
       const digitalBase = digitalStreamUrl();
       if (els.lnkStreamAnalog) {
-        els.lnkStreamAnalog.href = analogBase;
+        els.lnkStreamAnalog.href = buildProxyStreamUrl(state.streamMount, 'ANALOG.mp3');
       }
       if (els.lnkStreamDigital) {
-        els.lnkStreamDigital.href = digitalBase;
+        els.lnkStreamDigital.href = buildProxyStreamUrl(state.digitalStreamMount, 'DIGITAL.mp3');
       }
       syncAudioSource(els.audioPlayerAnalog, analogBase);
       syncAudioSource(els.audioPlayerDigital, digitalBase);
