@@ -1876,6 +1876,7 @@
     const AUDIO_WAITING_GRACE_MS = 12000;
     const AUDIO_PROGRESS_CHECK_MS = 3000;
     const AUDIO_PROGRESS_STALL_MS = 30000;
+    const FETCH_TIMEOUT_MS = 8000;
     
     // ============================================
     // STATE
@@ -1991,6 +1992,8 @@
 
     let digitalProfilesLoaded = false;
     let digitalListenLoaded = false;
+    let refreshInFlight = null;
+    let refreshHitsInFlight = null;
     
     // ============================================
     // ELEMENTS
@@ -2187,8 +2190,19 @@
     // API
     // ============================================
     
+    async function fetchWithTimeout(url, options = {}) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      try {
+        return await fetch(url, { ...options, signal: controller.signal });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
     async function fetchJSON(url) {
-      const r = await fetch(url, { cache: 'no-store' });
+      const r = await fetchWithTimeout(url, { cache: 'no-store' });
+      if (!r.ok) throw new Error(`HTTP ${r.status} for ${url}`);
       return r.json();
     }
     
@@ -2199,20 +2213,22 @@
         params.append(k, String(v));
       });
       const body = params.toString();
-      const r = await fetch(endpoint, {
+      const r = await fetchWithTimeout(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body
       });
+      if (!r.ok) throw new Error(`HTTP ${r.status} for ${endpoint}`);
       return r.json();
     }
 
     async function postJSON(endpoint, payload) {
-      const r = await fetch(endpoint, {
+      const r = await fetchWithTimeout(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload || {}),
       });
+      if (!r.ok) throw new Error(`HTTP ${r.status} for ${endpoint}`);
       return r.json();
     }
 
@@ -2275,14 +2291,15 @@
     function reloadStreamPlayer(audioEl, base, stateKey, reason, keyPrefix, forcePlay = false) {
       if (!audioEl) return;
       state[stateKey] = base;
-      const url = `${base}?t=${Date.now()}`;
       const wasPaused = audioEl.paused;
       const wantsPlay = audioEl.dataset.wantplay === '1';
       const shouldPlay = forcePlay || wantsPlay || !wasPaused;
       if (shouldPlay) {
         audioEl.dataset.wantplay = '1';
       }
-      audioEl.src = url;
+      audioEl.removeAttribute('src');
+      audioEl.load();
+      audioEl.src = base;
       audioEl.load();
       if (shouldPlay) {
         audioEl.play().catch(() => {});
@@ -2400,12 +2417,8 @@
       if (!tracker) return;
       if (audioEl.dataset.autorecoverBound === '1') return;
       audioEl.dataset.autorecoverBound = '1';
-      audioEl.addEventListener('play', (ev) => {
+      audioEl.addEventListener('play', () => {
         audioEl.dataset.wantplay = '1';
-        // Manual play should always reconnect to a fresh live stream URL.
-        if (ev && ev.isTrusted) {
-          reloadFn('user-play', true);
-        }
       });
       audioEl.addEventListener('pause', () => {
         audioEl.dataset.wantplay = '0';
@@ -4243,17 +4256,19 @@
     // ============================================
     
     async function refresh() {
-      const wasConnected = state.connected;
-      try {
-        const [data, profilesData, systemData] = await Promise.all([
-          fetchJSON('/api/status'),
-          fetchJSON('/api/profiles'),
-          fetchJSON('/api/system'),
-        ]);
+      if (refreshInFlight) return refreshInFlight;
+      refreshInFlight = (async () => {
+        const wasConnected = state.connected;
+        try {
+          const [data, profilesData, systemData] = await Promise.all([
+            fetchJSON('/api/status'),
+            fetchJSON('/api/profiles'),
+            fetchJSON('/api/system'),
+          ]);
 
-        const pickNumber = (value, fallback) => (value === 0 || value) ? value : fallback;
-        const prevAnalogBase = state.streamBaseUrl;
-        const prevDigitalBase = state.digitalStreamBaseUrl;
+          const pickNumber = (value, fallback) => (value === 0 || value) ? value : fallback;
+          const prevAnalogBase = state.streamBaseUrl;
+          const prevDigitalBase = state.digitalStreamBaseUrl;
         
         const airbandPresent = (typeof data.airband_present === 'boolean') ? data.airband_present : true;
         const groundPresent = (typeof data.ground_present === 'boolean') ? data.ground_present : true;
@@ -4366,25 +4381,33 @@
         updateControls();
         updateProfiles();
         updateSystemUI(systemData);
-        updateCounters();
-        updateTuneButton();
-        refreshDigitalProfiles();
-        refreshDigitalListen();
-      } catch (e) {
-        if (wasConnected) {
-          logActivity('API connection lost', 'warn', 'api-down');
+          updateCounters();
+          updateTuneButton();
+          refreshDigitalProfiles();
+          refreshDigitalListen();
+        } catch (e) {
+          if (wasConnected) {
+            logActivity('API connection lost', 'warn', 'api-down');
+          }
+          state.connected = false;
+          updateStatus();
+          console.error('Refresh failed:', e);
         }
-        state.connected = false;
-        updateStatus();
-        console.error('Refresh failed:', e);
+      })();
+      try {
+        await refreshInFlight;
+      } finally {
+        refreshInFlight = null;
       }
     }
     
     async function refreshHits() {
-      try {
-        const data = await fetchJSON('/api/hits');
-        const newHits = data.items || [];
-        const prevTop = state.hits[0]?.time;
+      if (refreshHitsInFlight) return refreshHitsInFlight;
+      refreshHitsInFlight = (async () => {
+        try {
+          const data = await fetchJSON('/api/hits');
+          const newHits = data.items || [];
+          const prevTop = state.hits[0]?.time;
 
         // First successful /api/hits call establishes baseline; do not count history.
         if (!hitBaselineReady) {
@@ -4411,18 +4434,24 @@
         updateHitList();
         updateCounters();
         updateStatus();
-        if (!state.sseConnected && newHits.length > 0) {
-          const topHit = newHits[0];
-          if (topHit && topHit.time && topHit.time !== prevTop) {
-            const raw = String(topHit.label || topHit.freq || '').trim();
-            const isNumeric = /^[0-9]+(\.[0-9]+)?$/.test(raw);
-            const label = isNumeric ? `${formatFreq(raw)} MHz` : (raw || '--');
-            const detail = topHit.duration ? ` ${topHit.duration}s` : '';
-            logActivity(`Hit ${label}${detail}`, 'info', `poll-hit-${topHit.time}-${topHit.freq}`);
+          if (!state.sseConnected && newHits.length > 0) {
+            const topHit = newHits[0];
+            if (topHit && topHit.time && topHit.time !== prevTop) {
+              const raw = String(topHit.label || topHit.freq || '').trim();
+              const isNumeric = /^[0-9]+(\.[0-9]+)?$/.test(raw);
+              const label = isNumeric ? `${formatFreq(raw)} MHz` : (raw || '--');
+              const detail = topHit.duration ? ` ${topHit.duration}s` : '';
+              logActivity(`Hit ${label}${detail}`, 'info', `poll-hit-${topHit.time}-${topHit.freq}`);
+            }
           }
+        } catch (e) {
+          console.error('Hits refresh failed:', e);
         }
-      } catch (e) {
-        console.error('Hits refresh failed:', e);
+      })();
+      try {
+        await refreshHitsInFlight;
+      } finally {
+        refreshHitsInFlight = null;
       }
     }
     
