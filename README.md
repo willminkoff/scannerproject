@@ -478,6 +478,35 @@ Profiles live under `DIGITAL_PROFILES_DIR` and the active profile is pointed to 
 Example scaffolding lives in `deploy/examples/digital-profiles/profiles/` (includes `profiles/example/`).
 Each profile directory should contain the SDRTrunk config exports you want to run for that profile.
 
+**Canonical workflow (authoritative): create a working digital profile**
+Use this flow for every new or edited digital profile, regardless of source data.
+1. Generate profile files from one source:
+   - RadioReference text/RTF parsers: `scripts/rr_txt_to_profiles.py` or `scripts/rr_rtf_to_profiles.py`
+   - HomePatrol DB builder: `scripts/homepatrol_db.py build-profile`
+   - HomePatrol Favorites converter: `scripts/homepatrol_favorites.py export`
+2. Ensure the profile lives under `DIGITAL_PROFILES_DIR/<profile-id>`.
+3. Run the canonical audit/fix pass:
+```bash
+python3 scripts/digital_profile_audit.py \
+  --profile /etc/scannerproject/digital/profiles/<profile-id> \
+  --fix
+```
+4. Activate and apply runtime:
+```bash
+curl -sS -X POST http://127.0.0.1:5050/api/digital/profile \
+  --data-urlencode "profileId=<profile-id>"
+```
+5. Verify runtime state:
+```bash
+curl -sS http://127.0.0.1:5050/api/digital/profiles
+curl -sS http://127.0.0.1:5050/api/digital/preflight
+```
+
+A profile is considered "working" when:
+- `scripts/digital_profile_audit.py` returns `Status: PASS`.
+- `/api/digital/profile` accepts the profile (`{"ok": true}`).
+- `/api/digital/preflight` shows `playlist_source_ok=true`.
+
 **Install steps (profiles)**:
 ```bash
 sudo mkdir -p /etc/scannerproject/digital/profiles
@@ -605,6 +634,11 @@ sudo systemctl restart scanner-digital
   - `control_channels.txt` (all TACN control channels)
   - `talkgroups.csv` / `talkgroups_with_group.csv` (combined TACN talkgroups)
 
+**Digital profile audit helper**:
+- `scripts/digital_profile_audit.py` is the canonical validator/fixer for profile readiness.
+- Run with `--fix` to safely create/repair `talkgroups_listen.json` and backfill missing listen TGIDs.
+- Run with `--strict-warnings` in CI or deployment checks if you want warnings to fail builds.
+
 **HomePatrol HPDB offline database workflow**:
 - `scripts/homepatrol_db.py` imports Uniden HomePatrol `.hpd` files into SQLite so you can build new profiles locally without web lookups.
 - Example import from a mounted HomePatrol SD card:
@@ -706,6 +740,12 @@ python3 scripts/homepatrol_favorites.py \
 5. **Export/copy the SDRTrunk config into your profile folder**:
    - Use the Digital Profiles widget to create a folder, then copy your SDRTrunk export into `/etc/scannerproject/digital/profiles/<profile>`.
    - Activate it in the UI (or update the `DIGITAL_ACTIVE_PROFILE_LINK` symlink) and restart `scanner-digital`.
+6. **Canonicalize the profile before field use**:
+   - Run:
+```bash
+python3 scripts/digital_profile_audit.py --profile /etc/scannerproject/digital/profiles/<profile> --fix
+```
+   - This catches/repairs common failure modes (missing listen map, incomplete TGID coverage, missing `talkgroups.csv` when only grouped CSV exists).
 
 **Notes**:
 - RadioReference data is subject to their terms; use it as your source and avoid redistributing proprietary exports.
