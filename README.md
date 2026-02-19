@@ -394,6 +394,7 @@ Live-only digital backend control with in-memory metadata (no recording or persi
 - `DIGITAL_SOURCE_ROTATION_DELAY_MS` (default: `500`; rotation delay for multi-frequency control scanning)
 - `DIGITAL_SDRTRUNK_STREAM_NAME` (default: `DIGITAL`; SDRTrunk stream name used for alias `broadcastChannel` wiring)
 - `DIGITAL_ATTACH_BROADCAST_CHANNEL` (default: `1`; auto-adds `broadcastChannel` IDs for active profile alias talkgroups)
+- `DIGITAL_IGNORE_DATA_CALLS` (default: `1`; when enabled, SDRTrunk decode config ignores data calls so voice traffic channels are prioritized)
 - `DIGITAL_MIXER_ENABLED` (default: `0`) - enable mixing SDRTrunk audio into `scannerbox.mp3`
 - `DIGITAL_MIXER_AIRBAND_MOUNT` (default: `GND-air.mp3`) - raw airband+ground input mount for the mixer
 - `DIGITAL_MIXER_DIGITAL_MOUNT` (default: `DIGITAL.mp3`) - SDRTrunk input mount for the mixer

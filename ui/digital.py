@@ -31,6 +31,7 @@ try:
         DIGITAL_RTL_SERIAL_HINT,
         DIGITAL_SDRTRUNK_STREAM_NAME,
         DIGITAL_ATTACH_BROADCAST_CHANNEL,
+        DIGITAL_IGNORE_DATA_CALLS,
         DIGITAL_SOURCE_ROTATION_DELAY_MS,
         DIGITAL_SERVICE_NAME,
         DIGITAL_USE_MULTI_FREQ_SOURCE,
@@ -56,6 +57,7 @@ except ImportError:
         DIGITAL_RTL_SERIAL_HINT,
         DIGITAL_SDRTRUNK_STREAM_NAME,
         DIGITAL_ATTACH_BROADCAST_CHANNEL,
+        DIGITAL_IGNORE_DATA_CALLS,
         DIGITAL_SOURCE_ROTATION_DELAY_MS,
         DIGITAL_SERVICE_NAME,
         DIGITAL_USE_MULTI_FREQ_SOURCE,
@@ -70,6 +72,7 @@ _PHASE2_RE = re.compile(r"\bP25\s*Phase\s*2\b", re.I)
 _P25_HINT_RE = re.compile(r"\b(P25|PROJECT\s*25|APCO\s*25)\b", re.I)
 _DMR_HINT_RE = re.compile(r"\b(DMR|MOTOTRBO|CAP\+|CAPACITY\s*PLUS|CONNECT\s*PLUS|TIER\s*III)\b", re.I)
 _NXDN_HINT_RE = re.compile(r"\b(NXDN|NEXEDGE|IDAS)\b", re.I)
+_AUTO_ALPHA_RE = re.compile(r"^auto\s+\d+$", re.I)
 _LABEL_RE = re.compile(
     r"\b(label|alias|alpha\s*tag|talkgroup|tgid|channel|channel\s*name|alias\s*name|group)[=:]\s*([^|,]+)",
     re.I,
@@ -289,6 +292,7 @@ def _apply_decode_configuration(channel: ET.Element, decoder_mode: str) -> None:
     target_type = "decodeConfigP25Phase1"
     if decoder_mode == "DMR":
         target_type = "decodeConfigDMR"
+    ignore_data_calls_val = "true" if DIGITAL_IGNORE_DATA_CALLS else "false"
 
     if decode_conf is None or str(decode_conf.get("type", "")).strip() != target_type:
         if decode_conf is not None:
@@ -300,14 +304,14 @@ def _apply_decode_configuration(channel: ET.Element, decoder_mode: str) -> None:
 
     if decoder_mode == "DMR":
         decode_conf.set("traffic_channel_pool_size", "20")
-        decode_conf.set("ignore_data_calls", "false")
+        decode_conf.set("ignore_data_calls", ignore_data_calls_val)
         decode_conf.set("ignore_crc", "false")
         decode_conf.set("use_compressed_talkgroups", "false")
         return
 
     decode_conf.set("modulation", "C4FM")
     decode_conf.set("traffic_channel_pool_size", "20")
-    decode_conf.set("ignore_data_calls", "false")
+    decode_conf.set("ignore_data_calls", ignore_data_calls_val)
 
 
 def _digital_tuner_targets() -> list[str]:
@@ -471,19 +475,57 @@ def _alias_list_talkgroup_count(root: ET.Element, alias_list_name: str) -> int:
     return count
 
 
+_ALIAS_TG_ID_TYPES = {
+    "talkgroup",
+    "talkgrouprange",
+    "p25fullyqualifiedtalkgroup",
+    "talkgroupid",
+}
+
+
+def _alias_talkgroup_value(alias_id: ET.Element) -> str:
+    if str(alias_id.get("type", "")).strip().lower() not in _ALIAS_TG_ID_TYPES:
+        return ""
+    for key in ("value", "talkgroup", "tgid", "id"):
+        value = str(alias_id.get(key, "")).strip()
+        if value.isdigit():
+            return value
+    return ""
+
+
+def _collect_alias_talkgroup_map(root: ET.Element, alias_list_name: str) -> dict[str, ET.Element]:
+    mapping: dict[str, ET.Element] = {}
+    for alias in root.findall("alias"):
+        if str(alias.get("list", "")).strip() != alias_list_name:
+            continue
+        for alias_id in alias.findall("id"):
+            dec = _alias_talkgroup_value(alias_id)
+            if dec and dec not in mapping:
+                mapping[dec] = alias
+                break
+    return mapping
+
+
 def _seed_alias_list_from_profile(root: ET.Element, alias_list_name: str, profile_dir: str) -> int:
     if not alias_list_name or not profile_dir:
-        return 0
-    if _alias_list_talkgroup_count(root, alias_list_name) > 0:
         return 0
 
     seed_rows = _read_profile_alias_seed_rows(profile_dir)
     if not seed_rows:
         return 0
 
+    existing = _collect_alias_talkgroup_map(root, alias_list_name)
     stream_name = str(DIGITAL_SDRTRUNK_STREAM_NAME or "").strip()
     added = 0
     for dec, name, group in seed_rows:
+        alias = existing.get(dec)
+        if alias is not None:
+            if name and not str(alias.get("name", "")).strip():
+                alias.set("name", name)
+            if group and not str(alias.get("group", "")).strip():
+                alias.set("group", group)
+            continue
+
         alias = ET.SubElement(
             root,
             "alias",
@@ -513,6 +555,7 @@ def _seed_alias_list_from_profile(root: ET.Element, alias_list_name: str, profil
                 },
             )
         added += 1
+        existing[dec] = alias
 
     has_priority = False
     for alias in root.findall("alias"):
@@ -700,6 +743,8 @@ def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
     # Keep only call-type events when an explicit event field is present.
     if event_kind and "call" not in event_kind and not include_grant_debug:
         return None
+    if event_kind and "encrypted" in event_kind and not include_grant_debug:
+        return None
     if event_kind and "data call" in event_kind and not include_grant_debug:
         return None
 
@@ -812,6 +857,18 @@ def _extract_tgid(text: str) -> str:
     if compact.isdigit():
         return _normalize_tgid(compact)
     return ""
+
+
+def _is_auto_placeholder_label(value: str) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return False
+    low = text.lower()
+    if "auto-learned clear voice" in low:
+        return True
+    if _AUTO_ALPHA_RE.fullmatch(text):
+        return True
+    return False
 
 
 def _is_non_fatal_error(line: str) -> bool:
@@ -1802,6 +1859,43 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             return event
         return _extract_event_from_line(text, fallback_ms)
 
+    def _event_log_line_encryption_hint(self, raw: str, path: str) -> tuple[str, bool]:
+        text = (raw or "").strip()
+        if not text:
+            return "", False
+        header = self._event_log_headers.get(path)
+        try:
+            row = next(csv.reader([text]))
+        except Exception:
+            return "", False
+        if not row:
+            return "", False
+        if header is None:
+            norm = [_norm_key(x) for x in row]
+            joined = " ".join(norm)
+            if any(_norm_key(k) in joined for k in _EVENT_HEADER_KEYS):
+                self._event_log_headers[path] = norm
+            return "", False
+        if row and all(_norm_key(x) == (header[i] if i < len(header) else "") for i, x in enumerate(row[: len(header)])):
+            return "", False
+
+        row_norm = {}
+        for idx, key in enumerate(header):
+            if idx >= len(row):
+                break
+            row_norm[key] = row[idx]
+        event_id = _row_value(row_norm, _EVENT_ID_KEYS)
+        if not event_id:
+            return "", False
+        event_kind = _row_value(row_norm, _EVENT_KIND_KEYS).lower()
+        details = _row_value(row_norm, _EVENT_DETAILS_KEYS)
+        encrypted = False
+        if event_kind and "encrypted" in event_kind:
+            encrypted = True
+        if details and re.search(r"\b(encrypt|encrypted|encryption)\b", details, re.I):
+            encrypted = True
+        return event_id, encrypted
+
     def _read_event_logs(self):
         events = []
         paths = self._list_event_log_files()
@@ -1811,18 +1905,31 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             lines = self._read_event_log_lines(path)
             if not lines:
                 continue
+            blocked_event_ids: set[str] = set()
+            path_events: list[dict] = []
             try:
                 mtime = os.path.getmtime(path)
             except Exception:
                 mtime = None
             fallback_ms = int(mtime * 1000) if mtime else now_ms
             for line in lines:
+                hinted_event_id, hinted_encrypted = self._event_log_line_encryption_hint(line, path)
+                if hinted_encrypted and hinted_event_id:
+                    blocked_event_ids.add(str(hinted_event_id).strip())
                 event = self._parse_event_log_line(line, path, fallback_ms)
                 if event:
                     mapped = self._map_event_label(event)
                     if mapped and mapped.get("muted"):
                         continue
-                    events.append(mapped)
+                    path_events.append(mapped)
+            if blocked_event_ids:
+                for item in path_events:
+                    event_id = str(item.get("event_id") or "").strip()
+                    if event_id and event_id in blocked_event_ids:
+                        continue
+                    events.append(item)
+            else:
+                events.extend(path_events)
         return events
 
     def _read_log_tail(self, max_lines: int | None = None):
@@ -2166,8 +2273,13 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                         continue
                     alpha = row_norm.get("alpha tag") or row_norm.get("alpha_tag") or ""
                     desc = row_norm.get("description") or row_norm.get("desc") or ""
-                    # Prefer RR Description for hit text; fall back to Alpha Tag.
-                    label = desc or alpha
+                    # Prefer RR Description unless it is an auto-placeholder.
+                    if _is_auto_placeholder_label(desc):
+                        label = alpha if not _is_auto_placeholder_label(alpha) else f"TG {dec}"
+                    else:
+                        label = desc or alpha
+                    if _is_auto_placeholder_label(label):
+                        label = f"TG {dec}"
                     if label:
                         tg_map[dec] = label
         except Exception:

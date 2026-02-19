@@ -39,6 +39,7 @@ DIGITAL_FORCE_PREFERRED_TUNER = os.getenv(
 DIGITAL_USE_MULTI_FREQ_SOURCE = os.getenv("DIGITAL_USE_MULTI_FREQ_SOURCE", "1").strip().lower() in _TRUTHY
 DIGITAL_SDRTRUNK_STREAM_NAME = os.getenv("DIGITAL_SDRTRUNK_STREAM_NAME", "DIGITAL").strip()
 DIGITAL_ATTACH_BROADCAST_CHANNEL = os.getenv("DIGITAL_ATTACH_BROADCAST_CHANNEL", "1").strip().lower() in _TRUTHY
+DIGITAL_IGNORE_DATA_CALLS = os.getenv("DIGITAL_IGNORE_DATA_CALLS", "1").strip().lower() in _TRUTHY
 AIRBAND_RTL_SERIAL = os.getenv("AIRBAND_RTL_SERIAL", os.getenv("SCANNER1_RTL_DEVICE", "")).strip()
 GROUND_RTL_SERIAL = os.getenv("GROUND_RTL_SERIAL", os.getenv("SCANNER2_RTL_DEVICE", "")).strip()
 SDRTRUNK_TUNER_CONFIG_PATH = Path(
@@ -465,19 +466,57 @@ def _alias_list_talkgroup_count(root: ET.Element, alias_list_name: str) -> int:
     return count
 
 
+_ALIAS_TG_ID_TYPES = {
+    "talkgroup",
+    "talkgrouprange",
+    "p25fullyqualifiedtalkgroup",
+    "talkgroupid",
+}
+
+
+def _alias_talkgroup_value(alias_id: ET.Element) -> str:
+    if str(alias_id.get("type", "")).strip().lower() not in _ALIAS_TG_ID_TYPES:
+        return ""
+    for key in ("value", "talkgroup", "tgid", "id"):
+        value = str(alias_id.get(key, "")).strip()
+        if value.isdigit():
+            return value
+    return ""
+
+
+def _collect_alias_talkgroup_map(root: ET.Element, alias_list_name: str) -> dict[str, ET.Element]:
+    mapping: dict[str, ET.Element] = {}
+    for alias in root.findall("alias"):
+        if str(alias.get("list", "")).strip() != alias_list_name:
+            continue
+        for alias_id in alias.findall("id"):
+            dec = _alias_talkgroup_value(alias_id)
+            if dec and dec not in mapping:
+                mapping[dec] = alias
+                break
+    return mapping
+
+
 def _seed_aliases_from_profile(root: ET.Element, alias_list_name: str, profile_dir: Path) -> int:
     if not alias_list_name:
-        return 0
-    if _alias_list_talkgroup_count(root, alias_list_name) > 0:
         return 0
 
     seed_rows = _profile_alias_seed_rows(profile_dir)
     if not seed_rows:
         return 0
 
+    existing = _collect_alias_talkgroup_map(root, alias_list_name)
     stream_name = str(DIGITAL_SDRTRUNK_STREAM_NAME or "").strip()
     added = 0
     for dec, name, group in seed_rows:
+        alias = existing.get(dec)
+        if alias is not None:
+            if name and not str(alias.get("name", "")).strip():
+                alias.set("name", name)
+            if group and not str(alias.get("group", "")).strip():
+                alias.set("group", group)
+            continue
+
         alias = ET.SubElement(
             root,
             "alias",
@@ -507,6 +546,7 @@ def _seed_aliases_from_profile(root: ET.Element, alias_list_name: str, profile_d
                 },
             )
         added += 1
+        existing[dec] = alias
 
     has_priority = False
     for alias in root.findall("alias"):
@@ -535,6 +575,19 @@ def _seed_aliases_from_profile(root: ET.Element, alias_list_name: str, profile_d
         )
 
     return added
+
+
+def _sync_decode_configuration(channel: ET.Element) -> None:
+    decode_conf = channel.find("decode_configuration")
+    if decode_conf is None:
+        decode_conf = ET.SubElement(channel, "decode_configuration")
+
+    dtype = str(decode_conf.get("type", "")).strip() or "decodeConfigP25Phase1"
+    decode_conf.set("type", dtype)
+    if dtype == "decodeConfigP25Phase1":
+        decode_conf.set("modulation", str(decode_conf.get("modulation", "")).strip() or "C4FM")
+    decode_conf.set("traffic_channel_pool_size", "20")
+    decode_conf.set("ignore_data_calls", "true" if DIGITAL_IGNORE_DATA_CALLS else "false")
 
 
 def _sync_playlist(profile_dir: Path, control_channels_hz: list[int]) -> dict[str, object]:
@@ -588,17 +641,7 @@ def _sync_playlist(profile_dir: Path, control_channels_hz: list[int]) -> dict[st
     source_conf = _ensure_child(channel, "source_configuration")
     source_state = _sync_source_configuration(source_conf, control_channels_hz)
 
-    if channel.find("decode_configuration") is None:
-        ET.SubElement(
-            channel,
-            "decode_configuration",
-            {
-                "type": "decodeConfigP25Phase1",
-                "modulation": "C4FM",
-                "traffic_channel_pool_size": "20",
-                "ignore_data_calls": "false",
-            },
-        )
+    _sync_decode_configuration(channel)
 
     _ensure_child(channel, "record_configuration")
 

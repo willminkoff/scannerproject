@@ -98,6 +98,10 @@ DIGITAL_ATTACH_BROADCAST_CHANNEL = os.getenv(
     "DIGITAL_ATTACH_BROADCAST_CHANNEL",
     "1",
 ).strip().lower() in ("1", "true", "yes", "on")
+DIGITAL_IGNORE_DATA_CALLS = os.getenv(
+    "DIGITAL_IGNORE_DATA_CALLS",
+    "1",
+).strip().lower() in ("1", "true", "yes", "on")
 DIGITAL_RTL_SERIAL_HINT = "DIGITAL_RTL_SERIAL not set; set it to your digital dongle serial"
 DIGITAL_MIXER_ENABLED = os.getenv("DIGITAL_MIXER_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
 DIGITAL_MIXER_AIRBAND_MOUNT = os.getenv("DIGITAL_MIXER_AIRBAND_MOUNT", "GND-air.mp3").strip().lstrip("/")
