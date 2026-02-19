@@ -2663,6 +2663,9 @@
         const hit = state.hits[i];
         if (!hit) continue;
         const src = String(hit.source || hit.type || '').trim().toLowerCase();
+        // Keep analog cards source-true: do not infer analog source from numeric
+        // digital labels/talkgroups (which can look like non-airband frequencies).
+        if (src === 'digital') continue;
         if (src === target) return hit;
         const n = parseFloat(String(hit.freq || ''));
         if (!Number.isFinite(n)) continue;
