@@ -698,6 +698,87 @@ def _row_value(row: dict, keys: tuple) -> str:
     return ""
 
 
+def _parse_listen_payload(payload: object) -> tuple[dict[str, bool], bool, dict[str, dict]]:
+    """Parse listen payloads across legacy and current schemas.
+
+    Supported formats:
+    - {"items": {"47152": true}, "default_listen": false}
+    - {"talkgroups": {"47152": {"listen": true, ...}}, "default_listen": false}
+    - {"talkgroups": {"47152": true}, ...}
+    """
+    mapping: dict[str, bool] = {}
+    metadata: dict[str, dict] = {}
+    default_listen = True
+    if not isinstance(payload, dict):
+        return mapping, default_listen, metadata
+
+    default_raw = payload.get("default_listen", payload.get("default", True))
+    default_listen = bool(default_raw)
+
+    items = payload.get("items")
+    if isinstance(items, dict):
+        for key, value in items.items():
+            dec = _normalize_tgid(str(key))
+            if not dec:
+                continue
+            mapping[dec] = bool(value)
+    elif isinstance(items, list):
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            dec = _normalize_tgid(
+                str(
+                    item.get("dec")
+                    or item.get("tgid")
+                    or item.get("id")
+                    or "",
+                )
+            )
+            if not dec:
+                continue
+            mapping[dec] = bool(item.get("listen"))
+
+    talkgroups = payload.get("talkgroups")
+    if isinstance(talkgroups, dict):
+        for key, value in talkgroups.items():
+            dec = _normalize_tgid(str(key))
+            if not dec:
+                continue
+            if isinstance(value, dict):
+                meta = {}
+                for mk, mv in value.items():
+                    mks = str(mk or "").strip()
+                    if not mks:
+                        continue
+                    if mks.lower() == "listen":
+                        mapping[dec] = bool(mv)
+                    else:
+                        meta[mks] = mv
+                if meta:
+                    metadata[dec] = meta
+            else:
+                mapping[dec] = bool(value)
+
+    return mapping, default_listen, metadata
+
+
+def _read_listen_config(path: str) -> tuple[dict[str, bool], bool, dict[str, dict]]:
+    mapping: dict[str, bool] = {}
+    metadata: dict[str, dict] = {}
+    default_listen = True
+    if not path or not os.path.isfile(path):
+        return mapping, default_listen, metadata
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            payload = json.load(f) or {}
+        mapping, default_listen, metadata = _parse_listen_payload(payload)
+    except Exception:
+        mapping = {}
+        metadata = {}
+        default_listen = True
+    return mapping, default_listen, metadata
+
+
 def _normalize_tgid(value: str) -> str:
     raw = str(value or "").strip()
     if not raw.isdigit():
@@ -1206,18 +1287,8 @@ def read_digital_talkgroups(profile_id: str, max_rows: int = 5000):
     if not path:
         return False, "talkgroups file not found"
 
-    listen_map = {}
     listen_path = os.path.join(profile_dir, _LISTEN_FILENAME)
-    if os.path.isfile(listen_path):
-        try:
-            with open(listen_path, "r", encoding="utf-8", errors="ignore") as f:
-                payload = json.load(f) or {}
-            if isinstance(payload, dict):
-                items = payload.get("items")
-                if isinstance(items, dict):
-                    listen_map = {str(k): bool(v) for k, v in items.items()}
-        except Exception:
-            listen_map = {}
+    listen_map, default_listen, _ = _read_listen_config(listen_path)
 
     reject_map, reject_summary = _read_profile_rejected_grants(profile_id)
 
@@ -1240,10 +1311,7 @@ def read_digital_talkgroups(profile_id: str, max_rows: int = 5000):
                     "description": row_norm.get("description") or "",
                     "tag": row_norm.get("tag") or "",
                 }
-                if listen_map:
-                    item["listen"] = bool(listen_map.get(dec, True))
-                else:
-                    item["listen"] = True
+                item["listen"] = bool(listen_map.get(dec, default_listen))
                 reject_entry = reject_map.get(dec) or {}
                 reject_count = int(reject_entry.get("count") or 0)
                 item["rejectedGrantCount"] = reject_count
@@ -1271,29 +1339,35 @@ def write_digital_listen(profile_id: str, items: list):
     if err:
         return False, err
     listen_path = os.path.join(profile_dir, _LISTEN_FILENAME)
-    mapping = {}
+    incoming: dict[str, bool] = {}
     for item in items or []:
         if not isinstance(item, dict):
             continue
-        dec = str(item.get("dec") or "").strip()
-        if not dec.isdigit():
+        dec = _normalize_tgid(str(item.get("dec") or item.get("tgid") or ""))
+        if not dec:
             continue
-        mapping[dec] = bool(item.get("listen"))
-    default_listen = True
-    if os.path.isfile(listen_path):
-        try:
-            with open(listen_path, "r", encoding="utf-8", errors="ignore") as f:
-                existing = json.load(f) or {}
-            if isinstance(existing, dict):
-                default_listen = bool(existing.get("default_listen", existing.get("default", True)))
-        except Exception:
-            default_listen = True
+        incoming[dec] = bool(item.get("listen"))
+    existing_map, default_listen, existing_meta = _read_listen_config(listen_path)
+    mapping = dict(existing_map)
+    mapping.update(incoming)
+
+    talkgroups_payload: dict[str, dict] = {}
+    keys = set(mapping.keys()) | set(existing_meta.keys())
+    for dec in sorted(keys, key=lambda x: int(x)):
+        node = {}
+        meta = existing_meta.get(dec) or {}
+        if isinstance(meta, dict):
+            node.update(meta)
+        node["listen"] = bool(mapping.get(dec, default_listen))
+        talkgroups_payload[dec] = node
 
     payload = {
         "updated": int(time.time()),
         "items": mapping,
         "default_listen": bool(default_listen),
     }
+    if talkgroups_payload:
+        payload["talkgroups"] = talkgroups_payload
     try:
         tmp = listen_path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
@@ -2009,6 +2083,48 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             "playlist_frequency_hz": frequencies[:64],
         }
 
+    def _listen_filter_summary(self) -> dict:
+        profile_dir = self._read_active_profile_dir()
+        if not profile_dir:
+            return {
+                "listen_filter_ok": False,
+                "listen_filter_error": "no active profile",
+                "listen_talkgroup_count": 0,
+                "listen_enabled_count": 0,
+                "listen_default": True,
+                "listen_map_entries": 0,
+                "listen_filter_blocking": False,
+            }
+
+        tg_map = self._load_talkgroup_map() or {}
+        listen_map = self._load_listen_map() or {}
+        default_listen = bool(self._listen_default)
+
+        talkgroup_count = len(tg_map)
+        enabled_count = 0
+        if talkgroup_count > 0:
+            if default_listen and not listen_map:
+                enabled_count = talkgroup_count
+            else:
+                for tgid in tg_map.keys():
+                    if listen_map.get(str(tgid), default_listen):
+                        enabled_count += 1
+        blocking = talkgroup_count > 0 and enabled_count <= 0
+        payload = {
+            "listen_filter_ok": True,
+            "listen_talkgroup_count": int(talkgroup_count),
+            "listen_enabled_count": int(enabled_count),
+            "listen_default": bool(default_listen),
+            "listen_map_entries": int(len(listen_map)),
+            "listen_filter_blocking": bool(blocking),
+        }
+        if blocking:
+            payload["listen_filter_error"] = (
+                "all talkgroups are muted by listen settings "
+                "(talkgroups>0, enabled=0)"
+            )
+        return payload
+
     def preflight(self):
         lines = self._read_log_tail()
         busy_hits = self._detect_tuner_busy(lines)
@@ -2032,6 +2148,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             "tuner_busy_last_time_ms": last_time,
         }
         payload.update(self._playlist_source_summary())
+        payload.update(self._listen_filter_summary())
         return payload
 
     def start(self):
@@ -2313,18 +2430,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 return self._listen_map
         mapping = {}
         default_listen = True
-        try:
-            with open(listen_path, "r", encoding="utf-8", errors="ignore") as f:
-                payload = json.load(f) or {}
-            if isinstance(payload, dict):
-                default_raw = payload.get("default_listen", payload.get("default", True))
-                default_listen = bool(default_raw)
-                items = payload.get("items")
-                if isinstance(items, dict):
-                    mapping = {str(k): bool(v) for k, v in items.items()}
-        except Exception:
-            mapping = {}
-            default_listen = True
+        mapping, default_listen, _ = _read_listen_config(listen_path)
         self._listen_map = mapping
         self._listen_map_profile = profile_dir
         self._listen_map_mtime = (listen_path, mtime)
@@ -2575,6 +2681,14 @@ class DigitalManager:
             payload["digital_playlist_preferred_tuner"] = str(preflight.get("playlist_preferred_tuner"))
         if preflight.get("playlist_source_error"):
             payload["digital_playlist_source_error"] = str(preflight.get("playlist_source_error"))
+        if "listen_talkgroup_count" in preflight:
+            payload["digital_listen_talkgroup_count"] = int(preflight.get("listen_talkgroup_count") or 0)
+        if "listen_enabled_count" in preflight:
+            payload["digital_listen_enabled_count"] = int(preflight.get("listen_enabled_count") or 0)
+        if "listen_filter_blocking" in preflight:
+            payload["digital_listen_filter_blocking"] = bool(preflight.get("listen_filter_blocking"))
+        if preflight.get("listen_filter_error"):
+            payload["digital_listen_filter_error"] = str(preflight.get("listen_filter_error"))
         if preflight.get("tuner_busy"):
             air_serial = os.getenv("AIRBAND_RTL_SERIAL", "").strip()
             ground_serial = os.getenv("GROUND_RTL_SERIAL", "").strip()
@@ -2597,6 +2711,12 @@ class DigitalManager:
                 f"In SDRTrunk, disable unrelated RTL tuners and bind control to {digital_serial or 'your digital dongle'}."
             )
             payload["digital_last_warning"] = msg
+        elif preflight.get("listen_filter_blocking"):
+            payload["digital_last_warning"] = (
+                "Digital listen filter currently blocks all talkgroups "
+                f"(enabled={int(preflight.get('listen_enabled_count') or 0)} / "
+                f"{int(preflight.get('listen_talkgroup_count') or 0)})."
+            )
         elif not DIGITAL_RTL_SERIAL and not _preferred_tuner_target() and DIGITAL_RTL_SERIAL_HINT:
             payload.setdefault("digital_last_warning", DIGITAL_RTL_SERIAL_HINT)
 

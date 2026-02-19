@@ -638,6 +638,12 @@ sudo systemctl restart scanner-digital
 - `scripts/digital_profile_audit.py` is the canonical validator/fixer for profile readiness.
 - Run with `--fix` to safely create/repair `talkgroups_listen.json` and backfill missing listen TGIDs.
 - Run with `--strict-warnings` in CI or deployment checks if you want warnings to fail builds.
+- Canonical listen-map format is now dual-schema for compatibility:
+  - `items` (runtime allow/mute map)
+  - `talkgroups` (metadata + `listen`)
+  - `default_listen` fallback
+- `GET /api/digital/preflight` now exposes listen-filter health:
+  - `listen_filter_blocking=true` means all configured TGIDs are muted (`enabled=0`).
 
 **HomePatrol HPDB offline database workflow**:
 - `scripts/homepatrol_db.py` imports Uniden HomePatrol `.hpd` files into SQLite so you can build new profiles locally without web lookups.

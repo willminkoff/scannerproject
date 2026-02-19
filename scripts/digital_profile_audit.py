@@ -147,36 +147,86 @@ def _read_talkgroups(path: Path) -> tuple[dict[str, dict[str, str]], int]:
     return rows, duplicates
 
 
-def _read_listen(path: Path) -> tuple[str, bool, dict[str, bool]]:
+def _read_listen(path: Path) -> tuple[str, str, bool, dict[str, bool], dict[str, dict[str, Any]]]:
     if not path.is_file():
-        return "missing", True, {}
+        return "missing", "missing", True, {}, {}
     try:
         payload = json.loads(path.read_text(encoding="utf-8", errors="ignore") or "{}")
     except Exception:
-        return "invalid", True, {}
+        return "invalid", "invalid", True, {}, {}
 
     if not isinstance(payload, dict):
-        return "invalid", True, {}
+        return "invalid", "invalid", True, {}, {}
 
     default_listen = bool(payload.get("default_listen", payload.get("default", True)))
-    items_raw = payload.get("items")
-    if not isinstance(items_raw, dict):
-        return "invalid", default_listen, {}
-
     items: dict[str, bool] = {}
-    for key, value in items_raw.items():
-        k = str(key).strip()
-        if not k.isdigit():
-            continue
-        items[k] = bool(value)
-    return "ok", default_listen, items
+    metadata: dict[str, dict[str, Any]] = {}
+    has_items = False
+    has_talkgroups = False
+
+    items_raw = payload.get("items")
+    if isinstance(items_raw, dict):
+        has_items = True
+        for key, value in items_raw.items():
+            k = str(key).strip()
+            if not k.isdigit():
+                continue
+            items[k] = bool(value)
+
+    talkgroups_raw = payload.get("talkgroups")
+    if isinstance(talkgroups_raw, dict):
+        has_talkgroups = True
+        for key, value in talkgroups_raw.items():
+            k = str(key).strip()
+            if not k.isdigit():
+                continue
+            if isinstance(value, dict):
+                if "listen" in value:
+                    items[k] = bool(value.get("listen"))
+                node_meta = {
+                    str(mk): mv
+                    for mk, mv in value.items()
+                    if str(mk).strip() and str(mk).strip().lower() != "listen"
+                }
+                if node_meta:
+                    metadata[k] = node_meta
+            else:
+                items[k] = bool(value)
+
+    if not has_items and not has_talkgroups:
+        return "invalid", "invalid", default_listen, {}, {}
+
+    if has_items and has_talkgroups:
+        schema = "dual"
+    elif has_items:
+        schema = "items"
+    else:
+        schema = "talkgroups"
+    return "ok", schema, default_listen, items, metadata
 
 
-def _write_listen(path: Path, default_listen: bool, items: dict[str, bool]) -> None:
+def _write_listen(
+    path: Path,
+    default_listen: bool,
+    items: dict[str, bool],
+    metadata: dict[str, dict[str, Any]] | None = None,
+) -> None:
+    items_sorted = dict(sorted(items.items(), key=lambda kv: int(kv[0])))
+    talkgroups: dict[str, dict[str, Any]] = {}
+    metadata = metadata or {}
+    for tgid, listen in items_sorted.items():
+        node: dict[str, Any] = {}
+        node_meta = metadata.get(tgid)
+        if isinstance(node_meta, dict):
+            node.update(node_meta)
+        node["listen"] = bool(listen)
+        talkgroups[tgid] = node
+
     payload = {
         "updated": int(datetime.now().timestamp()),
         "default_listen": bool(default_listen),
-        "items": dict(sorted(items.items(), key=lambda kv: int(kv[0]))),
+        "items": items_sorted,
+        "talkgroups": talkgroups,
     }
     tmp = path.with_suffix(path.suffix + ".tmp")
     with tmp.open("w", encoding="utf-8") as handle:
@@ -244,11 +294,13 @@ def audit_profile(profile_dir: Path) -> dict[str, Any]:
         warnings.append(f"placeholder labels present: {placeholders}")
 
     listen_path = profile_dir / "talkgroups_listen.json"
-    listen_status, listen_default, listen_items = _read_listen(listen_path)
+    listen_status, listen_schema, listen_default, listen_items, listen_metadata = _read_listen(listen_path)
     result["listen_path"] = listen_path
     result["listen_status"] = listen_status
+    result["listen_schema"] = listen_schema
     result["listen_default"] = listen_default
     result["listen_items"] = listen_items
+    result["listen_metadata"] = listen_metadata
     if listen_status == "missing":
         warnings.append("missing talkgroups_listen.json")
     elif listen_status == "invalid":
@@ -284,11 +336,13 @@ def apply_fixes(result: dict[str, Any], default_listen_for_new: bool) -> list[st
 
     listen_path: Path = result["listen_path"]
     listen_status: str = result["listen_status"]
+    listen_schema: str = result.get("listen_schema", "invalid")
     listen_default: bool = result["listen_default"]
     listen_items: dict[str, bool] = dict(result.get("listen_items", {}))
+    listen_metadata: dict[str, dict[str, Any]] = dict(result.get("listen_metadata", {}))
     missing_listen_tgids: list[str] = list(result.get("missing_listen_tgids", []))
 
-    need_listen_fix = listen_status != "ok" or bool(missing_listen_tgids)
+    need_listen_fix = listen_status != "ok" or bool(missing_listen_tgids) or listen_schema != "dual"
     if need_listen_fix and talkgroups:
         if listen_path.exists():
             backup = listen_path.with_name(f"{listen_path.name}.bak.{_timestamp()}.canon")
@@ -297,11 +351,12 @@ def apply_fixes(result: dict[str, Any], default_listen_for_new: bool) -> list[st
 
         if listen_status != "ok":
             listen_items = {}
+            listen_metadata = {}
             listen_default = default_listen_for_new
         for tgid in sorted(talkgroups.keys(), key=int):
             if tgid not in listen_items:
                 listen_items[tgid] = default_listen_for_new
-        _write_listen(listen_path, listen_default, listen_items)
+        _write_listen(listen_path, listen_default, listen_items, metadata=listen_metadata)
         fixes.append("wrote talkgroups_listen.json with complete TGID coverage")
 
     return fixes
@@ -341,7 +396,8 @@ def print_report(result: dict[str, Any]) -> None:
     print(
         "Listen map: "
         f"{result.get('listen_status')} "
-        f"(default_listen={str(result.get('listen_default', True)).lower()}, "
+        f"(schema={result.get('listen_schema', 'unknown')}, "
+        f"default_listen={str(result.get('listen_default', True)).lower()}, "
         f"enabled={result.get('listen_true_count', 0)}, "
         f"missing_entries={len(missing_listen_tgids)})"
     )

@@ -156,6 +156,7 @@ DIGITAL_HITS_REQUIRE_ACTIVE_STREAM = os.getenv(
     "1",
 ).strip().lower() in ("1", "true", "yes", "on")
 DIGITAL_HIT_RECENT_SEC = max(5.0, float(os.getenv("DIGITAL_HIT_RECENT_SEC", "180")))
+DIGITAL_HITS_MIN_VISIBLE = max(0, int(os.getenv("DIGITAL_HITS_MIN_VISIBLE", "3")))
 _DIGITAL_IDLE_TITLES = {"", "-", "idle", "n/a", "scanning", "scanning..."}
 _ANALOG_LABEL_CACHE: dict[str, dict] = {}
 _LOCAL_PROFILES_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "profiles"))
@@ -340,6 +341,67 @@ def _coalesce_digital_hits(items: list[dict], window_sec: float = DIGITAL_HIT_CO
     return kept
 
 
+def _hit_row_key(item: dict) -> tuple:
+    return (
+        str(item.get("source") or ""),
+        str(item.get("tgid") or ""),
+        str(item.get("label_full") or item.get("label") or item.get("freq") or ""),
+        str(item.get("time") or ""),
+    )
+
+
+def _ensure_digital_visibility(merged: list[dict], digital_items: list[dict], limit: int) -> list[dict]:
+    """Keep at least N digital rows visible in the hit list when digital hits exist."""
+    limit = max(1, int(limit or 1))
+    if not merged:
+        return merged
+    if DIGITAL_HITS_MIN_VISIBLE <= 0 or not digital_items:
+        return merged[:limit]
+
+    top = list(merged[:limit])
+    min_visible = min(DIGITAL_HITS_MIN_VISIBLE, limit, len(digital_items))
+    visible = sum(1 for row in top if str(row.get("source") or "") == "digital")
+    if visible >= min_visible:
+        return top
+
+    need = min_visible - visible
+    existing_keys = {_hit_row_key(row) for row in top}
+    inject: list[dict] = []
+    for row in sorted(digital_items, key=lambda item: float(item.get("_ts", 0.0)), reverse=True):
+        key = _hit_row_key(row)
+        if key in existing_keys:
+            continue
+        inject.append(dict(row))
+        existing_keys.add(key)
+        if len(inject) >= need:
+            break
+    if not inject:
+        return top
+
+    # Drop oldest non-digital rows to make room for injected digital rows.
+    out = list(top)
+    remaining = len(inject)
+    for idx in range(len(out) - 1, -1, -1):
+        if remaining <= 0:
+            break
+        if str(out[idx].get("source") or "") != "digital":
+            out.pop(idx)
+            remaining -= 1
+
+    out = inject + out
+    deduped: list[dict] = []
+    seen: set[tuple] = set()
+    for row in out:
+        key = _hit_row_key(row)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(row)
+        if len(deduped) >= limit:
+            break
+    return deduped
+
+
 def _unit_active_cached(unit: str) -> bool:
     now = time.monotonic()
     with _CACHE_LOCK:
@@ -437,7 +499,9 @@ def _build_hits_payload(limit: int = 50) -> dict:
     for item in merged:
         item.pop("_ts", None)
     if len(merged) > limit:
-        merged = merged[:limit]
+        merged = _ensure_digital_visibility(merged, digital_items, limit)
+    else:
+        merged = _ensure_digital_visibility(merged, digital_items, limit)
     return {"items": merged}
 
 
@@ -916,6 +980,13 @@ class Handler(BaseHTTPRequestHandler):
                 "playlist_frequency_hz": preflight.get("playlist_frequency_hz") or [],
                 "playlist_preferred_tuner": preflight.get("playlist_preferred_tuner") or "",
                 "playlist_source_error": preflight.get("playlist_source_error") or "",
+                "listen_filter_ok": bool(preflight.get("listen_filter_ok")),
+                "listen_filter_blocking": bool(preflight.get("listen_filter_blocking")),
+                "listen_filter_error": preflight.get("listen_filter_error") or "",
+                "listen_talkgroup_count": int(preflight.get("listen_talkgroup_count") or 0),
+                "listen_enabled_count": int(preflight.get("listen_enabled_count") or 0),
+                "listen_default": bool(preflight.get("listen_default")),
+                "listen_map_entries": int(preflight.get("listen_map_entries") or 0),
                 "rtl_devices": [],
                 "rtl_devices_note": "not implemented",
                 "device_holders": {"ok": False, "error": "not implemented"},
