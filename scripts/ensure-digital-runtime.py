@@ -32,6 +32,10 @@ DIGITAL_RTL_SERIAL_SECONDARY = os.getenv(
     os.getenv("DIGITAL_RTL_SERIAL_2", ""),
 ).strip()
 DIGITAL_PREFERRED_TUNER = os.getenv("DIGITAL_PREFERRED_TUNER", "").strip()
+DIGITAL_FORCE_PREFERRED_TUNER = os.getenv(
+    "DIGITAL_FORCE_PREFERRED_TUNER",
+    "0",
+).strip().lower() in _TRUTHY
 DIGITAL_USE_MULTI_FREQ_SOURCE = os.getenv("DIGITAL_USE_MULTI_FREQ_SOURCE", "1").strip().lower() in _TRUTHY
 DIGITAL_SDRTRUNK_STREAM_NAME = os.getenv("DIGITAL_SDRTRUNK_STREAM_NAME", "DIGITAL").strip()
 DIGITAL_ATTACH_BROADCAST_CHANNEL = os.getenv("DIGITAL_ATTACH_BROADCAST_CHANNEL", "1").strip().lower() in _TRUTHY
@@ -321,6 +325,11 @@ def _ensure_child(parent: ET.Element, tag: str) -> ET.Element:
 
 
 def _preferred_tuner_target() -> str:
+    # In dual-dongle digital mode, don't pin the control source to a single
+    # tuner. Let SDRTrunk allocate one tuner for control and the other for
+    # traffic channels.
+    if DIGITAL_RTL_SERIAL_SECONDARY and not DIGITAL_FORCE_PREFERRED_TUNER:
+        return ""
     if DIGITAL_PREFERRED_TUNER:
         return DIGITAL_PREFERRED_TUNER
     if DIGITAL_RTL_SERIAL:
@@ -357,6 +366,8 @@ def _sync_source_configuration(source_conf: ET.Element, control_channels_hz: lis
     preferred_tuner = _preferred_tuner_target()
     if preferred_tuner:
         source_conf.set("preferred_tuner", preferred_tuner)
+    elif "preferred_tuner" in source_conf.attrib:
+        del source_conf.attrib["preferred_tuner"]
 
     return {
         "source_mode": "multi" if use_multi else "single",

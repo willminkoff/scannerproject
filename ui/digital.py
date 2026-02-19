@@ -20,6 +20,7 @@ try:
         DIGITAL_EVENT_LOG_DIR,
         DIGITAL_EVENT_LOG_MODE,
         DIGITAL_EVENT_LOG_TAIL_LINES,
+        DIGITAL_FORCE_PREFERRED_TUNER,
         DIGITAL_LOG_PATH,
         DIGITAL_PLAYLIST_PATH,
         DIGITAL_PROFILES_DIR,
@@ -44,6 +45,7 @@ except ImportError:
         DIGITAL_EVENT_LOG_DIR,
         DIGITAL_EVENT_LOG_MODE,
         DIGITAL_EVENT_LOG_TAIL_LINES,
+        DIGITAL_FORCE_PREFERRED_TUNER,
         DIGITAL_LOG_PATH,
         DIGITAL_PLAYLIST_PATH,
         DIGITAL_PROFILES_DIR,
@@ -323,6 +325,10 @@ def _digital_tuner_targets() -> list[str]:
 
 
 def _preferred_tuner_target() -> str:
+    # In dual-dongle digital mode, avoid pinning to one tuner so SDRTrunk can
+    # split control and traffic across both enabled digital tuners.
+    if DIGITAL_RTL_SERIAL_SECONDARY and not DIGITAL_FORCE_PREFERRED_TUNER:
+        return ""
     if DIGITAL_PREFERRED_TUNER:
         return DIGITAL_PREFERRED_TUNER
     if DIGITAL_RTL_SERIAL:
@@ -359,6 +365,8 @@ def _sync_source_configuration(source_conf: ET.Element, control_channels: list[i
     preferred_tuner = _preferred_tuner_target()
     if preferred_tuner:
         source_conf.set("preferred_tuner", preferred_tuner)
+    elif "preferred_tuner" in source_conf.attrib:
+        del source_conf.attrib["preferred_tuner"]
 
     return {
         "source_mode": "multi" if use_multi else "single",
@@ -2477,7 +2485,7 @@ class DigitalManager:
                 f"In SDRTrunk, disable unrelated RTL tuners and bind control to {digital_serial or 'your digital dongle'}."
             )
             payload["digital_last_warning"] = msg
-        elif not _preferred_tuner_target() and DIGITAL_RTL_SERIAL_HINT:
+        elif not DIGITAL_RTL_SERIAL and not _preferred_tuner_target() and DIGITAL_RTL_SERIAL_HINT:
             payload.setdefault("digital_last_warning", DIGITAL_RTL_SERIAL_HINT)
 
         # Auto-clear stale error/warning once digital has recovered and is producing activity.

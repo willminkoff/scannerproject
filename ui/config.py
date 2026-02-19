@@ -84,6 +84,10 @@ DIGITAL_RTL_SERIAL_SECONDARY = os.getenv(
     os.getenv("DIGITAL_RTL_SERIAL_2", ""),
 ).strip()
 DIGITAL_PREFERRED_TUNER = os.getenv("DIGITAL_PREFERRED_TUNER", "").strip()
+DIGITAL_FORCE_PREFERRED_TUNER = os.getenv(
+    "DIGITAL_FORCE_PREFERRED_TUNER",
+    "0",
+).strip().lower() in ("1", "true", "yes", "on")
 DIGITAL_USE_MULTI_FREQ_SOURCE = os.getenv(
     "DIGITAL_USE_MULTI_FREQ_SOURCE",
     "1",

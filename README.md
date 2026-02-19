@@ -389,6 +389,7 @@ Live-only digital backend control with in-memory metadata (no recording or persi
 - `DIGITAL_RTL_SERIAL_SECONDARY` (optional second digital RTL serial for traffic capacity)
 - `DIGITAL_RTL_DEVICE` (RTL-SDR device index or serial; used by your SDRTrunk profile configuration)
 - `DIGITAL_PREFERRED_TUNER` (optional explicit SDRTrunk tuner name; overrides `DIGITAL_RTL_SERIAL` when set)
+- `DIGITAL_FORCE_PREFERRED_TUNER` (default: `0`; when `1`, keeps preferred-tuner pinning even with a secondary digital tuner configured)
 - `DIGITAL_USE_MULTI_FREQ_SOURCE` (default: `1`; when enabled, runtime writes multi-frequency control-channel source config)
 - `DIGITAL_SOURCE_ROTATION_DELAY_MS` (default: `500`; rotation delay for multi-frequency control scanning)
 - `DIGITAL_SDRTRUNK_STREAM_NAME` (default: `DIGITAL`; SDRTrunk stream name used for alias `broadcastChannel` wiring)
@@ -418,7 +419,9 @@ This repo already tracks RTL-SDR serials for the analog scanners in `profiles/rt
 At runtime, `ensure-digital-runtime.py` and profile switches now write the SDRTrunk `source_configuration` from `control_channels.txt`:
 - first control channel is still honored
 - when multiple control channels exist, it uses a multi-frequency tuner source
-- preferred tuner is set from `DIGITAL_PREFERRED_TUNER`, or `DIGITAL_RTL_SERIAL` if no explicit preferred tuner is provided
+- preferred tuner is set from `DIGITAL_PREFERRED_TUNER`
+- if `DIGITAL_RTL_SERIAL_SECONDARY` is also set, no preferred tuner is pinned (SDRTrunk auto-allocates across both digital tuners)
+- otherwise it falls back to `DIGITAL_RTL_SERIAL`
 
 **Dongle serial locking**:
 These mappings prevent device-busy conflicts:
@@ -432,7 +435,7 @@ Enforcement:
 - `/api/digital/preflight` reports recent tuner-busy errors and expected serials.
 
 **Second digital dongle (P25 ready)**:
-Use this when you want one digital tuner pinned for control-channel tracking and an extra tuner available for traffic channels.
+Use this when you want SDRTrunk to auto-allocate one digital tuner for control and one for traffic.
 
 Example `/etc/airband-ui.conf`:
 ```bash
@@ -442,9 +445,10 @@ DIGITAL_USE_MULTI_FREQ_SOURCE=1
 DIGITAL_SOURCE_ROTATION_DELAY_MS=500
 ```
 
-Optional exact tuner-name pinning (from SDRTrunk tuner label):
+Optional exact tuner-name pinning (from SDRTrunk tuner label). Only set this if you intentionally want to force control onto one tuner:
 ```bash
 DIGITAL_PREFERRED_TUNER="RTL2832 SDR/R820T 56919602"
+DIGITAL_FORCE_PREFERRED_TUNER=1
 ```
 
 Verification:
@@ -452,7 +456,7 @@ Verification:
   - `expected_serials.digital` and `expected_serials.digital_secondary`
   - `playlist_source_ok=true`
   - `playlist_source_type=TUNER_MULTIPLE_FREQUENCIES` (when profile has >1 control channel)
-  - `playlist_preferred_tuner` matching your configured control tuner
+  - `playlist_preferred_tuner` empty when dual-digital auto-allocation is active, or matching your explicit `DIGITAL_PREFERRED_TUNER` when set
 
 **SprontPi recommended defaults**:
 If you are on SprontPi, set these in `/etc/airband-ui.conf` (or your UI EnvironmentFile):
