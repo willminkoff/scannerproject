@@ -36,6 +36,7 @@ DIGITAL_FORCE_PREFERRED_TUNER = os.getenv(
     "DIGITAL_FORCE_PREFERRED_TUNER",
     "0",
 ).strip().lower() in _TRUTHY
+DIGITAL_REQUIRE_TUNER = os.getenv("DIGITAL_REQUIRE_TUNER", "1").strip().lower() in _TRUTHY
 DIGITAL_USE_MULTI_FREQ_SOURCE = os.getenv("DIGITAL_USE_MULTI_FREQ_SOURCE", "1").strip().lower() in _TRUTHY
 DIGITAL_SDRTRUNK_STREAM_NAME = os.getenv("DIGITAL_SDRTRUNK_STREAM_NAME", "DIGITAL").strip()
 DIGITAL_ATTACH_BROADCAST_CHANNEL = os.getenv("DIGITAL_ATTACH_BROADCAST_CHANNEL", "1").strip().lower() in _TRUTHY
@@ -145,8 +146,17 @@ def _sync_tuner_configuration() -> dict[str, object]:
     digital_serials = [s for s in (DIGITAL_RTL_SERIAL, DIGITAL_RTL_SERIAL_SECONDARY) if s]
     analog_serials = [s for s in (AIRBAND_RTL_SERIAL, GROUND_RTL_SERIAL) if s]
 
+    all_rtl_uids = set(serial_to_uid.values())
     digital_uids = {serial_to_uid[s] for s in digital_serials if s in serial_to_uid}
     analog_uids = {serial_to_uid[s] for s in analog_serials if s in serial_to_uid}
+    uid_source = "configured"
+    if not digital_uids:
+        fallback_uids = {uid for uid in all_rtl_uids if uid not in analog_uids}
+        if fallback_uids:
+            digital_uids = fallback_uids
+            uid_source = "fallback_non_analog"
+        else:
+            uid_source = "none"
 
     changed = False
     disabled_in = data.get("disabledTuners")
@@ -214,6 +224,9 @@ def _sync_tuner_configuration() -> dict[str, object]:
         "reason": "ok",
         "digital_uids": sorted(digital_uids),
         "analog_uids": sorted(analog_uids),
+        "available_rtl_uids": sorted(all_rtl_uids),
+        "available_rtl_serials": sorted(serial_to_uid),
+        "digital_uid_source": uid_source,
     }
 
 
@@ -657,6 +670,15 @@ def main() -> int:
         target = _choose_profile()
         _point_active_link(target)
         tuner_state = _sync_tuner_configuration()
+        digital_uids = tuner_state.get("digital_uids") or []
+        if DIGITAL_REQUIRE_TUNER and not digital_uids:
+            available_serials = ",".join(tuner_state.get("available_rtl_serials") or []) or "none"
+            available_uids = ",".join(tuner_state.get("available_rtl_uids") or []) or "none"
+            raise RuntimeError(
+                "no digital RTL tuner detected "
+                f"(configured={','.join([s for s in (DIGITAL_RTL_SERIAL, DIGITAL_RTL_SERIAL_SECONDARY) if s]) or 'none'} "
+                f"available_serials={available_serials} available_uids={available_uids})"
+            )
         control_channels_hz = _read_control_channels_hz(target)
         source_state = _sync_playlist(target, control_channels_hz)
         _log(
@@ -670,6 +692,7 @@ def main() -> int:
             f"stream_alias_updates={source_state.get('stream_alias_updates', 0)} "
             f"digital_secondary={DIGITAL_RTL_SERIAL_SECONDARY or 'unset'} "
             f"tuner_config_updated={bool(tuner_state.get('updated'))} "
+            f"digital_uid_source={tuner_state.get('digital_uid_source') or 'unknown'} "
             f"digital_uids={','.join(tuner_state.get('digital_uids', [])) or 'none'} "
             f"analog_uids={','.join(tuner_state.get('analog_uids', [])) or 'none'}"
         )

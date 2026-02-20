@@ -214,6 +214,7 @@ _DIGITAL_EVENT_DROP_RE = re.compile(
     r"(rejected|tuner unavailable|encrypted|encryption|data channel grant|nsapi)",
     re.I,
 )
+_DIGITAL_NON_AUDIO_LABEL_RE = re.compile(r"^\(P:\d+\s*\[\d+\]\)$", re.I)
 _DIGITAL_DEBUG_INCLUDE_GRANTS = os.getenv(
     "DIGITAL_DEBUG_INCLUDE_GRANTS",
     "0",
@@ -869,6 +870,10 @@ def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
     if not label and tgid:
         label = f"TG {tgid}"
 
+    # Ignore control-only parenthetical pseudo-labels that are not real talkgroups.
+    if not tgid and label and _DIGITAL_NON_AUDIO_LABEL_RE.fullmatch(label.strip()):
+        return None
+
     if not label and not tgid:
         return None
 
@@ -916,6 +921,8 @@ def _extract_event_from_line(line: str, fallback_ms: int) -> dict | None:
     if mode:
         event["mode"] = mode
     tgid = _extract_tgid(stripped)
+    if not tgid and _DIGITAL_NON_AUDIO_LABEL_RE.fullmatch(label.strip()):
+        return None
     if tgid:
         event["tgid"] = tgid
     return event
