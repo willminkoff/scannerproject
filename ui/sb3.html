@@ -1596,55 +1596,6 @@
               <div>Loading profiles...</div>
             </div>
           </div>
-          <div class="control-group" style="margin-top:12px;">
-            <div class="control-item">
-              <div class="control-label">
-                <span>Manage Profiles</span>
-                <span class="control-value">Clone/Rename/Delete</span>
-              </div>
-              <div class="control-applied">
-                <label><input type="radio" name="manage-target" id="manage-target-airband" value="airband" checked> Airband</label>
-                <label><input type="radio" name="manage-target" id="manage-target-ground" value="ground"> Ground</label>
-              </div>
-              <div class="control-applied">
-                <span style="opacity:0.85;">Create is blank (then edit freqs below)</span>
-              </div>
-              <div class="control-applied">
-                <label>New ID:
-                  <input id="manage-id" type="text" placeholder="kbna_custom">
-                </label>
-              </div>
-              <div class="control-applied">
-                <label>Label:
-                  <input id="manage-label" type="text" placeholder="Profile label">
-                </label>
-              </div>
-              <div class="control-applied">
-                <button class="action" id="manage-create">Create</button>
-              </div>
-              <div class="control-applied"><span id="manage-status" style="opacity:0.85;"></span></div>
-            </div>
-            <div class="control-item freq-editor" id="freq-editor">
-              <div class="control-label">
-                <span>Edit Frequencies</span>
-                <span class="control-value">One per line: 118.600 TOWER</span>
-              </div>
-              <div class="control-applied" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-                <label>Profile:
-                  <select id="freq-edit-profile"></select>
-                </label>
-                <button class="action" id="freq-edit-load">Load</button>
-                <button class="action" id="freq-edit-save">Save</button>
-                <button class="action" id="manage-rename">Rename Selected</button>
-                <button class="action" id="manage-delete">Delete Selected</button>
-                <button class="action" id="freq-edit-toggle">Hide</button>
-              </div>
-              <div class="freq-edit-body">
-                <textarea id="freq-edit-text" rows="8" spellcheck="false" placeholder="118.600 TOWER&#10;119.350 APP"></textarea>
-                <div class="control-applied"><span id="freq-edit-status" style="opacity:0.85;"></span></div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -1670,74 +1621,6 @@
                 </label>
               </div>
               <div class="control-applied" id="digital-error"></div>
-            </div>
-
-            <div class="control-item">
-              <div class="control-label">
-                <span>Manage Profiles</span>
-                <span class="control-value">Create/Delete</span>
-              </div>
-              <div class="control-applied" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-                <label>New ID:
-                  <input id="digital-manage-id" type="text" placeholder="metro-p25">
-                </label>
-                <button class="action" id="digital-manage-create">Create</button>
-                <button class="action" id="digital-manage-delete">Delete Selected</button>
-              </div>
-              <div class="control-applied"><span id="digital-manage-status" style="opacity:0.85;"></span></div>
-              <div class="control-applied" style="opacity:0.75;">
-                Profiles are directories under <code>/etc/scannerproject/digital/profiles</code>. Copy your SDRTrunk export into the new folder.
-              </div>
-            </div>
-
-            <div class="digital-preview" id="digital-preview">
-              <div class="control-label" style="margin-bottom:8px;">
-                <span>Profile Contents</span>
-                <span class="control-value" id="digital-preview-status"></span>
-              </div>
-              <div class="control-applied" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
-                <button class="action" id="digital-preview-load">Load</button>
-                <button class="action" id="digital-preview-toggle">Hide</button>
-              </div>
-              <div class="digital-preview-body">
-                <textarea id="digital-preview-text" rows="10" spellcheck="false" readonly></textarea>
-              </div>
-            </div>
-
-            <div class="digital-listen" id="digital-listen">
-              <div class="control-label" style="margin-bottom:8px;">
-                <span>Talkgroup Listen</span>
-                <span class="control-value" id="digital-listen-status"></span>
-              </div>
-              <div class="digital-listen-toolbar">
-                <input id="digital-listen-search" type="text" placeholder="Search TGID, mode, tag">
-                <select id="digital-listen-filter">
-                  <option value="all">All</option>
-                  <option value="listen">Listening</option>
-                  <option value="muted">Muted</option>
-                </select>
-                <select id="digital-listen-mode-filter">
-                  <option value="all">All Modes</option>
-                  <option value="clear">Clear</option>
-                  <option value="encrypted">Encrypted</option>
-                  <option value="D">D</option>
-                  <option value="T">T</option>
-                  <option value="DE">DE</option>
-                  <option value="TE">TE</option>
-                </select>
-                <button class="action" id="digital-listen-mute-encrypted">Mute Encrypted</button>
-                <button class="action" id="digital-listen-load">Load</button>
-                <button class="action" id="digital-listen-enable-filtered">Select Filtered</button>
-                <button class="action" id="digital-listen-disable-filtered">Unselect Filtered</button>
-                <button class="action" id="digital-listen-save">Save</button>
-                <button class="action" id="digital-listen-toggle">Hide</button>
-              </div>
-              <div class="digital-listen-body">
-                <div class="digital-listen-list" id="digital-listen-list"></div>
-                <div class="control-applied" style="opacity:0.75;">
-                  Listen flags only affect SB3 hit display for now (SDRTrunk still scans everything).
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -2122,6 +2005,41 @@
           </label>
           <div class="control-applied" style="opacity:0.75;">
             Expected columns: <code>DEC,MODE,ALPHA,DESCRIPTION,TAG,LISTEN</code>
+          </div>
+          <div class="digital-listen" id="digital-listen">
+            <div class="control-label" style="margin-bottom:8px;">
+              <span>Talkgroup Listen</span>
+              <span class="control-value" id="digital-listen-status"></span>
+            </div>
+            <div class="digital-listen-toolbar">
+              <input id="digital-listen-search" type="text" placeholder="Search TGID, mode, tag">
+              <select id="digital-listen-filter">
+                <option value="all">All</option>
+                <option value="listen">Listening</option>
+                <option value="muted">Muted</option>
+              </select>
+              <select id="digital-listen-mode-filter">
+                <option value="all">All Modes</option>
+                <option value="clear">Clear</option>
+                <option value="encrypted">Encrypted</option>
+                <option value="D">D</option>
+                <option value="T">T</option>
+                <option value="DE">DE</option>
+                <option value="TE">TE</option>
+              </select>
+              <button class="action" id="digital-listen-mute-encrypted">Mute Encrypted</button>
+              <button class="action" id="digital-listen-load">Load</button>
+              <button class="action" id="digital-listen-enable-filtered">Select Filtered</button>
+              <button class="action" id="digital-listen-disable-filtered">Unselect Filtered</button>
+              <button class="action" id="digital-listen-save">Save</button>
+              <button class="action" id="digital-listen-toggle">Hide</button>
+            </div>
+            <div class="digital-listen-body">
+              <div class="digital-listen-list" id="digital-listen-list"></div>
+              <div class="control-applied" style="opacity:0.75;">
+                Listen flags only affect SB3 hit display for now (SDRTrunk still scans everything).
+              </div>
+            </div>
           </div>
           <div class="profile-editor-actions">
             <button class="action" id="profile-editor-digital-load" type="button">Load</button>
@@ -2572,6 +2490,10 @@
       if (els.profileEditorTabDigital) els.profileEditorTabDigital.classList.toggle('active', next === 'digital');
       if (els.profileEditorPanelAnalog) els.profileEditorPanelAnalog.classList.toggle('hidden', next !== 'analog');
       if (els.profileEditorPanelDigital) els.profileEditorPanelDigital.classList.toggle('hidden', next !== 'digital');
+      if (next === 'digital') {
+        refreshDigitalProfiles();
+        refreshDigitalListen();
+      }
     }
 
     function openProfileEditorSidecar(tab = null) {
@@ -2587,6 +2509,10 @@
         els.profileSidecarOverlay.classList.remove('hidden');
       }
       refreshProfileEditorOptions();
+      if (state.profileEditor.tab === 'digital') {
+        refreshDigitalProfiles();
+        refreshDigitalListen();
+      }
     }
 
     function closeProfileEditorSidecar() {
@@ -3415,7 +3341,8 @@
 
     async function refreshDigitalProfiles(force=false) {
       if (digitalProfilesLoaded && !force) return;
-      if (activeView !== 'digital' && !force) return;
+      const sidecarDigitalActive = state.profileEditor.open && state.profileEditor.tab === 'digital';
+      if (activeView !== 'digital' && !sidecarDigitalActive && !force) return;
       try {
         const data = await fetchJSON('/api/digital/profiles');
         if (data && data.ok) {
@@ -3809,8 +3736,14 @@
         renderDigitalListenList();
         return;
       }
-      if (activeView !== 'digital' && !force) return;
-      const profileId = state.digital.activeProfile || state.digital.profile;
+      const sidecarDigitalActive = state.profileEditor.open && state.profileEditor.tab === 'digital';
+      if (activeView !== 'digital' && !sidecarDigitalActive && !force) return;
+      const editorProfileId = String(
+        els.profileEditorDigitalProfile?.value
+          || state.profileEditor.digital.profileId
+          || ''
+      ).trim();
+      const profileId = editorProfileId || state.digital.activeProfile || state.digital.profile;
       if (!profileId) {
         setDigitalListenStatus('Select a profile first', true);
         return;
@@ -5487,7 +5420,15 @@
       }
       if (els.profileEditorDigitalProfile) {
         els.profileEditorDigitalProfile.addEventListener('change', () => {
-          state.profileEditor.digital.profileId = els.profileEditorDigitalProfile.value || '';
+          const selected = els.profileEditorDigitalProfile.value || '';
+          state.profileEditor.digital.profileId = selected;
+          if (selected !== state.digitalListen.profile) {
+            state.digitalListen.items = [];
+            state.digitalListen.profile = '';
+            state.digitalListen.dirty = false;
+            digitalListenLoaded = false;
+            renderDigitalListenList();
+          }
           setProfileEditorStatus('digital', '', false);
         });
       }
