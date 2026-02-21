@@ -560,6 +560,15 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
 
+    def _send_head(self, code: int, ctype: str = "text/plain; charset=utf-8", content_length: int | None = None):
+        """Send headers-only response for HEAD requests."""
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Cache-Control", "no-store")
+        if content_length is not None:
+            self.send_header("Content-Length", str(int(content_length)))
+        self.end_headers()
+
     def _sanitize_mount_name(self, mount_name: str) -> str:
         mount = unquote(str(mount_name or "")).strip().lstrip("/")
         if not mount:
@@ -573,9 +582,11 @@ class Handler(BaseHTTPRequestHandler):
                 return ""
         return mount
 
-    def _proxy_icecast_mount(self, mount_name: str):
+    def _proxy_icecast_mount(self, mount_name: str, head_only: bool = False):
         mount = self._sanitize_mount_name(mount_name)
         if not mount:
+            if head_only:
+                return self._send_head(400)
             return self._send(400, "invalid mount", "text/plain; charset=utf-8")
         upstream = f"http://127.0.0.1:{ICECAST_PORT}/{mount}"
         req = Request(
@@ -584,6 +595,8 @@ class Handler(BaseHTTPRequestHandler):
                 "User-Agent": "airband-ui/stream-proxy",
                 "Connection": "close",
             },
+            # Icecast can reject HEAD on mounts; use GET for both and suppress body on HEAD.
+            method="GET",
         )
         try:
             with urlopen(req, timeout=10) as upstream_resp:
@@ -591,6 +604,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Type", upstream_resp.headers.get("Content-Type") or "audio/mpeg")
                 self.send_header("Cache-Control", "no-store")
                 self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Connection", "close")
                 for header in (
                     "icy-name",
                     "icy-genre",
@@ -603,18 +617,35 @@ class Handler(BaseHTTPRequestHandler):
                     if value:
                         self.send_header(header, value)
                 self.end_headers()
+                if head_only:
+                    return
                 while True:
-                    chunk = upstream_resp.read(1024)
+                    chunk = upstream_resp.read(16384)
                     if not chunk:
                         break
                     self.wfile.write(chunk)
-                    self.wfile.flush()
+                self.wfile.flush()
         except HTTPError as e:
-            return self._send(int(e.code or 502), f"upstream error: {e.reason}", "text/plain; charset=utf-8")
+            status = int(e.code or 502)
+            if head_only:
+                return self._send_head(status)
+            return self._send(status, f"upstream error: {e.reason}", "text/plain; charset=utf-8")
         except (URLError, TimeoutError) as e:
+            if head_only:
+                return self._send_head(502)
             return self._send(502, f"upstream unavailable: {e}", "text/plain; charset=utf-8")
         except (BrokenPipeError, ConnectionResetError):
             return
+
+    def do_HEAD(self):
+        """Handle HEAD requests."""
+        u = urlparse(self.path)
+        p = u.path
+        if p == "/stream" or p == "/stream/":
+            return self._proxy_icecast_mount("", head_only=True)
+        if p.startswith("/stream/"):
+            return self._proxy_icecast_mount(p[len("/stream/"):], head_only=True)
+        return self._send_head(404)
 
     def do_GET(self):
         """Handle GET requests."""

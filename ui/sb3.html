@@ -2729,11 +2729,11 @@
     }
 
     function analogStreamUrl() {
-      return buildIcecastUrl(state.streamMount, 'ANALOG.mp3');
+      return buildProxyStreamUrl(state.streamMount, 'ANALOG.mp3');
     }
 
     function digitalStreamUrl() {
-      return buildIcecastUrl(state.digitalStreamMount, 'DIGITAL.mp3');
+      return buildProxyStreamUrl(state.digitalStreamMount, 'DIGITAL.mp3');
     }
 
     function syncAudioSource(audioEl, base) {
