@@ -93,6 +93,13 @@ try:
         read_digital_talkgroups,
         write_digital_listen,
     )
+    from .profile_editor import (
+        analog_profile_is_active,
+        get_analog_editor_payload,
+        get_digital_editor_payload,
+        save_analog_editor_payload,
+        save_digital_editor_payload,
+    )
 except ImportError:
     from ui.config import (
         CONFIG_SYMLINK,
@@ -145,6 +152,13 @@ except ImportError:
         inspect_digital_profile,
         read_digital_talkgroups,
         write_digital_listen,
+    )
+    from ui.profile_editor import (
+        analog_profile_is_active,
+        get_analog_editor_payload,
+        get_digital_editor_payload,
+        save_analog_editor_payload,
+        save_digital_editor_payload,
     )
 
 
@@ -644,6 +658,23 @@ class Handler(BaseHTTPRequestHandler):
             return self._proxy_icecast_mount("")
         if p.startswith("/stream/"):
             return self._proxy_icecast_mount(p[len("/stream/"):])
+
+        if p == "/api/profile-editor/analog":
+            q = parse_qs(u.query or "")
+            profile_id = (q.get("id") or [""])[0].strip()
+            target = (q.get("target") or ["airband"])[0].strip().lower() or "airband"
+            ok, err, payload = get_analog_editor_payload(profile_id, target)
+            if not ok:
+                return self._send(400, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/profile-editor/digital":
+            q = parse_qs(u.query or "")
+            profile_id = (q.get("profileId") or [""])[0].strip()
+            ok, err, payload = get_digital_editor_payload(profile_id)
+            if not ok:
+                return self._send(400, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         
         if p == "/api/profile":
             q = parse_qs(u.query or "")
@@ -1097,6 +1128,87 @@ class Handler(BaseHTTPRequestHandler):
             if v is None:
                 return default
             return str(v)
+
+        if p == "/api/profile-editor/analog/save":
+            profile_id = get_str("id").strip()
+            target = get_str("target", "airband").strip().lower() or "airband"
+            freqs_text = get_str("freqs_text").strip()
+            modulation = get_str("modulation", "am").strip().lower() or "am"
+            bandwidth_raw = get_str("bandwidth", "12000").strip()
+            if not freqs_text:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "missing freqs_text"}),
+                    "application/json; charset=utf-8",
+                )
+            try:
+                bandwidth = int(round(float(bandwidth_raw)))
+            except Exception:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "invalid bandwidth"}),
+                    "application/json; charset=utf-8",
+                )
+
+            ok, err, payload = save_analog_editor_payload(
+                profile_id=profile_id,
+                target=target,
+                freqs_text=freqs_text,
+                modulation=modulation,
+                bandwidth=bandwidth,
+            )
+            if not ok:
+                return self._send(400, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
+
+            changed = bool(payload.get("changed"))
+            profile_path = str(((payload.get("profile") or {}).get("path") or "")).strip()
+            payload["active"] = bool(analog_profile_is_active(profile_path))
+            payload["scanner_restarted"] = False
+            payload["combined_changed"] = False
+
+            if changed and payload["active"]:
+                try:
+                    combined_changed = bool(write_combined_config())
+                    payload["combined_changed"] = combined_changed
+                    if combined_changed:
+                        restart_rtl()
+                        payload["scanner_restarted"] = True
+                except Exception as e:
+                    return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
+
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/profile-editor/digital/save":
+            profile_id = get_str("profileId").strip()
+            control_channels_text = get_str("control_channels_text").strip()
+            talkgroups_text = get_str("talkgroups_text")
+            apply_now_raw = str(form.get("apply_now", "true")).strip().lower()
+            apply_now = apply_now_raw in ("1", "true", "yes", "on", "")
+
+            ok, err, payload = save_digital_editor_payload(
+                profile_id=profile_id,
+                control_channels_text=control_channels_text,
+                talkgroups_text=talkgroups_text,
+            )
+            if not ok:
+                return self._send(400, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
+
+            runtime_applied = False
+            runtime_error = ""
+            runtime_active_profile = ""
+            try:
+                manager = get_digital_manager()
+                runtime_active_profile = str(manager.getProfile() or "")
+                if payload.get("changed") and apply_now and runtime_active_profile == profile_id:
+                    runtime_applied, runtime_error = manager.setProfile(profile_id)
+            except Exception as e:
+                runtime_error = str(e)
+
+            payload["runtime_active_profile"] = runtime_active_profile
+            payload["runtime_applied"] = bool(runtime_applied)
+            if runtime_error:
+                payload["runtime_error"] = runtime_error
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/digital/start":
             ok, err = get_digital_manager().start()

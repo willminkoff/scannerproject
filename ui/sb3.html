@@ -692,6 +692,154 @@
       background: var(--accent);
     }
 
+    .sidecar-toggle {
+      min-width: 72px;
+    }
+
+    .profile-sidecar-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      z-index: 998;
+    }
+
+    .profile-sidecar {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: min(720px, 96vw);
+      height: 100vh;
+      z-index: 999;
+      background: linear-gradient(180deg, rgba(16, 20, 26, 0.98), rgba(9, 13, 18, 0.98));
+      border-left: 1px solid var(--border);
+      box-shadow: -20px 0 40px rgba(0, 0, 0, 0.45);
+      transform: translateX(102%);
+      transition: transform 0.22s ease;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+    }
+
+    .profile-sidecar.open {
+      transform: translateX(0);
+    }
+
+    .profile-sidecar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(15, 20, 25, 0.85);
+    }
+
+    .profile-sidecar-title {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-primary);
+    }
+
+    .profile-sidecar-sub {
+      font-size: 11px;
+      color: var(--text-secondary);
+      letter-spacing: 0.04em;
+      margin-top: 2px;
+    }
+
+    .profile-sidecar-tabs {
+      display: flex;
+      gap: 8px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(14, 18, 24, 0.72);
+    }
+
+    .profile-sidecar-tab {
+      appearance: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-panel);
+      color: var(--text-primary);
+      padding: 7px 12px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+    }
+
+    .profile-sidecar-tab.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.24) inset;
+    }
+
+    .profile-sidecar-body {
+      overflow: auto;
+      padding: 12px 14px 20px;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .profile-sidecar-panel {
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+
+    .profile-editor-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      background: rgba(16, 22, 28, 0.72);
+      display: grid;
+      gap: 9px;
+    }
+
+    .profile-editor-card .control-label {
+      margin-bottom: 0;
+    }
+
+    .profile-editor-card input,
+    .profile-editor-card select,
+    .profile-editor-card textarea {
+      width: 100%;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--text-primary);
+      padding: 7px 9px;
+      font-size: 12px;
+      font-family: "SFMono-Regular", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    .profile-editor-card textarea {
+      min-height: 130px;
+      resize: vertical;
+      line-height: 1.32;
+    }
+
+    .profile-editor-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .profile-editor-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .profile-editor-status {
+      font-size: 12px;
+      min-height: 18px;
+      color: var(--text-secondary);
+    }
+
     .system-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1280,6 +1428,7 @@
       </button>
     </div>
     <div class="header-right">
+      <button class="theme-toggle sidecar-toggle" id="profile-sidecar-toggle" type="button" title="Open profile editor">Editor</button>
       <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle red theme">🔴</button>
     </div>
   </div>
@@ -1885,6 +2034,95 @@
     </div>
   </div>
 
+  <div class="profile-sidecar-overlay hidden" id="profile-sidecar-overlay"></div>
+  <aside class="profile-sidecar" id="profile-sidecar" aria-hidden="true">
+    <div class="profile-sidecar-header">
+      <div>
+        <div class="profile-sidecar-title">Profile Editor Sidecar</div>
+        <div class="profile-sidecar-sub">Edit analog and digital profile data in one place</div>
+      </div>
+      <button class="action" id="profile-sidecar-close" type="button">Close</button>
+    </div>
+    <div class="profile-sidecar-tabs">
+      <button class="profile-sidecar-tab active" id="profile-editor-tab-analog" type="button">Analog</button>
+      <button class="profile-sidecar-tab" id="profile-editor-tab-digital" type="button">Digital</button>
+    </div>
+    <div class="profile-sidecar-body">
+      <section class="profile-sidecar-panel" id="profile-editor-panel-analog">
+        <div class="profile-editor-card">
+          <div class="control-label">
+            <span>Analog Profile</span>
+            <span class="control-value">freq + hit text + modulation</span>
+          </div>
+          <div class="profile-editor-grid">
+            <label>
+              Target
+              <select id="profile-editor-analog-target">
+                <option value="airband">Airband</option>
+                <option value="ground">Ground</option>
+              </select>
+            </label>
+            <label>
+              Profile
+              <select id="profile-editor-analog-profile"></select>
+            </label>
+          </div>
+          <div class="profile-editor-grid">
+            <label>
+              Modulation
+              <input id="profile-editor-analog-modulation" type="text" value="am" spellcheck="false">
+            </label>
+            <label>
+              Bandwidth (Hz)
+              <input id="profile-editor-analog-bandwidth" type="number" min="2000" max="250000" step="100" value="12000">
+            </label>
+          </div>
+          <label>
+            Frequencies (one per line: <code>118.600 TOWER</code>)
+            <textarea id="profile-editor-analog-freqs" rows="10" spellcheck="false"></textarea>
+          </label>
+          <div class="profile-editor-actions">
+            <button class="action" id="profile-editor-analog-load" type="button">Load</button>
+            <button class="action" id="profile-editor-analog-save" type="button">Save</button>
+          </div>
+          <div class="profile-editor-status" id="profile-editor-analog-status"></div>
+        </div>
+      </section>
+
+      <section class="profile-sidecar-panel hidden" id="profile-editor-panel-digital">
+        <div class="profile-editor-card">
+          <div class="control-label">
+            <span>Digital Profile</span>
+            <span class="control-value">control channels + TG metadata</span>
+          </div>
+          <div class="profile-editor-grid">
+            <label>
+              Profile
+              <select id="profile-editor-digital-profile"></select>
+            </label>
+            <div></div>
+          </div>
+          <label>
+            Control Channels (MHz, one per line)
+            <textarea id="profile-editor-digital-controls" rows="4" spellcheck="false"></textarea>
+          </label>
+          <label>
+            Talkgroups CSV
+            <textarea id="profile-editor-digital-talkgroups" rows="16" spellcheck="false"></textarea>
+          </label>
+          <div class="control-applied" style="opacity:0.75;">
+            Expected columns: <code>DEC,MODE,ALPHA,DESCRIPTION,TAG,LISTEN</code>
+          </div>
+          <div class="profile-editor-actions">
+            <button class="action" id="profile-editor-digital-load" type="button">Load</button>
+            <button class="action" id="profile-editor-digital-save" type="button">Save</button>
+          </div>
+          <div class="profile-editor-status" id="profile-editor-digital-status"></div>
+        </div>
+      </section>
+    </div>
+  </aside>
+
   <script>
     // ============================================
     // CONFIGURATION
@@ -2025,6 +2263,17 @@
         profile: '',
       },
       digitalMixerActive: false,
+      profileEditor: {
+        open: false,
+        tab: 'analog',
+        analog: {
+          target: 'airband',
+          profileId: '',
+        },
+        digital: {
+          profileId: '',
+        },
+      },
     };
 
     let digitalProfilesLoaded = false;
@@ -2188,6 +2437,28 @@
       btnRestartIcecast: document.getElementById('btn-restart-icecast'),
       btnRestartKeepalive: document.getElementById('btn-restart-keepalive'),
       btnRestartUi: document.getElementById('btn-restart-ui'),
+      profileSidecarToggle: document.getElementById('profile-sidecar-toggle'),
+      profileSidecar: document.getElementById('profile-sidecar'),
+      profileSidecarOverlay: document.getElementById('profile-sidecar-overlay'),
+      profileSidecarClose: document.getElementById('profile-sidecar-close'),
+      profileEditorTabAnalog: document.getElementById('profile-editor-tab-analog'),
+      profileEditorTabDigital: document.getElementById('profile-editor-tab-digital'),
+      profileEditorPanelAnalog: document.getElementById('profile-editor-panel-analog'),
+      profileEditorPanelDigital: document.getElementById('profile-editor-panel-digital'),
+      profileEditorAnalogTarget: document.getElementById('profile-editor-analog-target'),
+      profileEditorAnalogProfile: document.getElementById('profile-editor-analog-profile'),
+      profileEditorAnalogModulation: document.getElementById('profile-editor-analog-modulation'),
+      profileEditorAnalogBandwidth: document.getElementById('profile-editor-analog-bandwidth'),
+      profileEditorAnalogFreqs: document.getElementById('profile-editor-analog-freqs'),
+      profileEditorAnalogLoad: document.getElementById('profile-editor-analog-load'),
+      profileEditorAnalogSave: document.getElementById('profile-editor-analog-save'),
+      profileEditorAnalogStatus: document.getElementById('profile-editor-analog-status'),
+      profileEditorDigitalProfile: document.getElementById('profile-editor-digital-profile'),
+      profileEditorDigitalControls: document.getElementById('profile-editor-digital-controls'),
+      profileEditorDigitalTalkgroups: document.getElementById('profile-editor-digital-talkgroups'),
+      profileEditorDigitalLoad: document.getElementById('profile-editor-digital-load'),
+      profileEditorDigitalSave: document.getElementById('profile-editor-digital-save'),
+      profileEditorDigitalStatus: document.getElementById('profile-editor-digital-status'),
       btnReconnect: null,
     };
 
@@ -2273,6 +2544,233 @@
       });
       if (!r.ok) throw new Error(`HTTP ${r.status} for ${endpoint}`);
       return r.json();
+    }
+
+    function setProfileEditorStatus(kind, message, isError = false) {
+      const el = kind === 'digital' ? els.profileEditorDigitalStatus : els.profileEditorAnalogStatus;
+      if (!el) return;
+      el.textContent = message || '';
+      el.style.color = isError ? '#f59e0b' : '';
+    }
+
+    function setProfileEditorTab(tab) {
+      const next = tab === 'digital' ? 'digital' : 'analog';
+      state.profileEditor.tab = next;
+      if (els.profileEditorTabAnalog) els.profileEditorTabAnalog.classList.toggle('active', next === 'analog');
+      if (els.profileEditorTabDigital) els.profileEditorTabDigital.classList.toggle('active', next === 'digital');
+      if (els.profileEditorPanelAnalog) els.profileEditorPanelAnalog.classList.toggle('hidden', next !== 'analog');
+      if (els.profileEditorPanelDigital) els.profileEditorPanelDigital.classList.toggle('hidden', next !== 'digital');
+    }
+
+    function openProfileEditorSidecar() {
+      state.profileEditor.open = true;
+      if (els.profileSidecar) {
+        els.profileSidecar.classList.add('open');
+        els.profileSidecar.setAttribute('aria-hidden', 'false');
+      }
+      if (els.profileSidecarOverlay) {
+        els.profileSidecarOverlay.classList.remove('hidden');
+      }
+      refreshProfileEditorOptions();
+    }
+
+    function closeProfileEditorSidecar() {
+      state.profileEditor.open = false;
+      if (els.profileSidecar) {
+        els.profileSidecar.classList.remove('open');
+        els.profileSidecar.setAttribute('aria-hidden', 'true');
+      }
+      if (els.profileSidecarOverlay) {
+        els.profileSidecarOverlay.classList.add('hidden');
+      }
+    }
+
+    function toggleProfileEditorSidecar() {
+      if (state.profileEditor.open) {
+        closeProfileEditorSidecar();
+      } else {
+        openProfileEditorSidecar();
+      }
+    }
+
+    function _profilesForAnalogTarget(target) {
+      return target === 'ground' ? (state.ground.profiles || []) : (state.airband.profiles || []);
+    }
+
+    function refreshProfileEditorOptions() {
+      const target = (els.profileEditorAnalogTarget?.value || state.profileEditor.analog.target || 'airband') === 'ground'
+        ? 'ground'
+        : 'airband';
+      state.profileEditor.analog.target = target;
+
+      if (els.profileEditorAnalogTarget && els.profileEditorAnalogTarget.value !== target) {
+        els.profileEditorAnalogTarget.value = target;
+      }
+
+      if (els.profileEditorAnalogProfile) {
+        const profiles = _profilesForAnalogTarget(target).filter((p) => p && p.id);
+        const current = state[target].currentProfile || '';
+        let selected = String(els.profileEditorAnalogProfile.value || state.profileEditor.analog.profileId || '');
+        if (!profiles.some((p) => p.id === selected)) {
+          selected = current || (profiles[0] && profiles[0].id) || '';
+        }
+        els.profileEditorAnalogProfile.innerHTML = profiles.length
+          ? profiles.map((p) => `<option value=\"${escapeHtml(p.id)}\">${escapeHtml(p.label || p.id)} (${escapeHtml(p.id)})</option>`).join('')
+          : '<option value=\"\">No profiles</option>';
+        els.profileEditorAnalogProfile.disabled = !profiles.length;
+        els.profileEditorAnalogProfile.value = selected;
+        state.profileEditor.analog.profileId = selected;
+      }
+
+      if (els.profileEditorDigitalProfile) {
+        const profiles = (state.digital.profiles || []).filter(Boolean);
+        const current = state.digital.activeProfile || state.digital.profile || '';
+        let selected = String(els.profileEditorDigitalProfile.value || state.profileEditor.digital.profileId || '');
+        if (!profiles.includes(selected)) {
+          selected = current || profiles[0] || '';
+        }
+        els.profileEditorDigitalProfile.innerHTML = profiles.length
+          ? profiles.map((id) => `<option value=\"${escapeHtml(id)}\">${escapeHtml(id)}</option>`).join('')
+          : '<option value=\"\">No digital profiles</option>';
+        els.profileEditorDigitalProfile.disabled = !profiles.length;
+        els.profileEditorDigitalProfile.value = selected;
+        state.profileEditor.digital.profileId = selected;
+      }
+    }
+
+    async function loadProfileEditorAnalog() {
+      const target = (els.profileEditorAnalogTarget?.value || 'airband') === 'ground' ? 'ground' : 'airband';
+      const profileId = els.profileEditorAnalogProfile?.value || '';
+      if (!profileId) {
+        setProfileEditorStatus('analog', 'Select an analog profile first', true);
+        return;
+      }
+      setProfileEditorStatus('analog', 'Loading...', false);
+      try {
+        const data = await fetchJSON(
+          `/api/profile-editor/analog?id=${encodeURIComponent(profileId)}&target=${encodeURIComponent(target)}`
+        );
+        if (!data || data.ok === false) {
+          setProfileEditorStatus('analog', (data && data.error) || 'Load failed', true);
+          return;
+        }
+        if (els.profileEditorAnalogModulation) {
+          els.profileEditorAnalogModulation.value = data.modulation || 'am';
+        }
+        if (els.profileEditorAnalogBandwidth) {
+          els.profileEditorAnalogBandwidth.value = Number.isFinite(data.bandwidth) ? data.bandwidth : 12000;
+        }
+        if (els.profileEditorAnalogFreqs) {
+          els.profileEditorAnalogFreqs.value = data.freqs_text || '';
+        }
+        state.profileEditor.analog.profileId = profileId;
+        state.profileEditor.analog.target = target;
+        setProfileEditorStatus('analog', `Loaded ${profileId}`, false);
+      } catch (e) {
+        setProfileEditorStatus('analog', 'Load failed', true);
+      }
+    }
+
+    async function saveProfileEditorAnalog() {
+      const target = (els.profileEditorAnalogTarget?.value || 'airband') === 'ground' ? 'ground' : 'airband';
+      const profileId = els.profileEditorAnalogProfile?.value || '';
+      const modulation = (els.profileEditorAnalogModulation?.value || '').trim().toLowerCase();
+      const bandwidth = Number(els.profileEditorAnalogBandwidth?.value || 0);
+      const freqs_text = String(els.profileEditorAnalogFreqs?.value || '').trim();
+      if (!profileId) {
+        setProfileEditorStatus('analog', 'Select an analog profile first', true);
+        return;
+      }
+      if (!freqs_text) {
+        setProfileEditorStatus('analog', 'Frequency list is required', true);
+        return;
+      }
+      setProfileEditorStatus('analog', 'Saving...', false);
+      try {
+        const res = await postJSON('/api/profile-editor/analog/save', {
+          id: profileId,
+          target,
+          modulation,
+          bandwidth,
+          freqs_text,
+        });
+        if (!res || res.ok === false) {
+          setProfileEditorStatus('analog', (res && res.error) || 'Save failed', true);
+          return;
+        }
+        const parts = ['Saved'];
+        if (res.scanner_restarted) parts.push('scanner restarted');
+        setProfileEditorStatus('analog', parts.join(' • '), false);
+        await refresh();
+      } catch (e) {
+        setProfileEditorStatus('analog', 'Save failed', true);
+      }
+    }
+
+    async function loadProfileEditorDigital() {
+      const profileId = els.profileEditorDigitalProfile?.value || '';
+      if (!profileId) {
+        setProfileEditorStatus('digital', 'Select a digital profile first', true);
+        return;
+      }
+      setProfileEditorStatus('digital', 'Loading...', false);
+      try {
+        const data = await fetchJSON(`/api/profile-editor/digital?profileId=${encodeURIComponent(profileId)}`);
+        if (!data || data.ok === false) {
+          setProfileEditorStatus('digital', (data && data.error) || 'Load failed', true);
+          return;
+        }
+        if (els.profileEditorDigitalControls) {
+          els.profileEditorDigitalControls.value = data.control_channels_text || '';
+        }
+        if (els.profileEditorDigitalTalkgroups) {
+          els.profileEditorDigitalTalkgroups.value = data.talkgroups_text || '';
+        }
+        state.profileEditor.digital.profileId = profileId;
+        setProfileEditorStatus('digital', `Loaded ${profileId} (${data.talkgroups_count || 0} TGs)`, false);
+      } catch (e) {
+        setProfileEditorStatus('digital', 'Load failed', true);
+      }
+    }
+
+    async function saveProfileEditorDigital() {
+      const profileId = els.profileEditorDigitalProfile?.value || '';
+      const control_channels_text = String(els.profileEditorDigitalControls?.value || '').trim();
+      const talkgroups_text = String(els.profileEditorDigitalTalkgroups?.value || '').trim();
+      if (!profileId) {
+        setProfileEditorStatus('digital', 'Select a digital profile first', true);
+        return;
+      }
+      if (!control_channels_text) {
+        setProfileEditorStatus('digital', 'Control channels are required', true);
+        return;
+      }
+      if (!talkgroups_text) {
+        setProfileEditorStatus('digital', 'Talkgroups CSV is required', true);
+        return;
+      }
+      setProfileEditorStatus('digital', 'Saving...', false);
+      try {
+        const res = await postJSON('/api/profile-editor/digital/save', {
+          profileId,
+          control_channels_text,
+          talkgroups_text,
+          apply_now: true,
+        });
+        if (!res || res.ok === false) {
+          setProfileEditorStatus('digital', (res && res.error) || 'Save failed', true);
+          return;
+        }
+        const bits = ['Saved'];
+        if (res.runtime_applied) bits.push('runtime reloaded');
+        if (res.runtime_error) bits.push(`runtime: ${res.runtime_error}`);
+        setProfileEditorStatus('digital', bits.join(' • '), Boolean(res.runtime_error));
+        digitalListenLoaded = false;
+        await refreshDigitalListen(true);
+        await refresh();
+      } catch (e) {
+        setProfileEditorStatus('digital', 'Save failed', true);
+      }
     }
 
     function buildProxyStreamUrl(mountName, fallbackMount) {
@@ -2818,6 +3316,7 @@
         `).join('');
       refreshManageCloneOptions();
       refreshFreqEditOptions();
+      refreshProfileEditorOptions();
       updateSitrep();
     }
 
@@ -2910,6 +3409,7 @@
           digitalProfilesLoaded = true;
           updateDigitalProfileSelect();
           updateDigitalProfilesList();
+          refreshProfileEditorOptions();
           return;
         }
         setDigitalStatusMessage((data && data.error) || 'Digital profiles unavailable', true);
@@ -4772,6 +5272,8 @@
       loadTheme();
       setupCollapsibleWidgets();
       updateTuneButton();
+      setProfileEditorTab('analog');
+      refreshProfileEditorOptions();
 
       syncStreamLinks();
       refreshVlcStatus();
@@ -4934,6 +5436,57 @@
           els.digitalListenList.scrollTop = scrollTop;
         });
       }
+      if (els.profileSidecarToggle) {
+        els.profileSidecarToggle.addEventListener('click', toggleProfileEditorSidecar);
+      }
+      if (els.profileSidecarClose) {
+        els.profileSidecarClose.addEventListener('click', closeProfileEditorSidecar);
+      }
+      if (els.profileSidecarOverlay) {
+        els.profileSidecarOverlay.addEventListener('click', closeProfileEditorSidecar);
+      }
+      if (els.profileEditorTabAnalog) {
+        els.profileEditorTabAnalog.addEventListener('click', () => setProfileEditorTab('analog'));
+      }
+      if (els.profileEditorTabDigital) {
+        els.profileEditorTabDigital.addEventListener('click', () => setProfileEditorTab('digital'));
+      }
+      if (els.profileEditorAnalogTarget) {
+        els.profileEditorAnalogTarget.addEventListener('change', () => {
+          state.profileEditor.analog.target = els.profileEditorAnalogTarget.value || 'airband';
+          refreshProfileEditorOptions();
+          setProfileEditorStatus('analog', '', false);
+        });
+      }
+      if (els.profileEditorAnalogProfile) {
+        els.profileEditorAnalogProfile.addEventListener('change', () => {
+          state.profileEditor.analog.profileId = els.profileEditorAnalogProfile.value || '';
+          setProfileEditorStatus('analog', '', false);
+        });
+      }
+      if (els.profileEditorDigitalProfile) {
+        els.profileEditorDigitalProfile.addEventListener('change', () => {
+          state.profileEditor.digital.profileId = els.profileEditorDigitalProfile.value || '';
+          setProfileEditorStatus('digital', '', false);
+        });
+      }
+      if (els.profileEditorAnalogLoad) {
+        els.profileEditorAnalogLoad.addEventListener('click', loadProfileEditorAnalog);
+      }
+      if (els.profileEditorAnalogSave) {
+        els.profileEditorAnalogSave.addEventListener('click', saveProfileEditorAnalog);
+      }
+      if (els.profileEditorDigitalLoad) {
+        els.profileEditorDigitalLoad.addEventListener('click', loadProfileEditorDigital);
+      }
+      if (els.profileEditorDigitalSave) {
+        els.profileEditorDigitalSave.addEventListener('click', saveProfileEditorDigital);
+      }
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && state.profileEditor.open) {
+          closeProfileEditorSidecar();
+        }
+      });
       const adsbFrame = document.getElementById('adsb-frame');
       if (adsbFrame) {
         adsbFrame.addEventListener('load', () => {
