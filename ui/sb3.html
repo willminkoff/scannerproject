@@ -1552,7 +1552,6 @@
           <div class="control-item" style="margin-top:10px;">
             <div class="control-label">
               <span>Pi Health</span>
-              <span class="control-value" id="sys-uptime">--</span>
             </div>
             <div class="system-grid">
               <div class="system-item">
@@ -2236,7 +2235,6 @@
       audioPlayerDigital: document.getElementById('audio-player-digital'),
       lnkStreamAnalog: document.getElementById('lnk-stream-analog'),
       lnkStreamDigital: document.getElementById('lnk-stream-digital'),
-      sysUptime: document.getElementById('sys-uptime'),
       sysCpuTemp: document.getElementById('sys-cpu-temp'),
       sysGpuTemp: document.getElementById('sys-gpu-temp'),
       sysCpuUsage: document.getElementById('sys-cpu-usage'),
@@ -4445,7 +4443,6 @@
     function updateSystemUI(stats) {
       if (!stats || stats.ok === false) return;
       state.systemStats = stats;
-      if (els.sysUptime) els.sysUptime.textContent = formatUptime(stats.uptime_s);
       if (els.sysUptimeTile) els.sysUptimeTile.textContent = formatUptime(stats.uptime_s);
       const cpuF = Number.isFinite(stats.cpu_temp_c) ? (stats.cpu_temp_c * 9 / 5 + 32) : null;
       const gpuF = Number.isFinite(stats.gpu_temp_c) ? (stats.gpu_temp_c * 9 / 5 + 32) : null;
