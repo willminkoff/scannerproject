@@ -147,7 +147,7 @@ TN - State Highway Patrol: Statewide,47052,b7cc,T,THP-Calling,Statewide Calling 
 "Bledsoe, Bradley, Coffee, Franklin, Grundy, Hamilton, Marion, McMinn, Meigs, Polk, Rhea, Sequatchie",47005,b79d,TE,THP-D2-Disp2,Dispatch 2,Law Dispatch
 "Bledsoe, Bradley, Coffee, Franklin, Grundy, Hamilton, Marion, McMinn, Meigs, Polk, Rhea, Sequatchie",47006,b79e,TE,THP-D2-C2C,Car-to-Car,Law Talk
 "Bledsoe, Bradley, Coffee, Franklin, Grundy, Hamilton, Marion, McMinn, Meigs, Polk, Rhea, Sequatchie",47007,b79f,TE,THP-D2-Event1,Event 1,Law Tac
-"Cheatham, Davidson, Dickson, Houston, Humphreys, Montgomery, Robertson, Rutherford, Stewart, Sumner, Williamson, Wilson",47008,b7a0,T,THP-D3-Disp1,Dispatch 1,Law Dispatch
+"Cheatham, Davidson, Dickson, Houston, Humphreys, Montgomery, Robertson, Rutherford, Stewart, Sumner, Williamson, Wilson",47008,b7a0,T,THP-D3-Disp1,THP-D3-Disp1,Law Dispatch
 "Cheatham, Davidson, Dickson, Houston, Humphreys, Montgomery, Robertson, Rutherford, Stewart, Sumner, Williamson, Wilson",47009,b7a1,TE,THP-D3-Disp2,Dispatch 2,Law Dispatch
 "Cheatham, Davidson, Dickson, Houston, Humphreys, Montgomery, Robertson, Rutherford, Stewart, Sumner, Williamson, Wilson",47010,b7a2,TE,THP-D3-C2C,Car-to-Car,Law Talk
 "Cheatham, Davidson, Dickson, Houston, Humphreys, Montgomery, Robertson, Rutherford, Stewart, Sumner, Williamson, Wilson",47011,b7a3,T,THP-D3-Event1,Events 1,Law Tac
@@ -508,7 +508,7 @@ TN - Department of Transportation HELP,47150,b82e,T,DOT HELP R1,Region 1 Dispatc
 TN - Department of Transportation HELP,47154,b832,T,DOT HTAC1 R1,Region 1 Tactical 1,Public Works
 TN - Department of Transportation HELP,47151,b82f,T,DOT HELP R2,Region 2 Dispatch - Chattanooga,Public Works
 TN - Department of Transportation HELP,47155,b833,T,DOT HTAC1 R2,Region 2 Tactical 1,Public Works
-TN - Department of Transportation HELP,47152,b830,T,DOT HELP R3,Region 3 Dispatch - Nashville,Public Works
+TN - Department of Transportation HELP,47152,b830,T,DOT HELP R3,TDOT HELP R3,Public Works
 TN - Department of Transportation HELP,47156,b834,T,DOT HTAC1 R3,Region 3 Tactical 1,Public Works
 TN - Department of Transportation HELP,47161,b839,T,DOT HTAC2 R3,Region 3 Tactical 2,Public Works
 TN - Department of Transportation HELP,47163,b83b,T,DOT HTAC3 R3,Region 3 Tactical 3,Public Works
