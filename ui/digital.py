@@ -90,6 +90,10 @@ _NON_FATAL_ERROR_RE = re.compile(
     r"unable to set usb configuration|mMainGui\" is null|error while broadcasting.*tunerevent)",
     re.I,
 )
+_SUPPRESS_STATUS_WARNING_RE = re.compile(
+    r"(mMainGui\" is null|error while broadcasting.*tunerevent)",
+    re.I,
+)
 _TUNER_BUSY_RE = re.compile(
     r"(in[- ]use by another application|device is busy|usb_claim_interface error|"
     r"unable to set usb configuration|failed to open rtlsdr device)",
@@ -210,6 +214,15 @@ _DIGITAL_TGID_MAX = max(1, int(os.getenv("DIGITAL_TGID_MAX", "16777215")))
 _DIGITAL_EVENT_MIN_DATA_BYTES = max(128, int(os.getenv("DIGITAL_EVENT_MIN_DATA_BYTES", "128")))
 _DIGITAL_EVENT_SCAN_MAX_FILES = max(50, int(os.getenv("DIGITAL_EVENT_SCAN_MAX_FILES", "2000")))
 _DIGITAL_TUNER_BUSY_WINDOW_MS = max(30000, int(os.getenv("DIGITAL_TUNER_BUSY_WINDOW_MS", "180000")))
+_DIGITAL_CONTROL_WINDOW_MS = max(30000, int(os.getenv("DIGITAL_CONTROL_WINDOW_MS", "120000")))
+_DIGITAL_CONTROL_TAIL_LINES = max(80, int(os.getenv("DIGITAL_CONTROL_TAIL_LINES", "300")))
+_DIGITAL_CONTROL_TAIL_BYTES = max(16384, int(os.getenv("DIGITAL_CONTROL_TAIL_BYTES", "131072")))
+_CONTROL_MESSAGE_RE = re.compile(
+    r"\b(TSBK|PDU|RFSS_STATUS_BCST|SEC_CCH_BROADCST|IDEN_UPDATE|TDMA_SYNC_BCST|"
+    r"SNDCP_DCH_|GRP_VCH_GRANT|UU_VCH_GRANT|GROUP VOICE CHANNEL UPDATE)\b",
+    re.I,
+)
+_SYNC_LOSS_RE = re.compile(r"\bSYNC LOSS\b", re.I)
 _DIGITAL_EVENT_DROP_RE = re.compile(
     r"(rejected|tuner unavailable|encrypted|encryption|data channel grant|nsapi)",
     re.I,
@@ -606,17 +619,20 @@ def _read_tail_lines(path: str, max_bytes: int = 8192, max_lines: int = 120):
 
 
 def _parse_time_ms(line: str, fallback_ms: int) -> int:
-    m = _TS_RE.search(line or "")
-    if m:
-        try:
-            dt = datetime.strptime(f"{m.group('date')} {m.group('time')}", "%Y-%m-%d %H:%M:%S")
-            return int(time.mktime(dt.timetuple()) * 1000)
-        except Exception:
-            return fallback_ms
-    m2 = _TS_COMPACT_RE.search(line or "")
+    text = str(line or "").strip()
+    # Prefer leading timestamps and avoid matching date strings that appear
+    # later inside decoded-message payload text.
+    m2 = _TS_COMPACT_RE.match(text)
     if m2:
         try:
             dt = datetime.strptime(f"{m2.group('date')} {m2.group('time')}", "%Y%m%d %H%M%S")
+            return int(time.mktime(dt.timetuple()) * 1000)
+        except Exception:
+            return fallback_ms
+    m = _TS_RE.match(text)
+    if m:
+        try:
+            dt = datetime.strptime(f"{m.group('date')} {m.group('time')}", "%Y-%m-%d %H:%M:%S")
             return int(time.mktime(dt.timetuple()) * 1000)
         except Exception:
             return fallback_ms
@@ -961,6 +977,10 @@ def _is_auto_placeholder_label(value: str) -> bool:
 
 def _is_non_fatal_error(line: str) -> bool:
     return bool(_NON_FATAL_ERROR_RE.search(line or ""))
+
+
+def _suppress_status_warning(line: str) -> bool:
+    return bool(_SUPPRESS_STATUS_WARNING_RE.search(line or ""))
 
 
 def _is_java_stack_line(line: str) -> bool:
@@ -1564,6 +1584,9 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         self._event_log_files_cache: list[str] = []
         self._event_log_files_cache_at = 0.0
         self._event_log_files_cache_ready = False
+        self._decoded_log_files_cache: list[str] = []
+        self._decoded_log_files_cache_at = 0.0
+        self._decoded_log_files_cache_ready = False
         self._event_log_scan_interval_sec = max(
             1.0,
             float(os.getenv("DIGITAL_EVENT_LOG_SCAN_INTERVAL_SEC", "20")),
@@ -2027,6 +2050,142 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 hits.append({"line": raw, "timeMs": ts})
         return hits
 
+    def _decoded_message_log_files(self) -> list[str]:
+        now_mono = time.monotonic()
+        if self._decoded_log_files_cache_ready:
+            cache_age = now_mono - self._decoded_log_files_cache_at
+            if cache_age < self._event_log_scan_interval_sec:
+                return [
+                    path for path in self._decoded_log_files_cache
+                    if os.path.isfile(path)
+                ]
+
+        base = self._event_log_dir
+        if not base or not os.path.isdir(base):
+            self._decoded_log_files_cache = []
+            self._decoded_log_files_cache_at = now_mono
+            self._decoded_log_files_cache_ready = True
+            return []
+
+        active_profile = str(self._read_active_profile_id() or "").strip().lower()
+        active_token = f"_{active_profile}_decoded_messages.log" if active_profile else ""
+        active_candidates: list[tuple[str, int, float, bool]] = []
+        other_candidates: list[tuple[str, int, float, bool]] = []
+        try:
+            it = os.scandir(base)
+        except Exception:
+            self._decoded_log_files_cache = []
+            self._decoded_log_files_cache_at = now_mono
+            self._decoded_log_files_cache_ready = True
+            return []
+
+        with it:
+            for entry in it:
+                name = str(entry.name or "")
+                if name.startswith("."):
+                    continue
+                lower = name.lower()
+                if "_decoded_messages.log" not in lower:
+                    continue
+                try:
+                    if not entry.is_file(follow_symlinks=False):
+                        continue
+                    st = entry.stat(follow_symlinks=False)
+                except Exception:
+                    continue
+                item = (
+                    entry.path,
+                    int(getattr(st, "st_size", 0) or 0),
+                    float(getattr(st, "st_mtime", 0.0) or 0.0),
+                    "_0_hz_" in lower,
+                )
+                if active_token and active_token in lower:
+                    active_candidates.append(item)
+                else:
+                    other_candidates.append(item)
+
+        selected = active_candidates if active_candidates else other_candidates
+        selected.sort(key=lambda item: item[2], reverse=True)  # newest first
+
+        # Prefer aggregate control-channel logs when present, then newest others.
+        aggregate = [item for item in selected if item[3]]
+        non_aggregate = [item for item in selected if not item[3]]
+        ordered = aggregate + non_aggregate if aggregate else selected
+
+        data_paths: list[str] = []
+        header_only_paths: list[str] = []
+        for path, size, _, _ in ordered:
+            if size > _DIGITAL_EVENT_MIN_DATA_BYTES:
+                data_paths.append(path)
+            elif len(header_only_paths) < 5:
+                header_only_paths.append(path)
+            if len(data_paths) >= 5:
+                break
+
+        selected_paths = list(data_paths[:5])
+        if len(selected_paths) < 5:
+            selected_paths.extend(header_only_paths[: 5 - len(selected_paths)])
+
+        self._decoded_log_files_cache = selected_paths
+        self._decoded_log_files_cache_at = now_mono
+        self._decoded_log_files_cache_ready = True
+        return list(selected_paths)
+
+    def _control_channel_summary(self) -> dict:
+        now_ms = int(time.time() * 1000)
+        window_ms = int(_DIGITAL_CONTROL_WINDOW_MS)
+        decoded_logs = self._decoded_message_log_files()
+        if not decoded_logs:
+            return {
+                "control_decode_available": False,
+                "control_channel_locked": False,
+                "control_activity_count": 0,
+                "control_sync_loss_count": 0,
+                "control_last_time_ms": 0,
+                "control_window_ms": window_ms,
+                "control_decode_files": 0,
+            }
+
+        control_count = 0
+        sync_loss_count = 0
+        last_control_ms = 0
+        for path in decoded_logs:
+            lines = _read_tail_lines(
+                path,
+                max_bytes=_DIGITAL_CONTROL_TAIL_BYTES,
+                max_lines=_DIGITAL_CONTROL_TAIL_LINES,
+            )
+            for line in lines:
+                raw = (line or "").strip()
+                if not raw:
+                    continue
+                ts = _parse_time_ms(raw, 0)
+                if ts <= 0:
+                    continue
+                if ts > (now_ms + 120000):
+                    continue
+                if (now_ms - ts) > window_ms:
+                    continue
+                if _SYNC_LOSS_RE.search(raw):
+                    sync_loss_count += 1
+                    continue
+                # Count decoded control-plane messages as direct evidence that
+                # the control channel is being demodulated.
+                if ",PASSED," in raw.upper() and _CONTROL_MESSAGE_RE.search(raw):
+                    control_count += 1
+                    if ts > last_control_ms:
+                        last_control_ms = ts
+
+        return {
+            "control_decode_available": True,
+            "control_channel_locked": bool(control_count > 0 and last_control_ms > 0),
+            "control_activity_count": int(control_count),
+            "control_sync_loss_count": int(sync_loss_count),
+            "control_last_time_ms": int(last_control_ms),
+            "control_window_ms": window_ms,
+            "control_decode_files": len(decoded_logs),
+        }
+
     def _playlist_source_summary(self) -> dict:
         playlist_path = _safe_realpath(DIGITAL_PLAYLIST_PATH)
         if not playlist_path:
@@ -2156,6 +2315,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         }
         payload.update(self._playlist_source_summary())
         payload.update(self._listen_filter_summary())
+        payload.update(self._control_channel_summary())
         return payload
 
     def start(self):
@@ -2545,6 +2705,9 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         self._event_log_files_cache = []
         self._event_log_files_cache_at = 0.0
         self._event_log_files_cache_ready = False
+        self._decoded_log_files_cache = []
+        self._decoded_log_files_cache_at = 0.0
+        self._decoded_log_files_cache_ready = False
         self._event_log_offsets = {}
         self._event_log_headers = {}
 
@@ -2672,7 +2835,7 @@ class DigitalManager:
         if err:
             payload["digital_last_error"] = err
         warn = self.getLastWarning()
-        if warn:
+        if warn and not _suppress_status_warning(str(warn)):
             payload["digital_last_warning"] = warn
         preflight = self.preflight() or {}
         payload["digital_tuner_busy_count"] = int(preflight.get("tuner_busy_count") or 0)
@@ -2688,6 +2851,13 @@ class DigitalManager:
             payload["digital_playlist_preferred_tuner"] = str(preflight.get("playlist_preferred_tuner"))
         if preflight.get("playlist_source_error"):
             payload["digital_playlist_source_error"] = str(preflight.get("playlist_source_error"))
+        payload["digital_control_channel_metric_ready"] = bool(preflight.get("control_decode_available"))
+        payload["digital_control_channel_locked"] = bool(preflight.get("control_channel_locked"))
+        payload["digital_control_channel_count"] = int(preflight.get("control_activity_count") or 0)
+        payload["digital_control_channel_last_time"] = int(preflight.get("control_last_time_ms") or 0)
+        payload["digital_control_sync_loss_count"] = int(preflight.get("control_sync_loss_count") or 0)
+        payload["digital_control_window_ms"] = int(preflight.get("control_window_ms") or 0)
+        payload["digital_control_decode_files"] = int(preflight.get("control_decode_files") or 0)
         if "listen_talkgroup_count" in preflight:
             payload["digital_listen_talkgroup_count"] = int(preflight.get("listen_talkgroup_count") or 0)
         if "listen_enabled_count" in preflight:

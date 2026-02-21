@@ -829,6 +829,7 @@
       display: grid;
       gap: 12px;
       min-height: 160px;
+      align-content: start;
     }
 
     .sitrep-card-title {
@@ -842,6 +843,7 @@
       display: grid;
       gap: 12px;
       grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      align-content: start;
     }
 
     .metric-item {
@@ -1075,6 +1077,7 @@
     .config-grid {
       display: grid;
       gap: 8px;
+      align-content: start;
     }
 
     .config-row {
@@ -1101,6 +1104,18 @@
     .config-value {
       font-family: "SFMono-Regular", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
       color: var(--text-primary);
+    }
+
+    .config-value.good {
+      color: #2be3a8;
+    }
+
+    .config-value.warn {
+      color: #f7c66f;
+    }
+
+    .config-value.bad {
+      color: #ff6b6b;
     }
 
     .activity-log {
@@ -1345,6 +1360,10 @@
                 </div>
                 <div class="control-applied">Backend: <span id="digital-backend">--</span></div>
                 <div class="control-applied">Profile: <span id="digital-profile">--</span></div>
+                <div class="control-applied">Control Channel: <span class="config-value" id="digital-cc-status">--</span></div>
+                <div class="control-applied"><span id="digital-cc-detail">--</span></div>
+                <div class="control-applied">RTL Dongles: <span class="config-value" id="digital-dongle-health">--</span></div>
+                <div class="control-applied">Missing: <span class="config-value" id="digital-dongle-missing">--</span></div>
               </div>
 
               <div class="control-item">
@@ -1775,6 +1794,14 @@
               <span class="config-label">TX Rate</span>
               <span class="config-value" id="sitrep-net-tx-rate">--</span>
             </div>
+            <div class="config-row">
+              <span class="config-label">RTL Dongles</span>
+              <span class="config-value" id="sitrep-dongles">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Missing</span>
+              <span class="config-value" id="sitrep-dongles-missing">--</span>
+            </div>
           </div>
         </div>
 
@@ -1973,6 +2000,16 @@
         lastTime: 0,
         lastError: '',
         lastWarning: '',
+        playlistSourceOk: false,
+        playlistSourceType: '',
+        playlistSourceError: '',
+        tunerBusyCount: 0,
+        controlMetricReady: false,
+        controlLocked: false,
+        controlCount: 0,
+        controlLastTime: 0,
+        controlSyncLossCount: 0,
+        controlWindowMs: 0,
         muted: false,
         profiles: [],
         activeProfile: '',
@@ -2042,6 +2079,10 @@
       digitalStatus: document.getElementById('digital-status'),
       digitalBackend: document.getElementById('digital-backend'),
       digitalProfile: document.getElementById('digital-profile'),
+      digitalCcStatus: document.getElementById('digital-cc-status'),
+      digitalCcDetail: document.getElementById('digital-cc-detail'),
+      digitalDongleHealth: document.getElementById('digital-dongle-health'),
+      digitalDongleMissing: document.getElementById('digital-dongle-missing'),
       digitalLastTime: document.getElementById('digital-last-time'),
       digitalLastLabel: document.getElementById('digital-last-label'),
       digitalLastMode: document.getElementById('digital-last-mode'),
@@ -2137,6 +2178,8 @@
       sitrepNetTx: document.getElementById('sitrep-net-tx'),
       sitrepNetRxRate: document.getElementById('sitrep-net-rx-rate'),
       sitrepNetTxRate: document.getElementById('sitrep-net-tx-rate'),
+      sitrepDongles: document.getElementById('sitrep-dongles'),
+      sitrepDonglesMissing: document.getElementById('sitrep-dongles-missing'),
       activityLog: document.getElementById('activity-log'),
       btnRestartAirband: document.getElementById('btn-restart-airband'),
       btnRestartGround: document.getElementById('btn-restart-ground'),
@@ -2901,6 +2944,15 @@
         els.digitalError.textContent = d.lastError || '';
         els.digitalError.style.color = d.lastError ? '#f59e0b' : '';
       }
+      const ccHealth = getDigitalControlChannelHealth();
+      if (els.digitalCcStatus) {
+        els.digitalCcStatus.textContent = ccHealth.label;
+        setValueTone(els.digitalCcStatus, ccHealth.tone);
+      }
+      if (els.digitalCcDetail) {
+        els.digitalCcDetail.textContent = ccHealth.detail || '--';
+      }
+      renderDongleHealth(state.systemStats);
       updateDigitalProfileSelect();
       updateDigitalProfilesList();
     }
@@ -3504,6 +3556,128 @@
       meta.textContent = detail;
     }
 
+    function setValueTone(el, tone) {
+      if (!el) return;
+      el.classList.toggle('good', tone === 'good');
+      el.classList.toggle('warn', tone === 'warn');
+      el.classList.toggle('bad', tone === 'bad');
+    }
+
+    function getDongleTelemetry(stats) {
+      const dongles = (stats && stats.dongles) ? stats.dongles : {};
+      const present = Number(dongles.present_count);
+      const target = Number(dongles.target_count);
+      const expected = Number(dongles.expected_count);
+      const missing = Array.isArray(dongles.missing_expected_serials) ? dongles.missing_expected_serials : [];
+      const status = String(dongles.status || '').toLowerCase();
+      const hasCounts = Number.isFinite(present) && Number.isFinite(target);
+      const expectedText = Number.isFinite(expected) && expected > 0 ? ` (cfg ${expected})` : '';
+      return {
+        hasCounts,
+        status,
+        missing,
+        summary: hasCounts ? `${present}/${target}${expectedText}` : '--',
+      };
+    }
+
+    function renderDongleHealth(stats) {
+      const info = getDongleTelemetry(stats);
+      const statusTone = info.status === 'ideal'
+        ? 'good'
+        : info.status === 'degraded'
+          ? 'warn'
+          : info.status === 'critical'
+            ? 'bad'
+            : '';
+
+      if (els.sitrepDongles) {
+        els.sitrepDongles.textContent = info.summary;
+        setValueTone(els.sitrepDongles, statusTone);
+      }
+      if (els.sitrepDonglesMissing) {
+        if (info.hasCounts) {
+          els.sitrepDonglesMissing.textContent = info.missing.length ? info.missing.join(', ') : 'none';
+          setValueTone(els.sitrepDonglesMissing, info.missing.length ? 'bad' : 'good');
+        } else {
+          els.sitrepDonglesMissing.textContent = '--';
+          setValueTone(els.sitrepDonglesMissing, '');
+        }
+      }
+      if (els.digitalDongleHealth) {
+        els.digitalDongleHealth.textContent = info.summary;
+        setValueTone(els.digitalDongleHealth, statusTone);
+      }
+      if (els.digitalDongleMissing) {
+        if (info.hasCounts) {
+          els.digitalDongleMissing.textContent = info.missing.length ? info.missing.join(', ') : 'none';
+          setValueTone(els.digitalDongleMissing, info.missing.length ? 'bad' : 'good');
+        } else {
+          els.digitalDongleMissing.textContent = '--';
+          setValueTone(els.digitalDongleMissing, '');
+        }
+      }
+    }
+
+    function getDigitalControlChannelHealth() {
+      const d = state.digital || {};
+      const sourceType = String(d.playlistSourceType || '').trim();
+      const metricReady = Boolean(d.controlMetricReady);
+      const windowMs = Number.isFinite(d.controlWindowMs) ? Number(d.controlWindowMs) : 0;
+      const windowSec = windowMs > 0 ? Math.round(windowMs / 1000) : 0;
+      const controlCount = Number.isFinite(d.controlCount) ? Number(d.controlCount) : 0;
+      const syncLossCount = Number.isFinite(d.controlSyncLossCount) ? Number(d.controlSyncLossCount) : 0;
+      const controlLocked = Boolean(d.controlLocked);
+      const lastControlText = formatTimeMs(Number(d.controlLastTime) || 0);
+
+      if (!d.active) {
+        return { label: 'OFFLINE', tone: 'bad', detail: 'Digital decoder stopped' };
+      }
+      if (!d.playlistSourceOk) {
+        const reason = d.playlistSourceError ? trimServiceNote(d.playlistSourceError) : 'Playlist source not ready';
+        return { label: 'SEARCHING', tone: 'bad', detail: reason };
+      }
+      if (d.lastError) {
+        return { label: 'SEARCHING', tone: 'bad', detail: trimServiceNote(d.lastError) };
+      }
+      if (metricReady) {
+        if (!controlLocked) {
+          if (windowSec > 0) {
+            return { label: 'SEARCHING', tone: 'bad', detail: `No control-channel decodes in last ${windowSec}s` };
+          }
+          return { label: 'SEARCHING', tone: 'bad', detail: 'No control-channel decode activity' };
+        }
+        if (Number(d.tunerBusyCount || 0) > 0) {
+          return {
+            label: 'DEGRADED',
+            tone: 'warn',
+            detail: `Control locked; tuner contention (${Number(d.tunerBusyCount || 0)})`,
+          };
+        }
+        if (d.lastWarning) {
+          return { label: 'DEGRADED', tone: 'warn', detail: `Control locked; ${trimServiceNote(d.lastWarning)}` };
+        }
+        const base = windowSec > 0
+          ? `Control decode ${controlCount}/${windowSec}s`
+          : `Control decode ${controlCount}`;
+        const syncTail = syncLossCount > 0 ? `; sync loss ${syncLossCount}` : '';
+        return {
+          label: 'LOCKED',
+          tone: 'good',
+          detail: `${base}; last ${lastControlText}${syncTail}`,
+        };
+      }
+      if (Number(d.tunerBusyCount || 0) > 0) {
+        return { label: 'DEGRADED', tone: 'warn', detail: `Tuner contention (${Number(d.tunerBusyCount || 0)})` };
+      }
+      if (d.lastWarning) {
+        return { label: 'DEGRADED', tone: 'warn', detail: trimServiceNote(d.lastWarning) };
+      }
+      if (sourceType) {
+        return { label: 'INFERRED', tone: 'warn', detail: `Source: ${sourceType} (direct metric unavailable)` };
+      }
+      return { label: 'INFERRED', tone: 'warn', detail: 'Direct control metric unavailable' };
+    }
+
     function updateSitrep() {
       if (!els.sitrepUpdated) return;
       const updated = state.serverTime ? new Date(state.serverTime * 1000) : new Date();
@@ -3710,6 +3884,7 @@
       if (els.sitrepNetTxRate) {
         els.sitrepNetTxRate.textContent = Number.isFinite(state.system.lastTxRate) ? formatRate(state.system.lastTxRate) : '--';
       }
+      renderDongleHealth(stats);
     }
 
     function renderActivityLog() {
@@ -4347,6 +4522,16 @@
         state.digital.lastTime = Number.isFinite(data.digital_last_time) ? data.digital_last_time : 0;
         state.digital.lastError = data.digital_last_error || '';
         state.digital.lastWarning = data.digital_last_warning || '';
+        state.digital.playlistSourceOk = Boolean(data.digital_playlist_source_ok);
+        state.digital.playlistSourceType = data.digital_playlist_source_type || '';
+        state.digital.playlistSourceError = data.digital_playlist_source_error || '';
+        state.digital.tunerBusyCount = Number.isFinite(data.digital_tuner_busy_count) ? data.digital_tuner_busy_count : 0;
+        state.digital.controlMetricReady = Boolean(data.digital_control_channel_metric_ready);
+        state.digital.controlLocked = Boolean(data.digital_control_channel_locked);
+        state.digital.controlCount = Number.isFinite(data.digital_control_channel_count) ? data.digital_control_channel_count : 0;
+        state.digital.controlLastTime = Number.isFinite(data.digital_control_channel_last_time) ? data.digital_control_channel_last_time : 0;
+        state.digital.controlSyncLossCount = Number.isFinite(data.digital_control_sync_loss_count) ? data.digital_control_sync_loss_count : 0;
+        state.digital.controlWindowMs = Number.isFinite(data.digital_control_window_ms) ? data.digital_control_window_ms : 0;
         state.digital.muted = Boolean(data.digital_muted);
         state.digitalMixerActive = Boolean(data.digital_mixer_active);
         state.lastHitDigital = state.digital.lastLabel || '';
@@ -4511,25 +4696,20 @@
             return;
           }
           
-          // Check if we have a genuinely new hit at the top
-          const currentTop = state.hits[0]?.time;
-          const newTop = newHits[0]?.time;
-          
-          if (newTop && newTop !== currentTop) {
-            const topHit = newHits[0];
-            // Merge: prepend new hits we don't have
-            let added = 0;
-            for (let i = newHits.length - 1; i >= 0; i--) {
-              const key = hitKey(newHits[i]);
-              if (key && !sessionHitKeys.has(key)) {
-                state.hits.unshift(newHits[i]);
-                sessionHitKeys.add(key);
-                added += 1;
-              }
+          // Merge: prepend unseen hits even if they share the same HH:MM:SS timestamp.
+          // High-traffic digital bursts often emit many unique hits per second.
+          const topHit = newHits[0];
+          let added = 0;
+          for (let i = newHits.length - 1; i >= 0; i--) {
+            const key = hitKey(newHits[i]);
+            if (key && !sessionHitKeys.has(key)) {
+              state.hits.unshift(newHits[i]);
+              sessionHitKeys.add(key);
+              added += 1;
             }
-            if (added > 0) {
-              state.sessionHits += added;
-            }
+          }
+          if (added > 0) {
+            state.sessionHits += added;
             state.hits = state.hits.slice(0, 50);
             updateHitList();
             updateCounters();

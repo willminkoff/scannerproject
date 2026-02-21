@@ -1,10 +1,18 @@
 # SprontPi Scanner Project
 
-**Version:** 2.0.0 (2026-02-10)
+**Version:** 2.5.0 (2026-02-21)
 
 Scanner control UI and configuration for RTL-SDR dual-dongle airband/GMRS/WX receiver on Raspberry Pi.
 
 **Current Architecture**: Refactored (Jan 2026) from 1,928-line monolith to 11 modular Python units + static web assets.
+
+## Version 2.5 Lock (2026-02-21)
+
+- Added dongle health telemetry in Sitrep and Digital UI (`target=4`, `present`, `expected`, `missing`, `unexpected`, serial list).
+- Added control-channel confidence state for digital profiles using decoded-message metrics (`Locked`, `Searching`, `Inferred` states in UI).
+- Filtered non-actionable headless SDRTrunk warnings from digital decoder error reporting to reduce false alarm noise.
+- Verified stable 4-dongle runtime baseline with a 10-minute soak: `120/120` healthy samples, `0` USB kernel drop events.
+- Captured stable serial-to-path baseline for this hardware layout: `70613472 -> 1-1.2`, `56919602 -> 1-1.3`, `49571227 -> 1-1.4`, `00000002 -> 1-2`.
 
 ## Directory Structure
 

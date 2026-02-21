@@ -5,6 +5,14 @@ import shutil
 import subprocess
 
 _last_cpu = {"total": None, "idle": None, "ts": None}
+_RTL_USB_SYSFS_ROOT = os.getenv("RTL_USB_SYSFS_ROOT", "/sys/bus/usb/devices")
+_RTL_USB_VENDOR = os.getenv("RTL_USB_VENDOR", "0bda").strip().lower()
+_RTL_USB_PRODUCT = os.getenv("RTL_USB_PRODUCT", "2838").strip().lower()
+
+try:
+    _RTL_DONGLE_TARGET = max(1, int(os.getenv("RTL_DONGLE_TARGET", "4")))
+except Exception:
+    _RTL_DONGLE_TARGET = 4
 
 
 def _read_first_line(path: str):
@@ -13,6 +21,71 @@ def _read_first_line(path: str):
             return f.readline().strip()
     except FileNotFoundError:
         return None
+
+
+def _expected_rtl_serials():
+    serials = []
+    for key in (
+        "AIRBAND_RTL_SERIAL",
+        "GROUND_RTL_SERIAL",
+        "DIGITAL_RTL_SERIAL",
+        "DIGITAL_RTL_SERIAL_SECONDARY",
+        "DIGITAL_RTL_SERIAL_2",
+    ):
+        value = str(os.getenv(key, "") or "").strip()
+        if value and value not in serials:
+            serials.append(value)
+    return serials
+
+
+def read_rtl_dongle_health():
+    present_serials = []
+    present_paths = []
+    root = _RTL_USB_SYSFS_ROOT
+    if os.path.isdir(root):
+        for dev in sorted(os.listdir(root)):
+            dev_path = os.path.join(root, dev)
+            vendor = _read_first_line(os.path.join(dev_path, "idVendor"))
+            product = _read_first_line(os.path.join(dev_path, "idProduct"))
+            if not vendor or not product:
+                continue
+            if vendor.strip().lower() != _RTL_USB_VENDOR:
+                continue
+            if product.strip().lower() != _RTL_USB_PRODUCT:
+                continue
+            serial = _read_first_line(os.path.join(dev_path, "serial")) or ""
+            serial = serial.strip()
+            if serial and serial not in present_serials:
+                present_serials.append(serial)
+                present_paths.append({"path": dev, "serial": serial})
+
+    expected_serials = _expected_rtl_serials()
+    missing_expected_serials = [s for s in expected_serials if s not in present_serials]
+    unexpected_serials = [s for s in present_serials if s not in expected_serials]
+
+    present_count = len(present_serials)
+    expected_count = len(expected_serials)
+    target_count = max(_RTL_DONGLE_TARGET, expected_count) if expected_count else _RTL_DONGLE_TARGET
+
+    if present_count == target_count and not missing_expected_serials:
+        status = "ideal"
+    elif present_count >= max(1, target_count - 1):
+        status = "degraded"
+    else:
+        status = "critical"
+
+    return {
+        "target_count": target_count,
+        "present_count": present_count,
+        "expected_count": expected_count,
+        "status": status,
+        "healthy": status == "ideal",
+        "present_serials": present_serials,
+        "expected_serials": expected_serials,
+        "missing_expected_serials": missing_expected_serials,
+        "unexpected_serials": unexpected_serials,
+        "present_paths": present_paths,
+    }
 
 
 def read_cpu_temp_c():
@@ -129,4 +202,5 @@ def get_system_stats():
         "cpu_usage": read_cpu_usage_percent(),
         "net": read_net_bytes(),
         "io_pressure": read_pressure("/proc/pressure/io"),
+        "dongles": read_rtl_dongle_health(),
     }
