@@ -840,6 +840,14 @@
       color: var(--text-secondary);
     }
 
+    .profile-editor-launch {
+      margin-top: 8px;
+      width: 100%;
+      justify-content: center;
+      border-color: rgba(45, 212, 191, 0.45);
+      color: var(--accent);
+    }
+
     .system-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1581,6 +1589,7 @@
       <div class="widget" id="profiles-widget">
         <div class="widget-header">🎯 Profiles</div>
         <div class="widget-body">
+          <button class="action profile-editor-launch" id="profile-editor-open-analog" type="button">Open Profile Editor</button>
           <div class="profiles-grid" id="profiles-list">
             <div class="empty-state">
               <div class="icon">📡</div>
@@ -1642,6 +1651,7 @@
       <div class="widget hidden" id="digital-profiles-widget">
         <div class="widget-header">🎛️ Digital Profiles</div>
         <div class="widget-body">
+          <button class="action profile-editor-launch" id="profile-editor-open-digital" type="button">Open Profile Editor</button>
           <div class="profiles-grid" id="digital-profiles-list">
             <div class="empty-state">
               <div class="icon">📡</div>
@@ -2438,6 +2448,8 @@
       btnRestartKeepalive: document.getElementById('btn-restart-keepalive'),
       btnRestartUi: document.getElementById('btn-restart-ui'),
       profileSidecarToggle: document.getElementById('profile-sidecar-toggle'),
+      profileEditorOpenAnalog: document.getElementById('profile-editor-open-analog'),
+      profileEditorOpenDigital: document.getElementById('profile-editor-open-digital'),
       profileSidecar: document.getElementById('profile-sidecar'),
       profileSidecarOverlay: document.getElementById('profile-sidecar-overlay'),
       profileSidecarClose: document.getElementById('profile-sidecar-close'),
@@ -2562,8 +2574,11 @@
       if (els.profileEditorPanelDigital) els.profileEditorPanelDigital.classList.toggle('hidden', next !== 'digital');
     }
 
-    function openProfileEditorSidecar() {
+    function openProfileEditorSidecar(tab = null) {
       state.profileEditor.open = true;
+      if (tab) {
+        setProfileEditorTab(tab);
+      }
       if (els.profileSidecar) {
         els.profileSidecar.classList.add('open');
         els.profileSidecar.setAttribute('aria-hidden', 'false');
@@ -5438,6 +5453,12 @@
       }
       if (els.profileSidecarToggle) {
         els.profileSidecarToggle.addEventListener('click', toggleProfileEditorSidecar);
+      }
+      if (els.profileEditorOpenAnalog) {
+        els.profileEditorOpenAnalog.addEventListener('click', () => openProfileEditorSidecar('analog'));
+      }
+      if (els.profileEditorOpenDigital) {
+        els.profileEditorOpenDigital.addEventListener('click', () => openProfileEditorSidecar('digital'));
       }
       if (els.profileSidecarClose) {
         els.profileSidecarClose.addEventListener('click', closeProfileEditorSidecar);
