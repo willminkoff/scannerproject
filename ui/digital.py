@@ -2849,16 +2849,22 @@ class DigitalManager:
         ok, err = self._adapter.setProfile(profileId)
         if ok:
             with self._scheduler_lock:
+                local_systems = self._discover_profile_local_systems(str(profileId or "").strip())
                 profile_key = str(profileId or "").strip().lower()
                 ordered_keys = {
                     str(item or "").strip().lower()
                     for item in (self._scheduler_order or [])
                     if str(item or "").strip()
                 }
-                # Prevent stale cross-profile scheduler state from pinning a newly
-                # selected profile in "searching". If the selected profile is not
-                # part of the configured multi-system order, fall back to single.
-                if (
+                # HomePatrol-style default: if this profile clearly defines two or
+                # more local systems, immediately run in timeslice mode across
+                # those systems.
+                if len(local_systems) >= 2:
+                    self._scheduler_mode = "timeslice_multi_system"
+                    self._scheduler_order = list(local_systems)
+                # Otherwise prevent stale cross-profile scheduler state from
+                # pinning a newly selected profile in "searching".
+                elif (
                     self._scheduler_mode == "timeslice_multi_system"
                     and profile_key
                     and profile_key not in ordered_keys
@@ -3034,6 +3040,62 @@ class DigitalManager:
                 break
         return tokens
 
+    @staticmethod
+    def _read_control_channel_groups_for_dir(profile_dir: str) -> list[tuple[str, list[int]]]:
+        path = str(profile_dir or "").strip()
+        if not path:
+            return []
+        control_path = os.path.join(path, "control_channels.txt")
+        if not os.path.isfile(control_path):
+            return []
+
+        groups: list[tuple[str, list[int]]] = []
+        current_name = ""
+        current_channels: list[int] = []
+        current_seen: set[int] = set()
+        default_name = os.path.basename(path) or "default"
+
+        def _flush_group() -> None:
+            nonlocal current_name, current_channels, current_seen
+            if current_name and current_channels:
+                groups.append((current_name, list(current_channels)))
+            current_name = ""
+            current_channels = []
+            current_seen = set()
+
+        try:
+            with open(control_path, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    raw = str(line or "").strip()
+                    if not raw:
+                        continue
+                    if raw.startswith("#"):
+                        label = raw.lstrip("#").strip()
+                        if label:
+                            _flush_group()
+                            current_name = label
+                        continue
+                    m = re.search(r"\d+\.\d+", raw)
+                    if not m:
+                        continue
+                    try:
+                        hz = int(round(float(m.group(0)) * 1_000_000))
+                    except Exception:
+                        continue
+                    if hz <= 0:
+                        continue
+                    if not current_name:
+                        current_name = default_name
+                    if hz in current_seen:
+                        continue
+                    current_seen.add(hz)
+                    current_channels.append(hz)
+        except Exception:
+            return []
+
+        _flush_group()
+        return groups
+
     def _read_control_channels_for_dir(self, profile_dir: str) -> list[int]:
         path = str(profile_dir or "").strip()
         if not path:
@@ -3046,31 +3108,71 @@ class DigitalManager:
                     return [int(v) for v in values if int(v) > 0]
             except Exception:
                 pass
+        groups = self._read_control_channel_groups_for_dir(path)
+        if not groups:
+            return []
         channels: list[int] = []
         seen: set[int] = set()
-        control_path = os.path.join(path, "control_channels.txt")
-        if not os.path.isfile(control_path):
-            return channels
-        try:
-            with open(control_path, "r", encoding="utf-8", errors="ignore") as f:
-                for line in f:
-                    raw = line.split("#", 1)[0].strip()
-                    if not raw:
-                        continue
-                    m = re.search(r"\d+\.\d+", raw)
-                    if not m:
-                        continue
-                    try:
-                        hz = int(round(float(m.group(0)) * 1_000_000))
-                    except Exception:
-                        continue
-                    if hz <= 0 or hz in seen:
-                        continue
-                    seen.add(hz)
-                    channels.append(hz)
-        except Exception:
-            return []
+        for _name, values in groups:
+            for hz in values:
+                if hz <= 0 or hz in seen:
+                    continue
+                seen.add(hz)
+                channels.append(hz)
         return channels
+
+    def _discover_profile_local_systems(self, profile_id: str) -> list[str]:
+        systems: list[str] = []
+        seen: set[str] = set()
+        profile_key = str(profile_id or "").strip()
+
+        def _add_system(raw_name: str) -> None:
+            name = str(raw_name or "").strip()
+            if not name:
+                return
+            key = name.lower()
+            if key in seen:
+                return
+            seen.add(key)
+            systems.append(name)
+
+        profile_dir = ""
+        read_active_profile_dir = getattr(self._adapter, "_read_active_profile_dir", None)
+        if callable(read_active_profile_dir):
+            try:
+                profile_dir = str(read_active_profile_dir() or "").strip()
+            except Exception:
+                profile_dir = ""
+
+        if profile_dir and os.path.isdir(profile_dir):
+            groups = self._read_control_channel_groups_for_dir(profile_dir)
+            if len(groups) >= 2:
+                for name, values in groups:
+                    if values:
+                        _add_system(name)
+            elif groups:
+                _add_system(profile_key or os.path.basename(profile_dir))
+
+            subdirs = []
+            try:
+                with os.scandir(profile_dir) as it:
+                    for entry in it:
+                        try:
+                            if not entry.is_dir(follow_symlinks=False):
+                                continue
+                        except Exception:
+                            continue
+                        subdirs.append(entry.name)
+            except Exception:
+                subdirs = []
+            for name in sorted(subdirs):
+                control_path = os.path.join(profile_dir, name, "control_channels.txt")
+                if os.path.isfile(control_path):
+                    _add_system(name)
+
+        if not systems and profile_key:
+            _add_system(profile_key)
+        return systems
 
     @staticmethod
     def _source_configuration_channels(source_conf: ET.Element) -> list[int]:
@@ -3106,6 +3208,10 @@ class DigitalManager:
                 profile_dir = ""
         if not profile_dir or not os.path.isdir(profile_dir):
             return []
+
+        for name, values in self._read_control_channel_groups_for_dir(profile_dir):
+            if str(name).strip().lower() == system.lower() and values:
+                return list(values)
 
         profile_key = str(profile_id or "").strip()
         if profile_key and system == profile_key:
@@ -3282,48 +3388,8 @@ class DigitalManager:
         return True, "", snapshot
 
     def _discover_scheduler_systems(self, profile_id: str) -> list[str]:
-        systems: list[str] = []
-        seen: set[str] = set()
-        profile_key = str(profile_id or "").strip()
-
-        profile_dir = ""
-        read_active_profile_dir = getattr(self._adapter, "_read_active_profile_dir", None)
-        if callable(read_active_profile_dir):
-            try:
-                profile_dir = str(read_active_profile_dir() or "").strip()
-            except Exception:
-                profile_dir = ""
-
-        def _add_system(raw_name: str) -> None:
-            name = str(raw_name or "").strip()
-            if not name or name in seen:
-                return
-            seen.add(name)
-            systems.append(name)
-
-        if profile_dir and os.path.isdir(profile_dir):
-            root_control = os.path.join(profile_dir, "control_channels.txt")
-            if os.path.isfile(root_control):
-                _add_system(profile_key or os.path.basename(profile_dir))
-            subdirs = []
-            try:
-                with os.scandir(profile_dir) as it:
-                    for entry in it:
-                        try:
-                            if not entry.is_dir(follow_symlinks=False):
-                                continue
-                        except Exception:
-                            continue
-                        subdirs.append(entry.name)
-            except Exception:
-                subdirs = []
-            for name in sorted(subdirs):
-                control_path = os.path.join(profile_dir, name, "control_channels.txt")
-                if os.path.isfile(control_path):
-                    _add_system(name)
-
-        if not systems and profile_key:
-            _add_system(profile_key)
+        systems: list[str] = list(self._discover_profile_local_systems(profile_id))
+        seen: set[str] = {str(name).strip().lower() for name in systems if str(name).strip()}
 
         # If scheduler order references standalone profile IDs, include them
         # as scan targets when they have usable control channel definitions.
@@ -3338,8 +3404,11 @@ class DigitalManager:
                     continue
                 if not os.path.isdir(candidate):
                     continue
+                if name.lower() in seen:
+                    continue
                 if self._read_control_channels_for_dir(candidate):
-                    _add_system(name)
+                    seen.add(name.lower())
+                    systems.append(name)
 
         if not self._scheduler_order:
             return systems
