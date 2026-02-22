@@ -3074,6 +3074,20 @@ class DigitalManager:
             if channels:
                 return channels
 
+        # Also allow scheduler order entries to target sibling profile IDs so
+        # we can time-slice across two standalone digital profiles.
+        profiles_base = _safe_realpath(DIGITAL_PROFILES_DIR)
+        sibling_profile = _safe_realpath(os.path.join(DIGITAL_PROFILES_DIR, system))
+        if (
+            profiles_base
+            and sibling_profile
+            and sibling_profile.startswith(profiles_base + os.sep)
+            and os.path.isdir(sibling_profile)
+        ):
+            channels = self._read_control_channels_for_dir(sibling_profile)
+            if channels:
+                return channels
+
         return self._read_control_channels_for_dir(profile_dir)
 
     def _apply_scheduler_system(
@@ -3263,6 +3277,22 @@ class DigitalManager:
 
         if not systems and profile_key:
             _add_system(profile_key)
+
+        # If scheduler order references standalone profile IDs, include them
+        # as scan targets when they have usable control channel definitions.
+        profiles_base = _safe_realpath(DIGITAL_PROFILES_DIR)
+        if profiles_base and os.path.isdir(profiles_base):
+            for token in self._scheduler_order:
+                name = str(token or "").strip()
+                if not name:
+                    continue
+                candidate = _safe_realpath(os.path.join(profiles_base, name))
+                if not candidate or not candidate.startswith(profiles_base + os.sep):
+                    continue
+                if not os.path.isdir(candidate):
+                    continue
+                if self._read_control_channels_for_dir(candidate):
+                    _add_system(name)
 
         if not self._scheduler_order:
             return systems
