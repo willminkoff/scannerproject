@@ -3658,6 +3658,15 @@ class DigitalManager:
 
         configured_mode = self._scheduler_mode
         mode = configured_mode
+        auto_enabled_multi = False
+        if configured_mode == "single_system" and len(systems) >= 2:
+            mode = "timeslice_multi_system"
+            auto_enabled_multi = True
+            self._scheduler_mode = "timeslice_multi_system"
+            if not self._scheduler_order:
+                self._scheduler_order = list(systems)
+            configured_mode = self._scheduler_mode
+            self._write_scheduler_state()
         if configured_mode == "timeslice_multi_system" and len(systems) < 2:
             mode = "single_system"
 
@@ -3669,10 +3678,10 @@ class DigitalManager:
             self._scheduler_profile = profile_id
             self._scheduler_active_system = systems[0] if systems else ""
             self._scheduler_last_switch_time_ms = now_ms if self._scheduler_active_system else 0
-            self._scheduler_switch_reason = "manual"
+            self._scheduler_switch_reason = "auto_profile_multi" if auto_enabled_multi else "manual"
             self._scheduler_in_call_hold = False
             pending_apply = bool(self._scheduler_active_system)
-            pending_reason = "manual"
+            pending_reason = "auto_profile_multi" if auto_enabled_multi else "manual"
 
         event_time_ms = int(event.get("timeMs") or 0)
         recent_event = event_time_ms > 0 and (now_ms - event_time_ms) <= self._scheduler_hang_ms
