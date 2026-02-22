@@ -112,6 +112,21 @@ if not PLAYER_MOUNT:
     PLAYER_MOUNT = DIGITAL_MIXER_OUTPUT_MOUNT if DIGITAL_MIXER_ENABLED else MOUNT_NAME
 ICECAST_MOUNT_PATH = f"/{PLAYER_MOUNT}"
 
+# V3 Runtime + Preflight
+V3_CANONICAL_CONFIG_PATH = os.getenv(
+    "V3_CANONICAL_CONFIG_PATH",
+    "/etc/scannerproject/v3/canonical_config.json",
+).strip()
+V3_COMPILED_STATE_PATH = os.getenv(
+    "V3_COMPILED_STATE_PATH",
+    "/run/airband_ui_v3_compiled_state.json",
+).strip()
+V3_STRICT_PREFLIGHT = os.getenv(
+    "V3_STRICT_PREFLIGHT",
+    "1",
+).strip().lower() in ("1", "true", "yes", "on")
+RTL_MIN_USB_SPEED_MBPS = max(1, int(os.getenv("RTL_MIN_USB_SPEED_MBPS", "480")))
+
 # Systemd Units
 UNITS = {
     "rtl": os.getenv("UNIT_RTL", "rtl-airband"),

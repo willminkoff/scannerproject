@@ -8,6 +8,10 @@ _last_cpu = {"total": None, "idle": None, "ts": None}
 _RTL_USB_SYSFS_ROOT = os.getenv("RTL_USB_SYSFS_ROOT", "/sys/bus/usb/devices")
 _RTL_USB_VENDOR = os.getenv("RTL_USB_VENDOR", "0bda").strip().lower()
 _RTL_USB_PRODUCT = os.getenv("RTL_USB_PRODUCT", "2838").strip().lower()
+try:
+    _RTL_MIN_USB_SPEED_MBPS = max(1, int(os.getenv("RTL_MIN_USB_SPEED_MBPS", "480")))
+except Exception:
+    _RTL_MIN_USB_SPEED_MBPS = 480
 
 try:
     _RTL_DONGLE_TARGET = max(1, int(os.getenv("RTL_DONGLE_TARGET", "4")))
@@ -41,6 +45,7 @@ def _expected_rtl_serials():
 def read_rtl_dongle_health():
     present_serials = []
     present_paths = []
+    speed_by_serial = {}
     root = _RTL_USB_SYSFS_ROOT
     if os.path.isdir(root):
         for dev in sorted(os.listdir(root)):
@@ -55,19 +60,38 @@ def read_rtl_dongle_health():
                 continue
             serial = _read_first_line(os.path.join(dev_path, "serial")) or ""
             serial = serial.strip()
+            speed_raw = _read_first_line(os.path.join(dev_path, "speed")) or ""
+            speed_mbps = None
+            if speed_raw:
+                try:
+                    speed_mbps = int(round(float(speed_raw)))
+                except Exception:
+                    speed_mbps = None
             if serial and serial not in present_serials:
                 present_serials.append(serial)
-                present_paths.append({"path": dev, "serial": serial})
+                present_paths.append({"path": dev, "serial": serial, "speed_mbps": speed_mbps})
+            if serial and speed_mbps is not None:
+                prev = speed_by_serial.get(serial)
+                if prev is None or speed_mbps > prev:
+                    speed_by_serial[serial] = speed_mbps
 
     expected_serials = _expected_rtl_serials()
     missing_expected_serials = [s for s in expected_serials if s not in present_serials]
     unexpected_serials = [s for s in present_serials if s not in expected_serials]
+    slow_expected_serials = [
+        s for s in expected_serials
+        if s in speed_by_serial and int(speed_by_serial[s]) < int(_RTL_MIN_USB_SPEED_MBPS)
+    ]
 
     present_count = len(present_serials)
     expected_count = len(expected_serials)
     target_count = max(_RTL_DONGLE_TARGET, expected_count) if expected_count else _RTL_DONGLE_TARGET
 
-    if present_count == target_count and not missing_expected_serials:
+    if (
+        present_count == target_count
+        and not missing_expected_serials
+        and not slow_expected_serials
+    ):
         status = "ideal"
     elif present_count >= max(1, target_count - 1):
         status = "degraded"
@@ -82,7 +106,10 @@ def read_rtl_dongle_health():
         "healthy": status == "ideal",
         "present_serials": present_serials,
         "expected_serials": expected_serials,
+        "expected_serial_speeds_mbps": speed_by_serial,
+        "min_speed_mbps": _RTL_MIN_USB_SPEED_MBPS,
         "missing_expected_serials": missing_expected_serials,
+        "slow_expected_serials": slow_expected_serials,
         "unexpected_serials": unexpected_serials,
         "present_paths": present_paths,
     }

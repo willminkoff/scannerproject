@@ -14,6 +14,37 @@ Scanner control UI and configuration for RTL-SDR dual-dongle airband/GMRS/WX rec
 - Verified stable 4-dongle runtime baseline with a 10-minute soak: `120/120` healthy samples, `0` USB kernel drop events.
 - Captured stable serial-to-path baseline for this hardware layout: `70613472 -> 1-1.2`, `56919602 -> 1-1.3`, `49571227 -> 1-1.4`, `00000002 -> 1-2`.
 
+## V3 Foundation (2026-02-22)
+
+V3 foundation is now active in code with hard guardrails and a canonical runtime compiler.
+
+- Canonical runtime config:
+  - `/etc/scannerproject/v3/canonical_config.json`
+  - source of truth for active analog/digital profile routing and profile inventory
+- Compiler state output:
+  - `/run/airband_ui_v3_compiled_state.json`
+  - deterministic hash + active selections + compile issues
+- Hard preflight gates (critical failures return HTTP `409` and block action):
+  - analog `POST /api/profile`, `POST /api/apply`, `POST /api/apply-batch`, `POST /api/filter`
+  - digital `POST /api/digital/start`, `POST /api/digital/restart`, `POST /api/digital/profile`
+  - gate reasons are structured (`code`, `severity`, `message`, optional `hint`)
+- New APIs:
+  - `GET /api/preflight?action=...&target=...&profileId=...`
+  - `GET /api/v3/compile-state`
+  - `POST /api/v3/compile`
+- `GET /api/status` now includes:
+  - `v3_compile`
+  - `preflight` (`airband`, `ground`, `digital`)
+  - `health` contract (`overall` + subsystem states/reason codes)
+- Dongle telemetry now includes USB link-speed checks:
+  - `min_speed_mbps`
+  - `expected_serial_speeds_mbps`
+  - `slow_expected_serials`
+
+Notes:
+- Scheduler/time-sliced multi-system work is intentionally parked and not coupled to this V3 foundation.
+- Current priority is deterministic runtime compilation + safe gating + observable health.
+
 ## Directory Structure
 
 ```
@@ -76,22 +107,28 @@ Profiles notes:
 ### High-Level Data Flow
 
 ```
-RTL-SDR Devices (2)
+RTL-SDR Devices (4 role-bound target)
     ↓
 rtl-airband (combined process)
     ├─ Airband scanner (118-136 MHz)
     └─ Ground scanner (VHF/UHF other)
     ↓
-Mixer (in rtl-airband)
-    ↓
-Icecast Mount (/GND.mp3) @ 16 kbps
-    ├→ Browser (audio player)
-    ├→ Journalctl (activity logging)
+Icecast Analog Mount (/ANALOG.mp3 or /GND.mp3)
+    ├→ Browser (analog player)
+    ├→ Journalctl (analog activity logging)
     └→ Frequency metadata
+    ↓
+scanner-digital.service (SDRTrunk)
+    ├─ Digital control + voice decode (P25/DMR as configured)
+    └─ Icecast Digital Mount (/DIGITAL.mp3)
+    ↓
+Optional digital mixer (scanner-digital-mixer.service)
+    ↓
+Composite stream mount (scannerbox.mp3)
     ↓
 airband-ui.service (Web UI backend)
     ├─ Reads: journalctl, Icecast status, config files
-    ├─ Writes: profile configs, control values
+    ├─ Writes: canonical config, runtime compile artifacts, profile configs
     └─ Exposes: REST API on port 5050
     ↓
 Browser (http://sprontpi.local:5050)
@@ -260,12 +297,47 @@ System status snapshot.
   "last_hit_airband": "119.3500",
   "last_hit_ground": "",
   "avoids_airband": ["121.900"],
-  "avoids_ground": []
+  "avoids_ground": [],
+  "v3_compile": {
+    "status": "healthy",
+    "issues": []
+  },
+  "preflight": {
+    "airband": {"state": "healthy", "reasons": []},
+    "ground": {"state": "healthy", "reasons": []},
+    "digital": {"state": "degraded", "reasons": []}
+  },
+  "health": {
+    "overall": {"state": "healthy", "reason_codes": []},
+    "subsystems": {}
+  }
 }
 ```
 **Notes**:
 - `*_squelch_dbfs` is the active squelch value (dBFS).
 - Legacy `squelch` fields may still appear for backward compatibility.
+- `health.overall.state` is one of `healthy`, `degraded`, `failed`, `unknown`.
+- `preflight.*.reasons` contains machine-readable reason codes for blocked/degraded operations.
+
+### GET /api/preflight
+Unified gate preview.
+
+**Query params**:
+- `action`: `apply`, `apply_batch`, `profile`, `filter`, `digital_start`, `digital_restart`, `digital_profile`
+- `target`: analog target (`airband` or `ground`) when applicable
+- `profileId`: digital profile ID when applicable
+
+**Response**:
+- `ok`: always true for this endpoint (inspection mode)
+- `would_block`: whether strict preflight would block the requested action
+- `state`: `healthy` | `degraded` | `failed`
+- `reasons`: structured reason list
+
+### GET /api/v3/compile-state
+Returns last compiler output from `/run/airband_ui_v3_compiled_state.json`.
+
+### POST /api/v3/compile
+Forces canonical compile + runtime reconciliation.
 
 ### GET /api/hits
 Last 50 detected hits (from journalctl activity logs).
@@ -302,6 +374,11 @@ Switch to a profile.
 {"ok": true, "changed": true}
 ```
 
+**Failure response** (`HTTP 409`):
+```json
+{"ok": false, "error": "preflight blocked", "preflight": {"state": "failed", "reasons": []}}
+```
+
 **Behavior**:
 - Regenerates combined config
 - Skips restart if frequency list unchanged
@@ -324,6 +401,11 @@ Legacy clients may still POST `squelch` (SNR). Backend defaults to dBFS mode in 
 **Response** (JSON):
 ```json
 {"ok": true, "changed": true}
+```
+
+**Failure response** (`HTTP 409`):
+```json
+{"ok": false, "error": "preflight blocked", "preflight": {"state": "failed", "reasons": []}}
 ```
 
 **Behavior**:

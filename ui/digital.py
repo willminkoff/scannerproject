@@ -2838,6 +2838,7 @@ class DigitalManager:
         if warn and not _suppress_status_warning(str(warn)):
             payload["digital_last_warning"] = warn
         preflight = self.preflight() or {}
+        payload["digital_preflight"] = preflight
         payload["digital_tuner_busy_count"] = int(preflight.get("tuner_busy_count") or 0)
         payload["digital_tuner_busy_time"] = int(preflight.get("tuner_busy_last_time_ms") or 0)
         payload["digital_playlist_source_ok"] = bool(preflight.get("playlist_source_ok"))

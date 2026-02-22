@@ -2120,6 +2120,16 @@
       streamRecoveryTimers: { analog: [], digital: [] },
       serverTime: null,
       systemStats: null,
+      v3Compile: null,
+      preflight: {
+        airband: null,
+        ground: null,
+        digital: null,
+      },
+      health: {
+        overall: { state: 'unknown', reasonCodes: [] },
+        subsystems: {},
+      },
       system: {
         lastNetTs: 0,
         lastRx: 0,
@@ -2445,7 +2455,21 @@
 
     async function fetchJSON(url) {
       const r = await fetchWithTimeout(url, { cache: 'no-store' });
-      if (!r.ok) throw new Error(`HTTP ${r.status} for ${url}`);
+      if (!r.ok) {
+        let payload = null;
+        try {
+          payload = await r.json();
+        } catch (_) {
+          payload = null;
+        }
+        const msg = payload && payload.error
+          ? `${payload.error} (HTTP ${r.status})`
+          : `HTTP ${r.status} for ${url}`;
+        const err = new Error(msg);
+        err.payload = payload;
+        err.status = r.status;
+        throw err;
+      }
       return r.json();
     }
     
@@ -2461,7 +2485,21 @@
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status} for ${endpoint}`);
+      if (!r.ok) {
+        let payload = null;
+        try {
+          payload = await r.json();
+        } catch (_) {
+          payload = null;
+        }
+        const msg = payload && payload.error
+          ? `${payload.error} (HTTP ${r.status})`
+          : `HTTP ${r.status} for ${endpoint}`;
+        const err = new Error(msg);
+        err.payload = payload;
+        err.status = r.status;
+        throw err;
+      }
       return r.json();
     }
 
@@ -2471,7 +2509,21 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload || {}),
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status} for ${endpoint}`);
+      if (!r.ok) {
+        let body = null;
+        try {
+          body = await r.json();
+        } catch (_) {
+          body = null;
+        }
+        const msg = body && body.error
+          ? `${body.error} (HTTP ${r.status})`
+          : `HTTP ${r.status} for ${endpoint}`;
+        const err = new Error(msg);
+        err.payload = body;
+        err.status = r.status;
+        throw err;
+      }
       return r.json();
     }
 
@@ -3362,7 +3414,14 @@
     function updateDigitalUI() {
       if (!els.digitalStatus) return;
       const d = state.digital;
-      els.digitalStatus.textContent = d.active ? 'Running' : 'Stopped';
+      const preflight = state.preflight?.digital || null;
+      let statusText = d.active ? 'Running' : 'Stopped';
+      if (preflight && preflight.state === 'degraded' && d.active) {
+        statusText = 'Running (Degraded)';
+      } else if (preflight && preflight.state === 'failed') {
+        statusText = d.active ? 'Running (Blocked)' : 'Stopped (Blocked)';
+      }
+      els.digitalStatus.textContent = statusText;
       if (els.digitalDot) els.digitalDot.classList.toggle('active', Boolean(d.active));
       if (els.digitalBackend) els.digitalBackend.textContent = d.backend || '--';
       if (els.digitalProfile) els.digitalProfile.textContent = d.profile || d.activeProfile || '--';
@@ -3391,7 +3450,12 @@
         setValueTone(els.digitalCcStatus, ccHealth.tone);
       }
       if (els.digitalCcDetail) {
-        els.digitalCcDetail.textContent = ccHealth.detail || '--';
+        const pfNote = summarizePreflight(preflight);
+        if (preflight && preflight.state === 'failed' && pfNote) {
+          els.digitalCcDetail.textContent = pfNote;
+        } else {
+          els.digitalCcDetail.textContent = ccHealth.detail || '--';
+        }
       }
       renderDongleHealth(state.systemStats);
       updateDigitalProfileSelect();
@@ -3412,10 +3476,10 @@
             scheduleStreamRecovery('digital', 'digital-restart', digitalShouldResume);
           }
         } else {
-          setDigitalStatusMessage((res && res.error) || `${action} failed`, true);
+          setDigitalStatusMessage(formatApiError(res, `${action} failed`), true);
         }
       } catch (e) {
-        setDigitalStatusMessage(`${action} failed`, true);
+        setDigitalStatusMessage(messageFromError(e, `${action} failed`), true);
       }
       await refresh();
     }
@@ -3433,10 +3497,10 @@
           setDigitalStatusMessage('Profile updated', false);
           scheduleStreamRecovery('digital', 'digital-profile', digitalShouldResume);
         } else {
-          setDigitalStatusMessage((res && res.error) || 'Profile update failed', true);
+          setDigitalStatusMessage(formatApiError(res, 'Profile update failed'), true);
         }
       } catch (e) {
-        setDigitalStatusMessage('Profile update failed', true);
+        setDigitalStatusMessage(messageFromError(e, 'Profile update failed'), true);
       }
       await refreshDigitalProfiles(true);
       await refresh();
@@ -3460,7 +3524,7 @@
       try {
         const res = await postAPI('/api/digital/profile/create', { profileId });
         if (!res || !res.ok) {
-          setDigitalManageStatus((res && res.error) || 'Create failed', true);
+          setDigitalManageStatus(formatApiError(res, 'Create failed'), true);
           return;
         }
         setDigitalManageStatus('Profile created', false);
@@ -3469,7 +3533,7 @@
           els.digitalProfileSelect.value = profileId;
         }
       } catch (e) {
-        setDigitalManageStatus('Create failed', true);
+        setDigitalManageStatus(messageFromError(e, 'Create failed'), true);
       }
     }
 
@@ -3482,13 +3546,13 @@
       try {
         const res = await postAPI('/api/digital/profile/delete', { profileId });
         if (!res || !res.ok) {
-          setDigitalManageStatus((res && res.error) || 'Delete failed', true);
+          setDigitalManageStatus(formatApiError(res, 'Delete failed'), true);
           return;
         }
         setDigitalManageStatus('Profile deleted', false);
         await refreshDigitalProfiles(true);
       } catch (e) {
-        setDigitalManageStatus('Delete failed', true);
+        setDigitalManageStatus(messageFromError(e, 'Delete failed'), true);
       }
     }
 
@@ -3502,7 +3566,7 @@
       try {
         const res = await postAPI('/api/digital/profile/inspect', { profileId });
         if (!res || !res.ok) {
-          setDigitalPreviewStatus((res && res.error) || 'Load failed', true);
+          setDigitalPreviewStatus(formatApiError(res, 'Load failed'), true);
           return;
         }
         const text = formatDigitalPreview(res);
@@ -3511,7 +3575,7 @@
         }
         setDigitalPreviewStatus('Loaded', false);
       } catch (e) {
-        setDigitalPreviewStatus('Load failed', true);
+        setDigitalPreviewStatus(messageFromError(e, 'Load failed'), true);
       }
     }
 
@@ -3779,14 +3843,14 @@
         }));
         const res = await postJSON('/api/digital/talkgroups/listen', { profileId, items });
         if (!res || !res.ok) {
-          setDigitalListenStatus((res && res.error) || 'Save failed', true);
+          setDigitalListenStatus(formatApiError(res, 'Save failed'), true);
           return;
         }
         state.digitalListen.dirty = false;
         setDigitalListenStatus('Saved', false);
         renderDigitalListenList();
       } catch (e) {
-        setDigitalListenStatus('Save failed', true);
+        setDigitalListenStatus(messageFromError(e, 'Save failed'), true);
       }
     }
 
@@ -3987,6 +4051,48 @@
       return `${text.slice(0, maxLen - 1)}…`;
     }
 
+    function healthTone(stateValue) {
+      const s = String(stateValue || '').toLowerCase();
+      if (s === 'healthy') return 'good';
+      if (s === 'degraded') return 'warn';
+      if (s === 'failed') return 'bad';
+      return '';
+    }
+
+    function summarizePreflight(preflight) {
+      const p = preflight || {};
+      const reasons = Array.isArray(p.reasons) ? p.reasons : [];
+      if (!reasons.length) return '';
+      const first = reasons.find(r => String(r.severity || '') === 'critical') || reasons[0];
+      if (!first) return '';
+      const code = String(first.code || '').trim();
+      const message = String(first.message || '').trim();
+      if (code && message) return `${code}: ${message}`;
+      return code || message || '';
+    }
+
+    function formatApiError(res, fallback = '') {
+      if (!res) return fallback;
+      const base = String(res.error || fallback || '').trim();
+      const preflightNote = summarizePreflight(res.preflight);
+      if (!preflightNote) return base;
+      if (!base) return `Preflight blocked: ${preflightNote}`;
+      return `${base} (${preflightNote})`;
+    }
+
+    function payloadFromError(err) {
+      if (!err || typeof err !== 'object') return null;
+      const payload = err.payload;
+      return payload && typeof payload === 'object' ? payload : null;
+    }
+
+    function messageFromError(err, fallback = '') {
+      const payload = payloadFromError(err);
+      if (payload) return formatApiError(payload, fallback);
+      const text = String(err && err.message ? err.message : '').trim();
+      return text || fallback;
+    }
+
     function getProfileLabel(target, id) {
       if (!id) return '--';
       const profiles = state[target]?.profiles || [];
@@ -4016,6 +4122,9 @@
       const target = Number(dongles.target_count);
       const expected = Number(dongles.expected_count);
       const missing = Array.isArray(dongles.missing_expected_serials) ? dongles.missing_expected_serials : [];
+      const slow = Array.isArray(dongles.slow_expected_serials) ? dongles.slow_expected_serials : [];
+      const minSpeedValue = Number(dongles.min_speed_mbps);
+      const minSpeed = Number.isFinite(minSpeedValue) ? minSpeedValue : null;
       const status = String(dongles.status || '').toLowerCase();
       const hasCounts = Number.isFinite(present) && Number.isFinite(target);
       const expectedText = Number.isFinite(expected) && expected > 0 ? ` (cfg ${expected})` : '';
@@ -4023,6 +4132,8 @@
         hasCounts,
         status,
         missing,
+        slow,
+        minSpeed,
         summary: hasCounts ? `${present}/${target}${expectedText}` : '--',
       };
     }
@@ -4043,8 +4154,13 @@
       }
       if (els.sitrepDonglesMissing) {
         if (info.hasCounts) {
-          els.sitrepDonglesMissing.textContent = info.missing.length ? info.missing.join(', ') : 'none';
-          setValueTone(els.sitrepDonglesMissing, info.missing.length ? 'bad' : 'good');
+          const missingText = info.missing.length ? `missing: ${info.missing.join(', ')}` : '';
+          const slowText = info.slow.length
+            ? `slow<${info.minSpeed || '?'}Mbps: ${info.slow.join(', ')}`
+            : '';
+          const combined = [missingText, slowText].filter(Boolean).join(' | ');
+          els.sitrepDonglesMissing.textContent = combined || 'none';
+          setValueTone(els.sitrepDonglesMissing, (info.missing.length || info.slow.length) ? 'bad' : 'good');
         } else {
           els.sitrepDonglesMissing.textContent = '--';
           setValueTone(els.sitrepDonglesMissing, '');
@@ -4056,8 +4172,13 @@
       }
       if (els.digitalDongleMissing) {
         if (info.hasCounts) {
-          els.digitalDongleMissing.textContent = info.missing.length ? info.missing.join(', ') : 'none';
-          setValueTone(els.digitalDongleMissing, info.missing.length ? 'bad' : 'good');
+          const missingText = info.missing.length ? `missing: ${info.missing.join(', ')}` : '';
+          const slowText = info.slow.length
+            ? `slow<${info.minSpeed || '?'}Mbps: ${info.slow.join(', ')}`
+            : '';
+          const combined = [missingText, slowText].filter(Boolean).join(' | ');
+          els.digitalDongleMissing.textContent = combined || 'none';
+          setValueTone(els.digitalDongleMissing, (info.missing.length || info.slow.length) ? 'bad' : 'good');
         } else {
           els.digitalDongleMissing.textContent = '--';
           setValueTone(els.digitalDongleMissing, '');
@@ -4259,11 +4380,22 @@
       }
 
       if (els.sitrepConfig) {
-        const needsRestart = Boolean(state.rtlRestartRequired);
-        const ok = !state.combinedStale && !needsRestart;
-        els.sitrepConfig.textContent = needsRestart ? 'Restart required' : (ok ? 'Config synced' : 'Config stale');
-        els.sitrepConfig.classList.toggle('good', ok);
-        els.sitrepConfig.classList.toggle('bad', !ok || needsRestart);
+        const cfgState = String(state.health?.subsystems?.config?.state || '').toLowerCase();
+        if (cfgState === 'failed') {
+          els.sitrepConfig.textContent = 'Config failed';
+          els.sitrepConfig.classList.add('bad');
+          els.sitrepConfig.classList.remove('good');
+        } else if (cfgState === 'degraded') {
+          els.sitrepConfig.textContent = 'Config degraded';
+          els.sitrepConfig.classList.remove('good');
+          els.sitrepConfig.classList.add('bad');
+        } else {
+          const needsRestart = Boolean(state.rtlRestartRequired);
+          const ok = !state.combinedStale && !needsRestart;
+          els.sitrepConfig.textContent = needsRestart ? 'Restart required' : (ok ? 'Config synced' : 'Config stale');
+          els.sitrepConfig.classList.toggle('good', ok);
+          els.sitrepConfig.classList.toggle('bad', !ok || needsRestart);
+        }
       }
 
       setServiceStatus('api', Boolean(state.connected), state.connected ? 'online' : 'offline');
@@ -4289,6 +4421,7 @@
       if (els.serviceDigitalNote) {
         const err = state.digital.lastError;
         const warn = state.digital.lastWarning;
+        const preflight = state.preflight?.digital || {};
         let note = '';
         let tone = '';
         if (err) {
@@ -4297,6 +4430,10 @@
         } else if (warn) {
           note = `Warn: ${trimServiceNote(warn)}`;
           tone = 'warn';
+        } else if (preflight && preflight.state && preflight.state !== 'healthy') {
+          const summary = summarizePreflight(preflight);
+          note = summary ? `Preflight: ${trimServiceNote(summary)}` : `Preflight: ${preflight.state}`;
+          tone = preflight.state === 'failed' ? 'bad' : 'warn';
         }
         els.serviceDigitalNote.textContent = note;
         els.serviceDigitalNote.classList.toggle('bad', tone === 'bad');
@@ -4398,7 +4535,7 @@
       try {
         const res = await postAPI('/api/restart', { target });
         if (!res || !res.ok) {
-          logActivity(`${label} restart failed`, 'warn', `restart-${target}-fail`);
+          logActivity(formatApiError(res, `${label} restart failed`), 'warn', `restart-${target}-fail`);
         } else {
           logActivity(`${label} restart issued`, 'info', `restart-${target}`);
           if (target === 'airband' || target === 'ground') {
@@ -4409,7 +4546,7 @@
         }
       } catch (e) {
         console.error('Restart failed:', e);
-        logActivity(`${label} restart failed`, 'warn', `restart-${target}-error`);
+        logActivity(messageFromError(e, `${label} restart failed`), 'warn', `restart-${target}-error`);
       } finally {
         if (btn) {
           setTimeout(() => { btn.disabled = false; }, 1500);
@@ -4594,6 +4731,7 @@
         }
       } catch (e) {
         console.error('Apply failed:', e);
+        logActivity(messageFromError(e, 'Apply failed'), 'warn', `apply-failed-${activeTarget}`);
       }
     }
 
@@ -4635,6 +4773,7 @@
         }
       } catch (e) {
         console.error('Apply batch failed:', e);
+        logActivity(messageFromError(e, 'Batch apply failed'), 'warn', `apply-batch-failed-${activeTarget}`);
       }
     }
     
@@ -4648,6 +4787,7 @@
         state[activeTarget].filter = cutoff;
       } catch (e) {
         console.error('Filter apply failed:', e);
+        logActivity(messageFromError(e, 'Filter apply failed'), 'warn', `filter-failed-${activeTarget}`);
       }
     }
     
@@ -4862,6 +5002,7 @@
         scheduleStreamRecovery('analog', `profile-${activeTarget}`, analogShouldResume);
       } catch (e) {
         console.error('Profile switch failed:', e);
+        logActivity(messageFromError(e, 'Profile switch failed'), 'warn', `profile-failed-${activeTarget}-${id}`);
       }
     }
     
@@ -4999,6 +5140,9 @@
         }
         
         state.serverTime = data.server_time;
+        state.v3Compile = data.v3_compile || null;
+        state.preflight = data.preflight || { airband: null, ground: null, digital: null };
+        state.health = data.health || { overall: { state: 'unknown', reasonCodes: [] }, subsystems: {} };
         
         state.connected = true;
         if (!wasConnected) {
@@ -5493,20 +5637,20 @@
             setManageStatus('Enter an ID or label to create a profile.', true);
             return;
           }
-          const res = await postAPI('/api/profile/create', {
-            id: profileId,
-            label,
-            airband: target === 'airband',
-          });
-          if (!res.ok) {
-            setManageStatus(res.error || 'Create failed', true);
-            return;
-          }
-          setManageStatus('Profile created', false);
-          await refresh();
-          if (res.profile && els.freqEditProfile) {
-            els.freqEditProfile.value = res.profile.id;
-            if (els.freqEditStatus) els.freqEditStatus.textContent = `Ready to edit: ${res.profile.id}`;
+          try {
+            const res = await postAPI('/api/profile/create', {
+              id: profileId,
+              label,
+              airband: target === 'airband',
+            });
+            setManageStatus('Profile created', false);
+            await refresh();
+            if (res.profile && els.freqEditProfile) {
+              els.freqEditProfile.value = res.profile.id;
+              if (els.freqEditStatus) els.freqEditStatus.textContent = `Ready to edit: ${res.profile.id}`;
+            }
+          } catch (e) {
+            setManageStatus(messageFromError(e, 'Create failed'), true);
           }
         });
       }
@@ -5515,13 +5659,13 @@
           const profileId = getManageSelectedId();
           const label = (els.manageLabel && els.manageLabel.value || '').trim();
           if (!profileId || !label) return;
-          const res = await postAPI('/api/profile/update', {id: profileId, label});
-          if (!res.ok) {
-            setManageStatus(res.error || 'Rename failed', true);
-            return;
+          try {
+            await postAPI('/api/profile/update', {id: profileId, label});
+            setManageStatus('Profile renamed', false);
+            refresh();
+          } catch (e) {
+            setManageStatus(messageFromError(e, 'Rename failed'), true);
           }
-          setManageStatus('Profile renamed', false);
-          refresh();
         });
       }
       if (els.manageDelete) {
@@ -5529,13 +5673,13 @@
           const profileId = getManageSelectedId();
           if (!profileId) return;
           if (!confirm(`Delete profile ${profileId}?`)) return;
-          const res = await postAPI('/api/profile/delete', {id: profileId});
-          if (!res.ok) {
-            setManageStatus(res.error || 'Delete failed', true);
-            return;
+          try {
+            await postAPI('/api/profile/delete', {id: profileId});
+            setManageStatus('Profile deleted', false);
+            refresh();
+          } catch (e) {
+            setManageStatus(messageFromError(e, 'Delete failed'), true);
           }
-          setManageStatus('Profile deleted', false);
-          refresh();
         });
       }
       if (els.btnRestartAirband) {
@@ -5563,13 +5707,13 @@
         els.freqEditLoad.addEventListener('click', async () => {
           const id = els.freqEditProfile && els.freqEditProfile.value;
           if (!id) return;
-          const res = await fetchJSON(`/api/profile?id=${encodeURIComponent(id)}`);
-          if (!res.ok) {
-            if (els.freqEditStatus) els.freqEditStatus.textContent = res.error || 'Load failed';
-            return;
+          try {
+            const res = await fetchJSON(`/api/profile?id=${encodeURIComponent(id)}`);
+            if (els.freqEditText) els.freqEditText.value = formatFreqsText(res.freqs || [], res.labels || []);
+            if (els.freqEditStatus) els.freqEditStatus.textContent = `Loaded: ${id}`;
+          } catch (e) {
+            if (els.freqEditStatus) els.freqEditStatus.textContent = messageFromError(e, 'Load failed');
           }
-          if (els.freqEditText) els.freqEditText.value = formatFreqsText(res.freqs || [], res.labels || []);
-          if (els.freqEditStatus) els.freqEditStatus.textContent = `Loaded: ${id}`;
         });
       }
       if (els.freqEditSave) {
@@ -5584,13 +5728,13 @@
             if (els.freqEditStatus) els.freqEditStatus.textContent = 'Add at least one frequency before saving.';
             return;
           }
-          const res = await postAPI('/api/profile/update_freqs', {id, freqs_text});
-          if (!res.ok) {
-            if (els.freqEditStatus) els.freqEditStatus.textContent = res.error || 'Save failed';
-            return;
+          try {
+            const res = await postAPI('/api/profile/update_freqs', {id, freqs_text});
+            if (els.freqEditStatus) els.freqEditStatus.textContent = res.changed ? 'Saved (scanner updated)' : 'Saved';
+            refresh();
+          } catch (e) {
+            if (els.freqEditStatus) els.freqEditStatus.textContent = messageFromError(e, 'Save failed');
           }
-          if (els.freqEditStatus) els.freqEditStatus.textContent = res.changed ? 'Saved (scanner updated)' : 'Saved';
-          refresh();
         });
       }
       // Reconnect button removed
