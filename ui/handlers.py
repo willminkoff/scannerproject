@@ -48,10 +48,6 @@ try:
         UI_PORT,
         UNITS,
         COMBINED_CONFIG_PATH,
-        DIGITAL_MIXER_ENABLED,
-        DIGITAL_MIXER_AIRBAND_MOUNT,
-        DIGITAL_MIXER_DIGITAL_MOUNT,
-        DIGITAL_MIXER_OUTPUT_MOUNT,
         AIRBAND_RTL_SERIAL,
         GROUND_RTL_SERIAL,
         DIGITAL_PREFERRED_TUNER,
@@ -59,6 +55,7 @@ try:
         DIGITAL_RTL_SERIAL,
         DIGITAL_RTL_SERIAL_SECONDARY,
         DIGITAL_RTL_SERIAL_HINT,
+        DIGITAL_STREAM_MOUNT,
         ICECAST_PORT,
         PLAYER_MOUNT,
     )
@@ -122,10 +119,6 @@ except ImportError:
         UI_PORT,
         UNITS,
         COMBINED_CONFIG_PATH,
-        DIGITAL_MIXER_ENABLED,
-        DIGITAL_MIXER_AIRBAND_MOUNT,
-        DIGITAL_MIXER_DIGITAL_MOUNT,
-        DIGITAL_MIXER_OUTPUT_MOUNT,
         AIRBAND_RTL_SERIAL,
         GROUND_RTL_SERIAL,
         DIGITAL_PREFERRED_TUNER,
@@ -133,6 +126,7 @@ except ImportError:
         DIGITAL_RTL_SERIAL,
         DIGITAL_RTL_SERIAL_SECONDARY,
         DIGITAL_RTL_SERIAL_HINT,
+        DIGITAL_STREAM_MOUNT,
         ICECAST_PORT,
         PLAYER_MOUNT,
     )
@@ -349,11 +343,11 @@ def _digital_has_recent_event(max_age_sec: float = DIGITAL_HIT_RECENT_SEC) -> bo
 
 def _digital_stream_active_for_hits() -> bool:
     """Treat digital events as active via mount title, with recent-event fallback."""
-    if not DIGITAL_MIXER_DIGITAL_MOUNT:
+    if not DIGITAL_STREAM_MOUNT:
         return True
     status_text = fetch_local_icecast_status()
     if status_text and not status_text.startswith("ERROR:"):
-        title = extract_icecast_title_for_mount(status_text, f"/{DIGITAL_MIXER_DIGITAL_MOUNT}")
+        title = extract_icecast_title_for_mount(status_text, f"/{DIGITAL_STREAM_MOUNT}")
         if title.strip().lower() not in _DIGITAL_IDLE_TITLES:
             return True
     return _digital_has_recent_event()
@@ -979,7 +973,6 @@ class Handler(BaseHTTPRequestHandler):
             rtl_unit_active = _unit_active_cached(UNITS["rtl"])
             ground_unit_active = _unit_active_cached(UNITS["ground"])
             keepalive_unit_active = _unit_active_cached(UNITS["keepalive"])
-            digital_mixer_unit_active = _unit_active_cached(UNITS["digital_mixer"])
             combined_info = combined_device_summary()
             airband_device = combined_info.get("airband")
             ground_device = combined_info.get("ground")
@@ -1102,11 +1095,8 @@ class Handler(BaseHTTPRequestHandler):
                 "icecast_port": ICECAST_PORT,
                 "stream_mount": PLAYER_MOUNT,
                 "stream_proxy_enabled": True,
-                "digital_stream_mount": DIGITAL_MIXER_DIGITAL_MOUNT,
-                "icecast_expected_mounts": (
-                    [f"/{DIGITAL_MIXER_AIRBAND_MOUNT}", f"/{DIGITAL_MIXER_DIGITAL_MOUNT}", f"/{DIGITAL_MIXER_OUTPUT_MOUNT}"]
-                    if DIGITAL_MIXER_ENABLED else [f"/{PLAYER_MOUNT}"]
-                ),
+                "digital_stream_mount": DIGITAL_STREAM_MOUNT,
+                "icecast_expected_mounts": [f"/{PLAYER_MOUNT}", f"/{DIGITAL_STREAM_MOUNT}"],
                 "expected_serials": expected_serials,
                 "digital_tuner_targets": _digital_tuner_targets(),
                 "serial_mismatch": bool(serial_mismatch_detail),
@@ -1178,7 +1168,6 @@ class Handler(BaseHTTPRequestHandler):
                     digital_payload["digital_last_time"] = 0
                     digital_payload.pop("digital_last_mode", None)
             digital_payload["digital_stream_active_for_hits"] = bool(digital_stream_active_for_hits)
-            digital_payload["digital_mixer_active"] = digital_mixer_unit_active
             payload.update(digital_payload)
             try:
                 compile_state = load_compiled_state() or {}

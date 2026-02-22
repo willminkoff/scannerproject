@@ -7,9 +7,9 @@ import time
 from typing import Optional
 
 try:
-    from .config import ICECAST_HOST, ICECAST_PORT, PLAYER_MOUNT, DIGITAL_MIXER_DIGITAL_MOUNT
+    from .config import ICECAST_HOST, ICECAST_PORT, PLAYER_MOUNT, DIGITAL_STREAM_MOUNT
 except ImportError:
-    from ui.config import ICECAST_HOST, ICECAST_PORT, PLAYER_MOUNT, DIGITAL_MIXER_DIGITAL_MOUNT
+    from ui.config import ICECAST_HOST, ICECAST_PORT, PLAYER_MOUNT, DIGITAL_STREAM_MOUNT
 
 VLC_HTTP_RECONNECT = str(os.getenv("VLC_HTTP_RECONNECT", "1")).strip().lower() in ("1", "true", "yes", "on")
 try:
@@ -25,7 +25,7 @@ VLC_TARGETS = ("analog", "digital")
 DEFAULT_TARGET = "analog"
 DEFAULT_MOUNTS = {
     "analog": PLAYER_MOUNT,
-    "digital": DIGITAL_MIXER_DIGITAL_MOUNT or PLAYER_MOUNT,
+    "digital": DIGITAL_STREAM_MOUNT or PLAYER_MOUNT,
 }
 
 _MOUNT_RE = re.compile(r"^[A-Za-z0-9._-]+$")

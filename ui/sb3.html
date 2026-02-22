@@ -1442,7 +1442,6 @@
       </button>
     </div>
     <div class="header-right">
-      <button class="theme-toggle sidecar-toggle" id="profile-sidecar-toggle" type="button" title="Open profile editor">Editor</button>
       <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle red theme">🔴</button>
     </div>
   </div>
@@ -1761,13 +1760,6 @@
               </div>
               <span class="service-dot"></span>
             </div>
-            <div class="service-item" data-service="mixer">
-              <div>
-                <div class="service-name">Digital Mixer</div>
-                <div class="service-meta">Status: <span id="service-mixer">--</span></div>
-              </div>
-              <span class="service-dot"></span>
-            </div>
             <div class="service-item" data-service="icecast">
               <div>
                 <div class="service-name">Icecast Audio</div>
@@ -1794,7 +1786,6 @@
             <button class="sitrep-btn" id="btn-restart-airband" type="button">Restart Airband</button>
             <button class="sitrep-btn" id="btn-restart-ground" type="button">Restart Ground</button>
             <button class="sitrep-btn" id="btn-restart-digital" type="button">Restart Digital</button>
-            <button class="sitrep-btn" id="btn-restart-mixer" type="button">Restart Mixer</button>
             <button class="sitrep-btn" id="btn-restart-icecast" type="button">Restart Icecast</button>
             <button class="sitrep-btn" id="btn-restart-keepalive" type="button">Restart Keepalive</button>
             <button class="sitrep-btn danger" id="btn-restart-ui" type="button">Restart UI</button>
@@ -2200,7 +2191,6 @@
         dirty: false,
         profile: '',
       },
-      digitalMixerActive: false,
       profileEditor: {
         open: false,
         tab: 'analog',
@@ -2370,11 +2360,9 @@
       btnRestartAirband: document.getElementById('btn-restart-airband'),
       btnRestartGround: document.getElementById('btn-restart-ground'),
       btnRestartDigital: document.getElementById('btn-restart-digital'),
-      btnRestartMixer: document.getElementById('btn-restart-mixer'),
       btnRestartIcecast: document.getElementById('btn-restart-icecast'),
       btnRestartKeepalive: document.getElementById('btn-restart-keepalive'),
       btnRestartUi: document.getElementById('btn-restart-ui'),
-      profileSidecarToggle: document.getElementById('profile-sidecar-toggle'),
       profileEditorOpenAnalog: document.getElementById('profile-editor-open-analog'),
       profileEditorOpenDigital: document.getElementById('profile-editor-open-digital'),
       profileSidecar: document.getElementById('profile-sidecar'),
@@ -2574,14 +2562,6 @@
       }
       if (els.profileSidecarOverlay) {
         els.profileSidecarOverlay.classList.add('hidden');
-      }
-    }
-
-    function toggleProfileEditorSidecar() {
-      if (state.profileEditor.open) {
-        closeProfileEditorSidecar();
-      } else {
-        openProfileEditorSidecar();
       }
     }
 
@@ -4403,7 +4383,6 @@
       setServiceStatus('airband', Boolean(state.sdr1Active), state.sdr1Active ? 'scanning' : 'idle');
       setServiceStatus('ground', Boolean(state.sdr2Active), state.sdr2Active ? 'scanning' : 'idle');
       setServiceStatus('digital', Boolean(state.digital.active), state.digital.active ? 'running' : 'stopped');
-      setServiceStatus('mixer', Boolean(state.digitalMixerActive), state.digitalMixerActive ? 'mixing' : 'stopped');
       setServiceStatus('icecast', Boolean(state.icecastActive), state.icecastActive ? 'serving' : 'offline');
       const vlcAnalogRunning = Boolean(state.vlc.analog.running);
       const vlcDigitalRunning = Boolean(state.vlc.digital.running);
@@ -4523,7 +4502,6 @@
         airband: els.btnRestartAirband,
         ground: els.btnRestartGround,
         digital: els.btnRestartDigital,
-        mixer: els.btnRestartMixer,
         icecast: els.btnRestartIcecast,
         keepalive: els.btnRestartKeepalive,
         ui: els.btnRestartUi,
@@ -5120,7 +5098,6 @@
         state.digital.controlSyncLossCount = Number.isFinite(data.digital_control_sync_loss_count) ? data.digital_control_sync_loss_count : 0;
         state.digital.controlWindowMs = Number.isFinite(data.digital_control_window_ms) ? data.digital_control_window_ms : 0;
         state.digital.muted = Boolean(data.digital_muted);
-        state.digitalMixerActive = Boolean(data.digital_mixer_active);
         state.lastHitDigital = state.digital.lastLabel || '';
         {
           const activeProfile = state.digital.activeProfile || state.digital.profile;
@@ -5526,9 +5503,6 @@
           els.digitalListenList.scrollTop = scrollTop;
         });
       }
-      if (els.profileSidecarToggle) {
-        els.profileSidecarToggle.addEventListener('click', toggleProfileEditorSidecar);
-      }
       if (els.profileEditorOpenAnalog) {
         els.profileEditorOpenAnalog.addEventListener('click', () => openProfileEditorSidecar('analog'));
       }
@@ -5690,9 +5664,6 @@
       }
       if (els.btnRestartDigital) {
         els.btnRestartDigital.addEventListener('click', () => restartService('digital', 'Digital'));
-      }
-      if (els.btnRestartMixer) {
-        els.btnRestartMixer.addEventListener('click', () => restartService('mixer', 'Mixer'));
       }
       if (els.btnRestartIcecast) {
         els.btnRestartIcecast.addEventListener('click', () => restartService('icecast', 'Icecast'));

@@ -124,13 +124,20 @@ DIGITAL_PAUSE_ON_HIT = os.getenv(
     "1",
 ).strip().lower() in ("1", "true", "yes", "on")
 DIGITAL_RTL_SERIAL_HINT = "DIGITAL_RTL_SERIAL not set; set it to your digital dongle serial"
+# Legacy mixer envs are intentionally ignored by runtime paths. Keep these
+# variables for backward compatibility with older env files.
 DIGITAL_MIXER_ENABLED = os.getenv("DIGITAL_MIXER_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
 DIGITAL_MIXER_AIRBAND_MOUNT = os.getenv("DIGITAL_MIXER_AIRBAND_MOUNT", "GND-air.mp3").strip().lstrip("/")
 DIGITAL_MIXER_DIGITAL_MOUNT = os.getenv("DIGITAL_MIXER_DIGITAL_MOUNT", "DIGITAL.mp3").strip().lstrip("/")
 DIGITAL_MIXER_OUTPUT_MOUNT = os.getenv("DIGITAL_MIXER_OUTPUT_MOUNT", "scannerbox.mp3").strip().lstrip("/")
+ANALOG_STREAM_MOUNT = MOUNT_NAME
+DIGITAL_STREAM_MOUNT = os.getenv(
+    "DIGITAL_STREAM_MOUNT",
+    DIGITAL_MIXER_DIGITAL_MOUNT or "DIGITAL.mp3",
+).strip().lstrip("/") or "DIGITAL.mp3"
 PLAYER_MOUNT = os.getenv("PLAYER_MOUNT", "").strip().lstrip("/")
 if not PLAYER_MOUNT:
-    PLAYER_MOUNT = DIGITAL_MIXER_OUTPUT_MOUNT if DIGITAL_MIXER_ENABLED else MOUNT_NAME
+    PLAYER_MOUNT = ANALOG_STREAM_MOUNT
 ICECAST_MOUNT_PATH = f"/{PLAYER_MOUNT}"
 
 # V3 Runtime + Preflight
@@ -156,7 +163,6 @@ UNITS = {
     "keepalive": os.getenv("UNIT_KEEPALIVE", "icecast-keepalive"),
     "ui": os.getenv("UNIT_UI", "airband-ui"),
     "digital": DIGITAL_SERVICE_NAME,
-    "digital_mixer": os.getenv("UNIT_DIGITAL_MIXER", "scanner-digital-mixer"),
 }
 
 # Mixer Configuration

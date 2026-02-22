@@ -233,6 +233,10 @@ _DIGITAL_SCHEDULER_APPLY_MIN_INTERVAL_MS = max(
     250,
     int(os.getenv("DIGITAL_SCHEDULER_APPLY_MIN_INTERVAL_MS", "1000")),
 )
+_DIGITAL_SCHEDULER_TICK_SEC = max(
+    0.25,
+    float(os.getenv("DIGITAL_SCHEDULER_TICK_SEC", "1.0")),
+)
 _CONTROL_MESSAGE_RE = re.compile(
     r"\b(TSBK|PDU|RFSS_STATUS_BCST|SEC_CCH_BROADCST|IDEN_UPDATE|TDMA_SYNC_BCST|"
     r"SNDCP_DCH_|GRP_VCH_GRANT|UU_VCH_GRANT|GROUP VOICE CHANNEL UPDATE)\b",
@@ -2801,7 +2805,16 @@ class DigitalManager:
         self._scheduler_last_apply_time_ms = 0
         self._scheduler_last_apply_attempt_ms = 0
         self._scheduler_last_apply_error = ""
+        self._scheduler_lock = threading.Lock()
+        self._scheduler_stop = threading.Event()
         self._load_scheduler_state()
+        self._scheduler_thread = threading.Thread(
+            target=self._scheduler_loop,
+            name="digital-scheduler-loop",
+            daemon=True,
+        )
+        self._scheduler_thread.start()
+        self._scheduler_tick()
 
     @staticmethod
     def _build_adapter(backend: str):
@@ -2835,11 +2848,13 @@ class DigitalManager:
     def setProfile(self, profileId: str):
         ok, err = self._adapter.setProfile(profileId)
         if ok:
-            self._scheduler_profile = ""
-            self._scheduler_switch_reason = "manual"
-            self._scheduler_last_switch_time_ms = int(time.time() * 1000)
-            self._scheduler_last_applied_system = ""
-            self._scheduler_last_apply_error = ""
+            with self._scheduler_lock:
+                self._scheduler_profile = ""
+                self._scheduler_switch_reason = "manual"
+                self._scheduler_last_switch_time_ms = int(time.time() * 1000)
+                self._scheduler_last_applied_system = ""
+                self._scheduler_last_apply_error = ""
+            self._scheduler_tick()
         return ok, err
 
     def getLastEvent(self):
@@ -2859,6 +2874,19 @@ class DigitalManager:
             except Exception:
                 return {"tuner_busy": False, "tuner_busy_lines": []}
         return {"tuner_busy": False, "tuner_busy_lines": []}
+
+    def _scheduler_tick(self):
+        try:
+            preflight = self.preflight() or {}
+            event = self.getLastEvent() or {}
+            with self._scheduler_lock:
+                self._scheduler_payload(event, preflight)
+        except Exception:
+            return
+
+    def _scheduler_loop(self):
+        while not self._scheduler_stop.wait(_DIGITAL_SCHEDULER_TICK_SEC):
+            self._scheduler_tick()
 
     def _scheduler_state_payload(self) -> dict:
         return {
@@ -3167,13 +3195,14 @@ class DigitalManager:
     def getScheduler(self) -> dict:
         preflight = self.preflight() or {}
         event = self.getLastEvent() or {}
-        payload = self._scheduler_payload(event, preflight)
-        payload["digital_scheduler_systems"] = list(self._scheduler_systems)
-        payload["digital_scheduler_profile"] = str(self.getProfile() or "")
-        payload["digital_scheduler_applied_system"] = self._scheduler_last_applied_system
-        payload["digital_scheduler_last_apply_time"] = int(self._scheduler_last_apply_time_ms or 0)
-        if self._scheduler_last_apply_error:
-            payload["digital_scheduler_last_apply_error"] = self._scheduler_last_apply_error
+        with self._scheduler_lock:
+            payload = self._scheduler_payload(event, preflight)
+            payload["digital_scheduler_systems"] = list(self._scheduler_systems)
+            payload["digital_scheduler_profile"] = str(self.getProfile() or "")
+            payload["digital_scheduler_applied_system"] = self._scheduler_last_applied_system
+            payload["digital_scheduler_last_apply_time"] = int(self._scheduler_last_apply_time_ms or 0)
+            if self._scheduler_last_apply_error:
+                payload["digital_scheduler_last_apply_error"] = self._scheduler_last_apply_error
         return payload
 
     def setScheduler(self, payload: dict) -> tuple[bool, str, dict]:
@@ -3186,50 +3215,51 @@ class DigitalManager:
         pause_raw = payload.get("pause_on_hit", payload.get("digital_pause_on_hit"))
         order_raw = payload.get("system_order", payload.get("digital_system_order"))
 
-        if mode_raw is not None:
-            mode = str(mode_raw or "").strip().lower()
-            if mode not in ("single_system", "timeslice_multi_system"):
-                return False, "invalid mode", {}
-            self._scheduler_mode = mode
+        with self._scheduler_lock:
+            if mode_raw is not None:
+                mode = str(mode_raw or "").strip().lower()
+                if mode not in ("single_system", "timeslice_multi_system"):
+                    return False, "invalid mode", {}
+                self._scheduler_mode = mode
 
-        if dwell_raw is not None:
-            try:
-                self._scheduler_dwell_ms = self._parse_scheduler_int(
-                    dwell_raw,
-                    field="system_dwell_ms",
-                    minimum=1000,
-                    maximum=3600000,
-                )
-            except ValueError as e:
-                return False, str(e), {}
+            if dwell_raw is not None:
+                try:
+                    self._scheduler_dwell_ms = self._parse_scheduler_int(
+                        dwell_raw,
+                        field="system_dwell_ms",
+                        minimum=1000,
+                        maximum=3600000,
+                    )
+                except ValueError as e:
+                    return False, str(e), {}
 
-        if hang_raw is not None:
-            try:
-                self._scheduler_hang_ms = self._parse_scheduler_int(
-                    hang_raw,
-                    field="system_hang_ms",
-                    minimum=0,
-                    maximum=3600000,
-                )
-            except ValueError as e:
-                return False, str(e), {}
+            if hang_raw is not None:
+                try:
+                    self._scheduler_hang_ms = self._parse_scheduler_int(
+                        hang_raw,
+                        field="system_hang_ms",
+                        minimum=0,
+                        maximum=3600000,
+                    )
+                except ValueError as e:
+                    return False, str(e), {}
 
-        if pause_raw is not None:
-            try:
-                self._scheduler_pause_on_hit = self._parse_scheduler_bool(pause_raw)
-            except ValueError:
-                return False, "invalid pause_on_hit", {}
+            if pause_raw is not None:
+                try:
+                    self._scheduler_pause_on_hit = self._parse_scheduler_bool(pause_raw)
+                except ValueError:
+                    return False, "invalid pause_on_hit", {}
 
-        if order_raw is not None:
-            self._scheduler_order = self._parse_scheduler_order(order_raw)
+            if order_raw is not None:
+                self._scheduler_order = self._parse_scheduler_order(order_raw)
 
-        self._scheduler_profile = ""
-        self._scheduler_switch_reason = "manual"
-        self._scheduler_last_switch_time_ms = int(time.time() * 1000)
-        self._scheduler_in_call_hold = False
-        self._scheduler_last_applied_system = ""
-        self._scheduler_last_apply_error = ""
-        self._write_scheduler_state()
+            self._scheduler_profile = ""
+            self._scheduler_switch_reason = "manual"
+            self._scheduler_last_switch_time_ms = int(time.time() * 1000)
+            self._scheduler_in_call_hold = False
+            self._scheduler_last_applied_system = ""
+            self._scheduler_last_apply_error = ""
+            self._write_scheduler_state()
 
         snapshot = self.getScheduler()
         return True, "", snapshot
@@ -3458,7 +3488,8 @@ class DigitalManager:
         payload["digital_preflight"] = preflight
         payload["digital_tuner_busy_count"] = int(preflight.get("tuner_busy_count") or 0)
         payload["digital_tuner_busy_time"] = int(preflight.get("tuner_busy_last_time_ms") or 0)
-        payload.update(self._scheduler_payload(event, preflight))
+        with self._scheduler_lock:
+            payload.update(self._scheduler_payload(event, preflight))
         payload["digital_playlist_source_ok"] = bool(preflight.get("playlist_source_ok"))
         if "playlist_source_type" in preflight:
             payload["digital_playlist_source_type"] = preflight.get("playlist_source_type")
@@ -3535,6 +3566,12 @@ class DigitalManager:
             ):
                 payload.pop("digital_last_warning", None)
         return payload
+
+    def __del__(self):
+        try:
+            self._scheduler_stop.set()
+        except Exception:
+            pass
 
     def isMuted(self):
         return get_digital_muted()

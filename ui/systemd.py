@@ -135,11 +135,6 @@ def restart_digital() -> Tuple[bool, str]:
     return _restart_unit(UNITS["digital"], use_sudo=True)
 
 
-def restart_digital_mixer() -> Tuple[bool, str]:
-    """Restart the digital mixer service."""
-    return _restart_unit(UNITS["digital_mixer"], use_sudo=True)
-
-
 def stop_rtl():
     """Stop the rtl-airband scanner."""
     subprocess.run(
