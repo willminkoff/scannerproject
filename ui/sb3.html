@@ -1907,6 +1907,34 @@
               <span class="config-label">Tune Mode</span>
               <span class="config-value" id="sitrep-tune-mode">--</span>
             </div>
+            <div class="config-row">
+              <span class="config-label">Digital Profile</span>
+              <span class="config-value" id="sitrep-digital-profile">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Digital Mode</span>
+              <span class="config-value" id="sitrep-digital-mode">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Active System</span>
+              <span class="config-value" id="sitrep-digital-active-system">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Next System</span>
+              <span class="config-value" id="sitrep-digital-next-system">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Switch Reason</span>
+              <span class="config-value" id="sitrep-digital-switch">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Control Channel</span>
+              <span class="config-value" id="sitrep-digital-cc">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Systems Health</span>
+              <span class="config-value" id="sitrep-digital-systems">--</span>
+            </div>
           </div>
         </div>
 
@@ -2194,6 +2222,8 @@
         schedulerLastApplyError: '',
         schedulerLockTimeoutMs: 0,
         schedulerSystemHealth: [],
+        schedulerRaw: null,
+        preflightRaw: null,
         muted: false,
         profiles: [],
         activeProfile: '',
@@ -2361,6 +2391,13 @@
       sitrepGroundDot: document.getElementById('sitrep-ground-dot'),
       sitrepAvoids: document.getElementById('sitrep-avoids'),
       sitrepTuneMode: document.getElementById('sitrep-tune-mode'),
+      sitrepDigitalProfile: document.getElementById('sitrep-digital-profile'),
+      sitrepDigitalMode: document.getElementById('sitrep-digital-mode'),
+      sitrepDigitalActiveSystem: document.getElementById('sitrep-digital-active-system'),
+      sitrepDigitalNextSystem: document.getElementById('sitrep-digital-next-system'),
+      sitrepDigitalSwitch: document.getElementById('sitrep-digital-switch'),
+      sitrepDigitalCc: document.getElementById('sitrep-digital-cc'),
+      sitrepDigitalSystems: document.getElementById('sitrep-digital-systems'),
       sitrepConnection: document.getElementById('sitrep-connection'),
       sitrepStream: document.getElementById('sitrep-stream'),
       sitrepConfig: document.getElementById('sitrep-config'),
@@ -4247,6 +4284,53 @@
       return `${marker} ${name}:${state}`;
     }
 
+    function applyDigitalSchedulerPayload(payload) {
+      if (!payload || typeof payload !== 'object') return;
+      const d = state.digital;
+      d.schedulerMode = payload.digital_scheduler_mode || payload.mode || d.schedulerMode || '';
+      d.schedulerActiveSystem = payload.digital_scheduler_active_system || d.schedulerActiveSystem || '';
+      d.schedulerNextSystem = payload.digital_scheduler_next_system || d.schedulerNextSystem || '';
+      d.schedulerSwitchReason = payload.digital_scheduler_switch_reason || d.schedulerSwitchReason || '';
+      d.schedulerLastSwitchTime = Number.isFinite(payload.digital_scheduler_last_switch_time)
+        ? payload.digital_scheduler_last_switch_time
+        : d.schedulerLastSwitchTime || 0;
+      d.schedulerLastApplyError = payload.digital_scheduler_last_apply_error || d.schedulerLastApplyError || '';
+      d.schedulerLockTimeoutMs = Number.isFinite(payload.digital_scheduler_lock_timeout_ms)
+        ? payload.digital_scheduler_lock_timeout_ms
+        : d.schedulerLockTimeoutMs || 0;
+      if (Array.isArray(payload.digital_scheduler_system_health)) {
+        d.schedulerSystemHealth = payload.digital_scheduler_system_health;
+      }
+      d.schedulerRaw = payload;
+    }
+
+    function applyDigitalPreflightPayload(payload) {
+      if (!payload || typeof payload !== 'object') return;
+      const d = state.digital;
+      if (typeof payload.tuner_busy_count === 'number') {
+        d.tunerBusyCount = payload.tuner_busy_count;
+      }
+      if (typeof payload.playlist_source_ok === 'boolean') {
+        d.playlistSourceOk = payload.playlist_source_ok;
+      }
+      if (typeof payload.playlist_source_type === 'string') {
+        d.playlistSourceType = payload.playlist_source_type;
+      }
+      if (typeof payload.playlist_source_error === 'string') {
+        d.playlistSourceError = payload.playlist_source_error;
+      }
+      d.preflightRaw = payload;
+    }
+
+    function healthStateText(rawState) {
+      const s = String(rawState || '').toLowerCase();
+      if (s === 'healthy') return 'healthy';
+      if (s === 'degraded') return 'degraded';
+      if (s === 'failed') return 'failed';
+      if (s) return s;
+      return '--';
+    }
+
     function getDigitalControlChannelHealth() {
       const d = state.digital || {};
       const sourceType = String(d.playlistSourceType || '').trim();
@@ -4422,6 +4506,42 @@
 
       const tuneMode = state.tuned ? 'Direct Tune' : (state.hold.airband || state.hold.ground || state.hold.digital ? 'Hold' : 'Scan');
       if (els.sitrepTuneMode) els.sitrepTuneMode.textContent = tuneMode;
+      if (els.sitrepDigitalProfile) {
+        els.sitrepDigitalProfile.textContent = state.digital.profile || state.digital.activeProfile || '--';
+      }
+      if (els.sitrepDigitalMode) {
+        els.sitrepDigitalMode.textContent = state.digital.schedulerMode || '--';
+      }
+      if (els.sitrepDigitalActiveSystem) {
+        const activeName = state.digital.schedulerActiveSystem || '--';
+        els.sitrepDigitalActiveSystem.textContent = activeName;
+        const activeRow = (state.digital.schedulerSystemHealth || []).find((row) => row && row.active);
+        setValueTone(
+          els.sitrepDigitalActiveSystem,
+          activeRow ? digitalSchedulerStateTone(activeRow.state) : ''
+        );
+      }
+      if (els.sitrepDigitalNextSystem) {
+        els.sitrepDigitalNextSystem.textContent = state.digital.schedulerNextSystem || '--';
+      }
+      if (els.sitrepDigitalSwitch) {
+        const base = state.digital.schedulerSwitchReason || '--';
+        if (state.digital.schedulerLockTimeoutMs > 0) {
+          els.sitrepDigitalSwitch.textContent = `${base} (timeout ${Math.round(state.digital.schedulerLockTimeoutMs / 1000)}s)`;
+        } else {
+          els.sitrepDigitalSwitch.textContent = base;
+        }
+      }
+      if (els.sitrepDigitalCc) {
+        const cc = getDigitalControlChannelHealth();
+        els.sitrepDigitalCc.textContent = `${cc.label}${cc.detail ? ` • ${cc.detail}` : ''}`;
+        setValueTone(els.sitrepDigitalCc, cc.tone);
+      }
+      if (els.sitrepDigitalSystems) {
+        const rows = Array.isArray(state.digital.schedulerSystemHealth) ? state.digital.schedulerSystemHealth : [];
+        const summary = rows.map((row) => formatDigitalSystemHealthRow(row)).filter(Boolean).join(' | ');
+        els.sitrepDigitalSystems.textContent = summary || '--';
+      }
 
       if (els.sitrepConnection) {
         const ok = Boolean(state.connected);
@@ -4459,11 +4579,18 @@
         }
       }
 
+      const airbandHealthState = String(state.health?.subsystems?.airband?.state || '').toLowerCase();
+      const groundHealthState = String(state.health?.subsystems?.ground?.state || '').toLowerCase();
+      const digitalHealthState = String(state.health?.subsystems?.digital?.state || '').toLowerCase();
+      const airbandOk = airbandHealthState ? airbandHealthState !== 'failed' : Boolean(state.sdr1Active);
+      const groundOk = groundHealthState ? groundHealthState !== 'failed' : Boolean(state.sdr2Active);
+      const digitalOk = digitalHealthState ? digitalHealthState !== 'failed' : Boolean(state.digital.active);
+
       setServiceStatus('api', Boolean(state.connected), state.connected ? 'online' : 'offline');
       setServiceStatus('sse', Boolean(state.sseConnected), state.sseConnected ? 'streaming' : 'down');
-      setServiceStatus('airband', Boolean(state.sdr1Active), state.sdr1Active ? 'scanning' : 'idle');
-      setServiceStatus('ground', Boolean(state.sdr2Active), state.sdr2Active ? 'scanning' : 'idle');
-      setServiceStatus('digital', Boolean(state.digital.active), state.digital.active ? 'running' : 'stopped');
+      setServiceStatus('airband', airbandOk, healthStateText(airbandHealthState));
+      setServiceStatus('ground', groundOk, healthStateText(groundHealthState));
+      setServiceStatus('digital', digitalOk, healthStateText(digitalHealthState));
       setServiceStatus('icecast', Boolean(state.icecastActive), state.icecastActive ? 'serving' : 'offline');
       const vlcAnalogRunning = Boolean(state.vlc.analog.running);
       const vlcDigitalRunning = Boolean(state.vlc.digital.running);
@@ -5084,10 +5211,12 @@
       refreshInFlight = (async () => {
         const wasConnected = state.connected;
         try {
-          const [data, profilesData, systemData] = await Promise.all([
+          const [data, profilesData, systemData, schedulerData, digitalPreflightData] = await Promise.all([
             fetchJSON('/api/status'),
             fetchJSON('/api/profiles'),
             fetchJSON('/api/system'),
+            fetchJSON('/api/digital/scheduler').catch(() => null),
+            fetchJSON('/api/digital/preflight').catch(() => null),
           ]);
 
           const pickNumber = (value, fallback) => (value === 0 || value) ? value : fallback;
@@ -5096,8 +5225,14 @@
         
         const airbandPresent = (typeof data.airband_present === 'boolean') ? data.airband_present : true;
         const groundPresent = (typeof data.ground_present === 'boolean') ? data.ground_present : true;
-        state.sdr1Active = Boolean(data.rtl_active && airbandPresent);
-        state.sdr2Active = Boolean(data.rtl_active && groundPresent);
+        const airbandActiveSignal = (typeof data.airband_active === 'boolean') ? data.airband_active : null;
+        const groundActiveSignal = (typeof data.ground_active === 'boolean') ? data.ground_active : null;
+        state.sdr1Active = airbandActiveSignal !== null
+          ? Boolean(airbandActiveSignal)
+          : Boolean(data.rtl_active && airbandPresent);
+        state.sdr2Active = groundActiveSignal !== null
+          ? Boolean(groundActiveSignal)
+          : Boolean(data.rtl_active && groundPresent);
         state.groundUnitActive = data.ground_unit_active ?? false;
         state.combinedStale = Boolean(data.combined_config_stale);
         state.rtlRestartRequired = Boolean(data.rtl_restart_required);
@@ -5178,20 +5313,13 @@
         state.digital.controlLastTime = Number.isFinite(data.digital_control_channel_last_time) ? data.digital_control_channel_last_time : 0;
         state.digital.controlSyncLossCount = Number.isFinite(data.digital_control_sync_loss_count) ? data.digital_control_sync_loss_count : 0;
         state.digital.controlWindowMs = Number.isFinite(data.digital_control_window_ms) ? data.digital_control_window_ms : 0;
-        state.digital.schedulerMode = data.digital_scheduler_mode || '';
-        state.digital.schedulerActiveSystem = data.digital_scheduler_active_system || '';
-        state.digital.schedulerNextSystem = data.digital_scheduler_next_system || '';
-        state.digital.schedulerSwitchReason = data.digital_scheduler_switch_reason || '';
-        state.digital.schedulerLastSwitchTime = Number.isFinite(data.digital_scheduler_last_switch_time)
-          ? data.digital_scheduler_last_switch_time
-          : 0;
-        state.digital.schedulerLastApplyError = data.digital_scheduler_last_apply_error || '';
-        state.digital.schedulerLockTimeoutMs = Number.isFinite(data.digital_scheduler_lock_timeout_ms)
-          ? data.digital_scheduler_lock_timeout_ms
-          : 0;
-        state.digital.schedulerSystemHealth = Array.isArray(data.digital_scheduler_system_health)
-          ? data.digital_scheduler_system_health
-          : [];
+        applyDigitalSchedulerPayload(data);
+        if (schedulerData && schedulerData.ok) {
+          applyDigitalSchedulerPayload(schedulerData);
+        }
+        if (digitalPreflightData && digitalPreflightData.ok) {
+          applyDigitalPreflightPayload(digitalPreflightData);
+        }
         state.digital.muted = Boolean(data.digital_muted);
         state.lastHitDigital = state.digital.lastLabel || '';
         {
