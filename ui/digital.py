@@ -29,11 +29,17 @@ try:
         DIGITAL_RTL_SERIAL,
         DIGITAL_RTL_SERIAL_SECONDARY,
         DIGITAL_RTL_SERIAL_HINT,
+        DIGITAL_SCHEDULER_STATE_PATH,
         DIGITAL_SDRTRUNK_STREAM_NAME,
         DIGITAL_ATTACH_BROADCAST_CHANNEL,
         DIGITAL_IGNORE_DATA_CALLS,
+        DIGITAL_PAUSE_ON_HIT,
+        DIGITAL_SCAN_MODE,
         DIGITAL_SOURCE_ROTATION_DELAY_MS,
         DIGITAL_SERVICE_NAME,
+        DIGITAL_SYSTEM_DWELL_MS,
+        DIGITAL_SYSTEM_HANG_MS,
+        DIGITAL_SYSTEM_ORDER,
         DIGITAL_USE_MULTI_FREQ_SOURCE,
     )
     from .systemd import unit_active
@@ -55,11 +61,17 @@ except ImportError:
         DIGITAL_RTL_SERIAL,
         DIGITAL_RTL_SERIAL_SECONDARY,
         DIGITAL_RTL_SERIAL_HINT,
+        DIGITAL_SCHEDULER_STATE_PATH,
         DIGITAL_SDRTRUNK_STREAM_NAME,
         DIGITAL_ATTACH_BROADCAST_CHANNEL,
         DIGITAL_IGNORE_DATA_CALLS,
+        DIGITAL_PAUSE_ON_HIT,
+        DIGITAL_SCAN_MODE,
         DIGITAL_SOURCE_ROTATION_DELAY_MS,
         DIGITAL_SERVICE_NAME,
+        DIGITAL_SYSTEM_DWELL_MS,
+        DIGITAL_SYSTEM_HANG_MS,
+        DIGITAL_SYSTEM_ORDER,
         DIGITAL_USE_MULTI_FREQ_SOURCE,
     )
     from ui.systemd import unit_active
@@ -217,6 +229,10 @@ _DIGITAL_TUNER_BUSY_WINDOW_MS = max(30000, int(os.getenv("DIGITAL_TUNER_BUSY_WIN
 _DIGITAL_CONTROL_WINDOW_MS = max(30000, int(os.getenv("DIGITAL_CONTROL_WINDOW_MS", "120000")))
 _DIGITAL_CONTROL_TAIL_LINES = max(80, int(os.getenv("DIGITAL_CONTROL_TAIL_LINES", "300")))
 _DIGITAL_CONTROL_TAIL_BYTES = max(16384, int(os.getenv("DIGITAL_CONTROL_TAIL_BYTES", "131072")))
+_DIGITAL_SCHEDULER_APPLY_MIN_INTERVAL_MS = max(
+    250,
+    int(os.getenv("DIGITAL_SCHEDULER_APPLY_MIN_INTERVAL_MS", "1000")),
+)
 _CONTROL_MESSAGE_RE = re.compile(
     r"\b(TSBK|PDU|RFSS_STATUS_BCST|SEC_CCH_BROADCST|IDEN_UPDATE|TDMA_SYNC_BCST|"
     r"SNDCP_DCH_|GRP_VCH_GRANT|UU_VCH_GRANT|GROUP VOICE CHANNEL UPDATE)\b",
@@ -2765,6 +2781,27 @@ class DigitalManager:
             selected = "sdrtrunk"
         self._backend = selected
         self._adapter = self._build_adapter(selected)
+        self._scheduler_mode = (
+            DIGITAL_SCAN_MODE
+            if DIGITAL_SCAN_MODE in ("single_system", "timeslice_multi_system")
+            else "single_system"
+        )
+        self._scheduler_dwell_ms = max(1000, int(DIGITAL_SYSTEM_DWELL_MS or 15000))
+        self._scheduler_hang_ms = max(0, int(DIGITAL_SYSTEM_HANG_MS or 4000))
+        self._scheduler_pause_on_hit = bool(DIGITAL_PAUSE_ON_HIT)
+        self._scheduler_order = [str(x).strip() for x in (DIGITAL_SYSTEM_ORDER or []) if str(x).strip()]
+        self._scheduler_state_path = str(DIGITAL_SCHEDULER_STATE_PATH or "").strip()
+        self._scheduler_profile = ""
+        self._scheduler_systems: list[str] = []
+        self._scheduler_active_system = ""
+        self._scheduler_last_switch_time_ms = 0
+        self._scheduler_switch_reason = "manual"
+        self._scheduler_in_call_hold = False
+        self._scheduler_last_applied_system = ""
+        self._scheduler_last_apply_time_ms = 0
+        self._scheduler_last_apply_attempt_ms = 0
+        self._scheduler_last_apply_error = ""
+        self._load_scheduler_state()
 
     @staticmethod
     def _build_adapter(backend: str):
@@ -2796,7 +2833,14 @@ class DigitalManager:
         return self._adapter.getProfile()
 
     def setProfile(self, profileId: str):
-        return self._adapter.setProfile(profileId)
+        ok, err = self._adapter.setProfile(profileId)
+        if ok:
+            self._scheduler_profile = ""
+            self._scheduler_switch_reason = "manual"
+            self._scheduler_last_switch_time_ms = int(time.time() * 1000)
+            self._scheduler_last_applied_system = ""
+            self._scheduler_last_apply_error = ""
+        return ok, err
 
     def getLastEvent(self):
         return self._adapter.getLastEvent()
@@ -2815,6 +2859,549 @@ class DigitalManager:
             except Exception:
                 return {"tuner_busy": False, "tuner_busy_lines": []}
         return {"tuner_busy": False, "tuner_busy_lines": []}
+
+    def _scheduler_state_payload(self) -> dict:
+        return {
+            "mode": str(self._scheduler_mode or "single_system"),
+            "system_dwell_ms": int(self._scheduler_dwell_ms),
+            "system_hang_ms": int(self._scheduler_hang_ms),
+            "pause_on_hit": bool(self._scheduler_pause_on_hit),
+            "system_order": list(self._scheduler_order),
+            "updated_ts": int(time.time()),
+        }
+
+    def _write_scheduler_state(self) -> None:
+        path = str(self._scheduler_state_path or "").strip()
+        if not path:
+            return
+        tmp = f"{path}.tmp"
+        try:
+            os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(self._scheduler_state_payload(), f, indent=2, sort_keys=True)
+            os.replace(tmp, path)
+        except Exception:
+            try:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+            except Exception:
+                pass
+
+    def _load_scheduler_state(self) -> None:
+        path = str(self._scheduler_state_path or "").strip()
+        if not path or not os.path.isfile(path):
+            return
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                payload = json.load(f)
+        except Exception:
+            return
+        if not isinstance(payload, dict):
+            return
+
+        mode_raw = payload.get("mode", payload.get("digital_scan_mode"))
+        if mode_raw is not None:
+            mode = str(mode_raw or "").strip().lower()
+            if mode in ("single_system", "timeslice_multi_system"):
+                self._scheduler_mode = mode
+
+        dwell_raw = payload.get("system_dwell_ms", payload.get("digital_system_dwell_ms"))
+        if dwell_raw is not None:
+            try:
+                self._scheduler_dwell_ms = self._parse_scheduler_int(
+                    dwell_raw,
+                    field="system_dwell_ms",
+                    minimum=1000,
+                    maximum=3600000,
+                )
+            except ValueError:
+                pass
+
+        hang_raw = payload.get("system_hang_ms", payload.get("digital_system_hang_ms"))
+        if hang_raw is not None:
+            try:
+                self._scheduler_hang_ms = self._parse_scheduler_int(
+                    hang_raw,
+                    field="system_hang_ms",
+                    minimum=0,
+                    maximum=3600000,
+                )
+            except ValueError:
+                pass
+
+        pause_raw = payload.get("pause_on_hit", payload.get("digital_pause_on_hit"))
+        if pause_raw is not None:
+            try:
+                self._scheduler_pause_on_hit = self._parse_scheduler_bool(pause_raw)
+            except ValueError:
+                pass
+
+        order_raw = payload.get("system_order", payload.get("digital_system_order"))
+        if order_raw is not None:
+            self._scheduler_order = self._parse_scheduler_order(order_raw)
+
+    @staticmethod
+    def _parse_scheduler_bool(raw) -> bool:
+        if isinstance(raw, bool):
+            return raw
+        if isinstance(raw, (int, float)):
+            return bool(raw)
+        text = str(raw or "").strip().lower()
+        if text in ("1", "true", "yes", "on"):
+            return True
+        if text in ("0", "false", "no", "off"):
+            return False
+        raise ValueError("invalid boolean")
+
+    @staticmethod
+    def _parse_scheduler_int(raw, *, field: str, minimum: int, maximum: int) -> int:
+        try:
+            value = int(str(raw).strip())
+        except Exception:
+            raise ValueError(f"invalid {field}") from None
+        if value < minimum:
+            raise ValueError(f"{field} must be >= {minimum}")
+        if value > maximum:
+            raise ValueError(f"{field} must be <= {maximum}")
+        return value
+
+    @staticmethod
+    def _parse_scheduler_order(raw) -> list[str]:
+        tokens: list[str] = []
+        if raw is None:
+            return tokens
+        if isinstance(raw, list):
+            incoming = raw
+        else:
+            text = str(raw or "")
+            incoming = text.replace(";", ",").replace("\n", ",").split(",")
+        seen: set[str] = set()
+        for item in incoming:
+            value = str(item or "").strip()
+            if not value:
+                continue
+            key = value.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            tokens.append(value)
+            if len(tokens) >= 64:
+                break
+        return tokens
+
+    def _read_control_channels_for_dir(self, profile_dir: str) -> list[int]:
+        path = str(profile_dir or "").strip()
+        if not path:
+            return []
+        read_channels = getattr(self._adapter, "_read_control_channels", None)
+        if callable(read_channels):
+            try:
+                values = read_channels(path)
+                if isinstance(values, list):
+                    return [int(v) for v in values if int(v) > 0]
+            except Exception:
+                pass
+        channels: list[int] = []
+        seen: set[int] = set()
+        control_path = os.path.join(path, "control_channels.txt")
+        if not os.path.isfile(control_path):
+            return channels
+        try:
+            with open(control_path, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    raw = line.split("#", 1)[0].strip()
+                    if not raw:
+                        continue
+                    m = re.search(r"\d+\.\d+", raw)
+                    if not m:
+                        continue
+                    try:
+                        hz = int(round(float(m.group(0)) * 1_000_000))
+                    except Exception:
+                        continue
+                    if hz <= 0 or hz in seen:
+                        continue
+                    seen.add(hz)
+                    channels.append(hz)
+        except Exception:
+            return []
+        return channels
+
+    @staticmethod
+    def _source_configuration_channels(source_conf: ET.Element) -> list[int]:
+        frequencies: list[int] = []
+        seen: set[int] = set()
+        attr = str(source_conf.get("frequency", "")).strip()
+        if attr.isdigit():
+            hz = int(attr)
+            if hz > 0 and hz not in seen:
+                seen.add(hz)
+                frequencies.append(hz)
+        for node in source_conf.findall("frequency"):
+            text = str(node.text or "").strip()
+            if not text.isdigit():
+                continue
+            hz = int(text)
+            if hz <= 0 or hz in seen:
+                continue
+            seen.add(hz)
+            frequencies.append(hz)
+        return frequencies
+
+    def _resolve_scheduler_system_control_channels(self, profile_id: str, system_name: str) -> list[int]:
+        system = str(system_name or "").strip()
+        if not system:
+            return []
+        profile_dir = ""
+        read_active_profile_dir = getattr(self._adapter, "_read_active_profile_dir", None)
+        if callable(read_active_profile_dir):
+            try:
+                profile_dir = str(read_active_profile_dir() or "").strip()
+            except Exception:
+                profile_dir = ""
+        if not profile_dir or not os.path.isdir(profile_dir):
+            return []
+
+        profile_key = str(profile_id or "").strip()
+        if profile_key and system == profile_key:
+            channels = self._read_control_channels_for_dir(profile_dir)
+            if channels:
+                return channels
+
+        subdir = os.path.join(profile_dir, system)
+        if os.path.isdir(subdir):
+            channels = self._read_control_channels_for_dir(subdir)
+            if channels:
+                return channels
+
+        return self._read_control_channels_for_dir(profile_dir)
+
+    def _apply_scheduler_system(
+        self,
+        profile_id: str,
+        system_name: str,
+        *,
+        force: bool = False,
+    ) -> tuple[bool, str, bool]:
+        now_ms = int(time.time() * 1000)
+        if not force:
+            delta = now_ms - int(self._scheduler_last_apply_attempt_ms or 0)
+            if delta >= 0 and delta < _DIGITAL_SCHEDULER_APPLY_MIN_INTERVAL_MS:
+                return True, "", False
+        self._scheduler_last_apply_attempt_ms = now_ms
+
+        channels = self._resolve_scheduler_system_control_channels(profile_id, system_name)
+        if not channels:
+            self._scheduler_last_apply_error = f"system has no control channels: {system_name}"
+            return False, self._scheduler_last_apply_error, False
+
+        playlist_path = _safe_realpath(DIGITAL_PLAYLIST_PATH)
+        if not playlist_path:
+            self._scheduler_last_apply_error = "digital playlist path not configured"
+            return False, self._scheduler_last_apply_error, False
+        if not os.path.isfile(playlist_path):
+            self._scheduler_last_apply_error = f"playlist not found: {playlist_path}"
+            return False, self._scheduler_last_apply_error, False
+
+        try:
+            tree = ET.parse(playlist_path)
+            root = tree.getroot()
+        except Exception as e:
+            self._scheduler_last_apply_error = f"failed to parse playlist: {e}"
+            return False, self._scheduler_last_apply_error, False
+
+        channel = root.find("channel")
+        if channel is None:
+            self._scheduler_last_apply_error = "playlist has no channel node"
+            return False, self._scheduler_last_apply_error, False
+        source_conf = channel.find("source_configuration")
+        if source_conf is None:
+            source_conf = ET.SubElement(channel, "source_configuration")
+
+        before_channels = self._source_configuration_channels(source_conf)
+        before_source_type = str(source_conf.get("source_type", "")).strip().upper()
+        before_preferred = str(source_conf.get("preferred_tuner", "")).strip()
+        preferred = _preferred_tuner_target()
+        expected_source_type = (
+            "TUNER_MULTIPLE_FREQUENCIES"
+            if DIGITAL_USE_MULTI_FREQ_SOURCE and len(channels) > 1
+            else "TUNER"
+        )
+
+        if (
+            before_channels == channels
+            and before_source_type == expected_source_type
+            and before_preferred == preferred
+        ):
+            self._scheduler_last_applied_system = system_name
+            self._scheduler_last_apply_time_ms = now_ms
+            self._scheduler_last_apply_error = ""
+            return True, "", False
+
+        _sync_source_configuration(source_conf, channels)
+        try:
+            tree.write(playlist_path, encoding="utf-8", xml_declaration=False)
+        except Exception as e:
+            self._scheduler_last_apply_error = f"failed to write playlist: {e}"
+            return False, self._scheduler_last_apply_error, False
+
+        self._scheduler_last_applied_system = system_name
+        self._scheduler_last_apply_time_ms = now_ms
+        self._scheduler_last_apply_error = ""
+        return True, "", True
+
+    def getScheduler(self) -> dict:
+        preflight = self.preflight() or {}
+        event = self.getLastEvent() or {}
+        payload = self._scheduler_payload(event, preflight)
+        payload["digital_scheduler_systems"] = list(self._scheduler_systems)
+        payload["digital_scheduler_profile"] = str(self.getProfile() or "")
+        payload["digital_scheduler_applied_system"] = self._scheduler_last_applied_system
+        payload["digital_scheduler_last_apply_time"] = int(self._scheduler_last_apply_time_ms or 0)
+        if self._scheduler_last_apply_error:
+            payload["digital_scheduler_last_apply_error"] = self._scheduler_last_apply_error
+        return payload
+
+    def setScheduler(self, payload: dict) -> tuple[bool, str, dict]:
+        if not isinstance(payload, dict):
+            return False, "invalid scheduler payload", {}
+
+        mode_raw = payload.get("mode", payload.get("digital_scan_mode"))
+        dwell_raw = payload.get("system_dwell_ms", payload.get("digital_system_dwell_ms"))
+        hang_raw = payload.get("system_hang_ms", payload.get("digital_system_hang_ms"))
+        pause_raw = payload.get("pause_on_hit", payload.get("digital_pause_on_hit"))
+        order_raw = payload.get("system_order", payload.get("digital_system_order"))
+
+        if mode_raw is not None:
+            mode = str(mode_raw or "").strip().lower()
+            if mode not in ("single_system", "timeslice_multi_system"):
+                return False, "invalid mode", {}
+            self._scheduler_mode = mode
+
+        if dwell_raw is not None:
+            try:
+                self._scheduler_dwell_ms = self._parse_scheduler_int(
+                    dwell_raw,
+                    field="system_dwell_ms",
+                    minimum=1000,
+                    maximum=3600000,
+                )
+            except ValueError as e:
+                return False, str(e), {}
+
+        if hang_raw is not None:
+            try:
+                self._scheduler_hang_ms = self._parse_scheduler_int(
+                    hang_raw,
+                    field="system_hang_ms",
+                    minimum=0,
+                    maximum=3600000,
+                )
+            except ValueError as e:
+                return False, str(e), {}
+
+        if pause_raw is not None:
+            try:
+                self._scheduler_pause_on_hit = self._parse_scheduler_bool(pause_raw)
+            except ValueError:
+                return False, "invalid pause_on_hit", {}
+
+        if order_raw is not None:
+            self._scheduler_order = self._parse_scheduler_order(order_raw)
+
+        self._scheduler_profile = ""
+        self._scheduler_switch_reason = "manual"
+        self._scheduler_last_switch_time_ms = int(time.time() * 1000)
+        self._scheduler_in_call_hold = False
+        self._scheduler_last_applied_system = ""
+        self._scheduler_last_apply_error = ""
+        self._write_scheduler_state()
+
+        snapshot = self.getScheduler()
+        return True, "", snapshot
+
+    def _discover_scheduler_systems(self, profile_id: str) -> list[str]:
+        systems: list[str] = []
+        seen: set[str] = set()
+        profile_key = str(profile_id or "").strip()
+
+        profile_dir = ""
+        read_active_profile_dir = getattr(self._adapter, "_read_active_profile_dir", None)
+        if callable(read_active_profile_dir):
+            try:
+                profile_dir = str(read_active_profile_dir() or "").strip()
+            except Exception:
+                profile_dir = ""
+
+        def _add_system(raw_name: str) -> None:
+            name = str(raw_name or "").strip()
+            if not name or name in seen:
+                return
+            seen.add(name)
+            systems.append(name)
+
+        if profile_dir and os.path.isdir(profile_dir):
+            root_control = os.path.join(profile_dir, "control_channels.txt")
+            if os.path.isfile(root_control):
+                _add_system(profile_key or os.path.basename(profile_dir))
+            subdirs = []
+            try:
+                with os.scandir(profile_dir) as it:
+                    for entry in it:
+                        try:
+                            if not entry.is_dir(follow_symlinks=False):
+                                continue
+                        except Exception:
+                            continue
+                        subdirs.append(entry.name)
+            except Exception:
+                subdirs = []
+            for name in sorted(subdirs):
+                control_path = os.path.join(profile_dir, name, "control_channels.txt")
+                if os.path.isfile(control_path):
+                    _add_system(name)
+
+        if not systems and profile_key:
+            _add_system(profile_key)
+
+        if not self._scheduler_order:
+            return systems
+
+        rank = {
+            name.lower(): idx
+            for idx, name in enumerate(self._scheduler_order)
+        }
+        ordered = sorted(
+            systems,
+            key=lambda name: (rank.get(name.lower(), len(rank)), name.lower()),
+        )
+        return ordered
+
+    @staticmethod
+    def _next_system(systems: list[str], current: str) -> str:
+        if not systems:
+            return ""
+        if current not in systems:
+            return systems[0]
+        idx = systems.index(current)
+        return systems[(idx + 1) % len(systems)]
+
+    def _scheduler_payload(self, event: dict, preflight: dict) -> dict:
+        now_ms = int(time.time() * 1000)
+        profile_id = str(self.getProfile() or "").strip()
+        systems = self._discover_scheduler_systems(profile_id)
+        pending_apply = False
+        pending_reason = ""
+        recovery_system = ""
+
+        configured_mode = self._scheduler_mode
+        mode = configured_mode
+        if configured_mode == "timeslice_multi_system" and len(systems) < 2:
+            mode = "single_system"
+
+        systems_changed = systems != self._scheduler_systems
+        profile_changed = profile_id != self._scheduler_profile
+        active_missing = self._scheduler_active_system not in systems if systems else False
+        if systems_changed or profile_changed or active_missing:
+            self._scheduler_systems = list(systems)
+            self._scheduler_profile = profile_id
+            self._scheduler_active_system = systems[0] if systems else ""
+            self._scheduler_last_switch_time_ms = now_ms if self._scheduler_active_system else 0
+            self._scheduler_switch_reason = "manual"
+            self._scheduler_in_call_hold = False
+            pending_apply = bool(self._scheduler_active_system)
+            pending_reason = "manual"
+
+        event_time_ms = int(event.get("timeMs") or 0)
+        recent_event = event_time_ms > 0 and (now_ms - event_time_ms) <= self._scheduler_hang_ms
+        if self._scheduler_pause_on_hit and recent_event:
+            self._scheduler_in_call_hold = True
+
+        if mode == "timeslice_multi_system" and len(systems) > 1 and self._scheduler_active_system:
+            in_hold_window = (
+                self._scheduler_pause_on_hit
+                and event_time_ms > 0
+                and (now_ms - event_time_ms) <= self._scheduler_hang_ms
+            )
+            if in_hold_window:
+                self._scheduler_in_call_hold = True
+            else:
+                should_switch = False
+                switch_reason = "idle_timeout"
+                elapsed_ms = now_ms - int(self._scheduler_last_switch_time_ms or 0)
+                if self._scheduler_in_call_hold:
+                    should_switch = True
+                    switch_reason = "call_end"
+                    self._scheduler_in_call_hold = False
+                elif elapsed_ms >= self._scheduler_dwell_ms:
+                    should_switch = True
+                    switch_reason = "idle_timeout"
+                if should_switch:
+                    previous = str(self._scheduler_active_system or "")
+                    candidate = self._next_system(
+                        systems,
+                        self._scheduler_active_system,
+                    )
+                    if candidate:
+                        self._scheduler_active_system = candidate
+                        self._scheduler_last_switch_time_ms = now_ms
+                        self._scheduler_switch_reason = switch_reason
+                        pending_apply = True
+                        pending_reason = switch_reason
+                        if previous and previous != candidate:
+                            recovery_system = previous
+
+        active_system = self._scheduler_active_system or (systems[0] if systems else "")
+        if active_system and self._scheduler_last_applied_system != active_system:
+            pending_apply = True
+            if not pending_reason:
+                pending_reason = "manual"
+
+        if pending_apply and active_system:
+            ok, _err, _changed = self._apply_scheduler_system(
+                profile_id,
+                active_system,
+                force=True,
+            )
+            if not ok:
+                self._scheduler_switch_reason = "error_recovery"
+                if (
+                    recovery_system
+                    and recovery_system in systems
+                    and recovery_system != active_system
+                ):
+                    self._scheduler_active_system = recovery_system
+                    recovery_ok, _recovery_err, _recovery_changed = self._apply_scheduler_system(
+                        profile_id,
+                        recovery_system,
+                        force=True,
+                    )
+                    if recovery_ok:
+                        active_system = recovery_system
+            elif pending_reason:
+                self._scheduler_switch_reason = pending_reason
+
+        next_system = self._next_system(systems, active_system) if len(systems) > 1 else active_system
+        voice_tuner_available = bool(DIGITAL_RTL_SERIAL_SECONDARY and not preflight.get("tuner_busy"))
+
+        payload = {
+            "digital_scan_mode": configured_mode,
+            "digital_system_dwell_ms": int(self._scheduler_dwell_ms),
+            "digital_system_hang_ms": int(self._scheduler_hang_ms),
+            "digital_system_order": list(self._scheduler_order),
+            "digital_pause_on_hit": bool(self._scheduler_pause_on_hit),
+            "digital_scheduler_mode": mode,
+            "digital_scheduler_active_system": active_system,
+            "digital_scheduler_next_system": next_system,
+            "digital_scheduler_last_switch_time": int(self._scheduler_last_switch_time_ms or 0),
+            "digital_scheduler_switch_reason": self._scheduler_switch_reason,
+            "digital_scheduler_applied_system": self._scheduler_last_applied_system,
+            "digital_scheduler_last_apply_time": int(self._scheduler_last_apply_time_ms or 0),
+            "digital_voice_tuner_available": voice_tuner_available,
+        }
+        if self._scheduler_last_apply_error:
+            payload["digital_scheduler_last_apply_error"] = self._scheduler_last_apply_error
+        return payload
 
     def status_payload(self):
         event = self.getLastEvent() or {}
@@ -2841,6 +3428,7 @@ class DigitalManager:
         payload["digital_preflight"] = preflight
         payload["digital_tuner_busy_count"] = int(preflight.get("tuner_busy_count") or 0)
         payload["digital_tuner_busy_time"] = int(preflight.get("tuner_busy_last_time_ms") or 0)
+        payload.update(self._scheduler_payload(event, preflight))
         payload["digital_playlist_source_ok"] = bool(preflight.get("playlist_source_ok"))
         if "playlist_source_type" in preflight:
             payload["digital_playlist_source_type"] = preflight.get("playlist_source_type")

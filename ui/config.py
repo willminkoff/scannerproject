@@ -75,6 +75,10 @@ DIGITAL_EVENT_LOG_DIR = os.getenv(
 )
 DIGITAL_EVENT_LOG_MODE = os.getenv("DIGITAL_EVENT_LOG_MODE", "auto").strip().lower()
 DIGITAL_EVENT_LOG_TAIL_LINES = int(os.getenv("DIGITAL_EVENT_LOG_TAIL_LINES", "500"))
+DIGITAL_SCHEDULER_STATE_PATH = os.getenv(
+    "DIGITAL_SCHEDULER_STATE_PATH",
+    "/run/airband_ui_digital_scheduler.json",
+).strip()
 AIRBAND_RTL_SERIAL = os.getenv("AIRBAND_RTL_SERIAL", "").strip()
 GROUND_RTL_SERIAL = os.getenv("GROUND_RTL_SERIAL", "").strip()
 DIGITAL_RTL_DEVICE = os.getenv("DIGITAL_RTL_DEVICE", "").strip()
@@ -100,6 +104,23 @@ DIGITAL_ATTACH_BROADCAST_CHANNEL = os.getenv(
 ).strip().lower() in ("1", "true", "yes", "on")
 DIGITAL_IGNORE_DATA_CALLS = os.getenv(
     "DIGITAL_IGNORE_DATA_CALLS",
+    "1",
+).strip().lower() in ("1", "true", "yes", "on")
+_DIGITAL_SCAN_MODE_RAW = os.getenv("DIGITAL_SCAN_MODE", "single_system").strip().lower()
+DIGITAL_SCAN_MODE = (
+    _DIGITAL_SCAN_MODE_RAW
+    if _DIGITAL_SCAN_MODE_RAW in ("single_system", "timeslice_multi_system")
+    else "single_system"
+)
+DIGITAL_SYSTEM_DWELL_MS = max(1000, int(os.getenv("DIGITAL_SYSTEM_DWELL_MS", "15000")))
+DIGITAL_SYSTEM_HANG_MS = max(0, int(os.getenv("DIGITAL_SYSTEM_HANG_MS", "4000")))
+DIGITAL_SYSTEM_ORDER = [
+    token.strip()
+    for token in os.getenv("DIGITAL_SYSTEM_ORDER", "").replace(";", ",").split(",")
+    if token.strip()
+]
+DIGITAL_PAUSE_ON_HIT = os.getenv(
+    "DIGITAL_PAUSE_ON_HIT",
     "1",
 ).strip().lower() in ("1", "true", "yes", "on")
 DIGITAL_RTL_SERIAL_HINT = "DIGITAL_RTL_SERIAL not set; set it to your digital dongle serial"

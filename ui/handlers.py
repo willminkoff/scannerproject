@@ -1310,6 +1310,19 @@ class Handler(BaseHTTPRequestHandler):
             if preflight.get("error"):
                 payload["error"] = preflight.get("error")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+        if p == "/api/digital/scheduler":
+            try:
+                manager = get_digital_manager()
+                payload = manager.getScheduler() if hasattr(manager, "getScheduler") else {}
+                payload = dict(payload or {})
+                payload["ok"] = True
+                return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
         if p == "/api/preflight":
             q = parse_qs(u.query or "")
             action = (q.get("action") or [""])[0].strip()
@@ -1583,6 +1596,40 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 payload["v3_compile_error"] = str(e)
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/digital/scheduler":
+            manager = get_digital_manager()
+            if not hasattr(manager, "setScheduler"):
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "scheduler not supported"}),
+                    "application/json; charset=utf-8",
+                )
+            scheduler_payload = {}
+            for key in (
+                "mode",
+                "digital_scan_mode",
+                "system_dwell_ms",
+                "digital_system_dwell_ms",
+                "system_hang_ms",
+                "digital_system_hang_ms",
+                "pause_on_hit",
+                "digital_pause_on_hit",
+                "system_order",
+                "digital_system_order",
+            ):
+                if key in form:
+                    scheduler_payload[key] = form.get(key)
+            ok, err, payload = manager.setScheduler(scheduler_payload)
+            if not ok:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": err or "invalid scheduler payload"}),
+                    "application/json; charset=utf-8",
+                )
+            response = {"ok": True}
+            response.update(payload or {})
+            return self._send(200, json.dumps(response), "application/json; charset=utf-8")
 
         if p == "/api/digital/mute":
             raw_muted = form.get("muted")
