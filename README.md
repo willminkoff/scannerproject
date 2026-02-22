@@ -467,6 +467,43 @@ Verification:
   - `playlist_source_type=TUNER_MULTIPLE_FREQUENCIES` (when profile has >1 control channel)
   - `playlist_preferred_tuner` empty when dual-digital auto-allocation is active, or matching your explicit `DIGITAL_PREFERRED_TUNER` when set
 
+**V3 planned mode: time-sliced multi-system digital scan (HomePatrol-style)**:
+This is now a V3 product requirement for two-digital-dongle operation.
+
+Goal:
+- Allow one profile to include multiple trunked systems while preserving practical voice follow behavior with only two digital tuners.
+
+Operating model:
+- `Tuner A` is the active control-channel monitor for one system at a time.
+- `Tuner B` is reserved for traffic-channel follow on grants from the currently active control system.
+- If no eligible voice traffic is active, scheduler advances `Tuner A` to the next system control-channel set.
+- If a wanted call is active, scheduler holds on that system until call end plus hang-time, then resumes round-robin.
+- Encrypted-only events are ignored for hit/audio purposes.
+
+Required scheduler controls (V3):
+- `digital_scan_mode`: `single_system` or `timeslice_multi_system`.
+- `system_dwell_ms`: max idle control-channel dwell per system before advancing.
+- `system_hang_ms`: post-call hold before advancing.
+- `system_order`: deterministic priority order for systems in a combo profile.
+- `pause_on_hit`: hold scheduler while clear voice is active.
+
+Required V3 telemetry:
+- `digital_scheduler_mode`
+- `digital_scheduler_active_system`
+- `digital_scheduler_next_system`
+- `digital_scheduler_last_switch_time`
+- `digital_scheduler_switch_reason` (`idle_timeout`, `call_end`, `manual`, `error_recovery`)
+- `digital_voice_tuner_available` (boolean)
+
+Acceptance criteria for V3 mode:
+- With 2 digital tuners and 2 systems in one profile, voice grants are followed without persistent `CHANNEL START REJECTED TUNER UNAVAILABLE` during normal load.
+- During no-traffic periods, control monitoring rotates across all configured systems.
+- During active clear voice, scheduler does not preempt audio mid-call.
+- UI and sitrep clearly show which system is currently monitored and why switching occurred.
+
+Non-goal:
+- This mode is not true simultaneous full-fidelity multi-system monitoring. True simultaneous control + voice across multiple systems still requires additional digital tuners.
+
 **SprontPi recommended defaults**:
 If you are on SprontPi, set these in `/etc/airband-ui.conf` (or your UI EnvironmentFile):
 ```bash
