@@ -1485,6 +1485,7 @@ class Handler(BaseHTTPRequestHandler):
             profile_id = get_str("profileId").strip()
             control_channels_text = get_str("control_channels_text").strip()
             talkgroups_text = get_str("talkgroups_text")
+            systems_json_text = get_str("systems_json_text")
             apply_now_raw = str(form.get("apply_now", "true")).strip().lower()
             apply_now = apply_now_raw in ("1", "true", "yes", "on", "")
 
@@ -1492,6 +1493,7 @@ class Handler(BaseHTTPRequestHandler):
                 profile_id=profile_id,
                 control_channels_text=control_channels_text,
                 talkgroups_text=talkgroups_text,
+                systems_json_text=systems_json_text,
             )
             if not ok:
                 return self._send(400, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")

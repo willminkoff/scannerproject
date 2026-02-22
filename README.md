@@ -574,7 +574,9 @@ Required V3 telemetry:
 - `digital_scheduler_active_system`
 - `digital_scheduler_next_system`
 - `digital_scheduler_last_switch_time`
-- `digital_scheduler_switch_reason` (`idle_timeout`, `call_end`, `manual`, `error_recovery`)
+- `digital_scheduler_switch_reason` (`idle_timeout`, `call_end`, `lock_timeout`, `manual`, `error_recovery`)
+- `digital_scheduler_lock_timeout_ms`
+- `digital_scheduler_system_health` (per-system `state`, `reason`, `lock_failures`, and lock timestamps)
 - `digital_voice_tuner_available` (boolean)
 
 Acceptance criteria for V3 mode:
@@ -604,6 +606,16 @@ For local-audio debugging sessions, set `DIGITAL_LOCAL_MONITOR=1` and restart `s
 Profiles live under `DIGITAL_PROFILES_DIR` and the active profile is pointed to by `DIGITAL_ACTIVE_PROFILE_LINK`.
 Example scaffolding lives in `deploy/examples/digital-profiles/profiles/` (includes `profiles/example/`).
 Each profile directory should contain the SDRTrunk config exports you want to run for that profile.
+Optional for explicit multi-system scheduling: add `systems.json` with this format:
+```json
+{
+  "systems": [
+    { "name": "TACN D3", "control_channels_mhz": [769.83125, 770.25625] },
+    { "name": "Vanderbilt", "control_channels_mhz": [856.9375, 857.4375] }
+  ]
+}
+```
+When present, `systems.json` is the scheduler source of truth for per-system control-channel sets.
 
 **Canonical workflow (authoritative): create a working digital profile**
 Use this flow for every new or edited digital profile, regardless of source data.

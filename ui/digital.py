@@ -233,6 +233,10 @@ _DIGITAL_SCHEDULER_APPLY_MIN_INTERVAL_MS = max(
     250,
     int(os.getenv("DIGITAL_SCHEDULER_APPLY_MIN_INTERVAL_MS", "1000")),
 )
+_DIGITAL_SCHEDULER_LOCK_LOSS_MS = max(
+    2000,
+    int(os.getenv("DIGITAL_SCHEDULER_LOCK_LOSS_MS", "9000")),
+)
 _DIGITAL_SCHEDULER_TICK_SEC = max(
     0.25,
     float(os.getenv("DIGITAL_SCHEDULER_TICK_SEC", "1.0")),
@@ -2805,6 +2809,9 @@ class DigitalManager:
         self._scheduler_last_apply_time_ms = 0
         self._scheduler_last_apply_attempt_ms = 0
         self._scheduler_last_apply_error = ""
+        self._scheduler_last_apply_error_system = ""
+        self._scheduler_lock_loss_ms = int(_DIGITAL_SCHEDULER_LOCK_LOSS_MS)
+        self._scheduler_system_health: dict[str, dict] = {}
         self._scheduler_lock = threading.Lock()
         self._scheduler_stop = threading.Event()
         self._load_scheduler_state()
@@ -2876,6 +2883,8 @@ class DigitalManager:
                 self._scheduler_last_switch_time_ms = int(time.time() * 1000)
                 self._scheduler_last_applied_system = ""
                 self._scheduler_last_apply_error = ""
+                self._scheduler_last_apply_error_system = ""
+                self._scheduler_system_health = {}
                 self._write_scheduler_state()
             self._scheduler_tick()
         return ok, err
@@ -3096,10 +3105,113 @@ class DigitalManager:
         _flush_group()
         return groups
 
+    @staticmethod
+    def _control_channel_value_to_hz(value) -> int:
+        raw = str(value or "").strip()
+        if not raw:
+            return 0
+        try:
+            if re.fullmatch(r"\d+", raw):
+                num = int(raw)
+                if num >= 1_000_000:
+                    return num
+                if num > 100:
+                    return int(round(float(num) * 1_000_000))
+                return 0
+            numf = float(raw)
+            if numf >= 1_000_000:
+                return int(round(numf))
+            if numf > 100:
+                return int(round(numf * 1_000_000))
+        except Exception:
+            return 0
+        return 0
+
+    @classmethod
+    def _parse_system_control_channels(cls, raw_values) -> list[int]:
+        if raw_values is None:
+            return []
+        if isinstance(raw_values, list):
+            incoming = raw_values
+        else:
+            text = str(raw_values or "").replace("\n", ",").replace(";", ",")
+            incoming = text.split(",")
+        channels: list[int] = []
+        seen: set[int] = set()
+        for item in incoming:
+            hz = cls._control_channel_value_to_hz(item)
+            if hz <= 0 or hz in seen:
+                continue
+            seen.add(hz)
+            channels.append(hz)
+        return channels
+
+    @classmethod
+    def _read_system_definitions_for_dir(cls, profile_dir: str) -> list[tuple[str, list[int]]]:
+        path = str(profile_dir or "").strip()
+        if not path:
+            return []
+        systems_path = os.path.join(path, "systems.json")
+        if not os.path.isfile(systems_path):
+            return []
+        try:
+            with open(systems_path, "r", encoding="utf-8", errors="ignore") as f:
+                payload = json.load(f)
+        except Exception:
+            return []
+
+        if isinstance(payload, dict):
+            systems_raw = payload.get("systems")
+        else:
+            systems_raw = payload
+        if not isinstance(systems_raw, list):
+            return []
+
+        systems: list[tuple[str, list[int]]] = []
+        seen: set[str] = set()
+        for item in systems_raw:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or item.get("id") or item.get("system") or "").strip()
+            if not name:
+                continue
+            key = name.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            channels_raw = (
+                item.get("control_channels_hz")
+                if item.get("control_channels_hz") is not None
+                else (
+                    item.get("control_channels_mhz")
+                    if item.get("control_channels_mhz") is not None
+                    else item.get("control_channels")
+                )
+            )
+            if channels_raw is None:
+                channels_raw = item.get("controls")
+            channels = cls._parse_system_control_channels(channels_raw)
+            if not channels:
+                continue
+            systems.append((name, channels))
+        return systems
+
     def _read_control_channels_for_dir(self, profile_dir: str) -> list[int]:
         path = str(profile_dir or "").strip()
         if not path:
             return []
+        explicit_systems = self._read_system_definitions_for_dir(path)
+        if explicit_systems:
+            channels: list[int] = []
+            seen: set[int] = set()
+            for _name, values in explicit_systems:
+                for hz in values:
+                    if hz <= 0 or hz in seen:
+                        continue
+                    seen.add(hz)
+                    channels.append(hz)
+            if channels:
+                return channels
         read_channels = getattr(self._adapter, "_read_control_channels", None)
         if callable(read_channels):
             try:
@@ -3145,30 +3257,36 @@ class DigitalManager:
                 profile_dir = ""
 
         if profile_dir and os.path.isdir(profile_dir):
-            groups = self._read_control_channel_groups_for_dir(profile_dir)
-            if len(groups) >= 2:
-                for name, values in groups:
+            explicit = self._read_system_definitions_for_dir(profile_dir)
+            if explicit:
+                for name, values in explicit:
                     if values:
                         _add_system(name)
-            elif groups:
-                _add_system(profile_key or os.path.basename(profile_dir))
+            else:
+                groups = self._read_control_channel_groups_for_dir(profile_dir)
+                if len(groups) >= 2:
+                    for name, values in groups:
+                        if values:
+                            _add_system(name)
+                elif groups:
+                    _add_system(profile_key or os.path.basename(profile_dir))
 
-            subdirs = []
-            try:
-                with os.scandir(profile_dir) as it:
-                    for entry in it:
-                        try:
-                            if not entry.is_dir(follow_symlinks=False):
-                                continue
-                        except Exception:
-                            continue
-                        subdirs.append(entry.name)
-            except Exception:
                 subdirs = []
-            for name in sorted(subdirs):
-                control_path = os.path.join(profile_dir, name, "control_channels.txt")
-                if os.path.isfile(control_path):
-                    _add_system(name)
+                try:
+                    with os.scandir(profile_dir) as it:
+                        for entry in it:
+                            try:
+                                if not entry.is_dir(follow_symlinks=False):
+                                    continue
+                            except Exception:
+                                continue
+                            subdirs.append(entry.name)
+                except Exception:
+                    subdirs = []
+                for name in sorted(subdirs):
+                    control_path = os.path.join(profile_dir, name, "control_channels.txt")
+                    if os.path.isfile(control_path):
+                        _add_system(name)
 
         if not systems and profile_key:
             _add_system(profile_key)
@@ -3208,6 +3326,10 @@ class DigitalManager:
                 profile_dir = ""
         if not profile_dir or not os.path.isdir(profile_dir):
             return []
+
+        for name, values in self._read_system_definitions_for_dir(profile_dir):
+            if str(name).strip().lower() == system.lower() and values:
+                return list(values)
 
         for name, values in self._read_control_channel_groups_for_dir(profile_dir):
             if str(name).strip().lower() == system.lower() and values:
@@ -3258,14 +3380,17 @@ class DigitalManager:
         channels = self._resolve_scheduler_system_control_channels(profile_id, system_name)
         if not channels:
             self._scheduler_last_apply_error = f"system has no control channels: {system_name}"
+            self._scheduler_last_apply_error_system = system_name
             return False, self._scheduler_last_apply_error, False
 
         playlist_path = _safe_realpath(DIGITAL_PLAYLIST_PATH)
         if not playlist_path:
             self._scheduler_last_apply_error = "digital playlist path not configured"
+            self._scheduler_last_apply_error_system = system_name
             return False, self._scheduler_last_apply_error, False
         if not os.path.isfile(playlist_path):
             self._scheduler_last_apply_error = f"playlist not found: {playlist_path}"
+            self._scheduler_last_apply_error_system = system_name
             return False, self._scheduler_last_apply_error, False
 
         try:
@@ -3273,11 +3398,13 @@ class DigitalManager:
             root = tree.getroot()
         except Exception as e:
             self._scheduler_last_apply_error = f"failed to parse playlist: {e}"
+            self._scheduler_last_apply_error_system = system_name
             return False, self._scheduler_last_apply_error, False
 
         channel = root.find("channel")
         if channel is None:
             self._scheduler_last_apply_error = "playlist has no channel node"
+            self._scheduler_last_apply_error_system = system_name
             return False, self._scheduler_last_apply_error, False
         source_conf = channel.find("source_configuration")
         if source_conf is None:
@@ -3301,6 +3428,7 @@ class DigitalManager:
             self._scheduler_last_applied_system = system_name
             self._scheduler_last_apply_time_ms = now_ms
             self._scheduler_last_apply_error = ""
+            self._scheduler_last_apply_error_system = ""
             return True, "", False
 
         _sync_source_configuration(source_conf, channels)
@@ -3308,11 +3436,13 @@ class DigitalManager:
             tree.write(playlist_path, encoding="utf-8", xml_declaration=False)
         except Exception as e:
             self._scheduler_last_apply_error = f"failed to write playlist: {e}"
+            self._scheduler_last_apply_error_system = system_name
             return False, self._scheduler_last_apply_error, False
 
         self._scheduler_last_applied_system = system_name
         self._scheduler_last_apply_time_ms = now_ms
         self._scheduler_last_apply_error = ""
+        self._scheduler_last_apply_error_system = ""
         return True, "", True
 
     def getScheduler(self) -> dict:
@@ -3327,6 +3457,89 @@ class DigitalManager:
             if self._scheduler_last_apply_error:
                 payload["digital_scheduler_last_apply_error"] = self._scheduler_last_apply_error
         return payload
+
+    def _scheduler_health_entry(self, system_name: str) -> dict:
+        key = str(system_name or "").strip().lower()
+        if not key:
+            return {}
+        entry = self._scheduler_system_health.get(key)
+        if not isinstance(entry, dict):
+            entry = {"name": str(system_name or "").strip()}
+            self._scheduler_system_health[key] = entry
+        if not entry.get("name"):
+            entry["name"] = str(system_name or "").strip()
+        return entry
+
+    def _scheduler_system_health_payload(
+        self,
+        systems: list[str],
+        active_system: str,
+        mode: str,
+        preflight: dict,
+        now_ms: int,
+        lock_timeout_ms: int,
+    ) -> list[dict]:
+        allowed = {str(name or "").strip().lower() for name in systems if str(name or "").strip()}
+        for key in list(self._scheduler_system_health.keys()):
+            if key not in allowed:
+                self._scheduler_system_health.pop(key, None)
+
+        metric_ready = bool(preflight.get("control_decode_available"))
+        control_locked = bool(preflight.get("control_channel_locked"))
+        tuner_busy = bool(preflight.get("tuner_busy"))
+        rows: list[dict] = []
+
+        for name in systems:
+            entry = self._scheduler_health_entry(name)
+            if not entry:
+                continue
+            is_active = name == active_system
+            state = "standby"
+            reason = "timeslice standby" if mode == "timeslice_multi_system" else "inactive"
+
+            if is_active:
+                elapsed_ms = now_ms - int(self._scheduler_last_switch_time_ms or 0)
+                if not self.isActive():
+                    state = "failed"
+                    reason = "decoder stopped"
+                elif (
+                    self._scheduler_last_apply_error
+                    and str(self._scheduler_last_apply_error_system or "").strip().lower() == name.lower()
+                ):
+                    state = "failed"
+                    reason = str(self._scheduler_last_apply_error)
+                elif metric_ready:
+                    if control_locked:
+                        state = "locked"
+                        reason = "control decode active"
+                        entry["last_lock_time_ms"] = now_ms
+                        entry["lock_failures"] = 0
+                    else:
+                        if elapsed_ms >= lock_timeout_ms:
+                            state = "degraded"
+                            reason = f"no control lock after {int(elapsed_ms / 1000)}s"
+                        else:
+                            state = "searching"
+                            reason = "acquiring control lock"
+                else:
+                    state = "inferred"
+                    reason = "control metric unavailable"
+                if tuner_busy and state in ("locked", "searching", "inferred"):
+                    state = "degraded"
+                    reason = "tuner contention"
+
+            rows.append(
+                {
+                    "name": name,
+                    "active": bool(is_active),
+                    "state": state,
+                    "reason": reason,
+                    "lock_failures": int(entry.get("lock_failures") or 0),
+                    "last_lock_time": int(entry.get("last_lock_time_ms") or 0),
+                    "last_lock_loss_time": int(entry.get("last_lock_loss_time_ms") or 0),
+                }
+            )
+        return rows
 
     def setScheduler(self, payload: dict) -> tuple[bool, str, dict]:
         if not isinstance(payload, dict):
@@ -3382,6 +3595,8 @@ class DigitalManager:
             self._scheduler_in_call_hold = False
             self._scheduler_last_applied_system = ""
             self._scheduler_last_apply_error = ""
+            self._scheduler_last_apply_error_system = ""
+            self._scheduler_system_health = {}
             self._write_scheduler_state()
 
         snapshot = self.getScheduler()
@@ -3439,6 +3654,7 @@ class DigitalManager:
         pending_apply = False
         pending_reason = ""
         recovery_system = ""
+        lock_timeout_ms = max(2000, min(int(self._scheduler_dwell_ms), int(self._scheduler_lock_loss_ms)))
 
         configured_mode = self._scheduler_mode
         mode = configured_mode
@@ -3460,6 +3676,8 @@ class DigitalManager:
 
         event_time_ms = int(event.get("timeMs") or 0)
         recent_event = event_time_ms > 0 and (now_ms - event_time_ms) <= self._scheduler_hang_ms
+        metric_ready = bool(preflight.get("control_decode_available"))
+        control_locked = bool(preflight.get("control_channel_locked"))
         if self._scheduler_pause_on_hit and recent_event:
             self._scheduler_in_call_hold = True
 
@@ -3479,6 +3697,9 @@ class DigitalManager:
                     should_switch = True
                     switch_reason = "call_end"
                     self._scheduler_in_call_hold = False
+                elif metric_ready and not control_locked and elapsed_ms >= lock_timeout_ms:
+                    should_switch = True
+                    switch_reason = "lock_timeout"
                 elif elapsed_ms >= self._scheduler_dwell_ms:
                     should_switch = True
                     switch_reason = "idle_timeout"
@@ -3494,6 +3715,11 @@ class DigitalManager:
                         self._scheduler_switch_reason = switch_reason
                         pending_apply = True
                         pending_reason = switch_reason
+                        if switch_reason == "lock_timeout" and previous:
+                            health = self._scheduler_health_entry(previous)
+                            if health:
+                                health["lock_failures"] = int(health.get("lock_failures") or 0) + 1
+                                health["last_lock_loss_time_ms"] = now_ms
                         if previous and previous != candidate:
                             recovery_system = previous
 
@@ -3543,8 +3769,17 @@ class DigitalManager:
             "digital_scheduler_switch_reason": self._scheduler_switch_reason,
             "digital_scheduler_applied_system": self._scheduler_last_applied_system,
             "digital_scheduler_last_apply_time": int(self._scheduler_last_apply_time_ms or 0),
+            "digital_scheduler_lock_timeout_ms": int(lock_timeout_ms),
             "digital_voice_tuner_available": voice_tuner_available,
         }
+        payload["digital_scheduler_system_health"] = self._scheduler_system_health_payload(
+            systems,
+            active_system,
+            mode,
+            preflight,
+            now_ms,
+            lock_timeout_ms,
+        )
         if self._scheduler_last_apply_error:
             payload["digital_scheduler_last_apply_error"] = self._scheduler_last_apply_error
         return payload

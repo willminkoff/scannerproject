@@ -1524,6 +1524,8 @@
                 <div class="control-applied">Profile: <span id="digital-profile">--</span></div>
                 <div class="control-applied">Control Channel: <span class="config-value" id="digital-cc-status">--</span></div>
                 <div class="control-applied"><span id="digital-cc-detail">--</span></div>
+                <div class="control-applied">Systems: <span class="config-value" id="digital-system-health">--</span></div>
+                <div class="control-applied"><span id="digital-system-health-detail">--</span></div>
                 <div class="control-applied">RTL Dongles: <span class="config-value" id="digital-dongle-health">--</span></div>
                 <div class="control-applied">Missing: <span class="config-value" id="digital-dongle-missing">--</span></div>
               </div>
@@ -1991,6 +1993,13 @@
             <textarea id="profile-editor-digital-controls" rows="4" spellcheck="false"></textarea>
           </label>
           <label>
+            Systems JSON (optional explicit per-system definitions)
+            <textarea id="profile-editor-digital-systems" rows="8" spellcheck="false"></textarea>
+          </label>
+          <div class="control-applied" style="opacity:0.75;">
+            Format: <code>{"systems":[{"name":"TACN D3","control_channels_mhz":[769.83125]}]}</code>
+          </div>
+          <label>
             Talkgroups CSV
             <textarea id="profile-editor-digital-talkgroups" rows="16" spellcheck="false"></textarea>
           </label>
@@ -2177,6 +2186,14 @@
         controlLastTime: 0,
         controlSyncLossCount: 0,
         controlWindowMs: 0,
+        schedulerMode: '',
+        schedulerActiveSystem: '',
+        schedulerNextSystem: '',
+        schedulerSwitchReason: '',
+        schedulerLastSwitchTime: 0,
+        schedulerLastApplyError: '',
+        schedulerLockTimeoutMs: 0,
+        schedulerSystemHealth: [],
         muted: false,
         profiles: [],
         activeProfile: '',
@@ -2257,6 +2274,8 @@
       digitalProfile: document.getElementById('digital-profile'),
       digitalCcStatus: document.getElementById('digital-cc-status'),
       digitalCcDetail: document.getElementById('digital-cc-detail'),
+      digitalSystemHealth: document.getElementById('digital-system-health'),
+      digitalSystemHealthDetail: document.getElementById('digital-system-health-detail'),
       digitalDongleHealth: document.getElementById('digital-dongle-health'),
       digitalDongleMissing: document.getElementById('digital-dongle-missing'),
       digitalLastTime: document.getElementById('digital-last-time'),
@@ -2382,6 +2401,7 @@
       profileEditorAnalogStatus: document.getElementById('profile-editor-analog-status'),
       profileEditorDigitalProfile: document.getElementById('profile-editor-digital-profile'),
       profileEditorDigitalControls: document.getElementById('profile-editor-digital-controls'),
+      profileEditorDigitalSystems: document.getElementById('profile-editor-digital-systems'),
       profileEditorDigitalTalkgroups: document.getElementById('profile-editor-digital-talkgroups'),
       profileEditorDigitalLoad: document.getElementById('profile-editor-digital-load'),
       profileEditorDigitalSave: document.getElementById('profile-editor-digital-save'),
@@ -2695,11 +2715,18 @@
         if (els.profileEditorDigitalControls) {
           els.profileEditorDigitalControls.value = data.control_channels_text || '';
         }
+        if (els.profileEditorDigitalSystems) {
+          els.profileEditorDigitalSystems.value = data.systems_json_text || '';
+        }
         if (els.profileEditorDigitalTalkgroups) {
           els.profileEditorDigitalTalkgroups.value = data.talkgroups_text || '';
         }
         state.profileEditor.digital.profileId = profileId;
-        setProfileEditorStatus('digital', `Loaded ${profileId} (${data.talkgroups_count || 0} TGs)`, false);
+        const systemCount = Number.isFinite(data.systems_count) ? data.systems_count : 0;
+        const summary = systemCount > 0
+          ? `Loaded ${profileId} (${data.talkgroups_count || 0} TGs, ${systemCount} systems)`
+          : `Loaded ${profileId} (${data.talkgroups_count || 0} TGs)`;
+        setProfileEditorStatus('digital', summary, false);
       } catch (e) {
         setProfileEditorStatus('digital', 'Load failed', true);
       }
@@ -2708,13 +2735,14 @@
     async function saveProfileEditorDigital() {
       const profileId = els.profileEditorDigitalProfile?.value || '';
       const control_channels_text = String(els.profileEditorDigitalControls?.value || '').trim();
+      const systems_json_text = String(els.profileEditorDigitalSystems?.value || '').trim();
       const talkgroups_text = String(els.profileEditorDigitalTalkgroups?.value || '').trim();
       if (!profileId) {
         setProfileEditorStatus('digital', 'Select a digital profile first', true);
         return;
       }
-      if (!control_channels_text) {
-        setProfileEditorStatus('digital', 'Control channels are required', true);
+      if (!control_channels_text && !systems_json_text) {
+        setProfileEditorStatus('digital', 'Provide control channels or systems JSON', true);
         return;
       }
       if (!talkgroups_text) {
@@ -2726,6 +2754,7 @@
         const res = await postJSON('/api/profile-editor/digital/save', {
           profileId,
           control_channels_text,
+          systems_json_text,
           talkgroups_text,
           apply_now: true,
         });
@@ -3435,6 +3464,41 @@
           els.digitalCcDetail.textContent = pfNote;
         } else {
           els.digitalCcDetail.textContent = ccHealth.detail || '--';
+        }
+      }
+      const systemHealthRows = Array.isArray(d.schedulerSystemHealth) ? d.schedulerSystemHealth : [];
+      const activeSystemRow = systemHealthRows.find((row) => row && row.active) || null;
+      if (els.digitalSystemHealth) {
+        if (!systemHealthRows.length) {
+          els.digitalSystemHealth.textContent = '--';
+          setValueTone(els.digitalSystemHealth, '');
+        } else {
+          const summary = systemHealthRows.map((row) => formatDigitalSystemHealthRow(row)).filter(Boolean).join(' | ');
+          els.digitalSystemHealth.textContent = summary || '--';
+          setValueTone(
+            els.digitalSystemHealth,
+            activeSystemRow ? digitalSchedulerStateTone(activeSystemRow.state) : ''
+          );
+        }
+      }
+      if (els.digitalSystemHealthDetail) {
+        if (!activeSystemRow) {
+          els.digitalSystemHealthDetail.textContent = '--';
+          setValueTone(els.digitalSystemHealthDetail, '');
+        } else {
+          const reason = String(activeSystemRow.reason || '').trim();
+          const switchReason = String(d.schedulerSwitchReason || '').trim();
+          const failures = Number(activeSystemRow.lock_failures || 0);
+          const timeoutMs = Number(d.schedulerLockTimeoutMs || 0);
+          const parts = [
+            `Active: ${String(activeSystemRow.name || '--')}`,
+            reason || 'no detail',
+          ];
+          if (switchReason) parts.push(`switch=${switchReason}`);
+          if (timeoutMs > 0) parts.push(`timeout=${Math.round(timeoutMs / 1000)}s`);
+          if (failures > 0) parts.push(`lock timeouts=${failures}`);
+          els.digitalSystemHealthDetail.textContent = parts.join(' • ');
+          setValueTone(els.digitalSystemHealthDetail, digitalSchedulerStateTone(activeSystemRow.state));
         }
       }
       renderDongleHealth(state.systemStats);
@@ -4164,6 +4228,23 @@
           setValueTone(els.digitalDongleMissing, '');
         }
       }
+    }
+
+    function digitalSchedulerStateTone(state) {
+      const value = String(state || '').toLowerCase();
+      if (value === 'locked') return 'good';
+      if (value === 'standby') return '';
+      if (value === 'searching' || value === 'inferred' || value === 'degraded') return 'warn';
+      if (value === 'failed' || value === 'error') return 'bad';
+      return '';
+    }
+
+    function formatDigitalSystemHealthRow(row) {
+      if (!row || typeof row !== 'object') return '';
+      const name = String(row.name || '--').trim() || '--';
+      const state = String(row.state || 'unknown').trim().toUpperCase();
+      const marker = row.active ? '●' : '○';
+      return `${marker} ${name}:${state}`;
     }
 
     function getDigitalControlChannelHealth() {
@@ -5097,6 +5178,20 @@
         state.digital.controlLastTime = Number.isFinite(data.digital_control_channel_last_time) ? data.digital_control_channel_last_time : 0;
         state.digital.controlSyncLossCount = Number.isFinite(data.digital_control_sync_loss_count) ? data.digital_control_sync_loss_count : 0;
         state.digital.controlWindowMs = Number.isFinite(data.digital_control_window_ms) ? data.digital_control_window_ms : 0;
+        state.digital.schedulerMode = data.digital_scheduler_mode || '';
+        state.digital.schedulerActiveSystem = data.digital_scheduler_active_system || '';
+        state.digital.schedulerNextSystem = data.digital_scheduler_next_system || '';
+        state.digital.schedulerSwitchReason = data.digital_scheduler_switch_reason || '';
+        state.digital.schedulerLastSwitchTime = Number.isFinite(data.digital_scheduler_last_switch_time)
+          ? data.digital_scheduler_last_switch_time
+          : 0;
+        state.digital.schedulerLastApplyError = data.digital_scheduler_last_apply_error || '';
+        state.digital.schedulerLockTimeoutMs = Number.isFinite(data.digital_scheduler_lock_timeout_ms)
+          ? data.digital_scheduler_lock_timeout_ms
+          : 0;
+        state.digital.schedulerSystemHealth = Array.isArray(data.digital_scheduler_system_health)
+          ? data.digital_scheduler_system_health
+          : [];
         state.digital.muted = Boolean(data.digital_muted);
         state.lastHitDigital = state.digital.lastLabel || '';
         {

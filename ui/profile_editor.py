@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import os
 import re
 from typing import Any
@@ -46,6 +47,7 @@ _MODULATION_RE = re.compile(r'(^\s*modulation\s*=\s*")[^"]*("\s*;)', re.M)
 _BANDWIDTH_RE = re.compile(r'(^\s*bandwidth\s*=\s*)[0-9.]+(\s*;)', re.M)
 _VALID_MODULATION_RE = re.compile(r"^[a-z0-9_+\-]{2,16}$", re.I)
 _DIGITAL_TGID_MAX = 65535
+_DIGITAL_SYSTEMS_FILENAME = "systems.json"
 
 
 def _atomic_write_text(path: str, text: str) -> None:
@@ -94,6 +96,41 @@ def _normalize_control_channel(text: Any) -> str:
     return f"{value:.5f}".rstrip("0").rstrip(".")
 
 
+def _normalize_control_channel_any(value: Any) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    if raw.isdigit():
+        try:
+            num = int(raw)
+        except Exception:
+            num = 0
+        if num >= 1_000_000:
+            return _normalize_control_channel(float(num) / 1_000_000.0)
+    return _normalize_control_channel(raw)
+
+
+def _parse_control_channel_values(values: Any) -> list[str]:
+    if values is None:
+        return []
+    if isinstance(values, list):
+        raw_items = values
+    else:
+        text = str(values or "").replace(";", ",").replace("\n", ",")
+        raw_items = text.split(",")
+    items: list[str] = []
+    seen: set[str] = set()
+    for raw in raw_items:
+        value = _normalize_control_channel_any(raw)
+        if not value:
+            continue
+        if value in seen:
+            continue
+        seen.add(value)
+        items.append(value)
+    return items
+
+
 def _parse_control_channels_text(control_channels_text: str) -> list[str]:
     items: list[str] = []
     seen: set[str] = set()
@@ -113,6 +150,72 @@ def _parse_control_channels_text(control_channels_text: str) -> list[str]:
     if not items:
         raise ValueError("no control channels provided")
     return items
+
+
+def _parse_systems_json_text(systems_json_text: str) -> tuple[list[dict[str, Any]], list[str], str]:
+    text = str(systems_json_text or "").strip()
+    if not text:
+        return [], [], ""
+    try:
+        data = json.loads(text)
+    except Exception:
+        raise ValueError("invalid systems JSON") from None
+
+    if isinstance(data, dict):
+        systems_raw = data.get("systems")
+    else:
+        systems_raw = data
+    if not isinstance(systems_raw, list):
+        raise ValueError("systems JSON must be a list or an object with a systems list")
+
+    systems: list[dict[str, Any]] = []
+    systems_seen: set[str] = set()
+    flattened: list[str] = []
+    flattened_seen: set[str] = set()
+    for idx, item in enumerate(systems_raw, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"systems[{idx}] must be an object")
+        name = str(item.get("name") or item.get("id") or item.get("system") or "").strip()
+        if not name:
+            raise ValueError(f"systems[{idx}] missing name")
+        key = name.lower()
+        if key in systems_seen:
+            raise ValueError(f"duplicate system name: {name}")
+        systems_seen.add(key)
+
+        channels_raw = (
+            item.get("control_channels_hz")
+            if item.get("control_channels_hz") is not None
+            else (
+                item.get("control_channels_mhz")
+                if item.get("control_channels_mhz") is not None
+                else item.get("control_channels")
+            )
+        )
+        if channels_raw is None:
+            channels_raw = item.get("controls")
+        channels = _parse_control_channel_values(channels_raw)
+        if not channels:
+            raise ValueError(f"systems[{idx}] has no control channels")
+        systems.append(
+            {
+                "name": name,
+                "control_channels_mhz": channels,
+            }
+        )
+        for ch in channels:
+            if ch in flattened_seen:
+                continue
+            flattened_seen.add(ch)
+            flattened.append(ch)
+
+    if not systems:
+        raise ValueError("systems JSON has no valid systems")
+
+    canonical = json.dumps({"systems": systems}, indent=2)
+    if canonical and not canonical.endswith("\n"):
+        canonical += "\n"
+    return systems, flattened, canonical
 
 
 def _find_analog_profile(profile_id: str, target: str) -> tuple[dict | None, str | None, str]:
@@ -324,6 +427,22 @@ def _read_control_channels(path: str) -> list[str]:
     return items
 
 
+def _read_systems_json_text(path: str) -> tuple[str, list[str], int]:
+    if not os.path.isfile(path):
+        return "", [], 0
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            raw = f.read()
+    except Exception:
+        return "", [], 0
+    try:
+        systems, channels, canonical = _parse_systems_json_text(raw)
+        return canonical.rstrip(), channels, len(systems)
+    except Exception:
+        text = str(raw or "").strip()
+        return text, [], 0
+
+
 def _render_talkgroups_text(items: list[dict]) -> str:
     out = io.StringIO()
     writer = csv.writer(out, lineterminator="\n")
@@ -354,6 +473,19 @@ def get_digital_editor_payload(profile_id: str) -> tuple[bool, str, dict]:
     items = list((talkgroups_payload or {}).get("items") or [])
     controls_path = os.path.join(profile_dir, "control_channels.txt")
     control_channels = _read_control_channels(controls_path)
+    systems_path = os.path.join(profile_dir, _DIGITAL_SYSTEMS_FILENAME)
+    systems_json_text = ""
+    systems_controls: list[str] = []
+    systems_count = 0
+    if os.path.isfile(systems_path):
+        try:
+            systems_json_text, systems_controls, systems_count = _read_systems_json_text(systems_path)
+        except Exception:
+            systems_json_text = ""
+            systems_controls = []
+            systems_count = 0
+    if not control_channels and systems_controls:
+        control_channels = list(systems_controls)
 
     payload = {
         "ok": True,
@@ -361,6 +493,8 @@ def get_digital_editor_payload(profile_id: str) -> tuple[bool, str, dict]:
         "talkgroups_source": str((talkgroups_payload or {}).get("source") or ""),
         "control_channels": control_channels,
         "control_channels_text": "\n".join(control_channels),
+        "systems_json_text": systems_json_text,
+        "systems_count": int(systems_count),
         "talkgroups_text": _render_talkgroups_text(items),
         "talkgroups_count": len(items),
     }
@@ -544,20 +678,41 @@ def save_digital_editor_payload(
     profile_id: str,
     control_channels_text: str,
     talkgroups_text: str,
+    systems_json_text: str = "",
 ) -> tuple[bool, str, dict]:
     profile_dir, err = _digital_profile_dir(profile_id)
     if err:
         return False, err, {}
 
     try:
-        control_channels = _parse_control_channels_text(control_channels_text)
         tg_rows, listen_present = _parse_talkgroups_text(talkgroups_text)
     except Exception as e:
         return False, str(e), {}
 
+    systems: list[dict[str, Any]] = []
+    systems_channels: list[str] = []
+    systems_json_canonical = ""
+    try:
+        systems, systems_channels, systems_json_canonical = _parse_systems_json_text(systems_json_text)
+    except Exception as e:
+        return False, str(e), {}
+
+    control_channels: list[str] = []
+    controls_text = str(control_channels_text or "").strip()
+    if controls_text:
+        try:
+            control_channels = _parse_control_channels_text(controls_text)
+        except Exception as e:
+            return False, str(e), {}
+    if systems_channels:
+        control_channels = list(systems_channels)
+    if not control_channels:
+        return False, "no control channels provided", {}
+
     talkgroups_path = os.path.join(profile_dir, "talkgroups.csv")
     talkgroups_with_group_path = os.path.join(profile_dir, "talkgroups_with_group.csv")
     control_channels_path = os.path.join(profile_dir, "control_channels.txt")
+    systems_path = os.path.join(profile_dir, _DIGITAL_SYSTEMS_FILENAME)
 
     changed = False
 
@@ -572,6 +727,27 @@ def save_digital_editor_payload(
     if new_controls_text != old_controls_text:
         try:
             _atomic_write_text(control_channels_path, new_controls_text)
+            changed = True
+        except Exception as e:
+            return False, str(e), {}
+
+    old_systems_text = ""
+    if os.path.isfile(systems_path):
+        try:
+            with open(systems_path, "r", encoding="utf-8", errors="ignore") as f:
+                old_systems_text = f.read()
+        except Exception:
+            old_systems_text = ""
+    if systems_json_canonical:
+        if systems_json_canonical != old_systems_text:
+            try:
+                _atomic_write_text(systems_path, systems_json_canonical)
+                changed = True
+            except Exception as e:
+                return False, str(e), {}
+    elif old_systems_text:
+        try:
+            os.remove(systems_path)
             changed = True
         except Exception as e:
             return False, str(e), {}
@@ -619,6 +795,7 @@ def save_digital_editor_payload(
         "profileId": str(profile_id).strip(),
         "talkgroups": len(tg_rows),
         "control_channels": len(control_channels),
+        "systems": len(systems),
         "listen_updated": bool(listen_present),
     }
     return True, "", payload
