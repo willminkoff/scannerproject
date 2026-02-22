@@ -2849,11 +2849,28 @@ class DigitalManager:
         ok, err = self._adapter.setProfile(profileId)
         if ok:
             with self._scheduler_lock:
+                profile_key = str(profileId or "").strip().lower()
+                ordered_keys = {
+                    str(item or "").strip().lower()
+                    for item in (self._scheduler_order or [])
+                    if str(item or "").strip()
+                }
+                # Prevent stale cross-profile scheduler state from pinning a newly
+                # selected profile in "searching". If the selected profile is not
+                # part of the configured multi-system order, fall back to single.
+                if (
+                    self._scheduler_mode == "timeslice_multi_system"
+                    and profile_key
+                    and profile_key not in ordered_keys
+                ):
+                    self._scheduler_mode = "single_system"
+                    self._scheduler_order = [str(profileId).strip()]
                 self._scheduler_profile = ""
                 self._scheduler_switch_reason = "manual"
                 self._scheduler_last_switch_time_ms = int(time.time() * 1000)
                 self._scheduler_last_applied_system = ""
                 self._scheduler_last_apply_error = ""
+                self._write_scheduler_state()
             self._scheduler_tick()
         return ok, err
 
