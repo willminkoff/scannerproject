@@ -247,6 +247,11 @@ _CONTROL_MESSAGE_RE = re.compile(
     re.I,
 )
 _SYNC_LOSS_RE = re.compile(r"\bSYNC LOSS\b", re.I)
+_CONTROL_LOCK_FAIL_RE = re.compile(
+    r"(can't get a lock|cannot get a lock|could not get a lock|failed to lock|"
+    r"unable to lock|control channel.*(not lock|unlock|no lock)|searching for control channel)",
+    re.I,
+)
 _DIGITAL_EVENT_DROP_RE = re.compile(
     r"(rejected|tuner unavailable|encrypted|encryption|data channel grant|nsapi)",
     re.I,
@@ -2158,6 +2163,22 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
     def _control_channel_summary(self) -> dict:
         now_ms = int(time.time() * 1000)
         window_ms = int(_DIGITAL_CONTROL_WINDOW_MS)
+        lock_fail_count = 0
+        last_lock_fail_ms = 0
+
+        for line in self._read_log_tail(max_lines=_DIGITAL_CONTROL_TAIL_LINES):
+            raw = (line or "").strip()
+            if not raw or not _CONTROL_LOCK_FAIL_RE.search(raw):
+                continue
+            ts = _parse_time_ms(raw, now_ms)
+            if ts > (now_ms + 120000):
+                continue
+            if (now_ms - ts) > window_ms:
+                continue
+            lock_fail_count += 1
+            if ts > last_lock_fail_ms:
+                last_lock_fail_ms = ts
+
         decoded_logs = self._decoded_message_log_files()
         if not decoded_logs:
             return {
@@ -2166,6 +2187,8 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 "control_activity_count": 0,
                 "control_sync_loss_count": 0,
                 "control_last_time_ms": 0,
+                "control_lock_fail_count": int(lock_fail_count),
+                "control_lock_fail_last_time_ms": int(last_lock_fail_ms),
                 "control_window_ms": window_ms,
                 "control_decode_files": 0,
             }
@@ -2193,6 +2216,11 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 if _SYNC_LOSS_RE.search(raw):
                     sync_loss_count += 1
                     continue
+                if _CONTROL_LOCK_FAIL_RE.search(raw):
+                    lock_fail_count += 1
+                    if ts > last_lock_fail_ms:
+                        last_lock_fail_ms = ts
+                    continue
                 # Count decoded control-plane messages as direct evidence that
                 # the control channel is being demodulated.
                 if ",PASSED," in raw.upper() and _CONTROL_MESSAGE_RE.search(raw):
@@ -2206,6 +2234,8 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             "control_activity_count": int(control_count),
             "control_sync_loss_count": int(sync_loss_count),
             "control_last_time_ms": int(last_control_ms),
+            "control_lock_fail_count": int(lock_fail_count),
+            "control_lock_fail_last_time_ms": int(last_lock_fail_ms),
             "control_window_ms": window_ms,
             "control_decode_files": len(decoded_logs),
         }
@@ -3486,6 +3516,8 @@ class DigitalManager:
 
         metric_ready = bool(preflight.get("control_decode_available"))
         control_locked = bool(preflight.get("control_channel_locked"))
+        lock_fail_count = int(preflight.get("control_lock_fail_count") or 0)
+        window_sec = max(1, int(int(preflight.get("control_window_ms") or _DIGITAL_CONTROL_WINDOW_MS) / 1000))
         tuner_busy = bool(preflight.get("tuner_busy"))
         rows: list[dict] = []
 
@@ -3515,7 +3547,10 @@ class DigitalManager:
                         entry["last_lock_time_ms"] = now_ms
                         entry["lock_failures"] = 0
                     else:
-                        if elapsed_ms >= lock_timeout_ms:
+                        if lock_fail_count > 0:
+                            state = "degraded"
+                            reason = f"decoder lock failures ({lock_fail_count}/{window_sec}s)"
+                        elif elapsed_ms >= lock_timeout_ms:
                             state = "degraded"
                             reason = f"no control lock after {int(elapsed_ms / 1000)}s"
                         else:
@@ -3836,6 +3871,8 @@ class DigitalManager:
         payload["digital_control_channel_count"] = int(preflight.get("control_activity_count") or 0)
         payload["digital_control_channel_last_time"] = int(preflight.get("control_last_time_ms") or 0)
         payload["digital_control_sync_loss_count"] = int(preflight.get("control_sync_loss_count") or 0)
+        payload["digital_control_lock_fail_count"] = int(preflight.get("control_lock_fail_count") or 0)
+        payload["digital_control_lock_fail_last_time"] = int(preflight.get("control_lock_fail_last_time_ms") or 0)
         payload["digital_control_window_ms"] = int(preflight.get("control_window_ms") or 0)
         payload["digital_control_decode_files"] = int(preflight.get("control_decode_files") or 0)
         if "listen_talkgroup_count" in preflight:
@@ -3868,6 +3905,18 @@ class DigitalManager:
                 f"In SDRTrunk, disable unrelated RTL tuners and bind control to {digital_serial or 'your digital dongle'}."
             )
             payload["digital_last_warning"] = msg
+        elif (
+            payload.get("digital_active")
+            and not preflight.get("control_channel_locked")
+            and int(preflight.get("control_lock_fail_count") or 0) > 0
+        ):
+            lock_fail_count = int(preflight.get("control_lock_fail_count") or 0)
+            window_sec = max(1, int(int(preflight.get("control_window_ms") or _DIGITAL_CONTROL_WINDOW_MS) / 1000))
+            freq_count = int(preflight.get("playlist_frequency_count") or 0)
+            payload["digital_last_warning"] = (
+                f"SDRTrunk reports control-channel lock failures ({lock_fail_count} in {window_sec}s). "
+                f"Verify RF signal and control channels (configured={freq_count}), and confirm tuner/PPM calibration."
+            )
         elif preflight.get("listen_filter_blocking"):
             payload["digital_last_warning"] = (
                 "Digital listen filter currently blocks all talkgroups "

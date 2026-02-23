@@ -300,6 +300,18 @@ def evaluate_digital_preflight(
             )
         )
 
+    lock_fail_count = int(manager_preflight.get("control_lock_fail_count") or 0)
+    if lock_fail_count > 0 and not manager_preflight.get("control_channel_locked"):
+        window_sec = max(1, int(int(manager_preflight.get("control_window_ms") or 0) / 1000))
+        reasons.append(
+            _reason(
+                "DIGITAL_CONTROL_LOCK_FAIL",
+                "warn",
+                f"Digital decoder reports control-channel lock failures ({lock_fail_count}/{window_sec}s)",
+                "Verify control_channels.txt values, RF signal, and tuner PPM calibration.",
+            )
+        )
+
     if manager_preflight.get("playlist_source_ok") is False:
         msg = str(manager_preflight.get("playlist_source_error") or "Playlist source not ready")
         reasons.append(_reason("DIGITAL_PLAYLIST_SOURCE_INVALID", "critical", msg))
