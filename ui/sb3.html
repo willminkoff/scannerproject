@@ -2506,6 +2506,11 @@
           ground: null,
           digital: null,
         },
+        applyTimers: {
+          airband: null,
+          ground: null,
+          digital: null,
+        },
       },
       profileEditor: {
         open: false,
@@ -4215,6 +4220,28 @@
       return normalizeProfileIdList(loopState?.selectedProfiles || []);
     }
 
+    function clearLoopAutoApplyTimer(target) {
+      const name = normalizeLoopTarget(target);
+      const timers = state.profileLoopUi?.applyTimers;
+      if (!timers || !timers[name]) return;
+      clearTimeout(timers[name]);
+      timers[name] = null;
+    }
+
+    function scheduleLoopAutoApply(target) {
+      const name = normalizeLoopTarget(target);
+      if (!state.profileLoopUi.applyTimers) {
+        state.profileLoopUi.applyTimers = { airband: null, ground: null, digital: null };
+      }
+      clearLoopAutoApplyTimer(name);
+      state.profileLoopUi.applyTimers[name] = setTimeout(() => {
+        if (state.profileLoopUi.applyTimers) {
+          state.profileLoopUi.applyTimers[name] = null;
+        }
+        applyProfileLoopConfig(name, null);
+      }, 300);
+    }
+
     function collectLoopSelection(listEl) {
       if (!listEl) return [];
       const out = [];
@@ -4315,6 +4342,7 @@
             if (els.loopDetail) {
               els.loopDetail.textContent = `${ids.length} selected (pending apply)`;
             }
+            scheduleLoopAutoApply(target);
           });
         });
       }
@@ -4372,6 +4400,7 @@
             if (els.digitalLoopDetail) {
               els.digitalLoopDetail.textContent = `${ids.length} selected (pending apply)`;
             }
+            scheduleLoopAutoApply(target);
           });
         });
       }
@@ -4388,6 +4417,7 @@
       const hangEl = isDigital ? els.digitalLoopHang : els.loopHang;
       const pauseEl = isDigital ? els.digitalLoopPause : els.loopPause;
       const loopState = state.profileLoop[target] || defaultProfileLoopState();
+      clearLoopAutoApplyTimer(target);
       const selectedProfiles = selectedLoopProfilesForUi(target, loopState);
       const dwellSec = Number(dwellEl && dwellEl.value);
       const hangSec = Number(hangEl && hangEl.value);
@@ -4425,6 +4455,7 @@
         ? available.map((row) => String(row.id || '').trim()).filter(Boolean)
         : [];
       setLoopDraftSelection(target, loopState.selectedProfiles);
+      scheduleLoopAutoApply(target);
       if (target === 'digital') {
         renderDigitalLoopControls();
       } else {
