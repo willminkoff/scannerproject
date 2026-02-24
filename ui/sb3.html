@@ -337,6 +337,25 @@
       cursor: pointer;
     }
 
+    .widget-header.with-actions {
+      gap: 8px;
+    }
+
+    .widget-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: auto;
+    }
+
+    .widget-header-action {
+      flex: 0 0 auto !important;
+      padding: 6px 10px !important;
+      font-size: 10px !important;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
     .widget-body {
       padding: 16px;
     }
@@ -491,6 +510,11 @@
       background: rgba(0, 0, 0, 0.14);
       display: grid;
       gap: 8px;
+    }
+
+    .profile-sidecar .profile-loop-panel {
+      margin-top: 0;
+      background: rgba(16, 22, 28, 0.72);
     }
 
     .loop-checklist {
@@ -1519,6 +1543,15 @@
       .loop-controls {
         grid-template-columns: 1fr;
       }
+
+      .widget-header.with-actions {
+        flex-wrap: wrap;
+      }
+
+      .widget-header.with-actions .widget-header-actions {
+        width: 100%;
+        justify-content: flex-end;
+      }
     }
   </style>
 </head>
@@ -1663,78 +1696,36 @@
       </div>
 
       <div class="widget" id="profiles-widget">
-        <div class="widget-header">🎯 Profiles</div>
+        <div class="widget-header with-actions">
+          <span>🎯 Profiles</span>
+          <div class="widget-header-actions">
+            <button class="action widget-header-action sidecar-toggle" id="profile-loop-open-analog" type="button">Profile Loop</button>
+            <button class="action widget-header-action sidecar-toggle" id="profile-editor-open-analog" type="button">Profile Editor</button>
+          </div>
+        </div>
         <div class="widget-body">
-          <button class="action profile-editor-launch" id="profile-editor-open-analog" type="button">Open Profile Editor</button>
           <div class="profiles-grid" id="profiles-list">
             <div class="empty-state">
               <div class="icon">📡</div>
               <div>Loading profiles...</div>
             </div>
           </div>
-          <div class="profile-loop-panel">
-            <div class="control-label">
-              <span>Profile Loop</span>
-              <span class="control-value" id="loop-status">--</span>
-            </div>
-            <div class="control-applied" id="loop-detail">--</div>
-            <div class="loop-checklist" id="loop-list"></div>
-            <div class="loop-controls">
-              <label>Dwell (s)
-                <input id="loop-dwell" type="number" min="5" max="1800" step="1" value="45">
-              </label>
-              <label>Hang (s)
-                <input id="loop-hang" type="number" min="0" max="600" step="1" value="12">
-              </label>
-              <label class="loop-checkbox-label">
-                <input id="loop-pause" type="checkbox" checked>
-                Pause On Hit
-              </label>
-            </div>
-            <div class="btn-row">
-              <button class="action" id="loop-save" type="button">Apply Loop</button>
-              <button class="action" id="loop-toggle" type="button">Start Loop</button>
-              <button class="action" id="loop-select-all" type="button">All</button>
-              <button class="action" id="loop-clear" type="button">None</button>
-            </div>
-          </div>
         </div>
       </div>
 
       <div class="widget hidden" id="digital-profiles-widget">
-        <div class="widget-header">🎛️ Digital Profiles</div>
+        <div class="widget-header with-actions">
+          <span>🎛️ Digital Profiles</span>
+          <div class="widget-header-actions">
+            <button class="action widget-header-action sidecar-toggle" id="profile-loop-open-digital" type="button">Profile Loop</button>
+            <button class="action widget-header-action sidecar-toggle" id="profile-editor-open-digital" type="button">Profile Editor</button>
+          </div>
+        </div>
         <div class="widget-body">
-          <button class="action profile-editor-launch" id="profile-editor-open-digital" type="button">Open Profile Editor</button>
           <div class="profiles-grid" id="digital-profiles-list">
             <div class="empty-state">
               <div class="icon">📡</div>
               <div>No digital profiles yet</div>
-            </div>
-          </div>
-          <div class="profile-loop-panel">
-            <div class="control-label">
-              <span>Digital Profile Loop</span>
-              <span class="control-value" id="digital-loop-status">--</span>
-            </div>
-            <div class="control-applied" id="digital-loop-detail">--</div>
-            <div class="loop-checklist" id="digital-loop-list"></div>
-            <div class="loop-controls">
-              <label>Dwell (s)
-                <input id="digital-loop-dwell" type="number" min="5" max="1800" step="1" value="30">
-              </label>
-              <label>Hang (s)
-                <input id="digital-loop-hang" type="number" min="0" max="600" step="1" value="8">
-              </label>
-              <label class="loop-checkbox-label">
-                <input id="digital-loop-pause" type="checkbox" checked>
-                Pause On Hit
-              </label>
-            </div>
-            <div class="btn-row">
-              <button class="action" id="digital-loop-save" type="button">Apply Loop</button>
-              <button class="action" id="digital-loop-toggle" type="button">Start Loop</button>
-              <button class="action" id="digital-loop-select-all" type="button">All</button>
-              <button class="action" id="digital-loop-clear" type="button">None</button>
             </div>
           </div>
           <div class="control-group" style="margin-top:12px;">
@@ -2242,6 +2233,85 @@
     </div>
   </aside>
 
+  <div class="profile-sidecar-overlay hidden" id="profile-loop-sidecar-overlay"></div>
+  <aside class="profile-sidecar" id="profile-loop-sidecar" aria-hidden="true">
+    <div class="profile-sidecar-header">
+      <div>
+        <div class="profile-sidecar-title">Profile Loop Sidecar</div>
+        <div class="profile-sidecar-sub">Rotate profiles with dwell/hang timing and hit hold</div>
+      </div>
+      <button class="action" id="profile-loop-sidecar-close" type="button">Close</button>
+    </div>
+    <div class="profile-sidecar-tabs">
+      <div class="profile-sidecar-tab-group">
+        <button class="profile-sidecar-tab active" id="profile-loop-tab-analog" type="button">Analog</button>
+        <button class="profile-sidecar-tab" id="profile-loop-tab-digital" type="button">Digital</button>
+      </div>
+      <div class="profile-sidecar-actions">
+        <button class="action profile-sidecar-load" id="profile-loop-refresh" type="button">Refresh</button>
+      </div>
+    </div>
+    <div class="profile-sidecar-body">
+      <section class="profile-sidecar-panel" id="profile-loop-panel-analog">
+        <div class="profile-loop-panel">
+          <div class="control-label">
+            <span>Profile Loop</span>
+            <span class="control-value" id="loop-status">--</span>
+          </div>
+          <div class="control-applied" id="loop-detail">--</div>
+          <div class="loop-checklist" id="loop-list"></div>
+          <div class="loop-controls">
+            <label>Dwell (s)
+              <input id="loop-dwell" type="number" min="5" max="1800" step="1" value="45">
+            </label>
+            <label>Hang (s)
+              <input id="loop-hang" type="number" min="0" max="600" step="1" value="12">
+            </label>
+            <label class="loop-checkbox-label">
+              <input id="loop-pause" type="checkbox" checked>
+              Pause On Hit
+            </label>
+          </div>
+          <div class="btn-row">
+            <button class="action" id="loop-save" type="button">Apply Loop</button>
+            <button class="action" id="loop-toggle" type="button">Start Loop</button>
+            <button class="action" id="loop-select-all" type="button">All</button>
+            <button class="action" id="loop-clear" type="button">None</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="profile-sidecar-panel hidden" id="profile-loop-panel-digital">
+        <div class="profile-loop-panel">
+          <div class="control-label">
+            <span>Digital Profile Loop</span>
+            <span class="control-value" id="digital-loop-status">--</span>
+          </div>
+          <div class="control-applied" id="digital-loop-detail">--</div>
+          <div class="loop-checklist" id="digital-loop-list"></div>
+          <div class="loop-controls">
+            <label>Dwell (s)
+              <input id="digital-loop-dwell" type="number" min="5" max="1800" step="1" value="30">
+            </label>
+            <label>Hang (s)
+              <input id="digital-loop-hang" type="number" min="0" max="600" step="1" value="8">
+            </label>
+            <label class="loop-checkbox-label">
+              <input id="digital-loop-pause" type="checkbox" checked>
+              Pause On Hit
+            </label>
+          </div>
+          <div class="btn-row">
+            <button class="action" id="digital-loop-save" type="button">Apply Loop</button>
+            <button class="action" id="digital-loop-toggle" type="button">Start Loop</button>
+            <button class="action" id="digital-loop-select-all" type="button">All</button>
+            <button class="action" id="digital-loop-clear" type="button">None</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </aside>
+
   <script>
     // ============================================
     // CONFIGURATION
@@ -2425,6 +2495,10 @@
         airband: defaultProfileLoopState(),
         ground: defaultProfileLoopState(),
         digital: { ...defaultProfileLoopState(), dwellMs: 30000, hangMs: 8000 },
+      },
+      profileLoopUi: {
+        open: false,
+        tab: 'analog',
       },
       profileEditor: {
         open: false,
@@ -2629,6 +2703,16 @@
       btnRestartIcecast: document.getElementById('btn-restart-icecast'),
       btnRestartKeepalive: document.getElementById('btn-restart-keepalive'),
       btnRestartUi: document.getElementById('btn-restart-ui'),
+      profileLoopOpenAnalog: document.getElementById('profile-loop-open-analog'),
+      profileLoopOpenDigital: document.getElementById('profile-loop-open-digital'),
+      profileLoopSidecar: document.getElementById('profile-loop-sidecar'),
+      profileLoopSidecarOverlay: document.getElementById('profile-loop-sidecar-overlay'),
+      profileLoopSidecarClose: document.getElementById('profile-loop-sidecar-close'),
+      profileLoopTabAnalog: document.getElementById('profile-loop-tab-analog'),
+      profileLoopTabDigital: document.getElementById('profile-loop-tab-digital'),
+      profileLoopPanelAnalog: document.getElementById('profile-loop-panel-analog'),
+      profileLoopPanelDigital: document.getElementById('profile-loop-panel-digital'),
+      profileLoopRefresh: document.getElementById('profile-loop-refresh'),
       profileEditorOpenAnalog: document.getElementById('profile-editor-open-analog'),
       profileEditorOpenDigital: document.getElementById('profile-editor-open-digital'),
       profileSidecar: document.getElementById('profile-sidecar'),
@@ -2846,6 +2930,9 @@
     }
 
     function openProfileEditorSidecar(tab = null) {
+      if (state.profileLoopUi.open) {
+        closeProfileLoopSidecar();
+      }
       if (tab) {
         const changed = setProfileEditorTab(tab);
         if (!changed) return;
@@ -2867,7 +2954,7 @@
 
     function closeProfileEditorSidecar() {
       if (profileEditorAnyUnsaved() && !confirm('You have unsaved Profile Editor changes. Close anyway?')) {
-        return;
+        return false;
       }
       state.profileEditor.open = false;
       if (els.profileSidecar) {
@@ -2877,6 +2964,47 @@
       if (els.profileSidecarOverlay) {
         els.profileSidecarOverlay.classList.add('hidden');
       }
+      return true;
+    }
+
+    function setProfileLoopTab(tab) {
+      const next = tab === 'digital' ? 'digital' : 'analog';
+      state.profileLoopUi.tab = next;
+      if (els.profileLoopTabAnalog) els.profileLoopTabAnalog.classList.toggle('active', next === 'analog');
+      if (els.profileLoopTabDigital) els.profileLoopTabDigital.classList.toggle('active', next === 'digital');
+      if (els.profileLoopPanelAnalog) els.profileLoopPanelAnalog.classList.toggle('hidden', next !== 'analog');
+      if (els.profileLoopPanelDigital) els.profileLoopPanelDigital.classList.toggle('hidden', next !== 'digital');
+      renderProfileLoopControls();
+    }
+
+    function openProfileLoopSidecar(tab = null) {
+      if (state.profileEditor.open && !closeProfileEditorSidecar()) {
+        return;
+      }
+      if (tab) {
+        setProfileLoopTab(tab);
+      }
+      state.profileLoopUi.open = true;
+      if (els.profileLoopSidecar) {
+        els.profileLoopSidecar.classList.add('open');
+        els.profileLoopSidecar.setAttribute('aria-hidden', 'false');
+      }
+      if (els.profileLoopSidecarOverlay) {
+        els.profileLoopSidecarOverlay.classList.remove('hidden');
+      }
+      renderProfileLoopControls();
+    }
+
+    function closeProfileLoopSidecar() {
+      state.profileLoopUi.open = false;
+      if (els.profileLoopSidecar) {
+        els.profileLoopSidecar.classList.remove('open');
+        els.profileLoopSidecar.setAttribute('aria-hidden', 'true');
+      }
+      if (els.profileLoopSidecarOverlay) {
+        els.profileLoopSidecarOverlay.classList.add('hidden');
+      }
+      return true;
     }
 
     function _profilesForAnalogTarget(target) {
@@ -6404,6 +6532,7 @@
       setupCollapsibleWidgets();
       updateTuneButton();
       setProfileEditorTab('analog');
+      setProfileLoopTab(state.profileLoopUi.tab || 'analog');
       refreshProfileEditorOptions();
 
       syncStreamLinks();
@@ -6423,6 +6552,14 @@
         els.logoToggle.addEventListener('click', () => toggleSitrep());
       }
       document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && state.profileLoopUi.open) {
+          closeProfileLoopSidecar();
+          return;
+        }
+        if (e.key === 'Escape' && state.profileEditor.open) {
+          closeProfileEditorSidecar();
+          return;
+        }
         if (e.key === 'Escape' && currentView === 'sitrep') {
           toggleSitrep(false);
         }
@@ -6612,6 +6749,27 @@
       }
       if (els.profileEditorOpenDigital) {
         els.profileEditorOpenDigital.addEventListener('click', () => openProfileEditorSidecar('digital'));
+      }
+      if (els.profileLoopOpenAnalog) {
+        els.profileLoopOpenAnalog.addEventListener('click', () => openProfileLoopSidecar('analog'));
+      }
+      if (els.profileLoopOpenDigital) {
+        els.profileLoopOpenDigital.addEventListener('click', () => openProfileLoopSidecar('digital'));
+      }
+      if (els.profileLoopSidecarClose) {
+        els.profileLoopSidecarClose.addEventListener('click', closeProfileLoopSidecar);
+      }
+      if (els.profileLoopSidecarOverlay) {
+        els.profileLoopSidecarOverlay.addEventListener('click', closeProfileLoopSidecar);
+      }
+      if (els.profileLoopTabAnalog) {
+        els.profileLoopTabAnalog.addEventListener('click', () => setProfileLoopTab('analog'));
+      }
+      if (els.profileLoopTabDigital) {
+        els.profileLoopTabDigital.addEventListener('click', () => setProfileLoopTab('digital'));
+      }
+      if (els.profileLoopRefresh) {
+        els.profileLoopRefresh.addEventListener('click', () => refresh());
       }
       if (els.profileSidecarClose) {
         els.profileSidecarClose.addEventListener('click', closeProfileEditorSidecar);
