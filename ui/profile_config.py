@@ -14,7 +14,7 @@ try:
         CONFIG_SYMLINK, PROFILES_DIR, PROFILES_REGISTRY_PATH, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH,
         AVOIDS_DIR, AVOIDS_PATHS, AVOIDS_SUMMARY_PATHS, PROFILES, GAIN_STEPS,
         RE_GAIN, RE_SQL, RE_SQL_DBFS, RE_AIRBAND, RE_INDEX, RE_FREQS_BLOCK, RE_LABELS_BLOCK,
-        MIXER_NAME, FILTER_AIRBAND_PATH, FILTER_GROUND_PATH, FILTER_DEFAULT_CUTOFF,
+        MIXER_NAME, PLAYER_MOUNT, FILTER_AIRBAND_PATH, FILTER_GROUND_PATH, FILTER_DEFAULT_CUTOFF,
         FILTER_MIN_CUTOFF, FILTER_MAX_CUTOFF
     )
     from .systemd import restart_rtl, stop_rtl, start_rtl
@@ -23,7 +23,7 @@ except ImportError:
         CONFIG_SYMLINK, PROFILES_DIR, PROFILES_REGISTRY_PATH, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH,
         AVOIDS_DIR, AVOIDS_PATHS, AVOIDS_SUMMARY_PATHS, PROFILES, GAIN_STEPS,
         RE_GAIN, RE_SQL, RE_SQL_DBFS, RE_AIRBAND, RE_INDEX, RE_FREQS_BLOCK, RE_LABELS_BLOCK,
-        MIXER_NAME, FILTER_AIRBAND_PATH, FILTER_GROUND_PATH, FILTER_DEFAULT_CUTOFF,
+        MIXER_NAME, PLAYER_MOUNT, FILTER_AIRBAND_PATH, FILTER_GROUND_PATH, FILTER_DEFAULT_CUTOFF,
         FILTER_MIN_CUTOFF, FILTER_MAX_CUTOFF
     )
     from ui.systemd import restart_rtl, stop_rtl, start_rtl
@@ -195,7 +195,12 @@ def write_combined_config() -> bool:
     """Write the combined configuration."""
     airband_path = read_active_config_path()
     ground_path = os.path.realpath(GROUND_CONFIG_PATH)
-    combined = build_combined_config(airband_path, ground_path, MIXER_NAME)
+    combined = build_combined_config(
+        airband_path,
+        ground_path,
+        MIXER_NAME,
+        mount_name=str(PLAYER_MOUNT or "").strip().lstrip("/"),
+    )
     try:
         with open(COMBINED_CONFIG_PATH, "r", encoding="utf-8", errors="ignore") as f:
             existing = f.read()

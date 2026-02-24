@@ -483,6 +483,71 @@
       margin-top: 2px;
     }
 
+    .profile-loop-panel {
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.14);
+      display: grid;
+      gap: 8px;
+    }
+
+    .loop-checklist {
+      max-height: 156px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px;
+      background: var(--bg-panel);
+      display: grid;
+      gap: 6px;
+    }
+
+    .loop-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-primary);
+    }
+
+    .loop-item .meta {
+      color: var(--text-secondary);
+      font-size: 10px;
+    }
+
+    .loop-controls {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .loop-controls label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .loop-controls input[type="number"] {
+      width: 100%;
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg-panel);
+      color: var(--text-primary);
+      font-size: 12px;
+    }
+
+    .loop-checkbox-label {
+      justify-content: center;
+      gap: 6px;
+      flex-direction: row !important;
+      align-items: center;
+    }
+
     .player-box {
       margin-top: 10px;
       padding: 10px;
@@ -1450,6 +1515,10 @@
         width: 100%;
         min-width: 0;
       }
+
+      .loop-controls {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
@@ -1603,6 +1672,32 @@
               <div>Loading profiles...</div>
             </div>
           </div>
+          <div class="profile-loop-panel">
+            <div class="control-label">
+              <span>Profile Loop</span>
+              <span class="control-value" id="loop-status">--</span>
+            </div>
+            <div class="control-applied" id="loop-detail">--</div>
+            <div class="loop-checklist" id="loop-list"></div>
+            <div class="loop-controls">
+              <label>Dwell (s)
+                <input id="loop-dwell" type="number" min="5" max="1800" step="1" value="45">
+              </label>
+              <label>Hang (s)
+                <input id="loop-hang" type="number" min="0" max="600" step="1" value="12">
+              </label>
+              <label class="loop-checkbox-label">
+                <input id="loop-pause" type="checkbox" checked>
+                Pause On Hit
+              </label>
+            </div>
+            <div class="btn-row">
+              <button class="action" id="loop-save" type="button">Apply Loop</button>
+              <button class="action" id="loop-toggle" type="button">Start Loop</button>
+              <button class="action" id="loop-select-all" type="button">All</button>
+              <button class="action" id="loop-clear" type="button">None</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1614,6 +1709,32 @@
             <div class="empty-state">
               <div class="icon">📡</div>
               <div>No digital profiles yet</div>
+            </div>
+          </div>
+          <div class="profile-loop-panel">
+            <div class="control-label">
+              <span>Digital Profile Loop</span>
+              <span class="control-value" id="digital-loop-status">--</span>
+            </div>
+            <div class="control-applied" id="digital-loop-detail">--</div>
+            <div class="loop-checklist" id="digital-loop-list"></div>
+            <div class="loop-controls">
+              <label>Dwell (s)
+                <input id="digital-loop-dwell" type="number" min="5" max="1800" step="1" value="30">
+              </label>
+              <label>Hang (s)
+                <input id="digital-loop-hang" type="number" min="0" max="600" step="1" value="8">
+              </label>
+              <label class="loop-checkbox-label">
+                <input id="digital-loop-pause" type="checkbox" checked>
+                Pause On Hit
+              </label>
+            </div>
+            <div class="btn-row">
+              <button class="action" id="digital-loop-save" type="button">Apply Loop</button>
+              <button class="action" id="digital-loop-toggle" type="button">Start Loop</button>
+              <button class="action" id="digital-loop-select-all" type="button">All</button>
+              <button class="action" id="digital-loop-clear" type="button">None</button>
             </div>
           </div>
           <div class="control-group" style="margin-top:12px;">
@@ -2148,6 +2269,26 @@
     let activeTarget = 'airband';
     let activeView = 'airband';
     const audioRecoverState = new WeakMap();
+
+    function defaultProfileLoopState() {
+      return {
+        enabled: false,
+        selectedProfiles: [],
+        availableProfiles: [],
+        currentProfile: '',
+        activeProfile: '',
+        nextProfile: '',
+        dwellMs: 45000,
+        hangMs: 12000,
+        pauseOnHit: true,
+        recentHit: false,
+        inHitHold: false,
+        blockedReason: '',
+        switchReason: '',
+        lastError: '',
+        lastSwitchTimeMs: 0,
+      };
+    }
     
     let state = {
       connected: false,
@@ -2280,6 +2421,11 @@
         dirty: false,
         profile: '',
       },
+      profileLoop: {
+        airband: defaultProfileLoopState(),
+        ground: defaultProfileLoopState(),
+        digital: { ...defaultProfileLoopState(), dwellMs: 30000, hangMs: 8000 },
+      },
       profileEditor: {
         open: false,
         tab: 'analog',
@@ -2326,8 +2472,28 @@
       btnApply: document.getElementById('btn-apply'),
       profilesList: document.getElementById('profiles-list'),
       profilesWidget: document.getElementById('profiles-widget'),
+      loopStatus: document.getElementById('loop-status'),
+      loopDetail: document.getElementById('loop-detail'),
+      loopList: document.getElementById('loop-list'),
+      loopDwell: document.getElementById('loop-dwell'),
+      loopHang: document.getElementById('loop-hang'),
+      loopPause: document.getElementById('loop-pause'),
+      loopSave: document.getElementById('loop-save'),
+      loopToggle: document.getElementById('loop-toggle'),
+      loopSelectAll: document.getElementById('loop-select-all'),
+      loopClear: document.getElementById('loop-clear'),
       digitalProfilesWidget: document.getElementById('digital-profiles-widget'),
       digitalProfilesList: document.getElementById('digital-profiles-list'),
+      digitalLoopStatus: document.getElementById('digital-loop-status'),
+      digitalLoopDetail: document.getElementById('digital-loop-detail'),
+      digitalLoopList: document.getElementById('digital-loop-list'),
+      digitalLoopDwell: document.getElementById('digital-loop-dwell'),
+      digitalLoopHang: document.getElementById('digital-loop-hang'),
+      digitalLoopPause: document.getElementById('digital-loop-pause'),
+      digitalLoopSave: document.getElementById('digital-loop-save'),
+      digitalLoopToggle: document.getElementById('digital-loop-toggle'),
+      digitalLoopSelectAll: document.getElementById('digital-loop-select-all'),
+      digitalLoopClear: document.getElementById('digital-loop-clear'),
       audioPlayerAnalog: document.getElementById('audio-player-analog'),
       audioPlayerDigital: document.getElementById('audio-player-digital'),
       lnkStreamAnalog: document.getElementById('lnk-stream-analog'),
@@ -3705,7 +3871,296 @@
       refreshManageCloneOptions();
       refreshFreqEditOptions();
       refreshProfileEditorOptions();
+      renderAnalogLoopControls();
       updateSitrep();
+    }
+
+    function normalizeProfileLoopTarget(raw, target) {
+      const fallback = state.profileLoop[target] || defaultProfileLoopState();
+      const out = { ...fallback };
+      if (!raw || typeof raw !== 'object') return out;
+      out.enabled = Boolean(raw.enabled);
+      out.selectedProfiles = Array.isArray(raw.selected_profiles)
+        ? raw.selected_profiles.map((item) => String(item || '').trim()).filter(Boolean)
+        : out.selectedProfiles;
+      out.dwellMs = Number.isFinite(raw.dwell_ms) ? Number(raw.dwell_ms) : out.dwellMs;
+      out.hangMs = Number.isFinite(raw.hang_ms) ? Number(raw.hang_ms) : out.hangMs;
+      out.pauseOnHit = ('pause_on_hit' in raw) ? Boolean(raw.pause_on_hit) : out.pauseOnHit;
+      out.currentProfile = String(raw.current_profile || '');
+      out.activeProfile = String(raw.active_profile || '');
+      out.nextProfile = String(raw.next_profile || '');
+      out.lastSwitchTimeMs = Number.isFinite(raw.last_switch_time_ms) ? Number(raw.last_switch_time_ms) : 0;
+      out.switchReason = String(raw.switch_reason || '');
+      out.lastError = String(raw.last_error || '');
+      out.recentHit = Boolean(raw.recent_hit);
+      out.inHitHold = Boolean(raw.in_hit_hold);
+      out.blockedReason = String(raw.blocked_reason || '');
+      out.availableProfiles = Array.isArray(raw.available_profiles)
+        ? raw.available_profiles
+          .map((item) => {
+            if (typeof item === 'string') {
+              const id = String(item || '').trim();
+              return id ? { id, label: id } : null;
+            }
+            if (!item || typeof item !== 'object') return null;
+            const id = String(item.id || '').trim();
+            if (!id) return null;
+            const label = String(item.label || id).trim();
+            return { id, label };
+          })
+          .filter(Boolean)
+        : out.availableProfiles;
+      return out;
+    }
+
+    function applyProfileLoopPayload(payload) {
+      if (!payload || typeof payload !== 'object') return;
+      const targets = payload.targets && typeof payload.targets === 'object'
+        ? payload.targets
+        : payload;
+      if (!targets || typeof targets !== 'object') return;
+      ['airband', 'ground', 'digital'].forEach((target) => {
+        if (!(target in targets)) return;
+        state.profileLoop[target] = normalizeProfileLoopTarget(targets[target], target);
+      });
+      renderProfileLoopControls();
+    }
+
+    function loopLabelForTarget(target, profileId) {
+      const pid = String(profileId || '').trim();
+      if (!pid) return '';
+      if (target === 'digital') {
+        const list = (state.profileLoop.digital.availableProfiles || []);
+        const match = list.find((row) => row && row.id === pid);
+        return match ? match.label : pid;
+      }
+      const rows = (state[target]?.profiles || []).filter((row) => row && !String(row.id || '').startsWith('none_'));
+      const match = rows.find((row) => String(row.id || '') === pid);
+      return match ? String(match.label || pid) : pid;
+    }
+
+    function fallbackLoopProfiles(target) {
+      if (target === 'digital') {
+        return (state.digital.profiles || []).map((id) => ({ id: String(id || ''), label: String(id || '') })).filter((row) => row.id);
+      }
+      return (state[target]?.profiles || [])
+        .filter((row) => row && !String(row.id || '').startsWith('none_'))
+        .map((row) => ({ id: String(row.id || ''), label: String(row.label || row.id || '') }))
+        .filter((row) => row.id);
+    }
+
+    function collectLoopSelection(listEl) {
+      if (!listEl) return [];
+      const out = [];
+      listEl.querySelectorAll('input[type="checkbox"][data-profile-id]').forEach((input) => {
+        if (!input.checked) return;
+        const id = String(input.dataset.profileId || '').trim();
+        if (!id || out.includes(id)) return;
+        out.push(id);
+      });
+      return out;
+    }
+
+    function renderLoopChecklist(listEl, target, loopState) {
+      if (!listEl) return;
+      const available = Array.isArray(loopState.availableProfiles) && loopState.availableProfiles.length
+        ? loopState.availableProfiles
+        : fallbackLoopProfiles(target);
+      if (!available.length) {
+        listEl.innerHTML = '<div class="control-applied">No profiles available for loop</div>';
+        return;
+      }
+      const selected = new Set((loopState.selectedProfiles || []).map((x) => String(x || '').trim()).filter(Boolean));
+      listEl.innerHTML = '';
+      available.forEach((row) => {
+        const id = String(row.id || '').trim();
+        if (!id) return;
+        const label = String(row.label || id).trim() || id;
+        const wrapper = document.createElement('label');
+        wrapper.className = 'loop-item';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.dataset.profileId = id;
+        cb.checked = selected.has(id);
+        const text = document.createElement('span');
+        text.innerHTML = `<span>${escapeHtml(label)}</span> <span class="meta">(${escapeHtml(id)})</span>`;
+        wrapper.appendChild(cb);
+        wrapper.appendChild(text);
+        listEl.appendChild(wrapper);
+      });
+    }
+
+    function loopStatusTone(loopState) {
+      if (!loopState) return '';
+      if (loopState.enabled && !loopState.lastError) return 'good';
+      if (loopState.lastError || loopState.blockedReason) return 'warn';
+      return '';
+    }
+
+    function renderAnalogLoopControls() {
+      const target = activeTarget === 'ground' ? 'ground' : 'airband';
+      const loopState = state.profileLoop[target] || defaultProfileLoopState();
+      renderLoopChecklist(els.loopList, target, loopState);
+      if (els.loopStatus) {
+        const statusText = loopState.enabled ? 'LOOPING' : 'IDLE';
+        els.loopStatus.textContent = statusText;
+        setValueTone(els.loopStatus, loopStatusTone(loopState));
+      }
+      if (els.loopDetail) {
+        const parts = [];
+        if (loopState.activeProfile) {
+          parts.push(`active=${loopLabelForTarget(target, loopState.activeProfile)}`);
+        }
+        if (loopState.nextProfile) {
+          parts.push(`next=${loopLabelForTarget(target, loopState.nextProfile)}`);
+        }
+        if (loopState.inHitHold) {
+          parts.push('holding on hit');
+        }
+        if (loopState.blockedReason) {
+          parts.push(`blocked=${loopState.blockedReason}`);
+        }
+        if (loopState.switchReason) {
+          parts.push(`reason=${loopState.switchReason}`);
+        }
+        if (loopState.lastError) {
+          parts.push(`error=${trimServiceNote(loopState.lastError, 120)}`);
+        }
+        els.loopDetail.textContent = parts.join(' • ') || '--';
+      }
+      if (els.loopDwell && document.activeElement !== els.loopDwell) {
+        els.loopDwell.value = Math.max(5, Math.round(Number(loopState.dwellMs || 45000) / 1000));
+      }
+      if (els.loopHang && document.activeElement !== els.loopHang) {
+        els.loopHang.value = Math.max(0, Math.round(Number(loopState.hangMs || 12000) / 1000));
+      }
+      if (els.loopPause) {
+        els.loopPause.checked = Boolean(loopState.pauseOnHit);
+      }
+      if (els.loopToggle) {
+        els.loopToggle.textContent = loopState.enabled ? 'Stop Loop' : 'Start Loop';
+      }
+      if (els.loopList) {
+        els.loopList.querySelectorAll('input[type="checkbox"][data-profile-id]').forEach((cb) => {
+          cb.addEventListener('change', () => {
+            const ids = collectLoopSelection(els.loopList);
+            state.profileLoop[target].selectedProfiles = ids;
+            if (els.loopDetail) {
+              els.loopDetail.textContent = `${ids.length} selected (pending apply)`;
+            }
+          });
+        });
+      }
+    }
+
+    function renderDigitalLoopControls() {
+      const target = 'digital';
+      const loopState = state.profileLoop[target] || defaultProfileLoopState();
+      renderLoopChecklist(els.digitalLoopList, target, loopState);
+      if (els.digitalLoopStatus) {
+        const statusText = loopState.enabled ? 'LOOPING' : 'IDLE';
+        els.digitalLoopStatus.textContent = statusText;
+        setValueTone(els.digitalLoopStatus, loopStatusTone(loopState));
+      }
+      if (els.digitalLoopDetail) {
+        const parts = [];
+        if (loopState.activeProfile) {
+          parts.push(`active=${loopLabelForTarget(target, loopState.activeProfile)}`);
+        }
+        if (loopState.nextProfile) {
+          parts.push(`next=${loopLabelForTarget(target, loopState.nextProfile)}`);
+        }
+        if (loopState.inHitHold) {
+          parts.push('holding on hit');
+        }
+        if (loopState.blockedReason) {
+          parts.push(`blocked=${loopState.blockedReason}`);
+        }
+        if (loopState.switchReason) {
+          parts.push(`reason=${loopState.switchReason}`);
+        }
+        if (loopState.lastError) {
+          parts.push(`error=${trimServiceNote(loopState.lastError, 120)}`);
+        }
+        els.digitalLoopDetail.textContent = parts.join(' • ') || '--';
+      }
+      if (els.digitalLoopDwell && document.activeElement !== els.digitalLoopDwell) {
+        els.digitalLoopDwell.value = Math.max(5, Math.round(Number(loopState.dwellMs || 30000) / 1000));
+      }
+      if (els.digitalLoopHang && document.activeElement !== els.digitalLoopHang) {
+        els.digitalLoopHang.value = Math.max(0, Math.round(Number(loopState.hangMs || 8000) / 1000));
+      }
+      if (els.digitalLoopPause) {
+        els.digitalLoopPause.checked = Boolean(loopState.pauseOnHit);
+      }
+      if (els.digitalLoopToggle) {
+        els.digitalLoopToggle.textContent = loopState.enabled ? 'Stop Loop' : 'Start Loop';
+      }
+      if (els.digitalLoopList) {
+        els.digitalLoopList.querySelectorAll('input[type="checkbox"][data-profile-id]').forEach((cb) => {
+          cb.addEventListener('change', () => {
+            const ids = collectLoopSelection(els.digitalLoopList);
+            state.profileLoop[target].selectedProfiles = ids;
+            if (els.digitalLoopDetail) {
+              els.digitalLoopDetail.textContent = `${ids.length} selected (pending apply)`;
+            }
+          });
+        });
+      }
+    }
+
+    function renderProfileLoopControls() {
+      renderAnalogLoopControls();
+      renderDigitalLoopControls();
+    }
+
+    async function applyProfileLoopConfig(target, enabledOverride = null) {
+      const isDigital = target === 'digital';
+      const listEl = isDigital ? els.digitalLoopList : els.loopList;
+      const dwellEl = isDigital ? els.digitalLoopDwell : els.loopDwell;
+      const hangEl = isDigital ? els.digitalLoopHang : els.loopHang;
+      const pauseEl = isDigital ? els.digitalLoopPause : els.loopPause;
+      const loopState = state.profileLoop[target] || defaultProfileLoopState();
+      const selectedProfiles = collectLoopSelection(listEl);
+      const dwellSec = Number(dwellEl && dwellEl.value);
+      const hangSec = Number(hangEl && hangEl.value);
+      const payload = {
+        target,
+        enabled: enabledOverride === null ? Boolean(loopState.enabled) : Boolean(enabledOverride),
+        selected_profiles: selectedProfiles,
+        dwell_ms: Math.round((Number.isFinite(dwellSec) ? dwellSec : 45) * 1000),
+        hang_ms: Math.round((Number.isFinite(hangSec) ? hangSec : 12) * 1000),
+        pause_on_hit: Boolean(pauseEl && pauseEl.checked),
+      };
+      try {
+        const res = await postAPI('/api/profile-loop', payload);
+        if (res && res.ok) {
+          if (res.snapshot) {
+            applyProfileLoopPayload(res.snapshot);
+          }
+          logActivity(`Profile loop updated: ${target}`, 'info', `profile-loop-${target}`);
+          return;
+        }
+        logActivity(formatApiError(res, `Profile loop update failed (${target})`), 'warn', `profile-loop-${target}-failed`);
+      } catch (e) {
+        logActivity(messageFromError(e, `Profile loop update failed (${target})`), 'warn', `profile-loop-${target}-error`);
+      }
+      await refresh();
+    }
+
+    function selectAllLoopProfiles(target, checked) {
+      const loopState = state.profileLoop[target] || defaultProfileLoopState();
+      const available = Array.isArray(loopState.availableProfiles) && loopState.availableProfiles.length
+        ? loopState.availableProfiles
+        : fallbackLoopProfiles(target);
+      loopState.selectedProfiles = checked
+        ? available.map((row) => String(row.id || '').trim()).filter(Boolean)
+        : [];
+      if (target === 'digital') {
+        renderDigitalLoopControls();
+      } else {
+        renderAnalogLoopControls();
+      }
     }
 
     function setDigitalStatusMessage(message, isError=false) {
@@ -3820,7 +4275,16 @@
       els.digitalStatus.textContent = statusText;
       if (els.digitalDot) els.digitalDot.classList.toggle('active', Boolean(d.active));
       if (els.digitalBackend) els.digitalBackend.textContent = d.backend || '--';
-      if (els.digitalProfile) els.digitalProfile.textContent = d.profile || d.activeProfile || '--';
+      if (els.digitalProfile) {
+        const profileBase = d.profile || d.activeProfile || '--';
+        const loopState = state.profileLoop.digital || defaultProfileLoopState();
+        if (loopState.enabled) {
+          const next = loopState.nextProfile || '--';
+          els.digitalProfile.textContent = `${profileBase} (loop→${next})`;
+        } else {
+          els.digitalProfile.textContent = profileBase;
+        }
+      }
       const hold = state.hold.digital;
       const label = (hold && hold.label) || d.lastLabel;
       const timeMs = (hold && hold.timeMs) || d.lastTime;
@@ -3891,6 +4355,7 @@
       renderDongleHealth(state.systemStats);
       updateDigitalProfileSelect();
       updateDigitalProfilesList();
+      renderDigitalLoopControls();
     }
 
     async function runDigitalAction(action) {
@@ -5577,12 +6042,13 @@
       refreshInFlight = (async () => {
         const wasConnected = state.connected;
         try {
-          const [data, profilesData, systemData, schedulerData, digitalPreflightData] = await Promise.all([
+          const [data, profilesData, systemData, schedulerData, digitalPreflightData, profileLoopData] = await Promise.all([
             fetchJSON('/api/status'),
             fetchJSON('/api/profiles'),
             fetchJSON('/api/system'),
             fetchJSON('/api/digital/scheduler').catch(() => null),
             fetchJSON('/api/digital/preflight').catch(() => null),
+            fetchJSON('/api/profile-loop').catch(() => null),
           ]);
 
           const pickNumber = (value, fallback) => (value === 0 || value) ? value : fallback;
@@ -5682,6 +6148,12 @@
         applyDigitalSchedulerPayload(data);
         if (schedulerData && schedulerData.ok) {
           applyDigitalSchedulerPayload(schedulerData);
+        }
+        if (data.profile_loop && typeof data.profile_loop === 'object') {
+          applyProfileLoopPayload(data.profile_loop);
+        }
+        if (profileLoopData && profileLoopData.ok) {
+          applyProfileLoopPayload(profileLoopData);
         }
         if (digitalPreflightData && digitalPreflightData.ok) {
           applyDigitalPreflightPayload(digitalPreflightData);
@@ -5826,6 +6298,9 @@
           state.lastHit = data.last_hit || state.lastHit;
           state.serverTime = data.server_time;
           state.lastStatusTick = Date.now();
+          if (data.profile_loop && typeof data.profile_loop === 'object') {
+            applyProfileLoopPayload(data.profile_loop);
+          }
           if (state.sdr1Active) state.sdr1LastSeen = state.lastStatusTick;
           if (state.sdr2Active) state.sdr2LastSeen = state.lastStatusTick;
           state.connected = true;
@@ -5962,6 +6437,31 @@
       if (els.btnApply) {
         els.btnApply.addEventListener('click', applyBatch);
       }
+      if (els.loopSave) {
+        els.loopSave.addEventListener('click', () => {
+          const target = activeTarget === 'ground' ? 'ground' : 'airband';
+          applyProfileLoopConfig(target, null);
+        });
+      }
+      if (els.loopToggle) {
+        els.loopToggle.addEventListener('click', () => {
+          const target = activeTarget === 'ground' ? 'ground' : 'airband';
+          const enabled = Boolean((state.profileLoop[target] || {}).enabled);
+          applyProfileLoopConfig(target, !enabled);
+        });
+      }
+      if (els.loopSelectAll) {
+        els.loopSelectAll.addEventListener('click', () => {
+          const target = activeTarget === 'ground' ? 'ground' : 'airband';
+          selectAllLoopProfiles(target, true);
+        });
+      }
+      if (els.loopClear) {
+        els.loopClear.addEventListener('click', () => {
+          const target = activeTarget === 'ground' ? 'ground' : 'airband';
+          selectAllLoopProfiles(target, false);
+        });
+      }
       document.getElementById('btn-avoid').addEventListener('click', async function() {
         const btn = document.getElementById('btn-avoid');
         btn.disabled = true;
@@ -5999,6 +6499,21 @@
       }
       if (els.digitalProfileSelect) {
         els.digitalProfileSelect.addEventListener('change', onDigitalProfileChange);
+      }
+      if (els.digitalLoopSave) {
+        els.digitalLoopSave.addEventListener('click', () => applyProfileLoopConfig('digital', null));
+      }
+      if (els.digitalLoopToggle) {
+        els.digitalLoopToggle.addEventListener('click', () => {
+          const enabled = Boolean((state.profileLoop.digital || {}).enabled);
+          applyProfileLoopConfig('digital', !enabled);
+        });
+      }
+      if (els.digitalLoopSelectAll) {
+        els.digitalLoopSelectAll.addEventListener('click', () => selectAllLoopProfiles('digital', true));
+      }
+      if (els.digitalLoopClear) {
+        els.digitalLoopClear.addEventListener('click', () => selectAllLoopProfiles('digital', false));
       }
       if (els.digitalManageCreate) {
         els.digitalManageCreate.addEventListener('click', createDigitalProfile);

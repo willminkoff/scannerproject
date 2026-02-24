@@ -100,6 +100,7 @@ try:
         validate_analog_editor_payload,
         validate_digital_editor_payload,
     )
+    from .profile_loop import get_profile_loop_manager
     from .v3_preflight import (
         evaluate_analog_preflight,
         evaluate_digital_preflight,
@@ -173,6 +174,7 @@ except ImportError:
         validate_analog_editor_payload,
         validate_digital_editor_payload,
     )
+    from ui.profile_loop import get_profile_loop_manager
     from ui.v3_preflight import (
         evaluate_analog_preflight,
         evaluate_digital_preflight,
@@ -1327,6 +1329,19 @@ class Handler(BaseHTTPRequestHandler):
             digital_payload["digital_stream_active_for_hits"] = bool(digital_stream_active_for_hits)
             payload.update(digital_payload)
             try:
+                profile_loop_snapshot = get_profile_loop_manager().snapshot()
+                profile_loop_targets = dict(profile_loop_snapshot.get("targets") or {})
+            except Exception:
+                profile_loop_targets = {}
+            payload["profile_loop"] = profile_loop_targets
+            digital_loop = profile_loop_targets.get("digital") if isinstance(profile_loop_targets, dict) else {}
+            if isinstance(digital_loop, dict):
+                payload["digital_profile_loop_enabled"] = bool(digital_loop.get("enabled"))
+                payload["digital_profile_loop_active_profile"] = str(digital_loop.get("active_profile") or "")
+                payload["digital_profile_loop_next_profile"] = str(digital_loop.get("next_profile") or "")
+                payload["digital_profile_loop_switch_reason"] = str(digital_loop.get("switch_reason") or "")
+                payload["digital_profile_loop_last_error"] = str(digital_loop.get("last_error") or "")
+            try:
                 compile_state = load_compiled_state() or {}
             except Exception:
                 compile_state = {}
@@ -1469,6 +1484,18 @@ class Handler(BaseHTTPRequestHandler):
                     json.dumps({"ok": False, "error": str(e)}),
                     "application/json; charset=utf-8",
                 )
+        if p == "/api/profile-loop":
+            try:
+                payload = get_profile_loop_manager().snapshot()
+                payload = dict(payload or {})
+                payload["ok"] = True
+                return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
         if p == "/api/preflight":
             q = parse_qs(u.query or "")
             action = (q.get("action") or [""])[0].strip()
@@ -1530,6 +1557,10 @@ class Handler(BaseHTTPRequestHandler):
                 hits_payload = _get_hits_payload_cached(limit=10)
                 hit_items = hits_payload.get("items") or []
                 last_hit = hit_items[0].get("freq") if hit_items else (read_last_hit_airband() or read_last_hit_ground())
+                try:
+                    profile_loop_targets = dict(get_profile_loop_manager().snapshot().get("targets") or {})
+                except Exception:
+                    profile_loop_targets = {}
                 status_data = {
                     "type": "status",
                     "rtl_active": rtl_active,
@@ -1544,6 +1575,7 @@ class Handler(BaseHTTPRequestHandler):
                     "squelch_dbfs": float(airband_dbfs),
                     "last_hit": last_hit,
                     "server_time": time.time(),
+                    "profile_loop": profile_loop_targets,
                 }
                 self.wfile.write(f"event: status\ndata: {json.dumps(status_data)}\n\n".encode())
                 spectrum_data = {
@@ -1833,6 +1865,31 @@ class Handler(BaseHTTPRequestHandler):
             response = {"ok": True}
             response.update(payload or {})
             return self._send(200, json.dumps(response), "application/json; charset=utf-8")
+
+        if p == "/api/profile-loop":
+            target = get_str("target").strip().lower()
+            if not target:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "missing target"}),
+                    "application/json; charset=utf-8",
+                )
+            update_payload = {}
+            for key in ("enabled", "selected_profiles", "dwell_ms", "hang_ms", "pause_on_hit"):
+                if key in form:
+                    update_payload[key] = form.get(key)
+            ok, err, snapshot = get_profile_loop_manager().set_target_config(target, update_payload)
+            if not ok:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": err, "snapshot": snapshot}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(
+                200,
+                json.dumps({"ok": True, "target": target, "snapshot": snapshot}),
+                "application/json; charset=utf-8",
+            )
 
         if p == "/api/digital/mute":
             raw_muted = form.get("muted")
