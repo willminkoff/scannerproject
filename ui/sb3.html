@@ -2288,7 +2288,7 @@
       <section class="profile-sidecar-panel" id="profile-loop-panel-analog">
         <div class="profile-loop-panel">
           <div class="control-label">
-            <span>Profile Loop</span>
+            <span>Analog Profile Loop</span>
             <span class="control-value" id="loop-status">--</span>
           </div>
           <div class="control-applied" id="loop-detail">--</div>
@@ -4361,6 +4361,43 @@
       return '';
     }
 
+    function loopSwitchReasonForDisplay(target, reason) {
+      const raw = String(reason || '').trim();
+      if (!raw) return '';
+      const code = raw.toLowerCase();
+      if (target !== 'digital') {
+        // Keep analog bundle internals backend-only.
+        if (code === 'bundle' || code === 'bundle_sync') return 'dwell';
+        if (code === 'disable_restore') return 'manual';
+      }
+      return raw;
+    }
+
+    function formatLoopDetailText(target, loopState) {
+      if (!loopState) return '--';
+      const parts = [];
+      if (loopState.activeProfile) {
+        parts.push(`active=${loopLabelForTarget(target, loopState.activeProfile)}`);
+      }
+      if (loopState.nextProfile) {
+        parts.push(`next=${loopLabelForTarget(target, loopState.nextProfile)}`);
+      }
+      if (loopState.inHitHold) {
+        parts.push('holding on hit');
+      }
+      if (loopState.blockedReason) {
+        parts.push(`blocked=${loopState.blockedReason}`);
+      }
+      const reason = loopSwitchReasonForDisplay(target, loopState.switchReason);
+      if (reason) {
+        parts.push(`reason=${reason}`);
+      }
+      if (loopState.lastError) {
+        parts.push(`error=${trimServiceNote(loopState.lastError, 120)}`);
+      }
+      return parts.join(' • ') || '--';
+    }
+
     function setLoopHeaderIndicator(el, target, loopState) {
       if (!el) return;
       const stateRow = loopState || defaultProfileLoopState();
@@ -4395,8 +4432,9 @@
       if (stateRow.blockedReason) {
         details.push(`blocked=${stateRow.blockedReason}`);
       }
-      if (stateRow.switchReason) {
-        details.push(`reason=${stateRow.switchReason}`);
+      const switchReason = loopSwitchReasonForDisplay(target, stateRow.switchReason);
+      if (switchReason) {
+        details.push(`reason=${switchReason}`);
       }
       if (stateRow.lastError) {
         details.push(`error=${trimServiceNote(stateRow.lastError, 80)}`);
@@ -4412,57 +4450,36 @@
       setLoopHeaderIndicator(els.digitalProfilesLoopIndicator, 'digital', digitalLoopState);
     }
 
-    function renderAnalogLoopControls() {
-      const target = activeTarget === 'ground' ? 'ground' : 'airband';
-      const loopState = state.profileLoop[target] || defaultProfileLoopState();
-      renderLoopChecklist(els.loopList, target, loopState);
-      if (els.loopStatus) {
-        const statusText = loopState.enabled ? 'LOOPING' : 'IDLE';
-        els.loopStatus.textContent = statusText;
-        setValueTone(els.loopStatus, loopStatusTone(loopState));
+    function renderTargetLoopControls(target, listEl, statusEl, detailEl, dwellEl, hangEl, pauseEl, toggleEl, defaultDwellMs, defaultHangMs) {
+      const loopState = localLoopState(target);
+      renderLoopChecklist(listEl, target, loopState);
+      if (statusEl) {
+        statusEl.textContent = loopState.enabled ? 'LOOPING' : 'IDLE';
+        setValueTone(statusEl, loopStatusTone(loopState));
       }
-      if (els.loopDetail) {
-        const parts = [];
-        if (loopState.activeProfile) {
-          parts.push(`active=${loopLabelForTarget(target, loopState.activeProfile)}`);
-        }
-        if (loopState.nextProfile) {
-          parts.push(`next=${loopLabelForTarget(target, loopState.nextProfile)}`);
-        }
-        if (loopState.inHitHold) {
-          parts.push('holding on hit');
-        }
-        if (loopState.blockedReason) {
-          parts.push(`blocked=${loopState.blockedReason}`);
-        }
-        if (loopState.switchReason) {
-          parts.push(`reason=${loopState.switchReason}`);
-        }
-        if (loopState.lastError) {
-          parts.push(`error=${trimServiceNote(loopState.lastError, 120)}`);
-        }
-        els.loopDetail.textContent = parts.join(' • ') || '--';
+      if (detailEl) {
+        detailEl.textContent = formatLoopDetailText(target, loopState);
       }
-      if (els.loopDwell && document.activeElement !== els.loopDwell) {
-        els.loopDwell.value = Math.max(1, Math.round(Number(loopState.dwellMs || 45000) / 1000));
+      if (dwellEl && document.activeElement !== dwellEl) {
+        dwellEl.value = Math.max(1, Math.round(Number(loopState.dwellMs || defaultDwellMs) / 1000));
       }
-      if (els.loopHang && document.activeElement !== els.loopHang) {
-        els.loopHang.value = Math.max(1, Math.round(Number(loopState.hangMs || 12000) / 1000));
+      if (hangEl && document.activeElement !== hangEl) {
+        hangEl.value = Math.max(1, Math.round(Number(loopState.hangMs || defaultHangMs) / 1000));
       }
-      if (els.loopPause) {
-        els.loopPause.checked = Boolean(loopState.pauseOnHit);
+      if (pauseEl) {
+        pauseEl.checked = Boolean(loopState.pauseOnHit);
       }
-      if (els.loopToggle) {
-        els.loopToggle.textContent = loopState.enabled ? 'Stop Loop' : 'Start Loop';
+      if (toggleEl) {
+        toggleEl.textContent = loopState.enabled ? 'Stop Loop' : 'Start Loop';
       }
-      if (els.loopList) {
-        els.loopList.querySelectorAll('input[type="checkbox"][data-profile-id]').forEach((cb) => {
+      if (listEl) {
+        listEl.querySelectorAll('input[type="checkbox"][data-profile-id]').forEach((cb) => {
           cb.addEventListener('change', () => {
-            const ids = collectLoopSelection(els.loopList);
+            const ids = collectLoopSelection(listEl);
             state.profileLoop[target].selectedProfiles = ids;
             setLoopDraftSelection(target, ids);
-            if (els.loopDetail) {
-              els.loopDetail.textContent = `${ids.length} selected (pending apply)`;
+            if (detailEl) {
+              detailEl.textContent = `${ids.length} selected (pending apply)`;
             }
             scheduleLoopAutoApply(target);
           });
@@ -4471,63 +4488,35 @@
       renderMainLoopIndicators();
     }
 
+    function renderAnalogLoopControls() {
+      const target = activeTarget === 'ground' ? 'ground' : 'airband';
+      renderTargetLoopControls(
+        target,
+        els.loopList,
+        els.loopStatus,
+        els.loopDetail,
+        els.loopDwell,
+        els.loopHang,
+        els.loopPause,
+        els.loopToggle,
+        45000,
+        12000
+      );
+    }
+
     function renderDigitalLoopControls() {
-      const target = 'digital';
-      const loopState = state.profileLoop[target] || defaultProfileLoopState();
-      renderLoopChecklist(els.digitalLoopList, target, loopState);
-      if (els.digitalLoopStatus) {
-        const statusText = loopState.enabled ? 'LOOPING' : 'IDLE';
-        els.digitalLoopStatus.textContent = statusText;
-        setValueTone(els.digitalLoopStatus, loopStatusTone(loopState));
-      }
-      if (els.digitalLoopDetail) {
-        const parts = [];
-        if (loopState.activeProfile) {
-          parts.push(`active=${loopLabelForTarget(target, loopState.activeProfile)}`);
-        }
-        if (loopState.nextProfile) {
-          parts.push(`next=${loopLabelForTarget(target, loopState.nextProfile)}`);
-        }
-        if (loopState.inHitHold) {
-          parts.push('holding on hit');
-        }
-        if (loopState.blockedReason) {
-          parts.push(`blocked=${loopState.blockedReason}`);
-        }
-        if (loopState.switchReason) {
-          parts.push(`reason=${loopState.switchReason}`);
-        }
-        if (loopState.lastError) {
-          parts.push(`error=${trimServiceNote(loopState.lastError, 120)}`);
-        }
-        els.digitalLoopDetail.textContent = parts.join(' • ') || '--';
-      }
-      if (els.digitalLoopDwell && document.activeElement !== els.digitalLoopDwell) {
-        els.digitalLoopDwell.value = Math.max(1, Math.round(Number(loopState.dwellMs || 30000) / 1000));
-      }
-      if (els.digitalLoopHang && document.activeElement !== els.digitalLoopHang) {
-        els.digitalLoopHang.value = Math.max(1, Math.round(Number(loopState.hangMs || 8000) / 1000));
-      }
-      if (els.digitalLoopPause) {
-        els.digitalLoopPause.checked = Boolean(loopState.pauseOnHit);
-      }
-      if (els.digitalLoopToggle) {
-        els.digitalLoopToggle.textContent = loopState.enabled ? 'Stop Loop' : 'Start Loop';
-      }
-      if (els.digitalLoopList) {
-        els.digitalLoopList.querySelectorAll('input[type="checkbox"][data-profile-id]').forEach((cb) => {
-          cb.addEventListener('change', () => {
-            const ids = collectLoopSelection(els.digitalLoopList);
-            state.profileLoop[target].selectedProfiles = ids;
-            setLoopDraftSelection(target, ids);
-            if (els.digitalLoopDetail) {
-              els.digitalLoopDetail.textContent = `${ids.length} selected (pending apply)`;
-            }
-            scheduleLoopAutoApply(target);
-          });
-        });
-      }
-      renderMainLoopIndicators();
+      renderTargetLoopControls(
+        'digital',
+        els.digitalLoopList,
+        els.digitalLoopStatus,
+        els.digitalLoopDetail,
+        els.digitalLoopDwell,
+        els.digitalLoopHang,
+        els.digitalLoopPause,
+        els.digitalLoopToggle,
+        30000,
+        8000
+      );
     }
 
     function renderProfileLoopControls() {

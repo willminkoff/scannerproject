@@ -183,6 +183,8 @@ class ProfileLoopManager:
             "in_hit_hold": False,
             "blocked_reason": "",
             "available_profiles": [],
+            "bundle_signature": "",
+            "pending_restore_profile": "",
             "updated_ms": 0,
         }
 
@@ -195,6 +197,12 @@ class ProfileLoopManager:
             return selected_profiles[0]
         idx = selected_profiles.index(current)
         return selected_profiles[(idx + 1) % len(selected_profiles)]
+
+    @staticmethod
+    def _selection_signature(selected_profiles: list[str]) -> str:
+        if not selected_profiles:
+            return ""
+        return "|".join(str(pid or "").strip() for pid in selected_profiles if str(pid or "").strip())
 
     @staticmethod
     def _safe_hms_age_seconds(value: str) -> float:
@@ -447,7 +455,27 @@ class ProfileLoopManager:
         if not preflight_ok:
             return False, preflight_error
         if target in ("airband", "ground"):
-            result = enqueue_action({"type": "profile", "profile": pid, "target": target})
+            with self._lock:
+                state = dict(self._targets.get(target) or {})
+            loop_enabled = bool(state.get("enabled"))
+            if loop_enabled:
+                result = enqueue_action(
+                    {
+                        "type": "profile_loop_bundle",
+                        "target": target,
+                        "selected_profiles": list(state.get("selected_profiles") or []),
+                        "active_profile": pid,
+                    }
+                )
+            else:
+                result = enqueue_action(
+                    {
+                        "type": "profile",
+                        "profile": pid,
+                        "target": target,
+                        "restart_service": True,
+                    }
+                )
             status = int(result.get("status") or 500)
             payload = result.get("payload") or {}
             if status >= 300 or not payload.get("ok"):
@@ -455,10 +483,11 @@ class ProfileLoopManager:
                 return False, err or f"profile switch failed ({status})"
             if not self._wait_for_mount_after_switch(target):
                 return False, f"mount did not recover after switch: {self._expected_mount_for_target(target)}"
-            try:
-                set_active_analog_profile(target, pid)
-            except Exception:
-                pass
+            if not loop_enabled:
+                try:
+                    set_active_analog_profile(target, pid)
+                except Exception:
+                    pass
             return True, ""
         try:
             ok, err = get_digital_manager().setProfile(pid, restart_service=False)
@@ -576,13 +605,17 @@ class ProfileLoopManager:
 
         with self._lock:
             state = self._targets[name]
+            was_enabled = bool(state.get("enabled"))
             available = self._available_profiles(name)
             available_ids = {str(item.get("id") or "").strip() for item in available}
             state["available_profiles"] = available
 
             selected_raw = _parse_selected_profiles(payload.get("selected_profiles"))
+            selected_changed = False
             if selected_raw is not None:
-                state["selected_profiles"] = [pid for pid in selected_raw if pid in available_ids]
+                next_selected = [pid for pid in selected_raw if pid in available_ids]
+                selected_changed = next_selected != list(state.get("selected_profiles") or [])
+                state["selected_profiles"] = next_selected
 
             if "dwell_ms" in payload:
                 state["dwell_ms"] = _coerce_int(
@@ -602,6 +635,24 @@ class ProfileLoopManager:
                 state["pause_on_hit"] = _coerce_bool(payload.get("pause_on_hit"))
             if "enabled" in payload:
                 state["enabled"] = _coerce_bool(payload.get("enabled"))
+
+            if name in ("airband", "ground"):
+                if selected_changed:
+                    state["bundle_signature"] = ""
+                if state["enabled"] and not was_enabled:
+                    previous_profile = str(self._current_profile(name) or "").strip()
+                    state["pending_restore_profile"] = previous_profile
+                    state["bundle_signature"] = ""
+                if (not state["enabled"]) and was_enabled:
+                    state["bundle_signature"] = ""
+                    if not str(state.get("pending_restore_profile") or "").strip():
+                        fallback_restore = str(
+                            state.get("active_profile")
+                            or state.get("current_profile")
+                            or self._current_profile(name)
+                            or ""
+                        ).strip()
+                        state["pending_restore_profile"] = fallback_restore
 
             if state["enabled"] and len(state["selected_profiles"]) < 2:
                 return False, "profile loop requires at least 2 selected profiles", self._snapshot_locked()
@@ -663,6 +714,13 @@ class ProfileLoopManager:
             state["blocked_reason"] = ""
             state["recent_hit"] = False
             state["in_hit_hold"] = False
+            if target in ("airband", "ground"):
+                restore_profile = str(state.get("pending_restore_profile") or "").strip()
+                if restore_profile:
+                    if restore_profile == current_profile:
+                        state["pending_restore_profile"] = ""
+                    elif restore_profile in available_set:
+                        return restore_profile, "disable_restore"
             return None
         state["blocked_reason"] = self._target_blocked_reason(target)
         state["recent_hit"] = self._target_recent_hit(target, int(state.get("hang_ms") or 0))
@@ -677,6 +735,18 @@ class ProfileLoopManager:
             state["switch_reason"] = state["blocked_reason"]
             return None
         if not active_profile:
+            return None
+
+        if target in ("airband", "ground"):
+            selection_sig = self._selection_signature(selected)
+            applied_sig = str(state.get("bundle_signature") or "")
+            if selection_sig != applied_sig:
+                desired = active_profile if active_profile in selected else selected[0]
+                state["active_profile"] = desired
+                state["next_profile"] = self._next_profile(selected, desired)
+                return desired, "bundle_sync"
+            state["switch_reason"] = "bundle"
+            state["in_hit_hold"] = False
             return None
 
         if current_profile != active_profile and current_profile not in selected:
@@ -710,15 +780,26 @@ class ProfileLoopManager:
                 state = self._targets[target]
                 state["updated_ms"] = int(time.time() * 1000)
                 if ok:
-                    state["active_profile"] = next_profile
-                    state["current_profile"] = next_profile
-                    state["last_switch_time_ms"] = int(time.time() * 1000)
-                    state["switch_reason"] = reason
-                    state["last_error"] = ""
-                    state["next_profile"] = self._next_profile(
-                        list(state.get("selected_profiles") or []),
-                        next_profile,
-                    )
+                    selected_now = list(state.get("selected_profiles") or [])
+                    if target in ("airband", "ground") and reason == "bundle_sync":
+                        desired = next_profile if next_profile in selected_now else (selected_now[0] if selected_now else next_profile)
+                        state["active_profile"] = desired
+                        state["current_profile"] = desired
+                        state["last_switch_time_ms"] = int(time.time() * 1000)
+                        state["switch_reason"] = "bundle"
+                        state["last_error"] = ""
+                        state["bundle_signature"] = self._selection_signature(selected_now)
+                        state["next_profile"] = self._next_profile(selected_now, desired)
+                    else:
+                        state["active_profile"] = next_profile
+                        state["current_profile"] = next_profile
+                        state["last_switch_time_ms"] = int(time.time() * 1000)
+                        state["switch_reason"] = reason
+                        state["last_error"] = ""
+                        state["next_profile"] = self._next_profile(selected_now, next_profile)
+                        if target in ("airband", "ground") and reason == "disable_restore":
+                            state["pending_restore_profile"] = ""
+                            state["bundle_signature"] = ""
                 else:
                     state["last_switch_time_ms"] = int(time.time() * 1000)
                     state["switch_reason"] = "error"

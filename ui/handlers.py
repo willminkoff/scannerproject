@@ -1341,6 +1341,16 @@ class Handler(BaseHTTPRequestHandler):
                 payload["digital_profile_loop_next_profile"] = str(digital_loop.get("next_profile") or "")
                 payload["digital_profile_loop_switch_reason"] = str(digital_loop.get("switch_reason") or "")
                 payload["digital_profile_loop_last_error"] = str(digital_loop.get("last_error") or "")
+            analog_loop_air = profile_loop_targets.get("airband") if isinstance(profile_loop_targets, dict) else {}
+            if isinstance(analog_loop_air, dict) and analog_loop_air.get("enabled"):
+                analog_active = str(analog_loop_air.get("active_profile") or "").strip()
+                if analog_active:
+                    payload["profile_airband"] = analog_active
+            analog_loop_ground = profile_loop_targets.get("ground") if isinstance(profile_loop_targets, dict) else {}
+            if isinstance(analog_loop_ground, dict) and analog_loop_ground.get("enabled"):
+                analog_active_ground = str(analog_loop_ground.get("active_profile") or "").strip()
+                if analog_active_ground:
+                    payload["profile_ground"] = analog_active_ground
             try:
                 compile_state = load_compiled_state() or {}
             except Exception:
