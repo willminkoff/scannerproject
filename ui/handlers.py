@@ -218,6 +218,74 @@ def _short_label(text: str, max_len: int = 48) -> str:
     return raw[: max_len - 1].rstrip() + "…"
 
 
+def _icecast_sources(status_text: str) -> list[dict]:
+    try:
+        data = json.loads(status_text)
+    except Exception:
+        return []
+    sources = data.get("icestats", {}).get("source")
+    if not sources:
+        return []
+    if not isinstance(sources, list):
+        sources = [sources]
+    out = []
+    for source in sources:
+        listenurl = str(source.get("listenurl") or "").strip()
+        mount = ""
+        if listenurl:
+            mount = listenurl.rsplit("/", 1)[-1].strip()
+        if not mount:
+            mount = str(source.get("mount") or "").strip().lstrip("/")
+        out.append({
+            "mount": mount,
+            "audio_info": str(source.get("audio_info") or "").strip(),
+            "server_type": str(source.get("server_type") or "").strip(),
+            "stream_start": str(source.get("stream_start") or "").strip(),
+            "server_name": str(source.get("server_name") or "").strip(),
+        })
+    return out
+
+
+def _is_live_analog_source(source: dict) -> bool:
+    if not source:
+        return False
+    mount = str(source.get("mount") or "").strip().lower()
+    if not mount:
+        return False
+    if "digital" in mount or "keepalive" in mount:
+        return False
+    if str(source.get("audio_info") or "").strip():
+        return True
+    if str(source.get("server_type") or "").strip():
+        return True
+    if str(source.get("stream_start") or "").strip():
+        return True
+    if str(source.get("server_name") or "").strip():
+        return True
+    return False
+
+
+def _resolve_analog_stream_mount(status_text: str) -> str:
+    configured = str(PLAYER_MOUNT or "").strip().lstrip("/")
+    sources = _icecast_sources(status_text)
+    if not sources:
+        return configured
+    by_mount = {
+        str(row.get("mount") or "").strip(): row
+        for row in sources
+        if str(row.get("mount") or "").strip()
+    }
+    configured_row = by_mount.get(configured)
+    if _is_live_analog_source(configured_row):
+        return configured
+    for row in sources:
+        if _is_live_analog_source(row):
+            mount = str(row.get("mount") or "").strip()
+            if mount:
+                return mount
+    return configured
+
+
 def _normalize_freq_key(value) -> str:
     try:
         return f"{float(str(value).strip()):.4f}"
@@ -1042,10 +1110,12 @@ class Handler(BaseHTTPRequestHandler):
             ground_ok = rtl_ok and ground_present
             ice_ok = _unit_active_cached(UNITS["icecast"])
             icecast_mounts = []
+            analog_stream_mount = str(PLAYER_MOUNT or "").strip().lstrip("/")
             if ice_ok:
                 try:
                     status_text = fetch_local_icecast_status()
                     icecast_mounts = list_icecast_mounts(status_text)
+                    analog_stream_mount = _resolve_analog_stream_mount(status_text)
                 except Exception:
                     icecast_mounts = []
             combined_stale = combined_config_stale()
@@ -1113,7 +1183,7 @@ class Handler(BaseHTTPRequestHandler):
                 "icecast_active": ice_ok,
                 "icecast_mounts": icecast_mounts,
                 "icecast_port": ICECAST_PORT,
-                "stream_mount": PLAYER_MOUNT,
+                "stream_mount": analog_stream_mount,
                 "stream_proxy_enabled": True,
                 "digital_stream_mount": DIGITAL_STREAM_MOUNT,
                 "icecast_expected_mounts": [f"/{PLAYER_MOUNT}", f"/{DIGITAL_STREAM_MOUNT}"],
