@@ -3118,6 +3118,33 @@
       return buildProxyStreamUrl(state.digitalStreamMount, 'DIGITAL.mp3');
     }
 
+    function audioTargetLabel(audioEl) {
+      if (audioEl === els.audioPlayerDigital) return 'Digital';
+      return 'Analog';
+    }
+
+    function ensureAudioAudible(audioEl) {
+      if (!audioEl) return;
+      if (audioEl.muted) audioEl.muted = false;
+      const volume = Number(audioEl.volume);
+      if (!Number.isFinite(volume) || volume <= 0) {
+        audioEl.volume = 1;
+      }
+    }
+
+    function requestAudioPlay(audioEl, reasonKey = 'play') {
+      if (!audioEl) return;
+      ensureAudioAudible(audioEl);
+      const playPromise = audioEl.play();
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch((err) => {
+          const label = audioTargetLabel(audioEl);
+          const msg = messageFromError(err, 'play blocked');
+          logActivity(`${label} player ${msg}`, 'warn', `audio-play-failed-${label}-${reasonKey}`);
+        });
+      }
+    }
+
     function syncAudioSource(audioEl, base) {
       if (!audioEl) return;
       const current = (audioEl.src || '').split('?')[0];
@@ -3131,7 +3158,7 @@
         audioEl.src = base;
         audioEl.load();
         if (shouldPlay) {
-          audioEl.play().catch(() => {});
+          requestAudioPlay(audioEl, 'sync-source');
         }
       }
     }
@@ -3165,7 +3192,7 @@
       audioEl.src = base;
       audioEl.load();
       if (shouldPlay) {
-        audioEl.play().catch(() => {});
+        requestAudioPlay(audioEl, `reload-${reason || 'manual'}`);
       }
       if (reason) {
         logActivity(reason, 'info', `${keyPrefix}-${reason}`);
