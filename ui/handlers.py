@@ -362,7 +362,7 @@ def _coalesce_digital_hits(items: list[dict], window_sec: float = DIGITAL_HIT_CO
     if not items or window_sec <= 0:
         return items
     kept = []
-    last_by_key: dict[str, float] = {}
+    last_by_key: dict[str, tuple[float, int]] = {}
     for item in sorted(items, key=lambda row: float(row.get("_ts", 0.0))):
         ts = float(item.get("_ts", 0.0))
         tgid = str(item.get("tgid") or "").strip()
@@ -374,10 +374,16 @@ def _coalesce_digital_hits(items: list[dict], window_sec: float = DIGITAL_HIT_CO
         else:
             continue
         prev = last_by_key.get(key)
-        if prev is not None and (ts - prev) < window_sec:
-            continue
-        last_by_key[key] = ts
+        if prev is not None:
+            prev_ts, prev_idx = prev
+            if (ts - prev_ts) < window_sec:
+                # Keep the newest event in-window so hit-list labels stay aligned
+                # with the latest mapped digital label shown in status cards.
+                kept[prev_idx] = item
+                last_by_key[key] = (ts, prev_idx)
+                continue
         kept.append(item)
+        last_by_key[key] = (ts, len(kept) - 1)
     return kept
 
 
