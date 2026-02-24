@@ -2295,10 +2295,10 @@
           <div class="loop-checklist" id="loop-list"></div>
           <div class="loop-controls">
             <label>Dwell (s)
-              <input id="loop-dwell" type="number" min="1" max="1800" step="1" value="45">
+              <input id="loop-dwell" type="number" min="1" max="1800" step="1" value="10">
             </label>
             <label>Hang (s)
-              <input id="loop-hang" type="number" min="1" max="600" step="1" value="12">
+              <input id="loop-hang" type="number" min="1" max="600" step="1" value="2">
             </label>
             <label class="loop-checkbox-label">
               <input id="loop-pause" type="checkbox" checked>
@@ -2324,10 +2324,10 @@
           <div class="loop-checklist" id="digital-loop-list"></div>
           <div class="loop-controls">
             <label>Dwell (s)
-              <input id="digital-loop-dwell" type="number" min="1" max="1800" step="1" value="30">
+              <input id="digital-loop-dwell" type="number" min="1" max="1800" step="1" value="10">
             </label>
             <label>Hang (s)
-              <input id="digital-loop-hang" type="number" min="1" max="600" step="1" value="8">
+              <input id="digital-loop-hang" type="number" min="1" max="600" step="1" value="2">
             </label>
             <label class="loop-checkbox-label">
               <input id="digital-loop-pause" type="checkbox" checked>
@@ -2381,8 +2381,8 @@
         currentProfile: '',
         activeProfile: '',
         nextProfile: '',
-        dwellMs: 45000,
-        hangMs: 12000,
+        dwellMs: 10000,
+        hangMs: 2000,
         pauseOnHit: true,
         recentHit: false,
         inHitHold: false,
@@ -2527,7 +2527,7 @@
       profileLoop: {
         airband: defaultProfileLoopState(),
         ground: defaultProfileLoopState(),
-        digital: { ...defaultProfileLoopState(), dwellMs: 30000, hangMs: 8000 },
+        digital: { ...defaultProfileLoopState(), dwellMs: 10000, hangMs: 2000 },
       },
       profileLoopUi: {
         open: false,
@@ -4257,7 +4257,7 @@
       const name = normalizeLoopTarget(target);
       if (!state.profileLoop[name]) {
         state.profileLoop[name] = name === 'digital'
-          ? { ...defaultProfileLoopState(), dwellMs: 30000, hangMs: 8000 }
+          ? { ...defaultProfileLoopState(), dwellMs: 10000, hangMs: 2000 }
           : defaultProfileLoopState();
       }
       return state.profileLoop[name];
@@ -4279,8 +4279,8 @@
       const dwellEl = isDigital ? els.digitalLoopDwell : els.loopDwell;
       const hangEl = isDigital ? els.digitalLoopHang : els.loopHang;
       const pauseEl = isDigital ? els.digitalLoopPause : els.loopPause;
-      const defaultDwellMs = isDigital ? 30000 : 45000;
-      const defaultHangMs = isDigital ? 8000 : 12000;
+      const defaultDwellMs = 10000;
+      const defaultHangMs = 2000;
       const fallbackDwellSec = Math.max(1, Math.round(Number(loopState.dwellMs || defaultDwellMs) / 1000));
       const fallbackHangSec = Math.max(1, Math.round(Number(loopState.hangMs || defaultHangMs) / 1000));
       const dwellSec = clampLoopSeconds(dwellEl && dwellEl.value, fallbackDwellSec, 1, 1800);
@@ -4499,8 +4499,8 @@
         els.loopHang,
         els.loopPause,
         els.loopToggle,
-        45000,
-        12000
+        10000,
+        2000
       );
     }
 
@@ -4514,8 +4514,8 @@
         els.digitalLoopHang,
         els.digitalLoopPause,
         els.digitalLoopToggle,
-        30000,
-        8000
+        10000,
+        2000
       );
     }
 
@@ -4539,8 +4539,8 @@
         target: targetName,
         enabled: enabledOverride === null ? Boolean(loopState.enabled) : Boolean(enabledOverride),
         selected_profiles: selectedProfiles,
-        dwell_ms: Number.isFinite(dwellSec) ? Math.round(dwellSec * 1000) : Number(loopState.dwellMs || (isDigital ? 30000 : 45000)),
-        hang_ms: Number.isFinite(hangSec) ? Math.round(hangSec * 1000) : Number(loopState.hangMs || (isDigital ? 8000 : 12000)),
+        dwell_ms: Number.isFinite(dwellSec) ? Math.round(dwellSec * 1000) : Number(loopState.dwellMs || 10000),
+        hang_ms: Number.isFinite(hangSec) ? Math.round(hangSec * 1000) : Number(loopState.hangMs || 2000),
         pause_on_hit: Boolean(pauseEl && pauseEl.checked),
       };
       try {

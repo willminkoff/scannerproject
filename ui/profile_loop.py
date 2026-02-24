@@ -58,11 +58,21 @@ _MIN_HANG_MS = 1_000
 _MAX_HANG_MS = 600_000
 _MAX_SELECTED = 128
 _DEFAULT_DWELL_MS = {
+    "airband": 10_000,
+    "ground": 10_000,
+    "digital": 10_000,
+}
+_DEFAULT_HANG_MS = {
+    "airband": 2_000,
+    "ground": 2_000,
+    "digital": 2_000,
+}
+_LEGACY_DEFAULT_DWELL_MS = {
     "airband": 45_000,
     "ground": 45_000,
     "digital": 30_000,
 }
-_DEFAULT_HANG_MS = {
+_LEGACY_DEFAULT_HANG_MS = {
     "airband": 12_000,
     "ground": 12_000,
     "digital": 8_000,
@@ -534,6 +544,15 @@ class ProfileLoopManager:
             )
             if "pause_on_hit" in raw:
                 state["pause_on_hit"] = _coerce_bool(raw.get("pause_on_hit"))
+            # Migrate previously shipped high defaults to faster loop timing.
+            if int(state["dwell_ms"]) == int(_LEGACY_DEFAULT_DWELL_MS[target]):
+                state["dwell_ms"] = int(_DEFAULT_DWELL_MS[target])
+            if int(state["hang_ms"]) == int(_LEGACY_DEFAULT_HANG_MS[target]):
+                state["hang_ms"] = int(_DEFAULT_HANG_MS[target])
+        try:
+            self._save_state_locked()
+        except Exception:
+            pass
 
     def _save_state_locked(self) -> None:
         path = self._state_path
