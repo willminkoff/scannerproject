@@ -835,11 +835,13 @@ class Handler(BaseHTTPRequestHandler):
                 if head_only:
                     return
                 while True:
-                    chunk = upstream_resp.read(16384)
+                    # Keep proxy chunks small so low-bitrate streams emit data
+                    # frequently enough for embedded browser players.
+                    chunk = upstream_resp.read(2048)
                     if not chunk:
                         break
                     self.wfile.write(chunk)
-                self.wfile.flush()
+                    self.wfile.flush()
         except HTTPError as e:
             status = int(e.code or 502)
             if headers_sent:
