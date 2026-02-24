@@ -5232,6 +5232,13 @@
       const gain = gainValueFromIndex(gainIdx);
       let squelchDbfs = parseFloat(els.dbfsSlider.value);
       if (squelchDbfs >= -1) squelchDbfs = -1;
+      const analogShouldResume = Boolean(
+        els.audioPlayerAnalog
+        && (!els.audioPlayerAnalog.paused || els.audioPlayerAnalog.dataset.wantplay === '1')
+      );
+      if (analogShouldResume && els.audioPlayerAnalog) {
+        els.audioPlayerAnalog.dataset.wantplay = '1';
+      }
       
       try {
         const res = await postAPI('/api/apply', {
@@ -5257,6 +5264,7 @@
           if (els.gainApplied) els.gainApplied.textContent = 'restart';
         } else {
           scheduleApplyRefreshes();
+          scheduleStreamRecovery('analog', `apply-${activeTarget}`, analogShouldResume);
         }
       } catch (e) {
         console.error('Apply failed:', e);
@@ -5270,6 +5278,13 @@
       let squelchDbfs = parseFloat(els.dbfsSlider.value);
       if (squelchDbfs >= -1) squelchDbfs = -1;
       const cutoff = parseInt(els.filterSlider.value);
+      const analogShouldResume = Boolean(
+        els.audioPlayerAnalog
+        && (!els.audioPlayerAnalog.paused || els.audioPlayerAnalog.dataset.wantplay === '1')
+      );
+      if (analogShouldResume && els.audioPlayerAnalog) {
+        els.audioPlayerAnalog.dataset.wantplay = '1';
+      }
       try {
         const res = await postAPI('/api/apply-batch', {
           target: activeTarget,
@@ -5298,7 +5313,7 @@
           if (els.gainApplied) els.gainApplied.textContent = 'restart';
         } else {
           scheduleApplyRefreshes();
-          reloadAnalogStream('restart');
+          scheduleStreamRecovery('analog', `apply-batch-${activeTarget}`, analogShouldResume);
         }
       } catch (e) {
         console.error('Apply batch failed:', e);
