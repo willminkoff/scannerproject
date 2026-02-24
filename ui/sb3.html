@@ -2501,6 +2501,11 @@
       profileLoopUi: {
         open: false,
         tab: 'analog',
+        draftSelected: {
+          airband: null,
+          ground: null,
+          digital: null,
+        },
       },
       profileEditor: {
         open: false,
@@ -4133,7 +4138,12 @@
       if (!targets || typeof targets !== 'object') return;
       ['airband', 'ground', 'digital'].forEach((target) => {
         if (!(target in targets)) return;
-        state.profileLoop[target] = normalizeProfileLoopTarget(targets[target], target);
+        const normalized = normalizeProfileLoopTarget(targets[target], target);
+        const draft = getLoopDraftSelection(target);
+        if (Array.isArray(draft)) {
+          normalized.selectedProfiles = draft;
+        }
+        state.profileLoop[target] = normalized;
       });
       renderProfileLoopControls();
     }
@@ -4161,6 +4171,50 @@
         .filter((row) => row.id);
     }
 
+    function normalizeLoopTarget(target) {
+      if (target === 'ground') return 'ground';
+      if (target === 'digital') return 'digital';
+      return 'airband';
+    }
+
+    function normalizeProfileIdList(items) {
+      if (!Array.isArray(items)) return [];
+      const out = [];
+      items.forEach((item) => {
+        const id = String(item || '').trim();
+        if (!id || out.includes(id)) return;
+        out.push(id);
+      });
+      return out;
+    }
+
+    function getLoopDraftSelection(target) {
+      const name = normalizeLoopTarget(target);
+      const drafts = state.profileLoopUi?.draftSelected;
+      if (!drafts || !Object.prototype.hasOwnProperty.call(drafts, name)) return null;
+      return Array.isArray(drafts[name]) ? normalizeProfileIdList(drafts[name]) : null;
+    }
+
+    function setLoopDraftSelection(target, items) {
+      const name = normalizeLoopTarget(target);
+      if (!state.profileLoopUi.draftSelected) {
+        state.profileLoopUi.draftSelected = { airband: null, ground: null, digital: null };
+      }
+      state.profileLoopUi.draftSelected[name] = normalizeProfileIdList(items);
+    }
+
+    function clearLoopDraftSelection(target) {
+      const name = normalizeLoopTarget(target);
+      if (!state.profileLoopUi.draftSelected) return;
+      state.profileLoopUi.draftSelected[name] = null;
+    }
+
+    function selectedLoopProfilesForUi(target, loopState) {
+      const draft = getLoopDraftSelection(target);
+      if (Array.isArray(draft)) return draft;
+      return normalizeProfileIdList(loopState?.selectedProfiles || []);
+    }
+
     function collectLoopSelection(listEl) {
       if (!listEl) return [];
       const out = [];
@@ -4182,7 +4236,7 @@
         listEl.innerHTML = '<div class="control-applied">No profiles available for loop</div>';
         return;
       }
-      const selected = new Set((loopState.selectedProfiles || []).map((x) => String(x || '').trim()).filter(Boolean));
+      const selected = new Set(selectedLoopProfilesForUi(target, loopState));
       listEl.innerHTML = '';
       available.forEach((row) => {
         const id = String(row.id || '').trim();
@@ -4257,6 +4311,7 @@
           cb.addEventListener('change', () => {
             const ids = collectLoopSelection(els.loopList);
             state.profileLoop[target].selectedProfiles = ids;
+            setLoopDraftSelection(target, ids);
             if (els.loopDetail) {
               els.loopDetail.textContent = `${ids.length} selected (pending apply)`;
             }
@@ -4313,6 +4368,7 @@
           cb.addEventListener('change', () => {
             const ids = collectLoopSelection(els.digitalLoopList);
             state.profileLoop[target].selectedProfiles = ids;
+            setLoopDraftSelection(target, ids);
             if (els.digitalLoopDetail) {
               els.digitalLoopDetail.textContent = `${ids.length} selected (pending apply)`;
             }
@@ -4328,12 +4384,11 @@
 
     async function applyProfileLoopConfig(target, enabledOverride = null) {
       const isDigital = target === 'digital';
-      const listEl = isDigital ? els.digitalLoopList : els.loopList;
       const dwellEl = isDigital ? els.digitalLoopDwell : els.loopDwell;
       const hangEl = isDigital ? els.digitalLoopHang : els.loopHang;
       const pauseEl = isDigital ? els.digitalLoopPause : els.loopPause;
       const loopState = state.profileLoop[target] || defaultProfileLoopState();
-      const selectedProfiles = collectLoopSelection(listEl);
+      const selectedProfiles = selectedLoopProfilesForUi(target, loopState);
       const dwellSec = Number(dwellEl && dwellEl.value);
       const hangSec = Number(hangEl && hangEl.value);
       const payload = {
@@ -4347,6 +4402,7 @@
       try {
         const res = await postAPI('/api/profile-loop', payload);
         if (res && res.ok) {
+          clearLoopDraftSelection(target);
           if (res.snapshot) {
             applyProfileLoopPayload(res.snapshot);
           }
@@ -4368,6 +4424,7 @@
       loopState.selectedProfiles = checked
         ? available.map((row) => String(row.id || '').trim()).filter(Boolean)
         : [];
+      setLoopDraftSelection(target, loopState.selectedProfiles);
       if (target === 'digital') {
         renderDigitalLoopControls();
       } else {
