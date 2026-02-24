@@ -1907,7 +1907,7 @@ class Handler(BaseHTTPRequestHandler):
                         "          name = \"SprontPi Radio\";\n" + \
                         "          genre = \"AIRBAND\";\n" + \
                         "          description = \"Custom\";\n" + \
-                        "          bitrate = 16;\n" + \
+                        "          bitrate = 32;\n" + \
                         "        }\n" + \
                         "      );\n" + \
                         "    }\n" + \

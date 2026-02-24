@@ -1123,7 +1123,7 @@ def _write_analog_profile(
         lines.append(f'          name = "{_escape_label(stream_name)}";')
         lines.append(f'          genre = "{_escape_label(genre)}";')
         lines.append(f'          description = "{_escape_label(description)}";')
-        lines.append("          bitrate = 16;")
+        lines.append("          bitrate = 32;")
         lines.append("        }")
         lines.append("      );")
         lines.append("    }" + ("," if idx < len(order) - 1 else ""))

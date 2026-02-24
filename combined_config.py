@@ -130,7 +130,7 @@ def extract_icecast_block(text: str) -> str:
     return normalize_mountpoint(match.group(0))
 
 
-def override_icecast_bitrate(icecast_block: str, bitrate: int = 16) -> str:
+def override_icecast_bitrate(icecast_block: str, bitrate: int = 32) -> str:
     """Override bitrate in icecast block for lower latency."""
     return RE_BITRATE.sub(rf'\g<1>{bitrate}\g<2>', icecast_block)
 
@@ -222,13 +222,13 @@ def build_combined_config(
             "  password = \"062352\";\n"
             "  name = \"SprontPi Radio\";\n"
             "  genre = \"Mixed\";\n"
-            "  bitrate = 16;\n"
+            "  bitrate = 32;\n"
             "  send_scan_freq_tags = true;\n"
             "}\n"
         )
     else:
-        # Override bitrate for low-latency streaming
-        icecast_block = override_icecast_bitrate(icecast_block, 16)
+        # Keep analog stream at a desktop-browser-friendly encoding profile.
+        icecast_block = override_icecast_bitrate(icecast_block, 32)
     icecast_block = upsert_icecast_bool_option(icecast_block, "continuous", analog_continuous)
     if mount_name:
         icecast_block = override_icecast_mountpoint(icecast_block, mount_name)
