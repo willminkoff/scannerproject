@@ -3100,9 +3100,10 @@
 
     function shouldPreferDirectIcecastStream() {
       if (!state.streamProxyEnabled) return true;
-      // Prefer direct Icecast on plain HTTP clients to avoid proxy buffering
-      // edge cases with long-lived low-bitrate mounts.
-      return location.protocol === 'http:';
+      if (location.protocol !== 'http:') return false;
+      // iOS Safari is more reliable against direct Icecast than proxied streams.
+      // Desktop browsers should stay on the UI proxy path.
+      return isLikelyIOSClient();
     }
 
     function analogStreamUrl() {
