@@ -2150,6 +2150,7 @@
           <div class="profile-editor-actions">
             <button class="action" id="profile-editor-analog-validate" type="button">Validate</button>
             <button class="action" id="profile-editor-analog-save" type="button">Save</button>
+            <button class="action" id="profile-editor-analog-delete" type="button">Delete</button>
             <span class="profile-editor-pill hidden" id="profile-editor-analog-dirty">Unsaved</span>
           </div>
           <div class="profile-editor-status" id="profile-editor-analog-status"></div>
@@ -2225,6 +2226,7 @@
           <div class="profile-editor-actions">
             <button class="action" id="profile-editor-digital-validate" type="button">Validate</button>
             <button class="action" id="profile-editor-digital-save" type="button">Save</button>
+            <button class="action" id="profile-editor-digital-delete" type="button">Delete</button>
             <span class="profile-editor-pill hidden" id="profile-editor-digital-dirty">Unsaved</span>
           </div>
           <div class="profile-editor-status" id="profile-editor-digital-status"></div>
@@ -2731,6 +2733,7 @@
       profileEditorAnalogFreqs: document.getElementById('profile-editor-analog-freqs'),
       profileEditorAnalogValidate: document.getElementById('profile-editor-analog-validate'),
       profileEditorAnalogSave: document.getElementById('profile-editor-analog-save'),
+      profileEditorAnalogDelete: document.getElementById('profile-editor-analog-delete'),
       profileEditorAnalogDirty: document.getElementById('profile-editor-analog-dirty'),
       profileEditorAnalogStatus: document.getElementById('profile-editor-analog-status'),
       profileEditorDigitalProfile: document.getElementById('profile-editor-digital-profile'),
@@ -2739,6 +2742,7 @@
       profileEditorDigitalTalkgroups: document.getElementById('profile-editor-digital-talkgroups'),
       profileEditorDigitalValidate: document.getElementById('profile-editor-digital-validate'),
       profileEditorDigitalSave: document.getElementById('profile-editor-digital-save'),
+      profileEditorDigitalDelete: document.getElementById('profile-editor-digital-delete'),
       profileEditorDigitalDirty: document.getElementById('profile-editor-digital-dirty'),
       profileEditorDigitalStatus: document.getElementById('profile-editor-digital-status'),
       btnReconnect: null,
@@ -3369,6 +3373,86 @@
         return;
       }
       createProfileEditorAnalog();
+    }
+
+    async function deleteProfileEditorAnalog() {
+      const target = (els.profileEditorAnalogTarget?.value || state.profileEditor?.analog?.target || 'airband') === 'ground'
+        ? 'ground'
+        : 'airband';
+      const profileId = String(els.profileEditorAnalogProfile?.value || state.profileEditor?.analog?.profileId || '').trim();
+      if (!profileId) {
+        setProfileEditorStatus('analog', 'Select an analog profile first', true);
+        return;
+      }
+      if (!profileEditorConfirmDiscard('analog', `deleting ${profileId}`)) {
+        return;
+      }
+      if (!confirm(`Delete ${target} profile ${profileId}?`)) {
+        return;
+      }
+      setProfileEditorStatus('analog', `Deleting ${profileId}...`, false);
+      try {
+        await postAPI('/api/profile/delete', { id: profileId });
+        setProfileEditorDirty('analog', false);
+        await refresh();
+        state.profileEditor.analog.target = target;
+        refreshProfileEditorOptions();
+        const nextId = String(els.profileEditorAnalogProfile?.value || '').trim();
+        if (nextId) {
+          await loadProfileEditorAnalog();
+          setProfileEditorStatus('analog', `Deleted ${profileId} • loaded ${nextId}`, false);
+        } else {
+          if (els.profileEditorAnalogModulation) els.profileEditorAnalogModulation.value = 'am';
+          if (els.profileEditorAnalogBandwidth) els.profileEditorAnalogBandwidth.value = 12000;
+          if (els.profileEditorAnalogFreqs) els.profileEditorAnalogFreqs.value = '';
+          setProfileEditorStatus('analog', `Deleted ${profileId}`, false);
+        }
+        logActivity(`Deleted ${target} profile ${profileId}`, 'info', `profile-editor-delete-${target}-${profileId}`);
+      } catch (e) {
+        setProfileEditorStatus('analog', messageFromError(e, 'Delete failed'), true);
+      }
+    }
+
+    async function deleteProfileEditorDigital() {
+      const profileId = String(els.profileEditorDigitalProfile?.value || state.profileEditor?.digital?.profileId || '').trim();
+      if (!profileId) {
+        setProfileEditorStatus('digital', 'Select a digital profile first', true);
+        return;
+      }
+      if (!profileEditorConfirmDiscard('digital', `deleting ${profileId}`)) {
+        return;
+      }
+      if (!confirm(`Delete digital profile ${profileId}?`)) {
+        return;
+      }
+      setProfileEditorStatus('digital', `Deleting ${profileId}...`, false);
+      try {
+        await postAPI('/api/digital/profile/delete', { profileId });
+        setProfileEditorDirty('digital', false);
+        state.digitalListen.items = [];
+        state.digitalListen.profile = '';
+        state.digitalListen.dirty = false;
+        digitalListenLoaded = false;
+        renderDigitalListenList();
+        await refreshDigitalProfiles(true);
+        await refresh();
+        refreshProfileEditorOptions();
+        const nextId = String(els.profileEditorDigitalProfile?.value || '').trim();
+        if (nextId) {
+          await loadProfileEditorDigital();
+          await refreshDigitalListen(true);
+          setProfileEditorStatus('digital', `Deleted ${profileId} • loaded ${nextId}`, false);
+        } else {
+          if (els.profileEditorDigitalControls) els.profileEditorDigitalControls.value = '';
+          if (els.profileEditorDigitalSystems) els.profileEditorDigitalSystems.value = '';
+          if (els.profileEditorDigitalTalkgroups) els.profileEditorDigitalTalkgroups.value = '';
+          setProfileEditorStatus('digital', `Deleted ${profileId}`, false);
+          setDigitalListenStatus('Select a profile first', false);
+        }
+        logActivity(`Deleted digital profile ${profileId}`, 'info', `digital-profile-delete-${profileId}`);
+      } catch (e) {
+        setProfileEditorStatus('digital', messageFromError(e, 'Delete failed'), true);
+      }
     }
 
     function buildProxyStreamUrl(mountName, fallbackMount) {
@@ -6848,11 +6932,17 @@
       if (els.profileEditorAnalogSave) {
         els.profileEditorAnalogSave.addEventListener('click', saveProfileEditorAnalog);
       }
+      if (els.profileEditorAnalogDelete) {
+        els.profileEditorAnalogDelete.addEventListener('click', deleteProfileEditorAnalog);
+      }
       if (els.profileEditorDigitalValidate) {
         els.profileEditorDigitalValidate.addEventListener('click', validateProfileEditorDigital);
       }
       if (els.profileEditorDigitalSave) {
         els.profileEditorDigitalSave.addEventListener('click', saveProfileEditorDigital);
+      }
+      if (els.profileEditorDigitalDelete) {
+        els.profileEditorDigitalDelete.addEventListener('click', deleteProfileEditorDigital);
       }
       if (els.profileEditorAnalogModulation) {
         els.profileEditorAnalogModulation.addEventListener('input', () => setProfileEditorDirty('analog', true));
