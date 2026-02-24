@@ -3265,7 +3265,8 @@
       const now = Date.now();
       if ((now - tracker.recoverLastTs) < AUDIO_RECOVER_COOLDOWN_MS) return;
       tracker.recoverLastTs = now;
-      reloadFn(`auto-${reason}`);
+      const forcePlay = Boolean(wantsPlay || allowPaused);
+      reloadFn(`auto-${reason}`, forcePlay);
     }
 
     function checkAudioProgress(audioEl, reloadFn) {
@@ -3344,6 +3345,9 @@
       });
       audioEl.addEventListener('emptied', () => {
         maybeAutoRecoverAudio(audioEl, reloadFn, 'emptied', true);
+      });
+      audioEl.addEventListener('ended', () => {
+        maybeAutoRecoverAudio(audioEl, reloadFn, 'ended', true);
       });
     }
 
