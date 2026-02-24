@@ -4,6 +4,7 @@ import os
 import sys
 import time
 import threading
+import subprocess
 from datetime import datetime
 import queue
 import shutil
@@ -863,7 +864,7 @@ class Handler(BaseHTTPRequestHandler):
                 return ""
         return mount
 
-    def _proxy_icecast_mount(self, mount_name: str, head_only: bool = False):
+    def _proxy_icecast_mount(self, mount_name: str, head_only: bool = False, transcode: bool = False):
         mount = self._sanitize_mount_name(mount_name)
         if not mount:
             if head_only:
@@ -871,6 +872,62 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(400, "invalid mount", "text/plain; charset=utf-8")
         upstream = f"http://127.0.0.1:{ICECAST_PORT}/{mount}"
         headers_sent = False
+        if transcode and not head_only:
+            proc = None
+            try:
+                # Desktop browser compatibility path for low-rate analog streams.
+                # Re-encode to a widely-supported MP3 profile.
+                cmd = [
+                    "ffmpeg",
+                    "-nostdin",
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-i",
+                    upstream,
+                    "-vn",
+                    "-ac",
+                    "1",
+                    "-ar",
+                    "16000",
+                    "-c:a",
+                    "libmp3lame",
+                    "-b:a",
+                    "32k",
+                    "-f",
+                    "mp3",
+                    "pipe:1",
+                ]
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                )
+                self.send_response(200)
+                self.send_header("Content-Type", "audio/mpeg")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                headers_sent = True
+                if not proc.stdout:
+                    return
+                while True:
+                    chunk = proc.stdout.read(2048)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    self.wfile.flush()
+                return
+            except FileNotFoundError:
+                if headers_sent:
+                    return
+                return self._send(500, "ffmpeg not found", "text/plain; charset=utf-8")
+            except (BrokenPipeError, ConnectionResetError):
+                return
+            finally:
+                if proc and proc.poll() is None:
+                    proc.terminate()
         req = Request(
             upstream,
             headers={
@@ -932,16 +989,20 @@ class Handler(BaseHTTPRequestHandler):
         """Handle HEAD requests."""
         u = urlparse(self.path)
         p = u.path
+        q = parse_qs(u.query or "")
+        transcode = str((q.get("transcode") or ["0"])[0]).strip().lower() in ("1", "true", "yes", "on")
         if p == "/stream" or p == "/stream/":
-            return self._proxy_icecast_mount("", head_only=True)
+            return self._proxy_icecast_mount("", head_only=True, transcode=transcode)
         if p.startswith("/stream/"):
-            return self._proxy_icecast_mount(p[len("/stream/"):], head_only=True)
+            return self._proxy_icecast_mount(p[len("/stream/"):], head_only=True, transcode=transcode)
         return self._send_head(404)
 
     def do_GET(self):
         """Handle GET requests."""
         u = urlparse(self.path)
         p = u.path
+        q = parse_qs(u.query or "")
+        transcode = str((q.get("transcode") or ["0"])[0]).strip().lower() in ("1", "true", "yes", "on")
         if p == "/":
             return self._send_redirect("/sb3")
         
@@ -977,9 +1038,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(404, "Not found", "text/plain; charset=utf-8")
 
         if p == "/stream" or p == "/stream/":
-            return self._proxy_icecast_mount("")
+            return self._proxy_icecast_mount("", transcode=transcode)
         if p.startswith("/stream/"):
-            return self._proxy_icecast_mount(p[len("/stream/"):])
+            return self._proxy_icecast_mount(p[len("/stream/"):], transcode=transcode)
 
         if p == "/api/profile-editor/analog":
             q = parse_qs(u.query or "")
