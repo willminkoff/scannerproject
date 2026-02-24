@@ -3130,14 +3130,26 @@
       }
     }
 
+    function normalizeAudioUrl(url) {
+      try {
+        const parsed = new URL(String(url || ''), location.href);
+        return `${parsed.origin}${parsed.pathname}${parsed.search}`;
+      } catch (e) {
+        return String(url || '');
+      }
+    }
+
     function requestAudioPlay(audioEl, reasonKey = 'play') {
       if (!audioEl) return;
       ensureAudioAudible(audioEl);
       const playPromise = audioEl.play();
       if (playPromise && typeof playPromise.catch === 'function') {
         playPromise.catch((err) => {
-          const label = audioTargetLabel(audioEl);
           const msg = messageFromError(err, 'play blocked');
+          if (/interrupted by a new load request/i.test(msg)) {
+            return;
+          }
+          const label = audioTargetLabel(audioEl);
           logActivity(`${label} player ${msg}`, 'warn', `audio-play-failed-${label}-${reasonKey}`);
         });
       }
@@ -3145,15 +3157,16 @@
 
     function syncAudioSource(audioEl, base) {
       if (!audioEl) return;
-      const current = (audioEl.src || '').split('?')[0];
-      if (current !== base) {
+      const current = normalizeAudioUrl(audioEl.currentSrc || audioEl.src || '');
+      const next = normalizeAudioUrl(base);
+      if (current !== next) {
         const wasPaused = audioEl.paused;
         const wantsPlay = audioEl.dataset.wantplay === '1';
         const shouldPlay = wantsPlay || !wasPaused;
         if (shouldPlay) {
           audioEl.dataset.wantplay = '1';
         }
-        audioEl.src = base;
+        audioEl.src = next;
         audioEl.load();
         if (shouldPlay) {
           requestAudioPlay(audioEl, 'sync-source');
