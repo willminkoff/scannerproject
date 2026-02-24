@@ -3309,6 +3309,7 @@
       audioEl.dataset.autorecoverBound = '1';
       const targetLabel = audioEl === els.audioPlayerDigital ? 'Digital' : 'Analog';
       audioEl.addEventListener('play', () => {
+        ensureAudioAudible(audioEl);
         audioEl.dataset.wantplay = '1';
       });
       audioEl.addEventListener('pause', () => {
