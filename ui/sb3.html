@@ -785,11 +785,17 @@
     }
 
     .profile-sidecar-load {
-      margin-left: auto;
       text-transform: uppercase;
       letter-spacing: 0.08em;
       font-size: 11px;
       padding: 7px 12px;
+    }
+
+    .profile-sidecar-actions {
+      margin-left: auto;
+      display: flex;
+      gap: 8px;
+      align-items: center;
     }
 
     .profile-sidecar-body {
@@ -1990,7 +1996,10 @@
         <button class="profile-sidecar-tab active" id="profile-editor-tab-analog" type="button">Analog</button>
         <button class="profile-sidecar-tab" id="profile-editor-tab-digital" type="button">Digital</button>
       </div>
-      <button class="action profile-sidecar-load" id="profile-editor-load-active" type="button">Load</button>
+      <div class="profile-sidecar-actions">
+        <button class="action profile-sidecar-load" id="profile-editor-new-active" type="button">New</button>
+        <button class="action profile-sidecar-load" id="profile-editor-load-active" type="button">Load</button>
+      </div>
     </div>
     <div class="profile-sidecar-body">
       <section class="profile-sidecar-panel" id="profile-editor-panel-analog">
@@ -2461,6 +2470,7 @@
       profileSidecarClose: document.getElementById('profile-sidecar-close'),
       profileEditorTabAnalog: document.getElementById('profile-editor-tab-analog'),
       profileEditorTabDigital: document.getElementById('profile-editor-tab-digital'),
+      profileEditorNewActive: document.getElementById('profile-editor-new-active'),
       profileEditorLoadActive: document.getElementById('profile-editor-load-active'),
       profileEditorPanelAnalog: document.getElementById('profile-editor-panel-analog'),
       profileEditorPanelDigital: document.getElementById('profile-editor-panel-digital'),
@@ -2997,6 +3007,74 @@
         return;
       }
       loadProfileEditorAnalog();
+    }
+
+    async function createProfileEditorAnalog() {
+      const target = (els.profileEditorAnalogTarget?.value || state.profileEditor?.analog?.target || 'airband') === 'ground'
+        ? 'ground'
+        : 'airband';
+      const rawId = prompt(`New ${target} profile ID`, '');
+      if (rawId === null) return;
+      const profileId = sanitizeProfileId(rawId);
+      if (!profileId) {
+        setProfileEditorStatus('analog', 'Enter a valid profile ID', true);
+        return;
+      }
+      setProfileEditorStatus('analog', `Creating ${profileId}...`, false);
+      try {
+        await postAPI('/api/profile/create', {
+          id: profileId,
+          label: profileId,
+          airband: target === 'airband',
+        });
+        await refresh();
+        state.profileEditor.analog.target = target;
+        state.profileEditor.analog.profileId = profileId;
+        refreshProfileEditorOptions();
+        if (els.profileEditorAnalogTarget) els.profileEditorAnalogTarget.value = target;
+        if (els.profileEditorAnalogProfile) els.profileEditorAnalogProfile.value = profileId;
+        setProfileEditorDirty('analog', false);
+        await loadProfileEditorAnalog();
+        logActivity(`Created ${target} profile ${profileId}`, 'info', `profile-create-${target}-${profileId}`);
+      } catch (e) {
+        const msg = messageFromError(e, 'Create failed');
+        setProfileEditorStatus('analog', msg, true);
+      }
+    }
+
+    async function createProfileEditorDigital() {
+      const rawId = prompt('New digital profile ID', '');
+      if (rawId === null) return;
+      const profileId = sanitizeDigitalProfileId(rawId);
+      if (!profileId) {
+        setProfileEditorStatus('digital', 'Enter a valid profile ID', true);
+        return;
+      }
+      setProfileEditorStatus('digital', `Creating ${profileId}...`, false);
+      try {
+        await postAPI('/api/digital/profile/create', { profileId });
+        await refreshDigitalProfiles(true);
+        state.profileEditor.digital.profileId = profileId;
+        refreshProfileEditorOptions();
+        if (els.profileEditorDigitalProfile) els.profileEditorDigitalProfile.value = profileId;
+        setProfileEditorDirty('digital', false);
+        await loadProfileEditorDigital();
+        digitalListenLoaded = false;
+        await refreshDigitalListen(true);
+        logActivity(`Created digital profile ${profileId}`, 'info', `digital-profile-create-${profileId}`);
+      } catch (e) {
+        const msg = messageFromError(e, 'Create failed');
+        setProfileEditorStatus('digital', msg, true);
+      }
+    }
+
+    function createActiveProfileEditorTab() {
+      const tab = state.profileEditor?.tab === 'digital' ? 'digital' : 'analog';
+      if (tab === 'digital') {
+        createProfileEditorDigital();
+        return;
+      }
+      createProfileEditorAnalog();
     }
 
     function buildProxyStreamUrl(mountName, fallbackMount) {
@@ -6028,6 +6106,9 @@
       }
       if (els.profileEditorLoadActive) {
         els.profileEditorLoadActive.addEventListener('click', loadActiveProfileEditorTab);
+      }
+      if (els.profileEditorNewActive) {
+        els.profileEditorNewActive.addEventListener('click', createActiveProfileEditorTab);
       }
       if (els.profileEditorAnalogValidate) {
         els.profileEditorAnalogValidate.addEventListener('click', validateProfileEditorAnalog);
