@@ -751,10 +751,18 @@
 
     .profile-sidecar-tabs {
       display: flex;
+      align-items: center;
+      justify-content: space-between;
       gap: 8px;
       padding: 10px 14px;
       border-bottom: 1px solid var(--border);
       background: rgba(14, 18, 24, 0.72);
+    }
+
+    .profile-sidecar-tab-group {
+      display: flex;
+      gap: 8px;
+      min-width: 0;
     }
 
     .profile-sidecar-tab {
@@ -774,6 +782,14 @@
       border-color: var(--accent);
       color: var(--accent);
       box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.24) inset;
+    }
+
+    .profile-sidecar-load {
+      margin-left: auto;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 11px;
+      padding: 7px 12px;
     }
 
     .profile-sidecar-body {
@@ -1970,8 +1986,11 @@
       <button class="action" id="profile-sidecar-close" type="button">Close</button>
     </div>
     <div class="profile-sidecar-tabs">
-      <button class="profile-sidecar-tab active" id="profile-editor-tab-analog" type="button">Analog</button>
-      <button class="profile-sidecar-tab" id="profile-editor-tab-digital" type="button">Digital</button>
+      <div class="profile-sidecar-tab-group">
+        <button class="profile-sidecar-tab active" id="profile-editor-tab-analog" type="button">Analog</button>
+        <button class="profile-sidecar-tab" id="profile-editor-tab-digital" type="button">Digital</button>
+      </div>
+      <button class="action profile-sidecar-load" id="profile-editor-load-active" type="button">Load</button>
     </div>
     <div class="profile-sidecar-body">
       <section class="profile-sidecar-panel" id="profile-editor-panel-analog">
@@ -2008,7 +2027,6 @@
             <textarea id="profile-editor-analog-freqs" rows="10" spellcheck="false"></textarea>
           </label>
           <div class="profile-editor-actions">
-            <button class="action" id="profile-editor-analog-load" type="button">Load</button>
             <button class="action" id="profile-editor-analog-validate" type="button">Validate</button>
             <button class="action" id="profile-editor-analog-save" type="button">Save</button>
             <span class="profile-editor-pill hidden" id="profile-editor-analog-dirty">Unsaved</span>
@@ -2084,7 +2102,6 @@
             </div>
           </div>
           <div class="profile-editor-actions">
-            <button class="action" id="profile-editor-digital-load" type="button">Load</button>
             <button class="action" id="profile-editor-digital-validate" type="button">Validate</button>
             <button class="action" id="profile-editor-digital-save" type="button">Save</button>
             <span class="profile-editor-pill hidden" id="profile-editor-digital-dirty">Unsaved</span>
@@ -2444,6 +2461,7 @@
       profileSidecarClose: document.getElementById('profile-sidecar-close'),
       profileEditorTabAnalog: document.getElementById('profile-editor-tab-analog'),
       profileEditorTabDigital: document.getElementById('profile-editor-tab-digital'),
+      profileEditorLoadActive: document.getElementById('profile-editor-load-active'),
       profileEditorPanelAnalog: document.getElementById('profile-editor-panel-analog'),
       profileEditorPanelDigital: document.getElementById('profile-editor-panel-digital'),
       profileEditorAnalogTarget: document.getElementById('profile-editor-analog-target'),
@@ -2451,7 +2469,6 @@
       profileEditorAnalogModulation: document.getElementById('profile-editor-analog-modulation'),
       profileEditorAnalogBandwidth: document.getElementById('profile-editor-analog-bandwidth'),
       profileEditorAnalogFreqs: document.getElementById('profile-editor-analog-freqs'),
-      profileEditorAnalogLoad: document.getElementById('profile-editor-analog-load'),
       profileEditorAnalogValidate: document.getElementById('profile-editor-analog-validate'),
       profileEditorAnalogSave: document.getElementById('profile-editor-analog-save'),
       profileEditorAnalogDirty: document.getElementById('profile-editor-analog-dirty'),
@@ -2460,7 +2477,6 @@
       profileEditorDigitalControls: document.getElementById('profile-editor-digital-controls'),
       profileEditorDigitalSystems: document.getElementById('profile-editor-digital-systems'),
       profileEditorDigitalTalkgroups: document.getElementById('profile-editor-digital-talkgroups'),
-      profileEditorDigitalLoad: document.getElementById('profile-editor-digital-load'),
       profileEditorDigitalValidate: document.getElementById('profile-editor-digital-validate'),
       profileEditorDigitalSave: document.getElementById('profile-editor-digital-save'),
       profileEditorDigitalDirty: document.getElementById('profile-editor-digital-dirty'),
@@ -2972,6 +2988,15 @@
       } catch (e) {
         setProfileEditorStatus('digital', messageFromError(e, 'Validation failed'), true);
       }
+    }
+
+    function loadActiveProfileEditorTab() {
+      const tab = state.profileEditor?.tab === 'digital' ? 'digital' : 'analog';
+      if (tab === 'digital') {
+        loadProfileEditorDigital();
+        return;
+      }
+      loadProfileEditorAnalog();
     }
 
     function buildProxyStreamUrl(mountName, fallbackMount) {
@@ -6001,17 +6026,14 @@
           setProfileEditorStatus('digital', '', false);
         });
       }
-      if (els.profileEditorAnalogLoad) {
-        els.profileEditorAnalogLoad.addEventListener('click', loadProfileEditorAnalog);
+      if (els.profileEditorLoadActive) {
+        els.profileEditorLoadActive.addEventListener('click', loadActiveProfileEditorTab);
       }
       if (els.profileEditorAnalogValidate) {
         els.profileEditorAnalogValidate.addEventListener('click', validateProfileEditorAnalog);
       }
       if (els.profileEditorAnalogSave) {
         els.profileEditorAnalogSave.addEventListener('click', saveProfileEditorAnalog);
-      }
-      if (els.profileEditorDigitalLoad) {
-        els.profileEditorDigitalLoad.addEventListener('click', loadProfileEditorDigital);
       }
       if (els.profileEditorDigitalValidate) {
         els.profileEditorDigitalValidate.addEventListener('click', validateProfileEditorDigital);
