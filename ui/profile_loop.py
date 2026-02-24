@@ -461,7 +461,7 @@ class ProfileLoopManager:
                 pass
             return True, ""
         try:
-            ok, err = get_digital_manager().setProfile(pid)
+            ok, err = get_digital_manager().setProfile(pid, restart_service=False)
         except Exception as e:
             return False, str(e)
         if not ok:

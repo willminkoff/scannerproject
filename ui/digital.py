@@ -1456,7 +1456,7 @@ class DigitalAdapter:
     def getProfile(self):
         raise NotImplementedError
 
-    def setProfile(self, profileId: str):
+    def setProfile(self, profileId: str, *, restart_service: bool = True):
         raise NotImplementedError
 
     def getLastEvent(self):
@@ -1586,7 +1586,7 @@ class NullDigitalAdapter(_BaseDigitalAdapter):
     def getProfile(self):
         return ""
 
-    def setProfile(self, profileId: str):
+    def setProfile(self, profileId: str, *, restart_service: bool = True):
         return False, self._reason
 
     def getRecentEvents(self, limit: int = 20):
@@ -2699,7 +2699,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             self._profile = current
         return self._profile
 
-    def setProfile(self, profileId: str):
+    def setProfile(self, profileId: str, *, restart_service: bool = True):
         pid = _normalize_name(profileId)
         if not validate_digital_profile_id(pid):
             self._set_last_error("invalid profileId")
@@ -2766,9 +2766,10 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         self._event_log_headers = {}
 
         self._profile = pid
-        ok, err = self.restart()
-        if not ok:
-            return False, err or "restart failed"
+        if restart_service:
+            ok, err = self.restart()
+            if not ok:
+                return False, err or "restart failed"
         self._clear_error()
         return True, ""
 
@@ -2882,8 +2883,8 @@ class DigitalManager:
     def getProfile(self):
         return self._adapter.getProfile()
 
-    def setProfile(self, profileId: str):
-        ok, err = self._adapter.setProfile(profileId)
+    def setProfile(self, profileId: str, *, restart_service: bool = True):
+        ok, err = self._adapter.setProfile(profileId, restart_service=restart_service)
         if ok:
             with self._scheduler_lock:
                 local_systems = self._discover_profile_local_systems(str(profileId or "").strip())
