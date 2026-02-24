@@ -796,6 +796,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send_head(400)
             return self._send(400, "invalid mount", "text/plain; charset=utf-8")
         upstream = f"http://127.0.0.1:{ICECAST_PORT}/{mount}"
+        headers_sent = False
         req = Request(
             upstream,
             headers={
@@ -824,6 +825,7 @@ class Handler(BaseHTTPRequestHandler):
                     if value:
                         self.send_header(header, value)
                 self.end_headers()
+                headers_sent = True
                 if head_only:
                     return
                 while True:
@@ -834,10 +836,14 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.flush()
         except HTTPError as e:
             status = int(e.code or 502)
+            if headers_sent:
+                return
             if head_only:
                 return self._send_head(status)
             return self._send(status, f"upstream error: {e.reason}", "text/plain; charset=utf-8")
         except (URLError, TimeoutError) as e:
+            if headers_sent:
+                return
             if head_only:
                 return self._send_head(502)
             return self._send(502, f"upstream unavailable: {e}", "text/plain; charset=utf-8")

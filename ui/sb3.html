@@ -3174,6 +3174,22 @@
         markAudioProgress(audioEl);
       });
       audioEl.addEventListener('timeupdate', () => markAudioProgress(audioEl));
+      audioEl.addEventListener('waiting', () => {
+        clearAudioWaitingTimer(audioEl);
+        tracker.waitingTimer = setTimeout(() => {
+          tracker.waitingTimer = null;
+          maybeAutoRecoverAudio(audioEl, reloadFn, 'waiting', true);
+        }, AUDIO_WAITING_GRACE_MS);
+      });
+      audioEl.addEventListener('stalled', () => {
+        maybeAutoRecoverAudio(audioEl, reloadFn, 'stalled', true);
+      });
+      audioEl.addEventListener('error', () => {
+        maybeAutoRecoverAudio(audioEl, reloadFn, 'error', true);
+      });
+      audioEl.addEventListener('emptied', () => {
+        maybeAutoRecoverAudio(audioEl, reloadFn, 'emptied', true);
+      });
     }
 
     function setupAudioAutoRecover() {
