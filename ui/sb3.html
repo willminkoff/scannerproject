@@ -3104,10 +3104,9 @@
     }
 
     function analogStreamUrl() {
-      if (shouldPreferDirectIcecastStream()) {
-        return buildIcecastUrl(state.streamMount, 'ANALOG.mp3');
-      }
-      return `${buildProxyStreamUrl(state.streamMount, 'ANALOG.mp3')}?transcode=1`;
+      // Analog embedded playback is most reliable when we hit Icecast directly,
+      // matching the path used by external VLC playback.
+      return buildIcecastUrl(state.streamMount, 'ANALOG.mp3');
     }
 
     function digitalStreamUrl() {
