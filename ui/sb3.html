@@ -2989,11 +2989,29 @@
       return `http://${location.hostname}:${port}/${mount}`;
     }
 
+    function isLikelyIOSClient() {
+      const ua = String(navigator.userAgent || '');
+      if (/iPad|iPhone|iPod/i.test(ua)) return true;
+      return /Macintosh/i.test(ua) && (Number(navigator.maxTouchPoints || 0) > 1);
+    }
+
+    function shouldPreferDirectIcecastStream() {
+      if (!state.streamProxyEnabled) return true;
+      if (location.protocol !== 'http:') return false;
+      return isLikelyIOSClient();
+    }
+
     function analogStreamUrl() {
+      if (shouldPreferDirectIcecastStream()) {
+        return buildIcecastUrl(state.streamMount, 'ANALOG.mp3');
+      }
       return buildProxyStreamUrl(state.streamMount, 'ANALOG.mp3');
     }
 
     function digitalStreamUrl() {
+      if (shouldPreferDirectIcecastStream()) {
+        return buildIcecastUrl(state.digitalStreamMount, 'DIGITAL.mp3');
+      }
       return buildProxyStreamUrl(state.digitalStreamMount, 'DIGITAL.mp3');
     }
 
@@ -3019,10 +3037,10 @@
       const analogBase = analogStreamUrl();
       const digitalBase = digitalStreamUrl();
       if (els.lnkStreamAnalog) {
-        els.lnkStreamAnalog.href = buildProxyStreamUrl(state.streamMount, 'ANALOG.mp3');
+        els.lnkStreamAnalog.href = analogBase;
       }
       if (els.lnkStreamDigital) {
-        els.lnkStreamDigital.href = buildProxyStreamUrl(state.digitalStreamMount, 'DIGITAL.mp3');
+        els.lnkStreamDigital.href = digitalBase;
       }
       syncAudioSource(els.audioPlayerAnalog, analogBase);
       syncAudioSource(els.audioPlayerDigital, digitalBase);
@@ -3159,6 +3177,7 @@
       if (!tracker) return;
       if (audioEl.dataset.autorecoverBound === '1') return;
       audioEl.dataset.autorecoverBound = '1';
+      const targetLabel = audioEl === els.audioPlayerDigital ? 'Digital' : 'Analog';
       audioEl.addEventListener('play', () => {
         audioEl.dataset.wantplay = '1';
       });
@@ -3185,6 +3204,11 @@
         maybeAutoRecoverAudio(audioEl, reloadFn, 'stalled', true);
       });
       audioEl.addEventListener('error', () => {
+        const code = Number(audioEl.error && audioEl.error.code);
+        const codeLabel = Number.isFinite(code) && code > 0 ? String(code) : 'unknown';
+        const src = (audioEl.currentSrc || audioEl.src || '').split('?')[0];
+        const suffix = src ? ` (${src})` : '';
+        logActivity(`${targetLabel} player media error code ${codeLabel}${suffix}`, 'warn', `audio-error-${targetLabel}-${codeLabel}`);
         maybeAutoRecoverAudio(audioEl, reloadFn, 'error', true);
       });
       audioEl.addEventListener('emptied', () => {
