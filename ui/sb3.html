@@ -3107,7 +3107,9 @@
     }
 
     function analogStreamUrl() {
-      if (shouldPreferDirectIcecastStream()) {
+      // Analog mount can be intermittent behind the proxy on desktop browsers.
+      // Prefer direct Icecast on plain HTTP clients.
+      if (!state.streamProxyEnabled || location.protocol === 'http:') {
         return buildIcecastUrl(state.streamMount, 'ANALOG.mp3');
       }
       return buildProxyStreamUrl(state.streamMount, 'ANALOG.mp3');
