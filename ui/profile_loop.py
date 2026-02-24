@@ -82,6 +82,17 @@ _MOUNT_WAIT_POLL_SEC = 1.0
 _MOUNT_CACHE_TTL_SEC = 0.75
 _MOUNT_FAILURE_GRACE_SEC = 5.0
 _MOUNT_STATUS_TIMEOUT_SEC = 1.25
+_DIGITAL_LOCK_TIMEOUT_MS = max(
+    1_000,
+    int(os.getenv("PROFILE_LOOP_DIGITAL_LOCK_TIMEOUT_MS", "2500")),
+)
+_DIGITAL_LOCK_CACHE_TTL_SEC = min(
+    5.0,
+    max(
+        0.25,
+        float(os.getenv("PROFILE_LOOP_DIGITAL_LOCK_CACHE_TTL_SEC", "0.9")),
+    ),
+)
 
 
 def _load_json(path: str) -> dict:
@@ -166,6 +177,9 @@ class ProfileLoopManager:
         self._mount_cache_ts = 0.0
         self._mount_success_ts = 0.0
         self._mount_cache: set[str] = set()
+        self._digital_lock_cache_ts = 0.0
+        self._digital_lock_metric_ready = False
+        self._digital_lock_control_locked = False
         self._load_state()
         self._tick()
         self._thread = threading.Thread(
@@ -425,6 +439,28 @@ class ProfileLoopManager:
             time.sleep(_MOUNT_WAIT_POLL_SEC)
         return False
 
+    def _digital_control_lock_state(self, *, force_refresh: bool = False) -> tuple[bool, bool]:
+        now = time.monotonic()
+        if (
+            not force_refresh
+            and self._digital_lock_cache_ts > 0
+            and (now - float(self._digital_lock_cache_ts)) <= _DIGITAL_LOCK_CACHE_TTL_SEC
+        ):
+            return bool(self._digital_lock_metric_ready), bool(self._digital_lock_control_locked)
+        metric_ready = False
+        control_locked = False
+        try:
+            preflight = get_digital_manager().preflight() or {}
+            metric_ready = bool(preflight.get("control_decode_available"))
+            control_locked = bool(preflight.get("control_channel_locked"))
+        except Exception:
+            metric_ready = False
+            control_locked = False
+        self._digital_lock_cache_ts = now
+        self._digital_lock_metric_ready = metric_ready
+        self._digital_lock_control_locked = control_locked
+        return metric_ready, control_locked
+
     @staticmethod
     def _gate_reason_text(gate_payload: Any) -> str:
         if not isinstance(gate_payload, dict):
@@ -510,6 +546,10 @@ class ProfileLoopManager:
             return False, str(e)
         if not ok:
             return False, str(err or "digital profile switch failed")
+        # Force fresh lock metrics for the new profile on the next scheduler tick.
+        self._digital_lock_cache_ts = 0.0
+        self._digital_lock_metric_ready = False
+        self._digital_lock_control_locked = False
         if not self._wait_for_mount_after_switch(target):
             return False, f"mount did not recover after switch: {self._expected_mount_for_target(target)}"
         try:
@@ -776,6 +816,19 @@ class ProfileLoopManager:
         if current_profile != active_profile and current_profile not in selected:
             return active_profile, "align"
 
+        elapsed = now_ms - int(state.get("last_switch_time_ms") or 0)
+        if elapsed < 0:
+            elapsed = 0
+        metric_ready, control_locked = self._digital_control_lock_state()
+        if metric_ready and not control_locked:
+            if elapsed < int(_DIGITAL_LOCK_TIMEOUT_MS):
+                state["in_hit_hold"] = False
+                state["switch_reason"] = "acquiring_lock"
+                return None
+            next_profile = self._next_profile(selected, active_profile)
+            if next_profile and next_profile != active_profile:
+                return next_profile, "lock_timeout"
+
         if state.get("pause_on_hit") and state["recent_hit"]:
             state["in_hit_hold"] = True
             state["switch_reason"] = "hit_hold"
@@ -783,7 +836,6 @@ class ProfileLoopManager:
         if state.get("in_hit_hold") and not state["recent_hit"]:
             state["in_hit_hold"] = False
 
-        elapsed = now_ms - int(state.get("last_switch_time_ms") or 0)
         if elapsed < int(state.get("dwell_ms") or _DEFAULT_DWELL_MS[target]):
             return None
         next_profile = self._next_profile(selected, active_profile)
