@@ -3100,27 +3100,21 @@
 
     function shouldPreferDirectIcecastStream() {
       if (!state.streamProxyEnabled) return true;
-      if (location.protocol !== 'http:') return false;
-      // iOS Safari is more reliable against direct Icecast than proxied streams.
-      // Desktop browsers should stay on the UI proxy path.
-      return isLikelyIOSClient();
+      return false;
     }
 
     function analogStreamUrl() {
       if (shouldPreferDirectIcecastStream()) {
         return buildIcecastUrl(state.streamMount, 'ANALOG.mp3');
       }
-      if (location.protocol === 'http:') {
-        return `${buildProxyStreamUrl(state.streamMount, 'ANALOG.mp3')}?transcode=1`;
-      }
-      return buildProxyStreamUrl(state.streamMount, 'ANALOG.mp3');
+      return `${buildProxyStreamUrl(state.streamMount, 'ANALOG.mp3')}?transcode=1`;
     }
 
     function digitalStreamUrl() {
       if (shouldPreferDirectIcecastStream()) {
         return buildIcecastUrl(state.digitalStreamMount, 'DIGITAL.mp3');
       }
-      return buildProxyStreamUrl(state.digitalStreamMount, 'DIGITAL.mp3');
+      return `${buildProxyStreamUrl(state.digitalStreamMount, 'DIGITAL.mp3')}?transcode=1`;
     }
 
     function audioTargetLabel(audioEl) {
