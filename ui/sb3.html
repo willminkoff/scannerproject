@@ -2264,10 +2264,10 @@
           <div class="loop-checklist" id="loop-list"></div>
           <div class="loop-controls">
             <label>Dwell (s)
-              <input id="loop-dwell" type="number" min="5" max="1800" step="1" value="45">
+              <input id="loop-dwell" type="number" min="1" max="1800" step="1" value="45">
             </label>
             <label>Hang (s)
-              <input id="loop-hang" type="number" min="0" max="600" step="1" value="12">
+              <input id="loop-hang" type="number" min="1" max="600" step="1" value="12">
             </label>
             <label class="loop-checkbox-label">
               <input id="loop-pause" type="checkbox" checked>
@@ -2293,10 +2293,10 @@
           <div class="loop-checklist" id="digital-loop-list"></div>
           <div class="loop-controls">
             <label>Dwell (s)
-              <input id="digital-loop-dwell" type="number" min="5" max="1800" step="1" value="30">
+              <input id="digital-loop-dwell" type="number" min="1" max="1800" step="1" value="30">
             </label>
             <label>Hang (s)
-              <input id="digital-loop-hang" type="number" min="0" max="600" step="1" value="8">
+              <input id="digital-loop-hang" type="number" min="1" max="600" step="1" value="8">
             </label>
             <label class="loop-checkbox-label">
               <input id="digital-loop-pause" type="checkbox" checked>
@@ -4322,10 +4322,10 @@
         els.loopDetail.textContent = parts.join(' • ') || '--';
       }
       if (els.loopDwell && document.activeElement !== els.loopDwell) {
-        els.loopDwell.value = Math.max(5, Math.round(Number(loopState.dwellMs || 45000) / 1000));
+        els.loopDwell.value = Math.max(1, Math.round(Number(loopState.dwellMs || 45000) / 1000));
       }
       if (els.loopHang && document.activeElement !== els.loopHang) {
-        els.loopHang.value = Math.max(0, Math.round(Number(loopState.hangMs || 12000) / 1000));
+        els.loopHang.value = Math.max(1, Math.round(Number(loopState.hangMs || 12000) / 1000));
       }
       if (els.loopPause) {
         els.loopPause.checked = Boolean(loopState.pauseOnHit);
@@ -4380,10 +4380,10 @@
         els.digitalLoopDetail.textContent = parts.join(' • ') || '--';
       }
       if (els.digitalLoopDwell && document.activeElement !== els.digitalLoopDwell) {
-        els.digitalLoopDwell.value = Math.max(5, Math.round(Number(loopState.dwellMs || 30000) / 1000));
+        els.digitalLoopDwell.value = Math.max(1, Math.round(Number(loopState.dwellMs || 30000) / 1000));
       }
       if (els.digitalLoopHang && document.activeElement !== els.digitalLoopHang) {
-        els.digitalLoopHang.value = Math.max(0, Math.round(Number(loopState.hangMs || 8000) / 1000));
+        els.digitalLoopHang.value = Math.max(1, Math.round(Number(loopState.hangMs || 8000) / 1000));
       }
       if (els.digitalLoopPause) {
         els.digitalLoopPause.checked = Boolean(loopState.pauseOnHit);

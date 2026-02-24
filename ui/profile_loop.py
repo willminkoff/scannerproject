@@ -52,9 +52,9 @@ except ImportError:
 
 
 _TARGETS = ("airband", "ground", "digital")
-_MIN_DWELL_MS = 5_000
+_MIN_DWELL_MS = 1_000
 _MAX_DWELL_MS = 1_800_000
-_MIN_HANG_MS = 0
+_MIN_HANG_MS = 1_000
 _MAX_HANG_MS = 600_000
 _MAX_SELECTED = 128
 _DEFAULT_DWELL_MS = {
