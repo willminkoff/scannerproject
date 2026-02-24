@@ -813,7 +813,9 @@ class Handler(BaseHTTPRequestHandler):
             method="GET",
         )
         try:
-            with urlopen(req, timeout=10) as upstream_resp:
+            # Use a generous timeout for long-lived audio streams; short read
+            # timeouts can terminate otherwise healthy low/idle bitrate mounts.
+            with urlopen(req, timeout=60) as upstream_resp:
                 self.send_response(200)
                 self.send_header("Content-Type", upstream_resp.headers.get("Content-Type") or "audio/mpeg")
                 self.send_header("Cache-Control", "no-store")

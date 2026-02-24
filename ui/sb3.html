@@ -3265,7 +3265,7 @@
       const now = Date.now();
       if ((now - tracker.recoverLastTs) < AUDIO_RECOVER_COOLDOWN_MS) return;
       tracker.recoverLastTs = now;
-      const forcePlay = Boolean(wantsPlay || allowPaused);
+      const forcePlay = Boolean(wantsPlay);
       reloadFn(`auto-${reason}`, forcePlay);
     }
 
