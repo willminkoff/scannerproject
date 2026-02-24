@@ -96,6 +96,8 @@ try:
         get_digital_editor_payload,
         save_analog_editor_payload,
         save_digital_editor_payload,
+        validate_analog_editor_payload,
+        validate_digital_editor_payload,
     )
     from .v3_preflight import (
         evaluate_analog_preflight,
@@ -167,6 +169,8 @@ except ImportError:
         get_digital_editor_payload,
         save_analog_editor_payload,
         save_digital_editor_payload,
+        validate_analog_editor_payload,
+        validate_digital_editor_payload,
     )
     from ui.v3_preflight import (
         evaluate_analog_preflight,
@@ -792,6 +796,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send_head(400)
             return self._send(400, "invalid mount", "text/plain; charset=utf-8")
         upstream = f"http://127.0.0.1:{ICECAST_PORT}/{mount}"
+        headers_sent = False
         req = Request(
             upstream,
             headers={
@@ -820,6 +825,7 @@ class Handler(BaseHTTPRequestHandler):
                     if value:
                         self.send_header(header, value)
                 self.end_headers()
+                headers_sent = True
                 if head_only:
                     return
                 while True:
@@ -830,10 +836,14 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.flush()
         except HTTPError as e:
             status = int(e.code or 502)
+            if headers_sent:
+                return
             if head_only:
                 return self._send_head(status)
             return self._send(status, f"upstream error: {e.reason}", "text/plain; charset=utf-8")
         except (URLError, TimeoutError) as e:
+            if headers_sent:
+                return
             if head_only:
                 return self._send_head(502)
             return self._send(502, f"upstream unavailable: {e}", "text/plain; charset=utf-8")
@@ -1427,6 +1437,61 @@ class Handler(BaseHTTPRequestHandler):
             if v is None:
                 return default
             return str(v)
+
+        if p == "/api/profile-editor/analog/validate":
+            profile_id = get_str("id").strip()
+            target = get_str("target", "airband").strip().lower() or "airband"
+            freqs_text = get_str("freqs_text").strip()
+            modulation = get_str("modulation", "am").strip().lower() or "am"
+            bandwidth_raw = get_str("bandwidth", "12000").strip()
+            if not freqs_text:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "missing freqs_text"}),
+                    "application/json; charset=utf-8",
+                )
+            try:
+                bandwidth = int(round(float(bandwidth_raw)))
+            except Exception:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "invalid bandwidth"}),
+                    "application/json; charset=utf-8",
+                )
+
+            ok, err, payload = validate_analog_editor_payload(
+                profile_id=profile_id,
+                target=target,
+                freqs_text=freqs_text,
+                modulation=modulation,
+                bandwidth=bandwidth,
+            )
+            if not ok:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": err}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/profile-editor/digital/validate":
+            profile_id = get_str("profileId").strip()
+            control_channels_text = get_str("control_channels_text").strip()
+            talkgroups_text = get_str("talkgroups_text")
+            systems_json_text = get_str("systems_json_text")
+            ok, err, payload = validate_digital_editor_payload(
+                profile_id=profile_id,
+                control_channels_text=control_channels_text,
+                talkgroups_text=talkgroups_text,
+                systems_json_text=systems_json_text,
+            )
+            if not ok:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": err}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/profile-editor/analog/save":
             profile_id = get_str("id").strip()

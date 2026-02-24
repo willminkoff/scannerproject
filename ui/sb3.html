@@ -835,6 +835,18 @@
       align-items: center;
     }
 
+    .profile-editor-pill {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid rgba(245, 158, 11, 0.45);
+      border-radius: 999px;
+      color: #f59e0b;
+      font-size: 10px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      padding: 3px 7px;
+    }
+
     .profile-editor-status {
       font-size: 12px;
       min-height: 18px;
@@ -1997,7 +2009,9 @@
           </label>
           <div class="profile-editor-actions">
             <button class="action" id="profile-editor-analog-load" type="button">Load</button>
+            <button class="action" id="profile-editor-analog-validate" type="button">Validate</button>
             <button class="action" id="profile-editor-analog-save" type="button">Save</button>
+            <span class="profile-editor-pill hidden" id="profile-editor-analog-dirty">Unsaved</span>
           </div>
           <div class="profile-editor-status" id="profile-editor-analog-status"></div>
         </div>
@@ -2071,7 +2085,9 @@
           </div>
           <div class="profile-editor-actions">
             <button class="action" id="profile-editor-digital-load" type="button">Load</button>
+            <button class="action" id="profile-editor-digital-validate" type="button">Validate</button>
             <button class="action" id="profile-editor-digital-save" type="button">Save</button>
+            <span class="profile-editor-pill hidden" id="profile-editor-digital-dirty">Unsaved</span>
           </div>
           <div class="profile-editor-status" id="profile-editor-digital-status"></div>
         </div>
@@ -2244,9 +2260,11 @@
         analog: {
           target: 'airband',
           profileId: '',
+          dirty: false,
         },
         digital: {
           profileId: '',
+          dirty: false,
         },
       },
     };
@@ -2434,14 +2452,18 @@
       profileEditorAnalogBandwidth: document.getElementById('profile-editor-analog-bandwidth'),
       profileEditorAnalogFreqs: document.getElementById('profile-editor-analog-freqs'),
       profileEditorAnalogLoad: document.getElementById('profile-editor-analog-load'),
+      profileEditorAnalogValidate: document.getElementById('profile-editor-analog-validate'),
       profileEditorAnalogSave: document.getElementById('profile-editor-analog-save'),
+      profileEditorAnalogDirty: document.getElementById('profile-editor-analog-dirty'),
       profileEditorAnalogStatus: document.getElementById('profile-editor-analog-status'),
       profileEditorDigitalProfile: document.getElementById('profile-editor-digital-profile'),
       profileEditorDigitalControls: document.getElementById('profile-editor-digital-controls'),
       profileEditorDigitalSystems: document.getElementById('profile-editor-digital-systems'),
       profileEditorDigitalTalkgroups: document.getElementById('profile-editor-digital-talkgroups'),
       profileEditorDigitalLoad: document.getElementById('profile-editor-digital-load'),
+      profileEditorDigitalValidate: document.getElementById('profile-editor-digital-validate'),
       profileEditorDigitalSave: document.getElementById('profile-editor-digital-save'),
+      profileEditorDigitalDirty: document.getElementById('profile-editor-digital-dirty'),
       profileEditorDigitalStatus: document.getElementById('profile-editor-digital-status'),
       btnReconnect: null,
     };
@@ -2579,8 +2601,46 @@
       el.style.color = isError ? '#f59e0b' : '';
     }
 
+    function setProfileEditorDirty(kind, dirty = true) {
+      const token = kind === 'digital' ? 'digital' : 'analog';
+      if (!state.profileEditor || !state.profileEditor[token]) return;
+      state.profileEditor[token].dirty = Boolean(dirty);
+      const badge = token === 'digital' ? els.profileEditorDigitalDirty : els.profileEditorAnalogDirty;
+      if (badge) {
+        const show = token === 'digital'
+          ? Boolean(state.profileEditor[token].dirty || (state.digitalListen && state.digitalListen.dirty))
+          : Boolean(state.profileEditor[token].dirty);
+        badge.classList.toggle('hidden', !show);
+      }
+    }
+
+    function profileEditorHasUnsaved(kind) {
+      const token = kind === 'digital' ? 'digital' : 'analog';
+      if (token === 'digital') {
+        return Boolean(
+          (state.profileEditor?.digital?.dirty)
+          || (state.digitalListen && state.digitalListen.dirty)
+        );
+      }
+      return Boolean(state.profileEditor?.analog?.dirty);
+    }
+
+    function profileEditorAnyUnsaved() {
+      return profileEditorHasUnsaved('analog') || profileEditorHasUnsaved('digital');
+    }
+
+    function profileEditorConfirmDiscard(kind, actionLabel) {
+      if (!profileEditorHasUnsaved(kind)) return true;
+      const area = kind === 'digital' ? 'digital' : 'analog';
+      return confirm(`Discard unsaved ${area} profile editor changes before ${actionLabel}?`);
+    }
+
     function setProfileEditorTab(tab) {
       const next = tab === 'digital' ? 'digital' : 'analog';
+      const previous = state.profileEditor.tab === 'digital' ? 'digital' : 'analog';
+      if (next !== previous && !profileEditorConfirmDiscard(previous, `switching to ${next}`)) {
+        return false;
+      }
       state.profileEditor.tab = next;
       if (els.profileEditorTabAnalog) els.profileEditorTabAnalog.classList.toggle('active', next === 'analog');
       if (els.profileEditorTabDigital) els.profileEditorTabDigital.classList.toggle('active', next === 'digital');
@@ -2590,13 +2650,15 @@
         refreshDigitalProfiles();
         refreshDigitalListen();
       }
+      return true;
     }
 
     function openProfileEditorSidecar(tab = null) {
-      state.profileEditor.open = true;
       if (tab) {
-        setProfileEditorTab(tab);
+        const changed = setProfileEditorTab(tab);
+        if (!changed) return;
       }
+      state.profileEditor.open = true;
       if (els.profileSidecar) {
         els.profileSidecar.classList.add('open');
         els.profileSidecar.setAttribute('aria-hidden', 'false');
@@ -2612,6 +2674,9 @@
     }
 
     function closeProfileEditorSidecar() {
+      if (profileEditorAnyUnsaved() && !confirm('You have unsaved Profile Editor changes. Close anyway?')) {
+        return;
+      }
       state.profileEditor.open = false;
       if (els.profileSidecar) {
         els.profileSidecar.classList.remove('open');
@@ -2674,6 +2739,9 @@
         setProfileEditorStatus('analog', 'Select an analog profile first', true);
         return;
       }
+      if (!profileEditorConfirmDiscard('analog', `loading ${profileId}`)) {
+        return;
+      }
       setProfileEditorStatus('analog', 'Loading...', false);
       try {
         const data = await fetchJSON(
@@ -2694,6 +2762,7 @@
         }
         state.profileEditor.analog.profileId = profileId;
         state.profileEditor.analog.target = target;
+        setProfileEditorDirty('analog', false);
         setProfileEditorStatus('analog', `Loaded ${profileId}`, false);
       } catch (e) {
         setProfileEditorStatus('analog', 'Load failed', true);
@@ -2729,6 +2798,7 @@
         }
         const parts = ['Saved'];
         if (res.scanner_restarted) parts.push('scanner restarted');
+        setProfileEditorDirty('analog', false);
         setProfileEditorStatus('analog', parts.join(' • '), false);
         await refresh();
       } catch (e) {
@@ -2736,10 +2806,54 @@
       }
     }
 
+    async function validateProfileEditorAnalog() {
+      const target = (els.profileEditorAnalogTarget?.value || 'airband') === 'ground' ? 'ground' : 'airband';
+      const profileId = els.profileEditorAnalogProfile?.value || '';
+      const modulation = (els.profileEditorAnalogModulation?.value || '').trim().toLowerCase();
+      const bandwidth = Number(els.profileEditorAnalogBandwidth?.value || 0);
+      const freqs_text = String(els.profileEditorAnalogFreqs?.value || '').trim();
+      if (!profileId) {
+        setProfileEditorStatus('analog', 'Select an analog profile first', true);
+        return;
+      }
+      if (!freqs_text) {
+        setProfileEditorStatus('analog', 'Frequency list is required', true);
+        return;
+      }
+      setProfileEditorStatus('analog', 'Validating...', false);
+      try {
+        const res = await postJSON('/api/profile-editor/analog/validate', {
+          id: profileId,
+          target,
+          modulation,
+          bandwidth,
+          freqs_text,
+        });
+        if (!res || res.ok === false) {
+          setProfileEditorStatus('analog', (res && res.error) || 'Validation failed', true);
+          return;
+        }
+        const bits = [
+          `Valid`,
+          `${res.frequency_count || 0} freqs`,
+          `${res.label_count || 0} labels`,
+        ];
+        if (Array.isArray(res.warnings) && res.warnings.length) {
+          bits.push(`warn: ${res.warnings.join('; ')}`);
+        }
+        setProfileEditorStatus('analog', bits.join(' • '), false);
+      } catch (e) {
+        setProfileEditorStatus('analog', messageFromError(e, 'Validation failed'), true);
+      }
+    }
+
     async function loadProfileEditorDigital() {
       const profileId = els.profileEditorDigitalProfile?.value || '';
       if (!profileId) {
         setProfileEditorStatus('digital', 'Select a digital profile first', true);
+        return;
+      }
+      if (!profileEditorConfirmDiscard('digital', `loading ${profileId}`)) {
         return;
       }
       setProfileEditorStatus('digital', 'Loading...', false);
@@ -2759,6 +2873,7 @@
           els.profileEditorDigitalTalkgroups.value = data.talkgroups_text || '';
         }
         state.profileEditor.digital.profileId = profileId;
+        setProfileEditorDirty('digital', false);
         const systemCount = Number.isFinite(data.systems_count) ? data.systems_count : 0;
         const summary = systemCount > 0
           ? `Loaded ${profileId} (${data.talkgroups_count || 0} TGs, ${systemCount} systems)`
@@ -2802,12 +2917,60 @@
         const bits = ['Saved'];
         if (res.runtime_applied) bits.push('runtime reloaded');
         if (res.runtime_error) bits.push(`runtime: ${res.runtime_error}`);
+        setProfileEditorDirty('digital', false);
         setProfileEditorStatus('digital', bits.join(' • '), Boolean(res.runtime_error));
         digitalListenLoaded = false;
         await refreshDigitalListen(true);
         await refresh();
       } catch (e) {
         setProfileEditorStatus('digital', 'Save failed', true);
+      }
+    }
+
+    async function validateProfileEditorDigital() {
+      const profileId = els.profileEditorDigitalProfile?.value || '';
+      const control_channels_text = String(els.profileEditorDigitalControls?.value || '').trim();
+      const systems_json_text = String(els.profileEditorDigitalSystems?.value || '').trim();
+      const talkgroups_text = String(els.profileEditorDigitalTalkgroups?.value || '').trim();
+      if (!profileId) {
+        setProfileEditorStatus('digital', 'Select a digital profile first', true);
+        return;
+      }
+      if (!control_channels_text && !systems_json_text) {
+        setProfileEditorStatus('digital', 'Provide control channels or systems JSON', true);
+        return;
+      }
+      if (!talkgroups_text) {
+        setProfileEditorStatus('digital', 'Talkgroups CSV is required', true);
+        return;
+      }
+      setProfileEditorStatus('digital', 'Validating...', false);
+      try {
+        const res = await postJSON('/api/profile-editor/digital/validate', {
+          profileId,
+          control_channels_text,
+          systems_json_text,
+          talkgroups_text,
+        });
+        if (!res || res.ok === false) {
+          setProfileEditorStatus('digital', (res && res.error) || 'Validation failed', true);
+          return;
+        }
+        const bits = [
+          'Valid',
+          `${res.talkgroups || 0} TGs`,
+          `${res.control_channels || 0} controls`,
+          `${res.systems || 0} systems`,
+        ];
+        if (Number.isFinite(res.encrypted_talkgroups) && Number.isFinite(res.clear_talkgroups)) {
+          bits.push(`${res.clear_talkgroups} clear / ${res.encrypted_talkgroups} encrypted`);
+        }
+        if (Array.isArray(res.warnings) && res.warnings.length) {
+          bits.push(`warn: ${res.warnings.join('; ')}`);
+        }
+        setProfileEditorStatus('digital', bits.join(' • '), false);
+      } catch (e) {
+        setProfileEditorStatus('digital', messageFromError(e, 'Validation failed'), true);
       }
     }
 
@@ -2826,11 +2989,29 @@
       return `http://${location.hostname}:${port}/${mount}`;
     }
 
+    function isLikelyIOSClient() {
+      const ua = String(navigator.userAgent || '');
+      if (/iPad|iPhone|iPod/i.test(ua)) return true;
+      return /Macintosh/i.test(ua) && (Number(navigator.maxTouchPoints || 0) > 1);
+    }
+
+    function shouldPreferDirectIcecastStream() {
+      if (!state.streamProxyEnabled) return true;
+      if (location.protocol !== 'http:') return false;
+      return isLikelyIOSClient();
+    }
+
     function analogStreamUrl() {
+      if (shouldPreferDirectIcecastStream()) {
+        return buildIcecastUrl(state.streamMount, 'ANALOG.mp3');
+      }
       return buildProxyStreamUrl(state.streamMount, 'ANALOG.mp3');
     }
 
     function digitalStreamUrl() {
+      if (shouldPreferDirectIcecastStream()) {
+        return buildIcecastUrl(state.digitalStreamMount, 'DIGITAL.mp3');
+      }
       return buildProxyStreamUrl(state.digitalStreamMount, 'DIGITAL.mp3');
     }
 
@@ -2856,10 +3037,10 @@
       const analogBase = analogStreamUrl();
       const digitalBase = digitalStreamUrl();
       if (els.lnkStreamAnalog) {
-        els.lnkStreamAnalog.href = buildProxyStreamUrl(state.streamMount, 'ANALOG.mp3');
+        els.lnkStreamAnalog.href = analogBase;
       }
       if (els.lnkStreamDigital) {
-        els.lnkStreamDigital.href = buildProxyStreamUrl(state.digitalStreamMount, 'DIGITAL.mp3');
+        els.lnkStreamDigital.href = digitalBase;
       }
       syncAudioSource(els.audioPlayerAnalog, analogBase);
       syncAudioSource(els.audioPlayerDigital, digitalBase);
@@ -2996,6 +3177,7 @@
       if (!tracker) return;
       if (audioEl.dataset.autorecoverBound === '1') return;
       audioEl.dataset.autorecoverBound = '1';
+      const targetLabel = audioEl === els.audioPlayerDigital ? 'Digital' : 'Analog';
       audioEl.addEventListener('play', () => {
         audioEl.dataset.wantplay = '1';
       });
@@ -3011,6 +3193,27 @@
         markAudioProgress(audioEl);
       });
       audioEl.addEventListener('timeupdate', () => markAudioProgress(audioEl));
+      audioEl.addEventListener('waiting', () => {
+        clearAudioWaitingTimer(audioEl);
+        tracker.waitingTimer = setTimeout(() => {
+          tracker.waitingTimer = null;
+          maybeAutoRecoverAudio(audioEl, reloadFn, 'waiting', true);
+        }, AUDIO_WAITING_GRACE_MS);
+      });
+      audioEl.addEventListener('stalled', () => {
+        maybeAutoRecoverAudio(audioEl, reloadFn, 'stalled', true);
+      });
+      audioEl.addEventListener('error', () => {
+        const code = Number(audioEl.error && audioEl.error.code);
+        const codeLabel = Number.isFinite(code) && code > 0 ? String(code) : 'unknown';
+        const src = (audioEl.currentSrc || audioEl.src || '').split('?')[0];
+        const suffix = src ? ` (${src})` : '';
+        logActivity(`${targetLabel} player media error code ${codeLabel}${suffix}`, 'warn', `audio-error-${targetLabel}-${codeLabel}`);
+        maybeAutoRecoverAudio(audioEl, reloadFn, 'error', true);
+      });
+      audioEl.addEventListener('emptied', () => {
+        maybeAutoRecoverAudio(audioEl, reloadFn, 'emptied', true);
+      });
     }
 
     function setupAudioAutoRecover() {
@@ -3753,6 +3956,7 @@
 
     function renderDigitalListenList() {
       if (!els.digitalListenList) return;
+      setProfileEditorDirty('digital', Boolean(state.profileEditor?.digital?.dirty));
       if (els.digitalListenSearch && els.digitalListenSearch.value !== state.digitalListen.search) {
         els.digitalListenSearch.value = state.digitalListen.search || '';
       }
@@ -5746,21 +5950,47 @@
       }
       if (els.profileEditorAnalogTarget) {
         els.profileEditorAnalogTarget.addEventListener('change', () => {
-          state.profileEditor.analog.target = els.profileEditorAnalogTarget.value || 'airband';
+          const nextTarget = (els.profileEditorAnalogTarget.value || 'airband') === 'ground' ? 'ground' : 'airband';
+          const previousTarget = state.profileEditor.analog.target || 'airband';
+          if (nextTarget !== previousTarget && !profileEditorConfirmDiscard('analog', `switching to ${nextTarget}`)) {
+            els.profileEditorAnalogTarget.value = previousTarget;
+            return;
+          }
+          state.profileEditor.analog.target = nextTarget;
+          if (nextTarget !== previousTarget) {
+            setProfileEditorDirty('analog', false);
+          }
           refreshProfileEditorOptions();
           setProfileEditorStatus('analog', '', false);
         });
       }
       if (els.profileEditorAnalogProfile) {
         els.profileEditorAnalogProfile.addEventListener('change', () => {
-          state.profileEditor.analog.profileId = els.profileEditorAnalogProfile.value || '';
+          const selected = els.profileEditorAnalogProfile.value || '';
+          const previous = state.profileEditor.analog.profileId || '';
+          if (selected !== previous && !profileEditorConfirmDiscard('analog', `switching to ${selected || 'another profile'}`)) {
+            els.profileEditorAnalogProfile.value = previous;
+            return;
+          }
+          state.profileEditor.analog.profileId = selected;
+          if (selected !== previous) {
+            setProfileEditorDirty('analog', false);
+          }
           setProfileEditorStatus('analog', '', false);
         });
       }
       if (els.profileEditorDigitalProfile) {
         els.profileEditorDigitalProfile.addEventListener('change', () => {
           const selected = els.profileEditorDigitalProfile.value || '';
+          const previous = state.profileEditor.digital.profileId || '';
+          if (selected !== previous && !profileEditorConfirmDiscard('digital', `switching to ${selected || 'another profile'}`)) {
+            els.profileEditorDigitalProfile.value = previous;
+            return;
+          }
           state.profileEditor.digital.profileId = selected;
+          if (selected !== previous) {
+            setProfileEditorDirty('digital', false);
+          }
           if (selected !== state.digitalListen.profile) {
             state.digitalListen.items = [];
             state.digitalListen.profile = '';
@@ -5774,14 +6004,38 @@
       if (els.profileEditorAnalogLoad) {
         els.profileEditorAnalogLoad.addEventListener('click', loadProfileEditorAnalog);
       }
+      if (els.profileEditorAnalogValidate) {
+        els.profileEditorAnalogValidate.addEventListener('click', validateProfileEditorAnalog);
+      }
       if (els.profileEditorAnalogSave) {
         els.profileEditorAnalogSave.addEventListener('click', saveProfileEditorAnalog);
       }
       if (els.profileEditorDigitalLoad) {
         els.profileEditorDigitalLoad.addEventListener('click', loadProfileEditorDigital);
       }
+      if (els.profileEditorDigitalValidate) {
+        els.profileEditorDigitalValidate.addEventListener('click', validateProfileEditorDigital);
+      }
       if (els.profileEditorDigitalSave) {
         els.profileEditorDigitalSave.addEventListener('click', saveProfileEditorDigital);
+      }
+      if (els.profileEditorAnalogModulation) {
+        els.profileEditorAnalogModulation.addEventListener('input', () => setProfileEditorDirty('analog', true));
+      }
+      if (els.profileEditorAnalogBandwidth) {
+        els.profileEditorAnalogBandwidth.addEventListener('input', () => setProfileEditorDirty('analog', true));
+      }
+      if (els.profileEditorAnalogFreqs) {
+        els.profileEditorAnalogFreqs.addEventListener('input', () => setProfileEditorDirty('analog', true));
+      }
+      if (els.profileEditorDigitalControls) {
+        els.profileEditorDigitalControls.addEventListener('input', () => setProfileEditorDirty('digital', true));
+      }
+      if (els.profileEditorDigitalSystems) {
+        els.profileEditorDigitalSystems.addEventListener('input', () => setProfileEditorDirty('digital', true));
+      }
+      if (els.profileEditorDigitalTalkgroups) {
+        els.profileEditorDigitalTalkgroups.addEventListener('input', () => setProfileEditorDirty('digital', true));
       }
       window.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && state.profileEditor.open) {

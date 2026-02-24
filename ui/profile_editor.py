@@ -317,17 +317,11 @@ def _apply_analog_modulation_bandwidth_text(
     modulation: str,
     bandwidth: int,
 ) -> tuple[bool, str, str]:
-    if not _VALID_MODULATION_RE.fullmatch(modulation or ""):
-        return False, "", "invalid modulation"
+    ok, mod, bw, err = _normalize_analog_settings(modulation, bandwidth)
+    if not ok:
+        return False, "", err
 
-    try:
-        bw = int(bandwidth)
-    except Exception:
-        return False, "", "invalid bandwidth"
-    if bw < 2000 or bw > 250000:
-        return False, "", "bandwidth out of range"
-
-    updated, mod_count = _MODULATION_RE.subn(rf'\1{modulation}\2', text, count=1)
+    updated, mod_count = _MODULATION_RE.subn(rf'\1{mod}\2', text, count=1)
     if mod_count == 0:
         return False, "", "modulation setting not found"
 
@@ -336,6 +330,19 @@ def _apply_analog_modulation_bandwidth_text(
         return False, "", "bandwidth setting not found"
 
     return True, updated, ""
+
+
+def _normalize_analog_settings(modulation: Any, bandwidth: Any) -> tuple[bool, str, int, str]:
+    mod = str(modulation or "").strip().lower()
+    if not _VALID_MODULATION_RE.fullmatch(mod or ""):
+        return False, "", 0, "invalid modulation"
+    try:
+        bw = int(round(float(bandwidth)))
+    except Exception:
+        return False, "", 0, "invalid bandwidth"
+    if bw < 2000 or bw > 250000:
+        return False, "", 0, "bandwidth out of range"
+    return True, mod, bw, ""
 
 
 def save_analog_editor_payload(
@@ -389,6 +396,54 @@ def save_analog_editor_payload(
             "path": path,
             "airband": bool(profile.get("airband")),
         },
+    }
+    return True, "", payload
+
+
+def validate_analog_editor_payload(
+    profile_id: str,
+    target: str,
+    freqs_text: str,
+    modulation: str,
+    bandwidth: int,
+) -> tuple[bool, str, dict]:
+    profile, path, err = _find_analog_profile(profile_id, target)
+    if err:
+        return False, err, {}
+
+    try:
+        freqs, labels = parse_freqs_text(freqs_text)
+    except Exception as e:
+        return False, str(e), {}
+    if not freqs:
+        return False, "no frequencies provided", {}
+
+    ok, mod, bw, setting_err = _normalize_analog_settings(modulation, bandwidth)
+    if not ok:
+        return False, setting_err, {}
+
+    rounded = [f"{float(v):.4f}" for v in (freqs or [])]
+    unique_count = len(set(rounded))
+    label_count = sum(1 for label in (labels or []) if str(label or "").strip())
+    warnings: list[str] = []
+    if unique_count < len(rounded):
+        warnings.append("duplicate frequencies detected")
+
+    payload = {
+        "ok": True,
+        "profile": {
+            "id": profile.get("id", ""),
+            "label": profile.get("label", ""),
+            "path": path,
+            "airband": bool(profile.get("airband")),
+        },
+        "target": target,
+        "modulation": mod,
+        "bandwidth": int(bw),
+        "frequency_count": len(rounded),
+        "frequency_unique_count": int(unique_count),
+        "label_count": int(label_count),
+        "warnings": warnings,
     }
     return True, "", payload
 
@@ -797,6 +852,77 @@ def save_digital_editor_payload(
         "control_channels": len(control_channels),
         "systems": len(systems),
         "listen_updated": bool(listen_present),
+    }
+    return True, "", payload
+
+
+def validate_digital_editor_payload(
+    profile_id: str,
+    control_channels_text: str,
+    talkgroups_text: str,
+    systems_json_text: str = "",
+) -> tuple[bool, str, dict]:
+    profile_dir, err = _digital_profile_dir(profile_id)
+    if err:
+        return False, err, {}
+
+    try:
+        tg_rows, listen_present = _parse_talkgroups_text(talkgroups_text)
+    except Exception as e:
+        return False, str(e), {}
+
+    systems: list[dict[str, Any]] = []
+    systems_channels: list[str] = []
+    try:
+        systems, systems_channels, _systems_json_canonical = _parse_systems_json_text(systems_json_text)
+    except Exception as e:
+        return False, str(e), {}
+
+    controls_text = str(control_channels_text or "").strip()
+    control_channels_from_text: list[str] = []
+    if controls_text:
+        try:
+            control_channels_from_text = _parse_control_channels_text(controls_text)
+        except Exception as e:
+            return False, str(e), {}
+
+    control_channels: list[str] = list(control_channels_from_text)
+    warnings: list[str] = []
+    if systems_channels:
+        text_channels_set = set(control_channels_from_text)
+        systems_channels_set = set(systems_channels)
+        if control_channels_from_text and text_channels_set != systems_channels_set:
+            warnings.append(
+                "systems JSON control channels override Control Channels text",
+            )
+        control_channels = list(systems_channels)
+    if not control_channels:
+        return False, "no control channels provided", {}
+
+    mode_counts: dict[str, int] = {}
+    encrypted_count = 0
+    listen_enabled = 0
+    for row in tg_rows:
+        mode = str(row.get("mode") or "").strip().upper() or "D"
+        mode_counts[mode] = int(mode_counts.get(mode, 0)) + 1
+        if "E" in mode:
+            encrypted_count += 1
+        if bool(row.get("listen")):
+            listen_enabled += 1
+
+    payload = {
+        "ok": True,
+        "profileId": str(profile_id).strip(),
+        "profileDir": profile_dir,
+        "talkgroups": int(len(tg_rows)),
+        "listen_present": bool(listen_present),
+        "listen_enabled": int(listen_enabled),
+        "encrypted_talkgroups": int(encrypted_count),
+        "clear_talkgroups": int(len(tg_rows) - encrypted_count),
+        "mode_counts": mode_counts,
+        "control_channels": int(len(control_channels)),
+        "systems": int(len(systems)),
+        "warnings": warnings,
     }
     return True, "", payload
 
