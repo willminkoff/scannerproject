@@ -4533,11 +4533,17 @@
       const loopState = updateLoopLocalSettingsFromInputs(targetName);
       clearLoopAutoApplyTimer(targetName);
       const selectedProfiles = selectedLoopProfilesForUi(targetName, loopState);
+      const requestedEnabled = enabledOverride === null
+        ? Boolean(loopState.enabled)
+        : Boolean(enabledOverride);
+      const canEnable = selectedProfiles.length >= 2;
+      const effectiveEnabled = requestedEnabled && canEnable;
+      loopState.enabled = effectiveEnabled;
       const dwellSec = Number(dwellEl && dwellEl.value);
       const hangSec = Number(hangEl && hangEl.value);
       const payload = {
         target: targetName,
-        enabled: enabledOverride === null ? Boolean(loopState.enabled) : Boolean(enabledOverride),
+        enabled: effectiveEnabled,
         selected_profiles: selectedProfiles,
         dwell_ms: Number.isFinite(dwellSec) ? Math.round(dwellSec * 1000) : Number(loopState.dwellMs || 10000),
         hang_ms: Number.isFinite(hangSec) ? Math.round(hangSec * 1000) : Number(loopState.hangMs || 2000),
@@ -4568,8 +4574,15 @@
       loopState.selectedProfiles = checked
         ? available.map((row) => String(row.id || '').trim()).filter(Boolean)
         : [];
+      if (!checked) {
+        loopState.enabled = false;
+      }
       setLoopDraftSelection(target, loopState.selectedProfiles);
-      scheduleLoopAutoApply(target);
+      if (!checked) {
+        applyProfileLoopConfig(target, false);
+      } else {
+        scheduleLoopAutoApply(target);
+      }
       if (target === 'digital') {
         renderDigitalLoopControls();
       } else {
