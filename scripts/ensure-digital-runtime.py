@@ -129,19 +129,7 @@ def _default_tuner_config(unique_id: str, template: dict[str, object] | None = N
     }
 
 
-def _sync_tuner_configuration() -> dict[str, object]:
-    if not SDRTRUNK_TUNER_CONFIG_PATH.is_file():
-        return {"updated": False, "reason": "missing_tuner_config"}
-
-    try:
-        raw = SDRTRUNK_TUNER_CONFIG_PATH.read_text(encoding="utf-8", errors="ignore")
-        data = json.loads(raw)
-    except Exception:
-        return {"updated": False, "reason": "invalid_tuner_config"}
-
-    if not isinstance(data, dict):
-        return {"updated": False, "reason": "invalid_tuner_config_type"}
-
+def _discover_tuner_uid_state() -> dict[str, object]:
     serial_to_uid = _discover_rtl_unique_ids_by_serial()
     digital_serials = [s for s in (DIGITAL_RTL_SERIAL, DIGITAL_RTL_SERIAL_SECONDARY) if s]
     analog_serials = [s for s in (AIRBAND_RTL_SERIAL, GROUND_RTL_SERIAL) if s]
@@ -157,6 +145,37 @@ def _sync_tuner_configuration() -> dict[str, object]:
             uid_source = "fallback_non_analog"
         else:
             uid_source = "none"
+    return {
+        "digital_uids": sorted(digital_uids),
+        "analog_uids": sorted(analog_uids),
+        "available_rtl_uids": sorted(all_rtl_uids),
+        "available_rtl_serials": sorted(serial_to_uid),
+        "digital_uid_source": uid_source,
+    }
+
+
+def _sync_tuner_configuration() -> dict[str, object]:
+    tuner_state = _discover_tuner_uid_state()
+    if not SDRTRUNK_TUNER_CONFIG_PATH.is_file():
+        payload = dict(tuner_state)
+        payload.update({"updated": False, "reason": "missing_tuner_config"})
+        return payload
+
+    try:
+        raw = SDRTRUNK_TUNER_CONFIG_PATH.read_text(encoding="utf-8", errors="ignore")
+        data = json.loads(raw)
+    except Exception:
+        payload = dict(tuner_state)
+        payload.update({"updated": False, "reason": "invalid_tuner_config"})
+        return payload
+
+    if not isinstance(data, dict):
+        payload = dict(tuner_state)
+        payload.update({"updated": False, "reason": "invalid_tuner_config_type"})
+        return payload
+
+    digital_uids = set(tuner_state.get("digital_uids") or [])
+    analog_uids = set(tuner_state.get("analog_uids") or [])
 
     changed = False
     disabled_in = data.get("disabledTuners")
@@ -219,15 +238,12 @@ def _sync_tuner_configuration() -> dict[str, object]:
     if changed:
         SDRTRUNK_TUNER_CONFIG_PATH.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
-    return {
+    payload = dict(tuner_state)
+    payload.update({
         "updated": changed,
         "reason": "ok",
-        "digital_uids": sorted(digital_uids),
-        "analog_uids": sorted(analog_uids),
-        "available_rtl_uids": sorted(all_rtl_uids),
-        "available_rtl_serials": sorted(serial_to_uid),
-        "digital_uid_source": uid_source,
-    }
+    })
+    return payload
 
 
 def _profile_dirs(root: Path) -> list[Path]:
@@ -692,6 +708,7 @@ def main() -> int:
             f"stream_alias_updates={source_state.get('stream_alias_updates', 0)} "
             f"digital_secondary={DIGITAL_RTL_SERIAL_SECONDARY or 'unset'} "
             f"tuner_config_updated={bool(tuner_state.get('updated'))} "
+            f"tuner_config_reason={tuner_state.get('reason') or 'unknown'} "
             f"digital_uid_source={tuner_state.get('digital_uid_source') or 'unknown'} "
             f"digital_uids={','.join(tuner_state.get('digital_uids', [])) or 'none'} "
             f"analog_uids={','.join(tuner_state.get('analog_uids', [])) or 'none'}"
