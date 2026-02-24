@@ -83,7 +83,7 @@ _MOUNT_CACHE_TTL_SEC = 0.75
 _MOUNT_FAILURE_GRACE_SEC = 5.0
 _MOUNT_STATUS_TIMEOUT_SEC = 1.25
 _DIGITAL_LOCK_TIMEOUT_MS = max(
-    1_000,
+    0,
     int(os.getenv("PROFILE_LOOP_DIGITAL_LOCK_TIMEOUT_MS", "2500")),
 )
 _DIGITAL_LOCK_CACHE_TTL_SEC = min(
@@ -820,7 +820,7 @@ class ProfileLoopManager:
         if elapsed < 0:
             elapsed = 0
         metric_ready, control_locked = self._digital_control_lock_state()
-        if metric_ready and not control_locked:
+        if int(_DIGITAL_LOCK_TIMEOUT_MS) > 0 and metric_ready and not control_locked:
             if elapsed < int(_DIGITAL_LOCK_TIMEOUT_MS):
                 state["in_hit_hold"] = False
                 state["switch_reason"] = "acquiring_lock"
