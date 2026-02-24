@@ -356,6 +356,35 @@
       text-transform: uppercase;
     }
 
+    .loop-indicator {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 10px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .loop-indicator.good {
+      border-color: rgba(16, 185, 129, 0.5);
+      color: var(--good);
+    }
+
+    .loop-indicator.warn {
+      border-color: rgba(245, 158, 11, 0.5);
+      color: var(--warn);
+    }
+
+    .loop-indicator.bad {
+      border-color: rgba(239, 68, 68, 0.5);
+      color: var(--bad);
+    }
+
     .widget-body {
       padding: 16px;
     }
@@ -1699,6 +1728,7 @@
         <div class="widget-header with-actions">
           <span>🎯 Profiles</span>
           <div class="widget-header-actions">
+            <span class="loop-indicator" id="profiles-loop-indicator" title="Loop status">Loop Off</span>
             <button class="action widget-header-action sidecar-toggle" id="profile-loop-open-analog" type="button">Profile Loop</button>
             <button class="action widget-header-action sidecar-toggle" id="profile-editor-open-analog" type="button">Profile Editor</button>
           </div>
@@ -1717,6 +1747,7 @@
         <div class="widget-header with-actions">
           <span>🎛️ Digital Profiles</span>
           <div class="widget-header-actions">
+            <span class="loop-indicator" id="digital-profiles-loop-indicator" title="Loop status">Loop Off</span>
             <button class="action widget-header-action sidecar-toggle" id="profile-loop-open-digital" type="button">Profile Loop</button>
             <button class="action widget-header-action sidecar-toggle" id="profile-editor-open-digital" type="button">Profile Editor</button>
           </div>
@@ -2568,6 +2599,7 @@
       loopToggle: document.getElementById('loop-toggle'),
       loopSelectAll: document.getElementById('loop-select-all'),
       loopClear: document.getElementById('loop-clear'),
+      profilesLoopIndicator: document.getElementById('profiles-loop-indicator'),
       digitalProfilesWidget: document.getElementById('digital-profiles-widget'),
       digitalProfilesList: document.getElementById('digital-profiles-list'),
       digitalLoopStatus: document.getElementById('digital-loop-status'),
@@ -2580,6 +2612,7 @@
       digitalLoopToggle: document.getElementById('digital-loop-toggle'),
       digitalLoopSelectAll: document.getElementById('digital-loop-select-all'),
       digitalLoopClear: document.getElementById('digital-loop-clear'),
+      digitalProfilesLoopIndicator: document.getElementById('digital-profiles-loop-indicator'),
       audioPlayerAnalog: document.getElementById('audio-player-analog'),
       audioPlayerDigital: document.getElementById('audio-player-digital'),
       lnkStreamAnalog: document.getElementById('lnk-stream-analog'),
@@ -4328,6 +4361,57 @@
       return '';
     }
 
+    function setLoopHeaderIndicator(el, target, loopState) {
+      if (!el) return;
+      const stateRow = loopState || defaultProfileLoopState();
+      let text = 'Loop Off';
+      let tone = '';
+      if (stateRow.enabled) {
+        if (stateRow.lastError) {
+          text = 'Loop Err';
+          tone = 'bad';
+        } else if (stateRow.blockedReason || stateRow.inHitHold) {
+          text = 'Loop Hold';
+          tone = 'warn';
+        } else {
+          text = 'Loop On';
+          tone = 'good';
+        }
+      }
+      el.textContent = text;
+      setValueTone(el, tone);
+      const details = [];
+      details.push(`target=${target}`);
+      details.push(`enabled=${stateRow.enabled ? 'yes' : 'no'}`);
+      if (stateRow.activeProfile) {
+        details.push(`active=${loopLabelForTarget(target, stateRow.activeProfile)}`);
+      }
+      if (stateRow.nextProfile) {
+        details.push(`next=${loopLabelForTarget(target, stateRow.nextProfile)}`);
+      }
+      if (stateRow.inHitHold) {
+        details.push('holding on hit');
+      }
+      if (stateRow.blockedReason) {
+        details.push(`blocked=${stateRow.blockedReason}`);
+      }
+      if (stateRow.switchReason) {
+        details.push(`reason=${stateRow.switchReason}`);
+      }
+      if (stateRow.lastError) {
+        details.push(`error=${trimServiceNote(stateRow.lastError, 80)}`);
+      }
+      el.title = details.join(' • ');
+    }
+
+    function renderMainLoopIndicators() {
+      const analogTarget = activeTarget === 'ground' ? 'ground' : 'airband';
+      const analogLoopState = state.profileLoop[analogTarget] || defaultProfileLoopState();
+      const digitalLoopState = state.profileLoop.digital || defaultProfileLoopState();
+      setLoopHeaderIndicator(els.profilesLoopIndicator, analogTarget, analogLoopState);
+      setLoopHeaderIndicator(els.digitalProfilesLoopIndicator, 'digital', digitalLoopState);
+    }
+
     function renderAnalogLoopControls() {
       const target = activeTarget === 'ground' ? 'ground' : 'airband';
       const loopState = state.profileLoop[target] || defaultProfileLoopState();
@@ -4384,6 +4468,7 @@
           });
         });
       }
+      renderMainLoopIndicators();
     }
 
     function renderDigitalLoopControls() {
@@ -4442,6 +4527,7 @@
           });
         });
       }
+      renderMainLoopIndicators();
     }
 
     function renderProfileLoopControls() {
