@@ -4220,6 +4220,44 @@
       return normalizeProfileIdList(loopState?.selectedProfiles || []);
     }
 
+    function localLoopState(target) {
+      const name = normalizeLoopTarget(target);
+      if (!state.profileLoop[name]) {
+        state.profileLoop[name] = name === 'digital'
+          ? { ...defaultProfileLoopState(), dwellMs: 30000, hangMs: 8000 }
+          : defaultProfileLoopState();
+      }
+      return state.profileLoop[name];
+    }
+
+    function clampLoopSeconds(rawValue, fallbackSec, minSec, maxSec) {
+      const raw = Number(rawValue);
+      if (!Number.isFinite(raw)) return fallbackSec;
+      const rounded = Math.round(raw);
+      if (rounded < minSec) return minSec;
+      if (rounded > maxSec) return maxSec;
+      return rounded;
+    }
+
+    function updateLoopLocalSettingsFromInputs(target) {
+      const name = normalizeLoopTarget(target);
+      const loopState = localLoopState(name);
+      const isDigital = name === 'digital';
+      const dwellEl = isDigital ? els.digitalLoopDwell : els.loopDwell;
+      const hangEl = isDigital ? els.digitalLoopHang : els.loopHang;
+      const pauseEl = isDigital ? els.digitalLoopPause : els.loopPause;
+      const defaultDwellMs = isDigital ? 30000 : 45000;
+      const defaultHangMs = isDigital ? 8000 : 12000;
+      const fallbackDwellSec = Math.max(1, Math.round(Number(loopState.dwellMs || defaultDwellMs) / 1000));
+      const fallbackHangSec = Math.max(1, Math.round(Number(loopState.hangMs || defaultHangMs) / 1000));
+      const dwellSec = clampLoopSeconds(dwellEl && dwellEl.value, fallbackDwellSec, 1, 1800);
+      const hangSec = clampLoopSeconds(hangEl && hangEl.value, fallbackHangSec, 1, 600);
+      loopState.dwellMs = dwellSec * 1000;
+      loopState.hangMs = hangSec * 1000;
+      loopState.pauseOnHit = Boolean(pauseEl && pauseEl.checked);
+      return loopState;
+    }
+
     function clearLoopAutoApplyTimer(target) {
       const name = normalizeLoopTarget(target);
       const timers = state.profileLoopUi?.applyTimers;
@@ -4412,36 +4450,37 @@
     }
 
     async function applyProfileLoopConfig(target, enabledOverride = null) {
-      const isDigital = target === 'digital';
+      const targetName = normalizeLoopTarget(target);
+      const isDigital = targetName === 'digital';
       const dwellEl = isDigital ? els.digitalLoopDwell : els.loopDwell;
       const hangEl = isDigital ? els.digitalLoopHang : els.loopHang;
       const pauseEl = isDigital ? els.digitalLoopPause : els.loopPause;
-      const loopState = state.profileLoop[target] || defaultProfileLoopState();
-      clearLoopAutoApplyTimer(target);
-      const selectedProfiles = selectedLoopProfilesForUi(target, loopState);
+      const loopState = updateLoopLocalSettingsFromInputs(targetName);
+      clearLoopAutoApplyTimer(targetName);
+      const selectedProfiles = selectedLoopProfilesForUi(targetName, loopState);
       const dwellSec = Number(dwellEl && dwellEl.value);
       const hangSec = Number(hangEl && hangEl.value);
       const payload = {
-        target,
+        target: targetName,
         enabled: enabledOverride === null ? Boolean(loopState.enabled) : Boolean(enabledOverride),
         selected_profiles: selectedProfiles,
-        dwell_ms: Math.round((Number.isFinite(dwellSec) ? dwellSec : 45) * 1000),
-        hang_ms: Math.round((Number.isFinite(hangSec) ? hangSec : 12) * 1000),
+        dwell_ms: Number.isFinite(dwellSec) ? Math.round(dwellSec * 1000) : Number(loopState.dwellMs || (isDigital ? 30000 : 45000)),
+        hang_ms: Number.isFinite(hangSec) ? Math.round(hangSec * 1000) : Number(loopState.hangMs || (isDigital ? 8000 : 12000)),
         pause_on_hit: Boolean(pauseEl && pauseEl.checked),
       };
       try {
         const res = await postAPI('/api/profile-loop', payload);
         if (res && res.ok) {
-          clearLoopDraftSelection(target);
+          clearLoopDraftSelection(targetName);
           if (res.snapshot) {
             applyProfileLoopPayload(res.snapshot);
           }
-          logActivity(`Profile loop updated: ${target}`, 'info', `profile-loop-${target}`);
+          logActivity(`Profile loop updated: ${targetName}`, 'info', `profile-loop-${targetName}`);
           return;
         }
-        logActivity(formatApiError(res, `Profile loop update failed (${target})`), 'warn', `profile-loop-${target}-failed`);
+        logActivity(formatApiError(res, `Profile loop update failed (${targetName})`), 'warn', `profile-loop-${targetName}-failed`);
       } catch (e) {
-        logActivity(messageFromError(e, `Profile loop update failed (${target})`), 'warn', `profile-loop-${target}-error`);
+        logActivity(messageFromError(e, `Profile loop update failed (${targetName})`), 'warn', `profile-loop-${targetName}-error`);
       }
       await refresh();
     }
@@ -6759,6 +6798,27 @@
           applyProfileLoopConfig(target, !enabled);
         });
       }
+      if (els.loopDwell) {
+        els.loopDwell.addEventListener('change', () => {
+          const target = activeTarget === 'ground' ? 'ground' : 'airband';
+          updateLoopLocalSettingsFromInputs(target);
+          scheduleLoopAutoApply(target);
+        });
+      }
+      if (els.loopHang) {
+        els.loopHang.addEventListener('change', () => {
+          const target = activeTarget === 'ground' ? 'ground' : 'airband';
+          updateLoopLocalSettingsFromInputs(target);
+          scheduleLoopAutoApply(target);
+        });
+      }
+      if (els.loopPause) {
+        els.loopPause.addEventListener('change', () => {
+          const target = activeTarget === 'ground' ? 'ground' : 'airband';
+          updateLoopLocalSettingsFromInputs(target);
+          scheduleLoopAutoApply(target);
+        });
+      }
       if (els.loopSelectAll) {
         els.loopSelectAll.addEventListener('click', () => {
           const target = activeTarget === 'ground' ? 'ground' : 'airband';
@@ -6816,6 +6876,24 @@
         els.digitalLoopToggle.addEventListener('click', () => {
           const enabled = Boolean((state.profileLoop.digital || {}).enabled);
           applyProfileLoopConfig('digital', !enabled);
+        });
+      }
+      if (els.digitalLoopDwell) {
+        els.digitalLoopDwell.addEventListener('change', () => {
+          updateLoopLocalSettingsFromInputs('digital');
+          scheduleLoopAutoApply('digital');
+        });
+      }
+      if (els.digitalLoopHang) {
+        els.digitalLoopHang.addEventListener('change', () => {
+          updateLoopLocalSettingsFromInputs('digital');
+          scheduleLoopAutoApply('digital');
+        });
+      }
+      if (els.digitalLoopPause) {
+        els.digitalLoopPause.addEventListener('change', () => {
+          updateLoopLocalSettingsFromInputs('digital');
+          scheduleLoopAutoApply('digital');
         });
       }
       if (els.digitalLoopSelectAll) {
