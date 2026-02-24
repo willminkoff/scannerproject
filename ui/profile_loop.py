@@ -448,14 +448,19 @@ class ProfileLoopManager:
         try:
             if target in ("airband", "ground"):
                 gate = gate_action("profile", target=target)
-            else:
-                gate = gate_action("digital_profile", profile_id=profile_id)
+                if bool((gate or {}).get("ok")):
+                    return True, ""
+                reason = self._gate_reason_text(gate)
+                return False, f"preflight blocked: {reason or 'failed'}"
+
+            # Keep profile-loop switching fast: avoid full digital preflight
+            # (control-lock/tail parsing) on every dwell transition.
+            manager = get_digital_manager()
+            if not manager.isActive():
+                return False, "preflight blocked: decoder_stopped"
+            return True, ""
         except Exception as e:
             return False, f"preflight check failed: {e}"
-        if bool((gate or {}).get("ok")):
-            return True, ""
-        reason = self._gate_reason_text(gate)
-        return False, f"preflight blocked: {reason or 'failed'}"
 
     def _apply_profile(self, target: str, profile_id: str) -> tuple[bool, str]:
         pid = str(profile_id or "").strip()
