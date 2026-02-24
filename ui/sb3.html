@@ -3100,8 +3100,9 @@
 
     function shouldPreferDirectIcecastStream() {
       if (!state.streamProxyEnabled) return true;
-      if (location.protocol !== 'http:') return false;
-      return isLikelyIOSClient();
+      // Prefer direct Icecast on plain HTTP clients to avoid proxy buffering
+      // edge cases with long-lived low-bitrate mounts.
+      return location.protocol === 'http:';
     }
 
     function analogStreamUrl() {
