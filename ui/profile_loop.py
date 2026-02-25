@@ -100,7 +100,7 @@ _DIGITAL_KEEPALIVE_MOUNT = str(
 ).strip().lstrip("/")
 _DIGITAL_LOCK_TIMEOUT_MS = max(
     0,
-    int(os.getenv("PROFILE_LOOP_DIGITAL_LOCK_TIMEOUT_MS", "2500")),
+    int(os.getenv("PROFILE_LOOP_DIGITAL_LOCK_TIMEOUT_MS", "20000")),
 )
 _DIGITAL_LOCK_CACHE_TTL_SEC = min(
     5.0,
