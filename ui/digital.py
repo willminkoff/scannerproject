@@ -281,6 +281,9 @@ _DIGITAL_STREAM_MAX_RECORDING_AGE_MS = max(
     int(os.getenv("DIGITAL_STREAM_MAX_RECORDING_AGE_MS", "600000")),
 )
 _DIGITAL_STREAM_DELAY_MS = max(0, int(os.getenv("DIGITAL_STREAM_DELAY_MS", "0")))
+_DURATION_HMS_RE = re.compile(
+    r"^(?:(?P<h>\d+):)?(?P<m>\d{1,2}):(?P<s>\d{1,2}(?:\.\d+)?)$"
+)
 
 
 def validate_digital_profile_id(profile_id: str) -> bool:
@@ -769,6 +772,44 @@ def _parse_time_value(value: str, fallback_ms: int) -> int:
     return _parse_time_ms(raw, fallback_ms)
 
 
+def _parse_duration_ms(value: str) -> int | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+
+    m_hms = _DURATION_HMS_RE.fullmatch(raw)
+    if m_hms:
+        try:
+            hours = int(m_hms.group("h") or 0)
+            minutes = int(m_hms.group("m") or 0)
+            seconds = float(m_hms.group("s") or 0)
+            return int(round(((hours * 3600) + (minutes * 60) + seconds) * 1000))
+        except Exception:
+            return None
+
+    token = raw.lower()
+    m_num = re.search(r"\d+(?:\.\d+)?", token)
+    if not m_num:
+        return None
+    try:
+        num = float(m_num.group(0))
+    except Exception:
+        return None
+    if num < 0:
+        return None
+
+    if re.search(r"\b(ms|msec|millisecond|milliseconds)\b", token):
+        return int(round(num))
+    if re.search(r"\b(s|sec|secs|second|seconds)\b", token):
+        return int(round(num * 1000))
+
+    # Bare numeric durations in SDRTrunk logs are typically milliseconds.
+    # Treat very small bare values as seconds to avoid dropping real calls.
+    if num < 50:
+        return int(round(num * 1000))
+    return int(round(num))
+
+
 def _strip_log_prefix(line: str) -> str:
     line = (line or "").strip()
     if not line:
@@ -962,26 +1003,19 @@ def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
     if details and _DIGITAL_EVENT_DROP_RE.search(details) and not include_grant_debug:
         return None
 
-    duration_ms = None
-    if duration_raw:
-        m = re.search(r"\d+", duration_raw)
-        if m:
-            try:
-                duration_ms = int(m.group(0))
-            except Exception:
-                duration_ms = None
+    duration_ms = _parse_duration_ms(duration_raw)
 
     # For structured call event rows, wait until the call has lasted long enough
     # to be considered an audible "hit" before surfacing it.
     if event_id and not include_grant_debug:
         # SDRTrunk call-event files often emit a short control "CHANNEL GRANT"
         # row first, then repeat the same event_id with a populated duration.
-        # Keep only rows that have a real call duration.
+        # Keep only rows that look like actionable call activity.
         if is_channel_grant and duration_ms is None:
             return None
-        if duration_ms is None:
-            return None
-        if duration_ms < _DIGITAL_HIT_MIN_DURATION_MS:
+        # Some SDRTrunk schemas emit call rows without a duration field.
+        # Allow those rows when they are not pure channel grants.
+        if duration_ms is not None and duration_ms < _DIGITAL_HIT_MIN_DURATION_MS:
             return None
 
     time_ms = _parse_time_value(time_val, fallback_ms)
@@ -1021,6 +1055,8 @@ def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
         event["tgid"] = tgid
     if event_id:
         event["event_id"] = event_id
+    if duration_ms is not None:
+        event["durationMs"] = int(max(0, duration_ms))
     if freq:
         event["frequency"] = freq
     if site:

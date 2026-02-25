@@ -60,12 +60,12 @@ _MAX_SELECTED = 128
 _DEFAULT_DWELL_MS = {
     "airband": 10_000,
     "ground": 10_000,
-    "digital": 10_000,
+    "digital": 4_000,
 }
 _DEFAULT_HANG_MS = {
     "airband": 2_000,
     "ground": 2_000,
-    "digital": 2_000,
+    "digital": 4_000,
 }
 _LEGACY_DEFAULT_DWELL_MS = {
     "airband": 45_000,
@@ -76,6 +76,16 @@ _LEGACY_DEFAULT_HANG_MS = {
     "airband": 12_000,
     "ground": 12_000,
     "digital": 8_000,
+}
+_PREVIOUS_DEFAULT_DWELL_MS = {
+    "airband": 10_000,
+    "ground": 10_000,
+    "digital": 10_000,
+}
+_PREVIOUS_DEFAULT_HANG_MS = {
+    "airband": 2_000,
+    "ground": 2_000,
+    "digital": 2_000,
 }
 _MOUNT_WAIT_SEC = 30.0
 _MOUNT_WAIT_POLL_SEC = 1.0
@@ -373,14 +383,32 @@ class ProfileLoopManager:
                     return True
             return False
         try:
-            event = get_digital_manager().getLastEvent() or {}
-            label = str(event.get("label") or "").strip()
-            time_ms = int(event.get("timeMs") or 0)
+            manager = get_digital_manager()
+            candidates = list(manager.getRecentEvents(limit=12) or [])
+            if not candidates:
+                candidates.append(manager.getLastEvent() or {})
         except Exception:
             return False
-        if not label or time_ms <= 0:
-            return False
-        return (int(time.time() * 1000) - time_ms) <= int(hang_ms)
+        now_ms = int(time.time() * 1000)
+        for event in candidates:
+            if not isinstance(event, dict):
+                continue
+            label = str(event.get("label") or "").strip()
+            time_ms = int(event.get("timeMs") or 0)
+            duration_ms = int(event.get("durationMs") or 0)
+            if not label or time_ms <= 0:
+                continue
+
+            # Some call-event schemas timestamp the call start. Extend recency by
+            # duration when it keeps the computed end near "now".
+            effective_ms = time_ms
+            if duration_ms > 0:
+                candidate_end = time_ms + duration_ms
+                if candidate_end <= (now_ms + int(hang_ms)):
+                    effective_ms = max(effective_ms, candidate_end)
+            if (now_ms - effective_ms) <= int(hang_ms):
+                return True
+        return False
 
     def _fetch_mount_status_text(self) -> str:
         try:
@@ -615,6 +643,11 @@ class ProfileLoopManager:
             if int(state["dwell_ms"]) == int(_LEGACY_DEFAULT_DWELL_MS[target]):
                 state["dwell_ms"] = int(_DEFAULT_DWELL_MS[target])
             if int(state["hang_ms"]) == int(_LEGACY_DEFAULT_HANG_MS[target]):
+                state["hang_ms"] = int(_DEFAULT_HANG_MS[target])
+            # Migrate the first fast defaults for digital to the current tuned values.
+            if int(state["dwell_ms"]) == int(_PREVIOUS_DEFAULT_DWELL_MS[target]):
+                state["dwell_ms"] = int(_DEFAULT_DWELL_MS[target])
+            if int(state["hang_ms"]) == int(_PREVIOUS_DEFAULT_HANG_MS[target]):
                 state["hang_ms"] = int(_DEFAULT_HANG_MS[target])
         try:
             self._save_state_locked()
