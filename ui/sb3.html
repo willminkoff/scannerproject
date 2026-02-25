@@ -2384,6 +2384,7 @@
         dwellMs: 10000,
         hangMs: 2000,
         pauseOnHit: true,
+        switchFailCount: 0,
         recentHit: false,
         inHitHold: false,
         blockedReason: '',
@@ -4212,6 +4213,7 @@
       out.lastSwitchTimeMs = Number.isFinite(raw.last_switch_time_ms) ? Number(raw.last_switch_time_ms) : 0;
       out.switchReason = String(raw.switch_reason || '');
       out.switchCount = Number.isFinite(raw.switch_count) ? Number(raw.switch_count) : 0;
+      out.switchFailCount = Number.isFinite(raw.switch_fail_count) ? Number(raw.switch_fail_count) : 0;
       out.lastError = String(raw.last_error || '');
       out.recentHit = Boolean(raw.recent_hit);
       out.inHitHold = Boolean(raw.in_hit_hold);
@@ -4460,6 +4462,9 @@
       }
       if (loopState.enabled) {
         parts.push(`switches=${Number(loopState.switchCount || 0)}`);
+        if (Number(loopState.switchFailCount || 0) > 0) {
+          parts.push(`failures=${Number(loopState.switchFailCount || 0)}`);
+        }
       }
       if (loopState.lastError) {
         parts.push(`error=${trimServiceNote(loopState.lastError, 120)}`);
@@ -4507,6 +4512,9 @@
       }
       if (stateRow.enabled) {
         details.push(`switches=${Number(stateRow.switchCount || 0)}`);
+        if (Number(stateRow.switchFailCount || 0) > 0) {
+          details.push(`failures=${Number(stateRow.switchFailCount || 0)}`);
+        }
       }
       if (stateRow.lastError) {
         details.push(`error=${trimServiceNote(stateRow.lastError, 80)}`);

@@ -102,6 +102,10 @@ _DIGITAL_LOCK_TIMEOUT_MS = max(
     0,
     int(os.getenv("PROFILE_LOOP_DIGITAL_LOCK_TIMEOUT_MS", "20000")),
 )
+_DIGITAL_SWITCH_FAIL_LIMIT = max(
+    1,
+    int(os.getenv("PROFILE_LOOP_DIGITAL_SWITCH_FAIL_LIMIT", "3")),
+)
 _DIGITAL_LOCK_CACHE_TTL_SEC = min(
     5.0,
     max(
@@ -217,6 +221,7 @@ class ProfileLoopManager:
             "current_profile": "",
             "next_profile": "",
             "switch_count": 0,
+            "switch_fail_count": 0,
             "last_switch_time_ms": 0,
             "switch_reason": "manual",
             "last_error": "",
@@ -696,6 +701,7 @@ class ProfileLoopManager:
                 "active_profile": str(state.get("active_profile") or ""),
                 "next_profile": str(state.get("next_profile") or ""),
                 "switch_count": int(state.get("switch_count") or 0),
+                "switch_fail_count": int(state.get("switch_fail_count") or 0),
                 "last_switch_time_ms": int(state.get("last_switch_time_ms") or 0),
                 "switch_reason": str(state.get("switch_reason") or ""),
                 "last_error": str(state.get("last_error") or ""),
@@ -788,6 +794,7 @@ class ProfileLoopManager:
             state["switch_reason"] = "manual"
             if selected_changed or bool(state.get("enabled")) != was_enabled:
                 state["switch_count"] = 0
+                state["switch_fail_count"] = 0
             state["updated_ms"] = int(time.time() * 1000)
             if state["enabled"] and not int(state.get("last_switch_time_ms") or 0):
                 state["last_switch_time_ms"] = int(time.time() * 1000)
@@ -955,6 +962,7 @@ class ProfileLoopManager:
                 state = self._targets[target]
                 state["updated_ms"] = int(time.time() * 1000)
                 if ok:
+                    state["switch_fail_count"] = 0
                     selected_now = list(state.get("selected_profiles") or [])
                     if target in ("airband", "ground") and reason == "bundle_sync":
                         desired = next_profile if next_profile in selected_now else (selected_now[0] if selected_now else next_profile)
@@ -979,8 +987,18 @@ class ProfileLoopManager:
                             state["bundle_signature"] = ""
                 else:
                     state["last_switch_time_ms"] = int(time.time() * 1000)
+                    fail_count = int(state.get("switch_fail_count") or 0) + 1
+                    state["switch_fail_count"] = fail_count
                     state["switch_reason"] = "error"
                     state["last_error"] = str(err or "profile switch failed")
+                    if target == "digital" and fail_count >= int(_DIGITAL_SWITCH_FAIL_LIMIT):
+                        state["enabled"] = False
+                        state["in_hit_hold"] = False
+                        state["switch_reason"] = "switch_fail_limit"
+                        state["last_error"] = (
+                            f"digital loop stopped after {fail_count} consecutive profile switch failures. "
+                            "Go back to Standard/Tune mode and confirm LOCKED status before re-enabling loop."
+                        )
 
     def _loop(self) -> None:
         while not self._stop.wait(PROFILE_LOOP_TICK_SEC):
