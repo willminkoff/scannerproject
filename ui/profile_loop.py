@@ -779,6 +779,13 @@ class ProfileLoopManager:
             if not state["enabled"]:
                 state["in_hit_hold"] = False
 
+            digital_start_from_first = (
+                name == "digital"
+                and bool(state.get("enabled"))
+                and bool(state.get("selected_profiles"))
+                and (selected_changed or not was_enabled)
+            )
+
             state["last_error"] = ""
             state["switch_reason"] = "manual"
             state["updated_ms"] = int(time.time() * 1000)
@@ -786,6 +793,17 @@ class ProfileLoopManager:
                 state["last_switch_time_ms"] = int(time.time() * 1000)
             if state.get("active_profile") and state["active_profile"] not in state["selected_profiles"]:
                 state["active_profile"] = ""
+            if digital_start_from_first:
+                first_selected = str((state.get("selected_profiles") or [""])[0] or "").strip()
+                if first_selected:
+                    # On enable/selection changes, snap scheduling to the first selected
+                    # profile and force an immediate align on the next tick.
+                    state["active_profile"] = first_selected
+                    state["current_profile"] = ""
+                    state["recent_hit"] = False
+                    state["in_hit_hold"] = False
+                    state["last_switch_time_ms"] = 0
+                    state["switch_reason"] = "align"
             state["next_profile"] = self._next_profile(
                 list(state.get("selected_profiles") or []),
                 str(state.get("active_profile") or state.get("current_profile") or ""),
@@ -812,16 +830,24 @@ class ProfileLoopManager:
         if active_profile and active_profile not in selected:
             active_profile = ""
 
-        if current_profile in selected and current_profile:
-            if active_profile != current_profile:
-                active_profile = current_profile
-                state["last_switch_time_ms"] = now_ms
-                state["switch_reason"] = "manual"
-                state["last_error"] = ""
-        if not active_profile and selected:
-            active_profile = current_profile if current_profile in selected else selected[0]
-            if not int(state.get("last_switch_time_ms") or 0):
-                state["last_switch_time_ms"] = now_ms
+        digital_enabled = target == "digital" and bool(state.get("enabled"))
+        if digital_enabled:
+            # Keep digital loop anchored to selected order while enabled.
+            if not active_profile and selected:
+                active_profile = selected[0]
+                if not int(state.get("last_switch_time_ms") or 0):
+                    state["last_switch_time_ms"] = now_ms
+        else:
+            if current_profile in selected and current_profile:
+                if active_profile != current_profile:
+                    active_profile = current_profile
+                    state["last_switch_time_ms"] = now_ms
+                    state["switch_reason"] = "manual"
+                    state["last_error"] = ""
+            if not active_profile and selected:
+                active_profile = current_profile if current_profile in selected else selected[0]
+                if not int(state.get("last_switch_time_ms") or 0):
+                    state["last_switch_time_ms"] = now_ms
 
         state["available_profiles"] = available
         state["current_profile"] = current_profile
@@ -868,15 +894,19 @@ class ProfileLoopManager:
             state["in_hit_hold"] = False
             return None
 
-        if current_profile != active_profile and current_profile not in selected:
+        if current_profile != active_profile:
             return active_profile, "align"
 
         elapsed = now_ms - int(state.get("last_switch_time_ms") or 0)
         if elapsed < 0:
             elapsed = 0
+        dwell_ms = int(state.get("dwell_ms") or _DEFAULT_DWELL_MS[target])
         metric_ready, control_locked = self._digital_control_lock_state()
         if int(_DIGITAL_LOCK_TIMEOUT_MS) > 0 and metric_ready and not control_locked:
-            if elapsed < int(_DIGITAL_LOCK_TIMEOUT_MS):
+            # Dwell is the primary switch gate; lock-timeout should not preempt
+            # a switch before dwell has elapsed.
+            wait_for_lock_ms = max(int(_DIGITAL_LOCK_TIMEOUT_MS), dwell_ms)
+            if elapsed < wait_for_lock_ms:
                 state["in_hit_hold"] = False
                 state["switch_reason"] = "acquiring_lock"
                 return None
@@ -891,7 +921,7 @@ class ProfileLoopManager:
         if state.get("in_hit_hold") and not state["recent_hit"]:
             state["in_hit_hold"] = False
 
-        if elapsed < int(state.get("dwell_ms") or _DEFAULT_DWELL_MS[target]):
+        if elapsed < dwell_ms:
             return None
         next_profile = self._next_profile(selected, active_profile)
         if not next_profile or next_profile == active_profile:
