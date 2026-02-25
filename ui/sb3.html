@@ -4441,9 +4441,18 @@
       return raw;
     }
 
+    function loopValidationModeForDisplay(target, loopState) {
+      if (target !== 'digital') return '';
+      return loopState && loopState.enabled ? 'fast_loop' : 'validate';
+    }
+
     function formatLoopDetailText(target, loopState) {
       if (!loopState) return '--';
       const parts = [];
+      const mode = loopValidationModeForDisplay(target, loopState);
+      if (mode) {
+        parts.push(`mode=${mode}`);
+      }
       if (loopState.activeProfile) {
         parts.push(`active=${loopLabelForTarget(target, loopState.activeProfile)}`);
       }
@@ -4494,6 +4503,10 @@
       const details = [];
       details.push(`target=${target}`);
       details.push(`enabled=${stateRow.enabled ? 'yes' : 'no'}`);
+      const mode = loopValidationModeForDisplay(target, stateRow);
+      if (mode) {
+        details.push(`mode=${mode}`);
+      }
       if (stateRow.activeProfile) {
         details.push(`active=${loopLabelForTarget(target, stateRow.activeProfile)}`);
       }

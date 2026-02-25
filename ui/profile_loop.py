@@ -98,20 +98,9 @@ _ANALOG_KEEPALIVE_MOUNT = str(
 _DIGITAL_KEEPALIVE_MOUNT = str(
     os.getenv("PROFILE_LOOP_DIGITAL_KEEPALIVE_MOUNT", "keepalive-digital.mp3")
 ).strip().lstrip("/")
-_DIGITAL_LOCK_TIMEOUT_MS = max(
-    0,
-    int(os.getenv("PROFILE_LOOP_DIGITAL_LOCK_TIMEOUT_MS", "20000")),
-)
 _DIGITAL_SWITCH_FAIL_LIMIT = max(
     1,
     int(os.getenv("PROFILE_LOOP_DIGITAL_SWITCH_FAIL_LIMIT", "3")),
-)
-_DIGITAL_LOCK_CACHE_TTL_SEC = min(
-    5.0,
-    max(
-        0.25,
-        float(os.getenv("PROFILE_LOOP_DIGITAL_LOCK_CACHE_TTL_SEC", "0.9")),
-    ),
 )
 
 
@@ -197,9 +186,6 @@ class ProfileLoopManager:
         self._mount_cache_ts = 0.0
         self._mount_success_ts = 0.0
         self._mount_cache: set[str] = set()
-        self._digital_lock_cache_ts = 0.0
-        self._digital_lock_metric_ready = False
-        self._digital_lock_control_locked = False
         self._load_state()
         self._tick()
         self._thread = threading.Thread(
@@ -362,9 +348,9 @@ class ProfileLoopManager:
         return ""
 
     def _target_blocked_reason(self, target: str) -> str:
-        if not self._target_mount_present(target):
-            return "mount_missing"
         if target in ("airband", "ground"):
+            if not self._target_mount_present(target):
+                return "mount_missing"
             return self._analog_blocked_reason(target)
         try:
             manager = get_digital_manager()
@@ -495,28 +481,6 @@ class ProfileLoopManager:
             time.sleep(_MOUNT_WAIT_POLL_SEC)
         return False
 
-    def _digital_control_lock_state(self, *, force_refresh: bool = False) -> tuple[bool, bool]:
-        now = time.monotonic()
-        if (
-            not force_refresh
-            and self._digital_lock_cache_ts > 0
-            and (now - float(self._digital_lock_cache_ts)) <= _DIGITAL_LOCK_CACHE_TTL_SEC
-        ):
-            return bool(self._digital_lock_metric_ready), bool(self._digital_lock_control_locked)
-        metric_ready = False
-        control_locked = False
-        try:
-            preflight = get_digital_manager().preflight() or {}
-            metric_ready = bool(preflight.get("control_decode_available"))
-            control_locked = bool(preflight.get("control_channel_locked"))
-        except Exception:
-            metric_ready = False
-            control_locked = False
-        self._digital_lock_cache_ts = now
-        self._digital_lock_metric_ready = metric_ready
-        self._digital_lock_control_locked = control_locked
-        return metric_ready, control_locked
-
     @staticmethod
     def _gate_reason_text(gate_payload: Any) -> str:
         if not isinstance(gate_payload, dict):
@@ -602,10 +566,6 @@ class ProfileLoopManager:
             return False, str(e)
         if not ok:
             return False, str(err or "digital profile switch failed")
-        # Force fresh lock metrics for the new profile on the next scheduler tick.
-        self._digital_lock_cache_ts = 0.0
-        self._digital_lock_metric_ready = False
-        self._digital_lock_control_locked = False
         # Speed-first loop behavior: skip mount-validation waits and canonical
         # compile updates on each digital dwell transition.
         return True, ""
@@ -917,23 +877,6 @@ class ProfileLoopManager:
         if elapsed < 0:
             elapsed = 0
         dwell_ms = int(state.get("dwell_ms") or _DEFAULT_DWELL_MS[target])
-        _metric_ready, control_locked = self._digital_control_lock_state()
-        wait_for_lock_ms = max(int(_DIGITAL_LOCK_TIMEOUT_MS), dwell_ms)
-        if int(_DIGITAL_LOCK_TIMEOUT_MS) > 0 and not control_locked:
-            # Hold on a profile while the control channel is still being acquired.
-            # This applies even when decode metrics are temporarily unavailable.
-            if elapsed < wait_for_lock_ms:
-                state["in_hit_hold"] = False
-                state["switch_reason"] = "acquiring_lock"
-                return None
-            next_profile = self._next_profile(selected, active_profile)
-            if next_profile and next_profile != active_profile:
-                return next_profile, "lock_timeout"
-        if control_locked and str(state.get("switch_reason") or "") == "acquiring_lock":
-            # Start dwell timing from lock acquisition, not from profile switch.
-            state["last_switch_time_ms"] = now_ms
-            elapsed = 0
-            state["switch_reason"] = "lock_acquired"
 
         if state.get("pause_on_hit") and state["recent_hit"]:
             state["in_hit_hold"] = True
