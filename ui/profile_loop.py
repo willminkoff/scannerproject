@@ -216,6 +216,7 @@ class ProfileLoopManager:
             "active_profile": "",
             "current_profile": "",
             "next_profile": "",
+            "switch_count": 0,
             "last_switch_time_ms": 0,
             "switch_reason": "manual",
             "last_error": "",
@@ -694,6 +695,7 @@ class ProfileLoopManager:
                 "current_profile": str(state.get("current_profile") or ""),
                 "active_profile": str(state.get("active_profile") or ""),
                 "next_profile": str(state.get("next_profile") or ""),
+                "switch_count": int(state.get("switch_count") or 0),
                 "last_switch_time_ms": int(state.get("last_switch_time_ms") or 0),
                 "switch_reason": str(state.get("switch_reason") or ""),
                 "last_error": str(state.get("last_error") or ""),
@@ -784,6 +786,8 @@ class ProfileLoopManager:
 
             state["last_error"] = ""
             state["switch_reason"] = "manual"
+            if selected_changed or bool(state.get("enabled")) != was_enabled:
+                state["switch_count"] = 0
             state["updated_ms"] = int(time.time() * 1000)
             if state["enabled"] and not int(state.get("last_switch_time_ms") or 0):
                 state["last_switch_time_ms"] = int(time.time() * 1000)
@@ -957,6 +961,7 @@ class ProfileLoopManager:
                         state["active_profile"] = desired
                         state["current_profile"] = desired
                         state["last_switch_time_ms"] = int(time.time() * 1000)
+                        state["switch_count"] = int(state.get("switch_count") or 0) + 1
                         state["switch_reason"] = "bundle"
                         state["last_error"] = ""
                         state["bundle_signature"] = self._selection_signature(selected_now)
@@ -965,6 +970,7 @@ class ProfileLoopManager:
                         state["active_profile"] = next_profile
                         state["current_profile"] = next_profile
                         state["last_switch_time_ms"] = int(time.time() * 1000)
+                        state["switch_count"] = int(state.get("switch_count") or 0) + 1
                         state["switch_reason"] = reason
                         state["last_error"] = ""
                         state["next_profile"] = self._next_profile(selected_now, next_profile)

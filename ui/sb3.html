@@ -2388,6 +2388,7 @@
         inHitHold: false,
         blockedReason: '',
         switchReason: '',
+        switchCount: 0,
         lastError: '',
         lastSwitchTimeMs: 0,
       };
@@ -4210,6 +4211,7 @@
       out.nextProfile = String(raw.next_profile || '');
       out.lastSwitchTimeMs = Number.isFinite(raw.last_switch_time_ms) ? Number(raw.last_switch_time_ms) : 0;
       out.switchReason = String(raw.switch_reason || '');
+      out.switchCount = Number.isFinite(raw.switch_count) ? Number(raw.switch_count) : 0;
       out.lastError = String(raw.last_error || '');
       out.recentHit = Boolean(raw.recent_hit);
       out.inHitHold = Boolean(raw.in_hit_hold);
@@ -4456,6 +4458,9 @@
       if (reason) {
         parts.push(`reason=${reason}`);
       }
+      if (loopState.enabled) {
+        parts.push(`switches=${Number(loopState.switchCount || 0)}`);
+      }
       if (loopState.lastError) {
         parts.push(`error=${trimServiceNote(loopState.lastError, 120)}`);
       }
@@ -4499,6 +4504,9 @@
       const switchReason = loopSwitchReasonForDisplay(target, stateRow.switchReason);
       if (switchReason) {
         details.push(`reason=${switchReason}`);
+      }
+      if (stateRow.enabled) {
+        details.push(`switches=${Number(stateRow.switchCount || 0)}`);
       }
       if (stateRow.lastError) {
         details.push(`error=${trimServiceNote(stateRow.lastError, 80)}`);
@@ -4766,12 +4774,20 @@
       els.digitalStatus.textContent = statusText;
       if (els.digitalDot) els.digitalDot.classList.toggle('active', Boolean(d.active));
       if (els.digitalBackend) els.digitalBackend.textContent = d.backend || '--';
+      const loopState = state.profileLoop.digital || defaultProfileLoopState();
+      const loopEnabled = Boolean(loopState.enabled);
+      const runtimeProfile = String(d.profile || d.activeProfile || '').trim();
+      const loopProfile = String(loopState.currentProfile || loopState.activeProfile || '').trim();
       if (els.digitalProfile) {
-        const profileBase = d.profile || d.activeProfile || '--';
-        const loopState = state.profileLoop.digital || defaultProfileLoopState();
-        if (loopState.enabled) {
+        const profileBase = runtimeProfile || '--';
+        if (loopEnabled) {
           const next = loopState.nextProfile || '--';
-          els.digitalProfile.textContent = `${profileBase} (loop→${next})`;
+          if (loopProfile && runtimeProfile && loopProfile !== runtimeProfile) {
+            els.digitalProfile.textContent = `${profileBase} (switching→${loopProfile}, next→${next})`;
+          } else {
+            const shown = loopProfile || profileBase;
+            els.digitalProfile.textContent = `${shown} (loop→${next})`;
+          }
         } else {
           els.digitalProfile.textContent = profileBase;
         }
@@ -4811,7 +4827,31 @@
       const systemHealthRows = Array.isArray(d.schedulerSystemHealth) ? d.schedulerSystemHealth : [];
       const activeSystemRow = systemHealthRows.find((row) => row && row.active) || null;
       if (els.digitalSystemHealth) {
-        if (!systemHealthRows.length) {
+        if (loopEnabled) {
+          const activeLabel = loopLabelForTarget('digital', loopState.currentProfile || loopState.activeProfile || '--');
+          const nextLabel = loopLabelForTarget('digital', loopState.nextProfile || '--');
+          const reason = loopSwitchReasonForDisplay('digital', loopState.switchReason) || '--';
+          const switches = Number(loopState.switchCount || 0);
+          els.digitalSystemHealth.textContent = `● ${activeLabel}:${ccHealth.label} | next=${nextLabel}`;
+          if (ccHealth.tone) {
+            setValueTone(els.digitalSystemHealth, ccHealth.tone);
+          } else {
+            setValueTone(els.digitalSystemHealth, '');
+          }
+          if (els.digitalSystemHealthDetail) {
+            const parts = [
+              `Loop active=${activeLabel}`,
+              `next=${nextLabel}`,
+              `reason=${reason}`,
+              `switches=${switches}`,
+            ];
+            if (runtimeProfile && loopProfile && runtimeProfile !== loopProfile) {
+              parts.push(`runtime=${runtimeProfile}`);
+            }
+            els.digitalSystemHealthDetail.textContent = parts.join(' • ');
+            setValueTone(els.digitalSystemHealthDetail, ccHealth.tone || '');
+          }
+        } else if (!systemHealthRows.length) {
           els.digitalSystemHealth.textContent = '--';
           setValueTone(els.digitalSystemHealth, '');
         } else {
@@ -4823,7 +4863,7 @@
           );
         }
       }
-      if (els.digitalSystemHealthDetail) {
+      if (els.digitalSystemHealthDetail && !loopEnabled) {
         if (!activeSystemRow) {
           els.digitalSystemHealthDetail.textContent = '--';
           setValueTone(els.digitalSystemHealthDetail, '');
@@ -5651,6 +5691,7 @@
 
     function getDigitalControlChannelHealth() {
       const d = state.digital || {};
+      const loopState = state.profileLoop?.digital || defaultProfileLoopState();
       const sourceType = String(d.playlistSourceType || '').trim();
       const metricReady = Boolean(d.controlMetricReady);
       const windowMs = Number.isFinite(d.controlWindowMs) ? Number(d.controlWindowMs) : 0;
@@ -5662,6 +5703,17 @@
 
       if (!d.active) {
         return { label: 'OFFLINE', tone: 'bad', detail: 'Digital decoder stopped' };
+      }
+      if (loopState.enabled) {
+        const runtimeProfile = String(d.profile || '').trim();
+        const loopProfile = String(loopState.currentProfile || loopState.activeProfile || '').trim();
+        if (runtimeProfile && loopProfile && runtimeProfile !== loopProfile) {
+          return {
+            label: 'SWITCHING',
+            tone: 'warn',
+            detail: `Runtime=${runtimeProfile}; loop target=${loopProfile}`,
+          };
+        }
       }
       if (!d.playlistSourceOk) {
         const reason = d.playlistSourceError ? trimServiceNote(d.playlistSourceError) : 'Playlist source not ready';
@@ -6565,12 +6617,15 @@
       refreshInFlight = (async () => {
         const wasConnected = state.connected;
         try {
+          const loopEnabledNow = Boolean((state.profileLoop?.digital || {}).enabled);
+          const fetchScheduler = !loopEnabledNow;
+          const fetchDigitalPreflight = !loopEnabledNow;
           const [data, profilesData, systemData, schedulerData, digitalPreflightData, profileLoopData] = await Promise.all([
             fetchJSON('/api/status'),
             fetchJSON('/api/profiles'),
             fetchJSON('/api/system'),
-            fetchJSON('/api/digital/scheduler').catch(() => null),
-            fetchJSON('/api/digital/preflight').catch(() => null),
+            fetchScheduler ? fetchJSON('/api/digital/scheduler').catch(() => null) : Promise.resolve(null),
+            fetchDigitalPreflight ? fetchJSON('/api/digital/preflight').catch(() => null) : Promise.resolve(null),
             fetchJSON('/api/profile-loop').catch(() => null),
           ]);
 

@@ -1337,9 +1337,11 @@ class Handler(BaseHTTPRequestHandler):
             digital_loop = profile_loop_targets.get("digital") if isinstance(profile_loop_targets, dict) else {}
             if isinstance(digital_loop, dict):
                 payload["digital_profile_loop_enabled"] = bool(digital_loop.get("enabled"))
+                payload["digital_profile_loop_current_profile"] = str(digital_loop.get("current_profile") or "")
                 payload["digital_profile_loop_active_profile"] = str(digital_loop.get("active_profile") or "")
                 payload["digital_profile_loop_next_profile"] = str(digital_loop.get("next_profile") or "")
                 payload["digital_profile_loop_switch_reason"] = str(digital_loop.get("switch_reason") or "")
+                payload["digital_profile_loop_switch_count"] = int(digital_loop.get("switch_count") or 0)
                 payload["digital_profile_loop_last_error"] = str(digital_loop.get("last_error") or "")
             analog_loop_air = profile_loop_targets.get("airband") if isinstance(profile_loop_targets, dict) else {}
             if isinstance(analog_loop_air, dict) and analog_loop_air.get("enabled"):
