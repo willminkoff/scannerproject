@@ -3536,6 +3536,45 @@
       return `/${raw.replace(/^\/+/, '')}`;
     }
 
+    function normalizedIcecastMountSet() {
+      const out = new Set();
+      (state.icecastMounts || []).forEach((mountName) => {
+        const normalized = normalizeMountPath(mountName);
+        if (normalized) out.add(normalized);
+      });
+      return out;
+    }
+
+    function resolveMountedStreamName(primaryMount, fallbacks = [], defaultMount = '') {
+      const mountSet = normalizedIcecastMountSet();
+      const primary = String(primaryMount || defaultMount || '').trim().replace(/^\/+/, '');
+      if (primary && mountSet.has(`/${primary}`)) {
+        return primary;
+      }
+      for (const candidate of (Array.isArray(fallbacks) ? fallbacks : [])) {
+        const mountName = String(candidate || '').trim().replace(/^\/+/, '');
+        if (!mountName) continue;
+        if (mountSet.has(`/${mountName}`)) {
+          return mountName;
+        }
+      }
+      return primary || String(defaultMount || '').trim().replace(/^\/+/, '');
+    }
+
+    function currentAnalogMountName() {
+      return resolveMountedStreamName(
+        state.streamMount,
+        ['ANALOG.mp3', 'keepalive-analog.mp3'],
+        'ANALOG.mp3'
+      );
+    }
+
+    function currentDigitalMountName() {
+      const primary = String(state.digitalStreamMount || 'DIGITAL.mp3').trim().replace(/^\/+/, '');
+      if (primary) return primary;
+      return resolveMountedStreamName('', ['DIGITAL.mp3', 'keepalive-digital.mp3'], 'DIGITAL.mp3');
+    }
+
     function isLikelyIOSClient() {
       const ua = String(navigator.userAgent || '');
       if (/iPad|iPhone|iPod/i.test(ua)) return true;
@@ -3548,17 +3587,19 @@
     }
 
     function analogStreamUrl() {
+      const mountName = currentAnalogMountName();
       if (shouldPreferDirectIcecastStream()) {
-        return buildIcecastUrl(state.streamMount, 'ANALOG.mp3');
+        return buildIcecastUrl(mountName, 'ANALOG.mp3');
       }
-      return `${buildProxyStreamUrl(state.streamMount, 'ANALOG.mp3')}?transcode=1`;
+      return `${buildProxyStreamUrl(mountName, 'ANALOG.mp3')}?transcode=1`;
     }
 
     function digitalStreamUrl() {
+      const mountName = currentDigitalMountName();
       if (shouldPreferDirectIcecastStream()) {
-        return buildIcecastUrl(state.digitalStreamMount, 'DIGITAL.mp3');
+        return buildIcecastUrl(mountName, 'DIGITAL.mp3');
       }
-      return `${buildProxyStreamUrl(state.digitalStreamMount, 'DIGITAL.mp3')}?transcode=1`;
+      return `${buildProxyStreamUrl(mountName, 'DIGITAL.mp3')}?transcode=1`;
     }
 
     function audioTargetLabel(audioEl) {

@@ -11,6 +11,9 @@ import time
 from datetime import datetime
 from xml.etree import ElementTree as ET
 
+_XSI_NS = "http://www.w3.org/2001/XMLSchema-instance"
+ET.register_namespace("xsi", _XSI_NS)
+
 try:
     from .config import (
         AIRBAND_RTL_SERIAL,
@@ -21,6 +24,9 @@ try:
         DIGITAL_EVENT_LOG_MODE,
         DIGITAL_EVENT_LOG_TAIL_LINES,
         DIGITAL_FORCE_PREFERRED_TUNER,
+        DIGITAL_STREAM_MOUNT,
+        ICECAST_HOST,
+        ICECAST_PORT,
         DIGITAL_LOG_PATH,
         DIGITAL_PLAYLIST_PATH,
         DIGITAL_PROFILES_DIR,
@@ -53,6 +59,9 @@ except ImportError:
         DIGITAL_EVENT_LOG_MODE,
         DIGITAL_EVENT_LOG_TAIL_LINES,
         DIGITAL_FORCE_PREFERRED_TUNER,
+        DIGITAL_STREAM_MOUNT,
+        ICECAST_HOST,
+        ICECAST_PORT,
         DIGITAL_LOG_PATH,
         DIGITAL_PLAYLIST_PATH,
         DIGITAL_PROFILES_DIR,
@@ -262,6 +271,16 @@ _DIGITAL_DEBUG_INCLUDE_GRANTS = os.getenv(
     "0",
 ).strip().lower() in ("1", "true", "yes", "on")
 _DIGITAL_SOURCE_ROTATION_DELAY_MS = max(100, int(DIGITAL_SOURCE_ROTATION_DELAY_MS or 500))
+_DIGITAL_STREAM_SOURCE_USER = os.getenv("ICECAST_SOURCE_USER", "source").strip() or "source"
+_DIGITAL_STREAM_SOURCE_PASSWORD = os.getenv("ICECAST_SOURCE_PASSWORD", "062352").strip() or "062352"
+_DIGITAL_STREAM_BITRATE = max(8, int(os.getenv("DIGITAL_STREAM_BITRATE", "16")))
+_DIGITAL_STREAM_SAMPLE_RATE = max(8000, int(os.getenv("DIGITAL_STREAM_SAMPLE_RATE", "8000")))
+_DIGITAL_STREAM_CHANNELS = 1 if int(os.getenv("DIGITAL_STREAM_CHANNELS", "1")) <= 1 else 2
+_DIGITAL_STREAM_MAX_RECORDING_AGE_MS = max(
+    60000,
+    int(os.getenv("DIGITAL_STREAM_MAX_RECORDING_AGE_MS", "600000")),
+)
+_DIGITAL_STREAM_DELAY_MS = max(0, int(os.getenv("DIGITAL_STREAM_DELAY_MS", "0")))
 
 
 def validate_digital_profile_id(profile_id: str) -> bool:
@@ -355,6 +374,70 @@ def _apply_decode_configuration(channel: ET.Element, decoder_mode: str) -> None:
     decode_conf.set("modulation", "C4FM")
     decode_conf.set("traffic_channel_pool_size", "20")
     decode_conf.set("ignore_data_calls", ignore_data_calls_val)
+
+
+def _sync_stream_configuration(root: ET.Element) -> bool:
+    stream_name = str(DIGITAL_SDRTRUNK_STREAM_NAME or "").strip()
+    if not stream_name:
+        return False
+
+    mount = str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/") or "DIGITAL.mp3"
+    mount_point = f"/{mount}"
+    stream = None
+    duplicates: list[ET.Element] = []
+    for candidate in list(root.findall("stream")):
+        name = str(candidate.get("name", "")).strip()
+        candidate_mount = str(candidate.get("mount_point", "")).strip()
+        if name == stream_name or candidate_mount == mount_point:
+            if stream is None:
+                stream = candidate
+            else:
+                duplicates.append(candidate)
+
+    changed = False
+    if stream is None:
+        stream = ET.SubElement(root, "stream")
+        changed = True
+
+    for dup in duplicates:
+        try:
+            root.remove(dup)
+            changed = True
+        except Exception:
+            pass
+
+    attrs = {
+        "type": "icecastHTTPConfiguration",
+        f"{{{_XSI_NS}}}type": "ICECAST_HTTP",
+        "public": "false",
+        "sample_rate": str(_DIGITAL_STREAM_SAMPLE_RATE),
+        "channels": str(_DIGITAL_STREAM_CHANNELS),
+        "user_name": _DIGITAL_STREAM_SOURCE_USER,
+        "bitrate": str(_DIGITAL_STREAM_BITRATE),
+        "mount_point": mount_point,
+        "inline": "true",
+        "delay": str(_DIGITAL_STREAM_DELAY_MS),
+        "host": str(ICECAST_HOST or "127.0.0.1"),
+        "name": stream_name,
+        "enabled": "true",
+        "port": str(ICECAST_PORT or 8000),
+        "password": _DIGITAL_STREAM_SOURCE_PASSWORD,
+        "maximum_recording_age": str(_DIGITAL_STREAM_MAX_RECORDING_AGE_MS),
+    }
+    for key, value in attrs.items():
+        if str(stream.get(key, "")) != str(value):
+            stream.set(key, str(value))
+            changed = True
+
+    fmt = stream.find("format")
+    if fmt is None:
+        fmt = ET.SubElement(stream, "format")
+        changed = True
+    if str(fmt.text or "").strip().upper() != "MP3":
+        fmt.text = "MP3"
+        changed = True
+
+    return changed
 
 
 def _digital_tuner_targets() -> list[str]:
@@ -2559,6 +2642,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         _apply_decode_configuration(channel, decoder_mode)
         if channel.find("record_configuration") is None:
             ET.SubElement(channel, "record_configuration")
+        _sync_stream_configuration(root)
 
         try:
             tree.write(playlist_path, encoding="utf-8", xml_declaration=False)
@@ -3451,18 +3535,22 @@ class DigitalManager:
             else "TUNER"
         )
 
-        if (
+        source_unchanged = (
             before_channels == channels
             and before_source_type == expected_source_type
             and before_preferred == preferred
-        ):
+        )
+        stream_changed = _sync_stream_configuration(root)
+
+        if source_unchanged and not stream_changed:
             self._scheduler_last_applied_system = system_name
             self._scheduler_last_apply_time_ms = now_ms
             self._scheduler_last_apply_error = ""
             self._scheduler_last_apply_error_system = ""
             return True, "", False
 
-        _sync_source_configuration(source_conf, channels)
+        if not source_unchanged:
+            _sync_source_configuration(source_conf, channels)
         try:
             tree.write(playlist_path, encoding="utf-8", xml_declaration=False)
         except Exception as e:

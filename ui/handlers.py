@@ -1619,7 +1619,16 @@ class Handler(BaseHTTPRequestHandler):
             except json.JSONDecodeError:
                 form = {}
         else:
-            form = {k: v[0] for k, v in parse_qs(raw).items()}
+            parsed_form = parse_qs(raw, keep_blank_values=True)
+            form = {}
+            for key, values in parsed_form.items():
+                if not values:
+                    form[key] = ""
+                    continue
+                if key == "selected_profiles":
+                    form[key] = ",".join(str(item or "").strip() for item in values)
+                    continue
+                form[key] = values[0]
 
         def get_str(key: str, default: str = "") -> str:
             v = form.get(key, default)
