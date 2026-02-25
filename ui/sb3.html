@@ -4731,6 +4731,27 @@
       return lines.join('\n');
     }
 
+    function applyProfilesPayload(profilesData, statusData = null) {
+      if (!profilesData || typeof profilesData !== 'object') return;
+      const status = statusData && typeof statusData === 'object' ? statusData : {};
+      state.airband.profiles = profilesData.profiles_airband || [];
+      state.ground.profiles = profilesData.profiles_ground || [];
+      state.airband.currentProfile = profilesData.active_airband_id || status.profile_airband || state.airband.currentProfile || '';
+      state.ground.currentProfile = profilesData.active_ground_id || status.profile_ground || state.ground.currentProfile || '';
+      updateProfiles();
+    }
+
+    function applyDigitalProfilesPayload(data) {
+      if (!data || typeof data !== 'object' || !data.ok) return false;
+      state.digital.profiles = data.profiles || [];
+      state.digital.activeProfile = data.active || '';
+      digitalProfilesLoaded = true;
+      updateDigitalProfileSelect();
+      updateDigitalProfilesList();
+      refreshProfileEditorOptions();
+      return true;
+    }
+
     function escapeHtml(value) {
       return String(value || '')
         .replace(/&/g, '&amp;')
@@ -4746,18 +4767,25 @@
       if (activeView !== 'digital' && !sidecarDigitalActive && !force) return;
       try {
         const data = await fetchJSON('/api/digital/profiles');
-        if (data && data.ok) {
-          state.digital.profiles = data.profiles || [];
-          state.digital.activeProfile = data.active || '';
-          digitalProfilesLoaded = true;
-          updateDigitalProfileSelect();
-          updateDigitalProfilesList();
-          refreshProfileEditorOptions();
+        if (applyDigitalProfilesPayload(data)) {
           return;
         }
         setDigitalStatusMessage((data && data.error) || 'Digital profiles unavailable', true);
       } catch (e) {
         setDigitalStatusMessage('Digital profiles unavailable', true);
+      }
+    }
+
+    async function refreshProfilesFast() {
+      const [profilesData, digitalProfilesData] = await Promise.all([
+        fetchJSON('/api/profiles').catch(() => null),
+        fetchJSON('/api/digital/profiles').catch(() => null),
+      ]);
+      if (profilesData) {
+        applyProfilesPayload(profilesData, null);
+      }
+      if (digitalProfilesData) {
+        applyDigitalProfilesPayload(digitalProfilesData);
       }
     }
 
@@ -5394,12 +5422,30 @@
       }
       els.avoidsCount.innerHTML = tableHtml;
       els.avoidsTarget.textContent = '';
-      
-      if (state.serverTime) {
-        const serverDate = new Date(state.serverTime * 1000);
-        els.piTime.textContent = serverDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-      }
+      renderPiClock();
       updateSitrep();
+    }
+
+    function estimatedServerDate() {
+      const serverEpochSec = Number(state.serverTime || 0);
+      if (Number.isFinite(serverEpochSec) && serverEpochSec > 0) {
+        const baseMs = serverEpochSec * 1000;
+        const lastTickMs = Number(state.lastStatusTick || 0);
+        const driftMs = lastTickMs > 0 ? Math.max(0, Date.now() - lastTickMs) : 0;
+        return new Date(baseMs + driftMs);
+      }
+      return new Date();
+    }
+
+    function renderPiClock() {
+      if (!els.piTime) return;
+      const now = estimatedServerDate();
+      els.piTime.textContent = now.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      });
     }
     
     function formatFreq(freq) {
@@ -6689,8 +6735,6 @@
         state.airband.applied_squelch_dbfs = Number.isFinite(data.airband_applied_squelch_dbfs) ? data.airband_applied_squelch_dbfs : null;
         state.airband.squelch = state.airband.squelch_dbfs;
         state.airband.filter = pickNumber(data.airband_filter, 3500);
-        state.airband.profiles = profilesData.profiles_airband || [];
-        state.airband.currentProfile = profilesData.active_airband_id || data.profile_airband || '';
         state.airband.avoids = data.avoids_airband?.sample || [];
         
         state.ground.gain = pickNumber(data.ground_gain, 32.8);
@@ -6701,9 +6745,8 @@
         state.ground.applied_squelch_dbfs = Number.isFinite(data.ground_applied_squelch_dbfs) ? data.ground_applied_squelch_dbfs : null;
         state.ground.squelch = state.ground.squelch_dbfs;
         state.ground.filter = pickNumber(data.ground_filter, 3500);
-        state.ground.profiles = profilesData.profiles_ground || [];
-        state.ground.currentProfile = profilesData.active_ground_id || data.profile_ground || '';
         state.ground.avoids = data.avoids_ground?.sample || [];
+        applyProfilesPayload(profilesData, data);
 
         state.digital.active = Boolean(data.digital_active);
         state.digital.backend = data.digital_backend || '';
@@ -6780,11 +6823,15 @@
           refreshDigitalProfiles();
           refreshDigitalListen();
         } catch (e) {
+          try {
+            await refreshProfilesFast();
+          } catch (_ignored) {}
           if (wasConnected) {
             logActivity('API connection lost', 'warn', 'api-down');
           }
           state.connected = false;
           updateStatus();
+          renderPiClock();
           console.error('Refresh failed:', e);
         }
       })();
@@ -7519,10 +7566,14 @@
       setupAudioAutoRecover();
       
       logActivity('SB3 UI initialized', 'info', 'init');
-      await refresh();
+      try {
+        await refreshProfilesFast();
+      } catch (_ignored) {}
+      refresh().catch((e) => console.error('Initial refresh failed:', e));
       await refreshHits();
       connectSSE();
       updateSitrep();
+      renderPiClock();
       
       // Poll only as fallback when SSE is disconnected.
       setInterval(async () => {
@@ -7550,6 +7601,9 @@
           console.error('Connected status sync failed:', e);
         }
       }, 60000);
+      setInterval(() => {
+        renderPiClock();
+      }, 1000);
     }
     
     init();
