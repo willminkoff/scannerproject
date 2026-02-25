@@ -2833,11 +2833,24 @@
     // API
     // ============================================
     
-    async function fetchWithTimeout(url, options = {}) {
+    async function fetchWithTimeout(url, options = {}, timeoutMs = FETCH_TIMEOUT_MS) {
+      const timeout = Number.isFinite(Number(timeoutMs))
+        ? Math.max(1000, Math.round(Number(timeoutMs)))
+        : FETCH_TIMEOUT_MS;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
       try {
         return await fetch(url, { ...options, signal: controller.signal });
+      } catch (err) {
+        const name = String(err && err.name ? err.name : '');
+        if (name === 'AbortError') {
+          const timeoutErr = new Error(`Request timed out after ${Math.round(timeout / 1000)}s`);
+          timeoutErr.name = 'TimeoutError';
+          timeoutErr.timeoutMs = timeout;
+          timeoutErr.url = url;
+          throw timeoutErr;
+        }
+        throw err;
       } finally {
         clearTimeout(timeoutId);
       }
@@ -2863,10 +2876,14 @@
       return r.json();
     }
     
-    async function postAPI(endpoint, data) {
+    async function postAPI(endpoint, data, options = {}) {
       const params = new URLSearchParams();
       Object.entries(data || {}).forEach(([k, v]) => {
         if (v === undefined || v === null) return;
+        if (Array.isArray(v)) {
+          params.append(k, v.map((item) => String(item || '').trim()).filter(Boolean).join(','));
+          return;
+        }
         params.append(k, String(v));
       });
       const body = params.toString();
@@ -2874,7 +2891,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body
-      });
+      }, options && options.timeoutMs);
       if (!r.ok) {
         let payload = null;
         try {
@@ -2893,12 +2910,12 @@
       return r.json();
     }
 
-    async function postJSON(endpoint, payload) {
+    async function postJSON(endpoint, payload, options = {}) {
       const r = await fetchWithTimeout(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload || {}),
-      });
+      }, options && options.timeoutMs);
       if (!r.ok) {
         let body = null;
         try {
@@ -3511,6 +3528,12 @@
       const mount = (mountName || fallbackMount).replace(/^\/+/, '');
       const port = Number.isFinite(state.icecastPort) ? state.icecastPort : 8000;
       return `http://${location.hostname}:${port}/${mount}`;
+    }
+
+    function normalizeMountPath(mountName, fallbackMount = '') {
+      const raw = String(mountName || fallbackMount || '').trim();
+      if (!raw) return '';
+      return `/${raw.replace(/^\/+/, '')}`;
     }
 
     function isLikelyIOSClient() {
@@ -4550,7 +4573,7 @@
         pause_on_hit: Boolean(pauseEl && pauseEl.checked),
       };
       try {
-        const res = await postAPI('/api/profile-loop', payload);
+        const res = await postAPI('/api/profile-loop', payload, { timeoutMs: 12000 });
         if (res && res.ok) {
           clearLoopDraftSelection(targetName);
           if (res.snapshot) {
@@ -4792,7 +4815,7 @@
       );
       setDigitalStatusMessage(`Digital ${action}...`, false);
       try {
-        const res = await postAPI(`/api/digital/${action}`, {});
+        const res = await postAPI(`/api/digital/${action}`, {}, { timeoutMs: 20000 });
         if (res && res.ok) {
           setDigitalStatusMessage(`Digital ${action} ok`, false);
           if (action === 'restart') {
@@ -4815,7 +4838,7 @@
       );
       setDigitalStatusMessage('Applying profile...', false);
       try {
-        const res = await postAPI('/api/digital/profile', { profileId });
+        const res = await postAPI('/api/digital/profile', { profileId }, { timeoutMs: 25000 });
         if (res && res.ok) {
           setDigitalStatusMessage('Profile updated', false);
           scheduleStreamRecovery('digital', 'digital-profile', digitalShouldResume);
@@ -5413,7 +5436,18 @@
     function messageFromError(err, fallback = '') {
       const payload = payloadFromError(err);
       if (payload) return formatApiError(payload, fallback);
+      const name = String(err && err.name ? err.name : '').trim();
+      if (name === 'TimeoutError') {
+        const sec = Math.max(1, Math.round(Number(err && err.timeoutMs ? err.timeoutMs : FETCH_TIMEOUT_MS) / 1000));
+        const base = fallback || 'Request timed out';
+        return `${base} (timed out after ${sec}s)`;
+      }
       const text = String(err && err.message ? err.message : '').trim();
+      if (/aborted/i.test(text)) {
+        const sec = Math.max(1, Math.round(FETCH_TIMEOUT_MS / 1000));
+        const base = fallback || 'Request timed out';
+        return `${base} (timed out after ${sec}s)`;
+      }
       return text || fallback;
     }
 
@@ -5702,12 +5736,21 @@
       if (els.sitrepMounts) {
         const mounts = state.icecastMounts || [];
         const expected = state.icecastExpectedMounts || [];
+        const mountSet = new Set(mounts.map((m) => normalizeMountPath(m)).filter(Boolean));
+        const analogMount = normalizeMountPath(state.streamMount, 'ANALOG.mp3');
+        const digitalMount = normalizeMountPath(state.digitalStreamMount, 'DIGITAL.mp3');
+        const analogFallback = '/keepalive-analog.mp3';
+        const digitalFallback = '/keepalive-digital.mp3';
         if (!expected.length) {
           els.sitrepMounts.textContent = mounts.length ? mounts.join(', ') : '--';
         } else {
           const display = expected.map((m) => {
-            const label = m.replace(/^\//, '');
-            return mounts.includes(m) ? label : `${label} ✗`;
+            const normalized = normalizeMountPath(m);
+            const label = normalized.replace(/^\//, '');
+            if (mountSet.has(normalized)) return label;
+            if (normalized === analogMount && mountSet.has(analogFallback)) return `${label} (fallback)`;
+            if (normalized === digitalMount && mountSet.has(digitalFallback)) return `${label} (fallback)`;
+            return `${label} ✗`;
           });
           els.sitrepMounts.textContent = display.join('  ');
         }
@@ -5796,7 +5839,19 @@
       if (els.sitrepStream) {
         const mounts = state.icecastMounts || [];
         const expected = state.icecastExpectedMounts || [];
-        const mountsOk = expected.length ? expected.every(m => mounts.includes(m)) : true;
+        const mountSet = new Set(mounts.map((m) => normalizeMountPath(m)).filter(Boolean));
+        const analogMount = normalizeMountPath(state.streamMount, 'ANALOG.mp3');
+        const digitalMount = normalizeMountPath(state.digitalStreamMount, 'DIGITAL.mp3');
+        const analogFallback = '/keepalive-analog.mp3';
+        const digitalFallback = '/keepalive-digital.mp3';
+        const mountsOk = expected.length ? expected.every((m) => {
+          const normalized = normalizeMountPath(m);
+          if (!normalized) return true;
+          if (mountSet.has(normalized)) return true;
+          if (normalized === analogMount && mountSet.has(analogFallback)) return true;
+          if (normalized === digitalMount && mountSet.has(digitalFallback)) return true;
+          return false;
+        }) : true;
         const ok = Boolean(state.icecastActive) && mountsOk;
         els.sitrepStream.textContent = ok ? 'Audio stream online' : 'Audio stream offline';
         els.sitrepStream.classList.toggle('good', ok);
@@ -6430,7 +6485,7 @@
         if (!force && t.currentProfile === id) {
           return;
         }
-        const res = await postAPI('/api/profile', { profile: id, target: activeTarget });
+        const res = await postAPI('/api/profile', { profile: id, target: activeTarget }, { timeoutMs: 20000 });
         state.tuned = false;
         state.tunedFreq = null;
         state.tunedTarget = null;

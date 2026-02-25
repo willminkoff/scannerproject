@@ -82,6 +82,12 @@ _MOUNT_WAIT_POLL_SEC = 1.0
 _MOUNT_CACHE_TTL_SEC = 0.75
 _MOUNT_FAILURE_GRACE_SEC = 5.0
 _MOUNT_STATUS_TIMEOUT_SEC = 1.25
+_ANALOG_KEEPALIVE_MOUNT = str(
+    os.getenv("PROFILE_LOOP_ANALOG_KEEPALIVE_MOUNT", "keepalive-analog.mp3")
+).strip().lstrip("/")
+_DIGITAL_KEEPALIVE_MOUNT = str(
+    os.getenv("PROFILE_LOOP_DIGITAL_KEEPALIVE_MOUNT", "keepalive-digital.mp3")
+).strip().lstrip("/")
 _DIGITAL_LOCK_TIMEOUT_MS = max(
     0,
     int(os.getenv("PROFILE_LOOP_DIGITAL_LOCK_TIMEOUT_MS", "2500")),
@@ -422,11 +428,27 @@ class ProfileLoopManager:
             return ""
         return f"/{mount}"
 
+    def _fallback_mounts_for_target(self, target: str) -> set[str]:
+        out: set[str] = set()
+        if target == "digital":
+            if _DIGITAL_KEEPALIVE_MOUNT:
+                out.add(f"/{_DIGITAL_KEEPALIVE_MOUNT}")
+        else:
+            if _ANALOG_KEEPALIVE_MOUNT:
+                out.add(f"/{_ANALOG_KEEPALIVE_MOUNT}")
+        return out
+
     def _target_mount_present(self, target: str, *, force_refresh: bool = False) -> bool:
         expected = self._expected_mount_for_target(target)
         if not expected:
             return True
-        return expected in self._normalized_mounts(force_refresh=force_refresh)
+        mounts = self._normalized_mounts(force_refresh=force_refresh)
+        if expected in mounts:
+            return True
+        for fallback in self._fallback_mounts_for_target(target):
+            if fallback in mounts:
+                return True
+        return False
 
     def _wait_for_mount_after_switch(self, target: str) -> bool:
         expected = self._expected_mount_for_target(target)
