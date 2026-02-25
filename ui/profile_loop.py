@@ -901,11 +901,11 @@ class ProfileLoopManager:
         if elapsed < 0:
             elapsed = 0
         dwell_ms = int(state.get("dwell_ms") or _DEFAULT_DWELL_MS[target])
-        metric_ready, control_locked = self._digital_control_lock_state()
-        if int(_DIGITAL_LOCK_TIMEOUT_MS) > 0 and metric_ready and not control_locked:
-            # Dwell is the primary switch gate; lock-timeout should not preempt
-            # a switch before dwell has elapsed.
-            wait_for_lock_ms = max(int(_DIGITAL_LOCK_TIMEOUT_MS), dwell_ms)
+        _metric_ready, control_locked = self._digital_control_lock_state()
+        wait_for_lock_ms = max(int(_DIGITAL_LOCK_TIMEOUT_MS), dwell_ms)
+        if int(_DIGITAL_LOCK_TIMEOUT_MS) > 0 and not control_locked:
+            # Hold on a profile while the control channel is still being acquired.
+            # This applies even when decode metrics are temporarily unavailable.
             if elapsed < wait_for_lock_ms:
                 state["in_hit_hold"] = False
                 state["switch_reason"] = "acquiring_lock"
@@ -913,6 +913,11 @@ class ProfileLoopManager:
             next_profile = self._next_profile(selected, active_profile)
             if next_profile and next_profile != active_profile:
                 return next_profile, "lock_timeout"
+        if control_locked and str(state.get("switch_reason") or "") == "acquiring_lock":
+            # Start dwell timing from lock acquisition, not from profile switch.
+            state["last_switch_time_ms"] = now_ms
+            elapsed = 0
+            state["switch_reason"] = "lock_acquired"
 
         if state.get("pause_on_hit") and state["recent_hit"]:
             state["in_hit_hold"] = True
