@@ -891,7 +891,16 @@ class ProfileLoopManager:
             return None
 
         if current_profile != active_profile:
-            return active_profile, "align"
+            if current_profile in selected and current_profile:
+                # If runtime already moved to a selected profile, trust it and
+                # re-anchor scheduling to avoid align ping-pong.
+                state["active_profile"] = current_profile
+                state["next_profile"] = self._next_profile(selected, current_profile)
+                state["last_switch_time_ms"] = now_ms
+                state["switch_reason"] = "manual"
+                active_profile = current_profile
+            else:
+                return active_profile, "align"
 
         elapsed = now_ms - int(state.get("last_switch_time_ms") or 0)
         if elapsed < 0:
