@@ -28,7 +28,7 @@ try:
     from .scanner import read_hit_list_cached
     from .server_workers import enqueue_action
     from .v3_preflight import gate_action
-    from .v3_runtime import set_active_analog_profile, set_active_digital_profile
+    from .v3_runtime import set_active_analog_profile
 except ImportError:
     from ui.config import (
         AIRBAND_MAX_MHZ,
@@ -48,7 +48,7 @@ except ImportError:
     from ui.scanner import read_hit_list_cached
     from ui.server_workers import enqueue_action
     from ui.v3_preflight import gate_action
-    from ui.v3_runtime import set_active_analog_profile, set_active_digital_profile
+    from ui.v3_runtime import set_active_analog_profile
 
 
 _TARGETS = ("airband", "ground", "digital")
@@ -600,12 +600,8 @@ class ProfileLoopManager:
         self._digital_lock_cache_ts = 0.0
         self._digital_lock_metric_ready = False
         self._digital_lock_control_locked = False
-        if not self._wait_for_mount_after_switch(target):
-            return False, f"mount did not recover after switch: {self._expected_mount_for_target(target)}"
-        try:
-            set_active_digital_profile(pid)
-        except Exception:
-            pass
+        # Speed-first loop behavior: skip mount-validation waits and canonical
+        # compile updates on each digital dwell transition.
         return True, ""
 
     def _load_state(self) -> None:
