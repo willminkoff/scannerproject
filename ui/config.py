@@ -155,6 +155,10 @@ DIGITAL_RUNTIME_RETUNE_TIMEOUT_MS = max(
     50,
     int(os.getenv("DIGITAL_RUNTIME_RETUNE_TIMEOUT_MS", "350")),
 )
+DIGITAL_RUNTIME_RETUNE_DISABLE_FALLBACK_AFTER = max(
+    0,
+    int(os.getenv("DIGITAL_RUNTIME_RETUNE_DISABLE_FALLBACK_AFTER", "0")),
+)
 DIGITAL_RTL_SERIAL_HINT = "DIGITAL_RTL_SERIAL not set; set it to your digital dongle serial"
 # Multi-profile loop scheduler
 PROFILE_LOOP_STATE_PATH = os.getenv(

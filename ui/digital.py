@@ -41,6 +41,7 @@ try:
         DIGITAL_RUNTIME_RETUNE_HTTP_METHOD,
         DIGITAL_RUNTIME_RETUNE_STRICT,
         DIGITAL_RUNTIME_RETUNE_TIMEOUT_MS,
+        DIGITAL_RUNTIME_RETUNE_DISABLE_FALLBACK_AFTER,
         DIGITAL_RUNTIME_RETUNE_TOKEN,
         DIGITAL_RUNTIME_RETUNE_URL,
         DIGITAL_RTL_DEVICE,
@@ -84,6 +85,7 @@ except ImportError:
         DIGITAL_RUNTIME_RETUNE_HTTP_METHOD,
         DIGITAL_RUNTIME_RETUNE_STRICT,
         DIGITAL_RUNTIME_RETUNE_TIMEOUT_MS,
+        DIGITAL_RUNTIME_RETUNE_DISABLE_FALLBACK_AFTER,
         DIGITAL_RUNTIME_RETUNE_TOKEN,
         DIGITAL_RUNTIME_RETUNE_URL,
         DIGITAL_RTL_DEVICE,
@@ -1840,6 +1842,11 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             0.0,
             float(os.getenv("DIGITAL_LOG_REFRESH_MIN_INTERVAL_SEC", "0.40")),
         )
+        self._runtime_retune_success_streak = 0
+        self._runtime_retune_fallback_disabled = False
+        self._runtime_retune_fallback_disable_after = int(
+            max(0, DIGITAL_RUNTIME_RETUNE_DISABLE_FALLBACK_AFTER or 0)
+        )
         if not validate_digital_service_name(self._service_name):
             self._set_last_error("invalid digital service name")
 
@@ -2656,12 +2663,114 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         return ""
 
     @staticmethod
-    def _read_control_channels(profile_dir: str) -> list[int]:
+    def _control_channel_value_to_hz(value) -> int:
+        raw = str(value or "").strip()
+        if not raw:
+            return 0
+        try:
+            if re.fullmatch(r"\d+", raw):
+                num = int(raw)
+                if num >= 1_000_000:
+                    return num
+                if num > 100:
+                    return int(round(float(num) * 1_000_000))
+                return 0
+            numf = float(raw)
+            if numf >= 1_000_000:
+                return int(round(numf))
+            if numf > 100:
+                return int(round(numf * 1_000_000))
+        except Exception:
+            return 0
+        return 0
+
+    @classmethod
+    def _parse_system_control_channels(cls, raw_values) -> list[int]:
+        if raw_values is None:
+            return []
+        if isinstance(raw_values, list):
+            incoming = raw_values
+        else:
+            text = str(raw_values or "").replace("\n", ",").replace(";", ",")
+            incoming = text.split(",")
+        channels: list[int] = []
+        seen: set[int] = set()
+        for item in incoming:
+            hz = cls._control_channel_value_to_hz(item)
+            if hz <= 0 or hz in seen:
+                continue
+            seen.add(hz)
+            channels.append(hz)
+        return channels
+
+    @classmethod
+    def _read_system_definitions(cls, profile_dir: str) -> list[tuple[str, list[int]]]:
+        path = str(profile_dir or "").strip()
+        if not path:
+            return []
+        systems_path = os.path.join(path, "systems.json")
+        if not os.path.isfile(systems_path):
+            return []
+        try:
+            with open(systems_path, "r", encoding="utf-8", errors="ignore") as f:
+                payload = json.load(f)
+        except Exception:
+            return []
+
+        if isinstance(payload, dict):
+            systems_raw = payload.get("systems")
+        else:
+            systems_raw = payload
+        if not isinstance(systems_raw, list):
+            return []
+
+        systems: list[tuple[str, list[int]]] = []
+        seen: set[str] = set()
+        for item in systems_raw:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or item.get("id") or item.get("system") or "").strip()
+            if not name:
+                continue
+            key = name.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            channels_raw = (
+                item.get("control_channels_hz")
+                if item.get("control_channels_hz") is not None
+                else (
+                    item.get("control_channels_mhz")
+                    if item.get("control_channels_mhz") is not None
+                    else item.get("control_channels")
+                )
+            )
+            if channels_raw is None:
+                channels_raw = item.get("controls")
+            channels = cls._parse_system_control_channels(channels_raw)
+            if not channels:
+                continue
+            systems.append((name, channels))
+        return systems
+
+    @classmethod
+    def _read_control_channels(cls, profile_dir: str) -> list[int]:
+        channels: list[int] = []
+        seen: set[int] = set()
+
+        # Prefer explicit per-system definitions when present so super profiles
+        # can seed runtime from systems.json without profile rewrites.
+        explicit_systems = cls._read_system_definitions(profile_dir)
+        for _name, values in explicit_systems:
+            for hz in values:
+                if hz <= 0 or hz in seen:
+                    continue
+                seen.add(hz)
+                channels.append(hz)
+
         path = os.path.join(profile_dir, "control_channels.txt")
         if not os.path.isfile(path):
-            return []
-        channels = []
-        seen = set()
+            return channels
         try:
             with open(path, "r", encoding="utf-8", errors="ignore") as f:
                 for line in f:
@@ -2680,7 +2789,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                     seen.add(hz)
                     channels.append(hz)
         except Exception:
-            return []
+            return channels
         return channels
 
     def _apply_profile_runtime(self, profile_dir: str, profile_id: str):
@@ -2774,6 +2883,47 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             return False, f"failed to write playlist: {e}"
         return True, ""
 
+    def _playlist_has_control_source(self) -> tuple[bool, str]:
+        playlist_path = _safe_realpath(DIGITAL_PLAYLIST_PATH)
+        if not playlist_path:
+            return False, "digital playlist path not configured"
+        if not os.path.isfile(playlist_path):
+            return False, f"playlist not found: {playlist_path}"
+        try:
+            tree = ET.parse(playlist_path)
+            root = tree.getroot()
+        except Exception as e:
+            return False, f"failed to parse playlist: {e}"
+
+        channel = root.find("channel")
+        if channel is None:
+            return False, "playlist has no channel node"
+        source_conf = channel.find("source_configuration")
+        if source_conf is None:
+            return False, "playlist channel has no source_configuration"
+        return True, ""
+
+    def ensure_runtime_seed(self, profile_id: str = "") -> tuple[bool, str, bool]:
+        ready, reason = self._playlist_has_control_source()
+        if ready:
+            return True, "", False
+
+        pid = _normalize_name(profile_id or self.getProfile() or "")
+        if not validate_digital_profile_id(pid):
+            return False, reason or "invalid profileId", False
+
+        base = _safe_realpath(self._profiles_dir)
+        target_dir = _safe_realpath(os.path.join(self._profiles_dir, pid))
+        if not base or not target_dir.startswith(base + os.sep):
+            return False, "invalid profile path", False
+        if not os.path.isdir(target_dir):
+            return False, "unknown profileId", False
+
+        ok, err = self._apply_profile_runtime(target_dir, pid)
+        if not ok:
+            return False, err or reason or "runtime seed failed", False
+        return True, "", True
+
     def retune_control_frequency(self, freq_mhz: float) -> tuple[bool, str]:
         try:
             freq_val = float(freq_mhz)
@@ -2787,8 +2937,19 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
 
         runtime_attempted, runtime_ok, runtime_err = self._runtime_retune_control_frequency(freq_val, hz)
         if runtime_ok:
+            if runtime_attempted:
+                self._runtime_retune_success_streak = int(self._runtime_retune_success_streak) + 1
+                if (
+                    not self._runtime_retune_fallback_disabled
+                    and self._runtime_retune_fallback_disable_after > 0
+                    and self._runtime_retune_success_streak >= self._runtime_retune_fallback_disable_after
+                ):
+                    self._runtime_retune_fallback_disabled = True
             return True, ""
-        if runtime_attempted and DIGITAL_RUNTIME_RETUNE_STRICT:
+        if runtime_attempted:
+            self._runtime_retune_success_streak = 0
+        runtime_strict = bool(DIGITAL_RUNTIME_RETUNE_STRICT or self._runtime_retune_fallback_disabled)
+        if runtime_attempted and runtime_strict:
             return False, runtime_err or "runtime retune failed"
 
         playlist_path = _safe_realpath(DIGITAL_PLAYLIST_PATH)
@@ -3260,10 +3421,13 @@ class DigitalManager:
         self._scheduler_last_apply_error_system = ""
         self._scheduler_lock_loss_ms = int(_DIGITAL_SCHEDULER_LOCK_LOSS_MS)
         self._scheduler_system_health: dict[str, dict] = {}
+        self._super_profile_seeded = False
+        self._super_profile_seed_error = ""
         self._scheduler_lock = threading.Lock()
         self._scheduler_stop = threading.Event()
         self._load_scheduler_state()
         self._refresh_super_profile_systems()
+        self._ensure_super_profile_seed()
         self._scheduler_thread = threading.Thread(
             target=self._scheduler_loop,
             name="digital-scheduler-loop",
@@ -3301,6 +3465,37 @@ class DigitalManager:
     def getProfile(self):
         return self._adapter.getProfile()
 
+    def _ensure_super_profile_seed(self, profile_id: str = "", *, force: bool = False) -> None:
+        if not self._super_profile_mode:
+            self._super_profile_seeded = False
+            self._super_profile_seed_error = ""
+            return
+        if self._super_profile_seeded and not force:
+            last_err = str(self._scheduler_last_apply_error or "").lower()
+            if (
+                "no channel node" not in last_err
+                and "no source_configuration" not in last_err
+            ):
+                return
+        ensure_seed = getattr(self._adapter, "ensure_runtime_seed", None)
+        if not callable(ensure_seed):
+            return
+        pid = str(profile_id or self.getProfile() or "").strip()
+        if not pid:
+            return
+        ok, err, _changed = ensure_seed(pid)
+        if ok:
+            self._super_profile_seeded = True
+            self._super_profile_seed_error = ""
+            if self._scheduler_last_apply_error_system == pid:
+                self._scheduler_last_apply_error = ""
+                self._scheduler_last_apply_error_system = ""
+            return
+        msg = str(err or "super profile seed failed")
+        self._super_profile_seed_error = msg
+        self._scheduler_last_apply_error = msg
+        self._scheduler_last_apply_error_system = pid
+
     def setProfile(self, profileId: str, *, restart_service: bool = True):
         ok, err = self._adapter.setProfile(profileId, restart_service=restart_service)
         if ok:
@@ -3336,6 +3531,7 @@ class DigitalManager:
                 self._scheduler_last_apply_error_system = ""
                 self._scheduler_system_health = {}
                 self._write_scheduler_state()
+            self._ensure_super_profile_seed(str(profileId or "").strip(), force=True)
             self._scheduler_tick()
         return ok, err
 
@@ -4213,6 +4409,8 @@ class DigitalManager:
     def _scheduler_payload(self, event: dict, preflight: dict) -> dict:
         now_ms = int(time.time() * 1000)
         profile_id = str(self.getProfile() or "").strip()
+        if self._super_profile_mode:
+            self._ensure_super_profile_seed(profile_id)
         systems = self._discover_scheduler_systems(profile_id)
         pending_apply = False
         pending_reason = ""
