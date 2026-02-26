@@ -3062,6 +3062,7 @@ class DigitalManager:
             if DIGITAL_SCAN_MODE in ("single_system", "timeslice_multi_system")
             else "single_system"
         )
+        self._super_profile_systems: dict[str, dict[str, object]] = {}
         self._scheduler_dwell_ms = max(1000, int(DIGITAL_SYSTEM_DWELL_MS or 15000))
         self._scheduler_hang_ms = max(0, int(DIGITAL_SYSTEM_HANG_MS or 4000))
         self._scheduler_pause_on_hit = bool(DIGITAL_PAUSE_ON_HIT)
@@ -3083,6 +3084,7 @@ class DigitalManager:
         self._scheduler_lock = threading.Lock()
         self._scheduler_stop = threading.Event()
         self._load_scheduler_state()
+        self._refresh_super_profile_systems()
         self._scheduler_thread = threading.Thread(
             target=self._scheduler_loop,
             name="digital-scheduler-loop",
@@ -3124,6 +3126,7 @@ class DigitalManager:
         ok, err = self._adapter.setProfile(profileId, restart_service=restart_service)
         if ok:
             with self._scheduler_lock:
+                self._refresh_super_profile_systems(str(profileId or "").strip())
                 local_systems = self._discover_profile_local_systems(str(profileId or "").strip())
                 profile_key = str(profileId or "").strip().lower()
                 ordered_keys = {
@@ -3156,6 +3159,26 @@ class DigitalManager:
                 self._write_scheduler_state()
             self._scheduler_tick()
         return ok, err
+
+    def _refresh_super_profile_systems(self, profile_id: str = "") -> None:
+        if not self._super_profile_mode:
+            self._super_profile_systems = {}
+            return
+        pid = str(profile_id or self.getProfile() or "").strip()
+        systems = self._discover_profile_local_systems(pid)
+        loaded: dict[str, dict[str, object]] = {}
+        for name in systems:
+            clean_name = str(name or "").strip()
+            if not clean_name:
+                continue
+            channels_hz = self._resolve_scheduler_system_control_channels(pid, clean_name)
+            if not channels_hz:
+                continue
+            loaded[clean_name] = {
+                "control_frequency": float(channels_hz[0]) / 1_000_000.0,
+                "control_channels": [f"{(float(hz) / 1_000_000.0):.6f}" for hz in channels_hz],
+            }
+        self._super_profile_systems = loaded
 
     def getLastEvent(self):
         return self._adapter.getLastEvent()
@@ -3880,6 +3903,21 @@ class DigitalManager:
         return True, "", snapshot
 
     def _discover_scheduler_systems(self, profile_id: str) -> list[str]:
+        if self._super_profile_mode:
+            if not self._super_profile_systems:
+                self._refresh_super_profile_systems(profile_id)
+            systems = list(self._super_profile_systems.keys())
+            if not self._scheduler_order:
+                return systems
+            rank = {
+                name.lower(): idx
+                for idx, name in enumerate(self._scheduler_order)
+            }
+            return sorted(
+                systems,
+                key=lambda name: (rank.get(name.lower(), len(rank)), name.lower()),
+            )
+
         systems: list[str] = list(self._discover_profile_local_systems(profile_id))
         seen: set[str] = {str(name).strip().lower() for name in systems if str(name).strip()}
 
