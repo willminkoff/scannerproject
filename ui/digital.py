@@ -1640,11 +1640,16 @@ class _BaseDigitalAdapter(DigitalAdapter):
         if "type" not in event:
             event = dict(event)
             event["type"] = "digital"
+        event_time_ms = int(event.get("timeMs") or 0)
         event_id = str(event.get("event_id") or "").strip()
         if event_id:
-            key = f"id:{event_id}"
+            # Event logs often repeat the same EVENT_ID for a call as duration
+            # updates stream in. Keep one row per second per ID so hit history
+            # advances without flooding duplicates.
+            sec_bucket = int(event_time_ms / 1000) if event_time_ms > 0 else 0
+            key = f"id:{event_id}:{sec_bucket}"
         else:
-            key = f"{event.get('timeMs')}|{event.get('label')}|{event.get('mode','')}"
+            key = f"{event_time_ms}|{event.get('label')}|{event.get('mode','')}"
         if key in self._recent_event_keys:
             return
         event = dict(event)

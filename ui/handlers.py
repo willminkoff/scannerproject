@@ -1572,7 +1572,9 @@ class Handler(BaseHTTPRequestHandler):
                 rtl_active = rtl_unit_active
                 ground_active = rtl_active and ground_present
                 ice_ok = _unit_active_cached(UNITS["icecast"])
-                hits_payload = _get_hits_payload_cached(limit=10)
+                # Keep SSE hits aligned with the full UI hit list so digital
+                # rows are not dropped by top-10 truncation during busy analog traffic.
+                hits_payload = _get_hits_payload_cached(limit=50)
                 hit_items = hits_payload.get("items") or []
                 last_hit = hit_items[0].get("freq") if hit_items else (read_last_hit_airband() or read_last_hit_ground())
                 try:
