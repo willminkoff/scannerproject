@@ -256,6 +256,10 @@ _DIGITAL_SCHEDULER_TICK_SEC = max(
     0.25,
     float(os.getenv("DIGITAL_SCHEDULER_TICK_SEC", "1.0")),
 )
+_DIGITAL_SUPER_PROFILE_DWELL_DEFAULT_MS = min(
+    500,
+    max(300, int(os.getenv("DIGITAL_SUPER_PROFILE_DWELL_DEFAULT_MS", "400"))),
+)
 _CONTROL_MESSAGE_RE = re.compile(
     r"\b(TSBK|PDU|RFSS_STATUS_BCST|SEC_CCH_BROADCST|IDEN_UPDATE|TDMA_SYNC_BCST|"
     r"SNDCP_DCH_|GRP_VCH_GRANT|UU_VCH_GRANT|GROUP VOICE CHANNEL UPDATE)\b",
@@ -3063,7 +3067,18 @@ class DigitalManager:
             else "single_system"
         )
         self._super_profile_systems: dict[str, dict[str, object]] = {}
-        self._scheduler_dwell_ms = max(1000, int(DIGITAL_SYSTEM_DWELL_MS or 15000))
+        raw_dwell = str(os.getenv("DIGITAL_SYSTEM_DWELL_MS", "") or "").strip()
+        if self._super_profile_mode:
+            if raw_dwell:
+                try:
+                    dwell_val = int(raw_dwell)
+                except Exception:
+                    dwell_val = _DIGITAL_SUPER_PROFILE_DWELL_DEFAULT_MS
+                self._scheduler_dwell_ms = max(300, min(3600000, dwell_val))
+            else:
+                self._scheduler_dwell_ms = int(_DIGITAL_SUPER_PROFILE_DWELL_DEFAULT_MS)
+        else:
+            self._scheduler_dwell_ms = max(1000, int(DIGITAL_SYSTEM_DWELL_MS or 15000))
         self._scheduler_hang_ms = max(0, int(DIGITAL_SYSTEM_HANG_MS or 4000))
         self._scheduler_pause_on_hit = bool(DIGITAL_PAUSE_ON_HIT)
         self._scheduler_order = [str(x).strip() for x in (DIGITAL_SYSTEM_ORDER or []) if str(x).strip()]
@@ -3262,7 +3277,7 @@ class DigitalManager:
                 self._scheduler_dwell_ms = self._parse_scheduler_int(
                     dwell_raw,
                     field="system_dwell_ms",
-                    minimum=1000,
+                    minimum=300 if self._super_profile_mode else 1000,
                     maximum=3600000,
                 )
             except ValueError:
@@ -3932,7 +3947,7 @@ class DigitalManager:
                     self._scheduler_dwell_ms = self._parse_scheduler_int(
                         dwell_raw,
                         field="system_dwell_ms",
-                        minimum=1000,
+                        minimum=300 if self._super_profile_mode else 1000,
                         maximum=3600000,
                     )
                 except ValueError as e:
