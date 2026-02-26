@@ -24,6 +24,7 @@ try:
         write_combined_config, read_active_config_path, avoid_current_hit,
         clear_avoids, write_filter, parse_freqs_labels, replace_freqs_labels
     )
+    from .scanner import mark_analog_hit_cutoff
 except ImportError:
     from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, HOLD_STATE_PATH, TUNE_BACKUP_PATH
     from ui.systemd import (
@@ -43,6 +44,7 @@ except ImportError:
         write_combined_config, read_active_config_path, avoid_current_hit,
         clear_avoids, write_filter, parse_freqs_labels, replace_freqs_labels
     )
+    from ui.scanner import mark_analog_hit_cutoff
 
 
 _DEFAULT_PROFILE_LOOP_BUNDLE_DIR = os.path.join(
@@ -317,6 +319,8 @@ def action_apply_profile_loop_bundle(target: str, selected_profiles: Any, active
         "profile_count": len(selected),
         "frequency_count": len(merged_freqs),
     }
+    if bool(bundle_changed or symlink_changed):
+        mark_analog_hit_cutoff(normalized)
     if restart_error:
         payload["restart_error"] = str(restart_error)
     return {"status": 200 if restart_ok else 500, "payload": payload}
@@ -389,6 +393,8 @@ def action_set_profile(profile_id: str, target: str, *, restart_service: bool = 
                 payload["restart_error"] = restart_error
         if not restart_service:
             payload["restart_skipped"] = True
+        if changed:
+            mark_analog_hit_cutoff(target)
         return {"status": 200, "payload": payload}
     
     # No profile change requested

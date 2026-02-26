@@ -4224,6 +4224,16 @@ class DigitalManager:
         force: bool = False,
     ) -> tuple[bool, str, bool]:
         if self._super_profile_mode:
+            # In single-system operation, preserve the profile's configured
+            # control-channel set (applied during setProfile) instead of
+            # frequency-retuning on every scheduler apply.
+            if str(self._scheduler_mode or "single_system") != "timeslice_multi_system":
+                now_ms = int(time.time() * 1000)
+                self._scheduler_last_applied_system = system_name
+                self._scheduler_last_apply_time_ms = now_ms
+                self._scheduler_last_apply_error = ""
+                self._scheduler_last_apply_error_system = ""
+                return True, "", False
             return self._apply_scheduler_retune(profile_id, system_name, force=force)
         return self._apply_scheduler_system(profile_id, system_name, force=force)
 

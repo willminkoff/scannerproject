@@ -4,6 +4,7 @@ import time
 import json
 import re
 import datetime
+import threading
 from typing import Optional
 
 try:
@@ -22,6 +23,32 @@ except ImportError:
         ICECAST_HIT_MIN_DURATION, UNITS
     )
     from ui.systemd import unit_active
+
+
+_ANALOG_HIT_CUTOFF_LOCK = threading.Lock()
+_ANALOG_HIT_CUTOFF_TS = {"airband": 0.0, "ground": 0.0}
+
+
+def mark_analog_hit_cutoff(target: str, at_ts: Optional[float] = None) -> None:
+    """Advance analog hit cutoff for a target profile switch."""
+    key = str(target or "").strip().lower()
+    if key not in ("airband", "ground"):
+        return
+    ts = float(at_ts or time.time())
+    with _ANALOG_HIT_CUTOFF_LOCK:
+        current = float(_ANALOG_HIT_CUTOFF_TS.get(key) or 0.0)
+        if ts > current:
+            _ANALOG_HIT_CUTOFF_TS[key] = ts
+    # Force cache miss so callers see post-switch hits immediately.
+    read_hit_list_cached._cache = {"value": [], "ts": 0.0}
+
+
+def _analog_hit_cutoff_snapshot() -> dict:
+    with _ANALOG_HIT_CUTOFF_LOCK:
+        return {
+            "airband": float(_ANALOG_HIT_CUTOFF_TS.get("airband") or 0.0),
+            "ground": float(_ANALOG_HIT_CUTOFF_TS.get("ground") or 0.0),
+        }
 
 
 def read_last_hit_file(path: str) -> str:
@@ -176,6 +203,7 @@ def read_hit_list_for_unit(unit: str, limit: int = 20, scan_lines: int = 200) ->
     except Exception:
         return []
 
+    cutoffs = _analog_hit_cutoff_snapshot()
     hits = []
     for line in (result.stdout or "").splitlines():
         match = RE_ACTIVITY_TS.search(line)
@@ -183,6 +211,13 @@ def read_hit_list_for_unit(unit: str, limit: int = 20, scan_lines: int = 200) ->
             continue
         ts = parse_activity_timestamp(match.group("date"), match.group("time"), None)
         freq = match.group("freq")
+        try:
+            freq_value = float(freq)
+        except Exception:
+            freq_value = None
+        source = "airband" if (freq_value is not None and _freq_in_airband(freq_value)) else "ground"
+        if ts.timestamp() < float(cutoffs.get(source) or 0.0):
+            continue
         hits.append((ts, freq))
 
     if not hits:
@@ -243,8 +278,6 @@ def read_hit_list(limit: int = 20, scan_lines: int = 200) -> list:
     entries.sort(key=lambda item: item.get("ts", 0))
     entries = entries[-limit:]
     entries.reverse()
-    for item in entries:
-        item.pop("ts", None)
     return entries
 
 

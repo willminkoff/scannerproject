@@ -750,7 +750,13 @@ def _build_hits_payload(limit: int = 50) -> dict:
         ground_labels,
     )
     for item in items:
-        item["_ts"] = _parse_time_ts(item.get("time"))
+        ts_val = 0.0
+        try:
+            ts_val = float(item.get("ts") or 0.0)
+        except Exception:
+            ts_val = 0.0
+        item["_ts"] = ts_val if ts_val > 0 else _parse_time_ts(item.get("time"))
+        item.pop("ts", None)
 
     digital_items = []
     include_digital_events = True

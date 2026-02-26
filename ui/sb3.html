@@ -1659,7 +1659,7 @@
             </div>
 
             <div class="btn-row">
-              <button class="action" id="btn-play-analog">Play</button>
+              <button class="action" id="btn-play-analog" title="Control VLC playback on the Pi">VLC Play</button>
               <button class="action" id="btn-tune">Tune</button>
               <button class="action" id="btn-avoid">Avoid</button>
               <button class="action" id="btn-clear-avoids">Clear</button>
@@ -1705,7 +1705,7 @@
               </div>
 
               <div class="btn-row">
-                <button class="action" id="btn-play-digital">Play</button>
+                <button class="action" id="btn-play-digital" title="Control VLC playback on the Pi">VLC Play</button>
                 <button class="action" id="digital-stop">Stop</button>
                 <button class="action" id="digital-restart">Restart</button>
               </div>
@@ -3594,7 +3594,7 @@
       if (shouldPreferDirectIcecastStream()) {
         return buildIcecastUrl(mountName, 'ANALOG.mp3');
       }
-      return `${buildProxyStreamUrl(mountName, 'ANALOG.mp3')}?transcode=1`;
+      return buildProxyStreamUrl(mountName, 'ANALOG.mp3');
     }
 
     function digitalStreamUrl() {
@@ -3602,7 +3602,9 @@
       if (shouldPreferDirectIcecastStream()) {
         return buildIcecastUrl(mountName, 'DIGITAL.mp3');
       }
-      return `${buildProxyStreamUrl(mountName, 'DIGITAL.mp3')}?transcode=1`;
+      // Keep digital audio in pass-through mode to avoid unnecessary lossy
+      // re-encoding artifacts in the browser player path.
+      return buildProxyStreamUrl(mountName, 'DIGITAL.mp3');
     }
 
     function audioTargetLabel(audioEl) {
@@ -3880,11 +3882,11 @@
       state.vlc.analog.running = analogRunning;
       state.vlc.digital.running = digitalRunning;
       if (analogBtn) {
-        analogBtn.textContent = analogRunning ? 'Stop' : 'Play';
+        analogBtn.textContent = analogRunning ? 'VLC Stop' : 'VLC Play';
         analogBtn.dataset.vlcState = analogRunning ? 'running' : 'stopped';
       }
       if (digitalBtn) {
-        digitalBtn.textContent = digitalRunning ? 'Stop' : 'Play';
+        digitalBtn.textContent = digitalRunning ? 'VLC Stop' : 'VLC Play';
         digitalBtn.dataset.vlcState = digitalRunning ? 'running' : 'stopped';
       }
       updateSitrep();
