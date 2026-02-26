@@ -65,6 +65,11 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+def _env_set(name: str) -> bool:
+    raw = os.getenv(name)
+    return raw is not None and str(raw).strip() != ""
+
+
 DIGITAL_SOURCE_ROTATION_DELAY_MS = max(100, _env_int("DIGITAL_SOURCE_ROTATION_DELAY_MS", 500))
 ICECAST_HOST = os.getenv("ICECAST_HOST", "127.0.0.1").strip() or "127.0.0.1"
 ICECAST_PORT = str(_env_int("ICECAST_PORT", 8000))
@@ -74,11 +79,16 @@ DIGITAL_STREAM_MOUNT = os.getenv(
     "DIGITAL_STREAM_MOUNT",
     os.getenv("DIGITAL_MIXER_DIGITAL_MOUNT", "DIGITAL.mp3"),
 ).strip().lstrip("/") or "DIGITAL.mp3"
-DIGITAL_STREAM_BITRATE = max(8, _env_int("DIGITAL_STREAM_BITRATE", 16))
-DIGITAL_STREAM_SAMPLE_RATE = max(8000, _env_int("DIGITAL_STREAM_SAMPLE_RATE", 8000))
+DIGITAL_STREAM_BITRATE = max(8, _env_int("DIGITAL_STREAM_BITRATE", 32))
+DIGITAL_STREAM_SAMPLE_RATE = max(8000, _env_int("DIGITAL_STREAM_SAMPLE_RATE", 16000))
 DIGITAL_STREAM_CHANNELS = 1 if _env_int("DIGITAL_STREAM_CHANNELS", 1) <= 1 else 2
 DIGITAL_STREAM_MAX_RECORDING_AGE_MS = max(60000, _env_int("DIGITAL_STREAM_MAX_RECORDING_AGE_MS", 600000))
 DIGITAL_STREAM_DELAY_MS = max(0, _env_int("DIGITAL_STREAM_DELAY_MS", 0))
+DIGITAL_STREAM_BITRATE_OVERRIDE = _env_set("DIGITAL_STREAM_BITRATE")
+DIGITAL_STREAM_SAMPLE_RATE_OVERRIDE = _env_set("DIGITAL_STREAM_SAMPLE_RATE")
+DIGITAL_STREAM_CHANNELS_OVERRIDE = _env_set("DIGITAL_STREAM_CHANNELS")
+DIGITAL_STREAM_MAX_RECORDING_AGE_OVERRIDE = _env_set("DIGITAL_STREAM_MAX_RECORDING_AGE_MS")
+DIGITAL_STREAM_DELAY_OVERRIDE = _env_set("DIGITAL_STREAM_DELAY_MS")
 
 
 def _log(msg: str) -> None:
@@ -653,9 +663,11 @@ def _sync_stream_configuration(root: ET.Element) -> bool:
                 duplicates.append(candidate)
 
     changed = False
+    created_stream = False
     if stream is None:
         stream = ET.SubElement(root, "stream")
         changed = True
+        created_stream = True
 
     for dup in duplicates:
         try:
@@ -668,20 +680,41 @@ def _sync_stream_configuration(root: ET.Element) -> bool:
         "type": "icecastHTTPConfiguration",
         f"{{{_XSI_NS}}}type": "ICECAST_HTTP",
         "public": "false",
-        "sample_rate": str(DIGITAL_STREAM_SAMPLE_RATE),
-        "channels": str(DIGITAL_STREAM_CHANNELS),
         "user_name": ICECAST_SOURCE_USER,
-        "bitrate": str(DIGITAL_STREAM_BITRATE),
         "mount_point": mount_point,
         "inline": "true",
-        "delay": str(DIGITAL_STREAM_DELAY_MS),
         "host": ICECAST_HOST,
         "name": stream_name,
         "enabled": "true",
         "port": ICECAST_PORT,
         "password": ICECAST_SOURCE_PASSWORD,
-        "maximum_recording_age": str(DIGITAL_STREAM_MAX_RECORDING_AGE_MS),
     }
+    try:
+        existing_sample_rate = int(str(stream.get("sample_rate", "")).strip())
+    except Exception:
+        existing_sample_rate = 0
+    try:
+        existing_bitrate = int(str(stream.get("bitrate", "")).strip())
+    except Exception:
+        existing_bitrate = 0
+    if (
+        created_stream
+        or DIGITAL_STREAM_SAMPLE_RATE_OVERRIDE
+        or existing_sample_rate < DIGITAL_STREAM_SAMPLE_RATE
+    ):
+        attrs["sample_rate"] = str(DIGITAL_STREAM_SAMPLE_RATE)
+    if created_stream or DIGITAL_STREAM_CHANNELS_OVERRIDE or not str(stream.get("channels", "")).strip():
+        attrs["channels"] = str(DIGITAL_STREAM_CHANNELS)
+    if created_stream or DIGITAL_STREAM_BITRATE_OVERRIDE or existing_bitrate < DIGITAL_STREAM_BITRATE:
+        attrs["bitrate"] = str(DIGITAL_STREAM_BITRATE)
+    if created_stream or DIGITAL_STREAM_DELAY_OVERRIDE or not str(stream.get("delay", "")).strip():
+        attrs["delay"] = str(DIGITAL_STREAM_DELAY_MS)
+    if (
+        created_stream
+        or DIGITAL_STREAM_MAX_RECORDING_AGE_OVERRIDE
+        or not str(stream.get("maximum_recording_age", "")).strip()
+    ):
+        attrs["maximum_recording_age"] = str(DIGITAL_STREAM_MAX_RECORDING_AGE_MS)
     for key, value in attrs.items():
         if str(stream.get(key, "")) != str(value):
             stream.set(key, str(value))

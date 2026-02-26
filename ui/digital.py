@@ -273,14 +273,19 @@ _DIGITAL_DEBUG_INCLUDE_GRANTS = os.getenv(
 _DIGITAL_SOURCE_ROTATION_DELAY_MS = max(100, int(DIGITAL_SOURCE_ROTATION_DELAY_MS or 500))
 _DIGITAL_STREAM_SOURCE_USER = os.getenv("ICECAST_SOURCE_USER", "source").strip() or "source"
 _DIGITAL_STREAM_SOURCE_PASSWORD = os.getenv("ICECAST_SOURCE_PASSWORD", "062352").strip() or "062352"
-_DIGITAL_STREAM_BITRATE = max(8, int(os.getenv("DIGITAL_STREAM_BITRATE", "16")))
-_DIGITAL_STREAM_SAMPLE_RATE = max(8000, int(os.getenv("DIGITAL_STREAM_SAMPLE_RATE", "8000")))
+_DIGITAL_STREAM_BITRATE = max(8, int(os.getenv("DIGITAL_STREAM_BITRATE", "32")))
+_DIGITAL_STREAM_SAMPLE_RATE = max(8000, int(os.getenv("DIGITAL_STREAM_SAMPLE_RATE", "16000")))
 _DIGITAL_STREAM_CHANNELS = 1 if int(os.getenv("DIGITAL_STREAM_CHANNELS", "1")) <= 1 else 2
 _DIGITAL_STREAM_MAX_RECORDING_AGE_MS = max(
     60000,
     int(os.getenv("DIGITAL_STREAM_MAX_RECORDING_AGE_MS", "600000")),
 )
 _DIGITAL_STREAM_DELAY_MS = max(0, int(os.getenv("DIGITAL_STREAM_DELAY_MS", "0")))
+_DIGITAL_STREAM_BITRATE_OVERRIDE = os.getenv("DIGITAL_STREAM_BITRATE", "").strip() != ""
+_DIGITAL_STREAM_SAMPLE_RATE_OVERRIDE = os.getenv("DIGITAL_STREAM_SAMPLE_RATE", "").strip() != ""
+_DIGITAL_STREAM_CHANNELS_OVERRIDE = os.getenv("DIGITAL_STREAM_CHANNELS", "").strip() != ""
+_DIGITAL_STREAM_MAX_RECORDING_AGE_OVERRIDE = os.getenv("DIGITAL_STREAM_MAX_RECORDING_AGE_MS", "").strip() != ""
+_DIGITAL_STREAM_DELAY_OVERRIDE = os.getenv("DIGITAL_STREAM_DELAY_MS", "").strip() != ""
 _DURATION_HMS_RE = re.compile(
     r"^(?:(?P<h>\d+):)?(?P<m>\d{1,2}):(?P<s>\d{1,2}(?:\.\d+)?)$"
 )
@@ -398,9 +403,11 @@ def _sync_stream_configuration(root: ET.Element) -> bool:
                 duplicates.append(candidate)
 
     changed = False
+    created_stream = False
     if stream is None:
         stream = ET.SubElement(root, "stream")
         changed = True
+        created_stream = True
 
     for dup in duplicates:
         try:
@@ -413,20 +420,41 @@ def _sync_stream_configuration(root: ET.Element) -> bool:
         "type": "icecastHTTPConfiguration",
         f"{{{_XSI_NS}}}type": "ICECAST_HTTP",
         "public": "false",
-        "sample_rate": str(_DIGITAL_STREAM_SAMPLE_RATE),
-        "channels": str(_DIGITAL_STREAM_CHANNELS),
         "user_name": _DIGITAL_STREAM_SOURCE_USER,
-        "bitrate": str(_DIGITAL_STREAM_BITRATE),
         "mount_point": mount_point,
         "inline": "true",
-        "delay": str(_DIGITAL_STREAM_DELAY_MS),
         "host": str(ICECAST_HOST or "127.0.0.1"),
         "name": stream_name,
         "enabled": "true",
         "port": str(ICECAST_PORT or 8000),
         "password": _DIGITAL_STREAM_SOURCE_PASSWORD,
-        "maximum_recording_age": str(_DIGITAL_STREAM_MAX_RECORDING_AGE_MS),
     }
+    try:
+        existing_sample_rate = int(str(stream.get("sample_rate", "")).strip())
+    except Exception:
+        existing_sample_rate = 0
+    try:
+        existing_bitrate = int(str(stream.get("bitrate", "")).strip())
+    except Exception:
+        existing_bitrate = 0
+    if (
+        created_stream
+        or _DIGITAL_STREAM_SAMPLE_RATE_OVERRIDE
+        or existing_sample_rate < _DIGITAL_STREAM_SAMPLE_RATE
+    ):
+        attrs["sample_rate"] = str(_DIGITAL_STREAM_SAMPLE_RATE)
+    if created_stream or _DIGITAL_STREAM_CHANNELS_OVERRIDE or not str(stream.get("channels", "")).strip():
+        attrs["channels"] = str(_DIGITAL_STREAM_CHANNELS)
+    if created_stream or _DIGITAL_STREAM_BITRATE_OVERRIDE or existing_bitrate < _DIGITAL_STREAM_BITRATE:
+        attrs["bitrate"] = str(_DIGITAL_STREAM_BITRATE)
+    if created_stream or _DIGITAL_STREAM_DELAY_OVERRIDE or not str(stream.get("delay", "")).strip():
+        attrs["delay"] = str(_DIGITAL_STREAM_DELAY_MS)
+    if (
+        created_stream
+        or _DIGITAL_STREAM_MAX_RECORDING_AGE_OVERRIDE
+        or not str(stream.get("maximum_recording_age", "")).strip()
+    ):
+        attrs["maximum_recording_age"] = str(_DIGITAL_STREAM_MAX_RECORDING_AGE_MS)
     for key, value in attrs.items():
         if str(stream.get(key, "")) != str(value):
             stream.set(key, str(value))
