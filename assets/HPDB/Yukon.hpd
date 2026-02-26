@@ -1,0 +1,138 @@
+TargetModel	HomePatrol-1
+FormatVersion	2.04
+Conventional	AgencyId=8971	StateId=113	Amateur Radio	Off		Conventional
+AreaState	AgencyId=8971	StateId=113
+AreaCounty	AgencyId=8971	CountyId=0
+C-Group	CGroupId=74680	AgencyId=8971	Repeaters - 2 M Band	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=314575	CGroupId=74680	VY1ECH	Off	147280000	FM	TONE=C100.0	13					
+C-Freq	CFreqId=314572	CGroupId=74680	VY1IRL	Off	146880000	FM	TONE=C100.0	13					
+C-Freq	CFreqId=314571	CGroupId=74680	VY1RCM	Off	146820000	FM		13					
+C-Freq	CFreqId=314574	CGroupId=74680	VY1RM	Off	147180000	FM		13					
+C-Freq	CFreqId=314573	CGroupId=74680	VY1RPT	Off	146940000	FM		13					
+Conventional	AgencyId=8969	StateId=113	Business	Off		Conventional
+AreaState	AgencyId=8969	StateId=113
+AreaCounty	AgencyId=8969	CountyId=0
+C-Group	CGroupId=74678	AgencyId=8969	Minto Mine	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=314569	CGroupId=74678	Minto - Emergency	Off	162030000	NFM		29					
+C-Freq	CFreqId=314568	CGroupId=74678	Minto Access Road	Off	162075000	NFM		17					
+C-Group	CGroupId=74675	AgencyId=8969	Whitehorse	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=314556	CGroupId=74675	5th Ave Taxi	Off	165600000	NFM		26					
+C-Freq	CFreqId=314555	CGroupId=74675	Anchor Bar Expeditions	Off	165480000	NFM		17					
+C-Freq	CFreqId=314552	CGroupId=74675	Arrow Transport	Off	155190000	NFM		17					
+C-Freq	CFreqId=314553	CGroupId=74675	Capital Towing	Off	163050000	NFM		17					
+C-Freq	CFreqId=314559	CGroupId=74675	Global Taxi	Off	168030000	NFM		26					
+C-Freq	CFreqId=314558	CGroupId=74675	Grizzly Taxi	Off	166695000	NFM		26					
+C-Freq	CFreqId=314557	CGroupId=74675	Klondike Taxi	Off	166080000	NFM		26					
+C-Freq	CFreqId=314566	CGroupId=74675	Pelly Construction	Off	164040000	NFM		17					
+C-Freq	CFreqId=314567	CGroupId=74675	Pelly Construction	Off	164295000	NFM	TONE=C151.4	17					
+C-Freq	CFreqId=314554	CGroupId=74675	Premier Taxi	Off	163260000	NFM		17					
+C-Freq	CFreqId=314551	CGroupId=74675	Total North Communications	Off	154540000	NFM		17					
+C-Freq	CFreqId=314560	CGroupId=74675	Yukon Taxi	Off	168120000	NFM		26					
+Conventional	AgencyId=8968	StateId=113	Mobile Radio System	Off		Conventional
+AreaState	AgencyId=8968	StateId=113
+AreaCounty	AgencyId=8968	CountyId=0
+C-Group	CGroupId=74637	AgencyId=8968	MoCS - MRS - Territory Wide	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=314484	CGroupId=74637	MRS	Off	140205000	NFM		22					
+C-Freq	CFreqId=314495	CGroupId=74637	MRS	Off	143400000	NFM	TONE=C91.5	22					
+C-Freq	CFreqId=314486	CGroupId=74637	MRS	Off	143940000	NFM		22					
+C-Freq	CFreqId=314506	CGroupId=74637	MRS	Off	153035000	NFM		22					
+C-Freq	CFreqId=314505	CGroupId=74637	MRS	Off	153095000	NFM		22					
+C-Freq	CFreqId=314507	CGroupId=74637	MRS	Off	153155000	NFM		22					
+C-Freq	CFreqId=314508	CGroupId=74637	MRS	Off	153215000	NFM		22					
+C-Freq	CFreqId=314509	CGroupId=74637	MRS	Off	153410000	NFM		22					
+C-Freq	CFreqId=314510	CGroupId=74637	MRS	Off	153725000	NFM		22					
+C-Freq	CFreqId=314512	CGroupId=74637	MRS - CARS	Off	155160000	NFM	TONE=C100.0	22					
+C-Freq	CFreqId=314541	CGroupId=74637	MRS JAMES CREEK	Off	164100000	NFM	TONE=C131.8	22					
+C-Freq	CFreqId=314485	CGroupId=74637	MRS P25	Off	143025000	NFM		22					
+C-Freq	CFreqId=314488	CGroupId=74637	MRS P25	Off	143115000	NFM		22					
+C-Freq	CFreqId=314492	CGroupId=74637	MRS P25	Off	143335000	NFM		22					
+C-Freq	CFreqId=314491	CGroupId=74637	MRS P25	Off	143340000	NFM		22					
+C-Freq	CFreqId=314496	CGroupId=74637	MRS P25	Off	143400000	NFM		22					
+C-Freq	CFreqId=314499	CGroupId=74637	MRS P25	Off	143730000	NFM		22					
+C-Freq	CFreqId=314501	CGroupId=74637	MRS P25	Off	143835000	NFM		22					
+C-Freq	CFreqId=314511	CGroupId=74637	MRS P25	Off	154000000	NFM		22					
+C-Freq	CFreqId=314494	CGroupId=74637	MRS TEL-BEAVERC	Off	143355000	NFM	TONE=C114.8	22					
+C-Freq	CFreqId=314498	CGroupId=74637	MRS TEL-GALENA	Off	143460000	NFM	TONE=C114.8	22					
+C-Freq	CFreqId=314493	CGroupId=74637	MRS TEL-MAYO	Off	143340000	NFM	TONE=C107.2	22					
+C-Freq	CFreqId=314502	CGroupId=74637	MRS TEL-MCEVOY	Off	143850000	NFM	TONE=C107.2	22					
+C-Freq	CFreqId=314497	CGroupId=74637	MRS TEL-MURRAY	Off	142430000	NFM	TONE=C91.5	22					
+C-Freq	CFreqId=314503	CGroupId=74637	MRS TEL-PELLY	Off	143925000	NFM	TONE=C91.5	22					
+C-Freq	CFreqId=314490	CGroupId=74637	MRS TEL-RCHR	Off	143220000	NFM	TONE=C97.4	22					
+C-Freq	CFreqId=314500	CGroupId=74637	MRS TEL-ROSSRV	Off	143745000	NFM	TONE=C91.5	22					
+C-Freq	CFreqId=314489	CGroupId=74637	MRS TEL-SHLSKY	Off	143175000	NFM	TONE=C107.2	22					
+C-Freq	CFreqId=314487	CGroupId=74637	MRS TEL-WEASEL	Off	143100000	NFM	TONE=C114.8	22					
+C-Freq	CFreqId=314504	CGroupId=74637	MRS Whitehorse Highway	Off	149525000	NFM		22					
+Conventional	AgencyId=2824	StateId=113	Public Safety	Off		Conventional
+AreaState	AgencyId=2824	StateId=113
+AreaCounty	AgencyId=2824	CountyId=0
+C-Group	CGroupId=74634	AgencyId=2824	EMS - Watson Lake	Off	60.116670	-128.800000	30.0	Circle
+C-Freq	CFreqId=314472	CGroupId=74634	Ambulance	Off	153380000	NFM		4					
+C-Group	CGroupId=25838	AgencyId=2824	EMS - Whitehorse	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=96516	CGroupId=25838	YTG Ambulance	Off	155970000	FM		4					
+C-Group	CGroupId=74679	AgencyId=2824	Erik Nielsen Whitehorse International Airport - Whitehorse	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=314570	CGroupId=74679	Airport Security	Off	162060000	NFM		33					
+C-Group	CGroupId=52818	AgencyId=2824	Fire - Dawson City	Off	64.060000	-139.410830	30.0	Circle
+C-Freq	CFreqId=96515	CGroupId=52818	Fire	Off	149020000	FM		3					
+C-Group	CGroupId=25837	AgencyId=2824	Fire - Territory Wide	Off	64.000000	-135.000000	300.0	Circle
+C-Freq	CFreqId=216994	CGroupId=25837	Fire	Off	153830000	FM		24					
+C-Group	CGroupId=74632	AgencyId=2824	Fire - Watson Lake	Off	60.116670	-128.800000	30.0	Circle
+C-Freq	CFreqId=314467	CGroupId=74632	Fire	Off	149290000	NFM		3					
+C-Freq	CFreqId=314473	CGroupId=74632	Fire	Off	155820000	NFM		24					
+C-Group	CGroupId=52817	AgencyId=2824	Fire - Whitehorse	Off	60.716670	-135.050000	30.0	Circle
+C-Freq	CFreqId=216995	CGroupId=52817	Fire	Off	155550000	NFM	TONE=C103.5	3					
+C-Freq	CFreqId=314475	CGroupId=52817	Ibex Valley Volunteers	Off	155850000	NFM		3					
+C-Freq	CFreqId=314565	CGroupId=52817	YTG Fire	Off	154650000	NFM		3					
+C-Group	CGroupId=71201	AgencyId=2824	Municipal Services - Whitehorse	Off	60.716670	-135.050000	30.0	Circle
+C-Freq	CFreqId=295705	CGroupId=71201	By-law Enforcement	Off	153530000	NFM		23					
+C-Freq	CFreqId=314482	CGroupId=71201	City Recreation	Off	151355000	NFM		14					
+C-Freq	CFreqId=351520	CGroupId=71201	Public Works	Off	164910000	NFM		14					
+C-Freq	CFreqId=314474	CGroupId=71201	Waste Management Facility	Off	155925000	NFM		14					
+C-Freq	CFreqId=314477	CGroupId=71201	Yukon Energy Corporation	Off	152960000	NFM		34					
+C-Freq	CFreqId=314478	CGroupId=71201	Yukon Energy Corporation	Off	153185000	NFM		34					
+C-Freq	CFreqId=314479	CGroupId=71201	Yukon Energy Corporation	Off	154040000	NFM		34					
+C-Freq	CFreqId=314480	CGroupId=71201	Yukon Energy Corporation	Off	155220000	NFM		34					
+C-Freq	CFreqId=314481	CGroupId=71201	Yukon Water	Off	153320000	NFM		34					
+C-Group	CGroupId=52814	AgencyId=2824	Royal Canadian Mounted Police - Dawson City	Off	64.060000	-139.410830	30.0	Circle
+C-Freq	CFreqId=96510	CGroupId=52814	RCMP	Off	163755000	FM		23					
+C-Group	CGroupId=52815	AgencyId=2824	Royal Canadian Mounted Police - M Division	Off	64.000000	-135.000000	300.0	Circle
+C-Freq	CFreqId=96511	CGroupId=52815	RCMP - Car to Car	Off	152300000	FM		7					
+C-Group	CGroupId=74636	AgencyId=2824	Royal Canadian Mounted Police - Whitehorse	Off	60.716670	-135.050000	30.0	Circle
+C-Freq	CFreqId=314476	CGroupId=74636	RCMP - Encrypted	Off	156030000	NFM		2					
+C-Group	CGroupId=74633	AgencyId=2824	Search and Rescue - Territory Wide	Off	64.000000	-135.000000	300.0	Circle
+C-Freq	CFreqId=314468	CGroupId=74633	Search and Rescue	Off	149080000	NFM		29					
+C-Freq	CFreqId=314469	CGroupId=74633	Search and Rescue	Off	149495000	NFM		29					
+C-Freq	CFreqId=314471	CGroupId=74633	Search and Rescue	Off	153260000	NFM		29					
+C-Freq	CFreqId=314470	CGroupId=74633	Yukon Emergency Measures Organization	Off	149520000	NFM		29					
+Conventional	AgencyId=8970	StateId=113	Trucking	Off		Conventional
+AreaState	AgencyId=8970	StateId=113
+AreaCounty	AgencyId=8970	CountyId=0
+C-Group	CGroupId=74677	AgencyId=8970	LADD - Territory Wide	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=314561	CGroupId=74677	LADD 1	Off	154100000	NFM		17					
+C-Freq	CFreqId=314562	CGroupId=74677	LADD 2	Off	158940000	NFM		17					
+C-Freq	CFreqId=314563	CGroupId=74677	LADD 3	Off	154325000	NFM		17					
+C-Freq	CFreqId=314564	CGroupId=74677	LADD 4	Off	173370000	NFM		17					
+Trunk	TrunkId=11018	StateId=113	Yukon Mobile Radio System	Off		P25Standard					
+AreaState	TrunkId=11018	StateId=113
+AreaCounty	TrunkId=11018	CountyId=0
+Site	SiteId=36284	TrunkId=11018	Site 139	Off	64.981680	-135.500000	300.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=36284		Off	143280000	1
+Site	SiteId=36282	TrunkId=11018	Whitehorse	Off	60.699260	-135.644980	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=36282		Off	141210000	1
+T-Freq	TFreqId=0	SiteId=36282		Off	141345000	2
+T-Freq	TFreqId=0	SiteId=36282		Off	141450000	3
+T-Freq	TFreqId=0	SiteId=36282		Off	141570000	4
+T-Freq	TFreqId=0	SiteId=36282		Off	141705000	5
+T-Freq	TFreqId=0	SiteId=36282		Off	141945000	6
+Site	SiteId=36283	TrunkId=11018	Whitehorse	Off	60.699260	-135.644980	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=36283		Off	773693750	1
+T-Freq	TFreqId=0	SiteId=36283		Off	773943750	2
+T-Freq	TFreqId=0	SiteId=36283		Off	774193750	3
+T-Freq	TFreqId=0	SiteId=36283		Off	774443750	4
+T-Freq	TFreqId=0	SiteId=36283		Off	774693750	5
+T-Freq	TFreqId=0	SiteId=36283		Off	774943750	6
+T-Group	TGroupId=34731	TrunkId=11018	Agricuture and Forestry	Off	64.981680	-135.500000	300.0	Circle
+TGID	Tid=412705	TGroupId=34731	Forestry Fire Dispatch	Off	218	ALL	3				
+T-Group	TGroupId=34730	TrunkId=11018	Public Safety	Off	64.981680	-135.500000	300.0	Circle
+TGID	Tid=412702	TGroupId=34730	Whitehorse EMS	Off	103	ALL	4				
+T-Group	TGroupId=34732	TrunkId=11018	Radio Technicians	Off	64.981680	-135.500000	300.0	Circle
+TGID	Tid=412703	TGroupId=34732	Radio Shop 1	Off	1	ALL	17				

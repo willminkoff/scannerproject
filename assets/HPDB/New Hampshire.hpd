@@ -1,0 +1,1672 @@
+TargetModel	HomePatrol-1
+FormatVersion	2.04
+Conventional	CountyId=1761	StateId=33	Belknap	Off		Conventional
+AreaState	CountyId=1761	StateId=33
+AreaCounty	CountyId=1761	CountyId=1761
+C-Group	CGroupId=79596	CountyId=1761	Amateur Radio	Off	43.516740	-71.432850	20.0	Circle
+C-Freq	CFreqId=342379	CGroupId=79596	K1JEK	Off	146865000	NFM	TONE=C88.5	13					
+C-Freq	CFreqId=342378	CGroupId=79596	W1JY	Off	146670000	FM		13					
+C-Freq	CFreqId=342380	CGroupId=79596	W1JY	Off	146985000	NFM	TONE=C123.0	13					
+C-Freq	CFreqId=342381	CGroupId=79596	W1JY	Off	147300000	NFM	TONE=C88.5	13					
+C-Group	CGroupId=18978	CountyId=1761	Belknap County	Off	43.516740	-71.432850	20.0	Circle
+C-Freq	CFreqId=264921	CGroupId=18978	Primary Dispatch	Off	154085000	NFM	NAC=527	7					
+C-Freq	CFreqId=69152	CGroupId=18978	Sheriff	Off	151250000	NFM		23					
+C-Freq	CFreqId=264922	CGroupId=18978	Sheriff Dispatch (includes small towns; analog)	Off	154830000	NFM	TONE=C136.5	2					
+C-Freq	CFreqId=69153	CGroupId=18978	Sheriff Dispatch (includes small towns; digital)	Off	154830000	NFM	NAC=117	2					
+C-Group	CGroupId=42361	CountyId=1761	Belknap County - Alton	Off	43.516740	-71.432850	20.0	Circle
+C-Freq	CFreqId=215317	CGroupId=42361	Alton Highway Dept.	Off	156135000	NFM	TONE=C151.4	14					
+C-Freq	CFreqId=383386	CGroupId=42361	Fire - Tactical Ch 1	Off	151167500	NFM		8					
+C-Freq	CFreqId=383387	CGroupId=42361	Fire - Tactical Ch 2	Off	155107500	NFM		8					
+C-Freq	CFreqId=383385	CGroupId=42361	Police - Tactical Ch 1	Off	153950000	NFM		7					
+C-Group	CGroupId=42362	CountyId=1761	Belknap County - Barnstead	Off	43.516740	-71.432850	20.0	Circle
+C-Freq	CFreqId=344223	CGroupId=42362	Public Works	Off	151085000	NFM	TONE=C136.5	14					
+C-Freq	CFreqId=347644	CGroupId=42362	Public Works	Off	151310000	NFM	TONE=D331	14					
+C-Group	CGroupId=40022	CountyId=1761	Belknap County - Belmont	Off	43.516740	-71.432850	20.0	Circle
+C-Freq	CFreqId=159696	CGroupId=40022	Police Operations	Off	155250000	NFM	NAC=437	2					
+C-Freq	CFreqId=344224	CGroupId=40022	School Buses	Off	152330000	NFM	TONE=D205	26					
+C-Group	CGroupId=42363	CountyId=1761	Belknap County - Center Harbor	Off	43.516740	-71.432850	20.0	Circle
+C-Freq	CFreqId=215318	CGroupId=42363	Center Harbor Fire Tac-1	Off	154115000	NFM	TONE=C225.7	8					
+C-Group	CGroupId=20294	CountyId=1761	Belknap County - Gilford	Off	43.516740	-71.432850	20.0	Circle
+C-Freq	CFreqId=73964	CGroupId=20294	Police Operations	Off	155490000	NFM	NAC=117	2					
+C-Freq	CFreqId=170298	CGroupId=20294	Police Tactical	Off	158790000	NFM	NAC=117	7					
+C-Freq	CFreqId=344225	CGroupId=20294	Public Works	Off	155895000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=20292	CountyId=1761	Belknap County - Laconia	Off	43.516740	-71.432850	20.0	Circle
+C-Freq	CFreqId=69154	CGroupId=20292	Police Operations	Off	155790000	NFM	NAC=817	2					
+C-Freq	CFreqId=69155	CGroupId=20292	Public Works	Off	156180000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=20295	CountyId=1761	Belknap County - Meredith	Off	43.516740	-71.432850	20.0	Circle
+C-Freq	CFreqId=73965	CGroupId=20295	Police Operations (Analog)	Off	155370000	NFM	TONE=C173.8	2					
+C-Freq	CFreqId=209572	CGroupId=20295	Police Operations (Digital)	Off	155370000	NFM	NAC=117	2					
+C-Group	CGroupId=40525	CountyId=1761	Belknap County - New Hampton	Off	43.516740	-71.432850	20.0	Circle
+C-Freq	CFreqId=162522	CGroupId=40525	New Hampton Emergency Management	Off	155955000	NFM		29					
+C-Group	CGroupId=42366	CountyId=1761	Belknap County - Tilton	Off	43.516740	-71.432850	20.0	Circle
+C-Freq	CFreqId=170299	CGroupId=42366	Police Operations	Off	155670000	NFM	NAC=117	2					
+C-Freq	CFreqId=184882	CGroupId=42366	Public Works	Off	156060000	NFM		26					
+Conventional	CountyId=1762	StateId=33	Carroll	Off		Conventional
+AreaState	CountyId=1762	StateId=33
+AreaCounty	CountyId=1762	CountyId=1762
+C-Group	CGroupId=76896	CountyId=1762	Amateur Radio	Off	43.919000	-71.204220	32.0	Circle
+C-Freq	CFreqId=326934	CGroupId=76896	W1MWV - North Conway, NH	Off	145450000	FM	TONE=C100.0	13					
+C-Group	CGroupId=18022	CountyId=1762	Carroll County	Off	43.919000	-71.204220	32.0	Circle
+C-Freq	CFreqId=65996	CGroupId=18022	Carroll Sheriff (analog)	Off	154860000	NFM	TONE=C136.5	2					
+C-Freq	CFreqId=245777	CGroupId=18022	Carroll Sheriff (digital)	Off	154860000	NFM	NAC=117	2					
+C-Freq	CFreqId=325947	CGroupId=18022	CCSO North	Off	155535000	NFM	NAC=117	2					
+C-Group	CGroupId=12381	CountyId=1762	Carroll County - Bartlett	Off	43.919000	-71.204220	32.0	Circle
+C-Freq	CFreqId=383734	CGroupId=12381	Fire Operations	Off	154650000	NFM	TONE=C173.8	3					
+C-Freq	CFreqId=46715	CGroupId=12381	Fire Primary (Washington Valley Area)	Off	154145000	NFM	TONE=C173.8	3					
+C-Group	CGroupId=25928	CountyId=1762	Carroll County - Conway	Off	43.919000	-71.204220	32.0	Circle
+C-Freq	CFreqId=383730	CGroupId=25928	Fire Operations 3	Off	155722500	NFM	TONE=C100.0	8					
+C-Freq	CFreqId=383731	CGroupId=25928	Fire Operations 4	Off	151010000	NFM	TONE=C114.8	8					
+C-Freq	CFreqId=383733	CGroupId=25928	Fire Operations 6	Off	155992500	NFM	TONE=C146.2	8					
+C-Freq	CFreqId=179798	CGroupId=25928	Fire Operations Primary	Off	155760000	NFM	TONE=C114.8	3					
+C-Freq	CFreqId=244501	CGroupId=25928	North Conway Ambulance - Operations	Off	155220000	NFM	TONE=C123.0	25					
+C-Freq	CFreqId=97090	CGroupId=25928	Police Operations	Off	155640000	NFM	NAC=817	2					
+C-Group	CGroupId=68088	CountyId=1762	Carroll County - Jackson	Off	43.919000	-71.204220	32.0	Circle
+C-Freq	CFreqId=383735	CGroupId=68088	Fire Operations	Off	154815000	NFM	TONE=C173.8	3					
+C-Group	CGroupId=20297	CountyId=1762	Carroll County - Moultonboro	Off	43.919000	-71.204220	32.0	Circle
+C-Freq	CFreqId=179799	CGroupId=20297	Fire Local Operations	Off	154220000	NFM	TONE=C225.7	8					
+C-Freq	CFreqId=73969	CGroupId=20297	Police Operations	Off	155430000	NFM	NAC=117	2					
+C-Group	CGroupId=66602	CountyId=1762	Carroll County - Wakefield	Off	43.919000	-71.204220	32.0	Circle
+C-Freq	CFreqId=274090	CGroupId=66602	Police Local Operations	Off	151145000	NFM	TONE=C136.5	23					
+C-Freq	CFreqId=344221	CGroupId=66602	Public Works - School Buses	Off	151025000	NFM	TONE=C103.5	14					
+C-Group	CGroupId=20298	CountyId=1762	Carroll County - Wolfeboro	Off	43.919000	-71.204220	32.0	Circle
+C-Freq	CFreqId=73971	CGroupId=20298	Fire Primary	Off	154250000	NFM	TONE=C136.5	3					
+C-Freq	CFreqId=209789	CGroupId=20298	Fire Tactical	Off	154400000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=73972	CGroupId=20298	Police Operations	Off	155610000	NFM	NAC=117	2					
+C-Freq	CFreqId=344222	CGroupId=20298	Public Works	Off	158820000	NFM	TONE=C136.5	14					
+C-Freq	CFreqId=73973	CGroupId=20298	Rescue	Off	155160000	NFM		4					
+Conventional	CountyId=1763	StateId=33	Cheshire	Off		Conventional
+AreaState	CountyId=1763	StateId=33
+AreaCounty	CountyId=1763	CountyId=1763
+C-Group	CGroupId=30121	CountyId=1763	Cheshire County	Off	42.933410	-72.266200	19.0	Circle
+C-Freq	CFreqId=122805	CGroupId=30121	Sheriff Dispatch Ch. 3 Police Tactical 1	Off	155640000	NFM	TONE=C136.5	7					
+C-Freq	CFreqId=117974	CGroupId=30121	Sheriff Operations - Countywide Police	Off	155070000	NFM	NAC=117	2					
+C-Group	CGroupId=66428	CountyId=1763	Cheshire County Amateur Radio - Amateur Radio	Off	42.933410	-72.266200	19.0	Circle
+C-Freq	CFreqId=378391	CGroupId=66428	Alstead 2M	Off	146715000	FM	TONE=C123.0	13					
+C-Freq	CFreqId=362730	CGroupId=66428	Dublin 70cm - WQ2H (Also C4FM)	Off	441700000	FM	TONE=C100.0	13					
+C-Freq	CFreqId=273756	CGroupId=66428	Gilsum 2M	Off	147360000	FM	TONE=C123.0	13					
+C-Freq	CFreqId=353003	CGroupId=66428	Link to 145.55	Off	445800000	AUTO		13					
+C-Freq	CFreqId=273755	CGroupId=66428	Rindge 2M	Off	146775000	FM	TONE=C123.0	13					
+C-Freq	CFreqId=310815	CGroupId=66428	Simplex to Gateway Link Station	Off	145550000	AUTO		13					
+C-Freq	CFreqId=273758	CGroupId=66428	Walpole	Off	147030000	FM	TONE=C100.0	13					
+C-Freq	CFreqId=273760	CGroupId=66428	Walpole	Off	443800000	NFM	TONE=C141.3	13					
+C-Freq	CFreqId=378392	CGroupId=66428	Walpole (C4FM)	Off	147030000	FM	TONE=D071	13					
+C-Freq	CFreqId=310813	CGroupId=66428	Walpole 6M	Off	53730000	FM	TONE=C141.3	13					
+C-Freq	CFreqId=273757	CGroupId=66428	Westmoreland	Off	146805000	FM	TONE=C100.0	13					
+C-Freq	CFreqId=310814	CGroupId=66428	Westmoreland DMR-MARK	Off	444650000	NFM		13					
+C-Freq	CFreqId=273759	CGroupId=66428	Winchester	Off	146865000	FM	TONE=C100.0	13					
+C-Group	CGroupId=30797	CountyId=1763	Educational - Fall Mountain Regional School District	Off	42.933410	-72.266200	19.0	Circle
+C-Freq	CFreqId=120570	CGroupId=30797	School Buses	Off	152885000	NFM	TONE=C179.9	32					
+C-Group	CGroupId=53537	CountyId=1763	Educational - Franklin Pierce University	Off	42.933410	-72.266200	19.0	Circle
+C-Freq	CFreqId=236747	CGroupId=53537	Campus Fire & EMS	Off	157560000	NFM	TONE=C100.0	3					
+C-Freq	CFreqId=236748	CGroupId=53537	Campus Maintenance	Off	151655000	AUTO		14					
+C-Freq	CFreqId=382024	CGroupId=53537	Campus Security - Mixed Mode	Off	154680000	NFM	TONE=D251	33					
+C-Freq	CFreqId=382025	CGroupId=53537	Campus Security - Mixed Mode	Off	154680000	AUTO		33					
+C-Group	CGroupId=30897	CountyId=1763	Educational - Keene Area School District	Off	42.933410	-72.266200	19.0	Circle
+C-Freq	CFreqId=217189	CGroupId=30897	High School Repeater	Off	159690000	NFM	TONE=C162.2	32					
+C-Freq	CFreqId=217191	CGroupId=30897	Middle School Ops	Off	151535000	NFM	TONE=C162.2	32					
+C-Freq	CFreqId=120941	CGroupId=30897	School Buses	Off	155295000	NFM		32					
+C-Group	CGroupId=80225	CountyId=1763	Educational - Keene State College	Off	42.925010	-72.282310	1.0	Circle
+C-Freq	CFreqId=329747	CGroupId=80225	Campus Maintenance	Off	159135000	NFM	TONE=C97.4	32					
+C-Freq	CFreqId=329746	CGroupId=80225	Campus Safety	Off	153005000	NFM	NAC=758	2					
+C-Freq	CFreqId=329748	CGroupId=80225	Campus wide	Off	155055000	NFM	TONE=C118.8	32					
+C-Group	CGroupId=30120	CountyId=1763	Municipalities - Alstead	Off	42.933410	-72.266200	19.0	Circle
+C-Freq	CFreqId=117973	CGroupId=30120	Public Works	Off	453375000	NFM	TONE=C136.5	14					
+C-Freq	CFreqId=217298	CGroupId=30120	Town Services	Off	155850000	NFM	TONE=C82.5	14					
+C-Group	CGroupId=52889	CountyId=1763	Municipalities - Chesterfield	Off	42.933410	-72.266200	19.0	Circle
+C-Freq	CFreqId=264204	CGroupId=52889	Police Operations	Off	155085000	NFM	TONE=C225.7	2					
+C-Freq	CFreqId=217183	CGroupId=52889	Public Works	Off	156060000	NFM	TONE=C192.8	14					
+C-Group	CGroupId=52891	CountyId=1763	Municipalities - Dublin	Off	42.933410	-72.266200	19.0	Circle
+C-Freq	CFreqId=217185	CGroupId=52891	Public Works	Off	151115000	NFM	TONE=D516	14					
+C-Group	CGroupId=52892	CountyId=1763	Municipalities - Fitzwilliam	Off	42.933410	-72.266200	19.0	Circle
+C-Freq	CFreqId=217187	CGroupId=52892	Public Works / Police Department	Off	154980000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=52893	CountyId=1763	Municipalities - Harrisville	Off	42.933410	-72.266200	19.0	Circle
+C-Freq	CFreqId=217188	CGroupId=52893	Town Services	Off	159165000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=86922	CountyId=1763	Municipalities - Hinsdale	Off	42.785170	-72.487430	5.0	Circle
+C-Freq	CFreqId=381171	CGroupId=86922	Fire Local	Off	155835000	NFM	TONE=C136.5	8					
+C-Group	CGroupId=63919	CountyId=1763	Municipalities - Jaffrey	Off	42.933410	-72.266200	19.0	Circle
+C-Freq	CFreqId=263956	CGroupId=63919	Police CH-2	Off	154710000	NFM		7					
+C-Freq	CFreqId=263955	CGroupId=63919	Police/Public Works	Off	155775000	NFM		2					
+C-Group	CGroupId=30895	CountyId=1763	Municipalities - Keene	Off	42.933410	-72.266200	19.0	Circle
+C-Freq	CFreqId=217282	CGroupId=30895	Dillant-Hopkins Airport	Off	155880000	NFM	TONE=C136.5	14					
+C-Freq	CFreqId=152766	CGroupId=30895	Fire Local 1 '667'	Off	154175000	NFM	TONE=C167.9	8					
+C-Freq	CFreqId=381170	CGroupId=30895	Fire Local 1 '667' - Digital	Off	154175000	NFM	NAC=413	3					
+C-Freq	CFreqId=245143	CGroupId=30895	Fire Local 2	Off	154070000	NFM	TONE=C167.9	8					
+C-Freq	CFreqId=264202	CGroupId=30895	Police Ch. 6	Off	155535000	NFM	NAC=117	7					
+C-Freq	CFreqId=123351	CGroupId=30895	Police Operations	Off	155250000	NFM	NAC=117	2					
+C-Freq	CFreqId=378614	CGroupId=30895	School Buses	Off	155295000	NFM	TONE=C167.9	26					
+C-Freq	CFreqId=217283	CGroupId=30895	Water Department	Off	154340000	NFM	TONE=C123.0	14					
+C-Freq	CFreqId=332691	CGroupId=30895	Water/Sewer/Public Works	Off	158985000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=52906	CountyId=1763	Municipalities - Marlborough	Off	42.933410	-72.266200	19.0	Circle
+C-Freq	CFreqId=217285	CGroupId=52906	Public Works	Off	151115000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=58157	CountyId=1763	Municipalities - North Walpole	Off	42.933410	-72.266200	19.0	Circle
+C-Freq	CFreqId=244908	CGroupId=58157	North Walpole FS - Local	Off	153815000	NFM	TONE=C136.5	8					
+C-Group	CGroupId=86923	CountyId=1763	Municipalities - Richmond	Off	42.752920	-72.271230	4.0	Circle
+C-Freq	CFreqId=381174	CGroupId=86923	Fire Ground	Off	158865000	NFM	TONE=C136.5	8					
+C-Group	CGroupId=63987	CountyId=1763	Municipalities - Rindge	Off	42.933410	-72.266200	19.0	Circle
+C-Freq	CFreqId=381173	CGroupId=63987	Local Fire Ops	Off	153800000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=264209	CGroupId=63987	Police Department/Public Works	Off	156180000	NFM	TONE=C156.7	1					
+C-Freq	CFreqId=381172	CGroupId=63987	Police Operations	Off	156180000	NFM	NAC=117	2					
+C-Group	CGroupId=52907	CountyId=1763	Municipalities - Sullivan	Off	42.933410	-72.266200	19.0	Circle
+C-Freq	CFreqId=217286	CGroupId=52907	Highway Dept	Off	154025000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=31541	CountyId=1763	Municipalities - Swanzey	Off	42.933410	-72.266200	19.0	Circle
+C-Freq	CFreqId=264206	CGroupId=31541	Police Operations	Off	158955000	NFM	TONE=C136.5	2					
+C-Freq	CFreqId=217288	CGroupId=31541	Public Works	Off	153965000	NFM	TONE=C136.5	14					
+C-Freq	CFreqId=217289	CGroupId=31541	Town Operations	Off	155400000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=52908	CountyId=1763	Municipalities - Troy	Off	42.933410	-72.266200	19.0	Circle
+C-Freq	CFreqId=217290	CGroupId=52908	Town Operations	Off	155985000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=32372	CountyId=1763	Municipalities - Westmoreland	Off	42.933410	-72.266200	19.0	Circle
+C-Freq	CFreqId=217291	CGroupId=32372	Public Works	Off	155085000	NFM	TONE=C103.5	14					
+C-Group	CGroupId=41309	CountyId=1763	Municipalities - Winchester	Off	42.933410	-72.266200	19.0	Circle
+C-Freq	CFreqId=165934	CGroupId=41309	Fire Local Operations	Off	155587500	NFM	TONE=D125	14					
+C-Freq	CFreqId=165933	CGroupId=41309	Public Works/EMD	Off	151002500	NFM	TONE=D125	14					
+C-Freq	CFreqId=217299	CGroupId=41309	Town Services Repeater	Off	154792500	NFM	TONE=C136.5	14					
+Conventional	CountyId=1764	StateId=33	Coos	Off		Conventional
+AreaState	CountyId=1764	StateId=33
+AreaCounty	CountyId=1764	CountyId=1764
+C-Group	CGroupId=72693	CountyId=1764	Amateur Radio - 2m Ham	Off	44.650420	-71.293490	48.0	Circle
+C-Freq	CFreqId=303236	CGroupId=72693	Berlin Cate's Hill) K1AVR Club/ARES #2 Linked	Off	145110000	FM		13					
+C-Freq	CFreqId=303235	CGroupId=72693	Clarksville Ben Young Hill AREOC/ARES #1 Linked	Off	146715000	FM		13					
+C-Freq	CFreqId=303237	CGroupId=72693	Franconia Notch Cannon Mt. Littleton A/R Club LARK	Off	145430000	FM		13					
+C-Freq	CFreqId=303238	CGroupId=72693	Littleton Mann Hill LARK	Off	147345000	FM		13					
+C-Freq	CFreqId=303239	CGroupId=72693	Mt. Washington NHOEM	Off	146655000	FM		13					
+C-Group	CGroupId=11431	CountyId=1764	Coos County	Off	44.650420	-71.293490	48.0	Circle
+C-Freq	CFreqId=351009	CGroupId=11431	County Sheriff  - Whitefield Repeater	Off	156135000	NFM		2					
+C-Freq	CFreqId=172283	CGroupId=11431	Sheriff - County PD - Mixed Mode	Off	155595000	NFM	TONE=C136.5	2					
+C-Freq	CFreqId=261449	CGroupId=11431	Sheriff - County PD - Mixed Mode	Off	155595000	NFM	NAC=117	2					
+C-Group	CGroupId=50712	CountyId=1764	Coos County - Androscoggin Valley Hospital	Off	44.650420	-71.293490	48.0	Circle
+C-Freq	CFreqId=206052	CGroupId=50712	Operations	Off	155340000	NFM	TONE=C67.0	12					
+C-Group	CGroupId=34514	CountyId=1764	Coos County - Berlin	Off	44.650420	-71.293490	48.0	Circle
+C-Freq	CFreqId=206053	CGroupId=34514	EMS Operations	Off	155295000	NFM	TONE=C67.0	4					
+C-Freq	CFreqId=215314	CGroupId=34514	Fire Operations	Off	154130000	NFM	TONE=C136.5	3					
+C-Freq	CFreqId=384489	CGroupId=34514	Fire Operations - Primary	Off	154107500	NFM	TONE=C79.7	3					
+C-Freq	CFreqId=136546	CGroupId=34514	Police Operations	Off	155370000	NFM	NAC=117	2					
+C-Freq	CFreqId=357257	CGroupId=34514	Public Works	Off	151062500	NFM	TONE=D261	14					
+C-Freq	CFreqId=206054	CGroupId=34514	Public Works	Off	154100000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=64065	CountyId=1764	Coos County - Colebrook	Off	44.650420	-71.293490	48.0	Circle
+C-Freq	CFreqId=264866	CGroupId=64065	Fire Local	Off	153755000	NFM	TONE=C71.9	3					
+C-Freq	CFreqId=264731	CGroupId=64065	Police Operations Ch. 1	Off	155865000	NFM	NAC=117	2					
+C-Freq	CFreqId=264732	CGroupId=64065	Police Tac Ch. 3	Off	154815000	NFM	NAC=117	7					
+C-Group	CGroupId=81369	CountyId=1764	Coos County - Dalton	Off	44.415890	-71.694810	3.0	Circle
+C-Freq	CFreqId=351010	CGroupId=81369	Townwide	Off	155145000	NFM	TONE=C136.5	6					
+C-Group	CGroupId=34515	CountyId=1764	Coos County - Gorham	Off	44.650420	-71.293490	48.0	Circle
+C-Freq	CFreqId=206055	CGroupId=34515	Fire/EMS Operations	Off	155700000	NFM	TONE=C136.5	3					
+C-Freq	CFreqId=136547	CGroupId=34515	Police Operations	Off	155520000	NFM	NAC=117	2					
+C-Freq	CFreqId=206056	CGroupId=34515	Public Works	Off	155085000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=50715	CountyId=1764	Coos County - Milan	Off	44.650420	-71.293490	48.0	Circle
+C-Freq	CFreqId=206057	CGroupId=50715	Fire/EMS Operations	Off	155880000	NFM	TONE=C136.5	3					
+C-Group	CGroupId=85810	CountyId=1764	Coos County - NORPAC Fire	Off	44.650420	-71.293490	48.0	Circle
+C-Freq	CFreqId=376308	CGroupId=85810	NORPAC Fire Dispatch	Off	154445000	NFM	TONE=C136.5	3					
+C-Group	CGroupId=51287	CountyId=1764	Coos County - Pittsburg	Off	44.650420	-71.293490	48.0	Circle
+C-Freq	CFreqId=209142	CGroupId=51287	Fire/EMS Operations (includes Colebrook - W Stewartstown)	Off	153755000	NFM	TONE=C71.9	3					
+C-Group	CGroupId=42879	CountyId=1764	Coos County - Whitefield	Off	44.650420	-71.293490	48.0	Circle
+C-Freq	CFreqId=172284	CGroupId=42879	Police Operations	Off	155115000	NFM	TONE=C136.5	2					
+Conventional	CountyId=1765	StateId=33	Grafton	Off		Conventional
+AreaState	CountyId=1765	StateId=33
+AreaCounty	CountyId=1765	CountyId=1765
+C-Group	CGroupId=89808	CountyId=1765	Education - Plymouth State University	Off	43.926910	-71.881260	35.0	Circle
+C-Freq	CFreqId=350720	CGroupId=89808	Plymouth State University - Security and CA interop	Off	156000000	NFM	TONE=C162.2	32					
+C-Group	CGroupId=43236	CountyId=1765	Grafton County - Ashland	Off	43.926910	-71.881260	35.0	Circle
+C-Freq	CFreqId=351416	CGroupId=43236	Public Works	Off	155745000	NFM	TONE=C156.7	14					
+C-Group	CGroupId=84232	CountyId=1765	Grafton County - Bath	Off	44.167010	-71.966200	3.0	Circle
+C-Freq	CFreqId=366667	CGroupId=84232	Public Works	Off	155025000	NFM	TONE=D754	14					
+C-Group	CGroupId=43241	CountyId=1765	Grafton County - Bristol	Off	43.623960	-71.733970	4.0	Circle
+C-Freq	CFreqId=350714	CGroupId=43241	Police Operations	Off	154377500	NFM	NAC=417	2					
+C-Freq	CFreqId=344220	CGroupId=43241	Public Works	Off	155040000	NFM	TONE=C156.7	14					
+C-Group	CGroupId=81315	CountyId=1765	Grafton County - Campton	Off	43.827290	-71.647300	8.0	Circle
+C-Freq	CFreqId=351163	CGroupId=81315	Public Works	Off	159322500	NFM	TONE=C156.7	14					
+C-Group	CGroupId=30186	CountyId=1765	Grafton County - Dartmouth Hitchcock Medical Center	Off	43.926910	-71.881260	35.0	Circle
+C-Freq	CFreqId=358739	CGroupId=30186	Link to Hear 1	Off	452675000	NFM		12					
+C-Group	CGroupId=64091	CountyId=1765	Grafton County - Enfield	Off	43.640630	-72.143980	5.0	Circle
+C-Freq	CFreqId=264829	CGroupId=64091	Police Operations	Off	155707500	NFM	TONE=C156.7	2					
+C-Group	CGroupId=81316	CountyId=1765	Grafton County - Franconia	Off	44.227010	-71.747860	5.0	Circle
+C-Freq	CFreqId=356121	CGroupId=81316	Public Works	Off	154965000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=51596	CountyId=1765	Grafton County - Hanover	Off	43.926910	-71.881260	35.0	Circle
+C-Freq	CFreqId=211249	CGroupId=51596	Fire Dispatch	Off	154130000	NFM	TONE=C141.3	3					
+C-Freq	CFreqId=211250	CGroupId=51596	Police Operations	Off	155595000	NFM	TONE=C141.3	2					
+C-Freq	CFreqId=386310	CGroupId=51596	Public Works	Off	155805000	NFM	TONE=C141.3	14					
+C-Group	CGroupId=41799	CountyId=1765	Grafton County - Haverhill	Off	44.034510	-72.063980	5.0	Circle
+C-Freq	CFreqId=356122	CGroupId=41799	County Senior Citizens - Vans and Ops	Off	461900000	NFM	TONE=C110.9	14					
+C-Freq	CFreqId=355188	CGroupId=41799	Public Works	Off	156135000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=43240	CountyId=1765	Grafton County - Holderness	Off	43.732020	-71.588410	5.0	Circle
+C-Freq	CFreqId=350721	CGroupId=43240	Public Works	Off	156105000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=32671	CountyId=1765	Grafton County - Lebanon	Off	43.648960	-72.319260	6.0	Circle
+C-Freq	CFreqId=128477	CGroupId=32671	Fire/EMS Main Operations	Off	151235000	NFM	NAC=379	3					
+C-Freq	CFreqId=168381	CGroupId=32671	Police Operations	Off	155250000	NFM	NAC=517	2					
+C-Freq	CFreqId=386309	CGroupId=32671	Public Works	Off	461700000	NFM	TONE=C141.3	14					
+C-Group	CGroupId=41800	CountyId=1765	Grafton County - Lincoln	Off	44.093950	-72.971780	5.0	Circle
+C-Freq	CFreqId=168382	CGroupId=41800	Fire Operations	Off	154055000	NFM	TONE=C141.3	3					
+C-Freq	CFreqId=355045	CGroupId=41800	LinWood EMS (Also covers Woodstock)	Off	155235000	NFM	TONE=C167.9	4					
+C-Freq	CFreqId=371705	CGroupId=41800	Police Operations - Analog	Off	155190000	NFM	TONE=C146.2	2					
+C-Freq	CFreqId=236810	CGroupId=41800	Police Operations - Digital	Off	155190000	NFM	NAC=617	2					
+C-Group	CGroupId=64089	CountyId=1765	Grafton County - Lisbon	Off	44.244780	-71.864810	5.0	Circle
+C-Freq	CFreqId=351008	CGroupId=64089	Multi Department Use	Off	155715000	NFM	TONE=C136.5	6					
+C-Freq	CFreqId=358736	CGroupId=64089	Police Backup	Off	154980000	NFM	TONE=C136.5	7					
+C-Freq	CFreqId=264826	CGroupId=64089	Police Operations	Off	154980000	NFM	NAC=117	2					
+C-Group	CGroupId=42880	CountyId=1765	Grafton County - Littleton	Off	44.323390	-71.806200	5.0	Circle
+C-Freq	CFreqId=351007	CGroupId=42880	Light and Water Division	Off	153605000	NFM	TONE=C141.3	34					
+C-Freq	CFreqId=172287	CGroupId=42880	Police Operations	Off	155310000	NFM	NAC=217	2					
+C-Freq	CFreqId=351006	CGroupId=42880	Public Works	Off	155820000	NFM	TONE=C141.3	14					
+C-Group	CGroupId=84233	CountyId=1765	Grafton County - Lyman	Off	44.267280	-71.938420	3.0	Circle
+C-Freq	CFreqId=366668	CGroupId=84233	Public Works	Off	151355000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=82396	CountyId=1765	Grafton County - Monroe	Off	44.285500	-72.019200	5.0	Circle
+C-Freq	CFreqId=356120	CGroupId=82396	Public Works	Off	155145000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=41801	CountyId=1765	Grafton County - Plymouth	Off	43.757020	-71.688130	5.3	Circle
+C-Freq	CFreqId=350718	CGroupId=41801	Elementary School Operations	Off	153560000	NFM	TONE=D565	32					
+C-Freq	CFreqId=347131	CGroupId=41801	Middle and High School Operations	Off	152465000	NFM	TONE=D466	32					
+C-Freq	CFreqId=168384	CGroupId=41801	Police Operations	Off	154755000	NFM	NAC=417	2					
+C-Freq	CFreqId=371093	CGroupId=41801	Police Operations - Analog	Off	154755000	NFM	TONE=C156.7	2					
+C-Freq	CFreqId=350716	CGroupId=41801	Public Works	Off	156195000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=81317	CountyId=1765	Grafton County - Rumney	Off	43.805350	-71.812580	7.0	Circle
+C-Freq	CFreqId=391877	CGroupId=81317	Rumney Police/Town Local	Off	154115000	NFM	TONE=C136.5	1					
+C-Group	CGroupId=40882	CountyId=1765	Grafton County - Sheriff's Office	Off	43.926910	-71.881260	35.0	Circle
+C-Freq	CFreqId=355182	CGroupId=40882	County Dispatch - Analog Backup	Off	154770000	NFM	TONE=C136.5	2					
+C-Freq	CFreqId=241691	CGroupId=40882	County Dispatch - Grafton North	Off	158835000	NFM	NAC=727	2					
+C-Freq	CFreqId=355184	CGroupId=40882	County Dispatch - Grafton North Analog Backup	Off	158835000	NFM	TONE=C136.5	2					
+C-Freq	CFreqId=168380	CGroupId=40882	County Dispatch - Grafton West	Off	155040000	NFM	NAC=117	2					
+C-Freq	CFreqId=355183	CGroupId=40882	County Dispatch - Grafton West Analog Backup	Off	155040000	NFM	TONE=C136.5	2					
+C-Freq	CFreqId=164120	CGroupId=40882	County Dispatch - Primary Operations	Off	154770000	NFM	NAC=117	2					
+C-Freq	CFreqId=355189	CGroupId=40882	Court House Security	Off	155002500	NFM	TONE=C229.1	33					
+C-Freq	CFreqId=355190	CGroupId=40882	Department of Corrections	Off	155085000	NFM	TONE=C136.5	37					
+C-Group	CGroupId=64090	CountyId=1765	Grafton County - Warren	Off	43.951180	-71.889250	5.0	Circle
+C-Freq	CFreqId=366669	CGroupId=64090	Public Works	Off	150150000	NFM	TONE=C136.5	14					
+C-Freq	CFreqId=366671	CGroupId=64090	Schools	Off	151505000	NFM	TONE=D423	32					
+C-Freq	CFreqId=366670	CGroupId=64090	Town Local	Off	155835000	NFM	TONE=C136.5	6					
+C-Group	CGroupId=43242	CountyId=1765	Grafton County - Waterville Valley	Off	43.913960	-71.454240	5.0	Circle
+C-Freq	CFreqId=386311	CGroupId=43242	Public Works	Off	451087500	NFM	TONE=C156.7	14					
+C-Group	CGroupId=82397	CountyId=1765	Grafton County - Woodsville	Off	44.152290	-72.037310	5.0	Circle
+C-Freq	CFreqId=356124	CGroupId=82397	Town Water and Light	Off	151490000	NFM	TONE=D627	14					
+Conventional	CountyId=1766	StateId=33	Hillsborough	Off		Conventional
+AreaState	CountyId=1766	StateId=33
+AreaCounty	CountyId=1766	CountyId=1766
+C-Group	CGroupId=60884	CountyId=1766	Aeronautical - Boston Consolidated TRACON	Off	42.917550	-71.710970	28.0	Circle
+C-Freq	CFreqId=252514	CGroupId=60884	EAST SECTOR-SE	Off	125050000	AM		15					
+C-Freq	CFreqId=252519	CGroupId=60884	EAST SECTOR-SE (UHF)	Off	269400000	AM		15					
+C-Freq	CFreqId=252513	CGroupId=60884	FITZY SECTOR- SF	Off	124900000	AM		15					
+C-Freq	CFreqId=252518	CGroupId=60884	FITZY SECTOR- SF (UHF)	Off	385450000	AM		15					
+C-Freq	CFreqId=252515	CGroupId=60884	LOW SECTOR- SO	Off	125825000	AM		15					
+C-Freq	CFreqId=252520	CGroupId=60884	LOW SECTOR-SO (UHF)	Off	353500000	AM		15					
+C-Freq	CFreqId=252512	CGroupId=60884	TOMMY SECTOR-ST	Off	127350000	AM		15					
+C-Freq	CFreqId=252517	CGroupId=60884	TOMMY SECTOR-ST (UHF)	Off	385450000	AM		15					
+C-Freq	CFreqId=252516	CGroupId=60884	WEST SECTOR-SW	Off	134750000	AM		15					
+C-Freq	CFreqId=252521	CGroupId=60884	WEST SECTOR-SW (UHF)	Off	254250000	AM		15					
+C-Group	CGroupId=42348	CountyId=1766	Education - Saint Anselm College	Off	42.917550	-71.710970	1.0	Circle
+C-Freq	CFreqId=392884	CGroupId=42348	Athletics Ch 1	Off	151865000	NFM	TONE=D116	32					
+C-Freq	CFreqId=392885	CGroupId=42348	Athletics Ch 2	Off	155865000	NFM	TONE=D125	32					
+C-Freq	CFreqId=392882	CGroupId=42348	Dining	Off	151625000	NFM	TONE=D754	32					
+C-Freq	CFreqId=392881	CGroupId=42348	Maintenance	Off	159810000	NFM	TONE=C136.5	32					
+C-Freq	CFreqId=392883	CGroupId=42348	Security - Analog	Off	154515000	NFM	TONE=C136.5	33					
+C-Group	CGroupId=45885	CountyId=1766	Federal	Off	42.917550	-71.710970	28.0	Circle
+C-Freq	CFreqId=186163	CGroupId=45885	New Boston Air Force Station	Off	170125000	NFM	NAC=222	30					
+C-Freq	CFreqId=216736	CGroupId=45885	New Boston Air Force Station	Off	170600000	NFM		30					
+C-Freq	CFreqId=186164	CGroupId=45885	New Hampshire Air National Guard Aircraft	Off	140200000	AM		30					
+C-Freq	CFreqId=186161	CGroupId=45885	Veterans Affairs Hospital (Manchester) - Maintenance	Off	408237500	FM	TONE=D627	16					
+C-Freq	CFreqId=186162	CGroupId=45885	Veterans Affairs Hospital (Manchester) - Police	Off	407837500	NFM	NAC=600	16					
+C-Group	CGroupId=68513	CountyId=1766	Hillsborough County - EMS	Off	42.917550	-71.710970	28.0	Circle
+C-Freq	CFreqId=281378	CGroupId=68513	American Medical Response*AMR* (Goffstown Area)	Off	152330000	NFM	TONE=D411	25					
+C-Group	CGroupId=28924	CountyId=1766	Hillsborough County - Sheriff	Off	42.917550	-71.710970	28.0	Circle
+C-Freq	CFreqId=392851	CGroupId=28924	Corrections	Off	460050000	NFM	TONE=C136.5	37					
+C-Freq	CFreqId=112559	CGroupId=28924	Sheriff/Police Dispatch	Off	155520000	NFM	NAC=117	2					
+C-Freq	CFreqId=392850	CGroupId=28924	Tach 1	Off	155430000	NFM	NAC=117	7					
+C-Group	CGroupId=21558	CountyId=1766	Municipalities - Amherst	Off	42.861470	-71.625350	3.0	Circle
+C-Freq	CFreqId=79052	CGroupId=21558	Fire Operations	Off	151220000	NFM	TONE=C103.5	3					
+C-Freq	CFreqId=141542	CGroupId=21558	Police Operations	Off	151460000	NFM	TONE=C94.8	2					
+C-Freq	CFreqId=315796	CGroupId=21558	Public Works	Off	151430000	NFM	TONE=D565	14					
+C-Group	CGroupId=28923	CountyId=1766	Municipalities - Bedford	Off	42.939810	-71.533120	4.0	Circle
+C-Freq	CFreqId=205209	CGroupId=28923	Fire Operations	Off	156180000	NFM	NAC=237	3					
+C-Freq	CFreqId=340070	CGroupId=28923	Fire Operations Simulcast	Off	159322500	NFM	TONE=C103.5	3					
+C-Freq	CFreqId=112558	CGroupId=28923	Police Operations	Off	155310000	NFM	NAC=117	2					
+C-Freq	CFreqId=205214	CGroupId=28923	Public Works	Off	156195000	NFM	TONE=C136.5	14					
+C-Freq	CFreqId=356466	CGroupId=28923	School Buses	Off	151535000	NFM	TONE=D051	32					
+C-Group	CGroupId=45521	CountyId=1766	Municipalities - Brookline	Off	42.744810	-71.674790	3.0	Circle
+C-Freq	CFreqId=398944	CGroupId=45521	Ambulance Operations	Off	152992500	NFM	TONE=C210.7	4					
+C-Freq	CFreqId=216729	CGroupId=45521	Fire Crossband	Off	453362500	NFM	TONE=C88.5	3					
+C-Freq	CFreqId=356387	CGroupId=45521	Fire VHF	Off	151070000	NFM	TONE=C88.5	3					
+C-Freq	CFreqId=356388	CGroupId=45521	Fireground	Off	154002500	NFM	TONE=C77.0	8					
+C-Freq	CFreqId=308398	CGroupId=45521	Police Operations	Off	153785000	NFM	TONE=C82.5	2					
+C-Group	CGroupId=80256	CountyId=1766	Municipalities - Francestown	Off	42.987580	-71.812580	6.0	Circle
+C-Freq	CFreqId=349216	CGroupId=80256	Public Works	Off	154995000	NFM	TONE=C91.5	14					
+C-Group	CGroupId=23909	CountyId=1766	Municipalities - Goffstown	Off	43.017580	-71.569510	4.0	Circle
+C-Freq	CFreqId=152785	CGroupId=23909	Fire 'Ops-1' Fireground	Off	159105000	NFM	TONE=C127.3	8					
+C-Freq	CFreqId=88192	CGroupId=23909	Fire/EMS Operations - Analog	Off	158880000	NFM	TONE=C136.5	3					
+C-Freq	CFreqId=392932	CGroupId=23909	Fire/EMS Operations - Primary	Off	158880000	NFM	NAC=497	3					
+C-Freq	CFreqId=275728	CGroupId=23909	Police Operations	Off	155190000	NFM	NAC=827	2					
+C-Freq	CFreqId=392874	CGroupId=23909	Police Tac 2	Off	159105000	NFM	NAC=827	7					
+C-Freq	CFreqId=392875	CGroupId=23909	Police Tac 3	Off	155190000	NFM	NAC=827	7					
+C-Group	CGroupId=80257	CountyId=1766	Municipalities - Greenfield	Off	42.935640	-71.872300	5.0	Circle
+C-Freq	CFreqId=345663	CGroupId=80257	School Buses	Off	160050000	NFM	TONE=D074	32					
+C-Group	CGroupId=41913	CountyId=1766	Municipalities - Greenville	Off	42.759530	-71.798960	3.0	Circle
+C-Freq	CFreqId=315797	CGroupId=41913	Fire Operations	Off	33740000	FM	TONE=C136.5	3					
+C-Freq	CFreqId=270524	CGroupId=41913	Fire Operations - Repeats 33.74	Off	154392500	NFM	TONE=C179.9	24					
+C-Freq	CFreqId=168857	CGroupId=41913	Police Local	Off	155490000	NFM	TONE=C146.2	2					
+C-Freq	CFreqId=216730	CGroupId=41913	Souhegan Valley Ambulance	Off	153890000	NFM	TONE=C186.2	4					
+C-Group	CGroupId=38920	CountyId=1766	Municipalities - Hillsboro	Off	43.114700	-71.895000	3.0	Circle
+C-Freq	CFreqId=184185	CGroupId=38920	Police Operations	Off	155370000	NFM	NAC=317	2					
+C-Group	CGroupId=7358	CountyId=1766	Municipalities - Hollis	Off	42.757310	-71.584510	6.0	Circle
+C-Freq	CFreqId=28496	CGroupId=7358	Fire/Rescue Operations	Off	151475000	NFM	TONE=C127.3	3					
+C-Freq	CFreqId=113199	CGroupId=7358	Police Operations	Off	159300000	NFM	TONE=C107.2	2					
+C-Freq	CFreqId=294175	CGroupId=7358	Public Works	Off	159015000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=20715	CountyId=1766	Municipalities - Hudson	Off	42.766480	-71.405340	3.5	Circle
+C-Freq	CFreqId=20918	CGroupId=20715	Fire Operations	Off	153950000	NFM	NAC=370	3					
+C-Freq	CFreqId=256275	CGroupId=20715	Fire Training Channel 1 (NAC 370)	Off	154980000	NFM	NAC=370	8					
+C-Freq	CFreqId=256277	CGroupId=20715	Fire Training Channel 2 (NAC 370)	Off	155692500	NFM	NAC=370	8					
+C-Freq	CFreqId=20919	CGroupId=20715	Fireground	Off	155955000	NFM	NAC=370	8					
+C-Freq	CFreqId=154634	CGroupId=20715	Police Operations	Off	159217500	NFM	NAC=470	2					
+C-Freq	CFreqId=86892	CGroupId=20715	Public Works	Off	158752500	NFM	TONE=C203.5	14					
+C-Group	CGroupId=28659	CountyId=1766	Municipalities - Litchfield	Off	42.839530	-71.459510	3.0	Circle
+C-Freq	CFreqId=200074	CGroupId=28659	Fire Operations	Off	151107500	NFM	TONE=C97.4	3					
+C-Freq	CFreqId=113058	CGroupId=28659	Police Operations	Off	154905000	NFM	NAC=370	2					
+C-Freq	CFreqId=294174	CGroupId=28659	Public Works Channel 1	Off	159195000	NFM	TONE=D703	14					
+C-Freq	CFreqId=294173	CGroupId=28659	Public Works Channel 2	Off	155002500	NFM	TONE=D703	14					
+C-Group	CGroupId=80259	CountyId=1766	Municipalities - Lyndeborough	Off	42.907580	-71.766460	5.0	Circle
+C-Freq	CFreqId=392873	CGroupId=80259	Public Works	Off	155895000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=22652	CountyId=1766	Municipalities - Manchester	Off	42.994150	-71.447270	4.8	Circle
+C-Freq	CFreqId=312625	CGroupId=22652	Ambulance Operations	Off	152360000	NFM	TONE=D411	4					
+C-Freq	CFreqId=83380	CGroupId=22652	Henry Wilson School	Off	468187500	NFM	TONE=C233.6	32					
+C-Freq	CFreqId=400804	CGroupId=22652	Hill Side Middle School	Off	468187500	NFM	TONE=C131.8	32					
+C-Group	CGroupId=72739	CountyId=1766	Municipalities - Mason	Off	42.743700	-71.768960	4.0	Circle
+C-Freq	CFreqId=303891	CGroupId=72739	Fire/EMS  Crossband - Repeats 33.74	Off	154392500	NFM	TONE=C179.9	3					
+C-Freq	CFreqId=303890	CGroupId=72739	Fire/EMS Operations	Off	33740000	FM	TONE=C136.5	3					
+C-Freq	CFreqId=356721	CGroupId=72739	Fire/EMS Operations	Off	155407500	NFM	TONE=C146.2	3					
+C-Freq	CFreqId=303892	CGroupId=72739	Police Operations	Off	155490000	NFM	TONE=C146.2	2					
+C-Freq	CFreqId=344226	CGroupId=72739	Public Works	Off	155932500	NFM	TONE=C167.9	14					
+C-Group	CGroupId=7357	CountyId=1766	Municipalities - Merrimack	Off	42.855360	-71.518680	4.5	Circle
+C-Freq	CFreqId=28492	CGroupId=7357	Ch 1 - Fire Operations	Off	153980000	NFM	TONE=C136.5	3					
+C-Freq	CFreqId=28493	CGroupId=7357	Ch 2 - Fireground	Off	154415000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=44017	CGroupId=7357	Ch 3 - Fireground	Off	155235000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=216733	CGroupId=7357	Police Operations	Off	155550000	NFM	NAC=227	2					
+C-Freq	CFreqId=294171	CGroupId=7357	Public Works Ch 1	Off	153875000	NFM	TONE=C136.5	14					
+C-Freq	CFreqId=294172	CGroupId=7357	Public Works Ch 2	Off	151025000	NFM		14					
+C-Group	CGroupId=22125	CountyId=1766	Municipalities - Milford	Off	42.818980	-71.673130	3.5	Circle
+C-Freq	CFreqId=392869	CGroupId=22125	Abbot Hill Police Link	Off	453537500	NFM	TONE=C123.0	2					
+C-Freq	CFreqId=392866	CGroupId=22125	Elementary School	Off	159930000	NFM	TONE=D026	32					
+C-Freq	CFreqId=392931	CGroupId=22125	Emergency Management	Off	153852500	NFM	TONE=D125	29					
+C-Freq	CFreqId=392863	CGroupId=22125	EMS 2	Off	151055000	NFM	TONE=D125	9					
+C-Freq	CFreqId=388340	CGroupId=22125	EMS Operations	Off	151055000	NFM	TONE=D125	4					
+C-Freq	CFreqId=392862	CGroupId=22125	FD Digital	Off	159472500	NFM	NAC=555	3					
+C-Freq	CFreqId=392867	CGroupId=22125	Federal Hill Fire Link	Off	453612500	NFM	TONE=C114.8	3					
+C-Freq	CFreqId=152790	CGroupId=22125	Fire Operations	Off	154370000	NFM	TONE=D125	3					
+C-Freq	CFreqId=152788	CGroupId=22125	Fireground	Off	153770000	NFM	TONE=D125	8					
+C-Freq	CFreqId=152791	CGroupId=22125	Fireground	Off	158992500	NFM	TONE=D125	8					
+C-Freq	CFreqId=152789	CGroupId=22125	Fireground	Off	159127500	NFM	TONE=D125	8					
+C-Freq	CFreqId=392864	CGroupId=22125	High School	Off	160170000	NFM	TONE=D026	32					
+C-Freq	CFreqId=392865	CGroupId=22125	Middle School	Off	158385000	NFM	TONE=D026	32					
+C-Freq	CFreqId=388339	CGroupId=22125	Police Operations	Off	154025000	NFM	NAC=555	2					
+C-Freq	CFreqId=392861	CGroupId=22125	Police Tac 2	Off	155782500	NFM	TONE=D125	7					
+C-Freq	CFreqId=392868	CGroupId=22125	Public Works	Off	154762500	NFM	NAC=555	14					
+C-Group	CGroupId=80028	CountyId=1766	Municipalities - Mont Vernon	Off	42.894530	-71.674240	5.0	Circle
+C-Freq	CFreqId=398945	CGroupId=80028	Fire Operations	Off	154160000	NFM	TONE=C82.5	3					
+C-Freq	CFreqId=344229	CGroupId=80028	Mont Vernon/WIlton Fire	Off	33640000	FM	TONE=C136.5	3					
+C-Group	CGroupId=28925	CountyId=1766	Municipalities - Nashua	Off	42.765370	-71.467570	5.0	Circle
+C-Freq	CFreqId=312626	CGroupId=28925	Ambulance Dispatch	Off	155362500	NFM	TONE=D423	4					
+C-Freq	CFreqId=112560	CGroupId=28925	Fire Operations (Simulcast from trunked system)	Off	151250000	NFM	TONE=C103.5	3					
+C-Freq	CFreqId=345540	CGroupId=28925	Fireground Patch - Mutual Aid	Off	154325000	NFM	TONE=C103.5	3					
+C-Group	CGroupId=28927	CountyId=1766	Municipalities - New Boston	Off	42.976190	-71.693960	5.0	Circle
+C-Freq	CFreqId=392877	CGroupId=28927	Emergency Management 1	Off	154570000	NFM		29					
+C-Freq	CFreqId=392878	CGroupId=28927	Emergency Management 2	Off	151995000	NFM		29					
+C-Freq	CFreqId=392879	CGroupId=28927	Emergency Management 3	Off	151625000	NFM		29					
+C-Freq	CFreqId=392880	CGroupId=28927	Emergency Management 4	Off	154600000	NFM		29					
+C-Freq	CFreqId=365807	CGroupId=28927	Fire Operations	Off	153860000	NFM	TONE=C88.5	3					
+C-Freq	CFreqId=112562	CGroupId=28927	Local Operations	Off	154160000	NFM	TONE=C136.5	22					
+C-Freq	CFreqId=246050	CGroupId=28927	Police Operations	Off	154717500	NFM	NAC=293	2					
+C-Freq	CFreqId=382026	CGroupId=28927	Public Works	Off	152412500	NFM	TONE=C74.4	14					
+C-Freq	CFreqId=392876	CGroupId=28927	Public Works Direct	Off	154055000	NFM	TONE=C210.7	14					
+C-Group	CGroupId=80260	CountyId=1766	Municipalities - New Ipswich	Off	42.748140	-71.854240	5.0	Circle
+C-Freq	CFreqId=349218	CGroupId=80260	Police - Local Operations	Off	151092500	NFM	TONE=D251	2					
+C-Group	CGroupId=8787	CountyId=1766	Municipalities - Pelham	Off	42.734530	-71.324510	3.0	Circle
+C-Freq	CFreqId=221096	CGroupId=8787	Fire Dispatch	Off	155190000	NFM	TONE=C136.5	3					
+C-Freq	CFreqId=75928	CGroupId=8787	Fire Operations	Off	158745000	NFM	NAC=652	3					
+C-Freq	CFreqId=221095	CGroupId=8787	Police Operations	Off	155812500	NFM	NAC=293	2					
+C-Freq	CFreqId=349573	CGroupId=8787	Public Works	Off	151280000	NFM	TONE=C146.2	14					
+C-Freq	CFreqId=350722	CGroupId=8787	School Busses	Off	159525000	NFM	TONE=D251	26					
+C-Group	CGroupId=73507	CountyId=1766	Municipalities - Peterborough	Off	42.870640	-71.951750	5.0	Circle
+C-Freq	CFreqId=359105	CGroupId=73507	Fire/EMS Local Operations	Off	154145000	NFM	NAC=282	8					
+C-Freq	CFreqId=349219	CGroupId=73507	Police Local Operations	Off	155640000	NFM	NAC=F0	2					
+C-Freq	CFreqId=308399	CGroupId=73507	Police Operations	Off	159150000	NFM	TONE=C136.5	2					
+C-Group	CGroupId=32335	CountyId=1766	Municipalities - Weare	Off	43.094800	-71.730630	6.0	Circle
+C-Freq	CFreqId=149569	CGroupId=32335	Fire Operations	Off	154250000	NFM	TONE=C85.4	3					
+C-Freq	CFreqId=126948	CGroupId=32335	Police Channel 2	Off	158850000	NFM	TONE=C136.5	2					
+C-Freq	CFreqId=237802	CGroupId=32335	Public Works 1	Off	159457500	NFM	TONE=D132	14					
+C-Freq	CFreqId=239061	CGroupId=32335	Weare and Henniker School Buses	Off	159660000	NFM	TONE=C136.5	32					
+C-Group	CGroupId=64097	CountyId=1766	Municipalities - Wilton	Off	42.881500	-71.746560	3.0	Circle
+C-Freq	CFreqId=365971	CGroupId=64097	Fire Operations	Off	151497500	NFM	TONE=D125	3					
+C-Freq	CFreqId=392870	CGroupId=64097	Police Operations	Off	155737500	NFM	NAC=F0	2					
+C-Freq	CFreqId=392871	CGroupId=64097	Public Works 1	Off	150920000	NFM	TONE=C88.5	14					
+Conventional	CountyId=1767	StateId=33	Merrimack	Off		Conventional
+AreaState	CountyId=1767	StateId=33
+AreaCounty	CountyId=1767	CountyId=1767
+C-Group	CGroupId=11508	CountyId=1767	Merrimack County	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=273183	CGroupId=11508	Merrimack County Nursing Home Operations	Off	460400000	NFM	TONE=D131	17					
+C-Freq	CFreqId=273181	CGroupId=11508	Sheriff Dispatch 'East' Simulcast	Off	159090000	NFM	NAC=317	23					
+C-Freq	CFreqId=44024	CGroupId=11508	Sheriff Dispatch 'West'	Off	155685000	NFM	NAC=117	2					
+C-Freq	CFreqId=44023	CGroupId=11508	Sheriff Dspatch 'East'	Off	155700000	NFM	NAC=117	2					
+C-Group	CGroupId=31917	CountyId=1767	Merrimack County - Allenstown	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=334964	CGroupId=31917	Public Works	Off	151152500	NFM	TONE=C225.7	14					
+C-Group	CGroupId=37369	CountyId=1767	Merrimack County - Andover	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=146314	CGroupId=37369	Public Works	Off	159420000	NFM		14					
+C-Group	CGroupId=31927	CountyId=1767	Merrimack County - Boscawen	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=146266	CGroupId=31927	Public Works Primary/Police Secondary	Off	156165000	NFM	TONE=D466	11					
+C-Group	CGroupId=11506	CountyId=1767	Merrimack County - Bow	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=380605	CGroupId=11506	Police - Mobile Extenders	Off	173262500	NFM	TONE=C77.0	2					
+C-Freq	CFreqId=44018	CGroupId=11506	Police Tac (includes Weare, New Boston, and Dunbarton)	Off	155760000	NFM	NAC=117	7					
+C-Freq	CFreqId=146267	CGroupId=11506	Public Works	Off	151130000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=37370	CountyId=1767	Merrimack County - Bradford	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=215460	CGroupId=37370	Public Works	Off	159135000	NFM		14					
+C-Group	CGroupId=37371	CountyId=1767	Merrimack County - Canterbury	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=146315	CGroupId=37371	Public Works	Off	151010000	NFM	TONE=C151.4	14					
+C-Group	CGroupId=37372	CountyId=1767	Merrimack County - Chichester	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=215462	CGroupId=37372	Emergency Management Interoperability	Off	150995000	NFM		29					
+C-Freq	CFreqId=215461	CGroupId=37372	Public Works	Off	151010000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=11509	CountyId=1767	Merrimack County - Concord	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=163042	CGroupId=11509	Beaver Meadow Golf Course Ch-1	Off	158805000	NFM	TONE=C192.8	17					
+C-Freq	CFreqId=163043	CGroupId=11509	Beaver Meadow Golf Course Ch-2	Off	159120000	NFM	TONE=C192.8	17					
+C-Freq	CFreqId=125324	CGroupId=11509	Concord Area Transit Buses	Off	461375000	FM	TONE=C167.9	26					
+C-Freq	CFreqId=125325	CGroupId=11509	Concord High School	Off	452125000	NFM	TONE=D043	32					
+C-Freq	CFreqId=125326	CGroupId=11509	Concord High School	Off	452225000	NFM	TONE=D043	32					
+C-Freq	CFreqId=125290	CGroupId=11509	Concord Hospital Med-1 Primary Ambulances	Off	155340000	NFM	TONE=C146.2	4					
+C-Freq	CFreqId=125291	CGroupId=11509	Concord Hospital Med-2 Secondary Ambulances	Off	155385000	NFM	TONE=C146.2	9					
+C-Freq	CFreqId=125305	CGroupId=11509	Concord Hospital Med-3 Hospital Coordiration	Off	155280000	NFM	TONE=C146.2	9					
+C-Freq	CFreqId=303162	CGroupId=11509	Emergency Operations Center	Off	155025000	NFM	TONE=C136.5	29					
+C-Freq	CFreqId=44027	CGroupId=11509	Fire Alarm Operations	Off	453475000	NFM	TONE=D226	8					
+C-Freq	CFreqId=125306	CGroupId=11509	Fire Department Downlink	Off	453112500	NFM	TONE=C179.9	24					
+C-Freq	CFreqId=125288	CGroupId=11509	General Services Department 'Citywide'	Off	158805000	NFM	TONE=C136.5	14					
+C-Freq	CFreqId=125289	CGroupId=11509	General Services Department 'Highway Division'	Off	159120000	NFM	TONE=C136.5	14					
+C-Freq	CFreqId=163044	CGroupId=11509	Merrimack Valley School Buses	Off	460750000	FM	TONE=C136.5	26					
+C-Freq	CFreqId=44026	CGroupId=11509	Police Operations	Off	155625000	NFM	NAC=117	2					
+C-Freq	CFreqId=44025	CGroupId=11509	Police Secondary / Special Operations	Off	155820000	NFM	NAC=ACE	7					
+C-Freq	CFreqId=125292	CGroupId=11509	School Buses	Off	453900000	NFM	TONE=C203.5	26					
+C-Group	CGroupId=87918	CountyId=1767	Merrimack County - Corrections	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=125296	CGroupId=87918	Department of Corrections Primary	Off	155730000	NFM	TONE=C156.7	2					
+C-Freq	CFreqId=386796	CGroupId=87918	Men's State Prison	Off	155655000	NFM	TONE=C141.3	37					
+C-Group	CGroupId=37374	CountyId=1767	Merrimack County - Dunbarton	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=221621	CGroupId=37374	Townwide	Off	154980000	NFM	TONE=C136.5	22					
+C-Group	CGroupId=37375	CountyId=1767	Merrimack County - Epsom	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=215463	CGroupId=37375	Town Services (Police use w/P25 Mixed)	Off	153920000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=31928	CountyId=1767	Merrimack County - Franklin	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=125309	CGroupId=31928	Police Operations	Off	154785000	NFM	NAC=527	2					
+C-Freq	CFreqId=146269	CGroupId=31928	Public Works	Off	159165000	NFM	TONE=D346	14					
+C-Group	CGroupId=37351	CountyId=1767	Merrimack County - Henniker	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=146270	CGroupId=37351	Public Works	Off	151070000	NFM	TONE=C136.5	14					
+C-Freq	CFreqId=239062	CGroupId=37351	Weare and Henniker School Buses	Off	159660000	NFM	TONE=C136.5	32					
+C-Group	CGroupId=35539	CountyId=1767	Merrimack County - Hooksett	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=139807	CGroupId=35539	Police Operations	Off	155565000	NFM	NAC=117	2					
+C-Freq	CFreqId=392930	CGroupId=35539	Public Works	Off	151865000	NFM	TONE=C94.8	14					
+C-Freq	CFreqId=384417	CGroupId=35539	Town Wide	Off	154040000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=37377	CountyId=1767	Merrimack County - Hopkinton	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=146316	CGroupId=37377	Public Works	Off	33060000	FM	TONE=C136.5	14					
+C-Group	CGroupId=37378	CountyId=1767	Merrimack County - Loudon	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=215464	CGroupId=37378	Town Services	Off	154040000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=36937	CountyId=1767	Merrimack County - New England College	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=144497	CGroupId=36937	Campus Safety	Off	157560000	NFM	TONE=C192.8	33					
+C-Freq	CFreqId=144496	CGroupId=36937	Campus Safety (Primary)	Off	151745000	NFM	TONE=C192.8	33					
+C-Group	CGroupId=31065	CountyId=1767	Merrimack County - New London	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=125297	CGroupId=31065	New London Hospital Med-1 Ambulance Primary	Off	155340000	NFM	TONE=C82.5	12					
+C-Freq	CFreqId=125310	CGroupId=31065	New London Hospital Med-2 Ambulance Secondary	Off	155385000	NFM	TONE=C82.5	12					
+C-Freq	CFreqId=121473	CGroupId=31065	New London Hospital Med-3 Hospital Coordination	Off	155280000	NFM	TONE=C82.5	12					
+C-Freq	CFreqId=125311	CGroupId=31065	New London Hospital Med-4 Mutual Aid/Tactical-1	Off	155175000	NFM		11					
+C-Freq	CFreqId=146271	CGroupId=31065	Police Operations - Regional	Off	155010000	NFM	TONE=C88.5	2					
+C-Group	CGroupId=20293	CountyId=1767	Merrimack County - Northfield	Off	43.433130	-71.592300	5.0	Circle
+C-Freq	CFreqId=146273	CGroupId=20293	Police Operations - Daytime	Off	155055000	NFM	TONE=C136.5	2					
+C-Freq	CFreqId=146272	CGroupId=20293	Public Works	Off	159105000	NFM	TONE=C156.7	14					
+C-Group	CGroupId=37379	CountyId=1767	Merrimack County - Pembroke	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=215465	CGroupId=37379	Emergency Management	Off	46100000	FM	TONE=C136.5	29					
+C-Group	CGroupId=37380	CountyId=1767	Merrimack County - Pittsfield	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=215466	CGroupId=37380	Townwide	Off	155895000	NFM	TONE=C110.9	14					
+C-Group	CGroupId=31924	CountyId=1767	Merrimack County - Warner	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=125302	CGroupId=31924	Townwide Public Safety	Off	154100000	NFM	TONE=C136.5	1					
+Conventional	CountyId=1768	StateId=33	Rockingham	Off		Conventional
+AreaState	CountyId=1768	StateId=33
+AreaCounty	CountyId=1768	CountyId=1768
+C-Group	CGroupId=44643	CountyId=1768	Federal - Pease Air National Guard Base	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=179802	CGroupId=44643	Fire Operations	Off	173587500	NFM	TONE=C136.5	3					
+C-Freq	CFreqId=284656	CGroupId=44643	Pease ANG Base Fire Channel 2	Off	173050000	NFM		24					
+C-Group	CGroupId=72687	CountyId=1768	Municipalities - Atkinson	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=342769	CGroupId=72687	Public Works	Off	156172500	NFM	TONE=C203.5	14					
+C-Group	CGroupId=63951	CountyId=1768	Municipalities - Auburn	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=376756	CGroupId=63951	Auburn/Chester Fire Operations (DB Derry)	Off	154130000	NFM	TONE=C114.8	3					
+C-Freq	CFreqId=264057	CGroupId=63951	Fire Operations	Off	152405000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=309206	CGroupId=63951	Police Operations	Off	159382500	NFM	NAC=117	2					
+C-Freq	CFreqId=309205	CGroupId=63951	Town-wide	Off	151302500	NFM	TONE=C136.5	6					
+C-Group	CGroupId=63956	CountyId=1768	Municipalities - Brentwood	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=264069	CGroupId=63956	Police Operations	Off	158775000	NFM	TONE=C136.5	2					
+C-Freq	CFreqId=329774	CGroupId=63956	Public Works	Off	158775000	NFM	TONE=D251	14					
+C-Group	CGroupId=63952	CountyId=1768	Municipalities - Candia	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=264060	CGroupId=63952	Fire Channel 2	Off	155055000	NFM		8					
+C-Freq	CFreqId=264059	CGroupId=63952	Police Channel 3	Off	154745000	NFM	NAC=80A	7					
+C-Freq	CFreqId=264058	CGroupId=63952	Townwide Channel (PD FD DPW)	Off	154625000	NFM	TONE=C79.7	7					
+C-Group	CGroupId=57189	CountyId=1768	Municipalities - Chester	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=329775	CGroupId=57189	Public Works	Off	153447500	NFM	TONE=C151.4	14					
+C-Freq	CFreqId=240185	CGroupId=57189	Town Wide Interoperability Channel.	Off	155677500	NFM	TONE=C136.5	11					
+C-Group	CGroupId=30831	CountyId=1768	Municipalities - Deerfield	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=264865	CGroupId=30831	Fire - Channel 2	Off	153815000	NFM	TONE=C94.8	8					
+C-Freq	CFreqId=264061	CGroupId=30831	Police Operations	Off	154710000	NFM	TONE=C136.5	2					
+C-Freq	CFreqId=329776	CGroupId=30831	Public Works	Off	159135000	NFM	TONE=C100.0	14					
+C-Group	CGroupId=15055	CountyId=1768	Municipalities - Derry	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=96273	CGroupId=15055	Fire Operations	Off	153995000	NFM	NAC=827	3					
+C-Freq	CFreqId=96267	CGroupId=15055	Police Direct 5	Off	154732500	NFM	NAC=527	7					
+C-Freq	CFreqId=96268	CGroupId=15055	Police Direct 6	Off	154807500	NFM		7					
+C-Freq	CFreqId=55708	CGroupId=15055	Police Operations	Off	151010000	NFM	NAC=827	2					
+C-Freq	CFreqId=96269	CGroupId=15055	Police Secondary	Off	155662500	NFM		7					
+C-Freq	CFreqId=96272	CGroupId=15055	Public Works	Off	453375000	NFM	TONE=C103.5	14					
+C-Freq	CFreqId=96279	CGroupId=15055	S.E.NH HazMat Mutual Aid District (SENHHMMAD)	Off	154265000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=96288	CGroupId=15055	School Buses (Laidlaw)	Off	453800000	NFM	TONE=D026	32					
+C-Group	CGroupId=63953	CountyId=1768	Municipalities - Epping	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=264062	CGroupId=63953	Police Operations	Off	155850000	NFM	TONE=C136.5	2					
+C-Group	CGroupId=40009	CountyId=1768	Municipalities - Exeter	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=159633	CGroupId=40009	Fire Operations	Off	154302500	NFM	NAC=617	3					
+C-Freq	CFreqId=209771	CGroupId=40009	Police Operations	Off	155535000	NFM	NAC=617	2					
+C-Freq	CFreqId=261195	CGroupId=40009	Public Works	Off	155115000	NFM	TONE=C103.5	14					
+C-Freq	CFreqId=261194	CGroupId=40009	School Buses	Off	155295000	NFM	TONE=C103.5	26					
+C-Group	CGroupId=63954	CountyId=1768	Municipalities - Fremont	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=264063	CGroupId=63954	Police Operations	Off	155955000	NFM	TONE=C136.5	2					
+C-Group	CGroupId=77454	CountyId=1768	Municipalities - Greenland	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=329777	CGroupId=77454	Public Works	Off	155895000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=57188	CountyId=1768	Municipalities - Hampstead	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=340069	CGroupId=57188	Fire Department Downlink	Off	453275000	NFM	TONE=C151.4	3					
+C-Freq	CFreqId=240184	CGroupId=57188	Fire Operations	Off	151182500	NFM	TONE=C151.4	3					
+C-Freq	CFreqId=264215	CGroupId=57188	Police Operations	Off	159435000	NFM		2					
+C-Freq	CFreqId=264064	CGroupId=57188	Police Tac	Off	159925000	NFM		7					
+C-Freq	CFreqId=256173	CGroupId=57188	Town Channel	Off	151070000	NFM	TONE=D125	11					
+C-Group	CGroupId=30827	CountyId=1768	Municipalities - Hampton	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=120669	CGroupId=30827	Fire Operations	Off	154145000	NFM	TONE=C136.5	3					
+C-Freq	CFreqId=284403	CGroupId=30827	Police Car to car	Off	158872500	NFM	NAC=830	23					
+C-Freq	CFreqId=120668	CGroupId=30827	Police Operations	Off	155025000	NFM	NAC=830	2					
+C-Freq	CFreqId=329778	CGroupId=30827	Public Works	Off	155745000	NFM	TONE=D311	14					
+C-Group	CGroupId=80026	CountyId=1768	Municipalities - Kingston	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=344211	CGroupId=80026	Public Works	Off	154040000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=14929	CountyId=1768	Municipalities - Londonderry	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=263951	CGroupId=14929	Fire Department Channel 2	Off	158887500	NFM	NAC=497	8					
+C-Freq	CFreqId=386750	CGroupId=14929	Fire Operations - Primary	Off	156112500	NFM	NAC=293	3					
+C-Freq	CFreqId=83381	CGroupId=14929	Londonderry High School - Administration/Janitorial	Off	453800000	NFM	TONE=C114.8	32					
+C-Freq	CFreqId=344215	CGroupId=14929	Moose Hill Elementary School Ops	Off	452637500	NFM	TONE=D445	32					
+C-Freq	CFreqId=344214	CGroupId=14929	North Elementary School Ops	Off	452187500	NFM	TONE=D445	32					
+C-Freq	CFreqId=55395	CGroupId=14929	Police Operations	Off	155865000	NFM	NAC=293	2					
+C-Freq	CFreqId=263949	CGroupId=14929	Police Operations Channel 2	Off	153822500	NFM		7					
+C-Freq	CFreqId=294167	CGroupId=14929	Public Works	Off	158797500	NFM	TONE=C136.5	14					
+C-Freq	CFreqId=344212	CGroupId=14929	South Elementary School Ops	Off	451237500	NFM	TONE=D445	32					
+C-Freq	CFreqId=344213	CGroupId=14929	Thornton Elementary School Ops	Off	452112500	NFM	TONE=D445	32					
+C-Group	CGroupId=71878	CountyId=1768	Municipalities - Newington	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=298965	CGroupId=71878	FD Local Ops	Off	154220000	NFM	TONE=C107.2	8					
+C-Freq	CFreqId=344240	CGroupId=71878	PD TAC	Off	155490000	NFM	NAC=857	7					
+C-Freq	CFreqId=344216	CGroupId=71878	Public Works	Off	154115000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=29197	CountyId=1768	Municipalities - Newmarket	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=113903	CGroupId=29197	Fire/Rescue Dispatch/Operations	Off	155430000	NFM	TONE=D606	3					
+C-Freq	CFreqId=113902	CGroupId=29197	Police Operations	Off	155370000	NFM	NAC=460	2					
+C-Freq	CFreqId=179801	CGroupId=29197	Public Works	Off	159675000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=72676	CountyId=1768	Municipalities - Newton	Off	42.870000	-71.033000	15.0	Circle
+C-Freq	CFreqId=303158	CGroupId=72676	Police/Public Works	Off	151160000	NFM	TONE=D723	1					
+C-Group	CGroupId=80027	CountyId=1768	Municipalities - North Hampton	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=344218	CGroupId=80027	Public Works	Off	156225000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=80237	CountyId=1768	Municipalities - Northwood	Off	43.205990	-71.200300	1.7	Circle
+C-Freq	CFreqId=350990	CGroupId=80237	Public Works	Off	154785000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=30832	CountyId=1768	Municipalities - Nottingham	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=368861	CGroupId=30832	Local Fire Operations	Off	156180000	NFM	TONE=D023	3					
+C-Freq	CFreqId=329780	CGroupId=30832	Public Works	Off	156135000	NFM	TONE=C203.5	14					
+C-Group	CGroupId=44344	CountyId=1768	Municipalities - Plaistow	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=302068	CGroupId=44344	Fire Operations	Off	155317500	NFM	TONE=C167.9	3					
+C-Freq	CFreqId=386712	CGroupId=44344	Fire Tac 1	Off	151190000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=386713	CGroupId=44344	Fire Tac 2 (Simplex) - Tac 3 (Repeater)	Off	159330000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=178390	CGroupId=44344	Police Operations	Off	154755000	NFM	NAC=117	2					
+C-Freq	CFreqId=264068	CGroupId=44344	Public Works	Off	156232500	NFM	TONE=C127.3	14					
+C-Freq	CFreqId=344219	CGroupId=44344	School Bus Dispatch(Includes Hampstead and Atkinson)	Off	155235000	NFM	TONE=D734	26					
+C-Group	CGroupId=44428	CountyId=1768	Municipalities - Portsmouth	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=263953	CGroupId=44428	Analog simulcast of 154.34	Off	153770000	NFM	TONE=C173.8	8					
+C-Freq	CFreqId=263954	CGroupId=44428	Fire Department CH-3	Off	155617500	NFM		8					
+C-Freq	CFreqId=159634	CGroupId=44428	Fire Operations	Off	154340000	NFM	NAC=88A	3					
+C-Freq	CFreqId=178718	CGroupId=44428	Police Operations	Off	154740000	NFM	NAC=88A	2					
+C-Freq	CFreqId=302425	CGroupId=44428	Police Operations Channel 2	Off	153905000	NFM	NAC=ABE	7					
+C-Freq	CFreqId=329781	CGroupId=44428	Public Works	Off	155715000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=30828	CountyId=1768	Municipalities - Raymond	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=303166	CGroupId=30828	Fire Operations	Off	151227500	NFM	TONE=C173.8	3					
+C-Freq	CFreqId=120670	CGroupId=30828	Police Operations	Off	155640000	NFM	NAC=860	2					
+C-Group	CGroupId=77456	CountyId=1768	Municipalities - Rye	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=329782	CGroupId=77456	Public Works	Off	156240000	NFM	TONE=C94.8	14					
+C-Group	CGroupId=15058	CountyId=1768	Municipalities - Salem	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=339755	CGroupId=15058	Buses	Off	452025000	NFM	TONE=C79.7	26					
+C-Freq	CFreqId=339756	CGroupId=15058	Downlnk from 155.8875	Off	460462500	NFM	TONE=C192.8	3					
+C-Freq	CFreqId=152719	CGroupId=15058	Fire Operations	Off	155887500	NFM	NAC=117	3					
+C-Freq	CFreqId=347641	CGroupId=15058	High School Ops	Off	151580000	NFM	TONE=D074	32					
+C-Freq	CFreqId=377683	CGroupId=15058	Police Operations	Off	155032500	NFM	NAC=117	2					
+C-Freq	CFreqId=82798	CGroupId=15058	Public Works	Off	151040000	NFM	TONE=C97.4	14					
+C-Freq	CFreqId=339754	CGroupId=15058	Public Works	Off	151040000	NFM	TONE=C97.4	14					
+C-Group	CGroupId=67726	CountyId=1768	Municipalities - Sandown	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=278397	CGroupId=67726	Police Secondary	Off	155040000	NFM	TONE=C141.3	23					
+C-Group	CGroupId=30829	CountyId=1768	Municipalities - Seabrook	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=336186	CGroupId=30829	Fire Operations	Off	153372500	NFM	TONE=C136.5	3					
+C-Freq	CFreqId=120672	CGroupId=30829	Police Operations	Off	154792500	NFM	NAC=868	2					
+C-Group	CGroupId=30830	CountyId=1768	Municipalities - Stratham	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=261197	CGroupId=30830	Interoperability (used for Police and Fire Local) Channel 1	Off	154085000	NFM	TONE=C136.5	11					
+C-Group	CGroupId=15057	CountyId=1768	Municipalities - Windham	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=339028	CGroupId=15057	Center School Ops	Off	152270000	NFM	TONE=C114.8	32					
+C-Freq	CFreqId=366503	CGroupId=15057	Fire Operations	Off	154175000	NFM	NAC=907	3					
+C-Freq	CFreqId=366672	CGroupId=15057	Fire Tac 2	Off	155842500	NFM	NAC=907	8					
+C-Freq	CFreqId=339029	CGroupId=15057	Golden Brook School Ops	Off	152420000	NFM	TONE=C114.8	32					
+C-Freq	CFreqId=339031	CGroupId=15057	High School Maint	Off	152990000	NFM	TONE=C114.8	32					
+C-Freq	CFreqId=339030	CGroupId=15057	High School Ops	Off	152450000	NFM	TONE=C114.8	32					
+C-Freq	CFreqId=339032	CGroupId=15057	Middle School Ops	Off	154482500	NFM	TONE=C114.8	32					
+C-Freq	CFreqId=75926	CGroupId=15057	Police Operations	Off	155602500	NFM	NAC=617	2					
+C-Freq	CFreqId=178358	CGroupId=15057	Police RF Link with 155.61 MHz	Off	452625000	NFM	TONE=C192.8	2					
+C-Group	CGroupId=15056	CountyId=1768	Rockingham County - Law Enforcement	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=55711	CGroupId=15056	County Sheriff East	Off	154950000	NFM	NAC=117	2					
+C-Freq	CFreqId=55710	CGroupId=15056	County Sheriff West	Off	154815000	NFM	NAC=117	2					
+C-Freq	CFreqId=291803	CGroupId=15056	Rockingham County Jail	Off	155790000	NFM	TONE=C141.3	37					
+C-Group	CGroupId=72169	CountyId=1768	Rockingham County - Seacoast Fire (Rockingham Net)	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=344235	CGroupId=72169	Fireground 1	Off	153897500	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=344236	CGroupId=72169	Fireground 2	Off	153972500	NFM	TONE=C186.2	8					
+C-Freq	CFreqId=96274	CGroupId=72169	Med-1 EMS-to-Hospital	Off	155340000	NFM	TONE=C141.3	12					
+C-Freq	CFreqId=96275	CGroupId=72169	Med-2 EMS-to-Hospital (rarely used)	Off	155385000	NFM	TONE=C141.3	12					
+C-Freq	CFreqId=344237	CGroupId=72169	Rock County Fireground 3	Off	154437500	NFM	TONE=C88.5	8					
+C-Freq	CFreqId=344238	CGroupId=72169	Rock County Fireground 4	Off	153777500	NFM	TONE=C131.8	8					
+C-Freq	CFreqId=55715	CGroupId=72169	Seacoast Fire Mutual Aid Dispatch	Off	154190000	NFM	TONE=C136.5	3					
+C-Freq	CFreqId=344239	CGroupId=72169	South Central Rock County Fireground	Off	154160000	NFM	TONE=C136.5	8					
+C-Group	CGroupId=72170	CountyId=1768	Rockingham County - Services	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=264055	CGroupId=72170	County Maintenance	Off	453550000	NFM	TONE=C156.7	14					
+Conventional	CountyId=1769	StateId=33	Strafford	Off		Conventional
+AreaState	CountyId=1769	StateId=33
+AreaCounty	CountyId=1769	CountyId=1769
+C-Group	CGroupId=68475	CountyId=1769	Amateur Radio - Strafford County Amateur Radio	Off	43.316750	-71.049510	20.0	Circle
+C-Freq	CFreqId=281304	CGroupId=68475	Saddleback Repeater Associates Inc.	Off	147000000	FM	TONE=C100.0	13					
+C-Group	CGroupId=40012	CountyId=1769	Education - University of New Hampshire - Durham	Off	43.316750	-71.049510	20.0	Circle
+C-Freq	CFreqId=214803	CGroupId=40012	Police (Dispatched by UNH Comm Center)	Off	155775000	NFM	NAC=293	2					
+C-Freq	CFreqId=48676	CGroupId=40012	Security	Off	155670000	NFM	TONE=C136.5	33					
+C-Freq	CFreqId=301166	CGroupId=40012	Whittemore Center Arena Ops	Off	462000000	NFM	TONE=D116	14					
+C-Freq	CFreqId=214804	CGroupId=40012	Wildcat Transportation (university buses)	Off	158895000	NFM	TONE=D445	26					
+C-Group	CGroupId=12946	CountyId=1769	Strafford County	Off	43.316750	-71.049510	35.0	Circle
+C-Freq	CFreqId=385513	CGroupId=12946	County Fire 1-2	Off	151437500	NFM	TONE=C210.7	3					
+C-Freq	CFreqId=385514	CGroupId=12946	County Police & Fire TAC 3	Off	153965000	NFM	TONE=C210.7	6					
+C-Freq	CFreqId=385515	CGroupId=12946	County Police & Fire TAC 4	Off	155992500	NFM	TONE=C210.7	6					
+C-Freq	CFreqId=385516	CGroupId=12946	County Police & Fire TAC 5	Off	158872500	NFM	TONE=C210.7	6					
+C-Freq	CFreqId=385517	CGroupId=12946	County Police & Fire TAC 6	Off	158775000	NFM	TONE=C210.7	6					
+C-Freq	CFreqId=385518	CGroupId=12946	County Police & Fire TAC 7	Off	156030000	NFM	TONE=C210.7	6					
+C-Freq	CFreqId=385519	CGroupId=12946	County Police & Fire TAC 8	Off	159120000	NFM	TONE=C210.7	6					
+C-Freq	CFreqId=391046	CGroupId=12946	Emergency Management - Analog	Off	453600000	NFM	TONE=C210.7	29					
+C-Freq	CFreqId=391047	CGroupId=12946	Emergency Management - Digital	Off	453600000	NFM	NAC=527	29					
+C-Freq	CFreqId=48672	CGroupId=12946	North Police Departments	Off	154725000	NFM	NAC=527	2					
+C-Freq	CFreqId=219215	CGroupId=12946	South Police Departments	Off	155797500	NFM	NAC=ABE	2					
+C-Group	CGroupId=12939	CountyId=1769	Strafford County - Barrington	Off	43.316750	-71.049510	35.0	Circle
+C-Freq	CFreqId=273466	CGroupId=12939	Fire/EMS Dispatch (Dispatched by UNH Fire Alarm)	Off	156105000	NFM	TONE=D131	3					
+C-Freq	CFreqId=192938	CGroupId=12939	Fire/EMS Fire Ground	Off	153935000	NFM	TONE=C136.5	24					
+C-Freq	CFreqId=48664	CGroupId=12939	Public Works and Local Channel	Off	155820000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=12940	CountyId=1769	Strafford County - Dover	Off	43.316750	-71.049510	20.0	Circle
+C-Freq	CFreqId=48665	CGroupId=12940	Fire Operations	Off	154295000	NFM	NAC=117	3					
+C-Freq	CFreqId=76997	CGroupId=12940	Police Operations	Off	151062500	NFM	NAC=117	2					
+C-Group	CGroupId=12941	CountyId=1769	Strafford County - Durham	Off	43.316750	-71.049510	35.0	Circle
+C-Freq	CFreqId=301164	CGroupId=12941	Fire Department Paging/Simulcast	Off	152007500	NFM	TONE=C229.1	3					
+C-Freq	CFreqId=48666	CGroupId=12941	Fire Operations (Dispatched by Strafford County)	Off	154415000	NFM	TONE=C229.1	3					
+C-Freq	CFreqId=48675	CGroupId=12941	Police Operations (Dispatched by Strafford County)	Off	155527500	NFM	NAC=1A7	2					
+C-Freq	CFreqId=301167	CGroupId=12941	Public works	Off	151197500	NFM	TONE=C118.8	14					
+C-Group	CGroupId=12948	CountyId=1769	Strafford County - Farmington	Off	43.316750	-71.049510	20.0	Circle
+C-Freq	CFreqId=48677	CGroupId=12948	Fire Local	Off	154370000	NFM	TONE=D723	8					
+C-Freq	CFreqId=329750	CGroupId=12948	Public Works	Off	156112500	NFM	TONE=D047	14					
+C-Freq	CFreqId=344209	CGroupId=12948	School Buses	Off	461462500	NFM	TONE=D565	26					
+C-Group	CGroupId=12942	CountyId=1769	Strafford County - Lee	Off	43.316750	-71.049510	20.0	Circle
+C-Freq	CFreqId=284409	CGroupId=12942	Fire Operations	Off	156135000	NFM	TONE=C71.9	24					
+C-Freq	CFreqId=329751	CGroupId=12942	Public Works	Off	154025000	NFM	TONE=C71.9	14					
+C-Group	CGroupId=12947	CountyId=1769	Strafford County - Madbury	Off	43.316750	-71.049510	20.0	Circle
+C-Freq	CFreqId=284410	CGroupId=12947	Fire Operations	Off	155977500	NFM	TONE=D131	24					
+C-Group	CGroupId=40014	CountyId=1769	Strafford County - Middleton	Off	43.316750	-71.049510	20.0	Circle
+C-Freq	CFreqId=344210	CGroupId=40014	Public Works	Off	156240000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=12943	CountyId=1769	Strafford County - Milton	Off	43.316750	-71.049510	20.0	Circle
+C-Freq	CFreqId=48668	CGroupId=12943	Fire Operations	Off	154325000	NFM	TONE=C136.5	3					
+C-Freq	CFreqId=394797	CGroupId=12943	Police Local	Off	151415000	NFM	NAC=300	2					
+C-Freq	CFreqId=329752	CGroupId=12943	Public Works	Off	151415000	NFM	NAC=325	14					
+C-Group	CGroupId=67106	CountyId=1769	Strafford County - New Durham	Off	43.316750	-71.049510	20.0	Circle
+C-Freq	CFreqId=303159	CGroupId=67106	Public Works/Police Local Channel	Off	151115000	NFM	TONE=D632	1					
+C-Group	CGroupId=12944	CountyId=1769	Strafford County - Rochester	Off	43.316750	-71.049510	20.0	Circle
+C-Freq	CFreqId=48670	CGroupId=12944	Fire/EMS Operations - Analog	Off	154980000	NFM	TONE=C103.5	3					
+C-Freq	CFreqId=374609	CGroupId=12944	Fire/EMS Operations - Primary	Off	154980000	NFM	NAC=117	3					
+C-Freq	CFreqId=48673	CGroupId=12944	Police Back Up	Off	154890000	NFM	TONE=C136.5	23					
+C-Freq	CFreqId=48669	CGroupId=12944	Police Operations	Off	159405000	NFM	NAC=117	2					
+C-Freq	CFreqId=273672	CGroupId=12944	Public Works	Off	151100000	NFM	TONE=C107.2	14					
+C-Freq	CFreqId=318429	CGroupId=12944	Spaulding High School	Off	463550000	NFM	TONE=C110.9	32					
+C-Group	CGroupId=40013	CountyId=1769	Strafford County - Rollinsford	Off	43.316750	-71.049510	20.0	Circle
+C-Freq	CFreqId=350972	CGroupId=40013	Fire Operations	Off	155062500	NFM	TONE=C156.7	3					
+C-Freq	CFreqId=187670	CGroupId=40013	PD/FD CH-2 and DPW	Off	154107500	NFM	TONE=C156.7	11					
+C-Group	CGroupId=12945	CountyId=1769	Strafford County - Somersworth	Off	43.316750	-71.049510	20.0	Circle
+C-Freq	CFreqId=48671	CGroupId=12945	Fire Operations	Off	154385000	NFM	TONE=D732	3					
+C-Freq	CFreqId=159637	CGroupId=12945	Police Operations	Off	155880000	NFM	NAC=7	2					
+C-Freq	CFreqId=273673	CGroupId=12945	Public Works	Off	155955000	NFM	TONE=C127.3	14					
+C-Group	CGroupId=64064	CountyId=1769	Strafford County - UNH Fire Alarm	Off	43.316750	-71.049510	20.0	Circle
+C-Freq	CFreqId=264730	CGroupId=64064	Barrington Repeater	Off	156105000	NFM	TONE=D131	3					
+C-Freq	CFreqId=391755	CGroupId=64064	Barrington Repeater (Dual Mode)	Off	156105000	NFM	NAC=131	3					
+C-Freq	CFreqId=264729	CGroupId=64064	Williamson Hall Repeater	Off	154657500	NFM	TONE=D131	3					
+Conventional	CountyId=1770	StateId=33	Sullivan	Off		Conventional
+AreaState	CountyId=1770	StateId=33
+AreaCounty	CountyId=1770	CountyId=1770
+C-Group	CGroupId=30145	CountyId=1770	Sullivan County	Off	43.370450	-72.216340	20.0	Circle
+C-Freq	CFreqId=390809	CGroupId=30145	County Car to Car	Off	154815000	NFM	TONE=C141.3	23					
+C-Freq	CFreqId=390808	CGroupId=30145	County Jail Operations	Off	154747500	NFM	TONE=C136.5	37					
+C-Freq	CFreqId=118090	CGroupId=30145	Law Operations	Off	156150000	NFM	NAC=117	2					
+C-Group	CGroupId=64106	CountyId=1770	Sullivan County - Charlestown	Off	43.370450	-72.216340	20.0	Circle
+C-Freq	CFreqId=371149	CGroupId=64106	Fire Operations	Off	156180000	NFM	TONE=D074	3					
+C-Freq	CFreqId=264928	CGroupId=64106	Fire Tac	Off	154710000	NFM	TONE=C77.0	8					
+C-Freq	CFreqId=389144	CGroupId=64106	Police Operations	Off	155415000	NFM	TONE=C77.0	2					
+C-Freq	CFreqId=401078	CGroupId=64106	Police Operations - Digital	Off	155415000	NFM	NAC=717	2					
+C-Freq	CFreqId=389195	CGroupId=64106	Public Works	Off	159390000	NFM	TONE=C107.2	14					
+C-Group	CGroupId=30908	CountyId=1770	Sullivan County - Claremont	Off	43.370450	-72.216340	20.0	Circle
+C-Freq	CFreqId=118268	CGroupId=30908	Fire Operations	Off	154205000	NFM	TONE=C136.5	3					
+C-Freq	CFreqId=389196	CGroupId=30908	Fireground	Off	154875000	NFM	TONE=C97.4	8					
+C-Freq	CFreqId=244346	CGroupId=30908	Golden Cross Ambulance - EMS Dispatch	Off	152285000	NFM	TONE=C118.8	4					
+C-Freq	CFreqId=126793	CGroupId=30908	Police Operations	Off	154845000	NFM	NAC=517	2					
+C-Freq	CFreqId=122264	CGroupId=30908	Public Works	Off	151100000	NFM	TONE=D245	14					
+C-Group	CGroupId=87663	CountyId=1770	Sullivan County - Cornish	Off	43.482850	-72.319540	4.0	Circle
+C-Freq	CFreqId=385233	CGroupId=87663	Fireground	Off	155085000	NFM	TONE=C136.5	8					
+C-Group	CGroupId=87119	CountyId=1770	Sullivan County - Croydon	Off	43.450630	-72.163140	5.0	Circle
+C-Freq	CFreqId=389197	CGroupId=87119	Croydon Fire Local Ops	Off	154295000	NFM	TONE=C136.5	3					
+C-Group	CGroupId=30180	CountyId=1770	Sullivan County - Lempster	Off	43.370450	-72.216340	20.0	Circle
+C-Freq	CFreqId=118273	CGroupId=30180	Public Works	Off	159015000	NFM		14					
+C-Group	CGroupId=30128	CountyId=1770	Sullivan County - Newport	Off	43.370450	-72.216340	20.0	Circle
+C-Freq	CFreqId=127368	CGroupId=30128	EMS Tactical	Off	151310000	NFM		9					
+C-Freq	CFreqId=117985	CGroupId=30128	Fire and EMS Operations	Off	154070000	NFM	TONE=C136.5	3					
+C-Freq	CFreqId=382029	CGroupId=30128	Police Operations  - Mixed Mode	Off	155550000	NFM	NAC=617	2					
+C-Freq	CFreqId=117986	CGroupId=30128	Police Operations - Mixed Mode	Off	155550000	NFM	TONE=C146.2	2					
+C-Group	CGroupId=85817	CountyId=1770	Sullivan County - Plainfield	Off	43.370450	-72.216340	20.0	Circle
+C-Freq	CFreqId=376348	CGroupId=85817	Fire -Local Ops / Police - Backup	Off	151122500	NFM	TONE=C110.9	1					
+C-Freq	CFreqId=384714	CGroupId=85817	Public Works	Off	154965000	NFM	TONE=C156.7	14					
+C-Group	CGroupId=87074	CountyId=1770	Sullivan County - Sunapee	Off	43.370450	-72.216340	20.0	Circle
+C-Freq	CFreqId=382027	CGroupId=87074	Police and EOC - Local Operations	Off	155580000	NFM	TONE=C136.5	2					
+C-Freq	CFreqId=382028	CGroupId=87074	Public Works - School Buses	Off	155715000	NFM	TONE=C136.5	14					
+Conventional	AgencyId=9566	StateId=33	Airport	Off		Conventional
+AreaState	AgencyId=9566	StateId=33
+AreaCounty	AgencyId=9566	CountyId=1765
+C-Group	CGroupId=82339	AgencyId=9566	Airports - Dean Memorial	Off	44.080410	-72.008830	1.0	Circle
+C-Freq	CFreqId=355691	CGroupId=82339	UNICOM 4	Off	122800000	AM		15					
+C-Group	CGroupId=82341	AgencyId=9566	Airports - Franconia	Off	44.194920	-71.750520	1.0	Circle
+C-Freq	CFreqId=355694	CGroupId=82341	UNICOM 4	Off	122800000	AM		15					
+C-Group	CGroupId=79082	AgencyId=9566	Airports - Lebanon Municipal Airport	Off	43.926910	-71.881260	35.0	Circle
+C-Freq	CFreqId=339764	CGroupId=79082	Airport Ground	Off	121600000	AM		15					
+C-Freq	CFreqId=339765	CGroupId=79082	Airport Tower	Off	125950000	AM		15					
+C-Freq	CFreqId=339763	CGroupId=79082	ATIS	Off	118650000	AM		15					
+C-Freq	CFreqId=339762	CGroupId=79082	Unicom	Off	122950000	AM		15					
+C-Group	CGroupId=82340	AgencyId=9566	Airports - Mount Washington Regional	Off	44.366180	-71.549470	1.0	Circle
+C-Freq	CFreqId=355693	CGroupId=82340	Mt Washington Airport ASOS	Off	118525000	AM		15					
+C-Freq	CFreqId=355692	CGroupId=82340	UNICOM 4	Off	122800000	AM		15					
+C-Group	CGroupId=82342	AgencyId=9566	Airports - Plymouth Municipal	Off	43.777820	-71.754870	1.0	Circle
+C-Freq	CFreqId=355696	CGroupId=82342	Plymouth Municipal AWOS-3	Off	118450000	AM		15					
+C-Freq	CFreqId=355695	CGroupId=82342	UNICOM 4	Off	122800000	AM		15					
+Conventional	AgencyId=9937	StateId=33	Appalachian Mountain Club	Off		Conventional
+AreaState	AgencyId=9937	StateId=33
+AreaCounty	AgencyId=9937	CountyId=0
+C-Group	CGroupId=82399	AgencyId=9937	Cannon Mtn	Off	44.155840	-71.699060	25.0	Circle
+C-Freq	CFreqId=356127	CGroupId=82399	Cannon Mountain	Off	461500000	NFM	TONE=C127.3	17					
+C-Group	CGroupId=82398	AgencyId=9937	Mount Washington	Off	44.270570	-71.304300	25.0	Circle
+C-Freq	CFreqId=356125	CGroupId=82398	Mt Washington Repeater	Off	463950000	NFM	TONE=C107.2	17					
+C-Freq	CFreqId=356126	CGroupId=82398	Mt Washington Weather Ops	Off	463950000	NFM	TONE=C123.0	17					
+C-Group	CGroupId=82400	AgencyId=9937	Wildcat Mountain	Off	44.248850	-71.223410	25.0	Circle
+C-Freq	CFreqId=356128	CGroupId=82400	Wildcat Mountain	Off	460675000	NFM	TONE=C107.2	17					
+Conventional	AgencyId=2816	StateId=33	Businesses	Off		Conventional
+AreaState	AgencyId=2816	StateId=33
+AreaCounty	AgencyId=2816	CountyId=1768
+C-Group	CGroupId=76438	AgencyId=2816	Businesses	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=392471	CGroupId=76438	High Liner Foods (Portsmouth)	Off	461662500	NFM	TONE=C77.0	17					
+C-Freq	CFreqId=382419	CGroupId=76438	Owens Corning Check In (Brentwood)	Off	467912500	NFM	TONE=D244	17					
+C-Freq	CFreqId=324772	CGroupId=76438	Sprague Energy	Off	153665000	NFM	TONE=D371	34					
+C-Freq	CFreqId=324771	CGroupId=76438	SubCom Cable	Off	153230000	NFM	TONE=C162.2	34					
+C-Freq	CFreqId=366595	CGroupId=76438	Woodys Towing	Off	29770000	FM	TONE=C156.7	17					
+C-Group	CGroupId=34032	AgencyId=2816	Canobie Lake Park	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=396662	CGroupId=34032	Concessions	Off	151550000	NFM	TONE=D351	17					
+C-Freq	CFreqId=396660	CGroupId=34032	Games	Off	152292500	NFM	TONE=D351	17					
+C-Freq	CFreqId=396658	CGroupId=34032	Parking	Off	152885000	NFM	TONE=D271	17					
+C-Freq	CFreqId=396659	CGroupId=34032	Rides	Off	151902500	NFM	TONE=D431	17					
+C-Freq	CFreqId=396657	CGroupId=34032	Security / EMS	Off	152412500	NFM	TONE=D351	17					
+C-Freq	CFreqId=396663	CGroupId=34032	Shows / Screamfest	Off	153012500	NFM	TONE=D565	17					
+C-Freq	CFreqId=396661	CGroupId=34032	Water Park	Off	152375000	NFM	TONE=D351	17					
+C-Group	CGroupId=25755	AgencyId=2816	Hospitals	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=96276	CGroupId=25755	Parkland Medical Center - Security	Off	155235000	NFM	TONE=C141.3	33					
+C-Group	CGroupId=79387	AgencyId=2816	Mall at Rockingham Park	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=342770	CGroupId=79387	House Keeping	Off	464737500	NFM	TONE=D311	17					
+C-Freq	CFreqId=341326	CGroupId=79387	Mall Security	Off	461575000	NFM	TONE=D311	33					
+C-Group	CGroupId=25756	AgencyId=2816	Private Education	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=96286	CGroupId=25756	Pinkerton Academy - Administration	Off	152285000	NFM	TONE=C97.4	32					
+C-Freq	CFreqId=96287	CGroupId=25756	Pinkerton Academy - Building and Grounds	Off	154625000	NFM	TONE=C127.3	32					
+Conventional	AgencyId=3136	StateId=33	Businesses	Off		Conventional
+AreaState	AgencyId=3136	StateId=33
+AreaCounty	AgencyId=3136	CountyId=1763
+C-Group	CGroupId=30124	AgencyId=3136	Businesses	Off	42.933410	-72.266200	19.0	Circle
+C-Freq	CFreqId=332688	CGroupId=30124	Best Western Hotel Kenne	Off	469945000	NFM		17					
+C-Freq	CFreqId=332689	CGroupId=30124	Cheshire County YMCA	Off	154515000	NFM		17					
+C-Freq	CFreqId=132415	CGroupId=30124	Cold River Materials Inc.	Off	462150000	NFM		17					
+C-Freq	CFreqId=122861	CGroupId=30124	HEW Communications Inc. (Keene)	Off	463450000	NFM	TONE=C141.3	17					
+C-Freq	CFreqId=332692	CGroupId=30124	Keene Country Club	Off	151685000	NFM		14					
+C-Freq	CFreqId=120867	CGroupId=30124	Larry G. Cushing and Sons	Off	463700000	NFM		17					
+C-Freq	CFreqId=117978	CGroupId=30124	Monadnock Fuel (Keene)	Off	151490000	NFM	TONE=D174	17					
+C-Freq	CFreqId=121687	CGroupId=30124	R & R Communications	Off	463775000	NFM	TONE=C74.4	17					
+C-Freq	CFreqId=119929	CGroupId=30124	RJ Diluzio Ambulance Service	Off	155205000	NFM		9					
+C-Freq	CFreqId=332687	CGroupId=30124	Wal-Mart Kenne	Off	155570000	NFM		17					
+Conventional	AgencyId=3137	StateId=33	Businesses	Off		Conventional
+AreaState	AgencyId=3137	StateId=33
+AreaCounty	AgencyId=3137	CountyId=1770
+C-Group	CGroupId=30549	AgencyId=3137	Miscellaneous	Off	43.370450	-72.216340	20.0	Circle
+C-Freq	CFreqId=119931	CGroupId=30549	Goodrich Oil Company (Claremont)	Off	451975000	NFM		17					
+C-Freq	CFreqId=120571	CGroupId=30549	Johnson & Dix Fuel Corp. (Newport)	Off	151655000	NFM	TONE=C97.4	17					
+C-Group	CGroupId=87943	AgencyId=3137	Recreation - Claremont Motor Speedway	Off	43.391780	-72.351150	1.0	Circle
+C-Freq	CFreqId=386944	CGroupId=87943	Race Control to Cars	Off	454000000	NFM		17					
+C-Freq	CFreqId=386945	CGroupId=87943	Track Operations	Off	456450000	NFM	TONE=C179.9	17					
+Conventional	AgencyId=3177	StateId=33	Businesses	Off		Conventional
+AreaState	AgencyId=3177	StateId=33
+AreaCounty	AgencyId=3177	CountyId=1767
+C-Group	CGroupId=31933	AgencyId=3177	Automotive/Towing	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=125337	CGroupId=31933	Shorty's Towing (Concord)	Off	151955000	NFM	TONE=C203.5	26					
+C-Group	CGroupId=53629	AgencyId=3177	Dunbarton Telephone Company	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=221703	CGroupId=53629	Dunbarton Telephone Company	Off	154515000	NFM		34					
+C-Group	CGroupId=31929	AgencyId=3177	Hospitals	Off	43.300080	-71.682850	10.0	Circle
+C-Freq	CFreqId=125329	CGroupId=31929	Concord Hospital - Maintenance	Off	464450000	FM	TONE=C179.9	12					
+C-Freq	CFreqId=125328	CGroupId=31929	Concord Hospital - Security	Off	464525000	FM	TONE=C179.9	33					
+C-Group	CGroupId=31932	AgencyId=3177	Miscellaneous	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=163048	CGroupId=31932	Capital Center for Arts Concord	Off	154600000	NFM	TONE=C173.8	17					
+C-Freq	CFreqId=382121	CGroupId=31932	Dirt Doctors - Concord	Off	154570000	NFM		17					
+C-Freq	CFreqId=163049	CGroupId=31932	Havenwood Retirement Concord	Off	461225000	FM	TONE=C186.2	17					
+C-Freq	CFreqId=163050	CGroupId=31932	JBI Helicopter Ch-1	Off	152375000	NFM	TONE=D503	15					
+C-Freq	CFreqId=163051	CGroupId=31932	JBI Helicopter Ch-2	Off	157665000	NFM	TONE=D503	15					
+C-Freq	CFreqId=163053	CGroupId=31932	Mike Rabbit Street Cleaning	Off	151895000	NFM	TONE=C203.5	17					
+C-Freq	CFreqId=273188	CGroupId=31932	NH Veterans Cemetary	Off	464500000	FM	TONE=C71.9	17					
+C-Freq	CFreqId=273189	CGroupId=31932	Wilbur Vault Operations	Off	464500000	FM	TONE=C71.9	17					
+C-Group	CGroupId=31931	AgencyId=3177	Private Education	Off	43.300080	-71.682850	10.0	Circle
+C-Freq	CFreqId=125335	CGroupId=31931	St. Paul's School (Concord) - Maintenance	Off	464612500	NFM	TONE=D244	32					
+C-Group	CGroupId=73324	AgencyId=3177	Recreation	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=307233	CGroupId=73324	Pats Peak Ski Area (Henniker) - Ski Patrol/Operations	Off	152285000	NFM	TONE=D411	17					
+C-Freq	CFreqId=307235	CGroupId=73324	Pats Peak Ski Area (Henniker) - Ski School	Off	151985000	NFM	TONE=D051	17					
+C-Freq	CFreqId=307236	CGroupId=73324	Pats Peak Ski Area (Henniker) - Snow Making/Grooming	Off	152465000	NFM	TONE=D051	17					
+C-Group	CGroupId=31930	AgencyId=3177	Retail	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=125331	CGroupId=31930	Borders Book Store (Concord)	Off	467925000	FM	TONE=C67.0	17					
+C-Freq	CFreqId=125332	CGroupId=31930	Target (Concord)	Off	467850000	FM	TONE=D047	17					
+C-Freq	CFreqId=125333	CGroupId=31930	Target (Concord)	Off	467900000	FM		17					
+C-Freq	CFreqId=125334	CGroupId=31930	Target (Concord)	Off	467925000	FM	TONE=D155	17					
+C-Group	CGroupId=40636	AgencyId=3177	Traffic Control	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=163057	CGroupId=40636	New England Traffic Control Ch-1	Off	154570000	NFM	TONE=C88.5	17					
+C-Freq	CFreqId=163058	CGroupId=40636	New England Traffic Control Ch-2	Off	154600000	NFM	TONE=C88.5	17					
+C-Freq	CFreqId=163059	CGroupId=40636	New England Traffic Control Ch-3	Off	151625000	NFM	TONE=C88.5	17					
+C-Group	CGroupId=30595	AgencyId=3177	Utilities	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=270998	CGroupId=30595	Ayer & Goss Fuel	Off	35700000	FM	TONE=D306	34					
+Conventional	AgencyId=3180	StateId=33	Businesses	Off		Conventional
+AreaState	AgencyId=3180	StateId=33
+AreaCounty	AgencyId=3180	CountyId=1761
+C-Group	CGroupId=80978	AgencyId=3180	Airports - Laconia Airport KLCI	Off	43.573250	-71.418310	7.0	Circle
+C-Freq	CFreqId=349220	CGroupId=80978	KLCI Laconia CTAF/Unicom	Off	123000000	AM		15					
+C-Freq	CFreqId=349221	CGroupId=80978	WX AWOS - 3PT	Off	133525000	AM		15					
+C-Freq	CFreqId=349222	CGroupId=80978	WX AWOS-3 1P1	Off	118450000	AM		15					
+C-Group	CGroupId=66254	AgencyId=3180	Miscellaneous - Fun Spot Arcade (Weirs Beach)	Off	43.516740	-71.432850	20.0	Circle
+C-Freq	CFreqId=273176	CGroupId=66254	Fun Spot Arcade Ops (Weirs Beach)	Off	467875000	NFM	TONE=C100.0	17					
+C-Group	CGroupId=66255	AgencyId=3180	Miscellaneous - Griswold Scout Reservation (Gilmanton)	Off	43.516740	-71.432850	20.0	Circle
+C-Freq	CFreqId=273177	CGroupId=66255	Griswold Scout Reservation Ops	Off	464700000	NFM	TONE=C136.5	17					
+C-Freq	CFreqId=273178	CGroupId=66255	Griswold Scout Reservation Ops	Off	464700000	NFM	TONE=C141.3	17					
+C-Group	CGroupId=66256	AgencyId=3180	Miscellaneous - Stewarts Ambulance Service (Meredith)	Off	43.516740	-71.432850	20.0	Circle
+C-Freq	CFreqId=273179	CGroupId=66256	Stwearts Ambulance Service Operations	Off	152405000	NFM	TONE=D243	17					
+C-Group	CGroupId=66257	AgencyId=3180	Miscellaneous - Tanger Outlets (Tilton)	Off	43.516740	-71.432850	20.0	Circle
+C-Freq	CFreqId=273180	CGroupId=66257	Lakes Region Factory Outlets Operations	Off	466637500	NFM		17					
+C-Group	CGroupId=66250	AgencyId=3180	Railroads - Plymouth and Lincoln Railroad	Off	43.516740	-71.432850	20.0	Circle
+C-Freq	CFreqId=273167	CGroupId=66250	Channel 1 Hobo Railroad	Off	160470000	NFM		20					
+C-Freq	CFreqId=273168	CGroupId=66250	Channel 2 'Winnipesaukee'	Off	161550000	NFM		20					
+C-Freq	CFreqId=273169	CGroupId=66250	Channel 4 Car-to-Car	Off	160560000	NFM		20					
+C-Group	CGroupId=66251	AgencyId=3180	Skiing/Recreation - Gunstock Recreation Area (Gilford)	Off	43.516740	-71.432850	20.0	Circle
+C-Freq	CFreqId=273170	CGroupId=66251	Gunstock Ops	Off	464325000	NFM	TONE=D465	17					
+C-Freq	CFreqId=273171	CGroupId=66251	Gunstock Ops	Off	464575000	NFM	TONE=D465	17					
+C-Freq	CFreqId=273172	CGroupId=66251	Gunstock Ops	Off	464675000	NFM	TONE=D465	17					
+C-Freq	CFreqId=273174	CGroupId=66251	Gunstock Ops	Off	464775000	NFM	TONE=D465	17					
+C-Group	CGroupId=66253	AgencyId=3180	Skiing/Recreation - Winnipesaukee Flagship Company (M/V Mt Washi	Off	43.516740	-71.432850	20.0	Circle
+C-Freq	CFreqId=273175	CGroupId=66253	Winnipesaukee Flagship Company (M/V Mt. Washington) Operations	Off	35140000	FM	TONE=C100.0	17					
+C-Group	CGroupId=30612	AgencyId=3180	Utilities	Off	43.516740	-71.432850	20.0	Circle
+C-Freq	CFreqId=120278	CGroupId=30612	Eversource	Off	158190000	NFM		34					
+Conventional	AgencyId=3223	StateId=33	Businesses	Off		Conventional
+AreaState	AgencyId=3223	StateId=33
+AreaCounty	AgencyId=3223	CountyId=1765
+C-Group	CGroupId=90198	AgencyId=3223	Attractions - Miscellaneous Recreation	Off	43.926910	-71.881260	35.0	Circle
+C-Freq	CFreqId=356041	CGroupId=90198	Mountain Lakes District  (North Haverhill)	Off	159735000	NFM	TONE=C156.7	17					
+C-Group	CGroupId=90197	AgencyId=3223	Attractions - Ski Areas	Off	43.926910	-71.881260	35.0	Circle
+C-Freq	CFreqId=356118	CGroupId=90197	Dartmouth Skiway (Lyme) Mt. Ops Ski Patrol	Off	152285000	NFM	TONE=C162.2	17					
+C-Freq	CFreqId=356114	CGroupId=90197	Lebanon Outting Club - Storrs Hill Ski Area	Off	159615000	NFM	TONE=D165	17					
+C-Freq	CFreqId=356115	CGroupId=90197	Lebanon Outting Club - Storrs Hill Ski Area	Off	159960000	NFM	TONE=D165	17					
+C-Freq	CFreqId=356036	CGroupId=90197	Whaleback Mountain Skiway (Enfield) - Mountain Ops	Off	464500000	NFM	TONE=C110.9	17					
+C-Freq	CFreqId=356037	CGroupId=90197	Whaleback Mountain Skiway (Enfield) - Ski Patrol	Off	469500000	NFM	TONE=C110.9	17					
+C-Group	CGroupId=90196	AgencyId=3223	Attractions - Snowmobile/ATV/Off Road	Off	43.926910	-71.881260	35.0	Circle
+C-Freq	CFreqId=356112	CGroupId=90196	Baker Valley Snowmobile Club (Wentworth) Groomer Ops	Off	464500000	NFM	TONE=D131	17					
+C-Freq	CFreqId=356033	CGroupId=90196	Connecticut Valley Snowmobile Club (North Haverhill) Groomer Ops	Off	151745000	NFM	TONE=C136.5	17					
+C-Freq	CFreqId=356049	CGroupId=90196	Mount Moosilauke ATV Club (Warren) Trails and Groomer	Off	152892500	NFM	TONE=D023	17					
+C-Group	CGroupId=82428	AgencyId=3223	Hospitals	Off	43.926910	-71.881260	35.0	Circle
+C-Freq	CFreqId=368231	CGroupId=82428	DHMC - HEAR	Off	155340000	NFM	TONE=C186.2	12					
+C-Freq	CFreqId=356221	CGroupId=82428	HEAR-1	Off	155340000	NFM	TONE=C100.0	12					
+C-Freq	CFreqId=356223	CGroupId=82428	HEAR-1	Off	155340000	NFM	TONE=C110.9	12					
+C-Freq	CFreqId=356222	CGroupId=82428	Mainenance	Off	155400000	NFM	TONE=C100.0	17					
+C-Group	CGroupId=30798	AgencyId=3223	Miscellaneous	Off	43.926910	-71.881260	35.0	Circle
+C-Freq	CFreqId=355195	CGroupId=30798	Boudreault Septic (North Haverhill)	Off	150905000	NFM	TONE=C118.8	17					
+C-Freq	CFreqId=356116	CGroupId=30798	C.M.Whitcher Rubbish Removal (Warren) Office and Trucks	Off	154600000	NFM	TONE=C192.8	17					
+C-Freq	CFreqId=356117	CGroupId=30798	C.M.Whitcher Rubbish Removal (Warren) Repeater	Off	152892500	NFM	TONE=D032	17					
+C-Freq	CFreqId=355192	CGroupId=30798	Cersosimo Lumber Company - F1 (Rumney)	Off	154570000	NFM	TONE=D243	17					
+C-Freq	CFreqId=355193	CGroupId=30798	Cersosimo Lumber Company - F2 (Rumney)	Off	153350000	NFM	TONE=C146.2	17					
+C-Freq	CFreqId=355194	CGroupId=30798	Clifford Concrete (North Haverhill)	Off	153425000	NFM	TONE=C156.7	17					
+C-Freq	CFreqId=356025	CGroupId=30798	Dodge Contracting (Littleton)	Off	451650000	NFM	TONE=D315	17					
+C-Freq	CFreqId=120572	CGroupId=30798	Johnson & Dix Fuel Corp. (Enfield)	Off	157575000	NFM	TONE=C91.5	17					
+C-Freq	CFreqId=123288	CGroupId=30798	Johnson & Dix Fuel Corp. (Lebanon)	Off	154490000	NFM		17					
+C-Freq	CFreqId=356028	CGroupId=30798	Kendal at Hanover (LYME) - Housekeeping	Off	153485000	NFM	TONE=D132	17					
+C-Freq	CFreqId=356026	CGroupId=30798	Kendal at Hanover (LYME) - Maintenance	Off	153012500	NFM	TONE=D032	17					
+C-Freq	CFreqId=356027	CGroupId=30798	Kendal at Hanover (LYME) - Talkaround	Off	151880000	NFM	TONE=D244	17					
+C-Freq	CFreqId=356021	CGroupId=30798	Mountain Milk (North Haverhill) Ops Trucks	Off	152945000	NFM	TONE=D271	17					
+C-Freq	CFreqId=356054	CGroupId=30798	Patten Gas Perry's Oil (North Haverhill Bradford, VT	Off	460700000	NFM	TONE=D155	17					
+C-Freq	CFreqId=356102	CGroupId=30798	Twin State Sand and Gravel (West Lebanon)	Off	461125000	NFM	TONE=C203.5	17					
+C-Freq	CFreqId=356104	CGroupId=30798	Twin State Sand and Gravel (West Lebanon)	Off	461125000	NFM	TONE=C167.9	17					
+C-Freq	CFreqId=356105	CGroupId=30798	Twin State Sand and Gravel (West Lebanon)	Off	461225000	NFM	TONE=C151.4	17					
+C-Freq	CFreqId=356103	CGroupId=30798	Twin State Sand and Gravel (West Lebanon)	Off	462150000	NFM	TONE=C203.5	17					
+C-Group	CGroupId=90200	AgencyId=3223	Railroads - Miscellaneous	Off	43.926910	-71.881260	35.0	Circle
+C-Freq	CFreqId=356046	CGroupId=90200	Cog Railway Ops	Off	160410000	NFM	TONE=D226	26					
+C-Freq	CFreqId=356047	CGroupId=90200	White Mountain Central RR Operations	Off	161505000	NFM	TONE=C203.5	17					
+C-Group	CGroupId=90204	AgencyId=3223	Retail - Miscellaneous	Off	43.926910	-71.881260	35.0	Circle
+C-Freq	CFreqId=356039	CGroupId=90204	Hatchland Farms (North Haverhill) F1	Off	153237500	NFM	TONE=C110.9	17					
+C-Freq	CFreqId=356023	CGroupId=90204	Hatchland Farms (North Haverhill) F2	Off	159735000	NFM	TONE=C141.3	17					
+C-Freq	CFreqId=355191	CGroupId=90204	King Forest Industries (Wentworth)	Off	151700000	NFM	TONE=D351	17					
+C-Group	CGroupId=90195	AgencyId=3223	Transportation	Off	43.926910	-71.881260	35.0	Circle
+C-Freq	CFreqId=356108	CGroupId=90195	W.H. Berry Transportation (Lisbon) SHARED REPEATER	Off	152345000	NFM	TONE=D306	26					
+C-Freq	CFreqId=356106	CGroupId=90195	W.H. Berry Transportation (Lisbon) SHARED REPEATER	Off	153365000	NFM	TONE=D143	26					
+C-Group	CGroupId=90202	AgencyId=3223	Transportation - School Buses	Off	43.926910	-71.881260	35.0	Circle
+C-Freq	CFreqId=356051	CGroupId=90202	Advanced Transit (Hanover) Dispatch Buses	Off	462050000	NFM	TONE=C192.8	26					
+C-Freq	CFreqId=356110	CGroupId=90202	Butler's Bus Service Dispatch (Haverhill)	Off	461750000	NFM	TONE=C136.5	26					
+C-Freq	CFreqId=356111	CGroupId=90202	Butler's Bus Service Local Bus to Bus	Off	463850000	NFM	TONE=C123.0	26					
+C-Freq	CFreqId=356101	CGroupId=90202	JPI Transportation (Monroe) Dispatch Bus To Bus	Off	151625000	NFM	TONE=C156.7	17					
+C-Group	CGroupId=90203	AgencyId=3223	Transportation - Taxis	Off	43.926910	-71.881260	35.0	Circle
+C-Freq	CFreqId=356031	CGroupId=90203	Big Yellow Taxi (Lebanon)	Off	462250000	NFM	TONE=C118.8	26					
+C-Group	CGroupId=81451	AgencyId=3223	Utilities - Electric	Off	43.950070	-71.799530	25.0	Circle
+C-Freq	CFreqId=351415	CGroupId=81451	Bridgewater Power Company (Bridgewater)	Off	153665000	NFM	TONE=D031	34					
+Conventional	AgencyId=3224	StateId=33	Businesses	Off		Conventional
+AreaState	AgencyId=3224	StateId=33
+AreaCounty	AgencyId=3224	CountyId=1766
+C-Group	CGroupId=80222	AgencyId=3224	Businesses	Off	42.917550	-71.710970	28.0	Circle
+C-Freq	CFreqId=351271	CGroupId=80222	BAE Systems Inc (Merrimack) - Security	Off	461200000	NFM	TONE=D043	33					
+C-Freq	CFreqId=382853	CGroupId=80222	Dave and Busters Arcade/VR Ride	Off	467825000	NFM	TONE=D131	17					
+C-Freq	CFreqId=382852	CGroupId=80222	Dave and Busters Management	Off	467900000	NFM	TONE=D043	17					
+C-Freq	CFreqId=393887	CGroupId=80222	Silver Knights Baseball - Concessions	Off	468287500	FM	TONE=D031	17					
+C-Freq	CFreqId=345480	CGroupId=80222	Silver Knights Baseball - Concessions	Off	482287500	NFM	TONE=D031	17					
+C-Group	CGroupId=59391	AgencyId=3224	Hospitals - Catholic Medical Center	Off	42.917550	-71.710970	28.0	Circle
+C-Freq	CFreqId=248393	CGroupId=59391	Operations	Off	152345000	NFM	TONE=C97.4	17					
+C-Freq	CFreqId=248394	CGroupId=59391	Vans	Off	155265000	NFM	TONE=C118.8	26					
+C-Group	CGroupId=59392	AgencyId=3224	Hospitals - Elliot Hospital	Off	42.917550	-71.710970	28.0	Circle
+C-Freq	CFreqId=248395	CGroupId=59392	Operations	Off	451800000	NFM	TONE=D631	17					
+C-Freq	CFreqId=248397	CGroupId=59392	Vans/Hazmat	Off	464875000	NFM	TONE=D631	17					
+C-Group	CGroupId=35239	AgencyId=3224	Hotels	Off	42.917550	-71.710970	28.0	Circle
+C-Freq	CFreqId=138838	CGroupId=35239	Nashua Marriott	Off	461112500	NFM	TONE=D612	17					
+C-Group	CGroupId=81421	AgencyId=3224	Malls and Shopping	Off	42.933420	-71.716190	25.0	Circle
+C-Freq	CFreqId=400817	CGroupId=81421	BJs Wholesale Club	Off	469487500	NFM	TONE=D413	17					
+C-Freq	CFreqId=400816	CGroupId=81421	Burlington Coat Factory (Manchester)	Off	467925000	NFM	TONE=D466	17					
+C-Freq	CFreqId=351269	CGroupId=81421	Mall Maintenance	Off	451600000	NFM	TONE=C196.6	17					
+C-Freq	CFreqId=397237	CGroupId=81421	Mall Security	Off	464950000	NFM	TONE=D143	33					
+C-Freq	CFreqId=351270	CGroupId=81421	Pheasant Lane Mall (Nashua) - Security	Off	464950000	NFM	TONE=D174	33					
+C-Group	CGroupId=53771	AgencyId=3224	Transportation	Off	42.917550	-71.710970	28.0	Circle
+C-Freq	CFreqId=397104	CGroupId=53771	First Student Bus - Hudson	Off	151670000	NFM	TONE=D023	26					
+C-Freq	CFreqId=222598	CGroupId=53771	Truck Center	Off	157500000	NFM	TONE=C136.5	17					
+Conventional	AgencyId=3513	StateId=33	Businesses	Off		Conventional
+AreaState	AgencyId=3513	StateId=33
+AreaCounty	AgencyId=3513	CountyId=1764
+C-Group	CGroupId=52367	AgencyId=3513	Miscellaneous	Off	44.650420	-71.293490	48.0	Circle
+C-Freq	CFreqId=238228	CGroupId=52367	Currier Trucking Company (Gorham)	Off	48860000	FM	TONE=C123.0	17					
+C-Freq	CFreqId=303194	CGroupId=52367	Greer Property Management LLC	Off	151512500	NFM		17					
+C-Freq	CFreqId=238227	CGroupId=52367	North Country Transportation - Buses (Berlin and Littleton)	Off	153365000	NFM	TONE=D703	26					
+C-Freq	CFreqId=238229	CGroupId=52367	White Mountain Lumber - Trucks and Yard (Berlin)	Off	451225000	FM	TONE=C123.0	17					
+C-Group	CGroupId=34516	AgencyId=3513	Recreation	Off	44.650420	-71.293490	48.0	Circle
+C-Freq	CFreqId=384944	CGroupId=34516	Glen House Hotel	Off	462637500	NFM	TONE=C131.8	17					
+C-Freq	CFreqId=136548	CGroupId=34516	Glen/Mount Washington Stage Company	Off	151745000	NFM	TONE=C141.3	17					
+C-Freq	CFreqId=136549	CGroupId=34516	Glen/Mount Washington Stage Company	Off	151895000	NFM	TONE=C141.3	17					
+C-Freq	CFreqId=238226	CGroupId=34516	Mt. Washington State Park (Winter Transport - Snowcats)	Off	463950000	FM	TONE=C123.0	17					
+C-Freq	CFreqId=215449	CGroupId=34516	Wildcat Mountain Ski Area CH-1 Lift Operations	Off	151685000	NFM	TONE=C141.3	17					
+C-Freq	CFreqId=215451	CGroupId=34516	Wildcat Mountain Ski Area CH-4 Snowmaking/Mountain Ops	Off	154600000	NFM	TONE=C141.3	17					
+C-Freq	CFreqId=215450	CGroupId=34516	Wildcat Mountian Ski Area CH-2 Lift Maintenance	Off	152360000	NFM	TONE=C141.3	17					
+C-Freq	CFreqId=215452	CGroupId=34516	Wildcat Mountian Ski Area CH-5 Ski Patrol	Off	151925000	NFM	TONE=C141.3	17					
+Conventional	AgencyId=9527	StateId=33	Businesses	Off		Conventional
+AreaState	AgencyId=9527	StateId=33
+AreaCounty	AgencyId=9527	CountyId=1762
+C-Group	CGroupId=78852	AgencyId=9527	Miscellaneous	Off	43.919000	-71.204220	32.0	Circle
+C-Freq	CFreqId=338906	CGroupId=78852	Red Jacket Mountain View (North Conway)	Off	463762500	NFM	TONE=C225.7	17					
+C-Group	CGroupId=88668	AgencyId=9527	Tourism and Recreation - Attitash Mountain (Bartlett)	Off	44.076820	-71.228190	2.0	Circle
+C-Freq	CFreqId=390906	CGroupId=88668	Food and Beverage	Off	463787500	NFM	TONE=D754	17					
+C-Freq	CFreqId=390907	CGroupId=88668	Operations	Off	463275000	NFM	TONE=D754	17					
+C-Freq	CFreqId=390905	CGroupId=88668	Operations	Off	463825000	NFM	TONE=D754	17					
+C-Freq	CFreqId=390909	CGroupId=88668	Operations	Off	464500000	NFM	TONE=C179.9	17					
+C-Freq	CFreqId=390904	CGroupId=88668	Operations	Off	464550000	NFM	TONE=D754	17					
+C-Freq	CFreqId=390908	CGroupId=88668	Operations	Off	466537500	NFM	TONE=C91.5	17					
+C-Freq	CFreqId=390910	CGroupId=88668	Operations (Ch.9 Simplex)	Off	464425000	NFM	TONE=D754	17					
+C-Freq	CFreqId=390903	CGroupId=88668	Snow Making (Ch.2 Simplex)	Off	463525000	NFM	TONE=D754	17					
+C-Group	CGroupId=72512	AgencyId=9527	Towing Companies	Off	43.919000	-71.204220	32.0	Circle
+C-Freq	CFreqId=302424	CGroupId=72512	White Mountain Towing Company	Off	462175000	NFM	TONE=C94.8	17					
+Conventional	AgencyId=10457	StateId=33	Businesses	Off		Conventional
+AreaState	AgencyId=10457	StateId=33
+AreaCounty	AgencyId=10457	CountyId=1769
+C-Group	CGroupId=88916	AgencyId=10457	Manufacturing	Off	43.189770	-70.872700	1.0	Circle
+C-Freq	CFreqId=392472	CGroupId=88916	Rand Whitney Interior Ops	Off	467925000	NFM	TONE=C67.0	17					
+C-Group	CGroupId=86943	AgencyId=10457	RV Parks	Off	43.316750	-71.049510	20.0	Circle
+C-Freq	CFreqId=381288	CGroupId=86943	Sun NG RV Resorts LLC  DBA Lakes Region Jellystone park (old Mi-	Off	154505000	NFM	TONE=C77.0	17					
+Conventional	AgencyId=3300	StateId=33	Concord Municipal Airport (CON)	Off		Conventional
+AreaState	AgencyId=3300	StateId=33
+AreaCounty	AgencyId=3300	CountyId=1767
+C-Group	CGroupId=31935	AgencyId=3300	Airport Operations	Off	43.300080	-71.682850	26.0	Circle
+C-Freq	CFreqId=125345	CGroupId=31935	Operations	Off	461887500	FM	TONE=C123.0	17					
+C-Freq	CFreqId=125347	CGroupId=31935	Operations	Off	467850000	FM	TONE=C123.0	15					
+C-Freq	CFreqId=125346	CGroupId=31935	Tie to 122.7 MHz	Off	464637500	FM	TONE=C123.0	15					
+Conventional	AgencyId=1308	StateId=33	Department of Natural and Cultural Resources	Off		Conventional
+AreaState	AgencyId=1308	StateId=33
+AreaCounty	AgencyId=1308	CountyId=0
+C-Group	CGroupId=11479	AgencyId=1308	Forests and Lands	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=397494	CGroupId=11479	Forest Fire & Law Enforcement	Off	151295000	NFM	NAC=850	1					
+C-Freq	CFreqId=397496	CGroupId=11479	Forest Fire & Law Enforcement	Off	151445000	NFM	NAC=850	1					
+C-Freq	CFreqId=397495	CGroupId=11479	Forest Fire Lookout Towers	Off	151377500	NFM	NAC=850	3					
+C-Freq	CFreqId=397493	CGroupId=11479	Tactical & Fireground Operations	Off	151287500	NFM	NAC=850	8					
+C-Freq	CFreqId=397497	CGroupId=11479	Tactical & Fireground Operations	Off	159225000	NFM	NAC=850	8					
+C-Freq	CFreqId=397498	CGroupId=11479	Tactical & Fireground Operations	Off	159277500	NFM	NAC=850	8					
+C-Group	CGroupId=11480	AgencyId=1308	Parks and Recreation	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=127220	CGroupId=11480	Fire Towers - Tied to 159.3975	Off	31900000	FM		24					
+C-Freq	CFreqId=398953	CGroupId=11480	Franconia Notch State Park / Cannon Operations	Off	154792500	NFM	TONE=C141.3	14					
+C-Freq	CFreqId=264742	CGroupId=11480	Great North Woods Operations	Off	159397500	NFM	TONE=C136.5	14					
+C-Freq	CFreqId=398954	CGroupId=11480	Statewide  2	Off	159375000	NFM	TONE=C131.8	14					
+C-Freq	CFreqId=120883	CGroupId=11480	Statewide Parks Operations	Off	151385000	NFM	TONE=C136.5	14					
+Conventional	AgencyId=1233	StateId=33	Department of Safety	Off		Conventional
+AreaState	AgencyId=1233	StateId=33
+AreaCounty	AgencyId=1233	CountyId=0
+C-Group	CGroupId=90049	AgencyId=1233	Other Agencies - Emergency Alert System (EAS)	Off	43.961190	-71.367190	103.5	Circle
+C-Freq	CFreqId=398523	CGroupId=90049	Emergency Alert System - Hyland Hill	Off	455312500	NFM		29					
+C-Freq	CFreqId=43957	CGroupId=90049	Emergency Alert System - Mt. Kearsarge	Off	450387500	FM		29					
+C-Freq	CFreqId=398522	CGroupId=90049	Emergency Alert System - Mt. Washington	Off	450312500	NFM		29					
+C-Freq	CFreqId=43956	CGroupId=90049	Emergency Alert System - Warner Hill	Off	450587500	FM		29					
+C-Group	CGroupId=11483	AgencyId=1233	Other Agencies - Emergency Management	Off	43.961190	-71.367190	103.5	Circle
+C-Freq	CFreqId=43954	CGroupId=11483	Primary - Southern NH (Seabrook Power Plant)	Off	46580000	FM	TONE=C156.7	29					
+C-Group	CGroupId=11481	AgencyId=1233	Other Agencies - Fire Standards and Training	Off	43.961190	-71.367190	103.5	Circle
+C-Freq	CFreqId=263932	CGroupId=11481	New Hampshire Fire Academy Channel 1	Off	154265000	FM	TONE=D431	3					
+C-Freq	CFreqId=263936	CGroupId=11481	New Hampshire Fire Academy Fireground CH-5	Off	156187500	FM	TONE=D432	8					
+C-Freq	CFreqId=263934	CGroupId=11481	New Hampshire Fire Academy Fireground Channel  3	Off	159135000	FM	TONE=D432	8					
+C-Freq	CFreqId=263935	CGroupId=11481	New Hampshire Fire Academy Fireground Channel 4	Off	156045000	FM	TONE=D432	8					
+C-Group	CGroupId=62884	AgencyId=1233	Other Agencies - New Hampshire Fire Radio Interoperability Plan	Off	43.961190	-71.367190	103.5	Circle
+C-Freq	CFreqId=260310	CGroupId=62884	ZONE G (CAP GR) CH-13	Off	148137500	FM		11					
+C-Freq	CFreqId=260309	CGroupId=62884	Zone G (CAP) CH-12	Off	148150000	FM		11					
+C-Group	CGroupId=50968	AgencyId=1233	Other Agencies - Statewide Fire	Off	43.961190	-71.367190	103.5	Circle
+C-Freq	CFreqId=207266	CGroupId=50968	State Fireground 1	Off	154265000	FM	TONE=C136.5	8					
+C-Freq	CFreqId=207267	CGroupId=50968	State Fireground 2	Off	154280000	FM	TONE=C136.5	8					
+C-Freq	CFreqId=207268	CGroupId=50968	State Fireground 3	Off	154295000	FM	TONE=C136.5	8					
+C-Freq	CFreqId=207269	CGroupId=50968	State Fireground 4	Off	154272500	FM	TONE=C136.5	8					
+C-Freq	CFreqId=207270	CGroupId=50968	State Fireground 5	Off	154287500	FM	TONE=C136.5	8					
+C-Group	CGroupId=11160	AgencyId=1233	State Police - Statewide	Off	43.961190	-71.367190	103.5	Circle
+C-Freq	CFreqId=42873	CGroupId=11160	Local Police North	Off	155910000	FM	TONE=C136.5	11					
+C-Freq	CFreqId=42874	CGroupId=11160	Local Police South	Off	156090000	FM	TONE=C136.5	11					
+C-Freq	CFreqId=272494	CGroupId=11160	New Hampshire Motor Speedway Track Ops	Off	155512500	NFM	NAC=857	23					
+C-Freq	CFreqId=180628	CGroupId=11160	Statewide Talk Channel and aircraft	Off	159315000	NFM	NAC=293	7					
+C-Group	CGroupId=11153	AgencyId=1233	State Police - Troop A: Epping (Strafford/Rockingham Counties)	Off	43.213970	-71.212290	33.0	Circle
+C-Freq	CFreqId=42864	CGroupId=11153	Dispatch/Patrol	Off	151400000	NFM	NAC=826	2					
+C-Group	CGroupId=11154	AgencyId=1233	State Police - Troop B: Bedford (Hillsborough County)	Off	42.869250	-71.604240	28.0	Circle
+C-Freq	CFreqId=42865	CGroupId=11154	Dispatch/Patrol	Off	154935000	NFM	NAC=826	2					
+C-Group	CGroupId=11155	AgencyId=1233	State Police - Troop C: Keene (Cheshire/Sullivan Counties)	Off	43.129240	-72.213970	32.0	Circle
+C-Freq	CFreqId=42866	CGroupId=11155	Dispatch/Patrol	Off	154665000	NFM	NAC=826	2					
+C-Group	CGroupId=11156	AgencyId=1233	State Police - Troop D: Concord (Merrimack County)	Off	43.306470	-71.715360	25.0	Circle
+C-Freq	CFreqId=42867	CGroupId=11156	Dispatch/Patrol	Off	156210000	NFM	NAC=826	2					
+C-Group	CGroupId=11157	AgencyId=1233	State Police - Troop E: Tamworth (Belknap/Carroll Counties)	Off	43.859800	-71.263130	38.0	Circle
+C-Freq	CFreqId=43615	CGroupId=11157	Dispatch/Patrol	Off	151325000	NFM	NAC=800	2					
+C-Group	CGroupId=11158	AgencyId=1233	State Police - Troop F: Carroll (Coos/Grafton Counties)	Off	44.306170	-71.770090	75.0	Circle
+C-Freq	CFreqId=272586	CGroupId=11158	Holden	Off	155805000	NFM	NAC=852	2					
+C-Freq	CFreqId=215312	CGroupId=11158	Moose Mountain Site (Channel Name: M)	Off	154680000	NFM	NAC=852	2					
+C-Freq	CFreqId=43616	CGroupId=11158	Mount Washington/Cannon Site	Off	152630000	NFM	NAC=852	2					
+C-Freq	CFreqId=215313	CGroupId=11158	Tenney Mountain Site (Channel Name: Tenney)	Off	154920000	NFM	NAC=852	2					
+Conventional	AgencyId=3226	StateId=33	Department of Transportation	Off		Conventional
+AreaState	AgencyId=3226	StateId=33
+AreaCounty	AgencyId=3226	CountyId=0
+C-Group	CGroupId=37564	AgencyId=3226	Division 1 - Lancaster	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=147140	CGroupId=37564	Car-to-Car (Direct)	Off	453625000	NFM	TONE=C203.5	14					
+C-Freq	CFreqId=147136	CGroupId=37564	Site 1A - Prospect Hill, Lancaster	Off	453625000	NFM	TONE=C110.9	14					
+C-Freq	CFreqId=147137	CGroupId=37564	Site 1B - Mt. Washtington, Sargents Purchase	Off	453275000	NFM	TONE=C123.0	14					
+C-Freq	CFreqId=147138	CGroupId=37564	Site 1C - Cannon Mountain, Franconia	Off	453500000	NFM	TONE=C131.8	14					
+C-Freq	CFreqId=147139	CGroupId=37564	Site 1D - Milan Hill, Milan	Off	453625000	NFM	TONE=C141.3	14					
+C-Group	CGroupId=37565	AgencyId=3226	Division 2 - Enfield	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=147146	CGroupId=37565	Car-to-Car (Direct)	Off	453700000	NFM	TONE=C203.5	14					
+C-Freq	CFreqId=147141	CGroupId=37565	Site 2A - Mt. Kearsarge, Warner	Off	453125000	NFM	TONE=C131.8	14					
+C-Freq	CFreqId=147143	CGroupId=37565	Site 2D - Mt. Ascutney, Windsor, Vermont	Off	453775000	NFM	TONE=C141.3	14					
+C-Freq	CFreqId=147144	CGroupId=37565	Site 2E - Moose Hill, Hanover	Off	453125000	NFM	TONE=C103.5	14					
+C-Freq	CFreqId=147145	CGroupId=37565	Site 2G - Mt. Belknap, Gilford	Off	453700000	NFM	TONE=C123.0	14					
+C-Group	CGroupId=37566	AgencyId=3226	Division 3 - Gilford	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=147150	CGroupId=37566	Car-to-Car (Direct)	Off	453150000	NFM	TONE=C203.5	14					
+C-Freq	CFreqId=147147	CGroupId=37566	Site 3C - Cannon Mountain, Franconia	Off	453100000	NFM	TONE=C103.5	14					
+C-Freq	CFreqId=147148	CGroupId=37566	Site 3G - Mt. Belknap, Gilford	Off	453150000	NFM	TONE=C110.9	14					
+C-Freq	CFreqId=147149	CGroupId=37566	Site 3H - Wittier Mountain, Tamworth	Off	453025000	NFM	TONE=C123.0	14					
+C-Group	CGroupId=37567	AgencyId=3226	Division 4 - Swanzey	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=147155	CGroupId=37567	Car-to-Car (Direct)	Off	453350000	NFM	TONE=C203.5	14					
+C-Freq	CFreqId=147151	CGroupId=37567	Site 4A - Pitcher Mountain, Stoddard	Off	453250000	NFM	TONE=C103.5	14					
+C-Freq	CFreqId=147152	CGroupId=37567	Site 4B - Hyland Hill, Westmoreland	Off	453525000	NFM	TONE=C110.9	14					
+C-Freq	CFreqId=147153	CGroupId=37567	Site 4C - Mt. Ascutney, Windsor, Vermont	Off	453525000	NFM	TONE=C131.8	14					
+C-Freq	CFreqId=147154	CGroupId=37567	Site 4D - Pack Monadnock, Peterborough	Off	453350000	NFM	TONE=D172	14					
+C-Group	CGroupId=37568	AgencyId=3226	Division 5 - Bedford	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=147161	CGroupId=37568	Car-to-Car (Direct)	Off	453675000	NFM	TONE=C203.5	14					
+C-Freq	CFreqId=147156	CGroupId=37568	Site 5A - Mt. Kearsarge, Warner	Off	453675000	NFM	TONE=C103.5	14					
+C-Freq	CFreqId=147157	CGroupId=37568	Site 5B - Hackett Hill, Bow	Off	453675000	NFM	TONE=C110.9	14					
+C-Freq	CFreqId=147158	CGroupId=37568	Site 5C - Mt. Uncanoonic, Goffstown	Off	453675000	NFM	TONE=C123.0	14					
+C-Freq	CFreqId=147159	CGroupId=37568	Site 5D - Pack Monadnock, Peterborough	Off	453675000	NFM	TONE=C131.8	14					
+C-Freq	CFreqId=147160	CGroupId=37568	Site 5E - Warner Hill, Derry	Off	453675000	NFM	TONE=C156.7	14					
+C-Group	CGroupId=37569	AgencyId=3226	Division 6 - Durham	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=147164	CGroupId=37569	Car-to-Car (Direct)	Off	453625000	NFM	TONE=C203.5	14					
+C-Freq	CFreqId=147162	CGroupId=37569	Moulton Hill, Kensington (Seacoast)	Off	453625000	NFM	TONE=C103.5	14					
+C-Freq	CFreqId=147163	CGroupId=37569	Site 6F - Blue Job Mountain, Farmington	Off	453625000	NFM	TONE=C192.8	14					
+C-Group	CGroupId=37571	AgencyId=3226	Statewide	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=147179	CGroupId=37571	Car-to-Car (Direct)	Off	453975000	NFM	TONE=C203.5	14					
+C-Freq	CFreqId=147170	CGroupId=37571	Site A - Mt. Kearsarge, Warner	Off	453975000	NFM	TONE=C186.2	14					
+C-Freq	CFreqId=147171	CGroupId=37571	Site B - Mt. Washington, Sargents Purchase	Off	453975000	NFM	TONE=C103.5	14					
+C-Freq	CFreqId=147172	CGroupId=37571	Site C - Cannon Mountain, Franconia	Off	453975000	NFM	TONE=C110.9	14					
+C-Freq	CFreqId=147173	CGroupId=37571	Site D - Pack Monadnock, Peterborough	Off	453975000	NFM	TONE=C82.5	14					
+C-Freq	CFreqId=147174	CGroupId=37571	Site E - Holden Hill, Stewartstown	Off	453975000	NFM	TONE=C94.8	14					
+C-Freq	CFreqId=147175	CGroupId=37571	Site F - Blue Job Mountain, Farmington	Off	453975000	NFM	TONE=C123.0	14					
+C-Freq	CFreqId=147176	CGroupId=37571	Site G - Mt. Belknap, Gilford	Off	453975000	NFM	TONE=C88.5	14					
+C-Freq	CFreqId=147177	CGroupId=37571	Site H - Whitter Mountain, Tamworth	Off	453975000	NFM	TONE=C131.8	14					
+C-Freq	CFreqId=147178	CGroupId=37571	Site I - Mt. Ascutney, Windsor, Vermont	Off	453125000	NFM	TONE=C167.9	14					
+C-Group	CGroupId=37570	AgencyId=3226	Turnpike (Tolls) Division	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=147169	CGroupId=37570	Car-to-Car (Direct)	Off	453050000	NFM	TONE=C203.5	14					
+C-Freq	CFreqId=147165	CGroupId=37570	Site TA - Blue Job Mountain, Farmington	Off	453050000	NFM	TONE=C103.5	14					
+C-Freq	CFreqId=147166	CGroupId=37570	Site TB - Hackett Hill, Bow	Off	453925000	NFM	TONE=C127.3	14					
+C-Freq	CFreqId=147167	CGroupId=37570	Site TC - Mt. Uncanoonic, Goffstown	Off	453925000	NFM	TONE=C167.9	14					
+C-Freq	CFreqId=147168	CGroupId=37570	Site TD - Moulton Hill, Kensington (Seacoast)	Off	453225000	NFM	TONE=C131.8	14					
+Conventional	AgencyId=3235	StateId=33	Fish and Game Department	Off		Conventional
+AreaState	AgencyId=3235	StateId=33
+AreaCounty	AgencyId=3235	CountyId=0
+C-Group	CGroupId=30906	AgencyId=3235	Fish and Game Department	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=312988	CGroupId=30906	Coos County Game Warden	Off	151340000	NFM	NAC=852	2					
+C-Freq	CFreqId=383548	CGroupId=30906	Fish & Game (Multiple Repeaters)	Off	151340000	NFM	NAC=831	14					
+C-Freq	CFreqId=180627	CGroupId=30906	Fish and Game Tactical	Off	159465000	NFM	NAC=825	14					
+Conventional	AgencyId=3236	StateId=33	Manchester/Boston Regional Airport (MHT)	Off		Conventional
+AreaState	AgencyId=3236	StateId=33
+AreaCounty	AgencyId=3236	CountyId=1768
+C-Group	CGroupId=90121	AgencyId=3236	Manchester Airport (MHT) - Air Traffic Control	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=340052	CGroupId=90121	ATIS	Off	119550000	AM		15					
+C-Freq	CFreqId=340055	CGroupId=90121	Boston Approach and Departure	Off	124900000	AM		15					
+C-Freq	CFreqId=340053	CGroupId=90121	Ground	Off	121900000	AM		15					
+C-Freq	CFreqId=340054	CGroupId=90121	Tower	Off	121300000	AM		15					
+C-Freq	CFreqId=340051	CGroupId=90121	Unicom	Off	122950000	AM		15					
+C-Group	CGroupId=30909	AgencyId=3236	Manchester Airport (MHT) - Airport Operations	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=163036	CGroupId=30909	Airport Response 03	Off	159720000	NFM	TONE=D664	30					
+C-Freq	CFreqId=120957	CGroupId=30909	Law Enforcement Office (Granite 3)	Off	152375000	NFM	NAC=307	2					
+C-Freq	CFreqId=261198	CGroupId=30909	National Garages	Off	152315000	NFM	TONE=D023	17					
+C-Freq	CFreqId=120955	CGroupId=30909	Operations Primary	Off	153740000	NFM	TONE=D351	17					
+C-Freq	CFreqId=120956	CGroupId=30909	Operations Secondary	Off	158730000	NFM	TONE=D624	17					
+C-Freq	CFreqId=163037	CGroupId=30909	Plows and Sanding Ops	Off	151730000	NFM	TONE=D031	14					
+C-Freq	CFreqId=398870	CGroupId=30909	Security Primary	Off	155707500	NFM	TONE=D351	33					
+C-Freq	CFreqId=120959	CGroupId=30909	Taxi Way Ops	Off	158340000	NFM	TONE=D331	14					
+C-Freq	CFreqId=120958	CGroupId=30909	Wildlife Patrols and Snow Plows	Off	152420000	NFM	TONE=D026	14					
+C-Group	CGroupId=30910	AgencyId=3236	Manchester Airport (MHT) - Federal	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=120963	CGroupId=30910	Federal Aviation Administration	Off	172600000	FM	TONE=C136.5	16					
+C-Freq	CFreqId=163035	CGroupId=30910	TSA	Off	172150000	FM		16					
+C-Freq	CFreqId=339549	CGroupId=30910	TSA	Off	172900000	NFM	NAC=1A8	16					
+C-Group	CGroupId=90132	AgencyId=3236	Manchester Airport (MHT) - Fire Response	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=398961	CGroupId=90132	Aircraft Response 1	Off	158730000	NFM	TONE=D624	8					
+C-Freq	CFreqId=398962	CGroupId=90132	Aircraft Response 2	Off	158340000	NFM	TONE=D331	8					
+C-Freq	CFreqId=398963	CGroupId=90132	Aircraft Response 3	Off	159720000	NFM	TONE=D664	8					
+Conventional	AgencyId=3149	StateId=33	Medevac	Off		Conventional
+AreaState	AgencyId=3149	StateId=33
+AreaCounty	AgencyId=3149	CountyId=0
+C-Group	CGroupId=30187	AgencyId=3149	Medical	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=393776	CGroupId=30187	Ambulance - Medivac to Dartmouth Hitchcock	Off	155340000	NFM	TONE=C186.2	12					
+C-Freq	CFreqId=219007	CGroupId=30187	Ambulances with reports to Concord Hospital	Off	155340000	NFM	TONE=C146.2	12					
+C-Freq	CFreqId=219009	CGroupId=30187	Ambulances with reports to Frisbie Hospitall	Off	155340000	NFM	TONE=C103.5	12					
+C-Freq	CFreqId=118285	CGroupId=30187	Dartmouth-Hitchcock Advanced Response Team (DHART) Helicopter (L	Off	155325000	NFM	TONE=C141.3	4					
+C-Freq	CFreqId=233840	CGroupId=30187	DHART Manchester Ops (Mt Uncanoonuc Repeater)	Off	464450000	NFM	TONE=D703	4					
+Conventional	AgencyId=3679	StateId=33	Nashua Municipal Airport / Boire Field (ASH)	Off		Conventional
+AreaState	AgencyId=3679	StateId=33
+AreaCounty	AgencyId=3679	CountyId=1766
+C-Group	CGroupId=83873	AgencyId=3679	Airport Operations	Off	42.781940	-71.519630	1.0	Circle
+C-Freq	CFreqId=364061	CGroupId=83873	CTAF	Off	133200000	AM		15					
+C-Group	CGroupId=35240	AgencyId=3679	Aviation - Fixed Base Operators	Off	42.917550	-71.710970	28.0	Circle
+C-Freq	CFreqId=138854	CGroupId=35240	GFW Aeroservices	Off	122850000	AM		15					
+C-Group	CGroupId=35242	AgencyId=3679	Aviation - Other	Off	42.917550	-71.710970	28.0	Circle
+C-Freq	CFreqId=138856	CGroupId=35242	Daniel Webster College	Off	123300000	FM		15					
+C-Group	CGroupId=35241	AgencyId=3679	Miscellaneous Airport Services	Off	42.917550	-71.710970	28.0	Circle
+C-Freq	CFreqId=138855	CGroupId=35241	Keyson Airways	Off	460825000	NFM		17					
+Conventional	AgencyId=3512	StateId=33	New Hampshire Federal	Off		Conventional
+AreaState	AgencyId=3512	StateId=33
+AreaCounty	AgencyId=3512	CountyId=0
+C-Group	CGroupId=80342	AgencyId=3512	Border Patrol	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=246585	CGroupId=80342	Cannon Mountain	Off	163625000	NFM	NAC=368	16					
+C-Freq	CFreqId=246586	CGroupId=80342	Mount Washington	Off	170625000	NFM	NAC=367	16					
+C-Group	CGroupId=46089	AgencyId=3512	Civil Air Patrol	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=222595	CGroupId=46089	Civil Air Patrol Derry (Analog)	Off	148125000	NFM	TONE=C107.2	30					
+C-Freq	CFreqId=222596	CGroupId=46089	Civil Air Patrol Derry (Digital)	Off	148125000	NFM	NAC=430	30					
+C-Freq	CFreqId=235499	CGroupId=46089	Civil Air Patrol Keene (Analog)	Off	148150000	NFM	TONE=C71.9	30					
+C-Freq	CFreqId=235500	CGroupId=46089	Civil Air Patrol Keene (Digital)	Off	148150000	NFM		30					
+C-Freq	CFreqId=232325	CGroupId=46089	Civil Air Patrol Laconia (Analog)	Off	148150000	NFM	TONE=C71.9	30					
+C-Freq	CFreqId=232326	CGroupId=46089	Civil Air Patrol Laconia (Digital)	Off	148150000	NFM		30					
+C-Freq	CFreqId=238849	CGroupId=46089	Civil Air Patrol Littleton (Analog)	Off	148125000	NFM	TONE=C71.9	30					
+C-Freq	CFreqId=238850	CGroupId=46089	Civil Air Patrol Littleton (Digital)	Off	148125000	NFM	NAC=236	30					
+C-Freq	CFreqId=232323	CGroupId=46089	Civil Air Patrol Portsmouth (Analog)	Off	148150000	NFM	TONE=C203.5	30					
+C-Freq	CFreqId=232324	CGroupId=46089	Civil Air Patrol Portsmouth (Digital)	Off	148150000	NFM	NAC=7F3	30					
+C-Group	CGroupId=45887	AgencyId=3512	Customs and Border Protection	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=246584	CGroupId=45887	D-Net 2 (Deerfield)	Off	169450000	NFM	NAC=301	16					
+C-Group	CGroupId=45886	AgencyId=3512	Federal Protective Service	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=186165	CGroupId=45886	Federal Protective Service	Off	408200000	NFM	NAC=201	16					
+C-Group	CGroupId=80341	AgencyId=3512	Immigration and Customs Enforcement	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=187137	CGroupId=80341	Manchester	Off	163675000	NFM	NAC=295	16					
+C-Freq	CFreqId=236672	CGroupId=80341	Mount Washington	Off	163775000	NFM	NAC=303	16					
+C-Group	CGroupId=56536	AgencyId=3512	New Hampshire National Guard	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=236828	CGroupId=56536	1159th Aero Medical (Concord)	Off	32100000	FM	TONE=C151.4	30					
+C-Freq	CFreqId=383677	CGroupId=56536	Blackhawk Helicopters	Off	255800000	AM		30					
+C-Freq	CFreqId=236812	CGroupId=56536	NGUARD3	Off	140100000	FM		30					
+C-Freq	CFreqId=236813	CGroupId=56536	NGUARD4	Off	140700000	FM		30					
+C-Freq	CFreqId=236815	CGroupId=56536	NGUARD5	Off	141700000	FM		30					
+C-Freq	CFreqId=236814	CGroupId=56536	NGUARD6	Off	148575000	FM		30					
+C-Freq	CFreqId=284407	CGroupId=56536	NGUARD7(Helicopter)	Off	148725000	FM	TONE=C74.4	30					
+C-Freq	CFreqId=236816	CGroupId=56536	NGUARD8	Off	149512500	FM		30					
+C-Freq	CFreqId=236829	CGroupId=56536	NH ARNG Helo Tactical	Off	41500000	FM	TONE=C151.4	30					
+C-Freq	CFreqId=236830	CGroupId=56536	NH NG Air Ambulance	Off	139325000	AM		30					
+C-Group	CGroupId=56540	AgencyId=3512	US Army Corps of Engineers	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=284408	CGroupId=56540	Keene Repeater	Off	167925000	FM		16					
+C-Freq	CFreqId=236850	CGroupId=56540	Mt. Kearsage Repeater	Off	168125000	FM	TONE=C110.9	16					
+C-Group	CGroupId=34513	AgencyId=3512	US Forest Service	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=136545	CGroupId=34513	White Mountain National Forest	Off	171525000	NFM	TONE=C110.9	16					
+C-Group	CGroupId=46088	AgencyId=3512	US Secret Service	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=187140	CGroupId=46088	USSS Boston Control	Off	164650000	NFM	NAC=1	16					
+C-Group	CGroupId=46085	AgencyId=3512	Veterans Administration	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=187136	CGroupId=46085	VA Hospital - Maintenance	Off	408237500	NFM	TONE=D627	16					
+C-Freq	CFreqId=187135	CGroupId=46085	VA Hospital - Police	Off	407837500	NFM	NAC=600	16					
+Conventional	AgencyId=3299	StateId=33	New Hampshire Railroads	Off		Conventional
+AreaState	AgencyId=3299	StateId=33
+AreaCounty	AgencyId=3299	CountyId=0
+C-Group	CGroupId=79391	AgencyId=3299	Conway Scenic Railroad - Operations	Off	43.979240	-71.120350	5.0	Circle
+C-Freq	CFreqId=341363	CGroupId=79391	Road	Off	161250000	NFM		20					
+C-Group	CGroupId=34043	AgencyId=3299	CSX Transportation - District 2 Freight Main Line	Off	42.945460	-71.392790	15.0	Circle
+C-Freq	CFreqId=134439	CGroupId=34043	B&M Yard	Off	161400000	NFM		20					
+C-Freq	CFreqId=341288	CGroupId=34043	District 2 Dispatcher	Off	161160000	NFM		20					
+C-Freq	CFreqId=395363	CGroupId=34043	PAR34 MEC Road	Off	160620000	NFM		20					
+C-Freq	CFreqId=134438	CGroupId=34043	Road	Off	161520000	NFM		20					
+C-Group	CGroupId=79379	AgencyId=3299	CSX Transportation - Hillsboro Branch	Off	43.146190	-71.952300	6.0	Circle
+C-Freq	CFreqId=341292	CGroupId=79379	District 2 Dispatcher	Off	161160000	NFM		20					
+C-Freq	CFreqId=341291	CGroupId=79379	Road	Off	161520000	NFM		20					
+C-Group	CGroupId=79378	AgencyId=3299	CSX Transportation - Nashua Subdivision	Off	43.803530	-71.550000	1.0	Circle
+C-Freq	CFreqId=341290	CGroupId=79378	District 2 Dispatcher	Off	161160000	NFM		20					
+C-Freq	CFreqId=341289	CGroupId=79378	Road	Off	161520000	NFM		20					
+C-Group	CGroupId=79380	AgencyId=3299	CSX Transportation - Portsmouth Branch	Off	43.071760	-70.762550	5.0	Circle
+C-Freq	CFreqId=341294	CGroupId=79380	District 2 Dispatcher	Off	161160000	NFM		20					
+C-Freq	CFreqId=341293	CGroupId=79380	Road	Off	161520000	NFM		20					
+C-Group	CGroupId=79381	AgencyId=3299	Hobo Railroad	Off	44.035370	-71.679800	7.0	Circle
+C-Freq	CFreqId=341295	CGroupId=79381	Operations	Off	160470000	NFM		20					
+C-Freq	CFreqId=341296	CGroupId=79381	Operations	Off	160560000	NFM		20					
+C-Freq	CFreqId=341297	CGroupId=79381	Operations	Off	161550000	NFM		20					
+C-Group	CGroupId=79382	AgencyId=3299	Hobo Railroad - Winnipesaukee Scenic Railroad	Off	43.657570	-71.500350	7.0	Circle
+C-Freq	CFreqId=341298	CGroupId=79382	Operations	Off	160560000	NFM		20					
+C-Freq	CFreqId=341299	CGroupId=79382	Operations	Off	161550000	NFM		20					
+C-Group	CGroupId=79393	AgencyId=3299	New England Central Railroad - Operations	Off	43.377280	-72.407150	40.0	Circle
+C-Freq	CFreqId=341366	CGroupId=79393	Dispatcher	Off	160770000	NFM		20					
+C-Freq	CFreqId=341365	CGroupId=79393	Road	Off	161415000	NFM		20					
+C-Freq	CFreqId=341367	CGroupId=79393	Yard	Off	160935000	NFM		20					
+C-Group	CGroupId=31934	AgencyId=3299	New England Southern Railroad - Operations	Off	43.337020	-71.565350	10.0	Circle
+C-Freq	CFreqId=125344	CGroupId=31934	Operations	Off	161025000	NFM		20					
+C-Freq	CFreqId=125343	CGroupId=31934	Road	Off	160395000	NFM		20					
+C-Group	CGroupId=79392	AgencyId=3299	New Hampshire Central Railroad - Operations	Off	44.751720	-71.628700	5.0	Circle
+C-Freq	CFreqId=341364	CGroupId=79392	Road	Off	160215000	NFM		20					
+C-Group	CGroupId=79389	AgencyId=3299	New Hampshire Northcoast - Operations	Off	43.438050	-70.987660	18.0	Circle
+C-Freq	CFreqId=341360	CGroupId=79389	Road	Off	160275000	AUTO		20					
+C-Group	CGroupId=83760	AgencyId=3299	New Hampshire Northern - Cog Railway	Off	44.258120	-71.441190	10.0	Circle
+C-Freq	CFreqId=363288	CGroupId=83760	Mount Washington Cog Railway	Off	160410000	NFM	TONE=D226	20					
+C-Group	CGroupId=79390	AgencyId=3299	St Lawrence Atlantic Railroad - Operations	Off	44.468670	-71.185080	20.0	Circle
+C-Freq	CFreqId=341361	CGroupId=79390	Road	Off	160965000	NFM		20					
+C-Freq	CFreqId=341362	CGroupId=79390	Yard	Off	160815000	NFM		20					
+Conventional	AgencyId=3229	StateId=33	Pease Airport	Off		Conventional
+AreaState	AgencyId=3229	StateId=33
+AreaCounty	AgencyId=3229	CountyId=1768
+C-Group	CGroupId=30833	AgencyId=3229	Pease International Trade Port / Air National Guard Base	Off	42.993930	-71.116330	22.0	Circle
+C-Freq	CFreqId=236619	CGroupId=30833	Comander's Net	Off	149575000	FM	TONE=C136.5	30					
+C-Freq	CFreqId=236620	CGroupId=30833	Commander's Net Brick-Brick	Off	148075000	FM		30					
+C-Freq	CFreqId=236621	CGroupId=30833	Disaster	Off	165037500	FM		30					
+C-Freq	CFreqId=236728	CGroupId=30833	KPSM ATIS (UHF)	Off	273500000	AM		15					
+C-Freq	CFreqId=236727	CGroupId=30833	KPSM ATIS (VHF)	Off	132050000	AM		15					
+C-Freq	CFreqId=236730	CGroupId=30833	KPSM Ground Control (UHF)	Off	275800000	AM		15					
+C-Freq	CFreqId=236729	CGroupId=30833	KPSM Ground Control (VHF)	Off	120950000	AM		15					
+C-Freq	CFreqId=236731	CGroupId=30833	KPSM Tower	Off	128400000	AM		15					
+C-Freq	CFreqId=236732	CGroupId=30833	KPSM Tower (UHF)	Off	269000000	AM		15					
+C-Freq	CFreqId=236733	CGroupId=30833	KPSM UNICOM	Off	122950000	AM		15					
+C-Freq	CFreqId=236623	CGroupId=30833	New Hampshire Air National Guard Air-Air	Off	324100000	AM		30					
+C-Freq	CFreqId=236624	CGroupId=30833	New Hampshire Air National Guard Dispatch/ Command Post	Off	372200000	FM		30					
+C-Freq	CFreqId=236615	CGroupId=30833	Pack Control NH Air National Guard Command Post (UHF)	Off	321000000	FM		30					
+C-Freq	CFreqId=236614	CGroupId=30833	Pack Control VHF	Off	148200000	FM		30					
+C-Freq	CFreqId=236616	CGroupId=30833	Pack Control/Command Post VHF	Off	141950000	FM		30					
+C-Freq	CFreqId=236626	CGroupId=30833	Pease Development Authority CH-2	Off	155835000	NFM	TONE=D431	30					
+C-Freq	CFreqId=236625	CGroupId=30833	Pease Development Authority Primary	Off	151475000	NFM	TONE=D431	30					
+C-Freq	CFreqId=236612	CGroupId=30833	Pease Ground	Off	173025000	FM	TONE=C136.5	30					
+C-Freq	CFreqId=236618	CGroupId=30833	Pease Secondary Crash	Off	173050000	FM		30					
+C-Freq	CFreqId=236622	CGroupId=30833	Pease Security	Off	162612500	FM		30					
+C-Freq	CFreqId=236617	CGroupId=30833	PSM Primary Crash (Fire Department)	Off	173587500	FM		30					
+C-Freq	CFreqId=236613	CGroupId=30833	Ramp Net	Off	173025000	FM		30					
+Conventional	AgencyId=4190	StateId=33	Regional Fire Communications Centers	Off		Conventional
+AreaState	AgencyId=4190	StateId=33
+AreaCounty	AgencyId=4190	CountyId=0
+C-Group	CGroupId=40487	AgencyId=4190	Capital Area Mutual Aid - Operations	Off	43.191680	-71.654680	27.0	Circle
+C-Freq	CFreqId=162335	CGroupId=40487	Capitol Channel 1 repeater	Off	453112500	NFM	TONE=C179.9	3					
+C-Freq	CFreqId=386255	CGroupId=40487	Capitol Channel 2-6 Repeater	Off	453037500	NFM	TONE=C179.9	8					
+C-Freq	CFreqId=263948	CGroupId=40487	Channel 10 (Low Power Repeater at Concord Hospital)	Off	156232500	NFM	TONE=C146.2	8					
+C-Freq	CFreqId=162327	CGroupId=40487	Dispatch	Off	154355000	NFM	TONE=C136.5	3					
+C-Freq	CFreqId=162328	CGroupId=40487	Fireground 2	Off	154235000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=162330	CGroupId=40487	Fireground 3	Off	154220000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=162332	CGroupId=40487	Fireground 5 (Deering area)	Off	154310000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=162333	CGroupId=40487	Fireground 6	Off	154370000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=291820	CGroupId=40487	Fireground 8	Off	154227500	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=162334	CGroupId=40487	Hooksett Tac Repeater	Off	158760000	FM	TONE=C136.5	8					
+C-Group	CGroupId=85060	AgencyId=4190	Kearsarge Valley Fire Compact - Operations	Off	43.308810	-71.676480	23.0	Circle
+C-Freq	CFreqId=371085	CGroupId=85060	Ch. 1 Fire/EMS Dispatch	Off	154995000	NFM	TONE=C136.5	3					
+C-Freq	CFreqId=371086	CGroupId=85060	Ch. 2 Tactical Primary	Off	154160000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=371087	CGroupId=85060	Ch. 3 Tactical	Off	155602500	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=371088	CGroupId=85060	Ch. 5 Tactical	Off	154025000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=371089	CGroupId=85060	Ch. 6 Tactical	Off	155835000	NFM	TONE=C173.8	8					
+C-Freq	CFreqId=371090	CGroupId=85060	Ch. 7 Tactical	Off	153830000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=371091	CGroupId=85060	Ch. 8 Fire/EMS Sunapee Dispatch	Off	154445000	NFM	TONE=C114.8	8					
+C-Group	CGroupId=40490	AgencyId=4190	Lakes Region Mutual Fire Aid Association Communications Center -	Off	43.632260	-71.500740	35.0	Circle
+C-Freq	CFreqId=162318	CGroupId=40490	Dispatch	Off	159900000	NFM	TONE=C210.7	3					
+C-Freq	CFreqId=162319	CGroupId=40490	Emergency/Fireground 2	Off	160110000	NFM	TONE=D331	8					
+C-Freq	CFreqId=162320	CGroupId=40490	Fireground 3	Off	160155000	NFM	TONE=D331	8					
+C-Freq	CFreqId=162322	CGroupId=40490	Fireground 5	Off	154302500	NFM	TONE=D331	8					
+C-Freq	CFreqId=162323	CGroupId=40490	Fireground 6	Off	154987500	NFM	TONE=D331	8					
+C-Freq	CFreqId=162321	CGroupId=40490	Statewide Fireground 7	Off	150797500	NFM	TONE=D331	11					
+C-Group	CGroupId=12380	AgencyId=4190	Ossipee Valley Mutual Aid Association	Off	43.919000	-71.204220	32.0	Circle
+C-Freq	CFreqId=209797	CGroupId=12380	Ctr Ossipee	Off	153800000	NFM	TONE=C173.8	8					
+C-Freq	CFreqId=209794	CGroupId=12380	Effingham Fire Local Ops	Off	154385000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=385774	CGroupId=12380	Effingham Fire Tac (Fireground)	Off	154385000	NFM	NAC=293	8					
+C-Freq	CFreqId=73970	CGroupId=12380	Fire Tactical 2	Off	154340000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=209786	CGroupId=12380	Fire Tactical 3	Off	154265000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=209787	CGroupId=12380	Fire Tactical 4	Off	154295000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=46713	CGroupId=12380	Fire/EMS Operations	Off	154175000	NFM	TONE=C136.5	3					
+C-Freq	CFreqId=209795	CGroupId=12380	Freedom Fire Local Ops	Off	154430000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=209799	CGroupId=12380	Madison Fire Local Ops	Off	154040000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=209793	CGroupId=12380	MedStar	Off	155355000	NFM	TONE=C123.0	8					
+C-Freq	CFreqId=209798	CGroupId=12380	Ossipee Cor Fire Local Ops	Off	154160000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=209800	CGroupId=12380	Tamworth Fire Local Ops	Off	154205000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=209801	CGroupId=12380	Tuftonborough Fire Local Ops	Off	154025000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=209802	CGroupId=12380	Wakefield Fire Local Ops	Off	154325000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=209796	CGroupId=12380	West Ossipee Fire Local Ops	Off	154415000	NFM	TONE=C136.5	8					
+C-Group	CGroupId=85556	AgencyId=4190	Southwest New Hampshire District Fire Mutual Aid - Links	Off	42.971170	-72.289050	25.0	Circle
+C-Freq	CFreqId=374809	CGroupId=85556	Fire Radio Mutual Aid Link	Off	453012500	NFM	TONE=C173.8	3					
+C-Freq	CFreqId=374599	CGroupId=85556	Fire Radio Mutual Aid Link	Off	453175000	NFM	TONE=C79.7	3					
+C-Freq	CFreqId=374600	CGroupId=85556	Fire Radio Mutual Aid Link	Off	453237500	NFM	TONE=C123.0	3					
+C-Freq	CFreqId=397136	CGroupId=85556	Fire Radio Mutual Aid Link	Off	453375000	NFM	TONE=C136.5	3					
+C-Freq	CFreqId=377661	CGroupId=85556	Fire Radio Mutual Aid Link	Off	453412500	NFM	TONE=C136.5	3					
+C-Freq	CFreqId=377662	CGroupId=85556	Fire Radio Mutual Aid Link	Off	453412500	NFM	TONE=C167.9	3					
+C-Freq	CFreqId=376090	CGroupId=85556	Fire Radio Mutual Aid Link	Off	453450000	NFM	TONE=C79.7	3					
+C-Freq	CFreqId=376247	CGroupId=85556	Fire Radio Mutual Aid Link	Off	453562500	NFM	TONE=C85.4	3					
+C-Freq	CFreqId=377665	CGroupId=85556	Fire Radio Mutual Aid Link	Off	453737500	NFM	TONE=D125	3					
+C-Freq	CFreqId=374601	CGroupId=85556	Fire Radio Mutual Aid Link	Off	453837500	NFM	TONE=C79.7	3					
+C-Freq	CFreqId=376091	CGroupId=85556	Fire Radio Mutual Aid Link	Off	453875000	NFM	TONE=C79.7	3					
+C-Freq	CFreqId=374808	CGroupId=85556	Fire Radio Mutual Aid Link	Off	460312500	NFM	TONE=C77.0	3					
+C-Freq	CFreqId=377663	CGroupId=85556	Fire Radio Mutual Aid Link	Off	460587500	NFM	TONE=C79.7	3					
+C-Freq	CFreqId=377664	CGroupId=85556	Fire Radio Mutual Aid Link	Off	460587500	NFM	TONE=C107.2	3					
+C-Freq	CFreqId=377666	CGroupId=85556	Fire Radio Mutual Aid Link	Off	460637500	NFM	TONE=C131.8	3					
+C-Freq	CFreqId=378202	CGroupId=85556	Fire Radio Mutual Aid Link	Off	460637500	NFM	TONE=C156.7	3					
+C-Freq	CFreqId=376248	CGroupId=85556	Fire Radio Mutual Aid Link	Off	462275000	NFM	TONE=C85.4	3					
+C-Freq	CFreqId=376249	CGroupId=85556	Fire Radio Mutual Aid Link	Off	465312500	NFM	TONE=C131.8	3					
+C-Freq	CFreqId=376250	CGroupId=85556	Fire Radio Mutual Aid Link	Off	465587500	NFM	TONE=C100.0	3					
+C-Freq	CFreqId=378615	CGroupId=85556	Fire Radio Mutual Aid Link	Off	465587500	NFM	TONE=C88.5	3					
+C-Freq	CFreqId=376251	CGroupId=85556	Fire Radio Mutual Aid Link	Off	465637500	NFM	TONE=C131.8	3					
+C-Freq	CFreqId=376252	CGroupId=85556	Fire Radio Mutual Aid Link	Off	467275000	NFM	TONE=C79.7	3					
+C-Freq	CFreqId=378201	CGroupId=85556	Keene FD Mutual Aid Link	Off	453337500	NFM	TONE=C179.9	3					
+C-Group	CGroupId=40488	AgencyId=4190	Southwest New Hampshire District Fire Mutual Aid - Operations	Off	43.996330	-71.513490	90.0	Circle
+C-Freq	CFreqId=162339	CGroupId=40488	Dispatch - Keene 921 / County Tac 6	Off	159450000	NFM	TONE=C136.5	3					
+C-Freq	CFreqId=162337	CGroupId=40488	Dispatch - Low Band Simulcast	Off	33780000	FM	TONE=C77.0	3					
+C-Freq	CFreqId=162336	CGroupId=40488	Dispatch 415	Off	154430000	NFM	TONE=C136.5	3					
+C-Freq	CFreqId=346401	CGroupId=40488	EMS Tac 752	Off	155715000	NFM	TONE=C179.9	9					
+C-Freq	CFreqId=162340	CGroupId=40488	Tactical 1	Off	154385000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=400398	CGroupId=40488	Tactical 2	Off	154280000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=162343	CGroupId=40488	Tactical 3	Off	153830000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=162344	CGroupId=40488	Tactical 4	Off	154010000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=162345	CGroupId=40488	Tactical 5	Off	154295000	NFM	TONE=C179.9	8					
+C-Freq	CFreqId=374598	CGroupId=40488	Tactical 7	Off	155220000	NFM	TONE=C77.0	8					
+C-Freq	CFreqId=376092	CGroupId=40488	Tri-Mountain Dispatch	Off	154145000	NFM	TONE=C179.9	3					
+C-Group	CGroupId=40489	AgencyId=4190	Twin State Mutual Fire Aid - Operations	Off	43.996330	-71.513490	90.0	Circle
+C-Freq	CFreqId=162346	CGroupId=40489	Dispatch	Off	154400000	FM	TONE=C136.5	3					
+C-Freq	CFreqId=162347	CGroupId=40489	Fireground F4	Off	154295000	FM	TONE=C136.5	8					
+C-Freq	CFreqId=346403	CGroupId=40489	Fireground F6	Off	154235000	NFM	TONE=C136.5	8					
+C-Freq	CFreqId=346404	CGroupId=40489	Fireground F7	Off	154160000	NFM	TONE=C173.8	8					
+C-Group	CGroupId=85818	AgencyId=4190	Upper Valley Regional Dispatch Center - Operations	Off	43.996330	-71.513490	90.0	Circle
+C-Freq	CFreqId=376335	CGroupId=85818	Cornish Dispatch	Off	158820000	NFM	TONE=C141.3	3					
+C-Freq	CFreqId=376333	CGroupId=85818	Dispatch	Off	155827500	NFM	TONE=C173.8	3					
+C-Freq	CFreqId=376334	CGroupId=85818	Dispatch - East	Off	153950000	NFM	TONE=C141.3	3					
+C-Freq	CFreqId=388299	CGroupId=85818	Operations 2	Off	154325000	NFM	TONE=C141.3	8					
+C-Freq	CFreqId=376343	CGroupId=85818	TAC 10	Off	153890000	NFM	TONE=C141.3	8					
+C-Freq	CFreqId=376336	CGroupId=85818	TAC 2	Off	154085000	NFM	TONE=C141.3	8					
+C-Freq	CFreqId=376337	CGroupId=85818	TAC 3	Off	153845000	NFM	TONE=C141.3	8					
+C-Freq	CFreqId=376338	CGroupId=85818	TAC 4	Off	154265000	NFM	TONE=C141.3	8					
+C-Freq	CFreqId=376339	CGroupId=85818	TAC 5	Off	154310000	NFM	TONE=C141.3	8					
+C-Freq	CFreqId=376340	CGroupId=85818	TAC 6	Off	154950000	NFM	TONE=C141.3	8					
+C-Freq	CFreqId=376341	CGroupId=85818	TAC 7	Off	154370000	NFM	TONE=C141.3	8					
+C-Freq	CFreqId=376342	CGroupId=85818	TAC 8	Off	156165000	NFM	TONE=C141.3	8					
+Conventional	AgencyId=8357	StateId=33	Skyhaven Airport(Rochester)	Off		Conventional
+AreaState	AgencyId=8357	StateId=33
+AreaCounty	AgencyId=8357	CountyId=1769
+C-Group	CGroupId=70543	AgencyId=8357	Skyhaven - Airport	Off	43.316750	-71.049510	20.0	Circle
+C-Freq	CFreqId=291802	CGroupId=70543	Skyhaven Airport	Off	122700000	AM		15					
+Conventional	AgencyId=6583	StateId=33	Statewide Utilities	Off		Conventional
+AreaState	AgencyId=6583	StateId=33
+AreaCounty	AgencyId=6583	CountyId=0
+C-Group	CGroupId=82247	AgencyId=6583	Eversource	Off	43.973220	-71.326960	97.0	Circle
+C-Freq	CFreqId=255555	CGroupId=82247	Bedford - Channel 2 Mobile	Off	160740000	FM	TONE=C141.3	34					
+C-Freq	CFreqId=355308	CGroupId=82247	Bedford Area Tac	Off	161145000	NFM	TONE=C141.3	34					
+C-Freq	CFreqId=355307	CGroupId=82247	Bedford Line	Off	158265000	NFM	TONE=C141.3	34					
+C-Freq	CFreqId=355301	CGroupId=82247	Berlin Line	Off	153350000	NFM	TONE=C146.2	34					
+C-Freq	CFreqId=355310	CGroupId=82247	Derry Area Line	Off	153560000	NFM	TONE=C156.7	34					
+C-Freq	CFreqId=355302	CGroupId=82247	Epping Line	Off	160095000	NFM	TONE=C123.0	34					
+C-Freq	CFreqId=227710	CGroupId=82247	Eversource - Berlin Line	Off	158250000	FM	TONE=C146.2	34					
+C-Freq	CFreqId=321987	CGroupId=82247	Eversource - Seacoast	Off	158220000	NFM	TONE=C146.2	34					
+C-Freq	CFreqId=255557	CGroupId=82247	Hooksett Channel 2	Off	160905000	FM	TONE=C141.3	34					
+C-Freq	CFreqId=355311	CGroupId=82247	Hooksett Line	Off	160335000	NFM	TONE=C141.3	34					
+C-Freq	CFreqId=355315	CGroupId=82247	Keene Area Ops Tac	Off	153462500	NFM	TONE=C127.3	34					
+C-Freq	CFreqId=355314	CGroupId=82247	Keene Area Ops Tac	Off	160245000	NFM	TONE=C131.8	34					
+C-Freq	CFreqId=355313	CGroupId=82247	Keene Line and Meters	Off	160380000	NFM	TONE=C167.9	34					
+C-Freq	CFreqId=355304	CGroupId=82247	Lancaster Area Tac	Off	158250000	NFM	TONE=C136.5	34					
+C-Freq	CFreqId=355303	CGroupId=82247	Lancaster Line and Meters	Off	158250000	NFM	TONE=C127.3	34					
+C-Freq	CFreqId=355309	CGroupId=82247	Manchester Meters	Off	160200000	NFM	TONE=D026	34					
+C-Freq	CFreqId=355312	CGroupId=82247	Nashua Line and Meters	Off	158205000	NFM	TONE=C141.3	34					
+C-Freq	CFreqId=355316	CGroupId=82247	Newport Line	Off	153650000	NFM	TONE=C141.3	34					
+C-Freq	CFreqId=355305	CGroupId=82247	Portsmouth/Rochester Line	Off	160845000	NFM	TONE=C100.0	34					
+C-Freq	CFreqId=355306	CGroupId=82247	Rochester Meters	Off	158205000	NFM	TONE=C131.8	34					
+C-Freq	CFreqId=355299	CGroupId=82247	Statewide Dispatch	Off	153515000	NFM	TONE=D025	34					
+C-Freq	CFreqId=237238	CGroupId=82247	Statewide Emergency	Off	153575000	FM	TONE=D025	34					
+C-Freq	CFreqId=355300	CGroupId=82247	Statewide Special Projects	Off	153455000	NFM	TONE=C141.3	34					
+C-Freq	CFreqId=355317	CGroupId=82247	Tilton Line	Off	153710000	NFM	TONE=C141.3	34					
+C-Freq	CFreqId=290361	CGroupId=82247	Truck to Truck	Off	158250000	FM	TONE=C131.8	34					
+C-Group	CGroupId=56708	AgencyId=6583	Granite State Telephone	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=237799	CGroupId=56708	Granite State Telephone 1	Off	451400000	FM	TONE=C107.2	34					
+C-Freq	CFreqId=237800	CGroupId=56708	Granite State Telephone 2	Off	451175000	FM	TONE=C107.2	34					
+C-Group	CGroupId=90003	AgencyId=6583	Until New Hampshire	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=273184	CGroupId=90003	Unitil Concord Electric	Off	37580000	FM	TONE=C114.8	34					
+C-Freq	CFreqId=382262	CGroupId=90003	Until Power Plant (Bow)	Off	451075000	NFM	TONE=C123.0	34					
+C-Group	CGroupId=30126	AgencyId=6583	Utilities Miscellaneous	Off	43.983330	-71.616670	104.0	Circle
+C-Freq	CFreqId=120800	CGroupId=30126	National Grid USA Service Company (Granite State)	Off	48420000	FM	TONE=C103.5	34					
+C-Freq	CFreqId=123350	CGroupId=30126	New Hampshire Electric Cooperative	Off	47980000	FM	TONE=C192.8	34					
+C-Freq	CFreqId=120588	CGroupId=30126	New Hampshire Electric Cooperative	Off	48320000	FM	TONE=C141.3	34					
+C-Freq	CFreqId=117983	CGroupId=30126	New Hampshire Electric Cooperative	Off	48900000	FM		34					
+C-Freq	CFreqId=120884	CGroupId=30126	New Hampshire Electric Cooperative	Off	48980000	FM		34					
+Trunk	TrunkId=3354	StateId=33	Anheuser-Busch Brewery (Merrimack)	Off		Motorola					
+AreaState	TrunkId=3354	StateId=33
+AreaCounty	TrunkId=3354	CountyId=1766
+Site	SiteId=3720	TrunkId=3354	Primary	Off	42.917550	-71.710970	28.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=3720		Off	856312500	1
+T-Freq	TFreqId=0	SiteId=3720		Off	857312500	2
+T-Freq	TFreqId=0	SiteId=3720		Off	858312500	3
+T-Freq	TFreqId=0	SiteId=3720		Off	859312500	4
+T-Freq	TFreqId=0	SiteId=3720		Off	859337500	5
+T-Group	TGroupId=8838	TrunkId=3354	All	Off	42.917550	-71.710970	28.0	Circle
+TGID	Tid=101653	TGroupId=8838	Grounds Maintenance	Off	2688	ANALOG	17				
+TGID	Tid=101654	TGroupId=8838	Manufacturing Area	Off	15488	ANALOG	17				
+TGID	Tid=101947	TGroupId=8838	Operations	Off	1056	ANALOG	17				
+TGID	Tid=101948	TGroupId=8838	Operations	Off	1072	ANALOG	17				
+Trunk	TrunkId=8690	StateId=33	City of Manchester	Off		P25Standard					
+AreaState	TrunkId=8690	StateId=33
+AreaCounty	TrunkId=8690	CountyId=1766
+Site	SiteId=27803	TrunkId=8690	Manchester	Off	42.917550	-71.710970	28.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=27803		Off	859487500	1
+T-Freq	TFreqId=0	SiteId=27803		Off	858487500	2
+T-Freq	TFreqId=0	SiteId=27803		Off	858212500	3
+T-Freq	TFreqId=0	SiteId=27803		Off	857937500	4
+T-Freq	TFreqId=0	SiteId=27803		Off	857487500	5
+T-Freq	TFreqId=0	SiteId=27803		Off	857237500	6
+T-Freq	TFreqId=0	SiteId=27803		Off	856762500	7
+T-Freq	TFreqId=0	SiteId=27803		Off	856487500	8
+T-Freq	TFreqId=0	SiteId=27803		Off	856212500	9
+T-Freq	TFreqId=0	SiteId=27803		Off	854987500	10
+T-Freq	TFreqId=0	SiteId=27803		Off	854062500	11
+T-Group	TGroupId=23993	TrunkId=8690	Fire	Off	42.990000	-71.450000	5.0	Circle
+TGID	Tid=298508	TGroupId=23993	911(City Wide emergency reporting)	Off	10025	ALL	11				
+TGID	Tid=298506	TGroupId=23993	Comm	Off	10021	ALL	8				
+TGID	Tid=298507	TGroupId=23993	FD Detail	Off	10023	ALL	8				
+TGID	Tid=296388	TGroupId=23993	Fire Dispatch	Off	10003	ALL	3				
+TGID	Tid=298498	TGroupId=23993	Fire Tac 2	Off	10005	ALL	8				
+TGID	Tid=298499	TGroupId=23993	Fire Tac 3	Off	10007	ALL	8				
+TGID	Tid=298500	TGroupId=23993	Fire Tac 4	Off	10009	ALL	8				
+TGID	Tid=298501	TGroupId=23993	Fire Tac 5	Off	10011	ALL	8				
+TGID	Tid=298502	TGroupId=23993	Fire Tac 6	Off	10013	ALL	8				
+TGID	Tid=298503	TGroupId=23993	Fire Tac 7	Off	10015	ALL	8				
+TGID	Tid=298504	TGroupId=23993	Fire Tac 8	Off	10017	ALL	8				
+TGID	Tid=298505	TGroupId=23993	Fire Tac 9	Off	10019	ALL	8				
+TGID	Tid=298509	TGroupId=23993	Health	Off	10027	ALL	29				
+T-Group	TGroupId=23999	TrunkId=8690	Police	Off	42.990000	-71.450000	5.0	Circle
+TGID	Tid=301595	TGroupId=23999	PD Detail	Off	11007	ALL	7				
+TGID	Tid=297553	TGroupId=23999	PD Dispatch	Off	11003	ALL	2				
+TGID	Tid=297554	TGroupId=23999	PD Tac	Off	11005	ALL	7				
+TGID	Tid=298373	TGroupId=23999	PD-ENC	Off	11017	ALL	7				
+T-Group	TGroupId=24085	TrunkId=8690	Public Works	Off	42.990000	-71.450000	5.0	Circle
+TGID	Tid=298513	TGroupId=24085	DPW Base	Off	12013	ALL	14				
+TGID	Tid=298515	TGroupId=24085	DPW Base	Off	12017	ALL	14				
+TGID	Tid=298371	TGroupId=24085	DPW Dispatch	Off	12003	ALL	14				
+TGID	Tid=298516	TGroupId=24085	DPW Patrol	Off	12019	ALL	14				
+TGID	Tid=298372	TGroupId=24085	DPW Working Channel 1	Off	12005	ALL	14				
+TGID	Tid=298510	TGroupId=24085	DPW Working Channel 2	Off	12007	ALL	14				
+TGID	Tid=298511	TGroupId=24085	DPW Working Channel 3	Off	12009	ALL	14				
+TGID	Tid=298512	TGroupId=24085	DPW Working Channel 4	Off	12011	ALL	14				
+TGID	Tid=298514	TGroupId=24085	Meter	Off	12015	ALL	14				
+T-Group	TGroupId=23992	TrunkId=8690	Transit	Off	42.990000	-71.450000	5.0	Circle
+TGID	Tid=293214	TGroupId=23992	MTA School Buses	Off	12055	ALL	32				
+TGID	Tid=293213	TGroupId=23992	MTA Transit	Off	12053	ALL	26				
+TGID	Tid=298374	TGroupId=23992	Parking Enforcement	Off	12103	ALL	26				
+Trunk	TrunkId=8537	StateId=33	City of Nashua	Off		P25Standard					
+AreaState	TrunkId=8537	StateId=33
+AreaCounty	TrunkId=8537	CountyId=1766
+Site	SiteId=26479	TrunkId=8537	Nashua	Off	42.917550	-71.710970	28.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=26479		Off	851050000	1
+T-Freq	TFreqId=0	SiteId=26479		Off	851600000	2
+T-Freq	TFreqId=0	SiteId=26479		Off	851775000	3
+T-Freq	TFreqId=0	SiteId=26479		Off	851975000	4
+T-Freq	TFreqId=0	SiteId=26479		Off	852362500	5
+T-Freq	TFreqId=0	SiteId=26479		Off	852550000	6
+T-Freq	TFreqId=0	SiteId=26479		Off	852750000	7
+T-Freq	TFreqId=0	SiteId=26479		Off	853262500	8
+T-Freq	TFreqId=0	SiteId=26479		Off	853450000	9
+T-Freq	TFreqId=0	SiteId=26479		Off	853512500	10
+T-Group	TGroupId=34356	TrunkId=8537	Merrimack Fire	Off	42.766480	-71.405340	6.0	Circle
+TGID	Tid=409418	TGroupId=34356	 Channel 2	Off	9053	ALL	8				
+TGID	Tid=409419	TGroupId=34356	Channel 3	Off	9055	ALL	8				
+TGID	Tid=409420	TGroupId=34356	Channel 4	Off	9057	ALL	8				
+TGID	Tid=409421	TGroupId=34356	Channel 5	Off	9059	ALL	8				
+TGID	Tid=409422	TGroupId=34356	Channel 6	Off	9061	ALL	8				
+TGID	Tid=409423	TGroupId=34356	Channel 7	Off	9063	ALL	8				
+TGID	Tid=409417	TGroupId=34356	Fire Dispatch	Off	9051	ALL	3				
+T-Group	TGroupId=30664	TrunkId=8537	Nashua City Agencies	Off	42.766480	-71.405340	6.0	Circle
+TGID	Tid=410822	TGroupId=30664	Building Inspectors	Off	639	ALL	14				
+TGID	Tid=410823	TGroupId=30664	City Buses	Off	1049	ALL	26				
+TGID	Tid=410819	TGroupId=30664	Landfill Ops CH.1	Off	527	ALL	14				
+TGID	Tid=410820	TGroupId=30664	Landfill Ops CH.2	Off	529	ALL	14				
+TGID	Tid=365804	TGroupId=30664	Parking Enforcement	Off	2045	ALL	14				
+TGID	Tid=410821	TGroupId=30664	Parks Department	Off	533	ALL	14				
+TGID	Tid=410818	TGroupId=30664	Street Department	Off	519	ALL	14				
+T-Group	TGroupId=23111	TrunkId=8537	Nashua Citywide	Off	42.917550	-71.710970	28.0	Circle
+TGID	Tid=289605	TGroupId=23111	Citywide 03	Off	201	ALL	11				
+TGID	Tid=289606	TGroupId=23111	Citywide 04	Off	203	ALL	11				
+TGID	Tid=289607	TGroupId=23111	Citywide 05	Off	205	ALL	11				
+T-Group	TGroupId=23109	TrunkId=8537	Nashua Fire	Off	42.917550	-71.710970	28.0	Circle
+TGID	Tid=289593	TGroupId=23109	EMS Dispatch	Off	2081	ALL	4				
+TGID	Tid=289587	TGroupId=23109	EMS Tac 6	Off	2061	ALL	9				
+TGID	Tid=289592	TGroupId=23109	EMS Tac 7	Off	2079	ALL	9				
+TGID	Tid=289595	TGroupId=23109	FD Channel 11	Off	2075	ALL	24				
+TGID	Tid=289596	TGroupId=23109	FD Channel 12	Off	2077	ALL	24				
+TGID	Tid=289597	TGroupId=23109	FD Channel 13 (FIRE ALARM / MECHANICS)	Off	2063	ALL	24				
+TGID	Tid=289598	TGroupId=23109	FD Channel 14	Off	2043	ALL	24				
+TGID	Tid=289594	TGroupId=23109	FD HIPPA Channel	Off	2083	ALL	24				
+TGID	Tid=289588	TGroupId=23109	FG Channel 2	Off	2051	ALL	8				
+TGID	Tid=289589	TGroupId=23109	FG Channel 3	Off	2053	ALL	8				
+TGID	Tid=289590	TGroupId=23109	FG Channel 4	Off	2055	ALL	8				
+TGID	Tid=289591	TGroupId=23109	FG Channel 5	Off	2057	ALL	8				
+TGID	Tid=289585	TGroupId=23109	Fire Dispatch	Off	2049	ALL	3				
+TGID	Tid=289586	TGroupId=23109	Fire Police	Off	2073	ALL	24				
+T-Group	TGroupId=23108	TrunkId=8537	Nashua Police	Off	42.917550	-71.710970	28.0	Circle
+TGID	Tid=289583	TGroupId=23108	Police Operations 1	Off	3073	ALL	2				
+TGID	Tid=289584	TGroupId=23108	Police Operations 2	Off	3075	ALL	2				
+TGID	Tid=289604	TGroupId=23108	Police Tac 3	Off	3077	ALL	7				
+TGID	Tid=315237	TGroupId=23108	Police Tac 4	Off	3081	ALL	7				
+TGID	Tid=315238	TGroupId=23108	Police Tac 5	Off	3083	ALL	7				
+T-Group	TGroupId=23110	TrunkId=8537	Nashua Public Safety	Off	42.917550	-71.710970	28.0	Circle
+TGID	Tid=289599	TGroupId=23110	Public Safety 1	Off	2101	ALL	29				
+TGID	Tid=289600	TGroupId=23110	Public Safety 2	Off	2103	ALL	29				
+TGID	Tid=289601	TGroupId=23110	Public Safety 3	Off	2105	ALL	29				
+TGID	Tid=289602	TGroupId=23110	Public Safety 4	Off	2107	ALL	29				
+TGID	Tid=289603	TGroupId=23110	Public Safety 5	Off	2109	ALL	29				
+Trunk	TrunkId=6832	StateId=33	Concord Hospital	Off		Ltr					
+AreaState	TrunkId=6832	StateId=33
+AreaCounty	TrunkId=6832	CountyId=1767
+Site	SiteId=17563	TrunkId=6832	Confirmed LCN	Off	43.115930	-71.335050	5.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=17563		Off	451937500	1
+T-Freq	TFreqId=0	SiteId=17563		Off	452275000	2
+T-Freq	TFreqId=0	SiteId=17563		Off	452812500	3
+T-Freq	TFreqId=0	SiteId=17563		Off	461662500	4
+T-Freq	TFreqId=0	SiteId=17563		Off	461937500	5
+T-Group	TGroupId=15136	TrunkId=6832	All	Off	43.300080	-71.682850	26.0	Circle
+TGID	Tid=199342	TGroupId=15136	Security Primary	Off	0-01-001	ALL	33				
+TGID	Tid=199343	TGroupId=15136	Security Tactical	Off	0-01-010	ALL	33				
+Trunk	TrunkId=4199	StateId=33	Dispatch Communications (Hudson)	Off		Ltr					
+AreaState	TrunkId=4199	StateId=33
+AreaCounty	TrunkId=4199	CountyId=1766
+Site	SiteId=8025	TrunkId=4199	Confirmed LCN	Off	42.917550	-71.710970	28.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=8025		Off	484162500	1
+T-Freq	TFreqId=0	SiteId=8025		Off	484562500	5
+T-Freq	TFreqId=0	SiteId=8025		Off	483887500	9
+T-Freq	TFreqId=0	SiteId=8025		Off	471987500	13
+T-Group	TGroupId=9965	TrunkId=4199	All	Off	42.917550	-71.710970	28.0	Circle
+TGID	Tid=287721	TGroupId=9965	Pridestar EMS	Off	0-01-151	ALL	4				
+TGID	Tid=153725	TGroupId=9965	SP&R Transportation Lowell Special Education Buses	Off	0-01-021	ALL	26				
+TGID	Tid=123361	TGroupId=9965	Trinity EMS (Hudson) Ambulance	Off	0-01-011	ALL	4				
+TGID	Tid=123362	TGroupId=9965	Trinity EMS (Hudson) Chair Cars	Off	0-01-017	ALL	26				
+Trunk	TrunkId=4713	StateId=33	Industrial Communications and Electronics (Epsom)	Off		Motorola					
+AreaState	TrunkId=4713	StateId=33
+AreaCounty	TrunkId=4713	CountyId=1767
+Site	SiteId=9540	TrunkId=4713	Site-1	Off	43.300080	-71.682850	26.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=9540		Off	935137500	1
+T-Freq	TFreqId=0	SiteId=9540		Off	938062500	2
+T-Freq	TFreqId=0	SiteId=9540		Off	938087500	3
+T-Freq	TFreqId=0	SiteId=9540		Off	938100000	4
+T-Freq	TFreqId=0	SiteId=9540		Off	938125000	5
+T-Freq	TFreqId=0	SiteId=9540		Off	938112500	6
+T-Group	TGroupId=10567	TrunkId=4713	All	Off	43.300080	-71.682850	26.0	Circle
+TGID	Tid=135390	TGroupId=10567	Care-Plus Ambulance Seacoast Chair-Cars	Off	1200	ANALOG	17				
+TGID	Tid=135387	TGroupId=10567	Dail Transportation (Epsom School District Buses)	Off	688	ANALOG	32				
+TGID	Tid=135386	TGroupId=10567	Main Street Taxi (Concord)	Off	304	ANALOG	26				
+TGID	Tid=135388	TGroupId=10567	Pembroke School District Buses	Off	704	ANALOG	32				
+TGID	Tid=135389	TGroupId=10567	Sand/Gravel Company	Off	784	ANALOG	17				
+Trunk	TrunkId=4073	StateId=33	Industrial Communications and Electronics (Farmington)	Off		Motorola					
+AreaState	TrunkId=4073	StateId=33
+AreaCounty	TrunkId=4073	CountyId=1768
+Site	SiteId=7638	TrunkId=4073	Farmington	Off	42.993930	-71.116330	22.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=7638		Off	937687500	1
+T-Freq	TFreqId=0	SiteId=7638		Off	938575000	2
+T-Freq	TFreqId=0	SiteId=7638		Off	936650000	3
+T-Freq	TFreqId=0	SiteId=7638		Off	938562500	4
+T-Freq	TFreqId=0	SiteId=7638		Off	938612500	5
+T-Freq	TFreqId=0	SiteId=7638		Off	938587000	6
+T-Freq	TFreqId=0	SiteId=7638		Off	938600000	7
+T-Group	TGroupId=22338	TrunkId=4073	Talkgroups	Off	42.993930	-71.116330	22.0	Circle
+TGID	Tid=277749	TGroupId=22338	Barrington Bus LIne	Off	320	ANALOG	26				
+Trunk	TrunkId=11869	StateId=33	Pease Air National Guard Base	Off		P25X2_TDMA					
+AreaState	TrunkId=11869	StateId=33
+AreaCounty	TrunkId=11869	CountyId=1768
+Site	SiteId=40300	TrunkId=11869	Pease ANGB	Off	43.079820	-70.815660	1.8	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=40300		Off	173412500	1
+T-Freq	TFreqId=0	SiteId=40300		Off	173450000	2
+T-Freq	TFreqId=0	SiteId=40300		Off	173512500	3
+T-Freq	TFreqId=0	SiteId=40300		Off	173537500	4
+T-Freq	TFreqId=0	SiteId=40300		Off	173562500	5
+T-Group	TGroupId=32926	TrunkId=11869	Base Operations	Off	43.083130	-70.817640	2.0	Circle
+TGID	Tid=390372	TGroupId=32926	Maintenance	Off	903	ALL	30				
+TGID	Tid=390373	TGroupId=32926	Security	Off	937	ALL	30				
+Trunk	TrunkId=4200	StateId=33	Trinity EMS (Hollis)	Off		Ltr					
+AreaState	TrunkId=4200	StateId=33
+AreaCounty	TrunkId=4200	CountyId=1766
+Site	SiteId=8026	TrunkId=4200	Confirmed LCN	Off	42.518000	-71.458280	27.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=8026		Off	461300000	1
+T-Freq	TFreqId=0	SiteId=8026		Off	461450000	7
+T-Group	TGroupId=9966	TrunkId=4200	All	Off	42.917550	-71.710970	28.0	Circle
+TGID	Tid=123363	TGroupId=9966	Trinity EMS	Off	0-01-056	ALL	4				
+TGID	Tid=123364	TGroupId=9966	Trinity EMS	Off	0-01-057	ALL	4				
+Trunk	TrunkId=4818	StateId=33	William Quimby	Off		Ltr					
+AreaState	TrunkId=4818	StateId=33
+AreaCounty	TrunkId=4818	CountyId=1767
+Site	SiteId=9761	TrunkId=4818	Confirmed LCN	Off	43.300080	-71.682850	26.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=9761		Off	451662500	1
+T-Freq	TFreqId=0	SiteId=9761		Off	452137500	3
+T-Group	TGroupId=10644	TrunkId=4818	All	Off	43.300080	-71.682850	26.0	Circle
+TGID	Tid=137259	TGroupId=10644	Irving Oil Repair	Off	1-01-050	ALL	17				
+TGID	Tid=137260	TGroupId=10644	Irving Oil Repair	Off	1-01-051	ALL	17				

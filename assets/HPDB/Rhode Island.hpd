@@ -1,0 +1,870 @@
+TargetModel	HomePatrol-1
+FormatVersion	2.04
+Conventional	CountyId=2308	StateId=44	Bristol	Off		Conventional
+AreaState	CountyId=2308	StateId=44
+AreaCounty	CountyId=2308	CountyId=2308
+C-Group	CGroupId=11691	CountyId=2308	Bristol County - Barrington	Off	41.736990	-71.307450	4.0	Circle
+C-Freq	CFreqId=44416	CGroupId=11691	Fire Operations (Shared with Warren)	Off	153950000	NFM	TONE=C167.9	3					
+C-Freq	CFreqId=131739	CGroupId=11691	Police VHF Operations	Off	155490000	NFM	TONE=C114.8	2					
+C-Freq	CFreqId=262532	CGroupId=11691	Public Works	Off	154980000	NFM	TONE=C167.9	14					
+C-Group	CGroupId=25783	CountyId=2308	Bristol County - Bristol (Town)	Off	41.672400	-71.266250	5.0	Circle
+C-Freq	CFreqId=96373	CGroupId=25783	Fire Operations	Off	154145000	NFM	TONE=C114.8	3					
+C-Freq	CFreqId=244475	CGroupId=25783	Public Works	Off	155805000	NFM	TONE=D351	14					
+C-Freq	CFreqId=164048	CGroupId=25783	Wastewater Treatment Plant	Off	159277500	NFM		14					
+C-Group	CGroupId=24046	CountyId=2308	Bristol County - Warren	Off	41.731870	-71.274490	4.5	Circle
+C-Freq	CFreqId=313707	CGroupId=24046	Fire Operations	Off	159360000	NFM	TONE=D431	3					
+C-Freq	CFreqId=191821	CGroupId=24046	Police Secondary	Off	155190000	NFM	TONE=C114.8	23					
+C-Freq	CFreqId=262534	CGroupId=24046	Public Works	Off	156120000	NFM	TONE=C141.3	14					
+Conventional	CountyId=2309	StateId=44	Kent	Off		Conventional
+AreaState	CountyId=2309	StateId=44
+AreaCounty	CountyId=2309	CountyId=2309
+C-Group	CGroupId=84234	CountyId=2309	Amateur Radio - 2M Repeaters	Off	41.663340	-71.564220	12.0	Circle
+C-Freq	CFreqId=366673	CGroupId=84234	West Greenwich	Off	146460000	FM		13					
+C-Group	CGroupId=76937	CountyId=2309	Amateur Radio - 440 Rhode Island	Off	41.663340	-71.624220	30.0	Circle
+C-Freq	CFreqId=327108	CGroupId=76937	WA1ABC Repeater - Quahog Net	Off	447025000	FM	TONE=C67.0	13					
+C-Group	CGroupId=86049	CountyId=2309	Hospitals - Kent Hospital	Off	41.706740	-71.478550	1.0	Circle
+C-Freq	CFreqId=377350	CGroupId=86049	Maintenance	Off	463725000	NFM	TONE=C88.5	17					
+C-Freq	CFreqId=377349	CGroupId=86049	Security	Off	461625000	NFM	TONE=C123.0	33					
+C-Group	CGroupId=24056	CountyId=2309	Kent County	Off	41.663340	-71.624220	12.0	Circle
+C-Freq	CFreqId=88818	CGroupId=24056	Police Intercity Statewide	Off	158970000	NFM		11					
+C-Group	CGroupId=41327	CountyId=2309	Kent County - Coventry	Off	41.700600	-71.684420	4.0	Circle
+C-Freq	CFreqId=166046	CGroupId=41327	Fire - Townwide Operations	Off	453125000	NFM	TONE=D546	3					
+C-Freq	CFreqId=268896	CGroupId=41327	Fire - West Simulcast of Operations FD1	Off	453337500	NFM	TONE=D703	3					
+C-Freq	CFreqId=247239	CGroupId=41327	Fire Fireground	Off	453737500	NFM	TONE=D546	8					
+C-Freq	CFreqId=166040	CGroupId=41327	Police Dispatch - Backup	Off	154725000	NFM	TONE=C123.0	7					
+C-Freq	CFreqId=346914	CGroupId=41327	Public Works	Off	45720000	FM	TONE=C127.3	14					
+C-Group	CGroupId=41329	CountyId=2309	Kent County - East Greenwich	Off	41.677020	-71.452330	5.0	Circle
+C-Freq	CFreqId=326442	CGroupId=41329	Fire Dispatch/Operations	Off	155242500	NFM	TONE=D731	3					
+C-Freq	CFreqId=166042	CGroupId=41329	Police Dispatch	Off	155625000	NFM	TONE=C88.5	2					
+C-Group	CGroupId=20435	CountyId=2309	Kent County - Warwick	Off	41.705730	-71.416630	5.0	Circle
+C-Freq	CFreqId=74911	CGroupId=20435	Fire Department - Backup	Off	154310000	NFM	TONE=C162.2	3					
+C-Freq	CFreqId=118042	CGroupId=20435	Fire Department - RISCON Simulcast	Off	153770000	NFM	TONE=C103.5	3					
+C-Freq	CFreqId=88593	CGroupId=20435	Police F1 - Primary	Off	453675000	NFM	TONE=C210.7	2					
+C-Freq	CFreqId=88820	CGroupId=20435	Police F2 - Records	Off	453825000	NFM	TONE=C210.7	23					
+C-Freq	CFreqId=84272	CGroupId=20435	Police Talk - Detectives	Off	453975000	NFM	TONE=C210.7	23					
+C-Freq	CFreqId=84271	CGroupId=20435	Police Talk - Secondary	Off	453475000	NFM	TONE=C210.7	23					
+C-Freq	CFreqId=118044	CGroupId=20435	Public Works	Off	159000000	NFM	TONE=C162.2	14					
+C-Freq	CFreqId=166038	CGroupId=20435	Sanitation and Recycling Division	Off	156195000	NFM	TONE=C173.8	14					
+C-Freq	CFreqId=247240	CGroupId=20435	TF Green Airport Fire	Off	154355000	NFM	TONE=C100.0	3					
+C-Group	CGroupId=41331	CountyId=2309	Kent County - West Greenwich	Off	41.628790	-71.695400	5.0	Circle
+C-Freq	CFreqId=166045	CGroupId=41331	Fire Dispatch (Hianloland Repeater)	Off	460612500	NFM	TONE=D261	3					
+C-Freq	CFreqId=268904	CGroupId=41331	Fire Dispatch (Low Band / Shared w/ Exeter)	Off	46380000	FM	TONE=C127.3	3					
+C-Freq	CFreqId=268898	CGroupId=41331	Fire Dispatch (West Greenwich Repeater)	Off	453287500	NFM	TONE=D263	3					
+C-Freq	CFreqId=166044	CGroupId=41331	Police Dispatch - Backup	Off	155760000	NFM	TONE=C82.5	23					
+C-Group	CGroupId=20436	CountyId=2309	Kent County - West Warwick	Off	41.707780	-71.527860	5.0	Circle
+C-Freq	CFreqId=74912	CGroupId=20436	Fire	Off	154430000	NFM	TONE=C107.2	3					
+C-Freq	CFreqId=88821	CGroupId=20436	Police	Off	154785000	NFM	NAC=431	2					
+C-Freq	CFreqId=359368	CGroupId=20436	Public Works	Off	451200000	NFM	TONE=D606	14					
+Conventional	CountyId=2310	StateId=44	Newport	Off		Conventional
+AreaState	CountyId=2310	StateId=44
+AreaCounty	CountyId=2310	CountyId=2310
+C-Group	CGroupId=73803	CountyId=2310	Newport County Amateur Radio - Repeaters	Off	41.583440	-71.249490	13.0	Circle
+C-Freq	CFreqId=303815	CGroupId=73803	Middletown	Off	448525000	FM		13					
+C-Freq	CFreqId=310140	CGroupId=73803	Portsmouth	Off	147075000	FM		13					
+C-Group	CGroupId=25645	CountyId=2310	Newport County Public Safety - Jamestown	Off	41.518350	-71.374740	5.0	Circle
+C-Freq	CFreqId=95706	CGroupId=25645	Fire (RISCON Patch/simulcast)	Off	153950000	NFM	TONE=C110.9	3					
+C-Freq	CFreqId=346915	CGroupId=25645	Public Works	Off	155070000	NFM	TONE=C85.4	14					
+C-Group	CGroupId=25646	CountyId=2310	Newport County Public Safety - Little Compton	Off	41.577440	-71.168060	9.0	Circle
+C-Freq	CFreqId=247838	CGroupId=25646	Fire Operations	Off	453487500	NFM	TONE=C146.2	3					
+C-Freq	CFreqId=95728	CGroupId=25646	Police Operations	Off	155415000	NFM	TONE=C118.8	2					
+C-Group	CGroupId=25647	CountyId=2310	Newport County Public Safety - Middletown	Off	41.561000	-71.268310	6.5	Circle
+C-Freq	CFreqId=95710	CGroupId=25647	Fire Operations	Off	151055000	NFM	TONE=D315	3					
+C-Freq	CFreqId=95729	CGroupId=25647	Public Works	Off	151115000	NFM	TONE=C118.8	14					
+C-Group	CGroupId=25649	CountyId=2310	Newport County Public Safety - Newport (City)	Off	41.494180	-71.313630	6.0	Circle
+C-Freq	CFreqId=379815	CGroupId=25649	Easton Beach Lifeguards	Off	461512500	NFM	TONE=C69.3	25					
+C-Freq	CFreqId=95717	CGroupId=25649	EMS (portable radios)	Off	154400000	NFM	TONE=C67.0	9					
+C-Freq	CFreqId=95716	CGroupId=25649	Fire (portable radios)	Off	154220000	NFM	TONE=C67.0	8					
+C-Freq	CFreqId=95715	CGroupId=25649	Fire Operations	Off	154167500	NFM	TONE=D532	3					
+C-Freq	CFreqId=95713	CGroupId=25649	Newport Hospital	Off	155340000	NFM	TONE=C118.8	12					
+C-Freq	CFreqId=95714	CGroupId=25649	Newport Hospital	Off	155385000	NFM	TONE=C118.8	12					
+C-Freq	CFreqId=95718	CGroupId=25649	Public Works	Off	158760000	NFM	TONE=C110.9	14					
+C-Freq	CFreqId=315055	CGroupId=25649	Salve Regina - Maintenance	Off	151955000	NFM	TONE=D131	32					
+C-Freq	CFreqId=315054	CGroupId=25649	Salve Regina - Security	Off	151925000	NFM	TONE=D131	33					
+C-Group	CGroupId=25651	CountyId=2310	Newport County Public Safety - Portsmouth	Off	41.604660	-71.251830	7.0	Circle
+C-Freq	CFreqId=95723	CGroupId=25651	Fire Operations	Off	154325000	NFM	TONE=D032	3					
+C-Freq	CFreqId=95720	CGroupId=25651	Water Department	Off	155100000	NFM	TONE=C118.8	14					
+C-Group	CGroupId=25652	CountyId=2310	Newport County Public Safety - Prudence Island	Off	41.618520	-71.317750	5.5	Circle
+C-Freq	CFreqId=95724	CGroupId=25652	Fire Operations	Off	154415000	NFM	TONE=D047	3					
+C-Group	CGroupId=25653	CountyId=2310	Newport County Public Safety - Tiverton	Off	41.630840	-71.225740	5.0	Circle
+C-Freq	CFreqId=95726	CGroupId=25653	Fire Operations - Backup	Off	471787500	FM	TONE=D223	3					
+C-Freq	CFreqId=95727	CGroupId=25653	Police Operations - Patch	Off	482962500	FM	TONE=D065	7					
+C-Freq	CFreqId=95725	CGroupId=25653	Public Works	Off	45120000	FM	TONE=C118.8	14					
+Conventional	CountyId=2311	StateId=44	Providence	Off		Conventional
+AreaState	CountyId=2311	StateId=44
+AreaCounty	CountyId=2311	CountyId=2311
+C-Group	CGroupId=86034	CountyId=2311	Education - Brown University	Off	41.830150	-71.405450	5.0	Circle
+C-Freq	CFreqId=377319	CGroupId=86034	Campus Electricians	Off	462000000	NFM	TONE=D351	32					
+C-Group	CGroupId=86035	CountyId=2311	Education - Bryant University	Off	41.921030	-71.536770	3.0	Circle
+C-Freq	CFreqId=377321	CGroupId=86035	Campus Maintenance	Off	463562500	NFM	TONE=C151.4	32					
+C-Freq	CFreqId=377322	CGroupId=86035	Campus Operations	Off	464525000	NFM	TONE=C151.4	32					
+C-Freq	CFreqId=377320	CGroupId=86035	Campus Security	Off	464425000	NFM	TONE=C151.4	2					
+C-Group	CGroupId=73568	CountyId=2311	Hospitals - Bradley Hospital	Off	41.792330	-71.368680	1.0	Circle
+C-Freq	CFreqId=308795	CGroupId=73568	Operations	Off	451187500	NFM	TONE=C114.8	17					
+C-Freq	CFreqId=377331	CGroupId=73568	Security	Off	462162500	NFM	TONE=D032	33					
+C-Freq	CFreqId=308794	CGroupId=73568	Staff Operations	Off	452000000	NFM	TONE=D054	33					
+C-Group	CGroupId=86042	CountyId=2311	Hospitals - Landmark Medical Center	Off	42.004430	-71.495800	1.0	Circle
+C-Freq	CFreqId=377337	CGroupId=86042	Maintenance	Off	467287500	NFM	TONE=D243	17					
+C-Freq	CFreqId=377336	CGroupId=86042	Operations	Off	462287500	NFM	TONE=D116	17					
+C-Group	CGroupId=86043	CountyId=2311	Hospitals - Miriam Hospital	Off	41.852090	-71.398060	1.0	Circle
+C-Freq	CFreqId=377339	CGroupId=86043	Maintenance	Off	462112500	AUTO		17					
+C-Freq	CFreqId=377338	CGroupId=86043	Security	Off	462325000	AUTO		33					
+C-Group	CGroupId=86044	CountyId=2311	Hospitals - Rhode Island Hospital	Off	41.811000	-71.408000	1.0	Circle
+C-Freq	CFreqId=401438	CGroupId=86044	Army Med Helos - RIH MedComm Patient Entry	Off	233150000	AM		12					
+C-Freq	CFreqId=377342	CGroupId=86044	Helicopter - RIH MedComm Patient Entry	Off	462100000	NFM	TONE=D023	12					
+C-Freq	CFreqId=383547	CGroupId=86044	Maintenance	Off	463525000	AUTO		17					
+C-Freq	CFreqId=377341	CGroupId=86044	Patient Transportation	Off	461775000	NFM	TONE=D205	26					
+C-Freq	CFreqId=377340	CGroupId=86044	Security	Off	451937500	AUTO		33					
+C-Group	CGroupId=24051	CountyId=2311	Providence County	Off	41.879790	-71.589660	15.0	Circle
+C-Freq	CFreqId=88799	CGroupId=24051	Police Intercity Statewide (Tied with RISCON)	Off	158970000	FM		7					
+C-Group	CGroupId=21828	CountyId=2311	Providence County - Burrillville	Off	41.969190	-71.699520	5.0	Circle
+C-Freq	CFreqId=79830	CGroupId=21828	Fire Operations	Off	154190000	NFM	TONE=C127.3	3					
+C-Freq	CFreqId=127217	CGroupId=21828	Fireground - F2	Off	154220000	NFM	TONE=C127.3	8					
+C-Freq	CFreqId=127219	CGroupId=21828	Fireground - F3	Off	154325000	NFM	TONE=C127.3	8					
+C-Freq	CFreqId=233946	CGroupId=21828	High School	Off	151745000	FM		32					
+C-Freq	CFreqId=284146	CGroupId=21828	Pascoag Electric Light	Off	48740000	FM	TONE=C107.2	34					
+C-Freq	CFreqId=284147	CGroupId=21828	Pascoag Electric Light	Off	154777500	NFM	TONE=D311	34					
+C-Freq	CFreqId=79831	CGroupId=21828	Public Works	Off	159210000	FM	TONE=C141.3	14					
+C-Group	CGroupId=40857	CountyId=2311	Providence County - Central Falls	Off	41.888730	-71.390880	3.0	Circle
+C-Freq	CFreqId=164059	CGroupId=40857	Fire Backup	Off	472412500	NFM	TONE=D565	3					
+C-Freq	CFreqId=164054	CGroupId=40857	Fireground	Off	453887500	NFM	TONE=D565	8					
+C-Freq	CFreqId=346912	CGroupId=40857	Public Works	Off	159112500	NFM	TONE=D315	14					
+C-Group	CGroupId=20437	CountyId=2311	Providence County - Cranston	Off	41.778480	-71.418690	3.0	Circle
+C-Freq	CFreqId=74913	CGroupId=20437	Fire F1 Dispatch/Operations Backup	Off	154010000	NFM	TONE=D565	3					
+C-Freq	CFreqId=119302	CGroupId=20437	Fire F2 Fire Tac Backup	Off	151280000	NFM	TONE=D627	8					
+C-Freq	CFreqId=166602	CGroupId=20437	Housing Authority	Off	453775000	NFM	TONE=D023	14					
+C-Freq	CFreqId=88784	CGroupId=20437	Police Car-to-Car	Off	483637500	NFM	NAC=DEF	23					
+C-Freq	CFreqId=88780	CGroupId=20437	Police F2	Off	482462500	NFM	NAC=DEF	7					
+C-Freq	CFreqId=88781	CGroupId=20437	Police F3	Off	482562500	NFM	NAC=DEF	23					
+C-Freq	CFreqId=88779	CGroupId=20437	Police Operations F1	Off	482412500	NFM	NAC=DEF	2					
+C-Freq	CFreqId=346913	CGroupId=20437	Public Works	Off	158820000	NFM	TONE=D346	14					
+C-Freq	CFreqId=166601	CGroupId=20437	School Department	Off	155220000	NFM	TONE=D606	32					
+C-Freq	CFreqId=353621	CGroupId=20437	Senior Services - Transvan	Off	159135000	NFM	TONE=C151.4	26					
+C-Freq	CFreqId=233838	CGroupId=20437	Station Dispatch	Off	460600000	NFM	TONE=C186.2	3					
+C-Group	CGroupId=23197	CountyId=2311	Providence County - Cumberland	Off	41.960510	-71.438600	5.0	Circle
+C-Freq	CFreqId=244500	CGroupId=23197	Fire/EMS - Primary	Off	482737500	FM	TONE=D023	3					
+C-Freq	CFreqId=85433	CGroupId=23197	Fire/EMS - Secondary	Off	483612500	FM	TONE=D315	8					
+C-Freq	CFreqId=85432	CGroupId=23197	Police F1	Off	484737500	FM	TONE=D315	2					
+C-Freq	CFreqId=85431	CGroupId=23197	Police F2	Off	482387500	FM	TONE=D315	7					
+C-Freq	CFreqId=114275	CGroupId=23197	Public Works	Off	460237500	NFM	TONE=D606	14					
+C-Group	CGroupId=20438	CountyId=2311	Providence County - East Providence	Off	41.805100	-71.356200	4.0	Circle
+C-Freq	CFreqId=191822	CGroupId=20438	Fireground Command	Off	460512500	NFM		8					
+C-Freq	CFreqId=191824	CGroupId=20438	Fireground Command	Off	460562500	NFM		8					
+C-Freq	CFreqId=377352	CGroupId=20438	High School Operations	Off	464875000	NFM	TONE=C123.0	32					
+C-Freq	CFreqId=258949	CGroupId=20438	Public Works	Off	153800000	NFM	TONE=C156.7	14					
+C-Group	CGroupId=30884	CountyId=2311	Providence County - Foster	Off	41.861380	-71.758580	4.0	Circle
+C-Freq	CFreqId=120284	CGroupId=30884	Fire Department	Off	159270000	FM	TONE=D306	3					
+C-Freq	CFreqId=277937	CGroupId=30884	Foster Center Volunteer FD Fireground 1	Off	460637500	NFM		24					
+C-Freq	CFreqId=277938	CGroupId=30884	Foster Center Volunteer FD Fireground 2	Off	465637500	FM		24					
+C-Freq	CFreqId=166234	CGroupId=30884	Police Operations	Off	154762500	NFM	TONE=D271	2					
+C-Freq	CFreqId=164065	CGroupId=30884	Public Works	Off	156000000	NFM	TONE=D423	14					
+C-Group	CGroupId=30601	CountyId=2311	Providence County - Glocester	Off	41.891800	-71.691280	3.0	Circle
+C-Freq	CFreqId=120259	CGroupId=30601	Fire - Dispatch	Off	154070000	NFM	TONE=C127.3	3					
+C-Freq	CFreqId=120279	CGroupId=30601	Fire - Fireground	Off	154295000	NFM	TONE=C127.3	8					
+C-Freq	CFreqId=164056	CGroupId=30601	Public Works	Off	156180000	NFM	TONE=D423	14					
+C-Freq	CFreqId=164057	CGroupId=30601	Public Works - Talkaround	Off	151490000	FM		14					
+C-Group	CGroupId=20439	CountyId=2311	Providence County - Johnston	Off	41.824290	-71.496280	3.0	Circle
+C-Freq	CFreqId=74917	CGroupId=20439	Fire Operations	Off	154175000	NFM	TONE=C203.5	3					
+C-Freq	CFreqId=119303	CGroupId=20439	Fireground	Off	154145000	NFM	TONE=C203.5	8					
+C-Freq	CFreqId=277942	CGroupId=20439	Fireground	Off	159420000	NFM	TONE=D351	8					
+C-Freq	CFreqId=164058	CGroupId=20439	Public Works	Off	151040000	FM	TONE=C118.8	14					
+C-Freq	CFreqId=369097	CGroupId=20439	Station Alerting - Automation	Off	155700000	NFM	TONE=C241.8	3					
+C-Group	CGroupId=40860	CountyId=2311	Providence County - Lincoln	Off	41.922720	-71.435510	3.0	Circle
+C-Freq	CFreqId=258828	CGroupId=40860	Fire Patch to RISCON	Off	154160000	NFM	TONE=C71.9	3					
+C-Freq	CFreqId=277944	CGroupId=40860	Fireground	Off	155595000	NFM	TONE=C71.9	24					
+C-Freq	CFreqId=164069	CGroupId=40860	Police Backup	Off	470300000	NFM	TONE=D315	2					
+C-Freq	CFreqId=277943	CGroupId=40860	Public Works	Off	156060000	NFM		14					
+C-Group	CGroupId=20440	CountyId=2311	Providence County - North Providence	Off	41.856270	-71.466060	4.0	Circle
+C-Freq	CFreqId=385110	CGroupId=20440	Animal Control	Off	154800000	NFM	TONE=C192.8	14					
+C-Group	CGroupId=22806	CountyId=2311	Providence County - North Smithfield	Off	41.964850	-71.553270	3.0	Circle
+C-Freq	CFreqId=164049	CGroupId=22806	Emergency Mgmt.	Off	483275000	NFM		29					
+C-Freq	CFreqId=83849	CGroupId=22806	Fire Dispatch	Off	158895000	NFM	TONE=C71.9	3					
+C-Freq	CFreqId=277945	CGroupId=22806	Public Works	Off	151340000	FM	TONE=C97.4	14					
+C-Group	CGroupId=20441	CountyId=2311	Providence County - Pawtucket	Off	41.885920	-71.383670	5.0	Circle
+C-Freq	CFreqId=88186	CGroupId=20441	Fire Dispatch	Off	470950000	FM	TONE=D503	3					
+C-Freq	CFreqId=88187	CGroupId=20441	Fire Fireground	Off	471325000	FM	TONE=D734	8					
+C-Freq	CFreqId=247241	CGroupId=20441	Police Alternate Dispatch F3	Off	472725000	NFM	NAC=293	2					
+C-Freq	CFreqId=88185	CGroupId=20441	Police Data/Chat F2	Off	471075000	NFM	NAC=293	7					
+C-Freq	CFreqId=88184	CGroupId=20441	Police Dispatch F1	Off	470725000	NFM	NAC=293	2					
+C-Freq	CFreqId=277946	CGroupId=20441	Public Works	Off	453750000	NFM	TONE=C141.3	14					
+C-Group	CGroupId=6865	CountyId=2311	Providence County - Providence	Off	41.818920	-71.414570	5.0	Circle
+C-Freq	CFreqId=166036	CGroupId=6865	Parks Department	Off	453425000	NFM	TONE=C146.2	14					
+C-Freq	CFreqId=296252	CGroupId=6865	Providence Police Former Primary - Backup Use Only	Off	460100000	NFM	TONE=C179.9	2					
+C-Freq	CFreqId=166035	CGroupId=6865	Public Works	Off	453950000	NFM	TONE=C146.2	14					
+C-Group	CGroupId=30551	CountyId=2311	Providence County - Scituate	Off	41.781550	-71.622620	5.0	Circle
+C-Freq	CFreqId=119933	CGroupId=30551	Fire Department F1	Off	158947500	NFM	TONE=D306	3					
+C-Freq	CFreqId=164061	CGroupId=30551	Fire Department F2	Off	154040000	NFM	TONE=C127.3	3					
+C-Freq	CFreqId=120280	CGroupId=30551	Police Backup	Off	155535000	NFM	TONE=C110.9	2					
+C-Freq	CFreqId=164051	CGroupId=30551	Public Works	Off	155842500	NFM	TONE=D413	14					
+C-Group	CGroupId=30613	CountyId=2311	Providence County - Smithfield	Off	41.924760	-71.548460	4.0	Circle
+C-Freq	CFreqId=120282	CGroupId=30613	F3 - Fireground	Off	154340000	NFM	TONE=C203.5	8					
+C-Freq	CFreqId=393102	CGroupId=30613	F3 - Fireground Mixed Mode Digital	Off	154340000	NFM	NAC=343	8					
+C-Freq	CFreqId=120283	CGroupId=30613	F4 - Fireground	Off	154400000	NFM	TONE=C203.5	8					
+C-Freq	CFreqId=393103	CGroupId=30613	F4 - Fireground Mixed Mode Digital	Off	154400000	NFM	NAC=343	8					
+C-Freq	CFreqId=393101	CGroupId=30613	Fire - Secondary Dispatch	Off	153927500	NFM	NAC=343	3					
+C-Freq	CFreqId=141817	CGroupId=30613	Fire - Secondary Dispatch Analog	Off	153927500	NFM	TONE=C203.5	8					
+C-Freq	CFreqId=120281	CGroupId=30613	Fire Dispatch	Off	154115000	NFM	NAC=343	3					
+C-Freq	CFreqId=393100	CGroupId=30613	Fire Dispatch - Analog	Off	154115000	NFM	TONE=C203.5	3					
+C-Freq	CFreqId=141818	CGroupId=30613	Fire Station Alerting	Off	453700000	NFM	TONE=C192.8	3					
+C-Freq	CFreqId=120878	CGroupId=30613	Police Dispatch	Off	155077500	NFM	TONE=C118.8	2					
+C-Freq	CFreqId=141816	CGroupId=30613	Public Works	Off	150995000	NFM	TONE=C82.5	14					
+C-Freq	CFreqId=393104	CGroupId=30613	Public Works	Off	155977500	NFM	TONE=C123.0	14					
+C-Group	CGroupId=23198	CountyId=2311	Providence County - Woonsocket	Off	42.001860	-71.511380	3.5	Circle
+C-Freq	CFreqId=141814	CGroupId=23198	Fire - Backup Only	Off	155767500	NFM	TONE=C136.5	3					
+C-Freq	CFreqId=164053	CGroupId=23198	Housing Authority	Off	453325000	NFM	TONE=C192.8	14					
+C-Freq	CFreqId=322081	CGroupId=23198	Police - TAC 2 - Conventional Backup	Off	482837500	NFM	TONE=C127.3	23					
+C-Group	CGroupId=73802	CountyId=2311	Providence County Amateur Radio - Repeaters	Off	41.879790	-71.589660	15.0	Circle
+C-Freq	CFreqId=310135	CGroupId=73802	Cumberland	Off	145170000	FM		13					
+C-Freq	CFreqId=331920	CGroupId=73802	North Providence - Quahog Repeater Network Hub	Off	449225000	FM	TONE=C141.3	13					
+C-Freq	CFreqId=310136	CGroupId=73802	Pawtucket	Off	145190000	FM		13					
+C-Freq	CFreqId=310137	CGroupId=73802	Providence	Off	145350000	FM		13					
+Conventional	CountyId=2312	StateId=44	Washington	Off		Conventional
+AreaState	CountyId=2312	StateId=44
+AreaCounty	CountyId=2312	CountyId=2312
+C-Group	CGroupId=40861	CountyId=2312	Education - University of Rhode Island	Off	41.485950	-71.531640	2.0	Circle
+C-Freq	CFreqId=124137	CGroupId=40861	EMS - Tac 2	Off	159375000	NFM	TONE=D023	9					
+C-Freq	CFreqId=371653	CGroupId=40861	EMS Primary	Off	153245000	NFM	TONE=D114	4					
+C-Freq	CFreqId=164085	CGroupId=40861	EMS -Tac 1	Off	151422500	NFM	TONE=D114	9					
+C-Group	CGroupId=40868	CountyId=2312	Washington County - Charlestown	Off	41.384020	-71.641850	4.0	Circle
+C-Freq	CFreqId=164082	CGroupId=40868	EMS - Operations	Off	151332500	NFM	TONE=C118.8	4					
+C-Freq	CFreqId=164081	CGroupId=40868	Fire - UHF (Rarely Used)	Off	460625000	NFM	TONE=C186.2	3					
+C-Freq	CFreqId=184939	CGroupId=40868	Police - Operations	Off	154650000	NFM	TONE=C118.8	2					
+C-Freq	CFreqId=274754	CGroupId=40868	Public Works	Off	156165000	NFM	TONE=C118.8	14					
+C-Group	CGroupId=40866	CountyId=2312	Washington County - Exeter	Off	41.584630	-71.536100	5.0	Circle
+C-Freq	CFreqId=164084	CGroupId=40866	Fire/EMS - Dispatch Low Band	Off	46380000	FM	TONE=C127.3	3					
+C-Freq	CFreqId=164079	CGroupId=40866	Fire/EMS - Operations (East Tower)	Off	460250000	NFM	TONE=C186.2	3					
+C-Freq	CFreqId=329564	CGroupId=40866	Fire/EMS - Operations (Escoheag Hill)	Off	460475000	NFM	TONE=C186.2	3					
+C-Freq	CFreqId=164080	CGroupId=40866	Fire/EMS - Operations (West Tower)	Off	460525000	NFM	TONE=C186.2	3					
+C-Freq	CFreqId=184943	CGroupId=40866	Public Works	Off	159075000	NFM	TONE=C141.3	14					
+C-Freq	CFreqId=299969	CGroupId=40866	Yawgoo Valley Search and Rescue	Off	452275000	NFM	TONE=C100.0	29					
+C-Group	CGroupId=45650	CountyId=2312	Washington County - Hopkinton	Off	41.461250	-71.779860	4.0	Circle
+C-Freq	CFreqId=184946	CGroupId=45650	Public Works	Off	37900000	FM	TONE=C136.5	14					
+C-Group	CGroupId=40869	CountyId=2312	Washington County - Narragansett Tribal Authority	Off	41.395360	-71.586910	20.0	Circle
+C-Freq	CFreqId=164083	CGroupId=40869	Narragansett Tribal Authority Police Dispatch	Off	155362500	NFM		2					
+C-Group	CGroupId=35078	CountyId=2312	Washington County - New Shoreham (Block Island)	Off	41.180720	-71.582110	5.0	Circle
+C-Freq	CFreqId=138454	CGroupId=35078	Fire Alternate	Off	158745000	NFM		24					
+C-Freq	CFreqId=244492	CGroupId=35078	Volunteer Fire Department	Off	154205000	NFM	TONE=D431	3					
+C-Group	CGroupId=40867	CountyId=2312	Washington County - North Kingstown	Off	41.558950	-71.467440	5.0	Circle
+C-Freq	CFreqId=184952	CGroupId=40867	Fire/Rescue - Backup	Off	154235000	NFM	TONE=D165	3					
+C-Freq	CFreqId=184953	CGroupId=40867	Police - Backup	Off	155580000	NFM	TONE=C118.8	2					
+C-Freq	CFreqId=184954	CGroupId=40867	Public Works	Off	155820000	NFM	TONE=C127.3	14					
+C-Group	CGroupId=40863	CountyId=2312	Washington County - Richmond	Off	41.493660	-71.671370	5.0	Circle
+C-Freq	CFreqId=184959	CGroupId=40863	Police Operations	Off	154100000	NFM	TONE=C94.8	2					
+C-Freq	CFreqId=164072	CGroupId=40863	Public Works	Off	159240000	NFM	TONE=C186.2	14					
+C-Group	CGroupId=40870	CountyId=2312	Washington County - South Kingstown	Off	41.432950	-71.529920	5.0	Circle
+C-Freq	CFreqId=344330	CGroupId=40870	Fireground 7/8 (Simplex)	Off	453100000	NFM	TONE=C107.2	8					
+C-Freq	CFreqId=344332	CGroupId=40870	Fireground 9	Off	453562500	NFM	TONE=C107.2	8					
+C-Freq	CFreqId=174466	CGroupId=40870	Kingston Fire District Fireground F3/F4 (Simplex)	Off	460587500	NFM	TONE=C173.8	8					
+C-Freq	CFreqId=164086	CGroupId=40870	Parks & Rec Dept.	Off	158895000	NFM		14					
+C-Freq	CFreqId=184967	CGroupId=40870	Public Works	Off	153492500	NFM	TONE=D432	14					
+C-Freq	CFreqId=174462	CGroupId=40870	Townwide Fire Dispatch/Secondary (Simplex)	Off	453450000	NFM	TONE=C173.8	3					
+C-Freq	CFreqId=174464	CGroupId=40870	Union Fire District Fireground F5/F6 (Simplex)	Off	453562500	NFM	TONE=C173.8	8					
+C-Group	CGroupId=45653	CountyId=2312	Washington County - Westerly	Off	41.378870	-71.826550	6.0	Circle
+C-Freq	CFreqId=223334	CGroupId=45653	Fire District Dispatch	Off	154160000	NFM	TONE=D172	3					
+C-Freq	CFreqId=184972	CGroupId=45653	Fire District EMS Dispatch	Off	159112500	NFM	TONE=C103.5	4					
+C-Freq	CFreqId=229186	CGroupId=45653	Fireground	Off	154130000	NFM	TONE=C127.3	8					
+C-Group	CGroupId=45632	CountyId=2312	Washington County - Westerly Emergency Regional Dispatch Center	Off	41.395360	-71.586910	20.0	Circle
+C-Freq	CFreqId=229180	CGroupId=45632	Fireground 1	Off	155715000	NFM	TONE=D411	8					
+C-Freq	CFreqId=229179	CGroupId=45632	Fireground 2	Off	154972500	NFM	TONE=D205	8					
+C-Freq	CFreqId=229181	CGroupId=45632	Fireground 3	Off	155962500	NFM	TONE=C82.5	8					
+C-Freq	CFreqId=223329	CGroupId=45632	Southern League - North EMS Channel	Off	154257500	NFM	TONE=C82.5	4					
+C-Freq	CFreqId=223330	CGroupId=45632	Southern League - North Fire Operations	Off	154407500	NFM	TONE=C127.3	3					
+C-Freq	CFreqId=229183	CGroupId=45632	Southern League - North Talkaround	Off	154407500	NFM	TONE=C127.3	8					
+C-Freq	CFreqId=184971	CGroupId=45632	Southern League - South Fire Operations	Off	151062500	NFM	TONE=C127.3	3					
+C-Freq	CFreqId=229182	CGroupId=45632	Southern League - South Talkaround	Off	151062500	NFM	TONE=C127.3	8					
+C-Freq	CFreqId=184819	CGroupId=45632	Southern League - UHF Fire Operations	Off	453400000	NFM	TONE=C186.2	3					
+C-Freq	CFreqId=184970	CGroupId=45632	Tactical	Off	154130000	NFM		8					
+C-Freq	CFreqId=164077	CGroupId=45632	Tactical	Off	155962500	NFM		8					
+C-Group	CGroupId=73804	CountyId=2312	Washington County Amateur Radio - Repeaters	Off	41.395360	-71.586910	20.0	Circle
+C-Freq	CFreqId=310141	CGroupId=73804	Charlestown	Off	146625000	FM		13					
+C-Freq	CFreqId=310142	CGroupId=73804	Exeter	Off	146985000	FM		13					
+C-Freq	CFreqId=310143	CGroupId=73804	Westerly	Off	147390000	FM		13					
+Conventional	AgencyId=7982	StateId=44	Airports	Off		Conventional
+AreaState	AgencyId=7982	StateId=44
+AreaCounty	AgencyId=7982	CountyId=2311
+C-Group	CGroupId=67097	AgencyId=7982	North Central State (SFZ) - Lincoln - Air Operations	Off	41.966770	-71.432840	15.0	Circle
+C-Freq	CFreqId=275630	CGroupId=67097	North Central State (SFZ) - Clearance Delivery	Off	124350000	AM		15					
+C-Freq	CFreqId=275629	CGroupId=67097	North Central State (SFZ) - Unicom	Off	126350000	AM		15					
+C-Group	CGroupId=89157	AgencyId=7982	TF Green (PVD) - Warwick - Air Lines	Off	41.879790	-71.589660	15.0	Circle
+C-Freq	CFreqId=394275	CGroupId=89157	Delta Airlines	Off	460825000	NFM	TONE=D115	17					
+C-Group	CGroupId=67096	AgencyId=7982	TF Green (PVD) - Warwick - Air Operations	Off	41.727380	-71.428700	25.0	Circle
+C-Freq	CFreqId=307224	CGroupId=67096	TF Green Approach	Off	244875000	AM		15					
+C-Freq	CFreqId=275626	CGroupId=67096	TF Green Approach/Departure	Off	123675000	AM		15					
+C-Freq	CFreqId=275627	CGroupId=67096	TF Green Approach/Departure	Off	135400000	AM		15					
+C-Freq	CFreqId=275628	CGroupId=67096	TF Green Clearance Delivery	Off	126650000	AM		15					
+C-Freq	CFreqId=307225	CGroupId=67096	TF Green Clearance Delivery	Off	348600000	AM		15					
+C-Freq	CFreqId=275625	CGroupId=67096	TF Green Ground	Off	121900000	AM		15					
+C-Freq	CFreqId=307223	CGroupId=67096	TF Green Ground	Off	348600000	AM		15					
+C-Freq	CFreqId=275624	CGroupId=67096	TF Green Tower	Off	120700000	AM		15					
+C-Freq	CFreqId=307222	CGroupId=67096	TF Green Tower	Off	257800000	AM		15					
+C-Group	CGroupId=84020	AgencyId=7982	TF Green (PVD) - Warwick - Federal	Off	41.722060	-71.427050	1.0	Circle
+C-Freq	CFreqId=364952	CGroupId=84020	T.F. Green TSA	Off	172150000	NFM	NAC=D3	16					
+Conventional	AgencyId=7983	StateId=44	Airports	Off		Conventional
+AreaState	AgencyId=7983	StateId=44
+AreaCounty	AgencyId=7983	CountyId=2310
+C-Group	CGroupId=67098	AgencyId=7983	Newport State Airport (UUU) - Newport - Newport State Airport (U	Off	41.490100	-71.312830	15.0	Circle
+C-Freq	CFreqId=275633	CGroupId=67098	Newport State (UUU) - Clearance Delivery	Off	127250000	AM		15					
+C-Freq	CFreqId=275632	CGroupId=67098	Newport State (UUU) - Providence Approach (East)	Off	128700000	AM		15					
+C-Freq	CFreqId=275631	CGroupId=67098	Newport State (UUU) Unicom	Off	123050000	AM		15					
+Conventional	AgencyId=7984	StateId=44	Airports	Off		Conventional
+AreaState	AgencyId=7984	StateId=44
+AreaCounty	AgencyId=7984	CountyId=2312
+C-Group	CGroupId=67099	AgencyId=7984	Block Island State (BID) - New Shoreham - Block Island State (BI	Off	41.172330	-71.557830	25.0	Circle
+C-Freq	CFreqId=275634	CGroupId=67099	Block Island (BID) - Clearance Delivery	Off	120100000	AM		15					
+C-Freq	CFreqId=275635	CGroupId=67099	Block Island (BID) - Providence Approach (West)	Off	125750000	AM		15					
+C-Group	CGroupId=67100	AgencyId=7984	Quonset State (OQU) - North Kingstown - Quonset State (OQU)	Off	41.550100	-71.466170	15.0	Circle
+C-Freq	CFreqId=307218	CGroupId=67100	OGU Ground	Off	275800000	AM		15					
+C-Freq	CFreqId=307221	CGroupId=67100	OQU Air National Guard	Off	255150000	AM		15					
+C-Freq	CFreqId=307219	CGroupId=67100	OQU Tower	Off	252900000	AM		15					
+C-Freq	CFreqId=275638	CGroupId=67100	Quonset State (OQU) - Ground	Off	134500000	AM		15					
+C-Freq	CFreqId=275636	CGroupId=67100	Quonset State (OQU) - Tower/CTAF	Off	126350000	AM		15					
+C-Freq	CFreqId=275637	CGroupId=67100	Quonset State (OQU) - Unicom	Off	122950000	AM		15					
+C-Freq	CFreqId=307220	CGroupId=67100	RHODY  Ops	Off	383800000	AM		15					
+C-Group	CGroupId=73460	AgencyId=7984	Quonset State (OQU) - North Kingstown - Rhode Island Air Nationa	Off	41.395360	-71.586910	20.0	Circle
+C-Freq	CFreqId=307807	CGroupId=73460	RI ANG - Aerial Port Squadron (CH 05)	Off	148125000	FM		30					
+C-Freq	CFreqId=307803	CGroupId=73460	RI ANG - AGE Net (CH 02)	Off	139750000	FM		30					
+C-Freq	CFreqId=307799	CGroupId=73460	RI ANG - Air to Air	Off	242700000	AM		15					
+C-Freq	CFreqId=307800	CGroupId=73460	RI ANG - Air to Air	Off	244100000	AM		15					
+C-Freq	CFreqId=307801	CGroupId=73460	RI ANG - Air to Air	Off	247900000	AM		15					
+C-Freq	CFreqId=307808	CGroupId=73460	RI ANG - Base Ops/Ramp Control (CH 06	Off	148225000	FM		30					
+C-Freq	CFreqId=307811	CGroupId=73460	RI ANG - Civil Engineers Net (CH 09)	Off	149175000	FM		30					
+C-Freq	CFreqId=307810	CGroupId=73460	RI ANG - Commander's net (CH 08)	Off	148550000	FM		30					
+C-Freq	CFreqId=307809	CGroupId=73460	RI ANG - Disaster Prep/Medical (CH 07)	Off	148500000	FM		30					
+C-Freq	CFreqId=307805	CGroupId=73460	RI ANG - Fuel Net (CH 04)	Off	141625000	FM		30					
+C-Freq	CFreqId=307795	CGroupId=73460	RI ANG - Helicopter Air to Air	Off	47000000	FM	TONE=C151.4	15					
+C-Freq	CFreqId=307793	CGroupId=73460	RI ANG - Laydon Ops	Off	36800000	FM	TONE=C151.4	15					
+C-Freq	CFreqId=307796	CGroupId=73460	RI ANG - Laydon Ops	Off	49700000	FM	TONE=C151.4	15					
+C-Freq	CFreqId=307798	CGroupId=73460	RI ANG - Laydon Ops	Off	233100000	AM		15					
+C-Freq	CFreqId=307802	CGroupId=73460	RI ANG - Laydon Ops	Off	252400000	AM		15					
+C-Freq	CFreqId=307813	CGroupId=73460	RI ANG - Motor Pool / Comm Flight Net (CH 11)	Off	149275000	FM		30					
+C-Freq	CFreqId=307814	CGroupId=73460	RI ANG - 'RHODY Maintenance'	Off	283800000	AM		30					
+C-Freq	CFreqId=307812	CGroupId=73460	RI ANG - Security Police Net (CH10)	Off	149250000	NFM		30					
+C-Freq	CFreqId=307806	CGroupId=73460	RI ANG - SPS Repeater (CH 13)	Off	141800000	NFM	TONE=C151.4	30					
+C-Freq	CFreqId=307794	CGroupId=73460	RI ANG - Statewide Net	Off	38950000	FM	TONE=C151.4	15					
+C-Freq	CFreqId=307797	CGroupId=73460	RI ANG - Statewide Repeater	Off	49900000	FM	TONE=C151.4	15					
+C-Freq	CFreqId=307804	CGroupId=73460	RI ANG - Supply Net (CH 03)	Off	149975000	FM		30					
+C-Group	CGroupId=67101	AgencyId=7984	Westerly State (WST) - Westerly - Westerly State (WST)	Off	41.350280	-71.804290	25.0	Circle
+C-Freq	CFreqId=275640	CGroupId=67101	Westerly State (WST) - Providence Approach (West)	Off	119450000	AM		15					
+C-Freq	CFreqId=275639	CGroupId=67101	Westerly State (WST) - Unicom	Off	123000000	AM		15					
+Conventional	AgencyId=8789	StateId=44	Business	Off		Conventional
+AreaState	AgencyId=8789	StateId=44
+AreaCounty	AgencyId=8789	CountyId=2310
+C-Group	CGroupId=78631	AgencyId=8789	Middletown - Hotels	Off	41.520940	-71.285350	2.0	Circle
+C-Freq	CFreqId=337062	CGroupId=78631	Residence Inn	Off	464500000	NFM		17					
+C-Group	CGroupId=73187	AgencyId=8789	Newport - Hotels	Off	41.583440	-71.249490	13.0	Circle
+C-Freq	CFreqId=306683	CGroupId=73187	Hyatt Regency - Newport	Off	462350000	NFM	TONE=C127.3	17					
+C-Freq	CFreqId=306684	CGroupId=73187	Marriott - Newport	Off	464375000	NFM	TONE=C100.0	17					
+C-Freq	CFreqId=315053	CGroupId=73187	Newport Grand - Ops/Security	Off	462375000	NFM	TONE=C162.2	17					
+C-Group	CGroupId=73189	AgencyId=8789	Newport - Miscellaneous	Off	41.583440	-71.249490	13.0	Circle
+C-Freq	CFreqId=306689	CGroupId=73189	Blackstone Caterers - Middletown	Off	452812500	NFM	TONE=C103.5	17					
+C-Freq	CFreqId=306690	CGroupId=73189	Cozy Cab - Newport	Off	152270000	NFM	TONE=D411	17					
+C-Freq	CFreqId=306688	CGroupId=73189	J.A.M. Construction - Middletown	Off	157560000	NFM	TONE=C131.8	17					
+C-Freq	CFreqId=337078	CGroupId=73189	Moriarty's Taxi Service (Encrypted)	Off	160110000	NFM	TONE=C192.8	17					
+C-Freq	CFreqId=307815	CGroupId=73189	Newport Hospital Security	Off	464925000	NFM	TONE=C71.9	33					
+C-Freq	CFreqId=306686	CGroupId=73189	Preservation Society of Newport	Off	464450000	NFM	TONE=D172	17					
+C-Freq	CFreqId=306687	CGroupId=73189	Viking tours of Newport	Off	151775000	NFM	TONE=C77.0	17					
+C-Group	CGroupId=84241	AgencyId=8789	Tiverton - Casino Hotel	Off	41.661850	-71.157570	1.0	Circle
+C-Freq	CFreqId=366750	CGroupId=84241	Tiverton Casino Hotel	Off	461550000	NFM	TONE=C85.4	17					
+Conventional	AgencyId=4273	StateId=44	Businesses	Off		Conventional
+AreaState	AgencyId=4273	StateId=44
+AreaCounty	AgencyId=4273	CountyId=2311
+C-Group	CGroupId=41471	AgencyId=4273	Industry	Off	41.860020	-71.580430	25.0	Circle
+C-Freq	CFreqId=166609	CGroupId=41471	Wood's Heating Service (E. Providence)	Off	152900000	FM	TONE=D205	17					
+C-Group	CGroupId=65004	AgencyId=4273	Media / Firebuff	Off	41.837200	-71.532670	25.0	Circle
+C-Freq	CFreqId=310481	CGroupId=65004	Providence Citywide Fire Net.	Off	462400000	NFM	TONE=C91.5	21					
+C-Freq	CFreqId=268889	CGroupId=65004	Rhode Island Breaking News Source (RIBNS)	Off	471912500	FM	TONE=C151.4	31					
+C-Freq	CFreqId=268890	CGroupId=65004	WPRI-TV	Off	450487500	FM	TONE=C162.2	31					
+C-Group	CGroupId=41464	AgencyId=4273	Private EMS	Off	41.860020	-71.580430	25.0	Circle
+C-Freq	CFreqId=166575	CGroupId=41464	AMR (Scituate)	Off	155362500	NFM	TONE=D023	4					
+C-Freq	CFreqId=166574	CGroupId=41464	Universal Ambulance (Johnston)	Off	155205000	NFM	TONE=D205	4					
+C-Group	CGroupId=41466	AgencyId=4273	Retail	Off	41.860020	-71.580430	25.0	Circle
+C-Freq	CFreqId=366751	CGroupId=41466	Providence Place Mall - Housekeeping	Off	452700000	NFM	TONE=D125	17					
+C-Freq	CFreqId=166576	CGroupId=41466	Providence Place Mall - Security	Off	452700000	NFM	TONE=D114	33					
+C-Group	CGroupId=86047	AgencyId=4273	Roger Williams Park Zoo	Off	41.790200	-71.414860	1.0	Circle
+C-Freq	CFreqId=377347	CGroupId=86047	Zoo Ops 1	Off	461762500	NFM	TONE=D065	17					
+C-Freq	CFreqId=377348	CGroupId=86047	Zoo Ops 2	Off	464925000	NFM	TONE=D065	17					
+C-Freq	CFreqId=377346	CGroupId=86047	Zoo Security	Off	463537500	NFM	TONE=D065	33					
+C-Group	CGroupId=41467	AgencyId=4273	Towing	Off	41.860020	-71.580430	25.0	Circle
+C-Freq	CFreqId=166581	CGroupId=41467	AAA Southern New England (Cranston)	Off	150920000	FM	TONE=C127.3	17					
+C-Freq	CFreqId=166582	CGroupId=41467	AAA Southern New England (Cranston)	Off	452575000	FM	TONE=C173.8	17					
+C-Freq	CFreqId=166583	CGroupId=41467	AAA Southern New England (Cranston)	Off	452600000	FM	TONE=C173.8	17					
+C-Group	CGroupId=41465	AgencyId=4273	Transportation	Off	41.860020	-71.580430	25.0	Circle
+C-Freq	CFreqId=369572	CGroupId=41465	A Duie Pyle Trucking Co. (Johnston)	Off	452400000	NFM	TONE=D343	26					
+C-Freq	CFreqId=166577	CGroupId=41465	Checker Cab (Cranston) [scrambled]	Off	152300000	FM	TONE=C100.0	26					
+C-Freq	CFreqId=166579	CGroupId=41465	Economy Cab (Johnston)	Off	152390000	FM	TONE=C77.0	26					
+C-Freq	CFreqId=166608	CGroupId=41465	Gonzalez Taxi	Off	159510000	FM	TONE=C114.8	26					
+C-Freq	CFreqId=166580	CGroupId=41465	Red and White Cab/East Side Cab (Cranston)	Off	152450000	FM	TONE=C110.9	26					
+C-Freq	CFreqId=166578	CGroupId=41465	Yellow Cab (Cranston)	Off	152360000	FM	TONE=C100.0	26					
+C-Group	CGroupId=41470	AgencyId=4273	Utilities	Off	41.860020	-71.580430	25.0	Circle
+C-Freq	CFreqId=166605	CGroupId=41470	National Grid (Providence)	Off	153410000	FM	TONE=C136.5	34					
+C-Freq	CFreqId=166606	CGroupId=41470	National Grid (Providence)	Off	153545000	FM	TONE=C136.5	34					
+C-Freq	CFreqId=166607	CGroupId=41470	National Grid (Providence)	Off	153725000	FM	TONE=C136.5	34					
+Conventional	AgencyId=7786	StateId=44	Businesses	Off		Conventional
+AreaState	AgencyId=7786	StateId=44
+AreaCounty	AgencyId=7786	CountyId=2308
+C-Group	CGroupId=65033	AgencyId=7786	Utilities	Off	41.722130	-71.288910	6.0	Circle
+C-Freq	CFreqId=269055	CGroupId=65033	Full Channel Cable TV	Off	463425000	FM	TONE=D114	34					
+Conventional	AgencyId=10370	StateId=44	Businesses	Off		Conventional
+AreaState	AgencyId=10370	StateId=44
+AreaCounty	AgencyId=10370	CountyId=2309
+C-Group	CGroupId=87884	AgencyId=10370	Miscellaneous - Other	Off	41.663340	-71.624220	12.0	Circle
+C-Freq	CFreqId=386598	CGroupId=87884	West Shore Health Ctr - Automated Att. Calls 1	Off	466412500	NFM	TONE=C100.0	17					
+C-Freq	CFreqId=386599	CGroupId=87884	West Shore Health Ctr - Automated Att. Calls 2	Off	466675000	NFM	TONE=C103.5	17					
+C-Freq	CFreqId=386600	CGroupId=87884	West Shore Health Ctr - Automated Att. Calls 3	Off	464225000	NFM	TONE=C103.5	17					
+C-Group	CGroupId=86050	AgencyId=10370	Retail - Warwick Mall	Off	41.724580	-71.476480	1.0	Circle
+C-Freq	CFreqId=377351	CGroupId=86050	Mall Security	Off	464387500	NFM	TONE=C192.8	33					
+C-Group	CGroupId=87882	AgencyId=10370	Transportation - First Student	Off	41.663340	-71.624220	12.0	Circle
+C-Freq	CFreqId=386596	CGroupId=87882	First Student - Base 30 (Warwick)	Off	461350000	NFM	TONE=C123.0	26					
+C-Freq	CFreqId=386595	CGroupId=87882	First Student - Warwick	Off	30920000	FM	TONE=C167.9	26					
+Conventional	AgencyId=1025	StateId=44	Common/Shared	Off		Conventional
+AreaState	AgencyId=1025	StateId=44
+AreaCounty	AgencyId=1025	CountyId=0
+C-Group	CGroupId=8743	AgencyId=1025	Law Enforcement	Off	41.658330	-71.508330	31.5	Circle
+C-Freq	CFreqId=109160	CGroupId=8743	Statewide Emergency - Calling	Off	155190000	NFM	TONE=C118.8	11					
+C-Freq	CFreqId=33536	CGroupId=8743	Statewide Intercity (Simulcast on RISCON)	Off	158970000	NFM		11					
+C-Group	CGroupId=50485	AgencyId=1025	Search and Rescue	Off	41.658330	-71.508330	31.5	Circle
+C-Freq	CFreqId=205350	CGroupId=50485	Yawgoo Valley Search and Rescue (YVSAR) - Statewide medical SAR	Off	452275000	FM	TONE=C100.0	9					
+Conventional	AgencyId=4274	StateId=44	Department of Corrections	Off		Conventional
+AreaState	AgencyId=4274	StateId=44
+AreaCounty	AgencyId=4274	CountyId=0
+C-Group	CGroupId=41472	AgencyId=4274	Department of Corrections	Off	41.658330	-71.508330	31.5	Circle
+C-Freq	CFreqId=166612	CGroupId=41472	Buses (Cranston)	Off	151325000	FM	TONE=D516	37					
+Conventional	AgencyId=10403	StateId=44	Federal	Off		Conventional
+AreaState	AgencyId=10403	StateId=44
+AreaCounty	AgencyId=10403	CountyId=2312
+C-Group	CGroupId=55725	AgencyId=10403	Washington County Federal - Civil Air Patrol	Off	41.634840	-71.599660	26.0	Circle
+C-Freq	CFreqId=232321	CGroupId=55725	CAP Coventry (Analog)	Off	148125000	NFM	TONE=C88.5	30					
+C-Freq	CFreqId=232322	CGroupId=55725	CAP Coventry (Digital)	Off	148125000	NFM	NAC=375	30					
+Conventional	AgencyId=2585	StateId=44	Other Rhode Island Agencies	Off		Conventional
+AreaState	AgencyId=2585	StateId=44
+AreaCounty	AgencyId=2585	CountyId=0
+C-Group	CGroupId=49184	AgencyId=2585	Division of Parks and Recreation	Off	41.658330	-71.508330	31.5	Circle
+C-Freq	CFreqId=200035	CGroupId=49184	Division of Parks and Recreation	Off	151175000	FM		14					
+C-Group	CGroupId=23199	AgencyId=2585	Fish and Game	Off	41.658330	-71.508330	31.5	Circle
+C-Freq	CFreqId=85437	CGroupId=23199	RI DEM (On RISCON Now)	Off	151385000	FM	TONE=C118.8	2					
+C-Group	CGroupId=25654	AgencyId=2585	Turnpike and Bridge Authority	Off	41.658330	-71.508330	31.5	Circle
+C-Freq	CFreqId=95730	CGroupId=25654	Newport Bridge (Jamestown)	Off	153020000	FM	TONE=C118.8	14					
+Conventional	AgencyId=8033	StateId=44	Rhode Island Railroads	Off		Conventional
+AreaState	AgencyId=8033	StateId=44
+AreaCounty	AgencyId=8033	CountyId=0
+C-Group	CGroupId=76053	AgencyId=8033	Amtrak - Main Line (New Haven to Boston)	Off	41.688190	-71.577690	25.0	Circle
+C-Freq	CFreqId=327702	CGroupId=76053	Police - Davisville/Providence	Off	161295000	NFM	TONE=C100.0	2					
+C-Freq	CFreqId=327701	CGroupId=76053	Police - North Kingstown	Off	161295000	NFM	TONE=C114.8	2					
+C-Freq	CFreqId=327700	CGroupId=76053	Police - Westerly	Off	161295000	NFM	TONE=C192.8	2					
+C-Freq	CFreqId=322924	CGroupId=76053	Road	Off	160920000	NFM		20					
+C-Group	CGroupId=67610	AgencyId=8033	Providence and Worcester - Operations	Off	41.695270	-71.601420	25.0	Circle
+C-Freq	CFreqId=277673	CGroupId=67610	Maintenance of Way	Off	160755000	NFM		20					
+C-Freq	CFreqId=277669	CGroupId=67610	Road	Off	160650000	NFM		20					
+C-Freq	CFreqId=277672	CGroupId=67610	Signal Department	Off	160890000	NFM		20					
+C-Freq	CFreqId=277670	CGroupId=67610	Yard 2	Off	161100000	NFM		20					
+C-Freq	CFreqId=277671	CGroupId=67610	Yard 3	Off	161325000	NFM		20					
+Conventional	AgencyId=1985	StateId=44	Rhode Island State Police	Off		Conventional
+AreaState	AgencyId=1985	StateId=44
+AreaCounty	AgencyId=1985	CountyId=0
+C-Group	CGroupId=15628	AgencyId=1985	Rhode Island State Police	Off	41.658330	-71.508330	31.5	Circle
+C-Freq	CFreqId=62392	CGroupId=15628	Information (On RISCON now)	Off	155610000	FM	TONE=C118.8	23					
+C-Freq	CFreqId=62388	CGroupId=15628	North (On RISCON now: TG 21)	Off	155505000	FM	TONE=C118.8	2					
+C-Freq	CFreqId=62391	CGroupId=15628	Providence Area Intercity	Off	158970000	FM		11					
+C-Freq	CFreqId=57428	CGroupId=15628	RISP (On RISCON now)	Off	154935000	FM	TONE=C118.8	23					
+C-Freq	CFreqId=57429	CGroupId=15628	South (On RISCON Now: TG 25	Off	154905000	FM	TONE=C118.8	2					
+C-Freq	CFreqId=62389	CGroupId=15628	Statewide Intersystem (On RISCON now)	Off	155190000	FM	TONE=C118.8	11					
+C-Freq	CFreqId=57430	CGroupId=15628	Tactical 1 (Statewide) (On RISCON now, fully encrypted)	Off	155445000	FM	TONE=C118.8	7					
+C-Freq	CFreqId=62393	CGroupId=15628	Tactical 2 (On RISCON now, fully encrypted)	Off	159150000	FM	TONE=C118.8	7					
+Conventional	AgencyId=4267	StateId=44	T. F. Green Airport (PVD)	Off		Conventional
+AreaState	AgencyId=4267	StateId=44
+AreaCounty	AgencyId=4267	CountyId=2309
+C-Group	CGroupId=41370	AgencyId=4267	Airline Ground Operations	Off	41.725720	-71.436540	3.0	Circle
+C-Freq	CFreqId=386420	CGroupId=41370	JetBlue	Off	451562500	AUTO		17					
+C-Freq	CFreqId=166232	CGroupId=41370	TF Green American Airlines Ground Ops	Off	460775000	FM	TONE=C114.8	17					
+C-Freq	CFreqId=166233	CGroupId=41370	TF Green Delta Airlines Ground Ops	Off	460825000	FM	TONE=C162.2	17					
+C-Group	CGroupId=41369	AgencyId=4267	Airport Operations	Off	41.725720	-71.436540	3.0	Circle
+C-Freq	CFreqId=166231	CGroupId=41369	TF Green Airport Police	Off	154770000	NFM	TONE=C141.3	2					
+C-Freq	CFreqId=166230	CGroupId=41369	TF Green Airport Security	Off	461587500	FM	TONE=D351	33					
+C-Group	CGroupId=55723	AgencyId=4267	Federal	Off	41.725720	-71.436540	3.0	Circle
+C-Freq	CFreqId=232319	CGroupId=55723	Transportation Security Administration (TSA)	Off	172900000	NFM	NAC=1	16					
+C-Group	CGroupId=41293	AgencyId=4267	Miscellaneous Airport Services	Off	41.725720	-71.436540	3.0	Circle
+C-Freq	CFreqId=165931	CGroupId=41293	Northstar Aviation	Off	462112500	FM	TONE=D054	17					
+C-Group	CGroupId=87860	AgencyId=4267	Other Operations at Airport	Off	41.725720	-71.436540	3.0	Circle
+C-Freq	CFreqId=386421	CGroupId=87860	United Parcel Service	Off	462187500	NFM	TONE=D023	17					
+Trunk	TrunkId=4275	StateId=44	Rhode Island Statewide Communications Network (RISCON)	Off		P25Standard					
+AreaState	TrunkId=4275	StateId=44
+AreaCounty	TrunkId=4275	CountyId=0
+Site	SiteId=36114	TrunkId=4275	East Simulcast	Off	41.585230	-71.341030	17.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=36114		Off	860312500	1
+T-Freq	TFreqId=0	SiteId=36114		Off	859312500	2
+T-Freq	TFreqId=0	SiteId=36114		Off	858312500	3
+T-Freq	TFreqId=0	SiteId=36114		Off	857337500	4
+T-Freq	TFreqId=0	SiteId=36114		Off	854287500	5
+T-Freq	TFreqId=0	SiteId=36114		Off	853737500	6
+T-Freq	TFreqId=0	SiteId=36114		Off	852212500	7
+T-Freq	TFreqId=0	SiteId=36114		Off	851925000	8
+T-Freq	TFreqId=0	SiteId=36114		Off	851650000	9
+Site	SiteId=8736	TrunkId=4275	Metro Simulcast	Off	41.825570	-71.422120	7.5	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=8736		Off	851062500	1
+T-Freq	TFreqId=0	SiteId=8736		Off	851087500	2
+T-Freq	TFreqId=0	SiteId=8736		Off	851612500	3
+T-Freq	TFreqId=0	SiteId=8736		Off	852425000	4
+T-Freq	TFreqId=0	SiteId=8736		Off	852637500	5
+T-Freq	TFreqId=0	SiteId=8736		Off	852700000	6
+T-Freq	TFreqId=0	SiteId=8736		Off	853037500	7
+T-Freq	TFreqId=0	SiteId=8736		Off	853150000	8
+T-Freq	TFreqId=0	SiteId=8736		Off	853275000	9
+T-Freq	TFreqId=0	SiteId=8736		Off	853375000	10
+T-Freq	TFreqId=0	SiteId=8736		Off	853550000	11
+T-Freq	TFreqId=0	SiteId=8736		Off	853712500	12
+Site	SiteId=10365	TrunkId=4275	North Simulcast	Off	41.873650	-71.581420	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=10365		Off	851150000	1
+T-Freq	TFreqId=0	SiteId=10365		Off	851487500	2
+T-Freq	TFreqId=0	SiteId=10365		Off	851850000	3
+T-Freq	TFreqId=0	SiteId=10365		Off	852400000	4
+T-Freq	TFreqId=0	SiteId=10365		Off	852675000	5
+T-Freq	TFreqId=0	SiteId=10365		Off	852950000	6
+T-Freq	TFreqId=0	SiteId=10365		Off	853237500	7
+T-Freq	TFreqId=0	SiteId=10365		Off	853512500	8
+T-Freq	TFreqId=0	SiteId=10365		Off	853687500	9
+Site	SiteId=2647	TrunkId=4275	South Simulcast	Off	41.508580	-71.564940	25.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=2647		Off	851237500	1
+T-Freq	TFreqId=0	SiteId=2647		Off	851462500	2
+T-Freq	TFreqId=0	SiteId=2647		Off	851662500	3
+T-Freq	TFreqId=0	SiteId=2647		Off	852087500	4
+T-Freq	TFreqId=0	SiteId=2647		Off	852237500	5
+T-Freq	TFreqId=0	SiteId=2647		Off	852450000	6
+T-Freq	TFreqId=0	SiteId=2647		Off	852925000	7
+T-Freq	TFreqId=0	SiteId=2647		Off	853175000	8
+T-Freq	TFreqId=0	SiteId=2647		Off	853412500	9
+T-Freq	TFreqId=0	SiteId=2647		Off	853875000	10
+T-Group	TGroupId=21317	TrunkId=4275	Barrington	Off	41.677050	-71.266160	3.0	Circle
+TGID	Tid=264272	TGroupId=21317	Fire 1 Dispatch	Off	1712	ALL	3				
+TGID	Tid=304241	TGroupId=21317	Fire 2	Off	1713	ALL	8				
+TGID	Tid=385526	TGroupId=21317	Police Operations	Off	1715	ALL	2				
+TGID	Tid=385527	TGroupId=21317	Police Secondary	Off	1716	ALL	7				
+T-Group	TGroupId=33410	TrunkId=4275	Bristol	Off	41.683250	-71.268240	3.0	Circle
+TGID	Tid=396106	TGroupId=33410	Fire Operations (Patch from VHF)	Off	1744	ALL	3				
+TGID	Tid=411640	TGroupId=33410	Harbormaster	Off	1755	ALL	14				
+T-Group	TGroupId=16342	TrunkId=4275	Burrillville	Off	41.965900	-71.681550	2.0	Circle
+TGID	Tid=326806	TGroupId=16342	Emergency Management	Off	2008	ALL	29				
+TGID	Tid=326801	TGroupId=16342	EMS Misc (Ops are VHF)	Off	2002	ALL	9				
+TGID	Tid=326799	TGroupId=16342	Fire Misc (Ops are VHF)	Off	2000	ALL	8				
+TGID	Tid=326800	TGroupId=16342	Fire TAC-1	Off	2001	ALL	8				
+TGID	Tid=326807	TGroupId=16342	Fire TAC-2	Off	2009	ALL	8				
+TGID	Tid=212678	TGroupId=16342	Police	Off	2003	ALL	2				
+TGID	Tid=326802	TGroupId=16342	Police 2	Off	2004	ALL	23				
+TGID	Tid=326803	TGroupId=16342	Police 3 Detectives	Off	2005	ALL	7				
+TGID	Tid=326804	TGroupId=16342	Police 4	Off	2006	ALL	7				
+TGID	Tid=326805	TGroupId=16342	Town-Wide	Off	2007	ALL	6				
+T-Group	TGroupId=15030	TrunkId=4275	Central Falls	Off	41.890660	-71.392280	2.0	Circle
+TGID	Tid=339697	TGroupId=15030	Fire Dispatch (Simulcast of UHF)	Off	1835	ALL	3				
+TGID	Tid=339698	TGroupId=15030	Fireground	Off	1836	ALL	8				
+TGID	Tid=305828	TGroupId=15030	Police 1 Dispatch	Off	1838	ALL	2				
+TGID	Tid=198372	TGroupId=15030	Police 2	Off	1839	ALL	2				
+T-Group	TGroupId=17556	TrunkId=4275	Charlestown	Off	41.383160	-71.641730	5.0	Circle
+TGID	Tid=224672	TGroupId=17556	EMS - Linked to 151.3325	Off	1429	ALL	4				
+TGID	Tid=322205	TGroupId=17556	Police Operations -  Simulcast of UHF	Off	1425	ALL	2				
+T-Group	TGroupId=18431	TrunkId=4275	College/Education Security	Off	41.631870	-71.531980	34.0	Circle
+TGID	Tid=174720	TGroupId=18431	Brown University Police - Car-to-Car	Off	11002	ALL	23				
+TGID	Tid=174706	TGroupId=18431	Brown University Police - Dispatch	Off	11001	ALL	2				
+TGID	Tid=174721	TGroupId=18431	Brown University Police - Tactical	Off	11003	ALL	7				
+TGID	Tid=187485	TGroupId=18431	Providence College Security - Dispatch	Off	10229	ALL	33				
+TGID	Tid=207695	TGroupId=18431	Rhode Island College Security	Off	10230	ALL	33				
+TGID	Tid=231324	TGroupId=18431	Rhode Island School of Design - Security	Off	10228	ALL	33				
+TGID	Tid=356022	TGroupId=18431	St. George's School (Middletown) - Security	Off	1348	ALL	33				
+TGID	Tid=426065	TGroupId=18431	University of Rhode Island - EMS	Off	1131	ALL	4				
+TGID	Tid=248298	TGroupId=18431	University of Rhode Island Police - Dispatch	Off	1126	ALL	2				
+T-Group	TGroupId=16268	TrunkId=4275	Coventry	Off	41.688060	-71.565850	3.0	Circle
+TGID	Tid=211924	TGroupId=16268	Fire	Off	1480	ALL	3				
+TGID	Tid=211925	TGroupId=16268	Police 1 - Dispatch	Off	1483	ALL	2				
+TGID	Tid=227402	TGroupId=16268	Police 2	Off	1484	ALL	7				
+T-Group	TGroupId=10092	TrunkId=4275	Cranston	Off	41.779820	-71.437280	4.0	Circle
+TGID	Tid=149185	TGroupId=10092	Fire - Admin/Alt Fireground 5	Off	1504	ALL	24				
+TGID	Tid=149181	TGroupId=10092	Fire - Dispatch/Operations	Off	1500	ALL	3				
+TGID	Tid=149182	TGroupId=10092	Fire - Fireground 2	Off	1501	ALL	8				
+TGID	Tid=149183	TGroupId=10092	Fire - Fireground 3	Off	1502	ALL	8				
+TGID	Tid=149184	TGroupId=10092	Fire - Fireground 4	Off	1503	ALL	24				
+T-Group	TGroupId=24787	TrunkId=4275	Cumberland	Off	41.966770	-71.432840	3.0	Circle
+TGID	Tid=305276	TGroupId=24787	Fire	Off	1520	ALL	3				
+TGID	Tid=376727	TGroupId=24787	Police Secondary	Off	1523	ALL	2				
+T-Group	TGroupId=15031	TrunkId=4275	Department of Environmental Management	Off	41.623660	-71.553960	34.0	Circle
+TGID	Tid=198376	TGroupId=15031	Law Enforcement Operations	Off	120	ALL	2				
+TGID	Tid=248160	TGroupId=15031	Law Enforcement Police	Off	122	ALL	23				
+T-Group	TGroupId=33261	TrunkId=4275	Department of Transportation	Off	41.631870	-71.531980	34.0	Circle
+TGID	Tid=394584	TGroupId=33261	Department of Transportation - Primary	Off	176	ALL	14				
+T-Group	TGroupId=34653	TrunkId=4275	East Greenwich	Off	41.663340	-71.624220	12.0	Circle
+TGID	Tid=418462	TGroupId=34653	Fire Talk Around	Off	1776	ALL	24				
+TGID	Tid=411641	TGroupId=34653	Police Operations	Off	1779	ALL	2				
+T-Group	TGroupId=15029	TrunkId=4275	East Providence	Off	41.813710	-71.370050	4.0	Circle
+TGID	Tid=198370	TGroupId=15029	Fire - Dispatch/Operations	Off	1866	ALL	3				
+TGID	Tid=322727	TGroupId=15029	Fire 'Channel 2'	Off	1867	ALL	8				
+TGID	Tid=343276	TGroupId=15029	Fire 'Channel 3'	Off	1878	ALL	8				
+TGID	Tid=198371	TGroupId=15029	Police 1 - Dispatch	Off	1869	ALL	2				
+TGID	Tid=232796	TGroupId=15029	Police 2	Off	1872	ALL	23				
+TGID	Tid=232797	TGroupId=15029	Police 3	Off	1870	ALL	23				
+T-Group	TGroupId=10084	TrunkId=4275	Emergency Management Agency	Off	41.627760	-71.548460	34.0	Circle
+TGID	Tid=248158	TGroupId=10084	Emergency Management Agency	Off	20	ALL	29				
+TGID	Tid=248154	TGroupId=10084	Emergency Management Agency 1	Off	10	ALL	29				
+T-Group	TGroupId=11527	TrunkId=4275	Exeter	Off	41.577600	-71.537560	4.0	Circle
+TGID	Tid=161622	TGroupId=11527	Fire - Fireground	Off	2064	ALL	8				
+T-Group	TGroupId=35642	TrunkId=4275	Federal	Off	41.631870	-71.531980	34.0	Circle
+TGID	Tid=424317	TGroupId=35642	Providence VA Police	Off	274	ALL	2				
+T-Group	TGroupId=24288	TrunkId=4275	Foster	Off	41.853710	-71.758120	3.0	Circle
+TGID	Tid=300033	TGroupId=24288	Fire	Off	1904	ALL	3				
+T-Group	TGroupId=16269	TrunkId=4275	Glocester	Off	41.903350	-71.688980	4.0	Circle
+TGID	Tid=211927	TGroupId=16269	Police	Off	1939	ALL	2				
+TGID	Tid=341759	TGroupId=16269	Police Secondary	Off	1940	ALL	7				
+T-Group	TGroupId=16270	TrunkId=4275	Hopkinton	Off	41.461210	-71.777570	4.0	Circle
+TGID	Tid=211929	TGroupId=16270	Police	Off	1410	ALL	2				
+T-Group	TGroupId=10089	TrunkId=4275	Jamestown	Off	41.497050	-71.367280	5.0	Circle
+TGID	Tid=318149	TGroupId=10089	Fire	Off	1108	ALL	3				
+TGID	Tid=381423	TGroupId=10089	Fireground 1	Off	1120	ALL	8				
+TGID	Tid=383704	TGroupId=10089	Fireground 2	Off	1121	ALL	8				
+TGID	Tid=248297	TGroupId=10089	Police 1 - Dispatch	Off	1100	ALL	2				
+TGID	Tid=134194	TGroupId=10089	Police 2	Off	1101	ALL	2				
+TGID	Tid=424176	TGroupId=10089	Public Works	Off	1114	ALL	14				
+T-Group	TGroupId=15047	TrunkId=4275	Johnston	Off	41.816770	-71.516170	4.0	Circle
+TGID	Tid=174675	TGroupId=15047	Fire Operations	Off	1616	ALL	3				
+TGID	Tid=379893	TGroupId=15047	Fireground	Off	1617	ALL	8				
+TGID	Tid=212677	TGroupId=15047	Police Operations	Off	1619	ALL	2				
+T-Group	TGroupId=13649	TrunkId=4275	Lincoln	Off	41.916770	-71.457840	4.0	Circle
+TGID	Tid=317346	TGroupId=13649	Emergency Management	Off	1688	ALL	29				
+TGID	Tid=185767	TGroupId=13649	EMS	Off	1682	ALL	4				
+TGID	Tid=174678	TGroupId=13649	Fire Dispatch	Off	1680	ALL	3				
+TGID	Tid=185766	TGroupId=13649	Fireground 2	Off	1681	ALL	8				
+TGID	Tid=317344	TGroupId=13649	Fireground 3	Off	1691	ALL	8				
+TGID	Tid=317345	TGroupId=13649	Police F1	Off	1683	ALL	2				
+TGID	Tid=332113	TGroupId=13649	Police F2	Off	1684	ALL	7				
+TGID	Tid=317347	TGroupId=13649	Public Works	Off	1692	ALL	14				
+TGID	Tid=185768	TGroupId=13649	Townwide	Off	1687	ALL	11				
+T-Group	TGroupId=10088	TrunkId=4275	Little Compton	Off	41.510100	-71.171160	5.0	Circle
+TGID	Tid=152022	TGroupId=10088	Fire	Off	1266	ALL	3				
+TGID	Tid=152021	TGroupId=10088	Police	Off	1264	ALL	2				
+T-Group	TGroupId=13577	TrunkId=4275	Middletown	Off	41.545660	-71.291440	3.0	Circle
+TGID	Tid=184725	TGroupId=13577	Police	Off	1338	ALL	2				
+TGID	Tid=356020	TGroupId=13577	Townwide	Off	1345	ALL	1				
+T-Group	TGroupId=10096	TrunkId=4275	Narragansett	Off	41.450100	-71.449500	4.0	Circle
+TGID	Tid=128824	TGroupId=10096	Fire - Administration	Off	1016	ALL	24				
+TGID	Tid=128720	TGroupId=10096	Fire - Dispatch	Off	1006	ALL	3				
+TGID	Tid=128825	TGroupId=10096	Fire - EMS Ops	Off	1014	ALL	4				
+TGID	Tid=128822	TGroupId=10096	Fire - Fireground 1	Off	1012	ALL	8				
+TGID	Tid=128823	TGroupId=10096	Fire - Fireground 2	Off	1013	ALL	8				
+TGID	Tid=142912	TGroupId=10096	Police - Car/Car	Off	1002	ALL	23				
+TGID	Tid=132272	TGroupId=10096	Police - Detectives	Off	1007	ALL	23				
+TGID	Tid=132273	TGroupId=10096	Police - Detectives	Off	1008	ALL	23				
+TGID	Tid=128719	TGroupId=10096	Police - Dispatch	Off	1001	ALL	2				
+TGID	Tid=128827	TGroupId=10096	Police - Harbormaster	Off	1005	ALL	23				
+TGID	Tid=128819	TGroupId=10096	Police - Special Details 1/Town Beaches	Off	1003	ALL	7				
+TGID	Tid=142911	TGroupId=10096	Police - Special Details 2	Off	1004	ALL	7				
+TGID	Tid=248173	TGroupId=10096	Public Works	Off	1017	ALL	14				
+TGID	Tid=128820	TGroupId=10096	Town Administration	Off	1010	ALL	21				
+TGID	Tid=128821	TGroupId=10096	Townwide Interop	Off	1011	ALL	11				
+T-Group	TGroupId=16271	TrunkId=4275	New Shoreham	Off	41.172330	-71.557830	5.0	Circle
+TGID	Tid=211930	TGroupId=16271	Police	Off	1376	ALL	2				
+T-Group	TGroupId=13800	TrunkId=4275	Newport	Off	41.508580	-71.284100	5.0	Circle
+TGID	Tid=231964	TGroupId=13800	Citywide Events	Off	1297	ALL	14				
+TGID	Tid=157264	TGroupId=13800	Fire - Training	Off	1301	ALL	24				
+TGID	Tid=187378	TGroupId=13800	Fire Dispatch/Operations	Off	1303	ALL	3				
+TGID	Tid=157260	TGroupId=13800	Fireground Ops 1	Off	1305	ALL	8				
+TGID	Tid=157261	TGroupId=13800	Fireground Ops 2	Off	1306	ALL	8				
+TGID	Tid=411639	TGroupId=13800	Newport Citywide	Off	1312	ALL	11				
+TGID	Tid=157256	TGroupId=13800	Police 1 - Dispatch	Off	1300	ALL	2				
+TGID	Tid=157257	TGroupId=13800	Police 2 - Records	Off	1302	ALL	23				
+TGID	Tid=157259	TGroupId=13800	Police 4 - Tactical 1	Off	1304	ALL	23				
+TGID	Tid=157262	TGroupId=13800	Police 7 - Tactical 4	Off	1307	ALL	23				
+TGID	Tid=157263	TGroupId=13800	Police 8 - Tactical 5	Off	1308	ALL	23				
+TGID	Tid=231963	TGroupId=13800	Public Works	Off	1293	ALL	14				
+TGID	Tid=356021	TGroupId=13800	Water Department	Off	1291	ALL	14				
+T-Group	TGroupId=17747	TrunkId=4275	Newport County	Off	41.583440	-71.249490	12.0	Circle
+TGID	Tid=226514	TGroupId=17747	Newport-Middletown Intercity	Off	1343	ALL	11				
+T-Group	TGroupId=10097	TrunkId=4275	North Kingstown	Off	41.549700	-71.448210	5.0	Circle
+TGID	Tid=174681	TGroupId=10097	Fire - Dispatch	Off	1280	ALL	3				
+TGID	Tid=174682	TGroupId=10097	Fire - Fireground	Off	1281	ALL	8				
+TGID	Tid=149178	TGroupId=10097	Police 1 - Dispatch	Off	1285	ALL	2				
+TGID	Tid=149179	TGroupId=10097	Police 2 - Admin	Off	1286	ALL	23				
+TGID	Tid=149180	TGroupId=10097	Police 3 - Car/Car	Off	1287	ALL	7				
+T-Group	TGroupId=11918	TrunkId=4275	North Providence	Off	41.854220	-71.464690	5.0	Circle
+TGID	Tid=174360	TGroupId=11918	Fire 2	Off	1548	ALL	8				
+TGID	Tid=174361	TGroupId=11918	Fire 3	Off	1549	ALL	8				
+TGID	Tid=174362	TGroupId=11918	Fire 4	Off	1550	ALL	8				
+TGID	Tid=174363	TGroupId=11918	Fire 5	Off	1551	ALL	3				
+TGID	Tid=393242	TGroupId=11918	Fire 6	Off	1552	ALL	8				
+TGID	Tid=174359	TGroupId=11918	Fire Dispatch	Off	1547	ALL	3				
+TGID	Tid=165690	TGroupId=11918	Police 1 - Dispatch	Off	1536	ALL	2				
+TGID	Tid=165691	TGroupId=11918	Police 2 - Car/Car	Off	1537	ALL	23				
+TGID	Tid=165692	TGroupId=11918	Police 3 - Tactical	Off	1538	ALL	7				
+TGID	Tid=266072	TGroupId=11918	Public Works	Off	1554	ALL	14				
+TGID	Tid=174365	TGroupId=11918	Townwide 1	Off	1544	ALL	11				
+TGID	Tid=174366	TGroupId=11918	Townwide 2	Off	1545	ALL	11				
+T-Group	TGroupId=16272	TrunkId=4275	North Smithfield	Off	41.966770	-71.549510	3.0	Circle
+TGID	Tid=337706	TGroupId=16272	Fire Dispatch/Operations	Off	1968	ALL	3				
+TGID	Tid=342552	TGroupId=16272	Fire Secondary	Off	1969	ALL	8				
+TGID	Tid=342553	TGroupId=16272	Fireground	Off	1981	ALL	8				
+TGID	Tid=211931	TGroupId=16272	Police	Off	1971	ALL	2				
+T-Group	TGroupId=15046	TrunkId=4275	Pawtucket	Off	41.878710	-71.382560	3.0	Circle
+TGID	Tid=399844	TGroupId=15046	EMS Tac	Off	1442	ALL	9				
+TGID	Tid=174677	TGroupId=15046	Fire - Operations	Off	1440	ALL	3				
+TGID	Tid=399843	TGroupId=15046	Fireground	Off	1441	ALL	8				
+T-Group	TGroupId=10091	TrunkId=4275	Portsmouth	Off	41.601580	-71.245650	4.0	Circle
+TGID	Tid=373804	TGroupId=10091	Fire Dispatch (Patch to VHF Primary)	Off	1253	ALL	3				
+TGID	Tid=384163	TGroupId=10091	Fireground	Off	1255	ALL	8				
+TGID	Tid=378478	TGroupId=10091	Island Fire Dispatch	Off	1262	ALL	3				
+TGID	Tid=152020	TGroupId=10091	Police	Off	1248	ALL	2				
+T-Group	TGroupId=13524	TrunkId=4275	Providence (City)	Off	41.823990	-71.412830	3.0	Circle
+TGID	Tid=183970	TGroupId=13524	Fire - Administration	Off	10105	ALL	24				
+TGID	Tid=183971	TGroupId=13524	Fire - Communications	Off	10106	ALL	24				
+TGID	Tid=183975	TGroupId=13524	Fire - Mutual Aid 1	Off	10110	ALL	8				
+TGID	Tid=183976	TGroupId=13524	Fire - Mutual Aid 2	Off	10111	ALL	8				
+TGID	Tid=183977	TGroupId=13524	Fire - Mutual Aid 3	Off	10112	ALL	8				
+TGID	Tid=183967	TGroupId=13524	Fire 5	Off	10102	ALL	8				
+TGID	Tid=183968	TGroupId=13524	Fire 6	Off	10103	ALL	8				
+TGID	Tid=183969	TGroupId=13524	Fire 7	Off	10104	ALL	8				
+TGID	Tid=183965	TGroupId=13524	Fire All Call - Emergency Broadcasts	Off	10100	ALL	29				
+TGID	Tid=183966	TGroupId=13524	Fire Dispatch	Off	10101	ALL	3				
+TGID	Tid=183972	TGroupId=13524	Fireground 2	Off	10107	ALL	8				
+TGID	Tid=183973	TGroupId=13524	Fireground 3	Off	10108	ALL	8				
+TGID	Tid=183974	TGroupId=13524	Fireground 4	Off	10109	ALL	8				
+TGID	Tid=380462	TGroupId=13524	Fireground 8	Off	10113	ALL	24				
+TGID	Tid=183958	TGroupId=13524	Police - All Call - Emergency Broadcasts	Off	10000	ALL	29				
+TGID	Tid=160902	TGroupId=13524	Police 1 - Dispatch	Off	10001	ALL	2				
+TGID	Tid=183960	TGroupId=13524	Police 10 - Special Details 1	Off	10010	ALL	7				
+TGID	Tid=183961	TGroupId=13524	Police 11 - Special Details 2	Off	10011	ALL	7				
+TGID	Tid=183962	TGroupId=13524	Police 12 - Corrections Security	Off	10012	ALL	23				
+TGID	Tid=183963	TGroupId=13524	Police 13 - Special Response Unit	Off	10013	ALL	7				
+TGID	Tid=183964	TGroupId=13524	Police 14 - Administration	Off	10014	ALL	23				
+TGID	Tid=167183	TGroupId=13524	Police 2	Off	10002	ALL	23				
+TGID	Tid=167184	TGroupId=13524	Police 3	Off	10003	ALL	23				
+TGID	Tid=167185	TGroupId=13524	Police 4	Off	10004	ALL	23				
+TGID	Tid=167186	TGroupId=13524	Police 5 -Detectives 1	Off	10005	ALL	23				
+TGID	Tid=167187	TGroupId=13524	Police 6 - Car-to-Car	Off	10006	ALL	23				
+TGID	Tid=167188	TGroupId=13524	Police 7 - Narcotics 1	Off	10007	ALL	23				
+TGID	Tid=167189	TGroupId=13524	Police 8 - Narcotics 2	Off	10008	ALL	7				
+TGID	Tid=183959	TGroupId=13524	Police 9 - Detectives 2	Off	10009	ALL	23				
+TGID	Tid=174707	TGroupId=13524	Public Works	Off	10207	ALL	14				
+T-Group	TGroupId=35575	TrunkId=4275	Quonset ANGB	Off	41.395360	-71.586910	20.0	Circle
+TGID	Tid=423434	TGroupId=35575	Fire Operations	Off	304	ALL	3				
+T-Group	TGroupId=10087	TrunkId=4275	Radio Technicians	Off	41.631870	-71.531980	34.0	Circle
+TGID	Tid=128830	TGroupId=10087	RISCON Radio Technicians	Off	1	ALL	14				
+TGID	Tid=158018	TGroupId=10087	RISCON Radio Technicians	Off	10125	ALL	14				
+T-Group	TGroupId=21712	TrunkId=4275	Richmond	Off	41.493940	-71.669190	3.0	Circle
+TGID	Tid=397438	TGroupId=21712	Chariho Regional High School	Off	2042	ALL	32				
+TGID	Tid=269274	TGroupId=21712	Police	Off	2035	ALL	2				
+T-Group	TGroupId=19836	TrunkId=4275	RIPTA	Off	41.631870	-71.531980	34.0	Circle
+TGID	Tid=260709	TGroupId=19836	Rhode Island Public Transit Auth.	Off	186	ALL	26				
+TGID	Tid=244583	TGroupId=19836	Rhode Island Public Transit Auth.	Off	187	ALL	26				
+TGID	Tid=244584	TGroupId=19836	Rhode Island Public Transit Auth.	Off	188	ALL	26				
+TGID	Tid=260420	TGroupId=19836	Rhode Island Public Transit Auth.	Off	189	ALL	26				
+TGID	Tid=320474	TGroupId=19836	Rhode Island Public Transit. Auth.	Off	190	ALL	26				
+T-Group	TGroupId=17555	TrunkId=4275	Scituate	Off	41.795420	-71.621000	5.0	Circle
+TGID	Tid=418552	TGroupId=17555	Fire Operations	Off	1463	ALL	3				
+TGID	Tid=224671	TGroupId=17555	Police	Off	1460	ALL	2				
+T-Group	TGroupId=15048	TrunkId=4275	Smithfield	Off	41.921460	-71.549710	3.0	Circle
+TGID	Tid=326812	TGroupId=15048	Emergency Management	Off	1657	ALL	29				
+TGID	Tid=174676	TGroupId=15048	Fire - Fireground	Off	1648	ALL	8				
+TGID	Tid=326810	TGroupId=15048	Police Admin	Off	1654	ALL	23				
+TGID	Tid=326814	TGroupId=15048	Police Details	Off	1661	ALL	23				
+TGID	Tid=326809	TGroupId=15048	Police Detectives	Off	1653	ALL	7				
+TGID	Tid=211920	TGroupId=15048	Police Operations	Off	1651	ALL	2				
+TGID	Tid=326808	TGroupId=15048	Police Secondary	Off	1652	ALL	7				
+TGID	Tid=326813	TGroupId=15048	Public Works	Off	1660	ALL	14				
+TGID	Tid=326811	TGroupId=15048	Town-Wide	Off	1655	ALL	6				
+T-Group	TGroupId=10094	TrunkId=4275	South Kingstown	Off	41.440150	-71.543310	3.0	Circle
+TGID	Tid=128826	TGroupId=10094	EMS	Off	1015	ALL	4				
+TGID	Tid=260713	TGroupId=10094	Fire - Detail	Off	1240	ALL	24				
+TGID	Tid=141053	TGroupId=10094	Fire - UHF Simulcast	Off	1232	ALL	3				
+TGID	Tid=141050	TGroupId=10094	Police 1 - Dispatch	Off	1225	ALL	2				
+TGID	Tid=141472	TGroupId=10094	Police 2 - Car/Car	Off	1226	ALL	23				
+TGID	Tid=141051	TGroupId=10094	Police 3 - Tactical	Off	1235	ALL	7				
+TGID	Tid=141052	TGroupId=10094	Police 5 - Tactical	Off	1236	ALL	7				
+TGID	Tid=260711	TGroupId=10094	Union Fire District - Fireground 1	Off	1227	ALL	8				
+TGID	Tid=260712	TGroupId=10094	Union Fire District - Fireground 2	Off	1237	ALL	8				
+TGID	Tid=174669	TGroupId=10094	Union Fire District - Special Events	Off	1026	ALL	24				
+T-Group	TGroupId=13798	TrunkId=4275	State Police - District A (North)	Off	41.836830	-71.559450	20.0	Circle
+TGID	Tid=187380	TGroupId=13798	North Car-to-Car/Information	Off	22	ALL	23				
+TGID	Tid=187376	TGroupId=13798	North Dispatch	Off	21	ALL	2				
+TGID	Tid=187382	TGroupId=13798	North Tactical Ops 1	Off	24	ALL	7				
+TGID	Tid=187381	TGroupId=13798	North Tactical Ops 2	Off	23	ALL	7				
+T-Group	TGroupId=13799	TrunkId=4275	State Police - District B (South)	Off	41.492120	-71.499020	25.0	Circle
+TGID	Tid=187383	TGroupId=13799	South Car-to-Car/Information	Off	27	ALL	23				
+TGID	Tid=187377	TGroupId=13799	South Dispatch	Off	25	ALL	2				
+T-Group	TGroupId=10083	TrunkId=4275	Statewide Area/Events	Off	41.631870	-71.559450	34.0	Circle
+TGID	Tid=226513	TGroupId=10083	East Wide 1	Off	1335	ALL	11				
+TGID	Tid=337707	TGroupId=10083	East Wide 2	Off	1336	ALL	11				
+TGID	Tid=373806	TGroupId=10083	East Wide 3	Off	1337	ALL	11				
+TGID	Tid=343012	TGroupId=10083	Inland Marine Interop	Off	1025	ALL	11				
+TGID	Tid=248300	TGroupId=10083	Metro Wide 1	Off	1185	ALL	11				
+TGID	Tid=248304	TGroupId=10083	Metro Wide 2	Off	1186	ALL	11				
+TGID	Tid=248301	TGroupId=10083	Metro Wide 2	Off	11186	ALL	11				
+TGID	Tid=248302	TGroupId=10083	Metro Wide 3	Off	1187	ALL	11				
+TGID	Tid=174671	TGroupId=10083	North Wide 1	Off	1173	ALL	11				
+TGID	Tid=174672	TGroupId=10083	North Wide 2	Off	1174	ALL	11				
+TGID	Tid=248299	TGroupId=10083	North Wide 5	Off	1177	ALL	11				
+TGID	Tid=248292	TGroupId=10083	Southside CH 5	Off	1037	ALL	11				
+TGID	Tid=248174	TGroupId=10083	Southwide CH-1	Off	1018	ALL	11				
+TGID	Tid=248175	TGroupId=10083	Southwide CH-2	Off	1019	ALL	11				
+TGID	Tid=149165	TGroupId=10083	Wide Area 3	Off	4	ALL	11				
+TGID	Tid=149166	TGroupId=10083	Wide Area 4	Off	5	ALL	11				
+TGID	Tid=149167	TGroupId=10083	Wide Area 5	Off	6	ALL	11				
+TGID	Tid=149168	TGroupId=10083	Wide Area 6	Off	7	ALL	11				
+TGID	Tid=174679	TGroupId=10083	Wide Area 7	Off	1022	ALL	11				
+TGID	Tid=248291	TGroupId=10083	Wide Area 8	Off	1023	ALL	11				
+T-Group	TGroupId=12784	TrunkId=4275	Statewide Emergency Response	Off	41.635970	-71.542970	34.0	Circle
+TGID	Tid=174666	TGroupId=12784	Hazmat 1	Off	1034	ALL	8				
+TGID	Tid=174667	TGroupId=12784	Hazmat 2	Off	1035	ALL	8				
+TGID	Tid=174668	TGroupId=12784	Tanker Taskforce	Off	1033	ALL	8				
+T-Group	TGroupId=12785	TrunkId=4275	Statewide EMS and Hospitals	Off	41.631870	-71.542970	34.0	Circle
+TGID	Tid=248165	TGroupId=12785	Department of Health - Statewide	Off	222	ALL	25				
+TGID	Tid=292003	TGroupId=12785	DMAT South	Off	228	ALL	29				
+TGID	Tid=248162	TGroupId=12785	Fatima St Josephs	Off	212	ALL	17				
+TGID	Tid=248163	TGroupId=12785	Health 1	Off	220	ALL	25				
+TGID	Tid=248164	TGroupId=12785	Health 2	Off	221	ALL	25				
+TGID	Tid=248167	TGroupId=12785	Life Span Net 1	Off	232	ALL	9				
+TGID	Tid=356019	TGroupId=12785	Lifepact Ambulance (Statewide)	Off	194	ALL	4				
+TGID	Tid=248168	TGroupId=12785	RI Hospital Operations	Off	234	ALL	17				
+T-Group	TGroupId=13526	TrunkId=4275	Statewide Fire	Off	41.631870	-71.548460	34.0	Circle
+TGID	Tid=184032	TGroupId=13526	Northern Rhode Island Fire Chiefs	Off	1038	ALL	24				
+TGID	Tid=184033	TGroupId=13526	Southern Rhode Island Fire Chiefs	Off	1041	ALL	24				
+TGID	Tid=248157	TGroupId=13526	State Fire Marshall	Off	16	ALL	24				
+TGID	Tid=411634	TGroupId=13526	Tanker Taskforce 1	Off	1314	ALL	24				
+T-Group	TGroupId=18613	TrunkId=4275	Statewide Misc.	Off	41.631870	-71.531980	34.0	Circle
+TGID	Tid=397437	TGroupId=18613	Hospital Operations	Off	243	ALL	17				
+TGID	Tid=248155	TGroupId=18613	Metro Wide 2	Off	12	ALL	11				
+TGID	Tid=248156	TGroupId=18613	Metro Wide 4	Off	14	ALL	11				
+TGID	Tid=248161	TGroupId=18613	Rhode Island Red Cross - Primary	Off	168	ALL	21				
+TGID	Tid=274092	TGroupId=18613	Rhode Island Red Cross - Secondary	Off	169	ALL	21				
+TGID	Tid=248159	TGroupId=18613	RI Traffic Tribunal Security	Off	70	ALL	33				
+TGID	Tid=360530	TGroupId=18613	Slater Hospital Security	Off	244	ALL	33				
+TGID	Tid=248166	TGroupId=18613	Statewide Nursing Homes Net	Off	223	ALL	21				
+T-Group	TGroupId=13797	TrunkId=4275	Statewide Mutual Aid/Intersystem	Off	41.631870	-71.531980	34.0	Circle
+TGID	Tid=211933	TGroupId=13797	Intercity Fire	Off	2	ALL	11				
+TGID	Tid=211934	TGroupId=13797	Intercity Police	Off	3	ALL	11				
+T-Group	TGroupId=16267	TrunkId=4275	Tiverton	Off	41.625940	-71.213380	3.0	Circle
+TGID	Tid=211910	TGroupId=16267	Fire (Simulcast 471.7875)	Off	1315	ALL	3				
+TGID	Tid=211912	TGroupId=16267	Police (Simulcast 482.9625)	Off	1316	ALL	2				
+T-Group	TGroupId=29892	TrunkId=4275	Tunnel and Bridge Authority	Off	41.631870	-71.531980	34.0	Circle
+TGID	Tid=355671	TGroupId=29892	Newport Pell Bridge Operations	Off	4421	ALL	14				
+T-Group	TGroupId=23949	TrunkId=4275	Warwick	Off	41.700100	-71.416170	4.0	Circle
+TGID	Tid=296183	TGroupId=23949	Fire	Off	1162	ALL	3				
+TGID	Tid=373807	TGroupId=23949	Fireground	Off	1170	ALL	8				
+TGID	Tid=306824	TGroupId=23949	TG Green Aiport Fire	Off	19	ALL	3				
+T-Group	TGroupId=10093	TrunkId=4275	Washington County	Off	41.500660	-71.616170	19.0	Circle
+TGID	Tid=198436	TGroupId=10093	County Fire Station/Station	Off	1479	ALL	24				
+TGID	Tid=130875	TGroupId=10093	County Fireground	Off	1042	ALL	8				
+T-Group	TGroupId=16273	TrunkId=4275	West Greenwich	Off	41.627780	-71.663350	4.0	Circle
+TGID	Tid=211932	TGroupId=16273	Police	Off	1805	ALL	2				
+TGID	Tid=341499	TGroupId=16273	Police Secondary	Off	1806	ALL	7				
+T-Group	TGroupId=32991	TrunkId=4275	West Warwick	Off	41.707850	-71.525500	3.0	Circle
+TGID	Tid=391278	TGroupId=32991	Fire Operations	Off	1208	ALL	3				
+T-Group	TGroupId=10099	TrunkId=4275	Westerly	Off	41.377600	-71.827290	5.0	Circle
+TGID	Tid=419705	TGroupId=10099	EMS Operations	Off	1082	ALL	4				
+TGID	Tid=248295	TGroupId=10099	Fire Operations	Off	1063	ALL	3				
+TGID	Tid=131851	TGroupId=10099	Police 1 - Dispatch	Off	1050	ALL	2				
+TGID	Tid=132308	TGroupId=10099	Police 2	Off	1051	ALL	23				
+TGID	Tid=248293	TGroupId=10099	Police 3	Off	1052	ALL	23				
+TGID	Tid=133840	TGroupId=10099	Police 4	Off	1053	ALL	23				
+TGID	Tid=248294	TGroupId=10099	Police 5 - Reserve Officers	Off	1054	ALL	23				
+TGID	Tid=132274	TGroupId=10099	Police 6 - Traffic Division	Off	1064	ALL	23				
+TGID	Tid=248296	TGroupId=10099	Police/Fire/EMS Ops	Off	1072	ALL	22				
+T-Group	TGroupId=16263	TrunkId=4275	Woonsocket	Off	42.002880	-71.514780	3.0	Circle
+TGID	Tid=218951	TGroupId=16263	Citywide	Off	1367	ALL	22				
+TGID	Tid=288943	TGroupId=16263	Fire - Fireground 3	Off	1354	ALL	8				
+TGID	Tid=257371	TGroupId=16263	Fire Dispatch - Operations	Off	1360	ALL	24				
+TGID	Tid=316063	TGroupId=16263	Fire Secondary	Off	1361	ALL	3				
+TGID	Tid=211882	TGroupId=16263	Police 1 - Dispatch	Off	1363	ALL	2				
+TGID	Tid=218950	TGroupId=16263	Police 2	Off	1364	ALL	23				
+TGID	Tid=402993	TGroupId=16263	Public Works - Streets	Off	1368	ALL	14				

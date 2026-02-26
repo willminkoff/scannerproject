@@ -1,0 +1,1668 @@
+TargetModel	HomePatrol-1
+FormatVersion	2.04
+Conventional	CountyId=312	StateId=10	Kent	Off		Conventional
+AreaState	CountyId=312	StateId=10
+AreaCounty	CountyId=312	CountyId=312
+C-Group	CGroupId=75801	CountyId=312	Businesses - DoverDowns	Off	39.187580	-75.534550	2.0	Circle
+C-Freq	CFreqId=321816	CGroupId=75801	Security	Off	461925000	NFM	TONE=D174	33					
+C-Freq	CFreqId=321815	CGroupId=75801	Slot Techs	Off	461800000	NFM	TONE=D074	17					
+C-Group	CGroupId=81258	CountyId=312	Businesses - Retail	Off	39.083170	-75.555730	20.0	Circle
+C-Freq	CFreqId=350513	CGroupId=81258	Harbor Freight 1	Off	467875000	NFM	TONE=D411	17					
+C-Freq	CFreqId=350514	CGroupId=81258	Harbor Freight 2	Off	467850000	NFM	TONE=D631	17					
+C-Freq	CFreqId=350515	CGroupId=81258	Harbor Freight 3	Off	467925000	NFM	TONE=D343	17					
+C-Freq	CFreqId=350516	CGroupId=81258	Harbor Freight 4	Off	467900000	NFM	TONE=D346	17					
+C-Group	CGroupId=49316	CountyId=312	Businesses - Utilities	Off	39.096000	-75.566000	20.0	Circle
+C-Freq	CFreqId=201103	CGroupId=49316	Dover Electric Utility	Off	153425000	FM		34					
+C-Freq	CFreqId=345893	CGroupId=49316	Dover Water Department	Off	158775000	NFM		34					
+C-Group	CGroupId=9315	CountyId=312	Kent County - Fire Simulcasts	Off	39.083170	-75.555730	20.0	Circle
+C-Freq	CFreqId=35331	CGroupId=9315	Carlisle Fire Company	Off	460625000	FM		24					
+C-Freq	CFreqId=75019	CGroupId=9315	Cheswold	Off	154340000	FM		24					
+C-Freq	CFreqId=75017	CGroupId=9315	County Fire - rebroadcast	Off	151400000	FM		24					
+C-Freq	CFreqId=35332	CGroupId=9315	Farmington Volunteer Fire Company	Off	157450000	FM		24					
+C-Freq	CFreqId=221978	CGroupId=9315	Fredrica 800 Fire - simulcast (Sta 49)	Off	152007500	FM		25					
+C-Freq	CFreqId=89390	CGroupId=9315	Harrington FD EMS/FD - rebroadcast of TRS (All county FD EMS is	Off	155505000	FM	TONE=D155	24					
+C-Freq	CFreqId=53176	CGroupId=9315	Marydel Volunteer Fire Company	Off	155070000	FM		24					
+C-Freq	CFreqId=35333	CGroupId=9315	Robbins Hose Company/ Kent county	Off	154445000	FM		24					
+C-Group	CGroupId=70899	CountyId=312	Kent County - Hospitals	Off	39.291200	-75.600700	2.0	Circle
+C-Freq	CFreqId=294073	CGroupId=70899	DE Hosp. for the Chronically ill Ops	Off	460262500	FM	TONE=D606	12					
+C-Group	CGroupId=61058	CountyId=312	Kent County - State of Delaware Public Safety	Off	39.083170	-75.555730	20.0	Circle
+C-Freq	CFreqId=370759	CGroupId=61058	K Vehicle Repeater 1	Off	861237500	NFM	TONE=C156.7	7					
+C-Freq	CFreqId=370760	CGroupId=61058	K Vehicle Repeater 2	Off	861162500	NFM	TONE=C156.7	7					
+C-Group	CGroupId=34565	CountyId=312	Skywarn	Off	39.083170	-75.555730	20.0	Circle
+C-Freq	CFreqId=136710	CGroupId=34565	Kent Co Skywarn F-1	Off	146970000	FM	TONE=C77.0	13					
+C-Freq	CFreqId=136709	CGroupId=34565	Kent Co Skywarn F-2	Off	147300000	FM	TONE=C77.0	13					
+Conventional	CountyId=313	StateId=10	New Castle	Off		Conventional
+AreaState	CountyId=313	StateId=10
+AreaCounty	CountyId=313	CountyId=313
+C-Group	CGroupId=66204	CountyId=313	Amateur Radio	Off	39.569710	-75.662840	21.0	Circle
+C-Freq	CFreqId=273040	CGroupId=66204	DRA Newark / Skywarn	Off	146700000	FM		13					
+C-Freq	CFreqId=273039	CGroupId=66204	DRA Wilmington / ARES	Off	146730000	FM		13					
+C-Freq	CFreqId=273042	CGroupId=66204	DRA Wilmington / ARES	Off	448375000	FM		13					
+C-Freq	CFreqId=273044	CGroupId=66204	DVRAS Wilmington	Off	146955000	FM		13					
+C-Freq	CFreqId=273094	CGroupId=66204	N3HTT  Delaware City	Off	448825000	FM		13					
+C-Freq	CFreqId=384088	CGroupId=66204	SKYWARN Primary	Off	448825000	NFM	TONE=C131.8	13					
+C-Freq	CFreqId=384089	CGroupId=66204	SKYWARN Secondary	Off	146700000	NFM	TONE=C131.8	13					
+C-Freq	CFreqId=273045	CGroupId=66204	U of D ARC	Off	145310000	FM		13					
+C-Freq	CFreqId=304130	CGroupId=66204	W3DRA DRA  Newark	Off	449025000	FM		13					
+C-Group	CGroupId=7688	CountyId=313	New Castle County - Aeromedical	Off	39.344920	-75.632630	35.0	Circle
+C-Freq	CFreqId=29847	CGroupId=7688	LifeNet Medical Helo	Off	160020000	FM	TONE=C156.7	4					
+C-Group	CGroupId=87955	CountyId=313	New Castle County - Christina School District	Off	39.670000	-75.709880	7.0	Circle
+C-Freq	CFreqId=387030	CGroupId=87955	McVey Elementary School	Off	451287500	NFM		32					
+C-Freq	CFreqId=387031	CGroupId=87955	McVey Elementary School	Off	451287500	NFM		32					
+C-Group	CGroupId=44101	CountyId=313	New Castle County - County Services	Off	39.569710	-75.662840	21.0	Circle
+C-Freq	CFreqId=177859	CGroupId=44101	County Public works	Off	154695000	FM	TONE=D532	14					
+C-Freq	CFreqId=177307	CGroupId=44101	County Public works	Off	156165000	FM	TONE=D532	14					
+C-Freq	CFreqId=177306	CGroupId=44101	County Water Department	Off	154665000	FM	TONE=D532	34					
+C-Group	CGroupId=47574	CountyId=313	New Castle County - Elsmere	Off	39.739280	-75.597980	2.0	Circle
+C-Freq	CFreqId=192904	CGroupId=47574	Public Works	Off	453237500	FM		14					
+C-Group	CGroupId=56141	CountyId=313	New Castle County - Federal	Off	39.608860	-75.667650	8.0	Circle
+C-Freq	CFreqId=240827	CGroupId=56141	Army Corps of Engineers C&D Canal Ops	Off	163000000	FM		16					
+C-Freq	CFreqId=234389	CGroupId=56141	VA Hospital (Elsmere) Security	Off	410675000	NFM	NAC=293	16					
+C-Group	CGroupId=4663	CountyId=313	New Castle County - Fire Simulcasts	Off	39.569710	-75.662840	21.0	Circle
+C-Freq	CFreqId=114670	CGroupId=4663	EMS OPS1, Fire TAC 3/4 patch	Off	453050000	FM		24					
+C-Freq	CFreqId=114669	CGroupId=4663	Fire / EMS Dispatch and  patch	Off	453300000	FM		3					
+C-Group	CGroupId=56915	CountyId=313	New Castle County - Media / Broadcasting	Off	39.781100	-75.584560	15.0	Circle
+C-Freq	CFreqId=238805	CGroupId=56915	WDEL Traffic Reporters	Off	161640000	FM		31					
+C-Group	CGroupId=52353	CountyId=313	New Castle County - Middletown	Off	39.449560	-75.716320	2.0	Circle
+C-Freq	CFreqId=215373	CGroupId=52353	Public Works	Off	155775000	FM	TONE=D364	14					
+C-Freq	CFreqId=215374	CGroupId=52353	Public Works	Off	158955000	FM	TONE=D364	14					
+C-Group	CGroupId=4667	CountyId=313	New Castle County - Police	Off	39.569710	-75.662840	21.0	Circle
+C-Freq	CFreqId=33764	CGroupId=4667	Amtrak Police Wilmington	Off	161295000	FM	TONE=C88.5	2					
+C-Freq	CFreqId=370757	CGroupId=4667	NCC Vehicle Repeater 1	Off	860637500	NFM	TONE=C156.7	7					
+C-Freq	CFreqId=370758	CGroupId=4667	NCC Vehicle Repeater 2	Off	861012500	NFM	TONE=C156.7	7					
+Conventional	CountyId=314	StateId=10	Sussex	Off		Conventional
+AreaState	CountyId=314	StateId=10
+AreaCounty	CountyId=314	CountyId=314
+C-Group	CGroupId=78559	CountyId=314	Amateur Radio	Off	38.646910	-75.371700	22.0	Circle
+C-Freq	CFreqId=336057	CGroupId=78559		Off	145190000	FM	TONE=C179.9	13					
+C-Freq	CFreqId=336058	CGroupId=78559		Off	145310000	FM	TONE=C156.7	13					
+C-Freq	CFreqId=336059	CGroupId=78559		Off	146715000	FM	TONE=C156.7	13					
+C-Freq	CFreqId=336060	CGroupId=78559		Off	146820000	FM	TONE=C156.7	13					
+C-Freq	CFreqId=336061	CGroupId=78559		Off	146925000	FM	TONE=C156.7	13					
+C-Freq	CFreqId=336062	CGroupId=78559		Off	147015000	FM	TONE=C156.7	13					
+C-Freq	CFreqId=336063	CGroupId=78559		Off	147045000	FM	TONE=C156.7	13					
+C-Freq	CFreqId=336064	CGroupId=78559		Off	147090000	FM	TONE=C156.7	13					
+C-Freq	CFreqId=336065	CGroupId=78559		Off	147330000	FM	TONE=C156.7	13					
+C-Group	CGroupId=34567	CountyId=314	Amateur Radio - Skywarn	Off	38.646910	-75.371700	22.0	Circle
+C-Freq	CFreqId=136714	CGroupId=34567	Sussex Skywarn F-1	Off	145210000	FM	TONE=C156.7	13					
+C-Freq	CFreqId=136713	CGroupId=34567	Sussex Skywarn F-1	Off	147075000	FM	TONE=C156.7	13					
+C-Group	CGroupId=84998	CountyId=314	Police	Off	38.646910	-75.371700	22.0	Circle
+C-Freq	CFreqId=370762	CGroupId=84998	SSX Vehicle Repeater 1	Off	860637500	NFM	TONE=C141.3	7					
+C-Freq	CFreqId=370763	CGroupId=84998	SSX Vehicle Repeater 2	Off	861012500	NFM	TONE=C141.3	7					
+C-Group	CGroupId=9974	CountyId=314	Sussex County	Off	38.646910	-75.371700	22.0	Circle
+C-Freq	CFreqId=47429	CGroupId=9974	Cape Henlopen High School	Off	467812500	FM	TONE=D025	32					
+C-Freq	CFreqId=44705	CGroupId=9974	Cape Henlopen State Park beach patrol	Off	462575000	FM	TONE=C79.7	2					
+C-Freq	CFreqId=44706	CGroupId=9974	Delaware Technical & Community College Security	Off	453725000	FM	TONE=D125	33					
+C-Freq	CFreqId=100071	CGroupId=9974	Police Dispatch (includes Georgetown Police, simulcast from TRS)	Off	453850000	FM	TONE=C107.2	2					
+C-Freq	CFreqId=40737	CGroupId=9974	Sussex Correctional Institute	Off	453625000	FM	TONE=C114.8	37					
+C-Freq	CFreqId=377538	CGroupId=9974	Sussex County Fire	Off	154205000	FM		3					
+C-Freq	CFreqId=29709	CGroupId=9974	Sussex County Fire Dispatch/Alerting	Off	453700000	FM		3					
+C-Group	CGroupId=9972	CountyId=314	Sussex County - Bethany Beach	Off	38.537690	-75.058940	1.0	Circle
+C-Freq	CFreqId=29706	CGroupId=9972	Fire Dispatch (TRS Simulcast)	Off	453175000	NFM	TONE=D431	3					
+C-Freq	CFreqId=38117	CGroupId=9972	Police/Parking/Beach Patrol/Trolley (Ch 1)	Off	151220000	NFM	TONE=C123.0	6					
+C-Freq	CFreqId=226350	CGroupId=9972	Trolley (Ch 2)	Off	158835000	NFM	TONE=C110.9	26					
+C-Group	CGroupId=12691	CountyId=314	Sussex County - Company Fire	Off	38.646910	-75.371700	22.0	Circle
+C-Freq	CFreqId=47669	CGroupId=12691	Blades Fire	Off	453500000	FM		24					
+C-Freq	CFreqId=47670	CGroupId=12691	Bridgeville Fire	Off	453125000	FM		24					
+C-Freq	CFreqId=53056	CGroupId=12691	County Fire 2 (patch to 800Mhz system)	Off	453075000	FM	TONE=C146.2	24					
+C-Freq	CFreqId=47671	CGroupId=12691	Dagsboro Fire	Off	453775000	FM		24					
+C-Freq	CFreqId=47672	CGroupId=12691	Delmar Fire	Off	453350000	FM		24					
+C-Freq	CFreqId=47673	CGroupId=12691	Ellendale Fire	Off	453100000	FM		24					
+C-Freq	CFreqId=47674	CGroupId=12691	Frankford Fire	Off	453425000	FM		24					
+C-Freq	CFreqId=47676	CGroupId=12691	Greenwood Fire	Off	453150000	FM		24					
+C-Freq	CFreqId=47677	CGroupId=12691	Gumboro Fire	Off	453875000	FM		24					
+C-Freq	CFreqId=94856	CGroupId=12691	Indian River Fire	Off	458937500	FM	TONE=D114	24					
+C-Freq	CFreqId=47682	CGroupId=12691	Laurel Fire	Off	453550000	FM		24					
+C-Freq	CFreqId=47683	CGroupId=12691	Lewes Fire	Off	460550000	FM		24					
+C-Freq	CFreqId=47684	CGroupId=12691	Millsboro Fire	Off	453600000	FM		24					
+C-Freq	CFreqId=47685	CGroupId=12691	Millville Fire	Off	453375000	FM	TONE=C179.9	24					
+C-Freq	CFreqId=47678	CGroupId=12691	Milton Fire	Off	453450000	FM		24					
+C-Freq	CFreqId=47666	CGroupId=12691	Roxana Fire	Off	453575000	FM		24					
+C-Freq	CFreqId=47679	CGroupId=12691	Seaford Fire	Off	453900000	FM	TONE=D516	24					
+C-Freq	CFreqId=47680	CGroupId=12691	Selbyville Fire	Off	453950000	FM		24					
+C-Freq	CFreqId=47681	CGroupId=12691	Slaughter Beach Fire	Off	453475000	FM		24					
+C-Freq	CFreqId=86157	CGroupId=12691	Sussex Fire	Off	453700000	FM		24					
+C-Group	CGroupId=9973	CountyId=314	Sussex County - Dewey Beach	Off	38.692890	-75.074620	1.0	Circle
+C-Freq	CFreqId=293786	CGroupId=9973	Beach Patrol (Ch. 1)	Off	151287500	NFM	TONE=D245	14					
+C-Freq	CFreqId=293788	CGroupId=9973	Town Maintenance (Ch. 2)	Off	155850000	NFM	TONE=D624	14					
+C-Group	CGroupId=27427	CountyId=314	Sussex County - Fenwick Island	Off	38.462330	-75.051290	1.0	Circle
+C-Freq	CFreqId=105465	CGroupId=27427	Beach Patrol Primary (Ch 1)	Off	155040000	NFM	TONE=D606	14					
+C-Freq	CFreqId=105466	CGroupId=27427	Beach Patrol Talk-Around (Ch 2)	Off	155800000	NFM		14					
+C-Group	CGroupId=7657	CountyId=314	Sussex County - Lewes	Off	38.774560	-75.139350	2.0	Circle
+C-Freq	CFreqId=29713	CGroupId=7657	Electric Dept	Off	155955000	NFM	TONE=C71.9	34					
+C-Freq	CFreqId=29710	CGroupId=7657	Fire (Simulcast)	Off	453800000	NFM		24					
+C-Freq	CFreqId=124106	CGroupId=7657	Police: Patrol Car Wireless Mics	Off	170245000	FM	TONE=C250.3	23					
+C-Freq	CFreqId=29712	CGroupId=7657	Power Line Crew: Talk-around	Off	155010000	NFM		34					
+C-Group	CGroupId=79826	CountyId=314	Sussex County - Long Neck	Off	38.575030	-75.209590	2.0	Circle
+C-Freq	CFreqId=343505	CGroupId=79826	Long Neck Water Company	Off	160035000	NFM	TONE=D152	34					
+C-Group	CGroupId=7656	CountyId=314	Sussex County - Other TRS Fire Simulcasts	Off	38.646910	-75.371700	22.0	Circle
+C-Freq	CFreqId=377539	CGroupId=7656	County Fire	Off	453850000	FM	TONE=D351	3					
+C-Freq	CFreqId=29707	CGroupId=7656	Indian River Fire Simulcast	Off	453225000	FM	TONE=D114	24					
+C-Freq	CFreqId=47324	CGroupId=7656	Sussex County Fire & EMS TRS Simulcast	Off	453225000	FM	TONE=D205	24					
+C-Group	CGroupId=7658	CountyId=314	Sussex County - Rehoboth Beach	Off	38.709960	-75.084000	1.0	Circle
+C-Freq	CFreqId=29708	CGroupId=7658	Fire/EMS Dispatch (TRS Simulcast)	Off	453250000	NFM	TONE=D023	3					
+C-Freq	CFreqId=53057	CGroupId=7658	Fire/EMS Operations (TRS Simulcast)	Off	453700000	NFM	TONE=D023	8					
+C-Freq	CFreqId=331596	CGroupId=7658	North Shores Beach Patrol 1	Off	154570000	NFM	TONE=D223	17					
+C-Freq	CFreqId=29716	CGroupId=7658	Parking Meters (Old?)	Off	155250000	NFM	TONE=C156.7	14					
+C-Group	CGroupId=78549	CountyId=314	Sussex County - Seaford School District	Off	38.646910	-75.371700	22.0	Circle
+C-Freq	CFreqId=335969	CGroupId=78549	Blades Elementary School	Off	159690000	NFM		32					
+C-Group	CGroupId=31975	CountyId=314	Sussex County - South Bethany Beach	Off	38.516340	-75.054130	1.0	Circle
+C-Freq	CFreqId=125601	CGroupId=31975	PD patrol car wireless mics	Off	170245000	FM	TONE=C225.7	23					
+Conventional	AgencyId=10554	StateId=10	Airports	Off		Conventional
+AreaState	AgencyId=10554	StateId=10
+AreaCounty	AgencyId=10554	CountyId=314
+C-Group	CGroupId=87412	AgencyId=10554	Delaware Coastal Airport	Off	38.684600	-75.384960	10.0	Circle
+C-Freq	CFreqId=384084	CGroupId=87412	CTAF/Unicom	Off	123000000	AM		15					
+C-Freq	CFreqId=384086	CGroupId=87412	Dover Approach/Departure	Off	132425000	AM		15					
+C-Freq	CFreqId=384085	CGroupId=87412	WX ASOS	Off	118375000	AM		15					
+Conventional	AgencyId=7805	StateId=10	Amateur Radio	Off		Conventional
+AreaState	AgencyId=7805	StateId=10
+AreaCounty	AgencyId=7805	CountyId=0
+C-Group	CGroupId=65254	AgencyId=7805	Amateur Radio	Off	39.097550	-75.486620	52.0	Circle
+C-Freq	CFreqId=269705	CGroupId=65254	Bethany Beach	Off	448725000	FM	TONE=C131.8	13					
+C-Freq	CFreqId=269706	CGroupId=65254	Camden	Off	449775000	FM	TONE=C114.8	13					
+C-Freq	CFreqId=269707	CGroupId=65254	Christiana	Off	444950000	FM	TONE=C100.0	13					
+C-Freq	CFreqId=269709	CGroupId=65254	Dover (Kent ARC)	Off	146970000	FM	TONE=C156.7	13					
+C-Freq	CFreqId=269710	CGroupId=65254	Dover (Kent ARC)	Off	147195000	FM	TONE=C77.0	13					
+C-Freq	CFreqId=269711	CGroupId=65254	Dover (Wide Area)	Off	449725000	FM	TONE=C131.8	13					
+C-Freq	CFreqId=269712	CGroupId=65254	Glasgow	Off	224720000	FM		13					
+C-Freq	CFreqId=269713	CGroupId=65254	Lewes	Off	147330000	FM		13					
+C-Freq	CFreqId=269714	CGroupId=65254	Lewes	Off	443550000	FM	TONE=C156.7	13					
+C-Freq	CFreqId=269717	CGroupId=65254	Millsboro (Sussex ARC)	Off	449825000	FM	TONE=C156.7	13					
+C-Freq	CFreqId=269716	CGroupId=65254	Millsboro(Sussex ARC)	Off	224840000	FM	TONE=C156.7	13					
+C-Freq	CFreqId=269720	CGroupId=65254	Newark	Off	224720000	FM		13					
+C-Freq	CFreqId=269723	CGroupId=65254	Seaford	Off	146715000	FM	TONE=C77.0	13					
+C-Freq	CFreqId=269722	CGroupId=65254	Seaford (Nanticoke ARC)	Off	145210000	FM	TONE=C156.7	13					
+C-Freq	CFreqId=269728	CGroupId=65254	Wilmington	Off	444400000	FM	TONE=C100.0	13					
+C-Freq	CFreqId=269727	CGroupId=65254	Wilmington (ARRL news/net 21z)	Off	442500000	FM		13					
+C-Freq	CFreqId=269715	CGroupId=65254	WS3ARA Club	Off	147090000	FM	TONE=C156.7	13					
+Conventional	AgencyId=1265	StateId=10	Businesses	Off		Conventional
+AreaState	AgencyId=1265	StateId=10
+AreaCounty	AgencyId=1265	CountyId=314
+C-Group	CGroupId=74276	AgencyId=1265	Attractions/Amusement	Off	38.646910	-75.371700	22.0	Circle
+C-Freq	CFreqId=363101	CGroupId=74276	Freeman Arts Pavilion 1 Security	Off	452062500	NFM	TONE=C127.3	33					
+C-Freq	CFreqId=380037	CGroupId=74276	Freeman Arts Pavilion 10	Off	457987500	NFM	TONE=C146.2	17					
+C-Freq	CFreqId=380038	CGroupId=74276	Freeman Arts Pavilion 11	Off	462762500	NFM	TONE=C151.4	17					
+C-Freq	CFreqId=380039	CGroupId=74276	Freeman Arts Pavilion 12	Off	462812500	NFM	TONE=C156.7	17					
+C-Freq	CFreqId=363102	CGroupId=74276	Freeman Arts Pavilion 2	Off	457062500	NFM	TONE=C131.8	17					
+C-Freq	CFreqId=380034	CGroupId=74276	Freeman Arts Pavilion 3	Off	452162500	NFM	TONE=C136.5	17					
+C-Freq	CFreqId=363103	CGroupId=74276	Freeman Arts Pavilion 4 Parking	Off	457162500	NFM	TONE=C141.3	17					
+C-Freq	CFreqId=363104	CGroupId=74276	Freeman Arts Pavilion 5	Off	452412500	NFM	TONE=C146.2	17					
+C-Freq	CFreqId=363105	CGroupId=74276	Freeman Arts Pavilion 6 Guest Services	Off	457412500	NFM	TONE=C127.3	17					
+C-Freq	CFreqId=363106	CGroupId=74276	Freeman Arts Pavilion 7 Talk-around	Off	452837500	NFM	TONE=C131.8	17					
+C-Freq	CFreqId=380035	CGroupId=74276	Freeman Arts Pavilion 8	Off	457837500	NFM	TONE=C136.5	17					
+C-Freq	CFreqId=380036	CGroupId=74276	Freeman Arts Pavilion 9	Off	452987500	NFM	TONE=C141.3	17					
+C-Freq	CFreqId=38601	CGroupId=74276	Funland - Haunted Mansion	Off	152900000	FM	TONE=C167.9	17					
+C-Freq	CFreqId=38602	CGroupId=74276	Funland - Operations	Off	153260000	FM	TONE=C167.9	17					
+C-Freq	CFreqId=384868	CGroupId=74276	Georgetown Speedway Officials	Off	464500000	NFM	TONE=C250.3	17					
+C-Freq	CFreqId=394955	CGroupId=74276	Georgetown Speedway Ops	Off	469500000	NFM	TONE=D023	17					
+C-Freq	CFreqId=384869	CGroupId=74276	Georgetown Speedway Race Control	Off	454000000	NFM		17					
+C-Freq	CFreqId=38603	CGroupId=74276	Midway Speedway (Go-Carts)	Off	464600000	FM	TONE=D411	17					
+C-Freq	CFreqId=38604	CGroupId=74276	The Movies at Midway	Off	467762500	FM	TONE=C71.9	17					
+C-Group	CGroupId=74275	AgencyId=1265	Bars/Restaurants	Off	38.646910	-75.371700	22.0	Circle
+C-Freq	CFreqId=201774	CGroupId=74275	Grotta Pizza Grand Slam Lewes	Off	462562500	FM	TONE=C110.9	17					
+C-Freq	CFreqId=201773	CGroupId=74275	Grotta Pizza Rehoboth Boardwalk South	Off	462662500	FM	TONE=C146.2	17					
+C-Freq	CFreqId=201102	CGroupId=74275	Grotto Pizza on the Ave	Off	463637500	FM	TONE=C88.5	17					
+C-Freq	CFreqId=343491	CGroupId=74275	Leftys Alley and Eats	Off	456187500	NFM	TONE=D116	17					
+C-Freq	CFreqId=329433	CGroupId=74275	Lewes Wawa Store	Off	158400000	NFM	TONE=D174	17					
+C-Freq	CFreqId=277063	CGroupId=74275	Lighthouse Bouncers	Off	461812500	FM	TONE=D612	17					
+C-Freq	CFreqId=329435	CGroupId=74275	Long Neck Wawa Store	Off	451812500	NFM	TONE=D506	17					
+C-Freq	CFreqId=329434	CGroupId=74275	Millsboro Wawa Store	Off	451800000	NFM	TONE=D506	17					
+C-Freq	CFreqId=263234	CGroupId=74275	Nicola Pizza Ops (Reho Ave)	Off	464550000	FM	TONE=C67.0	17					
+C-Freq	CFreqId=343492	CGroupId=74275	Paradise Grill-1	Off	469950000	NFM	TONE=C203.5	17					
+C-Freq	CFreqId=343493	CGroupId=74275	Paradise Grill-2	Off	462225000	NFM		17					
+C-Freq	CFreqId=343494	CGroupId=74275	Paradise Grill-3	Off	462625000	NFM	TONE=C127.3	17					
+C-Freq	CFreqId=133837	CGroupId=74275	Rusty Rudder Bouncers	Off	467012500	FM	TONE=C114.8	17					
+C-Freq	CFreqId=201775	CGroupId=74275	The Starboard Bar (Dewey Beach)	Off	451012500	FM	TONE=D051	17					
+C-Group	CGroupId=74278	AgencyId=1265	Communities	Off	38.646910	-75.371700	22.0	Circle
+C-Freq	CFreqId=305899	CGroupId=74278	Pine Acres	Off	154540000	NFM	TONE=C186.2	17					
+C-Group	CGroupId=73860	AgencyId=1265	Delaware International Speedway (Delmar)	Off	38.506610	-75.572700	1.0	Circle
+C-Freq	CFreqId=310561	CGroupId=73860	Race Control (Officials to Cars)	Off	468725000	FM	TONE=D023	17					
+C-Freq	CFreqId=310560	CGroupId=73860	Safety/Wrecker Service	Off	468375000	FM	TONE=D023	17					
+C-Freq	CFreqId=310562	CGroupId=73860	Track Crew (Water Trucks)	Off	469975000	FM	TONE=D023	17					
+C-Freq	CFreqId=310559	CGroupId=73860	Track OPS	Off	451312500	FM	TONE=D023	17					
+C-Group	CGroupId=74280	AgencyId=1265	Farming/Agriculture	Off	38.646910	-75.371700	22.0	Circle
+C-Freq	CFreqId=305897	CGroupId=74280	Bar Farm	Off	151955000	NFM	TONE=C85.4	17					
+C-Freq	CFreqId=305898	CGroupId=74280	Milton Farm	Off	159600000	NFM	TONE=C103.5	17					
+C-Freq	CFreqId=324222	CGroupId=74280	Mountaire Farms Operation	Off	463637500	NFM	TONE=C97.4	17					
+C-Group	CGroupId=74277	AgencyId=1265	Food  Preparation/Manufacturing	Off	38.646910	-75.371700	22.0	Circle
+C-Freq	CFreqId=343503	CGroupId=74277	Barcroft Site (Lewes)	Off	461450000	NFM	TONE=C151.4	17					
+C-Freq	CFreqId=253408	CGroupId=74277	Dogfish Head Craft Brewery (Milton)	Off	464500000	FM	TONE=C77.0	17					
+C-Freq	CFreqId=298098	CGroupId=74277	Harbeson (Ch 1)	Off	152405000	NFM		17					
+C-Freq	CFreqId=298099	CGroupId=74277	Harbeson (Ch 2)	Off	157665000	NFM		17					
+C-Group	CGroupId=74279	AgencyId=1265	Golf  Courses	Off	38.646910	-75.371700	22.0	Circle
+C-Freq	CFreqId=328655	CGroupId=74279	Americana Bayside Beverage Carts & Special Events	Off	467437500	NFM	TONE=D031	17					
+C-Freq	CFreqId=328654	CGroupId=74279	Americana Bayside Golf Course Maintenance	Off	467212500	NFM	TONE=D025	17					
+C-Freq	CFreqId=328652	CGroupId=74279	Americana Bayside Golf Shop Staff, Starter and Ranger	Off	452212500	NFM	TONE=D023	17					
+C-Freq	CFreqId=328653	CGroupId=74279	Americana Bayside Irrigation	Off	462437500	NFM		17					
+C-Freq	CFreqId=328661	CGroupId=74279	The Peninsula GCC: Golf Course Maintenanc	Off	467512500	NFM	TONE=D445	17					
+C-Freq	CFreqId=328662	CGroupId=74279	The Peninsula GCC: Lifeguards	Off	462312500	NFM	TONE=D263	17					
+C-Freq	CFreqId=328660	CGroupId=74279	The Peninsula GCC: Shop Staff, Starter and Ranger	Off	461350000	NFM	TONE=D245	17					
+C-Group	CGroupId=74274	AgencyId=1265	Hotels/Resorts	Off	38.646910	-75.371700	22.0	Circle
+C-Freq	CFreqId=346416	CGroupId=74274	Beach View Hotel (Rehoboth)	Off	463525000	NFM	TONE=D331	17					
+C-Freq	CFreqId=366372	CGroupId=74274	Hyatt Place Dewey Beach	Off	464550000	NFM	TONE=D371	17					
+C-Freq	CFreqId=343498	CGroupId=74274	Resort at Massys Landing CH1	Off	451362500	NFM	TONE=D205	17					
+C-Freq	CFreqId=343501	CGroupId=74274	Resort at Massys Landing CH4 Talk-Around	Off	456362500	NFM	TONE=D205	17					
+C-Freq	CFreqId=343502	CGroupId=74274	Resort at Massys Landing CH5 Ops	Off	456987500	NFM	TONE=D205	17					
+C-Freq	CFreqId=343499	CGroupId=74274	Resort at Massys LandingCH2	Off	451987500	NFM	TONE=D205	17					
+C-Freq	CFreqId=343500	CGroupId=74274	Resort at Massys LandingCH3	Off	452187500	NFM	TONE=D205	17					
+C-Freq	CFreqId=263231	CGroupId=74274	Sands Hotel Housekeeping (Reho)	Off	462612500	FM	TONE=C74.4	17					
+C-Freq	CFreqId=263232	CGroupId=74274	Sands Hotel Maintenance (Reho)	Off	462637500	FM	TONE=C103.5	17					
+C-Freq	CFreqId=263233	CGroupId=74274	Sands Hotel Operations (Reho)	Off	462662500	FM	TONE=C82.5	17					
+C-Group	CGroupId=74272	AgencyId=1265	Malls/Retail Stores	Off	38.646910	-75.371700	22.0	Circle
+C-Freq	CFreqId=133838	CGroupId=74272	Atlantic Liquors (Dewey)	Off	467812500	FM	TONE=D743	17					
+C-Freq	CFreqId=337021	CGroupId=74272	Food Lion (Seaford)	Off	467850000	NFM		17					
+C-Freq	CFreqId=305896	CGroupId=74272	Harris Teeter (Long Neck)	Off	467850000	NFM	TONE=C146.2	17					
+C-Freq	CFreqId=151784	CGroupId=74272	Kitchen & Company/Cape Wine & Spirts	Off	464550000	FM	TONE=C67.0	17					
+C-Freq	CFreqId=317862	CGroupId=74272	Lewes Wawa Store	Off	158400000	FM	TONE=D174	17					
+C-Freq	CFreqId=317863	CGroupId=74272	Millsboro Wawa Store	Off	451800000	FM	TONE=D506	17					
+C-Freq	CFreqId=196149	CGroupId=74272	Nike Factory Store	Off	467200000	FM	TONE=D612	17					
+C-Freq	CFreqId=40738	CGroupId=74272	Old Navy	Off	151955000	FM	TONE=C74.4	17					
+C-Freq	CFreqId=40612	CGroupId=74272	Walmart	Off	154570000	FM		17					
+C-Freq	CFreqId=47428	CGroupId=74272	Wawa (Rehoboth/ Lewes)	Off	154600000	FM	TONE=D413	17					
+C-Group	CGroupId=25635	AgencyId=1265	Media	Off	38.646910	-75.371700	22.0	Circle
+C-Freq	CFreqId=95690	CGroupId=25635	WBOC-TV 16 News Helicopter	Off	161700000	FM	TONE=C118.8	31					
+C-Group	CGroupId=40450	AgencyId=1265	Milford Memorial Hospital	Off	38.646910	-75.371700	22.0	Circle
+C-Freq	CFreqId=162131	CGroupId=40450	Security	Off	157665000	FM	TONE=D205	33					
+C-Group	CGroupId=11351	AgencyId=1265	Miscellaneous	Off	38.646910	-75.371700	22.0	Circle
+C-Freq	CFreqId=201104	CGroupId=11351	Atlantic Concrete	Off	43040000	FM		17					
+C-Freq	CFreqId=277813	CGroupId=11351	Club Fitness - Rehoboth Mall	Off	464550000	FM	TONE=C67.0	17					
+C-Freq	CFreqId=377252	CGroupId=11351	FedEx Ops (Seaford)	Off	467900000	NFM	TONE=D265	26					
+C-Group	CGroupId=11352	AgencyId=1265	Private Security	Off	38.646910	-75.371700	22.0	Circle
+C-Freq	CFreqId=40611	CGroupId=11352	Pot-nets Security	Off	151685000	NFM	TONE=D162	33					
+C-Freq	CFreqId=328330	CGroupId=11352	Pot-nets Security (New)	Off	152570000	NFM	TONE=D162	33					
+C-Freq	CFreqId=317864	CGroupId=11352	Resort Security 3	Off	464725000	NFM	TONE=C151.4	33					
+C-Freq	CFreqId=38596	CGroupId=11352	Resort Security Ch. 1 Dispatch	Off	461325000	NFM	TONE=C118.8	33					
+C-Freq	CFreqId=38597	CGroupId=11352	Resort Security Ch. 2 Tactical	Off	461325000	NFM	TONE=D134	33					
+C-Freq	CFreqId=38595	CGroupId=11352	Sea Colony Security	Off	150815000	NFM	TONE=D073	33					
+C-Group	CGroupId=49492	AgencyId=1265	Railroads	Off	38.646910	-75.371700	22.0	Circle
+C-Freq	CFreqId=201776	CGroupId=49492	Delaware Coastline	Off	160455000	FM		20					
+C-Group	CGroupId=75209	AgencyId=1265	Retirement Communities	Off	38.773390	-75.137780	1.0	Circle
+C-Freq	CFreqId=317860	CGroupId=75209	OPS/Nurses (Cadbury At Lewes)	Off	467875000	FM	TONE=C67.0	17					
+C-Freq	CFreqId=317861	CGroupId=75209	Security (Cadbury At Lewes)	Off	467925000	FM	TONE=C67.0	33					
+C-Group	CGroupId=74273	AgencyId=1265	Utilities	Off	38.646910	-75.371700	22.0	Circle
+C-Freq	CFreqId=40739	CGroupId=74273	Comcast Cable	Off	464750000	NFM	TONE=C162.2	34					
+C-Freq	CFreqId=235266	CGroupId=74273	Delaware Electric Cooperative	Off	153725000	NFM	TONE=C123.0	34					
+C-Freq	CFreqId=163021	CGroupId=74273	Indian River Power Plant	Off	451037500	NFM	TONE=D731	34					
+Conventional	AgencyId=1266	StateId=10	Businesses	Off		Conventional
+AreaState	AgencyId=1266	StateId=10
+AreaCounty	AgencyId=1266	CountyId=313
+C-Group	CGroupId=73614	AgencyId=1266	Exhibition Spaces	Off	39.733130	-75.563110	2.0	Circle
+C-Freq	CFreqId=309099	CGroupId=73614	Chase Center Banquets	Off	464887500	NFM	TONE=D371	17					
+C-Freq	CFreqId=309098	CGroupId=73614	Chase Center/Riverfront Security/Engineering	Off	463587500	NFM	TONE=D263	17					
+C-Group	CGroupId=63410	AgencyId=1266	Hagley / Winterthur Museum	Off	39.794030	-75.591950	1.5	Circle
+C-Freq	CFreqId=262477	CGroupId=63410	Hagley Operations	Off	461450000	FM	TONE=C151.4	17					
+C-Freq	CFreqId=262475	CGroupId=63410	Hagley Operations 1	Off	469812500	FM	TONE=D223	17					
+C-Freq	CFreqId=262476	CGroupId=63410	Hagley Operations 2	Off	469500000	FM	TONE=C210.7	17					
+C-Freq	CFreqId=262474	CGroupId=63410	Winterthur Security	Off	461150000	FM	TONE=D134	17					
+C-Group	CGroupId=44187	AgencyId=1266	Higher Education	Off	39.719860	-75.632630	9.0	Circle
+C-Freq	CFreqId=319279	CGroupId=44187	Delaware Technical and Community College - Newark	Off	464362500	NFM	TONE=C110.9	32					
+C-Freq	CFreqId=263462	CGroupId=44187	U of D parking enforcement	Off	501662500	FM	TONE=C123.0	33					
+C-Freq	CFreqId=215372	CGroupId=44187	U of D Transportation (Blue Hen Shuttle)	Off	501512500	FM	TONE=C123.0	26					
+C-Freq	CFreqId=144232	CGroupId=44187	Widener School of law Security / Maintenence	Off	463937500	FM		32					
+C-Group	CGroupId=11358	AgencyId=1266	Hospitals	Off	39.719860	-75.616150	9.0	Circle
+C-Freq	CFreqId=19769	CGroupId=11358	AI DuPont - Security	Off	464475000	FM	TONE=C156.7	33					
+C-Freq	CFreqId=234392	CGroupId=11358	AID Command Center / Ops	Off	462475000	FM	TONE=C210.7	12					
+C-Freq	CFreqId=234387	CGroupId=11358	Christiana Care Health System maintenance	Off	451400000	FM	TONE=D754	12					
+C-Freq	CFreqId=19770	CGroupId=11358	Christiana Hospital - Security	Off	451600000	FM	TONE=D315	33					
+C-Freq	CFreqId=19771	CGroupId=11358	Wilmington Hospital - Operations	Off	464050000	FM	TONE=C82.5	12					
+C-Group	CGroupId=57759	AgencyId=1266	Housing / Apartments	Off	39.710360	-75.602420	11.0	Circle
+C-Freq	CFreqId=243288	CGroupId=57759	Cavalier Country Club Apartments (Maintanence)	Off	467762500	FM		17					
+C-Group	CGroupId=38572	AgencyId=1266	Industrial / Manufacturing	Off	39.569710	-75.662840	21.0	Circle
+C-Freq	CFreqId=234388	CGroupId=38572	Agilent Technologies	Off	463550000	FM	TONE=C218.1	17					
+C-Freq	CFreqId=243287	CGroupId=38572	Artesian Water (Operations)	Off	854862500	FM		17					
+C-Freq	CFreqId=151113	CGroupId=38572	AstraZeneca Maintenance	Off	462425000	FM		17					
+C-Freq	CFreqId=342759	CGroupId=38572	Puglisi Egg Farms	Off	461350000	AUTO		17					
+C-Group	CGroupId=85393	AgencyId=1266	Private Security	Off	39.743770	-75.568320	3.0	Circle
+C-Freq	CFreqId=373880	CGroupId=85393	Downtown Visions Wilmington Investment District Security	Off	461537500	NFM	TONE=D065	33					
+C-Group	CGroupId=11357	AgencyId=1266	Retail	Off	39.733590	-75.625760	9.0	Circle
+C-Freq	CFreqId=19275	CGroupId=11357	Brandywine Town Center - Security	Off	462100000	NFM	TONE=D754	33					
+C-Freq	CFreqId=319272	CGroupId=11357	Christiana Mall - American Eagle	Off	464550000	NFM	TONE=C71.9	17					
+C-Freq	CFreqId=319278	CGroupId=11357	Christiana Mall - Anthropologie	Off	467875000	NFM	TONE=C192.8	17					
+C-Freq	CFreqId=319286	CGroupId=11357	Christiana Mall - Apple	Off	462787500	NFM	TONE=C67.0	17					
+C-Freq	CFreqId=319283	CGroupId=11357	Christiana Mall - Banana Republic?	Off	158400000	NFM	TONE=C74.4	17					
+C-Freq	CFreqId=319728	CGroupId=11357	Christiana Mall - Bath and Body Works	Off	467900000	NFM	TONE=D632	17					
+C-Freq	CFreqId=319276	CGroupId=11357	Christiana Mall - Cabela's	Off	467850000	NFM	TONE=D654	17					
+C-Freq	CFreqId=319275	CGroupId=11357	Christiana Mall - Cabela's	Off	467875000	NFM	TONE=D662	17					
+C-Freq	CFreqId=319274	CGroupId=11357	Christiana Mall - Cabela's (Ch. 3)	Off	467900000	NFM	TONE=D664	17					
+C-Freq	CFreqId=319273	CGroupId=11357	Christiana Mall - Cinemark	Off	456437500	NFM	TONE=C94.8	17					
+C-Freq	CFreqId=319280	CGroupId=11357	Christiana Mall - Disney	Off	467875000	NFM	TONE=D712	17					
+C-Freq	CFreqId=319271	CGroupId=11357	Christiana Mall - Express	Off	467850000	NFM	TONE=C118.8	17					
+C-Freq	CFreqId=319282	CGroupId=11357	Christiana Mall - Gap?	Off	154570000	NFM	TONE=C74.4	17					
+C-Freq	CFreqId=319287	CGroupId=11357	Christiana Mall - Guess	Off	467875000	NFM	TONE=D723	17					
+C-Freq	CFreqId=319731	CGroupId=11357	Christiana Mall - H and M	Off	468837500	NFM	TONE=D155	17					
+C-Freq	CFreqId=19768	CGroupId=11357	Christiana Mall - Housekeeping	Off	464912500	NFM	TONE=C141.3	17					
+C-Freq	CFreqId=319729	CGroupId=11357	Christiana Mall - J. Crew	Off	467925000	NFM	TONE=C88.5	17					
+C-Freq	CFreqId=319727	CGroupId=11357	Christiana Mall - JC Penney	Off	467225000	NFM	TONE=D365	17					
+C-Freq	CFreqId=319270	CGroupId=11357	Christiana Mall - Pink	Off	467875000	NFM	TONE=D743	17					
+C-Freq	CFreqId=319263	CGroupId=11357	Christiana Mall - Pottery Barn	Off	467875000	NFM	TONE=D165	17					
+C-Freq	CFreqId=204109	CGroupId=11357	Christiana Mall - Security	Off	464775000	NFM	TONE=C141.3	33					
+C-Freq	CFreqId=243286	CGroupId=11357	Christiana Mall - Security Talkaround	Off	464500000	NFM	TONE=C141.3	33					
+C-Freq	CFreqId=319277	CGroupId=11357	Christiana Mall - Sephora	Off	461112500	NFM	TONE=D412	17					
+C-Freq	CFreqId=319265	CGroupId=11357	Christiana Mall - Target (Ch. 1)	Off	467750000	NFM	TONE=D115	17					
+C-Freq	CFreqId=319266	CGroupId=11357	Christiana Mall - Target (Ch. 2)	Off	467775000	NFM	TONE=D072	17					
+C-Freq	CFreqId=319267	CGroupId=11357	Christiana Mall - Target (Ch. 3)	Off	467925000	NFM	TONE=D155	17					
+C-Freq	CFreqId=319268	CGroupId=11357	Christiana Mall - Target (Ch. 4)	Off	467900000	NFM	TONE=D205	17					
+C-Freq	CFreqId=319269	CGroupId=11357	Christiana Mall - Target (Loss Prevention)	Off	467850000	NFM	TONE=D306	17					
+C-Freq	CFreqId=319726	CGroupId=11357	Christiana Mall - Tilly's	Off	464487500	NFM	TONE=C67.0	17					
+C-Freq	CFreqId=319304	CGroupId=11357	Christiana Mall - Unknown shoe store	Off	467875000	NFM	TONE=D072	17					
+C-Freq	CFreqId=319305	CGroupId=11357	Christiana Mall - Unknown shoe store	Off	467875000	NFM	TONE=D116	17					
+C-Freq	CFreqId=319307	CGroupId=11357	Christiana Mall - Unknown store	Off	467875000	NFM	TONE=C186.2	17					
+C-Freq	CFreqId=319306	CGroupId=11357	Christiana Mall - Unknown store	Off	467900000	NFM	TONE=C88.5	17					
+C-Freq	CFreqId=319730	CGroupId=11357	Christiana Mall - Urban Outfitters	Off	467925000	NFM	TONE=C218.1	17					
+C-Freq	CFreqId=319264	CGroupId=11357	Christiana Mall - Victoria's Secret	Off	467925000	NFM	TONE=D743	17					
+C-Freq	CFreqId=319281	CGroupId=11357	Christiana Mall - Williams-Sonoma	Off	467850000	NFM	TONE=D047	17					
+C-Freq	CFreqId=19273	CGroupId=11357	Concord Mall - Maintenance	Off	460837500	FM	TONE=D624	17					
+C-Freq	CFreqId=274289	CGroupId=11357	Concord Mall - Security	Off	461500000	NFM	TONE=D205	33					
+C-Freq	CFreqId=319284	CGroupId=11357	Dick's Sporting Goods (Newark)	Off	467875000	NFM	TONE=C94.8	17					
+C-Freq	CFreqId=350509	CGroupId=11357	Harbor Freight 1	Off	467875000	NFM	TONE=D411	17					
+C-Freq	CFreqId=350510	CGroupId=11357	Harbor Freight 2	Off	467850000	NFM	TONE=D631	17					
+C-Freq	CFreqId=350511	CGroupId=11357	Harbor Freight 3	Off	467925000	NFM	TONE=D343	17					
+C-Freq	CFreqId=350512	CGroupId=11357	Harbor Freight 4	Off	467900000	NFM	TONE=D346	17					
+C-Freq	CFreqId=385806	CGroupId=11357	Home Depot Ch. 1	Off	467762500	NFM	TONE=D065	17					
+C-Freq	CFreqId=385807	CGroupId=11357	Home Depot Ch. 2	Off	467850000	NFM	TONE=D331	17					
+C-Freq	CFreqId=385808	CGroupId=11357	Home Depot Ch. 3	Off	467837500	NFM	TONE=D263	17					
+C-Freq	CFreqId=319285	CGroupId=11357	Michaels (Newark)	Off	467850000	NFM	TONE=D532	17					
+C-Freq	CFreqId=233107	CGroupId=11357	Total Wine (Claymont)	Off	461087500	NFM	TONE=C131.8	17					
+C-Freq	CFreqId=319288	CGroupId=11357	Toys R Us (Newark)	Off	467850000	NFM	TONE=D251	17					
+C-Freq	CFreqId=342580	CGroupId=11357	Walmart (Middletown)	Off	154570000	NFM		17					
+C-Group	CGroupId=68611	AgencyId=1266	Retirement Communities	Off	39.760450	-75.573480	5.0	Circle
+C-Freq	CFreqId=281732	CGroupId=68611	Cokesbury Village Ops	Off	464675000	FM	TONE=D156	17					
+C-Freq	CFreqId=369697	CGroupId=68611	Methodist Country Home	Off	451525000	FM	TONE=D131	17					
+C-Group	CGroupId=79876	AgencyId=1266	Sports	Off	39.569710	-75.662840	21.0	Circle
+C-Freq	CFreqId=343641	CGroupId=79876	Hockessin Athletic Club	Off	451550000	NFM		17					
+C-Freq	CFreqId=343642	CGroupId=79876	Hockessin Athletic Club	Off	451675000	NFM		17					
+C-Freq	CFreqId=343643	CGroupId=79876	Hockessin Athletic Club	Off	451825000	NFM		17					
+C-Freq	CFreqId=343644	CGroupId=79876	Hockessin Athletic Club	Off	456550000	NFM		17					
+C-Freq	CFreqId=343645	CGroupId=79876	Hockessin Athletic Club	Off	456675000	NFM		17					
+C-Freq	CFreqId=343647	CGroupId=79876	Wilmington Blue Rocks	Off	456362500	NFM		17					
+C-Freq	CFreqId=343648	CGroupId=79876	Wilmington Blue Rocks	Off	456687500	NFM		17					
+C-Freq	CFreqId=343649	CGroupId=79876	Wilmington Blue Rocks	Off	457162500	NFM		17					
+C-Freq	CFreqId=343650	CGroupId=79876	Wilmington Blue Rocks	Off	457787500	NFM		17					
+C-Group	CGroupId=87153	AgencyId=1266	Transportation	Off	39.569710	-75.662840	21.0	Circle
+C-Freq	CFreqId=382459	CGroupId=87153	Advanced Student Transportation, Inc	Off	152427500	AUTO		26					
+Conventional	AgencyId=8703	StateId=10	Common/Shared Mutual Aid	Off		Conventional
+AreaState	AgencyId=8703	StateId=10
+AreaCounty	AgencyId=8703	CountyId=0
+C-Group	CGroupId=72949	AgencyId=8703	State of Delaware Interop Channels - 800Mhz Simplex channels	Off	39.134610	-75.525880	53.0	Circle
+C-Freq	CFreqId=357694	CGroupId=72949	Talk-1	Off	861087500	NFM	NAC=293	11					
+C-Freq	CFreqId=357695	CGroupId=72949	Talk-2	Off	861337500	NFM	NAC=293	11					
+Conventional	AgencyId=6417	StateId=10	Delaware Railroads	Off		Conventional
+AreaState	AgencyId=6417	StateId=10
+AreaCounty	AgencyId=6417	CountyId=0
+C-Group	CGroupId=48245	AgencyId=6417	Railroads - Amtrak	Off	39.735670	-75.529640	15.0	Circle
+C-Freq	CFreqId=195199	CGroupId=48245	APD Bear DE	Off	161295000	FM	TONE=C88.5	20					
+C-Freq	CFreqId=195200	CGroupId=48245	APD Car to Car Primary	Off	161205000	FM	TONE=C146.2	20					
+C-Freq	CFreqId=195202	CGroupId=48245	APD Mobile Repeater	Off	173375000	FM	TONE=C203.5	20					
+C-Freq	CFreqId=338759	CGroupId=48245	APD Wilmington DE	Off	161295000	FM	TONE=C71.9	20					
+C-Freq	CFreqId=195198	CGroupId=48245	Bear, DE Shops	Off	161445000	FM		20					
+C-Freq	CFreqId=195197	CGroupId=48245	Maintenance of Way Crews and Power Crews	Off	160515000	FM		20					
+C-Freq	CFreqId=195196	CGroupId=48245	Road/Dispatcher Northeast Corridor	Off	160920000	FM		20					
+C-Group	CGroupId=48246	AgencyId=6417	Railroads - CSX	Off	39.141670	-75.408330	51.9	Circle
+C-Freq	CFreqId=381330	CGroupId=48246	CSX	Off	160320000	NFM		20					
+C-Freq	CFreqId=195204	CGroupId=48246	Dispatcher - Philly Sub	Off	161100000	FM		20					
+C-Freq	CFreqId=195206	CGroupId=48246	Maintenance of Way	Off	160785000	FM		20					
+C-Freq	CFreqId=195208	CGroupId=48246	PBX System	Off	160890000	FM		20					
+C-Freq	CFreqId=195207	CGroupId=48246	Police	Off	160875000	FM		20					
+C-Freq	CFreqId=195203	CGroupId=48246	Road - Philly Sub	Off	160230000	FM	TONE=C250.3	20					
+C-Freq	CFreqId=195205	CGroupId=48246	Wilsmere Yard	Off	160530000	FM		20					
+C-Group	CGroupId=48248	AgencyId=6417	Railroads - Delaware Coast Line RR	Off	38.891030	-75.146480	60.0	Circle
+C-Freq	CFreqId=195215	CGroupId=48248	DCLR Operations	Off	160455000	FM		20					
+C-Group	CGroupId=79149	AgencyId=6417	Railroads - Delmarva Central Rail Road	Off	39.141670	-75.408330	51.9	Circle
+C-Freq	CFreqId=340101	CGroupId=79149	Delmarva Central RR CH1	Off	161040000	NFM		20					
+C-Freq	CFreqId=340102	CGroupId=79149	Delmarva Central RR CH2	Off	160935000	NFM		20					
+C-Group	CGroupId=48249	AgencyId=6417	Railroads - Maryland & Delaware RR	Off	38.959410	-75.673830	60.0	Circle
+C-Freq	CFreqId=195216	CGroupId=48249	MDDE Operations	Off	160695000	FM		20					
+C-Group	CGroupId=48247	AgencyId=6417	Railroads - Norfolk Southern	Off	39.066110	-75.525510	55.0	Circle
+C-Freq	CFreqId=195211	CGroupId=48247	Chrysler (Newark) Yard Operations	Off	160980000	FM		20					
+C-Freq	CFreqId=195210	CGroupId=48247	Edgemoor Yard Operations	Off	160860000	FM		20					
+C-Freq	CFreqId=195214	CGroupId=48247	Maintenance of Way. PBX System Mobile	Off	160710000	FM		20					
+C-Freq	CFreqId=195213	CGroupId=48247	Maintenance of Way; PBX System Base	Off	161130000	FM		20					
+C-Freq	CFreqId=195212	CGroupId=48247	NS Police	Off	160560000	FM		20					
+C-Freq	CFreqId=195209	CGroupId=48247	Road/Dispatcher - all lines in DE	Off	160800000	FM		20					
+C-Group	CGroupId=48454	AgencyId=6417	Railroads - Wilmington & Western RR	Off	39.724090	-75.616150	6.0	Circle
+C-Freq	CFreqId=196148	CGroupId=48454	Wilmington & Western RR	Off	160755000	NFM		20					
+Conventional	AgencyId=993	StateId=10	Delaware State Agencies	Off		Conventional
+AreaState	AgencyId=993	StateId=10
+AreaCounty	AgencyId=993	CountyId=0
+C-Group	CGroupId=11353	AgencyId=993	Parks and Recreation	Off	38.770150	-75.096360	2.5	Circle
+C-Freq	CFreqId=43559	CGroupId=11353	Cape Henlopen State Park - Beach Patrol	Off	462575000	FM	TONE=C79.7	14					
+Conventional	AgencyId=2700	StateId=10	Dover Air Force Base	Off		Conventional
+AreaState	AgencyId=2700	StateId=10
+AreaCounty	AgencyId=2700	CountyId=312
+C-Group	CGroupId=24637	AgencyId=2700	Air Traffic Control	Off	39.083170	-75.555730	20.0	Circle
+C-Freq	CFreqId=97144	CGroupId=24637	Approach	Off	132425000	AM		15					
+C-Freq	CFreqId=97146	CGroupId=24637	Approach	Off	135150000	AM		15					
+C-Freq	CFreqId=99084	CGroupId=24637	Approach	Off	257875000	AM		15					
+C-Freq	CFreqId=132843	CGroupId=24637	Approach / VFR only	Off	125900000	AM		15					
+C-Freq	CFreqId=132844	CGroupId=24637	Approach / VFR only	Off	282325000	AM		15					
+C-Freq	CFreqId=97132	CGroupId=24637	ATIS	Off	127825000	AM		15					
+C-Freq	CFreqId=97133	CGroupId=24637	ATIS	Off	273500000	AM		15					
+C-Freq	CFreqId=97135	CGroupId=24637	Clearance Delivery	Off	125550000	AM		15					
+C-Freq	CFreqId=97137	CGroupId=24637	Clearance Delivery	Off	289400000	AM		15					
+C-Freq	CFreqId=97151	CGroupId=24637	Command Post	Off	134100000	AM		15					
+C-Freq	CFreqId=97153	CGroupId=24637	Command Post	Off	349400000	AM		15					
+C-Freq	CFreqId=97147	CGroupId=24637	Departure	Off	132425000	AM		15					
+C-Freq	CFreqId=97150	CGroupId=24637	Departure	Off	323000000	AM		15					
+C-Freq	CFreqId=97138	CGroupId=24637	Ground Control	Off	118875000	AM		15					
+C-Freq	CFreqId=97140	CGroupId=24637	Ground Control	Off	225400000	AM		15					
+C-Freq	CFreqId=97155	CGroupId=24637	Metro (Weather)	Off	342000000	AM		15					
+C-Freq	CFreqId=97154	CGroupId=24637	Pilot Dispatch	Off	372200000	AM		15					
+C-Freq	CFreqId=97730	CGroupId=24637	Pilot Dispatch (New?)	Off	269125000	AM		15					
+C-Freq	CFreqId=97141	CGroupId=24637	Tower	Off	126350000	AM		15					
+C-Freq	CFreqId=97143	CGroupId=24637	Tower	Off	279625000	AM		15					
+C-Group	CGroupId=54567	AgencyId=2700	Operations	Off	39.083170	-75.555730	20.0	Circle
+C-Freq	CFreqId=226456	CGroupId=54567	Command Post	Off	142350000	FM		30					
+Conventional	AgencyId=1243	StateId=10	Medevac	Off		Conventional
+AreaState	AgencyId=1243	StateId=10
+AreaCounty	AgencyId=1243	CountyId=0
+C-Group	CGroupId=11260	AgencyId=1243	Medevacs	Off	39.095960	-75.536500	52.0	Circle
+C-Freq	CFreqId=43186	CGroupId=11260	LifeNet-61 / 64 (Statewide)	Off	160020000	FM	TONE=C156.7	4					
+C-Freq	CFreqId=151244	CGroupId=11260	LifeNet-64 /  (Sussex County / Georgetown Apt.)	Off	151850000	FM	TONE=D115	4					
+C-Freq	CFreqId=43187	CGroupId=11260	MedSTAR-3 (Sussex county backup copter from Easton MD)	Off	462950000	FM	TONE=C77.0	4					
+Conventional	AgencyId=2894	StateId=10	New Castle Airport (ILG)	Off		Conventional
+AreaState	AgencyId=2894	StateId=10
+AreaCounty	AgencyId=2894	CountyId=313
+C-Group	CGroupId=26495	AgencyId=2894	Airports - New Castle Airport (KILG)	Off	39.675860	-75.607700	10.0	Circle
+C-Freq	CFreqId=384004	CGroupId=26495	Air National Guard Operations	Off	46900000	AM		30					
+C-Freq	CFreqId=99512	CGroupId=26495	Approach/Departure (Philadelpha)	Off	118350000	AM		15					
+C-Freq	CFreqId=136475	CGroupId=26495	Approach/Departure (Philadelpha)	Off	119750000	AM		15					
+C-Freq	CFreqId=99505	CGroupId=26495	Automatic Terminal Information Service (ATIS)	Off	123950000	AM		15					
+C-Freq	CFreqId=99507	CGroupId=26495	Clearance Delivery	Off	119950000	AM		15					
+C-Freq	CFreqId=99508	CGroupId=26495	Ground	Off	121700000	AM		15					
+C-Freq	CFreqId=99509	CGroupId=26495	Ground	Off	275800000	AM		15					
+C-Freq	CFreqId=99510	CGroupId=26495	Tower	Off	126000000	AM		15					
+C-Freq	CFreqId=99511	CGroupId=26495	Tower	Off	305400000	AM		15					
+C-Freq	CFreqId=99506	CGroupId=26495	Unicom	Off	122950000	AM		15					
+C-Group	CGroupId=87413	AgencyId=2894	Airports - Summit Airport (KEVY)	Off	39.519350	-75.719520	10.0	Circle
+C-Freq	CFreqId=384782	CGroupId=87413	CTAF / Unicom	Off	122725000	AM		15					
+C-Freq	CFreqId=384087	CGroupId=87413	Summit Airport ATIS	Off	132325000	AM		15					
+Conventional	AgencyId=7619	StateId=10	USCG	Off		Conventional
+AreaState	AgencyId=7619	StateId=10
+AreaCounty	AgencyId=7619	CountyId=0
+C-Group	CGroupId=63764	AgencyId=7619	USCG - Delaware Bay	Off	39.232250	-75.234380	50.0	Circle
+C-Freq	CFreqId=263322	CGroupId=63764	USCG Air Operations Pri	Off	412975000	NFM	NAC=293	16					
+C-Freq	CFreqId=263321	CGroupId=63764	USCG Area Operations Pri	Off	165312500	NFM	NAC=293	16					
+C-Group	CGroupId=63765	AgencyId=7619	USCG - Station Indian River Inlet	Off	38.552460	-74.707030	40.0	Circle
+C-Freq	CFreqId=263323	CGroupId=63765	Sta Indian River Inlet Ops	Off	164312500	NFM	NAC=293	16					
+Trunk	TrunkId=5254	StateId=10	American Industrial and Marine (Frederica)	Off		Ltr					
+AreaState	TrunkId=5254	StateId=10
+AreaCounty	TrunkId=5254	CountyId=312
+Site	SiteId=11310	TrunkId=5254	Confirmed LCN	Off	39.083170	-75.555730	20.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=11310		Off	463400000	3
+T-Freq	TFreqId=0	SiteId=11310		Off	463600000	11
+Site	SiteId=11311	TrunkId=5254	Unconfirmed LCN	Off	39.083170	-75.555730	20.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=11311		Off	461700000	1
+T-Freq	TFreqId=0	SiteId=11311		Off	462100000	2
+T-Freq	TFreqId=0	SiteId=11311		Off	463950000	3
+T-Freq	TFreqId=0	SiteId=11311		Off	464275000	4
+T-Group	TGroupId=10963	TrunkId=5254	All Groups	Off	39.009000	-75.465750	20.0	Circle
+TGID	Tid=169970	TGroupId=10963	Dover Taxi	Off	0-11-083	ALL	26				
+TGID	Tid=151387	TGroupId=10963	farm	Off	0-11-189	ALL	17				
+TGID	Tid=151386	TGroupId=10963	farm	Off	0-11-233	ALL	17				
+TGID	Tid=151382	TGroupId=10963	medical transport	Off	0-11-240	ALL	17				
+TGID	Tid=151384	TGroupId=10963	towing co(very active during dover race)	Off	0-11-224	ALL	17				
+TGID	Tid=151392	TGroupId=10963	transportation	Off	0-11-100	ALL	17				
+TGID	Tid=151385	TGroupId=10963	veterinarian	Off	0-11-181	ALL	17				
+Trunk	TrunkId=3372	StateId=10	American Industrial and Marine Electronics (Georgetown)	Off		Ltr					
+AreaState	TrunkId=3372	StateId=10
+AreaCounty	TrunkId=3372	CountyId=314
+Site	SiteId=10063	TrunkId=3372	Confirmed LCN	Off	38.646910	-75.371700	22.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=10063		Off	460850000	11
+T-Freq	TFreqId=0	SiteId=10063		Off	464850000	13
+T-Freq	TFreqId=0	SiteId=10063		Off	463825000	15
+T-Freq	TFreqId=0	SiteId=10063		Off	464125000	17
+T-Freq	TFreqId=0	SiteId=10063		Off	463300000	19
+T-Group	TGroupId=8881	TrunkId=3372	All	Off	38.646910	-75.371700	22.0	Circle
+TGID	Tid=217551	TGroupId=8881	Acces Ride Transport Taxi	Off	0-11-045	ALL	26				
+TGID	Tid=216710	TGroupId=8881	Bayside Security Patrol Services	Off	0-11-046	ALL	33				
+TGID	Tid=183672	TGroupId=8881	Beach Ride Taxi	Off	0-11-077	ALL	26				
+TGID	Tid=98955	TGroupId=8881	Blue Hen Dispose-all Trash Trucks	Off	0-11-136	ALL	17				
+TGID	Tid=132130	TGroupId=8881	Peninsula oil and propane	Off	0-11-141	ALL	17				
+TGID	Tid=167671	TGroupId=8881	Rehoboth Beach Taxi	Off	0-11-086	ALL	26				
+TGID	Tid=98868	TGroupId=8881	Seaport Taxi (Lewes)	Off	0-11-134	ALL	26				
+TGID	Tid=129140	TGroupId=8881	taxi	Off	0-11-133	ALL	26				
+TGID	Tid=129141	TGroupId=8881	Towing Company	Off	0-11-239	ALL	17				
+TGID	Tid=183774	TGroupId=8881	Trash Service	Off	0-11-092	ALL	17				
+Trunk	TrunkId=6299	StateId=10	Brandywine School District	Off		Ltr					
+AreaState	TrunkId=6299	StateId=10
+AreaCounty	TrunkId=6299	CountyId=313
+Site	SiteId=16379	TrunkId=6299	Confirmed LCN	Off	39.569710	-75.662840	21.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=16379		Off	453262500	3
+T-Freq	TFreqId=0	SiteId=16379		Off	453762500	7
+T-Group	TGroupId=14060	TrunkId=6299	All	Off	39.792180	-75.526200	5.0	Circle
+TGID	Tid=189596	TGroupId=14060	School Buses	Off	0-07-248	ALL	32				
+Trunk	TrunkId=4739	StateId=10	Christiana Care Health Services	Off		Ltr					
+AreaState	TrunkId=4739	StateId=10
+AreaCounty	TrunkId=4739	CountyId=313
+Site	SiteId=9646	TrunkId=4739	Newark	Off	39.569710	-75.662840	21.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=9646		Off	451325000	3
+T-Freq	TFreqId=0	SiteId=9646		Off	463612500	7
+T-Freq	TFreqId=0	SiteId=9646		Off	464050000	11
+T-Freq	TFreqId=0	SiteId=9646		Off	464837500	15
+Site	SiteId=9647	TrunkId=4739	Wilmington	Off	39.569710	-75.662840	21.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=9647		Off	451750000	3
+T-Freq	TFreqId=0	SiteId=9647		Off	451850000	7
+T-Freq	TFreqId=0	SiteId=9647		Off	452225000	11
+T-Group	TGroupId=10580	TrunkId=4739	General	Off	39.723350	-75.614600	6.0	Circle
+TGID	Tid=135916	TGroupId=10580	Constables / Security Newark	Off	0-15-001	ALL	33				
+TGID	Tid=174374	TGroupId=10580	Constables / Security Wilmington	Off	0-11-001	ALL	33				
+TGID	Tid=174373	TGroupId=10580	Fire Newark	Off	0-15-002	ALL	3				
+TGID	Tid=135917	TGroupId=10580	LifeNet dispatch Newark	Off	0-15-015	ALL	4				
+TGID	Tid=189748	TGroupId=10580	Maintenance Newark	Off	0-15-005	ALL	17				
+Trunk	TrunkId=8301	StateId=10	Delaware Park	Off		Ltr					
+AreaState	TrunkId=8301	StateId=10
+AreaCounty	TrunkId=8301	CountyId=313
+Site	SiteId=25296	TrunkId=8301	Site 1	Off	39.569710	-75.662840	21.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=25296		Off	462162500	3
+T-Freq	TFreqId=0	SiteId=25296		Off	463425000	5
+T-Freq	TFreqId=0	SiteId=25296		Off	464825000	7
+T-Group	TGroupId=21745	TrunkId=8301	All	Off	39.569710	-75.662840	21.0	Circle
+TGID	Tid=269692	TGroupId=21745	Beverage	Off	0-03-103	ALL	17				
+TGID	Tid=269691	TGroupId=21745	Engineering	Off	0-03-106	ALL	17				
+TGID	Tid=269686	TGroupId=21745	Housekeeping	Off	0-03-102	ALL	17				
+TGID	Tid=269687	TGroupId=21745	Security	Off	0-03-104	ALL	33				
+TGID	Tid=269693	TGroupId=21745	Slot Hosts?	Off	0-03-101	ALL	17				
+TGID	Tid=269689	TGroupId=21745	Slot Techs	Off	0-05-103	ALL	17				
+TGID	Tid=269688	TGroupId=21745	Slots	Off	0-05-102	ALL	17				
+TGID	Tid=269690	TGroupId=21745	Slots	Off	0-07-101	ALL	17				
+Trunk	TrunkId=6733	StateId=10	Delaware Wireless Interoperability Network (DELWIN)	Off		P25Standard					
+AreaState	TrunkId=6733	StateId=10
+AreaCounty	TrunkId=6733	CountyId=0
+Site	SiteId=17228	TrunkId=6733	Claymont	Off	39.748690	-75.571170	8.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=17228		Off	770831250	1
+T-Freq	TFreqId=0	SiteId=17228		Off	772931250	2
+T-Freq	TFreqId=0	SiteId=17228		Off	769331250	3
+T-Freq	TFreqId=0	SiteId=17228		Off	769831250	4
+Site	SiteId=17233	TrunkId=6733	Dagsboro	Off	38.549030	-75.244850	10.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=17233		Off	771781250	1
+T-Freq	TFreqId=0	SiteId=17233		Off	772606250	2
+T-Freq	TFreqId=0	SiteId=17233		Off	772881250	3
+T-Freq	TFreqId=0	SiteId=17233		Off	773156250	4
+Site	SiteId=19023	TrunkId=6733	Dover / DSP HQ	Off	39.103270	-75.549790	10.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=19023		Off	769156250	1
+T-Freq	TFreqId=0	SiteId=19023		Off	769406250	2
+T-Freq	TFreqId=0	SiteId=19023		Off	769656250	3
+T-Freq	TFreqId=0	SiteId=19023		Off	769906250	4
+Site	SiteId=17232	TrunkId=6733	Felton	Off	39.011860	-75.574260	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=17232		Off	771256250	1
+T-Freq	TFreqId=0	SiteId=17232		Off	772181250	2
+T-Freq	TFreqId=0	SiteId=17232		Off	772581250	3
+T-Freq	TFreqId=0	SiteId=17232		Off	773231250	4
+Site	SiteId=19800	TrunkId=6733	Georgetown SBA	Off	38.655720	-75.370450	17.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=19800		Off	770156250	1
+T-Freq	TFreqId=0	SiteId=19800		Off	770406250	2
+T-Freq	TFreqId=0	SiteId=19800		Off	770656250	3
+T-Freq	TFreqId=0	SiteId=19800		Off	770906250	4
+Site	SiteId=17231	TrunkId=6733	Hartly	Off	39.173020	-75.666280	10.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=17231		Off	769081250	1
+T-Freq	TFreqId=0	SiteId=17231		Off	769356250	2
+T-Freq	TFreqId=0	SiteId=17231		Off	770081250	3
+T-Freq	TFreqId=0	SiteId=17231		Off	770606250	4
+Site	SiteId=17230	TrunkId=6733	Middletown	Off	39.430000	-75.700000	8.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=17230		Off	772131250	1
+T-Freq	TFreqId=0	SiteId=17230		Off	772481250	2
+T-Freq	TFreqId=0	SiteId=17230		Off	772756250	3
+T-Freq	TFreqId=0	SiteId=17230		Off	773731250	4
+Site	SiteId=19799	TrunkId=6733	Milton	Off	38.668570	-75.379940	14.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=19799		Off	773531250	1
+T-Freq	TFreqId=0	SiteId=19799		Off	773281250	2
+T-Freq	TFreqId=0	SiteId=19799		Off	773031250	3
+T-Freq	TFreqId=0	SiteId=19799		Off	773781250	4
+Site	SiteId=17229	TrunkId=6733	Newark	Off	39.686260	-75.715030	7.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=17229		Off	771131250	1
+T-Freq	TFreqId=0	SiteId=17229		Off	771381250	2
+T-Freq	TFreqId=0	SiteId=17229		Off	771806250	3
+T-Freq	TFreqId=0	SiteId=17229		Off	774156250	4
+Site	SiteId=17234	TrunkId=6733	Seaford	Off	38.643740	-75.595550	10.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=17234		Off	770806250	1
+T-Freq	TFreqId=0	SiteId=17234		Off	771356250	2
+T-Freq	TFreqId=0	SiteId=17234		Off	771906250	3
+T-Freq	TFreqId=0	SiteId=17234		Off	773706250	4
+Site	SiteId=33890	TrunkId=6733	Smyrna	Off	39.301020	-75.603800	10.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=33890		Off	769718750	1
+T-Freq	TFreqId=0	SiteId=33890		Off	774031250	2
+T-Freq	TFreqId=0	SiteId=33890		Off	774281250	3
+T-Freq	TFreqId=0	SiteId=33890		Off	774843750	4
+Site	SiteId=17165	TrunkId=6733	Wilmington	Off	39.745420	-75.539250	7.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=17165		Off	772143750	1
+T-Freq	TFreqId=0	SiteId=17165		Off	772531250	2
+T-Freq	TFreqId=0	SiteId=17165		Off	772906250	3
+T-Freq	TFreqId=0	SiteId=17165		Off	773734750	4
+Site	SiteId=19727	TrunkId=6733	Wilmington	Off	39.752740	-75.611770	5.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=19727		Off	770193750	1
+T-Freq	TFreqId=0	SiteId=19727		Off	770968750	2
+T-Freq	TFreqId=0	SiteId=19727		Off	774093750	3
+T-Freq	TFreqId=0	SiteId=19727		Off	774593750	4
+T-Group	TGroupId=16593	TrunkId=6733	DOC	Off	39.090000	-75.558470	48.0	Circle
+TGID	Tid=215573	TGroupId=16593	7 IOP-1	Off	154	ALL	11				
+TGID	Tid=215574	TGroupId=16593	7 IOP-2	Off	155	ALL	11				
+TGID	Tid=215277	TGroupId=16593	Baylor Inside Control	Off	106	ALL	37				
+TGID	Tid=215306	TGroupId=16593	DOC-14	Off	114	ALL	37				
+TGID	Tid=215275	TGroupId=16593	DOC-15	Off	115	ALL	37				
+TGID	Tid=215307	TGroupId=16593	DOC-16	Off	116	ALL	37				
+TGID	Tid=215308	TGroupId=16593	DOC-17	Off	117	ALL	37				
+TGID	Tid=215309	TGroupId=16593	DOC-18	Off	118	ALL	37				
+TGID	Tid=215310	TGroupId=16593	DOC-19	Off	119	ALL	37				
+TGID	Tid=215311	TGroupId=16593	DOC-20	Off	120	ALL	37				
+TGID	Tid=215554	TGroupId=16593	DOC-21	Off	121	ALL	37				
+TGID	Tid=215555	TGroupId=16593	DOC-22	Off	122	ALL	37				
+TGID	Tid=215556	TGroupId=16593	DOC-23	Off	123	ALL	37				
+TGID	Tid=215557	TGroupId=16593	DOC-24	Off	124	ALL	37				
+TGID	Tid=215558	TGroupId=16593	DOC-25	Off	125	ALL	37				
+TGID	Tid=215559	TGroupId=16593	DOC-26 Uid	Off	126	ALL	37				
+TGID	Tid=215560	TGroupId=16593	DOC-28	Off	128	ALL	37				
+TGID	Tid=215561	TGroupId=16593	DOC-29	Off	129	ALL	37				
+TGID	Tid=215296	TGroupId=16593	DOC-3	Off	103	ALL	37				
+TGID	Tid=215562	TGroupId=16593	DOC-30	Off	130	ALL	37				
+TGID	Tid=215563	TGroupId=16593	DOC-31	Off	131	ALL	37				
+TGID	Tid=215564	TGroupId=16593	DOC-32	Off	132	ALL	37				
+TGID	Tid=215565	TGroupId=16593	DOC-33	Off	133	ALL	37				
+TGID	Tid=215566	TGroupId=16593	DOC-34	Off	134	ALL	37				
+TGID	Tid=215567	TGroupId=16593	DOC-35	Off	135	ALL	37				
+TGID	Tid=215568	TGroupId=16593	DOC-36	Off	136	ALL	37				
+TGID	Tid=215569	TGroupId=16593	DOC-37	Off	137	ALL	37				
+TGID	Tid=215570	TGroupId=16593	DOC-38	Off	138	ALL	37				
+TGID	Tid=215571	TGroupId=16593	DOC-39	Off	139	ALL	37				
+TGID	Tid=215297	TGroupId=16593	DOC-4	Off	104	ALL	37				
+TGID	Tid=215572	TGroupId=16593	DOC-41	Off	141	ALL	37				
+TGID	Tid=220264	TGroupId=16593	DOC-44	Off	144	ALL	37				
+TGID	Tid=220266	TGroupId=16593	DOC-46	Off	146	ALL	37				
+TGID	Tid=220265	TGroupId=16593	DOC-48	Off	148	ALL	37				
+TGID	Tid=215575	TGroupId=16593	DOC-60	Off	160	ALL	37				
+TGID	Tid=220267	TGroupId=16593	DOC-65	Off	165	ALL	37				
+TGID	Tid=220268	TGroupId=16593	DOC-66	Off	166	ALL	37				
+TGID	Tid=220269	TGroupId=16593	DOC-67	Off	167	ALL	37				
+TGID	Tid=220270	TGroupId=16593	DOC-68	Off	168	ALL	37				
+TGID	Tid=220271	TGroupId=16593	DOC-69	Off	169	ALL	37				
+TGID	Tid=215299	TGroupId=16593	DOC-7	Off	107	ALL	37				
+TGID	Tid=220272	TGroupId=16593	DOC-70	Off	170	ALL	37				
+TGID	Tid=220273	TGroupId=16593	DOC-71	Off	171	ALL	37				
+TGID	Tid=215300	TGroupId=16593	DOC-8	Off	108	ALL	37				
+TGID	Tid=215301	TGroupId=16593	DOC-9	Off	109	ALL	37				
+TGID	Tid=215295	TGroupId=16593	Gander HIll	Off	102	ALL	37				
+TGID	Tid=215298	TGroupId=16593	Gander HIll	Off	105	ALL	37				
+TGID	Tid=215294	TGroupId=16593	Gander HIll Maint	Off	101	ALL	37				
+TGID	Tid=215553	TGroupId=16593	Gander HIll Ops (Wilmington)	Off	100	ALL	37				
+TGID	Tid=215304	TGroupId=16593	JTVCC	Off	112	ALL	37				
+TGID	Tid=215305	TGroupId=16593	JTVCC Bldg 15	Off	113	ALL	37				
+TGID	Tid=215303	TGroupId=16593	JTVCC Maintenance	Off	111	ALL	37				
+TGID	Tid=215302	TGroupId=16593	JTVCC ops (Smyrna)	Off	110	ALL	37				
+TGID	Tid=215416	TGroupId=16593	SCI Control	Off	140	ALL	37				
+TGID	Tid=215276	TGroupId=16593	SCI Operations (Georgetown)	Off	127	ALL	37				
+T-Group	TGroupId=14734	TrunkId=6733	Radio Technicians	Off	39.090000	-75.558470	48.0	Circle
+TGID	Tid=196045	TGroupId=14734	Test group 1 / (Pre-recorded voice)	Off	9099	ALL	14				
+TGID	Tid=206184	TGroupId=14734	Test group 2	Off	209	ALL	14				
+TGID	Tid=215552	TGroupId=14734	Test group 3	Off	9001	ALL	14				
+Trunk	TrunkId=3035	StateId=10	Delmarva Two-Way Radio	Off		Ltr					
+AreaState	TrunkId=3035	StateId=10
+AreaCounty	TrunkId=3035	CountyId=314
+Site	SiteId=4885	TrunkId=3035	Confirmed LCN	Off	38.646910	-75.371700	22.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=4885		Off	451675000	1
+Site	SiteId=4886	TrunkId=3035	Unconfirmed LCN	Off	38.646910	-75.371700	22.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=4886		Off	451275000	1
+T-Freq	TFreqId=0	SiteId=4886		Off	451750000	2
+T-Group	TGroupId=8454	TrunkId=3035	All	Off	38.646910	-75.371700	22.0	Circle
+TGID	Tid=127012	TGroupId=8454	OC Cad.	Off	0-01-224	ALL	17				
+TGID	Tid=167669	TGroupId=8454	Ocean City MD Taxi	Off	0-01-212	ALL	26				
+TGID	Tid=82610	TGroupId=8454	Security at the Ocean Outlets	Off	0-01-239	ALL	33				
+TGID	Tid=127011	TGroupId=8454	South Bethany Beach Patrol	Off	0-01-233	ALL	7				
+Trunk	TrunkId=4233	StateId=10	DuPont Experimental Station	Off		Motorola					
+AreaState	TrunkId=4233	StateId=10
+AreaCounty	TrunkId=4233	CountyId=313
+Site	SiteId=8112	TrunkId=4233	Site-1	Off	39.788090	-75.571090	1.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=8112		Off	935687500	1
+T-Freq	TFreqId=0	SiteId=8112		Off	937162500	2
+T-Freq	TFreqId=0	SiteId=8112		Off	937250000	3
+T-Freq	TFreqId=0	SiteId=8112		Off	938175000	4
+T-Freq	TFreqId=0	SiteId=8112		Off	939250000	5
+T-Group	TGroupId=9991	TrunkId=4233	All	Off	39.788090	-75.571090	1.0	Circle
+TGID	Tid=232734	TGroupId=9991	Chemical Control	Off	6480	ANALOG	17				
+TGID	Tid=218035	TGroupId=9991	Gate Security	Off	6416	ANALOG	33				
+TGID	Tid=218036	TGroupId=9991	Main Gate Access	Off	3216	ANALOG	17				
+TGID	Tid=208403	TGroupId=9991	Operations	Off	1616	ANALOG	17				
+TGID	Tid=208404	TGroupId=9991	Operations 2	Off	1680	ANALOG	17				
+TGID	Tid=124415	TGroupId=9991	Security	Off	4816	ANALOG	33				
+Trunk	TrunkId=3379	StateId=10	Redi-Call Communications (Belltown)	Off		Ltr					
+AreaState	TrunkId=3379	StateId=10
+AreaCounty	TrunkId=3379	CountyId=314
+Site	SiteId=5457	TrunkId=3379	Confirmed LCN	Off	38.646910	-75.371700	22.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=5457		Off	464200000	20
+Site	SiteId=5458	TrunkId=3379	Unconfirmed LCN	Off	38.646910	-75.371700	22.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=5458		Off	463800000	1
+T-Freq	TFreqId=0	SiteId=5458		Off	463675000	2
+T-Freq	TFreqId=0	SiteId=5458		Off	463575000	3
+T-Freq	TFreqId=0	SiteId=5458		Off	463325000	4
+T-Group	TGroupId=8883	TrunkId=3379	All	Off	38.646910	-75.371700	22.0	Circle
+TGID	Tid=130369	TGroupId=8883	Bob Wiley & Sons (Oil Delivery) (Milton)	Off	0-20-018	ALL	17				
+TGID	Tid=130371	TGroupId=8883	Cape Henlopen School District Bus	Off	0-20-028	ALL	32				
+TGID	Tid=134646	TGroupId=8883	Coastal Towing	Off	0-20-003	ALL	17				
+Trunk	TrunkId=3361	StateId=10	Redi-Call Communications (Bethany Beach)	Off		Ltr					
+AreaState	TrunkId=3361	StateId=10
+AreaCounty	TrunkId=3361	CountyId=314
+Site	SiteId=15767	TrunkId=3361	Confirmed LCN	Off	38.646910	-75.371700	22.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=15767		Off	452350000	12
+Site	SiteId=5430	TrunkId=3361	Unconfirmed LCN	Off	38.646910	-75.371700	22.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=5430		Off	451625000	1
+T-Freq	TFreqId=0	SiteId=5430		Off	452225000	2
+T-Freq	TFreqId=0	SiteId=5430		Off	452575000	3
+T-Freq	TFreqId=0	SiteId=5430		Off	452750000	4
+T-Group	TGroupId=13508	TrunkId=3361	All	Off	38.646910	-75.371700	22.0	Circle
+TGID	Tid=183853	TGroupId=13508	Concrete Delivery	Off	0-12-028	ALL	17				
+TGID	Tid=183851	TGroupId=13508	Trash Service	Off	0-12-021	ALL	17				
+Trunk	TrunkId=411	StateId=10	State of Delaware Public Safety	Off		Motorola					
+AreaState	TrunkId=411	StateId=10
+AreaCounty	TrunkId=411	CountyId=0
+Site	SiteId=3726	TrunkId=411	Hockessin IR	Off	39.756000	-75.707200	3.0	AUTO	Custom	Wide	Circle	
+BandPlan_Mot	SiteId=3726	851025000	854000000	25000	440	851012500	868987500	25000	0	0	0	25000	0	0	0	25000	0	0	0	25000	0	0	0	25000	0
+T-Freq	TFreqId=0	SiteId=3726		Off	851537500	1
+T-Freq	TFreqId=0	SiteId=3726		Off	851787500	2
+T-Freq	TFreqId=0	SiteId=3726		Off	852262500	3
+T-Freq	TFreqId=0	SiteId=3726		Off	852425000	4
+T-Freq	TFreqId=0	SiteId=3726		Off	852775000	5
+T-Freq	TFreqId=0	SiteId=3726		Off	853087500	6
+T-Freq	TFreqId=0	SiteId=3726		Off	853575000	7
+Site	SiteId=2952	TrunkId=411	Kent Simulcast	Off	39.087440	-75.533750	19.0	AUTO	Custom	Wide	Circle	
+BandPlan_Mot	SiteId=2952	851025000	854000000	25000	440	851012500	868987500	25000	0	0	0	25000	0	0	0	25000	0	0	0	25000	0	0	0	25000	0
+T-Freq	TFreqId=0	SiteId=2952		Off	851075000	1
+T-Freq	TFreqId=0	SiteId=2952		Off	851650000	2
+T-Freq	TFreqId=0	SiteId=2952		Off	851675000	3
+T-Freq	TFreqId=0	SiteId=2952		Off	852125000	4
+T-Freq	TFreqId=0	SiteId=2952		Off	852650000	5
+T-Freq	TFreqId=0	SiteId=2952		Off	852675000	6
+T-Freq	TFreqId=0	SiteId=2952		Off	852950000	7
+T-Freq	TFreqId=0	SiteId=2952		Off	853650000	8
+T-Freq	TFreqId=0	SiteId=2952		Off	853750000	9
+T-Freq	TFreqId=0	SiteId=2952		Off	853900000	10
+Site	SiteId=3029	TrunkId=411	New Castle Simulcast	Off	39.585750	-75.640830	20.0	AUTO	Custom	Wide	Circle	
+BandPlan_Mot	SiteId=3029	851025000	854000000	25000	440	851012500	868987500	25000	0	0	0	25000	0	0	0	25000	0	0	0	25000	0	0	0	25000	0
+T-Freq	TFreqId=0	SiteId=3029		Off	851237500	1
+T-Freq	TFreqId=0	SiteId=3029		Off	851487500	2
+T-Freq	TFreqId=0	SiteId=3029		Off	851562500	3
+T-Freq	TFreqId=0	SiteId=3029		Off	851725000	4
+T-Freq	TFreqId=0	SiteId=3029		Off	852037500	5
+T-Freq	TFreqId=0	SiteId=3029		Off	852237500	6
+T-Freq	TFreqId=0	SiteId=3029		Off	852487500	7
+T-Freq	TFreqId=0	SiteId=3029		Off	852712500	8
+T-Freq	TFreqId=0	SiteId=3029		Off	852737500	9
+T-Freq	TFreqId=0	SiteId=3029		Off	853212500	10
+T-Freq	TFreqId=0	SiteId=3029		Off	853387500	11
+T-Freq	TFreqId=0	SiteId=3029		Off	853712500	12
+T-Freq	TFreqId=0	SiteId=3029		Off	853937500	13
+T-Freq	TFreqId=0	SiteId=3029		Off	853962500	14
+Site	SiteId=2953	TrunkId=411	Sussex Simulcast	Off	38.668360	-75.393680	23.0	AUTO	Custom	Wide	Circle	
+BandPlan_Mot	SiteId=2953	851025000	854000000	25000	440	851012500	868987500	25000	0	0	0	25000	0	0	0	25000	0	0	0	25000	0	0	0	25000	0
+T-Freq	TFreqId=0	SiteId=2953		Off	851100000	1
+T-Freq	TFreqId=0	SiteId=2953		Off	851362500	2
+T-Freq	TFreqId=0	SiteId=2953		Off	852087500	3
+T-Freq	TFreqId=0	SiteId=2953		Off	852350000	4
+T-Freq	TFreqId=0	SiteId=2953		Off	852600000	5
+T-Freq	TFreqId=0	SiteId=2953		Off	852837500	6
+T-Freq	TFreqId=0	SiteId=2953		Off	853087500	7
+T-Freq	TFreqId=0	SiteId=2953		Off	853112500	8
+T-Freq	TFreqId=0	SiteId=2953		Off	853350000	9
+T-Freq	TFreqId=0	SiteId=2953		Off	853587500	10
+Site	SiteId=17345	TrunkId=411	Wilmington	Off	39.745950	-75.546590	2.7	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=17345		Off	856262500	1
+T-Freq	TFreqId=0	SiteId=17345		Off	856762500	2
+T-Freq	TFreqId=0	SiteId=17345		Off	857262500	3
+T-Freq	TFreqId=0	SiteId=17345		Off	857762500	4
+T-Freq	TFreqId=0	SiteId=17345		Off	858762500	5
+T-Freq	TFreqId=0	SiteId=17345		Off	859087500	6
+T-Freq	TFreqId=0	SiteId=17345		Off	859762500	7
+Site	SiteId=3725	TrunkId=411	Winterthur IR	Off	39.802200	-75.601600	3.0	AUTO	Custom	Wide	Circle	
+BandPlan_Mot	SiteId=3725	851025000	854000000	25000	440	851012500	868987500	25000	0	0	0	25000	0	0	0	25000	0	0	0	25000	0	0	0	25000	0
+T-Freq	TFreqId=0	SiteId=3725		Off	851300000	1
+T-Freq	TFreqId=0	SiteId=3725		Off	851650000	2
+T-Freq	TFreqId=0	SiteId=3725		Off	851825000	3
+T-Freq	TFreqId=0	SiteId=3725		Off	852125000	4
+T-Freq	TFreqId=0	SiteId=3725		Off	852300000	5
+T-Freq	TFreqId=0	SiteId=3725		Off	852662500	6
+T-Freq	TFreqId=0	SiteId=3725		Off	853325000	7
+T-Freq	TFreqId=0	SiteId=3725		Off	853500000	8
+T-Group	TGroupId=2975	TrunkId=411	Delaware National Guard	Off	39.192900	-75.544500	60.0	Circle
+TGID	Tid=83809	TGroupId=2975	Air National Guard (NCC Airport ops)	Off	7600	DIGITAL	30				
+TGID	Tid=227678	TGroupId=2975	Air National Guard (NCC)	Off	7760	DIGITAL	30				
+TGID	Tid=164729	TGroupId=2975	National Guard	Off	24784	DIGITAL	30				
+TGID	Tid=83803	TGroupId=2975	National Guard (Kent)	Off	5776	DIGITAL	30				
+TGID	Tid=83802	TGroupId=2975	National Guard (NCC)	Off	5744	DIGITAL	30				
+TGID	Tid=147254	TGroupId=2975	National Guard (NCC)	Off	24720	DIGITAL	30				
+TGID	Tid=83804	TGroupId=2975	National Guard (Sussex)	Off	5808	DIGITAL	30				
+TGID	Tid=83805	TGroupId=2975	National Guard TAC	Off	5840	DIGITAL	30				
+TGID	Tid=113840	TGroupId=2975	National Guard-(NCC)	Off	24816	DIGITAL	30				
+TGID	Tid=83807	TGroupId=2975	National Guard-Kent TAC	Off	6160	DIGITAL	30				
+TGID	Tid=83806	TGroupId=2975	National Guard-NCC TAC	Off	6128	DIGITAL	30				
+TGID	Tid=190436	TGroupId=2975	National Guard-Sussex	Off	25008	DIGITAL	30				
+TGID	Tid=83808	TGroupId=2975	National Guard-Sussex TAC	Off	6192	DIGITAL	30				
+TGID	Tid=83801	TGroupId=2975	Statewide National Guard	Off	5712	DIGITAL	30				
+T-Group	TGroupId=2981	TrunkId=411	Department of Corrections	Off	39.192900	-75.544500	60.0	Circle
+TGID	Tid=82884	TGroupId=2981	Bureau of Community Custody and Supervision Tactical (Kent)	Off	15664	DIGITAL	7				
+TGID	Tid=82883	TGroupId=2981	Bureau of Community Custody and Supervision Tactical (NCC)	Off	15632	DIGITAL	7				
+TGID	Tid=82885	TGroupId=2981	Bureau of Community Custody and Supervision Tactical (Sussex)	Off	15696	DIGITAL	7				
+TGID	Tid=82878	TGroupId=2981	Bureau of community Custody and Supervison	Off	15408	DIGITAL	7				
+TGID	Tid=82869	TGroupId=2981	Bureau of Prisons (Kent)	Off	15088	DIGITAL	37				
+TGID	Tid=68297	TGroupId=2981	Bureau of Prisons (NCC)	Off	15056	DIGITAL	37				
+TGID	Tid=82870	TGroupId=2981	Bureau of Prisons (Sussex)	Off	15120	DIGITAL	7				
+TGID	Tid=82881	TGroupId=2981	Bureau of Prisons Tactical 1 (Kent)	Off	15568	DIGITAL	37				
+TGID	Tid=68299	TGroupId=2981	Bureau of Prisons Tactical 1 (NCC)	Off	15536	DIGITAL	37				
+TGID	Tid=82882	TGroupId=2981	Bureau of Prisons Tactical 1 (Sussex)	Off	15600	DIGITAL	37				
+TGID	Tid=356919	TGroupId=2981	Community Corrections (Kent)	Off	29200	DIGITAL	37				
+TGID	Tid=82874	TGroupId=2981	Courts and Transportation (Kent)	Off	15280	DIGITAL	7				
+TGID	Tid=67193	TGroupId=2981	Courts and Transportation (NCC)	Off	15248	DIGITAL	7				
+TGID	Tid=82875	TGroupId=2981	Courts and Transportation (Sussex)	Off	15312	DIGITAL	7				
+TGID	Tid=70187	TGroupId=2981	DOC  (Kent)	Off	14992	DIGITAL	37				
+TGID	Tid=68296	TGroupId=2981	DOC  (NCC)	Off	14960	DIGITAL	37				
+TGID	Tid=67313	TGroupId=2981	DOC  (Sussex)	Off	15024	DIGITAL	37				
+TGID	Tid=66363	TGroupId=2981	DOC  (SW)	Off	14928	DIGITAL	37				
+TGID	Tid=231068	TGroupId=2981	DOC Transportation	Off	15920	DIGITAL	37				
+TGID	Tid=216267	TGroupId=2981	DOC Unidentified	Off	26096	DIGITAL	37				
+TGID	Tid=82889	TGroupId=2981	Emergency Response Rifle Team (Kent)	Off	15856	DIGITAL	37				
+TGID	Tid=82890	TGroupId=2981	Emergency Response Rifle Team (Sussex)	Off	15888	DIGITAL	37				
+TGID	Tid=68300	TGroupId=2981	Emergency Response RifleTeam (NCC)	Off	15824	DIGITAL	37				
+TGID	Tid=82887	TGroupId=2981	Emergency Response Team (Kent)	Off	15760	DIGITAL	37				
+TGID	Tid=82886	TGroupId=2981	Emergency Response Team (NCC)	Off	15728	DIGITAL	37				
+TGID	Tid=82888	TGroupId=2981	Emergency Response Team (Sussex)	Off	15792	DIGITAL	37				
+TGID	Tid=82872	TGroupId=2981	Executive Staff (Kent)	Off	15184	DIGITAL	7				
+TGID	Tid=82871	TGroupId=2981	Executive Staff (NCC)	Off	15152	DIGITAL	7				
+TGID	Tid=82873	TGroupId=2981	Executive Staff (Sussex)	Off	15216	DIGITAL	7				
+TGID	Tid=83436	TGroupId=2981	Ferris School (Youth detention ctr)	Off	7504	DIGITAL	2				
+TGID	Tid=418855	TGroupId=2981	Hazel D Plant Women's Treatment Center	Off	29264	DIGITAL	37				
+TGID	Tid=83573	TGroupId=2981	Internal Affairs	Off	9168	DIGITAL	7				
+TGID	Tid=83574	TGroupId=2981	Internal Affairs	Off	9200	DIGITAL	7				
+TGID	Tid=83575	TGroupId=2981	Internal Affairs	Off	9232	DIGITAL	7				
+TGID	Tid=83435	TGroupId=2981	NCC (Youth detention ctr)	Off	7472	DIGITAL	2				
+TGID	Tid=418856	TGroupId=2981	Plummer Community Corrections Center	Off	29296	DIGITAL	37				
+TGID	Tid=82879	TGroupId=2981	Probation/Parole (Kent)	Off	15472	DIGITAL	2				
+TGID	Tid=68298	TGroupId=2981	Probation/Parole (NCC)	Off	15440	DIGITAL	2				
+TGID	Tid=82880	TGroupId=2981	Probation/Parole (Sussex)	Off	15504	DIGITAL	2				
+TGID	Tid=82876	TGroupId=2981	Special Security Group 7	Off	15344	DIGITAL	37				
+TGID	Tid=82877	TGroupId=2981	Special Security Group 8	Off	15376	DIGITAL	37				
+TGID	Tid=83437	TGroupId=2981	Stevens House (Youth detention ctr)	Off	7536	DIGITAL	2				
+T-Group	TGroupId=2982	TrunkId=411	Department of Natural Resources	Off	39.192900	-75.544500	60.0	Circle
+TGID	Tid=81898	TGroupId=2982	Bellevue St Park (NCC)	Off	16688	DIGITAL	14				
+TGID	Tid=69026	TGroupId=2982	Cape Henlopen State park Sussex	Off	17264	DIGITAL	14				
+TGID	Tid=68720	TGroupId=2982	Delaware Seashore state Park Sussex	Off	17328	DIGITAL	14				
+TGID	Tid=82918	TGroupId=2982	DNREC DATA	Off	17360	DIGITAL	23				
+TGID	Tid=393116	TGroupId=2982	First State Park ops	Off	33968	DIGITAL	14				
+TGID	Tid=83320	TGroupId=2982	Forestry (KENT)	Off	5616	DIGITAL	14				
+TGID	Tid=83319	TGroupId=2982	Forestry (NCC)	Off	5584	DIGITAL	14				
+TGID	Tid=83321	TGroupId=2982	Forestry (SUSSEX)	Off	5648	DIGITAL	14				
+TGID	Tid=83322	TGroupId=2982	Forestry (SW)	Off	5680	DIGITAL	14				
+TGID	Tid=68311	TGroupId=2982	Fort Delaware state park New Castle	Off	17200	DIGITAL	14				
+TGID	Tid=82917	TGroupId=2982	Holts - Fenwick Island state park Sussex	Off	17296	DIGITAL	14				
+TGID	Tid=82906	TGroupId=2982	Kent DAWM (Air and Waste Management)	Off	16816	DIGITAL	14				
+TGID	Tid=82904	TGroupId=2982	Kent DNREC2	Off	16752	DIGITAL	23				
+TGID	Tid=82905	TGroupId=2982	Kent DNREC3	Off	16784	DIGITAL	23				
+TGID	Tid=82907	TGroupId=2982	Kent Fish and WIldlife	Off	16848	DIGITAL	14				
+TGID	Tid=82908	TGroupId=2982	Kent PARKS	Off	16880	DIGITAL	14				
+TGID	Tid=82909	TGroupId=2982	Kent SOIL	Off	16912	DIGITAL	14				
+TGID	Tid=82903	TGroupId=2982	KS DNREC	Off	16720	DIGITAL	14				
+TGID	Tid=68312	TGroupId=2982	Lums Pond State park New Castle	Off	17232	DIGITAL	14				
+TGID	Tid=68306	TGroupId=2982	Natural Resources Enforcement TAC	Off	16528	DIGITAL	23				
+TGID	Tid=82902	TGroupId=2982	NCC DAWM (Air and Waste Management)	Off	16592	DIGITAL	14				
+TGID	Tid=68305	TGroupId=2982	NCC DNR N	Off	16496	DIGITAL	14				
+TGID	Tid=68307	TGroupId=2982	NCC DNREC3	Off	16560	DIGITAL	23				
+TGID	Tid=68308	TGroupId=2982	NCC F&W (Fish and Wildlife)	Off	16624	DIGITAL	14				
+TGID	Tid=70246	TGroupId=2982	NCC PARKS	Off	16656	DIGITAL	14				
+TGID	Tid=83587	TGroupId=2982	Statewide Plant Industries (Forestry)	Off	7728	DIGITAL	14				
+TGID	Tid=82913	TGroupId=2982	Sussex  DAWM (Air and Waste Management)	Off	17040	DIGITAL	14				
+TGID	Tid=82910	TGroupId=2982	Sussex / Kent DNR	Off	16944	DIGITAL	14				
+TGID	Tid=82911	TGroupId=2982	Sussex DNREC2	Off	16976	DIGITAL	23				
+TGID	Tid=82912	TGroupId=2982	Sussex DNREC3	Off	17008	DIGITAL	23				
+TGID	Tid=82914	TGroupId=2982	Sussex Fish and WIldlife	Off	17072	DIGITAL	14				
+TGID	Tid=82915	TGroupId=2982	Sussex PARKS	Off	17104	DIGITAL	14				
+TGID	Tid=82916	TGroupId=2982	Sussex SOIL	Off	17136	DIGITAL	14				
+TGID	Tid=51683	TGroupId=2982	SW-DNREC Police	Off	16464	DIGITAL	2				
+TGID	Tid=68310	TGroupId=2982	White Clay Creek state park New Castle	Off	17168	DIGITAL	14				
+T-Group	TGroupId=2983	TrunkId=411	Department of Transportation	Off	39.192900	-75.544500	60.0	Circle
+TGID	Tid=164724	TGroupId=2983	DOT Operations	Off	22192	DIGITAL	14				
+TGID	Tid=68238	TGroupId=2983	Statewide DelDot	Off	5168	DIGITAL	14				
+TGID	Tid=82956	TGroupId=2983	Statewide Management	Off	18896	DIGITAL	14				
+TGID	Tid=66514	TGroupId=2983	Statewide TEAM (TMC)	Off	4816	DIGITAL	14				
+TGID	Tid=66502	TGroupId=2983	Statewide Traffic Management Center (TMC)	Off	4688	DIGITAL	14				
+TGID	Tid=83059	TGroupId=2983	TMC Covert 1	Off	24240	DIGITAL	14				
+TGID	Tid=83054	TGroupId=2983	TMC Dispatch 1	Off	24048	DIGITAL	14				
+TGID	Tid=83637	TGroupId=2983	TMC Fallback 1	Off	23792	DIGITAL	14				
+TGID	Tid=83638	TGroupId=2983	TMC Talkgroup 1	Off	23824	DIGITAL	14				
+T-Group	TGroupId=2974	TrunkId=411	Emergency Management	Off	39.192900	-75.544500	60.0	Circle
+TGID	Tid=83423	TGroupId=2974	DEMA	Off	7248	DIGITAL	29				
+TGID	Tid=83425	TGroupId=2974	DEMA Kent	Off	7312	DIGITAL	29				
+TGID	Tid=83424	TGroupId=2974	DEMA NCC	Off	7280	DIGITAL	29				
+TGID	Tid=83426	TGroupId=2974	DEMA Sussex	Off	7344	DIGITAL	29				
+TGID	Tid=133001	TGroupId=2974	Emergency Prepardness , Hospitals (KENT)	Off	24656	DIGITAL	29				
+TGID	Tid=133000	TGroupId=2974	Emergency Prepardness , Hospitals (NCC)	Off	24624	DIGITAL	29				
+TGID	Tid=133002	TGroupId=2974	Emergency Prepardness , Hospitals (SSX)	Off	24688	DIGITAL	29				
+TGID	Tid=132999	TGroupId=2974	Emergency Prepardness Base  (STATEWIDE)	Off	24592	DIGITAL	29				
+TGID	Tid=83593	TGroupId=2974	Special Emergency Response (Kent)	Off	14352	DIGITAL	29				
+TGID	Tid=83592	TGroupId=2974	Special Emergency Response (NCC)	Off	14320	DIGITAL	29				
+TGID	Tid=83594	TGroupId=2974	Special Emergency Response (Sussex)	Off	14384	DIGITAL	29				
+TGID	Tid=82943	TGroupId=2974	TACTICAL 1 (KENT)	Off	18416	DIGITAL	29				
+TGID	Tid=82939	TGroupId=2974	TACTICAL 1 (NCC)	Off	18288	DIGITAL	29				
+TGID	Tid=82950	TGroupId=2974	TACTICAL 1 (STATEWIDE)	Off	18672	DIGITAL	29				
+TGID	Tid=82946	TGroupId=2974	TACTICAL 1 (SUSSEX)	Off	18544	DIGITAL	29				
+TGID	Tid=82944	TGroupId=2974	TACTICAL 2 (KENT)	Off	18448	DIGITAL	29				
+TGID	Tid=82940	TGroupId=2974	TACTICAL 2 (NCC)	Off	18320	DIGITAL	29				
+TGID	Tid=68330	TGroupId=2974	TACTICAL 2 (STATEWIDE)	Off	18704	DIGITAL	29				
+TGID	Tid=82947	TGroupId=2974	TACTICAL 2 (SUSSEX)	Off	18576	DIGITAL	29				
+TGID	Tid=82945	TGroupId=2974	TACTICAL 3 (KENT)	Off	18480	DIGITAL	29				
+TGID	Tid=82941	TGroupId=2974	TACTICAL 3 (NCC)	Off	18352	DIGITAL	29				
+TGID	Tid=82951	TGroupId=2974	TACTICAL 3 (STATEWIDE)	Off	18736	DIGITAL	29				
+TGID	Tid=82948	TGroupId=2974	TACTICAL 3 (SUSSEX)	Off	18608	DIGITAL	29				
+TGID	Tid=68329	TGroupId=2974	TACTICAL 4 (KENT)	Off	18512	DIGITAL	29				
+TGID	Tid=82942	TGroupId=2974	TACTICAL 4 (NCC)	Off	18384	DIGITAL	29				
+TGID	Tid=82952	TGroupId=2974	TACTICAL 4 (STATEWIDE)	Off	18768	DIGITAL	29				
+TGID	Tid=82949	TGroupId=2974	TACTICAL 4 (SUSSEX)	Off	18640	DIGITAL	29				
+T-Group	TGroupId=15055	TrunkId=411	Kent County - Camden/ Wyoming	Off	39.114080	-75.548520	1.2	Circle
+TGID	Tid=73014	TGroupId=15055	Camden Pd	Off	19760	DIGITAL	7				
+TGID	Tid=67371	TGroupId=15055	Camden Wyoming FC	Off	10864	DIGITAL	24				
+TGID	Tid=82982	TGroupId=15055	Wyoming PD	Off	20592	DIGITAL	7				
+T-Group	TGroupId=15056	TrunkId=411	Kent County - Clayton	Off	39.089570	-75.574950	20.0	Circle
+TGID	Tid=67376	TGroupId=15056	Clayton  FC	Off	10928	DIGITAL	24				
+TGID	Tid=68337	TGroupId=15056	Clayton PD	Off	19600	DIGITAL	7				
+T-Group	TGroupId=15057	TrunkId=411	Kent County - Delaware State University	Off	39.089570	-75.574950	20.0	Circle
+TGID	Tid=170816	TGroupId=15057	Delaware State University PD	Off	20752	DIGITAL	2				
+TGID	Tid=248690	TGroupId=15057	Delaware State University PD 2	Off	20784	DIGITAL	7				
+T-Group	TGroupId=15066	TrunkId=411	Kent County - Department of Transportation	Off	39.044790	-75.574950	20.0	Circle
+TGID	Tid=66505	TGroupId=15066	Cheswold Yard - Area 8	Off	21680	DIGITAL	14				
+TGID	Tid=82719	TGroupId=15066	Expressways Admin	Off	5136	DIGITAL	14				
+TGID	Tid=68356	TGroupId=15066	Expressways Construction (NCC/Kent)	Off	22128	DIGITAL	14				
+TGID	Tid=66651	TGroupId=15066	Expressways Maintenance Dispatch 3 (NCC/Kent)	Off	22096	DIGITAL	14				
+TGID	Tid=68234	TGroupId=15066	Expressways Maintenance Dispatch 4	Off	4880	DIGITAL	14				
+TGID	Tid=66503	TGroupId=15066	Harrington Yard - Area 6	Off	21616	DIGITAL	14				
+TGID	Tid=83001	TGroupId=15066	Kent Admin	Off	21872	DIGITAL	14				
+TGID	Tid=66659	TGroupId=15066	Kent Construction	Off	5040	DIGITAL	14				
+TGID	Tid=68233	TGroupId=15066	Kent County Traffic (TMC)	Off	4848	DIGITAL	14				
+TGID	Tid=82954	TGroupId=15066	Kent DelDot Supervisor	Off	18832	DIGITAL	14				
+TGID	Tid=66507	TGroupId=15066	Kent Yard - Area 21	Off	21776	DIGITAL	14				
+TGID	Tid=82999	TGroupId=15066	Kent Yard - Area 25	Off	21808	DIGITAL	14				
+TGID	Tid=83000	TGroupId=15066	Kent Yard - Area 30	Off	21840	DIGITAL	14				
+TGID	Tid=66504	TGroupId=15066	Magnolia Yard - Area 7	Off	21648	DIGITAL	14				
+TGID	Tid=83639	TGroupId=15066	TMC Emergency 1	Off	23856	DIGITAL	14				
+TGID	Tid=81153	TGroupId=15066	Toll Plaza Operations	Off	4976	DIGITAL	14				
+T-Group	TGroupId=15059	TrunkId=411	Kent County - Dover	Off	39.150300	-75.525170	2.5	Circle
+TGID	Tid=82823	TGroupId=15059	City of Dover Fire Marshall	Off	11408	DIGITAL	24				
+TGID	Tid=84056	TGroupId=15059	City of Dover Fire Marshall	Off	22704	DIGITAL	24				
+TGID	Tid=67715	TGroupId=15059	Dover AFB Hospital	Off	4272	DIGITAL	12				
+TGID	Tid=66281	TGroupId=15059	Dover City Fire Dispatch	Off	4240	DIGITAL	3				
+TGID	Tid=67377	TGroupId=15059	Dover FC	Off	10960	DIGITAL	24				
+TGID	Tid=258800	TGroupId=15059	Dover Fire 2	Off	30096	DIGITAL	8				
+TGID	Tid=82830	TGroupId=15059	Dover Fire Dispatch	Off	11760	DIGITAL	3				
+TGID	Tid=82971	TGroupId=15059	Dover PD Criminal Investigation	Off	19984	DIGITAL	7				
+TGID	Tid=82968	TGroupId=15059	Dover PD Data	Off	19888	DIGITAL	7				
+TGID	Tid=66362	TGroupId=15059	Dover PD Dispatch 1	Off	12880	DIGITAL	2				
+TGID	Tid=81357	TGroupId=15059	Dover PD Dispatch 2	Off	19856	DIGITAL	2				
+TGID	Tid=82976	TGroupId=15059	Dover PD Exec Command	Off	20144	DIGITAL	7				
+TGID	Tid=82972	TGroupId=15059	Dover PD Hostage Negotiation Team	Off	20016	DIGITAL	7				
+TGID	Tid=82975	TGroupId=15059	Dover PD Sort Command	Off	20112	DIGITAL	7				
+TGID	Tid=82973	TGroupId=15059	Dover PD Sort-1	Off	20048	DIGITAL	7				
+TGID	Tid=82974	TGroupId=15059	Dover PD Sort-2	Off	20080	DIGITAL	7				
+TGID	Tid=82969	TGroupId=15059	Dover PD TAC-1	Off	19920	DIGITAL	7				
+TGID	Tid=82970	TGroupId=15059	Dover PD TAC-2	Off	19952	DIGITAL	7				
+T-Group	TGroupId=15058	TrunkId=411	Kent County - Dover AFB	Off	39.122870	-75.463200	2.0	Circle
+TGID	Tid=82831	TGroupId=15058	Dover Air Force Base Clinic Statewide	Off	11792	DIGITAL	12				
+TGID	Tid=82827	TGroupId=15058	Dover Air Force Base EMS	Off	11632	DIGITAL	25				
+TGID	Tid=82832	TGroupId=15058	Dover Air Force Base Fire Department	Off	11824	DIGITAL	24				
+T-Group	TGroupId=15060	TrunkId=411	Kent County - Felton	Off	39.089570	-75.574950	20.0	Circle
+TGID	Tid=67379	TGroupId=15060	Felton FC	Off	11024	DIGITAL	24				
+TGID	Tid=80261	TGroupId=15060	Felton PD	Off	19824	DIGITAL	7				
+T-Group	TGroupId=15050	TrunkId=411	Kent County - Fire & EMS	Off	39.089570	-75.547490	20.0	Circle
+TGID	Tid=67389	TGroupId=15050	American Legion Ambulance	Off	11504	DIGITAL	24				
+TGID	Tid=84053	TGroupId=15050	Fire Marshal (major incident response team)	Off	13840	DIGITAL	24				
+TGID	Tid=84077	TGroupId=15050	Fire School (Dover)	Off	3664	DIGITAL	24				
+TGID	Tid=82825	TGroupId=15050	K EMS Dispatch	Off	11536	DIGITAL	4				
+TGID	Tid=51680	TGroupId=15050	K EMS Ops 1	Off	4176	DIGITAL	25				
+TGID	Tid=67716	TGroupId=15050	K EMS Ops 2	Off	11568	DIGITAL	25				
+TGID	Tid=82826	TGroupId=15050	K EMS Talk 2	Off	11600	DIGITAL	25				
+TGID	Tid=361568	TGroupId=15050	K Fire 3olice 3	Off	29584	DIGITAL	24				
+TGID	Tid=51672	TGroupId=15050	K Fire Dispatch	Off	3344	DIGITAL	3				
+TGID	Tid=84054	TGroupId=15050	K Fire Marshall	Off	14224	DIGITAL	24				
+TGID	Tid=66442	TGroupId=15050	K Fire police	Off	11440	DIGITAL	24				
+TGID	Tid=51673	TGroupId=15050	K Fire-Tac 1	Off	3376	DIGITAL	8				
+TGID	Tid=66277	TGroupId=15050	K Fire-Tac 4	Off	3408	DIGITAL	8				
+TGID	Tid=66441	TGroupId=15050	K Fire-Tac 5	Off	3440	DIGITAL	8				
+TGID	Tid=66452	TGroupId=15050	K Fire-Tac 6	Off	3472	DIGITAL	8				
+TGID	Tid=82828	TGroupId=15050	Kent Center	Off	11664	DIGITAL	24				
+TGID	Tid=68280	TGroupId=15050	Kent County Paramedics	Off	11696	DIGITAL	25				
+TGID	Tid=66660	TGroupId=15050	KS Fire-Tac 7	Off	4208	DIGITAL	8				
+T-Group	TGroupId=15051	TrunkId=411	Kent County - Fire Company TAC	Off	39.089570	-75.547490	20.0	Circle
+TGID	Tid=67370	TGroupId=15051	Bowers Beach FC	Off	10832	DIGITAL	24				
+TGID	Tid=67373	TGroupId=15051	Cheswold FC	Off	10896	DIGITAL	24				
+TGID	Tid=67378	TGroupId=15051	Farmington  FC(KENT&SUSSEX)	Off	10992	DIGITAL	24				
+TGID	Tid=67382	TGroupId=15051	Hartly FC (KENT&SUSSEX)	Off	11120	DIGITAL	24				
+TGID	Tid=67383	TGroupId=15051	Houston FC (KENT&SUSSEX)	Off	11152	DIGITAL	24				
+TGID	Tid=67384	TGroupId=15051	Leipsic FC	Off	11184	DIGITAL	24				
+TGID	Tid=67385	TGroupId=15051	Little Creek FC	Off	11216	DIGITAL	24				
+TGID	Tid=67386	TGroupId=15051	Magnolia FC	Off	11248	DIGITAL	24				
+TGID	Tid=67387	TGroupId=15051	Marydel FC	Off	11280	DIGITAL	24				
+TGID	Tid=67388	TGroupId=15051	South Bowers FC	Off	11376	DIGITAL	24				
+T-Group	TGroupId=15061	TrunkId=411	Kent County - Frederica	Off	39.089570	-75.574950	20.0	Circle
+TGID	Tid=67380	TGroupId=15061	Frederica FC	Off	11056	DIGITAL	24				
+TGID	Tid=82967	TGroupId=15061	Frederica PD	Off	19792	DIGITAL	7				
+T-Group	TGroupId=15063	TrunkId=411	Kent County - Harrington	Off	39.089570	-75.574950	20.0	Circle
+TGID	Tid=67381	TGroupId=15063	Harrington FC (KENT&SUSSEX)	Off	11088	DIGITAL	24				
+TGID	Tid=73015	TGroupId=15063	Harrington PD	Off	19632	DIGITAL	7				
+TGID	Tid=82965	TGroupId=15063	Harrington PD Data	Off	19664	DIGITAL	7				
+TGID	Tid=82966	TGroupId=15063	Harrington PD Special Operations	Off	19696	DIGITAL	7				
+T-Group	TGroupId=33290	TrunkId=411	Kent County - Hospitals	Off	39.044790	-75.574950	55.0	Circle
+TGID	Tid=418860	TGroupId=33290	Bayhealth Milton Emergency Center-ER	Off	34304	DIGITAL	12				
+TGID	Tid=239613	TGroupId=33290	Bayhealth Smyrna Emergency Center-ER	Off	8400	DIGITAL	12				
+TGID	Tid=66278	TGroupId=33290	Kent General Hospital Emer Room 1	Off	4304	DIGITAL	12				
+TGID	Tid=66279	TGroupId=33290	Kent General Hospital Emer Room 2	Off	4336	DIGITAL	12				
+T-Group	TGroupId=15064	TrunkId=411	Kent County - Milford	Off	39.089570	-75.574950	20.0	Circle
+TGID	Tid=67372	TGroupId=15064	Milford FC	Off	11312	DIGITAL	24				
+TGID	Tid=68338	TGroupId=15064	Milford PD Admin.	Off	20240	DIGITAL	7				
+TGID	Tid=66361	TGroupId=15064	Milford Pd Dispatch	Off	19728	DIGITAL	2				
+TGID	Tid=66661	TGroupId=15064	Milford PD Operations 1	Off	20176	DIGITAL	7				
+TGID	Tid=82977	TGroupId=15064	Milford PD Operations 2	Off	20208	DIGITAL	7				
+T-Group	TGroupId=15052	TrunkId=411	Kent County - Miscellaneous	Off	39.044790	-75.547490	20.0	Circle
+TGID	Tid=83930	TGroupId=15052	Alcohol Beverage Control	Off	8080	DIGITAL	7				
+TGID	Tid=83929	TGroupId=15052	Audit & Recovery Mgmt Services (ARMS)	Off	21008	DIGITAL	14				
+TGID	Tid=83939	TGroupId=15052	Capitol Police Kent	Off	13296	DIGITAL	2				
+TGID	Tid=83937	TGroupId=15052	Community Service	Off	7824	DIGITAL	14				
+TGID	Tid=83933	TGroupId=15052	Court of Common pleas	Off	21456	DIGITAL	2				
+TGID	Tid=248839	TGroupId=15052	Courts Announcement channel	Off	30160	DIGITAL	2				
+TGID	Tid=83931	TGroupId=15052	Department of Justice	Off	7952	DIGITAL	7				
+TGID	Tid=84055	TGroupId=15052	Dover Air Force Base Security Police (Incative)	Off	11472	DIGITAL	7				
+TGID	Tid=84051	TGroupId=15052	Emergency Prepraredness	Off	7408	DIGITAL	14				
+TGID	Tid=83928	TGroupId=15052	Facilities Management	Off	5488	DIGITAL	14				
+TGID	Tid=83934	TGroupId=15052	Family Court	Off	21552	DIGITAL	2				
+TGID	Tid=418857	TGroupId=15052	Family Court Alarms	Off	30192	DIGITAL	2				
+TGID	Tid=83940	TGroupId=15052	Justice of the Peace (Constables)	Off	21264	DIGITAL	2				
+TGID	Tid=83935	TGroupId=15052	K Casinos / Gambling  Enforcement	Off	14544	DIGITAL	7				
+TGID	Tid=83941	TGroupId=15052	K Truck Enforcement Unit	Off	17680	DIGITAL	7				
+TGID	Tid=84463	TGroupId=15052	Kent SPCA	Off	17456	DIGITAL	14				
+TGID	Tid=84057	TGroupId=15052	Public Safety (Kent Center)	Off	22736	DIGITAL	2				
+TGID	Tid=83927	TGroupId=15052	Radio Maintnence	Off	5360	DIGITAL	14				
+TGID	Tid=83938	TGroupId=15052	Sheriff	Off	8688	DIGITAL	2				
+TGID	Tid=83932	TGroupId=15052	Superior Court	Off	21360	DIGITAL	2				
+TGID	Tid=162841	TGroupId=15052	SW SPCA	Off	17392	DIGITAL	14				
+T-Group	TGroupId=15053	TrunkId=411	Kent County - Mutual Aid	Off	39.089570	-75.574950	20.0	Circle
+TGID	Tid=258796	TGroupId=15053	Interoperability 1	Off	25616	DIGITAL	11				
+TGID	Tid=258797	TGroupId=15053	Interoperability 2	Off	25648	DIGITAL	11				
+TGID	Tid=258798	TGroupId=15053	Interoperability 3	Off	25680	DIGITAL	11				
+TGID	Tid=258799	TGroupId=15053	Interoperability 4	Off	25712	DIGITAL	11				
+TGID	Tid=84045	TGroupId=15053	K Mutual Aid 1	Off	9392	DIGITAL	6				
+TGID	Tid=84046	TGroupId=15053	K Mutual Aid 2	Off	9424	DIGITAL	6				
+TGID	Tid=84047	TGroupId=15053	K Police Mutual Aid (PMA)	Off	9552	DIGITAL	7				
+T-Group	TGroupId=15065	TrunkId=411	Kent County - Smyrna	Off	39.089570	-75.574950	20.0	Circle
+TGID	Tid=67374	TGroupId=15065	Smyrna FC	Off	11344	DIGITAL	24				
+TGID	Tid=51678	TGroupId=15065	Smyrna PD #1	Off	19408	DIGITAL	7				
+TGID	Tid=82961	TGroupId=15065	Smyrna PD #2	Off	19440	DIGITAL	7				
+TGID	Tid=82964	TGroupId=15065	Smyrna PD Admin	Off	19568	DIGITAL	7				
+TGID	Tid=67375	TGroupId=15065	Smyrna PD Ops	Off	19504	DIGITAL	7				
+TGID	Tid=82963	TGroupId=15065	Smyrna PD SIU	Off	19536	DIGITAL	7				
+TGID	Tid=82962	TGroupId=15065	Smyrna PD Tac 1	Off	19472	DIGITAL	7				
+T-Group	TGroupId=15054	TrunkId=411	Kent County - State Police	Off	39.089570	-75.574950	20.0	Circle
+TGID	Tid=84006	TGroupId=15054	Command Center	Off	15984	DIGITAL	2				
+TGID	Tid=84001	TGroupId=15054	Detectives	Off	13936	DIGITAL	7				
+TGID	Tid=83999	TGroupId=15054	DSP Troop 3 (Dover)	Off	2736	DIGITAL	7				
+TGID	Tid=83995	TGroupId=15054	Executive Security	Off	1872	DIGITAL	7				
+TGID	Tid=84004	TGroupId=15054	Homicide squad	Off	14448	DIGITAL	7				
+TGID	Tid=84003	TGroupId=15054	Intelligence	Off	14128	DIGITAL	7				
+TGID	Tid=84005	TGroupId=15054	Intelligence	Off	14640	DIGITAL	7				
+TGID	Tid=84009	TGroupId=15054	K Aviation Admin	Off	16272	DIGITAL	7				
+TGID	Tid=83998	TGroupId=15054	K DSP DATA	Off	2416	DIGITAL	7				
+TGID	Tid=83997	TGroupId=15054	K DSP Dispatch / Cmd.	Off	2320	DIGITAL	2				
+TGID	Tid=84011	TGroupId=15054	K DSP Tactical-1	Off	2352	DIGITAL	7				
+TGID	Tid=84012	TGroupId=15054	K DSP Tactical-2	Off	2384	DIGITAL	7				
+TGID	Tid=84008	TGroupId=15054	Secure	Off	16176	DIGITAL	7				
+TGID	Tid=84002	TGroupId=15054	Special Investigation Unit	Off	14064	DIGITAL	7				
+TGID	Tid=84007	TGroupId=15054	Special Investigative Unit 2	Off	16080	DIGITAL	7				
+TGID	Tid=83996	TGroupId=15054	Special Operations Response Team 1	Off	2064	DIGITAL	7				
+TGID	Tid=84000	TGroupId=15054	Special Operations Response Team 2	Off	3088	DIGITAL	7				
+TGID	Tid=84118	TGroupId=15054	Supervisor	Off	2960	DIGITAL	7				
+TGID	Tid=84010	TGroupId=15054	TCU (crowd control)	Off	17776	DIGITAL	7				
+TGID	Tid=84044	TGroupId=15054	TCU (crowd control) KS	Off	17840	DIGITAL	7				
+T-Group	TGroupId=15035	TrunkId=411	New Castle County  - Newport, Town Of	Off	39.719070	-75.613580	1.0	Circle
+TGID	Tid=83820	TGroupId=15035	Newport Police	Off	13136	DIGITAL	7				
+T-Group	TGroupId=15067	TrunkId=411	New Castle County - Department Of Transportation	Off	39.578170	-75.662840	21.0	Circle
+TGID	Tid=68353	TGroupId=15067	Bear Yard - Area 10	Off	21904	DIGITAL	14				
+TGID	Tid=66237	TGroupId=15067	Expressways Maintenance Dispatch 1	Off	5072	DIGITAL	14				
+TGID	Tid=68237	TGroupId=15067	Expressways Maintenance Dispatch 2	Off	5104	DIGITAL	14				
+TGID	Tid=66239	TGroupId=15067	Kiamensi Yard - Area 11	Off	21936	DIGITAL	14				
+TGID	Tid=66506	TGroupId=15067	Middletown Yard - Area 9	Off	21712	DIGITAL	14				
+TGID	Tid=68355	TGroupId=15067	NCC Admin	Off	22064	DIGITAL	14				
+TGID	Tid=82953	TGroupId=15067	NCC DelDot Supervisor	Off	18800	DIGITAL	14				
+TGID	Tid=66242	TGroupId=15067	NCC Yard - Area 22	Off	22000	DIGITAL	14				
+TGID	Tid=68354	TGroupId=15067	NCC Yard - Area 23	Off	22032	DIGITAL	14				
+TGID	Tid=82716	TGroupId=15067	New Castle Construction	Off	4784	DIGITAL	14				
+TGID	Tid=81152	TGroupId=15067	New Castle County Traffic (TMC)	Off	4720	DIGITAL	14				
+TGID	Tid=68352	TGroupId=15067	Newark Yard - Area 14	Off	21744	DIGITAL	14				
+TGID	Tid=68232	TGroupId=15067	Signs (NCC)	Off	4752	DIGITAL	14				
+TGID	Tid=356214	TGroupId=15067	Smyrna Yard - Area 26	Off	22320	DIGITAL	14				
+TGID	Tid=66240	TGroupId=15067	Talley Yard - Area 12	Off	21968	DIGITAL	14				
+TGID	Tid=144645	TGroupId=15067	Toll Plaza Ops (DE/MD State Line)	Off	26832	DIGITAL	14				
+T-Group	TGroupId=15032	TrunkId=411	New Castle County - Elsmere	Off	39.738210	-75.606020	2.0	Circle
+TGID	Tid=83816	TGroupId=15032	Elsmere Executive	Off	12976	DIGITAL	7				
+TGID	Tid=68268	TGroupId=15032	Elsmere FC	Off	10032	DIGITAL	24				
+TGID	Tid=83814	TGroupId=15032	Elsmere Police	Off	12912	DIGITAL	7				
+T-Group	TGroupId=15128	TrunkId=411	New Castle County - Fire and EMS	Off	39.569710	-75.660100	21.0	Circle
+TGID	Tid=393114	TGroupId=15128	A. I. DuPont Command / Helipad	Off	30384	DIGITAL	12				
+TGID	Tid=82818	TGroupId=15128	Christiana Care Health System Fire Protection	Off	10608	DIGITAL	24				
+TGID	Tid=199283	TGroupId=15128	Fire Marshal (major incident response team)	Off	13808	DIGITAL	24				
+TGID	Tid=199266	TGroupId=15128	NCC Dispatch	Off	3184	DIGITAL	3				
+TGID	Tid=199271	TGroupId=15128	NCC EMS Ops 1	Off	3856	DIGITAL	4				
+TGID	Tid=199280	TGroupId=15128	NCC EMS Ops 2	Off	4144	DIGITAL	9				
+TGID	Tid=199281	TGroupId=15128	NCC EMS Ops 3	Off	4368	DIGITAL	9				
+TGID	Tid=199284	TGroupId=15128	NCC Fire Marshall	Off	14192	DIGITAL	24				
+TGID	Tid=66241	TGroupId=15128	NCC Fire Police	Off	10576	DIGITAL	24				
+TGID	Tid=228064	TGroupId=15128	NCC Fire Police 2	Off	10512	DIGITAL	24				
+TGID	Tid=228065	TGroupId=15128	NCC Fire Police 3	Off	10544	DIGITAL	24				
+TGID	Tid=228066	TGroupId=15128	NCC Fire Police 4	Off	10704	DIGITAL	24				
+TGID	Tid=228067	TGroupId=15128	NCC Fire Police 5	Off	10736	DIGITAL	24				
+TGID	Tid=199267	TGroupId=15128	NCC Fire-Tac 3	Off	3216	DIGITAL	8				
+TGID	Tid=199268	TGroupId=15128	NCC Fire-Tac 4	Off	3248	DIGITAL	8				
+TGID	Tid=199269	TGroupId=15128	NCC Fire-Tac 5	Off	3280	DIGITAL	8				
+TGID	Tid=199270	TGroupId=15128	NCC Fire-Tac 6	Off	3312	DIGITAL	8				
+TGID	Tid=199272	TGroupId=15128	NCC Fire-Tac 7	Off	3888	DIGITAL	8				
+TGID	Tid=418853	TGroupId=15128	NCC-EMS Unconfirmed use	Off	30224	DIGITAL	9				
+TGID	Tid=199273	TGroupId=15128	NK Fire-Tac 8	Off	3920	DIGITAL	8				
+TGID	Tid=361114	TGroupId=15128	St Francis Healthcare EMS	Off	24272	DIGITAL	25				
+T-Group	TGroupId=2990	TrunkId=411	New Castle County - Fire Company TAC	Off	39.578170	-75.662840	21.0	Circle
+TGID	Tid=68557	TGroupId=2990	Belvedere FC	Off	9840	DIGITAL	24				
+TGID	Tid=68266	TGroupId=2990	Brandywine Hundred FC	Off	9872	DIGITAL	24				
+TGID	Tid=66858	TGroupId=2990	Claymont FC	Off	9936	DIGITAL	24				
+TGID	Tid=66700	TGroupId=2990	Cranston Heights FC	Off	9968	DIGITAL	24				
+TGID	Tid=66702	TGroupId=2990	Five Points FC	Off	10064	DIGITAL	24				
+TGID	Tid=67415	TGroupId=2990	Hockessen FC	Off	10128	DIGITAL	24				
+TGID	Tid=68271	TGroupId=2990	Middletown FC	Off	10192	DIGITAL	24				
+TGID	Tid=66703	TGroupId=2990	Mill Creek FC	Off	10224	DIGITAL	24				
+TGID	Tid=68272	TGroupId=2990	Minquadale FC	Off	10256	DIGITAL	24				
+TGID	Tid=68273	TGroupId=2990	Minquas FC	Off	10288	DIGITAL	24				
+TGID	Tid=82815	TGroupId=2990	New Castle County Airport FC	Off	10448	DIGITAL	24				
+TGID	Tid=66704	TGroupId=2990	Odessa FC	Off	10320	DIGITAL	24				
+TGID	Tid=68274	TGroupId=2990	Port Penn FC	Off	10352	DIGITAL	24				
+TGID	Tid=68275	TGroupId=2990	Talleyville FC	Off	10384	DIGITAL	24				
+TGID	Tid=66705	TGroupId=2990	Townsend FC	Off	10416	DIGITAL	24				
+TGID	Tid=68276	TGroupId=2990	Wilmington Manor FC	Off	10480	DIGITAL	24				
+T-Group	TGroupId=15036	TrunkId=411	New Castle County - Middletown	Off	39.453690	-75.715030	2.0	Circle
+TGID	Tid=157586	TGroupId=15036	Middletown Police TAC	Off	20816	DIGITAL	7				
+T-Group	TGroupId=15033	TrunkId=411	New Castle County - New Castle City	Off	39.663860	-75.573580	1.5	Circle
+TGID	Tid=66701	TGroupId=15033	Delaware City FC	Off	10000	DIGITAL	24				
+TGID	Tid=68269	TGroupId=15033	Goodwill FC	Off	10096	DIGITAL	24				
+TGID	Tid=68270	TGroupId=15033	Holloway Terrace FC	Off	10160	DIGITAL	24				
+TGID	Tid=83819	TGroupId=15033	New Castle City Executive	Off	13104	DIGITAL	7				
+TGID	Tid=83817	TGroupId=15033	New Castle City Police	Off	13008	DIGITAL	7				
+T-Group	TGroupId=15034	TrunkId=411	New Castle County - Newark City	Off	39.680240	-75.755880	1.6	Circle
+TGID	Tid=66699	TGroupId=15034	Aetna FC	Off	9808	DIGITAL	24				
+TGID	Tid=68267	TGroupId=15034	Christiana FC	Off	9904	DIGITAL	24				
+TGID	Tid=228128	TGroupId=15034	Newark PD 1	Off	7120	DIGITAL	7				
+TGID	Tid=231067	TGroupId=15034	Newark PD 2	Off	6736	DIGITAL	7				
+TGID	Tid=83821	TGroupId=15034	Newark PD Dispatch	Off	19216	DIGITAL	2				
+TGID	Tid=393117	TGroupId=15034	Newark PD ops	Off	7184	DIGITAL	7				
+TGID	Tid=83822	TGroupId=15034	Newark PD Ops	Off	19248	DIGITAL	23				
+TGID	Tid=83823	TGroupId=15034	Newark PD TAC	Off	19280	DIGITAL	7				
+T-Group	TGroupId=15037	TrunkId=411	New Castle County - University of Delaware	Off	39.674960	-75.747990	1.5	Circle
+TGID	Tid=393113	TGroupId=15037	Environmental Health and Safety	Off	30320	DIGITAL	32				
+TGID	Tid=415432	TGroupId=15037	U of D Emergency Care Unit (private)	Off	30352	DIGITAL	25				
+TGID	Tid=83824	TGroupId=15037	U of D PD Dispatch	Off	19312	DIGITAL	2				
+TGID	Tid=83826	TGroupId=15037	U of D PD OPS	Off	19376	DIGITAL	23				
+TGID	Tid=83825	TGroupId=15037	U of D PD TAC	Off	19344	DIGITAL	7				
+T-Group	TGroupId=3002	TrunkId=411	New Castle County - Wilmington City	Off	39.747320	-75.541990	3.0	Circle
+TGID	Tid=164751	TGroupId=3002	Finance Department	Off	28912	DIGITAL	14				
+TGID	Tid=164752	TGroupId=3002	License Inspection	Off	28944	DIGITAL	14				
+TGID	Tid=164754	TGroupId=3002	Parking Enforcement	Off	29040	DIGITAL	14				
+TGID	Tid=164750	TGroupId=3002	PW Parks /  Recreation	Off	28880	DIGITAL	14				
+TGID	Tid=164749	TGroupId=3002	PW Signs Traffic control	Off	28848	DIGITAL	14				
+TGID	Tid=164748	TGroupId=3002	PW Streets	Off	28816	DIGITAL	14				
+TGID	Tid=164753	TGroupId=3002	Real Estate Housing	Off	28976	DIGITAL	14				
+TGID	Tid=164730	TGroupId=3002	WFD Dispatch	Off	28304	DIGITAL	3				
+TGID	Tid=164742	TGroupId=3002	WFD Fire B	Off	28336	DIGITAL	8				
+TGID	Tid=164743	TGroupId=3002	WFD Fire C	Off	28368	DIGITAL	8				
+TGID	Tid=164744	TGroupId=3002	WFD Fire D	Off	28400	DIGITAL	8				
+TGID	Tid=164745	TGroupId=3002	WFD Fire E	Off	28432	DIGITAL	8				
+TGID	Tid=164746	TGroupId=3002	WFD Fire F	Off	28464	DIGITAL	8				
+TGID	Tid=164747	TGroupId=3002	WFD Fire G	Off	28496	DIGITAL	8				
+TGID	Tid=164732	TGroupId=3002	WPD Data	Off	27824	DIGITAL	7				
+TGID	Tid=142767	TGroupId=3002	WPD Dispatch	Off	27792	DIGITAL	2				
+TGID	Tid=164781	TGroupId=3002	WPD FD patch from City system (not always up)	Off	10640	DIGITAL	3				
+TGID	Tid=164780	TGroupId=3002	WPD patch to state system (not always up)	Off	10672	DIGITAL	2				
+TGID	Tid=164733	TGroupId=3002	WPD TAC C	Off	27856	DIGITAL	7				
+TGID	Tid=164734	TGroupId=3002	WPD TAC D (Bluerocks)	Off	27888	DIGITAL	7				
+TGID	Tid=164735	TGroupId=3002	WPD TAC E Parking	Off	27920	DIGITAL	7				
+TGID	Tid=164736	TGroupId=3002	WPD TAC F Investigators	Off	27952	DIGITAL	7				
+TGID	Tid=164737	TGroupId=3002	WPD TAC G Investigators	Off	27984	DIGITAL	7				
+TGID	Tid=164738	TGroupId=3002	WPD TAC H Ops	Off	28016	DIGITAL	7				
+TGID	Tid=164739	TGroupId=3002	WPD TAC I	Off	28048	DIGITAL	7				
+TGID	Tid=164740	TGroupId=3002	WPD TAC J	Off	28080	DIGITAL	7				
+TGID	Tid=164741	TGroupId=3002	WPD TAC L	Off	28144	DIGITAL	7				
+TGID	Tid=183569	TGroupId=3002	WPD TAC1 (State System)	Off	3696	DIGITAL	7				
+TGID	Tid=188946	TGroupId=3002	WPD TAC2 (State System)	Off	12944	DIGITAL	23				
+T-Group	TGroupId=33289	TrunkId=411	New Castle County Hospitals	Off	39.579640	-75.659380	20.0	Circle
+TGID	Tid=199278	TGroupId=33289	A. I. DuPont Hospital Emergency Room	Off	4080	DIGITAL	12				
+TGID	Tid=199274	TGroupId=33289	Christiana Hospital Emergency Room 1	Off	3952	DIGITAL	12				
+TGID	Tid=199275	TGroupId=33289	Christiana Hospital Emergency Room 2	Off	3984	DIGITAL	12				
+TGID	Tid=199276	TGroupId=33289	Christiana Hospital Emergency Room 3	Off	4016	DIGITAL	12				
+TGID	Tid=228068	TGroupId=33289	Crozer Emergency Room (Chester PA))	Off	8240	DIGITAL	12				
+TGID	Tid=68278	TGroupId=33289	Helipad Christiana/Constables	Off	10768	DIGITAL	12				
+TGID	Tid=228069	TGroupId=33289	Middletown Emergency Room	Off	8208	DIGITAL	12				
+TGID	Tid=199277	TGroupId=33289	Saint Francis Emergency Room	Off	4048	DIGITAL	12				
+TGID	Tid=82822	TGroupId=33289	Union Hospital (Elkton, MD)	Off	10800	DIGITAL	12				
+TGID	Tid=199279	TGroupId=33289	Wilmington Hospital Emergency Room 1	Off	4112	DIGITAL	12				
+TGID	Tid=199282	TGroupId=33289	Wilmington Hospital Emergency Room 2	Off	4656	DIGITAL	12				
+T-Group	TGroupId=2991	TrunkId=411	New Castle County Miscellaneous	Off	39.578170	-75.662840	21.0	Circle
+TGID	Tid=147222	TGroupId=2991	Airport  Plowing / Maint	Off	26800	DIGITAL	14				
+TGID	Tid=156981	TGroupId=2991	Airport Operations	Off	26768	DIGITAL	14				
+TGID	Tid=83956	TGroupId=2991	Alcohol Beverage Control	Off	8048	DIGITAL	7				
+TGID	Tid=418859	TGroupId=2991	Brandywine School District Resource officers 1	Off	34240	DIGITAL	33				
+TGID	Tid=425843	TGroupId=2991	Brandywine School District Resource officers 2	Off	34288	DIGITAL	33				
+TGID	Tid=83947	TGroupId=2991	Capitol Police	Off	13264	DIGITAL	2				
+TGID	Tid=83949	TGroupId=2991	Community Service	Off	7792	DIGITAL	14				
+TGID	Tid=83954	TGroupId=2991	Court of Common Pleas	Off	21424	DIGITAL	2				
+TGID	Tid=393115	TGroupId=2991	Courthouse Security	Off	20128	DIGITAL	7				
+TGID	Tid=83955	TGroupId=2991	Department of Justice	Off	7920	DIGITAL	7				
+TGID	Tid=83950	TGroupId=2991	Dept of Health & Soc Svcs	Off	7632	DIGITAL	14				
+TGID	Tid=83958	TGroupId=2991	Facilities Management	Off	5456	DIGITAL	14				
+TGID	Tid=83953	TGroupId=2991	Family Court	Off	21520	DIGITAL	2				
+TGID	Tid=83952	TGroupId=2991	N Casinos / Gambling  Enforcement	Off	14512	DIGITAL	7				
+TGID	Tid=83942	TGroupId=2991	N Truck Enforcement Unit	Off	17648	DIGITAL	7				
+TGID	Tid=84061	TGroupId=2991	National Governor's Association	Off	20432	DIGITAL	14				
+TGID	Tid=84062	TGroupId=2991	National Governor's Association	Off	20464	DIGITAL	14				
+TGID	Tid=84063	TGroupId=2991	National Governor's Association	Off	20496	DIGITAL	14				
+TGID	Tid=84064	TGroupId=2991	National Governor's Association	Off	20528	DIGITAL	14				
+TGID	Tid=84065	TGroupId=2991	National Governor's Association	Off	20560	DIGITAL	14				
+TGID	Tid=83957	TGroupId=2991	NCC Audit & Recovery Mgmt Services (ARMS)	Off	20976	DIGITAL	14				
+TGID	Tid=246853	TGroupId=2991	NCC Court building Announcement channel	Off	30000	DIGITAL	2				
+TGID	Tid=418858	TGroupId=2991	NCC Courts panic alarms	Off	30128	DIGITAL	2				
+TGID	Tid=84072	TGroupId=2991	NCC SPCA	Off	17424	DIGITAL	14				
+TGID	Tid=83946	TGroupId=2991	New Castle Justice of the Peace (Constables)	Off	21232	DIGITAL	7				
+TGID	Tid=83951	TGroupId=2991	Office of Narcotics & Dangerous Drugs	Off	17872	DIGITAL	7				
+TGID	Tid=83959	TGroupId=2991	Radio maintnence	Off	5328	DIGITAL	14				
+TGID	Tid=83948	TGroupId=2991	Sheriff	Off	8656	DIGITAL	2				
+TGID	Tid=84468	TGroupId=2991	Superior Court	Off	21328	DIGITAL	2				
+TGID	Tid=210693	TGroupId=2991	VA Medical Center Operations (Elsmere)	Off	20912	DIGITAL	14				
+TGID	Tid=210691	TGroupId=2991	VA Medical Center Security (Elsmere)	Off	20848	DIGITAL	33				
+TGID	Tid=210692	TGroupId=2991	VA Medical Center Security Alternate (Elsmere)	Off	20880	DIGITAL	33				
+T-Group	TGroupId=2993	TrunkId=411	New Castle County Mutual Aid	Off	39.578170	-75.662840	21.0	Circle
+TGID	Tid=312653	TGroupId=2993	NCC Interops 1	Off	25488	DIGITAL	11				
+TGID	Tid=312654	TGroupId=2993	NCC Interops 2	Off	25520	DIGITAL	11				
+TGID	Tid=312655	TGroupId=2993	NCC Interops 3	Off	25552	DIGITAL	11				
+TGID	Tid=312656	TGroupId=2993	NCC Interops 4	Off	25584	DIGITAL	11				
+TGID	Tid=84048	TGroupId=2993	NCC Mutual Aid 1	Off	9328	DIGITAL	6				
+TGID	Tid=84049	TGroupId=2993	NCC Mutual Aid 2	Off	9360	DIGITAL	6				
+TGID	Tid=84050	TGroupId=2993	NCC Police Mutual Aid (PMA)	Off	9520	DIGITAL	7				
+T-Group	TGroupId=2994	TrunkId=411	New Castle County Police	Off	39.578170	-75.662840	21.0	Circle
+TGID	Tid=82748	TGroupId=2994	NCC Communications	Off	6864	DIGITAL	23				
+TGID	Tid=82747	TGroupId=2994	NCC Emergency Medical Administration	Off	6832	DIGITAL	29				
+TGID	Tid=82746	TGroupId=2994	NCC Emergency Preparedness	Off	6800	DIGITAL	29				
+TGID	Tid=82749	TGroupId=2994	NCC Executives	Off	6896	DIGITAL	23				
+TGID	Tid=68253	TGroupId=2994	NCC Police Administration	Off	6448	DIGITAL	23				
+TGID	Tid=82752	TGroupId=2994	NCC Sheriff	Off	7056	DIGITAL	23				
+TGID	Tid=82750	TGroupId=2994	NCC Staff	Off	6928	DIGITAL	23				
+TGID	Tid=68579	TGroupId=2994	NCC Supervisor	Off	6960	DIGITAL	23				
+TGID	Tid=82739	TGroupId=2994	NCCPD CIU A	Off	6480	DIGITAL	23				
+TGID	Tid=82740	TGroupId=2994	NCCPD CIU B	Off	6512	DIGITAL	23				
+TGID	Tid=70186	TGroupId=2994	NCCPD CIU C	Off	6544	DIGITAL	23				
+TGID	Tid=68252	TGroupId=2994	NCCPD Data C	Off	6416	DIGITAL	7				
+TGID	Tid=51667	TGroupId=2994	NCCPD Dispatch 1	Off	6224	DIGITAL	2				
+TGID	Tid=51669	TGroupId=2994	NCCPD Dispatch 2	Off	6256	DIGITAL	2				
+TGID	Tid=68578	TGroupId=2994	NCCPD Ops 1	Off	6576	DIGITAL	23				
+TGID	Tid=68674	TGroupId=2994	NCCPD Ops 2	Off	6672	DIGITAL	23				
+TGID	Tid=68673	TGroupId=2994	NCCPD Ops 3	Off	6992	DIGITAL	23				
+TGID	Tid=82751	TGroupId=2994	NCCPD Ops 4	Off	7024	DIGITAL	23				
+TGID	Tid=82741	TGroupId=2994	NCCPD Special Ops 1	Off	6608	DIGITAL	23				
+TGID	Tid=82742	TGroupId=2994	NCCPD Special Ops 2	Off	6640	DIGITAL	23				
+TGID	Tid=82743	TGroupId=2994	NCCPD SWAT	Off	6704	DIGITAL	23				
+TGID	Tid=51668	TGroupId=2994	NCCPD Tactical 1	Off	6288	DIGITAL	7				
+TGID	Tid=51670	TGroupId=2994	NCCPD Tactical 2	Off	6320	DIGITAL	7				
+TGID	Tid=68250	TGroupId=2994	NCCPD Tactical 3	Off	6352	DIGITAL	7				
+TGID	Tid=68251	TGroupId=2994	NCCPD Tactical 4	Off	6384	DIGITAL	7				
+T-Group	TGroupId=2995	TrunkId=411	New Castle County State Police	Off	39.578170	-75.662840	21.0	Circle
+TGID	Tid=84040	TGroupId=2995	Command Center	Off	15952	DIGITAL	7				
+TGID	Tid=84034	TGroupId=2995	Detectives	Off	13904	DIGITAL	7				
+TGID	Tid=216769	TGroupId=2995	DSP Operations	Off	14736	DIGITAL	7				
+TGID	Tid=84028	TGroupId=2995	DSP Troop 1 (Wilmington North)	Off	2672	DIGITAL	23				
+TGID	Tid=84029	TGroupId=2995	DSP Troop 2 (Newark)	Off	2704	DIGITAL	23				
+TGID	Tid=84030	TGroupId=2995	DSP Troop 6 (Wilmington South)	Off	2832	DIGITAL	23				
+TGID	Tid=84031	TGroupId=2995	DSP Troop 9 (Odessa)	Off	2896	DIGITAL	23				
+TGID	Tid=84019	TGroupId=2995	Executive Security	Off	1840	DIGITAL	7				
+TGID	Tid=84037	TGroupId=2995	Homicide squad	Off	14416	DIGITAL	7				
+TGID	Tid=84035	TGroupId=2995	Intelligence	Off	14000	DIGITAL	7				
+TGID	Tid=84039	TGroupId=2995	Intelligence	Off	14608	DIGITAL	7				
+TGID	Tid=84042	TGroupId=2995	N Aviation Admin	Off	16240	DIGITAL	7				
+TGID	Tid=84026	TGroupId=2995	N DSP DATA	Off	2288	DIGITAL	23				
+TGID	Tid=84021	TGroupId=2995	N DSP Dispatch / Command	Off	2128	DIGITAL	2				
+TGID	Tid=84022	TGroupId=2995	N DSP Tactical-1	Off	2160	DIGITAL	7				
+TGID	Tid=84023	TGroupId=2995	N DSP Tactical-2	Off	2192	DIGITAL	7				
+TGID	Tid=84024	TGroupId=2995	N DSP Tactical-3	Off	2224	DIGITAL	7				
+TGID	Tid=84025	TGroupId=2995	N DSP Tactical-4	Off	2256	DIGITAL	7				
+TGID	Tid=84027	TGroupId=2995	SECURE	Off	2640	DIGITAL	23				
+TGID	Tid=84036	TGroupId=2995	Special Investigation Unit	Off	14032	DIGITAL	7				
+TGID	Tid=84041	TGroupId=2995	Special Investigative Unit 1	Off	16048	DIGITAL	7				
+TGID	Tid=84020	TGroupId=2995	Special Operations Response Team 1	Off	2032	DIGITAL	7				
+TGID	Tid=84033	TGroupId=2995	Special Operations Response Team 2	Off	3056	DIGITAL	7				
+TGID	Tid=84032	TGroupId=2995	Supervisor	Off	2928	DIGITAL	7				
+T-Group	TGroupId=2996	TrunkId=411	Outside Agencies	Off	39.192900	-75.544500	60.0	Circle
+TGID	Tid=83429	TGroupId=2996	American Red Cross (KENT)	Off	22416	DIGITAL	11				
+TGID	Tid=83428	TGroupId=2996	American Red Cross (NCC)	Off	22384	DIGITAL	11				
+TGID	Tid=83430	TGroupId=2996	American Red Cross (SUSSEX)	Off	22448	DIGITAL	11				
+TGID	Tid=83434	TGroupId=2996	Chesapeake Utilities	Off	22928	DIGITAL	34				
+TGID	Tid=83432	TGroupId=2996	Connectiv	Off	22864	DIGITAL	34				
+TGID	Tid=83326	TGroupId=2996	DEA Kent/Sussex 1	Off	18064	DIGITAL	16				
+TGID	Tid=83327	TGroupId=2996	DEA Kent/Sussex 2	Off	18096	DIGITAL	16				
+TGID	Tid=83323	TGroupId=2996	DEA North 1	Off	17968	DIGITAL	16				
+TGID	Tid=83324	TGroupId=2996	DEA North 2	Off	18000	DIGITAL	16				
+TGID	Tid=83336	TGroupId=2996	DEA SIU	Off	8880	DIGITAL	16				
+TGID	Tid=83329	TGroupId=2996	DEA Statewide 1	Off	18160	DIGITAL	16				
+TGID	Tid=83330	TGroupId=2996	DEA Statewide 2	Off	18192	DIGITAL	16				
+TGID	Tid=83337	TGroupId=2996	DEA TF1	Off	8912	DIGITAL	16				
+TGID	Tid=83338	TGroupId=2996	DEA TF2	Off	8944	DIGITAL	16				
+TGID	Tid=83431	TGroupId=2996	Delaware Electric Co-op	Off	22832	DIGITAL	34				
+TGID	Tid=83333	TGroupId=2996	FBI	Off	8784	DIGITAL	16				
+TGID	Tid=83334	TGroupId=2996	FBI	Off	8816	DIGITAL	16				
+TGID	Tid=83335	TGroupId=2996	FBI	Off	8848	DIGITAL	16				
+TGID	Tid=83331	TGroupId=2996	Federal Mutual Aid- Statewide	Off	18224	DIGITAL	16				
+TGID	Tid=83328	TGroupId=2996	Federal Mutual Aid-Kent/Sussex	Off	18128	DIGITAL	16				
+TGID	Tid=83325	TGroupId=2996	Federal Mutual Aid-North	Off	18032	DIGITAL	16				
+TGID	Tid=83340	TGroupId=2996	KENT/SUSSEX DEA F1	Off	9008	DIGITAL	16				
+TGID	Tid=83341	TGroupId=2996	KENT/SUSSEX DEA F2	Off	9040	DIGITAL	16				
+TGID	Tid=83339	TGroupId=2996	KENT/SUSSEX DEA SIU	Off	8976	DIGITAL	16				
+TGID	Tid=83569	TGroupId=2996	Motorola Administration	Off	8272	DIGITAL	17				
+TGID	Tid=83571	TGroupId=2996	Motorola Service (Kent)	Off	8336	DIGITAL	17				
+TGID	Tid=83570	TGroupId=2996	Motorola Service (NCC)	Off	8304	DIGITAL	17				
+TGID	Tid=83572	TGroupId=2996	Motorola Service (Sussex)	Off	8368	DIGITAL	17				
+TGID	Tid=83427	TGroupId=2996	Statewide American Red Cross	Off	22352	DIGITAL	11				
+TGID	Tid=83343	TGroupId=2996	STATEWIDE DEA F1	Off	9104	DIGITAL	16				
+TGID	Tid=83344	TGroupId=2996	STATEWIDE DEA F2	Off	9136	DIGITAL	16				
+TGID	Tid=83342	TGroupId=2996	STATEWIDE DEA SIU	Off	9072	DIGITAL	16				
+TGID	Tid=82899	TGroupId=2996	United States Marshal Service	Off	16368	DIGITAL	16				
+TGID	Tid=82900	TGroupId=2996	United States Marshal Service	Off	16400	DIGITAL	16				
+TGID	Tid=82901	TGroupId=2996	United States Marshal Service	Off	16432	DIGITAL	16				
+TGID	Tid=83433	TGroupId=2996	Verizon	Off	22896	DIGITAL	34				
+T-Group	TGroupId=2976	TrunkId=411	River & Bay Authority (DRBA)	Off	39.192900	-75.544500	55.0	Circle
+TGID	Tid=83352	TGroupId=2976	Cape May Lewes Ferry Police Sussex	Off	6096	DIGITAL	2				
+TGID	Tid=78800	TGroupId=2976	Cape May-Lewes Ferry (Boats)	Off	27024	DIGITAL	26				
+TGID	Tid=83316	TGroupId=2976	Cape May-Lewes Ferry (land)	Off	26992	DIGITAL	26				
+TGID	Tid=210448	TGroupId=2976	Cape May-Lewes Ferry NJ TAC 1	Off	26384	DIGITAL	23				
+TGID	Tid=210449	TGroupId=2976	Cape May-Lewes Ferry NJ TAC 2	Off	26416	DIGITAL	23				
+TGID	Tid=71246	TGroupId=2976	DE Side (Loading and lot ops)	Off	27216	DIGITAL	14				
+TGID	Tid=157607	TGroupId=2976	Delaware Memorial Bridge Motor Pool	Off	26544	DIGITAL	14				
+TGID	Tid=164725	TGroupId=2976	Delaware Memorial Bridge Operations	Off	26736	DIGITAL	14				
+TGID	Tid=83350	TGroupId=2976	Delaware Memorial Bridge Police	Off	6032	DIGITAL	2				
+TGID	Tid=144576	TGroupId=2976	Delaware Memorial Bridge traffic ops	Off	26512	DIGITAL	14				
+TGID	Tid=190445	TGroupId=2976	DRBA Cape May Ops	Off	26640	DIGITAL	14				
+TGID	Tid=194320	TGroupId=2976	DRBA Lewes Bus	Off	27152	DIGITAL	26				
+TGID	Tid=418854	TGroupId=2976	DRBA PD SW TAC?	Off	26256	DIGITAL	7				
+TGID	Tid=71401	TGroupId=2976	DRBA PD TAC-1 (NCC)	Off	26192	DIGITAL	7				
+TGID	Tid=71825	TGroupId=2976	DRBA PD Tac-1 Cape May-Lewes Ferry	Off	26288	DIGITAL	7				
+TGID	Tid=121303	TGroupId=2976	DRBA PD TAC-2  (NCC)	Off	26224	DIGITAL	7				
+TGID	Tid=121302	TGroupId=2976	DRBA PD Tac-2 Cape May-Lewes Ferry	Off	26320	DIGITAL	7				
+TGID	Tid=83351	TGroupId=2976	Enforcement Kent	Off	6064	DIGITAL	7				
+TGID	Tid=83347	TGroupId=2976	Kent Ops	Off	5936	DIGITAL	14				
+TGID	Tid=202708	TGroupId=2976	N-DRBA Bridge Operations	Off	26480	DIGITAL	14				
+TGID	Tid=83346	TGroupId=2976	New Castle County Ops	Off	5904	DIGITAL	14				
+TGID	Tid=71245	TGroupId=2976	NJ Side (Loading and lot ops)	Off	27120	DIGITAL	14				
+TGID	Tid=83349	TGroupId=2976	Statewide Enforcement	Off	6000	DIGITAL	7				
+TGID	Tid=83345	TGroupId=2976	Statewide Ops	Off	5872	DIGITAL	14				
+TGID	Tid=83348	TGroupId=2976	Sussex Ops	Off	5968	DIGITAL	14				
+T-Group	TGroupId=2977	TrunkId=411	State Police Statewide	Off	39.192900	-75.544500	55.0	Circle
+TGID	Tid=84085	TGroupId=2977	Aviation Primary	Off	1712	DIGITAL	7				
+TGID	Tid=84092	TGroupId=2977	Bomb Squad	Off	2608	DIGITAL	7				
+TGID	Tid=84084	TGroupId=2977	Conflict Management Team	Off	1680	DIGITAL	23				
+TGID	Tid=84083	TGroupId=2977	Detective Net	Off	1648	DIGITAL	7				
+TGID	Tid=84086	TGroupId=2977	Executive Command	Off	1776	DIGITAL	7				
+TGID	Tid=84087	TGroupId=2977	Executive Security	Off	1808	DIGITAL	7				
+TGID	Tid=84091	TGroupId=2977	Headquarters	Off	2576	DIGITAL	23				
+TGID	Tid=84089	TGroupId=2977	Information Support Services	Off	1968	DIGITAL	23				
+TGID	Tid=84095	TGroupId=2977	Intelligence 1	Off	14800	DIGITAL	23				
+TGID	Tid=84096	TGroupId=2977	Intelligence 2	Off	14832	DIGITAL	23				
+TGID	Tid=84094	TGroupId=2977	Internal Affairs	Off	14704	DIGITAL	23				
+TGID	Tid=84088	TGroupId=2977	National Law Enforcement Emergency Net	Off	1936	DIGITAL	23				
+TGID	Tid=84093	TGroupId=2977	Police Administration	Off	3024	DIGITAL	23				
+TGID	Tid=83595	TGroupId=2977	Sert Net	Off	1744	DIGITAL	7				
+TGID	Tid=84121	TGroupId=2977	Special Investigative Unit SW	Off	16144	DIGITAL	7				
+TGID	Tid=84090	TGroupId=2977	Special Operations Response Team	Off	2000	DIGITAL	7				
+TGID	Tid=84082	TGroupId=2977	Statewide Emergency Net	Off	1616	DIGITAL	23				
+TGID	Tid=84098	TGroupId=2977	SW Aviation Administration	Off	16336	DIGITAL	7				
+T-Group	TGroupId=2978	TrunkId=411	Statewide EMS / Fire / Police	Off	39.192900	-75.544500	60.0	Circle
+TGID	Tid=84114	TGroupId=2978	Capitol Police (SW)	Off	13232	DIGITAL	23				
+TGID	Tid=84099	TGroupId=2978	Fire (SW)	Off	3152	DIGITAL	24				
+TGID	Tid=84100	TGroupId=2978	Fire regroup	Off	3792	DIGITAL	24				
+TGID	Tid=84112	TGroupId=2978	Fire School (SW)	Off	11728	DIGITAL	24				
+TGID	Tid=84103	TGroupId=2978	Medical Examiner	Off	7376	DIGITAL	23				
+TGID	Tid=84117	TGroupId=2978	Office of EMS Admin (SW)	Off	22512	DIGITAL	25				
+TGID	Tid=84115	TGroupId=2978	Office of Narcotics & Dangerous Drugs	Off	17904	DIGITAL	23				
+TGID	Tid=84104	TGroupId=2978	Regroup A - N- POLICE	Off	8432	DIGITAL	23				
+TGID	Tid=84105	TGroupId=2978	Regroup B - N - FIRE	Off	8464	DIGITAL	24				
+TGID	Tid=84106	TGroupId=2978	Regroup C - K - POLICE	Off	8496	DIGITAL	23				
+TGID	Tid=84107	TGroupId=2978	Regroup D - K - FIRE	Off	8528	DIGITAL	24				
+TGID	Tid=84108	TGroupId=2978	Regroup E - S - POLICE	Off	8560	DIGITAL	23				
+TGID	Tid=84109	TGroupId=2978	Regroup F - S - FIRE	Off	8592	DIGITAL	24				
+TGID	Tid=84122	TGroupId=2978	State Fire Marshall (SW)	Off	14160	DIGITAL	24				
+TGID	Tid=84101	TGroupId=2978	Statewide Emergency Medical	Off	3824	DIGITAL	25				
+TGID	Tid=312657	TGroupId=2978	Statewide Interop-1	Off	25872	DIGITAL	11				
+TGID	Tid=312658	TGroupId=2978	Statewide Interop-2	Off	25904	DIGITAL	11				
+TGID	Tid=312659	TGroupId=2978	Statewide Interop-3	Off	25936	DIGITAL	11				
+TGID	Tid=312660	TGroupId=2978	Statewide Interop-4	Off	25968	DIGITAL	11				
+TGID	Tid=84116	TGroupId=2978	Statewide Justice of the Peace (Constables)	Off	21200	DIGITAL	23				
+TGID	Tid=84110	TGroupId=2978	Statewide Mutual Aid	Off	9296	DIGITAL	11				
+TGID	Tid=84111	TGroupId=2978	SW Police Mutual Aid (PMA)	Off	9648	DIGITAL	23				
+TGID	Tid=84113	TGroupId=2978	University of Delaware Police (SW)	Off	13072	DIGITAL	23				
+T-Group	TGroupId=2979	TrunkId=411	Statewide Miscellaneous	Off	39.192900	-75.544500	60.0	Circle
+TGID	Tid=83966	TGroupId=2979	Alcohol Beverage Control	Off	8016	DIGITAL	7				
+TGID	Tid=83967	TGroupId=2979	Department of Justice	Off	7888	DIGITAL	7				
+TGID	Tid=164728	TGroupId=2979	Dept. of Public Health	Off	25168	DIGITAL	14				
+TGID	Tid=164727	TGroupId=2979	Dept. of Public Health	Off	25200	DIGITAL	14				
+TGID	Tid=83979	TGroupId=2979	Dept. of Public Health admin	Off	22480	DIGITAL	14				
+TGID	Tid=83981	TGroupId=2979	Environmental Health Services Admin	Off	22576	DIGITAL	14				
+TGID	Tid=83982	TGroupId=2979	Environmental Health Services Operations	Off	22608	DIGITAL	14				
+TGID	Tid=83980	TGroupId=2979	Epidemiology Operations	Off	22544	DIGITAL	14				
+TGID	Tid=83964	TGroupId=2979	Facilities Management (SW)	Off	5552	DIGITAL	14				
+TGID	Tid=83962	TGroupId=2979	Governor's Staff	Off	5264	DIGITAL	14				
+TGID	Tid=83970	TGroupId=2979	Insurance Commission Fraud Investigation Unit	Off	7696	DIGITAL	7				
+TGID	Tid=83960	TGroupId=2979	Office of Telecommunication Management	Off	5200	DIGITAL	14				
+TGID	Tid=83961	TGroupId=2979	Office of Telecommunication Management	Off	5232	DIGITAL	14				
+TGID	Tid=83963	TGroupId=2979	Office of Telecommunication Managementmultigroup	Off	5424	DIGITAL	14				
+TGID	Tid=83983	TGroupId=2979	Public Health Lab Admin	Off	22640	DIGITAL	14				
+TGID	Tid=83984	TGroupId=2979	Public Health Lab Couriers	Off	22672	DIGITAL	14				
+TGID	Tid=84059	TGroupId=2979	Public Safety Commission	Off	22768	DIGITAL	7				
+TGID	Tid=84060	TGroupId=2979	Public Safety Commission	Off	22800	DIGITAL	7				
+TGID	Tid=83988	TGroupId=2979	Radio Maintnence (SW)	Off	5296	DIGITAL	14				
+TGID	Tid=83965	TGroupId=2979	Statewide Audit & Recovery Mgmt Services (ARMS)	Off	20944	DIGITAL	14				
+TGID	Tid=84074	TGroupId=2979	Statewide NCC Comm. Admin.	Off	4400	DIGITAL	14				
+TGID	Tid=83987	TGroupId=2979	SW Truck Enforcement Unit	Off	17616	DIGITAL	7				
+T-Group	TGroupId=15078	TrunkId=411	Sussex County -  Fire Company TAC	Off	38.653340	-75.374450	22.0	Circle
+TGID	Tid=67707	TGroupId=15078	Frankford FD TAC	Off	12048	DIGITAL	8				
+TGID	Tid=70292	TGroupId=15078	Gumboro FD TAC	Off	12144	DIGITAL	8				
+TGID	Tid=68965	TGroupId=15078	Millville FD TAC	Off	12336	DIGITAL	8				
+TGID	Tid=67847	TGroupId=15078	Roxana FD TAC	Off	12432	DIGITAL	8				
+TGID	Tid=68571	TGroupId=15078	Slaughter Beach FD TAC	Off	12272	DIGITAL	8				
+T-Group	TGroupId=15099	TrunkId=411	Sussex County -  Greenwood	Off	38.807060	-75.591320	1.0	Circle
+TGID	Tid=70528	TGroupId=15099	Greenwood FD TAC	Off	12112	DIGITAL	8				
+TGID	Tid=71781	TGroupId=15099	Greenwood PD	Off	20272	DIGITAL	7				
+T-Group	TGroupId=15080	TrunkId=411	Sussex County -  Mutual Aid	Off	38.653340	-75.374450	22.0	Circle
+TGID	Tid=83858	TGroupId=15080	S Mutual Aid-1	Off	9456	DIGITAL	6				
+TGID	Tid=83859	TGroupId=15080	S Mutual Aid-2	Off	9488	DIGITAL	6				
+TGID	Tid=83860	TGroupId=15080	S Police Mutual Aid (PMA)	Off	9584	DIGITAL	7				
+TGID	Tid=266792	TGroupId=15080	Sussex Interoperability-1	Off	25744	DIGITAL	11				
+TGID	Tid=328632	TGroupId=15080	Sussex Interoperability-2	Off	25776	DIGITAL	11				
+TGID	Tid=266791	TGroupId=15080	Sussex Interoperability-3	Off	25808	DIGITAL	11				
+TGID	Tid=328631	TGroupId=15080	Sussex Interoperability-4	Off	25840	DIGITAL	11				
+T-Group	TGroupId=15082	TrunkId=411	Sussex County - Bethany Beach	Off	38.538970	-75.066490	1.0	Circle
+TGID	Tid=68963	TGroupId=15082	Bethany Beach FD TAC	Off	11856	DIGITAL	8				
+TGID	Tid=67136	TGroupId=15082	Bethany Beach PD	Off	13456	DIGITAL	7				
+TGID	Tid=194321	TGroupId=15082	Bethany Parking Enforcement	Off	13040	DIGITAL	14				
+T-Group	TGroupId=18632	TrunkId=411	Sussex County - Blades	Off	38.635110	-75.599670	2.0	Circle
+TGID	Tid=70110	TGroupId=18632	Blades FD TAC	Off	11888	DIGITAL	8				
+TGID	Tid=232932	TGroupId=18632	Blades PD Local	Off	13200	DIGITAL	23				
+T-Group	TGroupId=15083	TrunkId=411	Sussex County - Bridgeville	Off	38.742610	-75.604370	1.0	Circle
+TGID	Tid=82833	TGroupId=15083	Bridgeville FD TAC	Off	11920	DIGITAL	8				
+TGID	Tid=78801	TGroupId=15083	Bridgeville PD	Off	13776	DIGITAL	7				
+T-Group	TGroupId=15084	TrunkId=411	Sussex County - Dagsboro	Off	38.549280	-75.245740	2.0	Circle
+TGID	Tid=70192	TGroupId=15084	Dagsboro FD TAC	Off	11952	DIGITAL	8				
+TGID	Tid=82847	TGroupId=15084	Dagsboro PD	Off	13520	DIGITAL	7				
+T-Group	TGroupId=15085	TrunkId=411	Sussex County - Delmar	Off	38.456510	-75.577150	2.0	Circle
+TGID	Tid=71426	TGroupId=15085	Delmar FD TAC	Off	11984	DIGITAL	8				
+TGID	Tid=168963	TGroupId=15085	Delmar PD	Off	13488	DIGITAL	7				
+T-Group	TGroupId=15100	TrunkId=411	Sussex County - Department Of Transportation	Off	38.653340	-75.374450	22.0	Circle
+TGID	Tid=68332	TGroupId=15100	Dagsboro Yard	Off	19056	DIGITAL	14				
+TGID	Tid=67936	TGroupId=15100	Ellendale Yard	Off	18992	DIGITAL	14				
+TGID	Tid=81358	TGroupId=15100	Gravel Hill Yard	Off	19024	DIGITAL	14				
+TGID	Tid=82957	TGroupId=15100	Gravel Hill Yard Float Crew	Off	19088	DIGITAL	14				
+TGID	Tid=70294	TGroupId=15100	Laurel Yard	Off	18928	DIGITAL	14				
+TGID	Tid=68331	TGroupId=15100	Seaford Yard	Off	18960	DIGITAL	14				
+TGID	Tid=82958	TGroupId=15100	Sussex Admin	Off	19120	DIGITAL	14				
+TGID	Tid=81154	TGroupId=15100	Sussex Construction	Off	5008	DIGITAL	14				
+TGID	Tid=82718	TGroupId=15100	Sussex County Traffic (TMC)	Off	4944	DIGITAL	14				
+TGID	Tid=82955	TGroupId=15100	Sussex DelDot Superviso	Off	18864	DIGITAL	14				
+TGID	Tid=82717	TGroupId=15100	Sussex Maintenance	Off	4912	DIGITAL	14				
+T-Group	TGroupId=15086	TrunkId=411	Sussex County - Dewey Beach	Off	38.710030	-75.082200	1.1	Circle
+TGID	Tid=83697	TGroupId=15086	Dewey Beach PD	Off	13584	DIGITAL	7				
+T-Group	TGroupId=15087	TrunkId=411	Sussex County - Ellendale	Off	38.807060	-75.422700	1.0	Circle
+TGID	Tid=70530	TGroupId=15087	Ellendale FD TAC	Off	12016	DIGITAL	8				
+TGID	Tid=70293	TGroupId=15087	Ellendale PD	Off	20624	DIGITAL	7				
+T-Group	TGroupId=15097	TrunkId=411	Sussex County - Fenwick Island	Off	38.474830	-75.064950	2.0	Circle
+TGID	Tid=82846	TGroupId=15097	Fenwick Island PD	Off	13424	DIGITAL	7				
+T-Group	TGroupId=15077	TrunkId=411	Sussex County - Fire & EMS	Off	38.653340	-75.374450	23.0	Circle
+TGID	Tid=70193	TGroupId=15077	Emergency Medical Preparedness	Off	7440	DIGITAL	29				
+TGID	Tid=82850	TGroupId=15077	Fire Marshall (Major Incident Response Team)	Off	13872	DIGITAL	8				
+TGID	Tid=68970	TGroupId=15077	Ocean City MD Fire Patch	Off	12560	DIGITAL	8				
+TGID	Tid=82837	TGroupId=15077	Paramedics Ops-1	Off	12816	DIGITAL	9				
+TGID	Tid=70113	TGroupId=15077	Paramedics Ops-2	Off	12848	DIGITAL	9				
+TGID	Tid=82834	TGroupId=15077	Patch to Worcester Co Md Fire	Off	12528	DIGITAL	8				
+TGID	Tid=66287	TGroupId=15077	S EMS-1 Ops West	Off	4464	DIGITAL	9				
+TGID	Tid=66286	TGroupId=15077	S EMS-2 Ops Central	Off	4496	DIGITAL	9				
+TGID	Tid=67706	TGroupId=15077	S EMS-3 Ops East	Off	12656	DIGITAL	9				
+TGID	Tid=66282	TGroupId=15077	S Fire / EMS Dispatch	Off	4432	DIGITAL	3				
+TGID	Tid=70284	TGroupId=15077	S Fire Marshall	Off	14256	DIGITAL	8				
+TGID	Tid=244040	TGroupId=15077	S Fire Ops 1	Off	29744	DIGITAL	8				
+TGID	Tid=248476	TGroupId=15077	S Fire Ops 2	Off	29776	DIGITAL	8				
+TGID	Tid=248477	TGroupId=15077	S Fire Ops 3	Off	29808	DIGITAL	8				
+TGID	Tid=248478	TGroupId=15077	S Fire Ops 4	Off	29840	DIGITAL	8				
+TGID	Tid=248479	TGroupId=15077	S Fire Ops 5	Off	29872	DIGITAL	8				
+TGID	Tid=72586	TGroupId=15077	S Fire Police-1	Off	12592	DIGITAL	8				
+TGID	Tid=67400	TGroupId=15077	S Fire Police-2	Off	21072	DIGITAL	8				
+TGID	Tid=67705	TGroupId=15077	S Fire Police-3	Off	21104	DIGITAL	8				
+TGID	Tid=67399	TGroupId=15077	S Fire Police-4	Off	21136	DIGITAL	8				
+TGID	Tid=72587	TGroupId=15077	S Fire Police-5	Off	21168	DIGITAL	8				
+TGID	Tid=72909	TGroupId=15077	S Fire-1	Off	3536	DIGITAL	8				
+TGID	Tid=66283	TGroupId=15077	S Fire-2 East	Off	3568	DIGITAL	8				
+TGID	Tid=66284	TGroupId=15077	S Fire-3 Central	Off	3600	DIGITAL	8				
+TGID	Tid=66285	TGroupId=15077	S Fire-4 West	Off	3632	DIGITAL	8				
+TGID	Tid=67403	TGroupId=15077	S Fire-5	Off	3504	DIGITAL	8				
+TGID	Tid=82835	TGroupId=15077	Suscom Support Personnel	Off	12720	DIGITAL	9				
+T-Group	TGroupId=15088	TrunkId=411	Sussex County - Georgetown	Off	38.690110	-75.385470	2.0	Circle
+TGID	Tid=82836	TGroupId=15088	Georgetown American Legion Ambulance	Off	12784	DIGITAL	9				
+TGID	Tid=67849	TGroupId=15088	Georgetown FD TAC	Off	12080	DIGITAL	8				
+TGID	Tid=67361	TGroupId=15088	Georgetown PD	Off	13360	DIGITAL	7				
+T-Group	TGroupId=33291	TrunkId=411	Sussex County - Hospitals	Off	39.044790	-75.574950	55.0	Circle
+TGID	Tid=72588	TGroupId=33291	Atlantic General Hospital MD	Off	12688	DIGITAL	12				
+TGID	Tid=68568	TGroupId=33291	Beebe Medical Center Lewes ER	Off	4528	DIGITAL	12				
+TGID	Tid=68569	TGroupId=33291	Beebe Medical Center Millville ER (SUMMER ONLY)	Off	4560	DIGITAL	12				
+TGID	Tid=84052	TGroupId=33291	Milford Hospital Emergency Room	Off	4592	DIGITAL	12				
+TGID	Tid=67137	TGroupId=33291	Nanticoke Memorial Hospital ER	Off	4624	DIGITAL	12				
+T-Group	TGroupId=15089	TrunkId=411	Sussex County - Laurel	Off	38.556500	-75.571310	2.0	Circle
+TGID	Tid=67401	TGroupId=15089	Laurel FD TAC	Off	12208	DIGITAL	8				
+TGID	Tid=83683	TGroupId=15089	Laurel PD	Off	13616	DIGITAL	7				
+T-Group	TGroupId=15098	TrunkId=411	Sussex County - Lewes	Off	38.769680	-75.143390	0.7	Circle
+TGID	Tid=67359	TGroupId=15098	Lewes FD TAC	Off	12240	DIGITAL	8				
+TGID	Tid=95703	TGroupId=15098	Lewes PD	Off	13392	DIGITAL	7				
+T-Group	TGroupId=15090	TrunkId=411	Sussex County - Millsboro	Off	38.590040	-75.296430	1.3	Circle
+TGID	Tid=67848	TGroupId=15090	Indian River FD TAC	Off	12176	DIGITAL	8				
+TGID	Tid=69025	TGroupId=15090	Mid-Sussex Rescue Squad TAC	Off	12624	DIGITAL	9				
+TGID	Tid=67360	TGroupId=15090	Millsboro FD TAC	Off	12304	DIGITAL	8				
+TGID	Tid=83686	TGroupId=15090	Millsboro PD	Off	13712	DIGITAL	7				
+T-Group	TGroupId=15091	TrunkId=411	Sussex County - Milton	Off	38.777610	-75.309910	2.0	Circle
+TGID	Tid=68570	TGroupId=15091	Milton FD TAC	Off	12368	DIGITAL	8				
+TGID	Tid=83699	TGroupId=15091	Milton PD	Off	13744	DIGITAL	7				
+T-Group	TGroupId=15079	TrunkId=411	Sussex County - Miscellaneous	Off	38.653340	-75.374450	22.0	Circle
+TGID	Tid=83925	TGroupId=15079	Alcohol Beverage Control	Off	8112	DIGITAL	7				
+TGID	Tid=83922	TGroupId=15079	Audit & Recovery Mgmt Services (ARMS)	Off	21040	DIGITAL	14				
+TGID	Tid=84123	TGroupId=15079	Capitol Police	Off	13328	DIGITAL	2				
+TGID	Tid=83919	TGroupId=15079	Community Service	Off	7856	DIGITAL	14				
+TGID	Tid=84466	TGroupId=15079	Court of Common Pleas	Off	21488	DIGITAL	2				
+TGID	Tid=83926	TGroupId=15079	Department of Justice	Off	7984	DIGITAL	7				
+TGID	Tid=83920	TGroupId=15079	Dept of Health & Soc Svcs	Off	7664	DIGITAL	14				
+TGID	Tid=71410	TGroupId=15079	Emergency Operation Center	Off	12752	DIGITAL	22				
+TGID	Tid=83923	TGroupId=15079	Facilities Management	Off	5520	DIGITAL	14				
+TGID	Tid=84467	TGroupId=15079	Family Court	Off	21584	DIGITAL	2				
+TGID	Tid=84126	TGroupId=15079	Justice of the Peace (Constables)	Off	21296	DIGITAL	7				
+TGID	Tid=83924	TGroupId=15079	Radio Maintenence	Off	5392	DIGITAL	14				
+TGID	Tid=83917	TGroupId=15079	S Truck Enforcement Unit	Off	17712	DIGITAL	7				
+TGID	Tid=83918	TGroupId=15079	Sheriff	Off	8720	DIGITAL	2				
+TGID	Tid=84464	TGroupId=15079	SSX SPCA	Off	17488	DIGITAL	14				
+TGID	Tid=84465	TGroupId=15079	Superior Court	Off	21392	DIGITAL	2				
+T-Group	TGroupId=15092	TrunkId=411	Sussex County - Oceanview	Off	38.549910	-75.094990	2.0	Circle
+TGID	Tid=70114	TGroupId=15092	Ocean View PD 936	Off	13168	DIGITAL	7				
+T-Group	TGroupId=15093	TrunkId=411	Sussex County - Rehoboth Beach	Off	38.710630	-75.082460	1.0	Circle
+TGID	Tid=67134	TGroupId=15093	Rehoboth Beach Disp Fire/EMS/Ops	Off	3728	DIGITAL	3				
+TGID	Tid=232994	TGroupId=15093	Rehoboth Beach EMS	Off	30032	DIGITAL	9				
+TGID	Tid=75237	TGroupId=15093	Rehoboth Beach FD TAC	Off	12400	DIGITAL	8				
+TGID	Tid=83698	TGroupId=15093	Rehoboth Beach PD (DISPATCH)	Off	13648	DIGITAL	2				
+TGID	Tid=83695	TGroupId=15093	Rehoboth Beach PD-1 data	Off	20656	DIGITAL	7				
+TGID	Tid=83701	TGroupId=15093	Rehoboth Beach PD-2  tac	Off	20688	DIGITAL	7				
+T-Group	TGroupId=15094	TrunkId=411	Sussex County - Seaford	Off	38.649050	-75.621470	2.0	Circle
+TGID	Tid=71762	TGroupId=15094	Seaford Disp Fire/EMS/Ops	Off	3760	DIGITAL	3				
+TGID	Tid=232933	TGroupId=15094	Seaford EMS	Off	29904	DIGITAL	4				
+TGID	Tid=81360	TGroupId=15094	Seaford FD TAC	Off	12464	DIGITAL	8				
+TGID	Tid=83691	TGroupId=15094	Seaford PD (DATA)	Off	20336	DIGITAL	7				
+TGID	Tid=83700	TGroupId=15094	Seaford PD (Detectives)	Off	20368	DIGITAL	7				
+TGID	Tid=83681	TGroupId=15094	Seaford PD (DISPATCH)	Off	13552	DIGITAL	2				
+TGID	Tid=83704	TGroupId=15094	Seaford PD Special Ops team	Off	20400	DIGITAL	7				
+T-Group	TGroupId=15095	TrunkId=411	Sussex County - Selbyville	Off	38.460390	-75.220740	1.0	Circle
+TGID	Tid=70184	TGroupId=15095	Selbyville FD TAC	Off	12496	DIGITAL	8				
+TGID	Tid=69027	TGroupId=15095	Selbyville PD	Off	20304	DIGITAL	7				
+T-Group	TGroupId=15096	TrunkId=411	Sussex County - South Bethany Beach	Off	38.515530	-75.054220	1.0	Circle
+TGID	Tid=71159	TGroupId=15096	South Bethany Beach PD	Off	13680	DIGITAL	7				
+T-Group	TGroupId=3001	TrunkId=411	Sussex County - State Police	Off	38.661920	-75.374450	22.0	Circle
+TGID	Tid=198754	TGroupId=3001	Command Center	Off	16016	DIGITAL	7				
+TGID	Tid=198747	TGroupId=3001	Detectives	Off	13968	DIGITAL	7				
+TGID	Tid=198742	TGroupId=3001	DSP Troop-4 (Georgetown)	Off	2768	DIGITAL	7				
+TGID	Tid=198743	TGroupId=3001	DSP Troop-5 (Bridgeville)	Off	2800	DIGITAL	7				
+TGID	Tid=198744	TGroupId=3001	DSP Troop-7 (Lewes)	Off	2864	DIGITAL	7				
+TGID	Tid=198736	TGroupId=3001	Executive Security	Off	1904	DIGITAL	7				
+TGID	Tid=198750	TGroupId=3001	Homicide	Off	14480	DIGITAL	7				
+TGID	Tid=198749	TGroupId=3001	Intelligence	Off	14288	DIGITAL	7				
+TGID	Tid=198751	TGroupId=3001	Intelligence	Off	14672	DIGITAL	7				
+TGID	Tid=198759	TGroupId=3001	Office of Narcotics & Dangerous Drugs	Off	17936	DIGITAL	7				
+TGID	Tid=198757	TGroupId=3001	S Aviation Admin	Off	16304	DIGITAL	7				
+TGID	Tid=198741	TGroupId=3001	S DSP Data	Off	2544	DIGITAL	7				
+TGID	Tid=198738	TGroupId=3001	S DSP Dispatch / Command	Off	2448	DIGITAL	2				
+TGID	Tid=198739	TGroupId=3001	S DSP Tactical-1	Off	2480	DIGITAL	7				
+TGID	Tid=198740	TGroupId=3001	S DSP Tactical-2	Off	2512	DIGITAL	7				
+TGID	Tid=198752	TGroupId=3001	S DSP Tactical-3	Off	14864	DIGITAL	7				
+TGID	Tid=198753	TGroupId=3001	S DSP Tactical-4	Off	14896	DIGITAL	7				
+TGID	Tid=198756	TGroupId=3001	Secure	Off	16208	DIGITAL	7				
+TGID	Tid=198748	TGroupId=3001	Special Investigation Unit	Off	14096	DIGITAL	7				
+TGID	Tid=198755	TGroupId=3001	Special Investigative Unit 3	Off	16112	DIGITAL	7				
+TGID	Tid=198737	TGroupId=3001	Special Operation Response Team-1	Off	2096	DIGITAL	7				
+TGID	Tid=198746	TGroupId=3001	Special Operations Response Team-2	Off	3120	DIGITAL	7				
+TGID	Tid=198745	TGroupId=3001	Supervisor	Off	2992	DIGITAL	7				
+TGID	Tid=198758	TGroupId=3001	TCU (crowd control)	Off	17808	DIGITAL	7				
+T-Group	TGroupId=2980	TrunkId=411	Transit Corporation (DTC)	Off	39.192900	-75.544500	55.0	Circle
+TGID	Tid=83044	TGroupId=2980	DTC Contract Carriers	Off	23728	DIGITAL	26				
+TGID	Tid=83040	TGroupId=2980	DTC Dover  1	Off	23568	DIGITAL	26				
+TGID	Tid=83041	TGroupId=2980	DTC Dover  2	Off	23600	DIGITAL	26				
+TGID	Tid=83055	TGroupId=2980	DTC Dover Covert 1	Off	24080	DIGITAL	26				
+TGID	Tid=83056	TGroupId=2980	DTC Dover Covert 2	Off	24112	DIGITAL	26				
+TGID	Tid=83049	TGroupId=2980	DTC Dover Dispatch 1	Off	23888	DIGITAL	26				
+TGID	Tid=83050	TGroupId=2980	DTC Dover Dispatch 2	Off	23920	DIGITAL	26				
+TGID	Tid=83042	TGroupId=2980	DTC Dover Emerg 1	Off	23632	DIGITAL	26				
+TGID	Tid=83043	TGroupId=2980	DTC Dover Emerg 2	Off	23664	DIGITAL	26				
+TGID	Tid=83031	TGroupId=2980	DTC Dover Fallback 1	Off	23216	DIGITAL	26				
+TGID	Tid=83032	TGroupId=2980	DTC Dover Fallback 2	Off	23248	DIGITAL	26				
+TGID	Tid=83030	TGroupId=2980	DTC Executive Staff	Off	23184	DIGITAL	26				
+TGID	Tid=83028	TGroupId=2980	DTC North Maintenance	Off	23120	DIGITAL	26				
+TGID	Tid=83029	TGroupId=2980	DTC North Managers	Off	23152	DIGITAL	26				
+TGID	Tid=83045	TGroupId=2980	DTC Resorts	Off	23760	DIGITAL	26				
+TGID	Tid=83033	TGroupId=2980	DTC South Maintenance	Off	23280	DIGITAL	26				
+TGID	Tid=51684	TGroupId=2980	DTC South Managers	Off	23312	DIGITAL	26				
+TGID	Tid=83039	TGroupId=2980	DTC Special Events	Off	23536	DIGITAL	26				
+TGID	Tid=83027	TGroupId=2980	DTC Street Supervisors	Off	23088	DIGITAL	26				
+TGID	Tid=83034	TGroupId=2980	DTC Wilmington  1	Off	23344	DIGITAL	26				
+TGID	Tid=83035	TGroupId=2980	DTC Wilmington  3	Off	23408	DIGITAL	26				
+TGID	Tid=68361	TGroupId=2980	DTC Wilmington 2	Off	23376	DIGITAL	26				
+TGID	Tid=68364	TGroupId=2980	DTC Wilmington Covert 1	Off	24144	DIGITAL	26				
+TGID	Tid=83057	TGroupId=2980	DTC Wilmington Covert 2	Off	24176	DIGITAL	26				
+TGID	Tid=83058	TGroupId=2980	DTC Wilmington Covert 3	Off	24208	DIGITAL	26				
+TGID	Tid=83051	TGroupId=2980	DTC Wilmington Dispatch 1	Off	23952	DIGITAL	26				
+TGID	Tid=83052	TGroupId=2980	DTC Wilmington Dispatch 2	Off	23984	DIGITAL	26				
+TGID	Tid=83053	TGroupId=2980	DTC Wilmington Dispatch 3	Off	24016	DIGITAL	26				
+TGID	Tid=83036	TGroupId=2980	DTC Wilmington Emerg 1	Off	23440	DIGITAL	26				
+TGID	Tid=83037	TGroupId=2980	DTC Wilmington Emerg 2	Off	23472	DIGITAL	26				
+TGID	Tid=83038	TGroupId=2980	DTC Wilmington Emerg 3	Off	23504	DIGITAL	26				
+TGID	Tid=83024	TGroupId=2980	DTC Wilmington Fallback 1	Off	22992	DIGITAL	26				
+TGID	Tid=83025	TGroupId=2980	DTC Wilmington Fallback 2	Off	23024	DIGITAL	26				
+TGID	Tid=83026	TGroupId=2980	DTC Wilmington Fallback 3	Off	23056	DIGITAL	26				
+TGID	Tid=68362	TGroupId=2980	DTC-DOT	Off	23696	DIGITAL	26				
+TGID	Tid=164723	TGroupId=2980	Operations	Off	22960	DIGITAL	26				

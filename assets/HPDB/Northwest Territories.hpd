@@ -1,0 +1,68 @@
+TargetModel	HomePatrol-1
+FormatVersion	2.04
+Conventional	CountyId=5236	StateId=106	Inuvik	Off		Conventional
+AreaState	CountyId=5236	StateId=106
+AreaCounty	CountyId=5236	CountyId=5236
+C-Group	CGroupId=58604	CountyId=5236	Public Safety - EMS/Hospital	Off	68.400000	-133.700000	30.0	Circle
+C-Freq	CFreqId=246017	CGroupId=58604	EMS	Off	153800000	FM		4					
+C-Freq	CFreqId=246018	CGroupId=58604	Regional Hospital	Off	158760000	FM		17					
+C-Group	CGroupId=58174	CountyId=5236	Public Safety - Fire	Off	68.400000	-133.700000	30.0	Circle
+C-Freq	CFreqId=245092	CGroupId=58174	Fire	Off	169110000	FM		3					
+C-Group	CGroupId=25835	CountyId=5236	Public Safety - RCMP - G Division	Off	68.400000	-133.700000	30.0	Circle
+C-Freq	CFreqId=96509	CGroupId=25835	RCMP	Off	155400000	FM		2					
+Conventional	CountyId=3574	StateId=106	N/A	Off		Conventional
+AreaState	CountyId=3574	StateId=106
+AreaCounty	CountyId=3574	CountyId=3574
+C-Group	CGroupId=44812	CountyId=3574	Yellowknife - Municipal Services	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=180432	CGroupId=44812	Municipal Enforcement Division	Off	155280000	FM		14					
+C-Group	CGroupId=44811	CountyId=3574	Yellowknife - RCMP	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=180431	CGroupId=44811	G Division (includes Yellowknife municipal police)	Off	155880000	FM		2					
+Conventional	CountyId=5239	StateId=106	North Slave	Off		Conventional
+AreaState	CountyId=5239	StateId=106
+AreaCounty	CountyId=5239	CountyId=5239
+C-Group	CGroupId=67285	CountyId=5239	Public Safety - Yellowknife	Off	66.000000	-119.000000	500.0	Circle
+C-Freq	CFreqId=276399	CGroupId=67285	Air Ambulance Service	Off	129275000	AM		4					
+C-Freq	CFreqId=276398	CGroupId=67285	Environmental and Natural Resources Forest Management	Off	122050000	AM		8					
+Conventional	AgencyId=6772	StateId=106	Business	Off		Conventional
+AreaState	AgencyId=6772	StateId=106
+AreaCounty	AgencyId=6772	CountyId=5236
+C-Group	CGroupId=58175	AgencyId=6772	Inuvik	Off	68.400000	-133.700000	30.0	Circle
+C-Freq	CFreqId=245093	CGroupId=58175	Cab Dispatch	Off	169995000	FM		26					
+C-Freq	CFreqId=245094	CGroupId=58175	Car to Dispatch	Off	167295000	FM		26					
+C-Freq	CFreqId=299916	CGroupId=58175	Kusolun Security Services	Off	171015000	NFM		33					
+C-Freq	CFreqId=245888	CGroupId=58175	United Cabs	Off	165300000	FM		26					
+Conventional	AgencyId=8702	StateId=106	Inuvik-Mike Zubko Airport (YEV)	Off		Conventional
+AreaState	AgencyId=8702	StateId=106
+AreaCounty	AgencyId=8702	CountyId=5236
+C-Group	CGroupId=59641	AgencyId=8702	Air Traffic Control - CYEV Inuvik-Mike Zubko Airport	Off	68.303890	-133.483050	30.0	Circle
+C-Freq	CFreqId=249336	CGroupId=59641	ATIS	Off	128500000	AM		15					
+C-Freq	CFreqId=249335	CGroupId=59641	Tower	Off	122300000	AM		15					
+Conventional	AgencyId=8004	StateId=106	Yellowknife Airport (YZF)	Off		Conventional
+AreaState	AgencyId=8004	StateId=106
+AreaCounty	AgencyId=8004	CountyId=5239
+C-Group	CGroupId=67281	AgencyId=8004	Aviation - Air Traffic Control	Off	62.463060	-114.440270	30.0	Circle
+C-Freq	CFreqId=276374	CGroupId=67281	ATIS	Off	128400000	AM		15					
+C-Freq	CFreqId=276373	CGroupId=67281	Ground	Off	121900000	AM		15					
+C-Freq	CFreqId=276372	CGroupId=67281	Tower	Off	118500000	AM		15					
+C-Freq	CFreqId=276392	CGroupId=67281	Tower	Off	340800000	AM		15					
+C-Group	CGroupId=67282	AgencyId=8004	Aviation - Airlines	Off	62.463060	-114.440270	30.0	Circle
+C-Freq	CFreqId=276383	CGroupId=67282	Air Norterra	Off	129900000	AM		15					
+C-Freq	CFreqId=276385	CGroupId=67282	Air Tindi	Off	130400000	AM		15					
+C-Freq	CFreqId=276384	CGroupId=67282	Arctic Sunwest	Off	130050000	AM		15					
+C-Freq	CFreqId=276377	CGroupId=67282	Bradley Air Services	Off	123500000	AM		15					
+C-Freq	CFreqId=276380	CGroupId=67282	Bradley Air Services	Off	129500000	AM		15					
+C-Freq	CFreqId=276387	CGroupId=67282	Bradley Air Services	Off	130500000	AM		15					
+C-Freq	CFreqId=276389	CGroupId=67282	Bradley Air Services	Off	131450000	AM		15					
+C-Freq	CFreqId=276388	CGroupId=67282	Buffalo Airways	Off	130700000	AM		15					
+C-Freq	CFreqId=276381	CGroupId=67282	Jazz Air	Off	129550000	AM		15					
+C-Freq	CFreqId=276386	CGroupId=67282	Jazz Air	Off	130475000	AM		15					
+C-Freq	CFreqId=276390	CGroupId=67282	WestJet	Off	131675000	AM		15					
+C-Group	CGroupId=71208	AgencyId=8004	Aviation - Airport Services	Off	62.463060	-114.440270	30.0	Circle
+C-Freq	CFreqId=295714	CGroupId=71208	Adlair Aviation	Off	131900000	AM		15					
+C-Freq	CFreqId=295715	CGroupId=71208	Diamond Aviation - Shell	Off	128950000	AM		15					
+C-Freq	CFreqId=295716	CGroupId=71208	Midnight Petroleum - Esso	Off	122900000	AM		15					
+C-Group	CGroupId=67283	AgencyId=8004	Aviation - Enroute	Off	66.000000	-119.000000	500.0	Circle
+C-Freq	CFreqId=276393	CGroupId=67283	Arctic Radio FSS	Off	122500000	AM		15					
+C-Freq	CFreqId=276394	CGroupId=67283	Arctic Radio FSS	Off	126700000	AM		15					
+C-Freq	CFreqId=276396	CGroupId=67283	Arctic Radio FSS	Off	262000000	AM		15					
+C-Freq	CFreqId=276395	CGroupId=67283	West Air Operations Center - Yellowknife	Off	135800000	AM		15					

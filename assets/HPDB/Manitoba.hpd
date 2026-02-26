@@ -1,0 +1,2060 @@
+TargetModel	HomePatrol-1
+FormatVersion	2.04
+Conventional	CountyId=5222	StateId=103	Central Plains	Off		Conventional
+AreaState	CountyId=5222	StateId=103
+AreaCounty	CountyId=5222	CountyId=5222
+C-Group	CGroupId=64451	CountyId=5222	Repeaters - 2 M Band	Off	55.066670	-97.516670	400.0	Circle
+C-Freq	CFreqId=266169	CGroupId=64451	VE4MAN - Starbuck	Off	146610000	FM		13					
+C-Freq	CFreqId=266171	CGroupId=64451	VE4NEP - Neepawa	Off	147210000	FM		13					
+C-Freq	CFreqId=266170	CGroupId=64451	VE4PTG - Portage	Off	147165000	FM		13					
+C-Freq	CFreqId=266172	CGroupId=64451	VE4RAG - Elie	Off	147240000	FM		13					
+Conventional	CountyId=5223	StateId=103	Eastman	Off		Conventional
+AreaState	CountyId=5223	StateId=103
+AreaCounty	CountyId=5223	CountyId=5223
+C-Group	CGroupId=83762	CountyId=5223	Public Safety - Beausejour	Off	50.061910	-96.548120	20.0	Circle
+C-Freq	CFreqId=363293	CGroupId=83762	Volunteer Fire	Off	153110000	NFM	TONE=C103.5	3					
+C-Group	CGroupId=76360	CountyId=5223	Public Safety - Victoria Beach	Off	50.730560	-96.538890	20.0	Circle
+C-Freq	CFreqId=324283	CGroupId=76360	Victoria Beach Rural Municipality Fire Department	Off	159240000	NFM		3					
+C-Group	CGroupId=64458	CountyId=5223	Repeaters - 2 M Band	Off	55.066670	-97.516670	400.0	Circle
+C-Freq	CFreqId=266243	CGroupId=64458	VE4BRC - Beausejour - simplex	Off	147540000	FM		13					
+C-Freq	CFreqId=266437	CGroupId=64458	VE4EMB - Hadashville	Off	147360000	FM		13					
+C-Freq	CFreqId=266237	CGroupId=64458	VE4FAL - Falcon Lake	Off	146640000	FM		13					
+C-Freq	CFreqId=266421	CGroupId=64458	VE4INT - Birds Hill	Off	146820000	FM		13					
+C-Freq	CFreqId=266411	CGroupId=64458	VE4MIL - Milner Ridge	Off	145210000	FM		13					
+C-Freq	CFreqId=266412	CGroupId=64458	VE4PIN - Pinawa	Off	145370000	FM		13					
+C-Freq	CFreqId=266413	CGroupId=64458	VE4PIN - Pinawa - simplex	Off	146940000	FM		13					
+Conventional	CountyId=5224	StateId=103	Interlake	Off		Conventional
+AreaState	CountyId=5224	StateId=103
+AreaCounty	CountyId=5224	CountyId=5224
+C-Group	CGroupId=67184	CountyId=5224	Fire - Stonewall	Off	50.135150	-97.327400	30.0	Circle
+C-Freq	CFreqId=275929	CGroupId=67184	Fire Department	Off	159240000	FM		3					
+C-Group	CGroupId=67257	CountyId=5224	Repeaters - 1.25 M Band	Off	55.066670	-97.516670	400.0	Circle
+C-Freq	CFreqId=276311	CGroupId=67257	VE4RPT - Gimli	Off	224940000	FM		13					
+C-Group	CGroupId=64461	CountyId=5224	Repeaters - 2 M Band	Off	55.066670	-97.516670	400.0	Circle
+C-Freq	CFreqId=266254	CGroupId=64461	VE4GIM - Gimli	Off	146850000	FM		13					
+C-Freq	CFreqId=266255	CGroupId=64461	VE4LDR - Lundar	Off	146970000	FM		13					
+C-Freq	CFreqId=266433	CGroupId=64461	VE4MBR - Selkirk	Off	147060000	FM		13					
+C-Freq	CFreqId=266420	CGroupId=64461	VE4SIX - Woodlands	Off	145430000	FM		13					
+C-Freq	CFreqId=266436	CGroupId=64461	VE4SLK - East Selkirk	Off	146730000	FM		13					
+C-Freq	CFreqId=266253	CGroupId=64461	VE4TEU - Teulon	Off	145410000	FM		13					
+C-Group	CGroupId=67258	CountyId=5224	Repeaters - 70 cm Band	Off	55.066670	-97.516670	400.0	Circle
+C-Freq	CFreqId=276312	CGroupId=67258	VE4MBR - Selkirk	Off	443000000	FM		13					
+C-Freq	CFreqId=276313	CGroupId=67258	VE4SLK - East Selkirk	Off	444150000	FM		13					
+Conventional	CountyId=5225	StateId=103	Northern	Off		Conventional
+AreaState	CountyId=5225	StateId=103
+AreaCounty	CountyId=5225	CountyId=5225
+C-Group	CGroupId=64455	CountyId=5225	Repeaters - 2 M Band	Off	55.066670	-97.516670	400.0	Circle
+C-Freq	CFreqId=266208	CGroupId=64455	VE4FFR - Flin Flon	Off	146940000	FM		13					
+C-Freq	CFreqId=266203	CGroupId=64455	VE4PAS - The Pas	Off	145350000	FM		13					
+C-Freq	CFreqId=266205	CGroupId=64455	VE4TPN - Thompson	Off	146940000	FM		13					
+C-Group	CGroupId=67259	CountyId=5225	Repeaters - 6 M Band	Off	55.066670	-97.516670	400.0	Circle
+C-Freq	CFreqId=276314	CGroupId=67259	VE4SPT - Gillam	Off	50025000	FM		13					
+Conventional	CountyId=5226	StateId=103	Parkland	Off		Conventional
+AreaState	CountyId=5226	StateId=103
+AreaCounty	CountyId=5226	CountyId=5226
+C-Group	CGroupId=64462	CountyId=5226	Repeaters - 2 M Band	Off	55.066670	-97.516670	400.0	Circle
+C-Freq	CFreqId=293337	CGroupId=64462	VE4BMR - Baldy Mountain	Off	147030000	FM		13					
+C-Freq	CFreqId=266257	CGroupId=64462	VE4DPN - Dauphin	Off	146640000	FM		13					
+C-Freq	CFreqId=266258	CGroupId=64462	VE4SSR - Swan River	Off	146940000	FM		13					
+C-Group	CGroupId=67262	CountyId=5226	Repeaters - 70 cm Band	Off	55.066670	-97.516670	400.0	Circle
+C-Freq	CFreqId=276323	CGroupId=67262	VE4BMR - Baldy Mountain	Off	448400000	FM		13					
+C-Freq	CFreqId=276322	CGroupId=67262	VE4SRR - Swan River	Off	443400000	FM		13					
+Conventional	CountyId=5227	StateId=103	Pembina Valley	Off		Conventional
+AreaState	CountyId=5227	StateId=103
+AreaCounty	CountyId=5227	CountyId=5227
+C-Group	CGroupId=64460	CountyId=5227	Repeaters - 2 M Band	Off	55.066670	-97.516670	400.0	Circle
+C-Freq	CFreqId=266246	CGroupId=64460	VE4CDN - Morris	Off	145270000	FM		13					
+C-Freq	CFreqId=266248	CGroupId=64460	VE4HS - Bruxelles	Off	146880000	FM		13					
+C-Freq	CFreqId=266247	CGroupId=64460	VE4MRS - Buydens Hill	Off	145310000	FM		13					
+C-Freq	CFreqId=266249	CGroupId=64460	VE4TOM - Winkler	Off	147330000	FM		13					
+C-Freq	CFreqId=266245	CGroupId=64460	VE4VRG - Winkler	Off	145190000	FM		13					
+Conventional	CountyId=5228	StateId=103	Westman	Off		Conventional
+AreaState	CountyId=5228	StateId=103
+AreaCounty	CountyId=5228	CountyId=5228
+C-Group	CGroupId=64454	CountyId=5228	Repeaters - 2 M Band	Off	55.066670	-97.516670	400.0	Circle
+C-Freq	CFreqId=266175	CGroupId=64454	VE4ARM - Austin	Off	144281000	FM		13					
+C-Freq	CFreqId=266410	CGroupId=64454	VE4BAS - Basswood	Off	145150000	FM		13					
+C-Freq	CFreqId=266183	CGroupId=64454	VE4BDN - Brandon	Off	146940000	FM		13					
+C-Freq	CFreqId=266185	CGroupId=64454	VE4BVR - Russell	Off	147240000	FM		13					
+C-Freq	CFreqId=266179	CGroupId=64454	VE4CTY - Brandon	Off	146640000	FM		13					
+C-Freq	CFreqId=266181	CGroupId=64454	VE4MTR - Austin	Off	146910000	FM		13					
+C-Freq	CFreqId=266180	CGroupId=64454	VE4TED - Brandon	Off	146730000	FM		13					
+C-Group	CGroupId=67263	CountyId=5228	Repeaters - 6 M Band	Off	55.066670	-97.516670	400.0	Circle
+C-Freq	CFreqId=276324	CGroupId=67263	VE4ARM - Austin	Off	50018000	FM		13					
+C-Group	CGroupId=67264	CountyId=5228	Repeaters - 70 cm Band	Off	55.066670	-97.516670	400.0	Circle
+C-Freq	CFreqId=276325	CGroupId=67264	VE4ARM - Austin	Off	432301000	FM		13					
+C-Freq	CFreqId=276326	CGroupId=67264	VE4CTY - Brandon	Off	443700000	FM		13					
+C-Freq	CFreqId=276327	CGroupId=67264	VE4KIL - Killarney	Off	444500000	FM		13					
+Conventional	CountyId=5229	StateId=103	Winnipeg	Off		Conventional
+AreaState	CountyId=5229	StateId=103
+AreaCounty	CountyId=5229	CountyId=5229
+C-Group	CGroupId=64456	CountyId=5229	Capital Region Repeaters - 2 M Band	Off	55.066670	-97.516670	400.0	Circle
+C-Freq	CFreqId=266216	CGroupId=64456	VE4ARC - Winnipeg	Off	145230000	FM		13					
+C-Freq	CFreqId=266217	CGroupId=64456	VE4ARS - Winnipeg	Off	145350000	FM		13					
+C-Freq	CFreqId=266223	CGroupId=64456	VE4EDU - Winnipeg	Off	147300000	FM		13					
+C-Freq	CFreqId=266220	CGroupId=64456	VE4FLN - Winnipeg	Off	146760000	FM		13					
+C-Freq	CFreqId=266422	CGroupId=64456	VE4IHF -  St. John SD	Off	146850000	FM		13					
+C-Freq	CFreqId=266219	CGroupId=64456	VE4JRA - Winnipeg	Off	146670000	FM		13					
+C-Freq	CFreqId=266221	CGroupId=64456	VE4KEY - Winnipeg	Off	147015000	FM		13					
+C-Freq	CFreqId=266215	CGroupId=64456	VE4PAR - Winnipeg	Off	145170000	FM		13					
+C-Freq	CFreqId=266423	CGroupId=64456	VE4TWO - Winnipeg ARES Portable	Off	146910000	FM		13					
+C-Freq	CFreqId=266222	CGroupId=64456	VE4UMR - Winnipeg	Off	147270000	FM		13					
+C-Freq	CFreqId=352905	CGroupId=64456	VE4WIN	Off	146985000	FM		13					
+C-Freq	CFreqId=266224	CGroupId=64456	VE4WPG - Winnipeg	Off	147390000	FM		13					
+C-Freq	CFreqId=266218	CGroupId=64456	VE4WRS - Winnipeg	Off	145450000	FM		13					
+C-Group	CGroupId=67267	CountyId=5229	Capital Region Repeaters - 33 cm Band	Off	55.066670	-97.516670	400.0	Circle
+C-Freq	CFreqId=276330	CGroupId=67267	VE4KEY - Winnipeg	Off	927875000	FM		13					
+C-Group	CGroupId=67266	CountyId=5229	Capital Region Repeaters - 70 cm Band	Off	55.066670	-97.516670	400.0	Circle
+C-Freq	CFreqId=276334	CGroupId=67266	VA4FIL - Winnipeg	Off	443600000	FM		13					
+C-Freq	CFreqId=276337	CGroupId=67266	VA4UHF - Winnipeg	Off	444750000	FM		13					
+C-Freq	CFreqId=276336	CGroupId=67266	VE4AGA - Winnipeg	Off	444500000	FM		13					
+C-Freq	CFreqId=276335	CGroupId=67266	VE4ART - Winnipeg	Off	444100000	FM		13					
+C-Freq	CFreqId=276331	CGroupId=67266	VE4EDU - ATV - Winnipeg	Off	434000000	FM		13					
+C-Freq	CFreqId=276338	CGroupId=67266	VE4KEY - Winnipeg	Off	444975000	FM		13					
+C-Freq	CFreqId=276332	CGroupId=67266	VE4PAR - Winnipeg	Off	443400000	FM		13					
+C-Freq	CFreqId=276333	CGroupId=67266	VE4VJ - Winnipeg	Off	443500000	FM		13					
+C-Freq	CFreqId=306107	CGroupId=67266	VE4ZFG - Winnipeg	Off	444000000	FM		13					
+C-Group	CGroupId=79975	CountyId=5229	Corrections - Headingley Correctional Centre	Off	49.872800	-97.435080	10.0	Circle
+C-Freq	CFreqId=344073	CGroupId=79975	Provincial Jail	Off	413962500	NFM	TONE=D606	37					
+C-Group	CGroupId=79948	CountyId=5229	Corrections - Winnipeg Remand Centre	Off	49.887710	-97.148060	10.0	Circle
+C-Freq	CFreqId=344066	CGroupId=79948	Pre-trial Custody	Off	412012500	NFM	TONE=D606	37					
+C-Group	CGroupId=88632	CountyId=5229	Education - River East Transcona School Division	Off	49.888470	-97.143780	15.0	Circle
+C-Freq	CFreqId=390683	CGroupId=88632	Buses	Off	164220000	NFM	TONE=D712	26					
+C-Group	CGroupId=88423	CountyId=5229	Education - University of Manitoba	Off	49.906380	-97.165850	5.0	Circle
+C-Freq	CFreqId=390176	CGroupId=88423	Maintenance	Off	454225000	NFM	TONE=C110.9	32					
+C-Group	CGroupId=79961	CountyId=5229	Healthcare - Grace Hospital	Off	49.882360	-97.278960	10.0	Circle
+C-Freq	CFreqId=344024	CGroupId=79961	Security	Off	454087500	NFM	TONE=C118.8	33					
+C-Group	CGroupId=74554	CountyId=5229	Healthcare - Health Science Centre	Off	49.903060	-97.157400	10.0	Circle
+C-Freq	CFreqId=314044	CGroupId=74554	Ch. 1 Security	Off	452062500	NFM		33					
+C-Freq	CFreqId=314045	CGroupId=74554	Ch. 2 Maintenance	Off	451787500	NFM		17					
+C-Group	CGroupId=88413	CountyId=5229	Healthcare - Seven Oaks General Hospital	Off	49.955200	-97.150170	5.0	Circle
+C-Freq	CFreqId=389502	CGroupId=88413	Security	Off	460562500	AUTO		33					
+C-Group	CGroupId=79959	CountyId=5229	Healthcare - St. Boniface Hospital	Off	49.884230	-97.127040	10.0	Circle
+C-Freq	CFreqId=344023	CGroupId=79959	Security	Off	463737500	NFM	TONE=D065	33					
+C-Group	CGroupId=79958	CountyId=5229	Royal Canadian Mint - Winnipeg	Off	49.852570	-97.055110	5.0	Circle
+C-Freq	CFreqId=344021	CGroupId=79958	Protective Services	Off	454412500	AUTO		23					
+C-Group	CGroupId=79973	CountyId=5229	Transit - Fleet	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=344049	CGroupId=79973	Buses	Off	412562500	NFM	TONE=C103.5	26					
+C-Freq	CFreqId=344050	CGroupId=79973	Buses	Off	412637500	NFM	TONE=C103.5	26					
+C-Freq	CFreqId=344051	CGroupId=79973	Buses	Off	412662500	NFM	TONE=C103.5	26					
+C-Freq	CFreqId=344052	CGroupId=79973	Buses	Off	413812500	NFM	TONE=C103.5	26					
+C-Group	CGroupId=74980	CountyId=5229	Transit - Support	Off	49.899750	-97.137490	30.0	Circle
+C-Freq	CFreqId=316585	CGroupId=74980	Special Constables/Inspectors/Support (mirror of 153.770)	Off	154980000	NFM	TONE=C88.5	23					
+C-Freq	CFreqId=316586	CGroupId=74980	Special Constables/Inspectors/Support (mirror of 154.980)	Off	153770000	NFM	TONE=C88.5	23					
+Conventional	AgencyId=8539	StateId=103	Business	Off		Conventional
+AreaState	AgencyId=8539	StateId=103
+AreaCounty	AgencyId=8539	CountyId=5229
+C-Group	CGroupId=71733	AgencyId=8539	Commercial - Winnipeg	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=321829	CGroupId=71733	Beaver Sewer and Water Services	Off	153440000	NFM	TONE=C192.8	17					
+C-Freq	CFreqId=321831	CGroupId=71733	Brinks Canada - Technical Section	Off	151100000	NFM	TONE=C203.5	17					
+C-Freq	CFreqId=321830	CGroupId=71733	Building Products and Concrete Supply	Off	151745000	NFM	TONE=D023	17					
+C-Freq	CFreqId=344048	CGroupId=71733	CAA Manitoba	Off	463112500	NFM	TONE=C100.0	17					
+C-Freq	CFreqId=321832	CGroupId=71733	Canadian Freightways	Off	142725000	NFM	TONE=C100.0	17					
+C-Freq	CFreqId=344041	CGroupId=71733	Dr. Hook Towing	Off	458462500	NFM		17					
+C-Freq	CFreqId=298585	CGroupId=71733	Four Points Sheraton - Winnipeg South	Off	469262500	NFM		17					
+C-Freq	CFreqId=393585	CGroupId=71733	Hilton Garden Inn South	Off	467612500	NFM	TONE=C94.8	17					
+C-Freq	CFreqId=321826	CGroupId=71733	JM Balcaen and Sons	Off	162150000	NFM		17					
+C-Freq	CFreqId=321827	CGroupId=71733	Noble Locksmith	Off	159720000	NFM		17					
+C-Freq	CFreqId=321825	CGroupId=71733	Reimer Soils	Off	166350000	NFM	TONE=C131.8	17					
+C-Freq	CFreqId=344042	CGroupId=71733	Tartan Towing	Off	461512500	NFM	TONE=C103.5	17					
+C-Freq	CFreqId=354912	CGroupId=71733	Toro Security & Event Services	Off	467512500	NFM	TONE=D051	33					
+C-Freq	CFreqId=344047	CGroupId=71733	Trizec Building - Security/Maintenance/Engineers	Off	463037500	NFM	TONE=D271	17					
+C-Freq	CFreqId=321828	CGroupId=71733	United Messenger Co-op	Off	158640000	NFM		17					
+C-Group	CGroupId=79966	AgencyId=8539	Retail - Cityplace	Off	49.891560	-97.145360	10.0	Circle
+C-Freq	CFreqId=344036	CGroupId=79966	Security	Off	451687500	NFM	TONE=C123.0	33					
+C-Group	CGroupId=79967	AgencyId=8539	Retail - Garden City Shopping Centre	Off	49.951000	-97.147550	10.0	Circle
+C-Freq	CFreqId=344037	CGroupId=79967	Security	Off	454275000	NFM	TONE=C94.8	33					
+C-Group	CGroupId=79968	AgencyId=8539	Retail - Kildonan Place	Off	49.896980	-97.061890	10.0	Circle
+C-Freq	CFreqId=344038	CGroupId=79968	Security	Off	461987500	NFM	TONE=D606	33					
+C-Group	CGroupId=79969	AgencyId=8539	Retail - Portage Place Shopping Centre	Off	49.892790	-97.147490	10.0	Circle
+C-Freq	CFreqId=344039	CGroupId=79969	Security	Off	451062500	NFM	TONE=C114.8	33					
+C-Group	CGroupId=79965	AgencyId=8539	Retail - St. Vital Centre	Off	49.828320	-97.118560	10.0	Circle
+C-Freq	CFreqId=344034	CGroupId=79965	Security	Off	451687500	AUTO		33					
+Conventional	AgencyId=9519	StateId=103	Canadian National Railway	Off		Conventional
+AreaState	AgencyId=9519	StateId=103
+AreaCounty	AgencyId=9519	CountyId=0
+C-Group	CGroupId=78789	AgencyId=9519	Winnipeg - Symington Yard	Off	49.865770	-97.049480	20.0	Circle
+C-Freq	CFreqId=338365	CGroupId=78789	CN 1 Mainline - End to end	Off	161415000	FM		20					
+C-Freq	CFreqId=338366	CGroupId=78789	CN 5 Terminal Switching	Off	160365000	FM		20					
+C-Freq	CFreqId=338367	CGroupId=78789	CN 6 Dispatch	Off	160485000	FM		20					
+C-Freq	CFreqId=338368	CGroupId=78789	CN 8 Dispatch	Off	161025000	FM		20					
+C-Freq	CFreqId=390688	CGroupId=78789	East Yard	Off	161550000	FM	TONE=C179.9	20					
+Conventional	AgencyId=10720	StateId=103	Canadian Pacific Railway	Off		Conventional
+AreaState	AgencyId=10720	StateId=103
+AreaCounty	AgencyId=10720	CountyId=0
+C-Group	CGroupId=88634	AgencyId=10720	Rail Lines - Emerson Subdivision	Off	49.427110	-97.201800	30.0	Circle
+C-Freq	CFreqId=390689	CGroupId=88634	Road Channel 5	Off	161325000	FM		20					
+Conventional	AgencyId=4715	StateId=103	Department of Natural Resources	Off		Conventional
+AreaState	AgencyId=4715	StateId=103
+AreaCounty	AgencyId=4715	CountyId=0
+C-Group	CGroupId=44933	AgencyId=4715	DNR - Provincewide	Off	54.775350	-96.591800	418.1	Circle
+C-Freq	CFreqId=181155	CGroupId=44933	ASHERN	Off	162210000	FM		23					
+C-Freq	CFreqId=181164	CGroupId=44933	BAKERS NARROWS	Off	163920000	FM		23					
+C-Freq	CFreqId=181133	CGroupId=44933	BALDY MTN	Off	163830000	FM		23					
+C-Freq	CFreqId=181126	CGroupId=44933	BALDY MTN	Off	163905000	FM		23					
+C-Freq	CFreqId=181127	CGroupId=44933	BISSETT	Off	163905000	FM		23					
+C-Freq	CFreqId=181145	CGroupId=44933	BRANDON HILLS	Off	164160000	FM		23					
+C-Freq	CFreqId=181156	CGroupId=44933	BROOMHILL	Off	162210000	FM		23					
+C-Freq	CFreqId=181128	CGroupId=44933	BURNTWOOD LAKE	Off	163905000	FM		23					
+C-Freq	CFreqId=181118	CGroupId=44933	CAMP #24 EASTERN	Off	163890000	FM		23					
+C-Freq	CFreqId=181165	CGroupId=44933	CHATFIELD	Off	163920000	FM		23					
+C-Freq	CFreqId=181146	CGroupId=44933	CHURCHILL.	Off	164160000	FM		23					
+C-Freq	CFreqId=181147	CGroupId=44933	CRANBERRY PORTAGE	Off	164160000	FM		23					
+C-Freq	CFreqId=181148	CGroupId=44933	CYRIL RIVER	Off	164160000	FM		23					
+C-Freq	CFreqId=181157	CGroupId=44933	DEERWOOD	Off	162210000	FM		23					
+C-Freq	CFreqId=181171	CGroupId=44933	EAST BRAINTREE	Off	163545000	FM		23					
+C-Freq	CFreqId=181184	CGroupId=44933	FALCON LAKE	Off	151265000	FM		23					
+C-Freq	CFreqId=181129	CGroupId=44933	FALCON LAKE	Off	163905000	FM		23					
+C-Freq	CFreqId=181134	CGroupId=44933	GODS NARROWS	Off	163830000	FM		23					
+C-Freq	CFreqId=181158	CGroupId=44933	GOOSE LAKE	Off	162210000	FM		23					
+C-Freq	CFreqId=181149	CGroupId=44933	GULL HARBOUR	Off	164160000	FM		23					
+C-Freq	CFreqId=181166	CGroupId=44933	GYPSUMVILLE	Off	163920000	FM		23					
+C-Freq	CFreqId=181140	CGroupId=44933	HERMON LAKE	Off	163650000	FM		23					
+C-Freq	CFreqId=181150	CGroupId=44933	HUGHES LAKE	Off	164160000	FM		23					
+C-Freq	CFreqId=181151	CGroupId=44933	JACKHEAD	Off	164160000	FM		23					
+C-Freq	CFreqId=181135	CGroupId=44933	JESSICA LAKE	Off	163830000	FM		23					
+C-Freq	CFreqId=181136	CGroupId=44933	LAKE MAX	Off	163830000	FM		23					
+C-Freq	CFreqId=181130	CGroupId=44933	LENORE -GRANT'S HILL	Off	163905000	FM		23					
+C-Freq	CFreqId=181159	CGroupId=44933	LONG POINT	Off	162210000	FM		23					
+C-Freq	CFreqId=181152	CGroupId=44933	MARCHAND	Off	164160000	FM		23					
+C-Freq	CFreqId=181172	CGroupId=44933	MC CREARY	Off	163545000	FM		23					
+C-Freq	CFreqId=181153	CGroupId=44933	MC CREARY	Off	164160000	FM		23					
+C-Freq	CFreqId=181141	CGroupId=44933	MILNER RIDGE	Off	163650000	FM		23					
+C-Freq	CFreqId=181185	CGroupId=44933	MINITONAS	Off	151265000	FM		23					
+C-Freq	CFreqId=181154	CGroupId=44933	MINITONAS	Off	164160000	FM		23					
+C-Freq	CFreqId=181119	CGroupId=44933	MOOSE LAKE	Off	163890000	FM		23					
+C-Freq	CFreqId=181131	CGroupId=44933	MOOSE LAKE	Off	163905000	FM		23					
+C-Freq	CFreqId=181132	CGroupId=44933	MORRIS	Off	163905000	FM		23					
+C-Freq	CFreqId=181142	CGroupId=44933	MOUNTAIN RD	Off	163650000	FM		23					
+C-Freq	CFreqId=181182	CGroupId=44933	MULTIPLE AREAS	Off	407062500	FM		11					
+C-Freq	CFreqId=181183	CGroupId=44933	MULTIPLE AREAS	Off	407937500	FM		11					
+C-Freq	CFreqId=181120	CGroupId=44933	NORQUAY PARK	Off	163890000	FM		23					
+C-Freq	CFreqId=181160	CGroupId=44933	NOTIGI	Off	162210000	FM		23					
+C-Freq	CFreqId=181161	CGroupId=44933	PINE RIDGE	Off	162210000	FM		23					
+C-Freq	CFreqId=181137	CGroupId=44933	PROSPECTOR	Off	163830000	FM		23					
+C-Freq	CFreqId=181121	CGroupId=44933	PROSPECTOR PARK	Off	163890000	FM		23					
+C-Freq	CFreqId=181170	CGroupId=44933	PROVINCAL COMMON ALL AREAS	Off	163290000	FM		11					
+C-Freq	CFreqId=181173	CGroupId=44933	PROVINCE WIDE - INTERAGENCY	Off	158550000	FM		11					
+C-Freq	CFreqId=181122	CGroupId=44933	PUKATAWAGAN	Off	163890000	FM		23					
+C-Freq	CFreqId=181143	CGroupId=44933	RICE CREEK	Off	163650000	FM		23					
+C-Freq	CFreqId=181167	CGroupId=44933	ROSSMAN LAKE	Off	163920000	FM		23					
+C-Freq	CFreqId=181162	CGroupId=44933	SASAGINNIGAK	Off	162210000	FM		23					
+C-Freq	CFreqId=181138	CGroupId=44933	SHERRIDON	Off	163830000	FM		23					
+C-Freq	CFreqId=181174	CGroupId=44933	SIMPLEX FOR DNR 1	Off	163890000	FM		23					
+C-Freq	CFreqId=181175	CGroupId=44933	SIMPLEX FOR DNR 2	Off	163905000	FM		23					
+C-Freq	CFreqId=181176	CGroupId=44933	SIMPLEX FOR DNR 3	Off	163830000	FM		23					
+C-Freq	CFreqId=181177	CGroupId=44933	SIMPLEX FOR DNR 4	Off	163650000	FM		23					
+C-Freq	CFreqId=181178	CGroupId=44933	SIMPLEX FOR DNR 5	Off	164160000	FM		23					
+C-Freq	CFreqId=181179	CGroupId=44933	SIMPLEX FOR DNR 6	Off	162210000	FM		23					
+C-Freq	CFreqId=181180	CGroupId=44933	SIMPLEX FOR DNR 7	Off	163920000	FM		23					
+C-Freq	CFreqId=181181	CGroupId=44933	SIMPLEX FOR DNR 9	Off	163545000	FM		23					
+C-Freq	CFreqId=181144	CGroupId=44933	SNOW LAKE	Off	163650000	FM		23					
+C-Freq	CFreqId=181163	CGroupId=44933	SNOW LAKE (REMOTE)	Off	162210000	FM		23					
+C-Freq	CFreqId=181139	CGroupId=44933	SUNDANCE	Off	163830000	FM		23					
+C-Freq	CFreqId=181168	CGroupId=44933	UPPER PAINT LAKE	Off	163920000	FM		23					
+C-Freq	CFreqId=181123	CGroupId=44933	WEE LAKE	Off	163890000	FM		23					
+C-Freq	CFreqId=181124	CGroupId=44933	WHISKEY JACK	Off	163890000	FM		23					
+C-Freq	CFreqId=181169	CGroupId=44933	WILLIAM RIVER	Off	163920000	FM		23					
+C-Freq	CFreqId=181186	CGroupId=44933	WINDY HILL	Off	151265000	FM		23					
+C-Freq	CFreqId=181125	CGroupId=44933	WINDY HILL	Off	163890000	FM		23					
+C-Group	CGroupId=53840	AgencyId=4715	DNR - VHF Interop	Off	54.775350	-96.591800	418.1	Circle
+C-Freq	CFreqId=223038	CGroupId=53840	Channel 1 Repeater	Off	164820000	FM		11					
+C-Freq	CFreqId=223039	CGroupId=53840	Channel 2 Repeater	Off	164670000	FM		11					
+C-Freq	CFreqId=223040	CGroupId=53840	Channel 3 Repeater	Off	164610000	FM		11					
+C-Freq	CFreqId=223041	CGroupId=53840	Channel 4 Repeater	Off	164880000	FM		11					
+C-Freq	CFreqId=223042	CGroupId=53840	Channel 5 Repeater	Off	163170000	FM		11					
+C-Freq	CFreqId=223043	CGroupId=53840	Channel 6 Repeater	Off	163560000	FM		11					
+C-Freq	CFreqId=223044	CGroupId=53840	Channel 7 Repeater	Off	162930000	FM		11					
+C-Freq	CFreqId=223045	CGroupId=53840	Channel 8 Manitoba Local	Off	163290000	FM		11					
+C-Freq	CFreqId=223046	CGroupId=53840	Channel 9 Repeater	Off	164145000	FM		11					
+C-Freq	CFreqId=223048	CGroupId=53840	Emergency Repeater	Off	162195000	FM		11					
+C-Freq	CFreqId=223047	CGroupId=53840	Local Simplex	Off	163020000	FM		11					
+Conventional	AgencyId=6208	StateId=103	Emergency Management Office	Off		Conventional
+AreaState	AgencyId=6208	StateId=103
+AreaCounty	AgencyId=6208	CountyId=0
+C-Group	CGroupId=53844	AgencyId=6208	Manitoba - Ambulance	Off	54.622980	-97.558590	405.7	Circle
+C-Freq	CFreqId=223054	CGroupId=53844	Ambulance Interop	Off	158760000	FM		11					
+C-Group	CGroupId=53842	AgencyId=6208	Manitoba - EMO	Off	54.622980	-97.558590	405.7	Circle
+C-Freq	CFreqId=295623	CGroupId=53842	EMO - Winnipeg	Off	158550000	FM		29					
+C-Freq	CFreqId=223050	CGroupId=53842	Simplex 1	Off	148655000	FM		29					
+C-Freq	CFreqId=223051	CGroupId=53842	Simplex 2	Off	148685000	FM		29					
+C-Freq	CFreqId=223052	CGroupId=53842	Simplex 3	Off	149495000	FM		29					
+C-Freq	CFreqId=223053	CGroupId=53842	Simplex 4	Off	149525000	FM		29					
+C-Group	CGroupId=53845	AgencyId=6208	Manitoba - Fire	Off	54.622980	-97.558590	405.7	Circle
+C-Freq	CFreqId=223055	CGroupId=53845	Fire Interop	Off	158925000	FM		11					
+Conventional	AgencyId=8868	StateId=103	Winnipeg James Armstrong Richardson International Airport (YWG)	Off		Conventional
+AreaState	AgencyId=8868	StateId=103
+AreaCounty	AgencyId=8868	CountyId=5229
+C-Group	CGroupId=28831	AgencyId=8868	CYWG - 17 Wing Operations	Off	49.875000	-97.202500	30.0	Circle
+C-Freq	CFreqId=111578	CGroupId=28831	Operations	Off	131400000	AM		30					
+C-Freq	CFreqId=111572	CGroupId=28831	Operations	Off	308800000	AM		30					
+C-Group	CGroupId=28830	AgencyId=8868	CYWG - Air Traffic Control	Off	49.875000	-97.202500	30.0	Circle
+C-Freq	CFreqId=111567	CGroupId=28830	Airports Authority - De-icing	Off	122925000	AM		15					
+C-Freq	CFreqId=111558	CGroupId=28830	Arrivals	Off	119500000	AM		15					
+C-Freq	CFreqId=111560	CGroupId=28830	Automatic Terminal Information Service	Off	120200000	AM		15					
+C-Freq	CFreqId=111562	CGroupId=28830	Clearance Delivery	Off	121300000	AM		15					
+C-Freq	CFreqId=111559	CGroupId=28830	Departure	Off	119900000	AM		15					
+C-Freq	CFreqId=111564	CGroupId=28830	Flight Service Station	Off	122500000	AM		15					
+C-Freq	CFreqId=111566	CGroupId=28830	Flight Service Station	Off	126700000	AM		15					
+C-Freq	CFreqId=111563	CGroupId=28830	Ground	Off	121900000	AM		15					
+C-Freq	CFreqId=111557	CGroupId=28830	Tower	Off	118300000	AM		15					
+C-Freq	CFreqId=111565	CGroupId=28830	Tower - Secondary	Off	125400000	AM		15					
+C-Freq	CFreqId=111561	CGroupId=28830	Visual Flight Rules Advisory	Off	121000000	AM		15					
+C-Group	CGroupId=79971	AgencyId=8868	CYWG - Airlines	Off	49.905910	-97.225870	10.0	Circle
+C-Freq	CFreqId=344045	CGroupId=79971	Air Canada	Off	451637500	NFM	TONE=D606	17					
+C-Freq	CFreqId=390731	CGroupId=79971	Flair? Gate Operations	Off	451512500	AUTO		17					
+C-Freq	CFreqId=390625	CGroupId=79971	Refueling Services	Off	412187500	NFM	TONE=C136.5	17					
+C-Freq	CFreqId=389706	CGroupId=79971	Westjet Baggage Handlers	Off	462237500	NFM	TONE=D343	17					
+C-Freq	CFreqId=344043	CGroupId=79971	WestJet Gate Operations	Off	454462500	NFM	TONE=D205	17					
+Trunk	TrunkId=537	StateId=103	MTS FleetNet	Off		Motorola					
+AreaState	TrunkId=537	StateId=103
+AreaCounty	TrunkId=537	CountyId=0
+Site	SiteId=584	TrunkId=537	Altona	Off	49.104440	-97.556390	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=584		Off	854912500	1
+T-Freq	TFreqId=0	SiteId=584		Off	855162500	2
+T-Freq	TFreqId=0	SiteId=584		Off	855412500	3
+T-Freq	TFreqId=0	SiteId=584		Off	855662500	4
+T-Freq	TFreqId=0	SiteId=584		Off	855912500	5
+Site	SiteId=14540	TrunkId=537	Amaranth	Off	50.623610	-98.762220	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14540		Off	860112500	1
+T-Freq	TFreqId=0	SiteId=14540		Off	860362500	2
+T-Freq	TFreqId=0	SiteId=14540		Off	860612500	3
+T-Freq	TFreqId=0	SiteId=14540		Off	860862500	4
+T-Freq	TFreqId=0	SiteId=14540		Off	861112500	5
+Site	SiteId=14602	TrunkId=537	Amery	Off	56.563890	-94.058060	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14602		Off	858062500	1
+T-Freq	TFreqId=0	SiteId=14602		Off	858312500	2
+T-Freq	TFreqId=0	SiteId=14602		Off	858562500	3
+Site	SiteId=14561	TrunkId=537	Ashern	Off	51.204170	-98.438060	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14561		Off	856212500	1
+T-Freq	TFreqId=0	SiteId=14561		Off	856462500	2
+T-Freq	TFreqId=0	SiteId=14561		Off	856712500	3
+T-Freq	TFreqId=0	SiteId=14561		Off	856962500	4
+Site	SiteId=14542	TrunkId=537	Baldy Mountain	Off	51.470560	-100.720000	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14542		Off	856062500	1
+T-Freq	TFreqId=0	SiteId=14542		Off	856312500	2
+T-Freq	TFreqId=0	SiteId=14542		Off	856562500	3
+T-Freq	TFreqId=0	SiteId=14542		Off	856812500	4
+T-Freq	TFreqId=0	SiteId=14542		Off	857062500	5
+Site	SiteId=14568	TrunkId=537	Barrows**	Off	52.830560	-101.456670	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14568		Off	854862500	1
+T-Freq	TFreqId=0	SiteId=14568		Off	855112500	2
+T-Freq	TFreqId=0	SiteId=14568		Off	855362500	3
+Site	SiteId=562	TrunkId=537	Beausejour	Off	50.060280	-96.429440	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=562		Off	860062500	1
+T-Freq	TFreqId=0	SiteId=562		Off	860312500	2
+T-Freq	TFreqId=0	SiteId=562		Off	860562500	3
+T-Freq	TFreqId=0	SiteId=562		Off	860812500	4
+T-Freq	TFreqId=0	SiteId=562		Off	861062500	5
+Site	SiteId=14530	TrunkId=537	Beaver Creek	Off	51.389170	-96.906940	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14530		Off	858062500	1
+T-Freq	TFreqId=0	SiteId=14530		Off	858312500	2
+T-Freq	TFreqId=0	SiteId=14530		Off	858562500	3
+T-Freq	TFreqId=0	SiteId=14530		Off	858812500	4
+Site	SiteId=14546	TrunkId=537	Belair	Off	50.602500	-96.531940	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14546		Off	858162500	1
+T-Freq	TFreqId=0	SiteId=14546		Off	858412500	2
+T-Freq	TFreqId=0	SiteId=14546		Off	858662500	3
+T-Freq	TFreqId=0	SiteId=14546		Off	858912500	4
+Site	SiteId=14558	TrunkId=537	Benito	Off	51.750280	-101.552220	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14558		Off	858162500	1
+T-Freq	TFreqId=0	SiteId=14558		Off	858412500	2
+T-Freq	TFreqId=0	SiteId=14558		Off	858662500	3
+T-Freq	TFreqId=0	SiteId=14558		Off	858912500	4
+Site	SiteId=14565	TrunkId=537	Bevens River**	Off	52.366670	-97.036940	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14565		Off	859062500	1
+Site	SiteId=14547	TrunkId=537	Bissett	Off	51.024440	-95.674170	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14547		Off	860062500	1
+T-Freq	TFreqId=0	SiteId=14547		Off	860312500	2
+T-Freq	TFreqId=0	SiteId=14547		Off	860562500	3
+T-Freq	TFreqId=0	SiteId=14547		Off	860812500	4
+Site	SiteId=14608	TrunkId=537	Black Sturgeon Lake**	Off	56.816110	-100.565280	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14608		Off	854812500	1
+T-Freq	TFreqId=0	SiteId=14608		Off	855062500	2
+T-Freq	TFreqId=0	SiteId=14608		Off	855312500	3
+Site	SiteId=563	TrunkId=537	Boissevain	Off	49.224440	-100.053060	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=563		Off	860062500	1
+T-Freq	TFreqId=0	SiteId=563		Off	860312500	2
+T-Freq	TFreqId=0	SiteId=563		Off	860562500	3
+T-Freq	TFreqId=0	SiteId=563		Off	860812500	4
+T-Freq	TFreqId=0	SiteId=563		Off	861062500	5
+Site	SiteId=588	TrunkId=537	Brandon South	Off	49.764700	-99.963920	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=588		Off	854862500	1
+T-Freq	TFreqId=0	SiteId=588		Off	855112500	2
+T-Freq	TFreqId=0	SiteId=588		Off	855362500	3
+T-Freq	TFreqId=0	SiteId=588		Off	855612500	4
+T-Freq	TFreqId=0	SiteId=588		Off	855862500	5
+T-Freq	TFreqId=0	SiteId=588		Off	856212500	6
+T-Freq	TFreqId=0	SiteId=588		Off	856462500	7
+T-Freq	TFreqId=0	SiteId=588		Off	858112500	8
+T-Freq	TFreqId=0	SiteId=588		Off	858362500	9
+T-Freq	TFreqId=0	SiteId=588		Off	858612500	10
+T-Freq	TFreqId=0	SiteId=588		Off	858862500	11
+T-Freq	TFreqId=0	SiteId=588		Off	859112500	12
+Site	SiteId=14609	TrunkId=537	Brochet	Off	57.880560	-101.681670	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14609		Off	857062500	1
+Site	SiteId=14578	TrunkId=537	Buffalo Lake	Off	53.567220	-99.341940	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14578		Off	854812500	1
+T-Freq	TFreqId=0	SiteId=14578		Off	855062500	2
+T-Freq	TFreqId=0	SiteId=14578		Off	855312500	3
+Site	SiteId=14567	TrunkId=537	Camperville**	Off	51.997220	-100.226940	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14567		Off	854862500	1
+T-Freq	TFreqId=0	SiteId=14567		Off	855112500	2
+T-Freq	TFreqId=0	SiteId=14567		Off	855362500	3
+Site	SiteId=589	TrunkId=537	Captive Test Site*	Off	49.679270	-98.039830	150.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=589		Off	856212500	1
+T-Freq	TFreqId=0	SiteId=589		Off	856462500	2
+T-Freq	TFreqId=0	SiteId=589		Off	856712500	3
+Site	SiteId=14570	TrunkId=537	Captive Test Site*	Off	51.061490	-99.130500	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14570		Off	856212500	1
+T-Freq	TFreqId=0	SiteId=14570		Off	856462500	2
+T-Freq	TFreqId=0	SiteId=14570		Off	856712500	3
+Site	SiteId=14616	TrunkId=537	Captive Test Site*	Off	55.027110	-98.836990	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14616		Off	856212500	1
+T-Freq	TFreqId=0	SiteId=14616		Off	856462500	2
+T-Freq	TFreqId=0	SiteId=14616		Off	856712500	3
+Site	SiteId=556	TrunkId=537	Carberry	Off	49.896390	-99.386670	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=556		Off	854812500	1
+T-Freq	TFreqId=0	SiteId=556		Off	855062500	2
+T-Freq	TFreqId=0	SiteId=556		Off	855312500	3
+T-Freq	TFreqId=0	SiteId=556		Off	855562500	4
+T-Freq	TFreqId=0	SiteId=556		Off	855812500	5
+T-Freq	TFreqId=0	SiteId=556		Off	856012500	6
+Site	SiteId=579	TrunkId=537	Carman	Off	49.505560	-98.003060	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=579		Off	860062500	1
+T-Freq	TFreqId=0	SiteId=579		Off	860312500	2
+T-Freq	TFreqId=0	SiteId=579		Off	860562500	3
+T-Freq	TFreqId=0	SiteId=579		Off	860962500	4
+T-Freq	TFreqId=0	SiteId=579		Off	861212500	5
+Site	SiteId=14597	TrunkId=537	Churchill	Off	58.759440	-93.968060	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14597		Off	854862500	1
+T-Freq	TFreqId=0	SiteId=14597		Off	855112500	2
+T-Freq	TFreqId=0	SiteId=14597		Off	855362500	3
+T-Freq	TFreqId=0	SiteId=14597		Off	855612500	4
+Site	SiteId=14585	TrunkId=537	Cormorant	Off	54.219170	-100.589720	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14585		Off	856112500	1
+T-Freq	TFreqId=0	SiteId=14585		Off	856362500	2
+T-Freq	TFreqId=0	SiteId=14585		Off	856612500	3
+Site	SiteId=14557	TrunkId=537	Cowan	Off	52.063330	-100.650000	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14557		Off	860062500	1
+T-Freq	TFreqId=0	SiteId=14557		Off	860312500	2
+T-Freq	TFreqId=0	SiteId=14557		Off	860562500	3
+T-Freq	TFreqId=0	SiteId=14557		Off	860812500	4
+Site	SiteId=14586	TrunkId=537	Cranberry Portage	Off	54.582780	-101.373890	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14586		Off	860212500	1
+T-Freq	TFreqId=0	SiteId=14586		Off	860462500	2
+T-Freq	TFreqId=0	SiteId=14586		Off	860712500	3
+T-Freq	TFreqId=0	SiteId=14586		Off	860962500	4
+T-Freq	TFreqId=0	SiteId=14586		Off	861212500	5
+Site	SiteId=572	TrunkId=537	Darlingford	Off	49.197500	-98.376110	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=572		Off	856112500	1
+T-Freq	TFreqId=0	SiteId=572		Off	856362500	2
+T-Freq	TFreqId=0	SiteId=572		Off	856612500	3
+T-Freq	TFreqId=0	SiteId=572		Off	856812500	4
+T-Freq	TFreqId=0	SiteId=572		Off	857062500	5
+Site	SiteId=14550	TrunkId=537	Dauphin	Off	51.155280	-99.994170	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14550		Off	858212500	1
+T-Freq	TFreqId=0	SiteId=14550		Off	858462500	2
+T-Freq	TFreqId=0	SiteId=14550		Off	858712500	3
+T-Freq	TFreqId=0	SiteId=14550		Off	859212500	4
+T-Freq	TFreqId=0	SiteId=14550		Off	860162500	5
+T-Freq	TFreqId=0	SiteId=14550		Off	860162500	6
+Site	SiteId=14553	TrunkId=537	Devil's Lake	Off	52.466670	-98.876940	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14553		Off	858062500	1
+T-Freq	TFreqId=0	SiteId=14553		Off	858312500	2
+T-Freq	TFreqId=0	SiteId=14553		Off	858562500	3
+Site	SiteId=14581	TrunkId=537	Easterville	Off	52.963610	-99.746110	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14581		Off	854862500	1
+T-Freq	TFreqId=0	SiteId=14581		Off	855112500	2
+T-Freq	TFreqId=0	SiteId=14581		Off	855362500	3
+Site	SiteId=596	TrunkId=537	Elie	Off	49.856110	-97.755560	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=596		Off	854912500	1
+T-Freq	TFreqId=0	SiteId=596		Off	855162500	2
+T-Freq	TFreqId=0	SiteId=596		Off	855412500	3
+T-Freq	TFreqId=0	SiteId=596		Off	855662500	4
+T-Freq	TFreqId=0	SiteId=596		Off	855912500	5
+T-Freq	TFreqId=0	SiteId=596		Off	856012500	6
+Site	SiteId=14560	TrunkId=537	Eriksdale	Off	50.866670	-98.106110	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14560		Off	860062500	1
+T-Freq	TFreqId=0	SiteId=14560		Off	860312500	2
+T-Freq	TFreqId=0	SiteId=14560		Off	860562500	3
+T-Freq	TFreqId=0	SiteId=14560		Off	860812500	4
+Site	SiteId=581	TrunkId=537	Falcon Lake	Off	49.682490	-95.284760	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=581		Off	858162500	1
+T-Freq	TFreqId=0	SiteId=581		Off	858412500	2
+T-Freq	TFreqId=0	SiteId=581		Off	858662500	3
+T-Freq	TFreqId=0	SiteId=581		Off	858912500	4
+T-Freq	TFreqId=0	SiteId=581		Off	859162500	5
+Site	SiteId=14529	TrunkId=537	Fisher Branch	Off	51.080560	-97.648890	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14529		Off	856062500	1
+T-Freq	TFreqId=0	SiteId=14529		Off	856312500	2
+T-Freq	TFreqId=0	SiteId=14529		Off	856562500	3
+T-Freq	TFreqId=0	SiteId=14529		Off	856812500	4
+T-Freq	TFreqId=0	SiteId=14529		Off	857062500	5
+Site	SiteId=14599	TrunkId=537	Flin Flon	Off	54.771110	-101.883890	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14599		Off	856062500	1
+T-Freq	TFreqId=0	SiteId=14599		Off	856312500	2
+T-Freq	TFreqId=0	SiteId=14599		Off	856562500	3
+T-Freq	TFreqId=0	SiteId=14599		Off	856812500	4
+Site	SiteId=14555	TrunkId=537	Foxwarren	Off	50.517780	-101.146940	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14555		Off	860212500	1
+T-Freq	TFreqId=0	SiteId=14555		Off	860462500	2
+T-Freq	TFreqId=0	SiteId=14555		Off	860712500	3
+T-Freq	TFreqId=0	SiteId=14555		Off	860962500	4
+T-Freq	TFreqId=0	SiteId=14555		Off	861212500	5
+Site	SiteId=14600	TrunkId=537	Gillam	Off	56.346670	-94.706670	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14600		Off	858162500	1
+T-Freq	TFreqId=0	SiteId=14600		Off	858412500	2
+T-Freq	TFreqId=0	SiteId=14600		Off	858662500	3
+Site	SiteId=14535	TrunkId=537	Gimli	Off	50.629170	-96.993330	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14535		Off	856162500	1
+T-Freq	TFreqId=0	SiteId=14535		Off	856412500	2
+T-Freq	TFreqId=0	SiteId=14535		Off	856662500	3
+T-Freq	TFreqId=0	SiteId=14535		Off	856912500	4
+T-Freq	TFreqId=0	SiteId=14535		Off	857162500	5
+Site	SiteId=14607	TrunkId=537	God's Lake Narrows**	Off	54.548330	-94.461110	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14607		Off	855962500	1
+T-Freq	TFreqId=0	SiteId=14607		Off	856062500	2
+T-Freq	TFreqId=0	SiteId=14607		Off	856312500	3
+T-Freq	TFreqId=0	SiteId=14607		Off	856562500	4
+Site	SiteId=14579	TrunkId=537	Grand Rapids	Off	53.150000	-99.292220	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14579		Off	860212500	1
+T-Freq	TFreqId=0	SiteId=14579		Off	860462500	2
+T-Freq	TFreqId=0	SiteId=14579		Off	860712500	3
+T-Freq	TFreqId=0	SiteId=14579		Off	860862500	4
+Site	SiteId=580	TrunkId=537	Griswold	Off	49.768060	-100.511390	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=580		Off	858062500	1
+T-Freq	TFreqId=0	SiteId=580		Off	858312500	2
+T-Freq	TFreqId=0	SiteId=580		Off	858562500	3
+T-Freq	TFreqId=0	SiteId=580		Off	858812500	4
+Site	SiteId=14551	TrunkId=537	Gypsumville	Off	51.659170	-98.733890	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14551		Off	854812500	1
+T-Freq	TFreqId=0	SiteId=14551		Off	855062500	2
+T-Freq	TFreqId=0	SiteId=14551		Off	855312500	3
+T-Freq	TFreqId=0	SiteId=14551		Off	855562500	4
+T-Freq	TFreqId=0	SiteId=14551		Off	855812500	5
+Site	SiteId=575	TrunkId=537	Hadashville	Off	49.651270	-95.904710	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=575		Off	858112500	1
+T-Freq	TFreqId=0	SiteId=575		Off	858362500	2
+T-Freq	TFreqId=0	SiteId=575		Off	858612500	3
+T-Freq	TFreqId=0	SiteId=575		Off	858862500	4
+Site	SiteId=597	TrunkId=537	Haywood	Off	49.664440	-98.189440	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=597		Off	856212500	1
+T-Freq	TFreqId=0	SiteId=597		Off	856462500	2
+T-Freq	TFreqId=0	SiteId=597		Off	856712500	3
+T-Freq	TFreqId=0	SiteId=597		Off	856962500	4
+T-Freq	TFreqId=0	SiteId=597		Off	857212500	5
+Site	SiteId=557	TrunkId=537	High Bluff	Off	50.031940	-98.150560	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=557		Off	856062500	1
+T-Freq	TFreqId=0	SiteId=557		Off	856312500	2
+T-Freq	TFreqId=0	SiteId=557		Off	856562500	3
+T-Freq	TFreqId=0	SiteId=557		Off	856812500	4
+T-Freq	TFreqId=0	SiteId=557		Off	857062500	5
+T-Freq	TFreqId=0	SiteId=557		Off	860012500	6
+T-Freq	TFreqId=0	SiteId=557		Off	860262500	7
+Site	SiteId=569	TrunkId=537	Holland	Off	49.488890	-98.864440	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=569		Off	860112500	1
+T-Freq	TFreqId=0	SiteId=569		Off	860362500	2
+T-Freq	TFreqId=0	SiteId=569		Off	860612500	3
+T-Freq	TFreqId=0	SiteId=569		Off	860862500	4
+T-Freq	TFreqId=0	SiteId=569		Off	861362500	5
+Site	SiteId=14617	TrunkId=537	Hughes Lake*	Off	55.027110	-98.836990	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14617		Off	854812500	1
+T-Freq	TFreqId=0	SiteId=14617		Off	855062500	2
+T-Freq	TFreqId=0	SiteId=14617		Off	855312500	3
+Site	SiteId=14554	TrunkId=537	Jackhead	Off	51.881670	-97.314440	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14554		Off	856212500	1
+T-Freq	TFreqId=0	SiteId=14554		Off	856462500	2
+T-Freq	TFreqId=0	SiteId=14554		Off	856712500	3
+T-Freq	TFreqId=0	SiteId=14554		Off	856962500	4
+T-Freq	TFreqId=0	SiteId=14554		Off	857212500	5
+Site	SiteId=14528	TrunkId=537	Jessica Lake	Off	50.020280	-95.515700	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14528		Off	858062500	1
+T-Freq	TFreqId=0	SiteId=14528		Off	858312500	2
+T-Freq	TFreqId=0	SiteId=14528		Off	858562500	3
+Site	SiteId=14590	TrunkId=537	Kelsey	Off	56.039170	-96.540560	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14590		Off	856062500	1
+T-Freq	TFreqId=0	SiteId=14590		Off	856312500	2
+T-Freq	TFreqId=0	SiteId=14590		Off	856562500	3
+T-Freq	TFreqId=0	SiteId=14590		Off	856812500	4
+Site	SiteId=14613	TrunkId=537	Lac Brochet**	Off	58.615560	-101.482220	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14613		Off	859062500	1
+Site	SiteId=14541	TrunkId=537	Lac du Bonnet	Off	50.251670	-95.956670	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14541		Off	856112500	1
+T-Freq	TFreqId=0	SiteId=14541		Off	856362500	2
+T-Freq	TFreqId=0	SiteId=14541		Off	856612500	3
+T-Freq	TFreqId=0	SiteId=14541		Off	856862500	4
+Site	SiteId=14595	TrunkId=537	Leaf Rapids	Off	56.441670	-100.042220	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14595		Off	858062500	1
+T-Freq	TFreqId=0	SiteId=14595		Off	858312500	2
+T-Freq	TFreqId=0	SiteId=14595		Off	858562500	3
+Site	SiteId=14572	TrunkId=537	Leftrook Lake	Off	55.918890	-98.444170	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14572		Off	860062500	1
+T-Freq	TFreqId=0	SiteId=14572		Off	860312500	2
+T-Freq	TFreqId=0	SiteId=14572		Off	860562500	3
+T-Freq	TFreqId=0	SiteId=14572		Off	860812500	4
+Site	SiteId=14583	TrunkId=537	Little Frog Creek	Off	53.962220	-100.960280	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14583		Off	858162500	1
+T-Freq	TFreqId=0	SiteId=14583		Off	858412500	2
+T-Freq	TFreqId=0	SiteId=14583		Off	858662500	3
+T-Freq	TFreqId=0	SiteId=14583		Off	858912500	4
+Site	SiteId=19672	TrunkId=537	Long Plain	Off	49.844000	-98.447000	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=19672		Off	860112500	1
+T-Freq	TFreqId=0	SiteId=19672		Off	860362500	2
+T-Freq	TFreqId=0	SiteId=19672		Off	860612500	3
+Site	SiteId=14580	TrunkId=537	Long Point	Off	52.929440	-98.965000	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14580		Off	856062500	1
+T-Freq	TFreqId=0	SiteId=14580		Off	856312500	2
+T-Freq	TFreqId=0	SiteId=14580		Off	856562500	3
+Site	SiteId=590	TrunkId=537	Lyleton	Off	49.088060	-101.161110	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=590		Off	860112500	1
+T-Freq	TFreqId=0	SiteId=590		Off	860362500	2
+T-Freq	TFreqId=0	SiteId=590		Off	860612500	3
+T-Freq	TFreqId=0	SiteId=590		Off	860862500	4
+Site	SiteId=14596	TrunkId=537	Lynn Lake	Off	56.850830	-101.047780	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14596		Off	854862500	1
+T-Freq	TFreqId=0	SiteId=14596		Off	855112500	2
+T-Freq	TFreqId=0	SiteId=14596		Off	855362500	3
+Site	SiteId=595	TrunkId=537	MacGregor	Off	49.859720	-98.780000	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=595		Off	854862500	1
+T-Freq	TFreqId=0	SiteId=595		Off	855112500	2
+T-Freq	TFreqId=0	SiteId=595		Off	855362500	3
+T-Freq	TFreqId=0	SiteId=595		Off	856612500	4
+T-Freq	TFreqId=0	SiteId=595		Off	857112500	5
+T-Freq	TFreqId=0	SiteId=595		Off	858112500	6
+Site	SiteId=14526	TrunkId=537	Magnet	Off	51.258330	-99.549440	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14526		Off	858062500	1
+T-Freq	TFreqId=0	SiteId=14526		Off	858312500	2
+T-Freq	TFreqId=0	SiteId=14526		Off	858562500	3
+Site	SiteId=14548	TrunkId=537	Manigotogan	Off	51.143060	-96.265000	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14548		Off	856212500	1
+T-Freq	TFreqId=0	SiteId=14548		Off	856462500	2
+T-Freq	TFreqId=0	SiteId=14548		Off	856712500	3
+Site	SiteId=14591	TrunkId=537	McCusker Lake	Off	56.073330	-95.842220	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14591		Off	854862500	1
+T-Freq	TFreqId=0	SiteId=14591		Off	855112500	2
+T-Freq	TFreqId=0	SiteId=14591		Off	855362500	3
+T-Freq	TFreqId=0	SiteId=14591		Off	855612500	4
+Site	SiteId=14556	TrunkId=537	Meleb	Off	50.730280	-97.183890	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14556		Off	856112500	1
+T-Freq	TFreqId=0	SiteId=14556		Off	856362500	2
+T-Freq	TFreqId=0	SiteId=14556		Off	856612500	3
+T-Freq	TFreqId=0	SiteId=14556		Off	856862500	4
+Site	SiteId=576	TrunkId=537	Melita	Off	49.268060	-100.942220	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=576		Off	856212500	1
+T-Freq	TFreqId=0	SiteId=576		Off	856462500	2
+T-Freq	TFreqId=0	SiteId=576		Off	856712500	3
+T-Freq	TFreqId=0	SiteId=576		Off	856962500	4
+Site	SiteId=594	TrunkId=537	Middlebro	Off	49.013060	-95.408060	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=594		Off	856212500	1
+T-Freq	TFreqId=0	SiteId=594		Off	856462500	2
+T-Freq	TFreqId=0	SiteId=594		Off	856712500	3
+T-Freq	TFreqId=0	SiteId=594		Off	856962500	4
+Site	SiteId=14522	TrunkId=537	Miniota	Off	50.145830	-101.035280	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14522		Off	860112500	1
+T-Freq	TFreqId=0	SiteId=14522		Off	860362500	2
+T-Freq	TFreqId=0	SiteId=14522		Off	860612500	3
+T-Freq	TFreqId=0	SiteId=14522		Off	860862500	4
+Site	SiteId=14564	TrunkId=537	Minitonas	Off	52.030560	-101.107220	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14564		Off	858062500	1
+T-Freq	TFreqId=0	SiteId=14564		Off	858312500	2
+T-Freq	TFreqId=0	SiteId=14564		Off	858562500	3
+T-Freq	TFreqId=0	SiteId=14564		Off	858812500	4
+T-Freq	TFreqId=0	SiteId=14564		Off	859062500	5
+Site	SiteId=14532	TrunkId=537	Minnedosa	Off	50.215830	-99.842220	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14532		Off	858162500	1
+T-Freq	TFreqId=0	SiteId=14532		Off	858412500	2
+T-Freq	TFreqId=0	SiteId=14532		Off	858662500	3
+T-Freq	TFreqId=0	SiteId=14532		Off	858912500	4
+T-Freq	TFreqId=0	SiteId=14532		Off	859162500	5
+Site	SiteId=14533	TrunkId=537	Moon Lake	Off	50.896670	-100.060000	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14533		Off	854862500	1
+T-Freq	TFreqId=0	SiteId=14533		Off	855112500	2
+T-Freq	TFreqId=0	SiteId=14533		Off	855362500	3
+T-Freq	TFreqId=0	SiteId=14533		Off	855612500	4
+T-Freq	TFreqId=0	SiteId=14533		Off	855862500	5
+Site	SiteId=14582	TrunkId=537	Moose Lake	Off	53.706110	-100.311670	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14582		Off	854912500	1
+T-Freq	TFreqId=0	SiteId=14582		Off	855162500	2
+T-Freq	TFreqId=0	SiteId=14582		Off	855412500	3
+Site	SiteId=559	TrunkId=537	Morris	Off	49.358060	-97.276670	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=559		Off	854862500	1
+T-Freq	TFreqId=0	SiteId=559		Off	855112500	2
+T-Freq	TFreqId=0	SiteId=559		Off	855362500	3
+T-Freq	TFreqId=0	SiteId=559		Off	855612500	4
+T-Freq	TFreqId=0	SiteId=559		Off	859162500	5
+T-Freq	TFreqId=0	SiteId=559		Off	860162500	6
+T-Freq	TFreqId=0	SiteId=559		Off	860412500	7
+Site	SiteId=14563	TrunkId=537	Neepawa	Off	50.221110	-99.492220	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14563		Off	858062500	1
+T-Freq	TFreqId=0	SiteId=14563		Off	858312500	2
+T-Freq	TFreqId=0	SiteId=14563		Off	858562500	3
+T-Freq	TFreqId=0	SiteId=14563		Off	858812500	4
+T-Freq	TFreqId=0	SiteId=14563		Off	859062500	5
+Site	SiteId=14543	TrunkId=537	Nopiming	Off	50.472500	-95.443330	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14543		Off	856212500	1
+T-Freq	TFreqId=0	SiteId=14543		Off	856462500	2
+T-Freq	TFreqId=0	SiteId=14543		Off	856712500	3
+Site	SiteId=14576	TrunkId=537	Norway House	Off	53.985560	-97.828060	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14576		Off	858162500	1
+T-Freq	TFreqId=0	SiteId=14576		Off	858412500	2
+T-Freq	TFreqId=0	SiteId=14576		Off	858662500	3
+T-Freq	TFreqId=0	SiteId=14576		Off	858912500	4
+T-Freq	TFreqId=0	SiteId=14576		Off	859162500	5
+Site	SiteId=14593	TrunkId=537	Notigi Lake	Off	55.867220	-99.293610	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14593		Off	854962500	1
+T-Freq	TFreqId=0	SiteId=14593		Off	855212500	2
+T-Freq	TFreqId=0	SiteId=14593		Off	855462500	3
+T-Freq	TFreqId=0	SiteId=14593		Off	855712500	4
+Site	SiteId=14589	TrunkId=537	Odei River	Off	56.013610	-97.170000	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14589		Off	854812500	1
+T-Freq	TFreqId=0	SiteId=14589		Off	855062500	2
+T-Freq	TFreqId=0	SiteId=14589		Off	855312500	3
+Site	SiteId=14534	TrunkId=537	Onanole	Off	50.638890	-99.975560	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14534		Off	856112500	1
+T-Freq	TFreqId=0	SiteId=14534		Off	856362500	2
+T-Freq	TFreqId=0	SiteId=14534		Off	856612500	3
+T-Freq	TFreqId=0	SiteId=14534		Off	856862500	4
+T-Freq	TFreqId=0	SiteId=14534		Off	857112500	5
+Site	SiteId=14603	TrunkId=537	Overflowing River	Off	53.126390	-101.111390	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14603		Off	858212500	1
+T-Freq	TFreqId=0	SiteId=14603		Off	858462500	2
+T-Freq	TFreqId=0	SiteId=14603		Off	858712500	3
+Site	SiteId=14611	TrunkId=537	Oxford House**	Off	54.931940	-95.304440	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14611		Off	859062500	1
+Site	SiteId=14566	TrunkId=537	Pauingassi**	Off	52.152220	-95.377780	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14566		Off	857112500	1
+Site	SiteId=582	TrunkId=537	Pelican Lake	Off	49.305000	-99.450830	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=582		Off	858212500	1
+T-Freq	TFreqId=0	SiteId=582		Off	858462500	2
+T-Freq	TFreqId=0	SiteId=582		Off	858712500	3
+T-Freq	TFreqId=0	SiteId=582		Off	858962500	4
+T-Freq	TFreqId=0	SiteId=582		Off	859212500	5
+Site	SiteId=567	TrunkId=537	Pilot Mound	Off	49.225000	-98.886110	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=567		Off	854962500	1
+T-Freq	TFreqId=0	SiteId=567		Off	855212500	2
+T-Freq	TFreqId=0	SiteId=567		Off	855462500	3
+T-Freq	TFreqId=0	SiteId=567		Off	855712500	4
+T-Freq	TFreqId=0	SiteId=567		Off	855962500	5
+Site	SiteId=568	TrunkId=537	Piney	Off	49.118060	-96.022780	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=568		Off	856112500	1
+T-Freq	TFreqId=0	SiteId=568		Off	856362500	2
+T-Freq	TFreqId=0	SiteId=568		Off	856612500	3
+T-Freq	TFreqId=0	SiteId=568		Off	856862500	4
+Site	SiteId=14536	TrunkId=537	Polonia	Off	50.373060	-99.579720	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14536		Off	856212500	1
+T-Freq	TFreqId=0	SiteId=14536		Off	856462500	2
+T-Freq	TFreqId=0	SiteId=14536		Off	856712500	3
+T-Freq	TFreqId=0	SiteId=14536		Off	856962500	4
+T-Freq	TFreqId=0	SiteId=14536		Off	857212500	5
+Site	SiteId=14606	TrunkId=537	Poplar River**	Off	52.992500	-97.281670	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14606		Off	857112500	1
+Site	SiteId=14519	TrunkId=537	Portage la Prairie	Off	49.972220	-98.290000	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14519		Off	854962500	1
+T-Freq	TFreqId=0	SiteId=14519		Off	855212500	2
+T-Freq	TFreqId=0	SiteId=14519		Off	855462500	3
+T-Freq	TFreqId=0	SiteId=14519		Off	855712500	4
+T-Freq	TFreqId=0	SiteId=14519		Off	855962500	5
+T-Freq	TFreqId=0	SiteId=14519		Off	860762500	6
+T-Freq	TFreqId=0	SiteId=14519		Off	861012500	7
+Site	SiteId=14612	TrunkId=537	Pukatawagan**	Off	55.745830	-101.329720	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14612		Off	857112500	1
+Site	SiteId=14587	TrunkId=537	Reed Lake	Off	54.576390	-100.619440	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14587		Off	854862500	1
+T-Freq	TFreqId=0	SiteId=14587		Off	855112500	2
+T-Freq	TFreqId=0	SiteId=14587		Off	855362500	3
+T-Freq	TFreqId=0	SiteId=14587		Off	855612500	4
+Site	SiteId=583	TrunkId=537	Reston	Off	49.563890	-101.086940	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=583		Off	858162500	1
+T-Freq	TFreqId=0	SiteId=583		Off	858412500	2
+T-Freq	TFreqId=0	SiteId=583		Off	858662500	3
+T-Freq	TFreqId=0	SiteId=583		Off	858912500	4
+Site	SiteId=14559	TrunkId=537	Rice Creek	Off	52.750280	-101.274440	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14559		Off	856212500	1
+T-Freq	TFreqId=0	SiteId=14559		Off	856462500	2
+T-Freq	TFreqId=0	SiteId=14559		Off	856712500	3
+T-Freq	TFreqId=0	SiteId=14559		Off	856962500	4
+Site	SiteId=578	TrunkId=537	Ridgeville	Off	49.030560	-97.005830	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=578		Off	856212500	1
+T-Freq	TFreqId=0	SiteId=578		Off	856462500	2
+T-Freq	TFreqId=0	SiteId=578		Off	856712500	3
+T-Freq	TFreqId=0	SiteId=578		Off	856962500	4
+Site	SiteId=19675	TrunkId=537	Rivers	Off	50.030000	-100.235000	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=19675		Off	860062500	1
+T-Freq	TFreqId=0	SiteId=19675		Off	860312500	2
+T-Freq	TFreqId=0	SiteId=19675		Off	860562500	3
+T-Freq	TFreqId=0	SiteId=19675		Off	860812500	4
+T-Freq	TFreqId=0	SiteId=19675		Off	861062500	5
+Site	SiteId=14549	TrunkId=537	Riverton	Off	50.993890	-97.129720	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14549		Off	858112500	1
+T-Freq	TFreqId=0	SiteId=14549		Off	858362500	2
+T-Freq	TFreqId=0	SiteId=14549		Off	858612500	3
+T-Freq	TFreqId=0	SiteId=14549		Off	858862500	4
+Site	SiteId=14537	TrunkId=537	Roblin	Off	51.241390	-101.336110	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14537		Off	854812500	1
+T-Freq	TFreqId=0	SiteId=14537		Off	855062500	2
+T-Freq	TFreqId=0	SiteId=14537		Off	855312500	3
+T-Freq	TFreqId=0	SiteId=14537		Off	856962500	4
+Site	SiteId=14524	TrunkId=537	Rossman Lake	Off	50.748330	-100.671110	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14524		Off	858062500	1
+T-Freq	TFreqId=0	SiteId=14524		Off	858312500	2
+T-Freq	TFreqId=0	SiteId=14524		Off	858562500	3
+T-Freq	TFreqId=0	SiteId=14524		Off	858812500	4
+Site	SiteId=14538	TrunkId=537	Russell	Off	50.815560	-101.315280	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14538		Off	855562500	1
+T-Freq	TFreqId=0	SiteId=14538		Off	858062500	2
+T-Freq	TFreqId=0	SiteId=14538		Off	858312500	3
+T-Freq	TFreqId=0	SiteId=14538		Off	858562500	4
+Site	SiteId=14527	TrunkId=537	San Clara	Off	51.478060	-101.464720	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14527		Off	854862500	1
+T-Freq	TFreqId=0	SiteId=14527		Off	855112500	2
+T-Freq	TFreqId=0	SiteId=14527		Off	855362500	3
+Site	SiteId=577	TrunkId=537	Selkirk	Off	50.143060	-96.893060	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=577		Off	856212500	1
+T-Freq	TFreqId=0	SiteId=577		Off	856462500	2
+T-Freq	TFreqId=0	SiteId=577		Off	856712500	3
+T-Freq	TFreqId=0	SiteId=577		Off	856962500	4
+T-Freq	TFreqId=0	SiteId=577		Off	857212500	5
+T-Freq	TFreqId=0	SiteId=577		Off	854962500	6
+T-Freq	TFreqId=0	SiteId=577		Off	855212500	7
+T-Freq	TFreqId=0	SiteId=577		Off	854962500	8
+Site	SiteId=14610	TrunkId=537	Shamattawa**	Off	55.855280	-92.085280	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14610		Off	857112500	1
+Site	SiteId=14588	TrunkId=537	Sherridon	Off	55.125830	-101.107780	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14588		Off	860062500	1
+T-Freq	TFreqId=0	SiteId=14588		Off	860312500	2
+T-Freq	TFreqId=0	SiteId=14588		Off	860562500	3
+Site	SiteId=14601	TrunkId=537	Snow Lake	Off	54.879170	-100.027500	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14601		Off	854812500	1
+T-Freq	TFreqId=0	SiteId=14601		Off	855062500	2
+T-Freq	TFreqId=0	SiteId=14601		Off	855312500	3
+T-Freq	TFreqId=0	SiteId=14601		Off	855562500	4
+Site	SiteId=573	TrunkId=537	Souris	Off	49.626670	-100.261110	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=573		Off	860212500	1
+T-Freq	TFreqId=0	SiteId=573		Off	860462500	2
+T-Freq	TFreqId=0	SiteId=573		Off	860712500	3
+T-Freq	TFreqId=0	SiteId=573		Off	860962500	4
+T-Freq	TFreqId=0	SiteId=573		Off	861212500	5
+Site	SiteId=14614	TrunkId=537	South Indian Lake**	Off	56.800560	-98.937780	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14614		Off	857062500	1
+Site	SiteId=14545	TrunkId=537	St Laurent	Off	50.462500	-97.971110	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14545		Off	854862500	1
+T-Freq	TFreqId=0	SiteId=14545		Off	855112500	2
+T-Freq	TFreqId=0	SiteId=14545		Off	855362500	3
+T-Freq	TFreqId=0	SiteId=14545		Off	855612500	4
+Site	SiteId=14523	TrunkId=537	St Lazare	Off	50.451670	-101.326390	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14523		Off	856162500	1
+T-Freq	TFreqId=0	SiteId=14523		Off	856412500	2
+T-Freq	TFreqId=0	SiteId=14523		Off	856662500	3
+T-Freq	TFreqId=0	SiteId=14523		Off	856912500	4
+Site	SiteId=14531	TrunkId=537	Ste Amelie	Off	50.916670	-99.333890	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14531		Off	856062500	1
+T-Freq	TFreqId=0	SiteId=14531		Off	856312500	2
+T-Freq	TFreqId=0	SiteId=14531		Off	856562500	3
+T-Freq	TFreqId=0	SiteId=14531		Off	856812500	4
+Site	SiteId=14562	TrunkId=537	Steeprock	Off	51.385000	-98.773330	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14562		Off	858162500	1
+T-Freq	TFreqId=0	SiteId=14562		Off	858412500	2
+T-Freq	TFreqId=0	SiteId=14562		Off	858662500	3
+Site	SiteId=558	TrunkId=537	Steinbach	Off	49.522780	-96.665830	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=558		Off	858062500	1
+T-Freq	TFreqId=0	SiteId=558		Off	858312500	2
+T-Freq	TFreqId=0	SiteId=558		Off	858562500	3
+T-Freq	TFreqId=0	SiteId=558		Off	858812500	4
+T-Freq	TFreqId=0	SiteId=558		Off	859062500	5
+T-Freq	TFreqId=0	SiteId=558		Off	860012500	6
+T-Freq	TFreqId=0	SiteId=558		Off	860262500	7
+T-Freq	TFreqId=0	SiteId=558		Off	860512500	8
+Site	SiteId=598	TrunkId=537	Stonewall	Off	50.153890	-97.320560	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=598		Off	858012500	1
+T-Freq	TFreqId=0	SiteId=598		Off	858262500	2
+T-Freq	TFreqId=0	SiteId=598		Off	858512500	3
+T-Freq	TFreqId=0	SiteId=598		Off	858762500	4
+T-Freq	TFreqId=0	SiteId=598		Off	859012500	5
+Site	SiteId=14539	TrunkId=537	Strathclair	Off	50.297780	-100.408060	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14539		Off	856062500	1
+T-Freq	TFreqId=0	SiteId=14539		Off	856312500	2
+T-Freq	TFreqId=0	SiteId=14539		Off	856562500	3
+T-Freq	TFreqId=0	SiteId=14539		Off	856812500	4
+T-Freq	TFreqId=0	SiteId=14539		Off	857062500	5
+Site	SiteId=14594	TrunkId=537	Suwannee River	Off	56.085560	-99.961670	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14594		Off	854862500	1
+T-Freq	TFreqId=0	SiteId=14594		Off	855112500	2
+T-Freq	TFreqId=0	SiteId=14594		Off	855362500	3
+Site	SiteId=14552	TrunkId=537	Tan Creek	Off	52.037780	-98.775000	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14552		Off	856062500	1
+T-Freq	TFreqId=0	SiteId=14552		Off	856312500	2
+T-Freq	TFreqId=0	SiteId=14552		Off	856562500	3
+Site	SiteId=574	TrunkId=537	Teulon	Off	50.386390	-97.352220	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=574		Off	858062500	1
+T-Freq	TFreqId=0	SiteId=574		Off	858312500	2
+T-Freq	TFreqId=0	SiteId=574		Off	858562500	3
+T-Freq	TFreqId=0	SiteId=574		Off	858812500	4
+T-Freq	TFreqId=0	SiteId=574		Off	859062500	5
+T-Freq	TFreqId=0	SiteId=574		Off	860012500	6
+Site	SiteId=14605	TrunkId=537	The Pas	Off	53.835560	-101.253330	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14605		Off	854862500	1
+T-Freq	TFreqId=0	SiteId=14605		Off	855112500	2
+T-Freq	TFreqId=0	SiteId=14605		Off	855362500	3
+T-Freq	TFreqId=0	SiteId=14605		Off	855612500	4
+T-Freq	TFreqId=0	SiteId=14605		Off	855862500	5
+T-Freq	TFreqId=0	SiteId=14605		Off	858112500	6
+Site	SiteId=14571	TrunkId=537	Thompson	Off	55.728610	-97.864170	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14571		Off	854862500	1
+T-Freq	TFreqId=0	SiteId=14571		Off	856112500	2
+T-Freq	TFreqId=0	SiteId=14571		Off	856362500	3
+T-Freq	TFreqId=0	SiteId=14571		Off	856612500	4
+T-Freq	TFreqId=0	SiteId=14571		Off	856862500	5
+T-Freq	TFreqId=0	SiteId=14571		Off	857112500	6
+Site	SiteId=592	TrunkId=537	Turtle Mountain	Off	49.102500	-100.249440	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=592		Off	856162500	1
+T-Freq	TFreqId=0	SiteId=592		Off	856412500	2
+T-Freq	TFreqId=0	SiteId=592		Off	856662500	3
+T-Freq	TFreqId=0	SiteId=592		Off	856912500	4
+Site	SiteId=14574	TrunkId=537	Tyrell	Off	54.634720	-99.309170	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14574		Off	856062500	1
+T-Freq	TFreqId=0	SiteId=14574		Off	856312500	2
+T-Freq	TFreqId=0	SiteId=14574		Off	856562500	3
+T-Freq	TFreqId=0	SiteId=14574		Off	856812500	4
+Site	SiteId=14598	TrunkId=537	Upper Paint Lake	Off	55.434170	-98.233890	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14598		Off	858162500	1
+T-Freq	TFreqId=0	SiteId=14598		Off	858412500	2
+T-Freq	TFreqId=0	SiteId=14598		Off	858662500	3
+T-Freq	TFreqId=0	SiteId=14598		Off	858912500	4
+Site	SiteId=570	TrunkId=537	Virden	Off	49.900560	-101.053060	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=570		Off	854812500	1
+T-Freq	TFreqId=0	SiteId=570		Off	855062500	2
+T-Freq	TFreqId=0	SiteId=570		Off	855312500	3
+T-Freq	TFreqId=0	SiteId=570		Off	855562500	4
+T-Freq	TFreqId=0	SiteId=570		Off	855812500	5
+T-Freq	TFreqId=0	SiteId=570		Off	856012500	6
+Site	SiteId=593	TrunkId=537	Vita	Off	49.102500	-96.544440	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=593		Off	856062500	1
+T-Freq	TFreqId=0	SiteId=593		Off	856312500	2
+T-Freq	TFreqId=0	SiteId=593		Off	856562500	3
+T-Freq	TFreqId=0	SiteId=593		Off	856812500	4
+Site	SiteId=14615	TrunkId=537	Waassagomach**	Off	53.888890	-94.957500	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14615		Off	855812500	1
+Site	SiteId=14573	TrunkId=537	Wabowden	Off	54.902500	-98.621390	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14573		Off	858062500	1
+T-Freq	TFreqId=0	SiteId=14573		Off	858312500	2
+T-Freq	TFreqId=0	SiteId=14573		Off	858562500	3
+T-Freq	TFreqId=0	SiteId=14573		Off	858812500	4
+Site	SiteId=14584	TrunkId=537	Wanless	Off	54.230830	-101.355280	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14584		Off	860062500	1
+T-Freq	TFreqId=0	SiteId=14584		Off	860312500	2
+T-Freq	TFreqId=0	SiteId=14584		Off	860562500	3
+T-Freq	TFreqId=0	SiteId=14584		Off	860812500	4
+Site	SiteId=14525	TrunkId=537	Waterhen	Off	51.830560	-99.549720	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14525		Off	856112500	1
+T-Freq	TFreqId=0	SiteId=14525		Off	856362500	2
+T-Freq	TFreqId=0	SiteId=14525		Off	856612500	3
+T-Freq	TFreqId=0	SiteId=14525		Off	856862500	4
+T-Freq	TFreqId=0	SiteId=14525		Off	857112500	5
+Site	SiteId=585	TrunkId=537	Wawanesa	Off	49.590830	-99.694720	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=585		Off	856062500	1
+T-Freq	TFreqId=0	SiteId=585		Off	856312500	2
+T-Freq	TFreqId=0	SiteId=585		Off	856562500	3
+T-Freq	TFreqId=0	SiteId=585		Off	860812500	4
+Site	SiteId=14569	TrunkId=537	Wellman Lake**	Off	51.822220	-100.914170	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14569		Off	858112500	1
+T-Freq	TFreqId=0	SiteId=14569		Off	858362500	2
+T-Freq	TFreqId=0	SiteId=14569		Off	858612500	3
+T-Freq	TFreqId=0	SiteId=14569		Off	858862500	4
+T-Freq	TFreqId=0	SiteId=14569		Off	859112500	5
+Site	SiteId=14604	TrunkId=537	Westray	Off	53.474170	-101.361390	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14604		Off	860212500	1
+T-Freq	TFreqId=0	SiteId=14604		Off	860362500	2
+T-Freq	TFreqId=0	SiteId=14604		Off	860612500	3
+Site	SiteId=14575	TrunkId=537	Whiskey Jack	Off	54.445560	-97.981110	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14575		Off	856112500	1
+T-Freq	TFreqId=0	SiteId=14575		Off	856362500	2
+T-Freq	TFreqId=0	SiteId=14575		Off	856612500	3
+T-Freq	TFreqId=0	SiteId=14575		Off	856862500	4
+Site	SiteId=14544	TrunkId=537	Whitemouth	Off	49.949440	-95.981940	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14544		Off	856062500	1
+T-Freq	TFreqId=0	SiteId=14544		Off	856312500	2
+T-Freq	TFreqId=0	SiteId=14544		Off	856562500	3
+T-Freq	TFreqId=0	SiteId=14544		Off	856812500	4
+Site	SiteId=14577	TrunkId=537	William River	Off	53.962780	-99.212220	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14577		Off	858212500	1
+T-Freq	TFreqId=0	SiteId=14577		Off	858462500	2
+T-Freq	TFreqId=0	SiteId=14577		Off	858712500	3
+T-Freq	TFreqId=0	SiteId=14577		Off	858962500	4
+Site	SiteId=560	TrunkId=537	Winkler	Off	49.166670	-98.008610	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=560		Off	855862500	1
+T-Freq	TFreqId=0	SiteId=560		Off	856162500	2
+T-Freq	TFreqId=0	SiteId=560		Off	858112500	3
+T-Freq	TFreqId=0	SiteId=560		Off	858362500	4
+T-Freq	TFreqId=0	SiteId=560		Off	858612500	5
+T-Freq	TFreqId=0	SiteId=560		Off	858862500	6
+Site	SiteId=587	TrunkId=537	Winnipeg Airport	Off	49.902780	-97.223610	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=587		Off	858112500	1
+T-Freq	TFreqId=0	SiteId=587		Off	858362500	2
+T-Freq	TFreqId=0	SiteId=587		Off	858612500	3
+T-Freq	TFreqId=0	SiteId=587		Off	858862500	4
+T-Freq	TFreqId=0	SiteId=587		Off	859112500	5
+Site	SiteId=591	TrunkId=537	Winnipeg Trizec	Off	49.894440	-97.139170	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=591		Off	854812500	1
+T-Freq	TFreqId=0	SiteId=591		Off	855062500	2
+T-Freq	TFreqId=0	SiteId=591		Off	855312500	3
+T-Freq	TFreqId=0	SiteId=591		Off	855562500	4
+T-Freq	TFreqId=0	SiteId=591		Off	855812500	5
+T-Freq	TFreqId=0	SiteId=591		Off	856112500	6
+T-Freq	TFreqId=0	SiteId=591		Off	856362500	7
+T-Freq	TFreqId=0	SiteId=591		Off	856612500	8
+T-Freq	TFreqId=0	SiteId=591		Off	856862500	9
+T-Freq	TFreqId=0	SiteId=591		Off	857112500	10
+T-Freq	TFreqId=0	SiteId=591		Off	858212500	11
+T-Freq	TFreqId=0	SiteId=591		Off	858462500	12
+T-Freq	TFreqId=0	SiteId=591		Off	858712500	13
+T-Freq	TFreqId=0	SiteId=591		Off	858962500	14
+T-Freq	TFreqId=0	SiteId=591		Off	859212500	15
+T-Freq	TFreqId=0	SiteId=591		Off	860112500	16
+T-Freq	TFreqId=0	SiteId=591		Off	860212500	17
+T-Freq	TFreqId=0	SiteId=591		Off	860362500	18
+T-Freq	TFreqId=0	SiteId=591		Off	860462500	19
+T-Freq	TFreqId=0	SiteId=591		Off	860612500	20
+T-Freq	TFreqId=0	SiteId=591		Off	860712500	21
+T-Freq	TFreqId=0	SiteId=591		Off	860862500	22
+T-Freq	TFreqId=0	SiteId=591		Off	860962500	23
+T-Freq	TFreqId=0	SiteId=591		Off	861112500	24
+T-Freq	TFreqId=0	SiteId=591		Off	861212500	25
+Site	SiteId=14592	TrunkId=537	Wivenhoe	Off	56.183330	-95.204440	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14592		Off	854962500	1
+T-Freq	TFreqId=0	SiteId=14592		Off	855212500	2
+T-Freq	TFreqId=0	SiteId=14592		Off	855462500	3
+T-Freq	TFreqId=0	SiteId=14592		Off	855712500	4
+Site	SiteId=14521	TrunkId=537	Woodridge	Off	49.283330	-96.150000	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14521		Off	854762500	1
+T-Freq	TFreqId=0	SiteId=14521		Off	855012500	2
+T-Freq	TFreqId=0	SiteId=14521		Off	855262500	3
+T-Freq	TFreqId=0	SiteId=14521		Off	855512500	4
+Site	SiteId=571	TrunkId=537	Woodside	Off	50.180560	-98.771110	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=571		Off	860212500	1
+T-Freq	TFreqId=0	SiteId=571		Off	860462500	2
+T-Freq	TFreqId=0	SiteId=571		Off	860712500	3
+T-Freq	TFreqId=0	SiteId=571		Off	860962500	4
+T-Freq	TFreqId=0	SiteId=571		Off	861212500	5
+Site	SiteId=564	TrunkId=537	WPS North	Off	49.951390	-97.109440	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=564		Off	866037500	1
+T-Freq	TFreqId=0	SiteId=564		Off	866112500	2
+T-Freq	TFreqId=0	SiteId=564		Off	866187500	3
+T-Freq	TFreqId=0	SiteId=564		Off	866262500	4
+T-Freq	TFreqId=0	SiteId=564		Off	866337500	5
+T-Freq	TFreqId=0	SiteId=564		Off	866412500	6
+T-Freq	TFreqId=0	SiteId=564		Off	866487500	7
+T-Freq	TFreqId=0	SiteId=564		Off	866562500	8
+T-Freq	TFreqId=0	SiteId=564		Off	866637500	9
+T-Freq	TFreqId=0	SiteId=564		Off	866712500	10
+Site	SiteId=566	TrunkId=537	WPS South	Off	49.822220	-97.179440	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=566		Off	866087500	1
+T-Freq	TFreqId=0	SiteId=566		Off	866162500	2
+T-Freq	TFreqId=0	SiteId=566		Off	866237500	3
+T-Freq	TFreqId=0	SiteId=566		Off	866312500	4
+T-Freq	TFreqId=0	SiteId=566		Off	866387500	5
+T-Freq	TFreqId=0	SiteId=566		Off	866462500	6
+T-Freq	TFreqId=0	SiteId=566		Off	866537500	7
+T-Freq	TFreqId=0	SiteId=566		Off	866612500	8
+T-Freq	TFreqId=0	SiteId=566		Off	866687500	9
+T-Freq	TFreqId=0	SiteId=566		Off	866762500	10
+Site	SiteId=565	TrunkId=537	WPS Trizec	Off	49.894440	-97.139170	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=565		Off	866137500	1
+T-Freq	TFreqId=0	SiteId=565		Off	866062500	2
+T-Freq	TFreqId=0	SiteId=565		Off	866287500	3
+T-Freq	TFreqId=0	SiteId=565		Off	866212500	4
+T-Freq	TFreqId=0	SiteId=565		Off	866437500	5
+T-Freq	TFreqId=0	SiteId=565		Off	866362500	6
+T-Freq	TFreqId=0	SiteId=565		Off	866587500	7
+T-Freq	TFreqId=0	SiteId=565		Off	866662500	8
+T-Freq	TFreqId=0	SiteId=565		Off	866737500	9
+T-Freq	TFreqId=0	SiteId=565		Off	866812500	10
+T-Group	TGroupId=3469	TrunkId=537	Brandon City Services	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=223656	TGroupId=3469	 Water Treatment Plant	Off	11200	ANALOG	14				
+TGID	Tid=222428	TGroupId=3469	Brandon Emergency Measures Office	Off	48048	ANALOG	29				
+TGID	Tid=222284	TGroupId=3469	Building Maintenance	Off	11312	ANALOG	14				
+TGID	Tid=222283	TGroupId=3469	Central Garage	Off	11296	ANALOG	14				
+TGID	Tid=223609	TGroupId=3469	City of Brandon - T-66	Off	11408	ANALOG	26				
+TGID	Tid=223612	TGroupId=3469	City of Brandon - T-88	Off	11392	ANALOG	26				
+TGID	Tid=222281	TGroupId=3469	Civil Service	Off	11280	ANALOG	14				
+TGID	Tid=222424	TGroupId=3469	EMS 1A	Off	192	ANALOG	4				
+TGID	Tid=222712	TGroupId=3469	EMS 1B	Off	7760	ANALOG	25				
+TGID	Tid=222426	TGroupId=3469	EMS 1B TAC	Off	7792	ANALOG	9				
+TGID	Tid=222282	TGroupId=3469	Engineer	Off	11376	ANALOG	14				
+TGID	Tid=222289	TGroupId=3469	Fire & Emergency Services	Off	11424	ANALOG	1				
+TGID	Tid=221606	TGroupId=3469	Handi-Van	Off	11232	ANALOG	26				
+TGID	Tid=222429	TGroupId=3469	Highway Dept.	Off	7136	ANALOG	14				
+TGID	Tid=223389	TGroupId=3469	Park Security	Off	11360	ANALOG	33				
+TGID	Tid=223291	TGroupId=3469	Parks Technical Services	Off	9136	ANALOG	14				
+TGID	Tid=222421	TGroupId=3469	Police Service 1	Off	52000	DIGITAL	2				
+TGID	Tid=222422	TGroupId=3469	Police Service 2	Off	52016	DIGITAL	23				
+TGID	Tid=222423	TGroupId=3469	Police Service 3	Off	52032	DIGITAL	23				
+TGID	Tid=222427	TGroupId=3469	Police Service/ RCMP Interop	Off	48144	DIGITAL	11				
+TGID	Tid=223378	TGroupId=3469	Sanitation	Off	11328	ANALOG	14				
+TGID	Tid=223577	TGroupId=3469	Sewer and Water	Off	11264	ANALOG	14				
+TGID	Tid=223606	TGroupId=3469	Street and Roads	Off	11248	ANALOG	14				
+TGID	Tid=223643	TGroupId=3469	Transit	Off	11216	ANALOG	26				
+T-Group	TGroupId=3455	TrunkId=537	Canada Border Services Agency	Off	49.679270	-98.039830	150.0	Circle
+TGID	Tid=22539	TGroupId=3455	CBSA	Off	688	ANALOG	16				
+TGID	Tid=22540	TGroupId=3455	CBSA	Off	3888	ANALOG	16				
+TGID	Tid=22538	TGroupId=3455	CBSA	Off	3920	ANALOG	16				
+TGID	Tid=22537	TGroupId=3455	CBSA	Off	6512	ANALOG	16				
+TGID	Tid=22536	TGroupId=3455	CBSA	Off	7344	ANALOG	16				
+TGID	Tid=22512	TGroupId=3455	CBSA	Off	15120	ANALOG	16				
+TGID	Tid=22510	TGroupId=3455	CBSA	Off	51712	ANALOG	16				
+TGID	Tid=22504	TGroupId=3455	CBSA - Immigration  1C	Off	720	ANALOG	16				
+TGID	Tid=22505	TGroupId=3455	CBSA - Immigration  1D	Off	656	ANALOG	16				
+TGID	Tid=22507	TGroupId=3455	CBSA - Immigration 1A	Off	752	ANALOG	16				
+TGID	Tid=22506	TGroupId=3455	CBSA - Immigration 1B	Off	768	ANALOG	16				
+TGID	Tid=22508	TGroupId=3455	CBSA Ch 4	Off	5536	ANALOG	16				
+TGID	Tid=284687	TGroupId=3455	James Richardson International Airport	Off	51600	ANALOG	16				
+T-Group	TGroupId=17124	TrunkId=537	Churchill Town Services	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=220717	TGroupId=17124	Airport	Off	20720	ANALOG	17				
+TGID	Tid=220718	TGroupId=17124	Marine	Off	26368	ANALOG	17				
+TGID	Tid=220719	TGroupId=17124	Town Services	Off	25776	ANALOG	14				
+T-Group	TGroupId=3456	TrunkId=537	Emergency Measures Organization	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=176791	TGroupId=3456	Dauphin Emergency Measures	Off	47664	ANALOG	29				
+TGID	Tid=22377	TGroupId=3456	EMO - Business	Off	14016	ANALOG	29				
+TGID	Tid=22379	TGroupId=3456	EMO - Interdepartmental	Off	15280	ANALOG	11				
+TGID	Tid=54285	TGroupId=3456	EMO - OPS	Off	15184	ANALOG	11				
+TGID	Tid=54286	TGroupId=3456	EMO - OPS	Off	15200	ANALOG	11				
+TGID	Tid=72809	TGroupId=3456	EMO - OPS	Off	15216	ANALOG	11				
+TGID	Tid=22378	TGroupId=3456	EMO - OPS 1	Off	14032	ANALOG	29				
+TGID	Tid=53017	TGroupId=3456	EMO - OPS 2	Off	20112	ANALOG	29				
+TGID	Tid=22582	TGroupId=3456	MB-Wide Emergency Measures	Off	47952	ANALOG	29				
+TGID	Tid=176854	TGroupId=3456	Thompson Emergency Measures	Off	47536	ANALOG	29				
+T-Group	TGroupId=17122	TrunkId=537	Environment Canada	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=220715	TGroupId=17122	Environment Canada	Off	7328	ANALOG	16				
+T-Group	TGroupId=17330	TrunkId=537	First Nations Administrative	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=222353	TGroupId=17330	Brokenhead Town OHN	Off	25152	ANALOG	14				
+TGID	Tid=222388	TGroupId=17330	Fisher River Fish	Off	13600	ANALOG	14				
+TGID	Tid=222354	TGroupId=17330	Keewatin Tribal Council	Off	23856	ANALOG	14				
+TGID	Tid=268877	TGroupId=17330	Manitoba Association of Native Firefighters - EOC	Off	28880	ANALOG	29				
+TGID	Tid=222355	TGroupId=17330	Misipawistik First Nation	Off	28480	ANALOG	14				
+TGID	Tid=222356	TGroupId=17330	Nelson House FN 1	Off	25472	ANALOG	14				
+TGID	Tid=222357	TGroupId=17330	Nelson House FN 2	Off	25488	ANALOG	14				
+TGID	Tid=222358	TGroupId=17330	Nelson House FN Fish	Off	21008	ANALOG	14				
+TGID	Tid=222359	TGroupId=17330	Nisischawayasihk Cree Nation - Nelson House 1	Off	23184	ANALOG	14				
+TGID	Tid=222360	TGroupId=17330	Nisischawayasihk Cree Nation 2 - Nelson House	Off	20560	ANALOG	14				
+TGID	Tid=222361	TGroupId=17330	Nisischawayasihk Cree Nation 3 - Nelson House	Off	2016	ANALOG	14				
+TGID	Tid=222362	TGroupId=17330	Norway House Cree Nation	Off	21408	ANALOG	14				
+TGID	Tid=223387	TGroupId=17330	Sapotaweyak Cree Nation - Health	Off	28800	ANALOG	14				
+TGID	Tid=223388	TGroupId=17330	Sapotaweyak Cree Nation - Health 2	Off	28064	ANALOG	14				
+TGID	Tid=223712	TGroupId=17330	Sioux Valley FN - Education	Off	21232	ANALOG	32				
+TGID	Tid=223716	TGroupId=17330	South Indian Lake - Fisheries	Off	26800	ANALOG	14				
+TGID	Tid=223717	TGroupId=17330	South Indian Lake - Trapping	Off	26816	ANALOG	14				
+TGID	Tid=223722	TGroupId=17330	Split Lake - Ambulance	Off	15408	ANALOG	25				
+TGID	Tid=223723	TGroupId=17330	Split Lake - Conservation	Off	23968	ANALOG	14				
+TGID	Tid=223724	TGroupId=17330	Split Lake - Office	Off	11648	ANALOG	14				
+TGID	Tid=223730	TGroupId=17330	War Lake FN	Off	25840	ANALOG	14				
+T-Group	TGroupId=3457	TrunkId=537	First Nations Police	Off	49.679270	-98.039830	150.0	Circle
+TGID	Tid=22583	TGroupId=3457	Brandon FNP	Off	48080	ANALOG	2				
+TGID	Tid=22562	TGroupId=3457	Dakota-Ojibway Police	Off	51136	DIGITAL	2				
+TGID	Tid=22563	TGroupId=3457	Dakota-Ojibway Police	Off	51152	DIGITAL	2				
+TGID	Tid=22564	TGroupId=3457	Dakota-Ojibway Police	Off	51168	DIGITAL	2				
+TGID	Tid=22576	TGroupId=3457	Dauphin FNP	Off	47696	ANALOG	2				
+TGID	Tid=22579	TGroupId=3457	MB-Wide FNP	Off	47984	ANALOG	2				
+TGID	Tid=189056	TGroupId=3457	Norway House Cree Nation Police	Off	14048	ANALOG	2				
+TGID	Tid=119602	TGroupId=3457	OCN Police	Off	19360	ANALOG	23				
+TGID	Tid=22544	TGroupId=3457	Roseau River Reserve	Off	640	ANALOG	23				
+TGID	Tid=22545	TGroupId=3457	Roseau River Reserve	Off	848	ANALOG	23				
+TGID	Tid=223721	TGroupId=3457	Split Lake - Police	Off	2512	ANALOG	2				
+TGID	Tid=22573	TGroupId=3457	Thompson FNP	Off	47568	ANALOG	2				
+T-Group	TGroupId=3458	TrunkId=537	Highway Departments	Off	49.679270	-98.039830	150.0	Circle
+TGID	Tid=176792	TGroupId=3458	Arborg	Off	14208	ANALOG	14				
+TGID	Tid=176793	TGroupId=3458	Ashern	Off	2048	ANALOG	14				
+TGID	Tid=22357	TGroupId=3458	Beausejour	Off	15776	ANALOG	14				
+TGID	Tid=176794	TGroupId=3458	Birtle	Off	7088	ANALOG	14				
+TGID	Tid=22476	TGroupId=3458	Boissevain	Off	7168	ANALOG	14				
+TGID	Tid=22353	TGroupId=3458	Bridges	Off	18624	ANALOG	14				
+TGID	Tid=22473	TGroupId=3458	Carman	Off	14176	ANALOG	14				
+TGID	Tid=176795	TGroupId=3458	Dauphin	Off	15792	ANALOG	14				
+TGID	Tid=22482	TGroupId=3458	Department of Highways	Off	2816	ANALOG	14				
+TGID	Tid=22481	TGroupId=3458	Department of Highways	Off	4288	ANALOG	14				
+TGID	Tid=22475	TGroupId=3458	Department of Highways	Off	7952	ANALOG	14				
+TGID	Tid=22468	TGroupId=3458	Highways Maintenance	Off	14528	ANALOG	14				
+TGID	Tid=22469	TGroupId=3458	Highways Shops	Off	14240	ANALOG	14				
+TGID	Tid=22360	TGroupId=3458	Highways Traffic Engineering	Off	15072	ANALOG	14				
+TGID	Tid=176796	TGroupId=3458	Lac du Bonnet	Off	15760	ANALOG	14				
+TGID	Tid=22480	TGroupId=3458	Minnedosa	Off	4448	ANALOG	14				
+TGID	Tid=22484	TGroupId=3458	MR 1	Off	2144	ANALOG	14				
+TGID	Tid=22483	TGroupId=3458	MR 2	Off	2176	ANALOG	14				
+TGID	Tid=22470	TGroupId=3458	Portage la Prairie	Off	14224	ANALOG	14				
+TGID	Tid=22350	TGroupId=3458	PW	Off	19680	ANALOG	14				
+TGID	Tid=22361	TGroupId=3458	Selkirk	Off	14672	ANALOG	14				
+TGID	Tid=22363	TGroupId=3458	Steinbach East	Off	14640	ANALOG	14				
+TGID	Tid=22362	TGroupId=3458	Steinbach West	Off	14656	ANALOG	14				
+TGID	Tid=22472	TGroupId=3458	Stonewall	Off	14192	ANALOG	14				
+TGID	Tid=176797	TGroupId=3458	Swan River	Off	2112	ANALOG	14				
+TGID	Tid=176855	TGroupId=3458	The Pas	Off	18592	ANALOG	14				
+TGID	Tid=176858	TGroupId=3458	Thompson EC	Off	19648	ANALOG	14				
+TGID	Tid=176856	TGroupId=3458	Thompson North	Off	18608	ANALOG	14				
+TGID	Tid=176857	TGroupId=3458	Thompson South	Off	18656	ANALOG	14				
+TGID	Tid=22359	TGroupId=3458	Transco	Off	15088	ANALOG	14				
+TGID	Tid=22477	TGroupId=3458	Virden	Off	7152	ANALOG	14				
+TGID	Tid=22364	TGroupId=3458	Winnipeg Region	Off	14544	ANALOG	14				
+T-Group	TGroupId=17448	TrunkId=537	Inter-Departmental	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=248264	TGroupId=17448	First Responder Call In - Eastman	Off	15168	ANALOG	11				
+TGID	Tid=223297	TGroupId=17448	Province of Ontario Interoperational	Off	28208	ANALOG	11				
+T-Group	TGroupId=17319	TrunkId=537	LaBroquerie	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=222425	TGroupId=17319	Fire Department	Off	11936	ANALOG	3				
+TGID	Tid=222288	TGroupId=17319	Town Services	Off	7056	ANALOG	14				
+T-Group	TGroupId=17317	TrunkId=537	Lake Winnipeg Research Consortium	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=222286	TGroupId=17317	Research	Off	18784	ANALOG	16				
+T-Group	TGroupId=17127	TrunkId=537	Manitoba Department of Fisheries	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=220785	TGroupId=17127	Fresh Water Fisheries	Off	14512	ANALOG	16				
+TGID	Tid=220786	TGroupId=17127	Fresh Water Fisheries 2	Off	26288	ANALOG	16				
+T-Group	TGroupId=12731	TrunkId=537	Manitoba Department of Natural Resources	Off	49.679270	-98.039830	150.0	Circle
+TGID	Tid=22581	TGroupId=12731	Brandon DNR	Off	48112	ANALOG	23				
+TGID	Tid=176790	TGroupId=12731	Dauphin DNR	Off	47728	ANALOG	23				
+TGID	Tid=222447	TGroupId=12731	Department of Natural Resources	Off	18400	ANALOG	23				
+TGID	Tid=22580	TGroupId=12731	MB-Wide DNR	Off	48016	ANALOG	23				
+TGID	Tid=176853	TGroupId=12731	Thompson DNR	Off	47600	ANALOG	23				
+T-Group	TGroupId=16598	TrunkId=537	Manitoba Emergency Medical Services	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=223397	TGroupId=16598	Perimeter Aeromed Air Ambulance	Off	29504	ANALOG	4				
+TGID	Tid=215358	TGroupId=16598	STARS - Lifeflight	Off	19984	ANALOG	4				
+T-Group	TGroupId=17331	TrunkId=537	Manitoba Provincial Departments	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=222389	TGroupId=17331	Manitoba Family Services	Off	22896	ANALOG	14				
+TGID	Tid=222365	TGroupId=17331	Manitoba Gaming Control Commission	Off	19584	DIGITAL	14				
+TGID	Tid=222366	TGroupId=17331	Manitoba Housing	Off	29440	ANALOG	14				
+TGID	Tid=222367	TGroupId=17331	Manitoba Hydro Inter	Off	28192	ANALOG	34				
+TGID	Tid=270275	TGroupId=17331	Manitoba Infrastructure and Transportation	Off	28544	ANALOG	23				
+TGID	Tid=222368	TGroupId=17331	Manitoba Lotteries Corporation	Off	13824	DIGITAL	17				
+TGID	Tid=222386	TGroupId=17331	Manitoba Nature Conservation	Off	22848	ANALOG	14				
+TGID	Tid=222387	TGroupId=17331	Manitoba Public Insurance Corp.	Off	1984	ANALOG	14				
+T-Group	TGroupId=3459	TrunkId=537	Manitoba Sheriff	Off	49.679270	-98.039830	150.0	Circle
+TGID	Tid=223627	TGroupId=3459	City of Thompson - Justice	Off	51840	DIGITAL	37				
+TGID	Tid=22367	TGroupId=3459	Sheriffs	Off	2704	ANALOG	2				
+TGID	Tid=22369	TGroupId=3459	Sheriffs Rural	Off	13936	ANALOG	2				
+TGID	Tid=22368	TGroupId=3459	Sherrifs	Off	1104	ANALOG	2				
+TGID	Tid=223624	TGroupId=3459	The Pas - Corrections	Off	25504	ANALOG	37				
+TGID	Tid=223623	TGroupId=3459	The Pas - Corrections	Off	51888	DIGITAL	37				
+TGID	Tid=223622	TGroupId=3459	The Pas - Justice	Off	51856	DIGITAL	37				
+T-Group	TGroupId=3460	TrunkId=537	Military Police	Off	49.679270	-98.039830	150.0	Circle
+TGID	Tid=22467	TGroupId=3460	CFB Winnipeg - MP 1A	Off	2352	ANALOG	30				
+TGID	Tid=22464	TGroupId=3460	CFB Winnipeg - MP 1B	Off	3248	ANALOG	30				
+T-Group	TGroupId=3462	TrunkId=537	Parks	Off	49.679270	-98.039830	150.0	Circle
+TGID	Tid=176798	TGroupId=3462	Dauphin Parks	Off	47632	ANALOG	16				
+TGID	Tid=223740	TGroupId=3462	Intermountain	Off	24480	ANALOG	14				
+TGID	Tid=223293	TGroupId=3462	Parks - Agency	Off	1872	ANALOG	16				
+TGID	Tid=22466	TGroupId=3462	Parks - Country	Off	9104	ANALOG	16				
+TGID	Tid=223294	TGroupId=3462	Parks - Dispatch	Off	25440	ANALOG	16				
+TGID	Tid=22465	TGroupId=3462	Parks - General	Off	1904	ANALOG	16				
+TGID	Tid=223296	TGroupId=3462	Parks - Rec	Off	11344	ANALOG	16				
+TGID	Tid=223390	TGroupId=3462	Parks - TSM	Off	1776	ANALOG	16				
+TGID	Tid=22365	TGroupId=3462	Parks - Warden	Off	1840	ANALOG	7				
+T-Group	TGroupId=3468	TrunkId=537	Police	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=22567	TGroupId=3468	Altona	Off	15152	ANALOG	2				
+TGID	Tid=176807	TGroupId=3468	Grand Beach	Off	15920	ANALOG	2				
+TGID	Tid=284685	TGroupId=3468	RM of Springfield	Off	27808	ANALOG	2				
+TGID	Tid=22570	TGroupId=3468	Ste Anne	Off	11568	ANALOG	2				
+TGID	Tid=284686	TGroupId=3468	Winkler	Off	1280	ANALOG	2				
+T-Group	TGroupId=3463	TrunkId=537	Private Security	Off	49.679270	-98.039830	150.0	Circle
+TGID	Tid=53077	TGroupId=3463	Boeing Canada - Security	Off	7728	ANALOG	33				
+TGID	Tid=53078	TGroupId=3463	Chase Investigations	Off	20528	ANALOG	33				
+TGID	Tid=319666	TGroupId=3463	Impact Security - 1A Winnipeg Guard	Off	19632	ANALOG	33				
+TGID	Tid=319667	TGroupId=3463	Impact Security - 1B Province wide Mobile	Off	19312	ANALOG	33				
+TGID	Tid=319668	TGroupId=3463	Impact Security - 1C Low Power/Investigative	Off	5120	ANALOG	33				
+TGID	Tid=319669	TGroupId=3463	Impact Security - 1D CRC Main	Off	19328	ANALOG	33				
+TGID	Tid=319670	TGroupId=3463	Impact Security - 1E CRC Emergency Response Team 1	Off	18960	ANALOG	33				
+TGID	Tid=319671	TGroupId=3463	Impact Security - 1F CRC ERT 2	Off	19280	ANALOG	33				
+TGID	Tid=319672	TGroupId=3463	Impact Security - 1G Thompson Guard	Off	1712	ANALOG	33				
+TGID	Tid=319673	TGroupId=3463	Impact Security - 2A Event Tactical	Off	800	ANALOG	33				
+TGID	Tid=319674	TGroupId=3463	Impact Security - 2B Event Tactical	Off	1248	ANALOG	33				
+TGID	Tid=319675	TGroupId=3463	Impact Security - 3A IGF Traffic	Off	1824	ANALOG	33				
+TGID	Tid=319676	TGroupId=3463	Impact Security - 3B Park/Ride	Off	1856	ANALOG	33				
+TGID	Tid=319677	TGroupId=3463	Impact Security - 3C Traffic Overflow	Off	1888	ANALOG	33				
+TGID	Tid=319678	TGroupId=3463	Impact Security - 4A OPS	Off	2800	ANALOG	33				
+TGID	Tid=319679	TGroupId=3463	Impact Security - 4B OPS	Off	3024	ANALOG	33				
+TGID	Tid=319680	TGroupId=3463	Impact Security - Emergency Channel	Off	6000	ANALOG	33				
+TGID	Tid=222363	TGroupId=3463	Initial Security	Off	27360	ANALOG	33				
+TGID	Tid=222364	TGroupId=3463	Integ Security	Off	15968	ANALOG	33				
+TGID	Tid=53076	TGroupId=3463	OBO Security	Off	7232	ANALOG	33				
+TGID	Tid=22373	TGroupId=3463	Vision Security CH 1	Off	13664	ANALOG	33				
+TGID	Tid=22372	TGroupId=3463	Vision Security CH 2	Off	976	ANALOG	33				
+T-Group	TGroupId=3464	TrunkId=537	Railway Security	Off	49.679270	-98.039830	150.0	Circle
+TGID	Tid=22489	TGroupId=3464	CN Rail Police	Off	20800	ANALOG	23				
+TGID	Tid=22488	TGroupId=3464	CN Rail Police	Off	51200	ANALOG	23				
+TGID	Tid=22487	TGroupId=3464	CP Rail Police	Off	19072	ANALOG	23				
+T-Group	TGroupId=12723	TrunkId=537	RCMP Zone 1 (West)	Off	49.679270	-98.039830	150.0	Circle
+TGID	Tid=176799	TGroupId=12723	1W1 Dauphin	Off	62768	DIGITAL	2				
+TGID	Tid=176806	TGroupId=12723	1W10 Winnipegosis	Off	62480	DIGITAL	2				
+TGID	Tid=52663	TGroupId=12723	1W11 S/Div	Off	62416	DIGITAL	7				
+TGID	Tid=52650	TGroupId=12723	1W12 Spare	Off	62000	DIGITAL	23				
+TGID	Tid=52651	TGroupId=12723	1W13 Spare	Off	62032	DIGITAL	23				
+TGID	Tid=52662	TGroupId=12723	1W14 Spare	Off	62384	DIGITAL	23				
+TGID	Tid=52661	TGroupId=12723	1W15 Spare	Off	62352	DIGITAL	23				
+TGID	Tid=176800	TGroupId=12723	1W2 Amaranth	Off	62736	DIGITAL	2				
+TGID	Tid=176801	TGroupId=12723	1W3 Ste Rose	Off	62704	DIGITAL	2				
+TGID	Tid=176802	TGroupId=12723	1W4 Bloodvein	Off	62192	DIGITAL	2				
+TGID	Tid=176803	TGroupId=12723	1W5 Neepawa/Gladstone	Off	62640	DIGITAL	2				
+TGID	Tid=52669	TGroupId=12723	1W6 Minnedosa	Off	62608	DIGITAL	2				
+TGID	Tid=176804	TGroupId=12723	1W7 Swan River	Off	62576	DIGITAL	2				
+TGID	Tid=176805	TGroupId=12723	1W8 Roblin/Russell	Off	62544	DIGITAL	2				
+TGID	Tid=52666	TGroupId=12723	1W9 FIS/Radio Shop	Off	62512	DIGITAL	23				
+T-Group	TGroupId=3465	TrunkId=537	RCMP Zone 10 (Admin)	Off	51.727030	-97.734380	200.0	Circle
+TGID	Tid=52692	TGroupId=3465	10A C1 Command 1	Off	63408	DIGITAL	23				
+TGID	Tid=52691	TGroupId=3465	10A C2 Command 2	Off	63376	DIGITAL	23				
+TGID	Tid=52745	TGroupId=3465	10A C3 Command 3	Off	65104	DIGITAL	23				
+TGID	Tid=52746	TGroupId=3465	10A C4  Command 4	Off	65136	DIGITAL	23				
+TGID	Tid=52734	TGroupId=3465	10A1  Admin 1	Off	64752	DIGITAL	23				
+TGID	Tid=52725	TGroupId=3465	10A10 Admin 10	Off	64464	DIGITAL	23				
+TGID	Tid=52719	TGroupId=3465	10A11 Admin 11	Off	64272	DIGITAL	23				
+TGID	Tid=52723	TGroupId=3465	10A12 Admin 12	Off	64400	DIGITAL	23				
+TGID	Tid=52722	TGroupId=3465	10A13 Admin 13	Off	64368	DIGITAL	23				
+TGID	Tid=52721	TGroupId=3465	10A14 Admin 14	Off	64336	DIGITAL	23				
+TGID	Tid=52720	TGroupId=3465	10A15 Admin 15	Off	64304	DIGITAL	23				
+TGID	Tid=52733	TGroupId=3465	10A2  Admin 2	Off	64720	DIGITAL	23				
+TGID	Tid=52732	TGroupId=3465	10A3  Admin 3 Radio Shop	Off	64688	DIGITAL	23				
+TGID	Tid=52731	TGroupId=3465	10A4  Admin 4	Off	64656	DIGITAL	23				
+TGID	Tid=52730	TGroupId=3465	10A5  Admin 5	Off	64624	DIGITAL	23				
+TGID	Tid=52729	TGroupId=3465	10A6  Admin 6	Off	64592	DIGITAL	23				
+TGID	Tid=52728	TGroupId=3465	10A7 Admin 7	Off	64560	DIGITAL	23				
+TGID	Tid=52727	TGroupId=3465	10A8 Admin 8	Off	64528	DIGITAL	23				
+TGID	Tid=52726	TGroupId=3465	10A9 Admin 9	Off	64496	DIGITAL	23				
+T-Group	TGroupId=12724	TrunkId=537	RCMP Zone 2 (West)	Off	49.679270	-98.039830	150.0	Circle
+TGID	Tid=52757	TGroupId=12724	2W1 Virden	Off	65488	DIGITAL	2				
+TGID	Tid=52748	TGroupId=12724	2W10 Portage Highway Patrol	Off	65200	DIGITAL	23				
+TGID	Tid=52743	TGroupId=12724	2W11 Spare	Off	65040	DIGITAL	23				
+TGID	Tid=52652	TGroupId=12724	2W12 Spare	Off	62064	DIGITAL	23				
+TGID	Tid=52660	TGroupId=12724	2W13 Spare	Off	62320	DIGITAL	23				
+TGID	Tid=176808	TGroupId=12724	2W2 Little Grand Rapids	Off	62128	DIGITAL	2				
+TGID	Tid=52755	TGroupId=12724	2W3 Brandon	Off	65424	DIGITAL	2				
+TGID	Tid=52754	TGroupId=12724	2W4 Killarney	Off	65392	DIGITAL	2				
+TGID	Tid=52753	TGroupId=12724	2W5 Carman	Off	65360	DIGITAL	2				
+TGID	Tid=52752	TGroupId=12724	2W6 Morden/Altona	Off	65328	DIGITAL	2				
+TGID	Tid=52751	TGroupId=12724	2W7 Morris/Emerson	Off	65296	DIGITAL	2				
+TGID	Tid=52747	TGroupId=12724	2W8 GIS/PDS	Off	65168	DIGITAL	7				
+TGID	Tid=52749	TGroupId=12724	2W9 Portage la Prairie	Off	65232	DIGITAL	2				
+T-Group	TGroupId=12725	TrunkId=537	RCMP Zone 3 (East)	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=176809	TGroupId=12725	3E1 Fisher Branch	Off	62288	DIGITAL	2				
+TGID	Tid=52739	TGroupId=12725	3E10 Steinbach	Off	64912	DIGITAL	2				
+TGID	Tid=52738	TGroupId=12725	3E11 Falcon Lake	Off	64880	DIGITAL	2				
+TGID	Tid=52737	TGroupId=12725	3E12 NCO/PDS	Off	64848	DIGITAL	7				
+TGID	Tid=173508	TGroupId=12725	3E13 Grand Rapids	Off	62096	DIGITAL	2				
+TGID	Tid=176860	TGroupId=12725	3E14 East St Paul	Off	61968	DIGITAL	2				
+TGID	Tid=52724	TGroupId=12725	3E15 Spare	Off	64432	DIGITAL	23				
+TGID	Tid=52744	TGroupId=12725	3E16 Spare	Off	65072	DIGITAL	23				
+TGID	Tid=176810	TGroupId=12725	3E2 East Interlakes (Gimli/Teulon)	Off	62256	DIGITAL	2				
+TGID	Tid=176811	TGroupId=12725	3E3 Lac du Bonnet	Off	62224	DIGITAL	2				
+TGID	Tid=53388	TGroupId=12725	3E4 Lundar/Ashern	Off	62672	DIGITAL	2				
+TGID	Tid=176813	TGroupId=12725	3E5 Powerview/Grand Marais	Off	62160	DIGITAL	2				
+TGID	Tid=52750	TGroupId=12725	3E6 Headingley	Off	65264	DIGITAL	2				
+TGID	Tid=52742	TGroupId=12725	3E7 Oakbank/Ste Pierre/Beausejour	Off	65008	DIGITAL	2				
+TGID	Tid=52741	TGroupId=12725	3E8 Selkirk	Off	64976	DIGITAL	2				
+TGID	Tid=52740	TGroupId=12725	3E9 Greater Winnipeg Traffic Services	Off	64944	DIGITAL	2				
+T-Group	TGroupId=12726	TrunkId=537	RCMP Zone 4 (North)	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=176861	TGroupId=12726	4N1 The Pas	Off	61936	DIGITAL	2				
+TGID	Tid=176870	TGroupId=12726	4N10 Churchill	Off	61648	DIGITAL	2				
+TGID	Tid=176871	TGroupId=12726	4N11 Gillam	Off	61616	DIGITAL	2				
+TGID	Tid=176872	TGroupId=12726	4N12 God's Lake	Off	61584	DIGITAL	2				
+TGID	Tid=176873	TGroupId=12726	4N13 Oxford House	Off	61552	DIGITAL	2				
+TGID	Tid=52756	TGroupId=12726	4N14 Melita	Off	65456	DIGITAL	2				
+TGID	Tid=176814	TGroupId=12726	4N15 Rossburn	Off	62448	DIGITAL	2				
+TGID	Tid=176874	TGroupId=12726	4N16 Shamattawa	Off	61520	DIGITAL	2				
+TGID	Tid=176862	TGroupId=12726	4N2 Flin Flon	Off	61904	DIGITAL	2				
+TGID	Tid=176863	TGroupId=12726	4N3 Snow Lake	Off	61872	DIGITAL	2				
+TGID	Tid=176864	TGroupId=12726	4N4 Norway House	Off	61840	DIGITAL	2				
+TGID	Tid=176865	TGroupId=12726	4N5 Thompson	Off	61808	DIGITAL	2				
+TGID	Tid=176866	TGroupId=12726	4N6 Thompson GIS	Off	61776	DIGITAL	23				
+TGID	Tid=176867	TGroupId=12726	4N7 Pukatawagan	Off	61744	DIGITAL	2				
+TGID	Tid=176868	TGroupId=12726	4N8 Leaf Rapids	Off	61712	DIGITAL	2				
+TGID	Tid=176869	TGroupId=12726	4N9 Lynn Lake	Off	61680	DIGITAL	2				
+T-Group	TGroupId=12730	TrunkId=537	RCMP Zone 5 (CCAPS)	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=52718	TGroupId=12730	5CAP1 Traffic	Off	64240	DIGITAL	23				
+TGID	Tid=52709	TGroupId=12730	5CAP10 Spare	Off	63952	DIGITAL	23				
+TGID	Tid=52708	TGroupId=12730	5CAP11 Spare	Off	63920	DIGITAL	23				
+TGID	Tid=52707	TGroupId=12730	5CAP12 Spare	Off	63888	DIGITAL	23				
+TGID	Tid=52706	TGroupId=12730	5CAP13 Spare	Off	63856	DIGITAL	23				
+TGID	Tid=52705	TGroupId=12730	5CAP14 Spare	Off	63824	DIGITAL	23				
+TGID	Tid=52704	TGroupId=12730	5CAP15 Spare	Off	63792	DIGITAL	23				
+TGID	Tid=52703	TGroupId=12730	5CAP16 Spare	Off	63760	DIGITAL	23				
+TGID	Tid=52717	TGroupId=12730	5CAP2 Auto Theft	Off	64208	DIGITAL	7				
+TGID	Tid=52716	TGroupId=12730	5CAP3 ERT	Off	64176	DIGITAL	7				
+TGID	Tid=52715	TGroupId=12730	5CAP4 FIS/IDENT	Off	64144	DIGITAL	7				
+TGID	Tid=52714	TGroupId=12730	5CAP5 GIS	Off	64112	DIGITAL	7				
+TGID	Tid=52713	TGroupId=12730	5CAP6 CCAPS	Off	64080	DIGITAL	23				
+TGID	Tid=52712	TGroupId=12730	5CAP7 Commercial Crime	Off	64048	DIGITAL	7				
+TGID	Tid=52711	TGroupId=12730	5CAP8 C&E	Off	64016	DIGITAL	2				
+TGID	Tid=52710	TGroupId=12730	5CAP9 IPOC	Off	63984	DIGITAL	23				
+T-Group	TGroupId=12729	TrunkId=537	RCMP Zone 6 (Federal)	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=52702	TGroupId=12729	6FED1 CIS/CISM	Off	63728	DIGITAL	7				
+TGID	Tid=52693	TGroupId=12729	6FED10 Spare	Off	63440	DIGITAL	23				
+TGID	Tid=52634	TGroupId=12729	6FED11 Spare	Off	61488	DIGITAL	7				
+TGID	Tid=52633	TGroupId=12729	6FED12 Spare	Off	61456	DIGITAL	23				
+TGID	Tid=52701	TGroupId=12729	6FED2 DCAS	Off	63696	DIGITAL	7				
+TGID	Tid=52700	TGroupId=12729	6FED3 OIC	Off	63664	DIGITAL	7				
+TGID	Tid=52699	TGroupId=12729	6FED4 NSIS	Off	63632	DIGITAL	7				
+TGID	Tid=52698	TGroupId=12729	6FED5 Sec Eng (Special I)	Off	63600	DIGITAL	7				
+TGID	Tid=52697	TGroupId=12729	6FED6 Drugs	Off	63568	DIGITAL	7				
+TGID	Tid=52696	TGroupId=12729	6FED7 I&P	Off	63536	DIGITAL	7				
+TGID	Tid=52695	TGroupId=12729	6FED8 Special O	Off	63504	DIGITAL	7				
+TGID	Tid=52694	TGroupId=12729	6FED9 Spare	Off	63472	DIGITAL	23				
+T-Group	TGroupId=12727	TrunkId=537	RCMP Zone 7 (Tac)	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=52690	TGroupId=12727	7 Tac 1	Off	63344	DIGITAL	7				
+TGID	Tid=52681	TGroupId=12727	7 Tac 10	Off	63056	DIGITAL	7				
+TGID	Tid=52680	TGroupId=12727	7 Tac 11	Off	63024	DIGITAL	7				
+TGID	Tid=52679	TGroupId=12727	7 Tac 12	Off	62992	DIGITAL	7				
+TGID	Tid=52678	TGroupId=12727	7 Tac 13	Off	62960	DIGITAL	7				
+TGID	Tid=52677	TGroupId=12727	7 Tac 14	Off	62928	DIGITAL	7				
+TGID	Tid=52676	TGroupId=12727	7 Tac 15	Off	62896	DIGITAL	7				
+TGID	Tid=52675	TGroupId=12727	7 Tac 16	Off	62864	DIGITAL	7				
+TGID	Tid=52689	TGroupId=12727	7 Tac 2	Off	63312	DIGITAL	7				
+TGID	Tid=52688	TGroupId=12727	7 Tac 3	Off	63280	DIGITAL	7				
+TGID	Tid=52687	TGroupId=12727	7 Tac 4	Off	63248	DIGITAL	7				
+TGID	Tid=52686	TGroupId=12727	7 Tac 5	Off	63216	DIGITAL	7				
+TGID	Tid=52685	TGroupId=12727	7 Tac 6	Off	63184	DIGITAL	7				
+TGID	Tid=52684	TGroupId=12727	7 Tac 7	Off	63152	DIGITAL	7				
+TGID	Tid=52683	TGroupId=12727	7 Tac 8	Off	63120	DIGITAL	7				
+TGID	Tid=52682	TGroupId=12727	7 Tac 9	Off	63088	DIGITAL	7				
+T-Group	TGroupId=12728	TrunkId=537	RCMP/WPS Interop	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=52736	TGroupId=12728	RCMP/WPS 2	Off	64816	DIGITAL	11				
+TGID	Tid=52735	TGroupId=12728	RCMP/WPS 3	Off	64784	DIGITAL	11				
+T-Group	TGroupId=3466	TrunkId=537	Rural EMS	Off	49.679270	-98.039830	150.0	Circle
+TGID	Tid=22503	TGroupId=3466	Altona	Off	10304	ANALOG	4				
+TGID	Tid=22534	TGroupId=3466	Assiniboine	Off	20208	ANALOG	4				
+TGID	Tid=22520	TGroupId=3466	Assiniboine	Off	20224	ANALOG	4				
+TGID	Tid=22519	TGroupId=3466	Assiniboine	Off	20240	ANALOG	4				
+TGID	Tid=22463	TGroupId=3466	Boissevain	Off	5264	ANALOG	4				
+TGID	Tid=22460	TGroupId=3466	Brandon Hospitals	Off	12416	ANALOG	12				
+TGID	Tid=176815	TGroupId=3466	Burntwood Region	Off	20080	ANALOG	4				
+TGID	Tid=176822	TGroupId=3466	Burntwood Region	Off	20448	ANALOG	4				
+TGID	Tid=176825	TGroupId=3466	Burntwood Region	Off	20464	ANALOG	4				
+TGID	Tid=22521	TGroupId=3466	Carberry	Off	5568	ANALOG	4				
+TGID	Tid=22522	TGroupId=3466	Cartier	Off	5056	ANALOG	4				
+TGID	Tid=176828	TGroupId=3466	Central Region	Off	6384	ANALOG	4				
+TGID	Tid=176819	TGroupId=3466	Central Region	Off	20032	ANALOG	4				
+TGID	Tid=176820	TGroupId=3466	Central Region	Off	20048	ANALOG	4				
+TGID	Tid=176824	TGroupId=3466	Central Region	Off	20064	ANALOG	4				
+TGID	Tid=22383	TGroupId=3466	Criti-Care Ambulance 1	Off	1168	ANALOG	29				
+TGID	Tid=22382	TGroupId=3466	Criti-Care Ambulance 2	Off	1744	ANALOG	29				
+TGID	Tid=22381	TGroupId=3466	Criti-Care Ambulance 3	Off	20816	ANALOG	29				
+TGID	Tid=22527	TGroupId=3466	Emerson	Off	10336	ANALOG	4				
+TGID	Tid=176818	TGroupId=3466	Gimli	Off	10272	ANALOG	4				
+TGID	Tid=22529	TGroupId=3466	Glenboro	Off	4944	ANALOG	4				
+TGID	Tid=22530	TGroupId=3466	Hamiota	Off	11984	ANALOG	4				
+TGID	Tid=176817	TGroupId=3466	Interlake Region	Off	20256	ANALOG	4				
+TGID	Tid=176821	TGroupId=3466	Interlake Region	Off	20272	ANALOG	4				
+TGID	Tid=176826	TGroupId=3466	Interlake Region	Off	20288	ANALOG	4				
+TGID	Tid=22517	TGroupId=3466	MB Health - Business	Off	18640	ANALOG	17				
+TGID	Tid=176875	TGroupId=3466	NE Man Region	Off	2272	ANALOG	4				
+TGID	Tid=176876	TGroupId=3466	NE Man Region	Off	20320	ANALOG	4				
+TGID	Tid=176877	TGroupId=3466	NE Man Region	Off	20336	ANALOG	4				
+TGID	Tid=22513	TGroupId=3466	Norman Region	Off	20400	ANALOG	4				
+TGID	Tid=22437	TGroupId=3466	Norman Region	Off	20416	ANALOG	4				
+TGID	Tid=22438	TGroupId=3466	Norman Region	Off	20432	ANALOG	4				
+TGID	Tid=176816	TGroupId=3466	Parkland Region	Off	20352	ANALOG	4				
+TGID	Tid=176823	TGroupId=3466	Parkland Region	Off	20368	ANALOG	4				
+TGID	Tid=176827	TGroupId=3466	Parkland Region	Off	20384	ANALOG	4				
+TGID	Tid=176829	TGroupId=3466	Pine Falls	Off	10752	ANALOG	4				
+TGID	Tid=22443	TGroupId=3466	Provincial EMS	Off	19408	ANALOG	25				
+TGID	Tid=22444	TGroupId=3466	Reston	Off	6288	ANALOG	4				
+TGID	Tid=22449	TGroupId=3466	SE Manitoba Region	Off	20160	ANALOG	4				
+TGID	Tid=22450	TGroupId=3466	SE Manitoba Region	Off	20176	ANALOG	4				
+TGID	Tid=22451	TGroupId=3466	SE Manitoba Region	Off	20192	ANALOG	4				
+TGID	Tid=22452	TGroupId=3466	SE Regional	Off	4080	ANALOG	4				
+TGID	Tid=22453	TGroupId=3466	Selkirk	Off	6800	ANALOG	4				
+TGID	Tid=22446	TGroupId=3466	South Westman RHA	Off	20000	ANALOG	4				
+TGID	Tid=22447	TGroupId=3466	South Westman RHA	Off	20016	ANALOG	4				
+TGID	Tid=22454	TGroupId=3466	Springfield	Off	10720	ANALOG	4				
+TGID	Tid=22455	TGroupId=3466	Steinbach	Off	5808	ANALOG	4				
+TGID	Tid=22456	TGroupId=3466	Steinbach	Off	5952	ANALOG	4				
+TGID	Tid=22436	TGroupId=3466	Stonewall	Off	5168	ANALOG	4				
+TGID	Tid=176830	TGroupId=3466	Swan River	Off	4880	ANALOG	4				
+TGID	Tid=22434	TGroupId=3466	Treherne	Off	10848	ANALOG	4				
+TGID	Tid=22433	TGroupId=3466	Virden	Off	6064	ANALOG	4				
+TGID	Tid=22432	TGroupId=3466	Wawanesa	Off	9296	ANALOG	4				
+TGID	Tid=22431	TGroupId=3466	Winkler	Off	10256	ANALOG	4				
+T-Group	TGroupId=3467	TrunkId=537	Rural Fire	Off	49.679270	-98.039830	150.0	Circle
+TGID	Tid=53572	TGroupId=3467	Antler River Home Dispatch	Off	22096	ANALOG	3				
+TGID	Tid=53573	TGroupId=3467	Antler River Home Tactical	Off	22576	ANALOG	8				
+TGID	Tid=53595	TGroupId=3467	Antler River/Oak Lake/Turtle Mtn E-911 Call in	Off	3472	ANALOG	29				
+TGID	Tid=22426	TGroupId=3467	Arson Squad	Off	19552	ANALOG	8				
+TGID	Tid=22424	TGroupId=3467	Arson Squad	Off	19568	ANALOG	8				
+TGID	Tid=347191	TGroupId=3467	Beausejour_Brokenhead Volunteer Fire Dept	Off	2720	ANALOG	3				
+TGID	Tid=53575	TGroupId=3467	Boyne River Home Dispatch	Off	21920	ANALOG	3				
+TGID	Tid=53576	TGroupId=3467	Boyne River Home Tactical	Off	22400	ANALOG	8				
+TGID	Tid=22423	TGroupId=3467	Carman	Off	11760	ANALOG	3				
+TGID	Tid=176842	TGroupId=3467	Central Area Fire	Off	19200	ANALOG	3				
+TGID	Tid=176841	TGroupId=3467	Central Area Fire	Off	19216	ANALOG	3				
+TGID	Tid=176840	TGroupId=3467	Central Area Fire	Off	19232	ANALOG	3				
+TGID	Tid=22419	TGroupId=3467	Clandeboye	Off	6768	ANALOG	3				
+TGID	Tid=215355	TGroupId=3467	Dominion City Fire	Off	3360	ANALOG	3				
+TGID	Tid=22396	TGroupId=3467	E911 Dispatch to Beausejour/Brokenhead VFD	Off	5904	ANALOG	3				
+TGID	Tid=22417	TGroupId=3467	East St Paul	Off	1664	ANALOG	3				
+TGID	Tid=22418	TGroupId=3467	East St Paul	Off	15888	ANALOG	3				
+TGID	Tid=176878	TGroupId=3467	Eastman Home Dispatch	Off	22048	ANALOG	3				
+TGID	Tid=176879	TGroupId=3467	Eastman Home Tactical	Off	22528	ANALOG	8				
+TGID	Tid=22416	TGroupId=3467	Elm Creek	Off	11184	ANALOG	3				
+TGID	Tid=176880	TGroupId=3467	Grand Valley Home Dispatch	Off	22064	ANALOG	3				
+TGID	Tid=176881	TGroupId=3467	Grand Valley Home Tactical	Off	22544	ANALOG	8				
+TGID	Tid=22415	TGroupId=3467	Headingley	Off	6080	ANALOG	3				
+TGID	Tid=22414	TGroupId=3467	Headingley	Off	18768	ANALOG	3				
+TGID	Tid=176843	TGroupId=3467	Inwood	Off	6336	ANALOG	3				
+TGID	Tid=22412	TGroupId=3467	Kleefeld	Off	3520	ANALOG	3				
+TGID	Tid=176834	TGroupId=3467	Lake Winnipegosis Home Dispatch	Off	22016	ANALOG	3				
+TGID	Tid=176839	TGroupId=3467	Lake Winnipegosis Home Tactical	Off	22496	ANALOG	8				
+TGID	Tid=22410	TGroupId=3467	MacDonald	Off	10832	ANALOG	3				
+TGID	Tid=22409	TGroupId=3467	Morris	Off	11600	ANALOG	3				
+TGID	Tid=176835	TGroupId=3467	Neepawa Area Home Dispatch	Off	22176	ANALOG	3				
+TGID	Tid=176837	TGroupId=3467	Neepawa Area Home Tactical	Off	22656	ANALOG	8				
+TGID	Tid=22408	TGroupId=3467	Niverville	Off	5280	ANALOG	3				
+TGID	Tid=176882	TGroupId=3467	North East Home Dispatch	Off	21936	ANALOG	3				
+TGID	Tid=176883	TGroupId=3467	North East Home Tactical	Off	22416	ANALOG	8				
+TGID	Tid=176884	TGroupId=3467	North Interlake Home Dispatch	Off	22000	ANALOG	3				
+TGID	Tid=176885	TGroupId=3467	North Interlake Home Tactical	Off	22480	ANALOG	8				
+TGID	Tid=53596	TGroupId=3467	Oak Lake Home Dispatch	Off	22160	ANALOG	3				
+TGID	Tid=53622	TGroupId=3467	Office of Fire Commissioners	Off	6320	ANALOG	24				
+TGID	Tid=53599	TGroupId=3467	Pembina Triangle Home Dispatch	Off	21968	ANALOG	3				
+TGID	Tid=53600	TGroupId=3467	Pembina Triangle Home Tactical	Off	22448	ANALOG	8				
+TGID	Tid=53602	TGroupId=3467	Pembina Valley Home Dispatch	Off	21952	ANALOG	3				
+TGID	Tid=53603	TGroupId=3467	Pembina Valley Home Tactical	Off	22432	ANALOG	8				
+TGID	Tid=252268	TGroupId=3467	Piney	Off	8288	ANALOG	3				
+TGID	Tid=22407	TGroupId=3467	Portage la Prairie	Off	5680	ANALOG	3				
+TGID	Tid=53626	TGroupId=3467	Provincial Common	Off	22384	ANALOG	11				
+TGID	Tid=263188	TGroupId=3467	Reynolds Fire	Off	25264	ANALOG	3				
+TGID	Tid=176833	TGroupId=3467	Riding Mountain Home Dispatch	Off	22128	ANALOG	3				
+TGID	Tid=176836	TGroupId=3467	Riding Mountain Home Tactical	Off	22608	ANALOG	8				
+TGID	Tid=22403	TGroupId=3467	Ritchot	Off	1536	ANALOG	3				
+TGID	Tid=22402	TGroupId=3467	Roseau River	Off	544	ANALOG	3				
+TGID	Tid=22401	TGroupId=3467	Roseau River	Off	560	ANALOG	3				
+TGID	Tid=22400	TGroupId=3467	Roseau River	Off	576	ANALOG	3				
+TGID	Tid=22399	TGroupId=3467	Rosenort	Off	11664	ANALOG	3				
+TGID	Tid=22398	TGroupId=3467	Rosser	Off	8656	ANALOG	3				
+TGID	Tid=22397	TGroupId=3467	Rural FD	Off	16000	ANALOG	3				
+TGID	Tid=53608	TGroupId=3467	South Central Home Dispatch	Off	22144	ANALOG	3				
+TGID	Tid=53609	TGroupId=3467	South Central Home Tactical	Off	22624	ANALOG	8				
+TGID	Tid=53610	TGroupId=3467	South Interlake E-911 Call in	Off	6928	ANALOG	29				
+TGID	Tid=53611	TGroupId=3467	South Interlake Home Dispatch	Off	22080	ANALOG	3				
+TGID	Tid=53612	TGroupId=3467	South Interlake Home Tactical	Off	22560	ANALOG	8				
+TGID	Tid=22393	TGroupId=3467	Sperling	Off	11728	ANALOG	3				
+TGID	Tid=22394	TGroupId=3467	Springfield	Off	7648	ANALOG	3				
+TGID	Tid=22392	TGroupId=3467	St Andrews	Off	7440	ANALOG	3				
+TGID	Tid=22391	TGroupId=3467	St Andrews	Off	7472	ANALOG	3				
+TGID	Tid=22390	TGroupId=3467	St Francois	Off	5216	ANALOG	3				
+TGID	Tid=22389	TGroupId=3467	St Malo	Off	8768	ANALOG	3				
+TGID	Tid=22388	TGroupId=3467	St Pierre	Off	8800	ANALOG	3				
+TGID	Tid=22387	TGroupId=3467	Ste Anne	Off	6704	ANALOG	3				
+TGID	Tid=176844	TGroupId=3467	Ste Rose	Off	10976	ANALOG	16				
+TGID	Tid=22385	TGroupId=3467	Steinbach Fire	Off	5776	ANALOG	3				
+TGID	Tid=176832	TGroupId=3467	Swan River Valley Home Dispatch	Off	22112	ANALOG	3				
+TGID	Tid=176838	TGroupId=3467	Swan River Valley Home Tactical	Off	22592	ANALOG	8				
+TGID	Tid=176831	TGroupId=3467	Swan River Valley/Riding Mtn/Winnipegosis E-911 Call in	Off	5968	ANALOG	29				
+TGID	Tid=270276	TGroupId=3467	TG 12320 - Fire Station 1	Off	12320	ANALOG	3				
+TGID	Tid=194972	TGroupId=3467	The Pas Fire	Off	10128	ANALOG	3				
+TGID	Tid=53617	TGroupId=3467	Turtle Mountain Home Dispatch	Off	22032	ANALOG	3				
+TGID	Tid=53618	TGroupId=3467	Turtle Mountain Home Tactical	Off	22512	ANALOG	8				
+TGID	Tid=215356	TGroupId=3467	Vita Fire	Off	10080	ANALOG	3				
+TGID	Tid=53586	TGroupId=3467	West Central E-911 Call in	Off	6960	ANALOG	29				
+TGID	Tid=53620	TGroupId=3467	West Central Home Dispatch	Off	21984	ANALOG	3				
+TGID	Tid=53621	TGroupId=3467	West Central Home Tactical	Off	22464	ANALOG	8				
+TGID	Tid=22384	TGroupId=3467	West St Paul	Off	6864	ANALOG	3				
+TGID	Tid=268278	TGroupId=3467	Whitemouth Fire	Off	10240	ANALOG	3				
+T-Group	TGroupId=17449	TrunkId=537	Rural Public Works	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=223402	TGroupId=17449	Prairie Spirit	Off	19840	ANALOG	14				
+TGID	Tid=223403	TGroupId=17449	Prairie Spirit 2	Off	20944	ANALOG	14				
+TGID	Tid=223404	TGroupId=17449	Prairie Spirit By-law	Off	24112	ANALOG	14				
+TGID	Tid=223391	TGroupId=17449	RM - Alexander	Off	26944	ANALOG	14				
+TGID	Tid=223392	TGroupId=17449	RM - Clanwilliam	Off	20848	ANALOG	14				
+TGID	Tid=223396	TGroupId=17449	RM - Franklin	Off	23728	ANALOG	14				
+TGID	Tid=223394	TGroupId=17449	RM - Park	Off	11024	ANALOG	14				
+TGID	Tid=223393	TGroupId=17449	RM - St. Clements	Off	19776	ANALOG	14				
+TGID	Tid=223395	TGroupId=17449	RM - Stuart	Off	3792	ANALOG	14				
+TGID	Tid=223400	TGroupId=17449	Seal River	Off	26400	ANALOG	14				
+TGID	Tid=223401	TGroupId=17449	Town of Riverton	Off	14608	ANALOG	14				
+TGID	Tid=223719	TGroupId=17449	Town of Sheridan	Off	27952	ANALOG	14				
+TGID	Tid=223720	TGroupId=17449	Town of Sinclair	Off	384	ANALOG	14				
+TGID	Tid=223718	TGroupId=17449	Town of Snow Lake - Maintenance	Off	15040	ANALOG	14				
+TGID	Tid=223729	TGroupId=17449	Winkler - Chamber of Commerce	Off	18560	ANALOG	14				
+T-Group	TGroupId=17462	TrunkId=537	Selkirk	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=223715	TGroupId=17462	City of Selkirk - Health Branch	Off	24336	ANALOG	14				
+TGID	Tid=223714	TGroupId=17462	City of Selkirk - Ice Control	Off	27168	ANALOG	14				
+T-Group	TGroupId=3470	TrunkId=537	Utilities	Off	49.679270	-98.039830	150.0	Circle
+TGID	Tid=22496	TGroupId=3470	Centra Gas	Off	48176	ANALOG	34				
+TGID	Tid=22493	TGroupId=3470	Centra Gas - Brandon 1	Off	50320	ANALOG	34				
+TGID	Tid=22495	TGroupId=3470	Centra Gas - Citygate 1	Off	50256	ANALOG	34				
+TGID	Tid=176845	TGroupId=3470	Centra Gas - Dauphin	Off	50352	ANALOG	34				
+TGID	Tid=22501	TGroupId=3470	Centra Gas - Eastern	Off	48128	ANALOG	34				
+TGID	Tid=22502	TGroupId=3470	Centra Gas - Emergency	Off	48160	ANALOG	34				
+TGID	Tid=22490	TGroupId=3470	Centra Gas - Liaison	Off	50416	ANALOG	34				
+TGID	Tid=22494	TGroupId=3470	Centra Gas - Portage la Prairie	Off	50288	ANALOG	34				
+TGID	Tid=22499	TGroupId=3470	Centra Gas - Steinbach	Off	48064	ANALOG	34				
+TGID	Tid=22500	TGroupId=3470	Centra Gas - Virden	Off	48096	ANALOG	34				
+TGID	Tid=22491	TGroupId=3470	Centra Gas - Western	Off	50384	ANALOG	34				
+TGID	Tid=22498	TGroupId=3470	Centra Gas - Winkler	Off	48032	ANALOG	34				
+TGID	Tid=22497	TGroupId=3470	Centra Gas - Winnipeg	Off	48000	ANALOG	34				
+TGID	Tid=222458	TGroupId=3470	Inter Lake Power	Off	15472	ANALOG	34				
+T-Group	TGroupId=3471	TrunkId=537	Winnipeg Airport Authority	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=22552	TGroupId=3471	Building Maintenance	Off	10000	ANALOG	17				
+TGID	Tid=22509	TGroupId=3471	Canada Customs	Off	9776	ANALOG	16				
+TGID	Tid=22551	TGroupId=3471	Contractors	Off	9744	ANALOG	17				
+TGID	Tid=22554	TGroupId=3471	Emergency	Off	9616	ANALOG	29				
+TGID	Tid=22535	TGroupId=3471	Engineering	Off	9872	ANALOG	17				
+TGID	Tid=72800	TGroupId=3471	ERS/Fire	Off	9712	ANALOG	3				
+TGID	Tid=22548	TGroupId=3471	Field Electrician	Off	10064	ANALOG	17				
+TGID	Tid=22557	TGroupId=3471	Field Maintenance	Off	10032	ANALOG	17				
+TGID	Tid=22555	TGroupId=3471	Ground Operations	Off	9680	ANALOG	17				
+TGID	Tid=22549	TGroupId=3471	Liaison	Off	9840	ANALOG	17				
+TGID	Tid=72799	TGroupId=3471	Main	Off	9648	ANALOG	24				
+TGID	Tid=22556	TGroupId=3471	Maintenance	Off	9904	ANALOG	17				
+TGID	Tid=22553	TGroupId=3471	Security	Off	9808	ANALOG	33				
+TGID	Tid=22547	TGroupId=3471	Trade Workers 1	Off	9936	ANALOG	17				
+TGID	Tid=22511	TGroupId=3471	Trade Workers 2	Off	9968	ANALOG	17				
+TGID	Tid=22559	TGroupId=3471	WPS Airport Detail	Off	9520	ANALOG	2				
+T-Group	TGroupId=17123	TrunkId=537	Winnipeg City Services	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=220716	TGroupId=17123	City of Winnipeg	Off	9280	ANALOG	14				
+TGID	Tid=223665	TGroupId=17123	City of Winnipeg - Parks	Off	15840	ANALOG	14				
+TGID	Tid=223713	TGroupId=17123	Winnipeg Region Health Authority - TAC	Off	12384	ANALOG	29				
+TGID	Tid=223667	TGroupId=17123	Winnipeg Regional Health Authority - Hospital	Off	12304	ANALOG	12				
+TGID	Tid=223666	TGroupId=17123	Winnipeg Regional Health Authority - Mobile Crisis	Off	51472	DIGITAL	29				
+TGID	Tid=223668	TGroupId=17123	Winnipeg Regional Health Authority - Security	Off	51504	DIGITAL	33				
+T-Group	TGroupId=3473	TrunkId=537	Winnipeg Police	Off	49.679270	-98.039830	150.0	Circle
+TGID	Tid=54289	TGroupId=3473	1A Districts 1, 2, 6	Off	16048	DIGITAL	2				
+TGID	Tid=54258	TGroupId=3473	1B Districts 3, 4, 5 General Dispatch	Off	16080	DIGITAL	2				
+TGID	Tid=54259	TGroupId=3473	1C Alternate Dispatch / Dispatch Overflow	Off	16112	DIGITAL	2				
+TGID	Tid=54260	TGroupId=3473	1D CPIC / Infocell Portable	Off	16144	DIGITAL	23				
+TGID	Tid=54261	TGroupId=3473	1E Emergency Channel (Tactical)	Off	16176	DIGITAL	7				
+TGID	Tid=54262	TGroupId=3473	1F Emergency Channel (Tactical)	Off	16208	DIGITAL	7				
+TGID	Tid=54263	TGroupId=3473	1G Tactical	Off	16240	DIGITAL	7				
+TGID	Tid=54264	TGroupId=3473	1H Tactical	Off	16272	DIGITAL	7				
+TGID	Tid=54265	TGroupId=3473	1I Tactical	Off	16304	DIGITAL	7				
+TGID	Tid=54266	TGroupId=3473	1J Tactical	Off	16336	DIGITAL	7				
+TGID	Tid=54267	TGroupId=3473	1K Tactical (Airport)	Off	16368	DIGITAL	7				
+TGID	Tid=54268	TGroupId=3473	1L WPS RCMP1 Mutual-Aid	Off	16400	DIGITAL	11				
+TGID	Tid=173951	TGroupId=3473	1M RCMP WPS Mutual-Aid	Off	47920	DIGITAL	11				
+TGID	Tid=54272	TGroupId=3473	1P	Off	16352	DIGITAL	23				
+TGID	Tid=54274	TGroupId=3473	2B Park Police (Assiniboine, Kildonan, St. Vital, etc)	Off	16416	DIGITAL	2				
+TGID	Tid=54275	TGroupId=3473	2C Training	Off	16432	DIGITAL	23				
+TGID	Tid=54276	TGroupId=3473	2D Training	Off	16448	DIGITAL	23				
+TGID	Tid=54277	TGroupId=3473	2E Traffic Division	Off	16464	DIGITAL	23				
+TGID	Tid=54278	TGroupId=3473	2F Traffic Division	Off	16480	DIGITAL	23				
+TGID	Tid=54279	TGroupId=3473	2G Tactical / Surveillance / Operations	Off	16496	DIGITAL	7				
+TGID	Tid=54280	TGroupId=3473	2H Tactical / Surveillance / Operations	Off	16512	DIGITAL	7				
+TGID	Tid=54281	TGroupId=3473	2I Tactical / Surveillance / Operations	Off	16528	DIGITAL	7				
+TGID	Tid=54282	TGroupId=3473	2J Tactical / Surveillance / Operations	Off	16544	DIGITAL	7				
+TGID	Tid=54283	TGroupId=3473	2K Tactical / Surveillance / Operations	Off	16560	DIGITAL	7				
+TGID	Tid=54284	TGroupId=3473	2L Tactical / Surveillance / Operations	Off	16576	DIGITAL	7				
+TGID	Tid=54290	TGroupId=3473	3B WPS	Off	16624	DIGITAL	23				
+TGID	Tid=54291	TGroupId=3473	3C WPS	Off	16640	DIGITAL	23				
+TGID	Tid=54292	TGroupId=3473	3D WPS	Off	16656	DIGITAL	23				
+TGID	Tid=54293	TGroupId=3473	3E WPS	Off	16672	DIGITAL	23				
+TGID	Tid=54294	TGroupId=3473	3F WPS	Off	16688	DIGITAL	23				
+TGID	Tid=54295	TGroupId=3473	3G WPS	Off	16704	DIGITAL	23				
+TGID	Tid=54296	TGroupId=3473	3H WPS	Off	16720	DIGITAL	23				
+TGID	Tid=54297	TGroupId=3473	3I  WPS	Off	16736	DIGITAL	23				
+TGID	Tid=54298	TGroupId=3473	3J WPS	Off	16752	DIGITAL	23				
+TGID	Tid=54299	TGroupId=3473	3K WPS	Off	16768	DIGITAL	23				
+TGID	Tid=54300	TGroupId=3473	3L WPS	Off	16784	DIGITAL	23				
+TGID	Tid=54301	TGroupId=3473	3M WPS	Off	16800	DIGITAL	23				
+TGID	Tid=54302	TGroupId=3473	3N WPS	Off	16816	DIGITAL	23				
+TGID	Tid=54303	TGroupId=3473	3O WPS	Off	16832	DIGITAL	23				
+TGID	Tid=54304	TGroupId=3473	3P Evidence Control	Off	16848	DIGITAL	7				
+TGID	Tid=174791	TGroupId=3473	4B Ops	Off	52816	DIGITAL	23				
+TGID	Tid=174792	TGroupId=3473	4C Ops	Off	52832	DIGITAL	23				
+TGID	Tid=174793	TGroupId=3473	4D Ops	Off	52848	DIGITAL	23				
+TGID	Tid=174794	TGroupId=3473	4E Street Crime	Off	52864	DIGITAL	23				
+TGID	Tid=174795	TGroupId=3473	4F Holdup	Off	52880	DIGITAL	23				
+TGID	Tid=174796	TGroupId=3473	4G Auto Squad	Off	52896	DIGITAL	23				
+TGID	Tid=174797	TGroupId=3473	4H Drug Ops	Off	52912	DIGITAL	23				
+TGID	Tid=174798	TGroupId=3473	4I Drug Ops	Off	52928	DIGITAL	23				
+TGID	Tid=174799	TGroupId=3473	4J Drug Ops	Off	52944	DIGITAL	23				
+TGID	Tid=174800	TGroupId=3473	4K Drug Ops	Off	52960	DIGITAL	23				
+TGID	Tid=174801	TGroupId=3473	4L Vice Ops	Off	52976	DIGITAL	23				
+TGID	Tid=174802	TGroupId=3473	4M Vice Ops	Off	52992	DIGITAL	23				
+TGID	Tid=174803	TGroupId=3473	4N Vice Ops	Off	53008	DIGITAL	23				
+TGID	Tid=174804	TGroupId=3473	4O Ops	Off	53024	DIGITAL	23				
+TGID	Tid=174805	TGroupId=3473	4P Ops	Off	53040	DIGITAL	23				
+TGID	Tid=174816	TGroupId=3473	5B WPS RCMP1	Off	53296	DIGITAL	11				
+TGID	Tid=174817	TGroupId=3473	5C WPS RCMP2	Off	53328	DIGITAL	11				
+TGID	Tid=167107	TGroupId=3473	5F Ops	Off	53056	DIGITAL	23				
+TGID	Tid=174806	TGroupId=3473	5G Ops	Off	53072	DIGITAL	23				
+TGID	Tid=174807	TGroupId=3473	5H Ops	Off	53088	DIGITAL	23				
+TGID	Tid=174808	TGroupId=3473	5I Gang Ops / OCC	Off	53104	DIGITAL	23				
+TGID	Tid=174809	TGroupId=3473	5J Ops	Off	53120	DIGITAL	23				
+TGID	Tid=174810	TGroupId=3473	5K Ops	Off	53136	DIGITAL	23				
+TGID	Tid=174811	TGroupId=3473	5L Ops	Off	53152	DIGITAL	23				
+TGID	Tid=174812	TGroupId=3473	5M Ops	Off	53184	DIGITAL	23				
+TGID	Tid=174813	TGroupId=3473	5N Ops	Off	53200	DIGITAL	23				
+TGID	Tid=174814	TGroupId=3473	5O Ops	Off	53216	DIGITAL	23				
+TGID	Tid=174815	TGroupId=3473	5P Ops	Off	53232	DIGITAL	23				
+TGID	Tid=223355	TGroupId=3473	Remand Centre 1	Off	51904	DIGITAL	37				
+TGID	Tid=223356	TGroupId=3473	Remand Centre 2	Off	8688	DIGITAL	37				
+Trunk	TrunkId=6174	StateId=103	Prairie Mobile Communications (LTR 400)	Off		Ltr					
+AreaState	TrunkId=6174	StateId=103
+AreaCounty	TrunkId=6174	CountyId=5229
+Site	SiteId=14364	TrunkId=6174	Confirmed LCN	Off	0.000000	0.000000	0.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14364		Off	412087500	1
+T-Freq	TFreqId=0	SiteId=14364		Off	412437500	2
+T-Freq	TFreqId=0	SiteId=14364		Off	412837500	3
+T-Freq	TFreqId=0	SiteId=14364		Off	413187500	4
+T-Freq	TFreqId=0	SiteId=14364		Off	413762500	5
+T-Group	TGroupId=25369	TrunkId=6174	All	Off	0.000000	0.000000	0.0	Circle
+TGID	Tid=311223	TGroupId=25369	Bank of Canada - Building Security	Off	0-04-012	ALL	33				
+TGID	Tid=311222	TGroupId=25369	Richardson Building - Security/Building Engineers	Off	0-03-013	ALL	17				
+Trunk	TrunkId=6173	StateId=103	Prairie Mobile Communications (LTR 850)	Off		Ltr					
+AreaState	TrunkId=6173	StateId=103
+AreaCounty	TrunkId=6173	CountyId=5229
+Site	SiteId=14363	TrunkId=6173	Confirmed LCN	Off	0.000000	0.000000	0.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=14363		Off	859187500	2
+T-Freq	TFreqId=0	SiteId=14363		Off	858937500	6
+T-Freq	TFreqId=0	SiteId=14363		Off	858687500	8
+T-Freq	TFreqId=0	SiteId=14363		Off	857187500	9
+T-Freq	TFreqId=0	SiteId=14363		Off	858437500	10
+T-Freq	TFreqId=0	SiteId=14363		Off	856937500	11
+T-Freq	TFreqId=0	SiteId=14363		Off	856687500	12
+T-Freq	TFreqId=0	SiteId=14363		Off	856437500	13
+T-Freq	TFreqId=0	SiteId=14363		Off	858187500	14
+T-Freq	TFreqId=0	SiteId=14363		Off	856187500	15
+T-Group	TGroupId=12736	TrunkId=6173	All	Off	0.000000	0.000000	0.0	Circle
+TGID	Tid=311226	TGroupId=12736	Crane Towing	Off	0-11-022	ALL	17				
+TGID	Tid=311224	TGroupId=12736	S & J Construction	Off	0-08-026	ALL	17				
+TGID	Tid=311225	TGroupId=12736	Towing	Off	0-12-035	ALL	17				
+Trunk	TrunkId=10552	StateId=103	Public Safety Communications Service	Off		P25X2_TDMA					
+AreaState	TrunkId=10552	StateId=103
+AreaCounty	TrunkId=10552	CountyId=0
+Site	SiteId=37539	TrunkId=10552	Altona	Off	49.110650	-97.604460	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=37539		Off	771043750	1
+T-Freq	TFreqId=0	SiteId=37539		Off	771293750	2
+T-Freq	TFreqId=0	SiteId=37539		Off	771543750	3
+T-Freq	TFreqId=0	SiteId=37539		Off	771793750	4
+T-Freq	TFreqId=0	SiteId=37539		Off	771543750	5
+T-Freq	TFreqId=0	SiteId=37539		Off	771793750	6
+T-Freq	TFreqId=0	SiteId=37539		Off	772043750	7
+Site	SiteId=43211	TrunkId=10552	Carberry	Off	49.868890	-99.359440	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=43211		Off	771056250	1
+T-Freq	TFreqId=0	SiteId=43211		Off	771306250	2
+T-Freq	TFreqId=0	SiteId=43211		Off	771556250	3
+T-Freq	TFreqId=0	SiteId=43211		Off	771806250	4
+Site	SiteId=37542	TrunkId=10552	Carman	Off	49.499170	-98.000830	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=37542		Off	771081250	1
+T-Freq	TFreqId=0	SiteId=37542		Off	771331250	2
+T-Freq	TFreqId=0	SiteId=37542		Off	771581250	3
+T-Freq	TFreqId=0	SiteId=37542		Off	771831250	4
+T-Freq	TFreqId=0	SiteId=37542		Off	771831250	5
+T-Freq	TFreqId=0	SiteId=37542		Off	772081250	6
+Site	SiteId=37543	TrunkId=10552	Darlingford	Off	49.203890	-98.378060	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=37543		Off	771056250	1
+T-Freq	TFreqId=0	SiteId=37543		Off	771306250	2
+T-Freq	TFreqId=0	SiteId=37543		Off	771556250	3
+T-Freq	TFreqId=0	SiteId=37543		Off	771806250	4
+Site	SiteId=43212	TrunkId=10552	Elie	Off	49.901670	-97.758060	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=43212		Off	771118750	1
+T-Freq	TFreqId=0	SiteId=43212		Off	771368750	2
+T-Freq	TFreqId=0	SiteId=43212		Off	771618750	3
+T-Freq	TFreqId=0	SiteId=43212		Off	771868750	4
+Site	SiteId=37002	TrunkId=10552	Flin Flon	Off	51.347430	-98.204630	200.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=37002		Off	770156250	1
+T-Freq	TFreqId=0	SiteId=37002		Off	770406250	2
+T-Freq	TFreqId=0	SiteId=37002		Off	770656250	3
+T-Freq	TFreqId=0	SiteId=37002		Off	770906250	4
+T-Freq	TFreqId=0	SiteId=37002		Off	771656250	5
+Site	SiteId=37544	TrunkId=10552	Gimli	Off	51.347430	-98.204630	200.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=37544		Off	771081250	1
+T-Freq	TFreqId=0	SiteId=37544		Off	771331250	2
+T-Freq	TFreqId=0	SiteId=37544		Off	771581250	3
+T-Freq	TFreqId=0	SiteId=37544		Off	771831250	4
+Site	SiteId=43213	TrunkId=10552	Haywood	Off	49.666670	-98.196390	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=43213		Off	771281750	1
+T-Freq	TFreqId=0	SiteId=43213		Off	771531250	2
+T-Freq	TFreqId=0	SiteId=43213		Off	771781250	3
+T-Freq	TFreqId=0	SiteId=43213		Off	772031250	4
+Site	SiteId=43214	TrunkId=10552	High Bluff	Off	50.019410	-98.158150	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=43214		Off	770206250	1
+T-Freq	TFreqId=0	SiteId=43214		Off	770456250	2
+T-Freq	TFreqId=0	SiteId=43214		Off	770706250	3
+T-Freq	TFreqId=0	SiteId=43214		Off	770956250	4
+Site	SiteId=34366	TrunkId=10552	Holland	Off	49.594440	-98.881110	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=34366		Off	771106250	1
+T-Freq	TFreqId=0	SiteId=34366		Off	771356250	2
+T-Freq	TFreqId=0	SiteId=34366		Off	771606250	3
+T-Freq	TFreqId=0	SiteId=34366		Off	771856250	4
+Site	SiteId=43215	TrunkId=10552	Long Plain	Off	49.826940	-98.478610	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=43215		Off	771093750	1
+T-Freq	TFreqId=0	SiteId=43215		Off	771343750	2
+T-Freq	TFreqId=0	SiteId=43215		Off	771593750	3
+T-Freq	TFreqId=0	SiteId=43215		Off	771843750	4
+Site	SiteId=43216	TrunkId=10552	MacGregor	Off	49.930830	-98.835560	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=43216		Off	770193750	1
+T-Freq	TFreqId=0	SiteId=43216		Off	770443750	2
+T-Freq	TFreqId=0	SiteId=43216		Off	770693750	3
+T-Freq	TFreqId=0	SiteId=43216		Off	770943750	4
+Site	SiteId=37548	TrunkId=10552	Morris	Off	49.351870	-97.390100	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=37548		Off	770156250	1
+T-Freq	TFreqId=0	SiteId=37548		Off	770406250	2
+T-Freq	TFreqId=0	SiteId=37548		Off	770656250	3
+T-Freq	TFreqId=0	SiteId=37548		Off	770906250	4
+T-Freq	TFreqId=0	SiteId=37548		Off	771156250	5
+T-Freq	TFreqId=0	SiteId=37548		Off	771406250	6
+T-Freq	TFreqId=0	SiteId=37548		Off	771656250	7
+Site	SiteId=43222	TrunkId=10552	Pelican Lake	Off	49.335830	-99.563610	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=43222		Off	771081250	1
+T-Freq	TFreqId=0	SiteId=43222		Off	771331250	2
+T-Freq	TFreqId=0	SiteId=43222		Off	771581250	3
+T-Freq	TFreqId=0	SiteId=43222		Off	771831250	4
+Site	SiteId=43223	TrunkId=10552	Pilot Mound	Off	49.201390	-98.893890	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=43223		Off	770156250	1
+T-Freq	TFreqId=0	SiteId=43223		Off	770406250	2
+T-Freq	TFreqId=0	SiteId=43223		Off	770656250	3
+T-Freq	TFreqId=0	SiteId=43223		Off	770906250	4
+Site	SiteId=42341	TrunkId=10552	Portage La Prairie	Off	49.972780	-98.291940	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=42341		Off	770156250	1
+T-Freq	TFreqId=0	SiteId=42341		Off	770406250	2
+T-Freq	TFreqId=0	SiteId=42341		Off	770656250	3
+T-Freq	TFreqId=0	SiteId=42341		Off	770906250	4
+Site	SiteId=37549	TrunkId=10552	Selkirk	Off	51.347430	-98.204630	200.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=37549		Off	770168750	1
+Site	SiteId=43224	TrunkId=10552	Site 1.02	Off	51.347430	-98.204630	200.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=43224		Off	771043750	1
+Site	SiteId=37540	TrunkId=10552	Site 1.05	Off	51.347430	-98.204630	200.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=37540		Off	771106250	1
+Site	SiteId=37541	TrunkId=10552	Site 1.07	Off	51.347430	-98.204630	200.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=37541		Off	770881250	1
+Site	SiteId=43217	TrunkId=10552	Site 1.12	Off	51.347430	-98.204630	200.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=43217		Off	771093750	1
+Site	SiteId=37545	TrunkId=10552	Site 1.31	Off	51.347430	-98.204630	200.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=37545		Off	771143750	1
+Site	SiteId=37547	TrunkId=10552	Site 1.44	Off	51.347430	-98.204630	200.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=37547		Off	771043750	1
+Site	SiteId=43219	TrunkId=10552	Site 1.49	Off	51.347430	-98.204630	200.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=43219		Off	770206250	1
+Site	SiteId=43220	TrunkId=10552	Site 1.52	Off	51.347430	-98.204630	200.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=43220		Off	771281250	1
+Site	SiteId=43225	TrunkId=10552	Site 1.59	Off	51.347430	-98.204630	200.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=43225		Off	770881250	1
+Site	SiteId=43701	TrunkId=10552	Site 1.62	Off	51.347430	-98.204630	200.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=43701		Off	771106250	1
+Site	SiteId=37550	TrunkId=10552	Site 1.71	Off	51.347430	-98.204630	200.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=37550		Off	771106250	1
+Site	SiteId=37551	TrunkId=10552	Site 1.75	Off	51.347430	-98.204630	200.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=37551		Off	770881250	1
+Site	SiteId=37554	TrunkId=10552	Site 1.83	Off	51.347430	-98.204630	200.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=37554		Off	771081250	1
+Site	SiteId=37557	TrunkId=10552	Site 1.91	Off	51.347430	-98.204630	200.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=37557		Off	771281250	1
+Site	SiteId=37003	TrunkId=10552	Site 211	Off	51.347430	-98.204630	200.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=37003		Off	770193750	1
+Site	SiteId=37004	TrunkId=10552	Site 243	Off	51.347430	-98.204630	200.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=37004		Off	771056250	1
+Site	SiteId=37552	TrunkId=10552	Stonewall	Off	51.347430	-98.204630	200.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=37552		Off	771281250	1
+T-Freq	TFreqId=0	SiteId=37552		Off	771531250	2
+T-Freq	TFreqId=0	SiteId=37552		Off	771781250	3
+T-Freq	TFreqId=0	SiteId=37552		Off	772031250	4
+Site	SiteId=37553	TrunkId=10552	Teulon	Off	51.347430	-98.204630	200.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=37553		Off	771143750	1
+T-Freq	TFreqId=0	SiteId=37553		Off	771393750	2
+T-Freq	TFreqId=0	SiteId=37553		Off	771643750	3
+T-Freq	TFreqId=0	SiteId=37553		Off	771893750	4
+Site	SiteId=43221	TrunkId=10552	Wawanesa	Off	49.600000	-99.683330	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=43221		Off	770168750	1
+T-Freq	TFreqId=0	SiteId=43221		Off	770418750	2
+T-Freq	TFreqId=0	SiteId=43221		Off	770668750	3
+T-Freq	TFreqId=0	SiteId=43221		Off	770918750	4
+Site	SiteId=37555	TrunkId=10552	Winkler	Off	49.195830	-98.021630	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=37555		Off	770206250	1
+T-Freq	TFreqId=0	SiteId=37555		Off	770456250	2
+T-Freq	TFreqId=0	SiteId=37555		Off	770706250	3
+T-Freq	TFreqId=0	SiteId=37555		Off	770956250	4
+T-Freq	TFreqId=0	SiteId=37555		Off	771206250	5
+T-Freq	TFreqId=0	SiteId=37555		Off	771456250	6
+T-Freq	TFreqId=0	SiteId=37555		Off	771706250	7
+T-Freq	TFreqId=0	SiteId=37555		Off	771956250	8
+Site	SiteId=37556	TrunkId=10552	Winnipeg International Airport - YWG	Off	49.909830	-97.236550	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=37556		Off	771056200	1
+T-Freq	TFreqId=0	SiteId=37556		Off	771306250	2
+T-Freq	TFreqId=0	SiteId=37556		Off	771556250	3
+T-Freq	TFreqId=0	SiteId=37556		Off	771806250	4
+T-Freq	TFreqId=0	SiteId=37556		Off	772056250	5
+T-Freq	TFreqId=0	SiteId=37556		Off	772306250	6
+T-Freq	TFreqId=0	SiteId=37556		Off	772556250	7
+T-Freq	TFreqId=0	SiteId=37556		Off	772806250	8
+Site	SiteId=34367	TrunkId=10552	Winnipeg North	Off	51.347430	-98.204630	200.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=34367		Off	771093750	1
+T-Freq	TFreqId=0	SiteId=34367		Off	771343750	2
+T-Freq	TFreqId=0	SiteId=34367		Off	771593750	3
+T-Freq	TFreqId=0	SiteId=34367		Off	771843750	4
+T-Freq	TFreqId=0	SiteId=34367		Off	772093750	5
+T-Freq	TFreqId=0	SiteId=34367		Off	772343750	6
+T-Freq	TFreqId=0	SiteId=34367		Off	772593750	7
+T-Freq	TFreqId=0	SiteId=34367		Off	772843750	8
+T-Freq	TFreqId=0	SiteId=34367		Off	773093750	9
+T-Freq	TFreqId=0	SiteId=34367		Off	773343750	10
+T-Freq	TFreqId=0	SiteId=34367		Off	773593750	11
+T-Freq	TFreqId=0	SiteId=34367		Off	773843750	12
+Site	SiteId=37558	TrunkId=10552	Winnipeg South	Off	51.347430	-98.204630	200.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=37558		Off	771043750	1
+T-Freq	TFreqId=0	SiteId=37558		Off	771293750	2
+T-Freq	TFreqId=0	SiteId=37558		Off	771543750	3
+T-Freq	TFreqId=0	SiteId=37558		Off	771793750	4
+Site	SiteId=42372	TrunkId=10552	Woodside	Off	50.181320	-98.788250	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=42372		Off	771143750	1
+T-Freq	TFreqId=0	SiteId=42372		Off	771393750	2
+T-Freq	TFreqId=0	SiteId=42372		Off	771643750	3
+T-Freq	TFreqId=0	SiteId=42372		Off	771893650	4
+T-Group	TGroupId=35109	TrunkId=10552	Eastman	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=419657	TGroupId=35109	Eastern EMS Hospital Patch	Off	1894	ALL	25				
+TGID	Tid=417683	TGroupId=35109	Eastern EMS Ops	Off	1891	ALL	4				
+TGID	Tid=419655	TGroupId=35109	Eastern EMS TAC 1	Off	1892	ALL	9				
+TGID	Tid=419656	TGroupId=35109	Eastern EMS TAC 2	Off	1893	ALL	9				
+T-Group	TGroupId=35242	TrunkId=10552	Interagency	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=419678	TGroupId=35242	Interagency 01	Off	41000	ALL	11				
+TGID	Tid=419681	TGroupId=35242	Interagency 02	Off	41001	ALL	11				
+TGID	Tid=419680	TGroupId=35242	Interagency 03	Off	41002	ALL	11				
+TGID	Tid=419682	TGroupId=35242	Interagency 04	Off	41003	ALL	11				
+TGID	Tid=419683	TGroupId=35242	Interagency 05	Off	41004	ALL	11				
+TGID	Tid=419684	TGroupId=35242	Interagency 06	Off	41005	ALL	11				
+TGID	Tid=419685	TGroupId=35242	Interagency 07	Off	41006	ALL	11				
+TGID	Tid=419686	TGroupId=35242	Interagency 08	Off	41007	ALL	11				
+T-Group	TGroupId=35239	TrunkId=10552	Northern	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=419661	TGroupId=35239	Northern EMS Hospital Patch	Off	1898	ALL	25				
+TGID	Tid=419658	TGroupId=35239	Northern EMS Ops	Off	1895	ALL	4				
+TGID	Tid=419659	TGroupId=35239	Northern EMS TAC 1	Off	1896	ALL	9				
+TGID	Tid=419660	TGroupId=35239	Northern EMS TAC 2	Off	1897	ALL	9				
+T-Group	TGroupId=31657	TrunkId=10552	Parkland	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=376322	TGroupId=31657	Mountain View School Buses Ch. 1	Off	31000	ALL	32				
+TGID	Tid=376323	TGroupId=31657	Mountain View School Buses Ch. 2	Off	31001	ALL	32				
+TGID	Tid=376324	TGroupId=31657	Mountain View School Buses Ch. 3	Off	31002	ALL	32				
+TGID	Tid=376325	TGroupId=31657	Mountain View School Buses Ch. 4	Off	31003	ALL	32				
+TGID	Tid=376326	TGroupId=31657	Mountain View School Buses Ch. 5	Off	31004	ALL	32				
+T-Group	TGroupId=34936	TrunkId=10552	Pembina Valley	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=417682	TGroupId=34936	Altona Police Service	Off	42050	ALL	2				
+TGID	Tid=417704	TGroupId=34936	Altona Public Works	Off	6060	ALL	14				
+TGID	Tid=417705	TGroupId=34936	Altona Public Works	Off	6061	ALL	14				
+TGID	Tid=417706	TGroupId=34936	Altona Public Works	Off	6062	ALL	14				
+TGID	Tid=415704	TGroupId=34936	Altona/Rhineland Emergency Services	Off	41241	ALL	3				
+TGID	Tid=416210	TGroupId=34936	Altona/Rhineland Emergency Services TAC 1	Off	41472	ALL	8				
+TGID	Tid=416467	TGroupId=34936	Carman RCMP	Off	40033	ALL	2				
+TGID	Tid=416384	TGroupId=34936	Carman/Dufferin Fire Department	Off	41202	ALL	3				
+TGID	Tid=415674	TGroupId=34936	Morden Fire Department	Off	41478	ALL	8				
+TGID	Tid=415837	TGroupId=34936	Morden RCMP	Off	40038	ALL	2				
+TGID	Tid=416461	TGroupId=34936	RCMP	Off	40018	ALL	2				
+TGID	Tid=419787	TGroupId=34936	Regional Support Tactical Team	Off	42054	ALL	7				
+TGID	Tid=416617	TGroupId=34936	Roland Fire Rescue	Off	41203	ALL	3				
+TGID	Tid=419665	TGroupId=34936	Southern EMS Hospital Patch	Off	1902	ALL	25				
+TGID	Tid=419662	TGroupId=34936	Southern EMS Ops	Off	1899	ALL	4				
+TGID	Tid=419663	TGroupId=34936	Southern EMS TAC 1	Off	1900	ALL	9				
+TGID	Tid=419664	TGroupId=34936	Southern EMS TAC 2	Off	1901	ALL	9				
+TGID	Tid=415428	TGroupId=34936	Winkler Fire Department - TAC 1	Off	41477	ALL	8				
+TGID	Tid=417681	TGroupId=34936	Winkler Police Service	Off	42063	ALL	2				
+TGID	Tid=415494	TGroupId=34936	Winkler/Morden Fire Department - Mutual Aid Dispatch	Off	41243	ALL	11				
+T-Group	TGroupId=35241	TrunkId=10552	Provincewide	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=419674	TGroupId=35241	Emergency Management Operations 1	Off	41008	ALL	29				
+TGID	Tid=419675	TGroupId=35241	Emergency Management Operations 2	Off	41009	ALL	29				
+TGID	Tid=419676	TGroupId=35241	Emergency Management Operations 3	Off	41010	ALL	29				
+TGID	Tid=419677	TGroupId=35241	Police Common	Off	41011	ALL	2				
+TGID	Tid=419673	TGroupId=35241	Provincial 911	Off	1521	ALL	29				
+TGID	Tid=419671	TGroupId=35241	Provincial EMS	Off	1890	ALL	4				
+TGID	Tid=419672	TGroupId=35241	Provincial Fire	Off	1520	ALL	3				
+T-Group	TGroupId=31658	TrunkId=10552	Radio Techs	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=376327	TGroupId=31658	Bell Techs	Off	101	ALL	17				
+TGID	Tid=376328	TGroupId=31658	Bell Techs	Off	111	ALL	17				
+T-Group	TGroupId=31656	TrunkId=10552	Westman	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=376321	TGroupId=31656	Brandon Fire Emergency Services	Off	41214	ALL	3				
+TGID	Tid=419669	TGroupId=31656	Western EMS Hospital Patch	Off	1906	ALL	25				
+TGID	Tid=419666	TGroupId=31656	Western EMS Ops	Off	1903	ALL	4				
+TGID	Tid=419667	TGroupId=31656	Western EMS TAC 1	Off	1904	ALL	9				
+TGID	Tid=419668	TGroupId=31656	Western EMS TAC 2	Off	1905	ALL	9				
+T-Group	TGroupId=35240	TrunkId=10552	Winnipeg	Off	51.347430	-98.204630	200.0	Circle
+TGID	Tid=419688	TGroupId=35240	Winnipeg Region EMS Ops	Off	1909	ALL	4				
+TGID	Tid=419687	TGroupId=35240	Winnipeg Region EMS TAC 1	Off	1908	ALL	9				
+TGID	Tid=419689	TGroupId=35240	Winnipeg Region EMS TAC 2	Off	1910	ALL	9				
+TGID	Tid=419670	TGroupId=35240	Winnipeg Region Hospital Patch	Off	1907	ALL	25				
+T-Group	TGroupId=34070	TrunkId=10552	Winnipeg Airports Authority	Off	49.903150	-97.234410	10.0	Circle
+TGID	Tid=403935	TGroupId=34070	Airport	Off	31443	ALL	17				
+TGID	Tid=403936	TGroupId=34070	Airport	Off	31444	ALL	17				
+TGID	Tid=403939	TGroupId=34070	Airport	Off	31447	ALL	17				
+TGID	Tid=403932	TGroupId=34070	Airport Fire 1	Off	31440	ALL	3				
+TGID	Tid=403933	TGroupId=34070	Airport Operations	Off	31441	ALL	17				
+TGID	Tid=403943	TGroupId=34070	Baggage	Off	31451	ALL	17				
+TGID	Tid=403937	TGroupId=34070	Cleaners	Off	31445	ALL	17				
+TGID	Tid=403944	TGroupId=34070	Contractors	Off	31452	ALL	17				
+TGID	Tid=403946	TGroupId=34070	Deicing	Off	31454	ALL	17				
+TGID	Tid=403934	TGroupId=34070	Emergency	Off	31442	ALL	29				
+TGID	Tid=403945	TGroupId=34070	Escorts	Off	31453	ALL	17				
+TGID	Tid=403942	TGroupId=34070	Facilities	Off	31450	ALL	17				
+TGID	Tid=403941	TGroupId=34070	Field Electrical	Off	31449	ALL	17				
+TGID	Tid=403940	TGroupId=34070	Field Maintenance	Off	31448	ALL	17				
+TGID	Tid=403947	TGroupId=34070	Fire Paramedic Service Patch	Off	31455	ALL	11				
+TGID	Tid=403938	TGroupId=34070	Security	Off	31446	ALL	33				
+TGID	Tid=417931	TGroupId=34070	STARS Dispatch	Off	1911	ALL	4				
+Trunk	TrunkId=9076	StateId=103	Winnipeg Emergency Services	Off		P25X2_TDMA					
+AreaState	TrunkId=9076	StateId=103
+AreaCounty	TrunkId=9076	CountyId=5229
+Site	SiteId=28678	TrunkId=9076	Winnipeg	Off	49.879000	-97.132000	30.5	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=28678		Off	770193750	1
+T-Freq	TFreqId=0	SiteId=28678		Off	770693750	2
+T-Freq	TFreqId=0	SiteId=28678		Off	771193750	3
+T-Freq	TFreqId=0	SiteId=28678		Off	771943750	4
+T-Freq	TFreqId=0	SiteId=28678		Off	772193750	5
+T-Freq	TFreqId=0	SiteId=28678		Off	770443750	6
+T-Freq	TFreqId=0	SiteId=28678		Off	770943750	7
+T-Freq	TFreqId=0	SiteId=28678		Off	771443750	8
+T-Freq	TFreqId=0	SiteId=28678		Off	771693750	9
+T-Freq	TFreqId=0	SiteId=28678		Off	772443750	10
+T-Group	TGroupId=25354	TrunkId=9076	Emergency Management	Off	49.902000	-97.134000	30.3	Circle
+TGID	Tid=311047	TGroupId=25354	 EMO OPS 3	Off	140	ALL	29				
+TGID	Tid=311043	TGroupId=25354	EMO OPS 1	Off	138	ALL	29				
+TGID	Tid=311046	TGroupId=25354	EMO OPS 2	Off	139	ALL	29				
+T-Group	TGroupId=25355	TrunkId=9076	Fire Paramedic Service	Off	49.902000	-97.134000	30.3	Circle
+TGID	Tid=311048	TGroupId=25355	A1 Dispatch	Off	201	ALL	3				
+TGID	Tid=311057	TGroupId=25355	A10 TAC 9	Off	210	ALL	8				
+TGID	Tid=311058	TGroupId=25355	A11 TAC 10	Off	211	ALL	8				
+TGID	Tid=311059	TGroupId=25355	A12 TAC 11	Off	212	ALL	8				
+TGID	Tid=311060	TGroupId=25355	A13 TAC 12	Off	213	ALL	8				
+TGID	Tid=311061	TGroupId=25355	A14 Special Ops 1	Off	214	ALL	8				
+TGID	Tid=311062	TGroupId=25355	A15 Special Ops 2	Off	215	ALL	8				
+TGID	Tid=311049	TGroupId=25355	A2 TAC 1	Off	202	ALL	8				
+TGID	Tid=311050	TGroupId=25355	A3 TAC 2	Off	203	ALL	8				
+TGID	Tid=311051	TGroupId=25355	A4 TAC 3	Off	204	ALL	8				
+TGID	Tid=311052	TGroupId=25355	A5 TAC 4	Off	205	ALL	8				
+TGID	Tid=311053	TGroupId=25355	A6 TAC 5	Off	206	ALL	8				
+TGID	Tid=311054	TGroupId=25355	A7 TAC 6	Off	207	ALL	8				
+TGID	Tid=311055	TGroupId=25355	A8 TAC 7	Off	208	ALL	8				
+TGID	Tid=311056	TGroupId=25355	A9 TAC 8	Off	209	ALL	8				
+TGID	Tid=311067	TGroupId=25355	B2 Winnipeg Airport Authority	Off	220	ALL	8				
+TGID	Tid=311064	TGroupId=25355	B4 Fire Prevention	Off	217	ALL	24				
+TGID	Tid=311065	TGroupId=25355	B5 Fire Training	Off	218	ALL	24				
+TGID	Tid=311066	TGroupId=25355	B6 EMS Training	Off	219	ALL	25				
+TGID	Tid=311063	TGroupId=25355	Inter-facility Transport Channel	Off	216	ALL	24				
+TGID	Tid=311068	TGroupId=25355	Provincial EMS	Off	226	ALL	9				
+TGID	Tid=311069	TGroupId=25355	Provincial Fire	Off	227	ALL	8				
+T-Group	TGroupId=25352	TrunkId=9076	Interoperability	Off	49.902000	-97.134000	30.3	Circle
+TGID	Tid=311037	TGroupId=25352	CITY WIDE	Off	132	ALL	11				
+TGID	Tid=311042	TGroupId=25352	Interoperability	Off	137	ALL	11				
+TGID	Tid=311038	TGroupId=25352	WFPS WPS Common	Off	133	ALL	11				
+TGID	Tid=311039	TGroupId=25352	WPS RCMP 1	Off	134	ALL	11				
+TGID	Tid=311040	TGroupId=25352	WPS RCMP 2	Off	135	ALL	11				
+TGID	Tid=311041	TGroupId=25352	WPS RCMP 3	Off	136	ALL	11				
+T-Group	TGroupId=25351	TrunkId=9076	Police Service	Off	49.902000	-97.134000	30.3	Circle
+TGID	Tid=311010	TGroupId=25351	1A Dispatch 1	Off	102	ALL	2				
+TGID	Tid=311011	TGroupId=25351	1B Dispatch 2	Off	103	ALL	2				
+TGID	Tid=311012	TGroupId=25351	1C Dispatch 3	Off	104	ALL	2				
+TGID	Tid=311013	TGroupId=25351	1D Dispatch 4	Off	105	ALL	2				
+TGID	Tid=311014	TGroupId=25351	1E Emergency 1	Off	106	ALL	7				
+TGID	Tid=311015	TGroupId=25351	1F Emergency 2	Off	107	ALL	7				
+TGID	Tid=311016	TGroupId=25351	1G CPIC	Off	108	ALL	23				
+TGID	Tid=311017	TGroupId=25351	1H Air Support	Off	109	ALL	7				
+TGID	Tid=311018	TGroupId=25351	1I Traffic Division 1	Off	110	ALL	23				
+TGID	Tid=311019	TGroupId=25351	1J Traffic Division 2	Off	111	ALL	23				
+TGID	Tid=311020	TGroupId=25351	1K Special Event 1	Off	112	ALL	23				
+TGID	Tid=311021	TGroupId=25351	1L Special Event 2	Off	113	ALL	23				
+TGID	Tid=311022	TGroupId=25351	1M Special Event 3	Off	114	ALL	23				
+TGID	Tid=311351	TGroupId=25351	1P - CRISIS (Dennis Dane Crisis Response Centre)	Off	187	ALL	23				
+TGID	Tid=311023	TGroupId=25351	2B Division 11 Detectives	Off	118	ALL	7				
+TGID	Tid=311024	TGroupId=25351	2C Division 12 Detectives	Off	119	ALL	7				
+TGID	Tid=311025	TGroupId=25351	2D Division 13 Detectives	Off	120	ALL	7				
+TGID	Tid=311026	TGroupId=25351	2E Division 14 Detectives	Off	121	ALL	7				
+TGID	Tid=311027	TGroupId=25351	2G Project 1	Off	122	ALL	23				
+TGID	Tid=311028	TGroupId=25351	2H Project 2	Off	123	ALL	23				
+TGID	Tid=311029	TGroupId=25351	2I Project 3	Off	124	ALL	23				
+TGID	Tid=311030	TGroupId=25351	2J Project 4	Off	125	ALL	23				
+TGID	Tid=311031	TGroupId=25351	2K Project 5	Off	126	ALL	23				
+TGID	Tid=311032	TGroupId=25351	2L Project 6	Off	127	ALL	23				
+TGID	Tid=311033	TGroupId=25351	2M Project 7	Off	128	ALL	23				
+TGID	Tid=311034	TGroupId=25351	2N Project 8	Off	129	ALL	23				
+TGID	Tid=311035	TGroupId=25351	2O Project 9	Off	130	ALL	23				
+TGID	Tid=311036	TGroupId=25351	2P Project 10	Off	131	ALL	23				
+T-Group	TGroupId=25356	TrunkId=9076	Radio Tech	Off	49.902000	-97.134000	30.3	Circle
+TGID	Tid=311070	TGroupId=25356	Radio Technicians	Off	301	ALL	17				
+T-Group	TGroupId=31655	TrunkId=9076	Transit	Off	49.902000	-97.134000	30.3	Circle
+TGID	Tid=376318	TGroupId=31655	Administration	Off	410	ALL	26				

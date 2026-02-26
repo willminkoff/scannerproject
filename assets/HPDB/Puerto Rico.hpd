@@ -1,0 +1,718 @@
+TargetModel	HomePatrol-1
+FormatVersion	2.04
+Conventional	CountyId=5596	StateId=72	Aguada	Off		Conventional
+AreaState	CountyId=5596	StateId=72
+AreaCounty	CountyId=5596	CountyId=5596
+C-Group	CGroupId=78664	CountyId=5596	Aguada County	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=337278	CGroupId=78664	Police	Off	154665000	NFM		2					
+Conventional	CountyId=5598	StateId=72	Aguas Buenas	Off		Conventional
+AreaState	CountyId=5598	StateId=72
+AreaCounty	CountyId=5598	CountyId=5598
+C-Group	CGroupId=77811	CountyId=5598	Amateur Radio	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=332459	CGroupId=77811	Aguas Buenas	Off	145230000	FM		13					
+Conventional	CountyId=5601	StateId=72	Arecibo	Off		Conventional
+AreaState	CountyId=5601	StateId=72
+AreaCounty	CountyId=5601	CountyId=5601
+C-Group	CGroupId=81381	CountyId=5601	Public Safety	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=351047	CGroupId=81381	Arecibo Police	Off	155910000	FM		2					
+Conventional	CountyId=5605	StateId=72	Bayamon	Off		Conventional
+AreaState	CountyId=5605	StateId=72
+AreaCounty	CountyId=5605	CountyId=5605
+C-Group	CGroupId=90499	CountyId=5605	Bayamon County - Government	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=401076	CGroupId=90499	Ommed Estatal Yunque	Off	158820000	NFM		16					
+Conventional	CountyId=5618	StateId=72	Corozal	Off		Conventional
+AreaState	CountyId=5618	StateId=72
+AreaCounty	CountyId=5618	CountyId=5618
+C-Group	CGroupId=78537	CountyId=5618	Amateur Radio	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=335861	CGroupId=78537	Corozal	Off	146670000	FM	TONE=C94.8	13					
+Conventional	CountyId=5626	StateId=72	Guaynabo	Off		Conventional
+AreaState	CountyId=5626	StateId=72
+AreaCounty	CountyId=5626	CountyId=5626
+C-Group	CGroupId=66502	CountyId=5626	Public Safety - Guaynabo City	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=273898	CGroupId=66502	Police: Dispatch	Off	851887500	FM	TONE=C107.2	2					
+Conventional	CountyId=5631	StateId=72	Isabela	Off		Conventional
+AreaState	CountyId=5631	StateId=72
+AreaCounty	CountyId=5631	CountyId=5631
+C-Group	CGroupId=82505	CountyId=5631	Amateur Radio	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=356664	CGroupId=82505	KP4AAN	Off	447500000	AUTO		13					
+Conventional	CountyId=5632	StateId=72	Jayuya	Off		Conventional
+AreaState	CountyId=5632	StateId=72
+AreaCounty	CountyId=5632	CountyId=5632
+C-Group	CGroupId=78536	CountyId=5632	Amateur Radio	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=335860	CGroupId=78536	Cerro de Punta	Off	147210000	FM	TONE=C127.3	13					
+Conventional	CountyId=5644	StateId=72	Mayaguez	Off		Conventional
+AreaState	CountyId=5644	StateId=72
+AreaCounty	CountyId=5644	CountyId=5644
+C-Group	CGroupId=84138	CountyId=5644	Amateur Radio	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=365924	CGroupId=84138	Mayaguez	Off	447925000	FM	TONE=C107.2	13					
+Conventional	CountyId=5652	StateId=72	Ponce	Off		Conventional
+AreaState	CountyId=5652	StateId=72
+AreaCounty	CountyId=5652	CountyId=5652
+C-Group	CGroupId=63530	CountyId=5652	Aviation - Aeropuerto de Ponce	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=262606	CGroupId=63530	Aeropuerto de Ponce	Off	122700000	AM		15					
+C-Group	CGroupId=63526	CountyId=5652	Public Safety and Government Services - Public Safety	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=262607	CGroupId=63526	Aemead Yunque	Off	158820000	FM		23					
+C-Freq	CFreqId=262601	CGroupId=63526	Autopista Policia	Off	159115000	FM		23					
+C-Freq	CFreqId=262600	CGroupId=63526	Policia	Off	866712500	FM		23					
+C-Freq	CFreqId=262599	CGroupId=63526	Policia	Off	867325000	FM		23					
+C-Freq	CFreqId=262593	CGroupId=63526	Policia Comandancia area	Off	154905000	FM		23					
+C-Freq	CFreqId=262594	CGroupId=63526	Policia estatal local	Off	155310000	FM		2					
+C-Freq	CFreqId=262598	CGroupId=63526	Policia Fura	Off	154860000	FM		23					
+C-Freq	CFreqId=262595	CGroupId=63526	Policia municipal	Off	158835000	FM		2					
+C-Freq	CFreqId=325336	CGroupId=63526	Policia Municipal de Ponce	Off	158720000	NFM		2					
+C-Freq	CFreqId=262596	CGroupId=63526	Policia Transito	Off	460500000	FM		2					
+C-Freq	CFreqId=262597	CGroupId=63526	Rescate	Off	158940000	FM		3					
+Conventional	CountyId=5659	StateId=72	San Juan	Off		Conventional
+AreaState	CountyId=5659	StateId=72
+AreaCounty	CountyId=5659	CountyId=5659
+C-Group	CGroupId=35703	CountyId=5659	Public Safety - Operations	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=194612	CGroupId=35703	Capital Rescue	Off	462950000	FM		4					
+C-Freq	CFreqId=140240	CGroupId=35703	Emergency Management	Off	453200000	FM	TONE=C162.2	29					
+C-Freq	CFreqId=326302	CGroupId=35703	Public Works	Off	453550000	NFM	TONE=C173.8	14					
+C-Freq	CFreqId=326301	CGroupId=35703	Public Works	Off	453600000	NFM	TONE=C162.2	14					
+C-Freq	CFreqId=395949	CGroupId=35703	San Juan Police Car to Car	Off	453550000	NFM	TONE=C173.8	23					
+C-Freq	CFreqId=395947	CGroupId=35703	San Juan Police Dispatch	Off	453200000	NFM	TONE=C162.2	2					
+C-Freq	CFreqId=395948	CGroupId=35703	San Juan Police Information	Off	453600000	NFM	TONE=C162.2	23					
+C-Freq	CFreqId=305938	CGroupId=35703	San Juan Port Control and Pilot (Marine Ch. 14)	Off	156700000	FM		14					
+Conventional	CountyId=5660	StateId=72	San Lorenzo	Off		Conventional
+AreaState	CountyId=5660	StateId=72
+AreaCounty	CountyId=5660	CountyId=5660
+C-Group	CGroupId=72484	CountyId=5660	San Lorenzo County	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=302228	CGroupId=72484	OMME (EMS) Emergencias Medicas Municipal	Off	158925000	NFM		4					
+C-Freq	CFreqId=302229	CGroupId=72484	Police (PM) Policia Municipal	Off	153965000	NFM		2					
+Conventional	AgencyId=6374	StateId=72	Aviation	Off		Conventional
+AreaState	AgencyId=6374	StateId=72
+AreaCounty	AgencyId=6374	CountyId=0
+C-Group	CGroupId=55071	AgencyId=6374	Aviation	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=228115	CGroupId=55071	AGUADILLA (TJBQ) CLEARENCE	Off	124350000	AM		15					
+C-Freq	CFreqId=228106	CGroupId=55071	AGUADILLA (TJBQ) GROUND	Off	120875000	AM		15					
+C-Freq	CFreqId=228116	CGroupId=55071	AGUADILLA TOWER	Off	124950000	AM		15					
+C-Freq	CFreqId=228112	CGroupId=55071	AGUADILLA UNICOM	Off	123000000	AM		15					
+C-Freq	CFreqId=228111	CGroupId=55071	ARECIBO UNICOM	Off	122800000	AM		15					
+C-Freq	CFreqId=245305	CGroupId=55071	ARINC New York Radio	Off	130700000	AM		17					
+C-Freq	CFreqId=228134	CGroupId=55071	DHS AND CUSTOMS	Off	311000000	AM		15					
+C-Freq	CFreqId=228126	CGroupId=55071	ISLA GRANDE	Off	135875000	AM		15					
+C-Freq	CFreqId=228104	CGroupId=55071	MAYAGUEZ	Off	118175000	AM		15					
+C-Freq	CFreqId=228123	CGroupId=55071	MIAMI CETER (SAN JUAN) CENTER	Off	132300000	AM		15					
+C-Freq	CFreqId=228113	CGroupId=55071	POLICE AVIATION CH	Off	123025000	AM		15					
+C-Freq	CFreqId=228110	CGroupId=55071	PONCE UNICOM	Off	122700000	AM		15					
+C-Freq	CFreqId=228117	CGroupId=55071	SAN JUAN CENTER	Off	125000000	AM		15					
+C-Freq	CFreqId=228120	CGroupId=55071	SAN JUAN CENTER	Off	128650000	AM		15					
+C-Freq	CFreqId=228124	CGroupId=55071	SAN JUAN CENTER	Off	134300000	AM		15					
+C-Freq	CFreqId=228127	CGroupId=55071	SAN JUAN CENTER	Off	269000000	AM		15					
+C-Freq	CFreqId=228129	CGroupId=55071	SAN JUAN CENTER	Off	279600000	AM		15					
+C-Freq	CFreqId=228130	CGroupId=55071	SAN JUAN CENTER	Off	285500000	AM		15					
+C-Freq	CFreqId=228132	CGroupId=55071	SAN JUAN CENTER	Off	299200000	AM		15					
+C-Freq	CFreqId=228133	CGroupId=55071	SAN JUAN CENTER	Off	307000000	AM		15					
+C-Freq	CFreqId=245304	CGroupId=55071	San Juan Center (Northbound from 119.4000)	Off	135700000	AM		15					
+C-Freq	CFreqId=228114	CGroupId=55071	SANTO DOMINGO CENTER	Off	124300000	AM		15					
+C-Freq	CFreqId=228103	CGroupId=55071	SJ CENTER	Off	118150000	AM		15					
+Conventional	AgencyId=6608	StateId=72	Businesses	Off		Conventional
+AreaState	AgencyId=6608	StateId=72
+AreaCounty	AgencyId=6608	CountyId=5659
+C-Group	CGroupId=56840	AgencyId=6608	Hotels	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=238513	CGroupId=56840	Courtyard by Marriott Isla Verde	Off	461100000	FM	TONE=D205	17					
+C-Freq	CFreqId=244929	CGroupId=56840	Embassy Suite San Juan	Off	464675000	FM	TONE=D343	17					
+C-Freq	CFreqId=238512	CGroupId=56840	Embassy Suites San Juan	Off	461575000	FM	TONE=D343	17					
+C-Freq	CFreqId=244930	CGroupId=56840	Ritz Carlton - Housekeeping	Off	452350000	FM	TONE=C167.9	17					
+C-Freq	CFreqId=238511	CGroupId=56840	Ritz Carlton San Juan	Off	452775000	FM	TONE=C167.9	17					
+C-Freq	CFreqId=238510	CGroupId=56840	Ritz Carlton San Juan - Casino	Off	451600000	FM	TONE=C167.9	17					
+C-Freq	CFreqId=331727	CGroupId=56840	San Juan Marriott Resort	Off	462475000	NFM	TONE=D071	17					
+C-Freq	CFreqId=359928	CGroupId=56840	Sheraton Old San Juan - Bell Staff	Off	461837500	NFM	TONE=D244	17					
+C-Freq	CFreqId=359877	CGroupId=56840	Sheraton Old San Juan - Housekeeping	Off	451300000	NFM	TONE=D261	17					
+C-Group	CGroupId=83240	AgencyId=6608	Maritime	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=359893	CGroupId=83240	Club Nautico Marina (Marine Ch. 8)	Off	156400000	FM		17					
+Conventional	AgencyId=6172	StateId=72	DRNA Dept. of Natural Resources (Police)	Off		Conventional
+AreaState	AgencyId=6172	StateId=72
+AreaCounty	AgencyId=6172	CountyId=0
+C-Group	CGroupId=53644	AgencyId=6172	DNRA - Police	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=221798	CGroupId=53644	DNRA Police Operations	Off	451775000	FM		2					
+C-Freq	CFreqId=221797	CGroupId=53644	DNRA Police Operations	Off	453450000	FM		2					
+C-Freq	CFreqId=221799	CGroupId=53644	DNRA Police Operations	Off	453460000	FM		2					
+C-Freq	CFreqId=221800	CGroupId=53644	DNRA Police Operations	Off	458450000	FM		2					
+C-Freq	CFreqId=221802	CGroupId=53644	DNRA Police Operations	Off	460100000	FM		2					
+C-Freq	CFreqId=221801	CGroupId=53644	DNRA Police Operations	Off	460475000	FM		2					
+Conventional	AgencyId=6647	StateId=72	EMS of Puerto Rico	Off		Conventional
+AreaState	AgencyId=6647	StateId=72
+AreaCounty	AgencyId=6647	CountyId=0
+C-Group	CGroupId=57105	AgencyId=6647	EMS of Puerto Rico	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=239903	CGroupId=57105	Medic 1 Metropolitan Dispatch	Off	463000000	FM		4					
+C-Freq	CFreqId=239912	CGroupId=57105	Medic 10 Capital Rescue	Off	462975000	FM		9					
+C-Freq	CFreqId=239904	CGroupId=57105	Medic 2 Fajardo Dispatch	Off	463025000	FM		4					
+C-Freq	CFreqId=239905	CGroupId=57105	Medic 3 San Juan Medical Control	Off	463050000	FM		12					
+C-Freq	CFreqId=239906	CGroupId=57105	Medic 4 Ponce Dispatch	Off	463075000	FM		4					
+C-Freq	CFreqId=239907	CGroupId=57105	Medic 5 Arecibo Dispatch	Off	463100000	FM		4					
+C-Freq	CFreqId=239908	CGroupId=57105	Medic 6	Off	463125000	FM		9					
+C-Freq	CFreqId=239909	CGroupId=57105	Medic 7 Metropolitan Medical Control	Off	463150000	FM		12					
+C-Freq	CFreqId=239910	CGroupId=57105	Medic 8	Off	463175000	FM		9					
+C-Freq	CFreqId=239911	CGroupId=57105	Medic 9 Central Dispatch	Off	462950000	FM		4					
+C-Freq	CFreqId=373527	CGroupId=57105	Medico 10 - Negociado de Emergencias Medicas	Off	462975000	AUTO		9					
+C-Freq	CFreqId=400791	CGroupId=57105	Municipality of San Juan EMS	Off	463025000	AUTO		4					
+Conventional	AgencyId=3374	StateId=72	Federal Government	Off		Conventional
+AreaState	AgencyId=3374	StateId=72
+AreaCounty	AgencyId=3374	CountyId=0
+C-Group	CGroupId=82504	AgencyId=3374	Federal - Civil Air Patrol	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=356659	CGroupId=82504	R-01 El Yunque	Off	148125000	NFM	TONE=C110.9	30					
+C-Freq	CFreqId=356660	CGroupId=82504	R-27 La Santa	Off	148125000	NFM	TONE=C146.2	30					
+C-Freq	CFreqId=356661	CGroupId=82504	R-44 Croem	Off	148150000	NFM	TONE=C114.8	30					
+C-Freq	CFreqId=356662	CGroupId=82504	R-52 Aguadilla	Off	148150000	NFM	TONE=C79.7	30					
+C-Freq	CFreqId=356663	CGroupId=82504	R-58 Cerro Maravilla	Off	148150000	NFM	TONE=C118.8	30					
+C-Group	CGroupId=83241	AgencyId=3374	Federal - Coast Guard	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=359902	CGroupId=83241	Net 113 (San Juan)	Off	163137500	NFM	NAC=293	16					
+C-Freq	CFreqId=359894	CGroupId=83241	Net 409 (San Juan)	Off	412975000	NFM	NAC=293	16					
+C-Group	CGroupId=77794	AgencyId=3374	Federal - Customs and Border Protection	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=210024	CGroupId=77794	Border Patrol (encrypted)	Off	163625000	NFM		16					
+C-Freq	CFreqId=130762	CGroupId=77794	Customs and Border Protection D-Net 001	Off	165237500	NFM	NAC=301	16					
+C-Group	CGroupId=53641	AgencyId=3374	Federal - FBI	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=221791	CGroupId=53641	FBI (Encrypted)	Off	173125000	NFM		16					
+C-Group	CGroupId=53642	AgencyId=3374	Federal - Immigration and Customs Enforcement	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=221792	CGroupId=53642	Immigration and Customs Enforcement - Input	Off	162900000	NFM		16					
+C-Group	CGroupId=77793	AgencyId=3374	Federal - National Weather Service	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=332391	CGroupId=77793	San Juan to Aguas Buena Link	Off	415900000	NFM		16					
+C-Group	CGroupId=32659	AgencyId=3374	Federal - Other Agencies	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=238325	CGroupId=32659	San Juan National Historic Site	Off	166350000	NFM	NAC=293	16					
+C-Freq	CFreqId=128437	CGroupId=32659	Transportation Security Administration (LMM International Airpor	Off	172900000	NFM	NAC=1	16					
+Conventional	AgencyId=7589	StateId=72	General Business	Off		Conventional
+AreaState	AgencyId=7589	StateId=72
+AreaCounty	AgencyId=7589	CountyId=5652
+C-Group	CGroupId=63528	AgencyId=7589	Hotels and Resorts	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=262602	CGroupId=63528	Hotel Ponce Hilton	Off	467675000	FM		17					
+C-Group	CGroupId=63527	AgencyId=7589	Private Security	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=262604	CGroupId=63527	Centro del Sur Shoping Center seguridad	Off	451725000	FM		33					
+C-Freq	CFreqId=262603	CGroupId=63527	Plaza del Caribe seguridad	Off	464925000	FM		33					
+C-Freq	CFreqId=262605	CGroupId=63527	Universidad Interamericana Recinto de Ponce seguridad	Off	462175000	FM		33					
+Conventional	AgencyId=9949	StateId=72	Interoperability	Off		Conventional
+AreaState	AgencyId=9949	StateId=72
+AreaCounty	AgencyId=9949	CountyId=0
+C-Group	CGroupId=82488	AgencyId=9949	Island Wide	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=356519	CGroupId=82488	700 1 AEMEAD - Island Wide (Atalaya, La Santa)	Off	769181250	NFM	NAC=293	11					
+C-Freq	CFreqId=356520	CGroupId=82488	700 1 AEMEAD - Island Wide (Awilda)	Off	769193750	NFM	NAC=293	11					
+C-Freq	CFreqId=356517	CGroupId=82488	700 1 AEMEAD - Island Wide (Cerro Punta)	Off	769168750	NFM	NAC=293	11					
+C-Freq	CFreqId=356516	CGroupId=82488	700 1 AEMEAD - Island Wide (Monte Estado, Yunque)	Off	769156250	NFM	NAC=293	11					
+C-Freq	CFreqId=356521	CGroupId=82488	700 1 AEMEAD - Island Wide (Morcelo)	Off	769206250	NFM	NAC=293	11					
+C-Freq	CFreqId=356522	CGroupId=82488	700 1 AEMEAD - Island Wide (Orocovis)	Off	769218750	NFM	NAC=293	11					
+C-Freq	CFreqId=356529	CGroupId=82488	700 2 - North & Central (Awilda)	Off	769456250	NFM	NAC=293	11					
+C-Freq	CFreqId=356530	CGroupId=82488	700 2 - North & Central (Orocovis)	Off	769468750	NFM	NAC=293	11					
+C-Freq	CFreqId=356526	CGroupId=82488	700 2 - North (Morcelo)	Off	769431250	NFM	NAC=293	11					
+C-Freq	CFreqId=356525	CGroupId=82488	700 2 - North, Central, South, West (Cerro Punta)	Off	769418750	NFM	NAC=293	11					
+C-Freq	CFreqId=356528	CGroupId=82488	700 2 - South, Central, West & Northwest (Atalaya, La Santa)	Off	769443750	NFM	NAC=293	11					
+C-Freq	CFreqId=356524	CGroupId=82488	700 2 - West, South, Interop USVI & Federal Agencies (Monte Esta	Off	769406250	NFM	NAC=293	11					
+C-Freq	CFreqId=356533	CGroupId=82488	700 3 - North, Central, South, West (Cerro Punta)	Off	769668750	NFM	NAC=293	11					
+C-Freq	CFreqId=356532	CGroupId=82488	700 3 - North, East, Southeast, West & South (Monte Estado, Yunq	Off	769656250	NFM	NAC=293	11					
+C-Freq	CFreqId=356537	CGroupId=82488	800 IO - Interop Island Wide (Awilda, Santa Isabel)	Off	852012500	NFM	NAC=293	11					
+C-Freq	CFreqId=356538	CGroupId=82488	800 IO - Interop Island Wide (Cerro Punta)	Off	852512500	NFM	NAC=293	11					
+C-Freq	CFreqId=356541	CGroupId=82488	800 IO - Interop Island Wide (Monte Estado, Morcelo, Yunque)	Off	853012500	NFM	NAC=293	11					
+C-Freq	CFreqId=356480	CGroupId=82488	800 IO - Interop Island Wide (Orocovis, La Santa)	Off	851512500	NFM	NAC=293	11					
+C-Freq	CFreqId=356482	CGroupId=82488	SAR Island Wide	Off	155220000	NFM		11					
+C-Freq	CFreqId=356512	CGroupId=82488	UHF 1 - Interop Island Wide (Atalaya, Monte Estado, Morcelo, Yun	Off	453462500	NFM	NAC=293	11					
+C-Freq	CFreqId=356513	CGroupId=82488	UHF 1 - Interop Island Wide (Awilda)	Off	453712500	NFM	NAC=293	11					
+C-Freq	CFreqId=356509	CGroupId=82488	UHF 1 - Interop Island Wide (Cerro Punta, Orocovis)	Off	453212500	NFM	NAC=293	11					
+C-Freq	CFreqId=356514	CGroupId=82488	UHF 1 - Interop Island Wide (La Santa)	Off	453862500	NFM	NAC=293	11					
+C-Freq	CFreqId=356481	CGroupId=82488	USAR Island Wide	Off	150775000	NFM	TONE=D465	11					
+C-Freq	CFreqId=356477	CGroupId=82488	VHF 1 - Interop Island Wide (Atalaya)	Off	159022500	NFM	NAC=293	11					
+C-Freq	CFreqId=356491	CGroupId=82488	VHF 1 - Interop Island Wide (Awilda)	Off	156232500	NFM	NAC=293	11					
+C-Freq	CFreqId=356490	CGroupId=82488	VHF 1 - Interop Island Wide (Cerro Punta)	Off	156202500	NFM	NAC=293	11					
+C-Freq	CFreqId=356501	CGroupId=82488	VHF 1 - Interop Island Wide (La Santa)	Off	159007500	NFM	NAC=293	11					
+C-Freq	CFreqId=356487	CGroupId=82488	VHF 1 - Interop Island Wide (Monte Estado)	Off	156142500	NFM	NAC=293	11					
+C-Freq	CFreqId=356503	CGroupId=82488	VHF 1 - Interop Island Wide (Morcelo)	Off	159105000	NFM	NAC=293	11					
+C-Freq	CFreqId=356485	CGroupId=82488	VHF 1 - Interop Island Wide (Orocovis)	Off	155752500	NFM	NAC=293	11					
+C-Freq	CFreqId=356502	CGroupId=82488	VHF 1 - Interop Island Wide (Santa Isabel)	Off	159022500	NFM	NAC=293	11					
+C-Freq	CFreqId=356507	CGroupId=82488	VHF 1 - Interop Island Wide (Yunque)	Off	159142500	NFM	NAC=293	11					
+C-Freq	CFreqId=356483	CGroupId=82488	VHF 2 - Interop (Santa Isabel)	Off	155377500	NFM	NAC=293	11					
+C-Freq	CFreqId=356488	CGroupId=82488	VHF 2 - Interop North & Central (Awilda)	Off	156195000	NFM	NAC=293	11					
+C-Freq	CFreqId=356484	CGroupId=82488	VHF 2 - Interop North & Central (Orocovis)	Off	155587500	NFM	NAC=293	11					
+C-Freq	CFreqId=356489	CGroupId=82488	VHF 2 - Interop North (Morcelo)	Off	156195000	NFM	NAC=293	11					
+C-Freq	CFreqId=356505	CGroupId=82488	VHF 2 - Interop North, Central, South, West (Cerro Punta)	Off	159127500	NFM	NAC=293	11					
+C-Freq	CFreqId=356504	CGroupId=82488	VHF 2 - Interop North, East & Southeast (Yunque)	Off	159112500	NFM	NAC=293	11					
+C-Freq	CFreqId=356506	CGroupId=82488	VHF 2 - Interop South & Central (La Santa)	Off	159135000	NFM	NAC=293	11					
+C-Freq	CFreqId=356478	CGroupId=82488	VHF 2 - Interop West & Northwest (Atalaya)	Off	159077500	NFM	NAC=293	11					
+C-Freq	CFreqId=356486	CGroupId=82488	VHF 2 - Interop West & South (Monte Estado)	Off	155775000	NFM	NAC=293	11					
+C-Freq	CFreqId=356492	CGroupId=82488	VHF AEMEAD - Island Wide (Atalaya)	Off	158820000	NFM	NAC=27A	11					
+C-Freq	CFreqId=356493	CGroupId=82488	VHF AEMEAD - Island Wide (Awilda)	Off	158820000	NFM	NAC=27A	11					
+C-Freq	CFreqId=356494	CGroupId=82488	VHF AEMEAD - Island Wide (Cerro Punta)	Off	158820000	NFM	NAC=27A	11					
+C-Freq	CFreqId=356495	CGroupId=82488	VHF AEMEAD - Island Wide (La Santa)	Off	158820000	NFM	NAC=27A	11					
+C-Freq	CFreqId=356496	CGroupId=82488	VHF AEMEAD - Island Wide (Monte Estado)	Off	158820000	NFM	NAC=27A	11					
+C-Freq	CFreqId=356497	CGroupId=82488	VHF AEMEAD - Island Wide (Morcelo)	Off	158820000	NFM	NAC=27A	11					
+C-Freq	CFreqId=356498	CGroupId=82488	VHF AEMEAD - Island Wide (Orocovis)	Off	158820000	NFM	NAC=27A	11					
+C-Freq	CFreqId=356499	CGroupId=82488	VHF AEMEAD - Island Wide (Santa Isabel)	Off	158820000	NFM	NAC=27A	11					
+C-Freq	CFreqId=356500	CGroupId=82488	VHF AEMEAD - Island Wide (Yunque)	Off	158820000	NFM	NAC=27A	11					
+C-Group	CGroupId=82490	AgencyId=9949	Puerto Rico Emergency Management Agency	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=356544	CGroupId=82490	PREMA Aguadilla	Off	159630000	NFM	TONE=C85.4	11					
+C-Freq	CFreqId=356542	CGroupId=82490	PREMA Guarbo	Off	155880000	NFM	TONE=D346	11					
+C-Freq	CFreqId=356543	CGroupId=82490	PREMA Monte del Estado	Off	155940000	NFM	TONE=C127.3	11					
+C-Freq	CFreqId=356546	CGroupId=82490	PREMA Verro Punta	Off	153770000	NFM	TONE=D346	11					
+C-Freq	CFreqId=356545	CGroupId=82490	PREMA Yunque	Off	155940000	NFM	TONE=D346	11					
+Conventional	AgencyId=6609	StateId=72	Luis Munoz Marin International Airport (SJU)	Off		Conventional
+AreaState	AgencyId=6609	StateId=72
+AreaCounty	AgencyId=6609	CountyId=5610
+C-Group	CGroupId=56707	AgencyId=6609	Luis Munoz Marin International Airport (SJU/TJSJ) - Air Traffic 	Off	18.439720	-65.998680	10.0	Circle
+C-Freq	CFreqId=237791	CGroupId=56707	Approach North/East	Off	120900000	AM		15					
+C-Freq	CFreqId=237792	CGroupId=56707	Approach North/East	Off	290200000	AM		15					
+C-Freq	CFreqId=237794	CGroupId=56707	Approach West/Southwest	Off	119400000	AM		15					
+C-Freq	CFreqId=237793	CGroupId=56707	Approach West/Southwest	Off	269200000	AM		15					
+C-Freq	CFreqId=237796	CGroupId=56707	Automatic Terminal Information Service (ATIS) - Departure	Off	125800000	AM		15					
+C-Freq	CFreqId=237795	CGroupId=56707	Clearance	Off	126400000	AM		15					
+C-Freq	CFreqId=237797	CGroupId=56707	Ground	Off	121900000	AM		15					
+C-Freq	CFreqId=237798	CGroupId=56707	Tower	Off	132050000	AM		15					
+C-Group	CGroupId=56706	AgencyId=6609	Luis Munoz Marin International Airport (SJU/TJSJ) - Airline Grou	Off	18.437780	-66.001680	2.0	Circle
+C-Freq	CFreqId=238506	CGroupId=56706	Cape Air	Off	461225000	FM	TONE=C67.0	17					
+C-Freq	CFreqId=326293	CGroupId=56706	Delta Air Lines	Off	460750000	NFM	TONE=D115	17					
+C-Freq	CFreqId=238504	CGroupId=56706	GMD Airline Services	Off	461575000	FM	TONE=C136.5	17					
+C-Freq	CFreqId=238507	CGroupId=56706	JetBlue - Customer Serivce	Off	464862500	FM	TONE=C123.0	17					
+C-Freq	CFreqId=326294	CGroupId=56706	JetBlue - Ramp	Off	451587500	NFM	TONE=C203.5	17					
+C-Group	CGroupId=56838	AgencyId=6609	Luis Munoz Marin International Airport (SJU/TJSJ) - Aviation - A	Off	18.439080	-65.999440	4.0	Circle
+C-Freq	CFreqId=326300	CGroupId=56838	Airport Aviation Services FBO	Off	122950000	AM		17					
+C-Freq	CFreqId=238495	CGroupId=56838	American - Load Control	Off	129325000	AM		17					
+C-Freq	CFreqId=238494	CGroupId=56838	American - Maintenance	Off	129225000	AM		17					
+C-Freq	CFreqId=238496	CGroupId=56838	American - Operations	Off	129600000	AM		17					
+C-Freq	CFreqId=238493	CGroupId=56838	Ameriflight	Off	122875000	AM		17					
+C-Freq	CFreqId=238497	CGroupId=56838	ARINC En Route Service (Gulf Net)	Off	130700000	AM		17					
+C-Freq	CFreqId=326295	CGroupId=56838	Cape Air	Off	129250000	AM		17					
+C-Freq	CFreqId=238498	CGroupId=56838	Delta - Dispatch / ATL Radio	Off	130850000	AM		17					
+C-Freq	CFreqId=238501	CGroupId=56838	Delta - Operations	Off	131850000	AM		17					
+C-Freq	CFreqId=238502	CGroupId=56838	FedEx	Off	131925000	AM		17					
+C-Freq	CFreqId=238503	CGroupId=56838	JetBlue	Off	136500000	AM		17					
+C-Freq	CFreqId=326297	CGroupId=56838	Mountain Air Cargo	Off	122875000	AM		17					
+C-Freq	CFreqId=326298	CGroupId=56838	Pazo's FBO Services	Off	129175000	AM		17					
+C-Freq	CFreqId=238500	CGroupId=56838	United	Off	129925000	AM		17					
+C-Freq	CFreqId=326299	CGroupId=56838	UPS	Off	129425000	AM		17					
+C-Group	CGroupId=56839	AgencyId=6609	Luis Munoz Marin International Airport (SJU/TJSJ) - Federal	Off	18.437780	-65.999620	2.0	Circle
+C-Freq	CFreqId=326292	CGroupId=56839	Transportation Security Administration (TSA)	Off	169300000	NFM	NAC=1	16					
+C-Freq	CFreqId=238509	CGroupId=56839	Transportation Security Administration (TSA)	Off	172900000	NFM	NAC=1	16					
+Conventional	AgencyId=6373	StateId=72	Police Departments	Off		Conventional
+AreaState	AgencyId=6373	StateId=72
+AreaCounty	AgencyId=6373	CountyId=0
+C-Group	CGroupId=55070	AgencyId=6373	EMS and Rescue - EMS & Rescue	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=228087	CGroupId=55070	Aeme San Juan	Off	158820000	FM	TONE=C136.5	4					
+C-Freq	CFreqId=228088	CGroupId=55070	Emegencias Media Estatal - Dispatch	Off	462950000	FM	TONE=C192.8	12					
+C-Freq	CFreqId=228089	CGroupId=55070	Emegencias Media Estatal 1	Off	463000000	FM	TONE=C192.8	12					
+C-Freq	CFreqId=228090	CGroupId=55070	Emegencias Media Estatal 2	Off	463025000	FM	TONE=C192.8	12					
+C-Freq	CFreqId=228091	CGroupId=55070	Emegencias Media Estatal 3	Off	463050000	FM	TONE=C192.8	12					
+C-Freq	CFreqId=228092	CGroupId=55070	Emegencias Media Estatal 4	Off	463075000	FM	TONE=C192.8	12					
+C-Freq	CFreqId=228093	CGroupId=55070	Emegencias Media Estatal 5	Off	463100000	FM	TONE=C192.8	12					
+C-Freq	CFreqId=228094	CGroupId=55070	Emegencias Media Estatal 6	Off	463125000	FM	TONE=C192.8	12					
+C-Freq	CFreqId=228095	CGroupId=55070	Emegencias Media Estatal 7	Off	463150000	FM	TONE=C192.8	12					
+C-Freq	CFreqId=228096	CGroupId=55070	Emegencias Media Estatal 8	Off	463175000	FM	TONE=C192.8	12					
+C-Freq	CFreqId=228098	CGroupId=55070	municipio (will update user)	Off	158805000	FM	TONE=C136.5	4					
+C-Freq	CFreqId=228101	CGroupId=55070	municipio (will update user)	Off	159045000	FM		4					
+C-Freq	CFreqId=228102	CGroupId=55070	municipio (will update user)	Off	159052500	FM		25					
+C-Freq	CFreqId=228100	CGroupId=55070	municipio (will update user)	Off	159150000	FM		4					
+C-Freq	CFreqId=228086	CGroupId=55070	Municipio Hatillo	Off	156015000	FM		4					
+C-Freq	CFreqId=228099	CGroupId=55070	Municipio Manati	Off	159435000	FM		4					
+C-Freq	CFreqId=228085	CGroupId=55070	Office of Emergency Mgmt. Camuy	Off	155715000	FM		29					
+C-Freq	CFreqId=228083	CGroupId=55070	Office of Emergency Mgmt. Zone 2	Off	155220000	FM		29					
+C-Freq	CFreqId=228084	CGroupId=55070	React Camuy	Off	155280000	FM		29					
+C-Freq	CFreqId=228097	CGroupId=55070	Rescate Norte	Off	464475000	FM	TONE=C67.0	4					
+C-Group	CGroupId=55069	AgencyId=6373	Police Departments	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=228077	CGroupId=55069	529 autopistas Ft. Buchanan	Off	159120000	FM		2					
+C-Freq	CFreqId=228058	CGroupId=55069	Aguadilla, Moca, Isabela	Off	154665000	FM		2					
+C-Freq	CFreqId=228064	CGroupId=55069	Arecibo, Hatillo, Camuy	Off	154800000	FM		2					
+C-Freq	CFreqId=228076	CGroupId=55069	Autopistas salinas (old)	Off	158850000	FM		2					
+C-Freq	CFreqId=228061	CGroupId=55069	Bayamon	Off	154740000	FM		2					
+C-Freq	CFreqId=228062	CGroupId=55069	Caguas	Off	154770000	FM		2					
+C-Freq	CFreqId=228065	CGroupId=55069	Carolina	Off	154815000	FM	TONE=C107.2	2					
+C-Freq	CFreqId=228069	CGroupId=55069	Cic	Off	154890000	FM		2					
+C-Freq	CFreqId=228072	CGroupId=55069	Cieba	Off	155430000	FM		2					
+C-Freq	CFreqId=228080	CGroupId=55069	Dept. of Corrections	Off	460050000	FM		2					
+C-Freq	CFreqId=228081	CGroupId=55069	Dept. of Corrections	Off	460450000	FM		37					
+C-Freq	CFreqId=228066	CGroupId=55069	Fajardo	Off	154830000	FM		2					
+C-Freq	CFreqId=228082	CGroupId=55069	Federal (?)	Off	414750000	FM		16					
+C-Freq	CFreqId=228059	CGroupId=55069	Fura	Off	154680000	FM		2					
+C-Freq	CFreqId=228068	CGroupId=55069	Fura ch1	Off	154860000	FM		2					
+C-Freq	CFreqId=228073	CGroupId=55069	Guayama	Off	155565000	FM		2					
+C-Freq	CFreqId=273909	CGroupId=55069	Guaynabo City Police	Off	866887500	FM	TONE=C107.2	2					
+C-Freq	CFreqId=228063	CGroupId=55069	Mayaguez	Off	154785000	FM		2					
+C-Freq	CFreqId=276768	CGroupId=55069	Policia Estatal Centro de Mando Aguadilla	Off	154665000	FM		2					
+C-Freq	CFreqId=228075	CGroupId=55069	Policia municipal Arecibo	Off	158835000	FM	TONE=C123.0	2					
+C-Freq	CFreqId=276767	CGroupId=55069	Policia Municipal de Aguadilla	Off	853062500	FM		2					
+C-Freq	CFreqId=228074	CGroupId=55069	Policia municipal hatillo	Off	155700000	FM	TONE=C136.5	2					
+C-Freq	CFreqId=228070	CGroupId=55069	Ponce	Off	154905000	FM		2					
+C-Freq	CFreqId=228060	CGroupId=55069	San Juan control	Off	154725000	FM		2					
+C-Freq	CFreqId=228067	CGroupId=55069	San Juan Control	Off	154845000	FM		2					
+C-Freq	CFreqId=254891	CGroupId=55069	San Sebastian	Off	153935000	FM		2					
+C-Freq	CFreqId=228078	CGroupId=55069	Transito Arecibo	Off	460400000	FM		2					
+C-Freq	CFreqId=228079	CGroupId=55069	Transito Mayaguez	Off	460500000	FM		2					
+C-Freq	CFreqId=228071	CGroupId=55069	Utuado, Lares	Off	154950000	FM		2					
+Conventional	AgencyId=7999	StateId=72	Puerto Rico Amateur Radio	Off		Conventional
+AreaState	AgencyId=7999	StateId=72
+AreaCounty	AgencyId=7999	CountyId=0
+C-Group	CGroupId=73665	AgencyId=7999	Repeaters	Off	18.225540	-66.454860	60.0	Circle
+C-Freq	CFreqId=353709	CGroupId=73665	Cayey	Off	447550000	FM	TONE=C127.3	13					
+C-Freq	CFreqId=353711	CGroupId=73665	Cayey	Off	449225000	FM	TONE=C110.9	13					
+C-Freq	CFreqId=385396	CGroupId=73665	Guayama Analog	Off	446125000	FM	TONE=C100.0	13					
+C-Freq	CFreqId=353710	CGroupId=73665	Isabela	Off	447550000	FM	TONE=C100.0	13					
+C-Freq	CFreqId=276133	CGroupId=73665	KP4MCR	Off	146890000	FM		13					
+C-Freq	CFreqId=276132	CGroupId=73665	KP4MCR	Off	147190000	FM		13					
+C-Freq	CFreqId=276134	CGroupId=73665	KP4MCR	Off	447625000	FM		13					
+C-Freq	CFreqId=309478	CGroupId=73665	San Juan	Off	29620000	FM		13					
+Conventional	AgencyId=4523	StateId=72	University of Puerto Rico	Off		Conventional
+AreaState	AgencyId=4523	StateId=72
+AreaCounty	AgencyId=4523	CountyId=0
+C-Group	CGroupId=43501	AgencyId=4523	General Operations - Humacao	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=174601	CGroupId=43501	Operations/Maintenance	Off	453525000	FM		32					
+C-Freq	CFreqId=174584	CGroupId=43501	Police -	Off	153995000	FM		2					
+C-Group	CGroupId=43504	AgencyId=4523	General Operations - Mayaguez	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=174600	CGroupId=43504	Maintenance ?	Off	453275000	FM		17					
+C-Freq	CFreqId=174596	CGroupId=43504	Police - Dispatch	Off	155070000	FM		2					
+C-Freq	CFreqId=174594	CGroupId=43504	Police - Tactical	Off	159495000	NFM		7					
+C-Freq	CFreqId=174589	CGroupId=43504	Police - Traffic Enforcement	Off	155595000	FM		7					
+C-Group	CGroupId=43502	AgencyId=4523	General Operations - Rio Piedras	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=174586	CGroupId=43502	Police - Dispatch	Off	155070000	FM		2					
+C-Freq	CFreqId=174585	CGroupId=43502	Police - Secondary	Off	155955000	FM		23					
+Trunk	TrunkId=6691	StateId=72	High Tech Communications Services (7227)	Off		Motorola					
+AreaState	TrunkId=6691	StateId=72
+AreaCounty	TrunkId=6691	CountyId=5610
+AreaCounty	TrunkId=6691	CountyId=5627
+Site	SiteId=16917	TrunkId=6691	Carolina	Off	0.000000	0.000000	0.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=16917		Off	854787500	1
+T-Freq	TFreqId=0	SiteId=16917		Off	855587500	2
+T-Freq	TFreqId=0	SiteId=16917		Off	857837500	3
+T-Freq	TFreqId=0	SiteId=16917		Off	859687500	4
+T-Freq	TFreqId=0	SiteId=16917		Off	859837500	5
+T-Freq	TFreqId=0	SiteId=16917		Off	860812500	6
+T-Freq	TFreqId=0	SiteId=16917		Off	861112500	7
+T-Freq	TFreqId=0	SiteId=16917		Off	862112500	8
+T-Freq	TFreqId=0	SiteId=16917		Off	863112500	9
+T-Freq	TFreqId=0	SiteId=16917		Off	864112500	10
+T-Freq	TFreqId=0	SiteId=16917		Off	865112500	11
+Site	SiteId=16918	TrunkId=6691	Gurabo	Off	0.000000	0.000000	0.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=16918		Off	851012500	1
+T-Freq	TFreqId=0	SiteId=16918		Off	854762500	2
+T-Freq	TFreqId=0	SiteId=16918		Off	856787500	3
+T-Freq	TFreqId=0	SiteId=16918		Off	857787500	4
+T-Freq	TFreqId=0	SiteId=16918		Off	860537500	5
+T-Group	TGroupId=14380	TrunkId=6691	All	Off	0.000000	0.000000	0.0	Circle
+TGID	Tid=193040	TGroupId=14380	Areomed Helicopters	Off	16288	ANALOG	4				
+TGID	Tid=193041	TGroupId=14380	Capital Security Services	Off	16512	ANALOG	33				
+Trunk	TrunkId=12817	StateId=72	North Sight Communications (P25)	Off		P25X2_TDMA					
+AreaState	TrunkId=12817	StateId=72
+AreaCounty	TrunkId=12817	CountyId=5659
+Site	SiteId=44755	TrunkId=12817	East of San Juan 1	Off	0.000000	0.000000	0.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=44755		Off	863037500	1
+Site	SiteId=44756	TrunkId=12817	East of San Juan 2	Off	0.000000	0.000000	0.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=44756		Off	863025000	1
+T-Freq	TFreqId=0	SiteId=44756		Off	863325000	2
+T-Freq	TFreqId=0	SiteId=44756		Off	863625000	3
+T-Freq	TFreqId=0	SiteId=44756		Off	863925000	4
+T-Freq	TFreqId=0	SiteId=44756		Off	864225000	5
+Site	SiteId=44753	TrunkId=12817	San Juan	Off	0.000000	0.000000	0.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=44753		Off	863000000	1
+T-Freq	TFreqId=0	SiteId=44753		Off	863300000	2
+T-Freq	TFreqId=0	SiteId=44753		Off	863600000	3
+T-Freq	TFreqId=0	SiteId=44753		Off	863900000	4
+T-Freq	TFreqId=0	SiteId=44753		Off	864200000	5
+T-Freq	TFreqId=0	SiteId=44753		Off	864500000	6
+Site	SiteId=44754	TrunkId=12817	Site: 1.2	Off	0.000000	0.000000	0.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=44754		Off	863050000	1
+T-Group	TGroupId=35502	TrunkId=12817	All	Off	0.000000	0.000000	0.0	Circle
+TGID	Tid=422687	TGroupId=35502	Ops 103	Off	103	ALL	17				
+TGID	Tid=422688	TGroupId=35502	Ops 151	Off	151	ALL	17				
+TGID	Tid=422689	TGroupId=35502	Ops 152	Off	152	ALL	17				
+TGID	Tid=422690	TGroupId=35502	Ops 153	Off	153	ALL	17				
+TGID	Tid=422691	TGroupId=35502	Ops 154	Off	154	ALL	17				
+TGID	Tid=422692	TGroupId=35502	Ops 155	Off	155	ALL	17				
+TGID	Tid=422693	TGroupId=35502	Ops 165	Off	165	ALL	17				
+TGID	Tid=422694	TGroupId=35502	Ops 167	Off	167	ALL	17				
+TGID	Tid=422695	TGroupId=35502	Ops 168	Off	168	ALL	17				
+TGID	Tid=422696	TGroupId=35502	Ops 173	Off	173	ALL	17				
+TGID	Tid=422697	TGroupId=35502	Ops 182	Off	182	ALL	17				
+TGID	Tid=422698	TGroupId=35502	Ops 183	Off	183	ALL	17				
+TGID	Tid=422699	TGroupId=35502	Ops 196	Off	196	ALL	17				
+TGID	Tid=422700	TGroupId=35502	Ops 197	Off	197	ALL	17				
+TGID	Tid=422701	TGroupId=35502	Ops 199	Off	199	ALL	17				
+TGID	Tid=422702	TGroupId=35502	Ops 200	Off	200	ALL	17				
+TGID	Tid=422703	TGroupId=35502	Ops 203	Off	203	ALL	17				
+TGID	Tid=422704	TGroupId=35502	Ops 206	Off	206	ALL	17				
+TGID	Tid=422705	TGroupId=35502	Ops 210	Off	210	ALL	17				
+TGID	Tid=422706	TGroupId=35502	Ops 211	Off	211	ALL	17				
+TGID	Tid=422707	TGroupId=35502	Ops 220	Off	220	ALL	17				
+TGID	Tid=422708	TGroupId=35502	Ops 221	Off	221	ALL	17				
+TGID	Tid=422709	TGroupId=35502	Ops 259	Off	259	ALL	17				
+TGID	Tid=422710	TGroupId=35502	Ops 303	Off	303	ALL	17				
+TGID	Tid=422711	TGroupId=35502	Ops 401	Off	401	ALL	17				
+TGID	Tid=422712	TGroupId=35502	Ops 403	Off	403	ALL	17				
+TGID	Tid=422713	TGroupId=35502	Ops 404	Off	404	ALL	17				
+TGID	Tid=422714	TGroupId=35502	Ops 406	Off	406	ALL	17				
+TGID	Tid=422715	TGroupId=35502	Ops 503	Off	503	ALL	17				
+TGID	Tid=422716	TGroupId=35502	Ops 601	Off	601	ALL	17				
+TGID	Tid=422717	TGroupId=35502	Ops 602	Off	602	ALL	17				
+TGID	Tid=422718	TGroupId=35502	Ops 603	Off	603	ALL	17				
+TGID	Tid=422719	TGroupId=35502	Ops 607	Off	607	ALL	17				
+TGID	Tid=422720	TGroupId=35502	Ops 610	Off	610	ALL	17				
+Trunk	TrunkId=7807	StateId=72	Polica de Puerto Rico (PRPD) - Red de Radio Interoperabilidad	Off		P25X2_TDMA					
+AreaState	TrunkId=7807	StateId=72
+AreaCounty	TrunkId=7807	CountyId=0
+Site	SiteId=34134	TrunkId=7807	Aibonito	Off	18.095780	-66.232670	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=34134		Off	853050000	1
+T-Freq	TFreqId=0	SiteId=34134		Off	854362500	2
+T-Freq	TFreqId=0	SiteId=34134		Off	856012500	3
+T-Freq	TFreqId=0	SiteId=34134		Off	857012500	4
+T-Freq	TFreqId=0	SiteId=34134		Off	858662500	5
+Site	SiteId=34131	TrunkId=7807	Atalaya Peak	Off	18.314390	-67.177390	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=34131		Off	851600000	1
+T-Freq	TFreqId=0	SiteId=34131		Off	852562500	2
+T-Freq	TFreqId=0	SiteId=34131		Off	852812500	3
+T-Freq	TFreqId=0	SiteId=34131		Off	853425000	4
+Site	SiteId=33515	TrunkId=7807	Bayamon	Off	18.293610	-66.166940	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=33515		Off	851012500	1
+T-Freq	TFreqId=0	SiteId=33515		Off	851650000	2
+T-Freq	TFreqId=0	SiteId=33515		Off	851962500	3
+T-Freq	TFreqId=0	SiteId=33515		Off	852275000	4
+T-Freq	TFreqId=0	SiteId=33515		Off	852575000	5
+T-Freq	TFreqId=0	SiteId=33515		Off	854987500	6
+T-Freq	TFreqId=0	SiteId=33515		Off	855487500	7
+T-Freq	TFreqId=0	SiteId=33515		Off	856462500	8
+T-Freq	TFreqId=0	SiteId=33515		Off	857237500	9
+T-Freq	TFreqId=0	SiteId=33515		Off	857762500	10
+T-Freq	TFreqId=0	SiteId=33515		Off	858237500	11
+Site	SiteId=34127	TrunkId=7807	Cayey	Off	18.052780	-66.130610	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=34127		Off	851125000	1
+T-Freq	TFreqId=0	SiteId=34127		Off	851512500	2
+T-Freq	TFreqId=0	SiteId=34127		Off	851825000	3
+T-Freq	TFreqId=0	SiteId=34127		Off	852462500	4
+T-Freq	TFreqId=0	SiteId=34127		Off	853112500	5
+Site	SiteId=33514	TrunkId=7807	Cerro Los Machos	Off	18.280500	-65.673750	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=33514		Off	851550000	1
+T-Freq	TFreqId=0	SiteId=33514		Off	851900000	2
+T-Freq	TFreqId=0	SiteId=33514		Off	852212500	3
+T-Freq	TFreqId=0	SiteId=33514		Off	852562500	4
+T-Freq	TFreqId=0	SiteId=33514		Off	853150000	5
+T-Freq	TFreqId=0	SiteId=33514		Off	854637500	6
+Site	SiteId=34132	TrunkId=7807	Cerro Punta Peak	Off	18.172190	-66.591670	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=34132		Off	851212500	1
+T-Freq	TFreqId=0	SiteId=34132		Off	851850000	2
+T-Freq	TFreqId=0	SiteId=34132		Off	852150000	3
+T-Freq	TFreqId=0	SiteId=34132		Off	852900000	4
+T-Freq	TFreqId=0	SiteId=34132		Off	853175000	5
+T-Freq	TFreqId=0	SiteId=34132		Off	859212500	6
+Site	SiteId=37820	TrunkId=7807	Ciales	Off	18.300000	-66.500000	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=37820		Off	863037500	1
+Site	SiteId=37870	TrunkId=7807	Dorado	Off	18.440000	-66.280000	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=37870		Off	863000000	1
+Site	SiteId=33512	TrunkId=7807	Gurabo	Off	18.279670	-65.944610	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=33512		Off	852400000	1
+T-Freq	TFreqId=0	SiteId=33512		Off	852712500	2
+T-Freq	TFreqId=0	SiteId=33512		Off	854212500	3
+T-Freq	TFreqId=0	SiteId=33512		Off	854687500	4
+T-Freq	TFreqId=0	SiteId=33512		Off	855462500	5
+T-Freq	TFreqId=0	SiteId=33512		Off	856062500	6
+T-Freq	TFreqId=0	SiteId=33512		Off	856937500	7
+T-Freq	TFreqId=0	SiteId=33512		Off	857462500	8
+T-Freq	TFreqId=0	SiteId=33512		Off	858012500	9
+T-Freq	TFreqId=0	SiteId=33512		Off	858487500	10
+T-Freq	TFreqId=0	SiteId=33512		Off	859462500	11
+Site	SiteId=27335	TrunkId=7807	Isabela	Off	18.400000	-67.140000	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=27335		Off	853537500	1
+T-Freq	TFreqId=0	SiteId=27335		Off	852625000	2
+T-Freq	TFreqId=0	SiteId=27335		Off	853425000	3
+T-Freq	TFreqId=0	SiteId=27335		Off	852125000	4
+T-Freq	TFreqId=0	SiteId=27335		Off	852287500	5
+T-Freq	TFreqId=0	SiteId=27335		Off	852812500	6
+Site	SiteId=34124	TrunkId=7807	Las Piedras	Off	18.191110	-65.838190	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=34124		Off	852987500	1
+T-Freq	TFreqId=0	SiteId=34124		Off	853287500	2
+T-Freq	TFreqId=0	SiteId=34124		Off	854437500	3
+T-Freq	TFreqId=0	SiteId=34124		Off	858987500	4
+Site	SiteId=33517	TrunkId=7807	Luis Munoz Marin Airport	Off	18.439390	-66.001830	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=33517		Off	851062500	1
+T-Freq	TFreqId=0	SiteId=33517		Off	851750000	2
+T-Freq	TFreqId=0	SiteId=33517		Off	853062500	3
+T-Freq	TFreqId=0	SiteId=33517		Off	853550000	4
+T-Freq	TFreqId=0	SiteId=33517		Off	853825000	5
+Site	SiteId=34130	TrunkId=7807	Maricao B	Off	18.148890	-66.983330	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=34130		Off	851275000	1
+T-Freq	TFreqId=0	SiteId=34130		Off	852287500	2
+T-Freq	TFreqId=0	SiteId=34130		Off	852625000	3
+T-Freq	TFreqId=0	SiteId=34130		Off	853537500	4
+T-Freq	TFreqId=0	SiteId=34130		Off	854262500	5
+T-Freq	TFreqId=0	SiteId=34130		Off	854587500	6
+Site	SiteId=34126	TrunkId=7807	Monte del Estado	Off	18.148890	-66.983330	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=34126		Off	851325000	1
+T-Freq	TFreqId=0	SiteId=34126		Off	851575000	2
+T-Freq	TFreqId=0	SiteId=34126		Off	851825000	3
+T-Freq	TFreqId=0	SiteId=34126		Off	852125000	4
+T-Freq	TFreqId=0	SiteId=34126		Off	852375000	5
+T-Freq	TFreqId=0	SiteId=34126		Off	852962500	6
+Site	SiteId=34183	TrunkId=7807	Monte Pirata	Off	18.146110	-65.442780	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=34183		Off	852337500	1
+T-Freq	TFreqId=0	SiteId=34183		Off	852837500	2
+T-Freq	TFreqId=0	SiteId=34183		Off	853337500	3
+Site	SiteId=34135	TrunkId=7807	Monte Radio Oro	Off	18.250500	-66.332390	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=34135		Off	852450000	1
+T-Freq	TFreqId=0	SiteId=34135		Off	852950000	2
+T-Freq	TFreqId=0	SiteId=34135		Off	854462500	3
+T-Freq	TFreqId=0	SiteId=34135		Off	856187500	4
+T-Freq	TFreqId=0	SiteId=34135		Off	858162500	5
+Site	SiteId=34182	TrunkId=7807	Morovis	Off	18.320000	-66.420000	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=34182		Off	852487500	1
+T-Freq	TFreqId=0	SiteId=34182		Off	852800000	2
+T-Freq	TFreqId=0	SiteId=34182		Off	853100000	3
+T-Freq	TFreqId=0	SiteId=34182		Off	853275000	4
+T-Freq	TFreqId=0	SiteId=34182		Off	854387500	5
+Site	SiteId=33516	TrunkId=7807	Old San Juan	Off	18.465000	-66.117500	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=33516		Off	851387500	1
+T-Freq	TFreqId=0	SiteId=33516		Off	851912500	2
+T-Freq	TFreqId=0	SiteId=33516		Off	852412500	3
+T-Freq	TFreqId=0	SiteId=33516		Off	853387500	4
+T-Freq	TFreqId=0	SiteId=33516		Off	856162500	5
+T-Freq	TFreqId=0	SiteId=33516		Off	857262500	6
+T-Freq	TFreqId=0	SiteId=33516		Off	857737500	7
+T-Freq	TFreqId=0	SiteId=33516		Off	858262500	8
+Site	SiteId=34133	TrunkId=7807	Pandura Peak	Off	18.036670	-65.925000	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=34133		Off	851187500	1
+T-Freq	TFreqId=0	SiteId=34133		Off	852087500	2
+T-Freq	TFreqId=0	SiteId=34133		Off	852587500	3
+T-Freq	TFreqId=0	SiteId=34133		Off	853087500	4
+Site	SiteId=34125	TrunkId=7807	Ponce	Off	18.152750	-66.559330	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=34125		Off	851400000	1
+T-Freq	TFreqId=0	SiteId=34125		Off	851712500	2
+T-Freq	TFreqId=0	SiteId=34125		Off	852100000	3
+T-Freq	TFreqId=0	SiteId=34125		Off	852650000	4
+T-Freq	TFreqId=0	SiteId=34125		Off	857437500	5
+T-Freq	TFreqId=0	SiteId=34125		Off	858137500	6
+T-Freq	TFreqId=0	SiteId=34125		Off	859212500	7
+Site	SiteId=44881	TrunkId=7807	Ponce	Off	18.004640	-66.584940	25.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=44881		Off	852262500	1
+Site	SiteId=22664	TrunkId=7807	San Juan	Off	18.417170	-66.077780	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=22664		Off	851300000	1
+T-Freq	TFreqId=0	SiteId=22664		Off	851637500	2
+T-Freq	TFreqId=0	SiteId=22664		Off	852037500	3
+T-Freq	TFreqId=0	SiteId=22664		Off	852337500	4
+T-Freq	TFreqId=0	SiteId=22664		Off	852637500	5
+T-Freq	TFreqId=0	SiteId=22664		Off	853300000	6
+T-Freq	TFreqId=0	SiteId=22664		Off	854537500	7
+T-Freq	TFreqId=0	SiteId=22664		Off	856212500	8
+Site	SiteId=34128	TrunkId=7807	Utuado A	Off	18.233000	-66.759610	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=34128		Off	851737500	1
+T-Freq	TFreqId=0	SiteId=34128		Off	851925000	2
+T-Freq	TFreqId=0	SiteId=34128		Off	852225000	3
+T-Freq	TFreqId=0	SiteId=34128		Off	852850000	4
+T-Freq	TFreqId=0	SiteId=34128		Off	853787500	5
+T-Freq	TFreqId=0	SiteId=34128		Off	853975000	6
+Site	SiteId=34129	TrunkId=7807	Utuado B	Off	18.289190	-66.660360	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=34129		Off	851300000	1
+T-Freq	TFreqId=0	SiteId=34129		Off	851800000	2
+T-Freq	TFreqId=0	SiteId=34129		Off	852262500	3
+T-Freq	TFreqId=0	SiteId=34129		Off	852750000	4
+Site	SiteId=33513	TrunkId=7807	Yunque Mountain	Off	18.310500	-65.791000	15.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=33513		Off	851050000	1
+T-Freq	TFreqId=0	SiteId=33513		Off	851425000	2
+T-Freq	TFreqId=0	SiteId=33513		Off	852050000	3
+T-Freq	TFreqId=0	SiteId=33513		Off	852350000	4
+T-Freq	TFreqId=0	SiteId=33513		Off	852675000	5
+T-Group	TGroupId=25341	TrunkId=7807	Bomberos de Puerto Rico	Off	18.200000	-66.400000	60.0	Circle
+TGID	Tid=310989	TGroupId=25341	Bomberos de P.R.	Off	21	ALL	3				
+TGID	Tid=310992	TGroupId=25341	Bomberos de P.R. Arecibo	Off	24	ALL	3				
+TGID	Tid=310991	TGroupId=25341	Bomberos de P.R. Dist Luquillo	Off	23	ALL	3				
+TGID	Tid=310990	TGroupId=25341	Bomberos de P.R. Zona Bayamon/Arecibo	Off	22	ALL	3				
+TGID	Tid=310994	TGroupId=25341	Bomberos de P.R. Zona Caguas/Arecibo	Off	26	ALL	3				
+TGID	Tid=310993	TGroupId=25341	Bomberos de P.R. Zona Carolina	Off	25	ALL	3				
+TGID	Tid=310995	TGroupId=25341	Bomberos de P.R. Zona Ponce	Off	27	ALL	3				
+T-Group	TGroupId=24963	TrunkId=7807	Police	Off	18.200000	-66.400000	60.0	Circle
+TGID	Tid=306944	TGroupId=24963	Arecibo	Off	162	ALL	2				
+TGID	Tid=315060	TGroupId=24963	Arecibo	Off	163	ALL	2				
+TGID	Tid=306943	TGroupId=24963	Autopista Buchanan	Off	194	ALL	2				
+TGID	Tid=306946	TGroupId=24963	Fura	Off	206	ALL	7				
+TGID	Tid=306945	TGroupId=24963	Ponce	Off	180	ALL	7				
+Trunk	TrunkId=982	StateId=72	Puerto Rico Electric Power Authority (EDACS)	Off		Edacs					
+AreaState	TrunkId=982	StateId=72
+AreaCounty	TrunkId=982	CountyId=0
+Site	SiteId=1121	TrunkId=982	Cayey	Off	0.000000	0.000000	0.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=1121		Off	854912500	1
+T-Freq	TFreqId=0	SiteId=1121		Off	855187500	2
+T-Freq	TFreqId=0	SiteId=1121		Off	855412500	3
+T-Freq	TFreqId=0	SiteId=1121		Off	855662500	4
+T-Freq	TFreqId=0	SiteId=1121		Off	855937500	5
+Site	SiteId=8084	TrunkId=982	Isabela	Off	0.000000	0.000000	0.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=8084		Off	859362500	1
+T-Freq	TFreqId=0	SiteId=8084		Off	859287500	2
+T-Freq	TFreqId=0	SiteId=8084		Off	855412500	3
+T-Freq	TFreqId=0	SiteId=8084		Off	855662500	4
+T-Freq	TFreqId=0	SiteId=8084		Off	858362500	5
+Site	SiteId=1115	TrunkId=982	Luquillo	Off	0.000000	0.000000	0.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=1115		Off	856312500	1
+T-Freq	TFreqId=0	SiteId=1115		Off	857312500	2
+T-Freq	TFreqId=0	SiteId=1115		Off	858312500	3
+T-Freq	TFreqId=0	SiteId=1115		Off	859312500	4
+T-Freq	TFreqId=0	SiteId=1115		Off	860312500	5
+T-Freq	TFreqId=0	SiteId=1115		Off	856412500	6
+T-Freq	TFreqId=0	SiteId=1115		Off	857412500	7
+T-Freq	TFreqId=0	SiteId=1115		Off	858412500	8
+Site	SiteId=1118	TrunkId=982	Maricao	Off	0.000000	0.000000	0.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=1118		Off	856412500	1
+T-Freq	TFreqId=0	SiteId=1118		Off	857412500	2
+T-Freq	TFreqId=0	SiteId=1118		Off	858412500	3
+T-Freq	TFreqId=0	SiteId=1118		Off	859412500	4
+T-Freq	TFreqId=0	SiteId=1118		Off	860412500	5
+Site	SiteId=1116	TrunkId=982	Orocovis	Off	0.000000	0.000000	0.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=1116		Off	856287500	1
+T-Freq	TFreqId=0	SiteId=1116		Off	857287500	2
+T-Freq	TFreqId=0	SiteId=1116		Off	858287500	3
+T-Freq	TFreqId=0	SiteId=1116		Off	859287500	4
+T-Freq	TFreqId=0	SiteId=1116		Off	860287500	5
+Site	SiteId=1122	TrunkId=982	Ponce	Off	0.000000	0.000000	0.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=1122		Off	855362500	1
+T-Freq	TFreqId=0	SiteId=1122		Off	856362500	2
+T-Freq	TFreqId=0	SiteId=1122		Off	857362500	3
+Site	SiteId=1120	TrunkId=982	Rincom	Off	0.000000	0.000000	0.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=1120		Off	856312500	1
+T-Freq	TFreqId=0	SiteId=1120		Off	857312500	2
+T-Freq	TFreqId=0	SiteId=1120		Off	858312500	3
+T-Freq	TFreqId=0	SiteId=1120		Off	859312500	4
+T-Freq	TFreqId=0	SiteId=1120		Off	860312500	5
+Site	SiteId=1114	TrunkId=982	Rio Piedras	Off	0.000000	0.000000	0.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=1114		Off	855362500	1
+T-Freq	TFreqId=0	SiteId=1114		Off	856362500	2
+T-Freq	TFreqId=0	SiteId=1114		Off	857362500	3
+T-Freq	TFreqId=0	SiteId=1114		Off	858362500	4
+T-Freq	TFreqId=0	SiteId=1114		Off	859362500	5
+T-Freq	TFreqId=0	SiteId=1114		Off	860362500	6
+Site	SiteId=1119	TrunkId=982	Salinas	Off	0.000000	0.000000	0.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=1119		Off	858362500	1
+T-Freq	TFreqId=0	SiteId=1119		Off	859362500	2
+T-Freq	TFreqId=0	SiteId=1119		Off	860362500	3
+Site	SiteId=1117	TrunkId=982	Villalba	Off	0.000000	0.000000	0.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=1117		Off	855387500	1
+T-Freq	TFreqId=0	SiteId=1117		Off	856387500	2
+T-Freq	TFreqId=0	SiteId=1117		Off	857387500	3
+T-Freq	TFreqId=0	SiteId=1117		Off	858387500	4
+T-Freq	TFreqId=0	SiteId=1117		Off	859387500	5
+T-Freq	TFreqId=0	SiteId=1117		Off	860387500	6
+Site	SiteId=8085	TrunkId=982	Yauco	Off	0.000000	0.000000	0.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=8085		Off	854912500	1
+T-Freq	TFreqId=0	SiteId=8085		Off	855187500	2
+T-Freq	TFreqId=0	SiteId=8085		Off	856287500	3
+T-Freq	TFreqId=0	SiteId=8085		Off	857287500	4
+T-Freq	TFreqId=0	SiteId=8085		Off	858312500	5
+T-Group	TGroupId=11657	TrunkId=982	Technical Services	Off	0.000000	0.000000	0.0	Circle
+TGID	Tid=162643	TGroupId=11657	Operations	Off	04-003	ALL	34				
+TGID	Tid=162644	TGroupId=11657	Operations	Off	04-004	ALL	34				
+TGID	Tid=162645	TGroupId=11657	Operations	Off	04-022	ALL	34				
+TGID	Tid=162646	TGroupId=11657	Operations	Off	04-023	ALL	34				
+TGID	Tid=162647	TGroupId=11657	Operations	Off	04-024	ALL	34				
+TGID	Tid=162648	TGroupId=11657	Operations	Off	04-025	ALL	34				
+TGID	Tid=162649	TGroupId=11657	Operations	Off	04-030	ALL	34				
+TGID	Tid=162650	TGroupId=11657	Operations	Off	04-031	ALL	34				
+TGID	Tid=162651	TGroupId=11657	Operations	Off	04-032	ALL	34				
+TGID	Tid=162652	TGroupId=11657	Operations	Off	04-042	ALL	34				
+TGID	Tid=162653	TGroupId=11657	Operations	Off	04-043	ALL	34				
+TGID	Tid=162654	TGroupId=11657	Operations	Off	04-047	ALL	34				
+TGID	Tid=162655	TGroupId=11657	Operations	Off	04-050	ALL	34				
+TGID	Tid=162656	TGroupId=11657	Operations	Off	04-141	ALL	34				
+TGID	Tid=162657	TGroupId=11657	Operations	Off	04-143	ALL	34				
+TGID	Tid=162658	TGroupId=11657	Operations	Off	04-145	ALL	34				
+TGID	Tid=162659	TGroupId=11657	Operations	Off	04-150	ALL	34				
+TGID	Tid=162660	TGroupId=11657	Operations	Off	04-151	ALL	34				
+Trunk	TrunkId=12816	StateId=72	Urban Train	Off		P25X2_TDMA					
+AreaState	TrunkId=12816	StateId=72
+AreaCounty	TrunkId=12816	CountyId=5659
+Site	SiteId=44752	TrunkId=12816	Rio Piedras Station	Off	18.399110	-66.052110	25.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=44752		Off	851662500	1
+Site	SiteId=44751	TrunkId=12816	Route 19 & 20	Off	18.390500	-66.104330	25.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=44751		Off	852225000	1
+T-Freq	TFreqId=0	SiteId=44751		Off	852662500	2
+T-Freq	TFreqId=0	SiteId=44751		Off	853412500	3
+T-Group	TGroupId=35500	TrunkId=12816	Operations	Off	0.000000	0.000000	0.0	Circle
+TGID	Tid=422679	TGroupId=35500	Ops 12	Off	112	ALL	26				
+TGID	Tid=422680	TGroupId=35500	Ops 23	Off	123	ALL	26				
+TGID	Tid=422678	TGroupId=35500	Ops 7	Off	107	ALL	26				

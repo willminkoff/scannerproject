@@ -1,0 +1,487 @@
+TargetModel	HomePatrol-1
+FormatVersion	2.04
+Conventional	CountyId=5230	StateId=110	Kings	Off		Conventional
+AreaState	CountyId=5230	StateId=110
+AreaCounty	CountyId=5230	CountyId=5230
+C-Group	CGroupId=64803	CountyId=5230	Amateur Radio - Montague	Off	46.164870	-62.648680	10.0	Circle
+C-Freq	CFreqId=268402	CGroupId=64803	Montague - VY2EKR repeater	Off	147165000	FM		13					
+C-Group	CGroupId=86264	CountyId=5230	Cardigan - Fire Department	Off	46.274830	-62.451780	26.9	Circle
+C-Freq	CFreqId=234614	CGroupId=86264	Cardigan Fire Department	Off	159360000	NFM	TONE=C162.2	3					
+C-Group	CGroupId=86265	CountyId=5230	Central Kings - Fire Department	Off	46.274830	-62.451780	26.9	Circle
+C-Freq	CFreqId=234613	CGroupId=86265	Central Kings Fire Department	Off	155925000	FM		3					
+C-Group	CGroupId=86266	CountyId=5230	Eastern Kings - Fire Department	Off	46.274830	-62.451780	26.9	Circle
+C-Freq	CFreqId=315888	CGroupId=86266	Eastern Kings Fire Department	Off	153770000	FM		3					
+C-Group	CGroupId=86262	CountyId=5230	Georgetown - Fire Department	Off	46.274830	-62.451780	26.9	Circle
+C-Freq	CFreqId=315891	CGroupId=86262	Georgetown Fire Department (Patched with TG 48508)	Off	151190000	FM		3					
+C-Group	CGroupId=86260	CountyId=5230	Montague - Fire Department	Off	46.274830	-62.451780	26.9	Circle
+C-Freq	CFreqId=234617	CGroupId=86260	Montague Fire Department Paging	Off	154010000	FM		3					
+C-Group	CGroupId=86261	CountyId=5230	Montague - Kings County Memorial Hospital	Off	46.274830	-62.451780	26.9	Circle
+C-Freq	CFreqId=377934	CGroupId=86261	Kings County Memorial Hospital Paging	Off	149020000	NFM		12					
+C-Group	CGroupId=86267	CountyId=5230	Morell - Fire Department	Off	46.274830	-62.451780	26.9	Circle
+C-Freq	CFreqId=234618	CGroupId=86267	Morell / St Peters Fire Departments	Off	154280000	FM	TONE=C206.5	3					
+C-Group	CGroupId=56182	CountyId=5230	Murray River - Fire Department	Off	46.274830	-62.451780	26.9	Circle
+C-Freq	CFreqId=234619	CGroupId=56182	Murray River / Murray Harbour Fire Departments	Off	159240000	FM		3					
+C-Group	CGroupId=86263	CountyId=5230	Souris - Fire Department	Off	46.274830	-62.451780	26.9	Circle
+C-Freq	CFreqId=234627	CGroupId=86263	Souris Fire Department	Off	155715000	FM		3					
+Conventional	CountyId=5231	StateId=110	Prince	Off		Conventional
+AreaState	CountyId=5231	StateId=110
+AreaCounty	CountyId=5231	CountyId=5231
+C-Group	CGroupId=78295	CountyId=5231	Amateur Radio - O'Leary	Off	46.706980	-64.228160	10.0	Circle
+C-Freq	CFreqId=268403	CGroupId=78295	O'Leary - VY2CFB repeater	Off	147120000	FM		13					
+C-Group	CGroupId=64804	CountyId=5231	Amateur Radio - Summerside	Off	46.405740	-63.784590	10.0	Circle
+C-Freq	CFreqId=268405	CGroupId=64804	Summerside - VE1CFR repeater	Off	146850000	FM		13					
+C-Freq	CFreqId=338779	CGroupId=64804	UHF Hub Repeater connected to VE1CFR, VY2CFB, and VY2PEI	Off	444500000	FM		13					
+C-Group	CGroupId=86259	CountyId=5231	Correctional Centre - PEI Youth Centre	Off	46.641890	-63.918460	33.8	Circle
+C-Freq	CFreqId=377933	CGroupId=86259	PEI Youth Center (Female Wing)	Off	464887500	NFM		37					
+C-Freq	CFreqId=377932	CGroupId=86259	PEI Youth Center (Male Wing)	Off	464337500	NFM		37					
+C-Group	CGroupId=86256	CountyId=5231	Hospitals - Western Hospital	Off	46.641890	-63.918460	33.8	Circle
+C-Freq	CFreqId=377931	CGroupId=86256	Western Hospital Paging	Off	151490000	FM		12					
+C-Group	CGroupId=86246	CountyId=5231	Public Safety - Fire Departments	Off	46.641890	-63.918460	33.8	Circle
+C-Freq	CFreqId=233298	CGroupId=86246	Alberton Fire Department	Off	155310000	FM		3					
+C-Freq	CFreqId=373164	CGroupId=86246	Borden-Carleton Fire Department - Paging	Off	143325000	FM		3					
+C-Freq	CFreqId=315882	CGroupId=86246	Kensington Fire Department	Off	152510000	FM		3					
+C-Freq	CFreqId=370337	CGroupId=86246	Kinkora Fire Department - Paging	Off	150185000	FM		3					
+C-Freq	CFreqId=233300	CGroupId=86246	Lennox Island Fire Department	Off	143220000	FM		3					
+C-Freq	CFreqId=233301	CGroupId=86246	Miminegash Fire Department	Off	169860000	FM		3					
+C-Freq	CFreqId=233302	CGroupId=86246	Miscouche Fire Department	Off	152345000	FM		3					
+C-Freq	CFreqId=233303	CGroupId=86246	O'Leary Fire Department - Paging	Off	166710000	FM		3					
+C-Freq	CFreqId=229255	CGroupId=86246	Summerside Fire Department	Off	152555000	FM		3					
+C-Freq	CFreqId=303221	CGroupId=86246	Tignish Fire Department	Off	152660000	FM		3					
+C-Freq	CFreqId=233305	CGroupId=86246	Tyne Valley Fire Department	Off	170370000	FM		3					
+C-Freq	CFreqId=315881	CGroupId=86246	Wellington Fire Department - Paging	Off	152225000	FM		3					
+Conventional	CountyId=5232	StateId=110	Queens	Off		Conventional
+AreaState	CountyId=5232	StateId=110
+AreaCounty	CountyId=5232	CountyId=5232
+C-Group	CGroupId=78296	CountyId=5232	Amateur Radio - Cavendish	Off	46.458800	-63.377430	10.0	Circle
+C-Freq	CFreqId=268396	CGroupId=78296	Cavendish - VY2PEI repeater	Off	145150000	FM		13					
+C-Group	CGroupId=64802	CountyId=5232	Amateur Radio - Charlottetown	Off	46.249710	-63.134320	10.0	Circle
+C-Freq	CFreqId=268399	CGroupId=64802	Charlottetown - VE1CRA repeater	Off	146670000	FM	TONE=C100.0	13					
+C-Freq	CFreqId=323077	CGroupId=64802	Charlottetown - VE1CRA repeater (perm-link with 146.670)	Off	444400000	FM		13					
+C-Freq	CFreqId=323078	CGroupId=64802	Charlottetown - VE1UHF repeater	Off	443300000	AUTO		13					
+C-Freq	CFreqId=268397	CGroupId=64802	Charlottetown - VY2CS repeater	Off	147390000	FM		13					
+C-Freq	CFreqId=268398	CGroupId=64802	Charlottetown - VY2UHF repeater	Off	448350000	FM		13					
+C-Group	CGroupId=78297	CountyId=5232	Amateur Radio - Glen Valley	Off	46.342680	-63.428710	10.0	Circle
+C-Freq	CFreqId=268400	CGroupId=78297	Glen Valley - VE1UHF repeater	Off	146715000	AUTO		13					
+C-Group	CGroupId=78298	CountyId=5232	Amateur Radio - Hazel Grove	Off	46.377320	-63.394890	10.0	Circle
+C-Freq	CFreqId=268401	CGroupId=78298	Hazel Grove - VY2TPH repeater	Off	146940000	FM	TONE=C77.0	13					
+C-Group	CGroupId=78299	CountyId=5232	Amateur Radio - Stratford	Off	46.216920	-63.088820	10.0	Circle
+C-Freq	CFreqId=268404	CGroupId=78299	Stratford - VY2VB repeater	Off	147255000	FM		13					
+C-Group	CGroupId=86274	CountyId=5232	Belfast - Fire Department	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=233318	CGroupId=86274	Belfast Fire Department	Off	151370000	NFM		3					
+C-Group	CGroupId=86269	CountyId=5232	Charlottetown - Fire Department	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=343815	CGroupId=86269	Charlottetown Fire Department - District 1 Paging	Off	155490000	FM	TONE=C218.1	3					
+C-Freq	CFreqId=343816	CGroupId=86269	Charlottetown Fire Department - District 2 Paging	Off	155970000	FM	TONE=C189.9	3					
+C-Group	CGroupId=86268	CountyId=5232	Charlottetown - Police Department	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=373165	CGroupId=86268	Charlottetown Emergency Operations Centre	Off	151445000	NFM	TONE=C94.8	29					
+C-Group	CGroupId=85427	CountyId=5232	Charlottetown - Public Works	Off	46.305200	-63.187870	33.6	Circle
+C-Freq	CFreqId=373996	CGroupId=85427	City of Charlottetown - Pollution Control Plant	Off	166560000	NFM		14					
+C-Freq	CFreqId=373997	CGroupId=85427	City of Charlottetown - Pollution Control Plant	Off	419962500	NFM		14					
+C-Group	CGroupId=83589	CountyId=5232	Charlottetown - Queen Elizabeth Hospital	Off	46.255560	-63.100510	1.0	Circle
+C-Freq	CFreqId=373940	CGroupId=83589	QEH Security	Off	462187500	NFM	TONE=C203.5	33					
+C-Freq	CFreqId=376325	CGroupId=83589	Queens Elizabeth Hospital - Paging	Off	467800000	NFM		12					
+C-Group	CGroupId=86279	CountyId=5232	Crapaud - Fire Department	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=334647	CGroupId=86279	Crapaud Fire Department (Paging Only)	Off	162750000	NFM	TONE=C167.9	3					
+C-Group	CGroupId=86273	CountyId=5232	Crossroads - Fire Department	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=233317	CGroupId=86273	Crossroads Fire Department - Paging	Off	151325000	NFM	TONE=C67.0	3					
+C-Group	CGroupId=86270	CountyId=5232	East River - Fire Department	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=334591	CGroupId=86270	East River Fire Department	Off	458337500	NFM		3					
+C-Freq	CFreqId=334528	CGroupId=86270	East River Fire Department (Paging only)	Off	154280000	NFM	TONE=C206.5	3					
+C-Group	CGroupId=86281	CountyId=5232	Miltonvale Park - PEI Fire School	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=347013	CGroupId=86281	PEI Firefighter's Association (Provincial Fire School)	Off	154740000	NFM	TONE=C192.8	8					
+C-Group	CGroupId=86280	CountyId=5232	New Glasgow - Fire Department	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=233327	CGroupId=86280	New Glasgow Fire Department (Paging)	Off	154535000	NFM	TONE=C156.7	3					
+C-Group	CGroupId=86272	CountyId=5232	New London - Fire Department	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=315885	CGroupId=86272	New London Fire Department	Off	148975000	NFM	TONE=C103.5	3					
+C-Group	CGroupId=86271	CountyId=5232	North River - Fire Department	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=256860	CGroupId=86271	North River Fire Department (Paging only)	Off	143190000	NFM	TONE=C141.3	3					
+C-Group	CGroupId=86275	CountyId=5232	North Rustico - Fire Department	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=315886	CGroupId=86275	North Rustico Fire Department	Off	152195000	NFM	TONE=C206.5	3					
+C-Group	CGroupId=86276	CountyId=5232	North Shore - Fire Department	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=315887	CGroupId=86276	North Shore Fire Department	Off	152735000	NFM	TONE=C254.1	3					
+C-Group	CGroupId=86277	CountyId=5232	Vernon River - Fire Department	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=352352	CGroupId=86277	Vernon River Fire Department	Off	163830000	NFM	TONE=C162.2	3					
+C-Group	CGroupId=86278	CountyId=5232	Victoria - Fire Department	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=334527	CGroupId=86278	Victoria Fire Department - Paging	Off	155625000	NFM		3					
+Conventional	AgencyId=9325	StateId=110	Brookvale Provincial Ski Park	Off		Conventional
+AreaState	AgencyId=9325	StateId=110
+AreaCounty	AgencyId=9325	CountyId=5232
+C-Group	CGroupId=77392	AgencyId=9325	Operations	Off	46.281540	-63.409080	2.0	Circle
+C-Freq	CFreqId=329314	CGroupId=77392	Operations and Ski Patrol	Off	454512500	FM		17					
+C-Freq	CFreqId=329315	CGroupId=77392	Operations and Ski Patrol	Off	460612500	FM		17					
+C-Freq	CFreqId=329316	CGroupId=77392	Operations and Ski Patrol	Off	468737500	FM		17					
+Conventional	AgencyId=9441	StateId=110	Businesses	Off		Conventional
+AreaState	AgencyId=9441	StateId=110
+AreaCounty	AgencyId=9441	CountyId=5231
+C-Group	CGroupId=81797	AgencyId=9441	Agriculture	Off	46.641890	-63.918460	33.8	Circle
+C-Freq	CFreqId=374168	CGroupId=81797	Bedeque Farms	Off	170330000	NFM		17					
+C-Freq	CFreqId=374169	CGroupId=81797	Bertram Webster Farm	Off	149500000	NFM		17					
+C-Freq	CFreqId=374434	CGroupId=81797	Birch Farms	Off	453637500	NFM		17					
+C-Freq	CFreqId=374170	CGroupId=81797	Brendel Farms	Off	168639000	NFM		17					
+C-Freq	CFreqId=374435	CGroupId=81797	Buchanan Farms	Off	162705000	NFM		17					
+C-Freq	CFreqId=374436	CGroupId=81797	Campbell Farms	Off	458437500	NFM		17					
+C-Freq	CFreqId=334721	CGroupId=81797	Cavendish Produce	Off	462437500	FM		17					
+C-Freq	CFreqId=374437	CGroupId=81797	Cousins Farms	Off	453237500	NFM		17					
+C-Freq	CFreqId=374142	CGroupId=81797	Farm Boys	Off	461600000	NFM		17					
+C-Freq	CFreqId=374143	CGroupId=81797	Gorrill Produce	Off	169519000	NFM		17					
+C-Freq	CFreqId=374171	CGroupId=81797	Green Potato Farm	Off	149230000	NFM		17					
+C-Freq	CFreqId=386067	CGroupId=81797	Hamill Brothers Farm	Off	166605000	NFM		17					
+C-Freq	CFreqId=334718	CGroupId=81797	Harris Bros. Inc.	Off	151115000	FM		17					
+C-Freq	CFreqId=374172	CGroupId=81797	Hickey Farms	Off	168900000	NFM		17					
+C-Freq	CFreqId=374144	CGroupId=81797	Klondike Farms	Off	170550000	NFM		17					
+C-Freq	CFreqId=374097	CGroupId=81797	Linkletter Farms	Off	153560000	NFM		17					
+C-Freq	CFreqId=374173	CGroupId=81797	MacDonald Bros. Farms	Off	165990000	NFM		17					
+C-Freq	CFreqId=334719	CGroupId=81797	Matthews Lime Spreading	Off	163095000	FM		17					
+C-Freq	CFreqId=353599	CGroupId=81797	Mid Isle Farms	Off	451912500	FM		17					
+C-Freq	CFreqId=374438	CGroupId=81797	Morley Woods and Sons Farm	Off	158460000	NFM		17					
+C-Freq	CFreqId=374174	CGroupId=81797	Morrison Bros. Farms	Off	169350000	NFM		17					
+C-Freq	CFreqId=374145	CGroupId=81797	Murray Farms	Off	458537500	NFM		17					
+C-Freq	CFreqId=374099	CGroupId=81797	Northern Peat Moss	Off	153695000	NFM		17					
+C-Freq	CFreqId=334720	CGroupId=81797	O'Leary Produce	Off	458287500	FM		17					
+C-Freq	CFreqId=386068	CGroupId=81797	PEI Potato Solutions	Off	469612500	NFM		17					
+C-Freq	CFreqId=374439	CGroupId=81797	Port Hill Milking	Off	171060000	NFM		17					
+C-Freq	CFreqId=374440	CGroupId=81797	Postma Bros. Farms	Off	464437500	NFM		17					
+C-Freq	CFreqId=374441	CGroupId=81797	Rayner Farms	Off	172905000	NFM		17					
+C-Freq	CFreqId=374146	CGroupId=81797	Shore Lane Farms	Off	165120000	NFM		17					
+C-Freq	CFreqId=374147	CGroupId=81797	Spring Valley Farms	Off	469087500	NFM		17					
+C-Freq	CFreqId=374098	CGroupId=81797	Valley Grove Farms	Off	169410000	NFM		17					
+C-Freq	CFreqId=374442	CGroupId=81797	West Country Farms	Off	172200000	NFM		17					
+C-Freq	CFreqId=374148	CGroupId=81797	Wilkie Farms	Off	170700000	NFM		17					
+C-Group	CGroupId=81923	AgencyId=9441	Cavendish Farms	Off	46.641890	-63.918460	33.8	Circle
+C-Freq	CFreqId=353562	CGroupId=81923	Clermont Station Expansion Operations	Off	461912500	NFM		17					
+C-Freq	CFreqId=353560	CGroupId=81923	Clermont Station Fire/Alarms	Off	452787500	NFM		17					
+C-Freq	CFreqId=353563	CGroupId=81923	Clermont Station Main Plant Ops	Off	462437500	NFM		17					
+C-Freq	CFreqId=353561	CGroupId=81923	Clermont Station Operations	Off	453412500	NFM		17					
+C-Group	CGroupId=81927	AgencyId=9441	Construction	Off	46.641890	-63.918460	33.8	Circle
+C-Freq	CFreqId=352940	CGroupId=81927	Commercial Construction	Off	151745000	NFM		17					
+C-Freq	CFreqId=352943	CGroupId=81927	CRM Ready Mix (Summerside)	Off	163260000	NFM		17					
+C-Freq	CFreqId=352942	CGroupId=81927	Curran and Briggs West	Off	163795000	NFM		17					
+C-Freq	CFreqId=353596	CGroupId=81927	Island Waste Management Landfill Wellington	Off	463887500	FM		17					
+C-Freq	CFreqId=383164	CGroupId=81927	Jurkowski Enterprises	Off	150785000	NFM		17					
+C-Freq	CFreqId=374096	CGroupId=81927	McCardle Brothers Equipment	Off	453662500	NFM		17					
+C-Freq	CFreqId=353584	CGroupId=81927	Morrison/Mcrae - Summerside	Off	152060000	FM		17					
+C-Freq	CFreqId=352939	CGroupId=81927	Thompsons Backhoeing and Trucking	Off	151655000	NFM		17					
+C-Freq	CFreqId=352941	CGroupId=81927	West Highland Contractors	Off	170400000	NFM		17					
+C-Group	CGroupId=78292	AgencyId=9441	Industry	Off	46.707450	-64.225410	5.0	Circle
+C-Freq	CFreqId=334717	CGroupId=78292	Buchanan's Snow Removal	Off	166110000	FM		17					
+C-Freq	CFreqId=352944	CGroupId=78292	Crystal Beach Campground	Off	166170000	NFM		17					
+C-Freq	CFreqId=374083	CGroupId=78292	Island Mobile Communications	Off	153275000	NFM		17					
+C-Freq	CFreqId=374443	CGroupId=78292	Master Packaging	Off	464712500	NFM		17					
+C-Freq	CFreqId=334722	CGroupId=78292	Summerside Wellness Centre	Off	151085000	FM		17					
+C-Group	CGroupId=87002	AgencyId=9441	Municipal Works	Off	46.641890	-63.918460	33.8	Circle
+C-Freq	CFreqId=381524	CGroupId=87002	Village of Miscouche - Municipal Works	Off	151385000	NFM		14					
+C-Group	CGroupId=78291	AgencyId=9441	Transportation	Off	46.410200	-63.785260	2.0	Circle
+C-Freq	CFreqId=357577	CGroupId=78291	Lucky's Taxi	Off	166425000	NFM		26					
+C-Freq	CFreqId=347413	CGroupId=78291	Team Taxi	Off	168825000	NFM		26					
+C-Freq	CFreqId=351295	CGroupId=78291	United Taxi	Off	164310000	NFM		26					
+Conventional	AgencyId=9850	StateId=110	Businesses	Off		Conventional
+AreaState	AgencyId=9850	StateId=110
+AreaCounty	AgencyId=9850	CountyId=5232
+C-Group	CGroupId=81924	AgencyId=9850	Agriculture	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=393555	CGroupId=81924	Abelaine Farms	Off	166185000	NFM		17					
+C-Freq	CFreqId=373865	CGroupId=81924	Bluebay Farms	Off	168660000	NFM		17					
+C-Freq	CFreqId=401482	CGroupId=81924	Cavendish Agri Services	Off	151115000	NFM		17					
+C-Freq	CFreqId=397567	CGroupId=81924	Cherry Valley Farms	Off	171105000	NFM		17					
+C-Freq	CFreqId=361364	CGroupId=81924	Godfrey Farms	Off	163980000	FM		17					
+C-Freq	CFreqId=353566	CGroupId=81924	GWR Visser Farms	Off	163065000	FM		17					
+C-Freq	CFreqId=373864	CGroupId=81924	Hilltop Produce	Off	154710000	NFM		17					
+C-Freq	CFreqId=373862	CGroupId=81924	Howardulce Dairy Farm	Off	171675000	NFM		17					
+C-Freq	CFreqId=353572	CGroupId=81924	Indian River Farms	Off	164355000	FM		17					
+C-Freq	CFreqId=353565	CGroupId=81924	JS Visser Farms	Off	164010000	FM		17					
+C-Freq	CFreqId=361363	CGroupId=81924	Lank Farms	Off	150215000	FM		17					
+C-Freq	CFreqId=361365	CGroupId=81924	Macphail Farms	Off	166305000	FM		17					
+C-Freq	CFreqId=361366	CGroupId=81924	Mallett Dairy Farm	Off	170670000	FM		17					
+C-Freq	CFreqId=353564	CGroupId=81924	Monaghan Farms	Off	168000000	FM		17					
+C-Freq	CFreqId=397568	CGroupId=81924	Newland Farms	Off	166095000	NFM		17					
+C-Freq	CFreqId=373863	CGroupId=81924	Shaw and Macleod Farms	Off	171735000	NFM		17					
+C-Freq	CFreqId=397566	CGroupId=81924	Skyview Farms	Off	172500000	NFM		17					
+C-Freq	CFreqId=379235	CGroupId=81924	Vanco Farms (Simplex)	Off	464212500	NFM		17					
+C-Freq	CFreqId=353581	CGroupId=81924	Vanco Farms 1	Off	451262500	FM		17					
+C-Freq	CFreqId=353582	CGroupId=81924	Vanco Farms 2	Off	451637500	FM		17					
+C-Freq	CFreqId=353583	CGroupId=81924	Vanco Farms 3	Off	452875000	FM		17					
+C-Freq	CFreqId=381475	CGroupId=81924	XSTRA Farms Ltd.	Off	171015000	NFM		17					
+C-Group	CGroupId=80139	AgencyId=9850	Construction	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=361182	CGroupId=80139	Atlantic Roofers	Off	141045000	NFM		17					
+C-Freq	CFreqId=353567	CGroupId=80139	Birt Mackay Backhoe Service	Off	167370000	FM		17					
+C-Freq	CFreqId=345282	CGroupId=80139	C R M Ready Mix	Off	151865000	FM		17					
+C-Freq	CFreqId=375304	CGroupId=80139	Carver Trucking and Construction	Off	170880000	NFM		17					
+C-Freq	CFreqId=345072	CGroupId=80139	Chapman Brothers Construction	Off	171165000	FM	TONE=C123.0	17					
+C-Freq	CFreqId=375482	CGroupId=80139	Chapman Brothers Construction - Snow Removal	Off	151115000	NFM	TONE=C123.0	17					
+C-Freq	CFreqId=375481	CGroupId=80139	Chapman Brothers Construction - Traffic Control	Off	151085000	NFM	TONE=C123.0	17					
+C-Freq	CFreqId=345068	CGroupId=80139	Curran and Briggs	Off	163725000	FM	TONE=C162.2	17					
+C-Freq	CFreqId=353571	CGroupId=80139	Dickiesons Snow Removal	Off	162960000	FM		17					
+C-Freq	CFreqId=345069	CGroupId=80139	Duffy Construction	Off	170190000	FM	TONE=C210.7	17					
+C-Freq	CFreqId=353568	CGroupId=80139	Hilltop Construction	Off	169530000	FM		17					
+C-Freq	CFreqId=345284	CGroupId=80139	H-Line Enterprise	Off	152330000	FM		17					
+C-Freq	CFreqId=345064	CGroupId=80139	Island Coastal	Off	151790000	FM	TONE=C173.8	17					
+C-Freq	CFreqId=345066	CGroupId=80139	Island Coastal (Repeater)	Off	152780000	FM	TONE=C151.4	17					
+C-Freq	CFreqId=345065	CGroupId=80139	Island Coastal (Repeater)	Off	153200000	FM	TONE=C151.4	17					
+C-Freq	CFreqId=345062	CGroupId=80139	Island Construction	Off	150470000	FM	TONE=C107.2	17					
+C-Freq	CFreqId=381308	CGroupId=80139	King's County Construction	Off	152390000	NFM	TONE=C103.5	17					
+C-Freq	CFreqId=352736	CGroupId=80139	Label Construction	Off	164940000	NFM		17					
+C-Freq	CFreqId=379134	CGroupId=80139	Long View Construction	Off	140565000	NFM		17					
+C-Freq	CFreqId=345067	CGroupId=80139	Maritime Construction	Off	163575000	FM	TONE=C162.2	17					
+C-Freq	CFreqId=345063	CGroupId=80139	Matheson and Macmillan	Off	151685000	FM		17					
+C-Freq	CFreqId=345071	CGroupId=80139	Matheson Construction	Off	173085000	FM	TONE=C146.2	17					
+C-Freq	CFreqId=356585	CGroupId=80139	McQuaids Trucking and Warehousing	Off	167970000	NFM		17					
+C-Freq	CFreqId=345070	CGroupId=80139	MM Resources	Off	165285000	FM	TONE=C167.9	17					
+C-Freq	CFreqId=353569	CGroupId=80139	Rileys Snow Removal/Island Grown Sod	Off	172695000	FM		17					
+C-Freq	CFreqId=345283	CGroupId=80139	Schurman's Concrete Ltd.	Off	172860000	FM	TONE=C131.8	17					
+C-Freq	CFreqId=353570	CGroupId=80139	Steves Snow Removal	Off	153035000	FM		17					
+C-Freq	CFreqId=361367	CGroupId=80139	Toombs Plumbing and Heating	Off	167790000	NFM		17					
+C-Group	CGroupId=81926	AgencyId=9850	Industry	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=374605	CGroupId=81926	Bell Mobility	Off	164580000	NFM		34					
+C-Freq	CFreqId=353580	CGroupId=81926	Biovectra Pharmaceutical Ops/Security	Off	452337500	NFM		17					
+C-Freq	CFreqId=357576	CGroupId=81926	Divers Down (Marine Diving Team)	Off	172350000	NFM		17					
+C-Freq	CFreqId=386066	CGroupId=81926	Glasgow Hills Golf Course	Off	458112500	NFM		17					
+C-Freq	CFreqId=356586	CGroupId=81926	Island First Aid Services	Off	172590000	NFM	TONE=C218.1	17					
+C-Freq	CFreqId=374084	CGroupId=81926	Island Mobile Communications	Off	164415000	NFM		17					
+C-Freq	CFreqId=361181	CGroupId=81926	Island Repeater Services Glen Valley	Off	164415000	NFM		17					
+C-Freq	CFreqId=361368	CGroupId=81926	Sea Brook Environmental	Off	150590000	NFM		17					
+C-Freq	CFreqId=379411	CGroupId=81926	T and K Fire Equipment	Off	172590000	NFM	TONE=C162.2	17					
+C-Freq	CFreqId=379403	CGroupId=81926	The Holman Grand Hotel	Off	453587500	NFM		17					
+C-Group	CGroupId=81925	AgencyId=9850	Recreation	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=353575	CGroupId=81925	Belvedere Golf Course	Off	463737500	FM		17					
+C-Freq	CFreqId=373866	CGroupId=81925	Orchard View Cottages, Rustico	Off	153170000	NFM		17					
+C-Group	CGroupId=81660	AgencyId=9850	Retail	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=352221	CGroupId=81660	Confederation Court Mall - Security	Off	454237500	NFM		33					
+C-Freq	CFreqId=361541	CGroupId=81660	Home Depot	Off	469262500	NFM		17					
+C-Freq	CFreqId=361542	CGroupId=81660	Home Depot	Off	469687500	NFM		17					
+C-Freq	CFreqId=361543	CGroupId=81660	Home Depot	Off	469712500	NFM		17					
+C-Freq	CFreqId=361544	CGroupId=81660	Home Depot - Loss Prevention	Off	469962500	NFM		33					
+C-Freq	CFreqId=373867	CGroupId=81660	Parkdale Irving Service Station	Off	154570000	NFM		17					
+C-Freq	CFreqId=381307	CGroupId=81660	Sporting Intentions	Off	464662500	NFM		17					
+C-Freq	CFreqId=357575	CGroupId=81660	Sterns Launders and Drycleaners	Off	172140000	NFM		17					
+C-Freq	CFreqId=361539	CGroupId=81660	The Gap Factory Outlet Store	Off	458662500	NFM		17					
+C-Group	CGroupId=81760	AgencyId=9850	Security	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=353119	CGroupId=81760	Brinks Armored Trucks	Off	151100000	NFM	TONE=C131.8	17					
+C-Freq	CFreqId=353573	CGroupId=81760	Charlottestown Area Development Corp Security	Off	464687500	FM		33					
+C-Freq	CFreqId=353574	CGroupId=81760	Charlottestown Area Development Corp Security	Off	464712500	FM		33					
+C-Freq	CFreqId=352740	CGroupId=81760	National Port Security Services	Off	165855000	AUTO		33					
+C-Freq	CFreqId=386858	CGroupId=81760	Safety First Security	Off	458662500	NFM	TONE=C225.7	33					
+C-Group	CGroupId=80140	AgencyId=9850	Towing	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=345073	CGroupId=80140	Shaw's Towing	Off	164670000	NFM		17					
+C-Group	CGroupId=85466	AgencyId=9850	TV/Radio	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=374113	CGroupId=85466	Canadian Broadcasting Corportation (CBC)	Off	455062500	NFM		17					
+C-Freq	CFreqId=374115	CGroupId=85466	CFCY/CHLQ/CJRW (95.1/93.1/102.1)	Off	450912500	NFM		17					
+C-Freq	CFreqId=374114	CGroupId=85466	CHTN-FM (Ocean 100.3) and CKQK-FM (Hot 105.5)	Off	450500000	NFM		17					
+Conventional	AgencyId=9878	StateId=110	Businesses	Off		Conventional
+AreaState	AgencyId=9878	StateId=110
+AreaCounty	AgencyId=9878	CountyId=5230
+C-Group	CGroupId=81933	AgencyId=9878	Agriculture	Off	46.274830	-62.451780	26.9	Circle
+C-Freq	CFreqId=374130	CGroupId=81933	Ching Brothers Farming	Off	166500000	NFM		17					
+C-Freq	CFreqId=374126	CGroupId=81933	Compton Bros Farm	Off	164130000	NFM		17					
+C-Freq	CFreqId=374127	CGroupId=81933	East Coast Potato Farm	Off	173550000	NFM		17					
+C-Freq	CFreqId=353597	CGroupId=81933	Macswain Sons Farm	Off	461012500	FM		17					
+C-Freq	CFreqId=374129	CGroupId=81933	Modhicdh Farms	Off	461012500	NFM		17					
+C-Freq	CFreqId=373926	CGroupId=81933	Palmer Dairy Farm	Off	150530000	NFM		17					
+C-Freq	CFreqId=374128	CGroupId=81933	Rollo Bay Farms	Off	172410000	NFM		17					
+C-Freq	CFreqId=373927	CGroupId=81933	Smith Farms	Off	150635000	NFM		17					
+C-Freq	CFreqId=353598	CGroupId=81933	Spud Isle Farms	Off	171960000	FM		17					
+C-Group	CGroupId=81798	AgencyId=9878	Construction	Off	46.274830	-62.451780	26.9	Circle
+C-Freq	CFreqId=352949	CGroupId=81798	AE Mackay and Sons Excavating	Off	170730000	NFM		17					
+C-Freq	CFreqId=352951	CGroupId=81798	Agrawest Foods	Off	453837500	NFM		17					
+C-Freq	CFreqId=352948	CGroupId=81798	JD Irving Lumber	Off	153245000	NFM		17					
+C-Freq	CFreqId=352950	CGroupId=81798	Kings County Construction	Off	152390000	NFM		17					
+C-Freq	CFreqId=352946	CGroupId=81798	Macleans Ready Mix Concrete	Off	166230000	NFM		17					
+C-Freq	CFreqId=374131	CGroupId=81798	Privateer Oilfield and Marine Ltd.	Off	166590000	NFM		17					
+C-Freq	CFreqId=352947	CGroupId=81798	RA Rose and Sons	Off	170820000	NFM		17					
+C-Group	CGroupId=90498	AgencyId=9878	Education	Off	46.274830	-62.451780	26.9	Circle
+C-Freq	CFreqId=401075	CGroupId=90498	**cole La-Belle-Cloche - Rollo Bay School	Off	151100000	NFM		32					
+C-Group	CGroupId=85404	AgencyId=9878	Government	Off	46.274830	-62.451780	26.9	Circle
+C-Freq	CFreqId=373924	CGroupId=85404	TIR Acting Regional Engineer - Eastern (Highway Construction)	Off	865237500	NFM		14					
+C-Freq	CFreqId=373925	CGroupId=85404	TIR Acting Regional Engineer - Eastern (Highway Construction)	Off	865487500	NFM		14					
+C-Group	CGroupId=85486	AgencyId=9878	Industry	Off	46.274830	-62.451780	26.9	Circle
+C-Freq	CFreqId=374294	CGroupId=85486	Beach Point Processing	Off	458662500	NFM		17					
+C-Freq	CFreqId=374606	CGroupId=85486	Bell Mobility	Off	162940000	NFM		34					
+C-Freq	CFreqId=374292	CGroupId=85486	East Point Wind Farm	Off	463962500	NFM		17					
+C-Freq	CFreqId=374293	CGroupId=85486	Hermanville Wind Farm	Off	451312500	NFM		17					
+C-Group	CGroupId=85485	AgencyId=9878	Transportation	Off	46.274830	-62.451780	26.9	Circle
+C-Freq	CFreqId=352945	CGroupId=85485	Miller Trucking	Off	173430000	NFM		17					
+Conventional	AgencyId=9037	StateId=110	Cable Head Airpark (CA3)	Off		Conventional
+AreaState	AgencyId=9037	StateId=110
+AreaCounty	AgencyId=9037	CountyId=5230
+C-Group	CGroupId=75308	AgencyId=9037	Cable Head Airpark - Air Traffic Control	Off	46.443600	-62.589400	1.0	Circle
+C-Freq	CFreqId=318324	CGroupId=75308	Aerodrome Traffic	Off	123200000	AM		15					
+Conventional	AgencyId=6378	StateId=110	Charlottetown Airport (YYG)	Off		Conventional
+AreaState	AgencyId=6378	StateId=110
+AreaCounty	AgencyId=6378	CountyId=5232
+C-Group	CGroupId=55098	AgencyId=6378	Charlottetown Airport - Air Traffic Control	Off	46.293100	-63.125380	10.0	Circle
+C-Freq	CFreqId=228309	CGroupId=55098	Arr/Dep - Moncton Centre	Off	135650000	AM		15					
+C-Freq	CFreqId=325145	CGroupId=55098	CASARA - Civil Air Search and Rescue Association	Off	123300000	AM		15					
+C-Freq	CFreqId=228307	CGroupId=55098	Charlottetown Radio	Off	118000000	AM		15					
+C-Freq	CFreqId=352086	CGroupId=55098	Emergency Services - Pilot to Fire Vehicles	Off	122675000	AM		15					
+C-Freq	CFreqId=345061	CGroupId=55098	Flight Check	Off	135850000	AM		15					
+C-Freq	CFreqId=325146	CGroupId=55098	Flight Information Centre Broadcast	Off	126700000	AM		15					
+C-Freq	CFreqId=315905	CGroupId=55098	Flight Information Service Enroute	Off	123550000	AM		15					
+C-Freq	CFreqId=393091	CGroupId=55098	Instrument Landing System (ILS)	Off	110900000	NFM		15					
+C-Freq	CFreqId=393092	CGroupId=55098	Localizer	Off	113800000	NFM		15					
+C-Freq	CFreqId=344329	CGroupId=55098	UNICOM	Off	122800000	AM		15					
+C-Group	CGroupId=74870	AgencyId=6378	Charlottetown Airport - Airlines/FBO	Off	46.293100	-63.125380	10.0	Circle
+C-Freq	CFreqId=321252	CGroupId=74870	Air Canada	Off	460700000	FM		17					
+C-Freq	CFreqId=315902	CGroupId=74870	Coast Guard operations	Off	122700000	AM		15					
+C-Freq	CFreqId=315900	CGroupId=74870	Federal Express	Off	131925000	AM		17					
+C-Freq	CFreqId=361852	CGroupId=74870	Green Isle Helicopter Tours	Off	123450000	AM		17					
+C-Freq	CFreqId=315899	CGroupId=74870	Jazz Dispatch/Load/AGRIS	Off	130375000	AM		17					
+C-Freq	CFreqId=381399	CGroupId=74870	Menzies Aviation	Off	122775000	AM		17					
+C-Freq	CFreqId=393972	CGroupId=74870	Porter Airlines	Off	128975000	AM		15					
+C-Freq	CFreqId=379662	CGroupId=74870	Provincial Airlines (PAL) operations	Off	453037500	FM		17					
+C-Freq	CFreqId=315901	CGroupId=74870	WestJet	Off	131275000	AM		17					
+C-Freq	CFreqId=321249	CGroupId=74870	WestJet	Off	466212500	FM		17					
+C-Freq	CFreqId=347012	CGroupId=74870	WestJet (De-icing)	Off	129200000	AM		17					
+C-Group	CGroupId=74869	AgencyId=6378	Charlottetown Airport - Operations	Off	46.293100	-63.125380	10.0	Circle
+C-Freq	CFreqId=316526	CGroupId=74869	Airport fuel trucks (UHF)	Off	464687500	FM		17					
+C-Freq	CFreqId=315898	CGroupId=74869	Airport Terminal Services	Off	131750000	AM		17					
+C-Freq	CFreqId=316525	CGroupId=74869	Canadian Air Transport Security Agency simplex operations	Off	859337500	FM		7					
+C-Freq	CFreqId=316524	CGroupId=74869	Canadian Border Services Agency (CBSA) simplex operations	Off	862212500	FM		7					
+C-Freq	CFreqId=343852	CGroupId=74869	CYYG Operations	Off	122675000	AM		17					
+C-Freq	CFreqId=315892	CGroupId=74869	Ground operations, fire, security, emergency centre	Off	122600000	AM		17					
+C-Freq	CFreqId=361853	CGroupId=74869	Ground Special Events	Off	121800000	AM		17					
+C-Freq	CFreqId=343851	CGroupId=74869	Operations Building	Off	123100000	AM		17					
+C-Freq	CFreqId=321251	CGroupId=74869	Terminal Operations (De-Icing)	Off	464712500	FM		17					
+C-Freq	CFreqId=321250	CGroupId=74869	Terminal Operations (Ramp Handling)	Off	464662500	FM		17					
+C-Freq	CFreqId=315903	CGroupId=74869	Transport Canada	Off	135850000	AM		15					
+C-Freq	CFreqId=315904	CGroupId=74869	Transport Canada	Off	135975000	AM		15					
+Conventional	AgencyId=9754	StateId=110	Federal	Off		Conventional
+AreaState	AgencyId=9754	StateId=110
+AreaCounty	AgencyId=9754	CountyId=0
+C-Group	CGroupId=80666	AgencyId=9754	Provincewide	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=347573	CGroupId=80666	Agriculture Canada	Off	452137500	NFM		16					
+C-Freq	CFreqId=347574	CGroupId=80666	Agriculture Canada	Off	457137500	NFM		16					
+C-Freq	CFreqId=347575	CGroupId=80666	Agriculture Canada - Experimental Farm Charlottetown	Off	454075000	NFM		16					
+C-Freq	CFreqId=347578	CGroupId=80666	Canada Revenue Agency	Off	408387500	NFM		16					
+C-Freq	CFreqId=347579	CGroupId=80666	Canada Revenue Agency	Off	408562500	NFM		16					
+C-Freq	CFreqId=379241	CGroupId=80666	Canadian Coast Guard - Alfred Needler Ship Comms	Off	467575000	NFM		16					
+C-Freq	CFreqId=379236	CGroupId=80666	Canadian Coast Guard - Ann Harvey Ship Comms	Off	457550000	NFM		16					
+C-Freq	CFreqId=347580	CGroupId=80666	Canadian Coast Guard - Charlottetown Base	Off	467750000	NFM		16					
+C-Freq	CFreqId=347581	CGroupId=80666	Canadian Coast Guard - Charlottetown Base	Off	467825000	NFM		16					
+C-Freq	CFreqId=379240	CGroupId=80666	Canadian Coast Guard - Des Groseilliers Ship Comms	Off	467550000	NFM		16					
+C-Freq	CFreqId=353576	CGroupId=80666	Canadian Coast Guard - Earl Grey Ship Comms	Off	457525000	NFM		16					
+C-Freq	CFreqId=379238	CGroupId=80666	Canadian Coast Guard - George R. Pearkes Ship Comms	Off	457600000	NFM		16					
+C-Freq	CFreqId=379242	CGroupId=80666	Canadian Coast Guard - Jacques Cartier Ship Comms	Off	467775000	NFM		16					
+C-Freq	CFreqId=379239	CGroupId=80666	Canadian Coast Guard - Molly Kool Ship Comms	Off	467525900	NFM		16					
+C-Freq	CFreqId=379237	CGroupId=80666	Canadian Coast Guard - Sir William Alexander Ship Comms	Off	457575000	NFM		16					
+C-Freq	CFreqId=379243	CGroupId=80666	Canadian Coast Guard - Terry Fox Ship Comms	Off	467800000	NFM		16					
+C-Freq	CFreqId=347577	CGroupId=80666	Canadian Food Inspection Agency	Off	468887500	NFM		16					
+C-Freq	CFreqId=347576	CGroupId=80666	Department of Veterans Affairs - Security	Off	408287500	NFM		16					
+C-Freq	CFreqId=394705	CGroupId=80666	RCAF SAR Aircraft	Off	128850000	AM		16					
+C-Freq	CFreqId=394706	CGroupId=80666	RCAF SAR Aircraft	Off	129775000	AM		16					
+C-Freq	CFreqId=394707	CGroupId=80666	RCAF SAR Aircraft	Off	252800000	AM		16					
+C-Freq	CFreqId=394708	CGroupId=80666	RCAF SAR Aircraft	Off	282800000	AM		16					
+Conventional	AgencyId=10007	StateId=110	Government of PEI	Off		Conventional
+AreaState	AgencyId=10007	StateId=110
+AreaCounty	AgencyId=10007	CountyId=5232
+C-Group	CGroupId=83031	AgencyId=10007	Operations	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=359043	CGroupId=83031	Province House Operations	Off	453337500	NFM		17					
+C-Group	CGroupId=83459	AgencyId=10007	Public Works	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=361124	CGroupId=83459	Highway Safety Portable Scales	Off	171060000	NFM		14					
+C-Freq	CFreqId=361123	CGroupId=83459	Provincewide DOT Surveyors	Off	464687500	NFM		14					
+Conventional	AgencyId=9090	StateId=110	Ground Search and Rescue	Off		Conventional
+AreaState	AgencyId=9090	StateId=110
+AreaCounty	AgencyId=9090	CountyId=0
+C-Group	CGroupId=75816	AgencyId=9090	Province Wide Transportable	Off	46.318010	-63.404850	50.0	Circle
+C-Freq	CFreqId=321869	CGroupId=75816	Distress, Safety and Calling (VHF 16)	Off	156800000	FM		29					
+C-Freq	CFreqId=321870	CGroupId=75816	GSAR, DFO and Canadian Coast Guard Interop (VHF 19A)	Off	156950000	FM		29					
+C-Freq	CFreqId=321868	CGroupId=75816	GSAR, Helicopter and Aircraft Interop (VHF 9)	Off	156450000	FM		29					
+C-Group	CGroupId=75817	AgencyId=9090	Simplex	Off	46.318010	-63.404850	50.0	Circle
+C-Freq	CFreqId=379143	CGroupId=75817	Canadian Coast Guard - Maritime SAR	Off	149080000	FM		29					
+C-Freq	CFreqId=322020	CGroupId=75817	PEI Ground Search and Rescue - Simplex	Off	150290000	NFM		29					
+Conventional	AgencyId=10332	StateId=110	Marine	Off		Conventional
+AreaState	AgencyId=10332	StateId=110
+AreaCounty	AgencyId=10332	CountyId=5232
+C-Group	CGroupId=81763	AgencyId=10332	Charlottetown Marine - Marine	Off	46.305200	-63.187870	25.0	Circle
+C-Freq	CFreqId=359042	CGroupId=81763	Algoma Oil Tankers	Off	459000000	NFM		17					
+C-Freq	CFreqId=353577	CGroupId=81763	Atlantic Towing - Rescue Towing/Salvage	Off	156400000	NFM		17					
+C-Freq	CFreqId=353578	CGroupId=81763	Atlantic Towing - Rescue Towing/Salvage/Pilots	Off	130675000	AM		17					
+C-Freq	CFreqId=352758	CGroupId=81763	Charlottetown Marina and Yacht Club (Ch. 68)	Off	156425000	NFM		17					
+C-Freq	CFreqId=352756	CGroupId=81763	Coast Guard Anti-Pollution (Ch. 81A)	Off	157075000	NFM		16					
+C-Freq	CFreqId=352750	CGroupId=81763	Coast Guard Inshore Rescue (Ch. 6)	Off	156300000	NFM		16					
+C-Freq	CFreqId=352757	CGroupId=81763	Coast Guard Mobiles	Off	156000000	NFM		16					
+C-Freq	CFreqId=352752	CGroupId=81763	Coast Guard Operations (Ch. 19)	Off	156950000	NFM		16					
+C-Freq	CFreqId=352754	CGroupId=81763	Coast Guard Working Channel (Ch. 24)	Off	161800000	NFM		16					
+C-Freq	CFreqId=352755	CGroupId=81763	Coast Guard Working Channel (Ch. 26)	Off	161900000	NFM		16					
+C-Freq	CFreqId=352936	CGroupId=81763	Coast Guard/DFO/Government Agencies Interoperability (Ch. 83)	Off	157175000	NFM		16					
+C-Freq	CFreqId=353579	CGroupId=81763	Harbor Pilots	Off	156350000	NFM		17					
+C-Freq	CFreqId=359041	CGroupId=81763	Irving Oil Tankers	Off	457600000	NFM		17					
+C-Freq	CFreqId=352753	CGroupId=81763	Marine Weather (Ch. 21)	Off	161650000	NFM		16					
+C-Freq	CFreqId=352938	CGroupId=81763	Pleasure Craft (Ch. 71)	Off	156575000	NFM		17					
+C-Freq	CFreqId=352751	CGroupId=81763	Vessel Traffic Movement Northumberland Strait (Ch. 12)	Off	156600000	NFM		16					
+Conventional	AgencyId=9004	StateId=110	Northumberland Ferries	Off		Conventional
+AreaState	AgencyId=9004	StateId=110
+AreaCounty	AgencyId=9004	CountyId=5232
+C-Group	CGroupId=74968	AgencyId=9004	Operations	Off	45.848980	-62.706700	10.0	Circle
+C-Freq	CFreqId=316529	CGroupId=74968	Ferry operations repeater	Off	851012500	FM	TONE=D245	26					
+C-Freq	CFreqId=316530	CGroupId=74968	Ferry operations simplex	Off	806262500	FM		26					
+C-Freq	CFreqId=316531	CGroupId=74968	Ferry operations simplex	Off	865912500	FM		26					
+C-Freq	CFreqId=316528	CGroupId=74968	Wood Islands ferry terminal	Off	851262500	FM	TONE=D114	26					
+C-Freq	CFreqId=321899	CGroupId=74968	Wood Islands/Caribou Terminals and Operations	Off	806012500	FM		26					
+C-Freq	CFreqId=321900	CGroupId=74968	Wood Islands/Caribou Terminals and Operations	Off	851512500	FM		26					
+Conventional	AgencyId=9699	StateId=110	PEI National Park	Off		Conventional
+AreaState	AgencyId=9699	StateId=110
+AreaCounty	AgencyId=9699	CountyId=0
+C-Group	CGroupId=80170	AgencyId=9699	Provincewide - Operations	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=360992	CGroupId=80170	Park Wardens	Off	166950000	NFM	TONE=C151.4	16					
+C-Freq	CFreqId=345276	CGroupId=80170	PEI National Park - Cavendish Repeater	Off	166650000	FM	TONE=C186.2	16					
+C-Freq	CFreqId=345277	CGroupId=80170	PEI National Park - Dalvay Repeater	Off	164745000	FM	TONE=C186.2	16					
+C-Freq	CFreqId=359040	CGroupId=80170	PEI National Park - Dalvay Repeater (UHF)	Off	424962500	FM		16					
+C-Freq	CFreqId=345278	CGroupId=80170	PEI National Park - Greenwich Repeater	Off	164985000	FM	TONE=C186.2	16					
+C-Freq	CFreqId=400612	CGroupId=80170	PEI National Park - Rocky Point Repeater	Off	163770000	NFM	TONE=C186.2	16					
+Conventional	AgencyId=9104	StateId=110	Provincial Simplex and DVRS	Off		Conventional
+AreaState	AgencyId=9104	StateId=110
+AreaCounty	AgencyId=9104	CountyId=0
+C-Group	CGroupId=76017	AgencyId=9104	Provincewide - Digital Vehicular Repeater System (DVRS)	Off	46.258700	-63.264770	75.0	Circle
+C-Freq	CFreqId=322794	CGroupId=76017	Conventional Repeater 1	Off	866375000	NFM	NAC=293	6					
+C-Freq	CFreqId=323564	CGroupId=76017	Conventional Repeater 2	Off	866862500	NFM	NAC=293	6					
+C-Group	CGroupId=76018	AgencyId=9104	Provincewide - Provincial Simplex	Off	46.258700	-63.264770	75.0	Circle
+C-Freq	CFreqId=326303	CGroupId=76018	Air Medical Transport (LifeFlight) simplex channel	Off	867062500	FM		9					
+C-Freq	CFreqId=379133	CGroupId=76018	Canada Border Service Agency	Off	862212500	NFM		16					
+C-Freq	CFreqId=379132	CGroupId=76018	Canada Border Service Agency	Off	867050000	NFM		16					
+C-Freq	CFreqId=363219	CGroupId=76018	Canada Border Services Agency 1 Back-up	Off	866050000	NFM		16					
+C-Freq	CFreqId=363220	CGroupId=76018	Canada Border Services Agency 2 Back-up	Off	866550000	NFM		16					
+C-Freq	CFreqId=361825	CGroupId=76018	Canadian Coast Guard / DFO	Off	866475000	NFM		29					
+C-Freq	CFreqId=361826	CGroupId=76018	Canadian Coast Guard / DFO	Off	866975000	NFM		29					
+C-Freq	CFreqId=361827	CGroupId=76018	Canadian Coast Guard / DFO	Off	867362500	NFM		29					
+C-Freq	CFreqId=388850	CGroupId=76018	DFO TAC 1	Off	866250000	NFM		7					
+C-Freq	CFreqId=388851	CGroupId=76018	DFO TAC 2	Off	866750000	NFM		7					
+C-Freq	CFreqId=323563	CGroupId=76018	Forestry Simplex	Off	868062500	FM	TONE=C156.7	8					
+C-Freq	CFreqId=323558	CGroupId=76018	GPEI Simplex	Off	866562500	NFM	NAC=293	6					
+C-Freq	CFreqId=322798	CGroupId=76018	GPEI Simplex	Off	867162500	FM		6					
+C-Freq	CFreqId=322799	CGroupId=76018	GPEI Simplex	Off	867662500	FM		6					
+C-Freq	CFreqId=322845	CGroupId=76018	GPEI Simplex	Off	868162500	FM		6					
+C-Freq	CFreqId=363222	CGroupId=76018	Ground Search and Rescue	Off	867312500	NFM		29					
+C-Freq	CFreqId=323562	CGroupId=76018	Island EMS Simplex	Off	867562500	NFM	NAC=293	9					
+C-Freq	CFreqId=361680	CGroupId=76018	RCMP Backup	Off	866062500	NFM		7					
+C-Freq	CFreqId=361681	CGroupId=76018	RCMP Backup	Off	868525000	NFM		7					
+C-Freq	CFreqId=322795	CGroupId=76018	Simplex All 1	Off	866012500	FM	TONE=C156.7	6					
+C-Freq	CFreqId=322796	CGroupId=76018	Simplex All 2	Off	866512500	FM	TONE=C156.7	6					
+C-Freq	CFreqId=322797	CGroupId=76018	Simplex All 3	Off	867012500	FM	TONE=C156.7	6					
+C-Freq	CFreqId=363221	CGroupId=76018	Sleepy Hollow Correction Centre	Off	866312500	NFM		37					
+Conventional	AgencyId=7372	StateId=110	Public Transit	Off		Conventional
+AreaState	AgencyId=7372	StateId=110
+AreaCounty	AgencyId=7372	CountyId=5232
+C-Group	CGroupId=75306	AgencyId=7372	Transportation - Bus	Off	46.250150	-63.133620	5.2	Circle
+C-Freq	CFreqId=377990	CGroupId=75306	T3 Public Transit (Talkaround)	Off	164625000	NFM	TONE=C162.2	26					
+C-Freq	CFreqId=318320	CGroupId=75306	Trius Transit Inc (Charlottetown)	Off	169605000	NFM		26					
+C-Freq	CFreqId=368351	CGroupId=75306	Trius Transit Inc (Charlottetown) [Repeater]	Off	164625000	NFM	TONE=C218.1	26					
+C-Group	CGroupId=62139	AgencyId=7372	Transportation - Taxi	Off	46.305200	-63.187870	33.6	Circle
+C-Freq	CFreqId=334638	CGroupId=62139	Grabba Cab (Charlottetown)	Off	166350000	FM		26					
+Conventional	AgencyId=9700	StateId=110	Red Shores Racetrack and Casino	Off		Conventional
+AreaState	AgencyId=9700	StateId=110
+AreaCounty	AgencyId=9700	CountyId=5232
+C-Group	CGroupId=80171	AgencyId=9700	Provincewide - Charlottetown	Off	46.255160	-63.135900	1.0	Circle
+C-Freq	CFreqId=352735	CGroupId=80171	Driving Park	Off	163020000	NFM		17					
+C-Freq	CFreqId=374870	CGroupId=80171	Maritime Harness Racing Comission	Off	151055000	NFM		17					
+Conventional	AgencyId=6379	StateId=110	Summerside Airport (YSU)	Off		Conventional
+AreaState	AgencyId=6379	StateId=110
+AreaCounty	AgencyId=6379	CountyId=5231
+C-Group	CGroupId=55099	AgencyId=6379	Summerside Airport - Air Traffic Control	Off	46.440120	-63.833250	1.0	Circle
+C-Freq	CFreqId=318302	CGroupId=55099	AWOS (Automatic Weather Observation System)	Off	122550000	AM		15					
+C-Freq	CFreqId=228310	CGroupId=55099	Summerside/Slemon Park UNICOM	Off	122950000	AM		15					
+C-Group	CGroupId=77342	AgencyId=6379	Summerside Airport - Operations	Off	46.440120	-63.833250	1.0	Circle
+C-Freq	CFreqId=329063	CGroupId=77342	CYSU Operations	Off	153410000	FM		17					
+Conventional	AgencyId=9324	StateId=110	University of Prince Edward Island	Off		Conventional
+AreaState	AgencyId=9324	StateId=110
+AreaCounty	AgencyId=9324	CountyId=5232
+C-Group	CGroupId=77391	AgencyId=9324	Operations	Off	46.256620	-63.138820	0.5	Circle
+C-Freq	CFreqId=329312	CGroupId=77391	UPEI Athletics	Off	464712500	FM		32					
+C-Freq	CFreqId=329313	CGroupId=77391	UPEI Cleaning Staff	Off	464687500	FM	TONE=D503	32					
+C-Freq	CFreqId=329309	CGroupId=77391	UPEI Vet College	Off	162630000	FM		32					

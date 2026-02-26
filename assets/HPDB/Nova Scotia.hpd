@@ -1,0 +1,1048 @@
+TargetModel	HomePatrol-1
+FormatVersion	2.04
+Conventional	CountyId=4691	StateId=107	Annapolis	Off		Conventional
+AreaState	CountyId=4691	StateId=107
+AreaCounty	CountyId=4691	CountyId=4691
+C-Group	CGroupId=64780	CountyId=4691	Amateur Radio - Repeaters	Off	44.762340	-65.159910	31.0	Circle
+C-Freq	CFreqId=268346	CGroupId=64780	Bridgetown - VE1BO repeater	Off	147060000	FM		13					
+C-Group	CGroupId=54677	CountyId=4691	Annapolis County - Annapolis Royal	Off	44.762340	-65.159910	31.0	Circle
+C-Freq	CFreqId=226787	CGroupId=54677	Fire department	Off	154710000	FM		3					
+C-Freq	CFreqId=67783	CGroupId=54677	Police	Off	153590000	FM		2					
+C-Freq	CFreqId=67782	CGroupId=54677	Police	Off	158880000	FM		2					
+C-Group	CGroupId=77159	CountyId=4691	Annapolis County - Bridgetown	Off	44.762340	-65.159910	31.0	Circle
+C-Freq	CFreqId=328126	CGroupId=77159	Fire department	Off	154010000	FM		3					
+C-Group	CGroupId=54672	CountyId=4691	Annapolis County - Lawrencetown	Off	44.762340	-65.159910	31.0	Circle
+C-Freq	CFreqId=226789	CGroupId=54672	Fire department	Off	154250000	FM		3					
+C-Group	CGroupId=54673	CountyId=4691	Annapolis County - Margaretsville	Off	44.762340	-65.159910	31.0	Circle
+C-Freq	CFreqId=226790	CGroupId=54673	Fire department	Off	152120000	FM		3					
+C-Group	CGroupId=54679	CountyId=4691	Annapolis County - Middleton	Off	44.762340	-65.159910	31.0	Circle
+C-Freq	CFreqId=226791	CGroupId=54679	Fire department	Off	152090000	FM		3					
+C-Group	CGroupId=54674	CountyId=4691	Annapolis County - Nictaux	Off	44.762340	-65.159910	31.0	Circle
+C-Freq	CFreqId=226792	CGroupId=54674	Fire department	Off	155010000	FM		3					
+C-Group	CGroupId=77160	CountyId=4691	Annapolis County - Port Lorne	Off	44.762340	-65.159910	31.0	Circle
+C-Freq	CFreqId=328125	CGroupId=77160	Fire department	Off	151250000	FM		3					
+C-Group	CGroupId=54676	CountyId=4691	Annapolis County - Springfield	Off	44.762340	-65.159910	31.0	Circle
+C-Freq	CFreqId=226794	CGroupId=54676	Fire department	Off	151415000	FM		3					
+Conventional	CountyId=4692	StateId=107	Antigonish	Off		Conventional
+AreaState	CountyId=4692	StateId=107
+AreaCounty	CountyId=4692	CountyId=4692
+C-Group	CGroupId=64798	CountyId=4692	Amateur Radio - Repeaters	Off	45.644770	-61.869510	20.8	Circle
+C-Freq	CFreqId=268388	CGroupId=64798	Antigonish - VE1RTI repeater	Off	146820000	FM		13					
+C-Group	CGroupId=61022	CountyId=4692	Antigonish County	Off	45.644770	-61.869510	20.8	Circle
+C-Freq	CFreqId=347178	CGroupId=61022	Strait Regional School Board - buses	Off	151025000	FM		32					
+C-Group	CGroupId=54691	CountyId=4692	Antigonish County - Antigonish (town)	Off	45.644770	-61.869510	20.8	Circle
+C-Freq	CFreqId=226807	CGroupId=54691	Fire department operations	Off	153410000	FM		3					
+C-Freq	CFreqId=290820	CGroupId=54691	St. Francis Xavier University - Ch. 1 Security/Maintenance	Off	149860000	FM	TONE=C100.0	33					
+C-Freq	CFreqId=296180	CGroupId=54691	Student Taxi	Off	167760000	FM		26					
+C-Group	CGroupId=54684	CountyId=4692	Antigonish County - Ballantynes (North Shore)	Off	45.644770	-61.869510	20.8	Circle
+C-Freq	CFreqId=226809	CGroupId=54684	Fire department operations	Off	154695000	FM		8					
+C-Group	CGroupId=54687	CountyId=4692	Antigonish County - Maryvale	Off	45.644770	-61.869510	20.8	Circle
+C-Freq	CFreqId=226808	CGroupId=54687	Fire department operations	Off	151475000	FM		8					
+C-Group	CGroupId=54830	CountyId=4692	Antigonish County - Strait Area Mutual Aid Association	Off	45.644770	-61.869510	20.8	Circle
+C-Freq	CFreqId=226968	CGroupId=54830	Multiple fire department dispatch	Off	153920000	FM		3					
+Conventional	CountyId=4693	StateId=107	Cape Breton	Off		Conventional
+AreaState	CountyId=4693	StateId=107
+AreaCounty	CountyId=4693	CountyId=4693
+C-Group	CGroupId=64800	CountyId=4693	Amateur Radio - Repeaters	Off	45.993000	-60.201000	28.9	Circle
+C-Freq	CFreqId=268390	CGroupId=64800	Boisdale - VE1HAM repeater	Off	146880000	FM		13					
+C-Freq	CFreqId=268393	CGroupId=64800	Sydney - VE1CR repeater	Off	146940000	FM		13					
+C-Group	CGroupId=84122	CountyId=4693	Cape Breton County - Membertou First Nation	Off	45.993000	-60.201000	28.9	Circle
+C-Freq	CFreqId=365824	CGroupId=84122	Public Works	Off	171390000	FM		14					
+C-Group	CGroupId=59517	CountyId=4693	Cape Breton Regional Municipality - Fire Services	Off	46.200000	-60.500000	63.0	Circle
+C-Freq	CFreqId=226811	CGroupId=59517	Alpha group Ch 3 (simplex)	Off	154250000	FM		8					
+C-Freq	CFreqId=226812	CGroupId=59517	Alpha group Ch 4 (simplex)	Off	153770000	FM		8					
+C-Freq	CFreqId=226813	CGroupId=59517	Alpha group Ch 5 (simplex)	Off	159420000	FM		8					
+C-Freq	CFreqId=226814	CGroupId=59517	Alpha group Ch 6 (simplex)	Off	159495000	FM		8					
+C-Freq	CFreqId=226815	CGroupId=59517	Alpha group Ch 7 (simplex)	Off	153830000	FM		8					
+C-Freq	CFreqId=226810	CGroupId=59517	Alpha group repeater and paging	Off	154430000	FM		3					
+C-Freq	CFreqId=226817	CGroupId=59517	Bravo group Ch 3 (simplex)	Off	154160000	FM		8					
+C-Freq	CFreqId=226818	CGroupId=59517	Bravo group Ch 4 (simplex)	Off	151475000	FM		8					
+C-Freq	CFreqId=226819	CGroupId=59517	Bravo group Ch 5 (simplex)	Off	154340000	FM		8					
+C-Freq	CFreqId=226820	CGroupId=59517	Bravo group Ch 6 (simplex)	Off	151400000	FM		8					
+C-Freq	CFreqId=226816	CGroupId=59517	Bravo group repeater and paging	Off	151535000	FM		3					
+C-Freq	CFreqId=226821	CGroupId=59517	Charlie group Ch 4 (simplex)	Off	154695000	FM		8					
+C-Freq	CFreqId=226822	CGroupId=59517	Charlie group repeater and paging	Off	159150000	FM		3					
+C-Freq	CFreqId=226834	CGroupId=59517	Christmas Island fire department	Off	154265000	FM		3					
+C-Freq	CFreqId=226823	CGroupId=59517	Delta group Ch 3 (simplex)	Off	154400000	FM		8					
+C-Freq	CFreqId=226824	CGroupId=59517	Delta group Ch 4 (simplex)	Off	154100000	FM		8					
+C-Freq	CFreqId=226825	CGroupId=59517	Delta group paging	Off	169375000	FM		8					
+C-Freq	CFreqId=226826	CGroupId=59517	Echo group Ch 4 (simplex)	Off	153800000	FM		8					
+C-Freq	CFreqId=226827	CGroupId=59517	Echo group Sydney Mines	Off	153890000	FM		8					
+C-Freq	CFreqId=259259	CGroupId=59517	Eskasoni fire department	Off	154130000	FM		3					
+C-Freq	CFreqId=226835	CGroupId=59517	Eskasoni fire department	Off	155310000	FM		3					
+C-Freq	CFreqId=226828	CGroupId=59517	Foxtrot group repeater and paging	Off	158835000	FM		3					
+C-Freq	CFreqId=226829	CGroupId=59517	Golf group Ch 3 (simplex)	Off	154325000	FM		8					
+C-Freq	CFreqId=226830	CGroupId=59517	Golf group repeater and paging	Off	155505000	FM		3					
+C-Freq	CFreqId=226831	CGroupId=59517	Kilo group Ch 4 (simplex)	Off	153860000	FM		8					
+C-Freq	CFreqId=226832	CGroupId=59517	Kilo group repeater and paging	Off	159630000	FM		3					
+C-Freq	CFreqId=226833	CGroupId=59517	Marion Bridge fire department	Off	155775000	FM		3					
+C-Group	CGroupId=84068	CountyId=4693	Cape Breton Regional Municipality - Public Transit	Off	45.993000	-60.201000	28.9	Circle
+C-Freq	CFreqId=365823	CGroupId=84068	Handi-Trans	Off	138615000	FM		26					
+C-Freq	CFreqId=365317	CGroupId=84068	Public Transit	Off	141930000	FM		26					
+C-Group	CGroupId=84354	CountyId=4693	Cape Breton Regional Municipality - Public Works	Off	45.993000	-60.201000	28.9	Circle
+C-Freq	CFreqId=367717	CGroupId=84354	East	Off	153140000	NFM		14					
+C-Freq	CFreqId=379736	CGroupId=84354	New Waterford	Off	158160000	FM		14					
+Conventional	CountyId=4694	StateId=107	Colchester	Off		Conventional
+AreaState	CountyId=4694	StateId=107
+AreaCounty	CountyId=4694	CountyId=4694
+C-Group	CGroupId=64795	CountyId=4694	Amateur Radio - Repeaters	Off	45.356010	-63.479000	32.6	Circle
+C-Freq	CFreqId=268380	CGroupId=64795	Nuttby - VE1TRO repeater	Off	147210000	FM		13					
+C-Freq	CFreqId=268379	CGroupId=64795	Nuttby - VE1XK repeater	Off	146790000	FM		13					
+C-Freq	CFreqId=268383	CGroupId=64795	Sugarloaf - VE1BHS UHF repeater	Off	448925000	FM		13					
+C-Freq	CFreqId=268382	CGroupId=64795	Sugarloaf - VE1BHS VHF repeater	Off	145350000	FM		13					
+C-Freq	CFreqId=268381	CGroupId=64795	Truro - VE1HAR repeater	Off	147135000	FM		13					
+C-Group	CGroupId=54767	CountyId=4694	Colchester County - Bass River	Off	45.356010	-63.479000	32.6	Circle
+C-Freq	CFreqId=226901	CGroupId=54767	Fire department	Off	154220000	FM		3					
+C-Freq	CFreqId=226902	CGroupId=54767	Fire department	Off	154250000	FM		3					
+C-Group	CGroupId=54768	CountyId=4694	Colchester County - Bible Hill	Off	45.356010	-63.479000	32.6	Circle
+C-Freq	CFreqId=226903	CGroupId=54768	Fire department	Off	154400000	FM		3					
+C-Group	CGroupId=54769	CountyId=4694	Colchester County - Brookfield	Off	45.356010	-63.479000	32.6	Circle
+C-Freq	CFreqId=226904	CGroupId=54769	Fire department	Off	153905000	FM		3					
+C-Group	CGroupId=54770	CountyId=4694	Colchester County - Cobequid	Off	45.356010	-63.479000	32.6	Circle
+C-Freq	CFreqId=226905	CGroupId=54770	Fire department	Off	152705000	FM		3					
+C-Group	CGroupId=54771	CountyId=4694	Colchester County - Debert	Off	45.356010	-63.479000	32.6	Circle
+C-Freq	CFreqId=226906	CGroupId=54771	Fire department	Off	154100000	FM		3					
+C-Group	CGroupId=54764	CountyId=4694	Colchester County - Economy	Off	45.356010	-63.479000	32.6	Circle
+C-Freq	CFreqId=226898	CGroupId=54764	Fire department	Off	155550000	FM		3					
+C-Group	CGroupId=54763	CountyId=4694	Colchester County - fire dispatch and paging system	Off	45.356010	-63.479000	32.6	Circle
+C-Freq	CFreqId=246002	CGroupId=54763	County fire ops 1 (simplex)	Off	152275000	FM		8					
+C-Freq	CFreqId=246003	CGroupId=54763	County fire ops 2 (simplex)	Off	152575000	FM		8					
+C-Freq	CFreqId=246004	CGroupId=54763	County fire ops 3 (simplex)	Off	152665000	FM		8					
+C-Freq	CFreqId=246005	CGroupId=54763	County fire ops 4 (simplex)	Off	150380000	FM		8					
+C-Freq	CFreqId=246006	CGroupId=54763	County fire ops 5 (simplex)	Off	154770000	FM		8					
+C-Freq	CFreqId=246007	CGroupId=54763	County fire ops 6 (simplex)	Off	152705000	FM		8					
+C-Freq	CFreqId=246008	CGroupId=54763	County fire ops 7 (simplex)	Off	154400000	FM		8					
+C-Freq	CFreqId=298424	CGroupId=54763	Fire dispatch and paging, Bass River/Birch Hill repeater	Off	152525000	FM	TONE=D071	3					
+C-Freq	CFreqId=298425	CGroupId=54763	Fire dispatch and paging, Harmony repeater	Off	152525000	FM	TONE=D073	3					
+C-Freq	CFreqId=298426	CGroupId=54763	Fire dispatch and paging, Hilden repeater	Off	152525000	FM	TONE=D074	3					
+C-Freq	CFreqId=298427	CGroupId=54763	Fire dispatch and paging, Londonderry repeater	Off	152525000	FM	TONE=D051	3					
+C-Freq	CFreqId=298428	CGroupId=54763	Fire dispatch and paging, Nuttby Mountain repeater	Off	152525000	FM	TONE=D065	3					
+C-Freq	CFreqId=298429	CGroupId=54763	Fire dispatch and paging, Shubenacadie repeater	Off	152525000	FM	TONE=D174	3					
+C-Freq	CFreqId=298430	CGroupId=54763	Fire dispatch and paging, South Branch/Stewart Hill repeater	Off	152525000	FM	TONE=D072	3					
+C-Freq	CFreqId=335613	CGroupId=54763	Point-to-point link (Barr Settlement to Harmony)	Off	143490000	FM		3					
+C-Freq	CFreqId=335612	CGroupId=54763	Point-to-point link (Valley Dispatch to Barr Settlement)	Off	140685000	FM		3					
+C-Group	CGroupId=54765	CountyId=4694	Colchester County - Five Islands	Off	45.356010	-63.479000	32.6	Circle
+C-Freq	CFreqId=226899	CGroupId=54765	Fire department	Off	155520000	FM		3					
+C-Group	CGroupId=54772	CountyId=4694	Colchester County - Great Village	Off	45.356010	-63.479000	32.6	Circle
+C-Freq	CFreqId=226907	CGroupId=54772	Fire department	Off	154220000	FM		3					
+C-Group	CGroupId=54773	CountyId=4694	Colchester County - Hilden	Off	45.356010	-63.479000	32.6	Circle
+C-Freq	CFreqId=226908	CGroupId=54773	Fire department	Off	153935000	FM		3					
+C-Group	CGroupId=54774	CountyId=4694	Colchester County - North River	Off	45.356010	-63.479000	32.6	Circle
+C-Freq	CFreqId=226909	CGroupId=54774	Fire department	Off	154295000	FM		3					
+C-Group	CGroupId=54775	CountyId=4694	Colchester County - Onslow-Belmont	Off	45.356010	-63.479000	32.6	Circle
+C-Freq	CFreqId=226910	CGroupId=54775	Fire department	Off	153920000	FM		3					
+C-Group	CGroupId=54776	CountyId=4694	Colchester County - Salmon River	Off	45.356010	-63.479000	32.6	Circle
+C-Freq	CFreqId=226911	CGroupId=54776	Fire department	Off	155250000	FM		3					
+C-Group	CGroupId=54777	CountyId=4694	Colchester County - Stewiacke	Off	45.356010	-63.479000	32.6	Circle
+C-Freq	CFreqId=226912	CGroupId=54777	Fire department	Off	153785000	FM		3					
+C-Group	CGroupId=54766	CountyId=4694	Colchester County - Truro	Off	45.356010	-63.479000	32.6	Circle
+C-Freq	CFreqId=226900	CGroupId=54766	Fire department	Off	155610000	FM		3					
+C-Group	CGroupId=54779	CountyId=4694	Colchester County - Upper Stewiacke	Off	45.356010	-63.479000	32.6	Circle
+C-Freq	CFreqId=226914	CGroupId=54779	Fire department	Off	153440000	FM		3					
+C-Freq	CFreqId=226915	CGroupId=54779	Fire department	Off	154325000	FM		3					
+C-Group	CGroupId=54780	CountyId=4694	Colchester County - Valley-Kemptown	Off	45.356010	-63.479000	32.6	Circle
+C-Freq	CFreqId=226916	CGroupId=54780	Fire department	Off	154770000	NFM		3					
+Conventional	CountyId=4695	StateId=107	Cumberland	Off		Conventional
+AreaState	CountyId=4695	StateId=107
+AreaCounty	CountyId=4695	CountyId=4695
+C-Group	CGroupId=64796	CountyId=4695	Amateur Radio - Repeaters	Off	45.633250	-64.143680	45.0	Circle
+C-Freq	CFreqId=268386	CGroupId=64796	Amherst - VE1WRC repeater	Off	147285000	FM		13					
+C-Freq	CFreqId=268385	CGroupId=64796	Kirkhill - VE1NET repeater	Off	146745000	FM		13					
+C-Freq	CFreqId=268384	CGroupId=64796	Parrsboro - VE1PAR repeater	Off	145470000	FM		13					
+C-Freq	CFreqId=272740	CGroupId=64796	Parrsboro - VE1PAR repeater (located at Kirkhill)	Off	443450000	FM		13					
+C-Freq	CFreqId=303956	CGroupId=64796	Sand River - VE1SDR repeater	Off	145270000	FM		13					
+C-Freq	CFreqId=272738	CGroupId=64796	Springhill - VE1SPH repeater (located at the hospital)	Off	146805000	FM		13					
+C-Freq	CFreqId=272737	CGroupId=64796	Springhill - VE1SPR repeater	Off	147000000	FM		13					
+C-Freq	CFreqId=272741	CGroupId=64796	Sugarloaf - VE1BHS UHF repeater	Off	448925000	FM		13					
+C-Freq	CFreqId=272739	CGroupId=64796	Sugarloaf - VE1BHS VHF repeater	Off	145350000	FM		13					
+C-Group	CGroupId=54730	CountyId=4695	Cumberland County - Advocate	Off	45.633250	-64.143680	45.0	Circle
+C-Freq	CFreqId=226864	CGroupId=54730	Fire department	Off	169425000	FM		3					
+C-Group	CGroupId=54741	CountyId=4695	Cumberland County - Amherst	Off	45.633250	-64.143680	45.0	Circle
+C-Freq	CFreqId=226865	CGroupId=54741	Fire department	Off	154415000	FM		3					
+C-Group	CGroupId=70759	CountyId=4695	Cumberland County - fire dispatch and paging system	Off	45.633250	-64.143680	45.0	Circle
+C-Freq	CFreqId=298413	CGroupId=70759	Fire dispatch and paging, Advocate repeater	Off	152750000	FM	TONE=C136.5	3					
+C-Freq	CFreqId=360559	CGroupId=70759	Fire dispatch and paging, Apple River repeater	Off	152750000	FM	TONE=C151.4	3					
+C-Freq	CFreqId=298414	CGroupId=70759	Fire dispatch and paging, Joggins repeater	Off	152750000	FM	TONE=C97.4	3					
+C-Freq	CFreqId=360557	CGroupId=70759	Fire dispatch and paging, Kirkhill repeater	Off	152750000	FM	TONE=C167.9	3					
+C-Freq	CFreqId=298415	CGroupId=70759	Fire dispatch and paging, Lorneville repeater	Off	152750000	FM	TONE=C103.5	3					
+C-Freq	CFreqId=298416	CGroupId=70759	Fire dispatch and paging, Salem repeater	Off	152750000	FM	TONE=C77.0	3					
+C-Freq	CFreqId=298417	CGroupId=70759	Fire dispatch and paging, South Pugwash repeater	Off	152750000	FM	TONE=C91.5	3					
+C-Freq	CFreqId=298418	CGroupId=70759	Fire dispatch and paging, Southampton repeater	Off	152750000	FM	TONE=C82.5	3					
+C-Freq	CFreqId=298419	CGroupId=70759	Fire dispatch and paging, Springhill repeater	Off	152750000	FM	TONE=C114.8	3					
+C-Freq	CFreqId=298420	CGroupId=70759	Fire dispatch and paging, Sugarloaf repeater	Off	152750000	FM	TONE=C107.2	3					
+C-Freq	CFreqId=360560	CGroupId=70759	Fire dispatch and paging, Wallace repeater	Off	152750000	FM	TONE=C118.8	3					
+C-Freq	CFreqId=360558	CGroupId=70759	Fire dispatch and paging, Wentworth repeater	Off	152750000	FM	TONE=C100.0	3					
+C-Group	CGroupId=54731	CountyId=4695	Cumberland County - Joggins	Off	45.633250	-64.143680	45.0	Circle
+C-Freq	CFreqId=226866	CGroupId=54731	Fire department	Off	151250000	FM		3					
+C-Group	CGroupId=54732	CountyId=4695	Cumberland County - Leicester	Off	45.633250	-64.143680	45.0	Circle
+C-Freq	CFreqId=226867	CGroupId=54732	Fire department	Off	155685000	FM		3					
+C-Group	CGroupId=54742	CountyId=4695	Cumberland County - Oxford	Off	45.633250	-64.143680	45.0	Circle
+C-Freq	CFreqId=226868	CGroupId=54742	Fire department	Off	169440000	FM		3					
+C-Group	CGroupId=54743	CountyId=4695	Cumberland County - Parrsboro	Off	45.633250	-64.143680	45.0	Circle
+C-Freq	CFreqId=226869	CGroupId=54743	Fire department	Off	152750000	FM	TONE=C165.5	3					
+C-Group	CGroupId=54733	CountyId=4695	Cumberland County - Pugwash	Off	45.633250	-64.143680	45.0	Circle
+C-Freq	CFreqId=226870	CGroupId=54733	Fire department	Off	154205000	FM		3					
+C-Group	CGroupId=54734	CountyId=4695	Cumberland County - River Hebert	Off	45.633250	-64.143680	45.0	Circle
+C-Freq	CFreqId=226871	CGroupId=54734	Fire department	Off	151250000	FM		3					
+C-Group	CGroupId=54735	CountyId=4695	Cumberland County - Shinimicas	Off	45.633250	-64.143680	45.0	Circle
+C-Freq	CFreqId=226872	CGroupId=54735	Fire department	Off	154445000	FM		3					
+C-Group	CGroupId=54736	CountyId=4695	Cumberland County - Southampton	Off	45.633250	-64.143680	45.0	Circle
+C-Freq	CFreqId=226873	CGroupId=54736	Fire department	Off	151220000	FM		3					
+C-Group	CGroupId=54737	CountyId=4695	Cumberland County - Tidnish	Off	45.633250	-64.143680	45.0	Circle
+C-Freq	CFreqId=226875	CGroupId=54737	Fire department	Off	153965000	FM		3					
+C-Group	CGroupId=54738	CountyId=4695	Cumberland County - Truemanville	Off	45.633250	-64.143680	45.0	Circle
+C-Freq	CFreqId=226876	CGroupId=54738	Fire department	Off	154415000	FM		3					
+C-Group	CGroupId=54740	CountyId=4695	Cumberland County - Wallace	Off	45.633250	-64.143680	45.0	Circle
+C-Freq	CFreqId=226877	CGroupId=54740	Fire department	Off	154800000	FM		3					
+C-Group	CGroupId=54739	CountyId=4695	Cumberland County - Wentworth	Off	45.633250	-64.143680	45.0	Circle
+C-Freq	CFreqId=226878	CGroupId=54739	Fire department	Off	153485000	FM		3					
+Conventional	CountyId=4696	StateId=107	Digby	Off		Conventional
+AreaState	CountyId=4696	StateId=107
+AreaCounty	CountyId=4696	CountyId=4696
+C-Group	CGroupId=64779	CountyId=4696	Amateur Radio - Repeaters	Off	44.197960	-65.890500	36.2	Circle
+C-Freq	CFreqId=268345	CGroupId=64779	Digby - VE1AAR repeater	Off	147015000	FM		13					
+C-Group	CGroupId=54794	CountyId=4696	Digby County - Bear River	Off	44.197960	-65.890500	36.2	Circle
+C-Freq	CFreqId=226931	CGroupId=54794	Fire department	Off	151295000	FM		3					
+C-Group	CGroupId=67958	CountyId=4696	Digby County - Carlton	Off	44.197960	-65.890500	36.2	Circle
+C-Freq	CFreqId=279541	CGroupId=67958	Fire department	Off	153905000	FM		3					
+C-Group	CGroupId=54804	CountyId=4696	Digby County - Digby	Off	44.197960	-65.890500	36.2	Circle
+C-Freq	CFreqId=226941	CGroupId=54804	Fire department	Off	154430000	FM		3					
+C-Group	CGroupId=73601	CountyId=4696	Digby County - Freeport	Off	44.197960	-65.890500	36.2	Circle
+C-Freq	CFreqId=309012	CGroupId=73601	Fire department	Off	151640000	FM		3					
+C-Group	CGroupId=67959	CountyId=4696	Digby County - Hectanooga	Off	44.197960	-65.890500	36.2	Circle
+C-Freq	CFreqId=279542	CGroupId=67959	Fire department	Off	151370000	FM		3					
+C-Group	CGroupId=75257	CountyId=4696	Digby County - Little Brook	Off	44.197960	-65.890500	36.2	Circle
+C-Freq	CFreqId=318124	CGroupId=75257	Fire department	Off	154160000	FM		3					
+C-Group	CGroupId=54788	CountyId=4696	Digby County - Meteghan	Off	44.197960	-65.890500	36.2	Circle
+C-Freq	CFreqId=235269	CGroupId=54788	Fire department	Off	154710000	FM		3					
+C-Group	CGroupId=67957	CountyId=4696	Digby County - Richfield	Off	44.197960	-65.890500	36.2	Circle
+C-Freq	CFreqId=279540	CGroupId=67957	Fire department	Off	154235000	FM		3					
+C-Group	CGroupId=54792	CountyId=4696	Digby County - Salmon River	Off	44.197960	-65.890500	36.2	Circle
+C-Freq	CFreqId=226929	CGroupId=54792	Fire department	Off	154340000	FM		3					
+C-Group	CGroupId=54800	CountyId=4696	Digby County - Southville	Off	44.197960	-65.890500	36.2	Circle
+C-Freq	CFreqId=226937	CGroupId=54800	Fire department	Off	152295000	FM		3					
+C-Group	CGroupId=54791	CountyId=4696	Digby County - St. Bernard	Off	44.197960	-65.890500	36.2	Circle
+C-Freq	CFreqId=226928	CGroupId=54791	Fire department	Off	155835000	FM		3					
+Conventional	CountyId=4697	StateId=107	Guysborough	Off		Conventional
+AreaState	CountyId=4697	StateId=107
+AreaCounty	CountyId=4697	CountyId=4697
+C-Group	CGroupId=64774	CountyId=4697	Amateur Radio - Repeaters	Off	45.228480	-61.732180	38.6	Circle
+C-Freq	CFreqId=268324	CGroupId=64774	Lundy - VE1GYS repeater	Off	146700000	FM		13					
+C-Freq	CFreqId=268325	CGroupId=64774	Sherbrooke - VE1SAB repeater	Off	145390000	FM		13					
+C-Group	CGroupId=71688	CountyId=4697	Guysborough County - Canso	Off	45.228480	-61.732180	38.6	Circle
+C-Freq	CFreqId=298278	CGroupId=71688	Fire department	Off	153560000	FM		3					
+C-Group	CGroupId=71690	CountyId=4697	Guysborough County - Chedabucto / Queensport	Off	45.228480	-61.732180	38.6	Circle
+C-Freq	CFreqId=298279	CGroupId=71690	Fire department	Off	154145000	FM		3					
+C-Group	CGroupId=71689	CountyId=4697	Guysborough County - Hazel Hill	Off	45.228480	-61.732180	38.6	Circle
+C-Freq	CFreqId=298280	CGroupId=71689	Fire department	Off	153875000	FM		3					
+Conventional	CountyId=4698	StateId=107	Halifax	Off		Conventional
+AreaState	CountyId=4698	StateId=107
+AreaCounty	CountyId=4698	CountyId=4698
+C-Group	CGroupId=64490	CountyId=4698	Amateur Radio - Repeaters	Off	44.803000	-63.257000	38.3	Circle
+C-Freq	CFreqId=267999	CGroupId=64490	Beaver Bank - VE1MTT repeater	Off	147045000	FM		13					
+C-Freq	CFreqId=267995	CGroupId=64490	Dartmouth - VE1DAR UHF repeater (Dartmouth Amateur Radio Club	Off	444600000	FM		13					
+C-Freq	CFreqId=267994	CGroupId=64490	Dartmouth - VE1DAR VHF repeater (Dartmouth Amateur Radio Club)	Off	147150000	FM		13					
+C-Freq	CFreqId=267992	CGroupId=64490	Halifax - VE1HNS repeater (Halifax Amateur Radio Club)	Off	146940000	FM	TONE=C82.5	13					
+C-Freq	CFreqId=267991	CGroupId=64490	Halifax - VE1PSR 6M repeater (Halifax Amateur Radio Club)	Off	53550000	FM	TONE=C151.4	13					
+C-Freq	CFreqId=267990	CGroupId=64490	Halifax - VE1PSR UHF repeater (Halifax Amateur Radio Club)	Off	444350000	FM		13					
+C-Freq	CFreqId=267989	CGroupId=64490	Halifax - VE1PSR VHF repeater  (Halifax Amateur Radio Club)	Off	147270000	FM	TONE=C82.5	13					
+C-Freq	CFreqId=268000	CGroupId=64490	Hammonds Plains - VE1PKT repeater (hard linked to VE1CDN)	Off	146685000	FM		13					
+C-Freq	CFreqId=360828	CGroupId=64490	Hammonds Plaints - VE1HPR (Yaesu System Fusion)	Off	145490000	AUTO		13					
+C-Freq	CFreqId=267998	CGroupId=64490	Middle Sackville - VE1CDN repeater (hard linked to VE1PKT)	Off	146970000	FM		13					
+C-Freq	CFreqId=268002	CGroupId=64490	Musquodoboit Harbour - VE1MHR repeater	Off	147030000	FM		13					
+C-Freq	CFreqId=268003	CGroupId=64490	Sheet Harbour - VE1ESR repeater	Off	145450000	FM		13					
+C-Group	CGroupId=60737	CountyId=4698	Education - Dalhousie University	Off	44.863660	-63.149410	56.0	Circle
+C-Freq	CFreqId=252166	CGroupId=60737	Dalplex and sports field	Off	452512500	FM	TONE=C156.7	32					
+C-Freq	CFreqId=252167	CGroupId=60737	Student residence buildings	Off	460612500	FM	TONE=D073	32					
+C-Group	CGroupId=60796	CountyId=4698	Education - Mount Saint Vincent University	Off	44.863660	-63.149410	56.0	Circle
+C-Freq	CFreqId=252280	CGroupId=60796	Security	Off	460887500	FM	TONE=C151.4	33					
+C-Group	CGroupId=60802	CountyId=4698	Education - Nova Scotia Community College	Off	44.863660	-63.149410	56.0	Circle
+C-Freq	CFreqId=252400	CGroupId=60802	Akerley campus	Off	460815000	FM	TONE=C179.9	32					
+C-Freq	CFreqId=252286	CGroupId=60802	Institute of Technology campus	Off	461375000	FM	TONE=C156.7	32					
+C-Freq	CFreqId=252285	CGroupId=60802	Waterfront campus	Off	460925000	FM	TONE=C114.8	32					
+C-Group	CGroupId=60850	CountyId=4698	Education - Saint Mary's University	Off	44.863660	-63.149410	56.0	Circle
+C-Freq	CFreqId=252281	CGroupId=60850	Security	Off	158130000	FM		33					
+C-Freq	CFreqId=252282	CGroupId=60850	Security office	Off	170610000	FM	TONE=C103.5	33					
+C-Group	CGroupId=85862	CountyId=4698	Federal - Parks Canada	Off	44.863660	-63.149410	56.0	Circle
+C-Freq	CFreqId=376503	CGroupId=85862	Citadel Hill National Historic Site	Off	166650000	FM	TONE=C186.2	14					
+C-Group	CGroupId=61042	CountyId=4698	Halifax Regional Municipality	Off	44.863660	-63.149410	56.0	Circle
+C-Freq	CFreqId=236128	CGroupId=61042	Simplex 1 (all HRM radios)	Off	866962500	FM		22					
+C-Freq	CFreqId=236129	CGroupId=61042	Simplex 2 (all HRM radios)	Off	867462500	FM		22					
+C-Group	CGroupId=32785	CountyId=4698	Halifax Regional Municipality - Halifax Regional Fire and Emerge	Off	44.863660	-63.149410	56.0	Circle
+C-Freq	CFreqId=128818	CGroupId=32785	Paging: Chaswood and Tangier sites	Off	154130000	FM		3					
+C-Freq	CFreqId=128819	CGroupId=32785	Paging: Ecum Secum site	Off	154175000	FM		3					
+C-Freq	CFreqId=351524	CGroupId=32785	Paging: Halifax site (for stations 4 and 13 volunteers)	Off	155400000	FM		3					
+C-Freq	CFreqId=128815	CGroupId=32785	Paging: Hammonds Plains and Oyster Pond sites	Off	152060000	FM		3					
+C-Freq	CFreqId=360206	CGroupId=32785	Paging: Harrietsfield site	Off	150185000	FM		3					
+C-Freq	CFreqId=128821	CGroupId=32785	Paging: Middle Sackville site	Off	154415000	FM		3					
+C-Freq	CFreqId=218705	CGroupId=32785	Paging: Musquodoboit Harbour site	Off	151505000	FM		3					
+C-Freq	CFreqId=128816	CGroupId=32785	Paging: Preston site (for Dartmouth core stations)	Off	152180000	FM		3					
+C-Freq	CFreqId=128820	CGroupId=32785	Paging: Prospect, Sheet Harbour and Shubenacadie sites	Off	154280000	FM		3					
+C-Freq	CFreqId=128817	CGroupId=32785	Paging: Queensland and Preston sites	Off	153890000	FM		3					
+C-Freq	CFreqId=128814	CGroupId=32785	Paging: Sackville site (for Halifax core stations)	Off	151400000	FM		3					
+C-Freq	CFreqId=236113	CGroupId=32785	Preston backup repeater	Off	866475000	FM		8					
+C-Freq	CFreqId=236112	CGroupId=32785	Preston, Ecum Secum and Chaswood backup repeaters	Off	868112500	FM		8					
+C-Freq	CFreqId=236109	CGroupId=32785	Prospect, Shubenacadie and Tangier backup repeaters	Off	866612500	FM		8					
+C-Freq	CFreqId=236114	CGroupId=32785	Queensland and Musquodoboit Harbour backup repeaters	Off	868612500	FM		8					
+C-Freq	CFreqId=236111	CGroupId=32785	Sackville and Marinette backup repeaters	Off	867612500	FM		8					
+C-Freq	CFreqId=236110	CGroupId=32785	Tantallon and Chaplin backup repeaters	Off	867112500	FM		8					
+C-Freq	CFreqId=236120	CGroupId=32785	Vehicle repeater	Off	867975000	FM		8					
+C-Freq	CFreqId=236121	CGroupId=32785	Vehicle repeater	Off	867987500	FM		8					
+C-Freq	CFreqId=236124	CGroupId=32785	Vehicle repeater	Off	868487500	FM		8					
+C-Freq	CFreqId=236125	CGroupId=32785	Vehicle repeater	Off	868962500	FM		8					
+C-Freq	CFreqId=236126	CGroupId=32785	Vehicle repeater	Off	868975000	FM		8					
+C-Freq	CFreqId=236127	CGroupId=32785	Vehicle repeater	Off	868987500	FM		8					
+C-Freq	CFreqId=236122	CGroupId=32785	Vehicle repeater for ops 2 talkgroup	Off	868462500	FM		8					
+C-Freq	CFreqId=236123	CGroupId=32785	Vehicle repeater for ops 3 talkgroup	Off	868475000	FM		8					
+C-Group	CGroupId=53016	CountyId=4698	Halifax Regional Municipality - Transportation and Public Works	Off	44.693190	-63.584400	10.3	Circle
+C-Freq	CFreqId=217738	CGroupId=53016	Halifax Transit Access-A-Bus	Off	410162500	FM	TONE=D165	26					
+C-Freq	CFreqId=217735	CGroupId=53016	Halifax Transit buses 1	Off	415112500	FM	TONE=C127.3	26					
+C-Freq	CFreqId=217736	CGroupId=53016	Halifax Transit buses 2	Off	416037500	FM	TONE=C88.5	26					
+C-Freq	CFreqId=252623	CGroupId=53016	Halifax Transit buses 3	Off	418987500	FM	TONE=C103.5	26					
+C-Freq	CFreqId=217732	CGroupId=53016	Halifax Transit control centre 1	Off	410112500	FM	TONE=C127.3	26					
+C-Freq	CFreqId=217733	CGroupId=53016	Halifax Transit control centre 2	Off	411037500	FM	TONE=C88.5	26					
+C-Freq	CFreqId=252622	CGroupId=53016	Halifax Transit control centre 3	Off	413987500	FM	TONE=C103.5	26					
+C-Freq	CFreqId=321995	CGroupId=53016	Public Works simplex	Off	857612500	FM		14					
+C-Group	CGroupId=54729	CountyId=4698	Non-government - Waverley Fire School	Off	44.784760	-63.608780	5.1	Circle
+C-Freq	CFreqId=226863	CGroupId=54729	Fireground operations (simplex)	Off	153800000	FM		8					
+C-Group	CGroupId=64660	CountyId=4698	Provincial - Hospitals	Off	44.695000	-63.625000	9.1	Circle
+C-Freq	CFreqId=327873	CGroupId=64660	Dartmouth General Hospital/Mount Hope security	Off	460362500	AUTO		33					
+C-Freq	CFreqId=268013	CGroupId=64660	QE2 Halifax Infirmary site security	Off	452812500	AUTO		33					
+C-Freq	CFreqId=268015	CGroupId=64660	QE2 Victoria General site security	Off	467062500	AUTO		33					
+C-Group	CGroupId=64661	CountyId=4698	Provincial - Justice	Off	44.863660	-63.149410	56.0	Circle
+C-Freq	CFreqId=268016	CGroupId=64661	Burnside Corrections Facility	Off	868312500	FM		37					
+C-Group	CGroupId=82241	CountyId=4698	Provincial - Lifeguard Service	Off	44.863660	-63.149410	56.0	Circle
+C-Freq	CFreqId=355263	CGroupId=82241	Bayswater Beach, Lawrencetown Beach, Queensland Beach	Off	151115000	NFM	TONE=C179.9	9					
+Conventional	CountyId=4699	StateId=107	Hants	Off		Conventional
+AreaState	CountyId=4699	StateId=107
+AreaCounty	CountyId=4699	CountyId=4699
+C-Group	CGroupId=64789	CountyId=4699	Amateur Radio - Repeaters	Off	45.061880	-63.890990	30.1	Circle
+C-Freq	CFreqId=268362	CGroupId=64789	Gore - VE1OM repeater	Off	146640000	FM		13					
+C-Freq	CFreqId=268361	CGroupId=64789	Windsor - VE1HCA repeater	Off	146910000	FM		13					
+C-Group	CGroupId=54828	CountyId=4699	Municipality of East Hants - East Hants county fire paging syste	Off	45.061880	-63.890990	30.1	Circle
+C-Freq	CFreqId=267985	CGroupId=54828	Fire dispatch, Barr Settlement repeater	Off	154460000	FM		3					
+C-Freq	CFreqId=267988	CGroupId=54828	Fire dispatch, Maitland repeater	Off	152195000	FM	TONE=C151.4	3					
+C-Freq	CFreqId=267987	CGroupId=54828	Fire dispatch, Noel repeater	Off	153320000	FM	TONE=C173.8	3					
+C-Freq	CFreqId=267986	CGroupId=54828	Fire dispatch, Walton Shore repeater	Off	152840000	FM	TONE=C100.0	3					
+C-Freq	CFreqId=246009	CGroupId=54828	Fire ops 1 (simplex)	Off	151655000	FM		8					
+C-Freq	CFreqId=246010	CGroupId=54828	Fire ops 2 (simplex)	Off	154905000	FM		8					
+C-Freq	CFreqId=246011	CGroupId=54828	Fire ops 3 (simplex)	Off	155835000	FM		8					
+C-Freq	CFreqId=246012	CGroupId=54828	Fire ops 4 (simplex)	Off	155325000	FM		8					
+C-Freq	CFreqId=246013	CGroupId=54828	Fire ops 5 (simplex)	Off	151745000	FM		8					
+C-Freq	CFreqId=246014	CGroupId=54828	Fire ops 6 (simplex)	Off	155295000	FM	TONE=C82.5	8					
+C-Freq	CFreqId=246015	CGroupId=54828	Fire ops 7 (simplex)	Off	154695000	FM		8					
+C-Freq	CFreqId=246016	CGroupId=54828	Fire ops 8 (repeater)	Off	150125000	FM		8					
+C-Freq	CFreqId=226965	CGroupId=54828	Fire paging: Barr Settlement, Maitland, Noel and Walton Shore	Off	153770000	FM		3					
+C-Group	CGroupId=54745	CountyId=4699	Municipality of East Hants - Elmsdale	Off	45.061880	-63.890990	30.1	Circle
+C-Freq	CFreqId=226880	CGroupId=54745	Elmsdale fire department	Off	154160000	FM		8					
+C-Group	CGroupId=54746	CountyId=4699	Municipality of East Hants - Enfield	Off	45.060000	-63.890000	30.1	Circle
+C-Freq	CFreqId=226895	CGroupId=54746	Enfield fire department (paging only)	Off	154280000	FM		3					
+C-Group	CGroupId=54747	CountyId=4699	Municipality of East Hants - Gore	Off	45.061880	-63.890990	30.1	Circle
+C-Freq	CFreqId=259254	CGroupId=54747	Gore fire department	Off	153620000	FM		8					
+C-Group	CGroupId=54748	CountyId=4699	Municipality of East Hants - Indian Brook	Off	45.061880	-63.890990	30.1	Circle
+C-Freq	CFreqId=226883	CGroupId=54748	Indian Brook fire department	Off	154250000	FM		8					
+C-Group	CGroupId=54749	CountyId=4699	Municipality of East Hants - Kennetcook	Off	45.061880	-63.890990	30.1	Circle
+C-Freq	CFreqId=226884	CGroupId=54749	Kennetcook fire department	Off	154265000	FM		8					
+C-Group	CGroupId=54753	CountyId=4699	Municipality of East Hants - Mount Uniacke	Off	45.061880	-63.890990	30.1	Circle
+C-Freq	CFreqId=226896	CGroupId=54753	Mount Uniacke  fire department (paging only)	Off	154415000	FM		3					
+C-Group	CGroupId=54755	CountyId=4699	Municipality of East Hants - Noel	Off	45.061880	-63.890990	30.1	Circle
+C-Freq	CFreqId=226889	CGroupId=54755	Noel fire department	Off	152015000	FM		8					
+C-Group	CGroupId=62610	CountyId=4699	Municipality of East Hants - Shubenacadie	Off	45.061880	-63.890990	30.1	Circle
+C-Freq	CFreqId=259253	CGroupId=62610	Shubenacadie fire department	Off	154650000	FM		8					
+C-Group	CGroupId=54758	CountyId=4699	Municipality of East Hants - Walton Shore	Off	45.061880	-63.890990	30.1	Circle
+C-Freq	CFreqId=226893	CGroupId=54758	Walton Shore fire department	Off	154680000	FM		3					
+C-Group	CGroupId=54761	CountyId=4699	Municipality of West Hants - Brooklyn	Off	45.061880	-63.890990	30.1	Circle
+C-Freq	CFreqId=234384	CGroupId=54761	Fire Operations	Off	152300000	FM	TONE=C71.9	3					
+C-Freq	CFreqId=226879	CGroupId=54761	Fire Simplex	Off	154620000	FM		8					
+C-Group	CGroupId=54759	CountyId=4699	Municipality of West Hants - Hantsport	Off	45.061880	-63.890990	30.1	Circle
+C-Freq	CFreqId=226882	CGroupId=54759	Fire department	Off	154340000	FM	TONE=C71.9	3					
+C-Freq	CFreqId=320949	CGroupId=54759	Public works	Off	150950000	FM		14					
+C-Group	CGroupId=54762	CountyId=4699	Municipality of West Hants - Summerville	Off	45.061880	-63.890990	30.1	Circle
+C-Freq	CFreqId=226892	CGroupId=54762	Fire department	Off	154710000	FM		3					
+C-Group	CGroupId=78146	CountyId=4699	Municipality of West Hants - Vaughan	Off	45.061880	-63.890990	30.1	Circle
+C-Freq	CFreqId=333767	CGroupId=78146	South West Hants fire department (Hantsport station #2)	Off	152630000	FM	TONE=C88.5	3					
+C-Group	CGroupId=54760	CountyId=4699	Municipality of West Hants - Windsor	Off	45.061880	-63.890990	30.1	Circle
+C-Freq	CFreqId=226894	CGroupId=54760	Fire department	Off	151460000	FM	TONE=C107.2	3					
+C-Freq	CFreqId=320948	CGroupId=54760	Public works	Off	153980000	FM		14					
+Conventional	CountyId=4700	StateId=107	Inverness	Off		Conventional
+AreaState	CountyId=4700	StateId=107
+AreaCounty	CountyId=4700	CountyId=4700
+C-Group	CGroupId=64799	CountyId=4700	Amateur Radio - Repeaters	Off	46.370000	-61.005000	57.5	Circle
+C-Freq	CFreqId=268389	CGroupId=64799	Kiltarlity - VE1KIL repeater	Off	146730000	FM		13					
+C-Group	CGroupId=54704	CountyId=4700	Inverness County - Cheticamp	Off	46.370000	-61.005000	57.5	Circle
+C-Freq	CFreqId=226838	CGroupId=54704	Cheticamp fire department	Off	153995000	FM		8					
+C-Group	CGroupId=54710	CountyId=4700	Inverness County - Inverness	Off	46.370000	-61.005000	57.5	Circle
+C-Freq	CFreqId=226839	CGroupId=54710	Inverness fire department	Off	154665000	FM		8					
+C-Group	CGroupId=62621	CountyId=4700	Inverness County - Lake Ainslie	Off	46.370000	-61.005000	57.5	Circle
+C-Freq	CFreqId=259260	CGroupId=62621	Lake Ainslie fire department	Off	154235000	FM		8					
+C-Group	CGroupId=54705	CountyId=4700	Inverness County - Le Moine	Off	46.370000	-61.005000	57.5	Circle
+C-Freq	CFreqId=226841	CGroupId=54705	Le Moine fire department	Off	153995000	FM		3					
+C-Group	CGroupId=54707	CountyId=4700	Inverness County - Margaree Forks	Off	46.370000	-61.005000	57.5	Circle
+C-Freq	CFreqId=226843	CGroupId=54707	Margaree Forks fire department	Off	153515000	FM		8					
+C-Group	CGroupId=54829	CountyId=4700	Inverness County - Strait Area Mutual Aid Association	Off	46.200000	-60.500000	63.0	Circle
+C-Freq	CFreqId=226967	CGroupId=54829	Canso Dispatch - various stations	Off	153920000	FM		3					
+Conventional	CountyId=4701	StateId=107	Kings	Off		Conventional
+AreaState	CountyId=4701	StateId=107
+AreaCounty	CountyId=4701	CountyId=4701
+C-Group	CGroupId=64782	CountyId=4701	Amateur Radio - Repeaters	Off	45.025010	-64.605100	23.2	Circle
+C-Freq	CFreqId=268350	CGroupId=64782	Glenmont - VE1AEH repeater	Off	147180000	FM		13					
+C-Freq	CFreqId=268348	CGroupId=64782	Greenwood - VE1VAL repeater	Off	145210000	FM		13					
+C-Freq	CFreqId=331320	CGroupId=64782	Greenwood - VE1VLY repeater	Off	444050000	FM		13					
+C-Freq	CFreqId=268349	CGroupId=64782	Greenwood - VE1WN repeater	Off	147240000	FM		13					
+C-Group	CGroupId=61555	CountyId=4701	Kings County - Aylesford	Off	45.025010	-64.605100	23.2	Circle
+C-Freq	CFreqId=254868	CGroupId=61555	Aylesford/Berwick fire departments	Off	152915000	FM		3					
+C-Group	CGroupId=53017	CountyId=4701	Kings County - Canning	Off	45.025010	-64.605100	23.2	Circle
+C-Freq	CFreqId=217740	CGroupId=53017	Canning fire department	Off	165660000	FM		3					
+C-Group	CGroupId=53018	CountyId=4701	Kings County - Greenwich	Off	45.025010	-64.605100	23.2	Circle
+C-Freq	CFreqId=234386	CGroupId=53018	Greenwich fire department	Off	153125000	FM		3					
+C-Group	CGroupId=77659	CountyId=4701	Kings County - Greenwood	Off	45.025010	-64.605100	23.2	Circle
+C-Freq	CFreqId=331569	CGroupId=77659	14 Wing Greenwood fire department	Off	150095000	FM		3					
+C-Group	CGroupId=53019	CountyId=4701	Kings County - Hall's Harbour	Off	45.025010	-64.605100	23.2	Circle
+C-Freq	CFreqId=328419	CGroupId=53019	Hall's Harbour fire department	Off	159465000	FM		3					
+C-Group	CGroupId=75842	CountyId=4701	Kings County - Kentville	Off	45.025010	-64.605100	23.2	Circle
+C-Freq	CFreqId=321996	CGroupId=75842	Kentville fire department	Off	153860000	FM	TONE=C127.3	3					
+C-Freq	CFreqId=321997	CGroupId=75842	Kentville police	Off	154890000	FM		2					
+C-Freq	CFreqId=321998	CGroupId=75842	Kentville police	Off	162795000	FM	TONE=C114.8	2					
+C-Group	CGroupId=53020	CountyId=4701	Kings County - Kingston	Off	45.025010	-64.605100	23.2	Circle
+C-Freq	CFreqId=255173	CGroupId=53020	Kingston fire department	Off	151850000	FM		3					
+C-Freq	CFreqId=217744	CGroupId=53020	Kingston fire department	Off	154650000	FM		3					
+C-Group	CGroupId=53021	CountyId=4701	Kings County - New Minas	Off	45.025010	-64.605100	23.2	Circle
+C-Freq	CFreqId=234385	CGroupId=53021	New Minas fire department	Off	152405000	FM		3					
+C-Freq	CFreqId=217745	CGroupId=53021	New Minas fire department	Off	153920000	FM		3					
+C-Group	CGroupId=77219	CountyId=4701	Kings County - Port Williams	Off	45.025010	-64.605100	23.2	Circle
+C-Freq	CFreqId=328418	CGroupId=77219	Port Williams fire department	Off	154160000	FM		3					
+C-Freq	CFreqId=349332	CGroupId=77219	Port Williams fire department	Off	170310000	FM		3					
+C-Group	CGroupId=53023	CountyId=4701	Kings County - Waterville	Off	45.025010	-64.605100	23.2	Circle
+C-Freq	CFreqId=328417	CGroupId=53023	Waterville fire department	Off	155985000	FM		3					
+C-Freq	CFreqId=320958	CGroupId=53023	Waterville/Kings Co. Airport UNICOM	Off	122800000	AM		15					
+C-Group	CGroupId=53026	CountyId=4701	Kings County - Wolfville	Off	45.025010	-64.605100	23.2	Circle
+C-Freq	CFreqId=217748	CGroupId=53026	Wolfville fire department	Off	154430000	FM		3					
+Conventional	CountyId=4702	StateId=107	Lunenburg	Off		Conventional
+AreaState	CountyId=4702	StateId=107
+AreaCounty	CountyId=4702	CountyId=4702
+C-Group	CGroupId=64775	CountyId=4702	Amateur Radio - Repeaters	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=268328	CGroupId=64775	Bridgewater - VE1VL repeater	Off	147090000	FM		13					
+C-Freq	CFreqId=268327	CGroupId=64775	Chester - VE1LUN repeater	Off	147330000	FM		13					
+C-Group	CGroupId=52951	CountyId=4702	Lunenburg County - Blandford	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217582	CGroupId=52951	Blandford fire department	Off	153620000	FM		3					
+C-Group	CGroupId=52952	CountyId=4702	Lunenburg County - Blockhouse	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217584	CGroupId=52952	Blockhouse fire department	Off	153800000	FM	TONE=C100.0	3					
+C-Group	CGroupId=52953	CountyId=4702	Lunenburg County - Bridgewater	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=296720	CGroupId=52953	Bridgewater fire department	Off	153500000	FM	TONE=D047	3					
+C-Freq	CFreqId=217594	CGroupId=52953	Bridgewater fire department	Off	154340000	FM	TONE=C71.9	3					
+C-Freq	CFreqId=248214	CGroupId=52953	Bridgewater town Public Works	Off	165585000	FM		14					
+C-Group	CGroupId=52955	CountyId=4702	Lunenburg County - Chester	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217581	CGroupId=52955	Chester fire department	Off	153440000	FM		3					
+C-Group	CGroupId=52956	CountyId=4702	Lunenburg County - Chester Basin	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217587	CGroupId=52956	Chester Basin fire department	Off	153935000	FM		3					
+C-Group	CGroupId=52957	CountyId=4702	Lunenburg County - Conquerall Bank	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217588	CGroupId=52957	Conquerall Bank fire department	Off	153980000	FM		3					
+C-Group	CGroupId=52958	CountyId=4702	Lunenburg County - Cornwall	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217601	CGroupId=52958	Fire (includes New Germany and Walden)	Off	155265000	FM	TONE=C71.9	3					
+C-Group	CGroupId=52959	CountyId=4702	Lunenburg County - Dayspring	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217593	CGroupId=52959	Dayspring fire department Ops	Off	154325000	FM		3					
+C-Group	CGroupId=52960	CountyId=4702	Lunenburg County - Hebb's Cross	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217567	CGroupId=52960	Hebb's Cross fire department Ops	Off	151325000	FM		3					
+C-Group	CGroupId=52961	CountyId=4702	Lunenburg County - Hebbville	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217595	CGroupId=52961	Hebbville fire department	Off	154430000	FM	TONE=C173.8	3					
+C-Group	CGroupId=52962	CountyId=4702	Lunenburg County - Hemford	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217570	CGroupId=52962	Hemford fire department	Off	153200000	FM		3					
+C-Group	CGroupId=52963	CountyId=4702	Lunenburg County - Hubbards	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217591	CGroupId=52963	Hubbards fire department Ops	Off	154250000	FM		3					
+C-Group	CGroupId=52964	CountyId=4702	Lunenburg County - Indian Point	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217603	CGroupId=52964	Indian Point fire department	Off	159135000	FM		3					
+C-Group	CGroupId=52965	CountyId=4702	Lunenburg County - Italy Cross	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=355949	CGroupId=52965	Fire Tactical Ch. 1	Off	152270000	NFM		8					
+C-Freq	CFreqId=217580	CGroupId=52965	Italy Cross and Middlewood Fire Dispatch	Off	153425000	FM		3					
+C-Group	CGroupId=52966	CountyId=4702	Lunenburg County - Lahave	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217583	CGroupId=52966	Lahave fire department	Off	153770000	FM	TONE=C114.8	3					
+C-Group	CGroupId=52967	CountyId=4702	Lunenburg County - Lapland	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217563	CGroupId=52967	Lapland fire department Ops	Off	150950000	FM		3					
+C-Group	CGroupId=52968	CountyId=4702	Lunenburg County - Lunenburg (town)	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217585	CGroupId=52968	Lunenburg fire department	Off	153875000	FM	TONE=C71.9	3					
+C-Freq	CFreqId=248215	CGroupId=52968	Lunenburg town public works	Off	157455000	FM		14					
+C-Group	CGroupId=52969	CountyId=4702	Lunenburg County - Mahone Bay	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217599	CGroupId=52969	Mahone Bay fire department	Off	154710000	FM	TONE=C123.0	3					
+C-Group	CGroupId=52970	CountyId=4702	Lunenburg County - Martins River	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217598	CGroupId=52970	Martins River fire department	Off	154650000	FM		3					
+C-Group	CGroupId=52971	CountyId=4702	Lunenburg County - Midville Branch	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217586	CGroupId=52971	Midville Branch fire department Ops	Off	153920000	FM		3					
+C-Group	CGroupId=52972	CountyId=4702	Lunenburg County - New Germany	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217589	CGroupId=52972	New Germany fire department	Off	154055000	FM		3					
+C-Group	CGroupId=52974	CountyId=4702	Lunenburg County - New Ross	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217605	CGroupId=52974	New Ross fire department	Off	152330000	FM	TONE=C91.5	3					
+C-Group	CGroupId=52975	CountyId=4702	Lunenburg County - Northfield	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217565	CGroupId=52975	Northfield fire department	Off	151145000	FM		3					
+C-Freq	CFreqId=279103	CGroupId=52975	Northfield fire department	Off	152540000	FM	TONE=C114.8	3					
+C-Group	CGroupId=52976	CountyId=4702	Lunenburg County - Oakhill	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217566	CGroupId=52976	Oakhill fire department Ops	Off	151295000	FM		3					
+C-Freq	CFreqId=217604	CGroupId=52976	Oakhill fire department Paging	Off	167100000	FM	TONE=C100.0	3					
+C-Group	CGroupId=52977	CountyId=4702	Lunenburg County - Petite Riviere	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217571	CGroupId=52977	Petite Riviere fire department	Off	152705000	FM		3					
+C-Group	CGroupId=52978	CountyId=4702	Lunenburg County - Pleasantville	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217568	CGroupId=52978	Pleasantville fire department	Off	151490000	FM		3					
+C-Group	CGroupId=59296	CountyId=4702	Lunenburg County - Queens	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=248216	CGroupId=59296	Queens public works	Off	154400000	FM		14					
+C-Group	CGroupId=52979	CountyId=4702	Lunenburg County - Riverport	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217590	CGroupId=52979	Riverport fire department	Off	154085000	FM	TONE=C123.0	3					
+C-Group	CGroupId=56636	CountyId=4702	Lunenburg County - Scotia Business Centre (fire dispatch)	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=239278	CGroupId=56636	Scotia Business fire paging, various stations	Off	153260000	FM	TONE=C100.0	3					
+C-Group	CGroupId=73379	CountyId=4702	Lunenburg County - Tri-District Fire Rescue	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=307425	CGroupId=73379	Tri-District fire dispatching	Off	155295000	FM		3					
+C-Freq	CFreqId=307427	CGroupId=73379	Tri-District fireground BA ops	Off	154635000	FM		8					
+C-Freq	CFreqId=307426	CGroupId=73379	Tri-District fireground operations	Off	151760000	FM		8					
+C-Group	CGroupId=52980	CountyId=4702	Lunenburg County - United Communities	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217564	CGroupId=52980	United Communities fire department	Off	151070000	FM		3					
+C-Group	CGroupId=52981	CountyId=4702	Lunenburg County - Walden	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217596	CGroupId=52981	Walden fire department	Off	154555000	FM		3					
+C-Group	CGroupId=52982	CountyId=4702	Lunenburg County - Western Shore	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217600	CGroupId=52982	Western Shore fire department Ops	Off	154770000	FM		3					
+C-Group	CGroupId=52983	CountyId=4702	Lunenburg County - Wileville	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217592	CGroupId=52983	Wileville fire department Ops	Off	154295000	FM		3					
+Conventional	CountyId=4703	StateId=107	Pictou	Off		Conventional
+AreaState	CountyId=4703	StateId=107
+AreaCounty	CountyId=4703	CountyId=4703
+C-Group	CGroupId=64797	CountyId=4703	Amateur Radio - Repeaters	Off	45.552530	-62.679750	27.7	Circle
+C-Freq	CFreqId=268387	CGroupId=64797	New Glasgow - VE1HR repeater	Off	146760000	FM		13					
+C-Freq	CFreqId=349361	CGroupId=64797	Westville - VE1DEB repeater	Off	147360000	FM		13					
+C-Group	CGroupId=61037	CountyId=4703	Pictou County	Off	45.552530	-62.679750	27.7	Circle
+C-Freq	CFreqId=226972	CGroupId=61037	Pictou County fire paging - various stations	Off	152210000	FM	TONE=C82.5	3					
+C-Freq	CFreqId=270680	CGroupId=61037	Police Emergency Response Team (multiple police departments)	Off	159330000	FM		7					
+C-Group	CGroupId=54833	CountyId=4703	Pictou County - Abercrombie	Off	45.552530	-62.679750	27.7	Circle
+C-Freq	CFreqId=226973	CGroupId=54833	Abercrombie fire department	Off	154415000	FM	TONE=C82.5	3					
+C-Group	CGroupId=54834	CountyId=4703	Pictou County - Alma	Off	45.552530	-62.679750	27.7	Circle
+C-Freq	CFreqId=226974	CGroupId=54834	Alma fire department	Off	151160000	FM	TONE=C82.5	3					
+C-Group	CGroupId=54835	CountyId=4703	Pictou County - Barney's River	Off	45.552530	-62.679750	27.7	Circle
+C-Freq	CFreqId=226976	CGroupId=54835	Barney's River fire department	Off	152315000	FM	TONE=C151.4	3					
+C-Group	CGroupId=54836	CountyId=4703	Pictou County - Blue Mountain	Off	45.552530	-62.679750	27.7	Circle
+C-Freq	CFreqId=226977	CGroupId=54836	Blue Mountain fire department	Off	155010000	FM	TONE=C136.5	3					
+C-Group	CGroupId=74988	CountyId=4703	Pictou County - Caribou	Off	45.552530	-62.679750	27.7	Circle
+C-Freq	CFreqId=316648	CGroupId=74988	Caribou ferry terminal (Northumberland Ferries Ltd)	Off	851512500	FM		26					
+C-Group	CGroupId=54837	CountyId=4703	Pictou County - East River Valley	Off	45.552530	-62.679750	27.7	Circle
+C-Freq	CFreqId=226978	CGroupId=54837	East River Valley fire department	Off	158865000	FM	TONE=C82.5	3					
+C-Group	CGroupId=65608	CountyId=4703	Pictou County - Eureka	Off	45.552530	-62.679750	27.7	Circle
+C-Freq	CFreqId=270667	CGroupId=65608	Eureka fire department	Off	157935000	FM	TONE=C85.4	3					
+C-Group	CGroupId=54838	CountyId=4703	Pictou County - Linacy	Off	45.552530	-62.679750	27.7	Circle
+C-Freq	CFreqId=270668	CGroupId=54838	Linacy fire department	Off	152105000	FM	TONE=C97.4	3					
+C-Group	CGroupId=65610	CountyId=4703	Pictou County - Little Harbour	Off	45.552530	-62.679750	27.7	Circle
+C-Freq	CFreqId=270669	CGroupId=65610	Little Harbour & Pictou Landing fire departments	Off	162180000	FM	TONE=C97.4	3					
+C-Group	CGroupId=54839	CountyId=4703	Pictou County - Merigomish	Off	45.552530	-62.679750	27.7	Circle
+C-Freq	CFreqId=226981	CGroupId=54839	Merigomish fire department	Off	153425000	FM	TONE=C151.4	3					
+C-Group	CGroupId=54845	CountyId=4703	Pictou County - New Glasgow	Off	45.552530	-62.679750	27.7	Circle
+C-Freq	CFreqId=270671	CGroupId=54845	New Glasgow Fire Department	Off	153950000	FM	TONE=C100.0	3					
+C-Group	CGroupId=54846	CountyId=4703	Pictou County - Pictou (town)	Off	45.552530	-62.679750	27.7	Circle
+C-Freq	CFreqId=270672	CGroupId=54846	Pictou fire department	Off	152255000	FM	TONE=C91.5	3					
+C-Group	CGroupId=54841	CountyId=4703	Pictou County - Plymouth	Off	45.552530	-62.679750	27.7	Circle
+C-Freq	CFreqId=226985	CGroupId=54841	Plymouth fire department	Off	155760000	FM	TONE=C162.2	3					
+C-Group	CGroupId=65611	CountyId=4703	Pictou County - River John	Off	45.552530	-62.679750	27.7	Circle
+C-Freq	CFreqId=270674	CGroupId=65611	River John fire department	Off	152000000	FM	TONE=C110.9	3					
+C-Group	CGroupId=54842	CountyId=4703	Pictou County - Scotsburn	Off	45.552530	-62.679750	27.7	Circle
+C-Freq	CFreqId=226986	CGroupId=54842	Scotsburn fire department	Off	151340000	FM	TONE=C82.5	3					
+C-Group	CGroupId=54847	CountyId=4703	Pictou County - Stellarton	Off	45.552530	-62.679750	27.7	Circle
+C-Freq	CFreqId=226988	CGroupId=54847	Stellarton fire department	Off	154340000	FM	TONE=C162.2	3					
+C-Group	CGroupId=54843	CountyId=4703	Pictou County - Thorburn	Off	45.552530	-62.679750	27.7	Circle
+C-Freq	CFreqId=226989	CGroupId=54843	Thorburn fire department	Off	153425000	FM	TONE=C100.0	3					
+C-Group	CGroupId=54849	CountyId=4703	Pictou County - Trenton	Off	45.552530	-62.679750	27.7	Circle
+C-Freq	CFreqId=226990	CGroupId=54849	Trenton fire department	Off	154310000	FM	TONE=C97.4	3					
+C-Group	CGroupId=54844	CountyId=4703	Pictou County - West River	Off	45.552530	-62.679750	27.7	Circle
+C-Freq	CFreqId=226991	CGroupId=54844	West River fire department	Off	153785000	FM	TONE=C103.5	3					
+C-Group	CGroupId=54848	CountyId=4703	Pictou County - Westville	Off	45.552530	-62.679750	27.7	Circle
+C-Freq	CFreqId=226992	CGroupId=54848	Westville fire department	Off	148615000	FM	TONE=C77.0	3					
+C-Freq	CFreqId=270676	CGroupId=54848	Westville town public works	Off	172470000	FM		14					
+Conventional	CountyId=4704	StateId=107	Queens	Off		Conventional
+AreaState	CountyId=4704	StateId=107
+AreaCounty	CountyId=4704	CountyId=4704
+C-Group	CGroupId=64776	CountyId=4704	Amateur Radio - Repeaters	Off	44.142800	-64.907230	35.5	Circle
+C-Freq	CFreqId=268335	CGroupId=64776	Greenfield - VE1BBY UHF repeater	Off	444300000	FM		13					
+C-Freq	CFreqId=268334	CGroupId=64776	Greenfield - VE1BBY VHF repeater	Off	147360000	FM		13					
+C-Freq	CFreqId=268332	CGroupId=64776	Liverpool - VE1AVA repeater	Off	147390000	FM		13					
+C-Freq	CFreqId=268333	CGroupId=64776	Liverpool - VE1QW repeater	Off	147060000	FM		13					
+C-Group	CGroupId=61036	CountyId=4704	Queens County	Off	44.142800	-64.907230	35.5	Circle
+C-Freq	CFreqId=355284	CGroupId=61036	Public Works	Off	163170000	NFM		14					
+C-Group	CGroupId=82805	CountyId=4704	Queens County - Fire Mutual Aid	Off	44.142800	-64.907230	35.5	Circle
+C-Freq	CFreqId=358026	CGroupId=82805	Mutual Aid/SCBA	Off	153830000	NFM		11					
+C-Freq	CFreqId=358027	CGroupId=82805	Traffic Channel	Off	151115000	NFM		11					
+C-Group	CGroupId=53032	CountyId=4704	Queens County - Greenfield	Off	44.142800	-64.907230	35.5	Circle
+C-Freq	CFreqId=217796	CGroupId=53032	Fire Dispatch	Off	154620000	FM		3					
+C-Group	CGroupId=53033	CountyId=4704	Queens County - Liverpool	Off	44.142800	-64.907230	35.5	Circle
+C-Freq	CFreqId=217797	CGroupId=53033	Fire - Talk	Off	154310000	FM		24					
+C-Freq	CFreqId=358028	CGroupId=53033	Fire Grid (includes Mill Village)	Off	152030000	NFM	TONE=C71.9	3					
+C-Group	CGroupId=53035	CountyId=4704	Queens County - Mill Village	Off	44.142800	-64.907230	35.5	Circle
+C-Freq	CFreqId=217798	CGroupId=53035	Fire (back-up)	Off	152320000	FM		3					
+C-Freq	CFreqId=360122	CGroupId=53035	Fireground repeater	Off	155520000	FM		8					
+C-Group	CGroupId=83295	CountyId=4704	Queens County - North Queens	Off	44.142800	-64.907230	35.5	Circle
+C-Freq	CFreqId=355266	CGroupId=83295	North Queens - Fire Paging	Off	153560000	NFM		3					
+C-Freq	CFreqId=355267	CGroupId=83295	North Queens - Fire Talk	Off	154190000	NFM		24					
+C-Group	CGroupId=53037	CountyId=4704	Queens County - Port Medway	Off	44.142800	-64.907230	35.5	Circle
+C-Freq	CFreqId=217799	CGroupId=53037	Fire simplex	Off	153785000	FM		3					
+C-Group	CGroupId=83912	CountyId=4704	Queens County - South Shore Regional Centre for Education	Off	44.142800	-64.907230	35.5	Circle
+C-Freq	CFreqId=364267	CGroupId=83912	School bus operations	Off	142005000	FM		32					
+C-Freq	CFreqId=364268	CGroupId=83912	School bus operations	Off	142065000	FM		32					
+C-Freq	CFreqId=364269	CGroupId=83912	School bus operations	Off	142140000	FM		32					
+C-Freq	CFreqId=364270	CGroupId=83912	School bus operations	Off	142170000	FM		32					
+C-Freq	CFreqId=364271	CGroupId=83912	School bus operations	Off	142335000	FM		32					
+C-Freq	CFreqId=364272	CGroupId=83912	School bus operations	Off	142365000	FM		32					
+C-Freq	CFreqId=364273	CGroupId=83912	School bus operations	Off	142440000	FM		32					
+C-Freq	CFreqId=364274	CGroupId=83912	School bus operations	Off	142515000	FM		32					
+C-Freq	CFreqId=364275	CGroupId=83912	School bus operations	Off	142530000	FM		32					
+C-Freq	CFreqId=364276	CGroupId=83912	School bus operations	Off	142650000	FM		32					
+C-Freq	CFreqId=364277	CGroupId=83912	School bus operations	Off	142665000	FM		32					
+C-Freq	CFreqId=364278	CGroupId=83912	School bus operations	Off	142695000	FM		32					
+C-Group	CGroupId=63991	CountyId=4704	Queens County - West Queens	Off	44.142800	-64.907230	35.5	Circle
+C-Freq	CFreqId=264243	CGroupId=63991	West Queens Medical First Responders - Dispatch	Off	153860000	FM		4					
+Conventional	CountyId=4705	StateId=107	Richmond	Off		Conventional
+AreaState	CountyId=4705	StateId=107
+AreaCounty	CountyId=4705	CountyId=4705
+C-Group	CGroupId=81004	CountyId=4705	Amateur Radio - Repeaters	Off	45.693000	-60.745000	30.0	Circle
+C-Freq	CFreqId=349333	CGroupId=81004	Oban - VE1OBN repeater (St. Peter's)	Off	147105000	FM		13					
+Conventional	CountyId=4706	StateId=107	Shelburne	Off		Conventional
+AreaState	CountyId=4706	StateId=107
+AreaCounty	CountyId=4706	CountyId=4706
+C-Group	CGroupId=64777	CountyId=4706	Amateur Radio - Repeaters	Off	43.830560	-65.544430	31.6	Circle
+C-Freq	CFreqId=268339	CGroupId=64777	Barrington - VE1OPK VHF repeater	Off	147255000	FM		13					
+C-Freq	CFreqId=268336	CGroupId=64777	Shelburne - VE1SCR repeater	Off	146610000	FM		13					
+C-Group	CGroupId=54806	CountyId=4706	Shelburne County - Barrington	Off	43.830560	-65.544430	31.6	Circle
+C-Freq	CFreqId=226942	CGroupId=54806	Barrington fire department	Off	153785000	FM		3					
+C-Group	CGroupId=54811	CountyId=4706	Shelburne County - Gunning Cove	Off	43.830560	-65.544430	31.6	Circle
+C-Freq	CFreqId=226945	CGroupId=54811	Gunning Cove fire department	Off	151040000	FM		3					
+C-Group	CGroupId=54815	CountyId=4706	Shelburne County - Harbour	Off	43.830560	-65.544430	31.6	Circle
+C-Freq	CFreqId=226946	CGroupId=54815	Harbour fire department	Off	151295000	FM		3					
+C-Group	CGroupId=54812	CountyId=4706	Shelburne County - Ingomar/Roseway	Off	43.830560	-65.544430	31.6	Circle
+C-Freq	CFreqId=226947	CGroupId=54812	Ingomar/Roseway fire department	Off	153515000	FM		3					
+C-Group	CGroupId=82842	CountyId=4706	Shelburne County - Island and Barrington Passage	Off	43.830560	-65.544430	31.6	Circle
+C-Freq	CFreqId=358231	CGroupId=82842	Fire Department	Off	153200000	NFM		3					
+C-Group	CGroupId=54813	CountyId=4706	Shelburne County - Jordan Falls	Off	43.830560	-65.544430	31.6	Circle
+C-Freq	CFreqId=226948	CGroupId=54813	Jordan Falls fire department	Off	152375000	FM		3					
+C-Group	CGroupId=54818	CountyId=4706	Shelburne County - Little Harbour	Off	43.830560	-65.544430	31.6	Circle
+C-Freq	CFreqId=226949	CGroupId=54818	Little Harbour fire department	Off	152105000	NFM		3					
+C-Group	CGroupId=54820	CountyId=4706	Shelburne County - Lockeport	Off	43.830560	-65.544430	31.6	Circle
+C-Freq	CFreqId=226950	CGroupId=54820	Lockeport fire department	Off	153320000	FM		3					
+C-Group	CGroupId=54814	CountyId=4706	Shelburne County - Middle/Upper Ohio	Off	43.830560	-65.544430	31.6	Circle
+C-Freq	CFreqId=226951	CGroupId=54814	Middle/Upper Ohio fire department	Off	150725000	FM		3					
+C-Group	CGroupId=54817	CountyId=4706	Shelburne County - Sable River	Off	43.830560	-65.544430	31.6	Circle
+C-Freq	CFreqId=226954	CGroupId=54817	Sable River fire department	Off	152105000	FM		3					
+C-Group	CGroupId=54821	CountyId=4706	Shelburne County - Shelburne	Off	43.830560	-65.544430	31.6	Circle
+C-Freq	CFreqId=226956	CGroupId=54821	Shelburne fire department	Off	154010000	FM		3					
+C-Group	CGroupId=54810	CountyId=4706	Shelburne County - Woods Harbour and Shag Harbour	Off	43.830560	-65.544430	31.6	Circle
+C-Freq	CFreqId=226958	CGroupId=54810	Fire Department	Off	154650000	FM		3					
+Conventional	CountyId=4707	StateId=107	Victoria	Off		Conventional
+AreaState	CountyId=4707	StateId=107
+AreaCounty	CountyId=4707	CountyId=4707
+C-Group	CGroupId=64801	CountyId=4707	Amateur Radio - Repeaters	Off	46.450000	-60.527000	40.9	Circle
+C-Freq	CFreqId=268395	CGroupId=64801	Cape Smokey - VE1CBI repeater	Off	147240000	FM		13					
+C-Freq	CFreqId=384701	CGroupId=64801	Hunters Mountain - VE1HK repeater	Off	146610000	FM		13					
+C-Group	CGroupId=54651	CountyId=4707	Victoria County - Baddeck	Off	46.450000	-60.527000	40.9	Circle
+C-Freq	CFreqId=226760	CGroupId=54651	Baddeck fire department	Off	152120000	FM		3					
+C-Group	CGroupId=54653	CountyId=4707	Victoria County - Big Bras d'Or	Off	46.450000	-60.527000	40.9	Circle
+C-Freq	CFreqId=226761	CGroupId=54653	Big Bras d'Or fire department	Off	153980000	FM		3					
+C-Group	CGroupId=54659	CountyId=4707	Victoria County - Middle River	Off	46.450000	-60.527000	40.9	Circle
+C-Freq	CFreqId=226764	CGroupId=54659	Middle River fire department	Off	154665000	FM		3					
+Conventional	CountyId=4708	StateId=107	Yarmouth	Off		Conventional
+AreaState	CountyId=4708	StateId=107
+AreaCounty	CountyId=4708	CountyId=4708
+C-Group	CGroupId=64778	CountyId=4708	Amateur Radio - Repeaters	Off	43.992820	-65.725710	31.1	Circle
+C-Freq	CFreqId=268344	CGroupId=64778	Yarmouth - VE1LN UHF repeater (Yarmouth EOC)	Off	442700000	FM		13					
+C-Freq	CFreqId=268343	CGroupId=64778	Yarmouth - VE1LN VHF repeater (Yarmouth EOC)	Off	146865000	FM		13					
+C-Freq	CFreqId=268342	CGroupId=64778	Yarmouth - VE1YAR UHF repeater	Off	444700000	FM		13					
+C-Freq	CFreqId=268341	CGroupId=64778	Yarmouth - VE1YAR VHF repeater	Off	146730000	FM		13					
+C-Group	CGroupId=54640	CountyId=4708	Yarmouth County - Amiraults Hill	Off	43.992820	-65.725710	31.1	Circle
+C-Freq	CFreqId=226746	CGroupId=54640	Amiraults Hill fire department	Off	153920000	FM		3					
+C-Group	CGroupId=54643	CountyId=4708	Yarmouth County - Carleton	Off	43.992820	-65.725710	31.1	Circle
+C-Freq	CFreqId=226747	CGroupId=54643	Carleton fire department	Off	153905000	FM		3					
+C-Group	CGroupId=54646	CountyId=4708	Yarmouth County - Deerfield	Off	43.992820	-65.725710	31.1	Circle
+C-Freq	CFreqId=226748	CGroupId=54646	Deerfield fire department	Off	155265000	FM		3					
+C-Freq	CFreqId=279932	CGroupId=54646	Lake and Districts fire department	Off	153410000	FM		3					
+C-Group	CGroupId=54637	CountyId=4708	Yarmouth County - East Pubnico	Off	43.992820	-65.725710	31.1	Circle
+C-Freq	CFreqId=226750	CGroupId=54637	East Pubnico fire department	Off	154265000	FM		3					
+C-Group	CGroupId=54639	CountyId=4708	Yarmouth County - Eel Brook	Off	43.992820	-65.725710	31.1	Circle
+C-Freq	CFreqId=226751	CGroupId=54639	Eel Brook fire department	Off	153980000	FM		3					
+C-Group	CGroupId=54641	CountyId=4708	Yarmouth County - Lake Vaughan (Belleville)	Off	43.992820	-65.725710	31.1	Circle
+C-Freq	CFreqId=226753	CGroupId=54641	Lake Vaughan/Belleville fire department	Off	153890000	FM		3					
+C-Group	CGroupId=54645	CountyId=4708	Yarmouth County - Port Maitland	Off	43.992820	-65.725710	31.1	Circle
+C-Freq	CFreqId=226754	CGroupId=54645	Port Maitland fire department	Off	154310000	FM		3					
+C-Group	CGroupId=54644	CountyId=4708	Yarmouth County - Quinan	Off	43.992820	-65.725710	31.1	Circle
+C-Freq	CFreqId=226755	CGroupId=54644	Quinan fire department	Off	153500000	FM		3					
+C-Freq	CFreqId=226995	CGroupId=54644	Quinan fire department	Off	154385000	FM		8					
+C-Group	CGroupId=54642	CountyId=4708	Yarmouth County - Wedgeport-Plymouth	Off	43.992820	-65.725710	31.1	Circle
+C-Freq	CFreqId=226756	CGroupId=54642	Wedgeport-Plymouth fire department	Off	154280000	FM		3					
+C-Group	CGroupId=54638	CountyId=4708	Yarmouth County - West Pubnico	Off	43.992820	-65.725710	31.1	Circle
+C-Freq	CFreqId=242730	CGroupId=54638	West Pubnico fire department (simplex)	Off	153425000	FM		8					
+C-Group	CGroupId=54649	CountyId=4708	Yarmouth County - Yarmouth (town)	Off	43.992820	-65.725710	31.1	Circle
+C-Freq	CFreqId=226757	CGroupId=54649	Yarmouth fire department	Off	154430000	FM		3					
+Conventional	AgencyId=8529	StateId=107	Business	Off		Conventional
+AreaState	AgencyId=8529	StateId=107
+AreaCounty	AgencyId=8529	CountyId=4692
+C-Group	CGroupId=80605	AgencyId=8529	Business	Off	45.644770	-61.869510	20.8	Circle
+C-Freq	CFreqId=347407	CGroupId=80605	Captain's Cab	Off	172470000	NFM		26					
+C-Freq	CFreqId=349896	CGroupId=80605	Kells Enterprises	Off	163290000	FM		17					
+C-Freq	CFreqId=349897	CGroupId=80605	Nova Construction 1	Off	165540000	FM		17					
+C-Freq	CFreqId=349898	CGroupId=80605	Nova Construction 2	Off	169830000	FM		17					
+C-Freq	CFreqId=349900	CGroupId=80605	Raymond Rogers Construction	Off	151850000	FM		17					
+C-Freq	CFreqId=349899	CGroupId=80605	Ron MacGillivray Chevrolet	Off	168750000	FM		17					
+Conventional	AgencyId=7266	StateId=107	Businesses	Off		Conventional
+AreaState	AgencyId=7266	StateId=107
+AreaCounty	AgencyId=7266	CountyId=4698
+C-Group	CGroupId=77162	AgencyId=7266	Construction - Bedford Ready-Mix	Off	44.676470	-63.580630	21.4	Circle
+C-Freq	CFreqId=328132	CGroupId=77162	Bedford Ready-Mix concrete	Off	172860000	FM	TONE=C123.0	17					
+C-Group	CGroupId=85213	AgencyId=7266	Construction - Conrad Brothers Ltd	Off	44.676470	-63.580630	21.4	Circle
+C-Freq	CFreqId=372963	CGroupId=85213	Conrad repeater	Off	461662500	FM	TONE=C131.8	17					
+C-Group	CGroupId=77574	AgencyId=7266	Construction - Dexter Construction	Off	44.676470	-63.580630	21.4	Circle
+C-Freq	CFreqId=330991	CGroupId=77574	Cowie Hill repeater	Off	460312500	FM	TONE=C103.5	17					
+C-Freq	CFreqId=372942	CGroupId=77574	Rocky Lake quarry	Off	460562500	FM	TONE=C162.2	17					
+C-Freq	CFreqId=379363	CGroupId=77574	Traffic control	Off	458862500	FM	TONE=C141.3	17					
+C-Group	CGroupId=87146	AgencyId=7266	Construction - Frontline Traffic Services	Off	44.676470	-63.580630	21.4	Circle
+C-Freq	CFreqId=382443	CGroupId=87146	Frontline traffic control	Off	157665000	FM	TONE=C186.2	17					
+C-Group	CGroupId=73145	AgencyId=7266	Construction - Ocean Contractors	Off	44.676470	-63.580630	21.4	Circle
+C-Freq	CFreqId=306517	CGroupId=73145	Ocean Contractors	Off	168330000	FM	TONE=C100.0	17					
+C-Group	CGroupId=77164	AgencyId=7266	Construction - Quality Concrete	Off	44.676470	-63.580630	21.4	Circle
+C-Freq	CFreqId=328146	CGroupId=77164	Quality Concrete	Off	166380000	FM	TONE=C146.2	17					
+C-Group	CGroupId=87147	AgencyId=7266	Construction - Safety First Traffic Control	Off	44.676470	-63.580630	21.4	Circle
+C-Freq	CFreqId=354212	CGroupId=87147	Safety First SFC Ltd. Traffic Control	Off	458662500	NFM	TONE=C225.7	17					
+C-Group	CGroupId=84662	AgencyId=7266	Industrial - Ceres Container Terminal	Off	44.676470	-63.580630	21.4	Circle
+C-Freq	CFreqId=369146	CGroupId=84662	Operations repeater	Off	463987500	FM	TONE=D071	17					
+C-Freq	CFreqId=369137	CGroupId=84662	Operations simplex 1	Off	469037500	FM	TONE=C146.2	17					
+C-Freq	CFreqId=369138	CGroupId=84662	Operations simplex 2	Off	469087500	FM	TONE=C167.9	17					
+C-Freq	CFreqId=369139	CGroupId=84662	Operations simplex 3	Off	469137500	FM	TONE=C136.5	17					
+C-Freq	CFreqId=369140	CGroupId=84662	Operations simplex 4	Off	469312500	FM	TONE=C225.7	17					
+C-Freq	CFreqId=369141	CGroupId=84662	Operations simplex 5	Off	469412500	FM	TONE=C210.7	17					
+C-Freq	CFreqId=369142	CGroupId=84662	Operations simplex 6	Off	469575000	FM	TONE=C156.7	17					
+C-Freq	CFreqId=369143	CGroupId=84662	Operations simplex 7	Off	469662500	FM	TONE=C179.9	17					
+C-Freq	CFreqId=369144	CGroupId=84662	Operations simplex 8	Off	469812500	FM	TONE=C241.8	17					
+C-Group	CGroupId=85214	AgencyId=7266	Industrial - Halifax Grain Elevator Ltd	Off	44.676470	-63.580630	21.4	Circle
+C-Freq	CFreqId=372964	CGroupId=85214	Halifax Grain Elevator repeater	Off	451737500	FM	TONE=C100.0	17					
+C-Group	CGroupId=84661	AgencyId=7266	Industrial - Halterm Container Terminal	Off	44.676470	-63.580630	21.4	Circle
+C-Freq	CFreqId=369147	CGroupId=84661	Operations simplex 1	Off	454450000	FM		17					
+C-Freq	CFreqId=369156	CGroupId=84661	Operations simplex 10	Off	468612500	FM		17					
+C-Freq	CFreqId=369157	CGroupId=84661	Operations simplex 11	Off	469387500	FM		17					
+C-Freq	CFreqId=369148	CGroupId=84661	Operations simplex 2	Off	454962500	FM		17					
+C-Freq	CFreqId=369149	CGroupId=84661	Operations simplex 3	Off	458087500	FM		17					
+C-Freq	CFreqId=369150	CGroupId=84661	Operations simplex 4	Off	458562500	FM		17					
+C-Freq	CFreqId=369151	CGroupId=84661	Operations simplex 5	Off	459450000	FM		17					
+C-Freq	CFreqId=369152	CGroupId=84661	Operations simplex 6	Off	459762500	FM		17					
+C-Freq	CFreqId=369153	CGroupId=84661	Operations simplex 7	Off	459962500	FM		17					
+C-Freq	CFreqId=369154	CGroupId=84661	Operations simplex 8	Off	463612500	FM		17					
+C-Freq	CFreqId=369155	CGroupId=84661	Operations simplex 9	Off	464887500	FM		17					
+C-Group	CGroupId=64663	AgencyId=7266	Miscellaneous - Xpressway Courier	Off	44.674000	-63.530000	12.9	Circle
+C-Freq	CFreqId=268017	CGroupId=64663	Courier	Off	167400000	FM	TONE=C162.2	17					
+C-Group	CGroupId=87192	AgencyId=7266	Recreation - HRM 4-Pad Arena	Off	44.720000	-63.700000	5.0	Circle
+C-Freq	CFreqId=382674	CGroupId=87192	HRM 4-Pad simplex	Off	464487500	FM		17					
+C-Freq	CFreqId=382673	CGroupId=87192	HRM 4-Pad simplex	Off	469262500	FM		17					
+C-Group	CGroupId=64929	AgencyId=7266	Retail - Halifax Shopping Centre	Off	44.649000	-63.618000	1.1	Circle
+C-Freq	CFreqId=268797	CGroupId=64929	Maintenance	Off	452287500	FM		17					
+C-Freq	CFreqId=268796	CGroupId=64929	Security	Off	451812500	AUTO		33					
+C-Group	CGroupId=61310	AgencyId=7266	Retail - Mic Mac Mall	Off	44.687000	-63.560000	1.0	Circle
+C-Freq	CFreqId=253532	CGroupId=61310	Mall security	Off	460587500	FM	TONE=C203.5	33					
+C-Group	CGroupId=64930	AgencyId=7266	Retail - Scotia Square Mall	Off	44.649000	-63.577000	1.4	Circle
+C-Freq	CFreqId=268795	CGroupId=64930	Security	Off	462387500	AUTO		33					
+C-Group	CGroupId=69986	AgencyId=7266	Security - Alpha Safety Management	Off	44.676470	-63.580630	21.4	Circle
+C-Freq	CFreqId=288433	CGroupId=69986	Alpha Safety Management Inc	Off	164880000	FM	TONE=C179.9	33					
+C-Group	CGroupId=64656	AgencyId=7266	Security - Brinks Security	Off	44.676470	-63.580630	21.4	Circle
+C-Freq	CFreqId=268008	CGroupId=64656	Brink's Security	Off	151235000	FM		33					
+C-Group	CGroupId=83995	AgencyId=7266	Security - Northeastern Security	Off	44.676470	-63.580630	21.4	Circle
+C-Freq	CFreqId=364790	CGroupId=83995	Security	Off	462125000	NFM		33					
+C-Group	CGroupId=64657	AgencyId=7266	Security - Securitas	Off	44.667000	-63.587000	4.3	Circle
+C-Freq	CFreqId=268009	CGroupId=64657	Securitas security	Off	138975000	FM		33					
+Conventional	AgencyId=7661	StateId=107	Businesses	Off		Conventional
+AreaState	AgencyId=7661	StateId=107
+AreaCounty	AgencyId=7661	CountyId=4704
+C-Group	CGroupId=63992	AgencyId=7661	Napa Auto Parts	Off	44.142800	-64.907230	35.4	Circle
+C-Freq	CFreqId=264244	CGroupId=63992	Napa Auto Parts	Off	164400000	FM		17					
+Conventional	AgencyId=7860	StateId=107	Businesses	Off		Conventional
+AreaState	AgencyId=7860	StateId=107
+AreaCounty	AgencyId=7860	CountyId=4695
+C-Group	CGroupId=66156	AgencyId=7860	JD Irving Ltd	Off	45.633250	-64.143680	45.0	Circle
+C-Freq	CFreqId=272742	CGroupId=66156	J D Irving Ltd forestry repeater	Off	143040000	FM		17					
+Conventional	AgencyId=7861	StateId=107	Businesses	Off		Conventional
+AreaState	AgencyId=7861	StateId=107
+AreaCounty	AgencyId=7861	CountyId=4694
+C-Group	CGroupId=66158	AgencyId=7861	JD Irving Ltd	Off	45.356010	-63.479000	32.6	Circle
+C-Freq	CFreqId=272747	CGroupId=66158	JD Irving Inc forestry repeater	Off	143835000	FM		17					
+C-Freq	CFreqId=272748	CGroupId=66158	JD Irving Inc forestry repeater	Off	148960000	FM		17					
+C-Group	CGroupId=85120	AgencyId=7861	Marwood Ltd	Off	45.356010	-63.479000	32.6	Circle
+C-Freq	CFreqId=371528	CGroupId=85120	Marwood Ltd - Brookfield	Off	151085000	FM		17					
+C-Group	CGroupId=85546	AgencyId=7861	Transportation	Off	45.356010	-63.479000	32.6	Circle
+C-Freq	CFreqId=374556	CGroupId=85546	G and D Taxi (Truro)	Off	138630000	FM	TONE=C250.3	26					
+Conventional	AgencyId=6345	StateId=107	Cornwallis Park	Off		Conventional
+AreaState	AgencyId=6345	StateId=107
+AreaCounty	AgencyId=6345	CountyId=4691
+C-Group	CGroupId=54669	AgencyId=6345	HMCS Acadia - Sea Cadets training	Off	44.653150	-65.629410	5.0	Circle
+C-Freq	CFreqId=226783	CGroupId=54669	Cadet Training	Off	150410000	FM		30					
+Conventional	AgencyId=8124	StateId=107	Emergency Health Services (EHS)	Off		Conventional
+AreaState	AgencyId=8124	StateId=107
+AreaCounty	AgencyId=8124	CountyId=0
+C-Group	CGroupId=68447	AgencyId=8124	EHS - Simplex	Off	45.203000	-62.979000	193.4	Circle
+C-Freq	CFreqId=281230	CGroupId=68447	Air Medical Transport (LifeFlight) simplex channel	Off	867062500	FM		9					
+C-Freq	CFreqId=281231	CGroupId=68447	EHS simplex channel	Off	867562500	FM		9					
+Conventional	AgencyId=7662	StateId=107	Ground Search and Rescue	Off		Conventional
+AreaState	AgencyId=7662	StateId=107
+AreaCounty	AgencyId=7662	CountyId=0
+C-Group	CGroupId=63993	AgencyId=7662	Province-wide	Off	45.274890	-63.039550	177.9	Circle
+C-Freq	CFreqId=264252	CGroupId=63993	Mobile repeater #1	Off	150335000	NFM		29					
+C-Freq	CFreqId=264253	CGroupId=63993	Mobile repeater #2	Off	152810000	NFM		29					
+C-Freq	CFreqId=264246	CGroupId=63993	Simplex channel #1	Off	142575000	FM		29					
+C-Freq	CFreqId=264245	CGroupId=63993	Simplex channel #2	Off	142875000	FM		29					
+C-Freq	CFreqId=264249	CGroupId=63993	Simplex channel #3	Off	150335000	FM		29					
+C-Freq	CFreqId=264248	CGroupId=63993	Simplex channel #5	Off	155670000	FM		29					
+Conventional	AgencyId=7750	StateId=107	Halifax harbour marine traffic	Off		Conventional
+AreaState	AgencyId=7750	StateId=107
+AreaCounty	AgencyId=7750	CountyId=4698
+C-Group	CGroupId=64480	AgencyId=7750	Vessel Traffic Services	Off	44.582000	-63.505000	11.6	Circle
+C-Freq	CFreqId=266418	CGroupId=64480	Halifax VTS inner harbour traffic	Off	156600000	FM		26					
+C-Freq	CFreqId=266419	CGroupId=64480	Halifax VTS outer harbour traffic	Off	156700000	FM		26					
+Conventional	AgencyId=6116	StateId=107	Halifax Stanfield International Airport (YHZ)	Off		Conventional
+AreaState	AgencyId=6116	StateId=107
+AreaCounty	AgencyId=6116	CountyId=4698
+C-Group	CGroupId=55929	AgencyId=6116	Airlines/FBOs - Air Canada	Off	44.876000	-63.520000	2.0	Circle
+C-Freq	CFreqId=233338	CGroupId=55929	Air Canada dispatch	Off	130375000	AM		17					
+C-Freq	CFreqId=233341	CGroupId=55929	Air Canada dispatch	Off	131100000	AM		17					
+C-Freq	CFreqId=233339	CGroupId=55929	Air Canada Jazz loading	Off	130475000	AM		17					
+C-Freq	CFreqId=233335	CGroupId=55929	Air Canada Jazz maintenance	Off	129375000	AM		17					
+C-Freq	CFreqId=233334	CGroupId=55929	Air Canada Jazz operations	Off	128900000	AM		17					
+C-Freq	CFreqId=233336	CGroupId=55929	Air Canada Jazz operations	Off	129650000	AM		17					
+C-Freq	CFreqId=233340	CGroupId=55929	Air Canada Jazz operations	Off	130575000	AM		17					
+C-Freq	CFreqId=233337	CGroupId=55929	Air Canada STOC	Off	130175000	AM		17					
+C-Group	CGroupId=55930	AgencyId=6116	Airlines/FBOs - Canjet	Off	44.876000	-63.520000	2.0	Circle
+C-Freq	CFreqId=233342	CGroupId=55930	Canjet	Off	122925000	AM		17					
+C-Freq	CFreqId=233343	CGroupId=55930	Canjet	Off	129575000	AM		17					
+C-Freq	CFreqId=233344	CGroupId=55930	Canjet	Off	131775000	AM		17					
+C-Group	CGroupId=55936	AgencyId=6116	Airlines/FBOs - Cargojet	Off	44.876000	-63.520000	2.0	Circle
+C-Freq	CFreqId=233345	CGroupId=55936	Cargojet	Off	131875000	AM		17					
+C-Group	CGroupId=55932	AgencyId=6116	Airlines/FBOs - CHC Helicopters	Off	44.876000	-63.520000	2.0	Circle
+C-Freq	CFreqId=233346	CGroupId=55932	CHC Helicopters	Off	129825000	AM		17					
+C-Freq	CFreqId=233347	CGroupId=55932	CHC Helicopters	Off	136575000	AM		17					
+C-Group	CGroupId=55935	AgencyId=6116	Airlines/FBOs - Federal Express	Off	44.876000	-63.520000	2.0	Circle
+C-Freq	CFreqId=233348	CGroupId=55935	Federal Express (CYHZ)	Off	131925000	AM		17					
+C-Group	CGroupId=55931	AgencyId=6116	Airlines/FBOs - Purolator Courier	Off	44.876000	-63.520000	2.0	Circle
+C-Freq	CFreqId=233349	CGroupId=55931	Purolator Courier (CYHZ)	Off	128950000	AM		17					
+C-Group	CGroupId=55933	AgencyId=6116	Airlines/FBOs - Servisair	Off	44.876000	-63.520000	2.0	Circle
+C-Freq	CFreqId=233350	CGroupId=55933	Servisair	Off	122350000	AM		17					
+C-Freq	CFreqId=233351	CGroupId=55933	Servisair	Off	130650000	AM		17					
+C-Group	CGroupId=55934	AgencyId=6116	Airlines/FBOs - Westjet	Off	44.876000	-63.520000	2.0	Circle
+C-Freq	CFreqId=233352	CGroupId=55934	Westjet	Off	131275000	AM		17					
+C-Group	CGroupId=53348	AgencyId=6116	CYHZ - Air Traffic Control	Off	44.884030	-63.510500	10.0	Circle
+C-Freq	CFreqId=219800	CGroupId=53348	Aprin advisory	Off	122125000	AM		15					
+C-Freq	CFreqId=219798	CGroupId=53348	Automatic Terminal Information Service	Off	121000000	AM		15					
+C-Freq	CFreqId=219801	CGroupId=53348	Clearance delivery	Off	123950000	AM		15					
+C-Freq	CFreqId=219802	CGroupId=53348	De-icing operations	Off	129250000	AM		15					
+C-Freq	CFreqId=219799	CGroupId=53348	Ground	Off	121900000	AM		15					
+C-Freq	CFreqId=219797	CGroupId=53348	Tower	Off	118400000	AM		15					
+Conventional	AgencyId=6072	StateId=107	NS EMO (province-wide)	Off		Conventional
+AreaState	AgencyId=6072	StateId=107
+AreaCounty	AgencyId=6072	CountyId=0
+C-Group	CGroupId=53030	AgencyId=6072	Province-wide - EMO repeaters (NSIMRS)	Off	45.000000	-63.000000	200.0	Circle
+C-Freq	CFreqId=373446	CGroupId=53030	Cape Smokey, Victoria county	Off	143565000	FM	TONE=C103.5	29					
+C-Freq	CFreqId=373440	CGroupId=53030	Cochrane Hill, Guysborough county	Off	143805000	FM	TONE=C94.8	29					
+C-Freq	CFreqId=373427	CGroupId=53030	DND-North Mountain, Annapolis county	Off	143355000	FM	TONE=C71.9	29					
+C-Freq	CFreqId=373425	CGroupId=53030	East Kemptville, Yarmouth county	Off	143655000	FM	TONE=C103.5	29					
+C-Freq	CFreqId=373441	CGroupId=53030	Fairmont, Antigonish	Off	143655000	FM	TONE=C94.8	29					
+C-Freq	CFreqId=373429	CGroupId=53030	Garland, Kings county	Off	143625000	FM	TONE=C71.9	29					
+C-Freq	CFreqId=377522	CGroupId=53030	Halifax (Hammonds Plains)	Off	143565000	FM	TONE=C82.5	29					
+C-Freq	CFreqId=373445	CGroupId=53030	Kiltarlity Mtn, Inverness county	Off	143355000	FM	TONE=C103.5	29					
+C-Freq	CFreqId=373436	CGroupId=53030	Kirkhill, Parrsboro	Off	143805000	FM	TONE=C82.5	29					
+C-Freq	CFreqId=373430	CGroupId=53030	Liverpool, Queens county	Off	143805000	FM	TONE=C71.9	29					
+C-Freq	CFreqId=373442	CGroupId=53030	Lundy, Guysborough county	Off	143265000	FM	TONE=C94.8	29					
+C-Freq	CFreqId=373439	CGroupId=53030	McLellan's Mtn, New Glasgow	Off	143565000	FM	TONE=C94.8	29					
+C-Freq	CFreqId=373424	CGroupId=53030	Middle Ohio, Shelburne county	Off	143625000	FM	TONE=C103.5	29					
+C-Freq	CFreqId=373447	CGroupId=53030	Money Point, Victoria county	Off	143805000	FM	TONE=C103.5	29					
+C-Freq	CFreqId=377521	CGroupId=53030	Musquodoboit Harbour (Jerusalem Hill), Halifax county	Off	143355000	FM	TONE=C82.5	29					
+C-Freq	CFreqId=373426	CGroupId=53030	North Range Corner, Digby county	Off	143565000	FM	TONE=C103.5	29					
+C-Freq	CFreqId=373438	CGroupId=53030	Nuttby Mtn, Colchester county	Off	143715000	FM	TONE=C82.5	29					
+C-Freq	CFreqId=373443	CGroupId=53030	Oban, Richmond county	Off	143715000	FM	TONE=C103.5	29					
+C-Freq	CFreqId=373444	CGroupId=53030	Rear Boisdale, Sydney	Off	143625000	FM	TONE=C103.5	29					
+C-Freq	CFreqId=377523	CGroupId=53030	Sheet Harbour (Marinette), Halifax county	Off	143625000	FM	TONE=C82.5	29					
+C-Freq	CFreqId=373431	CGroupId=53030	Sherwood, Lunenburg county	Off	143715000	FM	TONE=C71.9	29					
+C-Freq	CFreqId=373428	CGroupId=53030	Springfield, Annapolis county	Off	143265000	FM	TONE=C71.9	29					
+C-Freq	CFreqId=373437	CGroupId=53030	Sugarloaf, Cumberland county	Off	143265000	FM	TONE=C82.5	29					
+C-Freq	CFreqId=373432	CGroupId=53030	Willow Hill, West Hants	Off	143655000	FM	TONE=C82.5	29					
+C-Group	CGroupId=62532	AgencyId=6072	Province-wide - EMO simplex channels	Off	45.000000	-63.000000	200.0	Circle
+C-Freq	CFreqId=259003	CGroupId=62532	Emergency Operations Centre simplex	Off	867250000	FM		29					
+C-Freq	CFreqId=258999	CGroupId=62532	EMO simplex channel 1	Off	868062500	FM		29					
+C-Freq	CFreqId=259000	CGroupId=62532	EMO simplex channel 2	Off	866312500	FM		29					
+C-Freq	CFreqId=259001	CGroupId=62532	Government Services simplex channel 1	Off	867312500	FM		11					
+C-Freq	CFreqId=259002	CGroupId=62532	Government Services simplex channel 2	Off	867812500	FM		11					
+C-Freq	CFreqId=258997	CGroupId=62532	Simplex 1 (all public safety radios)	Off	866012500	FM		11					
+C-Freq	CFreqId=258998	CGroupId=62532	Simplex 2 (all public safety radios)	Off	866512500	FM		11					
+C-Group	CGroupId=63995	AgencyId=6072	Province-wide - Portable repeater	Off	45.000000	-63.000000	200.0	Circle
+C-Freq	CFreqId=264254	CGroupId=63995	Repeater #1	Off	169890000	FM		29					
+C-Freq	CFreqId=264255	CGroupId=63995	Repeater #2	Off	164910000	FM		29					
+Conventional	AgencyId=7432	StateId=107	NS Fire (province-wide)	Off		Conventional
+AreaState	AgencyId=7432	StateId=107
+AreaCounty	AgencyId=7432	CountyId=0
+C-Group	CGroupId=62528	AgencyId=7432	Province-wide - Fire repeaters (NSIMRS)	Off	45.274890	-63.039550	178.0	Circle
+C-Freq	CFreqId=258996	CGroupId=62528	Cape Smokey (Ingonish)	Off	152210000	FM	TONE=C94.8	3					
+C-Freq	CFreqId=258977	CGroupId=62528	Cochrane Hill (Sherbrooke)	Off	151535000	FM	TONE=C94.8	3					
+C-Freq	CFreqId=331451	CGroupId=62528	Creignish, Inverness county	Off	150455000	FM		3					
+C-Freq	CFreqId=258981	CGroupId=62528	DND North Mountain, Annapolis County	Off	151805000	FM	TONE=C71.9	3					
+C-Freq	CFreqId=258978	CGroupId=62528	East Kemptville (Yarmouth)	Off	151745000	FM	TONE=C71.9	3					
+C-Freq	CFreqId=258989	CGroupId=62528	Fairmont (Antigonish)	Off	151985000	FM	TONE=C94.8	3					
+C-Freq	CFreqId=360127	CGroupId=62528	Fox Island, Guysborough County	Off	150125000	FM		3					
+C-Freq	CFreqId=331452	CGroupId=62528	French Lake (Argyle), Yarmouth county	Off	150530000	FM		3					
+C-Freq	CFreqId=258988	CGroupId=62528	Garland, Kings County	Off	151985000	FM	TONE=C71.9	3					
+C-Freq	CFreqId=298274	CGroupId=62528	Hammonds Plains, Halifax County	Off	151895000	FM	TONE=C82.5	3					
+C-Freq	CFreqId=331453	CGroupId=62528	Hunters Mountain, Victoria county	Off	150305000	FM		3					
+C-Freq	CFreqId=331454	CGroupId=62528	Italy Cross, Lunenburg county	Off	152270000	FM	TONE=C71.9	3					
+C-Freq	CFreqId=298273	CGroupId=62528	Jerusalem Hill (Musquodoboit Harbour)	Off	151805000	FM	TONE=C82.5	3					
+C-Freq	CFreqId=258982	CGroupId=62528	Kiltarlity Mtn, Inverness County	Off	151805000	FM	TONE=C94.8	3					
+C-Freq	CFreqId=258984	CGroupId=62528	Kirkhill (Parrsboro)	Off	151895000	FM	TONE=C114.8	3					
+C-Freq	CFreqId=258991	CGroupId=62528	Liverpool, Queens County	Off	152030000	FM	TONE=C71.9	3					
+C-Freq	CFreqId=258980	CGroupId=62528	Lundy, Guysborough County	Off	151745000	FM	TONE=C94.8	3					
+C-Freq	CFreqId=298275	CGroupId=62528	Marinette (Sheet Harbour)	Off	151925000	FM	TONE=C82.5	3					
+C-Freq	CFreqId=258995	CGroupId=62528	McLellan's Mtn (New Glasgow)	Off	152210000	FM	TONE=C82.5	3					
+C-Freq	CFreqId=258976	CGroupId=62528	Middle Ohio, Shelburne County	Off	151535000	FM	TONE=C71.9	3					
+C-Freq	CFreqId=258990	CGroupId=62528	Money Point (Cape North)	Off	151985000	FM	TONE=C94.8	3					
+C-Freq	CFreqId=360128	CGroupId=62528	New Chester, Guysborough County	Off	151925000	FM		3					
+C-Freq	CFreqId=331450	CGroupId=62528	New Tusket, Digby county	Off	155775000	FM		3					
+C-Freq	CFreqId=258983	CGroupId=62528	North Range Corner, Digby County	Off	151895000	FM	TONE=C71.9	3					
+C-Freq	CFreqId=258992	CGroupId=62528	Nuttby Mtn, Colchester County	Off	152030000	FM	TONE=C82.5	3					
+C-Freq	CFreqId=258987	CGroupId=62528	Oban (St. Peter's)	Off	151925000	FM	TONE=C94.8	3					
+C-Freq	CFreqId=331449	CGroupId=62528	Rawdon (Barr Settlement), Hants county	Off	150125000	FM		3					
+C-Freq	CFreqId=258993	CGroupId=62528	Rear Boisdale (Sydney)	Off	152030000	FM	TONE=C94.8	3					
+C-Freq	CFreqId=331455	CGroupId=62528	Salem (Amherst), Cumberland county	Off	150425000	FM		3					
+C-Freq	CFreqId=303957	CGroupId=62528	Sand River, Cumberland County	Off	153080000	FM		3					
+C-Freq	CFreqId=258994	CGroupId=62528	Sherwood, Lunenburg County	Off	152210000	FM	TONE=C71.9	3					
+C-Freq	CFreqId=258985	CGroupId=62528	Springfield, Annapolis County	Off	151925000	FM	TONE=C71.9	3					
+C-Freq	CFreqId=258986	CGroupId=62528	Sugarloaf, Cumberland County	Off	151925000	FM	TONE=C114.8	3					
+C-Freq	CFreqId=331456	CGroupId=62528	West Caledonia, Queens county	Off	153560000	FM		3					
+C-Freq	CFreqId=258979	CGroupId=62528	Willow Hill, West Hants	Off	151745000	FM	TONE=C151.4	3					
+C-Group	CGroupId=62529	AgencyId=7432	Province-wide - Fire simplex channels	Off	45.274890	-63.039550	178.0	Circle
+C-Freq	CFreqId=258973	CGroupId=62529	Province-wide fire mutual aid	Off	153830000	FM		8					
+C-Freq	CFreqId=268006	CGroupId=62529	Province-wide fire simplex	Off	866812500	FM		8					
+Conventional	AgencyId=7394	StateId=107	Railroads	Off		Conventional
+AreaState	AgencyId=7394	StateId=107
+AreaCounty	AgencyId=7394	CountyId=0
+C-Group	CGroupId=62292	AgencyId=7394	Cape Breton & Central Nova Scotia Railway - Province-wide	Off	45.637090	-61.611330	82.1	Circle
+C-Freq	CFreqId=257524	CGroupId=62292	Rail operations	Off	161310000	FM	TONE=D023	20					
+C-Group	CGroupId=62287	AgencyId=7394	CN Rail - Bedford (Halifax to Truro) and Dartmouth (Windsor Junc	Off	44.999770	-63.498230	27.7	Circle
+C-Freq	CFreqId=257507	CGroupId=62287	Maintenance of way - Bedford sub mile 0-27 and Dartmouth sub	Off	160455000	FM		20					
+C-Freq	CFreqId=257508	CGroupId=62287	Maintenance of way - Bedford sub mile 27-40	Off	160215000	FM		20					
+C-Freq	CFreqId=257509	CGroupId=62287	Maintenance of way - Bedford sub mile 40-64	Off	160515000	FM		20					
+C-Freq	CFreqId=257506	CGroupId=62287	RTC call in, Bedford and Dartmouth subdivisions	Off	161025000	FM		20					
+C-Group	CGroupId=74119	AgencyId=7394	CN Rail - Halifax area (switching and yard channels)	Off	44.642000	-63.572000	5.9	Circle
+C-Freq	CFreqId=257599	CGroupId=74119	Dartmouth yard	Off	160665000	FM		20					
+C-Freq	CFreqId=312128	CGroupId=74119	Halifax Intermodal Terminal	Off	160485000	FM		20					
+C-Freq	CFreqId=312127	CGroupId=74119	Halifax Ocean Terminals (south end)	Off	161205000	FM		20					
+C-Freq	CFreqId=257517	CGroupId=74119	Imperial Oil Limited gate channel	Off	160725000	FM		20					
+C-Freq	CFreqId=257516	CGroupId=74119	Rockingham yard	Off	160365000	FM		20					
+C-Group	CGroupId=62289	AgencyId=7394	CN Rail - Province-wide	Off	45.243950	-63.764650	49.8	Circle
+C-Freq	CFreqId=257518	CGroupId=62289	Road/stand-by channel	Off	161415000	FM		20					
+C-Group	CGroupId=62288	AgencyId=7394	CN Rail - Springhill subdivision (Truro to Moncton, NB)	Off	45.713850	-64.017330	51.7	Circle
+C-Freq	CFreqId=257513	CGroupId=62288	Maintenance of way - mile 0-29 & 66-126	Off	161145000	NFM		20					
+C-Freq	CFreqId=257515	CGroupId=62288	Maintenance of way - mile 126-138.4	Off	161085000	NFM		20					
+C-Freq	CFreqId=257514	CGroupId=62288	Maintenance of way - mile 29-66	Off	161505000	NFM		20					
+C-Freq	CFreqId=257510	CGroupId=62288	RTC call-in	Off	161025000	FM		20					
+C-Group	CGroupId=62290	AgencyId=7394	VIA Rail - Province-wide	Off	45.278750	-63.792110	46.7	Circle
+C-Freq	CFreqId=257520	CGroupId=62290	Station operations	Off	160355000	FM		20					
+C-Freq	CFreqId=257519	CGroupId=62290	Train operations	Off	160200000	FM		20					
+Conventional	AgencyId=6071	StateId=107	School Boards	Off		Conventional
+AreaState	AgencyId=6071	StateId=107
+AreaCounty	AgencyId=6071	CountyId=4702
+C-Group	CGroupId=52987	AgencyId=6071	South Shore Regional School Board - Operations	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217613	CGroupId=52987	South Shore Rgn School Board Buses	Off	143175000	FM		32					
+Conventional	AgencyId=6115	StateId=107	Shearwater Heliport (military) (YAW)	Off		Conventional
+AreaState	AgencyId=6115	StateId=107
+AreaCounty	AgencyId=6115	CountyId=4698
+C-Group	CGroupId=53347	AgencyId=6115	12 Wing Shearwater (military aerodrome) - Air Traffic Control	Off	44.638370	-63.501660	10.0	Circle
+C-Freq	CFreqId=219794	CGroupId=53347	Automatic Terminal Information Service	Off	129175000	AM		15					
+C-Freq	CFreqId=369591	CGroupId=53347	Automatic Terminal Information Service	Off	308800000	AM		15					
+C-Freq	CFreqId=261200	CGroupId=53347	Flight dispatch/servicing	Off	239300000	AM		15					
+C-Freq	CFreqId=219791	CGroupId=53347	Ground control	Off	121700000	AM		15					
+C-Freq	CFreqId=256598	CGroupId=53347	Ground control	Off	250100000	AM		15					
+C-Freq	CFreqId=219796	CGroupId=53347	Ground vehicles (VHF)	Off	149350000	FM		15					
+C-Freq	CFreqId=219793	CGroupId=53347	Precision Approach Radar controller	Off	128100000	AM		15					
+C-Freq	CFreqId=219795	CGroupId=53347	Precision Approach Radar controller	Off	134100000	AM		15					
+C-Freq	CFreqId=219792	CGroupId=53347	Tower/flight advisory	Off	126200000	AM		15					
+C-Freq	CFreqId=256599	CGroupId=53347	Tower/flight advisory	Off	340200000	AM		15					
+C-Freq	CFreqId=261887	CGroupId=53347	Tower/flight advisory ops	Off	231950000	AM		15					
+Conventional	AgencyId=6070	StateId=107	Shopping Malls/Centers	Off		Conventional
+AreaState	AgencyId=6070	StateId=107
+AreaCounty	AgencyId=6070	CountyId=4702
+C-Group	CGroupId=52989	AgencyId=6070	Bridgewater Mall - Security	Off	44.500420	-64.621580	28.6	Circle
+C-Freq	CFreqId=217615	CGroupId=52989	Bridgewater Mall Sec	Off	464662500	NFM		33					
+Conventional	AgencyId=6350	StateId=107	Transportation	Off		Conventional
+AreaState	AgencyId=6350	StateId=107
+AreaCounty	AgencyId=6350	CountyId=4698
+C-Group	CGroupId=53794	AgencyId=6350	School Buses - Perry Rand	Off	44.780000	-63.083000	48.8	Circle
+C-Freq	CFreqId=222839	CGroupId=53794	Halifax area	Off	139395000	FM		32					
+C-Group	CGroupId=53793	AgencyId=6350	School Buses - Stock Transportation	Off	44.628000	-63.125000	40.0	Circle
+C-Freq	CFreqId=222835	CGroupId=53793	Geizers Hill repeater (Dartmouth area communications)	Off	138240000	FM	TONE=C82.5	32					
+C-Freq	CFreqId=222836	CGroupId=53793	Hammonds Plains repeater (Halifax area communications)	Off	138555000	FM	TONE=C82.5	32					
+C-Freq	CFreqId=222837	CGroupId=53793	Musquodoboit Harbour (Jerusalem Hill) repeater	Off	143055000	FM	TONE=C82.5	32					
+C-Freq	CFreqId=222838	CGroupId=53793	Sheet Harbour (Marinette) repeater	Off	143895000	FM		32					
+C-Group	CGroupId=85406	AgencyId=6350	School Buses - Student Transportation of Canada Inc.	Off	44.792000	-63.153000	47.9	Circle
+C-Freq	CFreqId=377520	CGroupId=85406	Middle Sackville repeater	Off	152660000	AUTO		32					
+C-Freq	CFreqId=377518	CGroupId=85406	Musquodoboit Harbour repeater	Off	163005000	AUTO		32					
+C-Freq	CFreqId=377519	CGroupId=85406	Sheet Harbour (Marinette) repeater	Off	152345000	AUTO		32					
+C-Group	CGroupId=60684	AgencyId=6350	Taxis - A Cab	Off	44.780000	-63.083000	48.8	Circle
+C-Freq	CFreqId=252041	CGroupId=60684	A Cab	Off	162720000	FM	TONE=C91.5	26					
+C-Group	CGroupId=60683	AgencyId=6350	Taxis - Bob's Taxi	Off	44.780000	-63.083000	48.8	Circle
+C-Freq	CFreqId=270239	CGroupId=60683	Bob's Taxi dispatch	Off	164310000	FM	TONE=C241.8	26					
+C-Freq	CFreqId=252042	CGroupId=60683	Bob's Taxi mobiles	Off	164310000	FM	TONE=C162.2	26					
+C-Group	CGroupId=54899	AgencyId=6350	Taxis - Casino Taxi	Off	44.780000	-63.083000	48.8	Circle
+C-Freq	CFreqId=252045	CGroupId=54899	Casino Taxi dispatch	Off	143085000	FM	TONE=C110.9	26					
+C-Freq	CFreqId=252048	CGroupId=54899	Casino Taxi mobiles	Off	149620000	FM	TONE=C110.9	26					
+C-Freq	CFreqId=252047	CGroupId=54899	Casino Taxi mobiles	Off	171780000	FM	TONE=C110.9	26					
+C-Group	CGroupId=60685	AgencyId=6350	Taxis - Yellow Cab	Off	44.780000	-63.083000	48.8	Circle
+C-Freq	CFreqId=252044	CGroupId=60685	Yellow Cab dispatch	Off	451062500	FM		26					
+C-Freq	CFreqId=270837	CGroupId=60685	Yellow Cab mobiles	Off	456062500	FM		26					
+Conventional	AgencyId=6346	StateId=107	Upper Clements Park	Off		Conventional
+AreaState	AgencyId=6346	StateId=107
+AreaCounty	AgencyId=6346	CountyId=4691
+C-Group	CGroupId=54670	AgencyId=6346	Park Communications	Off	44.705270	-65.567010	5.0	Circle
+C-Freq	CFreqId=226784	CGroupId=54670	Upper Clements Park (simplex, CH1)	Off	150635000	FM		17					
+C-Freq	CFreqId=226785	CGroupId=54670	Upper Clements Park (simplex, CH2)	Off	152060000	FM		17					
+Conventional	AgencyId=6344	StateId=107	YQI Yarmouth Airport	Off		Conventional
+AreaState	AgencyId=6344	StateId=107
+AreaCounty	AgencyId=6344	CountyId=4708
+C-Group	CGroupId=54650	AgencyId=6344	Airport frequencies - Airfield communications	Off	43.828400	-66.085940	10.0	Circle
+C-Freq	CFreqId=226758	CGroupId=54650	UNICOM	Off	123000000	AM		15					
+Conventional	AgencyId=6380	StateId=107	YQY Sydney Airport	Off		Conventional
+AreaState	AgencyId=6380	StateId=107
+AreaCounty	AgencyId=6380	CountyId=4693
+C-Group	CGroupId=55101	AgencyId=6380	Sydney Airport - Air Traffic Control	Off	46.163310	-60.046810	10.0	Circle
+C-Freq	CFreqId=228311	CGroupId=55101	Sydney Radio	Off	122000000	AM		15					
+Conventional	AgencyId=6117	StateId=107	YZX Greenwood Airport	Off		Conventional
+AreaState	AgencyId=6117	StateId=107
+AreaCounty	AgencyId=6117	CountyId=4701
+C-Group	CGroupId=53349	AgencyId=6117	14 Wing Greenwood (military aerodrome) - Air Traffic Control	Off	44.983010	-64.917180	10.0	Circle
+C-Freq	CFreqId=272750	CGroupId=53349	Automatic Terminal Information Service (ATIS)	Off	128850000	AM		15					
+C-Freq	CFreqId=219808	CGroupId=53349	Automatic Terminal Information Service (ATIS)	Off	244300000	AM		15					
+C-Freq	CFreqId=272755	CGroupId=53349	Automatic Terminal Information Service (ATIS)	Off	244300000	AM		15					
+C-Freq	CFreqId=272754	CGroupId=53349	Clearance	Off	283900000	AM		15					
+C-Freq	CFreqId=219806	CGroupId=53349	Clearance delivery	Off	128025000	AM		15					
+C-Freq	CFreqId=219807	CGroupId=53349	Ground	Off	133750000	AM		15					
+C-Freq	CFreqId=272753	CGroupId=53349	Ground	Off	289400000	AM		15					
+C-Freq	CFreqId=272756	CGroupId=53349	Precision Approach Radar	Off	258600000	AM		15					
+C-Freq	CFreqId=272757	CGroupId=53349	Precision Approach Radar	Off	283900000	AM		15					
+C-Freq	CFreqId=272758	CGroupId=53349	Precision Approach Radar	Off	378500000	AM		15					
+C-Freq	CFreqId=219804	CGroupId=53349	Precision Approach Radar controller	Off	118100000	AM		15					
+C-Freq	CFreqId=219805	CGroupId=53349	Tower	Off	119500000	AM		15					
+C-Freq	CFreqId=272749	CGroupId=53349	Tower	Off	126200000	AM		15					
+C-Freq	CFreqId=272751	CGroupId=53349	Tower	Off	236600000	AM		15					
+C-Freq	CFreqId=272752	CGroupId=53349	Tower	Off	324200000	AM		15					
+C-Group	CGroupId=54667	AgencyId=6117	14 Wing Greenwood (military aerodrome) - Airport/base services	Off	44.983010	-64.917180	10.0	Circle
+C-Freq	CFreqId=226776	CGroupId=54667	14 Air Mantenance Squadron	Off	149350000	FM		15					
+C-Freq	CFreqId=226781	CGroupId=54667	404 Squadron	Off	383700000	AM		15					
+C-Freq	CFreqId=226779	CGroupId=54667	405 Squadron	Off	308600000	AM		15					
+C-Freq	CFreqId=226773	CGroupId=54667	413 Transport and Rescue Squadron	Off	129775000	AM		15					
+C-Freq	CFreqId=226775	CGroupId=54667	Base Paging	Off	149290000	FM		3					
+C-Freq	CFreqId=226774	CGroupId=54667	Fire and Ground Control	Off	149150000	FM		3					
+C-Freq	CFreqId=226777	CGroupId=54667	Military Police	Off	149650000	FM		2					
+C-Freq	CFreqId=226778	CGroupId=54667	Military Police	Off	155130000	FM		2					
+C-Freq	CFreqId=226780	CGroupId=54667	Schooner Ops	Off	349300000	AM		15					
+C-Group	CGroupId=66159	AgencyId=6117	14 Wing Greenwood (military aerodrome) - Approach Control (Termi	Off	44.983010	-64.917180	10.0	Circle
+C-Freq	CFreqId=272760	CGroupId=66159	Terminal control (arrivals/departures)	Off	120600000	AM		15					
+C-Freq	CFreqId=272759	CGroupId=66159	Terminal control (arrivals/departures)	Off	335900000	AM		15					
+Trunk	TrunkId=6863	StateId=107	Maritime 2-Way Radio	Off		Ltr					
+AreaState	TrunkId=6863	StateId=107
+AreaCounty	TrunkId=6863	CountyId=4698
+Site	SiteId=17679	TrunkId=6863	Halifax-Geizers Hill	Off	44.650580	-63.660970	9.3	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=17679		Off	858062500	1
+T-Freq	TFreqId=0	SiteId=17679		Off	858312500	7
+T-Freq	TFreqId=0	SiteId=17679		Off	858562500	14
+T-Freq	TFreqId=0	SiteId=17679		Off	858812500	19
+T-Group	TGroupId=15236	TrunkId=6863	Business	Off	44.650580	-63.660970	9.3	Circle
+TGID	Tid=212902	TGroupId=15236	Delivery company (unknown business name)	Off	0-01-185	ALL	17				
+TGID	Tid=212900	TGroupId=15236	Delivery company (unknown business name)	Off	0-01-209	ALL	17				
+TGID	Tid=212899	TGroupId=15236	Econo Express Courier dispatch	Off	0-19-060	ALL	17				
+TGID	Tid=212903	TGroupId=15236	Maritime 2-Way radio testing	Off	0-01-090	ALL	17				
+TGID	Tid=212901	TGroupId=15236	Towing company (unknown business name)	Off	0-01-200	ALL	17				

@@ -1,0 +1,706 @@
+TargetModel	HomePatrol-1
+FormatVersion	2.04
+Conventional	CountyId=315	StateId=11	Washington DC	Off		Conventional
+AreaState	CountyId=315	StateId=11
+AreaCounty	CountyId=315	CountyId=315
+C-Group	CGroupId=9615	CountyId=315	District of Columbia - Fire/EMS	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=82895	CGroupId=9615	015 Fire/EMS Direct 2 (also 08 VRS20)	Off	851837500	NFM	NAC=293	25					
+C-Freq	CFreqId=82896	CGroupId=9615	016 Fire/EMS Direct 1 (also 04 VRS10)	Off	851862500	NFM	NAC=293	25					
+C-Group	CGroupId=10819	CountyId=315	District of Columbia - Police	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=198243	CGroupId=10819	DC Interop 1	Off	159150000	NFM	NAC=653	11					
+C-Freq	CFreqId=215078	CGroupId=10819	DC Interop 2	Off	168875000	NFM	NAC=653	11					
+C-Freq	CFreqId=377274	CGroupId=10819	DC Interop North	Off	173750000	NFM	NAC=653	11					
+C-Freq	CFreqId=377275	CGroupId=10819	DC Interop South	Off	168087500	NFM	NAC=653	11					
+C-Freq	CFreqId=377276	CGroupId=10819	DC Interop West	Off	166787500	NFM	NAC=653	11					
+C-Group	CGroupId=60711	CountyId=315	Federal - Bureau of Investigation	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=314973	CGroupId=60711	Aircraft	Off	136275000	AM		16					
+C-Freq	CFreqId=252169	CGroupId=60711	FBI	Off	163100000	NFM	NAC=167	16					
+C-Freq	CFreqId=252147	CGroupId=60711	FBI	Off	164550000	NFM	NAC=167	16					
+C-Freq	CFreqId=252145	CGroupId=60711	FBI	Off	168925000	NFM	NAC=167	16					
+C-Group	CGroupId=7934	CountyId=315	Federal - Capitol	Off	38.889790	-77.027620	1.5	Circle
+C-Freq	CFreqId=195677	CGroupId=7934	Capitol Police Travel Ch. 2	Off	173525000	FM	TONE=C167.9	16					
+C-Freq	CFreqId=256401	CGroupId=7934	Capitol Police Travel Ch. 3 (portable repeater)	Off	173875000	FM	TONE=C94.8	16					
+C-Freq	CFreqId=293739	CGroupId=7934	Motor Pool	Off	407787500	FM	TONE=D364	16					
+C-Group	CGroupId=33841	CountyId=315	Federal - Department of Agriculture	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=133535	CGroupId=33841	Headquarters	Off	406425000	NFM	NAC=12C	16					
+C-Group	CGroupId=73500	CountyId=315	Federal - Department of Health and Human Services	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=308358	CGroupId=73500	Secretary's Protective Detail	Off	168350000	NFM	NAC=100	16					
+C-Group	CGroupId=48441	CountyId=315	Federal - Department of Homeland Security	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=196072	CGroupId=48441	Common	Off	166462500	NFM	NAC=1	16					
+C-Freq	CFreqId=314974	CGroupId=48441	Customs and Border Protection Aircraft	Off	136375000	AM		16					
+C-Group	CGroupId=46386	CountyId=315	Federal - Department of State	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=195674	CGroupId=46386	Headquarters Security (DC/Maryland Wide-Area Net)	Off	407862500	NFM	NAC=F0	16					
+C-Freq	CFreqId=188516	CGroupId=46386	Security	Off	407600000	NFM	NAC=F0	16					
+C-Freq	CFreqId=195675	CGroupId=46386	Security	Off	408600000	NFM	NAC=F0	16					
+C-Freq	CFreqId=196070	CGroupId=46386	Shuttle	Off	409712500	NFM	NAC=F0	16					
+C-Freq	CFreqId=196071	CGroupId=46386	Unknown	Off	409037500	NFM	NAC=F0	16					
+C-Group	CGroupId=48322	CountyId=315	Federal - Department of the Interior	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=195676	CGroupId=48322	Headquarters Security	Off	166325000	NFM	NAC=546	16					
+C-Group	CGroupId=60739	CountyId=315	Federal - Department of the Treasury	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=252170	CGroupId=60739	Maintenance	Off	163350000	FM	TONE=C146.2	16					
+C-Group	CGroupId=48362	CountyId=315	Federal - Department of Transportation	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=195836	CGroupId=48362	Headquarters Security	Off	171362500	NFM	NAC=293	33					
+C-Group	CGroupId=60710	CountyId=315	Federal - Drug Enforcement Agency	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=288526	CGroupId=60710	Operations	Off	418750000	NFM	NAC=156	16					
+C-Freq	CFreqId=252144	CGroupId=60710	Operations	Off	418950000	NFM	NAC=156	16					
+C-Group	CGroupId=57033	CountyId=315	Federal - Government Accountability Office	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=239592	CGroupId=57033	Security	Off	407812500	FM		33					
+C-Group	CGroupId=48437	CountyId=315	Federal - Government Printing Office	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=196048	CGroupId=48437	Security	Off	409512500	FM	TONE=D073	33					
+C-Group	CGroupId=39975	CountyId=315	Federal - Library of Congress	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=159482	CGroupId=39975	Police	Off	408125000	FM	TONE=C136.5	16					
+C-Group	CGroupId=48436	CountyId=315	Federal - Mint	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=196047	CGroupId=48436	Mint - Headquarters Security	Off	417887500	NFM	NAC=295	33					
+C-Group	CGroupId=33816	CountyId=315	Federal - National Gallery of Art	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=194389	CGroupId=33816	Maintenance	Off	163375000	FM	TONE=C210.7	16					
+C-Freq	CFreqId=136786	CGroupId=33816	Maintenance	Off	165412500	FM	TONE=C210.7	16					
+C-Freq	CFreqId=133315	CGroupId=33816	Security	Off	406550000	FM	TONE=C210.7	16					
+C-Group	CGroupId=7936	CountyId=315	Federal - National Park Service	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=196074	CGroupId=7936	George Washington Parkway	Off	169775000	NFM	NAC=4C5	16					
+C-Freq	CFreqId=31017	CGroupId=7936	National Capital Parks - Central	Off	172475000	NFM	NAC=4C5	16					
+C-Freq	CFreqId=90764	CGroupId=7936	National Capital Parks - Central	Off	172750000	NFM	NAC=4C5	16					
+C-Freq	CFreqId=292861	CGroupId=7936	National Capital Parks - Central (National Mall and Memorial Par	Off	170512500	NFM	NAC=4C5	16					
+C-Freq	CFreqId=31492	CGroupId=7936	National Capital Parks - East	Off	168425000	NFM	NAC=293	16					
+C-Group	CGroupId=69521	CountyId=315	Federal - Occupational Safety and Health Administration	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=286550	CGroupId=69521	Occupational Safety and Health Administration - Emergency Net	Off	418575000	FM	TONE=C103.5	16					
+C-Group	CGroupId=77034	CountyId=315	Federal - Office of Personnel Management	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=327469	CGroupId=77034	Maintenance	Off	418075000	NFM	TONE=C114.8	16					
+C-Freq	CFreqId=328080	CGroupId=77034	Security	Off	410700000	NFM	TONE=C103.5	33					
+C-Group	CGroupId=7935	CountyId=315	Federal - Park Police	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=357395	CGroupId=7935	Admin	Off	169787500	NFM	NAC=CF9	16					
+C-Freq	CFreqId=357394	CGroupId=7935	Dispatch	Off	171775000	NFM	NAC=CF9	16					
+C-Freq	CFreqId=357396	CGroupId=7935	Special Event	Off	169700000	NFM	NAC=CF9	16					
+C-Freq	CFreqId=31016	CGroupId=7935	Talkaround	Off	166850000	NFM	NAC=CF9	16					
+C-Group	CGroupId=48199	CountyId=315	Federal - Postal Service	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=281898	CGroupId=48199	Postal Inspectors	Off	406337500	NFM	NAC=482	16					
+C-Freq	CFreqId=252146	CGroupId=48199	Postal Inspectors	Off	407137500	NFM	NAC=482	16					
+C-Freq	CFreqId=194905	CGroupId=48199	Postal Inspectors	Off	407725000	NFM	NAC=482	16					
+C-Freq	CFreqId=194904	CGroupId=48199	Postal Inspectors	Off	407775000	NFM	NAC=482	16					
+C-Freq	CFreqId=194903	CGroupId=48199	Postal Inspectors	Off	414750000	NFM	NAC=3	16					
+C-Group	CGroupId=33865	CountyId=315	Federal - Protective Service	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=133622	CGroupId=33865	Department of Labor (Ch. 1)	Off	417200000	NFM	NAC=201	16					
+C-Freq	CFreqId=286547	CGroupId=33865	Department of Labor (Ch. 2)	Off	416025000	NFM	NAC=202	16					
+C-Freq	CFreqId=286549	CGroupId=33865	Federal Protective Service	Off	408200000	NFM	NAC=201	16					
+C-Freq	CFreqId=292628	CGroupId=33865	Federal Protective Service	Off	410800000	NFM	NAC=201	16					
+C-Group	CGroupId=48201	CountyId=315	Federal - Secret Service	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=194915	CGroupId=48201	Baker	Off	165787500	NFM	NAC=1	16					
+C-Freq	CFreqId=197919	CGroupId=48201	Charlie	Off	165375000	NFM	NAC=1	16					
+C-Freq	CFreqId=196041	CGroupId=48201	Mike	Off	165212500	NFM	NAC=1	16					
+C-Freq	CFreqId=194917	CGroupId=48201	Oscar	Off	164887500	NFM	NAC=1	16					
+C-Freq	CFreqId=196042	CGroupId=48201	Papa	Off	164400000	NFM	NAC=1	16					
+C-Freq	CFreqId=194916	CGroupId=48201	Tango	Off	164650000	NFM	NAC=1	16					
+C-Group	CGroupId=34576	CountyId=315	Federal - Uniformed Division Secret Service	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=136788	CGroupId=34576	Foreign Missions 1 (Embassies)	Off	162312500	NFM	NAC=211	16					
+C-Freq	CFreqId=194386	CGroupId=34576	Foreign Missions 2 (Embassies)	Off	164437500	NFM	NAC=212	16					
+C-Freq	CFreqId=194910	CGroupId=34576	Vice President's Residence	Off	166200000	NFM	NAC=202	16					
+C-Freq	CFreqId=136787	CGroupId=34576	White House 1	Off	162075000	NFM	NAC=201	16					
+C-Freq	CFreqId=188146	CGroupId=34576	White House 2	Off	163312500	NFM	NAC=202	16					
+C-Group	CGroupId=77295	CountyId=315	General Amateur Radio	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=328896	CGroupId=77295	K3VOA	Off	448575000	FM	TONE=C77.0	13					
+C-Freq	CFreqId=328897	CGroupId=77295	KC3VO	Off	448875000	FM		13					
+C-Group	CGroupId=17063	CountyId=315	Higher Education - George Washington University	Off	38.899790	-77.047710	1.0	Circle
+C-Freq	CFreqId=165810	CGroupId=17063	Lisner Auditorium	Off	469550000	FM	TONE=D754	32					
+C-Freq	CFreqId=152867	CGroupId=17063	Smith Center	Off	464475000	FM	TONE=D025	32					
+C-Group	CGroupId=17064	CountyId=315	Higher Education - Georgetown University	Off	38.908580	-77.074040	1.0	Circle
+C-Freq	CFreqId=165817	CGroupId=17064	Conference Hotel	Off	464150000	NFM	TONE=D606	32					
+C-Freq	CFreqId=165818	CGroupId=17064	Law Center - Engineering	Off	461375000	NFM	TONE=D606	32					
+C-Freq	CFreqId=165819	CGroupId=17064	Law Center - Security	Off	463725000	NFM	TONE=D132	33					
+C-Freq	CFreqId=165814	CGroupId=17064	Transportation Department	Off	461125000	NFM	TONE=D734	32					
+C-Group	CGroupId=16437	CountyId=315	Higher Education - Howard University	Off	38.921980	-77.020410	1.0	Circle
+C-Freq	CFreqId=168838	CGroupId=16437	Alarms	Off	463275000	NFM	TONE=C136.5	32					
+C-Group	CGroupId=46737	CountyId=315	Skywarn	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=190298	CGroupId=46737	Skywarn (Montgomery Amateur Radio Club)	Off	146955000	FM		13					
+C-Group	CGroupId=23259	CountyId=315	Washington Metropolitan Area Transit Authority (WMATA) - Washing	Off	38.892440	-77.041370	11.0	Circle
+C-Freq	CFreqId=33776	CGroupId=23259	Metrorail Ch. 1 Ops-1 (Operations Control Net - Red Line)	Off	160260000	NFM		26					
+C-Freq	CFreqId=33777	CGroupId=23259	Metrorail Ch. 2 Ops-2 (Operations Control Net - Blue/Orange Line	Off	160380000	NFM		26					
+C-Freq	CFreqId=33778	CGroupId=23259	Metrorail Ch. 3 Ops-3 (Operations Control Net - Blue/Yellow/Gree	Off	160620000	NFM		26					
+C-Freq	CFreqId=33779	CGroupId=23259	Metrorail Ch. 4 Maintenance/Paging	Off	161025000	NFM		26					
+C-Freq	CFreqId=33780	CGroupId=23259	Metrorail Ch. 5 Yards	Off	161235000	NFM		26					
+C-Freq	CFreqId=33781	CGroupId=23259	Metrorail Ch. 6 Yards	Off	160605000	NFM		26					
+C-Freq	CFreqId=33782	CGroupId=23259	Metrorail Ch. 7 Ops-7 Start-Up (Yard Control Net)	Off	161415000	NFM		26					
+C-Freq	CFreqId=33783	CGroupId=23259	Police Ch. 1/2 Dispatch	Off	161385000	NFM		2					
+Conventional	AgencyId=1188	StateId=11	Businesses	Off		Conventional
+AreaState	AgencyId=1188	StateId=11
+AreaCounty	AgencyId=1188	CountyId=315
+C-Group	CGroupId=10938	AgencyId=1188	Couriers	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=43291	CGroupId=10938	Quick Messenger Service	Off	452825000	FM	TONE=C203.5	17					
+C-Freq	CFreqId=68183	CGroupId=10938	Quick Messenger Service	Off	461350000	FM	TONE=C107.2	17					
+C-Group	CGroupId=39217	AgencyId=1188	Miscellaneous	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=153673	CGroupId=39217	National Capital Area REACT	Off	462675000	FM	TONE=C141.3	29					
+C-Group	CGroupId=10747	AgencyId=1188	Office Buildings	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=41177	CGroupId=10747	Judiciary Plaza [Expired 11/04]	Off	418575000	FM		17					
+C-Group	CGroupId=79623	AgencyId=1188	Property Management	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=343764	CGroupId=79623	World Bank - Security	Off	451600000	NFM	NAC=293	33					
+C-Group	CGroupId=55897	AgencyId=1188	Residential	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=233117	CGroupId=55897	Harbour Square	Off	153020000	FM	TONE=D265	17					
+C-Group	CGroupId=23778	AgencyId=1188	Transportation	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=169945	CGroupId=23778	Cabs, Inc.	Off	463850000	NFM	TONE=C100.0	26					
+C-Freq	CFreqId=169944	CGroupId=23778	Cabs, Inc. (Wheelchair Vans/MetroAccess)	Off	452100000	NFM	TONE=C100.0	26					
+C-Freq	CFreqId=188631	CGroupId=23778	DCX Cab (simulcast with 452.15)	Off	452275000	NFM		26					
+C-Freq	CFreqId=239416	CGroupId=23778	DCX Cab (simulcast with 452.275)	Off	452150000	NFM	TONE=C167.9	26					
+C-Freq	CFreqId=315071	CGroupId=23778	Diamond Cab	Off	463912500	NFM	TONE=D023	26					
+C-Freq	CFreqId=87682	CGroupId=23778	Yellow Cab (base simulcast on 452.25 MHz)	Off	452300000	NFM		26					
+C-Freq	CFreqId=87681	CGroupId=23778	Yellow Cab (base simulcast on 452.3 MHz)	Off	452250000	NFM		26					
+Conventional	AgencyId=4173	StateId=11	Civil Air Patrol	Off		Conventional
+AreaState	AgencyId=4173	StateId=11
+AreaCounty	AgencyId=4173	CountyId=315
+C-Group	CGroupId=39982	AgencyId=4173	Civil Air Patrol	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=159538	CGroupId=39982	Aircraft-to-Ground	Off	149537500	FM	TONE=C100.0	30					
+C-Freq	CFreqId=159535	CGroupId=39982	Operations Primary (also uses 100.0 PL)	Off	148150000	FM	TONE=C136.5	30					
+C-Freq	CFreqId=159536	CGroupId=39982	Operations Secondary	Off	148125000	FM	TONE=C100.0	30					
+C-Freq	CFreqId=169983	CGroupId=39982	Talk-Around	Off	148137500	FM	TONE=C100.0	30					
+Conventional	AgencyId=1851	StateId=11	Combat Air Patrols	Off		Conventional
+AreaState	AgencyId=1851	StateId=11
+AreaCounty	AgencyId=1851	CountyId=315
+C-Group	CGroupId=14421	AgencyId=1851	Combat Air Patrols	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=214309	CGroupId=14421	CAP Refueling	Off	277350000	AM		30					
+C-Freq	CFreqId=385432	CGroupId=14421	Guard Dog CAP (Huntress)	Off	139700000	AM		30					
+C-Freq	CFreqId=385434	CGroupId=14421	Guard Dog CAP (Huntress)	Off	247050000	AM		30					
+C-Freq	CFreqId=392531	CGroupId=14421	Guard Dog CAP (Huntress)	Off	247500000	AM		30					
+C-Freq	CFreqId=385435	CGroupId=14421	Guard Dog CAP (Huntress)	Off	263200000	AM		30					
+C-Freq	CFreqId=385436	CGroupId=14421	Guard Dog CAP (Huntress)	Off	293300000	AM		30					
+C-Freq	CFreqId=385437	CGroupId=14421	Guard Dog CAP (Huntress)	Off	307250000	AM		30					
+C-Freq	CFreqId=385439	CGroupId=14421	Guard Dog CAP (Huntress)	Off	363000000	AM		30					
+C-Freq	CFreqId=385431	CGroupId=14421	Guard Dog CAP (Huntress) Primary	Off	260900000	AM		30					
+C-Freq	CFreqId=214307	CGroupId=14421	Guard Dog CAP (Huntress) Secondary	Off	228900000	AM		30					
+C-Freq	CFreqId=214305	CGroupId=14421	Huntress	Off	138200000	AM		30					
+C-Freq	CFreqId=214303	CGroupId=14421	Potomac TRACON alternate to 135.525	Off	126550000	AM		15					
+C-Freq	CFreqId=214304	CGroupId=14421	Potomac TRACON Entry Exit Airspace	Off	135525000	AM		15					
+C-Freq	CFreqId=214310	CGroupId=14421	Potomac TRACON Entry Exit Airspace	Off	350250000	AM		15					
+Conventional	AgencyId=2591	StateId=11	Common/Shared	Off		Conventional
+AreaState	AgencyId=2591	StateId=11
+AreaCounty	AgencyId=2591	CountyId=0
+C-Group	CGroupId=23261	AgencyId=2591	Law Enforcement - Washington Area	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=53474	CGroupId=23261	Police Mutual Aid Radio System (P-MARS)	Off	851362500	FM	TONE=C156.7	23					
+C-Freq	CFreqId=114299	CGroupId=23261	Police Mutual Aid Radio System (P-MARS) Simulcast from 866.3625	Off	39620000	FM		23					
+Conventional	AgencyId=2589	StateId=11	District of Columbia Railroads	Off		Conventional
+AreaState	AgencyId=2589	StateId=11
+AreaCounty	AgencyId=2589	CountyId=0
+C-Group	CGroupId=23260	AgencyId=2589	Railroads - Amtrak	Off	38.897610	-77.006240	0.5	Circle
+C-Freq	CFreqId=304760	CGroupId=23260	Police Ivy City	Off	161295000	FM	TONE=C88.5	2					
+C-Freq	CFreqId=62640	CGroupId=23260	Police Union Station	Off	161295000	FM	TONE=C192.8	2					
+C-Freq	CFreqId=221606	CGroupId=23260	Washington Terminal Operations	Off	160440000	FM	TONE=C114.8	20					
+C-Freq	CFreqId=222161	CGroupId=23260	Washington Terminal Operations 1	Off	160290000	FM	TONE=C114.8	20					
+C-Freq	CFreqId=222162	CGroupId=23260	Washington Terminal Operations 2	Off	160350000	FM	TONE=C114.8	20					
+Conventional	AgencyId=4079	StateId=11	Hospitals	Off		Conventional
+AreaState	AgencyId=4079	StateId=11
+AreaCounty	AgencyId=4079	CountyId=315
+C-Group	CGroupId=38951	AgencyId=4079	Children's National Medical Center	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=392841	CGroupId=38951	Butler Medical Transport	Off	464062500	AUTO		17					
+C-Freq	CFreqId=152909	CGroupId=38951	Engineering	Off	464800000	NFM	TONE=D023	17					
+C-Group	CGroupId=42111	AgencyId=4079	DC General Health Campus	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=169502	CGroupId=42111	Security	Off	464425000	NFM	TONE=D565	33					
+C-Group	CGroupId=38950	AgencyId=4079	Georgetown University Hospital	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=312642	CGroupId=38950	Engineering	Off	463200000	NFM	TONE=D132	17					
+C-Freq	CFreqId=152911	CGroupId=38950	Housekeeping	Off	464475000	NFM	TONE=C192.8	17					
+C-Freq	CFreqId=62634	CGroupId=38950	Security	Off	464825000	NFM	TONE=D546	33					
+C-Group	CGroupId=38953	AgencyId=4079	Howard University Hospital	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=169959	CGroupId=38953	Operations	Off	463275000	NFM	TONE=C103.5	17					
+C-Group	CGroupId=77473	AgencyId=4079	MedSTAR	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=329850	CGroupId=77473	Helicopters	Off	462950000	NFM	TONE=C77.0	4					
+C-Group	CGroupId=38955	AgencyId=4079	National Rehabilitation Hospital	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=152916	CGroupId=38955	Security	Off	461675000	NFM	TONE=D132	33					
+C-Group	CGroupId=38954	AgencyId=4079	Providence Hospital	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=152914	CGroupId=38954	Engineering	Off	462112500	NFM	TONE=C100.0	17					
+C-Freq	CFreqId=194908	CGroupId=38954	Security	Off	462075000	NFM	TONE=C123.0	33					
+C-Group	CGroupId=38952	AgencyId=4079	United Medical Center	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=342583	CGroupId=38952	Maintenance	Off	461787500	NFM	TONE=D023	17					
+Conventional	AgencyId=4080	StateId=11	Hotels	Off		Conventional
+AreaState	AgencyId=4080	StateId=11
+AreaCounty	AgencyId=4080	CountyId=315
+C-Group	CGroupId=38957	AgencyId=4080	Capital Hilton	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=152921	CGroupId=38957	Banquet/Convention Services?	Off	464600000	FM	TONE=D165	17					
+C-Freq	CFreqId=152919	CGroupId=38957	Engineering	Off	451475000	FM	TONE=D054	17					
+C-Freq	CFreqId=152920	CGroupId=38957	Housekeeping	Off	451675000	FM	TONE=D073	17					
+C-Freq	CFreqId=152918	CGroupId=38957	Security	Off	451300000	FM	TONE=D031	33					
+C-Freq	CFreqId=152922	CGroupId=38957	Valet?	Off	464975000	FM	TONE=D223	17					
+C-Group	CGroupId=63967	AgencyId=4080	Courtyard Capitol Hill/Navy Yard	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=264106	CGroupId=63967	Engineering/Housekeeping	Off	462612500	FM	TONE=C127.3	17					
+C-Group	CGroupId=41270	AgencyId=4080	Embassy Suites (Downtown)	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=165820	CGroupId=41270	Operations	Off	463450000	NFM	TONE=D723	17					
+C-Group	CGroupId=42290	AgencyId=4080	Hamilton Crowne Plaza	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=170004	CGroupId=42290	Banquets?	Off	452062500	FM	TONE=D205	17					
+C-Freq	CFreqId=170005	CGroupId=42290	Engineering	Off	452112500	FM	TONE=D331	17					
+C-Freq	CFreqId=170006	CGroupId=42290	Housekeeping	Off	452187500	FM	TONE=D351	17					
+C-Freq	CFreqId=170007	CGroupId=42290	Security	Off	452237500	FM	TONE=C179.9	17					
+C-Group	CGroupId=42289	AgencyId=4080	Hampton Inn (Convention Center)	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=170003	CGroupId=42289		Off	452137500	FM	TONE=C173.8	17					
+C-Group	CGroupId=42288	AgencyId=4080	Hilton Garden Inn (Downtown)	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=170002	CGroupId=42288		Off	462475000	FM	TONE=D032	17					
+C-Group	CGroupId=41675	AgencyId=4080	Holiday Inn Capitol	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=169998	CGroupId=41675		Off	461025000	FM	TONE=D734	17					
+C-Freq	CFreqId=167583	CGroupId=41675	Engineering	Off	464050000	FM	TONE=D734	17					
+C-Freq	CFreqId=167582	CGroupId=41675	Housekeeping	Off	464000000	FM	TONE=D734	17					
+C-Freq	CFreqId=170001	CGroupId=41675	Security	Off	464100000	FM	TONE=C156.7	17					
+C-Group	CGroupId=42274	AgencyId=4080	Hotel Madera	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=169953	CGroupId=42274		Off	467812500	FM	TONE=C67.0	17					
+C-Group	CGroupId=79579	AgencyId=4080	Hotel Monaco	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=342202	CGroupId=79579	Hotel Monaco	Off	451712500	NFM	TONE=D251	17					
+C-Group	CGroupId=41273	AgencyId=4080	Hotel Palomar	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=168349	CGroupId=41273	Banquets	Off	452037500	FM	TONE=D023	17					
+C-Freq	CFreqId=165832	CGroupId=41273	Operations	Off	451862500	FM	TONE=D723	17					
+C-Group	CGroupId=38959	AgencyId=4080	Hyatt Regency	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=321229	CGroupId=38959	Banquets	Off	461712500	NFM	TONE=D532	17					
+C-Freq	CFreqId=152926	CGroupId=38959	Security/Engineering	Off	461375000	FM	TONE=C162.2	33					
+C-Group	CGroupId=38960	AgencyId=4080	JW Marriott	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=152928	CGroupId=38960	Security	Off	463375000	FM	TONE=D343	33					
+C-Group	CGroupId=41261	AgencyId=4080	Mandarin Oriental	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=165777	CGroupId=41261	Banquets	Off	451712500	NFM	TONE=C167.9	17					
+C-Freq	CFreqId=165779	CGroupId=41261	Engineering	Off	452262500	NFM	TONE=C167.9	17					
+C-Freq	CFreqId=165778	CGroupId=41261	Housekeeping	Off	451912500	NFM	TONE=C167.9	17					
+C-Freq	CFreqId=165776	CGroupId=41261	Valet	Off	451312500	NFM	TONE=C167.9	17					
+C-Group	CGroupId=42287	AgencyId=4080	Marriott Metro Center	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=169997	CGroupId=42287	Engineering	Off	466687500	FM	TONE=C123.0	17					
+C-Group	CGroupId=38963	AgencyId=4080	Renaissance Mayflower	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=152933	CGroupId=38963	Security	Off	464075000	NFM	TONE=C156.7	33					
+C-Group	CGroupId=38964	AgencyId=4080	Renaissance Washington, DC	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=152936	CGroupId=38964	Audio/Visual	Off	464525000	NFM	TONE=D047	17					
+C-Group	CGroupId=42276	AgencyId=4080	Residence Inn (Dupont Circle)	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=169956	CGroupId=42276		Off	462250000	FM	TONE=D031	17					
+C-Group	CGroupId=41276	AgencyId=4080	Ritz-Carlton (Georgetown)	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=168348	CGroupId=41276		Off	461325000	FM	TONE=D503	17					
+C-Freq	CFreqId=165844	CGroupId=41276	Engineering	Off	461325000	FM	TONE=D411	17					
+C-Freq	CFreqId=165846	CGroupId=41276	Housekeeping	Off	461325000	FM	TONE=D413	17					
+C-Freq	CFreqId=165850	CGroupId=41276	In-Room Dining	Off	461325000	FM	TONE=D445	17					
+C-Freq	CFreqId=165848	CGroupId=41276	Valet	Off	461325000	FM	TONE=D431	17					
+C-Group	CGroupId=41275	AgencyId=4080	Ritz-Carlton (West End)	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=168355	CGroupId=41275		Off	451787500	FM	TONE=D132	17					
+C-Freq	CFreqId=168356	CGroupId=41275		Off	452012500	FM	TONE=D132	17					
+C-Freq	CFreqId=165841	CGroupId=41275	Housekeeping	Off	452012500	FM	TONE=D331	17					
+C-Freq	CFreqId=165840	CGroupId=41275	Security/Engineering	Off	451787500	FM	TONE=D331	33					
+C-Group	CGroupId=42273	AgencyId=4080	St. Gregory	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=169952	CGroupId=42273	Housekeeping	Off	464875000	FM	TONE=C136.5	17					
+C-Group	CGroupId=42272	AgencyId=4080	Washington Court	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=169951	CGroupId=42272	Security	Off	464425000	FM	TONE=D162	33					
+C-Group	CGroupId=38965	AgencyId=4080	Washington Hilton	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=168352	CGroupId=38965	Banquets	Off	464512500	FM	TONE=C162.2	17					
+C-Freq	CFreqId=152940	CGroupId=38965	Security	Off	464325000	FM	TONE=D143	33					
+C-Group	CGroupId=42271	AgencyId=4080	Westin City Center	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=169950	CGroupId=42271	Security/Engineering/Banquets	Off	464425000	NFM	TONE=D723	33					
+Conventional	AgencyId=8979	StateId=11	Joint Base Anacostia-Bolling	Off		Conventional
+AreaState	AgencyId=8979	StateId=11
+AreaCounty	AgencyId=8979	CountyId=315
+C-Group	CGroupId=74729	AgencyId=8979	Joint Air Defense Operations Center (JADOC)	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=315016	CGroupId=74729	Sparkle System	Off	139150000	NFM		30					
+Conventional	AgencyId=2590	StateId=11	Medevac	Off		Conventional
+AreaState	AgencyId=2590	StateId=11
+AreaCounty	AgencyId=2590	CountyId=0
+C-Group	CGroupId=23257	AgencyId=2590	Medevac	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=85705	CGroupId=23257	MedSTAR Helicopters	Off	462950000	FM	TONE=C77.0	4					
+Conventional	AgencyId=1849	StateId=11	Media	Off		Conventional
+AreaState	AgencyId=1849	StateId=11
+AreaCounty	AgencyId=1849	CountyId=315
+C-Group	CGroupId=26035	AgencyId=1849	Firebuffs	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=97504	CGroupId=26035	Citywide Radio	Off	452975000	NFM	TONE=C103.5	31					
+C-Group	CGroupId=14362	AgencyId=1849	Radio	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=40677	CGroupId=14362	WMAL 630 AM Traffic Reports (7 Victor Whiskey aircraft, operated	Off	161700000	FM	TONE=C192.8	31					
+C-Freq	CFreqId=40678	CGroupId=14362	WTOP 820 AM/103.5 FM Traffic (Chopper 2 helicopter, operated by	Off	455650000	FM		31					
+C-Group	CGroupId=14365	AgencyId=1849	Television	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=242650	CGroupId=14365	CNN	Off	450887500	FM	TONE=C127.3	31					
+C-Freq	CFreqId=342697	CGroupId=14365	MSNBC IFB	Off	450550000	NFM	TONE=D306	31					
+C-Freq	CFreqId=40680	CGroupId=14365	WJLA (ABC 7) Engineering	Off	450262500	FM		31					
+C-Freq	CFreqId=40679	CGroupId=14365	WJLA (ABC 7) News Desk	Off	450112500	FM		31					
+C-Freq	CFreqId=40685	CGroupId=14365	WRC (NBC 4) IFB	Off	455150000	FM	TONE=D306	31					
+C-Freq	CFreqId=40675	CGroupId=14365	WRC (NBC 4) News Desk (Chopper 4)	Off	153050000	FM	TONE=D331	31					
+C-Freq	CFreqId=40676	CGroupId=14365	WTTG (Fox 5) News Desk (SkyFox)	Off	161730000	FM		31					
+C-Freq	CFreqId=56583	CGroupId=14365	WTTG (Fox 5) Rarely Used	Off	161760000	FM		31					
+C-Freq	CFreqId=40682	CGroupId=14365	WUSA (CBS 9) Chopper 2 (helicopter operated by Metro Networks)	Off	450087500	FM	TONE=C141.3	31					
+C-Freq	CFreqId=40683	CGroupId=14365	WUSA (CBS 9) Engineering (Old, Infrequent Use)	Off	450750000	FM		31					
+C-Freq	CFreqId=40684	CGroupId=14365	WUSA (CBS 9) News Desk (Old, Infrequent Use)	Off	450212500	FM		31					
+C-Freq	CFreqId=40681	CGroupId=14365	WUSA (CBS 9) News Desk (Shared with CNN)	Off	450187500	FM		31					
+C-Group	CGroupId=14366	AgencyId=1849	Traffic	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=40674	CGroupId=14366	Metro Networks - Operations (Chopper 2 and 7 Victor Whiskey)	Off	455912500	FM	TONE=C141.3	31					
+C-Freq	CFreqId=56584	CGroupId=14366	Metro Networks - Traffic Reports	Off	450237500	FM	TONE=D743	31					
+Conventional	AgencyId=4334	StateId=11	Museums	Off		Conventional
+AreaState	AgencyId=4334	StateId=11
+AreaCounty	AgencyId=4334	CountyId=315
+C-Group	CGroupId=42391	AgencyId=4334	Corcoran Gallery of Art	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=170407	CGroupId=42391	Security?	Off	462300000	FM	TONE=C162.2	33					
+C-Freq	CFreqId=170405	CGroupId=42391	Unknown	Off	451375000	FM	TONE=C162.2	17					
+C-Freq	CFreqId=170406	CGroupId=42391	Unknown	Off	452600000	FM	TONE=C162.2	17					
+C-Freq	CFreqId=170408	CGroupId=42391	Unknown	Off	469825000	FM	TONE=C162.2	17					
+C-Group	CGroupId=42610	AgencyId=4334	International Spy Museum	Off	38.896930	-77.023420	0.3	Circle
+C-Freq	CFreqId=171248	CGroupId=42610	Security	Off	464912500	FM	TONE=C146.2	33					
+Conventional	AgencyId=4333	StateId=11	Religious	Off		Conventional
+AreaState	AgencyId=4333	StateId=11
+AreaCounty	AgencyId=4333	CountyId=315
+C-Group	CGroupId=42389	AgencyId=4333	Basilica of the National Shrine of the Immaculate Conception	Off	38.887610	-77.041080	7.0	Circle
+C-Freq	CFreqId=168839	CGroupId=42389	Security	Off	461200000	FM	TONE=C82.5	33					
+C-Group	CGroupId=42390	AgencyId=4333	Washington National Cathedral	Off	38.887610	-77.041080	7.0	Circle
+C-Freq	CFreqId=195868	CGroupId=42390	Tour Guides	Off	467712500	FM	TONE=C233.6	17					
+Conventional	AgencyId=4050	StateId=11	Retail	Off		Conventional
+AreaState	AgencyId=4050	StateId=11
+AreaCounty	AgencyId=4050	CountyId=315
+C-Group	CGroupId=41272	AgencyId=4050	Downtown	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=165827	CGroupId=41272	H&M	Off	468837500	FM	TONE=D155	17					
+C-Freq	CFreqId=165829	CGroupId=41272	Victoria's Secret (Connecticut Ave.)	Off	467925000	FM	TONE=D743	17					
+C-Group	CGroupId=41271	AgencyId=4050	Gallery Place	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=165825	CGroupId=41271	Ann Taylor Loft	Off	466037500	FM	TONE=C94.8	17					
+C-Freq	CFreqId=165823	CGroupId=41271	Bed Bath & Beyond?	Off	464550000	FM	TONE=C67.0	17					
+C-Freq	CFreqId=165824	CGroupId=41271	Regal Cinemas	Off	464825000	FM	TONE=C100.0	17					
+C-Freq	CFreqId=165826	CGroupId=41271	Urban Outfitters	Off	467925000	FM	TONE=C218.1	17					
+C-Group	CGroupId=41263	AgencyId=4050	Georgetown	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=168869	CGroupId=41263	AMC Theater	Off	464550000	FM	TONE=C67.0	17					
+C-Freq	CFreqId=165795	CGroupId=41263	American Eagle	Off	467762500	FM	TONE=C74.4	17					
+C-Freq	CFreqId=168350	CGroupId=41263	Ann Taylor Loft	Off	466037500	FM	TONE=C94.8	17					
+C-Freq	CFreqId=165796	CGroupId=41263	Banana Republic	Off	151835000	FM	TONE=C74.4	17					
+C-Freq	CFreqId=165794	CGroupId=41263	Gap	Off	154515000	FM	TONE=C74.4	17					
+C-Freq	CFreqId=165797	CGroupId=41263	Pottery Barn	Off	154570000	FM	TONE=C79.7	17					
+C-Freq	CFreqId=168868	CGroupId=41263	Restoration Hardware	Off	467875000	FM	TONE=C118.8	17					
+C-Freq	CFreqId=165792	CGroupId=41263	Sephora	Off	461112500	FM	TONE=D412	17					
+C-Freq	CFreqId=165793	CGroupId=41263	Urban Outfitters	Off	464550000	FM	TONE=C141.3	17					
+C-Group	CGroupId=39639	AgencyId=4050	Mazza Gallerie	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=165835	CGroupId=39639	Neiman Marcus Loss Prevention	Off	464575000	FM	TONE=D131	33					
+C-Freq	CFreqId=165836	CGroupId=39639	Neiman Marcus Operations	Off	464925000	FM	TONE=C127.3	17					
+C-Freq	CFreqId=158035	CGroupId=39639	Security/Housekeeping	Off	464112500	FM	TONE=D606	17					
+C-Group	CGroupId=38710	AgencyId=4050	Shops at Georgetown Park	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=165790	CGroupId=38710	Anthropologie	Off	467925000	FM	TONE=C218.1	17					
+C-Freq	CFreqId=165791	CGroupId=38710	H&M	Off	468837500	FM	TONE=D155	17					
+C-Group	CGroupId=41278	AgencyId=4050	Shops at Union Station	Off	38.892440	-77.041370	7.0	Circle
+C-Freq	CFreqId=165856	CGroupId=41278	Engineering	Off	464775000	FM	TONE=D365	17					
+C-Freq	CFreqId=165857	CGroupId=41278	Housekeeping	Off	464825000	FM	TONE=D311	17					
+C-Freq	CFreqId=165858	CGroupId=41278	Maintenance	Off	464875000	FM	TONE=D311	17					
+C-Freq	CFreqId=165855	CGroupId=41278	Security	Off	464575000	FM	TONE=D346	33					
+C-Freq	CFreqId=165854	CGroupId=41278	Security Alternate	Off	464525000	FM	TONE=D311	33					
+C-Freq	CFreqId=165859	CGroupId=41278	Security Alternate	Off	464925000	FM	TONE=D311	33					
+C-Freq	CFreqId=165860	CGroupId=41278	Victoria's Secret	Off	467925000	FM	TONE=D743	17					
+Conventional	AgencyId=4289	StateId=11	Sports Venues	Off		Conventional
+AreaState	AgencyId=4289	StateId=11
+AreaCounty	AgencyId=4289	CountyId=315
+C-Group	CGroupId=42280	AgencyId=4289	RFK Stadium	Off	38.891670	-77.038120	7.0	Circle
+C-Freq	CFreqId=169986	CGroupId=42280	Contemporary Services Corporation (Event Services) - On-Field Op	Off	461387500	NFM	TONE=D152	17					
+C-Freq	CFreqId=169985	CGroupId=42280	Contemporary Services Corporation (Event Services) - Primary	Off	461512500	NFM	TONE=D152	17					
+C-Freq	CFreqId=169962	CGroupId=42280	Engineering/Facilities	Off	464375000	NFM	TONE=C110.9	17					
+C-Freq	CFreqId=169990	CGroupId=42280	Guest Services	Off	461812500	NFM	TONE=D311	17					
+C-Freq	CFreqId=169994	CGroupId=42280	Housekeeping	Off	466112500	FM	TONE=D311	17					
+Conventional	AgencyId=2427	StateId=11	Utilities	Off		Conventional
+AreaState	AgencyId=2427	StateId=11
+AreaCounty	AgencyId=2427	CountyId=315
+C-Group	CGroupId=20898	AgencyId=2427	Potomac Electric Power Company (PEPCO)	Off	38.892440	-77.041370	25.0	Circle
+C-Freq	CFreqId=76492	CGroupId=20898	DC Operations	Off	451050000	NFM	TONE=C192.8	34					
+C-Freq	CFreqId=76495	CGroupId=20898	Meter Reading	Off	451125000	NFM	TONE=C192.8	34					
+C-Freq	CFreqId=76491	CGroupId=20898	Montgomery County Operations	Off	451025000	NFM	TONE=C173.8	34					
+C-Freq	CFreqId=349779	CGroupId=20898	Operations	Off	453125000	NFM	TONE=C173.8	34					
+C-Freq	CFreqId=341604	CGroupId=20898	Operations	Off	454525000	NFM	TONE=C173.8	34					
+C-Freq	CFreqId=76493	CGroupId=20898	Prince George's County Operations	Off	451075000	NFM	TONE=C173.8	34					
+C-Freq	CFreqId=76494	CGroupId=20898	Security	Off	451150000	NFM	TONE=C173.8	34					
+C-Freq	CFreqId=341119	CGroupId=20898	Security	Off	454275000	NFM	TONE=C173.8	33					
+C-Freq	CFreqId=76496	CGroupId=20898	Unit-to-Unit	Off	451250000	NFM	TONE=C192.8	34					
+Trunk	TrunkId=7508	StateId=11	District of Columbia	Off		P25X2_TDMA					
+AreaState	TrunkId=7508	StateId=11
+AreaCounty	TrunkId=7508	CountyId=0
+Site	SiteId=20886	TrunkId=7508	Simulcast	Off	38.892440	-77.041370	7.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=20886		Off	854862500	1
+T-Freq	TFreqId=0	SiteId=20886		Off	855212500	2
+T-Freq	TFreqId=0	SiteId=20886		Off	855237500	3
+T-Freq	TFreqId=0	SiteId=20886		Off	855462500	4
+T-Freq	TFreqId=0	SiteId=20886		Off	856187500	5
+T-Freq	TFreqId=0	SiteId=20886		Off	856587500	6
+T-Freq	TFreqId=0	SiteId=20886		Off	856987500	7
+T-Freq	TFreqId=0	SiteId=20886		Off	857187500	8
+T-Freq	TFreqId=0	SiteId=20886		Off	857587500	9
+T-Freq	TFreqId=0	SiteId=20886		Off	857987500	10
+T-Freq	TFreqId=0	SiteId=20886		Off	858587500	11
+T-Freq	TFreqId=0	SiteId=20886		Off	858987500	12
+T-Freq	TFreqId=0	SiteId=20886		Off	859037500	13
+T-Freq	TFreqId=0	SiteId=20886		Off	859087500	14
+T-Freq	TFreqId=0	SiteId=20886		Off	859987500	15
+T-Freq	TFreqId=0	SiteId=20886		Off	860987500	16
+T-Freq	TFreqId=0	SiteId=20886		Off	769906250	17
+T-Freq	TFreqId=0	SiteId=20886		Off	769968750	18
+T-Freq	TFreqId=0	SiteId=20886		Off	770406250	19
+T-Freq	TFreqId=0	SiteId=20886		Off	770468750	20
+T-Freq	TFreqId=0	SiteId=20886		Off	770718750	21
+T-Freq	TFreqId=0	SiteId=20886		Off	770968750	22
+T-Freq	TFreqId=0	SiteId=20886		Off	773343750	23
+T-Freq	TFreqId=0	SiteId=20886		Off	774031250	24
+T-Freq	TFreqId=0	SiteId=20886		Off	774281250	25
+T-Freq	TFreqId=0	SiteId=20886		Off	774343750	26
+Site	SiteId=36778	TrunkId=7508	Site 4	Off	38.892440	-77.041370	7.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=36778		Off	769156250	1
+T-Freq	TFreqId=0	SiteId=36778		Off	774593750	2
+T-Freq	TFreqId=0	SiteId=36778		Off	774843750	3
+T-Group	TGroupId=23122	TrunkId=7508	Fire/EMS	Off	38.892440	-77.041370	7.0	Circle
+TGID	Tid=289663	TGroupId=23122	Adminstration 1	Off	741	ALL	24				
+TGID	Tid=289664	TGroupId=23122	Adminstration 2	Off	742	ALL	24				
+TGID	Tid=313076	TGroupId=23122	AMR Dispatch	Off	11618	ALL	4				
+TGID	Tid=313077	TGroupId=23122	AMR Tac 1	Off	11619	ALL	9				
+TGID	Tid=289646	TGroupId=23122	Arson	Off	733	ALL	24				
+TGID	Tid=289776	TGroupId=23122	Chiefs	Off	739	ALL	24				
+TGID	Tid=289735	TGroupId=23122	EMS 1 (East)	Off	728	ALL	9				
+TGID	Tid=289736	TGroupId=23122	EMS 2 (West)	Off	729	ALL	9				
+TGID	Tid=289737	TGroupId=23122	EMS 3 (District Ambulance Coordination)	Off	716	ALL	9				
+TGID	Tid=289738	TGroupId=23122	EMS 4 (EMS Liaison Officer)	Off	717	ALL	9				
+TGID	Tid=289727	TGroupId=23122	Fire Dispatch	Off	101	ALL	3				
+TGID	Tid=289665	TGroupId=23122	Fire Liaison Officer	Off	743	ALL	24				
+TGID	Tid=289645	TGroupId=23122	Fire Prevention	Off	732	ALL	24				
+TGID	Tid=289777	TGroupId=23122	FOCC	Off	740	ALL	24				
+TGID	Tid=289647	TGroupId=23122	Homeland Security/Special Operations	Off	735	ALL	24				
+TGID	Tid=289729	TGroupId=23122	Incident 10	Off	700	ALL	8				
+TGID	Tid=289730	TGroupId=23122	Incident 11	Off	701	ALL	8				
+TGID	Tid=289731	TGroupId=23122	Incident 12	Off	702	ALL	8				
+TGID	Tid=289732	TGroupId=23122	Incident 20	Off	703	ALL	8				
+TGID	Tid=289733	TGroupId=23122	Incident 21	Off	704	ALL	8				
+TGID	Tid=289734	TGroupId=23122	Incident 22	Off	705	ALL	8				
+TGID	Tid=289739	TGroupId=23122	Incident 30	Off	710	ALL	8				
+TGID	Tid=289740	TGroupId=23122	Incident 31	Off	711	ALL	8				
+TGID	Tid=289741	TGroupId=23122	Incident 32	Off	712	ALL	8				
+TGID	Tid=289742	TGroupId=23122	Incident 40	Off	713	ALL	8				
+TGID	Tid=289743	TGroupId=23122	Incident 41	Off	714	ALL	8				
+TGID	Tid=289744	TGroupId=23122	Incident 42	Off	715	ALL	8				
+TGID	Tid=289749	TGroupId=23122	Incident 50	Off	720	ALL	8				
+TGID	Tid=289750	TGroupId=23122	Incident 51	Off	721	ALL	8				
+TGID	Tid=289751	TGroupId=23122	Incident 52	Off	722	ALL	8				
+TGID	Tid=289752	TGroupId=23122	Incident 60	Off	723	ALL	8				
+TGID	Tid=289754	TGroupId=23122	Incident 61	Off	724	ALL	8				
+TGID	Tid=289643	TGroupId=23122	Logistics 1	Off	730	ALL	24				
+TGID	Tid=289644	TGroupId=23122	Logistics 2	Off	731	ALL	24				
+TGID	Tid=289728	TGroupId=23122	Main Operations	Off	102	ALL	3				
+TGID	Tid=289649	TGroupId=23122	Marine	Off	736	ALL	24				
+TGID	Tid=323529	TGroupId=23122	Marine Interop Channel 1	Off	744	ALL	11				
+TGID	Tid=338222	TGroupId=23122	Marine Interop Channel 2	Off	746	ALL	11				
+TGID	Tid=338223	TGroupId=23122	Marine Interop Channel 3	Off	747	ALL	11				
+TGID	Tid=338224	TGroupId=23122	Marine Interop Channel 4	Off	748	ALL	11				
+TGID	Tid=338225	TGroupId=23122	Marine Interop Channel 5	Off	745	ALL	11				
+TGID	Tid=289775	TGroupId=23122	MPD	Off	734	ALL	24				
+TGID	Tid=289745	TGroupId=23122	Special Events 1	Off	706	ALL	8				
+TGID	Tid=289746	TGroupId=23122	Special Events 2	Off	707	ALL	8				
+TGID	Tid=289747	TGroupId=23122	Special Events 3	Off	708	ALL	8				
+TGID	Tid=289748	TGroupId=23122	Special Events 4	Off	709	ALL	8				
+TGID	Tid=289755	TGroupId=23122	Special Operations 1	Off	725	ALL	8				
+TGID	Tid=289756	TGroupId=23122	Special Operations 2	Off	726	ALL	8				
+TGID	Tid=289757	TGroupId=23122	Special Operations 3	Off	718	ALL	8				
+TGID	Tid=289758	TGroupId=23122	Special Operations 4	Off	719	ALL	8				
+TGID	Tid=289661	TGroupId=23122	Training 1	Off	737	ALL	24				
+TGID	Tid=289662	TGroupId=23122	Training 2	Off	738	ALL	24				
+T-Group	TGroupId=21959	TrunkId=7508	Future (WMATA?)	Off	38.892440	-77.041370	7.0	Circle
+TGID	Tid=272498	TGroupId=21959	Channel 0-1	Off	1617	ALL	14				
+TGID	Tid=272499	TGroupId=21959	Channel 0-3	Off	1619	ALL	14				
+TGID	Tid=272500	TGroupId=21959	Channel 0-4	Off	1620	ALL	14				
+TGID	Tid=276289	TGroupId=21959	Channel 1-5	Off	1631	ALL	14				
+TGID	Tid=272509	TGroupId=21959	Channel 1-6	Off	1632	ALL	14				
+TGID	Tid=272501	TGroupId=21959	Channel 1-7	Off	1633	ALL	14				
+TGID	Tid=272502	TGroupId=21959	Channel 1-8	Off	1634	ALL	14				
+TGID	Tid=272503	TGroupId=21959	Channel 1-9	Off	1635	ALL	14				
+TGID	Tid=272504	TGroupId=21959	Channel 2-0	Off	1636	ALL	14				
+TGID	Tid=272505	TGroupId=21959	Channel 2-1	Off	1637	ALL	14				
+TGID	Tid=272506	TGroupId=21959	Channel 2-2	Off	1638	ALL	14				
+TGID	Tid=276291	TGroupId=21959	Channel 2-3	Off	1639	ALL	14				
+TGID	Tid=272508	TGroupId=21959	Channel 2-4	Off	1640	ALL	14				
+TGID	Tid=276290	TGroupId=21959	Channel 2-5	Off	1641	ALL	14				
+TGID	Tid=272507	TGroupId=21959	Channel 2-6	Off	1642	ALL	14				
+T-Group	TGroupId=23123	TrunkId=7508	Hospitals	Off	38.892440	-77.041370	7.0	Circle
+TGID	Tid=289760	TGroupId=23123	Childrens National Medical Center	Off	143	ALL	12				
+TGID	Tid=289766	TGroupId=23123	George Washington University Hospital	Off	149	ALL	12				
+TGID	Tid=289765	TGroupId=23123	Georgetown University Hospital	Off	148	ALL	12				
+TGID	Tid=289763	TGroupId=23123	Howard University	Off	146	ALL	12				
+TGID	Tid=289762	TGroupId=23123	Medstar	Off	145	ALL	12				
+TGID	Tid=289761	TGroupId=23123	Notify	Off	144	ALL	12				
+TGID	Tid=289769	TGroupId=23123	Poison Control	Off	152	ALL	12				
+TGID	Tid=289774	TGroupId=23123	Prince George's Hospital Center	Off	157	ALL	12				
+TGID	Tid=289764	TGroupId=23123	Psychiatric Institute of Washington	Off	147	ALL	12				
+TGID	Tid=320523	TGroupId=23123	Renaissance Sibley Memorial Hospital	Off	2293	ALL	12				
+TGID	Tid=289770	TGroupId=23123	Sibley Hospital	Off	153	ALL	12				
+TGID	Tid=289768	TGroupId=23123	Spare	Off	151	ALL	12				
+TGID	Tid=289772	TGroupId=23123	Spare Talkgroup	Off	155	ALL	12				
+TGID	Tid=289759	TGroupId=23123	United Medical Center	Off	142	ALL	12				
+TGID	Tid=289767	TGroupId=23123	United Medical Center Pediatrics	Off	150	ALL	12				
+TGID	Tid=289773	TGroupId=23123	Veterans Hospital	Off	156	ALL	12				
+TGID	Tid=289771	TGroupId=23123	Washington Hospital Center	Off	154	ALL	12				
+T-Group	TGroupId=18232	TrunkId=7508	Police	Off	38.892440	-77.041370	7.0	Circle
+TGID	Tid=229819	TGroupId=18232	1st District	Off	11025	ALL	2				
+TGID	Tid=257764	TGroupId=18232	1st District Ops A	Off	11540	ALL	7				
+TGID	Tid=406952	TGroupId=18232	1st District Ops B	Off	11550	ALL	7				
+TGID	Tid=252130	TGroupId=18232	1st District Secure	Off	11281	ALL	7				
+TGID	Tid=229829	TGroupId=18232	1st District Tac	Off	11049	ALL	7				
+TGID	Tid=229820	TGroupId=18232	2nd District	Off	11027	ALL	2				
+TGID	Tid=231287	TGroupId=18232	2nd District Ops A	Off	11541	ALL	7				
+TGID	Tid=406953	TGroupId=18232	2nd District Ops B	Off	11551	ALL	7				
+TGID	Tid=252129	TGroupId=18232	2nd District Secure	Off	11283	ALL	7				
+TGID	Tid=230489	TGroupId=18232	2nd District Tac	Off	11051	ALL	7				
+TGID	Tid=229821	TGroupId=18232	3rd District	Off	11029	ALL	2				
+TGID	Tid=231288	TGroupId=18232	3rd District Ops A	Off	11542	ALL	7				
+TGID	Tid=406954	TGroupId=18232	3rd District Ops B	Off	11552	ALL	7				
+TGID	Tid=252128	TGroupId=18232	3rd District Secure	Off	11285	ALL	7				
+TGID	Tid=229828	TGroupId=18232	3rd District Tac	Off	11053	ALL	7				
+TGID	Tid=229822	TGroupId=18232	4th District	Off	11031	ALL	2				
+TGID	Tid=231289	TGroupId=18232	4th District Ops A	Off	11543	ALL	7				
+TGID	Tid=406955	TGroupId=18232	4th District Ops B	Off	11553	ALL	7				
+TGID	Tid=252127	TGroupId=18232	4th District Secure	Off	11287	ALL	7				
+TGID	Tid=230486	TGroupId=18232	4th District Tac	Off	11055	ALL	7				
+TGID	Tid=229823	TGroupId=18232	5th District	Off	11033	ALL	2				
+TGID	Tid=406956	TGroupId=18232	5th District Ops A	Off	11544	ALL	7				
+TGID	Tid=230495	TGroupId=18232	5th District Ops B	Off	11554	ALL	7				
+TGID	Tid=252126	TGroupId=18232	5th District Secure	Off	11289	ALL	7				
+TGID	Tid=230487	TGroupId=18232	5th District Tac	Off	11057	ALL	7				
+TGID	Tid=229824	TGroupId=18232	6th District	Off	11035	ALL	2				
+TGID	Tid=252008	TGroupId=18232	6th District Ops A	Off	11545	ALL	7				
+TGID	Tid=252009	TGroupId=18232	6th District Ops B	Off	11555	ALL	7				
+TGID	Tid=252125	TGroupId=18232	6th District Secure	Off	11291	ALL	7				
+TGID	Tid=230488	TGroupId=18232	6th District Tac	Off	11059	ALL	7				
+TGID	Tid=229826	TGroupId=18232	7th District	Off	11037	ALL	2				
+TGID	Tid=257224	TGroupId=18232	7th District Ops A	Off	11546	ALL	7				
+TGID	Tid=276981	TGroupId=18232	7th District Ops B	Off	11556	ALL	7				
+TGID	Tid=252010	TGroupId=18232	7th District Secure	Off	11293	ALL	7				
+TGID	Tid=229830	TGroupId=18232	7th District Tac	Off	11061	ALL	7				
+TGID	Tid=233223	TGroupId=18232	Capitol Police Patch 1	Off	1312	ALL	23				
+TGID	Tid=233224	TGroupId=18232	Capitol Police Patch 2	Off	1314	ALL	23				
+TGID	Tid=233249	TGroupId=18232	DC Task Force 1	Off	1316	ALL	7				
+TGID	Tid=252011	TGroupId=18232	DC Task Force SED DES	Off	1317	ALL	7				
+TGID	Tid=233222	TGroupId=18232	Executive Protection Unit	Off	11139	ALL	7				
+TGID	Tid=233210	TGroupId=18232	Force Investigation Team/Office of Professional Responsibility	Off	11115	ALL	7				
+TGID	Tid=231195	TGroupId=18232	Harbor Patrol	Off	11300	ALL	7				
+TGID	Tid=233230	TGroupId=18232	Homeland Security/Counter-Terrorism	Off	11302	ALL	7				
+TGID	Tid=233229	TGroupId=18232	Housing Authority Police	Off	1227	ALL	2				
+TGID	Tid=231296	TGroupId=18232	Major Narcotics Division 1	Off	11131	ALL	7				
+TGID	Tid=231290	TGroupId=18232	Major Narcotics Division 2	Off	11133	ALL	7				
+TGID	Tid=233227	TGroupId=18232	Metropolitan Interoperability Radio System	Off	1201	ALL	23				
+TGID	Tid=230492	TGroupId=18232	MPD1	Off	11321	ALL	7				
+TGID	Tid=230493	TGroupId=18232	MPD2	Off	11323	ALL	7				
+TGID	Tid=230494	TGroupId=18232	MPD3	Off	11327	ALL	7				
+TGID	Tid=233236	TGroupId=18232	Mutual Aid 3	Off	3749	ALL	23				
+TGID	Tid=233237	TGroupId=18232	Mutual Aid 4	Off	3750	ALL	23				
+TGID	Tid=233245	TGroupId=18232	Narcotics and Special Investigations Division 1	Off	11560	ALL	7				
+TGID	Tid=233246	TGroupId=18232	Narcotics and Special Investigations Division 2	Off	11561	ALL	7				
+TGID	Tid=233211	TGroupId=18232	Office of Internal Affairs	Off	11117	ALL	7				
+TGID	Tid=233221	TGroupId=18232	Office of the Superintendent of Detectives 1	Off	11123	ALL	7				
+TGID	Tid=233209	TGroupId=18232	Senior Commanders	Off	11343	ALL	7				
+TGID	Tid=229827	TGroupId=18232	Special Operations Division 1 Event	Off	11041	ALL	2				
+TGID	Tid=231196	TGroupId=18232	Special Operations Division 2 Emergency Response Team	Off	11151	ALL	7				
+TGID	Tid=230490	TGroupId=18232	Special Operations Division 3 Ops	Off	11143	ALL	7				
+TGID	Tid=230491	TGroupId=18232	Special Operations Division 4 Secure	Off	11155	ALL	7				
+TGID	Tid=271877	TGroupId=18232	Unknown	Off	11601	ALL	7				
+TGID	Tid=276420	TGroupId=18232	Unknown	Off	11602	ALL	7				
+TGID	Tid=272052	TGroupId=18232	Unknown	Off	11605	ALL	7				
+TGID	Tid=233247	TGroupId=18232	WMATA Patch 1	Off	1533	ALL	11				
+TGID	Tid=233248	TGroupId=18232	WMATA Patch 2	Off	1535	ALL	11				
+T-Group	TGroupId=18657	TrunkId=7508	Services	Off	38.892440	-77.041370	7.0	Circle
+TGID	Tid=275660	TGroupId=18657	CERT Team (7/20/15)	Off	2360	ALL	29				
+TGID	Tid=275661	TGroupId=18657	CERT Team (7/20/15)	Off	2361	ALL	29				
+TGID	Tid=318823	TGroupId=18657	DC Jail	Off	2149	ALL	37				
+TGID	Tid=268424	TGroupId=18657	DC Jail - Exterior Security	Off	2145	ALL	37				
+TGID	Tid=265332	TGroupId=18657	DC Jail - Interior Security	Off	2147	ALL	37				
+TGID	Tid=265333	TGroupId=18657	DC Jail - Maintenance	Off	2148	ALL	37				
+TGID	Tid=246824	TGroupId=18657	DC National Guard	Off	2179	ALL	30				
+TGID	Tid=233226	TGroupId=18657	DC Protective Services	Off	2177	ALL	33				
+TGID	Tid=272311	TGroupId=18657	DC Water	Off	2206	ALL	14				
+TGID	Tid=277468	TGroupId=18657	DC Water	Off	2208	ALL	14				
+TGID	Tid=383285	TGroupId=18657	DC Water - Gate Security	Off	2113	ALL	33				
+TGID	Tid=268426	TGroupId=18657	DC Water - McMillan Reservoir Security	Off	2207	ALL	14				
+TGID	Tid=272312	TGroupId=18657	DC Water - Security?	Off	2205	ALL	14				
+TGID	Tid=275112	TGroupId=18657	Department of Health	Off	2099	ALL	14				
+TGID	Tid=320521	TGroupId=18657	Department of Health	Off	2150	ALL	14				
+TGID	Tid=268427	TGroupId=18657	Department of Health Emergency Healthcare Radio Network	Off	2305	ALL	12				
+TGID	Tid=326462	TGroupId=18657	Department of Human Services	Off	2143	ALL	14				
+TGID	Tid=268425	TGroupId=18657	Department of Human Services	Off	2151	ALL	14				
+TGID	Tid=318822	TGroupId=18657	Department of Human Services	Off	2152	ALL	14				
+TGID	Tid=269750	TGroupId=18657	Department of Transportation	Off	2157	ALL	14				
+TGID	Tid=268429	TGroupId=18657	Department of Transportation	Off	2161	ALL	14				
+TGID	Tid=239263	TGroupId=18657	Emergency Management Agency	Off	2117	ALL	29				
+TGID	Tid=275846	TGroupId=18657	Fugitive Apprehension	Off	2146	ALL	23				
+TGID	Tid=272424	TGroupId=18657	Health Department? (5/13/15 Drill)	Off	2369	ALL	14				
+TGID	Tid=241570	TGroupId=18657	Library Security	Off	2197	ALL	33				
+TGID	Tid=272510	TGroupId=18657	Motor Pool	Off	2315	ALL	14				
+TGID	Tid=236092	TGroupId=18657	Office of the Chief Medical Examiner	Off	2325	ALL	14				
+TGID	Tid=260387	TGroupId=18657	Paratransit	Off	2229	ALL	26				
+TGID	Tid=260424	TGroupId=18657	Paratransit	Off	2231	ALL	26				
+TGID	Tid=257666	TGroupId=18657	Parking Enforcement	Off	2163	ALL	14				
+TGID	Tid=257762	TGroupId=18657	Parking Enforcement Tac 2	Off	2175	ALL	14				
+TGID	Tid=268428	TGroupId=18657	Parks and Recreation	Off	2203	ALL	14				
+TGID	Tid=322007	TGroupId=18657	Parks and Recreation	Off	2204	ALL	14				
+TGID	Tid=265677	TGroupId=18657	School Police 1	Off	2133	ALL	33				
+TGID	Tid=320522	TGroupId=18657	School Police 2	Off	2121	ALL	33				
+TGID	Tid=277469	TGroupId=18657	Streetcar Ambassadors	Off	2245	ALL	26				
+TGID	Tid=265331	TGroupId=18657	Streetcar Dispatch	Off	2237	ALL	26				
+TGID	Tid=268492	TGroupId=18657	Streetcar Yard	Off	2227	ALL	26				
+TGID	Tid=258174	TGroupId=18657	Taxicab Commission	Off	2505	ALL	14				
+TGID	Tid=260141	TGroupId=18657	Traffic Management Center (TMC)	Off	2225	ALL	14				
+TGID	Tid=326463	TGroupId=18657	Transportation Mutual Aid Radio System (TMARS)	Off	2261	ALL	26				
+TGID	Tid=260142	TGroupId=18657	University of the District of Columbia Police 1	Off	2213	ALL	2				
+TGID	Tid=260425	TGroupId=18657	University of the District of Columbia Police 2	Off	2327	ALL	7				
+TGID	Tid=240422	TGroupId=18657	Water and Sewer Authority 1	Off	2189	ALL	14				
+TGID	Tid=240423	TGroupId=18657	Water and Sewer Authority 2	Off	2191	ALL	14				
+TGID	Tid=240424	TGroupId=18657	Water and Sewer Authority 3	Off	2193	ALL	14				
+T-Group	TGroupId=18320	TrunkId=7508	Systemwide	Off	38.892440	-77.041370	7.0	Circle
+TGID	Tid=233231	TGroupId=18320	RIZ-01 Unified Command Channel 1	Off	166	ALL	11				
+TGID	Tid=233232	TGroupId=18320	RIZ-02 Unified Command Channel 2	Off	167	ALL	11				
+TGID	Tid=233233	TGroupId=18320	RIZ-03 Unified Command Channel 3	Off	2341	ALL	11				
+TGID	Tid=233234	TGroupId=18320	RIZ-04 Unified Command Channel 4	Off	2343	ALL	11				
+TGID	Tid=233235	TGroupId=18320	RIZ-05 Mutual Aid 1	Off	3747	ALL	11				
+TGID	Tid=230497	TGroupId=18320	RIZ-06 Mutual Aid 2 (also DC Interop 1)	Off	3748	ALL	11				
+TGID	Tid=233238	TGroupId=18320	RIZ-07 Mutual Aid Fire 1	Off	621	ALL	11				
+TGID	Tid=233239	TGroupId=18320	RIZ-08 Mutual Aid Fire 2	Off	623	ALL	11				
+TGID	Tid=233241	TGroupId=18320	RIZ-09 Emergency Management Agency 1	Off	2221	ALL	29				
+TGID	Tid=233242	TGroupId=18320	RIZ-10 Emergency Management Agency 2	Off	2223	ALL	29				
+TGID	Tid=233243	TGroupId=18320	RIZ-11 Executive 1 (Senior City Officials)	Off	2102	ALL	14				
+TGID	Tid=233244	TGroupId=18320	RIZ-12 Executive 2 (City Officials)	Off	2103	ALL	14				
+TGID	Tid=233228	TGroupId=18320	RIZ-13 Mutual Aid Secure	Off	1203	ALL	11				
+TGID	Tid=231194	TGroupId=18320	RIZ-14 Spare 1	Off	2353	ALL	11				
+TGID	Tid=230496	TGroupId=18320	RIZ-15 Spare 2	Off	2355	ALL	11				
+TGID	Tid=229680	TGroupId=18320	RIZ-16 MPD Citywide 1	Off	1039	ALL	2				
+Trunk	TrunkId=10522	StateId=11	National Law Enforcement Museum	Off		P25X2_TDMA					
+AreaState	TrunkId=10522	StateId=11
+AreaCounty	TrunkId=10522	CountyId=315
+Site	SiteId=34240	TrunkId=10522	Site 1	Off	38.892440	-77.041370	7.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=34240		Off	856337500	1
+T-Freq	TFreqId=0	SiteId=34240		Off	857337500	2
+T-Freq	TFreqId=0	SiteId=34240		Off	858337500	3
+T-Freq	TFreqId=0	SiteId=34240		Off	859337500	4
+T-Group	TGroupId=28630	TrunkId=10522	All	Off	38.892440	-77.041370	7.0	Circle
+TGID	Tid=341408	TGroupId=28630	Security?	Off	1	ALL	33				
+Trunk	TrunkId=5011	StateId=11	Navy Federal Credit Union	Off		Motorola					
+AreaState	TrunkId=5011	StateId=11
+AreaCounty	TrunkId=5011	CountyId=315
+Site	SiteId=10368	TrunkId=5011	Primary	Off	38.892440	-77.041370	7.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=10368		Off	938200000	1
+T-Freq	TFreqId=0	SiteId=10368		Off	937200000	2
+T-Freq	TFreqId=0	SiteId=10368		Off	935687500	3
+T-Group	TGroupId=10792	TrunkId=5011	All	Off	38.892440	-77.041370	7.0	Circle
+TGID	Tid=219148	TGroupId=10792	BLD MAINT (1-4)	Off	4208	ANALOG	17				
+TGID	Tid=219146	TGroupId=10792	BLD MGT BR (1-1)	Off	4112	ANALOG	17				
+TGID	Tid=141578	TGroupId=10792	BLD OPS SEC (1-2)	Off	4144	ANALOG	17				
+TGID	Tid=219152	TGroupId=10792	BMB SUPERV (1-9)	Off	4368	ANALOG	17				
+TGID	Tid=219161	TGroupId=10792	DATA TECHS (2-3)	Off	4720	ANALOG	17				
+TGID	Tid=219149	TGroupId=10792	ELECTRICAL (1-5)	Off	4240	ANALOG	17				
+TGID	Tid=219151	TGroupId=10792	FCLTY RESRS (1-7)	Off	4304	ANALOG	17				
+TGID	Tid=219150	TGroupId=10792	GROUNDS (1-6)	Off	4272	ANALOG	17				
+TGID	Tid=141581	TGroupId=10792	LAN TECHS (2-6)	Off	4816	ANALOG	17				
+TGID	Tid=141579	TGroupId=10792	MECHANC SEC (1-8)	Off	4336	ANALOG	17				
+TGID	Tid=219153	TGroupId=10792	MOTLEYS (1-10)	Off	4400	ANALOG	17				
+TGID	Tid=141580	TGroupId=10792	NETWORK (2-5)	Off	4784	ANALOG	17				
+TGID	Tid=219167	TGroupId=10792	NURSE (3-3)	Off	5168	ANALOG	17				
+TGID	Tid=219166	TGroupId=10792	SECURITY (3-2)	Off	5136	ANALOG	17				
+TGID	Tid=219155	TGroupId=10792	SPARE 1 (1-12)	Off	4464	ANALOG	17				
+TGID	Tid=219163	TGroupId=10792	SPARE 1 (2-7)	Off	4848	ANALOG	17				
+TGID	Tid=219169	TGroupId=10792	SPARE 1 (3-5)	Off	5232	ANALOG	17				
+TGID	Tid=219156	TGroupId=10792	SPARE 2 (1-13)	Off	4496	ANALOG	17				
+TGID	Tid=219164	TGroupId=10792	SPARE 2 (2-8)	Off	4880	ANALOG	17				
+TGID	Tid=219170	TGroupId=10792	SPARE 2 (3-6)	Off	5264	ANALOG	17				
+TGID	Tid=219157	TGroupId=10792	SPARE 3 (1-14)	Off	4528	ANALOG	17				
+TGID	Tid=219165	TGroupId=10792	SPARE 3 (2-9)	Off	4912	ANALOG	17				
+TGID	Tid=219171	TGroupId=10792	SPARE 3 (3-7)	Off	5296	ANALOG	17				
+TGID	Tid=219168	TGroupId=10792	SUPPLY (3-4)	Off	5200	ANALOG	17				
+TGID	Tid=219159	TGroupId=10792	TELECOM DIV (2-1)	Off	4656	ANALOG	17				
+TGID	Tid=219160	TGroupId=10792	TELECOM SUP (2-2)	Off	4688	ANALOG	17				
+TGID	Tid=219147	TGroupId=10792	TELELIFT (1-3)	Off	4176	ANALOG	17				
+TGID	Tid=219154	TGroupId=10792	TRUCKS (1-11)	Off	4432	ANALOG	17				
+TGID	Tid=219162	TGroupId=10792	VOICE TECHS (2-4)	Off	4752	ANALOG	17				
+Trunk	TrunkId=3390	StateId=11	Washington Hospital Center (LTR)	Off		Ltr					
+AreaState	TrunkId=3390	StateId=11
+AreaCounty	TrunkId=3390	CountyId=315
+Site	SiteId=5475	TrunkId=3390	Confirmed LCN	Off	38.928800	-77.014140	1.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=5475		Off	451725000	3
+T-Freq	TFreqId=0	SiteId=5475		Off	452650000	7
+T-Freq	TFreqId=0	SiteId=5475		Off	461600000	11
+T-Freq	TFreqId=0	SiteId=5475		Off	463800000	15
+T-Freq	TFreqId=0	SiteId=5475		Off	464850000	19
+T-Group	TGroupId=8890	TrunkId=3390	All	Off	38.928800	-77.014140	1.0	Circle
+TGID	Tid=211347	TGroupId=8890	Administration?	Off	0-15-008	ALL	17				
+TGID	Tid=99509	TGroupId=8890	Engineering	Off	0-03-017	ALL	17				
+TGID	Tid=99510	TGroupId=8890	Engineering	Off	0-03-018	ALL	17				
+TGID	Tid=211983	TGroupId=8890	Engineering	Off	0-03-019	ALL	17				
+TGID	Tid=233006	TGroupId=8890	Engineering	Off	0-03-020	ALL	17				
+TGID	Tid=231323	TGroupId=8890	Engineering	Off	0-03-021	ALL	17				
+TGID	Tid=239265	TGroupId=8890	Environmental Services?	Off	0-07-001	ALL	17				
+TGID	Tid=99511	TGroupId=8890	Security	Off	0-15-001	ALL	33				
+TGID	Tid=211982	TGroupId=8890	Security Alternate?	Off	0-15-002	ALL	33				

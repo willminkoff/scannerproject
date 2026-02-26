@@ -1,0 +1,1668 @@
+TargetModel	HomePatrol-1
+FormatVersion	2.04
+Conventional	CountyId=3124	StateId=56	Albany	Off		Conventional
+AreaState	CountyId=3124	StateId=56
+AreaCounty	CountyId=3124	CountyId=3124
+C-Group	CGroupId=24685	CountyId=3124	Albany County	Off	41.666640	-105.700550	55.0	Circle
+C-Freq	CFreqId=174829	CGroupId=24685	Albany County Fire/EMS Dispatch/Paging	Off	155115000	NFM		3					
+C-Freq	CFreqId=186231	CGroupId=24685	Albany County Fireground	Off	154310000	NFM		8					
+C-Freq	CFreqId=326937	CGroupId=24685	Albany County School Buses (OLD)	Off	154515000	NFM		32					
+C-Freq	CFreqId=91245	CGroupId=24685	Albany County Sheriff	Off	155760000	NFM	TONE=C114.8	2					
+C-Group	CGroupId=24687	CountyId=3124	Albany County - Laramie	Off	41.311370	-105.591100	5.0	Circle
+C-Freq	CFreqId=152691	CGroupId=24687	Laramie Fireground	Off	154430000	NFM	TONE=C192.8	8					
+C-Freq	CFreqId=198336	CGroupId=24687	Laramie Ivinson Memorial Hospital	Off	461450000	NFM	TONE=D263	17					
+C-Freq	CFreqId=299822	CGroupId=24687	Laramie Mosquito Control	Off	154055000	NFM	TONE=C192.8	14					
+C-Freq	CFreqId=174828	CGroupId=24687	Laramie Services	Off	154055000	NFM		14					
+C-Freq	CFreqId=397669	CGroupId=24687	Laramie Water Dept and Animal Control	Off	155115000	NFM		14					
+C-Group	CGroupId=24688	CountyId=3124	Albany County - University of Wyoming	Off	41.313090	-105.580380	1.0	Circle
+C-Freq	CFreqId=100201	CGroupId=24688	University of Wyoming Activities	Off	155055000	NFM		32					
+C-Freq	CFreqId=101314	CGroupId=24688	University of Wyoming Events	Off	155865000	NFM	TONE=C100.0	32					
+C-Freq	CFreqId=205257	CGroupId=24688	University of Wyoming Jelm Peak Observatory	Off	453475000	NFM	TONE=C107.2	32					
+C-Freq	CFreqId=348312	CGroupId=24688	University of Wyoming Landmark Security / Stadium Security	Off	457525000	NFM	TONE=D732	33					
+C-Freq	CFreqId=361025	CGroupId=24688	University of Wyoming Maintenance	Off	158745000	NFM	TONE=D155	32					
+C-Freq	CFreqId=397666	CGroupId=24688	University of Wyoming Operations	Off	460450000	NFM	TONE=D025	14					
+C-Freq	CFreqId=101315	CGroupId=24688	University of Wyoming Transit Bus	Off	154980000	NFM	TONE=C141.3	32					
+C-Group	CGroupId=66218	CountyId=3124	Albany County Amateur Radio - Repeaters	Off	41.666640	-105.700550	55.0	Circle
+C-Freq	CFreqId=332997	CGroupId=66218	Centennial	Off	447025000	NFM	TONE=C131.8	13					
+C-Freq	CFreqId=350872	CGroupId=66218	Jelm Mountain	Off	147015000	FM	TONE=C146.2	13					
+C-Freq	CFreqId=273083	CGroupId=66218	Laramie - University of Wyoming	Off	146610000	FM		13					
+C-Freq	CFreqId=280391	CGroupId=66218	Laramie - Wy Club	Off	146820000	FM	TONE=C114.8	13					
+Conventional	CountyId=3125	StateId=56	Big Horn	Off		Conventional
+AreaState	CountyId=3125	StateId=56
+AreaCounty	CountyId=3125	CountyId=3125
+C-Group	CGroupId=40152	CountyId=3125	Big Horn County	Off	44.567340	-107.861790	45.0	Circle
+C-Freq	CFreqId=210061	CGroupId=40152	Big Horn County Fire District 5	Off	155062500	NFM	TONE=C100.0	3					
+C-Freq	CFreqId=160229	CGroupId=40152	Big Horn County Public Safety	Off	154995000	NFM	TONE=C110.9	23					
+C-Freq	CFreqId=160242	CGroupId=40152	Big Horn County Sheriff	Off	154725000	NFM	TONE=C100.0	23					
+C-Freq	CFreqId=160228	CGroupId=40152	Big Horn County Sheriff Dispatch	Off	155625000	NFM	TONE=C107.2	2					
+C-Freq	CFreqId=160249	CGroupId=40152	Big Horn County Sheriff Search & Rescue	Off	156090000	NFM		23					
+C-Group	CGroupId=40155	CountyId=3125	Big Horn County - Basin	Off	44.378560	-108.043720	5.0	Circle
+C-Freq	CFreqId=160237	CGroupId=40155	Basin Fire Dispatch	Off	154235000	NFM		3					
+C-Freq	CFreqId=160246	CGroupId=40155	Basin Police	Off	154800000	NFM		23					
+C-Freq	CFreqId=160247	CGroupId=40155	Basin Police Dispatch	Off	155250000	NFM		2					
+C-Freq	CFreqId=160248	CGroupId=40155	Basin Police Tactical	Off	154740000	NFM		7					
+C-Freq	CFreqId=160231	CGroupId=40155	Basin Police/Fire/Public Works	Off	154965000	NFM		1					
+C-Group	CGroupId=40160	CountyId=3125	Big Horn County - Byron	Off	44.795570	-108.501860	2.0	Circle
+C-Freq	CFreqId=160243	CGroupId=40160	Byron Fire	Off	154430000	NFM	TONE=C100.0	3					
+C-Freq	CFreqId=160240	CGroupId=40160	Byron Solid Waste/Water	Off	155955000	NFM		14					
+C-Freq	CFreqId=160239	CGroupId=40160	Byron/Lovell Police	Off	155010000	NFM	TONE=C123.0	2					
+C-Freq	CFreqId=160232	CGroupId=40160	Lovell EMS	Off	152007500	NFM		25					
+C-Freq	CFreqId=160233	CGroupId=40160	Lovell EMS	Off	155280000	NFM		25					
+C-Group	CGroupId=40159	CountyId=3125	Big Horn County - Deaver	Off	44.895000	-108.597000	2.0	Circle
+C-Freq	CFreqId=160238	CGroupId=40159	Deaver Public Works	Off	156015000	NFM		14					
+C-Group	CGroupId=40153	CountyId=3125	Big Horn County - Greybull	Off	44.488280	-108.052610	5.0	Circle
+C-Freq	CFreqId=160234	CGroupId=40153	Greybull Police	Off	154800000	NFM		2					
+C-Freq	CFreqId=160227	CGroupId=40153	Greybull Public Works	Off	154980000	NFM		14					
+C-Group	CGroupId=77691	CountyId=3125	Big Horn County - Lovell	Off	44.836750	-108.389140	5.0	Circle
+C-Freq	CFreqId=160230	CGroupId=77691	Lovell Solid Waste/Water	Off	155100000	NFM	TONE=C85.4	14					
+C-Group	CGroupId=66221	CountyId=3125	Big Horn County Amateur Radio - Repeaters	Off	44.520320	-107.916720	43.0	Circle
+C-Freq	CFreqId=333951	CGroupId=66221	Meadow Lark Lake (Tensleep, 9,300 ft.)	Off	147375000	FM	TONE=C110.9	13					
+C-Freq	CFreqId=333952	CGroupId=66221	Medicine Wheel (Bighorn Mountains)	Off	147165000	FM	TONE=C103.5	13					
+C-Freq	CFreqId=333953	CGroupId=66221	Tatman Mountain (Burlington)	Off	147210000	FM	TONE=C123.0	13					
+C-Freq	CFreqId=333950	CGroupId=66221	Torchlight (Basin)	Off	146610000	FM	TONE=C103.5	13					
+Conventional	CountyId=3126	StateId=56	Campbell	Off		Conventional
+AreaState	CountyId=3126	StateId=56
+AreaCounty	CountyId=3126	CountyId=3126
+C-Group	CGroupId=10438	CountyId=3126	Campbell County	Off	44.265230	-105.499730	50.0	Circle
+C-Freq	CFreqId=177773	CGroupId=10438	Campbell County Emergency Management	Off	155880000	NFM	TONE=C173.8	29					
+C-Freq	CFreqId=40218	CGroupId=10438	Campbell County EMS 1 Dispatch	Off	155295000	NFM		4					
+C-Freq	CFreqId=252268	CGroupId=10438	Campbell County EMS 2	Off	152007500	NFM		25					
+C-Freq	CFreqId=252269	CGroupId=10438	Campbell County EMS 3	Off	155340000	NFM		25					
+C-Freq	CFreqId=252270	CGroupId=10438	Campbell County EMS Life Flight Helicopter	Off	462450000	NFM		25					
+C-Freq	CFreqId=40215	CGroupId=10438	Campbell County Fire Dispatch (WyoLink TG 14909)	Off	153950000	NFM		3					
+C-Freq	CFreqId=136522	CGroupId=10438	Campbell County Fire Tactical	Off	154220000	NFM		8					
+C-Freq	CFreqId=177774	CGroupId=10438	Campbell County Schools	Off	155775000	NFM		32					
+C-Freq	CFreqId=40213	CGroupId=10438	Campbell County Sheriff	Off	154845000	NFM	TONE=C107.2	2					
+C-Group	CGroupId=10439	CountyId=3126	Campbell County - Gillette	Off	44.290250	-105.501940	5.0	Circle
+C-Freq	CFreqId=177992	CGroupId=10439	Gillette Electric	Off	453275000	NFM		34					
+C-Freq	CFreqId=177994	CGroupId=10439	Gillette Parks & Recreation	Off	453975000	NFM		14					
+C-Freq	CFreqId=40217	CGroupId=10439	Gillette Police 1	Off	155565000	NFM	TONE=C100.0	2					
+C-Freq	CFreqId=40216	CGroupId=10439	Gillette Police 2	Off	155370000	NFM	TONE=C100.0	23					
+C-Freq	CFreqId=177991	CGroupId=10439	Gillette Public Works Primary	Off	155745000	NFM	TONE=C97.4	14					
+C-Freq	CFreqId=177997	CGroupId=10439	Sheridan College Gillette Campus	Off	451500000	NFM		32					
+C-Group	CGroupId=65947	CountyId=3126	Campbell County Amateur Radio - Repeaters	Off	44.300000	-105.600000	55.0	Circle
+C-Freq	CFreqId=271941	CGroupId=65947	Bliss Ranch	Off	147270000	FM		13					
+C-Freq	CFreqId=271942	CGroupId=65947	Gillette	Off	147360000	FM		13					
+C-Freq	CFreqId=271944	CGroupId=65947	Gillette - IRLP	Off	449750000	FM		13					
+C-Freq	CFreqId=271943	CGroupId=65947	Wright	Off	449200000	FM		13					
+Conventional	CountyId=3127	StateId=56	Carbon	Off		Conventional
+AreaState	CountyId=3127	StateId=56
+AreaCounty	CountyId=3127	CountyId=3127
+C-Group	CGroupId=24684	CountyId=3127	Carbon County	Off	41.666630	-106.833930	65.0	Circle
+C-Freq	CFreqId=198466	CGroupId=24684	Carbon County Fire Dispatch	Off	155805000	NFM	TONE=C100.0	3					
+C-Freq	CFreqId=308874	CGroupId=24684	Carbon County Fire Dispatch P25	Off	155805000	NFM	NAC=F00	3					
+C-Freq	CFreqId=308875	CGroupId=24684	Carbon County Roads	Off	153875000	NFM	TONE=C114.8	14					
+C-Freq	CFreqId=101305	CGroupId=24684	Carbon County Sheriff Dispatch	Off	155520000	NFM	TONE=C107.2	1					
+C-Freq	CFreqId=308873	CGroupId=24684	Carbon County Sheriff Dispatch P25	Off	155520000	NFM	NAC=C00	2					
+C-Freq	CFreqId=198474	CGroupId=24684	Carbon County Sheriff Jail	Off	155835000	NFM	TONE=C114.8	37					
+C-Freq	CFreqId=198472	CGroupId=24684	Carbon County Sheriff Tactical 1	Off	155670000	NFM		37					
+C-Freq	CFreqId=101306	CGroupId=24684	South Central Wyoming EMS	Off	154385000	NFM	TONE=C131.8	4					
+C-Group	CGroupId=48883	CountyId=3127	Carbon County - Baggs	Off	41.035800	-107.657570	5.0	Circle
+C-Freq	CFreqId=198467	CGroupId=48883	Baggs Fire Dispatch	Off	154190000	NFM		3					
+C-Freq	CFreqId=198471	CGroupId=48883	Baggs Police 2	Off	154905000	NFM		23					
+C-Freq	CFreqId=198470	CGroupId=48883	Baggs Police 3	Off	155085000	NFM		23					
+C-Freq	CFreqId=198468	CGroupId=48883	Baggs Police Dispatch	Off	154800000	NFM		2					
+C-Group	CGroupId=48884	CountyId=3127	Carbon County - Elk Mountain	Off	41.687460	-106.413350	5.0	Circle
+C-Freq	CFreqId=198475	CGroupId=48884	Elk Mountain Fire	Off	154205000	NFM		8					
+C-Group	CGroupId=48885	CountyId=3127	Carbon County - Encampment	Off	41.209410	-106.789760	5.0	Circle
+C-Freq	CFreqId=198476	CGroupId=48885	Encampment Citywide Common	Off	154055000	NFM		22					
+C-Freq	CFreqId=308877	CGroupId=48885	Encampment Fire	Off	154055000	NFM	TONE=C131.8	3					
+C-Freq	CFreqId=308876	CGroupId=48885	Encampment Police	Off	155595000	NFM	TONE=C162.2	2					
+C-Group	CGroupId=26718	CountyId=3127	Carbon County - Hanna	Off	41.869960	-106.561970	5.0	Circle
+C-Freq	CFreqId=198477	CGroupId=26718	Hanna Police	Off	154800000	NFM	TONE=C123.0	2					
+C-Freq	CFreqId=308878	CGroupId=26718	Hanna Police P25	Off	154800000	NFM	NAC=123	2					
+C-Freq	CFreqId=157988	CGroupId=26718	Hanna Public Works	Off	155880000	NFM		14					
+C-Group	CGroupId=48886	CountyId=3127	Carbon County - Medicine Bow	Off	41.895520	-106.204740	5.0	Circle
+C-Freq	CFreqId=198479	CGroupId=48886	Medicine Bow Public Works	Off	155955000	NFM		14					
+C-Group	CGroupId=26719	CountyId=3127	Carbon County - Rawlins	Off	41.791070	-107.238660	5.0	Circle
+C-Freq	CFreqId=198481	CGroupId=26719	Memorial Hospital of Carbon County 1	Off	155355000	NFM		4					
+C-Freq	CFreqId=198485	CGroupId=26719	Rawlins Fire Dispatch	Off	155025000	NFM	TONE=C173.8	3					
+C-Freq	CFreqId=101308	CGroupId=26719	Rawlins Police 1	Off	155070000	NFM	TONE=C100.0	2					
+C-Freq	CFreqId=308879	CGroupId=26719	Rawlins Police 1 P25	Off	155070000	NFM	NAC=293	2					
+C-Freq	CFreqId=101307	CGroupId=26719	Rawlins Police 2	Off	154800000	NFM	TONE=C123.0	23					
+C-Freq	CFreqId=198483	CGroupId=26719	Rawlins Police 3	Off	159150000	NFM		23					
+C-Freq	CFreqId=198482	CGroupId=26719	Rawlins Public Works	Off	158805000	NFM	TONE=C107.2	14					
+C-Group	CGroupId=48889	CountyId=3127	Carbon County - Saratoga	Off	41.454960	-106.806430	5.0	Circle
+C-Freq	CFreqId=198486	CGroupId=48889	Saratoga Fire	Off	154445000	NFM	TONE=C100.0	3					
+C-Freq	CFreqId=198487	CGroupId=48889	Saratoga Fire 2	Off	158820000	NFM		8					
+C-Freq	CFreqId=198488	CGroupId=48889	Saratoga Police	Off	154800000	NFM	TONE=C114.8	2					
+C-Freq	CFreqId=308881	CGroupId=48889	Saratoga Police P25	Off	154800000	NFM	NAC=114	2					
+C-Freq	CFreqId=198490	CGroupId=48889	Saratoga Public Works	Off	155100000	NFM		14					
+C-Group	CGroupId=39627	CountyId=3127	Carbon County - Sinclair	Off	41.774960	-107.113100	5.0	Circle
+C-Freq	CFreqId=157989	CGroupId=39627	Sinclair Fire	Off	154445000	NFM	TONE=C131.8	3					
+C-Group	CGroupId=66220	CountyId=3127	Carbon County Amateur Radio - Repeaters	Off	41.666630	-106.833930	65.0	Circle
+C-Freq	CFreqId=328220	CGroupId=66220	Rawlins - CCARC	Off	147760000	FM		13					
+C-Freq	CFreqId=328219	CGroupId=66220	Rawlins - IRLP 7045	Off	146700000	FM	TONE=C162.2	13					
+C-Freq	CFreqId=273088	CGroupId=66220	Rawlins - WYO-COMM UHF	Off	449800000	FM	TONE=C146.2	13					
+C-Freq	CFreqId=273087	CGroupId=66220	Rawlins - WYO-COMM VHF	Off	147390000	FM		13					
+C-Freq	CFreqId=328221	CGroupId=66220	Saratoga - CCARC	Off	147240000	FM	TONE=C100.0	13					
+Conventional	CountyId=3128	StateId=56	Converse	Off		Conventional
+AreaState	CountyId=3128	StateId=56
+AreaCounty	CountyId=3128	CountyId=3128
+C-Group	CGroupId=14924	CountyId=3128	Converse County	Off	43.000000	-105.500000	45.0	Circle
+C-Freq	CFreqId=295235	CGroupId=14924	Emergency Management	Off	155100000	NFM		29					
+C-Freq	CFreqId=55391	CGroupId=14924	Fire	Off	154445000	NFM	TONE=C107.2	3					
+C-Freq	CFreqId=68802	CGroupId=14924	Highway Dept. / Rural Fire Ops	Off	45200000	NFM		22					
+C-Freq	CFreqId=55387	CGroupId=14924	Sheriff	Off	155415000	NFM	TONE=C118.8	2					
+C-Group	CGroupId=14925	CountyId=3128	Converse County - Douglas	Off	42.759970	-105.382470	5.0	Circle
+C-Freq	CFreqId=55388	CGroupId=14925	EMS Paging	Off	155085000	NFM		4					
+C-Freq	CFreqId=55389	CGroupId=14925	Police	Off	154800000	NFM		23					
+C-Freq	CFreqId=55390	CGroupId=14925	Police Dispatch (mixed analog and P25)	Off	155595000	NFM	TONE=C103.5	2					
+C-Group	CGroupId=46050	CountyId=3128	Converse County - Glenrock	Off	42.853500	-105.859720	5.0	Circle
+C-Freq	CFreqId=287655	CGroupId=46050	Fire	Off	154340000	FM		3					
+C-Freq	CFreqId=186985	CGroupId=46050	Police	Off	159150000	NFM	TONE=C88.5	2					
+C-Group	CGroupId=72399	CountyId=3128	Converse County Amateur Radio - Repeaters	Off	43.000000	-105.500000	45.0	Circle
+C-Freq	CFreqId=301622	CGroupId=72399	Douglas	Off	147150000	NFM		13					
+Conventional	CountyId=3129	StateId=56	Crook	Off		Conventional
+AreaState	CountyId=3129	StateId=56
+AreaCounty	CountyId=3129	CountyId=3129
+C-Group	CGroupId=27164	CountyId=3129	Crook County	Off	44.600000	-104.600000	40.0	Circle
+C-Freq	CFreqId=279468	CGroupId=27164	Crook County - Pine Haven Fire	Off	154175000	NFM		8					
+C-Freq	CFreqId=279469	CGroupId=27164	Crook County EMS	Off	156165000	NFM	TONE=C94.8	4					
+C-Freq	CFreqId=104454	CGroupId=27164	Crook County Fire/EMS	Off	154325000	NFM	TONE=C107.2	3					
+C-Freq	CFreqId=279466	CGroupId=27164	Crook County Roads/Fire Backup	Off	156240000	NFM	TONE=C156.7	14					
+C-Freq	CFreqId=104455	CGroupId=27164	Crook County Sheriff	Off	158790000	NFM	TONE=C210.7	2					
+C-Group	CGroupId=34505	CountyId=3129	Crook County - Moorcroft	Off	44.265300	-104.953300	5.0	Circle
+C-Freq	CFreqId=385655	CGroupId=34505	Moorcroft Ambulance	Off	155925000	NFM		9					
+C-Freq	CFreqId=385654	CGroupId=34505	Moorcroft Fire & EMS Paging (Repeats county 154.325)	Off	152007500	NFM		3					
+C-Freq	CFreqId=136521	CGroupId=34505	Moorcroft Police	Off	155250000	NFM	TONE=C141.3	2					
+C-Group	CGroupId=65508	CountyId=3129	Crook County - Sundance	Off	44.400600	-104.374600	5.0	Circle
+C-Freq	CFreqId=270412	CGroupId=65508	Sundance Police	Off	155625000	NFM		2					
+C-Group	CGroupId=65946	CountyId=3129	Crook County Amateur Radio - Repeaters	Off	44.600000	-104.600000	40.0	Circle
+C-Freq	CFreqId=271940	CGroupId=65946	Warren Peak	Off	146790000	FM		13					
+Conventional	CountyId=3130	StateId=56	Fremont	Off		Conventional
+AreaState	CountyId=3130	StateId=56
+AreaCounty	CountyId=3130	CountyId=3130
+C-Group	CGroupId=36188	CountyId=3130	Fremont County	Off	42.973230	-108.958450	75.0	Circle
+C-Freq	CFreqId=360040	CGroupId=36188	Fremont County EMS Portable Extender	Off	173250000	NFM	TONE=C127.3	9					
+C-Freq	CFreqId=226450	CGroupId=36188	Fremont County Fire North	Off	155865000	NFM	TONE=C131.8	3					
+C-Freq	CFreqId=186984	CGroupId=36188	Fremont County Fire South	Off	155115000	NFM	TONE=C107.2	3					
+C-Freq	CFreqId=360038	CGroupId=36188	Fremont County Fire Tac 3	Off	154250000	NFM		8					
+C-Freq	CFreqId=346521	CGroupId=36188	Fremont County Fire/EMS Dispatch	Off	157740000	NFM		3					
+C-Freq	CFreqId=300367	CGroupId=36188	Fremont County Fire/EMS Dispatch	Off	453162500	NFM	TONE=C146.2	3					
+C-Freq	CFreqId=240038	CGroupId=36188	Fremont County Jail	Off	155805000	NFM	TONE=C131.8	37					
+C-Freq	CFreqId=226451	CGroupId=36188	Fremont County Multi Dispatch East	Off	155565000	NFM	TONE=C127.3	1					
+C-Freq	CFreqId=226452	CGroupId=36188	Fremont County Multi Dispatch West	Off	155565000	NFM	TONE=C114.8	1					
+C-Freq	CFreqId=226449	CGroupId=36188	Fremont County Sheriff 1	Off	151115000	NFM	TONE=C127.3	2					
+C-Freq	CFreqId=396699	CGroupId=36188	Fremont County Sheriff 1 (multiple tones)	Off	151115000	NFM	TONE=C100.0	2					
+C-Freq	CFreqId=141285	CGroupId=36188	Fremont County Sheriff 2	Off	155835000	NFM		23					
+C-Freq	CFreqId=360039	CGroupId=36188	Fremont County Sheriff Portable Extender	Off	173225000	NFM	TONE=C127.3	7					
+C-Freq	CFreqId=240037	CGroupId=36188	Fremont County Utilities	Off	154400000	NFM	TONE=C107.2	14					
+C-Freq	CFreqId=319259	CGroupId=36188	Wind River Transportation Authority	Off	158865000	NFM	TONE=C91.5	26					
+C-Group	CGroupId=54296	CountyId=3130	Fremont County - Lander	Off	42.836360	-108.729000	5.0	Circle
+C-Freq	CFreqId=240039	CGroupId=54296	Lander City Maintenance	Off	154980000	NFM		14					
+C-Freq	CFreqId=240041	CGroupId=54296	Lander EMS	Off	155340000	NFM		4					
+C-Freq	CFreqId=225366	CGroupId=54296	Lander Police	Off	155535000	NFM	TONE=C100.0	2					
+C-Freq	CFreqId=360137	CGroupId=54296	Lander Police Vehicle Extender	Off	173325000	NFM	TONE=C127.3	7					
+C-Freq	CFreqId=240042	CGroupId=54296	Lander Senior Center	Off	151715000	NFM	TONE=D125	26					
+C-Group	CGroupId=54566	CountyId=3130	Fremont County - Riverton	Off	43.032190	-108.382060	5.0	Circle
+C-Freq	CFreqId=350061	CGroupId=54566	Central Wyoming College	Off	152330000	NFM	TONE=C146.2	32					
+C-Freq	CFreqId=379490	CGroupId=54566	Riverton Fire Paging	Off	154430000	NFM		3					
+C-Freq	CFreqId=226448	CGroupId=54566	Riverton Police 1	Off	155565000	NFM	TONE=C114.8	2					
+C-Freq	CFreqId=273331	CGroupId=54566	Riverton Police 2	Off	154800000	NFM	TONE=C107.2	23					
+C-Freq	CFreqId=360138	CGroupId=54566	Riverton Police Vehicle Extender	Off	173325000	NFM	TONE=C127.3	7					
+C-Freq	CFreqId=319260	CGroupId=54566	Riverton School Bus	Off	155175000	NFM	TONE=C127.3	32					
+C-Group	CGroupId=65968	CountyId=3130	Fremont County Amateur Radio - Repeaters	Off	42.900000	-108.500000	50.0	Circle
+C-Freq	CFreqId=273338	CGroupId=65968	Copper Mountain - Fremont Link	Off	443675000	FM		13					
+C-Freq	CFreqId=272066	CGroupId=65968	Dubois	Off	146820000	FM	TONE=C100.0	13					
+C-Freq	CFreqId=273337	CGroupId=65968	Lander	Off	145445000	FM	TONE=C110.9	13					
+C-Freq	CFreqId=367314	CGroupId=65968	Lander	Off	444375000	FM		13					
+C-Freq	CFreqId=273332	CGroupId=65968	Lander - Boysen Peak	Off	147060000	FM	TONE=C107.2	13					
+C-Freq	CFreqId=272065	CGroupId=65968	Riverton	Off	145115000	FM	TONE=C100.0	13					
+C-Freq	CFreqId=273333	CGroupId=65968	Riverton - Boysen Peak	Off	147060000	FM	TONE=C107.2	13					
+C-Freq	CFreqId=273334	CGroupId=65968	Riverton - Boysen Peak UHF	Off	449900000	FM	TONE=D261	13					
+C-Freq	CFreqId=349110	CGroupId=65968	Riverton - Linked to 147.555, 52.525, 29.600	Off	441670000	FM		13					
+C-Freq	CFreqId=367312	CGroupId=65968	Shoshone-Linked to 146.805 Copper Mtn	Off	443400000	FM		13					
+C-Freq	CFreqId=272067	CGroupId=65968	Shoshoni - NWARC WY	Off	146805000	FM	TONE=C100.0	13					
+C-Freq	CFreqId=367313	CGroupId=65968	Southpass - Linked 146.805 Copper Mtn	Off	147000000	FM		13					
+C-Group	CGroupId=75469	CountyId=3130	Fremont County Amateur Radio - Simplex	Off	43.157000	-108.780000	90.0	Circle
+C-Freq	CFreqId=273335	CGroupId=75469	Fremont County Simplex 1	Off	147555000	FM		13					
+C-Freq	CFreqId=367316	CGroupId=75469	Riverton - Lander Simplex 2	Off	146550000	FM		13					
+Conventional	CountyId=3131	StateId=56	Goshen	Off		Conventional
+AreaState	CountyId=3131	StateId=56
+AreaCounty	CountyId=3131	CountyId=3131
+C-Group	CGroupId=17330	CountyId=3131	Goshen County	Off	42.100000	-104.400000	36.0	Circle
+C-Freq	CFreqId=63812	CGroupId=17330	Fire/EMS North Paging	Off	154205000	NFM	TONE=C173.8	3					
+C-Freq	CFreqId=63814	CGroupId=17330	Fire/EMS South Paging	Off	154205000	NFM	TONE=C100.0	3					
+C-Freq	CFreqId=132002	CGroupId=17330	Irrigation District	Off	153470000	NFM	TONE=C192.8	14					
+C-Freq	CFreqId=210064	CGroupId=17330	LaGrange Rural Fire District	Off	154415000	NFM		3					
+C-Freq	CFreqId=255003	CGroupId=17330	Lingle/Ft. Laramie Fire/EMS Paging	Off	154205000	NFM	TONE=C123.0	3					
+C-Freq	CFreqId=63807	CGroupId=17330	Police - Wheatland/Torrington	Off	155415000	NFM	TONE=C151.4	2					
+C-Freq	CFreqId=89909	CGroupId=17330	School District - Buses	Off	154980000	NFM	TONE=D365	32					
+C-Freq	CFreqId=75777	CGroupId=17330	Sheriff	Off	155085000	NFM		2					
+C-Freq	CFreqId=75778	CGroupId=17330	Sheriff Jail	Off	158790000	NFM		37					
+C-Freq	CFreqId=89908	CGroupId=17330	Weed and Pest	Off	156180000	NFM	TONE=C192.8	14					
+C-Group	CGroupId=33612	CountyId=3131	Goshen County - Lingle	Off	42.135450	-104.345150	5.0	Circle
+C-Freq	CFreqId=132319	CGroupId=33612	Fire	Off	154235000	NFM		3					
+C-Freq	CFreqId=132320	CGroupId=33612	Maintenance	Off	153815000	NFM		14					
+C-Group	CGroupId=17332	CountyId=3131	Goshen County - Torrington	Off	42.062080	-104.185160	5.0	Circle
+C-Freq	CFreqId=75779	CGroupId=17332	Eastern Wyoming College	Off	453625000	NFM	TONE=C156.7	32					
+C-Freq	CFreqId=226551	CGroupId=17332	EMS	Off	155355000	NFM		9					
+C-Freq	CFreqId=63808	CGroupId=17332	Fire	Off	154145000	NFM		3					
+C-Freq	CFreqId=75776	CGroupId=17332	Maintenance	Off	158805000	NFM	TONE=C127.3	14					
+C-Freq	CFreqId=63810	CGroupId=17332	Police Car/Car	Off	155535000	NFM		23					
+C-Freq	CFreqId=91190	CGroupId=17332	Senior Center Bus Dispatch	Off	154570000	NFM	TONE=C110.9	26					
+C-Freq	CFreqId=255004	CGroupId=17332	Torrington Fire/EMS Paging	Off	154205000	NFM	TONE=C210.7	3					
+C-Freq	CFreqId=91191	CGroupId=17332	Torrington Middle School	Off	159660000	NFM	TONE=D155	32					
+C-Freq	CFreqId=63809	CGroupId=17332	Torrington/Lingle Police	Off	154800000	NFM	TONE=C173.8	2					
+Conventional	CountyId=3132	StateId=56	Hot Springs	Off		Conventional
+AreaState	CountyId=3132	StateId=56
+AreaCounty	CountyId=3132	CountyId=3132
+C-Group	CGroupId=40161	CountyId=3132	Hot Springs County	Off	43.700000	-108.400000	45.0	Circle
+C-Freq	CFreqId=160252	CGroupId=40161	Hot Springs County EMS 1	Off	152007500	NFM		25					
+C-Freq	CFreqId=160254	CGroupId=40161	Hot Springs County EMS 2	Off	155340000	NFM		25					
+C-Freq	CFreqId=160253	CGroupId=40161	Hot Springs County EMS Ambulance-to-Hospital	Off	155280000	NFM		12					
+C-Freq	CFreqId=287653	CGroupId=40161	Hot Springs County Fire 1	Off	151070000	NFM		24					
+C-Freq	CFreqId=287654	CGroupId=40161	Hot Springs County Fire 2	Off	153860000	NFM		24					
+C-Freq	CFreqId=160251	CGroupId=40161	Hot Springs County Highway Dept.	Off	155055000	NFM	TONE=C107.2	14					
+C-Freq	CFreqId=160255	CGroupId=40161	Hot Springs County Sheriff Dispatch	Off	155430000	NFM	TONE=C107.2	2					
+C-Freq	CFreqId=160256	CGroupId=40161	Hot Springs County Sheriff Tactical	Off	155565000	NFM	TONE=C127.3	7					
+C-Freq	CFreqId=160257	CGroupId=40161	Hot Springs County Sheriff Vehicle Repeaters	Off	159150000	NFM		2					
+C-Group	CGroupId=40164	CountyId=3132	Hot Springs County - Thermopolis	Off	43.648830	-108.208170	5.0	Circle
+C-Freq	CFreqId=283243	CGroupId=40164	Thermopolis Fire Dispatch	Off	154415000	NFM		3					
+C-Freq	CFreqId=160259	CGroupId=40164	Thermopolis Police Dispatch	Off	154800000	NFM	TONE=C107.2	2					
+C-Freq	CFreqId=160250	CGroupId=40164	Thermopolis Schools	Off	152420000	NFM		32					
+C-Group	CGroupId=66223	CountyId=3132	Hot Springs County Amateur Radio - Repeaters	Off	43.700000	-108.400000	45.0	Circle
+C-Freq	CFreqId=273092	CGroupId=66223	Thermopolis - WYAME	Off	449900000	FM		13					
+Conventional	CountyId=3133	StateId=56	Johnson	Off		Conventional
+AreaState	CountyId=3133	StateId=56
+AreaCounty	CountyId=3133	CountyId=3133
+C-Group	CGroupId=34536	CountyId=3133	Johnson County	Off	44.000000	-106.600000	45.0	Circle
+C-Freq	CFreqId=178001	CGroupId=34536	Johnson County Fire 1	Off	154325000	NFM	TONE=C114.8	3					
+C-Freq	CFreqId=178002	CGroupId=34536	Johnson County Fire 2	Off	154100000	NFM	TONE=C114.8	8					
+C-Freq	CFreqId=178003	CGroupId=34536	Johnson County Roads	Off	151115000	NFM	TONE=C127.3	14					
+C-Freq	CFreqId=396700	CGroupId=34536	Johnson County SAR Dispatch	Off	151115000	NFM	TONE=C114.8	1					
+C-Freq	CFreqId=178004	CGroupId=34536	Johnson County Schools 1	Off	155385000	NFM	TONE=C97.4	32					
+C-Freq	CFreqId=178005	CGroupId=34536	Johnson County Schools 2	Off	155835000	NFM	TONE=C141.3	32					
+C-Freq	CFreqId=178006	CGroupId=34536	Johnson County Schools 3	Off	155235000	NFM		32					
+C-Freq	CFreqId=276784	CGroupId=34536	Johnson County Search & Rescue	Off	155160000	NFM	TONE=C114.8	29					
+C-Freq	CFreqId=136639	CGroupId=34536	Johnson County Sheriff	Off	155070000	NFM	TONE=C114.8	2					
+C-Group	CGroupId=34535	CountyId=3133	Johnson County - Buffalo	Off	44.352000	-106.698000	5.0	Circle
+C-Freq	CFreqId=178007	CGroupId=34535	Buffalo Fire	Off	155220000	NFM	TONE=C97.4	3					
+C-Freq	CFreqId=136638	CGroupId=34535	Buffalo Police	Off	155310000	NFM	TONE=C97.4	2					
+C-Group	CGroupId=69826	CountyId=3133	Johnson County - Kaycee	Off	43.711920	-106.636820	5.0	Circle
+C-Freq	CFreqId=287620	CGroupId=69826	Kaycee Fire	Off	154430000	NFM		3					
+C-Group	CGroupId=65969	CountyId=3133	Johnson County Amateur Radio - Repeaters	Off	44.000000	-106.600000	45.0	Circle
+C-Freq	CFreqId=272089	CGroupId=65969	Buffalo	Off	145490000	FM	TONE=C110.9	13					
+C-Freq	CFreqId=272068	CGroupId=65969	Windy Ridge	Off	146880000	FM	TONE=C100.0	13					
+Conventional	CountyId=3134	StateId=56	Laramie	Off		Conventional
+AreaState	CountyId=3134	StateId=56
+AreaCounty	CountyId=3134	CountyId=3134
+C-Group	CGroupId=73013	CountyId=3134	Cheyenne - Fire	Off	41.139980	-104.820250	5.0	Circle
+C-Freq	CFreqId=71425	CGroupId=73013	Cheyenne Fire Dispatch	Off	154400000	NFM	TONE=C100.0	3					
+C-Group	CGroupId=73012	CountyId=3134	Cheyenne - Police	Off	41.139980	-104.820250	5.0	Circle
+C-Freq	CFreqId=306085	CGroupId=73012	Cheyenne Police 1	Off	154800000	NFM	TONE=C100.0	2					
+C-Freq	CFreqId=306086	CGroupId=73012	Cheyenne Police 2 Car/Car	Off	154755000	NFM	TONE=C100.0	23					
+C-Freq	CFreqId=306087	CGroupId=73012	Cheyenne Police 3 Car/Car	Off	155610000	NFM	TONE=C100.0	23					
+C-Group	CGroupId=73016	CountyId=3134	Cheyenne - Public Works	Off	41.139980	-104.820250	5.0	Circle
+C-Freq	CFreqId=321864	CGroupId=73016	Cheyenne City Engineers	Off	158760000	NFM	TONE=C100.0	14					
+C-Freq	CFreqId=75364	CGroupId=73016	Cheyenne Compost Facility	Off	154965000	NFM	TONE=D205	26					
+C-Freq	CFreqId=321863	CGroupId=73016	Cheyenne Street Maintenance	Off	158760000	NFM	TONE=C156.7	14					
+C-Freq	CFreqId=115216	CGroupId=73016	Cheyenne Waste pick-up	Off	156180000	NFM	TONE=C118.8	14					
+C-Freq	CFreqId=75366	CGroupId=73016	Cheyenne Water Department	Off	154040000	NFM	TONE=C131.8	14					
+C-Freq	CFreqId=188035	CGroupId=73016	Prairie View Golf Course	Off	462412500	NFM	TONE=C100.0	14					
+C-Group	CGroupId=5891	CountyId=3134	Cheyenne - Schools	Off	41.139980	-104.820250	5.0	Circle
+C-Freq	CFreqId=206470	CGroupId=5891	Anderson Elementary School	Off	462762500	NFM	TONE=C123.0	32					
+C-Freq	CFreqId=205432	CGroupId=5891	Cheyenne East High School	Off	464325000	NFM	TONE=D072	32					
+C-Freq	CFreqId=180982	CGroupId=5891	Dildine Elementary School	Off	464550000	NFM	TONE=D723	32					
+C-Freq	CFreqId=252244	CGroupId=5891	Pioneer Park Elementary School	Off	151625000	NFM	TONE=D664	32					
+C-Freq	CFreqId=252245	CGroupId=5891	Saddle Ridge Elementary School	Off	467562500	NFM	TONE=C88.5	32					
+C-Freq	CFreqId=103507	CGroupId=5891	School Bus Dispatch	Off	155205000	NFM		32					
+C-Freq	CFreqId=75365	CGroupId=5891	School Operations	Off	152450000	NFM	TONE=C88.5	32					
+C-Group	CGroupId=80458	CountyId=3134	Cheyenne - Transportation	Off	41.139980	-104.820250	5.0	Circle
+C-Freq	CFreqId=346884	CGroupId=80458	Cheyenne Transit Program	Off	153020000	NFM	TONE=C107.2	26					
+C-Group	CGroupId=73014	CountyId=3134	Laramie County - Emergency Management	Off	41.349980	-104.667190	40.0	Circle
+C-Freq	CFreqId=295350	CGroupId=73014	Laramie County Emergency Management UHF	Off	458425000	NFM		29					
+C-Freq	CFreqId=115215	CGroupId=73014	Laramie County Emergency Management VHF	Off	153875000	NFM	TONE=C114.8	29					
+C-Group	CGroupId=77241	CountyId=3134	Laramie County - Fairgrounds	Off	41.149330	-104.654500	1.0	Circle
+C-Freq	CFreqId=328608	CGroupId=77241	Laramie County Fairgrounds 1	Off	158865000	NFM		14					
+C-Freq	CFreqId=328609	CGroupId=77241	Laramie County Fairgrounds 2	Off	158995000	NFM		14					
+C-Group	CGroupId=5892	CountyId=3134	Laramie County - Fire/EMS	Off	41.349980	-104.667190	40.0	Circle
+C-Freq	CFreqId=71428	CGroupId=5892	Laramie County EMS Dispatch	Off	158805000	NFM	TONE=C123.0	4					
+C-Freq	CFreqId=71432	CGroupId=5892	Laramie County EMS Local	Off	155355000	NFM		9					
+C-Freq	CFreqId=176970	CGroupId=5892	Laramie County Fire - Albin	Off	155715000	NFM	TONE=C192.8	3					
+C-Freq	CFreqId=176968	CGroupId=5892	Laramie County Fire - Burns	Off	155715000	NFM	TONE=C118.8	3					
+C-Freq	CFreqId=176969	CGroupId=5892	Laramie County Fire - Carpenter	Off	155715000	NFM	TONE=C141.3	3					
+C-Freq	CFreqId=176967	CGroupId=5892	Laramie County Fire - Cheyenne	Off	155715000	NFM	TONE=C100.0	3					
+C-Freq	CFreqId=176971	CGroupId=5892	Laramie County Fire - Harriman	Off	155715000	NFM	TONE=C162.2	3					
+C-Freq	CFreqId=176972	CGroupId=5892	Laramie County Fire - Horse Creek	Off	155715000	NFM	TONE=C123.0	3					
+C-Freq	CFreqId=71430	CGroupId=5892	Laramie County Fire - Tactical 1	Off	153927500	NFM		8					
+C-Freq	CFreqId=79827	CGroupId=5892	Laramie County Fire - Tactical 2	Off	154160000	NFM		8					
+C-Freq	CFreqId=71426	CGroupId=5892	Laramie County Fire - Tactical 3	Off	159375000	NFM		8					
+C-Freq	CFreqId=79828	CGroupId=5892	Laramie County Fire - Tactical 4	Off	154250000	NFM		8					
+C-Group	CGroupId=73015	CountyId=3134	Laramie County - Public Works	Off	41.349980	-104.667190	40.0	Circle
+C-Freq	CFreqId=141288	CGroupId=73015	Laramie County Parks Department	Off	158865000	NFM		14					
+C-Freq	CFreqId=306091	CGroupId=73015	Laramie County Public Health	Off	153875000	NFM		14					
+C-Freq	CFreqId=115217	CGroupId=73015	Laramie County Road Department	Off	156225000	NFM	TONE=C136.5	14					
+C-Group	CGroupId=73020	CountyId=3134	Laramie County - Schools	Off	41.349980	-104.667190	40.0	Circle
+C-Freq	CFreqId=131363	CGroupId=73020	Laramie County Head Start	Off	155235000	NFM	TONE=D466	32					
+C-Freq	CFreqId=324496	CGroupId=73020	Laramie County School District 2 Operations	Off	159417500	NFM	TONE=C141.3	32					
+C-Group	CGroupId=73011	CountyId=3134	Laramie County - Sheriff	Off	41.349980	-104.667190	40.0	Circle
+C-Freq	CFreqId=69464	CGroupId=73011	Laramie County Jail Operations	Off	155010000	NFM	TONE=C100.0	37					
+C-Freq	CFreqId=306079	CGroupId=73011	Laramie County Sheriff 1	Off	155790000	NFM	TONE=C100.0	2					
+C-Freq	CFreqId=306080	CGroupId=73011	Laramie County Sheriff 2	Off	155655000	NFM	TONE=C110.9	2					
+C-Freq	CFreqId=306081	CGroupId=73011	Laramie County Sheriff 3 East	Off	155790000	NFM	TONE=C110.9	2					
+C-Freq	CFreqId=306082	CGroupId=73011	Laramie County Sheriff 4 Car/Car	Off	154950000	NFM	TONE=C100.0	7					
+C-Group	CGroupId=64831	CountyId=3134	Laramie County Amateur Radio - Repeaters	Off	41.349980	-104.667190	40.0	Circle
+C-Freq	CFreqId=280390	CGroupId=64831	Albin - Shy-Wy Radio Club	Off	147165000	FM	TONE=C114.8	13					
+C-Freq	CFreqId=290815	CGroupId=64831	Burns	Off	449300000	FM	TONE=C131.8	13					
+C-Freq	CFreqId=290816	CGroupId=64831	Cheyenne	Off	145235000	FM	TONE=C131.8	13					
+C-Freq	CFreqId=290818	CGroupId=64831	Cheyenne	Off	445850000	FM	TONE=C100.0	13					
+C-Freq	CFreqId=273084	CGroupId=64831	Cheyenne	Off	448950000	FM	TONE=C151.4	13					
+C-Freq	CFreqId=358405	CGroupId=64831	Cheyenne - FM	Off	447550000	FM	TONE=C114.8	13					
+C-Freq	CFreqId=358406	CGroupId=64831	Cheyenne - Fusion	Off	447550000	FM		13					
+C-Freq	CFreqId=268464	CGroupId=64831	Cheyenne - Shy-Wy Radio Club	Off	146775000	FM	TONE=C114.8	13					
+C-Freq	CFreqId=280389	CGroupId=64831	Cheyenne - Shy-Wy Radio Club	Off	147105000	FM	TONE=C91.5	13					
+C-Group	CGroupId=73912	CountyId=3134	Laramie County Amateur Radio - Simplex	Off	41.349980	-104.667190	40.0	Circle
+C-Freq	CFreqId=268465	CGroupId=73912	Cheyenne Area Simplex	Off	146550000	FM		13					
+C-Group	CGroupId=73017	CountyId=3134	Pine Bluffs - Fire	Off	41.181930	-104.069120	5.0	Circle
+C-Freq	CFreqId=138450	CGroupId=73017	Pine Bluffs Fire/EMS Dispatch	Off	155250000	NFM	TONE=C100.0	3					
+C-Group	CGroupId=26955	CountyId=3134	Pine Bluffs - Police	Off	41.181930	-104.069120	5.0	Circle
+C-Freq	CFreqId=103509	CGroupId=26955	Pine Bluffs Police	Off	154815000	NFM	TONE=C100.0	2					
+C-Group	CGroupId=73018	CountyId=3134	Pine Bluffs - Public Works	Off	41.349980	-104.667190	40.0	Circle
+C-Freq	CFreqId=138449	CGroupId=73018	Pine Bluffs Public Works	Off	154995000	NFM	TONE=C100.0	14					
+C-Group	CGroupId=73019	CountyId=3134	Pine Bluffs - Schools	Off	41.181930	-104.069120	5.0	Circle
+C-Freq	CFreqId=180983	CGroupId=73019	Pine Bluffs School Buses	Off	152300000	NFM	TONE=C141.3	32					
+C-Freq	CFreqId=131364	CGroupId=73019	Pine Bluffs School Transportation	Off	155280000	NFM	TONE=C123.0	32					
+Conventional	CountyId=3135	StateId=56	Lincoln	Off		Conventional
+AreaState	CountyId=3135	StateId=56
+AreaCounty	CountyId=3135	CountyId=3135
+C-Group	CGroupId=33659	CountyId=3135	Lincoln County	Off	42.431930	-110.591890	60.0	Circle
+C-Freq	CFreqId=208609	CGroupId=33659	Lincoln County Fire North Dispatch	Off	154445000	NFM	TONE=C167.9	3					
+C-Freq	CFreqId=132553	CGroupId=33659	Lincoln County Fire South Dispatch	Off	154415000	NFM	TONE=C173.8	3					
+C-Freq	CFreqId=132555	CGroupId=33659	Lincoln County Fire Tactical	Off	158760000	NFM	TONE=C151.4	8					
+C-Freq	CFreqId=366191	CGroupId=33659	Lincoln County Search and Rescue	Off	154055000	NFM	TONE=C107.2	29					
+C-Freq	CFreqId=201122	CGroupId=33659	Lincoln County Sheriff	Off	154055000	NFM	TONE=C107.2	23					
+C-Freq	CFreqId=132554	CGroupId=33659	Lincoln County Sheriff North	Off	155430000	NFM	TONE=C110.9	2					
+C-Freq	CFreqId=201123	CGroupId=33659	Lincoln County Sheriff Tactical 1	Off	156225000	NFM		7					
+C-Freq	CFreqId=201151	CGroupId=33659	Lincoln County Water Authority	Off	452400000	NFM		14					
+C-Freq	CFreqId=397665	CGroupId=33659	Quealey Peak Radio Link - EMS Tone Outs	Off	460625000	NFM	TONE=C88.5	4					
+C-Group	CGroupId=49320	CountyId=3135	Lincoln County - Afton	Off	42.724920	-110.930750	10.0	Circle
+C-Freq	CFreqId=201124	CGroupId=49320	Afton EMS Dispatch 1	Off	155955000	NFM		4					
+C-Freq	CFreqId=201143	CGroupId=49320	Afton EMS to Hospital 2	Off	155280000	NFM		25					
+C-Freq	CFreqId=201144	CGroupId=49320	Afton EMS to Hospital 3	Off	155340000	NFM		25					
+C-Freq	CFreqId=201115	CGroupId=49320	Afton Fire and Public Works	Off	155145000	NFM		22					
+C-Freq	CFreqId=201114	CGroupId=49320	Afton Fire/EMS/SAR Paging	Off	154445000	NFM	TONE=C114.8	3					
+C-Freq	CFreqId=201149	CGroupId=49320	Afton School	Off	461125000	NFM		32					
+C-Group	CGroupId=49322	CountyId=3135	Lincoln County - Alpine	Off	43.162860	-111.019530	10.0	Circle
+C-Freq	CFreqId=201117	CGroupId=49322	Alpine City Services	Off	453050000	NFM		14					
+C-Freq	CFreqId=201116	CGroupId=49322	Alpine Fire Operations	Off	154220000	NFM		3					
+C-Group	CGroupId=49323	CountyId=3135	Lincoln County - Cokeville	Off	42.085220	-110.921580	10.0	Circle
+C-Freq	CFreqId=201148	CGroupId=49323	Cokeville EMS Dispatch 2	Off	155355000	NFM		4					
+C-Freq	CFreqId=201118	CGroupId=49323	Cokeville Public Works	Off	155760000	NFM		14					
+C-Group	CGroupId=49324	CountyId=3135	Lincoln County - Diamondville	Off	41.780220	-110.536830	10.0	Circle
+C-Freq	CFreqId=201119	CGroupId=49324	Diamondville Public Works	Off	155145000	NFM		14					
+C-Freq	CFreqId=251782	CGroupId=49324	Diamondville School	Off	151655000	NFM		32					
+C-Group	CGroupId=49002	CountyId=3135	Lincoln County - Kemmerer	Off	41.802000	-110.553000	10.0	Circle
+C-Freq	CFreqId=201120	CGroupId=49002	Kemmerer Fire Dispatch	Off	154415000	NFM	TONE=C173.8	3					
+C-Freq	CFreqId=199170	CGroupId=49002	Kemmerer Public Works	Off	154965000	NFM	TONE=C123.0	14					
+C-Group	CGroupId=49325	CountyId=3135	Lincoln County - La Barge	Off	42.258810	-110.195690	10.0	Circle
+C-Freq	CFreqId=201121	CGroupId=49325	La Barge Fire Dispatch	Off	154415000	NFM	TONE=C173.8	3					
+C-Group	CGroupId=49329	CountyId=3135	Lincoln County - Opal	Off	41.770470	-110.323080	10.0	Circle
+C-Freq	CFreqId=201145	CGroupId=49329	Opal Public Works	Off	159000000	NFM		14					
+C-Group	CGroupId=75737	CountyId=3135	Lincoln County Amateur Radio - Repeaters	Off	42.300000	-110.600000	40.0	Circle
+C-Freq	CFreqId=321439	CGroupId=75737	Qualey Ridge	Off	449300000	NFM	TONE=C127.3	13					
+Conventional	CountyId=3136	StateId=56	Natrona	Off		Conventional
+AreaState	CountyId=3136	StateId=56
+AreaCounty	CountyId=3136	CountyId=3136
+C-Group	CGroupId=5894	CountyId=3136	Natrona County	Off	42.950000	-106.800000	45.0	Circle
+C-Freq	CFreqId=295156	CGroupId=5894	Road & Bridges/Fire-EMS Dispatch	Off	155745000	NFM		1					
+C-Freq	CFreqId=252682	CGroupId=5894	School buses	Off	155280000	NFM	NAC=137	32					
+C-Freq	CFreqId=23615	CGroupId=5894	Sheriff 1	Off	155970000	NFM	TONE=C85.4	2					
+C-Freq	CFreqId=94426	CGroupId=5894	Sheriff 2	Off	155310000	NFM		2					
+C-Group	CGroupId=89727	CountyId=3136	Natrona County - School District 1	Off	42.950000	-106.800000	52.0	Circle
+C-Freq	CFreqId=396724	CGroupId=89727	Centennial Junior High School	Off	156240000	NFM	TONE=C156.7	32					
+C-Freq	CFreqId=396725	CGroupId=89727	Dean Morgan Middle School	Off	159112500	NFM	TONE=C88.5	32					
+C-Freq	CFreqId=396723	CGroupId=89727	Natrona County High School	Off	155205000	NFM	TONE=C151.4	32					
+C-Freq	CFreqId=396717	CGroupId=89727	Roosevelt High School	Off	154137500	NFM	TONE=C179.9	32					
+C-Group	CGroupId=66287	CountyId=3136	Natrona County Amateur Radio - Repeaters	Off	42.950000	-106.800000	45.0	Circle
+C-Freq	CFreqId=277465	CGroupId=66287	Autopatch	Off	147280000	FM	TONE=C107.2	13					
+C-Freq	CFreqId=297518	CGroupId=66287	Casper Mountain	Off	52980000	FM		13					
+C-Freq	CFreqId=277464	CGroupId=66287	Casper Mountain	Off	146640000	FM	TONE=C173.8	13					
+C-Freq	CFreqId=277467	CGroupId=66287	Casper Mountain	Off	449900000	FM	TONE=C88.5	13					
+C-Freq	CFreqId=273341	CGroupId=66287	Casper Mountain - Linked to Copper Mtn	Off	146940000	FM	TONE=C123.0	13					
+C-Freq	CFreqId=277468	CGroupId=66287	Location Unknown	Off	449500000	FM	TONE=C100.0	13					
+C-Freq	CFreqId=277466	CGroupId=66287	Location Unknown - IRLP 7707	Off	449575000	FM		13					
+Conventional	CountyId=3137	StateId=56	Niobrara	Off		Conventional
+AreaState	CountyId=3137	StateId=56
+AreaCounty	CountyId=3137	CountyId=3137
+C-Group	CGroupId=24693	CountyId=3137	Niobrara County	Off	43.067060	-104.500960	35.0	Circle
+C-Freq	CFreqId=242484	CGroupId=24693	Fire	Off	156015000	NFM	TONE=C141.3	3					
+C-Freq	CFreqId=91267	CGroupId=24693	Sheriff 1	Off	155415000	NFM	TONE=C141.3	2					
+C-Freq	CFreqId=221761	CGroupId=24693	Sheriff 2	Off	154740000	NFM		7					
+C-Group	CGroupId=39704	CountyId=3137	Niobrara County - Lusk	Off	42.761220	-104.450650	5.0	Circle
+C-Freq	CFreqId=242485	CGroupId=39704	EMS	Off	155265000	NFM	TONE=C210.7	25					
+C-Freq	CFreqId=158303	CGroupId=39704	Police	Off	154800000	NFM	TONE=C173.8	2					
+C-Freq	CFreqId=284587	CGroupId=39704	Public Works	Off	155040000	NFM		14					
+C-Group	CGroupId=80476	CountyId=3137	Niobrara County Amateur Radio - Repeaters	Off	43.073080	-104.495470	35.0	Circle
+C-Freq	CFreqId=346897	CGroupId=80476	Lusk Repeater	Off	147330000	FM	TONE=C103.5	13					
+Conventional	CountyId=3138	StateId=56	Park	Off		Conventional
+AreaState	CountyId=3138	StateId=56
+AreaCounty	CountyId=3138	CountyId=3138
+C-Group	CGroupId=40166	CountyId=3138	Park County	Off	44.489020	-109.828340	65.0	Circle
+C-Freq	CFreqId=397600	CGroupId=40166	Cody Senior Citizens Center Bus	Off	151715000	NFM	TONE=C71.9	26					
+C-Freq	CFreqId=160270	CGroupId=40166	Park County Emergency Management	Off	158940000	NFM		29					
+C-Freq	CFreqId=160276	CGroupId=40166	Park County Fire/EMS (previously 100.0 PL, now CSQ)	Off	155790000	NFM		3					
+C-Freq	CFreqId=160278	CGroupId=40166	Park County Sheriff	Off	155190000	NFM	TONE=C100.0	23					
+C-Freq	CFreqId=397606	CGroupId=40166	Park County Sheriff - Detention Center	Off	158790000	NFM	NAC=110	37					
+C-Freq	CFreqId=160277	CGroupId=40166	Park County Sheriff - Dispatch	Off	155370000	NFM		2					
+C-Freq	CFreqId=397607	CGroupId=40166	Park County Sheriff - Radio Site Link	Off	460300000	NFM	TONE=D114	2					
+C-Freq	CFreqId=160280	CGroupId=40166	Park County Sheriff - Tactical	Off	158970000	NFM	TONE=C100.0	7					
+C-Group	CGroupId=40172	CountyId=3138	Park County - Cody	Off	44.512670	-109.058750	10.0	Circle
+C-Freq	CFreqId=160274	CGroupId=40172	Cody DPW/Fire/Police - Common	Off	155040000	NFM		1					
+C-Freq	CFreqId=160264	CGroupId=40172	Cody Fire Dispatch	Off	155895000	NFM	TONE=C100.0	3					
+C-Freq	CFreqId=178723	CGroupId=40172	Cody Police - Dispatch	Off	154332500	NFM	NAC=114	2					
+C-Group	CGroupId=40168	CountyId=3138	Park County - Meeteese	Off	44.156680	-108.874020	10.0	Circle
+C-Freq	CFreqId=160263	CGroupId=40168	Meeteese EMS	Off	155340000	NFM		25					
+C-Freq	CFreqId=160262	CGroupId=40168	Meeteese Fire	Off	154250000	NFM		3					
+C-Freq	CFreqId=160261	CGroupId=40168	Meeteese Police/Fire/DPW - Common	Off	155955000	NFM		1					
+C-Group	CGroupId=44183	CountyId=3138	Park County - Northwest College	Off	44.759940	-108.761810	5.0	Circle
+C-Freq	CFreqId=160266	CGroupId=44183	Northwest College Ops/Security 1	Off	461125000	NFM		33					
+C-Freq	CFreqId=160267	CGroupId=44183	Northwest College Ops/Security 2	Off	466125000	NFM		33					
+C-Group	CGroupId=40167	CountyId=3138	Park County - Powell	Off	44.755000	-108.753890	10.0	Circle
+C-Freq	CFreqId=160260	CGroupId=40167	Powell DPW/Fire/Police - Common	Off	158880000	NFM		1					
+C-Freq	CFreqId=324557	CGroupId=40167	Powell Fire	Off	154400000	NFM	TONE=C100.0	3					
+C-Freq	CFreqId=160275	CGroupId=40167	Powell Police	Off	154905000	NFM		23					
+C-Freq	CFreqId=160273	CGroupId=40167	Powell Police	Off	155535000	NFM		23					
+C-Freq	CFreqId=160265	CGroupId=40167	Powell Police - Dispatch	Off	154815000	NFM	TONE=C100.0	2					
+C-Freq	CFreqId=160271	CGroupId=40167	Powell Public Safety	Off	158820000	NFM		23					
+C-Group	CGroupId=66222	CountyId=3138	Park County Amateur Radio - Repeaters	Off	44.500000	-109.500000	50.0	Circle
+C-Freq	CFreqId=333956	CGroupId=66222	Cody	Off	444650000	FM	TONE=C103.5	13					
+C-Freq	CFreqId=333955	CGroupId=66222	Cody - McCullough Peaks	Off	146850000	FM	TONE=C103.5	13					
+C-Freq	CFreqId=333957	CGroupId=66222	Meeteetse - Three Mile Hill	Off	147330000	FM	TONE=C103.5	13					
+C-Freq	CFreqId=273090	CGroupId=66222	Powell	Off	145330000	FM	TONE=C103.5	13					
+C-Freq	CFreqId=333959	CGroupId=66222	Wapiti	Off	147255000	FM	TONE=C103.5	13					
+Conventional	CountyId=3139	StateId=56	Platte	Off		Conventional
+AreaState	CountyId=3139	StateId=56
+AreaCounty	CountyId=3139	CountyId=3139
+C-Group	CGroupId=18476	CountyId=3139	Platte County	Off	42.133300	-104.967190	35.0	Circle
+C-Freq	CFreqId=67654	CGroupId=18476	Fire/EMS - Dispatch	Off	155805000	NFM	TONE=C110.9	3					
+C-Freq	CFreqId=67657	CGroupId=18476	Sheriff North	Off	158820000	NFM	TONE=C162.2	2					
+C-Freq	CFreqId=67655	CGroupId=18476	Sheriff South	Off	155415000	NFM	TONE=C151.4	2					
+C-Group	CGroupId=18479	CountyId=3139	Platte County - Guernsey	Off	42.269690	-104.741630	5.0	Circle
+C-Freq	CFreqId=101122	CGroupId=18479	City Maintenance	Off	155775000	NFM	TONE=C146.2	14					
+C-Group	CGroupId=45365	CountyId=3139	Platte County - Hartville	Off	42.327470	-104.725240	5.0	Circle
+C-Freq	CFreqId=183135	CGroupId=45365	Fire	Off	158925000	NFM		3					
+C-Group	CGroupId=18477	CountyId=3139	Platte County - Wheatland	Off	42.054410	-104.952750	7.0	Circle
+C-Freq	CFreqId=67658	CGroupId=18477	Fire	Off	154340000	NFM		3					
+C-Freq	CFreqId=67656	CGroupId=18477	Police	Off	155625000	NFM	TONE=C173.8	2					
+C-Freq	CFreqId=132003	CGroupId=18477	Services for Seniors	Off	151865000	NFM	TONE=C114.8	26					
+C-Freq	CFreqId=204363	CGroupId=18477	Wheatland Irrigation District	Off	48160000	FM	TONE=C114.8	14					
+C-Group	CGroupId=66219	CountyId=3139	Platte County Amateur Radio - Repeaters	Off	42.133300	-104.967190	35.0	Circle
+C-Freq	CFreqId=273085	CGroupId=66219	Wheatland 146	Off	146880000	FM	TONE=C100.0	13					
+C-Freq	CFreqId=370468	CGroupId=66219	Wheatland 220	Off	224680000	FM		13					
+C-Freq	CFreqId=273086	CGroupId=66219	Wheatland 440	Off	449625000	FM	TONE=C151.4	13					
+Conventional	CountyId=3140	StateId=56	Sheridan	Off		Conventional
+AreaState	CountyId=3140	StateId=56
+AreaCounty	CountyId=3140	CountyId=3140
+C-Group	CGroupId=5896	CountyId=3140	Sheridan County	Off	44.800000	-106.600000	50.0	Circle
+C-Freq	CFreqId=141374	CGroupId=5896	Sheridan County EMS	Off	155295000	NFM	TONE=C114.8	4					
+C-Freq	CFreqId=109651	CGroupId=5896	Sheridan County Fire Dispatch	Off	154175000	NFM	TONE=C118.8	3					
+C-Freq	CFreqId=109654	CGroupId=5896	Sheridan County School Buses	Off	153845000	NFM	TONE=C110.9	32					
+C-Freq	CFreqId=109650	CGroupId=5896	Sheridan County Search & Rescue	Off	154055000	NFM		29					
+C-Freq	CFreqId=23617	CGroupId=5896	Sheridan County Sheriff	Off	155535000	NFM	TONE=C156.7	2					
+C-Freq	CFreqId=141376	CGroupId=5896	Sheridan County Sheriff / Rural Fire Dispatch	Off	154980000	NFM	TONE=C88.5	1					
+C-Group	CGroupId=51138	CountyId=3140	Sheridan County - Ranchester	Off	44.914360	-107.152690	5.0	Circle
+C-Freq	CFreqId=208161	CGroupId=51138	Ranchester Police	Off	158805000	NFM	TONE=D465	2					
+C-Group	CGroupId=5895	CountyId=3140	Sheridan County - Sheridan	Off	44.818580	-106.955610	10.0	Circle
+C-Freq	CFreqId=109652	CGroupId=5895	Sheridan Fire	Off	154445000	NFM		3					
+C-Freq	CFreqId=270006	CGroupId=5895	Sheridan Fire Paging	Off	152007500	NFM		3					
+C-Freq	CFreqId=141375	CGroupId=5895	Sheridan Police	Off	154115000	NFM		2					
+C-Freq	CFreqId=23616	CGroupId=5895	Sheridan Police	Off	155760000	NFM	TONE=C156.7	23					
+C-Freq	CFreqId=109653	CGroupId=5895	Sheridan Police Dispatch	Off	154815000	NFM	TONE=D162	2					
+C-Freq	CFreqId=396701	CGroupId=5895	Sheridan Public Works	Off	151145000	NFM	TONE=C203.5	14					
+C-Freq	CFreqId=281861	CGroupId=5895	Sheridan Senior Center Bus	Off	152360000	NFM	TONE=D255	26					
+C-Group	CGroupId=71874	CountyId=3140	Sheridan County Amateur Radio - Repeaters	Off	44.781840	-107.006840	50.0	Circle
+C-Freq	CFreqId=298953	CGroupId=71874	Sheridan	Off	146730000	FM	TONE=C100.0	13					
+C-Freq	CFreqId=298952	CGroupId=71874	Sheridan	Off	146820000	FM	TONE=C100.0	13					
+C-Freq	CFreqId=382398	CGroupId=71874	Sheridan - Cloud Peak Radio and Electronics Group (CPREG)	Off	147255000	FM	TONE=C100.0	13					
+Conventional	CountyId=3141	StateId=56	Sublette	Off		Conventional
+AreaState	CountyId=3141	StateId=56
+AreaCounty	CountyId=3141	CountyId=3141
+C-Group	CGroupId=33657	CountyId=3141	Sublette County	Off	42.800000	-109.900000	50.0	Circle
+C-Freq	CFreqId=132551	CGroupId=33657	Sublette County Fire - North (Aspen Ridge)	Off	155865000	NFM	TONE=C141.3	3					
+C-Freq	CFreqId=132552	CGroupId=33657	Sublette County Fire - South (Hogsback)	Off	155865000	NFM	TONE=C114.8	3					
+C-Freq	CFreqId=201165	CGroupId=33657	Sublette County Highway Dept.	Off	156180000	NFM		14					
+C-Freq	CFreqId=158302	CGroupId=33657	Sublette County Highways	Off	155730000	NFM	TONE=C107.2	14					
+C-Freq	CFreqId=201162	CGroupId=33657	Sublette County Sheriff	Off	154025000	NFM	TONE=D047	23					
+C-Freq	CFreqId=320804	CGroupId=33657	Sublette County Sheriff - Jail	Off	151265000	NFM	TONE=C146.2	37					
+C-Freq	CFreqId=201166	CGroupId=33657	Sublette County Sheriff - Tactical	Off	159217500	NFM		7					
+C-Freq	CFreqId=291278	CGroupId=33657	Sublette County Sheriff Dispatch	Off	151085000	NFM		2					
+C-Freq	CFreqId=201161	CGroupId=33657	Sublette County Weed and Pest Control	Off	151325000	NFM		14					
+C-Group	CGroupId=49331	CountyId=3141	Sublette County - Big Piney	Off	42.539940	-110.109610	5.0	Circle
+C-Freq	CFreqId=201154	CGroupId=49331	Big Piney EMS	Off	155355000	NFM		4					
+C-Freq	CFreqId=201170	CGroupId=49331	Big Piney School Bus	Off	47620000	NFM		32					
+C-Freq	CFreqId=201171	CGroupId=49331	Big Piney School RF Relay	Off	452075000	NFM		32					
+C-Freq	CFreqId=201172	CGroupId=49331	Big Piney School RF Relay	Off	457075000	NFM		32					
+C-Group	CGroupId=49333	CountyId=3141	Sublette County - Pinedale	Off	42.870000	-109.854440	5.0	Circle
+C-Freq	CFreqId=201157	CGroupId=49333	Pinedale EMS	Off	155355000	NFM		4					
+C-Freq	CFreqId=201158	CGroupId=49333	Pinedale Police	Off	154800000	NFM		2					
+C-Freq	CFreqId=201173	CGroupId=49333	Pinedale Schools 1	Off	152270000	NFM		32					
+C-Freq	CFreqId=201174	CGroupId=49333	Pinedale Schools 2	Off	152390000	NFM		32					
+C-Freq	CFreqId=201168	CGroupId=49333	Pinedale Schools 3	Off	47660000	FM		32					
+C-Group	CGroupId=65943	CountyId=3141	Sublette County Amateur Radio - Repeaters	Off	42.800000	-109.900000	40.0	Circle
+C-Freq	CFreqId=271933	CGroupId=65943	Big Piney	Off	146880000	FM	TONE=C100.0	13					
+C-Freq	CFreqId=272064	CGroupId=65943	Marbleton	Off	145145000	FM	TONE=C100.0	13					
+Conventional	CountyId=3142	StateId=56	Sweetwater	Off		Conventional
+AreaState	CountyId=3142	StateId=56
+AreaCounty	CountyId=3142	CountyId=3142
+C-Group	CGroupId=26716	CountyId=3142	Sweetwater County	Off	41.600000	-108.900000	75.0	Circle
+C-Freq	CFreqId=200810	CGroupId=26716	Sweetwater County Airport Authority	Off	155932500	NFM		1					
+C-Freq	CFreqId=101297	CGroupId=26716	Sweetwater County Emergency Management	Off	453250000	NFM	TONE=C100.0	29					
+C-Freq	CFreqId=200827	CGroupId=26716	Sweetwater County Emergency Management ?	Off	153860000	NFM		29					
+C-Freq	CFreqId=200829	CGroupId=26716	Sweetwater County Fire	Off	150805000	NFM	TONE=C91.5	3					
+C-Freq	CFreqId=101298	CGroupId=26716	Sweetwater County Fire	Off	155055000	NFM	TONE=C118.8	3					
+C-Freq	CFreqId=299405	CGroupId=26716	Sweetwater County Fire Tone-Outs	Off	152007500	NFM		3					
+C-Freq	CFreqId=200838	CGroupId=26716	Sweetwater County Parks and Recreation	Off	463200000	NFM		14					
+C-Freq	CFreqId=200839	CGroupId=26716	Sweetwater County Search and Rescue	Off	155220000	NFM		25					
+C-Freq	CFreqId=200834	CGroupId=26716	Sweetwater County Sheriff ?	Off	155670000	NFM	TONE=C88.5	23					
+C-Freq	CFreqId=200832	CGroupId=26716	Sweetwater County Sheriff ?	Off	155760000	NFM		23					
+C-Freq	CFreqId=254673	CGroupId=26716	Sweetwater County Sheriff Digital	Off	160080000	NFM		2					
+C-Freq	CFreqId=101301	CGroupId=26716	Sweetwater County Sheriff Dispatch Direct	Off	155415000	NFM	TONE=C114.8	23					
+C-Freq	CFreqId=101300	CGroupId=26716	Sweetwater County Sheriff Dispatch East	Off	155415000	NFM	TONE=C100.0	2					
+C-Freq	CFreqId=141286	CGroupId=26716	Sweetwater County Sheriff Dispatch West	Off	155415000	NFM	TONE=C103.5	2					
+C-Freq	CFreqId=200808	CGroupId=26716	Sweetwater County Sheriff Operations	Off	154987500	NFM		23					
+C-Freq	CFreqId=200826	CGroupId=26716	Sweetwater County Sheriff Tactical	Off	158932500	NFM		7					
+C-Freq	CFreqId=200836	CGroupId=26716	Sweetwater County Star Transit	Off	158775000	NFM	TONE=C110.9	26					
+C-Freq	CFreqId=200835	CGroupId=26716	Sweetwater County Star Transit (OLD - expired license)	Off	154167500	NFM		26					
+C-Group	CGroupId=49267	CountyId=3142	Sweetwater County - Bairoil	Off	42.230000	-107.560000	2.0	Circle
+C-Freq	CFreqId=200811	CGroupId=49267	Bairoil Police Car to Car	Off	154740000	NFM		23					
+C-Freq	CFreqId=200813	CGroupId=49267	Bairoil Police Dispatch	Off	154800000	NFM		2					
+C-Freq	CFreqId=200812	CGroupId=49267	Bairoil Public Works	Off	155100000	NFM		14					
+C-Group	CGroupId=49269	CountyId=3142	Sweetwater County - Farson	Off	42.155500	-109.290970	25.0	Circle
+C-Freq	CFreqId=200817	CGroupId=49269	Farson Fire - Dispatch	Off	155355000	NFM		3					
+C-Group	CGroupId=26710	CountyId=3142	Sweetwater County - Green River	Off	41.500000	-109.470000	5.0	Circle
+C-Freq	CFreqId=207412	CGroupId=26710	Green River EMS (OLD)	Off	155265000	NFM	TONE=C179.9	4					
+C-Freq	CFreqId=214224	CGroupId=26710	Green River Fire (OLD)	Off	154295000	NFM	TONE=C186.2	3					
+C-Freq	CFreqId=101294	CGroupId=26710	Green River Police 2 (OLD)	Off	155190000	NFM	TONE=C114.8	23					
+C-Freq	CFreqId=200816	CGroupId=26710	Green River Police 3 Car to Car (OLD)	Off	156165000	NFM		23					
+C-Group	CGroupId=26712	CountyId=3142	Sweetwater County - Rock Springs	Off	41.600000	-109.240000	5.0	Circle
+C-Freq	CFreqId=200822	CGroupId=26712	Rock Springs City Services	Off	155085000	NFM		14					
+C-Freq	CFreqId=214225	CGroupId=26712	Rock Springs EMS (OLD)	Off	155355000	NFM		25					
+C-Freq	CFreqId=214226	CGroupId=26712	Rock Springs Hospital	Off	462200000	NFM		17					
+C-Freq	CFreqId=200820	CGroupId=26712	Rock Springs Police ? (OLD)	Off	154025000	NFM		23					
+C-Freq	CFreqId=101296	CGroupId=26712	Rock Springs Police Dispatch (OLD)	Off	154800000	NFM	TONE=C103.5	2					
+C-Freq	CFreqId=200825	CGroupId=26712	Rock Springs Police Tactical (OLD)	Off	159000000	NFM		7					
+C-Freq	CFreqId=101295	CGroupId=26712	Rock Springs Services	Off	453975000	NFM	TONE=C100.0	14					
+C-Freq	CFreqId=200823	CGroupId=26712	Rock Springs Water Dept.	Off	158745000	NFM		14					
+C-Freq	CFreqId=200824	CGroupId=26712	Rock Springs Water Dept.	Off	158820000	NFM		14					
+C-Group	CGroupId=49274	CountyId=3142	Sweetwater County - Wamsutter	Off	41.670000	-107.970000	5.0	Circle
+C-Freq	CFreqId=200844	CGroupId=49274	Wamsutter Fire/EMS	Off	154800000	NFM		3					
+C-Group	CGroupId=89943	CountyId=3142	Sweetwater County - Western Wyoming Community College	Off	41.587460	-109.202900	5.0	Circle
+C-Freq	CFreqId=200849	CGroupId=89943	Western Wyoming Community College Maintenance	Off	159930000	NFM		32					
+C-Freq	CFreqId=200845	CGroupId=89943	Western Wyoming Community College Physical Plant	Off	151580000	NFM	TONE=C146.2	32					
+C-Freq	CFreqId=141287	CGroupId=89943	Western Wyoming Community College Police	Off	155550000	NFM		2					
+C-Group	CGroupId=65933	CountyId=3142	Sweetwater County Amateur Radio - Repeaters	Off	41.600000	-108.900000	75.0	Circle
+C-Freq	CFreqId=271903	CGroupId=65933	Aspen Mountain - KE7UUJ/A	Off	146655000	AUTO		13					
+C-Freq	CFreqId=289439	CGroupId=65933	Aspen Mountain KE7FGD	Off	146610000	FM	TONE=C100.0	13					
+C-Freq	CFreqId=289438	CGroupId=65933	Aspen Mountain KE7UUJ	Off	146940000	FM	TONE=C100.0	13					
+C-Freq	CFreqId=271838	CGroupId=65933	Buffalo Hump - Intermountain intertie	Off	146670000	FM		13					
+C-Freq	CFreqId=376600	CGroupId=65933	SCARC - Portable Repeater (FM)	Off	145205000	FM	TONE=C107.2	13					
+C-Freq	CFreqId=376601	CGroupId=65933	SCARC - Portable Repeater (YSF)	Off	145205000	AUTO		13					
+C-Freq	CFreqId=271901	CGroupId=65933	Wilkins Peak	Off	444500000	FM	TONE=C123.0	13					
+Conventional	CountyId=3143	StateId=56	Teton	Off		Conventional
+AreaState	CountyId=3143	StateId=56
+AreaCounty	CountyId=3143	CountyId=3143
+C-Group	CGroupId=28375	CountyId=3143	Teton County	Off	43.900000	-110.600000	55.0	Circle
+C-Freq	CFreqId=197509	CGroupId=28375	Teton County and Jackson Law Enforcement Dispatch	Off	155415000	NFM	TONE=C100.0	2					
+C-Freq	CFreqId=109648	CGroupId=28375	Teton County and Jackson Law Enforcement Tactical	Off	154725000	NFM	TONE=C107.2	7					
+C-Freq	CFreqId=109646	CGroupId=28375	Teton County Emergency Management North	Off	156015000	NFM	TONE=C100.0	29					
+C-Freq	CFreqId=243474	CGroupId=28375	Teton County Emergency Management South	Off	156015000	NFM	TONE=C107.2	29					
+C-Freq	CFreqId=109645	CGroupId=28375	Teton County Highway Department	Off	151040000	NFM	TONE=C107.2	14					
+C-Freq	CFreqId=223059	CGroupId=28375	Teton County School District #1	Off	160200000	NFM	TONE=C123.0	32					
+C-Group	CGroupId=28373	CountyId=3143	Teton County - Jackson	Off	43.477970	-110.759360	10.0	Circle
+C-Freq	CFreqId=109647	CGroupId=28373	Jackson Fire 1	Off	155715000	NFM	TONE=C107.2	3					
+C-Freq	CFreqId=109642	CGroupId=28373	Jackson Fire 2	Off	154325000	NFM		8					
+C-Freq	CFreqId=109643	CGroupId=28373	Jackson Public Works	Off	155745000	NFM	TONE=C103.5	14					
+C-Freq	CFreqId=109644	CGroupId=28373	Jackson START Transit	Off	158745000	NFM	TONE=C162.2	26					
+C-Group	CGroupId=65967	CountyId=3143	Teton County Amateur Radio - Repeaters	Off	44.000000	-110.500000	55.0	Circle
+C-Freq	CFreqId=313834	CGroupId=65967	Rendezvous Mountain	Off	146730000	FM	TONE=C118.8	13					
+C-Freq	CFreqId=313835	CGroupId=65967	Snow King Mountain	Off	447700000	FM	TONE=C118.8	13					
+Conventional	CountyId=3144	StateId=56	Uinta	Off		Conventional
+AreaState	CountyId=3144	StateId=56
+AreaCounty	CountyId=3144	CountyId=3144
+C-Group	CGroupId=26708	CountyId=3144	Uinta County	Off	41.300000	-110.550000	30.0	Circle
+C-Freq	CFreqId=101289	CGroupId=26708	Uinta County EMS	Off	155340000	NFM	TONE=C100.0	12					
+C-Freq	CFreqId=200869	CGroupId=26708	Uinta County EMS Dispatch	Off	155175000	NFM		4					
+C-Freq	CFreqId=200862	CGroupId=26708	Uinta County Fire	Off	154040000	NFM		24					
+C-Freq	CFreqId=200854	CGroupId=26708	Uinta County Fire	Off	154325000	NFM		8					
+C-Freq	CFreqId=158074	CGroupId=26708	Uinta County Fire Dispatch East	Off	154430000	NFM	TONE=C107.2	3					
+C-Freq	CFreqId=158075	CGroupId=26708	Uinta County Fire Dispatch West	Off	154430000	NFM	TONE=C114.8	3					
+C-Freq	CFreqId=200855	CGroupId=26708	Uinta County Highway Dept. 1	Off	151055000	NFM		14					
+C-Freq	CFreqId=200868	CGroupId=26708	Uinta County Highway Dept. 2	Off	159105000	NFM		14					
+C-Freq	CFreqId=101290	CGroupId=26708	Uinta County Sheriff	Off	155490000	NFM	TONE=C114.8	2					
+C-Group	CGroupId=26706	CountyId=3144	Uinta County - Evanston	Off	41.263920	-110.961670	4.3	Circle
+C-Freq	CFreqId=126328	CGroupId=26706	Evanston Fire/EMS	Off	154325000	NFM	TONE=C114.8	3					
+C-Freq	CFreqId=200871	CGroupId=26706	Evanston Parks and Recreation	Off	453925000	NFM		14					
+C-Freq	CFreqId=200870	CGroupId=26706	Evanston Police Car to Car	Off	154740000	NFM		23					
+C-Freq	CFreqId=101288	CGroupId=26706	Evanston Police Dispatch	Off	154800000	NFM	TONE=C107.2	2					
+C-Freq	CFreqId=158076	CGroupId=26706	Evanston Public Works	Off	155040000	NFM	TONE=C67.0	14					
+C-Group	CGroupId=49282	CountyId=3144	Uinta County - Lyman	Off	41.325360	-110.295370	5.0	Circle
+C-Freq	CFreqId=200872	CGroupId=49282	Lyman Police 2	Off	154800000	NFM		23					
+C-Freq	CFreqId=200875	CGroupId=49282	Lyman Police 3	Off	155490000	NFM		23					
+C-Freq	CFreqId=200873	CGroupId=49282	Lyman Police Dispatch	Off	154830000	NFM		2					
+C-Group	CGroupId=67695	CountyId=3144	Uinta County Amateur Radio - Repeaters	Off	41.300000	-110.550000	30.0	Circle
+C-Freq	CFreqId=363233	CGroupId=67695	Evanston	Off	448800000	FM	TONE=C131.8	13					
+C-Freq	CFreqId=278200	CGroupId=67695	Medicine Butte 2 - Intermountain Intertie	Off	146860000	FM	TONE=C100.0	13					
+C-Freq	CFreqId=363235	CGroupId=67695	Medicine Butte 2 - Intermountain Intertie	Off	449150000	FM	TONE=C100.0	13					
+Conventional	CountyId=3145	StateId=56	Washakie	Off		Conventional
+AreaState	CountyId=3145	StateId=56
+AreaCounty	CountyId=3145	CountyId=3145
+C-Group	CGroupId=40173	CountyId=3145	Washakie County	Off	43.900000	-107.700000	45.0	Circle
+C-Freq	CFreqId=160289	CGroupId=40173	Washakie County EMS 1	Off	155205000	NFM		4					
+C-Freq	CFreqId=160288	CGroupId=40173	Washakie County EMS 2	Off	155160000	NFM		25					
+C-Freq	CFreqId=160285	CGroupId=40173	Washakie County Fire 1	Off	154130000	NFM	TONE=C107.2	3					
+C-Freq	CFreqId=160286	CGroupId=40173	Washakie County Fire 2	Off	154205000	NFM	TONE=C146.2	8					
+C-Freq	CFreqId=160287	CGroupId=40173	Washakie County Public Safety	Off	155940000	NFM	TONE=C100.0	1					
+C-Freq	CFreqId=160283	CGroupId=40173	Washakie County Sheriff Dispatch	Off	155415000	NFM	TONE=C100.0	2					
+C-Group	CGroupId=40174	CountyId=3145	Washakie County - Worland	Off	44.015500	-107.950920	5.0	Circle
+C-Freq	CFreqId=160293	CGroupId=40174	Worland Airport	Off	155085000	NFM		14					
+C-Freq	CFreqId=160292	CGroupId=40174	Worland Ambulance to Hospital	Off	155280000	NFM		12					
+C-Freq	CFreqId=160291	CGroupId=40174	Worland EMS	Off	152007500	NFM		4					
+C-Freq	CFreqId=160290	CGroupId=40174	Worland Police	Off	155490000	NFM		2					
+C-Freq	CFreqId=160294	CGroupId=40174	Worland Police/Fire/Public Works Dispatch	Off	155820000	NFM		1					
+Conventional	CountyId=3146	StateId=56	Weston	Off		Conventional
+AreaState	CountyId=3146	StateId=56
+AreaCounty	CountyId=3146	CountyId=3146
+C-Group	CGroupId=34539	CountyId=3146	Weston County	Off	43.800000	-104.600000	35.0	Circle
+C-Freq	CFreqId=283474	CGroupId=34539	Weston County Fire 2	Off	151220000	NFM		8					
+C-Freq	CFreqId=136642	CGroupId=34539	Weston County Fire/EMS	Off	155715000	NFM	TONE=C156.7	3					
+C-Freq	CFreqId=279465	CGroupId=34539	Weston County Roads	Off	155085000	NFM		14					
+C-Freq	CFreqId=228520	CGroupId=34539	Weston County School District 1	Off	463625000	NFM	TONE=C88.5	32					
+C-Freq	CFreqId=136643	CGroupId=34539	Weston County Sheriff	Off	154815000	NFM	TONE=C114.8	2					
+C-Group	CGroupId=34506	CountyId=3146	Weston County - Newcastle	Off	43.852750	-104.210220	5.0	Circle
+C-Freq	CFreqId=392392	CGroupId=34506	Newcastle City Engineer	Off	154100000	NFM	TONE=C114.8	14					
+C-Freq	CFreqId=359219	CGroupId=34506	Newcastle EMS	Off	152007500	NFM		4					
+C-Freq	CFreqId=231887	CGroupId=34506	Newcastle Fire	Off	155955000	NFM	TONE=C123.0	3					
+C-Freq	CFreqId=136524	CGroupId=34506	Newcastle Police 1 Dispatch	Off	154800000	NFM	TONE=C156.7	2					
+C-Freq	CFreqId=231885	CGroupId=34506	Newcastle Police 2 Car/Car	Off	154905000	NFM	TONE=C123.0	23					
+C-Group	CGroupId=34538	CountyId=3146	Weston County - Upton	Off	44.098310	-104.626920	5.0	Circle
+C-Freq	CFreqId=136640	CGroupId=34538	Upton Fire/EMS	Off	153875000	NFM	TONE=C167.9	3					
+C-Freq	CFreqId=136641	CGroupId=34538	Upton Police	Off	158820000	NFM	TONE=C156.7	2					
+C-Freq	CFreqId=283473	CGroupId=34538	Upton Public Works	Off	156060000	NFM	TONE=C67.0	14					
+C-Group	CGroupId=65945	CountyId=3146	Weston County Amateur Radio - Repeaters	Off	43.800000	-104.600000	35.0	Circle
+C-Freq	CFreqId=271939	CGroupId=65945	Newcastle	Off	147300000	FM		13					
+Conventional	AgencyId=1909	StateId=56	Businesses	Off		Conventional
+AreaState	AgencyId=1909	StateId=56
+AreaCounty	AgencyId=1909	CountyId=3128
+C-Group	CGroupId=53731	AgencyId=1909	Douglas - Businesses	Off	42.759190	-105.370870	5.0	Circle
+C-Freq	CFreqId=55393	CGroupId=53731	Cable TV	Off	151775000	NFM		34					
+C-Freq	CFreqId=222330	CGroupId=53731	Croell Redi-Mix	Off	452337500	NFM	TONE=C107.2	17					
+C-Freq	CFreqId=300366	CGroupId=53731	Power Resources	Off	452125000	NFM	TONE=D115	34					
+Conventional	AgencyId=2393	StateId=56	Businesses	Off		Conventional
+AreaState	AgencyId=2393	StateId=56
+AreaCounty	AgencyId=2393	CountyId=3134
+C-Group	CGroupId=20547	AgencyId=2393	Cheyenne - Businesses	Off	41.346790	-104.661910	40.0	Circle
+C-Freq	CFreqId=224350	CGroupId=20547	Alpine Carpet Cleaning	Off	152915000	FM	TONE=C141.3	17					
+C-Freq	CFreqId=127363	CGroupId=20547	B and B Appliance	Off	151805000	FM	TONE=C118.8	17					
+C-Freq	CFreqId=127365	CGroupId=20547	B and B Sewer	Off	151715000	FM	TONE=C173.8	17					
+C-Freq	CFreqId=127362	CGroupId=20547	Boquets Unlimited	Off	153125000	NFM	TONE=C88.5	17					
+C-Freq	CFreqId=213189	CGroupId=20547	Capitol City Stadium Theaters	Off	154570000	FM	TONE=C67.0	17					
+C-Freq	CFreqId=103510	CGroupId=20547	Cheyenne Animal Shelter	Off	152330000	FM	TONE=C100.0	17					
+C-Freq	CFreqId=127361	CGroupId=20547	Cook McCann	Off	154490000	FM	TONE=C131.8	17					
+C-Freq	CFreqId=75371	CGroupId=20547	Doug's Towing	Off	451862500	FM	TONE=D047	17					
+C-Freq	CFreqId=84110	CGroupId=20547	Flyte Sanitation	Off	463587500	FM	TONE=D612	17					
+C-Freq	CFreqId=180988	CGroupId=20547	Frontier Corrections Jeffrey Wardell Academy - Juvenile Detentio	Off	462650000	FM	TONE=C131.8	17					
+C-Freq	CFreqId=242482	CGroupId=20547	Frontier Park	Off	464500000	FM	TONE=C141.3	17					
+C-Freq	CFreqId=127358	CGroupId=20547	Inman Roofing	Off	451787500	FM	TONE=D116	17					
+C-Freq	CFreqId=205293	CGroupId=20547	Lummis Livestock	Off	151550000	FM	TONE=C118.8	17					
+C-Freq	CFreqId=127360	CGroupId=20547	Merrill Inc.	Off	157680000	FM	TONE=D251	17					
+C-Freq	CFreqId=127354	CGroupId=20547	Panhandle COOP (eastern Laramie County)	Off	464400000	FM	TONE=D244	17					
+C-Freq	CFreqId=317307	CGroupId=20547	Primrose Retirement Community	Off	464150000	NFM	TONE=C100.0	17					
+C-Freq	CFreqId=127355	CGroupId=20547	Pro Management	Off	858812500	FM	TONE=D155	17					
+C-Freq	CFreqId=353600	CGroupId=20547	Terry Bison Ranch	Off	461425000	NFM	TONE=D223	17					
+C-Group	CGroupId=75078	AgencyId=2393	Cheyenne - Construction	Off	41.139980	-104.820250	5.0	Circle
+C-Freq	CFreqId=245613	CGroupId=75078	Aztec Construction	Off	159960000	FM	TONE=D023	17					
+C-Freq	CFreqId=127367	CGroupId=75078	Granite Canyon Quarry	Off	151775000	FM	TONE=C151.4	17					
+C-Freq	CFreqId=377951	CGroupId=75078	Jebro Asphalt	Off	463562500	NFM	TONE=D346	17					
+C-Freq	CFreqId=180986	CGroupId=75078	John LaFond Construction	Off	159555000	FM	TONE=C141.3	17					
+C-Freq	CFreqId=377952	CGroupId=75078	Knife River Construction	Off	464850000	NFM	TONE=D311	17					
+C-Freq	CFreqId=127366	CGroupId=75078	Morandin Concrete	Off	152870000	NFM	TONE=C167.9	17					
+C-Freq	CFreqId=233592	CGroupId=75078	Simon Brothers Construction	Off	152990000	FM	TONE=C141.3	17					
+C-Freq	CFreqId=145707	CGroupId=75078	Star Aggregates	Off	151520000	FM	TONE=C82.5	17					
+C-Freq	CFreqId=127356	CGroupId=75078	Tilton Ready Mix	Off	860912500	FM	TONE=D503	17					
+C-Group	CGroupId=40453	AgencyId=2393	Cheyenne - Hotels	Off	41.139980	-104.820250	5.0	Circle
+C-Freq	CFreqId=162155	CGroupId=40453	Hitching Post Inn and Convention Center	Off	464675000	FM	TONE=D712	17					
+C-Freq	CFreqId=193004	CGroupId=40453	Little America Hotel 1	Off	151835000	FM	TONE=D431	17					
+C-Freq	CFreqId=219151	CGroupId=40453	Little America Hotel 2	Off	151835000	FM	TONE=D223	17					
+C-Freq	CFreqId=84112	CGroupId=40453	Radisson Inn	Off	159765000	FM	TONE=D662	17					
+C-Freq	CFreqId=282680	CGroupId=40453	Roadway Inn Housekeeping	Off	462812500	FM		17					
+C-Group	CGroupId=44182	AgencyId=2393	Cheyenne - Industry	Off	41.139980	-104.820250	5.0	Circle
+C-Freq	CFreqId=204393	CGroupId=44182	Dyno Nobel Chemical 1	Off	462225000	FM	TONE=C110.9	17					
+C-Freq	CFreqId=204283	CGroupId=44182	Dyno Nobel Chemical 2	Off	462350000	FM	TONE=C110.9	17					
+C-Freq	CFreqId=204650	CGroupId=44182	Dyno Nobel Chemical 3	Off	462450000	FM	TONE=C110.9	17					
+C-Freq	CFreqId=205115	CGroupId=44182	Dyno Nobel Chemical 4	Off	462300000	FM	TONE=C110.9	17					
+C-Freq	CFreqId=343175	CGroupId=44182	Granite Canyon Quarry	Off	154505000	NFM	TONE=C225.7	17					
+C-Freq	CFreqId=84111	CGroupId=44182	Lowes Distribution	Off	464925000	FM	TONE=D023	17					
+C-Freq	CFreqId=180985	CGroupId=44182	Norfleet Sheetmetal	Off	151895000	FM	TONE=D165	17					
+C-Freq	CFreqId=257436	CGroupId=44182	Nortrak Manufacturing 1	Off	462500000	FM	TONE=D223	17					
+C-Freq	CFreqId=257437	CGroupId=44182	Nortrak Manufacturing 2	Off	451950000	FM	TONE=D223	17					
+C-Freq	CFreqId=204502	CGroupId=44182	Timec Corporation (contractor at Frontier)	Off	152270000	FM	TONE=C127.3	17					
+C-Group	CGroupId=75077	AgencyId=2393	Cheyenne - Resturants	Off	41.139980	-104.820250	5.0	Circle
+C-Freq	CFreqId=145705	CGroupId=75077	Applebee's	Off	464550000	NFM	TONE=C71.9	17					
+C-Freq	CFreqId=207238	CGroupId=75077	Old Chicago	Off	461062500	NFM	TONE=C67.0	17					
+C-Freq	CFreqId=317296	CGroupId=75077	Olive Garden	Off	467762500	NFM	TONE=C67.0	17					
+C-Freq	CFreqId=317297	CGroupId=75077	Red Lobster	Off	467812500	NFM	TONE=C67.0	17					
+C-Freq	CFreqId=317298	CGroupId=75077	Texas Roadhouse	Off	464550000	NFM	TONE=C67.0	17					
+C-Group	CGroupId=22845	AgencyId=2393	Cheyenne - Retail	Off	41.139980	-104.820250	5.0	Circle
+C-Freq	CFreqId=338257	CGroupId=22845	Big Lots	Off	462525000	NFM	TONE=C114.8	17					
+C-Freq	CFreqId=231845	CGroupId=22845	Flying J	Off	154570000	NFM	TONE=C67.0	17					
+C-Freq	CFreqId=338258	CGroupId=22845	Harbor Freight	Off	467875000	NFM	TONE=D114	17					
+C-Freq	CFreqId=193003	CGroupId=22845	Home Depot	Off	467762500	NFM	TONE=D065	17					
+C-Freq	CFreqId=193000	CGroupId=22845	JC Penney	Off	467225000	NFM	TONE=D365	17					
+C-Freq	CFreqId=257438	CGroupId=22845	K-Mart	Off	467900000	NFM	TONE=D465	17					
+C-Freq	CFreqId=205117	CGroupId=22845	Kohls Department Store	Off	467850000	NFM	TONE=C146.2	17					
+C-Freq	CFreqId=297954	CGroupId=22845	Menards 1	Off	466037500	NFM	TONE=D025	17					
+C-Freq	CFreqId=297955	CGroupId=22845	Menards 2	Off	467887500	NFM	TONE=D065	17					
+C-Freq	CFreqId=338256	CGroupId=22845	Menards 3 - Security/Lumberyard	Off	464487500	NFM	TONE=D031	17					
+C-Freq	CFreqId=145706	CGroupId=22845	Murdoch's Ranch and Home Supply	Off	461037500	NFM	TONE=C67.0	17					
+C-Freq	CFreqId=162156	CGroupId=22845	Office Depot	Off	467900000	NFM	TONE=D131	17					
+C-Freq	CFreqId=317302	CGroupId=22845	Petco	Off	467925000	NFM	TONE=C100.0	17					
+C-Freq	CFreqId=127352	CGroupId=22845	Sam's Club	Off	151820000	NFM	TONE=D131	17					
+C-Freq	CFreqId=317300	CGroupId=22845	Shoe Carnival	Off	462887500	NFM	TONE=D205	17					
+C-Freq	CFreqId=162157	CGroupId=22845	Target 1	Off	467750000	NFM	TONE=D115	17					
+C-Freq	CFreqId=162158	CGroupId=22845	Target 2	Off	467775000	NFM	TONE=D072	17					
+C-Freq	CFreqId=257439	CGroupId=22845	Target 3	Off	467925000	NFM	TONE=D155	17					
+C-Freq	CFreqId=138448	CGroupId=22845	Target 4	Off	467900000	NFM	TONE=D205	17					
+C-Freq	CFreqId=317299	CGroupId=22845	TJ Maxx	Off	467850000	NFM	TONE=C100.0	17					
+C-Freq	CFreqId=317301	CGroupId=22845	Victorias Secret	Off	467925000	NFM	TONE=D734	17					
+C-Freq	CFreqId=131481	CGroupId=22845	Wal-Mart 1 - Dell Range	Off	154570000	NFM	TONE=C250.3	17					
+C-Freq	CFreqId=131482	CGroupId=22845	Wal-Mart 2 - Dell Range	Off	154600000	NFM	TONE=C131.8	17					
+C-Group	CGroupId=20546	AgencyId=2393	Countywide - Utilities	Off	41.346790	-104.661910	35.0	Circle
+C-Freq	CFreqId=75367	CGroupId=20546	Bresnan Communications	Off	463350000	NFM	TONE=D662	34					
+C-Freq	CFreqId=84104	CGroupId=20546	New Horizon Communications	Off	461825000	NFM	TONE=C118.8	34					
+C-Freq	CFreqId=127357	CGroupId=20546	Qwest	Off	451400000	FM	TONE=C88.5	34					
+C-Freq	CFreqId=179291	CGroupId=20546	Webb Johnson Electric	Off	151835000	NFM	TONE=C127.3	34					
+C-Freq	CFreqId=75368	CGroupId=20546	Xcel Energy	Off	158175000	NFM	TONE=C127.3	34					
+C-Group	CGroupId=80146	AgencyId=2393	Hillsdale - Businesses	Off	41.210780	-104.480860	5.0	Circle
+C-Freq	CFreqId=345162	CGroupId=80146	TA Truck Stop	Off	464550000	NFM	TONE=C67.0	17					
+C-Group	CGroupId=79762	AgencyId=2393	Pine Bluffs - Businesses	Off	41.181930	-104.069120	5.0	Circle
+C-Freq	CFreqId=220362	CGroupId=79762	Bowman Irrigation	Off	152345000	FM	TONE=C179.9	17					
+C-Freq	CFreqId=360913	CGroupId=79762	Croell Redi-Mix	Off	452975000	NFM	TONE=C141.3	17					
+C-Freq	CFreqId=242481	CGroupId=79762	Jensen Wheat	Off	461150000	FM	TONE=D043	17					
+C-Freq	CFreqId=147635	CGroupId=79762	Mechels Trucking (Burns/Pine Bluffs)	Off	152435000	FM	TONE=C114.8	17					
+C-Freq	CFreqId=149166	CGroupId=79762	R and K Farms	Off	152315000	FM	TONE=C156.7	17					
+Conventional	AgencyId=2412	StateId=56	Businesses	Off		Conventional
+AreaState	AgencyId=2412	StateId=56
+AreaCounty	AgencyId=2412	CountyId=3131
+C-Group	CGroupId=20687	AgencyId=2412	Torrington - Businesses	Off	42.103000	-104.351000	40.0	Circle
+C-Freq	CFreqId=89913	CGroupId=20687	Benchmark Surveyors	Off	152420000	FM	TONE=D047	17					
+C-Freq	CFreqId=126899	CGroupId=20687	Bullock Electric	Off	154540000	FM		17					
+C-Freq	CFreqId=126898	CGroupId=20687	Caneday Well Drilling	Off	461350000	FM	TONE=D546	17					
+C-Freq	CFreqId=89911	CGroupId=20687	Community Hospital	Off	152285000	FM	TONE=C162.2	17					
+C-Freq	CFreqId=89912	CGroupId=20687	Concrete Construction	Off	151895000	FM		17					
+C-Freq	CFreqId=89916	CGroupId=20687	Dinklage Feedyard	Off	464475000	FM	TONE=D162	17					
+C-Freq	CFreqId=91188	CGroupId=20687	Diversified Services Buses	Off	157515000	FM	TONE=D662	17					
+C-Freq	CFreqId=220363	CGroupId=20687	Gene Lay Ranch	Off	151670000	FM	TONE=D431	17					
+C-Freq	CFreqId=132323	CGroupId=20687	H and T Ranch	Off	153035000	FM	TONE=C110.9	17					
+C-Freq	CFreqId=126897	CGroupId=20687	Roy Scott Farms	Off	152330000	FM	TONE=C162.2	17					
+C-Freq	CFreqId=89914	CGroupId=20687	Simplot Soil Builders	Off	461075000	FM	TONE=C131.8	17					
+C-Freq	CFreqId=75780	CGroupId=20687	St. Joseph's Children's Home	Off	464325000	FM	TONE=C156.7	17					
+C-Freq	CFreqId=89915	CGroupId=20687	TDS Enviromental	Off	464300000	FM	TONE=D026	17					
+C-Freq	CFreqId=259866	CGroupId=20687	Thaler Ranch, LaGrange	Off	152270000	FM	TONE=C103.5	17					
+C-Freq	CFreqId=220364	CGroupId=20687	Torrington Beverage	Off	464300000	FM	TONE=D065	17					
+C-Freq	CFreqId=242789	CGroupId=20687	Torrington Pamida	Off	467875000	FM	TONE=C131.8	17					
+C-Freq	CFreqId=91189	CGroupId=20687	Torrington Sale Barn Operations	Off	154600000	FM	TONE=D703	17					
+C-Freq	CFreqId=253410	CGroupId=20687	Tremain Ranch (east of LaGrange)	Off	159855000	FM	TONE=C103.5	17					
+Conventional	AgencyId=2785	StateId=56	Businesses	Off		Conventional
+AreaState	AgencyId=2785	StateId=56
+AreaCounty	AgencyId=2785	CountyId=3136
+C-Group	CGroupId=89921	AgencyId=2785	Alcova - Businesses	Off	42.552180	-106.716430	5.0	Circle
+C-Freq	CFreqId=294747	CGroupId=89921	Mormon Handcart Historic Site	Off	451875000	NFM		17					
+C-Group	CGroupId=43424	AgencyId=2785	Casper - Businesses	Off	42.866630	-106.313080	10.0	Circle
+C-Freq	CFreqId=323080	CGroupId=43424	Dicks Sporting Goods - Casper	Off	467875000	NFM	TONE=C94.8	17					
+C-Freq	CFreqId=94419	CGroupId=43424	Eastridge Mall	Off	151715000	NFM	TONE=C179.9	17					
+C-Freq	CFreqId=295024	CGroupId=43424	Hartz E&F Wrecker	Off	152465000	NFM	TONE=D065	17					
+C-Freq	CFreqId=175749	CGroupId=43424	McMurry Readymix Company	Off	153020000	NFM		17					
+C-Freq	CFreqId=245455	CGroupId=43424	North Park Transportation	Off	159630000	NFM	TONE=C127.3	17					
+C-Freq	CFreqId=300364	CGroupId=43424	Sinclair Casper Refining	Off	451225000	NFM	TONE=D311	17					
+C-Freq	CFreqId=174411	CGroupId=43424	Trash Collection (Two Way Radio Casper)	Off	463575000	NFM	TONE=D261	17					
+C-Freq	CFreqId=397287	CGroupId=43424	Trucking Company	Off	151880000	NFM	TONE=D116	17					
+C-Freq	CFreqId=300365	CGroupId=43424	Two Way Radio Casper	Off	463725000	NFM	TONE=D156	17					
+C-Group	CGroupId=89950	AgencyId=2785	Casper - Hogadon Basin Ski Area	Off	42.745120	-106.339000	5.0	Circle
+C-Freq	CFreqId=397743	CGroupId=89950	Hogadon Basin Ski Area Operations	Off	155055000	NFM		17					
+C-Freq	CFreqId=397744	CGroupId=89950	Hogadon Basin Ski Area Ski Patrol	Off	155220000	NFM		17					
+C-Group	CGroupId=89922	AgencyId=2785	Casper - Lodging	Off	42.950000	-106.800000	52.0	Circle
+C-Freq	CFreqId=94422	CGroupId=89922	Best Western Convention Center	Off	151775000	NFM	TONE=D423	17					
+C-Freq	CFreqId=295026	CGroupId=89922	Casper Events Center	Off	155775000	NFM		17					
+C-Freq	CFreqId=94421	CGroupId=89922	Holiday Inn Convention Center	Off	152885000	NFM	TONE=C141.3	17					
+C-Freq	CFreqId=94420	CGroupId=89922	Parkway Plaza Convention Center	Off	151685000	NFM	TONE=C167.9	17					
+C-Freq	CFreqId=312183	CGroupId=89922	Parkway Plaza Hotel	Off	152945000	NFM	TONE=D051	17					
+Conventional	AgencyId=2907	StateId=56	Businesses	Off		Conventional
+AreaState	AgencyId=2907	StateId=56
+AreaCounty	AgencyId=2907	CountyId=3139
+C-Group	CGroupId=82251	AgencyId=2907	Chugwater - Agriculture	Off	41.756640	-104.821640	5.0	Circle
+C-Freq	CFreqId=355327	CGroupId=82251	Ty Cattle Company	Off	49520000	FM		17					
+C-Group	CGroupId=26669	AgencyId=2907	Countywide - Businesses	Off	42.133300	-104.967190	37.0	Circle
+C-Freq	CFreqId=101123	CGroupId=26669	Guernsey Stone Quarry	Off	151490000	NFM		17					
+C-Group	CGroupId=82258	AgencyId=2907	Countywide - Utilities	Off	42.133300	-104.967190	37.0	Circle
+C-Freq	CFreqId=355361	CGroupId=82258	Wheatland Rural Electric Assoication	Off	173250000	NFM	TONE=C131.8	34					
+Conventional	AgencyId=3415	StateId=56	Businesses	Off		Conventional
+AreaState	AgencyId=3415	StateId=56
+AreaCounty	AgencyId=3415	CountyId=3124
+C-Group	CGroupId=89939	AgencyId=3415	Centennial - Snowy Range Ski Area	Off	41.298310	-106.141680	5.0	Circle
+C-Freq	CFreqId=397667	CGroupId=89939	Snowy Range Ski Area 1 - Mountain Operations	Off	461650000	NFM	TONE=C186.2	17					
+C-Freq	CFreqId=397668	CGroupId=89939	Snowy Range Ski Area 2 - Base Operations	Off	461700000	NFM	TONE=C186.2	17					
+C-Freq	CFreqId=397711	CGroupId=89939	Snowy Range Ski Patrol - Repeater	Off	155295000	NFM		17					
+C-Freq	CFreqId=397710	CGroupId=89939	Snowy Range Ski Patrol (National HEAR)	Off	155340000	NFM		17					
+C-Freq	CFreqId=397709	CGroupId=89939	Snowy Range Ski Patrol (National SAR)	Off	155160000	NFM		17					
+C-Group	CGroupId=80817	AgencyId=3415	Laramie - Businesses	Off	41.311370	-105.591100	3.0	Circle
+C-Freq	CFreqId=348311	CGroupId=80817	Ace Hardware	Off	467875000	NFM	TONE=C85.4	17					
+C-Freq	CFreqId=198337	CGroupId=80817	Eagle Plumbing	Off	152315000	NFM	TONE=D662	17					
+C-Freq	CFreqId=221970	CGroupId=80817	Hilton Garden Inn	Off	451187500	NFM	TONE=C218.1	17					
+C-Freq	CFreqId=221969	CGroupId=80817	Hilton Garden Inn	Off	456187500	NFM	TONE=C218.1	17					
+C-Freq	CFreqId=198339	CGroupId=80817	NeedMoreLand Ranch	Off	451775000	NFM	TONE=D351	17					
+C-Freq	CFreqId=208947	CGroupId=80817	Tom Baer Agriculture	Off	152945000	NFM	TONE=D315	17					
+C-Freq	CFreqId=131492	CGroupId=80817	Walmart	Off	154570000	NFM		17					
+C-Freq	CFreqId=131493	CGroupId=80817	Walmart	Off	154600000	NFM		17					
+C-Freq	CFreqId=378138	CGroupId=80817	X-Bar Cattle Company	Off	452700000	NFM	TONE=D026	17					
+C-Group	CGroupId=80816	AgencyId=3415	Laramie - Industry	Off	41.311370	-105.591100	3.0	Circle
+C-Freq	CFreqId=198338	CGroupId=80816	James Simon Company	Off	461050000	NFM	TONE=D445	17					
+C-Freq	CFreqId=221971	CGroupId=80816	Mountain Cement	Off	152870000	NFM	TONE=D351	17					
+C-Freq	CFreqId=396716	CGroupId=80816	Pete Lien and Sons Quarry 3	Off	153357500	NFM	TONE=C100.0	17					
+Conventional	AgencyId=3734	StateId=56	Businesses	Off		Conventional
+AreaState	AgencyId=3734	StateId=56
+AreaCounty	AgencyId=3734	CountyId=3140
+C-Group	CGroupId=36231	AgencyId=3734	Sheridan - Businesses	Off	44.797190	-106.956180	5.0	Circle
+C-Freq	CFreqId=284585	CGroupId=36231	Croell Redi-Mix	Off	461700000	NFM	TONE=C118.8	17					
+C-Freq	CFreqId=141372	CGroupId=36231	Mullinax Concrete	Off	151535000	NFM	TONE=C156.7	17					
+C-Freq	CFreqId=271424	CGroupId=36231	Paddlock Ranch	Off	152885000	NFM	TONE=C131.8	17					
+C-Freq	CFreqId=225367	CGroupId=36231	Renew	Off	157560000	NFM	TONE=C77.0	17					
+C-Freq	CFreqId=141373	CGroupId=36231	Roush Plumbing and Heating	Off	151895000	NFM	TONE=C131.8	17					
+Conventional	AgencyId=4533	StateId=56	Businesses	Off		Conventional
+AreaState	AgencyId=4533	StateId=56
+AreaCounty	AgencyId=4533	CountyId=3127
+C-Group	CGroupId=89750	AgencyId=4533	Rawlins - Businesses	Off	41.791070	-107.238660	25.0	Circle
+C-Freq	CFreqId=184768	CGroupId=89750	Arlington Towing	Off	461600000	NFM		17					
+C-Freq	CFreqId=397670	CGroupId=89750	Transportation Partners & Logistics	Off	152292500	NFM		17					
+Conventional	AgencyId=4534	StateId=56	Businesses	Off		Conventional
+AreaState	AgencyId=4534	StateId=56
+AreaCounty	AgencyId=4534	CountyId=3142
+C-Group	CGroupId=82296	AgencyId=4534	Green River - Industry	Off	41.528580	-109.466250	5.0	Circle
+C-Freq	CFreqId=195227	CGroupId=82296	Arrowhead Concrete	Off	463350000	NFM		17					
+C-Group	CGroupId=82295	AgencyId=4534	Little America - Businesses	Off	41.543570	-109.859030	5.0	Circle
+C-Freq	CFreqId=174826	CGroupId=82295	Little America Hotel	Off	152435000	NFM	TONE=C141.3	17					
+C-Freq	CFreqId=397672	CGroupId=82295	Railcar Loading	Off	151850000	NFM	TONE=D074	17					
+C-Group	CGroupId=82297	AgencyId=4534	Point of Rocks - Industry	Off	41.680240	-108.785670	5.0	Circle
+C-Freq	CFreqId=339768	CGroupId=82297	Black Butte Coal Company Control	Off	460950000	NFM		17					
+C-Freq	CFreqId=339769	CGroupId=82297	Black Butte Coal Company Surface Operators	Off	151550000	NFM		17					
+C-Freq	CFreqId=226641	CGroupId=82297	Bridger Mine Operations 1	Off	153000000	NFM	TONE=C192.8	17					
+C-Freq	CFreqId=226640	CGroupId=82297	Bridger Mine Operations 2	Off	151550000	NFM	TONE=C118.8	17					
+C-Group	CGroupId=82292	AgencyId=4534	Rock Springs - Businesses	Off	41.587460	-109.202900	5.0	Circle
+C-Freq	CFreqId=377133	CGroupId=82292	BFI Waste Systems	Off	463200000	NFM	TONE=C110.9	17					
+C-Freq	CFreqId=288434	CGroupId=82292	Home Depot	Off	467762500	NFM	TONE=D065	17					
+C-Freq	CFreqId=355548	CGroupId=82292	JoAnn Fabric	Off	467900000	NFM	TONE=D731	17					
+C-Freq	CFreqId=294746	CGroupId=82292	La Bus	Off	461100000	NFM	TONE=C88.5	26					
+C-Freq	CFreqId=355547	CGroupId=82292	Murdoch's Ranch and Home Supply	Off	464550000	NFM	TONE=C71.9	17					
+C-Group	CGroupId=82293	AgencyId=4534	Rock Springs - Industry	Off	41.587460	-109.202900	5.0	Circle
+C-Freq	CFreqId=339770	CGroupId=82293	Crown Oil Company	Off	152285000	NFM	TONE=C146.2	17					
+C-Freq	CFreqId=397687	CGroupId=82293	Progress Rail Services	Off	461800000	NFM		17					
+C-Freq	CFreqId=377132	CGroupId=82293	Sunroc Sand and Gravel	Off	461750000	NFM	TONE=C114.8	17					
+Conventional	AgencyId=4611	StateId=56	Businesses	Off		Conventional
+AreaState	AgencyId=4611	StateId=56
+AreaCounty	AgencyId=4611	CountyId=3138
+C-Group	CGroupId=89924	AgencyId=4611	Cody - Businesses	Off	44.526340	-109.056530	5.0	Circle
+C-Freq	CFreqId=397608	CGroupId=89924	Kobbe Oilfield Service	Off	151805000	NFM	TONE=C94.8	17					
+C-Group	CGroupId=44184	AgencyId=4611	Countywide - Utilities	Off	44.550000	-109.100000	40.0	Circle
+C-Freq	CFreqId=177781	CGroupId=44184	Pacificorp	Off	153440000	NFM	TONE=C151.4	17					
+C-Freq	CFreqId=177780	CGroupId=44184	Pacificorp	Off	153515000	NFM	TONE=C151.4	17					
+C-Freq	CFreqId=177779	CGroupId=44184	Pacificorp	Off	153710000	NFM	TONE=C151.4	17					
+C-Group	CGroupId=76252	AgencyId=4611	Yellowstone National Park	Off	44.585720	-110.597240	40.0	Circle
+C-Freq	CFreqId=323712	CGroupId=76252	Grant Village General Store (now part of Teton Comm R37 NXDN)	Off	462125000	NFM	TONE=C69.3	17					
+C-Freq	CFreqId=323713	CGroupId=76252	Madison Campground	Off	152420000	NFM		17					
+C-Freq	CFreqId=359449	CGroupId=76252	Old Faithful Snow Lodge (now part of Teton Comm L386 NXDN)	Off	452050000	NFM	TONE=C186.2	17					
+C-Freq	CFreqId=397609	CGroupId=76252	Sleeping Giant Winter Sports (near YNP west entrance)	Off	160095000	NFM	TONE=D662	17					
+C-Freq	CFreqId=323711	CGroupId=76252	Xanterra Parks YNP Chan 1 - Old Faithful Inn	Off	461512500	NFM	TONE=C103.5	17					
+C-Freq	CFreqId=397611	CGroupId=76252	Xanterra Parks YNP Chan 2	Off	461737500	NFM		17					
+C-Freq	CFreqId=397612	CGroupId=76252	Xanterra Parks YNP Chan 3	Off	462112500	NFM		17					
+C-Freq	CFreqId=397613	CGroupId=76252	Xanterra Parks YNP Chan 4	Off	463987500	NFM		17					
+C-Freq	CFreqId=397610	CGroupId=76252	Xanterra Parks YNP Chan 5 - Maintenance	Off	464687500	NFM	TONE=C123.0	17					
+Conventional	AgencyId=5580	StateId=56	Businesses	Off		Conventional
+AreaState	AgencyId=5580	StateId=56
+AreaCounty	AgencyId=5580	CountyId=3135
+C-Group	CGroupId=79084	AgencyId=5580	Kemmerer - Businesses	Off	41.792450	-110.537670	5.0	Circle
+C-Freq	CFreqId=202740	CGroupId=79084	Julian Land and Livestock	Off	463750000	NFM	TONE=C97.4	17					
+Conventional	AgencyId=6201	StateId=56	Businesses	Off		Conventional
+AreaState	AgencyId=6201	StateId=56
+AreaCounty	AgencyId=6201	CountyId=3143
+C-Group	CGroupId=53847	AgencyId=6201	Grand Teton National Park	Off	43.790920	-110.681760	20.0	Circle
+C-Freq	CFreqId=243475	CGroupId=53847	Grand Teton Lodge Chan 1	Off	452750000	FM	TONE=D071	17					
+C-Freq	CFreqId=397615	CGroupId=53847	Grand Teton Lodge Chan 2	Off	461200000	NFM		17					
+C-Freq	CFreqId=397616	CGroupId=53847	Grand Teton Lodge Chan 3	Off	462400000	NFM		17					
+C-Group	CGroupId=53798	AgencyId=6201	Jackson - Businesses	Off	43.478260	-110.767740	5.0	Circle
+C-Freq	CFreqId=266424	CGroupId=53798	AllTrans Taxi	Off	461800000	FM	TONE=C100.0	26					
+C-Freq	CFreqId=223058	CGroupId=53798	Curtis Excavating	Off	151925000	NFM	TONE=C118.8	17					
+C-Freq	CFreqId=266425	CGroupId=53798	National Wildlife Museum	Off	461600000	NFM	TONE=C107.2	17					
+C-Freq	CFreqId=266430	CGroupId=53798	Seaton Earthmovers	Off	152900000	NFM	TONE=C107.2	17					
+C-Freq	CFreqId=223057	CGroupId=53798	St. Johns Hospital	Off	155340000	NFM	TONE=C82.5	12					
+C-Group	CGroupId=89934	AgencyId=6201	Jackson - Lodging	Off	43.478260	-110.767740	5.0	Circle
+C-Freq	CFreqId=222860	CGroupId=89934	Teton Pines Resort	Off	467812500	NFM	TONE=C91.5	17					
+C-Group	CGroupId=89933	AgencyId=6201	Jackson - Snow King Mountain Ski Area	Off	43.478260	-110.767740	5.0	Circle
+C-Freq	CFreqId=397635	CGroupId=89933	Snow King Mountain Resort Ski Area 1	Off	151655000	NFM		17					
+C-Freq	CFreqId=397636	CGroupId=89933	Snow King Mountain Resort Ski Area 2	Off	151685000	NFM		17					
+C-Freq	CFreqId=397637	CGroupId=89933	Snow King Mountain Resort Ski Area 3	Off	151715000	NFM		17					
+C-Freq	CFreqId=397638	CGroupId=89933	Snow King Mountain Resort Ski Area 4	Off	151745000	NFM		17					
+C-Freq	CFreqId=397639	CGroupId=89933	Snow King Mountain Resort Ski Area 5	Off	151775000	NFM		17					
+C-Freq	CFreqId=397640	CGroupId=89933	Snow King Mountain Resort Ski Area 6	Off	151805000	NFM		17					
+C-Freq	CFreqId=223056	CGroupId=89933	Snow King Mountain Resort Ski Area 7 (Primary Channel)	Off	151835000	NFM	TONE=D023	17					
+C-Freq	CFreqId=397634	CGroupId=89933	Snow King Mountain Resort Ski Area 8	Off	158145000	NFM	TONE=D023	17					
+C-Group	CGroupId=89928	AgencyId=6201	Teton Village - Jackson Hole Mountain Resort (JHMR)	Off	43.587980	-110.827990	5.0	Circle
+C-Freq	CFreqId=295157	CGroupId=89928	Jackson Hole Mountain Resort - Gondola Ops	Off	464462500	NFM	TONE=D365	17					
+C-Freq	CFreqId=397626	CGroupId=89928	Jackson Hole Mountain Resort - Grooming	Off	461075000	NFM	TONE=D654	17					
+C-Freq	CFreqId=397720	CGroupId=89928	Jackson Hole Mountain Resort - Grooming	Off	461575000	NFM	TONE=D223	17					
+C-Freq	CFreqId=397628	CGroupId=89928	Jackson Hole Mountain Resort - Hosts	Off	460925000	NFM	TONE=D125	17					
+C-Freq	CFreqId=397721	CGroupId=89928	Jackson Hole Mountain Resort - Lift Operations	Off	462150000	NFM	TONE=D065	17					
+C-Freq	CFreqId=397629	CGroupId=89928	Jackson Hole Mountain Resort - Lift Operations	Off	463250000	NFM	TONE=D243	17					
+C-Freq	CFreqId=397624	CGroupId=89928	Jackson Hole Mountain Resort - Parking	Off	462275000	NFM	TONE=D632	17					
+C-Freq	CFreqId=397627	CGroupId=89928	Jackson Hole Mountain Resort - Shuttles	Off	451350000	NFM	TONE=D612	17					
+C-Freq	CFreqId=397622	CGroupId=89928	Jackson Hole Mountain Resort - simplex	Off	457525000	NFM		17					
+C-Freq	CFreqId=397623	CGroupId=89928	Jackson Hole Mountain Resort - simplex	Off	457550000	NFM	TONE=D731	17					
+C-Freq	CFreqId=266426	CGroupId=89928	Jackson Hole Mountain Resort - Ski Patrol	Off	461225000	NFM	TONE=D306	17					
+C-Freq	CFreqId=362250	CGroupId=89928	Jackson Hole Mountain Resort - Ski Racing	Off	461825000	NFM	TONE=D156	17					
+C-Freq	CFreqId=397625	CGroupId=89928	Jackson Hole Mountain Resort - TBD	Off	464825000	NFM	TONE=D051	17					
+C-Freq	CFreqId=362227	CGroupId=89928	Jackson Hole Mountain Resort - Terrain Park	Off	462450000	NFM	TONE=D664	17					
+C-Group	CGroupId=53846	AgencyId=6201	Teton Village - Lodging	Off	43.587980	-110.827990	5.0	Circle
+C-Freq	CFreqId=397617	CGroupId=53846	Four Seasons Resort Jackson Hole NXDN	Off	461025000	AUTO		17					
+C-Freq	CFreqId=362249	CGroupId=53846	Hotel Terra Jackson Hole	Off	463812500	NFM	TONE=C179.9	17					
+C-Freq	CFreqId=266428	CGroupId=53846	Jackson Hole Development Company	Off	461825000	FM	TONE=C107.2	17					
+C-Freq	CFreqId=266427	CGroupId=53846	Jackson Hole Resort	Off	151745000	NFM	TONE=C77.0	17					
+C-Freq	CFreqId=398581	CGroupId=53846	TBD Jackson Hole Hotel	Off	451912500	NFM	TONE=C179.9	17					
+Conventional	AgencyId=6387	StateId=56	Businesses	Off		Conventional
+AreaState	AgencyId=6387	StateId=56
+AreaCounty	AgencyId=6387	CountyId=3146
+C-Group	CGroupId=55169	AgencyId=6387	Businesses	Off	43.800000	-104.600000	35.0	Circle
+C-Freq	CFreqId=381397	CGroupId=55169	M & K Oil	Off	464350000	NFM	TONE=C146.2	17					
+C-Freq	CFreqId=284586	CGroupId=55169	Rockwell Petroleum	Off	451750000	NFM	TONE=C123.0	17					
+Conventional	AgencyId=8268	StateId=56	Businesses	Off		Conventional
+AreaState	AgencyId=8268	StateId=56
+AreaCounty	AgencyId=8268	CountyId=3129
+C-Group	CGroupId=69861	AgencyId=8268	Businesses	Off	44.600000	-104.600000	40.0	Circle
+C-Freq	CFreqId=287748	CGroupId=69861	True Oil Company	Off	153110000	NFM	TONE=C100.0	17					
+Conventional	AgencyId=9052	StateId=56	Businesses	Off		Conventional
+AreaState	AgencyId=9052	StateId=56
+AreaCounty	AgencyId=9052	CountyId=3130
+C-Group	CGroupId=75467	AgencyId=9052	Lander - Businesses	Off	42.833010	-108.730670	5.0	Circle
+C-Freq	CFreqId=240044	CGroupId=75467	High Country Construction	Off	463775000	NFM	TONE=C167.9	17					
+C-Freq	CFreqId=240043	CGroupId=75467	Lander Redi Mix	Off	151745000	NFM		17					
+C-Group	CGroupId=90060	AgencyId=9052	Lysite - Businesses	Off	43.268020	-107.690360	5.0	Circle
+C-Freq	CFreqId=398571	CGroupId=90060	Contango Resources - Natural Gas (also licensed for multi-site D	Off	461700000	NFM	TONE=C136.5	17					
+C-Group	CGroupId=89721	AgencyId=9052	Riverton - Businesses	Off	43.024960	-108.380100	5.0	Circle
+C-Freq	CFreqId=396791	CGroupId=89721	Murdoch's Ranch and Home Supply	Off	461037500	NFM	TONE=C67.0	17					
+Conventional	AgencyId=9074	StateId=56	Businesses	Off		Conventional
+AreaState	AgencyId=9074	StateId=56
+AreaCounty	AgencyId=9074	CountyId=3141
+C-Group	CGroupId=75637	AgencyId=9074	Pinedale - Businesses	Off	42.866610	-109.860990	5.0	Circle
+C-Freq	CFreqId=320803	CGroupId=75637	Ace Hardware	Off	467900000	FM	TONE=C85.4	17					
+C-Freq	CFreqId=397729	CGroupId=75637	Pinedale Ambulance Service	Off	159705000	NFM		17					
+C-Group	CGroupId=89948	AgencyId=9074	Pinedale - White Pine Ski Area	Off	42.977820	-109.758660	5.0	Circle
+C-Freq	CFreqId=397725	CGroupId=89948	Sublette County Ski and Snowboard Association 1	Off	151625000	NFM		17					
+C-Freq	CFreqId=397726	CGroupId=89948	Sublette County Ski and Snowboard Association 2	Off	158400000	NFM		17					
+C-Freq	CFreqId=397727	CGroupId=89948	Sublette County Ski and Snowboard Association 3	Off	160042500	NFM		17					
+C-Freq	CFreqId=397728	CGroupId=89948	Sublette County Ski and Snowboard Association 4	Off	160087500	NFM		17					
+C-Freq	CFreqId=397722	CGroupId=89948	White Pine Ski Area 1	Off	152315000	NFM		17					
+C-Freq	CFreqId=397723	CGroupId=89948	White Pine Ski Patrol 1 (National SAR)	Off	155160000	NFM		17					
+C-Freq	CFreqId=397724	CGroupId=89948	White Pine Ski Patrol 2 (simplex)	Off	155175000	NFM		17					
+Conventional	AgencyId=9365	StateId=56	Businesses	Off		Conventional
+AreaState	AgencyId=9365	StateId=56
+AreaCounty	AgencyId=9365	CountyId=3126
+C-Group	CGroupId=89180	AgencyId=9365	Gillette - Businesses	Off	44.291090	-105.502220	5.0	Circle
+C-Freq	CFreqId=178000	CGroupId=89180	Collins Communications Technicians	Off	152900000	NFM	TONE=C88.5	17					
+C-Freq	CFreqId=284582	CGroupId=89180	DRM Construction	Off	462100000	NFM	TONE=C127.3	17					
+C-Freq	CFreqId=394547	CGroupId=89180	Our Wyoming Life Ranch	Off	462587500	NFM	TONE=C118.8	17					
+C-Freq	CFreqId=284583	CGroupId=89180	Powder River Construction	Off	452450000	NFM	TONE=C146.2	17					
+C-Group	CGroupId=44245	AgencyId=9365	Industry - Powder River Basin Coal	Off	44.250000	-105.550000	50.0	Circle
+C-Freq	CFreqId=397234	CGroupId=44245	Thunder Basin Black Thunder Coal Mine (8 miles E of Wright)	Off	152345000	NFM	TONE=C151.4	17					
+C-Freq	CFreqId=397235	CGroupId=44245	Thunder Basin Black Thunder Coal Mine (8 miles E of Wright)	Off	460675000	NFM	TONE=C186.2	17					
+C-Freq	CFreqId=258178	CGroupId=44245	Thunder Basin Black Thunder Coal Mine (8 miles E of Wright)	Off	463200000	NFM	TONE=C167.9	17					
+C-Freq	CFreqId=358722	CGroupId=44245	Thunder Basin Black Thunder Coal Mine (8 miles E of Wright)	Off	463300000	NFM	TONE=C131.8	17					
+C-Freq	CFreqId=283414	CGroupId=44245	Uranium Energy Corp - Wright repeater	Off	461475000	NFM	TONE=C136.5	17					
+Conventional	AgencyId=9366	StateId=56	Businesses	Off		Conventional
+AreaState	AgencyId=9366	StateId=56
+AreaCounty	AgencyId=9366	CountyId=3133
+C-Group	CGroupId=44247	AgencyId=9366	Buffalo - Businesses	Off	44.347750	-106.686170	5.0	Circle
+C-Freq	CFreqId=178008	CGroupId=44247	Big Horn Gas 1	Off	152405000	NFM	TONE=C114.8	34					
+C-Freq	CFreqId=178009	CGroupId=44247	Big Horn Gas 2	Off	453000000	NFM	TONE=C167.9	34					
+Conventional	AgencyId=10465	StateId=56	Businesses	Off		Conventional
+AreaState	AgencyId=10465	StateId=56
+AreaCounty	AgencyId=10465	CountyId=3125
+C-Group	CGroupId=86816	AgencyId=10465	Lovell - Businesses	Off	44.837450	-108.389560	15.0	Circle
+C-Freq	CFreqId=397598	CGroupId=86816	GK Construction	Off	153005000	NFM	TONE=C151.4	17					
+Conventional	AgencyId=10820	StateId=56	Businesses	Off		Conventional
+AreaState	AgencyId=10820	StateId=56
+AreaCounty	AgencyId=10820	CountyId=3144
+C-Group	CGroupId=89723	AgencyId=10820	Evanston - Businesses	Off	41.268280	-110.963240	5.0	Circle
+C-Freq	CFreqId=378075	CGroupId=89723	Hilcorp Energy Company	Off	451025000	NFM	TONE=C114.8	34					
+Conventional	AgencyId=10830	StateId=56	Businesses	Off		Conventional
+AreaState	AgencyId=10830	StateId=56
+AreaCounty	AgencyId=10830	CountyId=3132
+C-Group	CGroupId=89926	AgencyId=10830	Thermopolis - Businesses	Off	43.646070	-108.212040	5.0	Circle
+C-Freq	CFreqId=397614	CGroupId=89926	Merrit Energy Company (Hamilton Dome Field)	Off	451550000	NFM	TONE=C103.5	17					
+Conventional	AgencyId=5682	StateId=56	Casper-Natrona County International Airport	Off		Conventional
+AreaState	AgencyId=5682	StateId=56
+AreaCounty	AgencyId=5682	CountyId=3136
+C-Group	CGroupId=50510	AgencyId=5682	Airfield Operations	Off	42.897420	-106.464610	2.0	Circle
+C-Freq	CFreqId=205462	CGroupId=50510	ATIS (ASOS)	Off	126150000	AM		15					
+C-Freq	CFreqId=205465	CGroupId=50510	Casper Departure	Off	120650000	AM		15					
+C-Freq	CFreqId=205463	CGroupId=50510	Casper Ground/Clearance	Off	121900000	AM		15					
+C-Freq	CFreqId=205464	CGroupId=50510	Casper Tower/CTAF	Off	118300000	AM		15					
+C-Freq	CFreqId=390303	CGroupId=50510	San Francisco Radio (ARINC)	Off	131800000	AM		15					
+C-Group	CGroupId=89920	AgencyId=5682	Airport Operations	Off	42.897420	-106.464610	2.0	Circle
+C-Freq	CFreqId=397595	CGroupId=89920	Atlantic Aviation FBO	Off	152975000	NFM	TONE=C114.8	17					
+Conventional	AgencyId=2555	StateId=56	Cheyenne Regional Airport (CYS)	Off		Conventional
+AreaState	AgencyId=2555	StateId=56
+AreaCounty	AgencyId=2555	CountyId=3134
+C-Group	CGroupId=22846	AgencyId=2555	Air Traffic Control	Off	41.155660	-104.809280	1.5	Circle
+C-Freq	CFreqId=314739	CGroupId=22846	Approach 0600-2200	Off	263075000	AM		15					
+C-Freq	CFreqId=314738	CGroupId=22846	Approach/Departure 0600-2200	Off	124550000	AM		15					
+C-Freq	CFreqId=314740	CGroupId=22846	Approach/Departure 2200-0600	Off	125900000	AM		15					
+C-Freq	CFreqId=314732	CGroupId=22846	ATIS	Off	134426000	AM		15					
+C-Freq	CFreqId=314733	CGroupId=22846	ATIS	Off	278300000	AM		15					
+C-Freq	CFreqId=314730	CGroupId=22846	CTAF	Off	118700000	AM		15					
+C-Freq	CFreqId=314734	CGroupId=22846	Ground 0600-2200	Off	121900000	AM		15					
+C-Freq	CFreqId=314735	CGroupId=22846	Ground 0600-2200	Off	254275000	AM		15					
+C-Freq	CFreqId=314736	CGroupId=22846	Tower 0600-2200	Off	118700000	AM		15					
+C-Freq	CFreqId=314737	CGroupId=22846	Tower 0600-2200	Off	257800000	AM		15					
+C-Freq	CFreqId=314731	CGroupId=22846	Unicom	Off	122950000	AM		15					
+C-Group	CGroupId=79303	AgencyId=2555	Airport Operations	Off	41.155660	-104.809280	1.5	Circle
+C-Freq	CFreqId=84117	CGroupId=79303	Maintenance	Off	155085000	NFM	TONE=C94.8	14					
+Conventional	AgencyId=9053	StateId=56	Hunt Field Airport (LND)	Off		Conventional
+AreaState	AgencyId=9053	StateId=56
+AreaCounty	AgencyId=9053	CountyId=3130
+C-Group	CGroupId=57141	AgencyId=9053	Hunt Field Airport - Air Traffic Control	Off	42.900000	-108.500000	50.0	Circle
+C-Freq	CFreqId=240045	CGroupId=57141	Hunt Field Unicom	Off	122800000	AM		15					
+Conventional	AgencyId=3027	StateId=56	Jackson Hole Airport (JAC)	Off		Conventional
+AreaState	AgencyId=3027	StateId=56
+AreaCounty	AgencyId=3027	CountyId=3143
+C-Group	CGroupId=83680	AgencyId=3027	Jackson Hole Airport - Air Traffic Control	Off	43.607000	-110.738000	1.5	Circle
+C-Freq	CFreqId=273260	CGroupId=83680	Automated Surface Observing System	Off	120625000	AM		15					
+C-Freq	CFreqId=273258	CGroupId=83680	Ground	Off	124550000	AM		15					
+C-Freq	CFreqId=223061	CGroupId=83680	Tower	Off	118075000	AM		15					
+C-Freq	CFreqId=273259	CGroupId=83680	Unicom	Off	122950000	AM		15					
+C-Group	CGroupId=83678	AgencyId=3027	Jackson Hole Airport - Airline Operations	Off	43.607000	-110.738000	1.5	Circle
+C-Freq	CFreqId=362543	CGroupId=83678	Delta Enroute	Off	130350000	AM		15					
+C-Freq	CFreqId=362263	CGroupId=83678	Delta Ground	Off	460650000	NFM	TONE=C141.3	17					
+C-Freq	CFreqId=301585	CGroupId=83678	Frontier	Off	129975000	AM		15					
+C-Freq	CFreqId=273261	CGroupId=83678	SkyWest	Off	131400000	AM		15					
+C-Group	CGroupId=83679	AgencyId=3027	Jackson Hole Airport - Airport Operations	Off	43.607000	-110.738000	1.5	Circle
+C-Freq	CFreqId=398580	CGroupId=83679	Jackson Hole Airport - Fixed Base Operations (FBO)	Off	152915000	NFM	TONE=C114.8	14					
+C-Freq	CFreqId=398578	CGroupId=83679	Jackson Hole Airport - Ground AM Simulcast	Off	151520000	NFM	TONE=C123.0	14					
+C-Freq	CFreqId=398579	CGroupId=83679	Jackson Hole Airport - Tower AM Simulcast	Off	153665000	NFM	TONE=C123.0	14					
+C-Freq	CFreqId=397689	CGroupId=83679	Jackson Hole Airport Operations (TBD)	Off	152877500	NFM	TONE=C123.0	14					
+C-Freq	CFreqId=397690	CGroupId=83679	Jackson Hole Airport Operations (TBD)	Off	159637500	NFM	TONE=C103.5	14					
+C-Freq	CFreqId=223060	CGroupId=83679	Jackson Hole Airport Operations (TBD)	Off	159765000	NFM	TONE=C123.0	14					
+Conventional	AgencyId=9577	StateId=56	Laramie Regional Airport (KLAR)	Off		Conventional
+AreaState	AgencyId=9577	StateId=56
+AreaCounty	AgencyId=9577	CountyId=3124
+C-Group	CGroupId=79168	AgencyId=9577	Laramie Regional Airport - Air Traffic Control	Off	41.313290	-105.672790	2.0	Circle
+C-Freq	CFreqId=340202	CGroupId=79168	Approach/Departure	Off	125900000	AM		15					
+C-Freq	CFreqId=340203	CGroupId=79168	Approach/Departure	Off	284700000	AM		15					
+C-Freq	CFreqId=340201	CGroupId=79168	AWOS	Off	135475000	AM		15					
+C-Freq	CFreqId=340200	CGroupId=79168	CTAF/Unicom	Off	123050000	AM		15					
+Conventional	AgencyId=9578	StateId=56	Medicine Bow Airport (80V)	Off		Conventional
+AreaState	AgencyId=9578	StateId=56
+AreaCounty	AgencyId=9578	CountyId=3127
+C-Group	CGroupId=79169	AgencyId=9578	Medicine Bow Airport - Air Traffic Control	Off	41.885000	-106.184000	2.0	Circle
+C-Freq	CFreqId=340204	CGroupId=79169	CTAF	Off	122900000	AM		15					
+Conventional	AgencyId=7201	StateId=56	Northeast Wyoming Regional Airport (Gillette)	Off		Conventional
+AreaState	AgencyId=7201	StateId=56
+AreaCounty	AgencyId=7201	CountyId=3126
+C-Group	CGroupId=60794	AgencyId=7201	Northeast Wyoming Regional Airport (Gillette)	Off	44.300000	-105.600000	40.0	Circle
+C-Freq	CFreqId=252271	CGroupId=60794	Gillette Airport ATIS (ASOS)	Off	124175000	AM		15					
+C-Freq	CFreqId=252273	CGroupId=60794	Gillette Airport CTAF	Off	118500000	AM		15					
+C-Freq	CFreqId=338041	CGroupId=60794	Gillette Airport Unicom (Gate One Aviation)	Off	122950000	AM		15					
+Conventional	AgencyId=9614	StateId=56	Pine Bluffs Municipal Airport (82V)	Off		Conventional
+AreaState	AgencyId=9614	StateId=56
+AreaCounty	AgencyId=9614	CountyId=3134
+C-Group	CGroupId=79469	AgencyId=9614	Pine Bluffs Municipal Airport - Air Traffic Control	Off	41.152150	-104.133820	1.0	Circle
+C-Freq	CFreqId=341735	CGroupId=79469	AWOS	Off	132425000	AM		15					
+C-Freq	CFreqId=341734	CGroupId=79469	CTAF/Unicom	Off	122800000	AM		15					
+Conventional	AgencyId=9575	StateId=56	Rawlins Municipal Airport (KRWL)	Off		Conventional
+AreaState	AgencyId=9575	StateId=56
+AreaCounty	AgencyId=9575	CountyId=3127
+C-Group	CGroupId=79166	AgencyId=9575	Rawlins Municipal Airport - Air Traffic Control	Off	41.805370	-107.198350	2.0	Circle
+C-Freq	CFreqId=340194	CGroupId=79166	Approach/Departure	Off	132100000	AM		15					
+C-Freq	CFreqId=340195	CGroupId=79166	Approach/Departure	Off	254350000	AM		15					
+C-Freq	CFreqId=340193	CGroupId=79166	AWOS	Off	118525000	AM		15					
+C-Freq	CFreqId=340192	CGroupId=79166	CTAF/Unicom	Off	123000000	AM		15					
+Conventional	AgencyId=9576	StateId=56	Shively Field Airport (KSAA)	Off		Conventional
+AreaState	AgencyId=9576	StateId=56
+AreaCounty	AgencyId=9576	CountyId=3127
+C-Group	CGroupId=79167	AgencyId=9576	Shively Field Airport - Air Traffic Control	Off	41.444800	-106.822240	2.0	Circle
+C-Freq	CFreqId=340198	CGroupId=79167	Approach/Departure	Off	132100000	AM		15					
+C-Freq	CFreqId=340199	CGroupId=79167	Approach/Departure	Off	254350000	AM		15					
+C-Freq	CFreqId=340197	CGroupId=79167	AWOS	Off	118175000	AM		15					
+C-Freq	CFreqId=340196	CGroupId=79167	CTAF/Unicom	Off	122800000	AM		15					
+Conventional	AgencyId=6339	StateId=56	Sweetwater County Airport (RKS)	Off		Conventional
+AreaState	AgencyId=6339	StateId=56
+AreaCounty	AgencyId=6339	CountyId=3142
+C-Group	CGroupId=54611	AgencyId=6339	Sweetwater County Airport - Operations	Off	41.600830	-109.066390	2.0	Circle
+C-Freq	CFreqId=226643	CGroupId=54611	Automated Weather	Off	118375000	AM		15					
+C-Freq	CFreqId=390302	CGroupId=54611	San Francisco Radio (ARINC)	Off	130400000	AM		15					
+C-Freq	CFreqId=390301	CGroupId=54611	UNICOM	Off	122800000	AM		15					
+Conventional	AgencyId=10383	StateId=56	WY Department of Administration/Information	Off		Conventional
+AreaState	AgencyId=10383	StateId=56
+AreaCounty	AgencyId=10383	CountyId=0
+C-Group	CGroupId=87102	AgencyId=10383	Wyoming Division of Forestry - Statewide	Off	42.995700	-107.551200	225.0	Circle
+C-Freq	CFreqId=382206	CGroupId=87102	Direct 1	Off	151160000	NFM		23					
+C-Freq	CFreqId=382205	CGroupId=87102	Direct 2	Off	155995000	NFM		23					
+Conventional	AgencyId=4174	StateId=56	WY Department of Corrections	Off		Conventional
+AreaState	AgencyId=4174	StateId=56
+AreaCounty	AgencyId=4174	CountyId=0
+C-Group	CGroupId=46049	AgencyId=4174	Department of Corrections - Special Needs Prison	Off	41.762530	-107.218260	1.0	Circle
+C-Freq	CFreqId=186983	CGroupId=46049	Wyoming Special Needs Prison (Rawlins)	Off	151025000	FM	TONE=C167.9	37					
+C-Group	CGroupId=75226	AgencyId=4174	Department of Corrections - Wyoming Honor Conservation Camp	Off	43.883310	-104.192720	10.0	Circle
+C-Freq	CFreqId=392101	CGroupId=75226	Wyoming Honor Conservation Camp (Newcastle)	Off	155595000	NFM	TONE=C79.7	37					
+C-Group	CGroupId=54565	AgencyId=4174	Department of Corrections - Wyoming Honor Farm	Off	43.060530	-108.375670	5.0	Circle
+C-Freq	CFreqId=226447	CGroupId=54565	Wyoming Honor Farm (Riverton)	Off	155505000	FM	TONE=C203.5	37					
+C-Group	CGroupId=56177	AgencyId=4174	Department of Corrections - Wyoming Medium Security Prison	Off	42.070000	-104.120000	5.0	Circle
+C-Freq	CFreqId=243417	CGroupId=56177	Wyoming Medium Security Prison (Torrington)	Off	158850000	FM	TONE=C179.9	37					
+C-Group	CGroupId=39984	AgencyId=4174	Department of Corrections - Wyoming Womens Center	Off	42.995700	-107.551200	225.0	Circle
+C-Freq	CFreqId=159545	CGroupId=39984	Wyoming Womens Center (Lusk)	Off	155145000	FM	TONE=D023	37					
+Conventional	AgencyId=1163	StateId=56	WY Highway Patrol	Off		Conventional
+AreaState	AgencyId=1163	StateId=56
+AreaCounty	AgencyId=1163	CountyId=0
+C-Group	CGroupId=26722	AgencyId=1163	Highway Patrol - Troop J: Albany County	Off	41.742630	-105.693970	65.0	Circle
+C-Freq	CFreqId=101318	CGroupId=26722	Dispatch	Off	155445000	NFM	TONE=C173.8	2					
+Conventional	AgencyId=2193	StateId=56	WY Interoperability	Off		Conventional
+AreaState	AgencyId=2193	StateId=56
+AreaCounty	AgencyId=2193	CountyId=0
+C-Group	CGroupId=72051	AgencyId=2193	Statewide Interoperability - State Agency Law Enforcement Commun	Off	42.995700	-107.551200	225.0	Circle
+C-Freq	CFreqId=299811	CGroupId=72051	SALECS 1	Off	155640000	NFM	TONE=C151.4	1					
+C-Freq	CFreqId=299810	CGroupId=72051	SALECS 2	Off	155640000	NFM	TONE=C100.0	1					
+C-Freq	CFreqId=299809	CGroupId=72051	SALECS 3	Off	155640000	NFM	TONE=C107.2	1					
+C-Freq	CFreqId=299812	CGroupId=72051	SALECS 4	Off	155640000	NFM	TONE=C103.5	1					
+C-Freq	CFreqId=299813	CGroupId=72051	SALECS 5	Off	155640000	NFM	TONE=C146.2	1					
+C-Freq	CFreqId=299815	CGroupId=72051	SALECS 7	Off	155640000	NFM	TONE=C156.7	1					
+C-Freq	CFreqId=299814	CGroupId=72051	SALECS 8	Off	155640000	NFM	TONE=C173.8	1					
+C-Group	CGroupId=18846	AgencyId=2193	Statewide Interoperability - Wyoming Mutual Aid	Off	42.995700	-107.551200	225.0	Circle
+C-Freq	CFreqId=299799	CGroupId=18846	Mutual Aid 1	Off	154875000	NFM	TONE=C107.2	11					
+C-Freq	CFreqId=299808	CGroupId=18846	Mutual Aid 10	Off	154875000	NFM	TONE=C186.2	11					
+C-Freq	CFreqId=299800	CGroupId=18846	Mutual Aid 2	Off	154875000	NFM	TONE=C100.0	11					
+C-Freq	CFreqId=299801	CGroupId=18846	Mutual Aid 3	Off	154875000	NFM	TONE=C114.8	11					
+C-Freq	CFreqId=299802	CGroupId=18846	Mutual Aid 4	Off	154875000	NFM	TONE=C131.8	11					
+C-Freq	CFreqId=299803	CGroupId=18846	Mutual Aid 5	Off	154875000	NFM	TONE=C146.2	11					
+C-Freq	CFreqId=299804	CGroupId=18846	Mutual Aid 6	Off	154875000	NFM	TONE=C167.9	11					
+C-Freq	CFreqId=299805	CGroupId=18846	Mutual Aid 7	Off	154875000	NFM	TONE=C151.4	11					
+C-Freq	CFreqId=299806	CGroupId=18846	Mutual Aid 8	Off	154875000	NFM	TONE=C173.8	11					
+C-Freq	CFreqId=299807	CGroupId=18846	Mutual Aid 9	Off	154875000	NFM	TONE=C179.9	11					
+C-Freq	CFreqId=299798	CGroupId=18846	Mutual Aid Direct	Off	154875000	NFM		11					
+Conventional	AgencyId=1908	StateId=56	Wyoming Federal	Off		Conventional
+AreaState	AgencyId=1908	StateId=56
+AreaCounty	AgencyId=1908	CountyId=0
+C-Group	CGroupId=49175	AgencyId=1908	Bureau of Indian Affairs - Shoshone & Arpaho Tribes	Off	43.241380	-108.843310	35.0	Circle
+C-Freq	CFreqId=200004	CGroupId=49175	Public Safety 1 Dispatch	Off	156180000	NFM		16					
+C-Freq	CFreqId=200006	CGroupId=49175	Public Safety 2	Off	155002500	NFM		16					
+C-Freq	CFreqId=200005	CGroupId=49175	Public Safety 3	Off	156195000	NFM		16					
+C-Group	CGroupId=54949	AgencyId=1908	Bureau of Indian Affairs - Wind River Agency	Off	43.008990	-108.872530	40.0	Circle
+C-Freq	CFreqId=361716	CGroupId=54949	Black Mountain	Off	166325000	NFM		16					
+C-Freq	CFreqId=300359	CGroupId=54949	Black Mountain	Off	172112500	NFM	TONE=C107.2	16					
+C-Freq	CFreqId=300360	CGroupId=54949	Black Mountain 2 (FMN)	Off	171650000	NFM	TONE=C107.2	16					
+C-Freq	CFreqId=251406	CGroupId=54949	Black Mountain 2 (P25)	Off	171650000	NFM	NAC=107	16					
+C-Freq	CFreqId=378906	CGroupId=54949	Boysen Peak	Off	172112500	NFM	TONE=C118.8	16					
+C-Freq	CFreqId=300361	CGroupId=54949	Copper Mountain (FMN)	Off	171650000	NFM	TONE=C118.8	16					
+C-Freq	CFreqId=251407	CGroupId=54949	Copper Mountain (P25)	Off	171650000	NFM	NAC=118	16					
+C-Freq	CFreqId=227324	CGroupId=54949	Fireline	Off	166725000	NFM		16					
+C-Freq	CFreqId=251409	CGroupId=54949	Mobile Extenders 1	Off	412125000	NFM	TONE=C69.3	16					
+C-Freq	CFreqId=251410	CGroupId=54949	Mobile Extenders 2	Off	412875000	NFM	TONE=C79.7	16					
+C-Freq	CFreqId=300362	CGroupId=54949	Signal Hill (FMN)	Off	171650000	NFM	TONE=C136.5	16					
+C-Freq	CFreqId=251408	CGroupId=54949	Signal Hill (P25)	Off	171650000	NFM	NAC=136	16					
+C-Group	CGroupId=73424	AgencyId=1908	Bureau of Land Management - Buffalo Field Office	Off	44.355910	-106.178910	75.0	Circle
+C-Freq	CFreqId=208589	CGroupId=73424	Pumpkin Butte (Johnson Co.)	Off	172675000	NFM	TONE=C110.9	16					
+C-Group	CGroupId=73425	AgencyId=1908	Bureau of Land Management - Casper Field Office	Off	42.900840	-106.069040	75.0	Circle
+C-Freq	CFreqId=361704	CGroupId=73425	Buffalo Hill (Johnson Co.)	Off	172675000	NFM	TONE=C100.0	16					
+C-Freq	CFreqId=361702	CGroupId=73425	Casper Mountain (Natrona Co.)	Off	172675000	NFM	TONE=C136.5	16					
+C-Freq	CFreqId=388901	CGroupId=73425	Chicken Hill (N Campbell Co.)	Off	168300000	NFM	TONE=C114.8	16					
+C-Freq	CFreqId=388902	CGroupId=73425	Fire 1	Off	166637500	NFM		16					
+C-Freq	CFreqId=388903	CGroupId=73425	Fire 2	Off	166825000	NFM		16					
+C-Freq	CFreqId=388904	CGroupId=73425	Fire 3	Off	167125000	NFM		16					
+C-Freq	CFreqId=361703	CGroupId=73425	Hunter Mesa (Johnson Co.)	Off	172675000	NFM	TONE=C156.7	16					
+C-Freq	CFreqId=361701	CGroupId=73425	Laramie Peak / Casper PR (Albany Co.)	Off	172675000	NFM	TONE=C131.8	16					
+C-Freq	CFreqId=361705	CGroupId=73425	Newcastle Hill (Weston Co.)	Off	172675000	NFM	TONE=C107.2	16					
+C-Freq	CFreqId=208581	CGroupId=73425	Pumpkin Butte (Campbell Co.)	Off	172675000	NFM	TONE=C110.9	16					
+C-Freq	CFreqId=361700	CGroupId=73425	Warren Peak (Crook Co.)	Off	172675000	NFM	TONE=C123.0	16					
+C-Group	CGroupId=73426	AgencyId=1908	Bureau of Land Management - Cody Field Office	Off	44.465780	-108.837600	85.0	Circle
+C-Freq	CFreqId=208606	CGroupId=73426	Black Mountain	Off	172775000	NFM	TONE=C110.9	16					
+C-Freq	CFreqId=208580	CGroupId=73426	Cedar Mountain	Off	172775000	NFM	TONE=C123.0	16					
+C-Freq	CFreqId=208582	CGroupId=73426	Copper Mountain	Off	172775000	NFM	TONE=C131.8	16					
+C-Freq	CFreqId=361698	CGroupId=73426	Crooks Mountain	Off	172775000	NFM	TONE=C146.2	16					
+C-Freq	CFreqId=361697	CGroupId=73426	Limestone Mountain	Off	172775000	NFM	TONE=C136.5	16					
+C-Freq	CFreqId=361699	CGroupId=73426	Simplex	Off	172775000	NFM	TONE=C192.8	16					
+C-Group	CGroupId=73428	AgencyId=1908	Bureau of Land Management - Kemmerer Field Office	Off	41.984730	-110.408640	75.0	Circle
+C-Freq	CFreqId=208587	CGroupId=73428	Little Mountain (Sweetwater Co.)	Off	171750000	NFM	TONE=C136.5	16					
+C-Freq	CFreqId=208588	CGroupId=73428	Medicine Butte (Uinta Co.)	Off	171750000	NFM	TONE=C131.8	16					
+C-Freq	CFreqId=208591	CGroupId=73428	Twin Buttes (Lincoln Co.)	Off	171750000	NFM	TONE=C123.0	16					
+C-Group	CGroupId=73423	AgencyId=1908	Bureau of Land Management - Lander Field Office	Off	43.525370	-108.683790	80.0	Circle
+C-Freq	CFreqId=273246	CGroupId=73423	Air to Ground Flight Following 1 (Copper Mtn)	Off	168625000	NFM	TONE=C110.9	16					
+C-Freq	CFreqId=273247	CGroupId=73423	Air to Ground Flight Following 2 (Copper Mtn)	Off	168650000	NFM	TONE=C110.9	16					
+C-Freq	CFreqId=264694	CGroupId=73423	Copper Mountain (Fremont Co.)	Off	172775000	NFM	TONE=C131.8	16					
+C-Freq	CFreqId=273248	CGroupId=73423	UHF Link to 168.650 (Copper Mtn)	Off	415425000	NFM	TONE=C110.9	16					
+C-Freq	CFreqId=264695	CGroupId=73423	Whiskey Peak (Fremont Co.)	Off	172587500	NFM	TONE=C146.2	16					
+C-Group	CGroupId=73430	AgencyId=1908	Bureau of Land Management - Pinedale Field Office	Off	43.293920	-109.947220	80.0	Circle
+C-Freq	CFreqId=208584	CGroupId=73430	Hogsback Ridge (Sublette Co.)	Off	171750000	NFM	TONE=C110.9	16					
+C-Group	CGroupId=25593	AgencyId=1908	Bureau of Land Management - Rawlins Field Office	Off	43.000000	-107.500000	150.0	Circle
+C-Freq	CFreqId=208590	CGroupId=25593	Elk Mountain	Off	172587500	NFM	TONE=C110.9	16					
+C-Freq	CFreqId=208586	CGroupId=25593	Flattop Mountain	Off	172587500	NFM	TONE=C123.0	16					
+C-Freq	CFreqId=208583	CGroupId=25593	Laramie Peak	Off	172587500	NFM	TONE=C131.8	16					
+C-Freq	CFreqId=361707	CGroupId=25593	Lincoln Head	Off	172587500	NFM	TONE=C156.7	16					
+C-Freq	CFreqId=208585	CGroupId=25593	Sheep Mountain	Off	172587500	NFM	TONE=C136.5	16					
+C-Freq	CFreqId=208592	CGroupId=25593	Whiskey Peak	Off	172587500	NFM	TONE=C146.2	16					
+C-Group	CGroupId=73429	AgencyId=1908	Bureau of Land Management - Rock Springs Field Office	Off	41.591540	-109.200150	65.0	Circle
+C-Freq	CFreqId=361712	CGroupId=73429	Aspen Mountain	Off	171750000	NFM	TONE=C146.2	16					
+C-Freq	CFreqId=208608	CGroupId=73429	Hogsback Ridge	Off	171750000	NFM	TONE=C110.9	16					
+C-Freq	CFreqId=361711	CGroupId=73429	Little Mountain	Off	171750000	NFM	TONE=C136.5	16					
+C-Freq	CFreqId=361710	CGroupId=73429	Medicine Butte	Off	171750000	NFM	TONE=C131.8	16					
+C-Freq	CFreqId=361714	CGroupId=73429	Mount Airy	Off	171750000	NFM	TONE=C100.0	16					
+C-Freq	CFreqId=361713	CGroupId=73429	Quely Peak	Off	171750000	NFM	TONE=C156.7	16					
+C-Freq	CFreqId=361715	CGroupId=73429	Simplex	Off	171750000	NFM	TONE=C192.8	16					
+C-Freq	CFreqId=361709	CGroupId=73429	Twin Butte	Off	171750000	NFM	TONE=C123.0	16					
+C-Group	CGroupId=73434	AgencyId=1908	Bureau of Land Management - Wyoming Common	Off	42.995700	-107.551200	225.0	Circle
+C-Freq	CFreqId=273250	CGroupId=73434	BLM Mutual Aid	Off	168350000	NFM		16					
+C-Freq	CFreqId=208593	CGroupId=73434	Fire 1 Wind River District Cody Field Office	Off	166637500	NFM		16					
+C-Freq	CFreqId=208594	CGroupId=73434	Fire 2 High Desert District Rawlins Field Office	Off	166825000	NFM		16					
+C-Freq	CFreqId=208595	CGroupId=73434	Fire 3 High Plains District Casper Field Office	Off	167125000	NFM		16					
+C-Freq	CFreqId=273249	CGroupId=73434	Ground Scene Operations Division B	Off	163100000	NFM		16					
+C-Freq	CFreqId=208596	CGroupId=73434	ICS 2	Off	168550000	NFM		16					
+C-Freq	CFreqId=208597	CGroupId=73434	ICS Air Net	Off	167950000	NFM		16					
+C-Freq	CFreqId=208598	CGroupId=73434	Scene of Action	Off	166087500	NFM		16					
+C-Group	CGroupId=88047	AgencyId=1908	Bureau of Reclamation - Seminoe Reservoir	Off	42.108890	-106.870280	20.0	Circle
+C-Freq	CFreqId=387456	CGroupId=88047	Operations	Off	171775000	NFM	NAC=293	16					
+C-Group	CGroupId=64061	AgencyId=1908	Department of Justice - Federal Bureau of Investigation - Yellow	Off	44.503560	-110.338770	50.0	Circle
+C-Freq	CFreqId=264712	CGroupId=64061	Copper/Limestone Repeater	Off	163837500	NFM	TONE=C167.9	16					
+C-Freq	CFreqId=264713	CGroupId=64061	Tactical 1	Off	167687500	NFM	TONE=C167.9	16					
+C-Freq	CFreqId=264714	CGroupId=64061	Tactical 2	Off	163912500	NFM	TONE=C167.9	16					
+C-Group	CGroupId=57788	AgencyId=1908	Department of Veterans Affairs - Cheyenne	Off	41.138040	-104.805620	1.0	Circle
+C-Freq	CFreqId=243418	CGroupId=57788	Security - FMN	Off	162212500	NFM	TONE=D343	16					
+C-Group	CGroupId=73009	AgencyId=1908	Fish and Wildlife Service - National Elk Refuge	Off	43.890690	-110.628370	50.0	Circle
+C-Freq	CFreqId=265556	CGroupId=73009	National Elk Refuge	Off	172450000	NFM	TONE=C103.5	16					
+C-Group	CGroupId=64059	AgencyId=1908	Fish and Wildlife Service - Operations	Off	42.995700	-107.551200	225.0	Circle
+C-Freq	CFreqId=264710	CGroupId=64059	Operations (Analog)	Off	172275000	NFM	TONE=C146.2	16					
+C-Freq	CFreqId=367317	CGroupId=64059	Operations (Digital)	Off	172275000	NFM		16					
+C-Group	CGroupId=51222	AgencyId=1908	Forest Service - Bighorn National Forest	Off	44.500000	-107.500000	30.0	Circle
+C-Freq	CFreqId=361807	CGroupId=51222	Fire Tac 1	Off	166550000	NFM		16					
+C-Freq	CFreqId=361808	CGroupId=51222	Fire Tac 2	Off	168675000	NFM		16					
+C-Freq	CFreqId=361802	CGroupId=51222	Northeast Zone	Off	170475000	NFM	TONE=C110.9	16					
+C-Freq	CFreqId=361804	CGroupId=51222	Northwest Zone	Off	170525000	NFM	TONE=C110.9	16					
+C-Freq	CFreqId=361803	CGroupId=51222	South Zone	Off	169925000	NFM	TONE=C110.9	16					
+C-Freq	CFreqId=361805	CGroupId=51222	Work 1	Off	163712500	NFM	TONE=C110.9	16					
+C-Freq	CFreqId=361806	CGroupId=51222	Work 2	Off	168612500	NFM	TONE=C110.9	16					
+C-Group	CGroupId=51283	AgencyId=1908	Forest Service - Bridger-Teton National Forest	Off	43.300000	-110.700000	50.0	Circle
+C-Freq	CFreqId=209087	CGroupId=51283	Air to Ground 1	Off	173862500	NFM		16					
+C-Freq	CFreqId=209088	CGroupId=51283	Air to Ground 2	Off	169975000	NFM		16					
+C-Freq	CFreqId=209089	CGroupId=51283	Bacon Ridge (Teton Co.)	Off	171387500	NFM	TONE=C156.7	16					
+C-Freq	CFreqId=209090	CGroupId=51283	Bradley Mountain (Lincoln Co.)	Off	171387500	NFM	TONE=C146.2	16					
+C-Freq	CFreqId=209091	CGroupId=51283	Deadline Ridge (Sublette Co.)	Off	169900000	NFM	TONE=C156.7	16					
+C-Freq	CFreqId=209092	CGroupId=51283	Elkhart Park (Sublette Co.)	Off	169900000	NFM	TONE=C131.8	16					
+C-Freq	CFreqId=300358	CGroupId=51283	Graham Peak 1 (Lincoln Co.)	Off	169900000	NFM	TONE=C100.0	16					
+C-Freq	CFreqId=209093	CGroupId=51283	Graham Peak 2 (Lincoln Co.)	Off	169900000	NFM	TONE=C146.2	16					
+C-Freq	CFreqId=209094	CGroupId=51283	Gravel Mountain (Teton Co.)	Off	171387500	NFM	TONE=C123.0	16					
+C-Freq	CFreqId=229466	CGroupId=51283	Green Knoll (Teton Co.)	Off	169900000	NFM	TONE=C107.2	16					
+C-Freq	CFreqId=229468	CGroupId=51283	Hawks Rest (Teton Co.)	Off	171387500	NFM	TONE=C110.9	16					
+C-Freq	CFreqId=209095	CGroupId=51283	Lava Mountain (Fremont Co.)	Off	171387500	NFM	TONE=C136.5	16					
+C-Freq	CFreqId=209096	CGroupId=51283	Muddy Ridge (Sublette Co.)	Off	169900000	NFM	TONE=C136.5	16					
+C-Freq	CFreqId=209097	CGroupId=51283	North Zone Net (Teton Co.)	Off	171387500	NFM		16					
+C-Freq	CFreqId=229467	CGroupId=51283	Pinyon Ridge (Sublette Co.)	Off	169900000	NFM	TONE=C123.0	16					
+C-Freq	CFreqId=209098	CGroupId=51283	Ramshorn Peak (Sublette Co.)	Off	169900000	NFM	TONE=C110.9	16					
+C-Freq	CFreqId=209099	CGroupId=51283	Rendezvous Peak (Teton Co.)	Off	171387500	NFM	TONE=C167.9	16					
+C-Freq	CFreqId=209101	CGroupId=51283	South Zone Net (Lincoln-Sublette Co.)	Off	169900000	NFM		16					
+C-Freq	CFreqId=209102	CGroupId=51283	Stewart Peak (Lincoln Co.)	Off	169900000	NFM	TONE=C167.9	16					
+C-Freq	CFreqId=300357	CGroupId=51283	Tactical 1	Off	166225000	NFM		16					
+C-Freq	CFreqId=209103	CGroupId=51283	Tactical 2	Off	168175000	NFM		16					
+C-Freq	CFreqId=209104	CGroupId=51283	Tactical 3	Off	164825000	NFM		16					
+C-Group	CGroupId=51211	AgencyId=1908	Forest Service - Medicine Bow National Forest	Off	42.812970	-107.526270	225.0	Circle
+C-Freq	CFreqId=382235	CGroupId=51211	Admin Net 1 Analog	Off	163712500	NFM	TONE=C110.9	16					
+C-Freq	CFreqId=388434	CGroupId=51211	Admin Net 1 Analog	Off	168612500	NFM	TONE=C110.9	16					
+C-Freq	CFreqId=388433	CGroupId=51211	Admin Net 1 Digital	Off	163712500	NFM	NAC=455	16					
+C-Freq	CFreqId=388435	CGroupId=51211	Admin Net 1 Digital	Off	168612500	NFM	NAC=455	16					
+C-Freq	CFreqId=382207	CGroupId=51211	Fire Tactical	Off	166550000	NFM		8					
+C-Freq	CFreqId=208523	CGroupId=51211	Forest Net	Off	164125000	NFM	TONE=C110.9	16					
+C-Freq	CFreqId=373041	CGroupId=51211	Laramie Range	Off	173762500	NFM	TONE=C110.9	16					
+C-Freq	CFreqId=208534	CGroupId=51211	North	Off	171500000	NFM	TONE=C103.5	16					
+C-Freq	CFreqId=382238	CGroupId=51211	Southeast	Off	171500000	NFM	TONE=C110.9	16					
+C-Freq	CFreqId=382241	CGroupId=51211	Southwest	Off	171787500	NFM	TONE=C110.9	16					
+C-Group	CGroupId=69004	AgencyId=1908	Forest Service - Routt National Forest	Off	42.812970	-107.526270	225.0	Circle
+C-Freq	CFreqId=284074	CGroupId=69004	Blackhall Mountain (Carbon County)	Off	173375000	FM	TONE=C103.5	16					
+C-Group	CGroupId=51280	AgencyId=1908	Forest Service - Shoshone National Forest	Off	43.800000	-109.700000	75.0	Circle
+C-Freq	CFreqId=273242	CGroupId=51280	Fire Tac 1	Off	168750000	NFM		16					
+C-Freq	CFreqId=273241	CGroupId=51280	Fire Tac 2	Off	168675000	NFM		16					
+C-Freq	CFreqId=209050	CGroupId=51280	North Zone	Off	170500000	NFM		16					
+C-Freq	CFreqId=209155	CGroupId=51280	Washakie Zone	Off	172325000	NFM		16					
+C-Freq	CFreqId=209156	CGroupId=51280	Wind River Zone	Off	172375000	NFM		16					
+C-Freq	CFreqId=273240	CGroupId=51280	Work 1	Off	168612500	NFM		16					
+C-Group	CGroupId=51288	AgencyId=1908	Forest Service - Uinta-Wasatch-Cache National Forest	Off	41.000000	-110.500000	25.0	Circle
+C-Freq	CFreqId=209157	CGroupId=51288	Fort Bridger (Uinta Co.) (may be discontinued)	Off	168125000	NFM	TONE=C146.2	16					
+C-Freq	CFreqId=209158	CGroupId=51288	Medicine Butte (Uinta Co.)	Off	173775000	NFM	TONE=C167.9	16					
+C-Group	CGroupId=83614	AgencyId=1908	Interagency Fire Centers - Casper Interagency Fire Center	Off	42.841190	-106.322390	150.0	Circle
+C-Freq	CFreqId=361982	CGroupId=83614	WY03 Air/Air 1	Off	118950000	AM		16					
+C-Freq	CFreqId=361983	CGroupId=83614	WY03 Air/Air 2	Off	128150000	AM		16					
+C-Freq	CFreqId=361985	CGroupId=83614	WY03 Air/Air 3	Off	133375000	AM		16					
+C-Freq	CFreqId=361978	CGroupId=83614	WY03 Air/Ground 15	Off	167525000	NFM		16					
+C-Freq	CFreqId=361981	CGroupId=83614	WY03 Air/Ground 31	Off	166787500	NFM		16					
+C-Freq	CFreqId=361980	CGroupId=83614	WY03 Air/Ground 35	Off	167225000	NFM		16					
+C-Freq	CFreqId=361720	CGroupId=83614	WY04 Air/Air 1	Off	125275000	AM		16					
+C-Freq	CFreqId=361721	CGroupId=83614	WY04 Air/Air 2	Off	128025000	AM		16					
+C-Freq	CFreqId=361722	CGroupId=83614	WY04 Air/Air 3	Off	132200000	AM		16					
+C-Freq	CFreqId=361640	CGroupId=83614	WY04 Air/Ground 10	Off	166937500	NFM		16					
+C-Freq	CFreqId=361641	CGroupId=83614	WY04 Air/Ground 15	Off	167525000	NFM		16					
+C-Freq	CFreqId=361717	CGroupId=83614	WY06 Air/Air 1	Off	126675000	AM		16					
+C-Freq	CFreqId=361718	CGroupId=83614	WY06 Air/Air 2	Off	127575000	AM		16					
+C-Freq	CFreqId=361719	CGroupId=83614	WY06 Air/Air 3	Off	135875000	AM		16					
+C-Freq	CFreqId=361987	CGroupId=83614	WY06 Air/Ground 14	Off	167500000	NFM		16					
+C-Freq	CFreqId=361986	CGroupId=83614	WY06 Air/Ground 35	Off	167225000	NFM		16					
+C-Freq	CFreqId=361725	CGroupId=83614	WY07 Air/Air 1	Off	119175000	AM		16					
+C-Freq	CFreqId=361726	CGroupId=83614	WY07 Air/Air 2	Off	126375000	AM		16					
+C-Freq	CFreqId=361727	CGroupId=83614	WY07 Air/Air 3	Off	134625000	AM		16					
+C-Freq	CFreqId=361723	CGroupId=83614	WY07 Air/Ground 12	Off	167075000	NFM		16					
+C-Freq	CFreqId=361724	CGroupId=83614	WY07 Air/Ground 15	Off	167525000	NFM		16					
+C-Group	CGroupId=83613	AgencyId=1908	Interagency Fire Centers - Cody Interagency Fire Center	Off	43.531040	-108.370210	100.0	Circle
+C-Freq	CFreqId=361960	CGroupId=83613	WY01 Air/Air 1	Off	118025000	AM		16					
+C-Freq	CFreqId=361961	CGroupId=83613	WY01 Air/Air 1	Off	119075000	AM		16					
+C-Freq	CFreqId=361962	CGroupId=83613	WY01 Air/Air 3	Off	120175000	AM		16					
+C-Freq	CFreqId=361959	CGroupId=83613	WY01 Air/Ground 12	Off	167075000	NFM		16					
+C-Freq	CFreqId=361635	CGroupId=83613	WY01 Air/Ground 13	Off	167425000	NFM		16					
+C-Freq	CFreqId=361637	CGroupId=83613	WY01 Air/Ground 35	Off	167225000	NFM		16					
+C-Freq	CFreqId=361963	CGroupId=83613	WY02 Air/Air 1	Off	118825000	AM		16					
+C-Freq	CFreqId=361965	CGroupId=83613	WY02 Air/Air 2	Off	126950000	AM		16					
+C-Freq	CFreqId=361966	CGroupId=83613	WY02 Air/Air 3	Off	128525000	AM		16					
+C-Freq	CFreqId=361638	CGroupId=83613	WY02 Air/Ground 14	Off	167500000	NFM		16					
+C-Freq	CFreqId=361639	CGroupId=83613	WY02 Air/Ground 62	Off	169362500	NFM		16					
+C-Freq	CFreqId=361973	CGroupId=83613	WY05 Air/Air 1	Off	118775000	AM		16					
+C-Freq	CFreqId=361974	CGroupId=83613	WY05 Air/Air 2	Off	128625000	AM		16					
+C-Freq	CFreqId=361975	CGroupId=83613	WY05 Air/Air 3	Off	134050000	AM		16					
+C-Freq	CFreqId=361968	CGroupId=83613	WY05 Air/Ground 12	Off	167075000	NFM		16					
+C-Freq	CFreqId=361969	CGroupId=83613	WY05 Air/Ground 13	Off	167425000	NFM		16					
+C-Freq	CFreqId=361971	CGroupId=83613	WY05 Air/Ground 35	Off	167225000	NFM		16					
+C-Freq	CFreqId=361636	CGroupId=83613	WY05 Air/Ground 60	Off	169125000	NFM		16					
+C-Group	CGroupId=83640	AgencyId=1908	Interagency Fire Centers - Statewide	Off	42.995700	-107.551200	225.0	Circle
+C-Freq	CFreqId=362220	CGroupId=83640	Gov Wide Area Common (1000)	Off	163100000	NFM		16					
+C-Freq	CFreqId=362221	CGroupId=83640	Gov Wide Area Common (3500)	Off	168350000	NFM		16					
+C-Freq	CFreqId=362214	CGroupId=83640	National Air Guard	Off	168625000	NFM	TONE=C110.9	16					
+C-Freq	CFreqId=362213	CGroupId=83640	National Flight Following	Off	168650000	NFM	TONE=C110.9	16					
+C-Freq	CFreqId=362218	CGroupId=83640	National Interagency Air Tactics (1500)	Off	169150000	NFM		16					
+C-Freq	CFreqId=362219	CGroupId=83640	National Interagency Air Tactics (2000)	Off	169200000	NFM		16					
+C-Freq	CFreqId=362217	CGroupId=83640	National Interagency Air Tactics (4000)	Off	168400000	NFM		16					
+C-Freq	CFreqId=362215	CGroupId=83640	National Interagency Air Tactics (6125)	Off	166612500	NFM		16					
+C-Freq	CFreqId=362216	CGroupId=83640	National Interagency Air Tactics (9500)	Off	167950000	NFM		16					
+C-Group	CGroupId=83612	AgencyId=1908	Interagency Fire Centers - Teton Interagency Fire Center	Off	42.896650	-110.584310	50.0	Circle
+C-Freq	CFreqId=361956	CGroupId=83612	WY09 Air/Air 1	Off	127400000	AM		16					
+C-Freq	CFreqId=361957	CGroupId=83612	WY09 Air/Air 2	Off	125025000	AM		16					
+C-Freq	CFreqId=361958	CGroupId=83612	WY09 Air/Air 3	Off	118425000	AM		16					
+C-Freq	CFreqId=361953	CGroupId=83612	WY09 Air/Ground 10	Off	166937500	NFM		16					
+C-Freq	CFreqId=361955	CGroupId=83612	WY09 Air/Ground 12	Off	167075000	NFM		16					
+C-Freq	CFreqId=361954	CGroupId=83612	WY09 Air/Ground 19	Off	168125000	NFM		16					
+C-Group	CGroupId=51223	AgencyId=1908	National Park Service - Bighorn Canyon National Recreation Area	Off	44.900000	-108.200000	10.0	Circle
+C-Freq	CFreqId=208579	CGroupId=51223	Bighorn Canyon National Recreation Area - North	Off	170387500	NFM	TONE=C131.8	16					
+C-Freq	CFreqId=208578	CGroupId=51223	Bighorn Canyon National Recreation Area - South	Off	169550000	NFM	TONE=C131.8	16					
+C-Group	CGroupId=57827	AgencyId=1908	National Park Service - Devils Tower National Monument	Off	44.590000	-104.715000	5.0	Circle
+C-Freq	CFreqId=252416	CGroupId=57827	Devils Tower National Monument Operations	Off	164750000	NFM		16					
+C-Freq	CFreqId=252417	CGroupId=57827	Devils Tower National Monument Work	Off	168612500	NFM	TONE=C136.5	16					
+C-Group	CGroupId=33613	AgencyId=1908	National Park Service - Fort Laramie National Historic Site	Off	42.214000	-104.518000	5.0	Circle
+C-Freq	CFreqId=132321	CGroupId=33613	Fort Laramie National Historic Site 1	Off	173762500	NFM	NAC=142	16					
+C-Freq	CFreqId=283650	CGroupId=33613	Fort Laramie National Historic Site 2	Off	168612500	NFM	NAC=142	16					
+C-Group	CGroupId=51221	AgencyId=1908	National Park Service - Fossil Butte National Monument	Off	41.867330	-110.767500	5.0	Circle
+C-Freq	CFreqId=208568	CGroupId=51221	Fossil Butte National Monument Operations	Off	169400000	NFM		16					
+C-Group	CGroupId=51220	AgencyId=1908	National Park Service - Grand Teton National Park	Off	43.740000	-110.800000	15.0	Circle
+C-Freq	CFreqId=343334	CGroupId=51220	Grand Teton National Park Car-to-Car	Off	163125000	NFM		16					
+C-Freq	CFreqId=345101	CGroupId=51220	Grand Teton National Park Operations 1	Off	171675000	NFM	TONE=C123.0	16					
+C-Freq	CFreqId=229465	CGroupId=51220	Grand Teton National Park Operations 2	Off	172587500	NFM	NAC=526	16					
+C-Group	CGroupId=19059	AgencyId=1908	National Park Service - Yellowstone National Park	Off	44.600000	-110.500000	37.0	Circle
+C-Freq	CFreqId=293602	CGroupId=19059	Yellowstone National Park Air/Ground 1	Off	168625000	NFM		16					
+C-Freq	CFreqId=293603	CGroupId=19059	Yellowstone National Park Air/Ground 2	Off	167950000	NFM		16					
+C-Freq	CFreqId=293583	CGroupId=19059	Yellowstone National Park Bechler (FMN)	Off	165587500	NFM	TONE=C127.3	16					
+C-Freq	CFreqId=293584	CGroupId=19059	Yellowstone National Park Bechler (P25)	Off	165587500	NFM	NAC=127	16					
+C-Freq	CFreqId=293591	CGroupId=19059	Yellowstone National Park EMS	Off	155280000	NFM		16					
+C-Freq	CFreqId=293972	CGroupId=19059	Yellowstone National Park Fire Cache Ops (FMN) / Flight Followin	Off	172500000	NFM	TONE=C103.5	16					
+C-Freq	CFreqId=293973	CGroupId=19059	Yellowstone National Park Fire Cache Ops (P25)	Off	172500000	NFM	NAC=103	16					
+C-Freq	CFreqId=293579	CGroupId=19059	Yellowstone National Park Lamar Valley (FMN)	Off	166375000	NFM	TONE=C192.8	16					
+C-Freq	CFreqId=293580	CGroupId=19059	Yellowstone National Park Lamar Valley (P25)	Off	166375000	NFM	NAC=192	16					
+C-Freq	CFreqId=293577	CGroupId=19059	Yellowstone National Park Mount Holmes (FMN)	Off	166875000	NFM	TONE=C146.2	16					
+C-Freq	CFreqId=293578	CGroupId=19059	Yellowstone National Park Mount Holmes (P25)	Off	166875000	NFM	NAC=146	16					
+C-Freq	CFreqId=293571	CGroupId=19059	Yellowstone National Park North (FMN)	Off	166325000	NFM	TONE=C167.9	16					
+C-Freq	CFreqId=293572	CGroupId=19059	Yellowstone National Park North (P25)	Off	166325000	NFM	NAC=167	16					
+C-Freq	CFreqId=361800	CGroupId=19059	Yellowstone National Park NPS Common	Off	168612500	NFM	TONE=C136.5	16					
+C-Freq	CFreqId=293585	CGroupId=19059	Yellowstone National Park Scene of Action 1 (FMN)	Off	167150000	NFM	TONE=C206.5	16					
+C-Freq	CFreqId=293586	CGroupId=19059	Yellowstone National Park Scene of Action 1 (P25)	Off	167150000	NFM	NAC=206	16					
+C-Freq	CFreqId=293587	CGroupId=19059	Yellowstone National Park Scene of Action 2 (FMN)	Off	167150000	NFM	TONE=C218.1	16					
+C-Freq	CFreqId=293588	CGroupId=19059	Yellowstone National Park Scene of Action 2 (P25)	Off	167150000	NFM	NAC=218	16					
+C-Freq	CFreqId=293589	CGroupId=19059	Yellowstone National Park Scene of Action 3 (FMN)	Off	167150000	NFM	TONE=C229.1	16					
+C-Freq	CFreqId=293590	CGroupId=19059	Yellowstone National Park Scene of Action 3 (P25)	Off	167150000	NFM	NAC=229	16					
+C-Freq	CFreqId=293592	CGroupId=19059	Yellowstone National Park Search / Rescue	Off	155220000	NFM		16					
+C-Freq	CFreqId=293573	CGroupId=19059	Yellowstone National Park South (FMN)	Off	165587500	NFM	TONE=C110.9	16					
+C-Freq	CFreqId=293574	CGroupId=19059	Yellowstone National Park South (P25)	Off	165587500	NFM	NAC=110	16					
+C-Freq	CFreqId=293593	CGroupId=19059	Yellowstone National Park Tactical 1	Off	168050000	NFM		16					
+C-Freq	CFreqId=293594	CGroupId=19059	Yellowstone National Park Tactical 2	Off	168200000	NFM		16					
+C-Freq	CFreqId=293595	CGroupId=19059	Yellowstone National Park Tactical 3	Off	168600000	NFM		16					
+C-Freq	CFreqId=293581	CGroupId=19059	Yellowstone National Park Topnotch Peak (FMN)	Off	165587500	NFM	TONE=C118.8	16					
+C-Freq	CFreqId=293582	CGroupId=19059	Yellowstone National Park Topnotch Peak (P25)	Off	165587500	NFM	NAC=118	16					
+C-Freq	CFreqId=293575	CGroupId=19059	Yellowstone National Park West (FMN)	Off	166875000	NFM	TONE=C136.5	16					
+C-Freq	CFreqId=293576	CGroupId=19059	Yellowstone National Park West (P25)	Off	166875000	NFM	NAC=136	16					
+C-Group	CGroupId=24694	AgencyId=1908	Postal Service - Cheyenne	Off	41.162470	-104.787110	1.0	Circle
+C-Freq	CFreqId=91269	CGroupId=24694	Sorting Center Maintenance	Off	409275000	FM	TONE=C82.5	16					
+C-Group	CGroupId=21823	AgencyId=1908	United States Air Force - Air National Guard - Cheyenne	Off	41.400000	-104.600000	35.0	Circle
+C-Freq	CFreqId=158618	CGroupId=21823	Aerial Port	Off	173587500	NFM	TONE=C107.2	30					
+C-Freq	CFreqId=314727	CGroupId=21823	Air to Ground	Off	225525000	AM		30					
+C-Freq	CFreqId=314729	CGroupId=21823	Air to Ground Rebroadcast	Off	167500000	NFM	TONE=D223	30					
+C-Freq	CFreqId=158617	CGroupId=21823	Aircraft Maintenance	Off	173537500	NFM	NAC=F0D	30					
+C-Freq	CFreqId=291048	CGroupId=21823	Building/Grounds Maintenance	Off	173587500	NFM	TONE=C71.9	30					
+C-Freq	CFreqId=314741	CGroupId=21823	Command Post	Off	257100000	AM		30					
+C-Freq	CFreqId=79826	CGroupId=21823	Crash/Fire FMN	Off	173050000	NFM	TONE=C107.2	30					
+C-Freq	CFreqId=339540	CGroupId=21823	Crash/Fire P25	Off	173050000	NFM	NAC=DEF	30					
+C-Freq	CFreqId=158620	CGroupId=21823	Security 1	Off	165112500	NFM	NAC=DEA	30					
+C-Freq	CFreqId=272112	CGroupId=21823	Security 2	Off	173462500	NFM	NAC=DEA	30					
+C-Group	CGroupId=57884	AgencyId=1908	United States Air Force - Civil Air Patrol	Off	42.995700	-107.551200	225.0	Circle
+C-Freq	CFreqId=243796	CGroupId=57884	Wyoming Wing CAP 1	Off	148137500	NFM	TONE=C100.0	16					
+C-Freq	CFreqId=243798	CGroupId=57884	Wyoming Wing CAP Air to Ground	Off	141575000	NFM	TONE=C127.3	16					
+C-Freq	CFreqId=243799	CGroupId=57884	Wyoming Wing CAP ELT Beacons	Off	121775000	AM		15					
+C-Group	CGroupId=26953	AgencyId=1908	United States Air Force - FE Warren Air Force Base	Off	41.160820	-104.821930	25.0	Circle
+C-Freq	CFreqId=71429	CGroupId=26953	Fire	Off	148225000	NFM	TONE=C107.2	16					
+C-Freq	CFreqId=263002	CGroupId=26953	Razor Helicopter Forces	Off	271900000	AM		30					
+C-Group	CGroupId=74692	AgencyId=1908	United States Army - Army National Guard - Cheyenne	Off	41.153020	-104.823630	25.0	Circle
+C-Freq	CFreqId=314728	CGroupId=74692	Helicopter Operations	Off	49950000	FM		30					
+C-Group	CGroupId=64060	AgencyId=1908	United States Army - Corps of Engineers	Off	43.125760	-108.694780	50.0	Circle
+C-Freq	CFreqId=264711	CGroupId=64060	Car to Car - Freemont County	Off	171362500	NFM		16					
+C-Group	CGroupId=18480	AgencyId=1908	Wyoming National Guard - Camp Guernsey Joint Training Center	Off	42.265000	-104.740000	5.0	Circle
+C-Freq	CFreqId=329553	CGroupId=18480	Aiport Tower	Off	122700000	AM		15					
+C-Freq	CFreqId=329554	CGroupId=18480	Aircraft Operations	Off	126200000	AM		15					
+C-Freq	CFreqId=329552	CGroupId=18480	Automated Weather Observation Beacon	Off	119825000	AM		15					
+C-Freq	CFreqId=67660	CGroupId=18480	JTC Operations	Off	173050000	NFM	TONE=C127.3	30					
+C-Freq	CFreqId=67661	CGroupId=18480	JTC Range Control	Off	38900000	FM		30					
+C-Freq	CFreqId=67662	CGroupId=18480	JTC Security	Off	38850000	FM		30					
+Conventional	AgencyId=5770	StateId=56	Wyoming Railroads	Off		Conventional
+AreaState	AgencyId=5770	StateId=56
+AreaCounty	AgencyId=5770	CountyId=0
+C-Group	CGroupId=71142	AgencyId=5770	Bighorn Divide Wyoming Railroad - Bighorn Divide & Wyoming Railr	Off	43.215000	-106.476000	40.0	Circle
+C-Freq	CFreqId=295351	CGroupId=71142	Operations	Off	160290000	NFM		20					
+C-Freq	CFreqId=295352	CGroupId=71142	Operations	Off	160410000	NFM		20					
+C-Freq	CFreqId=295353	CGroupId=71142	Operations	Off	161460000	NFM		20					
+C-Freq	CFreqId=295354	CGroupId=71142	Operations	Off	161550000	NFM		20					
+C-Group	CGroupId=69436	AgencyId=5770	BNSF Railway - Big Horn Subdivision	Off	44.567700	-106.409620	50.0	Circle
+C-Freq	CFreqId=286209	CGroupId=69436	Gillette and Sheridan Yards	Off	161160000	NFM		20					
+C-Freq	CFreqId=286208	CGroupId=69436	Gillette to Sheridan	Off	160920000	NFM		20					
+C-Freq	CFreqId=286207	CGroupId=69436	Sheridan to Huntley	Off	161100000	NFM		20					
+C-Group	CGroupId=69437	AgencyId=5770	BNSF Railway - Black Hills Subdivision	Off	43.890330	-104.708720	45.0	Circle
+C-Freq	CFreqId=306798	CGroupId=69437	Donkey Creek Yard	Off	160725000	NFM		20					
+C-Freq	CFreqId=286213	CGroupId=69437	East Gillette to West Gillette	Off	160920000	NFM		20					
+C-Freq	CFreqId=286210	CGroupId=69437	Edgemont to East Gillette	Off	161385000	NFM		20					
+C-Freq	CFreqId=286211	CGroupId=69437	Edgemont Yard	Off	160695000	NFM		20					
+C-Freq	CFreqId=286212	CGroupId=69437	Gillette Yard/Edgemont Yard Vans	Off	161160000	NFM		20					
+C-Group	CGroupId=69438	AgencyId=5770	BNSF Railway - Campbell Subdivision	Off	44.915220	-106.854400	25.0	Circle
+C-Freq	CFreqId=286214	CGroupId=69438	Campbell to Eagle Butte Jct	Off	161385000	NFM		20					
+C-Group	CGroupId=69439	AgencyId=5770	BNSF Railway - Canyon Subdivision	Off	42.243770	-105.028610	50.0	Circle
+C-Freq	CFreqId=286215	CGroupId=69439	East Guernsey to Bridger Junction	Off	161100000	NFM		20					
+C-Freq	CFreqId=286216	CGroupId=69439	Guernsey Yard	Off	160785000	NFM		20					
+C-Group	CGroupId=69433	AgencyId=5770	BNSF Railway - Casper Subdivision	Off	43.803530	-107.376420	90.0	Circle
+C-Freq	CFreqId=286204	CGroupId=69433	Casper Yard	Off	161430000	NFM		20					
+C-Freq	CFreqId=286203	CGroupId=69433	Greybull Yard	Off	160320000	NFM		20					
+C-Freq	CFreqId=286202	CGroupId=69433	Laurel to Bridger Junction	Off	160770000	NFM		20					
+C-Freq	CFreqId=286201	CGroupId=69433	Limestone to Stucco Switching	Off	161160000	NFM		20					
+C-Group	CGroupId=69434	AgencyId=5770	BNSF Railway - Cody Subdivision	Off	44.523930	-109.050290	35.0	Circle
+C-Freq	CFreqId=286205	CGroupId=69434	Frannie to Cody	Off	161160000	NFM		20					
+C-Group	CGroupId=69440	AgencyId=5770	BNSF Railway - Dutch Subdivsion	Off	42.755080	-104.436040	50.0	Circle
+C-Freq	CFreqId=286219	CGroupId=69440	Decker / Spring Creek Mine Loading	Off	161430000	NFM		20					
+C-Freq	CFreqId=286217	CGroupId=69440	Dutch to Spring Creek	Off	160920000	NFM		20					
+C-Group	CGroupId=69435	AgencyId=5770	BNSF Railway - Front Range Subdivision	Off	41.836830	-104.831540	75.0	Circle
+C-Freq	CFreqId=298397	CGroupId=69435	Guernsey Yard	Off	160785000	NFM		20					
+C-Freq	CFreqId=286206	CGroupId=69435	Wendover to Utah Jct	Off	161160000	NFM		20					
+C-Group	CGroupId=69441	AgencyId=5770	BNSF Railway - Orin Subdivision	Off	42.553080	-104.589840	50.0	Circle
+C-Freq	CFreqId=286220	CGroupId=69441	Bridger Jct to MP 20.6	Off	161100000	NFM		20					
+C-Freq	CFreqId=251419	CGroupId=69441	Maintenance of Way	Off	161280000	NFM		20					
+C-Freq	CFreqId=286221	CGroupId=69441	MP 20.6 to Donkey Creek Jct	Off	161385000	NFM		20					
+C-Group	CGroupId=69443	AgencyId=5770	BNSF Railway - Valley Subdivsion	Off	42.138970	-104.370120	40.0	Circle
+C-Freq	CFreqId=286224	CGroupId=69443	Guernsey Yard	Off	160785000	NFM		20					
+C-Freq	CFreqId=306802	CGroupId=69443	Minatare to Torrington Switching	Off	160875000	NFM		20					
+C-Freq	CFreqId=306804	CGroupId=69443	Northport Switching	Off	160710000	NFM		20					
+C-Freq	CFreqId=306803	CGroupId=69443	Northport to WSS Bradley	Off	160920000	NFM		20					
+C-Freq	CFreqId=286223	CGroupId=69443	WSS Bradley to East Guernsey	Off	161265000	NFM		20					
+C-Group	CGroupId=77293	AgencyId=5770	Powder River Coal Mines - Coal Mine Operations	Off	43.648360	-105.461280	40.0	Circle
+C-Freq	CFreqId=328887	CGroupId=77293	Antelope Mine	Off	160380000	NFM		20					
+C-Freq	CFreqId=299616	CGroupId=77293	Belle Ayr Mine	Off	160860000	NFM		20					
+C-Freq	CFreqId=299614	CGroupId=77293	Black Thunder Mine	Off	161310000	NFM		20					
+C-Freq	CFreqId=328883	CGroupId=77293	Caballo Mine	Off	160575000	NFM		20					
+C-Freq	CFreqId=328885	CGroupId=77293	Coal Creek Mine	Off	161235000	NFM		20					
+C-Freq	CFreqId=328884	CGroupId=77293	Cordero Mine	Off	160380000	NFM		20					
+C-Freq	CFreqId=299615	CGroupId=77293	North Antelope Mine	Off	160575000	NFM		20					
+C-Freq	CFreqId=328886	CGroupId=77293	Rochelle Mine	Off	160575000	NFM		20					
+C-Freq	CFreqId=299613	CGroupId=77293	Rojo Mine	Off	160380000	NFM		20					
+C-Freq	CFreqId=299612	CGroupId=77293	School Creek Mine	Off	160575000	NFM		20					
+C-Group	CGroupId=72027	AgencyId=5770	Progress Rail Services - Powder River Operations	Off	42.912180	-104.331670	25.0	Circle
+C-Freq	CFreqId=299611	CGroupId=72027	Powder River Mine Operations	Off	161265000	NFM		20					
+C-Group	CGroupId=72000	AgencyId=5770	Swan Ranch Railroad	Off	41.054500	-104.891280	7.0	Circle
+C-Freq	CFreqId=299484	CGroupId=72000	Swan Ranch Railroad	Off	160785000	NFM		20					
+C-Group	CGroupId=71645	AgencyId=5770	Union Pacific - Evanston Subdivision	Off	41.385420	-110.256810	42.0	Circle
+C-Freq	CFreqId=332785	CGroupId=71645	Granger to Cecil Jct UT	Off	160515000	NFM		20					
+C-Freq	CFreqId=294827	CGroupId=71645	Green River to Granger	Off	160740000	NFM		20					
+C-Freq	CFreqId=298110	CGroupId=71645	Green River Yard	Off	160650000	NFM		20					
+C-Freq	CFreqId=343225	CGroupId=71645	Locals/Switching	Off	160260000	NFM		20					
+C-Freq	CFreqId=298111	CGroupId=71645	UP PBX	Off	160605000	NFM		20					
+C-Group	CGroupId=71642	AgencyId=5770	Union Pacific - Greeley Subdivision	Off	41.077280	-104.874110	10.0	Circle
+C-Freq	CFreqId=332786	CGroupId=71642	N Hazeltine CO to Speer WY	Off	161145000	NFM		20					
+C-Group	CGroupId=71640	AgencyId=5770	Union Pacific - Laramie Subdivision	Off	41.463080	-105.700880	52.0	Circle
+C-Freq	CFreqId=294831	CGroupId=71640	Cheyenne Car Department	Off	161070000	NFM		20					
+C-Freq	CFreqId=294818	CGroupId=71640	Cheyenne to Hanna	Off	160470000	NFM		20					
+C-Freq	CFreqId=294821	CGroupId=71640	Cheyenne Yard	Off	160680000	NFM		20					
+C-Freq	CFreqId=371161	CGroupId=71640	Hanna to Rawlins	Off	160740000	NFM		20					
+C-Freq	CFreqId=294822	CGroupId=71640	Laramie Yard	Off	160680000	NFM		20					
+C-Freq	CFreqId=342127	CGroupId=71640	Maintenance of Way	Off	160410000	NFM		20					
+C-Freq	CFreqId=294830	CGroupId=71640	UP PBX	Off	160605000	NFM		20					
+C-Group	CGroupId=79774	AgencyId=5770	Union Pacific - Pocatello Subdivision	Off	41.841290	-110.514990	40.0	Circle
+C-Freq	CFreqId=343224	CGroupId=79774	Granger to Pocatello	Off	160410000	NFM		20					
+C-Group	CGroupId=71644	AgencyId=5770	Union Pacific - Powder River Subdivision	Off	42.301690	-104.067990	50.0	Circle
+C-Freq	CFreqId=299610	CGroupId=71644	Bill Yard	Off	160455000	NFM		20					
+C-Freq	CFreqId=294828	CGroupId=71644	Horse Creek NE to Shawnee Jct	Off	160890000	NFM		20					
+C-Group	CGroupId=71641	AgencyId=5770	Union Pacific - Rawlins Subdivision	Off	41.631870	-108.215330	75.0	Circle
+C-Freq	CFreqId=294820	CGroupId=71641	Hanna to Green River	Off	160740000	NFM		20					
+C-Freq	CFreqId=325470	CGroupId=71641	Jim Bridger Industrial Lead	Off	160230000	NFM		20					
+C-Freq	CFreqId=306961	CGroupId=71641	Rawlins Mechanical	Off	161070000	NFM		20					
+C-Freq	CFreqId=294824	CGroupId=71641	Rawlins/Green River Yards	Off	160650000	NFM		20					
+C-Freq	CFreqId=298112	CGroupId=71641	Rawlins/Rock Springs Locals	Off	160680000	NFM		20					
+C-Freq	CFreqId=325469	CGroupId=71641	South Pass Industrial Lead - Rock Springs	Off	161250000	NFM		20					
+C-Freq	CFreqId=298113	CGroupId=71641	UP PBX	Off	160605000	NFM		20					
+C-Group	CGroupId=71643	AgencyId=5770	Union Pacific - Sidney Subdivision	Off	41.155910	-104.383850	20.0	Circle
+C-Freq	CFreqId=332783	CGroupId=71643	North Platte West to O'Fallons	Off	160680000	NFM		20					
+C-Freq	CFreqId=294826	CGroupId=71643	O'Fallons to Barnett	Off	160515000	NFM		20					
+C-Group	CGroupId=71646	AgencyId=5770	Union Pacific - Yoder Subdivision	Off	41.545590	-104.320680	40.0	Circle
+C-Freq	CFreqId=294829	CGroupId=71646	Eggbert to Horse Creek	Off	161295000	NFM		20					
+C-Freq	CFreqId=298109	CGroupId=71646	Horse Creek to MP 168.3	Off	160740000	NFM		20					
+Conventional	AgencyId=9961	StateId=56	Wyoming Utilities	Off		Conventional
+AreaState	AgencyId=9961	StateId=56
+AreaCounty	AgencyId=9961	CountyId=0
+C-Group	CGroupId=83282	AgencyId=9961	Rocky Mountain Power - Northwest	Off	43.385900	-108.293990	60.0	Circle
+C-Freq	CFreqId=360037	CGroupId=83282	Boysen Peak	Off	152195000	NFM		34					
+C-Freq	CFreqId=360036	CGroupId=83282	Lander	Off	152120000	NFM		34					
+Conventional	AgencyId=9148	StateId=56	Yellowstone Regional Airport (COD)	Off		Conventional
+AreaState	AgencyId=9148	StateId=56
+AreaCounty	AgencyId=9148	CountyId=3138
+C-Group	CGroupId=40171	AgencyId=9148	Yellowstone Regional Airport - Fire Department	Off	44.513280	-109.028750	10.0	Circle
+C-Freq	CFreqId=160272	CGroupId=40171	Airport FIre	Off	154175000	NFM		3					
+Trunk	TrunkId=7180	StateId=56	Collins Communications Cheyenne	Off		Ltr					
+AreaState	TrunkId=7180	StateId=56
+AreaCounty	TrunkId=7180	CountyId=3134
+Site	SiteId=19291	TrunkId=7180	Cheyenne	Off	41.159420	-104.722470	10.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=19291		Off	451887500	1
+T-Freq	TFreqId=0	SiteId=19291		Off	452212500	2
+T-Group	TGroupId=16801	TrunkId=7180	Cheyenne Area	Off	41.349980	-104.667190	40.0	Circle
+TGID	Tid=228717	TGroupId=16801	Oilfield Truck Traffic	Off	0-01-054	ALL	17				
+Trunk	TrunkId=5920	StateId=56	FMC Corporation (800 MHz)	Off		Motorola					
+AreaState	TrunkId=5920	StateId=56
+AreaCounty	TrunkId=5920	CountyId=3142
+Site	SiteId=13587	TrunkId=5920	Mine Shaft 1	Off	41.626330	-109.824310	25.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=13587		Off	856312500	1
+T-Freq	TFreqId=0	SiteId=13587		Off	857312500	2
+T-Freq	TFreqId=0	SiteId=13587		Off	858312500	3
+T-Freq	TFreqId=0	SiteId=13587		Off	859312500	4
+T-Freq	TFreqId=0	SiteId=13587		Off	860312500	5
+T-Group	TGroupId=20806	TrunkId=5920	All	Off	41.635000	-108.748000	79.1	Circle
+TGID	Tid=257862	TGroupId=20806	Test	Off	16	ANALOG	17				
+Trunk	TrunkId=5921	StateId=56	Questar Infocomm Inc	Off		Motorola					
+AreaState	TrunkId=5921	StateId=56
+AreaCounty	TrunkId=5921	CountyId=3142
+AreaCounty	TrunkId=5921	CountyId=3144
+Site	SiteId=13588	TrunkId=5921	Aspen Mountain	Off	41.425250	-109.130670	35.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=13588		Off	856187500	1
+T-Freq	TFreqId=0	SiteId=13588		Off	857187500	2
+T-Freq	TFreqId=0	SiteId=13588		Off	858187500	3
+T-Freq	TFreqId=0	SiteId=13588		Off	859187500	4
+T-Freq	TFreqId=0	SiteId=13588		Off	860187500	5
+Site	SiteId=13621	TrunkId=5921	Medicine Butte	Off	41.352440	-110.907940	35.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=13621		Off	856662500	1
+T-Freq	TFreqId=0	SiteId=13621		Off	857662500	2
+T-Freq	TFreqId=0	SiteId=13621		Off	858662500	3
+T-Freq	TFreqId=0	SiteId=13621		Off	859662500	4
+T-Freq	TFreqId=0	SiteId=13621		Off	860662500	5
+T-Group	TGroupId=20808	TrunkId=5921	All	Off	0.000000	0.000000	0.0	Circle
+TGID	Tid=257864	TGroupId=20808	Test	Off	16	ANALOG	17				
+Trunk	TrunkId=11122	StateId=56	Sublette Interoperable Radio System (SIRS)	Off		P25X2_TDMA					
+AreaState	TrunkId=11122	StateId=56
+AreaCounty	TrunkId=11122	CountyId=3141
+Site	SiteId=36787	TrunkId=11122	0101 White Pine Mtn UHF	Off	42.967400	-109.747800	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=36787		Off	453050000	1
+T-Freq	TFreqId=0	SiteId=36787		Off	453287500	2
+T-Freq	TFreqId=0	SiteId=36787		Off	453562500	3
+T-Freq	TFreqId=0	SiteId=36787		Off	453812500	4
+Site	SiteId=36788	TrunkId=11122	0303 Marbleton UHF	Off	42.556750	-110.111110	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=36788		Off	453150000	1
+T-Freq	TFreqId=0	SiteId=36788		Off	453400000	2
+T-Freq	TFreqId=0	SiteId=36788		Off	453662500	3
+T-Freq	TFreqId=0	SiteId=36788		Off	453975000	4
+Site	SiteId=36677	TrunkId=11122	0505 Kismet Peak UHF	Off	43.105940	-110.231060	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=36677		Off	460037500	1
+T-Freq	TFreqId=0	SiteId=36677		Off	460387500	2
+Site	SiteId=36678	TrunkId=11122	0707 Hogsback Mtn UHF	Off	42.329310	-110.320310	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=36678		Off	453100000	1
+T-Freq	TFreqId=0	SiteId=36678		Off	453350000	2
+Site	SiteId=36679	TrunkId=11122	0909 Luman UHF	Off	42.423830	-109.561220	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=36679		Off	453250000	1
+T-Freq	TFreqId=0	SiteId=36679		Off	453500000	2
+T-Freq	TFreqId=0	SiteId=36679		Off	453512500	3
+Site	SiteId=36789	TrunkId=11122	2121 White Pine Mtn VHF	Off	42.967440	-109.747780	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=36789		Off	151085000	1
+T-Freq	TFreqId=0	SiteId=36789		Off	151250000	2
+T-Freq	TFreqId=0	SiteId=36789		Off	151602500	3
+T-Freq	TFreqId=0	SiteId=36789		Off	155655000	4
+Site	SiteId=36790	TrunkId=11122	2323 Marbleton VHF	Off	42.556750	-110.111110	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=36790		Off	151055000	1
+T-Freq	TFreqId=0	SiteId=36790		Off	151197500	2
+T-Freq	TFreqId=0	SiteId=36790		Off	151355000	3
+T-Freq	TFreqId=0	SiteId=36790		Off	151482500	4
+Site	SiteId=36791	TrunkId=11122	2525 Kismet Peak VHF	Off	43.105940	-110.231060	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=36791		Off	150860000	1
+T-Freq	TFreqId=0	SiteId=36791		Off	151670000	2
+T-Freq	TFreqId=0	SiteId=36791		Off	151910000	3
+T-Freq	TFreqId=0	SiteId=36791		Off	153200000	4
+Site	SiteId=36792	TrunkId=11122	2727 Hogsback Mtn VHF	Off	42.329310	-110.320310	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=36792		Off	151497500	1
+T-Freq	TFreqId=0	SiteId=36792		Off	155130000	2
+T-Freq	TFreqId=0	SiteId=36792		Off	155520000	3
+T-Freq	TFreqId=0	SiteId=36792		Off	155940000	4
+Site	SiteId=36793	TrunkId=11122	2929 Luman VHF	Off	42.423830	-109.561220	30.0	AUTO	Standard	Wide	Circle	
+T-Freq	TFreqId=0	SiteId=36793		Off	151340000	1
+T-Freq	TFreqId=0	SiteId=36793		Off	151790000	2
+T-Freq	TFreqId=0	SiteId=36793		Off	154242500	3
+T-Freq	TFreqId=0	SiteId=36793		Off	155032500	4
+T-Group	TGroupId=33456	TrunkId=11122	Talkgroups	Off	42.800000	-109.900000	50.0	Circle
+TGID	Tid=397025	TGroupId=33456	EMS Dispatch and Paging	Off	3001	ALL	4				
+TGID	Tid=414438	TGroupId=33456	Fire Dispatch and Paging	Off	1001	ALL	3				
+TGID	Tid=415403	TGroupId=33456	Fire TAC	Off	4904	ALL	8				
+TGID	Tid=418537	TGroupId=33456	Fire Training	Off	1004	ALL	24				
+TGID	Tid=397024	TGroupId=33456	Sheriff Dispatch (patched to WyoLink TG 2001)	Off	2001	ALL	2				
+TGID	Tid=418538	TGroupId=33456	Sublette County Detention Center (Pinedale)	Off	2006	ALL	37				
+TGID	Tid=415402	TGroupId=33456	WHP Troop TK Dispatch 1 (patched to WyoLink TG 6386)	Off	6386	ALL	7				

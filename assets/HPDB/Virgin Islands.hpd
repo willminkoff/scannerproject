@@ -1,0 +1,162 @@
+TargetModel	HomePatrol-1
+FormatVersion	2.04
+Conventional	CountyId=5590	StateId=78	St. Croix	Off		Conventional
+AreaState	CountyId=5590	StateId=78
+AreaCounty	CountyId=5590	CountyId=5590
+C-Group	CGroupId=77464	CountyId=5590	Federal - Coast Guard	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=329819	CGroupId=77464	Ch. CG113 Sector San Juan	Off	163137500	NFM	NAC=293	16					
+C-Freq	CFreqId=329821	CGroupId=77464	Sector San Juan (Marine Ch. 22A)	Off	157100000	FM		16					
+C-Freq	CFreqId=329820	CGroupId=77464	Sector San Juan (Marine Ch. 83A)	Off	157175000	FM		16					
+Conventional	CountyId=5591	StateId=78	St. John	Off		Conventional
+AreaState	CountyId=5591	StateId=78
+AreaCounty	CountyId=5591	CountyId=5591
+C-Group	CGroupId=76198	CountyId=5591	Amateur Radio - Nets	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=323489	CGroupId=76198	Daily Weather Net at 06:40 hours	Off	146630000	NFM	TONE=C100.0	13					
+C-Group	CGroupId=53938	CountyId=5591	Saint John County - Public Safety	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=223620	CGroupId=53938	Saint John Fire & Rescue EMS Operations	Off	158752500	FM		4					
+C-Freq	CFreqId=223621	CGroupId=53938	Saint John Fire & Rescue Fire Operations	Off	453237500	FM		8					
+C-Freq	CFreqId=223622	CGroupId=53938	Saint John Fire & Rescue Fire Operations	Off	453387500	FM		8					
+C-Freq	CFreqId=223623	CGroupId=53938	Saint John Fire & Rescue Fire Operations	Off	453437500	FM		8					
+C-Freq	CFreqId=223624	CGroupId=53938	Saint John Fire & Rescue Fire Operations	Off	453550000	FM		8					
+C-Freq	CFreqId=223625	CGroupId=53938	Saint John Fire & Rescue Fire Operations	Off	453637500	FM		8					
+C-Freq	CFreqId=223626	CGroupId=53938	Saint John Fire & Rescue Fire Operations	Off	453787500	FM		8					
+Conventional	CountyId=5592	StateId=78	St. Thomas	Off		Conventional
+AreaState	CountyId=5592	StateId=78
+AreaCounty	CountyId=5592	CountyId=5592
+C-Group	CGroupId=76199	CountyId=5592	Amateur Radio - Repeaters	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=323490	CGroupId=76199	Ops	Off	146950000	NFM	TONE=C67.0	13					
+C-Freq	CFreqId=323491	CGroupId=76199	Ops	Off	447450000	NFM		13					
+C-Group	CGroupId=77465	CountyId=5592	Federal - Civil Air Patrol	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=329822	CGroupId=77465	Ch. R-37 St. Thomas	Off	148125000	NFM	TONE=C151.4	30					
+C-Group	CGroupId=53939	CountyId=5592	Saint Thomas County - Public Safety	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=223629	CGroupId=53939	Magens Bay Fire & Rescue - EMS Operations	Off	155280000	FM		9					
+C-Freq	CFreqId=223627	CGroupId=53939	Saint Thomas Fire & Rescue	Off	160140000	FM		8					
+C-Group	CGroupId=53940	CountyId=5592	Saint Thomas County - University of Virgin Islands	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=223628	CGroupId=53940	University of Virgin Islands	Off	158925000	FM		32					
+Conventional	AgencyId=6229	StateId=78	American Red Cross	Off		Conventional
+AreaState	AgencyId=6229	StateId=78
+AreaCounty	AgencyId=6229	CountyId=0
+C-Group	CGroupId=53921	AgencyId=6229	American Red Cross	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=223578	CGroupId=53921	American Red Cross - Saint Croix	Off	156112500	FM		29					
+C-Freq	CFreqId=223579	CGroupId=53921	American Red Cross - Saint John	Off	156142500	FM		29					
+C-Freq	CFreqId=223580	CGroupId=53921	American Red Cross - Saint Thomas	Off	156202500	FM		29					
+Conventional	AgencyId=7843	StateId=78	Businesses	Off		Conventional
+AreaState	AgencyId=7843	StateId=78
+AreaCounty	AgencyId=7843	CountyId=5592
+C-Group	CGroupId=76156	AgencyId=7843	Hotels/Resorts	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=323293	CGroupId=76156	Point Pleasant Resort Security/Operations	Off	160800000	NFM	TONE=C123.0	33					
+C-Group	CGroupId=65826	AgencyId=7843	Recreation	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=271343	CGroupId=65826	Virgin Islands Eco-Tours (Cas Cay) (Marine Ch. 69)	Off	156475000	FM		17					
+C-Group	CGroupId=76155	AgencyId=7843	Transportation	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=323290	CGroupId=76155	VI Taxi Association	Off	159885000	FM		26					
+C-Freq	CFreqId=323289	CGroupId=76155	VI Taxi Association	Off	160305000	FM	TONE=C156.7	26					
+C-Freq	CFreqId=323291	CGroupId=76155	VI Taxi Association	Off	160455000	FM	TONE=C74.4	26					
+C-Freq	CFreqId=323292	CGroupId=76155	VI Taxi Association	Off	161280000	FM	TONE=C127.3	26					
+Conventional	AgencyId=9332	StateId=78	Businesses	Off		Conventional
+AreaState	AgencyId=9332	StateId=78
+AreaCounty	AgencyId=9332	CountyId=5590
+C-Group	CGroupId=77468	AgencyId=9332	Hotels	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=329824	CGroupId=77468	The Buccaneer - Bellman/Housekeeping/Maintenance	Off	154540000	NFM	TONE=C179.9	17					
+Conventional	AgencyId=9333	StateId=78	Christiansted Harbor Seaplane Base (SSB)	Off		Conventional
+AreaState	AgencyId=9333	StateId=78
+AreaCounty	AgencyId=9333	CountyId=5590
+C-Group	CGroupId=77469	AgencyId=9333	Aviation - Airlines	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=329826	CGroupId=77469	Seaborne Airlines	Off	129025000	AM		15					
+Conventional	AgencyId=7403	StateId=78	Cyril King Airport	Off		Conventional
+AreaState	AgencyId=7403	StateId=78
+AreaCounty	AgencyId=7403	CountyId=5592
+C-Group	CGroupId=76371	AgencyId=7403	Air Traffic Control	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=324312	CGroupId=76371	Automatic Terminal Information Service (ATIS)	Off	124000000	AM		15					
+C-Freq	CFreqId=324313	CGroupId=76371	Tower	Off	118100000	AM		15					
+C-Group	CGroupId=62383	AgencyId=7403	Aviation - Airlines	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=257774	CGroupId=62383	Cape Air	Off	129250000	AM		15					
+Conventional	AgencyId=9144	StateId=78	Henry Rohlsen Airport (STX)	Off		Conventional
+AreaState	AgencyId=9144	StateId=78
+AreaCounty	AgencyId=9144	CountyId=5590
+C-Group	CGroupId=76361	AgencyId=9144	Air Traffic Control	Off	17.701950	-64.805470	2.0	Circle
+C-Freq	CFreqId=324311	CGroupId=76361	Automatic Terminal Information Service (ATIS)	Off	135650000	AM		15					
+C-Freq	CFreqId=324293	CGroupId=76361	Tower	Off	118600000	AM		15					
+C-Group	CGroupId=77466	AgencyId=9144	Airline Ground Operations	Off	17.701950	-64.805470	2.0	Circle
+C-Freq	CFreqId=338835	CGroupId=77466	American Airlines	Off	460775000	NFM	TONE=C114.8	17					
+C-Freq	CFreqId=329823	CGroupId=77466	Cape Air	Off	461225000	NFM	TONE=C67.0	17					
+C-Freq	CFreqId=338834	CGroupId=77466	Seaborne Airlines	Off	464325000	NFM	TONE=C67.0	17					
+C-Group	CGroupId=77467	AgencyId=9144	Aviation - Airlines	Off	17.701950	-64.805470	2.0	Circle
+C-Freq	CFreqId=329825	CGroupId=77467	Seaborne Airlines	Off	129025000	AM		15					
+Conventional	AgencyId=6223	StateId=78	Virgin Islands Emergency Management Agency	Off		Conventional
+AreaState	AgencyId=6223	StateId=78
+AreaCounty	AgencyId=6223	CountyId=0
+C-Group	CGroupId=53924	AgencyId=6223	Virgin Islands Emergency Management Agency	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=223581	CGroupId=53924	Emergency Management Agency - Saint Croix	Off	158865000	FM		29					
+C-Freq	CFreqId=223582	CGroupId=53924	Emergency Management Agency - Saint Croix	Off	453600000	FM		29					
+C-Freq	CFreqId=223583	CGroupId=53924	Emergency Management Agency - Saint John	Off	158865000	FM		29					
+C-Freq	CFreqId=223584	CGroupId=53924	Emergency Management Agency - Saint Thomas	Off	158865000	FM		29					
+Conventional	AgencyId=6224	StateId=78	Virgin Islands Environmental Protection Agency	Off		Conventional
+AreaState	AgencyId=6224	StateId=78
+AreaCounty	AgencyId=6224	CountyId=0
+C-Group	CGroupId=53925	AgencyId=6224	Virgin Islands Environmental Protection Agency	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=223585	CGroupId=53925	Environmental Protection Agency	Off	158880000	FM		21					
+Conventional	AgencyId=6225	StateId=78	Virgin Islands Port Authority	Off		Conventional
+AreaState	AgencyId=6225	StateId=78
+AreaCounty	AgencyId=6225	CountyId=0
+C-Group	CGroupId=53926	AgencyId=6225	Virgin Islands Port Authority	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=223586	CGroupId=53926	Port Authority - Saint Croix	Off	158835000	FM		14					
+C-Freq	CFreqId=223587	CGroupId=53926	Port Authority - Saint Thomas	Off	453675000	FM		14					
+Conventional	AgencyId=6226	StateId=78	Virgin Islands Territorial Emergency Medical Services	Off		Conventional
+AreaState	AgencyId=6226	StateId=78
+AreaCounty	AgencyId=6226	CountyId=0
+C-Group	CGroupId=53927	AgencyId=6226	Virgin Islands Territorial Emergency Medical Services	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=223588	CGroupId=53927	Territorial Emergency Medical Services - All Areas	Off	159045000	FM		9					
+C-Freq	CFreqId=223589	CGroupId=53927	Territorial Emergency Medical Services - All Areas	Off	159465000	FM		9					
+Conventional	AgencyId=6227	StateId=78	Virgin Islands Territorial Fire Department	Off		Conventional
+AreaState	AgencyId=6227	StateId=78
+AreaCounty	AgencyId=6227	CountyId=0
+C-Group	CGroupId=53928	AgencyId=6227	Virgin Islands Territorial Fire Department	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=223590	CGroupId=53928	Territorial Fire Department - Mutual Aid	Off	158955000	FM		8					
+C-Freq	CFreqId=223591	CGroupId=53928	Territorial Fire Department - Saint Croix	Off	160905000	FM		8					
+C-Freq	CFreqId=223592	CGroupId=53928	Territorial Fire Department - Saint Croix	Off	160935000	FM		8					
+Conventional	AgencyId=6230	StateId=78	Virgin Islands Territorial Government Services	Off		Conventional
+AreaState	AgencyId=6230	StateId=78
+AreaCounty	AgencyId=6230	CountyId=0
+C-Group	CGroupId=53929	AgencyId=6230	Virgin Islands Territorial Government Services	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=223593	CGroupId=53929	Territorial Government Services - All Areas	Off	161520000	FM		16					
+C-Freq	CFreqId=223594	CGroupId=53929	Territorial Government Services - Saint Thomas	Off	161400000	FM		16					
+C-Freq	CFreqId=223595	CGroupId=53929	Territorial Government Services - Saint Thomas	Off	161430000	FM		16					
+C-Freq	CFreqId=223596	CGroupId=53929	Territorial Government Services - Saint Thomas	Off	161460000	FM		16					
+C-Freq	CFreqId=223597	CGroupId=53929	Territorial Government Services - Saint Thomas	Off	161490000	FM		16					
+Conventional	AgencyId=6231	StateId=78	Virgin Islands Territorial Highway Department	Off		Conventional
+AreaState	AgencyId=6231	StateId=78
+AreaCounty	AgencyId=6231	CountyId=0
+C-Group	CGroupId=53930	AgencyId=6231	Virgin Islands Territorial Highway Department	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=223598	CGroupId=53930	Territorial Highway Department	Off	158775000	FM		14					
+C-Freq	CFreqId=223599	CGroupId=53930	Territorial Highway Department	Off	158940000	FM		14					
+Conventional	AgencyId=6222	StateId=78	Virgin Islands Territorial Police Department	Off		Conventional
+AreaState	AgencyId=6222	StateId=78
+AreaCounty	AgencyId=6222	CountyId=0
+C-Group	CGroupId=53934	AgencyId=6222	Saint Croix	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=223605	CGroupId=53934	Territorial Police Department - Saint Croix	Off	153785000	FM		7					
+C-Freq	CFreqId=223606	CGroupId=53934	Territorial Police Department - Saint Croix	Off	155130000	FM		7					
+C-Freq	CFreqId=223607	CGroupId=53934	Territorial Police Department - Saint Croix	Off	158730000	FM		7					
+C-Freq	CFreqId=223608	CGroupId=53934	Territorial Police Department - Saint Croix	Off	158805000	FM		7					
+C-Freq	CFreqId=223609	CGroupId=53934	Territorial Police Department - Saint Croix	Off	158940000	FM		7					
+C-Freq	CFreqId=223610	CGroupId=53934	Territorial Police Department - Saint Croix	Off	160875000	FM		7					
+C-Group	CGroupId=53935	AgencyId=6222	Saint John	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=223611	CGroupId=53935	Territorial Police Department - Saint John	Off	158790000	FM		7					
+C-Group	CGroupId=53936	AgencyId=6222	Saint Thomas	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=223612	CGroupId=53936	Territorial Police Department - Saint Thomas	Off	158790000	FM		7					
+C-Freq	CFreqId=223613	CGroupId=53936	Territorial Police Department - Saint Thomas	Off	159030000	FM		7					
+C-Freq	CFreqId=223614	CGroupId=53936	Territorial Police Department - Saint Thomas	Off	159210000	FM		7					
+C-Freq	CFreqId=223615	CGroupId=53936	Territorial Police Department - Saint Thomas	Off	159345000	FM		7					
+C-Freq	CFreqId=223616	CGroupId=53936	Territorial Police Department - Saint Thomas	Off	160980000	FM		7					
+C-Group	CGroupId=53933	AgencyId=6222	Territory Wide	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=223603	CGroupId=53933	Territorial Police Department - All Areas	Off	159090000	FM		7					
+C-Freq	CFreqId=223604	CGroupId=53933	Territorial Police Department - All Areas	Off	159225000	FM		7					
+Conventional	AgencyId=6232	StateId=78	Virgin Islands Territorial Transit Authority	Off		Conventional
+AreaState	AgencyId=6232	StateId=78
+AreaCounty	AgencyId=6232	CountyId=0
+C-Group	CGroupId=53932	AgencyId=6232	Virgin Islands Territorial Transit Authority	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=223601	CGroupId=53932	Territorial Transit Authority	Off	159450000	FM		26					
+Conventional	AgencyId=6228	StateId=78	Virgin Islands Territorial Treasury Department	Off		Conventional
+AreaState	AgencyId=6228	StateId=78
+AreaCounty	AgencyId=6228	CountyId=0
+C-Group	CGroupId=53931	AgencyId=6228	Virgin Islands Territorial Treasury Department	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=223600	CGroupId=53931	Territorial Treasury Department	Off	159195000	FM		16					

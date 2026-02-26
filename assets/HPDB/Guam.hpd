@@ -1,0 +1,76 @@
+TargetModel	HomePatrol-1
+FormatVersion	2.04
+Conventional	CountyId=5843	StateId=66	Guam Island	Off		Conventional
+AreaState	CountyId=5843	StateId=66
+AreaCounty	CountyId=5843	CountyId=5843
+C-Group	CGroupId=83173	CountyId=5843	Amateur Radio	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=359615	CGroupId=83173	AH2G	Off	146910000	FM		13					
+C-Freq	CFreqId=359617	CGroupId=83173	AH2G	Off	442000000	FM		13					
+C-Freq	CFreqId=359616	CGroupId=83173	AH2G (KSTO)	Off	146940000	FM		13					
+C-Freq	CFreqId=359618	CGroupId=83173	KH2JU	Off	145490000	FM		13					
+C-Freq	CFreqId=359619	CGroupId=83173	KN4IAS	Off	446125000	FM	TONE=C100.0	13					
+C-Group	CGroupId=74722	CountyId=5843	Andersen Air Force Base - Airfield Operations	Off	13.586000	144.928000	2.0	Circle
+C-Freq	CFreqId=314968	CGroupId=74722	36TH Air Wing Command Post	Off	349400000	AM		30					
+C-Freq	CFreqId=314960	CGroupId=74722	AMC Operations	Off	121100000	AM		30					
+C-Freq	CFreqId=314961	CGroupId=74722	ATIS	Off	118175000	AM		15					
+C-Freq	CFreqId=314962	CGroupId=74722	ATIS - UHF	Off	254325000	AM		15					
+C-Freq	CFreqId=314969	CGroupId=74722	Cobra Control	Off	321000000	AM		30					
+C-Freq	CFreqId=314963	CGroupId=74722	Ground	Off	121700000	AM		15					
+C-Freq	CFreqId=314964	CGroupId=74722	Ground - UHF	Off	275800000	AM		15					
+C-Freq	CFreqId=314970	CGroupId=74722	Pilot to Metro Service	Off	344600000	AM		30					
+C-Freq	CFreqId=314971	CGroupId=74722	PTD	Off	372200000	AM		30					
+C-Freq	CFreqId=314972	CGroupId=74722	SFA	Off	281400000	AM		30					
+C-Freq	CFreqId=314965	CGroupId=74722	Tower	Off	126200000	AM		15					
+C-Freq	CFreqId=314966	CGroupId=74722	Tower - UHF	Off	233700000	AM		15					
+C-Group	CGroupId=74719	CountyId=5843	Antonio B. Won Pat International Airport - Airfield Operations	Off	13.484490	144.799930	2.0	Circle
+C-Freq	CFreqId=314951	CGroupId=74719	ATIS	Off	119000000	AM		15					
+C-Freq	CFreqId=314952	CGroupId=74719	Ground Control / Clearance Delivery	Off	121900000	AM		15					
+C-Freq	CFreqId=314954	CGroupId=74719	Ramp Control	Off	121600000	AM		15					
+C-Freq	CFreqId=314953	CGroupId=74719	Tower	Off	118100000	AM		15					
+C-Group	CGroupId=74917	CountyId=5843	Antonio B. Won Pat International Airport - Airline Ground Operat	Off	13.483480	144.800280	2.0	Circle
+C-Freq	CFreqId=316205	CGroupId=74917	Japan Airlines	Off	460800000	NFM	TONE=C123.0	17					
+C-Freq	CFreqId=316209	CGroupId=74917	United Airlines - Cabin Service / Security	Off	461950000	NFM	TONE=C127.3	17					
+C-Freq	CFreqId=316206	CGroupId=74917	United Airlines - Customer Serivce	Off	461050000	NFM	TONE=C127.3	17					
+C-Freq	CFreqId=316208	CGroupId=74917	United Airlines - Maintenance	Off	461475000	NFM	TONE=C127.3	17					
+C-Freq	CFreqId=316207	CGroupId=74917	United Airlines - Ramp	Off	461275000	NFM	TONE=C127.3	17					
+C-Group	CGroupId=74720	CountyId=5843	Antonio B. Won Pat International Airport - Airline Operations	Off	13.483480	144.800620	2.0	Circle
+C-Freq	CFreqId=314959	CGroupId=74720	ARINC (SFO Radio)	Off	131950000	AM		17					
+C-Freq	CFreqId=316026	CGroupId=74720	Cape Air	Off	136600000	AM		17					
+C-Freq	CFreqId=314957	CGroupId=74720	Delta Airlines	Off	129600000	AM		17					
+C-Freq	CFreqId=314958	CGroupId=74720	United Airlines	Off	130900000	AM		17					
+C-Group	CGroupId=74721	CountyId=5843	Antonio B. Won Pat International Airport - ARTCC	Off	13.455200	144.776970	25.0	Circle
+C-Freq	CFreqId=314955	CGroupId=74721	Approach - Departure	Off	119800000	AM		15					
+C-Freq	CFreqId=314956	CGroupId=74721	Approach UHF	Off	269000000	AM		15					
+C-Freq	CFreqId=314967	CGroupId=74721	Departure - UHF	Off	269500000	AM		15					
+C-Group	CGroupId=74918	CountyId=5843	Antonio B. Won Pat International Airport - Federal	Off	13.483300	144.801590	1.5	Circle
+C-Freq	CFreqId=316210	CGroupId=74918	Transportation Security Administration	Off	169300000	NFM	NAC=1	16					
+C-Freq	CFreqId=316211	CGroupId=74918	Transportation Security Administration	Off	172150000	NFM	NAC=1	16					
+C-Freq	CFreqId=316212	CGroupId=74918	Transportation Security Administration - Low power personal radi	Off	172150000	NFM	TONE=C123.0	16					
+C-Freq	CFreqId=316213	CGroupId=74918	U.S. Customs and Border Protection	Off	168962500	NFM	NAC=2	16					
+C-Group	CGroupId=74919	CountyId=5843	Hotels - Tamuning	Off	13.479170	144.766420	3.0	Circle
+C-Freq	CFreqId=316215	CGroupId=74919	Guam Plaza	Off	451400000	NFM	TONE=D165	17					
+C-Freq	CFreqId=316216	CGroupId=74919	Guam Plaza	Off	451725000	NFM	TONE=D245	17					
+C-Freq	CFreqId=316217	CGroupId=74919	Guam Plaza	Off	451850000	NFM	TONE=D115	17					
+C-Freq	CFreqId=316218	CGroupId=74919	Guam Plaza	Off	462037500	NFM	TONE=D205	17					
+C-Freq	CFreqId=316221	CGroupId=74919	Guam Plaza	Off	464525000	NFM	TONE=D125	17					
+C-Freq	CFreqId=316223	CGroupId=74919	Hilton	Off	463300000	NFM	TONE=C67.0	17					
+C-Freq	CFreqId=316222	CGroupId=74919	Hilton - Engineering	Off	469325000	NFM	TONE=C67.0	17					
+C-Freq	CFreqId=316214	CGroupId=74919	Hotel Nikko	Off	451300000	NFM	TONE=D114	17					
+C-Freq	CFreqId=316220	CGroupId=74919	Outrigger	Off	469350000	NFM	TONE=D263	17					
+C-Group	CGroupId=74922	CountyId=5843	Media	Off	13.448520	144.776970	20.0	Circle
+C-Freq	CFreqId=316231	CGroupId=74922	Pacific Broadcasting - IFB	Off	450550000	NFM		31					
+C-Group	CGroupId=90664	CountyId=5843	Miscellaneous - GMRS	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=401899	CGroupId=90664	Northwest of Yigo Guam	Off	462700000	NFM		21					
+C-Group	CGroupId=74921	CountyId=5843	Retail / Malls	Off	13.457140	144.775340	5.0	Circle
+C-Freq	CFreqId=316229	CGroupId=74921	Micronesia Mall	Off	452325000	NFM	TONE=C91.5	17					
+C-Freq	CFreqId=316230	CGroupId=74921	Plaza Shopping Center	Off	457125000	NFM	TONE=D723	17					
+C-Group	CGroupId=74920	CountyId=5843	Utilities	Off	13.417800	144.749510	20.0	Circle
+C-Freq	CFreqId=316224	CGroupId=74920	Pacific Gas	Off	152420000	NFM	TONE=C114.8	34					
+Conventional	AgencyId=4336	StateId=66	Department of Agriculture	Off		Conventional
+AreaState	AgencyId=4336	StateId=66
+AreaCounty	AgencyId=4336	CountyId=0
+C-Group	CGroupId=42410	AgencyId=4336	Operations - Division of Aquatic and Wildlife Resources	Off	0.000000	0.000000	0.0	Circle
+C-Freq	CFreqId=170482	CGroupId=42410	Mount Libugon	Off	151145000	FM		14					
+C-Freq	CFreqId=170483	CGroupId=42410	Mount Sasalaguan	Off	151220000	FM		14					
+C-Freq	CFreqId=170484	CGroupId=42410	Orte Point	Off	151295000	FM		14					
+C-Freq	CFreqId=170485	CGroupId=42410	Ritidian Point	Off	151370000	FM		14					

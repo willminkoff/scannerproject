@@ -1,0 +1,82 @@
+TargetModel	HomePatrol-1
+FormatVersion	2.04
+Conventional	CountyId=5234	StateId=108	Kivalliq/Keewatin	Off		Conventional
+AreaState	CountyId=5234	StateId=108
+AreaCounty	CountyId=5234	CountyId=5234
+C-Group	CGroupId=53210	CountyId=5234	Emergency Management - Rankin Inlet	Off	62.809720	-92.099440	30.0	Circle
+C-Freq	CFreqId=218605	CGroupId=53210	 EMO Simplex	Off	148655000	FM		29					
+C-Freq	CFreqId=218604	CGroupId=53210	EMO Repeater	Off	148685000	FM		29					
+C-Group	CGroupId=53209	CountyId=5234	Fire/EMS - Rankin Inlet	Off	62.809720	-92.099440	30.0	Circle
+C-Freq	CFreqId=218602	CGroupId=53209	Fire	Off	153800000	FM		3					
+C-Freq	CFreqId=218603	CGroupId=53209	Fire - Simplex	Off	167010000	FM		24					
+C-Group	CGroupId=71267	CountyId=5234	Municipal Services - Rankin Inlet	Off	62.809720	-92.099440	30.0	Circle
+C-Freq	CFreqId=295958	CGroupId=71267	Public Works	Off	167010000	FM		14					
+C-Group	CGroupId=53211	CountyId=5234	Royal Canadian Mounted Police - V Division - Rankin Inlet	Off	62.809720	-92.089940	30.0	Circle
+C-Freq	CFreqId=218606	CGroupId=53211	RCMP	Off	151160000	FM		2					
+Conventional	CountyId=5235	StateId=108	Qikiqtaaluk/Baffin	Off		Conventional
+AreaState	CountyId=5235	StateId=108
+AreaCounty	CountyId=5235	CountyId=5235
+C-Group	CGroupId=52337	CountyId=5235	Transportation - Alert Airport (YLT)	Off	82.517830	-62.280500	50.0	Circle
+C-Freq	CFreqId=215328	CGroupId=52337	Unicom (Resolute Bay)	Off	126700000	AM		15					
+C-Group	CGroupId=52341	CountyId=5235	Transportation - Cape Dorset Airport  (YTE)	Off	64.230290	-76.530680	50.0	Circle
+C-Freq	CFreqId=215334	CGroupId=52341	Automated Weather Observation System	Off	128700000	AM		15					
+C-Freq	CFreqId=215333	CGroupId=52341	Unicom	Off	122100000	AM		15					
+C-Group	CGroupId=52342	CountyId=5235	Transportation - Clyde River Airport (YCY)	Off	70.486110	-68.516670	30.0	Circle
+C-Freq	CFreqId=215336	CGroupId=52342	Automated Weather Observation System	Off	124600000	AM		15					
+C-Freq	CFreqId=215335	CGroupId=52342	Unicom	Off	122100000	AM		15					
+C-Group	CGroupId=77514	CountyId=5235	Transportation - Iqaluit	Off	63.748610	-68.519720	10.0	Circle
+C-Freq	CFreqId=330614	CGroupId=77514	Nunavut Caribou Cabs - Cars	Off	151565000	NFM	TONE=C210.7	26					
+C-Freq	CFreqId=330612	CGroupId=77514	Nunavut Caribou Cabs - Cars	Off	157705000	NFM	TONE=C210.7	26					
+C-Freq	CFreqId=330613	CGroupId=77514	Nunavut Caribou Cabs - Dispatcher	Off	151565000	NFM	TONE=C218.1	26					
+C-Freq	CFreqId=330611	CGroupId=77514	Nunavut Caribou Cabs - Dispatcher	Off	157705000	NFM	TONE=C218.1	26					
+C-Freq	CFreqId=330596	CGroupId=77514	Pai-Pa Taxi - Cars	Off	167375000	NFM	TONE=C100.0	26					
+C-Freq	CFreqId=330595	CGroupId=77514	Pai-Pa Taxi - Dispatcher	Off	167375000	NFM	TONE=C67.0	26					
+C-Freq	CFreqId=338807	CGroupId=77514	R L Hanson Bus Service - Dispatch	Off	469975000	NFM	TONE=D023	26					
+C-Group	CGroupId=77515	CountyId=5235	Transportation - Iqaluit Airport (YFB)	Off	63.756670	-68.556110	10.0	Circle
+C-Freq	CFreqId=330602	CGroupId=77515	Air Nunavut	Off	129400000	AM		15					
+C-Freq	CFreqId=338810	CGroupId=77515	Airport Maintenance - Snow Removal	Off	461075000	NFM		17					
+C-Freq	CFreqId=338809	CGroupId=77515	Airport Maintenance - Snow Removal	Off	466087500	NFM		17					
+C-Freq	CFreqId=330598	CGroupId=77515	Apron Control	Off	122925000	AM		15					
+C-Freq	CFreqId=330603	CGroupId=77515	Canadian North	Off	129900000	AM		15					
+C-Freq	CFreqId=330605	CGroupId=77515	Canadian North - Gate Agents	Off	456662500	NFM	TONE=C107.2	17					
+C-Freq	CFreqId=330606	CGroupId=77515	Canadian North - Maintenance 1	Off	461012500	NFM	TONE=C107.2	17					
+C-Freq	CFreqId=330607	CGroupId=77515	Canadian North - Maintenance 2	Off	459200000	NFM	TONE=C107.2	17					
+C-Freq	CFreqId=330600	CGroupId=77515	First Air COMM	Off	130550000	AM		15					
+C-Freq	CFreqId=330599	CGroupId=77515	First Air Peripheral Station	Off	131250000	AM		15					
+C-Freq	CFreqId=330597	CGroupId=77515	Flight Service Station	Off	122200000	AM		15					
+C-Freq	CFreqId=330604	CGroupId=77515	Kenn Borek Air	Off	130700000	AM		15					
+C-Freq	CFreqId=330601	CGroupId=77515	Touchdown Services Fixed Base Ops	Off	123350000	AM		15					
+C-Group	CGroupId=50229	CountyId=5235	Transportation - Mary River Airport (CMR2)	Off	71.183060	-79.350000	30.0	Circle
+C-Freq	CFreqId=204391	CGroupId=50229	Unicom	Off	123350000	AM		15					
+Conventional	AgencyId=6034	StateId=108	Arviat Airport (YEK)	Off		Conventional
+AreaState	AgencyId=6034	StateId=108
+AreaCounty	AgencyId=6034	CountyId=5234
+C-Group	CGroupId=52338	AgencyId=6034	CYEK Arviat - General Radio	Off	63.748610	-68.519720	500.0	Circle
+C-Freq	CFreqId=215330	CGroupId=52338	YEK Automated Weather Observation System	Off	128700000	AM		15					
+C-Freq	CFreqId=215329	CGroupId=52338	YEK Radio	Off	122100000	AM		15					
+Conventional	AgencyId=6030	StateId=108	Baffinland Iron Mines Corporation	Off		Conventional
+AreaState	AgencyId=6030	StateId=108
+AreaCounty	AgencyId=6030	CountyId=5235
+C-Group	CGroupId=50227	AgencyId=6030	Mary River Project - Baffin Island	Off	69.000000	-72.000000	500.0	Circle
+C-Freq	CFreqId=204386	CGroupId=50227	Driller	Off	163680000	FM	TONE=C156.7	17					
+C-Freq	CFreqId=204385	CGroupId=50227	Surface	Off	165060000	FM		17					
+C-Group	CGroupId=50226	AgencyId=6030	Mary River Project - Mary River	Off	71.183060	-79.350000	30.0	Circle
+C-Freq	CFreqId=295738	CGroupId=50226	Baffinland - North Repeater UHF	Off	451062500	FM	TONE=C250.3	17					
+C-Freq	CFreqId=204387	CGroupId=50226	Baffinland - North Repeater VHF	Off	162105000	FM	TONE=C123.0	17					
+C-Freq	CFreqId=204389	CGroupId=50226	Baffinland - South Repeater	Off	162105000	FM	TONE=C100.0	17					
+C-Group	CGroupId=50223	AgencyId=6030	Mary River Project - Nuna Logistics	Off	71.402780	-80.084720	125.0	Circle
+C-Freq	CFreqId=204380	CGroupId=50223	Crusher Pad	Off	173700000	FM	TONE=C77.0	17					
+C-Freq	CFreqId=204382	CGroupId=50223	Haul Trucks	Off	173670000	FM	TONE=C67.0	17					
+C-Freq	CFreqId=204383	CGroupId=50223	LAD 1	Off	154100000	FM		17					
+C-Freq	CFreqId=204381	CGroupId=50223	Mountain Crew	Off	173610000	FM	TONE=C88.5	17					
+C-Freq	CFreqId=204379	CGroupId=50223	Operations	Off	166620000	FM	TONE=C123.0	17					
+Conventional	AgencyId=6031	StateId=108	Baker Lake Airport (YBK)	Off		Conventional
+AreaState	AgencyId=6031	StateId=108
+AreaCounty	AgencyId=6031	CountyId=5234
+C-Group	CGroupId=52339	AgencyId=6031	CYBK Baker Lake - General Radio	Off	63.748610	-68.519720	500.0	Circle
+C-Freq	CFreqId=215331	CGroupId=52339	YBK Radio	Off	122100000	AM		15					
+Conventional	AgencyId=6032	StateId=108	Cambridge Bay Airport (YCB)	Off		Conventional
+AreaState	AgencyId=6032	StateId=108
+AreaCounty	AgencyId=6032	CountyId=5233
+C-Group	CGroupId=52340	AgencyId=6032	Aviation - Cambridge Bay	Off	69.108050	-105.137220	30.0	Circle
+C-Freq	CFreqId=215332	CGroupId=52340	Unicom	Off	122100000	AM		15					
