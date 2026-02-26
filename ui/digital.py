@@ -3661,6 +3661,8 @@ class DigitalManager:
         *,
         force: bool = False,
     ) -> tuple[bool, str, bool]:
+        if self._super_profile_mode:
+            return False, "scheduler playlist apply disabled in super profile mode", False
         now_ms = int(time.time() * 1000)
         if not force:
             delta = now_ms - int(self._scheduler_last_apply_attempt_ms or 0)
