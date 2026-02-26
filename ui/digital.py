@@ -1638,6 +1638,9 @@ class DigitalAdapter:
     def getRecentEvents(self, limit: int = 20):
         raise NotImplementedError
 
+    def retune_control_frequency(self, freq_mhz: float) -> tuple[bool, str]:
+        raise NotImplementedError
+
 
 class _BaseDigitalAdapter(DigitalAdapter):
     """Shared in-memory state for adapters."""
@@ -1763,6 +1766,9 @@ class NullDigitalAdapter(_BaseDigitalAdapter):
 
     def getRecentEvents(self, limit: int = 20):
         return []
+
+    def retune_control_frequency(self, freq_mhz: float) -> tuple[bool, str]:
+        return False, self._reason
 
 
 class SdrtrunkAdapter(_BaseDigitalAdapter):
@@ -2732,6 +2738,56 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         if channel.find("record_configuration") is None:
             ET.SubElement(channel, "record_configuration")
         _sync_stream_configuration(root)
+
+        try:
+            tree.write(playlist_path, encoding="utf-8", xml_declaration=False)
+        except Exception as e:
+            return False, f"failed to write playlist: {e}"
+        return True, ""
+
+    def retune_control_frequency(self, freq_mhz: float) -> tuple[bool, str]:
+        try:
+            freq_val = float(freq_mhz)
+        except Exception:
+            return False, "invalid control frequency"
+        if not math.isfinite(freq_val) or freq_val <= 0:
+            return False, "invalid control frequency"
+        hz = int(round(freq_val * 1_000_000))
+        if hz <= 0:
+            return False, "invalid control frequency"
+
+        playlist_path = _safe_realpath(DIGITAL_PLAYLIST_PATH)
+        if not playlist_path:
+            return False, "digital playlist path not configured"
+        if not os.path.isfile(playlist_path):
+            return False, f"playlist not found: {playlist_path}"
+
+        try:
+            tree = ET.parse(playlist_path)
+            root = tree.getroot()
+        except Exception as e:
+            return False, f"failed to parse playlist: {e}"
+
+        channel = root.find("channel")
+        if channel is None:
+            return False, "playlist has no channel node"
+        source_conf = channel.find("source_configuration")
+        if source_conf is None:
+            return False, "playlist channel has no source_configuration"
+
+        target = str(hz)
+        changed = False
+        if str(source_conf.get("frequency", "")).strip() != target:
+            source_conf.set("frequency", target)
+            changed = True
+
+        for node in source_conf.findall("frequency"):
+            if str(node.text or "").strip() != target:
+                node.text = target
+                changed = True
+
+        if not changed:
+            return True, ""
 
         try:
             tree.write(playlist_path, encoding="utf-8", xml_declaration=False)
