@@ -4063,6 +4063,15 @@ class DigitalManager:
             err_time_ms = int(getattr(self._adapter, "_last_error_time_ms", 0) or 0)
             warn_time_ms = int(getattr(self._adapter, "_last_warning_time_ms", 0) or 0)
             last_warn_text = str(payload.get("digital_last_warning") or "")
+            stale_event = (
+                last_event_ms > 0
+                and _DIGITAL_STATUS_CLEAR_MS > 0
+                and (now_ms - last_event_ms) >= _DIGITAL_STATUS_CLEAR_MS
+            )
+            if stale_event:
+                payload["digital_last_label"] = ""
+                payload["digital_last_time"] = 0
+                payload.pop("digital_last_mode", None)
             recovered_after_error = last_event_ms > 0 and err_time_ms > 0 and last_event_ms >= err_time_ms
             stale_error = err_time_ms > 0 and _DIGITAL_STATUS_CLEAR_MS > 0 and (now_ms - err_time_ms) >= _DIGITAL_STATUS_CLEAR_MS
             if recovered_after_error or stale_error:
