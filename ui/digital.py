@@ -136,6 +136,10 @@ _DEFAULT_PROFILE_NOTE = (
     "Then set this profile active from the UI or by updating the active symlink.\n"
 )
 _LISTEN_FILENAME = "talkgroups_listen.json"
+_DEFAULT_LISTEN_ENABLED = os.getenv(
+    "DIGITAL_LISTEN_DEFAULT",
+    "0",
+).strip().lower() in ("1", "true", "yes", "on")
 _REJECT_SCAN_MAX_LINES = max(200, int(os.getenv("DIGITAL_REJECT_SCAN_MAX_LINES", "5000")))
 _REJECT_SCAN_MAX_BYTES = max(16384, int(os.getenv("DIGITAL_REJECT_SCAN_MAX_BYTES", "1048576")))
 _REJECT_SCAN_MAX_FILES = max(1, int(os.getenv("DIGITAL_REJECT_SCAN_MAX_FILES", "3")))
@@ -906,11 +910,14 @@ def _parse_listen_payload(payload: object) -> tuple[dict[str, bool], bool, dict[
     """
     mapping: dict[str, bool] = {}
     metadata: dict[str, dict] = {}
-    default_listen = True
+    default_listen = bool(_DEFAULT_LISTEN_ENABLED)
     if not isinstance(payload, dict):
         return mapping, default_listen, metadata
 
-    default_raw = payload.get("default_listen", payload.get("default", True))
+    default_raw = payload.get(
+        "default_listen",
+        payload.get("default", bool(_DEFAULT_LISTEN_ENABLED)),
+    )
     default_listen = bool(default_raw)
 
     items = payload.get("items")
@@ -963,7 +970,7 @@ def _parse_listen_payload(payload: object) -> tuple[dict[str, bool], bool, dict[
 def _read_listen_config(path: str) -> tuple[dict[str, bool], bool, dict[str, dict]]:
     mapping: dict[str, bool] = {}
     metadata: dict[str, dict] = {}
-    default_listen = True
+    default_listen = bool(_DEFAULT_LISTEN_ENABLED)
     if not path or not os.path.isfile(path):
         return mapping, default_listen, metadata
     try:
@@ -973,7 +980,7 @@ def _read_listen_config(path: str) -> tuple[dict[str, bool], bool, dict[str, dic
     except Exception:
         mapping = {}
         metadata = {}
-        default_listen = True
+        default_listen = bool(_DEFAULT_LISTEN_ENABLED)
     return mapping, default_listen, metadata
 
 
@@ -1215,6 +1222,19 @@ def create_digital_profile_dir(profile_id: str):
         note_path = os.path.join(target, "README.txt")
         with open(note_path, "w", encoding="utf-8") as f:
             f.write(_DEFAULT_PROFILE_NOTE)
+        listen_path = os.path.join(target, _LISTEN_FILENAME)
+        with open(listen_path, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "updated": int(time.time()),
+                    "default_listen": bool(_DEFAULT_LISTEN_ENABLED),
+                    "items": {},
+                },
+                f,
+                indent=2,
+                sort_keys=True,
+            )
+            f.write("\n")
     except Exception as e:
         return False, str(e)
     return True, ""
@@ -1778,7 +1798,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         self._listen_map = {}
         self._listen_map_profile = ""
         self._listen_map_mtime = None
-        self._listen_default = True
+        self._listen_default = bool(_DEFAULT_LISTEN_ENABLED)
         self._refresh_lock = threading.Lock()
         self._last_refresh_monotonic = 0.0
         self._refresh_min_interval_sec = max(
@@ -2786,14 +2806,14 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             self._listen_map = {}
             self._listen_map_profile = ""
             self._listen_map_mtime = None
-            self._listen_default = True
+            self._listen_default = bool(_DEFAULT_LISTEN_ENABLED)
             return self._listen_map
         listen_path = os.path.join(profile_dir, _LISTEN_FILENAME)
         if not os.path.isfile(listen_path):
             self._listen_map = {}
             self._listen_map_profile = profile_dir
             self._listen_map_mtime = None
-            self._listen_default = True
+            self._listen_default = bool(_DEFAULT_LISTEN_ENABLED)
             return self._listen_map
         try:
             mtime = os.path.getmtime(listen_path)
@@ -2803,7 +2823,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             if mtime == self._listen_map_mtime[1]:
                 return self._listen_map
         mapping = {}
-        default_listen = True
+        default_listen = bool(_DEFAULT_LISTEN_ENABLED)
         mapping, default_listen, _ = _read_listen_config(listen_path)
         self._listen_map = mapping
         self._listen_map_profile = profile_dir
