@@ -2502,6 +2502,7 @@
         controlLastTime: 0,
         controlSyncLossCount: 0,
         controlWindowMs: 0,
+        metricsUpdatedMs: 0,
         schedulerMode: '',
         schedulerActiveSystem: '',
         schedulerNextSystem: '',
@@ -5756,6 +5757,39 @@
       return '--';
     }
 
+    function hitAgeMsFromClock(raw) {
+      const text = String(raw || '').trim();
+      const m = text.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+      if (!m) return Number.POSITIVE_INFINITY;
+      const now = new Date();
+      const hit = new Date(now);
+      hit.setHours(Number(m[1]), Number(m[2]), Number(m[3] || 0), 0);
+      let age = now.getTime() - hit.getTime();
+      if (age < -43200000) age += 86400000;
+      if (age < 0) age = 0;
+      return age;
+    }
+
+    function recentDigitalActivity() {
+      let bestAgeMs = Number.POSITIVE_INFINITY;
+      for (let i = 0; i < Math.min(state.hits.length, 24); i += 1) {
+        const hit = state.hits[i];
+        if (!hit || typeof hit !== 'object') continue;
+        const source = String(hit.source || hit.type || '').trim().toLowerCase();
+        if (source !== 'digital') continue;
+        const age = hitAgeMsFromClock(hit.time);
+        if (Number.isFinite(age) && age < bestAgeMs) {
+          bestAgeMs = age;
+        }
+      }
+      const eventTimeMs = Number(state.digital?.lastTime || 0);
+      if (Number.isFinite(eventTimeMs) && eventTimeMs > 0) {
+        const age = Math.max(0, Date.now() - eventTimeMs);
+        if (age < bestAgeMs) bestAgeMs = age;
+      }
+      return Number.isFinite(bestAgeMs) ? bestAgeMs : Number.POSITIVE_INFINITY;
+    }
+
     function getDigitalControlChannelHealth() {
       const d = state.digital || {};
       const loopState = state.profileLoop?.digital || defaultProfileLoopState();
@@ -5767,6 +5801,13 @@
       const syncLossCount = Number.isFinite(d.controlSyncLossCount) ? Number(d.controlSyncLossCount) : 0;
       const controlLocked = Boolean(d.controlLocked);
       const lastControlText = formatTimeMs(Number(d.controlLastTime) || 0);
+      const telemetryAgeMs = Math.max(0, Date.now() - Number(d.metricsUpdatedMs || 0));
+      const telemetryStale = !d.metricsUpdatedMs || telemetryAgeMs > 15000;
+      const activityAgeMs = recentDigitalActivity();
+      const hasRecentActivity = Number.isFinite(activityAgeMs) && activityAgeMs <= 30000;
+      const activityText = hasRecentActivity
+        ? `Recent digital activity ${formatDurationCompact(activityAgeMs)} ago`
+        : '';
 
       if (!d.active) {
         return { label: 'OFFLINE', tone: 'bad', detail: 'Digital decoder stopped' };
@@ -5781,6 +5822,13 @@
             detail: `Runtime=${runtimeProfile}; loop target=${loopProfile}`,
           };
         }
+      }
+      if (hasRecentActivity && (telemetryStale || !metricReady || !controlLocked || !d.playlistSourceOk || d.lastError)) {
+        return {
+          label: 'ACTIVE',
+          tone: 'good',
+          detail: telemetryStale ? `${activityText}; control telemetry stale` : `${activityText}; control telemetry catching up`,
+        };
       }
       if (!d.playlistSourceOk) {
         const reason = d.playlistSourceError ? trimServiceNote(d.playlistSourceError) : 'Playlist source not ready';
@@ -5824,6 +5872,9 @@
       }
       if (sourceType) {
         return { label: 'INFERRED', tone: 'warn', detail: `Source: ${sourceType} (direct metric unavailable)` };
+      }
+      if (telemetryStale) {
+        return { label: 'INFERRED', tone: 'warn', detail: 'Control telemetry stale; awaiting refresh' };
       }
       return { label: 'INFERRED', tone: 'warn', detail: 'Direct control metric unavailable' };
     }
@@ -6787,6 +6838,7 @@
         state.digital.controlLastTime = Number.isFinite(data.digital_control_channel_last_time) ? data.digital_control_channel_last_time : 0;
         state.digital.controlSyncLossCount = Number.isFinite(data.digital_control_sync_loss_count) ? data.digital_control_sync_loss_count : 0;
         state.digital.controlWindowMs = Number.isFinite(data.digital_control_window_ms) ? data.digital_control_window_ms : 0;
+        state.digital.metricsUpdatedMs = Date.now();
         applyDigitalSchedulerPayload(data);
         if (schedulerData && schedulerData.ok) {
           applyDigitalSchedulerPayload(schedulerData);
@@ -7621,7 +7673,7 @@
         } catch (e) {
           console.error('Connected status sync failed:', e);
         }
-      }, 60000);
+      }, 10000);
       setInterval(() => {
         renderPiClock();
       }, 1000);
