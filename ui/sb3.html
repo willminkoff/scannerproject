@@ -5820,6 +5820,14 @@
         return { label: 'OFFLINE', tone: 'bad', detail: 'Digital decoder stopped' };
       }
       if (loopEnabled) {
+        const loopError = String(loopState.lastError || '').trim();
+        if (loopError) {
+          return {
+            label: 'LOOP ERR',
+            tone: 'bad',
+            detail: trimServiceNote(loopError),
+          };
+        }
         if (hasRecentActivity) {
           const activeName = loopProfile || runtimeProfile || '--';
           return {
@@ -5835,12 +5843,9 @@
             detail: `Runtime=${runtimeProfile}; loop target=${loopProfile}; ${formatDurationCompact(lastSwitchAgeMs)} since switch`,
           };
         }
-        if (d.lastError) {
-          return { label: 'SEARCHING', tone: 'bad', detail: trimServiceNote(d.lastError) };
-        }
         return {
           label: 'SCANNING',
-          tone: 'warn',
+          tone: 'good',
           detail: switchingMismatch
             ? `Runtime=${runtimeProfile || '--'}; loop target=${loopProfile || '--'}`
             : 'No recent digital traffic yet',
