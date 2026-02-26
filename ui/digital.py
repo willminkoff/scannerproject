@@ -3740,6 +3740,73 @@ class DigitalManager:
         self._scheduler_last_apply_error_system = ""
         return True, "", True
 
+    def _apply_scheduler_retune(
+        self,
+        profile_id: str,
+        system_name: str,
+        *,
+        force: bool = False,
+    ) -> tuple[bool, str, bool]:
+        now_ms = int(time.time() * 1000)
+        if not force:
+            delta = now_ms - int(self._scheduler_last_apply_attempt_ms or 0)
+            if delta >= 0 and delta < _DIGITAL_SCHEDULER_APPLY_MIN_INTERVAL_MS:
+                return True, "", False
+        self._scheduler_last_apply_attempt_ms = now_ms
+
+        if not self._super_profile_systems:
+            self._refresh_super_profile_systems(profile_id)
+        system_entry = self._super_profile_systems.get(str(system_name or "").strip())
+        if not isinstance(system_entry, dict):
+            self._scheduler_last_apply_error = f"system has no control frequency: {system_name}"
+            self._scheduler_last_apply_error_system = system_name
+            health = self._scheduler_health_entry(system_name)
+            if health:
+                health["lock_failures"] = int(health.get("lock_failures") or 0) + 1
+                health["last_lock_loss_time_ms"] = now_ms
+            return False, self._scheduler_last_apply_error, False
+
+        try:
+            control_freq = float(system_entry.get("control_frequency") or 0.0)
+        except Exception:
+            control_freq = 0.0
+        if not math.isfinite(control_freq) or control_freq <= 0:
+            self._scheduler_last_apply_error = f"invalid control frequency for {system_name}"
+            self._scheduler_last_apply_error_system = system_name
+            health = self._scheduler_health_entry(system_name)
+            if health:
+                health["lock_failures"] = int(health.get("lock_failures") or 0) + 1
+                health["last_lock_loss_time_ms"] = now_ms
+            return False, self._scheduler_last_apply_error, False
+
+        ok, err = self._adapter.retune_control_frequency(control_freq)
+        if not ok:
+            msg = str(err or f"retune failed for {system_name}")
+            self._scheduler_last_apply_error = msg
+            self._scheduler_last_apply_error_system = system_name
+            health = self._scheduler_health_entry(system_name)
+            if health:
+                health["lock_failures"] = int(health.get("lock_failures") or 0) + 1
+                health["last_lock_loss_time_ms"] = now_ms
+            return False, msg, False
+
+        self._scheduler_last_applied_system = system_name
+        self._scheduler_last_apply_time_ms = now_ms
+        self._scheduler_last_apply_error = ""
+        self._scheduler_last_apply_error_system = ""
+        return True, "", True
+
+    def _apply_scheduler_target(
+        self,
+        profile_id: str,
+        system_name: str,
+        *,
+        force: bool = False,
+    ) -> tuple[bool, str, bool]:
+        if self._super_profile_mode:
+            return self._apply_scheduler_retune(profile_id, system_name, force=force)
+        return self._apply_scheduler_system(profile_id, system_name, force=force)
+
     def getScheduler(self) -> dict:
         preflight = self.preflight() or {}
         event = self.getLastEvent() or {}
@@ -4054,7 +4121,7 @@ class DigitalManager:
                 pending_reason = "manual"
 
         if pending_apply and active_system:
-            ok, _err, _changed = self._apply_scheduler_system(
+            ok, _err, _changed = self._apply_scheduler_target(
                 profile_id,
                 active_system,
                 force=True,
@@ -4067,7 +4134,7 @@ class DigitalManager:
                     and recovery_system != active_system
                 ):
                     self._scheduler_active_system = recovery_system
-                    recovery_ok, _recovery_err, _recovery_changed = self._apply_scheduler_system(
+                    recovery_ok, _recovery_err, _recovery_changed = self._apply_scheduler_target(
                         profile_id,
                         recovery_system,
                         force=True,
