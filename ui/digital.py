@@ -296,6 +296,14 @@ _DIGITAL_EVENT_DROP_RE = re.compile(
     r"(rejected|tuner unavailable|encrypted|encryption|data channel grant|nsapi)",
     re.I,
 )
+_DIGITAL_RECENT_EVENT_ID_BUCKET_SEC = max(
+    0,
+    int(os.getenv("DIGITAL_RECENT_EVENT_ID_BUCKET_SEC", "0")),
+)
+_DIGITAL_RECENT_LABEL_DEDUPE_MS = max(
+    0,
+    int(os.getenv("DIGITAL_RECENT_LABEL_DEDUPE_MS", "2500")),
+)
 _DIGITAL_NON_AUDIO_LABEL_RE = re.compile(r"^\(P:\d+\s*\[\d+\]\)$", re.I)
 _DIGITAL_DEBUG_INCLUDE_GRANTS = os.getenv(
     "DIGITAL_DEBUG_INCLUDE_GRANTS",
@@ -1723,15 +1731,29 @@ class _BaseDigitalAdapter(DigitalAdapter):
             event = dict(event)
             event["type"] = "digital"
         event_time_ms = int(event.get("timeMs") or 0)
+        if event_time_ms <= 0:
+            event_time_ms = int(time.time() * 1000)
+            event = dict(event)
+            event["timeMs"] = event_time_ms
         event_id = str(event.get("event_id") or "").strip()
         if event_id:
-            # Event logs often repeat the same EVENT_ID for a call as duration
-            # updates stream in. Keep one row per second per ID so hit history
-            # advances without flooding duplicates.
-            sec_bucket = int(event_time_ms / 1000) if event_time_ms > 0 else 0
-            key = f"id:{event_id}:{sec_bucket}"
+            # Keep one hit row per call/event ID by default. Optional bucketed
+            # mode can be enabled via DIGITAL_RECENT_EVENT_ID_BUCKET_SEC.
+            if _DIGITAL_RECENT_EVENT_ID_BUCKET_SEC > 0:
+                bucket_ms = int(_DIGITAL_RECENT_EVENT_ID_BUCKET_SEC) * 1000
+                bucket = int(event_time_ms / max(1, bucket_ms))
+                key = f"id:{event_id}:{bucket}"
+            else:
+                key = f"id:{event_id}"
         else:
-            key = f"{event_time_ms}|{event.get('label')}|{event.get('mode','')}"
+            tgid = str(event.get("tgid") or "").strip()
+            label = str(event.get("label") or "").strip()
+            mode = str(event.get("mode") or "").strip()
+            if _DIGITAL_RECENT_LABEL_DEDUPE_MS > 0:
+                bucket = int(event_time_ms / int(_DIGITAL_RECENT_LABEL_DEDUPE_MS))
+                key = f"sig:{tgid}|{label}|{mode}:{bucket}"
+            else:
+                key = f"{event_time_ms}|{label}|{mode}"
         if key in self._recent_event_keys:
             return
         event = dict(event)
@@ -2973,13 +2995,34 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
 
         target = str(hz)
         changed = False
-        if str(source_conf.get("frequency", "")).strip() != target:
-            source_conf.set("frequency", target)
-            changed = True
+        source_type = str(source_conf.get("source_type", "")).strip().upper()
+        source_cfg_type = str(source_conf.get("type", "")).strip()
+        frequency_nodes = list(source_conf.findall("frequency"))
+        multi_source = (
+            source_type == "TUNER_MULTIPLE_FREQUENCIES"
+            or source_cfg_type == "sourceConfigTunerMultipleFrequency"
+            or len(frequency_nodes) > 1
+        )
 
-        for node in source_conf.findall("frequency"):
-            if str(node.text or "").strip() != target:
+        if multi_source:
+            # Multi-frequency tuner sources are modeled as repeated <frequency>
+            # nodes. Writing a scalar "frequency" attribute can break SDRTrunk
+            # deserialization (expects List<Long>), so keep list-only shape.
+            if "frequency" in source_conf.attrib:
+                del source_conf.attrib["frequency"]
+                changed = True
+            if not frequency_nodes:
+                node = ET.SubElement(source_conf, "frequency")
                 node.text = target
+                changed = True
+            else:
+                for node in frequency_nodes:
+                    if str(node.text or "").strip() != target:
+                        node.text = target
+                        changed = True
+        else:
+            if str(source_conf.get("frequency", "")).strip() != target:
+                source_conf.set("frequency", target)
                 changed = True
 
         if not changed:
