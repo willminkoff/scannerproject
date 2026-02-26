@@ -42,6 +42,7 @@ try:
         DIGITAL_PAUSE_ON_HIT,
         DIGITAL_SCAN_MODE,
         DIGITAL_SOURCE_ROTATION_DELAY_MS,
+        DIGITAL_SUPER_PROFILE_MODE,
         DIGITAL_SERVICE_NAME,
         DIGITAL_SYSTEM_DWELL_MS,
         DIGITAL_SYSTEM_HANG_MS,
@@ -77,6 +78,7 @@ except ImportError:
         DIGITAL_PAUSE_ON_HIT,
         DIGITAL_SCAN_MODE,
         DIGITAL_SOURCE_ROTATION_DELAY_MS,
+        DIGITAL_SUPER_PROFILE_MODE,
         DIGITAL_SERVICE_NAME,
         DIGITAL_SYSTEM_DWELL_MS,
         DIGITAL_SYSTEM_HANG_MS,
@@ -3054,6 +3056,7 @@ class DigitalManager:
             selected = "sdrtrunk"
         self._backend = selected
         self._adapter = self._build_adapter(selected)
+        self._super_profile_mode = bool(DIGITAL_SUPER_PROFILE_MODE)
         self._scheduler_mode = (
             DIGITAL_SCAN_MODE
             if DIGITAL_SCAN_MODE in ("single_system", "timeslice_multi_system")

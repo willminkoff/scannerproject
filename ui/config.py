@@ -123,6 +123,10 @@ DIGITAL_PAUSE_ON_HIT = os.getenv(
     "DIGITAL_PAUSE_ON_HIT",
     "1",
 ).strip().lower() in ("1", "true", "yes", "on")
+DIGITAL_SUPER_PROFILE_MODE = os.getenv(
+    "DIGITAL_SUPER_PROFILE_MODE",
+    "1",
+).strip().lower() in ("1", "true", "yes", "on")
 DIGITAL_RTL_SERIAL_HINT = "DIGITAL_RTL_SERIAL not set; set it to your digital dongle serial"
 # Multi-profile loop scheduler
 PROFILE_LOOP_STATE_PATH = os.getenv(
