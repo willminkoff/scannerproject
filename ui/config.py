@@ -127,6 +127,34 @@ DIGITAL_SUPER_PROFILE_MODE = os.getenv(
     "DIGITAL_SUPER_PROFILE_MODE",
     "1",
 ).strip().lower() in ("1", "true", "yes", "on")
+DIGITAL_RUNTIME_RETUNE_ENABLED = os.getenv(
+    "DIGITAL_RUNTIME_RETUNE_ENABLED",
+    "1",
+).strip().lower() in ("1", "true", "yes", "on")
+DIGITAL_RUNTIME_RETUNE_STRICT = os.getenv(
+    "DIGITAL_RUNTIME_RETUNE_STRICT",
+    "0",
+).strip().lower() in ("1", "true", "yes", "on")
+DIGITAL_RUNTIME_RETUNE_URL = os.getenv(
+    "DIGITAL_RUNTIME_RETUNE_URL",
+    "",
+).strip()
+DIGITAL_RUNTIME_RETUNE_HTTP_METHOD = os.getenv(
+    "DIGITAL_RUNTIME_RETUNE_HTTP_METHOD",
+    "POST",
+).strip().upper() or "POST"
+DIGITAL_RUNTIME_RETUNE_TOKEN = os.getenv(
+    "DIGITAL_RUNTIME_RETUNE_TOKEN",
+    "",
+).strip()
+DIGITAL_RUNTIME_RETUNE_CMD = os.getenv(
+    "DIGITAL_RUNTIME_RETUNE_CMD",
+    "",
+).strip()
+DIGITAL_RUNTIME_RETUNE_TIMEOUT_MS = max(
+    50,
+    int(os.getenv("DIGITAL_RUNTIME_RETUNE_TIMEOUT_MS", "350")),
+)
 DIGITAL_RTL_SERIAL_HINT = "DIGITAL_RTL_SERIAL not set; set it to your digital dongle serial"
 # Multi-profile loop scheduler
 PROFILE_LOOP_STATE_PATH = os.getenv(

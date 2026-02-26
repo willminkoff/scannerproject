@@ -5,9 +5,13 @@ import json
 import csv
 import os
 import re
+import shlex
 import subprocess
 import threading
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime
 from xml.etree import ElementTree as ET
 
@@ -31,6 +35,13 @@ try:
         DIGITAL_PLAYLIST_PATH,
         DIGITAL_PROFILES_DIR,
         DIGITAL_PREFERRED_TUNER,
+        DIGITAL_RUNTIME_RETUNE_CMD,
+        DIGITAL_RUNTIME_RETUNE_ENABLED,
+        DIGITAL_RUNTIME_RETUNE_HTTP_METHOD,
+        DIGITAL_RUNTIME_RETUNE_STRICT,
+        DIGITAL_RUNTIME_RETUNE_TIMEOUT_MS,
+        DIGITAL_RUNTIME_RETUNE_TOKEN,
+        DIGITAL_RUNTIME_RETUNE_URL,
         DIGITAL_RTL_DEVICE,
         DIGITAL_RTL_SERIAL,
         DIGITAL_RTL_SERIAL_SECONDARY,
@@ -67,6 +78,13 @@ except ImportError:
         DIGITAL_PLAYLIST_PATH,
         DIGITAL_PROFILES_DIR,
         DIGITAL_PREFERRED_TUNER,
+        DIGITAL_RUNTIME_RETUNE_CMD,
+        DIGITAL_RUNTIME_RETUNE_ENABLED,
+        DIGITAL_RUNTIME_RETUNE_HTTP_METHOD,
+        DIGITAL_RUNTIME_RETUNE_STRICT,
+        DIGITAL_RUNTIME_RETUNE_TIMEOUT_MS,
+        DIGITAL_RUNTIME_RETUNE_TOKEN,
+        DIGITAL_RUNTIME_RETUNE_URL,
         DIGITAL_RTL_DEVICE,
         DIGITAL_RTL_SERIAL,
         DIGITAL_RTL_SERIAL_SECONDARY,
@@ -296,6 +314,10 @@ _DIGITAL_STREAM_SAMPLE_RATE_OVERRIDE = os.getenv("DIGITAL_STREAM_SAMPLE_RATE", "
 _DIGITAL_STREAM_CHANNELS_OVERRIDE = os.getenv("DIGITAL_STREAM_CHANNELS", "").strip() != ""
 _DIGITAL_STREAM_MAX_RECORDING_AGE_OVERRIDE = os.getenv("DIGITAL_STREAM_MAX_RECORDING_AGE_MS", "").strip() != ""
 _DIGITAL_STREAM_DELAY_OVERRIDE = os.getenv("DIGITAL_STREAM_DELAY_MS", "").strip() != ""
+_DIGITAL_RUNTIME_RETUNE_TIMEOUT_SEC = max(
+    0.05,
+    float(DIGITAL_RUNTIME_RETUNE_TIMEOUT_MS or 350) / 1000.0,
+)
 _DURATION_HMS_RE = re.compile(
     r"^(?:(?P<h>\d+):)?(?P<m>\d{1,2}):(?P<s>\d{1,2}(?:\.\d+)?)$"
 )
@@ -2762,6 +2784,12 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         if hz <= 0:
             return False, "invalid control frequency"
 
+        runtime_attempted, runtime_ok, runtime_err = self._runtime_retune_control_frequency(freq_val, hz)
+        if runtime_ok:
+            return True, ""
+        if runtime_attempted and DIGITAL_RUNTIME_RETUNE_STRICT:
+            return False, runtime_err or "runtime retune failed"
+
         playlist_path = _safe_realpath(DIGITAL_PLAYLIST_PATH)
         if not playlist_path:
             return False, "digital playlist path not configured"
@@ -2799,6 +2827,141 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             tree.write(playlist_path, encoding="utf-8", xml_declaration=False)
         except Exception as e:
             return False, f"failed to write playlist: {e}"
+        return True, ""
+
+    def _runtime_retune_control_frequency(
+        self,
+        freq_mhz: float,
+        freq_hz: int,
+    ) -> tuple[bool, bool, str]:
+        if not DIGITAL_RUNTIME_RETUNE_ENABLED:
+            return False, False, ""
+
+        attempted = False
+        errors: list[str] = []
+
+        endpoint = str(DIGITAL_RUNTIME_RETUNE_URL or "").strip()
+        if endpoint:
+            attempted = True
+            ok, err = self._runtime_retune_http(endpoint, freq_mhz, freq_hz)
+            if ok:
+                return True, True, ""
+            if err:
+                errors.append(str(err))
+
+        command = str(DIGITAL_RUNTIME_RETUNE_CMD or "").strip()
+        if command:
+            attempted = True
+            ok, err = self._runtime_retune_command(command, freq_mhz, freq_hz)
+            if ok:
+                return True, True, ""
+            if err:
+                errors.append(str(err))
+
+        if not attempted:
+            return False, False, ""
+        return True, False, "; ".join(errors)
+
+    def _runtime_retune_http(
+        self,
+        endpoint: str,
+        freq_mhz: float,
+        freq_hz: int,
+    ) -> tuple[bool, str]:
+        payload = {
+            "frequency_mhz": float(f"{freq_mhz:.6f}"),
+            "frequency_hz": int(freq_hz),
+        }
+
+        method = str(DIGITAL_RUNTIME_RETUNE_HTTP_METHOD or "POST").strip().upper() or "POST"
+        if method not in ("POST", "PUT", "PATCH", "GET"):
+            return False, f"unsupported runtime retune method: {method}"
+
+        data = None
+        url = endpoint
+        headers = {"Accept": "application/json"}
+        if method == "GET":
+            query = urllib.parse.urlencode(payload)
+            sep = "&" if "?" in endpoint else "?"
+            url = f"{endpoint}{sep}{query}"
+        else:
+            data = json.dumps(payload).encode("utf-8")
+            headers["Content-Type"] = "application/json"
+
+        token = str(DIGITAL_RUNTIME_RETUNE_TOKEN or "").strip()
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+
+        request = urllib.request.Request(url, data=data, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(request, timeout=_DIGITAL_RUNTIME_RETUNE_TIMEOUT_SEC) as resp:
+                status = int(getattr(resp, "status", 200) or 200)
+                body = (resp.read(4096) or b"").decode("utf-8", errors="ignore").strip()
+        except urllib.error.HTTPError as e:
+            detail = str((e.read(4096) or b"").decode("utf-8", errors="ignore").strip() or e.reason or "")
+            return False, f"runtime retune http {e.code}: {detail}".strip()
+        except Exception as e:
+            return False, f"runtime retune http failed: {e}"
+
+        if status < 200 or status >= 300:
+            return False, f"runtime retune http status {status}"
+
+        if body:
+            try:
+                parsed = json.loads(body)
+            except Exception:
+                parsed = None
+            if isinstance(parsed, dict) and parsed.get("ok") is False:
+                return False, str(parsed.get("error") or "runtime retune rejected")
+
+        return True, ""
+
+    def _runtime_retune_command(
+        self,
+        command: str,
+        freq_mhz: float,
+        freq_hz: int,
+    ) -> tuple[bool, str]:
+        rendered = str(command)
+        rendered = rendered.replace("{freq_mhz}", f"{freq_mhz:.6f}")
+        rendered = rendered.replace("{freq_hz}", str(int(freq_hz)))
+
+        try:
+            argv = shlex.split(rendered)
+        except Exception as e:
+            return False, f"runtime retune command parse failed: {e}"
+        if not argv:
+            return False, "runtime retune command is empty"
+
+        try:
+            result = subprocess.run(
+                argv,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=_DIGITAL_RUNTIME_RETUNE_TIMEOUT_SEC,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            return False, "runtime retune command timed out"
+        except Exception as e:
+            return False, f"runtime retune command failed: {e}"
+
+        if result.returncode != 0:
+            err = str(result.stderr or result.stdout or "").strip()
+            if not err:
+                err = f"runtime retune command exited {result.returncode}"
+            return False, err
+
+        out = str(result.stdout or "").strip()
+        if out:
+            try:
+                parsed = json.loads(out)
+            except Exception:
+                parsed = None
+            if isinstance(parsed, dict) and parsed.get("ok") is False:
+                return False, str(parsed.get("error") or "runtime retune rejected")
+
         return True, ""
 
     def _load_talkgroup_map(self) -> dict:
