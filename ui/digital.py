@@ -2845,6 +2845,11 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 tgid = _extract_tgid(label)
             if not tgid and raw:
                 tgid = _extract_tgid(raw)
+        if not tgid:
+            if not self._listen_default:
+                event = dict(event)
+                event["muted"] = True
+            return event
         if tgid:
             listen_map = self._load_listen_map()
             listen = listen_map.get(tgid, self._listen_default) if listen_map else self._listen_default
