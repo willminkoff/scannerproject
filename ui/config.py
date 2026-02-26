@@ -123,7 +123,49 @@ DIGITAL_PAUSE_ON_HIT = os.getenv(
     "DIGITAL_PAUSE_ON_HIT",
     "1",
 ).strip().lower() in ("1", "true", "yes", "on")
+DIGITAL_SUPER_PROFILE_MODE = os.getenv(
+    "DIGITAL_SUPER_PROFILE_MODE",
+    "1",
+).strip().lower() in ("1", "true", "yes", "on")
+DIGITAL_RUNTIME_RETUNE_ENABLED = os.getenv(
+    "DIGITAL_RUNTIME_RETUNE_ENABLED",
+    "1",
+).strip().lower() in ("1", "true", "yes", "on")
+DIGITAL_RUNTIME_RETUNE_STRICT = os.getenv(
+    "DIGITAL_RUNTIME_RETUNE_STRICT",
+    "0",
+).strip().lower() in ("1", "true", "yes", "on")
+DIGITAL_RUNTIME_RETUNE_URL = os.getenv(
+    "DIGITAL_RUNTIME_RETUNE_URL",
+    "",
+).strip()
+DIGITAL_RUNTIME_RETUNE_HTTP_METHOD = os.getenv(
+    "DIGITAL_RUNTIME_RETUNE_HTTP_METHOD",
+    "POST",
+).strip().upper() or "POST"
+DIGITAL_RUNTIME_RETUNE_TOKEN = os.getenv(
+    "DIGITAL_RUNTIME_RETUNE_TOKEN",
+    "",
+).strip()
+DIGITAL_RUNTIME_RETUNE_CMD = os.getenv(
+    "DIGITAL_RUNTIME_RETUNE_CMD",
+    "",
+).strip()
+DIGITAL_RUNTIME_RETUNE_TIMEOUT_MS = max(
+    50,
+    int(os.getenv("DIGITAL_RUNTIME_RETUNE_TIMEOUT_MS", "350")),
+)
+DIGITAL_RUNTIME_RETUNE_DISABLE_FALLBACK_AFTER = max(
+    0,
+    int(os.getenv("DIGITAL_RUNTIME_RETUNE_DISABLE_FALLBACK_AFTER", "0")),
+)
 DIGITAL_RTL_SERIAL_HINT = "DIGITAL_RTL_SERIAL not set; set it to your digital dongle serial"
+# Multi-profile loop scheduler
+PROFILE_LOOP_STATE_PATH = os.getenv(
+    "PROFILE_LOOP_STATE_PATH",
+    "/run/airband_ui_profile_loop.json",
+).strip()
+PROFILE_LOOP_TICK_SEC = max(0.5, float(os.getenv("PROFILE_LOOP_TICK_SEC", "1.0")))
 # Legacy mixer envs are intentionally ignored by runtime paths. Keep these
 # variables for backward compatibility with older env files.
 DIGITAL_MIXER_ENABLED = os.getenv("DIGITAL_MIXER_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")

@@ -16,6 +16,9 @@ import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+_XSI_NS = "http://www.w3.org/2001/XMLSchema-instance"
+ET.register_namespace("xsi", _XSI_NS)
+
 FREQ_RE = re.compile(r"\d+\.\d+")
 _TRUTHY = ("1", "true", "yes", "on")
 
@@ -62,7 +65,30 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+def _env_set(name: str) -> bool:
+    raw = os.getenv(name)
+    return raw is not None and str(raw).strip() != ""
+
+
 DIGITAL_SOURCE_ROTATION_DELAY_MS = max(100, _env_int("DIGITAL_SOURCE_ROTATION_DELAY_MS", 500))
+ICECAST_HOST = os.getenv("ICECAST_HOST", "127.0.0.1").strip() or "127.0.0.1"
+ICECAST_PORT = str(_env_int("ICECAST_PORT", 8000))
+ICECAST_SOURCE_USER = os.getenv("ICECAST_SOURCE_USER", "source").strip() or "source"
+ICECAST_SOURCE_PASSWORD = os.getenv("ICECAST_SOURCE_PASSWORD", "062352").strip() or "062352"
+DIGITAL_STREAM_MOUNT = os.getenv(
+    "DIGITAL_STREAM_MOUNT",
+    os.getenv("DIGITAL_MIXER_DIGITAL_MOUNT", "DIGITAL.mp3"),
+).strip().lstrip("/") or "DIGITAL.mp3"
+DIGITAL_STREAM_BITRATE = max(8, _env_int("DIGITAL_STREAM_BITRATE", 32))
+DIGITAL_STREAM_SAMPLE_RATE = max(8000, _env_int("DIGITAL_STREAM_SAMPLE_RATE", 16000))
+DIGITAL_STREAM_CHANNELS = 1 if _env_int("DIGITAL_STREAM_CHANNELS", 1) <= 1 else 2
+DIGITAL_STREAM_MAX_RECORDING_AGE_MS = max(60000, _env_int("DIGITAL_STREAM_MAX_RECORDING_AGE_MS", 600000))
+DIGITAL_STREAM_DELAY_MS = max(0, _env_int("DIGITAL_STREAM_DELAY_MS", 0))
+DIGITAL_STREAM_BITRATE_OVERRIDE = _env_set("DIGITAL_STREAM_BITRATE")
+DIGITAL_STREAM_SAMPLE_RATE_OVERRIDE = _env_set("DIGITAL_STREAM_SAMPLE_RATE")
+DIGITAL_STREAM_CHANNELS_OVERRIDE = _env_set("DIGITAL_STREAM_CHANNELS")
+DIGITAL_STREAM_MAX_RECORDING_AGE_OVERRIDE = _env_set("DIGITAL_STREAM_MAX_RECORDING_AGE_MS")
+DIGITAL_STREAM_DELAY_OVERRIDE = _env_set("DIGITAL_STREAM_DELAY_MS")
 
 
 def _log(msg: str) -> None:
@@ -129,19 +155,7 @@ def _default_tuner_config(unique_id: str, template: dict[str, object] | None = N
     }
 
 
-def _sync_tuner_configuration() -> dict[str, object]:
-    if not SDRTRUNK_TUNER_CONFIG_PATH.is_file():
-        return {"updated": False, "reason": "missing_tuner_config"}
-
-    try:
-        raw = SDRTRUNK_TUNER_CONFIG_PATH.read_text(encoding="utf-8", errors="ignore")
-        data = json.loads(raw)
-    except Exception:
-        return {"updated": False, "reason": "invalid_tuner_config"}
-
-    if not isinstance(data, dict):
-        return {"updated": False, "reason": "invalid_tuner_config_type"}
-
+def _discover_tuner_uid_state() -> dict[str, object]:
     serial_to_uid = _discover_rtl_unique_ids_by_serial()
     digital_serials = [s for s in (DIGITAL_RTL_SERIAL, DIGITAL_RTL_SERIAL_SECONDARY) if s]
     analog_serials = [s for s in (AIRBAND_RTL_SERIAL, GROUND_RTL_SERIAL) if s]
@@ -157,6 +171,37 @@ def _sync_tuner_configuration() -> dict[str, object]:
             uid_source = "fallback_non_analog"
         else:
             uid_source = "none"
+    return {
+        "digital_uids": sorted(digital_uids),
+        "analog_uids": sorted(analog_uids),
+        "available_rtl_uids": sorted(all_rtl_uids),
+        "available_rtl_serials": sorted(serial_to_uid),
+        "digital_uid_source": uid_source,
+    }
+
+
+def _sync_tuner_configuration() -> dict[str, object]:
+    tuner_state = _discover_tuner_uid_state()
+    if not SDRTRUNK_TUNER_CONFIG_PATH.is_file():
+        payload = dict(tuner_state)
+        payload.update({"updated": False, "reason": "missing_tuner_config"})
+        return payload
+
+    try:
+        raw = SDRTRUNK_TUNER_CONFIG_PATH.read_text(encoding="utf-8", errors="ignore")
+        data = json.loads(raw)
+    except Exception:
+        payload = dict(tuner_state)
+        payload.update({"updated": False, "reason": "invalid_tuner_config"})
+        return payload
+
+    if not isinstance(data, dict):
+        payload = dict(tuner_state)
+        payload.update({"updated": False, "reason": "invalid_tuner_config_type"})
+        return payload
+
+    digital_uids = set(tuner_state.get("digital_uids") or [])
+    analog_uids = set(tuner_state.get("analog_uids") or [])
 
     changed = False
     disabled_in = data.get("disabledTuners")
@@ -219,15 +264,12 @@ def _sync_tuner_configuration() -> dict[str, object]:
     if changed:
         SDRTRUNK_TUNER_CONFIG_PATH.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
-    return {
+    payload = dict(tuner_state)
+    payload.update({
         "updated": changed,
         "reason": "ok",
-        "digital_uids": sorted(digital_uids),
-        "analog_uids": sorted(analog_uids),
-        "available_rtl_uids": sorted(all_rtl_uids),
-        "available_rtl_serials": sorted(serial_to_uid),
-        "digital_uid_source": uid_source,
-    }
+    })
+    return payload
 
 
 def _profile_dirs(root: Path) -> list[Path]:
@@ -603,6 +645,92 @@ def _sync_decode_configuration(channel: ET.Element) -> None:
     decode_conf.set("ignore_data_calls", "true" if DIGITAL_IGNORE_DATA_CALLS else "false")
 
 
+def _sync_stream_configuration(root: ET.Element) -> bool:
+    stream_name = str(DIGITAL_SDRTRUNK_STREAM_NAME or "").strip()
+    if not stream_name:
+        return False
+
+    mount_point = f"/{DIGITAL_STREAM_MOUNT}"
+    stream = None
+    duplicates: list[ET.Element] = []
+    for candidate in list(root.findall("stream")):
+        name = str(candidate.get("name", "")).strip()
+        mount = str(candidate.get("mount_point", "")).strip()
+        if name == stream_name or mount == mount_point:
+            if stream is None:
+                stream = candidate
+            else:
+                duplicates.append(candidate)
+
+    changed = False
+    created_stream = False
+    if stream is None:
+        stream = ET.SubElement(root, "stream")
+        changed = True
+        created_stream = True
+
+    for dup in duplicates:
+        try:
+            root.remove(dup)
+            changed = True
+        except Exception:
+            pass
+
+    attrs = {
+        "type": "icecastHTTPConfiguration",
+        f"{{{_XSI_NS}}}type": "ICECAST_HTTP",
+        "public": "false",
+        "user_name": ICECAST_SOURCE_USER,
+        "mount_point": mount_point,
+        "inline": "true",
+        "host": ICECAST_HOST,
+        "name": stream_name,
+        "enabled": "true",
+        "port": ICECAST_PORT,
+        "password": ICECAST_SOURCE_PASSWORD,
+    }
+    try:
+        existing_sample_rate = int(str(stream.get("sample_rate", "")).strip())
+    except Exception:
+        existing_sample_rate = 0
+    try:
+        existing_bitrate = int(str(stream.get("bitrate", "")).strip())
+    except Exception:
+        existing_bitrate = 0
+    if (
+        created_stream
+        or DIGITAL_STREAM_SAMPLE_RATE_OVERRIDE
+        or existing_sample_rate < DIGITAL_STREAM_SAMPLE_RATE
+    ):
+        attrs["sample_rate"] = str(DIGITAL_STREAM_SAMPLE_RATE)
+    if created_stream or DIGITAL_STREAM_CHANNELS_OVERRIDE or not str(stream.get("channels", "")).strip():
+        attrs["channels"] = str(DIGITAL_STREAM_CHANNELS)
+    if created_stream or DIGITAL_STREAM_BITRATE_OVERRIDE or existing_bitrate < DIGITAL_STREAM_BITRATE:
+        attrs["bitrate"] = str(DIGITAL_STREAM_BITRATE)
+    if created_stream or DIGITAL_STREAM_DELAY_OVERRIDE or not str(stream.get("delay", "")).strip():
+        attrs["delay"] = str(DIGITAL_STREAM_DELAY_MS)
+    if (
+        created_stream
+        or DIGITAL_STREAM_MAX_RECORDING_AGE_OVERRIDE
+        or not str(stream.get("maximum_recording_age", "")).strip()
+    ):
+        attrs["maximum_recording_age"] = str(DIGITAL_STREAM_MAX_RECORDING_AGE_MS)
+    for key, value in attrs.items():
+        if str(stream.get(key, "")) != str(value):
+            stream.set(key, str(value))
+            changed = True
+
+    fmt = stream.find("format")
+    if fmt is None:
+        fmt = ET.SubElement(stream, "format")
+        changed = True
+    if str(fmt.text or "").strip().upper() != "MP3":
+        fmt.text = "MP3"
+        changed = True
+
+    return changed
+
+
 def _sync_playlist(profile_dir: Path, control_channels_hz: list[int]) -> dict[str, object]:
     PLAYLIST_PATH.parent.mkdir(parents=True, exist_ok=True)
     tree = _load_playlist(PLAYLIST_PATH)
@@ -657,11 +785,14 @@ def _sync_playlist(profile_dir: Path, control_channels_hz: list[int]) -> dict[st
     _sync_decode_configuration(channel)
 
     _ensure_child(channel, "record_configuration")
+    stream_updated = _sync_stream_configuration(root)
 
     tree.write(PLAYLIST_PATH, encoding="utf-8", xml_declaration=False)
     source_state["seeded_aliases"] = seeded_aliases
     source_state["stream_alias_updates"] = stream_alias_updates
     source_state["stream_name"] = DIGITAL_SDRTRUNK_STREAM_NAME
+    source_state["stream_mount"] = DIGITAL_STREAM_MOUNT
+    source_state["stream_config_updated"] = stream_updated
     return source_state
 
 
@@ -692,6 +823,7 @@ def main() -> int:
             f"stream_alias_updates={source_state.get('stream_alias_updates', 0)} "
             f"digital_secondary={DIGITAL_RTL_SERIAL_SECONDARY or 'unset'} "
             f"tuner_config_updated={bool(tuner_state.get('updated'))} "
+            f"tuner_config_reason={tuner_state.get('reason') or 'unknown'} "
             f"digital_uid_source={tuner_state.get('digital_uid_source') or 'unknown'} "
             f"digital_uids={','.join(tuner_state.get('digital_uids', [])) or 'none'} "
             f"analog_uids={','.join(tuner_state.get('analog_uids', [])) or 'none'}"

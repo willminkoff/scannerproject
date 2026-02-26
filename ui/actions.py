@@ -3,6 +3,7 @@ import os
 import json
 import time
 import re
+from typing import Any
 
 try:
     from .config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, HOLD_STATE_PATH, TUNE_BACKUP_PATH
@@ -42,6 +43,18 @@ except ImportError:
         write_combined_config, read_active_config_path, avoid_current_hit,
         clear_avoids, write_filter, parse_freqs_labels, replace_freqs_labels
     )
+
+
+_DEFAULT_PROFILE_LOOP_BUNDLE_DIR = os.path.join(
+    os.path.dirname(str(COMBINED_CONFIG_PATH or "").strip()) or "/tmp",
+    "profile_loop_bundle",
+)
+_PROFILE_LOOP_BUNDLE_DIR = os.getenv("PROFILE_LOOP_BUNDLE_DIR", _DEFAULT_PROFILE_LOOP_BUNDLE_DIR)
+_PROFILE_LOOP_BUNDLE_NAME = {
+    "airband": "rtl_airband_profile_loop_airband.conf",
+    "ground": "rtl_airband_profile_loop_ground.conf",
+}
+_PROFILE_LOOP_MAX_SELECTED = 128
 
 
 def _normalize_hold_state(state):
@@ -147,7 +160,169 @@ def _clear_tune_backup():
         pass
 
 
-def action_set_profile(profile_id: str, target: str) -> dict:
+def _swap_symlink(link_path: str, target_path: str) -> None:
+    link_path = str(link_path or "").strip()
+    target_path = str(target_path or "").strip()
+    if not link_path or not target_path:
+        raise ValueError("missing symlink path")
+    parent = os.path.dirname(link_path) or "."
+    os.makedirs(parent, exist_ok=True)
+    tmp_link = os.path.join(parent, f".{os.path.basename(link_path)}.tmp")
+    try:
+        if os.path.lexists(tmp_link):
+            os.unlink(tmp_link)
+    except Exception:
+        pass
+    os.symlink(target_path, tmp_link)
+    os.replace(tmp_link, link_path)
+
+
+def _parse_profile_ids(raw: Any) -> list[str]:
+    if isinstance(raw, list):
+        incoming = raw
+    else:
+        text = str(raw or "").strip()
+        if not text:
+            return []
+        if text.startswith("["):
+            try:
+                parsed = json.loads(text)
+                incoming = parsed if isinstance(parsed, list) else [text]
+            except Exception:
+                incoming = text.replace(";", ",").split(",")
+        else:
+            incoming = text.replace(";", ",").split(",")
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in incoming:
+        value = str(item or "").strip()
+        if not value:
+            continue
+        key = value.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(value)
+        if len(out) >= _PROFILE_LOOP_MAX_SELECTED:
+            break
+    return out
+
+
+def action_apply_profile_loop_bundle(target: str, selected_profiles: Any, active_profile: str = "") -> dict:
+    """Build and apply a generated analog loop-bundle config."""
+    normalized = "ground" if str(target or "").strip().lower() == "ground" else "airband"
+    _, profiles_airband, profiles_ground = split_profiles()
+    source = profiles_ground if normalized == "ground" else profiles_airband
+    profile_map: dict[str, tuple[str, str]] = {}
+    for row in source:
+        pid = str(row.get("id") or "").strip()
+        path = str(row.get("path") or "").strip()
+        if not pid or not path:
+            continue
+        profile_map[pid] = (str(row.get("label") or pid), path)
+
+    selected = [pid for pid in _parse_profile_ids(selected_profiles) if pid in profile_map]
+    if len(selected) < 2:
+        return {"status": 400, "payload": {"ok": False, "error": "profile loop requires at least 2 selected profiles"}}
+
+    preferred = str(active_profile or "").strip()
+    template_id = preferred if preferred in profile_map else selected[0]
+    template_path = profile_map.get(template_id, ("", ""))[1]
+    if not template_path or not os.path.isfile(template_path):
+        return {"status": 400, "payload": {"ok": False, "error": f"missing profile template: {template_id}"}}
+
+    merged_freqs: list[float] = []
+    merged_labels: list[str] = []
+    seen_freqs: set[str] = set()
+    for pid in selected:
+        label, path = profile_map.get(pid, ("", ""))
+        if not path or not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                freqs, labels = parse_freqs_labels(f.read())
+        except Exception:
+            continue
+        if not freqs:
+            continue
+        label_list = list(labels) if isinstance(labels, list) and len(labels) == len(freqs) else [f"{float(x):.4f}" for x in freqs]
+        for idx, raw_freq in enumerate(freqs):
+            try:
+                freq_val = float(raw_freq)
+            except Exception:
+                continue
+            key = f"{freq_val:.4f}"
+            if key in seen_freqs:
+                continue
+            seen_freqs.add(key)
+            merged_freqs.append(freq_val)
+            src_label = str(label_list[idx] if idx < len(label_list) else key).strip() or key
+            merged_labels.append(f"[{pid}] {src_label}")
+
+    if not merged_freqs:
+        return {"status": 400, "payload": {"ok": False, "error": "selected profiles have no frequencies"}}
+
+    try:
+        with open(template_path, "r", encoding="utf-8", errors="ignore") as f:
+            template_text = f.read()
+        bundle_text = replace_freqs_labels(template_text, merged_freqs, merged_labels)
+    except Exception as e:
+        return {"status": 500, "payload": {"ok": False, "error": f"bundle build failed: {e}"}}
+
+    try:
+        os.makedirs(_PROFILE_LOOP_BUNDLE_DIR, exist_ok=True)
+        bundle_name = _PROFILE_LOOP_BUNDLE_NAME.get(normalized, f"rtl_airband_profile_loop_{normalized}.conf")
+        bundle_path = os.path.realpath(os.path.join(_PROFILE_LOOP_BUNDLE_DIR, bundle_name))
+        bundle_tmp = f"{bundle_path}.tmp"
+        previous_bundle = ""
+        if os.path.isfile(bundle_path):
+            with open(bundle_path, "r", encoding="utf-8", errors="ignore") as f:
+                previous_bundle = f.read()
+        with open(bundle_tmp, "w", encoding="utf-8") as f:
+            f.write(bundle_text)
+        os.replace(bundle_tmp, bundle_path)
+    except Exception as e:
+        return {"status": 500, "payload": {"ok": False, "error": f"bundle write failed: {e}"}}
+
+    symlink_path = GROUND_CONFIG_PATH if normalized == "ground" else CONFIG_SYMLINK
+    try:
+        current_target = os.path.realpath(symlink_path)
+    except Exception:
+        current_target = ""
+    try:
+        _swap_symlink(symlink_path, bundle_path)
+    except Exception as e:
+        return {"status": 500, "payload": {"ok": False, "error": f"bundle activate failed: {e}"}}
+
+    try:
+        combined_changed = bool(write_combined_config())
+    except Exception as e:
+        return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
+
+    bundle_changed = bundle_text != previous_bundle
+    symlink_changed = current_target != bundle_path
+    restart_needed = bool(bundle_changed or symlink_changed or combined_changed)
+    restart_ok = True
+    restart_error = ""
+    if restart_needed:
+        restart_ok, restart_error = restart_rtl()
+
+    payload = {
+        "ok": True,
+        "changed": bool(bundle_changed or symlink_changed or combined_changed),
+        "restart_ok": bool(restart_ok),
+        "restart_skipped": not restart_needed,
+        "target": normalized,
+        "bundle_path": bundle_path,
+        "profile_count": len(selected),
+        "frequency_count": len(merged_freqs),
+    }
+    if restart_error:
+        payload["restart_error"] = str(restart_error)
+    return {"status": 200 if restart_ok else 500, "payload": payload}
+
+
+def action_set_profile(profile_id: str, target: str, *, restart_service: bool = True) -> dict:
     """Action: Set a profile."""
     _, profiles_airband, profiles_ground = split_profiles()
     if target == "ground":
@@ -190,23 +365,30 @@ def action_set_profile(profile_id: str, target: str) -> dict:
         if not ok:
             return {"status": 400, "payload": {"ok": False, "error": "unknown profile"}}
         
-        try:
-            combined_changed = write_combined_config()
-        except Exception as e:
-            return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
-        
-        # Only restart if combined config actually changed
-        # This avoids unnecessary restarts when frequency lists are identical
+        combined_changed = False
         restart_ok = True
         restart_error = ""
-        if combined_changed:
-            restart_ok, restart_error = unit_restart()
-        
+
+        # Loop-mode profile switches can skip restart to keep stream/mount
+        # continuity. Manual profile sets keep restart behavior.
+        if restart_service:
+            try:
+                combined_changed = write_combined_config()
+            except Exception as e:
+                return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
+
+            # Only restart if combined config actually changed.
+            # This avoids unnecessary restarts when frequency lists are identical.
+            if combined_changed:
+                restart_ok, restart_error = unit_restart()
+
         payload = {"ok": True, "changed": changed or combined_changed}
-        if combined_changed:
+        if restart_service and combined_changed:
             payload["restart_ok"] = restart_ok
             if not restart_ok and restart_error:
                 payload["restart_error"] = restart_error
+        if not restart_service:
+            payload["restart_skipped"] = True
         return {"status": 200, "payload": payload}
     
     # No profile change requested
@@ -677,7 +859,22 @@ def execute_action(action: dict) -> dict:
     if action_type == "filter":
         return action_apply_filter(action.get("target"), action.get("cutoff_hz"))
     if action_type == "profile":
-        return action_set_profile(action.get("profile"), action.get("target"))
+        restart_service = action.get("restart_service", True)
+        if isinstance(restart_service, str):
+            restart_service = restart_service.strip().lower() not in ("0", "false", "no", "off")
+        else:
+            restart_service = bool(restart_service)
+        return action_set_profile(
+            action.get("profile"),
+            action.get("target"),
+            restart_service=restart_service,
+        )
+    if action_type == "profile_loop_bundle":
+        return action_apply_profile_loop_bundle(
+            action.get("target"),
+            action.get("selected_profiles"),
+            action.get("active_profile"),
+        )
     if action_type == "restart":
         return action_restart(action.get("target"))
     if action_type == "avoid":

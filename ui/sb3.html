@@ -337,6 +337,54 @@
       cursor: pointer;
     }
 
+    .widget-header.with-actions {
+      gap: 8px;
+    }
+
+    .widget-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: auto;
+    }
+
+    .widget-header-action {
+      flex: 0 0 auto !important;
+      padding: 6px 10px !important;
+      font-size: 10px !important;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .loop-indicator {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 10px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .loop-indicator.good {
+      border-color: rgba(16, 185, 129, 0.5);
+      color: var(--good);
+    }
+
+    .loop-indicator.warn {
+      border-color: rgba(245, 158, 11, 0.5);
+      color: var(--warn);
+    }
+
+    .loop-indicator.bad {
+      border-color: rgba(239, 68, 68, 0.5);
+      color: var(--bad);
+    }
+
     .widget-body {
       padding: 16px;
     }
@@ -481,6 +529,76 @@
       font-size: 10px;
       color: var(--text-secondary);
       margin-top: 2px;
+    }
+
+    .profile-loop-panel {
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.14);
+      display: grid;
+      gap: 8px;
+    }
+
+    .profile-sidecar .profile-loop-panel {
+      margin-top: 0;
+      background: rgba(16, 22, 28, 0.72);
+    }
+
+    .loop-checklist {
+      max-height: 156px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px;
+      background: var(--bg-panel);
+      display: grid;
+      gap: 6px;
+    }
+
+    .loop-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-primary);
+    }
+
+    .loop-item .meta {
+      color: var(--text-secondary);
+      font-size: 10px;
+    }
+
+    .loop-controls {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .loop-controls label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .loop-controls input[type="number"] {
+      width: 100%;
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg-panel);
+      color: var(--text-primary);
+      font-size: 12px;
+    }
+
+    .loop-checkbox-label {
+      justify-content: center;
+      gap: 6px;
+      flex-direction: row !important;
+      align-items: center;
     }
 
     .player-box {
@@ -1450,6 +1568,19 @@
         width: 100%;
         min-width: 0;
       }
+
+      .loop-controls {
+        grid-template-columns: 1fr;
+      }
+
+      .widget-header.with-actions {
+        flex-wrap: wrap;
+      }
+
+      .widget-header.with-actions .widget-header-actions {
+        width: 100%;
+        justify-content: flex-end;
+      }
     }
   </style>
 </head>
@@ -1594,9 +1725,15 @@
       </div>
 
       <div class="widget" id="profiles-widget">
-        <div class="widget-header">🎯 Profiles</div>
+        <div class="widget-header with-actions">
+          <span>🎯 Profiles</span>
+          <div class="widget-header-actions">
+            <span class="loop-indicator" id="profiles-loop-indicator" title="Loop status">Loop Off</span>
+            <button class="action widget-header-action sidecar-toggle" id="profile-loop-open-analog" type="button">Profile Loop</button>
+            <button class="action widget-header-action sidecar-toggle" id="profile-editor-open-analog" type="button">Profile Editor</button>
+          </div>
+        </div>
         <div class="widget-body">
-          <button class="action profile-editor-launch" id="profile-editor-open-analog" type="button">Open Profile Editor</button>
           <div class="profiles-grid" id="profiles-list">
             <div class="empty-state">
               <div class="icon">📡</div>
@@ -1607,9 +1744,15 @@
       </div>
 
       <div class="widget hidden" id="digital-profiles-widget">
-        <div class="widget-header">🎛️ Digital Profiles</div>
+        <div class="widget-header with-actions">
+          <span>🎛️ Digital Profiles</span>
+          <div class="widget-header-actions">
+            <span class="loop-indicator" id="digital-profiles-loop-indicator" title="Loop status">Loop Off</span>
+            <button class="action widget-header-action sidecar-toggle" id="profile-loop-open-digital" type="button">Profile Loop</button>
+            <button class="action widget-header-action sidecar-toggle" id="profile-editor-open-digital" type="button">Profile Editor</button>
+          </div>
+        </div>
         <div class="widget-body">
-          <button class="action profile-editor-launch" id="profile-editor-open-digital" type="button">Open Profile Editor</button>
           <div class="profiles-grid" id="digital-profiles-list">
             <div class="empty-state">
               <div class="icon">📡</div>
@@ -2038,6 +2181,7 @@
           <div class="profile-editor-actions">
             <button class="action" id="profile-editor-analog-validate" type="button">Validate</button>
             <button class="action" id="profile-editor-analog-save" type="button">Save</button>
+            <button class="action" id="profile-editor-analog-delete" type="button">Delete</button>
             <span class="profile-editor-pill hidden" id="profile-editor-analog-dirty">Unsaved</span>
           </div>
           <div class="profile-editor-status" id="profile-editor-analog-status"></div>
@@ -2113,9 +2257,89 @@
           <div class="profile-editor-actions">
             <button class="action" id="profile-editor-digital-validate" type="button">Validate</button>
             <button class="action" id="profile-editor-digital-save" type="button">Save</button>
+            <button class="action" id="profile-editor-digital-delete" type="button">Delete</button>
             <span class="profile-editor-pill hidden" id="profile-editor-digital-dirty">Unsaved</span>
           </div>
           <div class="profile-editor-status" id="profile-editor-digital-status"></div>
+        </div>
+      </section>
+    </div>
+  </aside>
+
+  <div class="profile-sidecar-overlay hidden" id="profile-loop-sidecar-overlay"></div>
+  <aside class="profile-sidecar" id="profile-loop-sidecar" aria-hidden="true">
+    <div class="profile-sidecar-header">
+      <div>
+        <div class="profile-sidecar-title">Profile Loop Sidecar</div>
+        <div class="profile-sidecar-sub">Rotate profiles with dwell/hang timing and hit hold</div>
+      </div>
+      <button class="action" id="profile-loop-sidecar-close" type="button">Close</button>
+    </div>
+    <div class="profile-sidecar-tabs">
+      <div class="profile-sidecar-tab-group">
+        <button class="profile-sidecar-tab active" id="profile-loop-tab-analog" type="button">Analog</button>
+        <button class="profile-sidecar-tab" id="profile-loop-tab-digital" type="button">Digital</button>
+      </div>
+      <div class="profile-sidecar-actions">
+        <button class="action profile-sidecar-load" id="profile-loop-refresh" type="button">Refresh</button>
+      </div>
+    </div>
+    <div class="profile-sidecar-body">
+      <section class="profile-sidecar-panel" id="profile-loop-panel-analog">
+        <div class="profile-loop-panel">
+          <div class="control-label">
+            <span>Analog Profile Loop</span>
+            <span class="control-value" id="loop-status">--</span>
+          </div>
+          <div class="control-applied" id="loop-detail">--</div>
+          <div class="loop-checklist" id="loop-list"></div>
+          <div class="loop-controls">
+            <label>Dwell (s)
+              <input id="loop-dwell" type="number" min="1" max="1800" step="1" value="10">
+            </label>
+            <label>Hang (s)
+              <input id="loop-hang" type="number" min="1" max="600" step="1" value="2">
+            </label>
+            <label class="loop-checkbox-label">
+              <input id="loop-pause" type="checkbox" checked>
+              Pause On Hit
+            </label>
+          </div>
+          <div class="btn-row">
+            <button class="action" id="loop-save" type="button">Apply Loop</button>
+            <button class="action" id="loop-toggle" type="button">Start Loop</button>
+            <button class="action" id="loop-select-all" type="button">All</button>
+            <button class="action" id="loop-clear" type="button">None</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="profile-sidecar-panel hidden" id="profile-loop-panel-digital">
+        <div class="profile-loop-panel">
+          <div class="control-label">
+            <span>Digital Profile Loop</span>
+            <span class="control-value" id="digital-loop-status">--</span>
+          </div>
+          <div class="control-applied" id="digital-loop-detail">--</div>
+          <div class="loop-checklist" id="digital-loop-list"></div>
+          <div class="loop-controls">
+            <label>Dwell (s)
+              <input id="digital-loop-dwell" type="number" min="1" max="1800" step="1" value="10">
+            </label>
+            <label>Hang (s)
+              <input id="digital-loop-hang" type="number" min="1" max="600" step="1" value="2">
+            </label>
+            <label class="loop-checkbox-label">
+              <input id="digital-loop-pause" type="checkbox" checked>
+              Pause On Hit
+            </label>
+          </div>
+          <div class="btn-row">
+            <button class="action" id="digital-loop-save" type="button">Apply Loop</button>
+            <button class="action" id="digital-loop-toggle" type="button">Start Loop</button>
+            <button class="action" id="digital-loop-select-all" type="button">All</button>
+            <button class="action" id="digital-loop-clear" type="button">None</button>
+          </div>
         </div>
       </section>
     </div>
@@ -2148,6 +2372,28 @@
     let activeTarget = 'airband';
     let activeView = 'airband';
     const audioRecoverState = new WeakMap();
+
+    function defaultProfileLoopState() {
+      return {
+        enabled: false,
+        selectedProfiles: [],
+        availableProfiles: [],
+        currentProfile: '',
+        activeProfile: '',
+        nextProfile: '',
+        dwellMs: 10000,
+        hangMs: 2000,
+        pauseOnHit: true,
+        switchFailCount: 0,
+        recentHit: false,
+        inHitHold: false,
+        blockedReason: '',
+        switchReason: '',
+        switchCount: 0,
+        lastError: '',
+        lastSwitchTimeMs: 0,
+      };
+    }
     
     let state = {
       connected: false,
@@ -2256,6 +2502,7 @@
         controlLastTime: 0,
         controlSyncLossCount: 0,
         controlWindowMs: 0,
+        metricsUpdatedMs: 0,
         schedulerMode: '',
         schedulerActiveSystem: '',
         schedulerNextSystem: '',
@@ -2279,6 +2526,25 @@
         sortDir: 'asc',
         dirty: false,
         profile: '',
+      },
+      profileLoop: {
+        airband: defaultProfileLoopState(),
+        ground: defaultProfileLoopState(),
+        digital: { ...defaultProfileLoopState(), dwellMs: 10000, hangMs: 2000 },
+      },
+      profileLoopUi: {
+        open: false,
+        tab: 'analog',
+        draftSelected: {
+          airband: null,
+          ground: null,
+          digital: null,
+        },
+        applyTimers: {
+          airband: null,
+          ground: null,
+          digital: null,
+        },
       },
       profileEditor: {
         open: false,
@@ -2326,8 +2592,30 @@
       btnApply: document.getElementById('btn-apply'),
       profilesList: document.getElementById('profiles-list'),
       profilesWidget: document.getElementById('profiles-widget'),
+      loopStatus: document.getElementById('loop-status'),
+      loopDetail: document.getElementById('loop-detail'),
+      loopList: document.getElementById('loop-list'),
+      loopDwell: document.getElementById('loop-dwell'),
+      loopHang: document.getElementById('loop-hang'),
+      loopPause: document.getElementById('loop-pause'),
+      loopSave: document.getElementById('loop-save'),
+      loopToggle: document.getElementById('loop-toggle'),
+      loopSelectAll: document.getElementById('loop-select-all'),
+      loopClear: document.getElementById('loop-clear'),
+      profilesLoopIndicator: document.getElementById('profiles-loop-indicator'),
       digitalProfilesWidget: document.getElementById('digital-profiles-widget'),
       digitalProfilesList: document.getElementById('digital-profiles-list'),
+      digitalLoopStatus: document.getElementById('digital-loop-status'),
+      digitalLoopDetail: document.getElementById('digital-loop-detail'),
+      digitalLoopList: document.getElementById('digital-loop-list'),
+      digitalLoopDwell: document.getElementById('digital-loop-dwell'),
+      digitalLoopHang: document.getElementById('digital-loop-hang'),
+      digitalLoopPause: document.getElementById('digital-loop-pause'),
+      digitalLoopSave: document.getElementById('digital-loop-save'),
+      digitalLoopToggle: document.getElementById('digital-loop-toggle'),
+      digitalLoopSelectAll: document.getElementById('digital-loop-select-all'),
+      digitalLoopClear: document.getElementById('digital-loop-clear'),
+      digitalProfilesLoopIndicator: document.getElementById('digital-profiles-loop-indicator'),
       audioPlayerAnalog: document.getElementById('audio-player-analog'),
       audioPlayerDigital: document.getElementById('audio-player-digital'),
       lnkStreamAnalog: document.getElementById('lnk-stream-analog'),
@@ -2463,6 +2751,16 @@
       btnRestartIcecast: document.getElementById('btn-restart-icecast'),
       btnRestartKeepalive: document.getElementById('btn-restart-keepalive'),
       btnRestartUi: document.getElementById('btn-restart-ui'),
+      profileLoopOpenAnalog: document.getElementById('profile-loop-open-analog'),
+      profileLoopOpenDigital: document.getElementById('profile-loop-open-digital'),
+      profileLoopSidecar: document.getElementById('profile-loop-sidecar'),
+      profileLoopSidecarOverlay: document.getElementById('profile-loop-sidecar-overlay'),
+      profileLoopSidecarClose: document.getElementById('profile-loop-sidecar-close'),
+      profileLoopTabAnalog: document.getElementById('profile-loop-tab-analog'),
+      profileLoopTabDigital: document.getElementById('profile-loop-tab-digital'),
+      profileLoopPanelAnalog: document.getElementById('profile-loop-panel-analog'),
+      profileLoopPanelDigital: document.getElementById('profile-loop-panel-digital'),
+      profileLoopRefresh: document.getElementById('profile-loop-refresh'),
       profileEditorOpenAnalog: document.getElementById('profile-editor-open-analog'),
       profileEditorOpenDigital: document.getElementById('profile-editor-open-digital'),
       profileSidecar: document.getElementById('profile-sidecar'),
@@ -2481,6 +2779,7 @@
       profileEditorAnalogFreqs: document.getElementById('profile-editor-analog-freqs'),
       profileEditorAnalogValidate: document.getElementById('profile-editor-analog-validate'),
       profileEditorAnalogSave: document.getElementById('profile-editor-analog-save'),
+      profileEditorAnalogDelete: document.getElementById('profile-editor-analog-delete'),
       profileEditorAnalogDirty: document.getElementById('profile-editor-analog-dirty'),
       profileEditorAnalogStatus: document.getElementById('profile-editor-analog-status'),
       profileEditorDigitalProfile: document.getElementById('profile-editor-digital-profile'),
@@ -2489,6 +2788,7 @@
       profileEditorDigitalTalkgroups: document.getElementById('profile-editor-digital-talkgroups'),
       profileEditorDigitalValidate: document.getElementById('profile-editor-digital-validate'),
       profileEditorDigitalSave: document.getElementById('profile-editor-digital-save'),
+      profileEditorDigitalDelete: document.getElementById('profile-editor-digital-delete'),
       profileEditorDigitalDirty: document.getElementById('profile-editor-digital-dirty'),
       profileEditorDigitalStatus: document.getElementById('profile-editor-digital-status'),
       btnReconnect: null,
@@ -2536,11 +2836,24 @@
     // API
     // ============================================
     
-    async function fetchWithTimeout(url, options = {}) {
+    async function fetchWithTimeout(url, options = {}, timeoutMs = FETCH_TIMEOUT_MS) {
+      const timeout = Number.isFinite(Number(timeoutMs))
+        ? Math.max(1000, Math.round(Number(timeoutMs)))
+        : FETCH_TIMEOUT_MS;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
       try {
         return await fetch(url, { ...options, signal: controller.signal });
+      } catch (err) {
+        const name = String(err && err.name ? err.name : '');
+        if (name === 'AbortError') {
+          const timeoutErr = new Error(`Request timed out after ${Math.round(timeout / 1000)}s`);
+          timeoutErr.name = 'TimeoutError';
+          timeoutErr.timeoutMs = timeout;
+          timeoutErr.url = url;
+          throw timeoutErr;
+        }
+        throw err;
       } finally {
         clearTimeout(timeoutId);
       }
@@ -2566,10 +2879,14 @@
       return r.json();
     }
     
-    async function postAPI(endpoint, data) {
+    async function postAPI(endpoint, data, options = {}) {
       const params = new URLSearchParams();
       Object.entries(data || {}).forEach(([k, v]) => {
         if (v === undefined || v === null) return;
+        if (Array.isArray(v)) {
+          params.append(k, v.map((item) => String(item || '').trim()).filter(Boolean).join(','));
+          return;
+        }
         params.append(k, String(v));
       });
       const body = params.toString();
@@ -2577,7 +2894,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body
-      });
+      }, options && options.timeoutMs);
       if (!r.ok) {
         let payload = null;
         try {
@@ -2596,12 +2913,12 @@
       return r.json();
     }
 
-    async function postJSON(endpoint, payload) {
+    async function postJSON(endpoint, payload, options = {}) {
       const r = await fetchWithTimeout(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload || {}),
-      });
+      }, options && options.timeoutMs);
       if (!r.ok) {
         let body = null;
         try {
@@ -2680,6 +2997,9 @@
     }
 
     function openProfileEditorSidecar(tab = null) {
+      if (state.profileLoopUi.open) {
+        closeProfileLoopSidecar();
+      }
       if (tab) {
         const changed = setProfileEditorTab(tab);
         if (!changed) return;
@@ -2701,7 +3021,7 @@
 
     function closeProfileEditorSidecar() {
       if (profileEditorAnyUnsaved() && !confirm('You have unsaved Profile Editor changes. Close anyway?')) {
-        return;
+        return false;
       }
       state.profileEditor.open = false;
       if (els.profileSidecar) {
@@ -2711,6 +3031,47 @@
       if (els.profileSidecarOverlay) {
         els.profileSidecarOverlay.classList.add('hidden');
       }
+      return true;
+    }
+
+    function setProfileLoopTab(tab) {
+      const next = tab === 'digital' ? 'digital' : 'analog';
+      state.profileLoopUi.tab = next;
+      if (els.profileLoopTabAnalog) els.profileLoopTabAnalog.classList.toggle('active', next === 'analog');
+      if (els.profileLoopTabDigital) els.profileLoopTabDigital.classList.toggle('active', next === 'digital');
+      if (els.profileLoopPanelAnalog) els.profileLoopPanelAnalog.classList.toggle('hidden', next !== 'analog');
+      if (els.profileLoopPanelDigital) els.profileLoopPanelDigital.classList.toggle('hidden', next !== 'digital');
+      renderProfileLoopControls();
+    }
+
+    function openProfileLoopSidecar(tab = null) {
+      if (state.profileEditor.open && !closeProfileEditorSidecar()) {
+        return;
+      }
+      if (tab) {
+        setProfileLoopTab(tab);
+      }
+      state.profileLoopUi.open = true;
+      if (els.profileLoopSidecar) {
+        els.profileLoopSidecar.classList.add('open');
+        els.profileLoopSidecar.setAttribute('aria-hidden', 'false');
+      }
+      if (els.profileLoopSidecarOverlay) {
+        els.profileLoopSidecarOverlay.classList.remove('hidden');
+      }
+      renderProfileLoopControls();
+    }
+
+    function closeProfileLoopSidecar() {
+      state.profileLoopUi.open = false;
+      if (els.profileLoopSidecar) {
+        els.profileLoopSidecar.classList.remove('open');
+        els.profileLoopSidecar.setAttribute('aria-hidden', 'true');
+      }
+      if (els.profileLoopSidecarOverlay) {
+        els.profileLoopSidecarOverlay.classList.add('hidden');
+      }
+      return true;
     }
 
     function _profilesForAnalogTarget(target) {
@@ -3077,6 +3438,86 @@
       createProfileEditorAnalog();
     }
 
+    async function deleteProfileEditorAnalog() {
+      const target = (els.profileEditorAnalogTarget?.value || state.profileEditor?.analog?.target || 'airband') === 'ground'
+        ? 'ground'
+        : 'airband';
+      const profileId = String(els.profileEditorAnalogProfile?.value || state.profileEditor?.analog?.profileId || '').trim();
+      if (!profileId) {
+        setProfileEditorStatus('analog', 'Select an analog profile first', true);
+        return;
+      }
+      if (!profileEditorConfirmDiscard('analog', `deleting ${profileId}`)) {
+        return;
+      }
+      if (!confirm(`Delete ${target} profile ${profileId}?`)) {
+        return;
+      }
+      setProfileEditorStatus('analog', `Deleting ${profileId}...`, false);
+      try {
+        await postAPI('/api/profile/delete', { id: profileId });
+        setProfileEditorDirty('analog', false);
+        await refresh();
+        state.profileEditor.analog.target = target;
+        refreshProfileEditorOptions();
+        const nextId = String(els.profileEditorAnalogProfile?.value || '').trim();
+        if (nextId) {
+          await loadProfileEditorAnalog();
+          setProfileEditorStatus('analog', `Deleted ${profileId} • loaded ${nextId}`, false);
+        } else {
+          if (els.profileEditorAnalogModulation) els.profileEditorAnalogModulation.value = 'am';
+          if (els.profileEditorAnalogBandwidth) els.profileEditorAnalogBandwidth.value = 12000;
+          if (els.profileEditorAnalogFreqs) els.profileEditorAnalogFreqs.value = '';
+          setProfileEditorStatus('analog', `Deleted ${profileId}`, false);
+        }
+        logActivity(`Deleted ${target} profile ${profileId}`, 'info', `profile-editor-delete-${target}-${profileId}`);
+      } catch (e) {
+        setProfileEditorStatus('analog', messageFromError(e, 'Delete failed'), true);
+      }
+    }
+
+    async function deleteProfileEditorDigital() {
+      const profileId = String(els.profileEditorDigitalProfile?.value || state.profileEditor?.digital?.profileId || '').trim();
+      if (!profileId) {
+        setProfileEditorStatus('digital', 'Select a digital profile first', true);
+        return;
+      }
+      if (!profileEditorConfirmDiscard('digital', `deleting ${profileId}`)) {
+        return;
+      }
+      if (!confirm(`Delete digital profile ${profileId}?`)) {
+        return;
+      }
+      setProfileEditorStatus('digital', `Deleting ${profileId}...`, false);
+      try {
+        await postAPI('/api/digital/profile/delete', { profileId });
+        setProfileEditorDirty('digital', false);
+        state.digitalListen.items = [];
+        state.digitalListen.profile = '';
+        state.digitalListen.dirty = false;
+        digitalListenLoaded = false;
+        renderDigitalListenList();
+        await refreshDigitalProfiles(true);
+        await refresh();
+        refreshProfileEditorOptions();
+        const nextId = String(els.profileEditorDigitalProfile?.value || '').trim();
+        if (nextId) {
+          await loadProfileEditorDigital();
+          await refreshDigitalListen(true);
+          setProfileEditorStatus('digital', `Deleted ${profileId} • loaded ${nextId}`, false);
+        } else {
+          if (els.profileEditorDigitalControls) els.profileEditorDigitalControls.value = '';
+          if (els.profileEditorDigitalSystems) els.profileEditorDigitalSystems.value = '';
+          if (els.profileEditorDigitalTalkgroups) els.profileEditorDigitalTalkgroups.value = '';
+          setProfileEditorStatus('digital', `Deleted ${profileId}`, false);
+          setDigitalListenStatus('Select a profile first', false);
+        }
+        logActivity(`Deleted digital profile ${profileId}`, 'info', `digital-profile-delete-${profileId}`);
+      } catch (e) {
+        setProfileEditorStatus('digital', messageFromError(e, 'Delete failed'), true);
+      }
+    }
+
     function buildProxyStreamUrl(mountName, fallbackMount) {
       const mount = (mountName || fallbackMount).replace(/^\/+/, '');
       if (state.streamProxyEnabled) {
@@ -3092,6 +3533,51 @@
       return `http://${location.hostname}:${port}/${mount}`;
     }
 
+    function normalizeMountPath(mountName, fallbackMount = '') {
+      const raw = String(mountName || fallbackMount || '').trim();
+      if (!raw) return '';
+      return `/${raw.replace(/^\/+/, '')}`;
+    }
+
+    function normalizedIcecastMountSet() {
+      const out = new Set();
+      (state.icecastMounts || []).forEach((mountName) => {
+        const normalized = normalizeMountPath(mountName);
+        if (normalized) out.add(normalized);
+      });
+      return out;
+    }
+
+    function resolveMountedStreamName(primaryMount, fallbacks = [], defaultMount = '') {
+      const mountSet = normalizedIcecastMountSet();
+      const primary = String(primaryMount || defaultMount || '').trim().replace(/^\/+/, '');
+      if (primary && mountSet.has(`/${primary}`)) {
+        return primary;
+      }
+      for (const candidate of (Array.isArray(fallbacks) ? fallbacks : [])) {
+        const mountName = String(candidate || '').trim().replace(/^\/+/, '');
+        if (!mountName) continue;
+        if (mountSet.has(`/${mountName}`)) {
+          return mountName;
+        }
+      }
+      return primary || String(defaultMount || '').trim().replace(/^\/+/, '');
+    }
+
+    function currentAnalogMountName() {
+      return resolveMountedStreamName(
+        state.streamMount,
+        ['ANALOG.mp3', 'keepalive-analog.mp3'],
+        'ANALOG.mp3'
+      );
+    }
+
+    function currentDigitalMountName() {
+      const primary = String(state.digitalStreamMount || 'DIGITAL.mp3').trim().replace(/^\/+/, '');
+      if (primary) return primary;
+      return resolveMountedStreamName('', ['DIGITAL.mp3', 'keepalive-digital.mp3'], 'DIGITAL.mp3');
+    }
+
     function isLikelyIOSClient() {
       const ua = String(navigator.userAgent || '');
       if (/iPad|iPhone|iPod/i.test(ua)) return true;
@@ -3104,17 +3590,19 @@
     }
 
     function analogStreamUrl() {
+      const mountName = currentAnalogMountName();
       if (shouldPreferDirectIcecastStream()) {
-        return buildIcecastUrl(state.streamMount, 'ANALOG.mp3');
+        return buildIcecastUrl(mountName, 'ANALOG.mp3');
       }
-      return `${buildProxyStreamUrl(state.streamMount, 'ANALOG.mp3')}?transcode=1`;
+      return `${buildProxyStreamUrl(mountName, 'ANALOG.mp3')}?transcode=1`;
     }
 
     function digitalStreamUrl() {
+      const mountName = currentDigitalMountName();
       if (shouldPreferDirectIcecastStream()) {
-        return buildIcecastUrl(state.digitalStreamMount, 'DIGITAL.mp3');
+        return buildIcecastUrl(mountName, 'DIGITAL.mp3');
       }
-      return `${buildProxyStreamUrl(state.digitalStreamMount, 'DIGITAL.mp3')}?transcode=1`;
+      return `${buildProxyStreamUrl(mountName, 'DIGITAL.mp3')}?transcode=1`;
     }
 
     function audioTargetLabel(audioEl) {
@@ -3705,7 +4193,495 @@
       refreshManageCloneOptions();
       refreshFreqEditOptions();
       refreshProfileEditorOptions();
+      renderAnalogLoopControls();
       updateSitrep();
+    }
+
+    function normalizeProfileLoopTarget(raw, target) {
+      const fallback = state.profileLoop[target] || defaultProfileLoopState();
+      const out = { ...fallback };
+      if (!raw || typeof raw !== 'object') return out;
+      out.enabled = Boolean(raw.enabled);
+      out.selectedProfiles = Array.isArray(raw.selected_profiles)
+        ? raw.selected_profiles.map((item) => String(item || '').trim()).filter(Boolean)
+        : out.selectedProfiles;
+      out.dwellMs = Number.isFinite(raw.dwell_ms) ? Number(raw.dwell_ms) : out.dwellMs;
+      out.hangMs = Number.isFinite(raw.hang_ms) ? Number(raw.hang_ms) : out.hangMs;
+      out.pauseOnHit = ('pause_on_hit' in raw) ? Boolean(raw.pause_on_hit) : out.pauseOnHit;
+      out.currentProfile = String(raw.current_profile || '');
+      out.activeProfile = String(raw.active_profile || '');
+      out.nextProfile = String(raw.next_profile || '');
+      out.lastSwitchTimeMs = Number.isFinite(raw.last_switch_time_ms) ? Number(raw.last_switch_time_ms) : 0;
+      out.switchReason = String(raw.switch_reason || '');
+      out.switchCount = Number.isFinite(raw.switch_count) ? Number(raw.switch_count) : 0;
+      out.switchFailCount = Number.isFinite(raw.switch_fail_count) ? Number(raw.switch_fail_count) : 0;
+      out.lastError = String(raw.last_error || '');
+      out.recentHit = Boolean(raw.recent_hit);
+      out.inHitHold = Boolean(raw.in_hit_hold);
+      out.blockedReason = String(raw.blocked_reason || '');
+      out.availableProfiles = Array.isArray(raw.available_profiles)
+        ? raw.available_profiles
+          .map((item) => {
+            if (typeof item === 'string') {
+              const id = String(item || '').trim();
+              return id ? { id, label: id } : null;
+            }
+            if (!item || typeof item !== 'object') return null;
+            const id = String(item.id || '').trim();
+            if (!id) return null;
+            const label = String(item.label || id).trim();
+            return { id, label };
+          })
+          .filter(Boolean)
+        : out.availableProfiles;
+      return out;
+    }
+
+    function applyProfileLoopPayload(payload) {
+      if (!payload || typeof payload !== 'object') return;
+      const targets = payload.targets && typeof payload.targets === 'object'
+        ? payload.targets
+        : payload;
+      if (!targets || typeof targets !== 'object') return;
+      ['airband', 'ground', 'digital'].forEach((target) => {
+        if (!(target in targets)) return;
+        const normalized = normalizeProfileLoopTarget(targets[target], target);
+        const draft = getLoopDraftSelection(target);
+        if (Array.isArray(draft)) {
+          normalized.selectedProfiles = draft;
+        }
+        state.profileLoop[target] = normalized;
+      });
+      renderProfileLoopControls();
+    }
+
+    function loopLabelForTarget(target, profileId) {
+      const pid = String(profileId || '').trim();
+      if (!pid) return '';
+      if (target === 'digital') {
+        const list = (state.profileLoop.digital.availableProfiles || []);
+        const match = list.find((row) => row && row.id === pid);
+        return match ? match.label : pid;
+      }
+      const rows = (state[target]?.profiles || []).filter((row) => row && !String(row.id || '').startsWith('none_'));
+      const match = rows.find((row) => String(row.id || '') === pid);
+      return match ? String(match.label || pid) : pid;
+    }
+
+    function fallbackLoopProfiles(target) {
+      if (target === 'digital') {
+        return (state.digital.profiles || []).map((id) => ({ id: String(id || ''), label: String(id || '') })).filter((row) => row.id);
+      }
+      return (state[target]?.profiles || [])
+        .filter((row) => row && !String(row.id || '').startsWith('none_'))
+        .map((row) => ({ id: String(row.id || ''), label: String(row.label || row.id || '') }))
+        .filter((row) => row.id);
+    }
+
+    function normalizeLoopTarget(target) {
+      if (target === 'ground') return 'ground';
+      if (target === 'digital') return 'digital';
+      return 'airband';
+    }
+
+    function normalizeProfileIdList(items) {
+      if (!Array.isArray(items)) return [];
+      const out = [];
+      items.forEach((item) => {
+        const id = String(item || '').trim();
+        if (!id || out.includes(id)) return;
+        out.push(id);
+      });
+      return out;
+    }
+
+    function getLoopDraftSelection(target) {
+      const name = normalizeLoopTarget(target);
+      const drafts = state.profileLoopUi?.draftSelected;
+      if (!drafts || !Object.prototype.hasOwnProperty.call(drafts, name)) return null;
+      return Array.isArray(drafts[name]) ? normalizeProfileIdList(drafts[name]) : null;
+    }
+
+    function setLoopDraftSelection(target, items) {
+      const name = normalizeLoopTarget(target);
+      if (!state.profileLoopUi.draftSelected) {
+        state.profileLoopUi.draftSelected = { airband: null, ground: null, digital: null };
+      }
+      state.profileLoopUi.draftSelected[name] = normalizeProfileIdList(items);
+    }
+
+    function clearLoopDraftSelection(target) {
+      const name = normalizeLoopTarget(target);
+      if (!state.profileLoopUi.draftSelected) return;
+      state.profileLoopUi.draftSelected[name] = null;
+    }
+
+    function selectedLoopProfilesForUi(target, loopState) {
+      const draft = getLoopDraftSelection(target);
+      if (Array.isArray(draft)) return draft;
+      return normalizeProfileIdList(loopState?.selectedProfiles || []);
+    }
+
+    function localLoopState(target) {
+      const name = normalizeLoopTarget(target);
+      if (!state.profileLoop[name]) {
+        state.profileLoop[name] = name === 'digital'
+          ? { ...defaultProfileLoopState(), dwellMs: 10000, hangMs: 2000 }
+          : defaultProfileLoopState();
+      }
+      return state.profileLoop[name];
+    }
+
+    function clampLoopSeconds(rawValue, fallbackSec, minSec, maxSec) {
+      const raw = Number(rawValue);
+      if (!Number.isFinite(raw)) return fallbackSec;
+      const rounded = Math.round(raw);
+      if (rounded < minSec) return minSec;
+      if (rounded > maxSec) return maxSec;
+      return rounded;
+    }
+
+    function updateLoopLocalSettingsFromInputs(target) {
+      const name = normalizeLoopTarget(target);
+      const loopState = localLoopState(name);
+      const isDigital = name === 'digital';
+      const dwellEl = isDigital ? els.digitalLoopDwell : els.loopDwell;
+      const hangEl = isDigital ? els.digitalLoopHang : els.loopHang;
+      const pauseEl = isDigital ? els.digitalLoopPause : els.loopPause;
+      const defaultDwellMs = 10000;
+      const defaultHangMs = 2000;
+      const fallbackDwellSec = Math.max(1, Math.round(Number(loopState.dwellMs || defaultDwellMs) / 1000));
+      const fallbackHangSec = Math.max(1, Math.round(Number(loopState.hangMs || defaultHangMs) / 1000));
+      const dwellSec = clampLoopSeconds(dwellEl && dwellEl.value, fallbackDwellSec, 1, 1800);
+      const hangSec = clampLoopSeconds(hangEl && hangEl.value, fallbackHangSec, 1, 600);
+      loopState.dwellMs = dwellSec * 1000;
+      loopState.hangMs = hangSec * 1000;
+      loopState.pauseOnHit = Boolean(pauseEl && pauseEl.checked);
+      return loopState;
+    }
+
+    function clearLoopAutoApplyTimer(target) {
+      const name = normalizeLoopTarget(target);
+      const timers = state.profileLoopUi?.applyTimers;
+      if (!timers || !timers[name]) return;
+      clearTimeout(timers[name]);
+      timers[name] = null;
+    }
+
+    function scheduleLoopAutoApply(target) {
+      const name = normalizeLoopTarget(target);
+      if (!state.profileLoopUi.applyTimers) {
+        state.profileLoopUi.applyTimers = { airband: null, ground: null, digital: null };
+      }
+      clearLoopAutoApplyTimer(name);
+      state.profileLoopUi.applyTimers[name] = setTimeout(() => {
+        if (state.profileLoopUi.applyTimers) {
+          state.profileLoopUi.applyTimers[name] = null;
+        }
+        applyProfileLoopConfig(name, null);
+      }, 300);
+    }
+
+    function collectLoopSelection(listEl) {
+      if (!listEl) return [];
+      const out = [];
+      listEl.querySelectorAll('input[type="checkbox"][data-profile-id]').forEach((input) => {
+        if (!input.checked) return;
+        const id = String(input.dataset.profileId || '').trim();
+        if (!id || out.includes(id)) return;
+        out.push(id);
+      });
+      return out;
+    }
+
+    function renderLoopChecklist(listEl, target, loopState) {
+      if (!listEl) return;
+      const available = Array.isArray(loopState.availableProfiles) && loopState.availableProfiles.length
+        ? loopState.availableProfiles
+        : fallbackLoopProfiles(target);
+      if (!available.length) {
+        listEl.innerHTML = '<div class="control-applied">No profiles available for loop</div>';
+        return;
+      }
+      const selected = new Set(selectedLoopProfilesForUi(target, loopState));
+      listEl.innerHTML = '';
+      available.forEach((row) => {
+        const id = String(row.id || '').trim();
+        if (!id) return;
+        const label = String(row.label || id).trim() || id;
+        const wrapper = document.createElement('label');
+        wrapper.className = 'loop-item';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.dataset.profileId = id;
+        cb.checked = selected.has(id);
+        const text = document.createElement('span');
+        text.innerHTML = `<span>${escapeHtml(label)}</span> <span class="meta">(${escapeHtml(id)})</span>`;
+        wrapper.appendChild(cb);
+        wrapper.appendChild(text);
+        listEl.appendChild(wrapper);
+      });
+    }
+
+    function loopStatusTone(loopState) {
+      if (!loopState) return '';
+      if (loopState.enabled && !loopState.lastError) return 'good';
+      if (loopState.lastError || loopState.blockedReason) return 'warn';
+      return '';
+    }
+
+    function loopSwitchReasonForDisplay(target, reason) {
+      const raw = String(reason || '').trim();
+      if (!raw) return '';
+      const code = raw.toLowerCase();
+      if (target !== 'digital') {
+        // Keep analog bundle internals backend-only.
+        if (code === 'bundle' || code === 'bundle_sync') return 'dwell';
+        if (code === 'disable_restore') return 'manual';
+      }
+      return raw;
+    }
+
+    function loopValidationModeForDisplay(target, loopState) {
+      if (target !== 'digital') return '';
+      return loopState && loopState.enabled ? 'fast_loop' : 'validate';
+    }
+
+    function formatLoopDetailText(target, loopState) {
+      if (!loopState) return '--';
+      const parts = [];
+      const mode = loopValidationModeForDisplay(target, loopState);
+      if (mode) {
+        parts.push(`mode=${mode}`);
+      }
+      if (loopState.activeProfile) {
+        parts.push(`active=${loopLabelForTarget(target, loopState.activeProfile)}`);
+      }
+      if (loopState.nextProfile) {
+        parts.push(`next=${loopLabelForTarget(target, loopState.nextProfile)}`);
+      }
+      if (loopState.inHitHold) {
+        parts.push('holding on hit');
+      }
+      if (loopState.blockedReason) {
+        parts.push(`blocked=${loopState.blockedReason}`);
+      }
+      const reason = loopSwitchReasonForDisplay(target, loopState.switchReason);
+      if (reason) {
+        parts.push(`reason=${reason}`);
+      }
+      if (loopState.enabled) {
+        parts.push(`switches=${Number(loopState.switchCount || 0)}`);
+        if (Number(loopState.switchFailCount || 0) > 0) {
+          parts.push(`failures=${Number(loopState.switchFailCount || 0)}`);
+        }
+      }
+      if (loopState.lastError) {
+        parts.push(`error=${trimServiceNote(loopState.lastError, 120)}`);
+      }
+      return parts.join(' • ') || '--';
+    }
+
+    function setLoopHeaderIndicator(el, target, loopState) {
+      if (!el) return;
+      const stateRow = loopState || defaultProfileLoopState();
+      let text = 'Loop Off';
+      let tone = '';
+      if (stateRow.enabled) {
+        if (stateRow.lastError) {
+          text = 'Loop Err';
+          tone = 'bad';
+        } else if (stateRow.blockedReason || stateRow.inHitHold) {
+          text = 'Loop Hold';
+          tone = 'warn';
+        } else {
+          text = 'Loop On';
+          tone = 'good';
+        }
+      }
+      el.textContent = text;
+      setValueTone(el, tone);
+      const details = [];
+      details.push(`target=${target}`);
+      details.push(`enabled=${stateRow.enabled ? 'yes' : 'no'}`);
+      const mode = loopValidationModeForDisplay(target, stateRow);
+      if (mode) {
+        details.push(`mode=${mode}`);
+      }
+      if (stateRow.activeProfile) {
+        details.push(`active=${loopLabelForTarget(target, stateRow.activeProfile)}`);
+      }
+      if (stateRow.nextProfile) {
+        details.push(`next=${loopLabelForTarget(target, stateRow.nextProfile)}`);
+      }
+      if (stateRow.inHitHold) {
+        details.push('holding on hit');
+      }
+      if (stateRow.blockedReason) {
+        details.push(`blocked=${stateRow.blockedReason}`);
+      }
+      const switchReason = loopSwitchReasonForDisplay(target, stateRow.switchReason);
+      if (switchReason) {
+        details.push(`reason=${switchReason}`);
+      }
+      if (stateRow.enabled) {
+        details.push(`switches=${Number(stateRow.switchCount || 0)}`);
+        if (Number(stateRow.switchFailCount || 0) > 0) {
+          details.push(`failures=${Number(stateRow.switchFailCount || 0)}`);
+        }
+      }
+      if (stateRow.lastError) {
+        details.push(`error=${trimServiceNote(stateRow.lastError, 80)}`);
+      }
+      el.title = details.join(' • ');
+    }
+
+    function renderMainLoopIndicators() {
+      const analogTarget = activeTarget === 'ground' ? 'ground' : 'airband';
+      const analogLoopState = state.profileLoop[analogTarget] || defaultProfileLoopState();
+      const digitalLoopState = state.profileLoop.digital || defaultProfileLoopState();
+      setLoopHeaderIndicator(els.profilesLoopIndicator, analogTarget, analogLoopState);
+      setLoopHeaderIndicator(els.digitalProfilesLoopIndicator, 'digital', digitalLoopState);
+    }
+
+    function renderTargetLoopControls(target, listEl, statusEl, detailEl, dwellEl, hangEl, pauseEl, toggleEl, defaultDwellMs, defaultHangMs) {
+      const loopState = localLoopState(target);
+      renderLoopChecklist(listEl, target, loopState);
+      if (statusEl) {
+        statusEl.textContent = loopState.enabled ? 'LOOPING' : 'IDLE';
+        setValueTone(statusEl, loopStatusTone(loopState));
+      }
+      if (detailEl) {
+        detailEl.textContent = formatLoopDetailText(target, loopState);
+      }
+      if (dwellEl && document.activeElement !== dwellEl) {
+        dwellEl.value = Math.max(1, Math.round(Number(loopState.dwellMs || defaultDwellMs) / 1000));
+      }
+      if (hangEl && document.activeElement !== hangEl) {
+        hangEl.value = Math.max(1, Math.round(Number(loopState.hangMs || defaultHangMs) / 1000));
+      }
+      if (pauseEl) {
+        pauseEl.checked = Boolean(loopState.pauseOnHit);
+      }
+      if (toggleEl) {
+        toggleEl.textContent = loopState.enabled ? 'Stop Loop' : 'Start Loop';
+      }
+      if (listEl) {
+        listEl.querySelectorAll('input[type="checkbox"][data-profile-id]').forEach((cb) => {
+          cb.addEventListener('change', () => {
+            const ids = collectLoopSelection(listEl);
+            state.profileLoop[target].selectedProfiles = ids;
+            setLoopDraftSelection(target, ids);
+            if (detailEl) {
+              detailEl.textContent = `${ids.length} selected (pending apply)`;
+            }
+            scheduleLoopAutoApply(target);
+          });
+        });
+      }
+      renderMainLoopIndicators();
+    }
+
+    function renderAnalogLoopControls() {
+      const target = activeTarget === 'ground' ? 'ground' : 'airband';
+      renderTargetLoopControls(
+        target,
+        els.loopList,
+        els.loopStatus,
+        els.loopDetail,
+        els.loopDwell,
+        els.loopHang,
+        els.loopPause,
+        els.loopToggle,
+        10000,
+        2000
+      );
+    }
+
+    function renderDigitalLoopControls() {
+      renderTargetLoopControls(
+        'digital',
+        els.digitalLoopList,
+        els.digitalLoopStatus,
+        els.digitalLoopDetail,
+        els.digitalLoopDwell,
+        els.digitalLoopHang,
+        els.digitalLoopPause,
+        els.digitalLoopToggle,
+        10000,
+        2000
+      );
+    }
+
+    function renderProfileLoopControls() {
+      renderAnalogLoopControls();
+      renderDigitalLoopControls();
+    }
+
+    async function applyProfileLoopConfig(target, enabledOverride = null) {
+      const targetName = normalizeLoopTarget(target);
+      const isDigital = targetName === 'digital';
+      const dwellEl = isDigital ? els.digitalLoopDwell : els.loopDwell;
+      const hangEl = isDigital ? els.digitalLoopHang : els.loopHang;
+      const pauseEl = isDigital ? els.digitalLoopPause : els.loopPause;
+      const loopState = updateLoopLocalSettingsFromInputs(targetName);
+      clearLoopAutoApplyTimer(targetName);
+      const selectedProfiles = selectedLoopProfilesForUi(targetName, loopState);
+      const requestedEnabled = enabledOverride === null
+        ? Boolean(loopState.enabled)
+        : Boolean(enabledOverride);
+      const canEnable = selectedProfiles.length >= 2;
+      const effectiveEnabled = requestedEnabled && canEnable;
+      loopState.enabled = effectiveEnabled;
+      const dwellSec = Number(dwellEl && dwellEl.value);
+      const hangSec = Number(hangEl && hangEl.value);
+      const payload = {
+        target: targetName,
+        enabled: effectiveEnabled,
+        selected_profiles: selectedProfiles,
+        dwell_ms: Number.isFinite(dwellSec) ? Math.round(dwellSec * 1000) : Number(loopState.dwellMs || 10000),
+        hang_ms: Number.isFinite(hangSec) ? Math.round(hangSec * 1000) : Number(loopState.hangMs || 2000),
+        pause_on_hit: Boolean(pauseEl && pauseEl.checked),
+      };
+      try {
+        const res = await postAPI('/api/profile-loop', payload, { timeoutMs: 12000 });
+        if (res && res.ok) {
+          clearLoopDraftSelection(targetName);
+          if (res.snapshot) {
+            applyProfileLoopPayload(res.snapshot);
+          }
+          logActivity(`Profile loop updated: ${targetName}`, 'info', `profile-loop-${targetName}`);
+          return;
+        }
+        logActivity(formatApiError(res, `Profile loop update failed (${targetName})`), 'warn', `profile-loop-${targetName}-failed`);
+      } catch (e) {
+        logActivity(messageFromError(e, `Profile loop update failed (${targetName})`), 'warn', `profile-loop-${targetName}-error`);
+      }
+      await refresh();
+    }
+
+    function selectAllLoopProfiles(target, checked) {
+      const loopState = state.profileLoop[target] || defaultProfileLoopState();
+      const available = Array.isArray(loopState.availableProfiles) && loopState.availableProfiles.length
+        ? loopState.availableProfiles
+        : fallbackLoopProfiles(target);
+      loopState.selectedProfiles = checked
+        ? available.map((row) => String(row.id || '').trim()).filter(Boolean)
+        : [];
+      if (!checked) {
+        loopState.enabled = false;
+      }
+      setLoopDraftSelection(target, loopState.selectedProfiles);
+      if (!checked) {
+        applyProfileLoopConfig(target, false);
+      } else {
+        scheduleLoopAutoApply(target);
+      }
+      if (target === 'digital') {
+        renderDigitalLoopControls();
+      } else {
+        renderAnalogLoopControls();
+      }
     }
 
     function setDigitalStatusMessage(message, isError=false) {
@@ -3777,6 +4753,27 @@
       return lines.join('\n');
     }
 
+    function applyProfilesPayload(profilesData, statusData = null) {
+      if (!profilesData || typeof profilesData !== 'object') return;
+      const status = statusData && typeof statusData === 'object' ? statusData : {};
+      state.airband.profiles = profilesData.profiles_airband || [];
+      state.ground.profiles = profilesData.profiles_ground || [];
+      state.airband.currentProfile = profilesData.active_airband_id || status.profile_airband || state.airband.currentProfile || '';
+      state.ground.currentProfile = profilesData.active_ground_id || status.profile_ground || state.ground.currentProfile || '';
+      updateProfiles();
+    }
+
+    function applyDigitalProfilesPayload(data) {
+      if (!data || typeof data !== 'object' || !data.ok) return false;
+      state.digital.profiles = data.profiles || [];
+      state.digital.activeProfile = data.active || '';
+      digitalProfilesLoaded = true;
+      updateDigitalProfileSelect();
+      updateDigitalProfilesList();
+      refreshProfileEditorOptions();
+      return true;
+    }
+
     function escapeHtml(value) {
       return String(value || '')
         .replace(/&/g, '&amp;')
@@ -3792,18 +4789,25 @@
       if (activeView !== 'digital' && !sidecarDigitalActive && !force) return;
       try {
         const data = await fetchJSON('/api/digital/profiles');
-        if (data && data.ok) {
-          state.digital.profiles = data.profiles || [];
-          state.digital.activeProfile = data.active || '';
-          digitalProfilesLoaded = true;
-          updateDigitalProfileSelect();
-          updateDigitalProfilesList();
-          refreshProfileEditorOptions();
+        if (applyDigitalProfilesPayload(data)) {
           return;
         }
         setDigitalStatusMessage((data && data.error) || 'Digital profiles unavailable', true);
       } catch (e) {
         setDigitalStatusMessage('Digital profiles unavailable', true);
+      }
+    }
+
+    async function refreshProfilesFast() {
+      const [profilesData, digitalProfilesData] = await Promise.all([
+        fetchJSON('/api/profiles').catch(() => null),
+        fetchJSON('/api/digital/profiles').catch(() => null),
+      ]);
+      if (profilesData) {
+        applyProfilesPayload(profilesData, null);
+      }
+      if (digitalProfilesData) {
+        applyDigitalProfilesPayload(digitalProfilesData);
       }
     }
 
@@ -3820,7 +4824,24 @@
       els.digitalStatus.textContent = statusText;
       if (els.digitalDot) els.digitalDot.classList.toggle('active', Boolean(d.active));
       if (els.digitalBackend) els.digitalBackend.textContent = d.backend || '--';
-      if (els.digitalProfile) els.digitalProfile.textContent = d.profile || d.activeProfile || '--';
+      const loopState = state.profileLoop.digital || defaultProfileLoopState();
+      const loopEnabled = Boolean(loopState.enabled);
+      const runtimeProfile = String(d.profile || d.activeProfile || '').trim();
+      const loopProfile = String(loopState.currentProfile || loopState.activeProfile || '').trim();
+      if (els.digitalProfile) {
+        const profileBase = runtimeProfile || '--';
+        if (loopEnabled) {
+          const next = loopState.nextProfile || '--';
+          if (loopProfile && runtimeProfile && loopProfile !== runtimeProfile) {
+            els.digitalProfile.textContent = `${profileBase} (switching→${loopProfile}, next→${next})`;
+          } else {
+            const shown = loopProfile || profileBase;
+            els.digitalProfile.textContent = `${shown} (loop→${next})`;
+          }
+        } else {
+          els.digitalProfile.textContent = profileBase;
+        }
+      }
       const hold = state.hold.digital;
       const label = (hold && hold.label) || d.lastLabel;
       const timeMs = (hold && hold.timeMs) || d.lastTime;
@@ -3856,7 +4877,31 @@
       const systemHealthRows = Array.isArray(d.schedulerSystemHealth) ? d.schedulerSystemHealth : [];
       const activeSystemRow = systemHealthRows.find((row) => row && row.active) || null;
       if (els.digitalSystemHealth) {
-        if (!systemHealthRows.length) {
+        if (loopEnabled) {
+          const activeLabel = loopLabelForTarget('digital', loopState.currentProfile || loopState.activeProfile || '--');
+          const nextLabel = loopLabelForTarget('digital', loopState.nextProfile || '--');
+          const reason = loopSwitchReasonForDisplay('digital', loopState.switchReason) || '--';
+          const switches = Number(loopState.switchCount || 0);
+          els.digitalSystemHealth.textContent = `● ${activeLabel}:${ccHealth.label} | next=${nextLabel}`;
+          if (ccHealth.tone) {
+            setValueTone(els.digitalSystemHealth, ccHealth.tone);
+          } else {
+            setValueTone(els.digitalSystemHealth, '');
+          }
+          if (els.digitalSystemHealthDetail) {
+            const parts = [
+              `Loop active=${activeLabel}`,
+              `next=${nextLabel}`,
+              `reason=${reason}`,
+              `switches=${switches}`,
+            ];
+            if (runtimeProfile && loopProfile && runtimeProfile !== loopProfile) {
+              parts.push(`runtime=${runtimeProfile}`);
+            }
+            els.digitalSystemHealthDetail.textContent = parts.join(' • ');
+            setValueTone(els.digitalSystemHealthDetail, ccHealth.tone || '');
+          }
+        } else if (!systemHealthRows.length) {
           els.digitalSystemHealth.textContent = '--';
           setValueTone(els.digitalSystemHealth, '');
         } else {
@@ -3868,7 +4913,7 @@
           );
         }
       }
-      if (els.digitalSystemHealthDetail) {
+      if (els.digitalSystemHealthDetail && !loopEnabled) {
         if (!activeSystemRow) {
           els.digitalSystemHealthDetail.textContent = '--';
           setValueTone(els.digitalSystemHealthDetail, '');
@@ -3891,6 +4936,7 @@
       renderDongleHealth(state.systemStats);
       updateDigitalProfileSelect();
       updateDigitalProfilesList();
+      renderDigitalLoopControls();
     }
 
     async function runDigitalAction(action) {
@@ -3900,7 +4946,7 @@
       );
       setDigitalStatusMessage(`Digital ${action}...`, false);
       try {
-        const res = await postAPI(`/api/digital/${action}`, {});
+        const res = await postAPI(`/api/digital/${action}`, {}, { timeoutMs: 20000 });
         if (res && res.ok) {
           setDigitalStatusMessage(`Digital ${action} ok`, false);
           if (action === 'restart') {
@@ -3923,7 +4969,7 @@
       );
       setDigitalStatusMessage('Applying profile...', false);
       try {
-        const res = await postAPI('/api/digital/profile', { profileId });
+        const res = await postAPI('/api/digital/profile', { profileId }, { timeoutMs: 25000 });
         if (res && res.ok) {
           setDigitalStatusMessage('Profile updated', false);
           scheduleStreamRecovery('digital', 'digital-profile', digitalShouldResume);
@@ -4398,12 +5444,30 @@
       }
       els.avoidsCount.innerHTML = tableHtml;
       els.avoidsTarget.textContent = '';
-      
-      if (state.serverTime) {
-        const serverDate = new Date(state.serverTime * 1000);
-        els.piTime.textContent = serverDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-      }
+      renderPiClock();
       updateSitrep();
+    }
+
+    function estimatedServerDate() {
+      const serverEpochSec = Number(state.serverTime || 0);
+      if (Number.isFinite(serverEpochSec) && serverEpochSec > 0) {
+        const baseMs = serverEpochSec * 1000;
+        const lastTickMs = Number(state.lastStatusTick || 0);
+        const driftMs = lastTickMs > 0 ? Math.max(0, Date.now() - lastTickMs) : 0;
+        return new Date(baseMs + driftMs);
+      }
+      return new Date();
+    }
+
+    function renderPiClock() {
+      if (!els.piTime) return;
+      const now = estimatedServerDate();
+      els.piTime.textContent = now.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      });
     }
     
     function formatFreq(freq) {
@@ -4521,7 +5585,18 @@
     function messageFromError(err, fallback = '') {
       const payload = payloadFromError(err);
       if (payload) return formatApiError(payload, fallback);
+      const name = String(err && err.name ? err.name : '').trim();
+      if (name === 'TimeoutError') {
+        const sec = Math.max(1, Math.round(Number(err && err.timeoutMs ? err.timeoutMs : FETCH_TIMEOUT_MS) / 1000));
+        const base = fallback || 'Request timed out';
+        return `${base} (timed out after ${sec}s)`;
+      }
       const text = String(err && err.message ? err.message : '').trim();
+      if (/aborted/i.test(text)) {
+        const sec = Math.max(1, Math.round(FETCH_TIMEOUT_MS / 1000));
+        const base = fallback || 'Request timed out';
+        return `${base} (timed out after ${sec}s)`;
+      }
       return text || fallback;
     }
 
@@ -4682,8 +5757,43 @@
       return '--';
     }
 
+    function hitAgeMsFromClock(raw) {
+      const text = String(raw || '').trim();
+      const m = text.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+      if (!m) return Number.POSITIVE_INFINITY;
+      const now = new Date();
+      const hit = new Date(now);
+      hit.setHours(Number(m[1]), Number(m[2]), Number(m[3] || 0), 0);
+      let age = now.getTime() - hit.getTime();
+      if (age < -43200000) age += 86400000;
+      if (age < 0) age = 0;
+      return age;
+    }
+
+    function recentDigitalActivity() {
+      let bestAgeMs = Number.POSITIVE_INFINITY;
+      for (let i = 0; i < Math.min(state.hits.length, 24); i += 1) {
+        const hit = state.hits[i];
+        if (!hit || typeof hit !== 'object') continue;
+        const source = String(hit.source || hit.type || '').trim().toLowerCase();
+        if (source !== 'digital') continue;
+        const age = hitAgeMsFromClock(hit.time);
+        if (Number.isFinite(age) && age < bestAgeMs) {
+          bestAgeMs = age;
+        }
+      }
+      const eventTimeMs = Number(state.digital?.lastTime || 0);
+      if (Number.isFinite(eventTimeMs) && eventTimeMs > 0) {
+        const age = Math.max(0, Date.now() - eventTimeMs);
+        if (age < bestAgeMs) bestAgeMs = age;
+      }
+      return Number.isFinite(bestAgeMs) ? bestAgeMs : Number.POSITIVE_INFINITY;
+    }
+
     function getDigitalControlChannelHealth() {
       const d = state.digital || {};
+      const loopState = state.profileLoop?.digital || defaultProfileLoopState();
+      const loopEnabled = Boolean(loopState.enabled);
       const sourceType = String(d.playlistSourceType || '').trim();
       const metricReady = Boolean(d.controlMetricReady);
       const windowMs = Number.isFinite(d.controlWindowMs) ? Number(d.controlWindowMs) : 0;
@@ -4692,9 +5802,61 @@
       const syncLossCount = Number.isFinite(d.controlSyncLossCount) ? Number(d.controlSyncLossCount) : 0;
       const controlLocked = Boolean(d.controlLocked);
       const lastControlText = formatTimeMs(Number(d.controlLastTime) || 0);
+      const telemetryAgeMs = Math.max(0, Date.now() - Number(d.metricsUpdatedMs || 0));
+      const telemetryStale = !d.metricsUpdatedMs || telemetryAgeMs > 15000;
+      const activityAgeMs = recentDigitalActivity();
+      const hasRecentActivity = Number.isFinite(activityAgeMs) && activityAgeMs <= 30000;
+      const activityText = hasRecentActivity
+        ? `Recent digital activity ${formatDurationCompact(activityAgeMs)} ago`
+        : '';
+      const runtimeProfile = String(d.profile || '').trim();
+      const loopProfile = String(loopState.currentProfile || loopState.activeProfile || '').trim();
+      const switchingMismatch = Boolean(loopEnabled && runtimeProfile && loopProfile && runtimeProfile !== loopProfile);
+      const dwellMs = Number.isFinite(loopState.dwellMs) ? Number(loopState.dwellMs) : 0;
+      const lastSwitchAgeMs = Math.max(0, Date.now() - Number(loopState.lastSwitchTimeMs || 0));
+      const switchingGraceMs = Math.max(6000, dwellMs * 2);
 
       if (!d.active) {
         return { label: 'OFFLINE', tone: 'bad', detail: 'Digital decoder stopped' };
+      }
+      if (loopEnabled) {
+        const loopError = String(loopState.lastError || '').trim();
+        if (loopError) {
+          return {
+            label: 'LOOP ERR',
+            tone: 'bad',
+            detail: trimServiceNote(loopError),
+          };
+        }
+        if (hasRecentActivity) {
+          const activeName = loopProfile || runtimeProfile || '--';
+          return {
+            label: 'ACTIVE',
+            tone: 'good',
+            detail: `Loop active=${activeName}; ${activityText || 'recent traffic'}`,
+          };
+        }
+        if (switchingMismatch && lastSwitchAgeMs <= switchingGraceMs) {
+          return {
+            label: 'SWITCHING',
+            tone: 'warn',
+            detail: `Runtime=${runtimeProfile}; loop target=${loopProfile}; ${formatDurationCompact(lastSwitchAgeMs)} since switch`,
+          };
+        }
+        return {
+          label: 'SCANNING',
+          tone: 'good',
+          detail: switchingMismatch
+            ? `Runtime=${runtimeProfile || '--'}; loop target=${loopProfile || '--'}`
+            : 'No recent digital traffic yet',
+        };
+      }
+      if (hasRecentActivity && (telemetryStale || !metricReady || !controlLocked || !d.playlistSourceOk || d.lastError)) {
+        return {
+          label: 'ACTIVE',
+          tone: 'good',
+          detail: telemetryStale ? `${activityText}; control telemetry stale` : `${activityText}; control telemetry catching up`,
+        };
       }
       if (!d.playlistSourceOk) {
         const reason = d.playlistSourceError ? trimServiceNote(d.playlistSourceError) : 'Playlist source not ready';
@@ -4738,6 +5900,9 @@
       }
       if (sourceType) {
         return { label: 'INFERRED', tone: 'warn', detail: `Source: ${sourceType} (direct metric unavailable)` };
+      }
+      if (telemetryStale) {
+        return { label: 'INFERRED', tone: 'warn', detail: 'Control telemetry stale; awaiting refresh' };
       }
       return { label: 'INFERRED', tone: 'warn', detail: 'Direct control metric unavailable' };
     }
@@ -4810,12 +5975,21 @@
       if (els.sitrepMounts) {
         const mounts = state.icecastMounts || [];
         const expected = state.icecastExpectedMounts || [];
+        const mountSet = new Set(mounts.map((m) => normalizeMountPath(m)).filter(Boolean));
+        const analogMount = normalizeMountPath(state.streamMount, 'ANALOG.mp3');
+        const digitalMount = normalizeMountPath(state.digitalStreamMount, 'DIGITAL.mp3');
+        const analogFallback = '/keepalive-analog.mp3';
+        const digitalFallback = '/keepalive-digital.mp3';
         if (!expected.length) {
           els.sitrepMounts.textContent = mounts.length ? mounts.join(', ') : '--';
         } else {
           const display = expected.map((m) => {
-            const label = m.replace(/^\//, '');
-            return mounts.includes(m) ? label : `${label} ✗`;
+            const normalized = normalizeMountPath(m);
+            const label = normalized.replace(/^\//, '');
+            if (mountSet.has(normalized)) return label;
+            if (normalized === analogMount && mountSet.has(analogFallback)) return `${label} (fallback)`;
+            if (normalized === digitalMount && mountSet.has(digitalFallback)) return `${label} (fallback)`;
+            return `${label} ✗`;
           });
           els.sitrepMounts.textContent = display.join('  ');
         }
@@ -4904,7 +6078,19 @@
       if (els.sitrepStream) {
         const mounts = state.icecastMounts || [];
         const expected = state.icecastExpectedMounts || [];
-        const mountsOk = expected.length ? expected.every(m => mounts.includes(m)) : true;
+        const mountSet = new Set(mounts.map((m) => normalizeMountPath(m)).filter(Boolean));
+        const analogMount = normalizeMountPath(state.streamMount, 'ANALOG.mp3');
+        const digitalMount = normalizeMountPath(state.digitalStreamMount, 'DIGITAL.mp3');
+        const analogFallback = '/keepalive-analog.mp3';
+        const digitalFallback = '/keepalive-digital.mp3';
+        const mountsOk = expected.length ? expected.every((m) => {
+          const normalized = normalizeMountPath(m);
+          if (!normalized) return true;
+          if (mountSet.has(normalized)) return true;
+          if (normalized === analogMount && mountSet.has(analogFallback)) return true;
+          if (normalized === digitalMount && mountSet.has(digitalFallback)) return true;
+          return false;
+        }) : true;
         const ok = Boolean(state.icecastActive) && mountsOk;
         els.sitrepStream.textContent = ok ? 'Audio stream online' : 'Audio stream offline';
         els.sitrepStream.classList.toggle('good', ok);
@@ -5538,7 +6724,7 @@
         if (!force && t.currentProfile === id) {
           return;
         }
-        const res = await postAPI('/api/profile', { profile: id, target: activeTarget });
+        const res = await postAPI('/api/profile', { profile: id, target: activeTarget }, { timeoutMs: 20000 });
         state.tuned = false;
         state.tunedFreq = null;
         state.tunedTarget = null;
@@ -5577,12 +6763,16 @@
       refreshInFlight = (async () => {
         const wasConnected = state.connected;
         try {
-          const [data, profilesData, systemData, schedulerData, digitalPreflightData] = await Promise.all([
+          const loopEnabledNow = Boolean((state.profileLoop?.digital || {}).enabled);
+          const fetchScheduler = !loopEnabledNow;
+          const fetchDigitalPreflight = !loopEnabledNow;
+          const [data, profilesData, systemData, schedulerData, digitalPreflightData, profileLoopData] = await Promise.all([
             fetchJSON('/api/status'),
             fetchJSON('/api/profiles'),
             fetchJSON('/api/system'),
-            fetchJSON('/api/digital/scheduler').catch(() => null),
-            fetchJSON('/api/digital/preflight').catch(() => null),
+            fetchScheduler ? fetchJSON('/api/digital/scheduler').catch(() => null) : Promise.resolve(null),
+            fetchDigitalPreflight ? fetchJSON('/api/digital/preflight').catch(() => null) : Promise.resolve(null),
+            fetchJSON('/api/profile-loop').catch(() => null),
           ]);
 
           const pickNumber = (value, fallback) => (value === 0 || value) ? value : fallback;
@@ -5645,8 +6835,6 @@
         state.airband.applied_squelch_dbfs = Number.isFinite(data.airband_applied_squelch_dbfs) ? data.airband_applied_squelch_dbfs : null;
         state.airband.squelch = state.airband.squelch_dbfs;
         state.airband.filter = pickNumber(data.airband_filter, 3500);
-        state.airband.profiles = profilesData.profiles_airband || [];
-        state.airband.currentProfile = profilesData.active_airband_id || data.profile_airband || '';
         state.airband.avoids = data.avoids_airband?.sample || [];
         
         state.ground.gain = pickNumber(data.ground_gain, 32.8);
@@ -5657,9 +6845,8 @@
         state.ground.applied_squelch_dbfs = Number.isFinite(data.ground_applied_squelch_dbfs) ? data.ground_applied_squelch_dbfs : null;
         state.ground.squelch = state.ground.squelch_dbfs;
         state.ground.filter = pickNumber(data.ground_filter, 3500);
-        state.ground.profiles = profilesData.profiles_ground || [];
-        state.ground.currentProfile = profilesData.active_ground_id || data.profile_ground || '';
         state.ground.avoids = data.avoids_ground?.sample || [];
+        applyProfilesPayload(profilesData, data);
 
         state.digital.active = Boolean(data.digital_active);
         state.digital.backend = data.digital_backend || '';
@@ -5679,9 +6866,16 @@
         state.digital.controlLastTime = Number.isFinite(data.digital_control_channel_last_time) ? data.digital_control_channel_last_time : 0;
         state.digital.controlSyncLossCount = Number.isFinite(data.digital_control_sync_loss_count) ? data.digital_control_sync_loss_count : 0;
         state.digital.controlWindowMs = Number.isFinite(data.digital_control_window_ms) ? data.digital_control_window_ms : 0;
+        state.digital.metricsUpdatedMs = Date.now();
         applyDigitalSchedulerPayload(data);
         if (schedulerData && schedulerData.ok) {
           applyDigitalSchedulerPayload(schedulerData);
+        }
+        if (data.profile_loop && typeof data.profile_loop === 'object') {
+          applyProfileLoopPayload(data.profile_loop);
+        }
+        if (profileLoopData && profileLoopData.ok) {
+          applyProfileLoopPayload(profileLoopData);
         }
         if (digitalPreflightData && digitalPreflightData.ok) {
           applyDigitalPreflightPayload(digitalPreflightData);
@@ -5730,11 +6924,15 @@
           refreshDigitalProfiles();
           refreshDigitalListen();
         } catch (e) {
+          try {
+            await refreshProfilesFast();
+          } catch (_ignored) {}
           if (wasConnected) {
             logActivity('API connection lost', 'warn', 'api-down');
           }
           state.connected = false;
           updateStatus();
+          renderPiClock();
           console.error('Refresh failed:', e);
         }
       })();
@@ -5826,6 +7024,9 @@
           state.lastHit = data.last_hit || state.lastHit;
           state.serverTime = data.server_time;
           state.lastStatusTick = Date.now();
+          if (data.profile_loop && typeof data.profile_loop === 'object') {
+            applyProfileLoopPayload(data.profile_loop);
+          }
           if (state.sdr1Active) state.sdr1LastSeen = state.lastStatusTick;
           if (state.sdr2Active) state.sdr2LastSeen = state.lastStatusTick;
           state.connected = true;
@@ -5929,6 +7130,7 @@
       setupCollapsibleWidgets();
       updateTuneButton();
       setProfileEditorTab('analog');
+      setProfileLoopTab(state.profileLoopUi.tab || 'analog');
       refreshProfileEditorOptions();
 
       syncStreamLinks();
@@ -5948,6 +7150,14 @@
         els.logoToggle.addEventListener('click', () => toggleSitrep());
       }
       document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && state.profileLoopUi.open) {
+          closeProfileLoopSidecar();
+          return;
+        }
+        if (e.key === 'Escape' && state.profileEditor.open) {
+          closeProfileEditorSidecar();
+          return;
+        }
         if (e.key === 'Escape' && currentView === 'sitrep') {
           toggleSitrep(false);
         }
@@ -5961,6 +7171,52 @@
       }
       if (els.btnApply) {
         els.btnApply.addEventListener('click', applyBatch);
+      }
+      if (els.loopSave) {
+        els.loopSave.addEventListener('click', () => {
+          const target = activeTarget === 'ground' ? 'ground' : 'airband';
+          applyProfileLoopConfig(target, null);
+        });
+      }
+      if (els.loopToggle) {
+        els.loopToggle.addEventListener('click', () => {
+          const target = activeTarget === 'ground' ? 'ground' : 'airband';
+          const enabled = Boolean((state.profileLoop[target] || {}).enabled);
+          applyProfileLoopConfig(target, !enabled);
+        });
+      }
+      if (els.loopDwell) {
+        els.loopDwell.addEventListener('change', () => {
+          const target = activeTarget === 'ground' ? 'ground' : 'airband';
+          updateLoopLocalSettingsFromInputs(target);
+          scheduleLoopAutoApply(target);
+        });
+      }
+      if (els.loopHang) {
+        els.loopHang.addEventListener('change', () => {
+          const target = activeTarget === 'ground' ? 'ground' : 'airband';
+          updateLoopLocalSettingsFromInputs(target);
+          scheduleLoopAutoApply(target);
+        });
+      }
+      if (els.loopPause) {
+        els.loopPause.addEventListener('change', () => {
+          const target = activeTarget === 'ground' ? 'ground' : 'airband';
+          updateLoopLocalSettingsFromInputs(target);
+          scheduleLoopAutoApply(target);
+        });
+      }
+      if (els.loopSelectAll) {
+        els.loopSelectAll.addEventListener('click', () => {
+          const target = activeTarget === 'ground' ? 'ground' : 'airband';
+          selectAllLoopProfiles(target, true);
+        });
+      }
+      if (els.loopClear) {
+        els.loopClear.addEventListener('click', () => {
+          const target = activeTarget === 'ground' ? 'ground' : 'airband';
+          selectAllLoopProfiles(target, false);
+        });
       }
       document.getElementById('btn-avoid').addEventListener('click', async function() {
         const btn = document.getElementById('btn-avoid');
@@ -5999,6 +7255,39 @@
       }
       if (els.digitalProfileSelect) {
         els.digitalProfileSelect.addEventListener('change', onDigitalProfileChange);
+      }
+      if (els.digitalLoopSave) {
+        els.digitalLoopSave.addEventListener('click', () => applyProfileLoopConfig('digital', null));
+      }
+      if (els.digitalLoopToggle) {
+        els.digitalLoopToggle.addEventListener('click', () => {
+          const enabled = Boolean((state.profileLoop.digital || {}).enabled);
+          applyProfileLoopConfig('digital', !enabled);
+        });
+      }
+      if (els.digitalLoopDwell) {
+        els.digitalLoopDwell.addEventListener('change', () => {
+          updateLoopLocalSettingsFromInputs('digital');
+          scheduleLoopAutoApply('digital');
+        });
+      }
+      if (els.digitalLoopHang) {
+        els.digitalLoopHang.addEventListener('change', () => {
+          updateLoopLocalSettingsFromInputs('digital');
+          scheduleLoopAutoApply('digital');
+        });
+      }
+      if (els.digitalLoopPause) {
+        els.digitalLoopPause.addEventListener('change', () => {
+          updateLoopLocalSettingsFromInputs('digital');
+          scheduleLoopAutoApply('digital');
+        });
+      }
+      if (els.digitalLoopSelectAll) {
+        els.digitalLoopSelectAll.addEventListener('click', () => selectAllLoopProfiles('digital', true));
+      }
+      if (els.digitalLoopClear) {
+        els.digitalLoopClear.addEventListener('click', () => selectAllLoopProfiles('digital', false));
       }
       if (els.digitalManageCreate) {
         els.digitalManageCreate.addEventListener('click', createDigitalProfile);
@@ -6098,6 +7387,27 @@
       if (els.profileEditorOpenDigital) {
         els.profileEditorOpenDigital.addEventListener('click', () => openProfileEditorSidecar('digital'));
       }
+      if (els.profileLoopOpenAnalog) {
+        els.profileLoopOpenAnalog.addEventListener('click', () => openProfileLoopSidecar('analog'));
+      }
+      if (els.profileLoopOpenDigital) {
+        els.profileLoopOpenDigital.addEventListener('click', () => openProfileLoopSidecar('digital'));
+      }
+      if (els.profileLoopSidecarClose) {
+        els.profileLoopSidecarClose.addEventListener('click', closeProfileLoopSidecar);
+      }
+      if (els.profileLoopSidecarOverlay) {
+        els.profileLoopSidecarOverlay.addEventListener('click', closeProfileLoopSidecar);
+      }
+      if (els.profileLoopTabAnalog) {
+        els.profileLoopTabAnalog.addEventListener('click', () => setProfileLoopTab('analog'));
+      }
+      if (els.profileLoopTabDigital) {
+        els.profileLoopTabDigital.addEventListener('click', () => setProfileLoopTab('digital'));
+      }
+      if (els.profileLoopRefresh) {
+        els.profileLoopRefresh.addEventListener('click', () => refresh());
+      }
       if (els.profileSidecarClose) {
         els.profileSidecarClose.addEventListener('click', closeProfileEditorSidecar);
       }
@@ -6175,11 +7485,17 @@
       if (els.profileEditorAnalogSave) {
         els.profileEditorAnalogSave.addEventListener('click', saveProfileEditorAnalog);
       }
+      if (els.profileEditorAnalogDelete) {
+        els.profileEditorAnalogDelete.addEventListener('click', deleteProfileEditorAnalog);
+      }
       if (els.profileEditorDigitalValidate) {
         els.profileEditorDigitalValidate.addEventListener('click', validateProfileEditorDigital);
       }
       if (els.profileEditorDigitalSave) {
         els.profileEditorDigitalSave.addEventListener('click', saveProfileEditorDigital);
+      }
+      if (els.profileEditorDigitalDelete) {
+        els.profileEditorDigitalDelete.addEventListener('click', deleteProfileEditorDigital);
       }
       if (els.profileEditorAnalogModulation) {
         els.profileEditorAnalogModulation.addEventListener('input', () => setProfileEditorDirty('analog', true));
@@ -6351,10 +7667,14 @@
       setupAudioAutoRecover();
       
       logActivity('SB3 UI initialized', 'info', 'init');
-      await refresh();
+      try {
+        await refreshProfilesFast();
+      } catch (_ignored) {}
+      refresh().catch((e) => console.error('Initial refresh failed:', e));
       await refreshHits();
       connectSSE();
       updateSitrep();
+      renderPiClock();
       
       // Poll only as fallback when SSE is disconnected.
       setInterval(async () => {
@@ -6381,7 +7701,10 @@
         } catch (e) {
           console.error('Connected status sync failed:', e);
         }
-      }, 60000);
+      }, 10000);
+      setInterval(() => {
+        renderPiClock();
+      }, 1000);
     }
     
     init();

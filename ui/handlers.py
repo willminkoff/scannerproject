@@ -100,6 +100,7 @@ try:
         validate_analog_editor_payload,
         validate_digital_editor_payload,
     )
+    from .profile_loop import get_profile_loop_manager
     from .v3_preflight import (
         evaluate_analog_preflight,
         evaluate_digital_preflight,
@@ -173,6 +174,7 @@ except ImportError:
         validate_analog_editor_payload,
         validate_digital_editor_payload,
     )
+    from ui.profile_loop import get_profile_loop_manager
     from ui.v3_preflight import (
         evaluate_analog_preflight,
         evaluate_digital_preflight,
@@ -753,7 +755,17 @@ def _build_hits_payload(limit: int = 50) -> dict:
     digital_items = []
     include_digital_events = True
     if DIGITAL_HITS_REQUIRE_ACTIVE_STREAM:
-        include_digital_events = _digital_stream_active_for_hits()
+        # Never hide real digital traffic from the hit list solely based on
+        # stream mount heuristics. Keep events visible whenever decoder is up.
+        try:
+            include_digital_events = bool(_digital_stream_active_for_hits())
+        except Exception:
+            include_digital_events = True
+        if not include_digital_events:
+            try:
+                include_digital_events = bool(get_digital_manager().isActive())
+            except Exception:
+                include_digital_events = True
     if include_digital_events:
         try:
             events = get_digital_manager().getRecentEvents(limit=scan_limit)
@@ -1317,15 +1329,36 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     digital_stream_active_for_hits = _digital_stream_active_for_hits()
                 except Exception:
-                    digital_stream_active_for_hits = False
-                if not digital_stream_active_for_hits:
-                    # Keep status+warnings, but suppress non-audible event pills so
-                    # header indicators align with the hit list and audible stream.
-                    digital_payload["digital_last_label"] = ""
-                    digital_payload["digital_last_time"] = 0
-                    digital_payload.pop("digital_last_mode", None)
+                    digital_stream_active_for_hits = True
+            # Preserve raw digital activity indicators even when stream
+            # mount-state is uncertain; expose stream visibility separately.
             digital_payload["digital_stream_active_for_hits"] = bool(digital_stream_active_for_hits)
             payload.update(digital_payload)
+            try:
+                profile_loop_snapshot = get_profile_loop_manager().snapshot()
+                profile_loop_targets = dict(profile_loop_snapshot.get("targets") or {})
+            except Exception:
+                profile_loop_targets = {}
+            payload["profile_loop"] = profile_loop_targets
+            digital_loop = profile_loop_targets.get("digital") if isinstance(profile_loop_targets, dict) else {}
+            if isinstance(digital_loop, dict):
+                payload["digital_profile_loop_enabled"] = bool(digital_loop.get("enabled"))
+                payload["digital_profile_loop_current_profile"] = str(digital_loop.get("current_profile") or "")
+                payload["digital_profile_loop_active_profile"] = str(digital_loop.get("active_profile") or "")
+                payload["digital_profile_loop_next_profile"] = str(digital_loop.get("next_profile") or "")
+                payload["digital_profile_loop_switch_reason"] = str(digital_loop.get("switch_reason") or "")
+                payload["digital_profile_loop_switch_count"] = int(digital_loop.get("switch_count") or 0)
+                payload["digital_profile_loop_last_error"] = str(digital_loop.get("last_error") or "")
+            analog_loop_air = profile_loop_targets.get("airband") if isinstance(profile_loop_targets, dict) else {}
+            if isinstance(analog_loop_air, dict) and analog_loop_air.get("enabled"):
+                analog_active = str(analog_loop_air.get("active_profile") or "").strip()
+                if analog_active:
+                    payload["profile_airband"] = analog_active
+            analog_loop_ground = profile_loop_targets.get("ground") if isinstance(profile_loop_targets, dict) else {}
+            if isinstance(analog_loop_ground, dict) and analog_loop_ground.get("enabled"):
+                analog_active_ground = str(analog_loop_ground.get("active_profile") or "").strip()
+                if analog_active_ground:
+                    payload["profile_ground"] = analog_active_ground
             try:
                 compile_state = load_compiled_state() or {}
             except Exception:
@@ -1469,6 +1502,18 @@ class Handler(BaseHTTPRequestHandler):
                     json.dumps({"ok": False, "error": str(e)}),
                     "application/json; charset=utf-8",
                 )
+        if p == "/api/profile-loop":
+            try:
+                payload = get_profile_loop_manager().snapshot()
+                payload = dict(payload or {})
+                payload["ok"] = True
+                return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
         if p == "/api/preflight":
             q = parse_qs(u.query or "")
             action = (q.get("action") or [""])[0].strip()
@@ -1527,9 +1572,15 @@ class Handler(BaseHTTPRequestHandler):
                 rtl_active = rtl_unit_active
                 ground_active = rtl_active and ground_present
                 ice_ok = _unit_active_cached(UNITS["icecast"])
-                hits_payload = _get_hits_payload_cached(limit=10)
+                # Keep SSE hits aligned with the full UI hit list so digital
+                # rows are not dropped by top-10 truncation during busy analog traffic.
+                hits_payload = _get_hits_payload_cached(limit=50)
                 hit_items = hits_payload.get("items") or []
                 last_hit = hit_items[0].get("freq") if hit_items else (read_last_hit_airband() or read_last_hit_ground())
+                try:
+                    profile_loop_targets = dict(get_profile_loop_manager().snapshot().get("targets") or {})
+                except Exception:
+                    profile_loop_targets = {}
                 status_data = {
                     "type": "status",
                     "rtl_active": rtl_active,
@@ -1544,6 +1595,7 @@ class Handler(BaseHTTPRequestHandler):
                     "squelch_dbfs": float(airband_dbfs),
                     "last_hit": last_hit,
                     "server_time": time.time(),
+                    "profile_loop": profile_loop_targets,
                 }
                 self.wfile.write(f"event: status\ndata: {json.dumps(status_data)}\n\n".encode())
                 spectrum_data = {
@@ -1577,7 +1629,16 @@ class Handler(BaseHTTPRequestHandler):
             except json.JSONDecodeError:
                 form = {}
         else:
-            form = {k: v[0] for k, v in parse_qs(raw).items()}
+            parsed_form = parse_qs(raw, keep_blank_values=True)
+            form = {}
+            for key, values in parsed_form.items():
+                if not values:
+                    form[key] = ""
+                    continue
+                if key == "selected_profiles":
+                    form[key] = ",".join(str(item or "").strip() for item in values)
+                    continue
+                form[key] = values[0]
 
         def get_str(key: str, default: str = "") -> str:
             v = form.get(key, default)
@@ -1833,6 +1894,31 @@ class Handler(BaseHTTPRequestHandler):
             response = {"ok": True}
             response.update(payload or {})
             return self._send(200, json.dumps(response), "application/json; charset=utf-8")
+
+        if p == "/api/profile-loop":
+            target = get_str("target").strip().lower()
+            if not target:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "missing target"}),
+                    "application/json; charset=utf-8",
+                )
+            update_payload = {}
+            for key in ("enabled", "selected_profiles", "dwell_ms", "hang_ms", "pause_on_hit"):
+                if key in form:
+                    update_payload[key] = form.get(key)
+            ok, err, snapshot = get_profile_loop_manager().set_target_config(target, update_payload)
+            if not ok:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": err, "snapshot": snapshot}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(
+                200,
+                json.dumps({"ok": True, "target": target, "snapshot": snapshot}),
+                "application/json; charset=utf-8",
+            )
 
         if p == "/api/digital/mute":
             raw_muted = form.get("muted")
