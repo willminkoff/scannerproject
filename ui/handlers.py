@@ -755,7 +755,17 @@ def _build_hits_payload(limit: int = 50) -> dict:
     digital_items = []
     include_digital_events = True
     if DIGITAL_HITS_REQUIRE_ACTIVE_STREAM:
-        include_digital_events = _digital_stream_active_for_hits()
+        # Never hide real digital traffic from the hit list solely based on
+        # stream mount heuristics. Keep events visible whenever decoder is up.
+        try:
+            include_digital_events = bool(_digital_stream_active_for_hits())
+        except Exception:
+            include_digital_events = True
+        if not include_digital_events:
+            try:
+                include_digital_events = bool(get_digital_manager().isActive())
+            except Exception:
+                include_digital_events = True
     if include_digital_events:
         try:
             events = get_digital_manager().getRecentEvents(limit=scan_limit)
@@ -1319,13 +1329,9 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     digital_stream_active_for_hits = _digital_stream_active_for_hits()
                 except Exception:
-                    digital_stream_active_for_hits = False
-                if not digital_stream_active_for_hits:
-                    # Keep status+warnings, but suppress non-audible event pills so
-                    # header indicators align with the hit list and audible stream.
-                    digital_payload["digital_last_label"] = ""
-                    digital_payload["digital_last_time"] = 0
-                    digital_payload.pop("digital_last_mode", None)
+                    digital_stream_active_for_hits = True
+            # Preserve raw digital activity indicators even when stream
+            # mount-state is uncertain; expose stream visibility separately.
             digital_payload["digital_stream_active_for_hits"] = bool(digital_stream_active_for_hits)
             payload.update(digital_payload)
             try:

@@ -5793,6 +5793,7 @@
     function getDigitalControlChannelHealth() {
       const d = state.digital || {};
       const loopState = state.profileLoop?.digital || defaultProfileLoopState();
+      const loopEnabled = Boolean(loopState.enabled);
       const sourceType = String(d.playlistSourceType || '').trim();
       const metricReady = Boolean(d.controlMetricReady);
       const windowMs = Number.isFinite(d.controlWindowMs) ? Number(d.controlWindowMs) : 0;
@@ -5808,20 +5809,42 @@
       const activityText = hasRecentActivity
         ? `Recent digital activity ${formatDurationCompact(activityAgeMs)} ago`
         : '';
+      const runtimeProfile = String(d.profile || '').trim();
+      const loopProfile = String(loopState.currentProfile || loopState.activeProfile || '').trim();
+      const switchingMismatch = Boolean(loopEnabled && runtimeProfile && loopProfile && runtimeProfile !== loopProfile);
+      const dwellMs = Number.isFinite(loopState.dwellMs) ? Number(loopState.dwellMs) : 0;
+      const lastSwitchAgeMs = Math.max(0, Date.now() - Number(loopState.lastSwitchTimeMs || 0));
+      const switchingGraceMs = Math.max(6000, dwellMs * 2);
 
       if (!d.active) {
         return { label: 'OFFLINE', tone: 'bad', detail: 'Digital decoder stopped' };
       }
-      if (loopState.enabled) {
-        const runtimeProfile = String(d.profile || '').trim();
-        const loopProfile = String(loopState.currentProfile || loopState.activeProfile || '').trim();
-        if (runtimeProfile && loopProfile && runtimeProfile !== loopProfile) {
+      if (loopEnabled) {
+        if (hasRecentActivity) {
+          const activeName = loopProfile || runtimeProfile || '--';
+          return {
+            label: 'ACTIVE',
+            tone: 'good',
+            detail: `Loop active=${activeName}; ${activityText || 'recent traffic'}`,
+          };
+        }
+        if (switchingMismatch && lastSwitchAgeMs <= switchingGraceMs) {
           return {
             label: 'SWITCHING',
             tone: 'warn',
-            detail: `Runtime=${runtimeProfile}; loop target=${loopProfile}`,
+            detail: `Runtime=${runtimeProfile}; loop target=${loopProfile}; ${formatDurationCompact(lastSwitchAgeMs)} since switch`,
           };
         }
+        if (d.lastError) {
+          return { label: 'SEARCHING', tone: 'bad', detail: trimServiceNote(d.lastError) };
+        }
+        return {
+          label: 'SCANNING',
+          tone: 'warn',
+          detail: switchingMismatch
+            ? `Runtime=${runtimeProfile || '--'}; loop target=${loopProfile || '--'}`
+            : 'No recent digital traffic yet',
+        };
       }
       if (hasRecentActivity && (telemetryStale || !metricReady || !controlLocked || !d.playlistSourceOk || d.lastError)) {
         return {
