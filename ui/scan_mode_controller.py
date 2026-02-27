@@ -25,6 +25,7 @@ class ScanModeController:
         self.mode = "hp"
         self._db_path = str(Path(db_path).expanduser().resolve())
         self._hp_builder = ScanPoolBuilder(self._db_path)
+        self._hp_avoided_systems: set[str] = set()
         self._expert_config: dict[str, Any] = {
             "manual_trunked": [],
             "manual_conventional": [],
@@ -51,6 +52,41 @@ class ScanModeController:
                 "manual_trunked": list(payload.get("manual_trunked") or []),
                 "manual_conventional": list(payload.get("manual_conventional") or []),
             }
+
+    @staticmethod
+    def _normalize_system_token(value: str) -> str:
+        return str(value or "").strip().lower()
+
+    @classmethod
+    def _pool_system_tokens(cls, row: dict) -> set[str]:
+        if not isinstance(row, dict):
+            return set()
+        system_id = str(row.get("system_id") or "").strip()
+        site_id = str(row.get("site_id") or "").strip()
+        out: set[str] = set()
+        if system_id and site_id:
+            out.add(cls._normalize_system_token(f"{system_id}:{site_id}"))
+        if system_id:
+            out.add(cls._normalize_system_token(system_id))
+        if site_id:
+            out.add(cls._normalize_system_token(f"site:{site_id}"))
+        return {token for token in out if token}
+
+    def add_hp_avoid_system(self, system_token: str) -> bool:
+        token = self._normalize_system_token(system_token)
+        if not token:
+            return False
+        with self._lock:
+            self._hp_avoided_systems.add(token)
+        return True
+
+    def clear_hp_avoids(self):
+        with self._lock:
+            self._hp_avoided_systems.clear()
+
+    def get_hp_avoids(self) -> list[str]:
+        with self._lock:
+            return sorted(self._hp_avoided_systems)
 
     def get_scan_pool(self):
         mode = self.get_mode()
@@ -89,12 +125,29 @@ class ScanModeController:
         if not service_tags:
             return _empty_pool()
 
-        return self._hp_builder.build_full_database_pool(
+        pool = self._hp_builder.build_full_database_pool(
             lat=float(state.lat),
             lon=float(state.lon),
             range_miles=float(state.range_miles),
             service_tags=service_tags,
         )
+        with self._lock:
+            avoids = set(self._hp_avoided_systems)
+        if not avoids:
+            return pool
+
+        trunked_sites = pool.get("trunked_sites")
+        if not isinstance(trunked_sites, list):
+            return pool
+
+        filtered_sites: list[dict] = []
+        for row in trunked_sites:
+            tokens = self._pool_system_tokens(row if isinstance(row, dict) else {})
+            if tokens and (tokens & avoids):
+                continue
+            filtered_sites.append(row)
+        pool["trunked_sites"] = filtered_sites
+        return pool
 
 
 _SCAN_MODE_CONTROLLER: ScanModeController | None = None

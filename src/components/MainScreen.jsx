@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { SCREENS, useUI } from "../context/UIContext";
 import Button from "./Shared/Button";
 import Header from "./Shared/Header";
@@ -12,13 +12,58 @@ function formatValue(value) {
 
 export default function MainScreen() {
   const { state, holdScan, nextScan, navigate } = useUI();
-  const { hpState, working, error, message } = state;
+  const { hpState, liveStatus, working, error, message } = state;
 
-  const system = hpState.system_name || hpState.system;
-  const department = hpState.department_name || hpState.department;
-  const tgid = hpState.tgid ?? hpState.talkgroup_id;
-  const frequency = hpState.frequency ?? hpState.freq;
-  const signal = hpState.signal ?? hpState.signal_strength;
+  const analogMount = String(liveStatus?.stream_mount || "ANALOG.mp3")
+    .trim()
+    .replace(/^\//, "");
+  const digitalMount = String(liveStatus?.digital_stream_mount || "DIGITAL.mp3")
+    .trim()
+    .replace(/^\//, "");
+  const defaultMount = state.mode === "hp" ? digitalMount || analogMount : analogMount;
+  const streamOptions = useMemo(() => {
+    const out = [];
+    if (analogMount) {
+      out.push({ id: analogMount, label: `Analog (${analogMount})` });
+    }
+    if (digitalMount && digitalMount !== analogMount) {
+      out.push({ id: digitalMount, label: `Digital (${digitalMount})` });
+    }
+    return out;
+  }, [analogMount, digitalMount]);
+  const [selectedMount, setSelectedMount] = useState(defaultMount);
+
+  useEffect(() => {
+    const valid = streamOptions.some((item) => item.id === selectedMount);
+    if (!valid) {
+      setSelectedMount(defaultMount || streamOptions[0]?.id || "");
+    }
+  }, [defaultMount, selectedMount, streamOptions]);
+
+  const system =
+    liveStatus?.digital_scheduler_active_system ||
+    liveStatus?.digital_profile ||
+    hpState.system_name ||
+    hpState.system;
+  const department =
+    liveStatus?.digital_last_label || hpState.department_name || hpState.department;
+  const tgid = liveStatus?.digital_last_tgid ?? hpState.tgid ?? hpState.talkgroup_id;
+  const frequency = (() => {
+    const firstHz = Number(
+      liveStatus?.digital_preflight?.playlist_frequency_hz?.[0] ||
+        liveStatus?.digital_playlist_frequency_hz?.[0] ||
+        0
+    );
+    if (Number.isFinite(firstHz) && firstHz > 0) {
+      return (firstHz / 1_000_000).toFixed(4);
+    }
+    return hpState.frequency ?? hpState.freq;
+  })();
+  const signal = liveStatus?.digital_control_channel_locked
+    ? "Locked"
+    : liveStatus?.digital_control_decode_available
+    ? "Decoding"
+    : hpState.signal ?? hpState.signal_strength;
 
   const handleHold = async () => {
     try {
@@ -77,6 +122,37 @@ export default function MainScreen() {
         >
           MENU
         </Button>
+      </div>
+
+      <div className="card" style={{ marginTop: "12px" }}>
+        <div className="row" style={{ marginBottom: "8px" }}>
+          <div className="muted">Live Stream</div>
+          {selectedMount ? (
+            <a href={`/stream/${selectedMount}`} target="_blank" rel="noreferrer">
+              Open
+            </a>
+          ) : null}
+        </div>
+        <div className="row" style={{ marginBottom: "8px" }}>
+          <select
+            className="input"
+            value={selectedMount}
+            onChange={(e) => setSelectedMount(e.target.value)}
+            style={{ maxWidth: "260px" }}
+          >
+            {streamOptions.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <audio
+          controls
+          preload="none"
+          style={{ width: "100%" }}
+          src={selectedMount ? `/stream/${selectedMount}` : "/stream/"}
+        />
       </div>
 
       {error ? <div className="error">{error}</div> : null}

@@ -22,6 +22,7 @@ export const SCREENS = Object.freeze({
 const initialState = {
   hpState: {},
   serviceTypes: [],
+  liveStatus: {},
   currentScreen: SCREENS.MAIN,
   mode: "hp",
   loading: true,
@@ -41,6 +42,7 @@ function reducer(state, action) {
         error: "",
         hpState: action.payload.hpState || {},
         serviceTypes: action.payload.serviceTypes || [],
+        liveStatus: action.payload.liveStatus || {},
         mode: action.payload.mode || state.mode,
       };
     case "LOAD_ERROR":
@@ -55,6 +57,8 @@ function reducer(state, action) {
       return { ...state, hpState: action.payload || {} };
     case "SET_SERVICE_TYPES":
       return { ...state, serviceTypes: action.payload || [] };
+    case "SET_LIVE_STATUS":
+      return { ...state, liveStatus: action.payload || {} };
     case "SET_MODE":
       return { ...state, mode: action.payload || state.mode };
     case "NAVIGATE":
@@ -106,6 +110,12 @@ export function UIProvider({ children }) {
     return serviceTypes;
   }, []);
 
+  const refreshStatus = useCallback(async () => {
+    const payload = await hpApi.getStatus();
+    dispatch({ type: "SET_LIVE_STATUS", payload: payload || {} });
+    return payload;
+  }, []);
+
   const refreshAll = useCallback(async () => {
     dispatch({ type: "LOAD_START" });
     try {
@@ -113,6 +123,12 @@ export function UIProvider({ children }) {
         hpApi.getHpState(),
         hpApi.getServiceTypes(),
       ]);
+      let statusPayload = {};
+      try {
+        statusPayload = await hpApi.getStatus();
+      } catch {
+        statusPayload = {};
+      }
 
       const hp = parseHpStateResponse(hpPayload);
       const serviceTypes = normalizeServiceTypes(svcPayload);
@@ -123,6 +139,7 @@ export function UIProvider({ children }) {
           hpState: hp.hpState,
           mode: hp.mode,
           serviceTypes,
+          liveStatus: statusPayload,
         },
       });
     } catch (err) {
@@ -133,6 +150,13 @@ export function UIProvider({ children }) {
   useEffect(() => {
     refreshAll();
   }, [refreshAll]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      refreshStatus().catch(() => {});
+    }, 2500);
+    return () => clearInterval(timer);
+  }, [refreshStatus]);
 
   const saveHpState = useCallback(
     async (updates) => {
@@ -186,6 +210,7 @@ export function UIProvider({ children }) {
           dispatch({ type: "SET_MESSAGE", payload: successMessage });
         }
         await refreshHpState();
+        await refreshStatus();
         return response;
       } catch (err) {
         dispatch({ type: "SET_ERROR", payload: err.message });
@@ -194,7 +219,7 @@ export function UIProvider({ children }) {
         dispatch({ type: "SET_WORKING", payload: false });
       }
     },
-    [refreshHpState]
+    [refreshHpState, refreshStatus]
   );
 
   const holdScan = useCallback(
@@ -221,6 +246,7 @@ export function UIProvider({ children }) {
       refreshAll,
       refreshHpState,
       refreshServiceTypes,
+      refreshStatus,
       saveHpState,
       setMode,
       holdScan,
@@ -234,6 +260,7 @@ export function UIProvider({ children }) {
       refreshAll,
       refreshHpState,
       refreshServiceTypes,
+      refreshStatus,
       saveHpState,
       setMode,
       holdScan,

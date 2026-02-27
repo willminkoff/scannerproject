@@ -45,6 +45,10 @@ export function getServiceTypes() {
   return request("/api/hp/service-types");
 }
 
+export function getStatus() {
+  return request("/api/status");
+}
+
 export function setMode(mode) {
   return request("/api/mode", { method: "POST", body: { mode } });
 }
@@ -65,6 +69,7 @@ const hpApi = {
   getHpState,
   saveHpState,
   getServiceTypes,
+  getStatus,
   setMode,
   holdScan,
   nextScan,

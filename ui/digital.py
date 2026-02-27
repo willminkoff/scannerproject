@@ -3266,17 +3266,33 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
     def _map_event_label(self, event: dict) -> dict:
         if not event:
             return event
+        scan_mode = get_current_scan_mode()
         label = str(event.get("label") or "").strip()
         raw = str(event.get("raw") or "")
         tgid = str(event.get("tgid") or "").strip()
         tg_map = self._load_talkgroup_map()
-        if not tg_map:
-            return event
         if not tgid:
             if label:
                 tgid = _extract_tgid(label)
             if not tgid and raw:
                 tgid = _extract_tgid(raw)
+        if scan_mode in {"hp", "expert"}:
+            # HP/Expert pool mode should not be silently blocked by legacy
+            # profile listen filters; keep labels when possible but do not mute.
+            if not tgid:
+                return event
+            event = dict(event)
+            event["tgid"] = tgid
+            if tg_map:
+                mapped_label = tg_map.get(tgid)
+                if mapped_label:
+                    event["label"] = mapped_label
+            current = str(event.get("label") or "").strip()
+            if not current:
+                event["label"] = f"TG {tgid}"
+            return event
+        if not tg_map:
+            return event
         if not tgid:
             if not self._listen_default:
                 event = dict(event)
@@ -4448,21 +4464,6 @@ class DigitalManager:
         return True, "", snapshot
 
     def _discover_scheduler_systems(self, profile_id: str) -> list[str]:
-        if self._super_profile_mode:
-            if not self._super_profile_systems:
-                self._refresh_super_profile_systems(profile_id)
-            systems = list(self._super_profile_systems.keys())
-            if not self._scheduler_order:
-                return systems
-            rank = {
-                name.lower(): idx
-                for idx, name in enumerate(self._scheduler_order)
-            }
-            return sorted(
-                systems,
-                key=lambda name: (rank.get(name.lower(), len(rank)), name.lower()),
-            )
-
         scan_mode = get_current_scan_mode()
         if scan_mode in {"hp", "expert"}:
             pool_snapshot = get_active_scan_pool_snapshot(force_refresh=True)
@@ -4475,6 +4476,21 @@ class DigitalManager:
             }
             return sorted(
                 pool_systems,
+                key=lambda name: (rank.get(name.lower(), len(rank)), name.lower()),
+            )
+
+        if self._super_profile_mode:
+            if not self._super_profile_systems:
+                self._refresh_super_profile_systems(profile_id)
+            systems = list(self._super_profile_systems.keys())
+            if not self._scheduler_order:
+                return systems
+            rank = {
+                name.lower(): idx
+                for idx, name in enumerate(self._scheduler_order)
+            }
+            return sorted(
+                systems,
                 key=lambda name: (rank.get(name.lower(), len(rank)), name.lower()),
             )
 
@@ -4527,7 +4543,8 @@ class DigitalManager:
     def _scheduler_payload(self, event: dict, preflight: dict) -> dict:
         now_ms = int(time.time() * 1000)
         profile_id = str(self.getProfile() or "").strip()
-        if self._super_profile_mode:
+        scan_mode = get_current_scan_mode()
+        if self._super_profile_mode and scan_mode not in {"hp", "expert"}:
             self._ensure_super_profile_seed(profile_id)
         systems = self._discover_scheduler_systems(profile_id)
         pending_apply = False
@@ -4538,7 +4555,11 @@ class DigitalManager:
         configured_mode = self._scheduler_mode
         mode = configured_mode
         auto_enabled_multi = False
-        if configured_mode == "single_system" and len(systems) >= 2:
+        if (
+            configured_mode == "single_system"
+            and len(systems) >= 2
+            and scan_mode not in {"hp", "expert"}
+        ):
             mode = "timeslice_multi_system"
             auto_enabled_multi = True
             self._scheduler_mode = "timeslice_multi_system"

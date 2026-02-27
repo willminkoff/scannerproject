@@ -1879,13 +1879,127 @@ class Handler(BaseHTTPRequestHandler):
 
         if p in ("/api/hp/hold", "/api/hp/next", "/api/hp/avoid"):
             action = p.rsplit("/", 1)[-1]
-            response = {
+            controller = get_scan_mode_controller()
+            manager = get_digital_manager()
+            if not hasattr(manager, "getScheduler") or not hasattr(manager, "setScheduler"):
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "digital scheduler not supported"}),
+                    "application/json; charset=utf-8",
+                )
+
+            scheduler = dict(manager.getScheduler() or {})
+            systems = [
+                str(item).strip()
+                for item in (scheduler.get("digital_scheduler_systems") or [])
+                if str(item).strip()
+            ]
+            active = str(scheduler.get("digital_scheduler_active_system") or "").strip()
+
+            if action == "hold":
+                target = active if active in systems else (systems[0] if systems else "")
+                if not target:
+                    return self._send(
+                        409,
+                        json.dumps({"ok": False, "error": "no schedulable HP systems"}),
+                        "application/json; charset=utf-8",
+                    )
+                ok, err, snapshot = manager.setScheduler(
+                    {
+                        "mode": "single_system",
+                        "system_order": [target],
+                    }
+                )
+                if not ok:
+                    return self._send(
+                        500,
+                        json.dumps({"ok": False, "error": err or "hold failed"}),
+                        "application/json; charset=utf-8",
+                    )
+                payload = {
+                    "ok": True,
+                    "action": "hold",
+                    "runtime_changed": True,
+                    "active_system": target,
+                    "scheduler": snapshot,
+                }
+                return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+            if action == "next":
+                if not systems:
+                    return self._send(
+                        409,
+                        json.dumps({"ok": False, "error": "no schedulable HP systems"}),
+                        "application/json; charset=utf-8",
+                    )
+                if active in systems:
+                    idx = systems.index(active)
+                    target = systems[(idx + 1) % len(systems)]
+                else:
+                    target = systems[0]
+                ok, err, snapshot = manager.setScheduler(
+                    {
+                        "mode": "single_system",
+                        "system_order": [target],
+                    }
+                )
+                if not ok:
+                    return self._send(
+                        500,
+                        json.dumps({"ok": False, "error": err or "next failed"}),
+                        "application/json; charset=utf-8",
+                    )
+                payload = {
+                    "ok": True,
+                    "action": "next",
+                    "runtime_changed": True,
+                    "active_system": target,
+                    "scheduler": snapshot,
+                }
+                return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+            if not active:
+                return self._send(
+                    409,
+                    json.dumps({"ok": False, "error": "no active HP system to avoid"}),
+                    "application/json; charset=utf-8",
+                )
+            if not controller.add_hp_avoid_system(active):
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "invalid active HP system"}),
+                    "application/json; charset=utf-8",
+                )
+            order = [
+                str(item).strip()
+                for item in (
+                    scheduler.get("digital_system_order")
+                    or scheduler.get("digital_scheduler_systems")
+                    or []
+                )
+                if str(item).strip()
+            ]
+            ok, err, snapshot = manager.setScheduler(
+                {
+                    "mode": "timeslice_multi_system",
+                    "system_order": order,
+                }
+            )
+            if not ok:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": err or "avoid failed"}),
+                    "application/json; charset=utf-8",
+                )
+            payload = {
                 "ok": True,
-                "accepted": True,
-                "action": action,
-                "runtime_changed": False,
+                "action": "avoid",
+                "runtime_changed": True,
+                "avoided_system": active,
+                "avoids": controller.get_hp_avoids(),
+                "scheduler": snapshot,
             }
-            return self._send(200, json.dumps(response), "application/json; charset=utf-8")
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/profile-editor/analog/validate":
             profile_id = get_str("id").strip()
