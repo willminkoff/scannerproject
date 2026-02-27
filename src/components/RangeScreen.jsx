@@ -29,14 +29,14 @@ export default function RangeScreen() {
       <div className="card">
         <div className="row">
           <span>Range Miles</span>
-          <strong>{rangeMiles}</strong>
+          <strong>{rangeMiles.toFixed(1)}</strong>
         </div>
         <input
           className="range"
           type="range"
           min="0"
-          max="100"
-          step="1"
+          max="30"
+          step="0.5"
           value={rangeMiles}
           onChange={(e) => setRangeMiles(Number(e.target.value))}
         />

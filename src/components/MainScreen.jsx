@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { SCREENS, useUI } from "../context/UIContext";
 import Button from "./Shared/Button";
-import Header from "./Shared/Header";
 
 function formatValue(value) {
   if (value === null || value === undefined || value === "") {
@@ -10,8 +9,21 @@ function formatValue(value) {
   return String(value);
 }
 
+function signalBarText(level) {
+  const clamped = Math.max(0, Math.min(4, Number(level) || 0));
+  return `${"|".repeat(clamped)}${".".repeat(4 - clamped)}`;
+}
+
+function formatRangeMiles(value) {
+  const range = Number(value);
+  if (!Number.isFinite(range)) {
+    return "Range";
+  }
+  return Number.isInteger(range) ? `Range ${range}` : `Range ${range.toFixed(1)}`;
+}
+
 export default function MainScreen() {
-  const { state, holdScan, nextScan, navigate } = useUI();
+  const { state, holdScan, nextScan, avoidCurrent, navigate } = useUI();
   const { hpState, liveStatus, working, error, message } = state;
 
   const analogMount = String(liveStatus?.stream_mount || "ANALOG.mp3")
@@ -29,6 +41,9 @@ export default function MainScreen() {
         : "analog"
       : "analog";
   const [streamSource, setStreamSource] = useState(defaultSource);
+  const [submenuRow, setSubmenuRow] = useState("");
+  const [audioMuted, setAudioMuted] = useState(false);
+  const [hint, setHint] = useState("");
 
   useEffect(() => {
     if (streamSource === "digital" && !hasDigital) {
@@ -40,12 +55,18 @@ export default function MainScreen() {
     }
   }, [hasAnalog, hasDigital, streamSource]);
 
+  useEffect(() => {
+    if (!error && !message) {
+      return;
+    }
+    setHint("");
+  }, [error, message]);
+
   const selectedMount =
     streamSource === "digital"
       ? digitalMount || analogMount
       : analogMount || digitalMount;
   const isDigitalSource = streamSource === "digital" && hasDigital;
-  const sourceLabel = isDigitalSource ? "Digital" : "Analog";
   const system = isDigitalSource
     ? liveStatus?.digital_scheduler_active_system ||
       liveStatus?.digital_profile ||
@@ -87,107 +108,322 @@ export default function MainScreen() {
     : liveStatus?.rtl_active
     ? "Active"
     : "Idle";
-  const scannerControlDisabled = working || !isDigitalSource;
+  const channelLine = isDigitalSource
+    ? tgid !== "--"
+      ? `TGID ${tgid}`
+      : department
+    : department;
+  const channelMeta = isDigitalSource
+    ? `${formatValue(frequency)} MHz • ${signal}`
+    : `${formatValue(frequency)} • ${signal}`;
+  const signalBars = isDigitalSource
+    ? liveStatus?.digital_control_channel_locked
+      ? 4
+      : liveStatus?.digital_control_decode_available
+      ? 3
+      : 1
+    : liveStatus?.rtl_active
+    ? 3
+    : 1;
+  const holdLocked =
+    String(liveStatus?.digital_scan_mode || "").toLowerCase() === "single_system";
+  const scannerStatus = holdLocked ? "HOLD" : "SCAN";
 
-  const handleHold = async () => {
+  const doHold = async () => {
     try {
       await holdScan();
     } catch {
-      // Context tracks and surfaces errors.
+      // Context handles error display.
     }
   };
 
-  const handleNext = async () => {
+  const doNext = async () => {
     try {
       await nextScan();
     } catch {
-      // Context tracks and surfaces errors.
+      // Context handles error display.
     }
   };
 
+  const doAvoid = async () => {
+    try {
+      await avoidCurrent();
+    } catch {
+      // Context handles error display.
+    }
+  };
+
+  const onSubmenuAction = async (action, rowKey) => {
+    if (action === "info") {
+      if (rowKey === "system") {
+        setHint(`System: ${formatValue(system)}`);
+      } else if (rowKey === "department") {
+        setHint(`Department: ${formatValue(department)}`);
+      } else {
+        setHint(`Channel: ${formatValue(channelLine)} (${formatValue(channelMeta)})`);
+      }
+      setSubmenuRow("");
+      return;
+    }
+
+    if (action === "advanced") {
+      setHint("Advanced options are still being wired in HP3.");
+      setSubmenuRow("");
+      return;
+    }
+
+    if (action === "prev") {
+      setHint("Previous-channel stepping is not wired yet in HP3.");
+      setSubmenuRow("");
+      return;
+    }
+
+    if (action === "fave") {
+      setSubmenuRow("");
+      navigate(SCREENS.FAVORITES);
+      return;
+    }
+
+    if (!isDigitalSource) {
+      setHint("Switch Audio Source to Digital for HOLD/NEXT/AVOID controls.");
+      setSubmenuRow("");
+      return;
+    }
+
+    if (action === "hold") {
+      await doHold();
+    } else if (action === "next") {
+      await doNext();
+    } else if (action === "avoid") {
+      await doAvoid();
+    }
+    setSubmenuRow("");
+  };
+
+  const radioControls = useMemo(
+    () => [
+      {
+        id: "squelch",
+        label: "Squelch",
+        onClick: () => setHint("Squelch is currently managed from SB3 analog controls."),
+      },
+      {
+        id: "range",
+        label: formatRangeMiles(hpState.range_miles),
+        onClick: () => navigate(SCREENS.RANGE),
+      },
+      {
+        id: "atten",
+        label: "Atten",
+        onClick: () => setHint("Attenuation toggle is not wired yet in HP3."),
+      },
+      {
+        id: "gps",
+        label: "GPS",
+        onClick: () => navigate(SCREENS.LOCATION),
+      },
+      {
+        id: "help",
+        label: "Help",
+        onClick: () => navigate(SCREENS.MENU),
+      },
+    ],
+    [hpState.range_miles, navigate]
+  );
+
+  const submenuActions = {
+    system: [
+      { id: "info", label: "Info" },
+      { id: "advanced", label: "Advanced" },
+      { id: "prev", label: "Prev" },
+      { id: "next", label: "Next" },
+      { id: "avoid", label: "Avoid" },
+    ],
+    department: [
+      { id: "info", label: "Info" },
+      { id: "advanced", label: "Advanced" },
+      { id: "prev", label: "Prev" },
+      { id: "next", label: "Next" },
+      { id: "avoid", label: "Avoid" },
+    ],
+    channel: [
+      { id: "info", label: "Info" },
+      { id: "advanced", label: "Advanced" },
+      { id: "prev", label: "Prev" },
+      { id: "hold", label: "Hold" },
+      { id: "next", label: "Next" },
+      { id: "avoid", label: "Avoid" },
+      { id: "fave", label: "Fave" },
+    ],
+  };
+
   return (
-    <section className="screen main-screen">
-      <Header title="Home Patrol 3" subtitle={`Mode: ${state.mode.toUpperCase()}`} />
-
-      <div className="field-grid">
-        <div className="card">
-          <div className="muted">System</div>
-          <div>{formatValue(system)}</div>
+    <section className="screen main-screen hp2-main">
+      <div className="hp2-radio-bar">
+        <div className="hp2-radio-buttons">
+          {radioControls.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className="hp2-radio-btn"
+              onClick={item.onClick}
+              disabled={working}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
-        <div className="card">
-          <div className="muted">Department</div>
-          <div>{formatValue(department)}</div>
-        </div>
-        <div className="card">
-          <div className="muted">TGID</div>
-          <div>{formatValue(tgid)}</div>
-        </div>
-        <div className="card">
-          <div className="muted">Frequency</div>
-          <div>{formatValue(frequency)}</div>
-        </div>
-        <div className="card">
-          <div className="muted">Signal</div>
-          <div>{formatValue(signal)}</div>
+        <div className="hp2-status-icons">
+          <span className={`hp2-icon ${holdLocked ? "on" : ""}`}>{scannerStatus}</span>
+          <span className="hp2-icon">SIG {signalBarText(signalBars)}</span>
+          <span className="hp2-icon">{isDigitalSource ? "DIG" : "ANA"}</span>
         </div>
       </div>
 
-      <div className="button-row">
-        <Button onClick={handleHold} disabled={scannerControlDisabled}>
-          HOLD
-        </Button>
-        <Button onClick={handleNext} disabled={scannerControlDisabled}>
-          NEXT
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={() => navigate(SCREENS.MENU)}
-          disabled={working}
-        >
-          MENU
-        </Button>
+      <div className="hp2-lines">
+        <div className="hp2-line">
+          <div className="hp2-line-label">System / Favorite List</div>
+          <div className="hp2-line-body">
+            <div className="hp2-line-primary">{formatValue(system)}</div>
+            <div className="hp2-line-secondary">Mode: {state.mode.toUpperCase()}</div>
+          </div>
+          <button
+            type="button"
+            className="hp2-subtab"
+            onClick={() => setSubmenuRow((current) => (current === "system" ? "" : "system"))}
+            disabled={working}
+          >
+            {"<"}
+          </button>
+        </div>
+
+        <div className="hp2-line">
+          <div className="hp2-line-label">Department</div>
+          <div className="hp2-line-body">
+            <div className="hp2-line-primary">{formatValue(department)}</div>
+            <div className="hp2-line-secondary">Service: {formatValue(hpState.mode)}</div>
+          </div>
+          <button
+            type="button"
+            className="hp2-subtab"
+            onClick={() => setSubmenuRow((current) => (current === "department" ? "" : "department"))}
+            disabled={working}
+          >
+            {"<"}
+          </button>
+        </div>
+
+        <div className="hp2-line channel">
+          <div className="hp2-line-label">Channel</div>
+          <div className="hp2-line-body">
+            <div className="hp2-line-primary">{formatValue(channelLine)}</div>
+            <div className="hp2-line-secondary">{formatValue(channelMeta)}</div>
+          </div>
+          <button
+            type="button"
+            className="hp2-subtab"
+            onClick={() => setSubmenuRow((current) => (current === "channel" ? "" : "channel"))}
+            disabled={working}
+          >
+            {"<"}
+          </button>
+        </div>
       </div>
-      {!isDigitalSource ? (
-        <div className="muted" style={{ marginTop: "8px" }}>
-          HOLD/NEXT control digital scanning only. Switch source to Digital to control scan.
+
+      {submenuRow ? (
+        <div className="hp2-submenu-popup">
+          {submenuActions[submenuRow]?.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className="hp2-submenu-btn"
+              onClick={() => onSubmenuAction(item.id, submenuRow)}
+              disabled={working}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
       ) : null}
 
-      <div className="card" style={{ marginTop: "12px" }}>
-        <div className="row" style={{ marginBottom: "8px" }}>
-          <div className="muted">Audio Source</div>
+      <div className="hp2-feature-bar">
+        <button
+          type="button"
+          className="hp2-feature-btn"
+          onClick={() => navigate(SCREENS.MENU)}
+          disabled={working}
+        >
+          Menu
+        </button>
+        <button
+          type="button"
+          className="hp2-feature-btn"
+          onClick={() => setHint("Replay is not wired yet in HP3.")}
+          disabled={working}
+        >
+          Replay
+        </button>
+        <button
+          type="button"
+          className="hp2-feature-btn"
+          onClick={() => setHint("Recording controls are not wired yet in HP3.")}
+          disabled={working}
+        >
+          Record
+        </button>
+        <button
+          type="button"
+          className="hp2-feature-btn"
+          onClick={() => setAudioMuted((value) => !value)}
+          disabled={working}
+        >
+          {audioMuted ? "Unmute" : "Mute"}
+        </button>
+      </div>
+
+      <div className="hp2-web-audio">
+        <div className="hp2-audio-head">
+          <div className="muted">Web Audio Stream</div>
           {selectedMount ? (
             <a href={`/stream/${selectedMount}`} target="_blank" rel="noreferrer">
               Open
             </a>
           ) : null}
         </div>
-        <div className="button-row" style={{ marginTop: 0 }}>
+        <div className="hp2-source-switch">
           <Button
             variant={streamSource === "analog" ? "primary" : "secondary"}
             onClick={() => setStreamSource("analog")}
-            disabled={!hasAnalog}
+            disabled={!hasAnalog || working}
           >
             Analog
           </Button>
           <Button
             variant={streamSource === "digital" ? "primary" : "secondary"}
             onClick={() => setStreamSource("digital")}
-            disabled={!hasDigital}
+            disabled={!hasDigital || working}
           >
             Digital
           </Button>
         </div>
-        <div className="muted" style={{ marginTop: "8px", marginBottom: "8px" }}>
-          Monitoring {sourceLabel} ({selectedMount || "no mount"})
+        <div className="muted hp2-audio-meta">
+          Source: {isDigitalSource ? "Digital" : "Analog"} ({selectedMount || "no mount"})
         </div>
         <audio
           controls
           preload="none"
-          style={{ width: "100%" }}
+          muted={audioMuted}
+          className="hp2-audio-player"
           src={selectedMount ? `/stream/${selectedMount}` : "/stream/"}
         />
       </div>
+
+      {hint ? <div className="message">{hint}</div> : null}
+      {!isDigitalSource ? (
+        <div className="muted">
+          HOLD/NEXT/AVOID actions require Digital source.
+        </div>
+      ) : null}
 
       {error ? <div className="error">{error}</div> : null}
       {message ? <div className="message">{message}</div> : null}

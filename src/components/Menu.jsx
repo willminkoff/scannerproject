@@ -4,11 +4,11 @@ import Button from "./Shared/Button";
 import Header from "./Shared/Header";
 
 const menuItems = [
-  { id: SCREENS.LOCATION, label: "Location" },
-  { id: SCREENS.SERVICE_TYPES, label: "Service Types" },
-  { id: SCREENS.RANGE, label: "Range" },
-  { id: SCREENS.FAVORITES, label: "Favorites" },
-  { id: SCREENS.AVOID, label: "Avoid" },
+  { id: SCREENS.LOCATION, label: "Set Your Location" },
+  { id: SCREENS.SERVICE_TYPES, label: "Select Service Types" },
+  { id: SCREENS.RANGE, label: "Set Range" },
+  { id: SCREENS.FAVORITES, label: "Manage Favorites" },
+  { id: SCREENS.AVOID, label: "Avoid Options" },
   { id: SCREENS.MODE_SELECTION, label: "Mode Selection" },
 ];
 
