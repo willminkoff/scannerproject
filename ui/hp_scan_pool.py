@@ -239,11 +239,7 @@ class ScanPoolBuilder:
                 site_lon = self._parse_float(row["longitude"])
                 if site_lat is None or site_lon is None:
                     continue
-                site_radius = self._parse_float(row["radius"])
-                if site_radius is None:
-                    site_radius = 0.0
-                site_radius = max(0.0, float(site_radius))
-                threshold = site_radius + user_range
+                threshold = user_range
                 if abs(site_lat - center_lat) * lat_miles_per_degree > threshold:
                     continue
                 if abs(site_lon - center_lon) * lon_miles_per_degree > threshold:
@@ -417,8 +413,7 @@ class ScanPoolBuilder:
                     or group_lon is None
                 ):
                     continue
-                radius = max(0.0, float(group_radius or 0.0))
-                threshold = radius + user_range
+                threshold = user_range
                 if abs(group_lat - center_lat) * lat_miles_per_degree > threshold:
                     continue
                 if abs(group_lon - center_lon) * lon_miles_per_degree > threshold:
