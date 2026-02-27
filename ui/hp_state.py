@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -104,6 +105,69 @@ def _coerce_avoid_list(value) -> list[dict]:
     return out
 
 
+def _coerce_custom_favorites(value) -> list[dict]:
+    out: list[dict] = []
+    if not isinstance(value, list):
+        return out
+    for index, item in enumerate(value):
+        if not isinstance(item, dict):
+            continue
+        kind = str(item.get("kind") or "").strip().lower()
+        if kind not in {"trunked", "conventional"}:
+            continue
+        entry = {
+            "id": str(item.get("id") or f"fav-{index+1}").strip() or f"fav-{index+1}",
+            "kind": kind,
+            "system_name": str(item.get("system_name") or "").strip(),
+            "department_name": str(item.get("department_name") or "").strip(),
+            "alpha_tag": str(item.get("alpha_tag") or item.get("channel_name") or "").strip(),
+            "service_tag": 0,
+            "talkgroup": "",
+            "control_channels": [],
+            "frequency": 0.0,
+        }
+        try:
+            entry["service_tag"] = int(str(item.get("service_tag") or "0").strip())
+        except Exception:
+            entry["service_tag"] = 0
+
+        if kind == "trunked":
+            tg = str(item.get("talkgroup") or item.get("tgid") or "").strip()
+            if tg and tg.isdigit():
+                entry["talkgroup"] = tg
+            raw_controls = item.get("control_channels")
+            controls_in = raw_controls if isinstance(raw_controls, list) else []
+            controls: list[float] = []
+            seen: set[float] = set()
+            for raw in controls_in:
+                try:
+                    mhz = float(str(raw).strip())
+                except Exception:
+                    continue
+                if not math.isfinite(mhz) or mhz <= 0:
+                    continue
+                mhz = round(mhz, 6)
+                if mhz in seen:
+                    continue
+                seen.add(mhz)
+                controls.append(mhz)
+            entry["control_channels"] = controls
+            if not entry["system_name"] and not controls:
+                continue
+            if not entry["talkgroup"]:
+                continue
+        else:
+            try:
+                mhz = float(str(item.get("frequency") or "0").strip())
+            except Exception:
+                mhz = 0.0
+            if not math.isfinite(mhz) or mhz <= 0:
+                continue
+            entry["frequency"] = round(mhz, 6)
+        out.append(entry)
+    return out
+
+
 @dataclass
 class HPState:
     mode: str = "full_database"
@@ -114,6 +178,8 @@ class HPState:
     nationwide_systems: bool = False
     enabled_service_tags: list[int] = field(default_factory=list)
     favorites: list[dict] = field(default_factory=list)
+    favorites_name: str = "My Favorites"
+    custom_favorites: list[dict] = field(default_factory=list)
     avoid_list: list[dict] = field(default_factory=list)
 
     @classmethod
@@ -131,6 +197,8 @@ class HPState:
             nationwide_systems=False,
             enabled_service_tags=defaults,
             favorites=[],
+            favorites_name="My Favorites",
+            custom_favorites=[],
             avoid_list=[],
         )
 
@@ -144,6 +212,8 @@ class HPState:
             "nationwide_systems": bool(self.nationwide_systems),
             "enabled_service_tags": [int(tag) for tag in (self.enabled_service_tags or [])],
             "favorites": _coerce_favorites(self.favorites),
+            "favorites_name": str(self.favorites_name or "My Favorites").strip() or "My Favorites",
+            "custom_favorites": _coerce_custom_favorites(self.custom_favorites),
             "avoid_list": _coerce_avoid_list(self.avoid_list),
         }
 
@@ -193,5 +263,8 @@ class HPState:
             ),
             enabled_service_tags=service_tags,
             favorites=_coerce_favorites(payload.get("favorites")),
+            favorites_name=str(payload.get("favorites_name") or default_state.favorites_name).strip()
+            or default_state.favorites_name,
+            custom_favorites=_coerce_custom_favorites(payload.get("custom_favorites")),
             avoid_list=_coerce_avoid_list(payload.get("avoid_list")),
         )

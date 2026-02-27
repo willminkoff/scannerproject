@@ -1,6 +1,7 @@
 """Scan mode controller for HP and Expert pool modes."""
 from __future__ import annotations
 
+import math
 import threading
 from pathlib import Path
 from typing import Any
@@ -72,6 +73,132 @@ class ScanModeController:
             out.add(cls._normalize_system_token(f"site:{site_id}"))
         return {token for token in out if token}
 
+    @staticmethod
+    def _parse_int(value) -> int | None:
+        try:
+            return int(str(value).strip())
+        except Exception:
+            return None
+
+    @staticmethod
+    def _parse_float(value) -> float | None:
+        try:
+            parsed = float(str(value).strip())
+        except Exception:
+            return None
+        if not math.isfinite(parsed):
+            return None
+        return parsed
+
+    @classmethod
+    def _normalize_control_channels(cls, value) -> list[float]:
+        raw = value if isinstance(value, list) else [value]
+        seen: set[float] = set()
+        out: list[float] = []
+        for item in raw:
+            parsed = cls._parse_float(item)
+            if parsed is None or parsed <= 0:
+                continue
+            mhz = round(parsed, 6)
+            if mhz in seen:
+                continue
+            seen.add(mhz)
+            out.append(mhz)
+        out.sort()
+        return out
+
+    @classmethod
+    def _build_custom_favorites_pool(cls, entries: list[dict]) -> dict[str, list]:
+        raw_entries = entries if isinstance(entries, list) else []
+        trunk_rows: dict[tuple[str, str, tuple[float, ...]], dict[str, Any]] = {}
+        conventional_set: set[tuple[float, str, int]] = set()
+
+        for item in raw_entries:
+            row = item if isinstance(item, dict) else {}
+            kind = str(row.get("kind") or "").strip().lower()
+            if kind == "trunked":
+                controls = cls._normalize_control_channels(row.get("control_channels"))
+                tgid = cls._parse_int(row.get("talkgroup") or row.get("tgid"))
+                if not controls or tgid is None or tgid <= 0:
+                    continue
+                system_name = str(row.get("system_name") or "").strip() or "Custom Trunked"
+                department_name = str(row.get("department_name") or "").strip()
+                alpha_tag = str(row.get("alpha_tag") or row.get("channel_name") or "").strip()
+                key = (system_name.lower(), department_name.lower(), tuple(controls))
+                bucket = trunk_rows.get(key)
+                if bucket is None:
+                    bucket = {
+                        "system_name": system_name,
+                        "site_name": department_name or system_name,
+                        "department_name": department_name or system_name,
+                        "control_channels": controls,
+                        "talkgroups": set(),
+                        "talkgroup_labels": {},
+                        "talkgroup_groups": {},
+                    }
+                    trunk_rows[key] = bucket
+                bucket["talkgroups"].add(int(tgid))
+                if alpha_tag:
+                    bucket["talkgroup_labels"][str(int(tgid))] = alpha_tag
+                if department_name:
+                    bucket["talkgroup_groups"][str(int(tgid))] = department_name
+                continue
+
+            if kind == "conventional":
+                frequency = cls._parse_float(row.get("frequency"))
+                if frequency is None or frequency <= 0:
+                    continue
+                alpha_tag = str(row.get("alpha_tag") or row.get("channel_name") or "").strip()
+                service_tag = cls._parse_int(row.get("service_tag"))
+                conventional_set.add((round(frequency, 6), alpha_tag, int(service_tag or 0)))
+
+        ordered_trunk_keys = sorted(trunk_rows.keys())
+        system_id_by_name: dict[str, int] = {}
+        next_site_id = 1
+        trunked_sites: list[dict] = []
+        for key in ordered_trunk_keys:
+            data = trunk_rows[key]
+            system_name = str(data.get("system_name") or "").strip() or "Custom Trunked"
+            system_token = system_name.lower()
+            if system_token not in system_id_by_name:
+                system_id_by_name[system_token] = len(system_id_by_name) + 1
+            system_id = system_id_by_name[system_token]
+            talkgroups = sorted(int(value) for value in (data.get("talkgroups") or set()) if int(value) > 0)
+            if not talkgroups:
+                continue
+            talkgroup_labels = data.get("talkgroup_labels") if isinstance(data.get("talkgroup_labels"), dict) else {}
+            talkgroup_groups = data.get("talkgroup_groups") if isinstance(data.get("talkgroup_groups"), dict) else {}
+            trunked_sites.append(
+                {
+                    "system_id": int(system_id),
+                    "site_id": int(next_site_id),
+                    "system_name": system_name,
+                    "site_name": str(data.get("site_name") or "").strip() or system_name,
+                    "department_name": str(data.get("department_name") or "").strip() or system_name,
+                    "control_channels": list(data.get("control_channels") or []),
+                    "talkgroups": talkgroups,
+                    "talkgroup_labels": {str(k): str(v) for k, v in talkgroup_labels.items() if str(v).strip()},
+                    "talkgroup_groups": {str(k): str(v) for k, v in talkgroup_groups.items() if str(v).strip()},
+                }
+            )
+            next_site_id += 1
+
+        conventional = [
+            {
+                "frequency": frequency,
+                "alpha_tag": alpha_tag,
+                "service_tag": service_tag,
+            }
+            for frequency, alpha_tag, service_tag in sorted(
+                conventional_set,
+                key=lambda item: (item[0], item[2], item[1].lower()),
+            )
+        ]
+        return {
+            "trunked_sites": trunked_sites,
+            "conventional": conventional,
+        }
+
     def add_hp_avoid_system(self, system_token: str) -> bool:
         token = self._normalize_system_token(system_token)
         if not token:
@@ -119,29 +246,33 @@ class ScanModeController:
             return _empty_pool()
 
         state = HPState.load()
-        if str(state.mode).strip().lower() != "full_database":
-            return _empty_pool()
-        if not bool(state.use_location):
-            return _empty_pool()
+        state_mode = str(state.mode).strip().lower()
+        if state_mode == "favorites":
+            pool = self._build_custom_favorites_pool(list(getattr(state, "custom_favorites", []) or []))
+        elif state_mode == "full_database":
+            if not bool(state.use_location):
+                return _empty_pool()
 
-        service_tags = [int(v) for v in (state.enabled_service_tags or []) if str(v).strip()]
-        if not service_tags:
-            try:
-                from .service_types import get_default_enabled_service_types
+            service_tags = [int(v) for v in (state.enabled_service_tags or []) if str(v).strip()]
+            if not service_tags:
+                try:
+                    from .service_types import get_default_enabled_service_types
 
-                service_tags = list(get_default_enabled_service_types(db_path=self._db_path))
-            except Exception:
-                service_tags = []
-        if not service_tags:
+                    service_tags = list(get_default_enabled_service_types(db_path=self._db_path))
+                except Exception:
+                    service_tags = []
+            if not service_tags:
+                return _empty_pool()
+
+            pool = self._hp_builder.build_full_database_pool(
+                lat=float(state.lat),
+                lon=float(state.lon),
+                range_miles=float(state.range_miles),
+                service_tags=service_tags,
+                include_nationwide=bool(getattr(state, "nationwide_systems", False)),
+            )
+        else:
             return _empty_pool()
-
-        pool = self._hp_builder.build_full_database_pool(
-            lat=float(state.lat),
-            lon=float(state.lon),
-            range_miles=float(state.range_miles),
-            service_tags=service_tags,
-            include_nationwide=bool(getattr(state, "nationwide_systems", False)),
-        )
         with self._lock:
             avoids = set(self._hp_avoided_systems)
         if not avoids:

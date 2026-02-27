@@ -39,29 +39,39 @@ function resolveProfileLabel(status, target) {
   return label || id;
 }
 
-function splitAnalogDisplay(hitLabel, profileLabel) {
-  const profile = String(profileLabel || "").trim();
+function parseAnalogHierarchy(hitLabel, fallbackSystem) {
+  const fallback = String(fallbackSystem || "").trim();
   const hit = String(hitLabel || "").trim();
-  if (!hit && !profile) {
-    return { department: "--", channel: "--" };
+  if (!hit && !fallback) {
+    return { system: "--", department: "--", channel: "--" };
   }
   const separators = [" | ", " - ", " / ", " — ", " – ", "::"];
   for (const sep of separators) {
     if (!hit.includes(sep)) {
       continue;
     }
-    const [left, ...rest] = hit.split(sep);
-    const department = String(left || "").trim();
-    const channel = String(rest.join(sep) || "").trim();
-    if (department && channel) {
-      return { department, channel };
+    const parts = hit
+      .split(sep)
+      .map((part) => String(part || "").trim())
+      .filter(Boolean);
+    if (parts.length >= 3) {
+      return {
+        system: parts[0],
+        department: parts[1],
+        channel: parts.slice(2).join(" / "),
+      };
+    }
+    if (parts.length === 2) {
+      return {
+        system: fallback || parts[0],
+        department: parts[0],
+        channel: parts[1],
+      };
     }
   }
-  if (profile && hit && profile.toLowerCase() !== hit.toLowerCase()) {
-    return { department: profile, channel: hit };
-  }
   return {
-    department: hit || profile || "--",
+    system: fallback || hit || "--",
+    department: hit || fallback || "--",
     channel: hit || "--",
   };
 }
@@ -114,49 +124,29 @@ export default function MainScreen() {
   const hpScanMode = String(hpState.mode || "full_database")
     .trim()
     .toLowerCase();
-  const analogFavoriteLabel = useMemo(() => {
-    const favorites = Array.isArray(hpState.favorites) ? hpState.favorites : [];
-    const enabled = favorites.filter((entry) => {
-      if (!entry || !entry.enabled) {
-        return false;
-      }
-      return String(entry.type || "").trim().toLowerCase() === "analog";
-    });
-    if (enabled.length === 0) {
-      return "";
-    }
-    const airband = enabled.find(
-      (entry) => String(entry.target || "").trim().toLowerCase() === "airband"
-    );
-    const selected = airband || enabled[0];
-    return String(selected?.label || "").trim();
-  }, [hpState.favorites]);
   const analogProfileId = String(liveStatus?.profile_airband || "").trim();
   const analogProfileLabel = resolveProfileLabel(liveStatus, "airband");
-  const analogProfileDisplay =
-    analogProfileLabel || analogFavoriteLabel || analogProfileId || "Airband";
+  const analogProfileDisplay = analogProfileLabel || analogProfileId || "Analog";
   const analogLastLabel =
     liveStatus?.last_hit_airband_label ||
     liveStatus?.last_hit_ground_label ||
     liveStatus?.last_hit ||
     "";
-  const analogDisplay = splitAnalogDisplay(analogLastLabel, analogProfileDisplay);
+  const analogHierarchy = parseAnalogHierarchy(analogLastLabel, analogProfileDisplay);
   const system = isDigitalSource
     ? liveStatus?.digital_scheduler_active_system_label ||
       liveStatus?.digital_system_label ||
       liveStatus?.digital_scheduler_active_system ||
-      liveStatus?.digital_profile ||
       hpState.system_name ||
       hpState.system
-    : analogProfileDisplay;
+    : analogHierarchy.system;
   const department = isDigitalSource
     ? liveStatus?.digital_department_label ||
       liveStatus?.digital_scheduler_active_department_label ||
       hpState.department_name ||
       hpState.department ||
-      liveStatus?.digital_profile ||
       liveStatus?.digital_last_label
-    : analogDisplay.department || hpState.department_name || hpState.department;
+    : analogHierarchy.department || hpState.department_name || hpState.department;
   const tgid = isDigitalSource
     ? liveStatus?.digital_last_tgid ?? hpState.tgid ?? hpState.talkgroup_id
     : "--";
@@ -195,13 +185,13 @@ export default function MainScreen() {
       hpState.channel_name ||
       hpState.channel ||
       department
-    : analogDisplay.channel || department;
+    : analogHierarchy.channel || department;
   const channelService = isDigitalSource
     ? liveStatus?.digital_last_mode || hpState.service_type || hpState.service || ""
     : "";
   const channelLine = isDigitalSource
     ? channelLabel
-    : analogDisplay.channel || channelLabel;
+    : analogHierarchy.channel || channelLabel;
   const channelMeta = isDigitalSource
     ? [
         formatValue(channelService || "Digital"),
@@ -228,25 +218,22 @@ export default function MainScreen() {
     if (hpScanMode !== "favorites") {
       return "Full Database";
     }
-    const favorites = Array.isArray(hpState.favorites) ? hpState.favorites : [];
-    if (favorites.length === 0) {
-      return "Favorites";
+    const listName = String(hpState.favorites_name || "").trim() || "My Favorites";
+    const customFavorites = Array.isArray(hpState.custom_favorites)
+      ? hpState.custom_favorites
+      : [];
+    if (customFavorites.length === 0) {
+      return `${listName} (empty)`;
     }
-    const enabled = favorites.filter((entry) => Boolean(entry?.enabled));
-    if (enabled.length === 0) {
-      return "Favorites";
-    }
-    const bySource = enabled.find((entry) => {
-      const entryType = String(entry?.type || "").trim().toLowerCase();
-      if (isDigitalSource) {
-        return entryType === "digital";
-      }
-      return entryType === "analog";
-    });
-    const selected = bySource || enabled[0];
-    const label = String(selected?.label || "").trim();
-    return label || "Favorites";
-  }, [hpScanMode, hpState.favorites, isDigitalSource]);
+    return listName;
+  }, [hpScanMode, hpState.custom_favorites, hpState.favorites_name]);
+  const departmentSecondary = isDigitalSource
+    ? channelService
+      ? `Service: ${formatValue(channelService)}`
+      : "Service: Digital"
+    : hpScanMode === "favorites"
+    ? `List: ${favoriteDescriptor}`
+    : "Full Database";
 
   const doHold = async () => {
     try {
@@ -420,11 +407,7 @@ export default function MainScreen() {
           <div className="hp2-line-label">Department</div>
           <div className="hp2-line-body">
             <div className="hp2-line-primary">{formatValue(department)}</div>
-            <div className="hp2-line-secondary">
-              {isDigitalSource
-                ? `Profile: ${formatValue(liveStatus?.digital_profile)}`
-                : `Profile: ${formatValue(analogProfileDisplay)}`}
-            </div>
+            <div className="hp2-line-secondary">{departmentSecondary}</div>
           </div>
           <button
             type="button"

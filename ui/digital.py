@@ -3465,6 +3465,7 @@ class DigitalManager:
         self._scheduler_systems: list[str] = []
         self._scheduler_pool_system_channels: dict[str, list[int]] = {}
         self._scheduler_pool_system_channels_lower: dict[str, str] = {}
+        self._scheduler_pool_system_talkgroups: dict[str, set[str]] = {}
         self._scheduler_pool_system_labels: dict[str, str] = {}
         self._scheduler_pool_department_labels: dict[str, str] = {}
         self._scheduler_pool_talkgroup_labels: dict[str, dict[str, str]] = {}
@@ -3615,7 +3616,12 @@ class DigitalManager:
         self._super_profile_systems = loaded
 
     def getLastEvent(self):
-        return self._adapter.getLastEvent()
+        event = self._adapter.getLastEvent()
+        if not isinstance(event, dict):
+            return event
+        if not self._event_allowed_for_active_system(event):
+            return {}
+        return event
 
     def getLastError(self):
         return self._adapter.getLastError()
@@ -3623,7 +3629,10 @@ class DigitalManager:
     def getLastWarning(self):
         return self._adapter.getLastWarning()
     def getRecentEvents(self, limit: int = 20):
-        return self._adapter.getRecentEvents(limit)
+        events = self._adapter.getRecentEvents(limit)
+        if not isinstance(events, list):
+            return []
+        return [event for event in events if self._event_allowed_for_active_system(event)]
     def preflight(self):
         if hasattr(self._adapter, "preflight"):
             try:
@@ -3982,6 +3991,7 @@ class DigitalManager:
         seen: set[str] = set()
         self._scheduler_pool_system_channels = {}
         self._scheduler_pool_system_channels_lower = {}
+        self._scheduler_pool_system_talkgroups = {}
         self._scheduler_pool_system_labels = {}
         self._scheduler_pool_department_labels = {}
         self._scheduler_pool_talkgroup_labels = {}
@@ -4003,6 +4013,13 @@ class DigitalManager:
             channels = self._parse_system_control_channels(row.get("control_channels"))
             if not channels:
                 continue
+            talkgroups_raw = row.get("talkgroups")
+            talkgroups: set[str] = set()
+            if isinstance(talkgroups_raw, list):
+                for value in talkgroups_raw:
+                    token = str(value or "").strip()
+                    if token.isdigit():
+                        talkgroups.add(token)
 
             if system_id and site_id:
                 name = f"{system_id}:{site_id}"
@@ -4020,6 +4037,7 @@ class DigitalManager:
             systems.append(name)
             self._scheduler_pool_system_channels[name] = list(channels)
             self._scheduler_pool_system_channels_lower[key] = name
+            self._scheduler_pool_system_talkgroups[name] = talkgroups
             system_label = system_name or site_name or name
             department_label = department_name or site_name or system_name or name
             self._scheduler_pool_system_labels[name] = system_label
@@ -4528,6 +4546,7 @@ class DigitalManager:
 
         self._scheduler_pool_system_channels = {}
         self._scheduler_pool_system_channels_lower = {}
+        self._scheduler_pool_system_talkgroups = {}
         self._scheduler_pool_system_labels = {}
         self._scheduler_pool_department_labels = {}
         self._scheduler_pool_talkgroup_labels = {}
@@ -4566,6 +4585,39 @@ class DigitalManager:
             key=lambda name: (rank.get(name.lower(), len(rank)), name.lower()),
         )
         return ordered
+
+    @staticmethod
+    def _event_tgid(event: dict) -> str:
+        token = str(event.get("tgid") or "").strip()
+        if token:
+            return token
+        label = str(event.get("label") or "").strip()
+        if label:
+            token = _extract_tgid(label)
+            if token:
+                return token
+        raw = str(event.get("raw") or "").strip()
+        if raw:
+            token = _extract_tgid(raw)
+            if token:
+                return token
+        return ""
+
+    def _event_allowed_for_active_system(self, event: dict) -> bool:
+        scan_mode = get_current_scan_mode()
+        if scan_mode not in {"hp", "expert"}:
+            return True
+        with self._scheduler_lock:
+            active_system = str(self._scheduler_active_system or "").strip()
+            allowed_talkgroups = set(self._scheduler_pool_system_talkgroups.get(active_system) or set())
+        if not active_system:
+            return True
+        if not allowed_talkgroups:
+            return True
+        tgid = self._event_tgid(event if isinstance(event, dict) else {})
+        if not tgid:
+            return False
+        return tgid in allowed_talkgroups
 
     @staticmethod
     def _next_system(systems: list[str], current: str) -> str:
