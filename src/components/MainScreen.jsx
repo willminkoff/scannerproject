@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { SCREENS, useUI } from "../context/UIContext";
 import Button from "./Shared/Button";
 import Header from "./Shared/Header";
@@ -20,50 +20,74 @@ export default function MainScreen() {
   const digitalMount = String(liveStatus?.digital_stream_mount || "DIGITAL.mp3")
     .trim()
     .replace(/^\//, "");
-  const defaultMount = state.mode === "hp" ? digitalMount || analogMount : analogMount;
-  const streamOptions = useMemo(() => {
-    const out = [];
-    if (analogMount) {
-      out.push({ id: analogMount, label: `Analog (${analogMount})` });
-    }
-    if (digitalMount && digitalMount !== analogMount) {
-      out.push({ id: digitalMount, label: `Digital (${digitalMount})` });
-    }
-    return out;
-  }, [analogMount, digitalMount]);
-  const [selectedMount, setSelectedMount] = useState(defaultMount);
+  const hasAnalog = Boolean(analogMount);
+  const hasDigital = Boolean(digitalMount);
+  const defaultSource =
+    state.mode === "hp" || state.mode === "expert"
+      ? hasDigital
+        ? "digital"
+        : "analog"
+      : "analog";
+  const [streamSource, setStreamSource] = useState(defaultSource);
 
   useEffect(() => {
-    const valid = streamOptions.some((item) => item.id === selectedMount);
-    if (!valid) {
-      setSelectedMount(defaultMount || streamOptions[0]?.id || "");
+    if (streamSource === "digital" && !hasDigital) {
+      setStreamSource(hasAnalog ? "analog" : "digital");
+      return;
     }
-  }, [defaultMount, selectedMount, streamOptions]);
+    if (streamSource === "analog" && !hasAnalog && hasDigital) {
+      setStreamSource("digital");
+    }
+  }, [hasAnalog, hasDigital, streamSource]);
 
-  const system =
-    liveStatus?.digital_scheduler_active_system ||
-    liveStatus?.digital_profile ||
-    hpState.system_name ||
-    hpState.system;
-  const department =
-    liveStatus?.digital_last_label || hpState.department_name || hpState.department;
-  const tgid = liveStatus?.digital_last_tgid ?? hpState.tgid ?? hpState.talkgroup_id;
-  const frequency = (() => {
-    const firstHz = Number(
-      liveStatus?.digital_preflight?.playlist_frequency_hz?.[0] ||
-        liveStatus?.digital_playlist_frequency_hz?.[0] ||
-        0
-    );
-    if (Number.isFinite(firstHz) && firstHz > 0) {
-      return (firstHz / 1_000_000).toFixed(4);
-    }
-    return hpState.frequency ?? hpState.freq;
-  })();
-  const signal = liveStatus?.digital_control_channel_locked
-    ? "Locked"
-    : liveStatus?.digital_control_decode_available
-    ? "Decoding"
-    : hpState.signal ?? hpState.signal_strength;
+  const selectedMount =
+    streamSource === "digital"
+      ? digitalMount || analogMount
+      : analogMount || digitalMount;
+  const isDigitalSource = streamSource === "digital" && hasDigital;
+  const sourceLabel = isDigitalSource ? "Digital" : "Analog";
+  const system = isDigitalSource
+    ? liveStatus?.digital_scheduler_active_system ||
+      liveStatus?.digital_profile ||
+      hpState.system_name ||
+      hpState.system
+    : liveStatus?.profile_airband || "Airband";
+  const department = isDigitalSource
+    ? liveStatus?.digital_last_label || hpState.department_name || hpState.department
+    : liveStatus?.last_hit_airband_label ||
+      liveStatus?.last_hit_ground_label ||
+      liveStatus?.last_hit ||
+      hpState.department_name ||
+      hpState.department;
+  const tgid = isDigitalSource
+    ? liveStatus?.digital_last_tgid ?? hpState.tgid ?? hpState.talkgroup_id
+    : "--";
+  const frequency = isDigitalSource
+    ? (() => {
+        const firstHz = Number(
+          liveStatus?.digital_preflight?.playlist_frequency_hz?.[0] ||
+            liveStatus?.digital_playlist_frequency_hz?.[0] ||
+            0
+        );
+        if (Number.isFinite(firstHz) && firstHz > 0) {
+          return (firstHz / 1_000_000).toFixed(4);
+        }
+        return hpState.frequency ?? hpState.freq;
+      })()
+    : liveStatus?.last_hit_airband ||
+      liveStatus?.last_hit_ground ||
+      liveStatus?.last_hit ||
+      "--";
+  const signal = isDigitalSource
+    ? liveStatus?.digital_control_channel_locked
+      ? "Locked"
+      : liveStatus?.digital_control_decode_available
+      ? "Decoding"
+      : hpState.signal ?? hpState.signal_strength
+    : liveStatus?.rtl_active
+    ? "Active"
+    : "Idle";
+  const scannerControlDisabled = working || !isDigitalSource;
 
   const handleHold = async () => {
     try {
@@ -109,10 +133,10 @@ export default function MainScreen() {
       </div>
 
       <div className="button-row">
-        <Button onClick={handleHold} disabled={working}>
+        <Button onClick={handleHold} disabled={scannerControlDisabled}>
           HOLD
         </Button>
-        <Button onClick={handleNext} disabled={working}>
+        <Button onClick={handleNext} disabled={scannerControlDisabled}>
           NEXT
         </Button>
         <Button
@@ -123,29 +147,39 @@ export default function MainScreen() {
           MENU
         </Button>
       </div>
+      {!isDigitalSource ? (
+        <div className="muted" style={{ marginTop: "8px" }}>
+          HOLD/NEXT control digital scanning only. Switch source to Digital to control scan.
+        </div>
+      ) : null}
 
       <div className="card" style={{ marginTop: "12px" }}>
         <div className="row" style={{ marginBottom: "8px" }}>
-          <div className="muted">Live Stream</div>
+          <div className="muted">Audio Source</div>
           {selectedMount ? (
             <a href={`/stream/${selectedMount}`} target="_blank" rel="noreferrer">
               Open
             </a>
           ) : null}
         </div>
-        <div className="row" style={{ marginBottom: "8px" }}>
-          <select
-            className="input"
-            value={selectedMount}
-            onChange={(e) => setSelectedMount(e.target.value)}
-            style={{ maxWidth: "260px" }}
+        <div className="button-row" style={{ marginTop: 0 }}>
+          <Button
+            variant={streamSource === "analog" ? "primary" : "secondary"}
+            onClick={() => setStreamSource("analog")}
+            disabled={!hasAnalog}
           >
-            {streamOptions.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.label}
-              </option>
-            ))}
-          </select>
+            Analog
+          </Button>
+          <Button
+            variant={streamSource === "digital" ? "primary" : "secondary"}
+            onClick={() => setStreamSource("digital")}
+            disabled={!hasDigital}
+          >
+            Digital
+          </Button>
+        </div>
+        <div className="muted" style={{ marginTop: "8px", marginBottom: "8px" }}>
+          Monitoring {sourceLabel} ({selectedMount || "no mount"})
         </div>
         <audio
           controls
