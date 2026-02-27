@@ -38,7 +38,7 @@ export default function MainScreen() {
 
   return (
     <section className="screen main-screen">
-      <Header title="HomePatrol-2" subtitle={`Mode: ${state.mode.toUpperCase()}`} />
+      <Header title="Home Patrol 3" subtitle={`Mode: ${state.mode.toUpperCase()}`} />
 
       <div className="field-grid">
         <div className="card">

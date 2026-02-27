@@ -1036,8 +1036,11 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/":
             return self._send_redirect("/sb3")
 
+        if p in ("/hp3", "/hp3/", "/hp3.html"):
+            return self._send_redirect("/static/hp3-react.html")
+
         if p in ("/hp", "/hp/", "/hp.html"):
-            return self._send_redirect("/static/hp-react.html")
+            return self._send_redirect("/hp3")
         
         # Serve SB3 UI
         if p == "/sb3" or p == "/sb3.html":
