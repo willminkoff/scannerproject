@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useReducer,
 } from "react";
 import * as hpApi from "../api/hpApi";
@@ -167,6 +168,7 @@ function parseHpStateResponse(payload) {
 
 export function UIProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const statusInFlightRef = useRef(false);
 
   const navigate = useCallback((screen) => {
     dispatch({ type: "NAVIGATE", payload: screen });
@@ -195,9 +197,17 @@ export function UIProvider({ children }) {
   }, []);
 
   const refreshStatus = useCallback(async () => {
-    const payload = await hpApi.getStatus();
-    dispatch({ type: "SET_LIVE_STATUS", payload: payload || {} });
-    return payload;
+    if (statusInFlightRef.current) {
+      return null;
+    }
+    statusInFlightRef.current = true;
+    try {
+      const payload = await hpApi.getStatus();
+      dispatch({ type: "SET_LIVE_STATUS", payload: payload || {} });
+      return payload;
+    } finally {
+      statusInFlightRef.current = false;
+    }
   }, []);
 
   const refreshAll = useCallback(async () => {
@@ -208,12 +218,6 @@ export function UIProvider({ children }) {
         hpApi.getServiceTypes(),
         hpApi.getHpAvoids(),
       ]);
-      let statusPayload = {};
-      try {
-        statusPayload = await hpApi.getStatus();
-      } catch {
-        statusPayload = {};
-      }
 
       const hp = parseHpStateResponse(hpPayload);
       const serviceTypes = normalizeServiceTypes(svcPayload);
@@ -225,7 +229,7 @@ export function UIProvider({ children }) {
           hpState: hp.hpState,
           mode: hp.mode,
           serviceTypes,
-          liveStatus: statusPayload,
+          liveStatus: {},
           hpAvoids,
         },
       });
@@ -241,7 +245,7 @@ export function UIProvider({ children }) {
   useEffect(() => {
     const timer = setInterval(() => {
       refreshStatus().catch(() => {});
-    }, state.sseConnected ? 10000 : 2500);
+    }, state.sseConnected ? 10000 : 5000);
     return () => clearInterval(timer);
   }, [refreshStatus, state.sseConnected]);
 
