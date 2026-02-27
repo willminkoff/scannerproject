@@ -45,6 +45,21 @@ export function getServiceTypes() {
   return request("/api/hp/service-types");
 }
 
+export function getHpAvoids() {
+  return request("/api/hp/avoids");
+}
+
+export function clearHpAvoids() {
+  return request("/api/hp/avoids", { method: "POST", body: { action: "clear" } });
+}
+
+export function removeHpAvoid(system) {
+  return request("/api/hp/avoids", {
+    method: "POST",
+    body: { action: "remove", system },
+  });
+}
+
 export function getStatus() {
   return request("/api/status");
 }
@@ -69,6 +84,9 @@ const hpApi = {
   getHpState,
   saveHpState,
   getServiceTypes,
+  getHpAvoids,
+  clearHpAvoids,
+  removeHpAvoid,
   getStatus,
   setMode,
   holdScan,

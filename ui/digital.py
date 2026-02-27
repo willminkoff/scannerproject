@@ -4693,6 +4693,7 @@ class DigitalManager:
         event = self.getLastEvent() or {}
         label = str(event.get("label") or "")
         mode = event.get("mode")
+        tgid = str(event.get("tgid") or "").strip()
         time_ms = int(event.get("timeMs") or 0)
         payload = {
             "digital_active": bool(self.isActive()),
@@ -4704,6 +4705,8 @@ class DigitalManager:
         }
         if mode:
             payload["digital_last_mode"] = str(mode)
+        if tgid:
+            payload["digital_last_tgid"] = tgid
         err = self.getLastError()
         if err:
             payload["digital_last_error"] = err

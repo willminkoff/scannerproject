@@ -1192,6 +1192,21 @@ class Handler(BaseHTTPRequestHandler):
                 )
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
+        if p == "/api/hp/avoids":
+            try:
+                controller = get_scan_mode_controller()
+                payload = {
+                    "ok": True,
+                    "avoids": controller.get_hp_avoids(),
+                }
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
         if p == "/api/status":
             now_monotonic = time.monotonic()
             with _CACHE_LOCK:
@@ -1381,6 +1396,7 @@ class Handler(BaseHTTPRequestHandler):
                 "last_hit_ground_label": _short_label(last_hit_ground_label, max_len=48),
                 "avoids_airband": summarize_avoids(conf_path, "airband"),
                 "avoids_ground": summarize_avoids(os.path.realpath(GROUND_CONFIG_PATH), "ground"),
+                "hp_avoids": get_scan_mode_controller().get_hp_avoids(),
             }
             digital_payload = {
                 "digital_active": False,
@@ -1643,11 +1659,45 @@ class Handler(BaseHTTPRequestHandler):
                 rtl_active = rtl_unit_active
                 ground_active = rtl_active and ground_present
                 ice_ok = _unit_active_cached(UNITS["icecast"])
+                analog_stream_mount = str(PLAYER_MOUNT or "").strip().lstrip("/")
+                if ice_ok:
+                    try:
+                        analog_stream_mount = _resolve_analog_stream_mount(
+                            fetch_local_icecast_status()
+                        )
+                    except Exception:
+                        analog_stream_mount = str(PLAYER_MOUNT or "").strip().lstrip("/")
                 # Keep SSE hits aligned with the full UI hit list so digital
                 # rows are not dropped by top-10 truncation during busy analog traffic.
                 hits_payload = _get_hits_payload_cached(limit=50)
                 hit_items = hits_payload.get("items") or []
                 last_hit = hit_items[0].get("freq") if hit_items else (read_last_hit_airband() or read_last_hit_ground())
+                last_hit_airband_label = ""
+                last_hit_ground_label = ""
+                for item in hit_items:
+                    src = str(item.get("source") or "").strip().lower()
+                    label = str(item.get("label_full") or item.get("label") or "").strip()
+                    if src == "airband" and label and not last_hit_airband_label:
+                        last_hit_airband_label = label
+                    if src == "ground" and label and not last_hit_ground_label:
+                        last_hit_ground_label = label
+                    if last_hit_airband_label and last_hit_ground_label:
+                        break
+                digital_payload = {
+                    "digital_active": False,
+                    "digital_profile": "",
+                    "digital_last_label": "",
+                    "digital_last_time": 0,
+                }
+                try:
+                    digital_payload = dict(get_digital_manager().status_payload() or {})
+                except Exception:
+                    digital_payload = {
+                        "digital_active": False,
+                        "digital_profile": "",
+                        "digital_last_label": "",
+                        "digital_last_time": 0,
+                    }
                 try:
                     profile_loop_targets = dict(get_profile_loop_manager().snapshot().get("targets") or {})
                 except Exception:
@@ -1665,9 +1715,15 @@ class Handler(BaseHTTPRequestHandler):
                     "squelch_snr": float(airband_snr),
                     "squelch_dbfs": float(airband_dbfs),
                     "last_hit": last_hit,
+                    "last_hit_airband_label": _short_label(last_hit_airband_label, max_len=48),
+                    "last_hit_ground_label": _short_label(last_hit_ground_label, max_len=48),
+                    "stream_mount": analog_stream_mount,
+                    "digital_stream_mount": str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/"),
                     "server_time": time.time(),
                     "profile_loop": profile_loop_targets,
+                    "hp_avoids": get_scan_mode_controller().get_hp_avoids(),
                 }
+                status_data.update(digital_payload)
                 self.wfile.write(f"event: status\ndata: {json.dumps(status_data)}\n\n".encode())
                 spectrum_data = {
                     "type": "spectrum",
@@ -1880,6 +1936,9 @@ class Handler(BaseHTTPRequestHandler):
                 state.favorites = normalize_profile_favorites(parse_json_like_list(form.get("favorites")))
                 favorites_changed = state.favorites != favorites_before
 
+            if "avoid_list" in form:
+                state.avoid_list = parse_json_like_list(form.get("avoid_list"))
+
             if not state.enabled_service_tags:
                 try:
                     state.enabled_service_tags = list(get_default_enabled_service_types())
@@ -1903,6 +1962,42 @@ class Handler(BaseHTTPRequestHandler):
                     "application/json; charset=utf-8",
                 )
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/hp/avoids":
+            controller = get_scan_mode_controller()
+            action = str(form.get("action") or "").strip().lower()
+            if action == "clear":
+                controller.clear_hp_avoids()
+                return self._send(
+                    200,
+                    json.dumps({"ok": True, "avoids": controller.get_hp_avoids()}),
+                    "application/json; charset=utf-8",
+                )
+            if action == "remove":
+                system_token = str(form.get("system") or "").strip()
+                if not system_token:
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": "missing system"}),
+                        "application/json; charset=utf-8",
+                    )
+                removed = controller.remove_hp_avoid_system(system_token)
+                if not removed:
+                    return self._send(
+                        404,
+                        json.dumps({"ok": False, "error": "system not in avoid list"}),
+                        "application/json; charset=utf-8",
+                    )
+                return self._send(
+                    200,
+                    json.dumps({"ok": True, "avoids": controller.get_hp_avoids()}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(
+                400,
+                json.dumps({"ok": False, "error": "invalid action"}),
+                "application/json; charset=utf-8",
+            )
 
         if p in ("/api/hp/hold", "/api/hp/next", "/api/hp/avoid"):
             action = p.rsplit("/", 1)[-1]

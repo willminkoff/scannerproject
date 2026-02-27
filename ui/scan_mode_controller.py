@@ -84,6 +84,16 @@ class ScanModeController:
         with self._lock:
             self._hp_avoided_systems.clear()
 
+    def remove_hp_avoid_system(self, system_token: str) -> bool:
+        token = self._normalize_system_token(system_token)
+        if not token:
+            return False
+        with self._lock:
+            if token not in self._hp_avoided_systems:
+                return False
+            self._hp_avoided_systems.remove(token)
+        return True
+
     def get_hp_avoids(self) -> list[str]:
         with self._lock:
             return sorted(self._hp_avoided_systems)

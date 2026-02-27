@@ -77,7 +77,11 @@ export default function MainScreen() {
       hpState.system
     : liveStatus?.profile_airband || "Airband";
   const department = isDigitalSource
-    ? liveStatus?.digital_last_label || hpState.department_name || hpState.department
+    ? liveStatus?.digital_department_label ||
+      hpState.department_name ||
+      hpState.department ||
+      liveStatus?.digital_profile ||
+      liveStatus?.digital_last_label
     : liveStatus?.last_hit_airband_label ||
       liveStatus?.last_hit_ground_label ||
       liveStatus?.last_hit ||
@@ -102,10 +106,14 @@ export default function MainScreen() {
       liveStatus?.last_hit_ground ||
       liveStatus?.last_hit ||
       "--";
+  const decodeReady = Boolean(
+    liveStatus?.digital_control_channel_metric_ready ??
+      liveStatus?.digital_control_decode_available
+  );
   const signal = isDigitalSource
     ? liveStatus?.digital_control_channel_locked
       ? "Locked"
-      : liveStatus?.digital_control_decode_available
+      : decodeReady
       ? "Decoding"
       : hpState.signal ?? hpState.signal_strength
     : liveStatus?.rtl_active
@@ -121,12 +129,19 @@ export default function MainScreen() {
     ? channelLabel
     : department;
   const channelMeta = isDigitalSource
-    ? `${formatValue(channelService || "Digital")} • ${formatValue(tgid)} • ${signal}`
+    ? [
+        formatValue(channelService || "Digital"),
+        tgid !== "--" ? `TGID ${formatValue(tgid)}` : "",
+        frequency !== "--" ? `${formatValue(frequency)} MHz` : "",
+        signal,
+      ]
+        .filter(Boolean)
+        .join(" • ")
     : `${formatValue(frequency)} • ${signal}`;
   const signalBars = isDigitalSource
     ? liveStatus?.digital_control_channel_locked
       ? 4
-      : liveStatus?.digital_control_decode_available
+      : decodeReady
       ? 3
       : 1
     : liveStatus?.rtl_active
@@ -331,7 +346,11 @@ export default function MainScreen() {
           <div className="hp2-line-label">Department</div>
           <div className="hp2-line-body">
             <div className="hp2-line-primary">{formatValue(department)}</div>
-            <div className="hp2-line-secondary">Service: {formatValue(hpState.mode)}</div>
+            <div className="hp2-line-secondary">
+              {isDigitalSource
+                ? `Profile: ${formatValue(liveStatus?.digital_profile)}`
+                : `Source: ${formatValue(liveStatus?.profile_airband || "Airband")}`}
+            </div>
           </div>
           <button
             type="button"

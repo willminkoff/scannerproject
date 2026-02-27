@@ -23,13 +23,73 @@ const initialState = {
   hpState: {},
   serviceTypes: [],
   liveStatus: {},
+  hpAvoids: [],
   currentScreen: SCREENS.MAIN,
   mode: "hp",
+  sseConnected: false,
   loading: true,
   working: false,
   error: "",
   message: "",
 };
+
+const STICKY_STATUS_KEYS = [
+  "digital_scheduler_active_system",
+  "digital_scheduler_next_system",
+  "digital_last_label",
+  "digital_last_mode",
+  "digital_last_tgid",
+  "digital_profile",
+  "digital_scan_mode",
+  "stream_mount",
+  "digital_stream_mount",
+  "profile_airband",
+  "profile_ground",
+  "last_hit_airband_label",
+  "last_hit_ground_label",
+];
+
+function hasStatusValue(value) {
+  if (value === null || value === undefined) {
+    return false;
+  }
+  if (typeof value === "string") {
+    return value.trim() !== "";
+  }
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+  return true;
+}
+
+function normalizeHpAvoids(raw) {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  const out = [];
+  const seen = new Set();
+  raw.forEach((item) => {
+    const token = String(item || "").trim();
+    if (!token || seen.has(token)) {
+      return;
+    }
+    seen.add(token);
+    out.push(token);
+  });
+  return out;
+}
+
+function mergeLiveStatus(previous, incomingRaw) {
+  const incoming =
+    incomingRaw && typeof incomingRaw === "object" ? incomingRaw : {};
+  const merged = { ...(previous || {}), ...incoming };
+  STICKY_STATUS_KEYS.forEach((key) => {
+    if (!hasStatusValue(incoming[key]) && hasStatusValue(previous?.[key])) {
+      merged[key] = previous[key];
+    }
+  });
+  return merged;
+}
 
 function reducer(state, action) {
   switch (action.type) {
@@ -43,6 +103,7 @@ function reducer(state, action) {
         hpState: action.payload.hpState || {},
         serviceTypes: action.payload.serviceTypes || [],
         liveStatus: action.payload.liveStatus || {},
+        hpAvoids: action.payload.hpAvoids || [],
         mode: action.payload.mode || state.mode,
       };
     case "LOAD_ERROR":
@@ -57,10 +118,20 @@ function reducer(state, action) {
       return { ...state, hpState: action.payload || {} };
     case "SET_SERVICE_TYPES":
       return { ...state, serviceTypes: action.payload || [] };
+    case "SET_HP_AVOIDS":
+      return { ...state, hpAvoids: normalizeHpAvoids(action.payload) };
     case "SET_LIVE_STATUS":
-      return { ...state, liveStatus: action.payload || {} };
+      return {
+        ...state,
+        liveStatus: mergeLiveStatus(state.liveStatus, action.payload),
+        hpAvoids: Array.isArray(action.payload?.hp_avoids)
+          ? normalizeHpAvoids(action.payload.hp_avoids)
+          : state.hpAvoids,
+      };
     case "SET_MODE":
       return { ...state, mode: action.payload || state.mode };
+    case "SET_SSE_CONNECTED":
+      return { ...state, sseConnected: Boolean(action.payload) };
     case "NAVIGATE":
       return { ...state, currentScreen: action.payload || SCREENS.MAIN };
     default:
@@ -110,6 +181,13 @@ export function UIProvider({ children }) {
     return serviceTypes;
   }, []);
 
+  const refreshHpAvoids = useCallback(async () => {
+    const payload = await hpApi.getHpAvoids();
+    const avoids = normalizeHpAvoids(payload?.avoids);
+    dispatch({ type: "SET_HP_AVOIDS", payload: avoids });
+    return avoids;
+  }, []);
+
   const refreshStatus = useCallback(async () => {
     const payload = await hpApi.getStatus();
     dispatch({ type: "SET_LIVE_STATUS", payload: payload || {} });
@@ -119,9 +197,10 @@ export function UIProvider({ children }) {
   const refreshAll = useCallback(async () => {
     dispatch({ type: "LOAD_START" });
     try {
-      const [hpPayload, svcPayload] = await Promise.all([
+      const [hpPayload, svcPayload, avoidsPayload] = await Promise.all([
         hpApi.getHpState(),
         hpApi.getServiceTypes(),
+        hpApi.getHpAvoids(),
       ]);
       let statusPayload = {};
       try {
@@ -132,6 +211,7 @@ export function UIProvider({ children }) {
 
       const hp = parseHpStateResponse(hpPayload);
       const serviceTypes = normalizeServiceTypes(svcPayload);
+      const hpAvoids = normalizeHpAvoids(avoidsPayload?.avoids);
 
       dispatch({
         type: "LOAD_SUCCESS",
@@ -140,6 +220,7 @@ export function UIProvider({ children }) {
           mode: hp.mode,
           serviceTypes,
           liveStatus: statusPayload,
+          hpAvoids,
         },
       });
     } catch (err) {
@@ -154,9 +235,60 @@ export function UIProvider({ children }) {
   useEffect(() => {
     const timer = setInterval(() => {
       refreshStatus().catch(() => {});
-    }, 2500);
+    }, state.sseConnected ? 10000 : 2500);
     return () => clearInterval(timer);
-  }, [refreshStatus]);
+  }, [refreshStatus, state.sseConnected]);
+
+  useEffect(() => {
+    if (typeof EventSource === "undefined") {
+      return undefined;
+    }
+
+    let closed = false;
+    let eventSource = null;
+    let retryTimer = null;
+
+    const connect = () => {
+      if (closed) {
+        return;
+      }
+      eventSource = new EventSource("/api/stream");
+      eventSource.onopen = () => {
+        dispatch({ type: "SET_SSE_CONNECTED", payload: true });
+      };
+      eventSource.addEventListener("status", (event) => {
+        try {
+          const payload = JSON.parse(event?.data || "{}");
+          dispatch({ type: "SET_LIVE_STATUS", payload });
+        } catch {
+          // Ignore malformed stream payloads.
+        }
+      });
+      eventSource.onerror = () => {
+        dispatch({ type: "SET_SSE_CONNECTED", payload: false });
+        if (eventSource) {
+          eventSource.close();
+          eventSource = null;
+        }
+        if (!closed) {
+          retryTimer = setTimeout(connect, 2000);
+        }
+      };
+    };
+
+    connect();
+
+    return () => {
+      closed = true;
+      dispatch({ type: "SET_SSE_CONNECTED", payload: false });
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+      }
+      if (eventSource) {
+        eventSource.close();
+      }
+    };
+  }, []);
 
   const saveHpState = useCallback(
     async (updates) => {
@@ -206,6 +338,9 @@ export function UIProvider({ children }) {
       dispatch({ type: "SET_ERROR", payload: "" });
       try {
         const response = await fn();
+        if (Array.isArray(response?.avoids)) {
+          dispatch({ type: "SET_HP_AVOIDS", payload: response.avoids });
+        }
         if (successMessage) {
           dispatch({ type: "SET_MESSAGE", payload: successMessage });
         }
@@ -238,6 +373,17 @@ export function UIProvider({ children }) {
     [runControlAction]
   );
 
+  const clearHpAvoids = useCallback(
+    async () => runControlAction(() => hpApi.clearHpAvoids(), "Runtime avoids cleared"),
+    [runControlAction]
+  );
+
+  const removeHpAvoid = useCallback(
+    async (system) =>
+      runControlAction(() => hpApi.removeHpAvoid(system), "Avoid removed"),
+    [runControlAction]
+  );
+
   const value = useMemo(
     () => ({
       state,
@@ -246,12 +392,15 @@ export function UIProvider({ children }) {
       refreshAll,
       refreshHpState,
       refreshServiceTypes,
+      refreshHpAvoids,
       refreshStatus,
       saveHpState,
       setMode,
       holdScan,
       nextScan,
       avoidCurrent,
+      clearHpAvoids,
+      removeHpAvoid,
       SCREENS,
     }),
     [
@@ -260,12 +409,15 @@ export function UIProvider({ children }) {
       refreshAll,
       refreshHpState,
       refreshServiceTypes,
+      refreshHpAvoids,
       refreshStatus,
       saveHpState,
       setMode,
       holdScan,
       nextScan,
       avoidCurrent,
+      clearHpAvoids,
+      removeHpAvoid,
     ]
   );
 

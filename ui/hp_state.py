@@ -72,6 +72,38 @@ def _coerce_favorites(value) -> list[dict]:
     return out
 
 
+def _coerce_avoid_list(value) -> list[dict]:
+    out: list[dict] = []
+    if not isinstance(value, list):
+        return out
+    for index, item in enumerate(value):
+        if isinstance(item, dict):
+            out.append(
+                {
+                    "id": str(item.get("id") or f"item-{index}").strip(),
+                    "label": str(
+                        item.get("label")
+                        or item.get("alpha_tag")
+                        or item.get("name")
+                        or f"Avoid {index + 1}"
+                    ).strip(),
+                    "type": str(item.get("type") or "item").strip(),
+                }
+            )
+            continue
+        token = str(item or "").strip()
+        if not token:
+            continue
+        out.append(
+            {
+                "id": f"item-{index}",
+                "label": token,
+                "type": "item",
+            }
+        )
+    return out
+
+
 @dataclass
 class HPState:
     mode: str = "full_database"
@@ -81,6 +113,7 @@ class HPState:
     range_miles: float = 15.0
     enabled_service_tags: list[int] = field(default_factory=list)
     favorites: list[dict] = field(default_factory=list)
+    avoid_list: list[dict] = field(default_factory=list)
 
     @classmethod
     def default(cls, db_path: str = _DEFAULT_DB_PATH) -> "HPState":
@@ -96,6 +129,7 @@ class HPState:
             range_miles=15.0,
             enabled_service_tags=defaults,
             favorites=[],
+            avoid_list=[],
         )
 
     def to_dict(self) -> dict:
@@ -107,6 +141,7 @@ class HPState:
             "range_miles": float(self.range_miles),
             "enabled_service_tags": [int(tag) for tag in (self.enabled_service_tags or [])],
             "favorites": _coerce_favorites(self.favorites),
+            "avoid_list": _coerce_avoid_list(self.avoid_list),
         }
 
     def save(self, path: str = str(_DEFAULT_STATE_PATH)) -> None:
@@ -151,4 +186,5 @@ class HPState:
             range_miles=max(0.0, _coerce_float(payload.get("range_miles"), default=default_state.range_miles)),
             enabled_service_tags=service_tags,
             favorites=_coerce_favorites(payload.get("favorites")),
+            avoid_list=_coerce_avoid_list(payload.get("avoid_list")),
         )
