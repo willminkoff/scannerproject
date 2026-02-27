@@ -114,14 +114,33 @@ export default function MainScreen() {
   const hpScanMode = String(hpState.mode || "full_database")
     .trim()
     .toLowerCase();
+  const analogFavoriteLabel = useMemo(() => {
+    const favorites = Array.isArray(hpState.favorites) ? hpState.favorites : [];
+    const enabled = favorites.filter((entry) => {
+      if (!entry || !entry.enabled) {
+        return false;
+      }
+      return String(entry.type || "").trim().toLowerCase() === "analog";
+    });
+    if (enabled.length === 0) {
+      return "";
+    }
+    const airband = enabled.find(
+      (entry) => String(entry.target || "").trim().toLowerCase() === "airband"
+    );
+    const selected = airband || enabled[0];
+    return String(selected?.label || "").trim();
+  }, [hpState.favorites]);
   const analogProfileId = String(liveStatus?.profile_airband || "").trim();
   const analogProfileLabel = resolveProfileLabel(liveStatus, "airband");
+  const analogProfileDisplay =
+    analogProfileLabel || analogFavoriteLabel || analogProfileId || "Airband";
   const analogLastLabel =
     liveStatus?.last_hit_airband_label ||
     liveStatus?.last_hit_ground_label ||
     liveStatus?.last_hit ||
     "";
-  const analogDisplay = splitAnalogDisplay(analogLastLabel, analogProfileLabel);
+  const analogDisplay = splitAnalogDisplay(analogLastLabel, analogProfileDisplay);
   const system = isDigitalSource
     ? liveStatus?.digital_scheduler_active_system_label ||
       liveStatus?.digital_system_label ||
@@ -129,7 +148,7 @@ export default function MainScreen() {
       liveStatus?.digital_profile ||
       hpState.system_name ||
       hpState.system
-    : analogProfileId || analogProfileLabel || "Airband";
+    : analogProfileDisplay;
   const department = isDigitalSource
     ? liveStatus?.digital_department_label ||
       liveStatus?.digital_scheduler_active_department_label ||
@@ -404,7 +423,7 @@ export default function MainScreen() {
             <div className="hp2-line-secondary">
               {isDigitalSource
                 ? `Profile: ${formatValue(liveStatus?.digital_profile)}`
-                : `Profile: ${formatValue(analogProfileLabel || analogProfileId || "Airband")}`}
+                : `Profile: ${formatValue(analogProfileDisplay)}`}
             </div>
           </div>
           <button
