@@ -1,0 +1,130 @@
+"""Persistent state for HomePatrol-style scan mode."""
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from .service_types import get_default_enabled_service_types
+
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_DEFAULT_DB_PATH = str((_REPO_ROOT / "data" / "homepatrol.db").resolve())
+_DEFAULT_STATE_PATH = (_REPO_ROOT / "data" / "hp_state.json").resolve()
+
+
+def _coerce_bool(value, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    text = str(value or "").strip().lower()
+    if text in {"1", "true", "yes", "on"}:
+        return True
+    if text in {"0", "false", "no", "off"}:
+        return False
+    return default
+
+
+def _coerce_float(value, default: float) -> float:
+    try:
+        return float(str(value).strip())
+    except Exception:
+        return float(default)
+
+
+def _coerce_service_tags(value) -> list[int]:
+    out: list[int] = []
+    seen: set[int] = set()
+    if isinstance(value, list):
+        raw = value
+    else:
+        raw = []
+    for item in raw:
+        try:
+            tag = int(str(item).strip())
+        except Exception:
+            continue
+        if tag in seen:
+            continue
+        seen.add(tag)
+        out.append(tag)
+    return out
+
+
+@dataclass
+class HPState:
+    mode: str = "full_database"
+    use_location: bool = False
+    lat: float = 0.0
+    lon: float = 0.0
+    range_miles: float = 15.0
+    enabled_service_tags: list[int] = field(default_factory=list)
+
+    @classmethod
+    def default(cls, db_path: str = _DEFAULT_DB_PATH) -> "HPState":
+        try:
+            defaults = list(get_default_enabled_service_types(db_path=db_path))
+        except Exception:
+            defaults = [1, 2, 3, 4]
+        return cls(
+            mode="full_database",
+            use_location=False,
+            lat=0.0,
+            lon=0.0,
+            range_miles=15.0,
+            enabled_service_tags=defaults,
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "mode": str(self.mode or "full_database"),
+            "use_location": bool(self.use_location),
+            "lat": float(self.lat),
+            "lon": float(self.lon),
+            "range_miles": float(self.range_miles),
+            "enabled_service_tags": [int(tag) for tag in (self.enabled_service_tags or [])],
+        }
+
+    def save(self, path: str = str(_DEFAULT_STATE_PATH)) -> None:
+        out_path = Path(path).expanduser().resolve()
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        with out_path.open("w", encoding="utf-8") as handle:
+            json.dump(self.to_dict(), handle, indent=2, sort_keys=True)
+
+    @classmethod
+    def load(
+        cls,
+        path: str = str(_DEFAULT_STATE_PATH),
+        db_path: str = _DEFAULT_DB_PATH,
+    ) -> "HPState":
+        in_path = Path(path).expanduser().resolve()
+        if not in_path.is_file():
+            return cls.default(db_path=db_path)
+
+        try:
+            with in_path.open("r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+        except Exception:
+            return cls.default(db_path=db_path)
+
+        if not isinstance(payload, dict):
+            return cls.default(db_path=db_path)
+
+        default_state = cls.default(db_path=db_path)
+        mode = str(payload.get("mode") or default_state.mode).strip().lower()
+        if mode not in {"full_database", "favorites"}:
+            mode = default_state.mode
+
+        service_tags = _coerce_service_tags(payload.get("enabled_service_tags"))
+        if not service_tags:
+            service_tags = list(default_state.enabled_service_tags)
+
+        return cls(
+            mode=mode,
+            use_location=_coerce_bool(payload.get("use_location"), default=default_state.use_location),
+            lat=_coerce_float(payload.get("lat"), default=default_state.lat),
+            lon=_coerce_float(payload.get("lon"), default=default_state.lon),
+            range_miles=max(0.0, _coerce_float(payload.get("range_miles"), default=default_state.range_miles)),
+            enabled_service_tags=service_tags,
+        )

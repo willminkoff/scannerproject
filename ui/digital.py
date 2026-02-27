@@ -63,6 +63,7 @@ try:
         DIGITAL_USE_MULTI_FREQ_SOURCE,
     )
     from .systemd import unit_active
+    from .scan_pool_adapter import get_active_scan_pool
 except ImportError:
     from ui.config import (
         AIRBAND_RTL_SERIAL,
@@ -107,6 +108,7 @@ except ImportError:
         DIGITAL_USE_MULTI_FREQ_SOURCE,
     )
     from ui.systemd import unit_active
+    from ui.scan_pool_adapter import get_active_scan_pool
 
 
 _NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@-]{0,127}$")
@@ -3453,6 +3455,8 @@ class DigitalManager:
         self._scheduler_state_path = str(DIGITAL_SCHEDULER_STATE_PATH or "").strip()
         self._scheduler_profile = ""
         self._scheduler_systems: list[str] = []
+        self._scheduler_pool_system_channels: dict[str, list[int]] = {}
+        self._scheduler_pool_system_channels_lower: dict[str, str] = {}
         self._scheduler_active_system = ""
         self._scheduler_last_switch_time_ms = 0
         self._scheduler_switch_reason = "manual"
@@ -3938,9 +3942,50 @@ class DigitalManager:
             for hz in values:
                 if hz <= 0 or hz in seen:
                     continue
-                seen.add(hz)
-                channels.append(hz)
+                    seen.add(hz)
+                    channels.append(hz)
         return channels
+
+    def _discover_scheduler_pool_systems(self) -> list[str]:
+        systems: list[str] = []
+        seen: set[str] = set()
+        self._scheduler_pool_system_channels = {}
+        self._scheduler_pool_system_channels_lower = {}
+        try:
+            pool = get_active_scan_pool() or {}
+        except Exception:
+            return []
+        if not isinstance(pool, dict):
+            return []
+        trunked_sites = pool.get("trunked_sites")
+        if not isinstance(trunked_sites, list):
+            return []
+
+        for item in trunked_sites:
+            row = item if isinstance(item, dict) else {}
+            system_id = str(row.get("system_id") or "").strip()
+            site_id = str(row.get("site_id") or "").strip()
+            channels = self._parse_system_control_channels(row.get("control_channels"))
+            if not channels:
+                continue
+
+            if system_id and site_id:
+                name = f"{system_id}:{site_id}"
+            elif system_id:
+                name = system_id
+            elif site_id:
+                name = f"site:{site_id}"
+            else:
+                continue
+
+            key = name.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            systems.append(name)
+            self._scheduler_pool_system_channels[name] = list(channels)
+            self._scheduler_pool_system_channels_lower[key] = name
+        return systems
 
     def _discover_profile_local_systems(self, profile_id: str) -> list[str]:
         systems: list[str] = []
@@ -4026,6 +4071,11 @@ class DigitalManager:
         system = str(system_name or "").strip()
         if not system:
             return []
+        pool_key = self._scheduler_pool_system_channels_lower.get(system.lower())
+        if pool_key:
+            channels = self._scheduler_pool_system_channels.get(pool_key) or []
+            if channels:
+                return list(channels)
         profile_dir = ""
         read_active_profile_dir = getattr(self._adapter, "_read_active_profile_dir", None)
         if callable(read_active_profile_dir):
@@ -4412,6 +4462,19 @@ class DigitalManager:
             }
             return sorted(
                 systems,
+                key=lambda name: (rank.get(name.lower(), len(rank)), name.lower()),
+            )
+
+        pool_systems = self._discover_scheduler_pool_systems()
+        if pool_systems:
+            if not self._scheduler_order:
+                return pool_systems
+            rank = {
+                name.lower(): idx
+                for idx, name in enumerate(self._scheduler_order)
+            }
+            return sorted(
+                pool_systems,
                 key=lambda name: (rank.get(name.lower(), len(rank)), name.lower()),
             )
 

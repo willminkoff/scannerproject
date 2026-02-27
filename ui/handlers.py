@@ -101,6 +101,9 @@ try:
         validate_digital_editor_payload,
     )
     from .profile_loop import get_profile_loop_manager
+    from .hp_state import HPState
+    from .service_types import get_all_service_types, get_default_enabled_service_types
+    from .scan_mode_controller import get_scan_mode_controller
     from .v3_preflight import (
         evaluate_analog_preflight,
         evaluate_digital_preflight,
@@ -175,6 +178,9 @@ except ImportError:
         validate_digital_editor_payload,
     )
     from ui.profile_loop import get_profile_loop_manager
+    from ui.hp_state import HPState
+    from ui.service_types import get_all_service_types, get_default_enabled_service_types
+    from ui.scan_mode_controller import get_scan_mode_controller
     from ui.v3_preflight import (
         evaluate_analog_preflight,
         evaluate_digital_preflight,
@@ -1127,6 +1133,40 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(500, json.dumps(payload), "application/json; charset=utf-8")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
+        if p == "/api/hp/state":
+            try:
+                state = HPState.load()
+                controller = get_scan_mode_controller()
+                payload = {
+                    "ok": True,
+                    "mode": controller.get_mode(),
+                    "state": state.to_dict(),
+                }
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/hp/service-types":
+            try:
+                service_types = get_all_service_types()
+                defaults = get_default_enabled_service_types()
+                payload = {
+                    "ok": True,
+                    "service_types": service_types,
+                    "default_enabled_service_tags": defaults,
+                }
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
         if p == "/api/status":
             now_monotonic = time.monotonic()
             with _CACHE_LOCK:
@@ -1651,6 +1691,179 @@ class Handler(BaseHTTPRequestHandler):
             if v is None:
                 return default
             return str(v)
+
+        def parse_bool_value(raw_value, *, field: str) -> bool:
+            if isinstance(raw_value, bool):
+                return raw_value
+            if isinstance(raw_value, (int, float)):
+                return bool(raw_value)
+            token = str(raw_value or "").strip().lower()
+            if token in ("1", "true", "yes", "on"):
+                return True
+            if token in ("0", "false", "no", "off"):
+                return False
+            raise ValueError(f"invalid {field}")
+
+        def parse_float_value(raw_value, *, field: str) -> float:
+            try:
+                return float(str(raw_value).strip())
+            except Exception as exc:
+                raise ValueError(f"invalid {field}") from exc
+
+        def parse_json_like_list(raw_value) -> list:
+            if isinstance(raw_value, list):
+                return raw_value
+            if isinstance(raw_value, str):
+                text = raw_value.strip()
+                if not text:
+                    return []
+                try:
+                    parsed = json.loads(text)
+                    if isinstance(parsed, list):
+                        return parsed
+                    return []
+                except Exception:
+                    return [chunk.strip() for chunk in text.split(",") if chunk.strip()]
+            return []
+
+        def parse_service_tags(raw_value) -> list[int]:
+            tags: list[int] = []
+            seen: set[int] = set()
+            for item in parse_json_like_list(raw_value):
+                try:
+                    tag = int(str(item).strip())
+                except Exception:
+                    continue
+                if tag in seen:
+                    continue
+                seen.add(tag)
+                tags.append(tag)
+            return tags
+
+        if p == "/api/mode":
+            controller = get_scan_mode_controller()
+            mode = get_str("mode").strip().lower()
+            if not mode:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "missing mode"}),
+                    "application/json; charset=utf-8",
+                )
+            try:
+                controller.set_mode(mode)
+            except ValueError as e:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+
+            if "config" in form:
+                cfg = form.get("config")
+                if isinstance(cfg, str):
+                    try:
+                        cfg = json.loads(cfg) if cfg.strip() else {}
+                    except Exception:
+                        cfg = {}
+                if not isinstance(cfg, dict):
+                    cfg = {}
+                controller.set_expert_config(cfg)
+            elif "manual_trunked" in form or "manual_conventional" in form:
+                controller.set_expert_config(
+                    {
+                        "manual_trunked": parse_json_like_list(form.get("manual_trunked")),
+                        "manual_conventional": parse_json_like_list(form.get("manual_conventional")),
+                    }
+                )
+
+            return self._send(
+                200,
+                json.dumps({"ok": True, "mode": controller.get_mode()}),
+                "application/json; charset=utf-8",
+            )
+
+        if p == "/api/hp/state":
+            try:
+                state = HPState.load()
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+
+            if "mode" in form:
+                mode = str(form.get("mode") or "").strip().lower()
+                if mode not in ("full_database", "favorites"):
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": "invalid mode"}),
+                        "application/json; charset=utf-8",
+                    )
+                state.mode = mode
+
+            if "use_location" in form:
+                try:
+                    state.use_location = parse_bool_value(form.get("use_location"), field="use_location")
+                except ValueError as e:
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": str(e)}),
+                        "application/json; charset=utf-8",
+                    )
+
+            if "lat" in form:
+                try:
+                    state.lat = parse_float_value(form.get("lat"), field="lat")
+                except ValueError as e:
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": str(e)}),
+                        "application/json; charset=utf-8",
+                    )
+
+            if "lon" in form:
+                try:
+                    state.lon = parse_float_value(form.get("lon"), field="lon")
+                except ValueError as e:
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": str(e)}),
+                        "application/json; charset=utf-8",
+                    )
+
+            if "range_miles" in form:
+                try:
+                    state.range_miles = max(
+                        0.0,
+                        parse_float_value(form.get("range_miles"), field="range_miles"),
+                    )
+                except ValueError as e:
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": str(e)}),
+                        "application/json; charset=utf-8",
+                    )
+
+            if "enabled_service_tags" in form:
+                state.enabled_service_tags = parse_service_tags(form.get("enabled_service_tags"))
+
+            if not state.enabled_service_tags:
+                try:
+                    state.enabled_service_tags = list(get_default_enabled_service_types())
+                except Exception:
+                    state.enabled_service_tags = [1, 2, 3, 4]
+
+            try:
+                state.save()
+                payload = {"ok": True, "state": state.to_dict()}
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/profile-editor/analog/validate":
             profile_id = get_str("id").strip()
