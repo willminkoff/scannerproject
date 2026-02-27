@@ -45,6 +45,52 @@ export function getServiceTypes() {
   return request("/api/hp/service-types");
 }
 
+function buildQuery(params = {}) {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") {
+      return;
+    }
+    query.set(key, String(value));
+  });
+  const encoded = query.toString();
+  return encoded ? `?${encoded}` : "";
+}
+
+export function getFavoritesWizardCountries() {
+  return request("/api/hp/favorites-wizard/countries");
+}
+
+export function getFavoritesWizardStates(countryId) {
+  return request(`/api/hp/favorites-wizard/states${buildQuery({ country_id: countryId })}`);
+}
+
+export function getFavoritesWizardCounties(stateId) {
+  return request(`/api/hp/favorites-wizard/counties${buildQuery({ state_id: stateId })}`);
+}
+
+export function getFavoritesWizardSystems({ stateId, countyId, systemType, q }) {
+  return request(
+    `/api/hp/favorites-wizard/systems${buildQuery({
+      state_id: stateId,
+      county_id: countyId,
+      system_type: systemType,
+      q,
+    })}`
+  );
+}
+
+export function getFavoritesWizardChannels({ systemType, systemId, q, limit = 500 }) {
+  return request(
+    `/api/hp/favorites-wizard/channels${buildQuery({
+      system_type: systemType,
+      system_id: systemId,
+      q,
+      limit,
+    })}`
+  );
+}
+
 export function getHpAvoids() {
   return request("/api/hp/avoids");
 }
@@ -84,6 +130,11 @@ const hpApi = {
   getHpState,
   saveHpState,
   getServiceTypes,
+  getFavoritesWizardCountries,
+  getFavoritesWizardStates,
+  getFavoritesWizardCounties,
+  getFavoritesWizardSystems,
+  getFavoritesWizardChannels,
   getHpAvoids,
   clearHpAvoids,
   removeHpAvoid,

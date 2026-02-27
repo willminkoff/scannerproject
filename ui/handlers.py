@@ -102,6 +102,7 @@ try:
     )
     from .profile_loop import get_profile_loop_manager
     from .hp_state import HPState
+    from .hp_favorites_wizard import HPFavoritesWizard
     from .service_types import get_all_service_types, get_default_enabled_service_types
     from .scan_mode_controller import get_scan_mode_controller
     from .v3_preflight import (
@@ -179,6 +180,7 @@ except ImportError:
     )
     from ui.profile_loop import get_profile_loop_manager
     from ui.hp_state import HPState
+    from ui.hp_favorites_wizard import HPFavoritesWizard
     from ui.service_types import get_all_service_types, get_default_enabled_service_types
     from ui.scan_mode_controller import get_scan_mode_controller
     from ui.v3_preflight import (
@@ -1161,6 +1163,114 @@ class Handler(BaseHTTPRequestHandler):
                     "application/json; charset=utf-8",
                 )
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p.startswith("/api/hp/favorites-wizard/"):
+            def _query_int(name: str, default: int | None = None, required: bool = False) -> int | None:
+                raw = (q.get(name) or [None])[0]
+                if raw is None or str(raw).strip() == "":
+                    if required:
+                        raise ValueError(f"missing {name}")
+                    return default
+                try:
+                    return int(str(raw).strip())
+                except Exception as exc:
+                    raise ValueError(f"invalid {name}") from exc
+
+            text_filter = str((q.get("q") or [""])[0] or "").strip()
+            try:
+                wizard = HPFavoritesWizard()
+                if p == "/api/hp/favorites-wizard/countries":
+                    payload = {
+                        "ok": True,
+                        "countries": wizard.get_countries(),
+                    }
+                    return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+                if p == "/api/hp/favorites-wizard/states":
+                    country_id = _query_int("country_id", default=1, required=False)
+                    payload = {
+                        "ok": True,
+                        "states": wizard.get_states(country_id=int(country_id or 1)),
+                    }
+                    return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+                if p == "/api/hp/favorites-wizard/counties":
+                    state_id = _query_int("state_id", required=True)
+                    payload = {
+                        "ok": True,
+                        "counties": wizard.get_counties(state_id=int(state_id or 0)),
+                    }
+                    return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+                if p == "/api/hp/favorites-wizard/systems":
+                    state_id = _query_int("state_id", required=True)
+                    county_id = _query_int("county_id", default=0, required=False)
+                    system_type = str((q.get("system_type") or ["digital"])[0] or "").strip().lower()
+                    if system_type not in {"digital", "analog"}:
+                        return self._send(
+                            400,
+                            json.dumps({"ok": False, "error": "invalid system_type"}),
+                            "application/json; charset=utf-8",
+                        )
+                    payload = {
+                        "ok": True,
+                        "systems": wizard.get_systems(
+                            state_id=int(state_id or 0),
+                            county_id=int(county_id or 0),
+                            system_type=system_type,
+                            text_filter=text_filter,
+                        ),
+                    }
+                    return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+                if p == "/api/hp/favorites-wizard/channels":
+                    system_type = str((q.get("system_type") or ["digital"])[0] or "").strip().lower()
+                    if system_type not in {"digital", "analog"}:
+                        return self._send(
+                            400,
+                            json.dumps({"ok": False, "error": "invalid system_type"}),
+                            "application/json; charset=utf-8",
+                        )
+                    system_id = str((q.get("system_id") or [""])[0] or "").strip()
+                    if not system_id:
+                        return self._send(
+                            400,
+                            json.dumps({"ok": False, "error": "missing system_id"}),
+                            "application/json; charset=utf-8",
+                        )
+                    limit = _query_int("limit", default=500, required=False)
+                    limit = max(1, min(int(limit or 500), 5000))
+                    system_name, channels = wizard.get_channels(
+                        system_type=system_type,
+                        system_id=system_id,
+                        text_filter=text_filter,
+                    )
+                    payload = {
+                        "ok": True,
+                        "system_name": system_name,
+                        "channels": list(channels[:limit]),
+                        "total_channels": len(channels),
+                        "truncated": len(channels) > limit,
+                    }
+                    return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+                return self._send(
+                    404,
+                    json.dumps({"ok": False, "error": "not found"}),
+                    "application/json; charset=utf-8",
+                )
+            except ValueError as e:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
 
         if p == "/api/hp/service-types":
             try:
