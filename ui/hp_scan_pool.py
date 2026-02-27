@@ -135,12 +135,43 @@ class ScanPoolBuilder:
             return None
         return parsed
 
+    def _infer_home_source_file(
+        self,
+        site_rows: list[sqlite3.Row],
+        center_lat: float,
+        center_lon: float,
+    ) -> str:
+        scores: dict[str, float] = {}
+        for row in site_rows or []:
+            source_file = str(row["source_file"] or "").strip()
+            if not source_file:
+                continue
+            if source_file.lower() == "_multiplestates.hpd":
+                continue
+            site_lat = self._parse_float(row["latitude"])
+            site_lon = self._parse_float(row["longitude"])
+            if site_lat is None or site_lon is None:
+                continue
+            distance = haversine_miles(center_lat, center_lon, site_lat, site_lon)
+            if distance > 250.0:
+                continue
+            radius = max(0.0, float(self._parse_float(row["radius"]) or 0.0))
+            if radius > 120.0 and distance > 25.0:
+                # Down-rank broad-area records that leak far-away systems.
+                continue
+            score = max(1.0, 200.0 - distance) / (1.0 + (radius / 30.0))
+            scores[source_file] = float(scores.get(source_file, 0.0) + score)
+        if not scores:
+            return ""
+        return max(scores.items(), key=lambda item: (item[1], item[0]))[0]
+
     def build_full_database_pool(
         self,
         lat: float,
         lon: float,
         range_miles: float,
         service_tags: list[int],
+        include_nationwide: bool = False,
     ) -> dict:
         center_lat = float(lat)
         center_lon = float(lon)
@@ -169,6 +200,7 @@ class ScanPoolBuilder:
                 SELECT
                     ts.site_id,
                     ts.trunk_id,
+                    ts.source_file,
                     ts.latitude,
                     ts.longitude,
                     ts.radius,
@@ -180,9 +212,25 @@ class ScanPoolBuilder:
                 """
             ).fetchall()
 
+            home_source_file = self._infer_home_source_file(
+                site_rows,
+                center_lat=center_lat,
+                center_lon=center_lon,
+            )
+            allowed_sources: set[str] = set()
+            if home_source_file:
+                allowed_sources.add(home_source_file)
+            if bool(include_nationwide):
+                allowed_sources.add("_MultipleStates.hpd")
+
             selected_sites: list[dict[str, object]] = []
             selected_by_system: dict[int, set[int]] = {}
             for row in site_rows:
+                source_file = str(row["source_file"] or "").strip()
+                if source_file.lower() == "_multiplestates.hpd" and not include_nationwide:
+                    continue
+                if allowed_sources and source_file not in allowed_sources:
+                    continue
                 site_id = self._parse_int(row["site_id"])
                 system_id = self._parse_int(row["trunk_id"])
                 if site_id is None or system_id is None:
@@ -336,6 +384,7 @@ class ScanPoolBuilder:
                     cf.freq_hz,
                     cf.alpha_tag,
                     cf.service_tag,
+                    cg.source_file,
                     cg.latitude,
                     cg.longitude,
                     cg.radius
@@ -350,6 +399,11 @@ class ScanPoolBuilder:
 
             conventional_set: set[tuple[float, str, int]] = set()
             for row in conv_rows:
+                source_file = str(row["source_file"] or "").strip()
+                if source_file.lower() == "_multiplestates.hpd" and not include_nationwide:
+                    continue
+                if allowed_sources and source_file not in allowed_sources:
+                    continue
                 freq_hz = self._parse_int(row["freq_hz"])
                 service_tag = self._parse_int(row["service_tag"])
                 group_lat = self._parse_float(row["latitude"])

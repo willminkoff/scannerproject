@@ -111,6 +111,7 @@ class HPState:
     lat: float = 0.0
     lon: float = 0.0
     range_miles: float = 15.0
+    nationwide_systems: bool = False
     enabled_service_tags: list[int] = field(default_factory=list)
     favorites: list[dict] = field(default_factory=list)
     avoid_list: list[dict] = field(default_factory=list)
@@ -127,6 +128,7 @@ class HPState:
             lat=0.0,
             lon=0.0,
             range_miles=15.0,
+            nationwide_systems=False,
             enabled_service_tags=defaults,
             favorites=[],
             avoid_list=[],
@@ -139,6 +141,7 @@ class HPState:
             "lat": float(self.lat),
             "lon": float(self.lon),
             "range_miles": float(self.range_miles),
+            "nationwide_systems": bool(self.nationwide_systems),
             "enabled_service_tags": [int(tag) for tag in (self.enabled_service_tags or [])],
             "favorites": _coerce_favorites(self.favorites),
             "avoid_list": _coerce_avoid_list(self.avoid_list),
@@ -184,6 +187,10 @@ class HPState:
             lat=_coerce_float(payload.get("lat"), default=default_state.lat),
             lon=_coerce_float(payload.get("lon"), default=default_state.lon),
             range_miles=max(0.0, _coerce_float(payload.get("range_miles"), default=default_state.range_miles)),
+            nationwide_systems=_coerce_bool(
+                payload.get("nationwide_systems"),
+                default=default_state.nationwide_systems,
+            ),
             enabled_service_tags=service_tags,
             favorites=_coerce_favorites(payload.get("favorites")),
             avoid_list=_coerce_avoid_list(payload.get("avoid_list")),

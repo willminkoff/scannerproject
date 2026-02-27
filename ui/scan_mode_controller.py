@@ -140,6 +140,7 @@ class ScanModeController:
             lon=float(state.lon),
             range_miles=float(state.range_miles),
             service_tags=service_tags,
+            include_nationwide=bool(getattr(state, "nationwide_systems", False)),
         )
         with self._lock:
             avoids = set(self._hp_avoided_systems)

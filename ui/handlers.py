@@ -1929,6 +1929,19 @@ class Handler(BaseHTTPRequestHandler):
                         "application/json; charset=utf-8",
                     )
 
+            if "nationwide_systems" in form:
+                try:
+                    state.nationwide_systems = parse_bool_value(
+                        form.get("nationwide_systems"),
+                        field="nationwide_systems",
+                    )
+                except ValueError as e:
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": str(e)}),
+                        "application/json; charset=utf-8",
+                    )
+
             if "enabled_service_tags" in form:
                 state.enabled_service_tags = parse_service_tags(form.get("enabled_service_tags"))
 
