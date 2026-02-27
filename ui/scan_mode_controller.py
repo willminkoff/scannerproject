@@ -8,7 +8,7 @@ from typing import Any
 from .hp_scan_pool import ScanPoolBuilder
 
 
-_VALID_MODES = {"hp", "expert"}
+_VALID_MODES = {"hp", "expert", "legacy"}
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _DEFAULT_DB_PATH = str((_REPO_ROOT / "data" / "homepatrol.db").resolve())
 
@@ -33,8 +33,10 @@ class ScanModeController:
 
     def set_mode(self, mode: str):
         next_mode = str(mode or "").strip().lower()
+        if next_mode == "profile":
+            next_mode = "legacy"
         if next_mode not in _VALID_MODES:
-            raise ValueError("mode must be 'hp' or 'expert'")
+            raise ValueError("mode must be 'hp', 'expert', or 'legacy'")
         with self._lock:
             self.mode = next_mode
 
@@ -61,6 +63,9 @@ class ScanModeController:
                     "manual_conventional": list(self._expert_config.get("manual_conventional") or []),
                 }
             return ExpertPoolBuilder().build_pool(cfg)
+
+        if mode == "legacy":
+            return _empty_pool()
 
         try:
             from .hp_state import HPState

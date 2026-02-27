@@ -173,6 +173,7 @@ class ScanPoolBuilder:
                     longitude,
                     radius
                 FROM trunk_sites
+                ORDER BY trunk_id, site_id
                 """
             ).fetchall()
 
@@ -212,6 +213,7 @@ class ScanPoolBuilder:
                     FROM trunk_freqs
                     WHERE site_id IN ({site_placeholders})
                       AND freq_hz IS NOT NULL
+                    ORDER BY site_id, freq_hz, COALESCE(lcn, '')
                     """,
                     site_ids,
                 ).fetchall()
@@ -238,6 +240,7 @@ class ScanPoolBuilder:
                     JOIN trunk_groups tg ON tg.tgroup_id = t.tgroup_id
                     WHERE t.service_tag IN ({tag_placeholders})
                       AND tg.trunk_id IN ({system_placeholders})
+                    ORDER BY tg.trunk_id, t.dec_tgid, t.tid
                     """,
                     [*tags, *system_ids],
                 ).fetchall()
@@ -284,6 +287,7 @@ class ScanPoolBuilder:
                 JOIN conventional_groups cg ON cg.cgroup_id = cf.cgroup_id
                 WHERE cf.service_tag IN ({tag_placeholders})
                   AND cf.freq_hz IS NOT NULL
+                ORDER BY cf.cgroup_id, cf.freq_hz, cf.cfreq_id
                 """,
                 tags,
             ).fetchall()

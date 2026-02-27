@@ -63,7 +63,7 @@ try:
         DIGITAL_USE_MULTI_FREQ_SOURCE,
     )
     from .systemd import unit_active
-    from .scan_pool_adapter import get_active_scan_pool
+    from .scan_pool_adapter import get_active_scan_pool_snapshot, get_current_scan_mode
 except ImportError:
     from ui.config import (
         AIRBAND_RTL_SERIAL,
@@ -108,7 +108,7 @@ except ImportError:
         DIGITAL_USE_MULTI_FREQ_SOURCE,
     )
     from ui.systemd import unit_active
-    from ui.scan_pool_adapter import get_active_scan_pool
+    from ui.scan_pool_adapter import get_active_scan_pool_snapshot, get_current_scan_mode
 
 
 _NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@-]{0,127}$")
@@ -3946,15 +3946,12 @@ class DigitalManager:
                 channels.append(hz)
         return channels
 
-    def _discover_scheduler_pool_systems(self) -> list[str]:
+    def _discover_scheduler_pool_systems(self, pool_snapshot: dict | None = None) -> list[str]:
         systems: list[str] = []
         seen: set[str] = set()
         self._scheduler_pool_system_channels = {}
         self._scheduler_pool_system_channels_lower = {}
-        try:
-            pool = get_active_scan_pool() or {}
-        except Exception:
-            return []
+        pool = pool_snapshot if isinstance(pool_snapshot, dict) else {}
         if not isinstance(pool, dict):
             return []
         trunked_sites = pool.get("trunked_sites")
@@ -4071,11 +4068,12 @@ class DigitalManager:
         system = str(system_name or "").strip()
         if not system:
             return []
-        pool_key = self._scheduler_pool_system_channels_lower.get(system.lower())
-        if pool_key:
-            channels = self._scheduler_pool_system_channels.get(pool_key) or []
-            if channels:
-                return list(channels)
+        if get_current_scan_mode() in {"hp", "expert"}:
+            pool_key = self._scheduler_pool_system_channels_lower.get(system.lower())
+            if pool_key:
+                channels = self._scheduler_pool_system_channels.get(pool_key) or []
+                if channels:
+                    return list(channels)
         profile_dir = ""
         read_active_profile_dir = getattr(self._adapter, "_read_active_profile_dir", None)
         if callable(read_active_profile_dir):
@@ -4465,8 +4463,10 @@ class DigitalManager:
                 key=lambda name: (rank.get(name.lower(), len(rank)), name.lower()),
             )
 
-        pool_systems = self._discover_scheduler_pool_systems()
-        if pool_systems:
+        scan_mode = get_current_scan_mode()
+        if scan_mode in {"hp", "expert"}:
+            pool_snapshot = get_active_scan_pool_snapshot(force_refresh=True)
+            pool_systems = self._discover_scheduler_pool_systems(pool_snapshot=pool_snapshot)
             if not self._scheduler_order:
                 return pool_systems
             rank = {
@@ -4478,6 +4478,8 @@ class DigitalManager:
                 key=lambda name: (rank.get(name.lower(), len(rank)), name.lower()),
             )
 
+        self._scheduler_pool_system_channels = {}
+        self._scheduler_pool_system_channels_lower = {}
         systems: list[str] = list(self._discover_profile_local_systems(profile_id))
         seen: set[str] = {str(name).strip().lower() for name in systems if str(name).strip()}
 
