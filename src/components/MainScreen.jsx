@@ -67,6 +67,9 @@ export default function MainScreen() {
       ? digitalMount || analogMount
       : analogMount || digitalMount;
   const isDigitalSource = streamSource === "digital" && hasDigital;
+  const hpScanMode = String(hpState.mode || "full_database")
+    .trim()
+    .toLowerCase();
   const system = isDigitalSource
     ? liveStatus?.digital_scheduler_active_system ||
       liveStatus?.digital_profile ||
@@ -108,13 +111,17 @@ export default function MainScreen() {
     : liveStatus?.rtl_active
     ? "Active"
     : "Idle";
+  const channelLabel = isDigitalSource
+    ? liveStatus?.digital_last_label || hpState.channel_name || hpState.channel || department
+    : department;
+  const channelService = isDigitalSource
+    ? liveStatus?.digital_last_mode || hpState.service_type || hpState.service || ""
+    : "";
   const channelLine = isDigitalSource
-    ? tgid !== "--"
-      ? `TGID ${tgid}`
-      : department
+    ? channelLabel
     : department;
   const channelMeta = isDigitalSource
-    ? `${formatValue(frequency)} MHz • ${signal}`
+    ? `${formatValue(channelService || "Digital")} • ${formatValue(tgid)} • ${signal}`
     : `${formatValue(frequency)} • ${signal}`;
   const signalBars = isDigitalSource
     ? liveStatus?.digital_control_channel_locked
@@ -128,6 +135,29 @@ export default function MainScreen() {
   const holdLocked =
     String(liveStatus?.digital_scan_mode || "").toLowerCase() === "single_system";
   const scannerStatus = holdLocked ? "HOLD" : "SCAN";
+  const favoriteDescriptor = useMemo(() => {
+    if (hpScanMode !== "favorites") {
+      return "Full Database";
+    }
+    const favorites = Array.isArray(hpState.favorites) ? hpState.favorites : [];
+    if (favorites.length === 0) {
+      return "Favorites";
+    }
+    const enabled = favorites.filter((entry) => Boolean(entry?.enabled));
+    if (enabled.length === 0) {
+      return "Favorites";
+    }
+    const bySource = enabled.find((entry) => {
+      const entryType = String(entry?.type || "").trim().toLowerCase();
+      if (isDigitalSource) {
+        return entryType === "digital";
+      }
+      return entryType === "analog";
+    });
+    const selected = bySource || enabled[0];
+    const label = String(selected?.label || "").trim();
+    return label || "Favorites";
+  }, [hpScanMode, hpState.favorites, isDigitalSource]);
 
   const doHold = async () => {
     try {
@@ -285,7 +315,7 @@ export default function MainScreen() {
           <div className="hp2-line-label">System / Favorite List</div>
           <div className="hp2-line-body">
             <div className="hp2-line-primary">{formatValue(system)}</div>
-            <div className="hp2-line-secondary">Mode: {state.mode.toUpperCase()}</div>
+            <div className="hp2-line-secondary">{favoriteDescriptor}</div>
           </div>
           <button
             type="button"
