@@ -1035,6 +1035,9 @@ class Handler(BaseHTTPRequestHandler):
         transcode = str((q.get("transcode") or ["0"])[0]).strip().lower() in ("1", "true", "yes", "on")
         if p == "/":
             return self._send_redirect("/sb3")
+
+        if p in ("/hp", "/hp/", "/hp.html"):
+            return self._send_redirect("/static/hp-react.html")
         
         # Serve SB3 UI
         if p == "/sb3" or p == "/sb3.html":
@@ -1061,6 +1064,12 @@ class Handler(BaseHTTPRequestHandler):
                     ctype = "text/css; charset=utf-8"
                 elif file_path.endswith(".js"):
                     ctype = "application/javascript; charset=utf-8"
+                elif file_path.endswith(".mjs"):
+                    ctype = "application/javascript; charset=utf-8"
+                elif file_path.endswith(".html"):
+                    ctype = "text/html; charset=utf-8"
+                elif file_path.endswith(".json"):
+                    ctype = "application/json; charset=utf-8"
                 else:
                     ctype = "application/octet-stream"
                 return self._send(200, content, ctype)
@@ -1864,6 +1873,16 @@ class Handler(BaseHTTPRequestHandler):
                     "application/json; charset=utf-8",
                 )
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p in ("/api/hp/hold", "/api/hp/next", "/api/hp/avoid"):
+            action = p.rsplit("/", 1)[-1]
+            response = {
+                "ok": True,
+                "accepted": True,
+                "action": action,
+                "runtime_changed": False,
+            }
+            return self._send(200, json.dumps(response), "application/json; charset=utf-8")
 
         if p == "/api/profile-editor/analog/validate":
             profile_id = get_str("id").strip()
