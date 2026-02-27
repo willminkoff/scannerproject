@@ -167,17 +167,20 @@ class ScanPoolBuilder:
             site_rows = conn.execute(
                 """
                 SELECT
-                    site_id,
-                    trunk_id,
-                    latitude,
-                    longitude,
-                    radius
-                FROM trunk_sites
-                ORDER BY trunk_id, site_id
+                    ts.site_id,
+                    ts.trunk_id,
+                    ts.latitude,
+                    ts.longitude,
+                    ts.radius,
+                    ts.site_name,
+                    sys.system_name
+                FROM trunk_sites ts
+                LEFT JOIN trunk_systems sys ON sys.trunk_id = ts.trunk_id
+                ORDER BY ts.trunk_id, ts.site_id
                 """
             ).fetchall()
 
-            selected_sites: list[tuple[int, int]] = []
+            selected_sites: list[dict[str, object]] = []
             selected_by_system: dict[int, set[int]] = {}
             for row in site_rows:
                 site_id = self._parse_int(row["site_id"])
@@ -200,12 +203,25 @@ class ScanPoolBuilder:
                 distance = haversine_miles(center_lat, center_lon, site_lat, site_lon)
                 if distance > threshold:
                     continue
-                selected_sites.append((system_id, site_id))
+                selected_sites.append(
+                    {
+                        "system_id": int(system_id),
+                        "site_id": int(site_id),
+                        "system_name": str(row["system_name"] or "").strip(),
+                        "site_name": str(row["site_name"] or "").strip(),
+                    }
+                )
                 selected_by_system.setdefault(system_id, set()).add(site_id)
 
             control_channels_by_site: dict[int, list[float]] = {}
             if selected_sites:
-                site_ids = sorted({site_id for _, site_id in selected_sites})
+                site_ids = sorted(
+                    {
+                        int(row.get("site_id") or 0)
+                        for row in selected_sites
+                        if int(row.get("site_id") or 0) > 0
+                    }
+                )
                 site_placeholders = ",".join("?" for _ in site_ids)
                 freq_rows = conn.execute(
                     f"""
@@ -230,12 +246,18 @@ class ScanPoolBuilder:
                 }
 
             talkgroups_by_system: dict[int, list[int]] = {}
+            talkgroup_labels_by_system: dict[int, dict[int, str]] = {}
+            talkgroup_groups_by_system: dict[int, dict[int, str]] = {}
             if selected_by_system:
                 system_ids = sorted(selected_by_system.keys())
                 system_placeholders = ",".join("?" for _ in system_ids)
                 tgid_rows = conn.execute(
                     f"""
-                    SELECT tg.trunk_id, t.dec_tgid
+                    SELECT
+                        tg.trunk_id,
+                        t.dec_tgid,
+                        t.alpha_tag,
+                        tg.group_name
                     FROM talkgroups t
                     JOIN trunk_groups tg ON tg.tgroup_id = t.tgroup_id
                     WHERE t.service_tag IN ({tag_placeholders})
@@ -254,23 +276,57 @@ class ScanPoolBuilder:
                         continue
                     dec_tgid = int(dec_text)
                     tg_bucket.setdefault(system_id, set()).add(dec_tgid)
+                    alpha_tag = str(row["alpha_tag"] or "").strip()
+                    if alpha_tag:
+                        per_system_labels = talkgroup_labels_by_system.setdefault(system_id, {})
+                        if dec_tgid not in per_system_labels:
+                            per_system_labels[dec_tgid] = alpha_tag
+                    group_name = str(row["group_name"] or "").strip()
+                    if group_name:
+                        per_system_groups = talkgroup_groups_by_system.setdefault(system_id, {})
+                        if dec_tgid not in per_system_groups:
+                            per_system_groups[dec_tgid] = group_name
                 talkgroups_by_system = {
                     system_id: sorted(list(values))
                     for system_id, values in tg_bucket.items()
                 }
 
             trunked_sites: list[dict] = []
-            for system_id, site_id in sorted(selected_sites):
+            for row in sorted(
+                selected_sites,
+                key=lambda item: (
+                    int(item.get("system_id") or 0),
+                    int(item.get("site_id") or 0),
+                ),
+            ):
+                system_id = int(row.get("system_id") or 0)
+                site_id = int(row.get("site_id") or 0)
                 control_channels = list(control_channels_by_site.get(site_id) or [])
                 talkgroups = list(talkgroups_by_system.get(system_id) or [])
                 if not control_channels and not talkgroups:
                     continue
+                labels_map = talkgroup_labels_by_system.get(system_id) or {}
+                groups_map = talkgroup_groups_by_system.get(system_id) or {}
+                talkgroup_labels: dict[str, str] = {}
+                talkgroup_groups: dict[str, str] = {}
+                for tgid in talkgroups:
+                    label = str(labels_map.get(tgid) or "").strip()
+                    group = str(groups_map.get(tgid) or "").strip()
+                    if label:
+                        talkgroup_labels[str(tgid)] = label
+                    if group:
+                        talkgroup_groups[str(tgid)] = group
                 trunked_sites.append(
                     {
                         "system_id": int(system_id),
                         "site_id": int(site_id),
+                        "system_name": str(row.get("system_name") or "").strip(),
+                        "site_name": str(row.get("site_name") or "").strip(),
+                        "department_name": str(row.get("site_name") or "").strip(),
                         "control_channels": control_channels,
                         "talkgroups": talkgroups,
+                        "talkgroup_labels": talkgroup_labels,
+                        "talkgroup_groups": talkgroup_groups,
                     }
                 )
 

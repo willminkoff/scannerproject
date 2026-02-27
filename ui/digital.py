@@ -3465,6 +3465,10 @@ class DigitalManager:
         self._scheduler_systems: list[str] = []
         self._scheduler_pool_system_channels: dict[str, list[int]] = {}
         self._scheduler_pool_system_channels_lower: dict[str, str] = {}
+        self._scheduler_pool_system_labels: dict[str, str] = {}
+        self._scheduler_pool_department_labels: dict[str, str] = {}
+        self._scheduler_pool_talkgroup_labels: dict[str, dict[str, str]] = {}
+        self._scheduler_pool_talkgroup_groups: dict[str, dict[str, str]] = {}
         self._scheduler_active_system = ""
         self._scheduler_last_switch_time_ms = 0
         self._scheduler_switch_reason = "manual"
@@ -3867,6 +3871,25 @@ class DigitalManager:
             channels.append(hz)
         return channels
 
+    @staticmethod
+    def _normalize_pool_talkgroup_map(raw_value: object) -> dict[str, str]:
+        if not isinstance(raw_value, dict):
+            return {}
+        out: dict[str, str] = {}
+        for key, value in raw_value.items():
+            key_text = str(key or "").strip()
+            if not key_text:
+                continue
+            tgid = key_text if key_text.isdigit() else _extract_tgid(key_text)
+            if not tgid:
+                continue
+            label = str(value or "").strip()
+            if not label:
+                continue
+            if tgid not in out:
+                out[tgid] = label
+        return out
+
     @classmethod
     def _read_system_definitions_for_dir(cls, profile_dir: str) -> list[tuple[str, list[int]]]:
         path = str(profile_dir or "").strip()
@@ -3959,6 +3982,10 @@ class DigitalManager:
         seen: set[str] = set()
         self._scheduler_pool_system_channels = {}
         self._scheduler_pool_system_channels_lower = {}
+        self._scheduler_pool_system_labels = {}
+        self._scheduler_pool_department_labels = {}
+        self._scheduler_pool_talkgroup_labels = {}
+        self._scheduler_pool_talkgroup_groups = {}
         pool = pool_snapshot if isinstance(pool_snapshot, dict) else {}
         if not isinstance(pool, dict):
             return []
@@ -3970,6 +3997,9 @@ class DigitalManager:
             row = item if isinstance(item, dict) else {}
             system_id = str(row.get("system_id") or "").strip()
             site_id = str(row.get("site_id") or "").strip()
+            system_name = str(row.get("system_name") or "").strip()
+            site_name = str(row.get("site_name") or "").strip()
+            department_name = str(row.get("department_name") or "").strip()
             channels = self._parse_system_control_channels(row.get("control_channels"))
             if not channels:
                 continue
@@ -3990,6 +4020,16 @@ class DigitalManager:
             systems.append(name)
             self._scheduler_pool_system_channels[name] = list(channels)
             self._scheduler_pool_system_channels_lower[key] = name
+            system_label = system_name or site_name or name
+            department_label = department_name or site_name or system_name or name
+            self._scheduler_pool_system_labels[name] = system_label
+            self._scheduler_pool_department_labels[name] = department_label
+            talkgroup_labels = self._normalize_pool_talkgroup_map(row.get("talkgroup_labels"))
+            talkgroup_groups = self._normalize_pool_talkgroup_map(row.get("talkgroup_groups"))
+            if talkgroup_labels:
+                self._scheduler_pool_talkgroup_labels[name] = talkgroup_labels
+            if talkgroup_groups:
+                self._scheduler_pool_talkgroup_groups[name] = talkgroup_groups
         return systems
 
     def _discover_profile_local_systems(self, profile_id: str) -> list[str]:
@@ -4488,6 +4528,10 @@ class DigitalManager:
 
         self._scheduler_pool_system_channels = {}
         self._scheduler_pool_system_channels_lower = {}
+        self._scheduler_pool_system_labels = {}
+        self._scheduler_pool_department_labels = {}
+        self._scheduler_pool_talkgroup_labels = {}
+        self._scheduler_pool_talkgroup_groups = {}
         systems: list[str] = list(self._discover_profile_local_systems(profile_id))
         seen: set[str] = {str(name).strip().lower() for name in systems if str(name).strip()}
 
@@ -4580,6 +4624,7 @@ class DigitalManager:
             pending_reason = "auto_profile_multi" if auto_enabled_multi else "manual"
 
         event_time_ms = int(event.get("timeMs") or 0)
+        event_tgid = str(event.get("tgid") or "").strip()
         recent_event = event_time_ms > 0 and (now_ms - event_time_ms) <= self._scheduler_hang_ms
         metric_ready = bool(preflight.get("control_decode_available"))
         control_locked = bool(preflight.get("control_channel_locked"))
@@ -4677,6 +4722,26 @@ class DigitalManager:
             "digital_scheduler_lock_timeout_ms": int(lock_timeout_ms),
             "digital_voice_tuner_available": voice_tuner_available,
         }
+        active_label = str(self._scheduler_pool_system_labels.get(active_system) or "").strip()
+        if active_label:
+            payload["digital_scheduler_active_system_label"] = active_label
+        next_label = str(self._scheduler_pool_system_labels.get(next_system) or "").strip()
+        if next_label:
+            payload["digital_scheduler_next_system_label"] = next_label
+        active_department = str(
+            self._scheduler_pool_department_labels.get(active_system) or ""
+        ).strip()
+        if active_department:
+            payload["digital_scheduler_active_department_label"] = active_department
+        if event_tgid and active_system and recent_event:
+            talkgroup_labels = self._scheduler_pool_talkgroup_labels.get(active_system) or {}
+            talkgroup_groups = self._scheduler_pool_talkgroup_groups.get(active_system) or {}
+            talkgroup_label = str(talkgroup_labels.get(event_tgid) or "").strip()
+            talkgroup_group = str(talkgroup_groups.get(event_tgid) or "").strip()
+            if talkgroup_label:
+                payload["digital_scheduler_active_talkgroup_label"] = talkgroup_label
+            if talkgroup_group:
+                payload["digital_scheduler_active_department_label"] = talkgroup_group
         payload["digital_scheduler_system_health"] = self._scheduler_system_health_payload(
             systems,
             active_system,
@@ -4719,6 +4784,24 @@ class DigitalManager:
         payload["digital_tuner_busy_time"] = int(preflight.get("tuner_busy_last_time_ms") or 0)
         with self._scheduler_lock:
             payload.update(self._scheduler_payload(event, preflight))
+        scheduler_talkgroup_label = str(
+            payload.get("digital_scheduler_active_talkgroup_label") or ""
+        ).strip()
+        if scheduler_talkgroup_label:
+            payload["digital_last_label"] = scheduler_talkgroup_label
+            payload["digital_channel_label"] = scheduler_talkgroup_label
+        else:
+            payload["digital_channel_label"] = str(payload.get("digital_last_label") or "").strip()
+        scheduler_department_label = str(
+            payload.get("digital_scheduler_active_department_label") or ""
+        ).strip()
+        if scheduler_department_label:
+            payload["digital_department_label"] = scheduler_department_label
+        scheduler_system_label = str(
+            payload.get("digital_scheduler_active_system_label") or ""
+        ).strip()
+        if scheduler_system_label:
+            payload["digital_system_label"] = scheduler_system_label
         payload["digital_playlist_source_ok"] = bool(preflight.get("playlist_source_ok"))
         if "playlist_source_type" in preflight:
             payload["digital_playlist_source_type"] = preflight.get("playlist_source_type")

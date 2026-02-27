@@ -22,6 +22,50 @@ function formatRangeMiles(value) {
   return Number.isInteger(range) ? `Range ${range}` : `Range ${range.toFixed(1)}`;
 }
 
+function resolveProfileLabel(status, target) {
+  const profileId =
+    target === "ground" ? status?.profile_ground : status?.profile_airband;
+  const profiles =
+    target === "ground" ? status?.profiles_ground : status?.profiles_airband;
+  const rows = Array.isArray(profiles) ? profiles : [];
+  const id = String(profileId || "").trim();
+  if (!id) {
+    return "";
+  }
+  const match = rows.find(
+    (row) => String(row?.id || "").trim().toLowerCase() === id.toLowerCase()
+  );
+  const label = String(match?.label || "").trim();
+  return label || id;
+}
+
+function splitAnalogDisplay(hitLabel, profileLabel) {
+  const profile = String(profileLabel || "").trim();
+  const hit = String(hitLabel || "").trim();
+  if (!hit && !profile) {
+    return { department: "--", channel: "--" };
+  }
+  const separators = [" | ", " - ", " / ", " — ", " – ", "::"];
+  for (const sep of separators) {
+    if (!hit.includes(sep)) {
+      continue;
+    }
+    const [left, ...rest] = hit.split(sep);
+    const department = String(left || "").trim();
+    const channel = String(rest.join(sep) || "").trim();
+    if (department && channel) {
+      return { department, channel };
+    }
+  }
+  if (profile && hit && profile.toLowerCase() !== hit.toLowerCase()) {
+    return { department: profile, channel: hit };
+  }
+  return {
+    department: hit || profile || "--",
+    channel: hit || "--",
+  };
+}
+
 export default function MainScreen() {
   const { state, holdScan, nextScan, avoidCurrent, navigate } = useUI();
   const { hpState, liveStatus, working, error, message } = state;
@@ -70,23 +114,30 @@ export default function MainScreen() {
   const hpScanMode = String(hpState.mode || "full_database")
     .trim()
     .toLowerCase();
+  const analogProfileId = String(liveStatus?.profile_airband || "").trim();
+  const analogProfileLabel = resolveProfileLabel(liveStatus, "airband");
+  const analogLastLabel =
+    liveStatus?.last_hit_airband_label ||
+    liveStatus?.last_hit_ground_label ||
+    liveStatus?.last_hit ||
+    "";
+  const analogDisplay = splitAnalogDisplay(analogLastLabel, analogProfileLabel);
   const system = isDigitalSource
-    ? liveStatus?.digital_scheduler_active_system ||
+    ? liveStatus?.digital_scheduler_active_system_label ||
+      liveStatus?.digital_system_label ||
+      liveStatus?.digital_scheduler_active_system ||
       liveStatus?.digital_profile ||
       hpState.system_name ||
       hpState.system
-    : liveStatus?.profile_airband || "Airband";
+    : analogProfileId || analogProfileLabel || "Airband";
   const department = isDigitalSource
     ? liveStatus?.digital_department_label ||
+      liveStatus?.digital_scheduler_active_department_label ||
       hpState.department_name ||
       hpState.department ||
       liveStatus?.digital_profile ||
       liveStatus?.digital_last_label
-    : liveStatus?.last_hit_airband_label ||
-      liveStatus?.last_hit_ground_label ||
-      liveStatus?.last_hit ||
-      hpState.department_name ||
-      hpState.department;
+    : analogDisplay.department || hpState.department_name || hpState.department;
   const tgid = isDigitalSource
     ? liveStatus?.digital_last_tgid ?? hpState.tgid ?? hpState.talkgroup_id
     : "--";
@@ -120,14 +171,18 @@ export default function MainScreen() {
     ? "Active"
     : "Idle";
   const channelLabel = isDigitalSource
-    ? liveStatus?.digital_last_label || hpState.channel_name || hpState.channel || department
-    : department;
+    ? liveStatus?.digital_channel_label ||
+      liveStatus?.digital_last_label ||
+      hpState.channel_name ||
+      hpState.channel ||
+      department
+    : analogDisplay.channel || department;
   const channelService = isDigitalSource
     ? liveStatus?.digital_last_mode || hpState.service_type || hpState.service || ""
     : "";
   const channelLine = isDigitalSource
     ? channelLabel
-    : department;
+    : analogDisplay.channel || channelLabel;
   const channelMeta = isDigitalSource
     ? [
         formatValue(channelService || "Digital"),
@@ -349,7 +404,7 @@ export default function MainScreen() {
             <div className="hp2-line-secondary">
               {isDigitalSource
                 ? `Profile: ${formatValue(liveStatus?.digital_profile)}`
-                : `Source: ${formatValue(liveStatus?.profile_airband || "Airband")}`}
+                : `Profile: ${formatValue(analogProfileLabel || analogProfileId || "Airband")}`}
             </div>
           </div>
           <button
