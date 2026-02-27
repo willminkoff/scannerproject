@@ -1895,8 +1895,40 @@ class Handler(BaseHTTPRequestHandler):
                 if str(item).strip()
             ]
             active = str(scheduler.get("digital_scheduler_active_system") or "").strip()
+            mode = str(scheduler.get("digital_scan_mode") or "").strip().lower()
+            order = [
+                str(item).strip()
+                for item in (
+                    scheduler.get("digital_system_order")
+                    or scheduler.get("digital_scheduler_systems")
+                    or []
+                )
+                if str(item).strip()
+            ]
 
             if action == "hold":
+                if mode == "single_system" and len(order) == 1:
+                    ok, err, snapshot = manager.setScheduler(
+                        {
+                            "mode": "timeslice_multi_system",
+                            "system_order": [],
+                        }
+                    )
+                    if not ok:
+                        return self._send(
+                            500,
+                            json.dumps({"ok": False, "error": err or "hold release failed"}),
+                            "application/json; charset=utf-8",
+                        )
+                    payload = {
+                        "ok": True,
+                        "action": "hold",
+                        "runtime_changed": True,
+                        "released": True,
+                        "scheduler": snapshot,
+                    }
+                    return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
                 target = active if active in systems else (systems[0] if systems else "")
                 if not target:
                     return self._send(
@@ -1970,19 +2002,10 @@ class Handler(BaseHTTPRequestHandler):
                     json.dumps({"ok": False, "error": "invalid active HP system"}),
                     "application/json; charset=utf-8",
                 )
-            order = [
-                str(item).strip()
-                for item in (
-                    scheduler.get("digital_system_order")
-                    or scheduler.get("digital_scheduler_systems")
-                    or []
-                )
-                if str(item).strip()
-            ]
             ok, err, snapshot = manager.setScheduler(
                 {
                     "mode": "timeslice_multi_system",
-                    "system_order": order,
+                    "system_order": [],
                 }
             )
             if not ok:

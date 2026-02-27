@@ -112,7 +112,7 @@ DIGITAL_SCAN_MODE = (
     if _DIGITAL_SCAN_MODE_RAW in ("single_system", "timeslice_multi_system")
     else "single_system"
 )
-DIGITAL_SYSTEM_DWELL_MS = max(1000, int(os.getenv("DIGITAL_SYSTEM_DWELL_MS", "15000")))
+DIGITAL_SYSTEM_DWELL_MS = max(300, int(os.getenv("DIGITAL_SYSTEM_DWELL_MS", "400")))
 DIGITAL_SYSTEM_HANG_MS = max(0, int(os.getenv("DIGITAL_SYSTEM_HANG_MS", "4000")))
 DIGITAL_SYSTEM_ORDER = [
     token.strip()
@@ -121,10 +121,6 @@ DIGITAL_SYSTEM_ORDER = [
 ]
 DIGITAL_PAUSE_ON_HIT = os.getenv(
     "DIGITAL_PAUSE_ON_HIT",
-    "1",
-).strip().lower() in ("1", "true", "yes", "on")
-DIGITAL_SUPER_PROFILE_MODE = os.getenv(
-    "DIGITAL_SUPER_PROFILE_MODE",
     "1",
 ).strip().lower() in ("1", "true", "yes", "on")
 DIGITAL_RUNTIME_RETUNE_ENABLED = os.getenv(

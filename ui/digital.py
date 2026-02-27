@@ -55,7 +55,6 @@ try:
         DIGITAL_PAUSE_ON_HIT,
         DIGITAL_SCAN_MODE,
         DIGITAL_SOURCE_ROTATION_DELAY_MS,
-        DIGITAL_SUPER_PROFILE_MODE,
         DIGITAL_SERVICE_NAME,
         DIGITAL_SYSTEM_DWELL_MS,
         DIGITAL_SYSTEM_HANG_MS,
@@ -100,7 +99,6 @@ except ImportError:
         DIGITAL_PAUSE_ON_HIT,
         DIGITAL_SCAN_MODE,
         DIGITAL_SOURCE_ROTATION_DELAY_MS,
-        DIGITAL_SUPER_PROFILE_MODE,
         DIGITAL_SERVICE_NAME,
         DIGITAL_SYSTEM_DWELL_MS,
         DIGITAL_SYSTEM_HANG_MS,
@@ -278,10 +276,6 @@ _DIGITAL_SCHEDULER_LOCK_LOSS_MS = max(
 _DIGITAL_SCHEDULER_TICK_SEC = max(
     0.25,
     float(os.getenv("DIGITAL_SCHEDULER_TICK_SEC", "1.0")),
-)
-_DIGITAL_SUPER_PROFILE_DWELL_DEFAULT_MS = min(
-    500,
-    max(300, int(os.getenv("DIGITAL_SUPER_PROFILE_DWELL_DEFAULT_MS", "400"))),
 )
 _CONTROL_MESSAGE_RE = re.compile(
     r"\b(TSBK|PDU|RFSS_STATUS_BCST|SEC_CCH_BROADCST|IDEN_UPDATE|TDMA_SYNC_BCST|"
@@ -2696,13 +2690,13 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 num = int(raw)
                 if num >= 1_000_000:
                     return num
-                if num > 100:
+                if num > 1:
                     return int(round(float(num) * 1_000_000))
                 return 0
             numf = float(raw)
             if numf >= 1_000_000:
                 return int(round(numf))
-            if numf > 100:
+            if numf > 1:
                 return int(round(numf * 1_000_000))
         except Exception:
             return 0
@@ -3446,7 +3440,8 @@ class DigitalManager:
             selected = "sdrtrunk"
         self._backend = selected
         self._adapter = self._build_adapter(selected)
-        self._super_profile_mode = bool(DIGITAL_SUPER_PROFILE_MODE)
+        # Super-profile mode is retired; always run unified scheduler behavior.
+        self._super_profile_mode = False
         self._scheduler_mode = (
             DIGITAL_SCAN_MODE
             if DIGITAL_SCAN_MODE in ("single_system", "timeslice_multi_system")
@@ -3454,17 +3449,14 @@ class DigitalManager:
         )
         self._super_profile_systems: dict[str, dict[str, object]] = {}
         raw_dwell = str(os.getenv("DIGITAL_SYSTEM_DWELL_MS", "") or "").strip()
-        if self._super_profile_mode:
-            if raw_dwell:
-                try:
-                    dwell_val = int(raw_dwell)
-                except Exception:
-                    dwell_val = _DIGITAL_SUPER_PROFILE_DWELL_DEFAULT_MS
-                self._scheduler_dwell_ms = max(300, min(3600000, dwell_val))
-            else:
-                self._scheduler_dwell_ms = int(_DIGITAL_SUPER_PROFILE_DWELL_DEFAULT_MS)
+        if raw_dwell:
+            try:
+                dwell_val = int(raw_dwell)
+            except Exception:
+                dwell_val = int(DIGITAL_SYSTEM_DWELL_MS or 400)
         else:
-            self._scheduler_dwell_ms = max(1000, int(DIGITAL_SYSTEM_DWELL_MS or 15000))
+            dwell_val = int(DIGITAL_SYSTEM_DWELL_MS or 400)
+        self._scheduler_dwell_ms = max(300, min(3600000, dwell_val))
         self._scheduler_hang_ms = max(0, int(DIGITAL_SYSTEM_HANG_MS or 4000))
         self._scheduler_pause_on_hit = bool(DIGITAL_PAUSE_ON_HIT)
         self._scheduler_order = [str(x).strip() for x in (DIGITAL_SYSTEM_ORDER or []) if str(x).strip()]
@@ -3700,7 +3692,7 @@ class DigitalManager:
                 self._scheduler_dwell_ms = self._parse_scheduler_int(
                     dwell_raw,
                     field="system_dwell_ms",
-                    minimum=300 if self._super_profile_mode else 1000,
+                    minimum=300,
                     maximum=3600000,
                 )
             except ValueError:
@@ -3844,13 +3836,13 @@ class DigitalManager:
                 num = int(raw)
                 if num >= 1_000_000:
                     return num
-                if num > 100:
+                if num > 1:
                     return int(round(float(num) * 1_000_000))
                 return 0
             numf = float(raw)
             if numf >= 1_000_000:
                 return int(round(numf))
-            if numf > 100:
+            if numf > 1:
                 return int(round(numf * 1_000_000))
         except Exception:
             return 0
@@ -4424,7 +4416,7 @@ class DigitalManager:
                     self._scheduler_dwell_ms = self._parse_scheduler_int(
                         dwell_raw,
                         field="system_dwell_ms",
-                        minimum=300 if self._super_profile_mode else 1000,
+                        minimum=300,
                         maximum=3600000,
                     )
                 except ValueError as e:
@@ -4555,10 +4547,14 @@ class DigitalManager:
         configured_mode = self._scheduler_mode
         mode = configured_mode
         auto_enabled_multi = False
+        manual_single_hold = (
+            configured_mode == "single_system"
+            and len([str(x).strip() for x in (self._scheduler_order or []) if str(x).strip()]) == 1
+        )
         if (
             configured_mode == "single_system"
             and len(systems) >= 2
-            and scan_mode not in {"hp", "expert"}
+            and not manual_single_hold
         ):
             mode = "timeslice_multi_system"
             auto_enabled_multi = True
