@@ -3942,8 +3942,8 @@ class DigitalManager:
             for hz in values:
                 if hz <= 0 or hz in seen:
                     continue
-                    seen.add(hz)
-                    channels.append(hz)
+                seen.add(hz)
+                channels.append(hz)
         return channels
 
     def _discover_scheduler_pool_systems(self) -> list[str]:
