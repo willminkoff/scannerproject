@@ -102,6 +102,11 @@ try:
     )
     from .profile_loop import get_profile_loop_manager
     from .hp_state import HPState
+    from .hp_favorites import (
+        apply_profile_favorites,
+        build_profile_favorites,
+        normalize_profile_favorites,
+    )
     from .service_types import get_all_service_types, get_default_enabled_service_types
     from .scan_mode_controller import get_scan_mode_controller
     from .v3_preflight import (
@@ -179,6 +184,11 @@ except ImportError:
     )
     from ui.profile_loop import get_profile_loop_manager
     from ui.hp_state import HPState
+    from ui.hp_favorites import (
+        apply_profile_favorites,
+        build_profile_favorites,
+        normalize_profile_favorites,
+    )
     from ui.service_types import get_all_service_types, get_default_enabled_service_types
     from ui.scan_mode_controller import get_scan_mode_controller
     from ui.v3_preflight import (
@@ -1148,11 +1158,14 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/hp/state":
             try:
                 state = HPState.load()
+                favorites, favorites_meta = build_profile_favorites(state.favorites)
+                state.favorites = favorites
                 controller = get_scan_mode_controller()
                 payload = {
                     "ok": True,
                     "mode": controller.get_mode(),
                     "state": state.to_dict(),
+                    "favorites_meta": favorites_meta,
                 }
             except Exception as e:
                 return self._send(
@@ -1804,6 +1817,9 @@ class Handler(BaseHTTPRequestHandler):
                     "application/json; charset=utf-8",
                 )
 
+            favorites_before = normalize_profile_favorites(state.favorites)
+            favorites_changed = False
+
             if "mode" in form:
                 mode = str(form.get("mode") or "").strip().lower()
                 if mode not in ("full_database", "favorites"):
@@ -1860,6 +1876,10 @@ class Handler(BaseHTTPRequestHandler):
             if "enabled_service_tags" in form:
                 state.enabled_service_tags = parse_service_tags(form.get("enabled_service_tags"))
 
+            if "favorites" in form:
+                state.favorites = normalize_profile_favorites(parse_json_like_list(form.get("favorites")))
+                favorites_changed = state.favorites != favorites_before
+
             if not state.enabled_service_tags:
                 try:
                     state.enabled_service_tags = list(get_default_enabled_service_types())
@@ -1867,8 +1887,15 @@ class Handler(BaseHTTPRequestHandler):
                     state.enabled_service_tags = [1, 2, 3, 4]
 
             try:
+                state.favorites, favorites_meta = build_profile_favorites(state.favorites)
                 state.save()
-                payload = {"ok": True, "state": state.to_dict()}
+                payload = {
+                    "ok": True,
+                    "state": state.to_dict(),
+                    "favorites_meta": favorites_meta,
+                }
+                if favorites_changed:
+                    payload["favorites_apply"] = apply_profile_favorites(state.favorites)
             except Exception as e:
                 return self._send(
                     500,

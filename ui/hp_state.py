@@ -52,6 +52,26 @@ def _coerce_service_tags(value) -> list[int]:
     return out
 
 
+def _coerce_favorites(value) -> list[dict]:
+    out: list[dict] = []
+    if not isinstance(value, list):
+        return out
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        out.append(
+            {
+                "id": str(item.get("id") or "").strip(),
+                "type": str(item.get("type") or "").strip().lower(),
+                "target": str(item.get("target") or "").strip().lower(),
+                "profile_id": str(item.get("profile_id") or item.get("profileId") or "").strip(),
+                "label": str(item.get("label") or item.get("name") or "").strip(),
+                "enabled": _coerce_bool(item.get("enabled"), default=False),
+            }
+        )
+    return out
+
+
 @dataclass
 class HPState:
     mode: str = "full_database"
@@ -60,6 +80,7 @@ class HPState:
     lon: float = 0.0
     range_miles: float = 15.0
     enabled_service_tags: list[int] = field(default_factory=list)
+    favorites: list[dict] = field(default_factory=list)
 
     @classmethod
     def default(cls, db_path: str = _DEFAULT_DB_PATH) -> "HPState":
@@ -74,6 +95,7 @@ class HPState:
             lon=0.0,
             range_miles=15.0,
             enabled_service_tags=defaults,
+            favorites=[],
         )
 
     def to_dict(self) -> dict:
@@ -84,6 +106,7 @@ class HPState:
             "lon": float(self.lon),
             "range_miles": float(self.range_miles),
             "enabled_service_tags": [int(tag) for tag in (self.enabled_service_tags or [])],
+            "favorites": _coerce_favorites(self.favorites),
         }
 
     def save(self, path: str = str(_DEFAULT_STATE_PATH)) -> None:
@@ -127,4 +150,5 @@ class HPState:
             lon=_coerce_float(payload.get("lon"), default=default_state.lon),
             range_miles=max(0.0, _coerce_float(payload.get("range_miles"), default=default_state.range_miles)),
             enabled_service_tags=service_tags,
+            favorites=_coerce_favorites(payload.get("favorites")),
         )
