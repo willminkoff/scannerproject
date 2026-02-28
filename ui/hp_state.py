@@ -60,14 +60,17 @@ def _coerce_favorites(value) -> list[dict]:
     for item in value:
         if not isinstance(item, dict):
             continue
+        label = str(item.get("label") or item.get("name") or "").strip()
+        custom_favorites = _coerce_custom_favorites(item.get("custom_favorites"))
         out.append(
             {
                 "id": str(item.get("id") or "").strip(),
                 "type": str(item.get("type") or "").strip().lower(),
                 "target": str(item.get("target") or "").strip().lower(),
                 "profile_id": str(item.get("profile_id") or item.get("profileId") or "").strip(),
-                "label": str(item.get("label") or item.get("name") or "").strip(),
+                "label": label,
                 "enabled": _coerce_bool(item.get("enabled"), default=False),
+                "custom_favorites": custom_favorites,
             }
         )
     return out

@@ -256,14 +256,24 @@ export default function MainScreen() {
       return "Full Database";
     }
     const listName = String(hpState.favorites_name || "").trim() || "My Favorites";
-    const customFavorites = Array.isArray(hpState.custom_favorites)
+    const favorites = Array.isArray(hpState.favorites) ? hpState.favorites : [];
+    const activeToken = listName.toLowerCase();
+    const selected = favorites.find((item) => {
+      if (!item || typeof item !== "object") {
+        return false;
+      }
+      return String(item.label || "").trim().toLowerCase() === activeToken;
+    });
+    const customFavorites = Array.isArray(selected?.custom_favorites)
+      ? selected.custom_favorites
+      : Array.isArray(hpState.custom_favorites)
       ? hpState.custom_favorites
       : [];
     if (customFavorites.length === 0) {
       return `${listName} (empty)`;
     }
     return listName;
-  }, [hpScanMode, hpState.custom_favorites, hpState.favorites_name]);
+  }, [hpScanMode, hpState.custom_favorites, hpState.favorites, hpState.favorites_name]);
   const departmentSecondary = isDigitalSource
     ? channelService
       ? `Service: ${formatValue(channelService)}`

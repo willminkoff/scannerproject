@@ -199,6 +199,37 @@ class ScanModeController:
             "conventional": conventional,
         }
 
+    @classmethod
+    def _resolve_active_favorites_entries(cls, state) -> list[dict]:
+        favorites = list(getattr(state, "favorites", []) or [])
+        active_name = str(getattr(state, "favorites_name", "") or "").strip().lower()
+
+        selected: dict[str, Any] | None = None
+        for item in favorites:
+            if not isinstance(item, dict):
+                continue
+            label = str(item.get("label") or "").strip().lower()
+            if not label:
+                continue
+            if label == active_name:
+                selected = item
+                break
+
+        if selected is None:
+            for item in favorites:
+                if not isinstance(item, dict):
+                    continue
+                if bool(item.get("enabled")):
+                    selected = item
+                    break
+
+        if selected is not None:
+            custom = selected.get("custom_favorites")
+            if isinstance(custom, list):
+                return list(custom)
+
+        return list(getattr(state, "custom_favorites", []) or [])
+
     def add_hp_avoid_system(self, system_token: str) -> bool:
         token = self._normalize_system_token(system_token)
         if not token:
@@ -248,7 +279,7 @@ class ScanModeController:
         state = HPState.load()
         state_mode = str(state.mode).strip().lower()
         if state_mode == "favorites":
-            pool = self._build_custom_favorites_pool(list(getattr(state, "custom_favorites", []) or []))
+            pool = self._build_custom_favorites_pool(self._resolve_active_favorites_entries(state))
         elif state_mode == "full_database":
             if not bool(state.use_location):
                 return _empty_pool()
