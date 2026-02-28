@@ -195,20 +195,28 @@ const css = `
   .hp2-line-body {
     padding: 7px 10px;
     min-height: 52px;
+    height: 52px;
     display: flex;
     flex-direction: column;
     justify-content: center;
     gap: 3px;
+    overflow: hidden;
   }
   .hp2-line-primary {
     font-size: 1.02rem;
     color: #ffb54a;
     line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .hp2-line-secondary {
     color: #9fb0c7;
     font-size: 0.78rem;
     line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .hp2-line.channel .hp2-line-primary {
     color: #ffe169;
@@ -289,6 +297,133 @@ const css = `
   .hp2-audio-player {
     width: 100%;
   }
+
+  .hp2-picker {
+    padding: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #4b535f;
+    background: linear-gradient(180deg, #111722 0%, #0d121b 100%);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+  }
+  .hp2-picker-top {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    border-bottom: 1px solid #384355;
+    background: linear-gradient(180deg, #28374a 0%, #1e2a39 100%);
+  }
+  .hp2-picker-title {
+    color: #ffcc2b;
+    font-size: 2rem;
+    line-height: 1;
+    font-weight: 700;
+    padding: 12px 14px;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hp2-picker-top-right {
+    display: grid;
+    grid-auto-flow: column;
+    align-items: center;
+    border-left: 1px solid #415064;
+  }
+  .hp2-picker-help,
+  .hp2-picker-status {
+    color: #d8e4f4;
+    font-size: 0.86rem;
+    font-weight: 700;
+    padding: 0 10px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    border-left: 1px solid #415064;
+  }
+  .hp2-picker-help {
+    border-left: 0;
+    color: #dce8ff;
+  }
+  .hp2-picker-grid {
+    padding: 10px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .hp2-picker-tile {
+    min-height: 64px;
+    border: 1px solid #3f4b5f;
+    border-radius: 8px;
+    background: linear-gradient(180deg, #2e3a4d 0%, #1f2836 100%);
+    color: #e6f1ff;
+    font-size: 0.84rem;
+    font-weight: 700;
+    text-align: left;
+    padding: 9px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hp2-picker-tile.active {
+    border-color: #e2ad43;
+    color: #fff3cf;
+    background: linear-gradient(180deg, #f6ca2e 0%, #de5c20 100%);
+  }
+  .hp2-picker-tile:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  .hp2-picker-tile-empty {
+    cursor: default;
+    background: linear-gradient(180deg, #1e2633 0%, #171e29 100%);
+    border-style: solid;
+  }
+  .hp2-picker-bottom {
+    display: grid;
+    gap: 1px;
+    background: #39475b;
+    border-top: 1px solid #465469;
+  }
+  .hp2-picker-bottom-5 {
+    grid-template-columns: 1.2fr 1fr 1fr 0.8fr 0.8fr;
+  }
+  .hp2-picker-bottom-4 {
+    grid-template-columns: 1.3fr 1fr 0.8fr 0.8fr;
+  }
+  .hp2-picker-btn {
+    border: 0;
+    min-height: 46px;
+    background: #2b3749;
+    color: #dce9fb;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .hp2-picker-btn.listen {
+    color: #ff8d2f;
+  }
+  .hp2-picker-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  .hp2-picker-page {
+    padding: 8px 12px 10px;
+    font-size: 0.78rem;
+  }
+  .favorites-screen .hp2-picker-tile {
+    min-height: 66px;
+    font-size: 0.82rem;
+  }
+  .favorites-screen .hp2-picker-tile.multiline {
+    white-space: normal;
+    line-height: 1.05;
+  }
+  .favorites-screen .hp2-picker-btn {
+    min-height: 48px;
+  }
   @media (max-width: 520px) {
     .hp2-line {
       grid-template-columns: 118px 1fr 24px;
@@ -299,6 +434,31 @@ const css = `
     .hp2-radio-btn {
       font-size: 0.72rem;
       padding: 2px 5px;
+    }
+    .hp2-picker-title {
+      font-size: 1.72rem;
+      padding: 10px 10px;
+    }
+    .hp2-picker-help,
+    .hp2-picker-status {
+      font-size: 0.75rem;
+      padding: 0 7px;
+    }
+    .hp2-picker-grid {
+      gap: 6px;
+      padding: 8px;
+    }
+    .hp2-picker-tile {
+      min-height: 56px;
+      font-size: 0.8rem;
+    }
+    .hp2-picker-btn {
+      min-height: 42px;
+      font-size: 0.82rem;
+    }
+    .favorites-screen .hp2-picker-tile {
+      min-height: 58px;
+      font-size: 0.78rem;
     }
   }
 `;

@@ -172,6 +172,7 @@ def _coerce_custom_favorites(value) -> list[dict]:
 class HPState:
     mode: str = "full_database"
     use_location: bool = False
+    zip: str = ""
     lat: float = 0.0
     lon: float = 0.0
     range_miles: float = 15.0
@@ -191,6 +192,7 @@ class HPState:
         return cls(
             mode="full_database",
             use_location=False,
+            zip="",
             lat=0.0,
             lon=0.0,
             range_miles=15.0,
@@ -206,6 +208,7 @@ class HPState:
         return {
             "mode": str(self.mode or "full_database"),
             "use_location": bool(self.use_location),
+            "zip": str(self.zip or "").strip(),
             "lat": float(self.lat),
             "lon": float(self.lon),
             "range_miles": float(self.range_miles),
@@ -254,6 +257,7 @@ class HPState:
         return cls(
             mode=mode,
             use_location=_coerce_bool(payload.get("use_location"), default=default_state.use_location),
+            zip=str(payload.get("zip") or payload.get("postal_code") or "").strip(),
             lat=_coerce_float(payload.get("lat"), default=default_state.lat),
             lon=_coerce_float(payload.get("lon"), default=default_state.lon),
             range_miles=max(0.0, _coerce_float(payload.get("range_miles"), default=default_state.range_miles)),

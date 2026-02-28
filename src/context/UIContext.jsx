@@ -305,12 +305,13 @@ export function UIProvider({ children }) {
       dispatch({ type: "SET_WORKING", payload: true });
       dispatch({ type: "SET_ERROR", payload: "" });
       try {
-        const payload = { ...state.hpState, ...updates };
+        const payload =
+          updates && typeof updates === "object" ? { ...updates } : {};
         const response = await hpApi.saveHpState(payload);
         const nextState =
           response?.state && typeof response.state === "object"
             ? { ...state.hpState, ...response.state }
-            : payload;
+            : { ...state.hpState, ...payload };
 
         dispatch({ type: "SET_HP_STATE", payload: nextState });
         dispatch({ type: "SET_MESSAGE", payload: "State saved" });

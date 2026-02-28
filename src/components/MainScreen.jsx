@@ -2,11 +2,25 @@ import React, { useEffect, useMemo, useState } from "react";
 import { SCREENS, useUI } from "../context/UIContext";
 import Button from "./Shared/Button";
 
+const SCAN_FRAMES = ["|", "/", "-", "\\"];
+const DIGITAL_ACTIVE_WINDOW_MS = 6000;
+
 function formatValue(value) {
   if (value === null || value === undefined || value === "") {
     return "--";
   }
   return String(value);
+}
+
+function normalizeEpochMs(value) {
+  const raw = Number(value);
+  if (!Number.isFinite(raw) || raw <= 0) {
+    return 0;
+  }
+  if (raw < 10_000_000_000) {
+    return raw * 1000;
+  }
+  return raw;
 }
 
 function signalBarText(level) {
@@ -98,6 +112,7 @@ export default function MainScreen() {
   const [submenuRow, setSubmenuRow] = useState("");
   const [audioMuted, setAudioMuted] = useState(false);
   const [hint, setHint] = useState("");
+  const [scanFrameIndex, setScanFrameIndex] = useState(0);
 
   useEffect(() => {
     if (streamSource === "digital" && !hasDigital) {
@@ -116,6 +131,13 @@ export default function MainScreen() {
     setHint("");
   }, [error, message]);
 
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setScanFrameIndex((current) => (current + 1) % SCAN_FRAMES.length);
+    }, 320);
+    return () => clearInterval(timer);
+  }, []);
+
   const selectedMount =
     streamSource === "digital"
       ? digitalMount || analogMount
@@ -124,6 +146,7 @@ export default function MainScreen() {
   const hpScanMode = String(hpState.mode || "full_database")
     .trim()
     .toLowerCase();
+  const scanFrame = SCAN_FRAMES[scanFrameIndex] || "|";
   const analogProfileId = String(liveStatus?.profile_airband || "").trim();
   const analogProfileLabel = resolveProfileLabel(liveStatus, "airband");
   const analogProfileDisplay = analogProfileLabel || analogProfileId || "Analog";
@@ -147,8 +170,20 @@ export default function MainScreen() {
       hpState.department ||
       liveStatus?.digital_last_label
     : analogHierarchy.department || hpState.department_name || hpState.department;
+  const digitalLastTimeMs = normalizeEpochMs(liveStatus?.digital_last_time);
+  const digitalEventAgeMs =
+    digitalLastTimeMs > 0 ? Math.max(0, Date.now() - digitalLastTimeMs) : Number.POSITIVE_INFINITY;
+  const digitalHasEventFields = Boolean(
+    liveStatus?.digital_channel_label || liveStatus?.digital_last_label || liveStatus?.digital_last_tgid
+  );
+  const digitalTrafficActive =
+    isDigitalSource &&
+    digitalHasEventFields &&
+    digitalEventAgeMs <= DIGITAL_ACTIVE_WINDOW_MS;
   const tgid = isDigitalSource
-    ? liveStatus?.digital_last_tgid ?? hpState.tgid ?? hpState.talkgroup_id
+    ? digitalTrafficActive
+      ? liveStatus?.digital_last_tgid ?? hpState.tgid ?? hpState.talkgroup_id
+      : "--"
     : "--";
   const frequency = isDigitalSource
     ? (() => {
@@ -214,6 +249,8 @@ export default function MainScreen() {
   const holdLocked =
     String(liveStatus?.digital_scan_mode || "").toLowerCase() === "single_system";
   const scannerStatus = holdLocked ? "HOLD" : "SCAN";
+  const showDigitalScanWidget =
+    isDigitalSource && scannerStatus === "SCAN" && !digitalTrafficActive;
   const favoriteDescriptor = useMemo(() => {
     if (hpScanMode !== "favorites") {
       return "Full Database";
@@ -234,6 +271,18 @@ export default function MainScreen() {
     : hpScanMode === "favorites"
     ? `List: ${favoriteDescriptor}`
     : "Full Database";
+  const displayedDepartment = showDigitalScanWidget
+    ? `Scanning ${scanFrame}`
+    : department;
+  const displayedDepartmentSecondary = showDigitalScanWidget
+    ? `Service: Digital ${scanFrame}`
+    : departmentSecondary;
+  const displayedChannelLine = showDigitalScanWidget
+    ? `Scanning ${scanFrame}`
+    : channelLine;
+  const displayedChannelMeta = showDigitalScanWidget
+    ? `Digital • Awaiting activity ${scanFrame}`
+    : channelMeta;
 
   const doHold = async () => {
     try {
@@ -264,9 +313,9 @@ export default function MainScreen() {
       if (rowKey === "system") {
         setHint(`System: ${formatValue(system)}`);
       } else if (rowKey === "department") {
-        setHint(`Department: ${formatValue(department)}`);
+        setHint(`Department: ${formatValue(displayedDepartment)}`);
       } else {
-        setHint(`Channel: ${formatValue(channelLine)} (${formatValue(channelMeta)})`);
+        setHint(`Channel: ${formatValue(displayedChannelLine)} (${formatValue(displayedChannelMeta)})`);
       }
       setSubmenuRow("");
       return;
@@ -406,8 +455,8 @@ export default function MainScreen() {
         <div className="hp2-line">
           <div className="hp2-line-label">Department</div>
           <div className="hp2-line-body">
-            <div className="hp2-line-primary">{formatValue(department)}</div>
-            <div className="hp2-line-secondary">{departmentSecondary}</div>
+            <div className="hp2-line-primary">{formatValue(displayedDepartment)}</div>
+            <div className="hp2-line-secondary">{displayedDepartmentSecondary}</div>
           </div>
           <button
             type="button"
@@ -422,8 +471,8 @@ export default function MainScreen() {
         <div className="hp2-line channel">
           <div className="hp2-line-label">Channel</div>
           <div className="hp2-line-body">
-            <div className="hp2-line-primary">{formatValue(channelLine)}</div>
-            <div className="hp2-line-secondary">{formatValue(channelMeta)}</div>
+            <div className="hp2-line-primary">{formatValue(displayedChannelLine)}</div>
+            <div className="hp2-line-secondary">{formatValue(displayedChannelMeta)}</div>
           </div>
           <button
             type="button"

@@ -55,6 +55,10 @@ export default function LocationScreen() {
       setLocalError("Latitude and longitude must be valid numbers.");
       return;
     }
+    if ((parsedLat === null) !== (parsedLon === null)) {
+      setLocalError("Enter both latitude and longitude, or leave both blank.");
+      return;
+    }
 
     if (parsedLat !== null && (parsedLat < -90 || parsedLat > 90)) {
       setLocalError("Latitude must be between -90 and 90.");
@@ -67,12 +71,18 @@ export default function LocationScreen() {
     }
 
     try {
-      await saveHpState({
+      const payload = {
         zip,
-        lat: parsedLat,
-        lon: parsedLon,
         use_location: useLocation,
-      });
+      };
+      if (parsedLat !== null && parsedLon !== null) {
+        payload.lat = parsedLat;
+        payload.lon = parsedLon;
+      } else if (zip) {
+        payload.resolve_zip = true;
+      }
+
+      await saveHpState(payload);
       navigate(SCREENS.MENU);
     } catch {
       // Context error is shown globally.

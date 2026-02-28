@@ -104,6 +104,7 @@ try:
     from .hp_state import HPState
     from .hp_favorites_wizard import HPFavoritesWizard
     from .service_types import get_all_service_types, get_default_enabled_service_types
+    from .zip_lookup import resolve_postal_to_lat_lon
     from .scan_mode_controller import get_scan_mode_controller
     from .v3_preflight import (
         evaluate_analog_preflight,
@@ -182,6 +183,7 @@ except ImportError:
     from ui.hp_state import HPState
     from ui.hp_favorites_wizard import HPFavoritesWizard
     from ui.service_types import get_all_service_types, get_default_enabled_service_types
+    from ui.zip_lookup import resolve_postal_to_lat_lon
     from ui.scan_mode_controller import get_scan_mode_controller
     from ui.v3_preflight import (
         evaluate_analog_preflight,
@@ -1990,6 +1992,9 @@ class Handler(BaseHTTPRequestHandler):
                         "application/json; charset=utf-8",
                     )
 
+            if "zip" in form or "postal_code" in form:
+                state.zip = str(form.get("zip") or form.get("postal_code") or "").strip()
+
             if "lat" in form:
                 try:
                     state.lat = parse_float_value(form.get("lat"), field="lat")
@@ -2009,6 +2014,32 @@ class Handler(BaseHTTPRequestHandler):
                         json.dumps({"ok": False, "error": str(e)}),
                         "application/json; charset=utf-8",
                     )
+
+            if "resolve_zip" in form:
+                try:
+                    resolve_zip = parse_bool_value(form.get("resolve_zip"), field="resolve_zip")
+                except ValueError as e:
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": str(e)}),
+                        "application/json; charset=utf-8",
+                    )
+                if resolve_zip:
+                    if not str(state.zip or "").strip():
+                        return self._send(
+                            400,
+                            json.dumps({"ok": False, "error": "missing zip"}),
+                            "application/json; charset=utf-8",
+                        )
+                    resolved = resolve_postal_to_lat_lon(str(state.zip), "US")
+                    if not resolved:
+                        return self._send(
+                            400,
+                            json.dumps({"ok": False, "error": "unable to resolve zip"}),
+                            "application/json; charset=utf-8",
+                        )
+                    state.lat = float(resolved[0])
+                    state.lon = float(resolved[1])
 
             if "range_miles" in form:
                 try:

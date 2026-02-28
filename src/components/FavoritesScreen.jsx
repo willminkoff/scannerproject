@@ -1,879 +1,303 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { SCREENS, useUI } from "../context/UIContext";
-import * as hpApi from "../api/hpApi";
-import Button from "./Shared/Button";
-import Header from "./Shared/Header";
 
-function parseFloatValue(value) {
-  const num = Number(String(value || "").trim());
-  if (!Number.isFinite(num)) {
-    return null;
-  }
-  return num;
+const PAGE_SIZE = 8;
+const SLOT_COUNT = 8;
+const FULL_DB_TILE_ID = "action:full_database";
+const CREATE_LIST_TILE_ID = "action:create_list";
+
+function normalizeLabel(value, fallback = "My Favorites") {
+  const text = String(value || "").trim();
+  return text || fallback;
 }
 
-function parseIntValue(value) {
-  const num = Number.parseInt(String(value || "").trim(), 10);
-  if (!Number.isFinite(num)) {
-    return null;
-  }
-  return num;
+function listTileId(label) {
+  return `list:${normalizeLabel(label).toLowerCase()}`;
 }
 
-function parseControlChannels(rawText) {
-  const tokens = String(rawText || "")
-    .split(/[,\s]+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
+function collectListLabels(hpState) {
+  const out = [];
   const seen = new Set();
-  const out = [];
-  tokens.forEach((token) => {
-    const value = parseFloatValue(token);
-    if (value === null || value <= 0) {
+  const push = (value) => {
+    const label = normalizeLabel(value, "");
+    if (!label) {
       return;
     }
-    const mhz = Number(value.toFixed(6));
-    if (seen.has(mhz)) {
+    const token = label.toLowerCase();
+    if (seen.has(token)) {
       return;
     }
-    seen.add(mhz);
-    out.push(mhz);
-  });
-  return out.sort((a, b) => a - b);
-}
+    seen.add(token);
+    out.push(label);
+  };
 
-function normalizeCustomFavorites(raw) {
-  if (!Array.isArray(raw)) {
-    return [];
-  }
-  const out = [];
-  raw.forEach((item, index) => {
+  const favorites = Array.isArray(hpState?.favorites) ? hpState.favorites : [];
+  favorites.forEach((item) => {
     if (!item || typeof item !== "object") {
       return;
     }
-    const kind = String(item.kind || "").trim().toLowerCase();
-    if (kind !== "trunked" && kind !== "conventional") {
-      return;
-    }
-    const id = String(item.id || `fav-${index + 1}`).trim() || `fav-${index + 1}`;
-    if (kind === "trunked") {
-      const talkgroup = parseIntValue(item.talkgroup || item.tgid);
-      const controlChannels = Array.isArray(item.control_channels)
-        ? item.control_channels
-            .map((value) => parseFloatValue(value))
-            .filter((value) => value !== null && value > 0)
-            .map((value) => Number(value.toFixed(6)))
-        : [];
-      if (talkgroup === null || talkgroup <= 0 || controlChannels.length === 0) {
-        return;
-      }
-      out.push({
-        id,
-        kind: "trunked",
-        system_name: String(item.system_name || "").trim(),
-        department_name: String(item.department_name || "").trim(),
-        alpha_tag: String(item.alpha_tag || item.channel_name || "").trim(),
-        talkgroup: String(talkgroup),
-        service_tag: parseIntValue(item.service_tag) || 0,
-        control_channels: Array.from(new Set(controlChannels)).sort((a, b) => a - b),
-      });
-      return;
-    }
-    const frequency = parseFloatValue(item.frequency);
-    if (frequency === null || frequency <= 0) {
-      return;
-    }
-    out.push({
-      id,
-      kind: "conventional",
-      alpha_tag: String(item.alpha_tag || item.channel_name || "").trim(),
-      frequency: Number(frequency.toFixed(6)),
-      service_tag: parseIntValue(item.service_tag) || 0,
-    });
+    push(item.label);
   });
+  push(hpState?.favorites_name || "My Favorites");
+  if (out.length === 0) {
+    out.push("My Favorites");
+  }
   return out;
 }
 
-function makeId(prefix) {
-  const random = Math.random().toString(16).slice(2, 8);
-  return `${prefix}-${Date.now()}-${random}`;
-}
-
-function channelKey(channel) {
-  if (!channel || typeof channel !== "object") {
-    return "";
-  }
-  const kind = String(channel.kind || "").trim().toLowerCase();
-  if (kind === "trunked") {
-    const talkgroup = Number(channel.talkgroup) || 0;
-    const controls = Array.isArray(channel.control_channels)
-      ? [...new Set(channel.control_channels.map((value) => Number(value).toFixed(6)))].sort()
-      : [];
-    return `trunked|${talkgroup}|${controls.join(",")}`;
-  }
-  if (kind === "conventional") {
-    const frequency = Number(channel.frequency) || 0;
-    return `conventional|${frequency.toFixed(6)}|${String(channel.alpha_tag || "").trim().toLowerCase()}`;
-  }
-  return "";
-}
-
-function favoriteKey(entry) {
-  if (!entry || typeof entry !== "object") {
-    return "";
-  }
-  const kind = String(entry.kind || "").trim().toLowerCase();
-  if (kind === "trunked") {
-    const talkgroup = Number(entry.talkgroup) || 0;
-    const controls = Array.isArray(entry.control_channels)
-      ? [...new Set(entry.control_channels.map((value) => Number(value).toFixed(6)))].sort()
-      : [];
-    return `trunked|${talkgroup}|${controls.join(",")}`;
-  }
-  if (kind === "conventional") {
-    const frequency = Number(entry.frequency) || 0;
-    return `conventional|${frequency.toFixed(6)}|${String(entry.alpha_tag || "").trim().toLowerCase()}`;
-  }
-  return "";
-}
-
-function channelToFavorite(channel) {
-  if (!channel || typeof channel !== "object") {
-    return null;
-  }
-  const kind = String(channel.kind || "").trim().toLowerCase();
-  if (kind === "trunked") {
-    const talkgroup = parseIntValue(channel.talkgroup);
-    const controls = Array.isArray(channel.control_channels)
-      ? channel.control_channels
-          .map((value) => parseFloatValue(value))
-          .filter((value) => value !== null && value > 0)
-          .map((value) => Number(value.toFixed(6)))
-      : [];
-    if (talkgroup === null || talkgroup <= 0 || controls.length === 0) {
-      return null;
-    }
+function buildFavoritesMetadata(labels, activeLabel) {
+  const activeToken = normalizeLabel(activeLabel).toLowerCase();
+  return labels.map((label, index) => {
+    const safeLabel = normalizeLabel(label);
+    const slug = safeLabel
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
     return {
-      id: makeId("trunk"),
-      kind: "trunked",
-      system_name: String(channel.system_name || "").trim(),
-      department_name: String(channel.department_name || "").trim(),
-      alpha_tag: String(channel.alpha_tag || "").trim(),
-      talkgroup: String(talkgroup),
-      service_tag: parseIntValue(channel.service_tag) || 0,
-      control_channels: Array.from(new Set(controls)).sort((a, b) => a - b),
+      id: slug ? `fav-${slug}` : `fav-${index + 1}`,
+      type: "list",
+      target: "favorites",
+      profile_id: "",
+      label: safeLabel,
+      enabled: safeLabel.toLowerCase() === activeToken,
     };
+  });
+}
+
+function pageSlots(tiles, pageIndex) {
+  const start = pageIndex * PAGE_SIZE;
+  const page = tiles.slice(start, start + PAGE_SIZE);
+  const slots = [...page];
+  while (slots.length < SLOT_COUNT) {
+    slots.push(null);
   }
-  if (kind === "conventional") {
-    const frequency = parseFloatValue(channel.frequency);
-    if (frequency === null || frequency <= 0) {
-      return null;
-    }
-    return {
-      id: makeId("conv"),
-      kind: "conventional",
-      alpha_tag: String(channel.alpha_tag || "").trim(),
-      frequency: Number(frequency.toFixed(6)),
-      service_tag: parseIntValue(channel.service_tag) || 0,
-    };
-  }
-  return null;
+  return slots;
 }
 
 export default function FavoritesScreen() {
   const { state, saveHpState, navigate } = useUI();
   const { hpState, working } = state;
 
-  const [favoritesName, setFavoritesName] = useState("My Favorites");
-  const [entries, setEntries] = useState([]);
-  const [error, setError] = useState("");
-  const [wizardMessage, setWizardMessage] = useState("");
+  const [selectedTileId, setSelectedTileId] = useState(FULL_DB_TILE_ID);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [localMessage, setLocalMessage] = useState("");
+  const [localError, setLocalError] = useState("");
 
-  const [countries, setCountries] = useState([]);
-  const [states, setStates] = useState([]);
-  const [counties, setCounties] = useState([]);
-  const [systems, setSystems] = useState([]);
-  const [channels, setChannels] = useState([]);
+  const listLabels = useMemo(() => collectListLabels(hpState), [hpState.favorites, hpState.favorites_name]);
 
-  const [countryId, setCountryId] = useState(1);
-  const [stateId, setStateId] = useState(0);
-  const [countyId, setCountyId] = useState(0);
-  const [systemType, setSystemType] = useState("digital");
-  const [systemId, setSystemId] = useState("");
-  const [systemQuery, setSystemQuery] = useState("");
-  const [channelQuery, setChannelQuery] = useState("");
-  const [channelsTruncated, setChannelsTruncated] = useState(false);
-  const [selectedChannelIds, setSelectedChannelIds] = useState([]);
-  const [wizardLoading, setWizardLoading] = useState(false);
-
-  const [trunkedForm, setTrunkedForm] = useState({
-    system_name: "",
-    department_name: "",
-    alpha_tag: "",
-    talkgroup: "",
-    service_tag: "",
-    control_channels: "",
-  });
-  const [conventionalForm, setConventionalForm] = useState({
-    alpha_tag: "",
-    frequency: "",
-    service_tag: "",
-  });
-
-  useEffect(() => {
-    setFavoritesName(String(hpState.favorites_name || "My Favorites").trim() || "My Favorites");
-    setEntries(normalizeCustomFavorites(hpState.custom_favorites));
-  }, [hpState.favorites_name, hpState.custom_favorites]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const loadCountries = async () => {
-      setWizardLoading(true);
-      try {
-        const payload = await hpApi.getFavoritesWizardCountries();
-        if (cancelled) {
-          return;
-        }
-        const rows = Array.isArray(payload?.countries) ? payload.countries : [];
-        setCountries(rows);
-        if (rows.length > 0) {
-          const preferred = rows.find((row) => Number(row.country_id) === 1) || rows[0];
-          setCountryId(Number(preferred.country_id) || 1);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err.message || "Failed to load countries.");
-        }
-      } finally {
-        if (!cancelled) {
-          setWizardLoading(false);
-        }
-      }
-    };
-    loadCountries();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!countryId) {
-      return;
+  const tiles = useMemo(() => {
+    const listTiles = listLabels.map((label) => ({
+      id: listTileId(label),
+      label,
+      kind: "list",
+    }));
+    const out = [
+      {
+        id: FULL_DB_TILE_ID,
+        label: "Select Database to Monitor",
+        kind: "action",
+        multiline: true,
+      },
+    ];
+    if (listTiles[0]) {
+      out.push(listTiles[0]);
     }
-    let cancelled = false;
-    const loadStates = async () => {
-      setWizardLoading(true);
-      setSystems([]);
-      setChannels([]);
-      setSystemId("");
-      setSelectedChannelIds([]);
-      try {
-        const payload = await hpApi.getFavoritesWizardStates(countryId);
-        if (cancelled) {
-          return;
-        }
-        const rows = Array.isArray(payload?.states) ? payload.states : [];
-        setStates(rows);
-        if (rows.length > 0) {
-          setStateId(Number(rows[0].state_id) || 0);
-        } else {
-          setStateId(0);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err.message || "Failed to load states.");
-        }
-      } finally {
-        if (!cancelled) {
-          setWizardLoading(false);
-        }
-      }
-    };
-    loadStates();
-    return () => {
-      cancelled = true;
-    };
-  }, [countryId]);
+    out.push({
+      id: CREATE_LIST_TILE_ID,
+      label: "Create New List",
+      kind: "action",
+    });
+    if (listTiles[1]) {
+      out.push(listTiles[1]);
+    }
+    for (let idx = 2; idx < listTiles.length; idx += 1) {
+      out.push(listTiles[idx]);
+    }
+    return out;
+  }, [listLabels]);
+
+  const totalPages = Math.max(1, Math.ceil(tiles.length / PAGE_SIZE));
 
   useEffect(() => {
-    if (!stateId) {
-      return;
-    }
-    let cancelled = false;
-    const loadCounties = async () => {
-      setWizardLoading(true);
-      setSystems([]);
-      setChannels([]);
-      setSystemId("");
-      setSelectedChannelIds([]);
-      try {
-        const payload = await hpApi.getFavoritesWizardCounties(stateId);
-        if (cancelled) {
-          return;
-        }
-        const rows = Array.isArray(payload?.counties) ? payload.counties : [];
-        setCounties(rows);
-        if (rows.length > 0) {
-          setCountyId(Number(rows[0].county_id) || 0);
-        } else {
-          setCountyId(0);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err.message || "Failed to load counties.");
-        }
-      } finally {
-        if (!cancelled) {
-          setWizardLoading(false);
-        }
-      }
-    };
-    loadCounties();
-    return () => {
-      cancelled = true;
-    };
-  }, [stateId]);
+    const mode = String(hpState.mode || "").trim().toLowerCase();
+    const activeTile =
+      mode === "favorites"
+        ? listTileId(hpState.favorites_name || "My Favorites")
+        : FULL_DB_TILE_ID;
+    setSelectedTileId(activeTile);
+    const index = Math.max(
+      0,
+      tiles.findIndex((tile) => tile.id === activeTile)
+    );
+    setPageIndex(Math.floor(index / PAGE_SIZE));
+  }, [hpState.mode, hpState.favorites_name, tiles]);
 
   useEffect(() => {
-    if (!stateId) {
-      return;
+    if (pageIndex >= totalPages) {
+      setPageIndex(Math.max(0, totalPages - 1));
     }
-    let cancelled = false;
-    const timer = setTimeout(async () => {
-      setWizardLoading(true);
-      try {
-        const payload = await hpApi.getFavoritesWizardSystems({
-          stateId,
-          countyId,
-          systemType,
-          q: systemQuery.trim(),
-        });
-        if (cancelled) {
-          return;
-        }
-        const rows = Array.isArray(payload?.systems) ? payload.systems : [];
-        setSystems(rows);
-        if (rows.length > 0) {
-          const nextId = String(rows[0].id || "").trim();
-          setSystemId(nextId);
-        } else {
-          setSystemId("");
-          setChannels([]);
-          setSelectedChannelIds([]);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err.message || "Failed to load systems.");
-        }
-      } finally {
-        if (!cancelled) {
-          setWizardLoading(false);
-        }
-      }
-    }, 250);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [stateId, countyId, systemType, systemQuery]);
+  }, [pageIndex, totalPages]);
 
-  useEffect(() => {
-    if (!systemId) {
-      setChannels([]);
-      setSelectedChannelIds([]);
-      return;
-    }
-    let cancelled = false;
-    const timer = setTimeout(async () => {
-      setWizardLoading(true);
-      try {
-        const payload = await hpApi.getFavoritesWizardChannels({
-          systemType,
-          systemId,
-          q: channelQuery.trim(),
-          limit: 500,
-        });
-        if (cancelled) {
-          return;
-        }
-        const rows = Array.isArray(payload?.channels) ? payload.channels : [];
-        setChannels(rows);
-        setChannelsTruncated(Boolean(payload?.truncated));
-        setSelectedChannelIds([]);
-      } catch (err) {
-        if (!cancelled) {
-          setError(err.message || "Failed to load channels.");
-        }
-      } finally {
-        if (!cancelled) {
-          setWizardLoading(false);
-        }
-      }
-    }, 250);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [systemType, systemId, channelQuery]);
+  const slots = useMemo(() => pageSlots(tiles, pageIndex), [tiles, pageIndex]);
 
-  const toggleChannel = (id) => {
-    setSelectedChannelIds((current) => {
-      const token = String(id || "");
-      if (current.includes(token)) {
-        return current.filter((value) => value !== token);
-      }
-      return [...current, token];
+  const saveFavoriteSelection = async (mode, favoritesName, labelsOverride) => {
+    const labels = Array.isArray(labelsOverride) && labelsOverride.length > 0 ? labelsOverride : listLabels;
+    const nextName = normalizeLabel(favoritesName || hpState.favorites_name || "My Favorites");
+    await saveHpState({
+      mode,
+      favorites_name: nextName,
+      favorites: buildFavoritesMetadata(labels, nextName),
     });
   };
 
-  const addSelectedChannels = () => {
-    setError("");
-    setWizardMessage("");
-    const selectedSet = new Set(selectedChannelIds);
-    const selected = channels.filter((channel) => selectedSet.has(String(channel.id || "")));
-    if (selected.length === 0) {
-      setError("No channels selected.");
-      return;
-    }
-    setEntries((current) => {
-      const existingKeys = new Set(current.map((entry) => favoriteKey(entry)).filter(Boolean));
-      const additions = [];
-      selected.forEach((channel) => {
-        const next = channelToFavorite(channel);
-        if (!next) {
-          return;
-        }
-        const key = favoriteKey(next) || channelKey(channel);
-        if (!key || existingKeys.has(key)) {
-          return;
-        }
-        existingKeys.add(key);
-        additions.push(next);
-      });
-      setWizardMessage(
-        additions.length > 0
-          ? `Added ${additions.length} channel${additions.length === 1 ? "" : "s"} to favorites.`
-          : "All selected channels were already in favorites."
-      );
-      setSelectedChannelIds([]);
-      return [...current, ...additions];
-    });
-  };
-
-  const trunkedEntries = useMemo(
-    () => entries.filter((entry) => entry.kind === "trunked"),
-    [entries]
-  );
-  const conventionalEntries = useMemo(
-    () => entries.filter((entry) => entry.kind === "conventional"),
-    [entries]
-  );
-
-  const removeEntry = (id) => {
-    setEntries((current) => current.filter((entry) => entry.id !== id));
-  };
-
-  const addTrunkedEntry = () => {
-    setError("");
-    const talkgroup = parseIntValue(trunkedForm.talkgroup);
-    if (talkgroup === null || talkgroup <= 0) {
-      setError("Trunked talkgroup must be a positive integer.");
-      return;
-    }
-    const controlChannels = parseControlChannels(trunkedForm.control_channels);
-    if (controlChannels.length === 0) {
-      setError("At least one trunked control channel is required.");
-      return;
-    }
-    const serviceTag = parseIntValue(trunkedForm.service_tag) || 0;
-    const entry = {
-      id: makeId("trunk"),
-      kind: "trunked",
-      system_name: String(trunkedForm.system_name || "").trim(),
-      department_name: String(trunkedForm.department_name || "").trim(),
-      alpha_tag: String(trunkedForm.alpha_tag || "").trim(),
-      talkgroup: String(talkgroup),
-      service_tag: serviceTag,
-      control_channels: controlChannels,
-    };
-    setEntries((current) => [...current, entry]);
-    setTrunkedForm({
-      system_name: trunkedForm.system_name,
-      department_name: trunkedForm.department_name,
-      alpha_tag: "",
-      talkgroup: "",
-      service_tag: trunkedForm.service_tag,
-      control_channels: trunkedForm.control_channels,
-    });
-  };
-
-  const addConventionalEntry = () => {
-    setError("");
-    const frequency = parseFloatValue(conventionalForm.frequency);
-    if (frequency === null || frequency <= 0) {
-      setError("Conventional frequency must be a positive number.");
-      return;
-    }
-    const serviceTag = parseIntValue(conventionalForm.service_tag) || 0;
-    const entry = {
-      id: makeId("conv"),
-      kind: "conventional",
-      alpha_tag: String(conventionalForm.alpha_tag || "").trim(),
-      frequency: Number(frequency.toFixed(6)),
-      service_tag: serviceTag,
-    };
-    setEntries((current) => [...current, entry]);
-    setConventionalForm({
-      alpha_tag: "",
-      frequency: "",
-      service_tag: conventionalForm.service_tag,
-    });
-  };
-
-  const saveFavorites = async () => {
-    setError("");
-    const listName = String(favoritesName || "").trim() || "My Favorites";
+  const activateFullDatabase = async () => {
+    setLocalError("");
+    setLocalMessage("");
     try {
-      await saveHpState({
-        mode: "favorites",
-        favorites_name: listName,
-        custom_favorites: entries,
-      });
-      navigate(SCREENS.MENU);
-    } catch {
-      // Context error is shown globally.
+      await saveFavoriteSelection("full_database", hpState.favorites_name || "My Favorites");
+      setSelectedTileId(FULL_DB_TILE_ID);
+      setLocalMessage("Monitoring Full Database.");
+    } catch (err) {
+      setLocalError(err?.message || "Failed to switch to Full Database.");
     }
   };
 
-  const switchToFullDatabase = async () => {
-    setError("");
+  const activateFavoritesList = async (label, labelsOverride) => {
+    const nextLabel = normalizeLabel(label);
+    setLocalError("");
+    setLocalMessage("");
     try {
-      await saveHpState({ mode: "full_database" });
-      navigate(SCREENS.MENU);
-    } catch {
-      // Context error is shown globally.
+      await saveFavoriteSelection("favorites", nextLabel, labelsOverride);
+      setSelectedTileId(listTileId(nextLabel));
+      setLocalMessage(`Selected favorites list: ${nextLabel}`);
+    } catch (err) {
+      setLocalError(err?.message || "Failed to select favorites list.");
     }
+  };
+
+  const createList = async () => {
+    const proposed = window.prompt("New favorites list name", "New List");
+    if (proposed === null) {
+      return;
+    }
+    const nextLabel = normalizeLabel(proposed, "");
+    if (!nextLabel) {
+      setLocalError("List name is required.");
+      return;
+    }
+    const token = nextLabel.toLowerCase();
+    if (listLabels.some((label) => normalizeLabel(label).toLowerCase() === token)) {
+      setLocalError("That list name already exists.");
+      return;
+    }
+    const nextLabels = [...listLabels, nextLabel];
+    await activateFavoritesList(nextLabel, nextLabels);
+  };
+
+  const onTilePress = async (tile) => {
+    if (!tile || working) {
+      return;
+    }
+    if (tile.id === FULL_DB_TILE_ID) {
+      await activateFullDatabase();
+      return;
+    }
+    if (tile.id === CREATE_LIST_TILE_ID) {
+      await createList();
+      return;
+    }
+    if (tile.kind === "list") {
+      await activateFavoritesList(tile.label);
+    }
+  };
+
+  const onListen = async () => {
+    const selectedTile = tiles.find((tile) => tile.id === selectedTileId) || null;
+    if (!selectedTile) {
+      navigate(SCREENS.MAIN);
+      return;
+    }
+    if (selectedTile.id === FULL_DB_TILE_ID) {
+      await activateFullDatabase();
+      navigate(SCREENS.MAIN);
+      return;
+    }
+    if (selectedTile.id === CREATE_LIST_TILE_ID) {
+      await createList();
+      return;
+    }
+    await activateFavoritesList(selectedTile.label);
+    navigate(SCREENS.MAIN);
   };
 
   return (
-    <section className="screen favorites-screen">
-      <Header title="Favorites" showBack onBack={() => navigate(SCREENS.MENU)} />
-
-      <div className="card">
-        <div className="muted" style={{ marginBottom: "8px" }}>
-          Favorites List Name
+    <section className="screen hp2-picker favorites-screen">
+      <div className="hp2-picker-top">
+        <div className="hp2-picker-title">Manage Favorites Lists</div>
+        <div className="hp2-picker-top-right">
+          <span className="hp2-picker-help">Help</span>
+          <span className="hp2-picker-status">L</span>
+          <span className="hp2-picker-status">SIG</span>
+          <span className="hp2-picker-status">BAT</span>
         </div>
-        <input
-          className="input"
-          value={favoritesName}
-          onChange={(event) => setFavoritesName(event.target.value)}
-          placeholder="My Favorites"
-        />
       </div>
 
-      <div className="card">
-        <div className="muted" style={{ marginBottom: "8px" }}>
-          Favorites Wizard (HP2 style)
-        </div>
-        <div className="muted">Country</div>
-        <select
-          className="input"
-          value={countryId}
-          onChange={(event) => setCountryId(Number(event.target.value) || 1)}
+      <div className="hp2-picker-grid">
+        {slots.map((tile, index) => {
+          if (!tile) {
+            return <div key={`empty-${index}`} className="hp2-picker-tile hp2-picker-tile-empty" />;
+          }
+          const isActive = tile.id === selectedTileId;
+          return (
+            <button
+              key={tile.id}
+              type="button"
+              className={`hp2-picker-tile ${isActive ? "active" : ""} ${tile.multiline ? "multiline" : ""}`}
+              onClick={() => onTilePress(tile)}
+              disabled={working}
+            >
+              {tile.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="hp2-picker-bottom hp2-picker-bottom-4">
+        <button type="button" className="hp2-picker-btn listen" onClick={onListen} disabled={working}>
+          Listen
+        </button>
+        <button
+          type="button"
+          className="hp2-picker-btn"
+          onClick={() => navigate(SCREENS.MENU)}
+          disabled={working}
         >
-          {countries.map((row) => (
-            <option key={row.country_id} value={row.country_id}>
-              {row.name}
-            </option>
-          ))}
-        </select>
-
-        <div className="muted">State / Province</div>
-        <select
-          className="input"
-          value={stateId}
-          onChange={(event) => setStateId(Number(event.target.value) || 0)}
+          Back
+        </button>
+        <button
+          type="button"
+          className="hp2-picker-btn"
+          onClick={() => setPageIndex((current) => Math.max(0, current - 1))}
+          disabled={working || pageIndex <= 0}
         >
-          {states.map((row) => (
-            <option key={row.state_id} value={row.state_id}>
-              {row.name}
-            </option>
-          ))}
-        </select>
-
-        <div className="muted">County</div>
-        <select
-          className="input"
-          value={countyId}
-          onChange={(event) => setCountyId(Number(event.target.value) || 0)}
+          ^
+        </button>
+        <button
+          type="button"
+          className="hp2-picker-btn"
+          onClick={() => setPageIndex((current) => Math.min(totalPages - 1, current + 1))}
+          disabled={working || pageIndex >= totalPages - 1}
         >
-          {counties.map((row) => (
-            <option key={`${row.county_id}:${row.name}`} value={row.county_id}>
-              {row.name}
-            </option>
-          ))}
-        </select>
-
-        <div className="row" style={{ marginTop: "8px" }}>
-          <label>
-            <input
-              type="radio"
-              name="wizard-system-type"
-              value="digital"
-              checked={systemType === "digital"}
-              onChange={() => setSystemType("digital")}
-            />{" "}
-            Digital
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="wizard-system-type"
-              value="analog"
-              checked={systemType === "analog"}
-              onChange={() => setSystemType("analog")}
-            />{" "}
-            Analog
-          </label>
-        </div>
-
-        <div className="muted" style={{ marginTop: "8px" }}>
-          System Search
-        </div>
-        <input
-          className="input"
-          value={systemQuery}
-          onChange={(event) => setSystemQuery(event.target.value)}
-          placeholder="Filter systems"
-        />
-
-        <div className="muted">System</div>
-        <select
-          className="input"
-          value={systemId}
-          onChange={(event) => setSystemId(String(event.target.value || ""))}
-        >
-          {systems.map((row) => (
-            <option key={`${row.system_type}:${row.id}`} value={row.id}>
-              {row.name}
-            </option>
-          ))}
-        </select>
-
-        <div className="muted" style={{ marginTop: "8px" }}>
-          Channel Search
-        </div>
-        <input
-          className="input"
-          value={channelQuery}
-          onChange={(event) => setChannelQuery(event.target.value)}
-          placeholder="Filter channels / talkgroups"
-        />
-
-        <div className="row" style={{ marginTop: "8px" }}>
-          <Button
-            variant="secondary"
-            onClick={() => setSelectedChannelIds(channels.map((row) => String(row.id || "")))}
-            disabled={channels.length === 0 || working}
-          >
-            Select All
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={() => setSelectedChannelIds([])}
-            disabled={selectedChannelIds.length === 0 || working}
-          >
-            Clear Selection
-          </Button>
-          <Button onClick={addSelectedChannels} disabled={selectedChannelIds.length === 0 || working}>
-            Add Selected
-          </Button>
-        </div>
-
-        {channelsTruncated ? (
-          <div className="muted" style={{ marginTop: "6px" }}>
-            Showing first 500 channels. Narrow search to see more.
-          </div>
-        ) : null}
-        <div className="muted" style={{ marginTop: "6px" }}>
-          Loaded {channels.length} channel{channels.length === 1 ? "" : "s"}.
-        </div>
-        {wizardLoading ? <div className="muted">Loading wizard data…</div> : null}
-
-        <div className="list" style={{ marginTop: "8px", maxHeight: "320px", overflowY: "auto" }}>
-          {channels.map((row) => {
-            const id = String(row.id || "");
-            const selected = selectedChannelIds.includes(id);
-            const secondary =
-              row.kind === "trunked"
-                ? `TGID ${row.talkgroup} • ${row.department_name || "Department"}`
-                : `${Number(row.frequency || 0).toFixed(4)} MHz • ${row.department_name || "Department"}`;
-            return (
-              <label key={id} className="row" style={{ marginBottom: "6px" }}>
-                <span>
-                  <strong>{row.alpha_tag || row.department_name || "Channel"}</strong>
-                  <div className="muted">{secondary}</div>
-                </span>
-                <input type="checkbox" checked={selected} onChange={() => toggleChannel(id)} />
-              </label>
-            );
-          })}
-          {channels.length === 0 ? <div className="muted">No channels found for current selection.</div> : null}
-        </div>
+          v
+        </button>
       </div>
 
-      <div className="card">
-        <div className="muted" style={{ marginBottom: "8px" }}>
-          Manual Add (optional)
-        </div>
-        <div className="muted" style={{ marginBottom: "6px" }}>
-          Trunked
-        </div>
-        <input
-          className="input"
-          value={trunkedForm.system_name}
-          onChange={(event) =>
-            setTrunkedForm((current) => ({ ...current, system_name: event.target.value }))
-          }
-          placeholder="System name"
-        />
-        <input
-          className="input"
-          value={trunkedForm.department_name}
-          onChange={(event) =>
-            setTrunkedForm((current) => ({ ...current, department_name: event.target.value }))
-          }
-          placeholder="Department name"
-        />
-        <input
-          className="input"
-          value={trunkedForm.alpha_tag}
-          onChange={(event) =>
-            setTrunkedForm((current) => ({ ...current, alpha_tag: event.target.value }))
-          }
-          placeholder="Channel label (alpha tag)"
-        />
-        <input
-          className="input"
-          value={trunkedForm.talkgroup}
-          onChange={(event) =>
-            setTrunkedForm((current) => ({ ...current, talkgroup: event.target.value }))
-          }
-          placeholder="Talkgroup (decimal)"
-        />
-        <input
-          className="input"
-          value={trunkedForm.control_channels}
-          onChange={(event) =>
-            setTrunkedForm((current) => ({ ...current, control_channels: event.target.value }))
-          }
-          placeholder="Control channels MHz (comma separated)"
-        />
-        <input
-          className="input"
-          value={trunkedForm.service_tag}
-          onChange={(event) =>
-            setTrunkedForm((current) => ({ ...current, service_tag: event.target.value }))
-          }
-          placeholder="Service tag (optional)"
-        />
-        <div className="button-row">
-          <Button onClick={addTrunkedEntry} disabled={working}>
-            Add Trunked
-          </Button>
-        </div>
-
-        <div className="muted" style={{ marginBottom: "6px", marginTop: "10px" }}>
-          Conventional
-        </div>
-        <input
-          className="input"
-          value={conventionalForm.alpha_tag}
-          onChange={(event) =>
-            setConventionalForm((current) => ({ ...current, alpha_tag: event.target.value }))
-          }
-          placeholder="Channel label (alpha tag)"
-        />
-        <input
-          className="input"
-          value={conventionalForm.frequency}
-          onChange={(event) =>
-            setConventionalForm((current) => ({ ...current, frequency: event.target.value }))
-          }
-          placeholder="Frequency MHz"
-        />
-        <input
-          className="input"
-          value={conventionalForm.service_tag}
-          onChange={(event) =>
-            setConventionalForm((current) => ({ ...current, service_tag: event.target.value }))
-          }
-          placeholder="Service tag (optional)"
-        />
-        <div className="button-row">
-          <Button onClick={addConventionalEntry} disabled={working}>
-            Add Conventional
-          </Button>
-        </div>
+      <div className="muted hp2-picker-page">
+        Page {pageIndex + 1} / {totalPages}
       </div>
 
-      <div className="card">
-        <div className="muted" style={{ marginBottom: "8px" }}>
-          Current Favorites ({entries.length})
-        </div>
-        {entries.length === 0 ? (
-          <div className="muted">No custom favorites yet.</div>
-        ) : (
-          <div className="list">
-            {trunkedEntries.map((entry) => (
-              <div key={entry.id} className="row" style={{ marginBottom: "8px" }}>
-                <div>
-                  <div>
-                    <strong>{entry.system_name || "Custom Trunked"}</strong>
-                  </div>
-                  <div className="muted">
-                    {entry.department_name || "Department"} - TGID {entry.talkgroup}
-                  </div>
-                  <div className="muted">
-                    {entry.alpha_tag || "Channel"} - {entry.control_channels.join(", ")} MHz
-                  </div>
-                </div>
-                <Button variant="danger" onClick={() => removeEntry(entry.id)} disabled={working}>
-                  Remove
-                </Button>
-              </div>
-            ))}
-            {conventionalEntries.map((entry) => (
-              <div key={entry.id} className="row" style={{ marginBottom: "8px" }}>
-                <div>
-                  <div>
-                    <strong>{entry.alpha_tag || "Conventional"}</strong>
-                  </div>
-                  <div className="muted">
-                    {entry.frequency.toFixed(4)} MHz
-                    {entry.service_tag > 0 ? ` - Service ${entry.service_tag}` : ""}
-                  </div>
-                </div>
-                <Button variant="danger" onClick={() => removeEntry(entry.id)} disabled={working}>
-                  Remove
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="button-row">
-        <Button onClick={saveFavorites} disabled={working}>
-          Save Favorites Mode
-        </Button>
-        <Button variant="secondary" onClick={switchToFullDatabase} disabled={working}>
-          Use Full Database
-        </Button>
-      </div>
-
-      {wizardMessage ? <div className="message">{wizardMessage}</div> : null}
-      {error ? <div className="error">{error}</div> : null}
+      {localMessage ? <div className="message">{localMessage}</div> : null}
+      {localError ? <div className="error">{localError}</div> : null}
       {state.error ? <div className="error">{state.error}</div> : null}
     </section>
   );
