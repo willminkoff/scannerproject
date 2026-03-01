@@ -69,12 +69,13 @@ export function getFavoritesWizardCounties(stateId) {
   return request(`/api/hp/favorites-wizard/counties${buildQuery({ state_id: stateId })}`);
 }
 
-export function getFavoritesWizardSystems({ stateId, countyId, systemType, q }) {
+export function getFavoritesWizardSystems({ stateId, countyId, systemType, scope, q }) {
   return request(
     `/api/hp/favorites-wizard/systems${buildQuery({
       state_id: stateId,
       county_id: countyId,
       system_type: systemType,
+      scope,
       q,
     })}`
   );

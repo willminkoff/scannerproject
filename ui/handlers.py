@@ -1208,10 +1208,18 @@ class Handler(BaseHTTPRequestHandler):
                     state_id = _query_int("state_id", required=True)
                     county_id = _query_int("county_id", default=0, required=False)
                     system_type = str((q.get("system_type") or ["digital"])[0] or "").strip().lower()
+                    default_scope = "county" if int(county_id or 0) > 0 else "statewide"
+                    scope = str((q.get("scope") or [default_scope])[0] or "").strip().lower()
                     if system_type not in {"digital", "analog"}:
                         return self._send(
                             400,
                             json.dumps({"ok": False, "error": "invalid system_type"}),
+                            "application/json; charset=utf-8",
+                        )
+                    if scope not in {"nationwide", "statewide", "county"}:
+                        return self._send(
+                            400,
+                            json.dumps({"ok": False, "error": "invalid scope"}),
                             "application/json; charset=utf-8",
                         )
                     payload = {
@@ -1220,6 +1228,7 @@ class Handler(BaseHTTPRequestHandler):
                             state_id=int(state_id or 0),
                             county_id=int(county_id or 0),
                             system_type=system_type,
+                            scope=scope,
                             text_filter=text_filter,
                         ),
                     }
