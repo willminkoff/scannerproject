@@ -170,14 +170,126 @@ import A,{useEffect as ra,useMemo as pt,useState as ia}from"https://esm.sh/react
   body {
     margin: 0;
     font-family: Tahoma, Verdana, sans-serif;
-    background: #101317;
+    background:
+      radial-gradient(1200px 460px at 50% -20%, rgba(247, 170, 71, 0.13), transparent 65%),
+      linear-gradient(180deg, #15110f 0%, #0f1319 100%);
     color: #e9eef5;
   }
-  .app-shell {
+  .device-stage {
     min-height: 100vh;
-    max-width: 520px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px;
+  }
+  .device-shell {
+    width: min(1020px, 100%);
+    border-radius: 24px;
+    border: 1px solid #3d332d;
+    background:
+      linear-gradient(180deg, #3a3431 0%, #2a2523 42%, #221e1d 100%);
+    box-shadow:
+      0 30px 65px rgba(0, 0, 0, 0.55),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      inset 0 -6px 18px rgba(0, 0, 0, 0.45);
+    padding: 14px 14px 16px;
+  }
+  .device-brand {
+    text-align: center;
+    color: #f5f4ef;
+    font-weight: 700;
+    font-size: clamp(1.7rem, 4.8vw, 3rem);
+    letter-spacing: 0.02em;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+    margin-bottom: 8px;
+  }
+  .device-body {
+    display: grid;
+    grid-template-columns: clamp(110px, 24vw, 230px) minmax(0, 1fr);
+    gap: 12px;
+    align-items: stretch;
+  }
+  .device-speaker {
+    position: relative;
+    border-radius: 16px;
+    border: 1px solid #4b3d35;
+    background: linear-gradient(180deg, #2f2925 0%, #262120 100%);
+    overflow: hidden;
+    min-height: 620px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.04),
+      inset 0 -8px 14px rgba(0, 0, 0, 0.33);
+  }
+  .device-speaker::before {
+    content: "";
+    position: absolute;
+    inset: 12px 12px 90px;
+    border-radius: 10px;
+    border: 1px solid #3f342d;
+    background:
+      radial-gradient(circle at 4px 4px, #100f10 1.8px, transparent 1.9px),
+      linear-gradient(180deg, #1f1a18 0%, #171414 100%);
+    background-size: 12px 12px, auto;
+  }
+  .device-speaker-label {
+    position: absolute;
+    left: 50%;
+    top: 26px;
+    transform: translateX(-50%) rotate(-90deg);
+    transform-origin: center;
+    color: #f09b5f;
+    font-weight: 700;
+    font-size: 1.05rem;
+    letter-spacing: 0.11em;
+    white-space: nowrap;
+    opacity: 0.88;
+    pointer-events: none;
+  }
+  .device-charge {
+    position: absolute;
+    left: 16px;
+    bottom: 14px;
+    color: #e7cbc1;
+    font-size: 0.95rem;
+    letter-spacing: 0.08em;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    opacity: 0.92;
+    pointer-events: none;
+  }
+  .device-charge::before {
+    content: "";
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #e74a36;
+    box-shadow: 0 0 9px rgba(231, 74, 54, 0.65);
+  }
+  .device-bezel {
+    border-radius: 16px;
+    border: 1px solid #4f433b;
+    background: linear-gradient(180deg, #2d2826 0%, #252120 100%);
+    padding: 8px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.04),
+      inset 0 -9px 14px rgba(0, 0, 0, 0.42);
+  }
+  .device-screen {
+    border-radius: 13px;
+    border: 1px solid #161a24;
+    background: radial-gradient(120% 115% at 0% 0%, #1f2a3b 0%, #111722 55%, #0b1018 100%);
+    box-shadow:
+      inset 0 0 0 1px rgba(202, 222, 255, 0.05),
+      0 10px 22px rgba(0, 0, 0, 0.42);
+    overflow: hidden;
+    min-height: 640px;
+  }
+  .app-shell {
+    min-height: 100%;
+    max-width: 560px;
     margin: 0 auto;
-    padding: 12px;
+    padding: 10px;
   }
   .screen {
     background: #1b2129;
@@ -643,6 +755,50 @@ import A,{useEffect as ra,useMemo as pt,useState as ia}from"https://esm.sh/react
     font-size: 0.78rem;
   }
   @media (max-width: 520px) {
+    .device-stage {
+      padding: 6px;
+    }
+    .device-shell {
+      border-radius: 18px;
+      padding: 9px 9px 10px;
+    }
+    .device-body {
+      gap: 8px;
+      grid-template-columns: 88px minmax(0, 1fr);
+    }
+    .device-speaker {
+      min-height: 540px;
+      border-radius: 12px;
+    }
+    .device-speaker::before {
+      inset: 9px 8px 70px;
+    }
+    .device-speaker-label {
+      font-size: 0.8rem;
+      top: 20px;
+      letter-spacing: 0.08em;
+    }
+    .device-charge {
+      left: 8px;
+      bottom: 9px;
+      font-size: 0.72rem;
+      gap: 5px;
+    }
+    .device-charge::before {
+      width: 7px;
+      height: 7px;
+    }
+    .device-bezel {
+      border-radius: 12px;
+      padding: 6px;
+    }
+    .device-screen {
+      border-radius: 10px;
+      min-height: 560px;
+    }
+    .app-shell {
+      padding: 6px;
+    }
     .hp2-line {
       grid-template-columns: 118px 1fr 24px;
     }
@@ -682,4 +838,44 @@ import A,{useEffect as ra,useMemo as pt,useState as ia}from"https://esm.sh/react
       font-size: 0.78rem;
     }
   }
-`;function Ce(){return ie.createElement(rt,null,ie.createElement("div",{className:"app-shell"},ie.createElement("style",null,pa),ie.createElement(Te,null)))}var ct=document.getElementById("root");if(!ct)throw new Error("Missing #root mount element");ca(ct).render(Ie.createElement(Ie.StrictMode,null,Ie.createElement(Ce,null)));
+`;
+function Ce(){
+  return ie.createElement(
+    rt,
+    null,
+    ie.createElement(
+      "div",
+      {className:"device-stage"},
+      ie.createElement("style",null,pa),
+      ie.createElement(
+        "div",
+        {className:"device-shell"},
+        ie.createElement("div",{className:"device-brand","aria-hidden":"true"},"Uniden"),
+        ie.createElement(
+          "div",
+          {className:"device-body"},
+          ie.createElement(
+            "aside",
+            {className:"device-speaker","aria-hidden":"true"},
+            ie.createElement("div",{className:"device-speaker-label"},"HOMEPATROL-II"),
+            ie.createElement("div",{className:"device-charge"},"CHARGE")
+          ),
+          ie.createElement(
+            "div",
+            {className:"device-bezel"},
+            ie.createElement(
+              "div",
+              {className:"device-screen"},
+              ie.createElement(
+                "div",
+                {className:"app-shell"},
+                ie.createElement(Te,null)
+              )
+            )
+          )
+        )
+      )
+    )
+  )
+}
+var ct=document.getElementById("root");if(!ct)throw new Error("Missing #root mount element");ca(ct).render(Ie.createElement(Ie.StrictMode,null,Ie.createElement(Ce,null)));
