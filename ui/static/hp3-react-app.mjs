@@ -303,6 +303,9 @@ import A,{useEffect as ra,useMemo as pt,useState as ia}from"https://esm.sh/react
     border-radius: 4px;
     padding: 2px 6px;
     font-size: 0.75rem;
+    line-height: 1.05;
+    white-space: normal;
+    overflow-wrap: anywhere;
     cursor: pointer;
   }
   .hp2-radio-btn:disabled {
@@ -413,6 +416,9 @@ import A,{useEffect as ra,useMemo as pt,useState as ia}from"https://esm.sh/react
     color: #dbe7f8;
     padding: 5px 10px;
     font-size: 0.82rem;
+    line-height: 1.05;
+    white-space: normal;
+    overflow-wrap: anywhere;
     cursor: pointer;
   }
   .hp2-submenu-btn:disabled {
@@ -432,6 +438,9 @@ import A,{useEffect as ra,useMemo as pt,useState as ia}from"https://esm.sh/react
     color: #d7e2f5;
     font-size: 0.83rem;
     padding: 10px 6px;
+    line-height: 1.05;
+    white-space: normal;
+    overflow-wrap: anywhere;
     cursor: pointer;
   }
   .hp2-feature-btn:disabled {
@@ -525,10 +534,15 @@ import A,{useEffect as ra,useMemo as pt,useState as ia}from"https://esm.sh/react
     font-weight: 700;
     text-align: left;
     padding: 9px 10px;
+    line-height: 1.06;
     cursor: pointer;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow: auto;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    text-overflow: clip;
+    scrollbar-width: thin;
+    scrollbar-color: #6f819b #1a2230;
   }
   .hp2-picker-tile.active {
     border-color: #e2ad43;
@@ -566,6 +580,13 @@ import A,{useEffect as ra,useMemo as pt,useState as ia}from"https://esm.sh/react
     color: #dce9fb;
     font-size: 0.9rem;
     font-weight: 700;
+    line-height: 1.05;
+    white-space: normal;
+    overflow: auto;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    text-align: center;
+    padding: 4px 6px;
     cursor: pointer;
   }
   .hp2-picker-btn.listen {
@@ -603,17 +624,19 @@ import A,{useEffect as ra,useMemo as pt,useState as ia}from"https://esm.sh/react
     color: #ffe2a2;
     font-size: 0.81rem;
     width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.08;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
   .favorites-screen .fav-line-sub {
     color: #c9d8ee;
     font-size: 0.7rem;
     width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.06;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
   .favorites-screen .fav-wizard-note {
     padding: 6px 12px 4px;
