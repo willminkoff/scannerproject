@@ -1967,6 +1967,7 @@
             <button class="sitrep-btn" id="btn-restart-digital" type="button">Restart Digital</button>
             <button class="sitrep-btn" id="btn-restart-icecast" type="button">Restart Icecast</button>
             <button class="sitrep-btn" id="btn-restart-keepalive" type="button">Restart Keepalive</button>
+            <button class="sitrep-btn" id="btn-reset-usb-hub" type="button">Reset USB Hub</button>
             <button class="sitrep-btn danger" id="btn-restart-ui" type="button">Restart UI</button>
           </div>
         </div>
@@ -2750,6 +2751,7 @@
       btnRestartDigital: document.getElementById('btn-restart-digital'),
       btnRestartIcecast: document.getElementById('btn-restart-icecast'),
       btnRestartKeepalive: document.getElementById('btn-restart-keepalive'),
+      btnResetUsbHub: document.getElementById('btn-reset-usb-hub'),
       btnRestartUi: document.getElementById('btn-restart-ui'),
       profileLoopOpenAnalog: document.getElementById('profile-loop-open-analog'),
       profileLoopOpenDigital: document.getElementById('profile-loop-open-digital'),
@@ -6279,6 +6281,35 @@
       }
     }
 
+    async function resetUsbHub() {
+      if (!confirm('Reset USB hub? SDR devices may disconnect briefly.')) return;
+      if (els.btnResetUsbHub) {
+        els.btnResetUsbHub.disabled = true;
+      }
+      try {
+        const res = await postAPI('/api/usb-hub-reset', {});
+        if (!res || !res.ok) {
+          logActivity(formatApiError(res, 'USB hub reset failed'), 'warn', 'usb-hub-reset-fail');
+        } else {
+          const resetCount = Array.isArray(res.reset_paths) ? res.reset_paths.length : 0;
+          const missingCount = Array.isArray(res.missing_paths) ? res.missing_paths.length : 0;
+          let message = `USB hub reset issued (${resetCount} path${resetCount === 1 ? '' : 's'})`;
+          if (missingCount > 0) {
+            message += `, ${missingCount} missing`;
+          }
+          logActivity(message, 'info', 'usb-hub-reset-ok');
+          setTimeout(() => refresh(), 2000);
+        }
+      } catch (e) {
+        console.error('USB hub reset failed:', e);
+        logActivity(messageFromError(e, 'USB hub reset failed'), 'warn', 'usb-hub-reset-error');
+      } finally {
+        if (els.btnResetUsbHub) {
+          setTimeout(() => { els.btnResetUsbHub.disabled = false; }, 3000);
+        }
+      }
+    }
+
     function toggleSitrep(force) {
       if (!els.viewMain || !els.viewSitrep) return;
       const targetIsSitrep = typeof force === 'boolean' ? force : currentView !== 'sitrep';
@@ -7627,6 +7658,9 @@
       }
       if (els.btnRestartKeepalive) {
         els.btnRestartKeepalive.addEventListener('click', () => restartService('keepalive', 'Keepalive'));
+      }
+      if (els.btnResetUsbHub) {
+        els.btnResetUsbHub.addEventListener('click', () => resetUsbHub());
       }
       if (els.btnRestartUi) {
         els.btnRestartUi.addEventListener('click', () => restartService('ui', 'UI'));

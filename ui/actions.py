@@ -4,6 +4,10 @@ import json
 import time
 import re
 from typing import Any
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - non-POSIX fallback
+    fcntl = None
 
 try:
     from .config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, HOLD_STATE_PATH, TUNE_BACKUP_PATH
@@ -57,6 +61,26 @@ _PROFILE_LOOP_BUNDLE_NAME = {
     "ground": "rtl_airband_profile_loop_ground.conf",
 }
 _PROFILE_LOOP_MAX_SELECTED = 128
+_USBDEVFS_RESET = 0x5514
+_DEFAULT_USB_HUB_RESET_PATHS = (
+    "/dev/bus/usb/003/002",
+    "/dev/bus/usb/004/002",
+)
+_USB_HUB_RESET_PATHS_ENV = "USB_HUB_RESET_PATHS"
+
+
+def _usb_hub_reset_paths() -> list[str]:
+    raw = str(os.getenv(_USB_HUB_RESET_PATHS_ENV, "") or "").strip()
+    candidates = re.split(r"[,\s;]+", raw) if raw else list(_DEFAULT_USB_HUB_RESET_PATHS)
+    out: list[str] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        path = str(candidate or "").strip()
+        if not path or path in seen:
+            continue
+        seen.add(path)
+        out.append(path)
+    return out
 
 
 def _normalize_hold_state(state):
@@ -507,6 +531,50 @@ def action_restart(target: str) -> dict:
     return {"status": 200 if ok else 500, "payload": payload}
 
 
+def action_usb_hub_reset() -> dict:
+    """Action: reset known USB hub paths."""
+    if fcntl is None:
+        return {"status": 500, "payload": {"ok": False, "error": "usb reset unsupported on this platform"}}
+    paths = _usb_hub_reset_paths()
+    if not paths:
+        return {"status": 400, "payload": {"ok": False, "error": "no hub paths configured"}}
+    reset_paths: list[str] = []
+    missing_paths: list[str] = []
+    errors: list[dict[str, str]] = []
+    for path in paths:
+        if not os.path.exists(path):
+            missing_paths.append(path)
+            continue
+        fd = None
+        try:
+            fd = os.open(path, os.O_WRONLY | getattr(os, "O_CLOEXEC", 0))
+            fcntl.ioctl(fd, _USBDEVFS_RESET, 0)
+            reset_paths.append(path)
+        except Exception as e:
+            errors.append({"path": path, "error": str(e)})
+        finally:
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except Exception:
+                    pass
+    payload = {
+        "ok": bool(reset_paths) and not errors,
+        "requested_paths": paths,
+        "reset_paths": reset_paths,
+        "missing_paths": missing_paths,
+    }
+    if errors:
+        payload["errors"] = errors
+    if not reset_paths and not errors:
+        payload["error"] = "no configured hub paths found"
+        return {"status": 404, "payload": payload}
+    if errors:
+        payload["error"] = "one or more hub resets failed"
+        return {"status": 500, "payload": payload}
+    return {"status": 200, "payload": payload}
+
+
 def action_avoid(target: str) -> dict:
     """Action: Avoid the current frequency."""
     if target not in ("airband", "ground"):
@@ -883,6 +951,8 @@ def execute_action(action: dict) -> dict:
         )
     if action_type == "restart":
         return action_restart(action.get("target"))
+    if action_type == "usb_hub_reset":
+        return action_usb_hub_reset()
     if action_type == "avoid":
         return action_avoid(action.get("target"))
     if action_type == "avoid_clear":

@@ -2932,6 +2932,10 @@ class Handler(BaseHTTPRequestHandler):
             result = enqueue_action({"type": "restart", "target": target})
             return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
 
+        if p == "/api/usb-hub-reset":
+            result = enqueue_action({"type": "usb_hub_reset"})
+            return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
+
         if p == "/api/avoid":
             target = form.get("target", "airband")
             result = enqueue_action({"type": "avoid", "target": target})
