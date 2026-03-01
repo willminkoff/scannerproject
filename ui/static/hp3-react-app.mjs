@@ -231,12 +231,9 @@ import A,{useEffect as ra,useMemo as pt,useState as ia}from"https://esm.sh/react
       linear-gradient(180deg, #1f1a18 0%, #171414 100%);
     background-size: 12px 12px, auto;
   }
-  .device-speaker-label {
-    position: absolute;
-    left: 50%;
-    bottom: 16px;
-    transform: translateX(-50%);
-    transform-origin: center;
+  .device-bottom-label {
+    margin-top: 8px;
+    text-align: center;
     color: #f09b5f;
     font-weight: 700;
     font-size: 1.05rem;
@@ -773,9 +770,8 @@ import A,{useEffect as ra,useMemo as pt,useState as ia}from"https://esm.sh/react
     .device-speaker::before {
       inset: 9px 8px;
     }
-    .device-speaker-label {
+    .device-bottom-label {
       font-size: 1.05rem;
-      bottom: 14px;
       letter-spacing: 0.11em;
     }
     .device-charge {
@@ -857,7 +853,6 @@ function Ce(){
           ie.createElement(
             "aside",
             {className:"device-speaker","aria-hidden":"true"},
-            ie.createElement("div",{className:"device-speaker-label"},"HOMEPATROL-3"),
             ie.createElement("div",{className:"device-charge"},"CHARGE")
           ),
           ie.createElement(
@@ -873,7 +868,8 @@ function Ce(){
               )
             )
           )
-        )
+        ),
+        ie.createElement("div",{className:"device-bottom-label","aria-hidden":"true"},"HOMEPATROL-3")
       )
     )
   )
