@@ -754,45 +754,53 @@ import A,{useEffect as ra,useMemo as pt,useState as ia}from"https://esm.sh/react
   }
   @media (max-width: 520px) {
     .device-stage {
-      padding: 6px;
+      padding: 6px 4px;
+      align-items: flex-start;
     }
     .device-shell {
       border-radius: 18px;
-      padding: 9px;
+      padding: 8px;
+    }
+    .device-brand {
+      font-size: 1.55rem;
+      margin-bottom: 6px;
     }
     .device-body {
-      gap: 8px;
-      grid-template-columns: 88px minmax(0, 1fr);
+      gap: 6px;
+      grid-template-columns: 54px minmax(0, 1fr);
     }
     .device-speaker {
       border-radius: 12px;
     }
     .device-speaker::before {
-      inset: 9px 8px;
+      inset: 6px;
+      border-radius: 8px;
+      background-size: 9px 9px, auto;
     }
     .device-bottom-label {
-      font-size: 1.05rem;
-      letter-spacing: 0.11em;
+      margin-top: 6px;
+      font-size: 0.96rem;
+      letter-spacing: 0.09em;
     }
     .device-charge {
-      left: 8px;
-      bottom: 9px;
-      font-size: 0.72rem;
-      gap: 5px;
+      left: 5px;
+      bottom: 6px;
+      font-size: 0.56rem;
+      gap: 3px;
     }
     .device-charge::before {
-      width: 7px;
-      height: 7px;
+      width: 5px;
+      height: 5px;
     }
     .device-bezel {
       border-radius: 12px;
-      padding: 6px;
+      padding: 5px;
     }
     .device-screen {
       border-radius: 10px;
     }
     .app-shell {
-      padding: 6px;
+      padding: 4px;
       overflow: auto;
     }
     .hp2-line {
