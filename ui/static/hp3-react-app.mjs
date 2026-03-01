@@ -192,7 +192,7 @@ import A,{useEffect as ra,useMemo as pt,useState as ia}from"https://esm.sh/react
       0 30px 65px rgba(0, 0, 0, 0.55),
       inset 0 1px 0 rgba(255, 255, 255, 0.05),
       inset 0 -6px 18px rgba(0, 0, 0, 0.45);
-    padding: 14px 14px 16px;
+    padding: 14px;
   }
   .device-brand {
     text-align: center;
@@ -215,7 +215,7 @@ import A,{useEffect as ra,useMemo as pt,useState as ia}from"https://esm.sh/react
     border: 1px solid #4b3d35;
     background: linear-gradient(180deg, #2f2925 0%, #262120 100%);
     overflow: hidden;
-    min-height: 620px;
+    height: 100%;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.04),
       inset 0 -8px 14px rgba(0, 0, 0, 0.33);
@@ -223,7 +223,7 @@ import A,{useEffect as ra,useMemo as pt,useState as ia}from"https://esm.sh/react
   .device-speaker::before {
     content: "";
     position: absolute;
-    inset: 12px 12px 90px;
+    inset: 12px;
     border-radius: 10px;
     border: 1px solid #3f342d;
     background:
@@ -234,8 +234,8 @@ import A,{useEffect as ra,useMemo as pt,useState as ia}from"https://esm.sh/react
   .device-speaker-label {
     position: absolute;
     left: 50%;
-    top: 26px;
-    transform: translateX(-50%) rotate(-90deg);
+    bottom: 16px;
+    transform: translateX(-50%);
     transform-origin: center;
     color: #f09b5f;
     font-weight: 700;
@@ -270,12 +270,14 @@ import A,{useEffect as ra,useMemo as pt,useState as ia}from"https://esm.sh/react
     border-radius: 16px;
     border: 1px solid #4f433b;
     background: linear-gradient(180deg, #2d2826 0%, #252120 100%);
-    padding: 8px;
+    padding: 10px;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.04),
       inset 0 -9px 14px rgba(0, 0, 0, 0.42);
   }
   .device-screen {
+    width: 100%;
+    aspect-ratio: 3 / 2;
     border-radius: 13px;
     border: 1px solid #161a24;
     background: radial-gradient(120% 115% at 0% 0%, #1f2a3b 0%, #111722 55%, #0b1018 100%);
@@ -283,13 +285,12 @@ import A,{useEffect as ra,useMemo as pt,useState as ia}from"https://esm.sh/react
       inset 0 0 0 1px rgba(202, 222, 255, 0.05),
       0 10px 22px rgba(0, 0, 0, 0.42);
     overflow: hidden;
-    min-height: 640px;
   }
   .app-shell {
-    min-height: 100%;
-    max-width: 560px;
-    margin: 0 auto;
+    width: 100%;
+    height: 100%;
     padding: 10px;
+    overflow: auto;
   }
   .screen {
     background: #1b2129;
@@ -760,23 +761,22 @@ import A,{useEffect as ra,useMemo as pt,useState as ia}from"https://esm.sh/react
     }
     .device-shell {
       border-radius: 18px;
-      padding: 9px 9px 10px;
+      padding: 9px;
     }
     .device-body {
       gap: 8px;
       grid-template-columns: 88px minmax(0, 1fr);
     }
     .device-speaker {
-      min-height: 540px;
       border-radius: 12px;
     }
     .device-speaker::before {
-      inset: 9px 8px 70px;
+      inset: 9px 8px;
     }
     .device-speaker-label {
-      font-size: 0.8rem;
-      top: 20px;
-      letter-spacing: 0.08em;
+      font-size: 1.05rem;
+      bottom: 14px;
+      letter-spacing: 0.11em;
     }
     .device-charge {
       left: 8px;
@@ -794,10 +794,10 @@ import A,{useEffect as ra,useMemo as pt,useState as ia}from"https://esm.sh/react
     }
     .device-screen {
       border-radius: 10px;
-      min-height: 560px;
     }
     .app-shell {
       padding: 6px;
+      overflow: auto;
     }
     .hp2-line {
       grid-template-columns: 118px 1fr 24px;
@@ -857,7 +857,7 @@ function Ce(){
           ie.createElement(
             "aside",
             {className:"device-speaker","aria-hidden":"true"},
-            ie.createElement("div",{className:"device-speaker-label"},"HOMEPATROL-II"),
+            ie.createElement("div",{className:"device-speaker-label"},"HOMEPATROL-3"),
             ie.createElement("div",{className:"device-charge"},"CHARGE")
           ),
           ie.createElement(
