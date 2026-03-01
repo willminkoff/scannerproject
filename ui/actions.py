@@ -3,6 +3,7 @@ import os
 import json
 import time
 import re
+import subprocess
 from typing import Any
 try:
     import fcntl
@@ -67,6 +68,12 @@ _DEFAULT_USB_HUB_RESET_PATHS = (
     "/dev/bus/usb/004/002",
 )
 _USB_HUB_RESET_PATHS_ENV = "USB_HUB_RESET_PATHS"
+_USB_RESET_HELPER = (
+    "import os,fcntl,sys;"
+    "fd=os.open(sys.argv[1], os.O_WRONLY | getattr(os, 'O_CLOEXEC', 0));"
+    "fcntl.ioctl(fd, 0x5514, 0);"
+    "os.close(fd)"
+)
 
 
 def _usb_hub_reset_paths() -> list[str]:
@@ -81,6 +88,45 @@ def _usb_hub_reset_paths() -> list[str]:
         seen.add(path)
         out.append(path)
     return out
+
+
+def _reset_usb_hub_path(path: str) -> tuple[bool, str]:
+    direct_error = ""
+    if fcntl is not None:
+        fd = None
+        try:
+            fd = os.open(path, os.O_WRONLY | getattr(os, "O_CLOEXEC", 0))
+            fcntl.ioctl(fd, _USBDEVFS_RESET, 0)
+            return True, ""
+        except PermissionError as e:
+            direct_error = str(e)
+        except Exception as e:
+            return False, str(e)
+        finally:
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except Exception:
+                    pass
+
+    try:
+        result = subprocess.run(
+            ["sudo", "-n", "python3", "-c", _USB_RESET_HELPER, path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+    except Exception as e:
+        return False, direct_error or str(e)
+    if result.returncode == 0:
+        return True, ""
+    err = (result.stderr or result.stdout or "").strip()
+    if not err:
+        err = f"usb reset failed (code {result.returncode})"
+    if direct_error:
+        err = f"{direct_error}; sudo fallback: {err}"
+    return False, err
 
 
 def _normalize_hold_state(state):
@@ -533,8 +579,6 @@ def action_restart(target: str) -> dict:
 
 def action_usb_hub_reset() -> dict:
     """Action: reset known USB hub paths."""
-    if fcntl is None:
-        return {"status": 500, "payload": {"ok": False, "error": "usb reset unsupported on this platform"}}
     paths = _usb_hub_reset_paths()
     if not paths:
         return {"status": 400, "payload": {"ok": False, "error": "no hub paths configured"}}
@@ -545,19 +589,11 @@ def action_usb_hub_reset() -> dict:
         if not os.path.exists(path):
             missing_paths.append(path)
             continue
-        fd = None
-        try:
-            fd = os.open(path, os.O_WRONLY | getattr(os, "O_CLOEXEC", 0))
-            fcntl.ioctl(fd, _USBDEVFS_RESET, 0)
+        ok, err = _reset_usb_hub_path(path)
+        if ok:
             reset_paths.append(path)
-        except Exception as e:
-            errors.append({"path": path, "error": str(e)})
-        finally:
-            if fd is not None:
-                try:
-                    os.close(fd)
-                except Exception:
-                    pass
+        else:
+            errors.append({"path": path, "error": err})
     payload = {
         "ok": bool(reset_paths) and not errors,
         "requested_paths": paths,
