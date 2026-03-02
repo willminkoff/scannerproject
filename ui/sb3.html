@@ -4548,7 +4548,7 @@
       renderHpFavoritesBuilder();
     }
 
-    function goHpFavoriteWizardStep(direction = 1) {
+    async function goHpFavoriteWizardStep(direction = 1) {
       const builder = state.hpFavoritesBuilder;
       const steps = getHpFavoriteWizardSteps();
       const current = normalizeHpFavoriteWizardStep(builder.wizardStep || 'filters');
@@ -4560,6 +4560,13 @@
           setHpFavStatus(block, true);
           renderHpFavoritesBuilder();
           return;
+        }
+        if (current === 'channels') {
+          const selectedCount = Array.isArray(builder.selectedChannelIds) ? builder.selectedChannelIds.length : 0;
+          if (selectedCount > 0) {
+            await addSelectedHpFavoriteChannels({ fromWizardNext: true });
+            return;
+          }
         }
       }
       const nextIdx = Math.max(0, Math.min(steps.length - 1, currentIdx + (direction > 0 ? 1 : -1)));
@@ -4662,7 +4669,7 @@
           els.hpFavNextStep.textContent = 'Select channels/talkgroups and click Add Selected.';
           return;
         }
-        els.hpFavNextStep.textContent = `${selectedCount} selected. Click Add Selected, then continue to review.`;
+        els.hpFavNextStep.textContent = `${selectedCount} selected. Next auto-adds selection to the active list.`;
         return;
       }
       els.hpFavNextStep.textContent = reviewCount > 0
@@ -5120,18 +5127,19 @@
       renderHpFavoritesBuilder();
     }
 
-    async function addSelectedHpFavoriteChannels() {
+    async function addSelectedHpFavoriteChannels(options = {}) {
       const builder = state.hpFavoritesBuilder;
+      const fromWizardNext = Boolean(options && options.fromWizardNext);
       const selectedIds = new Set(Array.isArray(builder.selectedChannelIds) ? builder.selectedChannelIds : []);
       if (!selectedIds.size) {
         setHpFavStatus('Select one or more channels first.', true);
-        return;
+        return false;
       }
       const selectedRows = (Array.isArray(builder.channels) ? builder.channels : [])
         .filter((row) => selectedIds.has(String(row.id || '').trim()));
       if (!selectedRows.length) {
         setHpFavStatus('No selected channels found.', true);
-        return;
+        return false;
       }
       const existing = getHpFavActiveEntries();
       const byId = new Map();
@@ -5151,7 +5159,11 @@
       builder.wizardStep = 'review';
       builder.wizardErrorStep = '';
       renderHpFavoritesBuilder();
-      await saveHpFavoritesBuilder(`Added ${selectedRows.length} channel${selectedRows.length === 1 ? '' : 's'} to ${builder.activeList}.`);
+      const reason = fromWizardNext
+        ? `Auto-added ${selectedRows.length} channel${selectedRows.length === 1 ? '' : 's'} to ${builder.activeList}.`
+        : `Added ${selectedRows.length} channel${selectedRows.length === 1 ? '' : 's'} to ${builder.activeList}.`;
+      const saved = await saveHpFavoritesBuilder(reason);
+      return Boolean(saved);
     }
 
     async function removeHpFavoriteEntry(entryId) {
