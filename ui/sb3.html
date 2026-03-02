@@ -577,6 +577,151 @@
       min-height: 16px;
     }
 
+    .hp-builder {
+      border-top: 1px solid rgba(139, 167, 212, 0.26);
+      margin-top: 10px;
+      padding-top: 10px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .hp-builder-head {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text-primary);
+    }
+
+    .hp-builder-sub {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .hp-builder-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      align-items: end;
+    }
+
+    .hp-builder-actions {
+      display: inline-flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-start;
+    }
+
+    .hp-builder-list {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(10, 16, 24, 0.5);
+      min-height: 140px;
+      max-height: 220px;
+      overflow: auto;
+      padding: 8px;
+      display: grid;
+      gap: 6px;
+      align-content: start;
+    }
+
+    .hp-builder-row {
+      display: grid;
+      gap: 4px;
+      border: 1px solid rgba(139, 167, 212, 0.24);
+      border-radius: 8px;
+      background: rgba(15, 24, 36, 0.72);
+      padding: 7px 9px;
+    }
+
+    .hp-builder-row-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .hp-builder-row-meta {
+      font-size: 11px;
+      color: var(--text-secondary);
+      line-height: 1.3;
+    }
+
+    .hp-builder-entry-remove {
+      border: 1px solid rgba(245, 158, 11, 0.65);
+      background: rgba(79, 33, 16, 0.7);
+      color: #ffd6b0;
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+    }
+
+    .hp-builder-entry-remove:hover {
+      border-color: #f59e0b;
+      color: #fff;
+    }
+
+    .hp-builder-picker {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(11, 16, 24, 0.52);
+      min-height: 170px;
+      max-height: 260px;
+      overflow: auto;
+      padding: 8px;
+      display: grid;
+      gap: 6px;
+      align-content: start;
+    }
+
+    .hp-builder-picker-item {
+      border: 1px solid rgba(139, 167, 212, 0.24);
+      border-radius: 8px;
+      background: rgba(15, 24, 36, 0.62);
+      padding: 7px 9px;
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--text-primary);
+      display: grid;
+      gap: 3px;
+    }
+
+    .hp-builder-picker-item.active {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(246, 168, 74, 0.35) inset;
+    }
+
+    .hp-builder-picker-meta {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .hp-builder-chk {
+      display: inline-flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-primary);
+    }
+
+    .hp-builder-chk input {
+      margin-top: 2px;
+      accent-color: var(--accent);
+    }
+
+    .hp-builder-empty {
+      color: var(--text-secondary);
+      font-size: 11px;
+      padding: 6px 2px;
+    }
+
     .widget-body {
       padding: 16px;
     }
@@ -1835,6 +1980,10 @@
       .hp-service-types-list {
         grid-template-columns: 1fr;
       }
+
+      .hp-builder-grid {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
@@ -1980,17 +2129,16 @@
 
       <div class="widget" id="profiles-widget">
         <div class="widget-header with-actions">
-          <span>🎯 Profiles</span>
+          <span>🎯 Favorites (Analog)</span>
           <div class="widget-header-actions">
-            <button class="action widget-header-action sidecar-toggle" id="hp3-builder-open-analog" type="button">HP3 Builder</button>
-            <button class="action widget-header-action sidecar-toggle" id="profile-editor-open-analog" type="button">Legacy Editor</button>
+            <button class="action widget-header-action sidecar-toggle" id="hp3-builder-open-analog" type="button">Favorites Builder</button>
           </div>
         </div>
         <div class="widget-body">
           <div class="profiles-grid" id="profiles-list">
             <div class="empty-state">
-              <div class="icon">📡</div>
-              <div>Loading profiles...</div>
+              <div class="icon">⭐</div>
+              <div>Loading favorites...</div>
             </div>
           </div>
           <div class="favorites-sync-row" id="favorites-sync-row-analog">
@@ -2002,6 +2150,52 @@
               <button class="action favorites-sync-action" id="favorites-sync-btn-analog" type="button">Sync SB3</button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div class="widget hidden" id="digital-profiles-widget">
+        <div class="widget-header with-actions">
+          <span>🎛️ Favorites (Digital)</span>
+          <div class="widget-header-actions">
+            <button class="action widget-header-action sidecar-toggle" id="hp3-builder-open-digital" type="button">Favorites Builder</button>
+          </div>
+        </div>
+        <div class="widget-body">
+          <div class="profiles-grid" id="digital-profiles-list">
+            <div class="empty-state">
+              <div class="icon">📡</div>
+              <div>No digital favorites yet</div>
+            </div>
+          </div>
+          <div class="control-group" style="margin-top:12px;">
+            <div class="control-item">
+              <div class="control-label">
+                <span>Digital Runtime</span>
+                <span class="control-value" id="digital-profile-status"></span>
+              </div>
+              <div class="control-applied" id="digital-error"></div>
+            </div>
+          </div>
+          <div class="favorites-sync-row" id="favorites-sync-row-digital">
+            <div class="favorites-sync-copy">
+              <div class="favorites-sync-primary" id="favorites-sync-primary-digital">SB3 profile sync status loading...</div>
+              <div class="favorites-sync-secondary" id="favorites-sync-secondary-digital">Checking HP favorites to SB3 profile alignment.</div>
+            </div>
+            <div class="favorites-sync-actions">
+              <button class="action favorites-sync-action" id="favorites-sync-btn-digital" type="button">Sync SB3</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="widget" id="favorites-filters-widget">
+        <div class="widget-header with-actions">
+          <span>🎚️ Favorites Filters</span>
+          <div class="widget-header-actions">
+            <button class="action widget-header-action" id="favorites-filters-toggle" type="button">Hide</button>
+          </div>
+        </div>
+        <div class="widget-body">
           <div class="hp-filters-panel" id="hp-filters-panel">
             <div class="hp-filters-head">
               <div class="hp-filters-title">Favorites Filters (Digital)</div>
@@ -2051,42 +2245,91 @@
               <div class="muted">Loading service types...</div>
             </div>
             <div class="hp-filters-status" id="hp-filters-status">Use these controls to set location/range/service filtering directly in SB3.</div>
-          </div>
-        </div>
-      </div>
 
-      <div class="widget hidden" id="digital-profiles-widget">
-        <div class="widget-header with-actions">
-          <span>🎛️ Digital Profiles</span>
-          <div class="widget-header-actions">
-            <button class="action widget-header-action sidecar-toggle" id="hp3-builder-open-digital" type="button">HP3 Builder</button>
-            <button class="action widget-header-action sidecar-toggle" id="profile-editor-open-digital" type="button">Legacy Editor</button>
-          </div>
-        </div>
-        <div class="widget-body">
-          <div class="profiles-grid" id="digital-profiles-list">
-            <div class="empty-state">
-              <div class="icon">📡</div>
-              <div>No digital profiles yet</div>
-            </div>
-          </div>
-          <div class="control-group" style="margin-top:12px;">
-            <div class="control-item">
-              <div class="control-label">
-                <span>Active Profile</span>
-                <span class="control-value" id="digital-profile-status"></span>
+            <section class="hp-builder" id="hp-builder-panel">
+              <div class="hp-builder-head">Favorites Builder (Shared SB3 + HP3)</div>
+              <div class="hp-builder-sub">Create/edit one favorites list source used by both skins. Analog and digital targets are added independently.</div>
+              <div class="hp-builder-grid">
+                <label class="hp-filter-field">
+                  <span>Active Favorites List</span>
+                  <select id="hp-fav-list-select"></select>
+                </label>
+                <label class="hp-filter-field">
+                  <span>Create New List</span>
+                  <input id="hp-fav-list-new" type="text" maxlength="64" placeholder="e.g. Test 2">
+                </label>
+                <div class="hp-builder-actions">
+                  <button class="action favorites-sync-action" id="hp-fav-list-create" type="button">Create</button>
+                  <button class="action favorites-sync-action" id="hp-fav-list-delete" type="button">Delete Active</button>
+                </div>
               </div>
-              <div class="control-applied" id="digital-error"></div>
-            </div>
-          </div>
-          <div class="favorites-sync-row" id="favorites-sync-row-digital">
-            <div class="favorites-sync-copy">
-              <div class="favorites-sync-primary" id="favorites-sync-primary-digital">SB3 profile sync status loading...</div>
-              <div class="favorites-sync-secondary" id="favorites-sync-secondary-digital">Checking HP favorites to SB3 profile alignment.</div>
-            </div>
-            <div class="favorites-sync-actions">
-              <button class="action favorites-sync-action" id="favorites-sync-btn-digital" type="button">Sync SB3</button>
-            </div>
+
+              <div class="hp-builder-grid">
+                <label class="hp-filter-field">
+                  <span>System Type</span>
+                  <select id="hp-fav-system-type">
+                    <option value="digital">Digital</option>
+                    <option value="analog">Analog</option>
+                  </select>
+                </label>
+                <label class="hp-filter-field">
+                  <span>Country</span>
+                  <select id="hp-fav-country"></select>
+                </label>
+                <label class="hp-filter-field">
+                  <span>State</span>
+                  <select id="hp-fav-state"></select>
+                </label>
+              </div>
+
+              <div class="hp-builder-grid">
+                <label class="hp-filter-field">
+                  <span>County</span>
+                  <select id="hp-fav-county"></select>
+                </label>
+                <label class="hp-filter-field">
+                  <span>Scope</span>
+                  <select id="hp-fav-scope">
+                    <option value="nationwide">Nationwide</option>
+                    <option value="statewide" selected>Statewide</option>
+                    <option value="county">County Systems</option>
+                  </select>
+                </label>
+                <label class="hp-filter-field">
+                  <span>Search Systems</span>
+                  <input id="hp-fav-system-search" type="text" placeholder="Filter systems">
+                </label>
+              </div>
+
+              <div class="hp-builder-actions">
+                <button class="action favorites-sync-action" id="hp-fav-load-systems" type="button">Load Systems</button>
+                <button class="action favorites-sync-action" id="hp-fav-load-channels" type="button">Load Channels</button>
+                <button class="action favorites-sync-action" id="hp-fav-add-selected" type="button">Add Selected Channels</button>
+              </div>
+
+              <div class="hp-builder-grid">
+                <div>
+                  <div class="hp-builder-sub">Systems</div>
+                  <div class="hp-builder-picker" id="hp-fav-systems">
+                    <div class="hp-builder-empty">Choose country/state/scope, then load systems.</div>
+                  </div>
+                </div>
+                <div>
+                  <div class="hp-builder-sub">Channel Search</div>
+                  <input id="hp-fav-channel-search" type="text" placeholder="Filter channels by alpha/tgid/group" style="width:100%; min-width:0; background:var(--bg-panel); border:1px solid var(--border); border-radius:7px; color:var(--text-primary); padding:7px 8px; font-size:12px;">
+                  <div class="hp-builder-picker" id="hp-fav-channels" style="margin-top:8px;">
+                    <div class="hp-builder-empty">Select a system, then load channels.</div>
+                  </div>
+                </div>
+                <div>
+                  <div class="hp-builder-sub">Active List Entries</div>
+                  <div class="hp-builder-list" id="hp-fav-entries">
+                    <div class="hp-builder-empty">No entries in active list.</div>
+                  </div>
+                </div>
+              </div>
+              <div class="hp-filters-status" id="hp-fav-status">Favorites builder ready.</div>
+            </section>
           </div>
         </div>
       </div>
@@ -2847,6 +3090,29 @@
         serviceTypes: [],
         defaultServiceTags: [],
       },
+      hpFavoritesBuilder: {
+        loading: false,
+        saving: false,
+        loaded: false,
+        lastLoadedAt: 0,
+        activeList: 'My Favorites',
+        lists: [],
+        entriesByList: {},
+        systemType: 'digital',
+        countries: [],
+        states: [],
+        counties: [],
+        countryId: 1,
+        stateId: 0,
+        countyId: 0,
+        scope: 'statewide',
+        systemQuery: '',
+        channelQuery: '',
+        systems: [],
+        selectedSystemId: '',
+        channels: [],
+        selectedChannelIds: [],
+      },
       hp3Builder: {
         open: false,
         src: '',
@@ -2888,6 +3154,8 @@
       favoritesSyncPrimaryAnalog: document.getElementById('favorites-sync-primary-analog'),
       favoritesSyncSecondaryAnalog: document.getElementById('favorites-sync-secondary-analog'),
       favoritesSyncBtnAnalog: document.getElementById('favorites-sync-btn-analog'),
+      favoritesFiltersWidget: document.getElementById('favorites-filters-widget'),
+      favoritesFiltersToggle: document.getElementById('favorites-filters-toggle'),
       hpFiltersPanel: document.getElementById('hp-filters-panel'),
       hpFiltersRefresh: document.getElementById('hp-filters-refresh'),
       hpFiltersSave: document.getElementById('hp-filters-save'),
@@ -2903,6 +3171,24 @@
       hpServiceTypesDefaults: document.getElementById('hp-service-types-defaults'),
       hpServiceTypesNone: document.getElementById('hp-service-types-none'),
       hpFiltersStatus: document.getElementById('hp-filters-status'),
+      hpFavStatus: document.getElementById('hp-fav-status'),
+      hpFavListSelect: document.getElementById('hp-fav-list-select'),
+      hpFavListNew: document.getElementById('hp-fav-list-new'),
+      hpFavListCreate: document.getElementById('hp-fav-list-create'),
+      hpFavListDelete: document.getElementById('hp-fav-list-delete'),
+      hpFavSystemType: document.getElementById('hp-fav-system-type'),
+      hpFavCountry: document.getElementById('hp-fav-country'),
+      hpFavState: document.getElementById('hp-fav-state'),
+      hpFavCounty: document.getElementById('hp-fav-county'),
+      hpFavScope: document.getElementById('hp-fav-scope'),
+      hpFavSystemSearch: document.getElementById('hp-fav-system-search'),
+      hpFavLoadSystems: document.getElementById('hp-fav-load-systems'),
+      hpFavLoadChannels: document.getElementById('hp-fav-load-channels'),
+      hpFavSystems: document.getElementById('hp-fav-systems'),
+      hpFavChannelSearch: document.getElementById('hp-fav-channel-search'),
+      hpFavChannels: document.getElementById('hp-fav-channels'),
+      hpFavAddSelected: document.getElementById('hp-fav-add-selected'),
+      hpFavEntries: document.getElementById('hp-fav-entries'),
       loopStatus: document.getElementById('loop-status'),
       loopDetail: document.getElementById('loop-detail'),
       loopList: document.getElementById('loop-list'),
@@ -3156,6 +3442,12 @@
         });
       });
     }
+
+    function updateFavoritesFiltersToggleLabel() {
+      if (!els.favoritesFiltersWidget || !els.favoritesFiltersToggle) return;
+      const collapsed = els.favoritesFiltersWidget.classList.contains('collapsed');
+      els.favoritesFiltersToggle.textContent = collapsed ? 'Show' : 'Hide';
+    }
     
     // ============================================
     // API
@@ -3340,7 +3632,12 @@
     }
 
     function renderHpFavoritesSyncUi() {
-      const summary = hpFavoritesSyncSummary(state.hpFavoritesSync);
+      const summary = {
+        tone: 'ok',
+        canSync: false,
+        primary: 'Shared favorites source active',
+        secondary: 'Favorites saved in SB3 appear in HP3 automatically. Analog and digital targets scan independently.',
+      };
       updateHpFavoritesSyncCard(
         els.favoritesSyncRowAnalog,
         els.favoritesSyncPrimaryAnalog,
@@ -3355,9 +3652,15 @@
         els.favoritesSyncBtnDigital,
         summary
       );
+      if (els.favoritesSyncBtnAnalog) {
+        els.favoritesSyncBtnAnalog.textContent = 'Shared';
+      }
+      if (els.favoritesSyncBtnDigital) {
+        els.favoritesSyncBtnDigital.textContent = 'Shared';
+      }
       if (els.hp3BuilderSync) {
-        els.hp3BuilderSync.disabled = Boolean(state.hpFavoritesSyncBusy) || !Boolean(summary.canSync);
-        els.hp3BuilderSync.textContent = state.hpFavoritesSyncBusy ? 'Syncing...' : 'Sync SB3';
+        els.hp3BuilderSync.disabled = true;
+        els.hp3BuilderSync.textContent = 'Shared';
       }
     }
 
@@ -3564,6 +3867,10 @@
         ]);
         const nextState = normalizeHpFiltersStatePayload(hpStatePayload);
         const nextTypes = normalizeHpServiceTypesPayload(servicePayload);
+        const hpState = hpStatePayload && hpStatePayload.state && typeof hpStatePayload.state === 'object'
+          ? hpStatePayload.state
+          : {};
+        applyHpFavoritesState(hpState);
         state.hpFilters = {
           ...state.hpFilters,
           ...nextState,
@@ -3613,6 +3920,8 @@
       try {
         const result = await postJSON('/api/hp/state', payload, { timeoutMs: 20000 });
         const nextState = normalizeHpFiltersStatePayload(result);
+        const hpState = result && result.state && typeof result.state === 'object' ? result.state : {};
+        applyHpFavoritesState(hpState);
         state.hpFilters = {
           ...state.hpFilters,
           ...nextState,
@@ -3631,6 +3940,750 @@
         state.hpFilters.saving = false;
         renderHpFiltersPanel();
       }
+    }
+
+    function setHpFavStatus(message, isError = false) {
+      if (!els.hpFavStatus) return;
+      els.hpFavStatus.textContent = String(message || '').trim();
+      els.hpFavStatus.style.color = isError ? 'var(--warn)' : 'var(--text-secondary)';
+    }
+
+    function hpFavNormalizeName(value, fallback = 'My Favorites') {
+      const text = String(value || '').trim();
+      return text || String(fallback || 'My Favorites').trim() || 'My Favorites';
+    }
+
+    function hpFavToken(value) {
+      return hpFavNormalizeName(value).toLowerCase();
+    }
+
+    function hpFavNormalizeEntry(raw, index = 0) {
+      if (!raw || typeof raw !== 'object') return null;
+      const kind = String(raw.kind || '').trim().toLowerCase();
+      const base = {
+        id: String(raw.id || `fav-${index + 1}`).trim() || `fav-${index + 1}`,
+        kind,
+        system_name: String(raw.system_name || '').trim(),
+        department_name: String(raw.department_name || '').trim(),
+        alpha_tag: String(raw.alpha_tag || raw.channel_name || '').trim(),
+        service_tag: _toInt(raw.service_tag, 0),
+      };
+      if (kind === 'trunked') {
+        const tgidNum = _toInt(raw.talkgroup || raw.tgid, NaN);
+        if (!Number.isFinite(tgidNum) || tgidNum <= 0) return null;
+        const controls = Array.isArray(raw.control_channels) ? raw.control_channels : [];
+        const normalizedControls = [];
+        const seen = new Set();
+        controls.forEach((item) => {
+          const mhz = _toFloat(item, NaN);
+          if (!Number.isFinite(mhz) || mhz <= 0) return;
+          const rounded = Math.round(mhz * 1_000_000) / 1_000_000;
+          if (seen.has(rounded)) return;
+          seen.add(rounded);
+          normalizedControls.push(rounded);
+        });
+        return {
+          ...base,
+          kind: 'trunked',
+          talkgroup: String(Math.round(tgidNum)),
+          control_channels: normalizedControls,
+          frequency: 0.0,
+        };
+      }
+      if (kind === 'conventional') {
+        const freq = _toFloat(raw.frequency, NaN);
+        if (!Number.isFinite(freq) || freq <= 0) return null;
+        return {
+          ...base,
+          kind: 'conventional',
+          talkgroup: '',
+          control_channels: [],
+          frequency: Math.round(freq * 1_000_000) / 1_000_000,
+        };
+      }
+      return null;
+    }
+
+    function hpFavNormalizeEntries(rawEntries) {
+      const rows = Array.isArray(rawEntries) ? rawEntries : [];
+      const out = [];
+      const seen = new Set();
+      rows.forEach((row, idx) => {
+        const normalized = hpFavNormalizeEntry(row, idx);
+        if (!normalized) return;
+        const key = String(normalized.id || '').trim().toLowerCase();
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        out.push(normalized);
+      });
+      return out;
+    }
+
+    function hpFavSlug(name, index) {
+      const token = String(name || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      return token ? `fav-${token}` : `fav-${index + 1}`;
+    }
+
+    function buildHpFavoritesModel(hpStateRaw) {
+      const hpState = hpStateRaw && typeof hpStateRaw === 'object' ? hpStateRaw : {};
+      const byToken = {};
+      const names = [];
+      const ensureList = (label) => {
+        const name = hpFavNormalizeName(label);
+        const token = hpFavToken(name);
+        if (!byToken[token]) {
+          byToken[token] = {
+            name,
+            entries: [],
+            enabled: false,
+          };
+          names.push(name);
+        }
+        return byToken[token];
+      };
+
+      const favorites = Array.isArray(hpState.favorites) ? hpState.favorites : [];
+      favorites.forEach((row) => {
+        if (!row || typeof row !== 'object') return;
+        const bucket = ensureList(row.label || row.name || '');
+        const entries = hpFavNormalizeEntries(row.custom_favorites);
+        if (entries.length) {
+          bucket.entries = entries;
+        }
+        if (Boolean(row.enabled)) {
+          bucket.enabled = true;
+        }
+      });
+
+      const fallbackName = hpFavNormalizeName(hpState.favorites_name || 'My Favorites');
+      const fallbackEntries = hpFavNormalizeEntries(hpState.custom_favorites);
+      const fallbackBucket = ensureList(fallbackName);
+      if (!fallbackBucket.entries.length && fallbackEntries.length) {
+        fallbackBucket.entries = fallbackEntries;
+      }
+
+      if (!names.length) {
+        ensureList('My Favorites');
+      }
+
+      let activeName = hpFavNormalizeName(hpState.favorites_name || '');
+      if (!byToken[hpFavToken(activeName)]) {
+        const enabledList = Object.values(byToken).find((item) => item.enabled);
+        activeName = enabledList ? enabledList.name : names[0];
+      }
+      const activeToken = hpFavToken(activeName);
+      const entriesByList = {};
+      names.forEach((name) => {
+        const token = hpFavToken(name);
+        const bucket = byToken[token] || { entries: [] };
+        entriesByList[token] = hpFavNormalizeEntries(bucket.entries);
+      });
+      return {
+        activeName: hpFavNormalizeName(activeName),
+        names: names.map((name) => hpFavNormalizeName(name)),
+        entriesByList,
+      };
+    }
+
+    function buildHpFavoritesStatePayload(model, extra = {}) {
+      const safeModel = model && typeof model === 'object' ? model : {};
+      const listNames = Array.isArray(safeModel.names) && safeModel.names.length
+        ? safeModel.names.map((name) => hpFavNormalizeName(name))
+        : ['My Favorites'];
+      const activeName = hpFavNormalizeName(safeModel.activeName || listNames[0] || 'My Favorites');
+      const entriesByList = safeModel.entriesByList && typeof safeModel.entriesByList === 'object'
+        ? safeModel.entriesByList
+        : {};
+      const favorites = listNames.map((name, index) => {
+        const token = hpFavToken(name);
+        return {
+          id: hpFavSlug(name, index),
+          type: 'list',
+          target: 'favorites',
+          profile_id: '',
+          label: name,
+          enabled: token === hpFavToken(activeName),
+          custom_favorites: hpFavNormalizeEntries(entriesByList[token]),
+        };
+      });
+      const activeEntries = hpFavNormalizeEntries(entriesByList[hpFavToken(activeName)]);
+      return {
+        mode: 'favorites',
+        favorites_name: activeName,
+        favorites,
+        custom_favorites: activeEntries,
+        ...extra,
+      };
+    }
+
+    function applyHpFavoritesState(hpStatePayload) {
+      const model = buildHpFavoritesModel(hpStatePayload);
+      const builder = state.hpFavoritesBuilder;
+      builder.activeList = model.activeName;
+      builder.lists = model.names;
+      builder.entriesByList = model.entriesByList;
+      if (!builder.lists.length) {
+        builder.lists = ['My Favorites'];
+        builder.entriesByList = {
+          'my favorites': [],
+        };
+        builder.activeList = 'My Favorites';
+      }
+      if (!builder.stateId && state.hpFilters && Number.isFinite(Number(state.hpFilters.stateId))) {
+        builder.stateId = _toInt(state.hpFilters.stateId, 0);
+      }
+      builder.loaded = true;
+      renderSb3FavoritesPanels();
+      renderHpFavoritesBuilder();
+    }
+
+    function getHpFavActiveToken() {
+      return hpFavToken(state.hpFavoritesBuilder.activeList || 'My Favorites');
+    }
+
+    function getHpFavActiveEntries() {
+      const builder = state.hpFavoritesBuilder;
+      const token = getHpFavActiveToken();
+      return hpFavNormalizeEntries((builder.entriesByList || {})[token]);
+    }
+
+    function setHpFavActiveEntries(entries) {
+      const builder = state.hpFavoritesBuilder;
+      const token = getHpFavActiveToken();
+      builder.entriesByList = builder.entriesByList || {};
+      builder.entriesByList[token] = hpFavNormalizeEntries(entries);
+    }
+
+    function renderSb3FavoritesPanels() {
+      const builder = state.hpFavoritesBuilder;
+      const listNames = Array.isArray(builder.lists) ? builder.lists : [];
+      const activeToken = getHpFavActiveToken();
+
+      if (els.profilesList) {
+        if (!listNames.length) {
+          els.profilesList.innerHTML = '<div class="empty-state"><div class="icon">⭐</div><div>No favorites lists yet</div></div>';
+        } else {
+          els.profilesList.innerHTML = listNames.map((name, idx) => {
+            const token = hpFavToken(name);
+            const entries = hpFavNormalizeEntries((builder.entriesByList || {})[token]);
+            const analogCount = entries.filter((row) => row.kind === 'conventional').length;
+            const digitalCount = entries.filter((row) => row.kind === 'trunked').length;
+            const activeClass = token === activeToken ? 'active' : '';
+            return `
+              <button class="profile-btn ${activeClass}" data-hp-fav-list-index="${idx}">
+                <div class="label">${escapeHtml(name)}</div>
+                <div class="meta">Analog ${analogCount} • Digital ${digitalCount}</div>
+              </button>
+            `;
+          }).join('');
+        }
+      }
+
+      if (els.digitalProfilesList) {
+        const entries = getHpFavActiveEntries().filter((row) => row.kind === 'trunked');
+        if (!entries.length) {
+          els.digitalProfilesList.innerHTML = '<div class="empty-state"><div class="icon">📡</div><div>No digital channels in active favorites list</div></div>';
+        } else {
+          els.digitalProfilesList.innerHTML = entries.slice(0, 64).map((row) => {
+            const talkgroup = String(row.talkgroup || '').trim();
+            const meta = [row.system_name, row.department_name, talkgroup ? `TG ${talkgroup}` : '']
+              .filter(Boolean)
+              .join(' • ');
+            return `
+              <div class="profile-btn active">
+                <div class="label">${escapeHtml(row.alpha_tag || talkgroup || 'Talkgroup')}</div>
+                <div class="meta">${escapeHtml(meta || '--')}</div>
+              </div>
+            `;
+          }).join('');
+        }
+      }
+    }
+
+    function renderHpFavoritesBuilderSystems() {
+      if (!els.hpFavSystems) return;
+      const builder = state.hpFavoritesBuilder;
+      const systems = Array.isArray(builder.systems) ? builder.systems : [];
+      if (!systems.length) {
+        els.hpFavSystems.innerHTML = '<div class="hp-builder-empty">No systems loaded.</div>';
+        return;
+      }
+      const activeSystemId = String(builder.selectedSystemId || '');
+      els.hpFavSystems.innerHTML = systems.map((row, idx) => {
+        const systemId = String(row.id || '');
+        const activeClass = systemId === activeSystemId ? 'active' : '';
+        const metaBits = [];
+        if (row.protocol) metaBits.push(String(row.protocol));
+        if (row.category) metaBits.push(String(row.category));
+        if (row.scope) metaBits.push(String(row.scope));
+        return `
+          <button class="hp-builder-picker-item ${activeClass}" type="button" data-hp-system-index="${idx}">
+            <div>${escapeHtml(row.name || systemId || `System ${idx + 1}`)}</div>
+            <div class="hp-builder-picker-meta">${escapeHtml(metaBits.join(' • ') || '--')}</div>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function renderHpFavoritesBuilderChannels() {
+      if (!els.hpFavChannels) return;
+      const builder = state.hpFavoritesBuilder;
+      const channels = Array.isArray(builder.channels) ? builder.channels : [];
+      const selected = new Set(Array.isArray(builder.selectedChannelIds) ? builder.selectedChannelIds : []);
+      if (!channels.length) {
+        els.hpFavChannels.innerHTML = '<div class="hp-builder-empty">No channels loaded.</div>';
+        return;
+      }
+      els.hpFavChannels.innerHTML = channels.map((row, idx) => {
+        const channelId = String(row.id || '');
+        const checked = selected.has(channelId) ? 'checked' : '';
+        const metaBits = [row.system_name, row.department_name];
+        if (row.kind === 'trunked' && row.talkgroup) metaBits.push(`TG ${row.talkgroup}`);
+        if (row.kind === 'conventional' && Number.isFinite(Number(row.frequency))) {
+          metaBits.push(`${Number(row.frequency).toFixed(4)} MHz`);
+        }
+        return `
+          <label class="hp-builder-chk">
+            <input type="checkbox" data-hp-channel-index="${idx}" ${checked}>
+            <span>
+              <div>${escapeHtml(row.alpha_tag || row.id || `Channel ${idx + 1}`)}</div>
+              <div class="hp-builder-picker-meta">${escapeHtml(metaBits.filter(Boolean).join(' • ') || '--')}</div>
+            </span>
+          </label>
+        `;
+      }).join('');
+    }
+
+    function renderHpFavoritesBuilderEntries() {
+      if (!els.hpFavEntries) return;
+      const entries = getHpFavActiveEntries();
+      if (!entries.length) {
+        els.hpFavEntries.innerHTML = '<div class="hp-builder-empty">No entries in active list.</div>';
+        return;
+      }
+      els.hpFavEntries.innerHTML = entries.map((entry, idx) => {
+        const typeLabel = entry.kind === 'trunked' ? 'Digital' : 'Analog';
+        const tail = entry.kind === 'trunked'
+          ? `TG ${String(entry.talkgroup || '--')}`
+          : `${Number(entry.frequency || 0).toFixed(4)} MHz`;
+        const meta = [entry.system_name, entry.department_name, tail].filter(Boolean).join(' • ');
+        return `
+          <div class="hp-builder-row">
+            <div class="hp-builder-row-head">
+              <span>${escapeHtml(entry.alpha_tag || `Entry ${idx + 1}`)}</span>
+              <button class="hp-builder-entry-remove" type="button" data-hp-entry-id="${escapeHtml(entry.id || '')}">Remove</button>
+            </div>
+            <div class="hp-builder-row-meta">${escapeHtml(typeLabel)} • ${escapeHtml(meta || '--')}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderHpFavoritesBuilder() {
+      const builder = state.hpFavoritesBuilder;
+      const busy = Boolean(builder.loading || builder.saving);
+      const listNames = Array.isArray(builder.lists) && builder.lists.length
+        ? builder.lists
+        : ['My Favorites'];
+      if (els.hpFavListSelect) {
+        els.hpFavListSelect.innerHTML = listNames.map((name) => (
+          `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`
+        )).join('');
+        const active = hpFavNormalizeName(builder.activeList || listNames[0]);
+        els.hpFavListSelect.value = active;
+        els.hpFavListSelect.disabled = busy;
+      }
+      if (els.hpFavListNew) {
+        els.hpFavListNew.disabled = busy;
+      }
+      if (els.hpFavListCreate) {
+        els.hpFavListCreate.disabled = busy;
+      }
+      if (els.hpFavListDelete) {
+        els.hpFavListDelete.disabled = busy || listNames.length <= 1;
+      }
+      if (els.hpFavSystemType) {
+        els.hpFavSystemType.value = builder.systemType === 'analog' ? 'analog' : 'digital';
+        els.hpFavSystemType.disabled = busy;
+      }
+      if (els.hpFavCountry) {
+        const countries = Array.isArray(builder.countries) ? builder.countries : [];
+        els.hpFavCountry.innerHTML = countries.map((row) => (
+          `<option value="${_toInt(row.country_id, 0)}">${escapeHtml(row.name || `Country ${row.country_id}`)}</option>`
+        )).join('') || '<option value="1">USA</option>';
+        const countryId = _toInt(builder.countryId, 1) || 1;
+        els.hpFavCountry.value = String(countryId);
+        els.hpFavCountry.disabled = busy;
+      }
+      if (els.hpFavState) {
+        const states = Array.isArray(builder.states) ? builder.states : [];
+        els.hpFavState.innerHTML = states.map((row) => (
+          `<option value="${_toInt(row.state_id, 0)}">${escapeHtml(row.name || row.abbr || `State ${row.state_id}`)}</option>`
+        )).join('') || '<option value="0">Select State</option>';
+        const stateId = _toInt(builder.stateId, 0);
+        if (states.some((row) => _toInt(row.state_id, 0) === stateId)) {
+          els.hpFavState.value = String(stateId);
+        }
+        els.hpFavState.disabled = busy;
+      }
+      if (els.hpFavCounty) {
+        const counties = Array.isArray(builder.counties) ? builder.counties : [];
+        els.hpFavCounty.innerHTML = counties.map((row) => (
+          `<option value="${_toInt(row.county_id, 0)}">${escapeHtml(row.name || `County ${row.county_id}`)}</option>`
+        )).join('') || '<option value="0">All Counties</option>';
+        const countyId = _toInt(builder.countyId, 0);
+        if (counties.some((row) => _toInt(row.county_id, 0) === countyId)) {
+          els.hpFavCounty.value = String(countyId);
+        }
+        els.hpFavCounty.disabled = busy;
+      }
+      if (els.hpFavScope) {
+        els.hpFavScope.value = String(builder.scope || 'statewide');
+        els.hpFavScope.disabled = busy;
+      }
+      if (els.hpFavSystemSearch) {
+        els.hpFavSystemSearch.value = String(builder.systemQuery || '');
+        els.hpFavSystemSearch.disabled = busy;
+      }
+      if (els.hpFavChannelSearch) {
+        els.hpFavChannelSearch.value = String(builder.channelQuery || '');
+        els.hpFavChannelSearch.disabled = busy;
+      }
+      if (els.hpFavLoadSystems) {
+        els.hpFavLoadSystems.disabled = busy;
+      }
+      if (els.hpFavLoadChannels) {
+        els.hpFavLoadChannels.disabled = busy || !String(builder.selectedSystemId || '').trim();
+      }
+      if (els.hpFavAddSelected) {
+        const selectedCount = (builder.selectedChannelIds || []).length;
+        els.hpFavAddSelected.disabled = busy || selectedCount <= 0;
+        els.hpFavAddSelected.textContent = selectedCount > 0 ? `Add Selected (${selectedCount})` : 'Add Selected Channels';
+      }
+      renderHpFavoritesBuilderSystems();
+      renderHpFavoritesBuilderChannels();
+      renderHpFavoritesBuilderEntries();
+    }
+
+    async function saveHpFavoritesBuilder(reasonMessage) {
+      const builder = state.hpFavoritesBuilder;
+      if (builder.saving) return false;
+      builder.saving = true;
+      renderHpFavoritesBuilder();
+      try {
+        const model = {
+          activeName: hpFavNormalizeName(builder.activeList),
+          names: Array.isArray(builder.lists) ? builder.lists : [],
+          entriesByList: builder.entriesByList || {},
+        };
+        const payload = buildHpFavoritesStatePayload(model);
+        const result = await postJSON('/api/hp/state', payload, { timeoutMs: 20000 });
+        const hpState = result && result.state && typeof result.state === 'object' ? result.state : result;
+        applyHpFavoritesState(hpState);
+        builder.lastLoadedAt = Date.now();
+        setHpFavStatus(reasonMessage || 'Favorites saved.');
+        await refresh();
+        return true;
+      } catch (e) {
+        setHpFavStatus(messageFromError(e, 'Failed to save favorites'), true);
+        logActivity(messageFromError(e, 'Failed to save favorites'), 'warn', 'hp-favorites-save-error');
+        return false;
+      } finally {
+        builder.saving = false;
+        renderHpFavoritesBuilder();
+      }
+    }
+
+    async function loadHpFavoriteStates() {
+      const builder = state.hpFavoritesBuilder;
+      const countryId = _toInt(builder.countryId, 1) || 1;
+      const payload = await fetchJSON(`/api/hp/favorites-wizard/states?country_id=${encodeURIComponent(countryId)}`);
+      const states = Array.isArray(payload.states) ? payload.states : [];
+      builder.states = states;
+      if (!states.length) {
+        builder.stateId = 0;
+        builder.counties = [];
+        builder.countyId = 0;
+        return;
+      }
+      const stateId = _toInt(builder.stateId, 0);
+      if (!states.some((row) => _toInt(row.state_id, 0) === stateId)) {
+        builder.stateId = _toInt(states[0].state_id, 0);
+      }
+    }
+
+    async function loadHpFavoriteCounties() {
+      const builder = state.hpFavoritesBuilder;
+      const stateId = _toInt(builder.stateId, 0);
+      if (!stateId) {
+        builder.counties = [];
+        builder.countyId = 0;
+        return;
+      }
+      const payload = await fetchJSON(`/api/hp/favorites-wizard/counties?state_id=${encodeURIComponent(stateId)}`);
+      const counties = Array.isArray(payload.counties) ? payload.counties : [];
+      builder.counties = counties;
+      const countyId = _toInt(builder.countyId, 0);
+      if (!counties.some((row) => _toInt(row.county_id, 0) === countyId)) {
+        builder.countyId = counties.length ? _toInt(counties[0].county_id, 0) : 0;
+      }
+    }
+
+    async function loadHpFavoritesBuilder({ quiet = false, force = false } = {}) {
+      const builder = state.hpFavoritesBuilder;
+      if (builder.loading || builder.saving) return;
+      if (builder.loaded && !force) {
+        renderHpFavoritesBuilder();
+        renderSb3FavoritesPanels();
+        return;
+      }
+      builder.loading = true;
+      renderHpFavoritesBuilder();
+      try {
+        const [hpStatePayload, countriesPayload] = await Promise.all([
+          fetchJSON('/api/hp/state'),
+          fetchJSON('/api/hp/favorites-wizard/countries'),
+        ]);
+        const hpState = hpStatePayload && hpStatePayload.state && typeof hpStatePayload.state === 'object'
+          ? hpStatePayload.state
+          : {};
+        applyHpFavoritesState(hpState);
+        const countries = Array.isArray(countriesPayload.countries) ? countriesPayload.countries : [];
+        builder.countries = countries;
+        if (!countries.length) {
+          builder.countryId = 1;
+        } else {
+          const countryId = _toInt(builder.countryId, 0);
+          if (!countries.some((row) => _toInt(row.country_id, 0) === countryId)) {
+            builder.countryId = _toInt(countries[0].country_id, 1) || 1;
+          }
+        }
+        await loadHpFavoriteStates();
+        await loadHpFavoriteCounties();
+        builder.loaded = true;
+        builder.lastLoadedAt = Date.now();
+        if (!quiet) {
+          setHpFavStatus('Favorites loaded. SB3 and HP3 now share this same list data.');
+        }
+      } catch (e) {
+        setHpFavStatus(messageFromError(e, 'Failed to load favorites builder'), true);
+        logActivity(messageFromError(e, 'Failed to load favorites builder'), 'warn', 'hp-favorites-load-error');
+      } finally {
+        builder.loading = false;
+        renderHpFavoritesBuilder();
+        renderSb3FavoritesPanels();
+      }
+    }
+
+    async function loadHpFavoriteSystems() {
+      const builder = state.hpFavoritesBuilder;
+      const stateId = _toInt(builder.stateId, 0);
+      if (!stateId) {
+        setHpFavStatus('Select a state first.', true);
+        return;
+      }
+      builder.loading = true;
+      renderHpFavoritesBuilder();
+      try {
+        const params = new URLSearchParams();
+        params.set('state_id', String(stateId));
+        params.set('county_id', String(_toInt(builder.countyId, 0)));
+        params.set('system_type', builder.systemType === 'analog' ? 'analog' : 'digital');
+        params.set('scope', String(builder.scope || 'statewide'));
+        if (String(builder.systemQuery || '').trim()) {
+          params.set('q', String(builder.systemQuery || '').trim());
+        }
+        const payload = await fetchJSON(`/api/hp/favorites-wizard/systems?${params.toString()}`);
+        builder.systems = Array.isArray(payload.systems) ? payload.systems : [];
+        if (!builder.systems.length) {
+          builder.selectedSystemId = '';
+          builder.channels = [];
+          builder.selectedChannelIds = [];
+          setHpFavStatus('No systems found for current filters.', true);
+        } else {
+          const firstId = String((builder.systems[0] && builder.systems[0].id) || '');
+          if (!builder.systems.some((row) => String(row.id || '') === String(builder.selectedSystemId || ''))) {
+            builder.selectedSystemId = firstId;
+          }
+          builder.channels = [];
+          builder.selectedChannelIds = [];
+          setHpFavStatus(`Loaded ${builder.systems.length} systems.`);
+        }
+      } catch (e) {
+        setHpFavStatus(messageFromError(e, 'Failed to load systems'), true);
+        logActivity(messageFromError(e, 'Failed to load systems'), 'warn', 'hp-favorites-systems-error');
+      } finally {
+        builder.loading = false;
+        renderHpFavoritesBuilder();
+      }
+    }
+
+    async function loadHpFavoriteChannels() {
+      const builder = state.hpFavoritesBuilder;
+      const systemId = String(builder.selectedSystemId || '').trim();
+      if (!systemId) {
+        setHpFavStatus('Select a system first.', true);
+        return;
+      }
+      builder.loading = true;
+      renderHpFavoritesBuilder();
+      try {
+        const params = new URLSearchParams();
+        params.set('system_type', builder.systemType === 'analog' ? 'analog' : 'digital');
+        params.set('system_id', systemId);
+        params.set('limit', '1000');
+        if (String(builder.channelQuery || '').trim()) {
+          params.set('q', String(builder.channelQuery || '').trim());
+        }
+        const payload = await fetchJSON(`/api/hp/favorites-wizard/channels?${params.toString()}`);
+        builder.channels = Array.isArray(payload.channels) ? payload.channels : [];
+        builder.selectedChannelIds = [];
+        if (!builder.channels.length) {
+          setHpFavStatus('No channels found for selected system.', true);
+        } else {
+          const name = String(payload.system_name || '').trim();
+          setHpFavStatus(`Loaded ${builder.channels.length} channels${name ? ` from ${name}` : ''}.`);
+        }
+      } catch (e) {
+        setHpFavStatus(messageFromError(e, 'Failed to load channels'), true);
+        logActivity(messageFromError(e, 'Failed to load channels'), 'warn', 'hp-favorites-channels-error');
+      } finally {
+        builder.loading = false;
+        renderHpFavoritesBuilder();
+      }
+    }
+
+    function selectHpFavoriteSystem(index) {
+      const builder = state.hpFavoritesBuilder;
+      const systems = Array.isArray(builder.systems) ? builder.systems : [];
+      const idx = _toInt(index, -1);
+      if (idx < 0 || idx >= systems.length) return;
+      builder.selectedSystemId = String(systems[idx].id || '').trim();
+      builder.channels = [];
+      builder.selectedChannelIds = [];
+      renderHpFavoritesBuilder();
+    }
+
+    function toggleHpFavoriteChannel(index, checked) {
+      const builder = state.hpFavoritesBuilder;
+      const channels = Array.isArray(builder.channels) ? builder.channels : [];
+      const idx = _toInt(index, -1);
+      if (idx < 0 || idx >= channels.length) return;
+      const channelId = String(channels[idx].id || '').trim();
+      if (!channelId) return;
+      const selected = new Set(Array.isArray(builder.selectedChannelIds) ? builder.selectedChannelIds : []);
+      if (checked) selected.add(channelId);
+      else selected.delete(channelId);
+      builder.selectedChannelIds = Array.from(selected);
+      renderHpFavoritesBuilder();
+    }
+
+    async function addSelectedHpFavoriteChannels() {
+      const builder = state.hpFavoritesBuilder;
+      const selectedIds = new Set(Array.isArray(builder.selectedChannelIds) ? builder.selectedChannelIds : []);
+      if (!selectedIds.size) {
+        setHpFavStatus('Select one or more channels first.', true);
+        return;
+      }
+      const selectedRows = (Array.isArray(builder.channels) ? builder.channels : [])
+        .filter((row) => selectedIds.has(String(row.id || '').trim()));
+      if (!selectedRows.length) {
+        setHpFavStatus('No selected channels found.', true);
+        return;
+      }
+      const existing = getHpFavActiveEntries();
+      const byId = new Map();
+      existing.forEach((entry, idx) => {
+        const normalized = hpFavNormalizeEntry(entry, idx);
+        if (!normalized) return;
+        byId.set(String(normalized.id || '').trim().toLowerCase(), normalized);
+      });
+      selectedRows.forEach((row, idx) => {
+        const normalized = hpFavNormalizeEntry(row, idx);
+        if (!normalized) return;
+        byId.set(String(normalized.id || '').trim().toLowerCase(), normalized);
+      });
+      const merged = Array.from(byId.values());
+      setHpFavActiveEntries(merged);
+      builder.selectedChannelIds = [];
+      renderHpFavoritesBuilder();
+      await saveHpFavoritesBuilder(`Added ${selectedRows.length} channel${selectedRows.length === 1 ? '' : 's'} to ${builder.activeList}.`);
+    }
+
+    async function removeHpFavoriteEntry(entryId) {
+      const id = String(entryId || '').trim().toLowerCase();
+      if (!id) return;
+      const remaining = getHpFavActiveEntries().filter((entry) => String(entry.id || '').trim().toLowerCase() !== id);
+      setHpFavActiveEntries(remaining);
+      renderHpFavoritesBuilder();
+      await saveHpFavoritesBuilder('Favorite entry removed.');
+    }
+
+    async function selectHpFavoriteList(name) {
+      const builder = state.hpFavoritesBuilder;
+      const nextName = hpFavNormalizeName(name);
+      if (hpFavToken(nextName) === hpFavToken(builder.activeList || '')) {
+        builder.activeList = nextName;
+        renderHpFavoritesBuilder();
+        renderSb3FavoritesPanels();
+        return;
+      }
+      builder.activeList = nextName;
+      renderHpFavoritesBuilder();
+      renderSb3FavoritesPanels();
+      await saveHpFavoritesBuilder(`Active list set to ${nextName}.`);
+    }
+
+    async function createHpFavoriteList() {
+      const builder = state.hpFavoritesBuilder;
+      const rawName = String(els.hpFavListNew && els.hpFavListNew.value ? els.hpFavListNew.value : '').trim();
+      if (!rawName) {
+        setHpFavStatus('Enter a list name first.', true);
+        return;
+      }
+      const nextName = hpFavNormalizeName(rawName);
+      const existing = new Set((builder.lists || []).map((name) => hpFavToken(name)));
+      if (existing.has(hpFavToken(nextName))) {
+        setHpFavStatus('A list with that name already exists.', true);
+        return;
+      }
+      builder.lists = [...(builder.lists || []), nextName];
+      builder.entriesByList = {
+        ...(builder.entriesByList || {}),
+        [hpFavToken(nextName)]: [],
+      };
+      builder.activeList = nextName;
+      if (els.hpFavListNew) els.hpFavListNew.value = '';
+      renderHpFavoritesBuilder();
+      renderSb3FavoritesPanels();
+      await saveHpFavoritesBuilder(`Created list ${nextName}.`);
+    }
+
+    async function deleteHpFavoriteList() {
+      const builder = state.hpFavoritesBuilder;
+      const names = Array.isArray(builder.lists) ? builder.lists : [];
+      if (names.length <= 1) {
+        setHpFavStatus('At least one favorites list must remain.', true);
+        return;
+      }
+      const activeName = hpFavNormalizeName(builder.activeList || names[0]);
+      if (!confirm(`Delete favorites list "${activeName}"?`)) return;
+      const nextNames = names.filter((name) => hpFavToken(name) !== hpFavToken(activeName));
+      const nextEntries = {};
+      nextNames.forEach((name) => {
+        const token = hpFavToken(name);
+        nextEntries[token] = hpFavNormalizeEntries((builder.entriesByList || {})[token]);
+      });
+      builder.lists = nextNames;
+      builder.entriesByList = nextEntries;
+      builder.activeList = nextNames[0] || 'My Favorites';
+      renderHpFavoritesBuilder();
+      renderSb3FavoritesPanels();
+      await saveHpFavoritesBuilder(`Deleted list ${activeName}.`);
     }
 
     function openHp3BuilderSidecar() {
@@ -4924,22 +5977,7 @@
     }
     
     function updateProfiles() {
-      const t = state[activeTarget];
-      
-      if (!t.profiles.length) {
-        els.profilesList.innerHTML = '<div class="empty-state"><div class="icon">📡</div><div>No profiles found</div></div>';
-        return;
-      }
-      
-      els.profilesList.innerHTML = t.profiles
-        .filter(p => !p.id.startsWith('none_'))
-        .map(p => `
-          <button class="profile-btn ${p.id === t.currentProfile ? 'active' : ''}" 
-                  onclick="selectProfile('${p.id}', true)">
-            <div class="label">${p.label}</div>
-            <div class="meta">${p.id}${p.exists ? '' : ' • Missing'}</div>
-          </button>
-        `).join('');
+      renderSb3FavoritesPanels();
       refreshManageCloneOptions();
       refreshFreqEditOptions();
       refreshProfileEditorOptions();
@@ -5471,19 +6509,7 @@
     }
 
     function updateDigitalProfilesList() {
-      if (!els.digitalProfilesList) return;
-      const profiles = state.digital.profiles || [];
-      if (!profiles.length) {
-        els.digitalProfilesList.innerHTML = '<div class="empty-state"><div class="icon">📡</div><div>No digital profiles yet</div></div>';
-        return;
-      }
-      const current = state.digital.activeProfile || state.digital.profile;
-      els.digitalProfilesList.innerHTML = profiles.map((id) => (
-        `<button class="profile-btn ${id === current ? 'active' : ''}" onclick="applyDigitalProfile('${id}')">
-          <div class="label">${id}</div>
-          <div class="meta">${id === current ? 'Active' : 'Select'}</div>
-        </button>`
-      )).join('');
+      renderSb3FavoritesPanels();
     }
 
     function formatDigitalPreview(data) {
@@ -7688,9 +8714,17 @@
         updateDigitalUI();
         updateControls();
         updateProfiles();
-        updateSystemUI(systemData);
+          updateSystemUI(systemData);
           updateCounters();
           updateTuneButton();
+          {
+            const lastLoadedAt = Number(state.hpFavoritesBuilder && state.hpFavoritesBuilder.lastLoadedAt ? state.hpFavoritesBuilder.lastLoadedAt : 0);
+            if (!lastLoadedAt || (Date.now() - lastLoadedAt) > 20000) {
+              loadHpFavoritesBuilder({ quiet: true, force: true }).catch((err) => {
+                console.error('Background favorites builder refresh failed:', err);
+              });
+            }
+          }
           refreshDigitalProfiles();
           refreshDigitalListen();
         } catch (e) {
@@ -7901,11 +8935,20 @@
     async function init() {
       loadTheme();
       setupCollapsibleWidgets();
+      if (els.favoritesFiltersWidget) {
+        const saved = localStorage.getItem('sb3-favorites-filters-collapsed');
+        if (saved === '1') {
+          els.favoritesFiltersWidget.classList.add('collapsed');
+        }
+      }
+      updateFavoritesFiltersToggleLabel();
       updateTuneButton();
       setProfileEditorTab('analog');
       refreshProfileEditorOptions();
       renderHpFavoritesSyncUi();
       renderHpFiltersPanel();
+      renderHpFavoritesBuilder();
+      renderSb3FavoritesPanels();
 
       syncStreamLinks();
       refreshVlcStatus();
@@ -7945,6 +8988,26 @@
       }
       if (els.btnApply) {
         els.btnApply.addEventListener('click', applyBatch);
+      }
+      if (els.favoritesFiltersToggle && els.favoritesFiltersWidget) {
+        els.favoritesFiltersToggle.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleWidget(els.favoritesFiltersWidget);
+          const collapsed = els.favoritesFiltersWidget.classList.contains('collapsed');
+          localStorage.setItem('sb3-favorites-filters-collapsed', collapsed ? '1' : '0');
+          updateFavoritesFiltersToggleLabel();
+        });
+        const filtersHeader = els.favoritesFiltersWidget.querySelector('.widget-header');
+        if (filtersHeader) {
+          filtersHeader.addEventListener('click', () => {
+            setTimeout(() => {
+              const collapsed = els.favoritesFiltersWidget.classList.contains('collapsed');
+              localStorage.setItem('sb3-favorites-filters-collapsed', collapsed ? '1' : '0');
+              updateFavoritesFiltersToggleLabel();
+            }, 0);
+          });
+        }
       }
       if (els.loopSave) {
         els.loopSave.addEventListener('click', () => {
@@ -8168,7 +9231,12 @@
         els.hpFiltersSave.addEventListener('click', () => saveHpFiltersPanel());
       }
       if (els.hpFiltersOpenBuilder) {
-        els.hpFiltersOpenBuilder.addEventListener('click', openHp3BuilderSidecar);
+        els.hpFiltersOpenBuilder.addEventListener('click', async () => {
+          await loadHpFavoritesBuilder({ force: true });
+          if (els.hpFavSystemSearch) {
+            els.hpFavSystemSearch.focus();
+          }
+        });
       }
       if (els.hpFilterResolveZip) {
         els.hpFilterResolveZip.addEventListener('click', () => saveHpFiltersPanel({ resolveZip: true }));
@@ -8215,11 +9283,149 @@
       if (els.hpServiceTypesNone) {
         els.hpServiceTypesNone.addEventListener('click', () => setHpFiltersSelection('none'));
       }
+      if (els.profilesList) {
+        els.profilesList.addEventListener('click', (e) => {
+          const btn = e.target && e.target.closest ? e.target.closest('button[data-hp-fav-list-index]') : null;
+          if (!btn) return;
+          const idx = _toInt(btn.getAttribute('data-hp-fav-list-index'), -1);
+          const names = Array.isArray(state.hpFavoritesBuilder.lists) ? state.hpFavoritesBuilder.lists : [];
+          if (idx < 0 || idx >= names.length) return;
+          selectHpFavoriteList(names[idx]);
+        });
+      }
+      if (els.hpFavListSelect) {
+        els.hpFavListSelect.addEventListener('change', () => {
+          const name = hpFavNormalizeName(els.hpFavListSelect.value || '');
+          selectHpFavoriteList(name);
+        });
+      }
+      if (els.hpFavListCreate) {
+        els.hpFavListCreate.addEventListener('click', createHpFavoriteList);
+      }
+      if (els.hpFavListDelete) {
+        els.hpFavListDelete.addEventListener('click', deleteHpFavoriteList);
+      }
+      if (els.hpFavSystemType) {
+        els.hpFavSystemType.addEventListener('change', () => {
+          state.hpFavoritesBuilder.systemType = els.hpFavSystemType.value === 'analog' ? 'analog' : 'digital';
+          state.hpFavoritesBuilder.systems = [];
+          state.hpFavoritesBuilder.selectedSystemId = '';
+          state.hpFavoritesBuilder.channels = [];
+          state.hpFavoritesBuilder.selectedChannelIds = [];
+          renderHpFavoritesBuilder();
+        });
+      }
+      if (els.hpFavCountry) {
+        els.hpFavCountry.addEventListener('change', async () => {
+          state.hpFavoritesBuilder.countryId = _toInt(els.hpFavCountry.value, 1) || 1;
+          state.hpFavoritesBuilder.stateId = 0;
+          state.hpFavoritesBuilder.countyId = 0;
+          state.hpFavoritesBuilder.systems = [];
+          state.hpFavoritesBuilder.selectedSystemId = '';
+          state.hpFavoritesBuilder.channels = [];
+          state.hpFavoritesBuilder.selectedChannelIds = [];
+          renderHpFavoritesBuilder();
+          try {
+            await loadHpFavoriteStates();
+            await loadHpFavoriteCounties();
+            renderHpFavoritesBuilder();
+          } catch (e) {
+            setHpFavStatus(messageFromError(e, 'Failed to load states/counties'), true);
+          }
+        });
+      }
+      if (els.hpFavState) {
+        els.hpFavState.addEventListener('change', async () => {
+          state.hpFavoritesBuilder.stateId = _toInt(els.hpFavState.value, 0);
+          state.hpFavoritesBuilder.countyId = 0;
+          state.hpFavoritesBuilder.systems = [];
+          state.hpFavoritesBuilder.selectedSystemId = '';
+          state.hpFavoritesBuilder.channels = [];
+          state.hpFavoritesBuilder.selectedChannelIds = [];
+          renderHpFavoritesBuilder();
+          try {
+            await loadHpFavoriteCounties();
+            renderHpFavoritesBuilder();
+          } catch (e) {
+            setHpFavStatus(messageFromError(e, 'Failed to load counties'), true);
+          }
+        });
+      }
+      if (els.hpFavCounty) {
+        els.hpFavCounty.addEventListener('change', () => {
+          state.hpFavoritesBuilder.countyId = _toInt(els.hpFavCounty.value, 0);
+          state.hpFavoritesBuilder.systems = [];
+          state.hpFavoritesBuilder.selectedSystemId = '';
+          state.hpFavoritesBuilder.channels = [];
+          state.hpFavoritesBuilder.selectedChannelIds = [];
+          renderHpFavoritesBuilder();
+        });
+      }
+      if (els.hpFavScope) {
+        els.hpFavScope.addEventListener('change', () => {
+          state.hpFavoritesBuilder.scope = String(els.hpFavScope.value || 'statewide');
+          state.hpFavoritesBuilder.systems = [];
+          state.hpFavoritesBuilder.selectedSystemId = '';
+          state.hpFavoritesBuilder.channels = [];
+          state.hpFavoritesBuilder.selectedChannelIds = [];
+          renderHpFavoritesBuilder();
+        });
+      }
+      if (els.hpFavSystemSearch) {
+        els.hpFavSystemSearch.addEventListener('input', () => {
+          state.hpFavoritesBuilder.systemQuery = String(els.hpFavSystemSearch.value || '');
+        });
+      }
+      if (els.hpFavLoadSystems) {
+        els.hpFavLoadSystems.addEventListener('click', loadHpFavoriteSystems);
+      }
+      if (els.hpFavSystems) {
+        els.hpFavSystems.addEventListener('click', (e) => {
+          const btn = e.target && e.target.closest ? e.target.closest('button[data-hp-system-index]') : null;
+          if (!btn) return;
+          selectHpFavoriteSystem(btn.getAttribute('data-hp-system-index'));
+        });
+      }
+      if (els.hpFavChannelSearch) {
+        els.hpFavChannelSearch.addEventListener('input', () => {
+          state.hpFavoritesBuilder.channelQuery = String(els.hpFavChannelSearch.value || '');
+        });
+      }
+      if (els.hpFavLoadChannels) {
+        els.hpFavLoadChannels.addEventListener('click', loadHpFavoriteChannels);
+      }
+      if (els.hpFavChannels) {
+        els.hpFavChannels.addEventListener('change', (e) => {
+          const input = e.target;
+          if (!input || input.tagName !== 'INPUT') return;
+          const idx = input.getAttribute('data-hp-channel-index');
+          toggleHpFavoriteChannel(idx, Boolean(input.checked));
+        });
+      }
+      if (els.hpFavAddSelected) {
+        els.hpFavAddSelected.addEventListener('click', addSelectedHpFavoriteChannels);
+      }
+      if (els.hpFavEntries) {
+        els.hpFavEntries.addEventListener('click', (e) => {
+          const btn = e.target && e.target.closest ? e.target.closest('button[data-hp-entry-id]') : null;
+          if (!btn) return;
+          removeHpFavoriteEntry(btn.getAttribute('data-hp-entry-id'));
+        });
+      }
       if (els.hp3BuilderOpenAnalog) {
-        els.hp3BuilderOpenAnalog.addEventListener('click', openHp3BuilderSidecar);
+        els.hp3BuilderOpenAnalog.addEventListener('click', async () => {
+          await loadHpFavoritesBuilder({ force: true });
+          if (els.hpFavSystemSearch) els.hpFavSystemSearch.focus();
+        });
       }
       if (els.hp3BuilderOpenDigital) {
-        els.hp3BuilderOpenDigital.addEventListener('click', openHp3BuilderSidecar);
+        els.hp3BuilderOpenDigital.addEventListener('click', async () => {
+          await loadHpFavoritesBuilder({ force: true });
+          if (els.hpFavSystemType) els.hpFavSystemType.value = 'digital';
+          state.hpFavoritesBuilder.systemType = 'digital';
+          renderHpFavoritesBuilder();
+          if (els.hpFavSystemSearch) els.hpFavSystemSearch.focus();
+        });
       }
       if (els.hp3BuilderClose) {
         els.hp3BuilderClose.addEventListener('click', () => closeHp3BuilderSidecar());
@@ -8532,6 +9738,9 @@
       } catch (_ignored) {}
       loadHpFiltersPanel({ quiet: true }).catch((e) => {
         console.error('Initial HP filters load failed:', e);
+      });
+      loadHpFavoritesBuilder({ quiet: true, force: true }).catch((e) => {
+        console.error('Initial favorites builder load failed:', e);
       });
       refresh().catch((e) => console.error('Initial refresh failed:', e));
       await refreshHits();

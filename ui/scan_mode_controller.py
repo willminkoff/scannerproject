@@ -297,16 +297,6 @@ class ScanModeController:
 
     def get_scan_pool(self):
         mode = self.get_mode()
-        if mode == "expert":
-            from .expert_scan_pool import ExpertPoolBuilder
-
-            with self._lock:
-                cfg = {
-                    "manual_trunked": list(self._expert_config.get("manual_trunked") or []),
-                    "manual_conventional": list(self._expert_config.get("manual_conventional") or []),
-                }
-            return ExpertPoolBuilder().build_pool(cfg)
-
         if mode == "legacy":
             return _empty_pool()
 
