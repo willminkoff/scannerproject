@@ -4817,6 +4817,98 @@ class DigitalManager:
             payload["digital_scheduler_last_apply_error"] = self._scheduler_last_apply_error
         return payload
 
+    def _scheduler_health_snapshot_locked(
+        self,
+        systems: list[str],
+        active_system: str,
+        mode: str,
+    ) -> list[dict]:
+        rows: list[dict] = []
+        for name in systems:
+            key = str(name or "").strip().lower()
+            entry = self._scheduler_system_health.get(key) or {}
+            is_active = str(name or "").strip() == str(active_system or "").strip()
+            if is_active:
+                state = "active"
+                reason = "active target"
+            else:
+                state = "standby"
+                reason = "timeslice standby" if mode == "timeslice_multi_system" else "inactive"
+            rows.append(
+                {
+                    "name": str(name or ""),
+                    "active": bool(is_active),
+                    "state": state,
+                    "reason": reason,
+                    "lock_failures": int(entry.get("lock_failures") or 0),
+                    "last_lock_time": int(entry.get("last_lock_time_ms") or 0),
+                    "last_lock_loss_time": int(entry.get("last_lock_loss_time_ms") or 0),
+                }
+            )
+        return rows
+
+    def _scheduler_status_snapshot_locked(self, event: dict, preflight: dict) -> dict:
+        now_ms = int(time.time() * 1000)
+        systems = [str(name or "").strip() for name in (self._scheduler_systems or []) if str(name or "").strip()]
+        active_system = str(self._scheduler_active_system or "").strip()
+        if not active_system and systems:
+            active_system = systems[0]
+        mode = str(self._scheduler_mode or "single_system")
+        if mode not in {"single_system", "timeslice_multi_system"}:
+            mode = "single_system"
+        next_system = self._next_system(systems, active_system) if len(systems) > 1 else active_system
+        lock_timeout_ms = max(2000, min(int(self._scheduler_dwell_ms), int(self._scheduler_lock_loss_ms)))
+        voice_tuner_available = bool(DIGITAL_RTL_SERIAL_SECONDARY and not preflight.get("tuner_busy"))
+        payload = {
+            "digital_scan_mode": mode,
+            "digital_system_dwell_ms": int(self._scheduler_dwell_ms),
+            "digital_system_hang_ms": int(self._scheduler_hang_ms),
+            "digital_system_order": list(self._scheduler_order),
+            "digital_pause_on_hit": bool(self._scheduler_pause_on_hit),
+            "digital_scheduler_mode": mode,
+            "digital_scheduler_active_system": active_system,
+            "digital_scheduler_next_system": next_system,
+            "digital_scheduler_last_switch_time": int(self._scheduler_last_switch_time_ms or 0),
+            "digital_scheduler_switch_reason": str(self._scheduler_switch_reason or ""),
+            "digital_scheduler_applied_system": str(self._scheduler_last_applied_system or ""),
+            "digital_scheduler_last_apply_time": int(self._scheduler_last_apply_time_ms or 0),
+            "digital_scheduler_lock_timeout_ms": int(lock_timeout_ms),
+            "digital_voice_tuner_available": voice_tuner_available,
+        }
+        active_label = str(self._scheduler_pool_system_labels.get(active_system) or "").strip()
+        if active_label:
+            payload["digital_scheduler_active_system_label"] = active_label
+        next_label = str(self._scheduler_pool_system_labels.get(next_system) or "").strip()
+        if next_label:
+            payload["digital_scheduler_next_system_label"] = next_label
+        active_department = str(
+            self._scheduler_pool_department_labels.get(active_system) or ""
+        ).strip()
+        if active_department:
+            payload["digital_scheduler_active_department_label"] = active_department
+
+        event_tgid = str(event.get("tgid") or "").strip()
+        event_time_ms = int(event.get("timeMs") or 0)
+        recent_event = event_time_ms > 0 and (now_ms - event_time_ms) <= int(self._scheduler_hang_ms)
+        if event_tgid and active_system and recent_event:
+            talkgroup_labels = self._scheduler_pool_talkgroup_labels.get(active_system) or {}
+            talkgroup_groups = self._scheduler_pool_talkgroup_groups.get(active_system) or {}
+            talkgroup_label = str(talkgroup_labels.get(event_tgid) or "").strip()
+            talkgroup_group = str(talkgroup_groups.get(event_tgid) or "").strip()
+            if talkgroup_label:
+                payload["digital_scheduler_active_talkgroup_label"] = talkgroup_label
+            if talkgroup_group:
+                payload["digital_scheduler_active_department_label"] = talkgroup_group
+
+        payload["digital_scheduler_system_health"] = self._scheduler_health_snapshot_locked(
+            systems,
+            active_system,
+            mode,
+        )
+        if self._scheduler_last_apply_error:
+            payload["digital_scheduler_last_apply_error"] = str(self._scheduler_last_apply_error)
+        return payload
+
     def status_payload(self):
         event = self.getLastEvent() or {}
         label = str(event.get("label") or "")
@@ -4846,7 +4938,7 @@ class DigitalManager:
         payload["digital_tuner_busy_count"] = int(preflight.get("tuner_busy_count") or 0)
         payload["digital_tuner_busy_time"] = int(preflight.get("tuner_busy_last_time_ms") or 0)
         with self._scheduler_lock:
-            payload.update(self._scheduler_payload(event, preflight))
+            payload.update(self._scheduler_status_snapshot_locked(event, preflight))
         scheduler_talkgroup_label = str(
             payload.get("digital_scheduler_active_talkgroup_label") or ""
         ).strip()
