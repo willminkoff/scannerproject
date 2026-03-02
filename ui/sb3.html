@@ -4222,6 +4222,10 @@
       };
     }
 
+    function isHpFullDatabaseMode() {
+      return String(state?.hpFilters?.mode || '').trim().toLowerCase() === 'full_database';
+    }
+
     function buildHpFavoritesStatePayload(model, extra = {}) {
       const safeModel = model && typeof model === 'object' ? model : {};
       const listNames = Array.isArray(safeModel.names) && safeModel.names.length
@@ -4244,8 +4248,13 @@
         };
       });
       const activeEntries = hpFavNormalizeEntries(entriesByList[hpFavToken(activeName)]);
+      const desiredMode = String((extra && extra.mode) || (isHpFullDatabaseMode() ? 'full_database' : 'favorites'))
+        .trim()
+        .toLowerCase() === 'full_database'
+        ? 'full_database'
+        : 'favorites';
       return {
-        mode: 'favorites',
+        mode: desiredMode,
         favorites_name: activeName,
         favorites,
         custom_favorites: activeEntries,
@@ -4300,17 +4309,18 @@
       const builder = state.hpFavoritesBuilder;
       const listNames = Array.isArray(builder.lists) ? builder.lists : [];
       const activeToken = getHpFavActiveToken();
+      const fullDbMode = isHpFullDatabaseMode();
 
       if (els.profilesList) {
         if (!listNames.length) {
           els.profilesList.innerHTML = '<div class="empty-state"><div class="icon">⭐</div><div>No favorites lists yet</div></div>';
         } else {
-          els.profilesList.innerHTML = listNames.map((name, idx) => {
+          const listMarkup = listNames.map((name, idx) => {
             const token = hpFavToken(name);
             const entries = hpFavNormalizeEntries((builder.entriesByList || {})[token]);
             const analogCount = entries.filter((row) => row.kind === 'conventional').length;
             const digitalCount = entries.filter((row) => row.kind === 'trunked').length;
-            const activeClass = token === activeToken ? 'active' : '';
+            const activeClass = (!fullDbMode && token === activeToken) ? 'active' : '';
             return `
               <button class="profile-btn ${activeClass}" data-hp-fav-list-index="${idx}">
                 <div class="label">${escapeHtml(name)}</div>
@@ -4318,26 +4328,37 @@
               </button>
             `;
           }).join('');
+          const fullDbBanner = fullDbMode
+            ? '<div class="muted" style="margin-bottom:10px;">Full DB mode active. Favorites are shown for edit only.</div>'
+            : '';
+          els.profilesList.innerHTML = `${fullDbBanner}${listMarkup}`;
         }
       }
 
       if (els.digitalProfilesList) {
         const entries = getHpFavActiveEntries().filter((row) => row.kind === 'trunked');
         if (!entries.length) {
-          els.digitalProfilesList.innerHTML = '<div class="empty-state"><div class="icon">📡</div><div>No digital channels in active favorites list</div></div>';
+          const emptyMessage = fullDbMode
+            ? 'No digital channels in the preview list.'
+            : 'No digital channels in active favorites list';
+          els.digitalProfilesList.innerHTML = `<div class="empty-state"><div class="icon">📡</div><div>${emptyMessage}</div></div>`;
         } else {
-          els.digitalProfilesList.innerHTML = entries.slice(0, 64).map((row) => {
+          const listMarkup = entries.slice(0, 64).map((row) => {
             const talkgroup = String(row.talkgroup || '').trim();
             const meta = [row.system_name, row.department_name, talkgroup ? `TG ${talkgroup}` : '']
               .filter(Boolean)
               .join(' • ');
             return `
-              <div class="profile-btn active">
+              <div class="profile-btn ${fullDbMode ? '' : 'active'}">
                 <div class="label">${escapeHtml(row.alpha_tag || talkgroup || 'Talkgroup')}</div>
                 <div class="meta">${escapeHtml(meta || '--')}</div>
               </div>
             `;
           }).join('');
+          const fullDbBanner = fullDbMode
+            ? '<div class="muted" style="margin-bottom:10px;">Digital favorites shown for preview only (Full DB scanning active).</div>'
+            : '';
+          els.digitalProfilesList.innerHTML = `${fullDbBanner}${listMarkup}`;
         }
       }
     }
@@ -4822,7 +4843,9 @@
           names: Array.isArray(builder.lists) ? builder.lists : [],
           entriesByList: builder.entriesByList || {},
         };
-        const payload = buildHpFavoritesStatePayload(model);
+        const payload = buildHpFavoritesStatePayload(model, {
+          mode: isHpFullDatabaseMode() ? 'full_database' : 'favorites',
+        });
         const result = await postJSON('/api/hp/state', payload, { timeoutMs: 20000 });
         const hpState = result && result.state && typeof result.state === 'object' ? result.state : result;
         applyHpFavoritesState(hpState);
