@@ -456,6 +456,11 @@
       gap: 10px;
     }
 
+    .hp3-builder-body .hp-filters-panel {
+      margin-top: 0;
+      min-height: 100%;
+    }
+
     .hp-filters-head {
       display: flex;
       align-items: center;
@@ -1262,7 +1267,7 @@
     }
 
     .hp3-builder-sidecar {
-      width: min(1240px, 98vw);
+      width: min(980px, 98vw);
     }
 
     .hp3-builder-head-actions {
@@ -1273,29 +1278,7 @@
     }
 
     .hp3-builder-body {
-      padding: 0;
-      overflow: hidden;
-      display: grid;
-      grid-template-rows: 1fr;
-    }
-
-    .hp3-builder-frame {
-      width: 100%;
-      height: 100%;
-      border: 0;
-      background: #05080d;
-    }
-
-    .hp3-builder-foot {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 10px 14px;
-      border-top: 1px solid var(--border);
-      background: rgba(14, 18, 24, 0.72);
-      font-size: 11px;
-      color: var(--text-secondary);
+      overflow: auto;
     }
 
     .profile-sidecar-panel {
@@ -2131,7 +2114,7 @@
         <div class="widget-header with-actions">
           <span>🎯 Favorites (Analog)</span>
           <div class="widget-header-actions">
-            <button class="action widget-header-action sidecar-toggle" id="hp3-builder-open-analog" type="button">Favorites Builder</button>
+            <button class="action widget-header-action sidecar-toggle" id="hp3-builder-open-analog" type="button">Open Sidecar</button>
           </div>
         </div>
         <div class="widget-body">
@@ -2157,7 +2140,7 @@
         <div class="widget-header with-actions">
           <span>🎛️ Favorites (Digital)</span>
           <div class="widget-header-actions">
-            <button class="action widget-header-action sidecar-toggle" id="hp3-builder-open-digital" type="button">Favorites Builder</button>
+            <button class="action widget-header-action sidecar-toggle" id="hp3-builder-open-digital" type="button">Open Sidecar</button>
           </div>
         </div>
         <div class="widget-body">
@@ -2184,152 +2167,6 @@
             <div class="favorites-sync-actions">
               <button class="action favorites-sync-action" id="favorites-sync-btn-digital" type="button">Sync SB3</button>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="widget" id="favorites-filters-widget">
-        <div class="widget-header with-actions">
-          <span>🎚️ Favorites Filters</span>
-          <div class="widget-header-actions">
-            <button class="action widget-header-action" id="favorites-filters-toggle" type="button">Hide</button>
-          </div>
-        </div>
-        <div class="widget-body">
-          <div class="hp-filters-panel" id="hp-filters-panel">
-            <div class="hp-filters-head">
-              <div class="hp-filters-title">Favorites Filters (Digital)</div>
-              <div class="hp-filters-actions">
-                <button class="action favorites-sync-action" id="hp-filters-refresh" type="button">Refresh</button>
-                <button class="action favorites-sync-action" id="hp-filters-save" type="button">Save Filters</button>
-                <button class="action favorites-sync-action" id="hp-filters-open-builder" type="button">Add Targets</button>
-              </div>
-            </div>
-            <div class="hp-filters-grid">
-              <label class="hp-filter-field">
-                <span>Scan Source</span>
-                <select id="hp-filter-mode">
-                  <option value="favorites">Favorites</option>
-                  <option value="full_database">Full Database</option>
-                </select>
-              </label>
-              <label class="hp-filter-field">
-                <span>ZIP Code</span>
-                <input id="hp-filter-zip" type="text" maxlength="12" placeholder="e.g. 37214" autocomplete="postal-code">
-              </label>
-              <label class="hp-filter-field">
-                <span>Range Miles</span>
-                <input id="hp-filter-range" type="number" min="0" step="0.5" inputmode="decimal">
-              </label>
-              <label class="hp-filter-check">
-                <input id="hp-filter-use-location" type="checkbox">
-                <span>Use Location Filter</span>
-              </label>
-              <label class="hp-filter-check">
-                <input id="hp-filter-nationwide" type="checkbox">
-                <span>Include Nationwide Systems</span>
-              </label>
-              <div class="hp-filters-actions" style="justify-content:flex-start;">
-                <button class="action favorites-sync-action" id="hp-filter-resolve-zip" type="button">Resolve ZIP</button>
-              </div>
-            </div>
-            <div class="hp-service-types-head">
-              <div class="hp-service-types-title">Enabled Service Types</div>
-              <div class="hp-service-types-actions">
-                <button class="action favorites-sync-action" id="hp-service-types-all" type="button">All</button>
-                <button class="action favorites-sync-action" id="hp-service-types-defaults" type="button">Default</button>
-                <button class="action favorites-sync-action" id="hp-service-types-none" type="button">None</button>
-              </div>
-            </div>
-            <div class="hp-service-types-list" id="hp-service-types-list">
-              <div class="muted">Loading service types...</div>
-            </div>
-            <div class="hp-filters-status" id="hp-filters-status">Use these controls to set location/range/service filtering directly in SB3.</div>
-
-            <section class="hp-builder" id="hp-builder-panel">
-              <div class="hp-builder-head">Favorites Builder (Shared SB3 + HP3)</div>
-              <div class="hp-builder-sub">Create/edit one favorites list source used by both skins. Analog and digital targets are added independently.</div>
-              <div class="hp-builder-grid">
-                <label class="hp-filter-field">
-                  <span>Active Favorites List</span>
-                  <select id="hp-fav-list-select"></select>
-                </label>
-                <label class="hp-filter-field">
-                  <span>Create New List</span>
-                  <input id="hp-fav-list-new" type="text" maxlength="64" placeholder="e.g. Test 2">
-                </label>
-                <div class="hp-builder-actions">
-                  <button class="action favorites-sync-action" id="hp-fav-list-create" type="button">Create</button>
-                  <button class="action favorites-sync-action" id="hp-fav-list-delete" type="button">Delete Active</button>
-                </div>
-              </div>
-
-              <div class="hp-builder-grid">
-                <label class="hp-filter-field">
-                  <span>System Type</span>
-                  <select id="hp-fav-system-type">
-                    <option value="digital">Digital</option>
-                    <option value="analog">Analog</option>
-                  </select>
-                </label>
-                <label class="hp-filter-field">
-                  <span>Country</span>
-                  <select id="hp-fav-country"></select>
-                </label>
-                <label class="hp-filter-field">
-                  <span>State</span>
-                  <select id="hp-fav-state"></select>
-                </label>
-              </div>
-
-              <div class="hp-builder-grid">
-                <label class="hp-filter-field">
-                  <span>County</span>
-                  <select id="hp-fav-county"></select>
-                </label>
-                <label class="hp-filter-field">
-                  <span>Scope</span>
-                  <select id="hp-fav-scope">
-                    <option value="nationwide">Nationwide</option>
-                    <option value="statewide" selected>Statewide</option>
-                    <option value="county">County Systems</option>
-                  </select>
-                </label>
-                <label class="hp-filter-field">
-                  <span>Search Systems</span>
-                  <input id="hp-fav-system-search" type="text" placeholder="Filter systems">
-                </label>
-              </div>
-
-              <div class="hp-builder-actions">
-                <button class="action favorites-sync-action" id="hp-fav-load-systems" type="button">Load Systems</button>
-                <button class="action favorites-sync-action" id="hp-fav-load-channels" type="button">Load Channels</button>
-                <button class="action favorites-sync-action" id="hp-fav-add-selected" type="button">Add Selected Channels</button>
-              </div>
-
-              <div class="hp-builder-grid">
-                <div>
-                  <div class="hp-builder-sub">Systems</div>
-                  <div class="hp-builder-picker" id="hp-fav-systems">
-                    <div class="hp-builder-empty">Choose country/state/scope, then load systems.</div>
-                  </div>
-                </div>
-                <div>
-                  <div class="hp-builder-sub">Channel Search</div>
-                  <input id="hp-fav-channel-search" type="text" placeholder="Filter channels by alpha/tgid/group" style="width:100%; min-width:0; background:var(--bg-panel); border:1px solid var(--border); border-radius:7px; color:var(--text-primary); padding:7px 8px; font-size:12px;">
-                  <div class="hp-builder-picker" id="hp-fav-channels" style="margin-top:8px;">
-                    <div class="hp-builder-empty">Select a system, then load channels.</div>
-                  </div>
-                </div>
-                <div>
-                  <div class="hp-builder-sub">Active List Entries</div>
-                  <div class="hp-builder-list" id="hp-fav-entries">
-                    <div class="hp-builder-empty">No entries in active list.</div>
-                  </div>
-                </div>
-              </div>
-              <div class="hp-filters-status" id="hp-fav-status">Favorites builder ready.</div>
-            </section>
           </div>
         </div>
       </div>
@@ -2834,21 +2671,151 @@
   <aside class="profile-sidecar hp3-builder-sidecar" id="hp3-builder-sidecar" aria-hidden="true">
     <div class="profile-sidecar-header">
       <div>
-        <div class="profile-sidecar-title">HP3 Favorites Builder</div>
-        <div class="profile-sidecar-sub">Use HP3 workflow for favorites, channels, and service-type target picks</div>
+        <div class="profile-sidecar-title">Favorites Builder</div>
+        <div class="profile-sidecar-sub">Shared across SB3 + HP3. Set filters, then add channels/talkgroups.</div>
       </div>
       <div class="hp3-builder-head-actions">
-        <button class="action profile-sidecar-load" id="hp3-builder-open-window" type="button">Open Full HP3</button>
-        <button class="action profile-sidecar-load" id="hp3-builder-refresh" type="button">Reload</button>
+        <button class="action profile-sidecar-load" id="hp3-builder-refresh" type="button">Reload Data</button>
         <button class="action" id="hp3-builder-close" type="button">Close</button>
       </div>
     </div>
     <div class="profile-sidecar-body hp3-builder-body">
-      <iframe id="hp3-builder-frame" class="hp3-builder-frame" title="HP3 Builder" loading="lazy"></iframe>
-    </div>
-    <div class="hp3-builder-foot">
-      <span>After making favorites changes in HP3, click <strong>Sync SB3</strong> to apply to active SB3 profile.</span>
-      <button class="action profile-sidecar-load" id="hp3-builder-sync" type="button">Sync SB3</button>
+      <div class="hp-filters-panel" id="hp-filters-panel">
+        <div class="hp-filters-head">
+          <div>
+            <div class="hp-filters-title">Step 1 · Scan Filters</div>
+            <div class="hp-builder-sub">These filters control what the scanner evaluates.</div>
+          </div>
+          <div class="hp-filters-actions">
+            <button class="action favorites-sync-action" id="hp-filters-refresh" type="button">Refresh</button>
+            <button class="action favorites-sync-action" id="hp-filters-save" type="button">Apply Filters</button>
+          </div>
+        </div>
+        <div class="hp-filters-grid">
+          <label class="hp-filter-field">
+            <span>Scan Source</span>
+            <select id="hp-filter-mode">
+              <option value="favorites">Favorites</option>
+              <option value="full_database">Full Database</option>
+            </select>
+          </label>
+          <label class="hp-filter-field">
+            <span>ZIP Code</span>
+            <input id="hp-filter-zip" type="text" maxlength="12" placeholder="e.g. 37221" autocomplete="postal-code">
+          </label>
+          <label class="hp-filter-field">
+            <span>Range Miles</span>
+            <input id="hp-filter-range" type="number" min="0" step="0.5" inputmode="decimal">
+          </label>
+          <label class="hp-filter-check">
+            <input id="hp-filter-use-location" type="checkbox">
+            <span>Use Location Filter</span>
+          </label>
+          <label class="hp-filter-check">
+            <input id="hp-filter-nationwide" type="checkbox">
+            <span>Include Nationwide Systems</span>
+          </label>
+          <div class="hp-filters-actions" style="justify-content:flex-start;">
+            <button class="action favorites-sync-action" id="hp-filter-resolve-zip" type="button">Resolve ZIP + Apply</button>
+          </div>
+        </div>
+        <div class="hp-service-types-head">
+          <div class="hp-service-types-title">Enabled Service Types</div>
+          <div class="hp-service-types-actions">
+            <button class="action favorites-sync-action" id="hp-service-types-all" type="button">All</button>
+            <button class="action favorites-sync-action" id="hp-service-types-defaults" type="button">Default</button>
+            <button class="action favorites-sync-action" id="hp-service-types-none" type="button">None</button>
+          </div>
+        </div>
+        <div class="hp-service-types-list" id="hp-service-types-list">
+          <div class="muted">Loading service types...</div>
+        </div>
+        <div class="hp-filters-status" id="hp-filters-status">Set filters first, then build favorites below.</div>
+
+        <section class="hp-builder" id="hp-builder-panel">
+          <div class="hp-builder-head">Step 2 · Favorites List</div>
+          <div class="hp-builder-grid">
+            <label class="hp-filter-field">
+              <span>Active List</span>
+              <select id="hp-fav-list-select"></select>
+            </label>
+            <label class="hp-filter-field">
+              <span>Create New List</span>
+              <input id="hp-fav-list-new" type="text" maxlength="64" placeholder="e.g. Test 2">
+            </label>
+            <div class="hp-builder-actions">
+              <button class="action favorites-sync-action" id="hp-fav-list-create" type="button">Create</button>
+              <button class="action favorites-sync-action" id="hp-fav-list-delete" type="button">Delete Active</button>
+            </div>
+          </div>
+
+          <div class="hp-builder-head">Step 3 · Add Targets</div>
+          <div class="hp-builder-sub">Pick location + scope, load systems, click a system, then select channels/talkgroups.</div>
+          <div class="hp-builder-grid">
+            <label class="hp-filter-field">
+              <span>System Type</span>
+              <select id="hp-fav-system-type">
+                <option value="digital">Digital</option>
+                <option value="analog">Analog</option>
+              </select>
+            </label>
+            <label class="hp-filter-field">
+              <span>Country</span>
+              <select id="hp-fav-country"></select>
+            </label>
+            <label class="hp-filter-field">
+              <span>State</span>
+              <select id="hp-fav-state"></select>
+            </label>
+          </div>
+          <div class="hp-builder-grid">
+            <label class="hp-filter-field">
+              <span>County</span>
+              <select id="hp-fav-county"></select>
+            </label>
+            <label class="hp-filter-field">
+              <span>Scope</span>
+              <select id="hp-fav-scope">
+                <option value="nationwide">Nationwide</option>
+                <option value="statewide" selected>Statewide</option>
+                <option value="county">County Systems</option>
+              </select>
+            </label>
+            <label class="hp-filter-field">
+              <span>Search Systems</span>
+              <input id="hp-fav-system-search" type="text" placeholder="Filter systems">
+            </label>
+          </div>
+
+          <div class="hp-builder-actions">
+            <button class="action favorites-sync-action" id="hp-fav-load-systems" type="button">Load Systems</button>
+            <button class="action favorites-sync-action" id="hp-fav-add-selected" type="button">Add Selected Channels</button>
+          </div>
+
+          <div class="hp-builder-grid">
+            <div>
+              <div class="hp-builder-sub">Systems</div>
+              <div class="hp-builder-picker" id="hp-fav-systems">
+                <div class="hp-builder-empty">Choose location/scope, then load systems.</div>
+              </div>
+            </div>
+            <div>
+              <div class="hp-builder-sub">Channels / Talkgroups</div>
+              <input id="hp-fav-channel-search" type="text" placeholder="Filter by alpha/tag/tgid" style="width:100%; min-width:0; background:var(--bg-panel); border:1px solid var(--border); border-radius:7px; color:var(--text-primary); padding:7px 8px; font-size:12px;">
+              <div class="hp-builder-picker" id="hp-fav-channels" style="margin-top:8px;">
+                <div class="hp-builder-empty">Click a system to auto-load channels.</div>
+              </div>
+            </div>
+            <div>
+              <div class="hp-builder-sub">Step 4 · Active List Entries</div>
+              <div class="hp-builder-list" id="hp-fav-entries">
+                <div class="hp-builder-empty">No entries in active list.</div>
+              </div>
+            </div>
+          </div>
+          <div class="hp-filters-status" id="hp-fav-status">Favorites builder ready.</div>
+        </section>
+      </div>
     </div>
   </aside>
 
@@ -3154,12 +3121,9 @@
       favoritesSyncPrimaryAnalog: document.getElementById('favorites-sync-primary-analog'),
       favoritesSyncSecondaryAnalog: document.getElementById('favorites-sync-secondary-analog'),
       favoritesSyncBtnAnalog: document.getElementById('favorites-sync-btn-analog'),
-      favoritesFiltersWidget: document.getElementById('favorites-filters-widget'),
-      favoritesFiltersToggle: document.getElementById('favorites-filters-toggle'),
       hpFiltersPanel: document.getElementById('hp-filters-panel'),
       hpFiltersRefresh: document.getElementById('hp-filters-refresh'),
       hpFiltersSave: document.getElementById('hp-filters-save'),
-      hpFiltersOpenBuilder: document.getElementById('hp-filters-open-builder'),
       hpFilterMode: document.getElementById('hp-filter-mode'),
       hpFilterZip: document.getElementById('hp-filter-zip'),
       hpFilterRange: document.getElementById('hp-filter-range'),
@@ -3183,7 +3147,6 @@
       hpFavScope: document.getElementById('hp-fav-scope'),
       hpFavSystemSearch: document.getElementById('hp-fav-system-search'),
       hpFavLoadSystems: document.getElementById('hp-fav-load-systems'),
-      hpFavLoadChannels: document.getElementById('hp-fav-load-channels'),
       hpFavSystems: document.getElementById('hp-fav-systems'),
       hpFavChannelSearch: document.getElementById('hp-fav-channel-search'),
       hpFavChannels: document.getElementById('hp-fav-channels'),
@@ -3399,9 +3362,6 @@
       hp3BuilderOverlay: document.getElementById('hp3-builder-overlay'),
       hp3BuilderClose: document.getElementById('hp3-builder-close'),
       hp3BuilderRefresh: document.getElementById('hp3-builder-refresh'),
-      hp3BuilderOpenWindow: document.getElementById('hp3-builder-open-window'),
-      hp3BuilderSync: document.getElementById('hp3-builder-sync'),
-      hp3BuilderFrame: document.getElementById('hp3-builder-frame'),
       btnReconnect: null,
     };
 
@@ -3443,12 +3403,6 @@
       });
     }
 
-    function updateFavoritesFiltersToggleLabel() {
-      if (!els.favoritesFiltersWidget || !els.favoritesFiltersToggle) return;
-      const collapsed = els.favoritesFiltersWidget.classList.contains('collapsed');
-      els.favoritesFiltersToggle.textContent = collapsed ? 'Show' : 'Hide';
-    }
-    
     // ============================================
     // API
     // ============================================
@@ -3657,10 +3611,6 @@
       }
       if (els.favoritesSyncBtnDigital) {
         els.favoritesSyncBtnDigital.textContent = 'Shared';
-      }
-      if (els.hp3BuilderSync) {
-        els.hp3BuilderSync.disabled = true;
-        els.hp3BuilderSync.textContent = 'Shared';
       }
     }
 
@@ -4356,9 +4306,6 @@
       if (els.hpFavLoadSystems) {
         els.hpFavLoadSystems.disabled = busy;
       }
-      if (els.hpFavLoadChannels) {
-        els.hpFavLoadChannels.disabled = busy || !String(builder.selectedSystemId || '').trim();
-      }
       if (els.hpFavAddSelected) {
         const selectedCount = (builder.selectedChannelIds || []).length;
         els.hpFavAddSelected.disabled = busy || selectedCount <= 0;
@@ -4566,6 +4513,9 @@
       builder.channels = [];
       builder.selectedChannelIds = [];
       renderHpFavoritesBuilder();
+      loadHpFavoriteChannels().catch((err) => {
+        console.error('Auto load channels failed:', err);
+      });
     }
 
     function toggleHpFavoriteChannel(index, checked) {
@@ -4686,18 +4636,18 @@
       await saveHpFavoritesBuilder(`Deleted list ${activeName}.`);
     }
 
-    function openHp3BuilderSidecar() {
+    function openHp3BuilderSidecar(options = {}) {
       if (state.profileEditor.open && !closeProfileEditorSidecar()) {
         return false;
       }
       if (state.profileLoopUi.open) {
         closeProfileLoopSidecar();
       }
-      state.hp3Builder.open = true;
-      if (els.hp3BuilderFrame && !els.hp3BuilderFrame.src) {
-        state.hp3Builder.src = '/hp3?embed=sb3';
-        els.hp3BuilderFrame.src = state.hp3Builder.src;
+      const preferredType = String(options && options.systemType ? options.systemType : '').trim().toLowerCase();
+      if (preferredType === 'analog' || preferredType === 'digital') {
+        state.hpFavoritesBuilder.systemType = preferredType;
       }
+      state.hp3Builder.open = true;
       if (els.hp3BuilderSidecar) {
         els.hp3BuilderSidecar.classList.add('open');
         els.hp3BuilderSidecar.setAttribute('aria-hidden', 'false');
@@ -4705,6 +4655,13 @@
       if (els.hp3BuilderOverlay) {
         els.hp3BuilderOverlay.classList.remove('hidden');
       }
+      renderHpFavoritesBuilder();
+      loadHpFiltersPanel({ quiet: true }).catch((err) => {
+        console.error('Favorites filter load failed:', err);
+      });
+      loadHpFavoritesBuilder({ quiet: true, force: true }).catch((err) => {
+        console.error('Favorites builder load failed:', err);
+      });
       renderHpFavoritesSyncUi();
       return true;
     }
@@ -4726,10 +4683,12 @@
     }
 
     function reloadHp3BuilderFrame() {
-      if (!els.hp3BuilderFrame) return;
-      const nextSrc = `/hp3?embed=sb3&t=${Date.now()}`;
-      state.hp3Builder.src = nextSrc;
-      els.hp3BuilderFrame.src = nextSrc;
+      loadHpFiltersPanel({ quiet: true }).catch((err) => {
+        console.error('Favorites filter reload failed:', err);
+      });
+      loadHpFavoritesBuilder({ quiet: false, force: true }).catch((err) => {
+        console.error('Favorites builder reload failed:', err);
+      });
     }
 
     function setProfileEditorStatus(kind, message, isError = false) {
@@ -8935,13 +8894,6 @@
     async function init() {
       loadTheme();
       setupCollapsibleWidgets();
-      if (els.favoritesFiltersWidget) {
-        const saved = localStorage.getItem('sb3-favorites-filters-collapsed');
-        if (saved === '1') {
-          els.favoritesFiltersWidget.classList.add('collapsed');
-        }
-      }
-      updateFavoritesFiltersToggleLabel();
       updateTuneButton();
       setProfileEditorTab('analog');
       refreshProfileEditorOptions();
@@ -8988,26 +8940,6 @@
       }
       if (els.btnApply) {
         els.btnApply.addEventListener('click', applyBatch);
-      }
-      if (els.favoritesFiltersToggle && els.favoritesFiltersWidget) {
-        els.favoritesFiltersToggle.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          toggleWidget(els.favoritesFiltersWidget);
-          const collapsed = els.favoritesFiltersWidget.classList.contains('collapsed');
-          localStorage.setItem('sb3-favorites-filters-collapsed', collapsed ? '1' : '0');
-          updateFavoritesFiltersToggleLabel();
-        });
-        const filtersHeader = els.favoritesFiltersWidget.querySelector('.widget-header');
-        if (filtersHeader) {
-          filtersHeader.addEventListener('click', () => {
-            setTimeout(() => {
-              const collapsed = els.favoritesFiltersWidget.classList.contains('collapsed');
-              localStorage.setItem('sb3-favorites-filters-collapsed', collapsed ? '1' : '0');
-              updateFavoritesFiltersToggleLabel();
-            }, 0);
-          });
-        }
       }
       if (els.loopSave) {
         els.loopSave.addEventListener('click', () => {
@@ -9230,14 +9162,6 @@
       if (els.hpFiltersSave) {
         els.hpFiltersSave.addEventListener('click', () => saveHpFiltersPanel());
       }
-      if (els.hpFiltersOpenBuilder) {
-        els.hpFiltersOpenBuilder.addEventListener('click', async () => {
-          await loadHpFavoritesBuilder({ force: true });
-          if (els.hpFavSystemSearch) {
-            els.hpFavSystemSearch.focus();
-          }
-        });
-      }
       if (els.hpFilterResolveZip) {
         els.hpFilterResolveZip.addEventListener('click', () => saveHpFiltersPanel({ resolveZip: true }));
       }
@@ -9391,9 +9315,6 @@
           state.hpFavoritesBuilder.channelQuery = String(els.hpFavChannelSearch.value || '');
         });
       }
-      if (els.hpFavLoadChannels) {
-        els.hpFavLoadChannels.addEventListener('click', loadHpFavoriteChannels);
-      }
       if (els.hpFavChannels) {
         els.hpFavChannels.addEventListener('change', (e) => {
           const input = e.target;
@@ -9413,18 +9334,21 @@
         });
       }
       if (els.hp3BuilderOpenAnalog) {
-        els.hp3BuilderOpenAnalog.addEventListener('click', async () => {
-          await loadHpFavoritesBuilder({ force: true });
-          if (els.hpFavSystemSearch) els.hpFavSystemSearch.focus();
+        els.hp3BuilderOpenAnalog.addEventListener('click', () => {
+          state.hpFavoritesBuilder.systemType = 'analog';
+          openHp3BuilderSidecar({ systemType: 'analog' });
+          if (els.hpFavSystemSearch) {
+            setTimeout(() => els.hpFavSystemSearch.focus(), 10);
+          }
         });
       }
       if (els.hp3BuilderOpenDigital) {
-        els.hp3BuilderOpenDigital.addEventListener('click', async () => {
-          await loadHpFavoritesBuilder({ force: true });
-          if (els.hpFavSystemType) els.hpFavSystemType.value = 'digital';
+        els.hp3BuilderOpenDigital.addEventListener('click', () => {
           state.hpFavoritesBuilder.systemType = 'digital';
-          renderHpFavoritesBuilder();
-          if (els.hpFavSystemSearch) els.hpFavSystemSearch.focus();
+          openHp3BuilderSidecar({ systemType: 'digital' });
+          if (els.hpFavSystemSearch) {
+            setTimeout(() => els.hpFavSystemSearch.focus(), 10);
+          }
         });
       }
       if (els.hp3BuilderClose) {
@@ -9435,14 +9359,6 @@
       }
       if (els.hp3BuilderRefresh) {
         els.hp3BuilderRefresh.addEventListener('click', reloadHp3BuilderFrame);
-      }
-      if (els.hp3BuilderOpenWindow) {
-        els.hp3BuilderOpenWindow.addEventListener('click', () => {
-          window.open('/hp3', '_blank', 'noopener');
-        });
-      }
-      if (els.hp3BuilderSync) {
-        els.hp3BuilderSync.addEventListener('click', syncHpFavoritesToSb3Profile);
       }
       if (els.profileEditorOpenAnalog) {
         els.profileEditorOpenAnalog.addEventListener('click', () => openProfileEditorSidecar('analog'));
