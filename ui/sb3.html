@@ -1834,8 +1834,6 @@
         <div class="widget-header with-actions">
           <span>🎯 Profiles</span>
           <div class="widget-header-actions">
-            <span class="loop-indicator" id="profiles-loop-indicator" title="Loop status">Loop Off</span>
-            <button class="action widget-header-action sidecar-toggle" id="profile-loop-open-analog" type="button">Profile Loop</button>
             <button class="action widget-header-action sidecar-toggle" id="hp3-builder-open-analog" type="button">HP3 Builder</button>
             <button class="action widget-header-action sidecar-toggle" id="profile-editor-open-analog" type="button">Legacy Editor</button>
           </div>
@@ -1863,8 +1861,6 @@
         <div class="widget-header with-actions">
           <span>🎛️ Digital Profiles</span>
           <div class="widget-header-actions">
-            <span class="loop-indicator" id="digital-profiles-loop-indicator" title="Loop status">Loop Off</span>
-            <button class="action widget-header-action sidecar-toggle" id="profile-loop-open-digital" type="button">Profile Loop</button>
             <button class="action widget-header-action sidecar-toggle" id="hp3-builder-open-digital" type="button">HP3 Builder</button>
             <button class="action widget-header-action sidecar-toggle" id="profile-editor-open-digital" type="button">Legacy Editor</button>
           </div>
@@ -2388,85 +2384,6 @@
             <span class="profile-editor-pill hidden" id="profile-editor-digital-dirty">Unsaved</span>
           </div>
           <div class="profile-editor-status" id="profile-editor-digital-status"></div>
-        </div>
-      </section>
-    </div>
-  </aside>
-
-  <div class="profile-sidecar-overlay hidden" id="profile-loop-sidecar-overlay"></div>
-  <aside class="profile-sidecar" id="profile-loop-sidecar" aria-hidden="true">
-    <div class="profile-sidecar-header">
-      <div>
-        <div class="profile-sidecar-title">Profile Loop Sidecar</div>
-        <div class="profile-sidecar-sub">Rotate profiles with dwell/hang timing and hit hold</div>
-      </div>
-      <button class="action" id="profile-loop-sidecar-close" type="button">Close</button>
-    </div>
-    <div class="profile-sidecar-tabs">
-      <div class="profile-sidecar-tab-group">
-        <button class="profile-sidecar-tab active" id="profile-loop-tab-analog" type="button">Analog</button>
-        <button class="profile-sidecar-tab" id="profile-loop-tab-digital" type="button">Digital</button>
-      </div>
-      <div class="profile-sidecar-actions">
-        <button class="action profile-sidecar-load" id="profile-loop-refresh" type="button">Refresh</button>
-      </div>
-    </div>
-    <div class="profile-sidecar-body">
-      <section class="profile-sidecar-panel" id="profile-loop-panel-analog">
-        <div class="profile-loop-panel">
-          <div class="control-label">
-            <span>Analog Profile Loop</span>
-            <span class="control-value" id="loop-status">--</span>
-          </div>
-          <div class="control-applied" id="loop-detail">--</div>
-          <div class="loop-checklist" id="loop-list"></div>
-          <div class="loop-controls">
-            <label>Dwell (s)
-              <input id="loop-dwell" type="number" min="1" max="1800" step="1" value="10">
-            </label>
-            <label>Hang (s)
-              <input id="loop-hang" type="number" min="1" max="600" step="1" value="2">
-            </label>
-            <label class="loop-checkbox-label">
-              <input id="loop-pause" type="checkbox" checked>
-              Pause On Hit
-            </label>
-          </div>
-          <div class="btn-row">
-            <button class="action" id="loop-save" type="button">Apply Loop</button>
-            <button class="action" id="loop-toggle" type="button">Start Loop</button>
-            <button class="action" id="loop-select-all" type="button">All</button>
-            <button class="action" id="loop-clear" type="button">None</button>
-          </div>
-        </div>
-      </section>
-
-      <section class="profile-sidecar-panel hidden" id="profile-loop-panel-digital">
-        <div class="profile-loop-panel">
-          <div class="control-label">
-            <span>Digital Profile Loop</span>
-            <span class="control-value" id="digital-loop-status">--</span>
-          </div>
-          <div class="control-applied" id="digital-loop-detail">--</div>
-          <div class="loop-checklist" id="digital-loop-list"></div>
-          <div class="loop-controls">
-            <label>Dwell (s)
-              <input id="digital-loop-dwell" type="number" min="1" max="1800" step="1" value="10">
-            </label>
-            <label>Hang (s)
-              <input id="digital-loop-hang" type="number" min="1" max="600" step="1" value="2">
-            </label>
-            <label class="loop-checkbox-label">
-              <input id="digital-loop-pause" type="checkbox" checked>
-              Pause On Hit
-            </label>
-          </div>
-          <div class="btn-row">
-            <button class="action" id="digital-loop-save" type="button">Apply Loop</button>
-            <button class="action" id="digital-loop-toggle" type="button">Start Loop</button>
-            <button class="action" id="digital-loop-select-all" type="button">All</button>
-            <button class="action" id="digital-loop-clear" type="button">None</button>
-          </div>
         </div>
       </section>
     </div>
@@ -7160,16 +7077,12 @@
       refreshInFlight = (async () => {
         const wasConnected = state.connected;
         try {
-          const loopEnabledNow = Boolean((state.profileLoop?.digital || {}).enabled);
-          const fetchScheduler = !loopEnabledNow;
-          const fetchDigitalPreflight = !loopEnabledNow;
-          const [data, profilesData, systemData, schedulerData, digitalPreflightData, profileLoopData] = await Promise.all([
+          const [data, profilesData, systemData, schedulerData, digitalPreflightData] = await Promise.all([
             fetchJSON('/api/status'),
             fetchJSON('/api/profiles'),
             fetchJSON('/api/system'),
-            fetchScheduler ? fetchJSON('/api/digital/scheduler').catch(() => null) : Promise.resolve(null),
-            fetchDigitalPreflight ? fetchJSON('/api/digital/preflight').catch(() => null) : Promise.resolve(null),
-            fetchJSON('/api/profile-loop').catch(() => null),
+            fetchJSON('/api/digital/scheduler').catch(() => null),
+            fetchJSON('/api/digital/preflight').catch(() => null),
           ]);
 
           const pickNumber = (value, fallback) => (value === 0 || value) ? value : fallback;
@@ -7267,12 +7180,6 @@
         applyDigitalSchedulerPayload(data);
         if (schedulerData && schedulerData.ok) {
           applyDigitalSchedulerPayload(schedulerData);
-        }
-        if (data.profile_loop && typeof data.profile_loop === 'object') {
-          applyProfileLoopPayload(data.profile_loop);
-        }
-        if (profileLoopData && profileLoopData.ok) {
-          applyProfileLoopPayload(profileLoopData);
         }
         if (digitalPreflightData && digitalPreflightData.ok) {
           applyDigitalPreflightPayload(digitalPreflightData);
@@ -7422,9 +7329,6 @@
           state.lastHit = data.last_hit || state.lastHit;
           state.serverTime = data.server_time;
           state.lastStatusTick = Date.now();
-          if (data.profile_loop && typeof data.profile_loop === 'object') {
-            applyProfileLoopPayload(data.profile_loop);
-          }
           if (
             (data.hp_favorites_sync && typeof data.hp_favorites_sync === 'object')
             || ('hp_favorites_sync_available' in data)
@@ -7534,7 +7438,6 @@
       setupCollapsibleWidgets();
       updateTuneButton();
       setProfileEditorTab('analog');
-      setProfileLoopTab(state.profileLoopUi.tab || 'analog');
       refreshProfileEditorOptions();
       renderHpFavoritesSyncUi();
 
@@ -7557,10 +7460,6 @@
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && state.hp3Builder.open) {
           closeHp3BuilderSidecar();
-          return;
-        }
-        if (e.key === 'Escape' && state.profileLoopUi.open) {
-          closeProfileLoopSidecar();
           return;
         }
         if (e.key === 'Escape' && state.profileEditor.open) {
