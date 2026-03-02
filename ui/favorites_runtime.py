@@ -143,19 +143,46 @@ def _minimal_profile_template(airband: bool) -> str:
     )
 
 
-def _template_profile_path(profiles: list[dict[str, Any]], airband: bool) -> str:
+def _profile_has_freqs_block(path: str) -> bool:
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as handle:
+            text = handle.read()
+    except Exception:
+        return False
+    return "freqs" in text and "=" in text
+
+
+def _template_profile_path(
+    profiles: list[dict[str, Any]],
+    airband: bool,
+    *,
+    exclude_paths: set[str] | None = None,
+) -> str:
+    exclude = {os.path.realpath(p) for p in (exclude_paths or set()) if str(p).strip()}
     preferred_id = "none_airband" if airband else "none_ground"
     preferred = find_profile(profiles, preferred_id)
     if preferred:
         candidate = str(preferred.get("path") or "").strip()
-        if candidate and os.path.isfile(candidate):
+        candidate_real = os.path.realpath(candidate) if candidate else ""
+        if (
+            candidate
+            and os.path.isfile(candidate)
+            and candidate_real not in exclude
+            and _profile_has_freqs_block(candidate)
+        ):
             return candidate
 
     for row in profiles:
         if bool(row.get("airband")) != bool(airband):
             continue
         candidate = str(row.get("path") or "").strip()
-        if candidate and os.path.isfile(candidate):
+        candidate_real = os.path.realpath(candidate) if candidate else ""
+        if (
+            candidate
+            and os.path.isfile(candidate)
+            and candidate_real not in exclude
+            and _profile_has_freqs_block(candidate)
+        ):
             return candidate
     return ""
 
@@ -174,9 +201,14 @@ def _ensure_managed_profile(
     if not safe_path:
         raise RuntimeError(f"invalid managed profile path for {profile_id}")
 
-    if not os.path.isfile(safe_path):
+    needs_seed = (not os.path.isfile(safe_path)) or (not _profile_has_freqs_block(safe_path))
+    if needs_seed:
         os.makedirs(os.path.dirname(safe_path), exist_ok=True)
-        template_path = _template_profile_path(profiles, airband=airband)
+        template_path = _template_profile_path(
+            profiles,
+            airband=airband,
+            exclude_paths={safe_path},
+        )
         if template_path and os.path.isfile(template_path):
             shutil.copyfile(template_path, safe_path)
         else:
