@@ -121,6 +121,8 @@ def _coerce_custom_favorites(value) -> list[dict]:
         entry = {
             "id": str(item.get("id") or f"fav-{index+1}").strip() or f"fav-{index+1}",
             "kind": kind,
+            "system_id": 0,
+            "system_key": "",
             "system_name": str(item.get("system_name") or "").strip(),
             "department_name": str(item.get("department_name") or "").strip(),
             "alpha_tag": str(item.get("alpha_tag") or item.get("channel_name") or "").strip(),
@@ -135,6 +137,13 @@ def _coerce_custom_favorites(value) -> list[dict]:
             entry["service_tag"] = 0
 
         if kind == "trunked":
+            system_id = 0
+            try:
+                system_id = int(str(item.get("system_id") or "0").strip())
+            except Exception:
+                system_id = 0
+            if system_id > 0:
+                entry["system_id"] = int(system_id)
             tg = str(item.get("talkgroup") or item.get("tgid") or "").strip()
             if tg and tg.isdigit():
                 entry["talkgroup"] = tg
@@ -160,6 +169,7 @@ def _coerce_custom_favorites(value) -> list[dict]:
             if not entry["talkgroup"]:
                 continue
         else:
+            entry["system_key"] = str(item.get("system_key") or "").strip()
             try:
                 mhz = float(str(item.get("frequency") or "0").strip())
             except Exception:

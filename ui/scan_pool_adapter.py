@@ -16,11 +16,9 @@ def _normalize_mode(mode: str) -> str:
     token = str(mode or "").strip().lower()
     if token in {"hp3", "hp"}:
         return "hp"
-    if token in {"sb3", "expert"}:
+    if token in {"sb3", "expert", "legacy", "profile"}:
         return "expert"
-    if token in {"legacy", "profile"}:
-        return "legacy"
-    return "legacy"
+    return "expert"
 
 
 def get_current_scan_mode() -> str:
@@ -28,7 +26,7 @@ def get_current_scan_mode() -> str:
         controller = get_scan_mode_controller()
         mode = controller.get_mode()
     except Exception:
-        mode = "legacy"
+        mode = "expert"
     return _normalize_mode(mode)
 
 
@@ -65,15 +63,11 @@ def get_active_scan_pool_snapshot(force_refresh: bool = False) -> dict:
         if not force_refresh and _POOL_SNAPSHOT_TS_MONOTONIC > 0:
             return _normalize_pool(_POOL_SNAPSHOT)
 
-        mode = get_current_scan_mode()
-        if mode == "legacy":
-            payload = {"trunked_sites": [], "conventional": []}
-        else:
-            try:
-                controller = get_scan_mode_controller()
-                payload = controller.get_scan_pool()
-            except Exception:
-                payload = {}
+        try:
+            controller = get_scan_mode_controller()
+            payload = controller.get_scan_pool()
+        except Exception:
+            payload = {}
 
         _POOL_SNAPSHOT = _normalize_pool(payload)
         _POOL_SNAPSHOT_TS_MONOTONIC = time.monotonic()

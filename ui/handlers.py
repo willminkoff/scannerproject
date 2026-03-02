@@ -8,6 +8,7 @@ import subprocess
 from datetime import datetime
 import queue
 import shutil
+from typing import Any
 from http.server import BaseHTTPRequestHandler
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, unquote, urlparse
@@ -101,8 +102,11 @@ try:
         validate_digital_editor_payload,
     )
     from .hp_state import HPState
-    from .hp_favorites_sync import get_hp_favorites_sync_status, sync_hp_favorites_to_profile
     from .hp_favorites_wizard import HPFavoritesWizard
+    from .favorites_runtime import (
+        get_last_favorites_runtime_sync,
+        sync_scan_pool_to_analog_runtime,
+    )
     from .service_types import get_all_service_types, get_default_enabled_service_types
     from .zip_lookup import resolve_postal_to_lat_lon
     from .scan_mode_controller import get_scan_mode_controller
@@ -180,8 +184,11 @@ except ImportError:
         validate_digital_editor_payload,
     )
     from ui.hp_state import HPState
-    from ui.hp_favorites_sync import get_hp_favorites_sync_status, sync_hp_favorites_to_profile
     from ui.hp_favorites_wizard import HPFavoritesWizard
+    from ui.favorites_runtime import (
+        get_last_favorites_runtime_sync,
+        sync_scan_pool_to_analog_runtime,
+    )
     from ui.service_types import get_all_service_types, get_default_enabled_service_types
     from ui.zip_lookup import resolve_postal_to_lat_lon
     from ui.scan_mode_controller import get_scan_mode_controller
@@ -1157,6 +1164,7 @@ class Handler(BaseHTTPRequestHandler):
                     "ok": True,
                     "mode": controller.get_mode(),
                     "state": state.to_dict(),
+                    "favorites_runtime_sync": get_last_favorites_runtime_sync(),
                 }
             except Exception as e:
                 return self._send(
@@ -1316,15 +1324,18 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/hp/favorites-sync":
-            try:
-                payload = get_hp_favorites_sync_status()
-            except Exception as e:
-                return self._send(
-                    500,
-                    json.dumps({"ok": False, "error": str(e)}),
-                    "application/json; charset=utf-8",
-                )
-            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+            return self._send(
+                200,
+                json.dumps(
+                    {
+                        "ok": False,
+                        "available": False,
+                        "in_sync": True,
+                        "reason": "favorites sync retired; favorites route directly to runtime",
+                    }
+                ),
+                "application/json; charset=utf-8",
+            )
 
         if p == "/api/status":
             now_monotonic = time.monotonic()
@@ -1453,14 +1464,12 @@ class Handler(BaseHTTPRequestHandler):
             if rtl_active_enter and config_mtimes.get("combined"):
                 rtl_restart_required = config_mtimes["combined"] > rtl_active_enter
             try:
-                hp_favorites_sync = get_hp_favorites_sync_status()
+                favorites_runtime_sync = get_last_favorites_runtime_sync()
             except Exception as e:
-                hp_favorites_sync = {
+                favorites_runtime_sync = {
                     "ok": False,
-                    "available": False,
-                    "in_sync": False,
-                    "reason": str(e),
-                    "error": str(e),
+                    "changed": False,
+                    "errors": [str(e)],
                 }
 
             payload = {
@@ -1526,15 +1535,7 @@ class Handler(BaseHTTPRequestHandler):
                 "avoids_airband": summarize_avoids(conf_path, "airband"),
                 "avoids_ground": summarize_avoids(os.path.realpath(GROUND_CONFIG_PATH), "ground"),
                 "hp_avoids": get_scan_mode_controller().get_hp_avoids(),
-                "hp_favorites_sync": hp_favorites_sync,
-                "hp_favorites_sync_ok": bool(hp_favorites_sync.get("ok")),
-                "hp_favorites_sync_available": bool(hp_favorites_sync.get("available")),
-                "hp_favorites_sync_in_sync": bool(hp_favorites_sync.get("in_sync")),
-                "hp_favorites_sync_reason": str(hp_favorites_sync.get("reason") or ""),
-                "hp_favorites_sync_profile_id": str(hp_favorites_sync.get("active_profile_id") or ""),
-                "hp_favorites_sync_favorites_name": str(hp_favorites_sync.get("favorites_name") or ""),
-                "hp_favorites_sync_missing_count": int(hp_favorites_sync.get("missing_in_profile_count") or 0),
-                "hp_favorites_sync_extra_enabled_count": int(hp_favorites_sync.get("extra_enabled_count") or 0),
+                "favorites_runtime_sync": favorites_runtime_sync,
             }
             digital_payload = {
                 "digital_active": False,
@@ -1941,27 +1942,21 @@ class Handler(BaseHTTPRequestHandler):
                     "application/json; charset=utf-8",
                 )
 
-            if "config" in form:
-                cfg = form.get("config")
-                if isinstance(cfg, str):
-                    try:
-                        cfg = json.loads(cfg) if cfg.strip() else {}
-                    except Exception:
-                        cfg = {}
-                if not isinstance(cfg, dict):
-                    cfg = {}
-                controller.set_expert_config(cfg)
-            elif "manual_trunked" in form or "manual_conventional" in form:
-                controller.set_expert_config(
-                    {
-                        "manual_trunked": parse_json_like_list(form.get("manual_trunked")),
-                        "manual_conventional": parse_json_like_list(form.get("manual_conventional")),
-                    }
-                )
+            sync_payload: dict[str, Any] = {"ok": True, "changed": False}
+            try:
+                sync_payload = sync_scan_pool_to_analog_runtime(force=True)
+            except Exception as exc:
+                sync_payload = {"ok": False, "changed": False, "errors": [str(exc)]}
 
             return self._send(
                 200,
-                json.dumps({"ok": True, "mode": controller.get_mode()}),
+                json.dumps(
+                    {
+                        "ok": True,
+                        "mode": controller.get_mode(),
+                        "favorites_runtime_sync": sync_payload,
+                    }
+                ),
                 "application/json; charset=utf-8",
             )
 
@@ -2093,9 +2088,15 @@ class Handler(BaseHTTPRequestHandler):
 
             try:
                 state.save()
+                sync_payload: dict[str, Any] = {"ok": True, "changed": False}
+                try:
+                    sync_payload = sync_scan_pool_to_analog_runtime(force=True)
+                except Exception as sync_exc:
+                    sync_payload = {"ok": False, "changed": False, "errors": [str(sync_exc)]}
                 payload = {
                     "ok": True,
                     "state": state.to_dict(),
+                    "favorites_runtime_sync": sync_payload,
                 }
             except Exception as e:
                 return self._send(
@@ -2142,36 +2143,16 @@ class Handler(BaseHTTPRequestHandler):
             )
 
         if p == "/api/hp/favorites-sync":
-            action = str(form.get("action") or "sync").strip().lower()
-            if action in {"", "status"}:
-                try:
-                    payload = get_hp_favorites_sync_status()
-                except Exception as e:
-                    return self._send(
-                        500,
-                        json.dumps({"ok": False, "error": str(e)}),
-                        "application/json; charset=utf-8",
-                    )
-                return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
-
-            if action in {"sync", "apply"}:
-                try:
-                    payload = sync_hp_favorites_to_profile()
-                except Exception as e:
-                    return self._send(
-                        500,
-                        json.dumps({"ok": False, "error": str(e)}),
-                        "application/json; charset=utf-8",
-                    )
-                if bool(payload.get("ok")):
-                    return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
-                error = str(payload.get("error") or "sync failed")
-                status = 409 if "no active digital profile" in error.lower() else 500
-                return self._send(status, json.dumps(payload), "application/json; charset=utf-8")
-
             return self._send(
-                400,
-                json.dumps({"ok": False, "error": "invalid action"}),
+                200,
+                json.dumps(
+                    {
+                        "ok": False,
+                        "available": False,
+                        "in_sync": True,
+                        "reason": "favorites sync retired; favorites route directly to runtime",
+                    }
+                ),
                 "application/json; charset=utf-8",
             )
 
