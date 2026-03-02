@@ -616,6 +616,7 @@
     }
 
     .hp-builder-flow-step {
+      appearance: none;
       border: 1px solid rgba(139, 167, 212, 0.34);
       border-radius: 999px;
       padding: 4px 9px;
@@ -624,6 +625,7 @@
       text-transform: uppercase;
       color: var(--text-secondary);
       background: rgba(14, 22, 35, 0.5);
+      cursor: pointer;
     }
 
     .hp-builder-flow-step.active {
@@ -657,6 +659,49 @@
       flex-wrap: wrap;
       align-items: center;
       justify-content: flex-start;
+    }
+
+    .hp-wizard-stage {
+      display: grid;
+      gap: 8px;
+    }
+
+    .hp-wizard-stage.hidden {
+      display: none !important;
+    }
+
+    .hp-wizard-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      border-top: 1px solid rgba(139, 167, 212, 0.26);
+      padding-top: 10px;
+      margin-top: 4px;
+    }
+
+    .hp-wizard-foot-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .hp-wizard-advanced {
+      border: 1px dashed rgba(139, 167, 212, 0.36);
+      border-radius: 8px;
+      padding: 8px;
+      background: rgba(11, 16, 24, 0.42);
+      display: grid;
+      gap: 8px;
+    }
+
+    .hp-wizard-advanced > summary {
+      cursor: pointer;
+      font-size: 11px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
 
     .hp-builder-auto {
@@ -2752,56 +2797,67 @@
       <div class="hp-filters-panel" id="hp-filters-panel">
         <div class="hp-filters-head">
           <div>
-            <div class="hp-filters-title">Step 1 · Scan Filters</div>
-            <div class="hp-builder-sub">These filters control what the scanner evaluates.</div>
-          </div>
-          <div class="hp-filters-actions">
-            <button class="action favorites-sync-action" id="hp-filters-refresh" type="button">Refresh</button>
-            <button class="action favorites-sync-action" id="hp-filters-save" type="button">Apply Filters</button>
+            <div class="hp-filters-title">Favorites Builder Wizard</div>
+            <div class="hp-builder-sub">Shared across SB3 + HP3. Step through filters, systems, channels, then review.</div>
           </div>
         </div>
-        <div class="hp-filters-grid">
-          <label class="hp-filter-field">
-            <span>Scan Source</span>
-            <select id="hp-filter-mode">
-              <option value="favorites">Favorites</option>
-              <option value="full_database">Full Database</option>
-            </select>
-          </label>
-          <label class="hp-filter-field">
-            <span>ZIP Code</span>
-            <input id="hp-filter-zip" type="text" maxlength="12" placeholder="e.g. 37221" autocomplete="postal-code">
-          </label>
-          <label class="hp-filter-field">
-            <span>Range Miles</span>
-            <input id="hp-filter-range" type="number" min="0" step="0.5" inputmode="decimal">
-          </label>
-          <label class="hp-filter-check">
-            <input id="hp-filter-use-location" type="checkbox">
-            <span>Use Location Filter</span>
-          </label>
-          <label class="hp-filter-check">
-            <input id="hp-filter-nationwide" type="checkbox">
-            <span>Include Nationwide Systems</span>
-          </label>
-          <div class="hp-filters-actions" style="justify-content:flex-start;">
-            <button class="action favorites-sync-action" id="hp-filter-resolve-zip" type="button">Resolve ZIP + Apply</button>
-          </div>
+        <div class="hp-builder-flow" id="hp-fav-flow">
+          <button class="hp-builder-flow-step" type="button" data-hp-flow-step="filters">1 Filters</button>
+          <button class="hp-builder-flow-step" type="button" data-hp-flow-step="list">2 List</button>
+          <button class="hp-builder-flow-step" type="button" data-hp-flow-step="systems">3 Systems</button>
+          <button class="hp-builder-flow-step" type="button" data-hp-flow-step="channels">4 Channels</button>
+          <button class="hp-builder-flow-step" type="button" data-hp-flow-step="review">5 Review</button>
         </div>
-        <div class="hp-service-types-head">
-          <div class="hp-service-types-title">Enabled Service Types</div>
-          <div class="hp-service-types-actions">
-            <button class="action favorites-sync-action" id="hp-service-types-all" type="button">All</button>
-            <button class="action favorites-sync-action" id="hp-service-types-defaults" type="button">Default</button>
-            <button class="action favorites-sync-action" id="hp-service-types-none" type="button">None</button>
-          </div>
-        </div>
-        <div class="hp-service-types-list" id="hp-service-types-list">
-          <div class="muted">Loading service types...</div>
-        </div>
-        <div class="hp-filters-status" id="hp-filters-status">Set filters first, then build favorites below.</div>
+        <div class="hp-builder-sub" id="hp-fav-next-step">Step 1: set filters, location, and service types.</div>
 
-        <section class="hp-builder" id="hp-builder-panel">
+        <section class="hp-builder hp-wizard-stage" id="hp-builder-panel" data-hp-stage="filters">
+          <div class="hp-builder-head">Step 1 · Scan Filters</div>
+          <div class="hp-builder-sub">These filters control what the scanner evaluates.</div>
+          <div class="hp-filters-grid">
+            <label class="hp-filter-field">
+              <span>Scan Source</span>
+              <select id="hp-filter-mode">
+                <option value="favorites">Favorites</option>
+                <option value="full_database">Full Database</option>
+              </select>
+            </label>
+            <label class="hp-filter-field">
+              <span>ZIP Code</span>
+              <input id="hp-filter-zip" type="text" maxlength="12" placeholder="e.g. 37221" autocomplete="postal-code">
+            </label>
+            <label class="hp-filter-field">
+              <span>Range Miles</span>
+              <input id="hp-filter-range" type="number" min="0" step="0.5" inputmode="decimal">
+            </label>
+            <label class="hp-filter-check">
+              <input id="hp-filter-use-location" type="checkbox">
+              <span>Use Location Filter</span>
+            </label>
+            <label class="hp-filter-check">
+              <input id="hp-filter-nationwide" type="checkbox">
+              <span>Include Nationwide Systems</span>
+            </label>
+            <div class="hp-filters-actions" style="justify-content:flex-start;">
+              <button class="action favorites-sync-action" id="hp-filters-refresh" type="button">Refresh</button>
+              <button class="action favorites-sync-action" id="hp-filters-save" type="button">Apply Filters</button>
+              <button class="action favorites-sync-action" id="hp-filter-resolve-zip" type="button">Resolve ZIP + Apply</button>
+            </div>
+          </div>
+          <div class="hp-service-types-head">
+            <div class="hp-service-types-title">Enabled Service Types</div>
+            <div class="hp-service-types-actions">
+              <button class="action favorites-sync-action" id="hp-service-types-all" type="button">All</button>
+              <button class="action favorites-sync-action" id="hp-service-types-defaults" type="button">Default</button>
+              <button class="action favorites-sync-action" id="hp-service-types-none" type="button">None</button>
+            </div>
+          </div>
+          <div class="hp-service-types-list" id="hp-service-types-list">
+            <div class="muted">Loading service types...</div>
+          </div>
+          <div class="hp-filters-status" id="hp-filters-status">Set filters first, then continue to list setup.</div>
+        </section>
+
+        <section class="hp-builder hp-wizard-stage hidden" data-hp-stage="list">
           <div class="hp-builder-head">Step 2 · Favorites List</div>
           <div class="hp-builder-grid">
             <label class="hp-filter-field">
@@ -2817,18 +2873,11 @@
               <button class="action favorites-sync-action" id="hp-fav-list-delete" type="button">Delete Active</button>
             </div>
           </div>
+        </section>
 
-          <div class="hp-builder-head">Step 3 · Add Targets</div>
-          <div class="hp-builder-sub">Use the guided steps below. Systems/channels auto-load as you move through location and scope.</div>
-          <div class="hp-builder-flow" id="hp-fav-flow">
-            <span class="hp-builder-flow-step" data-hp-flow-step="list">1 List</span>
-            <span class="hp-builder-flow-step" data-hp-flow-step="location">2 Location</span>
-            <span class="hp-builder-flow-step" data-hp-flow-step="systems">3 Systems</span>
-            <span class="hp-builder-flow-step" data-hp-flow-step="department">4 Department</span>
-            <span class="hp-builder-flow-step" data-hp-flow-step="channels">5 Channels</span>
-            <span class="hp-builder-flow-step" data-hp-flow-step="add">6 Add</span>
-          </div>
-          <div class="hp-builder-sub" id="hp-fav-next-step">Pick a list and location to begin.</div>
+        <section class="hp-builder hp-wizard-stage hidden" data-hp-stage="systems">
+          <div class="hp-builder-head">Step 3 · System Pick</div>
+          <div class="hp-builder-sub">Set system scope, then choose one system to browse channels.</div>
           <div class="hp-builder-grid">
             <label class="hp-filter-field">
               <span>System Type</span>
@@ -2864,50 +2913,60 @@
               <input id="hp-fav-system-search" type="text" placeholder="Filter systems">
             </label>
           </div>
-
           <div class="hp-builder-actions">
             <button class="action favorites-sync-action" id="hp-fav-load-systems" type="button">Load Systems</button>
             <label class="hp-filter-check hp-builder-auto">
               <input id="hp-fav-auto-load" type="checkbox" checked>
               <span>Auto Load</span>
             </label>
-            <button class="action favorites-sync-action" id="hp-fav-select-department" type="button">Select Dept</button>
-            <button class="action favorites-sync-action" id="hp-fav-select-visible" type="button">Select Visible</button>
-            <button class="action favorites-sync-action" id="hp-fav-clear-selected" type="button">Clear All</button>
-            <button class="action favorites-sync-action" id="hp-fav-add-selected" type="button">Add Selected Channels</button>
+          </div>
+          <div class="hp-builder-picker" id="hp-fav-systems">
+            <div class="hp-builder-empty">Choose location/scope, then load systems.</div>
+          </div>
+        </section>
+
+        <section class="hp-builder hp-wizard-stage hidden" data-hp-stage="channels">
+          <div class="hp-builder-head">Step 4 · Channel Pick</div>
+          <div class="hp-builder-sub">Choose channels/talkgroups from the selected system.</div>
+          <label class="hp-filter-field">
+            <span>Department</span>
+            <select id="hp-fav-department"></select>
+          </label>
+          <div class="hp-builder-search-row">
+            <input class="hp-builder-search" id="hp-fav-channel-search" type="text" placeholder="Filter by alpha/tag/tgid">
+            <button class="action favorites-sync-action hp-builder-search-clear" id="hp-fav-channel-search-clear" type="button">Clear</button>
           </div>
           <div class="hp-builder-sub" id="hp-fav-selection-summary">0 selected</div>
-
-          <div class="hp-builder-grid">
-            <div>
-              <div class="hp-builder-sub">Systems</div>
-              <div class="hp-builder-picker" id="hp-fav-systems">
-                <div class="hp-builder-empty">Choose location/scope, then load systems.</div>
-              </div>
-            </div>
-            <div>
-              <div class="hp-builder-sub">Departments + Channels / Talkgroups</div>
-              <label class="hp-filter-field">
-                <span>Department</span>
-                <select id="hp-fav-department"></select>
-              </label>
-              <div class="hp-builder-search-row">
-                <input class="hp-builder-search" id="hp-fav-channel-search" type="text" placeholder="Filter by alpha/tag/tgid">
-                <button class="action favorites-sync-action hp-builder-search-clear" id="hp-fav-channel-search-clear" type="button">Clear</button>
-              </div>
-              <div class="hp-builder-picker" id="hp-fav-channels" style="margin-top:8px;">
-                <div class="hp-builder-empty">Click a system to auto-load channels.</div>
-              </div>
-            </div>
-            <div>
-              <div class="hp-builder-sub">Step 4 · Active List Entries</div>
-              <div class="hp-builder-list" id="hp-fav-entries">
-                <div class="hp-builder-empty">No entries in active list.</div>
-              </div>
-            </div>
+          <div class="hp-builder-actions">
+            <button class="action favorites-sync-action" id="hp-fav-add-selected" type="button">Add Selected Channels</button>
           </div>
-          <div class="hp-filters-status" id="hp-fav-status">Favorites builder ready.</div>
+          <details class="hp-wizard-advanced">
+            <summary>More selection tools</summary>
+            <div class="hp-builder-actions">
+              <button class="action favorites-sync-action" id="hp-fav-select-department" type="button">Select Dept</button>
+              <button class="action favorites-sync-action" id="hp-fav-select-visible" type="button">Select Visible</button>
+              <button class="action favorites-sync-action" id="hp-fav-clear-selected" type="button">Clear All</button>
+            </div>
+          </details>
+          <div class="hp-builder-picker" id="hp-fav-channels">
+            <div class="hp-builder-empty">Click a system to auto-load channels.</div>
+          </div>
         </section>
+
+        <section class="hp-builder hp-wizard-stage hidden" data-hp-stage="review">
+          <div class="hp-builder-head">Step 5 · Review Active List</div>
+          <div class="hp-builder-list" id="hp-fav-entries">
+            <div class="hp-builder-empty">No entries in active list.</div>
+          </div>
+        </section>
+        <div class="hp-wizard-foot">
+          <div class="hp-builder-sub">Wizard view keeps controls focused by task.</div>
+          <div class="hp-wizard-foot-actions">
+            <button class="action favorites-sync-action" id="hp-fav-wizard-back" type="button">Back</button>
+            <button class="action favorites-sync-action" id="hp-fav-wizard-next" type="button">Next</button>
+          </div>
+        </div>
+        <div class="hp-filters-status" id="hp-fav-status">Favorites builder ready.</div>
       </div>
     </div>
   </aside>
@@ -3155,6 +3214,8 @@
         saving: false,
         loaded: false,
         lastLoadedAt: 0,
+        wizardStep: 'filters',
+        wizardErrorStep: '',
         activeList: 'My Favorites',
         lists: [],
         entriesByList: {},
@@ -3246,6 +3307,8 @@
       hpFavAutoLoad: document.getElementById('hp-fav-auto-load'),
       hpFavFlow: document.getElementById('hp-fav-flow'),
       hpFavNextStep: document.getElementById('hp-fav-next-step'),
+      hpFavWizardBack: document.getElementById('hp-fav-wizard-back'),
+      hpFavWizardNext: document.getElementById('hp-fav-wizard-next'),
       hpFavSystems: document.getElementById('hp-fav-systems'),
       hpFavDepartment: document.getElementById('hp-fav-department'),
       hpFavChannelSearch: document.getElementById('hp-fav-channel-search'),
@@ -4191,6 +4254,11 @@
       if (!builder.stateId && state.hpFilters && Number.isFinite(Number(state.hpFilters.stateId))) {
         builder.stateId = _toInt(state.hpFilters.stateId, 0);
       }
+      {
+        const stepToken = String(builder.wizardStep || '').trim().toLowerCase();
+        builder.wizardStep = ['filters', 'list', 'systems', 'channels', 'review'].includes(stepToken) ? stepToken : 'filters';
+      }
+      builder.wizardErrorStep = '';
       builder.loaded = true;
       renderSb3FavoritesPanels();
       renderHpFavoritesBuilder();
@@ -4431,77 +4499,161 @@
       }).join('');
     }
 
-    function renderHpFavoritesBuilderFlow() {
-      const builder = state.hpFavoritesBuilder;
-      const listNames = Array.isArray(builder.lists) && builder.lists.length ? builder.lists : ['My Favorites'];
-      const activeList = hpFavNormalizeName(builder.activeList || listNames[0] || 'My Favorites');
-      const hasLocation = _toInt(builder.stateId, 0) > 0;
-      const hasSystems = Array.isArray(builder.systems) && builder.systems.length > 0;
-      const hasSystemSelection = hasSystems && String(builder.selectedSystemId || '').trim().length > 0;
-      const hasChannels = Array.isArray(builder.channels) && builder.channels.length > 0;
-      const departments = getHpFavoriteDepartmentOptions();
-      const selectedDepartment = String(builder.selectedDepartment || '').trim();
-      const hasDepartment = departments.length <= 1 || Boolean(selectedDepartment);
-      const selectedCount = Array.isArray(builder.selectedChannelIds) ? builder.selectedChannelIds.length : 0;
-      const hasSelected = selectedCount > 0;
+    function getHpFavoriteWizardSteps() {
+      return ['filters', 'list', 'systems', 'channels', 'review'];
+    }
 
-      const doneByStep = {
-        list: Boolean(activeList),
-        location: hasLocation,
-        systems: hasSystemSelection,
-        department: hasChannels ? hasDepartment : false,
-        channels: hasSelected,
-        add: hasSelected,
-      };
-      const stepOrder = ['list', 'location', 'systems', 'department', 'channels', 'add'];
-      let activeStep = 'add';
-      for (let idx = 0; idx < stepOrder.length; idx += 1) {
-        const key = stepOrder[idx];
-        if (!doneByStep[key]) {
-          activeStep = key;
-          break;
+    function normalizeHpFavoriteWizardStep(step) {
+      const token = String(step || '').trim().toLowerCase();
+      const steps = getHpFavoriteWizardSteps();
+      if (steps.includes(token)) return token;
+      return 'filters';
+    }
+
+    function getHpFavoriteWizardStepIndex(step) {
+      const steps = getHpFavoriteWizardSteps();
+      const idx = steps.indexOf(normalizeHpFavoriteWizardStep(step));
+      return idx >= 0 ? idx : 0;
+    }
+
+    function getHpFavoriteWizardAdvanceBlock(step) {
+      const builder = state.hpFavoritesBuilder;
+      const token = normalizeHpFavoriteWizardStep(step);
+      if (token === 'systems') {
+        if (_toInt(builder.stateId, 0) <= 0) return 'Pick a state first.';
+        if (!String(builder.selectedSystemId || '').trim()) return 'Pick a system before continuing.';
+      }
+      if (token === 'channels') {
+        const selectedCount = Array.isArray(builder.selectedChannelIds) ? builder.selectedChannelIds.length : 0;
+        const existingCount = getHpFavActiveEntries().length;
+        if (selectedCount <= 0 && existingCount <= 0) {
+          return 'Select channels and add them before continuing.';
         }
       }
+      return '';
+    }
+
+    function setHpFavoriteWizardStep(step) {
+      const builder = state.hpFavoritesBuilder;
+      builder.wizardStep = normalizeHpFavoriteWizardStep(step);
+      builder.wizardErrorStep = '';
+      renderHpFavoritesBuilder();
+    }
+
+    function goHpFavoriteWizardStep(direction = 1) {
+      const builder = state.hpFavoritesBuilder;
+      const steps = getHpFavoriteWizardSteps();
+      const current = normalizeHpFavoriteWizardStep(builder.wizardStep || 'filters');
+      const currentIdx = getHpFavoriteWizardStepIndex(current);
+      if (direction > 0) {
+        const block = getHpFavoriteWizardAdvanceBlock(current);
+        if (block) {
+          builder.wizardErrorStep = current;
+          setHpFavStatus(block, true);
+          renderHpFavoritesBuilder();
+          return;
+        }
+      }
+      const nextIdx = Math.max(0, Math.min(steps.length - 1, currentIdx + (direction > 0 ? 1 : -1)));
+      if (nextIdx === currentIdx) return;
+      builder.wizardStep = steps[nextIdx];
+      builder.wizardErrorStep = '';
+      renderHpFavoritesBuilder();
+    }
+
+    function renderHpFavoritesBuilderFlow() {
+      const builder = state.hpFavoritesBuilder;
+      const steps = getHpFavoriteWizardSteps();
+      const labelByStep = {
+        filters: 'Filters',
+        list: 'List',
+        systems: 'Systems',
+        channels: 'Channels',
+        review: 'Review',
+      };
+      const activeStep = normalizeHpFavoriteWizardStep(builder.wizardStep || 'filters');
+      builder.wizardStep = activeStep;
+      const activeIndex = getHpFavoriteWizardStepIndex(activeStep);
+      const listNames = Array.isArray(builder.lists) && builder.lists.length ? builder.lists : ['My Favorites'];
+      const activeList = hpFavNormalizeName(builder.activeList || listNames[0] || 'My Favorites');
+      const hasSystems = Array.isArray(builder.systems) && builder.systems.length > 0;
+      const hasSystemSelection = hasSystems && String(builder.selectedSystemId || '').trim().length > 0;
+      const selectedCount = Array.isArray(builder.selectedChannelIds) ? builder.selectedChannelIds.length : 0;
+      const reviewCount = getHpFavActiveEntries().length;
+
+      const doneByStep = {
+        filters: Boolean(state.hpFilters.loaded),
+        list: Boolean(activeList),
+        systems: hasSystemSelection,
+        channels: selectedCount > 0 || reviewCount > 0,
+        review: reviewCount > 0,
+      };
       if (els.hpFavFlow) {
         const nodes = els.hpFavFlow.querySelectorAll('[data-hp-flow-step]');
         nodes.forEach((node) => {
           const key = String(node.getAttribute('data-hp-flow-step') || '').trim();
           node.classList.toggle('done', Boolean(doneByStep[key]));
           node.classList.toggle('active', key === activeStep);
-          node.classList.remove('error');
+          node.classList.toggle('error', key === String(builder.wizardErrorStep || '').trim());
         });
+      }
+      if (els.hpFiltersPanel) {
+        const stages = els.hpFiltersPanel.querySelectorAll('[data-hp-stage]');
+        stages.forEach((node) => {
+          const key = String(node.getAttribute('data-hp-stage') || '').trim();
+          node.classList.toggle('hidden', key !== activeStep);
+        });
+      }
+      if (els.hpFavWizardBack) {
+        els.hpFavWizardBack.disabled = Boolean(builder.loading || builder.saving) || activeIndex <= 0;
+      }
+      if (els.hpFavWizardNext) {
+        const nextStep = steps[activeIndex + 1] || '';
+        const block = nextStep ? getHpFavoriteWizardAdvanceBlock(activeStep) : '';
+        els.hpFavWizardNext.textContent = nextStep ? `Next: ${labelByStep[nextStep] || 'Next'}` : 'Done';
+        els.hpFavWizardNext.disabled = Boolean(builder.loading || builder.saving) || !nextStep || Boolean(block);
       }
 
       if (!els.hpFavNextStep) return;
-      if (!hasLocation) {
-        els.hpFavNextStep.textContent = 'Next: pick state/county/scope to load systems.';
+      if (activeStep === 'filters') {
+        els.hpFavNextStep.textContent = 'Step 1: set scan source, location options, and service types.';
         return;
       }
-      if (!hasSystems) {
+      if (activeStep === 'list') {
+        els.hpFavNextStep.textContent = `Step 2: pick or create a favorites list (active: "${activeList}").`;
+        return;
+      }
+      if (activeStep === 'systems') {
+        if (_toInt(builder.stateId, 0) <= 0) {
+          els.hpFavNextStep.textContent = 'Pick a state to load systems.';
+          return;
+        }
         els.hpFavNextStep.textContent = builder.autoLoadSystems
-          ? 'Next: systems auto-load from filters (or click Load Systems).'
-          : 'Next: click Load Systems for current filters.';
+          ? 'Systems auto-load from your filters. Pick one to continue.'
+          : 'Click Load Systems, then pick one system to continue.';
         return;
       }
-      if (!hasSystemSelection) {
-        els.hpFavNextStep.textContent = 'Next: pick a system to load channels.';
+      if (activeStep === 'channels') {
+        if (!hasSystemSelection) {
+          els.hpFavNextStep.textContent = 'Pick a system first.';
+          return;
+        }
+        if (!(Array.isArray(builder.channels) && builder.channels.length > 0)) {
+          els.hpFavNextStep.textContent = builder.loading
+            ? 'Loading channels for selected system...'
+            : 'No channels loaded. Pick another system.';
+          return;
+        }
+        if (selectedCount <= 0) {
+          els.hpFavNextStep.textContent = 'Select channels/talkgroups and click Add Selected.';
+          return;
+        }
+        els.hpFavNextStep.textContent = `${selectedCount} selected. Click Add Selected, then continue to review.`;
         return;
       }
-      if (!hasChannels) {
-        els.hpFavNextStep.textContent = builder.loading
-          ? 'Loading channels for selected system...'
-          : 'No channels loaded. Pick another system or adjust filters.';
-        return;
-      }
-      if (departments.length > 1 && !selectedDepartment) {
-        els.hpFavNextStep.textContent = 'Tip: pick a department to narrow channels before selecting.';
-        return;
-      }
-      if (!hasSelected) {
-        els.hpFavNextStep.textContent = 'Next: select channels/talkgroups, then click Add Selected.';
-        return;
-      }
-      els.hpFavNextStep.textContent = `${selectedCount} selected. Click Add Selected to save into "${activeList}".`;
+      els.hpFavNextStep.textContent = reviewCount > 0
+        ? `${reviewCount} entries in "${activeList}". Remove or keep entries as needed.`
+        : `No entries in "${activeList}" yet.`;
     }
 
     function renderHpFavoritesBuilder() {
@@ -4856,6 +5008,10 @@
         if (!builder.channels.length) {
           if (!quiet) setHpFavStatus('No channels found for selected system.', true);
         } else {
+          if (normalizeHpFavoriteWizardStep(builder.wizardStep || '') === 'systems') {
+            builder.wizardStep = 'channels';
+          }
+          builder.wizardErrorStep = '';
           const name = String(payload.system_name || '').trim();
           if (!quiet) setHpFavStatus(`Loaded ${builder.channels.length} channels${name ? ` from ${name}` : ''}.`);
         }
@@ -4879,6 +5035,7 @@
       builder.channels = [];
       builder.selectedDepartment = '';
       builder.selectedChannelIds = [];
+      builder.wizardErrorStep = '';
       renderHpFavoritesBuilder();
       loadHpFavoriteChannels().catch((err) => {
         console.error('Auto load channels failed:', err);
@@ -4977,6 +5134,8 @@
       const merged = Array.from(byId.values());
       setHpFavActiveEntries(merged);
       builder.selectedChannelIds = [];
+      builder.wizardStep = 'review';
+      builder.wizardErrorStep = '';
       renderHpFavoritesBuilder();
       await saveHpFavoritesBuilder(`Added ${selectedRows.length} channel${selectedRows.length === 1 ? '' : 's'} to ${builder.activeList}.`);
     }
@@ -5064,6 +5223,8 @@
       if (preferredType === 'analog' || preferredType === 'digital') {
         state.hpFavoritesBuilder.systemType = preferredType;
       }
+      state.hpFavoritesBuilder.wizardStep = 'filters';
+      state.hpFavoritesBuilder.wizardErrorStep = '';
       state.hp3Builder.open = true;
       if (els.hp3BuilderSidecar) {
         els.hp3BuilderSidecar.classList.add('open');
@@ -9653,6 +9814,19 @@
       }
       if (els.hpFavListDelete) {
         els.hpFavListDelete.addEventListener('click', deleteHpFavoriteList);
+      }
+      if (els.hpFavFlow) {
+        els.hpFavFlow.addEventListener('click', (e) => {
+          const btn = e.target && e.target.closest ? e.target.closest('[data-hp-flow-step]') : null;
+          if (!btn) return;
+          setHpFavoriteWizardStep(btn.getAttribute('data-hp-flow-step'));
+        });
+      }
+      if (els.hpFavWizardBack) {
+        els.hpFavWizardBack.addEventListener('click', () => goHpFavoriteWizardStep(-1));
+      }
+      if (els.hpFavWizardNext) {
+        els.hpFavWizardNext.addEventListener('click', () => goHpFavoriteWizardStep(1));
       }
       if (els.hpFavSystemType) {
         els.hpFavSystemType.addEventListener('change', () => {
