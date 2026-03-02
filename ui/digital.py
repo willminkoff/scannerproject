@@ -300,6 +300,10 @@ _DIGITAL_RECENT_LABEL_DEDUPE_MS = max(
     0,
     int(os.getenv("DIGITAL_RECENT_LABEL_DEDUPE_MS", "2500")),
 )
+_DIGITAL_RECENT_EVENT_MAX_AGE_MS = max(
+    0,
+    int(float(os.getenv("DIGITAL_RECENT_EVENT_MAX_AGE_SEC", "900")) * 1000),
+)
 _DIGITAL_NON_AUDIO_LABEL_RE = re.compile(r"^\(P:\d+\s*\[\d+\]\)$", re.I)
 _DIGITAL_DEBUG_INCLUDE_GRANTS = os.getenv(
     "DIGITAL_DEBUG_INCLUDE_GRANTS",
@@ -1731,6 +1735,11 @@ class _BaseDigitalAdapter(DigitalAdapter):
             event_time_ms = int(time.time() * 1000)
             event = dict(event)
             event["timeMs"] = event_time_ms
+        if _DIGITAL_RECENT_EVENT_MAX_AGE_MS > 0:
+            now_ms = int(time.time() * 1000)
+            # Prevent stale log-tail rows from polluting recent hit surfaces.
+            if (now_ms - event_time_ms) > _DIGITAL_RECENT_EVENT_MAX_AGE_MS:
+                return
         event_id = str(event.get("event_id") or "").strip()
         if event_id:
             # Keep one hit row per call/event ID by default. Optional bucketed
@@ -2095,8 +2104,10 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         if active_profile:
             token = f"{active_profile}_call_events.log"
             active_candidates = [item for item in candidates if token in item[0].lower()]
-            other_candidates = [item for item in candidates if token not in item[0].lower()]
-            candidates = _prefer_aggregate(active_candidates) + _prefer_aggregate(other_candidates)
+            if active_candidates:
+                candidates = _prefer_aggregate(active_candidates)
+            else:
+                candidates = _prefer_aggregate(candidates)
         else:
             candidates = _prefer_aggregate(candidates)
 
