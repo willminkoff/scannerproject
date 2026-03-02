@@ -2798,17 +2798,18 @@
         <div class="hp-filters-head">
           <div>
             <div class="hp-filters-title">Favorites Builder Wizard</div>
-            <div class="hp-builder-sub">Shared across SB3 + HP3. Step through filters, systems, channels, then review.</div>
+            <div class="hp-builder-sub">Shared across SB3 + HP3. Step through filters, list, location, systems, channels, then review.</div>
           </div>
         </div>
         <div class="hp-builder-flow" id="hp-fav-flow">
           <button class="hp-builder-flow-step" type="button" data-hp-flow-step="filters">1 Filters</button>
           <button class="hp-builder-flow-step" type="button" data-hp-flow-step="list">2 List</button>
-          <button class="hp-builder-flow-step" type="button" data-hp-flow-step="systems">3 Systems</button>
-          <button class="hp-builder-flow-step" type="button" data-hp-flow-step="channels">4 Channels</button>
-          <button class="hp-builder-flow-step" type="button" data-hp-flow-step="review">5 Review</button>
+          <button class="hp-builder-flow-step" type="button" data-hp-flow-step="location">3 Location</button>
+          <button class="hp-builder-flow-step" type="button" data-hp-flow-step="systems">4 Systems</button>
+          <button class="hp-builder-flow-step" type="button" data-hp-flow-step="channels">5 Channels</button>
+          <button class="hp-builder-flow-step" type="button" data-hp-flow-step="review">6 Review</button>
         </div>
-        <div class="hp-builder-sub" id="hp-fav-next-step">Step 1: set filters, location, and service types.</div>
+        <div class="hp-builder-sub" id="hp-fav-next-step">Step 1: set filters and service types.</div>
 
         <section class="hp-builder hp-wizard-stage" id="hp-builder-panel" data-hp-stage="filters">
           <div class="hp-builder-head">Step 1 · Scan Filters</div>
@@ -2875,17 +2876,10 @@
           </div>
         </section>
 
-        <section class="hp-builder hp-wizard-stage hidden" data-hp-stage="systems">
-          <div class="hp-builder-head">Step 3 · System Pick</div>
-          <div class="hp-builder-sub">Set system scope, then choose one system to browse channels.</div>
+        <section class="hp-builder hp-wizard-stage hidden" data-hp-stage="location">
+          <div class="hp-builder-head">Step 3 · Location</div>
+          <div class="hp-builder-sub">HP2 flow: select country, then state, then county before selecting systems.</div>
           <div class="hp-builder-grid">
-            <label class="hp-filter-field">
-              <span>System Type</span>
-              <select id="hp-fav-system-type">
-                <option value="digital">Digital</option>
-                <option value="analog">Analog</option>
-              </select>
-            </label>
             <label class="hp-filter-field">
               <span>Country</span>
               <select id="hp-fav-country"></select>
@@ -2894,11 +2888,23 @@
               <span>State</span>
               <select id="hp-fav-state"></select>
             </label>
-          </div>
-          <div class="hp-builder-grid">
             <label class="hp-filter-field">
               <span>County</span>
               <select id="hp-fav-county"></select>
+            </label>
+          </div>
+        </section>
+
+        <section class="hp-builder hp-wizard-stage hidden" data-hp-stage="systems">
+          <div class="hp-builder-head">Step 4 · System Pick</div>
+          <div class="hp-builder-sub">Set system scope, then choose one system to browse channels.</div>
+          <div class="hp-builder-grid">
+            <label class="hp-filter-field">
+              <span>System Type</span>
+              <select id="hp-fav-system-type">
+                <option value="digital">Digital</option>
+                <option value="analog">Analog</option>
+              </select>
             </label>
             <label class="hp-filter-field">
               <span>Scope</span>
@@ -2926,7 +2932,7 @@
         </section>
 
         <section class="hp-builder hp-wizard-stage hidden" data-hp-stage="channels">
-          <div class="hp-builder-head">Step 4 · Channel Pick</div>
+          <div class="hp-builder-head">Step 5 · Channel Pick</div>
           <div class="hp-builder-sub">Choose channels/talkgroups from the selected system.</div>
           <label class="hp-filter-field">
             <span>Department</span>
@@ -2954,7 +2960,7 @@
         </section>
 
         <section class="hp-builder hp-wizard-stage hidden" data-hp-stage="review">
-          <div class="hp-builder-head">Step 5 · Review Active List</div>
+          <div class="hp-builder-head">Step 6 · Review Active List</div>
           <div class="hp-builder-list" id="hp-fav-entries">
             <div class="hp-builder-empty">No entries in active list.</div>
           </div>
@@ -4256,7 +4262,7 @@
       }
       {
         const stepToken = String(builder.wizardStep || '').trim().toLowerCase();
-        builder.wizardStep = ['filters', 'list', 'systems', 'channels', 'review'].includes(stepToken) ? stepToken : 'filters';
+        builder.wizardStep = getHpFavoriteWizardSteps().includes(stepToken) ? stepToken : 'filters';
       }
       builder.wizardErrorStep = '';
       builder.loaded = true;
@@ -4500,7 +4506,7 @@
     }
 
     function getHpFavoriteWizardSteps() {
-      return ['filters', 'list', 'systems', 'channels', 'review'];
+      return ['filters', 'list', 'location', 'systems', 'channels', 'review'];
     }
 
     function normalizeHpFavoriteWizardStep(step) {
@@ -4519,8 +4525,10 @@
     function getHpFavoriteWizardAdvanceBlock(step) {
       const builder = state.hpFavoritesBuilder;
       const token = normalizeHpFavoriteWizardStep(step);
-      if (token === 'systems') {
+      if (token === 'location') {
         if (_toInt(builder.stateId, 0) <= 0) return 'Pick a state first.';
+      }
+      if (token === 'systems') {
         if (!String(builder.selectedSystemId || '').trim()) return 'Pick a system before continuing.';
       }
       if (token === 'channels') {
@@ -4567,6 +4575,7 @@
       const labelByStep = {
         filters: 'Filters',
         list: 'List',
+        location: 'Location',
         systems: 'Systems',
         channels: 'Channels',
         review: 'Review',
@@ -4584,6 +4593,7 @@
       const doneByStep = {
         filters: Boolean(state.hpFilters.loaded),
         list: Boolean(activeList),
+        location: _toInt(builder.stateId, 0) > 0,
         systems: hasSystemSelection,
         channels: selectedCount > 0 || reviewCount > 0,
         review: reviewCount > 0,
@@ -4616,18 +4626,22 @@
 
       if (!els.hpFavNextStep) return;
       if (activeStep === 'filters') {
-        els.hpFavNextStep.textContent = 'Step 1: set scan source, location options, and service types.';
+        els.hpFavNextStep.textContent = 'Step 1: set scan source and service types.';
         return;
       }
       if (activeStep === 'list') {
         els.hpFavNextStep.textContent = `Step 2: pick or create a favorites list (active: "${activeList}").`;
         return;
       }
-      if (activeStep === 'systems') {
+      if (activeStep === 'location') {
         if (_toInt(builder.stateId, 0) <= 0) {
-          els.hpFavNextStep.textContent = 'Pick a state to load systems.';
+          els.hpFavNextStep.textContent = 'Step 3: choose country/state/county to match HP2 flow.';
           return;
         }
+        els.hpFavNextStep.textContent = 'Location set. Continue to choose scope and systems.';
+        return;
+      }
+      if (activeStep === 'systems') {
         els.hpFavNextStep.textContent = builder.autoLoadSystems
           ? 'Systems auto-load from your filters. Pick one to continue.'
           : 'Click Load Systems, then pick one system to continue.';
