@@ -385,6 +385,67 @@
       color: var(--bad);
     }
 
+    .favorites-sync-row {
+      margin-top: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(10, 16, 24, 0.45);
+      padding: 10px 12px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .favorites-sync-row.ok {
+      border-color: rgba(16, 185, 129, 0.45);
+    }
+
+    .favorites-sync-row.warn {
+      border-color: rgba(245, 158, 11, 0.45);
+    }
+
+    .favorites-sync-row.bad {
+      border-color: rgba(239, 68, 68, 0.45);
+    }
+
+    .favorites-sync-copy {
+      min-width: 0;
+      display: grid;
+      gap: 2px;
+    }
+
+    .favorites-sync-primary {
+      font-size: 12px;
+      color: var(--text-primary);
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .favorites-sync-secondary {
+      font-size: 11px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .favorites-sync-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .favorites-sync-action {
+      flex: 0 0 auto !important;
+      padding: 6px 10px !important;
+      font-size: 10px !important;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
     .widget-body {
       padding: 16px;
     }
@@ -922,6 +983,43 @@
       display: grid;
       gap: 12px;
       align-content: start;
+    }
+
+    .hp3-builder-sidecar {
+      width: min(1240px, 98vw);
+    }
+
+    .hp3-builder-head-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .hp3-builder-body {
+      padding: 0;
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: 1fr;
+    }
+
+    .hp3-builder-frame {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #05080d;
+    }
+
+    .hp3-builder-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 14px;
+      border-top: 1px solid var(--border);
+      background: rgba(14, 18, 24, 0.72);
+      font-size: 11px;
+      color: var(--text-secondary);
     }
 
     .profile-sidecar-panel {
@@ -1581,6 +1679,14 @@
         width: 100%;
         justify-content: flex-end;
       }
+
+      .favorites-sync-row {
+        grid-template-columns: 1fr;
+      }
+
+      .favorites-sync-actions {
+        justify-content: flex-start;
+      }
     }
   </style>
 </head>
@@ -1730,7 +1836,8 @@
           <div class="widget-header-actions">
             <span class="loop-indicator" id="profiles-loop-indicator" title="Loop status">Loop Off</span>
             <button class="action widget-header-action sidecar-toggle" id="profile-loop-open-analog" type="button">Profile Loop</button>
-            <button class="action widget-header-action sidecar-toggle" id="profile-editor-open-analog" type="button">Profile Editor</button>
+            <button class="action widget-header-action sidecar-toggle" id="hp3-builder-open-analog" type="button">HP3 Builder</button>
+            <button class="action widget-header-action sidecar-toggle" id="profile-editor-open-analog" type="button">Legacy Editor</button>
           </div>
         </div>
         <div class="widget-body">
@@ -1738,6 +1845,15 @@
             <div class="empty-state">
               <div class="icon">📡</div>
               <div>Loading profiles...</div>
+            </div>
+          </div>
+          <div class="favorites-sync-row" id="favorites-sync-row-analog">
+            <div class="favorites-sync-copy">
+              <div class="favorites-sync-primary" id="favorites-sync-primary-analog">SB3 profile sync status loading...</div>
+              <div class="favorites-sync-secondary" id="favorites-sync-secondary-analog">Checking HP favorites to SB3 profile alignment.</div>
+            </div>
+            <div class="favorites-sync-actions">
+              <button class="action favorites-sync-action" id="favorites-sync-btn-analog" type="button">Sync SB3</button>
             </div>
           </div>
         </div>
@@ -1749,7 +1865,8 @@
           <div class="widget-header-actions">
             <span class="loop-indicator" id="digital-profiles-loop-indicator" title="Loop status">Loop Off</span>
             <button class="action widget-header-action sidecar-toggle" id="profile-loop-open-digital" type="button">Profile Loop</button>
-            <button class="action widget-header-action sidecar-toggle" id="profile-editor-open-digital" type="button">Profile Editor</button>
+            <button class="action widget-header-action sidecar-toggle" id="hp3-builder-open-digital" type="button">HP3 Builder</button>
+            <button class="action widget-header-action sidecar-toggle" id="profile-editor-open-digital" type="button">Legacy Editor</button>
           </div>
         </div>
         <div class="widget-body">
@@ -1766,6 +1883,15 @@
                 <span class="control-value" id="digital-profile-status"></span>
               </div>
               <div class="control-applied" id="digital-error"></div>
+            </div>
+          </div>
+          <div class="favorites-sync-row" id="favorites-sync-row-digital">
+            <div class="favorites-sync-copy">
+              <div class="favorites-sync-primary" id="favorites-sync-primary-digital">SB3 profile sync status loading...</div>
+              <div class="favorites-sync-secondary" id="favorites-sync-secondary-digital">Checking HP favorites to SB3 profile alignment.</div>
+            </div>
+            <div class="favorites-sync-actions">
+              <button class="action favorites-sync-action" id="favorites-sync-btn-digital" type="button">Sync SB3</button>
             </div>
           </div>
         </div>
@@ -2346,6 +2472,28 @@
     </div>
   </aside>
 
+  <div class="profile-sidecar-overlay hidden" id="hp3-builder-overlay"></div>
+  <aside class="profile-sidecar hp3-builder-sidecar" id="hp3-builder-sidecar" aria-hidden="true">
+    <div class="profile-sidecar-header">
+      <div>
+        <div class="profile-sidecar-title">HP3 Favorites Builder</div>
+        <div class="profile-sidecar-sub">Use HP3 workflow for favorites, channels, and service-type target picks</div>
+      </div>
+      <div class="hp3-builder-head-actions">
+        <button class="action profile-sidecar-load" id="hp3-builder-open-window" type="button">Open Full HP3</button>
+        <button class="action profile-sidecar-load" id="hp3-builder-refresh" type="button">Reload</button>
+        <button class="action" id="hp3-builder-close" type="button">Close</button>
+      </div>
+    </div>
+    <div class="profile-sidecar-body hp3-builder-body">
+      <iframe id="hp3-builder-frame" class="hp3-builder-frame" title="HP3 Builder" loading="lazy"></iframe>
+    </div>
+    <div class="hp3-builder-foot">
+      <span>After making favorites changes in HP3, click <strong>Sync SB3</strong> to apply to active SB3 profile.</span>
+      <button class="action profile-sidecar-load" id="hp3-builder-sync" type="button">Sync SB3</button>
+    </div>
+  </aside>
+
   <script>
     // ============================================
     // CONFIGURATION
@@ -2560,6 +2708,21 @@
           dirty: false,
         },
       },
+      hpFavoritesSync: {
+        ok: false,
+        available: false,
+        inSync: false,
+        reason: '',
+        activeProfileId: '',
+        favoritesName: '',
+        missingCount: 0,
+        extraCount: 0,
+      },
+      hpFavoritesSyncBusy: false,
+      hp3Builder: {
+        open: false,
+        src: '',
+      },
     };
 
     let digitalProfilesLoaded = false;
@@ -2593,6 +2756,10 @@
       btnApply: document.getElementById('btn-apply'),
       profilesList: document.getElementById('profiles-list'),
       profilesWidget: document.getElementById('profiles-widget'),
+      favoritesSyncRowAnalog: document.getElementById('favorites-sync-row-analog'),
+      favoritesSyncPrimaryAnalog: document.getElementById('favorites-sync-primary-analog'),
+      favoritesSyncSecondaryAnalog: document.getElementById('favorites-sync-secondary-analog'),
+      favoritesSyncBtnAnalog: document.getElementById('favorites-sync-btn-analog'),
       loopStatus: document.getElementById('loop-status'),
       loopDetail: document.getElementById('loop-detail'),
       loopList: document.getElementById('loop-list'),
@@ -2606,6 +2773,10 @@
       profilesLoopIndicator: document.getElementById('profiles-loop-indicator'),
       digitalProfilesWidget: document.getElementById('digital-profiles-widget'),
       digitalProfilesList: document.getElementById('digital-profiles-list'),
+      favoritesSyncRowDigital: document.getElementById('favorites-sync-row-digital'),
+      favoritesSyncPrimaryDigital: document.getElementById('favorites-sync-primary-digital'),
+      favoritesSyncSecondaryDigital: document.getElementById('favorites-sync-secondary-digital'),
+      favoritesSyncBtnDigital: document.getElementById('favorites-sync-btn-digital'),
       digitalLoopStatus: document.getElementById('digital-loop-status'),
       digitalLoopDetail: document.getElementById('digital-loop-detail'),
       digitalLoopList: document.getElementById('digital-loop-list'),
@@ -2763,6 +2934,8 @@
       profileLoopPanelAnalog: document.getElementById('profile-loop-panel-analog'),
       profileLoopPanelDigital: document.getElementById('profile-loop-panel-digital'),
       profileLoopRefresh: document.getElementById('profile-loop-refresh'),
+      hp3BuilderOpenAnalog: document.getElementById('hp3-builder-open-analog'),
+      hp3BuilderOpenDigital: document.getElementById('hp3-builder-open-digital'),
       profileEditorOpenAnalog: document.getElementById('profile-editor-open-analog'),
       profileEditorOpenDigital: document.getElementById('profile-editor-open-digital'),
       profileSidecar: document.getElementById('profile-sidecar'),
@@ -2793,6 +2966,13 @@
       profileEditorDigitalDelete: document.getElementById('profile-editor-digital-delete'),
       profileEditorDigitalDirty: document.getElementById('profile-editor-digital-dirty'),
       profileEditorDigitalStatus: document.getElementById('profile-editor-digital-status'),
+      hp3BuilderSidecar: document.getElementById('hp3-builder-sidecar'),
+      hp3BuilderOverlay: document.getElementById('hp3-builder-overlay'),
+      hp3BuilderClose: document.getElementById('hp3-builder-close'),
+      hp3BuilderRefresh: document.getElementById('hp3-builder-refresh'),
+      hp3BuilderOpenWindow: document.getElementById('hp3-builder-open-window'),
+      hp3BuilderSync: document.getElementById('hp3-builder-sync'),
+      hp3BuilderFrame: document.getElementById('hp3-builder-frame'),
       btnReconnect: null,
     };
 
@@ -2939,6 +3119,184 @@
       return r.json();
     }
 
+    function _toInt(value, fallback = 0) {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? Math.round(parsed) : fallback;
+    }
+
+    function normalizeHpFavoritesSyncStatus(payload, fallback = {}) {
+      const data = payload && typeof payload === 'object' ? payload : {};
+      const rawFallback = fallback && typeof fallback === 'object' ? fallback : {};
+      return {
+        ok: Boolean(('ok' in data) ? data.ok : rawFallback.hp_favorites_sync_ok),
+        available: Boolean(('available' in data) ? data.available : rawFallback.hp_favorites_sync_available),
+        inSync: Boolean(('in_sync' in data) ? data.in_sync : rawFallback.hp_favorites_sync_in_sync),
+        reason: String(('reason' in data) ? (data.reason || '') : (rawFallback.hp_favorites_sync_reason || '')).trim(),
+        activeProfileId: String(('active_profile_id' in data)
+          ? (data.active_profile_id || '')
+          : (rawFallback.hp_favorites_sync_profile_id || '')).trim(),
+        favoritesName: String(('favorites_name' in data)
+          ? (data.favorites_name || '')
+          : (rawFallback.hp_favorites_sync_favorites_name || '')).trim(),
+        missingCount: _toInt(('missing_in_profile_count' in data)
+          ? data.missing_in_profile_count
+          : rawFallback.hp_favorites_sync_missing_count, 0),
+        extraCount: _toInt(('extra_enabled_count' in data)
+          ? data.extra_enabled_count
+          : rawFallback.hp_favorites_sync_extra_enabled_count, 0),
+      };
+    }
+
+    function hpFavoritesSyncSummary(syncState) {
+      const sync = syncState && typeof syncState === 'object' ? syncState : {};
+      const listName = String(sync.favoritesName || 'Favorites').trim();
+      const profileId = String(sync.activeProfileId || 'active profile').trim();
+      const reason = String(sync.reason || '').trim();
+      if (!sync.available) {
+        return {
+          tone: 'bad',
+          canSync: false,
+          primary: 'SB3 sync unavailable.',
+          secondary: reason || 'Pick an active digital profile in SB3, then sync.',
+        };
+      }
+      if (sync.inSync) {
+        return {
+          tone: 'ok',
+          canSync: true,
+          primary: `SB3 sync OK: ${listName} -> ${profileId}`,
+          secondary: reason || 'HP favorites and active SB3 profile match.',
+        };
+      }
+      const missing = Math.max(0, _toInt(sync.missingCount, 0));
+      const extra = Math.max(0, _toInt(sync.extraCount, 0));
+      return {
+        tone: missing > 0 || extra > 0 ? 'warn' : 'bad',
+        canSync: true,
+        primary: `SB3 drift: missing ${missing}, extra ${extra}`,
+        secondary: reason || `Sync ${listName} into ${profileId}.`,
+      };
+    }
+
+    function updateHpFavoritesSyncCard(cardEl, primaryEl, secondaryEl, buttonEl, summary) {
+      if (!cardEl && !primaryEl && !secondaryEl && !buttonEl) return;
+      if (cardEl) {
+        cardEl.classList.remove('ok', 'warn', 'bad');
+        if (summary && summary.tone) cardEl.classList.add(summary.tone);
+      }
+      if (primaryEl) {
+        primaryEl.textContent = summary?.primary || 'SB3 profile sync status unavailable.';
+      }
+      if (secondaryEl) {
+        secondaryEl.textContent = summary?.secondary || '';
+      }
+      if (buttonEl) {
+        buttonEl.disabled = Boolean(state.hpFavoritesSyncBusy) || !Boolean(summary?.canSync);
+        buttonEl.textContent = state.hpFavoritesSyncBusy ? 'Syncing...' : 'Sync SB3';
+      }
+    }
+
+    function renderHpFavoritesSyncUi() {
+      const summary = hpFavoritesSyncSummary(state.hpFavoritesSync);
+      updateHpFavoritesSyncCard(
+        els.favoritesSyncRowAnalog,
+        els.favoritesSyncPrimaryAnalog,
+        els.favoritesSyncSecondaryAnalog,
+        els.favoritesSyncBtnAnalog,
+        summary
+      );
+      updateHpFavoritesSyncCard(
+        els.favoritesSyncRowDigital,
+        els.favoritesSyncPrimaryDigital,
+        els.favoritesSyncSecondaryDigital,
+        els.favoritesSyncBtnDigital,
+        summary
+      );
+      if (els.hp3BuilderSync) {
+        els.hp3BuilderSync.disabled = Boolean(state.hpFavoritesSyncBusy) || !Boolean(summary.canSync);
+        els.hp3BuilderSync.textContent = state.hpFavoritesSyncBusy ? 'Syncing...' : 'Sync SB3';
+      }
+    }
+
+    function applyHpFavoritesSyncStatus(payload, fallback = null) {
+      state.hpFavoritesSync = normalizeHpFavoritesSyncStatus(payload, fallback || {});
+      renderHpFavoritesSyncUi();
+    }
+
+    async function syncHpFavoritesToSb3Profile() {
+      if (state.hpFavoritesSyncBusy) return;
+      state.hpFavoritesSyncBusy = true;
+      renderHpFavoritesSyncUi();
+      try {
+        const result = await postJSON('/api/hp/favorites-sync', { action: 'sync' }, { timeoutMs: 25000 });
+        const after = result && result.after && typeof result.after === 'object'
+          ? result.after
+          : result;
+        applyHpFavoritesSyncStatus(after, after);
+        const sync = state.hpFavoritesSync || {};
+        const summary = hpFavoritesSyncSummary(sync);
+        logActivity(summary.primary, 'info', 'hp-favorites-sync-ok');
+        await refresh();
+      } catch (e) {
+        const payload = e && e.payload && typeof e.payload === 'object' ? e.payload : {};
+        if (payload.after && typeof payload.after === 'object') {
+          applyHpFavoritesSyncStatus(payload.after, payload.after);
+        } else {
+          state.hpFavoritesSync.reason = messageFromError(e, 'Favorites sync failed');
+        }
+        renderHpFavoritesSyncUi();
+        logActivity(messageFromError(e, 'Favorites sync failed'), 'warn', 'hp-favorites-sync-error');
+      } finally {
+        state.hpFavoritesSyncBusy = false;
+        renderHpFavoritesSyncUi();
+      }
+    }
+
+    function openHp3BuilderSidecar() {
+      if (state.profileEditor.open && !closeProfileEditorSidecar()) {
+        return false;
+      }
+      if (state.profileLoopUi.open) {
+        closeProfileLoopSidecar();
+      }
+      state.hp3Builder.open = true;
+      if (els.hp3BuilderFrame && !els.hp3BuilderFrame.src) {
+        state.hp3Builder.src = '/hp3?embed=sb3';
+        els.hp3BuilderFrame.src = state.hp3Builder.src;
+      }
+      if (els.hp3BuilderSidecar) {
+        els.hp3BuilderSidecar.classList.add('open');
+        els.hp3BuilderSidecar.setAttribute('aria-hidden', 'false');
+      }
+      if (els.hp3BuilderOverlay) {
+        els.hp3BuilderOverlay.classList.remove('hidden');
+      }
+      renderHpFavoritesSyncUi();
+      return true;
+    }
+
+    function closeHp3BuilderSidecar(refreshAfterClose = true) {
+      state.hp3Builder.open = false;
+      if (els.hp3BuilderSidecar) {
+        els.hp3BuilderSidecar.classList.remove('open');
+        els.hp3BuilderSidecar.setAttribute('aria-hidden', 'true');
+      }
+      if (els.hp3BuilderOverlay) {
+        els.hp3BuilderOverlay.classList.add('hidden');
+      }
+      if (refreshAfterClose) {
+        refresh().catch((e) => console.error('Refresh after HP3 builder close failed:', e));
+      }
+      return true;
+    }
+
+    function reloadHp3BuilderFrame() {
+      if (!els.hp3BuilderFrame) return;
+      const nextSrc = `/hp3?embed=sb3&t=${Date.now()}`;
+      state.hp3Builder.src = nextSrc;
+      els.hp3BuilderFrame.src = nextSrc;
+    }
+
     function setProfileEditorStatus(kind, message, isError = false) {
       const el = kind === 'digital' ? els.profileEditorDigitalStatus : els.profileEditorAnalogStatus;
       if (!el) return;
@@ -3002,6 +3360,9 @@
       if (state.profileLoopUi.open) {
         closeProfileLoopSidecar();
       }
+      if (state.hp3Builder.open) {
+        closeHp3BuilderSidecar(false);
+      }
       if (tab) {
         const changed = setProfileEditorTab(tab);
         if (!changed) return;
@@ -3049,6 +3410,9 @@
     function openProfileLoopSidecar(tab = null) {
       if (state.profileEditor.open && !closeProfileEditorSidecar()) {
         return;
+      }
+      if (state.hp3Builder.open) {
+        closeHp3BuilderSidecar(false);
       }
       if (tab) {
         setProfileLoopTab(tab);
@@ -6936,6 +7300,7 @@
         state.v3Compile = data.v3_compile || null;
         state.preflight = data.preflight || { airband: null, ground: null, digital: null };
         state.health = data.health || { overall: { state: 'unknown', reasonCodes: [] }, subsystems: {} };
+        applyHpFavoritesSyncStatus(data.hp_favorites_sync, data);
         
         state.connected = true;
         if (!wasConnected) {
@@ -7060,6 +7425,12 @@
           if (data.profile_loop && typeof data.profile_loop === 'object') {
             applyProfileLoopPayload(data.profile_loop);
           }
+          if (
+            (data.hp_favorites_sync && typeof data.hp_favorites_sync === 'object')
+            || ('hp_favorites_sync_available' in data)
+          ) {
+            applyHpFavoritesSyncStatus(data.hp_favorites_sync, data);
+          }
           if (state.sdr1Active) state.sdr1LastSeen = state.lastStatusTick;
           if (state.sdr2Active) state.sdr2LastSeen = state.lastStatusTick;
           state.connected = true;
@@ -7165,6 +7536,7 @@
       setProfileEditorTab('analog');
       setProfileLoopTab(state.profileLoopUi.tab || 'analog');
       refreshProfileEditorOptions();
+      renderHpFavoritesSyncUi();
 
       syncStreamLinks();
       refreshVlcStatus();
@@ -7183,6 +7555,10 @@
         els.logoToggle.addEventListener('click', () => toggleSitrep());
       }
       document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && state.hp3Builder.open) {
+          closeHp3BuilderSidecar();
+          return;
+        }
         if (e.key === 'Escape' && state.profileLoopUi.open) {
           closeProfileLoopSidecar();
           return;
@@ -7413,6 +7789,35 @@
           renderDigitalListenList();
           els.digitalListenList.scrollTop = scrollTop;
         });
+      }
+      if (els.favoritesSyncBtnAnalog) {
+        els.favoritesSyncBtnAnalog.addEventListener('click', syncHpFavoritesToSb3Profile);
+      }
+      if (els.favoritesSyncBtnDigital) {
+        els.favoritesSyncBtnDigital.addEventListener('click', syncHpFavoritesToSb3Profile);
+      }
+      if (els.hp3BuilderOpenAnalog) {
+        els.hp3BuilderOpenAnalog.addEventListener('click', openHp3BuilderSidecar);
+      }
+      if (els.hp3BuilderOpenDigital) {
+        els.hp3BuilderOpenDigital.addEventListener('click', openHp3BuilderSidecar);
+      }
+      if (els.hp3BuilderClose) {
+        els.hp3BuilderClose.addEventListener('click', () => closeHp3BuilderSidecar());
+      }
+      if (els.hp3BuilderOverlay) {
+        els.hp3BuilderOverlay.addEventListener('click', () => closeHp3BuilderSidecar());
+      }
+      if (els.hp3BuilderRefresh) {
+        els.hp3BuilderRefresh.addEventListener('click', reloadHp3BuilderFrame);
+      }
+      if (els.hp3BuilderOpenWindow) {
+        els.hp3BuilderOpenWindow.addEventListener('click', () => {
+          window.open('/hp3', '_blank', 'noopener');
+        });
+      }
+      if (els.hp3BuilderSync) {
+        els.hp3BuilderSync.addEventListener('click', syncHpFavoritesToSb3Profile);
       }
       if (els.profileEditorOpenAnalog) {
         els.profileEditorOpenAnalog.addEventListener('click', () => openProfileEditorSidecar('analog'));
