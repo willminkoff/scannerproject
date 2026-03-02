@@ -446,6 +446,137 @@
       letter-spacing: 0.06em;
     }
 
+    .hp-filters-panel {
+      margin-top: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(10, 16, 24, 0.45);
+      padding: 10px 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .hp-filters-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-content: space-between;
+    }
+
+    .hp-filters-title {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .hp-filters-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .hp-filters-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      align-items: end;
+    }
+
+    .hp-filter-field {
+      display: grid;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .hp-filter-field input,
+    .hp-filter-field select {
+      width: 100%;
+      min-width: 0;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--text-primary);
+      padding: 7px 8px;
+      font-size: 12px;
+    }
+
+    .hp-filter-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--text-primary);
+      white-space: nowrap;
+    }
+
+    .hp-filter-check input {
+      accent-color: var(--accent);
+    }
+
+    .hp-service-types-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .hp-service-types-title {
+      font-size: 11px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .hp-service-types-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .hp-service-types-list {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(11, 16, 24, 0.52);
+      padding: 8px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px 8px;
+      max-height: 160px;
+      overflow: auto;
+    }
+
+    .hp-service-type-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+      font-size: 11px;
+      color: var(--text-primary);
+    }
+
+    .hp-service-type-item input {
+      accent-color: var(--accent);
+      flex: 0 0 auto;
+    }
+
+    .hp-service-type-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .hp-filters-status {
+      font-size: 11px;
+      color: var(--text-secondary);
+      min-height: 16px;
+    }
+
     .widget-body {
       padding: 16px;
     }
@@ -1687,6 +1818,23 @@
       .favorites-sync-actions {
         justify-content: flex-start;
       }
+
+      .hp-filters-head {
+        flex-wrap: wrap;
+      }
+
+      .hp-filters-actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
+
+      .hp-filters-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hp-service-types-list {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
@@ -1853,6 +2001,56 @@
             <div class="favorites-sync-actions">
               <button class="action favorites-sync-action" id="favorites-sync-btn-analog" type="button">Sync SB3</button>
             </div>
+          </div>
+          <div class="hp-filters-panel" id="hp-filters-panel">
+            <div class="hp-filters-head">
+              <div class="hp-filters-title">Favorites Filters (Digital)</div>
+              <div class="hp-filters-actions">
+                <button class="action favorites-sync-action" id="hp-filters-refresh" type="button">Refresh</button>
+                <button class="action favorites-sync-action" id="hp-filters-save" type="button">Save Filters</button>
+                <button class="action favorites-sync-action" id="hp-filters-open-builder" type="button">Add Targets</button>
+              </div>
+            </div>
+            <div class="hp-filters-grid">
+              <label class="hp-filter-field">
+                <span>Scan Source</span>
+                <select id="hp-filter-mode">
+                  <option value="favorites">Favorites</option>
+                  <option value="full_database">Full Database</option>
+                </select>
+              </label>
+              <label class="hp-filter-field">
+                <span>ZIP Code</span>
+                <input id="hp-filter-zip" type="text" maxlength="12" placeholder="e.g. 37214" autocomplete="postal-code">
+              </label>
+              <label class="hp-filter-field">
+                <span>Range Miles</span>
+                <input id="hp-filter-range" type="number" min="0" step="0.5" inputmode="decimal">
+              </label>
+              <label class="hp-filter-check">
+                <input id="hp-filter-use-location" type="checkbox">
+                <span>Use Location Filter</span>
+              </label>
+              <label class="hp-filter-check">
+                <input id="hp-filter-nationwide" type="checkbox">
+                <span>Include Nationwide Systems</span>
+              </label>
+              <div class="hp-filters-actions" style="justify-content:flex-start;">
+                <button class="action favorites-sync-action" id="hp-filter-resolve-zip" type="button">Resolve ZIP</button>
+              </div>
+            </div>
+            <div class="hp-service-types-head">
+              <div class="hp-service-types-title">Enabled Service Types</div>
+              <div class="hp-service-types-actions">
+                <button class="action favorites-sync-action" id="hp-service-types-all" type="button">All</button>
+                <button class="action favorites-sync-action" id="hp-service-types-defaults" type="button">Default</button>
+                <button class="action favorites-sync-action" id="hp-service-types-none" type="button">None</button>
+              </div>
+            </div>
+            <div class="hp-service-types-list" id="hp-service-types-list">
+              <div class="muted">Loading service types...</div>
+            </div>
+            <div class="hp-filters-status" id="hp-filters-status">Use these controls to set location/range/service filtering directly in SB3.</div>
           </div>
         </div>
       </div>
@@ -2636,6 +2834,19 @@
         extraCount: 0,
       },
       hpFavoritesSyncBusy: false,
+      hpFilters: {
+        loading: false,
+        saving: false,
+        loaded: false,
+        mode: 'favorites',
+        useLocation: false,
+        zip: '',
+        rangeMiles: 15,
+        nationwideSystems: true,
+        enabledServiceTags: [],
+        serviceTypes: [],
+        defaultServiceTags: [],
+      },
       hp3Builder: {
         open: false,
         src: '',
@@ -2677,6 +2888,21 @@
       favoritesSyncPrimaryAnalog: document.getElementById('favorites-sync-primary-analog'),
       favoritesSyncSecondaryAnalog: document.getElementById('favorites-sync-secondary-analog'),
       favoritesSyncBtnAnalog: document.getElementById('favorites-sync-btn-analog'),
+      hpFiltersPanel: document.getElementById('hp-filters-panel'),
+      hpFiltersRefresh: document.getElementById('hp-filters-refresh'),
+      hpFiltersSave: document.getElementById('hp-filters-save'),
+      hpFiltersOpenBuilder: document.getElementById('hp-filters-open-builder'),
+      hpFilterMode: document.getElementById('hp-filter-mode'),
+      hpFilterZip: document.getElementById('hp-filter-zip'),
+      hpFilterRange: document.getElementById('hp-filter-range'),
+      hpFilterUseLocation: document.getElementById('hp-filter-use-location'),
+      hpFilterNationwide: document.getElementById('hp-filter-nationwide'),
+      hpFilterResolveZip: document.getElementById('hp-filter-resolve-zip'),
+      hpServiceTypesList: document.getElementById('hp-service-types-list'),
+      hpServiceTypesAll: document.getElementById('hp-service-types-all'),
+      hpServiceTypesDefaults: document.getElementById('hp-service-types-defaults'),
+      hpServiceTypesNone: document.getElementById('hp-service-types-none'),
+      hpFiltersStatus: document.getElementById('hp-filters-status'),
       loopStatus: document.getElementById('loop-status'),
       loopDetail: document.getElementById('loop-detail'),
       loopList: document.getElementById('loop-list'),
@@ -3169,6 +3395,244 @@
       }
     }
 
+    function _toFloat(value, fallback = 0) {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    function _normalizeIntList(values) {
+      const out = [];
+      const seen = new Set();
+      if (!Array.isArray(values)) return out;
+      values.forEach((raw) => {
+        const tag = _toInt(raw, NaN);
+        if (!Number.isFinite(tag) || tag <= 0 || seen.has(tag)) return;
+        seen.add(tag);
+        out.push(tag);
+      });
+      return out;
+    }
+
+    function normalizeHpServiceTypesPayload(payload) {
+      const data = payload && typeof payload === 'object' ? payload : {};
+      const list = Array.isArray(data.service_types) ? data.service_types : [];
+      const serviceTypes = list
+        .map((item) => ({
+          tag: _toInt(item && item.service_tag, 0),
+          name: String(item && item.name ? item.name : '').trim(),
+        }))
+        .filter((item) => item.tag > 0 && item.name)
+        .sort((a, b) => a.name.localeCompare(b.name));
+      const defaults = _normalizeIntList(data.defaults);
+      return {
+        serviceTypes,
+        defaultServiceTags: defaults,
+      };
+    }
+
+    function normalizeHpFiltersStatePayload(payload) {
+      const data = payload && typeof payload === 'object' ? payload : {};
+      const hpState = data.state && typeof data.state === 'object' ? data.state : {};
+      const mode = String(hpState.mode || '').trim().toLowerCase() === 'full_database'
+        ? 'full_database'
+        : 'favorites';
+      return {
+        mode,
+        useLocation: Boolean(hpState.use_location),
+        zip: String(hpState.zip || hpState.postal_code || '').trim(),
+        rangeMiles: Math.max(0, _toFloat(hpState.range_miles, 15)),
+        nationwideSystems: hpState.nationwide_systems !== false,
+        enabledServiceTags: _normalizeIntList(hpState.enabled_service_tags),
+      };
+    }
+
+    function setHpFiltersStatus(message, isError = false) {
+      if (!els.hpFiltersStatus) return;
+      els.hpFiltersStatus.textContent = message || '';
+      els.hpFiltersStatus.style.color = isError ? 'var(--warn)' : 'var(--text-secondary)';
+    }
+
+    function collectHpServiceTypeSelectionFromUi() {
+      if (!els.hpServiceTypesList) return [];
+      const selected = [];
+      els.hpServiceTypesList.querySelectorAll('input[type="checkbox"][data-service-tag]').forEach((input) => {
+        if (!input.checked) return;
+        const tag = _toInt(input.getAttribute('data-service-tag'), NaN);
+        if (!Number.isFinite(tag) || tag <= 0) return;
+        selected.push(tag);
+      });
+      return _normalizeIntList(selected);
+    }
+
+    function renderHpFiltersPanel() {
+      const filters = state.hpFilters || {};
+      const busy = Boolean(filters.loading || filters.saving);
+      if (els.hpFilterMode) {
+        els.hpFilterMode.value = String(filters.mode || 'favorites') === 'full_database' ? 'full_database' : 'favorites';
+        els.hpFilterMode.disabled = busy;
+      }
+      if (els.hpFilterUseLocation) {
+        els.hpFilterUseLocation.checked = Boolean(filters.useLocation);
+        els.hpFilterUseLocation.disabled = busy;
+      }
+      if (els.hpFilterZip) {
+        els.hpFilterZip.value = String(filters.zip || '');
+        els.hpFilterZip.disabled = busy;
+      }
+      if (els.hpFilterRange) {
+        const range = Math.max(0, _toFloat(filters.rangeMiles, 15));
+        els.hpFilterRange.value = Number.isInteger(range) ? String(range) : range.toFixed(1);
+        els.hpFilterRange.disabled = busy;
+      }
+      if (els.hpFilterNationwide) {
+        els.hpFilterNationwide.checked = Boolean(filters.nationwideSystems);
+        els.hpFilterNationwide.disabled = busy;
+      }
+      if (els.hpFiltersRefresh) {
+        els.hpFiltersRefresh.disabled = busy;
+      }
+      if (els.hpFiltersSave) {
+        els.hpFiltersSave.disabled = busy;
+        els.hpFiltersSave.textContent = filters.saving ? 'Saving...' : 'Save Filters';
+      }
+      if (els.hpFilterResolveZip) {
+        els.hpFilterResolveZip.disabled = busy || !String(filters.zip || '').trim();
+      }
+      if (els.hpServiceTypesAll) {
+        els.hpServiceTypesAll.disabled = busy;
+      }
+      if (els.hpServiceTypesDefaults) {
+        els.hpServiceTypesDefaults.disabled = busy;
+      }
+      if (els.hpServiceTypesNone) {
+        els.hpServiceTypesNone.disabled = busy;
+      }
+
+      if (els.hpServiceTypesList) {
+        const serviceTypes = Array.isArray(filters.serviceTypes) ? filters.serviceTypes : [];
+        const selected = new Set(_normalizeIntList(filters.enabledServiceTags));
+        els.hpServiceTypesList.innerHTML = '';
+        if (!serviceTypes.length) {
+          const empty = document.createElement('div');
+          empty.className = 'muted';
+          empty.textContent = filters.loading ? 'Loading service types...' : 'No service types found.';
+          els.hpServiceTypesList.appendChild(empty);
+        } else {
+          serviceTypes.forEach((row) => {
+            const item = document.createElement('label');
+            item.className = 'hp-service-type-item';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.setAttribute('data-service-tag', String(row.tag));
+            cb.checked = selected.has(row.tag);
+            cb.disabled = busy;
+            const label = document.createElement('span');
+            label.className = 'hp-service-type-label';
+            label.textContent = row.name;
+            item.appendChild(cb);
+            item.appendChild(label);
+            els.hpServiceTypesList.appendChild(item);
+          });
+        }
+      }
+    }
+
+    function setHpFiltersSelection(mode) {
+      const filters = state.hpFilters || {};
+      const allTags = (Array.isArray(filters.serviceTypes) ? filters.serviceTypes : [])
+        .map((row) => _toInt(row.tag, 0))
+        .filter((tag) => tag > 0);
+      if (mode === 'all') {
+        filters.enabledServiceTags = _normalizeIntList(allTags);
+      } else if (mode === 'defaults') {
+        const defaults = _normalizeIntList(filters.defaultServiceTags);
+        filters.enabledServiceTags = defaults.length ? defaults : _normalizeIntList(allTags);
+      } else {
+        filters.enabledServiceTags = [];
+      }
+      renderHpFiltersPanel();
+    }
+
+    async function loadHpFiltersPanel({ quiet = false } = {}) {
+      if (state.hpFilters.loading) return;
+      state.hpFilters.loading = true;
+      renderHpFiltersPanel();
+      try {
+        const [hpStatePayload, servicePayload] = await Promise.all([
+          fetchJSON('/api/hp/state'),
+          fetchJSON('/api/hp/service-types'),
+        ]);
+        const nextState = normalizeHpFiltersStatePayload(hpStatePayload);
+        const nextTypes = normalizeHpServiceTypesPayload(servicePayload);
+        state.hpFilters = {
+          ...state.hpFilters,
+          ...nextState,
+          ...nextTypes,
+          loaded: true,
+        };
+        if (!state.hpFilters.enabledServiceTags.length && state.hpFilters.defaultServiceTags.length) {
+          state.hpFilters.enabledServiceTags = _normalizeIntList(state.hpFilters.defaultServiceTags);
+        }
+        renderHpFiltersPanel();
+        if (!quiet) {
+          setHpFiltersStatus('Favorites filters loaded.');
+        }
+      } catch (e) {
+        const msg = messageFromError(e, 'Failed to load favorites filters');
+        setHpFiltersStatus(msg, true);
+        logActivity(msg, 'warn', 'hp-filters-load-error');
+      } finally {
+        state.hpFilters.loading = false;
+        renderHpFiltersPanel();
+      }
+    }
+
+    async function saveHpFiltersPanel({ resolveZip = false } = {}) {
+      if (state.hpFilters.saving) return;
+      const mode = els.hpFilterMode && els.hpFilterMode.value === 'full_database'
+        ? 'full_database'
+        : 'favorites';
+      const zip = String(els.hpFilterZip && els.hpFilterZip.value ? els.hpFilterZip.value : '').trim();
+      const rangeMiles = Math.max(0, _toFloat(els.hpFilterRange && els.hpFilterRange.value, state.hpFilters.rangeMiles || 15));
+      const enabledTags = collectHpServiceTypeSelectionFromUi();
+      const payload = {
+        mode,
+        use_location: Boolean(els.hpFilterUseLocation && els.hpFilterUseLocation.checked),
+        zip,
+        range_miles: rangeMiles,
+        nationwide_systems: Boolean(els.hpFilterNationwide && els.hpFilterNationwide.checked),
+        enabled_service_tags: enabledTags,
+      };
+      if (resolveZip) {
+        payload.resolve_zip = true;
+      }
+
+      state.hpFilters.saving = true;
+      setHpFiltersStatus(resolveZip ? 'Resolving ZIP and saving filters...' : 'Saving favorites filters...');
+      renderHpFiltersPanel();
+      try {
+        const result = await postJSON('/api/hp/state', payload, { timeoutMs: 20000 });
+        const nextState = normalizeHpFiltersStatePayload(result);
+        state.hpFilters = {
+          ...state.hpFilters,
+          ...nextState,
+          enabledServiceTags: _normalizeIntList(nextState.enabledServiceTags),
+          loaded: true,
+        };
+        renderHpFiltersPanel();
+        setHpFiltersStatus(resolveZip ? 'ZIP resolved and filters saved.' : 'Favorites filters saved.');
+        logActivity(resolveZip ? 'HP ZIP resolved from SB3 filters' : 'HP favorites filters saved from SB3', 'info', resolveZip ? 'hp-filters-zip' : 'hp-filters-save');
+        await refresh();
+      } catch (e) {
+        const msg = messageFromError(e, resolveZip ? 'ZIP resolve failed' : 'Failed to save favorites filters');
+        setHpFiltersStatus(msg, true);
+        logActivity(msg, 'warn', 'hp-filters-save-error');
+      } finally {
+        state.hpFilters.saving = false;
+        renderHpFiltersPanel();
+      }
+    }
+
     function openHp3BuilderSidecar() {
       if (state.profileEditor.open && !closeProfileEditorSidecar()) {
         return false;
@@ -3203,6 +3667,7 @@
       }
       if (refreshAfterClose) {
         refresh().catch((e) => console.error('Refresh after HP3 builder close failed:', e));
+        loadHpFiltersPanel({ quiet: true }).catch((e) => console.error('HP filters refresh after builder close failed:', e));
       }
       return true;
     }
@@ -7440,6 +7905,7 @@
       setProfileEditorTab('analog');
       refreshProfileEditorOptions();
       renderHpFavoritesSyncUi();
+      renderHpFiltersPanel();
 
       syncStreamLinks();
       refreshVlcStatus();
@@ -7694,6 +8160,60 @@
       }
       if (els.favoritesSyncBtnDigital) {
         els.favoritesSyncBtnDigital.addEventListener('click', syncHpFavoritesToSb3Profile);
+      }
+      if (els.hpFiltersRefresh) {
+        els.hpFiltersRefresh.addEventListener('click', () => loadHpFiltersPanel());
+      }
+      if (els.hpFiltersSave) {
+        els.hpFiltersSave.addEventListener('click', () => saveHpFiltersPanel());
+      }
+      if (els.hpFiltersOpenBuilder) {
+        els.hpFiltersOpenBuilder.addEventListener('click', openHp3BuilderSidecar);
+      }
+      if (els.hpFilterResolveZip) {
+        els.hpFilterResolveZip.addEventListener('click', () => saveHpFiltersPanel({ resolveZip: true }));
+      }
+      if (els.hpFilterZip) {
+        els.hpFilterZip.addEventListener('input', () => {
+          state.hpFilters.zip = String(els.hpFilterZip.value || '').trim();
+          renderHpFiltersPanel();
+        });
+      }
+      if (els.hpFilterRange) {
+        els.hpFilterRange.addEventListener('input', () => {
+          state.hpFilters.rangeMiles = Math.max(0, _toFloat(els.hpFilterRange.value, state.hpFilters.rangeMiles || 15));
+        });
+      }
+      if (els.hpFilterUseLocation) {
+        els.hpFilterUseLocation.addEventListener('change', () => {
+          state.hpFilters.useLocation = Boolean(els.hpFilterUseLocation.checked);
+        });
+      }
+      if (els.hpFilterNationwide) {
+        els.hpFilterNationwide.addEventListener('change', () => {
+          state.hpFilters.nationwideSystems = Boolean(els.hpFilterNationwide.checked);
+        });
+      }
+      if (els.hpFilterMode) {
+        els.hpFilterMode.addEventListener('change', () => {
+          state.hpFilters.mode = els.hpFilterMode.value === 'full_database' ? 'full_database' : 'favorites';
+        });
+      }
+      if (els.hpServiceTypesList) {
+        els.hpServiceTypesList.addEventListener('change', (e) => {
+          const target = e.target;
+          if (!target || target.tagName !== 'INPUT') return;
+          state.hpFilters.enabledServiceTags = collectHpServiceTypeSelectionFromUi();
+        });
+      }
+      if (els.hpServiceTypesAll) {
+        els.hpServiceTypesAll.addEventListener('click', () => setHpFiltersSelection('all'));
+      }
+      if (els.hpServiceTypesDefaults) {
+        els.hpServiceTypesDefaults.addEventListener('click', () => setHpFiltersSelection('defaults'));
+      }
+      if (els.hpServiceTypesNone) {
+        els.hpServiceTypesNone.addEventListener('click', () => setHpFiltersSelection('none'));
       }
       if (els.hp3BuilderOpenAnalog) {
         els.hp3BuilderOpenAnalog.addEventListener('click', openHp3BuilderSidecar);
@@ -8010,6 +8530,9 @@
       try {
         await refreshProfilesFast();
       } catch (_ignored) {}
+      loadHpFiltersPanel({ quiet: true }).catch((e) => {
+        console.error('Initial HP filters load failed:', e);
+      });
       refresh().catch((e) => console.error('Initial refresh failed:', e));
       await refreshHits();
       connectSSE();
