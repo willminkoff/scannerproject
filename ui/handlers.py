@@ -102,6 +102,7 @@ try:
     )
     from .profile_loop import get_profile_loop_manager
     from .hp_state import HPState
+    from .hp_favorites_sync import get_hp_favorites_sync_status, sync_hp_favorites_to_profile
     from .hp_favorites_wizard import HPFavoritesWizard
     from .service_types import get_all_service_types, get_default_enabled_service_types
     from .zip_lookup import resolve_postal_to_lat_lon
@@ -181,6 +182,7 @@ except ImportError:
     )
     from ui.profile_loop import get_profile_loop_manager
     from ui.hp_state import HPState
+    from ui.hp_favorites_sync import get_hp_favorites_sync_status, sync_hp_favorites_to_profile
     from ui.hp_favorites_wizard import HPFavoritesWizard
     from ui.service_types import get_all_service_types, get_default_enabled_service_types
     from ui.zip_lookup import resolve_postal_to_lat_lon
@@ -1315,6 +1317,17 @@ class Handler(BaseHTTPRequestHandler):
                 )
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
+        if p == "/api/hp/favorites-sync":
+            try:
+                payload = get_hp_favorites_sync_status()
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
         if p == "/api/status":
             now_monotonic = time.monotonic()
             with _CACHE_LOCK:
@@ -1441,6 +1454,16 @@ class Handler(BaseHTTPRequestHandler):
             rtl_restart_required = False
             if rtl_active_enter and config_mtimes.get("combined"):
                 rtl_restart_required = config_mtimes["combined"] > rtl_active_enter
+            try:
+                hp_favorites_sync = get_hp_favorites_sync_status()
+            except Exception as e:
+                hp_favorites_sync = {
+                    "ok": False,
+                    "available": False,
+                    "in_sync": False,
+                    "reason": str(e),
+                    "error": str(e),
+                }
 
             payload = {
                 "rtl_active": rtl_ok,
@@ -1505,6 +1528,15 @@ class Handler(BaseHTTPRequestHandler):
                 "avoids_airband": summarize_avoids(conf_path, "airband"),
                 "avoids_ground": summarize_avoids(os.path.realpath(GROUND_CONFIG_PATH), "ground"),
                 "hp_avoids": get_scan_mode_controller().get_hp_avoids(),
+                "hp_favorites_sync": hp_favorites_sync,
+                "hp_favorites_sync_ok": bool(hp_favorites_sync.get("ok")),
+                "hp_favorites_sync_available": bool(hp_favorites_sync.get("available")),
+                "hp_favorites_sync_in_sync": bool(hp_favorites_sync.get("in_sync")),
+                "hp_favorites_sync_reason": str(hp_favorites_sync.get("reason") or ""),
+                "hp_favorites_sync_profile_id": str(hp_favorites_sync.get("active_profile_id") or ""),
+                "hp_favorites_sync_favorites_name": str(hp_favorites_sync.get("favorites_name") or ""),
+                "hp_favorites_sync_missing_count": int(hp_favorites_sync.get("missing_in_profile_count") or 0),
+                "hp_favorites_sync_extra_enabled_count": int(hp_favorites_sync.get("extra_enabled_count") or 0),
             }
             digital_payload = {
                 "digital_active": False,
@@ -2141,6 +2173,40 @@ class Handler(BaseHTTPRequestHandler):
                     json.dumps({"ok": True, "avoids": controller.get_hp_avoids()}),
                     "application/json; charset=utf-8",
                 )
+            return self._send(
+                400,
+                json.dumps({"ok": False, "error": "invalid action"}),
+                "application/json; charset=utf-8",
+            )
+
+        if p == "/api/hp/favorites-sync":
+            action = str(form.get("action") or "sync").strip().lower()
+            if action in {"", "status"}:
+                try:
+                    payload = get_hp_favorites_sync_status()
+                except Exception as e:
+                    return self._send(
+                        500,
+                        json.dumps({"ok": False, "error": str(e)}),
+                        "application/json; charset=utf-8",
+                    )
+                return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+            if action in {"sync", "apply"}:
+                try:
+                    payload = sync_hp_favorites_to_profile()
+                except Exception as e:
+                    return self._send(
+                        500,
+                        json.dumps({"ok": False, "error": str(e)}),
+                        "application/json; charset=utf-8",
+                    )
+                if bool(payload.get("ok")):
+                    return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+                error = str(payload.get("error") or "sync failed")
+                status = 409 if "no active digital profile" in error.lower() else 500
+                return self._send(status, json.dumps(payload), "application/json; charset=utf-8")
+
             return self._send(
                 400,
                 json.dumps({"ok": False, "error": "invalid action"}),

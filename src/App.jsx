@@ -275,6 +275,39 @@ const css = `
     opacity: 0.55;
     cursor: not-allowed;
   }
+  .hp2-sync-row {
+    border-top: 1px solid #394556;
+    background: #111824;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 10px;
+  }
+  .hp2-sync-row.ok {
+    background: #131d23;
+  }
+  .hp2-sync-row.warn {
+    background: #251d16;
+  }
+  .hp2-sync-text {
+    min-width: 0;
+  }
+  .hp2-sync-primary {
+    font-size: 0.8rem;
+    color: #d8e4f6;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hp2-sync-secondary {
+    font-size: 0.72rem;
+    color: #9db0cb;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+  }
   .hp2-web-audio {
     border-top: 1px solid #303a46;
     padding: 10px;

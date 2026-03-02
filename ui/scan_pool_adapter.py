@@ -14,8 +14,10 @@ _POOL_SNAPSHOT_TS_MONOTONIC = 0.0
 
 def _normalize_mode(mode: str) -> str:
     token = str(mode or "").strip().lower()
-    if token in {"hp", "expert"}:
-        return token
+    if token in {"hp3", "hp"}:
+        return "hp"
+    if token in {"sb3", "expert"}:
+        return "expert"
     if token in {"legacy", "profile"}:
         return "legacy"
     return "legacy"

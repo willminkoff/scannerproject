@@ -107,6 +107,17 @@ export function removeHpAvoid(system) {
   });
 }
 
+export function getFavoritesSyncStatus() {
+  return request("/api/hp/favorites-sync");
+}
+
+export function syncFavoritesToProfile(payload = {}) {
+  return request("/api/hp/favorites-sync", {
+    method: "POST",
+    body: { action: "sync", ...(payload || {}) },
+  });
+}
+
 export function getStatus() {
   return request("/api/status");
 }
@@ -139,6 +150,8 @@ const hpApi = {
   getHpAvoids,
   clearHpAvoids,
   removeHpAvoid,
+  getFavoritesSyncStatus,
+  syncFavoritesToProfile,
   getStatus,
   setMode,
   holdScan,

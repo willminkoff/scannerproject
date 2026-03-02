@@ -30,7 +30,7 @@ export default function ModeSelectionScreen() {
 
       <div className="list">
         <label className="row card">
-          <span>HP Mode</span>
+          <span>HP3 Mode</span>
           <input
             type="radio"
             name="scan-mode"
@@ -41,7 +41,7 @@ export default function ModeSelectionScreen() {
         </label>
 
         <label className="row card">
-          <span>Expert Mode</span>
+          <span>SB3 Mode</span>
           <input
             type="radio"
             name="scan-mode"

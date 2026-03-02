@@ -14,6 +14,17 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _DEFAULT_DB_PATH = str((_REPO_ROOT / "data" / "homepatrol.db").resolve())
 
 
+def _normalize_mode_token(mode: str) -> str:
+    token = str(mode or "").strip().lower()
+    if token in {"hp3", "hp"}:
+        return "hp"
+    if token in {"sb3", "expert"}:
+        return "expert"
+    if token in {"profile", "legacy"}:
+        return "legacy"
+    return token
+
+
 def _empty_pool() -> dict[str, list]:
     return {
         "trunked_sites": [],
@@ -34,11 +45,9 @@ class ScanModeController:
         self._lock = threading.Lock()
 
     def set_mode(self, mode: str):
-        next_mode = str(mode or "").strip().lower()
-        if next_mode == "profile":
-            next_mode = "legacy"
+        next_mode = _normalize_mode_token(mode)
         if next_mode not in _VALID_MODES:
-            raise ValueError("mode must be 'hp', 'expert', or 'legacy'")
+            raise ValueError("mode must be HP3/SB3 (aliases: hp/expert) or legacy")
         with self._lock:
             self.mode = next_mode
 
@@ -104,7 +113,37 @@ class ScanModeController:
                 continue
             seen.add(mhz)
             out.append(mhz)
+        if not out:
+            return out
+
         out.sort()
+
+        # HPDB trunk-site frequency exports can include very large mixed-band
+        # sets (ex: VHF + 700/800). Keep dominant bands and trim long tails so
+        # scheduler control lists stay realistic for trunk following.
+        band_counts: dict[int, int] = {}
+        for mhz in out:
+            band = int(mhz // 100)
+            band_counts[band] = band_counts.get(band, 0) + 1
+
+        if len(band_counts) > 2:
+            total = len(out)
+            min_count = max(5, int(total * 0.15))
+            keep_bands = {band for band, count in band_counts.items() if count >= min_count}
+            if not keep_bands:
+                keep_bands = {
+                    band
+                    for band, _count in sorted(
+                        band_counts.items(),
+                        key=lambda item: item[1],
+                        reverse=True,
+                    )[:2]
+                }
+            out = [mhz for mhz in out if int(mhz // 100) in keep_bands]
+
+        max_controls = 64
+        if len(out) > max_controls:
+            out = out[:max_controls]
         return out
 
     @classmethod

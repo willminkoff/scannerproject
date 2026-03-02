@@ -332,8 +332,9 @@ export function UIProvider({ children }) {
     try {
       const response = await hpApi.setMode(mode);
       const nextMode = String(response?.mode || mode || "hp").toLowerCase();
+      const modeLabel = nextMode === "expert" ? "SB3" : nextMode === "hp" ? "HP3" : nextMode;
       dispatch({ type: "SET_MODE", payload: nextMode });
-      dispatch({ type: "SET_MESSAGE", payload: `Mode set to ${nextMode}` });
+      dispatch({ type: "SET_MESSAGE", payload: `Mode set to ${modeLabel}` });
       return response;
     } catch (err) {
       dispatch({ type: "SET_ERROR", payload: err.message });
@@ -395,6 +396,29 @@ export function UIProvider({ children }) {
     [runControlAction]
   );
 
+  const syncFavoritesToProfile = useCallback(async () => {
+    dispatch({ type: "SET_WORKING", payload: true });
+    dispatch({ type: "SET_ERROR", payload: "" });
+    try {
+      const response = await hpApi.syncFavoritesToProfile();
+      const after = response?.after && typeof response.after === "object" ? response.after : {};
+      const inSync = Boolean(response?.in_sync ?? after?.in_sync);
+      const missingCount = Number(after?.missing_in_profile_count || 0);
+      const extraCount = Number(after?.extra_enabled_count || 0);
+      const note = inSync
+        ? "Favorites synced to active SB3 profile."
+        : `Sync applied; drift remains (missing ${missingCount}, extra ${extraCount}).`;
+      dispatch({ type: "SET_MESSAGE", payload: note });
+      await refreshStatus();
+      return response;
+    } catch (err) {
+      dispatch({ type: "SET_ERROR", payload: err.message });
+      throw err;
+    } finally {
+      dispatch({ type: "SET_WORKING", payload: false });
+    }
+  }, [refreshStatus]);
+
   const value = useMemo(
     () => ({
       state,
@@ -412,6 +436,7 @@ export function UIProvider({ children }) {
       avoidCurrent,
       clearHpAvoids,
       removeHpAvoid,
+      syncFavoritesToProfile,
       SCREENS,
     }),
     [
@@ -429,6 +454,7 @@ export function UIProvider({ children }) {
       avoidCurrent,
       clearHpAvoids,
       removeHpAvoid,
+      syncFavoritesToProfile,
     ]
   );
 

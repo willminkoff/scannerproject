@@ -91,7 +91,7 @@ function parseAnalogHierarchy(hitLabel, fallbackSystem) {
 }
 
 export default function MainScreen() {
-  const { state, holdScan, nextScan, avoidCurrent, navigate } = useUI();
+  const { state, holdScan, nextScan, avoidCurrent, syncFavoritesToProfile, navigate } = useUI();
   const { hpState, liveStatus, working, error, message } = state;
 
   const analogMount = String(liveStatus?.stream_mount || "ANALOG.mp3")
@@ -274,6 +274,25 @@ export default function MainScreen() {
     }
     return listName;
   }, [hpScanMode, hpState.custom_favorites, hpState.favorites, hpState.favorites_name]);
+  const syncStatus =
+    liveStatus?.hp_favorites_sync && typeof liveStatus.hp_favorites_sync === "object"
+      ? liveStatus.hp_favorites_sync
+      : {};
+  const syncAvailable = Boolean(
+    liveStatus?.hp_favorites_sync_available ?? syncStatus?.available
+  );
+  const syncInSync = Boolean(liveStatus?.hp_favorites_sync_in_sync ?? syncStatus?.in_sync);
+  const syncMissingCount = Number(liveStatus?.hp_favorites_sync_missing_count ?? syncStatus?.missing_in_profile_count ?? 0);
+  const syncExtraCount = Number(
+    liveStatus?.hp_favorites_sync_extra_enabled_count ?? syncStatus?.extra_enabled_count ?? 0
+  );
+  const syncProfileId = String(
+    liveStatus?.hp_favorites_sync_profile_id || syncStatus?.active_profile_id || ""
+  ).trim();
+  const syncListName = String(
+    liveStatus?.hp_favorites_sync_favorites_name || syncStatus?.favorites_name || favoriteDescriptor
+  ).trim();
+  const syncReason = String(liveStatus?.hp_favorites_sync_reason || syncStatus?.reason || "").trim();
   const departmentSecondary = isDigitalSource
     ? channelService
       ? `Service: ${formatValue(channelService)}`
@@ -313,6 +332,23 @@ export default function MainScreen() {
   const doAvoid = async () => {
     try {
       await avoidCurrent();
+    } catch {
+      // Context handles error display.
+    }
+  };
+
+  const doSyncFavorites = async () => {
+    try {
+      const response = await syncFavoritesToProfile();
+      const after = response?.after && typeof response.after === "object" ? response.after : {};
+      const inSync = Boolean(response?.in_sync ?? after?.in_sync);
+      if (inSync) {
+        setHint("Favorites and active SB3 profile are now synced.");
+        return;
+      }
+      const missing = Number(after?.missing_in_profile_count || 0);
+      const extra = Number(after?.extra_enabled_count || 0);
+      setHint(`Sync applied. Drift remains (missing ${missing}, extra ${extra}).`);
     } catch {
       // Context handles error display.
     }
@@ -545,6 +581,26 @@ export default function MainScreen() {
           {audioMuted ? "Unmute" : "Mute"}
         </button>
       </div>
+
+      {isDigitalSource && syncAvailable ? (
+        <div className={`hp2-sync-row ${syncInSync ? "ok" : "warn"}`}>
+          <div className="hp2-sync-text">
+            <div className="hp2-sync-primary">
+              {syncInSync
+                ? `SB3 Sync: OK (${syncListName || "Favorites"} -> ${syncProfileId || "active profile"})`
+                : `SB3 Drift: missing ${syncMissingCount}, extra ${syncExtraCount}`}
+            </div>
+            {syncReason ? <div className="hp2-sync-secondary">{syncReason}</div> : null}
+          </div>
+          <Button
+            variant={syncInSync ? "secondary" : "primary"}
+            onClick={doSyncFavorites}
+            disabled={working}
+          >
+            Sync SB3
+          </Button>
+        </div>
+      ) : null}
 
       <div className="hp2-web-audio">
         <div className="hp2-audio-head">
