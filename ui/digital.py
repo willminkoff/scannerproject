@@ -55,7 +55,6 @@ try:
         DIGITAL_PAUSE_ON_HIT,
         DIGITAL_SCAN_MODE,
         DIGITAL_SOURCE_ROTATION_DELAY_MS,
-        DIGITAL_SUPER_PROFILE_MODE,
         DIGITAL_SERVICE_NAME,
         DIGITAL_SYSTEM_DWELL_MS,
         DIGITAL_SYSTEM_HANG_MS,
@@ -63,6 +62,7 @@ try:
         DIGITAL_USE_MULTI_FREQ_SOURCE,
     )
     from .systemd import unit_active
+    from .scan_pool_adapter import get_active_scan_pool_snapshot, get_current_scan_mode
 except ImportError:
     from ui.config import (
         AIRBAND_RTL_SERIAL,
@@ -99,7 +99,6 @@ except ImportError:
         DIGITAL_PAUSE_ON_HIT,
         DIGITAL_SCAN_MODE,
         DIGITAL_SOURCE_ROTATION_DELAY_MS,
-        DIGITAL_SUPER_PROFILE_MODE,
         DIGITAL_SERVICE_NAME,
         DIGITAL_SYSTEM_DWELL_MS,
         DIGITAL_SYSTEM_HANG_MS,
@@ -107,6 +106,7 @@ except ImportError:
         DIGITAL_USE_MULTI_FREQ_SOURCE,
     )
     from ui.systemd import unit_active
+    from ui.scan_pool_adapter import get_active_scan_pool_snapshot, get_current_scan_mode
 
 
 _NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@-]{0,127}$")
@@ -277,10 +277,6 @@ _DIGITAL_SCHEDULER_TICK_SEC = max(
     0.25,
     float(os.getenv("DIGITAL_SCHEDULER_TICK_SEC", "1.0")),
 )
-_DIGITAL_SUPER_PROFILE_DWELL_DEFAULT_MS = min(
-    500,
-    max(300, int(os.getenv("DIGITAL_SUPER_PROFILE_DWELL_DEFAULT_MS", "400"))),
-)
 _CONTROL_MESSAGE_RE = re.compile(
     r"\b(TSBK|PDU|RFSS_STATUS_BCST|SEC_CCH_BROADCST|IDEN_UPDATE|TDMA_SYNC_BCST|"
     r"SNDCP_DCH_|GRP_VCH_GRANT|UU_VCH_GRANT|GROUP VOICE CHANNEL UPDATE)\b",
@@ -303,6 +299,10 @@ _DIGITAL_RECENT_EVENT_ID_BUCKET_SEC = max(
 _DIGITAL_RECENT_LABEL_DEDUPE_MS = max(
     0,
     int(os.getenv("DIGITAL_RECENT_LABEL_DEDUPE_MS", "2500")),
+)
+_DIGITAL_RECENT_EVENT_MAX_AGE_MS = max(
+    0,
+    int(float(os.getenv("DIGITAL_RECENT_EVENT_MAX_AGE_SEC", "900")) * 1000),
 )
 _DIGITAL_NON_AUDIO_LABEL_RE = re.compile(r"^\(P:\d+\s*\[\d+\]\)$", re.I)
 _DIGITAL_DEBUG_INCLUDE_GRANTS = os.getenv(
@@ -1735,6 +1735,11 @@ class _BaseDigitalAdapter(DigitalAdapter):
             event_time_ms = int(time.time() * 1000)
             event = dict(event)
             event["timeMs"] = event_time_ms
+        if _DIGITAL_RECENT_EVENT_MAX_AGE_MS > 0:
+            now_ms = int(time.time() * 1000)
+            # Prevent stale log-tail rows from polluting recent hit surfaces.
+            if (now_ms - event_time_ms) > _DIGITAL_RECENT_EVENT_MAX_AGE_MS:
+                return
         event_id = str(event.get("event_id") or "").strip()
         if event_id:
             # Keep one hit row per call/event ID by default. Optional bucketed
@@ -2099,8 +2104,10 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         if active_profile:
             token = f"{active_profile}_call_events.log"
             active_candidates = [item for item in candidates if token in item[0].lower()]
-            other_candidates = [item for item in candidates if token not in item[0].lower()]
-            candidates = _prefer_aggregate(active_candidates) + _prefer_aggregate(other_candidates)
+            if active_candidates:
+                candidates = _prefer_aggregate(active_candidates)
+            else:
+                candidates = _prefer_aggregate(candidates)
         else:
             candidates = _prefer_aggregate(candidates)
 
@@ -2694,13 +2701,13 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 num = int(raw)
                 if num >= 1_000_000:
                     return num
-                if num > 100:
+                if num > 1:
                     return int(round(float(num) * 1_000_000))
                 return 0
             numf = float(raw)
             if numf >= 1_000_000:
                 return int(round(numf))
-            if numf > 100:
+            if numf > 1:
                 return int(round(numf * 1_000_000))
         except Exception:
             return 0
@@ -3264,17 +3271,33 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
     def _map_event_label(self, event: dict) -> dict:
         if not event:
             return event
+        scan_mode = get_current_scan_mode()
         label = str(event.get("label") or "").strip()
         raw = str(event.get("raw") or "")
         tgid = str(event.get("tgid") or "").strip()
         tg_map = self._load_talkgroup_map()
-        if not tg_map:
-            return event
         if not tgid:
             if label:
                 tgid = _extract_tgid(label)
             if not tgid and raw:
                 tgid = _extract_tgid(raw)
+        if scan_mode in {"hp", "expert"}:
+            # HP/Expert pool mode should not be silently blocked by legacy
+            # profile listen filters; keep labels when possible but do not mute.
+            if not tgid:
+                return event
+            event = dict(event)
+            event["tgid"] = tgid
+            if tg_map:
+                mapped_label = tg_map.get(tgid)
+                if mapped_label:
+                    event["label"] = mapped_label
+            current = str(event.get("label") or "").strip()
+            if not current:
+                event["label"] = f"TG {tgid}"
+            return event
+        if not tg_map:
+            return event
         if not tgid:
             if not self._listen_default:
                 event = dict(event)
@@ -3428,7 +3451,8 @@ class DigitalManager:
             selected = "sdrtrunk"
         self._backend = selected
         self._adapter = self._build_adapter(selected)
-        self._super_profile_mode = bool(DIGITAL_SUPER_PROFILE_MODE)
+        # Super-profile mode is retired; always run unified scheduler behavior.
+        self._super_profile_mode = False
         self._scheduler_mode = (
             DIGITAL_SCAN_MODE
             if DIGITAL_SCAN_MODE in ("single_system", "timeslice_multi_system")
@@ -3436,23 +3460,27 @@ class DigitalManager:
         )
         self._super_profile_systems: dict[str, dict[str, object]] = {}
         raw_dwell = str(os.getenv("DIGITAL_SYSTEM_DWELL_MS", "") or "").strip()
-        if self._super_profile_mode:
-            if raw_dwell:
-                try:
-                    dwell_val = int(raw_dwell)
-                except Exception:
-                    dwell_val = _DIGITAL_SUPER_PROFILE_DWELL_DEFAULT_MS
-                self._scheduler_dwell_ms = max(300, min(3600000, dwell_val))
-            else:
-                self._scheduler_dwell_ms = int(_DIGITAL_SUPER_PROFILE_DWELL_DEFAULT_MS)
+        if raw_dwell:
+            try:
+                dwell_val = int(raw_dwell)
+            except Exception:
+                dwell_val = int(DIGITAL_SYSTEM_DWELL_MS or 400)
         else:
-            self._scheduler_dwell_ms = max(1000, int(DIGITAL_SYSTEM_DWELL_MS or 15000))
+            dwell_val = int(DIGITAL_SYSTEM_DWELL_MS or 400)
+        self._scheduler_dwell_ms = max(300, min(3600000, dwell_val))
         self._scheduler_hang_ms = max(0, int(DIGITAL_SYSTEM_HANG_MS or 4000))
         self._scheduler_pause_on_hit = bool(DIGITAL_PAUSE_ON_HIT)
         self._scheduler_order = [str(x).strip() for x in (DIGITAL_SYSTEM_ORDER or []) if str(x).strip()]
         self._scheduler_state_path = str(DIGITAL_SCHEDULER_STATE_PATH or "").strip()
         self._scheduler_profile = ""
         self._scheduler_systems: list[str] = []
+        self._scheduler_pool_system_channels: dict[str, list[int]] = {}
+        self._scheduler_pool_system_channels_lower: dict[str, str] = {}
+        self._scheduler_pool_system_talkgroups: dict[str, set[str]] = {}
+        self._scheduler_pool_system_labels: dict[str, str] = {}
+        self._scheduler_pool_department_labels: dict[str, str] = {}
+        self._scheduler_pool_talkgroup_labels: dict[str, dict[str, str]] = {}
+        self._scheduler_pool_talkgroup_groups: dict[str, dict[str, str]] = {}
         self._scheduler_active_system = ""
         self._scheduler_last_switch_time_ms = 0
         self._scheduler_switch_reason = "manual"
@@ -3599,7 +3627,12 @@ class DigitalManager:
         self._super_profile_systems = loaded
 
     def getLastEvent(self):
-        return self._adapter.getLastEvent()
+        event = self._adapter.getLastEvent()
+        if not isinstance(event, dict):
+            return event
+        if not self._event_allowed_for_active_system(event):
+            return {}
+        return event
 
     def getLastError(self):
         return self._adapter.getLastError()
@@ -3607,7 +3640,10 @@ class DigitalManager:
     def getLastWarning(self):
         return self._adapter.getLastWarning()
     def getRecentEvents(self, limit: int = 20):
-        return self._adapter.getRecentEvents(limit)
+        events = self._adapter.getRecentEvents(limit)
+        if not isinstance(events, list):
+            return []
+        return [event for event in events if self._event_allowed_for_active_system(event)]
     def preflight(self):
         if hasattr(self._adapter, "preflight"):
             try:
@@ -3680,7 +3716,7 @@ class DigitalManager:
                 self._scheduler_dwell_ms = self._parse_scheduler_int(
                     dwell_raw,
                     field="system_dwell_ms",
-                    minimum=300 if self._super_profile_mode else 1000,
+                    minimum=300,
                     maximum=3600000,
                 )
             except ValueError:
@@ -3824,13 +3860,13 @@ class DigitalManager:
                 num = int(raw)
                 if num >= 1_000_000:
                     return num
-                if num > 100:
+                if num > 1:
                     return int(round(float(num) * 1_000_000))
                 return 0
             numf = float(raw)
             if numf >= 1_000_000:
                 return int(round(numf))
-            if numf > 100:
+            if numf > 1:
                 return int(round(numf * 1_000_000))
         except Exception:
             return 0
@@ -3854,6 +3890,25 @@ class DigitalManager:
             seen.add(hz)
             channels.append(hz)
         return channels
+
+    @staticmethod
+    def _normalize_pool_talkgroup_map(raw_value: object) -> dict[str, str]:
+        if not isinstance(raw_value, dict):
+            return {}
+        out: dict[str, str] = {}
+        for key, value in raw_value.items():
+            key_text = str(key or "").strip()
+            if not key_text:
+                continue
+            tgid = key_text if key_text.isdigit() else _extract_tgid(key_text)
+            if not tgid:
+                continue
+            label = str(value or "").strip()
+            if not label:
+                continue
+            if tgid not in out:
+                out[tgid] = label
+        return out
 
     @classmethod
     def _read_system_definitions_for_dir(cls, profile_dir: str) -> list[tuple[str, list[int]]]:
@@ -3942,6 +3997,70 @@ class DigitalManager:
                 channels.append(hz)
         return channels
 
+    def _discover_scheduler_pool_systems(self, pool_snapshot: dict | None = None) -> list[str]:
+        systems: list[str] = []
+        seen: set[str] = set()
+        self._scheduler_pool_system_channels = {}
+        self._scheduler_pool_system_channels_lower = {}
+        self._scheduler_pool_system_talkgroups = {}
+        self._scheduler_pool_system_labels = {}
+        self._scheduler_pool_department_labels = {}
+        self._scheduler_pool_talkgroup_labels = {}
+        self._scheduler_pool_talkgroup_groups = {}
+        pool = pool_snapshot if isinstance(pool_snapshot, dict) else {}
+        if not isinstance(pool, dict):
+            return []
+        trunked_sites = pool.get("trunked_sites")
+        if not isinstance(trunked_sites, list):
+            return []
+
+        for item in trunked_sites:
+            row = item if isinstance(item, dict) else {}
+            system_id = str(row.get("system_id") or "").strip()
+            site_id = str(row.get("site_id") or "").strip()
+            system_name = str(row.get("system_name") or "").strip()
+            site_name = str(row.get("site_name") or "").strip()
+            department_name = str(row.get("department_name") or "").strip()
+            channels = self._parse_system_control_channels(row.get("control_channels"))
+            if not channels:
+                continue
+            talkgroups_raw = row.get("talkgroups")
+            talkgroups: set[str] = set()
+            if isinstance(talkgroups_raw, list):
+                for value in talkgroups_raw:
+                    token = str(value or "").strip()
+                    if token.isdigit():
+                        talkgroups.add(token)
+
+            if system_id and site_id:
+                name = f"{system_id}:{site_id}"
+            elif system_id:
+                name = system_id
+            elif site_id:
+                name = f"site:{site_id}"
+            else:
+                continue
+
+            key = name.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            systems.append(name)
+            self._scheduler_pool_system_channels[name] = list(channels)
+            self._scheduler_pool_system_channels_lower[key] = name
+            self._scheduler_pool_system_talkgroups[name] = talkgroups
+            system_label = system_name or site_name or name
+            department_label = department_name or site_name or system_name or name
+            self._scheduler_pool_system_labels[name] = system_label
+            self._scheduler_pool_department_labels[name] = department_label
+            talkgroup_labels = self._normalize_pool_talkgroup_map(row.get("talkgroup_labels"))
+            talkgroup_groups = self._normalize_pool_talkgroup_map(row.get("talkgroup_groups"))
+            if talkgroup_labels:
+                self._scheduler_pool_talkgroup_labels[name] = talkgroup_labels
+            if talkgroup_groups:
+                self._scheduler_pool_talkgroup_groups[name] = talkgroup_groups
+        return systems
+
     def _discover_profile_local_systems(self, profile_id: str) -> list[str]:
         systems: list[str] = []
         seen: set[str] = set()
@@ -4026,6 +4145,12 @@ class DigitalManager:
         system = str(system_name or "").strip()
         if not system:
             return []
+        if get_current_scan_mode() in {"hp", "expert"}:
+            pool_key = self._scheduler_pool_system_channels_lower.get(system.lower())
+            if pool_key:
+                channels = self._scheduler_pool_system_channels.get(pool_key) or []
+                if channels:
+                    return list(channels)
         profile_dir = ""
         read_active_profile_dir = getattr(self._adapter, "_read_active_profile_dir", None)
         if callable(read_active_profile_dir):
@@ -4360,7 +4485,7 @@ class DigitalManager:
                     self._scheduler_dwell_ms = self._parse_scheduler_int(
                         dwell_raw,
                         field="system_dwell_ms",
-                        minimum=300 if self._super_profile_mode else 1000,
+                        minimum=300,
                         maximum=3600000,
                     )
                 except ValueError as e:
@@ -4400,6 +4525,21 @@ class DigitalManager:
         return True, "", snapshot
 
     def _discover_scheduler_systems(self, profile_id: str) -> list[str]:
+        scan_mode = get_current_scan_mode()
+        if scan_mode in {"hp", "expert"}:
+            pool_snapshot = get_active_scan_pool_snapshot(force_refresh=True)
+            pool_systems = self._discover_scheduler_pool_systems(pool_snapshot=pool_snapshot)
+            if not self._scheduler_order:
+                return pool_systems
+            rank = {
+                name.lower(): idx
+                for idx, name in enumerate(self._scheduler_order)
+            }
+            return sorted(
+                pool_systems,
+                key=lambda name: (rank.get(name.lower(), len(rank)), name.lower()),
+            )
+
         if self._super_profile_mode:
             if not self._super_profile_systems:
                 self._refresh_super_profile_systems(profile_id)
@@ -4415,6 +4555,13 @@ class DigitalManager:
                 key=lambda name: (rank.get(name.lower(), len(rank)), name.lower()),
             )
 
+        self._scheduler_pool_system_channels = {}
+        self._scheduler_pool_system_channels_lower = {}
+        self._scheduler_pool_system_talkgroups = {}
+        self._scheduler_pool_system_labels = {}
+        self._scheduler_pool_department_labels = {}
+        self._scheduler_pool_talkgroup_labels = {}
+        self._scheduler_pool_talkgroup_groups = {}
         systems: list[str] = list(self._discover_profile_local_systems(profile_id))
         seen: set[str] = {str(name).strip().lower() for name in systems if str(name).strip()}
 
@@ -4451,6 +4598,39 @@ class DigitalManager:
         return ordered
 
     @staticmethod
+    def _event_tgid(event: dict) -> str:
+        token = str(event.get("tgid") or "").strip()
+        if token:
+            return token
+        label = str(event.get("label") or "").strip()
+        if label:
+            token = _extract_tgid(label)
+            if token:
+                return token
+        raw = str(event.get("raw") or "").strip()
+        if raw:
+            token = _extract_tgid(raw)
+            if token:
+                return token
+        return ""
+
+    def _event_allowed_for_active_system(self, event: dict) -> bool:
+        scan_mode = get_current_scan_mode()
+        if scan_mode not in {"hp", "expert"}:
+            return True
+        with self._scheduler_lock:
+            active_system = str(self._scheduler_active_system or "").strip()
+            allowed_talkgroups = set(self._scheduler_pool_system_talkgroups.get(active_system) or set())
+        if not active_system:
+            return True
+        if not allowed_talkgroups:
+            return True
+        tgid = self._event_tgid(event if isinstance(event, dict) else {})
+        if not tgid:
+            return False
+        return tgid in allowed_talkgroups
+
+    @staticmethod
     def _next_system(systems: list[str], current: str) -> str:
         if not systems:
             return ""
@@ -4462,7 +4642,8 @@ class DigitalManager:
     def _scheduler_payload(self, event: dict, preflight: dict) -> dict:
         now_ms = int(time.time() * 1000)
         profile_id = str(self.getProfile() or "").strip()
-        if self._super_profile_mode:
+        scan_mode = get_current_scan_mode()
+        if self._super_profile_mode and scan_mode not in {"hp", "expert"}:
             self._ensure_super_profile_seed(profile_id)
         systems = self._discover_scheduler_systems(profile_id)
         pending_apply = False
@@ -4473,7 +4654,15 @@ class DigitalManager:
         configured_mode = self._scheduler_mode
         mode = configured_mode
         auto_enabled_multi = False
-        if configured_mode == "single_system" and len(systems) >= 2:
+        manual_single_hold = (
+            configured_mode == "single_system"
+            and len([str(x).strip() for x in (self._scheduler_order or []) if str(x).strip()]) == 1
+        )
+        if (
+            configured_mode == "single_system"
+            and len(systems) >= 2
+            and not manual_single_hold
+        ):
             mode = "timeslice_multi_system"
             auto_enabled_multi = True
             self._scheduler_mode = "timeslice_multi_system"
@@ -4498,6 +4687,7 @@ class DigitalManager:
             pending_reason = "auto_profile_multi" if auto_enabled_multi else "manual"
 
         event_time_ms = int(event.get("timeMs") or 0)
+        event_tgid = str(event.get("tgid") or "").strip()
         recent_event = event_time_ms > 0 and (now_ms - event_time_ms) <= self._scheduler_hang_ms
         metric_ready = bool(preflight.get("control_decode_available"))
         control_locked = bool(preflight.get("control_channel_locked"))
@@ -4595,6 +4785,26 @@ class DigitalManager:
             "digital_scheduler_lock_timeout_ms": int(lock_timeout_ms),
             "digital_voice_tuner_available": voice_tuner_available,
         }
+        active_label = str(self._scheduler_pool_system_labels.get(active_system) or "").strip()
+        if active_label:
+            payload["digital_scheduler_active_system_label"] = active_label
+        next_label = str(self._scheduler_pool_system_labels.get(next_system) or "").strip()
+        if next_label:
+            payload["digital_scheduler_next_system_label"] = next_label
+        active_department = str(
+            self._scheduler_pool_department_labels.get(active_system) or ""
+        ).strip()
+        if active_department:
+            payload["digital_scheduler_active_department_label"] = active_department
+        if event_tgid and active_system and recent_event:
+            talkgroup_labels = self._scheduler_pool_talkgroup_labels.get(active_system) or {}
+            talkgroup_groups = self._scheduler_pool_talkgroup_groups.get(active_system) or {}
+            talkgroup_label = str(talkgroup_labels.get(event_tgid) or "").strip()
+            talkgroup_group = str(talkgroup_groups.get(event_tgid) or "").strip()
+            if talkgroup_label:
+                payload["digital_scheduler_active_talkgroup_label"] = talkgroup_label
+            if talkgroup_group:
+                payload["digital_scheduler_active_department_label"] = talkgroup_group
         payload["digital_scheduler_system_health"] = self._scheduler_system_health_payload(
             systems,
             active_system,
@@ -4607,10 +4817,103 @@ class DigitalManager:
             payload["digital_scheduler_last_apply_error"] = self._scheduler_last_apply_error
         return payload
 
+    def _scheduler_health_snapshot_locked(
+        self,
+        systems: list[str],
+        active_system: str,
+        mode: str,
+    ) -> list[dict]:
+        rows: list[dict] = []
+        for name in systems:
+            key = str(name or "").strip().lower()
+            entry = self._scheduler_system_health.get(key) or {}
+            is_active = str(name or "").strip() == str(active_system or "").strip()
+            if is_active:
+                state = "active"
+                reason = "active target"
+            else:
+                state = "standby"
+                reason = "timeslice standby" if mode == "timeslice_multi_system" else "inactive"
+            rows.append(
+                {
+                    "name": str(name or ""),
+                    "active": bool(is_active),
+                    "state": state,
+                    "reason": reason,
+                    "lock_failures": int(entry.get("lock_failures") or 0),
+                    "last_lock_time": int(entry.get("last_lock_time_ms") or 0),
+                    "last_lock_loss_time": int(entry.get("last_lock_loss_time_ms") or 0),
+                }
+            )
+        return rows
+
+    def _scheduler_status_snapshot_locked(self, event: dict, preflight: dict) -> dict:
+        now_ms = int(time.time() * 1000)
+        systems = [str(name or "").strip() for name in (self._scheduler_systems or []) if str(name or "").strip()]
+        active_system = str(self._scheduler_active_system or "").strip()
+        if not active_system and systems:
+            active_system = systems[0]
+        mode = str(self._scheduler_mode or "single_system")
+        if mode not in {"single_system", "timeslice_multi_system"}:
+            mode = "single_system"
+        next_system = self._next_system(systems, active_system) if len(systems) > 1 else active_system
+        lock_timeout_ms = max(2000, min(int(self._scheduler_dwell_ms), int(self._scheduler_lock_loss_ms)))
+        voice_tuner_available = bool(DIGITAL_RTL_SERIAL_SECONDARY and not preflight.get("tuner_busy"))
+        payload = {
+            "digital_scan_mode": mode,
+            "digital_system_dwell_ms": int(self._scheduler_dwell_ms),
+            "digital_system_hang_ms": int(self._scheduler_hang_ms),
+            "digital_system_order": list(self._scheduler_order),
+            "digital_pause_on_hit": bool(self._scheduler_pause_on_hit),
+            "digital_scheduler_mode": mode,
+            "digital_scheduler_active_system": active_system,
+            "digital_scheduler_next_system": next_system,
+            "digital_scheduler_last_switch_time": int(self._scheduler_last_switch_time_ms or 0),
+            "digital_scheduler_switch_reason": str(self._scheduler_switch_reason or ""),
+            "digital_scheduler_applied_system": str(self._scheduler_last_applied_system or ""),
+            "digital_scheduler_last_apply_time": int(self._scheduler_last_apply_time_ms or 0),
+            "digital_scheduler_lock_timeout_ms": int(lock_timeout_ms),
+            "digital_voice_tuner_available": voice_tuner_available,
+        }
+        active_label = str(self._scheduler_pool_system_labels.get(active_system) or "").strip()
+        if active_label:
+            payload["digital_scheduler_active_system_label"] = active_label
+        next_label = str(self._scheduler_pool_system_labels.get(next_system) or "").strip()
+        if next_label:
+            payload["digital_scheduler_next_system_label"] = next_label
+        active_department = str(
+            self._scheduler_pool_department_labels.get(active_system) or ""
+        ).strip()
+        if active_department:
+            payload["digital_scheduler_active_department_label"] = active_department
+
+        event_tgid = str(event.get("tgid") or "").strip()
+        event_time_ms = int(event.get("timeMs") or 0)
+        recent_event = event_time_ms > 0 and (now_ms - event_time_ms) <= int(self._scheduler_hang_ms)
+        if event_tgid and active_system and recent_event:
+            talkgroup_labels = self._scheduler_pool_talkgroup_labels.get(active_system) or {}
+            talkgroup_groups = self._scheduler_pool_talkgroup_groups.get(active_system) or {}
+            talkgroup_label = str(talkgroup_labels.get(event_tgid) or "").strip()
+            talkgroup_group = str(talkgroup_groups.get(event_tgid) or "").strip()
+            if talkgroup_label:
+                payload["digital_scheduler_active_talkgroup_label"] = talkgroup_label
+            if talkgroup_group:
+                payload["digital_scheduler_active_department_label"] = talkgroup_group
+
+        payload["digital_scheduler_system_health"] = self._scheduler_health_snapshot_locked(
+            systems,
+            active_system,
+            mode,
+        )
+        if self._scheduler_last_apply_error:
+            payload["digital_scheduler_last_apply_error"] = str(self._scheduler_last_apply_error)
+        return payload
+
     def status_payload(self):
         event = self.getLastEvent() or {}
         label = str(event.get("label") or "")
         mode = event.get("mode")
+        tgid = str(event.get("tgid") or "").strip()
         time_ms = int(event.get("timeMs") or 0)
         payload = {
             "digital_active": bool(self.isActive()),
@@ -4622,6 +4925,8 @@ class DigitalManager:
         }
         if mode:
             payload["digital_last_mode"] = str(mode)
+        if tgid:
+            payload["digital_last_tgid"] = tgid
         err = self.getLastError()
         if err:
             payload["digital_last_error"] = err
@@ -4633,7 +4938,25 @@ class DigitalManager:
         payload["digital_tuner_busy_count"] = int(preflight.get("tuner_busy_count") or 0)
         payload["digital_tuner_busy_time"] = int(preflight.get("tuner_busy_last_time_ms") or 0)
         with self._scheduler_lock:
-            payload.update(self._scheduler_payload(event, preflight))
+            payload.update(self._scheduler_status_snapshot_locked(event, preflight))
+        scheduler_talkgroup_label = str(
+            payload.get("digital_scheduler_active_talkgroup_label") or ""
+        ).strip()
+        if scheduler_talkgroup_label:
+            payload["digital_last_label"] = scheduler_talkgroup_label
+            payload["digital_channel_label"] = scheduler_talkgroup_label
+        else:
+            payload["digital_channel_label"] = str(payload.get("digital_last_label") or "").strip()
+        scheduler_department_label = str(
+            payload.get("digital_scheduler_active_department_label") or ""
+        ).strip()
+        if scheduler_department_label:
+            payload["digital_department_label"] = scheduler_department_label
+        scheduler_system_label = str(
+            payload.get("digital_scheduler_active_system_label") or ""
+        ).strip()
+        if scheduler_system_label:
+            payload["digital_system_label"] = scheduler_system_label
         payload["digital_playlist_source_ok"] = bool(preflight.get("playlist_source_ok"))
         if "playlist_source_type" in preflight:
             payload["digital_playlist_source_type"] = preflight.get("playlist_source_type")

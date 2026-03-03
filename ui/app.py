@@ -8,6 +8,7 @@ try:
     from .config import UI_PORT
     from .handlers import Handler
     from .server_workers import start_config_worker, start_icecast_monitor
+    from .favorites_runtime import sync_scan_pool_to_runtime
     from .v3_runtime import bootstrap_runtime
 except ImportError:
     # Support direct execution (`python ui/app.py`) by adding repo root.
@@ -18,6 +19,7 @@ except ImportError:
     from ui.config import UI_PORT
     from ui.handlers import Handler
     from ui.server_workers import start_config_worker, start_icecast_monitor
+    from ui.favorites_runtime import sync_scan_pool_to_runtime
     from ui.v3_runtime import bootstrap_runtime
 
 
@@ -42,6 +44,17 @@ def main():
         )
     except Exception as e:
         logging.warning("V3 runtime bootstrap failed: %s", e)
+    try:
+        runtime_sync = sync_scan_pool_to_runtime(force=True)
+        logging.info(
+            "Favorites runtime sync ok=%s changed=%s analog_changed=%s digital_changed=%s",
+            bool(runtime_sync.get("ok")),
+            bool(runtime_sync.get("changed")),
+            bool((runtime_sync.get("analog") or {}).get("changed")),
+            bool((runtime_sync.get("digital") or {}).get("changed")),
+        )
+    except Exception as e:
+        logging.warning("Favorites runtime sync failed: %s", e)
     start_config_worker()
     start_icecast_monitor()
     server = ThreadedHTTPServer(("0.0.0.0", UI_PORT), Handler)

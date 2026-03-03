@@ -8,6 +8,7 @@ import subprocess
 from datetime import datetime
 import queue
 import shutil
+from typing import Any
 from http.server import BaseHTTPRequestHandler
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, unquote, urlparse
@@ -100,7 +101,15 @@ try:
         validate_analog_editor_payload,
         validate_digital_editor_payload,
     )
-    from .profile_loop import get_profile_loop_manager
+    from .hp_state import HPState
+    from .hp_favorites_wizard import HPFavoritesWizard
+    from .favorites_runtime import (
+        get_last_favorites_runtime_sync,
+        sync_scan_pool_to_runtime,
+    )
+    from .service_types import get_all_service_types, get_default_enabled_service_types
+    from .zip_lookup import resolve_postal_to_lat_lon
+    from .scan_mode_controller import get_scan_mode_controller
     from .v3_preflight import (
         evaluate_analog_preflight,
         evaluate_digital_preflight,
@@ -174,7 +183,15 @@ except ImportError:
         validate_analog_editor_payload,
         validate_digital_editor_payload,
     )
-    from ui.profile_loop import get_profile_loop_manager
+    from ui.hp_state import HPState
+    from ui.hp_favorites_wizard import HPFavoritesWizard
+    from ui.favorites_runtime import (
+        get_last_favorites_runtime_sync,
+        sync_scan_pool_to_runtime,
+    )
+    from ui.service_types import get_all_service_types, get_default_enabled_service_types
+    from ui.zip_lookup import resolve_postal_to_lat_lon
+    from ui.scan_mode_controller import get_scan_mode_controller
     from ui.v3_preflight import (
         evaluate_analog_preflight,
         evaluate_digital_preflight,
@@ -1029,6 +1046,12 @@ class Handler(BaseHTTPRequestHandler):
         transcode = str((q.get("transcode") or ["0"])[0]).strip().lower() in ("1", "true", "yes", "on")
         if p == "/":
             return self._send_redirect("/sb3")
+
+        if p in ("/hp3", "/hp3/", "/hp3.html"):
+            return self._send_redirect("/static/hp3-react.html")
+
+        if p in ("/hp", "/hp/", "/hp.html"):
+            return self._send_redirect("/hp3")
         
         # Serve SB3 UI
         if p == "/sb3" or p == "/sb3.html":
@@ -1055,6 +1078,12 @@ class Handler(BaseHTTPRequestHandler):
                     ctype = "text/css; charset=utf-8"
                 elif file_path.endswith(".js"):
                     ctype = "application/javascript; charset=utf-8"
+                elif file_path.endswith(".mjs"):
+                    ctype = "application/javascript; charset=utf-8"
+                elif file_path.endswith(".html"):
+                    ctype = "text/html; charset=utf-8"
+                elif file_path.endswith(".json"):
+                    ctype = "application/json; charset=utf-8"
                 else:
                     ctype = "application/octet-stream"
                 return self._send(200, content, ctype)
@@ -1126,6 +1155,187 @@ class Handler(BaseHTTPRequestHandler):
                 payload = {"ok": False, "error": str(e)}
                 return self._send(500, json.dumps(payload), "application/json; charset=utf-8")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/hp/state":
+            try:
+                state = HPState.load()
+                controller = get_scan_mode_controller()
+                payload = {
+                    "ok": True,
+                    "mode": controller.get_mode(),
+                    "state": state.to_dict(),
+                    "favorites_runtime_sync": get_last_favorites_runtime_sync(),
+                }
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p.startswith("/api/hp/favorites-wizard/"):
+            def _query_int(name: str, default: int | None = None, required: bool = False) -> int | None:
+                raw = (q.get(name) or [None])[0]
+                if raw is None or str(raw).strip() == "":
+                    if required:
+                        raise ValueError(f"missing {name}")
+                    return default
+                try:
+                    return int(str(raw).strip())
+                except Exception as exc:
+                    raise ValueError(f"invalid {name}") from exc
+
+            text_filter = str((q.get("q") or [""])[0] or "").strip()
+            try:
+                wizard = HPFavoritesWizard()
+                if p == "/api/hp/favorites-wizard/countries":
+                    payload = {
+                        "ok": True,
+                        "countries": wizard.get_countries(),
+                    }
+                    return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+                if p == "/api/hp/favorites-wizard/states":
+                    country_id = _query_int("country_id", default=1, required=False)
+                    payload = {
+                        "ok": True,
+                        "states": wizard.get_states(country_id=int(country_id or 1)),
+                    }
+                    return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+                if p == "/api/hp/favorites-wizard/counties":
+                    state_id = _query_int("state_id", required=True)
+                    payload = {
+                        "ok": True,
+                        "counties": wizard.get_counties(state_id=int(state_id or 0)),
+                    }
+                    return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+                if p == "/api/hp/favorites-wizard/systems":
+                    state_id = _query_int("state_id", required=True)
+                    county_id = _query_int("county_id", default=0, required=False)
+                    system_type = str((q.get("system_type") or ["digital"])[0] or "").strip().lower()
+                    default_scope = "county" if int(county_id or 0) > 0 else "statewide"
+                    scope = str((q.get("scope") or [default_scope])[0] or "").strip().lower()
+                    if system_type not in {"digital", "analog"}:
+                        return self._send(
+                            400,
+                            json.dumps({"ok": False, "error": "invalid system_type"}),
+                            "application/json; charset=utf-8",
+                        )
+                    if scope not in {"nationwide", "statewide", "county"}:
+                        return self._send(
+                            400,
+                            json.dumps({"ok": False, "error": "invalid scope"}),
+                            "application/json; charset=utf-8",
+                        )
+                    payload = {
+                        "ok": True,
+                        "systems": wizard.get_systems(
+                            state_id=int(state_id or 0),
+                            county_id=int(county_id or 0),
+                            system_type=system_type,
+                            scope=scope,
+                            text_filter=text_filter,
+                        ),
+                    }
+                    return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+                if p == "/api/hp/favorites-wizard/channels":
+                    system_type = str((q.get("system_type") or ["digital"])[0] or "").strip().lower()
+                    if system_type not in {"digital", "analog"}:
+                        return self._send(
+                            400,
+                            json.dumps({"ok": False, "error": "invalid system_type"}),
+                            "application/json; charset=utf-8",
+                        )
+                    system_id = str((q.get("system_id") or [""])[0] or "").strip()
+                    if not system_id:
+                        return self._send(
+                            400,
+                            json.dumps({"ok": False, "error": "missing system_id"}),
+                            "application/json; charset=utf-8",
+                        )
+                    limit = _query_int("limit", default=500, required=False)
+                    limit = max(1, min(int(limit or 500), 5000))
+                    system_name, channels = wizard.get_channels(
+                        system_type=system_type,
+                        system_id=system_id,
+                        text_filter=text_filter,
+                    )
+                    payload = {
+                        "ok": True,
+                        "system_name": system_name,
+                        "channels": list(channels[:limit]),
+                        "total_channels": len(channels),
+                        "truncated": len(channels) > limit,
+                    }
+                    return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+                return self._send(
+                    404,
+                    json.dumps({"ok": False, "error": "not found"}),
+                    "application/json; charset=utf-8",
+                )
+            except ValueError as e:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+
+        if p == "/api/hp/service-types":
+            try:
+                service_types = get_all_service_types()
+                defaults = get_default_enabled_service_types()
+                payload = {
+                    "ok": True,
+                    "service_types": service_types,
+                    "default_enabled_service_tags": defaults,
+                }
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/hp/avoids":
+            try:
+                controller = get_scan_mode_controller()
+                payload = {
+                    "ok": True,
+                    "avoids": controller.get_hp_avoids(),
+                }
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/hp/favorites-sync":
+            return self._send(
+                200,
+                json.dumps(
+                    {
+                        "ok": False,
+                        "available": False,
+                        "in_sync": True,
+                        "reason": "favorites sync retired; favorites route directly to runtime",
+                    }
+                ),
+                "application/json; charset=utf-8",
+            )
 
         if p == "/api/status":
             now_monotonic = time.monotonic()
@@ -1253,6 +1463,14 @@ class Handler(BaseHTTPRequestHandler):
             rtl_restart_required = False
             if rtl_active_enter and config_mtimes.get("combined"):
                 rtl_restart_required = config_mtimes["combined"] > rtl_active_enter
+            try:
+                favorites_runtime_sync = get_last_favorites_runtime_sync()
+            except Exception as e:
+                favorites_runtime_sync = {
+                    "ok": False,
+                    "changed": False,
+                    "errors": [str(e)],
+                }
 
             payload = {
                 "rtl_active": rtl_ok,
@@ -1316,6 +1534,8 @@ class Handler(BaseHTTPRequestHandler):
                 "last_hit_ground_label": _short_label(last_hit_ground_label, max_len=48),
                 "avoids_airband": summarize_avoids(conf_path, "airband"),
                 "avoids_ground": summarize_avoids(os.path.realpath(GROUND_CONFIG_PATH), "ground"),
+                "hp_avoids": get_scan_mode_controller().get_hp_avoids(),
+                "favorites_runtime_sync": favorites_runtime_sync,
             }
             digital_payload = {
                 "digital_active": False,
@@ -1340,31 +1560,6 @@ class Handler(BaseHTTPRequestHandler):
             # mount-state is uncertain; expose stream visibility separately.
             digital_payload["digital_stream_active_for_hits"] = bool(digital_stream_active_for_hits)
             payload.update(digital_payload)
-            try:
-                profile_loop_snapshot = get_profile_loop_manager().snapshot()
-                profile_loop_targets = dict(profile_loop_snapshot.get("targets") or {})
-            except Exception:
-                profile_loop_targets = {}
-            payload["profile_loop"] = profile_loop_targets
-            digital_loop = profile_loop_targets.get("digital") if isinstance(profile_loop_targets, dict) else {}
-            if isinstance(digital_loop, dict):
-                payload["digital_profile_loop_enabled"] = bool(digital_loop.get("enabled"))
-                payload["digital_profile_loop_current_profile"] = str(digital_loop.get("current_profile") or "")
-                payload["digital_profile_loop_active_profile"] = str(digital_loop.get("active_profile") or "")
-                payload["digital_profile_loop_next_profile"] = str(digital_loop.get("next_profile") or "")
-                payload["digital_profile_loop_switch_reason"] = str(digital_loop.get("switch_reason") or "")
-                payload["digital_profile_loop_switch_count"] = int(digital_loop.get("switch_count") or 0)
-                payload["digital_profile_loop_last_error"] = str(digital_loop.get("last_error") or "")
-            analog_loop_air = profile_loop_targets.get("airband") if isinstance(profile_loop_targets, dict) else {}
-            if isinstance(analog_loop_air, dict) and analog_loop_air.get("enabled"):
-                analog_active = str(analog_loop_air.get("active_profile") or "").strip()
-                if analog_active:
-                    payload["profile_airband"] = analog_active
-            analog_loop_ground = profile_loop_targets.get("ground") if isinstance(profile_loop_targets, dict) else {}
-            if isinstance(analog_loop_ground, dict) and analog_loop_ground.get("enabled"):
-                analog_active_ground = str(analog_loop_ground.get("active_profile") or "").strip()
-                if analog_active_ground:
-                    payload["profile_ground"] = analog_active_ground
             try:
                 compile_state = load_compiled_state() or {}
             except Exception:
@@ -1509,17 +1704,11 @@ class Handler(BaseHTTPRequestHandler):
                     "application/json; charset=utf-8",
                 )
         if p == "/api/profile-loop":
-            try:
-                payload = get_profile_loop_manager().snapshot()
-                payload = dict(payload or {})
-                payload["ok"] = True
-                return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
-            except Exception as e:
-                return self._send(
-                    500,
-                    json.dumps({"ok": False, "error": str(e)}),
-                    "application/json; charset=utf-8",
-                )
+            return self._send(
+                410,
+                json.dumps({"ok": False, "error": "profile loop retired"}),
+                "application/json; charset=utf-8",
+            )
         if p == "/api/preflight":
             q = parse_qs(u.query or "")
             action = (q.get("action") or [""])[0].strip()
@@ -1578,15 +1767,45 @@ class Handler(BaseHTTPRequestHandler):
                 rtl_active = rtl_unit_active
                 ground_active = rtl_active and ground_present
                 ice_ok = _unit_active_cached(UNITS["icecast"])
+                analog_stream_mount = str(PLAYER_MOUNT or "").strip().lstrip("/")
+                if ice_ok:
+                    try:
+                        analog_stream_mount = _resolve_analog_stream_mount(
+                            fetch_local_icecast_status()
+                        )
+                    except Exception:
+                        analog_stream_mount = str(PLAYER_MOUNT or "").strip().lstrip("/")
                 # Keep SSE hits aligned with the full UI hit list so digital
                 # rows are not dropped by top-10 truncation during busy analog traffic.
                 hits_payload = _get_hits_payload_cached(limit=50)
                 hit_items = hits_payload.get("items") or []
                 last_hit = hit_items[0].get("freq") if hit_items else (read_last_hit_airband() or read_last_hit_ground())
+                last_hit_airband_label = ""
+                last_hit_ground_label = ""
+                for item in hit_items:
+                    src = str(item.get("source") or "").strip().lower()
+                    label = str(item.get("label_full") or item.get("label") or "").strip()
+                    if src == "airband" and label and not last_hit_airband_label:
+                        last_hit_airband_label = label
+                    if src == "ground" and label and not last_hit_ground_label:
+                        last_hit_ground_label = label
+                    if last_hit_airband_label and last_hit_ground_label:
+                        break
+                digital_payload = {
+                    "digital_active": False,
+                    "digital_profile": "",
+                    "digital_last_label": "",
+                    "digital_last_time": 0,
+                }
                 try:
-                    profile_loop_targets = dict(get_profile_loop_manager().snapshot().get("targets") or {})
+                    digital_payload = dict(get_digital_manager().status_payload() or {})
                 except Exception:
-                    profile_loop_targets = {}
+                    digital_payload = {
+                        "digital_active": False,
+                        "digital_profile": "",
+                        "digital_last_label": "",
+                        "digital_last_time": 0,
+                    }
                 status_data = {
                     "type": "status",
                     "rtl_active": rtl_active,
@@ -1600,9 +1819,14 @@ class Handler(BaseHTTPRequestHandler):
                     "squelch_snr": float(airband_snr),
                     "squelch_dbfs": float(airband_dbfs),
                     "last_hit": last_hit,
+                    "last_hit_airband_label": _short_label(last_hit_airband_label, max_len=48),
+                    "last_hit_ground_label": _short_label(last_hit_ground_label, max_len=48),
+                    "stream_mount": analog_stream_mount,
+                    "digital_stream_mount": str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/"),
                     "server_time": time.time(),
-                    "profile_loop": profile_loop_targets,
+                    "hp_avoids": get_scan_mode_controller().get_hp_avoids(),
                 }
+                status_data.update(digital_payload)
                 self.wfile.write(f"event: status\ndata: {json.dumps(status_data)}\n\n".encode())
                 spectrum_data = {
                     "type": "spectrum",
@@ -1651,6 +1875,433 @@ class Handler(BaseHTTPRequestHandler):
             if v is None:
                 return default
             return str(v)
+
+        def parse_bool_value(raw_value, *, field: str) -> bool:
+            if isinstance(raw_value, bool):
+                return raw_value
+            if isinstance(raw_value, (int, float)):
+                return bool(raw_value)
+            token = str(raw_value or "").strip().lower()
+            if token in ("1", "true", "yes", "on"):
+                return True
+            if token in ("0", "false", "no", "off"):
+                return False
+            raise ValueError(f"invalid {field}")
+
+        def parse_float_value(raw_value, *, field: str) -> float:
+            try:
+                return float(str(raw_value).strip())
+            except Exception as exc:
+                raise ValueError(f"invalid {field}") from exc
+
+        def parse_json_like_list(raw_value) -> list:
+            if isinstance(raw_value, list):
+                return raw_value
+            if isinstance(raw_value, str):
+                text = raw_value.strip()
+                if not text:
+                    return []
+                try:
+                    parsed = json.loads(text)
+                    if isinstance(parsed, list):
+                        return parsed
+                    return []
+                except Exception:
+                    return [chunk.strip() for chunk in text.split(",") if chunk.strip()]
+            return []
+
+        def parse_service_tags(raw_value) -> list[int]:
+            tags: list[int] = []
+            seen: set[int] = set()
+            for item in parse_json_like_list(raw_value):
+                try:
+                    tag = int(str(item).strip())
+                except Exception:
+                    continue
+                if tag in seen:
+                    continue
+                seen.add(tag)
+                tags.append(tag)
+            return tags
+
+        if p == "/api/mode":
+            controller = get_scan_mode_controller()
+            mode = get_str("mode").strip().lower()
+            if not mode:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "missing mode"}),
+                    "application/json; charset=utf-8",
+                )
+            try:
+                controller.set_mode(mode)
+            except ValueError as e:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+
+            sync_payload: dict[str, Any] = {"ok": True, "changed": False}
+            try:
+                sync_payload = sync_scan_pool_to_runtime(force=True)
+            except Exception as exc:
+                sync_payload = {"ok": False, "changed": False, "errors": [str(exc)]}
+
+            return self._send(
+                200,
+                json.dumps(
+                    {
+                        "ok": True,
+                        "mode": controller.get_mode(),
+                        "favorites_runtime_sync": sync_payload,
+                    }
+                ),
+                "application/json; charset=utf-8",
+            )
+
+        if p == "/api/hp/state":
+            try:
+                state = HPState.load()
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+
+            if "mode" in form:
+                mode = str(form.get("mode") or "").strip().lower()
+                if mode not in ("full_database", "favorites"):
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": "invalid mode"}),
+                        "application/json; charset=utf-8",
+                    )
+                state.mode = mode
+
+            if "use_location" in form:
+                try:
+                    state.use_location = parse_bool_value(form.get("use_location"), field="use_location")
+                except ValueError as e:
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": str(e)}),
+                        "application/json; charset=utf-8",
+                    )
+
+            if "zip" in form or "postal_code" in form:
+                state.zip = str(form.get("zip") or form.get("postal_code") or "").strip()
+
+            if "lat" in form:
+                try:
+                    state.lat = parse_float_value(form.get("lat"), field="lat")
+                except ValueError as e:
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": str(e)}),
+                        "application/json; charset=utf-8",
+                    )
+
+            if "lon" in form:
+                try:
+                    state.lon = parse_float_value(form.get("lon"), field="lon")
+                except ValueError as e:
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": str(e)}),
+                        "application/json; charset=utf-8",
+                    )
+
+            if "resolve_zip" in form:
+                try:
+                    resolve_zip = parse_bool_value(form.get("resolve_zip"), field="resolve_zip")
+                except ValueError as e:
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": str(e)}),
+                        "application/json; charset=utf-8",
+                    )
+                if resolve_zip:
+                    if not str(state.zip or "").strip():
+                        return self._send(
+                            400,
+                            json.dumps({"ok": False, "error": "missing zip"}),
+                            "application/json; charset=utf-8",
+                        )
+                    resolved = resolve_postal_to_lat_lon(str(state.zip), "US")
+                    if not resolved:
+                        return self._send(
+                            400,
+                            json.dumps({"ok": False, "error": "unable to resolve zip"}),
+                            "application/json; charset=utf-8",
+                        )
+                    state.lat = float(resolved[0])
+                    state.lon = float(resolved[1])
+
+            if "range_miles" in form:
+                try:
+                    state.range_miles = max(
+                        0.0,
+                        parse_float_value(form.get("range_miles"), field="range_miles"),
+                    )
+                except ValueError as e:
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": str(e)}),
+                        "application/json; charset=utf-8",
+                    )
+
+            if "nationwide_systems" in form:
+                try:
+                    state.nationwide_systems = parse_bool_value(
+                        form.get("nationwide_systems"),
+                        field="nationwide_systems",
+                    )
+                except ValueError as e:
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": str(e)}),
+                        "application/json; charset=utf-8",
+                    )
+
+            if "enabled_service_tags" in form:
+                state.enabled_service_tags = parse_service_tags(form.get("enabled_service_tags"))
+
+            if "favorites" in form:
+                state.favorites = parse_json_like_list(form.get("favorites"))
+
+            if "favorites_name" in form:
+                state.favorites_name = str(form.get("favorites_name") or "").strip() or "My Favorites"
+
+            if "custom_favorites" in form:
+                state.custom_favorites = parse_json_like_list(form.get("custom_favorites"))
+
+            if "avoid_list" in form:
+                state.avoid_list = parse_json_like_list(form.get("avoid_list"))
+
+            if not state.enabled_service_tags:
+                try:
+                    state.enabled_service_tags = list(get_default_enabled_service_types())
+                except Exception:
+                    state.enabled_service_tags = [2, 3, 4]
+
+            try:
+                state.save()
+                sync_payload: dict[str, Any] = {"ok": True, "changed": False}
+                try:
+                    sync_payload = sync_scan_pool_to_runtime(force=True)
+                except Exception as sync_exc:
+                    sync_payload = {"ok": False, "changed": False, "errors": [str(sync_exc)]}
+                payload = {
+                    "ok": True,
+                    "state": state.to_dict(),
+                    "favorites_runtime_sync": sync_payload,
+                }
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/hp/avoids":
+            controller = get_scan_mode_controller()
+            action = str(form.get("action") or "").strip().lower()
+            if action == "clear":
+                controller.clear_hp_avoids()
+                return self._send(
+                    200,
+                    json.dumps({"ok": True, "avoids": controller.get_hp_avoids()}),
+                    "application/json; charset=utf-8",
+                )
+            if action == "remove":
+                system_token = str(form.get("system") or "").strip()
+                if not system_token:
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": "missing system"}),
+                        "application/json; charset=utf-8",
+                    )
+                removed = controller.remove_hp_avoid_system(system_token)
+                if not removed:
+                    return self._send(
+                        404,
+                        json.dumps({"ok": False, "error": "system not in avoid list"}),
+                        "application/json; charset=utf-8",
+                    )
+                return self._send(
+                    200,
+                    json.dumps({"ok": True, "avoids": controller.get_hp_avoids()}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(
+                400,
+                json.dumps({"ok": False, "error": "invalid action"}),
+                "application/json; charset=utf-8",
+            )
+
+        if p == "/api/hp/favorites-sync":
+            return self._send(
+                200,
+                json.dumps(
+                    {
+                        "ok": False,
+                        "available": False,
+                        "in_sync": True,
+                        "reason": "favorites sync retired; favorites route directly to runtime",
+                    }
+                ),
+                "application/json; charset=utf-8",
+            )
+
+        if p in ("/api/hp/hold", "/api/hp/next", "/api/hp/avoid"):
+            action = p.rsplit("/", 1)[-1]
+            controller = get_scan_mode_controller()
+            manager = get_digital_manager()
+            if not hasattr(manager, "getScheduler") or not hasattr(manager, "setScheduler"):
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "digital scheduler not supported"}),
+                    "application/json; charset=utf-8",
+                )
+
+            scheduler = dict(manager.getScheduler() or {})
+            systems = [
+                str(item).strip()
+                for item in (scheduler.get("digital_scheduler_systems") or [])
+                if str(item).strip()
+            ]
+            active = str(scheduler.get("digital_scheduler_active_system") or "").strip()
+            mode = str(scheduler.get("digital_scan_mode") or "").strip().lower()
+            order = [
+                str(item).strip()
+                for item in (
+                    scheduler.get("digital_system_order")
+                    or scheduler.get("digital_scheduler_systems")
+                    or []
+                )
+                if str(item).strip()
+            ]
+
+            if action == "hold":
+                if mode == "single_system" and len(order) == 1:
+                    ok, err, snapshot = manager.setScheduler(
+                        {
+                            "mode": "timeslice_multi_system",
+                            "system_order": [],
+                        }
+                    )
+                    if not ok:
+                        return self._send(
+                            500,
+                            json.dumps({"ok": False, "error": err or "hold release failed"}),
+                            "application/json; charset=utf-8",
+                        )
+                    payload = {
+                        "ok": True,
+                        "action": "hold",
+                        "runtime_changed": True,
+                        "released": True,
+                        "scheduler": snapshot,
+                    }
+                    return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+                target = active if active in systems else (systems[0] if systems else "")
+                if not target:
+                    return self._send(
+                        409,
+                        json.dumps({"ok": False, "error": "no schedulable HP systems"}),
+                        "application/json; charset=utf-8",
+                    )
+                ok, err, snapshot = manager.setScheduler(
+                    {
+                        "mode": "single_system",
+                        "system_order": [target],
+                    }
+                )
+                if not ok:
+                    return self._send(
+                        500,
+                        json.dumps({"ok": False, "error": err or "hold failed"}),
+                        "application/json; charset=utf-8",
+                    )
+                payload = {
+                    "ok": True,
+                    "action": "hold",
+                    "runtime_changed": True,
+                    "active_system": target,
+                    "scheduler": snapshot,
+                }
+                return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+            if action == "next":
+                if not systems:
+                    return self._send(
+                        409,
+                        json.dumps({"ok": False, "error": "no schedulable HP systems"}),
+                        "application/json; charset=utf-8",
+                    )
+                if active in systems:
+                    idx = systems.index(active)
+                    target = systems[(idx + 1) % len(systems)]
+                else:
+                    target = systems[0]
+                ok, err, snapshot = manager.setScheduler(
+                    {
+                        "mode": "single_system",
+                        "system_order": [target],
+                    }
+                )
+                if not ok:
+                    return self._send(
+                        500,
+                        json.dumps({"ok": False, "error": err or "next failed"}),
+                        "application/json; charset=utf-8",
+                    )
+                payload = {
+                    "ok": True,
+                    "action": "next",
+                    "runtime_changed": True,
+                    "active_system": target,
+                    "scheduler": snapshot,
+                }
+                return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+            if not active:
+                return self._send(
+                    409,
+                    json.dumps({"ok": False, "error": "no active HP system to avoid"}),
+                    "application/json; charset=utf-8",
+                )
+            if not controller.add_hp_avoid_system(active):
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "invalid active HP system"}),
+                    "application/json; charset=utf-8",
+                )
+            ok, err, snapshot = manager.setScheduler(
+                {
+                    "mode": "timeslice_multi_system",
+                    "system_order": [],
+                }
+            )
+            if not ok:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": err or "avoid failed"}),
+                    "application/json; charset=utf-8",
+                )
+            payload = {
+                "ok": True,
+                "action": "avoid",
+                "runtime_changed": True,
+                "avoided_system": active,
+                "avoids": controller.get_hp_avoids(),
+                "scheduler": snapshot,
+            }
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/profile-editor/analog/validate":
             profile_id = get_str("id").strip()
@@ -1902,27 +2553,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, json.dumps(response), "application/json; charset=utf-8")
 
         if p == "/api/profile-loop":
-            target = get_str("target").strip().lower()
-            if not target:
-                return self._send(
-                    400,
-                    json.dumps({"ok": False, "error": "missing target"}),
-                    "application/json; charset=utf-8",
-                )
-            update_payload = {}
-            for key in ("enabled", "selected_profiles", "dwell_ms", "hang_ms", "pause_on_hit"):
-                if key in form:
-                    update_payload[key] = form.get(key)
-            ok, err, snapshot = get_profile_loop_manager().set_target_config(target, update_payload)
-            if not ok:
-                return self._send(
-                    400,
-                    json.dumps({"ok": False, "error": err, "snapshot": snapshot}),
-                    "application/json; charset=utf-8",
-                )
             return self._send(
-                200,
-                json.dumps({"ok": True, "target": target, "snapshot": snapshot}),
+                410,
+                json.dumps({"ok": False, "error": "profile loop retired"}),
                 "application/json; charset=utf-8",
             )
 
@@ -2297,6 +2930,10 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/restart":
             target = form.get("target", "airband")
             result = enqueue_action({"type": "restart", "target": target})
+            return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
+
+        if p == "/api/usb-hub-reset":
+            result = enqueue_action({"type": "usb_hub_reset"})
             return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
 
         if p == "/api/avoid":

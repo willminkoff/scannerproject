@@ -20,7 +20,14 @@ COMBINED_CONFIG_PATH = os.getenv("COMBINED_CONFIG_PATH", os.path.join(CONFIG_DIR
 HPDB_ZIP_PATH = os.getenv("HPDB_ZIP_PATH", "/home/willminkoff/Desktop/HPCOPY.zip")
 HPDB_EXTRACT_DIR = os.getenv("HPDB_EXTRACT_DIR", "/home/willminkoff/scanner-db/source")
 HPDB_ROOT_PATH = os.getenv("HPDB_ROOT_PATH", os.path.join(HPDB_EXTRACT_DIR, "HPCOPY", "HPDB"))
-HPDB_DB_PATH = os.getenv("HPDB_DB_PATH", "/home/willminkoff/scanner-db/homepatrol.db")
+_HPDB_DB_PATH_ENV = os.getenv("HPDB_DB_PATH", "/home/willminkoff/scanner-db/homepatrol.db").strip()
+_REPO_HPDB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data", "homepatrol.db"))
+if _HPDB_DB_PATH_ENV and os.path.isfile(_HPDB_DB_PATH_ENV):
+    HPDB_DB_PATH = _HPDB_DB_PATH_ENV
+elif os.path.isfile(_REPO_HPDB_PATH):
+    HPDB_DB_PATH = _REPO_HPDB_PATH
+else:
+    HPDB_DB_PATH = _HPDB_DB_PATH_ENV
 
 # Last Hit Tracking
 LAST_HIT_AIRBAND_PATH = os.getenv("LAST_HIT_AIRBAND_PATH", "/run/rtl_airband_last_freq_airband.txt")
@@ -112,7 +119,7 @@ DIGITAL_SCAN_MODE = (
     if _DIGITAL_SCAN_MODE_RAW in ("single_system", "timeslice_multi_system")
     else "single_system"
 )
-DIGITAL_SYSTEM_DWELL_MS = max(1000, int(os.getenv("DIGITAL_SYSTEM_DWELL_MS", "15000")))
+DIGITAL_SYSTEM_DWELL_MS = max(300, int(os.getenv("DIGITAL_SYSTEM_DWELL_MS", "400")))
 DIGITAL_SYSTEM_HANG_MS = max(0, int(os.getenv("DIGITAL_SYSTEM_HANG_MS", "4000")))
 DIGITAL_SYSTEM_ORDER = [
     token.strip()
@@ -121,10 +128,6 @@ DIGITAL_SYSTEM_ORDER = [
 ]
 DIGITAL_PAUSE_ON_HIT = os.getenv(
     "DIGITAL_PAUSE_ON_HIT",
-    "1",
-).strip().lower() in ("1", "true", "yes", "on")
-DIGITAL_SUPER_PROFILE_MODE = os.getenv(
-    "DIGITAL_SUPER_PROFILE_MODE",
     "1",
 ).strip().lower() in ("1", "true", "yes", "on")
 DIGITAL_RUNTIME_RETUNE_ENABLED = os.getenv(
@@ -229,9 +232,9 @@ PROFILES = [
 ]
 
 # Regex Patterns
-RE_GAIN = re.compile(r'^(\s*gain\s*=\s*)([0-9.]+)(\s*;\s*#\s*UI_CONTROLLED.*)$')
-RE_SQL  = re.compile(r'^(\s*squelch_snr_threshold\s*=\s*)(-?[0-9.]+)(\s*;\s*#\s*UI_CONTROLLED.*)$')
-RE_SQL_DBFS = re.compile(r'^(\s*squelch_threshold\s*=\s*)\(?\s*(-?[0-9.]+)\s*\)?(\s*;\s*#\s*UI_CONTROLLED.*)$')
+RE_GAIN = re.compile(r'^(\s*gain\s*=\s*)([0-9.]+)(\s*;(?:\s*#.*)?\s*)$')
+RE_SQL  = re.compile(r'^(\s*squelch_snr_threshold\s*=\s*)(-?[0-9.]+)(\s*;(?:\s*#.*)?\s*)$')
+RE_SQL_DBFS = re.compile(r'^(\s*squelch_threshold\s*=\s*)\(?\s*(-?[0-9.]+)\s*\)?(\s*;(?:\s*#.*)?\s*)$')
 RE_AIRBAND = re.compile(r'^\s*airband\s*=\s*(true|false)\s*;\s*$', re.I)
 RE_UI_DISABLED = re.compile(r'^\s*ui_disabled\s*=\s*(true|false)\s*;\s*$', re.I)
 RE_INDEX = re.compile(r'^(\s*index\s*=\s*)(\d+)(\s*;.*)$')

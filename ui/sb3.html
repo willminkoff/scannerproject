@@ -385,6 +385,462 @@
       color: var(--bad);
     }
 
+    .favorites-sync-row {
+      margin-top: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(10, 16, 24, 0.45);
+      padding: 10px 12px;
+      display: none;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .favorites-sync-row.ok {
+      border-color: rgba(16, 185, 129, 0.45);
+    }
+
+    .favorites-sync-row.warn {
+      border-color: rgba(245, 158, 11, 0.45);
+    }
+
+    .favorites-sync-row.bad {
+      border-color: rgba(239, 68, 68, 0.45);
+    }
+
+    .favorites-sync-copy {
+      min-width: 0;
+      display: grid;
+      gap: 2px;
+    }
+
+    .favorites-sync-primary {
+      font-size: 12px;
+      color: var(--text-primary);
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .favorites-sync-secondary {
+      font-size: 11px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .favorites-sync-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .favorites-sync-action {
+      flex: 0 0 auto !important;
+      padding: 6px 10px !important;
+      font-size: 10px !important;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .hp-filters-panel {
+      margin-top: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(10, 16, 24, 0.45);
+      padding: 10px 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .hp3-builder-body .hp-filters-panel {
+      margin-top: 0;
+      min-height: 100%;
+    }
+
+    .hp-filters-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-content: space-between;
+    }
+
+    .hp-filters-title {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .hp-filters-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .hp-filters-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      align-items: end;
+    }
+
+    .hp-filter-field {
+      display: grid;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .hp-filter-field input,
+    .hp-filter-field select {
+      width: 100%;
+      min-width: 0;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--text-primary);
+      padding: 7px 8px;
+      font-size: 12px;
+    }
+
+    .hp-filter-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--text-primary);
+      white-space: nowrap;
+    }
+
+    .hp-filter-check input {
+      accent-color: var(--accent);
+    }
+
+    .hp-service-types-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .hp-service-types-title {
+      font-size: 11px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .hp-service-types-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .hp-service-types-list {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(11, 16, 24, 0.52);
+      padding: 8px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px 8px;
+      max-height: 160px;
+      overflow: auto;
+    }
+
+    .hp-service-type-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+      font-size: 11px;
+      color: var(--text-primary);
+    }
+
+    .hp-service-type-item input {
+      accent-color: var(--accent);
+      flex: 0 0 auto;
+    }
+
+    .hp-service-type-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .hp-filters-status {
+      font-size: 11px;
+      color: var(--text-secondary);
+      min-height: 16px;
+    }
+
+    .hp-builder {
+      border-top: 1px solid rgba(139, 167, 212, 0.26);
+      margin-top: 10px;
+      padding-top: 10px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .hp-builder-head {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text-primary);
+    }
+
+    .hp-builder-sub {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    #hp-fav-selection-summary {
+      color: var(--text-primary);
+      opacity: 0.9;
+    }
+
+    .hp-builder-flow {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex-wrap: wrap;
+    }
+
+    .hp-builder-flow-step {
+      appearance: none;
+      border: 1px solid rgba(139, 167, 212, 0.34);
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 10px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      background: rgba(14, 22, 35, 0.5);
+      cursor: pointer;
+    }
+
+    .hp-builder-flow-step.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(246, 168, 74, 0.13);
+    }
+
+    .hp-builder-flow-step.done {
+      border-color: rgba(34, 197, 94, 0.62);
+      color: #86efac;
+      background: rgba(34, 197, 94, 0.12);
+    }
+
+    .hp-builder-flow-step.error {
+      border-color: rgba(239, 68, 68, 0.72);
+      color: #fca5a5;
+      background: rgba(239, 68, 68, 0.12);
+    }
+
+    .hp-builder-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      align-items: end;
+    }
+
+    .hp-builder-actions {
+      display: inline-flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-start;
+    }
+
+    .hp-wizard-stage {
+      display: grid;
+      gap: 8px;
+    }
+
+    .hp-wizard-stage.hidden {
+      display: none !important;
+    }
+
+    .hp-wizard-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      border-top: 1px solid rgba(139, 167, 212, 0.26);
+      padding-top: 10px;
+      margin-top: 4px;
+    }
+
+    .hp-wizard-foot-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .hp-wizard-advanced {
+      border: 1px dashed rgba(139, 167, 212, 0.36);
+      border-radius: 8px;
+      padding: 8px;
+      background: rgba(11, 16, 24, 0.42);
+      display: grid;
+      gap: 8px;
+    }
+
+    .hp-wizard-advanced > summary {
+      cursor: pointer;
+      font-size: 11px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .hp-builder-auto {
+      margin-left: 4px;
+      opacity: 0.92;
+    }
+
+    .hp-builder-list {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(10, 16, 24, 0.5);
+      min-height: 140px;
+      max-height: 220px;
+      overflow: auto;
+      padding: 8px;
+      display: grid;
+      gap: 6px;
+      align-content: start;
+    }
+
+    .hp-builder-row {
+      display: grid;
+      gap: 4px;
+      border: 1px solid rgba(139, 167, 212, 0.24);
+      border-radius: 8px;
+      background: rgba(15, 24, 36, 0.72);
+      padding: 7px 9px;
+    }
+
+    .hp-builder-row-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .hp-builder-row-meta {
+      font-size: 11px;
+      color: var(--text-secondary);
+      line-height: 1.3;
+    }
+
+    .hp-builder-entry-remove {
+      border: 1px solid rgba(245, 158, 11, 0.65);
+      background: rgba(79, 33, 16, 0.7);
+      color: #ffd6b0;
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+    }
+
+    .hp-builder-entry-remove:hover {
+      border-color: #f59e0b;
+      color: #fff;
+    }
+
+    .hp-builder-picker {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(11, 16, 24, 0.52);
+      min-height: 170px;
+      max-height: 260px;
+      overflow: auto;
+      padding: 8px;
+      display: grid;
+      gap: 6px;
+      align-content: start;
+    }
+
+    .hp-builder-picker-item {
+      border: 1px solid rgba(139, 167, 212, 0.24);
+      border-radius: 8px;
+      background: rgba(15, 24, 36, 0.62);
+      padding: 7px 9px;
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--text-primary);
+      display: grid;
+      gap: 3px;
+    }
+
+    .hp-builder-picker-item.active {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(246, 168, 74, 0.35) inset;
+    }
+
+    .hp-builder-picker-meta {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .hp-builder-chk {
+      display: inline-flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-primary);
+    }
+
+    .hp-builder-chk input {
+      margin-top: 2px;
+      accent-color: var(--accent);
+    }
+
+    .hp-builder-search {
+      width: 100%;
+      min-width: 0;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--text-primary);
+      padding: 7px 8px;
+      font-size: 12px;
+    }
+
+    .hp-builder-search-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 6px;
+      align-items: center;
+      margin-top: 8px;
+    }
+
+    .hp-builder-search-clear {
+      white-space: nowrap;
+    }
+
+    .hp-builder-empty {
+      color: var(--text-secondary);
+      font-size: 11px;
+      padding: 6px 2px;
+    }
+
     .widget-body {
       padding: 16px;
     }
@@ -922,6 +1378,21 @@
       display: grid;
       gap: 12px;
       align-content: start;
+    }
+
+    .hp3-builder-sidecar {
+      width: min(980px, 98vw);
+    }
+
+    .hp3-builder-head-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .hp3-builder-body {
+      overflow: auto;
     }
 
     .profile-sidecar-panel {
@@ -1581,6 +2052,35 @@
         width: 100%;
         justify-content: flex-end;
       }
+
+      .favorites-sync-row {
+        grid-template-columns: 1fr;
+      }
+
+      .favorites-sync-actions {
+        justify-content: flex-start;
+      }
+
+      .hp-filters-head {
+        flex-wrap: wrap;
+      }
+
+      .hp-filters-actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
+
+      .hp-filters-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hp-service-types-list {
+        grid-template-columns: 1fr;
+      }
+
+      .hp-builder-grid {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
@@ -1726,18 +2226,25 @@
 
       <div class="widget" id="profiles-widget">
         <div class="widget-header with-actions">
-          <span>🎯 Profiles</span>
+          <span>🎯 Favorites (Analog)</span>
           <div class="widget-header-actions">
-            <span class="loop-indicator" id="profiles-loop-indicator" title="Loop status">Loop Off</span>
-            <button class="action widget-header-action sidecar-toggle" id="profile-loop-open-analog" type="button">Profile Loop</button>
-            <button class="action widget-header-action sidecar-toggle" id="profile-editor-open-analog" type="button">Profile Editor</button>
+            <button class="action widget-header-action sidecar-toggle" id="hp3-builder-open-analog" type="button">Open Sidecar</button>
           </div>
         </div>
         <div class="widget-body">
           <div class="profiles-grid" id="profiles-list">
             <div class="empty-state">
-              <div class="icon">📡</div>
-              <div>Loading profiles...</div>
+              <div class="icon">⭐</div>
+              <div>Loading favorites...</div>
+            </div>
+          </div>
+          <div class="favorites-sync-row" id="favorites-sync-row-analog">
+            <div class="favorites-sync-copy">
+              <div class="favorites-sync-primary" id="favorites-sync-primary-analog">SB3 profile sync status loading...</div>
+              <div class="favorites-sync-secondary" id="favorites-sync-secondary-analog">Checking HP favorites to SB3 profile alignment.</div>
+            </div>
+            <div class="favorites-sync-actions">
+              <button class="action favorites-sync-action" id="favorites-sync-btn-analog" type="button">Sync SB3</button>
             </div>
           </div>
         </div>
@@ -1745,27 +2252,34 @@
 
       <div class="widget hidden" id="digital-profiles-widget">
         <div class="widget-header with-actions">
-          <span>🎛️ Digital Profiles</span>
+          <span>🎛️ Favorites (Digital)</span>
           <div class="widget-header-actions">
-            <span class="loop-indicator" id="digital-profiles-loop-indicator" title="Loop status">Loop Off</span>
-            <button class="action widget-header-action sidecar-toggle" id="profile-loop-open-digital" type="button">Profile Loop</button>
-            <button class="action widget-header-action sidecar-toggle" id="profile-editor-open-digital" type="button">Profile Editor</button>
+            <button class="action widget-header-action sidecar-toggle" id="hp3-builder-open-digital" type="button">Open Sidecar</button>
           </div>
         </div>
         <div class="widget-body">
           <div class="profiles-grid" id="digital-profiles-list">
             <div class="empty-state">
               <div class="icon">📡</div>
-              <div>No digital profiles yet</div>
+              <div>No digital favorites yet</div>
             </div>
           </div>
           <div class="control-group" style="margin-top:12px;">
             <div class="control-item">
               <div class="control-label">
-                <span>Active Profile</span>
+                <span>Digital Runtime</span>
                 <span class="control-value" id="digital-profile-status"></span>
               </div>
               <div class="control-applied" id="digital-error"></div>
+            </div>
+          </div>
+          <div class="favorites-sync-row" id="favorites-sync-row-digital">
+            <div class="favorites-sync-copy">
+              <div class="favorites-sync-primary" id="favorites-sync-primary-digital">SB3 profile sync status loading...</div>
+              <div class="favorites-sync-secondary" id="favorites-sync-secondary-digital">Checking HP favorites to SB3 profile alignment.</div>
+            </div>
+            <div class="favorites-sync-actions">
+              <button class="action favorites-sync-action" id="favorites-sync-btn-digital" type="button">Sync SB3</button>
             </div>
           </div>
         </div>
@@ -1967,6 +2481,7 @@
             <button class="sitrep-btn" id="btn-restart-digital" type="button">Restart Digital</button>
             <button class="sitrep-btn" id="btn-restart-icecast" type="button">Restart Icecast</button>
             <button class="sitrep-btn" id="btn-restart-keepalive" type="button">Restart Keepalive</button>
+            <button class="sitrep-btn" id="btn-reset-usb-hub" type="button">Reset USB Hub</button>
             <button class="sitrep-btn danger" id="btn-restart-ui" type="button">Restart UI</button>
           </div>
         </div>
@@ -2266,82 +2781,204 @@
     </div>
   </aside>
 
-  <div class="profile-sidecar-overlay hidden" id="profile-loop-sidecar-overlay"></div>
-  <aside class="profile-sidecar" id="profile-loop-sidecar" aria-hidden="true">
+  <div class="profile-sidecar-overlay hidden" id="hp3-builder-overlay"></div>
+  <aside class="profile-sidecar hp3-builder-sidecar" id="hp3-builder-sidecar" aria-hidden="true">
     <div class="profile-sidecar-header">
       <div>
-        <div class="profile-sidecar-title">Profile Loop Sidecar</div>
-        <div class="profile-sidecar-sub">Rotate profiles with dwell/hang timing and hit hold</div>
+        <div class="profile-sidecar-title">Favorites Builder</div>
+        <div class="profile-sidecar-sub">Shared across SB3 + HP3. Build favorites lists here; scan filters apply separately.</div>
       </div>
-      <button class="action" id="profile-loop-sidecar-close" type="button">Close</button>
-    </div>
-    <div class="profile-sidecar-tabs">
-      <div class="profile-sidecar-tab-group">
-        <button class="profile-sidecar-tab active" id="profile-loop-tab-analog" type="button">Analog</button>
-        <button class="profile-sidecar-tab" id="profile-loop-tab-digital" type="button">Digital</button>
-      </div>
-      <div class="profile-sidecar-actions">
-        <button class="action profile-sidecar-load" id="profile-loop-refresh" type="button">Refresh</button>
+      <div class="hp3-builder-head-actions">
+        <button class="action profile-sidecar-load" id="hp3-builder-refresh" type="button">Reload Data</button>
+        <button class="action" id="hp3-builder-close" type="button">Close</button>
       </div>
     </div>
-    <div class="profile-sidecar-body">
-      <section class="profile-sidecar-panel" id="profile-loop-panel-analog">
-        <div class="profile-loop-panel">
-          <div class="control-label">
-            <span>Analog Profile Loop</span>
-            <span class="control-value" id="loop-status">--</span>
-          </div>
-          <div class="control-applied" id="loop-detail">--</div>
-          <div class="loop-checklist" id="loop-list"></div>
-          <div class="loop-controls">
-            <label>Dwell (s)
-              <input id="loop-dwell" type="number" min="1" max="1800" step="1" value="10">
-            </label>
-            <label>Hang (s)
-              <input id="loop-hang" type="number" min="1" max="600" step="1" value="2">
-            </label>
-            <label class="loop-checkbox-label">
-              <input id="loop-pause" type="checkbox" checked>
-              Pause On Hit
-            </label>
-          </div>
-          <div class="btn-row">
-            <button class="action" id="loop-save" type="button">Apply Loop</button>
-            <button class="action" id="loop-toggle" type="button">Start Loop</button>
-            <button class="action" id="loop-select-all" type="button">All</button>
-            <button class="action" id="loop-clear" type="button">None</button>
+    <div class="profile-sidecar-body hp3-builder-body">
+      <div class="hp-filters-panel" id="hp-filters-panel">
+        <div class="hp-filters-head">
+          <div>
+            <div class="hp-filters-title">Scan Filters</div>
+            <div class="hp-builder-sub">Service type, location, and range are scan overlays for Favorites or Full DB.</div>
           </div>
         </div>
-      </section>
+        <section class="hp-builder" id="hp-builder-panel">
+          <div class="hp-builder-head">Scan Filters (Not Part of Favorites Build)</div>
+          <div class="hp-builder-sub">Use these at runtime to filter what the scanner evaluates from your active list or full database.</div>
+          <div class="hp-filters-grid">
+            <label class="hp-filter-field">
+              <span>Scan Source</span>
+              <select id="hp-filter-mode">
+                <option value="favorites">Favorites</option>
+                <option value="full_database">Full Database</option>
+              </select>
+            </label>
+            <label class="hp-filter-field">
+              <span>ZIP Code</span>
+              <input id="hp-filter-zip" type="text" maxlength="12" placeholder="e.g. 37221" autocomplete="postal-code">
+            </label>
+            <label class="hp-filter-field">
+              <span>Range Miles</span>
+              <input id="hp-filter-range" type="number" min="0" step="0.5" inputmode="decimal">
+            </label>
+            <label class="hp-filter-check">
+              <input id="hp-filter-use-location" type="checkbox">
+              <span>Use Location Filter</span>
+            </label>
+            <label class="hp-filter-check">
+              <input id="hp-filter-nationwide" type="checkbox">
+              <span>Include Nationwide Systems</span>
+            </label>
+            <div class="hp-filters-actions" style="justify-content:flex-start;">
+              <button class="action favorites-sync-action" id="hp-filters-refresh" type="button">Refresh</button>
+              <button class="action favorites-sync-action" id="hp-filters-save" type="button">Apply Filters</button>
+              <button class="action favorites-sync-action" id="hp-filter-resolve-zip" type="button">Resolve ZIP + Apply</button>
+            </div>
+          </div>
+          <div class="hp-service-types-head">
+            <div class="hp-service-types-title">Enabled Service Types</div>
+            <div class="hp-service-types-actions">
+              <button class="action favorites-sync-action" id="hp-service-types-all" type="button">All</button>
+              <button class="action favorites-sync-action" id="hp-service-types-defaults" type="button">Default</button>
+              <button class="action favorites-sync-action" id="hp-service-types-none" type="button">None</button>
+            </div>
+          </div>
+          <div class="hp-service-types-list" id="hp-service-types-list">
+            <div class="muted">Loading service types...</div>
+          </div>
+          <div class="hp-filters-status" id="hp-filters-status">Set filters anytime. Favorites wizard below only controls list contents.</div>
+        </section>
 
-      <section class="profile-sidecar-panel hidden" id="profile-loop-panel-digital">
-        <div class="profile-loop-panel">
-          <div class="control-label">
-            <span>Digital Profile Loop</span>
-            <span class="control-value" id="digital-loop-status">--</span>
-          </div>
-          <div class="control-applied" id="digital-loop-detail">--</div>
-          <div class="loop-checklist" id="digital-loop-list"></div>
-          <div class="loop-controls">
-            <label>Dwell (s)
-              <input id="digital-loop-dwell" type="number" min="1" max="1800" step="1" value="10">
-            </label>
-            <label>Hang (s)
-              <input id="digital-loop-hang" type="number" min="1" max="600" step="1" value="2">
-            </label>
-            <label class="loop-checkbox-label">
-              <input id="digital-loop-pause" type="checkbox" checked>
-              Pause On Hit
-            </label>
-          </div>
-          <div class="btn-row">
-            <button class="action" id="digital-loop-save" type="button">Apply Loop</button>
-            <button class="action" id="digital-loop-toggle" type="button">Start Loop</button>
-            <button class="action" id="digital-loop-select-all" type="button">All</button>
-            <button class="action" id="digital-loop-clear" type="button">None</button>
+        <div class="hp-filters-head" style="margin-top:18px;">
+          <div>
+            <div class="hp-filters-title">Favorites Builder Wizard</div>
+            <div class="hp-builder-sub">Step through list, location, systems, channels, then review.</div>
           </div>
         </div>
-      </section>
+        <div class="hp-builder-flow" id="hp-fav-flow">
+          <button class="hp-builder-flow-step" type="button" data-hp-flow-step="list">1 List</button>
+          <button class="hp-builder-flow-step" type="button" data-hp-flow-step="location">2 Location</button>
+          <button class="hp-builder-flow-step" type="button" data-hp-flow-step="systems">3 Systems</button>
+          <button class="hp-builder-flow-step" type="button" data-hp-flow-step="channels">4 Channels</button>
+          <button class="hp-builder-flow-step" type="button" data-hp-flow-step="review">5 Review</button>
+        </div>
+        <div class="hp-builder-sub" id="hp-fav-next-step">Step 1: pick or create a favorites list.</div>
+
+        <section class="hp-builder hp-wizard-stage hidden" data-hp-stage="list">
+          <div class="hp-builder-head">Step 1 · Favorites List</div>
+          <div class="hp-builder-grid">
+            <label class="hp-filter-field">
+              <span>Active List</span>
+              <select id="hp-fav-list-select"></select>
+            </label>
+            <label class="hp-filter-field">
+              <span>Create New List</span>
+              <input id="hp-fav-list-new" type="text" maxlength="64" placeholder="e.g. Test 2">
+            </label>
+            <div class="hp-builder-actions">
+              <button class="action favorites-sync-action" id="hp-fav-list-create" type="button">Create</button>
+              <button class="action favorites-sync-action" id="hp-fav-list-delete" type="button">Delete Active</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="hp-builder hp-wizard-stage hidden" data-hp-stage="location">
+          <div class="hp-builder-head">Step 2 · Location</div>
+          <div class="hp-builder-sub">HP2 flow: select country, then state, then county before selecting systems.</div>
+          <div class="hp-builder-grid">
+            <label class="hp-filter-field">
+              <span>Country</span>
+              <select id="hp-fav-country"></select>
+            </label>
+            <label class="hp-filter-field">
+              <span>State</span>
+              <select id="hp-fav-state"></select>
+            </label>
+            <label class="hp-filter-field">
+              <span>County</span>
+              <select id="hp-fav-county"></select>
+            </label>
+          </div>
+        </section>
+
+        <section class="hp-builder hp-wizard-stage hidden" data-hp-stage="systems">
+          <div class="hp-builder-head">Step 3 · System Pick</div>
+          <div class="hp-builder-sub">Set system scope, then choose one system to browse channels.</div>
+          <div class="hp-builder-grid">
+            <label class="hp-filter-field">
+              <span>System Type</span>
+              <select id="hp-fav-system-type">
+                <option value="digital">Digital</option>
+                <option value="analog">Analog</option>
+              </select>
+            </label>
+            <label class="hp-filter-field">
+              <span>Scope</span>
+              <select id="hp-fav-scope">
+                <option value="nationwide">Nationwide</option>
+                <option value="statewide" selected>Statewide</option>
+                <option value="county">County Systems</option>
+              </select>
+            </label>
+            <label class="hp-filter-field">
+              <span>Search Systems</span>
+              <input id="hp-fav-system-search" type="text" placeholder="Filter systems">
+            </label>
+          </div>
+          <div class="hp-builder-actions">
+            <button class="action favorites-sync-action" id="hp-fav-load-systems" type="button">Load Systems</button>
+            <label class="hp-filter-check hp-builder-auto">
+              <input id="hp-fav-auto-load" type="checkbox" checked>
+              <span>Auto Load</span>
+            </label>
+          </div>
+          <div class="hp-builder-picker" id="hp-fav-systems">
+            <div class="hp-builder-empty">Choose location/scope, then load systems.</div>
+          </div>
+        </section>
+
+        <section class="hp-builder hp-wizard-stage hidden" data-hp-stage="channels">
+          <div class="hp-builder-head">Step 4 · Channel Pick</div>
+          <div class="hp-builder-sub">Choose channels/talkgroups from the selected system.</div>
+          <label class="hp-filter-field">
+            <span>Department</span>
+            <select id="hp-fav-department"></select>
+          </label>
+          <div class="hp-builder-search-row">
+            <input class="hp-builder-search" id="hp-fav-channel-search" type="text" placeholder="Filter by alpha/tag/tgid">
+            <button class="action favorites-sync-action hp-builder-search-clear" id="hp-fav-channel-search-clear" type="button">Clear</button>
+          </div>
+          <div class="hp-builder-sub" id="hp-fav-selection-summary">0 selected</div>
+          <div class="hp-builder-actions">
+            <button class="action favorites-sync-action" id="hp-fav-add-selected" type="button">Add Selected Channels</button>
+          </div>
+          <details class="hp-wizard-advanced">
+            <summary>More selection tools</summary>
+            <div class="hp-builder-actions">
+              <button class="action favorites-sync-action" id="hp-fav-select-department" type="button">Select Dept</button>
+              <button class="action favorites-sync-action" id="hp-fav-select-visible" type="button">Select Visible</button>
+              <button class="action favorites-sync-action" id="hp-fav-clear-selected" type="button">Clear All</button>
+            </div>
+          </details>
+          <div class="hp-builder-picker" id="hp-fav-channels">
+            <div class="hp-builder-empty">Click a system to auto-load channels.</div>
+          </div>
+        </section>
+
+        <section class="hp-builder hp-wizard-stage hidden" data-hp-stage="review">
+          <div class="hp-builder-head">Step 5 · Review Active List</div>
+          <div class="hp-builder-list" id="hp-fav-entries">
+            <div class="hp-builder-empty">No entries in active list.</div>
+          </div>
+        </section>
+        <div class="hp-wizard-foot">
+          <div class="hp-builder-sub">Wizard view keeps controls focused by task.</div>
+          <div class="hp-wizard-foot-actions">
+            <button class="action favorites-sync-action" id="hp-fav-wizard-back" type="button">Back</button>
+            <button class="action favorites-sync-action" id="hp-fav-wizard-next" type="button">Next</button>
+          </div>
+        </div>
+        <div class="hp-filters-status" id="hp-fav-status">Favorites builder ready.</div>
+      </div>
     </div>
   </aside>
 
@@ -2364,6 +3001,8 @@
     const AUDIO_PROGRESS_CHECK_MS = 3000;
     const AUDIO_PROGRESS_STALL_MS = 30000;
     const FETCH_TIMEOUT_MS = 8000;
+    const APPLY_PENDING_HOLD_MS = 12000;
+    const APPLY_GAIN_EPSILON_DB = 0.11;
     
     // ============================================
     // STATE
@@ -2432,6 +3071,7 @@
       sessionHits: 0,
       sessionStart: Date.now(),
       applyTimeout: null,
+      pendingApply: { airband: null, ground: null },
       filterTimeout: null,
       streamRecoveryTimers: { analog: [], digital: [] },
       serverTime: null,
@@ -2559,12 +3199,72 @@
           dirty: false,
         },
       },
+      hpFavoritesSync: {
+        ok: false,
+        available: false,
+        inSync: false,
+        reason: '',
+        activeProfileId: '',
+        favoritesName: '',
+        missingCount: 0,
+        extraCount: 0,
+      },
+      hpFavoritesSyncBusy: false,
+      hpFilters: {
+        loading: false,
+        saving: false,
+        dirty: false,
+        pendingSave: false,
+        pendingResolveZip: false,
+        loaded: false,
+        mode: 'favorites',
+        useLocation: false,
+        zip: '',
+        rangeMiles: 15,
+        nationwideSystems: true,
+        enabledServiceTags: [],
+        serviceTypes: [],
+        defaultServiceTags: [],
+      },
+      hpFavoritesBuilder: {
+        loading: false,
+        saving: false,
+        loaded: false,
+        lastLoadedAt: 0,
+        wizardStep: 'list',
+        wizardErrorStep: '',
+        activeList: 'My Favorites',
+        lists: [],
+        entriesByList: {},
+        systemType: 'digital',
+        countries: [],
+        states: [],
+        counties: [],
+        countryId: 1,
+        stateId: 0,
+        countyId: 0,
+        scope: 'statewide',
+        systemQuery: '',
+        channelQuery: '',
+        selectedDepartment: '',
+        autoLoadSystems: true,
+        systems: [],
+        selectedSystemId: '',
+        channels: [],
+        selectedChannelIds: [],
+      },
+      hp3Builder: {
+        open: false,
+        src: '',
+      },
     };
 
     let digitalProfilesLoaded = false;
     let digitalListenLoaded = false;
     let refreshInFlight = null;
     let refreshHitsInFlight = null;
+    let hpFavoriteSystemsLoadTimer = null;
+    let hpFiltersAutoSaveTimer = null;
     
     // ============================================
     // ELEMENTS
@@ -2592,6 +3292,52 @@
       btnApply: document.getElementById('btn-apply'),
       profilesList: document.getElementById('profiles-list'),
       profilesWidget: document.getElementById('profiles-widget'),
+      favoritesSyncRowAnalog: document.getElementById('favorites-sync-row-analog'),
+      favoritesSyncPrimaryAnalog: document.getElementById('favorites-sync-primary-analog'),
+      favoritesSyncSecondaryAnalog: document.getElementById('favorites-sync-secondary-analog'),
+      favoritesSyncBtnAnalog: document.getElementById('favorites-sync-btn-analog'),
+      hpFiltersPanel: document.getElementById('hp-filters-panel'),
+      hpFiltersRefresh: document.getElementById('hp-filters-refresh'),
+      hpFiltersSave: document.getElementById('hp-filters-save'),
+      hpFilterMode: document.getElementById('hp-filter-mode'),
+      hpFilterZip: document.getElementById('hp-filter-zip'),
+      hpFilterRange: document.getElementById('hp-filter-range'),
+      hpFilterUseLocation: document.getElementById('hp-filter-use-location'),
+      hpFilterNationwide: document.getElementById('hp-filter-nationwide'),
+      hpFilterResolveZip: document.getElementById('hp-filter-resolve-zip'),
+      hpServiceTypesList: document.getElementById('hp-service-types-list'),
+      hpServiceTypesAll: document.getElementById('hp-service-types-all'),
+      hpServiceTypesDefaults: document.getElementById('hp-service-types-defaults'),
+      hpServiceTypesNone: document.getElementById('hp-service-types-none'),
+      hpFiltersStatus: document.getElementById('hp-filters-status'),
+      hpFavStatus: document.getElementById('hp-fav-status'),
+      hpFavListSelect: document.getElementById('hp-fav-list-select'),
+      hpFavListNew: document.getElementById('hp-fav-list-new'),
+      hpFavListCreate: document.getElementById('hp-fav-list-create'),
+      hpFavListDelete: document.getElementById('hp-fav-list-delete'),
+      hpFavSystemType: document.getElementById('hp-fav-system-type'),
+      hpFavCountry: document.getElementById('hp-fav-country'),
+      hpFavState: document.getElementById('hp-fav-state'),
+      hpFavCounty: document.getElementById('hp-fav-county'),
+      hpFavScope: document.getElementById('hp-fav-scope'),
+      hpFavSystemSearch: document.getElementById('hp-fav-system-search'),
+      hpFavLoadSystems: document.getElementById('hp-fav-load-systems'),
+      hpFavAutoLoad: document.getElementById('hp-fav-auto-load'),
+      hpFavFlow: document.getElementById('hp-fav-flow'),
+      hpFavNextStep: document.getElementById('hp-fav-next-step'),
+      hpFavWizardBack: document.getElementById('hp-fav-wizard-back'),
+      hpFavWizardNext: document.getElementById('hp-fav-wizard-next'),
+      hpFavSystems: document.getElementById('hp-fav-systems'),
+      hpFavDepartment: document.getElementById('hp-fav-department'),
+      hpFavChannelSearch: document.getElementById('hp-fav-channel-search'),
+      hpFavChannelSearchClear: document.getElementById('hp-fav-channel-search-clear'),
+      hpFavChannels: document.getElementById('hp-fav-channels'),
+      hpFavSelectDepartment: document.getElementById('hp-fav-select-department'),
+      hpFavSelectVisible: document.getElementById('hp-fav-select-visible'),
+      hpFavClearSelected: document.getElementById('hp-fav-clear-selected'),
+      hpFavAddSelected: document.getElementById('hp-fav-add-selected'),
+      hpFavSelectionSummary: document.getElementById('hp-fav-selection-summary'),
+      hpFavEntries: document.getElementById('hp-fav-entries'),
       loopStatus: document.getElementById('loop-status'),
       loopDetail: document.getElementById('loop-detail'),
       loopList: document.getElementById('loop-list'),
@@ -2605,6 +3351,10 @@
       profilesLoopIndicator: document.getElementById('profiles-loop-indicator'),
       digitalProfilesWidget: document.getElementById('digital-profiles-widget'),
       digitalProfilesList: document.getElementById('digital-profiles-list'),
+      favoritesSyncRowDigital: document.getElementById('favorites-sync-row-digital'),
+      favoritesSyncPrimaryDigital: document.getElementById('favorites-sync-primary-digital'),
+      favoritesSyncSecondaryDigital: document.getElementById('favorites-sync-secondary-digital'),
+      favoritesSyncBtnDigital: document.getElementById('favorites-sync-btn-digital'),
       digitalLoopStatus: document.getElementById('digital-loop-status'),
       digitalLoopDetail: document.getElementById('digital-loop-detail'),
       digitalLoopList: document.getElementById('digital-loop-list'),
@@ -2750,6 +3500,7 @@
       btnRestartDigital: document.getElementById('btn-restart-digital'),
       btnRestartIcecast: document.getElementById('btn-restart-icecast'),
       btnRestartKeepalive: document.getElementById('btn-restart-keepalive'),
+      btnResetUsbHub: document.getElementById('btn-reset-usb-hub'),
       btnRestartUi: document.getElementById('btn-restart-ui'),
       profileLoopOpenAnalog: document.getElementById('profile-loop-open-analog'),
       profileLoopOpenDigital: document.getElementById('profile-loop-open-digital'),
@@ -2761,6 +3512,8 @@
       profileLoopPanelAnalog: document.getElementById('profile-loop-panel-analog'),
       profileLoopPanelDigital: document.getElementById('profile-loop-panel-digital'),
       profileLoopRefresh: document.getElementById('profile-loop-refresh'),
+      hp3BuilderOpenAnalog: document.getElementById('hp3-builder-open-analog'),
+      hp3BuilderOpenDigital: document.getElementById('hp3-builder-open-digital'),
       profileEditorOpenAnalog: document.getElementById('profile-editor-open-analog'),
       profileEditorOpenDigital: document.getElementById('profile-editor-open-digital'),
       profileSidecar: document.getElementById('profile-sidecar'),
@@ -2791,6 +3544,10 @@
       profileEditorDigitalDelete: document.getElementById('profile-editor-digital-delete'),
       profileEditorDigitalDirty: document.getElementById('profile-editor-digital-dirty'),
       profileEditorDigitalStatus: document.getElementById('profile-editor-digital-status'),
+      hp3BuilderSidecar: document.getElementById('hp3-builder-sidecar'),
+      hp3BuilderOverlay: document.getElementById('hp3-builder-overlay'),
+      hp3BuilderClose: document.getElementById('hp3-builder-close'),
+      hp3BuilderRefresh: document.getElementById('hp3-builder-refresh'),
       btnReconnect: null,
     };
 
@@ -2831,7 +3588,7 @@
         });
       });
     }
-    
+
     // ============================================
     // API
     // ============================================
@@ -2937,6 +3694,1695 @@
       return r.json();
     }
 
+    function _toInt(value, fallback = 0) {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? Math.round(parsed) : fallback;
+    }
+
+    function normalizeHpFavoritesSyncStatus(payload, fallback = {}) {
+      const data = payload && typeof payload === 'object' ? payload : {};
+      const rawFallback = fallback && typeof fallback === 'object' ? fallback : {};
+      return {
+        ok: Boolean(('ok' in data) ? data.ok : rawFallback.hp_favorites_sync_ok),
+        available: Boolean(('available' in data) ? data.available : rawFallback.hp_favorites_sync_available),
+        inSync: Boolean(('in_sync' in data) ? data.in_sync : rawFallback.hp_favorites_sync_in_sync),
+        reason: String(('reason' in data) ? (data.reason || '') : (rawFallback.hp_favorites_sync_reason || '')).trim(),
+        activeProfileId: String(('active_profile_id' in data)
+          ? (data.active_profile_id || '')
+          : (rawFallback.hp_favorites_sync_profile_id || '')).trim(),
+        favoritesName: String(('favorites_name' in data)
+          ? (data.favorites_name || '')
+          : (rawFallback.hp_favorites_sync_favorites_name || '')).trim(),
+        missingCount: _toInt(('missing_in_profile_count' in data)
+          ? data.missing_in_profile_count
+          : rawFallback.hp_favorites_sync_missing_count, 0),
+        extraCount: _toInt(('extra_enabled_count' in data)
+          ? data.extra_enabled_count
+          : rawFallback.hp_favorites_sync_extra_enabled_count, 0),
+      };
+    }
+
+    function hpFavoritesSyncSummary(syncState) {
+      const sync = syncState && typeof syncState === 'object' ? syncState : {};
+      const listName = String(sync.favoritesName || 'Favorites').trim();
+      const profileId = String(sync.activeProfileId || 'active profile').trim();
+      const reason = String(sync.reason || '').trim();
+      if (!sync.available) {
+        return {
+          tone: 'bad',
+          canSync: false,
+          primary: 'SB3 sync unavailable.',
+          secondary: reason || 'Pick an active digital profile in SB3, then sync.',
+        };
+      }
+      if (sync.inSync) {
+        return {
+          tone: 'ok',
+          canSync: true,
+          primary: `SB3 sync OK: ${listName} -> ${profileId}`,
+          secondary: reason || 'HP favorites and active SB3 profile match.',
+        };
+      }
+      const missing = Math.max(0, _toInt(sync.missingCount, 0));
+      const extra = Math.max(0, _toInt(sync.extraCount, 0));
+      return {
+        tone: missing > 0 || extra > 0 ? 'warn' : 'bad',
+        canSync: true,
+        primary: `SB3 drift: missing ${missing}, extra ${extra}`,
+        secondary: reason || `Sync ${listName} into ${profileId}.`,
+      };
+    }
+
+    function updateHpFavoritesSyncCard(cardEl, primaryEl, secondaryEl, buttonEl, summary) {
+      if (!cardEl && !primaryEl && !secondaryEl && !buttonEl) return;
+      if (cardEl) {
+        cardEl.classList.remove('ok', 'warn', 'bad');
+        if (summary && summary.tone) cardEl.classList.add(summary.tone);
+      }
+      if (primaryEl) {
+        primaryEl.textContent = summary?.primary || 'SB3 profile sync status unavailable.';
+      }
+      if (secondaryEl) {
+        secondaryEl.textContent = summary?.secondary || '';
+      }
+      if (buttonEl) {
+        buttonEl.disabled = Boolean(state.hpFavoritesSyncBusy) || !Boolean(summary?.canSync);
+        buttonEl.textContent = state.hpFavoritesSyncBusy ? 'Syncing...' : 'Sync SB3';
+      }
+    }
+
+    function renderHpFavoritesSyncUi() {
+      const summary = {
+        tone: 'ok',
+        canSync: false,
+        primary: 'Shared favorites source active',
+        secondary: 'Favorites saved in SB3 appear in HP3 automatically. Analog and digital targets scan independently.',
+      };
+      updateHpFavoritesSyncCard(
+        els.favoritesSyncRowAnalog,
+        els.favoritesSyncPrimaryAnalog,
+        els.favoritesSyncSecondaryAnalog,
+        els.favoritesSyncBtnAnalog,
+        summary
+      );
+      updateHpFavoritesSyncCard(
+        els.favoritesSyncRowDigital,
+        els.favoritesSyncPrimaryDigital,
+        els.favoritesSyncSecondaryDigital,
+        els.favoritesSyncBtnDigital,
+        summary
+      );
+      if (els.favoritesSyncBtnAnalog) {
+        els.favoritesSyncBtnAnalog.textContent = 'Shared';
+      }
+      if (els.favoritesSyncBtnDigital) {
+        els.favoritesSyncBtnDigital.textContent = 'Shared';
+      }
+    }
+
+    function applyHpFavoritesSyncStatus(payload, fallback = null) {
+      state.hpFavoritesSync = normalizeHpFavoritesSyncStatus(payload, fallback || {});
+      renderHpFavoritesSyncUi();
+    }
+
+    async function syncHpFavoritesToSb3Profile() {
+      if (state.hpFavoritesSyncBusy) return;
+      state.hpFavoritesSyncBusy = true;
+      renderHpFavoritesSyncUi();
+      try {
+        const result = await postJSON('/api/hp/favorites-sync', { action: 'sync' }, { timeoutMs: 25000 });
+        const after = result && result.after && typeof result.after === 'object'
+          ? result.after
+          : result;
+        applyHpFavoritesSyncStatus(after, after);
+        const sync = state.hpFavoritesSync || {};
+        const summary = hpFavoritesSyncSummary(sync);
+        logActivity(summary.primary, 'info', 'hp-favorites-sync-ok');
+        await refresh();
+      } catch (e) {
+        const payload = e && e.payload && typeof e.payload === 'object' ? e.payload : {};
+        if (payload.after && typeof payload.after === 'object') {
+          applyHpFavoritesSyncStatus(payload.after, payload.after);
+        } else {
+          state.hpFavoritesSync.reason = messageFromError(e, 'Favorites sync failed');
+        }
+        renderHpFavoritesSyncUi();
+        logActivity(messageFromError(e, 'Favorites sync failed'), 'warn', 'hp-favorites-sync-error');
+      } finally {
+        state.hpFavoritesSyncBusy = false;
+        renderHpFavoritesSyncUi();
+      }
+    }
+
+    function _toFloat(value, fallback = 0) {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    function _normalizeIntList(values) {
+      const out = [];
+      const seen = new Set();
+      if (!Array.isArray(values)) return out;
+      values.forEach((raw) => {
+        const tag = _toInt(raw, NaN);
+        if (!Number.isFinite(tag) || tag <= 0 || seen.has(tag)) return;
+        seen.add(tag);
+        out.push(tag);
+      });
+      return out;
+    }
+
+    function normalizeHpServiceTypesPayload(payload) {
+      const data = payload && typeof payload === 'object' ? payload : {};
+      const list = Array.isArray(data.service_types) ? data.service_types : [];
+      const serviceTypes = list
+        .map((item) => ({
+          tag: _toInt(item && item.service_tag, 0),
+          name: String(item && item.name ? item.name : '').trim(),
+        }))
+        .filter((item) => item.tag > 0 && item.name)
+        .sort((a, b) => a.name.localeCompare(b.name));
+      const defaults = _normalizeIntList(data.defaults);
+      return {
+        serviceTypes,
+        defaultServiceTags: defaults,
+      };
+    }
+
+    function normalizeHpFiltersStatePayload(payload) {
+      const data = payload && typeof payload === 'object' ? payload : {};
+      const hpState = data.state && typeof data.state === 'object' ? data.state : {};
+      const mode = String(hpState.mode || '').trim().toLowerCase() === 'full_database'
+        ? 'full_database'
+        : 'favorites';
+      return {
+        mode,
+        useLocation: Boolean(hpState.use_location),
+        zip: String(hpState.zip || hpState.postal_code || '').trim(),
+        rangeMiles: Math.max(0, _toFloat(hpState.range_miles, 15)),
+        nationwideSystems: hpState.nationwide_systems !== false,
+        enabledServiceTags: _normalizeIntList(hpState.enabled_service_tags),
+      };
+    }
+
+    function setHpFiltersStatus(message, isError = false) {
+      if (!els.hpFiltersStatus) return;
+      els.hpFiltersStatus.textContent = message || '';
+      els.hpFiltersStatus.style.color = isError ? 'var(--warn)' : 'var(--text-secondary)';
+    }
+
+    function clearHpFiltersAutoSaveTimer() {
+      if (!hpFiltersAutoSaveTimer) return;
+      clearTimeout(hpFiltersAutoSaveTimer);
+      hpFiltersAutoSaveTimer = null;
+    }
+
+    function markHpFiltersDirty(message = 'Unsaved filter changes detected. Auto-saving...') {
+      state.hpFilters.dirty = true;
+      if (!state.hpFilters.saving) {
+        setHpFiltersStatus(message);
+      }
+    }
+
+    function scheduleHpFiltersAutoSave({ resolveZip = false, immediate = false } = {}) {
+      if (!state.hpFilters.loaded) return;
+      markHpFiltersDirty(resolveZip ? 'Resolving ZIP and saving filters...' : 'Unsaved filter changes detected. Auto-saving...');
+      if (state.hpFilters.saving) {
+        state.hpFilters.pendingSave = true;
+        state.hpFilters.pendingResolveZip = state.hpFilters.pendingResolveZip || Boolean(resolveZip);
+        return;
+      }
+      clearHpFiltersAutoSaveTimer();
+      const run = () => {
+        hpFiltersAutoSaveTimer = null;
+        saveHpFiltersPanel({ resolveZip }).catch((err) => {
+          console.error('HP filters auto-save failed:', err);
+        });
+      };
+      if (immediate) {
+        run();
+        return;
+      }
+      hpFiltersAutoSaveTimer = setTimeout(run, 700);
+    }
+
+    function collectHpServiceTypeSelectionFromUi() {
+      if (!els.hpServiceTypesList) return [];
+      const selected = [];
+      els.hpServiceTypesList.querySelectorAll('input[type="checkbox"][data-service-tag]').forEach((input) => {
+        if (!input.checked) return;
+        const tag = _toInt(input.getAttribute('data-service-tag'), NaN);
+        if (!Number.isFinite(tag) || tag <= 0) return;
+        selected.push(tag);
+      });
+      return _normalizeIntList(selected);
+    }
+
+    function renderHpFiltersPanel() {
+      const filters = state.hpFilters || {};
+      const busy = Boolean(filters.loading || filters.saving);
+      if (els.hpFilterMode) {
+        els.hpFilterMode.value = String(filters.mode || 'favorites') === 'full_database' ? 'full_database' : 'favorites';
+        els.hpFilterMode.disabled = busy;
+      }
+      if (els.hpFilterUseLocation) {
+        els.hpFilterUseLocation.checked = Boolean(filters.useLocation);
+        els.hpFilterUseLocation.disabled = busy;
+      }
+      if (els.hpFilterZip) {
+        els.hpFilterZip.value = String(filters.zip || '');
+        els.hpFilterZip.disabled = busy;
+      }
+      if (els.hpFilterRange) {
+        const range = Math.max(0, _toFloat(filters.rangeMiles, 15));
+        els.hpFilterRange.value = Number.isInteger(range) ? String(range) : range.toFixed(1);
+        els.hpFilterRange.disabled = busy;
+      }
+      if (els.hpFilterNationwide) {
+        els.hpFilterNationwide.checked = Boolean(filters.nationwideSystems);
+        els.hpFilterNationwide.disabled = busy;
+      }
+      if (els.hpFiltersRefresh) {
+        els.hpFiltersRefresh.disabled = busy;
+      }
+      if (els.hpFiltersSave) {
+        els.hpFiltersSave.disabled = busy;
+        els.hpFiltersSave.textContent = filters.saving ? 'Saving...' : 'Save Filters';
+      }
+      if (els.hpFilterResolveZip) {
+        els.hpFilterResolveZip.disabled = busy || !String(filters.zip || '').trim();
+      }
+      if (els.hpServiceTypesAll) {
+        els.hpServiceTypesAll.disabled = busy;
+      }
+      if (els.hpServiceTypesDefaults) {
+        els.hpServiceTypesDefaults.disabled = busy;
+      }
+      if (els.hpServiceTypesNone) {
+        els.hpServiceTypesNone.disabled = busy;
+      }
+
+      if (els.hpServiceTypesList) {
+        const serviceTypes = Array.isArray(filters.serviceTypes) ? filters.serviceTypes : [];
+        const selected = new Set(_normalizeIntList(filters.enabledServiceTags));
+        els.hpServiceTypesList.innerHTML = '';
+        if (!serviceTypes.length) {
+          const empty = document.createElement('div');
+          empty.className = 'muted';
+          empty.textContent = filters.loading ? 'Loading service types...' : 'No service types found.';
+          els.hpServiceTypesList.appendChild(empty);
+        } else {
+          serviceTypes.forEach((row) => {
+            const item = document.createElement('label');
+            item.className = 'hp-service-type-item';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.setAttribute('data-service-tag', String(row.tag));
+            cb.checked = selected.has(row.tag);
+            cb.disabled = busy;
+            const label = document.createElement('span');
+            label.className = 'hp-service-type-label';
+            label.textContent = row.name;
+            item.appendChild(cb);
+            item.appendChild(label);
+            els.hpServiceTypesList.appendChild(item);
+          });
+        }
+      }
+    }
+
+    function setHpFiltersSelection(mode, { autoSave = true } = {}) {
+      const filters = state.hpFilters || {};
+      const allTags = (Array.isArray(filters.serviceTypes) ? filters.serviceTypes : [])
+        .map((row) => _toInt(row.tag, 0))
+        .filter((tag) => tag > 0);
+      if (mode === 'all') {
+        filters.enabledServiceTags = _normalizeIntList(allTags);
+      } else if (mode === 'defaults') {
+        const defaults = _normalizeIntList(filters.defaultServiceTags);
+        filters.enabledServiceTags = defaults.length ? defaults : _normalizeIntList(allTags);
+      } else {
+        filters.enabledServiceTags = [];
+      }
+      markHpFiltersDirty();
+      renderHpFiltersPanel();
+      if (autoSave) {
+        scheduleHpFiltersAutoSave();
+      }
+    }
+
+    async function loadHpFiltersPanel({ quiet = false } = {}) {
+      if (state.hpFilters.loading) return;
+      state.hpFilters.loading = true;
+      renderHpFiltersPanel();
+      try {
+        const [hpStatePayload, servicePayload] = await Promise.all([
+          fetchJSON('/api/hp/state'),
+          fetchJSON('/api/hp/service-types'),
+        ]);
+        const nextState = normalizeHpFiltersStatePayload(hpStatePayload);
+        const nextTypes = normalizeHpServiceTypesPayload(servicePayload);
+        const hpState = hpStatePayload && hpStatePayload.state && typeof hpStatePayload.state === 'object'
+          ? hpStatePayload.state
+          : {};
+        applyHpFavoritesState(hpState);
+        state.hpFilters = {
+          ...state.hpFilters,
+          ...nextState,
+          ...nextTypes,
+          dirty: false,
+          pendingSave: false,
+          pendingResolveZip: false,
+          loaded: true,
+        };
+        if (!state.hpFilters.enabledServiceTags.length && state.hpFilters.defaultServiceTags.length) {
+          state.hpFilters.enabledServiceTags = _normalizeIntList(state.hpFilters.defaultServiceTags);
+        }
+        renderHpFiltersPanel();
+        if (!quiet) {
+          setHpFiltersStatus('Favorites filters loaded.');
+        }
+      } catch (e) {
+        const msg = messageFromError(e, 'Failed to load favorites filters');
+        setHpFiltersStatus(msg, true);
+        logActivity(msg, 'warn', 'hp-filters-load-error');
+      } finally {
+        state.hpFilters.loading = false;
+        renderHpFiltersPanel();
+      }
+    }
+
+    async function saveHpFiltersPanel({ resolveZip = false } = {}) {
+      if (state.hpFilters.saving) {
+        state.hpFilters.pendingSave = true;
+        state.hpFilters.pendingResolveZip = state.hpFilters.pendingResolveZip || Boolean(resolveZip);
+        return;
+      }
+      clearHpFiltersAutoSaveTimer();
+      const mode = els.hpFilterMode && els.hpFilterMode.value === 'full_database'
+        ? 'full_database'
+        : 'favorites';
+      const zip = String(els.hpFilterZip && els.hpFilterZip.value ? els.hpFilterZip.value : '').trim();
+      const rangeMiles = Math.max(0, _toFloat(els.hpFilterRange && els.hpFilterRange.value, state.hpFilters.rangeMiles || 15));
+      const enabledTags = collectHpServiceTypeSelectionFromUi();
+      const payload = {
+        mode,
+        use_location: Boolean(els.hpFilterUseLocation && els.hpFilterUseLocation.checked),
+        zip,
+        range_miles: rangeMiles,
+        nationwide_systems: Boolean(els.hpFilterNationwide && els.hpFilterNationwide.checked),
+        enabled_service_tags: enabledTags,
+      };
+      if (resolveZip) {
+        payload.resolve_zip = true;
+      }
+
+      state.hpFilters.saving = true;
+      setHpFiltersStatus(resolveZip ? 'Resolving ZIP and saving filters...' : 'Saving favorites filters...');
+      renderHpFiltersPanel();
+      try {
+        const result = await postJSON('/api/hp/state', payload, { timeoutMs: 20000 });
+        const nextState = normalizeHpFiltersStatePayload(result);
+        const hpState = result && result.state && typeof result.state === 'object' ? result.state : {};
+        applyHpFavoritesState(hpState);
+        state.hpFilters = {
+          ...state.hpFilters,
+          ...nextState,
+          enabledServiceTags: _normalizeIntList(nextState.enabledServiceTags),
+          dirty: false,
+          loaded: true,
+        };
+        renderHpFiltersPanel();
+        setHpFiltersStatus(resolveZip ? 'ZIP resolved and filters saved.' : 'Favorites filters saved.');
+        logActivity(resolveZip ? 'HP ZIP resolved from SB3 filters' : 'HP favorites filters saved from SB3', 'info', resolveZip ? 'hp-filters-zip' : 'hp-filters-save');
+        await refresh();
+      } catch (e) {
+        const msg = messageFromError(e, resolveZip ? 'ZIP resolve failed' : 'Failed to save favorites filters');
+        setHpFiltersStatus(msg, true);
+        logActivity(msg, 'warn', 'hp-filters-save-error');
+      } finally {
+        state.hpFilters.saving = false;
+        renderHpFiltersPanel();
+        if (state.hpFilters.pendingSave) {
+          const pendingResolveZip = Boolean(state.hpFilters.pendingResolveZip);
+          state.hpFilters.pendingSave = false;
+          state.hpFilters.pendingResolveZip = false;
+          scheduleHpFiltersAutoSave({ resolveZip: pendingResolveZip, immediate: true });
+        }
+      }
+    }
+
+    function setHpFavStatus(message, isError = false) {
+      if (!els.hpFavStatus) return;
+      els.hpFavStatus.textContent = String(message || '').trim();
+      els.hpFavStatus.style.color = isError ? 'var(--warn)' : 'var(--text-secondary)';
+    }
+
+    function hpFavNormalizeName(value, fallback = 'My Favorites') {
+      const text = String(value || '').trim();
+      return text || String(fallback || 'My Favorites').trim() || 'My Favorites';
+    }
+
+    function hpFavToken(value) {
+      return hpFavNormalizeName(value).toLowerCase();
+    }
+
+    function hpFavNormalizeEntry(raw, index = 0) {
+      if (!raw || typeof raw !== 'object') return null;
+      const kind = String(raw.kind || '').trim().toLowerCase();
+      const base = {
+        id: String(raw.id || `fav-${index + 1}`).trim() || `fav-${index + 1}`,
+        kind,
+        system_id: Math.max(0, _toInt(raw.system_id, 0)),
+        system_key: String(raw.system_key || '').trim(),
+        system_name: String(raw.system_name || '').trim(),
+        department_name: String(raw.department_name || '').trim(),
+        alpha_tag: String(raw.alpha_tag || raw.channel_name || '').trim(),
+        service_tag: _toInt(raw.service_tag, 0),
+      };
+      if (kind === 'trunked') {
+        const tgidNum = _toInt(raw.talkgroup || raw.tgid, NaN);
+        if (!Number.isFinite(tgidNum) || tgidNum <= 0) return null;
+        const controls = Array.isArray(raw.control_channels) ? raw.control_channels : [];
+        const normalizedControls = [];
+        const seen = new Set();
+        controls.forEach((item) => {
+          const mhz = _toFloat(item, NaN);
+          if (!Number.isFinite(mhz) || mhz <= 0) return;
+          const rounded = Math.round(mhz * 1_000_000) / 1_000_000;
+          if (seen.has(rounded)) return;
+          seen.add(rounded);
+          normalizedControls.push(rounded);
+        });
+        return {
+          ...base,
+          kind: 'trunked',
+          system_key: '',
+          talkgroup: String(Math.round(tgidNum)),
+          control_channels: normalizedControls,
+          frequency: 0.0,
+        };
+      }
+      if (kind === 'conventional') {
+        const freq = _toFloat(raw.frequency, NaN);
+        if (!Number.isFinite(freq) || freq <= 0) return null;
+        return {
+          ...base,
+          kind: 'conventional',
+          system_id: 0,
+          talkgroup: '',
+          control_channels: [],
+          frequency: Math.round(freq * 1_000_000) / 1_000_000,
+        };
+      }
+      return null;
+    }
+
+    function hpFavNormalizeEntries(rawEntries) {
+      const rows = Array.isArray(rawEntries) ? rawEntries : [];
+      const out = [];
+      const seen = new Set();
+      rows.forEach((row, idx) => {
+        const normalized = hpFavNormalizeEntry(row, idx);
+        if (!normalized) return;
+        const key = String(normalized.id || '').trim().toLowerCase();
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        out.push(normalized);
+      });
+      return out;
+    }
+
+    function hpFavSlug(name, index) {
+      const token = String(name || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      return token ? `fav-${token}` : `fav-${index + 1}`;
+    }
+
+    function buildHpFavoritesModel(hpStateRaw) {
+      const hpState = hpStateRaw && typeof hpStateRaw === 'object' ? hpStateRaw : {};
+      const byToken = {};
+      const names = [];
+      const ensureList = (label) => {
+        const name = hpFavNormalizeName(label);
+        const token = hpFavToken(name);
+        if (!byToken[token]) {
+          byToken[token] = {
+            name,
+            entries: [],
+            enabled: false,
+          };
+          names.push(name);
+        }
+        return byToken[token];
+      };
+
+      const favorites = Array.isArray(hpState.favorites) ? hpState.favorites : [];
+      favorites.forEach((row) => {
+        if (!row || typeof row !== 'object') return;
+        const bucket = ensureList(row.label || row.name || '');
+        const entries = hpFavNormalizeEntries(row.custom_favorites);
+        if (entries.length) {
+          bucket.entries = entries;
+        }
+        if (Boolean(row.enabled)) {
+          bucket.enabled = true;
+        }
+      });
+
+      const fallbackName = hpFavNormalizeName(hpState.favorites_name || 'My Favorites');
+      const fallbackEntries = hpFavNormalizeEntries(hpState.custom_favorites);
+      const fallbackBucket = ensureList(fallbackName);
+      if (!fallbackBucket.entries.length && fallbackEntries.length) {
+        fallbackBucket.entries = fallbackEntries;
+      }
+
+      if (!names.length) {
+        ensureList('My Favorites');
+      }
+
+      let activeName = hpFavNormalizeName(hpState.favorites_name || '');
+      if (!byToken[hpFavToken(activeName)]) {
+        const enabledList = Object.values(byToken).find((item) => item.enabled);
+        activeName = enabledList ? enabledList.name : names[0];
+      }
+      const activeToken = hpFavToken(activeName);
+      const entriesByList = {};
+      names.forEach((name) => {
+        const token = hpFavToken(name);
+        const bucket = byToken[token] || { entries: [] };
+        entriesByList[token] = hpFavNormalizeEntries(bucket.entries);
+      });
+      return {
+        activeName: hpFavNormalizeName(activeName),
+        names: names.map((name) => hpFavNormalizeName(name)),
+        entriesByList,
+      };
+    }
+
+    function isHpFullDatabaseMode() {
+      return String(state?.hpFilters?.mode || '').trim().toLowerCase() === 'full_database';
+    }
+
+    function buildHpFavoritesStatePayload(model, extra = {}) {
+      const safeModel = model && typeof model === 'object' ? model : {};
+      const listNames = Array.isArray(safeModel.names) && safeModel.names.length
+        ? safeModel.names.map((name) => hpFavNormalizeName(name))
+        : ['My Favorites'];
+      const activeName = hpFavNormalizeName(safeModel.activeName || listNames[0] || 'My Favorites');
+      const entriesByList = safeModel.entriesByList && typeof safeModel.entriesByList === 'object'
+        ? safeModel.entriesByList
+        : {};
+      const favorites = listNames.map((name, index) => {
+        const token = hpFavToken(name);
+        return {
+          id: hpFavSlug(name, index),
+          type: 'list',
+          target: 'favorites',
+          profile_id: '',
+          label: name,
+          enabled: token === hpFavToken(activeName),
+          custom_favorites: hpFavNormalizeEntries(entriesByList[token]),
+        };
+      });
+      const activeEntries = hpFavNormalizeEntries(entriesByList[hpFavToken(activeName)]);
+      const desiredMode = String((extra && extra.mode) || (isHpFullDatabaseMode() ? 'full_database' : 'favorites'))
+        .trim()
+        .toLowerCase() === 'full_database'
+        ? 'full_database'
+        : 'favorites';
+      return {
+        mode: desiredMode,
+        favorites_name: activeName,
+        favorites,
+        custom_favorites: activeEntries,
+        ...extra,
+      };
+    }
+
+    function applyHpFavoritesState(hpStatePayload) {
+      const model = buildHpFavoritesModel(hpStatePayload);
+      const builder = state.hpFavoritesBuilder;
+      builder.activeList = model.activeName;
+      builder.lists = model.names;
+      builder.entriesByList = model.entriesByList;
+      if (!builder.lists.length) {
+        builder.lists = ['My Favorites'];
+        builder.entriesByList = {
+          'my favorites': [],
+        };
+        builder.activeList = 'My Favorites';
+      }
+      if (!builder.stateId && state.hpFilters && Number.isFinite(Number(state.hpFilters.stateId))) {
+        builder.stateId = _toInt(state.hpFilters.stateId, 0);
+      }
+      {
+        const stepToken = String(builder.wizardStep || '').trim().toLowerCase();
+        builder.wizardStep = getHpFavoriteWizardSteps().includes(stepToken) ? stepToken : 'list';
+      }
+      builder.wizardErrorStep = '';
+      builder.loaded = true;
+      renderSb3FavoritesPanels();
+      renderHpFavoritesBuilder();
+    }
+
+    function getHpFavActiveToken() {
+      return hpFavToken(state.hpFavoritesBuilder.activeList || 'My Favorites');
+    }
+
+    function getHpFavActiveEntries() {
+      const builder = state.hpFavoritesBuilder;
+      const token = getHpFavActiveToken();
+      return hpFavNormalizeEntries((builder.entriesByList || {})[token]);
+    }
+
+    function setHpFavActiveEntries(entries) {
+      const builder = state.hpFavoritesBuilder;
+      const token = getHpFavActiveToken();
+      builder.entriesByList = builder.entriesByList || {};
+      builder.entriesByList[token] = hpFavNormalizeEntries(entries);
+    }
+
+    function renderSb3FavoritesPanels() {
+      const builder = state.hpFavoritesBuilder;
+      const listNames = Array.isArray(builder.lists) ? builder.lists : [];
+      const activeToken = getHpFavActiveToken();
+      const fullDbMode = isHpFullDatabaseMode();
+
+      if (els.profilesList) {
+        if (!listNames.length) {
+          els.profilesList.innerHTML = '<div class="empty-state"><div class="icon">⭐</div><div>No favorites lists yet</div></div>';
+        } else {
+          const listMarkup = listNames.map((name, idx) => {
+            const token = hpFavToken(name);
+            const entries = hpFavNormalizeEntries((builder.entriesByList || {})[token]);
+            const analogCount = entries.filter((row) => row.kind === 'conventional').length;
+            const digitalCount = entries.filter((row) => row.kind === 'trunked').length;
+            const activeClass = (!fullDbMode && token === activeToken) ? 'active' : '';
+            return `
+              <button class="profile-btn ${activeClass}" data-hp-fav-list-index="${idx}">
+                <div class="label">${escapeHtml(name)}</div>
+                <div class="meta">Analog ${analogCount} • Digital ${digitalCount}</div>
+              </button>
+            `;
+          }).join('');
+          const fullDbBanner = fullDbMode
+            ? '<div class="muted" style="margin-bottom:10px;">Full DB mode active. Favorites are shown for edit only.</div>'
+            : '';
+          els.profilesList.innerHTML = `${fullDbBanner}${listMarkup}`;
+        }
+      }
+
+      if (els.digitalProfilesList) {
+        const entries = getHpFavActiveEntries().filter((row) => row.kind === 'trunked');
+        if (!entries.length) {
+          const emptyMessage = fullDbMode
+            ? 'No digital channels in the preview list.'
+            : 'No digital channels in active favorites list';
+          els.digitalProfilesList.innerHTML = `<div class="empty-state"><div class="icon">📡</div><div>${emptyMessage}</div></div>`;
+        } else {
+          const listMarkup = entries.slice(0, 64).map((row) => {
+            const talkgroup = String(row.talkgroup || '').trim();
+            const meta = [row.system_name, row.department_name, talkgroup ? `TG ${talkgroup}` : '']
+              .filter(Boolean)
+              .join(' • ');
+            return `
+              <div class="profile-btn ${fullDbMode ? '' : 'active'}">
+                <div class="label">${escapeHtml(row.alpha_tag || talkgroup || 'Talkgroup')}</div>
+                <div class="meta">${escapeHtml(meta || '--')}</div>
+              </div>
+            `;
+          }).join('');
+          const fullDbBanner = fullDbMode
+            ? '<div class="muted" style="margin-bottom:10px;">Digital favorites shown for preview only (Full DB scanning active).</div>'
+            : '';
+          els.digitalProfilesList.innerHTML = `${fullDbBanner}${listMarkup}`;
+        }
+      }
+    }
+
+    function getFilteredHpFavoriteSystems() {
+      const builder = state.hpFavoritesBuilder;
+      const systems = Array.isArray(builder.systems) ? builder.systems : [];
+      const query = String(builder.systemQuery || '').trim().toLowerCase();
+      if (!query) return systems;
+      return systems.filter((row) => {
+        const text = [
+          row && row.name,
+          row && row.protocol,
+          row && row.category,
+          row && row.scope,
+          row && row.id,
+        ]
+          .map((v) => String(v || '').toLowerCase())
+          .join(' ');
+        return text.includes(query);
+      });
+    }
+
+    function getFilteredHpFavoriteChannels() {
+      const builder = state.hpFavoritesBuilder;
+      const channels = Array.isArray(builder.channels) ? builder.channels : [];
+      const wantedDepartment = String(builder.selectedDepartment || '').trim().toLowerCase();
+      const departmentChannels = wantedDepartment
+        ? channels.filter((row) => hpFavoriteDepartmentLabel(row).toLowerCase() === wantedDepartment)
+        : channels;
+      const query = String(builder.channelQuery || '').trim().toLowerCase();
+      if (!query) return departmentChannels;
+      return departmentChannels.filter((row) => {
+        const text = [
+          row && row.alpha_tag,
+          row && row.system_name,
+          row && row.department_name,
+          row && row.talkgroup,
+          row && row.id,
+          row && row.frequency,
+        ]
+          .map((v) => String(v || '').toLowerCase())
+          .join(' ');
+        return text.includes(query);
+      });
+    }
+
+    function hpFavoriteDepartmentLabel(row) {
+      return String(
+        (row && row.department_name)
+        || (row && row.system_name)
+        || ''
+      ).trim();
+    }
+
+    function getHpFavoriteDepartmentOptions() {
+      const builder = state.hpFavoritesBuilder;
+      const channels = Array.isArray(builder.channels) ? builder.channels : [];
+      if (!channels.length) return [];
+      const byToken = new Map();
+      channels.forEach((row) => {
+        const label = hpFavoriteDepartmentLabel(row);
+        if (!label) return;
+        const token = label.toLowerCase();
+        if (!byToken.has(token)) byToken.set(token, label);
+      });
+      return Array.from(byToken.values()).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    }
+
+    function getHpFavoriteDepartmentChannelCount() {
+      const builder = state.hpFavoritesBuilder;
+      const selected = String(builder.selectedDepartment || '').trim().toLowerCase();
+      const channels = Array.isArray(builder.channels) ? builder.channels : [];
+      if (!selected) return channels.length;
+      return channels.filter((row) => hpFavoriteDepartmentLabel(row).toLowerCase() === selected).length;
+    }
+
+    function ensureHpFavoriteDepartmentSelection() {
+      const builder = state.hpFavoritesBuilder;
+      const options = getHpFavoriteDepartmentOptions();
+      const current = String(builder.selectedDepartment || '').trim();
+      if (!current) return;
+      const exists = options.some((name) => String(name || '').trim().toLowerCase() === current.toLowerCase());
+      if (!exists) builder.selectedDepartment = '';
+    }
+
+    function renderHpFavoritesBuilderSystems() {
+      if (!els.hpFavSystems) return;
+      const builder = state.hpFavoritesBuilder;
+      const systems = Array.isArray(builder.systems) ? builder.systems : [];
+      const visibleSystems = getFilteredHpFavoriteSystems();
+      if (!systems.length) {
+        els.hpFavSystems.innerHTML = '<div class="hp-builder-empty">No systems loaded.</div>';
+        return;
+      }
+      if (!visibleSystems.length) {
+        els.hpFavSystems.innerHTML = '<div class="hp-builder-empty">No systems match your search.</div>';
+        return;
+      }
+      const activeSystemId = String(builder.selectedSystemId || '');
+      els.hpFavSystems.innerHTML = visibleSystems.map((row) => {
+        const systemId = String(row.id || '');
+        const activeClass = systemId === activeSystemId ? 'active' : '';
+        const metaBits = [];
+        if (row.protocol) metaBits.push(String(row.protocol));
+        if (row.category) metaBits.push(String(row.category));
+        if (row.scope) metaBits.push(String(row.scope));
+        return `
+          <button class="hp-builder-picker-item ${activeClass}" type="button" data-hp-system-id="${escapeHtml(systemId)}">
+            <div>${escapeHtml(row.name || systemId || 'System')}</div>
+            <div class="hp-builder-picker-meta">${escapeHtml(metaBits.join(' • ') || '--')}</div>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function renderHpFavoritesBuilderChannels() {
+      if (!els.hpFavChannels) return;
+      const builder = state.hpFavoritesBuilder;
+      const channels = Array.isArray(builder.channels) ? builder.channels : [];
+      const visibleChannels = getFilteredHpFavoriteChannels();
+      const selected = new Set(Array.isArray(builder.selectedChannelIds) ? builder.selectedChannelIds : []);
+      if (!channels.length) {
+        els.hpFavChannels.innerHTML = '<div class="hp-builder-empty">No channels loaded.</div>';
+        return;
+      }
+      if (!visibleChannels.length) {
+        const hasDepartment = String(builder.selectedDepartment || '').trim().length > 0;
+        els.hpFavChannels.innerHTML = `<div class="hp-builder-empty">${hasDepartment ? 'No channels match this department/filter.' : 'No channels match your search.'}</div>`;
+        return;
+      }
+      els.hpFavChannels.innerHTML = visibleChannels.map((row) => {
+        const channelId = String(row.id || '');
+        const checked = selected.has(channelId) ? 'checked' : '';
+        const metaBits = [row.system_name, hpFavoriteDepartmentLabel(row)];
+        if (row.kind === 'trunked' && row.talkgroup) metaBits.push(`TG ${row.talkgroup}`);
+        if (row.kind === 'conventional' && Number.isFinite(Number(row.frequency))) {
+          metaBits.push(`${Number(row.frequency).toFixed(4)} MHz`);
+        }
+        return `
+          <label class="hp-builder-chk">
+            <input type="checkbox" data-hp-channel-id="${escapeHtml(channelId)}" ${checked}>
+            <span>
+              <div>${escapeHtml(row.alpha_tag || row.id || 'Channel')}</div>
+              <div class="hp-builder-picker-meta">${escapeHtml(metaBits.filter(Boolean).join(' • ') || '--')}</div>
+            </span>
+          </label>
+        `;
+      }).join('');
+    }
+
+    function renderHpFavoritesBuilderEntries() {
+      if (!els.hpFavEntries) return;
+      const entries = getHpFavActiveEntries();
+      if (!entries.length) {
+        els.hpFavEntries.innerHTML = '<div class="hp-builder-empty">No entries in active list.</div>';
+        return;
+      }
+      els.hpFavEntries.innerHTML = entries.map((entry, idx) => {
+        const typeLabel = entry.kind === 'trunked' ? 'Digital' : 'Analog';
+        const tail = entry.kind === 'trunked'
+          ? `TG ${String(entry.talkgroup || '--')}`
+          : `${Number(entry.frequency || 0).toFixed(4)} MHz`;
+        const meta = [entry.system_name, entry.department_name, tail].filter(Boolean).join(' • ');
+        return `
+          <div class="hp-builder-row">
+            <div class="hp-builder-row-head">
+              <span>${escapeHtml(entry.alpha_tag || `Entry ${idx + 1}`)}</span>
+              <button class="hp-builder-entry-remove" type="button" data-hp-entry-id="${escapeHtml(entry.id || '')}">Remove</button>
+            </div>
+            <div class="hp-builder-row-meta">${escapeHtml(typeLabel)} • ${escapeHtml(meta || '--')}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function getHpFavoriteWizardSteps() {
+      return ['list', 'location', 'systems', 'channels', 'review'];
+    }
+
+    function normalizeHpFavoriteWizardStep(step) {
+      const token = String(step || '').trim().toLowerCase();
+      const steps = getHpFavoriteWizardSteps();
+      if (steps.includes(token)) return token;
+      return 'list';
+    }
+
+    function getHpFavoriteWizardStepIndex(step) {
+      const steps = getHpFavoriteWizardSteps();
+      const idx = steps.indexOf(normalizeHpFavoriteWizardStep(step));
+      return idx >= 0 ? idx : 0;
+    }
+
+    function getHpFavoriteWizardAdvanceBlock(step) {
+      const builder = state.hpFavoritesBuilder;
+      const token = normalizeHpFavoriteWizardStep(step);
+      if (token === 'location') {
+        if (_toInt(builder.stateId, 0) <= 0) return 'Pick a state first.';
+      }
+      if (token === 'systems') {
+        if (!String(builder.selectedSystemId || '').trim()) return 'Pick a system before continuing.';
+      }
+      if (token === 'channels') {
+        const selectedCount = Array.isArray(builder.selectedChannelIds) ? builder.selectedChannelIds.length : 0;
+        const existingCount = getHpFavActiveEntries().length;
+        if (selectedCount <= 0 && existingCount <= 0) {
+          return 'Select channels and add them before continuing.';
+        }
+      }
+      return '';
+    }
+
+    function setHpFavoriteWizardStep(step) {
+      const builder = state.hpFavoritesBuilder;
+      builder.wizardStep = normalizeHpFavoriteWizardStep(step);
+      builder.wizardErrorStep = '';
+      renderHpFavoritesBuilder();
+    }
+
+    async function goHpFavoriteWizardStep(direction = 1) {
+      const builder = state.hpFavoritesBuilder;
+      const steps = getHpFavoriteWizardSteps();
+      const current = normalizeHpFavoriteWizardStep(builder.wizardStep || 'list');
+      const currentIdx = getHpFavoriteWizardStepIndex(current);
+      if (direction > 0) {
+        const block = getHpFavoriteWizardAdvanceBlock(current);
+        if (block) {
+          builder.wizardErrorStep = current;
+          setHpFavStatus(block, true);
+          renderHpFavoritesBuilder();
+          return;
+        }
+        if (current === 'channels') {
+          const selectedCount = Array.isArray(builder.selectedChannelIds) ? builder.selectedChannelIds.length : 0;
+          if (selectedCount > 0) {
+            await addSelectedHpFavoriteChannels({ fromWizardNext: true });
+            return;
+          }
+        }
+      }
+      const nextIdx = Math.max(0, Math.min(steps.length - 1, currentIdx + (direction > 0 ? 1 : -1)));
+      if (nextIdx === currentIdx) return;
+      builder.wizardStep = steps[nextIdx];
+      builder.wizardErrorStep = '';
+      renderHpFavoritesBuilder();
+    }
+
+    function renderHpFavoritesBuilderFlow() {
+      const builder = state.hpFavoritesBuilder;
+      const steps = getHpFavoriteWizardSteps();
+      const labelByStep = {
+        list: 'List',
+        location: 'Location',
+        systems: 'Systems',
+        channels: 'Channels',
+        review: 'Review',
+      };
+      const activeStep = normalizeHpFavoriteWizardStep(builder.wizardStep || 'list');
+      builder.wizardStep = activeStep;
+      const activeIndex = getHpFavoriteWizardStepIndex(activeStep);
+      const listNames = Array.isArray(builder.lists) && builder.lists.length ? builder.lists : ['My Favorites'];
+      const activeList = hpFavNormalizeName(builder.activeList || listNames[0] || 'My Favorites');
+      const hasSystems = Array.isArray(builder.systems) && builder.systems.length > 0;
+      const hasSystemSelection = hasSystems && String(builder.selectedSystemId || '').trim().length > 0;
+      const selectedCount = Array.isArray(builder.selectedChannelIds) ? builder.selectedChannelIds.length : 0;
+      const reviewCount = getHpFavActiveEntries().length;
+
+      const doneByStep = {
+        list: Boolean(activeList),
+        location: _toInt(builder.stateId, 0) > 0,
+        systems: hasSystemSelection,
+        channels: selectedCount > 0 || reviewCount > 0,
+        review: reviewCount > 0,
+      };
+      if (els.hpFavFlow) {
+        const nodes = els.hpFavFlow.querySelectorAll('[data-hp-flow-step]');
+        nodes.forEach((node) => {
+          const key = String(node.getAttribute('data-hp-flow-step') || '').trim();
+          node.classList.toggle('done', Boolean(doneByStep[key]));
+          node.classList.toggle('active', key === activeStep);
+          node.classList.toggle('error', key === String(builder.wizardErrorStep || '').trim());
+        });
+      }
+      if (els.hpFiltersPanel) {
+        const stages = els.hpFiltersPanel.querySelectorAll('[data-hp-stage]');
+        stages.forEach((node) => {
+          const key = String(node.getAttribute('data-hp-stage') || '').trim();
+          node.classList.toggle('hidden', key !== activeStep);
+        });
+      }
+      if (els.hpFavWizardBack) {
+        els.hpFavWizardBack.disabled = Boolean(builder.loading || builder.saving) || activeIndex <= 0;
+      }
+      if (els.hpFavWizardNext) {
+        const nextStep = steps[activeIndex + 1] || '';
+        const block = nextStep ? getHpFavoriteWizardAdvanceBlock(activeStep) : '';
+        els.hpFavWizardNext.textContent = nextStep ? `Next: ${labelByStep[nextStep] || 'Next'}` : 'Done';
+        els.hpFavWizardNext.disabled = Boolean(builder.loading || builder.saving) || !nextStep || Boolean(block);
+      }
+
+      if (!els.hpFavNextStep) return;
+      if (activeStep === 'list') {
+        els.hpFavNextStep.textContent = `Step 1: pick or create a favorites list (active: "${activeList}").`;
+        return;
+      }
+      if (activeStep === 'location') {
+        if (_toInt(builder.stateId, 0) <= 0) {
+          els.hpFavNextStep.textContent = 'Step 2: choose country/state/county to match HP2 flow.';
+          return;
+        }
+        els.hpFavNextStep.textContent = 'Location set. Continue to choose scope and systems.';
+        return;
+      }
+      if (activeStep === 'systems') {
+        els.hpFavNextStep.textContent = builder.autoLoadSystems
+          ? 'Systems auto-load from your filters. Pick one to continue.'
+          : 'Click Load Systems, then pick one system to continue.';
+        return;
+      }
+      if (activeStep === 'channels') {
+        if (!hasSystemSelection) {
+          els.hpFavNextStep.textContent = 'Pick a system first.';
+          return;
+        }
+        if (!(Array.isArray(builder.channels) && builder.channels.length > 0)) {
+          els.hpFavNextStep.textContent = builder.loading
+            ? 'Loading channels for selected system...'
+            : 'No channels loaded. Pick another system.';
+          return;
+        }
+        if (selectedCount <= 0) {
+          els.hpFavNextStep.textContent = 'Select channels/talkgroups and click Add Selected.';
+          return;
+        }
+        els.hpFavNextStep.textContent = `${selectedCount} selected. Next auto-adds selection to the active list.`;
+        return;
+      }
+      els.hpFavNextStep.textContent = reviewCount > 0
+        ? `${reviewCount} entries in "${activeList}". Remove or keep entries as needed.`
+        : `No entries in "${activeList}" yet.`;
+    }
+
+    function renderHpFavoritesBuilder() {
+      const builder = state.hpFavoritesBuilder;
+      const busy = Boolean(builder.loading || builder.saving);
+      const listNames = Array.isArray(builder.lists) && builder.lists.length
+        ? builder.lists
+        : ['My Favorites'];
+      if (els.hpFavListSelect) {
+        els.hpFavListSelect.innerHTML = listNames.map((name) => (
+          `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`
+        )).join('');
+        const active = hpFavNormalizeName(builder.activeList || listNames[0]);
+        els.hpFavListSelect.value = active;
+        els.hpFavListSelect.disabled = busy;
+      }
+      if (els.hpFavListNew) {
+        els.hpFavListNew.disabled = busy;
+      }
+      if (els.hpFavListCreate) {
+        els.hpFavListCreate.disabled = busy;
+      }
+      if (els.hpFavListDelete) {
+        els.hpFavListDelete.disabled = busy || listNames.length <= 1;
+      }
+      if (els.hpFavSystemType) {
+        els.hpFavSystemType.value = builder.systemType === 'analog' ? 'analog' : 'digital';
+        els.hpFavSystemType.disabled = busy;
+      }
+      if (els.hpFavCountry) {
+        const countries = Array.isArray(builder.countries) ? builder.countries : [];
+        els.hpFavCountry.innerHTML = countries.map((row) => (
+          `<option value="${_toInt(row.country_id, 0)}">${escapeHtml(row.name || `Country ${row.country_id}`)}</option>`
+        )).join('') || '<option value="1">USA</option>';
+        const countryId = _toInt(builder.countryId, 1) || 1;
+        els.hpFavCountry.value = String(countryId);
+        els.hpFavCountry.disabled = busy;
+      }
+      if (els.hpFavState) {
+        const states = Array.isArray(builder.states) ? builder.states : [];
+        els.hpFavState.innerHTML = states.map((row) => (
+          `<option value="${_toInt(row.state_id, 0)}">${escapeHtml(row.name || row.abbr || `State ${row.state_id}`)}</option>`
+        )).join('') || '<option value="0">Select State</option>';
+        const stateId = _toInt(builder.stateId, 0);
+        if (states.some((row) => _toInt(row.state_id, 0) === stateId)) {
+          els.hpFavState.value = String(stateId);
+        }
+        els.hpFavState.disabled = busy;
+      }
+      if (els.hpFavCounty) {
+        const counties = Array.isArray(builder.counties) ? builder.counties : [];
+        els.hpFavCounty.innerHTML = counties.map((row) => (
+          `<option value="${_toInt(row.county_id, 0)}">${escapeHtml(row.name || `County ${row.county_id}`)}</option>`
+        )).join('') || '<option value="0">All Counties</option>';
+        const countyId = _toInt(builder.countyId, 0);
+        if (counties.some((row) => _toInt(row.county_id, 0) === countyId)) {
+          els.hpFavCounty.value = String(countyId);
+        }
+        els.hpFavCounty.disabled = busy;
+      }
+      if (els.hpFavScope) {
+        els.hpFavScope.value = String(builder.scope || 'statewide');
+        els.hpFavScope.disabled = busy;
+      }
+      if (els.hpFavSystemSearch) {
+        els.hpFavSystemSearch.value = String(builder.systemQuery || '');
+        els.hpFavSystemSearch.disabled = busy;
+      }
+      if (els.hpFavChannelSearch) {
+        els.hpFavChannelSearch.value = String(builder.channelQuery || '');
+        els.hpFavChannelSearch.disabled = busy;
+      }
+      if (els.hpFavLoadSystems) {
+        els.hpFavLoadSystems.disabled = busy || _toInt(builder.stateId, 0) <= 0;
+        els.hpFavLoadSystems.textContent = builder.autoLoadSystems ? 'Reload Systems' : 'Load Systems';
+      }
+      if (els.hpFavAutoLoad) {
+        els.hpFavAutoLoad.checked = Boolean(builder.autoLoadSystems);
+        els.hpFavAutoLoad.disabled = busy;
+      }
+      ensureHpFavoriteDepartmentSelection();
+      const departmentOptions = getHpFavoriteDepartmentOptions();
+      if (els.hpFavDepartment) {
+        const current = String(builder.selectedDepartment || '').trim();
+        const options = ['<option value="">All Departments</option>']
+          .concat(departmentOptions.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`));
+        els.hpFavDepartment.innerHTML = options.join('');
+        if (current && departmentOptions.some((name) => String(name || '').trim().toLowerCase() === current.toLowerCase())) {
+          els.hpFavDepartment.value = current;
+        } else {
+          els.hpFavDepartment.value = '';
+        }
+        els.hpFavDepartment.disabled = busy || !departmentOptions.length;
+      }
+      if (els.hpFavSelectVisible) {
+        els.hpFavSelectVisible.disabled = busy || !getFilteredHpFavoriteChannels().length;
+      }
+      if (els.hpFavSelectDepartment) {
+        const hasDepartmentPick = Boolean(String(builder.selectedDepartment || '').trim());
+        const deptCount = getHpFavoriteDepartmentChannelCount();
+        els.hpFavSelectDepartment.disabled = busy || !hasDepartmentPick || deptCount <= 0;
+        els.hpFavSelectDepartment.textContent = hasDepartmentPick && deptCount > 0
+          ? `Select Dept (${deptCount})`
+          : 'Select Dept';
+      }
+      if (els.hpFavChannelSearchClear) {
+        els.hpFavChannelSearchClear.disabled = busy || !String(builder.channelQuery || '').trim();
+      }
+      if (els.hpFavClearSelected) {
+        const selectedCount = (builder.selectedChannelIds || []).length;
+        els.hpFavClearSelected.disabled = busy || selectedCount <= 0;
+      }
+      if (els.hpFavAddSelected) {
+        const selectedCount = (builder.selectedChannelIds || []).length;
+        els.hpFavAddSelected.disabled = busy || selectedCount <= 0;
+        els.hpFavAddSelected.textContent = selectedCount > 0 ? `Add Selected (${selectedCount})` : 'Add Selected Channels';
+      }
+      if (els.hpFavSelectionSummary) {
+        const totalSystems = (builder.systems || []).length;
+        const visibleSystems = getFilteredHpFavoriteSystems().length;
+        const totalChannels = (builder.channels || []).length;
+        const departmentChannels = getHpFavoriteDepartmentChannelCount();
+        const visibleChannels = getFilteredHpFavoriteChannels().length;
+        const selectedCount = (builder.selectedChannelIds || []).length;
+        const departmentLabel = String(builder.selectedDepartment || '').trim() || 'All Departments';
+        els.hpFavSelectionSummary.textContent = `Systems ${visibleSystems}/${totalSystems} • Dept ${departmentLabel} ${departmentChannels}/${totalChannels} • Visible ${visibleChannels} • Selected ${selectedCount}`;
+      }
+      renderHpFavoritesBuilderFlow();
+      renderHpFavoritesBuilderSystems();
+      renderHpFavoritesBuilderChannels();
+      renderHpFavoritesBuilderEntries();
+    }
+
+    async function saveHpFavoritesBuilder(reasonMessage) {
+      const builder = state.hpFavoritesBuilder;
+      if (builder.saving) return false;
+      builder.saving = true;
+      renderHpFavoritesBuilder();
+      try {
+        const model = {
+          activeName: hpFavNormalizeName(builder.activeList),
+          names: Array.isArray(builder.lists) ? builder.lists : [],
+          entriesByList: builder.entriesByList || {},
+        };
+        const payload = buildHpFavoritesStatePayload(model, {
+          mode: isHpFullDatabaseMode() ? 'full_database' : 'favorites',
+        });
+        const result = await postJSON('/api/hp/state', payload, { timeoutMs: 20000 });
+        const hpState = result && result.state && typeof result.state === 'object' ? result.state : result;
+        applyHpFavoritesState(hpState);
+        builder.lastLoadedAt = Date.now();
+        setHpFavStatus(reasonMessage || 'Favorites saved.');
+        await refresh();
+        return true;
+      } catch (e) {
+        setHpFavStatus(messageFromError(e, 'Failed to save favorites'), true);
+        logActivity(messageFromError(e, 'Failed to save favorites'), 'warn', 'hp-favorites-save-error');
+        return false;
+      } finally {
+        builder.saving = false;
+        renderHpFavoritesBuilder();
+      }
+    }
+
+    async function loadHpFavoriteStates() {
+      const builder = state.hpFavoritesBuilder;
+      const countryId = _toInt(builder.countryId, 1) || 1;
+      const payload = await fetchJSON(`/api/hp/favorites-wizard/states?country_id=${encodeURIComponent(countryId)}`);
+      const states = Array.isArray(payload.states) ? payload.states : [];
+      builder.states = states;
+      if (!states.length) {
+        builder.stateId = 0;
+        builder.counties = [];
+        builder.countyId = 0;
+        return;
+      }
+      const stateId = _toInt(builder.stateId, 0);
+      if (!states.some((row) => _toInt(row.state_id, 0) === stateId)) {
+        builder.stateId = _toInt(states[0].state_id, 0);
+      }
+    }
+
+    async function loadHpFavoriteCounties() {
+      const builder = state.hpFavoritesBuilder;
+      const stateId = _toInt(builder.stateId, 0);
+      if (!stateId) {
+        builder.counties = [];
+        builder.countyId = 0;
+        return;
+      }
+      const payload = await fetchJSON(`/api/hp/favorites-wizard/counties?state_id=${encodeURIComponent(stateId)}`);
+      const counties = Array.isArray(payload.counties) ? payload.counties : [];
+      builder.counties = counties;
+      const countyId = _toInt(builder.countyId, 0);
+      if (!counties.some((row) => _toInt(row.county_id, 0) === countyId)) {
+        builder.countyId = counties.length ? _toInt(counties[0].county_id, 0) : 0;
+      }
+    }
+
+    function resetHpFavoriteSystemAndChannelPicks() {
+      const builder = state.hpFavoritesBuilder;
+      builder.systems = [];
+      builder.selectedSystemId = '';
+      builder.channels = [];
+      builder.selectedDepartment = '';
+      builder.selectedChannelIds = [];
+    }
+
+    function clearHpFavoriteSystemsLoadTimer() {
+      if (hpFavoriteSystemsLoadTimer) {
+        clearTimeout(hpFavoriteSystemsLoadTimer);
+        hpFavoriteSystemsLoadTimer = null;
+      }
+    }
+
+    function scheduleHpFavoriteSystemsLoad({ immediate = false, quiet = true } = {}) {
+      const builder = state.hpFavoritesBuilder;
+      clearHpFavoriteSystemsLoadTimer();
+      if (!state.hp3Builder.open) return;
+      if (!builder.autoLoadSystems || builder.loading || builder.saving) return;
+      if (_toInt(builder.stateId, 0) <= 0) return;
+      const run = () => {
+        hpFavoriteSystemsLoadTimer = null;
+        loadHpFavoriteSystems({ quiet }).catch((err) => {
+          console.error('Auto load systems failed:', err);
+        });
+      };
+      if (immediate) {
+        run();
+        return;
+      }
+      hpFavoriteSystemsLoadTimer = setTimeout(run, 280);
+    }
+
+    async function loadHpFavoritesBuilder({ quiet = false, force = false } = {}) {
+      const builder = state.hpFavoritesBuilder;
+      if (builder.loading || builder.saving) return;
+      if (builder.loaded && !force) {
+        renderHpFavoritesBuilder();
+        renderSb3FavoritesPanels();
+        return;
+      }
+      builder.loading = true;
+      renderHpFavoritesBuilder();
+      try {
+        const [hpStatePayload, countriesPayload] = await Promise.all([
+          fetchJSON('/api/hp/state'),
+          fetchJSON('/api/hp/favorites-wizard/countries'),
+        ]);
+        const hpState = hpStatePayload && hpStatePayload.state && typeof hpStatePayload.state === 'object'
+          ? hpStatePayload.state
+          : {};
+        applyHpFavoritesState(hpState);
+        const countries = Array.isArray(countriesPayload.countries) ? countriesPayload.countries : [];
+        builder.countries = countries;
+        if (!countries.length) {
+          builder.countryId = 1;
+        } else {
+          const countryId = _toInt(builder.countryId, 0);
+          if (!countries.some((row) => _toInt(row.country_id, 0) === countryId)) {
+            builder.countryId = _toInt(countries[0].country_id, 1) || 1;
+          }
+        }
+        await loadHpFavoriteStates();
+        await loadHpFavoriteCounties();
+        builder.loaded = true;
+        builder.lastLoadedAt = Date.now();
+        ensureHpFavoriteDepartmentSelection();
+        if (!quiet) {
+          setHpFavStatus('Favorites loaded. SB3 and HP3 now share this same list data.');
+        }
+      } catch (e) {
+        setHpFavStatus(messageFromError(e, 'Failed to load favorites builder'), true);
+        logActivity(messageFromError(e, 'Failed to load favorites builder'), 'warn', 'hp-favorites-load-error');
+      } finally {
+        builder.loading = false;
+        renderHpFavoritesBuilder();
+        renderSb3FavoritesPanels();
+        if (builder.autoLoadSystems && _toInt(builder.stateId, 0) > 0 && !(builder.systems || []).length) {
+          scheduleHpFavoriteSystemsLoad({ immediate: true, quiet: true });
+        }
+      }
+    }
+
+    async function loadHpFavoriteSystems(options = {}) {
+      const quiet = Boolean(options && options.quiet);
+      const builder = state.hpFavoritesBuilder;
+      const stateId = _toInt(builder.stateId, 0);
+      if (!stateId) {
+        if (!quiet) setHpFavStatus('Select a state first.', true);
+        return;
+      }
+      let autoLoadChannels = false;
+      clearHpFavoriteSystemsLoadTimer();
+      builder.loading = true;
+      renderHpFavoritesBuilder();
+      try {
+        const params = new URLSearchParams();
+        params.set('state_id', String(stateId));
+        params.set('county_id', String(_toInt(builder.countyId, 0)));
+        params.set('system_type', builder.systemType === 'analog' ? 'analog' : 'digital');
+        params.set('scope', String(builder.scope || 'statewide'));
+        const payload = await fetchJSON(`/api/hp/favorites-wizard/systems?${params.toString()}`);
+        builder.systems = Array.isArray(payload.systems) ? payload.systems : [];
+        if (!builder.systems.length) {
+          resetHpFavoriteSystemAndChannelPicks();
+          if (!quiet) setHpFavStatus('No systems found for current filters.', true);
+        } else {
+          const firstId = String((builder.systems[0] && builder.systems[0].id) || '');
+          if (!builder.systems.some((row) => String(row.id || '') === String(builder.selectedSystemId || ''))) {
+            builder.selectedSystemId = firstId;
+          }
+          builder.channels = [];
+          builder.selectedDepartment = '';
+          builder.selectedChannelIds = [];
+          autoLoadChannels = Boolean(String(builder.selectedSystemId || '').trim());
+          if (!quiet) setHpFavStatus(`Loaded ${builder.systems.length} systems.`);
+        }
+      } catch (e) {
+        if (!quiet) setHpFavStatus(messageFromError(e, 'Failed to load systems'), true);
+        logActivity(messageFromError(e, 'Failed to load systems'), 'warn', 'hp-favorites-systems-error');
+      } finally {
+        builder.loading = false;
+        renderHpFavoritesBuilder();
+      }
+      if (autoLoadChannels) {
+        await loadHpFavoriteChannels({ quiet: true });
+      }
+    }
+
+    async function loadHpFavoriteChannels(options = {}) {
+      const quiet = Boolean(options && options.quiet);
+      const builder = state.hpFavoritesBuilder;
+      const systemId = String(builder.selectedSystemId || '').trim();
+      if (!systemId) {
+        if (!quiet) setHpFavStatus('Select a system first.', true);
+        return;
+      }
+      builder.loading = true;
+      renderHpFavoritesBuilder();
+      try {
+        const params = new URLSearchParams();
+        params.set('system_type', builder.systemType === 'analog' ? 'analog' : 'digital');
+        params.set('system_id', systemId);
+        params.set('limit', '5000');
+        const payload = await fetchJSON(`/api/hp/favorites-wizard/channels?${params.toString()}`);
+        builder.channels = Array.isArray(payload.channels) ? payload.channels : [];
+        builder.selectedDepartment = '';
+        const departmentOptions = getHpFavoriteDepartmentOptions();
+        if (departmentOptions.length === 1) {
+          builder.selectedDepartment = String(departmentOptions[0] || '');
+        }
+        builder.selectedChannelIds = [];
+        if (!builder.channels.length) {
+          if (!quiet) setHpFavStatus('No channels found for selected system.', true);
+        } else {
+          if (normalizeHpFavoriteWizardStep(builder.wizardStep || '') === 'systems') {
+            builder.wizardStep = 'channels';
+          }
+          builder.wizardErrorStep = '';
+          const name = String(payload.system_name || '').trim();
+          if (!quiet) setHpFavStatus(`Loaded ${builder.channels.length} channels${name ? ` from ${name}` : ''}.`);
+        }
+      } catch (e) {
+        if (!quiet) setHpFavStatus(messageFromError(e, 'Failed to load channels'), true);
+        logActivity(messageFromError(e, 'Failed to load channels'), 'warn', 'hp-favorites-channels-error');
+      } finally {
+        builder.loading = false;
+        renderHpFavoritesBuilder();
+      }
+    }
+
+    function selectHpFavoriteSystem(systemId) {
+      const builder = state.hpFavoritesBuilder;
+      const systems = Array.isArray(builder.systems) ? builder.systems : [];
+      const wanted = String(systemId || '').trim();
+      if (!wanted) return;
+      const match = systems.find((row) => String(row && row.id || '').trim() === wanted);
+      if (!match) return;
+      builder.selectedSystemId = wanted;
+      builder.channels = [];
+      builder.selectedDepartment = '';
+      builder.selectedChannelIds = [];
+      builder.wizardErrorStep = '';
+      renderHpFavoritesBuilder();
+      loadHpFavoriteChannels().catch((err) => {
+        console.error('Auto load channels failed:', err);
+      });
+    }
+
+    function toggleHpFavoriteChannel(channelId, checked) {
+      const builder = state.hpFavoritesBuilder;
+      const channels = Array.isArray(builder.channels) ? builder.channels : [];
+      const wanted = String(channelId || '').trim();
+      if (!wanted) return;
+      const exists = channels.some((row) => String(row && row.id || '').trim() === wanted);
+      if (!exists) return;
+      const selected = new Set(Array.isArray(builder.selectedChannelIds) ? builder.selectedChannelIds : []);
+      if (checked) selected.add(wanted);
+      else selected.delete(wanted);
+      builder.selectedChannelIds = Array.from(selected);
+      renderHpFavoritesBuilder();
+    }
+
+    function setHpFavoriteDepartment(name) {
+      const builder = state.hpFavoritesBuilder;
+      const wanted = String(name || '').trim();
+      if (!wanted) {
+        builder.selectedDepartment = '';
+        renderHpFavoritesBuilder();
+        return;
+      }
+      const options = getHpFavoriteDepartmentOptions();
+      const match = options.find((row) => String(row || '').trim().toLowerCase() === wanted.toLowerCase());
+      if (!match) {
+        builder.selectedDepartment = '';
+      } else {
+        builder.selectedDepartment = String(match);
+      }
+      renderHpFavoritesBuilder();
+    }
+
+    function setHpFavoriteVisibleChannelSelection(selectVisible) {
+      const builder = state.hpFavoritesBuilder;
+      const visible = getFilteredHpFavoriteChannels();
+      if (selectVisible) {
+        const selected = new Set(Array.isArray(builder.selectedChannelIds) ? builder.selectedChannelIds : []);
+        visible.forEach((row) => {
+          const id = String(row && row.id || '').trim();
+          if (id) selected.add(id);
+        });
+        builder.selectedChannelIds = Array.from(selected);
+      } else {
+        builder.selectedChannelIds = [];
+      }
+      renderHpFavoritesBuilder();
+    }
+
+    function setHpFavoriteDepartmentSelection() {
+      const builder = state.hpFavoritesBuilder;
+      const wanted = String(builder.selectedDepartment || '').trim().toLowerCase();
+      if (!wanted) return;
+      const selected = new Set(Array.isArray(builder.selectedChannelIds) ? builder.selectedChannelIds : []);
+      const channels = Array.isArray(builder.channels) ? builder.channels : [];
+      channels.forEach((row) => {
+        const dept = hpFavoriteDepartmentLabel(row).toLowerCase();
+        if (dept !== wanted) return;
+        const id = String(row && row.id || '').trim();
+        if (id) selected.add(id);
+      });
+      builder.selectedChannelIds = Array.from(selected);
+      renderHpFavoritesBuilder();
+    }
+
+    async function addSelectedHpFavoriteChannels(options = {}) {
+      const builder = state.hpFavoritesBuilder;
+      const fromWizardNext = Boolean(options && options.fromWizardNext);
+      const selectedIds = new Set(Array.isArray(builder.selectedChannelIds) ? builder.selectedChannelIds : []);
+      if (!selectedIds.size) {
+        setHpFavStatus('Select one or more channels first.', true);
+        return false;
+      }
+      const selectedRows = (Array.isArray(builder.channels) ? builder.channels : [])
+        .filter((row) => selectedIds.has(String(row.id || '').trim()));
+      if (!selectedRows.length) {
+        setHpFavStatus('No selected channels found.', true);
+        return false;
+      }
+      const existing = getHpFavActiveEntries();
+      const byId = new Map();
+      existing.forEach((entry, idx) => {
+        const normalized = hpFavNormalizeEntry(entry, idx);
+        if (!normalized) return;
+        byId.set(String(normalized.id || '').trim().toLowerCase(), normalized);
+      });
+      selectedRows.forEach((row, idx) => {
+        const normalized = hpFavNormalizeEntry(row, idx);
+        if (!normalized) return;
+        byId.set(String(normalized.id || '').trim().toLowerCase(), normalized);
+      });
+      const merged = Array.from(byId.values());
+      setHpFavActiveEntries(merged);
+      builder.selectedChannelIds = [];
+      builder.wizardStep = 'review';
+      builder.wizardErrorStep = '';
+      renderHpFavoritesBuilder();
+      const reason = fromWizardNext
+        ? `Auto-added ${selectedRows.length} channel${selectedRows.length === 1 ? '' : 's'} to ${builder.activeList}.`
+        : `Added ${selectedRows.length} channel${selectedRows.length === 1 ? '' : 's'} to ${builder.activeList}.`;
+      const saved = await saveHpFavoritesBuilder(reason);
+      return Boolean(saved);
+    }
+
+    async function removeHpFavoriteEntry(entryId) {
+      const id = String(entryId || '').trim().toLowerCase();
+      if (!id) return;
+      const remaining = getHpFavActiveEntries().filter((entry) => String(entry.id || '').trim().toLowerCase() !== id);
+      setHpFavActiveEntries(remaining);
+      renderHpFavoritesBuilder();
+      await saveHpFavoritesBuilder('Favorite entry removed.');
+    }
+
+    async function selectHpFavoriteList(name) {
+      const builder = state.hpFavoritesBuilder;
+      const nextName = hpFavNormalizeName(name);
+      if (hpFavToken(nextName) === hpFavToken(builder.activeList || '')) {
+        builder.activeList = nextName;
+        renderHpFavoritesBuilder();
+        renderSb3FavoritesPanels();
+        return;
+      }
+      builder.activeList = nextName;
+      renderHpFavoritesBuilder();
+      renderSb3FavoritesPanels();
+      await saveHpFavoritesBuilder(`Active list set to ${nextName}.`);
+    }
+
+    async function createHpFavoriteList() {
+      const builder = state.hpFavoritesBuilder;
+      const rawName = String(els.hpFavListNew && els.hpFavListNew.value ? els.hpFavListNew.value : '').trim();
+      if (!rawName) {
+        setHpFavStatus('Enter a list name first.', true);
+        return;
+      }
+      const nextName = hpFavNormalizeName(rawName);
+      const existing = new Set((builder.lists || []).map((name) => hpFavToken(name)));
+      if (existing.has(hpFavToken(nextName))) {
+        setHpFavStatus('A list with that name already exists.', true);
+        return;
+      }
+      builder.lists = [...(builder.lists || []), nextName];
+      builder.entriesByList = {
+        ...(builder.entriesByList || {}),
+        [hpFavToken(nextName)]: [],
+      };
+      builder.activeList = nextName;
+      if (els.hpFavListNew) els.hpFavListNew.value = '';
+      renderHpFavoritesBuilder();
+      renderSb3FavoritesPanels();
+      await saveHpFavoritesBuilder(`Created list ${nextName}.`);
+    }
+
+    async function deleteHpFavoriteList() {
+      const builder = state.hpFavoritesBuilder;
+      const names = Array.isArray(builder.lists) ? builder.lists : [];
+      if (names.length <= 1) {
+        setHpFavStatus('At least one favorites list must remain.', true);
+        return;
+      }
+      const activeName = hpFavNormalizeName(builder.activeList || names[0]);
+      if (!confirm(`Delete favorites list "${activeName}"?`)) return;
+      const nextNames = names.filter((name) => hpFavToken(name) !== hpFavToken(activeName));
+      const nextEntries = {};
+      nextNames.forEach((name) => {
+        const token = hpFavToken(name);
+        nextEntries[token] = hpFavNormalizeEntries((builder.entriesByList || {})[token]);
+      });
+      builder.lists = nextNames;
+      builder.entriesByList = nextEntries;
+      builder.activeList = nextNames[0] || 'My Favorites';
+      renderHpFavoritesBuilder();
+      renderSb3FavoritesPanels();
+      await saveHpFavoritesBuilder(`Deleted list ${activeName}.`);
+    }
+
+    function openHp3BuilderSidecar(options = {}) {
+      if (state.profileEditor.open && !closeProfileEditorSidecar()) {
+        return false;
+      }
+      if (state.profileLoopUi.open) {
+        closeProfileLoopSidecar();
+      }
+      const preferredType = String(options && options.systemType ? options.systemType : '').trim().toLowerCase();
+      if (preferredType === 'analog' || preferredType === 'digital') {
+        state.hpFavoritesBuilder.systemType = preferredType;
+      }
+      state.hpFavoritesBuilder.wizardStep = 'list';
+      state.hpFavoritesBuilder.wizardErrorStep = '';
+      state.hp3Builder.open = true;
+      if (els.hp3BuilderSidecar) {
+        els.hp3BuilderSidecar.classList.add('open');
+        els.hp3BuilderSidecar.setAttribute('aria-hidden', 'false');
+      }
+      if (els.hp3BuilderOverlay) {
+        els.hp3BuilderOverlay.classList.remove('hidden');
+      }
+      renderHpFavoritesBuilder();
+      loadHpFiltersPanel({ quiet: true }).catch((err) => {
+        console.error('Favorites filter load failed:', err);
+      });
+      loadHpFavoritesBuilder({ quiet: true, force: true }).catch((err) => {
+        console.error('Favorites builder load failed:', err);
+      });
+      renderHpFavoritesSyncUi();
+      return true;
+    }
+
+    function closeHp3BuilderSidecar(refreshAfterClose = true) {
+      state.hp3Builder.open = false;
+      clearHpFavoriteSystemsLoadTimer();
+      if (els.hp3BuilderSidecar) {
+        els.hp3BuilderSidecar.classList.remove('open');
+        els.hp3BuilderSidecar.setAttribute('aria-hidden', 'true');
+      }
+      if (els.hp3BuilderOverlay) {
+        els.hp3BuilderOverlay.classList.add('hidden');
+      }
+      if (refreshAfterClose) {
+        refresh().catch((e) => console.error('Refresh after HP3 builder close failed:', e));
+        loadHpFiltersPanel({ quiet: true }).catch((e) => console.error('HP filters refresh after builder close failed:', e));
+      }
+      return true;
+    }
+
+    function reloadHp3BuilderFrame() {
+      loadHpFiltersPanel({ quiet: true }).catch((err) => {
+        console.error('Favorites filter reload failed:', err);
+      });
+      loadHpFavoritesBuilder({ quiet: false, force: true }).catch((err) => {
+        console.error('Favorites builder reload failed:', err);
+      });
+    }
+
     function setProfileEditorStatus(kind, message, isError = false) {
       const el = kind === 'digital' ? els.profileEditorDigitalStatus : els.profileEditorAnalogStatus;
       if (!el) return;
@@ -3000,6 +5446,9 @@
       if (state.profileLoopUi.open) {
         closeProfileLoopSidecar();
       }
+      if (state.hp3Builder.open) {
+        closeHp3BuilderSidecar(false);
+      }
       if (tab) {
         const changed = setProfileEditorTab(tab);
         if (!changed) return;
@@ -3047,6 +5496,9 @@
     function openProfileLoopSidecar(tab = null) {
       if (state.profileEditor.open && !closeProfileEditorSidecar()) {
         return;
+      }
+      if (state.hp3Builder.open) {
+        closeHp3BuilderSidecar(false);
       }
       if (tab) {
         setProfileLoopTab(tab);
@@ -4176,22 +6628,7 @@
     }
     
     function updateProfiles() {
-      const t = state[activeTarget];
-      
-      if (!t.profiles.length) {
-        els.profilesList.innerHTML = '<div class="empty-state"><div class="icon">📡</div><div>No profiles found</div></div>';
-        return;
-      }
-      
-      els.profilesList.innerHTML = t.profiles
-        .filter(p => !p.id.startsWith('none_'))
-        .map(p => `
-          <button class="profile-btn ${p.id === t.currentProfile ? 'active' : ''}" 
-                  onclick="selectProfile('${p.id}', true)">
-            <div class="label">${p.label}</div>
-            <div class="meta">${p.id}${p.exists ? '' : ' • Missing'}</div>
-          </button>
-        `).join('');
+      renderSb3FavoritesPanels();
       refreshManageCloneOptions();
       refreshFreqEditOptions();
       refreshProfileEditorOptions();
@@ -4723,19 +7160,7 @@
     }
 
     function updateDigitalProfilesList() {
-      if (!els.digitalProfilesList) return;
-      const profiles = state.digital.profiles || [];
-      if (!profiles.length) {
-        els.digitalProfilesList.innerHTML = '<div class="empty-state"><div class="icon">📡</div><div>No digital profiles yet</div></div>';
-        return;
-      }
-      const current = state.digital.activeProfile || state.digital.profile;
-      els.digitalProfilesList.innerHTML = profiles.map((id) => (
-        `<button class="profile-btn ${id === current ? 'active' : ''}" onclick="applyDigitalProfile('${id}')">
-          <div class="label">${id}</div>
-          <div class="meta">${id === current ? 'Active' : 'Select'}</div>
-        </button>`
-      )).join('');
+      renderSb3FavoritesPanels();
     }
 
     function formatDigitalPreview(data) {
@@ -6279,6 +8704,35 @@
       }
     }
 
+    async function resetUsbHub() {
+      if (!confirm('Reset USB hub? SDR devices may disconnect briefly.')) return;
+      if (els.btnResetUsbHub) {
+        els.btnResetUsbHub.disabled = true;
+      }
+      try {
+        const res = await postAPI('/api/usb-hub-reset', {});
+        if (!res || !res.ok) {
+          logActivity(formatApiError(res, 'USB hub reset failed'), 'warn', 'usb-hub-reset-fail');
+        } else {
+          const resetCount = Array.isArray(res.reset_paths) ? res.reset_paths.length : 0;
+          const missingCount = Array.isArray(res.missing_paths) ? res.missing_paths.length : 0;
+          let message = `USB hub reset issued (${resetCount} path${resetCount === 1 ? '' : 's'})`;
+          if (missingCount > 0) {
+            message += `, ${missingCount} missing`;
+          }
+          logActivity(message, 'info', 'usb-hub-reset-ok');
+          setTimeout(() => refresh(), 2000);
+        }
+      } catch (e) {
+        console.error('USB hub reset failed:', e);
+        logActivity(messageFromError(e, 'USB hub reset failed'), 'warn', 'usb-hub-reset-error');
+      } finally {
+        if (els.btnResetUsbHub) {
+          setTimeout(() => { els.btnResetUsbHub.disabled = false; }, 3000);
+        }
+      }
+    }
+
     function toggleSitrep(force) {
       if (!els.viewMain || !els.viewSitrep) return;
       const targetIsSitrep = typeof force === 'boolean' ? force : currentView !== 'sitrep';
@@ -6422,6 +8876,31 @@
       };
       queueNext();
     }
+
+    function markPendingAnalogGain(target, gain) {
+      const name = String(target || '').trim().toLowerCase();
+      if (name !== 'airband' && name !== 'ground') return;
+      const value = Number(gain);
+      if (!Number.isFinite(value)) return;
+      state.pendingApply[name] = { gain: value, at: Date.now() };
+    }
+
+    function resolveAnalogGain(target, observedGain, observedAppliedGain) {
+      const name = String(target || '').trim().toLowerCase();
+      if (name !== 'airband' && name !== 'ground') return observedGain;
+      const pending = state.pendingApply[name];
+      if (!pending || !Number.isFinite(pending.gain)) return observedGain;
+      const observed = Number(observedGain);
+      const applied = Number(observedAppliedGain);
+      const matchesObserved = Number.isFinite(observed) && Math.abs(observed - pending.gain) <= APPLY_GAIN_EPSILON_DB;
+      const matchesApplied = Number.isFinite(applied) && Math.abs(applied - pending.gain) <= APPLY_GAIN_EPSILON_DB;
+      const expired = (Date.now() - Number(pending.at || 0)) > APPLY_PENDING_HOLD_MS;
+      if (matchesObserved || matchesApplied || expired) {
+        state.pendingApply[name] = null;
+        return observedGain;
+      }
+      return pending.gain;
+    }
     
     async function applyGainSql() {
       const gainIdx = parseInt(els.gainSlider.value);
@@ -6454,6 +8933,7 @@
         state[activeTarget].squelch_dbfs = squelchDbfs;
         state[activeTarget].applied_gain = null;
         state[activeTarget].applied_squelch_dbfs = null;
+        markPendingAnalogGain(activeTarget, gain);
         if (res && res.restart_ok === false) {
           logActivity('Restart required to apply controls', 'warn', `restart-required-${activeTarget}`);
           if (els.dbfsApplied) els.dbfsApplied.textContent = 'restart';
@@ -6503,6 +8983,7 @@
         state[activeTarget].applied_gain = null;
         state[activeTarget].applied_squelch_dbfs = null;
         state[activeTarget].filter = cutoff;
+        markPendingAnalogGain(activeTarget, gain);
         if (res && res.restart_ok === false) {
           logActivity('Restart required to apply controls', 'warn', `restart-required-${activeTarget}`);
           if (els.dbfsApplied) els.dbfsApplied.textContent = 'restart';
@@ -6765,16 +9246,12 @@
       refreshInFlight = (async () => {
         const wasConnected = state.connected;
         try {
-          const loopEnabledNow = Boolean((state.profileLoop?.digital || {}).enabled);
-          const fetchScheduler = !loopEnabledNow;
-          const fetchDigitalPreflight = !loopEnabledNow;
-          const [data, profilesData, systemData, schedulerData, digitalPreflightData, profileLoopData] = await Promise.all([
+          const [data, profilesData, systemData, schedulerData, digitalPreflightData] = await Promise.all([
             fetchJSON('/api/status'),
             fetchJSON('/api/profiles'),
             fetchJSON('/api/system'),
-            fetchScheduler ? fetchJSON('/api/digital/scheduler').catch(() => null) : Promise.resolve(null),
-            fetchDigitalPreflight ? fetchJSON('/api/digital/preflight').catch(() => null) : Promise.resolve(null),
-            fetchJSON('/api/profile-loop').catch(() => null),
+            fetchJSON('/api/digital/scheduler').catch(() => null),
+            fetchJSON('/api/digital/preflight').catch(() => null),
           ]);
 
           const pickNumber = (value, fallback) => (value === 0 || value) ? value : fallback;
@@ -6829,21 +9306,25 @@
           state.lastProfile.ground = data.profile_ground;
         }
         
-        state.airband.gain = pickNumber(data.airband_gain, pickNumber(data.gain, 32.8));
+        const airbandObservedGain = pickNumber(data.airband_gain, pickNumber(data.gain, 32.8));
+        const airbandAppliedGain = Number.isFinite(data.airband_applied_gain) ? data.airband_applied_gain : null;
+        state.airband.gain = resolveAnalogGain('airband', airbandObservedGain, airbandAppliedGain);
         state.airband.squelch_mode = data.airband_squelch_mode || 'dbfs';
         state.airband.squelch_snr = pickNumber(data.airband_squelch_snr, pickNumber(data.airband_squelch, pickNumber(data.squelch, 0.5)));
         state.airband.squelch_dbfs = pickNumber(data.airband_squelch_dbfs, 0);
-        state.airband.applied_gain = Number.isFinite(data.airband_applied_gain) ? data.airband_applied_gain : null;
+        state.airband.applied_gain = airbandAppliedGain;
         state.airband.applied_squelch_dbfs = Number.isFinite(data.airband_applied_squelch_dbfs) ? data.airband_applied_squelch_dbfs : null;
         state.airband.squelch = state.airband.squelch_dbfs;
         state.airband.filter = pickNumber(data.airband_filter, 3500);
         state.airband.avoids = data.avoids_airband?.sample || [];
         
-        state.ground.gain = pickNumber(data.ground_gain, 32.8);
+        const groundObservedGain = pickNumber(data.ground_gain, 32.8);
+        const groundAppliedGain = Number.isFinite(data.ground_applied_gain) ? data.ground_applied_gain : null;
+        state.ground.gain = resolveAnalogGain('ground', groundObservedGain, groundAppliedGain);
         state.ground.squelch_mode = data.ground_squelch_mode || 'dbfs';
         state.ground.squelch_snr = pickNumber(data.ground_squelch_snr, pickNumber(data.ground_squelch, 0.5));
         state.ground.squelch_dbfs = pickNumber(data.ground_squelch_dbfs, 0);
-        state.ground.applied_gain = Number.isFinite(data.ground_applied_gain) ? data.ground_applied_gain : null;
+        state.ground.applied_gain = groundAppliedGain;
         state.ground.applied_squelch_dbfs = Number.isFinite(data.ground_applied_squelch_dbfs) ? data.ground_applied_squelch_dbfs : null;
         state.ground.squelch = state.ground.squelch_dbfs;
         state.ground.filter = pickNumber(data.ground_filter, 3500);
@@ -6873,12 +9354,6 @@
         if (schedulerData && schedulerData.ok) {
           applyDigitalSchedulerPayload(schedulerData);
         }
-        if (data.profile_loop && typeof data.profile_loop === 'object') {
-          applyProfileLoopPayload(data.profile_loop);
-        }
-        if (profileLoopData && profileLoopData.ok) {
-          applyProfileLoopPayload(profileLoopData);
-        }
         if (digitalPreflightData && digitalPreflightData.ok) {
           applyDigitalPreflightPayload(digitalPreflightData);
         }
@@ -6905,6 +9380,7 @@
         state.v3Compile = data.v3_compile || null;
         state.preflight = data.preflight || { airband: null, ground: null, digital: null };
         state.health = data.health || { overall: { state: 'unknown', reasonCodes: [] }, subsystems: {} };
+        applyHpFavoritesSyncStatus(data.hp_favorites_sync, data);
         
         state.connected = true;
         if (!wasConnected) {
@@ -6920,9 +9396,17 @@
         updateDigitalUI();
         updateControls();
         updateProfiles();
-        updateSystemUI(systemData);
+          updateSystemUI(systemData);
           updateCounters();
           updateTuneButton();
+          {
+            const lastLoadedAt = Number(state.hpFavoritesBuilder && state.hpFavoritesBuilder.lastLoadedAt ? state.hpFavoritesBuilder.lastLoadedAt : 0);
+            if (!lastLoadedAt || (Date.now() - lastLoadedAt) > 20000) {
+              loadHpFavoritesBuilder({ quiet: true, force: true }).catch((err) => {
+                console.error('Background favorites builder refresh failed:', err);
+              });
+            }
+          }
           refreshDigitalProfiles();
           refreshDigitalListen();
         } catch (e) {
@@ -7026,8 +9510,11 @@
           state.lastHit = data.last_hit || state.lastHit;
           state.serverTime = data.server_time;
           state.lastStatusTick = Date.now();
-          if (data.profile_loop && typeof data.profile_loop === 'object') {
-            applyProfileLoopPayload(data.profile_loop);
+          if (
+            (data.hp_favorites_sync && typeof data.hp_favorites_sync === 'object')
+            || ('hp_favorites_sync_available' in data)
+          ) {
+            applyHpFavoritesSyncStatus(data.hp_favorites_sync, data);
           }
           if (state.sdr1Active) state.sdr1LastSeen = state.lastStatusTick;
           if (state.sdr2Active) state.sdr2LastSeen = state.lastStatusTick;
@@ -7132,8 +9619,11 @@
       setupCollapsibleWidgets();
       updateTuneButton();
       setProfileEditorTab('analog');
-      setProfileLoopTab(state.profileLoopUi.tab || 'analog');
       refreshProfileEditorOptions();
+      renderHpFavoritesSyncUi();
+      renderHpFiltersPanel();
+      renderHpFavoritesBuilder();
+      renderSb3FavoritesPanels();
 
       syncStreamLinks();
       refreshVlcStatus();
@@ -7152,8 +9642,8 @@
         els.logoToggle.addEventListener('click', () => toggleSitrep());
       }
       document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && state.profileLoopUi.open) {
-          closeProfileLoopSidecar();
+        if (e.key === 'Escape' && state.hp3Builder.open) {
+          closeHp3BuilderSidecar();
           return;
         }
         if (e.key === 'Escape' && state.profileEditor.open) {
@@ -7382,6 +9872,272 @@
           renderDigitalListenList();
           els.digitalListenList.scrollTop = scrollTop;
         });
+      }
+      if (els.favoritesSyncBtnAnalog) {
+        els.favoritesSyncBtnAnalog.addEventListener('click', syncHpFavoritesToSb3Profile);
+      }
+      if (els.favoritesSyncBtnDigital) {
+        els.favoritesSyncBtnDigital.addEventListener('click', syncHpFavoritesToSb3Profile);
+      }
+      if (els.hpFiltersRefresh) {
+        els.hpFiltersRefresh.addEventListener('click', () => loadHpFiltersPanel());
+      }
+      if (els.hpFiltersSave) {
+        els.hpFiltersSave.addEventListener('click', () => saveHpFiltersPanel());
+      }
+      if (els.hpFilterResolveZip) {
+        els.hpFilterResolveZip.addEventListener('click', () => saveHpFiltersPanel({ resolveZip: true }));
+      }
+      if (els.hpFilterZip) {
+        els.hpFilterZip.addEventListener('input', () => {
+          state.hpFilters.zip = String(els.hpFilterZip.value || '').trim();
+          renderHpFiltersPanel();
+          scheduleHpFiltersAutoSave();
+        });
+      }
+      if (els.hpFilterRange) {
+        els.hpFilterRange.addEventListener('input', () => {
+          state.hpFilters.rangeMiles = Math.max(0, _toFloat(els.hpFilterRange.value, state.hpFilters.rangeMiles || 15));
+          scheduleHpFiltersAutoSave();
+        });
+      }
+      if (els.hpFilterUseLocation) {
+        els.hpFilterUseLocation.addEventListener('change', () => {
+          state.hpFilters.useLocation = Boolean(els.hpFilterUseLocation.checked);
+          scheduleHpFiltersAutoSave();
+        });
+      }
+      if (els.hpFilterNationwide) {
+        els.hpFilterNationwide.addEventListener('change', () => {
+          state.hpFilters.nationwideSystems = Boolean(els.hpFilterNationwide.checked);
+          scheduleHpFiltersAutoSave();
+        });
+      }
+      if (els.hpFilterMode) {
+        els.hpFilterMode.addEventListener('change', () => {
+          state.hpFilters.mode = els.hpFilterMode.value === 'full_database' ? 'full_database' : 'favorites';
+          scheduleHpFiltersAutoSave();
+        });
+      }
+      if (els.hpServiceTypesList) {
+        els.hpServiceTypesList.addEventListener('change', (e) => {
+          const target = e.target;
+          if (!target || target.tagName !== 'INPUT') return;
+          state.hpFilters.enabledServiceTags = collectHpServiceTypeSelectionFromUi();
+          scheduleHpFiltersAutoSave();
+        });
+      }
+      if (els.hpServiceTypesAll) {
+        els.hpServiceTypesAll.addEventListener('click', () => setHpFiltersSelection('all', { autoSave: true }));
+      }
+      if (els.hpServiceTypesDefaults) {
+        els.hpServiceTypesDefaults.addEventListener('click', () => setHpFiltersSelection('defaults', { autoSave: true }));
+      }
+      if (els.hpServiceTypesNone) {
+        els.hpServiceTypesNone.addEventListener('click', () => setHpFiltersSelection('none', { autoSave: true }));
+      }
+      if (els.profilesList) {
+        els.profilesList.addEventListener('click', (e) => {
+          const btn = e.target && e.target.closest ? e.target.closest('button[data-hp-fav-list-index]') : null;
+          if (!btn) return;
+          const idx = _toInt(btn.getAttribute('data-hp-fav-list-index'), -1);
+          const names = Array.isArray(state.hpFavoritesBuilder.lists) ? state.hpFavoritesBuilder.lists : [];
+          if (idx < 0 || idx >= names.length) return;
+          selectHpFavoriteList(names[idx]);
+        });
+      }
+      if (els.hpFavListSelect) {
+        els.hpFavListSelect.addEventListener('change', () => {
+          const name = hpFavNormalizeName(els.hpFavListSelect.value || '');
+          selectHpFavoriteList(name);
+        });
+      }
+      if (els.hpFavListCreate) {
+        els.hpFavListCreate.addEventListener('click', createHpFavoriteList);
+      }
+      if (els.hpFavListNew) {
+        els.hpFavListNew.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter') return;
+          e.preventDefault();
+          createHpFavoriteList();
+        });
+      }
+      if (els.hpFavListDelete) {
+        els.hpFavListDelete.addEventListener('click', deleteHpFavoriteList);
+      }
+      if (els.hpFavFlow) {
+        els.hpFavFlow.addEventListener('click', (e) => {
+          const btn = e.target && e.target.closest ? e.target.closest('[data-hp-flow-step]') : null;
+          if (!btn) return;
+          setHpFavoriteWizardStep(btn.getAttribute('data-hp-flow-step'));
+        });
+      }
+      if (els.hpFavWizardBack) {
+        els.hpFavWizardBack.addEventListener('click', () => goHpFavoriteWizardStep(-1));
+      }
+      if (els.hpFavWizardNext) {
+        els.hpFavWizardNext.addEventListener('click', () => goHpFavoriteWizardStep(1));
+      }
+      if (els.hpFavSystemType) {
+        els.hpFavSystemType.addEventListener('change', () => {
+          state.hpFavoritesBuilder.systemType = els.hpFavSystemType.value === 'analog' ? 'analog' : 'digital';
+          resetHpFavoriteSystemAndChannelPicks();
+          renderHpFavoritesBuilder();
+          scheduleHpFavoriteSystemsLoad();
+        });
+      }
+      if (els.hpFavCountry) {
+        els.hpFavCountry.addEventListener('change', async () => {
+          state.hpFavoritesBuilder.countryId = _toInt(els.hpFavCountry.value, 1) || 1;
+          state.hpFavoritesBuilder.stateId = 0;
+          state.hpFavoritesBuilder.countyId = 0;
+          resetHpFavoriteSystemAndChannelPicks();
+          renderHpFavoritesBuilder();
+          try {
+            await loadHpFavoriteStates();
+            await loadHpFavoriteCounties();
+            renderHpFavoritesBuilder();
+            scheduleHpFavoriteSystemsLoad();
+          } catch (e) {
+            setHpFavStatus(messageFromError(e, 'Failed to load states/counties'), true);
+          }
+        });
+      }
+      if (els.hpFavState) {
+        els.hpFavState.addEventListener('change', async () => {
+          state.hpFavoritesBuilder.stateId = _toInt(els.hpFavState.value, 0);
+          state.hpFavoritesBuilder.countyId = 0;
+          resetHpFavoriteSystemAndChannelPicks();
+          renderHpFavoritesBuilder();
+          try {
+            await loadHpFavoriteCounties();
+            renderHpFavoritesBuilder();
+            scheduleHpFavoriteSystemsLoad();
+          } catch (e) {
+            setHpFavStatus(messageFromError(e, 'Failed to load counties'), true);
+          }
+        });
+      }
+      if (els.hpFavCounty) {
+        els.hpFavCounty.addEventListener('change', () => {
+          state.hpFavoritesBuilder.countyId = _toInt(els.hpFavCounty.value, 0);
+          resetHpFavoriteSystemAndChannelPicks();
+          renderHpFavoritesBuilder();
+          scheduleHpFavoriteSystemsLoad();
+        });
+      }
+      if (els.hpFavScope) {
+        els.hpFavScope.addEventListener('change', () => {
+          state.hpFavoritesBuilder.scope = String(els.hpFavScope.value || 'statewide');
+          resetHpFavoriteSystemAndChannelPicks();
+          renderHpFavoritesBuilder();
+          scheduleHpFavoriteSystemsLoad();
+        });
+      }
+      if (els.hpFavSystemSearch) {
+        els.hpFavSystemSearch.addEventListener('input', () => {
+          state.hpFavoritesBuilder.systemQuery = String(els.hpFavSystemSearch.value || '');
+          renderHpFavoritesBuilder();
+        });
+        els.hpFavSystemSearch.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter') return;
+          e.preventDefault();
+          loadHpFavoriteSystems({ quiet: false });
+        });
+      }
+      if (els.hpFavAutoLoad) {
+        els.hpFavAutoLoad.addEventListener('change', () => {
+          state.hpFavoritesBuilder.autoLoadSystems = Boolean(els.hpFavAutoLoad.checked);
+          if (state.hpFavoritesBuilder.autoLoadSystems) {
+            scheduleHpFavoriteSystemsLoad({ immediate: true, quiet: true });
+          } else {
+            clearHpFavoriteSystemsLoadTimer();
+          }
+          renderHpFavoritesBuilder();
+        });
+      }
+      if (els.hpFavLoadSystems) {
+        els.hpFavLoadSystems.addEventListener('click', () => loadHpFavoriteSystems({ quiet: false }));
+      }
+      if (els.hpFavSystems) {
+        els.hpFavSystems.addEventListener('click', (e) => {
+          const btn = e.target && e.target.closest ? e.target.closest('button[data-hp-system-id]') : null;
+          if (!btn) return;
+          selectHpFavoriteSystem(btn.getAttribute('data-hp-system-id'));
+        });
+      }
+      if (els.hpFavDepartment) {
+        els.hpFavDepartment.addEventListener('change', () => {
+          setHpFavoriteDepartment(els.hpFavDepartment.value || '');
+        });
+      }
+      if (els.hpFavChannelSearch) {
+        els.hpFavChannelSearch.addEventListener('input', () => {
+          state.hpFavoritesBuilder.channelQuery = String(els.hpFavChannelSearch.value || '');
+          renderHpFavoritesBuilder();
+        });
+      }
+      if (els.hpFavChannelSearchClear) {
+        els.hpFavChannelSearchClear.addEventListener('click', () => {
+          state.hpFavoritesBuilder.channelQuery = '';
+          if (els.hpFavChannelSearch) els.hpFavChannelSearch.value = '';
+          renderHpFavoritesBuilder();
+          if (els.hpFavChannelSearch) els.hpFavChannelSearch.focus();
+        });
+      }
+      if (els.hpFavChannels) {
+        els.hpFavChannels.addEventListener('change', (e) => {
+          const input = e.target;
+          if (!input || input.tagName !== 'INPUT') return;
+          const id = input.getAttribute('data-hp-channel-id');
+          toggleHpFavoriteChannel(id, Boolean(input.checked));
+        });
+      }
+      if (els.hpFavSelectDepartment) {
+        els.hpFavSelectDepartment.addEventListener('click', setHpFavoriteDepartmentSelection);
+      }
+      if (els.hpFavSelectVisible) {
+        els.hpFavSelectVisible.addEventListener('click', () => setHpFavoriteVisibleChannelSelection(true));
+      }
+      if (els.hpFavClearSelected) {
+        els.hpFavClearSelected.addEventListener('click', () => setHpFavoriteVisibleChannelSelection(false));
+      }
+      if (els.hpFavAddSelected) {
+        els.hpFavAddSelected.addEventListener('click', addSelectedHpFavoriteChannels);
+      }
+      if (els.hpFavEntries) {
+        els.hpFavEntries.addEventListener('click', (e) => {
+          const btn = e.target && e.target.closest ? e.target.closest('button[data-hp-entry-id]') : null;
+          if (!btn) return;
+          removeHpFavoriteEntry(btn.getAttribute('data-hp-entry-id'));
+        });
+      }
+      if (els.hp3BuilderOpenAnalog) {
+        els.hp3BuilderOpenAnalog.addEventListener('click', () => {
+          state.hpFavoritesBuilder.systemType = 'analog';
+          openHp3BuilderSidecar({ systemType: 'analog' });
+          if (els.hpFavSystemSearch) {
+            setTimeout(() => els.hpFavSystemSearch.focus(), 10);
+          }
+        });
+      }
+      if (els.hp3BuilderOpenDigital) {
+        els.hp3BuilderOpenDigital.addEventListener('click', () => {
+          state.hpFavoritesBuilder.systemType = 'digital';
+          openHp3BuilderSidecar({ systemType: 'digital' });
+          if (els.hpFavSystemSearch) {
+            setTimeout(() => els.hpFavSystemSearch.focus(), 10);
+          }
+        });
+      }
+      if (els.hp3BuilderClose) {
+        els.hp3BuilderClose.addEventListener('click', () => closeHp3BuilderSidecar());
+      }
+      if (els.hp3BuilderOverlay) {
+        els.hp3BuilderOverlay.addEventListener('click', () => closeHp3BuilderSidecar());
+      }
+      if (els.hp3BuilderRefresh) {
+        els.hp3BuilderRefresh.addEventListener('click', reloadHp3BuilderFrame);
       }
       if (els.profileEditorOpenAnalog) {
         els.profileEditorOpenAnalog.addEventListener('click', () => openProfileEditorSidecar('analog'));
@@ -7628,6 +10384,9 @@
       if (els.btnRestartKeepalive) {
         els.btnRestartKeepalive.addEventListener('click', () => restartService('keepalive', 'Keepalive'));
       }
+      if (els.btnResetUsbHub) {
+        els.btnResetUsbHub.addEventListener('click', () => resetUsbHub());
+      }
       if (els.btnRestartUi) {
         els.btnRestartUi.addEventListener('click', () => restartService('ui', 'UI'));
       }
@@ -7672,6 +10431,12 @@
       try {
         await refreshProfilesFast();
       } catch (_ignored) {}
+      loadHpFiltersPanel({ quiet: true }).catch((e) => {
+        console.error('Initial HP filters load failed:', e);
+      });
+      loadHpFavoritesBuilder({ quiet: true, force: true }).catch((e) => {
+        console.error('Initial favorites builder load failed:', e);
+      });
       refresh().catch((e) => console.error('Initial refresh failed:', e));
       await refreshHits();
       connectSSE();
