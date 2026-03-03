@@ -39,6 +39,8 @@ class ScanModeController:
         self._db_path = str(Path(db_path).expanduser().resolve())
         self._hp_builder = ScanPoolBuilder(self._db_path)
         self._hp_avoided_systems: set[str] = set()
+        self._multistate_localized_trunk_ids: set[int] | None = None
+        self._multistate_localized_conv_system_keys: set[str] | None = None
         self._lock = threading.Lock()
 
     def set_mode(self, mode: str):
@@ -153,6 +155,57 @@ class ScanModeController:
         distance = haversine_miles(center_lat, center_lon, target_lat, target_lon)
         return distance <= threshold
 
+    def _load_multistate_scope_overrides(self, conn: sqlite3.Connection) -> tuple[set[int], set[str]]:
+        cached_trunk_ids = self._multistate_localized_trunk_ids
+        cached_conv_keys = self._multistate_localized_conv_system_keys
+        if cached_trunk_ids is not None and cached_conv_keys is not None:
+            return cached_trunk_ids, cached_conv_keys
+
+        trunk_ids: set[int] = set()
+        conv_system_keys: set[str] = set()
+        try:
+            rows = conn.execute(
+                """
+                SELECT DISTINCT entity_id
+                FROM entity_areas
+                WHERE entity_kind = 'TrunkId'
+                  AND (
+                    (record_type = 'AreaState' AND COALESCE(state_id, 0) > 0)
+                    OR (record_type = 'AreaCounty' AND COALESCE(county_id, 0) > 0)
+                  )
+                """
+            ).fetchall()
+            for row in rows:
+                trunk_id = self._parse_int(row["entity_id"])
+                if trunk_id is not None and trunk_id > 0:
+                    trunk_ids.add(int(trunk_id))
+
+            rows = conn.execute(
+                """
+                SELECT DISTINCT cs.system_key
+                FROM conventional_systems cs
+                JOIN entity_areas ea
+                  ON ea.entity_kind = 'AgencyId'
+                 AND ea.entity_id = CAST(substr(cs.system_key, instr(cs.system_key, ':') + 1) AS INTEGER)
+                WHERE lower(cs.source_file) = '_multiplestates.hpd'
+                  AND (
+                    (ea.record_type = 'AreaState' AND COALESCE(ea.state_id, 0) > 0)
+                    OR (ea.record_type = 'AreaCounty' AND COALESCE(ea.county_id, 0) > 0)
+                  )
+                """
+            ).fetchall()
+            for row in rows:
+                token = str(row["system_key"] or "").strip().lower()
+                if token:
+                    conv_system_keys.add(token)
+        except Exception:
+            # If scope metadata cannot be read, keep legacy behavior by returning empty override sets.
+            return set(), set()
+
+        self._multistate_localized_trunk_ids = trunk_ids
+        self._multistate_localized_conv_system_keys = conv_system_keys
+        return trunk_ids, conv_system_keys
+
     def _load_nearby_trunk_systems(
         self,
         conn: sqlite3.Connection,
@@ -176,15 +229,22 @@ class ScanModeController:
             ORDER BY ts.trunk_id, ts.site_id
             """
         ).fetchall()
+        localized_trunk_ids: set[int] = set()
+        if not include_nationwide:
+            localized_trunk_ids, _ = self._load_multistate_scope_overrides(conn)
         lat_miles_per_degree = 69.0
         lon_miles_per_degree = max(1e-6, 69.0 * abs(math.cos(math.radians(center_lat))))
         nearby_ids: set[int] = set()
         nearby_names: set[str] = set()
         for row in rows:
             source_file = str(row["source_file"] or "").strip().lower()
-            if source_file == "_multiplestates.hpd" and not include_nationwide:
-                continue
             trunk_id = self._parse_int(row["trunk_id"])
+            if (
+                source_file == "_multiplestates.hpd"
+                and not include_nationwide
+                and (trunk_id is None or trunk_id not in localized_trunk_ids)
+            ):
+                continue
             target_lat = self._parse_float(row["latitude"])
             target_lon = self._parse_float(row["longitude"])
             target_radius = self._parse_float(row["radius"]) or 0.0
@@ -233,15 +293,22 @@ class ScanModeController:
             ORDER BY system_key
             """
         ).fetchall()
+        localized_conv_keys: set[str] = set()
+        if not include_nationwide:
+            _, localized_conv_keys = self._load_multistate_scope_overrides(conn)
         lat_miles_per_degree = 69.0
         lon_miles_per_degree = max(1e-6, 69.0 * abs(math.cos(math.radians(center_lat))))
         nearby_keys: set[str] = set()
         nearby_names: set[str] = set()
         for row in rows:
             source_file = str(row["source_file"] or "").strip().lower()
-            if source_file == "_multiplestates.hpd" and not include_nationwide:
-                continue
             system_key = str(row["system_key"] or "").strip()
+            if (
+                source_file == "_multiplestates.hpd"
+                and not include_nationwide
+                and system_key.lower() not in localized_conv_keys
+            ):
+                continue
             target_lat = self._parse_float(row["latitude"])
             target_lon = self._parse_float(row["longitude"])
             target_radius = self._parse_float(row["radius"]) or 0.0

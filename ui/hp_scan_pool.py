@@ -35,6 +35,8 @@ class ScanPoolBuilder:
     def __init__(self, db_path: str):
         self.db_path = str(Path(db_path).expanduser().resolve())
         self._indexes_ready = False
+        self._multistate_localized_trunk_ids: set[int] | None = None
+        self._multistate_localized_agency_ids: set[int] | None = None
         self._bootstrap_indexes()
 
     @staticmethod
@@ -135,6 +137,53 @@ class ScanPoolBuilder:
             return None
         return parsed
 
+    def _load_multistate_scope_overrides(self, conn: sqlite3.Connection) -> tuple[set[int], set[int]]:
+        cached_trunk_ids = self._multistate_localized_trunk_ids
+        cached_agency_ids = self._multistate_localized_agency_ids
+        if cached_trunk_ids is not None and cached_agency_ids is not None:
+            return cached_trunk_ids, cached_agency_ids
+
+        trunk_ids: set[int] = set()
+        agency_ids: set[int] = set()
+        try:
+            rows = conn.execute(
+                """
+                SELECT DISTINCT entity_id
+                FROM entity_areas
+                WHERE entity_kind = 'TrunkId'
+                  AND (
+                    (record_type = 'AreaState' AND COALESCE(state_id, 0) > 0)
+                    OR (record_type = 'AreaCounty' AND COALESCE(county_id, 0) > 0)
+                  )
+                """
+            ).fetchall()
+            for row in rows:
+                trunk_id = self._parse_int(row["entity_id"])
+                if trunk_id is not None and trunk_id > 0:
+                    trunk_ids.add(int(trunk_id))
+
+            rows = conn.execute(
+                """
+                SELECT DISTINCT entity_id
+                FROM entity_areas
+                WHERE entity_kind = 'AgencyId'
+                  AND (
+                    (record_type = 'AreaState' AND COALESCE(state_id, 0) > 0)
+                    OR (record_type = 'AreaCounty' AND COALESCE(county_id, 0) > 0)
+                  )
+                """
+            ).fetchall()
+            for row in rows:
+                agency_id = self._parse_int(row["entity_id"])
+                if agency_id is not None and agency_id > 0:
+                    agency_ids.add(int(agency_id))
+        except Exception:
+            return set(), set()
+
+        self._multistate_localized_trunk_ids = trunk_ids
+        self._multistate_localized_agency_ids = agency_ids
+        return trunk_ids, agency_ids
+
     def build_full_database_pool(
         self,
         lat: float,
@@ -181,15 +230,23 @@ class ScanPoolBuilder:
                 ORDER BY ts.trunk_id, ts.site_id
                 """
             ).fetchall()
+            localized_trunk_ids: set[int] = set()
+            localized_agency_ids: set[int] = set()
+            if not include_nationwide:
+                localized_trunk_ids, localized_agency_ids = self._load_multistate_scope_overrides(conn)
 
             selected_sites: list[dict[str, object]] = []
             selected_by_system: dict[int, set[int]] = {}
             for row in site_rows:
                 source_file = str(row["source_file"] or "").strip()
-                if source_file.lower() == "_multiplestates.hpd" and not include_nationwide:
-                    continue
                 site_id = self._parse_int(row["site_id"])
                 system_id = self._parse_int(row["trunk_id"])
+                if (
+                    source_file.lower() == "_multiplestates.hpd"
+                    and not include_nationwide
+                    and (system_id is None or system_id not in localized_trunk_ids)
+                ):
+                    continue
                 if site_id is None or system_id is None:
                     continue
                 site_lat = self._parse_float(row["latitude"])
@@ -341,6 +398,8 @@ class ScanPoolBuilder:
                     cf.alpha_tag,
                     cf.service_tag,
                     cg.source_file,
+                    cg.parent_key,
+                    cg.parent_id,
                     cg.latitude,
                     cg.longitude,
                     cg.radius
@@ -357,7 +416,15 @@ class ScanPoolBuilder:
             for row in conv_rows:
                 source_file = str(row["source_file"] or "").strip()
                 if source_file.lower() == "_multiplestates.hpd" and not include_nationwide:
-                    continue
+                    parent_key = str(row["parent_key"] or "").strip().lower()
+                    parent_id = self._parse_int(row["parent_id"])
+                    is_localized = (
+                        parent_key == "agencyid"
+                        and parent_id is not None
+                        and parent_id in localized_agency_ids
+                    )
+                    if not is_localized:
+                        continue
                 freq_hz = self._parse_int(row["freq_hz"])
                 service_tag = self._parse_int(row["service_tag"])
                 group_lat = self._parse_float(row["latitude"])
