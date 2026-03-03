@@ -384,8 +384,69 @@ class ScanModeController:
             out = out[:max_controls]
         return out
 
-    @classmethod
-    def _build_custom_favorites_pool(cls, entries: list[dict]) -> dict[str, list]:
+    def _fallback_trunk_control_channels(self, *, system_id: int = 0, system_name: str = "") -> list[float]:
+        """Backfill control channels from HPDB when legacy/custom rows omit them."""
+        trunk_ids: list[int] = []
+        if int(system_id or 0) > 0:
+            trunk_ids.append(int(system_id))
+        elif str(system_name or "").strip():
+            name_token = str(system_name).strip().lower()
+            try:
+                with sqlite3.connect(self._db_path) as conn:
+                    rows = conn.execute(
+                        """
+                        SELECT trunk_id
+                        FROM trunk_systems
+                        WHERE lower(system_name) = ?
+                        ORDER BY trunk_id
+                        LIMIT 8
+                        """,
+                        (name_token,),
+                    ).fetchall()
+                for row in rows:
+                    try:
+                        trunk_id = int(row[0])
+                    except Exception:
+                        continue
+                    if trunk_id > 0:
+                        trunk_ids.append(trunk_id)
+            except Exception:
+                trunk_ids = []
+
+        if not trunk_ids:
+            return []
+
+        for trunk_id in trunk_ids:
+            try:
+                with sqlite3.connect(self._db_path) as conn:
+                    rows = conn.execute(
+                        """
+                        SELECT DISTINCT tf.freq_hz
+                        FROM trunk_sites ts
+                        JOIN trunk_freqs tf ON tf.site_id = ts.site_id
+                        WHERE ts.trunk_id = ?
+                          AND tf.freq_hz IS NOT NULL
+                        ORDER BY tf.freq_hz
+                        """,
+                        (int(trunk_id),),
+                    ).fetchall()
+            except Exception:
+                continue
+            controls_mhz: list[float] = []
+            for row in rows:
+                try:
+                    hz = int(row[0])
+                except Exception:
+                    continue
+                if hz <= 0:
+                    continue
+                controls_mhz.append(round(float(hz) / 1_000_000.0, 6))
+            normalized = self._normalize_control_channels(controls_mhz)
+            if normalized:
+                return normalized
+        return []
+
+    def _build_custom_favorites_pool(self, entries: list[dict]) -> dict[str, list]:
         raw_entries = entries if isinstance(entries, list) else []
         trunk_rows: dict[tuple[int, str, str, tuple[float, ...]], dict[str, Any]] = {}
         conventional_rows: dict[tuple[str, float, int, str], dict[str, Any]] = {}
@@ -394,12 +455,17 @@ class ScanModeController:
             row = item if isinstance(item, dict) else {}
             kind = str(row.get("kind") or "").strip().lower()
             if kind == "trunked":
-                controls = cls._normalize_control_channels(row.get("control_channels"))
-                tgid = cls._parse_int(row.get("talkgroup") or row.get("tgid"))
+                system_id = self._parse_int(row.get("system_id")) or 0
+                system_name = str(row.get("system_name") or "").strip() or "Custom Trunked"
+                controls = self._normalize_control_channels(row.get("control_channels"))
+                if not controls:
+                    controls = self._fallback_trunk_control_channels(
+                        system_id=int(system_id),
+                        system_name=system_name,
+                    )
+                tgid = self._parse_int(row.get("talkgroup") or row.get("tgid"))
                 if not controls or tgid is None or tgid <= 0:
                     continue
-                system_id = cls._parse_int(row.get("system_id")) or 0
-                system_name = str(row.get("system_name") or "").strip() or "Custom Trunked"
                 department_name = str(row.get("department_name") or "").strip()
                 alpha_tag = str(row.get("alpha_tag") or row.get("channel_name") or "").strip()
                 key = (int(system_id), system_name.lower(), department_name.lower(), tuple(controls))
@@ -426,13 +492,13 @@ class ScanModeController:
                 continue
 
             if kind == "conventional":
-                frequency = cls._parse_float(row.get("frequency"))
+                frequency = self._parse_float(row.get("frequency"))
                 if frequency is None or frequency <= 0:
                     continue
                 system_key = str(row.get("system_key") or "").strip()
                 system_name = str(row.get("system_name") or "").strip()
                 alpha_tag = str(row.get("alpha_tag") or row.get("channel_name") or "").strip()
-                service_tag = cls._parse_int(row.get("service_tag"))
+                service_tag = self._parse_int(row.get("service_tag"))
                 conventional_rows[
                     (
                         system_key.lower(),
