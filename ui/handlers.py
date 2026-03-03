@@ -105,7 +105,7 @@ try:
     from .hp_favorites_wizard import HPFavoritesWizard
     from .favorites_runtime import (
         get_last_favorites_runtime_sync,
-        sync_scan_pool_to_analog_runtime,
+        sync_scan_pool_to_runtime,
     )
     from .service_types import get_all_service_types, get_default_enabled_service_types
     from .zip_lookup import resolve_postal_to_lat_lon
@@ -187,7 +187,7 @@ except ImportError:
     from ui.hp_favorites_wizard import HPFavoritesWizard
     from ui.favorites_runtime import (
         get_last_favorites_runtime_sync,
-        sync_scan_pool_to_analog_runtime,
+        sync_scan_pool_to_runtime,
     )
     from ui.service_types import get_all_service_types, get_default_enabled_service_types
     from ui.zip_lookup import resolve_postal_to_lat_lon
@@ -1944,7 +1944,7 @@ class Handler(BaseHTTPRequestHandler):
 
             sync_payload: dict[str, Any] = {"ok": True, "changed": False}
             try:
-                sync_payload = sync_scan_pool_to_analog_runtime(force=True)
+                sync_payload = sync_scan_pool_to_runtime(force=True)
             except Exception as exc:
                 sync_payload = {"ok": False, "changed": False, "errors": [str(exc)]}
 
@@ -2090,7 +2090,7 @@ class Handler(BaseHTTPRequestHandler):
                 state.save()
                 sync_payload: dict[str, Any] = {"ok": True, "changed": False}
                 try:
-                    sync_payload = sync_scan_pool_to_analog_runtime(force=True)
+                    sync_payload = sync_scan_pool_to_runtime(force=True)
                 except Exception as sync_exc:
                     sync_payload = {"ok": False, "changed": False, "errors": [str(sync_exc)]}
                 payload = {

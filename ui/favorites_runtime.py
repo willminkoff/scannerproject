@@ -1,6 +1,8 @@
-"""Apply HP/SB3 scan-pool conventional channels to analog runtime profiles."""
+"""Apply HP/SB3 scan-pool channels to analog and digital runtime profiles."""
 from __future__ import annotations
 
+import csv
+import io
 import json
 import os
 import shutil
@@ -64,12 +66,15 @@ except ImportError:
 
 _MANAGED_AIR_ID = "hp3_favorites_airband"
 _MANAGED_GROUND_ID = "hp3_favorites_ground"
+_MANAGED_DIGITAL_ID = "hp3_favorites_digital"
 _MANAGED_AIR_LABEL = "HP3 Favorites Airband"
 _MANAGED_GROUND_LABEL = "HP3 Favorites Ground"
 _MAX_FREQS_PER_BAND = 256
 _SYNC_LOCK = threading.Lock()
 _LAST_SIGNATURE = ""
+_LAST_DIGITAL_SIGNATURE = ""
 _LAST_RESULT: dict[str, Any] = {"ok": True, "changed": False}
+_LAST_DIGITAL_RESULT: dict[str, Any] = {"ok": True, "changed": False}
 
 
 def _profile_path_for(profile_id: str) -> str:
@@ -350,6 +355,324 @@ def _mode_token(value: Any) -> str:
     return "expert"
 
 
+def _normalize_system_token(row: dict[str, Any]) -> str:
+    system_id = str(row.get("system_id") or "").strip()
+    site_id = str(row.get("site_id") or "").strip()
+    if system_id and site_id:
+        return f"{system_id}:{site_id}"
+    if system_id:
+        return system_id
+    if site_id:
+        return f"site:{site_id}"
+    fallback = str(row.get("system_name") or row.get("site_name") or row.get("department_name") or "").strip()
+    if fallback:
+        return fallback
+    return "system"
+
+
+def _normalize_control_channel_mhz(raw: Any) -> str:
+    try:
+        value = float(str(raw).strip())
+    except Exception:
+        return ""
+    if not (value > 0):
+        return ""
+    return f"{value:.5f}".rstrip("0").rstrip(".")
+
+
+def _normalize_digital_pool(
+    pool: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, str]], list[str], dict[str, int]]:
+    trunked = pool.get("trunked_sites")
+    if not isinstance(trunked, list):
+        trunked = []
+
+    systems: list[dict[str, Any]] = []
+    systems_seen: set[str] = set()
+    controls_flat: list[str] = []
+    controls_seen: set[str] = set()
+    talkgroups: list[dict[str, str]] = []
+    tg_seen: set[str] = set()
+
+    for item in trunked:
+        row = item if isinstance(item, dict) else {}
+        token = _normalize_system_token(row)
+        key = token.lower()
+
+        controls_raw = row.get("control_channels")
+        controls: list[str] = []
+        seen_controls: set[str] = set()
+        for control in controls_raw if isinstance(controls_raw, list) else []:
+            value = _normalize_control_channel_mhz(control)
+            if not value or value in seen_controls:
+                continue
+            seen_controls.add(value)
+            controls.append(value)
+            if value not in controls_seen:
+                controls_seen.add(value)
+                controls_flat.append(value)
+        if not controls:
+            continue
+
+        if key not in systems_seen:
+            systems_seen.add(key)
+            systems.append({"name": token, "control_channels_mhz": controls})
+
+        labels = row.get("talkgroup_labels") if isinstance(row.get("talkgroup_labels"), dict) else {}
+        groups = row.get("talkgroup_groups") if isinstance(row.get("talkgroup_groups"), dict) else {}
+        department = str(row.get("department_name") or row.get("site_name") or row.get("system_name") or "").strip()
+        service_tag = str(row.get("service_tag") or "").strip()
+        for tgid_raw in row.get("talkgroups") if isinstance(row.get("talkgroups"), list) else []:
+            token_tg = str(tgid_raw or "").strip()
+            if not token_tg.isdigit():
+                continue
+            try:
+                tgid = int(token_tg)
+            except Exception:
+                continue
+            if tgid <= 0 or tgid > 65535:
+                continue
+            dec = str(tgid)
+            if dec in tg_seen:
+                continue
+            tg_seen.add(dec)
+            alpha = str(labels.get(dec) or "").strip() or f"TG {dec}"
+            group = str(groups.get(dec) or department or token).strip()
+            tag = str(service_tag or "").strip()
+            talkgroups.append(
+                {
+                    "dec": dec,
+                    "mode": "D",
+                    "alpha": alpha,
+                    "description": alpha,
+                    "tag": tag,
+                    "listen": "1",
+                    "group": group,
+                }
+            )
+
+    talkgroups.sort(key=lambda row: int(row["dec"]))
+    controls_flat.sort(key=lambda token: float(token))
+    summary = {
+        "systems": len(systems),
+        "talkgroups": len(talkgroups),
+        "control_channels": len(controls_flat),
+    }
+    return systems, talkgroups, controls_flat, summary
+
+
+def _render_talkgroups_text(rows: list[dict[str, str]]) -> str:
+    out = io.StringIO()
+    writer = csv.writer(out, lineterminator="\n")
+    writer.writerow(["DEC", "Mode", "Alpha Tag", "Description", "Tag", "Listen"])
+    for row in rows:
+        writer.writerow(
+            [
+                str(row.get("dec") or "").strip(),
+                str(row.get("mode") or "D").strip() or "D",
+                str(row.get("alpha") or "").strip(),
+                str(row.get("description") or "").strip(),
+                str(row.get("tag") or "").strip(),
+                str(row.get("listen") or "1").strip() or "1",
+            ]
+        )
+    return out.getvalue()
+
+
+def _render_talkgroups_with_group_text(rows: list[dict[str, str]]) -> str:
+    out = io.StringIO()
+    writer = csv.writer(out, lineterminator="\n")
+    writer.writerow(["Group", "DEC", "HEX", "Mode", "Alpha Tag", "Description", "Tag"])
+    for row in rows:
+        dec = str(row.get("dec") or "").strip()
+        try:
+            hex_value = format(int(dec), "x")
+        except Exception:
+            hex_value = ""
+        writer.writerow(
+            [
+                str(row.get("group") or "").strip(),
+                dec,
+                hex_value,
+                str(row.get("mode") or "D").strip() or "D",
+                str(row.get("alpha") or "").strip(),
+                str(row.get("description") or "").strip(),
+                str(row.get("tag") or "").strip(),
+            ]
+        )
+    return out.getvalue()
+
+
+def _ensure_managed_digital_profile() -> tuple[bool, str]:
+    try:
+        from .digital import create_digital_profile_dir
+    except ImportError:
+        from ui.digital import create_digital_profile_dir
+    ok, err = create_digital_profile_dir(_MANAGED_DIGITAL_ID)
+    if ok:
+        return True, ""
+    text = str(err or "").strip().lower()
+    if text in {"profile already exists", "exists"}:
+        return True, ""
+    return False, str(err or "failed creating managed digital profile")
+
+
+def sync_scan_pool_to_digital_runtime(force: bool = False) -> dict[str, Any]:
+    """Apply active scan-pool trunked systems/talkgroups to managed digital profile."""
+    global _LAST_DIGITAL_SIGNATURE
+    global _LAST_DIGITAL_RESULT
+
+    with _SYNC_LOCK:
+        controller = get_scan_mode_controller()
+        mode = _mode_token(controller.get_mode())
+        pool = controller.get_scan_pool() if mode in {"hp", "expert"} else {"trunked_sites": []}
+        systems, talkgroups, controls_flat, counts = _normalize_digital_pool(pool)
+
+        signature_payload = {
+            "mode": mode,
+            "systems": systems,
+            "talkgroups": [row.get("dec") for row in talkgroups],
+            "controls": controls_flat,
+        }
+        signature = json.dumps(signature_payload, sort_keys=True, separators=(",", ":"))
+        if not force and signature == _LAST_DIGITAL_SIGNATURE:
+            return dict(_LAST_DIGITAL_RESULT)
+
+        result: dict[str, Any] = {
+            "ok": True,
+            "changed": False,
+            "mode": mode,
+            "profile_id": _MANAGED_DIGITAL_ID,
+            "system_count": int(counts.get("systems") or 0),
+            "talkgroup_count": int(counts.get("talkgroups") or 0),
+            "control_channel_count": int(counts.get("control_channels") or 0),
+            "applied_profile": "",
+            "profile_saved": False,
+            "profile_save_changed": False,
+            "profile_switch_changed": False,
+            "compile_ok": True,
+            "compile_error": "",
+            "errors": [],
+        }
+
+        if not systems or not talkgroups or not controls_flat:
+            result["ok"] = True
+            result["reason"] = "no digital targets in active scan pool"
+            _LAST_DIGITAL_SIGNATURE = signature
+            _LAST_DIGITAL_RESULT = dict(result)
+            return result
+
+        ok_profile, err_profile = _ensure_managed_digital_profile()
+        if not ok_profile:
+            result["ok"] = False
+            result["errors"].append(err_profile)
+            _LAST_DIGITAL_SIGNATURE = signature
+            _LAST_DIGITAL_RESULT = dict(result)
+            return result
+
+        systems_json_text = json.dumps({"systems": systems}, indent=2)
+        if systems_json_text and not systems_json_text.endswith("\n"):
+            systems_json_text += "\n"
+        talkgroups_text = _render_talkgroups_text(talkgroups)
+        controls_text = "\n".join(controls_flat).strip() + "\n"
+
+        try:
+            from .profile_editor import save_digital_editor_payload
+        except ImportError:
+            from ui.profile_editor import save_digital_editor_payload
+
+        ok_save, err_save, save_payload = save_digital_editor_payload(
+            _MANAGED_DIGITAL_ID,
+            controls_text,
+            talkgroups_text,
+            systems_json_text=systems_json_text,
+        )
+        if not ok_save:
+            result["ok"] = False
+            result["errors"].append(str(err_save or "failed saving managed digital profile"))
+            _LAST_DIGITAL_SIGNATURE = signature
+            _LAST_DIGITAL_RESULT = dict(result)
+            return result
+        result["profile_saved"] = True
+        result["profile_save_changed"] = bool((save_payload or {}).get("changed"))
+
+        # Keep group metadata for sidecar readability when editing profile files directly.
+        try:
+            from .config import DIGITAL_PROFILES_DIR
+        except ImportError:
+            from ui.config import DIGITAL_PROFILES_DIR
+        group_path = os.path.join(str(DIGITAL_PROFILES_DIR), _MANAGED_DIGITAL_ID, "talkgroups_with_group.csv")
+        try:
+            rendered_group = _render_talkgroups_with_group_text(talkgroups)
+            os.makedirs(os.path.dirname(group_path), exist_ok=True)
+            with open(group_path + ".tmp", "w", encoding="utf-8") as handle:
+                handle.write(rendered_group)
+            os.replace(group_path + ".tmp", group_path)
+        except Exception:
+            pass
+
+        try:
+            from .digital import get_digital_manager
+        except ImportError:
+            from ui.digital import get_digital_manager
+        manager = get_digital_manager()
+        current_profile = str(manager.getProfile() or "").strip()
+        should_switch = current_profile != _MANAGED_DIGITAL_ID
+        if should_switch or bool(result["profile_save_changed"]):
+            switched_ok, switched_err = manager.setProfile(_MANAGED_DIGITAL_ID, restart_service=True)
+            if not switched_ok:
+                result["ok"] = False
+                result["errors"].append(str(switched_err or "failed applying managed digital profile"))
+            else:
+                result["profile_switch_changed"] = bool(should_switch)
+                result["changed"] = bool(should_switch or result["profile_save_changed"])
+        result["applied_profile"] = str(manager.getProfile() or "").strip()
+
+        try:
+            from .v3_runtime import set_active_digital_profile
+        except ImportError:
+            from ui.v3_runtime import set_active_digital_profile
+        try:
+            set_active_digital_profile(_MANAGED_DIGITAL_ID)
+        except Exception as exc:
+            result["compile_ok"] = False
+            result["compile_error"] = str(exc)
+            if not result["errors"]:
+                result["errors"].append(f"digital canonical update warning: {exc}")
+
+        _LAST_DIGITAL_SIGNATURE = signature
+        _LAST_DIGITAL_RESULT = dict(result)
+        return result
+
+
+def sync_scan_pool_to_runtime(force: bool = False) -> dict[str, Any]:
+    """Apply active scan pool to both analog and digital runtimes."""
+    analog = sync_scan_pool_to_analog_runtime(force=force)
+    digital = sync_scan_pool_to_digital_runtime(force=force)
+    payload = {
+        "ok": bool(analog.get("ok", True)) and bool(digital.get("ok", True)),
+        "changed": bool(analog.get("changed", False)) or bool(digital.get("changed", False)),
+        "analog": analog,
+        "digital": digital,
+    }
+    # Preserve existing top-level keys for compatibility with older UI call-sites.
+    payload.update(
+        {
+            "mode": str(analog.get("mode") or ""),
+            "airband_frequency_count": int(analog.get("airband_frequency_count") or 0),
+            "ground_frequency_count": int(analog.get("ground_frequency_count") or 0),
+            "selected_profiles": dict(analog.get("selected_profiles") or {}),
+            "profile_write_changed": dict(analog.get("profile_write_changed") or {}),
+            "profile_switched": dict(analog.get("profile_switched") or {}),
+            "combined_changed": bool(analog.get("combined_changed", False)),
+            "restart_ok": bool(analog.get("restart_ok", True)),
+            "restart_error": str(analog.get("restart_error") or ""),
+            "errors": list(analog.get("errors") or []) + list(digital.get("errors") or []),
+        }
+    )
+    return payload
+
+
 def sync_scan_pool_to_analog_runtime(force: bool = False) -> dict[str, Any]:
     """Apply active scan-pool conventional channels to managed analog profiles."""
     global _LAST_SIGNATURE
@@ -462,4 +785,13 @@ def sync_scan_pool_to_analog_runtime(force: bool = False) -> dict[str, Any]:
 
 def get_last_favorites_runtime_sync() -> dict[str, Any]:
     with _SYNC_LOCK:
-        return dict(_LAST_RESULT)
+        analog = dict(_LAST_RESULT)
+        digital = dict(_LAST_DIGITAL_RESULT)
+        payload = {
+            "ok": bool(analog.get("ok", True)) and bool(digital.get("ok", True)),
+            "changed": bool(analog.get("changed", False)) or bool(digital.get("changed", False)),
+            "analog": analog,
+            "digital": digital,
+        }
+        payload.update(analog)
+        return payload
