@@ -7,12 +7,12 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from .config import HPDB_DB_PATH
 from .hp_scan_pool import ScanPoolBuilder, haversine_miles
 
 
 _VALID_MODES = {"hp", "expert"}
-_REPO_ROOT = Path(__file__).resolve().parents[1]
-_DEFAULT_DB_PATH = str((_REPO_ROOT / "data" / "homepatrol.db").resolve())
+_DEFAULT_DB_PATH = str(Path(HPDB_DB_PATH).expanduser().resolve())
 
 
 def _normalize_mode_token(mode: str) -> str:

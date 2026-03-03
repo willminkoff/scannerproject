@@ -2084,7 +2084,7 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     state.enabled_service_tags = list(get_default_enabled_service_types())
                 except Exception:
-                    state.enabled_service_tags = [1, 2, 3, 4]
+                    state.enabled_service_tags = [2, 3, 4]
 
             try:
                 state.save()

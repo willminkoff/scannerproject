@@ -20,7 +20,14 @@ COMBINED_CONFIG_PATH = os.getenv("COMBINED_CONFIG_PATH", os.path.join(CONFIG_DIR
 HPDB_ZIP_PATH = os.getenv("HPDB_ZIP_PATH", "/home/willminkoff/Desktop/HPCOPY.zip")
 HPDB_EXTRACT_DIR = os.getenv("HPDB_EXTRACT_DIR", "/home/willminkoff/scanner-db/source")
 HPDB_ROOT_PATH = os.getenv("HPDB_ROOT_PATH", os.path.join(HPDB_EXTRACT_DIR, "HPCOPY", "HPDB"))
-HPDB_DB_PATH = os.getenv("HPDB_DB_PATH", "/home/willminkoff/scanner-db/homepatrol.db")
+_HPDB_DB_PATH_ENV = os.getenv("HPDB_DB_PATH", "/home/willminkoff/scanner-db/homepatrol.db").strip()
+_REPO_HPDB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data", "homepatrol.db"))
+if _HPDB_DB_PATH_ENV and os.path.isfile(_HPDB_DB_PATH_ENV):
+    HPDB_DB_PATH = _HPDB_DB_PATH_ENV
+elif os.path.isfile(_REPO_HPDB_PATH):
+    HPDB_DB_PATH = _REPO_HPDB_PATH
+else:
+    HPDB_DB_PATH = _HPDB_DB_PATH_ENV
 
 # Last Hit Tracking
 LAST_HIT_AIRBAND_PATH = os.getenv("LAST_HIT_AIRBAND_PATH", "/run/rtl_airband_last_freq_airband.txt")

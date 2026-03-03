@@ -6,12 +6,29 @@ import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .config import HPDB_DB_PATH
 from .service_types import get_default_enabled_service_types
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_DEFAULT_DB_PATH = str((_REPO_ROOT / "data" / "homepatrol.db").resolve())
+_DEFAULT_DB_PATH = str(Path(HPDB_DB_PATH).expanduser().resolve())
 _DEFAULT_STATE_PATH = (_REPO_ROOT / "data" / "hp_state.json").resolve()
+_SERVICE_TAG_SCHEMA_VERSION = 2
+
+# One-time migration from the previous, incorrect UI tag map.
+_LEGACY_SERVICE_TAG_REMAP = {
+    1: 15,   # Aircraft
+    5: 4,    # EMS Dispatch
+    9: 3,    # Fire Dispatch
+    15: 2,   # Law Dispatch
+    16: 7,   # Law Tac
+    17: 23,  # Law Talk
+    24: 14,  # Public Works
+    25: 20,  # Railroad
+    29: 33,  # Security
+    30: 26,  # Transportation
+    31: 34,  # Utilities
+}
 
 
 def _coerce_bool(value, default: bool = False) -> bool:
@@ -46,6 +63,20 @@ def _coerce_service_tags(value) -> list[int]:
             tag = int(str(item).strip())
         except Exception:
             continue
+        if tag in seen:
+            continue
+        seen.add(tag)
+        out.append(tag)
+    return out
+
+
+def _migrate_legacy_service_tags(tags: list[int], legacy_version: int) -> list[int]:
+    if legacy_version >= _SERVICE_TAG_SCHEMA_VERSION:
+        return list(tags)
+    out: list[int] = []
+    seen: set[int] = set()
+    for raw_tag in tags:
+        tag = int(_LEGACY_SERVICE_TAG_REMAP.get(int(raw_tag), int(raw_tag)))
         if tag in seen:
             continue
         seen.add(tag)
@@ -195,13 +226,14 @@ class HPState:
     favorites_name: str = "My Favorites"
     custom_favorites: list[dict] = field(default_factory=list)
     avoid_list: list[dict] = field(default_factory=list)
+    service_tag_schema_version: int = _SERVICE_TAG_SCHEMA_VERSION
 
     @classmethod
     def default(cls, db_path: str = _DEFAULT_DB_PATH) -> "HPState":
         try:
             defaults = list(get_default_enabled_service_types(db_path=db_path))
         except Exception:
-            defaults = [1, 2, 3, 4]
+            defaults = [2, 3, 4]
         return cls(
             mode="full_database",
             use_location=False,
@@ -215,6 +247,7 @@ class HPState:
             favorites_name="My Favorites",
             custom_favorites=[],
             avoid_list=[],
+            service_tag_schema_version=_SERVICE_TAG_SCHEMA_VERSION,
         )
 
     def to_dict(self) -> dict:
@@ -231,6 +264,7 @@ class HPState:
             "favorites_name": str(self.favorites_name or "My Favorites").strip() or "My Favorites",
             "custom_favorites": _coerce_custom_favorites(self.custom_favorites),
             "avoid_list": _coerce_avoid_list(self.avoid_list),
+            "service_tag_schema_version": int(self.service_tag_schema_version or _SERVICE_TAG_SCHEMA_VERSION),
         }
 
     def save(self, path: str = str(_DEFAULT_STATE_PATH)) -> None:
@@ -263,7 +297,14 @@ class HPState:
         if mode not in {"full_database", "favorites"}:
             mode = default_state.mode
 
+        legacy_version = 1
+        try:
+            legacy_version = int(payload.get("service_tag_schema_version") or 1)
+        except Exception:
+            legacy_version = 1
+
         service_tags = _coerce_service_tags(payload.get("enabled_service_tags"))
+        service_tags = _migrate_legacy_service_tags(service_tags, legacy_version)
         if not service_tags:
             service_tags = list(default_state.enabled_service_tags)
 
@@ -284,4 +325,5 @@ class HPState:
             or default_state.favorites_name,
             custom_favorites=_coerce_custom_favorites(payload.get("custom_favorites")),
             avoid_list=_coerce_avoid_list(payload.get("avoid_list")),
+            service_tag_schema_version=_SERVICE_TAG_SCHEMA_VERSION,
         )

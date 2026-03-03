@@ -4,9 +4,9 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+from .config import HPDB_DB_PATH
 
-_REPO_ROOT = Path(__file__).resolve().parents[1]
-_DEFAULT_DB_PATH = str((_REPO_ROOT / "data" / "homepatrol.db").resolve())
+_DEFAULT_DB_PATH = str(Path(HPDB_DB_PATH).expanduser().resolve())
 _COUNTRY_NAMES = {
     1: "USA",
     2: "Canada",
