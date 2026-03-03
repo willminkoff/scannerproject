@@ -3001,6 +3001,8 @@
     const AUDIO_PROGRESS_CHECK_MS = 3000;
     const AUDIO_PROGRESS_STALL_MS = 30000;
     const FETCH_TIMEOUT_MS = 8000;
+    const APPLY_PENDING_HOLD_MS = 12000;
+    const APPLY_GAIN_EPSILON_DB = 0.11;
     
     // ============================================
     // STATE
@@ -3069,6 +3071,7 @@
       sessionHits: 0,
       sessionStart: Date.now(),
       applyTimeout: null,
+      pendingApply: { airband: null, ground: null },
       filterTimeout: null,
       streamRecoveryTimers: { analog: [], digital: [] },
       serverTime: null,
@@ -3210,6 +3213,9 @@
       hpFilters: {
         loading: false,
         saving: false,
+        dirty: false,
+        pendingSave: false,
+        pendingResolveZip: false,
         loaded: false,
         mode: 'favorites',
         useLocation: false,
@@ -3258,6 +3264,7 @@
     let refreshInFlight = null;
     let refreshHitsInFlight = null;
     let hpFavoriteSystemsLoadTimer = null;
+    let hpFiltersAutoSaveTimer = null;
     
     // ============================================
     // ELEMENTS
@@ -3884,6 +3891,41 @@
       els.hpFiltersStatus.style.color = isError ? 'var(--warn)' : 'var(--text-secondary)';
     }
 
+    function clearHpFiltersAutoSaveTimer() {
+      if (!hpFiltersAutoSaveTimer) return;
+      clearTimeout(hpFiltersAutoSaveTimer);
+      hpFiltersAutoSaveTimer = null;
+    }
+
+    function markHpFiltersDirty(message = 'Unsaved filter changes detected. Auto-saving...') {
+      state.hpFilters.dirty = true;
+      if (!state.hpFilters.saving) {
+        setHpFiltersStatus(message);
+      }
+    }
+
+    function scheduleHpFiltersAutoSave({ resolveZip = false, immediate = false } = {}) {
+      if (!state.hpFilters.loaded) return;
+      markHpFiltersDirty(resolveZip ? 'Resolving ZIP and saving filters...' : 'Unsaved filter changes detected. Auto-saving...');
+      if (state.hpFilters.saving) {
+        state.hpFilters.pendingSave = true;
+        state.hpFilters.pendingResolveZip = state.hpFilters.pendingResolveZip || Boolean(resolveZip);
+        return;
+      }
+      clearHpFiltersAutoSaveTimer();
+      const run = () => {
+        hpFiltersAutoSaveTimer = null;
+        saveHpFiltersPanel({ resolveZip }).catch((err) => {
+          console.error('HP filters auto-save failed:', err);
+        });
+      };
+      if (immediate) {
+        run();
+        return;
+      }
+      hpFiltersAutoSaveTimer = setTimeout(run, 700);
+    }
+
     function collectHpServiceTypeSelectionFromUi() {
       if (!els.hpServiceTypesList) return [];
       const selected = [];
@@ -3969,7 +4011,7 @@
       }
     }
 
-    function setHpFiltersSelection(mode) {
+    function setHpFiltersSelection(mode, { autoSave = true } = {}) {
       const filters = state.hpFilters || {};
       const allTags = (Array.isArray(filters.serviceTypes) ? filters.serviceTypes : [])
         .map((row) => _toInt(row.tag, 0))
@@ -3982,7 +4024,11 @@
       } else {
         filters.enabledServiceTags = [];
       }
+      markHpFiltersDirty();
       renderHpFiltersPanel();
+      if (autoSave) {
+        scheduleHpFiltersAutoSave();
+      }
     }
 
     async function loadHpFiltersPanel({ quiet = false } = {}) {
@@ -4004,6 +4050,9 @@
           ...state.hpFilters,
           ...nextState,
           ...nextTypes,
+          dirty: false,
+          pendingSave: false,
+          pendingResolveZip: false,
           loaded: true,
         };
         if (!state.hpFilters.enabledServiceTags.length && state.hpFilters.defaultServiceTags.length) {
@@ -4024,7 +4073,12 @@
     }
 
     async function saveHpFiltersPanel({ resolveZip = false } = {}) {
-      if (state.hpFilters.saving) return;
+      if (state.hpFilters.saving) {
+        state.hpFilters.pendingSave = true;
+        state.hpFilters.pendingResolveZip = state.hpFilters.pendingResolveZip || Boolean(resolveZip);
+        return;
+      }
+      clearHpFiltersAutoSaveTimer();
       const mode = els.hpFilterMode && els.hpFilterMode.value === 'full_database'
         ? 'full_database'
         : 'favorites';
@@ -4055,6 +4109,7 @@
           ...state.hpFilters,
           ...nextState,
           enabledServiceTags: _normalizeIntList(nextState.enabledServiceTags),
+          dirty: false,
           loaded: true,
         };
         renderHpFiltersPanel();
@@ -4068,6 +4123,12 @@
       } finally {
         state.hpFilters.saving = false;
         renderHpFiltersPanel();
+        if (state.hpFilters.pendingSave) {
+          const pendingResolveZip = Boolean(state.hpFilters.pendingResolveZip);
+          state.hpFilters.pendingSave = false;
+          state.hpFilters.pendingResolveZip = false;
+          scheduleHpFiltersAutoSave({ resolveZip: pendingResolveZip, immediate: true });
+        }
       }
     }
 
@@ -8815,6 +8876,31 @@
       };
       queueNext();
     }
+
+    function markPendingAnalogGain(target, gain) {
+      const name = String(target || '').trim().toLowerCase();
+      if (name !== 'airband' && name !== 'ground') return;
+      const value = Number(gain);
+      if (!Number.isFinite(value)) return;
+      state.pendingApply[name] = { gain: value, at: Date.now() };
+    }
+
+    function resolveAnalogGain(target, observedGain, observedAppliedGain) {
+      const name = String(target || '').trim().toLowerCase();
+      if (name !== 'airband' && name !== 'ground') return observedGain;
+      const pending = state.pendingApply[name];
+      if (!pending || !Number.isFinite(pending.gain)) return observedGain;
+      const observed = Number(observedGain);
+      const applied = Number(observedAppliedGain);
+      const matchesObserved = Number.isFinite(observed) && Math.abs(observed - pending.gain) <= APPLY_GAIN_EPSILON_DB;
+      const matchesApplied = Number.isFinite(applied) && Math.abs(applied - pending.gain) <= APPLY_GAIN_EPSILON_DB;
+      const expired = (Date.now() - Number(pending.at || 0)) > APPLY_PENDING_HOLD_MS;
+      if (matchesObserved || matchesApplied || expired) {
+        state.pendingApply[name] = null;
+        return observedGain;
+      }
+      return pending.gain;
+    }
     
     async function applyGainSql() {
       const gainIdx = parseInt(els.gainSlider.value);
@@ -8847,6 +8933,7 @@
         state[activeTarget].squelch_dbfs = squelchDbfs;
         state[activeTarget].applied_gain = null;
         state[activeTarget].applied_squelch_dbfs = null;
+        markPendingAnalogGain(activeTarget, gain);
         if (res && res.restart_ok === false) {
           logActivity('Restart required to apply controls', 'warn', `restart-required-${activeTarget}`);
           if (els.dbfsApplied) els.dbfsApplied.textContent = 'restart';
@@ -8896,6 +8983,7 @@
         state[activeTarget].applied_gain = null;
         state[activeTarget].applied_squelch_dbfs = null;
         state[activeTarget].filter = cutoff;
+        markPendingAnalogGain(activeTarget, gain);
         if (res && res.restart_ok === false) {
           logActivity('Restart required to apply controls', 'warn', `restart-required-${activeTarget}`);
           if (els.dbfsApplied) els.dbfsApplied.textContent = 'restart';
@@ -9218,21 +9306,25 @@
           state.lastProfile.ground = data.profile_ground;
         }
         
-        state.airband.gain = pickNumber(data.airband_gain, pickNumber(data.gain, 32.8));
+        const airbandObservedGain = pickNumber(data.airband_gain, pickNumber(data.gain, 32.8));
+        const airbandAppliedGain = Number.isFinite(data.airband_applied_gain) ? data.airband_applied_gain : null;
+        state.airband.gain = resolveAnalogGain('airband', airbandObservedGain, airbandAppliedGain);
         state.airband.squelch_mode = data.airband_squelch_mode || 'dbfs';
         state.airband.squelch_snr = pickNumber(data.airband_squelch_snr, pickNumber(data.airband_squelch, pickNumber(data.squelch, 0.5)));
         state.airband.squelch_dbfs = pickNumber(data.airband_squelch_dbfs, 0);
-        state.airband.applied_gain = Number.isFinite(data.airband_applied_gain) ? data.airband_applied_gain : null;
+        state.airband.applied_gain = airbandAppliedGain;
         state.airband.applied_squelch_dbfs = Number.isFinite(data.airband_applied_squelch_dbfs) ? data.airband_applied_squelch_dbfs : null;
         state.airband.squelch = state.airband.squelch_dbfs;
         state.airband.filter = pickNumber(data.airband_filter, 3500);
         state.airband.avoids = data.avoids_airband?.sample || [];
         
-        state.ground.gain = pickNumber(data.ground_gain, 32.8);
+        const groundObservedGain = pickNumber(data.ground_gain, 32.8);
+        const groundAppliedGain = Number.isFinite(data.ground_applied_gain) ? data.ground_applied_gain : null;
+        state.ground.gain = resolveAnalogGain('ground', groundObservedGain, groundAppliedGain);
         state.ground.squelch_mode = data.ground_squelch_mode || 'dbfs';
         state.ground.squelch_snr = pickNumber(data.ground_squelch_snr, pickNumber(data.ground_squelch, 0.5));
         state.ground.squelch_dbfs = pickNumber(data.ground_squelch_dbfs, 0);
-        state.ground.applied_gain = Number.isFinite(data.ground_applied_gain) ? data.ground_applied_gain : null;
+        state.ground.applied_gain = groundAppliedGain;
         state.ground.applied_squelch_dbfs = Number.isFinite(data.ground_applied_squelch_dbfs) ? data.ground_applied_squelch_dbfs : null;
         state.ground.squelch = state.ground.squelch_dbfs;
         state.ground.filter = pickNumber(data.ground_filter, 3500);
@@ -9800,26 +9892,31 @@
         els.hpFilterZip.addEventListener('input', () => {
           state.hpFilters.zip = String(els.hpFilterZip.value || '').trim();
           renderHpFiltersPanel();
+          scheduleHpFiltersAutoSave();
         });
       }
       if (els.hpFilterRange) {
         els.hpFilterRange.addEventListener('input', () => {
           state.hpFilters.rangeMiles = Math.max(0, _toFloat(els.hpFilterRange.value, state.hpFilters.rangeMiles || 15));
+          scheduleHpFiltersAutoSave();
         });
       }
       if (els.hpFilterUseLocation) {
         els.hpFilterUseLocation.addEventListener('change', () => {
           state.hpFilters.useLocation = Boolean(els.hpFilterUseLocation.checked);
+          scheduleHpFiltersAutoSave();
         });
       }
       if (els.hpFilterNationwide) {
         els.hpFilterNationwide.addEventListener('change', () => {
           state.hpFilters.nationwideSystems = Boolean(els.hpFilterNationwide.checked);
+          scheduleHpFiltersAutoSave();
         });
       }
       if (els.hpFilterMode) {
         els.hpFilterMode.addEventListener('change', () => {
           state.hpFilters.mode = els.hpFilterMode.value === 'full_database' ? 'full_database' : 'favorites';
+          scheduleHpFiltersAutoSave();
         });
       }
       if (els.hpServiceTypesList) {
@@ -9827,16 +9924,17 @@
           const target = e.target;
           if (!target || target.tagName !== 'INPUT') return;
           state.hpFilters.enabledServiceTags = collectHpServiceTypeSelectionFromUi();
+          scheduleHpFiltersAutoSave();
         });
       }
       if (els.hpServiceTypesAll) {
-        els.hpServiceTypesAll.addEventListener('click', () => setHpFiltersSelection('all'));
+        els.hpServiceTypesAll.addEventListener('click', () => setHpFiltersSelection('all', { autoSave: true }));
       }
       if (els.hpServiceTypesDefaults) {
-        els.hpServiceTypesDefaults.addEventListener('click', () => setHpFiltersSelection('defaults'));
+        els.hpServiceTypesDefaults.addEventListener('click', () => setHpFiltersSelection('defaults', { autoSave: true }));
       }
       if (els.hpServiceTypesNone) {
-        els.hpServiceTypesNone.addEventListener('click', () => setHpFiltersSelection('none'));
+        els.hpServiceTypesNone.addEventListener('click', () => setHpFiltersSelection('none', { autoSave: true }));
       }
       if (els.profilesList) {
         els.profilesList.addEventListener('click', (e) => {
