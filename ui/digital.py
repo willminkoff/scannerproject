@@ -325,6 +325,7 @@ _DIGITAL_STREAM_SAMPLE_RATE_OVERRIDE = os.getenv("DIGITAL_STREAM_SAMPLE_RATE", "
 _DIGITAL_STREAM_CHANNELS_OVERRIDE = os.getenv("DIGITAL_STREAM_CHANNELS", "").strip() != ""
 _DIGITAL_STREAM_MAX_RECORDING_AGE_OVERRIDE = os.getenv("DIGITAL_STREAM_MAX_RECORDING_AGE_MS", "").strip() != ""
 _DIGITAL_STREAM_DELAY_OVERRIDE = os.getenv("DIGITAL_STREAM_DELAY_MS", "").strip() != ""
+_DIGITAL_P25_MODULATION = os.getenv("DIGITAL_P25_MODULATION", "").strip()
 _DIGITAL_RUNTIME_RETUNE_TIMEOUT_SEC = max(
     0.05,
     float(DIGITAL_RUNTIME_RETUNE_TIMEOUT_MS or 350) / 1000.0,
@@ -400,8 +401,16 @@ def _profile_decoder_mode(profile_dir: str) -> tuple[str, str]:
     return "P25", "default"
 
 
+def _resolve_p25_modulation(existing_value: str) -> str:
+    if _DIGITAL_P25_MODULATION:
+        return _DIGITAL_P25_MODULATION
+    existing = str(existing_value or "").strip()
+    return existing or "C4FM"
+
+
 def _apply_decode_configuration(channel: ET.Element, decoder_mode: str) -> None:
     decode_conf = channel.find("decode_configuration")
+    existing_attrs = dict(decode_conf.attrib) if decode_conf is not None else {}
     target_type = "decodeConfigP25Phase1"
     if decoder_mode == "DMR":
         target_type = "decodeConfigDMR"
@@ -422,7 +431,7 @@ def _apply_decode_configuration(channel: ET.Element, decoder_mode: str) -> None:
         decode_conf.set("use_compressed_talkgroups", "false")
         return
 
-    decode_conf.set("modulation", "C4FM")
+    decode_conf.set("modulation", _resolve_p25_modulation(existing_attrs.get("modulation", "")))
     decode_conf.set("traffic_channel_pool_size", "20")
     decode_conf.set("ignore_data_calls", ignore_data_calls_val)
 

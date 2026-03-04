@@ -89,6 +89,7 @@ DIGITAL_STREAM_SAMPLE_RATE_OVERRIDE = _env_set("DIGITAL_STREAM_SAMPLE_RATE")
 DIGITAL_STREAM_CHANNELS_OVERRIDE = _env_set("DIGITAL_STREAM_CHANNELS")
 DIGITAL_STREAM_MAX_RECORDING_AGE_OVERRIDE = _env_set("DIGITAL_STREAM_MAX_RECORDING_AGE_MS")
 DIGITAL_STREAM_DELAY_OVERRIDE = _env_set("DIGITAL_STREAM_DELAY_MS")
+DIGITAL_P25_MODULATION = os.getenv("DIGITAL_P25_MODULATION", "").strip()
 
 
 def _log(msg: str) -> None:
@@ -632,6 +633,13 @@ def _seed_aliases_from_profile(root: ET.Element, alias_list_name: str, profile_d
     return added
 
 
+def _resolve_p25_modulation(existing_value: str) -> str:
+    if DIGITAL_P25_MODULATION:
+        return DIGITAL_P25_MODULATION
+    existing = str(existing_value or "").strip()
+    return existing or "C4FM"
+
+
 def _sync_decode_configuration(channel: ET.Element) -> None:
     decode_conf = channel.find("decode_configuration")
     if decode_conf is None:
@@ -640,7 +648,8 @@ def _sync_decode_configuration(channel: ET.Element) -> None:
     dtype = str(decode_conf.get("type", "")).strip() or "decodeConfigP25Phase1"
     decode_conf.set("type", dtype)
     if dtype == "decodeConfigP25Phase1":
-        decode_conf.set("modulation", str(decode_conf.get("modulation", "")).strip() or "C4FM")
+        existing_modulation = str(decode_conf.get("modulation", "")).strip()
+        decode_conf.set("modulation", _resolve_p25_modulation(existing_modulation))
     decode_conf.set("traffic_channel_pool_size", "20")
     decode_conf.set("ignore_data_calls", "true" if DIGITAL_IGNORE_DATA_CALLS else "false")
 
