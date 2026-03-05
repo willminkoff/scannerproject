@@ -4,6 +4,8 @@ RE_AIRBAND = re.compile(r'^\s*airband\s*=\s*(true|false)\s*;\s*$', re.I)
 RE_UI_DISABLED = re.compile(r'^\s*ui_disabled\s*=\s*(true|false)\s*;\s*$', re.I)
 RE_LOG_SCAN = re.compile(r'^\s*log_scan_activity\s*=', re.I)
 RE_STATS_PATH = re.compile(r'^\s*stats_filepath\s*=', re.I)
+RE_SQUELCH_THRESHOLD = re.compile(r'^\s*squelch_threshold\s*=', re.I)
+RE_SQUELCH_SNR_THRESHOLD = re.compile(r'^\s*squelch_snr_threshold\s*=', re.I)
 RE_INDEX = re.compile(r'^\s*index\s*=\s*(\d+)\s*;', re.I)
 RE_SERIAL = re.compile(r'^\s*serial\s*=\s*"[^\"]*"\s*;', re.I)
 RE_ICECAST_BLOCK = re.compile(r'\{\s*[^{}]*type\s*=\s*"icecast"[^{}]*\}', re.S)
@@ -25,8 +27,19 @@ def extract_top_level_settings(text: str) -> list:
             continue
         if RE_STATS_PATH.match(line):
             continue
+        # Never carry profile-specific squelch controls into global top-level.
+        if RE_SQUELCH_THRESHOLD.match(line):
+            continue
+        if RE_SQUELCH_SNR_THRESHOLD.match(line):
+            continue
         lines.append(line.rstrip())
     return lines
+
+
+def profile_ui_disabled(text: str) -> bool:
+    """Return True only when ui_disabled is explicitly set to true."""
+    match = RE_UI_DISABLED.search(text)
+    return bool(match and match.group(1).lower() == "true")
 
 
 def extract_devices_payload(text: str) -> str:
@@ -226,15 +239,17 @@ def build_combined_config(
         airband_text = f.read()
     with open(ground_path, "r", encoding="utf-8", errors="ignore") as f:
         ground_text = f.read()
-    airband_disabled = bool(RE_UI_DISABLED.search(airband_text))
-    ground_disabled = bool(RE_UI_DISABLED.search(ground_text))
+    airband_disabled = profile_ui_disabled(airband_text)
+    ground_disabled = profile_ui_disabled(ground_text)
 
     top_lines = []
-    seen = set()
+    seen_setting_keys = set()
     for line in extract_top_level_settings(airband_text) + extract_top_level_settings(ground_text):
-        if line not in seen:
-            seen.add(line)
-            top_lines.append(line)
+        setting_key = line.split("=", 1)[0].strip().lower()
+        if not setting_key or setting_key in seen_setting_keys:
+            continue
+        seen_setting_keys.add(setting_key)
+        top_lines.append(line)
 
     device_payloads = []
     payloads = [

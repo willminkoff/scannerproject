@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 import os
+import re
 import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
-from combined_config import build_combined_config
+from combined_config import build_combined_config, extract_devices_payload
 
 CONFIG_SYMLINK = os.getenv("CONFIG_SYMLINK", "/usr/local/etc/rtl_airband.conf")
 GROUND_CONFIG_PATH = os.getenv("GROUND_CONFIG_PATH", "/usr/local/etc/rtl_airband_ground.conf")
@@ -25,6 +26,7 @@ GROUND_FALLBACK_PROFILE_PATH = os.getenv(
     "GROUND_FALLBACK_PROFILE_PATH",
     "/usr/local/etc/airband-profiles/rtl_airband_wx.conf",
 )
+RE_UI_DISABLED_TRUE = re.compile(r'^\s*ui_disabled\s*=\s*true\s*;\s*$', re.I | re.M)
 
 
 def read_active_config_path() -> str:
@@ -65,9 +67,34 @@ def resolve_config_path(primary: str, fallback: str) -> str:
     )
 
 
+def profile_has_usable_devices(path: str) -> bool:
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as handle:
+            text = handle.read()
+    except Exception:
+        return False
+    if RE_UI_DISABLED_TRUE.search(text):
+        return False
+    return bool(extract_devices_payload(text))
+
+
 def main() -> None:
     airband_path = resolve_config_path(read_active_config_path(), AIRBAND_FALLBACK_PROFILE_PATH)
     ground_path = resolve_config_path(GROUND_CONFIG_PATH, GROUND_FALLBACK_PROFILE_PATH)
+    airband_usable = profile_has_usable_devices(airband_path)
+    ground_usable = profile_has_usable_devices(ground_path)
+
+    # Prevent rtl_airband startup failures when both active profiles are disabled/empty.
+    # Keep the selected profiles when at least one side has usable device payloads.
+    if not airband_usable and not ground_usable:
+        try:
+            ground_path = resolve_config_path("", GROUND_FALLBACK_PROFILE_PATH)
+            ground_usable = profile_has_usable_devices(ground_path)
+        except Exception:
+            ground_usable = False
+        if not ground_usable:
+            airband_path = resolve_config_path("", AIRBAND_FALLBACK_PROFILE_PATH)
+
     # Always honor an explicit mount override so non-mixer deployments can
     # rename the analog stream mount without editing profile files.
     mount_override = MOUNT_NAME or (DIGITAL_MIXER_AIRBAND_MOUNT if DIGITAL_MIXER_ENABLED else "")
