@@ -123,6 +123,7 @@ _LABEL_RE = re.compile(
 )
 _TGID_RE = re.compile(r"\b(?:tgid|talkgroup|tg)\b\s*[:=#-]?\s*\(?\s*(\d+)\s*\)?", re.I)
 _EVENT_HINT_RE = re.compile(r"(call|voice|traffic|talkgroup|tgid|alias|alpha\s*tag|channel\s*event|from:|to:)", re.I)
+_BRACKETED_TG_LABEL_RE = re.compile(r"^\[(?P<label>[^\]]+)\]\s*\((?P<tgid>\d+)\)\s*$")
 _TS_RE = re.compile(r"(?P<date>\d{4}-\d{2}-\d{2})[ T](?P<time>\d{2}:\d{2}:\d{2})")
 _TS_COMPACT_RE = re.compile(r"(?P<date>\d{8})\s+(?P<time>\d{6})(?:\.\d+)?")
 _LOG_PREFIX_RE = re.compile(r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?\s+")
@@ -3709,10 +3710,62 @@ class DigitalManager:
             }
         self._super_profile_systems = loaded
 
+    def _enrich_event_label_for_active_system(self, event: dict) -> dict:
+        if not isinstance(event, dict):
+            return {}
+        enriched = dict(event)
+        label_text = str(enriched.get("label") or "").strip()
+        if label_text:
+            bracket_match = _BRACKETED_TG_LABEL_RE.fullmatch(label_text)
+            if bracket_match:
+                dept_hint = str(bracket_match.group("label") or "").strip()
+                tgid_hint = _normalize_tgid(str(bracket_match.group("tgid") or ""))
+                if tgid_hint and not str(enriched.get("tgid") or "").strip():
+                    enriched["tgid"] = tgid_hint
+                if dept_hint:
+                    enriched["label"] = dept_hint
+                    if not str(enriched.get("department") or "").strip():
+                        enriched["department"] = dept_hint
+
+        tgid = self._event_tgid(enriched)
+        if tgid:
+            enriched["tgid"] = tgid
+
+        scan_mode = get_current_scan_mode()
+        if scan_mode not in {"hp", "expert"}:
+            return enriched
+
+        with self._scheduler_lock:
+            active_system = str(self._scheduler_active_system or "").strip()
+            talkgroup_labels = dict(self._scheduler_pool_talkgroup_labels.get(active_system) or {})
+            talkgroup_groups = dict(self._scheduler_pool_talkgroup_groups.get(active_system) or {})
+            fallback_agency = str(self._scheduler_pool_department_labels.get(active_system) or "").strip()
+
+        if not active_system or not tgid:
+            return enriched
+
+        department = str(talkgroup_labels.get(tgid) or enriched.get("department") or "").strip()
+        agency = str(talkgroup_groups.get(tgid) or "").strip()
+        if not agency:
+            agency = fallback_agency
+        combined = _combine_agency_department_label(
+            agency,
+            department,
+            fallback=str(enriched.get("label") or "").strip(),
+        )
+        if combined:
+            enriched["label"] = combined
+        if agency:
+            enriched["agency"] = agency
+        if department:
+            enriched["department"] = department
+        return enriched
+
     def getLastEvent(self):
         event = self._adapter.getLastEvent()
         if not isinstance(event, dict):
             return event
+        event = self._enrich_event_label_for_active_system(event)
         if not self._event_allowed_for_active_system(event):
             return {}
         return event
@@ -3726,7 +3779,15 @@ class DigitalManager:
         events = self._adapter.getRecentEvents(limit)
         if not isinstance(events, list):
             return []
-        return [event for event in events if self._event_allowed_for_active_system(event)]
+        filtered = []
+        for event in events:
+            if not isinstance(event, dict):
+                continue
+            mapped = self._enrich_event_label_for_active_system(event)
+            if not self._event_allowed_for_active_system(mapped):
+                continue
+            filtered.append(mapped)
+        return filtered
     def preflight(self):
         if hasattr(self._adapter, "preflight"):
             try:
