@@ -316,7 +316,10 @@ class ScanPoolBuilder:
                         tg.trunk_id,
                         t.dec_tgid,
                         t.alpha_tag,
-                        tg.group_name
+                        tg.group_name,
+                        tg.latitude,
+                        tg.longitude,
+                        tg.radius
                     FROM talkgroups t
                     JOIN trunk_groups tg ON tg.tgroup_id = t.tgroup_id
                     WHERE t.service_tag IN ({tag_placeholders})
@@ -330,6 +333,18 @@ class ScanPoolBuilder:
                     system_id = self._parse_int(row["trunk_id"])
                     if system_id is None or system_id not in selected_by_system:
                         continue
+                    group_lat = self._parse_float(row["latitude"])
+                    group_lon = self._parse_float(row["longitude"])
+                    group_radius = max(0.0, float(self._parse_float(row["radius"]) or 0.0))
+                    if group_lat is not None and group_lon is not None:
+                        threshold = user_range + group_radius
+                        if abs(group_lat - center_lat) * lat_miles_per_degree > threshold:
+                            continue
+                        if abs(group_lon - center_lon) * lon_miles_per_degree > threshold:
+                            continue
+                        distance = haversine_miles(center_lat, center_lon, group_lat, group_lon)
+                        if distance > threshold:
+                            continue
                     dec_text = str(row["dec_tgid"] or "").strip()
                     if not dec_text.isdigit():
                         continue
