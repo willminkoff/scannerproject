@@ -807,6 +807,12 @@ def _build_hits_payload(limit: int = 50) -> dict:
             continue
         time_ms = int(event.get("timeMs") or 0)
         ts = time_ms / 1000.0 if time_ms else time.time()
+        # Keep UI hit surfaces focused on currently-relevant digital traffic.
+        # Older backlog rows still exist in adapter history, but should not
+        # keep "recent hits" populated when there is no active decode.
+        if DIGITAL_HIT_RECENT_SEC > 0:
+            if (time.time() - ts) > float(DIGITAL_HIT_RECENT_SEC):
+                continue
         time_str = time.strftime("%H:%M:%S", time.localtime(ts))
         digital_items.append({
             "time": time_str,
@@ -2693,7 +2699,7 @@ class Handler(BaseHTTPRequestHandler):
                         "          send_scan_freq_tags = true;\n" + \
                         "          server = \"127.0.0.1\";\n" + \
                         "          port = 8000;\n" + \
-                        "          mountpoint = \"scannerbox.mp3\";\n" + \
+                        f"          mountpoint = \"{PLAYER_MOUNT}\";\n" + \
                         "          username = \"source\";\n" + \
                         "          password = \"062352\";\n" + \
                         "          name = \"SprontPi Radio\";\n" + \

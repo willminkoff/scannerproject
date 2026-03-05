@@ -11,7 +11,6 @@ UNITS=(
   "icecast2"
   "rtl-airband"
   "scanner-digital"
-  "scanner-digital-mixer"
   "airband-ui"
 )
 
@@ -46,9 +45,11 @@ for unit in "${UNITS[@]}"; do
   fi
 done
 
-MOUNTS=("scannerbox.mp3")
+ANALOG_MOUNT="${ANALOG_MOUNT:-GND.mp3}"
+DIGITAL_MOUNT="${DIGITAL_MOUNT:-DIGITAL.mp3}"
+MOUNTS=("${ANALOG_MOUNT}")
 if [[ "$CHECK_DIGITAL_MOUNTS" == "1" ]]; then
-  MOUNTS+=("GND-air.mp3" "DIGITAL.mp3")
+  MOUNTS+=("${DIGITAL_MOUNT}")
 fi
 
 echo "[stack-check] icecast mounts:"
@@ -76,7 +77,6 @@ fields = [
     "rtl_active",
     "ground_active",
     "digital_active",
-    "digital_mixer_active",
     "icecast_active",
     "profile_airband",
     "profile_ground",

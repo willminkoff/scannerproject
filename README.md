@@ -122,10 +122,6 @@ scanner-digital.service (SDRTrunk)
     ├─ Digital control + voice decode (P25/DMR as configured)
     └─ Icecast Digital Mount (/DIGITAL.mp3)
     ↓
-Optional digital mixer (scanner-digital-mixer.service)
-    ↓
-Composite stream mount (scannerbox.mp3)
-    ↓
 airband-ui.service (Web UI backend)
     ├─ Reads: journalctl, Icecast status, config files
     ├─ Writes: canonical config, runtime compile artifacts, profile configs
@@ -486,13 +482,10 @@ Live-only digital backend control with in-memory metadata (no recording or persi
 - `DIGITAL_ATTACH_BROADCAST_CHANNEL` (default: `1`; auto-adds `broadcastChannel` IDs for active profile alias talkgroups)
 - `DIGITAL_IGNORE_DATA_CALLS` (default: `1`; when enabled, SDRTrunk decode config ignores data calls so voice traffic channels are prioritized)
 - `DIGITAL_P25_MODULATION` (optional override for P25 decode modulation, e.g. `CQPSK`; when unset, existing playlist modulation is preserved and defaults to `C4FM`)
-- `DIGITAL_MIXER_ENABLED` (default: `0`) - enable mixing SDRTrunk audio into `scannerbox.mp3`
-- `DIGITAL_MIXER_AIRBAND_MOUNT` (default: `GND-air.mp3`) - raw airband+ground input mount for the mixer
-- `DIGITAL_MIXER_DIGITAL_MOUNT` (default: `DIGITAL.mp3`) - SDRTrunk input mount for the mixer
-- `DIGITAL_MIXER_OUTPUT_MOUNT` (default: `scannerbox.mp3`) - final mixed output mount
-- `LIQUIDSOAP_BIN` (default: `/usr/bin/liquidsoap`) - liquidsoap binary path for mixer runtime
-- `DIGITAL_MIXER_LIQ_PATH` (default: `/run/scanner-digital-mixer.liq`) - generated runtime liquidsoap script
-- `DIGITAL_MIXER_LIQ_QUIET` (default: `1`) - run liquidsoap with `-q` for quieter logs
+- `DIGITAL_STREAM_MOUNT` (default: `DIGITAL.mp3`; digital Icecast mount name)
+- `DIGITAL_STREAM_BITRATE` (default: `64`; higher values reduce MP3 artifacts on digital voice)
+- `DIGITAL_STREAM_SAMPLE_RATE` (default: `22050`; higher values improve digital voice intelligibility)
+- `DIGITAL_STREAM_CHANNELS` (default: `1`; set `2` only if your stream path needs stereo)
 - `DIGITAL_LOCAL_MONITOR` (default: `0`) - when `0`, SDRTrunk direct local Java sink inputs are auto-muted on service startup
 - `DIGITAL_LOCAL_MONITOR_WAIT_SEC` (default: `20`) - startup wait window to find SDRTrunk sink inputs before giving up
 - `DIGITAL_LOCAL_MONITOR_POLL_SEC` (default: `1`) - poll interval while waiting for SDRTrunk sink inputs
@@ -685,44 +678,23 @@ Add (replace `willminkoff` with your user):
 willminkoff ALL=NOPASSWD: /bin/systemctl start scanner-digital, /bin/systemctl stop scanner-digital, /bin/systemctl restart scanner-digital
 ```
 
-**Digital audio mixing (optional)**:
-Mix SDRTrunk audio into the `scannerbox.mp3` stream via a resilient Liquidsoap mixer.
+**Digital audio quality tuning**:
+Use the direct digital mount and tune encoding for clearer voice.
 
-1. **Set mixer env vars** (example in `/etc/airband-ui.conf`):
+Example `/etc/airband-ui.conf`:
 ```bash
-DIGITAL_MIXER_ENABLED=1
-DIGITAL_MIXER_AIRBAND_MOUNT=GND-air.mp3
-DIGITAL_MIXER_DIGITAL_MOUNT=DIGITAL.mp3
-DIGITAL_MIXER_OUTPUT_MOUNT=scannerbox.mp3
-# ICECAST_SOURCE_PASSWORD=062352  # set if you changed your Icecast password
+DIGITAL_STREAM_MOUNT=DIGITAL.mp3
+DIGITAL_STREAM_BITRATE=64
+DIGITAL_STREAM_SAMPLE_RATE=22050
+DIGITAL_STREAM_CHANNELS=1
+# For simulcast-heavy P25 systems, test:
+# DIGITAL_P25_MODULATION=CQPSK
 ```
 
-2. **Restart rtl-airband** (so combined config uses the new airband mount):
+Then restart digital services:
 ```bash
-sudo systemctl restart rtl-airband
+sudo systemctl restart scanner-digital airband-ui
 ```
-
-3. **Configure SDRTrunk streaming**:
-   - In **Streaming** tab, add an Icecast stream:
-     - Server: `127.0.0.1`
-     - Port: `8000`
-     - Mount: `DIGITAL.mp3`
-     - User: `source`
-     - Password: your Icecast source password
-   - Save and enable the stream.
-
-4. **Install + enable mixer service**:
-```bash
-sudo apt-get update
-sudo apt-get install -y liquidsoap
-sudo install -m 0644 /home/willminkoff/scannerproject/systemd/scanner-digital-mixer.service /etc/systemd/system/scanner-digital-mixer.service
-sudo systemctl daemon-reload
-sudo systemctl enable --now scanner-digital-mixer
-```
-
-Notes:
-- The mixer reads the runtime mute flag from `/run/airband_ui_digital_mute.json`; the Digital mute toggle will drop SDRTrunk audio from the mix.
-- If one input stream goes offline, Liquidsoap keeps the output alive and substitutes silence for the missing leg.
 
 **Create profiles + set active**:
 ```bash
@@ -1188,11 +1160,10 @@ The `scanner-digital.service` runs:
   - `chmod +x /home/willminkoff/scannerproject/scripts/ensure-digital-runtime.py /home/willminkoff/scannerproject/scripts/reboot-stack-check.sh`
   - `sudo install -m 0644 /home/willminkoff/scannerproject/systemd/rtl-airband.service /etc/systemd/system/rtl-airband.service`
   - `sudo install -m 0644 /home/willminkoff/scannerproject/systemd/scanner-digital.service /etc/systemd/system/scanner-digital.service`
-  - `sudo install -m 0644 /home/willminkoff/scannerproject/systemd/scanner-digital-mixer.service /etc/systemd/system/scanner-digital-mixer.service`
   - `sudo install -m 0644 /home/willminkoff/scannerproject/systemd/airband-ui.service /etc/systemd/system/airband-ui.service`
   - `sudo systemctl daemon-reload`
-  - `sudo systemctl enable --now icecast2 rtl-airband scanner-digital scanner-digital-mixer airband-ui rtl-airband-last-hit`
-  - `sudo systemctl restart rtl-airband scanner-digital scanner-digital-mixer airband-ui`
+  - `sudo systemctl enable --now icecast2 rtl-airband scanner-digital airband-ui rtl-airband-last-hit`
+  - `sudo systemctl restart rtl-airband scanner-digital airband-ui`
   - `sudo /home/willminkoff/scannerproject/scripts/reboot-stack-check.sh 90`
 - Unit update (last-hit):
   - `sudo cp /home/willminkoff/scannerproject/systemd/rtl-airband-last-hit.service /etc/systemd/system/`

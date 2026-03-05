@@ -16,6 +16,7 @@ try:
         AIRBAND_MIN_MHZ,
         CONFIG_SYMLINK,
         GROUND_CONFIG_PATH,
+        PLAYER_MOUNT,
         PROFILES_DIR,
     )
     from .profile_config import (
@@ -42,6 +43,7 @@ except ImportError:
         AIRBAND_MIN_MHZ,
         CONFIG_SYMLINK,
         GROUND_CONFIG_PATH,
+        PLAYER_MOUNT,
         PROFILES_DIR,
     )
     from ui.profile_config import (
@@ -133,7 +135,7 @@ def _minimal_profile_template(airband: bool) -> str:
         "          send_scan_freq_tags = true;\n"
         "          server = \"127.0.0.1\";\n"
         "          port = 8000;\n"
-        "          mountpoint = \"scannerbox.mp3\";\n"
+        f"          mountpoint = \"{PLAYER_MOUNT}\";\n"
         "          username = \"source\";\n"
         "          password = \"062352\";\n"
         "          name = \"SprontPi Radio\";\n"
