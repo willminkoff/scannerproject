@@ -738,6 +738,21 @@ def sync_scan_pool_to_analog_runtime(force: bool = False) -> dict[str, Any]:
 
         desired_air_profile = _MANAGED_AIR_ID if air_freqs else _select_fallback_profile(profiles, "airband")
         desired_ground_profile = _MANAGED_GROUND_ID if ground_freqs else _select_fallback_profile(profiles, "ground")
+
+        # Preserve operator-selected analog profiles when scan-pool generation
+        # yields no conventional channels (for example digital-only favorites).
+        if not air_freqs:
+            current_air_conf, current_air_profiles, _ = _profiles_for_target("airband")
+            current_air_profile = str(guess_current_profile(current_air_conf, current_air_profiles) or "").strip()
+            if current_air_profile and current_air_profile != "none_airband":
+                desired_air_profile = current_air_profile
+
+        if not ground_freqs:
+            current_ground_conf, current_ground_profiles, _ = _profiles_for_target("ground")
+            current_ground_profile = str(guess_current_profile(current_ground_conf, current_ground_profiles) or "").strip()
+            if current_ground_profile and current_ground_profile != "none_ground":
+                desired_ground_profile = current_ground_profile
+
         selected_profiles["airband"] = desired_air_profile
         selected_profiles["ground"] = desired_ground_profile
 
