@@ -932,6 +932,8 @@ def _build_hits_payload(limit: int = 50) -> dict:
     for event in events:
         label = str(event.get("label") or "").strip()
         tgid = str(event.get("tgid") or "").strip()
+        agency = str(event.get("agency") or "").strip()
+        department = str(event.get("department") or "").strip()
         if not label and tgid:
             label = f"TG {tgid}"
         if label and label.strip("()").isdigit() and tgid:
@@ -949,6 +951,8 @@ def _build_hits_payload(limit: int = 50) -> dict:
             "label_full": label,
             "mode": event.get("mode"),
             "tgid": tgid,
+            "agency": agency,
+            "department": department,
             "type": "digital",
             "source": "digital",
             "_ts": ts,

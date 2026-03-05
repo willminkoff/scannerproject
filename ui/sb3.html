@@ -220,13 +220,25 @@
       white-space: nowrap;
     }
 
+    .last-hit-btn .subvalue {
+      font-size: 11px;
+      line-height: 1.2;
+      color: var(--text-secondary);
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
     #last-hit-digital {
       flex: 1.8 1 0;
       min-width: 220px;
     }
 
     #last-hit-digital .value {
-      font-size: 14px;
+      font-family: inherit;
+      font-size: 17px;
+      font-weight: 700;
       line-height: 1.2;
       white-space: normal;
       text-overflow: clip;
@@ -235,6 +247,15 @@
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
       text-align: center;
+    }
+
+    #last-hit-digital .subvalue {
+      font-size: 11px;
+      text-align: center;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .last-hit-btn.holding .value {
@@ -2126,6 +2147,7 @@
       <button class="last-hit-btn" id="last-hit-digital" type="button">
         <span class="label">Digital</span>
         <span class="value" id="last-hit-digital-value">--</span>
+        <span class="subvalue hidden" id="last-hit-digital-subvalue"></span>
       </button>
     </div>
     <div class="header-right">
@@ -3310,6 +3332,7 @@
       lastHitAirbandValue: document.getElementById('last-hit-airband-value'),
       lastHitGroundValue: document.getElementById('last-hit-ground-value'),
       lastHitDigitalValue: document.getElementById('last-hit-digital-value'),
+      lastHitDigitalSubvalue: document.getElementById('last-hit-digital-subvalue'),
       gainSlider: document.getElementById('gain-slider'),
       gainValue: document.getElementById('gain-value'),
       gainApplied: document.getElementById('gain-applied'),
@@ -6868,16 +6891,57 @@
       return null;
     }
 
-    function latestDigitalHitLabel() {
+    function latestDigitalHit() {
       for (let i = 0; i < state.hits.length; i++) {
         const hit = state.hits[i];
         if (!hit) continue;
         const src = String(hit.source || hit.type || '').trim().toLowerCase();
         if (src !== 'digital') continue;
         const raw = String(hit.label_full || hit.label || hit.freq || '').trim();
-        if (raw) return raw;
+        if (raw || String(hit.tgid || '').trim()) return hit;
       }
-      return '';
+      return null;
+    }
+
+    function parseDigitalAgencyDepartment(rawLabel) {
+      const raw = String(rawLabel || '').trim();
+      if (!raw) return { agency: '', department: '' };
+      const bracket = raw.match(/^\[([^\]]+)\]\s*\((\d+)\)$/);
+      if (bracket) {
+        return { agency: '', department: String(bracket[1] || '').trim() };
+      }
+      const sepIdx = raw.indexOf(' - ');
+      if (sepIdx > 0 && sepIdx < (raw.length - 3)) {
+        return {
+          agency: raw.slice(0, sepIdx).trim(),
+          department: raw.slice(sepIdx + 3).trim(),
+        };
+      }
+      return { agency: '', department: '' };
+    }
+
+    function digitalHitParts(hit) {
+      const raw = String((hit && (hit.label_full || hit.label || hit.freq)) || '').trim();
+      const directAgency = String((hit && hit.agency) || '').trim();
+      const directDepartment = String((hit && hit.department) || '').trim();
+      const parsed = parseDigitalAgencyDepartment(raw);
+      const agency = directAgency || parsed.agency;
+      let department = directDepartment || parsed.department;
+      if (!department) {
+        department = raw || '';
+      }
+      if (!department) {
+        const tgid = String((hit && hit.tgid) || '').trim();
+        if (tgid) department = `TG ${tgid}`;
+      }
+      const primary = department || '--';
+      const secondary = (
+        agency
+        && primary
+        && agency.toLowerCase() !== primary.toLowerCase()
+      ) ? agency : '';
+      const full = secondary ? `${secondary} - ${primary}` : primary;
+      return { primary, secondary, full, raw };
     }
 
     function updateStatus() {
@@ -6886,15 +6950,29 @@
       els.lastHitAirbandValue.textContent = airbandDisplay || '--';
       els.lastHitGroundValue.textContent = groundDisplay || '--';
       const digitalHold = state.hold.digital;
-      const digitalRaw = (digitalHold && digitalHold.label)
-        || latestDigitalHitLabel()
-        || state.lastHitDigital
-        || state.digital.lastLabel
-        || '';
-      const digitalLabel = formatDigitalLabel(digitalRaw);
+      const liveDigitalHit = latestDigitalHit();
+      const digitalParts = digitalHold
+        ? digitalHitParts({
+            source: 'digital',
+            label: String(digitalHold.label || '').trim(),
+            label_full: String(digitalHold.label || '').trim(),
+          })
+        : (liveDigitalHit
+            ? digitalHitParts(liveDigitalHit)
+            : digitalHitParts({
+                source: 'digital',
+                label: state.lastHitDigital || state.digital.lastLabel || '',
+                label_full: state.lastHitDigital || state.digital.lastLabel || '',
+              })
+          );
       if (els.lastHitDigitalValue) {
-        els.lastHitDigitalValue.textContent = digitalLabel || '--';
-        els.lastHitDigitalValue.title = digitalRaw || '';
+        els.lastHitDigitalValue.textContent = formatDigitalLabel(digitalParts.primary);
+        els.lastHitDigitalValue.title = digitalParts.full || digitalParts.raw || '';
+      }
+      if (els.lastHitDigitalSubvalue) {
+        const sub = String(digitalParts.secondary || '').trim();
+        els.lastHitDigitalSubvalue.textContent = sub;
+        els.lastHitDigitalSubvalue.classList.toggle('hidden', !sub);
       }
       els.lastHitAirband.classList.toggle('holding', Boolean(state.hold.airband));
       els.lastHitGround.classList.toggle('holding', Boolean(state.hold.ground));
@@ -8119,11 +8197,6 @@
       }
       
       const rows = state.hits.slice(0, 50).map(hit => {
-        const labelRaw = String(hit.label_full || hit.label || hit.freq || '--').trim();
-        const isNumeric = /^[0-9]+(\.[0-9]+)?$/.test(labelRaw);
-        const hitText = isNumeric
-          ? `${formatFreq(labelRaw)} MHz`
-          : (abbreviateHitText(labelRaw, 52) || '--');
         const source = (() => {
           const sourceName = String(hit.source || '').trim().toLowerCase();
           if (sourceName === 'digital') return 'DIG';
@@ -8140,6 +8213,15 @@
           }
           return '--';
         })();
+        let labelRaw = String(hit.label_full || hit.label || hit.freq || '--').trim();
+        if (source === 'DIG') {
+          const digitalParts = digitalHitParts(hit);
+          labelRaw = String(digitalParts.full || digitalParts.primary || labelRaw || '--').trim();
+        }
+        const isNumeric = /^[0-9]+(\.[0-9]+)?$/.test(labelRaw);
+        const hitText = isNumeric
+          ? `${formatFreq(labelRaw)} MHz`
+          : (abbreviateHitText(labelRaw, 52) || '--');
         const durationVal = Number(hit.duration || 0);
         const durationText = durationVal > 0 ? `${durationVal}s` : (hit.mode ? hit.mode : '--');
         return `
