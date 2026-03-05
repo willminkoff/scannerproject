@@ -299,7 +299,7 @@ _DIGITAL_EVENT_DROP_RE = re.compile(
 )
 _DIGITAL_SUPPRESS_ENCRYPTED_EVENTS = os.getenv(
     "DIGITAL_SUPPRESS_ENCRYPTED_EVENTS",
-    "0",
+    "1",
 ).strip().lower() in ("1", "true", "yes", "on")
 _DIGITAL_RECENT_EVENT_ID_BUCKET_SEC = max(
     0,
@@ -1090,13 +1090,11 @@ def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
     # Keep only call-type events when an explicit event field is present.
     if event_kind and "call" not in event_kind and not include_grant_debug:
         return None
-    if (
-        _DIGITAL_SUPPRESS_ENCRYPTED_EVENTS
-        and event_kind
-        and "encrypted" in event_kind
-        and not include_grant_debug
-    ):
-        return None
+    if _DIGITAL_SUPPRESS_ENCRYPTED_EVENTS and not include_grant_debug:
+        if event_kind and "encrypted" in event_kind:
+            return None
+        if details and re.search(r"\b(encrypt|encrypted|encryption)\b", details, re.I):
+            return None
     if event_kind and "data call" in event_kind and not include_grant_debug:
         return None
 
@@ -3324,6 +3322,8 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 if mapped_label:
                     event["label"] = mapped_label
             current = str(event.get("label") or "").strip()
+            if current == f"({tgid})":
+                current = ""
             if not current:
                 event["label"] = f"TG {tgid}"
             return event
