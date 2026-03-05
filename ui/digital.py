@@ -1222,6 +1222,25 @@ def _is_auto_placeholder_label(value: str) -> bool:
     return False
 
 
+def _combine_agency_department_label(agency: str, department: str, fallback: str = "") -> str:
+    agency_text = str(agency or "").strip()
+    department_text = str(department or "").strip()
+    fallback_text = str(fallback or "").strip()
+    if agency_text and department_text:
+        if agency_text.lower() == department_text.lower():
+            return agency_text
+        if agency_text.lower() in department_text.lower():
+            return department_text
+        if department_text.lower() in agency_text.lower():
+            return agency_text
+        return f"{agency_text} - {department_text}"
+    if department_text:
+        return department_text
+    if agency_text:
+        return agency_text
+    return fallback_text
+
+
 def _is_non_fatal_error(line: str) -> bool:
     return bool(_NON_FATAL_ERROR_RE.search(line or ""))
 
@@ -1882,6 +1901,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             float(os.getenv("DIGITAL_EVENT_LOG_SCAN_INTERVAL_SEC", "20")),
         )
         self._tg_map = {}
+        self._tg_group_map = {}
         self._tg_map_profile = ""
         self._tg_map_mtime = None
         self._listen_map = {}
@@ -3209,6 +3229,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         profile_dir = self._read_active_profile_dir()
         if not profile_dir:
             self._tg_map = {}
+            self._tg_group_map = {}
             self._tg_map_profile = ""
             self._tg_map_mtime = None
             return self._tg_map
@@ -3227,6 +3248,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 break
         if not path:
             self._tg_map = {}
+            self._tg_group_map = {}
             self._tg_map_profile = profile_dir
             self._tg_map_mtime = None
             return self._tg_map
@@ -3238,6 +3260,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             if mtime == self._tg_map_mtime[1]:
                 return self._tg_map
         tg_map = {}
+        tg_group_map = {}
         try:
             with open(path, "r", encoding="utf-8", errors="ignore") as f:
                 reader = csv.DictReader(f)
@@ -3257,11 +3280,22 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                         label = desc or alpha
                     if _is_auto_placeholder_label(label):
                         label = f"TG {dec}"
+                    group = (
+                        row_norm.get("group")
+                        or row_norm.get("agency")
+                        or row_norm.get("department")
+                        or row_norm.get("group name")
+                        or ""
+                    ).strip()
                     if label:
                         tg_map[dec] = label
+                    if group:
+                        tg_group_map[dec] = group
         except Exception:
             tg_map = {}
+            tg_group_map = {}
         self._tg_map = tg_map
+        self._tg_group_map = tg_group_map
         self._tg_map_profile = profile_dir
         self._tg_map_mtime = (path, mtime)
         return self._tg_map
@@ -3305,6 +3339,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         raw = str(event.get("raw") or "")
         tgid = str(event.get("tgid") or "").strip()
         tg_map = self._load_talkgroup_map()
+        tg_group_map = self._tg_group_map if isinstance(self._tg_group_map, dict) else {}
         if not tgid:
             if label:
                 tgid = _extract_tgid(label)
@@ -3317,17 +3352,25 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 return event
             event = dict(event)
             event["tgid"] = tgid
-            if tg_map:
-                mapped_label = tg_map.get(tgid)
+            mapped_label = str(tg_map.get(tgid) or "").strip()
+            mapped_group = str(tg_group_map.get(tgid) or "").strip()
+            if mapped_label or mapped_group:
+                event["label"] = _combine_agency_department_label(
+                    mapped_group,
+                    mapped_label,
+                    fallback=str(event.get("label") or "").strip() or f"TG {tgid}",
+                )
+                if mapped_group:
+                    event["agency"] = mapped_group
                 if mapped_label:
-                    event["label"] = mapped_label
+                    event["department"] = mapped_label
             current = str(event.get("label") or "").strip()
             if current == f"({tgid})":
                 current = ""
             if not current:
                 event["label"] = f"TG {tgid}"
             return event
-        if not tg_map:
+        if not tg_map and not tg_group_map:
             return event
         if not tgid:
             if not self._listen_default:
@@ -3344,9 +3387,18 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 return event
             event = dict(event)
             event["tgid"] = tgid
-            mapped_label = tg_map.get(tgid)
-            if mapped_label:
-                event["label"] = mapped_label
+            mapped_label = str(tg_map.get(tgid) or "").strip()
+            mapped_group = str(tg_group_map.get(tgid) or "").strip()
+            if mapped_label or mapped_group:
+                event["label"] = _combine_agency_department_label(
+                    mapped_group,
+                    mapped_label,
+                    fallback=str(event.get("label") or "").strip() or f"TG {tgid}",
+                )
+                if mapped_group:
+                    event["agency"] = mapped_group
+                if mapped_label:
+                    event["department"] = mapped_label
             else:
                 current = str(event.get("label") or "").strip()
                 if re.fullmatch(r"\(?\d+\)?", current):
@@ -4975,14 +5027,20 @@ class DigitalManager:
         scheduler_talkgroup_label = str(
             payload.get("digital_scheduler_active_talkgroup_label") or ""
         ).strip()
-        if scheduler_talkgroup_label:
-            payload["digital_last_label"] = scheduler_talkgroup_label
-            payload["digital_channel_label"] = scheduler_talkgroup_label
-        else:
-            payload["digital_channel_label"] = str(payload.get("digital_last_label") or "").strip()
         scheduler_department_label = str(
             payload.get("digital_scheduler_active_department_label") or ""
         ).strip()
+        combined_scheduler_label = _combine_agency_department_label(
+            scheduler_department_label,
+            scheduler_talkgroup_label,
+            fallback=str(payload.get("digital_last_label") or "").strip(),
+        )
+        if combined_scheduler_label:
+            payload["digital_last_label"] = combined_scheduler_label
+        if scheduler_talkgroup_label:
+            payload["digital_channel_label"] = scheduler_talkgroup_label
+        else:
+            payload["digital_channel_label"] = str(payload.get("digital_last_label") or "").strip()
         if scheduler_department_label:
             payload["digital_department_label"] = scheduler_department_label
         scheduler_system_label = str(
