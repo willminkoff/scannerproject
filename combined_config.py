@@ -36,9 +36,50 @@ def extract_devices_payload(text: str) -> str:
     start = text.find("(", idx)
     if start == -1:
         return ""
+    return _extract_parenthesized_payload(text, start)
+
+
+def _extract_parenthesized_payload(text: str, start: int) -> str:
+    """Extract the payload inside a parenthesized block.
+
+    The rtl_airband config frequently contains parentheses in quoted labels
+    and comments; those must not affect structural depth tracking.
+    """
     depth = 0
+    in_string = False
+    in_line_comment = False
+    escaped = False
     for i in range(start, len(text)):
         ch = text[i]
+        nxt = text[i + 1] if i + 1 < len(text) else ""
+
+        if in_line_comment:
+            if ch == "\n":
+                in_line_comment = False
+            continue
+
+        if in_string:
+            if escaped:
+                escaped = False
+                continue
+            if ch == "\\":
+                escaped = True
+                continue
+            if ch == "\"":
+                in_string = False
+            continue
+
+        if ch == "\"":
+            in_string = True
+            continue
+
+        if ch == "#":
+            in_line_comment = True
+            continue
+        if ch == "/" and nxt == "/":
+            in_line_comment = True
+            continue
+
         if ch == "(":
             depth += 1
         elif ch == ")":

@@ -89,6 +89,7 @@ DIGITAL_STREAM_SAMPLE_RATE_OVERRIDE = _env_set("DIGITAL_STREAM_SAMPLE_RATE")
 DIGITAL_STREAM_CHANNELS_OVERRIDE = _env_set("DIGITAL_STREAM_CHANNELS")
 DIGITAL_STREAM_MAX_RECORDING_AGE_OVERRIDE = _env_set("DIGITAL_STREAM_MAX_RECORDING_AGE_MS")
 DIGITAL_STREAM_DELAY_OVERRIDE = _env_set("DIGITAL_STREAM_DELAY_MS")
+DIGITAL_P25_MODULATION = os.getenv("DIGITAL_P25_MODULATION", "").strip()
 
 
 def _log(msg: str) -> None:
@@ -640,7 +641,12 @@ def _sync_decode_configuration(channel: ET.Element) -> None:
     dtype = str(decode_conf.get("type", "")).strip() or "decodeConfigP25Phase1"
     decode_conf.set("type", dtype)
     if dtype == "decodeConfigP25Phase1":
-        decode_conf.set("modulation", str(decode_conf.get("modulation", "")).strip() or "C4FM")
+        decode_conf.set(
+            "modulation",
+            DIGITAL_P25_MODULATION
+            or str(decode_conf.get("modulation", "")).strip()
+            or "C4FM",
+        )
     decode_conf.set("traffic_channel_pool_size", "20")
     decode_conf.set("ignore_data_calls", "true" if DIGITAL_IGNORE_DATA_CALLS else "false")
 
