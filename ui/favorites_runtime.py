@@ -557,9 +557,29 @@ def sync_scan_pool_to_digital_runtime(force: bool = False) -> dict[str, Any]:
             "errors": [],
         }
 
+        try:
+            from .digital import get_digital_manager
+        except ImportError:
+            from ui.digital import get_digital_manager
+        manager = get_digital_manager()
+
         if not systems or not talkgroups or not controls_flat:
             result["ok"] = True
             result["reason"] = "no digital targets in active scan pool"
+            result["applied_profile"] = str(manager.getProfile() or "").strip()
+            service_active = bool(manager.isActive())
+            result["service_active_before"] = service_active
+            if service_active:
+                stop_ok, stop_err = manager.stop()
+                if stop_ok:
+                    result["changed"] = True
+                    result["service_stopped"] = True
+                else:
+                    result["ok"] = False
+                    result["service_stopped"] = False
+                    result["errors"].append(str(stop_err or "failed stopping digital service"))
+            else:
+                result["service_stopped"] = False
             _LAST_DIGITAL_SIGNATURE = signature
             _LAST_DIGITAL_RESULT = dict(result)
             return result
@@ -613,21 +633,18 @@ def sync_scan_pool_to_digital_runtime(force: bool = False) -> dict[str, Any]:
         except Exception:
             pass
 
-        try:
-            from .digital import get_digital_manager
-        except ImportError:
-            from ui.digital import get_digital_manager
-        manager = get_digital_manager()
         current_profile = str(manager.getProfile() or "").strip()
         should_switch = current_profile != _MANAGED_DIGITAL_ID
-        if should_switch or bool(result["profile_save_changed"]):
+        should_start = not bool(manager.isActive())
+        if should_switch or bool(result["profile_save_changed"]) or should_start:
             switched_ok, switched_err = manager.setProfile(_MANAGED_DIGITAL_ID, restart_service=True)
             if not switched_ok:
                 result["ok"] = False
                 result["errors"].append(str(switched_err or "failed applying managed digital profile"))
             else:
                 result["profile_switch_changed"] = bool(should_switch)
-                result["changed"] = bool(should_switch or result["profile_save_changed"])
+                result["service_started"] = bool(should_start)
+                result["changed"] = bool(should_switch or result["profile_save_changed"] or should_start)
         result["applied_profile"] = str(manager.getProfile() or "").strip()
 
         try:
