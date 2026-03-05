@@ -240,12 +240,10 @@
       font-size: 17px;
       font-weight: 700;
       line-height: 1.2;
-      white-space: normal;
-      text-overflow: clip;
+      white-space: nowrap;
+      text-overflow: ellipsis;
       overflow: hidden;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
+      display: block;
       text-align: center;
     }
 
@@ -6970,11 +6968,11 @@
               })
           );
       if (els.lastHitDigitalValue) {
-        els.lastHitDigitalValue.textContent = formatDigitalLabel(digitalParts.primary);
+        els.lastHitDigitalValue.textContent = formatDigitalLabel(digitalParts.primary, 20);
         els.lastHitDigitalValue.title = digitalParts.full || digitalParts.raw || '';
       }
       if (els.lastHitDigitalSubvalue) {
-        const sub = String(digitalParts.secondary || '').trim();
+        const sub = abbreviateHitText(String(digitalParts.secondary || '').trim(), 20);
         els.lastHitDigitalSubvalue.textContent = sub;
         els.lastHitDigitalSubvalue.classList.toggle('hidden', !sub);
       }
@@ -8225,7 +8223,7 @@
         const isNumeric = /^[0-9]+(\.[0-9]+)?$/.test(labelRaw);
         const hitText = isNumeric
           ? `${formatFreq(labelRaw)} MHz`
-          : (abbreviateHitText(labelRaw, 52) || '--');
+          : (labelRaw || '--');
         const durationVal = Number(hit.duration || 0);
         const durationText = durationVal > 0 ? `${durationVal}s` : (hit.mode ? hit.mode : '--');
         return `
