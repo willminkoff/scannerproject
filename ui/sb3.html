@@ -180,7 +180,7 @@
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
-      width: min(660px, 70vw);
+      width: min(900px, 78vw);
       max-width: calc(100% - 160px);
       justify-content: center;
     }
@@ -218,6 +218,23 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    #last-hit-digital {
+      flex: 1.8 1 0;
+      min-width: 220px;
+    }
+
+    #last-hit-digital .value {
+      font-size: 14px;
+      line-height: 1.2;
+      white-space: normal;
+      text-overflow: clip;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      text-align: center;
     }
 
     .last-hit-btn.holding .value {
@@ -6851,13 +6868,29 @@
       return null;
     }
 
+    function latestDigitalHitLabel() {
+      for (let i = 0; i < state.hits.length; i++) {
+        const hit = state.hits[i];
+        if (!hit) continue;
+        const src = String(hit.source || hit.type || '').trim().toLowerCase();
+        if (src !== 'digital') continue;
+        const raw = String(hit.label_full || hit.label || hit.freq || '').trim();
+        if (raw) return raw;
+      }
+      return '';
+    }
+
     function updateStatus() {
       const airbandDisplay = getDisplayForTarget('airband');
       const groundDisplay = getDisplayForTarget('ground');
       els.lastHitAirbandValue.textContent = airbandDisplay || '--';
       els.lastHitGroundValue.textContent = groundDisplay || '--';
       const digitalHold = state.hold.digital;
-      const digitalRaw = (digitalHold && digitalHold.label) || state.lastHitDigital || state.digital.lastLabel || '';
+      const digitalRaw = (digitalHold && digitalHold.label)
+        || latestDigitalHitLabel()
+        || state.lastHitDigital
+        || state.digital.lastLabel
+        || '';
       const digitalLabel = formatDigitalLabel(digitalRaw);
       if (els.lastHitDigitalValue) {
         els.lastHitDigitalValue.textContent = digitalLabel || '--';
@@ -8215,10 +8248,13 @@
       return raw.slice(0, maxLen - 1).trimEnd() + '…';
     }
 
-    function formatDigitalLabel(label) {
+    function formatDigitalLabel(label, maxLen=0) {
       const raw = String(label || '').trim();
       if (!raw) return '--';
-      return abbreviateHitText(raw, 18) || '--';
+      if (Number.isFinite(maxLen) && maxLen > 0) {
+        return abbreviateHitText(raw, maxLen) || '--';
+      }
+      return raw;
     }
 
     function formatBytes(bytes) {
@@ -8669,7 +8705,7 @@
 
       const holdAir = state.hold.airband ? state.hold.airband : '--';
       const holdGround = state.hold.ground ? state.hold.ground : '--';
-      const holdDigital = state.hold.digital ? formatDigitalLabel(state.hold.digital.label) : '--';
+      const holdDigital = state.hold.digital ? formatDigitalLabel(state.hold.digital.label, 32) : '--';
       if (els.sitrepHold) els.sitrepHold.textContent = `AIR ${holdAir} / GND ${holdGround} / DIG ${holdDigital}`;
 
       if (els.sitrepAirbandProfile) {
