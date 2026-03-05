@@ -4629,7 +4629,18 @@ class DigitalManager:
             return True
         with self._scheduler_lock:
             active_system = str(self._scheduler_active_system or "").strip()
-            allowed_talkgroups = set(self._scheduler_pool_system_talkgroups.get(active_system) or set())
+            mode = str(self._scheduler_mode or "single_system").strip().lower()
+            if mode == "timeslice_multi_system":
+                allowed_talkgroups: set[str] = set()
+                for values in self._scheduler_pool_system_talkgroups.values():
+                    if not values:
+                        continue
+                    for value in values:
+                        token = str(value or "").strip()
+                        if token:
+                            allowed_talkgroups.add(token)
+            else:
+                allowed_talkgroups = set(self._scheduler_pool_system_talkgroups.get(active_system) or set())
         if not active_system:
             return True
         if not allowed_talkgroups:
