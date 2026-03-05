@@ -423,29 +423,13 @@ class ScanModeController:
 
         out.sort()
 
-        # HPDB/custom trunk-site exports can include very large mixed-band
-        # sets (often all site frequencies, not just control channels). Keep
-        # dominant bands and trim long tails so scheduler control lists remain
-        # small enough for stable lock/acquire behavior.
+        # HPDB trunk-site frequency exports can include very large mixed-band
+        # sets (ex: VHF + 700/800). Keep dominant bands and trim long tails so
+        # scheduler control lists stay realistic for trunk following.
         band_counts: dict[int, int] = {}
         for mhz in out:
             band = int(mhz // 100)
             band_counts[band] = band_counts.get(band, 0) + 1
-
-        # If one band clearly dominates, discard minority-band tails that can
-        # cause frequent retunes away from the active trunking band.
-        if len(band_counts) >= 2:
-            total = max(1, len(out))
-            dominant_band, dominant_count = max(
-                band_counts.items(),
-                key=lambda item: item[1],
-            )
-            if (float(dominant_count) / float(total)) >= 0.65:
-                out = [mhz for mhz in out if int(mhz // 100) == int(dominant_band)]
-                band_counts = {}
-                for mhz in out:
-                    band = int(mhz // 100)
-                    band_counts[band] = band_counts.get(band, 0) + 1
 
         if len(band_counts) > 2:
             total = len(out)
@@ -462,13 +446,9 @@ class ScanModeController:
                 }
             out = [mhz for mhz in out if int(mhz // 100) in keep_bands]
 
-        # Keep the final list tight; large lists dramatically increase control
-        # reacquire time when SDRTrunk rotates frequencies.
-        max_controls = 12
+        max_controls = 64
         if len(out) > max_controls:
-            # Avoid low-frequency bias by keeping a centered slice.
-            start = max(0, int((len(out) - max_controls) / 2))
-            out = out[start : start + max_controls]
+            out = out[:max_controls]
         return out
 
     def _fallback_trunk_control_channels(self, *, system_id: int = 0, system_name: str = "") -> list[float]:
