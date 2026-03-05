@@ -125,6 +125,7 @@ _TGID_RE = re.compile(r"\b(?:tgid|talkgroup|tg)\b\s*[:=#-]?\s*\(?\s*(\d+)\s*\)?"
 _EVENT_HINT_RE = re.compile(r"(call|voice|traffic|talkgroup|tgid|alias|alpha\s*tag|channel\s*event|from:|to:)", re.I)
 _BRACKETED_TG_LABEL_RE = re.compile(r"^\[(?P<label>[^\]]+)\]\s*\((?P<tgid>\d+)\)\s*$")
 _TS_RE = re.compile(r"(?P<date>\d{4}-\d{2}-\d{2})[ T](?P<time>\d{2}:\d{2}:\d{2})")
+_TS_COLON_RE = re.compile(r"^\"?(?P<date>\d{4}:\d{2}:\d{2}):(?P<time>\d{2}:\d{2}:\d{2})(?:\.\d+)?\"?")
 _TS_COMPACT_RE = re.compile(r"(?P<date>\d{8})\s+(?P<time>\d{6})(?:\.\d+)?")
 _LOG_PREFIX_RE = re.compile(r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?\s+")
 _LOG_PREFIX_COMPACT_RE = re.compile(r"^\d{8}\s+\d{6}(?:\.\d+)?\s+")
@@ -257,7 +258,7 @@ _EVENT_SITE_KEYS = (
     "site name",
     "system name",
 )
-_DIGITAL_HIT_MIN_DURATION_MS = int(os.getenv("DIGITAL_HIT_MIN_DURATION_MS", "250"))
+_DIGITAL_HIT_MIN_DURATION_MS = max(250, int(os.getenv("DIGITAL_HIT_MIN_DURATION_MS", "250")))
 _DIGITAL_STATUS_CLEAR_MS = max(0, int(os.getenv("DIGITAL_STATUS_CLEAR_MS", "180000")))
 _DIGITAL_TGID_MAX = max(1, int(os.getenv("DIGITAL_TGID_MAX", "16777215")))
 _DIGITAL_EVENT_MIN_DATA_BYTES = max(128, int(os.getenv("DIGITAL_EVENT_MIN_DATA_BYTES", "128")))
@@ -831,6 +832,13 @@ def _parse_time_ms(line: str, fallback_ms: int) -> int:
     text = str(line or "").strip()
     # Prefer leading timestamps and avoid matching date strings that appear
     # later inside decoded-message payload text.
+    m3 = _TS_COLON_RE.match(text)
+    if m3:
+        try:
+            dt = datetime.strptime(f"{m3.group('date')} {m3.group('time')}", "%Y:%m:%d %H:%M:%S")
+            return int(time.mktime(dt.timetuple()) * 1000)
+        except Exception:
+            return fallback_ms
     m2 = _TS_COMPACT_RE.match(text)
     if m2:
         try:
@@ -3710,6 +3718,32 @@ class DigitalManager:
             }
         self._super_profile_systems = loaded
 
+    def _pool_tgid_metadata(self, tgid: str) -> tuple[str, str]:
+        token = _normalize_tgid(tgid)
+        if not token:
+            return "", ""
+        with self._scheduler_lock:
+            labels_by_system = {
+                str(name or "").strip(): dict(values or {})
+                for name, values in (self._scheduler_pool_talkgroup_labels or {}).items()
+                if str(name or "").strip()
+            }
+            groups_by_system = {
+                str(name or "").strip(): dict(values or {})
+                for name, values in (self._scheduler_pool_talkgroup_groups or {}).items()
+                if str(name or "").strip()
+            }
+        system_names = set(labels_by_system.keys()) | set(groups_by_system.keys())
+        candidates: set[tuple[str, str]] = set()
+        for system_name in system_names:
+            department = str((labels_by_system.get(system_name) or {}).get(token) or "").strip()
+            agency = str((groups_by_system.get(system_name) or {}).get(token) or "").strip()
+            if agency or department:
+                candidates.add((agency, department))
+        if len(candidates) == 1:
+            return next(iter(candidates))
+        return "", ""
+
     def _enrich_event_label_for_active_system(self, event: dict) -> dict:
         if not isinstance(event, dict):
             return {}
@@ -3731,27 +3765,21 @@ class DigitalManager:
         if tgid:
             enriched["tgid"] = tgid
 
+        department = str(enriched.get("department") or "").strip()
+        agency = str(enriched.get("agency") or "").strip()
         scan_mode = get_current_scan_mode()
-        if scan_mode not in {"hp", "expert"}:
-            return enriched
+        if scan_mode in {"hp", "expert"} and tgid:
+            pool_agency, pool_department = self._pool_tgid_metadata(tgid)
+            if not agency and pool_agency:
+                agency = pool_agency
+            if not department and pool_department:
+                department = pool_department
 
-        with self._scheduler_lock:
-            active_system = str(self._scheduler_active_system or "").strip()
-            talkgroup_labels = dict(self._scheduler_pool_talkgroup_labels.get(active_system) or {})
-            talkgroup_groups = dict(self._scheduler_pool_talkgroup_groups.get(active_system) or {})
-            fallback_agency = str(self._scheduler_pool_department_labels.get(active_system) or "").strip()
-
-        if not active_system or not tgid:
-            return enriched
-
-        department = str(talkgroup_labels.get(tgid) or enriched.get("department") or "").strip()
-        agency = str(talkgroup_groups.get(tgid) or "").strip()
-        if not agency:
-            agency = fallback_agency
+        fallback_label = str(enriched.get("label") or "").strip()
         combined = _combine_agency_department_label(
             agency,
             department,
-            fallback=str(enriched.get("label") or "").strip(),
+            fallback=fallback_label or (f"TG {tgid}" if tgid else ""),
         )
         if combined:
             enriched["label"] = combined
