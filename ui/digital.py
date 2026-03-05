@@ -294,13 +294,21 @@ _CONTROL_LOCK_FAIL_RE = re.compile(
     re.I,
 )
 _DIGITAL_EVENT_DROP_RE = re.compile(
-    r"(rejected|tuner unavailable|encrypted|encryption|data channel grant|nsapi)",
+    r"(rejected|tuner unavailable|data channel grant|nsapi)",
     re.I,
 )
+_DIGITAL_SUPPRESS_ENCRYPTED_EVENTS = os.getenv(
+    "DIGITAL_SUPPRESS_ENCRYPTED_EVENTS",
+    "0",
+).strip().lower() in ("1", "true", "yes", "on")
 _DIGITAL_RECENT_EVENT_ID_BUCKET_SEC = max(
     0,
     int(os.getenv("DIGITAL_RECENT_EVENT_ID_BUCKET_SEC", "0")),
 )
+_DIGITAL_ENFORCE_ACTIVE_SYSTEM_EVENT_FILTER = os.getenv(
+    "DIGITAL_ENFORCE_ACTIVE_SYSTEM_EVENT_FILTER",
+    "0",
+).strip().lower() in ("1", "true", "yes", "on")
 _DIGITAL_RECENT_LABEL_DEDUPE_MS = max(
     0,
     int(os.getenv("DIGITAL_RECENT_LABEL_DEDUPE_MS", "2500")),
@@ -1082,7 +1090,12 @@ def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
     # Keep only call-type events when an explicit event field is present.
     if event_kind and "call" not in event_kind and not include_grant_debug:
         return None
-    if event_kind and "encrypted" in event_kind and not include_grant_debug:
+    if (
+        _DIGITAL_SUPPRESS_ENCRYPTED_EVENTS
+        and event_kind
+        and "encrypted" in event_kind
+        and not include_grant_debug
+    ):
         return None
     if event_kind and "data call" in event_kind and not include_grant_debug:
         return None
@@ -2295,16 +2308,20 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             lines = self._read_event_log_lines(path)
             if not lines:
                 continue
-            blocked_event_ids: set[str] = set()
             path_events: list[dict] = []
             try:
                 mtime = os.path.getmtime(path)
             except Exception:
                 mtime = None
             fallback_ms = int(mtime * 1000) if mtime else now_ms
+            blocked_event_ids: set[str] = set()
             for line in lines:
                 hinted_event_id, hinted_encrypted = self._event_log_line_encryption_hint(line, path)
-                if hinted_encrypted and hinted_event_id:
+                if (
+                    _DIGITAL_SUPPRESS_ENCRYPTED_EVENTS
+                    and hinted_encrypted
+                    and hinted_event_id
+                ):
                     blocked_event_ids.add(str(hinted_event_id).strip())
                 event = self._parse_event_log_line(line, path, fallback_ms)
                 if event:
@@ -2312,7 +2329,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                     if mapped and mapped.get("muted"):
                         continue
                     path_events.append(mapped)
-            if blocked_event_ids:
+            if _DIGITAL_SUPPRESS_ENCRYPTED_EVENTS and blocked_event_ids:
                 for item in path_events:
                     event_id = str(item.get("event_id") or "").strip()
                     if event_id and event_id in blocked_event_ids:
@@ -4629,6 +4646,8 @@ class DigitalManager:
         return ""
 
     def _event_allowed_for_active_system(self, event: dict) -> bool:
+        if not _DIGITAL_ENFORCE_ACTIVE_SYSTEM_EVENT_FILTER:
+            return True
         scan_mode = get_current_scan_mode()
         if scan_mode not in {"hp", "expert"}:
             return True
