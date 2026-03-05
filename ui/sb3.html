@@ -2965,7 +2965,7 @@
         </section>
 
         <section class="hp-builder hp-wizard-stage hidden" data-hp-stage="review">
-          <div class="hp-builder-head">Step 5 · Review Active List</div>
+          <div class="hp-builder-head">Step 5 · Review Active Source</div>
           <div class="hp-builder-list" id="hp-fav-entries">
             <div class="hp-builder-empty">No entries in active list.</div>
           </div>
@@ -3252,6 +3252,17 @@
         selectedSystemId: '',
         channels: [],
         selectedChannelIds: [],
+        fullDbReviewEntries: [],
+        fullDbReviewMeta: {
+          totalEntries: 0,
+          trunkedTalkgroups: 0,
+          conventionalChannels: 0,
+          trunkedSites: 0,
+          truncated: false,
+        },
+        fullDbReviewLoading: false,
+        fullDbReviewError: '',
+        fullDbReviewKey: '',
       },
       hp3Builder: {
         open: false,
@@ -4059,6 +4070,13 @@
           state.hpFilters.enabledServiceTags = _normalizeIntList(state.hpFilters.defaultServiceTags);
         }
         renderHpFiltersPanel();
+        if (state.hpFilters.mode === 'full_database') {
+          loadHpFullDbReviewEntries({ quiet: true, force: true }).catch((err) => {
+            console.error('Full DB review refresh failed:', err);
+          });
+        } else {
+          clearHpFullDbReviewSnapshot();
+        }
         if (!quiet) {
           setHpFiltersStatus('Favorites filters loaded.');
         }
@@ -4113,6 +4131,13 @@
           loaded: true,
         };
         renderHpFiltersPanel();
+        if (state.hpFilters.mode === 'full_database') {
+          loadHpFullDbReviewEntries({ quiet: true, force: true }).catch((err) => {
+            console.error('Full DB review refresh failed:', err);
+          });
+        } else {
+          clearHpFullDbReviewSnapshot();
+        }
         setHpFiltersStatus(resolveZip ? 'ZIP resolved and filters saved.' : 'Favorites filters saved.');
         logActivity(resolveZip ? 'HP ZIP resolved from SB3 filters' : 'HP favorites filters saved from SB3', 'info', resolveZip ? 'hp-filters-zip' : 'hp-filters-save');
         await refresh();
@@ -4137,6 +4162,9 @@
       els.hpFavStatus.textContent = String(message || '').trim();
       els.hpFavStatus.style.color = isError ? 'var(--warn)' : 'var(--text-secondary)';
     }
+
+    const HP_FAV_FULL_DB_OPTION_VALUE = '__hp_full_database__';
+    const HP_SCAN_POOL_PREVIEW_LIMIT = 4000;
 
     function hpFavNormalizeName(value, fallback = 'My Favorites') {
       const text = String(value || '').trim();
@@ -4287,6 +4315,27 @@
       return String(state?.hpFilters?.mode || '').trim().toLowerCase() === 'full_database';
     }
 
+    function isHpFavoriteFullDbOption(value) {
+      return String(value || '').trim() === HP_FAV_FULL_DB_OPTION_VALUE;
+    }
+
+    function getHpFullDbReviewKey() {
+      const filters = state.hpFilters || {};
+      const mode = String(filters.mode || '').trim().toLowerCase() === 'full_database'
+        ? 'full_database'
+        : 'favorites';
+      const tags = _normalizeIntList(filters.enabledServiceTags).sort((a, b) => a - b);
+      const rangeMiles = Math.max(0, _toFloat(filters.rangeMiles, 15));
+      return JSON.stringify({
+        mode,
+        useLocation: Boolean(filters.useLocation),
+        zip: String(filters.zip || '').trim(),
+        rangeMiles,
+        nationwideSystems: Boolean(filters.nationwideSystems),
+        tags,
+      });
+    }
+
     function buildHpFavoritesStatePayload(model, extra = {}) {
       const safeModel = model && typeof model === 'object' ? model : {};
       const listNames = Array.isArray(safeModel.names) && safeModel.names.length
@@ -4364,6 +4413,24 @@
       const token = getHpFavActiveToken();
       builder.entriesByList = builder.entriesByList || {};
       builder.entriesByList[token] = hpFavNormalizeEntries(entries);
+    }
+
+    function getHpFavoriteReviewEntries() {
+      const builder = state.hpFavoritesBuilder;
+      if (!isHpFullDatabaseMode()) {
+        return getHpFavActiveEntries();
+      }
+      return hpFavNormalizeEntries(builder.fullDbReviewEntries);
+    }
+
+    function getHpServiceTypeNameByTag(serviceTag) {
+      const tag = _toInt(serviceTag, 0);
+      if (tag <= 0) return '';
+      const serviceTypes = Array.isArray(state.hpFilters?.serviceTypes)
+        ? state.hpFilters.serviceTypes
+        : [];
+      const match = serviceTypes.find((row) => _toInt(row && row.tag, 0) === tag);
+      return String(match && match.name ? match.name : '').trim();
     }
 
     function renderSb3FavoritesPanels() {
@@ -4573,30 +4640,64 @@
 
     function renderHpFavoritesBuilderEntries() {
       if (!els.hpFavEntries) return;
-      const entries = getHpFavActiveEntries();
-      if (!entries.length) {
-        els.hpFavEntries.innerHTML = '<div class="hp-builder-empty">No entries in active list.</div>';
+      const builder = state.hpFavoritesBuilder;
+      const fullDbMode = isHpFullDatabaseMode();
+      const entries = getHpFavoriteReviewEntries();
+      if (fullDbMode && builder.fullDbReviewLoading) {
+        els.hpFavEntries.innerHTML = '<div class="hp-builder-empty">Building Full DB review from active filters...</div>';
         return;
       }
-      els.hpFavEntries.innerHTML = entries.map((entry, idx) => {
+      if (!entries.length) {
+        if (fullDbMode && builder.fullDbReviewError) {
+          els.hpFavEntries.innerHTML = `<div class="hp-builder-empty">${escapeHtml(builder.fullDbReviewError)}</div>`;
+          return;
+        }
+        els.hpFavEntries.innerHTML = fullDbMode
+          ? '<div class="hp-builder-empty">No Full DB channels match current filters.</div>'
+          : '<div class="hp-builder-empty">No entries in active list.</div>';
+        return;
+      }
+      let summaryMarkup = '';
+      if (fullDbMode) {
+        const meta = builder.fullDbReviewMeta || {};
+        const totalEntries = _toInt(meta.totalEntries, entries.length);
+        const trunked = _toInt(meta.trunkedTalkgroups, 0);
+        const conventional = _toInt(meta.conventionalChannels, 0);
+        const truncated = Boolean(meta.truncated);
+        const summaryBits = [`Digital ${trunked}`, `Analog ${conventional}`, `Total ${totalEntries}`];
+        if (truncated) {
+          summaryBits.push(`Showing first ${entries.length}`);
+        }
+        summaryMarkup = `<div class="muted" style="margin-bottom:8px;">${escapeHtml(summaryBits.join(' • '))}</div>`;
+      }
+      els.hpFavEntries.innerHTML = `${summaryMarkup}${entries.map((entry, idx) => {
         const typeLabel = entry.kind === 'trunked' ? 'Digital' : 'Analog';
         const tail = entry.kind === 'trunked'
           ? `TG ${String(entry.talkgroup || '--')}`
           : `${Number(entry.frequency || 0).toFixed(4)} MHz`;
-        const meta = [entry.system_name, entry.department_name, tail].filter(Boolean).join(' • ');
+        const serviceType = getHpServiceTypeNameByTag(entry.service_tag);
+        const meta = [entry.system_name, entry.department_name, tail, serviceType ? `Svc ${serviceType}` : '']
+          .filter(Boolean)
+          .join(' • ');
+        const removeButton = fullDbMode
+          ? ''
+          : `<button class="hp-builder-entry-remove" type="button" data-hp-entry-id="${escapeHtml(entry.id || '')}">Remove</button>`;
         return `
           <div class="hp-builder-row">
             <div class="hp-builder-row-head">
               <span>${escapeHtml(entry.alpha_tag || `Entry ${idx + 1}`)}</span>
-              <button class="hp-builder-entry-remove" type="button" data-hp-entry-id="${escapeHtml(entry.id || '')}">Remove</button>
+              ${removeButton}
             </div>
             <div class="hp-builder-row-meta">${escapeHtml(typeLabel)} • ${escapeHtml(meta || '--')}</div>
           </div>
         `;
-      }).join('');
+      }).join('')}`;
     }
 
     function getHpFavoriteWizardSteps() {
+      if (isHpFullDatabaseMode()) {
+        return ['list', 'review'];
+      }
       return ['list', 'location', 'systems', 'channels', 'review'];
     }
 
@@ -4637,6 +4738,11 @@
       builder.wizardStep = normalizeHpFavoriteWizardStep(step);
       builder.wizardErrorStep = '';
       renderHpFavoritesBuilder();
+      if (isHpFullDatabaseMode() && builder.wizardStep === 'review') {
+        loadHpFullDbReviewEntries({ quiet: true }).catch((err) => {
+          console.error('Full DB review load failed:', err);
+        });
+      }
     }
 
     async function goHpFavoriteWizardStep(direction = 1) {
@@ -4665,11 +4771,16 @@
       builder.wizardStep = steps[nextIdx];
       builder.wizardErrorStep = '';
       renderHpFavoritesBuilder();
+      if (isHpFullDatabaseMode() && builder.wizardStep === 'review') {
+        await loadHpFullDbReviewEntries({ quiet: true });
+      }
     }
 
     function renderHpFavoritesBuilderFlow() {
       const builder = state.hpFavoritesBuilder;
       const steps = getHpFavoriteWizardSteps();
+      const fullDbMode = isHpFullDatabaseMode();
+      const enabledStepSet = new Set(steps);
       const labelByStep = {
         list: 'List',
         location: 'Location',
@@ -4685,22 +4796,25 @@
       const hasSystems = Array.isArray(builder.systems) && builder.systems.length > 0;
       const hasSystemSelection = hasSystems && String(builder.selectedSystemId || '').trim().length > 0;
       const selectedCount = Array.isArray(builder.selectedChannelIds) ? builder.selectedChannelIds.length : 0;
-      const reviewCount = getHpFavActiveEntries().length;
+      const reviewCount = getHpFavoriteReviewEntries().length;
 
       const doneByStep = {
         list: Boolean(activeList),
-        location: _toInt(builder.stateId, 0) > 0,
-        systems: hasSystemSelection,
-        channels: selectedCount > 0 || reviewCount > 0,
+        location: fullDbMode ? false : _toInt(builder.stateId, 0) > 0,
+        systems: fullDbMode ? false : hasSystemSelection,
+        channels: fullDbMode ? false : (selectedCount > 0 || reviewCount > 0),
         review: reviewCount > 0,
       };
       if (els.hpFavFlow) {
         const nodes = els.hpFavFlow.querySelectorAll('[data-hp-flow-step]');
         nodes.forEach((node) => {
           const key = String(node.getAttribute('data-hp-flow-step') || '').trim();
-          node.classList.toggle('done', Boolean(doneByStep[key]));
+          const enabled = enabledStepSet.has(key);
+          node.disabled = Boolean(builder.loading || builder.saving) || !enabled;
+          node.classList.toggle('done', Boolean(enabled && doneByStep[key]));
           node.classList.toggle('active', key === activeStep);
           node.classList.toggle('error', key === String(builder.wizardErrorStep || '').trim());
+          node.classList.toggle('disabled', !enabled);
         });
       }
       if (els.hpFiltersPanel) {
@@ -4722,7 +4836,9 @@
 
       if (!els.hpFavNextStep) return;
       if (activeStep === 'list') {
-        els.hpFavNextStep.textContent = `Step 1: pick or create a favorites list (active: "${activeList}").`;
+        els.hpFavNextStep.textContent = fullDbMode
+          ? 'Step 1: Full DB is active. Review shows channels resolved from ZIP/range/service filters.'
+          : `Step 1: pick or create a favorites list (active: "${activeList}").`;
         return;
       }
       if (activeStep === 'location') {
@@ -4757,6 +4873,26 @@
         els.hpFavNextStep.textContent = `${selectedCount} selected. Next auto-adds selection to the active list.`;
         return;
       }
+      if (fullDbMode) {
+        const meta = builder.fullDbReviewMeta || {};
+        const totalEntries = _toInt(meta.totalEntries, reviewCount);
+        const trunkedCount = _toInt(meta.trunkedTalkgroups, 0);
+        const conventionalCount = _toInt(meta.conventionalChannels, 0);
+        if (builder.fullDbReviewLoading) {
+          els.hpFavNextStep.textContent = 'Building Full DB review from active ZIP/range/service filters...';
+          return;
+        }
+        if (builder.fullDbReviewError) {
+          els.hpFavNextStep.textContent = builder.fullDbReviewError;
+          return;
+        }
+        if (totalEntries > 0) {
+          els.hpFavNextStep.textContent = `${totalEntries} Full DB channels match filters (Digital ${trunkedCount} • Analog ${conventionalCount}).`;
+          return;
+        }
+        els.hpFavNextStep.textContent = 'No Full DB channels match the current ZIP/range/service filters.';
+        return;
+      }
       els.hpFavNextStep.textContent = reviewCount > 0
         ? `${reviewCount} entries in "${activeList}". Remove or keep entries as needed.`
         : `No entries in "${activeList}" yet.`;
@@ -4765,15 +4901,20 @@
     function renderHpFavoritesBuilder() {
       const builder = state.hpFavoritesBuilder;
       const busy = Boolean(builder.loading || builder.saving);
+      const fullDbMode = isHpFullDatabaseMode();
+      const wizardEditLocked = fullDbMode;
       const listNames = Array.isArray(builder.lists) && builder.lists.length
         ? builder.lists
         : ['My Favorites'];
       if (els.hpFavListSelect) {
-        els.hpFavListSelect.innerHTML = listNames.map((name) => (
-          `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`
-        )).join('');
+        const listOptions = [
+          `<option value="${HP_FAV_FULL_DB_OPTION_VALUE}">Full DB (ZIP/Range/Service Types)</option>`,
+        ].concat(
+          listNames.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`)
+        );
+        els.hpFavListSelect.innerHTML = listOptions.join('');
         const active = hpFavNormalizeName(builder.activeList || listNames[0]);
-        els.hpFavListSelect.value = active;
+        els.hpFavListSelect.value = fullDbMode ? HP_FAV_FULL_DB_OPTION_VALUE : active;
         els.hpFavListSelect.disabled = busy;
       }
       if (els.hpFavListNew) {
@@ -4783,11 +4924,11 @@
         els.hpFavListCreate.disabled = busy;
       }
       if (els.hpFavListDelete) {
-        els.hpFavListDelete.disabled = busy || listNames.length <= 1;
+        els.hpFavListDelete.disabled = busy || fullDbMode || listNames.length <= 1;
       }
       if (els.hpFavSystemType) {
         els.hpFavSystemType.value = builder.systemType === 'analog' ? 'analog' : 'digital';
-        els.hpFavSystemType.disabled = busy;
+        els.hpFavSystemType.disabled = busy || wizardEditLocked;
       }
       if (els.hpFavCountry) {
         const countries = Array.isArray(builder.countries) ? builder.countries : [];
@@ -4796,7 +4937,7 @@
         )).join('') || '<option value="1">USA</option>';
         const countryId = _toInt(builder.countryId, 1) || 1;
         els.hpFavCountry.value = String(countryId);
-        els.hpFavCountry.disabled = busy;
+        els.hpFavCountry.disabled = busy || wizardEditLocked;
       }
       if (els.hpFavState) {
         const states = Array.isArray(builder.states) ? builder.states : [];
@@ -4807,7 +4948,7 @@
         if (states.some((row) => _toInt(row.state_id, 0) === stateId)) {
           els.hpFavState.value = String(stateId);
         }
-        els.hpFavState.disabled = busy;
+        els.hpFavState.disabled = busy || wizardEditLocked;
       }
       if (els.hpFavCounty) {
         const counties = Array.isArray(builder.counties) ? builder.counties : [];
@@ -4818,27 +4959,27 @@
         if (counties.some((row) => _toInt(row.county_id, 0) === countyId)) {
           els.hpFavCounty.value = String(countyId);
         }
-        els.hpFavCounty.disabled = busy;
+        els.hpFavCounty.disabled = busy || wizardEditLocked;
       }
       if (els.hpFavScope) {
         els.hpFavScope.value = String(builder.scope || 'statewide');
-        els.hpFavScope.disabled = busy;
+        els.hpFavScope.disabled = busy || wizardEditLocked;
       }
       if (els.hpFavSystemSearch) {
         els.hpFavSystemSearch.value = String(builder.systemQuery || '');
-        els.hpFavSystemSearch.disabled = busy;
+        els.hpFavSystemSearch.disabled = busy || wizardEditLocked;
       }
       if (els.hpFavChannelSearch) {
         els.hpFavChannelSearch.value = String(builder.channelQuery || '');
-        els.hpFavChannelSearch.disabled = busy;
+        els.hpFavChannelSearch.disabled = busy || wizardEditLocked;
       }
       if (els.hpFavLoadSystems) {
-        els.hpFavLoadSystems.disabled = busy || _toInt(builder.stateId, 0) <= 0;
+        els.hpFavLoadSystems.disabled = busy || wizardEditLocked || _toInt(builder.stateId, 0) <= 0;
         els.hpFavLoadSystems.textContent = builder.autoLoadSystems ? 'Reload Systems' : 'Load Systems';
       }
       if (els.hpFavAutoLoad) {
         els.hpFavAutoLoad.checked = Boolean(builder.autoLoadSystems);
-        els.hpFavAutoLoad.disabled = busy;
+        els.hpFavAutoLoad.disabled = busy || wizardEditLocked;
       }
       ensureHpFavoriteDepartmentSelection();
       const departmentOptions = getHpFavoriteDepartmentOptions();
@@ -4852,32 +4993,50 @@
         } else {
           els.hpFavDepartment.value = '';
         }
-        els.hpFavDepartment.disabled = busy || !departmentOptions.length;
+        els.hpFavDepartment.disabled = busy || wizardEditLocked || !departmentOptions.length;
       }
       if (els.hpFavSelectVisible) {
-        els.hpFavSelectVisible.disabled = busy || !getFilteredHpFavoriteChannels().length;
+        els.hpFavSelectVisible.disabled = busy || wizardEditLocked || !getFilteredHpFavoriteChannels().length;
       }
       if (els.hpFavSelectDepartment) {
         const hasDepartmentPick = Boolean(String(builder.selectedDepartment || '').trim());
         const deptCount = getHpFavoriteDepartmentChannelCount();
-        els.hpFavSelectDepartment.disabled = busy || !hasDepartmentPick || deptCount <= 0;
+        els.hpFavSelectDepartment.disabled = busy || wizardEditLocked || !hasDepartmentPick || deptCount <= 0;
         els.hpFavSelectDepartment.textContent = hasDepartmentPick && deptCount > 0
           ? `Select Dept (${deptCount})`
           : 'Select Dept';
       }
       if (els.hpFavChannelSearchClear) {
-        els.hpFavChannelSearchClear.disabled = busy || !String(builder.channelQuery || '').trim();
+        els.hpFavChannelSearchClear.disabled = busy || wizardEditLocked || !String(builder.channelQuery || '').trim();
       }
       if (els.hpFavClearSelected) {
         const selectedCount = (builder.selectedChannelIds || []).length;
-        els.hpFavClearSelected.disabled = busy || selectedCount <= 0;
+        els.hpFavClearSelected.disabled = busy || wizardEditLocked || selectedCount <= 0;
       }
       if (els.hpFavAddSelected) {
         const selectedCount = (builder.selectedChannelIds || []).length;
-        els.hpFavAddSelected.disabled = busy || selectedCount <= 0;
+        els.hpFavAddSelected.disabled = busy || wizardEditLocked || selectedCount <= 0;
         els.hpFavAddSelected.textContent = selectedCount > 0 ? `Add Selected (${selectedCount})` : 'Add Selected Channels';
       }
       if (els.hpFavSelectionSummary) {
+        if (fullDbMode) {
+          const meta = builder.fullDbReviewMeta || {};
+          const totalEntries = _toInt(meta.totalEntries, 0);
+          const trunked = _toInt(meta.trunkedTalkgroups, 0);
+          const conventional = _toInt(meta.conventionalChannels, 0);
+          if (builder.fullDbReviewLoading) {
+            els.hpFavSelectionSummary.textContent = 'Loading Full DB preview...';
+          } else if (builder.fullDbReviewError) {
+            els.hpFavSelectionSummary.textContent = builder.fullDbReviewError;
+          } else {
+            els.hpFavSelectionSummary.textContent = `Full DB review • Digital ${trunked} • Analog ${conventional} • Total ${totalEntries}`;
+          }
+          renderHpFavoritesBuilderFlow();
+          renderHpFavoritesBuilderSystems();
+          renderHpFavoritesBuilderChannels();
+          renderHpFavoritesBuilderEntries();
+          return;
+        }
         const totalSystems = (builder.systems || []).length;
         const visibleSystems = getFilteredHpFavoriteSystems().length;
         const totalChannels = (builder.channels || []).length;
@@ -4893,7 +5052,85 @@
       renderHpFavoritesBuilderEntries();
     }
 
-    async function saveHpFavoritesBuilder(reasonMessage) {
+    function clearHpFullDbReviewSnapshot() {
+      const builder = state.hpFavoritesBuilder;
+      builder.fullDbReviewEntries = [];
+      builder.fullDbReviewMeta = {
+        totalEntries: 0,
+        trunkedTalkgroups: 0,
+        conventionalChannels: 0,
+        trunkedSites: 0,
+        truncated: false,
+      };
+      builder.fullDbReviewLoading = false;
+      builder.fullDbReviewError = '';
+      builder.fullDbReviewKey = '';
+    }
+
+    async function loadHpFullDbReviewEntries({ quiet = false, force = false } = {}) {
+      const builder = state.hpFavoritesBuilder;
+      if (!isHpFullDatabaseMode()) {
+        clearHpFullDbReviewSnapshot();
+        renderHpFavoritesBuilder();
+        return false;
+      }
+      const reviewKey = getHpFullDbReviewKey();
+      if (!force && builder.fullDbReviewKey === reviewKey && !builder.fullDbReviewError) {
+        return true;
+      }
+      if (builder.fullDbReviewLoading) {
+        return false;
+      }
+      builder.fullDbReviewLoading = true;
+      builder.fullDbReviewError = '';
+      renderHpFavoritesBuilder();
+      try {
+        const payload = await fetchJSON(`/api/hp/scan-pool-preview?limit=${encodeURIComponent(String(HP_SCAN_POOL_PREVIEW_LIMIT))}`);
+        const entries = Array.isArray(payload && payload.entries) ? payload.entries : [];
+        builder.fullDbReviewEntries = hpFavNormalizeEntries(entries);
+        builder.fullDbReviewMeta = {
+          totalEntries: Math.max(0, _toInt(payload && payload.total_entries, builder.fullDbReviewEntries.length)),
+          trunkedTalkgroups: Math.max(0, _toInt(payload && payload.trunked_talkgroups, 0)),
+          conventionalChannels: Math.max(0, _toInt(payload && payload.conventional_channels, 0)),
+          trunkedSites: Math.max(0, _toInt(payload && payload.trunked_sites, 0)),
+          truncated: Boolean(payload && payload.truncated),
+        };
+        builder.fullDbReviewError = '';
+        builder.fullDbReviewKey = reviewKey;
+        if (!quiet) {
+          const totalEntries = builder.fullDbReviewMeta.totalEntries;
+          setHpFavStatus(
+            totalEntries > 0
+              ? `Loaded ${totalEntries} Full DB channels for review.`
+              : 'No Full DB channels match current filters.',
+            false
+          );
+        }
+        return true;
+      } catch (e) {
+        const msg = messageFromError(e, 'Failed to load Full DB review');
+        builder.fullDbReviewEntries = [];
+        builder.fullDbReviewMeta = {
+          totalEntries: 0,
+          trunkedTalkgroups: 0,
+          conventionalChannels: 0,
+          trunkedSites: 0,
+          truncated: false,
+        };
+        builder.fullDbReviewError = msg;
+        builder.fullDbReviewKey = '';
+        if (!quiet) {
+          setHpFavStatus(msg, true);
+        }
+        logActivity(msg, 'warn', 'hp-full-db-review-error');
+        return false;
+      } finally {
+        builder.fullDbReviewLoading = false;
+        renderHpFavoritesBuilder();
+      }
+    }
+
+    async function saveHpFavoritesBuilder(reasonMessage, options = {}) {
       const builder = state.hpFavoritesBuilder;
       if (builder.saving) return false;
       builder.saving = true;
@@ -4904,14 +5141,25 @@
           names: Array.isArray(builder.lists) ? builder.lists : [],
           entriesByList: builder.entriesByList || {},
         };
+        const desiredMode = String(options && options.mode ? options.mode : '')
+          .trim()
+          .toLowerCase() === 'full_database'
+          ? 'full_database'
+          : (isHpFullDatabaseMode() ? 'full_database' : 'favorites');
         const payload = buildHpFavoritesStatePayload(model, {
-          mode: isHpFullDatabaseMode() ? 'full_database' : 'favorites',
+          mode: desiredMode,
         });
         const result = await postJSON('/api/hp/state', payload, { timeoutMs: 20000 });
         const hpState = result && result.state && typeof result.state === 'object' ? result.state : result;
         applyHpFavoritesState(hpState);
+        state.hpFilters.mode = desiredMode;
         builder.lastLoadedAt = Date.now();
         setHpFavStatus(reasonMessage || 'Favorites saved.');
+        if (desiredMode === 'full_database') {
+          await loadHpFullDbReviewEntries({ quiet: true, force: true });
+        } else {
+          clearHpFullDbReviewSnapshot();
+        }
         await refresh();
         return true;
       } catch (e) {
@@ -4925,6 +5173,9 @@
     }
 
     async function loadHpFavoriteStates() {
+      if (isHpFullDatabaseMode()) {
+        return;
+      }
       const builder = state.hpFavoritesBuilder;
       const countryId = _toInt(builder.countryId, 1) || 1;
       const payload = await fetchJSON(`/api/hp/favorites-wizard/states?country_id=${encodeURIComponent(countryId)}`);
@@ -4943,6 +5194,9 @@
     }
 
     async function loadHpFavoriteCounties() {
+      if (isHpFullDatabaseMode()) {
+        return;
+      }
       const builder = state.hpFavoritesBuilder;
       const stateId = _toInt(builder.stateId, 0);
       if (!stateId) {
@@ -4979,6 +5233,7 @@
       const builder = state.hpFavoritesBuilder;
       clearHpFavoriteSystemsLoadTimer();
       if (!state.hp3Builder.open) return;
+      if (isHpFullDatabaseMode()) return;
       if (!builder.autoLoadSystems || builder.loading || builder.saving) return;
       if (_toInt(builder.stateId, 0) <= 0) return;
       const run = () => {
@@ -5046,6 +5301,10 @@
 
     async function loadHpFavoriteSystems(options = {}) {
       const quiet = Boolean(options && options.quiet);
+      if (isHpFullDatabaseMode()) {
+        if (!quiet) setHpFavStatus('Full DB mode uses filter-based review only.', true);
+        return;
+      }
       const builder = state.hpFavoritesBuilder;
       const stateId = _toInt(builder.stateId, 0);
       if (!stateId) {
@@ -5092,6 +5351,10 @@
 
     async function loadHpFavoriteChannels(options = {}) {
       const quiet = Boolean(options && options.quiet);
+      if (isHpFullDatabaseMode()) {
+        if (!quiet) setHpFavStatus('Full DB mode uses filter-based review only.', true);
+        return;
+      }
       const builder = state.hpFavoritesBuilder;
       const systemId = String(builder.selectedSystemId || '').trim();
       if (!systemId) {
@@ -5133,6 +5396,7 @@
     }
 
     function selectHpFavoriteSystem(systemId) {
+      if (isHpFullDatabaseMode()) return;
       const builder = state.hpFavoritesBuilder;
       const systems = Array.isArray(builder.systems) ? builder.systems : [];
       const wanted = String(systemId || '').trim();
@@ -5151,6 +5415,7 @@
     }
 
     function toggleHpFavoriteChannel(channelId, checked) {
+      if (isHpFullDatabaseMode()) return;
       const builder = state.hpFavoritesBuilder;
       const channels = Array.isArray(builder.channels) ? builder.channels : [];
       const wanted = String(channelId || '').trim();
@@ -5165,6 +5430,7 @@
     }
 
     function setHpFavoriteDepartment(name) {
+      if (isHpFullDatabaseMode()) return;
       const builder = state.hpFavoritesBuilder;
       const wanted = String(name || '').trim();
       if (!wanted) {
@@ -5183,6 +5449,7 @@
     }
 
     function setHpFavoriteVisibleChannelSelection(selectVisible) {
+      if (isHpFullDatabaseMode()) return;
       const builder = state.hpFavoritesBuilder;
       const visible = getFilteredHpFavoriteChannels();
       if (selectVisible) {
@@ -5199,6 +5466,7 @@
     }
 
     function setHpFavoriteDepartmentSelection() {
+      if (isHpFullDatabaseMode()) return;
       const builder = state.hpFavoritesBuilder;
       const wanted = String(builder.selectedDepartment || '').trim().toLowerCase();
       if (!wanted) return;
@@ -5216,6 +5484,10 @@
 
     async function addSelectedHpFavoriteChannels(options = {}) {
       const builder = state.hpFavoritesBuilder;
+      if (isHpFullDatabaseMode()) {
+        setHpFavStatus('Full DB review is read-only. Switch to a favorites list to edit channels.', true);
+        return false;
+      }
       const fromWizardNext = Boolean(options && options.fromWizardNext);
       const selectedIds = new Set(Array.isArray(builder.selectedChannelIds) ? builder.selectedChannelIds : []);
       if (!selectedIds.size) {
@@ -5254,6 +5526,10 @@
     }
 
     async function removeHpFavoriteEntry(entryId) {
+      if (isHpFullDatabaseMode()) {
+        setHpFavStatus('Full DB review is read-only. Switch to a favorites list to remove entries.', true);
+        return;
+      }
       const id = String(entryId || '').trim().toLowerCase();
       if (!id) return;
       const remaining = getHpFavActiveEntries().filter((entry) => String(entry.id || '').trim().toLowerCase() !== id);
@@ -5262,19 +5538,40 @@
       await saveHpFavoritesBuilder('Favorite entry removed.');
     }
 
+    async function selectHpFavoriteFullDatabase() {
+      const builder = state.hpFavoritesBuilder;
+      state.hpFilters.mode = 'full_database';
+      builder.wizardStep = 'review';
+      builder.wizardErrorStep = '';
+      renderHpFiltersPanel();
+      renderHpFavoritesBuilder();
+      renderSb3FavoritesPanels();
+      await saveHpFavoritesBuilder('Active source set to Full DB.', { mode: 'full_database' });
+    }
+
     async function selectHpFavoriteList(name) {
       const builder = state.hpFavoritesBuilder;
       const nextName = hpFavNormalizeName(name);
-      if (hpFavToken(nextName) === hpFavToken(builder.activeList || '')) {
+      const sameList = hpFavToken(nextName) === hpFavToken(builder.activeList || '');
+      const modeChanged = isHpFullDatabaseMode();
+      state.hpFilters.mode = 'favorites';
+      clearHpFullDbReviewSnapshot();
+      if (sameList && !modeChanged) {
         builder.activeList = nextName;
+        renderHpFiltersPanel();
         renderHpFavoritesBuilder();
         renderSb3FavoritesPanels();
         return;
       }
       builder.activeList = nextName;
+      builder.wizardErrorStep = '';
+      if (normalizeHpFavoriteWizardStep(builder.wizardStep || 'list') === 'review' && modeChanged) {
+        builder.wizardStep = 'list';
+      }
+      renderHpFiltersPanel();
       renderHpFavoritesBuilder();
       renderSb3FavoritesPanels();
-      await saveHpFavoritesBuilder(`Active list set to ${nextName}.`);
+      await saveHpFavoritesBuilder(`Active list set to ${nextName}.`, { mode: 'favorites' });
     }
 
     async function createHpFavoriteList() {
@@ -5296,10 +5593,13 @@
         [hpFavToken(nextName)]: [],
       };
       builder.activeList = nextName;
+      state.hpFilters.mode = 'favorites';
+      clearHpFullDbReviewSnapshot();
       if (els.hpFavListNew) els.hpFavListNew.value = '';
+      renderHpFiltersPanel();
       renderHpFavoritesBuilder();
       renderSb3FavoritesPanels();
-      await saveHpFavoritesBuilder(`Created list ${nextName}.`);
+      await saveHpFavoritesBuilder(`Created list ${nextName}.`, { mode: 'favorites' });
     }
 
     async function deleteHpFavoriteList() {
@@ -9948,7 +10248,12 @@
       }
       if (els.hpFavListSelect) {
         els.hpFavListSelect.addEventListener('change', () => {
-          const name = hpFavNormalizeName(els.hpFavListSelect.value || '');
+          const selected = String(els.hpFavListSelect.value || '').trim();
+          if (isHpFavoriteFullDbOption(selected)) {
+            selectHpFavoriteFullDatabase();
+            return;
+          }
+          const name = hpFavNormalizeName(selected || '');
           selectHpFavoriteList(name);
         });
       }

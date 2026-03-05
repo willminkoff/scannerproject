@@ -238,6 +238,139 @@ def _short_label(text: str, max_len: int = 48) -> str:
     return raw[: max_len - 1].rstrip() + "…"
 
 
+def _safe_int(value) -> int | None:
+    try:
+        return int(str(value).strip())
+    except Exception:
+        return None
+
+
+def _safe_float(value) -> float | None:
+    try:
+        parsed = float(str(value).strip())
+    except Exception:
+        return None
+    if not (parsed == parsed) or parsed in (float("inf"), float("-inf")):
+        return None
+    return parsed
+
+
+def _flatten_hp_scan_pool_for_preview(pool: dict[str, Any], *, limit: int = 4000) -> dict[str, Any]:
+    payload = pool if isinstance(pool, dict) else {}
+    trunked_sites = payload.get("trunked_sites") if isinstance(payload.get("trunked_sites"), list) else []
+    conventional = payload.get("conventional") if isinstance(payload.get("conventional"), list) else []
+
+    trunked_entries: list[dict[str, Any]] = []
+    conventional_entries: list[dict[str, Any]] = []
+    seen_trunked: set[str] = set()
+    seen_conventional: set[str] = set()
+    trunked_talkgroups = 0
+    conventional_channels = 0
+
+    for site in trunked_sites:
+        if not isinstance(site, dict):
+            continue
+        system_id = _safe_int(site.get("system_id")) or 0
+        system_name = str(site.get("system_name") or "").strip()
+        site_name = str(site.get("site_name") or "").strip()
+        default_department = str(site.get("department_name") or "").strip() or site_name or system_name
+        talkgroups = site.get("talkgroups") if isinstance(site.get("talkgroups"), list) else []
+        labels_map = site.get("talkgroup_labels") if isinstance(site.get("talkgroup_labels"), dict) else {}
+        groups_map = site.get("talkgroup_groups") if isinstance(site.get("talkgroup_groups"), dict) else {}
+        for raw_tgid in talkgroups:
+            tgid = _safe_int(raw_tgid)
+            if tgid is None or tgid <= 0:
+                continue
+            key_base = str(system_id) if system_id > 0 else (system_name.lower() or site_name.lower() or "unknown")
+            dedupe_key = f"{key_base}:{tgid}"
+            if dedupe_key in seen_trunked:
+                continue
+            seen_trunked.add(dedupe_key)
+            trunked_talkgroups += 1
+            tgid_text = str(tgid)
+            alpha_tag = str(labels_map.get(tgid_text) or "").strip()
+            department_name = str(groups_map.get(tgid_text) or "").strip() or default_department
+            trunked_entries.append(
+                {
+                    "id": f"fulldb-trunked-{key_base}-{tgid}",
+                    "kind": "trunked",
+                    "system_id": int(system_id),
+                    "system_key": "",
+                    "system_name": system_name,
+                    "department_name": department_name,
+                    "alpha_tag": alpha_tag or f"TG {tgid}",
+                    "service_tag": 0,
+                    "talkgroup": tgid_text,
+                    "control_channels": [],
+                    "frequency": 0.0,
+                }
+            )
+
+    for row in conventional:
+        if not isinstance(row, dict):
+            continue
+        frequency = _safe_float(row.get("frequency"))
+        if frequency is None or frequency <= 0:
+            continue
+        rounded_frequency = round(float(frequency), 6)
+        alpha_tag = str(row.get("alpha_tag") or "").strip()
+        service_tag = _safe_int(row.get("service_tag")) or 0
+        system_name = str(row.get("system_name") or "").strip()
+        system_key = str(row.get("system_key") or "").strip()
+        dedupe_key = f"{rounded_frequency:.6f}:{service_tag}:{alpha_tag.lower()}:{system_name.lower()}:{system_key.lower()}"
+        if dedupe_key in seen_conventional:
+            continue
+        seen_conventional.add(dedupe_key)
+        conventional_channels += 1
+        conventional_entries.append(
+            {
+                "id": f"fulldb-conv-{rounded_frequency:.6f}-{service_tag}-{len(conventional_entries) + 1}",
+                "kind": "conventional",
+                "system_id": 0,
+                "system_key": system_key,
+                "system_name": system_name,
+                "department_name": "",
+                "alpha_tag": alpha_tag,
+                "service_tag": int(service_tag),
+                "talkgroup": "",
+                "control_channels": [],
+                "frequency": rounded_frequency,
+            }
+        )
+
+    trunked_entries.sort(
+        key=lambda item: (
+            str(item.get("system_name") or "").lower(),
+            str(item.get("department_name") or "").lower(),
+            _safe_int(item.get("talkgroup")) or 0,
+        )
+    )
+    conventional_entries.sort(
+        key=lambda item: (
+            float(item.get("frequency") or 0.0),
+            int(item.get("service_tag") or 0),
+            str(item.get("alpha_tag") or "").lower(),
+            str(item.get("system_name") or "").lower(),
+        )
+    )
+
+    combined_entries = [*trunked_entries, *conventional_entries]
+    total_entries = len(combined_entries)
+    safe_limit = max(100, min(int(limit or 4000), 20000))
+    truncated = total_entries > safe_limit
+    if truncated:
+        combined_entries = combined_entries[:safe_limit]
+
+    return {
+        "entries": combined_entries,
+        "total_entries": total_entries,
+        "trunked_sites": len([row for row in trunked_sites if isinstance(row, dict)]),
+        "trunked_talkgroups": trunked_talkgroups,
+        "conventional_channels": conventional_channels,
+        "truncated": truncated,
+    }
+
+
 def _icecast_sources(status_text: str) -> list[dict]:
     try:
         data = json.loads(status_text)
@@ -1165,6 +1298,29 @@ class Handler(BaseHTTPRequestHandler):
                     "mode": controller.get_mode(),
                     "state": state.to_dict(),
                     "favorites_runtime_sync": get_last_favorites_runtime_sync(),
+                }
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/hp/scan-pool-preview":
+            try:
+                state = HPState.load()
+                controller = get_scan_mode_controller()
+                limit_raw = (q.get("limit") or ["4000"])[0]
+                try:
+                    limit = int(str(limit_raw).strip())
+                except Exception:
+                    limit = 4000
+                preview = _flatten_hp_scan_pool_for_preview(controller.get_scan_pool(), limit=limit)
+                payload = {
+                    "ok": True,
+                    "mode": str(getattr(state, "mode", "") or "").strip().lower(),
+                    **preview,
                 }
             except Exception as e:
                 return self._send(
