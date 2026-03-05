@@ -778,17 +778,12 @@ def _build_hits_payload(limit: int = 50) -> dict:
     digital_items = []
     include_digital_events = True
     if DIGITAL_HITS_REQUIRE_ACTIVE_STREAM:
-        # Never hide real digital traffic from the hit list solely based on
-        # stream mount heuristics. Keep events visible whenever decoder is up.
+        # Gate UI hit rows to active/recent digital activity so stale call-log
+        # history doesn't look like live traffic when the stream is silent.
         try:
             include_digital_events = bool(_digital_stream_active_for_hits())
         except Exception:
             include_digital_events = True
-        if not include_digital_events:
-            try:
-                include_digital_events = bool(get_digital_manager().isActive())
-            except Exception:
-                include_digital_events = True
     if include_digital_events:
         try:
             events = get_digital_manager().getRecentEvents(limit=scan_limit)

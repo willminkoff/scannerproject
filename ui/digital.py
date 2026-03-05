@@ -2274,12 +2274,17 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             return "", False
         event_kind = _row_value(row_norm, _EVENT_KIND_KEYS).lower()
         details = _row_value(row_norm, _EVENT_DETAILS_KEYS)
-        encrypted = False
+        details_l = details.lower() if details else ""
+        is_channel_grant = "channel grant" in details_l
+        include_grant_debug = _DIGITAL_DEBUG_INCLUDE_GRANTS and is_channel_grant
+        blocked = False
         if event_kind and "encrypted" in event_kind:
-            encrypted = True
-        if details and re.search(r"\b(encrypt|encrypted|encryption)\b", details, re.I):
-            encrypted = True
-        return event_id, encrypted
+            blocked = True
+        elif event_kind and "data call" in event_kind and not include_grant_debug:
+            blocked = True
+        if details and _DIGITAL_EVENT_DROP_RE.search(details) and not include_grant_debug:
+            blocked = True
+        return event_id, blocked
 
     def _read_event_logs(self):
         events = []
@@ -2298,8 +2303,8 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 mtime = None
             fallback_ms = int(mtime * 1000) if mtime else now_ms
             for line in lines:
-                hinted_event_id, hinted_encrypted = self._event_log_line_encryption_hint(line, path)
-                if hinted_encrypted and hinted_event_id:
+                hinted_event_id, hinted_blocked = self._event_log_line_encryption_hint(line, path)
+                if hinted_blocked and hinted_event_id:
                     blocked_event_ids.add(str(hinted_event_id).strip())
                 event = self._parse_event_log_line(line, path, fallback_ms)
                 if event:
