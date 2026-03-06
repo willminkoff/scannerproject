@@ -5171,19 +5171,31 @@ class DigitalManager:
         scheduler_department_label = str(
             payload.get("digital_scheduler_active_department_label") or ""
         ).strip()
-        combined_scheduler_label = _combine_agency_department_label(
-            scheduler_department_label,
-            scheduler_talkgroup_label,
-            fallback=str(payload.get("digital_last_label") or "").strip(),
+        now_ms = int(time.time() * 1000)
+        last_event_ms = int(payload.get("digital_last_time") or 0)
+        has_recent_event = (
+            last_event_ms > 0
+            and (
+                _DIGITAL_STATUS_CLEAR_MS <= 0
+                or (now_ms - last_event_ms) <= _DIGITAL_STATUS_CLEAR_MS
+            )
         )
-        if combined_scheduler_label:
-            payload["digital_last_label"] = combined_scheduler_label
-        if scheduler_talkgroup_label:
-            payload["digital_channel_label"] = scheduler_talkgroup_label
+        if has_recent_event:
+            combined_scheduler_label = _combine_agency_department_label(
+                scheduler_department_label,
+                scheduler_talkgroup_label,
+                fallback=str(payload.get("digital_last_label") or "").strip(),
+            )
+            if combined_scheduler_label:
+                payload["digital_last_label"] = combined_scheduler_label
+            if scheduler_talkgroup_label:
+                payload["digital_channel_label"] = scheduler_talkgroup_label
+            else:
+                payload["digital_channel_label"] = str(payload.get("digital_last_label") or "").strip()
+            if scheduler_department_label:
+                payload["digital_department_label"] = scheduler_department_label
         else:
-            payload["digital_channel_label"] = str(payload.get("digital_last_label") or "").strip()
-        if scheduler_department_label:
-            payload["digital_department_label"] = scheduler_department_label
+            payload["digital_channel_label"] = ""
         scheduler_system_label = str(
             payload.get("digital_scheduler_active_system_label") or ""
         ).strip()
