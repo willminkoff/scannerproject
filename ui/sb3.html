@@ -2874,6 +2874,7 @@
               <button class="action favorites-sync-action" id="hp-filters-refresh" type="button">Refresh</button>
               <button class="action favorites-sync-action" id="hp-filters-save" type="button">Apply Filters</button>
               <button class="action favorites-sync-action" id="hp-filter-resolve-zip" type="button">Resolve ZIP + Apply</button>
+              <button class="action favorites-sync-action" id="hp-filter-auto-locate" type="button">Use Current Location + Apply</button>
             </div>
           </div>
           <div class="hp-service-types-head">
@@ -3047,6 +3048,8 @@
     const AUDIO_PROGRESS_CHECK_MS = 3000;
     const AUDIO_PROGRESS_STALL_MS = 30000;
     const FETCH_TIMEOUT_MS = 8000;
+    const HP_AUTOLOCATE_TIMEOUT_MS = 12000;
+    const HP_IP_GEOLOOKUP_URL = 'https://ipapi.co/json/';
     const APPLY_PENDING_HOLD_MS = 12000;
     const APPLY_GAIN_EPSILON_DB = 0.11;
     
@@ -3261,6 +3264,7 @@
       hpFilters: {
         loading: false,
         saving: false,
+        locating: false,
         dirty: false,
         pendingSave: false,
         pendingResolveZip: false,
@@ -3268,6 +3272,10 @@
         mode: 'favorites',
         useLocation: false,
         zip: '',
+        lat: 0,
+        lon: 0,
+        locationSource: '',
+        locationAccuracyMeters: null,
         rangeMiles: 15,
         nationwideSystems: true,
         enabledServiceTags: [],
@@ -3365,6 +3373,7 @@
       hpFilterUseLocation: document.getElementById('hp-filter-use-location'),
       hpFilterNationwide: document.getElementById('hp-filter-nationwide'),
       hpFilterResolveZip: document.getElementById('hp-filter-resolve-zip'),
+      hpFilterAutoLocate: document.getElementById('hp-filter-auto-locate'),
       hpServiceTypesList: document.getElementById('hp-service-types-list'),
       hpServiceTypesAll: document.getElementById('hp-service-types-all'),
       hpServiceTypesDefaults: document.getElementById('hp-service-types-defaults'),
@@ -3939,6 +3948,18 @@
         mode,
         useLocation: Boolean(hpState.use_location),
         zip: String(hpState.zip || hpState.postal_code || '').trim(),
+        lat: _toFloat(
+          hpState.lat !== undefined && hpState.lat !== null
+            ? hpState.lat
+            : hpState.latitude,
+          0
+        ),
+        lon: _toFloat(
+          hpState.lon !== undefined && hpState.lon !== null
+            ? hpState.lon
+            : hpState.longitude,
+          0
+        ),
         rangeMiles: Math.max(0, _toFloat(hpState.range_miles, 15)),
         nationwideSystems: hpState.nationwide_systems !== false,
         enabledServiceTags: _normalizeIntList(hpState.enabled_service_tags),
@@ -3949,6 +3970,93 @@
       if (!els.hpFiltersStatus) return;
       els.hpFiltersStatus.textContent = message || '';
       els.hpFiltersStatus.style.color = isError ? 'var(--warn)' : 'var(--text-secondary)';
+    }
+
+    function _formatLatLon(lat, lon, digits = 5) {
+      const d = Number.isFinite(Number(digits)) ? Math.max(0, Math.min(8, Number(digits))) : 5;
+      return `${Number(lat).toFixed(d)}, ${Number(lon).toFixed(d)}`;
+    }
+
+    function _parseIpGeoPayload(payload) {
+      const data = payload && typeof payload === 'object' ? payload : {};
+      const lat = _toFloat(
+        ('latitude' in data) ? data.latitude : data.lat,
+        NaN
+      );
+      const lon = _toFloat(
+        ('longitude' in data) ? data.longitude : data.lon,
+        NaN
+      );
+      if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+        throw new Error('IP location response did not include valid coordinates.');
+      }
+      return { lat, lon };
+    }
+
+    function _describeBrowserGeoError(err) {
+      const code = Number(err && err.code);
+      if (code === 1) return 'Location permission denied.';
+      if (code === 2) return 'Current GPS location is unavailable.';
+      if (code === 3) return 'GPS location request timed out.';
+      if (typeof window !== 'undefined' && window.isSecureContext === false) {
+        return 'GPS location requires HTTPS or localhost.';
+      }
+      const msg = String(err && err.message ? err.message : '').trim();
+      return msg || 'GPS location lookup failed.';
+    }
+
+    async function resolveCurrentLocationForHpFilters() {
+      let gpsFailure = null;
+      if (
+        typeof navigator !== 'undefined'
+        && navigator
+        && navigator.geolocation
+        && typeof navigator.geolocation.getCurrentPosition === 'function'
+      ) {
+        try {
+          const position = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: HP_AUTOLOCATE_TIMEOUT_MS,
+              maximumAge: 30000,
+            });
+          });
+          const lat = _toFloat(position && position.coords && position.coords.latitude, NaN);
+          const lon = _toFloat(position && position.coords && position.coords.longitude, NaN);
+          if (Number.isFinite(lat) && Number.isFinite(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+            return {
+              lat,
+              lon,
+              source: 'gps',
+              accuracyMeters: _toFloat(position && position.coords && position.coords.accuracy, NaN),
+              fallbackReason: '',
+            };
+          }
+          gpsFailure = new Error('GPS returned invalid coordinates.');
+        } catch (err) {
+          gpsFailure = err;
+        }
+      } else {
+        gpsFailure = new Error('GPS location is not available in this browser.');
+      }
+
+      const gpsReason = _describeBrowserGeoError(gpsFailure);
+      const response = await fetchWithTimeout(
+        HP_IP_GEOLOOKUP_URL,
+        { cache: 'no-store' },
+        HP_AUTOLOCATE_TIMEOUT_MS
+      );
+      if (!response.ok) {
+        throw new Error(`${gpsReason} IP fallback failed (HTTP ${response.status}).`);
+      }
+      const payload = await response.json();
+      const coords = _parseIpGeoPayload(payload);
+      return {
+        ...coords,
+        source: 'ip',
+        accuracyMeters: null,
+        fallbackReason: gpsReason,
+      };
     }
 
     function clearHpFiltersAutoSaveTimer() {
@@ -4000,7 +4108,7 @@
 
     function renderHpFiltersPanel() {
       const filters = state.hpFilters || {};
-      const busy = Boolean(filters.loading || filters.saving);
+      const busy = Boolean(filters.loading || filters.saving || filters.locating);
       if (els.hpFilterMode) {
         els.hpFilterMode.value = String(filters.mode || 'favorites') === 'full_database' ? 'full_database' : 'favorites';
         els.hpFilterMode.disabled = busy;
@@ -4031,6 +4139,12 @@
       }
       if (els.hpFilterResolveZip) {
         els.hpFilterResolveZip.disabled = busy || !String(filters.zip || '').trim();
+      }
+      if (els.hpFilterAutoLocate) {
+        els.hpFilterAutoLocate.disabled = busy;
+        els.hpFilterAutoLocate.textContent = filters.locating
+          ? 'Locating...'
+          : 'Use Current Location + Apply';
       }
       if (els.hpServiceTypesAll) {
         els.hpServiceTypesAll.disabled = busy;
@@ -4139,7 +4253,7 @@
       }
     }
 
-    async function saveHpFiltersPanel({ resolveZip = false } = {}) {
+    async function saveHpFiltersPanel({ resolveZip = false, locationOverride = null, forceUseLocation = false } = {}) {
       if (state.hpFilters.saving) {
         state.hpFilters.pendingSave = true;
         state.hpFilters.pendingResolveZip = state.hpFilters.pendingResolveZip || Boolean(resolveZip);
@@ -4152,6 +4266,7 @@
       const zip = String(els.hpFilterZip && els.hpFilterZip.value ? els.hpFilterZip.value : '').trim();
       const rangeMiles = Math.max(0, _toFloat(els.hpFilterRange && els.hpFilterRange.value, state.hpFilters.rangeMiles || 15));
       const enabledTags = collectHpServiceTypeSelectionFromUi();
+      const usingAutoLocation = Boolean(locationOverride && typeof locationOverride === 'object');
       const payload = {
         mode,
         use_location: Boolean(els.hpFilterUseLocation && els.hpFilterUseLocation.checked),
@@ -4160,12 +4275,29 @@
         nationwide_systems: Boolean(els.hpFilterNationwide && els.hpFilterNationwide.checked),
         enabled_service_tags: enabledTags,
       };
+      if (forceUseLocation) {
+        payload.use_location = true;
+      }
+      if (usingAutoLocation) {
+        const lat = _toFloat(locationOverride.lat, NaN);
+        const lon = _toFloat(locationOverride.lon, NaN);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+          throw new Error('Auto-location did not produce valid coordinates.');
+        }
+        payload.lat = lat;
+        payload.lon = lon;
+        payload.use_location = true;
+      }
       if (resolveZip) {
         payload.resolve_zip = true;
       }
 
       state.hpFilters.saving = true;
-      setHpFiltersStatus(resolveZip ? 'Resolving ZIP and saving filters...' : 'Saving favorites filters...');
+      setHpFiltersStatus(
+        usingAutoLocation
+          ? `Saving filters from ${String(locationOverride.source || '').toLowerCase() === 'ip' ? 'IP location' : 'GPS location'}...`
+          : (resolveZip ? 'Resolving ZIP and saving filters...' : 'Saving favorites filters...')
+      );
       renderHpFiltersPanel();
       try {
         const result = await postJSON('/api/hp/state', payload, { timeoutMs: 20000 });
@@ -4179,6 +4311,11 @@
           dirty: false,
           loaded: true,
         };
+        if (usingAutoLocation) {
+          state.hpFilters.locationSource = String(locationOverride.source || '').trim().toLowerCase() === 'ip' ? 'ip' : 'gps';
+          const accuracy = _toFloat(locationOverride.accuracyMeters, NaN);
+          state.hpFilters.locationAccuracyMeters = Number.isFinite(accuracy) ? accuracy : null;
+        }
         renderHpFiltersPanel();
         if (state.hpFilters.mode === 'full_database') {
           loadHpFullDbReviewEntries({ quiet: true, force: true }).catch((err) => {
@@ -4187,13 +4324,29 @@
         } else {
           clearHpFullDbReviewSnapshot();
         }
-        setHpFiltersStatus(resolveZip ? 'ZIP resolved and filters saved.' : 'Favorites filters saved.');
-        logActivity(resolveZip ? 'HP ZIP resolved from SB3 filters' : 'HP favorites filters saved from SB3', 'info', resolveZip ? 'hp-filters-zip' : 'hp-filters-save');
+        if (usingAutoLocation) {
+          const coordsText = _formatLatLon(state.hpFilters.lat, state.hpFilters.lon);
+          if (String(locationOverride.source || '').toLowerCase() === 'ip') {
+            setHpFiltersStatus(`GPS unavailable, used IP location (${coordsText}).`);
+            logActivity('HP filters auto-location applied from IP', 'info', 'hp-filters-autolocate-ip');
+          } else {
+            setHpFiltersStatus(`GPS location applied (${coordsText}).`);
+            logActivity('HP filters auto-location applied from GPS', 'info', 'hp-filters-autolocate-gps');
+          }
+        } else {
+          setHpFiltersStatus(resolveZip ? 'ZIP resolved and filters saved.' : 'Favorites filters saved.');
+          logActivity(resolveZip ? 'HP ZIP resolved from SB3 filters' : 'HP favorites filters saved from SB3', 'info', resolveZip ? 'hp-filters-zip' : 'hp-filters-save');
+        }
         await refresh();
       } catch (e) {
-        const msg = messageFromError(e, resolveZip ? 'ZIP resolve failed' : 'Failed to save favorites filters');
+        const msg = messageFromError(
+          e,
+          usingAutoLocation
+            ? 'Failed to apply auto-located coordinates'
+            : (resolveZip ? 'ZIP resolve failed' : 'Failed to save favorites filters')
+        );
         setHpFiltersStatus(msg, true);
-        logActivity(msg, 'warn', 'hp-filters-save-error');
+        logActivity(msg, 'warn', usingAutoLocation ? 'hp-filters-autolocate-error' : 'hp-filters-save-error');
       } finally {
         state.hpFilters.saving = false;
         renderHpFiltersPanel();
@@ -4203,6 +4356,41 @@
           state.hpFilters.pendingResolveZip = false;
           scheduleHpFiltersAutoSave({ resolveZip: pendingResolveZip, immediate: true });
         }
+      }
+    }
+
+    async function autoLocateHpFiltersPanel() {
+      if (state.hpFilters.locating || state.hpFilters.saving) {
+        return;
+      }
+      clearHpFiltersAutoSaveTimer();
+      state.hpFilters.locating = true;
+      setHpFiltersStatus('Detecting current location...');
+      renderHpFiltersPanel();
+      try {
+        const location = await resolveCurrentLocationForHpFilters();
+        state.hpFilters.lat = location.lat;
+        state.hpFilters.lon = location.lon;
+        state.hpFilters.locationSource = String(location.source || '').trim().toLowerCase() || 'gps';
+        const accuracy = _toFloat(location.accuracyMeters, NaN);
+        state.hpFilters.locationAccuracyMeters = Number.isFinite(accuracy) ? accuracy : null;
+        state.hpFilters.useLocation = true;
+        if (els.hpFilterUseLocation) {
+          els.hpFilterUseLocation.checked = true;
+        }
+        if (location.source === 'ip' && location.fallbackReason) {
+          setHpFiltersStatus(`GPS unavailable (${location.fallbackReason}) - using IP location.`);
+        } else {
+          setHpFiltersStatus('GPS location detected. Applying filters...');
+        }
+        await saveHpFiltersPanel({ locationOverride: location, forceUseLocation: true });
+      } catch (e) {
+        const msg = messageFromError(e, 'Unable to detect current location');
+        setHpFiltersStatus(msg, true);
+        logActivity(msg, 'warn', 'hp-filters-autolocate-error');
+      } finally {
+        state.hpFilters.locating = false;
+        renderHpFiltersPanel();
       }
     }
 
@@ -4379,6 +4567,8 @@
         mode,
         useLocation: Boolean(filters.useLocation),
         zip: String(filters.zip || '').trim(),
+        lat: _toFloat(filters.lat, 0),
+        lon: _toFloat(filters.lon, 0),
         rangeMiles,
         nationwideSystems: Boolean(filters.nationwideSystems),
         tags,
@@ -4886,7 +5076,7 @@
       if (!els.hpFavNextStep) return;
       if (activeStep === 'list') {
         els.hpFavNextStep.textContent = fullDbMode
-          ? 'Step 1: Full DB is active. Review shows channels resolved from ZIP/range/service filters.'
+          ? 'Step 1: Full DB is active. Review shows channels resolved from location/range/service filters.'
           : `Step 1: pick or create a favorites list (active: "${activeList}").`;
         return;
       }
@@ -4928,7 +5118,7 @@
         const trunkedCount = _toInt(meta.trunkedTalkgroups, 0);
         const conventionalCount = _toInt(meta.conventionalChannels, 0);
         if (builder.fullDbReviewLoading) {
-          els.hpFavNextStep.textContent = 'Building Full DB review from active ZIP/range/service filters...';
+          els.hpFavNextStep.textContent = 'Building Full DB review from active location/range/service filters...';
           return;
         }
         if (builder.fullDbReviewError) {
@@ -4939,7 +5129,7 @@
           els.hpFavNextStep.textContent = `${totalEntries} Full DB channels match filters (Digital ${trunkedCount} • Analog ${conventionalCount}).`;
           return;
         }
-        els.hpFavNextStep.textContent = 'No Full DB channels match the current ZIP/range/service filters.';
+        els.hpFavNextStep.textContent = 'No Full DB channels match the current location/range/service filters.';
         return;
       }
       els.hpFavNextStep.textContent = reviewCount > 0
@@ -4957,7 +5147,7 @@
         : ['My Favorites'];
       if (els.hpFavListSelect) {
         const listOptions = [
-          `<option value="${HP_FAV_FULL_DB_OPTION_VALUE}">Full DB (ZIP/Range/Service Types)</option>`,
+          `<option value="${HP_FAV_FULL_DB_OPTION_VALUE}">Full DB (Location/Range/Service Types)</option>`,
         ].concat(
           listNames.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`)
         );
@@ -10399,6 +10589,9 @@
       }
       if (els.hpFilterResolveZip) {
         els.hpFilterResolveZip.addEventListener('click', () => saveHpFiltersPanel({ resolveZip: true }));
+      }
+      if (els.hpFilterAutoLocate) {
+        els.hpFilterAutoLocate.addEventListener('click', autoLocateHpFiltersPanel);
       }
       if (els.hpFilterZip) {
         els.hpFilterZip.addEventListener('input', () => {

@@ -3,12 +3,85 @@ import { SCREENS, useUI } from "../context/UIContext";
 import Button from "./Shared/Button";
 import Header from "./Shared/Header";
 
+const AUTOLOCATE_TIMEOUT_MS = 12000;
+const IP_GEOLOOKUP_URL = "https://ipapi.co/json/";
+
 function parseNumber(value) {
   if (value === "" || value === null || value === undefined) {
     return null;
   }
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+function describeGeoError(err) {
+  const code = Number(err?.code);
+  if (code === 1) {
+    return "Location permission denied.";
+  }
+  if (code === 2) {
+    return "Current GPS location is unavailable.";
+  }
+  if (code === 3) {
+    return "GPS location request timed out.";
+  }
+  if (typeof window !== "undefined" && window.isSecureContext === false) {
+    return "GPS location requires HTTPS or localhost.";
+  }
+  return String(err?.message || "GPS location lookup failed.").trim();
+}
+
+function parseIpLocation(payload) {
+  const data = payload && typeof payload === "object" ? payload : {};
+  const lat = Number("latitude" in data ? data.latitude : data.lat);
+  const lon = Number("longitude" in data ? data.longitude : data.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+    throw new Error("IP location response did not include valid coordinates.");
+  }
+  return { lat, lon };
+}
+
+async function resolveCurrentLocation() {
+  let gpsFailure = null;
+  if (typeof navigator !== "undefined" && navigator?.geolocation?.getCurrentPosition) {
+    try {
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: AUTOLOCATE_TIMEOUT_MS,
+          maximumAge: 30000,
+        });
+      });
+      const lat = Number(position?.coords?.latitude);
+      const lon = Number(position?.coords?.longitude);
+      if (Number.isFinite(lat) && Number.isFinite(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+        return {
+          lat,
+          lon,
+          source: "gps",
+          fallbackReason: "",
+        };
+      }
+      gpsFailure = new Error("GPS returned invalid coordinates.");
+    } catch (err) {
+      gpsFailure = err;
+    }
+  } else {
+    gpsFailure = new Error("GPS location is not available in this browser.");
+  }
+
+  const gpsReason = describeGeoError(gpsFailure);
+  const response = await fetch(IP_GEOLOOKUP_URL, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`${gpsReason} IP fallback failed (HTTP ${response.status}).`);
+  }
+  const payload = await response.json();
+  const coords = parseIpLocation(payload);
+  return {
+    ...coords,
+    source: "ip",
+    fallbackReason: gpsReason,
+  };
 }
 
 export default function LocationScreen() {
@@ -20,6 +93,8 @@ export default function LocationScreen() {
   const [lon, setLon] = useState("");
   const [useLocation, setUseLocation] = useState(true);
   const [localError, setLocalError] = useState("");
+  const [localMessage, setLocalMessage] = useState("");
+  const [locating, setLocating] = useState(false);
 
   useEffect(() => {
     setZip(hpState.zip || hpState.postal_code || "");
@@ -42,6 +117,7 @@ export default function LocationScreen() {
 
   const handleSave = async () => {
     setLocalError("");
+    setLocalMessage("");
 
     if (zip && !/^\d{5}(-\d{4})?$/.test(zip)) {
       setLocalError("ZIP must be 5 digits or ZIP+4.");
@@ -86,6 +162,36 @@ export default function LocationScreen() {
       navigate(SCREENS.MENU);
     } catch {
       // Context error is shown globally.
+    }
+  };
+
+  const handleAutoLocate = async () => {
+    if (locating || working) {
+      return;
+    }
+    setLocalError("");
+    setLocalMessage("");
+    setLocating(true);
+    try {
+      const location = await resolveCurrentLocation();
+      setLat(String(location.lat));
+      setLon(String(location.lon));
+      setUseLocation(true);
+      await saveHpState({
+        zip,
+        use_location: true,
+        lat: location.lat,
+        lon: location.lon,
+      });
+      if (location.source === "ip") {
+        setLocalMessage(`GPS unavailable, used IP location. ${location.fallbackReason}`);
+      } else {
+        setLocalMessage("GPS location applied.");
+      }
+    } catch (err) {
+      setLocalError(String(err?.message || "Unable to detect current location."));
+    } finally {
+      setLocating(false);
     }
   };
 
@@ -135,11 +241,15 @@ export default function LocationScreen() {
       </div>
 
       <div className="button-row">
-        <Button onClick={handleSave} disabled={working}>
+        <Button onClick={handleSave} disabled={working || locating}>
           Save
+        </Button>
+        <Button onClick={handleAutoLocate} disabled={working || locating} variant="secondary">
+          {locating ? "Locating..." : "Use Current Location"}
         </Button>
       </div>
 
+      {localMessage ? <div className="message">{localMessage}</div> : null}
       {localError ? <div className="error">{localError}</div> : null}
       {state.error ? <div className="error">{state.error}</div> : null}
     </section>

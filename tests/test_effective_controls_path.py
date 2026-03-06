@@ -5,6 +5,7 @@ from unittest import mock
 
 from ui import actions
 from ui import handlers
+from ui.hp_state import HPState
 from ui import profile_config
 
 
@@ -188,6 +189,22 @@ class RecentRegressionTests(unittest.TestCase):
         self.assertFalse(handlers._should_resolve_zip(True, False))
         self.assertFalse(handlers._should_resolve_zip(False, True))
         self.assertFalse(handlers._should_resolve_zip(False, False))
+
+    def test_save_hp_state_with_sync_reports_sync_errors(self):
+        state = HPState.default()
+        with mock.patch.object(state, "save", return_value=None), mock.patch.object(
+            handlers,
+            "sync_scan_pool_to_runtime",
+            side_effect=RuntimeError("sync exploded"),
+        ):
+            payload = handlers._save_hp_state_with_sync(state)
+
+        self.assertTrue(payload["ok"])
+        self.assertIn("favorites_runtime_sync", payload)
+        sync = payload["favorites_runtime_sync"]
+        self.assertFalse(sync["ok"])
+        self.assertFalse(sync["changed"])
+        self.assertIn("sync exploded", sync["errors"][0])
 
 
 class TempConfigWriteTests(unittest.TestCase):
