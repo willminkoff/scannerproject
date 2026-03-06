@@ -301,7 +301,7 @@ _DIGITAL_EVENT_DROP_RE = re.compile(
 )
 _DIGITAL_SUPPRESS_ENCRYPTED_EVENTS = os.getenv(
     "DIGITAL_SUPPRESS_ENCRYPTED_EVENTS",
-    "1",
+    "0",
 ).strip().lower() in ("1", "true", "yes", "on")
 _DIGITAL_RECENT_EVENT_ID_BUCKET_SEC = max(
     0,
@@ -309,7 +309,7 @@ _DIGITAL_RECENT_EVENT_ID_BUCKET_SEC = max(
 )
 _DIGITAL_ENFORCE_ACTIVE_SYSTEM_EVENT_FILTER = os.getenv(
     "DIGITAL_ENFORCE_ACTIVE_SYSTEM_EVENT_FILTER",
-    "1",
+    "0",
 ).strip().lower() in ("1", "true", "yes", "on")
 _DIGITAL_RECENT_LABEL_DEDUPE_MS = max(
     0,
