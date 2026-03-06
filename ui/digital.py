@@ -3571,6 +3571,7 @@ class DigitalManager:
         self._scheduler_pool_system_talkgroups: dict[str, set[str]] = {}
         self._scheduler_pool_system_labels: dict[str, str] = {}
         self._scheduler_pool_department_labels: dict[str, str] = {}
+        self._scheduler_pool_site_to_system: dict[str, str] = {}
         self._scheduler_pool_talkgroup_labels: dict[str, dict[str, str]] = {}
         self._scheduler_pool_talkgroup_groups: dict[str, dict[str, str]] = {}
         self._scheduler_active_system = ""
@@ -3718,7 +3719,21 @@ class DigitalManager:
             }
         self._super_profile_systems = loaded
 
-    def _pool_tgid_metadata(self, tgid: str) -> tuple[str, str]:
+    @staticmethod
+    def _event_site_id(event: dict) -> str:
+        if not isinstance(event, dict):
+            return ""
+        raw_site = str(event.get("site") or "").strip()
+        if not raw_site:
+            return ""
+        if raw_site.isdigit():
+            return raw_site
+        match = re.search(r"-(\d+)\b", raw_site)
+        if match:
+            return str(match.group(1) or "").strip()
+        return ""
+
+    def _pool_tgid_metadata(self, tgid: str, site_id: str = "") -> tuple[str, str]:
         token = _normalize_tgid(tgid)
         if not token:
             return "", ""
@@ -3733,6 +3748,21 @@ class DigitalManager:
                 for name, values in (self._scheduler_pool_talkgroup_groups or {}).items()
                 if str(name or "").strip()
             }
+            site_to_system = {
+                str(k or "").strip(): str(v or "").strip()
+                for k, v in (self._scheduler_pool_site_to_system or {}).items()
+                if str(k or "").strip() and str(v or "").strip()
+            }
+
+        site_token = str(site_id or "").strip()
+        if site_token and site_token in site_to_system:
+            scoped_system = site_to_system.get(site_token) or ""
+            if scoped_system:
+                department = str((labels_by_system.get(scoped_system) or {}).get(token) or "").strip()
+                agency = str((groups_by_system.get(scoped_system) or {}).get(token) or "").strip()
+                if agency or department:
+                    return agency, department
+
         system_names = set(labels_by_system.keys()) | set(groups_by_system.keys())
         candidates: set[tuple[str, str]] = set()
         for system_name in system_names:
@@ -3769,7 +3799,10 @@ class DigitalManager:
         agency = str(enriched.get("agency") or "").strip()
         scan_mode = get_current_scan_mode()
         if scan_mode in {"hp", "expert"} and tgid:
-            pool_agency, pool_department = self._pool_tgid_metadata(tgid)
+            pool_agency, pool_department = self._pool_tgid_metadata(
+                tgid,
+                site_id=self._event_site_id(enriched),
+            )
             if not agency and pool_agency:
                 agency = pool_agency
             if not department and pool_department:
@@ -4177,6 +4210,7 @@ class DigitalManager:
         self._scheduler_pool_system_talkgroups = {}
         self._scheduler_pool_system_labels = {}
         self._scheduler_pool_department_labels = {}
+        self._scheduler_pool_site_to_system = {}
         self._scheduler_pool_talkgroup_labels = {}
         self._scheduler_pool_talkgroup_groups = {}
         pool = pool_snapshot if isinstance(pool_snapshot, dict) else {}
@@ -4221,6 +4255,8 @@ class DigitalManager:
             self._scheduler_pool_system_channels[name] = list(channels)
             self._scheduler_pool_system_channels_lower[key] = name
             self._scheduler_pool_system_talkgroups[name] = talkgroups
+            if site_id and site_id.isdigit() and site_id not in self._scheduler_pool_site_to_system:
+                self._scheduler_pool_site_to_system[site_id] = name
             system_label = system_name or site_name or name
             department_label = department_name or site_name or system_name or name
             self._scheduler_pool_system_labels[name] = system_label
@@ -4732,6 +4768,7 @@ class DigitalManager:
         self._scheduler_pool_system_talkgroups = {}
         self._scheduler_pool_system_labels = {}
         self._scheduler_pool_department_labels = {}
+        self._scheduler_pool_site_to_system = {}
         self._scheduler_pool_talkgroup_labels = {}
         self._scheduler_pool_talkgroup_groups = {}
         systems: list[str] = list(self._discover_profile_local_systems(profile_id))
