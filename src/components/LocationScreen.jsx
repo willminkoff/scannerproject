@@ -78,7 +78,7 @@ export default function LocationScreen() {
       if (parsedLat !== null && parsedLon !== null) {
         payload.lat = parsedLat;
         payload.lon = parsedLon;
-      } else if (zip) {
+      } else if (zip && useLocation) {
         payload.resolve_zip = true;
       }
 

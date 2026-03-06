@@ -670,21 +670,6 @@ def _write_text(path: str, text: str) -> None:
     os.replace(tmp, path)
 
 
-def _swap_symlink(link_path: str, target_path: str) -> None:
-    """Atomically repoint a symlink without invoking a shell."""
-    link_path = str(link_path)
-    parent = os.path.dirname(link_path) or "."
-    os.makedirs(parent, exist_ok=True)
-    tmp_link = os.path.join(parent, f".{os.path.basename(link_path)}.tmp")
-    try:
-        if os.path.lexists(tmp_link):
-            os.unlink(tmp_link)
-    except Exception:
-        pass
-    os.symlink(str(target_path), tmp_link)
-    os.replace(tmp_link, link_path)
-
-
 def _write_temp_config(target: str, purpose: str, text: str) -> str:
     tmp_dir = "/run"
     os.makedirs(tmp_dir, exist_ok=True)
@@ -826,7 +811,8 @@ def action_hold_stop(target: str) -> dict:
     except Exception as e:
         return {"status": 500, "payload": {"ok": False, "error": f"restore failed: {e}"}}
 
-    _clear_hold_state()
+    state.pop(target, None)
+    _save_or_clear_hold_state(state)
 
     try:
         write_combined_config()

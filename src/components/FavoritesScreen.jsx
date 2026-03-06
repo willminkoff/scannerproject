@@ -45,21 +45,39 @@ function collectListLabels(hpState) {
   return out;
 }
 
-function buildFavoritesMetadata(labels, activeLabel) {
+function buildFavoritesMetadata(labels, activeLabel, existingFavorites = []) {
   const activeToken = normalizeLabel(activeLabel).toLowerCase();
+  const existingByLabel = new Map();
+  (Array.isArray(existingFavorites) ? existingFavorites : []).forEach((item) => {
+    if (!item || typeof item !== "object") {
+      return;
+    }
+    const token = normalizeLabel(item.label || item.name || "", "").toLowerCase();
+    if (!token || existingByLabel.has(token)) {
+      return;
+    }
+    existingByLabel.set(token, item);
+  });
+
   return labels.map((label, index) => {
     const safeLabel = normalizeLabel(label);
+    const token = safeLabel.toLowerCase();
+    const existing = existingByLabel.get(token) || {};
     const slug = safeLabel
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "");
+    const existingCustomFavorites = Array.isArray(existing.custom_favorites)
+      ? [...existing.custom_favorites]
+      : [];
     return {
-      id: slug ? `fav-${slug}` : `fav-${index + 1}`,
+      id: String(existing.id || (slug ? `fav-${slug}` : `fav-${index + 1}`)),
       type: "list",
       target: "favorites",
-      profile_id: "",
+      profile_id: String(existing.profile_id || ""),
       label: safeLabel,
-      enabled: safeLabel.toLowerCase() === activeToken,
+      enabled: token === activeToken,
+      custom_favorites: existingCustomFavorites,
     };
   });
 }
@@ -146,7 +164,7 @@ export default function FavoritesScreen() {
     await saveHpState({
       mode,
       favorites_name: nextName,
-      favorites: buildFavoritesMetadata(labels, nextName),
+      favorites: buildFavoritesMetadata(labels, nextName, hpState.favorites),
     });
   };
 
