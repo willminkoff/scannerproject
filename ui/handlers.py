@@ -274,6 +274,42 @@ def _parse_json_like_list(raw_value) -> list:
     return []
 
 
+def parse_service_tags(raw_value) -> list[int]:
+    candidates: list[Any]
+    if isinstance(raw_value, list):
+        candidates = raw_value
+    elif isinstance(raw_value, (int, float)):
+        candidates = [raw_value]
+    elif isinstance(raw_value, str):
+        text = raw_value.strip()
+        if not text:
+            return []
+        try:
+            parsed = json.loads(text)
+        except Exception:
+            parsed = [chunk.strip() for chunk in text.split(",") if chunk.strip()]
+        if isinstance(parsed, list):
+            candidates = parsed
+        elif parsed is None:
+            return []
+        else:
+            candidates = [parsed]
+    else:
+        return []
+    out: list[int] = []
+    seen: set[int] = set()
+    for item in candidates:
+        try:
+            value = int(str(item).strip())
+        except Exception:
+            continue
+        if value <= 0 or value in seen:
+            continue
+        seen.add(value)
+        out.append(value)
+    return out
+
+
 def _apply_hp_state_form(
     state: "HPState",
     form: dict[str, Any],

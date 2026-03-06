@@ -206,6 +206,11 @@ class RecentRegressionTests(unittest.TestCase):
         self.assertFalse(sync["changed"])
         self.assertIn("sync exploded", sync["errors"][0])
 
+    def test_parse_service_tags_normalizes_json_csv_and_scalar(self):
+        self.assertEqual([2, 15, 3], handlers.parse_service_tags("[2, \"15\", 3, \"x\", 2]"))
+        self.assertEqual([4, 15, 30], handlers.parse_service_tags("4,15,30,4"))
+        self.assertEqual([7], handlers.parse_service_tags("7"))
+
 
 class TempConfigWriteTests(unittest.TestCase):
     class _FakeTempFile:
