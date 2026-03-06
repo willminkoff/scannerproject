@@ -26,7 +26,7 @@ try:
     )
     from .profile_config import (
         split_profiles, guess_current_profile, set_profile, write_controls,
-        write_combined_config, read_active_config_path, avoid_current_hit,
+        write_combined_config, read_active_config_path, resolve_controls_path, avoid_current_hit,
         clear_avoids, write_filter, parse_freqs_labels, replace_freqs_labels
     )
     from .scanner import mark_analog_hit_cutoff
@@ -46,7 +46,7 @@ except ImportError:
     )
     from ui.profile_config import (
         split_profiles, guess_current_profile, set_profile, write_controls,
-        write_combined_config, read_active_config_path, avoid_current_hit,
+        write_combined_config, read_active_config_path, resolve_controls_path, avoid_current_hit,
         clear_avoids, write_filter, parse_freqs_labels, replace_freqs_labels
     )
     from ui.scanner import mark_analog_hit_cutoff
@@ -473,13 +473,10 @@ def action_set_profile(profile_id: str, target: str, *, restart_service: bool = 
 
 def action_apply_controls(target: str, gain: float, squelch_mode: str, squelch_snr: float, squelch_dbfs: float) -> dict:
     """Action: Apply gain/squelch controls."""
-    if target == "ground":
-        conf_path = GROUND_CONFIG_PATH
-    elif target == "airband":
-        conf_path = read_active_config_path()
-    else:
+    if target not in ("airband", "ground"):
         return {"status": 400, "payload": {"ok": False, "error": "unknown target"}}
     try:
+        conf_path = resolve_controls_path(target)
         changed = write_controls(conf_path, gain, squelch_mode, squelch_snr, squelch_dbfs)
         combined_changed = write_combined_config()
         changed = changed or combined_changed
@@ -499,13 +496,10 @@ def action_apply_controls(target: str, gain: float, squelch_mode: str, squelch_s
 
 def action_apply_batch(target: str, gain: float, squelch_mode: str, squelch_snr: float, squelch_dbfs: float, cutoff_hz: float) -> dict:
     """Apply gain/squelch and filter in a single restart."""
-    if target == "ground":
-        conf_path = GROUND_CONFIG_PATH
-    elif target == "airband":
-        conf_path = read_active_config_path()
-    else:
+    if target not in ("airband", "ground"):
         return {"status": 400, "payload": {"ok": False, "error": "unknown target"}}
     try:
+        conf_path = resolve_controls_path(target)
         changed_controls = write_controls(conf_path, gain, squelch_mode, squelch_snr, squelch_dbfs)
         changed_filter = write_filter(target, cutoff_hz)
         combined_changed = write_combined_config() if changed_controls else False

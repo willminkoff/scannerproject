@@ -236,8 +236,8 @@ def _profile_has_usable_devices(path: str) -> bool:
     return bool(extract_devices_payload(text))
 
 
-def write_combined_config() -> bool:
-    """Write the combined configuration."""
+def resolve_combined_source_paths() -> tuple[str, str]:
+    """Resolve the source profiles that feed combined runtime generation."""
     airband_path = _resolve_profile_path(read_active_config_path(), AIRBAND_FALLBACK_PROFILE_PATH)
     ground_path = _resolve_profile_path(
         os.path.realpath(GROUND_CONFIG_PATH),
@@ -251,6 +251,21 @@ def write_combined_config() -> bool:
         ground_path = _resolve_profile_path("", GROUND_FALLBACK_PROFILE_PATH)
         if not _profile_has_usable_devices(ground_path):
             airband_path = _resolve_profile_path("", AIRBAND_FALLBACK_PROFILE_PATH)
+    return airband_path, ground_path
+
+
+def resolve_controls_path(target: str) -> str:
+    """Resolve the effective profile path used for controls/status on a target."""
+    normalized = str(target or "").strip().lower()
+    if normalized not in ("airband", "ground"):
+        raise ValueError(f"unknown target: {target}")
+    airband_path, ground_path = resolve_combined_source_paths()
+    return airband_path if normalized == "airband" else ground_path
+
+
+def write_combined_config() -> bool:
+    """Write the combined configuration."""
+    airband_path, ground_path = resolve_combined_source_paths()
 
     combined = build_combined_config(
         airband_path,

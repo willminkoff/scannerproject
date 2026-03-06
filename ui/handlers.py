@@ -63,6 +63,7 @@ try:
     )
     from .profile_config import (
         read_active_config_path, parse_controls, split_profiles,
+        resolve_controls_path,
         guess_current_profile, summarize_avoids, parse_filter,
         load_profiles_registry, find_profile, validate_profile_id, safe_profile_path,
         enforce_profile_index, set_profile, save_profiles_registry, write_airband_flag,
@@ -145,6 +146,7 @@ except ImportError:
     )
     from ui.profile_config import (
         read_active_config_path, parse_controls, split_profiles,
+        resolve_controls_path,
         guess_current_profile, summarize_avoids, parse_filter,
         load_profiles_registry, find_profile, validate_profile_id, safe_profile_path,
         enforce_profile_index, set_profile, save_profiles_registry, write_airband_flag,
@@ -1510,8 +1512,10 @@ class Handler(BaseHTTPRequestHandler):
             conf_path = read_active_config_path()
             ground_conf_path = os.path.realpath(GROUND_CONFIG_PATH)
             combined_conf_path = COMBINED_CONFIG_PATH
-            airband_gain, airband_snr, airband_dbfs, airband_mode = parse_controls(conf_path)
-            ground_gain, ground_snr, ground_dbfs, ground_mode = parse_controls(GROUND_CONFIG_PATH)
+            controls_airband_path = resolve_controls_path("airband")
+            controls_ground_path = resolve_controls_path("ground")
+            airband_gain, airband_snr, airband_dbfs, airband_mode = parse_controls(controls_airband_path)
+            ground_gain, ground_snr, ground_dbfs, ground_mode = parse_controls(controls_ground_path)
             airband_filter = parse_filter("airband")
             ground_filter = parse_filter("ground")
             rtl_unit_active = _unit_active_cached(UNITS["rtl"])
@@ -1663,6 +1667,10 @@ class Handler(BaseHTTPRequestHandler):
                     "airband": conf_path,
                     "ground": ground_conf_path,
                     "combined": combined_conf_path,
+                },
+                "config_paths_controls": {
+                    "airband": controls_airband_path,
+                    "ground": controls_ground_path,
                 },
                 "config_mtimes": config_mtimes,
                 "profile_airband": profile_airband,
@@ -1920,7 +1928,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             while True:
                 conf_path = read_active_config_path()
-                airband_gain, airband_snr, airband_dbfs, airband_mode = parse_controls(conf_path)
+                controls_airband_path = resolve_controls_path("airband")
+                airband_gain, airband_snr, airband_dbfs, airband_mode = parse_controls(controls_airband_path)
                 rtl_unit_active = _unit_active_cached(UNITS["rtl"])
                 ground_unit_active = _unit_active_cached(UNITS["ground"])
                 combined_info = combined_device_summary()
