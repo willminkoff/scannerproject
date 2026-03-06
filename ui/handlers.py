@@ -232,6 +232,26 @@ _HITS_CACHE: dict[str, object] = {"ts": 0.0, "payload": None}
 _UNIT_ACTIVE_CACHE: dict[str, tuple[float, bool]] = {}
 
 
+def _read_effective_analog_controls() -> dict[str, Any]:
+    """Read analog controls from effective runtime source profiles."""
+    controls_airband_path = resolve_controls_path("airband")
+    controls_ground_path = resolve_controls_path("ground")
+    airband_gain, airband_snr, airband_dbfs, airband_mode = parse_controls(controls_airband_path)
+    ground_gain, ground_snr, ground_dbfs, ground_mode = parse_controls(controls_ground_path)
+    return {
+        "controls_airband_path": controls_airband_path,
+        "controls_ground_path": controls_ground_path,
+        "airband_gain": airband_gain,
+        "airband_snr": airband_snr,
+        "airband_dbfs": airband_dbfs,
+        "airband_mode": airband_mode,
+        "ground_gain": ground_gain,
+        "ground_snr": ground_snr,
+        "ground_dbfs": ground_dbfs,
+        "ground_mode": ground_mode,
+    }
+
+
 def _short_label(text: str, max_len: int = 48) -> str:
     raw = str(text or "").strip()
     if not raw:
@@ -1512,10 +1532,17 @@ class Handler(BaseHTTPRequestHandler):
             conf_path = read_active_config_path()
             ground_conf_path = os.path.realpath(GROUND_CONFIG_PATH)
             combined_conf_path = COMBINED_CONFIG_PATH
-            controls_airband_path = resolve_controls_path("airband")
-            controls_ground_path = resolve_controls_path("ground")
-            airband_gain, airband_snr, airband_dbfs, airband_mode = parse_controls(controls_airband_path)
-            ground_gain, ground_snr, ground_dbfs, ground_mode = parse_controls(controls_ground_path)
+            controls_snapshot = _read_effective_analog_controls()
+            controls_airband_path = controls_snapshot["controls_airband_path"]
+            controls_ground_path = controls_snapshot["controls_ground_path"]
+            airband_gain = controls_snapshot["airband_gain"]
+            airband_snr = controls_snapshot["airband_snr"]
+            airband_dbfs = controls_snapshot["airband_dbfs"]
+            airband_mode = controls_snapshot["airband_mode"]
+            ground_gain = controls_snapshot["ground_gain"]
+            ground_snr = controls_snapshot["ground_snr"]
+            ground_dbfs = controls_snapshot["ground_dbfs"]
+            ground_mode = controls_snapshot["ground_mode"]
             airband_filter = parse_filter("airband")
             ground_filter = parse_filter("ground")
             rtl_unit_active = _unit_active_cached(UNITS["rtl"])
@@ -1927,9 +1954,11 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         try:
             while True:
-                conf_path = read_active_config_path()
-                controls_airband_path = resolve_controls_path("airband")
-                airband_gain, airband_snr, airband_dbfs, airband_mode = parse_controls(controls_airband_path)
+                controls_snapshot = _read_effective_analog_controls()
+                airband_gain = controls_snapshot["airband_gain"]
+                airband_snr = controls_snapshot["airband_snr"]
+                airband_dbfs = controls_snapshot["airband_dbfs"]
+                airband_mode = controls_snapshot["airband_mode"]
                 rtl_unit_active = _unit_active_cached(UNITS["rtl"])
                 ground_unit_active = _unit_active_cached(UNITS["ground"])
                 combined_info = combined_device_summary()
