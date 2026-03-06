@@ -190,5 +190,90 @@ class RecentRegressionTests(unittest.TestCase):
         self.assertFalse(handlers._should_resolve_zip(False, False))
 
 
+class TempConfigWriteTests(unittest.TestCase):
+    class _FakeTempFile:
+        def __init__(self, name):
+            self.name = name
+            self.contents = ""
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def write(self, text):
+            self.contents += text
+            return len(text)
+
+    def test_write_temp_config_falls_back_when_first_dir_unwritable(self):
+        calls = []
+
+        def fake_named_temp_file(*args, **kwargs):
+            directory = kwargs.get("dir")
+            calls.append(directory)
+            if directory == "/unwritable":
+                raise PermissionError("no write access")
+            return self._FakeTempFile(f"{directory}/ok.conf")
+
+        with mock.patch.object(actions, "_temp_config_dir_candidates", return_value=iter(["/unwritable", "/writable"])), mock.patch.object(
+            actions.os, "makedirs", return_value=None
+        ), mock.patch.object(
+            actions.tempfile, "NamedTemporaryFile", side_effect=fake_named_temp_file
+        ):
+            path = actions._write_temp_config("airband", "tune", "freqs=(125.1750);")
+
+        self.assertEqual("/writable/ok.conf", path)
+        self.assertEqual(["/unwritable", "/writable"], calls)
+
+
+class StatePersistenceFallbackTests(unittest.TestCase):
+    class _FakeWriter:
+        def __init__(self):
+            self.buffer = ""
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def write(self, text):
+            self.buffer += text
+            return len(text)
+
+    def test_save_json_with_fallback_uses_second_candidate(self):
+        opened = []
+        replaced = []
+
+        def fake_open(path, mode="r", encoding=None):
+            opened.append(path)
+            if path.startswith("/run/"):
+                raise PermissionError("primary path unwritable")
+            return self._FakeWriter()
+
+        def fake_replace(src, dst):
+            replaced.append((src, dst))
+
+        with mock.patch.object(
+            actions,
+            "_state_path_candidates",
+            return_value=iter(["/run/airband_ui_tune_backup.json", "/tmp/airband_ui_tune_backup.json"]),
+        ), mock.patch.object(actions.os, "makedirs", return_value=None), mock.patch.object(
+            actions, "open", side_effect=fake_open, create=True
+        ), mock.patch.object(
+            actions.os, "replace", side_effect=fake_replace
+        ), mock.patch.object(
+            actions.os.path, "exists", return_value=False
+        ):
+            saved_path = actions._save_json_with_fallback("/run/airband_ui_tune_backup.json", {"ok": True})
+
+        self.assertEqual("/tmp/airband_ui_tune_backup.json", saved_path)
+        self.assertTrue(any(path.startswith("/run/") for path in opened))
+        self.assertTrue(any(path.startswith("/tmp/") for path in opened))
+        self.assertEqual(1, len(replaced))
+        self.assertEqual("/tmp/airband_ui_tune_backup.json", replaced[0][1])
+
+
 if __name__ == "__main__":
     unittest.main()

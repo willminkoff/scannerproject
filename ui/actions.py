@@ -4,6 +4,7 @@ import json
 import time
 import re
 import subprocess
+import tempfile
 from typing import Any
 try:
     import fcntl
@@ -137,38 +138,86 @@ def _normalize_hold_state(state):
     return state
 
 
+def _state_path_candidates(path: str):
+    raw = str(path or "").strip()
+    seen = set()
+    if raw:
+        seen.add(raw)
+        yield raw
+    base = os.path.basename(raw) if raw else "airband_ui_state.json"
+    try:
+        uid = int(os.getuid())
+    except Exception:
+        uid = 0
+    for candidate in (
+        os.path.join("/tmp", f"{base}.{uid}"),
+        os.path.join("/tmp", base),
+    ):
+        candidate = str(candidate).strip()
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        yield candidate
+
+
+def _load_json_with_fallback(path: str, default):
+    for candidate in _state_path_candidates(path):
+        try:
+            with open(candidate, "r", encoding="utf-8") as handle:
+                return json.load(handle)
+        except FileNotFoundError:
+            continue
+        except Exception:
+            continue
+    return default
+
+
+def _save_json_with_fallback(path: str, data) -> str:
+    last_error = None
+    for candidate in _state_path_candidates(path):
+        tmp = ""
+        try:
+            os.makedirs(os.path.dirname(candidate) or ".", exist_ok=True)
+            tmp = f"{candidate}.tmp.{os.getpid()}"
+            with open(tmp, "w", encoding="utf-8") as handle:
+                json.dump(data, handle)
+            os.replace(tmp, candidate)
+            return candidate
+        except Exception as exc:
+            last_error = exc
+            try:
+                if tmp and os.path.exists(tmp):
+                    os.remove(tmp)
+            except Exception:
+                pass
+            continue
+    raise RuntimeError(f"unable to persist state file {path}: {last_error}")
+
+
+def _clear_json_with_fallback(path: str) -> None:
+    for candidate in _state_path_candidates(path):
+        try:
+            os.remove(candidate)
+        except FileNotFoundError:
+            pass
+        except Exception:
+            pass
+
+
 def _load_hold_state():
     """Load persisted hold state."""
-    try:
-        with open(HOLD_STATE_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        return {}
-    except Exception:
-        return {}
+    data = _load_json_with_fallback(HOLD_STATE_PATH, {})
     return _normalize_hold_state(data)
 
 
 def _save_hold_state(data: dict) -> None:
     """Persist hold state to disk."""
-    try:
-        os.makedirs(os.path.dirname(HOLD_STATE_PATH) or ".", exist_ok=True)
-    except Exception:
-        pass
-    tmp = HOLD_STATE_PATH + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f)
-    os.replace(tmp, HOLD_STATE_PATH)
+    _save_json_with_fallback(HOLD_STATE_PATH, data)
 
 
 def _clear_hold_state() -> None:
     """Clear hold state file."""
-    try:
-        os.remove(HOLD_STATE_PATH)
-    except FileNotFoundError:
-        pass
-    except Exception:
-        pass
+    _clear_json_with_fallback(HOLD_STATE_PATH)
 
 
 def _has_active_hold(state: dict) -> bool:
@@ -203,33 +252,15 @@ def _rewrite_single_freq(text: str, freq_val: float, label: str) -> str:
 
 
 def _load_tune_backup():
-    try:
-        with open(TUNE_BACKUP_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
-    except Exception:
-        return {}
+    return _load_json_with_fallback(TUNE_BACKUP_PATH, {})
 
 
 def _save_tune_backup(data: dict):
-    try:
-        os.makedirs(os.path.dirname(TUNE_BACKUP_PATH) or ".", exist_ok=True)
-    except Exception:
-        pass
-    tmp = TUNE_BACKUP_PATH + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f)
-    os.replace(tmp, TUNE_BACKUP_PATH)
+    _save_json_with_fallback(TUNE_BACKUP_PATH, data)
 
 
 def _clear_tune_backup():
-    try:
-        os.remove(TUNE_BACKUP_PATH)
-    except FileNotFoundError:
-        pass
-    except Exception:
-        pass
+    _clear_json_with_fallback(TUNE_BACKUP_PATH)
 
 
 def _swap_symlink(link_path: str, target_path: str) -> None:
@@ -664,12 +695,46 @@ def _write_text(path: str, text: str) -> None:
     os.replace(tmp, path)
 
 
+def _temp_config_dir_candidates():
+    seen = set()
+    for candidate in (
+        str(os.getenv("AIRBAND_UI_TEMP_DIR", "") or "").strip(),
+        os.path.dirname(str(TUNE_BACKUP_PATH or "").strip()),
+        os.path.dirname(str(HOLD_STATE_PATH or "").strip()),
+        "/tmp",
+    ):
+        path = str(candidate or "").strip()
+        if not path:
+            continue
+        resolved = os.path.realpath(path)
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        yield resolved
+
+
 def _write_temp_config(target: str, purpose: str, text: str) -> str:
-    tmp_dir = "/run"
-    os.makedirs(tmp_dir, exist_ok=True)
-    path = os.path.join(tmp_dir, f"airband_ui_{purpose}_{target}.conf")
-    _write_text(path, text)
-    return path
+    prefix = f"airband_ui_{purpose}_{target}_"
+    last_error = None
+    for tmp_dir in _temp_config_dir_candidates():
+        try:
+            os.makedirs(tmp_dir, exist_ok=True)
+            with tempfile.NamedTemporaryFile(
+                "w",
+                encoding="utf-8",
+                prefix=prefix,
+                suffix=".conf",
+                dir=tmp_dir,
+                delete=False,
+            ) as handle:
+                handle.write(text)
+                return str(handle.name)
+        except Exception as exc:
+            last_error = exc
+            continue
+    raise RuntimeError(
+        f"unable to write temporary config for target={target} purpose={purpose}: {last_error}"
+    )
 
 
 def _get_symlink_target(path: str) -> str:
