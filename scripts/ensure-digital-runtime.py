@@ -470,7 +470,7 @@ def _sync_alias_broadcast_channels(root: ET.Element, alias_list_name: str) -> in
 
 
 def _profile_alias_seed_rows(profile_dir: Path) -> list[tuple[str, str, str]]:
-    candidates = (profile_dir / "talkgroups.csv", profile_dir / "talkgroups_with_group.csv")
+    candidates = (profile_dir / "talkgroups_with_group.csv", profile_dir / "talkgroups.csv")
     source = None
     for candidate in candidates:
         if candidate.is_file():
@@ -561,16 +561,46 @@ def _seed_aliases_from_profile(root: ET.Element, alias_list_name: str, profile_d
     if not seed_rows:
         return 0
 
+    desired_tgids = {str(dec).strip() for dec, _name, _group in seed_rows if str(dec).strip().isdigit()}
+    for alias in list(root.findall("alias")):
+        if str(alias.get("list", "")).strip() != alias_list_name:
+            continue
+        alias_tgids = []
+        for alias_id in alias.findall("id"):
+            token = _alias_talkgroup_value(alias_id)
+            if token:
+                alias_tgids.append(token)
+        if alias_tgids and not any(token in desired_tgids for token in alias_tgids):
+            try:
+                root.remove(alias)
+            except Exception:
+                continue
+
     existing = _collect_alias_talkgroup_map(root, alias_list_name)
     stream_name = str(DIGITAL_SDRTRUNK_STREAM_NAME or "").strip()
     added = 0
     for dec, name, group in seed_rows:
         alias = existing.get(dec)
         if alias is not None:
-            if name and not str(alias.get("name", "")).strip():
+            if name:
                 alias.set("name", name)
-            if group and not str(alias.get("group", "")).strip():
+            if group:
                 alias.set("group", group)
+            if DIGITAL_ATTACH_BROADCAST_CHANNEL and stream_name:
+                has_stream_binding = any(
+                    str(alias_id.get("type", "")).strip().lower() == "broadcastchannel"
+                    and str(alias_id.get("channel", "")).strip() == stream_name
+                    for alias_id in alias.findall("id")
+                )
+                if not has_stream_binding:
+                    ET.SubElement(
+                        alias,
+                        "id",
+                        {
+                            "type": "broadcastChannel",
+                            "channel": stream_name,
+                        },
+                    )
             continue
 
         alias = ET.SubElement(

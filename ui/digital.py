@@ -301,7 +301,7 @@ _DIGITAL_EVENT_DROP_RE = re.compile(
 )
 _DIGITAL_SUPPRESS_ENCRYPTED_EVENTS = os.getenv(
     "DIGITAL_SUPPRESS_ENCRYPTED_EVENTS",
-    "0",
+    "1",
 ).strip().lower() in ("1", "true", "yes", "on")
 _DIGITAL_RECENT_EVENT_ID_BUCKET_SEC = max(
     0,
@@ -309,7 +309,7 @@ _DIGITAL_RECENT_EVENT_ID_BUCKET_SEC = max(
 )
 _DIGITAL_ENFORCE_ACTIVE_SYSTEM_EVENT_FILTER = os.getenv(
     "DIGITAL_ENFORCE_ACTIVE_SYSTEM_EVENT_FILTER",
-    "0",
+    "1",
 ).strip().lower() in ("1", "true", "yes", "on")
 _DIGITAL_RECENT_LABEL_DEDUPE_MS = max(
     0,
@@ -646,7 +646,7 @@ def _read_profile_alias_seed_rows(profile_dir: str) -> list[tuple[str, str, str]
     if not profile_dir:
         return []
 
-    candidates = ("talkgroups.csv", "talkgroups_with_group.csv")
+    candidates = ("talkgroups_with_group.csv", "talkgroups.csv")
     path = ""
     for name in candidates:
         candidate = os.path.join(profile_dir, name)
@@ -738,16 +738,46 @@ def _seed_alias_list_from_profile(root: ET.Element, alias_list_name: str, profil
     if not seed_rows:
         return 0
 
+    desired_tgids = {str(dec).strip() for dec, _name, _group in seed_rows if str(dec).strip().isdigit()}
+    for alias in list(root.findall("alias")):
+        if str(alias.get("list", "")).strip() != alias_list_name:
+            continue
+        alias_tgids = []
+        for alias_id in alias.findall("id"):
+            token = _alias_talkgroup_value(alias_id)
+            if token:
+                alias_tgids.append(token)
+        if alias_tgids and not any(token in desired_tgids for token in alias_tgids):
+            try:
+                root.remove(alias)
+            except Exception:
+                continue
+
     existing = _collect_alias_talkgroup_map(root, alias_list_name)
     stream_name = str(DIGITAL_SDRTRUNK_STREAM_NAME or "").strip()
     added = 0
     for dec, name, group in seed_rows:
         alias = existing.get(dec)
         if alias is not None:
-            if name and not str(alias.get("name", "")).strip():
+            if name:
                 alias.set("name", name)
-            if group and not str(alias.get("group", "")).strip():
+            if group:
                 alias.set("group", group)
+            if DIGITAL_ATTACH_BROADCAST_CHANNEL and stream_name:
+                has_stream_binding = any(
+                    str(alias_id.get("type", "")).strip().lower() == "broadcastchannel"
+                    and str(alias_id.get("channel", "")).strip() == stream_name
+                    for alias_id in alias.findall("id")
+                )
+                if not has_stream_binding:
+                    ET.SubElement(
+                        alias,
+                        "id",
+                        {
+                            "type": "broadcastChannel",
+                            "channel": stream_name,
+                        },
+                    )
             continue
 
         alias = ET.SubElement(
@@ -3248,7 +3278,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                     return self._tg_map
             except Exception:
                 pass
-        candidates = ["talkgroups.csv", "talkgroups_with_group.csv"]
+        candidates = ["talkgroups_with_group.csv", "talkgroups.csv"]
         path = ""
         for name in candidates:
             candidate = os.path.join(profile_dir, name)
