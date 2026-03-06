@@ -105,6 +105,16 @@ const css = `
     color: #7edc9f;
     margin-top: 8px;
   }
+  .location-screen .location-meta {
+    margin-top: 4px;
+    font-size: 0.86rem;
+  }
+  .location-screen .location-action-row {
+    margin-top: 6px;
+  }
+  .location-screen .location-autolocate-btn {
+    flex: 1 1 100%;
+  }
   .loading {
     padding: 20px 8px;
     text-align: center;

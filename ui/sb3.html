@@ -516,7 +516,35 @@
       align-items: center;
       gap: 8px;
       flex-wrap: wrap;
-      justify-content: flex-end;
+      justify-content: flex-start;
+    }
+
+    .hp-filters-actions-main {
+      grid-column: 1 / -1;
+      display: grid;
+      gap: 8px;
+      justify-items: start;
+    }
+
+    .hp-filters-actions-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+    }
+
+    .hp-filters-actions-group-locate {
+      padding-top: 6px;
+      border-top: 1px dashed rgba(139, 167, 212, 0.26);
+      width: 100%;
+    }
+
+    .hp-filters-location-meta {
+      grid-column: 1 / -1;
+      font-size: 11px;
+      color: var(--text-secondary);
+      min-height: 14px;
     }
 
     .hp-filters-grid {
@@ -2870,12 +2898,17 @@
               <input id="hp-filter-nationwide" type="checkbox">
               <span>Include Nationwide Systems</span>
             </label>
-            <div class="hp-filters-actions" style="justify-content:flex-start;">
-              <button class="action favorites-sync-action" id="hp-filters-refresh" type="button">Refresh</button>
-              <button class="action favorites-sync-action" id="hp-filters-save" type="button">Apply Filters</button>
-              <button class="action favorites-sync-action" id="hp-filter-resolve-zip" type="button">Resolve ZIP + Apply</button>
-              <button class="action favorites-sync-action" id="hp-filter-auto-locate" type="button">Use Current Location + Apply</button>
+            <div class="hp-filters-actions-main">
+              <div class="hp-filters-actions hp-filters-actions-group">
+                <button class="action favorites-sync-action" id="hp-filters-refresh" type="button">Refresh</button>
+                <button class="action favorites-sync-action" id="hp-filters-save" type="button">Apply Filters</button>
+                <button class="action favorites-sync-action" id="hp-filter-resolve-zip" type="button">Resolve ZIP + Apply</button>
+              </div>
+              <div class="hp-filters-actions hp-filters-actions-group hp-filters-actions-group-locate">
+                <button class="action favorites-sync-action" id="hp-filter-auto-locate" type="button">Use Current Location + Apply</button>
+              </div>
             </div>
+            <div class="hp-filters-location-meta" id="hp-filter-location-meta"></div>
           </div>
           <div class="hp-service-types-head">
             <div class="hp-service-types-title">Enabled Service Types</div>
@@ -3050,6 +3083,7 @@
     const FETCH_TIMEOUT_MS = 8000;
     const HP_AUTOLOCATE_TIMEOUT_MS = 12000;
     const HP_IP_GEOLOOKUP_URL = 'https://ipapi.co/json/';
+    const HP_REVERSE_GEOLOOKUP_URL = 'https://api.bigdatacloud.net/data/reverse-geocode-client';
     const APPLY_PENDING_HOLD_MS = 12000;
     const APPLY_GAIN_EPSILON_DB = 0.11;
     
@@ -3276,6 +3310,7 @@
         lon: 0,
         locationSource: '',
         locationAccuracyMeters: null,
+        locationCounty: '',
         rangeMiles: 15,
         nationwideSystems: true,
         enabledServiceTags: [],
@@ -3374,6 +3409,7 @@
       hpFilterNationwide: document.getElementById('hp-filter-nationwide'),
       hpFilterResolveZip: document.getElementById('hp-filter-resolve-zip'),
       hpFilterAutoLocate: document.getElementById('hp-filter-auto-locate'),
+      hpFilterLocationMeta: document.getElementById('hp-filter-location-meta'),
       hpServiceTypesList: document.getElementById('hp-service-types-list'),
       hpServiceTypesAll: document.getElementById('hp-service-types-all'),
       hpServiceTypesDefaults: document.getElementById('hp-service-types-defaults'),
@@ -3977,6 +4013,15 @@
       return `${Number(lat).toFixed(d)}, ${Number(lon).toFixed(d)}`;
     }
 
+    function _formatZipCountySummary(zip, county) {
+      const parts = [];
+      const postal = String(zip || '').trim();
+      const area = String(county || '').trim();
+      if (postal) parts.push(`ZIP ${postal}`);
+      if (area) parts.push(area);
+      return parts.join(' \u2022 ');
+    }
+
     function _parseIpGeoPayload(payload) {
       const data = payload && typeof payload === 'object' ? payload : {};
       const lat = _toFloat(
@@ -3990,7 +4035,52 @@
       if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
         throw new Error('IP location response did not include valid coordinates.');
       }
-      return { lat, lon };
+      return {
+        lat,
+        lon,
+        zip: String(data.postal || data.postcode || data.zip || '').trim(),
+        county: String(data.county || '').trim(),
+      };
+    }
+
+    function _parseReverseGeoPayload(payload) {
+      const data = payload && typeof payload === 'object' ? payload : {};
+      const zip = String(
+        ('postcode' in data) ? data.postcode
+          : ('postal_code' in data) ? data.postal_code
+          : ('postal' in data) ? data.postal
+          : ('zip' in data) ? data.zip
+          : ''
+      ).trim();
+      let county = String(data.county || '').trim();
+      if (!county) {
+        const localityInfo = data.localityInfo && typeof data.localityInfo === 'object' ? data.localityInfo : {};
+        const administrative = Array.isArray(localityInfo.administrative) ? localityInfo.administrative : [];
+        for (let i = 0; i < administrative.length; i += 1) {
+          const row = administrative[i] && typeof administrative[i] === 'object' ? administrative[i] : {};
+          const name = String(row.name || '').trim();
+          const description = String(row.description || '').trim().toLowerCase();
+          if (!name) continue;
+          if (description.includes('county') || / county$/i.test(name)) {
+            county = name;
+            break;
+          }
+        }
+      }
+      return { zip, county };
+    }
+
+    async function resolveLocationDetailsForHpFilters(lat, lon) {
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+        return { zip: '', county: '' };
+      }
+      const url = `${HP_REVERSE_GEOLOOKUP_URL}?latitude=${encodeURIComponent(String(lat))}&longitude=${encodeURIComponent(String(lon))}&localityLanguage=en`;
+      const response = await fetchWithTimeout(url, { cache: 'no-store' }, HP_AUTOLOCATE_TIMEOUT_MS);
+      if (!response.ok) {
+        throw new Error(`Reverse location lookup failed (HTTP ${response.status}).`);
+      }
+      const payload = await response.json();
+      return _parseReverseGeoPayload(payload);
     }
 
     function _describeBrowserGeoError(err) {
@@ -4056,6 +4146,8 @@
         source: 'ip',
         accuracyMeters: null,
         fallbackReason: gpsReason,
+        zip: String(coords.zip || '').trim(),
+        county: String(coords.county || '').trim(),
       };
     }
 
@@ -4145,6 +4237,19 @@
         els.hpFilterAutoLocate.textContent = filters.locating
           ? 'Locating...'
           : 'Use Current Location + Apply';
+      }
+      if (els.hpFilterLocationMeta) {
+        const detail = _formatZipCountySummary(filters.zip, filters.locationCounty);
+        const source = String(filters.locationSource || '').trim().toLowerCase();
+        if (!detail) {
+          els.hpFilterLocationMeta.textContent = '';
+        } else if (source === 'ip') {
+          els.hpFilterLocationMeta.textContent = `Auto-locate (IP): ${detail}`;
+        } else if (source === 'gps') {
+          els.hpFilterLocationMeta.textContent = `Auto-locate (GPS): ${detail}`;
+        } else {
+          els.hpFilterLocationMeta.textContent = `Auto-locate: ${detail}`;
+        }
       }
       if (els.hpServiceTypesAll) {
         els.hpServiceTypesAll.disabled = busy;
@@ -4287,6 +4392,10 @@
         payload.lat = lat;
         payload.lon = lon;
         payload.use_location = true;
+        const detectedZip = String(locationOverride.zip || '').trim();
+        if (detectedZip) {
+          payload.zip = detectedZip;
+        }
       }
       if (resolveZip) {
         payload.resolve_zip = true;
@@ -4315,6 +4424,7 @@
           state.hpFilters.locationSource = String(locationOverride.source || '').trim().toLowerCase() === 'ip' ? 'ip' : 'gps';
           const accuracy = _toFloat(locationOverride.accuracyMeters, NaN);
           state.hpFilters.locationAccuracyMeters = Number.isFinite(accuracy) ? accuracy : null;
+          state.hpFilters.locationCounty = String(locationOverride.county || '').trim();
         }
         renderHpFiltersPanel();
         if (state.hpFilters.mode === 'full_database') {
@@ -4326,11 +4436,13 @@
         }
         if (usingAutoLocation) {
           const coordsText = _formatLatLon(state.hpFilters.lat, state.hpFilters.lon);
+          const detail = _formatZipCountySummary(state.hpFilters.zip, state.hpFilters.locationCounty);
+          const detailText = detail ? ` \u2022 ${detail}` : '';
           if (String(locationOverride.source || '').toLowerCase() === 'ip') {
-            setHpFiltersStatus(`GPS unavailable, used IP location (${coordsText}).`);
+            setHpFiltersStatus(`GPS unavailable, used IP location (${coordsText})${detailText}.`);
             logActivity('HP filters auto-location applied from IP', 'info', 'hp-filters-autolocate-ip');
           } else {
-            setHpFiltersStatus(`GPS location applied (${coordsText}).`);
+            setHpFiltersStatus(`GPS location applied (${coordsText})${detailText}.`);
             logActivity('HP filters auto-location applied from GPS', 'info', 'hp-filters-autolocate-gps');
           }
         } else {
@@ -4369,14 +4481,38 @@
       renderHpFiltersPanel();
       try {
         const location = await resolveCurrentLocationForHpFilters();
+        let locationDetails = {
+          zip: String(location.zip || '').trim(),
+          county: String(location.county || '').trim(),
+        };
+        try {
+          const resolvedDetails = await resolveLocationDetailsForHpFilters(location.lat, location.lon);
+          locationDetails = {
+            zip: String(resolvedDetails.zip || locationDetails.zip || '').trim(),
+            county: String(resolvedDetails.county || locationDetails.county || '').trim(),
+          };
+        } catch (_) {
+          // Non-blocking: coordinates are still valid even if reverse lookup fails.
+        }
+        if (locationDetails.zip) {
+          location.zip = locationDetails.zip;
+        }
+        location.county = locationDetails.county;
         state.hpFilters.lat = location.lat;
         state.hpFilters.lon = location.lon;
         state.hpFilters.locationSource = String(location.source || '').trim().toLowerCase() || 'gps';
         const accuracy = _toFloat(location.accuracyMeters, NaN);
         state.hpFilters.locationAccuracyMeters = Number.isFinite(accuracy) ? accuracy : null;
+        state.hpFilters.locationCounty = locationDetails.county;
+        if (locationDetails.zip) {
+          state.hpFilters.zip = locationDetails.zip;
+        }
         state.hpFilters.useLocation = true;
         if (els.hpFilterUseLocation) {
           els.hpFilterUseLocation.checked = true;
+        }
+        if (els.hpFilterZip && locationDetails.zip) {
+          els.hpFilterZip.value = locationDetails.zip;
         }
         if (location.source === 'ip' && location.fallbackReason) {
           setHpFiltersStatus(`GPS unavailable (${location.fallbackReason}) - using IP location.`);

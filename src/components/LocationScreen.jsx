@@ -5,6 +5,7 @@ import Header from "./Shared/Header";
 
 const AUTOLOCATE_TIMEOUT_MS = 12000;
 const IP_GEOLOOKUP_URL = "https://ipapi.co/json/";
+const REVERSE_GEOLOOKUP_URL = "https://api.bigdatacloud.net/data/reverse-geocode-client";
 
 function parseNumber(value) {
   if (value === "" || value === null || value === undefined) {
@@ -38,7 +39,72 @@ function parseIpLocation(payload) {
   if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
     throw new Error("IP location response did not include valid coordinates.");
   }
-  return { lat, lon };
+  return {
+    lat,
+    lon,
+    zip: String(data.postal || data.postcode || data.zip || "").trim(),
+    county: String(data.county || "").trim(),
+  };
+}
+
+function formatZipCountySummary(zip, county) {
+  const parts = [];
+  const postal = String(zip || "").trim();
+  const area = String(county || "").trim();
+  if (postal) {
+    parts.push(`ZIP ${postal}`);
+  }
+  if (area) {
+    parts.push(area);
+  }
+  return parts.join(" • ");
+}
+
+function parseReverseGeocode(payload) {
+  const data = payload && typeof payload === "object" ? payload : {};
+  const zip = String(
+    "postcode" in data
+      ? data.postcode
+      : "postal_code" in data
+      ? data.postal_code
+      : "postal" in data
+      ? data.postal
+      : "zip" in data
+      ? data.zip
+      : ""
+  ).trim();
+  let county = String(data.county || "").trim();
+  if (!county) {
+    const administrative = Array.isArray(data?.localityInfo?.administrative)
+      ? data.localityInfo.administrative
+      : [];
+    for (let i = 0; i < administrative.length; i += 1) {
+      const row = administrative[i] && typeof administrative[i] === "object" ? administrative[i] : {};
+      const name = String(row.name || "").trim();
+      const description = String(row.description || "").toLowerCase();
+      if (!name) {
+        continue;
+      }
+      if (description.includes("county") || / county$/i.test(name)) {
+        county = name;
+        break;
+      }
+    }
+  }
+  return { zip, county };
+}
+
+async function resolveZipCounty(lat, lon) {
+  if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) {
+    return { zip: "", county: "" };
+  }
+  const url = `${REVERSE_GEOLOOKUP_URL}?latitude=${encodeURIComponent(String(lat))}&longitude=${encodeURIComponent(String(lon))}&localityLanguage=en`;
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Reverse location lookup failed (HTTP ${response.status}).`);
+  }
+  const payload = await response.json();
+  return parseReverseGeocode(payload);
 }
 
 async function resolveCurrentLocation() {
@@ -95,6 +161,7 @@ export default function LocationScreen() {
   const [localError, setLocalError] = useState("");
   const [localMessage, setLocalMessage] = useState("");
   const [locating, setLocating] = useState(false);
+  const [locationSummary, setLocationSummary] = useState("");
 
   useEffect(() => {
     setZip(hpState.zip || hpState.postal_code || "");
@@ -113,11 +180,13 @@ export default function LocationScreen() {
         : ""
     );
     setUseLocation(hpState.use_location !== false);
+    setLocationSummary("");
   }, [hpState]);
 
   const handleSave = async () => {
     setLocalError("");
     setLocalMessage("");
+    setLocationSummary("");
 
     if (zip && !/^\d{5}(-\d{4})?$/.test(zip)) {
       setLocalError("ZIP must be 5 digits or ZIP+4.");
@@ -171,22 +240,43 @@ export default function LocationScreen() {
     }
     setLocalError("");
     setLocalMessage("");
+    setLocationSummary("");
     setLocating(true);
     try {
       const location = await resolveCurrentLocation();
+      let details = {
+        zip: String(location.zip || "").trim(),
+        county: String(location.county || "").trim(),
+      };
+      try {
+        const resolved = await resolveZipCounty(location.lat, location.lon);
+        details = {
+          zip: String(resolved.zip || details.zip || "").trim(),
+          county: String(resolved.county || details.county || "").trim(),
+        };
+      } catch {
+        // Non-blocking: coordinates are still valid even if reverse lookup fails.
+      }
+      const nextZip = String(details.zip || zip || "").trim();
+      const detailText = formatZipCountySummary(nextZip, details.county);
       setLat(String(location.lat));
       setLon(String(location.lon));
+      setZip(nextZip);
       setUseLocation(true);
+      setLocationSummary(detailText ? `Auto-locate populated ${detailText}.` : "");
       await saveHpState({
-        zip,
+        zip: nextZip,
         use_location: true,
         lat: location.lat,
         lon: location.lon,
       });
       if (location.source === "ip") {
-        setLocalMessage(`GPS unavailable, used IP location. ${location.fallbackReason}`);
+        const reason = String(location.fallbackReason || "").trim();
+        setLocalMessage(
+          `GPS unavailable, used IP location.${detailText ? ` ${detailText}.` : ""}${reason ? ` ${reason}` : ""}`
+        );
       } else {
-        setLocalMessage("GPS location applied.");
+        setLocalMessage(`GPS location applied.${detailText ? ` ${detailText}.` : ""}`);
       }
     } catch (err) {
       setLocalError(String(err?.message || "Unable to detect current location."));
@@ -240,11 +330,20 @@ export default function LocationScreen() {
         </label>
       </div>
 
+      {locationSummary ? <div className="muted location-meta">{locationSummary}</div> : null}
+
       <div className="button-row">
         <Button onClick={handleSave} disabled={working || locating}>
           Save
         </Button>
-        <Button onClick={handleAutoLocate} disabled={working || locating} variant="secondary">
+      </div>
+      <div className="button-row location-action-row">
+        <Button
+          onClick={handleAutoLocate}
+          disabled={working || locating}
+          variant="secondary"
+          className="location-autolocate-btn"
+        >
           {locating ? "Locating..." : "Use Current Location"}
         </Button>
       </div>
