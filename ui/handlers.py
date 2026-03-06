@@ -232,6 +232,41 @@ _HITS_CACHE: dict[str, object] = {"ts": 0.0, "payload": None}
 _UNIT_ACTIVE_CACHE: dict[str, tuple[float, bool]] = {}
 
 
+def _should_resolve_zip(resolve_zip: bool, use_location: bool) -> bool:
+    """Resolve ZIP only when explicitly requested and location scanning is enabled."""
+    return bool(resolve_zip) and bool(use_location)
+
+
+def merge_favorites_preserving_custom(existing_rows, incoming_rows) -> list:
+    """Merge incoming favorites while retaining existing custom_favorites metadata."""
+    existing_by_id: dict[str, dict] = {}
+    existing_by_label: dict[str, dict] = {}
+    for item in existing_rows if isinstance(existing_rows, list) else []:
+        if not isinstance(item, dict):
+            continue
+        row_id = str(item.get("id") or "").strip().lower()
+        if row_id and row_id not in existing_by_id:
+            existing_by_id[row_id] = item
+        row_label = str(item.get("label") or item.get("name") or "").strip().lower()
+        if row_label and row_label not in existing_by_label:
+            existing_by_label[row_label] = item
+
+    merged: list = []
+    for item in incoming_rows if isinstance(incoming_rows, list) else []:
+        if not isinstance(item, dict):
+            merged.append(item)
+            continue
+        row = dict(item)
+        if "custom_favorites" not in row:
+            row_id = str(row.get("id") or "").strip().lower()
+            row_label = str(row.get("label") or row.get("name") or "").strip().lower()
+            existing = existing_by_id.get(row_id) or existing_by_label.get(row_label)
+            if isinstance(existing, dict) and "custom_favorites" in existing:
+                row["custom_favorites"] = existing.get("custom_favorites")
+        merged.append(row)
+    return merged
+
+
 def _read_effective_analog_controls() -> dict[str, Any]:
     """Read analog controls from effective runtime source profiles."""
     controls_airband_path = resolve_controls_path("airband")
@@ -2123,34 +2158,6 @@ class Handler(BaseHTTPRequestHandler):
                 tags.append(tag)
             return tags
 
-        def merge_favorites_preserving_custom(existing_rows, incoming_rows) -> list:
-            existing_by_id: dict[str, dict] = {}
-            existing_by_label: dict[str, dict] = {}
-            for item in existing_rows if isinstance(existing_rows, list) else []:
-                if not isinstance(item, dict):
-                    continue
-                row_id = str(item.get("id") or "").strip().lower()
-                if row_id and row_id not in existing_by_id:
-                    existing_by_id[row_id] = item
-                row_label = str(item.get("label") or item.get("name") or "").strip().lower()
-                if row_label and row_label not in existing_by_label:
-                    existing_by_label[row_label] = item
-
-            merged: list = []
-            for item in incoming_rows if isinstance(incoming_rows, list) else []:
-                if not isinstance(item, dict):
-                    merged.append(item)
-                    continue
-                row = dict(item)
-                if "custom_favorites" not in row:
-                    row_id = str(row.get("id") or "").strip().lower()
-                    row_label = str(row.get("label") or row.get("name") or "").strip().lower()
-                    existing = existing_by_id.get(row_id) or existing_by_label.get(row_label)
-                    if isinstance(existing, dict) and "custom_favorites" in existing:
-                        row["custom_favorites"] = existing.get("custom_favorites")
-                merged.append(row)
-            return merged
-
         if p == "/api/mode":
             controller = get_scan_mode_controller()
             mode = get_str("mode").strip().lower()
@@ -2249,7 +2256,7 @@ class Handler(BaseHTTPRequestHandler):
                         json.dumps({"ok": False, "error": str(e)}),
                         "application/json; charset=utf-8",
                     )
-                if resolve_zip and bool(state.use_location):
+                if _should_resolve_zip(resolve_zip, state.use_location):
                     if not str(state.zip or "").strip():
                         return self._send(
                             400,
