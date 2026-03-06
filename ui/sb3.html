@@ -3084,6 +3084,8 @@
       connected: false,
       sdr1Active: false,
       sdr2Active: false,
+      airbandPresent: true,
+      groundPresent: true,
       icecastActive: false,
       icecastMounts: [],
       icecastExpectedMounts: [],
@@ -9293,6 +9295,13 @@
     }
     
     function switchTarget(target) {
+      if (target === 'airband' && !state.airbandPresent && state.groundPresent) {
+        target = 'ground';
+      } else if (target === 'ground' && !state.groundPresent && state.airbandPresent) {
+        target = 'airband';
+      } else if ((target === 'airband' || target === 'ground') && !state.airbandPresent && !state.groundPresent) {
+        target = 'digital';
+      }
       activeView = target;
       if (target === 'airband' || target === 'ground') {
         activeTarget = target;
@@ -9752,6 +9761,17 @@
         
         const airbandPresent = (typeof data.airband_present === 'boolean') ? data.airband_present : true;
         const groundPresent = (typeof data.ground_present === 'boolean') ? data.ground_present : true;
+        state.airbandPresent = Boolean(airbandPresent);
+        state.groundPresent = Boolean(groundPresent);
+        if (els.tabAirband) els.tabAirband.disabled = !state.airbandPresent;
+        if (els.tabGround) els.tabGround.disabled = !state.groundPresent;
+        if (activeView === 'airband' && !state.airbandPresent && state.groundPresent) {
+          switchTarget('ground');
+        } else if (activeView === 'ground' && !state.groundPresent && state.airbandPresent) {
+          switchTarget('airband');
+        } else if ((activeView === 'airband' || activeView === 'ground') && !state.airbandPresent && !state.groundPresent) {
+          switchTarget('digital');
+        }
         const airbandActiveSignal = (typeof data.airband_active === 'boolean') ? data.airband_active : null;
         const groundActiveSignal = (typeof data.ground_active === 'boolean') ? data.ground_active : null;
         state.sdr1Active = airbandActiveSignal !== null
