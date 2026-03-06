@@ -4315,15 +4315,46 @@
       state.hpFilters.loading = true;
       renderHpFiltersPanel();
       try {
-        const [hpStatePayload, servicePayload] = await Promise.all([
+        const [hpStateResult, serviceTypesResult] = await Promise.allSettled([
           fetchJSON('/api/hp/state'),
           fetchJSON('/api/hp/service-types'),
         ]);
+        if (hpStateResult.status !== 'fulfilled') {
+          throw hpStateResult.reason || new Error('Failed to load HP state');
+        }
+
+        const hpStatePayload = hpStateResult.value;
         const nextState = normalizeHpFiltersStatePayload(hpStatePayload);
-        const nextTypes = normalizeHpServiceTypesPayload(servicePayload);
         const hpState = hpStatePayload && hpStatePayload.state && typeof hpStatePayload.state === 'object'
           ? hpStatePayload.state
           : {};
+
+        const previousServiceTypes = Array.isArray(state.hpFilters.serviceTypes)
+          ? state.hpFilters.serviceTypes
+          : [];
+        const previousDefaultTags = _normalizeIntList(state.hpFilters.defaultServiceTags);
+        let nextTypes = {
+          serviceTypes: previousServiceTypes,
+          defaultServiceTags: previousDefaultTags,
+        };
+        let serviceTypesNotice = '';
+        if (serviceTypesResult.status === 'fulfilled') {
+          nextTypes = normalizeHpServiceTypesPayload(serviceTypesResult.value);
+        } else {
+          serviceTypesNotice = messageFromError(
+            serviceTypesResult.reason,
+            'Service types refresh failed'
+          );
+          if (!previousServiceTypes.length) {
+            throw serviceTypesResult.reason || new Error('Failed to load service types');
+          }
+          logActivity(
+            `HP service types refresh failed; keeping cached list (${serviceTypesNotice})`,
+            'warn',
+            'hp-service-types-refresh-failed'
+          );
+        }
+
         applyHpFavoritesState(hpState);
         state.hpFilters = {
           ...state.hpFilters,
@@ -4345,7 +4376,18 @@
         } else {
           clearHpFullDbReviewSnapshot();
         }
-        if (!quiet) {
+
+        if (serviceTypesNotice) {
+          setHpFiltersStatus(
+            `Filters loaded; using cached service types (${serviceTypesNotice}).`,
+            false
+          );
+        } else if (!quiet) {
+          setHpFiltersStatus('Favorites filters loaded.');
+        } else if (
+          els.hpFiltersStatus
+          && /failed to fetch/i.test(String(els.hpFiltersStatus.textContent || ''))
+        ) {
           setHpFiltersStatus('Favorites filters loaded.');
         }
       } catch (e) {
@@ -8839,6 +8881,9 @@
         return `${base} (timed out after ${sec}s)`;
       }
       const text = String(err && err.message ? err.message : '').trim();
+      if (/^failed to fetch$/i.test(text)) {
+        return fallback ? `${fallback} (network request failed)` : 'Network request failed';
+      }
       if (/aborted/i.test(text)) {
         const sec = Math.max(1, Math.round(FETCH_TIMEOUT_MS / 1000));
         const base = fallback || 'Request timed out';
