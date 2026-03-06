@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 import os
+import re
 import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
-from combined_config import build_combined_config, extract_devices_payload, profile_ui_disabled
+from combined_config import build_combined_config, extract_devices_payload
 
 CONFIG_SYMLINK = os.getenv("CONFIG_SYMLINK", "/usr/local/etc/rtl_airband.conf")
 GROUND_CONFIG_PATH = os.getenv("GROUND_CONFIG_PATH", "/usr/local/etc/rtl_airband_ground.conf")
@@ -25,6 +26,9 @@ GROUND_FALLBACK_PROFILE_PATH = os.getenv(
     "GROUND_FALLBACK_PROFILE_PATH",
     "/usr/local/etc/airband-profiles/rtl_airband_wx.conf",
 )
+RE_UI_DISABLED_TRUE = re.compile(r'^\s*ui_disabled\s*=\s*true\s*;\s*$', re.I | re.M)
+
+
 def read_active_config_path() -> str:
     try:
         return os.path.realpath(CONFIG_SYMLINK)
@@ -69,7 +73,7 @@ def profile_has_usable_devices(path: str) -> bool:
             text = handle.read()
     except Exception:
         return False
-    if profile_ui_disabled(text):
+    if RE_UI_DISABLED_TRUE.search(text):
         return False
     return bool(extract_devices_payload(text))
 
@@ -102,20 +106,6 @@ def main() -> None:
         analog_continuous=ANALOG_CONTINUOUS,
         mixer_output_continuous=MIXER_OUTPUT_CONTINUOUS,
     )
-    # Final safety net: never emit an empty devices block.
-    if not extract_devices_payload(combined):
-        fallback_airband = resolve_config_path("", AIRBAND_FALLBACK_PROFILE_PATH)
-        fallback_ground = resolve_config_path("", GROUND_FALLBACK_PROFILE_PATH)
-        combined = build_combined_config(
-            fallback_airband,
-            fallback_ground,
-            MIXER_NAME,
-            mount_name=mount_override,
-            analog_continuous=ANALOG_CONTINUOUS,
-            mixer_output_continuous=MIXER_OUTPUT_CONTINUOUS,
-        )
-        if not extract_devices_payload(combined):
-            raise RuntimeError("combined config generation produced no devices")
     out_dir = os.path.dirname(COMBINED_CONFIG_PATH)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)

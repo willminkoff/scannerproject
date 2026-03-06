@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import math
+import os
 import sqlite3
 from pathlib import Path
 
 
 _EARTH_RADIUS_MILES = 3958.7613
+_HP_TRUNK_SITES_PER_SYSTEM = max(1, int(os.getenv("HP_TRUNK_SITES_PER_SYSTEM", "2")))
 
 
 def haversine_miles(lat1, lon1, lat2, lon2) -> float:
@@ -254,6 +256,13 @@ class ScanPoolBuilder:
                 if site_lat is None or site_lon is None:
                     continue
                 site_radius = max(0.0, float(self._parse_float(row["radius"]) or 0.0))
+                # Some _MultipleStates rows are synthetic national/regional
+                # centroids (e.g. 42,-98 with 1000+ mile radius). Treat those
+                # as out-of-scope for local full-db mode unless nationwide is
+                # explicitly enabled.
+                if source_file.lower() == "_multiplestates.hpd" and not include_nationwide:
+                    if site_radius > max(75.0, user_range * 3.0):
+                        continue
                 threshold = user_range + site_radius
                 if abs(site_lat - center_lat) * lat_miles_per_degree > threshold:
                     continue
@@ -268,9 +277,45 @@ class ScanPoolBuilder:
                         "site_id": int(site_id),
                         "system_name": str(row["system_name"] or "").strip(),
                         "site_name": str(row["site_name"] or "").strip(),
+                        "distance_miles": float(distance),
                     }
                 )
                 selected_by_system.setdefault(system_id, set()).add(site_id)
+
+            if _HP_TRUNK_SITES_PER_SYSTEM > 0 and selected_sites:
+                per_system: dict[int, list[dict[str, object]]] = {}
+                for item in selected_sites:
+                    sys_id = int(item.get("system_id") or 0)
+                    if sys_id <= 0:
+                        continue
+                    per_system.setdefault(sys_id, []).append(item)
+
+                trimmed_sites: list[dict[str, object]] = []
+                trimmed_by_system: dict[int, set[int]] = {}
+                for sys_id, rows in per_system.items():
+                    ranked = sorted(
+                        rows,
+                        key=lambda item: (
+                            float(item.get("distance_miles") or 0.0),
+                            int(item.get("site_id") or 0),
+                        ),
+                    )
+                    keep = ranked[:_HP_TRUNK_SITES_PER_SYSTEM]
+                    for item in keep:
+                        site_id = int(item.get("site_id") or 0)
+                        if site_id <= 0:
+                            continue
+                        trimmed_sites.append(item)
+                        trimmed_by_system.setdefault(sys_id, set()).add(site_id)
+
+                selected_sites = sorted(
+                    trimmed_sites,
+                    key=lambda item: (
+                        int(item.get("system_id") or 0),
+                        int(item.get("site_id") or 0),
+                    ),
+                )
+                selected_by_system = trimmed_by_system
 
             control_channels_by_site: dict[int, list[float]] = {}
             if selected_sites:
@@ -316,7 +361,10 @@ class ScanPoolBuilder:
                         tg.trunk_id,
                         t.dec_tgid,
                         t.alpha_tag,
-                        tg.group_name
+                        tg.group_name,
+                        tg.latitude,
+                        tg.longitude,
+                        tg.radius
                     FROM talkgroups t
                     JOIN trunk_groups tg ON tg.tgroup_id = t.tgroup_id
                     WHERE t.service_tag IN ({tag_placeholders})
@@ -330,6 +378,18 @@ class ScanPoolBuilder:
                     system_id = self._parse_int(row["trunk_id"])
                     if system_id is None or system_id not in selected_by_system:
                         continue
+                    group_lat = self._parse_float(row["latitude"])
+                    group_lon = self._parse_float(row["longitude"])
+                    group_radius = max(0.0, float(self._parse_float(row["radius"]) or 0.0))
+                    if group_lat is not None and group_lon is not None:
+                        threshold = user_range + group_radius
+                        if abs(group_lat - center_lat) * lat_miles_per_degree > threshold:
+                            continue
+                        if abs(group_lon - center_lon) * lon_miles_per_degree > threshold:
+                            continue
+                        distance = haversine_miles(center_lat, center_lon, group_lat, group_lon)
+                        if distance > threshold:
+                            continue
                     dec_text = str(row["dec_tgid"] or "").strip()
                     if not dec_text.isdigit():
                         continue

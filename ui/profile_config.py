@@ -32,7 +32,16 @@ except ImportError:
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
-from combined_config import build_combined_config
+from combined_config import build_combined_config, extract_devices_payload, profile_ui_disabled
+
+AIRBAND_FALLBACK_PROFILE_PATH = os.getenv(
+    "AIRBAND_FALLBACK_PROFILE_PATH",
+    "/usr/local/etc/airband-profiles/rtl_airband_airband.conf",
+)
+GROUND_FALLBACK_PROFILE_PATH = os.getenv(
+    "GROUND_FALLBACK_PROFILE_PATH",
+    "/usr/local/etc/airband-profiles/rtl_airband_wx.conf",
+)
 
 
 def read_active_config_path() -> str:
@@ -191,16 +200,73 @@ def find_profile(profiles: List[Dict], profile_id: str) -> Optional[Dict]:
             return p
     return None
 
+
+def _existing_file(path: str) -> str:
+    try:
+        if path and os.path.isfile(path):
+            return os.path.realpath(path)
+    except Exception:
+        pass
+    return ""
+
+
+def _resolve_profile_path(primary: str, fallback: str) -> str:
+    candidates = []
+    if primary:
+        candidates.append(primary)
+    if fallback and fallback not in candidates:
+        candidates.append(fallback)
+    for candidate in candidates:
+        resolved = _existing_file(candidate)
+        if resolved:
+            return resolved
+    raise FileNotFoundError(
+        f"No readable config file found. primary={primary!r} fallback={fallback!r}"
+    )
+
+
+def _profile_has_usable_devices(path: str) -> bool:
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as handle:
+            text = handle.read()
+    except Exception:
+        return False
+    if profile_ui_disabled(text):
+        return False
+    return bool(extract_devices_payload(text))
+
+
 def write_combined_config() -> bool:
     """Write the combined configuration."""
-    airband_path = read_active_config_path()
-    ground_path = os.path.realpath(GROUND_CONFIG_PATH)
+    airband_path = _resolve_profile_path(read_active_config_path(), AIRBAND_FALLBACK_PROFILE_PATH)
+    ground_path = _resolve_profile_path(
+        os.path.realpath(GROUND_CONFIG_PATH),
+        GROUND_FALLBACK_PROFILE_PATH,
+    )
+    airband_usable = _profile_has_usable_devices(airband_path)
+    ground_usable = _profile_has_usable_devices(ground_path)
+
+    # Prevent empty combined outputs when both selected analog profiles are disabled.
+    if not airband_usable and not ground_usable:
+        ground_path = _resolve_profile_path("", GROUND_FALLBACK_PROFILE_PATH)
+        if not _profile_has_usable_devices(ground_path):
+            airband_path = _resolve_profile_path("", AIRBAND_FALLBACK_PROFILE_PATH)
+
     combined = build_combined_config(
         airband_path,
         ground_path,
         MIXER_NAME,
         mount_name=str(PLAYER_MOUNT or "").strip().lstrip("/"),
     )
+    if not extract_devices_payload(combined):
+        combined = build_combined_config(
+            _resolve_profile_path("", AIRBAND_FALLBACK_PROFILE_PATH),
+            _resolve_profile_path("", GROUND_FALLBACK_PROFILE_PATH),
+            MIXER_NAME,
+            mount_name=str(PLAYER_MOUNT or "").strip().lstrip("/"),
+        )
+        if not extract_devices_payload(combined):
+            raise RuntimeError("combined config generation produced no devices")
     try:
         with open(COMBINED_CONFIG_PATH, "r", encoding="utf-8", errors="ignore") as f:
             existing = f.read()

@@ -123,7 +123,9 @@ _LABEL_RE = re.compile(
 )
 _TGID_RE = re.compile(r"\b(?:tgid|talkgroup|tg)\b\s*[:=#-]?\s*\(?\s*(\d+)\s*\)?", re.I)
 _EVENT_HINT_RE = re.compile(r"(call|voice|traffic|talkgroup|tgid|alias|alpha\s*tag|channel\s*event|from:|to:)", re.I)
+_BRACKETED_TG_LABEL_RE = re.compile(r"^\[(?P<label>[^\]]+)\]\s*\((?P<tgid>\d+)\)\s*$")
 _TS_RE = re.compile(r"(?P<date>\d{4}-\d{2}-\d{2})[ T](?P<time>\d{2}:\d{2}:\d{2})")
+_TS_COLON_RE = re.compile(r"^\"?(?P<date>\d{4}:\d{2}:\d{2}):(?P<time>\d{2}:\d{2}:\d{2})(?:\.\d+)?\"?")
 _TS_COMPACT_RE = re.compile(r"(?P<date>\d{8})\s+(?P<time>\d{6})(?:\.\d+)?")
 _LOG_PREFIX_RE = re.compile(r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?\s+")
 _LOG_PREFIX_COMPACT_RE = re.compile(r"^\d{8}\s+\d{6}(?:\.\d+)?\s+")
@@ -256,7 +258,7 @@ _EVENT_SITE_KEYS = (
     "site name",
     "system name",
 )
-_DIGITAL_HIT_MIN_DURATION_MS = int(os.getenv("DIGITAL_HIT_MIN_DURATION_MS", "250"))
+_DIGITAL_HIT_MIN_DURATION_MS = max(250, int(os.getenv("DIGITAL_HIT_MIN_DURATION_MS", "250")))
 _DIGITAL_STATUS_CLEAR_MS = max(0, int(os.getenv("DIGITAL_STATUS_CLEAR_MS", "180000")))
 _DIGITAL_TGID_MAX = max(1, int(os.getenv("DIGITAL_TGID_MAX", "16777215")))
 _DIGITAL_EVENT_MIN_DATA_BYTES = max(128, int(os.getenv("DIGITAL_EVENT_MIN_DATA_BYTES", "128")))
@@ -271,7 +273,12 @@ _DIGITAL_SCHEDULER_APPLY_MIN_INTERVAL_MS = max(
 )
 _DIGITAL_SCHEDULER_LOCK_LOSS_MS = max(
     2000,
-    int(os.getenv("DIGITAL_SCHEDULER_LOCK_LOSS_MS", "2500")),
+    int(
+        os.getenv(
+            "DIGITAL_SCHEDULER_LOCK_LOSS_MS",
+            os.getenv("PROFILE_LOOP_DIGITAL_LOCK_TIMEOUT_MS", "2500"),
+        )
+    ),
 )
 _DIGITAL_SCHEDULER_TICK_SEC = max(
     0.25,
@@ -289,13 +296,21 @@ _CONTROL_LOCK_FAIL_RE = re.compile(
     re.I,
 )
 _DIGITAL_EVENT_DROP_RE = re.compile(
-    r"(rejected|tuner unavailable|encrypted|encryption|data channel grant|nsapi)",
+    r"(rejected|tuner unavailable|data channel grant|nsapi)",
     re.I,
 )
+_DIGITAL_SUPPRESS_ENCRYPTED_EVENTS = os.getenv(
+    "DIGITAL_SUPPRESS_ENCRYPTED_EVENTS",
+    "1",
+).strip().lower() in ("1", "true", "yes", "on")
 _DIGITAL_RECENT_EVENT_ID_BUCKET_SEC = max(
     0,
     int(os.getenv("DIGITAL_RECENT_EVENT_ID_BUCKET_SEC", "0")),
 )
+_DIGITAL_ENFORCE_ACTIVE_SYSTEM_EVENT_FILTER = os.getenv(
+    "DIGITAL_ENFORCE_ACTIVE_SYSTEM_EVENT_FILTER",
+    "1",
+).strip().lower() in ("1", "true", "yes", "on")
 _DIGITAL_RECENT_LABEL_DEDUPE_MS = max(
     0,
     int(os.getenv("DIGITAL_RECENT_LABEL_DEDUPE_MS", "2500")),
@@ -325,6 +340,7 @@ _DIGITAL_STREAM_SAMPLE_RATE_OVERRIDE = os.getenv("DIGITAL_STREAM_SAMPLE_RATE", "
 _DIGITAL_STREAM_CHANNELS_OVERRIDE = os.getenv("DIGITAL_STREAM_CHANNELS", "").strip() != ""
 _DIGITAL_STREAM_MAX_RECORDING_AGE_OVERRIDE = os.getenv("DIGITAL_STREAM_MAX_RECORDING_AGE_MS", "").strip() != ""
 _DIGITAL_STREAM_DELAY_OVERRIDE = os.getenv("DIGITAL_STREAM_DELAY_MS", "").strip() != ""
+_DIGITAL_P25_MODULATION = os.getenv("DIGITAL_P25_MODULATION", "").strip()
 _DIGITAL_RUNTIME_RETUNE_TIMEOUT_SEC = max(
     0.05,
     float(DIGITAL_RUNTIME_RETUNE_TIMEOUT_MS or 350) / 1000.0,
@@ -400,8 +416,16 @@ def _profile_decoder_mode(profile_dir: str) -> tuple[str, str]:
     return "P25", "default"
 
 
+def _resolve_p25_modulation(existing_value: str) -> str:
+    if _DIGITAL_P25_MODULATION:
+        return _DIGITAL_P25_MODULATION
+    existing = str(existing_value or "").strip()
+    return existing or "C4FM"
+
+
 def _apply_decode_configuration(channel: ET.Element, decoder_mode: str) -> None:
     decode_conf = channel.find("decode_configuration")
+    existing_attrs = dict(decode_conf.attrib) if decode_conf is not None else {}
     target_type = "decodeConfigP25Phase1"
     if decoder_mode == "DMR":
         target_type = "decodeConfigDMR"
@@ -422,7 +446,7 @@ def _apply_decode_configuration(channel: ET.Element, decoder_mode: str) -> None:
         decode_conf.set("use_compressed_talkgroups", "false")
         return
 
-    decode_conf.set("modulation", "C4FM")
+    decode_conf.set("modulation", _resolve_p25_modulation(existing_attrs.get("modulation", "")))
     decode_conf.set("traffic_channel_pool_size", "20")
     decode_conf.set("ignore_data_calls", ignore_data_calls_val)
 
@@ -622,7 +646,7 @@ def _read_profile_alias_seed_rows(profile_dir: str) -> list[tuple[str, str, str]
     if not profile_dir:
         return []
 
-    candidates = ("talkgroups.csv", "talkgroups_with_group.csv")
+    candidates = ("talkgroups_with_group.csv", "talkgroups.csv")
     path = ""
     for name in candidates:
         candidate = os.path.join(profile_dir, name)
@@ -714,16 +738,46 @@ def _seed_alias_list_from_profile(root: ET.Element, alias_list_name: str, profil
     if not seed_rows:
         return 0
 
+    desired_tgids = {str(dec).strip() for dec, _name, _group in seed_rows if str(dec).strip().isdigit()}
+    for alias in list(root.findall("alias")):
+        if str(alias.get("list", "")).strip() != alias_list_name:
+            continue
+        alias_tgids = []
+        for alias_id in alias.findall("id"):
+            token = _alias_talkgroup_value(alias_id)
+            if token:
+                alias_tgids.append(token)
+        if alias_tgids and not any(token in desired_tgids for token in alias_tgids):
+            try:
+                root.remove(alias)
+            except Exception:
+                continue
+
     existing = _collect_alias_talkgroup_map(root, alias_list_name)
     stream_name = str(DIGITAL_SDRTRUNK_STREAM_NAME or "").strip()
     added = 0
     for dec, name, group in seed_rows:
         alias = existing.get(dec)
         if alias is not None:
-            if name and not str(alias.get("name", "")).strip():
+            if name:
                 alias.set("name", name)
-            if group and not str(alias.get("group", "")).strip():
+            if group:
                 alias.set("group", group)
+            if DIGITAL_ATTACH_BROADCAST_CHANNEL and stream_name:
+                has_stream_binding = any(
+                    str(alias_id.get("type", "")).strip().lower() == "broadcastchannel"
+                    and str(alias_id.get("channel", "")).strip() == stream_name
+                    for alias_id in alias.findall("id")
+                )
+                if not has_stream_binding:
+                    ET.SubElement(
+                        alias,
+                        "id",
+                        {
+                            "type": "broadcastChannel",
+                            "channel": stream_name,
+                        },
+                    )
             continue
 
         alias = ET.SubElement(
@@ -808,6 +862,13 @@ def _parse_time_ms(line: str, fallback_ms: int) -> int:
     text = str(line or "").strip()
     # Prefer leading timestamps and avoid matching date strings that appear
     # later inside decoded-message payload text.
+    m3 = _TS_COLON_RE.match(text)
+    if m3:
+        try:
+            dt = datetime.strptime(f"{m3.group('date')} {m3.group('time')}", "%Y:%m:%d %H:%M:%S")
+            return int(time.mktime(dt.timetuple()) * 1000)
+        except Exception:
+            return fallback_ms
     m2 = _TS_COMPACT_RE.match(text)
     if m2:
         try:
@@ -1068,8 +1129,11 @@ def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
     # Keep only call-type events when an explicit event field is present.
     if event_kind and "call" not in event_kind and not include_grant_debug:
         return None
-    if event_kind and "encrypted" in event_kind and not include_grant_debug:
-        return None
+    if _DIGITAL_SUPPRESS_ENCRYPTED_EVENTS and not include_grant_debug:
+        if event_kind and "encrypted" in event_kind:
+            return None
+        if details and re.search(r"\b(encrypt|encrypted|encryption)\b", details, re.I):
+            return None
     if event_kind and "data call" in event_kind and not include_grant_debug:
         return None
 
@@ -1195,6 +1259,25 @@ def _is_auto_placeholder_label(value: str) -> bool:
     if _AUTO_ALPHA_RE.fullmatch(text):
         return True
     return False
+
+
+def _combine_agency_department_label(agency: str, department: str, fallback: str = "") -> str:
+    agency_text = str(agency or "").strip()
+    department_text = str(department or "").strip()
+    fallback_text = str(fallback or "").strip()
+    if agency_text and department_text:
+        if agency_text.lower() == department_text.lower():
+            return agency_text
+        if agency_text.lower() in department_text.lower():
+            return department_text
+        if department_text.lower() in agency_text.lower():
+            return agency_text
+        return f"{agency_text} - {department_text}"
+    if department_text:
+        return department_text
+    if agency_text:
+        return agency_text
+    return fallback_text
 
 
 def _is_non_fatal_error(line: str) -> bool:
@@ -1857,6 +1940,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             float(os.getenv("DIGITAL_EVENT_LOG_SCAN_INTERVAL_SEC", "20")),
         )
         self._tg_map = {}
+        self._tg_group_map = {}
         self._tg_map_profile = ""
         self._tg_map_mtime = None
         self._listen_map = {}
@@ -2281,16 +2365,20 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             lines = self._read_event_log_lines(path)
             if not lines:
                 continue
-            blocked_event_ids: set[str] = set()
             path_events: list[dict] = []
             try:
                 mtime = os.path.getmtime(path)
             except Exception:
                 mtime = None
             fallback_ms = int(mtime * 1000) if mtime else now_ms
+            blocked_event_ids: set[str] = set()
             for line in lines:
                 hinted_event_id, hinted_encrypted = self._event_log_line_encryption_hint(line, path)
-                if hinted_encrypted and hinted_event_id:
+                if (
+                    _DIGITAL_SUPPRESS_ENCRYPTED_EVENTS
+                    and hinted_encrypted
+                    and hinted_event_id
+                ):
                     blocked_event_ids.add(str(hinted_event_id).strip())
                 event = self._parse_event_log_line(line, path, fallback_ms)
                 if event:
@@ -2298,7 +2386,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                     if mapped and mapped.get("muted"):
                         continue
                     path_events.append(mapped)
-            if blocked_event_ids:
+            if _DIGITAL_SUPPRESS_ENCRYPTED_EVENTS and blocked_event_ids:
                 for item in path_events:
                     event_id = str(item.get("event_id") or "").strip()
                     if event_id and event_id in blocked_event_ids:
@@ -3180,6 +3268,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         profile_dir = self._read_active_profile_dir()
         if not profile_dir:
             self._tg_map = {}
+            self._tg_group_map = {}
             self._tg_map_profile = ""
             self._tg_map_mtime = None
             return self._tg_map
@@ -3189,7 +3278,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                     return self._tg_map
             except Exception:
                 pass
-        candidates = ["talkgroups.csv", "talkgroups_with_group.csv"]
+        candidates = ["talkgroups_with_group.csv", "talkgroups.csv"]
         path = ""
         for name in candidates:
             candidate = os.path.join(profile_dir, name)
@@ -3198,6 +3287,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 break
         if not path:
             self._tg_map = {}
+            self._tg_group_map = {}
             self._tg_map_profile = profile_dir
             self._tg_map_mtime = None
             return self._tg_map
@@ -3209,6 +3299,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             if mtime == self._tg_map_mtime[1]:
                 return self._tg_map
         tg_map = {}
+        tg_group_map = {}
         try:
             with open(path, "r", encoding="utf-8", errors="ignore") as f:
                 reader = csv.DictReader(f)
@@ -3228,11 +3319,22 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                         label = desc or alpha
                     if _is_auto_placeholder_label(label):
                         label = f"TG {dec}"
+                    group = (
+                        row_norm.get("group")
+                        or row_norm.get("agency")
+                        or row_norm.get("department")
+                        or row_norm.get("group name")
+                        or ""
+                    ).strip()
                     if label:
                         tg_map[dec] = label
+                    if group:
+                        tg_group_map[dec] = group
         except Exception:
             tg_map = {}
+            tg_group_map = {}
         self._tg_map = tg_map
+        self._tg_group_map = tg_group_map
         self._tg_map_profile = profile_dir
         self._tg_map_mtime = (path, mtime)
         return self._tg_map
@@ -3276,6 +3378,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         raw = str(event.get("raw") or "")
         tgid = str(event.get("tgid") or "").strip()
         tg_map = self._load_talkgroup_map()
+        tg_group_map = self._tg_group_map if isinstance(self._tg_group_map, dict) else {}
         if not tgid:
             if label:
                 tgid = _extract_tgid(label)
@@ -3288,15 +3391,25 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 return event
             event = dict(event)
             event["tgid"] = tgid
-            if tg_map:
-                mapped_label = tg_map.get(tgid)
+            mapped_label = str(tg_map.get(tgid) or "").strip()
+            mapped_group = str(tg_group_map.get(tgid) or "").strip()
+            if mapped_label or mapped_group:
+                event["label"] = _combine_agency_department_label(
+                    mapped_group,
+                    mapped_label,
+                    fallback=str(event.get("label") or "").strip() or f"TG {tgid}",
+                )
+                if mapped_group:
+                    event["agency"] = mapped_group
                 if mapped_label:
-                    event["label"] = mapped_label
+                    event["department"] = mapped_label
             current = str(event.get("label") or "").strip()
+            if current == f"({tgid})":
+                current = ""
             if not current:
                 event["label"] = f"TG {tgid}"
             return event
-        if not tg_map:
+        if not tg_map and not tg_group_map:
             return event
         if not tgid:
             if not self._listen_default:
@@ -3313,9 +3426,18 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 return event
             event = dict(event)
             event["tgid"] = tgid
-            mapped_label = tg_map.get(tgid)
-            if mapped_label:
-                event["label"] = mapped_label
+            mapped_label = str(tg_map.get(tgid) or "").strip()
+            mapped_group = str(tg_group_map.get(tgid) or "").strip()
+            if mapped_label or mapped_group:
+                event["label"] = _combine_agency_department_label(
+                    mapped_group,
+                    mapped_label,
+                    fallback=str(event.get("label") or "").strip() or f"TG {tgid}",
+                )
+                if mapped_group:
+                    event["agency"] = mapped_group
+                if mapped_label:
+                    event["department"] = mapped_label
             else:
                 current = str(event.get("label") or "").strip()
                 if re.fullmatch(r"\(?\d+\)?", current):
@@ -3479,6 +3601,7 @@ class DigitalManager:
         self._scheduler_pool_system_talkgroups: dict[str, set[str]] = {}
         self._scheduler_pool_system_labels: dict[str, str] = {}
         self._scheduler_pool_department_labels: dict[str, str] = {}
+        self._scheduler_pool_site_to_system: dict[str, str] = {}
         self._scheduler_pool_talkgroup_labels: dict[str, dict[str, str]] = {}
         self._scheduler_pool_talkgroup_groups: dict[str, dict[str, str]] = {}
         self._scheduler_active_system = ""
@@ -3626,10 +3749,114 @@ class DigitalManager:
             }
         self._super_profile_systems = loaded
 
+    @staticmethod
+    def _event_site_id(event: dict) -> str:
+        if not isinstance(event, dict):
+            return ""
+        raw_site = str(event.get("site") or "").strip()
+        if not raw_site:
+            return ""
+        if raw_site.isdigit():
+            return raw_site
+        match = re.search(r"-(\d+)\b", raw_site)
+        if match:
+            return str(match.group(1) or "").strip()
+        return ""
+
+    def _pool_tgid_metadata(self, tgid: str, site_id: str = "") -> tuple[str, str]:
+        token = _normalize_tgid(tgid)
+        if not token:
+            return "", ""
+        with self._scheduler_lock:
+            labels_by_system = {
+                str(name or "").strip(): dict(values or {})
+                for name, values in (self._scheduler_pool_talkgroup_labels or {}).items()
+                if str(name or "").strip()
+            }
+            groups_by_system = {
+                str(name or "").strip(): dict(values or {})
+                for name, values in (self._scheduler_pool_talkgroup_groups or {}).items()
+                if str(name or "").strip()
+            }
+            site_to_system = {
+                str(k or "").strip(): str(v or "").strip()
+                for k, v in (self._scheduler_pool_site_to_system or {}).items()
+                if str(k or "").strip() and str(v or "").strip()
+            }
+
+        site_token = str(site_id or "").strip()
+        if site_token and site_token in site_to_system:
+            scoped_system = site_to_system.get(site_token) or ""
+            if scoped_system:
+                department = str((labels_by_system.get(scoped_system) or {}).get(token) or "").strip()
+                agency = str((groups_by_system.get(scoped_system) or {}).get(token) or "").strip()
+                if agency or department:
+                    return agency, department
+
+        system_names = set(labels_by_system.keys()) | set(groups_by_system.keys())
+        candidates: set[tuple[str, str]] = set()
+        for system_name in system_names:
+            department = str((labels_by_system.get(system_name) or {}).get(token) or "").strip()
+            agency = str((groups_by_system.get(system_name) or {}).get(token) or "").strip()
+            if agency or department:
+                candidates.add((agency, department))
+        if len(candidates) == 1:
+            return next(iter(candidates))
+        return "", ""
+
+    def _enrich_event_label_for_active_system(self, event: dict) -> dict:
+        if not isinstance(event, dict):
+            return {}
+        enriched = dict(event)
+        label_text = str(enriched.get("label") or "").strip()
+        if label_text:
+            bracket_match = _BRACKETED_TG_LABEL_RE.fullmatch(label_text)
+            if bracket_match:
+                dept_hint = str(bracket_match.group("label") or "").strip()
+                tgid_hint = _normalize_tgid(str(bracket_match.group("tgid") or ""))
+                if tgid_hint and not str(enriched.get("tgid") or "").strip():
+                    enriched["tgid"] = tgid_hint
+                if dept_hint:
+                    enriched["label"] = dept_hint
+                    if not str(enriched.get("department") or "").strip():
+                        enriched["department"] = dept_hint
+
+        tgid = self._event_tgid(enriched)
+        if tgid:
+            enriched["tgid"] = tgid
+
+        department = str(enriched.get("department") or "").strip()
+        agency = str(enriched.get("agency") or "").strip()
+        scan_mode = get_current_scan_mode()
+        if scan_mode in {"hp", "expert"} and tgid:
+            pool_agency, pool_department = self._pool_tgid_metadata(
+                tgid,
+                site_id=self._event_site_id(enriched),
+            )
+            if not agency and pool_agency:
+                agency = pool_agency
+            if not department and pool_department:
+                department = pool_department
+
+        fallback_label = str(enriched.get("label") or "").strip()
+        combined = _combine_agency_department_label(
+            agency,
+            department,
+            fallback=fallback_label or (f"TG {tgid}" if tgid else ""),
+        )
+        if combined:
+            enriched["label"] = combined
+        if agency:
+            enriched["agency"] = agency
+        if department:
+            enriched["department"] = department
+        return enriched
+
     def getLastEvent(self):
         event = self._adapter.getLastEvent()
         if not isinstance(event, dict):
             return event
+        event = self._enrich_event_label_for_active_system(event)
         if not self._event_allowed_for_active_system(event):
             return {}
         return event
@@ -3643,7 +3870,15 @@ class DigitalManager:
         events = self._adapter.getRecentEvents(limit)
         if not isinstance(events, list):
             return []
-        return [event for event in events if self._event_allowed_for_active_system(event)]
+        filtered = []
+        for event in events:
+            if not isinstance(event, dict):
+                continue
+            mapped = self._enrich_event_label_for_active_system(event)
+            if not self._event_allowed_for_active_system(mapped):
+                continue
+            filtered.append(mapped)
+        return filtered
     def preflight(self):
         if hasattr(self._adapter, "preflight"):
             try:
@@ -4005,6 +4240,7 @@ class DigitalManager:
         self._scheduler_pool_system_talkgroups = {}
         self._scheduler_pool_system_labels = {}
         self._scheduler_pool_department_labels = {}
+        self._scheduler_pool_site_to_system = {}
         self._scheduler_pool_talkgroup_labels = {}
         self._scheduler_pool_talkgroup_groups = {}
         pool = pool_snapshot if isinstance(pool_snapshot, dict) else {}
@@ -4049,6 +4285,8 @@ class DigitalManager:
             self._scheduler_pool_system_channels[name] = list(channels)
             self._scheduler_pool_system_channels_lower[key] = name
             self._scheduler_pool_system_talkgroups[name] = talkgroups
+            if site_id and site_id.isdigit() and site_id not in self._scheduler_pool_site_to_system:
+                self._scheduler_pool_site_to_system[site_id] = name
             system_label = system_name or site_name or name
             department_label = department_name or site_name or system_name or name
             self._scheduler_pool_system_labels[name] = system_label
@@ -4560,6 +4798,7 @@ class DigitalManager:
         self._scheduler_pool_system_talkgroups = {}
         self._scheduler_pool_system_labels = {}
         self._scheduler_pool_department_labels = {}
+        self._scheduler_pool_site_to_system = {}
         self._scheduler_pool_talkgroup_labels = {}
         self._scheduler_pool_talkgroup_groups = {}
         systems: list[str] = list(self._discover_profile_local_systems(profile_id))
@@ -4615,20 +4854,37 @@ class DigitalManager:
         return ""
 
     def _event_allowed_for_active_system(self, event: dict) -> bool:
+        if not _DIGITAL_ENFORCE_ACTIVE_SYSTEM_EVENT_FILTER:
+            return True
         scan_mode = get_current_scan_mode()
         if scan_mode not in {"hp", "expert"}:
             return True
         with self._scheduler_lock:
             active_system = str(self._scheduler_active_system or "").strip()
-            allowed_talkgroups = set(self._scheduler_pool_system_talkgroups.get(active_system) or set())
-        if not active_system:
+            pool_talkgroups = {
+                str(name or "").strip(): set(
+                    str(token or "").strip()
+                    for token in (values or set())
+                    if str(token or "").strip()
+                )
+                for name, values in (self._scheduler_pool_system_talkgroups or {}).items()
+                if str(name or "").strip()
+            }
+        if not pool_talkgroups:
             return True
-        if not allowed_talkgroups:
+        allowed_talkgroups = set(pool_talkgroups.get(active_system) or set())
+        allowed_any: set[str] = set()
+        for values in pool_talkgroups.values():
+            allowed_any.update(values)
+        if not allowed_any:
             return True
         tgid = self._event_tgid(event if isinstance(event, dict) else {})
         if not tgid:
             return False
-        return tgid in allowed_talkgroups
+        if active_system and allowed_talkgroups:
+            return tgid in allowed_talkgroups
+        # If active system context is unavailable, still suppress out-of-pool TGIDs.
+        return tgid in allowed_any
 
     @staticmethod
     def _next_system(systems: list[str], current: str) -> str:
@@ -4942,16 +5198,34 @@ class DigitalManager:
         scheduler_talkgroup_label = str(
             payload.get("digital_scheduler_active_talkgroup_label") or ""
         ).strip()
-        if scheduler_talkgroup_label:
-            payload["digital_last_label"] = scheduler_talkgroup_label
-            payload["digital_channel_label"] = scheduler_talkgroup_label
-        else:
-            payload["digital_channel_label"] = str(payload.get("digital_last_label") or "").strip()
         scheduler_department_label = str(
             payload.get("digital_scheduler_active_department_label") or ""
         ).strip()
-        if scheduler_department_label:
-            payload["digital_department_label"] = scheduler_department_label
+        now_ms = int(time.time() * 1000)
+        last_event_ms = int(payload.get("digital_last_time") or 0)
+        has_recent_event = (
+            last_event_ms > 0
+            and (
+                _DIGITAL_STATUS_CLEAR_MS <= 0
+                or (now_ms - last_event_ms) <= _DIGITAL_STATUS_CLEAR_MS
+            )
+        )
+        if has_recent_event:
+            combined_scheduler_label = _combine_agency_department_label(
+                scheduler_department_label,
+                scheduler_talkgroup_label,
+                fallback=str(payload.get("digital_last_label") or "").strip(),
+            )
+            if combined_scheduler_label:
+                payload["digital_last_label"] = combined_scheduler_label
+            if scheduler_talkgroup_label:
+                payload["digital_channel_label"] = scheduler_talkgroup_label
+            else:
+                payload["digital_channel_label"] = str(payload.get("digital_last_label") or "").strip()
+            if scheduler_department_label:
+                payload["digital_department_label"] = scheduler_department_label
+        else:
+            payload["digital_channel_label"] = ""
         scheduler_system_label = str(
             payload.get("digital_scheduler_active_system_label") or ""
         ).strip()
