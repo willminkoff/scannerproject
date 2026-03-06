@@ -223,6 +223,7 @@ _LOCAL_PROFILES_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), "
 _STATUS_CACHE_TTL_SEC = max(0.1, float(os.getenv("STATUS_CACHE_TTL_SEC", "0.75")))
 _HITS_CACHE_TTL_SEC = max(0.1, float(os.getenv("HITS_CACHE_TTL_SEC", "1.0")))
 _UNIT_ACTIVE_CACHE_TTL_SEC = max(0.1, float(os.getenv("UNIT_ACTIVE_CACHE_TTL_SEC", "1.0")))
+STREAM_PROXY_READ_TIMEOUT_SEC = max(120.0, float(os.getenv("STREAM_PROXY_READ_TIMEOUT_SEC", "600")))
 _CACHE_LOCK = threading.Lock()
 _STATUS_CACHE: dict[str, object] = {"ts": 0.0, "payload": None}
 _HITS_CACHE: dict[str, object] = {"ts": 0.0, "payload": None}
@@ -1116,9 +1117,9 @@ class Handler(BaseHTTPRequestHandler):
             method="GET",
         )
         try:
-            # Use a generous timeout for long-lived audio streams; short read
-            # timeouts can terminate otherwise healthy low/idle bitrate mounts.
-            with urlopen(req, timeout=60) as upstream_resp:
+            # Use a long read timeout for low-traffic mounts so mobile clients
+            # do not see frequent stream teardowns during quiet periods.
+            with urlopen(req, timeout=STREAM_PROXY_READ_TIMEOUT_SEC) as upstream_resp:
                 self.send_response(200)
                 self.send_header("Content-Type", upstream_resp.headers.get("Content-Type") or "audio/mpeg")
                 self.send_header("Cache-Control", "no-store")

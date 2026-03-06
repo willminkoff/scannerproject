@@ -2213,7 +2213,7 @@
                 <div style="font-weight:700;">Analog Player</div>
                 <a id="lnk-stream-analog" href="#" target="_blank" rel="noopener" style="font-size:12px; opacity:0.85;">Open Analog</a>
               </div>
-              <audio id="audio-player-analog" controls preload="none"></audio>
+              <audio id="audio-player-analog" controls preload="metadata"></audio>
             </div>
           </div>
 
@@ -3039,7 +3039,11 @@
     const MAX_LOG = 120;
     const LOG_DEDUPE_MS = 4000;
     const AUDIO_RECOVER_COOLDOWN_MS = 8000;
+    const AUDIO_RECOVER_COOLDOWN_ANALOG_MS = 20000;
     const AUDIO_WAITING_GRACE_MS = 12000;
+    const AUDIO_WAITING_GRACE_ANALOG_MS = 25000;
+    const AUDIO_STARTUP_RECOVER_GRACE_MS = 8000;
+    const AUDIO_STARTUP_RECOVER_GRACE_ANALOG_MS = 20000;
     const AUDIO_PROGRESS_CHECK_MS = 3000;
     const AUDIO_PROGRESS_STALL_MS = 30000;
     const FETCH_TIMEOUT_MS = 8000;
@@ -6407,6 +6411,22 @@
       return 'Analog';
     }
 
+    function isAnalogAudioElement(audioEl) {
+      return audioEl === els.audioPlayerAnalog;
+    }
+
+    function audioRecoverCooldownMs(audioEl) {
+      return isAnalogAudioElement(audioEl) ? AUDIO_RECOVER_COOLDOWN_ANALOG_MS : AUDIO_RECOVER_COOLDOWN_MS;
+    }
+
+    function audioWaitingGraceMs(audioEl) {
+      return isAnalogAudioElement(audioEl) ? AUDIO_WAITING_GRACE_ANALOG_MS : AUDIO_WAITING_GRACE_MS;
+    }
+
+    function audioStartupRecoverGraceMs(audioEl) {
+      return isAnalogAudioElement(audioEl) ? AUDIO_STARTUP_RECOVER_GRACE_ANALOG_MS : AUDIO_STARTUP_RECOVER_GRACE_MS;
+    }
+
     function ensureAudioAudible(audioEl) {
       if (!audioEl) return;
       if (audioEl.muted) audioEl.muted = false;
@@ -6475,18 +6495,27 @@
       state.digitalStreamBaseUrl = digitalBase;
     }
 
-    function reloadStreamPlayer(audioEl, base, stateKey, reason, keyPrefix, forcePlay = false) {
+    function reloadStreamPlayer(audioEl, base, stateKey, reason, keyPrefix, forcePlay = false, options = {}) {
       if (!audioEl) return;
       state[stateKey] = base;
       const wasPaused = audioEl.paused;
       const wantsPlay = audioEl.dataset.wantplay === '1';
       const shouldPlay = forcePlay || wantsPlay || !wasPaused;
+      const hardReset = Boolean(options && options.hardReset);
+      const nextRaw = String(base || '').trim();
+      if (!nextRaw) return;
       if (shouldPlay) {
         audioEl.dataset.wantplay = '1';
       }
-      audioEl.removeAttribute('src');
-      audioEl.load();
-      audioEl.src = base;
+      const current = normalizeAudioUrl(audioEl.currentSrc || audioEl.src || '');
+      const next = normalizeAudioUrl(nextRaw);
+      if (hardReset) {
+        audioEl.removeAttribute('src');
+        audioEl.load();
+      }
+      if (hardReset || current !== next) {
+        audioEl.src = nextRaw;
+      }
       audioEl.load();
       if (shouldPlay) {
         requestAudioPlay(audioEl, `reload-${reason || 'manual'}`);
@@ -6496,12 +6525,28 @@
       }
     }
 
-    function reloadAnalogStream(reason, forcePlay = false) {
-      reloadStreamPlayer(els.audioPlayerAnalog, analogStreamUrl(), 'streamBaseUrl', reason, 'stream-reload-analog', forcePlay);
+    function reloadAnalogStream(reason, forcePlay = false, options = {}) {
+      reloadStreamPlayer(
+        els.audioPlayerAnalog,
+        analogStreamUrl(),
+        'streamBaseUrl',
+        reason,
+        'stream-reload-analog',
+        forcePlay,
+        options
+      );
     }
 
-    function reloadDigitalStream(reason, forcePlay = false) {
-      reloadStreamPlayer(els.audioPlayerDigital, digitalStreamUrl(), 'digitalStreamBaseUrl', reason, 'stream-reload-digital', forcePlay);
+    function reloadDigitalStream(reason, forcePlay = false, options = {}) {
+      reloadStreamPlayer(
+        els.audioPlayerDigital,
+        digitalStreamUrl(),
+        'digitalStreamBaseUrl',
+        reason,
+        'stream-reload-digital',
+        forcePlay,
+        options
+      );
     }
 
     function scheduleStreamRecovery(kind, reason, forcePlay = false) {
@@ -6529,6 +6574,9 @@
           lastPosition: -1,
           lastAdvanceTs: 0,
           recoverLastTs: 0,
+          playRequestTs: 0,
+          lastPlayingTs: 0,
+          waitingSinceTs: 0,
         };
         audioRecoverState.set(audioEl, tracker);
       }
@@ -6553,17 +6601,28 @@
       tracker.lastAdvanceTs = Date.now();
     }
 
-    function maybeAutoRecoverAudio(audioEl, reloadFn, reason, allowPaused = false) {
+    function maybeAutoRecoverAudio(audioEl, reloadFn, reason, allowPaused = false, options = {}) {
       if (!audioEl || typeof reloadFn !== 'function') return;
       const wantsPlay = audioEl.dataset.wantplay === '1';
       if (!allowPaused && audioEl.paused && !wantsPlay) return;
       const tracker = getAudioRecoverTracker(audioEl);
       if (!tracker) return;
       const now = Date.now();
-      if ((now - tracker.recoverLastTs) < AUDIO_RECOVER_COOLDOWN_MS) return;
+      const startupReasons = reason === 'waiting' || reason === 'stalled';
+      if (startupReasons && tracker.playRequestTs > 0) {
+        const startupGrace = audioStartupRecoverGraceMs(audioEl);
+        if ((now - tracker.playRequestTs) < startupGrace) return;
+      }
+      if (reason === 'waiting' && tracker.waitingSinceTs > 0) {
+        const waitingForMs = now - tracker.waitingSinceTs;
+        if (waitingForMs < audioWaitingGraceMs(audioEl)) return;
+      }
+      const cooldownMs = audioRecoverCooldownMs(audioEl);
+      if ((now - tracker.recoverLastTs) < cooldownMs) return;
       tracker.recoverLastTs = now;
       const forcePlay = Boolean(wantsPlay);
-      reloadFn(`auto-${reason}`, forcePlay);
+      const hardReset = Boolean(options && options.hardReset);
+      reloadFn(`auto-${reason}`, forcePlay, { hardReset });
     }
 
     function checkAudioProgress(audioEl, reloadFn) {
@@ -6609,25 +6668,35 @@
       audioEl.addEventListener('play', () => {
         ensureAudioAudible(audioEl);
         audioEl.dataset.wantplay = '1';
+        tracker.playRequestTs = Date.now();
       });
       audioEl.addEventListener('pause', () => {
         audioEl.dataset.wantplay = '0';
+        tracker.waitingSinceTs = 0;
+        clearAudioWaitingTimer(audioEl);
       });
       audioEl.addEventListener('playing', () => {
         clearAudioWaitingTimer(audioEl);
+        tracker.lastPlayingTs = Date.now();
+        tracker.waitingSinceTs = 0;
         markAudioProgress(audioEl);
       });
       audioEl.addEventListener('canplay', () => {
         clearAudioWaitingTimer(audioEl);
+        tracker.lastPlayingTs = Date.now();
+        tracker.waitingSinceTs = 0;
         markAudioProgress(audioEl);
       });
       audioEl.addEventListener('timeupdate', () => markAudioProgress(audioEl));
       audioEl.addEventListener('waiting', () => {
         clearAudioWaitingTimer(audioEl);
+        if (!tracker.waitingSinceTs) {
+          tracker.waitingSinceTs = Date.now();
+        }
         tracker.waitingTimer = setTimeout(() => {
           tracker.waitingTimer = null;
           maybeAutoRecoverAudio(audioEl, reloadFn, 'waiting', true);
-        }, AUDIO_WAITING_GRACE_MS);
+        }, audioWaitingGraceMs(audioEl));
       });
       audioEl.addEventListener('stalled', () => {
         maybeAutoRecoverAudio(audioEl, reloadFn, 'stalled', true);
@@ -6638,13 +6707,15 @@
         const src = (audioEl.currentSrc || audioEl.src || '').split('?')[0];
         const suffix = src ? ` (${src})` : '';
         logActivity(`${targetLabel} player media error code ${codeLabel}${suffix}`, 'warn', `audio-error-${targetLabel}-${codeLabel}`);
-        maybeAutoRecoverAudio(audioEl, reloadFn, 'error', true);
+        maybeAutoRecoverAudio(audioEl, reloadFn, 'error', true, { hardReset: true });
       });
       audioEl.addEventListener('emptied', () => {
-        maybeAutoRecoverAudio(audioEl, reloadFn, 'emptied', true);
+        tracker.waitingSinceTs = 0;
+        maybeAutoRecoverAudio(audioEl, reloadFn, 'emptied', true, { hardReset: true });
       });
       audioEl.addEventListener('ended', () => {
-        maybeAutoRecoverAudio(audioEl, reloadFn, 'ended', true);
+        tracker.waitingSinceTs = 0;
+        maybeAutoRecoverAudio(audioEl, reloadFn, 'ended', true, { hardReset: true });
       });
     }
 
