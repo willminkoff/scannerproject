@@ -309,7 +309,7 @@ _DIGITAL_RECENT_EVENT_ID_BUCKET_SEC = max(
 )
 _DIGITAL_ENFORCE_ACTIVE_SYSTEM_EVENT_FILTER = os.getenv(
     "DIGITAL_ENFORCE_ACTIVE_SYSTEM_EVENT_FILTER",
-    "0",
+    "1",
 ).strip().lower() in ("1", "true", "yes", "on")
 _DIGITAL_RECENT_LABEL_DEDUPE_MS = max(
     0,
@@ -4831,15 +4831,30 @@ class DigitalManager:
             return True
         with self._scheduler_lock:
             active_system = str(self._scheduler_active_system or "").strip()
-            allowed_talkgroups = set(self._scheduler_pool_system_talkgroups.get(active_system) or set())
-        if not active_system:
+            pool_talkgroups = {
+                str(name or "").strip(): set(
+                    str(token or "").strip()
+                    for token in (values or set())
+                    if str(token or "").strip()
+                )
+                for name, values in (self._scheduler_pool_system_talkgroups or {}).items()
+                if str(name or "").strip()
+            }
+        if not pool_talkgroups:
             return True
-        if not allowed_talkgroups:
+        allowed_talkgroups = set(pool_talkgroups.get(active_system) or set())
+        allowed_any: set[str] = set()
+        for values in pool_talkgroups.values():
+            allowed_any.update(values)
+        if not allowed_any:
             return True
         tgid = self._event_tgid(event if isinstance(event, dict) else {})
         if not tgid:
             return False
-        return tgid in allowed_talkgroups
+        if active_system and allowed_talkgroups:
+            return tgid in allowed_talkgroups
+        # If active system context is unavailable, still suppress out-of-pool TGIDs.
+        return tgid in allowed_any
 
     @staticmethod
     def _next_system(systems: list[str], current: str) -> str:
