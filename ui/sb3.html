@@ -3037,6 +3037,10 @@
               <span>Use Location Filter</span>
             </label>
             <label class="hp-filter-check">
+              <input id="hp-filter-strict-location" type="checkbox">
+              <span>Strict Location Radius</span>
+            </label>
+            <label class="hp-filter-check">
               <input id="hp-filter-nationwide" type="checkbox">
               <span>Include Nationwide Systems</span>
             </label>
@@ -3467,6 +3471,7 @@
         loaded: false,
         mode: 'favorites',
         useLocation: false,
+        strictLocation: false,
         zip: '',
         lat: 0,
         lon: 0,
@@ -3572,6 +3577,7 @@
       hpFilterZip: document.getElementById('hp-filter-zip'),
       hpFilterRange: document.getElementById('hp-filter-range'),
       hpFilterUseLocation: document.getElementById('hp-filter-use-location'),
+      hpFilterStrictLocation: document.getElementById('hp-filter-strict-location'),
       hpFilterNationwide: document.getElementById('hp-filter-nationwide'),
       hpFilterResolveZip: document.getElementById('hp-filter-resolve-zip'),
       hpFilterAutoLocate: document.getElementById('hp-filter-auto-locate'),
@@ -4153,6 +4159,7 @@
       return {
         mode,
         useLocation: Boolean(hpState.use_location),
+        strictLocation: Boolean(hpState.strict_location),
         zip: String(hpState.zip || hpState.postal_code || '').trim(),
         lat: _toFloat(
           hpState.lat !== undefined && hpState.lat !== null
@@ -4379,6 +4386,10 @@
         els.hpFilterUseLocation.checked = Boolean(filters.useLocation);
         els.hpFilterUseLocation.disabled = busy;
       }
+      if (els.hpFilterStrictLocation) {
+        els.hpFilterStrictLocation.checked = Boolean(filters.strictLocation);
+        els.hpFilterStrictLocation.disabled = busy;
+      }
       if (els.hpFilterZip) {
         els.hpFilterZip.value = String(filters.zip || '');
         els.hpFilterZip.disabled = busy;
@@ -4587,6 +4598,7 @@
       const payload = {
         mode,
         use_location: Boolean(els.hpFilterUseLocation && els.hpFilterUseLocation.checked),
+        strict_location: Boolean(els.hpFilterStrictLocation && els.hpFilterStrictLocation.checked),
         zip,
         range_miles: rangeMiles,
         nationwide_systems: Boolean(els.hpFilterNationwide && els.hpFilterNationwide.checked),
@@ -4918,6 +4930,7 @@
       return JSON.stringify({
         mode,
         useLocation: Boolean(filters.useLocation),
+        strictLocation: Boolean(filters.strictLocation),
         zip: String(filters.zip || '').trim(),
         lat: _toFloat(filters.lat, 0),
         lon: _toFloat(filters.lon, 0),
@@ -11454,6 +11467,12 @@
       if (els.hpFilterUseLocation) {
         els.hpFilterUseLocation.addEventListener('change', () => {
           state.hpFilters.useLocation = Boolean(els.hpFilterUseLocation.checked);
+          scheduleHpFiltersAutoSave();
+        });
+      }
+      if (els.hpFilterStrictLocation) {
+        els.hpFilterStrictLocation.addEventListener('change', () => {
+          state.hpFilters.strictLocation = Boolean(els.hpFilterStrictLocation.checked);
           scheduleHpFiltersAutoSave();
         });
       }

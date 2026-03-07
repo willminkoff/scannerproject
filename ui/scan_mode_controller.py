@@ -250,8 +250,12 @@ class ScanModeController:
         lat_miles_per_degree: float,
         lon_miles_per_degree: float,
         range_miles: float,
+        strict_location: bool = False,
     ) -> bool:
-        threshold = max(0.0, float(range_miles)) + max(0.0, float(target_radius))
+        if strict_location:
+            threshold = max(0.0, float(range_miles))
+        else:
+            threshold = max(0.0, float(range_miles)) + max(0.0, float(target_radius))
         if abs(target_lat - center_lat) * lat_miles_per_degree > threshold:
             return False
         if abs(target_lon - center_lon) * lon_miles_per_degree > threshold:
@@ -318,6 +322,7 @@ class ScanModeController:
         center_lon: float,
         range_miles: float,
         include_nationwide: bool,
+        strict_location: bool = False,
     ) -> tuple[set[int], set[str]]:
         rows = conn.execute(
             """
@@ -365,6 +370,7 @@ class ScanModeController:
                 lat_miles_per_degree=lat_miles_per_degree,
                 lon_miles_per_degree=lon_miles_per_degree,
                 range_miles=range_miles,
+                strict_location=strict_location,
             ):
                 continue
             nearby_ids.add(int(trunk_id))
@@ -381,6 +387,7 @@ class ScanModeController:
         center_lon: float,
         range_miles: float,
         include_nationwide: bool,
+        strict_location: bool = False,
     ) -> tuple[set[str], set[str]]:
         rows = conn.execute(
             """
@@ -429,6 +436,7 @@ class ScanModeController:
                 lat_miles_per_degree=lat_miles_per_degree,
                 lon_miles_per_degree=lon_miles_per_degree,
                 range_miles=range_miles,
+                strict_location=strict_location,
             ):
                 continue
             nearby_keys.add(system_key)
@@ -457,6 +465,7 @@ class ScanModeController:
 
         range_miles = max(0.0, float(self._parse_float(getattr(state, "range_miles", 0.0)) or 0.0))
         include_nationwide = bool(getattr(state, "nationwide_systems", False))
+        strict_location = bool(getattr(state, "strict_location", False))
 
         conn: sqlite3.Connection | None = None
         try:
@@ -468,6 +477,7 @@ class ScanModeController:
                 center_lon=center_lon,
                 range_miles=range_miles,
                 include_nationwide=include_nationwide,
+                strict_location=strict_location,
             )
             nearby_conv_keys, nearby_conv_names = self._load_nearby_conventional_systems(
                 conn,
@@ -475,6 +485,7 @@ class ScanModeController:
                 center_lon=center_lon,
                 range_miles=range_miles,
                 include_nationwide=include_nationwide,
+                strict_location=strict_location,
             )
         except Exception:
             return filtered_by_service
@@ -881,6 +892,7 @@ class ScanModeController:
                 range_miles=float(state.range_miles),
                 service_tags=service_tags,
                 include_nationwide=bool(getattr(state, "nationwide_systems", False)),
+                strict_location=bool(getattr(state, "strict_location", False)),
             )
             pool = self._prefer_nearest_site_per_system(pool)
         else:

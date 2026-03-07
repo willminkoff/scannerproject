@@ -28,6 +28,16 @@ class HpAutoLocateRegressionTests(unittest.TestCase):
         self.assertAlmostEqual(-86.5678, state.lon)
         resolver.assert_not_called()
 
+    def test_strict_location_toggle_persists(self):
+        state = self._new_state()
+        self.assertFalse(state.strict_location)
+
+        handlers._apply_hp_state_form(state, {"strict_location": True})
+        self.assertTrue(state.strict_location)
+
+        handlers._apply_hp_state_form(state, {"strict_location": False})
+        self.assertFalse(state.strict_location)
+
     def test_resolve_zip_true_resolves_only_when_use_location_true(self):
         state = self._new_state()
         state.lat = 10.0

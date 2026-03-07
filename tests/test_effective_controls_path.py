@@ -401,6 +401,33 @@ class RecentRegressionTests(unittest.TestCase):
         self.assertAlmostEqual(-86.5678, float(kwargs.get("lon")))
         self.assertEqual(15.0, float(kwargs.get("range_miles")))
         self.assertEqual([2], kwargs.get("service_tags"))
+        self.assertFalse(bool(kwargs.get("strict_location")))
+
+    def test_scan_pool_full_database_forwards_strict_location_flag(self):
+        controller = scan_mode_controller.ScanModeController(db_path="/tmp/hpdb-test.db")
+        state = HPState.default()
+        state.mode = "full_database"
+        state.use_location = True
+        state.strict_location = True
+        state.lat = 36.12
+        state.lon = -86.54
+        state.range_miles = 12.0
+        state.enabled_service_tags = [2]
+        base_pool = {"trunked_sites": [], "conventional": []}
+
+        with mock.patch("ui.hp_state.HPState.load", return_value=state), mock.patch.object(
+            controller, "_resolve_effective_service_tags", return_value=[2]
+        ), mock.patch.object(
+            controller._hp_builder,
+            "build_full_database_pool",
+            return_value=base_pool,
+        ) as build_pool:
+            filtered = controller.get_scan_pool()
+
+        self.assertIs(filtered, base_pool)
+        self.assertEqual(1, build_pool.call_count)
+        kwargs = build_pool.call_args.kwargs
+        self.assertTrue(bool(kwargs.get("strict_location")))
 
     def test_scan_pool_full_database_prefers_nearest_site_per_system(self):
         controller = scan_mode_controller.ScanModeController(db_path="/tmp/hpdb-test.db")

@@ -341,6 +341,12 @@ def _apply_hp_state_form(
     if "use_location" in form:
         state.use_location = _parse_bool_value(form.get("use_location"), field="use_location")
 
+    if "strict_location" in form:
+        state.strict_location = _parse_bool_value(
+            form.get("strict_location"),
+            field="strict_location",
+        )
+
     if "zip" in form or "postal_code" in form:
         state.zip = str(form.get("zip") or form.get("postal_code") or "").strip()
 
