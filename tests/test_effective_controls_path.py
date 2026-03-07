@@ -256,6 +256,8 @@ class RecentRegressionTests(unittest.TestCase):
         state = HPState.default()
         state.mode = "full_database"
         state.use_location = True
+        state.lat = 36.12
+        state.lon = -86.54
         state.enabled_service_tags = [2]
         base_pool = {
             "trunked_sites": [],
@@ -294,6 +296,8 @@ class RecentRegressionTests(unittest.TestCase):
         state = HPState.default()
         state.mode = "full_database"
         state.use_location = True
+        state.lat = 36.12
+        state.lon = -86.54
         state.enabled_service_tags = [2]
         base_pool = {
             "trunked_sites": [],
@@ -332,6 +336,8 @@ class RecentRegressionTests(unittest.TestCase):
         state = HPState.default()
         state.mode = "full_database"
         state.use_location = True
+        state.lat = 36.12
+        state.lon = -86.54
         state.enabled_service_tags = [2]
         base_pool = {
             "trunked_sites": [
@@ -360,6 +366,114 @@ class RecentRegressionTests(unittest.TestCase):
         trunked = filtered.get("trunked_sites") or []
         self.assertEqual(1, len(trunked))
         self.assertEqual([2002], trunked[0].get("talkgroups"))
+
+    def test_scan_pool_full_database_resolves_zip_when_lat_lon_missing(self):
+        controller = scan_mode_controller.ScanModeController(db_path="/tmp/hpdb-test.db")
+        state = HPState.default()
+        state.mode = "full_database"
+        state.use_location = True
+        state.zip = "37221"
+        state.lat = 0.0
+        state.lon = 0.0
+        state.range_miles = 15.0
+        state.enabled_service_tags = [2]
+        base_pool = {"trunked_sites": [], "conventional": []}
+
+        with mock.patch("ui.hp_state.HPState.load", return_value=state), mock.patch.object(
+            controller, "_resolve_effective_service_tags", return_value=[2]
+        ), mock.patch(
+            "ui.scan_mode_controller.resolve_postal_to_lat_lon",
+            return_value=(36.1234, -86.5678),
+        ) as resolve_zip, mock.patch.object(
+            controller._hp_builder,
+            "build_full_database_pool",
+            return_value=base_pool,
+        ) as build_pool:
+            filtered = controller.get_scan_pool()
+
+        self.assertIs(filtered, base_pool)
+        resolve_zip.assert_called_once_with("37221", "US")
+        self.assertEqual(1, build_pool.call_count)
+        kwargs = build_pool.call_args.kwargs
+        self.assertAlmostEqual(36.1234, float(kwargs.get("lat")))
+        self.assertAlmostEqual(-86.5678, float(kwargs.get("lon")))
+        self.assertEqual(15.0, float(kwargs.get("range_miles")))
+        self.assertEqual([2], kwargs.get("service_tags"))
+
+    def test_scan_pool_full_database_prefers_nearest_site_per_system(self):
+        controller = scan_mode_controller.ScanModeController(db_path="/tmp/hpdb-test.db")
+        state = HPState.default()
+        state.mode = "full_database"
+        state.use_location = True
+        state.lat = 36.12
+        state.lon = -86.54
+        state.range_miles = 15.0
+        state.enabled_service_tags = [2]
+        base_pool = {
+            "trunked_sites": [
+                {
+                    "system_id": 100,
+                    "site_id": 10,
+                    "distance_miles": 9.5,
+                    "control_channels": [851.1],
+                    "talkgroups": [1001],
+                },
+                {
+                    "system_id": 100,
+                    "site_id": 11,
+                    "distance_miles": 2.2,
+                    "control_channels": [852.1],
+                    "talkgroups": [1001],
+                },
+                {
+                    "system_id": 200,
+                    "site_id": 20,
+                    "distance_miles": 4.0,
+                    "control_channels": [853.1],
+                    "talkgroups": [2001],
+                },
+            ],
+            "conventional": [],
+        }
+
+        with mock.patch("ui.hp_state.HPState.load", return_value=state), mock.patch.object(
+            controller, "_resolve_effective_service_tags", return_value=[2]
+        ), mock.patch.object(
+            controller._hp_builder,
+            "build_full_database_pool",
+            return_value=base_pool,
+        ):
+            filtered = controller.get_scan_pool()
+
+        trunked = filtered.get("trunked_sites") or []
+        self.assertEqual(2, len(trunked))
+        site_ids = sorted(int(row.get("site_id") or 0) for row in trunked)
+        self.assertEqual([11, 20], site_ids)
+
+    def test_resolve_analog_label_map_falls_back_to_profile_catalog(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            active_path = os.path.join(tmp, "rtl_airband_none_airband.conf")
+            catalog_path = os.path.join(tmp, "rtl_airband_tower.conf")
+            with open(active_path, "w", encoding="utf-8") as handle:
+                handle.write(
+                    "devices:\n(\n  {\n    freqs = (118.6000);\n  }\n);\n"
+                )
+            with open(catalog_path, "w", encoding="utf-8") as handle:
+                handle.write(
+                    "devices:\n(\n  {\n    freqs = (118.6000, 124.8750);\n"
+                    "    labels = (\"Tower\", \"Approach\");\n  }\n);\n"
+                )
+            profile_rows = [
+                {"id": "none_airband", "path": active_path},
+                {"id": "tower", "path": catalog_path},
+            ]
+            mapping = handlers._resolve_analog_label_map(
+                active_path,
+                "none_airband",
+                profile_rows,
+            )
+            self.assertEqual("Tower", mapping.get("118.6000"))
+            self.assertEqual("Approach", mapping.get("124.8750"))
 
 
 class TempConfigWriteTests(unittest.TestCase):

@@ -754,6 +754,19 @@ def _resolve_analog_label_map(conf_path: str, profile_id: str, profile_rows: lis
         fallback = _load_profile_label_map(path)
         if fallback:
             return fallback
+    # Active profile can be a minimalist "none_*" config (no labels). In that
+    # case, recover labels by frequency from the full profile catalog.
+    merged: dict[str, str] = {}
+    for row in profile_rows or []:
+        path = str((row or {}).get("path") or "").strip()
+        if not path:
+            continue
+        row_map = _load_profile_label_map(path)
+        for key, value in row_map.items():
+            if key and value and key not in merged:
+                merged[key] = value
+    if merged:
+        return merged
     return mapping
 
 

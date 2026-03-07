@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 _EARTH_RADIUS_MILES = 3958.7613
-_HP_TRUNK_SITES_PER_SYSTEM = max(1, int(os.getenv("HP_TRUNK_SITES_PER_SYSTEM", "2")))
+_HP_TRUNK_SITES_PER_SYSTEM = max(1, int(os.getenv("HP_TRUNK_SITES_PER_SYSTEM", "1")))
 
 
 def haversine_miles(lat1, lon1, lat2, lon2) -> float:
@@ -311,6 +311,7 @@ class ScanPoolBuilder:
                 selected_sites = sorted(
                     trimmed_sites,
                     key=lambda item: (
+                        float(item.get("distance_miles") or 0.0),
                         int(item.get("system_id") or 0),
                         int(item.get("site_id") or 0),
                     ),
@@ -414,6 +415,7 @@ class ScanPoolBuilder:
             for row in sorted(
                 selected_sites,
                 key=lambda item: (
+                    float(item.get("distance_miles") or 0.0),
                     int(item.get("system_id") or 0),
                     int(item.get("site_id") or 0),
                 ),
@@ -444,6 +446,7 @@ class ScanPoolBuilder:
                         "system_name": str(row.get("system_name") or "").strip(),
                         "site_name": str(row.get("site_name") or "").strip(),
                         "department_name": str(row.get("site_name") or "").strip(),
+                        "distance_miles": float(row.get("distance_miles") or 0.0),
                         "control_channels": control_channels,
                         "talkgroups": talkgroups,
                         "talkgroup_labels": talkgroup_labels,

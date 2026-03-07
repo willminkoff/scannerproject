@@ -9,6 +9,7 @@ from typing import Any
 
 from .config import HPDB_DB_PATH
 from .hp_scan_pool import ScanPoolBuilder, haversine_miles
+from .zip_lookup import resolve_postal_to_lat_lon
 
 
 _VALID_MODES = {"hp", "expert"}
@@ -108,6 +109,41 @@ class ScanModeController:
         if not math.isfinite(parsed):
             return None
         return parsed
+
+    @classmethod
+    def _has_usable_location(cls, lat: float | None, lon: float | None) -> bool:
+        if lat is None or lon is None:
+            return False
+        if not (-90.0 <= float(lat) <= 90.0 and -180.0 <= float(lon) <= 180.0):
+            return False
+        # Treat default/uninitialized 0,0 as missing location for HP workflows.
+        if abs(float(lat)) < 1e-9 and abs(float(lon)) < 1e-9:
+            return False
+        return True
+
+    def _resolve_location_center(self, state) -> tuple[float, float] | None:
+        if not bool(getattr(state, "use_location", False)):
+            return None
+
+        lat = self._parse_float(getattr(state, "lat", None))
+        lon = self._parse_float(getattr(state, "lon", None))
+        if self._has_usable_location(lat, lon):
+            return float(lat), float(lon)
+
+        postal = str(getattr(state, "zip", "") or "").strip()
+        if not postal:
+            return None
+        try:
+            resolved = resolve_postal_to_lat_lon(postal, "US")
+        except Exception:
+            return None
+        if not resolved or len(resolved) < 2:
+            return None
+        resolved_lat = self._parse_float(resolved[0])
+        resolved_lon = self._parse_float(resolved[1])
+        if not self._has_usable_location(resolved_lat, resolved_lon):
+            return None
+        return float(resolved_lat), float(resolved_lon)
 
     @classmethod
     def _normalize_service_tags(cls, values) -> list[int]:
@@ -359,10 +395,11 @@ class ScanModeController:
         if not bool(getattr(state, "use_location", False)):
             return filtered_by_service
 
-        center_lat = self._parse_float(getattr(state, "lat", None))
-        center_lon = self._parse_float(getattr(state, "lon", None))
-        if center_lat is None or center_lon is None:
-            return []
+        center = self._resolve_location_center(state)
+        if center is None:
+            # Fallback to service-tag filtering if no usable center can be resolved.
+            return filtered_by_service
+        center_lat, center_lon = center
 
         range_miles = max(0.0, float(self._parse_float(getattr(state, "range_miles", 0.0)) or 0.0))
         include_nationwide = bool(getattr(state, "nationwide_systems", False))
@@ -644,6 +681,59 @@ class ScanModeController:
             "conventional": conventional,
         }
 
+    def _prefer_nearest_site_per_system(self, pool: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(pool, dict):
+            return _empty_pool()
+        trunked_sites = pool.get("trunked_sites")
+        if not isinstance(trunked_sites, list) or len(trunked_sites) <= 1:
+            return pool
+
+        best_by_system: dict[int, dict[str, Any]] = {}
+        passthrough_rows: list[dict[str, Any]] = []
+        for raw in trunked_sites:
+            row = raw if isinstance(raw, dict) else {}
+            system_id = self._parse_int(row.get("system_id")) or 0
+            if system_id <= 0:
+                if row:
+                    passthrough_rows.append(row)
+                continue
+            candidate = best_by_system.get(system_id)
+            if candidate is None:
+                best_by_system[system_id] = row
+                continue
+            cand_dist = self._parse_float(candidate.get("distance_miles"))
+            row_dist = self._parse_float(row.get("distance_miles"))
+            cand_site = self._parse_int(candidate.get("site_id")) or 0
+            row_site = self._parse_int(row.get("site_id")) or 0
+            cand_key = (
+                float(cand_dist) if cand_dist is not None else float("inf"),
+                cand_site,
+            )
+            row_key = (
+                float(row_dist) if row_dist is not None else float("inf"),
+                row_site,
+            )
+            if row_key < cand_key:
+                best_by_system[system_id] = row
+
+        ordered_best = sorted(
+            best_by_system.values(),
+            key=lambda item: (
+                float(self._parse_float(item.get("distance_miles")) or float("inf")),
+                int(self._parse_int(item.get("system_id")) or 0),
+                int(self._parse_int(item.get("site_id")) or 0),
+            ),
+        )
+        ordered_passthrough = sorted(
+            passthrough_rows,
+            key=lambda item: (
+                float(self._parse_float(item.get("distance_miles")) or float("inf")),
+                int(self._parse_int(item.get("site_id")) or 0),
+            ),
+        )
+        pool["trunked_sites"] = [*ordered_best, *ordered_passthrough]
+        return pool
+
     @classmethod
     def _resolve_active_favorites_entries(cls, state) -> list[dict]:
         favorites = list(getattr(state, "favorites", []) or [])
@@ -723,14 +813,19 @@ class ScanModeController:
         elif state_mode == "full_database":
             if not bool(state.use_location):
                 return _empty_pool()
+            center = self._resolve_location_center(state)
+            if center is None:
+                return _empty_pool()
+            center_lat, center_lon = center
 
             pool = self._hp_builder.build_full_database_pool(
-                lat=float(state.lat),
-                lon=float(state.lon),
+                lat=float(center_lat),
+                lon=float(center_lon),
                 range_miles=float(state.range_miles),
                 service_tags=service_tags,
                 include_nationwide=bool(getattr(state, "nationwide_systems", False)),
             )
+            pool = self._prefer_nearest_site_per_system(pool)
         else:
             return _empty_pool()
         with self._lock:
