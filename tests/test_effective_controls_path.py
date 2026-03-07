@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 import unittest
@@ -189,6 +190,43 @@ class RecentRegressionTests(unittest.TestCase):
         self.assertFalse(handlers._should_resolve_zip(True, False))
         self.assertFalse(handlers._should_resolve_zip(False, True))
         self.assertFalse(handlers._should_resolve_zip(False, False))
+
+    def test_gmrs_frs_murs_profile_infers_ground_target_without_file(self):
+        inferred = profile_config._infer_airband_flag("gmrs_frs_murs", "/tmp/does-not-exist.conf")
+        self.assertIs(inferred, False)
+
+    def test_load_profiles_registry_appends_missing_builtin_profiles(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            registry_path = os.path.join(tmp, "profiles.json")
+            with open(registry_path, "w", encoding="utf-8") as handle:
+                json.dump(
+                    {
+                        "profiles": [
+                            {
+                                "id": "gmrs",
+                                "label": "GMRS",
+                                "path": "/tmp/rtl_airband_gmrs.conf",
+                                "airband": False,
+                            }
+                        ]
+                    },
+                    handle,
+                )
+
+            builtins = [
+                ("gmrs", "GMRS", "/tmp/rtl_airband_gmrs.conf"),
+                ("gmrs_frs_murs", "GMRS/FRS/MURS", "/tmp/rtl_airband_gmrs_frs_murs.conf"),
+            ]
+
+            with mock.patch.object(profile_config, "PROFILES_DIR", tmp), mock.patch.object(
+                profile_config, "PROFILES_REGISTRY_PATH", registry_path
+            ), mock.patch.object(profile_config, "PROFILES", builtins):
+                loaded = profile_config.load_profiles_registry()
+
+            by_id = {row["id"]: row for row in loaded}
+            self.assertIn("gmrs", by_id)
+            self.assertIn("gmrs_frs_murs", by_id)
+            self.assertFalse(by_id["gmrs_frs_murs"]["airband"])
 
     def test_save_hp_state_with_sync_reports_sync_errors(self):
         state = HPState.default()

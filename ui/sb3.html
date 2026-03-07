@@ -1237,6 +1237,14 @@
       margin-top: 12px;
     }
 
+    .btn-row.quick-scan-row {
+      margin-top: 8px;
+    }
+
+    .quick-scan-action {
+      flex: 1 1 auto;
+    }
+
     button.action {
       flex: 1;
       padding: 10px 16px;
@@ -2236,6 +2244,17 @@
               <button class="action" id="btn-apply">Apply</button>
             </div>
 
+            <div class="btn-row quick-scan-row">
+              <button
+                class="action quick-scan-action"
+                id="btn-ground-gmrs-frs-murs"
+                type="button"
+                title="Switch to Ground and scan GMRS/FRS/MURS"
+              >
+                GMRS/FRS/MURS Scan
+              </button>
+            </div>
+
             <div class="player-box" id="player-box-analog">
               <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px;">
                 <div style="font-weight:700;">Analog Player</div>
@@ -3086,6 +3105,7 @@
     const HP_REVERSE_GEOLOOKUP_URL = 'https://api.bigdatacloud.net/data/reverse-geocode-client';
     const APPLY_PENDING_HOLD_MS = 12000;
     const APPLY_GAIN_EPSILON_DB = 0.11;
+    const QUICK_GROUND_GMRS_FRS_MURS_PROFILE_ID = 'gmrs_frs_murs';
     
     // ============================================
     // STATE
@@ -3393,6 +3413,7 @@
       btnPlayAnalog: document.getElementById('btn-play-analog'),
       btnPlayDigital: document.getElementById('btn-play-digital'),
       btnApply: document.getElementById('btn-apply'),
+      btnGroundGmrsFrsMurs: document.getElementById('btn-ground-gmrs-frs-murs'),
       profilesList: document.getElementById('profiles-list'),
       profilesWidget: document.getElementById('profiles-widget'),
       favoritesSyncRowAnalog: document.getElementById('favorites-sync-row-analog'),
@@ -10069,34 +10090,55 @@
       }
     }
 
-    async function selectProfile(id, force = false) {
+    async function selectProfileForTarget(target, id, force = false) {
+      const profileId = String(id || '').trim();
+      const profileTarget = target === 'ground' ? 'ground' : 'airband';
+      if (!profileId) return false;
       try {
         const analogShouldResume = Boolean(
           els.audioPlayerAnalog
           && (!els.audioPlayerAnalog.paused || els.audioPlayerAnalog.dataset.wantplay === '1')
         );
-        const t = state[activeTarget];
-        if (!force && t.currentProfile === id) {
-          return;
+        const t = state[profileTarget];
+        if (!force && t.currentProfile === profileId) {
+          return true;
         }
-        const res = await postAPI('/api/profile', { profile: id, target: activeTarget }, { timeoutMs: 20000 });
+        const res = await postAPI('/api/profile', { profile: profileId, target: profileTarget }, { timeoutMs: 20000 });
         state.tuned = false;
         state.tunedFreq = null;
         state.tunedTarget = null;
-        state.hold[activeTarget] = null;
-        state.lastProfile[activeTarget] = id;
+        state.hold[profileTarget] = null;
+        state.lastProfile[profileTarget] = profileId;
         await refresh();
         updateTuneButton();
-        const label = activeTarget === 'airband' ? 'Airband' : 'Ground';
-        logActivity(`Profile set: ${label} ${getProfileLabel(activeTarget, id)}`, 'info', `profile-${activeTarget}-${id}`);
+        const label = profileTarget === 'airband' ? 'Airband' : 'Ground';
+        logActivity(`Profile set: ${label} ${getProfileLabel(profileTarget, profileId)}`, 'info', `profile-${profileTarget}-${profileId}`);
         if (res && res.restart_ok === false) {
-          logActivity('Restart required after profile change', 'warn', `restart-required-profile-${activeTarget}`);
+          logActivity('Restart required after profile change', 'warn', `restart-required-profile-${profileTarget}`);
         }
-        scheduleStreamRecovery('analog', `profile-${activeTarget}`, analogShouldResume);
+        scheduleStreamRecovery('analog', `profile-${profileTarget}`, analogShouldResume);
+        return true;
       } catch (e) {
         console.error('Profile switch failed:', e);
-        logActivity(messageFromError(e, 'Profile switch failed'), 'warn', `profile-failed-${activeTarget}-${id}`);
+        logActivity(messageFromError(e, 'Profile switch failed'), 'warn', `profile-failed-${profileTarget}-${profileId}`);
+        return false;
       }
+    }
+
+    async function selectProfile(id, force = false) {
+      return selectProfileForTarget(activeTarget, id, force);
+    }
+
+    async function applyGroundQuickGmrsFrsMurs() {
+      if (!els.btnGroundGmrsFrsMurs) return;
+      const btn = els.btnGroundGmrsFrsMurs;
+      const originalLabel = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Applying...';
+      switchTarget('ground');
+      await selectProfileForTarget('ground', QUICK_GROUND_GMRS_FRS_MURS_PROFILE_ID, true);
+      btn.textContent = originalLabel;
+      btn.disabled = false;
     }
     
     function reconnectUI() {
@@ -10546,6 +10588,9 @@
       }
       if (els.btnApply) {
         els.btnApply.addEventListener('click', applyBatch);
+      }
+      if (els.btnGroundGmrsFrsMurs) {
+        els.btnGroundGmrsFrsMurs.addEventListener('click', applyGroundQuickGmrsFrsMurs);
       }
       if (els.loopSave) {
         els.loopSave.addEventListener('click', () => {
