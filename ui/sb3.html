@@ -2253,6 +2253,14 @@
               >
                 GMRS/FRS/MURS Scan
               </button>
+              <button
+                class="action quick-scan-action"
+                id="btn-ground-wx"
+                type="button"
+                title="Switch to Ground and scan NOAA Weather Radio"
+              >
+                WX
+              </button>
             </div>
 
             <div class="player-box" id="player-box-analog">
@@ -3106,6 +3114,7 @@
     const APPLY_PENDING_HOLD_MS = 12000;
     const APPLY_GAIN_EPSILON_DB = 0.11;
     const QUICK_GROUND_GMRS_FRS_MURS_PROFILE_ID = 'gmrs_frs_murs';
+    const QUICK_GROUND_WX_PROFILE_ID = 'wx';
     
     // ============================================
     // STATE
@@ -3414,6 +3423,7 @@
       btnPlayDigital: document.getElementById('btn-play-digital'),
       btnApply: document.getElementById('btn-apply'),
       btnGroundGmrsFrsMurs: document.getElementById('btn-ground-gmrs-frs-murs'),
+      btnGroundWx: document.getElementById('btn-ground-wx'),
       profilesList: document.getElementById('profiles-list'),
       profilesWidget: document.getElementById('profiles-widget'),
       favoritesSyncRowAnalog: document.getElementById('favorites-sync-row-analog'),
@@ -10140,6 +10150,18 @@
       btn.textContent = originalLabel;
       btn.disabled = false;
     }
+
+    async function applyGroundQuickWx() {
+      if (!els.btnGroundWx) return;
+      const btn = els.btnGroundWx;
+      const originalLabel = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Applying...';
+      switchTarget('ground');
+      await selectProfileForTarget('ground', QUICK_GROUND_WX_PROFILE_ID, true);
+      btn.textContent = originalLabel;
+      btn.disabled = false;
+    }
     
     function reconnectUI() {
       if (state.eventSource) {
@@ -10591,6 +10613,9 @@
       }
       if (els.btnGroundGmrsFrsMurs) {
         els.btnGroundGmrsFrsMurs.addEventListener('click', applyGroundQuickGmrsFrsMurs);
+      }
+      if (els.btnGroundWx) {
+        els.btnGroundWx.addEventListener('click', applyGroundQuickWx);
       }
       if (els.loopSave) {
         els.loopSave.addEventListener('click', () => {
