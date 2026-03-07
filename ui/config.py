@@ -52,6 +52,7 @@ AVOIDS_SUMMARY_PATHS = {
     "airband": os.path.join(AVOIDS_DIR, "airband_avoids.txt"),
     "ground": os.path.join(AVOIDS_DIR, "ground_avoids.txt"),
 }
+HP_AVOIDS_PATH = os.getenv("HP_AVOIDS_PATH", os.path.join(AVOIDS_DIR, "hp_avoids.json")).strip()
 
 # Icecast Configuration
 ICECAST_PORT = int(os.getenv("ICECAST_PORT", "8000"))

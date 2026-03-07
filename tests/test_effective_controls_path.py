@@ -476,6 +476,69 @@ class RecentRegressionTests(unittest.TestCase):
             self.assertEqual("Approach", mapping.get("124.8750"))
 
 
+class HPAvoidPersistenceTests(unittest.TestCase):
+    def test_hp_avoids_load_from_disk_on_init(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            avoids_path = os.path.join(tmp, "hp_avoids.json")
+            with open(avoids_path, "w", encoding="utf-8") as handle:
+                json.dump(
+                    {
+                        "avoids": [
+                            "conv:Blocked",
+                            " agency:42:Police Dispatch ",
+                            "",
+                            None,
+                        ]
+                    },
+                    handle,
+                )
+            controller = scan_mode_controller.ScanModeController(
+                db_path="/tmp/hpdb-test.db",
+                avoids_path=avoids_path,
+            )
+            self.assertEqual(
+                ["agency:42:police dispatch", "conv:blocked"],
+                controller.get_hp_avoids(),
+            )
+
+    def test_hp_avoids_add_remove_clear_persist_to_disk(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            avoids_path = os.path.join(tmp, "hp_avoids.json")
+            controller = scan_mode_controller.ScanModeController(
+                db_path="/tmp/hpdb-test.db",
+                avoids_path=avoids_path,
+            )
+
+            self.assertTrue(controller.add_hp_avoid_system("conv:Blocked"))
+            self.assertTrue(controller.add_hp_avoid_system("agency:42:Police Dispatch"))
+
+            with open(avoids_path, "r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+            self.assertEqual(
+                ["agency:42:police dispatch", "conv:blocked"],
+                payload.get("avoids"),
+            )
+
+            reloaded = scan_mode_controller.ScanModeController(
+                db_path="/tmp/hpdb-test.db",
+                avoids_path=avoids_path,
+            )
+            self.assertEqual(
+                ["agency:42:police dispatch", "conv:blocked"],
+                reloaded.get_hp_avoids(),
+            )
+
+            self.assertTrue(controller.remove_hp_avoid_system("conv:blocked"))
+            with open(avoids_path, "r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+            self.assertEqual(["agency:42:police dispatch"], payload.get("avoids"))
+
+            controller.clear_hp_avoids()
+            with open(avoids_path, "r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+            self.assertEqual([], payload.get("avoids"))
+
+
 class TempConfigWriteTests(unittest.TestCase):
     class _FakeTempFile:
         def __init__(self, name):

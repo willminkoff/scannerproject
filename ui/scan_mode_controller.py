@@ -1,19 +1,22 @@
 """Scan mode controller for HP and Expert pool modes."""
 from __future__ import annotations
 
+import json
 import math
+import os
 import sqlite3
 import threading
 from pathlib import Path
 from typing import Any
 
-from .config import HPDB_DB_PATH
+from .config import HPDB_DB_PATH, HP_AVOIDS_PATH
 from .hp_scan_pool import ScanPoolBuilder, haversine_miles
 from .zip_lookup import resolve_postal_to_lat_lon
 
 
 _VALID_MODES = {"hp", "expert"}
 _DEFAULT_DB_PATH = str(Path(HPDB_DB_PATH).expanduser().resolve())
+_DEFAULT_HP_AVOIDS_PATH = str(Path(HP_AVOIDS_PATH).expanduser())
 
 
 def _normalize_mode_token(mode: str) -> str:
@@ -35,14 +38,20 @@ def _empty_pool() -> dict[str, list]:
 
 
 class ScanModeController:
-    def __init__(self, db_path: str = _DEFAULT_DB_PATH):
+    def __init__(
+        self,
+        db_path: str = _DEFAULT_DB_PATH,
+        avoids_path: str = _DEFAULT_HP_AVOIDS_PATH,
+    ):
         self.mode = "hp"
         self._db_path = str(Path(db_path).expanduser().resolve())
+        self._hp_avoids_path = str(Path(avoids_path).expanduser())
         self._hp_builder = ScanPoolBuilder(self._db_path)
         self._hp_avoided_systems: set[str] = set()
         self._multistate_localized_trunk_ids: set[int] | None = None
         self._multistate_localized_conv_system_keys: set[str] | None = None
         self._lock = threading.Lock()
+        self._load_hp_avoids_from_disk()
 
     def set_mode(self, mode: str):
         next_mode = _normalize_mode_token(mode)
@@ -109,6 +118,51 @@ class ScanModeController:
         if not math.isfinite(parsed):
             return None
         return parsed
+
+    def _load_hp_avoids_from_disk(self) -> None:
+        path = str(self._hp_avoids_path or "").strip()
+        if not path:
+            return
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+        except FileNotFoundError:
+            return
+        except Exception:
+            return
+        raw_avoids = []
+        if isinstance(payload, dict):
+            raw_avoids = payload.get("avoids") or []
+        elif isinstance(payload, list):
+            raw_avoids = payload
+        if not isinstance(raw_avoids, list):
+            raw_avoids = []
+        normalized: set[str] = set()
+        for item in raw_avoids:
+            token = self._normalize_system_token(item)
+            if token:
+                normalized.add(token)
+        with self._lock:
+            self._hp_avoided_systems = set(normalized)
+
+    def _persist_hp_avoids_locked(self) -> None:
+        path = str(self._hp_avoids_path or "").strip()
+        if not path:
+            return
+        payload = {
+            "avoids": sorted(self._hp_avoided_systems),
+        }
+        try:
+            parent = os.path.dirname(path) or "."
+            os.makedirs(parent, exist_ok=True)
+            tmp_path = f"{path}.tmp"
+            with open(tmp_path, "w", encoding="utf-8") as handle:
+                json.dump(payload, handle, indent=2, sort_keys=True)
+                handle.write("\n")
+            os.replace(tmp_path, path)
+        except Exception:
+            # In-memory avoids still apply even if persistence fails.
+            return
 
     @classmethod
     def _has_usable_location(cls, lat: float | None, lon: float | None) -> bool:
@@ -771,11 +825,13 @@ class ScanModeController:
             return False
         with self._lock:
             self._hp_avoided_systems.add(token)
+            self._persist_hp_avoids_locked()
         return True
 
     def clear_hp_avoids(self):
         with self._lock:
             self._hp_avoided_systems.clear()
+            self._persist_hp_avoids_locked()
 
     def remove_hp_avoid_system(self, system_token: str) -> bool:
         token = self._normalize_system_token(system_token)
@@ -785,6 +841,7 @@ class ScanModeController:
             if token not in self._hp_avoided_systems:
                 return False
             self._hp_avoided_systems.remove(token)
+            self._persist_hp_avoids_locked()
         return True
 
     def get_hp_avoids(self) -> list[str]:
