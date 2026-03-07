@@ -2,9 +2,11 @@ import json
 import os
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from unittest import mock
 
 from ui import actions
+from ui import digital
 from ui import handlers
 from ui.hp_state import HPState
 from ui import profile_config
@@ -474,6 +476,33 @@ class RecentRegressionTests(unittest.TestCase):
             )
             self.assertEqual("Tower", mapping.get("118.6000"))
             self.assertEqual("Approach", mapping.get("124.8750"))
+
+    def test_digital_alias_stream_binding_normalizes_malformed_tdigital(self):
+        root = ET.fromstring(
+            """
+            <playlist>
+              <alias list="HP3_FAVORITES_DIGITAL" name="Countywide Dispatch" group="Nashville Police Zone 1">
+                <id type="talkgroup" value="625" protocol="APCO25" />
+                <id type="tDIGITAL" />
+              </alias>
+            </playlist>
+            """
+        )
+
+        with mock.patch.object(digital, "DIGITAL_ATTACH_BROADCAST_CHANNEL", True), mock.patch.object(
+            digital, "DIGITAL_SDRTRUNK_STREAM_NAME", "DIGITAL"
+        ):
+            added = digital._ensure_alias_broadcast_channel(root, "HP3_FAVORITES_DIGITAL")
+
+        self.assertEqual(0, added)
+        alias = root.find("alias")
+        self.assertIsNotNone(alias)
+        ids = list(alias.findall("id")) if alias is not None else []
+        types = [str(node.get("type") or "") for node in ids]
+        self.assertNotIn("tDIGITAL", types)
+        broadcast = [node for node in ids if str(node.get("type") or "") == "broadcastChannel"]
+        self.assertEqual(1, len(broadcast))
+        self.assertEqual("DIGITAL", str(broadcast[0].get("channel") or ""))
 
 
 class HPAvoidPersistenceTests(unittest.TestCase):
