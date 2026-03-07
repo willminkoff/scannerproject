@@ -8,6 +8,7 @@ from ui import actions
 from ui import handlers
 from ui.hp_state import HPState
 from ui import profile_config
+from ui import scan_mode_controller
 
 
 def _write_profile(path, *, airband, ui_disabled=False, with_devices=True):
@@ -248,6 +249,117 @@ class RecentRegressionTests(unittest.TestCase):
         self.assertEqual([2, 15, 3], handlers.parse_service_tags("[2, \"15\", 3, \"x\", 2]"))
         self.assertEqual([4, 15, 30], handlers.parse_service_tags("4,15,30,4"))
         self.assertEqual([7], handlers.parse_service_tags("7"))
+
+    def test_scan_pool_filters_conventional_rows_using_hp_avoids(self):
+        controller = scan_mode_controller.ScanModeController(db_path="/tmp/hpdb-test.db")
+        controller.add_hp_avoid_system("conv:blocked")
+        state = HPState.default()
+        state.mode = "full_database"
+        state.use_location = True
+        state.enabled_service_tags = [2]
+        base_pool = {
+            "trunked_sites": [],
+            "conventional": [
+                {
+                    "system_key": "conv:blocked",
+                    "system_name": "Blocked",
+                    "frequency": 155.5,
+                    "alpha_tag": "Blocked Ch",
+                    "service_tag": 2,
+                },
+                {
+                    "system_key": "conv:allowed",
+                    "system_name": "Allowed",
+                    "frequency": 156.6,
+                    "alpha_tag": "Allowed Ch",
+                    "service_tag": 2,
+                },
+            ],
+        }
+
+        with mock.patch("ui.hp_state.HPState.load", return_value=state), mock.patch.object(
+            controller, "_resolve_effective_service_tags", return_value=[2]
+        ), mock.patch.object(
+            controller._hp_builder, "build_full_database_pool", return_value=base_pool
+        ):
+            filtered = controller.get_scan_pool()
+
+        conventional = filtered.get("conventional") or []
+        self.assertEqual(1, len(conventional))
+        self.assertEqual("conv:allowed", conventional[0].get("system_key"))
+
+    def test_scan_pool_filters_conventional_rows_using_convfreq_avoids(self):
+        controller = scan_mode_controller.ScanModeController(db_path="/tmp/hpdb-test.db")
+        controller.add_hp_avoid_system("convfreq:155.500000")
+        state = HPState.default()
+        state.mode = "full_database"
+        state.use_location = True
+        state.enabled_service_tags = [2]
+        base_pool = {
+            "trunked_sites": [],
+            "conventional": [
+                {
+                    "system_key": "",
+                    "system_name": "",
+                    "frequency": 155.5,
+                    "alpha_tag": "Blocked Ch",
+                    "service_tag": 2,
+                },
+                {
+                    "system_key": "",
+                    "system_name": "",
+                    "frequency": 156.6,
+                    "alpha_tag": "Allowed Ch",
+                    "service_tag": 2,
+                },
+            ],
+        }
+
+        with mock.patch("ui.hp_state.HPState.load", return_value=state), mock.patch.object(
+            controller, "_resolve_effective_service_tags", return_value=[2]
+        ), mock.patch.object(
+            controller._hp_builder, "build_full_database_pool", return_value=base_pool
+        ):
+            filtered = controller.get_scan_pool()
+
+        conventional = filtered.get("conventional") or []
+        self.assertEqual(1, len(conventional))
+        self.assertAlmostEqual(156.6, float(conventional[0].get("frequency") or 0.0))
+
+    def test_scan_pool_filters_trunked_rows_using_agency_avoids(self):
+        controller = scan_mode_controller.ScanModeController(db_path="/tmp/hpdb-test.db")
+        controller.add_hp_avoid_system("agency:42:police dispatch")
+        state = HPState.default()
+        state.mode = "full_database"
+        state.use_location = True
+        state.enabled_service_tags = [2]
+        base_pool = {
+            "trunked_sites": [
+                {
+                    "system_id": 42,
+                    "site_id": 1,
+                    "system_name": "Metro System",
+                    "site_name": "Site 1",
+                    "department_name": "Metro",
+                    "control_channels": [853.4],
+                    "talkgroups": [1001, 2002],
+                    "talkgroup_labels": {"1001": "North Disp", "2002": "Fire Tac"},
+                    "talkgroup_groups": {"1001": "Police Dispatch", "2002": "Fire Ops"},
+                }
+            ],
+            "conventional": [],
+        }
+
+        with mock.patch("ui.hp_state.HPState.load", return_value=state), mock.patch.object(
+            controller, "_resolve_effective_service_tags", return_value=[2]
+        ), mock.patch.object(
+            controller._hp_builder, "build_full_database_pool", return_value=base_pool
+        ):
+            filtered = controller.get_scan_pool()
+
+        trunked = filtered.get("trunked_sites") or []
+        self.assertEqual(1, len(trunked))
+        self.assertEqual([2002], trunked[0].get("talkgroups"))
 
 
 class TempConfigWriteTests(unittest.TestCase):

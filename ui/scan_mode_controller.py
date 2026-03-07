@@ -79,6 +79,20 @@ class ScanModeController:
         return {token for token in out if token}
 
     @staticmethod
+    def _normalize_agency_token_part(value: str) -> str:
+        return " ".join(str(value or "").strip().lower().split())
+
+    @classmethod
+    def _trunked_agency_token(cls, system_id: int, agency_name: str) -> str:
+        sid = cls._parse_int(system_id)
+        if sid is None or sid <= 0:
+            return ""
+        agency = cls._normalize_agency_token_part(agency_name)
+        if not agency:
+            return ""
+        return cls._normalize_system_token(f"agency:{sid}:{agency}")
+
+    @staticmethod
     def _parse_int(value) -> int | None:
         try:
             return int(str(value).strip())
@@ -725,16 +739,75 @@ class ScanModeController:
             return pool
 
         trunked_sites = pool.get("trunked_sites")
-        if not isinstance(trunked_sites, list):
-            return pool
+        if isinstance(trunked_sites, list):
+            filtered_sites: list[dict] = []
+            for row in trunked_sites:
+                row_dict = row if isinstance(row, dict) else {}
+                tokens = self._pool_system_tokens(row_dict)
+                if tokens and (tokens & avoids):
+                    continue
+                system_id = self._parse_int(row_dict.get("system_id")) or 0
+                if system_id <= 0:
+                    filtered_sites.append(row)
+                    continue
+                talkgroups_raw = row_dict.get("talkgroups")
+                if not isinstance(talkgroups_raw, list) or not talkgroups_raw:
+                    filtered_sites.append(row)
+                    continue
+                groups_map = row_dict.get("talkgroup_groups") if isinstance(row_dict.get("talkgroup_groups"), dict) else {}
+                labels_map = row_dict.get("talkgroup_labels") if isinstance(row_dict.get("talkgroup_labels"), dict) else {}
+                default_agency = str(
+                    row_dict.get("department_name")
+                    or row_dict.get("site_name")
+                    or row_dict.get("system_name")
+                    or ""
+                ).strip()
+                kept_talkgroups: list[int] = []
+                kept_groups: dict[str, str] = {}
+                kept_labels: dict[str, str] = {}
+                for raw_tgid in talkgroups_raw:
+                    tgid = self._parse_int(raw_tgid)
+                    if tgid is None or tgid <= 0:
+                        continue
+                    tgid_key = str(int(tgid))
+                    agency_name = str(groups_map.get(tgid_key) or default_agency or "").strip()
+                    agency_token = self._trunked_agency_token(system_id, agency_name)
+                    if agency_token and agency_token in avoids:
+                        continue
+                    kept_talkgroups.append(int(tgid))
+                    label = str(labels_map.get(tgid_key) or "").strip()
+                    if label:
+                        kept_labels[tgid_key] = label
+                    group = str(groups_map.get(tgid_key) or "").strip()
+                    if group:
+                        kept_groups[tgid_key] = group
+                if not kept_talkgroups:
+                    continue
+                patched_row = dict(row_dict)
+                patched_row["talkgroups"] = kept_talkgroups
+                patched_row["talkgroup_labels"] = kept_labels
+                patched_row["talkgroup_groups"] = kept_groups
+                filtered_sites.append(patched_row)
+            pool["trunked_sites"] = filtered_sites
 
-        filtered_sites: list[dict] = []
-        for row in trunked_sites:
-            tokens = self._pool_system_tokens(row if isinstance(row, dict) else {})
-            if tokens and (tokens & avoids):
-                continue
-            filtered_sites.append(row)
-        pool["trunked_sites"] = filtered_sites
+        conventional = pool.get("conventional")
+        if isinstance(conventional, list):
+            filtered_conventional: list[dict] = []
+            for row in conventional:
+                if not isinstance(row, dict):
+                    filtered_conventional.append(row)
+                    continue
+                row_tokens: set[str] = set()
+                system_key = self._normalize_system_token(row.get("system_key"))
+                if system_key:
+                    row_tokens.add(system_key)
+                freq = self._parse_float(row.get("frequency"))
+                if freq is not None and freq > 0:
+                    row_tokens.add(self._normalize_system_token(f"convfreq:{float(freq):.6f}"))
+                if row_tokens and (row_tokens & avoids):
+                    continue
+                filtered_conventional.append(row)
+            pool["conventional"] = filtered_conventional
         return pool
 
 

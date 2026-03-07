@@ -222,6 +222,16 @@ DIGITAL_HITS_MIN_VISIBLE = max(0, int(os.getenv("DIGITAL_HITS_MIN_VISIBLE", "3")
 _DIGITAL_IDLE_TITLES = {"", "-", "idle", "n/a", "scanning", "scanning..."}
 _ANALOG_LABEL_CACHE: dict[str, dict] = {}
 _LOCAL_PROFILES_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "profiles"))
+_NOAA_LABELS_BY_FREQ = {
+    "162.5500": "NOAA 1",
+    "162.4000": "NOAA 2",
+    "162.4750": "NOAA 3",
+    "162.4250": "NOAA 4",
+    "162.4500": "NOAA 5",
+    "162.5000": "NOAA 6",
+    "162.5250": "NOAA 7",
+}
+_NOAA_LABEL_TOLERANCE_MHZ = 0.003
 _STATUS_CACHE_TTL_SEC = max(0.1, float(os.getenv("STATUS_CACHE_TTL_SEC", "0.75")))
 _HITS_CACHE_TTL_SEC = max(0.1, float(os.getenv("HITS_CACHE_TTL_SEC", "1.0")))
 _UNIT_ACTIVE_CACHE_TTL_SEC = max(0.1, float(os.getenv("UNIT_ACTIVE_CACHE_TTL_SEC", "1.0")))
@@ -668,6 +678,24 @@ def _normalize_freq_key(value) -> str:
         return ""
 
 
+def _fallback_noaa_label(freq_text: str) -> str:
+    key = _normalize_freq_key(freq_text)
+    if key and key in _NOAA_LABELS_BY_FREQ:
+        return _NOAA_LABELS_BY_FREQ[key]
+    try:
+        freq_num = float(str(freq_text or "").strip())
+    except Exception:
+        return ""
+    for freq_key, label in _NOAA_LABELS_BY_FREQ.items():
+        try:
+            known = float(freq_key)
+        except Exception:
+            continue
+        if abs(freq_num - known) <= _NOAA_LABEL_TOLERANCE_MHZ:
+            return label
+    return ""
+
+
 def _load_profile_label_map(conf_path: str) -> dict[str, str]:
     path = os.path.realpath(str(conf_path or ""))
     if not path or not os.path.isfile(path):
@@ -758,6 +786,8 @@ def _lookup_analog_label(
 
     if not label:
         label = airband_labels.get(key, "") or ground_labels.get(key, "")
+    if not label:
+        label = _fallback_noaa_label(freq_text)
     return str(label or "").strip()
 
 
@@ -2353,6 +2383,26 @@ class Handler(BaseHTTPRequestHandler):
             action = str(form.get("action") or "").strip().lower()
             if action == "clear":
                 controller.clear_hp_avoids()
+                return self._send(
+                    200,
+                    json.dumps({"ok": True, "avoids": controller.get_hp_avoids()}),
+                    "application/json; charset=utf-8",
+                )
+            if action == "add":
+                system_token = str(form.get("system") or "").strip()
+                if not system_token:
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": "missing system"}),
+                        "application/json; charset=utf-8",
+                    )
+                added = controller.add_hp_avoid_system(system_token)
+                if not added:
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": "invalid system"}),
+                        "application/json; charset=utf-8",
+                    )
                 return self._send(
                     200,
                     json.dumps({"ok": True, "avoids": controller.get_hp_avoids()}),
