@@ -7395,7 +7395,13 @@
       const directAgency = String((hit && hit.agency) || '').trim();
       const directDepartment = String((hit && hit.department) || '').trim();
       const parsed = parseDigitalAgencyDepartment(raw);
-      const agency = directAgency || parsed.agency;
+      const schedulerAgency = String(
+        (state.digital && state.digital.schedulerRaw && (
+          state.digital.schedulerRaw.digital_scheduler_active_department_label
+          || state.digital.schedulerRaw.digital_scheduler_active_system_label
+        )) || ''
+      ).trim();
+      const agency = directAgency || parsed.agency || schedulerAgency;
       let department = directDepartment || parsed.department;
       if (!department) {
         department = raw || '';
