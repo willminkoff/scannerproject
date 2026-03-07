@@ -828,6 +828,63 @@
       color: #fff;
     }
 
+    .hp-builder-entry-avoid {
+      border: 1px solid rgba(45, 212, 191, 0.6);
+      background: rgba(11, 56, 63, 0.62);
+      color: #b6fff3;
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+    }
+
+    .hp-builder-entry-avoid:hover {
+      border-color: #2dd4bf;
+      color: #fff;
+    }
+
+    .hp-builder-entry-avoid.active,
+    .hp-builder-entry-avoid:disabled {
+      border-color: rgba(148, 163, 184, 0.65);
+      background: rgba(54, 66, 84, 0.6);
+      color: rgba(203, 213, 225, 0.85);
+      cursor: default;
+    }
+
+    .hp-builder-review-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
+    .hp-builder-review-selection {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .hp-builder-review-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .hp-builder-review-check input {
+      accent-color: var(--accent);
+    }
+
+    .hp-builder-review-check.is-avoided {
+      color: rgba(203, 213, 225, 0.8);
+    }
+
     .hp-builder-picker {
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -1243,6 +1300,58 @@
 
     .quick-scan-action {
       flex: 1 1 auto;
+      position: relative;
+      padding-right: 28px;
+    }
+
+    button.action.quick-scan-action.active {
+      border-color: var(--good);
+      background: rgba(16, 185, 129, 0.12);
+    }
+
+    .quick-scan-action::after {
+      content: '';
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      transform: translateY(-50%) scale(0.9);
+      background: rgba(148, 163, 184, 0.6);
+      opacity: 0.45;
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+      transition: opacity 0.2s ease, background 0.2s ease;
+    }
+
+    .quick-scan-action.active::after {
+      background: var(--good);
+      opacity: 1;
+      animation: quick-scan-heartbeat 1.2s ease-in-out infinite;
+    }
+
+    .quick-scan-action:disabled::after {
+      animation: none;
+      opacity: 0.45;
+    }
+
+    @keyframes quick-scan-heartbeat {
+      0%, 100% {
+        transform: translateY(-50%) scale(0.95);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45);
+      }
+      35% {
+        transform: translateY(-50%) scale(1.25);
+        box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+      }
+      55% {
+        transform: translateY(-50%) scale(0.95);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.35);
+      }
+      75% {
+        transform: translateY(-50%) scale(1.15);
+        box-shadow: 0 0 0 4px rgba(16, 185, 129, 0);
+      }
     }
 
     button.action {
@@ -2199,9 +2308,9 @@
         <div class="widget-header">
           <span>⚙️ Radio Controls</span>
           <div class="tabs">
-            <button class="tab active" id="tab-airband" onclick="switchTarget('airband')">Airband</button>
-            <button class="tab" id="tab-ground" onclick="switchTarget('ground')">Ground</button>
-            <button class="tab" id="tab-digital" onclick="switchTarget('digital')">Digital</button>
+            <button class="tab active" id="tab-airband" type="button" onclick="switchTarget('airband')">Airband</button>
+            <button class="tab" id="tab-ground" type="button" onclick="switchTarget('ground')">Ground</button>
+            <button class="tab" id="tab-digital" type="button" onclick="switchTarget('digital')">Digital</button>
           </div>
         </div>
         <div class="widget-body">
@@ -3069,6 +3178,11 @@
 
         <section class="hp-builder hp-wizard-stage hidden" data-hp-stage="review">
           <div class="hp-builder-head">Step 5 · Review Active Source</div>
+          <div class="hp-builder-review-actions" id="hp-fav-review-actions">
+            <button class="action favorites-sync-action" id="hp-fav-avoid-selected" type="button">Avoid Selected</button>
+            <button class="action favorites-sync-action" id="hp-fav-clear-avoids" type="button">Clear</button>
+          </div>
+          <div class="hp-builder-review-selection" id="hp-fav-review-selection">Select one or more rows to batch avoid.</div>
           <div class="hp-builder-list" id="hp-fav-entries">
             <div class="hp-builder-empty">No entries in active list.</div>
           </div>
@@ -3115,6 +3229,19 @@
     const APPLY_GAIN_EPSILON_DB = 0.11;
     const QUICK_GROUND_GMRS_FRS_MURS_PROFILE_ID = 'gmrs_frs_murs';
     const QUICK_GROUND_WX_PROFILE_ID = 'wx';
+    const QUICK_GROUND_OFF_PROFILE_ID = 'none_ground';
+    const QUICK_GROUND_GMRS_LABEL = 'GMRS/FRS/MURS Scan';
+    const QUICK_GROUND_WX_LABEL = 'WX';
+    const NOAA_WX_TOLERANCE_MHZ = 0.003;
+    const NOAA_WX_CHANNELS = [
+      { label: 'NOAA 1', freq: 162.5500 },
+      { label: 'NOAA 2', freq: 162.4000 },
+      { label: 'NOAA 3', freq: 162.4750 },
+      { label: 'NOAA 4', freq: 162.4250 },
+      { label: 'NOAA 5', freq: 162.4500 },
+      { label: 'NOAA 6', freq: 162.5000 },
+      { label: 'NOAA 7', freq: 162.5250 },
+    ];
     
     // ============================================
     // STATE
@@ -3345,6 +3472,7 @@
         enabledServiceTags: [],
         serviceTypes: [],
         defaultServiceTags: [],
+        avoids: [],
       },
       hpFavoritesBuilder: {
         loading: false,
@@ -3372,6 +3500,7 @@
         selectedSystemId: '',
         channels: [],
         selectedChannelIds: [],
+        selectedAvoidTokens: [],
         fullDbReviewEntries: [],
         fullDbReviewMeta: {
           totalEntries: 0,
@@ -3473,6 +3602,10 @@
       hpFavClearSelected: document.getElementById('hp-fav-clear-selected'),
       hpFavAddSelected: document.getElementById('hp-fav-add-selected'),
       hpFavSelectionSummary: document.getElementById('hp-fav-selection-summary'),
+      hpFavReviewActions: document.getElementById('hp-fav-review-actions'),
+      hpFavAvoidSelected: document.getElementById('hp-fav-avoid-selected'),
+      hpFavClearAvoids: document.getElementById('hp-fav-clear-avoids'),
+      hpFavReviewSelection: document.getElementById('hp-fav-review-selection'),
       hpFavEntries: document.getElementById('hp-fav-entries'),
       loopStatus: document.getElementById('loop-status'),
       loopDetail: document.getElementById('loop-detail'),
@@ -4771,6 +4904,10 @@
         ? 'full_database'
         : 'favorites';
       const tags = _normalizeIntList(filters.enabledServiceTags).sort((a, b) => a - b);
+      const avoids = (Array.isArray(filters.avoids) ? filters.avoids : [])
+        .map((item) => normalizeHpAvoidToken(item))
+        .filter(Boolean)
+        .sort();
       const rangeMiles = Math.max(0, _toFloat(filters.rangeMiles, 15));
       return JSON.stringify({
         mode,
@@ -4781,6 +4918,7 @@
         rangeMiles,
         nationwideSystems: Boolean(filters.nationwideSystems),
         tags,
+        avoids,
       });
     }
 
@@ -4879,6 +5017,112 @@
         : [];
       const match = serviceTypes.find((row) => _toInt(row && row.tag, 0) === tag);
       return String(match && match.name ? match.name : '').trim();
+    }
+
+    function normalizeHpAvoidToken(value) {
+      const raw = String(value || '').trim().toLowerCase();
+      if (!raw) return '';
+      if (raw.startsWith('agency:')) {
+        const parts = raw.split(':');
+        if (parts.length >= 3) {
+          const systemId = String(parts[1] || '').trim();
+          const agencyPart = normalizeHpAgencyTokenPart(parts.slice(2).join(':'));
+          if (systemId && agencyPart) return `agency:${systemId}:${agencyPart}`;
+        }
+      }
+      if (raw.startsWith('convfreq:')) {
+        const parsed = _toFloat(raw.slice('convfreq:'.length), NaN);
+        if (Number.isFinite(parsed) && parsed > 0) {
+          return `convfreq:${parsed.toFixed(6)}`;
+        }
+      }
+      return raw;
+    }
+
+    function normalizeHpAgencyTokenPart(value) {
+      return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, ' ');
+    }
+
+    function hpFavEntryAgencyAvoidToken(entry) {
+      if (!entry || typeof entry !== 'object') return '';
+      if (String(entry.kind || '').trim().toLowerCase() !== 'trunked') return '';
+      const systemId = _toInt(entry.system_id, 0);
+      if (systemId <= 0) return '';
+      const agencyName = normalizeHpAgencyTokenPart(entry.department_name || entry.system_name || '');
+      if (!agencyName) return '';
+      return normalizeHpAvoidToken(`agency:${systemId}:${agencyName}`);
+    }
+
+    function hpFavEntryAvoidToken(entry) {
+      if (!entry || typeof entry !== 'object') return '';
+      if (String(entry.kind || '').trim().toLowerCase() === 'trunked') {
+        const agencyToken = hpFavEntryAgencyAvoidToken(entry);
+        if (agencyToken) return agencyToken;
+        const systemId = _toInt(entry.system_id, 0);
+        if (systemId > 0) return normalizeHpAvoidToken(String(systemId).trim().toLowerCase());
+      }
+      if (String(entry.kind || '').trim().toLowerCase() === 'conventional') {
+        const freq = _toFloat(entry.frequency, NaN);
+        if (Number.isFinite(freq) && freq > 0) {
+          return normalizeHpAvoidToken(`convfreq:${freq.toFixed(6)}`);
+        }
+      }
+      const systemKey = String(entry.system_key || '').trim();
+      return normalizeHpAvoidToken(systemKey);
+    }
+
+    function getHpReviewAvoidTokenSet(entries) {
+      const rows = Array.isArray(entries) ? entries : [];
+      const tokens = new Set();
+      rows.forEach((entry) => {
+        const token = hpFavEntryAvoidToken(entry);
+        if (token) tokens.add(token);
+      });
+      return tokens;
+    }
+
+    function normalizeHpReviewAvoidSelection(tokens, availableSet = null) {
+      const source = Array.isArray(tokens) ? tokens : [];
+      const normalized = [];
+      const seen = new Set();
+      source.forEach((rawToken) => {
+        const token = normalizeHpAvoidToken(rawToken);
+        if (!token || seen.has(token)) return;
+        if (availableSet instanceof Set && availableSet.size && !availableSet.has(token)) return;
+        seen.add(token);
+        normalized.push(token);
+      });
+      return normalized;
+    }
+
+    function syncHpReviewAvoidSelection(entries = null) {
+      const builder = state.hpFavoritesBuilder;
+      if (!isHpFullDatabaseMode()) {
+        builder.selectedAvoidTokens = [];
+        return builder.selectedAvoidTokens;
+      }
+      const rows = Array.isArray(entries) ? entries : getHpFavoriteReviewEntries();
+      const availableSet = getHpReviewAvoidTokenSet(rows);
+      builder.selectedAvoidTokens = normalizeHpReviewAvoidSelection(builder.selectedAvoidTokens, availableSet);
+      return builder.selectedAvoidTokens;
+    }
+
+    function toggleHpReviewAvoidSelection(token, checked) {
+      if (!isHpFullDatabaseMode()) return;
+      const builder = state.hpFavoritesBuilder;
+      const normalizedToken = normalizeHpAvoidToken(token);
+      if (!normalizedToken) return;
+      const current = new Set(normalizeHpReviewAvoidSelection(builder.selectedAvoidTokens));
+      if (checked) {
+        current.add(normalizedToken);
+      } else {
+        current.delete(normalizedToken);
+      }
+      builder.selectedAvoidTokens = Array.from(current);
+      renderHpFavoritesBuilder();
     }
 
     function renderSb3FavoritesPanels() {
@@ -5089,8 +5333,10 @@
     function renderHpFavoritesBuilderEntries() {
       if (!els.hpFavEntries) return;
       const builder = state.hpFavoritesBuilder;
+      const builderBusy = Boolean(builder.loading || builder.saving);
       const fullDbMode = isHpFullDatabaseMode();
       const entries = getHpFavoriteReviewEntries();
+      const selectedAvoids = new Set(syncHpReviewAvoidSelection(entries));
       if (fullDbMode && builder.fullDbReviewLoading) {
         els.hpFavEntries.innerHTML = '<div class="hp-builder-empty">Building Full DB review from active filters...</div>';
         return;
@@ -5118,6 +5364,11 @@
         }
         summaryMarkup = `<div class="muted" style="margin-bottom:8px;">${escapeHtml(summaryBits.join(' • '))}</div>`;
       }
+      const hpAvoids = new Set(
+        (Array.isArray(state.hpFilters?.avoids) ? state.hpFilters.avoids : [])
+          .map((item) => normalizeHpAvoidToken(item))
+          .filter(Boolean)
+      );
       els.hpFavEntries.innerHTML = `${summaryMarkup}${entries.map((entry, idx) => {
         const typeLabel = entry.kind === 'trunked' ? 'Digital' : 'Analog';
         const tail = entry.kind === 'trunked'
@@ -5127,19 +5378,70 @@
         const meta = [entry.system_name, entry.department_name, tail, serviceType ? `Svc ${serviceType}` : '']
           .filter(Boolean)
           .join(' • ');
-        const removeButton = fullDbMode
-          ? ''
-          : `<button class="hp-builder-entry-remove" type="button" data-hp-entry-id="${escapeHtml(entry.id || '')}">Remove</button>`;
+        let actionButton = '';
+        if (fullDbMode) {
+          const avoidToken = hpFavEntryAvoidToken(entry);
+          const alreadyAvoided = avoidToken && hpAvoids.has(avoidToken);
+          if (avoidToken) {
+            const checkedAttr = selectedAvoids.has(avoidToken) ? 'checked' : '';
+            const disabledAttr = (builderBusy || alreadyAvoided) ? 'disabled' : '';
+            const title = alreadyAvoided
+              ? `Already in HP avoid list (${avoidToken})`
+              : `Select ${avoidToken} for batch avoid`;
+            const stateText = alreadyAvoided ? 'Avoided' : 'Select';
+            const stateClass = alreadyAvoided ? ' is-avoided' : '';
+            actionButton = `
+              <label class="hp-builder-review-check${stateClass}" title="${escapeHtml(title)}">
+                <input type="checkbox" data-hp-review-avoid-token="${escapeHtml(avoidToken)}" ${checkedAttr} ${disabledAttr}>
+                <span>${stateText}</span>
+              </label>
+            `;
+          } else {
+            actionButton = '<span class="hp-builder-picker-meta">No avoid token</span>';
+          }
+        } else {
+          actionButton = `<button class="hp-builder-entry-remove" type="button" data-hp-entry-id="${escapeHtml(entry.id || '')}">Remove</button>`;
+        }
         return `
           <div class="hp-builder-row">
             <div class="hp-builder-row-head">
               <span>${escapeHtml(entry.alpha_tag || `Entry ${idx + 1}`)}</span>
-              ${removeButton}
+              ${actionButton}
             </div>
             <div class="hp-builder-row-meta">${escapeHtml(typeLabel)} • ${escapeHtml(meta || '--')}</div>
           </div>
         `;
       }).join('')}`;
+    }
+
+    function applyHpAvoidsToFullDbReviewEntries() {
+      const builder = state.hpFavoritesBuilder;
+      if (!isHpFullDatabaseMode()) return 0;
+      const currentEntries = hpFavNormalizeEntries(builder.fullDbReviewEntries);
+      if (!currentEntries.length) return 0;
+      const avoidSet = new Set(
+        (Array.isArray(state.hpFilters?.avoids) ? state.hpFilters.avoids : [])
+          .map((item) => normalizeHpAvoidToken(item))
+          .filter(Boolean)
+      );
+      if (!avoidSet.size) return 0;
+      const filtered = currentEntries.filter((entry) => {
+        const token = hpFavEntryAvoidToken(entry);
+        return !(token && avoidSet.has(token));
+      });
+      const removed = currentEntries.length - filtered.length;
+      if (removed <= 0) return 0;
+      builder.fullDbReviewEntries = filtered;
+      const trunked = filtered.filter((row) => row && row.kind === 'trunked').length;
+      const conventional = filtered.filter((row) => row && row.kind === 'conventional').length;
+      builder.fullDbReviewMeta = {
+        totalEntries: filtered.length,
+        trunkedTalkgroups: trunked,
+        conventionalChannels: conventional,
+        trunkedSites: Math.max(0, _toInt(builder.fullDbReviewMeta?.trunkedSites, 0)),
+        truncated: false,
+      };
+      return removed;
     }
 
     function getHpFavoriteWizardSteps() {
@@ -5466,6 +5768,39 @@
         els.hpFavAddSelected.disabled = busy || wizardEditLocked || selectedCount <= 0;
         els.hpFavAddSelected.textContent = selectedCount > 0 ? `Add Selected (${selectedCount})` : 'Add Selected Channels';
       }
+      const reviewEntries = getHpFavoriteReviewEntries();
+      const reviewAvailable = getHpReviewAvoidTokenSet(reviewEntries);
+      const reviewSelected = new Set(normalizeHpReviewAvoidSelection(builder.selectedAvoidTokens, reviewAvailable));
+      builder.selectedAvoidTokens = Array.from(reviewSelected);
+      if (els.hpFavReviewActions) {
+        els.hpFavReviewActions.classList.toggle('hidden', !fullDbMode);
+      }
+      if (els.hpFavAvoidSelected) {
+        const canBatchAvoid = fullDbMode && reviewSelected.size > 0;
+        els.hpFavAvoidSelected.disabled = busy || !canBatchAvoid;
+        els.hpFavAvoidSelected.textContent = reviewSelected.size > 0
+          ? `Avoid Selected (${reviewSelected.size})`
+          : 'Avoid Selected';
+      }
+      if (els.hpFavClearAvoids) {
+        const hasAvoids = Array.isArray(state.hpFilters?.avoids) && state.hpFilters.avoids.length > 0;
+        els.hpFavClearAvoids.disabled = busy || !fullDbMode || !hasAvoids;
+      }
+      if (els.hpFavReviewSelection) {
+        if (!fullDbMode) {
+          els.hpFavReviewSelection.classList.add('hidden');
+          els.hpFavReviewSelection.textContent = '';
+        } else {
+          els.hpFavReviewSelection.classList.remove('hidden');
+          if (builder.fullDbReviewLoading) {
+            els.hpFavReviewSelection.textContent = 'Loading Full DB review rows...';
+          } else if (builder.fullDbReviewError) {
+            els.hpFavReviewSelection.textContent = builder.fullDbReviewError;
+          } else {
+            els.hpFavReviewSelection.textContent = `${reviewSelected.size} selected for avoid • ${reviewAvailable.size} avoid targets in this preview`;
+          }
+        }
+      }
       if (els.hpFavSelectionSummary) {
         if (fullDbMode) {
           const meta = builder.fullDbReviewMeta || {};
@@ -5503,6 +5838,7 @@
     function clearHpFullDbReviewSnapshot() {
       const builder = state.hpFavoritesBuilder;
       builder.fullDbReviewEntries = [];
+      builder.selectedAvoidTokens = [];
       builder.fullDbReviewMeta = {
         totalEntries: 0,
         trunkedTalkgroups: 0,
@@ -5543,6 +5879,8 @@
           trunkedSites: Math.max(0, _toInt(payload && payload.trunked_sites, 0)),
           truncated: Boolean(payload && payload.truncated),
         };
+        applyHpAvoidsToFullDbReviewEntries();
+        syncHpReviewAvoidSelection(builder.fullDbReviewEntries);
         builder.fullDbReviewError = '';
         builder.fullDbReviewKey = reviewKey;
         if (!quiet) {
@@ -5986,11 +6324,117 @@
       await saveHpFavoritesBuilder('Favorite entry removed.');
     }
 
+    async function avoidHpFullDbSelectedEntries() {
+      if (!isHpFullDatabaseMode()) {
+        setHpFavStatus('Avoid from review is available in Full DB mode only.', true);
+        return false;
+      }
+      const builder = state.hpFavoritesBuilder;
+      const available = getHpReviewAvoidTokenSet(getHpFavoriteReviewEntries());
+      const selectedTokens = normalizeHpReviewAvoidSelection(builder.selectedAvoidTokens, available);
+      if (!selectedTokens.length) {
+        setHpFavStatus('Select one or more review rows first.', true);
+        return false;
+      }
+      const existing = new Set(
+        (Array.isArray(state.hpFilters?.avoids) ? state.hpFilters.avoids : [])
+          .map((item) => normalizeHpAvoidToken(item))
+          .filter(Boolean)
+      );
+      const pending = selectedTokens.filter((token) => !existing.has(token));
+      if (!pending.length) {
+        builder.selectedAvoidTokens = [];
+        renderHpFavoritesBuilder();
+        setHpFavStatus('Selected rows are already in the avoid list.');
+        return true;
+      }
+      if (builder.saving) return false;
+      builder.saving = true;
+      renderHpFavoritesBuilder();
+      const failed = [];
+      let avoids = Array.from(existing);
+      try {
+        for (const token of pending) {
+          try {
+            const result = await postJSON('/api/hp/avoids', { action: 'add', system: token }, { timeoutMs: 20000 });
+            if (Array.isArray(result && result.avoids)) {
+              avoids = result.avoids
+                .map((item) => normalizeHpAvoidToken(item))
+                .filter(Boolean);
+            } else if (!avoids.includes(token)) {
+              avoids.push(token);
+            }
+          } catch (e) {
+            failed.push(token);
+            const msg = messageFromError(e, `Failed to add avoid ${token}`);
+            logActivity(msg, 'warn', `hp-avoid-add-failed-${token}`);
+          }
+        }
+        state.hpFilters.avoids = avoids;
+        builder.selectedAvoidTokens = [];
+        applyHpAvoidsToFullDbReviewEntries();
+        renderHpFavoritesBuilder();
+        await loadHpFullDbReviewEntries({ quiet: true, force: true });
+        const addedCount = pending.length - failed.length;
+        if (!addedCount) {
+          setHpFavStatus('No avoids were added.', true);
+          return false;
+        }
+        if (failed.length) {
+          setHpFavStatus(`Added ${addedCount} avoid(s); ${failed.length} failed.`, true);
+        } else {
+          setHpFavStatus(`Added ${addedCount} avoid(s).`);
+        }
+        logActivity(`HP avoids added from review: ${addedCount}`, 'info', `hp-avoid-batch-${addedCount}`);
+        return failed.length === 0;
+      } catch (e) {
+        const msg = messageFromError(e, 'Failed to add selected avoids');
+        setHpFavStatus(msg, true);
+        logActivity(msg, 'warn', 'hp-avoid-batch-failed');
+        return false;
+      } finally {
+        builder.saving = false;
+        renderHpFavoritesBuilder();
+      }
+    }
+
+    async function clearHpFullDbAvoids() {
+      if (!isHpFullDatabaseMode()) {
+        setHpFavStatus('Clear avoids is available in Full DB mode only.', true);
+        return false;
+      }
+      const builder = state.hpFavoritesBuilder;
+      if (builder.saving) return false;
+      builder.saving = true;
+      renderHpFavoritesBuilder();
+      try {
+        const result = await postJSON('/api/hp/avoids', { action: 'clear' }, { timeoutMs: 20000 });
+        const avoids = Array.isArray(result && result.avoids) ? result.avoids : [];
+        state.hpFilters.avoids = avoids
+          .map((item) => normalizeHpAvoidToken(item))
+          .filter(Boolean);
+        builder.selectedAvoidTokens = [];
+        await loadHpFullDbReviewEntries({ quiet: true, force: true });
+        setHpFavStatus('HP avoid list cleared.');
+        logActivity('HP avoids cleared from review', 'info', 'hp-avoid-clear');
+        return true;
+      } catch (e) {
+        const msg = messageFromError(e, 'Failed to clear avoids');
+        setHpFavStatus(msg, true);
+        logActivity(msg, 'warn', 'hp-avoid-clear-failed');
+        return false;
+      } finally {
+        builder.saving = false;
+        renderHpFavoritesBuilder();
+      }
+    }
+
     async function selectHpFavoriteFullDatabase() {
       const builder = state.hpFavoritesBuilder;
       state.hpFilters.mode = 'full_database';
       builder.wizardStep = 'review';
       builder.wizardErrorStep = '';
+      builder.selectedAvoidTokens = [];
       renderHpFiltersPanel();
       renderHpFavoritesBuilder();
       renderSb3FavoritesPanels();
@@ -6004,6 +6448,7 @@
       const modeChanged = isHpFullDatabaseMode();
       state.hpFilters.mode = 'favorites';
       clearHpFullDbReviewSnapshot();
+      builder.selectedAvoidTokens = [];
       if (sameList && !modeChanged) {
         builder.activeList = nextName;
         renderHpFiltersPanel();
@@ -7330,6 +7775,13 @@
     function getLiveDisplayFreq() {
       const topHit = state.hits[0];
       if (topHit) {
+        const source = String(topHit.source || topHit.type || '').trim().toLowerCase();
+        if (source !== 'digital') {
+          const analog = analogHitDisplayParts(topHit);
+          if (analog.display && analog.display !== '--') {
+            return abbreviateHitText(analog.display, 40);
+          }
+        }
         const raw = String(topHit.label_full || topHit.label || topHit.freq || '').trim();
         if (raw) {
           const num = parseFloat(raw);
@@ -7338,7 +7790,8 @@
       }
       if (state.lastHit) {
         const num = parseFloat(state.lastHit);
-        return isNaN(num) ? state.lastHit : formatFreq(num) + ' MHz';
+        if (isNaN(num)) return state.lastHit;
+        return noaaLabelFromFreq(num) || (formatFreq(num) + ' MHz');
       }
       return '--';
     }
@@ -7462,23 +7915,32 @@
       const holdFreq = state.hold[target];
       if (holdFreq) return holdFreq;
       if (state.tuned && state.tunedFreq && state.tunedTarget === target) {
-        return formatFreq(state.tunedFreq);
+        const tunedNoaa = noaaLabelFromFreq(state.tunedFreq);
+        return tunedNoaa || formatFreq(state.tunedFreq);
       }
       const recentHit = latestHitForTarget(target);
       if (recentHit) {
-        const raw = String(recentHit.label_full || recentHit.label || '').trim();
-        if (raw) return abbreviateHitText(raw, 24);
+        const analog = analogHitDisplayParts(recentHit);
+        if (analog.display && analog.display !== '--') {
+          return abbreviateHitText(analog.display, 24);
+        }
       }
       const fallbackLabel = target === 'airband'
         ? state.lastHitAirbandLabel
         : state.lastHitGroundLabel;
       if (fallbackLabel) {
-        return abbreviateHitText(fallbackLabel, 24);
+        const fallback = analogHitDisplayParts({
+          source: target,
+          label: fallbackLabel,
+          freq: target === 'airband' ? state.lastHitAirband : state.lastHitGround,
+        });
+        if (fallback.display) return abbreviateHitText(fallback.display, 24);
       }
       const fallback = target === 'airband' ? state.lastHitAirband : state.lastHitGround;
       if (fallback) {
         const num = parseFloat(fallback);
-        return isNaN(num) ? fallback : formatFreq(num);
+        if (isNaN(num)) return fallback;
+        return noaaLabelFromFreq(num) || formatFreq(num);
       }
       return '--';
     }
@@ -7524,6 +7986,7 @@
       refreshManageCloneOptions();
       refreshFreqEditOptions();
       refreshProfileEditorOptions();
+      updateQuickScanButtons();
       renderAnalogLoopControls();
       updateSitrep();
     }
@@ -8690,14 +9153,19 @@
           return '--';
         })();
         let labelRaw = String(hit.label_full || hit.label || hit.freq || '--').trim();
+        let hitText = '--';
         if (source === 'DIG') {
           const digitalParts = digitalHitParts(hit);
           labelRaw = String(digitalParts.full || digitalParts.primary || labelRaw || '--').trim();
+          const isNumeric = isNumericHitText(labelRaw);
+          hitText = isNumeric
+            ? `${formatFreq(labelRaw)} MHz`
+            : (labelRaw || '--');
+        } else {
+          const analog = analogHitDisplayParts(hit, labelRaw);
+          labelRaw = String(analog.raw || labelRaw || '--').trim();
+          hitText = String(analog.display || '--').trim() || '--';
         }
-        const isNumeric = /^[0-9]+(\.[0-9]+)?$/.test(labelRaw);
-        const hitText = isNumeric
-          ? `${formatFreq(labelRaw)} MHz`
-          : (labelRaw || '--');
         const durationVal = Number(hit.duration || 0);
         const durationText = durationVal > 0 ? `${durationVal}s` : (hit.mode ? hit.mode : '--');
         return `
@@ -8797,6 +9265,50 @@
       if (!freq) return '--';
       const num = parseFloat(freq);
       return isNaN(num) ? freq : num.toFixed(3);
+    }
+
+    function isNumericHitText(value) {
+      return /^[0-9]+(\.[0-9]+)?$/.test(String(value || '').trim());
+    }
+
+    function parseFreqNumber(value) {
+      const raw = String(value || '').trim();
+      if (!raw) return NaN;
+      const num = Number(raw);
+      return Number.isFinite(num) ? num : NaN;
+    }
+
+    function noaaLabelFromFreq(freq) {
+      const num = Number(freq);
+      if (!Number.isFinite(num)) return '';
+      for (const row of NOAA_WX_CHANNELS) {
+        if (Math.abs(num - row.freq) <= NOAA_WX_TOLERANCE_MHZ) {
+          return row.label;
+        }
+      }
+      return '';
+    }
+
+    function analogHitDisplayParts(hit, fallbackRaw = '') {
+      const row = hit || {};
+      const source = String(row.source || row.type || '').trim().toLowerCase();
+      const rawLabel = String(row.label_full || row.label || fallbackRaw || '').trim();
+      const freqFromField = parseFreqNumber(row.freq);
+      const freqFromLabel = parseFreqNumber(rawLabel);
+      const freq = Number.isFinite(freqFromField) ? freqFromField : freqFromLabel;
+      const noaa = noaaLabelFromFreq(freq);
+      if (rawLabel && !isNumericHitText(rawLabel)) {
+        return { raw: rawLabel, display: rawLabel, freq };
+      }
+      if (source !== 'digital' && noaa) {
+        return { raw: noaa, display: noaa, freq };
+      }
+      if (Number.isFinite(freq)) {
+        const text = `${formatFreq(freq)} MHz`;
+        return { raw: rawLabel || String(row.freq || '').trim() || text, display: text, freq };
+      }
+      const fallback = rawLabel || String(row.freq || '').trim() || '--';
+      return { raw: fallback, display: fallback, freq: NaN };
     }
 
     function abbreviateHitText(text, maxLen=24) {
@@ -9703,13 +10215,6 @@
     }
     
     function switchTarget(target) {
-      if (target === 'airband' && !state.airbandPresent && state.groundPresent) {
-        target = 'ground';
-      } else if (target === 'ground' && !state.groundPresent && state.airbandPresent) {
-        target = 'airband';
-      } else if ((target === 'airband' || target === 'ground') && !state.airbandPresent && !state.groundPresent) {
-        target = 'digital';
-      }
       activeView = target;
       if (target === 'airband' || target === 'ground') {
         activeTarget = target;
@@ -9951,9 +10456,11 @@
         logActivity(`Hold engaged: Digital ${label}`, 'info', `hold-start-digital-${label}`);
         return;
       }
+      const label = target === 'airband' ? 'Airband' : 'Ground';
+      // Top hit pills double as fast source switches.
+      switchTarget(target);
       // Release current hold for this target
       if (state.hold[target]) {
-        const label = target === 'airband' ? 'Airband' : 'Ground';
         state.hold[target] = null;
         if (state.streamBaseUrl !== analogStreamUrl()) {
           syncStreamLinks();
@@ -9971,13 +10478,13 @@
 
       const freqVal = getLiveFreqValueForTarget(target);
       if (freqVal === null || isNaN(freqVal)) {
+        logActivity(`No recent ${label} hit to hold`, 'warn', `hold-missing-${target}`);
         return;
       }
       state.hold[target] = formatFreq(freqVal) + ' MHz';
       updateStatus();
       try {
         await postAPI('/api/hold', { target, action: 'start', freq: freqVal });
-        const label = target === 'airband' ? 'Airband' : 'Ground';
         logActivity(`Hold engaged: ${label} ${state.hold[target]}`, 'info', `hold-start-${target}-${state.hold[target]}`);
       } catch (e) {
         console.error('Hold start failed:', e);
@@ -10145,28 +10652,75 @@
       return selectProfileForTarget(activeTarget, id, force);
     }
 
+    function updateQuickScanButtons() {
+      const currentGroundProfile = String(state.ground.currentProfile || '').trim();
+      const gmrsActive = currentGroundProfile === QUICK_GROUND_GMRS_FRS_MURS_PROFILE_ID;
+      const wxActive = currentGroundProfile === QUICK_GROUND_WX_PROFILE_ID;
+      if (els.btnGroundGmrsFrsMurs) {
+        els.btnGroundGmrsFrsMurs.classList.toggle('active', gmrsActive);
+        els.btnGroundGmrsFrsMurs.setAttribute('aria-pressed', gmrsActive ? 'true' : 'false');
+        els.btnGroundGmrsFrsMurs.title = gmrsActive
+          ? 'GMRS/FRS/MURS scan active. Tap again to stop.'
+          : 'Switch to Ground and scan GMRS/FRS/MURS';
+      }
+      if (els.btnGroundWx) {
+        els.btnGroundWx.classList.toggle('active', wxActive);
+        els.btnGroundWx.setAttribute('aria-pressed', wxActive ? 'true' : 'false');
+        els.btnGroundWx.title = wxActive
+          ? 'WX scan active. Tap again to stop.'
+          : 'Switch to Ground and scan NOAA Weather Radio';
+      }
+    }
+
+    async function toggleGroundQuickProfile(profileId, opts = {}) {
+      const quickId = String(profileId || '').trim();
+      if (!quickId) return false;
+      const btn = opts.button || null;
+      const displayLabel = String(opts.label || 'Quick Scan');
+      const activeGroundProfile = String(state.ground.currentProfile || '').trim();
+      const isActive = activeGroundProfile === quickId;
+      const stopToNone = (state.ground.profiles || []).some((row) => (
+        String((row && row.id) || '').trim() === QUICK_GROUND_OFF_PROFILE_ID
+      ));
+      const nextProfile = isActive
+        ? (stopToNone ? QUICK_GROUND_OFF_PROFILE_ID : '')
+        : quickId;
+      if (isActive && !nextProfile) {
+        logActivity('No stop profile available for Ground quick scan', 'warn', 'quick-scan-stop-missing');
+        return false;
+      }
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = isActive ? 'Stopping...' : 'Applying...';
+      }
+      const ok = await selectProfileForTarget('ground', nextProfile, true);
+      if (btn) {
+        btn.textContent = displayLabel;
+        btn.disabled = false;
+      }
+      if (ok) {
+        logActivity(
+          isActive ? `${displayLabel} stopped` : `${displayLabel} active`,
+          'info',
+          `quick-scan-${quickId}-${isActive ? 'off' : 'on'}`
+        );
+      }
+      updateQuickScanButtons();
+      return ok;
+    }
+
     async function applyGroundQuickGmrsFrsMurs() {
-      if (!els.btnGroundGmrsFrsMurs) return;
-      const btn = els.btnGroundGmrsFrsMurs;
-      const originalLabel = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = 'Applying...';
-      switchTarget('ground');
-      await selectProfileForTarget('ground', QUICK_GROUND_GMRS_FRS_MURS_PROFILE_ID, true);
-      btn.textContent = originalLabel;
-      btn.disabled = false;
+      await toggleGroundQuickProfile(
+        QUICK_GROUND_GMRS_FRS_MURS_PROFILE_ID,
+        { button: els.btnGroundGmrsFrsMurs, label: QUICK_GROUND_GMRS_LABEL },
+      );
     }
 
     async function applyGroundQuickWx() {
-      if (!els.btnGroundWx) return;
-      const btn = els.btnGroundWx;
-      const originalLabel = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = 'Applying...';
-      switchTarget('ground');
-      await selectProfileForTarget('ground', QUICK_GROUND_WX_PROFILE_ID, true);
-      btn.textContent = originalLabel;
-      btn.disabled = false;
+      await toggleGroundQuickProfile(
+        QUICK_GROUND_WX_PROFILE_ID,
+        { button: els.btnGroundWx, label: QUICK_GROUND_WX_LABEL },
+      );
     }
     
     function reconnectUI() {
@@ -10204,15 +10758,10 @@
         const groundPresent = (typeof data.ground_present === 'boolean') ? data.ground_present : true;
         state.airbandPresent = Boolean(airbandPresent);
         state.groundPresent = Boolean(groundPresent);
-        if (els.tabAirband) els.tabAirband.disabled = !state.airbandPresent;
-        if (els.tabGround) els.tabGround.disabled = !state.groundPresent;
-        if (activeView === 'airband' && !state.airbandPresent && state.groundPresent) {
-          switchTarget('ground');
-        } else if (activeView === 'ground' && !state.groundPresent && state.airbandPresent) {
-          switchTarget('airband');
-        } else if ((activeView === 'airband' || activeView === 'ground') && !state.airbandPresent && !state.groundPresent) {
-          switchTarget('digital');
-        }
+        // Keep analog tabs manually selectable even when one side is temporarily
+        // unavailable (for quick profile recovery / retargeting from the UI).
+        if (els.tabAirband) els.tabAirband.disabled = false;
+        if (els.tabGround) els.tabGround.disabled = false;
         const airbandActiveSignal = (typeof data.airband_active === 'boolean') ? data.airband_active : null;
         const groundActiveSignal = (typeof data.ground_active === 'boolean') ? data.ground_active : null;
         state.sdr1Active = airbandActiveSignal !== null
@@ -10282,6 +10831,10 @@
         state.ground.squelch = state.ground.squelch_dbfs;
         state.ground.filter = pickNumber(data.ground_filter, 3500);
         state.ground.avoids = data.avoids_ground?.sample || [];
+        state.hpFilters.avoids = Array.isArray(data.hp_avoids)
+          ? data.hp_avoids.map((item) => normalizeHpAvoidToken(item)).filter(Boolean)
+          : [];
+        applyHpAvoidsToFullDbReviewEntries();
         applyProfilesPayload(profilesData, data);
 
         state.digital.active = Boolean(data.digital_active);
@@ -10418,9 +10971,13 @@
           if (!state.sseConnected && newHits.length > 0) {
             const topHit = newHits[0];
             if (topHit && topHit.time && topHit.time !== prevTop) {
-              const raw = String(topHit.label || topHit.freq || '').trim();
-              const isNumeric = /^[0-9]+(\.[0-9]+)?$/.test(raw);
-              const label = isNumeric ? `${formatFreq(raw)} MHz` : (raw || '--');
+              const source = String(topHit.source || topHit.type || '').trim().toLowerCase();
+              const label = source === 'digital'
+                ? (() => {
+                    const raw = String(topHit.label || topHit.freq || '').trim();
+                    return isNumericHitText(raw) ? `${formatFreq(raw)} MHz` : (raw || '--');
+                  })()
+                : analogHitDisplayParts(topHit).display;
               const detail = topHit.duration ? ` ${topHit.duration}s` : '';
               logActivity(`Hit ${label}${detail}`, 'info', `poll-hit-${topHit.time}-${topHit.freq}`);
             }
@@ -10514,9 +11071,13 @@
             updateCounters();
             updateStatus();
             if (topHit && topHit.freq) {
-              const raw = String(topHit.label || topHit.freq || '').trim();
-              const isNumeric = /^[0-9]+(\.[0-9]+)?$/.test(raw);
-              const label = isNumeric ? `${formatFreq(raw)} MHz` : (raw || '--');
+              const source = String(topHit.source || topHit.type || '').trim().toLowerCase();
+              const label = source === 'digital'
+                ? (() => {
+                    const raw = String(topHit.label || topHit.freq || '').trim();
+                    return isNumericHitText(raw) ? `${formatFreq(raw)} MHz` : (raw || '--');
+                  })()
+                : analogHitDisplayParts(topHit).display;
               const detail = topHit.duration ? ` ${topHit.duration}s` : '';
               logActivity(`Hit ${label}${detail}`, 'info', `hit-${topHit.time}-${topHit.freq}`);
             }
@@ -10584,6 +11145,26 @@
       els.gainSlider.addEventListener('input', onGainChange);
       els.dbfsSlider.addEventListener('input', onDbfsChange);
       els.filterSlider.addEventListener('input', onFilterChange);
+      if (els.tabAirband) {
+        els.tabAirband.disabled = false;
+        els.tabAirband.onclick = (e) => {
+          e.preventDefault();
+          switchTarget('airband');
+        };
+      }
+      if (els.tabGround) {
+        els.tabGround.disabled = false;
+        els.tabGround.onclick = (e) => {
+          e.preventDefault();
+          switchTarget('ground');
+        };
+      }
+      if (els.tabDigital) {
+        els.tabDigital.onclick = (e) => {
+          e.preventDefault();
+          switchTarget('digital');
+        };
+      }
       els.lastHitAirband.addEventListener('click', () => toggleHoldFor('airband'));
       els.lastHitGround.addEventListener('click', () => toggleHoldFor('ground'));
       if (els.lastHitDigital) {
@@ -10623,6 +11204,7 @@
       if (els.btnGroundWx) {
         els.btnGroundWx.addEventListener('click', applyGroundQuickWx);
       }
+      updateQuickScanButtons();
       if (els.loopSave) {
         els.loopSave.addEventListener('click', () => {
           const target = activeTarget === 'ground' ? 'ground' : 'airband';
@@ -11072,11 +11654,24 @@
       if (els.hpFavAddSelected) {
         els.hpFavAddSelected.addEventListener('click', addSelectedHpFavoriteChannels);
       }
+      if (els.hpFavAvoidSelected) {
+        els.hpFavAvoidSelected.addEventListener('click', avoidHpFullDbSelectedEntries);
+      }
+      if (els.hpFavClearAvoids) {
+        els.hpFavClearAvoids.addEventListener('click', clearHpFullDbAvoids);
+      }
       if (els.hpFavEntries) {
+        els.hpFavEntries.addEventListener('change', (e) => {
+          const input = e.target;
+          if (!input || input.tagName !== 'INPUT') return;
+          const token = input.getAttribute('data-hp-review-avoid-token');
+          if (!token) return;
+          toggleHpReviewAvoidSelection(token, Boolean(input.checked));
+        });
         els.hpFavEntries.addEventListener('click', (e) => {
-          const btn = e.target && e.target.closest ? e.target.closest('button[data-hp-entry-id]') : null;
-          if (!btn) return;
-          removeHpFavoriteEntry(btn.getAttribute('data-hp-entry-id'));
+          const removeBtn = e.target && e.target.closest ? e.target.closest('button[data-hp-entry-id]') : null;
+          if (!removeBtn) return;
+          removeHpFavoriteEntry(removeBtn.getAttribute('data-hp-entry-id'));
         });
       }
       if (els.hp3BuilderOpenAnalog) {
