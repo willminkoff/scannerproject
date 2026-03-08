@@ -7795,8 +7795,9 @@
         els.latencyTestBaseline.textContent = Number(lt.baselineRms || 0).toFixed(3);
       }
       if (els.latencyTestLatency) {
-        const latency = Number(lt.latencyMs);
-        els.latencyTestLatency.textContent = Number.isFinite(latency) ? `${Math.round(latency)} ms` : '--';
+        const rawLatency = lt.latencyMs;
+        const latency = (typeof rawLatency === 'number' && Number.isFinite(rawLatency)) ? rawLatency : null;
+        els.latencyTestLatency.textContent = latency !== null ? `${Math.round(latency)} ms` : '--';
       }
       if (els.latencyTestStatus) {
         let label = 'Idle';
