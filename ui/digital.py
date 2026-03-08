@@ -3762,14 +3762,13 @@ class DigitalManager:
                     for item in (self._scheduler_order or [])
                     if str(item or "").strip()
                 }
-                # HomePatrol-style default: if this profile clearly defines two or
-                # more local systems, immediately run in timeslice mode across
-                # those systems.
-                if len(local_systems) >= 2:
-                    self._scheduler_mode = "timeslice_multi_system"
+                # Keep single-system as the default for low-latency lock.
+                # If timeslice is already enabled, refresh its order to valid
+                # systems from the newly selected profile.
+                if self._scheduler_mode == "timeslice_multi_system" and local_systems:
                     self._scheduler_order = list(local_systems)
-                # Otherwise prevent stale cross-profile scheduler state from
-                # pinning a newly selected profile in "searching".
+                # Prevent stale cross-profile scheduler state from pinning a
+                # newly selected profile in "searching".
                 elif (
                     self._scheduler_mode == "timeslice_multi_system"
                     and profile_key
@@ -4969,23 +4968,6 @@ class DigitalManager:
 
         configured_mode = self._scheduler_mode
         mode = configured_mode
-        auto_enabled_multi = False
-        manual_single_hold = (
-            configured_mode == "single_system"
-            and len([str(x).strip() for x in (self._scheduler_order or []) if str(x).strip()]) == 1
-        )
-        if (
-            configured_mode == "single_system"
-            and len(systems) >= 2
-            and not manual_single_hold
-        ):
-            mode = "timeslice_multi_system"
-            auto_enabled_multi = True
-            self._scheduler_mode = "timeslice_multi_system"
-            if not self._scheduler_order:
-                self._scheduler_order = list(systems)
-            configured_mode = self._scheduler_mode
-            self._write_scheduler_state()
         if configured_mode == "timeslice_multi_system" and len(systems) < 2:
             mode = "single_system"
 
@@ -4997,10 +4979,10 @@ class DigitalManager:
             self._scheduler_profile = profile_id
             self._scheduler_active_system = systems[0] if systems else ""
             self._scheduler_last_switch_time_ms = now_ms if self._scheduler_active_system else 0
-            self._scheduler_switch_reason = "auto_profile_multi" if auto_enabled_multi else "manual"
+            self._scheduler_switch_reason = "manual"
             self._scheduler_in_call_hold = False
             pending_apply = bool(self._scheduler_active_system)
-            pending_reason = "auto_profile_multi" if auto_enabled_multi else "manual"
+            pending_reason = "manual"
 
         event_time_ms = int(event.get("timeMs") or 0)
         event_tgid = str(event.get("tgid") or "").strip()
