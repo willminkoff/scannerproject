@@ -436,7 +436,13 @@ def _sync_source_configuration(source_conf: ET.Element, control_channels_hz: lis
 
 def _sync_alias_broadcast_channels(root: ET.Element, alias_list_name: str) -> int:
     stream_name = str(DIGITAL_SDRTRUNK_STREAM_NAME or "").strip()
-    if not DIGITAL_ATTACH_BROADCAST_CHANNEL or not alias_list_name or not stream_name:
+    if not alias_list_name or not stream_name:
+        return 0
+
+    # SDRTrunk validates all alias IDs at load time, not just the active list.
+    # Normalize malformed stream bindings globally before any targeted updates.
+    _normalize_alias_list_stream_bindings(root, "", stream_name)
+    if not DIGITAL_ATTACH_BROADCAST_CHANNEL:
         return 0
 
     _normalize_alias_list_stream_bindings(root, alias_list_name, stream_name)
@@ -489,11 +495,12 @@ def _normalize_alias_stream_binding(alias_id: ET.Element, stream_name: str) -> b
 
 
 def _normalize_alias_list_stream_bindings(root: ET.Element, alias_list_name: str, stream_name: str) -> int:
-    if not alias_list_name or not stream_name:
+    if not stream_name:
         return 0
+    alias_filter = str(alias_list_name or "").strip()
     updates = 0
     for alias in root.findall("alias"):
-        if str(alias.get("list", "")).strip() != alias_list_name:
+        if alias_filter and str(alias.get("list", "")).strip() != alias_filter:
             continue
         for alias_id in alias.findall("id"):
             if _normalize_alias_stream_binding(alias_id, stream_name):

@@ -531,6 +531,39 @@ class RecentRegressionTests(unittest.TestCase):
         self.assertEqual(1, len(broadcast))
         self.assertEqual("DIGITAL", str(broadcast[0].get("channel") or ""))
 
+    def test_digital_alias_stream_binding_normalizes_stale_other_alias_list(self):
+        root = ET.fromstring(
+            """
+            <playlist>
+              <alias list="HP3_FAVORITES_DIGITAL" name="Countywide Dispatch" group="Nashville Police Zone 1">
+                <id type="talkgroup" value="625" protocol="APCO25" />
+                <id type="broadcastChannel" channel="DIGITAL" />
+              </alias>
+              <alias list="LEGACY_PROFILE" name="Old Alias" group="Legacy">
+                <id type="talkgroup" value="700" protocol="APCO25" />
+                <id type="tDIGITAL" />
+              </alias>
+            </playlist>
+            """
+        )
+
+        with mock.patch.object(digital, "DIGITAL_ATTACH_BROADCAST_CHANNEL", True), mock.patch.object(
+            digital, "DIGITAL_SDRTRUNK_STREAM_NAME", "DIGITAL"
+        ):
+            added = digital._ensure_alias_broadcast_channel(root, "HP3_FAVORITES_DIGITAL")
+
+        self.assertEqual(0, added)
+        for alias in root.findall("alias"):
+            ids = list(alias.findall("id"))
+            types = [str(node.get("type") or "") for node in ids]
+            self.assertNotIn("tDIGITAL", types)
+        legacy = root.findall("alias")[1]
+        legacy_broadcast = [
+            node for node in legacy.findall("id") if str(node.get("type") or "") == "broadcastChannel"
+        ]
+        self.assertEqual(1, len(legacy_broadcast))
+        self.assertEqual("DIGITAL", str(legacy_broadcast[0].get("channel") or ""))
+
 
 class HPAvoidPersistenceTests(unittest.TestCase):
     def test_hp_avoids_load_from_disk_on_init(self):
