@@ -235,6 +235,7 @@ _NOAA_LABEL_TOLERANCE_MHZ = 0.003
 _STATUS_CACHE_TTL_SEC = max(0.1, float(os.getenv("STATUS_CACHE_TTL_SEC", "0.75")))
 _HITS_CACHE_TTL_SEC = max(0.1, float(os.getenv("HITS_CACHE_TTL_SEC", "1.0")))
 _UNIT_ACTIVE_CACHE_TTL_SEC = max(0.1, float(os.getenv("UNIT_ACTIVE_CACHE_TTL_SEC", "1.0")))
+HIT_LIST_MAX_AGE_SEC = max(60, int(os.getenv("HIT_LIST_MAX_AGE_SEC", "1800")))
 STREAM_PROXY_READ_TIMEOUT_SEC = max(120.0, float(os.getenv("STREAM_PROXY_READ_TIMEOUT_SEC", "600")))
 STREAM_PROXY_CHUNK_BYTES = max(128, int(os.getenv("STREAM_PROXY_CHUNK_BYTES", "512")))
 _CACHE_LOCK = threading.Lock()
@@ -1233,6 +1234,12 @@ def _build_hits_payload(limit: int = 50) -> dict:
 
     merged = items + digital_items
     merged = _dedupe_hit_rows(merged, window_sec=2.0)
+    now_ts = time.time()
+    min_ts = now_ts - float(HIT_LIST_MAX_AGE_SEC)
+    merged = [
+        item for item in merged
+        if float(item.get("_ts") or 0.0) >= min_ts
+    ]
     merged.sort(key=lambda item: item.get("_ts", 0.0))
     merged = merged[-scan_limit:]
     merged.reverse()

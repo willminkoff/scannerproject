@@ -3232,6 +3232,8 @@
     const AUDIO_PROGRESS_CHECK_MS = 3000;
     const AUDIO_PROGRESS_STALL_MS = 30000;
     const AUDIO_USER_PAUSE_WINDOW_MS = 1500;
+    const LAST_HIT_PILL_MAX_AGE_MS = 30000;
+    const HIT_LIST_MAX_AGE_MS = 30 * 60 * 1000;
     const FETCH_TIMEOUT_MS = 8000;
     const HP_AUTOLOCATE_TIMEOUT_MS = 12000;
     const HP_IP_GEOLOOKUP_URL = 'https://ipapi.co/json/';
@@ -7840,6 +7842,7 @@
       for (let i = 0; i < state.hits.length; i++) {
         const hit = state.hits[i];
         if (!hit) continue;
+        if (hitAgeMs(hit) > LAST_HIT_PILL_MAX_AGE_MS) continue;
         const src = String(hit.source || hit.type || '').trim().toLowerCase();
         // Keep analog cards source-true: do not infer analog source from numeric
         // digital labels/talkgroups (which can look like non-airband frequencies).
@@ -7857,6 +7860,7 @@
       for (let i = 0; i < state.hits.length; i++) {
         const hit = state.hits[i];
         if (!hit) continue;
+        if (hitAgeMs(hit) > LAST_HIT_PILL_MAX_AGE_MS) continue;
         const src = String(hit.source || hit.type || '').trim().toLowerCase();
         if (src !== 'digital') continue;
         const raw = String(hit.label_full || hit.label || hit.freq || '').trim();
@@ -7927,11 +7931,7 @@
           })
         : (liveDigitalHit
             ? digitalHitParts(liveDigitalHit)
-            : digitalHitParts({
-                source: 'digital',
-                label: state.lastHitDigital || state.digital.lastLabel || '',
-                label_full: state.lastHitDigital || state.digital.lastLabel || '',
-              })
+            : { primary: '--', secondary: '', full: '', raw: '' }
           );
       if (els.lastHitDigitalValue) {
         els.lastHitDigitalValue.textContent = formatDigitalLabel(digitalParts.primary, 20);
@@ -7963,23 +7963,6 @@
         if (analog.display && analog.display !== '--') {
           return abbreviateHitText(analog.display, 24);
         }
-      }
-      const fallbackLabel = target === 'airband'
-        ? state.lastHitAirbandLabel
-        : state.lastHitGroundLabel;
-      if (fallbackLabel) {
-        const fallback = analogHitDisplayParts({
-          source: target,
-          label: fallbackLabel,
-          freq: target === 'airband' ? state.lastHitAirband : state.lastHitGround,
-        });
-        if (fallback.display) return abbreviateHitText(fallback.display, 24);
-      }
-      const fallback = target === 'airband' ? state.lastHitAirband : state.lastHitGround;
-      if (fallback) {
-        const num = parseFloat(fallback);
-        if (isNaN(num)) return fallback;
-        return noaaLabelFromFreq(num) || formatFreq(num);
       }
       return '--';
     }
@@ -9168,13 +9151,15 @@
     
     function updateHitList() {
       const header = '<div class="hit-row header"><div>Time</div><div>Src</div><div>Hit</div><div>Dur</div></div>';
-      
-      if (!state.hits.length) {
+      const visibleHits = trimHitsByAge(state.hits, HIT_LIST_MAX_AGE_MS).slice(0, 50);
+      state.hits = visibleHits;
+
+      if (!visibleHits.length) {
         els.hitList.innerHTML = header + '<div class="empty-state"><div class="icon">📻</div><div>Waiting for hits...</div></div>';
         return;
       }
-      
-      const rows = state.hits.slice(0, 50).map(hit => {
+
+      const rows = visibleHits.map(hit => {
         const source = (() => {
           const sourceName = String(hit.source || '').trim().toLowerCase();
           if (sourceName === 'digital') return 'DIG';
@@ -9648,6 +9633,21 @@
       if (age < -43200000) age += 86400000;
       if (age < 0) age = 0;
       return age;
+    }
+
+    function hitAgeMs(hit) {
+      if (!hit || typeof hit !== 'object') return Number.POSITIVE_INFINITY;
+      const tsRaw = Number(hit.ts || 0);
+      if (Number.isFinite(tsRaw) && tsRaw > 0) {
+        const tsMs = tsRaw > 1000000000000 ? tsRaw : (tsRaw * 1000);
+        return Math.max(0, Date.now() - tsMs);
+      }
+      return hitAgeMsFromClock(hit.time);
+    }
+
+    function trimHitsByAge(items, maxAgeMs = HIT_LIST_MAX_AGE_MS) {
+      const rows = Array.isArray(items) ? items : [];
+      return rows.filter((hit) => hitAgeMs(hit) <= maxAgeMs);
     }
 
     function recentDigitalActivity() {
@@ -10979,12 +10979,12 @@
       refreshHitsInFlight = (async () => {
         try {
           const data = await fetchJSON('/api/hits');
-          const newHits = data.items || [];
+          const newHits = trimHitsByAge(data.items || [], HIT_LIST_MAX_AGE_MS);
           const prevTop = state.hits[0]?.time;
 
         // First successful /api/hits call establishes baseline; do not count history.
         if (!hitBaselineReady) {
-          state.hits = newHits;
+          state.hits = newHits.slice(0, 50);
           seedHitBaseline(newHits);
           updateHitList();
           updateCounters();
@@ -11003,7 +11003,7 @@
           state.sessionHits += newCount;
         }
         
-        state.hits = newHits;
+        state.hits = newHits.slice(0, 50);
         updateHitList();
         updateCounters();
         updateStatus();
@@ -11078,7 +11078,7 @@
       es.addEventListener('hits', (e) => {
         try {
           const data = JSON.parse(e.data);
-          const newHits = data.items || [];
+          const newHits = trimHitsByAge(data.items || [], HIT_LIST_MAX_AGE_MS);
           
           // Only update if SSE has newer data (don't overwrite polling data with less)
           if (newHits.length === 0) return;
@@ -11105,7 +11105,7 @@
           }
           if (added > 0) {
             state.sessionHits += added;
-            state.hits = state.hits.slice(0, 50);
+            state.hits = trimHitsByAge(state.hits, HIT_LIST_MAX_AGE_MS).slice(0, 50);
             updateHitList();
             updateCounters();
             updateStatus();

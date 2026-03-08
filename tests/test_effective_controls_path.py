@@ -1,6 +1,7 @@
 import json
 import os
 import tempfile
+import time
 import unittest
 import xml.etree.ElementTree as ET
 from unittest import mock
@@ -193,6 +194,42 @@ class RecentRegressionTests(unittest.TestCase):
         self.assertFalse(handlers._should_resolve_zip(True, False))
         self.assertFalse(handlers._should_resolve_zip(False, True))
         self.assertFalse(handlers._should_resolve_zip(False, False))
+
+    def test_hits_payload_filters_entries_older_than_30_minutes(self):
+        now = time.time()
+        recent_hit = {
+            "time": "12:00:00",
+            "freq": "118.6000",
+            "duration": 2,
+            "ts": now - 60,
+            "source": "airband",
+        }
+        stale_hit = {
+            "time": "11:00:00",
+            "freq": "119.3500",
+            "duration": 3,
+            "ts": now - 4000,
+            "source": "airband",
+        }
+        fake_digital = mock.Mock()
+        fake_digital.getRecentEvents.return_value = []
+
+        with mock.patch.object(handlers, "read_active_config_path", return_value="/tmp/active.conf"), mock.patch.object(
+            handlers, "split_profiles", return_value=([], [], [])
+        ), mock.patch.object(
+            handlers, "guess_current_profile", return_value=""
+        ), mock.patch.object(
+            handlers, "_resolve_analog_label_map", return_value={}
+        ), mock.patch.object(
+            handlers, "read_hit_list_cached", return_value=[recent_hit, stale_hit]
+        ), mock.patch.object(
+            handlers, "get_digital_manager", return_value=fake_digital
+        ):
+            payload = handlers._build_hits_payload(limit=50)
+
+        items = payload.get("items") or []
+        self.assertEqual(1, len(items))
+        self.assertEqual("118.6000", str(items[0].get("freq") or ""))
 
     def test_gmrs_frs_murs_profile_infers_ground_target_without_file(self):
         inferred = profile_config._infer_airband_flag("gmrs_frs_murs", "/tmp/does-not-exist.conf")
