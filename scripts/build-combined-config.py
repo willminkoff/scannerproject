@@ -17,6 +17,11 @@ DIGITAL_MIXER_AIRBAND_MOUNT = os.getenv("DIGITAL_MIXER_AIRBAND_MOUNT", "GND-air.
 MOUNT_NAME = os.getenv("MOUNT_NAME", "").strip()
 ANALOG_CONTINUOUS = os.getenv("ANALOG_CONTINUOUS", "1").strip().lower() in ("1", "true", "yes", "on")
 MIXER_OUTPUT_CONTINUOUS = os.getenv("MIXER_OUTPUT_CONTINUOUS", "1").strip().lower() in ("1", "true", "yes", "on")
+try:
+    ANALOG_STREAM_BITRATE_KBPS = int(os.getenv("ANALOG_STREAM_BITRATE_KBPS", "64"))
+except Exception:
+    ANALOG_STREAM_BITRATE_KBPS = 64
+ANALOG_STREAM_BITRATE_KBPS = max(8, min(320, ANALOG_STREAM_BITRATE_KBPS))
 AIRBAND_FALLBACK_PROFILE_PATH = os.getenv(
     "AIRBAND_FALLBACK_PROFILE_PATH",
     "/usr/local/etc/airband-profiles/rtl_airband_airband.conf",
@@ -101,6 +106,7 @@ def main() -> None:
         mount_name=mount_override,
         analog_continuous=ANALOG_CONTINUOUS,
         mixer_output_continuous=MIXER_OUTPUT_CONTINUOUS,
+        analog_bitrate_kbps=ANALOG_STREAM_BITRATE_KBPS,
     )
     # Final safety net: never emit an empty devices block.
     if not extract_devices_payload(combined):
@@ -113,6 +119,7 @@ def main() -> None:
             mount_name=mount_override,
             analog_continuous=ANALOG_CONTINUOUS,
             mixer_output_continuous=MIXER_OUTPUT_CONTINUOUS,
+            analog_bitrate_kbps=ANALOG_STREAM_BITRATE_KBPS,
         )
         if not extract_devices_payload(combined):
             raise RuntimeError("combined config generation produced no devices")

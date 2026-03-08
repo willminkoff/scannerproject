@@ -240,6 +240,16 @@ _UNIT_ACTIVE_CACHE_TTL_SEC = max(0.1, float(os.getenv("UNIT_ACTIVE_CACHE_TTL_SEC
 HIT_LIST_MAX_AGE_SEC = max(60, int(os.getenv("HIT_LIST_MAX_AGE_SEC", "1800")))
 STREAM_PROXY_READ_TIMEOUT_SEC = max(120.0, float(os.getenv("STREAM_PROXY_READ_TIMEOUT_SEC", "600")))
 STREAM_PROXY_CHUNK_BYTES = max(128, int(os.getenv("STREAM_PROXY_CHUNK_BYTES", "256")))
+try:
+    STREAM_PROXY_TRANSCODE_BITRATE_KBPS = int(os.getenv("STREAM_PROXY_TRANSCODE_BITRATE_KBPS", "64"))
+except Exception:
+    STREAM_PROXY_TRANSCODE_BITRATE_KBPS = 64
+STREAM_PROXY_TRANSCODE_BITRATE_KBPS = max(16, min(192, STREAM_PROXY_TRANSCODE_BITRATE_KBPS))
+try:
+    STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ = int(os.getenv("STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ", "24000"))
+except Exception:
+    STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ = 24000
+STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ = max(8000, min(48000, STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ))
 LATENCY_TONE_DEFAULT_MOUNT = (
     os.getenv("LATENCY_TONE_DEFAULT_MOUNT", "latency-tone.mp3").strip().lstrip("/") or "latency-tone.mp3"
 )
@@ -247,8 +257,8 @@ LATENCY_TONE_DEFAULT_TARGET = os.getenv("LATENCY_TONE_DEFAULT_TARGET", "analog")
 LATENCY_TONE_DEFAULT_FREQ_HZ = max(120, int(os.getenv("LATENCY_TONE_DEFAULT_FREQ_HZ", "1000")))
 LATENCY_TONE_DEFAULT_DURATION_MS = max(500, int(os.getenv("LATENCY_TONE_DEFAULT_DURATION_MS", "6000")))
 LATENCY_TONE_DEFAULT_PREROLL_MS = max(0, int(os.getenv("LATENCY_TONE_DEFAULT_PREROLL_MS", "800")))
-LATENCY_TONE_DEFAULT_BITRATE_KBPS = max(8, int(os.getenv("LATENCY_TONE_DEFAULT_BITRATE_KBPS", "32")))
-LATENCY_TONE_DEFAULT_SAMPLE_RATE = max(8000, int(os.getenv("LATENCY_TONE_DEFAULT_SAMPLE_RATE", "16000")))
+LATENCY_TONE_DEFAULT_BITRATE_KBPS = max(8, int(os.getenv("LATENCY_TONE_DEFAULT_BITRATE_KBPS", "64")))
+LATENCY_TONE_DEFAULT_SAMPLE_RATE = max(8000, int(os.getenv("LATENCY_TONE_DEFAULT_SAMPLE_RATE", "24000")))
 _CACHE_LOCK = threading.Lock()
 _STATUS_CACHE: dict[str, object] = {"ts": 0.0, "payload": None}
 _HITS_CACHE: dict[str, object] = {"ts": 0.0, "payload": None}
@@ -1630,9 +1640,11 @@ class Handler(BaseHTTPRequestHandler):
                     "-loglevel",
                     "error",
                     "-fflags",
-                    "nobuffer",
+                    "nobuffer+discardcorrupt",
                     "-flags",
                     "low_delay",
+                    "-avioflags",
+                    "direct",
                     "-probesize",
                     "32768",
                     "-analyzeduration",
@@ -1645,12 +1657,16 @@ class Handler(BaseHTTPRequestHandler):
                     "-ac",
                     "1",
                     "-ar",
-                    "16000",
+                    str(STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ),
                     "-c:a",
                     "libmp3lame",
                     "-b:a",
-                    "32k",
+                    f"{STREAM_PROXY_TRANSCODE_BITRATE_KBPS}k",
                     "-write_xing",
+                    "0",
+                    "-muxdelay",
+                    "0",
+                    "-muxpreload",
                     "0",
                     "-flush_packets",
                     "1",

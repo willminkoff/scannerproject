@@ -6,6 +6,7 @@ import unittest
 import xml.etree.ElementTree as ET
 from unittest import mock
 
+import combined_config
 from ui import actions
 from ui import digital
 from ui import handlers
@@ -821,6 +822,61 @@ class StatePersistenceFallbackTests(unittest.TestCase):
         self.assertTrue(any(path.startswith("/tmp/") for path in opened))
         self.assertEqual(1, len(replaced))
         self.assertEqual("/tmp/airband_ui_tune_backup.json", replaced[0][1])
+
+
+class CombinedConfigBitrateTests(unittest.TestCase):
+    _PROFILE_TEMPLATE = (
+        "airband = __AIRBAND__;\n"
+        "devices:\n"
+        "(\n"
+        "  {\n"
+        "    type = \"rtlsdr\";\n"
+        "    index = 0;\n"
+        "    outputs:\n"
+        "    (\n"
+        "      {\n"
+        "        type = \"icecast\";\n"
+        "        server = \"127.0.0.1\";\n"
+        "        port = 8000;\n"
+        "        mountpoint = \"ANALOG.mp3\";\n"
+        "        bitrate = 32;\n"
+        "      }\n"
+        "    );\n"
+        "  }\n"
+        ");\n"
+    )
+
+    def _write_profiles(self, root_dir):
+        air = os.path.join(root_dir, "air.conf")
+        ground = os.path.join(root_dir, "ground.conf")
+        with open(air, "w", encoding="utf-8") as f:
+            f.write(self._PROFILE_TEMPLATE.replace("__AIRBAND__", "true"))
+        with open(ground, "w", encoding="utf-8") as f:
+            f.write(self._PROFILE_TEMPLATE.replace("__AIRBAND__", "false"))
+        return air, ground
+
+    def test_build_combined_config_overrides_analog_bitrate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            air, ground = self._write_profiles(tmp)
+            rendered = combined_config.build_combined_config(
+                air,
+                ground,
+                "combined",
+                analog_bitrate_kbps=64,
+            )
+        self.assertIn("bitrate = 64;", rendered)
+        self.assertNotIn("bitrate = 32;", rendered)
+
+    def test_build_combined_config_clamps_bitrate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            air, ground = self._write_profiles(tmp)
+            rendered = combined_config.build_combined_config(
+                air,
+                ground,
+                "combined",
+                analog_bitrate_kbps=9999,
+            )
+        self.assertIn("bitrate = 320;", rendered)
 
 
 class LatencyToneTests(unittest.TestCase):

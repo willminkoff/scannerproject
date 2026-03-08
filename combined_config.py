@@ -234,6 +234,7 @@ def build_combined_config(
     mount_name: str = "",
     analog_continuous: bool = True,
     mixer_output_continuous: bool = True,
+    analog_bitrate_kbps: int = 64,
 ) -> str:
     with open(airband_path, "r", encoding="utf-8", errors="ignore") as f:
         airband_text = f.read()
@@ -267,6 +268,11 @@ def build_combined_config(
             device_payloads.append(payload.strip().rstrip(","))
 
     icecast_block = extract_icecast_block(airband_text) or extract_icecast_block(ground_text)
+    try:
+        normalized_bitrate_kbps = int(analog_bitrate_kbps)
+    except Exception:
+        normalized_bitrate_kbps = 64
+    normalized_bitrate_kbps = max(8, min(320, normalized_bitrate_kbps))
     if not icecast_block:
         icecast_block = (
             "{\n"
@@ -278,13 +284,13 @@ def build_combined_config(
             "  password = \"062352\";\n"
             "  name = \"SprontPi Radio\";\n"
             "  genre = \"Mixed\";\n"
-            "  bitrate = 32;\n"
+            f"  bitrate = {normalized_bitrate_kbps};\n"
             "  send_scan_freq_tags = true;\n"
             "}\n"
         )
     else:
         # Keep analog stream at a desktop-browser-friendly encoding profile.
-        icecast_block = override_icecast_bitrate(icecast_block, 32)
+        icecast_block = override_icecast_bitrate(icecast_block, normalized_bitrate_kbps)
     icecast_block = upsert_icecast_bool_option(icecast_block, "continuous", analog_continuous)
     if mount_name:
         icecast_block = override_icecast_mountpoint(icecast_block, mount_name)
