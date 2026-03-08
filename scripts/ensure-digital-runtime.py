@@ -510,35 +510,34 @@ def _normalize_alias_list_stream_bindings(root: ET.Element, alias_list_name: str
 
 def _profile_alias_seed_rows(profile_dir: Path) -> list[tuple[str, str, str]]:
     candidates = (profile_dir / "talkgroups_with_group.csv", profile_dir / "talkgroups.csv")
-    source = None
-    for candidate in candidates:
-        if candidate.is_file():
-            source = candidate
-            break
-    if source is None:
+    sources = [candidate for candidate in candidates if candidate.is_file()]
+    if not sources:
         return []
 
     rows: list[tuple[str, str, str]] = []
     seen: set[str] = set()
     try:
-        with source.open("r", encoding="utf-8", errors="ignore", newline="") as handle:
-            reader = csv.DictReader(handle)
-            for row in reader:
-                if not row:
-                    continue
-                row_norm = {str(k or "").strip().lower(): str(v or "").strip() for k, v in row.items()}
-                dec = row_norm.get("dec") or row_norm.get("decimal") or ""
-                if not dec.isdigit() or dec in seen:
-                    continue
-                mode = str(row_norm.get("mode") or "").strip().upper()
-                if mode and "E" in mode:
-                    continue
-                alpha = row_norm.get("alpha tag") or row_norm.get("alpha_tag") or row_norm.get("alpha") or ""
-                desc = row_norm.get("description") or ""
-                group = row_norm.get("group") or row_norm.get("tag") or "Imported"
-                name = alpha or desc or f"TG {dec}"
-                seen.add(dec)
-                rows.append((dec, name, group))
+        # Merge grouped and plain CSV exports. Grouped files usually carry
+        # better labeling, while plain exports may include newer TGIDs.
+        for source in sources:
+            with source.open("r", encoding="utf-8", errors="ignore", newline="") as handle:
+                reader = csv.DictReader(handle)
+                for row in reader:
+                    if not row:
+                        continue
+                    row_norm = {str(k or "").strip().lower(): str(v or "").strip() for k, v in row.items()}
+                    dec = row_norm.get("dec") or row_norm.get("decimal") or ""
+                    if not dec.isdigit() or dec in seen:
+                        continue
+                    mode = str(row_norm.get("mode") or "").strip().upper()
+                    if mode and "E" in mode:
+                        continue
+                    alpha = row_norm.get("alpha tag") or row_norm.get("alpha_tag") or row_norm.get("alpha") or ""
+                    desc = row_norm.get("description") or ""
+                    group = row_norm.get("group") or row_norm.get("tag") or "Imported"
+                    name = alpha or desc or f"TG {dec}"
+                    seen.add(dec)
+                    rows.append((dec, name, group))
     except Exception:
         return []
     return rows
