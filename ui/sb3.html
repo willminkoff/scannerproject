@@ -7480,6 +7480,7 @@
 
     function syncAudioSource(audioEl, base) {
       if (!audioEl) return;
+      if (latencyTestOwnsAudio(audioEl)) return;
       const current = normalizeAudioUrl(audioEl.currentSrc || audioEl.src || '');
       const next = normalizeAudioUrl(base);
       if (current !== next) {
@@ -7621,6 +7622,7 @@
 
     function maybeAutoRecoverAudio(audioEl, reloadFn, reason, allowPaused = false, options = {}) {
       if (!audioEl || typeof reloadFn !== 'function') return;
+      if (latencyTestOwnsAudio(audioEl)) return;
       const wantsPlay = audioEl.dataset.wantplay === '1';
       if (!allowPaused && audioEl.paused && !wantsPlay) return;
       const tracker = getAudioRecoverTracker(audioEl);
@@ -7762,6 +7764,12 @@
 
     function latencyAudioElementFor(target) {
       return target === 'digital' ? els.audioPlayerDigital : els.audioPlayerAnalog;
+    }
+
+    function latencyTestOwnsAudio(audioEl) {
+      const lt = state.latencyTest;
+      if (!lt || !lt.running) return false;
+      return audioEl === latencyAudioElementFor(lt.target === 'digital' ? 'digital' : 'analog');
     }
 
     function latencyReloadFnFor(target) {
@@ -8054,7 +8062,9 @@
           lt.softwareInjected = true;
           lt.consecutiveHits = 0;
           audioEl.dataset.wantplay = '1';
-          audioEl.src = `${streamPath}?transcode=0&t=${Date.now()}`;
+          // Force proxy transcode for the injected test mount so browser decode
+          // is stable across clients regardless of source encoder quirks.
+          audioEl.src = `${streamPath}?transcode=1&t=${Date.now()}`;
           audioEl.load();
           requestAudioPlay(audioEl, 'latency-test-software');
           latencySetMessage(
