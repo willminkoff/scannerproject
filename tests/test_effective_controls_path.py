@@ -879,6 +879,63 @@ class CombinedConfigBitrateTests(unittest.TestCase):
         self.assertIn("bitrate = 320;", rendered)
 
 
+class DigitalListenConsistencyTests(unittest.TestCase):
+    def test_write_digital_listen_prunes_stale_tgids(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            talkgroups_csv = os.path.join(tmp, "talkgroups.csv")
+            with open(talkgroups_csv, "w", encoding="utf-8") as f:
+                f.write("DEC,HEX,Mode,Alpha Tag,Description,Tag\n")
+                f.write("3207,c87,D,Police Dispatch,Police Dispatch,\n")
+                f.write("3209,c89,D,Police Tactical 1,Police Tactical 1,\n")
+
+            listen_path = os.path.join(tmp, "talkgroups_listen.json")
+            with open(listen_path, "w", encoding="utf-8") as f:
+                json.dump(
+                    {
+                        "default_listen": False,
+                        "items": {
+                            "3207": True,
+                            "3209": True,
+                            "10350": True,
+                        },
+                        "talkgroups": {
+                            "3207": {"listen": True},
+                            "3209": {"listen": True},
+                            "10350": {"listen": True},
+                        },
+                    },
+                    f,
+                    indent=2,
+                )
+
+            with mock.patch.object(digital, "_get_profile_dir", return_value=(tmp, "")):
+                ok, err = digital.write_digital_listen(
+                    "hp3_favorites_digital",
+                    [{"dec": "3207", "listen": True}, {"dec": "3209", "listen": False}],
+                )
+
+            self.assertTrue(ok, msg=err)
+            with open(listen_path, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+            self.assertEqual({"3207", "3209"}, set((payload.get("items") or {}).keys()))
+            self.assertNotIn("10350", (payload.get("items") or {}))
+            self.assertFalse(bool((payload.get("items") or {}).get("3209")))
+
+    def test_map_event_label_mutes_unknown_tgid_when_profile_map_exists(self):
+        adapter = digital.SdrtrunkAdapter()
+        adapter._listen_default = False
+        adapter._tg_group_map = {}
+        event = {"tgid": "10350", "label": "TG 10350", "raw": "Group Call TO (10350)"}
+        with mock.patch.object(digital, "get_current_scan_mode", return_value="profile"), mock.patch.object(
+            adapter, "_load_talkgroup_map", return_value={"3207": "Police Dispatch"}
+        ), mock.patch.object(
+            adapter, "_load_listen_map", return_value={"10350": True}
+        ):
+            mapped = adapter._map_event_label(event)
+        self.assertTrue(bool(mapped.get("muted")))
+        self.assertEqual("10350", str(mapped.get("tgid") or ""))
+
+
 class LatencyToneTests(unittest.TestCase):
     def test_sanitize_simple_mount_name_rejects_paths(self):
         self.assertEqual("latency-analog.mp3", handlers._sanitize_simple_mount_name("/latency-analog.mp3"))

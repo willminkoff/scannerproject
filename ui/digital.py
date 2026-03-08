@@ -1736,9 +1736,20 @@ def write_digital_listen(profile_id: str, items: list):
     existing_map, default_listen, existing_meta = _read_listen_config(listen_path)
     mapping = dict(existing_map)
     mapping.update(incoming)
+    # Keep listen-state keys aligned with the active profile's talkgroup list.
+    # This avoids stale TGIDs from previous profiles surfacing as "hits"
+    # that cannot produce broadcast audio on the active stream.
+    seed_rows = _read_profile_alias_seed_rows(profile_dir)
+    allowed_tgids = {
+        str(dec).strip()
+        for dec, _name, _group in seed_rows
+        if str(dec).strip().isdigit()
+    }
+    if allowed_tgids:
+        mapping = {key: bool(mapping.get(key, default_listen)) for key in allowed_tgids}
 
     talkgroups_payload: dict[str, dict] = {}
-    keys = set(mapping.keys()) | set(existing_meta.keys())
+    keys = set(mapping.keys())
     for dec in sorted(keys, key=lambda x: int(x)):
         node = {}
         meta = existing_meta.get(dec) or {}
@@ -3405,6 +3416,9 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         mapping = {}
         default_listen = bool(_DEFAULT_LISTEN_ENABLED)
         mapping, default_listen, _ = _read_listen_config(listen_path)
+        tg_map = self._load_talkgroup_map()
+        if tg_map:
+            mapping = {key: bool(value) for key, value in mapping.items() if key in tg_map}
         self._listen_map = mapping
         self._listen_map_profile = profile_dir
         self._listen_map_mtime = (listen_path, mtime)
@@ -3449,6 +3463,11 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 current = ""
             if not current:
                 event["label"] = f"TG {tgid}"
+            return event
+        if tgid and tg_map and tgid not in tg_map:
+            event = dict(event)
+            event["muted"] = True
+            event["tgid"] = tgid
             return event
         if not tg_map and not tg_group_map:
             return event
