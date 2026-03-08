@@ -109,6 +109,7 @@ def _infer_airband_flag(profile_id: str, path: str) -> Optional[bool]:
         "tower": True,
         "none_airband": True,
         "gmrs": False,
+        "gmrs_frs_murs": False,
         "wx": False,
         "none_ground": False,
     }
@@ -160,16 +161,17 @@ def save_profiles_registry(profiles: List[Dict]) -> None:
 
 
 def load_profiles_registry() -> List[Dict]:
+    default_profiles = _registry_payload_from_profiles(PROFILES)
     if not os.path.exists(PROFILES_REGISTRY_PATH):
-        profiles = _registry_payload_from_profiles(PROFILES)
-        save_profiles_registry(profiles)
-        return profiles
+        save_profiles_registry(default_profiles)
+        return default_profiles
     try:
         with open(PROFILES_REGISTRY_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
         profiles = data.get("profiles", [])
         if isinstance(profiles, list):
             cleaned = []
+            seen_ids = set()
             for p in profiles:
                 if not isinstance(p, dict):
                     continue
@@ -179,6 +181,10 @@ def load_profiles_registry() -> List[Dict]:
                 airband = p.get("airband")
                 if not pid or not label or not path:
                     continue
+                pid = str(pid).strip()
+                if not pid:
+                    continue
+                seen_ids.add(pid)
                 cleaned.append({
                     "id": pid,
                     "label": label,
@@ -186,12 +192,21 @@ def load_profiles_registry() -> List[Dict]:
                     "airband": bool(airband),
                 })
             if cleaned:
+                changed = False
+                for row in default_profiles:
+                    pid = str(row.get("id") or "").strip()
+                    if not pid or pid in seen_ids:
+                        continue
+                    cleaned.append(row)
+                    seen_ids.add(pid)
+                    changed = True
+                if changed:
+                    save_profiles_registry(cleaned)
                 return cleaned
     except (FileNotFoundError, json.JSONDecodeError):
         pass
-    profiles = _registry_payload_from_profiles(PROFILES)
-    save_profiles_registry(profiles)
-    return profiles
+    save_profiles_registry(default_profiles)
+    return default_profiles
 
 
 def find_profile(profiles: List[Dict], profile_id: str) -> Optional[Dict]:

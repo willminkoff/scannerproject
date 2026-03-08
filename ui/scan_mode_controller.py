@@ -1,18 +1,22 @@
 """Scan mode controller for HP and Expert pool modes."""
 from __future__ import annotations
 
+import json
 import math
+import os
 import sqlite3
 import threading
 from pathlib import Path
 from typing import Any
 
-from .config import HPDB_DB_PATH
+from .config import HPDB_DB_PATH, HP_AVOIDS_PATH
 from .hp_scan_pool import ScanPoolBuilder, haversine_miles
+from .zip_lookup import resolve_postal_to_lat_lon
 
 
 _VALID_MODES = {"hp", "expert"}
 _DEFAULT_DB_PATH = str(Path(HPDB_DB_PATH).expanduser().resolve())
+_DEFAULT_HP_AVOIDS_PATH = str(Path(HP_AVOIDS_PATH).expanduser())
 
 
 def _normalize_mode_token(mode: str) -> str:
@@ -34,14 +38,20 @@ def _empty_pool() -> dict[str, list]:
 
 
 class ScanModeController:
-    def __init__(self, db_path: str = _DEFAULT_DB_PATH):
+    def __init__(
+        self,
+        db_path: str = _DEFAULT_DB_PATH,
+        avoids_path: str = _DEFAULT_HP_AVOIDS_PATH,
+    ):
         self.mode = "hp"
         self._db_path = str(Path(db_path).expanduser().resolve())
+        self._hp_avoids_path = str(Path(avoids_path).expanduser())
         self._hp_builder = ScanPoolBuilder(self._db_path)
         self._hp_avoided_systems: set[str] = set()
         self._multistate_localized_trunk_ids: set[int] | None = None
         self._multistate_localized_conv_system_keys: set[str] | None = None
         self._lock = threading.Lock()
+        self._load_hp_avoids_from_disk()
 
     def set_mode(self, mode: str):
         next_mode = _normalize_mode_token(mode)
@@ -79,6 +89,20 @@ class ScanModeController:
         return {token for token in out if token}
 
     @staticmethod
+    def _normalize_agency_token_part(value: str) -> str:
+        return " ".join(str(value or "").strip().lower().split())
+
+    @classmethod
+    def _trunked_agency_token(cls, system_id: int, agency_name: str) -> str:
+        sid = cls._parse_int(system_id)
+        if sid is None or sid <= 0:
+            return ""
+        agency = cls._normalize_agency_token_part(agency_name)
+        if not agency:
+            return ""
+        return cls._normalize_system_token(f"agency:{sid}:{agency}")
+
+    @staticmethod
     def _parse_int(value) -> int | None:
         try:
             return int(str(value).strip())
@@ -94,6 +118,86 @@ class ScanModeController:
         if not math.isfinite(parsed):
             return None
         return parsed
+
+    def _load_hp_avoids_from_disk(self) -> None:
+        path = str(self._hp_avoids_path or "").strip()
+        if not path:
+            return
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+        except FileNotFoundError:
+            return
+        except Exception:
+            return
+        raw_avoids = []
+        if isinstance(payload, dict):
+            raw_avoids = payload.get("avoids") or []
+        elif isinstance(payload, list):
+            raw_avoids = payload
+        if not isinstance(raw_avoids, list):
+            raw_avoids = []
+        normalized: set[str] = set()
+        for item in raw_avoids:
+            token = self._normalize_system_token(item)
+            if token:
+                normalized.add(token)
+        with self._lock:
+            self._hp_avoided_systems = set(normalized)
+
+    def _persist_hp_avoids_locked(self) -> None:
+        path = str(self._hp_avoids_path or "").strip()
+        if not path:
+            return
+        payload = {
+            "avoids": sorted(self._hp_avoided_systems),
+        }
+        try:
+            parent = os.path.dirname(path) or "."
+            os.makedirs(parent, exist_ok=True)
+            tmp_path = f"{path}.tmp"
+            with open(tmp_path, "w", encoding="utf-8") as handle:
+                json.dump(payload, handle, indent=2, sort_keys=True)
+                handle.write("\n")
+            os.replace(tmp_path, path)
+        except Exception:
+            # In-memory avoids still apply even if persistence fails.
+            return
+
+    @classmethod
+    def _has_usable_location(cls, lat: float | None, lon: float | None) -> bool:
+        if lat is None or lon is None:
+            return False
+        if not (-90.0 <= float(lat) <= 90.0 and -180.0 <= float(lon) <= 180.0):
+            return False
+        # Treat default/uninitialized 0,0 as missing location for HP workflows.
+        if abs(float(lat)) < 1e-9 and abs(float(lon)) < 1e-9:
+            return False
+        return True
+
+    def _resolve_location_center(self, state) -> tuple[float, float] | None:
+        if not bool(getattr(state, "use_location", False)):
+            return None
+
+        lat = self._parse_float(getattr(state, "lat", None))
+        lon = self._parse_float(getattr(state, "lon", None))
+        if self._has_usable_location(lat, lon):
+            return float(lat), float(lon)
+
+        postal = str(getattr(state, "zip", "") or "").strip()
+        if not postal:
+            return None
+        try:
+            resolved = resolve_postal_to_lat_lon(postal, "US")
+        except Exception:
+            return None
+        if not resolved or len(resolved) < 2:
+            return None
+        resolved_lat = self._parse_float(resolved[0])
+        resolved_lon = self._parse_float(resolved[1])
+        if not self._has_usable_location(resolved_lat, resolved_lon):
+            return None
+        return float(resolved_lat), float(resolved_lon)
 
     @classmethod
     def _normalize_service_tags(cls, values) -> list[int]:
@@ -146,8 +250,12 @@ class ScanModeController:
         lat_miles_per_degree: float,
         lon_miles_per_degree: float,
         range_miles: float,
+        strict_location: bool = False,
     ) -> bool:
-        threshold = max(0.0, float(range_miles)) + max(0.0, float(target_radius))
+        if strict_location:
+            threshold = max(0.0, float(range_miles))
+        else:
+            threshold = max(0.0, float(range_miles)) + max(0.0, float(target_radius))
         if abs(target_lat - center_lat) * lat_miles_per_degree > threshold:
             return False
         if abs(target_lon - center_lon) * lon_miles_per_degree > threshold:
@@ -214,6 +322,7 @@ class ScanModeController:
         center_lon: float,
         range_miles: float,
         include_nationwide: bool,
+        strict_location: bool = False,
     ) -> tuple[set[int], set[str]]:
         rows = conn.execute(
             """
@@ -261,6 +370,7 @@ class ScanModeController:
                 lat_miles_per_degree=lat_miles_per_degree,
                 lon_miles_per_degree=lon_miles_per_degree,
                 range_miles=range_miles,
+                strict_location=strict_location,
             ):
                 continue
             nearby_ids.add(int(trunk_id))
@@ -277,6 +387,7 @@ class ScanModeController:
         center_lon: float,
         range_miles: float,
         include_nationwide: bool,
+        strict_location: bool = False,
     ) -> tuple[set[str], set[str]]:
         rows = conn.execute(
             """
@@ -325,6 +436,7 @@ class ScanModeController:
                 lat_miles_per_degree=lat_miles_per_degree,
                 lon_miles_per_degree=lon_miles_per_degree,
                 range_miles=range_miles,
+                strict_location=strict_location,
             ):
                 continue
             nearby_keys.add(system_key)
@@ -345,13 +457,15 @@ class ScanModeController:
         if not bool(getattr(state, "use_location", False)):
             return filtered_by_service
 
-        center_lat = self._parse_float(getattr(state, "lat", None))
-        center_lon = self._parse_float(getattr(state, "lon", None))
-        if center_lat is None or center_lon is None:
-            return []
+        center = self._resolve_location_center(state)
+        if center is None:
+            # Fallback to service-tag filtering if no usable center can be resolved.
+            return filtered_by_service
+        center_lat, center_lon = center
 
         range_miles = max(0.0, float(self._parse_float(getattr(state, "range_miles", 0.0)) or 0.0))
         include_nationwide = bool(getattr(state, "nationwide_systems", False))
+        strict_location = bool(getattr(state, "strict_location", False))
 
         conn: sqlite3.Connection | None = None
         try:
@@ -363,6 +477,7 @@ class ScanModeController:
                 center_lon=center_lon,
                 range_miles=range_miles,
                 include_nationwide=include_nationwide,
+                strict_location=strict_location,
             )
             nearby_conv_keys, nearby_conv_names = self._load_nearby_conventional_systems(
                 conn,
@@ -370,6 +485,7 @@ class ScanModeController:
                 center_lon=center_lon,
                 range_miles=range_miles,
                 include_nationwide=include_nationwide,
+                strict_location=strict_location,
             )
         except Exception:
             return filtered_by_service
@@ -630,6 +746,59 @@ class ScanModeController:
             "conventional": conventional,
         }
 
+    def _prefer_nearest_site_per_system(self, pool: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(pool, dict):
+            return _empty_pool()
+        trunked_sites = pool.get("trunked_sites")
+        if not isinstance(trunked_sites, list) or len(trunked_sites) <= 1:
+            return pool
+
+        best_by_system: dict[int, dict[str, Any]] = {}
+        passthrough_rows: list[dict[str, Any]] = []
+        for raw in trunked_sites:
+            row = raw if isinstance(raw, dict) else {}
+            system_id = self._parse_int(row.get("system_id")) or 0
+            if system_id <= 0:
+                if row:
+                    passthrough_rows.append(row)
+                continue
+            candidate = best_by_system.get(system_id)
+            if candidate is None:
+                best_by_system[system_id] = row
+                continue
+            cand_dist = self._parse_float(candidate.get("distance_miles"))
+            row_dist = self._parse_float(row.get("distance_miles"))
+            cand_site = self._parse_int(candidate.get("site_id")) or 0
+            row_site = self._parse_int(row.get("site_id")) or 0
+            cand_key = (
+                float(cand_dist) if cand_dist is not None else float("inf"),
+                cand_site,
+            )
+            row_key = (
+                float(row_dist) if row_dist is not None else float("inf"),
+                row_site,
+            )
+            if row_key < cand_key:
+                best_by_system[system_id] = row
+
+        ordered_best = sorted(
+            best_by_system.values(),
+            key=lambda item: (
+                float(self._parse_float(item.get("distance_miles")) or float("inf")),
+                int(self._parse_int(item.get("system_id")) or 0),
+                int(self._parse_int(item.get("site_id")) or 0),
+            ),
+        )
+        ordered_passthrough = sorted(
+            passthrough_rows,
+            key=lambda item: (
+                float(self._parse_float(item.get("distance_miles")) or float("inf")),
+                int(self._parse_int(item.get("site_id")) or 0),
+            ),
+        )
+        pool["trunked_sites"] = [*ordered_best, *ordered_passthrough]
+        return pool
+
     @classmethod
     def _resolve_active_favorites_entries(cls, state) -> list[dict]:
         favorites = list(getattr(state, "favorites", []) or [])
@@ -667,11 +836,13 @@ class ScanModeController:
             return False
         with self._lock:
             self._hp_avoided_systems.add(token)
+            self._persist_hp_avoids_locked()
         return True
 
     def clear_hp_avoids(self):
         with self._lock:
             self._hp_avoided_systems.clear()
+            self._persist_hp_avoids_locked()
 
     def remove_hp_avoid_system(self, system_token: str) -> bool:
         token = self._normalize_system_token(system_token)
@@ -681,6 +852,7 @@ class ScanModeController:
             if token not in self._hp_avoided_systems:
                 return False
             self._hp_avoided_systems.remove(token)
+            self._persist_hp_avoids_locked()
         return True
 
     def get_hp_avoids(self) -> list[str]:
@@ -709,14 +881,20 @@ class ScanModeController:
         elif state_mode == "full_database":
             if not bool(state.use_location):
                 return _empty_pool()
+            center = self._resolve_location_center(state)
+            if center is None:
+                return _empty_pool()
+            center_lat, center_lon = center
 
             pool = self._hp_builder.build_full_database_pool(
-                lat=float(state.lat),
-                lon=float(state.lon),
+                lat=float(center_lat),
+                lon=float(center_lon),
                 range_miles=float(state.range_miles),
                 service_tags=service_tags,
                 include_nationwide=bool(getattr(state, "nationwide_systems", False)),
+                strict_location=bool(getattr(state, "strict_location", False)),
             )
+            pool = self._prefer_nearest_site_per_system(pool)
         else:
             return _empty_pool()
         with self._lock:
@@ -725,16 +903,75 @@ class ScanModeController:
             return pool
 
         trunked_sites = pool.get("trunked_sites")
-        if not isinstance(trunked_sites, list):
-            return pool
+        if isinstance(trunked_sites, list):
+            filtered_sites: list[dict] = []
+            for row in trunked_sites:
+                row_dict = row if isinstance(row, dict) else {}
+                tokens = self._pool_system_tokens(row_dict)
+                if tokens and (tokens & avoids):
+                    continue
+                system_id = self._parse_int(row_dict.get("system_id")) or 0
+                if system_id <= 0:
+                    filtered_sites.append(row)
+                    continue
+                talkgroups_raw = row_dict.get("talkgroups")
+                if not isinstance(talkgroups_raw, list) or not talkgroups_raw:
+                    filtered_sites.append(row)
+                    continue
+                groups_map = row_dict.get("talkgroup_groups") if isinstance(row_dict.get("talkgroup_groups"), dict) else {}
+                labels_map = row_dict.get("talkgroup_labels") if isinstance(row_dict.get("talkgroup_labels"), dict) else {}
+                default_agency = str(
+                    row_dict.get("department_name")
+                    or row_dict.get("site_name")
+                    or row_dict.get("system_name")
+                    or ""
+                ).strip()
+                kept_talkgroups: list[int] = []
+                kept_groups: dict[str, str] = {}
+                kept_labels: dict[str, str] = {}
+                for raw_tgid in talkgroups_raw:
+                    tgid = self._parse_int(raw_tgid)
+                    if tgid is None or tgid <= 0:
+                        continue
+                    tgid_key = str(int(tgid))
+                    agency_name = str(groups_map.get(tgid_key) or default_agency or "").strip()
+                    agency_token = self._trunked_agency_token(system_id, agency_name)
+                    if agency_token and agency_token in avoids:
+                        continue
+                    kept_talkgroups.append(int(tgid))
+                    label = str(labels_map.get(tgid_key) or "").strip()
+                    if label:
+                        kept_labels[tgid_key] = label
+                    group = str(groups_map.get(tgid_key) or "").strip()
+                    if group:
+                        kept_groups[tgid_key] = group
+                if not kept_talkgroups:
+                    continue
+                patched_row = dict(row_dict)
+                patched_row["talkgroups"] = kept_talkgroups
+                patched_row["talkgroup_labels"] = kept_labels
+                patched_row["talkgroup_groups"] = kept_groups
+                filtered_sites.append(patched_row)
+            pool["trunked_sites"] = filtered_sites
 
-        filtered_sites: list[dict] = []
-        for row in trunked_sites:
-            tokens = self._pool_system_tokens(row if isinstance(row, dict) else {})
-            if tokens and (tokens & avoids):
-                continue
-            filtered_sites.append(row)
-        pool["trunked_sites"] = filtered_sites
+        conventional = pool.get("conventional")
+        if isinstance(conventional, list):
+            filtered_conventional: list[dict] = []
+            for row in conventional:
+                if not isinstance(row, dict):
+                    filtered_conventional.append(row)
+                    continue
+                row_tokens: set[str] = set()
+                system_key = self._normalize_system_token(row.get("system_key"))
+                if system_key:
+                    row_tokens.add(system_key)
+                freq = self._parse_float(row.get("frequency"))
+                if freq is not None and freq > 0:
+                    row_tokens.add(self._normalize_system_token(f"convfreq:{float(freq):.6f}"))
+                if row_tokens and (row_tokens & avoids):
+                    continue
+                filtered_conventional.append(row)
+            pool["conventional"] = filtered_conventional
         return pool
 
 

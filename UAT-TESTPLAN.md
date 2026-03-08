@@ -335,11 +335,76 @@ time curl -s http://sprontpi.local:5050/api/status > /dev/null
 
 ---
 
+### Phase 8: Auto-Locate Regression Matrix (SB3 + HP3)
+
+#### 8.1 - SB3 GPS Success
+- [ ] Open SB3 Favorites Builder sidecar
+- [ ] In `Scan Filters`, click `Use Current Location + Apply`
+- [ ] Grant browser location permission
+- [ ] Verify status confirms GPS location applied
+- [ ] Verify `/api/hp/state` returns updated `lat`/`lon` and `use_location=true`
+- [ ] **Status**: PASS / FAIL
+
+#### 8.2 - SB3 GPS Denied -> IP Fallback
+- [ ] Keep SB3 open and deny browser GPS permission
+- [ ] Click `Use Current Location + Apply`
+- [ ] Verify status indicates IP-based fallback was used
+- [ ] Verify `lat`/`lon` still update in `/api/hp/state`
+- [ ] **Status**: PASS / FAIL
+
+#### 8.3 - SB3 GPS Unavailable/Insecure Context -> IP Fallback
+- [ ] Test SB3 from an insecure context where GPS is blocked (or simulate unavailable geolocation)
+- [ ] Click `Use Current Location + Apply`
+- [ ] Verify fallback to IP-based location and no UI crash
+- [ ] **Status**: PASS / FAIL
+
+#### 8.4 - SB3 Both Sources Fail
+- [ ] Block GPS and block external network access to IP geolocation endpoint
+- [ ] Click `Use Current Location + Apply`
+- [ ] Verify clear non-blocking error is shown
+- [ ] Verify manual ZIP/manual lat-lon controls remain usable
+- [ ] **Status**: PASS / FAIL
+
+#### 8.5 - ZIP Resolve Still Works
+- [ ] Enter valid ZIP in SB3 filters
+- [ ] Click `Resolve ZIP + Apply`
+- [ ] Verify coordinates update and filters save succeeds
+- [ ] **Status**: PASS / FAIL
+
+#### 8.6 - Full DB Review Refreshes on Location Change
+- [ ] Set mode to `Full Database`
+- [ ] Run `Use Current Location + Apply`
+- [ ] Verify Full DB review entries refresh and key counts update
+- [ ] **Status**: PASS / FAIL
+
+#### 8.7 - HP3 Auto-Locate GPS Success
+- [ ] Open HP3 `Location` screen
+- [ ] Click `Use Current Location`
+- [ ] Grant GPS permission
+- [ ] Verify lat/lon fields update and save occurs automatically
+- [ ] Verify success message indicates GPS source
+- [ ] **Status**: PASS / FAIL
+
+#### 8.8 - HP3 Auto-Locate GPS Denied -> IP Fallback
+- [ ] Deny GPS permission in HP3
+- [ ] Click `Use Current Location`
+- [ ] Verify success message indicates IP fallback source
+- [ ] Verify saved `lat`/`lon` in `/api/hp/state`
+- [ ] **Status**: PASS / FAIL
+
+#### 8.9 - HP3 Auto-Locate Both Sources Fail
+- [ ] Block GPS and external IP lookup endpoint
+- [ ] Click `Use Current Location`
+- [ ] Verify clear error is shown without breaking manual save flow
+- [ ] **Status**: PASS / FAIL
+
+---
+
 ## Test Results Summary
 
 ### Metrics
 ```
-Total Tests: _____ / 38
+Total Tests: _____ / 47
 Passed: _____ 
 Failed: _____
 Pass Rate: _____%

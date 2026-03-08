@@ -1,11 +1,16 @@
+import json
 import os
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from unittest import mock
 
 from ui import actions
+from ui import digital
 from ui import handlers
+from ui.hp_state import HPState
 from ui import profile_config
+from ui import scan_mode_controller
 
 
 def _write_profile(path, *, airband, ui_disabled=False, with_devices=True):
@@ -188,6 +193,406 @@ class RecentRegressionTests(unittest.TestCase):
         self.assertFalse(handlers._should_resolve_zip(True, False))
         self.assertFalse(handlers._should_resolve_zip(False, True))
         self.assertFalse(handlers._should_resolve_zip(False, False))
+
+    def test_gmrs_frs_murs_profile_infers_ground_target_without_file(self):
+        inferred = profile_config._infer_airband_flag("gmrs_frs_murs", "/tmp/does-not-exist.conf")
+        self.assertIs(inferred, False)
+
+    def test_load_profiles_registry_appends_missing_builtin_profiles(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            registry_path = os.path.join(tmp, "profiles.json")
+            with open(registry_path, "w", encoding="utf-8") as handle:
+                json.dump(
+                    {
+                        "profiles": [
+                            {
+                                "id": "gmrs",
+                                "label": "GMRS",
+                                "path": "/tmp/rtl_airband_gmrs.conf",
+                                "airband": False,
+                            }
+                        ]
+                    },
+                    handle,
+                )
+
+            builtins = [
+                ("gmrs", "GMRS", "/tmp/rtl_airband_gmrs.conf"),
+                ("gmrs_frs_murs", "GMRS/FRS/MURS", "/tmp/rtl_airband_gmrs_frs_murs.conf"),
+            ]
+
+            with mock.patch.object(profile_config, "PROFILES_DIR", tmp), mock.patch.object(
+                profile_config, "PROFILES_REGISTRY_PATH", registry_path
+            ), mock.patch.object(profile_config, "PROFILES", builtins):
+                loaded = profile_config.load_profiles_registry()
+
+            by_id = {row["id"]: row for row in loaded}
+            self.assertIn("gmrs", by_id)
+            self.assertIn("gmrs_frs_murs", by_id)
+            self.assertFalse(by_id["gmrs_frs_murs"]["airband"])
+
+    def test_save_hp_state_with_sync_reports_sync_errors(self):
+        state = HPState.default()
+        with mock.patch.object(state, "save", return_value=None), mock.patch.object(
+            handlers,
+            "sync_scan_pool_to_runtime",
+            side_effect=RuntimeError("sync exploded"),
+        ):
+            payload = handlers._save_hp_state_with_sync(state)
+
+        self.assertTrue(payload["ok"])
+        self.assertIn("favorites_runtime_sync", payload)
+        sync = payload["favorites_runtime_sync"]
+        self.assertFalse(sync["ok"])
+        self.assertFalse(sync["changed"])
+        self.assertIn("sync exploded", sync["errors"][0])
+
+    def test_parse_service_tags_normalizes_json_csv_and_scalar(self):
+        self.assertEqual([2, 15, 3], handlers.parse_service_tags("[2, \"15\", 3, \"x\", 2]"))
+        self.assertEqual([4, 15, 30], handlers.parse_service_tags("4,15,30,4"))
+        self.assertEqual([7], handlers.parse_service_tags("7"))
+
+    def test_scan_pool_filters_conventional_rows_using_hp_avoids(self):
+        controller = scan_mode_controller.ScanModeController(db_path="/tmp/hpdb-test.db")
+        controller.add_hp_avoid_system("conv:blocked")
+        state = HPState.default()
+        state.mode = "full_database"
+        state.use_location = True
+        state.lat = 36.12
+        state.lon = -86.54
+        state.enabled_service_tags = [2]
+        base_pool = {
+            "trunked_sites": [],
+            "conventional": [
+                {
+                    "system_key": "conv:blocked",
+                    "system_name": "Blocked",
+                    "frequency": 155.5,
+                    "alpha_tag": "Blocked Ch",
+                    "service_tag": 2,
+                },
+                {
+                    "system_key": "conv:allowed",
+                    "system_name": "Allowed",
+                    "frequency": 156.6,
+                    "alpha_tag": "Allowed Ch",
+                    "service_tag": 2,
+                },
+            ],
+        }
+
+        with mock.patch("ui.hp_state.HPState.load", return_value=state), mock.patch.object(
+            controller, "_resolve_effective_service_tags", return_value=[2]
+        ), mock.patch.object(
+            controller._hp_builder, "build_full_database_pool", return_value=base_pool
+        ):
+            filtered = controller.get_scan_pool()
+
+        conventional = filtered.get("conventional") or []
+        self.assertEqual(1, len(conventional))
+        self.assertEqual("conv:allowed", conventional[0].get("system_key"))
+
+    def test_scan_pool_filters_conventional_rows_using_convfreq_avoids(self):
+        controller = scan_mode_controller.ScanModeController(db_path="/tmp/hpdb-test.db")
+        controller.add_hp_avoid_system("convfreq:155.500000")
+        state = HPState.default()
+        state.mode = "full_database"
+        state.use_location = True
+        state.lat = 36.12
+        state.lon = -86.54
+        state.enabled_service_tags = [2]
+        base_pool = {
+            "trunked_sites": [],
+            "conventional": [
+                {
+                    "system_key": "",
+                    "system_name": "",
+                    "frequency": 155.5,
+                    "alpha_tag": "Blocked Ch",
+                    "service_tag": 2,
+                },
+                {
+                    "system_key": "",
+                    "system_name": "",
+                    "frequency": 156.6,
+                    "alpha_tag": "Allowed Ch",
+                    "service_tag": 2,
+                },
+            ],
+        }
+
+        with mock.patch("ui.hp_state.HPState.load", return_value=state), mock.patch.object(
+            controller, "_resolve_effective_service_tags", return_value=[2]
+        ), mock.patch.object(
+            controller._hp_builder, "build_full_database_pool", return_value=base_pool
+        ):
+            filtered = controller.get_scan_pool()
+
+        conventional = filtered.get("conventional") or []
+        self.assertEqual(1, len(conventional))
+        self.assertAlmostEqual(156.6, float(conventional[0].get("frequency") or 0.0))
+
+    def test_scan_pool_filters_trunked_rows_using_agency_avoids(self):
+        controller = scan_mode_controller.ScanModeController(db_path="/tmp/hpdb-test.db")
+        controller.add_hp_avoid_system("agency:42:police dispatch")
+        state = HPState.default()
+        state.mode = "full_database"
+        state.use_location = True
+        state.lat = 36.12
+        state.lon = -86.54
+        state.enabled_service_tags = [2]
+        base_pool = {
+            "trunked_sites": [
+                {
+                    "system_id": 42,
+                    "site_id": 1,
+                    "system_name": "Metro System",
+                    "site_name": "Site 1",
+                    "department_name": "Metro",
+                    "control_channels": [853.4],
+                    "talkgroups": [1001, 2002],
+                    "talkgroup_labels": {"1001": "North Disp", "2002": "Fire Tac"},
+                    "talkgroup_groups": {"1001": "Police Dispatch", "2002": "Fire Ops"},
+                }
+            ],
+            "conventional": [],
+        }
+
+        with mock.patch("ui.hp_state.HPState.load", return_value=state), mock.patch.object(
+            controller, "_resolve_effective_service_tags", return_value=[2]
+        ), mock.patch.object(
+            controller._hp_builder, "build_full_database_pool", return_value=base_pool
+        ):
+            filtered = controller.get_scan_pool()
+
+        trunked = filtered.get("trunked_sites") or []
+        self.assertEqual(1, len(trunked))
+        self.assertEqual([2002], trunked[0].get("talkgroups"))
+
+    def test_scan_pool_full_database_resolves_zip_when_lat_lon_missing(self):
+        controller = scan_mode_controller.ScanModeController(db_path="/tmp/hpdb-test.db")
+        state = HPState.default()
+        state.mode = "full_database"
+        state.use_location = True
+        state.zip = "37221"
+        state.lat = 0.0
+        state.lon = 0.0
+        state.range_miles = 15.0
+        state.enabled_service_tags = [2]
+        base_pool = {"trunked_sites": [], "conventional": []}
+
+        with mock.patch("ui.hp_state.HPState.load", return_value=state), mock.patch.object(
+            controller, "_resolve_effective_service_tags", return_value=[2]
+        ), mock.patch(
+            "ui.scan_mode_controller.resolve_postal_to_lat_lon",
+            return_value=(36.1234, -86.5678),
+        ) as resolve_zip, mock.patch.object(
+            controller._hp_builder,
+            "build_full_database_pool",
+            return_value=base_pool,
+        ) as build_pool:
+            filtered = controller.get_scan_pool()
+
+        self.assertIs(filtered, base_pool)
+        resolve_zip.assert_called_once_with("37221", "US")
+        self.assertEqual(1, build_pool.call_count)
+        kwargs = build_pool.call_args.kwargs
+        self.assertAlmostEqual(36.1234, float(kwargs.get("lat")))
+        self.assertAlmostEqual(-86.5678, float(kwargs.get("lon")))
+        self.assertEqual(15.0, float(kwargs.get("range_miles")))
+        self.assertEqual([2], kwargs.get("service_tags"))
+        self.assertFalse(bool(kwargs.get("strict_location")))
+
+    def test_scan_pool_full_database_forwards_strict_location_flag(self):
+        controller = scan_mode_controller.ScanModeController(db_path="/tmp/hpdb-test.db")
+        state = HPState.default()
+        state.mode = "full_database"
+        state.use_location = True
+        state.strict_location = True
+        state.lat = 36.12
+        state.lon = -86.54
+        state.range_miles = 12.0
+        state.enabled_service_tags = [2]
+        base_pool = {"trunked_sites": [], "conventional": []}
+
+        with mock.patch("ui.hp_state.HPState.load", return_value=state), mock.patch.object(
+            controller, "_resolve_effective_service_tags", return_value=[2]
+        ), mock.patch.object(
+            controller._hp_builder,
+            "build_full_database_pool",
+            return_value=base_pool,
+        ) as build_pool:
+            filtered = controller.get_scan_pool()
+
+        self.assertIs(filtered, base_pool)
+        self.assertEqual(1, build_pool.call_count)
+        kwargs = build_pool.call_args.kwargs
+        self.assertTrue(bool(kwargs.get("strict_location")))
+
+    def test_scan_pool_full_database_prefers_nearest_site_per_system(self):
+        controller = scan_mode_controller.ScanModeController(db_path="/tmp/hpdb-test.db")
+        state = HPState.default()
+        state.mode = "full_database"
+        state.use_location = True
+        state.lat = 36.12
+        state.lon = -86.54
+        state.range_miles = 15.0
+        state.enabled_service_tags = [2]
+        base_pool = {
+            "trunked_sites": [
+                {
+                    "system_id": 100,
+                    "site_id": 10,
+                    "distance_miles": 9.5,
+                    "control_channels": [851.1],
+                    "talkgroups": [1001],
+                },
+                {
+                    "system_id": 100,
+                    "site_id": 11,
+                    "distance_miles": 2.2,
+                    "control_channels": [852.1],
+                    "talkgroups": [1001],
+                },
+                {
+                    "system_id": 200,
+                    "site_id": 20,
+                    "distance_miles": 4.0,
+                    "control_channels": [853.1],
+                    "talkgroups": [2001],
+                },
+            ],
+            "conventional": [],
+        }
+
+        with mock.patch("ui.hp_state.HPState.load", return_value=state), mock.patch.object(
+            controller, "_resolve_effective_service_tags", return_value=[2]
+        ), mock.patch.object(
+            controller._hp_builder,
+            "build_full_database_pool",
+            return_value=base_pool,
+        ):
+            filtered = controller.get_scan_pool()
+
+        trunked = filtered.get("trunked_sites") or []
+        self.assertEqual(2, len(trunked))
+        site_ids = sorted(int(row.get("site_id") or 0) for row in trunked)
+        self.assertEqual([11, 20], site_ids)
+
+    def test_resolve_analog_label_map_falls_back_to_profile_catalog(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            active_path = os.path.join(tmp, "rtl_airband_none_airband.conf")
+            catalog_path = os.path.join(tmp, "rtl_airband_tower.conf")
+            with open(active_path, "w", encoding="utf-8") as handle:
+                handle.write(
+                    "devices:\n(\n  {\n    freqs = (118.6000);\n  }\n);\n"
+                )
+            with open(catalog_path, "w", encoding="utf-8") as handle:
+                handle.write(
+                    "devices:\n(\n  {\n    freqs = (118.6000, 124.8750);\n"
+                    "    labels = (\"Tower\", \"Approach\");\n  }\n);\n"
+                )
+            profile_rows = [
+                {"id": "none_airband", "path": active_path},
+                {"id": "tower", "path": catalog_path},
+            ]
+            mapping = handlers._resolve_analog_label_map(
+                active_path,
+                "none_airband",
+                profile_rows,
+            )
+            self.assertEqual("Tower", mapping.get("118.6000"))
+            self.assertEqual("Approach", mapping.get("124.8750"))
+
+    def test_digital_alias_stream_binding_normalizes_malformed_tdigital(self):
+        root = ET.fromstring(
+            """
+            <playlist>
+              <alias list="HP3_FAVORITES_DIGITAL" name="Countywide Dispatch" group="Nashville Police Zone 1">
+                <id type="talkgroup" value="625" protocol="APCO25" />
+                <id type="tDIGITAL" />
+              </alias>
+            </playlist>
+            """
+        )
+
+        with mock.patch.object(digital, "DIGITAL_ATTACH_BROADCAST_CHANNEL", True), mock.patch.object(
+            digital, "DIGITAL_SDRTRUNK_STREAM_NAME", "DIGITAL"
+        ):
+            added = digital._ensure_alias_broadcast_channel(root, "HP3_FAVORITES_DIGITAL")
+
+        self.assertEqual(0, added)
+        alias = root.find("alias")
+        self.assertIsNotNone(alias)
+        ids = list(alias.findall("id")) if alias is not None else []
+        types = [str(node.get("type") or "") for node in ids]
+        self.assertNotIn("tDIGITAL", types)
+        broadcast = [node for node in ids if str(node.get("type") or "") == "broadcastChannel"]
+        self.assertEqual(1, len(broadcast))
+        self.assertEqual("DIGITAL", str(broadcast[0].get("channel") or ""))
+
+
+class HPAvoidPersistenceTests(unittest.TestCase):
+    def test_hp_avoids_load_from_disk_on_init(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            avoids_path = os.path.join(tmp, "hp_avoids.json")
+            with open(avoids_path, "w", encoding="utf-8") as handle:
+                json.dump(
+                    {
+                        "avoids": [
+                            "conv:Blocked",
+                            " agency:42:Police Dispatch ",
+                            "",
+                            None,
+                        ]
+                    },
+                    handle,
+                )
+            controller = scan_mode_controller.ScanModeController(
+                db_path="/tmp/hpdb-test.db",
+                avoids_path=avoids_path,
+            )
+            self.assertEqual(
+                ["agency:42:police dispatch", "conv:blocked"],
+                controller.get_hp_avoids(),
+            )
+
+    def test_hp_avoids_add_remove_clear_persist_to_disk(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            avoids_path = os.path.join(tmp, "hp_avoids.json")
+            controller = scan_mode_controller.ScanModeController(
+                db_path="/tmp/hpdb-test.db",
+                avoids_path=avoids_path,
+            )
+
+            self.assertTrue(controller.add_hp_avoid_system("conv:Blocked"))
+            self.assertTrue(controller.add_hp_avoid_system("agency:42:Police Dispatch"))
+
+            with open(avoids_path, "r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+            self.assertEqual(
+                ["agency:42:police dispatch", "conv:blocked"],
+                payload.get("avoids"),
+            )
+
+            reloaded = scan_mode_controller.ScanModeController(
+                db_path="/tmp/hpdb-test.db",
+                avoids_path=avoids_path,
+            )
+            self.assertEqual(
+                ["agency:42:police dispatch", "conv:blocked"],
+                reloaded.get_hp_avoids(),
+            )
+
+            self.assertTrue(controller.remove_hp_avoid_system("conv:blocked"))
+            with open(avoids_path, "r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+            self.assertEqual(["agency:42:police dispatch"], payload.get("avoids"))
+
+            controller.clear_hp_avoids()
+            with open(avoids_path, "r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+            self.assertEqual([], payload.get("avoids"))
 
 
 class TempConfigWriteTests(unittest.TestCase):

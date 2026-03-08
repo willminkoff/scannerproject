@@ -72,6 +72,38 @@ Optional target override:
 PI_HOST=192.168.86.91 PI_USER=willminkoff ./scripts/deploy-icecast-status-page.sh
 ```
 
+### Enable Tailscale HTTPS (Tailnet-Private)
+Run on the Pi:
+```bash
+cd /home/willminkoff/scannerproject
+chmod +x scripts/enable-tailscale-https.sh scripts/disable-tailscale-https.sh scripts/verify-tailscale-https.sh
+./scripts/enable-tailscale-https.sh
+```
+
+Verify HTTPS + LAN HTTP:
+```bash
+cd /home/willminkoff/scannerproject
+./scripts/verify-tailscale-https.sh
+```
+
+Disable/rollback HTTPS serve mapping:
+```bash
+cd /home/willminkoff/scannerproject
+./scripts/disable-tailscale-https.sh
+```
+
+Canonical secure URL pattern:
+```text
+https://<node>.<tailnet>.ts.net
+```
+
+Example for this node:
+```text
+https://sprontpi.tail508e50.ts.net/sb3
+```
+
+If tailnet Serve is not enabled yet, `enable-tailscale-https.sh` prints the exact Tailscale admin link to enable it.
+
 ---
 
 ## Verification Commands

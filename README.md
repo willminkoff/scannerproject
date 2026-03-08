@@ -1093,6 +1093,42 @@ ssh willminkoff@sprontpi.local "journalctl -u rtl-airband -n 20 --no-pager"
 # Check Icecast stream
 curl -s http://sprontpi.local:8000/status-json.xsl | jq '.icestats.source[] | {mount, listeners}'
 ```
+
+### Tailscale HTTPS (Private Tailnet Access)
+Use this when iPhone GPS auto-locate is required (secure context).
+
+On the Pi:
+```bash
+cd /home/willminkoff/scannerproject
+chmod +x scripts/enable-tailscale-https.sh scripts/disable-tailscale-https.sh scripts/verify-tailscale-https.sh
+./scripts/enable-tailscale-https.sh
+```
+
+Verify HTTPS + local HTTP path:
+```bash
+cd /home/willminkoff/scannerproject
+./scripts/verify-tailscale-https.sh
+```
+
+Disable HTTPS serve mapping (rollback):
+```bash
+cd /home/willminkoff/scannerproject
+./scripts/disable-tailscale-https.sh
+```
+
+Secure URL pattern:
+```text
+https://<node>.<tailnet>.ts.net
+```
+
+Example:
+```text
+https://sprontpi.tail508e50.ts.net/sb3
+```
+
+Notes:
+- LAN HTTP remains available on `http://<lan-ip>:5050` during dual-access rollout.
+- If Serve is disabled on the tailnet, the enable script prints the admin URL needed to enable it.
 - UI: profiles render as a two-column grid of selectable cards and show an avoids summary for the active profile.
 - Speed: profile/gain/squelch apply skips restart when no changes were made.
 - Logging: `systemd/rtl-airband.service` now points at `scripts/rtl-airband-with-freq.sh` to strip control codes from logs.
@@ -1182,6 +1218,9 @@ The `scanner-digital.service` runs:
   - `sudo systemctl daemon-reload`
   - `sudo systemctl restart rtl-airband`
   - `sudo systemctl restart airband-ui`
+  - `./scripts/enable-tailscale-https.sh` (optional, tailnet-private HTTPS endpoint)
+  - `./scripts/verify-tailscale-https.sh` (checks HTTPS and LAN HTTP access)
+  - `./scripts/disable-tailscale-https.sh` (rollback HTTPS serve mapping)
   - `sudo systemctl disable --now rtl-airband-ground` (one-time, if present; stays disabled after)
 - Power-loss hardening rollout:
   - `chmod +x /home/willminkoff/scannerproject/scripts/ensure-digital-runtime.py /home/willminkoff/scannerproject/scripts/reboot-stack-check.sh`

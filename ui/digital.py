@@ -607,11 +607,42 @@ def _sync_source_configuration(source_conf: ET.Element, control_channels: list[i
     }
 
 
+def _normalize_alias_stream_binding(alias_id: ET.Element, stream_name: str) -> bool:
+    stream = str(stream_name or "").strip()
+    if not stream:
+        return False
+    raw_type = str(alias_id.get("type", "")).strip()
+    if not raw_type:
+        return False
+    # Some playlist exports have emitted malformed stream bindings such as
+    # type="tDIGITAL". Normalize those back to broadcastChannel.
+    if raw_type.lower() == f"t{stream.lower()}":
+        alias_id.set("type", "broadcastChannel")
+        if str(alias_id.get("channel", "")).strip() != stream:
+            alias_id.set("channel", stream)
+        return True
+    return False
+
+
+def _normalize_alias_list_stream_bindings(root: ET.Element, alias_list_name: str, stream_name: str) -> int:
+    if not alias_list_name or not stream_name:
+        return 0
+    updates = 0
+    for alias in root.findall("alias"):
+        if str(alias.get("list", "")).strip() != alias_list_name:
+            continue
+        for alias_id in alias.findall("id"):
+            if _normalize_alias_stream_binding(alias_id, stream_name):
+                updates += 1
+    return updates
+
+
 def _ensure_alias_broadcast_channel(root: ET.Element, alias_list_name: str) -> int:
     stream_name = str(DIGITAL_SDRTRUNK_STREAM_NAME or "").strip()
     if not DIGITAL_ATTACH_BROADCAST_CHANNEL or not alias_list_name or not stream_name:
         return 0
 
+    _normalize_alias_list_stream_bindings(root, alias_list_name, stream_name)
     added = 0
     for alias in root.findall("alias"):
         if str(alias.get("list", "")).strip() != alias_list_name:
@@ -620,6 +651,7 @@ def _ensure_alias_broadcast_channel(root: ET.Element, alias_list_name: str) -> i
         has_talkgroup_id = False
         has_stream_binding = False
         for alias_id in alias.findall("id"):
+            _normalize_alias_stream_binding(alias_id, stream_name)
             id_type = str(alias_id.get("type", "")).strip().lower()
             if id_type in {"talkgroup", "talkgrouprange", "p25fullyqualifiedtalkgroup", "talkgroupid"}:
                 has_talkgroup_id = True
@@ -755,6 +787,7 @@ def _seed_alias_list_from_profile(root: ET.Element, alias_list_name: str, profil
 
     existing = _collect_alias_talkgroup_map(root, alias_list_name)
     stream_name = str(DIGITAL_SDRTRUNK_STREAM_NAME or "").strip()
+    _normalize_alias_list_stream_bindings(root, alias_list_name, stream_name)
     added = 0
     for dec, name, group in seed_rows:
         alias = existing.get(dec)

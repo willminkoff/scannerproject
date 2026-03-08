@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 _EARTH_RADIUS_MILES = 3958.7613
-_HP_TRUNK_SITES_PER_SYSTEM = max(1, int(os.getenv("HP_TRUNK_SITES_PER_SYSTEM", "2")))
+_HP_TRUNK_SITES_PER_SYSTEM = max(1, int(os.getenv("HP_TRUNK_SITES_PER_SYSTEM", "1")))
 
 
 def haversine_miles(lat1, lon1, lat2, lon2) -> float:
@@ -193,10 +193,12 @@ class ScanPoolBuilder:
         range_miles: float,
         service_tags: list[int],
         include_nationwide: bool = False,
+        strict_location: bool = False,
     ) -> dict:
         center_lat = float(lat)
         center_lon = float(lon)
         user_range = max(0.0, float(range_miles))
+        strict = bool(strict_location)
         lat_miles_per_degree = 69.0
         lon_miles_per_degree = max(
             1e-6,
@@ -263,7 +265,7 @@ class ScanPoolBuilder:
                 if source_file.lower() == "_multiplestates.hpd" and not include_nationwide:
                     if site_radius > max(75.0, user_range * 3.0):
                         continue
-                threshold = user_range + site_radius
+                threshold = user_range if strict else (user_range + site_radius)
                 if abs(site_lat - center_lat) * lat_miles_per_degree > threshold:
                     continue
                 if abs(site_lon - center_lon) * lon_miles_per_degree > threshold:
@@ -311,6 +313,7 @@ class ScanPoolBuilder:
                 selected_sites = sorted(
                     trimmed_sites,
                     key=lambda item: (
+                        float(item.get("distance_miles") or 0.0),
                         int(item.get("system_id") or 0),
                         int(item.get("site_id") or 0),
                     ),
@@ -382,7 +385,7 @@ class ScanPoolBuilder:
                     group_lon = self._parse_float(row["longitude"])
                     group_radius = max(0.0, float(self._parse_float(row["radius"]) or 0.0))
                     if group_lat is not None and group_lon is not None:
-                        threshold = user_range + group_radius
+                        threshold = user_range if strict else (user_range + group_radius)
                         if abs(group_lat - center_lat) * lat_miles_per_degree > threshold:
                             continue
                         if abs(group_lon - center_lon) * lon_miles_per_degree > threshold:
@@ -390,6 +393,9 @@ class ScanPoolBuilder:
                         distance = haversine_miles(center_lat, center_lon, group_lat, group_lon)
                         if distance > threshold:
                             continue
+                    elif strict:
+                        # Strict mode requires explicit local geometry for talkgroups.
+                        continue
                     dec_text = str(row["dec_tgid"] or "").strip()
                     if not dec_text.isdigit():
                         continue
@@ -414,6 +420,7 @@ class ScanPoolBuilder:
             for row in sorted(
                 selected_sites,
                 key=lambda item: (
+                    float(item.get("distance_miles") or 0.0),
                     int(item.get("system_id") or 0),
                     int(item.get("site_id") or 0),
                 ),
@@ -444,6 +451,7 @@ class ScanPoolBuilder:
                         "system_name": str(row.get("system_name") or "").strip(),
                         "site_name": str(row.get("site_name") or "").strip(),
                         "department_name": str(row.get("site_name") or "").strip(),
+                        "distance_miles": float(row.get("distance_miles") or 0.0),
                         "control_channels": control_channels,
                         "talkgroups": talkgroups,
                         "talkgroup_labels": talkgroup_labels,
@@ -498,7 +506,7 @@ class ScanPoolBuilder:
                     or group_lon is None
                 ):
                     continue
-                threshold = user_range + max(0.0, float(group_radius or 0.0))
+                threshold = user_range if strict else (user_range + max(0.0, float(group_radius or 0.0)))
                 if abs(group_lat - center_lat) * lat_miles_per_degree > threshold:
                     continue
                 if abs(group_lon - center_lon) * lon_miles_per_degree > threshold:

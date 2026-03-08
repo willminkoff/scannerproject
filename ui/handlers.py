@@ -222,6 +222,16 @@ DIGITAL_HITS_MIN_VISIBLE = max(0, int(os.getenv("DIGITAL_HITS_MIN_VISIBLE", "3")
 _DIGITAL_IDLE_TITLES = {"", "-", "idle", "n/a", "scanning", "scanning..."}
 _ANALOG_LABEL_CACHE: dict[str, dict] = {}
 _LOCAL_PROFILES_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "profiles"))
+_NOAA_LABELS_BY_FREQ = {
+    "162.5500": "NOAA 1",
+    "162.4000": "NOAA 2",
+    "162.4750": "NOAA 3",
+    "162.4250": "NOAA 4",
+    "162.4500": "NOAA 5",
+    "162.5000": "NOAA 6",
+    "162.5250": "NOAA 7",
+}
+_NOAA_LABEL_TOLERANCE_MHZ = 0.003
 _STATUS_CACHE_TTL_SEC = max(0.1, float(os.getenv("STATUS_CACHE_TTL_SEC", "0.75")))
 _HITS_CACHE_TTL_SEC = max(0.1, float(os.getenv("HITS_CACHE_TTL_SEC", "1.0")))
 _UNIT_ACTIVE_CACHE_TTL_SEC = max(0.1, float(os.getenv("UNIT_ACTIVE_CACHE_TTL_SEC", "1.0")))
@@ -235,6 +245,176 @@ _UNIT_ACTIVE_CACHE: dict[str, tuple[float, bool]] = {}
 def _should_resolve_zip(resolve_zip: bool, use_location: bool) -> bool:
     """Resolve ZIP only when explicitly requested and location scanning is enabled."""
     return bool(resolve_zip) and bool(use_location)
+
+
+def _parse_bool_value(raw_value, *, field: str) -> bool:
+    if isinstance(raw_value, bool):
+        return raw_value
+    if isinstance(raw_value, (int, float)):
+        return bool(raw_value)
+    token = str(raw_value or "").strip().lower()
+    if token in ("1", "true", "yes", "on"):
+        return True
+    if token in ("0", "false", "no", "off"):
+        return False
+    raise ValueError(f"invalid {field}")
+
+
+def _parse_float_value(raw_value, *, field: str) -> float:
+    try:
+        return float(str(raw_value).strip())
+    except Exception as exc:
+        raise ValueError(f"invalid {field}") from exc
+
+
+def _parse_json_like_list(raw_value) -> list:
+    if isinstance(raw_value, list):
+        return raw_value
+    if isinstance(raw_value, str):
+        text = raw_value.strip()
+        if not text:
+            return []
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, list):
+                return parsed
+            return []
+        except Exception:
+            return [chunk.strip() for chunk in text.split(",") if chunk.strip()]
+    return []
+
+
+def parse_service_tags(raw_value) -> list[int]:
+    candidates: list[Any]
+    if isinstance(raw_value, list):
+        candidates = raw_value
+    elif isinstance(raw_value, (int, float)):
+        candidates = [raw_value]
+    elif isinstance(raw_value, str):
+        text = raw_value.strip()
+        if not text:
+            return []
+        try:
+            parsed = json.loads(text)
+        except Exception:
+            parsed = [chunk.strip() for chunk in text.split(",") if chunk.strip()]
+        if isinstance(parsed, list):
+            candidates = parsed
+        elif parsed is None:
+            return []
+        else:
+            candidates = [parsed]
+    else:
+        return []
+    out: list[int] = []
+    seen: set[int] = set()
+    for item in candidates:
+        try:
+            value = int(str(item).strip())
+        except Exception:
+            continue
+        if value <= 0 or value in seen:
+            continue
+        seen.add(value)
+        out.append(value)
+    return out
+
+
+def _apply_hp_state_form(
+    state: "HPState",
+    form: dict[str, Any],
+    *,
+    resolve_postal_lookup=resolve_postal_to_lat_lon,
+    default_service_tags_resolver=get_default_enabled_service_types,
+) -> None:
+    """Apply incoming hp/state form data to a state object.
+
+    Raises:
+      ValueError: when a provided field is invalid.
+    """
+    if "mode" in form:
+        mode = str(form.get("mode") or "").strip().lower()
+        if mode not in ("full_database", "favorites"):
+            raise ValueError("invalid mode")
+        state.mode = mode
+
+    if "use_location" in form:
+        state.use_location = _parse_bool_value(form.get("use_location"), field="use_location")
+
+    if "strict_location" in form:
+        state.strict_location = _parse_bool_value(
+            form.get("strict_location"),
+            field="strict_location",
+        )
+
+    if "zip" in form or "postal_code" in form:
+        state.zip = str(form.get("zip") or form.get("postal_code") or "").strip()
+
+    if "lat" in form:
+        state.lat = _parse_float_value(form.get("lat"), field="lat")
+
+    if "lon" in form:
+        state.lon = _parse_float_value(form.get("lon"), field="lon")
+
+    if "resolve_zip" in form:
+        resolve_zip = _parse_bool_value(form.get("resolve_zip"), field="resolve_zip")
+        if _should_resolve_zip(resolve_zip, state.use_location):
+            if not str(state.zip or "").strip():
+                raise ValueError("missing zip")
+            resolved = resolve_postal_lookup(str(state.zip), "US")
+            if not resolved:
+                raise ValueError("unable to resolve zip")
+            state.lat = float(resolved[0])
+            state.lon = float(resolved[1])
+
+    if "range_miles" in form:
+        state.range_miles = max(
+            0.0,
+            _parse_float_value(form.get("range_miles"), field="range_miles"),
+        )
+
+    if "nationwide_systems" in form:
+        state.nationwide_systems = _parse_bool_value(
+            form.get("nationwide_systems"),
+            field="nationwide_systems",
+        )
+
+    if "enabled_service_tags" in form:
+        state.enabled_service_tags = parse_service_tags(form.get("enabled_service_tags"))
+
+    if "favorites" in form:
+        incoming_favorites = _parse_json_like_list(form.get("favorites"))
+        state.favorites = merge_favorites_preserving_custom(state.favorites, incoming_favorites)
+
+    if "favorites_name" in form:
+        state.favorites_name = str(form.get("favorites_name") or "").strip() or "My Favorites"
+
+    if "custom_favorites" in form:
+        state.custom_favorites = _parse_json_like_list(form.get("custom_favorites"))
+
+    if "avoid_list" in form:
+        state.avoid_list = _parse_json_like_list(form.get("avoid_list"))
+
+    if not state.enabled_service_tags:
+        try:
+            state.enabled_service_tags = list(default_service_tags_resolver())
+        except Exception:
+            state.enabled_service_tags = [2, 3, 4]
+
+
+def _save_hp_state_with_sync(state: "HPState") -> dict[str, Any]:
+    """Persist HP state and run runtime sync, preserving sync error details."""
+    state.save()
+    sync_payload: dict[str, Any] = {"ok": True, "changed": False}
+    try:
+        sync_payload = sync_scan_pool_to_runtime(force=True)
+    except Exception as sync_exc:
+        sync_payload = {"ok": False, "changed": False, "errors": [str(sync_exc)]}
+    return {
+        "ok": True,
+        "state": state.to_dict(),
+        "favorites_runtime_sync": sync_payload,
+    }
 
 
 def merge_favorites_preserving_custom(existing_rows, incoming_rows) -> list:
@@ -504,6 +684,24 @@ def _normalize_freq_key(value) -> str:
         return ""
 
 
+def _fallback_noaa_label(freq_text: str) -> str:
+    key = _normalize_freq_key(freq_text)
+    if key and key in _NOAA_LABELS_BY_FREQ:
+        return _NOAA_LABELS_BY_FREQ[key]
+    try:
+        freq_num = float(str(freq_text or "").strip())
+    except Exception:
+        return ""
+    for freq_key, label in _NOAA_LABELS_BY_FREQ.items():
+        try:
+            known = float(freq_key)
+        except Exception:
+            continue
+        if abs(freq_num - known) <= _NOAA_LABEL_TOLERANCE_MHZ:
+            return label
+    return ""
+
+
 def _load_profile_label_map(conf_path: str) -> dict[str, str]:
     path = os.path.realpath(str(conf_path or ""))
     if not path or not os.path.isfile(path):
@@ -562,6 +760,19 @@ def _resolve_analog_label_map(conf_path: str, profile_id: str, profile_rows: lis
         fallback = _load_profile_label_map(path)
         if fallback:
             return fallback
+    # Active profile can be a minimalist "none_*" config (no labels). In that
+    # case, recover labels by frequency from the full profile catalog.
+    merged: dict[str, str] = {}
+    for row in profile_rows or []:
+        path = str((row or {}).get("path") or "").strip()
+        if not path:
+            continue
+        row_map = _load_profile_label_map(path)
+        for key, value in row_map.items():
+            if key and value and key not in merged:
+                merged[key] = value
+    if merged:
+        return merged
     return mapping
 
 
@@ -594,6 +805,8 @@ def _lookup_analog_label(
 
     if not label:
         label = airband_labels.get(key, "") or ground_labels.get(key, "")
+    if not label:
+        label = _fallback_noaa_label(freq_text)
     return str(label or "").strip()
 
 
@@ -2111,52 +2324,13 @@ class Handler(BaseHTTPRequestHandler):
             return str(v)
 
         def parse_bool_value(raw_value, *, field: str) -> bool:
-            if isinstance(raw_value, bool):
-                return raw_value
-            if isinstance(raw_value, (int, float)):
-                return bool(raw_value)
-            token = str(raw_value or "").strip().lower()
-            if token in ("1", "true", "yes", "on"):
-                return True
-            if token in ("0", "false", "no", "off"):
-                return False
-            raise ValueError(f"invalid {field}")
+            return _parse_bool_value(raw_value, field=field)
 
         def parse_float_value(raw_value, *, field: str) -> float:
-            try:
-                return float(str(raw_value).strip())
-            except Exception as exc:
-                raise ValueError(f"invalid {field}") from exc
+            return _parse_float_value(raw_value, field=field)
 
         def parse_json_like_list(raw_value) -> list:
-            if isinstance(raw_value, list):
-                return raw_value
-            if isinstance(raw_value, str):
-                text = raw_value.strip()
-                if not text:
-                    return []
-                try:
-                    parsed = json.loads(text)
-                    if isinstance(parsed, list):
-                        return parsed
-                    return []
-                except Exception:
-                    return [chunk.strip() for chunk in text.split(",") if chunk.strip()]
-            return []
-
-        def parse_service_tags(raw_value) -> list[int]:
-            tags: list[int] = []
-            seen: set[int] = set()
-            for item in parse_json_like_list(raw_value):
-                try:
-                    tag = int(str(item).strip())
-                except Exception:
-                    continue
-                if tag in seen:
-                    continue
-                seen.add(tag)
-                tags.append(tag)
-            return tags
+            return _parse_json_like_list(raw_value)
 
         if p == "/api/mode":
             controller = get_scan_mode_controller()
@@ -2204,135 +2378,17 @@ class Handler(BaseHTTPRequestHandler):
                     "application/json; charset=utf-8",
                 )
 
-            if "mode" in form:
-                mode = str(form.get("mode") or "").strip().lower()
-                if mode not in ("full_database", "favorites"):
-                    return self._send(
-                        400,
-                        json.dumps({"ok": False, "error": "invalid mode"}),
-                        "application/json; charset=utf-8",
-                    )
-                state.mode = mode
-
-            if "use_location" in form:
-                try:
-                    state.use_location = parse_bool_value(form.get("use_location"), field="use_location")
-                except ValueError as e:
-                    return self._send(
-                        400,
-                        json.dumps({"ok": False, "error": str(e)}),
-                        "application/json; charset=utf-8",
-                    )
-
-            if "zip" in form or "postal_code" in form:
-                state.zip = str(form.get("zip") or form.get("postal_code") or "").strip()
-
-            if "lat" in form:
-                try:
-                    state.lat = parse_float_value(form.get("lat"), field="lat")
-                except ValueError as e:
-                    return self._send(
-                        400,
-                        json.dumps({"ok": False, "error": str(e)}),
-                        "application/json; charset=utf-8",
-                    )
-
-            if "lon" in form:
-                try:
-                    state.lon = parse_float_value(form.get("lon"), field="lon")
-                except ValueError as e:
-                    return self._send(
-                        400,
-                        json.dumps({"ok": False, "error": str(e)}),
-                        "application/json; charset=utf-8",
-                    )
-
-            if "resolve_zip" in form:
-                try:
-                    resolve_zip = parse_bool_value(form.get("resolve_zip"), field="resolve_zip")
-                except ValueError as e:
-                    return self._send(
-                        400,
-                        json.dumps({"ok": False, "error": str(e)}),
-                        "application/json; charset=utf-8",
-                    )
-                if _should_resolve_zip(resolve_zip, state.use_location):
-                    if not str(state.zip or "").strip():
-                        return self._send(
-                            400,
-                            json.dumps({"ok": False, "error": "missing zip"}),
-                            "application/json; charset=utf-8",
-                        )
-                    resolved = resolve_postal_to_lat_lon(str(state.zip), "US")
-                    if not resolved:
-                        return self._send(
-                            400,
-                            json.dumps({"ok": False, "error": "unable to resolve zip"}),
-                            "application/json; charset=utf-8",
-                        )
-                    state.lat = float(resolved[0])
-                    state.lon = float(resolved[1])
-
-            if "range_miles" in form:
-                try:
-                    state.range_miles = max(
-                        0.0,
-                        parse_float_value(form.get("range_miles"), field="range_miles"),
-                    )
-                except ValueError as e:
-                    return self._send(
-                        400,
-                        json.dumps({"ok": False, "error": str(e)}),
-                        "application/json; charset=utf-8",
-                    )
-
-            if "nationwide_systems" in form:
-                try:
-                    state.nationwide_systems = parse_bool_value(
-                        form.get("nationwide_systems"),
-                        field="nationwide_systems",
-                    )
-                except ValueError as e:
-                    return self._send(
-                        400,
-                        json.dumps({"ok": False, "error": str(e)}),
-                        "application/json; charset=utf-8",
-                    )
-
-            if "enabled_service_tags" in form:
-                state.enabled_service_tags = parse_service_tags(form.get("enabled_service_tags"))
-
-            if "favorites" in form:
-                incoming_favorites = parse_json_like_list(form.get("favorites"))
-                state.favorites = merge_favorites_preserving_custom(state.favorites, incoming_favorites)
-
-            if "favorites_name" in form:
-                state.favorites_name = str(form.get("favorites_name") or "").strip() or "My Favorites"
-
-            if "custom_favorites" in form:
-                state.custom_favorites = parse_json_like_list(form.get("custom_favorites"))
-
-            if "avoid_list" in form:
-                state.avoid_list = parse_json_like_list(form.get("avoid_list"))
-
-            if not state.enabled_service_tags:
-                try:
-                    state.enabled_service_tags = list(get_default_enabled_service_types())
-                except Exception:
-                    state.enabled_service_tags = [2, 3, 4]
+            try:
+                _apply_hp_state_form(state, form)
+            except ValueError as e:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
 
             try:
-                state.save()
-                sync_payload: dict[str, Any] = {"ok": True, "changed": False}
-                try:
-                    sync_payload = sync_scan_pool_to_runtime(force=True)
-                except Exception as sync_exc:
-                    sync_payload = {"ok": False, "changed": False, "errors": [str(sync_exc)]}
-                payload = {
-                    "ok": True,
-                    "state": state.to_dict(),
-                    "favorites_runtime_sync": sync_payload,
-                }
+                payload = _save_hp_state_with_sync(state)
             except Exception as e:
                 return self._send(
                     500,
@@ -2346,6 +2402,26 @@ class Handler(BaseHTTPRequestHandler):
             action = str(form.get("action") or "").strip().lower()
             if action == "clear":
                 controller.clear_hp_avoids()
+                return self._send(
+                    200,
+                    json.dumps({"ok": True, "avoids": controller.get_hp_avoids()}),
+                    "application/json; charset=utf-8",
+                )
+            if action == "add":
+                system_token = str(form.get("system") or "").strip()
+                if not system_token:
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": "missing system"}),
+                        "application/json; charset=utf-8",
+                    )
+                added = controller.add_hp_avoid_system(system_token)
+                if not added:
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": "invalid system"}),
+                        "application/json; charset=utf-8",
+                    )
                 return self._send(
                     200,
                     json.dumps({"ok": True, "avoids": controller.get_hp_avoids()}),

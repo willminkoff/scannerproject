@@ -52,6 +52,7 @@ AVOIDS_SUMMARY_PATHS = {
     "airband": os.path.join(AVOIDS_DIR, "airband_avoids.txt"),
     "ground": os.path.join(AVOIDS_DIR, "ground_avoids.txt"),
 }
+HP_AVOIDS_PATH = os.getenv("HP_AVOIDS_PATH", os.path.join(AVOIDS_DIR, "hp_avoids.json")).strip()
 
 # Icecast Configuration
 ICECAST_PORT = int(os.getenv("ICECAST_PORT", "8000"))
@@ -227,6 +228,7 @@ PROFILES = [
     ("campbell_ground", "Ft. Campbell", os.path.join(PROFILES_DIR, "rtl_airband_campbell_ground.conf")),
     ("campbell_nfm", "Ft. Campbell NFM", os.path.join(PROFILES_DIR, "rtl_airband_campbell_nfm.conf")),
     ("gmrs",   "GMRS", os.path.join(PROFILES_DIR, "rtl_airband_gmrs.conf")),
+    ("gmrs_frs_murs", "GMRS/FRS/MURS", os.path.join(PROFILES_DIR, "rtl_airband_gmrs_frs_murs.conf")),
     ("mtears", "MTEARS", os.path.join(PROFILES_DIR, "rtl_airband_mtears.conf")),
     ("wx",     "WX (162.550)", os.path.join(PROFILES_DIR, "rtl_airband_wx.conf")),
 ]
