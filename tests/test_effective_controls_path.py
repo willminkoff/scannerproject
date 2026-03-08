@@ -823,5 +823,29 @@ class StatePersistenceFallbackTests(unittest.TestCase):
         self.assertEqual("/tmp/airband_ui_tune_backup.json", replaced[0][1])
 
 
+class LatencyToneTests(unittest.TestCase):
+    def test_sanitize_simple_mount_name_rejects_paths(self):
+        self.assertEqual("latency-analog.mp3", handlers._sanitize_simple_mount_name("/latency-analog.mp3"))
+        self.assertEqual("", handlers._sanitize_simple_mount_name("../latency.mp3"))
+        self.assertEqual("", handlers._sanitize_simple_mount_name("latency/tone.mp3"))
+        self.assertEqual("", handlers._sanitize_simple_mount_name("latency tone.mp3"))
+
+    def test_start_latency_tone_injection_errors_without_ffmpeg(self):
+        with mock.patch.object(handlers.shutil, "which", return_value=None):
+            ok, err, payload = handlers._start_latency_tone_injection(
+                target="analog",
+                mount="latency-analog.mp3",
+                frequency_hz=1000,
+                duration_ms=3000,
+                pre_roll_ms=500,
+                bitrate_kbps=32,
+                sample_rate_hz=16000,
+            )
+
+        self.assertFalse(ok)
+        self.assertIn("ffmpeg", err.lower())
+        self.assertFalse(payload.get("active"))
+
+
 if __name__ == "__main__":
     unittest.main()

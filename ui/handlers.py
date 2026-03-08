@@ -11,7 +11,7 @@ import shutil
 from typing import Any
 from http.server import BaseHTTPRequestHandler
 from urllib.error import HTTPError, URLError
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 from urllib.request import Request, urlopen
 def combined_num_devices(conf_path=None) -> int:
     """Count devices declared in the combined rtl_airband config.
@@ -240,10 +240,37 @@ _UNIT_ACTIVE_CACHE_TTL_SEC = max(0.1, float(os.getenv("UNIT_ACTIVE_CACHE_TTL_SEC
 HIT_LIST_MAX_AGE_SEC = max(60, int(os.getenv("HIT_LIST_MAX_AGE_SEC", "1800")))
 STREAM_PROXY_READ_TIMEOUT_SEC = max(120.0, float(os.getenv("STREAM_PROXY_READ_TIMEOUT_SEC", "600")))
 STREAM_PROXY_CHUNK_BYTES = max(128, int(os.getenv("STREAM_PROXY_CHUNK_BYTES", "256")))
+LATENCY_TONE_DEFAULT_MOUNT = (
+    os.getenv("LATENCY_TONE_DEFAULT_MOUNT", "latency-tone.mp3").strip().lstrip("/") or "latency-tone.mp3"
+)
+LATENCY_TONE_DEFAULT_TARGET = os.getenv("LATENCY_TONE_DEFAULT_TARGET", "analog").strip().lower() or "analog"
+LATENCY_TONE_DEFAULT_FREQ_HZ = max(120, int(os.getenv("LATENCY_TONE_DEFAULT_FREQ_HZ", "1000")))
+LATENCY_TONE_DEFAULT_DURATION_MS = max(500, int(os.getenv("LATENCY_TONE_DEFAULT_DURATION_MS", "6000")))
+LATENCY_TONE_DEFAULT_PREROLL_MS = max(0, int(os.getenv("LATENCY_TONE_DEFAULT_PREROLL_MS", "800")))
+LATENCY_TONE_DEFAULT_BITRATE_KBPS = max(8, int(os.getenv("LATENCY_TONE_DEFAULT_BITRATE_KBPS", "32")))
+LATENCY_TONE_DEFAULT_SAMPLE_RATE = max(8000, int(os.getenv("LATENCY_TONE_DEFAULT_SAMPLE_RATE", "16000")))
 _CACHE_LOCK = threading.Lock()
 _STATUS_CACHE: dict[str, object] = {"ts": 0.0, "payload": None}
 _HITS_CACHE: dict[str, object] = {"ts": 0.0, "payload": None}
 _UNIT_ACTIVE_CACHE: dict[str, tuple[float, bool]] = {}
+_LATENCY_TONE_LOCK = threading.Lock()
+_LATENCY_TONE_PROC: subprocess.Popen | None = None
+_LATENCY_TONE_STATE: dict[str, Any] = {
+    "active": False,
+    "pid": 0,
+    "mount": LATENCY_TONE_DEFAULT_MOUNT,
+    "target": LATENCY_TONE_DEFAULT_TARGET,
+    "frequency_hz": LATENCY_TONE_DEFAULT_FREQ_HZ,
+    "duration_ms": LATENCY_TONE_DEFAULT_DURATION_MS,
+    "pre_roll_ms": LATENCY_TONE_DEFAULT_PREROLL_MS,
+    "bitrate_kbps": LATENCY_TONE_DEFAULT_BITRATE_KBPS,
+    "sample_rate_hz": LATENCY_TONE_DEFAULT_SAMPLE_RATE,
+    "started_at_ms": 0,
+    "estimated_tone_start_ms": 0,
+    "ended_at_ms": 0,
+    "last_error": "",
+    "stop_reason": "",
+}
 
 
 def _should_resolve_zip(resolve_zip: bool, use_location: bool) -> bool:
@@ -495,6 +522,214 @@ def _safe_float(value) -> float | None:
     if not (parsed == parsed) or parsed in (float("inf"), float("-inf")):
         return None
     return parsed
+
+
+def _bounded_int(raw_value, default: int, minimum: int, maximum: int) -> int:
+    try:
+        parsed = int(float(str(raw_value).strip()))
+    except Exception:
+        parsed = int(default)
+    if parsed < minimum:
+        return int(minimum)
+    if parsed > maximum:
+        return int(maximum)
+    return int(parsed)
+
+
+def _sanitize_simple_mount_name(raw_name: str) -> str:
+    mount = unquote(str(raw_name or "")).strip().lstrip("/")
+    if not mount:
+        return ""
+    if "/" in mount or "\\" in mount:
+        return ""
+    for ch in mount:
+        if not (ch.isalnum() or ch in "._-"):
+            return ""
+    return mount
+
+
+def _latency_tone_reap_locked(now_ms: int) -> None:
+    global _LATENCY_TONE_PROC
+    proc = _LATENCY_TONE_PROC
+    if proc is None:
+        return
+    if proc.poll() is None:
+        return
+    _LATENCY_TONE_PROC = None
+    _LATENCY_TONE_STATE["active"] = False
+    _LATENCY_TONE_STATE["pid"] = 0
+    if not int(_LATENCY_TONE_STATE.get("ended_at_ms") or 0):
+        _LATENCY_TONE_STATE["ended_at_ms"] = int(now_ms)
+
+
+def _latency_tone_status_payload_locked(now_ms: int | None = None) -> dict[str, Any]:
+    if now_ms is None:
+        now_ms = int(time.time() * 1000)
+    _latency_tone_reap_locked(int(now_ms))
+    payload = {
+        "active": bool(_LATENCY_TONE_STATE.get("active")),
+        "pid": int(_LATENCY_TONE_STATE.get("pid") or 0),
+        "mount": str(_LATENCY_TONE_STATE.get("mount") or ""),
+        "target": str(_LATENCY_TONE_STATE.get("target") or "analog"),
+        "frequency_hz": int(_LATENCY_TONE_STATE.get("frequency_hz") or 0),
+        "duration_ms": int(_LATENCY_TONE_STATE.get("duration_ms") or 0),
+        "pre_roll_ms": int(_LATENCY_TONE_STATE.get("pre_roll_ms") or 0),
+        "bitrate_kbps": int(_LATENCY_TONE_STATE.get("bitrate_kbps") or 0),
+        "sample_rate_hz": int(_LATENCY_TONE_STATE.get("sample_rate_hz") or 0),
+        "started_at_ms": int(_LATENCY_TONE_STATE.get("started_at_ms") or 0),
+        "estimated_tone_start_ms": int(_LATENCY_TONE_STATE.get("estimated_tone_start_ms") or 0),
+        "ended_at_ms": int(_LATENCY_TONE_STATE.get("ended_at_ms") or 0),
+        "last_error": str(_LATENCY_TONE_STATE.get("last_error") or ""),
+        "stop_reason": str(_LATENCY_TONE_STATE.get("stop_reason") or ""),
+    }
+    mount = str(payload.get("mount") or "").strip().lstrip("/")
+    payload["stream_path"] = f"/stream/{mount}" if mount else "/stream/"
+    return payload
+
+
+def _latency_tone_status_payload() -> dict[str, Any]:
+    with _LATENCY_TONE_LOCK:
+        return _latency_tone_status_payload_locked()
+
+
+def _latency_tone_stop_locked(reason: str = "manual_stop") -> dict[str, Any]:
+    global _LATENCY_TONE_PROC
+    now_ms = int(time.time() * 1000)
+    proc = _LATENCY_TONE_PROC
+    if proc is not None and proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=2)
+        except Exception:
+            proc.kill()
+    _LATENCY_TONE_PROC = None
+    _LATENCY_TONE_STATE["active"] = False
+    _LATENCY_TONE_STATE["pid"] = 0
+    _LATENCY_TONE_STATE["ended_at_ms"] = int(now_ms)
+    _LATENCY_TONE_STATE["stop_reason"] = str(reason or "manual_stop")
+    return _latency_tone_status_payload_locked(now_ms)
+
+
+def _start_latency_tone_injection(
+    *,
+    target: str,
+    mount: str,
+    frequency_hz: int,
+    duration_ms: int,
+    pre_roll_ms: int,
+    bitrate_kbps: int,
+    sample_rate_hz: int,
+) -> tuple[bool, str, dict[str, Any]]:
+    global _LATENCY_TONE_PROC
+
+    ffmpeg_bin = shutil.which("ffmpeg")
+    if not ffmpeg_bin:
+        with _LATENCY_TONE_LOCK:
+            _LATENCY_TONE_STATE["last_error"] = "ffmpeg not found in PATH"
+            status = _latency_tone_status_payload_locked()
+        return False, "ffmpeg not found in PATH", status
+
+    safe_mount = _sanitize_simple_mount_name(mount) or _sanitize_simple_mount_name(LATENCY_TONE_DEFAULT_MOUNT)
+    if not safe_mount:
+        safe_mount = "latency-tone.mp3"
+    safe_target = "digital" if str(target or "").strip().lower() == "digital" else "analog"
+    freq_hz = _bounded_int(frequency_hz, LATENCY_TONE_DEFAULT_FREQ_HZ, 120, 5000)
+    total_ms = _bounded_int(duration_ms, LATENCY_TONE_DEFAULT_DURATION_MS, 500, 30000)
+    lead_ms = _bounded_int(pre_roll_ms, LATENCY_TONE_DEFAULT_PREROLL_MS, 0, min(5000, max(0, total_ms - 100)))
+    kbps = _bounded_int(bitrate_kbps, LATENCY_TONE_DEFAULT_BITRATE_KBPS, 8, 128)
+    rate_hz = _bounded_int(sample_rate_hz, LATENCY_TONE_DEFAULT_SAMPLE_RATE, 8000, 48000)
+    total_sec = total_ms / 1000.0
+    lead_sec = lead_ms / 1000.0
+
+    icecast_user = quote(str(os.getenv("ICECAST_SOURCE_USER", "source") or "source"), safe="")
+    icecast_password = quote(str(os.getenv("ICECAST_SOURCE_PASSWORD", "062352") or "062352"), safe="")
+    source_url = f"icecast://{icecast_user}:{icecast_password}@127.0.0.1:{ICECAST_PORT}/{safe_mount}"
+
+    # Emit silence for pre-roll, then tone, so UI can measure from a known onset.
+    gate_expr = f"volume='if(lt(t,{lead_sec:.3f}),0,0.92)'"
+    cmd = [
+        ffmpeg_bin,
+        "-nostdin",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-re",
+        "-f",
+        "lavfi",
+        "-i",
+        f"sine=frequency={freq_hz}:sample_rate={rate_hz}",
+        "-vn",
+        "-ac",
+        "1",
+        "-ar",
+        str(rate_hz),
+        "-af",
+        gate_expr,
+        "-t",
+        f"{total_sec:.3f}",
+        "-c:a",
+        "libmp3lame",
+        "-b:a",
+        f"{kbps}k",
+        "-write_xing",
+        "0",
+        "-flush_packets",
+        "1",
+        "-content_type",
+        "audio/mpeg",
+        "-legacy_icecast",
+        "1",
+        "-f",
+        "mp3",
+        source_url,
+    ]
+
+    with _LATENCY_TONE_LOCK:
+        now_ms = int(time.time() * 1000)
+        _latency_tone_reap_locked(now_ms)
+        if _LATENCY_TONE_PROC is not None and _LATENCY_TONE_PROC.poll() is None:
+            _latency_tone_stop_locked("replaced_by_new_injection")
+        try:
+            _LATENCY_TONE_PROC = subprocess.Popen(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception as exc:
+            _LATENCY_TONE_STATE["last_error"] = str(exc)
+            status = _latency_tone_status_payload_locked()
+            return False, str(exc), status
+
+        started_ms = int(time.time() * 1000)
+        _LATENCY_TONE_STATE.update(
+            {
+                "active": True,
+                "pid": int(_LATENCY_TONE_PROC.pid or 0),
+                "mount": safe_mount,
+                "target": safe_target,
+                "frequency_hz": freq_hz,
+                "duration_ms": total_ms,
+                "pre_roll_ms": lead_ms,
+                "bitrate_kbps": kbps,
+                "sample_rate_hz": rate_hz,
+                "started_at_ms": started_ms,
+                "estimated_tone_start_ms": started_ms + lead_ms,
+                "ended_at_ms": 0,
+                "last_error": "",
+                "stop_reason": "",
+            }
+        )
+        if _LATENCY_TONE_PROC.poll() is not None:
+            rc = int(_LATENCY_TONE_PROC.returncode or 0)
+            _LATENCY_TONE_PROC = None
+            _LATENCY_TONE_STATE["active"] = False
+            _LATENCY_TONE_STATE["pid"] = 0
+            _LATENCY_TONE_STATE["ended_at_ms"] = int(time.time() * 1000)
+            _LATENCY_TONE_STATE["last_error"] = f"ffmpeg exited rc={rc}"
+            status = _latency_tone_status_payload_locked()
+            return False, _LATENCY_TONE_STATE["last_error"], status
+        status = _latency_tone_status_payload_locked(started_ms)
+    return True, "", status
 
 
 def _flatten_hp_scan_pool_for_preview(pool: dict[str, Any], *, limit: int = 4000) -> dict[str, Any]:
@@ -1844,6 +2079,14 @@ class Handler(BaseHTTPRequestHandler):
                 "application/json; charset=utf-8",
             )
 
+        if p == "/api/latency/tone":
+            payload = _latency_tone_status_payload()
+            return self._send(
+                200,
+                json.dumps({"ok": True, "tone": payload}),
+                "application/json; charset=utf-8",
+            )
+
         if p == "/api/status":
             now_monotonic = time.monotonic()
             with _CACHE_LOCK:
@@ -2411,6 +2654,86 @@ class Handler(BaseHTTPRequestHandler):
 
         def parse_json_like_list(raw_value) -> list:
             return _parse_json_like_list(raw_value)
+
+        if p == "/api/latency/tone":
+            action = get_str("action", "status").strip().lower() or "status"
+            if action in ("status", "get"):
+                payload = _latency_tone_status_payload()
+                return self._send(
+                    200,
+                    json.dumps({"ok": True, "tone": payload}),
+                    "application/json; charset=utf-8",
+                )
+            if action in ("stop", "cancel"):
+                with _LATENCY_TONE_LOCK:
+                    payload = _latency_tone_stop_locked("api_stop")
+                return self._send(
+                    200,
+                    json.dumps({"ok": True, "tone": payload}),
+                    "application/json; charset=utf-8",
+                )
+            if action in ("start", "inject"):
+                requested_target = get_str("target", LATENCY_TONE_DEFAULT_TARGET).strip().lower()
+                target = "digital" if requested_target == "digital" else "analog"
+                default_mount = f"latency-{target}.mp3"
+                requested_mount = get_str("mount", "").strip()
+                mount = requested_mount or default_mount
+                frequency_hz = _bounded_int(
+                    form.get("frequency_hz", LATENCY_TONE_DEFAULT_FREQ_HZ),
+                    LATENCY_TONE_DEFAULT_FREQ_HZ,
+                    120,
+                    5000,
+                )
+                duration_ms = _bounded_int(
+                    form.get("duration_ms", LATENCY_TONE_DEFAULT_DURATION_MS),
+                    LATENCY_TONE_DEFAULT_DURATION_MS,
+                    500,
+                    30000,
+                )
+                pre_roll_ms = _bounded_int(
+                    form.get("pre_roll_ms", LATENCY_TONE_DEFAULT_PREROLL_MS),
+                    LATENCY_TONE_DEFAULT_PREROLL_MS,
+                    0,
+                    min(5000, max(0, duration_ms - 100)),
+                )
+                bitrate_kbps = _bounded_int(
+                    form.get("bitrate_kbps", LATENCY_TONE_DEFAULT_BITRATE_KBPS),
+                    LATENCY_TONE_DEFAULT_BITRATE_KBPS,
+                    8,
+                    128,
+                )
+                sample_rate_hz = _bounded_int(
+                    form.get("sample_rate_hz", LATENCY_TONE_DEFAULT_SAMPLE_RATE),
+                    LATENCY_TONE_DEFAULT_SAMPLE_RATE,
+                    8000,
+                    48000,
+                )
+                ok, err, tone_status = _start_latency_tone_injection(
+                    target=target,
+                    mount=mount,
+                    frequency_hz=frequency_hz,
+                    duration_ms=duration_ms,
+                    pre_roll_ms=pre_roll_ms,
+                    bitrate_kbps=bitrate_kbps,
+                    sample_rate_hz=sample_rate_hz,
+                )
+                status_code = 200 if ok else 500
+                body = {
+                    "ok": bool(ok),
+                    "tone": tone_status,
+                }
+                if not ok:
+                    body["error"] = str(err or "unable to start latency tone injection")
+                return self._send(
+                    status_code,
+                    json.dumps(body),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(
+                400,
+                json.dumps({"ok": False, "error": "invalid action"}),
+                "application/json; charset=utf-8",
+            )
 
         if p == "/api/mode":
             controller = get_scan_mode_controller()

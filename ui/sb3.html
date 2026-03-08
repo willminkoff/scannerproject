@@ -1208,6 +1208,57 @@
       opacity: 0.88;
     }
 
+    .latency-test-box {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.2);
+      display: grid;
+      gap: 8px;
+    }
+
+    .latency-test-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .latency-test-grid label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .latency-test-grid select,
+    .latency-test-grid input[type="number"] {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg-panel);
+      color: var(--text-primary);
+      font-size: 12px;
+    }
+
+    .latency-test-readout {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .latency-test-readout b {
+      color: var(--text-primary);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-weight: 700;
+      margin-left: 4px;
+    }
+
     .freq-editor textarea {
       width: 100%;
       box-sizing: border-box;
@@ -2236,6 +2287,11 @@
         grid-template-columns: 1fr;
       }
 
+      .latency-test-grid,
+      .latency-test-readout {
+        grid-template-columns: 1fr;
+      }
+
       .widget-header.with-actions {
         flex-wrap: wrap;
       }
@@ -2430,6 +2486,55 @@
                 <audio id="audio-player-digital" controls preload="none"></audio>
               </div>
 
+            </div>
+          </div>
+
+          <div class="latency-test-box" id="latency-test-box">
+            <div class="control-label">
+              <span>Latency Test (Tone - RMS)</span>
+              <span class="control-value" id="latency-test-status">Idle</span>
+            </div>
+            <div class="control-applied" id="latency-test-message">
+              RF mode: inject a tone at the antenna and press Mark Inject. Software mode: injects a tone into Icecast for player-path timing.
+            </div>
+            <div class="latency-test-grid">
+              <label>
+                Mode
+                <select id="latency-test-mode">
+                  <option value="rf_manual">RF / Antenna (manual inject)</option>
+                  <option value="software_stream">Software (Icecast inject)</option>
+                </select>
+              </label>
+              <label>
+                Target Player
+                <select id="latency-test-target">
+                  <option value="analog">Analog Embedded Player</option>
+                  <option value="digital">Digital Embedded Player</option>
+                </select>
+              </label>
+              <label>
+                Tone (Hz)
+                <input id="latency-test-frequency" type="number" min="120" max="5000" step="10" value="1000">
+              </label>
+              <label>
+                RMS Threshold
+                <input id="latency-test-threshold" type="number" min="0.01" max="0.90" step="0.01" value="0.08">
+              </label>
+              <label>
+                Duration (ms)
+                <input id="latency-test-duration" type="number" min="1000" max="30000" step="100" value="8000">
+              </label>
+            </div>
+            <div class="btn-row">
+              <button class="action" id="latency-test-arm" type="button">Arm Test</button>
+              <button class="action" id="latency-test-mark" type="button" disabled>Mark Inject</button>
+              <button class="action" id="latency-test-cancel" type="button" disabled>Cancel</button>
+            </div>
+            <div class="latency-test-readout">
+              <div>Live RMS <b id="latency-test-rms">0.000</b></div>
+              <div>Peak RMS <b id="latency-test-peak">0.000</b></div>
+              <div>Baseline <b id="latency-test-baseline">0.000</b></div>
+              <div>Latency <b id="latency-test-latency">--</b></div>
             </div>
           </div>
 
@@ -3232,6 +3337,9 @@
     const AUDIO_PROGRESS_CHECK_MS = 3000;
     const AUDIO_PROGRESS_STALL_MS = 30000;
     const AUDIO_USER_PAUSE_WINDOW_MS = 1500;
+    const LATENCY_TEST_POLL_MS = 25;
+    const LATENCY_TEST_HIT_FRAMES = 3;
+    const LATENCY_TEST_TIMEOUT_MS = 30000;
     const LAST_HIT_PILL_MAX_AGE_MS = 30000;
     const HIT_LIST_MAX_AGE_MS = 30 * 60 * 1000;
     const FETCH_TIMEOUT_MS = 8000;
@@ -3263,6 +3371,8 @@
     let activeTarget = 'airband';
     let activeView = 'airband';
     const audioRecoverState = new WeakMap();
+    let latencyAudioContext = null;
+    const latencyAnalyserByEl = new WeakMap();
 
     function defaultProfileLoopState() {
       return {
@@ -3328,6 +3438,28 @@
       pendingApply: { airband: null, ground: null },
       filterTimeout: null,
       streamRecoveryTimers: { analog: [], digital: [] },
+      latencyTest: {
+        running: false,
+        mode: 'rf_manual',
+        target: 'analog',
+        threshold: 0.08,
+        frequencyHz: 1000,
+        durationMs: 8000,
+        startedAtMs: 0,
+        injectAtMs: 0,
+        detectedAtMs: 0,
+        latencyMs: null,
+        baselineRms: 0,
+        peakRms: 0,
+        liveRms: 0,
+        softwareInjected: false,
+        hadPlayback: false,
+        mount: '',
+        timerId: null,
+        consecutiveHits: 0,
+        samples: 0,
+        baselineSum: 0,
+      },
       serverTime: null,
       systemStats: null,
       v3Compile: null,
@@ -3654,6 +3786,21 @@
       audioPlayerDigital: document.getElementById('audio-player-digital'),
       lnkStreamAnalog: document.getElementById('lnk-stream-analog'),
       lnkStreamDigital: document.getElementById('lnk-stream-digital'),
+      latencyTestBox: document.getElementById('latency-test-box'),
+      latencyTestMode: document.getElementById('latency-test-mode'),
+      latencyTestTarget: document.getElementById('latency-test-target'),
+      latencyTestFrequency: document.getElementById('latency-test-frequency'),
+      latencyTestThreshold: document.getElementById('latency-test-threshold'),
+      latencyTestDuration: document.getElementById('latency-test-duration'),
+      latencyTestStatus: document.getElementById('latency-test-status'),
+      latencyTestMessage: document.getElementById('latency-test-message'),
+      latencyTestArm: document.getElementById('latency-test-arm'),
+      latencyTestMark: document.getElementById('latency-test-mark'),
+      latencyTestCancel: document.getElementById('latency-test-cancel'),
+      latencyTestRms: document.getElementById('latency-test-rms'),
+      latencyTestPeak: document.getElementById('latency-test-peak'),
+      latencyTestBaseline: document.getElementById('latency-test-baseline'),
+      latencyTestLatency: document.getElementById('latency-test-latency'),
       sysCpuTemp: document.getElementById('sys-cpu-temp'),
       sysGpuTemp: document.getElementById('sys-gpu-temp'),
       sysCpuUsage: document.getElementById('sys-cpu-usage'),
@@ -7611,6 +7758,390 @@
     function setupAudioAutoRecover() {
       bindAudioAutoRecover(els.audioPlayerAnalog, reloadAnalogStream);
       bindAudioAutoRecover(els.audioPlayerDigital, reloadDigitalStream);
+    }
+
+    function latencyAudioElementFor(target) {
+      return target === 'digital' ? els.audioPlayerDigital : els.audioPlayerAnalog;
+    }
+
+    function latencyReloadFnFor(target) {
+      return target === 'digital' ? reloadDigitalStream : reloadAnalogStream;
+    }
+
+    function latencyClamp(value, minimum, maximum) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return minimum;
+      if (n < minimum) return minimum;
+      if (n > maximum) return maximum;
+      return n;
+    }
+
+    function latencyRenderState() {
+      const lt = state.latencyTest || {};
+      const threshold = latencyClamp(lt.threshold, 0.01, 0.9);
+      if (els.latencyTestThreshold) {
+        const next = threshold.toFixed(2);
+        if (String(els.latencyTestThreshold.value || '') !== next) {
+          els.latencyTestThreshold.value = next;
+        }
+      }
+      if (els.latencyTestRms) {
+        els.latencyTestRms.textContent = Number(lt.liveRms || 0).toFixed(3);
+      }
+      if (els.latencyTestPeak) {
+        els.latencyTestPeak.textContent = Number(lt.peakRms || 0).toFixed(3);
+      }
+      if (els.latencyTestBaseline) {
+        els.latencyTestBaseline.textContent = Number(lt.baselineRms || 0).toFixed(3);
+      }
+      if (els.latencyTestLatency) {
+        const latency = Number(lt.latencyMs);
+        els.latencyTestLatency.textContent = Number.isFinite(latency) ? `${Math.round(latency)} ms` : '--';
+      }
+      if (els.latencyTestStatus) {
+        let label = 'Idle';
+        if (lt.running && Number(lt.injectAtMs || 0) <= 0) {
+          label = 'Armed';
+        } else if (lt.running && Number(lt.injectAtMs || 0) > 0) {
+          label = 'Listening';
+        } else if (Number.isFinite(Number(lt.latencyMs))) {
+          label = 'Detected';
+        }
+        if (String(lt.statusText || '').trim()) {
+          label = String(lt.statusText).trim();
+        }
+        els.latencyTestStatus.textContent = label;
+      }
+      if (els.latencyTestArm) {
+        els.latencyTestArm.disabled = Boolean(lt.running);
+      }
+      if (els.latencyTestMark) {
+        const canMark = Boolean(
+          lt.running
+          && lt.mode === 'rf_manual'
+          && Number(lt.injectAtMs || 0) <= 0
+        );
+        els.latencyTestMark.disabled = !canMark;
+      }
+      if (els.latencyTestCancel) {
+        els.latencyTestCancel.disabled = !Boolean(lt.running);
+      }
+    }
+
+    function latencySetMessage(text, isError = false) {
+      if (!els.latencyTestMessage) return;
+      els.latencyTestMessage.textContent = String(text || '').trim();
+      els.latencyTestMessage.style.color = isError ? 'var(--bad)' : 'var(--text-secondary)';
+    }
+
+    async function latencyEnsureAnalyser(audioEl) {
+      if (!audioEl) {
+        throw new Error('Audio player not available');
+      }
+      const ACtor = window.AudioContext || window.webkitAudioContext;
+      if (!ACtor) {
+        throw new Error('WebAudio API not available in this browser');
+      }
+      if (!latencyAudioContext) {
+        latencyAudioContext = new ACtor();
+      }
+      if (latencyAudioContext.state === 'suspended') {
+        await latencyAudioContext.resume();
+      }
+      let existing = latencyAnalyserByEl.get(audioEl);
+      if (existing) {
+        return existing;
+      }
+      let sourceNode = null;
+      try {
+        sourceNode = latencyAudioContext.createMediaElementSource(audioEl);
+      } catch (err) {
+        const msg = messageFromError(err, 'unable to attach analyzer');
+        throw new Error(msg);
+      }
+      const analyser = latencyAudioContext.createAnalyser();
+      analyser.fftSize = 2048;
+      analyser.smoothingTimeConstant = 0.02;
+      sourceNode.connect(analyser);
+      analyser.connect(latencyAudioContext.destination);
+      existing = {
+        analyser,
+        buffer: new Float32Array(analyser.fftSize),
+      };
+      latencyAnalyserByEl.set(audioEl, existing);
+      return existing;
+    }
+
+    function latencyReadRms(analyserState) {
+      if (!analyserState || !analyserState.analyser || !analyserState.buffer) return 0;
+      const analyser = analyserState.analyser;
+      const buffer = analyserState.buffer;
+      analyser.getFloatTimeDomainData(buffer);
+      let sumSquares = 0;
+      for (let i = 0; i < buffer.length; i += 1) {
+        const sample = Number(buffer[i] || 0);
+        sumSquares += sample * sample;
+      }
+      if (!buffer.length) return 0;
+      return Math.sqrt(sumSquares / buffer.length);
+    }
+
+    function stopLatencyTestTimer() {
+      const lt = state.latencyTest;
+      if (!lt) return;
+      if (lt.timerId) {
+        clearInterval(lt.timerId);
+        lt.timerId = null;
+      }
+    }
+
+    function restoreLatencyTestPlayer() {
+      const lt = state.latencyTest;
+      if (!lt || !lt.softwareInjected) return;
+      const reloadFn = latencyReloadFnFor(lt.target === 'digital' ? 'digital' : 'analog');
+      const forcePlay = Boolean(lt.hadPlayback);
+      reloadFn('latency-test-restore', forcePlay, { hardReset: true });
+    }
+
+    function finalizeLatencyTest({ ok = false, reason = '', isError = false } = {}) {
+      const lt = state.latencyTest;
+      stopLatencyTestTimer();
+      if (!lt) return;
+      const wasSoftwareInjected = Boolean(lt.softwareInjected);
+      lt.running = false;
+      lt.statusText = ok ? 'Detected' : (isError ? 'Error' : 'Done');
+      if (wasSoftwareInjected) {
+        restoreLatencyTestPlayer();
+        postAPI('/api/latency/tone', { action: 'stop' }).catch(() => {});
+      }
+      lt.softwareInjected = false;
+      lt.hadPlayback = false;
+      if (reason) {
+        latencySetMessage(reason, isError);
+      }
+      if (ok && Number.isFinite(Number(lt.latencyMs))) {
+        logActivity(
+          `Latency test ${lt.target} ${Math.round(Number(lt.latencyMs))} ms (mode=${lt.mode})`,
+          'info',
+          `latency-test-${lt.mode}-${lt.target}-${Math.round(Number(lt.latencyMs))}`,
+        );
+      } else if (reason) {
+        logActivity(`Latency test ${reason}`, isError ? 'warn' : 'info', `latency-test-${Date.now()}`);
+      }
+      latencyRenderState();
+    }
+
+    function runLatencyTestTick(analyserState) {
+      const lt = state.latencyTest;
+      if (!lt || !lt.running) return;
+      const nowMs = Date.now();
+      const rms = latencyReadRms(analyserState);
+      lt.liveRms = rms;
+      if (rms > Number(lt.peakRms || 0)) {
+        lt.peakRms = rms;
+      }
+      if (Number(lt.injectAtMs || 0) <= 0) {
+        lt.samples += 1;
+        lt.baselineSum += rms;
+        if (lt.samples > 0) {
+          lt.baselineRms = lt.baselineSum / lt.samples;
+        }
+      } else {
+        const threshold = latencyClamp(lt.threshold, 0.01, 0.9);
+        if (rms >= threshold) {
+          lt.consecutiveHits += 1;
+        } else {
+          lt.consecutiveHits = 0;
+        }
+        if (lt.consecutiveHits >= LATENCY_TEST_HIT_FRAMES) {
+          lt.detectedAtMs = nowMs;
+          lt.latencyMs = Math.max(0, nowMs - Number(lt.injectAtMs || nowMs));
+          finalizeLatencyTest({
+            ok: true,
+            reason: `Tone detected. End-to-end latency: ${Math.round(Number(lt.latencyMs || 0))} ms`,
+            isError: false,
+          });
+          return;
+        }
+      }
+      const timeoutMs = Math.max(LATENCY_TEST_TIMEOUT_MS, Number(lt.durationMs || 0) + 12000);
+      if ((nowMs - Number(lt.startedAtMs || nowMs)) > timeoutMs) {
+        finalizeLatencyTest({
+          ok: false,
+          reason: 'Timed out before tone crossed threshold',
+          isError: true,
+        });
+        return;
+      }
+      latencyRenderState();
+    }
+
+    async function armLatencyTest() {
+      const lt = state.latencyTest;
+      if (!lt || lt.running) return;
+      lt.mode = (els.latencyTestMode && els.latencyTestMode.value === 'software_stream') ? 'software_stream' : 'rf_manual';
+      lt.target = (els.latencyTestTarget && els.latencyTestTarget.value === 'digital') ? 'digital' : 'analog';
+      lt.threshold = latencyClamp(els.latencyTestThreshold ? els.latencyTestThreshold.value : lt.threshold, 0.01, 0.9);
+      lt.frequencyHz = Math.round(latencyClamp(
+        els.latencyTestFrequency ? els.latencyTestFrequency.value : lt.frequencyHz,
+        120,
+        5000,
+      ));
+      lt.durationMs = Math.round(latencyClamp(
+        els.latencyTestDuration ? els.latencyTestDuration.value : lt.durationMs,
+        1000,
+        30000,
+      ));
+      lt.startedAtMs = Date.now();
+      lt.injectAtMs = 0;
+      lt.detectedAtMs = 0;
+      lt.latencyMs = null;
+      lt.baselineRms = 0;
+      lt.peakRms = 0;
+      lt.liveRms = 0;
+      lt.samples = 0;
+      lt.baselineSum = 0;
+      lt.consecutiveHits = 0;
+      lt.mount = '';
+      lt.statusText = 'Armed';
+      lt.softwareInjected = false;
+      const audioEl = latencyAudioElementFor(lt.target);
+      if (!audioEl) {
+        finalizeLatencyTest({ ok: false, reason: 'Target player unavailable', isError: true });
+        return;
+      }
+      lt.hadPlayback = Boolean(!audioEl.paused || audioEl.dataset.wantplay === '1');
+      let analyserState = null;
+      try {
+        analyserState = await latencyEnsureAnalyser(audioEl);
+      } catch (err) {
+        finalizeLatencyTest({ ok: false, reason: messageFromError(err, 'Analyzer setup failed'), isError: true });
+        return;
+      }
+      if (audioEl.paused) {
+        audioEl.dataset.wantplay = '1';
+        requestAudioPlay(audioEl, 'latency-test-arm');
+      }
+      lt.running = true;
+      latencySetMessage(
+        lt.mode === 'rf_manual'
+          ? 'Armed. Inject tone at antenna, then press Mark Inject.'
+          : 'Starting software tone injection...',
+        false,
+      );
+      latencyRenderState();
+
+      if (lt.mode === 'software_stream') {
+        try {
+          const mount = `latency-${lt.target}.mp3`;
+          const response = await postAPI('/api/latency/tone', {
+            action: 'start',
+            target: lt.target,
+            mount,
+            frequency_hz: lt.frequencyHz,
+            duration_ms: lt.durationMs,
+            pre_roll_ms: 800,
+          });
+          const tone = response && response.tone ? response.tone : {};
+          const streamPath = String(tone.stream_path || '').trim();
+          const injectAtMs = Number(tone.estimated_tone_start_ms || 0);
+          if (!streamPath || !Number.isFinite(injectAtMs) || injectAtMs <= 0) {
+            throw new Error('invalid tone response');
+          }
+          lt.mount = String(tone.mount || mount).trim();
+          lt.injectAtMs = injectAtMs;
+          lt.softwareInjected = true;
+          lt.consecutiveHits = 0;
+          audioEl.dataset.wantplay = '1';
+          audioEl.src = `${streamPath}?transcode=0&t=${Date.now()}`;
+          audioEl.load();
+          requestAudioPlay(audioEl, 'latency-test-software');
+          latencySetMessage(
+            `Software tone injection started on /${lt.mount}; listening for RMS threshold`,
+            false,
+          );
+        } catch (err) {
+          finalizeLatencyTest({
+            ok: false,
+            reason: messageFromError(err, 'software tone inject failed'),
+            isError: true,
+          });
+          return;
+        }
+      }
+
+      stopLatencyTestTimer();
+      lt.timerId = setInterval(() => runLatencyTestTick(analyserState), LATENCY_TEST_POLL_MS);
+      latencyRenderState();
+    }
+
+    function markLatencyInjectNow() {
+      const lt = state.latencyTest;
+      if (!lt || !lt.running) return;
+      if (lt.mode !== 'rf_manual') return;
+      if (Number(lt.injectAtMs || 0) > 0) return;
+      lt.injectAtMs = Date.now();
+      lt.statusText = 'Listening';
+      lt.consecutiveHits = 0;
+      latencySetMessage('Inject marked. Waiting for RMS threshold crossing...', false);
+      latencyRenderState();
+    }
+
+    function cancelLatencyTest() {
+      const lt = state.latencyTest;
+      if (!lt || !lt.running) return;
+      finalizeLatencyTest({ ok: false, reason: 'Canceled by user', isError: false });
+    }
+
+    function bindLatencyTestControls() {
+      if (els.latencyTestMode) {
+        els.latencyTestMode.addEventListener('change', () => {
+          const lt = state.latencyTest;
+          lt.mode = els.latencyTestMode.value === 'software_stream' ? 'software_stream' : 'rf_manual';
+          latencyRenderState();
+        });
+      }
+      if (els.latencyTestTarget) {
+        els.latencyTestTarget.addEventListener('change', () => {
+          const lt = state.latencyTest;
+          lt.target = els.latencyTestTarget.value === 'digital' ? 'digital' : 'analog';
+          latencyRenderState();
+        });
+      }
+      if (els.latencyTestThreshold) {
+        els.latencyTestThreshold.addEventListener('input', () => {
+          state.latencyTest.threshold = latencyClamp(els.latencyTestThreshold.value, 0.01, 0.9);
+          latencyRenderState();
+        });
+      }
+      if (els.latencyTestFrequency) {
+        els.latencyTestFrequency.addEventListener('input', () => {
+          state.latencyTest.frequencyHz = Math.round(latencyClamp(els.latencyTestFrequency.value, 120, 5000));
+        });
+      }
+      if (els.latencyTestDuration) {
+        els.latencyTestDuration.addEventListener('input', () => {
+          state.latencyTest.durationMs = Math.round(latencyClamp(els.latencyTestDuration.value, 1000, 30000));
+        });
+      }
+      if (els.latencyTestArm) {
+        els.latencyTestArm.addEventListener('click', () => {
+          armLatencyTest().catch((err) => {
+            finalizeLatencyTest({
+              ok: false,
+              reason: messageFromError(err, 'latency test failed'),
+              isError: true,
+            });
+          });
+        });
+      }
+      if (els.latencyTestMark) {
+        els.latencyTestMark.addEventListener('click', markLatencyInjectNow);
+      }
+      if (els.latencyTestCancel) {
+        els.latencyTestCancel.addEventListener('click', cancelLatencyTest);
+      }
+      latencyRenderState();
     }
 
     function normalizeVlcTarget(target) {
@@ -12035,6 +12566,7 @@
       }
       // Reconnect button removed
       setupAudioAutoRecover();
+      bindLatencyTestControls();
       
       logActivity('SB3 UI initialized', 'info', 'init');
       try {
