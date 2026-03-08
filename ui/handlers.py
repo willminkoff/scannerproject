@@ -236,6 +236,7 @@ _STATUS_CACHE_TTL_SEC = max(0.1, float(os.getenv("STATUS_CACHE_TTL_SEC", "0.75")
 _HITS_CACHE_TTL_SEC = max(0.1, float(os.getenv("HITS_CACHE_TTL_SEC", "1.0")))
 _UNIT_ACTIVE_CACHE_TTL_SEC = max(0.1, float(os.getenv("UNIT_ACTIVE_CACHE_TTL_SEC", "1.0")))
 STREAM_PROXY_READ_TIMEOUT_SEC = max(120.0, float(os.getenv("STREAM_PROXY_READ_TIMEOUT_SEC", "600")))
+STREAM_PROXY_CHUNK_BYTES = max(128, int(os.getenv("STREAM_PROXY_CHUNK_BYTES", "512")))
 _CACHE_LOCK = threading.Lock()
 _STATUS_CACHE: dict[str, object] = {"ts": 0.0, "payload": None}
 _HITS_CACHE: dict[str, object] = {"ts": 0.0, "payload": None}
@@ -1362,7 +1363,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not proc.stdout:
                     return
                 while True:
-                    chunk = proc.stdout.read(2048)
+                    chunk = proc.stdout.read(STREAM_PROXY_CHUNK_BYTES)
                     if not chunk:
                         break
                     self.wfile.write(chunk)
@@ -1411,9 +1412,9 @@ class Handler(BaseHTTPRequestHandler):
                 if head_only:
                     return
                 while True:
-                    # Keep proxy chunks small so low-bitrate streams emit data
+                    # Keep proxy chunks small so low-bitrate streams flush
                     # frequently enough for embedded browser players.
-                    chunk = upstream_resp.read(2048)
+                    chunk = upstream_resp.read(STREAM_PROXY_CHUNK_BYTES)
                     if not chunk:
                         break
                     self.wfile.write(chunk)

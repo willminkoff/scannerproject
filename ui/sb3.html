@@ -3231,6 +3231,7 @@
     const AUDIO_STARTUP_RECOVER_GRACE_ANALOG_MS = 20000;
     const AUDIO_PROGRESS_CHECK_MS = 3000;
     const AUDIO_PROGRESS_STALL_MS = 30000;
+    const AUDIO_USER_PAUSE_WINDOW_MS = 1500;
     const FETCH_TIMEOUT_MS = 8000;
     const HP_AUTOLOCATE_TIMEOUT_MS = 12000;
     const HP_IP_GEOLOOKUP_URL = 'https://ipapi.co/json/';
@@ -7442,6 +7443,7 @@
           playRequestTs: 0,
           lastPlayingTs: 0,
           waitingSinceTs: 0,
+          userPauseHintTs: 0,
         };
         audioRecoverState.set(audioEl, tracker);
       }
@@ -7530,15 +7532,33 @@
       if (audioEl.dataset.autorecoverBound === '1') return;
       audioEl.dataset.autorecoverBound = '1';
       const targetLabel = audioEl === els.audioPlayerDigital ? 'Digital' : 'Analog';
+      const markUserPauseHint = () => {
+        tracker.userPauseHintTs = Date.now();
+      };
+      audioEl.addEventListener('pointerdown', markUserPauseHint);
+      audioEl.addEventListener('touchstart', markUserPauseHint, { passive: true });
+      audioEl.addEventListener('keydown', (ev) => {
+        const key = String(ev && ev.key ? ev.key : '').toLowerCase();
+        if (key === ' ' || key === 'k' || key === 'mediaplaypause') {
+          markUserPauseHint();
+        }
+      });
       audioEl.addEventListener('play', () => {
         ensureAudioAudible(audioEl);
         audioEl.dataset.wantplay = '1';
         tracker.playRequestTs = Date.now();
       });
       audioEl.addEventListener('pause', () => {
-        audioEl.dataset.wantplay = '0';
         tracker.waitingSinceTs = 0;
         clearAudioWaitingTimer(audioEl);
+        const manualPause = (Date.now() - Number(tracker.userPauseHintTs || 0)) <= AUDIO_USER_PAUSE_WINDOW_MS;
+        if (manualPause) {
+          audioEl.dataset.wantplay = '0';
+          return;
+        }
+        if (audioEl.dataset.wantplay === '1') {
+          maybeAutoRecoverAudio(audioEl, reloadFn, 'paused', true);
+        }
       });
       audioEl.addEventListener('playing', () => {
         clearAudioWaitingTimer(audioEl);
