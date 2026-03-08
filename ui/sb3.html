@@ -2489,55 +2489,6 @@
             </div>
           </div>
 
-          <div class="latency-test-box" id="latency-test-box">
-            <div class="control-label">
-              <span>Latency Test (Tone - RMS)</span>
-              <span class="control-value" id="latency-test-status">Idle</span>
-            </div>
-            <div class="control-applied" id="latency-test-message">
-              RF mode: inject a tone at the antenna and press Mark Inject. Software mode: injects a tone into Icecast for player-path timing.
-            </div>
-            <div class="latency-test-grid">
-              <label>
-                Mode
-                <select id="latency-test-mode">
-                  <option value="rf_manual">RF / Antenna (manual inject)</option>
-                  <option value="software_stream">Software (Icecast inject)</option>
-                </select>
-              </label>
-              <label>
-                Target Player
-                <select id="latency-test-target">
-                  <option value="analog">Analog Embedded Player</option>
-                  <option value="digital">Digital Embedded Player</option>
-                </select>
-              </label>
-              <label>
-                Tone (Hz)
-                <input id="latency-test-frequency" type="number" min="120" max="5000" step="10" value="1000">
-              </label>
-              <label>
-                RMS Threshold
-                <input id="latency-test-threshold" type="number" min="0.01" max="0.90" step="0.01" value="0.08">
-              </label>
-              <label>
-                Duration (ms)
-                <input id="latency-test-duration" type="number" min="1000" max="30000" step="100" value="8000">
-              </label>
-            </div>
-            <div class="btn-row">
-              <button class="action" id="latency-test-arm" type="button">Arm Test</button>
-              <button class="action" id="latency-test-mark" type="button" disabled>Mark Inject</button>
-              <button class="action" id="latency-test-cancel" type="button" disabled>Cancel</button>
-            </div>
-            <div class="latency-test-readout">
-              <div>Live RMS <b id="latency-test-rms">0.000</b></div>
-              <div>Peak RMS <b id="latency-test-peak">0.000</b></div>
-              <div>Baseline <b id="latency-test-baseline">0.000</b></div>
-              <div>Latency <b id="latency-test-latency">--</b></div>
-            </div>
-          </div>
-
         </div>
       </div>
 
@@ -2943,6 +2894,57 @@
             <div class="config-row">
               <span class="config-label">Systems Health</span>
               <span class="config-value" id="sitrep-digital-systems">--</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sitrep-card grid-full">
+          <div class="latency-test-box" id="latency-test-box">
+            <div class="control-label">
+              <span>Latency Test (Tone - RMS)</span>
+              <span class="control-value" id="latency-test-status">Idle</span>
+            </div>
+            <div class="control-applied" id="latency-test-message">
+              RF mode: inject a tone at the antenna and press Mark Inject. Software mode: injects a tone into Icecast for player-path timing.
+            </div>
+            <div class="latency-test-grid">
+              <label>
+                Mode
+                <select id="latency-test-mode">
+                  <option value="rf_manual">RF / Antenna (manual inject)</option>
+                  <option value="software_stream">Software (Icecast inject)</option>
+                </select>
+              </label>
+              <label>
+                Target Player
+                <select id="latency-test-target">
+                  <option value="analog">Analog Embedded Player</option>
+                  <option value="digital">Digital Embedded Player</option>
+                </select>
+              </label>
+              <label>
+                Tone (Hz)
+                <input id="latency-test-frequency" type="number" min="120" max="5000" step="10" value="1000">
+              </label>
+              <label>
+                RMS Threshold
+                <input id="latency-test-threshold" type="number" min="0.01" max="0.90" step="0.01" value="0.08">
+              </label>
+              <label>
+                Duration (ms)
+                <input id="latency-test-duration" type="number" min="1000" max="30000" step="100" value="8000">
+              </label>
+            </div>
+            <div class="btn-row">
+              <button class="action" id="latency-test-arm" type="button">Arm Test</button>
+              <button class="action" id="latency-test-mark" type="button" disabled>Mark Inject</button>
+              <button class="action" id="latency-test-cancel" type="button" disabled>Cancel</button>
+            </div>
+            <div class="latency-test-readout">
+              <div>Live RMS <b id="latency-test-rms">0.000</b></div>
+              <div>Peak RMS <b id="latency-test-peak">0.000</b></div>
+              <div>Baseline <b id="latency-test-baseline">0.000</b></div>
+              <div>Latency <b id="latency-test-latency">--</b></div>
             </div>
           </div>
         </div>
