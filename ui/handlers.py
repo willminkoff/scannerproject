@@ -60,6 +60,7 @@ try:
         DIGITAL_STREAM_MOUNT,
         ICECAST_PORT,
         PLAYER_MOUNT,
+        STREAM_PROXY_TRANSCODE_ANALOG_DEFAULT,
     )
     from .profile_config import (
         read_active_config_path, parse_controls, split_profiles,
@@ -143,6 +144,7 @@ except ImportError:
         DIGITAL_STREAM_MOUNT,
         ICECAST_PORT,
         PLAYER_MOUNT,
+        STREAM_PROXY_TRANSCODE_ANALOG_DEFAULT,
     )
     from ui.profile_config import (
         read_active_config_path, parse_controls, split_profiles,
@@ -237,7 +239,7 @@ _HITS_CACHE_TTL_SEC = max(0.1, float(os.getenv("HITS_CACHE_TTL_SEC", "1.0")))
 _UNIT_ACTIVE_CACHE_TTL_SEC = max(0.1, float(os.getenv("UNIT_ACTIVE_CACHE_TTL_SEC", "1.0")))
 HIT_LIST_MAX_AGE_SEC = max(60, int(os.getenv("HIT_LIST_MAX_AGE_SEC", "1800")))
 STREAM_PROXY_READ_TIMEOUT_SEC = max(120.0, float(os.getenv("STREAM_PROXY_READ_TIMEOUT_SEC", "600")))
-STREAM_PROXY_CHUNK_BYTES = max(128, int(os.getenv("STREAM_PROXY_CHUNK_BYTES", "512")))
+STREAM_PROXY_CHUNK_BYTES = max(128, int(os.getenv("STREAM_PROXY_CHUNK_BYTES", "256")))
 _CACHE_LOCK = threading.Lock()
 _STATUS_CACHE: dict[str, object] = {"ts": 0.0, "payload": None}
 _HITS_CACHE: dict[str, object] = {"ts": 0.0, "payload": None}
@@ -647,6 +649,12 @@ def _is_live_analog_source(source: dict) -> bool:
         return False
     if "digital" in mount or "keepalive" in mount:
         return False
+    return _source_has_audio_metadata(source)
+
+
+def _source_has_audio_metadata(source: dict) -> bool:
+    if not source:
+        return False
     if str(source.get("audio_info") or "").strip():
         return True
     if str(source.get("server_type") or "").strip():
@@ -676,6 +684,36 @@ def _resolve_analog_stream_mount(status_text: str) -> str:
             mount = str(row.get("mount") or "").strip()
             if mount:
                 return mount
+    return configured
+
+
+def _resolve_digital_stream_mount(status_text: str) -> str:
+    configured = str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/")
+    sources = _icecast_sources(status_text)
+    if not sources:
+        return configured
+    by_mount = {
+        str(row.get("mount") or "").strip(): row
+        for row in sources
+        if str(row.get("mount") or "").strip()
+    }
+    if configured and configured in by_mount:
+        return configured
+    for row in sources:
+        mount = str(row.get("mount") or "").strip()
+        if not mount:
+            continue
+        mount_l = mount.lower()
+        if "digital" not in mount_l:
+            continue
+        if _source_has_audio_metadata(row):
+            return mount
+    for row in sources:
+        mount = str(row.get("mount") or "").strip()
+        if not mount:
+            continue
+        if "digital" in mount.lower():
+            return mount
     return configured
 
 
@@ -845,7 +883,8 @@ def _digital_stream_active_for_hits() -> bool:
         return True
     status_text = fetch_local_icecast_status()
     if status_text and not status_text.startswith("ERROR:"):
-        title = extract_icecast_title_for_mount(status_text, f"/{DIGITAL_STREAM_MOUNT}")
+        mount = _resolve_digital_stream_mount(status_text) or str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/")
+        title = extract_icecast_title_for_mount(status_text, f"/{mount}")
         if title.strip().lower() not in _DIGITAL_IDLE_TITLES:
             return True
     return _digital_has_recent_event()
@@ -1315,15 +1354,36 @@ class Handler(BaseHTTPRequestHandler):
                 return ""
         return mount
 
-    def _proxy_icecast_mount(self, mount_name: str, head_only: bool = False, transcode: bool = False):
+    @staticmethod
+    def _parse_optional_bool_query(qs: dict[str, list[str]], key: str) -> bool | None:
+        if key not in qs:
+            return None
+        raw = ((qs.get(key) or [""])[0] or "").strip().lower()
+        if raw in ("1", "true", "yes", "on"):
+            return True
+        if raw in ("", "0", "false", "no", "off"):
+            return False
+        return None
+
+    def _proxy_icecast_mount(self, mount_name: str, head_only: bool = False, transcode: bool | None = None):
         mount = self._sanitize_mount_name(mount_name)
         if not mount:
             if head_only:
                 return self._send_head(400)
             return self._send(400, "invalid mount", "text/plain; charset=utf-8")
+        transcode_enabled = False
+        if not head_only:
+            if transcode is None:
+                # Favor pass-through for lower live latency; allow opt-in analog
+                # transcoding for clients that cannot decode low-rate source MP3.
+                transcode_enabled = (
+                    STREAM_PROXY_TRANSCODE_ANALOG_DEFAULT and "digital" not in mount.lower()
+                )
+            else:
+                transcode_enabled = bool(transcode)
         upstream = f"http://127.0.0.1:{ICECAST_PORT}/{mount}"
         headers_sent = False
-        if transcode and not head_only:
+        if transcode_enabled:
             proc = None
             try:
                 # Desktop browser compatibility path for low-rate analog streams.
@@ -1334,6 +1394,14 @@ class Handler(BaseHTTPRequestHandler):
                     "-hide_banner",
                     "-loglevel",
                     "error",
+                    "-fflags",
+                    "nobuffer",
+                    "-flags",
+                    "low_delay",
+                    "-probesize",
+                    "32768",
+                    "-analyzeduration",
+                    "0",
                     "-f",
                     "mp3",
                     "-i",
@@ -1447,7 +1515,7 @@ class Handler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         p = u.path
         q = parse_qs(u.query or "")
-        transcode = str((q.get("transcode") or ["0"])[0]).strip().lower() in ("1", "true", "yes", "on")
+        transcode = self._parse_optional_bool_query(q, "transcode")
         if p == "/stream" or p == "/stream/":
             return self._proxy_icecast_mount("", head_only=True, transcode=transcode)
         if p.startswith("/stream/"):
@@ -1459,7 +1527,7 @@ class Handler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         p = u.path
         q = parse_qs(u.query or "")
-        transcode = str((q.get("transcode") or ["0"])[0]).strip().lower() in ("1", "true", "yes", "on")
+        transcode = self._parse_optional_bool_query(q, "transcode")
         if p == "/":
             return self._send_redirect("/sb3")
 
@@ -1854,11 +1922,13 @@ class Handler(BaseHTTPRequestHandler):
             ice_ok = _unit_active_cached(UNITS["icecast"])
             icecast_mounts = []
             analog_stream_mount = str(PLAYER_MOUNT or "").strip().lstrip("/")
+            digital_stream_mount = str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/")
             if ice_ok:
                 try:
                     status_text = fetch_local_icecast_status()
                     icecast_mounts = list_icecast_mounts(status_text)
                     analog_stream_mount = _resolve_analog_stream_mount(status_text)
+                    digital_stream_mount = _resolve_digital_stream_mount(status_text)
                 except Exception:
                     icecast_mounts = []
             combined_stale = combined_config_stale()
@@ -1936,7 +2006,7 @@ class Handler(BaseHTTPRequestHandler):
                 "icecast_port": ICECAST_PORT,
                 "stream_mount": analog_stream_mount,
                 "stream_proxy_enabled": True,
-                "digital_stream_mount": DIGITAL_STREAM_MOUNT,
+                "digital_stream_mount": digital_stream_mount,
                 "icecast_expected_mounts": [f"/{PLAYER_MOUNT}", f"/{DIGITAL_STREAM_MOUNT}"],
                 "expected_serials": expected_serials,
                 "digital_tuner_targets": _digital_tuner_targets(),
@@ -2223,13 +2293,15 @@ class Handler(BaseHTTPRequestHandler):
                 ground_active = rtl_active and ground_present
                 ice_ok = _unit_active_cached(UNITS["icecast"])
                 analog_stream_mount = str(PLAYER_MOUNT or "").strip().lstrip("/")
+                digital_stream_mount = str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/")
                 if ice_ok:
                     try:
-                        analog_stream_mount = _resolve_analog_stream_mount(
-                            fetch_local_icecast_status()
-                        )
+                        status_text = fetch_local_icecast_status()
+                        analog_stream_mount = _resolve_analog_stream_mount(status_text)
+                        digital_stream_mount = _resolve_digital_stream_mount(status_text)
                     except Exception:
                         analog_stream_mount = str(PLAYER_MOUNT or "").strip().lstrip("/")
+                        digital_stream_mount = str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/")
                 # Keep SSE hits aligned with the full UI hit list so digital
                 # rows are not dropped by top-10 truncation during busy analog traffic.
                 hits_payload = _get_hits_payload_cached(limit=50)
@@ -2277,7 +2349,7 @@ class Handler(BaseHTTPRequestHandler):
                     "last_hit_airband_label": _short_label(last_hit_airband_label, max_len=48),
                     "last_hit_ground_label": _short_label(last_hit_ground_label, max_len=48),
                     "stream_mount": analog_stream_mount,
-                    "digital_stream_mount": str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/"),
+                    "digital_stream_mount": digital_stream_mount,
                     "server_time": time.time(),
                     "hp_avoids": get_scan_mode_controller().get_hp_avoids(),
                 }

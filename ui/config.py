@@ -185,6 +185,10 @@ PLAYER_MOUNT = os.getenv("PLAYER_MOUNT", "").strip().lstrip("/")
 if not PLAYER_MOUNT:
     PLAYER_MOUNT = ANALOG_STREAM_MOUNT
 ICECAST_MOUNT_PATH = f"/{PLAYER_MOUNT}"
+STREAM_PROXY_TRANSCODE_ANALOG_DEFAULT = os.getenv(
+    "STREAM_PROXY_TRANSCODE_ANALOG_DEFAULT",
+    "0",
+).strip().lower() in ("1", "true", "yes", "on")
 
 # V3 Runtime + Preflight
 V3_CANONICAL_CONFIG_PATH = os.getenv(

@@ -541,6 +541,79 @@ class RecentRegressionTests(unittest.TestCase):
             self.assertEqual("Tower", mapping.get("118.6000"))
             self.assertEqual("Approach", mapping.get("124.8750"))
 
+    def test_resolve_digital_stream_mount_prefers_configured_mount_when_present(self):
+        status_text = json.dumps(
+            {
+                "icestats": {
+                    "source": [
+                        {
+                            "listenurl": "http://127.0.0.1:8000/DIGITAL.mp3",
+                            "audio_info": "bitrate=32;samplerate=16000",
+                            "server_type": "audio/mpeg",
+                        },
+                        {
+                            "listenurl": "http://127.0.0.1:8000/keepalive-digital.mp3",
+                            "audio_info": "bitrate=32;samplerate=16000",
+                            "server_type": "audio/mpeg",
+                        },
+                    ]
+                }
+            }
+        )
+        with mock.patch.object(handlers, "DIGITAL_STREAM_MOUNT", "DIGITAL.mp3"):
+            mount = handlers._resolve_digital_stream_mount(status_text)
+        self.assertEqual("DIGITAL.mp3", mount)
+
+    def test_resolve_digital_stream_mount_falls_back_when_configured_mount_missing(self):
+        status_text = json.dumps(
+            {
+                "icestats": {
+                    "source": [
+                        {
+                            "listenurl": "http://127.0.0.1:8000/ANALOG.mp3",
+                            "audio_info": "bitrate=32;samplerate=16000",
+                            "server_type": "audio/mpeg",
+                        },
+                        {
+                            "listenurl": "http://127.0.0.1:8000/keepalive-digital.mp3",
+                            "audio_info": "bitrate=32;samplerate=16000",
+                            "server_type": "audio/mpeg",
+                        },
+                    ]
+                }
+            }
+        )
+        with mock.patch.object(handlers, "DIGITAL_STREAM_MOUNT", "DIGITAL.mp3"):
+            mount = handlers._resolve_digital_stream_mount(status_text)
+        self.assertEqual("keepalive-digital.mp3", mount)
+
+    def test_digital_stream_active_checks_resolved_mount_title(self):
+        status_text = json.dumps(
+            {
+                "icestats": {
+                    "source": [
+                        {
+                            "listenurl": "http://127.0.0.1:8000/keepalive-digital.mp3",
+                            "audio_info": "bitrate=32;samplerate=16000",
+                            "server_type": "audio/mpeg",
+                        }
+                    ]
+                }
+            }
+        )
+        with mock.patch.object(handlers, "DIGITAL_STREAM_MOUNT", "DIGITAL.mp3"), mock.patch.object(
+            handlers, "fetch_local_icecast_status", return_value=status_text
+        ), mock.patch.object(
+            handlers,
+            "extract_icecast_title_for_mount",
+            side_effect=lambda _status, mount: "Unit 1 Dispatch" if mount == "/keepalive-digital.mp3" else "",
+        ) as extract_title, mock.patch.object(
+            handlers, "_digital_has_recent_event", return_value=False
+        ):
+            active = handlers._digital_stream_active_for_hits()
+        self.assertTrue(active)
+        extract_title.assert_called_once_with(status_text, "/keepalive-digital.mp3")
+
     def test_digital_alias_stream_binding_normalizes_malformed_tdigital(self):
         root = ET.fromstring(
             """

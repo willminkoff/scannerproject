@@ -7240,9 +7240,11 @@
     }
 
     function currentDigitalMountName() {
-      const primary = String(state.digitalStreamMount || 'DIGITAL.mp3').trim().replace(/^\/+/, '');
-      if (primary) return primary;
-      return resolveMountedStreamName('', ['DIGITAL.mp3', 'keepalive-digital.mp3'], 'DIGITAL.mp3');
+      return resolveMountedStreamName(
+        state.digitalStreamMount,
+        ['DIGITAL.mp3', 'keepalive-digital.mp3'],
+        'DIGITAL.mp3'
+      );
     }
 
     function isLikelyIOSClient() {
