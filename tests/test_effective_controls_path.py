@@ -936,6 +936,44 @@ class DigitalListenConsistencyTests(unittest.TestCase):
         self.assertEqual("10350", str(mapped.get("tgid") or ""))
 
 
+class AliasSeedRowsTests(unittest.TestCase):
+    def test_read_profile_alias_seed_rows_merges_grouped_and_plain_csv(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            grouped = os.path.join(tmp, "talkgroups_with_group.csv")
+            plain = os.path.join(tmp, "talkgroups.csv")
+
+            with open(grouped, "w", encoding="utf-8") as f:
+                f.write("DEC,HEX,Mode,Alpha Tag,Description,Group,Tag\n")
+                f.write("1001,3e9,D,Alpha One,Alpha One,Dispatch,Law\n")
+
+            with open(plain, "w", encoding="utf-8") as f:
+                f.write("DEC,HEX,Mode,Alpha Tag,Description,Tag\n")
+                f.write("1001,3e9,D,Alpha One Plain,Alpha One Plain,Law\n")
+                f.write("2002,7d2,ALL,Bravo Two,Bravo Two,Law\n")
+
+            rows = digital._read_profile_alias_seed_rows(tmp)
+            by_dec = {dec: (name, group) for dec, name, group in rows}
+
+            self.assertIn("1001", by_dec)
+            self.assertIn("2002", by_dec)
+            self.assertEqual(("Alpha One", "Dispatch"), by_dec["1001"])
+            self.assertEqual(("Bravo Two", "Law"), by_dec["2002"])
+
+    def test_read_profile_alias_seed_rows_filters_encrypted_modes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plain = os.path.join(tmp, "talkgroups.csv")
+            with open(plain, "w", encoding="utf-8") as f:
+                f.write("DEC,HEX,Mode,Alpha Tag,Description,Tag\n")
+                f.write("3003,bbb,DE,Encrypted,Encrypted,Law\n")
+                f.write("4004,fa4,D,Clear,Clear,Law\n")
+
+            rows = digital._read_profile_alias_seed_rows(tmp)
+            decs = {dec for dec, _name, _group in rows}
+
+            self.assertNotIn("3003", decs)
+            self.assertIn("4004", decs)
+
+
 class LatencyToneTests(unittest.TestCase):
     def test_sanitize_simple_mount_name_rejects_paths(self):
         self.assertEqual("latency-analog.mp3", handlers._sanitize_simple_mount_name("/latency-analog.mp3"))
