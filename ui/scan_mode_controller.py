@@ -19,6 +19,14 @@ _DEFAULT_DB_PATH = str(Path(HPDB_DB_PATH).expanduser().resolve())
 _DEFAULT_HP_AVOIDS_PATH = str(Path(HP_AVOIDS_PATH).expanduser())
 
 
+def _sites_per_system_limit() -> int:
+    try:
+        parsed = int(os.getenv("HP_TRUNK_SITES_PER_SYSTEM", "1"))
+    except Exception:
+        parsed = 1
+    return max(1, int(parsed))
+
+
 def _normalize_mode_token(mode: str) -> str:
     token = str(mode or "").strip().lower()
     if token in {"hp3", "hp"}:
@@ -746,6 +754,184 @@ class ScanModeController:
             "conventional": conventional,
         }
 
+    def _favorite_nearest_controls_by_system(
+        self,
+        *,
+        system_ids: list[int],
+        center_lat: float,
+        center_lon: float,
+        range_miles: float,
+        include_nationwide: bool,
+        strict_location: bool = False,
+    ) -> dict[int, dict[str, Any]]:
+        if not system_ids:
+            return {}
+
+        lat_miles_per_degree = 69.0
+        lon_miles_per_degree = max(1e-6, 69.0 * abs(math.cos(math.radians(center_lat))))
+        site_limit = _sites_per_system_limit()
+
+        out: dict[int, dict[str, Any]] = {}
+        conn: sqlite3.Connection | None = None
+        try:
+            conn = sqlite3.connect(self._db_path)
+            conn.row_factory = sqlite3.Row
+            localized_trunk_ids: set[int] = set()
+            if not include_nationwide:
+                localized_trunk_ids, _ = self._load_multistate_scope_overrides(conn)
+
+            for system_id in system_ids:
+                if system_id <= 0:
+                    continue
+                rows = conn.execute(
+                    """
+                    SELECT
+                        ts.site_id,
+                        ts.source_file,
+                        ts.latitude,
+                        ts.longitude,
+                        ts.radius
+                    FROM trunk_sites ts
+                    WHERE ts.trunk_id = ?
+                    ORDER BY ts.site_id
+                    """,
+                    (int(system_id),),
+                ).fetchall()
+
+                in_range: list[tuple[float, int]] = []
+                all_candidates: list[tuple[float, int]] = []
+                for row in rows:
+                    source_file = str(row["source_file"] or "").strip().lower()
+                    if (
+                        source_file == "_multiplestates.hpd"
+                        and not include_nationwide
+                        and system_id not in localized_trunk_ids
+                    ):
+                        continue
+                    site_id = self._parse_int(row["site_id"])
+                    site_lat = self._parse_float(row["latitude"])
+                    site_lon = self._parse_float(row["longitude"])
+                    if site_id is None or site_id <= 0:
+                        continue
+                    if site_lat is None or site_lon is None:
+                        continue
+                    distance = haversine_miles(center_lat, center_lon, site_lat, site_lon)
+                    all_candidates.append((float(distance), int(site_id)))
+                    target_radius = max(0.0, float(self._parse_float(row["radius"]) or 0.0))
+                    if self._within_location_threshold(
+                        center_lat=center_lat,
+                        center_lon=center_lon,
+                        target_lat=site_lat,
+                        target_lon=site_lon,
+                        target_radius=target_radius,
+                        lat_miles_per_degree=lat_miles_per_degree,
+                        lon_miles_per_degree=lon_miles_per_degree,
+                        range_miles=range_miles,
+                        strict_location=strict_location,
+                    ):
+                        in_range.append((float(distance), int(site_id)))
+
+                candidates = in_range if in_range else all_candidates
+                if not candidates:
+                    continue
+                candidates.sort(key=lambda item: (float(item[0]), int(item[1])))
+                keep = candidates[:site_limit]
+                keep_site_ids = [int(site_id) for _distance, site_id in keep if int(site_id) > 0]
+                if not keep_site_ids:
+                    continue
+
+                placeholders = ",".join("?" for _ in keep_site_ids)
+                freq_rows = conn.execute(
+                    f"""
+                    SELECT DISTINCT freq_hz
+                    FROM trunk_freqs
+                    WHERE site_id IN ({placeholders})
+                      AND freq_hz IS NOT NULL
+                    ORDER BY freq_hz
+                    """,
+                    keep_site_ids,
+                ).fetchall()
+                controls_mhz: list[float] = []
+                for freq_row in freq_rows:
+                    freq_hz = self._parse_int(freq_row["freq_hz"])
+                    if freq_hz is None or freq_hz <= 0:
+                        continue
+                    controls_mhz.append(round(float(freq_hz) / 1_000_000.0, 6))
+                controls = self._normalize_control_channels(controls_mhz)
+                if not controls:
+                    continue
+                out[int(system_id)] = {
+                    "controls": controls,
+                    "distance_miles": float(keep[0][0]),
+                    "site_ids": [int(item[1]) for item in keep],
+                }
+        except Exception:
+            return {}
+        finally:
+            try:
+                if conn is not None:
+                    conn.close()
+            except Exception:
+                pass
+        return out
+
+    def _trim_favorites_pool_to_nearest_sites(self, pool: dict[str, Any], state) -> dict[str, Any]:
+        if not isinstance(pool, dict):
+            return _empty_pool()
+        trunked = pool.get("trunked_sites")
+        if not isinstance(trunked, list) or not trunked:
+            return pool
+        if not bool(getattr(state, "use_location", False)):
+            return pool
+
+        center = self._resolve_location_center(state)
+        if center is None:
+            return pool
+        center_lat, center_lon = center
+
+        system_ids = sorted(
+            {
+                int(self._parse_int((row or {}).get("system_id")) or 0)
+                for row in trunked
+                if int(self._parse_int((row or {}).get("system_id")) or 0) > 0
+            }
+        )
+        if not system_ids:
+            return pool
+
+        nearest_by_system = self._favorite_nearest_controls_by_system(
+            system_ids=system_ids,
+            center_lat=float(center_lat),
+            center_lon=float(center_lon),
+            range_miles=max(0.0, float(self._parse_float(getattr(state, "range_miles", 0.0)) or 0.0)),
+            include_nationwide=bool(getattr(state, "nationwide_systems", False)),
+            strict_location=bool(getattr(state, "strict_location", False)),
+        )
+        if not nearest_by_system:
+            return pool
+
+        trimmed: list[dict[str, Any]] = []
+        for raw in trunked:
+            row = raw if isinstance(raw, dict) else {}
+            system_id = int(self._parse_int(row.get("system_id")) or 0)
+            nearest = nearest_by_system.get(system_id)
+            if not nearest:
+                if row:
+                    trimmed.append(dict(row))
+                continue
+            controls = nearest.get("controls")
+            if not isinstance(controls, list) or not controls:
+                if row:
+                    trimmed.append(dict(row))
+                continue
+            patched = dict(row)
+            patched["control_channels"] = list(controls)
+            patched["distance_miles"] = float(nearest.get("distance_miles") or 0.0)
+            trimmed.append(patched)
+
+        pool["trunked_sites"] = trimmed
+        return pool
+
     def _prefer_nearest_site_per_system(self, pool: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(pool, dict):
             return _empty_pool()
@@ -878,6 +1064,7 @@ class ScanModeController:
             entries = self._resolve_active_favorites_entries(state)
             filtered_entries = self._filter_favorites_entries(entries, state, service_tags)
             pool = self._build_custom_favorites_pool(filtered_entries)
+            pool = self._trim_favorites_pool_to_nearest_sites(pool, state)
         elif state_mode == "full_database":
             if not bool(state.use_location):
                 return _empty_pool()

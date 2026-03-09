@@ -1,5 +1,6 @@
 import json
 import os
+import sqlite3
 import tempfile
 import time
 import unittest
@@ -516,6 +517,76 @@ class RecentRegressionTests(unittest.TestCase):
         self.assertEqual(2, len(trunked))
         site_ids = sorted(int(row.get("site_id") or 0) for row in trunked)
         self.assertEqual([11, 20], site_ids)
+
+    def test_scan_pool_favorites_location_trims_controls_to_nearest_sites(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = os.path.join(tmp, "hp.db")
+            with sqlite3.connect(db_path) as conn:
+                conn.executescript(
+                    """
+                    CREATE TABLE trunk_sites (
+                        site_id INTEGER PRIMARY KEY,
+                        trunk_id INTEGER,
+                        source_file TEXT,
+                        latitude REAL,
+                        longitude REAL,
+                        radius REAL
+                    );
+                    CREATE TABLE trunk_freqs (
+                        site_id INTEGER,
+                        freq_hz INTEGER
+                    );
+                    """
+                )
+                conn.execute(
+                    "INSERT INTO trunk_sites(site_id, trunk_id, source_file, latitude, longitude, radius) VALUES (?,?,?,?,?,?)",
+                    (1001, 42, "TN.hpd", 36.1205, -86.5405, 2.0),
+                )
+                conn.execute(
+                    "INSERT INTO trunk_sites(site_id, trunk_id, source_file, latitude, longitude, radius) VALUES (?,?,?,?,?,?)",
+                    (1002, 42, "TN.hpd", 37.5000, -87.9000, 2.0),
+                )
+                conn.execute("INSERT INTO trunk_freqs(site_id, freq_hz) VALUES (?,?)", (1001, 851100000))
+                conn.execute("INSERT INTO trunk_freqs(site_id, freq_hz) VALUES (?,?)", (1001, 851300000))
+                conn.execute("INSERT INTO trunk_freqs(site_id, freq_hz) VALUES (?,?)", (1002, 853100000))
+                conn.commit()
+
+            controller = scan_mode_controller.ScanModeController(db_path=db_path)
+            state = HPState.default()
+            state.mode = "favorites"
+            state.use_location = True
+            state.lat = 36.12
+            state.lon = -86.54
+            state.range_miles = 35.0
+            state.nationwide_systems = True
+            state.enabled_service_tags = [2]
+            entries = [
+                {
+                    "kind": "trunked",
+                    "system_id": 42,
+                    "system_name": "Metro System",
+                    "department_name": "Police",
+                    "alpha_tag": "Dispatch",
+                    "talkgroup": 1001,
+                    "service_tag": 2,
+                    "control_channels": [851.1, 851.3, 853.1],
+                }
+            ]
+
+            with mock.patch("ui.hp_state.HPState.load", return_value=state), mock.patch.object(
+                controller, "_resolve_effective_service_tags", return_value=[2]
+            ), mock.patch.object(
+                controller, "_resolve_active_favorites_entries", return_value=entries
+            ), mock.patch.object(
+                controller, "_filter_favorites_entries", return_value=entries
+            ):
+                pool = controller.get_scan_pool()
+
+            trunked = pool.get("trunked_sites") or []
+            self.assertEqual(1, len(trunked))
+            controls = list(trunked[0].get("control_channels") or [])
+            self.assertEqual([851.1, 851.3], controls)
+            self.assertNotIn(853.1, controls)
 
     def test_resolve_analog_label_map_falls_back_to_profile_catalog(self):
         with tempfile.TemporaryDirectory() as tmp:
