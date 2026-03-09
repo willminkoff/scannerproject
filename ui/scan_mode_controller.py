@@ -831,11 +831,29 @@ class ScanModeController:
                     ):
                         in_range.append((float(distance), int(site_id)))
 
-                candidates = in_range if in_range else all_candidates
-                if not candidates:
+                if not all_candidates:
                     continue
-                candidates.sort(key=lambda item: (float(item[0]), int(item[1])))
-                keep = candidates[:site_limit]
+                ranked_in = sorted(in_range, key=lambda item: (float(item[0]), int(item[1])))
+                ranked_all = sorted(all_candidates, key=lambda item: (float(item[0]), int(item[1])))
+                keep: list[tuple[float, int]] = []
+                seen_site_ids: set[int] = set()
+                for distance, site_id in ranked_in:
+                    if site_id in seen_site_ids:
+                        continue
+                    keep.append((float(distance), int(site_id)))
+                    seen_site_ids.add(int(site_id))
+                    if len(keep) >= site_limit:
+                        break
+                if len(keep) < site_limit:
+                    for distance, site_id in ranked_all:
+                        if site_id in seen_site_ids:
+                            continue
+                        keep.append((float(distance), int(site_id)))
+                        seen_site_ids.add(int(site_id))
+                        if len(keep) >= site_limit:
+                            break
+                if not keep:
+                    continue
                 keep_site_ids = [int(site_id) for _distance, site_id in keep if int(site_id) > 0]
                 if not keep_site_ids:
                     continue
