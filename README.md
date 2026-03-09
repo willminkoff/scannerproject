@@ -585,6 +585,35 @@ Acceptance criteria for V3 mode:
 - During active clear voice, scheduler does not preempt audio mid-call.
 - UI and sitrep clearly show which system is currently monitored and why switching occurred.
 
+Fast-switch canary flags (disabled by default):
+- `DIGITAL_SCHEDULER_FAST_SWITCH_ENABLED` (default: `0`)
+- `DIGITAL_SCHEDULER_FAST_TICK_SEC` (default: `0.25`)
+- `DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS` (default: `1200`)
+- `DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS` (default: `750`)
+- `DIGITAL_SCHEDULER_LOCK_MISS_TICKS` (default: `3`)
+
+Suggested canary env block:
+```bash
+DIGITAL_SCHEDULER_FAST_SWITCH_ENABLED=1
+DIGITAL_SCHEDULER_FAST_TICK_SEC=0.25
+DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS=1200
+DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS=750
+DIGITAL_SCHEDULER_LOCK_MISS_TICKS=3
+```
+
+Fast-switch verification:
+- `GET /api/digital/scheduler` should include:
+  - `digital_scheduler_fast_switch_enabled=true` when in `timeslice_multi_system` with 2+ systems
+  - `digital_scheduler_tick_interval_ms` near `250` outside call-hold windows
+  - `digital_scheduler_apply_method` and `digital_scheduler_last_apply_duration_ms`
+  - `digital_scheduler_preflight_cache_age_ms`
+  - `digital_scheduler_lock_miss_ticks`
+- During no-traffic periods with 2 systems, active system rotation should typically be about 1 second.
+- During clear voice, scheduler should remain on the active system until call end + hang.
+
+Rollback:
+- Set `DIGITAL_SCHEDULER_FAST_SWITCH_ENABLED=0` and restart `airband-ui`.
+
 Non-goal:
 - This mode is not true simultaneous full-fidelity multi-system monitoring. True simultaneous control + voice across multiple systems still requires additional digital tuners.
 

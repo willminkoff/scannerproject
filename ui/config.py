@@ -131,6 +131,26 @@ DIGITAL_PAUSE_ON_HIT = os.getenv(
     "DIGITAL_PAUSE_ON_HIT",
     "1",
 ).strip().lower() in ("1", "true", "yes", "on")
+DIGITAL_SCHEDULER_FAST_SWITCH_ENABLED = os.getenv(
+    "DIGITAL_SCHEDULER_FAST_SWITCH_ENABLED",
+    "0",
+).strip().lower() in ("1", "true", "yes", "on")
+DIGITAL_SCHEDULER_FAST_TICK_SEC = max(
+    0.1,
+    float(os.getenv("DIGITAL_SCHEDULER_FAST_TICK_SEC", "0.25")),
+)
+DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS = max(
+    700,
+    int(os.getenv("DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS", "1200")),
+)
+DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS = max(
+    0,
+    int(os.getenv("DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS", "750")),
+)
+DIGITAL_SCHEDULER_LOCK_MISS_TICKS = max(
+    1,
+    int(os.getenv("DIGITAL_SCHEDULER_LOCK_MISS_TICKS", "3")),
+)
 DIGITAL_RUNTIME_RETUNE_ENABLED = os.getenv(
     "DIGITAL_RUNTIME_RETUNE_ENABLED",
     "1",
