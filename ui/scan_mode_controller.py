@@ -639,7 +639,7 @@ class ScanModeController:
 
     def _build_custom_favorites_pool(self, entries: list[dict]) -> dict[str, list]:
         raw_entries = entries if isinstance(entries, list) else []
-        trunk_rows: dict[tuple[int, str, str, tuple[float, ...]], dict[str, Any]] = {}
+        trunk_rows: dict[tuple[int, str, tuple[float, ...]], dict[str, Any]] = {}
         conventional_rows: dict[tuple[str, float, int, str], dict[str, Any]] = {}
 
         for item in raw_entries:
@@ -659,14 +659,14 @@ class ScanModeController:
                     continue
                 department_name = str(row.get("department_name") or "").strip()
                 alpha_tag = str(row.get("alpha_tag") or row.get("channel_name") or "").strip()
-                key = (int(system_id), system_name.lower(), department_name.lower(), tuple(controls))
+                key = (int(system_id), system_name.lower(), tuple(controls))
                 bucket = trunk_rows.get(key)
                 if bucket is None:
                     bucket = {
                         "system_id": int(system_id),
                         "system_name": system_name,
-                        "site_name": department_name or system_name,
-                        "department_name": department_name or system_name,
+                        "site_name": system_name,
+                        "department_name": system_name,
                         "control_channels": controls,
                         "talkgroups": set(),
                         "talkgroup_labels": {},

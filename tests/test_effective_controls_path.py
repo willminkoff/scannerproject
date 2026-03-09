@@ -658,6 +658,40 @@ class RecentRegressionTests(unittest.TestCase):
             controls = list(trunked[0].get("control_channels") or [])
             self.assertEqual([851.1, 853.1], controls)
 
+    def test_build_custom_favorites_pool_merges_trunked_departments_per_system(self):
+        controller = scan_mode_controller.ScanModeController(db_path="/tmp/hpdb-test.db")
+        entries = [
+            {
+                "kind": "trunked",
+                "system_id": 7078,
+                "system_name": "Middle Tennessee Regional Trunked Radio System",
+                "department_name": "Vanderbilt University",
+                "alpha_tag": "Police Dispatch",
+                "talkgroup": 3207,
+                "service_tag": 2,
+                "control_channels": [769.11875, 771.10625],
+            },
+            {
+                "kind": "trunked",
+                "system_id": 7078,
+                "system_name": "Middle Tennessee Regional Trunked Radio System",
+                "department_name": "Davidson County - Goodlettsville",
+                "alpha_tag": "Police - Dispatch",
+                "talkgroup": 3301,
+                "service_tag": 2,
+                "control_channels": [769.11875, 771.10625],
+            },
+        ]
+
+        pool = controller._build_custom_favorites_pool(entries)
+        trunked = pool.get("trunked_sites") or []
+        self.assertEqual(1, len(trunked))
+        row = trunked[0]
+        self.assertEqual([3207, 3301], row.get("talkgroups"))
+        groups = row.get("talkgroup_groups") or {}
+        self.assertEqual("Vanderbilt University", groups.get("3207"))
+        self.assertEqual("Davidson County - Goodlettsville", groups.get("3301"))
+
     def test_resolve_analog_label_map_falls_back_to_profile_catalog(self):
         with tempfile.TemporaryDirectory() as tmp:
             active_path = os.path.join(tmp, "rtl_airband_none_airband.conf")
