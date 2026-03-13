@@ -11486,13 +11486,32 @@
         state.tunedFreq = null;
         state.tunedTarget = null;
         state.hold[profileTarget] = null;
+        state[profileTarget].currentProfile = profileId;
         state.lastProfile[profileTarget] = profileId;
-        await refresh();
+        let refreshErr = null;
+        try {
+          await refresh();
+        } catch (err) {
+          refreshErr = err;
+          try {
+            await refreshProfilesFast();
+          } catch (_) {}
+          state[profileTarget].currentProfile = profileId;
+          updateQuickScanButtons();
+          updateStatus();
+        }
         updateTuneButton();
         const label = profileTarget === 'airband' ? 'Airband' : 'Ground';
         logActivity(`Profile set: ${label} ${getProfileLabel(profileTarget, profileId)}`, 'info', `profile-${profileTarget}-${profileId}`);
         if (res && res.restart_ok === false) {
           logActivity('Restart required after profile change', 'warn', `restart-required-profile-${profileTarget}`);
+        }
+        if (refreshErr) {
+          logActivity(
+            messageFromError(refreshErr, 'Status refresh lagging after profile change'),
+            'warn',
+            `profile-refresh-lag-${profileTarget}`
+          );
         }
         scheduleStreamRecovery('analog', `profile-${profileTarget}`, analogShouldResume);
         return true;
@@ -11617,7 +11636,9 @@
             throw e;
           }
         }
-        await refresh();
+        try {
+          await refreshProfilesFast();
+        } catch (_) {}
         profileExists = getProfilesForTarget(target).some((row) => (
           String((row && row.id) || '').trim() === profileId
         ));
