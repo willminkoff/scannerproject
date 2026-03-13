@@ -11536,6 +11536,50 @@
       return text;
     }
 
+    function oppositeAnalogTarget(target) {
+      return target === 'ground' ? 'airband' : 'ground';
+    }
+
+    function noneProfileForTarget(target) {
+      return target === 'ground' ? QUICK_GROUND_OFF_PROFILE_ID : QUICK_AIRBAND_OFF_PROFILE_ID;
+    }
+
+    function targetHasProfile(target, profileId) {
+      const pid = String(profileId || '').trim();
+      if (!pid) return false;
+      return getProfilesForTarget(target).some((row) => (
+        String((row && row.id) || '').trim() === pid
+      ));
+    }
+
+    async function parkOtherAnalogTarget(activeTargetName, activeLabel) {
+      const selectedTarget = activeTargetName === 'ground' ? 'ground' : 'airband';
+      const otherTarget = oppositeAnalogTarget(selectedTarget);
+      const otherNoneProfile = noneProfileForTarget(otherTarget);
+      if (!targetHasProfile(otherTarget, otherNoneProfile)) {
+        logActivity(
+          `Band scan warning: no stop profile for ${otherTarget}`,
+          'warn',
+          `bandscan-stop-profile-missing-${otherTarget}`
+        );
+        return false;
+      }
+      const currentOtherProfile = String((state[otherTarget] || {}).currentProfile || '').trim();
+      if (currentOtherProfile === otherNoneProfile) {
+        return true;
+      }
+      const parked = await selectProfileForTarget(otherTarget, otherNoneProfile, true);
+      if (parked) {
+        const otherLabel = otherTarget === 'airband' ? 'Airband' : 'Ground';
+        logActivity(
+          `${activeLabel} band scan parked ${otherLabel} on No Profile`,
+          'info',
+          `bandscan-park-${otherTarget}`
+        );
+      }
+      return parked;
+    }
+
     function updateQuickScanButtons() {
       for (const preset of BAND_SCAN_PRESETS) {
         const target = preset.target === 'ground' ? 'ground' : 'airband';
@@ -11626,6 +11670,10 @@
         }
         switchTarget(target);
         const ok = await selectProfileForTarget(target, nextProfile, true);
+        let parkedOther = true;
+        if (ok && !isActive) {
+          parkedOther = await parkOtherAnalogTarget(target, displayLabel);
+        }
         if (ok) {
           logActivity(
             isActive ? `${displayLabel} scan stopped` : `${displayLabel} scan active`,
@@ -11633,7 +11681,7 @@
             `bandscan-${preset.key}-${isActive ? 'off' : 'on'}`
           );
         }
-        return ok;
+        return Boolean(ok && (isActive || parkedOther));
       } catch (e) {
         logActivity(messageFromError(e, `${displayLabel} scan failed`), 'warn', `bandscan-failed-${preset.key}`);
         return false;
