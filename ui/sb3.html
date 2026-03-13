@@ -1355,9 +1355,50 @@
       margin-top: 8px;
     }
 
+    .band-scan {
+      margin-top: 8px;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.26);
+    }
+
+    .band-scan.collapsed .band-scan-body {
+      display: none;
+    }
+
+    .band-scan-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .band-scan-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-secondary);
+    }
+
+    .band-scan-toggle {
+      flex: 0 0 auto !important;
+      min-width: 64px;
+      padding: 6px 10px !important;
+      font-size: 11px !important;
+    }
+
+    .band-scan-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 6px;
+      margin-top: 10px;
+    }
+
     .quick-scan-action {
-      flex: 1 1 auto;
       position: relative;
+      width: 100%;
       padding-right: 28px;
     }
 
@@ -1390,6 +1431,13 @@
     .quick-scan-action:disabled::after {
       animation: none;
       opacity: 0.45;
+    }
+
+    .band-scan-note {
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--text-secondary);
+      opacity: 0.85;
     }
 
     @keyframes quick-scan-heartbeat {
@@ -2415,23 +2463,82 @@
               <button class="action" id="btn-apply">Apply</button>
             </div>
 
-            <div class="btn-row quick-scan-row">
-              <button
-                class="action quick-scan-action"
-                id="btn-ground-gmrs-frs-murs"
-                type="button"
-                title="Switch to Ground and scan GMRS/FRS/MURS"
-              >
-                GMRS/FRS/MURS Scan
-              </button>
-              <button
-                class="action quick-scan-action"
-                id="btn-ground-wx"
-                type="button"
-                title="Switch to Ground and scan NOAA Weather Radio"
-              >
-                WX
-              </button>
+            <div class="band-scan" id="band-scan">
+              <div class="band-scan-head">
+                <div class="band-scan-title">Band Scan</div>
+                <button
+                  class="action band-scan-toggle"
+                  id="band-scan-toggle"
+                  type="button"
+                  aria-expanded="true"
+                  title="Hide or show band scan shortcuts"
+                >
+                  Hide
+                </button>
+              </div>
+              <div class="band-scan-body" id="band-scan-body">
+                <div class="band-scan-grid">
+                  <button
+                    class="action quick-scan-action"
+                    id="btn-ground-gmrs-frs-murs"
+                    type="button"
+                    title="Switch to Ground and scan GMRS/FRS/MURS"
+                  >
+                    GMRS/FRS/MURS
+                  </button>
+                  <button
+                    class="action quick-scan-action"
+                    id="btn-ground-wx"
+                    type="button"
+                    title="Switch to Ground and scan NOAA Weather Radio"
+                  >
+                    WX
+                  </button>
+                  <button
+                    class="action quick-scan-action"
+                    id="btn-bandscan-airband"
+                    type="button"
+                    title="Scan Civil Airband (118.000-136.975 MHz)"
+                  >
+                    Airband
+                  </button>
+                  <button
+                    class="action quick-scan-action"
+                    id="btn-bandscan-marine"
+                    type="button"
+                    title="Scan Marine VHF band (156-162 MHz)"
+                  >
+                    Marine
+                  </button>
+                  <button
+                    class="action quick-scan-action"
+                    id="btn-bandscan-cb"
+                    type="button"
+                    title="Scan CB channels (26.965-27.405 MHz)"
+                  >
+                    CB
+                  </button>
+                  <button
+                    class="action quick-scan-action"
+                    id="btn-bandscan-mil-air"
+                    type="button"
+                    title="Scan Military Air bands (225-328.6 and 335.4-399.9 MHz)"
+                  >
+                    Mil Air
+                  </button>
+                  <button
+                    class="action quick-scan-action"
+                    id="btn-bandscan-rail"
+                    type="button"
+                    title="Scan railroad channels (160.215-161.565 MHz)"
+                  >
+                    Rail
+                  </button>
+                </div>
+                <div class="band-scan-note">
+                  One-tap profile switching by service band.
+                </div>
+              </div>
             </div>
 
             <div class="player-box" id="player-box-analog">
@@ -3353,8 +3460,11 @@
     const QUICK_GROUND_GMRS_FRS_MURS_PROFILE_ID = 'gmrs_frs_murs';
     const QUICK_GROUND_WX_PROFILE_ID = 'wx';
     const QUICK_GROUND_OFF_PROFILE_ID = 'none_ground';
-    const QUICK_GROUND_GMRS_LABEL = 'GMRS/FRS/MURS Scan';
+    const QUICK_GROUND_GMRS_LABEL = 'GMRS/FRS/MURS';
     const QUICK_GROUND_WX_LABEL = 'WX';
+    const QUICK_AIRBAND_OFF_PROFILE_ID = 'none_airband';
+    const BAND_SCAN_COLLAPSED_STORAGE_KEY = 'sb3-band-scan-collapsed';
+    const BAND_SCAN_APPLY_TIMEOUT_MS = 65000;
     const NOAA_WX_TOLERANCE_MHZ = 0.003;
     const NOAA_WX_CHANNELS = [
       { label: 'NOAA 1', freq: 162.5500 },
@@ -3365,6 +3475,158 @@
       { label: 'NOAA 6', freq: 162.5000 },
       { label: 'NOAA 7', freq: 162.5250 },
     ];
+    const CB_40_CHANNELS_MHZ = [
+      26.965, 26.975, 26.985, 27.005, 27.015,
+      27.025, 27.035, 27.055, 27.065, 27.075,
+      27.085, 27.105, 27.115, 27.125, 27.135,
+      27.155, 27.165, 27.175, 27.185, 27.205,
+      27.215, 27.225, 27.255, 27.235, 27.245,
+      27.265, 27.275, 27.285, 27.295, 27.305,
+      27.315, 27.325, 27.335, 27.345, 27.355,
+      27.365, 27.375, 27.385, 27.395, 27.405,
+    ];
+
+    function buildLinearBandFrequencies(startMhz, endMhz, stepMhz, decimals = 4) {
+      const factor = Math.pow(10, Math.max(0, Math.trunc(Number(decimals) || 0)));
+      const startUnits = Math.round(Number(startMhz) * factor);
+      const endUnits = Math.round(Number(endMhz) * factor);
+      const stepUnits = Math.round(Number(stepMhz) * factor);
+      if (!Number.isFinite(startUnits) || !Number.isFinite(endUnits) || !Number.isFinite(stepUnits)) return [];
+      if (stepUnits <= 0 || endUnits < startUnits) return [];
+      const out = [];
+      for (let value = startUnits; value <= endUnits; value += stepUnits) {
+        out.push(value / factor);
+      }
+      if (out.length === 0 || Math.abs(out[out.length - 1] - (endUnits / factor)) > (stepUnits / factor / 2)) {
+        out.push(endUnits / factor);
+      }
+      return out;
+    }
+
+    function uniqueFrequencyStrings(values, decimals = 4) {
+      const out = [];
+      const seen = new Set();
+      for (const item of values || []) {
+        const num = Number(item);
+        if (!Number.isFinite(num)) continue;
+        const key = num.toFixed(decimals);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(key);
+      }
+      return out;
+    }
+
+    const BAND_SCAN_PRESETS = [
+      {
+        key: 'gmrs_frs_murs',
+        buttonId: 'btn-ground-gmrs-frs-murs',
+        target: 'ground',
+        profileId: QUICK_GROUND_GMRS_FRS_MURS_PROFILE_ID,
+        stopProfileId: QUICK_GROUND_OFF_PROFILE_ID,
+        label: QUICK_GROUND_GMRS_LABEL,
+        inactiveTitle: 'Switch to Ground and scan GMRS/FRS/MURS',
+        activeTitle: 'GMRS/FRS/MURS scan active. Tap again to stop.',
+        autoProvision: false,
+      },
+      {
+        key: 'wx',
+        buttonId: 'btn-ground-wx',
+        target: 'ground',
+        profileId: QUICK_GROUND_WX_PROFILE_ID,
+        stopProfileId: QUICK_GROUND_OFF_PROFILE_ID,
+        label: QUICK_GROUND_WX_LABEL,
+        inactiveTitle: 'Switch to Ground and scan NOAA Weather Radio',
+        activeTitle: 'WX scan active. Tap again to stop.',
+        autoProvision: false,
+      },
+      {
+        key: 'airband',
+        buttonId: 'btn-bandscan-airband',
+        target: 'airband',
+        profileId: 'bandscan_airband',
+        stopProfileId: QUICK_AIRBAND_OFF_PROFILE_ID,
+        label: 'Airband',
+        profileLabel: 'Band Scan Airband',
+        modulation: 'am',
+        bandwidth: 12000,
+        // FCC table ref: page 21/US26 (aeronautical VHF communications).
+        buildFrequencies: () => buildLinearBandFrequencies(118.0000, 136.9750, 0.0250),
+        inactiveTitle: 'Scan Civil Airband (118.000-136.975 MHz)',
+        activeTitle: 'Airband scan active. Tap again to stop.',
+        autoProvision: true,
+      },
+      {
+        key: 'marine',
+        buttonId: 'btn-bandscan-marine',
+        target: 'ground',
+        profileId: 'bandscan_marine',
+        stopProfileId: QUICK_GROUND_OFF_PROFILE_ID,
+        label: 'Marine',
+        profileLabel: 'Band Scan Marine',
+        modulation: 'nfm',
+        bandwidth: 12500,
+        // FCC table ref: US52, VHF maritime mobile band 156-162 MHz.
+        buildFrequencies: () => buildLinearBandFrequencies(156.0500, 162.0250, 0.0250),
+        inactiveTitle: 'Scan Marine VHF band (156-162 MHz)',
+        activeTitle: 'Marine scan active. Tap again to stop.',
+        autoProvision: true,
+      },
+      {
+        key: 'cb',
+        buttonId: 'btn-bandscan-cb',
+        target: 'ground',
+        profileId: 'bandscan_cb',
+        stopProfileId: QUICK_GROUND_OFF_PROFILE_ID,
+        label: 'CB',
+        profileLabel: 'Band Scan CB',
+        modulation: 'am',
+        bandwidth: 10000,
+        // FCC table ref: 26.95-27.41 MHz personal radio (Part 95) allocation.
+        buildFrequencies: () => CB_40_CHANNELS_MHZ.slice(),
+        inactiveTitle: 'Scan CB channels (26.965-27.405 MHz)',
+        activeTitle: 'CB scan active. Tap again to stop.',
+        autoProvision: true,
+      },
+      {
+        key: 'mil_air',
+        buttonId: 'btn-bandscan-mil-air',
+        target: 'ground',
+        profileId: 'bandscan_mil_air',
+        stopProfileId: QUICK_GROUND_OFF_PROFILE_ID,
+        label: 'Mil Air',
+        profileLabel: 'Band Scan Mil Air',
+        modulation: 'am',
+        bandwidth: 12000,
+        // FCC table ref: G27 military allocations.
+        buildFrequencies: () => [
+          ...buildLinearBandFrequencies(225.0000, 328.6000, 0.0250),
+          ...buildLinearBandFrequencies(335.4000, 399.9000, 0.0250),
+        ],
+        inactiveTitle: 'Scan Military Air bands (225-328.6 and 335.4-399.9 MHz)',
+        activeTitle: 'Mil Air scan active. Tap again to stop.',
+        autoProvision: true,
+      },
+      {
+        key: 'rail',
+        buttonId: 'btn-bandscan-rail',
+        target: 'ground',
+        profileId: 'bandscan_rail',
+        stopProfileId: QUICK_GROUND_OFF_PROFILE_ID,
+        label: 'Rail',
+        profileLabel: 'Band Scan Rail',
+        modulation: 'nfm',
+        bandwidth: 12500,
+        buildFrequencies: () => buildLinearBandFrequencies(160.2150, 161.5650, 0.0150),
+        inactiveTitle: 'Scan railroad channels (160.215-161.565 MHz)',
+        activeTitle: 'Rail scan active. Tap again to stop.',
+        autoProvision: true,
+      },
+    ];
+    const BAND_SCAN_PRESET_BY_KEY = Object.fromEntries(
+      BAND_SCAN_PRESETS.map((preset) => [preset.key, preset])
+    );
+    const bandScanFreqTextCache = new Map();
     
     // ============================================
     // STATE
@@ -3699,8 +3961,16 @@
       btnPlayAnalog: document.getElementById('btn-play-analog'),
       btnPlayDigital: document.getElementById('btn-play-digital'),
       btnApply: document.getElementById('btn-apply'),
+      bandScan: document.getElementById('band-scan'),
+      bandScanBody: document.getElementById('band-scan-body'),
+      bandScanToggle: document.getElementById('band-scan-toggle'),
       btnGroundGmrsFrsMurs: document.getElementById('btn-ground-gmrs-frs-murs'),
       btnGroundWx: document.getElementById('btn-ground-wx'),
+      btnBandscanAirband: document.getElementById('btn-bandscan-airband'),
+      btnBandscanMarine: document.getElementById('btn-bandscan-marine'),
+      btnBandscanCb: document.getElementById('btn-bandscan-cb'),
+      btnBandscanMilAir: document.getElementById('btn-bandscan-mil-air'),
+      btnBandscanRail: document.getElementById('btn-bandscan-rail'),
       profilesList: document.getElementById('profiles-list'),
       profilesWidget: document.getElementById('profiles-widget'),
       favoritesSyncRowAnalog: document.getElementById('favorites-sync-row-analog'),
@@ -11237,75 +11507,171 @@
       return selectProfileForTarget(activeTarget, id, force);
     }
 
-    function updateQuickScanButtons() {
-      const currentGroundProfile = String(state.ground.currentProfile || '').trim();
-      const gmrsActive = currentGroundProfile === QUICK_GROUND_GMRS_FRS_MURS_PROFILE_ID;
-      const wxActive = currentGroundProfile === QUICK_GROUND_WX_PROFILE_ID;
-      if (els.btnGroundGmrsFrsMurs) {
-        els.btnGroundGmrsFrsMurs.classList.toggle('active', gmrsActive);
-        els.btnGroundGmrsFrsMurs.setAttribute('aria-pressed', gmrsActive ? 'true' : 'false');
-        els.btnGroundGmrsFrsMurs.title = gmrsActive
-          ? 'GMRS/FRS/MURS scan active. Tap again to stop.'
-          : 'Switch to Ground and scan GMRS/FRS/MURS';
-      }
-      if (els.btnGroundWx) {
-        els.btnGroundWx.classList.toggle('active', wxActive);
-        els.btnGroundWx.setAttribute('aria-pressed', wxActive ? 'true' : 'false');
-        els.btnGroundWx.title = wxActive
-          ? 'WX scan active. Tap again to stop.'
-          : 'Switch to Ground and scan NOAA Weather Radio';
+    function getBandScanButton(preset) {
+      if (!preset || !preset.buttonId) return null;
+      return document.getElementById(preset.buttonId);
+    }
+
+    function setBandScanCollapsed(collapsed, persist = true) {
+      if (!els.bandScan || !els.bandScanToggle) return;
+      const isCollapsed = Boolean(collapsed);
+      els.bandScan.classList.toggle('collapsed', isCollapsed);
+      els.bandScanToggle.textContent = isCollapsed ? 'Show' : 'Hide';
+      els.bandScanToggle.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+      if (persist) {
+        localStorage.setItem(BAND_SCAN_COLLAPSED_STORAGE_KEY, isCollapsed ? '1' : '0');
       }
     }
 
-    async function toggleGroundQuickProfile(profileId, opts = {}) {
-      const quickId = String(profileId || '').trim();
-      if (!quickId) return false;
-      const btn = opts.button || null;
-      const displayLabel = String(opts.label || 'Quick Scan');
-      const activeGroundProfile = String(state.ground.currentProfile || '').trim();
-      const isActive = activeGroundProfile === quickId;
-      const stopToNone = (state.ground.profiles || []).some((row) => (
-        String((row && row.id) || '').trim() === QUICK_GROUND_OFF_PROFILE_ID
+    function getBandScanFreqText(preset) {
+      const key = String((preset && preset.key) || '').trim();
+      if (!key) return '';
+      if (bandScanFreqTextCache.has(key)) {
+        return bandScanFreqTextCache.get(key) || '';
+      }
+      if (typeof preset.buildFrequencies !== 'function') return '';
+      const lines = uniqueFrequencyStrings(preset.buildFrequencies(), 4);
+      const text = lines.join('\n');
+      bandScanFreqTextCache.set(key, text);
+      return text;
+    }
+
+    function updateQuickScanButtons() {
+      for (const preset of BAND_SCAN_PRESETS) {
+        const target = preset.target === 'ground' ? 'ground' : 'airband';
+        const profileId = String(preset.profileId || '').trim();
+        const currentProfile = String((state[target] || {}).currentProfile || '').trim();
+        const isActive = Boolean(profileId && currentProfile === profileId);
+        const btn = getBandScanButton(preset);
+        if (!btn) continue;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        btn.title = isActive
+          ? String(preset.activeTitle || `${preset.label} scan active. Tap again to stop.`)
+          : String(preset.inactiveTitle || `Scan ${preset.label}`);
+      }
+    }
+
+    async function ensureBandScanProfile(preset) {
+      if (!preset || !preset.autoProvision) return true;
+      const target = preset.target === 'ground' ? 'ground' : 'airband';
+      const profileId = String(preset.profileId || '').trim();
+      if (!profileId) return false;
+      let profileExists = getProfilesForTarget(target).some((row) => (
+        String((row && row.id) || '').trim() === profileId
       ));
-      const nextProfile = isActive
-        ? (stopToNone ? QUICK_GROUND_OFF_PROFILE_ID : '')
-        : quickId;
+      if (!profileExists) {
+        try {
+          await postAPI('/api/profile/create', {
+            id: profileId,
+            label: String(preset.profileLabel || preset.label || profileId),
+            airband: target === 'airband',
+          }, { timeoutMs: 20000 });
+        } catch (e) {
+          const msg = messageFromError(e, '');
+          if (!/id already exists/i.test(msg)) {
+            throw e;
+          }
+        }
+        await refresh();
+        profileExists = getProfilesForTarget(target).some((row) => (
+          String((row && row.id) || '').trim() === profileId
+        ));
+      }
+      if (!profileExists) {
+        throw new Error(`Band Scan profile ${profileId} exists on a different target`);
+      }
+      const freqsText = getBandScanFreqText(preset);
+      if (!freqsText) {
+        throw new Error(`No frequencies configured for ${preset.label}`);
+      }
+      await postAPI('/api/profile-editor/analog/save', {
+        id: profileId,
+        target,
+        freqs_text: freqsText,
+        modulation: String(preset.modulation || 'nfm'),
+        bandwidth: Number.isFinite(Number(preset.bandwidth)) ? Number(preset.bandwidth) : 12000,
+      }, { timeoutMs: BAND_SCAN_APPLY_TIMEOUT_MS });
+      return true;
+    }
+
+    async function applyBandScanPresetByKey(presetKey) {
+      const preset = BAND_SCAN_PRESET_BY_KEY[String(presetKey || '').trim()];
+      if (!preset) return false;
+      const target = preset.target === 'ground' ? 'ground' : 'airband';
+      const profileId = String(preset.profileId || '').trim();
+      if (!profileId) return false;
+      const btn = getBandScanButton(preset);
+      const displayLabel = String(preset.label || 'Band Scan');
+      const currentProfile = String((state[target] || {}).currentProfile || '').trim();
+      const isActive = currentProfile === profileId;
+      const stopProfileId = String(
+        preset.stopProfileId || (target === 'ground' ? QUICK_GROUND_OFF_PROFILE_ID : QUICK_AIRBAND_OFF_PROFILE_ID)
+      ).trim();
+      const stopToNone = stopProfileId && getProfilesForTarget(target).some((row) => (
+        String((row && row.id) || '').trim() === stopProfileId
+      ));
+      const nextProfile = isActive ? (stopToNone ? stopProfileId : '') : profileId;
       if (isActive && !nextProfile) {
-        logActivity('No stop profile available for Ground quick scan', 'warn', 'quick-scan-stop-missing');
+        logActivity(`No stop profile available for ${displayLabel} scan`, 'warn', `bandscan-stop-missing-${preset.key}`);
         return false;
       }
       if (btn) {
         btn.disabled = true;
         btn.textContent = isActive ? 'Stopping...' : 'Applying...';
       }
-      const ok = await selectProfileForTarget('ground', nextProfile, true);
-      if (btn) {
-        btn.textContent = displayLabel;
-        btn.disabled = false;
+      try {
+        if (!isActive && preset.autoProvision) {
+          await ensureBandScanProfile(preset);
+        }
+        switchTarget(target);
+        const ok = await selectProfileForTarget(target, nextProfile, true);
+        if (ok) {
+          logActivity(
+            isActive ? `${displayLabel} scan stopped` : `${displayLabel} scan active`,
+            'info',
+            `bandscan-${preset.key}-${isActive ? 'off' : 'on'}`
+          );
+        }
+        return ok;
+      } catch (e) {
+        logActivity(messageFromError(e, `${displayLabel} scan failed`), 'warn', `bandscan-failed-${preset.key}`);
+        return false;
+      } finally {
+        if (btn) {
+          btn.textContent = displayLabel;
+          btn.disabled = false;
+        }
+        updateQuickScanButtons();
       }
-      if (ok) {
-        logActivity(
-          isActive ? `${displayLabel} stopped` : `${displayLabel} active`,
-          'info',
-          `quick-scan-${quickId}-${isActive ? 'off' : 'on'}`
-        );
-      }
-      updateQuickScanButtons();
-      return ok;
     }
 
     async function applyGroundQuickGmrsFrsMurs() {
-      await toggleGroundQuickProfile(
-        QUICK_GROUND_GMRS_FRS_MURS_PROFILE_ID,
-        { button: els.btnGroundGmrsFrsMurs, label: QUICK_GROUND_GMRS_LABEL },
-      );
+      await applyBandScanPresetByKey('gmrs_frs_murs');
     }
 
     async function applyGroundQuickWx() {
-      await toggleGroundQuickProfile(
-        QUICK_GROUND_WX_PROFILE_ID,
-        { button: els.btnGroundWx, label: QUICK_GROUND_WX_LABEL },
-      );
+      await applyBandScanPresetByKey('wx');
+    }
+
+    async function applyBandScanAirband() {
+      await applyBandScanPresetByKey('airband');
+    }
+
+    async function applyBandScanMarine() {
+      await applyBandScanPresetByKey('marine');
+    }
+
+    async function applyBandScanCb() {
+      await applyBandScanPresetByKey('cb');
+    }
+
+    async function applyBandScanMilAir() {
+      await applyBandScanPresetByKey('mil_air');
+    }
+
+    async function applyBandScanRail() {
+      await applyBandScanPresetByKey('rail');
     }
     
     function reconnectUI() {
@@ -11783,11 +12149,34 @@
       if (els.btnApply) {
         els.btnApply.addEventListener('click', applyBatch);
       }
+      if (els.bandScan && els.bandScanToggle) {
+        const collapsedSaved = localStorage.getItem(BAND_SCAN_COLLAPSED_STORAGE_KEY);
+        setBandScanCollapsed(collapsedSaved === '1', false);
+        els.bandScanToggle.addEventListener('click', () => {
+          const nextCollapsed = !els.bandScan.classList.contains('collapsed');
+          setBandScanCollapsed(nextCollapsed, true);
+        });
+      }
       if (els.btnGroundGmrsFrsMurs) {
         els.btnGroundGmrsFrsMurs.addEventListener('click', applyGroundQuickGmrsFrsMurs);
       }
       if (els.btnGroundWx) {
         els.btnGroundWx.addEventListener('click', applyGroundQuickWx);
+      }
+      if (els.btnBandscanAirband) {
+        els.btnBandscanAirband.addEventListener('click', applyBandScanAirband);
+      }
+      if (els.btnBandscanMarine) {
+        els.btnBandscanMarine.addEventListener('click', applyBandScanMarine);
+      }
+      if (els.btnBandscanCb) {
+        els.btnBandscanCb.addEventListener('click', applyBandScanCb);
+      }
+      if (els.btnBandscanMilAir) {
+        els.btnBandscanMilAir.addEventListener('click', applyBandScanMilAir);
+      }
+      if (els.btnBandscanRail) {
+        els.btnBandscanRail.addEventListener('click', applyBandScanRail);
       }
       updateQuickScanButtons();
       if (els.loopSave) {
