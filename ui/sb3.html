@@ -3464,7 +3464,11 @@
     const QUICK_GROUND_WX_LABEL = 'WX';
     const QUICK_AIRBAND_OFF_PROFILE_ID = 'none_airband';
     const BAND_SCAN_COLLAPSED_STORAGE_KEY = 'sb3-band-scan-collapsed';
+    const BAND_SCAN_RETURN_PROFILE_STORAGE_KEY = 'sb3-band-scan-return-profile-v1';
     const BAND_SCAN_APPLY_TIMEOUT_MS = 65000;
+    const PROFILE_APPLY_VERIFY_TIMEOUT_MS = 20000;
+    const PROFILE_APPLY_VERIFY_POLL_MS = 500;
+    const PROFILE_APPLY_RETRY_COUNT = 1;
     const NOAA_WX_TOLERANCE_MHZ = 0.003;
     const NOAA_WX_CHANNELS = [
       { label: 'NOAA 1', freq: 162.5500 },
@@ -3627,6 +3631,7 @@
       BAND_SCAN_PRESETS.map((preset) => [preset.key, preset])
     );
     const bandScanFreqTextCache = new Map();
+    let bandScanApplyQueue = Promise.resolve();
     
     // ============================================
     // STATE
@@ -3693,6 +3698,7 @@
       hits: [],
       hold: { airband: null, ground: null, digital: null },
       lastProfile: { airband: '', ground: '' },
+      bandScanReturnProfile: { airband: '', ground: '' },
       tuned: false,
       tunedFreq: null,
       tunedTarget: null,
@@ -4319,8 +4325,11 @@
       }
     }
 
-    async function fetchJSON(url) {
-      const r = await fetchWithTimeout(url, { cache: 'no-store' });
+    async function fetchJSON(url, options = {}) {
+      const timeoutMs = options && Number.isFinite(Number(options.timeoutMs))
+        ? Number(options.timeoutMs)
+        : undefined;
+      const r = await fetchWithTimeout(url, { cache: 'no-store' }, timeoutMs);
       if (!r.ok) {
         let payload = null;
         try {
@@ -7162,6 +7171,84 @@
 
     function _profilesForAnalogTarget(target) {
       return target === 'ground' ? (state.ground.profiles || []) : (state.airband.profiles || []);
+    }
+
+    function normalizeAnalogTarget(target) {
+      return target === 'ground' ? 'ground' : 'airband';
+    }
+
+    function loadBandScanReturnProfiles() {
+      const fallback = { airband: '', ground: '' };
+      try {
+        const raw = localStorage.getItem(BAND_SCAN_RETURN_PROFILE_STORAGE_KEY);
+        if (!raw) return fallback;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return fallback;
+        return {
+          airband: String(parsed.airband || '').trim(),
+          ground: String(parsed.ground || '').trim(),
+        };
+      } catch (_) {
+        return fallback;
+      }
+    }
+
+    function persistBandScanReturnProfiles() {
+      try {
+        const payload = {
+          airband: String((state.bandScanReturnProfile || {}).airband || '').trim(),
+          ground: String((state.bandScanReturnProfile || {}).ground || '').trim(),
+        };
+        localStorage.setItem(BAND_SCAN_RETURN_PROFILE_STORAGE_KEY, JSON.stringify(payload));
+      } catch (_) {}
+    }
+
+    function getBandScanReturnProfile(target) {
+      const analogTarget = normalizeAnalogTarget(target);
+      return String((state.bandScanReturnProfile || {})[analogTarget] || '').trim();
+    }
+
+    function setBandScanReturnProfile(target, profileId) {
+      const analogTarget = normalizeAnalogTarget(target);
+      const next = String(profileId || '').trim();
+      if (!state.bandScanReturnProfile) {
+        state.bandScanReturnProfile = { airband: '', ground: '' };
+      }
+      state.bandScanReturnProfile[analogTarget] = next;
+      persistBandScanReturnProfiles();
+    }
+
+    function clearBandScanReturnProfile(target) {
+      setBandScanReturnProfile(target, '');
+    }
+
+    function isBandScanProfileForTarget(target, profileId) {
+      const analogTarget = normalizeAnalogTarget(target);
+      const wanted = String(profileId || '').trim();
+      if (!wanted) return false;
+      return BAND_SCAN_PRESETS.some((preset) => {
+        const presetTarget = normalizeAnalogTarget(preset && preset.target);
+        const presetProfileId = String((preset && preset.profileId) || '').trim();
+        return presetTarget === analogTarget && presetProfileId === wanted;
+      });
+    }
+
+    function getProfilesForTarget(target) {
+      return _profilesForAnalogTarget(target);
+    }
+
+    function hasProfileForTarget(target, profileId) {
+      const wanted = String(profileId || '').trim();
+      if (!wanted) return false;
+      return getProfilesForTarget(target).some((row) => (
+        String((row && row.id) || '').trim() === wanted
+      ));
+    }
+
+    async function syncAnalogProfilesFromBackend(timeoutMs = PROFILE_APPLY_VERIFY_TIMEOUT_MS) {
+      const payload = await fetchJSON('/api/profiles', { timeoutMs });
+      applyProfilesPayload(payload, null);
+      return payload;
     }
 
     function refreshProfileEditorOptions() {
@@ -11468,6 +11555,61 @@
       }
     }
 
+    function delayMs(ms) {
+      const waitMs = Math.max(0, Math.round(Number(ms) || 0));
+      return new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+
+    async function readActiveProfileId(target, timeoutMs = PROFILE_APPLY_VERIFY_TIMEOUT_MS) {
+      const profileTarget = target === 'ground' ? 'ground' : 'airband';
+      const profilesPayload = await fetchJSON('/api/profiles', { timeoutMs });
+      const activeId = profileTarget === 'ground'
+        ? String((profilesPayload && profilesPayload.active_ground_id) || '').trim()
+        : String((profilesPayload && profilesPayload.active_airband_id) || '').trim();
+      if (activeId) return activeId;
+      try {
+        const statusPayload = await fetchJSON('/api/status', { timeoutMs });
+        return profileTarget === 'ground'
+          ? String((statusPayload && statusPayload.profile_ground) || '').trim()
+          : String((statusPayload && statusPayload.profile_airband) || '').trim();
+      } catch (_) {
+        return '';
+      }
+    }
+
+    async function waitForProfileApply(target, expectedProfileId, timeoutMs = PROFILE_APPLY_VERIFY_TIMEOUT_MS) {
+      const profileTarget = target === 'ground' ? 'ground' : 'airband';
+      const expectedId = String(expectedProfileId || '').trim();
+      if (!expectedId) {
+        return { ok: false, observed: '', error: new Error('missing expected profile id') };
+      }
+      const totalMs = Math.max(1000, Math.round(Number(timeoutMs) || PROFILE_APPLY_VERIFY_TIMEOUT_MS));
+      const deadline = Date.now() + totalMs;
+      let lastObserved = '';
+      let lastError = null;
+      while (Date.now() <= deadline) {
+        try {
+          const remaining = Math.max(1000, deadline - Date.now());
+          const observed = await readActiveProfileId(profileTarget, Math.min(6000, remaining));
+          lastObserved = observed;
+          if (observed === expectedId) {
+            return { ok: true, observed, error: null };
+          }
+        } catch (err) {
+          lastError = err;
+        }
+        if (Date.now() >= deadline) break;
+        await delayMs(Math.min(PROFILE_APPLY_VERIFY_POLL_MS, Math.max(100, deadline - Date.now())));
+      }
+      return { ok: false, observed: lastObserved, error: lastError };
+    }
+
+    function queueBandScanApply(taskFn) {
+      const run = bandScanApplyQueue.then(() => taskFn());
+      bandScanApplyQueue = run.catch(() => {});
+      return run;
+    }
+
     async function selectProfileForTarget(target, id, force = false) {
       const profileId = String(id || '').trim();
       const profileTarget = target === 'ground' ? 'ground' : 'airband';
@@ -11481,7 +11623,31 @@
         if (!force && t.currentProfile === profileId) {
           return true;
         }
-        const res = await postAPI('/api/profile', { profile: profileId, target: profileTarget }, { timeoutMs: 20000 });
+        let res = await postAPI('/api/profile', { profile: profileId, target: profileTarget }, { timeoutMs: 20000 });
+        if (res && res.ok === false) {
+          throw new Error(String(res.error || 'profile switch failed'));
+        }
+        let verified = await waitForProfileApply(profileTarget, profileId);
+        let attempt = 0;
+        while (!verified.ok && attempt < PROFILE_APPLY_RETRY_COUNT) {
+          attempt += 1;
+          logActivity(
+            `${profileTarget === 'airband' ? 'Airband' : 'Ground'} profile apply retry ${attempt}/${PROFILE_APPLY_RETRY_COUNT}`,
+            'warn',
+            `profile-verify-retry-${profileTarget}-${profileId}`
+          );
+          res = await postAPI('/api/profile', { profile: profileId, target: profileTarget }, { timeoutMs: 20000 });
+          if (res && res.ok === false) {
+            throw new Error(String(res.error || 'profile switch failed'));
+          }
+          verified = await waitForProfileApply(profileTarget, profileId);
+        }
+        if (!verified.ok) {
+          const observed = String(verified.observed || '').trim();
+          const detail = observed ? ` (observed ${observed})` : '';
+          const verifyErr = verified.error ? `: ${messageFromError(verified.error, 'verification timeout')}` : '';
+          throw new Error(`Profile switch did not stick${detail}${verifyErr}`);
+        }
         state.tuned = false;
         state.tunedFreq = null;
         state.tunedTarget = null;
@@ -11617,54 +11783,91 @@
     }
 
     async function applyBandScanPresetByKey(presetKey) {
-      const preset = BAND_SCAN_PRESET_BY_KEY[String(presetKey || '').trim()];
-      if (!preset) return false;
-      const target = preset.target === 'ground' ? 'ground' : 'airband';
-      const profileId = String(preset.profileId || '').trim();
-      if (!profileId) return false;
-      const btn = getBandScanButton(preset);
-      const displayLabel = String(preset.label || 'Band Scan');
-      const currentProfile = String((state[target] || {}).currentProfile || '').trim();
-      const isActive = currentProfile === profileId;
-      const stopProfileId = String(
-        preset.stopProfileId || (target === 'ground' ? QUICK_GROUND_OFF_PROFILE_ID : QUICK_AIRBAND_OFF_PROFILE_ID)
-      ).trim();
-      const stopToNone = stopProfileId && getProfilesForTarget(target).some((row) => (
-        String((row && row.id) || '').trim() === stopProfileId
-      ));
-      const nextProfile = isActive ? (stopToNone ? stopProfileId : '') : profileId;
-      if (isActive && !nextProfile) {
-        logActivity(`No stop profile available for ${displayLabel} scan`, 'warn', `bandscan-stop-missing-${preset.key}`);
-        return false;
-      }
-      if (btn) {
-        btn.disabled = true;
-        btn.textContent = isActive ? 'Stopping...' : 'Applying...';
-      }
-      try {
-        if (!isActive && preset.autoProvision) {
-          await ensureBandScanProfile(preset);
+      return queueBandScanApply(async () => {
+        const preset = BAND_SCAN_PRESET_BY_KEY[String(presetKey || '').trim()];
+        if (!preset) return false;
+        const target = preset.target === 'ground' ? 'ground' : 'airband';
+        const profileId = String(preset.profileId || '').trim();
+        if (!profileId) return false;
+        const btn = getBandScanButton(preset);
+        const displayLabel = String(preset.label || 'Band Scan');
+        let observedCurrentProfile = '';
+        try {
+          await syncAnalogProfilesFromBackend(8000);
+        } catch (_) {}
+        try {
+          observedCurrentProfile = await readActiveProfileId(target, 8000);
+        } catch (_) {
+          observedCurrentProfile = '';
         }
-        switchTarget(target);
-        const ok = await selectProfileForTarget(target, nextProfile, true);
-        if (ok) {
-          logActivity(
-            isActive ? `${displayLabel} scan stopped` : `${displayLabel} scan active`,
-            'info',
-            `bandscan-${preset.key}-${isActive ? 'off' : 'on'}`
-          );
+        if (observedCurrentProfile) {
+          state[target].currentProfile = observedCurrentProfile;
         }
-        return ok;
-      } catch (e) {
-        logActivity(messageFromError(e, `${displayLabel} scan failed`), 'warn', `bandscan-failed-${preset.key}`);
-        return false;
-      } finally {
+        const currentProfile = String(observedCurrentProfile || (state[target] || {}).currentProfile || '').trim();
+        const currentIsBandScanProfile = isBandScanProfileForTarget(target, currentProfile);
+        const isActive = currentProfile === profileId;
+        const stopProfileId = String(
+          preset.stopProfileId || (target === 'ground' ? QUICK_GROUND_OFF_PROFILE_ID : QUICK_AIRBAND_OFF_PROFILE_ID)
+        ).trim();
+        let stopToNone = Boolean(stopProfileId && hasProfileForTarget(target, stopProfileId));
+        if (isActive && stopProfileId && !stopToNone) {
+          try {
+            await syncAnalogProfilesFromBackend(8000);
+          } catch (_) {}
+          stopToNone = hasProfileForTarget(target, stopProfileId);
+        }
+        const rememberedProfile = getBandScanReturnProfile(target);
+        const rememberedUsable = Boolean(
+          rememberedProfile
+          && rememberedProfile !== profileId
+          && !isBandScanProfileForTarget(target, rememberedProfile)
+          && hasProfileForTarget(target, rememberedProfile)
+        );
+        const returnProfile = rememberedUsable
+          ? rememberedProfile
+          : (stopToNone ? stopProfileId : '');
+        const nextProfile = isActive ? returnProfile : profileId;
+        const captureReturnProfile = (!isActive && !currentIsBandScanProfile && currentProfile && currentProfile !== profileId)
+          ? currentProfile
+          : '';
+        if (isActive && !nextProfile) {
+          logActivity(`No stop profile available for ${displayLabel} scan`, 'warn', `bandscan-stop-missing-${preset.key}`);
+          return false;
+        }
         if (btn) {
-          btn.textContent = displayLabel;
-          btn.disabled = false;
+          btn.disabled = true;
+          btn.textContent = isActive ? 'Stopping...' : 'Applying...';
         }
-        updateQuickScanButtons();
-      }
+        try {
+          if (!isActive && preset.autoProvision) {
+            await ensureBandScanProfile(preset);
+          }
+          switchTarget(target);
+          const ok = await selectProfileForTarget(target, nextProfile, true);
+          if (ok) {
+            if (isActive) {
+              clearBandScanReturnProfile(target);
+            } else if (captureReturnProfile) {
+              setBandScanReturnProfile(target, captureReturnProfile);
+            }
+            logActivity(
+              isActive ? `${displayLabel} scan stopped` : `${displayLabel} scan active`,
+              'info',
+              `bandscan-${preset.key}-${isActive ? 'off' : 'on'}`
+            );
+          }
+          return ok;
+        } catch (e) {
+          logActivity(messageFromError(e, `${displayLabel} scan failed`), 'warn', `bandscan-failed-${preset.key}`);
+          return false;
+        } finally {
+          if (btn) {
+            btn.textContent = displayLabel;
+            btn.disabled = false;
+          }
+          updateQuickScanButtons();
+        }
+      });
     }
 
     async function applyGroundQuickGmrsFrsMurs() {
@@ -12102,6 +12305,7 @@
     
     async function init() {
       loadTheme();
+      state.bandScanReturnProfile = loadBandScanReturnProfiles();
       setupCollapsibleWidgets();
       updateTuneButton();
       setProfileEditorTab('analog');
