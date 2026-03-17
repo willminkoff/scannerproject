@@ -3479,6 +3479,92 @@
       { label: 'NOAA 6', freq: 162.5000 },
       { label: 'NOAA 7', freq: 162.5250 },
     ];
+    const MARINE_CHANNEL_LABELS_BY_FREQ = new Map([
+      ['156.050', 'CH 01A'],
+      ['156.075', 'CH 61A'],
+      ['156.100', 'CH 02'],
+      ['156.125', 'CH 62A'],
+      ['156.150', 'CH 03A'],
+      ['156.175', 'CH 63A'],
+      ['156.200', 'CH 04A'],
+      ['156.225', 'CH 64A'],
+      ['156.250', 'CH 05A'],
+      ['156.275', 'CH 65A'],
+      ['156.300', 'CH 06'],
+      ['156.325', 'CH 66A'],
+      ['156.350', 'CH 07A'],
+      ['156.375', 'CH 67'],
+      ['156.400', 'CH 08'],
+      ['156.425', 'CH 68'],
+      ['156.450', 'CH 09'],
+      ['156.475', 'CH 69'],
+      ['156.500', 'CH 10'],
+      ['156.525', 'CH 70'],
+      ['156.550', 'CH 11'],
+      ['156.575', 'CH 71'],
+      ['156.600', 'CH 12'],
+      ['156.625', 'CH 72'],
+      ['156.650', 'CH 13'],
+      ['156.675', 'CH 73'],
+      ['156.700', 'CH 14'],
+      ['156.725', 'CH 74'],
+      ['156.750', 'CH 15'],
+      ['156.800', 'CH 16'],
+      ['156.850', 'CH 17'],
+      ['156.875', 'CH 77'],
+      ['156.900', 'CH 18A'],
+      ['156.925', 'CH 78A'],
+      ['156.950', 'CH 19A'],
+      ['156.975', 'CH 79A'],
+      ['157.000', 'CH 20A'],
+      ['157.025', 'CH 80A'],
+      ['157.050', 'CH 21A'],
+      ['157.075', 'CH 81A'],
+      ['157.100', 'CH 22A'],
+      ['157.125', 'CH 82A'],
+      ['157.150', 'CH 23A'],
+      ['157.175', 'CH 83A'],
+      ['157.200', 'CH 24'],
+      ['157.225', 'CH 84'],
+      ['157.250', 'CH 25'],
+      ['157.275', 'CH 85'],
+      ['157.300', 'CH 26'],
+      ['157.325', 'CH 86'],
+      ['157.350', 'CH 27'],
+      ['157.375', 'CH 87'],
+      ['157.400', 'CH 28'],
+      ['157.425', 'CH 88A'],
+      ['160.650', 'CH 01'],
+      ['160.675', 'CH 61'],
+      ['160.700', 'CH 02'],
+      ['160.750', 'CH 03'],
+      ['160.775', 'CH 63'],
+      ['160.800', 'CH 04'],
+      ['160.825', 'CH 64'],
+      ['160.875', 'CH 65'],
+      ['160.925', 'CH 66'],
+      ['160.950', 'CH 07'],
+      ['161.525', 'CH 78'],
+      ['161.575', 'CH 79'],
+      ['161.600', 'CH 20'],
+      ['161.625', 'CH 80'],
+      ['161.650', 'CH 21'],
+      ['161.675', 'CH 81'],
+      ['161.700', 'CH 22'],
+      ['161.725', 'CH 82'],
+      ['161.750', 'CH 23'],
+      ['161.775', 'CH 83'],
+      ['161.800', 'CH 24'],
+      ['161.825', 'CH 84'],
+      ['161.850', 'CH 25'],
+      ['161.875', 'CH 85'],
+      ['161.900', 'CH 26'],
+      ['161.925', 'CH 86'],
+      ['161.950', 'CH 27'],
+      ['161.975', 'CH 87'],
+      ['162.000', 'CH 28'],
+      ['162.025', 'CH 88'],
+    ]);
     const CB_40_CHANNELS_MHZ = [
       26.965, 26.975, 26.985, 27.005, 27.015,
       27.025, 27.035, 27.055, 27.065, 27.075,
@@ -3489,6 +3575,44 @@
       27.315, 27.325, 27.335, 27.345, 27.355,
       27.365, 27.375, 27.385, 27.395, 27.405,
     ];
+    const CB_CHANNEL_LABELS_BY_FREQ = new Map(
+      CB_40_CHANNELS_MHZ.map((freq, idx) => [
+        Number(freq).toFixed(3),
+        `CH ${String(idx + 1).padStart(2, '0')}`,
+      ])
+    );
+    const GMRS_CHANNEL_LABELS_BY_FREQ = new Map([
+      ['462.5625', 'CH 01'],
+      ['462.5875', 'CH 02'],
+      ['462.6125', 'CH 03'],
+      ['462.6375', 'CH 04'],
+      ['462.6625', 'CH 05'],
+      ['462.6875', 'CH 06'],
+      ['462.7125', 'CH 07'],
+      ['467.5625', 'CH 08'],
+      ['467.5875', 'CH 09'],
+      ['467.6125', 'CH 10'],
+      ['467.6375', 'CH 11'],
+      ['467.6625', 'CH 12'],
+      ['467.6875', 'CH 13'],
+      ['467.7125', 'CH 14'],
+      ['462.5500', 'CH 15'],
+      ['462.5750', 'CH 16'],
+      ['462.6000', 'CH 17'],
+      ['462.6250', 'CH 18'],
+      ['462.6500', 'CH 19'],
+      ['462.6750', 'CH 20'],
+      ['462.7000', 'CH 21'],
+      ['462.7250', 'CH 22'],
+      ['467.5500', 'CH 15R'],
+      ['467.5750', 'CH 16R'],
+      ['467.6000', 'CH 17R'],
+      ['467.6250', 'CH 18R'],
+      ['467.6500', 'CH 19R'],
+      ['467.6750', 'CH 20R'],
+      ['467.7000', 'CH 21R'],
+      ['467.7250', 'CH 22R'],
+    ]);
 
     function buildLinearBandFrequencies(startMhz, endMhz, stepMhz, decimals = 4) {
       const factor = Math.pow(10, Math.max(0, Math.trunc(Number(decimals) || 0)));
@@ -8857,6 +8981,10 @@
       const holdFreq = state.hold[target];
       if (holdFreq) return holdFreq;
       if (state.tuned && state.tunedFreq && state.tunedTarget === target) {
+        const tunedChannelLabel = (target === 'ground')
+          ? groundChannelLabelFromFreq(state.tunedFreq)
+          : '';
+        if (tunedChannelLabel) return tunedChannelLabel;
         const tunedNoaa = noaaLabelFromFreq(state.tunedFreq);
         return tunedNoaa || formatFreq(state.tunedFreq);
       }
@@ -10216,6 +10344,49 @@
       return '';
     }
 
+    function marineChannelLabelFromFreq(freq) {
+      const num = Number(freq);
+      if (!Number.isFinite(num)) return '';
+      return MARINE_CHANNEL_LABELS_BY_FREQ.get(num.toFixed(3)) || '';
+    }
+
+    function cbChannelLabelFromFreq(freq) {
+      const num = Number(freq);
+      if (!Number.isFinite(num)) return '';
+      return CB_CHANNEL_LABELS_BY_FREQ.get(num.toFixed(3)) || '';
+    }
+
+    function gmrsChannelLabelFromFreq(freq) {
+      const num = Number(freq);
+      if (!Number.isFinite(num)) return '';
+      return GMRS_CHANNEL_LABELS_BY_FREQ.get(num.toFixed(4)) || '';
+    }
+
+    function activeGroundProfileId() {
+      const profileId = String(((state && state.ground) ? state.ground.currentProfile : '') || '').trim().toLowerCase();
+      return profileId;
+    }
+
+    function isMarineBandScanActive() {
+      return activeGroundProfileId() === 'bandscan_marine';
+    }
+
+    function isCbBandScanActive() {
+      return activeGroundProfileId() === 'bandscan_cb';
+    }
+
+    function isGmrsProfileActive() {
+      const profileId = activeGroundProfileId();
+      return profileId === QUICK_GROUND_GMRS_FRS_MURS_PROFILE_ID || profileId === 'gmrs';
+    }
+
+    function groundChannelLabelFromFreq(freq) {
+      if (isMarineBandScanActive()) return marineChannelLabelFromFreq(freq);
+      if (isCbBandScanActive()) return cbChannelLabelFromFreq(freq);
+      if (isGmrsProfileActive()) return gmrsChannelLabelFromFreq(freq);
+      return '';
+    }
+
     function analogHitDisplayParts(hit, fallbackRaw = '') {
       const row = hit || {};
       const source = String(row.source || row.type || '').trim().toLowerCase();
@@ -10226,6 +10397,13 @@
       const noaa = noaaLabelFromFreq(freq);
       if (rawLabel && !isNumericHitText(rawLabel)) {
         return { raw: rawLabel, display: rawLabel, freq };
+      }
+      const channelLabel = (
+        source !== 'digital'
+        && source !== 'airband'
+      ) ? groundChannelLabelFromFreq(freq) : '';
+      if (source !== 'digital' && channelLabel) {
+        return { raw: channelLabel, display: channelLabel, freq };
       }
       if (source !== 'digital' && noaa) {
         return { raw: noaa, display: noaa, freq };
@@ -11423,7 +11601,10 @@
         logActivity(`No recent ${label} hit to hold`, 'warn', `hold-missing-${target}`);
         return;
       }
-      state.hold[target] = formatFreq(freqVal) + ' MHz';
+      const holdDisplay = analogHitDisplayParts({ source: target, freq: freqVal }).display;
+      state.hold[target] = (holdDisplay && holdDisplay !== '--')
+        ? holdDisplay
+        : (formatFreq(freqVal) + ' MHz');
       updateStatus();
       try {
         await postAPI('/api/hold', { target, action: 'start', freq: freqVal });
