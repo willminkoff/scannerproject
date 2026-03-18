@@ -3804,6 +3804,7 @@
       streamProxyEnabled: true,
       streamBaseUrl: '',
       digitalStreamBaseUrl: '',
+      digitalStreamForceTranscode: false,
       sseConnected: false,
       adsbLoaded: false,
       combinedStale: false,
@@ -7815,10 +7816,12 @@
       }
     }
 
-    function buildProxyStreamUrl(mountName, fallbackMount) {
+    function buildProxyStreamUrl(mountName, fallbackMount, options = {}) {
       const mount = (mountName || fallbackMount).replace(/^\/+/, '');
+      const forceTranscode = Boolean(options && options.transcode);
       if (state.streamProxyEnabled) {
-        return `${location.origin}/stream/${encodeURIComponent(mount)}`;
+        const query = forceTranscode ? '?transcode=1' : '';
+        return `${location.origin}/stream/${encodeURIComponent(mount)}${query}`;
       }
       const port = Number.isFinite(state.icecastPort) ? state.icecastPort : 8000;
       return `http://${location.hostname}:${port}/${mount}`;
@@ -7901,9 +7904,9 @@
       if (shouldPreferDirectIcecastStream()) {
         return buildIcecastUrl(mountName, 'DIGITAL.mp3');
       }
-      // Keep digital audio in pass-through mode to avoid unnecessary lossy
-      // re-encoding artifacts in the browser player path.
-      return buildProxyStreamUrl(mountName, 'DIGITAL.mp3');
+      return buildProxyStreamUrl(mountName, 'DIGITAL.mp3', {
+        transcode: Boolean(state.digitalStreamForceTranscode),
+      });
     }
 
     function audioTargetLabel(audioEl) {
@@ -8228,6 +8231,14 @@
         const src = (audioEl.currentSrc || audioEl.src || '').split('?')[0];
         const suffix = src ? ` (${src})` : '';
         logActivity(`${targetLabel} player media error code ${codeLabel}${suffix}`, 'warn', `audio-error-${targetLabel}-${codeLabel}`);
+        if (
+          audioEl === els.audioPlayerDigital
+          && state.streamProxyEnabled
+          && !state.digitalStreamForceTranscode
+        ) {
+          state.digitalStreamForceTranscode = true;
+          logActivity('Digital player switched to proxy transcode fallback', 'warn', 'digital-transcode-fallback');
+        }
         maybeAutoRecoverAudio(audioEl, reloadFn, 'error', true, { hardReset: true });
       });
       audioEl.addEventListener('emptied', () => {

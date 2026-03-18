@@ -134,6 +134,11 @@ _LABEL_RE = re.compile(
 _TGID_RE = re.compile(r"\b(?:tgid|talkgroup|tg)\b\s*[:=#-]?\s*\(?\s*(\d+)\s*\)?", re.I)
 _EVENT_HINT_RE = re.compile(r"(call|voice|traffic|talkgroup|tgid|alias|alpha\s*tag|channel\s*event|from:|to:)", re.I)
 _BRACKETED_TG_LABEL_RE = re.compile(r"^\[(?P<label>[^\]]+)\]\s*\((?P<tgid>\d+)\)\s*$")
+_STREAM_TITLE_TO_RE = re.compile(
+    r"\bTO:\s*(?P<tgid>\d+)\b(?:\s+(?P<label>.*?))?(?:\s+\bFROM:\b|$)",
+    re.I,
+)
+_STREAM_TITLE_IGNORE_RE = re.compile(r"^(scanning(?:\.\.\.)?|idle|silence)$", re.I)
 _TS_RE = re.compile(r"(?P<date>\d{4}-\d{2}-\d{2})[ T](?P<time>\d{2}:\d{2}:\d{2})")
 _TS_COLON_RE = re.compile(r"^\"?(?P<date>\d{4}:\d{2}:\d{2}):(?P<time>\d{2}:\d{2}:\d{2})(?:\.\d+)?\"?")
 _TS_COMPACT_RE = re.compile(r"(?P<date>\d{8})\s+(?P<time>\d{6})(?:\.\d+)?")
@@ -3707,6 +3712,8 @@ class DigitalManager:
         self._scheduler_cached_preflight_at_ms = 0
         self._scheduler_last_preflight_cache_age_ms = 0
         self._scheduler_system_health: dict[str, dict] = {}
+        self._stream_title_cache_at_ms = 0
+        self._stream_title_cache_value = ""
         self._super_profile_seeded = False
         self._super_profile_seed_error = ""
         self._scheduler_lock = threading.Lock()
@@ -3947,14 +3954,145 @@ class DigitalManager:
             enriched["department"] = department
         return enriched
 
+    def _read_digital_stream_title(self) -> str:
+        now_ms = int(time.time() * 1000)
+        if self._stream_title_cache_at_ms > 0 and (now_ms - self._stream_title_cache_at_ms) < 900:
+            return str(self._stream_title_cache_value or "").strip()
+        mount = str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/") or "DIGITAL.mp3"
+        url = f"http://{ICECAST_HOST}:{ICECAST_PORT}/status-json.xsl"
+        title = ""
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "User-Agent": "airband-ui/digital-title-fallback",
+                    "Connection": "close",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=1.5) as resp:
+                data = json.loads(resp.read().decode("utf-8", errors="ignore") or "{}")
+            source = ((data or {}).get("icestats") or {}).get("source") or []
+            rows = source if isinstance(source, list) else [source]
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                listenurl = str(row.get("listenurl") or "").strip().lower()
+                if listenurl.endswith(f"/{mount.lower()}"):
+                    title = str(row.get("title") or "").strip()
+                    break
+        except Exception:
+            title = ""
+        self._stream_title_cache_at_ms = now_ms
+        self._stream_title_cache_value = title
+        return str(title or "").strip()
+
+    def _fallback_event_from_stream_title(self) -> dict:
+        title = self._read_digital_stream_title()
+        if not title:
+            return {}
+        if _STREAM_TITLE_IGNORE_RE.fullmatch(title.strip()):
+            return {}
+
+        tgid = ""
+        label = title.strip()
+        m = _STREAM_TITLE_TO_RE.search(label)
+        if m:
+            tgid = _normalize_tgid(m.group("tgid") or "")
+            label = str(m.group("label") or "").strip()
+        if not tgid:
+            m2 = re.search(r"\((\d+)\)", title)
+            if m2:
+                tgid = _normalize_tgid(m2.group(1))
+        if label.upper().startswith("TO:"):
+            label = ""
+        if not label:
+            label = f"TG {tgid}" if tgid else title.strip()
+
+        event = {
+            "type": "digital",
+            "label": label,
+            "timeMs": int(time.time() * 1000),
+            "raw": title,
+        }
+        if tgid:
+            event["tgid"] = tgid
+
+        mapped = self._enrich_event_label_for_active_system(event)
+        if not mapped:
+            return {}
+        if not self._event_allowed_for_active_system(mapped):
+            return {}
+        return mapped
+
+    @staticmethod
+    def _event_time_ms(event: dict) -> int:
+        try:
+            return int((event or {}).get("timeMs") or 0)
+        except Exception:
+            return 0
+
+    @staticmethod
+    def _event_has_identity(event: dict) -> bool:
+        if not isinstance(event, dict):
+            return False
+        if str(event.get("label") or "").strip():
+            return True
+        if str(event.get("tgid") or "").strip():
+            return True
+        return False
+
+    def _event_recent_enough_for_ui(self, event: dict) -> bool:
+        time_ms = self._event_time_ms(event)
+        if time_ms <= 0:
+            return False
+        now_ms = int(time.time() * 1000)
+        max_age_ms = int(_DIGITAL_STATUS_CLEAR_MS or 0)
+        if max_age_ms <= 0:
+            max_age_ms = 180000
+        return (now_ms - time_ms) <= max_age_ms
+
+    def _fallback_events_from_adapter_raw(self, limit: int = 20) -> list[dict]:
+        # If strict active-system filtering removes all events while traffic is still
+        # audible, surface recent raw call events so pills/hit-list keep updating.
+        try:
+            raw_events = self._adapter.getRecentEvents(max(1, int(limit or 20)))
+        except Exception:
+            raw_events = []
+        if not isinstance(raw_events, list):
+            raw_events = []
+        surfaced = []
+        for event in raw_events:
+            if not isinstance(event, dict):
+                continue
+            mapped = self._enrich_event_label_for_active_system(event)
+            if not self._event_has_identity(mapped):
+                continue
+            if not self._event_recent_enough_for_ui(mapped):
+                continue
+            if not self._event_allowed_for_active_system(mapped):
+                mapped = dict(mapped)
+                mapped["out_of_pool"] = True
+            surfaced.append(mapped)
+        if not surfaced:
+            return []
+        surfaced.sort(key=self._event_time_ms)
+        keep = max(1, int(limit or 20))
+        return surfaced[-keep:]
+
     def getLastEvent(self):
         event = self._adapter.getLastEvent()
-        if not isinstance(event, dict):
-            return event
-        event = self._enrich_event_label_for_active_system(event)
-        if not self._event_allowed_for_active_system(event):
-            return {}
-        return event
+        if isinstance(event, dict):
+            event = self._enrich_event_label_for_active_system(event)
+            if event and self._event_allowed_for_active_system(event):
+                if self._event_has_identity(event):
+                    return event
+        fallback = self._fallback_event_from_stream_title()
+        if fallback:
+            return fallback
+        raw_fallback = self._fallback_events_from_adapter_raw(limit=1)
+        if raw_fallback:
+            return dict(raw_fallback[-1])
+        return {}
 
     def getLastError(self):
         return self._adapter.getLastError()
@@ -3964,7 +4102,7 @@ class DigitalManager:
     def getRecentEvents(self, limit: int = 20):
         events = self._adapter.getRecentEvents(limit)
         if not isinstance(events, list):
-            return []
+            events = []
         filtered = []
         for event in events:
             if not isinstance(event, dict):
@@ -3973,6 +4111,14 @@ class DigitalManager:
             if not self._event_allowed_for_active_system(mapped):
                 continue
             filtered.append(mapped)
+        if filtered:
+            return filtered
+        fallback = self._fallback_event_from_stream_title()
+        if fallback:
+            return [fallback]
+        raw_fallback = self._fallback_events_from_adapter_raw(limit=limit)
+        if raw_fallback:
+            return raw_fallback
         return filtered
     def _fresh_preflight(self):
         if hasattr(self._adapter, "preflight"):
