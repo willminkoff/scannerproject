@@ -3565,6 +3565,10 @@
       ['162.000', 'CH 28'],
       ['162.025', 'CH 88'],
     ]);
+    const MARINE_BANDSCAN_FREQS_MHZ = Array.from(MARINE_CHANNEL_LABELS_BY_FREQ.keys())
+      .map((freq) => Number(freq))
+      .filter((freq) => Number.isFinite(freq))
+      .sort((a, b) => a - b);
     const CB_40_CHANNELS_MHZ = [
       26.965, 26.975, 26.985, 27.005, 27.015,
       27.025, 27.035, 27.055, 27.065, 27.075,
@@ -3694,8 +3698,8 @@
         profileLabel: 'Band Scan Marine',
         modulation: 'nfm',
         bandwidth: 12500,
-        // FCC table ref: US52, VHF maritime mobile band 156-162 MHz.
-        buildFrequencies: () => buildLinearBandFrequencies(156.0500, 162.0250, 0.0250),
+        // US marine channelized plan (duplex + simplex + AIS), not full 25 kHz sweep.
+        buildFrequencies: () => MARINE_BANDSCAN_FREQS_MHZ.slice(),
         inactiveTitle: 'Scan Marine VHF band (156-162 MHz)',
         activeTitle: 'Marine scan active. Tap again to stop.',
         autoProvision: true,
