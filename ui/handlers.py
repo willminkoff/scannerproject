@@ -8,6 +8,7 @@ import subprocess
 from datetime import datetime
 import queue
 import shutil
+import xml.etree.ElementTree as ET
 from typing import Any
 from http.server import BaseHTTPRequestHandler
 from urllib.error import HTTPError, URLError
@@ -58,6 +59,8 @@ try:
         DIGITAL_RTL_SERIAL_SECONDARY,
         DIGITAL_RTL_SERIAL_HINT,
         DIGITAL_STREAM_MOUNT,
+        DIGITAL_PLAYLIST_PATH,
+        DIGITAL_SDRTRUNK_STREAM_NAME,
         ICECAST_PORT,
         PLAYER_MOUNT,
         STREAM_PROXY_TRANSCODE_ANALOG_DEFAULT,
@@ -142,6 +145,8 @@ except ImportError:
         DIGITAL_RTL_SERIAL_SECONDARY,
         DIGITAL_RTL_SERIAL_HINT,
         DIGITAL_STREAM_MOUNT,
+        DIGITAL_PLAYLIST_PATH,
+        DIGITAL_SDRTRUNK_STREAM_NAME,
         ICECAST_PORT,
         PLAYER_MOUNT,
         STREAM_PROXY_TRANSCODE_ANALOG_DEFAULT,
@@ -219,9 +224,23 @@ DIGITAL_HITS_REQUIRE_ACTIVE_STREAM = os.getenv(
     "DIGITAL_HITS_REQUIRE_ACTIVE_STREAM",
     "1",
 ).strip().lower() in ("1", "true", "yes", "on")
+DIGITAL_HITS_REQUIRE_AUDIO_EVENT = os.getenv(
+    "DIGITAL_HITS_REQUIRE_AUDIO_EVENT",
+    "1",
+).strip().lower() in ("1", "true", "yes", "on")
+DIGITAL_HITS_REQUIRE_STREAM_ROUTE = os.getenv(
+    "DIGITAL_HITS_REQUIRE_STREAM_ROUTE",
+    "1",
+).strip().lower() in ("1", "true", "yes", "on")
 DIGITAL_HIT_RECENT_SEC = max(5.0, float(os.getenv("DIGITAL_HIT_RECENT_SEC", "180")))
 DIGITAL_HITS_MIN_VISIBLE = max(0, int(os.getenv("DIGITAL_HITS_MIN_VISIBLE", "3")))
 _DIGITAL_IDLE_TITLES = {"", "-", "idle", "n/a", "scanning", "scanning..."}
+_DIGITAL_STREAM_ROUTE_CACHE: dict[str, object] = {
+    "path": "",
+    "mtime": 0.0,
+    "ts": 0.0,
+    "tgids": set(),
+}
 _ANALOG_LABEL_CACHE: dict[str, dict] = {}
 _LOCAL_PROFILES_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "profiles"))
 _NOAA_LABELS_BY_FREQ = {
@@ -1135,6 +1154,108 @@ def _digital_stream_active_for_hits() -> bool:
     return _digital_has_recent_event()
 
 
+def _digital_event_is_audible_hit(event: dict) -> bool:
+    if not isinstance(event, dict):
+        return False
+    if bool(event.get("muted")):
+        return False
+    label = str(event.get("label") or "").strip()
+    tgid = str(event.get("tgid") or "").strip()
+    if not label and not tgid:
+        return False
+
+    duration_ms = _safe_int(event.get("durationMs")) or 0
+    if duration_ms > 0:
+        return True
+
+    mode = str(event.get("mode") or "").strip()
+    frequency = str(event.get("frequency") or "").strip()
+    if mode and (tgid or frequency):
+        return True
+    return False
+
+
+def _digital_stream_routed_tgids_for_hits() -> set[str]:
+    if not DIGITAL_HITS_REQUIRE_STREAM_ROUTE:
+        return set()
+    playlist_path = str(DIGITAL_PLAYLIST_PATH or "").strip()
+    if not playlist_path or not os.path.isfile(playlist_path):
+        return set()
+
+    try:
+        mtime = float(os.path.getmtime(playlist_path))
+    except Exception:
+        return set()
+    now_mono = time.monotonic()
+    with _CACHE_LOCK:
+        cached_path = str(_DIGITAL_STREAM_ROUTE_CACHE.get("path") or "")
+        cached_mtime = float(_DIGITAL_STREAM_ROUTE_CACHE.get("mtime") or 0.0)
+        cached_ts = float(_DIGITAL_STREAM_ROUTE_CACHE.get("ts") or 0.0)
+        if (
+            cached_path == playlist_path
+            and cached_mtime == mtime
+            and (now_mono - cached_ts) <= 2.0
+        ):
+            cached = _DIGITAL_STREAM_ROUTE_CACHE.get("tgids")
+            if isinstance(cached, set):
+                return set(cached)
+
+    try:
+        root = ET.parse(playlist_path).getroot()
+    except Exception:
+        return set()
+
+    stream_name = str(DIGITAL_SDRTRUNK_STREAM_NAME or "").strip()
+    if not stream_name:
+        mount_name = "/" + (str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/") or "DIGITAL.mp3")
+        for stream_node in root.findall("stream"):
+            if str(stream_node.get("mount_point") or "").strip() == mount_name:
+                stream_name = str(stream_node.get("name") or "").strip()
+                if stream_name:
+                    break
+    if not stream_name:
+        return set()
+
+    tgid_keys = ("value", "talkgroup", "tgid", "id")
+    tgid_types = {"talkgroup", "talkgroupid", "p25fullyqualifiedtalkgroup"}
+    routed_tgids: set[str] = set()
+    for alias in root.findall("alias"):
+        has_stream_binding = False
+        for alias_id in alias.findall("id"):
+            alias_type = str(alias_id.get("type") or "").strip().lower()
+            channel = str(alias_id.get("channel") or "").strip()
+            if alias_type == "broadcastchannel" and channel == stream_name:
+                has_stream_binding = True
+                break
+        if not has_stream_binding:
+            continue
+        for alias_id in alias.findall("id"):
+            alias_type = str(alias_id.get("type") or "").strip().lower()
+            if alias_type not in tgid_types:
+                continue
+            for key in tgid_keys:
+                token = str(alias_id.get(key) or "").strip()
+                if token.isdigit():
+                    routed_tgids.add(token)
+                    break
+
+    with _CACHE_LOCK:
+        _DIGITAL_STREAM_ROUTE_CACHE["path"] = playlist_path
+        _DIGITAL_STREAM_ROUTE_CACHE["mtime"] = mtime
+        _DIGITAL_STREAM_ROUTE_CACHE["ts"] = now_mono
+        _DIGITAL_STREAM_ROUTE_CACHE["tgids"] = set(routed_tgids)
+    return routed_tgids
+
+
+def _digital_event_routes_to_stream(event: dict, routed_tgids: set[str]) -> bool:
+    if not routed_tgids:
+        return True
+    tgid = str((event or {}).get("tgid") or "").strip()
+    if not tgid:
+        return True
+    return tgid in routed_tgids
+
+
 def _coalesce_digital_hits(items: list[dict], window_sec: float = DIGITAL_HIT_COALESCE_SEC) -> list[dict]:
     """Collapse repeated digital updates for the same talkgroup/label within a short window."""
     if not items or window_sec <= 0:
@@ -1486,7 +1607,12 @@ def _build_hits_payload(limit: int = 50) -> dict:
             events = []
     else:
         events = []
+    routed_tgids = _digital_stream_routed_tgids_for_hits() if DIGITAL_HITS_REQUIRE_AUDIO_EVENT else set()
     for event in events:
+        if DIGITAL_HITS_REQUIRE_AUDIO_EVENT and not _digital_event_is_audible_hit(event):
+            continue
+        if DIGITAL_HITS_REQUIRE_AUDIO_EVENT and not _digital_event_routes_to_stream(event, routed_tgids):
+            continue
         label = str(event.get("label") or "").strip()
         tgid = str(event.get("tgid") or "").strip()
         agency = str(event.get("agency") or "").strip()
@@ -1497,13 +1623,14 @@ def _build_hits_payload(limit: int = 50) -> dict:
             label = f"TG {tgid}"
         if not label:
             continue
+        duration_ms = max(0, _safe_int(event.get("durationMs")) or 0)
         time_ms = int(event.get("timeMs") or 0)
         ts = time_ms / 1000.0 if time_ms else time.time()
         time_str = time.strftime("%H:%M:%S", time.localtime(ts))
         digital_items.append({
             "time": time_str,
             "freq": label,
-            "duration": 0,
+            "duration": int((duration_ms + 999) // 1000) if duration_ms > 0 else 0,
             "label": _short_label(label, max_len=48),
             "label_full": label,
             "mode": event.get("mode"),
@@ -1527,12 +1654,18 @@ def _build_hits_payload(limit: int = 50) -> dict:
     merged.sort(key=lambda item: item.get("_ts", 0.0))
     merged = merged[-scan_limit:]
     merged.reverse()
-    for item in merged:
-        item.pop("_ts", None)
     if len(merged) > limit:
         merged = _ensure_digital_visibility(merged, digital_items, limit)
     else:
         merged = _ensure_digital_visibility(merged, digital_items, limit)
+    for item in merged:
+        try:
+            ts_val = float(item.get("_ts") or 0.0)
+        except Exception:
+            ts_val = 0.0
+        if ts_val > 0:
+            item["ts"] = ts_val
+        item.pop("_ts", None)
     return {"items": merged}
 
 

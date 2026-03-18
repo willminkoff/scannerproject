@@ -232,6 +232,111 @@ class RecentRegressionTests(unittest.TestCase):
         items = payload.get("items") or []
         self.assertEqual(1, len(items))
         self.assertEqual("118.6000", str(items[0].get("freq") or ""))
+        self.assertIsInstance(items[0].get("ts"), (int, float))
+        self.assertGreater(float(items[0].get("ts") or 0.0), 0.0)
+
+    def test_hits_payload_skips_non_audible_digital_fallback_events(self):
+        fake_digital = mock.Mock()
+        fake_digital.getRecentEvents.return_value = [
+            {
+                "label": "Lee County Sheriffs Office - East Dispatch",
+                "tgid": "20052",
+                "timeMs": int(time.time() * 1000),
+                "event_id": "call-raw-without-audio",
+            }
+        ]
+
+        with mock.patch.object(handlers, "DIGITAL_HITS_REQUIRE_AUDIO_EVENT", True), mock.patch.object(
+            handlers, "read_active_config_path", return_value="/tmp/active.conf"
+        ), mock.patch.object(
+            handlers, "split_profiles", return_value=([], [], [])
+        ), mock.patch.object(
+            handlers, "guess_current_profile", return_value=""
+        ), mock.patch.object(
+            handlers, "_resolve_analog_label_map", return_value={}
+        ), mock.patch.object(
+            handlers, "read_hit_list_cached", return_value=[]
+        ), mock.patch.object(
+            handlers, "_digital_stream_active_for_hits", return_value=True
+        ), mock.patch.object(
+            handlers, "_digital_stream_routed_tgids_for_hits", return_value={"20052"}
+        ), mock.patch.object(
+            handlers, "get_digital_manager", return_value=fake_digital
+        ):
+            payload = handlers._build_hits_payload(limit=50)
+
+        self.assertEqual([], payload.get("items") or [])
+
+    def test_hits_payload_keeps_audible_digital_events_with_duration(self):
+        fake_digital = mock.Mock()
+        fake_digital.getRecentEvents.return_value = [
+            {
+                "label": "Metro Dispatch",
+                "tgid": "20052",
+                "timeMs": int(time.time() * 1000),
+                "event_id": "call-1",
+                "durationMs": 2300,
+                "mode": "P25P1",
+            }
+        ]
+
+        with mock.patch.object(handlers, "DIGITAL_HITS_REQUIRE_AUDIO_EVENT", True), mock.patch.object(
+            handlers, "read_active_config_path", return_value="/tmp/active.conf"
+        ), mock.patch.object(
+            handlers, "split_profiles", return_value=([], [], [])
+        ), mock.patch.object(
+            handlers, "guess_current_profile", return_value=""
+        ), mock.patch.object(
+            handlers, "_resolve_analog_label_map", return_value={}
+        ), mock.patch.object(
+            handlers, "read_hit_list_cached", return_value=[]
+        ), mock.patch.object(
+            handlers, "_digital_stream_active_for_hits", return_value=True
+        ), mock.patch.object(
+            handlers, "_digital_stream_routed_tgids_for_hits", return_value={"20052"}
+        ), mock.patch.object(
+            handlers, "get_digital_manager", return_value=fake_digital
+        ):
+            payload = handlers._build_hits_payload(limit=50)
+
+        items = payload.get("items") or []
+        self.assertEqual(1, len(items))
+        self.assertEqual("digital", str(items[0].get("source") or ""))
+        self.assertEqual(3, int(items[0].get("duration") or 0))
+        self.assertEqual("P25P1", str(items[0].get("mode") or ""))
+
+    def test_hits_payload_skips_digital_events_not_routed_to_stream(self):
+        fake_digital = mock.Mock()
+        fake_digital.getRecentEvents.return_value = [
+            {
+                "label": "TG 20300",
+                "tgid": "20300",
+                "timeMs": int(time.time() * 1000),
+                "durationMs": 4000,
+                "mode": "P25P1",
+            }
+        ]
+
+        with mock.patch.object(handlers, "DIGITAL_HITS_REQUIRE_AUDIO_EVENT", True), mock.patch.object(
+            handlers, "read_active_config_path", return_value="/tmp/active.conf"
+        ), mock.patch.object(
+            handlers, "split_profiles", return_value=([], [], [])
+        ), mock.patch.object(
+            handlers, "guess_current_profile", return_value=""
+        ), mock.patch.object(
+            handlers, "_resolve_analog_label_map", return_value={}
+        ), mock.patch.object(
+            handlers, "read_hit_list_cached", return_value=[]
+        ), mock.patch.object(
+            handlers, "_digital_stream_active_for_hits", return_value=True
+        ), mock.patch.object(
+            handlers, "_digital_stream_routed_tgids_for_hits", return_value={"20052"}
+        ), mock.patch.object(
+            handlers, "get_digital_manager", return_value=fake_digital
+        ):
+            payload = handlers._build_hits_payload(limit=50)
+
+        self.assertEqual([], payload.get("items") or [])
 
     def test_gmrs_frs_murs_profile_infers_ground_target_without_file(self):
         inferred = profile_config._infer_airband_flag("gmrs_frs_murs", "/tmp/does-not-exist.conf")
