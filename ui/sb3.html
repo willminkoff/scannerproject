@@ -24,14 +24,14 @@
 
     /* Red theme for dark environments */
     body.red-theme {
-      --accent: #8a2222;
-      --accent-dim: rgba(138, 34, 34, 0.35);
-      --accent-glow: rgba(138, 34, 34, 0.14);
-      --good: #8a2222;
-      --slider-track: rgba(138, 34, 34, 0.14);
-      --slider-glow: 0 0 6px rgba(138, 34, 34, 0.24), inset 0 1px 2px rgba(138, 34, 34, 0.14);
-      --text-primary: #4f5666;
-      --text-secondary: #3f4654;
+      --accent: #ff5c5c;
+      --accent-dim: rgba(255, 92, 92, 0.42);
+      --accent-glow: rgba(255, 92, 92, 0.22);
+      --good: #ff5c5c;
+      --slider-track: rgba(255, 92, 92, 0.2);
+      --slider-glow: 0 0 10px rgba(255, 92, 92, 0.32), inset 0 1px 2px rgba(255, 92, 92, 0.2);
+      --text-primary: #d5dbe6;
+      --text-secondary: #a6afbf;
       --border: #07090c;
       --bg-dark: #06080b;
       --bg-panel: #080b0f;
@@ -40,20 +40,20 @@
 
     body.red-theme select {
       background: var(--bg-panel);
-      color: #c7cedb;
+      color: var(--text-primary);
       border-color: var(--border);
     }
 
     body.red-theme input[type="text"],
     body.red-theme input:not([type]) {
       background: var(--bg-panel);
-      color: #c7cedb;
+      color: var(--text-primary);
       border-color: var(--border);
     }
 
     body.red-theme textarea {
       background: var(--bg-panel);
-      color: #c7cedb;
+      color: var(--text-primary);
       border-color: var(--border);
     }
 
@@ -10355,10 +10355,27 @@
       return '';
     }
 
+    function marineChannelLabelFromCode(code) {
+      const raw = String(code || '').trim();
+      if (!raw) return '';
+      const normalized = raw.replace(/^CH\s*/i, '').trim().toUpperCase();
+      if (!normalized) return '';
+      return `Marine Ch ${normalized}`;
+    }
+
     function marineChannelLabelFromFreq(freq) {
       const num = Number(freq);
       if (!Number.isFinite(num)) return '';
-      return MARINE_CHANNEL_LABELS_BY_FREQ.get(num.toFixed(3)) || '';
+      const code = MARINE_CHANNEL_LABELS_BY_FREQ.get(num.toFixed(3)) || '';
+      return marineChannelLabelFromCode(code);
+    }
+
+    function marineChannelLabelFromRawLabel(label) {
+      const raw = String(label || '').trim();
+      if (!raw) return '';
+      const match = raw.match(/^(?:marine\s*)?ch(?:annel)?\s*([0-9]{1,2}[aA]?)$/i);
+      if (!match) return '';
+      return marineChannelLabelFromCode(match[1]);
     }
 
     function cbChannelLabelFromFreq(freq) {
@@ -10405,6 +10422,12 @@
       const freqFromField = parseFreqNumber(row.freq);
       const freqFromLabel = parseFreqNumber(rawLabel);
       const freq = Number.isFinite(freqFromField) ? freqFromField : freqFromLabel;
+      if (source !== 'digital' && source !== 'airband' && isMarineBandScanActive()) {
+        const marineLabel = marineChannelLabelFromFreq(freq) || marineChannelLabelFromRawLabel(rawLabel);
+        if (marineLabel) {
+          return { raw: marineLabel, display: marineLabel, freq };
+        }
+      }
       const noaa = noaaLabelFromFreq(freq);
       if (rawLabel && !isNumericHitText(rawLabel)) {
         return { raw: rawLabel, display: rawLabel, freq };
