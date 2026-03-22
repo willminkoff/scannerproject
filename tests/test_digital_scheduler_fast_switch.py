@@ -29,6 +29,16 @@ def _make_manager() -> digital.DigitalManager:
     mgr._scheduler_dwell_ms = 900
     mgr._scheduler_hang_ms = 4000
     mgr._scheduler_pause_on_hit = True
+    mgr._scheduler_perf_profile = "legacy"
+    mgr._scheduler_env_overrides = {
+        "base_tick_sec": False,
+        "fast_switch_enabled": False,
+        "fast_tick_sec": False,
+        "fast_lock_timeout_ms": False,
+        "preflight_cache_ms": False,
+        "lock_miss_ticks": False,
+    }
+    mgr._scheduler_base_tick_sec = digital._DIGITAL_SCHEDULER_TICK_SEC
     mgr._scheduler_fast_switch_enabled = False
     mgr._scheduler_fast_tick_sec = 0.25
     mgr._scheduler_fast_lock_timeout_ms = 1200
@@ -122,12 +132,12 @@ class SchedulerFastSwitchTests(unittest.TestCase):
 
         mgr._scheduler_in_call_hold = True
         held_interval = mgr._scheduler_tick_interval_sec_locked()
-        self.assertAlmostEqual(digital._DIGITAL_SCHEDULER_TICK_SEC, held_interval)
+        self.assertAlmostEqual(mgr._scheduler_base_tick_sec, held_interval)
 
         mgr._scheduler_in_call_hold = False
         mgr._scheduler_mode = "single_system"
         single_interval = mgr._scheduler_tick_interval_sec_locked()
-        self.assertAlmostEqual(digital._DIGITAL_SCHEDULER_TICK_SEC, single_interval)
+        self.assertAlmostEqual(mgr._scheduler_base_tick_sec, single_interval)
 
     def test_lock_timeout_hysteresis_requires_consecutive_misses(self):
         mgr = _make_manager()
@@ -162,6 +172,54 @@ class SchedulerFastSwitchTests(unittest.TestCase):
         self.assertEqual("bravo", payload3["digital_scheduler_active_system"])
         self.assertEqual("lock_timeout", payload3["digital_scheduler_switch_reason"])
         self.assertGreaterEqual(payload3["digital_scheduler_lock_miss_ticks"], 3)
+
+    def test_fast_lock_timeout_scales_for_large_control_channel_sets(self):
+        mgr = _make_manager()
+        mgr._scheduler_fast_switch_enabled = True
+        mgr._scheduler_mode = "timeslice_multi_system"
+        mgr._scheduler_systems = ["alpha", "bravo"]
+        mgr._scheduler_fast_lock_timeout_ms = 1000
+        mgr._scheduler_pool_system_channels = {
+            "alpha": [769_831_250, 770_081_250, 770_331_250, 770_581_250],
+        }
+        mgr._scheduler_pool_system_channels_lower = {"alpha": "alpha"}
+
+        with mock.patch.object(digital, "_DIGITAL_SOURCE_ROTATION_DELAY_MS", 250):
+            timeout = mgr._scheduler_lock_timeout_ms_locked(
+                "timeslice_multi_system",
+                ["alpha", "bravo"],
+                profile_id="p1",
+                active_system="alpha",
+            )
+
+        self.assertEqual(1700, timeout)
+
+    def test_dwell_does_not_preempt_lock_acquisition(self):
+        mgr = _make_manager()
+        mgr._scheduler_fast_switch_enabled = False
+        mgr._scheduler_mode = "timeslice_multi_system"
+        mgr._scheduler_systems = ["alpha", "bravo"]
+        mgr._scheduler_profile = "p1"
+        mgr._scheduler_active_system = "alpha"
+        mgr._scheduler_pause_on_hit = False
+        mgr._scheduler_last_applied_system = "alpha"
+        mgr._scheduler_dwell_ms = 900
+        mgr._scheduler_lock_loss_ms = 2500
+        mgr._scheduler_last_switch_time_ms = 0
+        mgr.getProfile = mock.Mock(return_value="p1")
+        mgr._discover_scheduler_systems = mock.Mock(return_value=["alpha", "bravo"])
+        mgr._apply_scheduler_target_timed = mock.Mock(return_value=(True, "", False))
+
+        with mock.patch.object(digital.time, "time", return_value=1.2), mock.patch.object(
+            digital, "get_current_scan_mode", return_value="profile"
+        ):
+            payload = mgr._scheduler_payload(
+                {},
+                {"control_decode_available": True, "control_channel_locked": False, "tuner_busy": False},
+            )
+
+        self.assertEqual("alpha", payload["digital_scheduler_active_system"])
+        self.assertGreaterEqual(payload["digital_scheduler_lock_timeout_ms"], 2000)
 
     def test_scheduler_preflight_cache_respects_ttl(self):
         mgr = _make_manager()
@@ -200,12 +258,81 @@ class SchedulerFastSwitchTests(unittest.TestCase):
         self.assertIn("digital_scheduler_last_apply_duration_ms", snapshot)
         self.assertIn("digital_scheduler_preflight_cache_age_ms", snapshot)
         self.assertIn("digital_scheduler_lock_miss_ticks", snapshot)
+        self.assertIn("digital_scheduler_adaptive_lock_timeout_ms", snapshot)
+        self.assertIn("digital_scheduler_active_control_channel_count", snapshot)
+        self.assertIn("digital_scheduler_perf_profile", snapshot)
+        self.assertIn("digital_scheduler_effective", snapshot)
         self.assertIsInstance(snapshot["digital_scheduler_fast_switch_enabled"], bool)
         self.assertIsInstance(snapshot["digital_scheduler_tick_interval_ms"], int)
         self.assertIsInstance(snapshot["digital_scheduler_apply_method"], str)
         self.assertIsInstance(snapshot["digital_scheduler_last_apply_duration_ms"], int)
         self.assertIsInstance(snapshot["digital_scheduler_preflight_cache_age_ms"], int)
         self.assertIsInstance(snapshot["digital_scheduler_lock_miss_ticks"], int)
+        self.assertIsInstance(snapshot["digital_scheduler_adaptive_lock_timeout_ms"], int)
+        self.assertIsInstance(snapshot["digital_scheduler_active_control_channel_count"], int)
+        self.assertIsInstance(snapshot["digital_scheduler_perf_profile"], str)
+        self.assertIsInstance(snapshot["digital_scheduler_effective"], dict)
+
+    def test_set_scheduler_accepts_performance_profile(self):
+        mgr = _make_manager()
+        mgr._scheduler_lock = mock.MagicMock()
+        mgr._scheduler_lock.__enter__.return_value = mgr._scheduler_lock
+        mgr._scheduler_lock.__exit__.return_value = False
+        mgr._write_scheduler_state = mock.Mock()
+        mgr.getScheduler = mock.Mock(return_value={"ok": True})
+
+        ok, err, snapshot = mgr.setScheduler({"performance_profile": "pc_moderate"})
+
+        self.assertTrue(ok)
+        self.assertEqual("", err)
+        self.assertEqual({"ok": True}, snapshot)
+        self.assertEqual("pc_moderate", mgr._scheduler_perf_profile)
+        self.assertTrue(mgr._scheduler_fast_switch_enabled)
+        self.assertEqual(0.25, mgr._scheduler_fast_tick_sec)
+        self.assertEqual(1000, mgr._scheduler_fast_lock_timeout_ms)
+        self.assertEqual(300, mgr._scheduler_preflight_cache_ttl_ms)
+        self.assertEqual(2, mgr._scheduler_lock_miss_required_ticks)
+        self.assertEqual(0.75, mgr._scheduler_base_tick_sec)
+
+    def test_set_scheduler_rejects_invalid_performance_profile(self):
+        mgr = _make_manager()
+        mgr._scheduler_lock = mock.MagicMock()
+        mgr._scheduler_lock.__enter__.return_value = mgr._scheduler_lock
+        mgr._scheduler_lock.__exit__.return_value = False
+        mgr._write_scheduler_state = mock.Mock()
+
+        ok, err, snapshot = mgr.setScheduler({"performance_profile": "nope"})
+
+        self.assertFalse(ok)
+        self.assertEqual("invalid performance_profile", err)
+        self.assertEqual({}, snapshot)
+        mgr._write_scheduler_state.assert_not_called()
+
+    def test_perf_profile_respects_explicit_env_overrides(self):
+        mgr = _make_manager()
+        mgr._scheduler_env_overrides = {
+            "base_tick_sec": True,
+            "fast_switch_enabled": True,
+            "fast_tick_sec": True,
+            "fast_lock_timeout_ms": True,
+            "preflight_cache_ms": True,
+            "lock_miss_ticks": True,
+        }
+        mgr._scheduler_base_tick_sec = 0.99
+        mgr._scheduler_fast_switch_enabled = False
+        mgr._scheduler_fast_tick_sec = 0.42
+        mgr._scheduler_fast_lock_timeout_ms = 4321
+        mgr._scheduler_preflight_cache_ttl_ms = 654
+        mgr._scheduler_lock_miss_required_ticks = 9
+
+        mgr._apply_scheduler_perf_profile_locked("pc_moderate")
+
+        self.assertEqual(0.99, mgr._scheduler_base_tick_sec)
+        self.assertFalse(mgr._scheduler_fast_switch_enabled)
+        self.assertEqual(0.42, mgr._scheduler_fast_tick_sec)
+        self.assertEqual(4321, mgr._scheduler_fast_lock_timeout_ms)
+        self.assertEqual(654, mgr._scheduler_preflight_cache_ttl_ms)
+        self.assertEqual(9, mgr._scheduler_lock_miss_required_ticks)
 
 
 if __name__ == "__main__":

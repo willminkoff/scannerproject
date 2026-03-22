@@ -114,7 +114,12 @@ class HpAutoLocateRegressionTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertIn("state", payload)
         self.assertIn("favorites_runtime_sync", payload)
-        self.assertEqual(expected_sync, payload["favorites_runtime_sync"])
+        sync = payload["favorites_runtime_sync"]
+        self.assertEqual(expected_sync["ok"], sync["ok"])
+        self.assertEqual(expected_sync["changed"], sync["changed"])
+        self.assertEqual(expected_sync["errors"], sync["errors"])
+        self.assertTrue(sync["request_complete"])
+        self.assertFalse(sync["pending"])
 
 
 if __name__ == "__main__":

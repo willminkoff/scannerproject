@@ -269,13 +269,57 @@ def resolve_combined_source_paths() -> tuple[str, str]:
     return airband_path, ground_path
 
 
+def _managed_controls_profile_path(target: str) -> str:
+    """Return managed HP favorites profile path for a target when available."""
+    managed_id = "hp3_favorites_airband" if target == "airband" else "hp3_favorites_ground"
+    try:
+        profiles = load_profiles_registry()
+        row = find_profile(profiles, managed_id)
+    except Exception:
+        row = None
+    candidate = str((row or {}).get("path") or "").strip()
+    return _existing_file(candidate)
+
+
+def _resolve_controls_profile_path(target: str, selected_path: str, fallback_path: str) -> str:
+    """Resolve writable/readable controls profile for a target.
+
+    Preference order:
+      1) Active selected profile when it has a usable receiver device.
+      2) Managed HP favorites profile when active profile is disabled.
+      3) Fallback profile when available.
+      4) Active selected profile path (even if currently disabled) as a last resort.
+    """
+    selected_real = _existing_file(selected_path)
+    if selected_real and _profile_has_usable_devices(selected_real):
+        return selected_real
+
+    managed_real = _managed_controls_profile_path(target)
+    if managed_real and _profile_has_usable_devices(managed_real):
+        return managed_real
+
+    fallback_real = _existing_file(fallback_path)
+    if fallback_real:
+        return fallback_real
+
+    if selected_real:
+        return selected_real
+
+    return _resolve_profile_path(selected_path, fallback_path)
+
+
 def resolve_controls_path(target: str) -> str:
     """Resolve the effective profile path used for controls/status on a target."""
     normalized = str(target or "").strip().lower()
     if normalized not in ("airband", "ground"):
         raise ValueError(f"unknown target: {target}")
-    airband_path, ground_path = resolve_combined_source_paths()
-    return airband_path if normalized == "airband" else ground_path
+    if normalized == "airband":
+        selected = read_active_config_path()
+        fallback = AIRBAND_FALLBACK_PROFILE_PATH
+    else:
+        selected = os.path.realpath(GROUND_CONFIG_PATH)
+        fallback = GROUND_FALLBACK_PROFILE_PATH
+    return _resolve_controls_profile_path(normalized, selected, fallback)
 
 
 def write_combined_config() -> bool:

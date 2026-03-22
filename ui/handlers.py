@@ -258,6 +258,12 @@ _HITS_CACHE_TTL_SEC = max(0.1, float(os.getenv("HITS_CACHE_TTL_SEC", "1.0")))
 _UNIT_ACTIVE_CACHE_TTL_SEC = max(0.1, float(os.getenv("UNIT_ACTIVE_CACHE_TTL_SEC", "1.0")))
 HIT_LIST_MAX_AGE_SEC = max(60, int(os.getenv("HIT_LIST_MAX_AGE_SEC", "1800")))
 STREAM_PROXY_READ_TIMEOUT_SEC = max(120.0, float(os.getenv("STREAM_PROXY_READ_TIMEOUT_SEC", "600")))
+HP_STATE_SYNC_WAIT_SEC = max(0.0, float(os.getenv("HP_STATE_SYNC_WAIT_SEC", "3.0")))
+_HP_STATE_SYNC_COND = threading.Condition()
+_HP_STATE_SYNC_THREAD: threading.Thread | None = None
+_HP_STATE_SYNC_REQUESTED = 0
+_HP_STATE_SYNC_COMPLETED = 0
+_HP_STATE_SYNC_LAST_PAYLOAD: dict[str, Any] = {"ok": True, "changed": False, "errors": []}
 STREAM_PROXY_CHUNK_BYTES = max(128, int(os.getenv("STREAM_PROXY_CHUNK_BYTES", "256")))
 try:
     STREAM_PROXY_TRANSCODE_BITRATE_KBPS = int(os.getenv("STREAM_PROXY_TRANSCODE_BITRATE_KBPS", "64"))
@@ -342,6 +348,28 @@ def _parse_json_like_list(raw_value) -> list:
         except Exception:
             return [chunk.strip() for chunk in text.split(",") if chunk.strip()]
     return []
+
+
+def _extract_scheduler_payload(form: dict[str, Any]) -> dict:
+    payload = {}
+    for key in (
+        "mode",
+        "digital_scan_mode",
+        "system_dwell_ms",
+        "digital_system_dwell_ms",
+        "system_hang_ms",
+        "digital_system_hang_ms",
+        "pause_on_hit",
+        "digital_pause_on_hit",
+        "system_order",
+        "digital_system_order",
+        "performance_profile",
+        "digital_perf_profile",
+        "digital_scheduler_perf_profile",
+    ):
+        if key in form:
+            payload[key] = form.get(key)
+    return payload
 
 
 def parse_service_tags(raw_value) -> list[int]:
@@ -465,16 +493,108 @@ def _apply_hp_state_form(
 def _save_hp_state_with_sync(state: "HPState") -> dict[str, Any]:
     """Persist HP state and run runtime sync, preserving sync error details."""
     state.save()
-    sync_payload: dict[str, Any] = {"ok": True, "changed": False}
-    try:
-        sync_payload = sync_scan_pool_to_runtime(force=True)
-    except Exception as sync_exc:
-        sync_payload = {"ok": False, "changed": False, "errors": [str(sync_exc)]}
+    request_id = _enqueue_favorites_runtime_sync()
+    _wait_for_favorites_runtime_sync(request_id, HP_STATE_SYNC_WAIT_SEC)
+    sync_payload = _snapshot_favorites_runtime_sync(request_id)
     return {
         "ok": True,
         "state": state.to_dict(),
         "favorites_runtime_sync": sync_payload,
     }
+
+
+def _normalize_runtime_sync_payload(payload: Any) -> dict[str, Any]:
+    if isinstance(payload, dict):
+        normalized = dict(payload)
+    else:
+        normalized = {
+            "ok": False,
+            "changed": False,
+            "errors": [f"unexpected runtime sync payload type: {type(payload).__name__}"],
+        }
+    normalized["ok"] = bool(normalized.get("ok", True))
+    normalized["changed"] = bool(normalized.get("changed", False))
+    errors = normalized.get("errors")
+    if isinstance(errors, list):
+        normalized["errors"] = [str(err) for err in errors if str(err).strip()]
+    elif errors:
+        normalized["errors"] = [str(errors)]
+    else:
+        normalized["errors"] = []
+    return normalized
+
+
+def _favorites_runtime_sync_worker() -> None:
+    global _HP_STATE_SYNC_THREAD
+    global _HP_STATE_SYNC_COMPLETED
+    global _HP_STATE_SYNC_LAST_PAYLOAD
+    while True:
+        with _HP_STATE_SYNC_COND:
+            if _HP_STATE_SYNC_COMPLETED >= _HP_STATE_SYNC_REQUESTED:
+                _HP_STATE_SYNC_THREAD = None
+                _HP_STATE_SYNC_COND.notify_all()
+                return
+            target_request_id = _HP_STATE_SYNC_REQUESTED
+        try:
+            payload = _normalize_runtime_sync_payload(sync_scan_pool_to_runtime(force=True))
+        except Exception as sync_exc:
+            payload = {
+                "ok": False,
+                "changed": False,
+                "errors": [str(sync_exc)],
+            }
+        with _HP_STATE_SYNC_COND:
+            _HP_STATE_SYNC_LAST_PAYLOAD = payload
+            _HP_STATE_SYNC_COMPLETED = max(_HP_STATE_SYNC_COMPLETED, target_request_id)
+            _HP_STATE_SYNC_COND.notify_all()
+
+
+def _enqueue_favorites_runtime_sync() -> int:
+    global _HP_STATE_SYNC_THREAD
+    global _HP_STATE_SYNC_REQUESTED
+    with _HP_STATE_SYNC_COND:
+        _HP_STATE_SYNC_REQUESTED += 1
+        request_id = _HP_STATE_SYNC_REQUESTED
+        thread = _HP_STATE_SYNC_THREAD
+        if thread is None or not thread.is_alive():
+            thread = threading.Thread(
+                target=_favorites_runtime_sync_worker,
+                name="favorites-runtime-sync",
+                daemon=True,
+            )
+            _HP_STATE_SYNC_THREAD = thread
+            thread.start()
+        _HP_STATE_SYNC_COND.notify_all()
+        return request_id
+
+
+def _wait_for_favorites_runtime_sync(request_id: int, timeout_sec: float) -> bool:
+    if timeout_sec <= 0:
+        return False
+    deadline = time.monotonic() + float(timeout_sec)
+    with _HP_STATE_SYNC_COND:
+        while _HP_STATE_SYNC_COMPLETED < request_id:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            _HP_STATE_SYNC_COND.wait(timeout=remaining)
+        return True
+
+
+def _snapshot_favorites_runtime_sync(request_id: int) -> dict[str, Any]:
+    with _HP_STATE_SYNC_COND:
+        payload = _normalize_runtime_sync_payload(_HP_STATE_SYNC_LAST_PAYLOAD)
+        completed_for_request = _HP_STATE_SYNC_COMPLETED >= request_id
+        backlog = max(0, _HP_STATE_SYNC_REQUESTED - _HP_STATE_SYNC_COMPLETED)
+    payload.update(
+        {
+            "request_id": int(request_id),
+            "request_complete": bool(completed_for_request),
+            "pending": bool(not completed_for_request),
+            "backlog": int(backlog),
+        }
+    )
+    return payload
 
 
 def merge_favorites_preserving_custom(existing_rows, incoming_rows) -> list:
@@ -3383,21 +3503,7 @@ class Handler(BaseHTTPRequestHandler):
                     json.dumps({"ok": False, "error": "scheduler not supported"}),
                     "application/json; charset=utf-8",
                 )
-            scheduler_payload = {}
-            for key in (
-                "mode",
-                "digital_scan_mode",
-                "system_dwell_ms",
-                "digital_system_dwell_ms",
-                "system_hang_ms",
-                "digital_system_hang_ms",
-                "pause_on_hit",
-                "digital_pause_on_hit",
-                "system_order",
-                "digital_system_order",
-            ):
-                if key in form:
-                    scheduler_payload[key] = form.get(key)
+            scheduler_payload = _extract_scheduler_payload(form)
             ok, err, payload = manager.setScheduler(scheduler_payload)
             if not ok:
                 return self._send(

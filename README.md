@@ -485,6 +485,13 @@ Live-only digital backend control with in-memory metadata (no recording or persi
 - `DIGITAL_SDRTRUNK_STREAM_NAME` (default: `DIGITAL`; SDRTrunk stream name used for alias `broadcastChannel` wiring)
 - `DIGITAL_ATTACH_BROADCAST_CHANNEL` (default: `1`; auto-adds `broadcastChannel` IDs for active profile alias talkgroups)
 - `DIGITAL_IGNORE_DATA_CALLS` (default: `1`; when enabled, SDRTrunk decode config ignores data calls so voice traffic channels are prioritized)
+- `DIGITAL_PERF_PROFILE` (`legacy` | `pc_moderate`; default: `pc_moderate`)
+- `DIGITAL_SCHEDULER_FAST_SWITCH_ENABLED` (optional explicit override)
+- `DIGITAL_SCHEDULER_FAST_TICK_SEC` (optional explicit override)
+- `DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS` (optional explicit override)
+- `DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS` (optional explicit override)
+- `DIGITAL_SCHEDULER_LOCK_MISS_TICKS` (optional explicit override)
+- `DIGITAL_SCHEDULER_TICK_SEC` (optional explicit override)
 - `DIGITAL_MIXER_ENABLED` (default: `0`) - enable mixing SDRTrunk audio into `scannerbox.mp3`
 - `DIGITAL_MIXER_AIRBAND_MOUNT` (default: `GND-air.mp3`) - raw airband+ground input mount for the mixer
 - `DIGITAL_MIXER_DIGITAL_MOUNT` (default: `DIGITAL.mp3`) - SDRTrunk input mount for the mixer
@@ -585,20 +592,25 @@ Acceptance criteria for V3 mode:
 - During active clear voice, scheduler does not preempt audio mid-call.
 - UI and sitrep clearly show which system is currently monitored and why switching occurred.
 
-Fast-switch canary flags (disabled by default):
-- `DIGITAL_SCHEDULER_FAST_SWITCH_ENABLED` (default: `0`)
-- `DIGITAL_SCHEDULER_FAST_TICK_SEC` (default: `0.25`)
-- `DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS` (default: `1200`)
-- `DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS` (default: `750`)
-- `DIGITAL_SCHEDULER_LOCK_MISS_TICKS` (default: `3`)
+Scheduler performance profiles:
+- `DIGITAL_PERF_PROFILE` (`legacy` | `pc_moderate`, default: `pc_moderate`)
+- Profile defaults can still be overridden by explicit scheduler env vars:
+  - `DIGITAL_SCHEDULER_FAST_SWITCH_ENABLED`
+  - `DIGITAL_SCHEDULER_FAST_TICK_SEC`
+  - `DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS`
+  - `DIGITAL_SCHEDULER_ADAPTIVE_LOCK_MAX_MS` (cap for adaptive lock-acquisition timeout)
+  - `DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS`
+  - `DIGITAL_SCHEDULER_LOCK_MISS_TICKS`
+  - `DIGITAL_SCHEDULER_TICK_SEC`
 
-Suggested canary env block:
+`pc_moderate` effective defaults:
 ```bash
 DIGITAL_SCHEDULER_FAST_SWITCH_ENABLED=1
 DIGITAL_SCHEDULER_FAST_TICK_SEC=0.25
-DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS=1200
-DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS=750
-DIGITAL_SCHEDULER_LOCK_MISS_TICKS=3
+DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS=1000
+DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS=300
+DIGITAL_SCHEDULER_LOCK_MISS_TICKS=2
+DIGITAL_SCHEDULER_TICK_SEC=0.75
 ```
 
 Fast-switch verification:
@@ -608,11 +620,31 @@ Fast-switch verification:
   - `digital_scheduler_apply_method` and `digital_scheduler_last_apply_duration_ms`
   - `digital_scheduler_preflight_cache_age_ms`
   - `digital_scheduler_lock_miss_ticks`
+  - `digital_scheduler_adaptive_lock_timeout_ms`
+  - `digital_scheduler_active_control_channel_count`
+  - `digital_scheduler_perf_profile`
+  - `digital_scheduler_effective`
+- While active system is still acquiring control lock, scheduler should not rotate on dwell timeout before `digital_scheduler_lock_timeout_ms`.
 - During no-traffic periods with 2 systems, active system rotation should typically be about 1 second.
 - During clear voice, scheduler should remain on the active system until call end + hang.
 
+Phased canary rollout (new PC):
+1. Baseline:
+```bash
+DIGITAL_PERF_PROFILE=legacy
+```
+2. Canary:
+```bash
+DIGITAL_PERF_PROFILE=pc_moderate
+```
+3. Validate with:
+```bash
+python3 scripts/digital_perf_check.py --duration-sec 180 --strict
+```
+4. Promote by removing the override (repo default remains `pc_moderate`).
+
 Rollback:
-- Set `DIGITAL_SCHEDULER_FAST_SWITCH_ENABLED=0` and restart `airband-ui`.
+- Set `DIGITAL_PERF_PROFILE=legacy` and restart `airband-ui`.
 
 Non-goal:
 - This mode is not true simultaneous full-fidelity multi-system monitoring. True simultaneous control + voice across multiple systems still requires additional digital tuners.

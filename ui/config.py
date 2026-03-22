@@ -5,6 +5,19 @@ All constants can be overridden via environment variables.
 import os
 import re
 
+
+_TRUTHY = ("1", "true", "yes", "on")
+
+
+def _env_text_with_set(name: str, default: str) -> tuple[str, bool]:
+    raw = os.getenv(name)
+    if raw is None:
+        return default, False
+    text = str(raw).strip()
+    if not text:
+        return default, False
+    return text, True
+
 # Server & Port Configuration
 UI_PORT = int(os.getenv("UI_PORT", "5050"))
 
@@ -120,6 +133,31 @@ DIGITAL_SCAN_MODE = (
     if _DIGITAL_SCAN_MODE_RAW in ("single_system", "timeslice_multi_system")
     else "single_system"
 )
+DIGITAL_PERF_PRESETS = {
+    "legacy": {
+        "fast_switch_enabled": False,
+        "fast_tick_sec": 0.25,
+        "fast_lock_timeout_ms": 1200,
+        "preflight_cache_ms": 750,
+        "lock_miss_ticks": 3,
+        "base_tick_sec": 1.0,
+    },
+    "pc_moderate": {
+        "fast_switch_enabled": True,
+        "fast_tick_sec": 0.25,
+        "fast_lock_timeout_ms": 1000,
+        "preflight_cache_ms": 300,
+        "lock_miss_ticks": 2,
+        "base_tick_sec": 0.75,
+    },
+}
+_DIGITAL_PERF_PROFILE_RAW = os.getenv("DIGITAL_PERF_PROFILE", "pc_moderate").strip().lower()
+DIGITAL_PERF_PROFILE = (
+    _DIGITAL_PERF_PROFILE_RAW
+    if _DIGITAL_PERF_PROFILE_RAW in DIGITAL_PERF_PRESETS
+    else "pc_moderate"
+)
+_DIGITAL_PERF_DEFAULTS = DIGITAL_PERF_PRESETS[DIGITAL_PERF_PROFILE]
 DIGITAL_SYSTEM_DWELL_MS = max(300, int(os.getenv("DIGITAL_SYSTEM_DWELL_MS", "400")))
 DIGITAL_SYSTEM_HANG_MS = max(0, int(os.getenv("DIGITAL_SYSTEM_HANG_MS", "4000")))
 DIGITAL_SYSTEM_ORDER = [
@@ -130,35 +168,60 @@ DIGITAL_SYSTEM_ORDER = [
 DIGITAL_PAUSE_ON_HIT = os.getenv(
     "DIGITAL_PAUSE_ON_HIT",
     "1",
-).strip().lower() in ("1", "true", "yes", "on")
-DIGITAL_SCHEDULER_FAST_SWITCH_ENABLED = os.getenv(
+).strip().lower() in _TRUTHY
+_raw, DIGITAL_SCHEDULER_FAST_SWITCH_ENABLED_SET = _env_text_with_set(
     "DIGITAL_SCHEDULER_FAST_SWITCH_ENABLED",
-    "0",
-).strip().lower() in ("1", "true", "yes", "on")
+    "1" if _DIGITAL_PERF_DEFAULTS["fast_switch_enabled"] else "0",
+)
+DIGITAL_SCHEDULER_FAST_SWITCH_ENABLED = _raw.strip().lower() in _TRUTHY
+_raw, DIGITAL_SCHEDULER_FAST_TICK_SEC_SET = _env_text_with_set(
+    "DIGITAL_SCHEDULER_FAST_TICK_SEC",
+    str(_DIGITAL_PERF_DEFAULTS["fast_tick_sec"]),
+)
 DIGITAL_SCHEDULER_FAST_TICK_SEC = max(
     0.1,
-    float(os.getenv("DIGITAL_SCHEDULER_FAST_TICK_SEC", "0.25")),
+    float(_raw),
+)
+_raw, DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS_SET = _env_text_with_set(
+    "DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS",
+    str(_DIGITAL_PERF_DEFAULTS["fast_lock_timeout_ms"]),
 )
 DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS = max(
     700,
-    int(os.getenv("DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS", "1200")),
+    int(_raw),
+)
+_raw, DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS_SET = _env_text_with_set(
+    "DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS",
+    str(_DIGITAL_PERF_DEFAULTS["preflight_cache_ms"]),
 )
 DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS = max(
     0,
-    int(os.getenv("DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS", "750")),
+    int(_raw),
+)
+_raw, DIGITAL_SCHEDULER_LOCK_MISS_TICKS_SET = _env_text_with_set(
+    "DIGITAL_SCHEDULER_LOCK_MISS_TICKS",
+    str(_DIGITAL_PERF_DEFAULTS["lock_miss_ticks"]),
 )
 DIGITAL_SCHEDULER_LOCK_MISS_TICKS = max(
     1,
-    int(os.getenv("DIGITAL_SCHEDULER_LOCK_MISS_TICKS", "3")),
+    int(_raw),
+)
+_raw, DIGITAL_SCHEDULER_TICK_SEC_SET = _env_text_with_set(
+    "DIGITAL_SCHEDULER_TICK_SEC",
+    str(_DIGITAL_PERF_DEFAULTS["base_tick_sec"]),
+)
+DIGITAL_SCHEDULER_TICK_SEC = max(
+    0.25,
+    float(_raw),
 )
 DIGITAL_RUNTIME_RETUNE_ENABLED = os.getenv(
     "DIGITAL_RUNTIME_RETUNE_ENABLED",
     "1",
-).strip().lower() in ("1", "true", "yes", "on")
+).strip().lower() in _TRUTHY
 DIGITAL_RUNTIME_RETUNE_STRICT = os.getenv(
     "DIGITAL_RUNTIME_RETUNE_STRICT",
     "0",
-).strip().lower() in ("1", "true", "yes", "on")
+).strip().lower() in _TRUTHY
 DIGITAL_RUNTIME_RETUNE_URL = os.getenv(
     "DIGITAL_RUNTIME_RETUNE_URL",
     "",
@@ -208,7 +271,7 @@ ICECAST_MOUNT_PATH = f"/{PLAYER_MOUNT}"
 STREAM_PROXY_TRANSCODE_ANALOG_DEFAULT = os.getenv(
     "STREAM_PROXY_TRANSCODE_ANALOG_DEFAULT",
     "0",
-).strip().lower() in ("1", "true", "yes", "on")
+).strip().lower() in _TRUTHY
 
 # V3 Runtime + Preflight
 V3_CANONICAL_CONFIG_PATH = os.getenv(
@@ -222,7 +285,7 @@ V3_COMPILED_STATE_PATH = os.getenv(
 V3_STRICT_PREFLIGHT = os.getenv(
     "V3_STRICT_PREFLIGHT",
     "1",
-).strip().lower() in ("1", "true", "yes", "on")
+).strip().lower() in _TRUTHY
 RTL_MIN_USB_SPEED_MBPS = max(1, int(os.getenv("RTL_MIN_USB_SPEED_MBPS", "480")))
 
 # Systemd Units

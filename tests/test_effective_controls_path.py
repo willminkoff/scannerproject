@@ -75,6 +75,38 @@ class EffectiveControlsPathTests(unittest.TestCase):
         resolve_path.assert_called_once_with("ground")
         write_controls.assert_called_once_with("/tmp/effective.conf", 43.4, "dbfs", 10.0, -64.0)
 
+    def test_resolve_controls_path_prefers_managed_profile_when_active_is_disabled(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            selected_air = os.path.join(tmp, "selected_air.conf")
+            selected_ground = os.path.join(tmp, "selected_ground.conf")
+            fallback_air = os.path.join(tmp, "fallback_air.conf")
+            managed_air = os.path.join(tmp, "managed_air.conf")
+
+            _write_profile(selected_air, airband=True, ui_disabled=True, with_devices=False)
+            _write_profile(selected_ground, airband=False, ui_disabled=False, with_devices=True)
+            _write_profile(fallback_air, airband=True, ui_disabled=False, with_devices=True)
+            _write_profile(managed_air, airband=True, ui_disabled=False, with_devices=True)
+
+            with mock.patch.object(profile_config, "AIRBAND_FALLBACK_PROFILE_PATH", fallback_air), mock.patch.object(
+                profile_config, "GROUND_CONFIG_PATH", selected_ground
+            ), mock.patch.object(
+                profile_config, "read_active_config_path", return_value=selected_air
+            ), mock.patch.object(
+                profile_config,
+                "load_profiles_registry",
+                return_value=[
+                    {
+                        "id": "hp3_favorites_airband",
+                        "label": "HP3 Favorites Airband",
+                        "path": managed_air,
+                        "airband": True,
+                    }
+                ],
+            ):
+                resolved = profile_config.resolve_controls_path("airband")
+
+            self.assertEqual(os.path.realpath(managed_air), resolved)
+
     def test_action_apply_batch_writes_to_resolved_path(self):
         with mock.patch.object(actions, "resolve_controls_path", return_value="/tmp/effective.conf") as resolve_path, mock.patch.object(
             actions, "write_controls", return_value=True
@@ -116,6 +148,34 @@ class EffectiveControlsPathTests(unittest.TestCase):
             [mock.call("/tmp/effective-air.conf"), mock.call("/tmp/effective-ground.conf")],
             parse_controls.call_args_list,
         )
+
+
+class SchedulerPayloadExtractionTests(unittest.TestCase):
+    def test_extract_scheduler_payload_includes_perf_profile_keys(self):
+        payload = handlers._extract_scheduler_payload(
+            {
+                "mode": "timeslice_multi_system",
+                "system_dwell_ms": "400",
+                "performance_profile": "pc_moderate",
+                "digital_scheduler_perf_profile": "legacy",
+            }
+        )
+
+        self.assertEqual("timeslice_multi_system", payload.get("mode"))
+        self.assertEqual("400", payload.get("system_dwell_ms"))
+        self.assertEqual("pc_moderate", payload.get("performance_profile"))
+        self.assertEqual("legacy", payload.get("digital_scheduler_perf_profile"))
+
+    def test_extract_scheduler_payload_ignores_unrelated_form_keys(self):
+        payload = handlers._extract_scheduler_payload(
+            {
+                "foo": "bar",
+                "mode": "single_system",
+                "unrelated": "1",
+            }
+        )
+
+        self.assertEqual({"mode": "single_system"}, payload)
 
 
 class RecentRegressionTests(unittest.TestCase):
@@ -390,6 +450,29 @@ class RecentRegressionTests(unittest.TestCase):
         self.assertFalse(sync["ok"])
         self.assertFalse(sync["changed"])
         self.assertIn("sync exploded", sync["errors"][0])
+        self.assertTrue(sync["request_complete"])
+        self.assertFalse(sync["pending"])
+
+    def test_save_hp_state_with_sync_returns_pending_when_sync_exceeds_wait_budget(self):
+        state = HPState.default()
+
+        def _slow_sync(force=True):  # noqa: ARG001
+            time.sleep(0.05)
+            return {"ok": True, "changed": True, "errors": []}
+
+        with mock.patch.object(state, "save", return_value=None), mock.patch.object(
+            handlers, "HP_STATE_SYNC_WAIT_SEC", 0.001
+        ), mock.patch.object(
+            handlers,
+            "sync_scan_pool_to_runtime",
+            side_effect=_slow_sync,
+        ):
+            payload = handlers._save_hp_state_with_sync(state)
+            sync = payload["favorites_runtime_sync"]
+            self.assertTrue(payload["ok"])
+            self.assertTrue(sync["pending"])
+            self.assertFalse(sync["request_complete"])
+            handlers._wait_for_favorites_runtime_sync(sync["request_id"], 0.2)
 
     def test_parse_service_tags_normalizes_json_csv_and_scalar(self):
         self.assertEqual([2, 15, 3], handlers.parse_service_tags("[2, \"15\", 3, \"x\", 2]"))
