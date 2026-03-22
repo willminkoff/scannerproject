@@ -1,4 +1,5 @@
 import unittest
+import threading
 from unittest import mock
 
 from ui import digital
@@ -50,6 +51,11 @@ def _make_manager() -> digital.DigitalManager:
     mgr._scheduler_cached_preflight = {}
     mgr._scheduler_cached_preflight_at_ms = 0
     mgr._scheduler_last_preflight_cache_age_ms = 0
+    mgr._scheduler_snapshot = {}
+    mgr._scheduler_snapshot_at_ms = 0
+    mgr._status_snapshot_enabled = False
+    mgr._preflight_snapshot = {}
+    mgr._preflight_snapshot_at_ms = 0
     mgr._scheduler_system_health = {}
     mgr._scheduler_pool_system_channels = {}
     mgr._scheduler_pool_system_channels_lower = {}
@@ -59,6 +65,7 @@ def _make_manager() -> digital.DigitalManager:
     mgr._scheduler_pool_site_to_system = {}
     mgr._scheduler_pool_talkgroup_labels = {}
     mgr._scheduler_pool_talkgroup_groups = {}
+    mgr._scheduler_lock = threading.Lock()
     mgr._scheduler_health_entry = digital.DigitalManager._scheduler_health_entry.__get__(
         mgr, digital.DigitalManager
     )
@@ -233,6 +240,51 @@ class SchedulerFastSwitchTests(unittest.TestCase):
         self.assertEqual({"marker": 1}, second)
         self.assertEqual({"marker": 2}, third)
         self.assertEqual(2, mgr._fresh_preflight.call_count)
+
+    def test_scheduler_preflight_uses_snapshot_sampler_when_enabled(self):
+        mgr = _make_manager()
+        mgr._status_snapshot_enabled = True
+        mgr._preflight_snapshot = {"marker": 9}
+        mgr._preflight_snapshot_at_ms = 1000
+
+        with mock.patch.object(digital.time, "time", return_value=1.5):
+            payload = mgr._scheduler_preflight()
+
+        self.assertEqual({"marker": 9}, payload)
+        self.assertEqual(500, mgr._scheduler_last_preflight_cache_age_ms)
+
+    def test_get_scheduler_read_path_does_not_overwrite_cached_snapshot(self):
+        mgr = _make_manager()
+        mgr._scheduler_snapshot = {"digital_scheduler_mode": "single_system"}
+        mgr._scheduler_snapshot_at_ms = 1000
+        mgr._preflight_snapshot_at_ms = 900
+        mgr.getLastEvent = mock.Mock(return_value={})
+        mgr._status_preflight_snapshot = mock.Mock(return_value={})
+
+        with mock.patch.object(digital.time, "time", return_value=2.0):
+            payload = mgr.getScheduler()
+
+        self.assertEqual({"digital_scheduler_mode": "single_system"}, mgr._scheduler_snapshot)
+        self.assertEqual(1000, mgr._scheduler_snapshot_at_ms)
+        self.assertTrue(payload.get("ok"))
+        self.assertEqual("single_system", payload.get("digital_scheduler_mode"))
+
+    def test_get_scheduler_fallback_payload_is_not_persisted(self):
+        mgr = _make_manager()
+        mgr.getLastEvent = mock.Mock(return_value={})
+        mgr._status_preflight_snapshot = mock.Mock(return_value={})
+        mgr._scheduler_snapshot_payload_locked = mock.Mock(
+            return_value={"digital_scheduler_mode": "single_system"}
+        )
+
+        with mock.patch.object(digital.time, "time", return_value=2.0):
+            payload = mgr.getScheduler()
+
+        self.assertEqual({}, mgr._scheduler_snapshot)
+        self.assertEqual(0, mgr._scheduler_snapshot_at_ms)
+        self.assertTrue(payload.get("ok"))
+        self.assertEqual("single_system", payload.get("digital_scheduler_mode"))
+        mgr._scheduler_snapshot_payload_locked.assert_called_once()
 
     def test_scheduler_snapshot_includes_fast_switch_telemetry_fields(self):
         mgr = _make_manager()

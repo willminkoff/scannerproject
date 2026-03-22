@@ -246,6 +246,14 @@ DIGITAL_RUNTIME_RETUNE_DISABLE_FALLBACK_AFTER = max(
     0,
     int(os.getenv("DIGITAL_RUNTIME_RETUNE_DISABLE_FALLBACK_AFTER", "0")),
 )
+DIGITAL_STATUS_SNAPSHOT_ENABLED = os.getenv(
+    "DIGITAL_STATUS_SNAPSHOT_ENABLED",
+    "0",
+).strip().lower() in _TRUTHY
+DIGITAL_PREFLIGHT_SAMPLER_MS = max(
+    250,
+    int(os.getenv("DIGITAL_PREFLIGHT_SAMPLER_MS", "1000")),
+)
 DIGITAL_RTL_SERIAL_HINT = "DIGITAL_RTL_SERIAL not set; set it to your digital dongle serial"
 # Multi-profile loop scheduler
 PROFILE_LOOP_STATE_PATH = os.getenv(
@@ -287,6 +295,26 @@ V3_STRICT_PREFLIGHT = os.getenv(
     "1",
 ).strip().lower() in _TRUTHY
 RTL_MIN_USB_SPEED_MBPS = max(1, int(os.getenv("RTL_MIN_USB_SPEED_MBPS", "480")))
+HEALTH_SCHEDULER_STALE_MS = max(
+    1000,
+    int(os.getenv("HEALTH_SCHEDULER_STALE_MS", "3000")),
+)
+SB3_CONNECTED_STATUS_REFRESH_SEC = max(
+    5,
+    int(os.getenv("SB3_CONNECTED_STATUS_REFRESH_SEC", "15")),
+)
+SB3_CONNECTED_SYSTEM_REFRESH_SEC = max(
+    SB3_CONNECTED_STATUS_REFRESH_SEC,
+    int(os.getenv("SB3_CONNECTED_SYSTEM_REFRESH_SEC", "30")),
+)
+SB3_CONNECTED_PROFILES_REFRESH_SEC = max(
+    SB3_CONNECTED_STATUS_REFRESH_SEC,
+    int(os.getenv("SB3_CONNECTED_PROFILES_REFRESH_SEC", "60")),
+)
+SB3_DEDICATED_DIGITAL_FETCH_ENABLED = os.getenv(
+    "SB3_DEDICATED_DIGITAL_FETCH_ENABLED",
+    "0",
+).strip().lower() in _TRUTHY
 
 # Systemd Units
 UNITS = {
@@ -296,6 +324,7 @@ UNITS = {
     "keepalive": os.getenv("UNIT_KEEPALIVE", "icecast-keepalive"),
     "ui": os.getenv("UNIT_UI", "airband-ui"),
     "digital": DIGITAL_SERVICE_NAME,
+    "digital_mixer": os.getenv("UNIT_DIGITAL_MIXER", "scanner-digital-mixer"),
 }
 
 # Mixer Configuration

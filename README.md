@@ -620,6 +620,15 @@ Scheduler performance profiles:
   - `DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS`
   - `DIGITAL_SCHEDULER_LOCK_MISS_TICKS`
   - `DIGITAL_SCHEDULER_TICK_SEC`
+- Snapshot/read-path controls:
+  - `DIGITAL_STATUS_SNAPSHOT_ENABLED` (enable cached scheduler/preflight read path)
+  - `DIGITAL_PREFLIGHT_SAMPLER_MS` (default `1000`)
+  - `HEALTH_SCHEDULER_STALE_MS` (default `3000`, scheduler health stale threshold)
+- SB3 connected refresh controls:
+  - `SB3_CONNECTED_STATUS_REFRESH_SEC` (default `15`)
+  - `SB3_CONNECTED_SYSTEM_REFRESH_SEC` (default `30`)
+  - `SB3_CONNECTED_PROFILES_REFRESH_SEC` (default `60`)
+  - `SB3_DEDICATED_DIGITAL_FETCH_ENABLED` (default `0`; when enabled, SB3 keeps periodic dedicated scheduler/preflight fetches)
 
 `pc_moderate` effective defaults:
 ```bash
@@ -815,10 +824,14 @@ sudo systemctl restart scanner-digital
 - `digital_backend` (string)
 - `digital_profile` (string)
 - `digital_muted` (boolean)
+- `digital_mixer_enabled` (boolean)
+- `digital_mixer_active` (boolean)
 - `digital_last_label` (string)
 - `digital_last_mode` (string, optional)
 - `digital_last_time` (epoch ms, 0 if none)
 - `digital_last_error` (string, optional)
+- `digital_scheduler_snapshot_age_ms` (scheduler snapshot age)
+- `digital_preflight_snapshot_age_ms` (preflight snapshot age)
 - `expected_serials` (object with airband/ground/digital expected RTL serials)
 - `serial_mismatch` (boolean)
 - `serial_mismatch_detail` (array with mismatch details)
@@ -836,6 +849,8 @@ sudo systemctl restart scanner-digital
 - `GET  /api/digital/talkgroups?profileId=...`
 - `POST /api/digital/talkgroups/listen` → body: `{ "profileId": "...", "items": [{"dec":"47008","listen":true}] }`
 - `GET  /api/digital/preflight` → tuner-busy detection + expected serials
+- `GET  /api/digital/scheduler` → cached read-only scheduler snapshot
+- `POST /api/digital/scheduler` → optional `performance_profile` (`legacy` | `pc_moderate`) plus scheduler controls
 
 **SB3 Digital profile management**:
 - Digital tab → Digital Profiles widget lets you create/delete profile folders, select an active profile, and load a preview of files in the profile directory.

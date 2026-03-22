@@ -1324,8 +1324,8 @@ class DigitalListenConsistencyTests(unittest.TestCase):
             with open(listen_path, "r", encoding="utf-8") as f:
                 payload = json.load(f)
             self.assertEqual({"3207", "3209"}, set((payload.get("items") or {}).keys()))
-            self.assertNotIn("10350", (payload.get("items") or {}))
-            self.assertFalse(bool((payload.get("items") or {}).get("3209")))
+        self.assertNotIn("10350", (payload.get("items") or {}))
+        self.assertFalse(bool((payload.get("items") or {}).get("3209")))
 
     def test_map_event_label_mutes_unknown_tgid_when_profile_map_exists(self):
         adapter = digital.SdrtrunkAdapter()
@@ -1340,6 +1340,59 @@ class DigitalListenConsistencyTests(unittest.TestCase):
             mapped = adapter._map_event_label(event)
         self.assertTrue(bool(mapped.get("muted")))
         self.assertEqual("10350", str(mapped.get("tgid") or ""))
+
+
+class DigitalRetuneCacheTests(unittest.TestCase):
+    @staticmethod
+    def _write_playlist(path: str, frequency_hz: int) -> None:
+        text = (
+            "<playlist>"
+            "<channel>"
+            f"<source_configuration type=\"sourceConfigTuner\" source_type=\"TUNER\" frequency=\"{int(frequency_hz)}\"/>"
+            "</channel>"
+            "</playlist>"
+        )
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+
+    def test_retune_cache_short_circuits_when_state_matches(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            playlist_path = os.path.join(tmp, "playlist.xml")
+            self._write_playlist(playlist_path, 162_550_000)
+            adapter = digital.SdrtrunkAdapter()
+            playlist_real = os.path.realpath(playlist_path)
+            mtime_ns = adapter._playlist_mtime_ns(playlist_real)
+            adapter._playlist_cache_update(
+                path=playlist_real,
+                mtime_ns=mtime_ns,
+                last_retune_hz=162_550_000,
+            )
+            with mock.patch.object(digital, "DIGITAL_PLAYLIST_PATH", playlist_path), mock.patch.object(
+                adapter, "_runtime_retune_control_frequency", return_value=(False, False, "")
+            ), mock.patch.object(
+                digital.ET, "parse", side_effect=AssertionError("playlist parse should not run")
+            ):
+                ok, err = adapter.retune_control_frequency(162.55)
+
+            self.assertTrue(ok)
+            self.assertEqual("", err)
+            self.assertFalse(bool(adapter.runtime_metrics().get("retune_last_changed")))
+
+    def test_retune_playlist_path_uses_atomic_writer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            playlist_path = os.path.join(tmp, "playlist.xml")
+            self._write_playlist(playlist_path, 162_400_000)
+            adapter = digital.SdrtrunkAdapter()
+            with mock.patch.object(digital, "DIGITAL_PLAYLIST_PATH", playlist_path), mock.patch.object(
+                adapter, "_runtime_retune_control_frequency", return_value=(False, False, "")
+            ), mock.patch.object(
+                digital, "_write_playlist_tree_atomic", return_value=(True, "")
+            ) as write_atomic:
+                ok, err = adapter.retune_control_frequency(162.55)
+
+            self.assertTrue(ok)
+            self.assertEqual("", err)
+            write_atomic.assert_called_once()
 
 
 class AliasSeedRowsTests(unittest.TestCase):
@@ -1378,6 +1431,70 @@ class AliasSeedRowsTests(unittest.TestCase):
 
             self.assertNotIn("3003", decs)
             self.assertIn("4004", decs)
+
+
+class HealthPayloadTests(unittest.TestCase):
+    def _base_payload(self) -> dict:
+        return {
+            "digital_active": True,
+            "digital_mixer_enabled": False,
+            "digital_mixer_active": False,
+            "digital_scheduler_snapshot_age_ms": 0,
+            "digital_scheduler_last_apply_error": "",
+            "icecast_active": True,
+            "icecast_mounts": [],
+            "icecast_expected_mounts": [],
+            "combined_config_stale": False,
+            "rtl_restart_required": False,
+        }
+
+    def _base_dongles(self) -> dict:
+        return {
+            "dongles": {
+                "status": "ideal",
+                "missing_expected_serials": [],
+                "slow_expected_serials": [],
+            }
+        }
+
+    def test_health_payload_marks_disabled_mixer_as_healthy(self):
+        payload = handlers._build_health_payload(
+            status_payload=self._base_payload(),
+            system_stats=self._base_dongles(),
+            analog_air_preflight={"state": "healthy", "reasons": []},
+            analog_ground_preflight={"state": "healthy", "reasons": []},
+            digital_preflight={"state": "healthy", "reasons": []},
+            compile_state={"status": "healthy"},
+        )
+
+        self.assertIn("sdrtrunk", payload["subsystems"])
+        self.assertIn("mixer", payload["subsystems"])
+        self.assertIn("scheduler", payload["subsystems"])
+        self.assertEqual("healthy", payload["subsystems"]["mixer"]["state"])
+        reason_codes = {
+            str((reason or {}).get("code") or "")
+            for reason in payload["subsystems"]["mixer"].get("reasons") or []
+        }
+        self.assertIn("MIXER_DISABLED_BY_DESIGN", reason_codes)
+
+    def test_health_payload_flags_enabled_inactive_mixer_and_stale_scheduler(self):
+        status_payload = self._base_payload()
+        status_payload["digital_mixer_enabled"] = True
+        status_payload["digital_mixer_active"] = False
+        status_payload["digital_scheduler_snapshot_age_ms"] = 4500
+
+        with mock.patch.object(handlers, "HEALTH_SCHEDULER_STALE_MS", 3000):
+            payload = handlers._build_health_payload(
+                status_payload=status_payload,
+                system_stats=self._base_dongles(),
+                analog_air_preflight={"state": "healthy", "reasons": []},
+                analog_ground_preflight={"state": "healthy", "reasons": []},
+                digital_preflight={"state": "healthy", "reasons": []},
+                compile_state={"status": "healthy"},
+            )
+
+        self.assertEqual("failed", payload["subsystems"]["mixer"]["state"])
+        self.assertEqual("degraded", payload["subsystems"]["scheduler"]["state"])
 
 
 class LatencyToneTests(unittest.TestCase):

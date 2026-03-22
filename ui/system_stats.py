@@ -1,8 +1,9 @@
-"""System stats helpers for Pi health telemetry."""
+"""System stats helpers for host/PC health telemetry."""
 import os
 import time
 import shutil
 import subprocess
+import socket
 
 _last_cpu = {"total": None, "idle": None, "ts": None}
 _RTL_USB_SYSFS_ROOT = os.getenv("RTL_USB_SYSFS_ROOT", "/sys/bus/usb/devices")
@@ -176,6 +177,73 @@ def read_cpu_usage_percent():
     return max(0.0, min(100.0, usage * 100.0))
 
 
+def read_load_avg():
+    try:
+        one, five, fifteen = os.getloadavg()
+        return {
+            "one": float(one),
+            "five": float(five),
+            "fifteen": float(fifteen),
+        }
+    except Exception:
+        return None
+
+
+def read_mem_stats():
+    meminfo_path = "/proc/meminfo"
+    try:
+        rows = {}
+        with open(meminfo_path, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                if ":" not in line:
+                    continue
+                key, raw = line.split(":", 1)
+                parts = str(raw or "").strip().split()
+                if not parts:
+                    continue
+                try:
+                    rows[key.strip()] = int(parts[0])
+                except Exception:
+                    continue
+    except Exception:
+        return None
+
+    total_kb = int(rows.get("MemTotal") or 0)
+    if total_kb <= 0:
+        return None
+    available_kb = int(rows.get("MemAvailable") or 0)
+    if available_kb <= 0:
+        available_kb = int(rows.get("MemFree") or 0) + int(rows.get("Buffers") or 0) + int(rows.get("Cached") or 0)
+    if available_kb < 0:
+        available_kb = 0
+    used_kb = max(0, total_kb - available_kb)
+    used_pct = (float(used_kb) / float(total_kb)) * 100.0 if total_kb > 0 else 0.0
+    return {
+        "total_kb": total_kb,
+        "available_kb": available_kb,
+        "used_kb": used_kb,
+        "used_percent": max(0.0, min(100.0, used_pct)),
+    }
+
+
+def read_disk_stats(path: str = "/"):
+    try:
+        usage = shutil.disk_usage(path)
+    except Exception:
+        return None
+    total = int(usage.total or 0)
+    used = int(usage.used or 0)
+    free = int(usage.free or 0)
+    used_pct = (float(used) / float(total)) * 100.0 if total > 0 else 0.0
+    return {
+        "path": path,
+        "total_bytes": total,
+        "used_bytes": used,
+        "free_bytes": free,
+        "used_percent": max(0.0, min(100.0, used_pct)),
+    }
+
+
 def read_net_bytes():
     base = "/sys/class/net"
     if not os.path.isdir(base):
@@ -220,14 +288,26 @@ def read_pressure(path: str):
 
 
 def get_system_stats():
+    hostname = ""
+    try:
+        hostname = socket.gethostname()
+    except Exception:
+        hostname = ""
     return {
         "ok": True,
         "timestamp": time.time(),
+        "hostname": hostname,
+        "cpu_count": int(os.cpu_count() or 0),
         "cpu_temp_c": read_cpu_temp_c(),
         "gpu_temp_c": read_gpu_temp_c(),
         "uptime_s": read_uptime_s(),
         "cpu_usage": read_cpu_usage_percent(),
+        "load_avg": read_load_avg(),
+        "memory": read_mem_stats(),
+        "disk": read_disk_stats("/"),
         "net": read_net_bytes(),
+        "cpu_pressure": read_pressure("/proc/pressure/cpu"),
+        "memory_pressure": read_pressure("/proc/pressure/memory"),
         "io_pressure": read_pressure("/proc/pressure/io"),
         "dongles": read_rtl_dongle_health(),
     }

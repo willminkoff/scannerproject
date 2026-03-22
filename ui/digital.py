@@ -46,6 +46,8 @@ try:
         DIGITAL_RUNTIME_RETUNE_DISABLE_FALLBACK_AFTER,
         DIGITAL_RUNTIME_RETUNE_TOKEN,
         DIGITAL_RUNTIME_RETUNE_URL,
+        DIGITAL_STATUS_SNAPSHOT_ENABLED,
+        DIGITAL_PREFLIGHT_SAMPLER_MS,
         DIGITAL_RTL_DEVICE,
         DIGITAL_RTL_SERIAL,
         DIGITAL_RTL_SERIAL_SECONDARY,
@@ -104,6 +106,8 @@ except ImportError:
         DIGITAL_RUNTIME_RETUNE_DISABLE_FALLBACK_AFTER,
         DIGITAL_RUNTIME_RETUNE_TOKEN,
         DIGITAL_RUNTIME_RETUNE_URL,
+        DIGITAL_STATUS_SNAPSHOT_ENABLED,
+        DIGITAL_PREFLIGHT_SAMPLER_MS,
         DIGITAL_RTL_DEVICE,
         DIGITAL_RTL_SERIAL,
         DIGITAL_RTL_SERIAL_SECONDARY,
@@ -396,6 +400,7 @@ _DIGITAL_SCHEDULER_ADAPTIVE_LOCK_MAX_MS = max(
     2000,
     int(os.getenv("DIGITAL_SCHEDULER_ADAPTIVE_LOCK_MAX_MS", "60000")),
 )
+_DIGITAL_PLAYLIST_WRITE_LOCK = threading.Lock()
 _DIGITAL_STREAM_SOURCE_USER = os.getenv("ICECAST_SOURCE_USER", "source").strip() or "source"
 _DIGITAL_STREAM_SOURCE_PASSWORD = os.getenv("ICECAST_SOURCE_PASSWORD", "062352").strip() or "062352"
 _DIGITAL_STREAM_BITRATE = max(8, int(os.getenv("DIGITAL_STREAM_BITRATE", "32")))
@@ -676,6 +681,23 @@ def _sync_source_configuration(source_conf: ET.Element, control_channels: list[i
         "preferred_tuner": preferred_tuner,
         "tuner_targets": _digital_tuner_targets(),
     }
+
+
+def _write_playlist_tree_atomic(tree: ET.ElementTree, path: str) -> tuple[bool, str]:
+    tmp_path = f"{path}.tmp"
+    try:
+        with _DIGITAL_PLAYLIST_WRITE_LOCK:
+            os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+            tree.write(tmp_path, encoding="utf-8", xml_declaration=False)
+            os.replace(tmp_path, path)
+    except Exception as exc:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:
+            pass
+        return False, str(exc)
+    return True, ""
 
 
 def _normalize_alias_stream_binding(alias_id: ET.Element, stream_name: str) -> bool:
@@ -1885,6 +1907,9 @@ class DigitalAdapter:
     def retune_control_frequency(self, freq_mhz: float) -> tuple[bool, str]:
         raise NotImplementedError
 
+    def runtime_metrics(self) -> dict:
+        return {}
+
 
 class _BaseDigitalAdapter(DigitalAdapter):
     """Shared in-memory state for adapters."""
@@ -1916,6 +1941,9 @@ class _BaseDigitalAdapter(DigitalAdapter):
     def _clear_warning(self):
         self._last_warning = ""
         self._last_warning_time_ms = 0
+
+    def runtime_metrics(self) -> dict:
+        return {}
 
     def _set_last_event(self, label: str, mode: str | None = None, raw=None):
         event = {
@@ -2080,8 +2108,75 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         self._runtime_retune_fallback_disable_after = int(
             max(0, DIGITAL_RUNTIME_RETUNE_DISABLE_FALLBACK_AFTER or 0)
         )
+        self._playlist_cache_lock = threading.Lock()
+        self._playlist_cache = {
+            "path": "",
+            "mtime_ns": 0,
+            "profile_digest": "",
+            "last_retune_hz": 0,
+        }
+        self._runtime_metrics = {
+            "profile_apply_last_duration_ms": 0,
+            "profile_apply_last_error": "",
+            "profile_apply_last_changed": False,
+            "retune_last_duration_ms": 0,
+            "retune_last_error": "",
+            "retune_last_method": "",
+            "retune_last_changed": False,
+        }
         if not validate_digital_service_name(self._service_name):
             self._set_last_error("invalid digital service name")
+
+    def _playlist_mtime_ns(self, path: str) -> int:
+        try:
+            return int(os.stat(path).st_mtime_ns)
+        except Exception:
+            return 0
+
+    def _playlist_cache_snapshot(self) -> dict:
+        with self._playlist_cache_lock:
+            return dict(self._playlist_cache)
+
+    def _playlist_cache_update(
+        self,
+        *,
+        path: str,
+        mtime_ns: int | None = None,
+        profile_digest: str | None = None,
+        last_retune_hz: int | None = None,
+    ) -> None:
+        with self._playlist_cache_lock:
+            self._playlist_cache["path"] = str(path or "")
+            if mtime_ns is not None:
+                self._playlist_cache["mtime_ns"] = int(mtime_ns or 0)
+            if profile_digest is not None:
+                self._playlist_cache["profile_digest"] = str(profile_digest or "")
+            if last_retune_hz is not None:
+                self._playlist_cache["last_retune_hz"] = int(last_retune_hz or 0)
+
+    def _record_profile_apply_metric(self, *, started: float, changed: bool, error: str = "") -> None:
+        self._runtime_metrics["profile_apply_last_duration_ms"] = max(
+            0,
+            int(round((time.monotonic() - started) * 1000)),
+        )
+        self._runtime_metrics["profile_apply_last_error"] = str(error or "")
+        self._runtime_metrics["profile_apply_last_changed"] = bool(changed)
+
+    def _record_retune_metric(
+        self,
+        *,
+        started: float,
+        method: str,
+        changed: bool,
+        error: str = "",
+    ) -> None:
+        self._runtime_metrics["retune_last_duration_ms"] = max(
+            0,
+            int(round((time.monotonic() - started) * 1000)),
+        )
+        self._runtime_metrics["retune_last_method"] = str(method or "")
+        self._runtime_metrics["retune_last_error"] = str(error or "")
+        self._runtime_metrics["retune_last_changed"] = bool(changed)
 
     def _systemctl(self, args):
         if not validate_digital_service_name(self._service_name):
@@ -2825,6 +2920,9 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         payload.update(self._control_channel_summary())
         return payload
 
+    def runtime_metrics(self) -> dict:
+        return dict(self._runtime_metrics)
+
     def start(self):
         ok, err = self._systemctl(["start"])
         if not ok:
@@ -3032,12 +3130,26 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         return channels
 
     def _apply_profile_runtime(self, profile_dir: str, profile_id: str):
+        started = time.monotonic()
         control_channels = self._read_control_channels(profile_dir)
         if not control_channels:
+            self._record_profile_apply_metric(
+                started=started,
+                changed=False,
+                error="profile has no control channels",
+            )
             return False, "profile has no control channels"
 
         decoder_mode, _decoder_source = _profile_decoder_mode(profile_dir)
         if decoder_mode == "NXDN":
+            self._record_profile_apply_metric(
+                started=started,
+                changed=False,
+                error=(
+                    "profile requires NXDN decode, but current SDRTrunk runtime "
+                    "supports P25/DMR only"
+                ),
+            )
             return False, (
                 "profile requires NXDN decode, but current SDRTrunk runtime "
                 "supports P25/DMR only"
@@ -3045,14 +3157,54 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
 
         playlist_path = _safe_realpath(DIGITAL_PLAYLIST_PATH)
         if not playlist_path:
+            self._record_profile_apply_metric(
+                started=started,
+                changed=False,
+                error="digital playlist path not configured",
+            )
             return False, "digital playlist path not configured"
         if not os.path.isfile(playlist_path):
+            self._record_profile_apply_metric(
+                started=started,
+                changed=False,
+                error=f"playlist not found: {playlist_path}",
+            )
             return False, f"playlist not found: {playlist_path}"
+
+        source_type = (
+            "TUNER_MULTIPLE_FREQUENCIES"
+            if DIGITAL_USE_MULTI_FREQ_SOURCE and len(control_channels) > 1
+            else "TUNER"
+        )
+        preferred_tuner = _preferred_tuner_target()
+        desired_digest = "|".join(
+            [
+                str(profile_id or "").strip(),
+                str(decoder_mode or "").strip(),
+                str(source_type or "").strip(),
+                str(preferred_tuner or "").strip(),
+                ",".join(str(int(hz)) for hz in control_channels),
+            ]
+        )
+        playlist_mtime_ns = self._playlist_mtime_ns(playlist_path)
+        cache = self._playlist_cache_snapshot()
+        if (
+            cache.get("path") == playlist_path
+            and int(cache.get("mtime_ns") or 0) == int(playlist_mtime_ns or 0)
+            and str(cache.get("profile_digest") or "") == desired_digest
+        ):
+            self._record_profile_apply_metric(started=started, changed=False)
+            return True, ""
 
         try:
             tree = ET.parse(playlist_path)
             root = tree.getroot()
         except Exception as e:
+            self._record_profile_apply_metric(
+                started=started,
+                changed=False,
+                error=f"failed to parse playlist: {e}",
+            )
             return False, f"failed to parse playlist: {e}"
 
         channel = root.find("channel")
@@ -3087,6 +3239,9 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         source_conf = channel.find("source_configuration")
         if source_conf is None:
             source_conf = ET.SubElement(channel, "source_configuration")
+        before_channels = DigitalManager._source_configuration_channels(source_conf)
+        before_source_type = str(source_conf.get("source_type", "")).strip().upper()
+        before_preferred = str(source_conf.get("preferred_tuner", "")).strip()
         _sync_source_configuration(source_conf, control_channels)
 
         # Allow profile-local alias list override so sub-profiles can reuse an
@@ -3114,12 +3269,41 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         _apply_decode_configuration(channel, decoder_mode)
         if channel.find("record_configuration") is None:
             ET.SubElement(channel, "record_configuration")
-        _sync_stream_configuration(root)
+        stream_changed = _sync_stream_configuration(root)
 
-        try:
-            tree.write(playlist_path, encoding="utf-8", xml_declaration=False)
-        except Exception as e:
-            return False, f"failed to write playlist: {e}"
+        after_channels = DigitalManager._source_configuration_channels(source_conf)
+        after_source_type = str(source_conf.get("source_type", "")).strip().upper()
+        after_preferred = str(source_conf.get("preferred_tuner", "")).strip()
+        changed = bool(
+            stream_changed
+            or before_channels != after_channels
+            or before_source_type != after_source_type
+            or before_preferred != after_preferred
+        )
+
+        if not changed:
+            self._playlist_cache_update(
+                path=playlist_path,
+                mtime_ns=playlist_mtime_ns,
+                profile_digest=desired_digest,
+            )
+            self._record_profile_apply_metric(started=started, changed=False)
+            return True, ""
+
+        ok, err = _write_playlist_tree_atomic(tree, playlist_path)
+        if not ok:
+            self._record_profile_apply_metric(
+                started=started,
+                changed=False,
+                error=f"failed to write playlist: {err}",
+            )
+            return False, f"failed to write playlist: {err}"
+        self._playlist_cache_update(
+            path=playlist_path,
+            mtime_ns=self._playlist_mtime_ns(playlist_path),
+            profile_digest=desired_digest,
+        )
+        self._record_profile_apply_metric(started=started, changed=True)
         return True, ""
 
     def _playlist_has_control_source(self) -> tuple[bool, str]:
@@ -3164,14 +3348,33 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         return True, "", True
 
     def retune_control_frequency(self, freq_mhz: float) -> tuple[bool, str]:
+        started = time.monotonic()
         try:
             freq_val = float(freq_mhz)
         except Exception:
+            self._record_retune_metric(
+                started=started,
+                method="validation",
+                changed=False,
+                error="invalid control frequency",
+            )
             return False, "invalid control frequency"
         if not math.isfinite(freq_val) or freq_val <= 0:
+            self._record_retune_metric(
+                started=started,
+                method="validation",
+                changed=False,
+                error="invalid control frequency",
+            )
             return False, "invalid control frequency"
         hz = int(round(freq_val * 1_000_000))
         if hz <= 0:
+            self._record_retune_metric(
+                started=started,
+                method="validation",
+                changed=False,
+                error="invalid control frequency",
+            )
             return False, "invalid control frequency"
 
         runtime_attempted, runtime_ok, runtime_err = self._runtime_retune_control_frequency(freq_val, hz)
@@ -3184,30 +3387,85 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                     and self._runtime_retune_success_streak >= self._runtime_retune_fallback_disable_after
                 ):
                     self._runtime_retune_fallback_disabled = True
+            self._record_retune_metric(
+                started=started,
+                method="runtime_retune",
+                changed=True,
+            )
             return True, ""
         if runtime_attempted:
             self._runtime_retune_success_streak = 0
         runtime_strict = bool(DIGITAL_RUNTIME_RETUNE_STRICT or self._runtime_retune_fallback_disabled)
         if runtime_attempted and runtime_strict:
+            self._record_retune_metric(
+                started=started,
+                method="runtime_retune",
+                changed=False,
+                error=runtime_err or "runtime retune failed",
+            )
             return False, runtime_err or "runtime retune failed"
 
         playlist_path = _safe_realpath(DIGITAL_PLAYLIST_PATH)
         if not playlist_path:
+            self._record_retune_metric(
+                started=started,
+                method="playlist_retune",
+                changed=False,
+                error="digital playlist path not configured",
+            )
             return False, "digital playlist path not configured"
         if not os.path.isfile(playlist_path):
+            self._record_retune_metric(
+                started=started,
+                method="playlist_retune",
+                changed=False,
+                error=f"playlist not found: {playlist_path}",
+            )
             return False, f"playlist not found: {playlist_path}"
+
+        playlist_mtime_ns = self._playlist_mtime_ns(playlist_path)
+        cache = self._playlist_cache_snapshot()
+        if (
+            cache.get("path") == playlist_path
+            and int(cache.get("mtime_ns") or 0) == int(playlist_mtime_ns or 0)
+            and int(cache.get("last_retune_hz") or 0) == int(hz)
+        ):
+            self._record_retune_metric(
+                started=started,
+                method="playlist_retune",
+                changed=False,
+            )
+            return True, ""
 
         try:
             tree = ET.parse(playlist_path)
             root = tree.getroot()
         except Exception as e:
+            self._record_retune_metric(
+                started=started,
+                method="playlist_retune",
+                changed=False,
+                error=f"failed to parse playlist: {e}",
+            )
             return False, f"failed to parse playlist: {e}"
 
         channel = root.find("channel")
         if channel is None:
+            self._record_retune_metric(
+                started=started,
+                method="playlist_retune",
+                changed=False,
+                error="playlist has no channel node",
+            )
             return False, "playlist has no channel node"
         source_conf = channel.find("source_configuration")
         if source_conf is None:
+            self._record_retune_metric(
+                started=started,
+                method="playlist_retune",
+                changed=False,
+                error="playlist channel has no source_configuration",
+            )
             return False, "playlist channel has no source_configuration"
 
         target = str(hz)
@@ -3243,12 +3501,38 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 changed = True
 
         if not changed:
+            self._playlist_cache_update(
+                path=playlist_path,
+                mtime_ns=playlist_mtime_ns,
+                last_retune_hz=hz,
+            )
+            self._record_retune_metric(
+                started=started,
+                method="playlist_retune",
+                changed=False,
+            )
             return True, ""
 
-        try:
-            tree.write(playlist_path, encoding="utf-8", xml_declaration=False)
-        except Exception as e:
-            return False, f"failed to write playlist: {e}"
+        ok, err = _write_playlist_tree_atomic(tree, playlist_path)
+        if not ok:
+            self._record_retune_metric(
+                started=started,
+                method="playlist_retune",
+                changed=False,
+                error=f"failed to write playlist: {err}",
+            )
+            return False, f"failed to write playlist: {err}"
+        self._playlist_cache_update(
+            path=playlist_path,
+            mtime_ns=self._playlist_mtime_ns(playlist_path),
+            last_retune_hz=hz,
+        )
+        self._record_retune_metric(
+            started=started,
+            method="playlist_retune",
+            changed=True,
+            error=runtime_err if runtime_attempted and runtime_err else "",
+        )
         return True, ""
 
     def _runtime_retune_control_frequency(
@@ -3767,6 +4051,14 @@ class DigitalManager:
         self._scheduler_cached_preflight: dict = {}
         self._scheduler_cached_preflight_at_ms = 0
         self._scheduler_last_preflight_cache_age_ms = 0
+        self._scheduler_snapshot: dict = {}
+        self._scheduler_snapshot_at_ms = 0
+        self._status_snapshot_enabled = bool(DIGITAL_STATUS_SNAPSHOT_ENABLED)
+        self._preflight_sampler_ms = max(250, int(DIGITAL_PREFLIGHT_SAMPLER_MS or 1000))
+        self._preflight_snapshot: dict = {}
+        self._preflight_snapshot_at_ms = 0
+        self._preflight_sampler_stop = threading.Event()
+        self._preflight_sampler_thread = None
         self._scheduler_system_health: dict[str, dict] = {}
         self._stream_title_cache_at_ms = 0
         self._stream_title_cache_value = ""
@@ -3781,6 +4073,14 @@ class DigitalManager:
         self._load_scheduler_state()
         self._refresh_super_profile_systems()
         self._ensure_super_profile_seed()
+        if self._status_snapshot_enabled:
+            self._sample_preflight_snapshot()
+            self._preflight_sampler_thread = threading.Thread(
+                target=self._preflight_sampler_loop,
+                name="digital-preflight-sampler",
+                daemon=True,
+            )
+            self._preflight_sampler_thread.start()
         self._scheduler_thread = threading.Thread(
             target=self._scheduler_loop,
             name="digital-scheduler-loop",
@@ -4188,10 +4488,56 @@ class DigitalManager:
                 return {"tuner_busy": False, "tuner_busy_lines": []}
         return {"tuner_busy": False, "tuner_busy_lines": []}
 
+    def _sample_preflight_snapshot(self) -> dict:
+        now_ms = int(time.time() * 1000)
+        snapshot = self._fresh_preflight() or {}
+        if not isinstance(snapshot, dict):
+            snapshot = {}
+        with self._scheduler_lock:
+            self._preflight_snapshot = dict(snapshot)
+            self._preflight_snapshot_at_ms = now_ms
+            # Keep legacy scheduler cache fields in sync for backward
+            # compatibility with existing telemetry/tests.
+            self._scheduler_cached_preflight = dict(snapshot)
+            self._scheduler_cached_preflight_at_ms = now_ms
+            self._scheduler_last_preflight_cache_age_ms = 0
+        return dict(snapshot)
+
+    def _preflight_sampler_loop(self) -> None:
+        wait_sec = max(0.25, float(self._preflight_sampler_ms) / 1000.0)
+        while not self._preflight_sampler_stop.wait(wait_sec):
+            self._sample_preflight_snapshot()
+
+    def _cached_preflight_snapshot(self) -> tuple[dict, int]:
+        now_ms = int(time.time() * 1000)
+        with self._scheduler_lock:
+            snapshot = dict(getattr(self, "_preflight_snapshot", {}) or {})
+            sampled_at = int(getattr(self, "_preflight_snapshot_at_ms", 0) or 0)
+        age_ms = max(0, now_ms - sampled_at) if sampled_at > 0 else 0
+        if sampled_at > 0 and isinstance(snapshot, dict):
+            return snapshot, age_ms
+        return {}, age_ms
+
+    def _status_preflight_snapshot(self) -> dict:
+        if bool(getattr(self, "_status_snapshot_enabled", False)):
+            snapshot, _age_ms = self._cached_preflight_snapshot()
+            if snapshot:
+                return snapshot
+            return self._sample_preflight_snapshot()
+        return self._fresh_preflight() or {}
+
     def preflight(self):
-        return self._fresh_preflight()
+        return self._status_preflight_snapshot()
 
     def _scheduler_preflight(self) -> dict:
+        if bool(getattr(self, "_status_snapshot_enabled", False)):
+            snapshot, age_ms = self._cached_preflight_snapshot()
+            if snapshot:
+                with self._scheduler_lock:
+                    self._scheduler_last_preflight_cache_age_ms = int(age_ms)
+                return snapshot
+            return self._sample_preflight_snapshot()
+
         now_ms = int(time.time() * 1000)
         ttl_ms = max(0, int(self._scheduler_preflight_cache_ttl_ms or 0))
         cached_at = int(self._scheduler_cached_preflight_at_ms or 0)
@@ -4301,12 +4647,37 @@ class DigitalManager:
         self._scheduler_lock_miss_ticks = int(self._scheduler_lock_miss_ticks) + 1
         return int(self._scheduler_lock_miss_ticks)
 
+    def _scheduler_snapshot_payload_locked(
+        self,
+        event: dict,
+        preflight: dict,
+        payload: dict | None = None,
+    ) -> dict:
+        if isinstance(payload, dict) and payload:
+            snapshot = dict(payload)
+        else:
+            snapshot = self._scheduler_status_snapshot_locked(event, preflight)
+        snapshot["digital_scheduler_systems"] = list(self._scheduler_systems)
+        snapshot["digital_scheduler_profile"] = str(self.getProfile() or "")
+        snapshot["digital_scheduler_applied_system"] = str(self._scheduler_last_applied_system or "")
+        snapshot["digital_scheduler_last_apply_time"] = int(self._scheduler_last_apply_time_ms or 0)
+        snapshot["digital_scheduler_perf_profile"] = str(
+            self._scheduler_perf_profile or _DEFAULT_DIGITAL_PERF_PROFILE
+        )
+        snapshot["digital_scheduler_effective"] = dict(self._scheduler_effective_settings_locked())
+        if self._scheduler_last_apply_error:
+            snapshot["digital_scheduler_last_apply_error"] = str(self._scheduler_last_apply_error)
+        return snapshot
+
     def _scheduler_tick(self):
         try:
             preflight = self._scheduler_preflight() or {}
             event = self.getLastEvent() or {}
             with self._scheduler_lock:
-                self._scheduler_payload(event, preflight)
+                payload = self._scheduler_payload(event, preflight)
+                snapshot = self._scheduler_snapshot_payload_locked(event, preflight, payload)
+                self._scheduler_snapshot = dict(snapshot)
+                self._scheduler_snapshot_at_ms = int(time.time() * 1000)
         except Exception:
             return
 
@@ -4958,6 +5329,46 @@ class DigitalManager:
             if DIGITAL_USE_MULTI_FREQ_SOURCE and len(channels) > 1
             else "TUNER"
         )
+        desired_digest = "|".join(
+            [
+                "scheduler_apply",
+                str(profile_id or "").strip(),
+                str(system_name or "").strip(),
+                str(expected_source_type or "").strip(),
+                str(preferred or "").strip(),
+                ",".join(str(int(hz)) for hz in channels),
+            ]
+        )
+        playlist_mtime_ns = 0
+        playlist_mtime_fn = getattr(self._adapter, "_playlist_mtime_ns", None)
+        if callable(playlist_mtime_fn):
+            try:
+                playlist_mtime_ns = int(playlist_mtime_fn(playlist_path) or 0)
+            except Exception:
+                playlist_mtime_ns = 0
+        else:
+            try:
+                playlist_mtime_ns = int(os.stat(playlist_path).st_mtime_ns)
+            except Exception:
+                playlist_mtime_ns = 0
+
+        playlist_cache_snapshot_fn = getattr(self._adapter, "_playlist_cache_snapshot", None)
+        playlist_cache_update_fn = getattr(self._adapter, "_playlist_cache_update", None)
+        if callable(playlist_cache_snapshot_fn):
+            try:
+                cache = dict(playlist_cache_snapshot_fn() or {})
+            except Exception:
+                cache = {}
+            if (
+                cache.get("path") == playlist_path
+                and int(cache.get("mtime_ns") or 0) == int(playlist_mtime_ns or 0)
+                and str(cache.get("profile_digest") or "") == desired_digest
+            ):
+                self._scheduler_last_applied_system = system_name
+                self._scheduler_last_apply_time_ms = now_ms
+                self._scheduler_last_apply_error = ""
+                self._scheduler_last_apply_error_system = ""
+                return True, "", False
 
         source_unchanged = (
             before_channels == channels
@@ -4967,6 +5378,15 @@ class DigitalManager:
         stream_changed = _sync_stream_configuration(root)
 
         if source_unchanged and not stream_changed:
+            if callable(playlist_cache_update_fn):
+                try:
+                    playlist_cache_update_fn(
+                        path=playlist_path,
+                        mtime_ns=playlist_mtime_ns,
+                        profile_digest=desired_digest,
+                    )
+                except Exception:
+                    pass
             self._scheduler_last_applied_system = system_name
             self._scheduler_last_apply_time_ms = now_ms
             self._scheduler_last_apply_error = ""
@@ -4975,12 +5395,25 @@ class DigitalManager:
 
         if not source_unchanged:
             _sync_source_configuration(source_conf, channels)
-        try:
-            tree.write(playlist_path, encoding="utf-8", xml_declaration=False)
-        except Exception as e:
-            self._scheduler_last_apply_error = f"failed to write playlist: {e}"
+        ok, err = _write_playlist_tree_atomic(tree, playlist_path)
+        if not ok:
+            self._scheduler_last_apply_error = f"failed to write playlist: {err}"
             self._scheduler_last_apply_error_system = system_name
             return False, self._scheduler_last_apply_error, False
+        if callable(playlist_cache_update_fn):
+            try:
+                mtime_after = 0
+                if callable(playlist_mtime_fn):
+                    mtime_after = int(playlist_mtime_fn(playlist_path) or 0)
+                else:
+                    mtime_after = int(os.stat(playlist_path).st_mtime_ns)
+                playlist_cache_update_fn(
+                    path=playlist_path,
+                    mtime_ns=mtime_after,
+                    profile_digest=desired_digest,
+                )
+            except Exception:
+                pass
 
         self._scheduler_last_applied_system = system_name
         self._scheduler_last_apply_time_ms = now_ms
@@ -5143,20 +5576,25 @@ class DigitalManager:
             )
 
     def getScheduler(self) -> dict:
-        preflight = self.preflight() or {}
+        now_ms = int(time.time() * 1000)
+        preflight = self._status_preflight_snapshot() or {}
         event = self.getLastEvent() or {}
         with self._scheduler_lock:
-            payload = self._scheduler_payload(event, preflight)
-            payload["digital_scheduler_systems"] = list(self._scheduler_systems)
-            payload["digital_scheduler_profile"] = str(self.getProfile() or "")
-            payload["digital_scheduler_applied_system"] = self._scheduler_last_applied_system
-            payload["digital_scheduler_last_apply_time"] = int(self._scheduler_last_apply_time_ms or 0)
-            payload["digital_scheduler_perf_profile"] = str(
-                self._scheduler_perf_profile or _DEFAULT_DIGITAL_PERF_PROFILE
-            )
-            payload["digital_scheduler_effective"] = dict(self._scheduler_effective_settings_locked())
-            if self._scheduler_last_apply_error:
-                payload["digital_scheduler_last_apply_error"] = self._scheduler_last_apply_error
+            payload = dict(self._scheduler_snapshot or {})
+            snapshot_at_ms = int(getattr(self, "_scheduler_snapshot_at_ms", 0) or 0)
+            preflight_at_ms = int(getattr(self, "_preflight_snapshot_at_ms", 0) or 0)
+            if not payload:
+                payload = self._scheduler_snapshot_payload_locked(event, preflight)
+                snapshot_at_ms = now_ms
+            payload["digital_scheduler_snapshot_age_ms"] = max(
+                0,
+                now_ms - snapshot_at_ms,
+            ) if snapshot_at_ms > 0 else 0
+            payload["digital_preflight_snapshot_age_ms"] = max(
+                0,
+                now_ms - preflight_at_ms,
+            ) if preflight_at_ms > 0 else 0
+            payload["ok"] = True
         return payload
 
     def _scheduler_health_entry(self, system_name: str) -> dict:
@@ -5629,6 +6067,14 @@ class DigitalManager:
             "digital_scheduler_apply_method": str(self._scheduler_last_apply_method or ""),
             "digital_scheduler_last_apply_duration_ms": int(self._scheduler_last_apply_duration_ms or 0),
             "digital_scheduler_preflight_cache_age_ms": int(self._scheduler_last_preflight_cache_age_ms or 0),
+            "digital_preflight_snapshot_age_ms": max(
+                0,
+                now_ms - int(getattr(self, "_preflight_snapshot_at_ms", 0) or 0),
+            ) if int(getattr(self, "_preflight_snapshot_at_ms", 0) or 0) > 0 else 0,
+            "digital_scheduler_snapshot_age_ms": max(
+                0,
+                now_ms - int(getattr(self, "_scheduler_snapshot_at_ms", 0) or 0),
+            ) if int(getattr(self, "_scheduler_snapshot_at_ms", 0) or 0) > 0 else 0,
             "digital_scheduler_lock_miss_ticks": int(lock_miss_ticks),
             "digital_scheduler_perf_profile": str(effective_settings.get("performance_profile") or ""),
             "digital_scheduler_effective": dict(effective_settings),
@@ -5745,6 +6191,14 @@ class DigitalManager:
             "digital_scheduler_apply_method": str(self._scheduler_last_apply_method or ""),
             "digital_scheduler_last_apply_duration_ms": int(self._scheduler_last_apply_duration_ms or 0),
             "digital_scheduler_preflight_cache_age_ms": int(self._scheduler_last_preflight_cache_age_ms or 0),
+            "digital_preflight_snapshot_age_ms": max(
+                0,
+                now_ms - int(getattr(self, "_preflight_snapshot_at_ms", 0) or 0),
+            ) if int(getattr(self, "_preflight_snapshot_at_ms", 0) or 0) > 0 else 0,
+            "digital_scheduler_snapshot_age_ms": max(
+                0,
+                now_ms - int(getattr(self, "_scheduler_snapshot_at_ms", 0) or 0),
+            ) if int(getattr(self, "_scheduler_snapshot_at_ms", 0) or 0) > 0 else 0,
             "digital_scheduler_lock_miss_ticks": int(self._scheduler_lock_miss_ticks or 0),
             "digital_scheduler_perf_profile": str(effective_settings.get("performance_profile") or ""),
             "digital_scheduler_effective": dict(effective_settings),
@@ -5811,8 +6265,41 @@ class DigitalManager:
         payload["digital_preflight"] = preflight
         payload["digital_tuner_busy_count"] = int(preflight.get("tuner_busy_count") or 0)
         payload["digital_tuner_busy_time"] = int(preflight.get("tuner_busy_last_time_ms") or 0)
+        scheduler_snapshot_at_ms = 0
+        preflight_snapshot_at_ms = 0
         with self._scheduler_lock:
-            payload.update(self._scheduler_status_snapshot_locked(event, preflight))
+            scheduler_payload = dict(self._scheduler_snapshot or {})
+            scheduler_snapshot_at_ms = int(getattr(self, "_scheduler_snapshot_at_ms", 0) or 0)
+            preflight_snapshot_at_ms = int(getattr(self, "_preflight_snapshot_at_ms", 0) or 0)
+            if not scheduler_payload:
+                scheduler_payload = self._scheduler_snapshot_payload_locked(event, preflight)
+                scheduler_snapshot_at_ms = int(time.time() * 1000)
+            payload.update(scheduler_payload)
+
+        runtime_metrics = {}
+        try:
+            runtime_metrics = dict(self._adapter.runtime_metrics() or {})
+        except Exception:
+            runtime_metrics = {}
+        payload["digital_profile_apply_last_duration_ms"] = int(
+            runtime_metrics.get("profile_apply_last_duration_ms") or 0
+        )
+        if runtime_metrics.get("profile_apply_last_error"):
+            payload["digital_profile_apply_last_error"] = str(
+                runtime_metrics.get("profile_apply_last_error")
+            )
+        payload["digital_profile_apply_last_changed"] = bool(
+            runtime_metrics.get("profile_apply_last_changed")
+        )
+        payload["digital_retune_last_duration_ms"] = int(
+            runtime_metrics.get("retune_last_duration_ms") or 0
+        )
+        payload["digital_retune_last_method"] = str(
+            runtime_metrics.get("retune_last_method") or ""
+        )
+        if runtime_metrics.get("retune_last_error"):
+            payload["digital_retune_last_error"] = str(runtime_metrics.get("retune_last_error"))
+        payload["digital_retune_last_changed"] = bool(runtime_metrics.get("retune_last_changed"))
         scheduler_talkgroup_label = str(
             payload.get("digital_scheduler_active_talkgroup_label") or ""
         ).strip()
@@ -5820,6 +6307,14 @@ class DigitalManager:
             payload.get("digital_scheduler_active_department_label") or ""
         ).strip()
         now_ms = int(time.time() * 1000)
+        payload["digital_scheduler_snapshot_age_ms"] = max(
+            0,
+            now_ms - int(scheduler_snapshot_at_ms or 0),
+        ) if int(scheduler_snapshot_at_ms or 0) > 0 else 0
+        payload["digital_preflight_snapshot_age_ms"] = max(
+            0,
+            now_ms - int(preflight_snapshot_at_ms or 0),
+        ) if int(preflight_snapshot_at_ms or 0) > 0 else 0
         last_event_ms = int(payload.get("digital_last_time") or 0)
         has_recent_event = (
             last_event_ms > 0

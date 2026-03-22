@@ -61,8 +61,14 @@ try:
         DIGITAL_STREAM_MOUNT,
         DIGITAL_PLAYLIST_PATH,
         DIGITAL_SDRTRUNK_STREAM_NAME,
+        DIGITAL_MIXER_ENABLED,
+        HEALTH_SCHEDULER_STALE_MS,
         ICECAST_PORT,
         PLAYER_MOUNT,
+        SB3_CONNECTED_STATUS_REFRESH_SEC,
+        SB3_CONNECTED_SYSTEM_REFRESH_SEC,
+        SB3_CONNECTED_PROFILES_REFRESH_SEC,
+        SB3_DEDICATED_DIGITAL_FETCH_ENABLED,
         STREAM_PROXY_TRANSCODE_ANALOG_DEFAULT,
     )
     from .profile_config import (
@@ -147,8 +153,14 @@ except ImportError:
         DIGITAL_STREAM_MOUNT,
         DIGITAL_PLAYLIST_PATH,
         DIGITAL_SDRTRUNK_STREAM_NAME,
+        DIGITAL_MIXER_ENABLED,
+        HEALTH_SCHEDULER_STALE_MS,
         ICECAST_PORT,
         PLAYER_MOUNT,
+        SB3_CONNECTED_STATUS_REFRESH_SEC,
+        SB3_CONNECTED_SYSTEM_REFRESH_SEC,
+        SB3_CONNECTED_PROFILES_REFRESH_SEC,
+        SB3_DEDICATED_DIGITAL_FETCH_ENABLED,
         STREAM_PROXY_TRANSCODE_ANALOG_DEFAULT,
     )
     from ui.profile_config import (
@@ -256,6 +268,7 @@ _NOAA_LABEL_TOLERANCE_MHZ = 0.003
 _STATUS_CACHE_TTL_SEC = max(0.1, float(os.getenv("STATUS_CACHE_TTL_SEC", "0.75")))
 _HITS_CACHE_TTL_SEC = max(0.1, float(os.getenv("HITS_CACHE_TTL_SEC", "1.0")))
 _UNIT_ACTIVE_CACHE_TTL_SEC = max(0.1, float(os.getenv("UNIT_ACTIVE_CACHE_TTL_SEC", "1.0")))
+_UNIT_EXISTS_CACHE_TTL_SEC = max(2.0, float(os.getenv("UNIT_EXISTS_CACHE_TTL_SEC", "30")))
 HIT_LIST_MAX_AGE_SEC = max(60, int(os.getenv("HIT_LIST_MAX_AGE_SEC", "1800")))
 STREAM_PROXY_READ_TIMEOUT_SEC = max(120.0, float(os.getenv("STREAM_PROXY_READ_TIMEOUT_SEC", "600")))
 HP_STATE_SYNC_WAIT_SEC = max(0.0, float(os.getenv("HP_STATE_SYNC_WAIT_SEC", "3.0")))
@@ -288,6 +301,7 @@ _CACHE_LOCK = threading.Lock()
 _STATUS_CACHE: dict[str, object] = {"ts": 0.0, "payload": None}
 _HITS_CACHE: dict[str, object] = {"ts": 0.0, "payload": None}
 _UNIT_ACTIVE_CACHE: dict[str, tuple[float, bool]] = {}
+_UNIT_EXISTS_CACHE: dict[str, tuple[float, bool]] = {}
 _LATENCY_TONE_LOCK = threading.Lock()
 _LATENCY_TONE_PROC: subprocess.Popen | None = None
 _LATENCY_TONE_STATE: dict[str, Any] = {
@@ -1507,6 +1521,26 @@ def _unit_active_cached(unit: str) -> bool:
     return value
 
 
+def _unit_exists_cached(unit: str) -> bool:
+    now = time.monotonic()
+    with _CACHE_LOCK:
+        entry = _UNIT_EXISTS_CACHE.get(unit)
+        if entry and (now - float(entry[0])) <= _UNIT_EXISTS_CACHE_TTL_SEC:
+            return bool(entry[1])
+    value = bool(unit_exists(unit))
+    with _CACHE_LOCK:
+        _UNIT_EXISTS_CACHE[unit] = (now, value)
+    return value
+
+
+def _digital_mixer_runtime_state() -> tuple[bool, bool]:
+    unit = str((UNITS or {}).get("digital_mixer") or "").strip()
+    mixer_unit_exists = bool(unit and _unit_exists_cached(unit))
+    mixer_enabled = bool(DIGITAL_MIXER_ENABLED)
+    mixer_active = bool(unit and mixer_unit_exists and _unit_active_cached(unit))
+    return mixer_enabled, mixer_active
+
+
 def _health_state_rank(state: str) -> int:
     token = str(state or "").strip().lower()
     if token in ("failed", "critical", "bad", "offline"):
@@ -1595,6 +1629,89 @@ def _build_health_payload(
             }
         )
     subsystems["digital"] = {"state": digital_state, "reasons": digital_reasons}
+
+    sdrtrunk_state = "healthy" if bool(status_payload.get("digital_active")) else "failed"
+    sdrtrunk_reasons = []
+    if sdrtrunk_state != "healthy":
+        sdrtrunk_reasons.append(
+            {
+                "code": "SDRTRUNK_INACTIVE",
+                "severity": "critical",
+                "message": "scanner-digital.service is not active",
+            }
+        )
+    subsystems["sdrtrunk"] = {"state": sdrtrunk_state, "reasons": sdrtrunk_reasons}
+
+    mixer_enabled = bool(status_payload.get("digital_mixer_enabled"))
+    mixer_active = bool(status_payload.get("digital_mixer_active"))
+    if not mixer_enabled:
+        mixer_state = "healthy"
+        mixer_reasons = [
+            {
+                "code": "MIXER_DISABLED_BY_DESIGN",
+                "severity": "info",
+                "message": "Digital mixer is intentionally disabled",
+            }
+        ]
+    elif mixer_active:
+        mixer_state = "healthy"
+        mixer_reasons = []
+    else:
+        mixer_state = "failed"
+        mixer_reasons = [
+            {
+                "code": "MIXER_ENABLED_BUT_INACTIVE",
+                "severity": "critical",
+                "message": "Digital mixer is enabled but not active",
+            }
+        ]
+    subsystems["mixer"] = {"state": mixer_state, "reasons": mixer_reasons}
+
+    scheduler_age_ms = int(status_payload.get("digital_scheduler_snapshot_age_ms") or 0)
+    scheduler_stale_ms = max(1000, int(HEALTH_SCHEDULER_STALE_MS or 3000))
+    scheduler_error = str(status_payload.get("digital_scheduler_last_apply_error") or "").strip()
+    scheduler_state = "healthy"
+    scheduler_reasons = []
+    if not bool(status_payload.get("digital_active")):
+        scheduler_state = "failed"
+        scheduler_reasons.append(
+            {
+                "code": "SCHEDULER_OFFLINE",
+                "severity": "critical",
+                "message": "Scheduler is offline because digital decoder is stopped",
+            }
+        )
+    elif scheduler_age_ms > (scheduler_stale_ms * 2):
+        scheduler_state = "failed"
+        scheduler_reasons.append(
+            {
+                "code": "SCHEDULER_STALE",
+                "severity": "critical",
+                "message": (
+                    f"Scheduler snapshot stale ({scheduler_age_ms}ms > "
+                    f"{scheduler_stale_ms * 2}ms)"
+                ),
+            }
+        )
+    elif scheduler_age_ms > scheduler_stale_ms:
+        scheduler_state = "degraded"
+        scheduler_reasons.append(
+            {
+                "code": "SCHEDULER_STALE",
+                "severity": "warn",
+                "message": f"Scheduler snapshot stale ({scheduler_age_ms}ms > {scheduler_stale_ms}ms)",
+            }
+        )
+    if scheduler_error:
+        scheduler_state = _health_worst_state([scheduler_state, "degraded"])
+        scheduler_reasons.append(
+            {
+                "code": "SCHEDULER_APPLY_ERROR",
+                "severity": "warn",
+                "message": scheduler_error,
+            }
+        )
+    subsystems["scheduler"] = {"state": scheduler_state, "reasons": scheduler_reasons}
 
     mounts = list(status_payload.get("icecast_mounts") or [])
     expected_mounts = list(status_payload.get("icecast_expected_mounts") or [])
@@ -2600,6 +2717,9 @@ class Handler(BaseHTTPRequestHandler):
                 digital_payload = get_digital_manager().status_payload()
             except Exception as e:
                 digital_payload["digital_last_error"] = str(e)
+            mixer_enabled, mixer_active = _digital_mixer_runtime_state()
+            digital_payload["digital_mixer_enabled"] = bool(mixer_enabled)
+            digital_payload["digital_mixer_active"] = bool(mixer_active)
             digital_stream_active_for_hits = True
             if DIGITAL_HITS_REQUIRE_ACTIVE_STREAM:
                 try:
@@ -2610,6 +2730,10 @@ class Handler(BaseHTTPRequestHandler):
             # mount-state is uncertain; expose stream visibility separately.
             digital_payload["digital_stream_active_for_hits"] = bool(digital_stream_active_for_hits)
             payload.update(digital_payload)
+            payload["sb3_connected_status_refresh_sec"] = int(SB3_CONNECTED_STATUS_REFRESH_SEC)
+            payload["sb3_connected_system_refresh_sec"] = int(SB3_CONNECTED_SYSTEM_REFRESH_SEC)
+            payload["sb3_connected_profiles_refresh_sec"] = int(SB3_CONNECTED_PROFILES_REFRESH_SEC)
+            payload["sb3_dedicated_digital_fetch_enabled"] = bool(SB3_DEDICATED_DIGITAL_FETCH_ENABLED)
             try:
                 compile_state = load_compiled_state() or {}
             except Exception:
@@ -2861,6 +2985,9 @@ class Handler(BaseHTTPRequestHandler):
                         "digital_last_label": "",
                         "digital_last_time": 0,
                     }
+                mixer_enabled, mixer_active = _digital_mixer_runtime_state()
+                digital_payload["digital_mixer_enabled"] = bool(mixer_enabled)
+                digital_payload["digital_mixer_active"] = bool(mixer_active)
                 status_data = {
                     "type": "status",
                     "rtl_active": rtl_active,
@@ -2880,6 +3007,10 @@ class Handler(BaseHTTPRequestHandler):
                     "digital_stream_mount": digital_stream_mount,
                     "server_time": time.time(),
                     "hp_avoids": get_scan_mode_controller().get_hp_avoids(),
+                    "sb3_connected_status_refresh_sec": int(SB3_CONNECTED_STATUS_REFRESH_SEC),
+                    "sb3_connected_system_refresh_sec": int(SB3_CONNECTED_SYSTEM_REFRESH_SEC),
+                    "sb3_connected_profiles_refresh_sec": int(SB3_CONNECTED_PROFILES_REFRESH_SEC),
+                    "sb3_dedicated_digital_fetch_enabled": bool(SB3_DEDICATED_DIGITAL_FETCH_ENABLED),
                 }
                 status_data.update(digital_payload)
                 self.wfile.write(f"event: status\ndata: {json.dumps(status_data)}\n\n".encode())

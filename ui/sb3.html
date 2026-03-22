@@ -2456,7 +2456,7 @@
             </div>
 
             <div class="btn-row">
-              <button class="action" id="btn-play-analog" title="Control VLC playback on the Pi">VLC Play</button>
+              <button class="action" id="btn-play-analog" title="Control VLC playback on the PC">VLC Play</button>
               <button class="action" id="btn-tune">Tune</button>
               <button class="action" id="btn-avoid">Avoid</button>
               <button class="action" id="btn-clear-avoids">Clear</button>
@@ -2580,7 +2580,7 @@
               </div>
 
               <div class="btn-row">
-                <button class="action" id="btn-play-digital" title="Control VLC playback on the Pi">VLC Play</button>
+                <button class="action" id="btn-play-digital" title="Control VLC playback on the PC">VLC Play</button>
                 <button class="action" id="digital-stop">Stop</button>
                 <button class="action" id="digital-restart">Restart</button>
               </div>
@@ -2687,9 +2687,13 @@
           </div>
           <div class="control-item" style="margin-top:14px;">
             <div class="control-label">
-              <span>Pi Health</span>
+              <span>PC Health</span>
             </div>
             <div class="system-grid">
+              <div class="system-item">
+                <div class="label">Hostname</div>
+                <div class="value" id="sys-hostname">--</div>
+              </div>
               <div class="system-item">
                 <div class="label">CPU Temp</div>
                 <div class="value" id="sys-cpu-temp">--</div>
@@ -2703,8 +2707,24 @@
                 <div class="value" id="sys-cpu-usage">--</div>
               </div>
               <div class="system-item">
+                <div class="label">Load Avg</div>
+                <div class="value" id="sys-load">--</div>
+              </div>
+              <div class="system-item">
+                <div class="label">Memory</div>
+                <div class="value" id="sys-memory">--</div>
+              </div>
+              <div class="system-item">
+                <div class="label">Disk /</div>
+                <div class="value" id="sys-disk">--</div>
+              </div>
+              <div class="system-item">
                 <div class="label">Uptime</div>
                 <div class="value" id="sys-uptime-tile">--</div>
+              </div>
+              <div class="system-item">
+                <div class="label">I/O Pressure</div>
+                <div class="value" id="sys-io-pressure">--</div>
               </div>
               <div class="system-item">
                 <div class="label">Network RX</div>
@@ -2828,6 +2848,27 @@
               </div>
               <span class="service-dot"></span>
             </div>
+            <div class="service-item" data-service="sdrtrunk">
+              <div>
+                <div class="service-name">SDRTrunk Runtime</div>
+                <div class="service-meta">Status: <span id="service-sdrtrunk">--</span></div>
+              </div>
+              <span class="service-dot"></span>
+            </div>
+            <div class="service-item" data-service="mixer">
+              <div>
+                <div class="service-name">Digital Mixer</div>
+                <div class="service-meta">Status: <span id="service-mixer">--</span></div>
+              </div>
+              <span class="service-dot"></span>
+            </div>
+            <div class="service-item" data-service="scheduler">
+              <div>
+                <div class="service-name">Digital Scheduler</div>
+                <div class="service-meta">Status: <span id="service-scheduler">--</span></div>
+              </div>
+              <span class="service-dot"></span>
+            </div>
             <div class="service-item" data-service="icecast">
               <div>
                 <div class="service-name">Icecast Audio</div>
@@ -2865,6 +2906,10 @@
           <div class="sitrep-card-title">System Telemetry</div>
           <div class="config-grid">
             <div class="config-row">
+              <span class="config-label">Hostname</span>
+              <span class="config-value" id="sitrep-hostname">--</span>
+            </div>
+            <div class="config-row">
               <span class="config-label">CPU Temp</span>
               <span class="config-value" id="sitrep-cpu-temp">--</span>
             </div>
@@ -2877,8 +2922,24 @@
               <span class="config-value" id="sitrep-cpu-usage">--</span>
             </div>
             <div class="config-row">
+              <span class="config-label">Load Avg</span>
+              <span class="config-value" id="sitrep-load">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Memory</span>
+              <span class="config-value" id="sitrep-memory">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Disk /</span>
+              <span class="config-value" id="sitrep-disk">--</span>
+            </div>
+            <div class="config-row">
               <span class="config-label">Uptime</span>
               <span class="config-value" id="sitrep-uptime">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">I/O Pressure</span>
+              <span class="config-value" id="sitrep-io-pressure">--</span>
             </div>
             <div class="config-row">
               <span class="config-label">Net RX</span>
@@ -3452,6 +3513,10 @@
     const LAST_HIT_PILL_MAX_AGE_MS = 30000;
     const HIT_LIST_MAX_AGE_MS = 30 * 60 * 1000;
     const FETCH_TIMEOUT_MS = 8000;
+    const DEFAULT_CONNECTED_STATUS_REFRESH_SEC = 15;
+    const DEFAULT_CONNECTED_SYSTEM_REFRESH_SEC = 30;
+    const DEFAULT_CONNECTED_PROFILES_REFRESH_SEC = 60;
+    const DEFAULT_DEDICATED_DIGITAL_FETCH_ENABLED = false;
     const HP_AUTOLOCATE_TIMEOUT_MS = 12000;
     const HP_IP_GEOLOOKUP_URL = 'https://ipapi.co/json/';
     const HP_REVERSE_GEOLOOKUP_URL = 'https://api.bigdatacloud.net/data/reverse-geocode-client';
@@ -3793,6 +3858,15 @@
       lastStatusTick: null,
       sdr1LastSeen: null,
       sdr2LastSeen: null,
+      connectedRefresh: {
+        statusSec: DEFAULT_CONNECTED_STATUS_REFRESH_SEC,
+        systemSec: DEFAULT_CONNECTED_SYSTEM_REFRESH_SEC,
+        profilesSec: DEFAULT_CONNECTED_PROFILES_REFRESH_SEC,
+        dedicatedDigitalFetchEnabled: DEFAULT_DEDICATED_DIGITAL_FETCH_ENABLED,
+        lastStatusMs: 0,
+        lastSystemMs: 0,
+        lastProfilesMs: 0,
+      },
       eventSource: null,
       lastHit: '',
       lastHitAirband: '',
@@ -3904,6 +3978,8 @@
         controlSyncLossCount: 0,
         controlWindowMs: 0,
         metricsUpdatedMs: 0,
+        mixerEnabled: false,
+        mixerActive: false,
         schedulerMode: '',
         schedulerActiveSystem: '',
         schedulerNextSystem: '',
@@ -3911,6 +3987,8 @@
         schedulerLastSwitchTime: 0,
         schedulerLastApplyError: '',
         schedulerLockTimeoutMs: 0,
+        schedulerSnapshotAgeMs: 0,
+        preflightSnapshotAgeMs: 0,
         schedulerSystemHealth: [],
         schedulerRaw: null,
         preflightRaw: null,
@@ -4187,6 +4265,11 @@
       sysCpuTemp: document.getElementById('sys-cpu-temp'),
       sysGpuTemp: document.getElementById('sys-gpu-temp'),
       sysCpuUsage: document.getElementById('sys-cpu-usage'),
+      sysHostname: document.getElementById('sys-hostname'),
+      sysLoad: document.getElementById('sys-load'),
+      sysMemory: document.getElementById('sys-memory'),
+      sysDisk: document.getElementById('sys-disk'),
+      sysIoPressure: document.getElementById('sys-io-pressure'),
       sysUptimeTile: document.getElementById('sys-uptime-tile'),
       sysNetRx: document.getElementById('sys-net-rx'),
       sysNetTx: document.getElementById('sys-net-tx'),
@@ -4298,9 +4381,14 @@
       sitrepStream: document.getElementById('sitrep-stream'),
       sitrepConfig: document.getElementById('sitrep-config'),
       serviceDigitalNote: document.getElementById('service-digital-note'),
+      sitrepHostname: document.getElementById('sitrep-hostname'),
       sitrepCpuTemp: document.getElementById('sitrep-cpu-temp'),
       sitrepGpuTemp: document.getElementById('sitrep-gpu-temp'),
       sitrepCpuUsage: document.getElementById('sitrep-cpu-usage'),
+      sitrepLoad: document.getElementById('sitrep-load'),
+      sitrepMemory: document.getElementById('sitrep-memory'),
+      sitrepDisk: document.getElementById('sitrep-disk'),
+      sitrepIoPressure: document.getElementById('sitrep-io-pressure'),
       sitrepUptime: document.getElementById('sitrep-uptime'),
       sitrepNetRx: document.getElementById('sitrep-net-rx'),
       sitrepNetTx: document.getElementById('sitrep-net-tx'),
@@ -10687,6 +10775,12 @@
       d.schedulerLockTimeoutMs = Number.isFinite(payload.digital_scheduler_lock_timeout_ms)
         ? payload.digital_scheduler_lock_timeout_ms
         : d.schedulerLockTimeoutMs || 0;
+      d.schedulerSnapshotAgeMs = Number.isFinite(payload.digital_scheduler_snapshot_age_ms)
+        ? payload.digital_scheduler_snapshot_age_ms
+        : d.schedulerSnapshotAgeMs || 0;
+      d.preflightSnapshotAgeMs = Number.isFinite(payload.digital_preflight_snapshot_age_ms)
+        ? payload.digital_preflight_snapshot_age_ms
+        : d.preflightSnapshotAgeMs || 0;
       if (Array.isArray(payload.digital_scheduler_system_health)) {
         d.schedulerSystemHealth = payload.digital_scheduler_system_health;
       }
@@ -10709,6 +10803,47 @@
         d.playlistSourceError = payload.playlist_source_error;
       }
       d.preflightRaw = payload;
+    }
+
+    function applyConnectedRefreshSettings(payload) {
+      if (!payload || typeof payload !== 'object') return;
+      const cfg = state.connectedRefresh || {};
+      const statusSec = Number(payload.sb3_connected_status_refresh_sec);
+      const systemSec = Number(payload.sb3_connected_system_refresh_sec);
+      const profilesSec = Number(payload.sb3_connected_profiles_refresh_sec);
+      if (Number.isFinite(statusSec) && statusSec > 0) {
+        cfg.statusSec = Math.max(5, Math.round(statusSec));
+      }
+      if (Number.isFinite(systemSec) && systemSec > 0) {
+        cfg.systemSec = Math.max(cfg.statusSec || DEFAULT_CONNECTED_STATUS_REFRESH_SEC, Math.round(systemSec));
+      }
+      if (Number.isFinite(profilesSec) && profilesSec > 0) {
+        cfg.profilesSec = Math.max(cfg.statusSec || DEFAULT_CONNECTED_STATUS_REFRESH_SEC, Math.round(profilesSec));
+      }
+      if (typeof payload.sb3_dedicated_digital_fetch_enabled === 'boolean') {
+        cfg.dedicatedDigitalFetchEnabled = payload.sb3_dedicated_digital_fetch_enabled;
+      }
+      state.connectedRefresh = cfg;
+    }
+
+    function statusHasSchedulerSnapshot(payload) {
+      if (!payload || typeof payload !== 'object') return false;
+      const mode = String(payload.digital_scheduler_mode || payload.digital_scan_mode || '').trim();
+      const systems = payload.digital_scheduler_systems;
+      return Boolean(
+        mode
+        || Array.isArray(systems)
+        || Object.prototype.hasOwnProperty.call(payload, 'digital_scheduler_snapshot_age_ms')
+      );
+    }
+
+    function statusHasPreflightSnapshot(payload) {
+      if (!payload || typeof payload !== 'object') return false;
+      return Boolean(
+        (payload.digital_preflight && typeof payload.digital_preflight === 'object')
+        || Object.prototype.hasOwnProperty.call(payload, 'digital_playlist_source_ok')
+        || Object.prototype.hasOwnProperty.call(payload, 'digital_preflight_snapshot_age_ms')
+      );
     }
 
     function healthStateText(rawState) {
@@ -11097,15 +11232,34 @@
       const airbandHealthState = String(state.health?.subsystems?.airband?.state || '').toLowerCase();
       const groundHealthState = String(state.health?.subsystems?.ground?.state || '').toLowerCase();
       const digitalHealthState = String(state.health?.subsystems?.digital?.state || '').toLowerCase();
+      const sdrtrunkHealthState = String(state.health?.subsystems?.sdrtrunk?.state || '').toLowerCase();
+      const mixerHealthState = String(state.health?.subsystems?.mixer?.state || '').toLowerCase();
+      const schedulerHealthState = String(state.health?.subsystems?.scheduler?.state || '').toLowerCase();
       const airbandOk = airbandHealthState ? airbandHealthState !== 'failed' : Boolean(state.sdr1Active);
       const groundOk = groundHealthState ? groundHealthState !== 'failed' : Boolean(state.sdr2Active);
       const digitalOk = digitalHealthState ? digitalHealthState !== 'failed' : Boolean(state.digital.active);
+      const sdrtrunkOk = sdrtrunkHealthState ? sdrtrunkHealthState !== 'failed' : Boolean(state.digital.active);
+      const mixerReasons = Array.isArray(state.health?.subsystems?.mixer?.reasons)
+        ? state.health.subsystems.mixer.reasons
+        : [];
+      const mixerDisabledByDesign = mixerReasons.some((reason) => (
+        String((reason && reason.code) || '').toUpperCase() === 'MIXER_DISABLED_BY_DESIGN'
+      ));
+      const mixerOk = mixerHealthState ? mixerHealthState !== 'failed' : true;
+      const schedulerOk = schedulerHealthState ? schedulerHealthState !== 'failed' : true;
 
       setServiceStatus('api', Boolean(state.connected), state.connected ? 'online' : 'offline');
       setServiceStatus('sse', Boolean(state.sseConnected), state.sseConnected ? 'streaming' : 'down');
       setServiceStatus('airband', airbandOk, healthStateText(airbandHealthState));
       setServiceStatus('ground', groundOk, healthStateText(groundHealthState));
       setServiceStatus('digital', digitalOk, healthStateText(digitalHealthState));
+      setServiceStatus('sdrtrunk', sdrtrunkOk, healthStateText(sdrtrunkHealthState));
+      setServiceStatus(
+        'mixer',
+        mixerOk,
+        mixerDisabledByDesign ? 'disabled' : healthStateText(mixerHealthState)
+      );
+      setServiceStatus('scheduler', schedulerOk, healthStateText(schedulerHealthState));
       setServiceStatus('icecast', Boolean(state.icecastActive), state.icecastActive ? 'serving' : 'offline');
       const vlcAnalogRunning = Boolean(state.vlc.analog.running);
       const vlcDigitalRunning = Boolean(state.vlc.digital.running);
@@ -11144,6 +11298,10 @@
 
       const hasStats = Boolean(state.systemStats);
       const stats = state.systemStats || {};
+      if (els.sitrepHostname) {
+        const host = String(stats.hostname || '').trim();
+        els.sitrepHostname.textContent = host || '--';
+      }
       const cpuF = Number.isFinite(stats.cpu_temp_c) ? (stats.cpu_temp_c * 9 / 5 + 32) : null;
       const gpuF = Number.isFinite(stats.gpu_temp_c) ? (stats.gpu_temp_c * 9 / 5 + 32) : null;
       if (els.sitrepCpuTemp) {
@@ -11155,8 +11313,49 @@
       if (els.sitrepCpuUsage) {
         els.sitrepCpuUsage.textContent = Number.isFinite(stats.cpu_usage) ? `${stats.cpu_usage.toFixed(0)}%` : '--';
       }
+      if (els.sitrepLoad) {
+        const load = stats.load_avg || {};
+        const one = Number(load.one);
+        const five = Number(load.five);
+        const fifteen = Number(load.fifteen);
+        els.sitrepLoad.textContent = (
+          Number.isFinite(one) && Number.isFinite(five) && Number.isFinite(fifteen)
+        ) ? `${one.toFixed(2)} / ${five.toFixed(2)} / ${fifteen.toFixed(2)}` : '--';
+      }
+      if (els.sitrepMemory) {
+        const memory = stats.memory || {};
+        const usedPercent = Number(memory.used_percent);
+        const usedKb = Number(memory.used_kb);
+        const totalKb = Number(memory.total_kb);
+        if (Number.isFinite(usedPercent) && Number.isFinite(usedKb) && Number.isFinite(totalKb)) {
+          els.sitrepMemory.textContent = `${usedPercent.toFixed(0)}% (${formatBytes(usedKb * 1024)} / ${formatBytes(totalKb * 1024)})`;
+        } else {
+          els.sitrepMemory.textContent = '--';
+        }
+      }
+      if (els.sitrepDisk) {
+        const disk = stats.disk || {};
+        const usedPercent = Number(disk.used_percent);
+        const usedBytes = Number(disk.used_bytes);
+        const totalBytes = Number(disk.total_bytes);
+        if (Number.isFinite(usedPercent) && Number.isFinite(usedBytes) && Number.isFinite(totalBytes)) {
+          els.sitrepDisk.textContent = `${usedPercent.toFixed(0)}% (${formatBytes(usedBytes)} / ${formatBytes(totalBytes)})`;
+        } else {
+          els.sitrepDisk.textContent = '--';
+        }
+      }
       if (els.sitrepUptime) {
         els.sitrepUptime.textContent = Number.isFinite(stats.uptime_s) ? formatUptime(stats.uptime_s) : '--';
+      }
+      if (els.sitrepIoPressure) {
+        const io = stats.io_pressure || {};
+        const avg10 = Number(io.avg10);
+        const avg60 = Number(io.avg60);
+        if (Number.isFinite(avg10) && Number.isFinite(avg60)) {
+          els.sitrepIoPressure.textContent = `${avg10.toFixed(2)} / ${avg60.toFixed(2)}`;
+        } else {
+          els.sitrepIoPressure.textContent = '--';
+        }
       }
       if (els.sitrepNetRx) {
         els.sitrepNetRx.textContent = hasStats ? formatBytes(stats.net?.rx_bytes || 0) : '--';
@@ -11317,6 +11516,10 @@
       if (!stats || stats.ok === false) return;
       state.systemStats = stats;
       if (els.sysUptimeTile) els.sysUptimeTile.textContent = formatUptime(stats.uptime_s);
+      if (els.sysHostname) {
+        const host = String(stats.hostname || '').trim();
+        els.sysHostname.textContent = host || '--';
+      }
       const cpuF = Number.isFinite(stats.cpu_temp_c) ? (stats.cpu_temp_c * 9 / 5 + 32) : null;
       const gpuF = Number.isFinite(stats.gpu_temp_c) ? (stats.gpu_temp_c * 9 / 5 + 32) : null;
       if (els.sysCpuTemp) {
@@ -11327,6 +11530,47 @@
       }
       if (els.sysCpuUsage) {
         els.sysCpuUsage.textContent = Number.isFinite(stats.cpu_usage) ? `${stats.cpu_usage.toFixed(0)}%` : '--';
+      }
+      if (els.sysLoad) {
+        const load = stats.load_avg || {};
+        const one = Number(load.one);
+        const five = Number(load.five);
+        const fifteen = Number(load.fifteen);
+        els.sysLoad.textContent = (
+          Number.isFinite(one) && Number.isFinite(five) && Number.isFinite(fifteen)
+        ) ? `${one.toFixed(2)} / ${five.toFixed(2)} / ${fifteen.toFixed(2)}` : '--';
+      }
+      if (els.sysMemory) {
+        const memory = stats.memory || {};
+        const usedPercent = Number(memory.used_percent);
+        const usedKb = Number(memory.used_kb);
+        const totalKb = Number(memory.total_kb);
+        if (Number.isFinite(usedPercent) && Number.isFinite(usedKb) && Number.isFinite(totalKb)) {
+          els.sysMemory.textContent = `${usedPercent.toFixed(0)}% (${formatBytes(usedKb * 1024)} / ${formatBytes(totalKb * 1024)})`;
+        } else {
+          els.sysMemory.textContent = '--';
+        }
+      }
+      if (els.sysDisk) {
+        const disk = stats.disk || {};
+        const usedPercent = Number(disk.used_percent);
+        const usedBytes = Number(disk.used_bytes);
+        const totalBytes = Number(disk.total_bytes);
+        if (Number.isFinite(usedPercent) && Number.isFinite(usedBytes) && Number.isFinite(totalBytes)) {
+          els.sysDisk.textContent = `${usedPercent.toFixed(0)}% (${formatBytes(usedBytes)} / ${formatBytes(totalBytes)})`;
+        } else {
+          els.sysDisk.textContent = '--';
+        }
+      }
+      if (els.sysIoPressure) {
+        const io = stats.io_pressure || {};
+        const avg10 = Number(io.avg10);
+        const avg60 = Number(io.avg60);
+        if (Number.isFinite(avg10) && Number.isFinite(avg60)) {
+          els.sysIoPressure.textContent = `${avg10.toFixed(2)} / ${avg60.toFixed(2)}`;
+        } else {
+          els.sysIoPressure.textContent = '--';
+        }
       }
       const net = stats.net || {};
       const rx = Number(net.rx_bytes || 0);
@@ -12110,172 +12354,209 @@
     // DATA REFRESH
     // ============================================
     
-    async function refresh() {
+    async function refresh(options = {}) {
       if (refreshInFlight) return refreshInFlight;
+      const fetchProfiles = options.fetchProfiles !== false;
+      const fetchSystem = options.fetchSystem !== false;
+      const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : FETCH_TIMEOUT_MS;
       refreshInFlight = (async () => {
         const wasConnected = state.connected;
         try {
-          const [data, profilesData, systemData, schedulerData, digitalPreflightData] = await Promise.all([
-            fetchJSON('/api/status'),
-            fetchJSON('/api/profiles'),
-            fetchJSON('/api/system'),
-            fetchJSON('/api/digital/scheduler').catch(() => null),
-            fetchJSON('/api/digital/preflight').catch(() => null),
+          const [data, profilesData, systemData] = await Promise.all([
+            fetchJSON('/api/status', { timeoutMs }),
+            fetchProfiles ? fetchJSON('/api/profiles', { timeoutMs }).catch(() => null) : Promise.resolve(null),
+            fetchSystem ? fetchJSON('/api/system', { timeoutMs }).catch(() => null) : Promise.resolve(null),
           ]);
 
           const pickNumber = (value, fallback) => (value === 0 || value) ? value : fallback;
           const prevAnalogBase = state.streamBaseUrl;
           const prevDigitalBase = state.digitalStreamBaseUrl;
-        
-        const airbandPresent = (typeof data.airband_present === 'boolean') ? data.airband_present : true;
-        const groundPresent = (typeof data.ground_present === 'boolean') ? data.ground_present : true;
-        state.airbandPresent = Boolean(airbandPresent);
-        state.groundPresent = Boolean(groundPresent);
-        // Keep analog tabs manually selectable even when one side is temporarily
-        // unavailable (for quick profile recovery / retargeting from the UI).
-        if (els.tabAirband) els.tabAirband.disabled = false;
-        if (els.tabGround) els.tabGround.disabled = false;
-        const airbandActiveSignal = (typeof data.airband_active === 'boolean') ? data.airband_active : null;
-        const groundActiveSignal = (typeof data.ground_active === 'boolean') ? data.ground_active : null;
-        state.sdr1Active = airbandActiveSignal !== null
-          ? Boolean(airbandActiveSignal)
-          : Boolean(data.rtl_active && airbandPresent);
-        state.sdr2Active = groundActiveSignal !== null
-          ? Boolean(groundActiveSignal)
-          : Boolean(data.rtl_active && groundPresent);
-        state.groundUnitActive = data.ground_unit_active ?? false;
-        state.combinedStale = Boolean(data.combined_config_stale);
-        state.rtlRestartRequired = Boolean(data.rtl_restart_required);
-        state.lastStatusTick = Date.now();
-        if (state.sdr1Active) state.sdr1LastSeen = state.lastStatusTick;
-        if (state.sdr2Active) state.sdr2LastSeen = state.lastStatusTick;
-        state.icecastActive = data.icecast_active;
-        state.icecastMounts = Array.isArray(data.icecast_mounts) ? data.icecast_mounts : [];
-        state.icecastExpectedMounts = Array.isArray(data.icecast_expected_mounts)
-          ? data.icecast_expected_mounts
-          : [];
-        const port = Number(data.icecast_port);
-        if (Number.isFinite(port)) {
-          state.icecastPort = port;
-        }
-        if (typeof data.stream_proxy_enabled === 'boolean') {
-          state.streamProxyEnabled = data.stream_proxy_enabled;
-        }
-        if (typeof data.stream_mount === 'string' && data.stream_mount.trim()) {
-          state.streamMount = data.stream_mount.trim();
-        }
-        if (typeof data.digital_stream_mount === 'string' && data.digital_stream_mount.trim()) {
-          state.digitalStreamMount = data.digital_stream_mount.trim();
-        } else if (typeof data.stream_mount_digital === 'string' && data.stream_mount_digital.trim()) {
-          state.digitalStreamMount = data.stream_mount_digital.trim();
-        }
-        state.lastHit = data.last_hit || data.last_hit_airband || data.last_hit_ground || '';
-        state.lastHitAirband = data.last_hit_airband || '';
-        state.lastHitGround = data.last_hit_ground || '';
-        state.lastHitAirbandLabel = data.last_hit_airband_label || '';
-        state.lastHitGroundLabel = data.last_hit_ground_label || '';
-        if (!state.lastProfile.airband && data.profile_airband) {
-          state.lastProfile.airband = data.profile_airband;
-        }
-        if (!state.lastProfile.ground && data.profile_ground) {
-          state.lastProfile.ground = data.profile_ground;
-        }
-        
-        const airbandObservedGain = pickNumber(data.airband_gain, pickNumber(data.gain, 32.8));
-        const airbandAppliedGain = Number.isFinite(data.airband_applied_gain) ? data.airband_applied_gain : null;
-        state.airband.gain = resolveAnalogGain('airband', airbandObservedGain, airbandAppliedGain);
-        state.airband.squelch_mode = data.airband_squelch_mode || 'dbfs';
-        state.airband.squelch_snr = pickNumber(data.airband_squelch_snr, pickNumber(data.airband_squelch, pickNumber(data.squelch, 0.5)));
-        state.airband.squelch_dbfs = pickNumber(data.airband_squelch_dbfs, 0);
-        state.airband.applied_gain = airbandAppliedGain;
-        state.airband.applied_squelch_dbfs = Number.isFinite(data.airband_applied_squelch_dbfs) ? data.airband_applied_squelch_dbfs : null;
-        state.airband.squelch = state.airband.squelch_dbfs;
-        state.airband.filter = pickNumber(data.airband_filter, 3500);
-        state.airband.avoids = data.avoids_airband?.sample || [];
-        
-        const groundObservedGain = pickNumber(data.ground_gain, 32.8);
-        const groundAppliedGain = Number.isFinite(data.ground_applied_gain) ? data.ground_applied_gain : null;
-        state.ground.gain = resolveAnalogGain('ground', groundObservedGain, groundAppliedGain);
-        state.ground.squelch_mode = data.ground_squelch_mode || 'dbfs';
-        state.ground.squelch_snr = pickNumber(data.ground_squelch_snr, pickNumber(data.ground_squelch, 0.5));
-        state.ground.squelch_dbfs = pickNumber(data.ground_squelch_dbfs, 0);
-        state.ground.applied_gain = groundAppliedGain;
-        state.ground.applied_squelch_dbfs = Number.isFinite(data.ground_applied_squelch_dbfs) ? data.ground_applied_squelch_dbfs : null;
-        state.ground.squelch = state.ground.squelch_dbfs;
-        state.ground.filter = pickNumber(data.ground_filter, 3500);
-        state.ground.avoids = data.avoids_ground?.sample || [];
-        state.hpFilters.avoids = Array.isArray(data.hp_avoids)
-          ? data.hp_avoids.map((item) => normalizeHpAvoidToken(item)).filter(Boolean)
-          : [];
-        applyHpAvoidsToFullDbReviewEntries();
-        applyProfilesPayload(profilesData, data);
+          applyConnectedRefreshSettings(data);
 
-        state.digital.active = Boolean(data.digital_active);
-        state.digital.backend = data.digital_backend || '';
-        state.digital.profile = data.digital_profile || '';
-        state.digital.lastLabel = data.digital_last_label || '';
-        state.digital.lastMode = data.digital_last_mode || '';
-        state.digital.lastTime = Number.isFinite(data.digital_last_time) ? data.digital_last_time : 0;
-        state.digital.lastError = data.digital_last_error || '';
-        state.digital.lastWarning = data.digital_last_warning || '';
-        state.digital.playlistSourceOk = Boolean(data.digital_playlist_source_ok);
-        state.digital.playlistSourceType = data.digital_playlist_source_type || '';
-        state.digital.playlistSourceError = data.digital_playlist_source_error || '';
-        state.digital.tunerBusyCount = Number.isFinite(data.digital_tuner_busy_count) ? data.digital_tuner_busy_count : 0;
-        state.digital.controlMetricReady = Boolean(data.digital_control_channel_metric_ready);
-        state.digital.controlLocked = Boolean(data.digital_control_channel_locked);
-        state.digital.controlCount = Number.isFinite(data.digital_control_channel_count) ? data.digital_control_channel_count : 0;
-        state.digital.controlLastTime = Number.isFinite(data.digital_control_channel_last_time) ? data.digital_control_channel_last_time : 0;
-        state.digital.controlSyncLossCount = Number.isFinite(data.digital_control_sync_loss_count) ? data.digital_control_sync_loss_count : 0;
-        state.digital.controlWindowMs = Number.isFinite(data.digital_control_window_ms) ? data.digital_control_window_ms : 0;
-        state.digital.metricsUpdatedMs = Date.now();
-        applyDigitalSchedulerPayload(data);
-        if (schedulerData && schedulerData.ok) {
-          applyDigitalSchedulerPayload(schedulerData);
-        }
-        if (digitalPreflightData && digitalPreflightData.ok) {
-          applyDigitalPreflightPayload(digitalPreflightData);
-        }
-        state.digital.muted = Boolean(data.digital_muted);
-        state.lastHitDigital = state.digital.lastLabel || '';
-        {
-          const activeProfile = state.digital.activeProfile || state.digital.profile;
-          if (activeProfile) {
-            if (activeProfile !== state.digitalListen.profile) {
-              state.digitalListen.profile = activeProfile;
+          const dedicatedDigitalFetch = Boolean(
+            state.connectedRefresh
+            && state.connectedRefresh.dedicatedDigitalFetchEnabled
+          );
+          const needSchedulerFallback = !statusHasSchedulerSnapshot(data);
+          const needPreflightFallback = !statusHasPreflightSnapshot(data);
+          const [schedulerData, digitalPreflightData] = await Promise.all([
+            (dedicatedDigitalFetch || needSchedulerFallback)
+              ? fetchJSON('/api/digital/scheduler', { timeoutMs }).catch(() => null)
+              : Promise.resolve(null),
+            (dedicatedDigitalFetch || needPreflightFallback)
+              ? fetchJSON('/api/digital/preflight', { timeoutMs }).catch(() => null)
+              : Promise.resolve(null),
+          ]);
+
+          const nowMs = Date.now();
+          if (state.connectedRefresh) {
+            state.connectedRefresh.lastStatusMs = nowMs;
+            if (fetchProfiles && profilesData) {
+              state.connectedRefresh.lastProfilesMs = nowMs;
+            }
+            if (fetchSystem && systemData) {
+              state.connectedRefresh.lastSystemMs = nowMs;
+            }
+          }
+
+          const airbandPresent = (typeof data.airband_present === 'boolean') ? data.airband_present : true;
+          const groundPresent = (typeof data.ground_present === 'boolean') ? data.ground_present : true;
+          state.airbandPresent = Boolean(airbandPresent);
+          state.groundPresent = Boolean(groundPresent);
+          // Keep analog tabs manually selectable even when one side is temporarily
+          // unavailable (for quick profile recovery / retargeting from the UI).
+          if (els.tabAirband) els.tabAirband.disabled = false;
+          if (els.tabGround) els.tabGround.disabled = false;
+          const airbandActiveSignal = (typeof data.airband_active === 'boolean') ? data.airband_active : null;
+          const groundActiveSignal = (typeof data.ground_active === 'boolean') ? data.ground_active : null;
+          state.sdr1Active = airbandActiveSignal !== null
+            ? Boolean(airbandActiveSignal)
+            : Boolean(data.rtl_active && airbandPresent);
+          state.sdr2Active = groundActiveSignal !== null
+            ? Boolean(groundActiveSignal)
+            : Boolean(data.rtl_active && groundPresent);
+          state.groundUnitActive = data.ground_unit_active ?? false;
+          state.combinedStale = Boolean(data.combined_config_stale);
+          state.rtlRestartRequired = Boolean(data.rtl_restart_required);
+          state.lastStatusTick = nowMs;
+          if (state.sdr1Active) state.sdr1LastSeen = state.lastStatusTick;
+          if (state.sdr2Active) state.sdr2LastSeen = state.lastStatusTick;
+          state.icecastActive = data.icecast_active;
+          state.icecastMounts = Array.isArray(data.icecast_mounts) ? data.icecast_mounts : [];
+          state.icecastExpectedMounts = Array.isArray(data.icecast_expected_mounts)
+            ? data.icecast_expected_mounts
+            : [];
+          const port = Number(data.icecast_port);
+          if (Number.isFinite(port)) {
+            state.icecastPort = port;
+          }
+          if (typeof data.stream_proxy_enabled === 'boolean') {
+            state.streamProxyEnabled = data.stream_proxy_enabled;
+          }
+          if (typeof data.stream_mount === 'string' && data.stream_mount.trim()) {
+            state.streamMount = data.stream_mount.trim();
+          }
+          if (typeof data.digital_stream_mount === 'string' && data.digital_stream_mount.trim()) {
+            state.digitalStreamMount = data.digital_stream_mount.trim();
+          } else if (typeof data.stream_mount_digital === 'string' && data.stream_mount_digital.trim()) {
+            state.digitalStreamMount = data.stream_mount_digital.trim();
+          }
+          state.lastHit = data.last_hit || data.last_hit_airband || data.last_hit_ground || '';
+          state.lastHitAirband = data.last_hit_airband || '';
+          state.lastHitGround = data.last_hit_ground || '';
+          state.lastHitAirbandLabel = data.last_hit_airband_label || '';
+          state.lastHitGroundLabel = data.last_hit_ground_label || '';
+          if (!state.lastProfile.airband && data.profile_airband) {
+            state.lastProfile.airband = data.profile_airband;
+          }
+          if (!state.lastProfile.ground && data.profile_ground) {
+            state.lastProfile.ground = data.profile_ground;
+          }
+
+          const airbandObservedGain = pickNumber(data.airband_gain, pickNumber(data.gain, 32.8));
+          const airbandAppliedGain = Number.isFinite(data.airband_applied_gain) ? data.airband_applied_gain : null;
+          state.airband.gain = resolveAnalogGain('airband', airbandObservedGain, airbandAppliedGain);
+          state.airband.squelch_mode = data.airband_squelch_mode || 'dbfs';
+          state.airband.squelch_snr = pickNumber(data.airband_squelch_snr, pickNumber(data.airband_squelch, pickNumber(data.squelch, 0.5)));
+          state.airband.squelch_dbfs = pickNumber(data.airband_squelch_dbfs, 0);
+          state.airband.applied_gain = airbandAppliedGain;
+          state.airband.applied_squelch_dbfs = Number.isFinite(data.airband_applied_squelch_dbfs) ? data.airband_applied_squelch_dbfs : null;
+          state.airband.squelch = state.airband.squelch_dbfs;
+          state.airband.filter = pickNumber(data.airband_filter, 3500);
+          state.airband.avoids = data.avoids_airband?.sample || [];
+
+          const groundObservedGain = pickNumber(data.ground_gain, 32.8);
+          const groundAppliedGain = Number.isFinite(data.ground_applied_gain) ? data.ground_applied_gain : null;
+          state.ground.gain = resolveAnalogGain('ground', groundObservedGain, groundAppliedGain);
+          state.ground.squelch_mode = data.ground_squelch_mode || 'dbfs';
+          state.ground.squelch_snr = pickNumber(data.ground_squelch_snr, pickNumber(data.ground_squelch, 0.5));
+          state.ground.squelch_dbfs = pickNumber(data.ground_squelch_dbfs, 0);
+          state.ground.applied_gain = groundAppliedGain;
+          state.ground.applied_squelch_dbfs = Number.isFinite(data.ground_applied_squelch_dbfs) ? data.ground_applied_squelch_dbfs : null;
+          state.ground.squelch = state.ground.squelch_dbfs;
+          state.ground.filter = pickNumber(data.ground_filter, 3500);
+          state.ground.avoids = data.avoids_ground?.sample || [];
+          state.hpFilters.avoids = Array.isArray(data.hp_avoids)
+            ? data.hp_avoids.map((item) => normalizeHpAvoidToken(item)).filter(Boolean)
+            : [];
+          applyHpAvoidsToFullDbReviewEntries();
+          if (profilesData) {
+            applyProfilesPayload(profilesData, data);
+          }
+
+          state.digital.active = Boolean(data.digital_active);
+          state.digital.backend = data.digital_backend || '';
+          state.digital.profile = data.digital_profile || '';
+          state.digital.lastLabel = data.digital_last_label || '';
+          state.digital.lastMode = data.digital_last_mode || '';
+          state.digital.lastTime = Number.isFinite(data.digital_last_time) ? data.digital_last_time : 0;
+          state.digital.lastError = data.digital_last_error || '';
+          state.digital.lastWarning = data.digital_last_warning || '';
+          state.digital.playlistSourceOk = Boolean(data.digital_playlist_source_ok);
+          state.digital.playlistSourceType = data.digital_playlist_source_type || '';
+          state.digital.playlistSourceError = data.digital_playlist_source_error || '';
+          state.digital.tunerBusyCount = Number.isFinite(data.digital_tuner_busy_count) ? data.digital_tuner_busy_count : 0;
+          state.digital.controlMetricReady = Boolean(data.digital_control_channel_metric_ready);
+          state.digital.controlLocked = Boolean(data.digital_control_channel_locked);
+          state.digital.controlCount = Number.isFinite(data.digital_control_channel_count) ? data.digital_control_channel_count : 0;
+          state.digital.controlLastTime = Number.isFinite(data.digital_control_channel_last_time) ? data.digital_control_channel_last_time : 0;
+          state.digital.controlSyncLossCount = Number.isFinite(data.digital_control_sync_loss_count) ? data.digital_control_sync_loss_count : 0;
+          state.digital.controlWindowMs = Number.isFinite(data.digital_control_window_ms) ? data.digital_control_window_ms : 0;
+          state.digital.metricsUpdatedMs = nowMs;
+          state.digital.mixerEnabled = Boolean(data.digital_mixer_enabled);
+          state.digital.mixerActive = Boolean(data.digital_mixer_active);
+          applyDigitalSchedulerPayload(data);
+          if (data.digital_preflight && typeof data.digital_preflight === 'object') {
+            applyDigitalPreflightPayload(data.digital_preflight);
+          }
+          if (schedulerData && schedulerData.ok) {
+            applyDigitalSchedulerPayload(schedulerData);
+          }
+          if (digitalPreflightData && digitalPreflightData.ok) {
+            applyDigitalPreflightPayload(digitalPreflightData);
+          }
+          state.digital.muted = Boolean(data.digital_muted);
+          state.lastHitDigital = state.digital.lastLabel || '';
+          {
+            const activeProfile = state.digital.activeProfile || state.digital.profile;
+            if (activeProfile) {
+              if (activeProfile !== state.digitalListen.profile) {
+                state.digitalListen.profile = activeProfile;
+                state.digitalListen.items = [];
+                state.digitalListen.dirty = false;
+                digitalListenLoaded = false;
+              }
+            } else if (state.digitalListen.profile) {
+              state.digitalListen.profile = '';
               state.digitalListen.items = [];
               state.digitalListen.dirty = false;
               digitalListenLoaded = false;
             }
-          } else if (state.digitalListen.profile) {
-            state.digitalListen.profile = '';
-            state.digitalListen.items = [];
-            state.digitalListen.dirty = false;
-            digitalListenLoaded = false;
           }
-        }
-        
-        state.serverTime = data.server_time;
-        state.v3Compile = data.v3_compile || null;
-        state.preflight = data.preflight || { airband: null, ground: null, digital: null };
-        state.health = data.health || { overall: { state: 'unknown', reasonCodes: [] }, subsystems: {} };
-        applyHpFavoritesSyncStatus(data.hp_favorites_sync, data);
-        
-        state.connected = true;
-        if (!wasConnected) {
-          logActivity('API connection restored', 'info', 'api-up');
-        }
-        const analogBase = analogStreamUrl();
-        const digitalBase = digitalStreamUrl();
-        if (prevAnalogBase !== analogBase || prevDigitalBase !== digitalBase) {
-          syncStreamLinks();
-        }
-        
-        updateStatus();
-        updateDigitalUI();
-        updateControls();
-        updateProfiles();
-          updateSystemUI(systemData);
+
+          state.serverTime = data.server_time;
+          state.v3Compile = data.v3_compile || null;
+          state.preflight = data.preflight || { airband: null, ground: null, digital: null };
+          state.health = data.health || { overall: { state: 'unknown', reasonCodes: [] }, subsystems: {} };
+          applyHpFavoritesSyncStatus(data.hp_favorites_sync, data);
+
+          state.connected = true;
+          if (!wasConnected) {
+            logActivity('API connection restored', 'info', 'api-up');
+          }
+          const analogBase = analogStreamUrl();
+          const digitalBase = digitalStreamUrl();
+          if (prevAnalogBase !== analogBase || prevDigitalBase !== digitalBase) {
+            syncStreamLinks();
+          }
+
+          updateStatus();
+          updateDigitalUI();
+          updateControls();
+          updateProfiles();
+          if (systemData) {
+            updateSystemUI(systemData);
+          }
           updateCounters();
           updateTuneButton();
           {
@@ -12306,6 +12587,32 @@
       } finally {
         refreshInFlight = null;
       }
+    }
+
+    async function refreshConnectedCadence() {
+      if (!state.sseConnected) return;
+      const cfg = state.connectedRefresh || {};
+      const now = Date.now();
+      const statusMs = Math.max(
+        5000,
+        Math.round(Number(cfg.statusSec || DEFAULT_CONNECTED_STATUS_REFRESH_SEC) * 1000)
+      );
+      const systemMs = Math.max(
+        statusMs,
+        Math.round(Number(cfg.systemSec || DEFAULT_CONNECTED_SYSTEM_REFRESH_SEC) * 1000)
+      );
+      const profilesMs = Math.max(
+        statusMs,
+        Math.round(Number(cfg.profilesSec || DEFAULT_CONNECTED_PROFILES_REFRESH_SEC) * 1000)
+      );
+      const dueStatus = !Number(cfg.lastStatusMs) || ((now - Number(cfg.lastStatusMs || 0)) >= statusMs);
+      if (!dueStatus) return;
+      const dueSystem = !Number(cfg.lastSystemMs) || ((now - Number(cfg.lastSystemMs || 0)) >= systemMs);
+      const dueProfiles = !Number(cfg.lastProfilesMs) || ((now - Number(cfg.lastProfilesMs || 0)) >= profilesMs);
+      await refresh({
+        fetchSystem: dueSystem,
+        fetchProfiles: dueProfiles,
+      });
     }
     
     async function refreshHits() {
@@ -12381,6 +12688,7 @@
       es.addEventListener('status', (e) => {
         try {
           const data = JSON.parse(e.data);
+          applyConnectedRefreshSettings(data);
           state.sdr1Active = data.rtl_active;
           state.sdr2Active = data.ground_active;
           state.icecastActive = data.icecast_active;
@@ -12389,6 +12697,31 @@
           }
           if (typeof data.combined_config_stale === 'boolean') {
             state.combinedStale = data.combined_config_stale;
+          }
+          if (typeof data.digital_active === 'boolean') {
+            state.digital.active = data.digital_active;
+          }
+          if (typeof data.digital_profile === 'string') {
+            state.digital.profile = data.digital_profile;
+          }
+          if (typeof data.digital_last_label === 'string') {
+            state.digital.lastLabel = data.digital_last_label;
+            state.lastHitDigital = data.digital_last_label || state.lastHitDigital;
+          }
+          if (typeof data.digital_last_time === 'number') {
+            state.digital.lastTime = data.digital_last_time;
+          }
+          if (typeof data.digital_last_warning === 'string') {
+            state.digital.lastWarning = data.digital_last_warning;
+          }
+          if (typeof data.digital_last_error === 'string') {
+            state.digital.lastError = data.digital_last_error;
+          }
+          state.digital.mixerEnabled = Boolean(data.digital_mixer_enabled);
+          state.digital.mixerActive = Boolean(data.digital_mixer_active);
+          applyDigitalSchedulerPayload(data);
+          if (data.digital_preflight && typeof data.digital_preflight === 'object') {
+            applyDigitalPreflightPayload(data.digital_preflight);
           }
           state.lastHit = data.last_hit || state.lastHit;
           state.serverTime = data.server_time;
@@ -13426,15 +13759,15 @@
           console.error('Fallback status poll failed:', e);
         }
       }, 10000);
-      // Keep a low-frequency sync while SSE is connected.
+      // Keep connected sync lightweight: status is primary, system/profiles on longer cadence.
       setInterval(async () => {
         if (!state.sseConnected) return;
         try {
-          await refresh();
+          await refreshConnectedCadence();
         } catch (e) {
           console.error('Connected status sync failed:', e);
         }
-      }, 10000);
+      }, 1000);
       setInterval(() => {
         renderPiClock();
       }, 1000);
