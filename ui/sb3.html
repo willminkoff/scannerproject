@@ -1787,6 +1787,29 @@
       font-weight: 600;
       color: var(--text-primary);
     }
+
+    .system-item .value.good {
+      color: #2be3a8;
+    }
+
+    .system-item .value.warn {
+      color: #f7c66f;
+    }
+
+    .system-item .value.bad {
+      color: #ff6b6b;
+    }
+
+    .temp-alarm-flash {
+      animation: tempAlarmFlash 0.9s steps(2, start) infinite;
+      text-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+    }
+
+    @keyframes tempAlarmFlash {
+      0% { opacity: 1; }
+      50% { opacity: 0.35; }
+      100% { opacity: 1; }
+    }
     .system-item .sub {
       font-size: 11px;
       color: var(--text-secondary);
@@ -2187,6 +2210,14 @@
 
     .config-value.bad {
       color: #ff6b6b;
+    }
+
+    .modal-copy {
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: pre-line;
+      margin: 8px 0 12px;
     }
 
     .activity-log {
@@ -2691,15 +2722,11 @@
             </div>
             <div class="system-grid">
               <div class="system-item">
-                <div class="label">Hostname</div>
-                <div class="value" id="sys-hostname">--</div>
-              </div>
-              <div class="system-item">
                 <div class="label">CPU Temp</div>
                 <div class="value" id="sys-cpu-temp">--</div>
               </div>
               <div class="system-item">
-                <div class="label">GPU Temp</div>
+                <div class="label">Ambient Temp</div>
                 <div class="value" id="sys-gpu-temp">--</div>
               </div>
               <div class="system-item">
@@ -2906,15 +2933,11 @@
           <div class="sitrep-card-title">System Telemetry</div>
           <div class="config-grid">
             <div class="config-row">
-              <span class="config-label">Hostname</span>
-              <span class="config-value" id="sitrep-hostname">--</span>
-            </div>
-            <div class="config-row">
               <span class="config-label">CPU Temp</span>
               <span class="config-value" id="sitrep-cpu-temp">--</span>
             </div>
             <div class="config-row">
-              <span class="config-label">GPU Temp</span>
+              <span class="config-label">Ambient Temp</span>
               <span class="config-value" id="sitrep-gpu-temp">--</span>
             </div>
             <div class="config-row">
@@ -3522,6 +3545,12 @@
     const HP_REVERSE_GEOLOOKUP_URL = 'https://api.bigdatacloud.net/data/reverse-geocode-client';
     const APPLY_PENDING_HOLD_MS = 12000;
     const APPLY_GAIN_EPSILON_DB = 0.11;
+    const TEMP_WARN_CPU_F = 176.0;
+    const TEMP_WARN_AMBIENT_F = 176.0;
+    const TEMP_ALARM_CPU_F = 185.0;
+    const TEMP_ALARM_AMBIENT_F = 185.0;
+    const TEMP_ALARM_HYSTERESIS_F = 5.0;
+    const TEMP_ALARM_COOLDOWN_MS = 5 * 60 * 1000;
     const QUICK_GROUND_GMRS_FRS_MURS_PROFILE_ID = 'gmrs_frs_murs';
     const QUICK_GROUND_WX_PROFILE_ID = 'wx';
     const QUICK_GROUND_OFF_PROFILE_ID = 'none_ground';
@@ -3928,6 +3957,11 @@
         lastRxRate: null,
         lastTxRate: null,
       },
+      tempAlarm: {
+        active: false,
+        lastPopupMs: 0,
+        popupOpen: false,
+      },
       vlc: {
         analog: { running: false, busy: false },
         digital: { running: false, busy: false },
@@ -4265,7 +4299,6 @@
       sysCpuTemp: document.getElementById('sys-cpu-temp'),
       sysGpuTemp: document.getElementById('sys-gpu-temp'),
       sysCpuUsage: document.getElementById('sys-cpu-usage'),
-      sysHostname: document.getElementById('sys-hostname'),
       sysLoad: document.getElementById('sys-load'),
       sysMemory: document.getElementById('sys-memory'),
       sysDisk: document.getElementById('sys-disk'),
@@ -4381,7 +4414,6 @@
       sitrepStream: document.getElementById('sitrep-stream'),
       sitrepConfig: document.getElementById('sitrep-config'),
       serviceDigitalNote: document.getElementById('service-digital-note'),
-      sitrepHostname: document.getElementById('sitrep-hostname'),
       sitrepCpuTemp: document.getElementById('sitrep-cpu-temp'),
       sitrepGpuTemp: document.getElementById('sitrep-gpu-temp'),
       sitrepCpuUsage: document.getElementById('sitrep-cpu-usage'),
@@ -10674,6 +10706,123 @@
       el.classList.toggle('bad', tone === 'bad');
     }
 
+    function tempFfromC(tempC) {
+      return Number.isFinite(tempC) ? (Number(tempC) * 9 / 5 + 32) : null;
+    }
+
+    function ambientTempFfromStats(stats) {
+      const ambientC = Number(stats && stats.ambient_temp_c);
+      if (Number.isFinite(ambientC)) {
+        return tempFfromC(ambientC);
+      }
+      // Backward compatibility for older API payloads that only expose gpu_temp_c.
+      const fallbackC = Number(stats && stats.gpu_temp_c);
+      return Number.isFinite(fallbackC) ? tempFfromC(fallbackC) : null;
+    }
+
+    function renderTemperatureValue(el, tempF, warnF, alarmF) {
+      if (!el) return '';
+      const hasValue = Number.isFinite(tempF);
+      if (!hasValue) {
+        el.textContent = '--';
+        setValueTone(el, '');
+        el.classList.remove('temp-alarm-flash');
+        return '';
+      }
+      el.textContent = `${tempF.toFixed(1)}°F`;
+      let tone = '';
+      if (tempF >= alarmF) {
+        tone = 'bad';
+      } else if (tempF >= warnF) {
+        tone = 'warn';
+      }
+      setValueTone(el, tone);
+      el.classList.toggle('temp-alarm-flash', tone === 'warn' || tone === 'bad');
+      return tone;
+    }
+
+    function showTemperatureAlarmPopup(message) {
+      if (state.tempAlarm && state.tempAlarm.popupOpen) return;
+      state.tempAlarm.popupOpen = true;
+      const backdrop = document.createElement('div');
+      backdrop.className = 'modal-backdrop';
+      const card = document.createElement('div');
+      card.className = 'modal-card';
+      card.innerHTML = `
+        <h3>Temperature Alarm</h3>
+        <div class="modal-copy"></div>
+        <div class="modal-actions">
+          <button class="confirm">Acknowledge</button>
+        </div>
+      `;
+      const copy = card.querySelector('.modal-copy');
+      if (copy) copy.textContent = String(message || 'High temperature detected.');
+      backdrop.appendChild(card);
+      document.body.appendChild(backdrop);
+      let closed = false;
+      let onKeyDown = null;
+      const close = () => {
+        if (closed) return;
+        closed = true;
+        if (onKeyDown) {
+          window.removeEventListener('keydown', onKeyDown);
+        }
+        state.tempAlarm.popupOpen = false;
+        backdrop.remove();
+      };
+      const confirmBtn = card.querySelector('.confirm');
+      if (confirmBtn) {
+        confirmBtn.addEventListener('click', () => close());
+        confirmBtn.focus();
+      }
+      backdrop.addEventListener('click', (event) => {
+        if (event.target === backdrop) close();
+      });
+      onKeyDown = (event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          close();
+        }
+      };
+      window.addEventListener('keydown', onKeyDown);
+    }
+
+    function evaluateTemperatureAlarm(cpuF, ambientF) {
+      const cpuAlarm = Number.isFinite(cpuF) && cpuF >= TEMP_ALARM_CPU_F;
+      const ambientAlarm = Number.isFinite(ambientF) && ambientF >= TEMP_ALARM_AMBIENT_F;
+      const alarmActive = cpuAlarm || ambientAlarm;
+      const cpuCleared = !Number.isFinite(cpuF) || cpuF <= (TEMP_ALARM_CPU_F - TEMP_ALARM_HYSTERESIS_F);
+      const ambientCleared = !Number.isFinite(ambientF) || ambientF <= (TEMP_ALARM_AMBIENT_F - TEMP_ALARM_HYSTERESIS_F);
+
+      if (!alarmActive) {
+        if (cpuCleared && ambientCleared) {
+          state.tempAlarm.active = false;
+        }
+        return;
+      }
+      if (state.tempAlarm.active) return;
+
+      const now = Date.now();
+      if ((now - Number(state.tempAlarm.lastPopupMs || 0)) < TEMP_ALARM_COOLDOWN_MS) {
+        return;
+      }
+
+      state.tempAlarm.active = true;
+      state.tempAlarm.lastPopupMs = now;
+      const parts = [];
+      if (cpuAlarm) {
+        parts.push(`CPU package ${cpuF.toFixed(1)}°F`);
+      }
+      if (ambientAlarm) {
+        parts.push(`Ambient ${ambientF.toFixed(1)}°F`);
+      }
+      const summary = parts.join(' | ') || 'High temperature detected';
+      logActivity(`Temperature alarm: ${summary}`, 'warn', 'temp-alarm');
+      showTemperatureAlarmPopup(
+        `High temperature detected.\n\n${summary}\n\nCheck airflow in the Pelican case.`
+      );
+    }
+
     function getDongleTelemetry(stats) {
       const dongles = (stats && stats.dongles) ? stats.dongles : {};
       const present = Number(dongles.present_count);
@@ -11298,18 +11447,10 @@
 
       const hasStats = Boolean(state.systemStats);
       const stats = state.systemStats || {};
-      if (els.sitrepHostname) {
-        const host = String(stats.hostname || '').trim();
-        els.sitrepHostname.textContent = host || '--';
-      }
-      const cpuF = Number.isFinite(stats.cpu_temp_c) ? (stats.cpu_temp_c * 9 / 5 + 32) : null;
-      const gpuF = Number.isFinite(stats.gpu_temp_c) ? (stats.gpu_temp_c * 9 / 5 + 32) : null;
-      if (els.sitrepCpuTemp) {
-        els.sitrepCpuTemp.textContent = Number.isFinite(cpuF) ? `${cpuF.toFixed(1)}°F` : '--';
-      }
-      if (els.sitrepGpuTemp) {
-        els.sitrepGpuTemp.textContent = Number.isFinite(gpuF) ? `${gpuF.toFixed(1)}°F` : '--';
-      }
+      const cpuF = tempFfromC(Number(stats.cpu_temp_c));
+      const ambientF = ambientTempFfromStats(stats);
+      renderTemperatureValue(els.sitrepCpuTemp, cpuF, TEMP_WARN_CPU_F, TEMP_ALARM_CPU_F);
+      renderTemperatureValue(els.sitrepGpuTemp, ambientF, TEMP_WARN_AMBIENT_F, TEMP_ALARM_AMBIENT_F);
       if (els.sitrepCpuUsage) {
         els.sitrepCpuUsage.textContent = Number.isFinite(stats.cpu_usage) ? `${stats.cpu_usage.toFixed(0)}%` : '--';
       }
@@ -11516,18 +11657,11 @@
       if (!stats || stats.ok === false) return;
       state.systemStats = stats;
       if (els.sysUptimeTile) els.sysUptimeTile.textContent = formatUptime(stats.uptime_s);
-      if (els.sysHostname) {
-        const host = String(stats.hostname || '').trim();
-        els.sysHostname.textContent = host || '--';
-      }
-      const cpuF = Number.isFinite(stats.cpu_temp_c) ? (stats.cpu_temp_c * 9 / 5 + 32) : null;
-      const gpuF = Number.isFinite(stats.gpu_temp_c) ? (stats.gpu_temp_c * 9 / 5 + 32) : null;
-      if (els.sysCpuTemp) {
-        els.sysCpuTemp.textContent = Number.isFinite(cpuF) ? `${cpuF.toFixed(1)}°F` : '--';
-      }
-      if (els.sysGpuTemp) {
-        els.sysGpuTemp.textContent = Number.isFinite(gpuF) ? `${gpuF.toFixed(1)}°F` : '--';
-      }
+      const cpuF = tempFfromC(Number(stats.cpu_temp_c));
+      const ambientF = ambientTempFfromStats(stats);
+      renderTemperatureValue(els.sysCpuTemp, cpuF, TEMP_WARN_CPU_F, TEMP_ALARM_CPU_F);
+      renderTemperatureValue(els.sysGpuTemp, ambientF, TEMP_WARN_AMBIENT_F, TEMP_ALARM_AMBIENT_F);
+      evaluateTemperatureAlarm(cpuF, ambientF);
       if (els.sysCpuUsage) {
         els.sysCpuUsage.textContent = Number.isFinite(stats.cpu_usage) ? `${stats.cpu_usage.toFixed(0)}%` : '--';
       }

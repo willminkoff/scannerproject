@@ -1,5 +1,6 @@
 """System stats helpers for host/PC health telemetry."""
 import os
+import re
 import time
 import shutil
 import subprocess
@@ -26,6 +27,135 @@ def _read_first_line(path: str):
             return f.readline().strip()
     except FileNotFoundError:
         return None
+
+
+def _parse_temp_c(value) -> float | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        temp = float(text)
+    except Exception:
+        return None
+    # Linux thermal sysfs often reports milli-Celsius.
+    if abs(temp) > 1000:
+        temp = temp / 1000.0
+    if temp < -40.0 or temp > 180.0:
+        return None
+    return float(temp)
+
+
+def _read_temp_c_file(path: str):
+    return _parse_temp_c(_read_first_line(path))
+
+
+def _iter_hwmon_temp_entries(expected_name: str | None = None):
+    root = "/sys/class/hwmon"
+    if not os.path.isdir(root):
+        return
+    for node in sorted(os.listdir(root)):
+        hw_path = os.path.join(root, node)
+        name = str(_read_first_line(os.path.join(hw_path, "name")) or "").strip()
+        if expected_name and name != expected_name:
+            continue
+        try:
+            files = sorted(os.listdir(hw_path))
+        except Exception:
+            continue
+        for filename in files:
+            match = re.fullmatch(r"temp(\d+)_input", filename)
+            if not match:
+                continue
+            idx = match.group(1)
+            temp_c = _read_temp_c_file(os.path.join(hw_path, filename))
+            if temp_c is None:
+                continue
+            label = _read_first_line(os.path.join(hw_path, f"temp{idx}_label")) or f"temp{idx}"
+            yield {
+                "hwmon": node,
+                "name": name,
+                "label": str(label).strip(),
+                "temp_c": float(temp_c),
+            }
+
+
+def _read_hwmon_label_temp_c(expected_name: str, expected_label: str):
+    want = str(expected_label or "").strip().lower()
+    if not want:
+        return None
+    for row in _iter_hwmon_temp_entries(expected_name=expected_name):
+        label = str(row.get("label") or "").strip().lower()
+        if label == want:
+            return row.get("temp_c")
+    return None
+
+
+def _read_coretemp_package_temp_c():
+    package_candidates = []
+    for row in _iter_hwmon_temp_entries(expected_name="coretemp"):
+        label = str(row.get("label") or "").strip().lower()
+        if label.startswith("package id"):
+            temp = row.get("temp_c")
+            if temp is not None:
+                package_candidates.append(float(temp))
+    if package_candidates:
+        return max(package_candidates)
+    return None
+
+
+def _read_thermal_zone_temp_c_by_type(*type_names: str):
+    wanted = {str(name or "").strip().lower() for name in type_names if str(name or "").strip()}
+    if not wanted:
+        return None
+    root = "/sys/class/thermal"
+    if not os.path.isdir(root):
+        return None
+    for node in sorted(os.listdir(root)):
+        if not node.startswith("thermal_zone"):
+            continue
+        zone_path = os.path.join(root, node)
+        zone_type = str(_read_first_line(os.path.join(zone_path, "type")) or "").strip().lower()
+        if zone_type not in wanted:
+            continue
+        temp_c = _read_temp_c_file(os.path.join(zone_path, "temp"))
+        if temp_c is not None:
+            return float(temp_c)
+    return None
+
+
+def _read_cpu_temp_with_source() -> tuple[float | None, str]:
+    temp = _read_coretemp_package_temp_c()
+    if temp is not None:
+        return float(temp), "hwmon:coretemp:package"
+
+    temp = _read_thermal_zone_temp_c_by_type("x86_pkg_temp", "tcpu", "cpu", "cpu-thermal")
+    if temp is not None:
+        return float(temp), "thermal_zone"
+
+    # Last-resort fallback for platforms where zone0 is the CPU sensor (Pi, etc).
+    temp = _read_temp_c_file("/sys/class/thermal/thermal_zone0/temp")
+    if temp is not None:
+        return float(temp), "thermal_zone0"
+    return None, ""
+
+
+def _read_ambient_temp_with_source() -> tuple[float | None, str]:
+    temp = _read_hwmon_label_temp_c("dell_ddv", "Ambient")
+    if temp is not None:
+        return float(temp), "hwmon:dell_ddv:Ambient"
+
+    # Fallbacks for non-Dell systems that expose an explicit ambient label.
+    for driver in ("acpitz", "nct6775", "it87"):
+        temp = _read_hwmon_label_temp_c(driver, "Ambient")
+        if temp is not None:
+            return float(temp), f"hwmon:{driver}:Ambient"
+
+    temp = _read_thermal_zone_temp_c_by_type("ambient")
+    if temp is not None:
+        return float(temp), "thermal_zone:ambient"
+    return None, ""
 
 
 def _expected_rtl_serials():
@@ -117,13 +247,8 @@ def read_rtl_dongle_health():
 
 
 def read_cpu_temp_c():
-    line = _read_first_line("/sys/class/thermal/thermal_zone0/temp")
-    if not line:
-        return None
-    try:
-        return float(line) / 1000.0
-    except ValueError:
-        return None
+    temp, _source = _read_cpu_temp_with_source()
+    return temp
 
 
 def read_gpu_temp_c():
@@ -293,12 +418,17 @@ def get_system_stats():
         hostname = socket.gethostname()
     except Exception:
         hostname = ""
+    cpu_temp_c, cpu_temp_source = _read_cpu_temp_with_source()
+    ambient_temp_c, ambient_temp_source = _read_ambient_temp_with_source()
     return {
         "ok": True,
         "timestamp": time.time(),
         "hostname": hostname,
         "cpu_count": int(os.cpu_count() or 0),
-        "cpu_temp_c": read_cpu_temp_c(),
+        "cpu_temp_c": cpu_temp_c,
+        "cpu_temp_source": cpu_temp_source,
+        "ambient_temp_c": ambient_temp_c,
+        "ambient_temp_source": ambient_temp_source,
         "gpu_temp_c": read_gpu_temp_c(),
         "uptime_s": read_uptime_s(),
         "cpu_usage": read_cpu_usage_percent(),
