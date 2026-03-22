@@ -103,7 +103,7 @@ export default function MainScreen() {
   const hasAnalog = Boolean(analogMount);
   const hasDigital = Boolean(digitalMount);
   const defaultSource =
-    state.mode === "hp" || state.mode === "expert"
+    state.mode === "expert"
       ? hasDigital
         ? "digital"
         : "analog"
@@ -368,13 +368,13 @@ export default function MainScreen() {
     }
 
     if (action === "advanced") {
-      setHint("Advanced options are still being wired in HP3.");
+      setHint("Advanced options are still being wired in SB3.");
       setSubmenuRow("");
       return;
     }
 
     if (action === "prev") {
-      setHint("Previous-channel stepping is not wired yet in HP3.");
+      setHint("Previous-channel stepping is not wired yet in SB3.");
       setSubmenuRow("");
       return;
     }
@@ -416,7 +416,7 @@ export default function MainScreen() {
       {
         id: "atten",
         label: "Atten",
-        onClick: () => setHint("Attenuation toggle is not wired yet in HP3."),
+        onClick: () => setHint("Attenuation toggle is not wired yet in SB3."),
       },
       {
         id: "gps",
@@ -559,7 +559,7 @@ export default function MainScreen() {
         <button
           type="button"
           className="hp2-feature-btn"
-          onClick={() => setHint("Replay is not wired yet in HP3.")}
+          onClick={() => setHint("Replay is not wired yet in SB3.")}
           disabled={working}
         >
           Replay
@@ -567,7 +567,7 @@ export default function MainScreen() {
         <button
           type="button"
           className="hp2-feature-btn"
-          onClick={() => setHint("Recording controls are not wired yet in HP3.")}
+          onClick={() => setHint("Recording controls are not wired yet in SB3.")}
           disabled={working}
         >
           Record

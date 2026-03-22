@@ -34,15 +34,15 @@ async function request(path, { method = "GET", body } = {}) {
 }
 
 export function getHpState() {
-  return request("/api/hp/state");
+  return request("/api/scan/state");
 }
 
 export function saveHpState(state) {
-  return request("/api/hp/state", { method: "POST", body: state });
+  return request("/api/scan/state", { method: "POST", body: state });
 }
 
 export function getServiceTypes() {
-  return request("/api/hp/service-types");
+  return request("/api/scan/service-types");
 }
 
 function buildQuery(params = {}) {
@@ -58,20 +58,20 @@ function buildQuery(params = {}) {
 }
 
 export function getFavoritesWizardCountries() {
-  return request("/api/hp/favorites-wizard/countries");
+  return request("/api/scan/favorites-wizard/countries");
 }
 
 export function getFavoritesWizardStates(countryId) {
-  return request(`/api/hp/favorites-wizard/states${buildQuery({ country_id: countryId })}`);
+  return request(`/api/scan/favorites-wizard/states${buildQuery({ country_id: countryId })}`);
 }
 
 export function getFavoritesWizardCounties(stateId) {
-  return request(`/api/hp/favorites-wizard/counties${buildQuery({ state_id: stateId })}`);
+  return request(`/api/scan/favorites-wizard/counties${buildQuery({ state_id: stateId })}`);
 }
 
 export function getFavoritesWizardSystems({ stateId, countyId, systemType, scope, q }) {
   return request(
-    `/api/hp/favorites-wizard/systems${buildQuery({
+    `/api/scan/favorites-wizard/systems${buildQuery({
       state_id: stateId,
       county_id: countyId,
       system_type: systemType,
@@ -83,7 +83,7 @@ export function getFavoritesWizardSystems({ stateId, countyId, systemType, scope
 
 export function getFavoritesWizardChannels({ systemType, systemId, q, limit = 500 }) {
   return request(
-    `/api/hp/favorites-wizard/channels${buildQuery({
+    `/api/scan/favorites-wizard/channels${buildQuery({
       system_type: systemType,
       system_id: systemId,
       q,
@@ -93,26 +93,26 @@ export function getFavoritesWizardChannels({ systemType, systemId, q, limit = 50
 }
 
 export function getHpAvoids() {
-  return request("/api/hp/avoids");
+  return request("/api/scan/avoids");
 }
 
 export function clearHpAvoids() {
-  return request("/api/hp/avoids", { method: "POST", body: { action: "clear" } });
+  return request("/api/scan/avoids", { method: "POST", body: { action: "clear" } });
 }
 
 export function removeHpAvoid(system) {
-  return request("/api/hp/avoids", {
+  return request("/api/scan/avoids", {
     method: "POST",
     body: { action: "remove", system },
   });
 }
 
 export function getFavoritesSyncStatus() {
-  return request("/api/hp/favorites-sync");
+  return request("/api/scan/favorites-sync");
 }
 
 export function syncFavoritesToProfile(payload = {}) {
-  return request("/api/hp/favorites-sync", {
+  return request("/api/scan/favorites-sync", {
     method: "POST",
     body: { action: "sync", ...(payload || {}) },
   });
@@ -127,15 +127,15 @@ export function setMode(mode) {
 }
 
 export function holdScan(payload = {}) {
-  return request("/api/hp/hold", { method: "POST", body: payload });
+  return request("/api/scan/hold", { method: "POST", body: payload });
 }
 
 export function nextScan(payload = {}) {
-  return request("/api/hp/next", { method: "POST", body: payload });
+  return request("/api/scan/next", { method: "POST", body: payload });
 }
 
 export function avoid(payload = {}) {
-  return request("/api/hp/avoid", { method: "POST", body: payload });
+  return request("/api/scan/avoid", { method: "POST", body: payload });
 }
 
 const hpApi = {

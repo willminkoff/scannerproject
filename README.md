@@ -6,6 +6,24 @@ Scanner control UI and configuration for RTL-SDR dual-dongle airband/GMRS/WX rec
 
 **Current Architecture**: Refactored (Jan 2026) from 1,928-line monolith to 11 modular Python units + static web assets.
 
+## Current Deployment Hardware (2026-03-22)
+
+Current scanner host (replacing the Pi runtime target):
+
+- Hostname: `Micro`
+- Platform: `Dell Inc. OptiPlex Micro 7020` (firmware `1.5.0`, 2024-06-06)
+- OS: `Ubuntu 24.04.4 LTS`, kernel `6.17.0-19-generic`, `x86_64`
+- CPU: `Intel Core i5-14500T` (`14` cores / `20` threads, up to `4.8 GHz`, `24 MiB` L3)
+- Memory: `15 GiB` RAM usable (`~16 GB installed`) + `4 GiB` swap
+- Storage: `WD PC SN740 NVMe` (`238.5 GiB` usable on `nvme0n1`)
+- Network: Intel `I219-LM` Ethernet + Intel `AX211` Wi-Fi/Bluetooth
+- Graphics: Intel Alder Lake-S GT1 iGPU
+- SDR USB inventory: `4x RTL2838` dongles
+  - `00000002` (RTL-SDR Blog V4)
+  - `49571227` (Nooelec NESDR SMArt v5)
+  - `56919602` (Nooelec NESDR SMArt v5)
+  - `70613472` (Nooelec NESDR SMArt v5)
+
 ## Version 2.5 Lock (2026-02-21)
 
 - Added dongle health telemetry in Sitrep and Digital UI (`target=4`, `present`, `expected`, `missing`, `unexpected`, serial list).

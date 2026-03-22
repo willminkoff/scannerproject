@@ -3212,7 +3212,7 @@
     <div class="profile-sidecar-header">
       <div>
         <div class="profile-sidecar-title">Favorites Builder</div>
-        <div class="profile-sidecar-sub">Shared across SB3 + HP3. Build favorites lists here; scan filters apply separately.</div>
+        <div class="profile-sidecar-sub">Shared across SB3. Build favorites lists here; scan filters apply separately.</div>
       </div>
       <div class="hp3-builder-head-actions">
         <button class="action profile-sidecar-load" id="hp3-builder-refresh" type="button">Reload Data</button>
@@ -3319,7 +3319,7 @@
 
         <section class="hp-builder hp-wizard-stage hidden" data-hp-stage="location">
           <div class="hp-builder-head">Step 2 · Location</div>
-          <div class="hp-builder-sub">HP2 flow: select country, then state, then county before selecting systems.</div>
+          <div class="hp-builder-sub">Guided flow: select country, then state, then county before selecting systems.</div>
           <div class="hp-builder-grid">
             <label class="hp-filter-field">
               <span>Country</span>
@@ -4593,7 +4593,7 @@
         tone: 'ok',
         canSync: false,
         primary: 'Shared favorites source active',
-        secondary: 'Favorites saved in SB3 appear in HP3 automatically. Analog and digital targets scan independently.',
+        secondary: 'Favorites saved here apply to SB3 runtime automatically. Analog and digital targets scan independently.',
       };
       updateHpFavoritesSyncCard(
         els.favoritesSyncRowAnalog,
@@ -4627,7 +4627,7 @@
       state.hpFavoritesSyncBusy = true;
       renderHpFavoritesSyncUi();
       try {
-        const result = await postJSON('/api/hp/favorites-sync', { action: 'sync' }, { timeoutMs: 25000 });
+        const result = await postJSON('/api/scan/favorites-sync', { action: 'sync' }, { timeoutMs: 25000 });
         const after = result && result.after && typeof result.after === 'object'
           ? result.after
           : result;
@@ -5033,8 +5033,8 @@
       renderHpFiltersPanel();
       try {
         const [hpStateResult, serviceTypesResult] = await Promise.allSettled([
-          fetchJSON('/api/hp/state'),
-          fetchJSON('/api/hp/service-types'),
+          fetchJSON('/api/scan/state'),
+          fetchJSON('/api/scan/service-types'),
         ]);
         if (hpStateResult.status !== 'fulfilled') {
           throw hpStateResult.reason || new Error('Failed to load HP state');
@@ -5169,7 +5169,7 @@
       );
       renderHpFiltersPanel();
       try {
-        const result = await postJSON('/api/hp/state', payload, { timeoutMs: 20000 });
+        const result = await postJSON('/api/scan/state', payload, { timeoutMs: 20000 });
         const nextState = normalizeHpFiltersStatePayload(result);
         const hpState = result && result.state && typeof result.state === 'object' ? result.state : {};
         applyHpFavoritesState(hpState);
@@ -6148,7 +6148,7 @@
       }
       if (activeStep === 'location') {
         if (_toInt(builder.stateId, 0) <= 0) {
-          els.hpFavNextStep.textContent = 'Step 2: choose country/state/county to match HP2 flow.';
+          els.hpFavNextStep.textContent = 'Step 2: choose country/state/county in guided flow.';
           return;
         }
         els.hpFavNextStep.textContent = 'Location set. Continue to choose scope and systems.';
@@ -6424,7 +6424,7 @@
       builder.fullDbReviewError = '';
       renderHpFavoritesBuilder();
       try {
-        const payload = await fetchJSON(`/api/hp/scan-pool-preview?limit=${encodeURIComponent(String(HP_SCAN_POOL_PREVIEW_LIMIT))}`);
+        const payload = await fetchJSON(`/api/scan/pool-preview?limit=${encodeURIComponent(String(HP_SCAN_POOL_PREVIEW_LIMIT))}`);
         const entries = Array.isArray(payload && payload.entries) ? payload.entries : [];
         builder.fullDbReviewEntries = hpFavNormalizeEntries(entries);
         builder.fullDbReviewMeta = {
@@ -6490,7 +6490,7 @@
         const payload = buildHpFavoritesStatePayload(model, {
           mode: desiredMode,
         });
-        const result = await postJSON('/api/hp/state', payload, { timeoutMs: 20000 });
+        const result = await postJSON('/api/scan/state', payload, { timeoutMs: 20000 });
         const hpState = result && result.state && typeof result.state === 'object' ? result.state : result;
         applyHpFavoritesState(hpState);
         state.hpFilters.mode = desiredMode;
@@ -6519,7 +6519,7 @@
       }
       const builder = state.hpFavoritesBuilder;
       const countryId = _toInt(builder.countryId, 1) || 1;
-      const payload = await fetchJSON(`/api/hp/favorites-wizard/states?country_id=${encodeURIComponent(countryId)}`);
+      const payload = await fetchJSON(`/api/scan/favorites-wizard/states?country_id=${encodeURIComponent(countryId)}`);
       const states = Array.isArray(payload.states) ? payload.states : [];
       builder.states = states;
       if (!states.length) {
@@ -6545,7 +6545,7 @@
         builder.countyId = 0;
         return;
       }
-      const payload = await fetchJSON(`/api/hp/favorites-wizard/counties?state_id=${encodeURIComponent(stateId)}`);
+      const payload = await fetchJSON(`/api/scan/favorites-wizard/counties?state_id=${encodeURIComponent(stateId)}`);
       const counties = Array.isArray(payload.counties) ? payload.counties : [];
       builder.counties = counties;
       const countyId = _toInt(builder.countyId, 0);
@@ -6602,8 +6602,8 @@
       renderHpFavoritesBuilder();
       try {
         const [hpStatePayload, countriesPayload] = await Promise.all([
-          fetchJSON('/api/hp/state'),
-          fetchJSON('/api/hp/favorites-wizard/countries'),
+          fetchJSON('/api/scan/state'),
+          fetchJSON('/api/scan/favorites-wizard/countries'),
         ]);
         const hpState = hpStatePayload && hpStatePayload.state && typeof hpStatePayload.state === 'object'
           ? hpStatePayload.state
@@ -6625,7 +6625,7 @@
         builder.lastLoadedAt = Date.now();
         ensureHpFavoriteDepartmentSelection();
         if (!quiet) {
-          setHpFavStatus('Favorites loaded. SB3 and HP3 now share this same list data.');
+          setHpFavStatus('Favorites loaded for SB3 runtime.');
         }
       } catch (e) {
         setHpFavStatus(messageFromError(e, 'Failed to load favorites builder'), true);
@@ -6662,7 +6662,7 @@
         params.set('county_id', String(_toInt(builder.countyId, 0)));
         params.set('system_type', builder.systemType === 'analog' ? 'analog' : 'digital');
         params.set('scope', String(builder.scope || 'statewide'));
-        const payload = await fetchJSON(`/api/hp/favorites-wizard/systems?${params.toString()}`);
+        const payload = await fetchJSON(`/api/scan/favorites-wizard/systems?${params.toString()}`);
         builder.systems = Array.isArray(payload.systems) ? payload.systems : [];
         if (!builder.systems.length) {
           resetHpFavoriteSystemAndChannelPicks();
@@ -6709,7 +6709,7 @@
         params.set('system_type', builder.systemType === 'analog' ? 'analog' : 'digital');
         params.set('system_id', systemId);
         params.set('limit', '5000');
-        const payload = await fetchJSON(`/api/hp/favorites-wizard/channels?${params.toString()}`);
+        const payload = await fetchJSON(`/api/scan/favorites-wizard/channels?${params.toString()}`);
         builder.channels = Array.isArray(payload.channels) ? payload.channels : [];
         builder.selectedDepartment = '';
         const departmentOptions = getHpFavoriteDepartmentOptions();
@@ -6911,7 +6911,7 @@
       try {
         for (const token of pending) {
           try {
-            const result = await postJSON('/api/hp/avoids', { action: 'add', system: token }, { timeoutMs: 20000 });
+            const result = await postJSON('/api/scan/avoids', { action: 'add', system: token }, { timeoutMs: 20000 });
             if (Array.isArray(result && result.avoids)) {
               avoids = result.avoids
                 .map((item) => normalizeHpAvoidToken(item))
@@ -6963,7 +6963,7 @@
       builder.saving = true;
       renderHpFavoritesBuilder();
       try {
-        const result = await postJSON('/api/hp/avoids', { action: 'clear' }, { timeoutMs: 20000 });
+        const result = await postJSON('/api/scan/avoids', { action: 'clear' }, { timeoutMs: 20000 });
         const avoids = Array.isArray(result && result.avoids) ? result.avoids : [];
         state.hpFilters.avoids = avoids
           .map((item) => normalizeHpAvoidToken(item))
@@ -7116,7 +7116,7 @@
         els.hp3BuilderOverlay.classList.add('hidden');
       }
       if (refreshAfterClose) {
-        refresh().catch((e) => console.error('Refresh after HP3 builder close failed:', e));
+        refresh().catch((e) => console.error('Refresh after sidecar close failed:', e));
         loadHpFiltersPanel({ quiet: true }).catch((e) => console.error('HP filters refresh after builder close failed:', e));
       }
       return true;

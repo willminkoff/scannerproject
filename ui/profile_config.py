@@ -162,6 +162,11 @@ def save_profiles_registry(profiles: List[Dict]) -> None:
 
 def load_profiles_registry() -> List[Dict]:
     default_profiles = _registry_payload_from_profiles(PROFILES)
+    default_by_id = {
+        str(row.get("id") or "").strip(): row
+        for row in default_profiles
+        if str(row.get("id") or "").strip()
+    }
     if not os.path.exists(PROFILES_REGISTRY_PATH):
         save_profiles_registry(default_profiles)
         return default_profiles
@@ -193,6 +198,21 @@ def load_profiles_registry() -> List[Dict]:
                 })
             if cleaned:
                 changed = False
+                # Keep built-in IDs pinned to their canonical file paths so
+                # runtime syncs cannot accidentally alias them to managed files.
+                for row in cleaned:
+                    pid = str(row.get("id") or "").strip()
+                    default_row = default_by_id.get(pid)
+                    if not default_row:
+                        continue
+                    expected_path = str(default_row.get("path") or "").strip()
+                    expected_airband = bool(default_row.get("airband"))
+                    if expected_path and row.get("path") != expected_path:
+                        row["path"] = expected_path
+                        changed = True
+                    if bool(row.get("airband")) != expected_airband:
+                        row["airband"] = expected_airband
+                        changed = True
                 for row in default_profiles:
                     pid = str(row.get("id") or "").strip()
                     if not pid or pid in seen_ids:

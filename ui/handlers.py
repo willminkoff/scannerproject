@@ -1671,6 +1671,28 @@ def _parse_time_ts(value: str) -> float:
         return 0.0
 
 
+def _canonical_scan_api_path(path: str) -> str:
+    """Normalize preferred `/api/scan/*` routes to current handler paths."""
+    token = str(path or "").strip()
+    if not token:
+        return ""
+    if token == "/api/scan/mode":
+        return "/api/mode"
+    if token.startswith("/api/scan/favorites-wizard/"):
+        return "/api/hp/" + token[len("/api/scan/") :]
+    scan_aliases = {
+        "/api/scan/state": "/api/hp/state",
+        "/api/scan/pool-preview": "/api/hp/scan-pool-preview",
+        "/api/scan/service-types": "/api/hp/service-types",
+        "/api/scan/avoids": "/api/hp/avoids",
+        "/api/scan/favorites-sync": "/api/hp/favorites-sync",
+        "/api/scan/hold": "/api/hp/hold",
+        "/api/scan/next": "/api/hp/next",
+        "/api/scan/avoid": "/api/hp/avoid",
+    }
+    return scan_aliases.get(token, token)
+
+
 def _clone_hit_items(items: list[dict]) -> list[dict]:
     return [dict(item or {}) for item in (items or [])]
 
@@ -2023,7 +2045,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         """Handle GET requests."""
         u = urlparse(self.path)
-        p = u.path
+        p = _canonical_scan_api_path(u.path)
         q = parse_qs(u.query or "")
         transcode = self._parse_optional_bool_query(q, "transcode")
         if p == "/":
@@ -2881,7 +2903,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         """Handle POST requests."""
 
-        p = urlparse(self.path).path
+        p = _canonical_scan_api_path(urlparse(self.path).path)
         length = int(self.headers.get("Content-Length", "0") or "0")
         raw = self.rfile.read(length).decode("utf-8", errors="ignore")
         ctype = (self.headers.get("Content-Type") or "").lower()
@@ -3189,7 +3211,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not target:
                     return self._send(
                         409,
-                        json.dumps({"ok": False, "error": "no schedulable HP systems"}),
+                        json.dumps({"ok": False, "error": "no schedulable systems"}),
                         "application/json; charset=utf-8",
                     )
                 ok, err, snapshot = manager.setScheduler(
@@ -3217,7 +3239,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not systems:
                     return self._send(
                         409,
-                        json.dumps({"ok": False, "error": "no schedulable HP systems"}),
+                        json.dumps({"ok": False, "error": "no schedulable systems"}),
                         "application/json; charset=utf-8",
                     )
                 if active in systems:
@@ -3249,13 +3271,13 @@ class Handler(BaseHTTPRequestHandler):
             if not active:
                 return self._send(
                     409,
-                    json.dumps({"ok": False, "error": "no active HP system to avoid"}),
+                    json.dumps({"ok": False, "error": "no active system to avoid"}),
                     "application/json; charset=utf-8",
                 )
             if not controller.add_hp_avoid_system(active):
                 return self._send(
                     400,
-                    json.dumps({"ok": False, "error": "invalid active HP system"}),
+                    json.dumps({"ok": False, "error": "invalid active system"}),
                     "application/json; charset=utf-8",
                 )
             ok, err, snapshot = manager.setScheduler(

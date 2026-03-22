@@ -4218,17 +4218,10 @@ class DigitalManager:
         system = str(system_name or "").strip()
         if not system:
             return 0
-        channels: list[int] = []
-        pool_key = self._scheduler_pool_system_channels_lower.get(system.lower())
-        if pool_key:
-            channels = self._scheduler_pool_system_channels.get(pool_key) or []
-        elif system in self._scheduler_pool_system_channels:
-            channels = self._scheduler_pool_system_channels.get(system) or []
-        if not channels:
-            try:
-                channels = self._resolve_scheduler_system_control_channels(profile_id, system)
-            except Exception:
-                channels = []
+        try:
+            channels: list[int] = self._resolve_scheduler_system_control_channels(profile_id, system)
+        except Exception:
+            channels = []
         seen: set[int] = set()
         for hz in channels:
             try:
@@ -4860,12 +4853,6 @@ class DigitalManager:
         system = str(system_name or "").strip()
         if not system:
             return []
-        if get_current_scan_mode() in {"hp", "expert"}:
-            pool_key = self._scheduler_pool_system_channels_lower.get(system.lower())
-            if pool_key:
-                channels = self._scheduler_pool_system_channels.get(pool_key) or []
-                if channels:
-                    return list(channels)
         profile_dir = ""
         read_active_profile_dir = getattr(self._adapter, "_read_active_profile_dir", None)
         if callable(read_active_profile_dir):

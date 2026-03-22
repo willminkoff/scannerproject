@@ -1,4 +1,4 @@
-"""Scan mode controller for HP and Expert pool modes."""
+"""Scan mode controller for SB3 scan-pool workflows."""
 from __future__ import annotations
 
 import json
@@ -14,7 +14,7 @@ from .hp_scan_pool import ScanPoolBuilder, haversine_miles
 from .zip_lookup import resolve_postal_to_lat_lon
 
 
-_VALID_MODES = {"hp", "expert"}
+_VALID_MODES = {"expert"}
 _DEFAULT_DB_PATH = str(Path(HPDB_DB_PATH).expanduser().resolve())
 _DEFAULT_HP_AVOIDS_PATH = str(Path(HP_AVOIDS_PATH).expanduser())
 
@@ -30,7 +30,7 @@ def _sites_per_system_limit() -> int:
 def _normalize_mode_token(mode: str) -> str:
     token = str(mode or "").strip().lower()
     if token in {"hp3", "hp"}:
-        return "hp"
+        return "expert"
     if token in {"sb3", "expert"}:
         return "expert"
     if token in {"profile", "legacy"}:
@@ -51,7 +51,7 @@ class ScanModeController:
         db_path: str = _DEFAULT_DB_PATH,
         avoids_path: str = _DEFAULT_HP_AVOIDS_PATH,
     ):
-        self.mode = "hp"
+        self.mode = "expert"
         self._db_path = str(Path(db_path).expanduser().resolve())
         self._hp_avoids_path = str(Path(avoids_path).expanduser())
         self._hp_builder = ScanPoolBuilder(self._db_path)
@@ -64,7 +64,7 @@ class ScanModeController:
     def set_mode(self, mode: str):
         next_mode = _normalize_mode_token(mode)
         if next_mode not in _VALID_MODES:
-            raise ValueError("mode must be HP3 or SB3 (aliases: hp/expert)")
+            raise ValueError("mode must be SB3/expert")
         with self._lock:
             self.mode = next_mode
 

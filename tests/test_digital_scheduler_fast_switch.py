@@ -179,10 +179,9 @@ class SchedulerFastSwitchTests(unittest.TestCase):
         mgr._scheduler_mode = "timeslice_multi_system"
         mgr._scheduler_systems = ["alpha", "bravo"]
         mgr._scheduler_fast_lock_timeout_ms = 1000
-        mgr._scheduler_pool_system_channels = {
-            "alpha": [769_831_250, 770_081_250, 770_331_250, 770_581_250],
-        }
-        mgr._scheduler_pool_system_channels_lower = {"alpha": "alpha"}
+        mgr._resolve_scheduler_system_control_channels = mock.Mock(
+            return_value=[769_831_250, 770_081_250, 770_331_250, 770_581_250]
+        )
 
         with mock.patch.object(digital, "_DIGITAL_SOURCE_ROTATION_DELAY_MS", 250):
             timeout = mgr._scheduler_lock_timeout_ms_locked(

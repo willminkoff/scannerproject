@@ -26,7 +26,7 @@ const initialState = {
   liveStatus: {},
   hpAvoids: [],
   currentScreen: SCREENS.MAIN,
-  mode: "hp",
+  mode: "expert",
   sseConnected: false,
   loading: true,
   working: false,
@@ -162,7 +162,7 @@ function parseHpStateResponse(payload) {
     payload && typeof payload.state === "object" && payload.state !== null
       ? payload.state
       : {};
-  const mode = String(payload?.mode || "hp").toLowerCase();
+  const mode = String(payload?.mode || "expert").toLowerCase();
   return { hpState, mode };
 }
 
@@ -331,8 +331,8 @@ export function UIProvider({ children }) {
     dispatch({ type: "SET_ERROR", payload: "" });
     try {
       const response = await hpApi.setMode(mode);
-      const nextMode = String(response?.mode || mode || "hp").toLowerCase();
-      const modeLabel = nextMode === "expert" ? "SB3" : nextMode === "hp" ? "HP3" : nextMode;
+      const nextMode = String(response?.mode || mode || "expert").toLowerCase();
+      const modeLabel = nextMode === "expert" ? "SB3" : nextMode;
       dispatch({ type: "SET_MODE", payload: nextMode });
       dispatch({ type: "SET_MESSAGE", payload: `Mode set to ${modeLabel}` });
       return response;

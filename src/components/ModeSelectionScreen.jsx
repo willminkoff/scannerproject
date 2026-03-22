@@ -5,15 +5,15 @@ import Header from "./Shared/Header";
 
 export default function ModeSelectionScreen() {
   const { state, setMode, navigate } = useUI();
-  const [mode, setLocalMode] = useState("hp");
+  const [mode, setLocalMode] = useState("expert");
 
   useEffect(() => {
-    setLocalMode(state.mode || "hp");
+    setLocalMode(state.mode || "expert");
   }, [state.mode]);
 
   const handleSave = async () => {
     try {
-      await setMode(mode);
+      await setMode("expert");
       navigate(SCREENS.MENU);
     } catch {
       // Context error is shown globally.
@@ -29,17 +29,6 @@ export default function ModeSelectionScreen() {
       />
 
       <div className="list">
-        <label className="row card">
-          <span>HP3 Mode</span>
-          <input
-            type="radio"
-            name="scan-mode"
-            value="hp"
-            checked={mode === "hp"}
-            onChange={(e) => setLocalMode(e.target.value)}
-          />
-        </label>
-
         <label className="row card">
           <span>SB3 Mode</span>
           <input

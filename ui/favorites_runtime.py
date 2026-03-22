@@ -349,7 +349,7 @@ def _switch_profile_if_needed(target: str, desired_profile_id: str) -> tuple[boo
 def _mode_token(value: Any) -> str:
     token = str(value or "").strip().lower()
     if token in {"hp", "hp3"}:
-        return "hp"
+        return "expert"
     if token in {"expert", "sb3", "legacy", "profile"}:
         return "expert"
     return "expert"

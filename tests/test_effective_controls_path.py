@@ -435,6 +435,49 @@ class RecentRegressionTests(unittest.TestCase):
             self.assertIn("gmrs_frs_murs", by_id)
             self.assertFalse(by_id["gmrs_frs_murs"]["airband"])
 
+    def test_load_profiles_registry_restores_builtin_profile_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            registry_path = os.path.join(tmp, "profiles.json")
+            with open(registry_path, "w", encoding="utf-8") as handle:
+                json.dump(
+                    {
+                        "profiles": [
+                            {
+                                "id": "wx",
+                                "label": "WX (162.550)",
+                                "path": "/tmp/rtl_airband_hp3_favorites_ground.conf",
+                                "airband": True,
+                            },
+                            {
+                                "id": "hp3_favorites_ground",
+                                "label": "HP3 Favorites Ground",
+                                "path": "/tmp/rtl_airband_hp3_favorites_ground.conf",
+                                "airband": False,
+                            },
+                        ]
+                    },
+                    handle,
+                )
+
+            builtins = [
+                ("wx", "WX (162.550)", "/tmp/rtl_airband_wx.conf"),
+                ("none_ground", "No Profile", "/tmp/rtl_airband_none_ground.conf"),
+            ]
+
+            with mock.patch.object(profile_config, "PROFILES_DIR", tmp), mock.patch.object(
+                profile_config, "PROFILES_REGISTRY_PATH", registry_path
+            ), mock.patch.object(profile_config, "PROFILES", builtins):
+                loaded = profile_config.load_profiles_registry()
+
+            by_id = {row["id"]: row for row in loaded}
+            self.assertIn("wx", by_id)
+            self.assertEqual("/tmp/rtl_airband_wx.conf", by_id["wx"]["path"])
+            self.assertFalse(by_id["wx"]["airband"])
+            self.assertEqual(
+                "/tmp/rtl_airband_hp3_favorites_ground.conf",
+                by_id["hp3_favorites_ground"]["path"],
+            )
+
     def test_save_hp_state_with_sync_reports_sync_errors(self):
         state = HPState.default()
         with mock.patch.object(state, "save", return_value=None), mock.patch.object(
