@@ -1248,7 +1248,17 @@ def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
     time_only = _row_value(row, _EVENT_TIME_ONLY_KEYS)
     freq = _row_value(row, _EVENT_FREQ_KEYS)
     site = _row_value(row, _EVENT_SITE_KEYS)
-    to_val = _row_value(row, ("to", "from"))
+    # SDRTrunk call-event CSV rows typically emit talkgroup ID in the FROM column
+    # and unit/site-ish metadata in TO (often parenthetical). Prefer FROM for TGID.
+    from_val = _row_value(row, ("from",))
+    to_val = _row_value(row, ("to",))
+    if from_val:
+        if not label:
+            label = from_val
+        if not tgid:
+            m = re.search(r"\b(\d{1,7})\b", from_val)
+            if m:
+                tgid = _normalize_tgid(m.group(1))
     if to_val:
         if not label:
             label = to_val

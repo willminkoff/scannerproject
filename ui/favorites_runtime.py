@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
 import os
@@ -75,6 +76,10 @@ _LAST_SIGNATURE = ""
 _LAST_DIGITAL_SIGNATURE = ""
 _LAST_RESULT: dict[str, Any] = {"ok": True, "changed": False}
 _LAST_DIGITAL_RESULT: dict[str, Any] = {"ok": True, "changed": False}
+_LAST_ACTIVE_POOL_SIGNATURE = ""
+_LAST_ACTIVE_POOL_APPLIED_AT_MS = 0
+_LAST_ACTIVE_POOL_MODE = "expert"
+_LAST_ACTIVE_POOL: dict[str, Any] = {"trunked_sites": [], "conventional": []}
 
 
 def _profile_path_for(profile_id: str) -> str:
@@ -355,6 +360,59 @@ def _mode_token(value: Any) -> str:
     return "expert"
 
 
+def _sanitize_scan_pool(pool: Any) -> dict[str, Any]:
+    if not isinstance(pool, dict):
+        return {"trunked_sites": [], "conventional": []}
+    try:
+        normalized = json.loads(json.dumps(pool))
+    except Exception:
+        normalized = dict(pool)
+    trunked = normalized.get("trunked_sites")
+    conventional = normalized.get("conventional")
+    normalized["trunked_sites"] = trunked if isinstance(trunked, list) else []
+    normalized["conventional"] = conventional if isinstance(conventional, list) else []
+    return normalized
+
+
+def _active_pool_signature(mode: str, pool: dict[str, Any]) -> str:
+    payload = {
+        "mode": _mode_token(mode),
+        "pool": _sanitize_scan_pool(pool),
+    }
+    serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(serialized.encode("utf-8", errors="ignore")).hexdigest()
+
+
+def _set_last_runtime_scan_pool_locked(mode: str, pool: dict[str, Any]) -> str:
+    global _LAST_ACTIVE_POOL
+    global _LAST_ACTIVE_POOL_MODE
+    global _LAST_ACTIVE_POOL_SIGNATURE
+    global _LAST_ACTIVE_POOL_APPLIED_AT_MS
+    normalized = _sanitize_scan_pool(pool)
+    signature = _active_pool_signature(mode, normalized)
+    _LAST_ACTIVE_POOL = normalized
+    _LAST_ACTIVE_POOL_MODE = _mode_token(mode)
+    _LAST_ACTIVE_POOL_SIGNATURE = signature
+    _LAST_ACTIVE_POOL_APPLIED_AT_MS = int(time.time() * 1000)
+    return signature
+
+
+def get_last_runtime_scan_pool() -> dict[str, Any]:
+    with _SYNC_LOCK:
+        pool = _sanitize_scan_pool(_LAST_ACTIVE_POOL)
+        snapshot_ready = bool(str(_LAST_ACTIVE_POOL_SIGNATURE or "").strip())
+        entry_count = int(len(pool.get("trunked_sites") or []) + len(pool.get("conventional") or []))
+        return {
+            "ok": True,
+            "mode": str(_LAST_ACTIVE_POOL_MODE or "expert"),
+            "pool": pool,
+            "signature": str(_LAST_ACTIVE_POOL_SIGNATURE or ""),
+            "applied_at_ms": int(_LAST_ACTIVE_POOL_APPLIED_AT_MS or 0),
+            "snapshot_ready": bool(snapshot_ready),
+            "entry_count": entry_count,
+        }
+
+
 def _normalize_system_token(row: dict[str, Any]) -> str:
     system_id = str(row.get("system_id") or "").strip()
     site_id = str(row.get("site_id") or "").strip()
@@ -517,15 +575,33 @@ def _ensure_managed_digital_profile() -> tuple[bool, str]:
     return False, str(err or "failed creating managed digital profile")
 
 
-def sync_scan_pool_to_digital_runtime(force: bool = False) -> dict[str, Any]:
+def sync_scan_pool_to_digital_runtime(
+    force: bool = False,
+    *,
+    mode: str | None = None,
+    pool: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Apply active scan-pool trunked systems/talkgroups to managed digital profile."""
     global _LAST_DIGITAL_SIGNATURE
     global _LAST_DIGITAL_RESULT
 
     with _SYNC_LOCK:
-        controller = get_scan_mode_controller()
-        mode = _mode_token(controller.get_mode())
-        pool = controller.get_scan_pool() if mode in {"hp", "expert"} else {"trunked_sites": []}
+        if pool is None or mode is None:
+            controller = get_scan_mode_controller()
+            resolved_mode = _mode_token(mode if mode is not None else controller.get_mode())
+            resolved_pool = (
+                controller.get_scan_pool()
+                if resolved_mode in {"hp", "expert"}
+                else {"trunked_sites": [], "conventional": []}
+            )
+        else:
+            resolved_mode = _mode_token(mode)
+            resolved_pool = pool
+        mode = resolved_mode
+        pool = _sanitize_scan_pool(resolved_pool)
+        active_pool_signature = _set_last_runtime_scan_pool_locked(mode, pool)
+        active_pool_applied_at_ms = int(_LAST_ACTIVE_POOL_APPLIED_AT_MS or 0)
+        active_pool_entry_count = int(len(pool.get("trunked_sites") or []) + len(pool.get("conventional") or []))
         systems, talkgroups, controls_flat, counts = _normalize_digital_pool(pool)
 
         signature_payload = {
@@ -553,6 +629,9 @@ def sync_scan_pool_to_digital_runtime(force: bool = False) -> dict[str, Any]:
             "compile_ok": True,
             "compile_error": "",
             "errors": [],
+            "scan_pool_signature": active_pool_signature,
+            "scan_pool_applied_at_ms": active_pool_applied_at_ms,
+            "scan_pool_entry_count": active_pool_entry_count,
         }
 
         if not systems or not talkgroups or not controls_flat:
@@ -647,13 +726,21 @@ def sync_scan_pool_to_digital_runtime(force: bool = False) -> dict[str, Any]:
 
 def sync_scan_pool_to_runtime(force: bool = False) -> dict[str, Any]:
     """Apply active scan pool to both analog and digital runtimes."""
-    analog = sync_scan_pool_to_analog_runtime(force=force)
-    digital = sync_scan_pool_to_digital_runtime(force=force)
+    controller = get_scan_mode_controller()
+    mode = _mode_token(controller.get_mode())
+    pool = controller.get_scan_pool() if mode in {"hp", "expert"} else {"trunked_sites": [], "conventional": []}
+    pool = _sanitize_scan_pool(pool)
+    analog = sync_scan_pool_to_analog_runtime(force=force, mode=mode, pool=pool)
+    digital = sync_scan_pool_to_digital_runtime(force=force, mode=mode, pool=pool)
+    pool_snapshot = get_last_runtime_scan_pool()
     payload = {
         "ok": bool(analog.get("ok", True)) and bool(digital.get("ok", True)),
         "changed": bool(analog.get("changed", False)) or bool(digital.get("changed", False)),
         "analog": analog,
         "digital": digital,
+        "scan_pool_signature": str(pool_snapshot.get("signature") or ""),
+        "scan_pool_applied_at_ms": int(pool_snapshot.get("applied_at_ms") or 0),
+        "scan_pool_entry_count": int(pool_snapshot.get("entry_count") or 0),
     }
     # Preserve existing top-level keys for compatibility with older UI call-sites.
     payload.update(
@@ -673,15 +760,33 @@ def sync_scan_pool_to_runtime(force: bool = False) -> dict[str, Any]:
     return payload
 
 
-def sync_scan_pool_to_analog_runtime(force: bool = False) -> dict[str, Any]:
+def sync_scan_pool_to_analog_runtime(
+    force: bool = False,
+    *,
+    mode: str | None = None,
+    pool: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Apply active scan-pool conventional channels to managed analog profiles."""
     global _LAST_SIGNATURE
     global _LAST_RESULT
 
     with _SYNC_LOCK:
-        controller = get_scan_mode_controller()
-        mode = _mode_token(controller.get_mode())
-        pool = controller.get_scan_pool() if mode in {"hp", "expert"} else {"conventional": []}
+        if pool is None or mode is None:
+            controller = get_scan_mode_controller()
+            resolved_mode = _mode_token(mode if mode is not None else controller.get_mode())
+            resolved_pool = (
+                controller.get_scan_pool()
+                if resolved_mode in {"hp", "expert"}
+                else {"trunked_sites": [], "conventional": []}
+            )
+        else:
+            resolved_mode = _mode_token(mode)
+            resolved_pool = pool
+        mode = resolved_mode
+        pool = _sanitize_scan_pool(resolved_pool)
+        active_pool_signature = _set_last_runtime_scan_pool_locked(mode, pool)
+        active_pool_applied_at_ms = int(_LAST_ACTIVE_POOL_APPLIED_AT_MS or 0)
+        active_pool_entry_count = int(len(pool.get("trunked_sites") or []) + len(pool.get("conventional") or []))
         air_freqs, air_labels, ground_freqs, ground_labels = _normalize_conventional_pool(pool)
         signature_payload = {
             "mode": mode,
@@ -777,6 +882,9 @@ def sync_scan_pool_to_analog_runtime(force: bool = False) -> dict[str, Any]:
             "restart_ok": bool(restart_ok),
             "restart_error": str(restart_error or ""),
             "errors": errors,
+            "scan_pool_signature": active_pool_signature,
+            "scan_pool_applied_at_ms": active_pool_applied_at_ms,
+            "scan_pool_entry_count": active_pool_entry_count,
         }
         _LAST_SIGNATURE = signature
         _LAST_RESULT = dict(result)

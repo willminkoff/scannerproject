@@ -3559,6 +3559,8 @@
     const DEFAULT_CONNECTED_PROFILES_REFRESH_SEC = 60;
     const DEFAULT_DEDICATED_DIGITAL_FETCH_ENABLED = false;
     const HP_AUTOLOCATE_TIMEOUT_MS = 12000;
+    const HP_FILTER_AUTOSAVE_DEBOUNCE_MS = 700;
+    const HP_FILTER_TEXT_AUTOSAVE_DEBOUNCE_MS = 1600;
     const HP_IP_GEOLOOKUP_URL = '/api/hp/location/ip';
     const HP_REVERSE_GEOLOOKUP_URL = '/api/hp/location/reverse';
     const APPLY_PENDING_HOLD_MS = 12000;
@@ -5016,7 +5018,7 @@
       }
     }
 
-    function scheduleHpFiltersAutoSave({ resolveZip = false, immediate = false } = {}) {
+    function scheduleHpFiltersAutoSave({ resolveZip = false, immediate = false, delayMs = HP_FILTER_AUTOSAVE_DEBOUNCE_MS } = {}) {
       if (!state.hpFilters.loaded) return;
       markHpFiltersDirty(resolveZip ? 'Resolving ZIP and saving filters...' : 'Unsaved filter changes detected. Auto-saving...');
       if (state.hpFilters.saving) {
@@ -5035,7 +5037,8 @@
         run();
         return;
       }
-      hpFiltersAutoSaveTimer = setTimeout(run, 700);
+      const debounceMs = Math.max(250, _toInt(delayMs, HP_FILTER_AUTOSAVE_DEBOUNCE_MS));
+      hpFiltersAutoSaveTimer = setTimeout(run, debounceMs);
     }
 
     function collectHpServiceTypeSelectionFromUi() {
@@ -5052,44 +5055,45 @@
 
     function renderHpFiltersPanel() {
       const filters = state.hpFilters || {};
-      const busy = Boolean(filters.loading || filters.saving || filters.locating);
+      const fieldBusy = Boolean(filters.loading || filters.locating);
+      const actionBusy = Boolean(filters.loading || filters.saving || filters.locating);
       if (els.hpFilterMode) {
         els.hpFilterMode.value = String(filters.mode || 'favorites') === 'full_database' ? 'full_database' : 'favorites';
-        els.hpFilterMode.disabled = busy;
+        els.hpFilterMode.disabled = fieldBusy;
       }
       if (els.hpFilterUseLocation) {
         els.hpFilterUseLocation.checked = Boolean(filters.useLocation);
-        els.hpFilterUseLocation.disabled = busy;
+        els.hpFilterUseLocation.disabled = fieldBusy;
       }
       if (els.hpFilterStrictLocation) {
         els.hpFilterStrictLocation.checked = Boolean(filters.strictLocation);
-        els.hpFilterStrictLocation.disabled = busy;
+        els.hpFilterStrictLocation.disabled = fieldBusy;
       }
       if (els.hpFilterZip) {
         els.hpFilterZip.value = String(filters.zip || '');
-        els.hpFilterZip.disabled = busy;
+        els.hpFilterZip.disabled = fieldBusy;
       }
       if (els.hpFilterRange) {
         const range = Math.max(0, _toFloat(filters.rangeMiles, 15));
         els.hpFilterRange.value = Number.isInteger(range) ? String(range) : range.toFixed(1);
-        els.hpFilterRange.disabled = busy;
+        els.hpFilterRange.disabled = fieldBusy;
       }
       if (els.hpFilterNationwide) {
         els.hpFilterNationwide.checked = Boolean(filters.nationwideSystems);
-        els.hpFilterNationwide.disabled = busy;
+        els.hpFilterNationwide.disabled = fieldBusy;
       }
       if (els.hpFiltersRefresh) {
-        els.hpFiltersRefresh.disabled = busy;
+        els.hpFiltersRefresh.disabled = actionBusy;
       }
       if (els.hpFiltersSave) {
-        els.hpFiltersSave.disabled = busy;
+        els.hpFiltersSave.disabled = actionBusy;
         els.hpFiltersSave.textContent = filters.saving ? 'Saving...' : 'Save Filters';
       }
       if (els.hpFilterResolveZip) {
-        els.hpFilterResolveZip.disabled = busy || !String(filters.zip || '').trim();
+        els.hpFilterResolveZip.disabled = actionBusy || !String(filters.zip || '').trim();
       }
       if (els.hpFilterAutoLocate) {
-        els.hpFilterAutoLocate.disabled = busy;
+        els.hpFilterAutoLocate.disabled = actionBusy;
         els.hpFilterAutoLocate.textContent = filters.locating
           ? 'Locating...'
           : 'Use Current Location + Apply';
@@ -5108,13 +5112,13 @@
         }
       }
       if (els.hpServiceTypesAll) {
-        els.hpServiceTypesAll.disabled = busy;
+        els.hpServiceTypesAll.disabled = fieldBusy;
       }
       if (els.hpServiceTypesDefaults) {
-        els.hpServiceTypesDefaults.disabled = busy;
+        els.hpServiceTypesDefaults.disabled = fieldBusy;
       }
       if (els.hpServiceTypesNone) {
-        els.hpServiceTypesNone.disabled = busy;
+        els.hpServiceTypesNone.disabled = fieldBusy;
       }
 
       if (els.hpServiceTypesList) {
@@ -5134,7 +5138,7 @@
             cb.type = 'checkbox';
             cb.setAttribute('data-service-tag', String(row.tag));
             cb.checked = selected.has(row.tag);
-            cb.disabled = busy;
+            cb.disabled = fieldBusy;
             const label = document.createElement('span');
             label.className = 'hp-service-type-label';
             label.textContent = row.name;
@@ -5311,6 +5315,16 @@
         const result = await postJSON('/api/scan/state', payload, { timeoutMs: 20000 });
         const nextState = normalizeHpFiltersStatePayload(result);
         const hpState = result && result.state && typeof result.state === 'object' ? result.state : {};
+        const hasPendingDraft = Boolean(state.hpFilters.pendingSave);
+        const pendingDraftEdits = hasPendingDraft ? {
+          mode: String(state.hpFilters.mode || 'favorites') === 'full_database' ? 'full_database' : 'favorites',
+          useLocation: Boolean(state.hpFilters.useLocation),
+          strictLocation: Boolean(state.hpFilters.strictLocation),
+          zip: String(state.hpFilters.zip || '').trim(),
+          rangeMiles: Math.max(0, _toFloat(state.hpFilters.rangeMiles, 15)),
+          nationwideSystems: Boolean(state.hpFilters.nationwideSystems),
+          enabledServiceTags: _normalizeIntList(state.hpFilters.enabledServiceTags),
+        } : null;
         applyHpFavoritesState(hpState);
         state.hpFilters = {
           ...state.hpFilters,
@@ -5319,6 +5333,13 @@
           dirty: false,
           loaded: true,
         };
+        if (pendingDraftEdits) {
+          state.hpFilters = {
+            ...state.hpFilters,
+            ...pendingDraftEdits,
+            dirty: true,
+          };
+        }
         if (usingAutoLocation) {
           state.hpFilters.locationSource = String(locationOverride.source || '').trim().toLowerCase() === 'ip' ? 'ip' : 'gps';
           const accuracy = _toFloat(locationOverride.accuracyMeters, NaN);
@@ -5768,11 +5789,27 @@
       return normalizeHpAvoidToken(systemKey);
     }
 
+    function hpFavEntryReviewSelectionToken(entry, index = 0) {
+      const avoidToken = hpFavEntryAvoidToken(entry);
+      if (!avoidToken) return '';
+      const id = String(entry && entry.id ? entry.id : `entry-${_toInt(index, 0)}`).trim().toLowerCase();
+      if (!id) return '';
+      return `${avoidToken}::${id}`;
+    }
+
+    function hpFavSelectionTokenToAvoidToken(selectionToken) {
+      const raw = String(selectionToken || '').trim().toLowerCase();
+      if (!raw) return '';
+      const markerIndex = raw.indexOf('::');
+      const avoidToken = markerIndex >= 0 ? raw.slice(0, markerIndex) : raw;
+      return normalizeHpAvoidToken(avoidToken);
+    }
+
     function getHpReviewAvoidTokenSet(entries) {
       const rows = Array.isArray(entries) ? entries : [];
       const tokens = new Set();
-      rows.forEach((entry) => {
-        const token = hpFavEntryAvoidToken(entry);
+      rows.forEach((entry, idx) => {
+        const token = hpFavEntryReviewSelectionToken(entry, idx);
         if (token) tokens.add(token);
       });
       return tokens;
@@ -5783,7 +5820,7 @@
       const normalized = [];
       const seen = new Set();
       source.forEach((rawToken) => {
-        const token = normalizeHpAvoidToken(rawToken);
+        const token = String(rawToken || '').trim().toLowerCase();
         if (!token || seen.has(token)) return;
         if (availableSet instanceof Set && availableSet.size && !availableSet.has(token)) return;
         seen.add(token);
@@ -5807,7 +5844,7 @@
     function toggleHpReviewAvoidSelection(token, checked) {
       if (!isHpFullDatabaseMode()) return;
       const builder = state.hpFavoritesBuilder;
-      const normalizedToken = normalizeHpAvoidToken(token);
+      const normalizedToken = String(token || '').trim().toLowerCase();
       if (!normalizedToken) return;
       const current = new Set(normalizeHpReviewAvoidSelection(builder.selectedAvoidTokens));
       if (checked) {
@@ -6075,9 +6112,10 @@
         let actionButton = '';
         if (fullDbMode) {
           const avoidToken = hpFavEntryAvoidToken(entry);
+          const selectionToken = hpFavEntryReviewSelectionToken(entry, idx);
           const alreadyAvoided = avoidToken && hpAvoids.has(avoidToken);
-          if (avoidToken) {
-            const checkedAttr = selectedAvoids.has(avoidToken) ? 'checked' : '';
+          if (avoidToken && selectionToken) {
+            const checkedAttr = selectedAvoids.has(selectionToken) ? 'checked' : '';
             const disabledAttr = (builderBusy || alreadyAvoided) ? 'disabled' : '';
             const title = alreadyAvoided
               ? `Already in HP avoid list (${avoidToken})`
@@ -6086,7 +6124,7 @@
             const stateClass = alreadyAvoided ? ' is-avoided' : '';
             actionButton = `
               <label class="hp-builder-review-check${stateClass}" title="${escapeHtml(title)}">
-                <input type="checkbox" data-hp-review-avoid-token="${escapeHtml(avoidToken)}" ${checkedAttr} ${disabledAttr}>
+                <input type="checkbox" data-hp-review-avoid-token="${escapeHtml(selectionToken)}" ${checkedAttr} ${disabledAttr}>
                 <span>${stateText}</span>
               </label>
             `;
@@ -6211,6 +6249,10 @@
         }
       }
       const nextIdx = Math.max(0, Math.min(steps.length - 1, currentIdx + (direction > 0 ? 1 : -1)));
+      if (direction > 0 && currentIdx >= steps.length - 1) {
+        closeHp3BuilderSidecar(true);
+        return;
+      }
       if (nextIdx === currentIdx) return;
       builder.wizardStep = steps[nextIdx];
       builder.wizardErrorStep = '';
@@ -6275,7 +6317,7 @@
         const nextStep = steps[activeIndex + 1] || '';
         const block = nextStep ? getHpFavoriteWizardAdvanceBlock(activeStep) : '';
         els.hpFavWizardNext.textContent = nextStep ? `Next: ${labelByStep[nextStep] || 'Next'}` : 'Done';
-        els.hpFavWizardNext.disabled = Boolean(builder.loading || builder.saving) || !nextStep || Boolean(block);
+        els.hpFavWizardNext.disabled = Boolean(builder.loading || builder.saving) || Boolean(block);
       }
 
       if (!els.hpFavNextStep) return;
@@ -7030,12 +7072,21 @@
         setHpFavStatus('Select one or more review rows first.', true);
         return false;
       }
+      const selectedAvoidTokens = Array.from(new Set(
+        selectedTokens
+          .map((token) => hpFavSelectionTokenToAvoidToken(token))
+          .filter(Boolean)
+      ));
+      if (!selectedAvoidTokens.length) {
+        setHpFavStatus('Selected rows do not map to valid avoid targets.', true);
+        return false;
+      }
       const existing = new Set(
         (Array.isArray(state.hpFilters?.avoids) ? state.hpFilters.avoids : [])
           .map((item) => normalizeHpAvoidToken(item))
           .filter(Boolean)
       );
-      const pending = selectedTokens.filter((token) => !existing.has(token));
+      const pending = selectedAvoidTokens.filter((token) => !existing.has(token));
       if (!pending.length) {
         builder.selectedAvoidTokens = [];
         renderHpFavoritesBuilder();
@@ -13388,13 +13439,13 @@
         els.hpFilterZip.addEventListener('input', () => {
           state.hpFilters.zip = String(els.hpFilterZip.value || '').trim();
           renderHpFiltersPanel();
-          scheduleHpFiltersAutoSave();
+          scheduleHpFiltersAutoSave({ delayMs: HP_FILTER_TEXT_AUTOSAVE_DEBOUNCE_MS });
         });
       }
       if (els.hpFilterRange) {
         els.hpFilterRange.addEventListener('input', () => {
           state.hpFilters.rangeMiles = Math.max(0, _toFloat(els.hpFilterRange.value, state.hpFilters.rangeMiles || 15));
-          scheduleHpFiltersAutoSave();
+          scheduleHpFiltersAutoSave({ delayMs: 1000 });
         });
       }
       if (els.hpFilterUseLocation) {

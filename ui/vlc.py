@@ -17,7 +17,18 @@ try:
 except Exception:
     VLC_NETWORK_CACHING_MS = 1000
 
-VLC_PID_DIR = os.getenv("VLC_PID_DIR", "/run")
+try:
+    _VLC_AUDIO_UID = int(str(os.getenv("VLC_AUDIO_UID", os.getuid())).strip())
+except Exception:
+    _VLC_AUDIO_UID = os.getuid()
+VLC_XDG_RUNTIME_DIR = str(os.getenv("VLC_XDG_RUNTIME_DIR", f"/run/user/{_VLC_AUDIO_UID}")).strip()
+VLC_DBUS_SESSION_BUS_ADDRESS = str(
+    os.getenv("VLC_DBUS_SESSION_BUS_ADDRESS", f"unix:path={VLC_XDG_RUNTIME_DIR}/bus")
+).strip()
+VLC_PULSE_SERVER = str(os.getenv("VLC_PULSE_SERVER", f"unix:{VLC_XDG_RUNTIME_DIR}/pulse/native")).strip()
+VLC_PULSE_SINK = str(os.getenv("VLC_PULSE_SINK", "")).strip()
+
+VLC_PID_DIR = os.getenv("VLC_PID_DIR", os.path.join(VLC_XDG_RUNTIME_DIR, "airband-ui"))
 VLC_PID_PREFIX = os.getenv("VLC_PID_PREFIX", "airband-ui-vlc")
 VLC_STOP_TIMEOUT_SEC = max(0.2, float(os.getenv("VLC_STOP_TIMEOUT_SEC", "2.0")))
 
@@ -61,6 +72,40 @@ def _pid_path(target: str) -> str:
     return os.path.join(pid_dir, f"{VLC_PID_PREFIX}-{target}.pid")
 
 
+def _unix_socket_path(address: str) -> str:
+    value = str(address or "").strip()
+    if value.startswith("unix:path="):
+        return value.split("unix:path=", 1)[1].strip()
+    if value.startswith("unix:"):
+        return value.split("unix:", 1)[1].strip()
+    return value
+
+
+def _vlc_launch_env() -> dict:
+    env = os.environ.copy()
+    runtime_dir = str(VLC_XDG_RUNTIME_DIR or "").strip()
+    if runtime_dir and os.path.isdir(runtime_dir):
+        env["XDG_RUNTIME_DIR"] = runtime_dir
+
+    pulse_server = str(VLC_PULSE_SERVER or "").strip()
+    pulse_socket = _unix_socket_path(pulse_server)
+    if pulse_server and (not pulse_socket or os.path.exists(pulse_socket)):
+        env["PULSE_SERVER"] = pulse_server
+    elif runtime_dir:
+        default_pulse_socket = os.path.join(runtime_dir, "pulse", "native")
+        if os.path.exists(default_pulse_socket):
+            env["PULSE_SERVER"] = f"unix:{default_pulse_socket}"
+
+    dbus_addr = str(VLC_DBUS_SESSION_BUS_ADDRESS or "").strip()
+    dbus_socket = _unix_socket_path(dbus_addr)
+    if dbus_addr and (not dbus_socket or os.path.exists(dbus_socket)):
+        env["DBUS_SESSION_BUS_ADDRESS"] = dbus_addr
+
+    if VLC_PULSE_SINK:
+        env["PULSE_SINK"] = VLC_PULSE_SINK
+    return env
+
+
 def _read_pid(target: str) -> Optional[int]:
     path = _pid_path(target)
     try:
@@ -97,26 +142,60 @@ def _pid_alive(pid: int) -> bool:
 
 
 def _is_vlc_pid(pid: int) -> bool:
+    cmdline = _pid_cmdline(pid)
+    return bool(cmdline and ("vlc" in cmdline or "cvlc" in cmdline))
+
+
+def _pid_cmdline(pid: int) -> str:
     if not isinstance(pid, int) or pid <= 1:
-        return False
+        return ""
     try:
         with open(f"/proc/{pid}/cmdline", "rb") as f:
-            cmdline = f.read().replace(b"\x00", b" ").decode("utf-8", errors="ignore").lower()
+            raw = f.read()
     except Exception:
-        return False
-    return "vlc" in cmdline or "cvlc" in cmdline
+        return ""
+    return raw.replace(b"\x00", b" ").decode("utf-8", errors="ignore").lower()
+
+
+def _target_cmdline_token(target: str) -> str:
+    mount = str(DEFAULT_MOUNTS.get(target) or PLAYER_MOUNT or "").strip().lstrip("/").lower()
+    return f"/{mount}" if mount else ""
+
+
+def _find_target_pid(target: str) -> Optional[int]:
+    token = _target_cmdline_token(target)
+    if not token:
+        return None
+    proc_dir = "/proc"
+    try:
+        entries = os.listdir(proc_dir)
+    except Exception:
+        return None
+    for name in entries:
+        if not name.isdigit():
+            continue
+        pid = int(name)
+        cmdline = _pid_cmdline(pid)
+        if not cmdline:
+            continue
+        if ("vlc" in cmdline or "cvlc" in cmdline) and token in cmdline:
+            return pid
+    return None
 
 
 def _target_running(target: str) -> bool:
     pid = _read_pid(target)
-    if not pid:
-        return False
-    if not _pid_alive(pid):
+    if pid and _pid_alive(pid) and _is_vlc_pid(pid):
+        return True
+    if pid:
         _clear_pid(target)
+    recovered_pid = _find_target_pid(target)
+    if not recovered_pid:
         return False
-    if not _is_vlc_pid(pid):
-        _clear_pid(target)
-        return False
+    try:
+        _write_pid(target, recovered_pid)
+    except Exception:
+        pass
     return True
 
 
@@ -221,6 +300,7 @@ def start_vlc(stream_url: str = "", target: str = DEFAULT_TARGET, mount: str = "
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            env=_vlc_launch_env(),
             start_new_session=True,
         )
         _write_pid(resolved_target, proc.pid)
@@ -239,6 +319,13 @@ def stop_vlc(target: str = DEFAULT_TARGET):
         return False, "invalid target"
 
     pid = _read_pid(resolved_target)
+    if not pid:
+        pid = _find_target_pid(resolved_target)
+        if pid:
+            try:
+                _write_pid(resolved_target, pid)
+            except Exception:
+                pass
     if not pid:
         return True, ""
     if not _pid_alive(pid):

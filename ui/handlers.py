@@ -117,6 +117,7 @@ try:
     from .hp_favorites_wizard import HPFavoritesWizard
     from .favorites_runtime import (
         get_last_favorites_runtime_sync,
+        get_last_runtime_scan_pool,
         sync_scan_pool_to_runtime,
     )
     from .service_types import get_all_service_types, get_default_enabled_service_types
@@ -209,6 +210,7 @@ except ImportError:
     from ui.hp_favorites_wizard import HPFavoritesWizard
     from ui.favorites_runtime import (
         get_last_favorites_runtime_sync,
+        get_last_runtime_scan_pool,
         sync_scan_pool_to_runtime,
     )
     from ui.service_types import get_all_service_types, get_default_enabled_service_types
@@ -2506,10 +2508,34 @@ class Handler(BaseHTTPRequestHandler):
                     limit = int(str(limit_raw).strip())
                 except Exception:
                     limit = 4000
-                preview = _flatten_hp_scan_pool_for_preview(controller.get_scan_pool(), limit=limit)
+                source_raw = (q.get("source") or ["runtime_applied"])[0]
+                source = str(source_raw or "").strip().lower()
+                preview_source = "computed_state"
+                snapshot_signature = ""
+                snapshot_applied_at_ms = 0
+                snapshot_ready = False
+                pool = None
+                if source in {"", "runtime", "runtime_applied", "active", "applied", "scanned"}:
+                    runtime_snapshot = get_last_runtime_scan_pool()
+                    if isinstance(runtime_snapshot, dict) and bool(runtime_snapshot.get("snapshot_ready")):
+                        candidate_pool = runtime_snapshot.get("pool")
+                        if isinstance(candidate_pool, dict):
+                            pool = candidate_pool
+                            preview_source = "runtime_applied"
+                            snapshot_signature = str(runtime_snapshot.get("signature") or "")
+                            snapshot_applied_at_ms = int(runtime_snapshot.get("applied_at_ms") or 0)
+                            snapshot_ready = True
+                if not isinstance(pool, dict):
+                    pool = controller.get_scan_pool()
+                    preview_source = "computed_state"
+                preview = _flatten_hp_scan_pool_for_preview(pool, limit=limit)
                 payload = {
                     "ok": True,
                     "mode": str(getattr(state, "mode", "") or "").strip().lower(),
+                    "pool_source": preview_source,
+                    "pool_snapshot_ready": bool(snapshot_ready),
+                    "pool_signature": snapshot_signature,
+                    "pool_applied_at_ms": snapshot_applied_at_ms,
                     **preview,
                 }
             except Exception as e:
