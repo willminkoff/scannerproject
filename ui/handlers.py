@@ -5,6 +5,7 @@ import sys
 import time
 import threading
 import subprocess
+import ssl
 from datetime import datetime
 import queue
 import shutil
@@ -320,6 +321,17 @@ _LATENCY_TONE_STATE: dict[str, Any] = {
     "last_error": "",
     "stop_reason": "",
 }
+_HP_GEOLOOKUP_USER_AGENT = "scannerproject-hp3/1.0"
+_HP_GEOLOOKUP_SSL_NO_VERIFY = ssl._create_unverified_context()
+_HP_IP_GEOLOOKUP_PROVIDERS = (
+    "https://ipapi.co/json/",
+    "https://ipwho.is/",
+)
+_HP_REVERSE_GEOLOOKUP_URL = "https://api.bigdatacloud.net/data/reverse-geocode-client"
+try:
+    _HP_GEOLOOKUP_TIMEOUT_SEC = max(1.0, float(os.getenv("HP_GEOLOOKUP_TIMEOUT_SEC", "4.0")))
+except Exception:
+    _HP_GEOLOOKUP_TIMEOUT_SEC = 4.0
 
 
 def _should_resolve_zip(resolve_zip: bool, use_location: bool) -> bool:
@@ -362,6 +374,138 @@ def _parse_json_like_list(raw_value) -> list:
         except Exception:
             return [chunk.strip() for chunk in text.split(",") if chunk.strip()]
     return []
+
+
+def _fetch_json_url_with_tls_fallback(url: str, timeout_sec: float = _HP_GEOLOOKUP_TIMEOUT_SEC) -> dict[str, Any]:
+    req = Request(
+        str(url),
+        headers={
+            "User-Agent": _HP_GEOLOOKUP_USER_AGENT,
+            "Accept": "application/json",
+        },
+    )
+
+    def _load(*, context=None) -> dict[str, Any]:
+        with urlopen(req, timeout=float(timeout_sec), context=context) as resp:
+            body = resp.read().decode("utf-8", errors="replace")
+        payload = json.loads(body or "{}")
+        if not isinstance(payload, dict):
+            raise ValueError("provider returned non-object JSON payload")
+        return payload
+
+    try:
+        return _load()
+    except URLError as exc:
+        text = str(exc)
+        if "CERTIFICATE_VERIFY_FAILED" in text or "self-signed certificate" in text:
+            return _load(context=_HP_GEOLOOKUP_SSL_NO_VERIFY)
+        raise
+
+
+def _parse_geo_float(value) -> float | None:
+    try:
+        parsed = float(str(value).strip())
+    except Exception:
+        return None
+    if not parsed == parsed:
+        return None
+    return parsed
+
+
+def _normalize_ip_geolookup_payload(payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise ValueError("provider returned invalid payload")
+    if payload.get("success") is False:
+        reason = str(payload.get("message") or "provider reported failure").strip()
+        raise ValueError(reason or "provider reported failure")
+
+    lat = _parse_geo_float(payload.get("latitude"))
+    if lat is None:
+        lat = _parse_geo_float(payload.get("lat"))
+    lon = _parse_geo_float(payload.get("longitude"))
+    if lon is None:
+        lon = _parse_geo_float(payload.get("lon"))
+    if lat is None or lon is None or not (-90.0 <= lat <= 90.0) or not (-180.0 <= lon <= 180.0):
+        raise ValueError("provider response missing valid coordinates")
+
+    zip_code = str(
+        payload.get("postal")
+        or payload.get("postcode")
+        or payload.get("zip")
+        or ""
+    ).strip()
+    county = str(
+        payload.get("county")
+        or payload.get("district")
+        or payload.get("region")
+        or payload.get("region_name")
+        or ""
+    ).strip()
+    return {
+        "lat": float(lat),
+        "lon": float(lon),
+        "zip": zip_code,
+        "county": county,
+    }
+
+
+def _normalize_reverse_geolookup_payload(payload: Any) -> dict[str, str]:
+    if not isinstance(payload, dict):
+        raise ValueError("reverse-geocode provider returned invalid payload")
+    zip_code = str(
+        payload.get("postcode")
+        or payload.get("postal_code")
+        or payload.get("postal")
+        or payload.get("zip")
+        or ""
+    ).strip()
+    county = str(payload.get("county") or "").strip()
+    if not county:
+        locality_info = payload.get("localityInfo") if isinstance(payload.get("localityInfo"), dict) else {}
+        administrative = locality_info.get("administrative") if isinstance(locality_info, dict) else []
+        if not isinstance(administrative, list):
+            administrative = []
+        for row in administrative:
+            if not isinstance(row, dict):
+                continue
+            name = str(row.get("name") or "").strip()
+            if not name:
+                continue
+            description = str(row.get("description") or "").strip().lower()
+            if description.endswith("county") or "county" in description or name.lower().endswith(" county"):
+                county = name
+                break
+    return {
+        "zip": zip_code,
+        "county": county,
+    }
+
+
+def _resolve_ip_geolocation(timeout_sec: float = _HP_GEOLOOKUP_TIMEOUT_SEC) -> dict[str, Any]:
+    errors: list[str] = []
+    for provider in _HP_IP_GEOLOOKUP_PROVIDERS:
+        try:
+            payload = _fetch_json_url_with_tls_fallback(provider, timeout_sec=timeout_sec)
+            result = _normalize_ip_geolookup_payload(payload)
+            result["provider"] = str(provider)
+            return result
+        except Exception as exc:
+            errors.append(f"{provider}: {exc}")
+    summary = "; ".join(errors[:3]) if errors else "no provider configured"
+    raise RuntimeError(f"IP geolocation failed ({summary})")
+
+
+def _resolve_reverse_geolocation(lat: float, lon: float, timeout_sec: float = _HP_GEOLOOKUP_TIMEOUT_SEC) -> dict[str, Any]:
+    request_url = (
+        f"{_HP_REVERSE_GEOLOOKUP_URL}"
+        f"?latitude={quote(f'{float(lat):.8f}')}"
+        f"&longitude={quote(f'{float(lon):.8f}')}"
+        f"&localityLanguage=en"
+    )
+    payload = _fetch_json_url_with_tls_fallback(request_url, timeout_sec=timeout_sec)
+    result = _normalize_reverse_geolookup_payload(payload)
+    result["provider"] = _HP_REVERSE_GEOLOOKUP_URL
+    return result
 
 
 def _extract_scheduler_payload(form: dict[str, Any]) -> dict:
@@ -1802,6 +1946,8 @@ def _canonical_scan_api_path(path: str) -> str:
         "/api/scan/pool-preview": "/api/hp/scan-pool-preview",
         "/api/scan/service-types": "/api/hp/service-types",
         "/api/scan/avoids": "/api/hp/avoids",
+        "/api/scan/location/ip": "/api/hp/location/ip",
+        "/api/scan/location/reverse": "/api/hp/location/reverse",
         "/api/scan/favorites-sync": "/api/hp/favorites-sync",
         "/api/scan/hold": "/api/hp/hold",
         "/api/scan/next": "/api/hp/next",
@@ -2275,6 +2421,62 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 payload = {"ok": False, "error": str(e)}
                 return self._send(500, json.dumps(payload), "application/json; charset=utf-8")
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/hp/location/ip":
+            try:
+                resolved = _resolve_ip_geolocation()
+                payload = {
+                    "ok": True,
+                    "lat": float(resolved.get("lat")),
+                    "lon": float(resolved.get("lon")),
+                    "latitude": float(resolved.get("lat")),
+                    "longitude": float(resolved.get("lon")),
+                    "postal": str(resolved.get("zip") or "").strip(),
+                    "zip": str(resolved.get("zip") or "").strip(),
+                    "county": str(resolved.get("county") or "").strip(),
+                    "provider": str(resolved.get("provider") or ""),
+                }
+            except Exception as e:
+                return self._send(
+                    502,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/hp/location/reverse":
+            try:
+                raw_lat = (q.get("lat") or q.get("latitude") or [""])[0]
+                raw_lon = (q.get("lon") or q.get("longitude") or [""])[0]
+                lat = _parse_float_value(raw_lat, field="lat")
+                lon = _parse_float_value(raw_lon, field="lon")
+                if not (-90.0 <= lat <= 90.0):
+                    raise ValueError("invalid lat")
+                if not (-180.0 <= lon <= 180.0):
+                    raise ValueError("invalid lon")
+                resolved = _resolve_reverse_geolocation(lat, lon)
+                zip_code = str(resolved.get("zip") or "").strip()
+                county = str(resolved.get("county") or "").strip()
+                payload = {
+                    "ok": True,
+                    "postcode": zip_code,
+                    "zip": zip_code,
+                    "county": county,
+                    "provider": str(resolved.get("provider") or ""),
+                }
+            except ValueError as e:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            except Exception as e:
+                return self._send(
+                    502,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/hp/state":

@@ -1413,6 +1413,22 @@ class DigitalRetuneCacheTests(unittest.TestCase):
         with open(path, "w", encoding="utf-8") as f:
             f.write(text)
 
+    @staticmethod
+    def _write_multi_playlist(path: str, frequencies_hz: list[int]) -> None:
+        entries = "".join(f"<frequency>{int(hz)}</frequency>" for hz in frequencies_hz)
+        text = (
+            "<playlist>"
+            "<channel>"
+            "<source_configuration type=\"sourceConfigTunerMultipleFrequency\" "
+            "source_type=\"TUNER_MULTIPLE_FREQUENCIES\">"
+            f"{entries}"
+            "</source_configuration>"
+            "</channel>"
+            "</playlist>"
+        )
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+
     def test_retune_cache_short_circuits_when_state_matches(self):
         with tempfile.TemporaryDirectory() as tmp:
             playlist_path = os.path.join(tmp, "playlist.xml")
@@ -1449,6 +1465,63 @@ class DigitalRetuneCacheTests(unittest.TestCase):
                 ok, err = adapter.retune_control_frequency(162.55)
 
             self.assertTrue(ok)
+            self.assertEqual("", err)
+            write_atomic.assert_called_once()
+
+    def test_retune_multi_source_requires_runtime_backend(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            playlist_path = os.path.join(tmp, "playlist.xml")
+            self._write_multi_playlist(playlist_path, [851_312_500, 852_312_500, 853_312_500])
+            adapter = digital.SdrtrunkAdapter()
+            with mock.patch.object(digital, "DIGITAL_PLAYLIST_PATH", playlist_path), mock.patch.object(
+                adapter, "_runtime_retune_control_frequency", return_value=(False, False, "")
+            ), mock.patch.object(
+                adapter, "runtime_retune_available", return_value=False
+            ), mock.patch.object(
+                digital, "_write_playlist_tree_atomic", return_value=(True, "")
+            ) as write_atomic:
+                ok, err = adapter.retune_control_frequency(852.3125)
+
+            self.assertFalse(ok)
+            self.assertIn("requires runtime backend", err)
+            write_atomic.assert_not_called()
+
+    def test_profile_apply_writes_when_alias_seed_changes_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            profile_dir = os.path.join(tmp, "p1")
+            os.makedirs(profile_dir, exist_ok=True)
+            with open(os.path.join(profile_dir, "control_channels.txt"), "w", encoding="utf-8") as f:
+                f.write("162.4000\n")
+            with open(os.path.join(profile_dir, "talkgroups.csv"), "w", encoding="utf-8") as f:
+                f.write("DEC,HEX,Mode,Alpha Tag,Description,Tag\n")
+                f.write("1001,3E9,D,Alpha One,Alpha One,Law\n")
+                f.write("1002,3EA,D,Alpha Two,Alpha Two,Law\n")
+
+            playlist_path = os.path.join(tmp, "playlist.xml")
+            with open(playlist_path, "w", encoding="utf-8") as f:
+                f.write(
+                    "<playlist>"
+                    "<alias list=\"P1\" name=\"Alpha One\" group=\"Law\">"
+                    "<id type=\"talkgroup\" value=\"1001\" protocol=\"APCO25\"/>"
+                    "<id type=\"broadcastChannel\" channel=\"DIGITAL\"/>"
+                    "</alias>"
+                    "<channel system=\"P25\" enabled=\"true\" order=\"1\" name=\"p1\">"
+                    "<alias_list_name>P1</alias_list_name>"
+                    "<source_configuration type=\"sourceConfigTuner\" source_type=\"TUNER\" frequency=\"162400000\"/>"
+                    "</channel>"
+                    "<stream type=\"icecastHTTPConfiguration\" sample_rate=\"16000\" user_name=\"source\" bitrate=\"32\" channels=\"1\" mount_point=\"/DIGITAL.mp3\" public=\"false\" inline=\"true\" host=\"127.0.0.1\" delay=\"0\" port=\"8000\" enabled=\"true\" password=\"x\" maximum_recording_age=\"600000\" name=\"DIGITAL\"><format>MP3</format></stream>"
+                    "</playlist>"
+                )
+
+            adapter = digital.SdrtrunkAdapter()
+            with mock.patch.object(digital, "DIGITAL_PLAYLIST_PATH", playlist_path), mock.patch.object(
+                digital, "_sync_stream_configuration", return_value=False
+            ), mock.patch.object(
+                digital, "_write_playlist_tree_atomic", return_value=(True, "")
+            ) as write_atomic:
+                ok, err = adapter._apply_profile_runtime(profile_dir, "p1")
+
+            self.assertTrue(ok, msg=err)
             self.assertEqual("", err)
             write_atomic.assert_called_once()
 

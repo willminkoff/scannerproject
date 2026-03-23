@@ -115,6 +115,7 @@ class SchedulerFastSwitchTests(unittest.TestCase):
         mgr = _make_manager()
         mgr._adapter = mock.Mock()
         mgr._adapter.retune_control_frequency.return_value = (False, "retune failed")
+        mgr._adapter.runtime_retune_available.return_value = True
         mgr._resolve_scheduler_system_control_channels = mock.Mock(return_value=[769_831_250])
         mgr._apply_scheduler_system = mock.Mock(return_value=(True, "", True))
 
@@ -124,6 +125,22 @@ class SchedulerFastSwitchTests(unittest.TestCase):
         self.assertEqual("", err)
         self.assertTrue(changed)
         mgr._adapter.retune_control_frequency.assert_called_once()
+        mgr._apply_scheduler_system.assert_called_once_with("p1", "alpha", force=True)
+        self.assertEqual("fast_retune_fallback_playlist", mgr._scheduler_last_apply_method)
+
+    def test_fast_retune_without_runtime_backend_uses_playlist_apply(self):
+        mgr = _make_manager()
+        mgr._adapter = mock.Mock()
+        mgr._adapter.runtime_retune_available.return_value = False
+        mgr._resolve_scheduler_system_control_channels = mock.Mock(return_value=[769_831_250])
+        mgr._apply_scheduler_system = mock.Mock(return_value=(True, "", True))
+
+        ok, err, changed = mgr._apply_scheduler_fast_retune("p1", "alpha", force=True)
+
+        self.assertTrue(ok)
+        self.assertEqual("", err)
+        self.assertTrue(changed)
+        mgr._adapter.retune_control_frequency.assert_not_called()
         mgr._apply_scheduler_system.assert_called_once_with("p1", "alpha", force=True)
         self.assertEqual("fast_retune_fallback_playlist", mgr._scheduler_last_apply_method)
 

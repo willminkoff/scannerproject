@@ -121,6 +121,64 @@ class HpAutoLocateRegressionTests(unittest.TestCase):
         self.assertTrue(sync["request_complete"])
         self.assertFalse(sync["pending"])
 
+    def test_normalize_ip_geolookup_payload_accepts_ipapi_shape(self):
+        payload = {
+            "latitude": 36.174,
+            "longitude": -86.767,
+            "postal": "37201",
+            "region": "Tennessee",
+        }
+        parsed = handlers._normalize_ip_geolookup_payload(payload)
+        self.assertAlmostEqual(36.174, parsed["lat"])
+        self.assertAlmostEqual(-86.767, parsed["lon"])
+        self.assertEqual("37201", parsed["zip"])
+        self.assertEqual("Tennessee", parsed["county"])
+
+    def test_normalize_ip_geolookup_payload_accepts_ipwho_shape(self):
+        payload = {
+            "success": True,
+            "lat": 36.124,
+            "lon": -86.691,
+            "zip": "37011",
+            "region": "Tennessee",
+        }
+        parsed = handlers._normalize_ip_geolookup_payload(payload)
+        self.assertAlmostEqual(36.124, parsed["lat"])
+        self.assertAlmostEqual(-86.691, parsed["lon"])
+        self.assertEqual("37011", parsed["zip"])
+        self.assertEqual("Tennessee", parsed["county"])
+
+    def test_normalize_reverse_payload_extracts_county_from_locality_info(self):
+        payload = {
+            "postcode": "37201",
+            "localityInfo": {
+                "administrative": [
+                    {"name": "Davidson County", "description": "county"},
+                ]
+            },
+        }
+        parsed = handlers._normalize_reverse_geolookup_payload(payload)
+        self.assertEqual("37201", parsed["zip"])
+        self.assertEqual("Davidson County", parsed["county"])
+
+    def test_resolve_ip_geolocation_falls_back_to_next_provider(self):
+        providers = ("https://a.invalid/json/", "https://b.example/json/")
+        with mock.patch.object(handlers, "_HP_IP_GEOLOOKUP_PROVIDERS", providers), mock.patch.object(
+            handlers,
+            "_fetch_json_url_with_tls_fallback",
+            side_effect=[
+                RuntimeError("first failed"),
+                {"lat": 36.2, "lon": -86.8, "zip": "37221", "region": "Tennessee"},
+            ],
+        ) as fetch_mock:
+            resolved = handlers._resolve_ip_geolocation()
+
+        self.assertAlmostEqual(36.2, resolved["lat"])
+        self.assertAlmostEqual(-86.8, resolved["lon"])
+        self.assertEqual("37221", resolved["zip"])
+        self.assertEqual("https://b.example/json/", resolved["provider"])
+        self.assertEqual(2, fetch_mock.call_count)
+
 
 if __name__ == "__main__":
     unittest.main()

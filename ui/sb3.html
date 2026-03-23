@@ -1349,6 +1349,13 @@
       display: flex;
       gap: 6px;
       margin-top: 12px;
+      flex-wrap: wrap;
+      align-items: stretch;
+    }
+
+    .btn-row > .action {
+      flex: 1 1 120px;
+      min-width: 0;
     }
 
     .btn-row.quick-scan-row {
@@ -2407,6 +2414,16 @@
 
       .hp-builder-grid {
         grid-template-columns: 1fr;
+      }
+
+      .btn-row > .action {
+        flex-basis: calc(50% - 6px);
+      }
+    }
+
+    @media (max-width: 420px) {
+      .btn-row > .action {
+        flex-basis: 100%;
       }
     }
   </style>
@@ -3542,8 +3559,8 @@
     const DEFAULT_CONNECTED_PROFILES_REFRESH_SEC = 60;
     const DEFAULT_DEDICATED_DIGITAL_FETCH_ENABLED = false;
     const HP_AUTOLOCATE_TIMEOUT_MS = 12000;
-    const HP_IP_GEOLOOKUP_URL = 'https://ipapi.co/json/';
-    const HP_REVERSE_GEOLOOKUP_URL = 'https://api.bigdatacloud.net/data/reverse-geocode-client';
+    const HP_IP_GEOLOOKUP_URL = '/api/hp/location/ip';
+    const HP_REVERSE_GEOLOOKUP_URL = '/api/hp/location/reverse';
     const APPLY_PENDING_HOLD_MS = 12000;
     const APPLY_GAIN_EPSILON_DB = 0.11;
     const TEMP_WARN_CPU_F = 176.0;

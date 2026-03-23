@@ -870,6 +870,7 @@ def _seed_alias_list_from_profile(root: ET.Element, alias_list_name: str, profil
     if not seed_rows:
         return 0
 
+    changes = 0
     desired_tgids = {str(dec).strip() for dec, _name, _group in seed_rows if str(dec).strip().isdigit()}
     for alias in list(root.findall("alias")):
         if str(alias.get("list", "")).strip() != alias_list_name:
@@ -882,20 +883,22 @@ def _seed_alias_list_from_profile(root: ET.Element, alias_list_name: str, profil
         if alias_tgids and not any(token in desired_tgids for token in alias_tgids):
             try:
                 root.remove(alias)
+                changes += 1
             except Exception:
                 continue
 
     existing = _collect_alias_talkgroup_map(root, alias_list_name)
     stream_name = str(DIGITAL_SDRTRUNK_STREAM_NAME or "").strip()
-    _normalize_alias_list_stream_bindings(root, alias_list_name, stream_name)
-    added = 0
+    changes += int(_normalize_alias_list_stream_bindings(root, alias_list_name, stream_name) or 0)
     for dec, name, group in seed_rows:
         alias = existing.get(dec)
         if alias is not None:
-            if name:
+            if name and str(alias.get("name", "")).strip() != name:
                 alias.set("name", name)
-            if group:
+                changes += 1
+            if group and str(alias.get("group", "")).strip() != group:
                 alias.set("group", group)
+                changes += 1
             if DIGITAL_ATTACH_BROADCAST_CHANNEL and stream_name:
                 has_stream_binding = any(
                     str(alias_id.get("type", "")).strip().lower() == "broadcastchannel"
@@ -911,6 +914,7 @@ def _seed_alias_list_from_profile(root: ET.Element, alias_list_name: str, profil
                             "channel": stream_name,
                         },
                     )
+                    changes += 1
             continue
 
         alias = ET.SubElement(
@@ -941,7 +945,7 @@ def _seed_alias_list_from_profile(root: ET.Element, alias_list_name: str, profil
                     "channel": stream_name,
                 },
             )
-        added += 1
+        changes += 1
         existing[dec] = alias
 
     has_priority = False
@@ -969,7 +973,8 @@ def _seed_alias_list_from_profile(root: ET.Element, alias_list_name: str, profil
                 "priority": "1",
             },
         )
-    return added
+        changes += 1
+    return changes
 
 
 def _read_tail_lines(path: str, max_bytes: int = 8192, max_lines: int = 120):
@@ -2060,6 +2065,9 @@ class NullDigitalAdapter(_BaseDigitalAdapter):
 
     def retune_control_frequency(self, freq_mhz: float) -> tuple[bool, str]:
         return False, self._reason
+
+    def runtime_retune_available(self) -> bool:
+        return False
 
 
 class SdrtrunkAdapter(_BaseDigitalAdapter):
@@ -3263,8 +3271,8 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         if alias_list is None:
             alias_list = ET.SubElement(channel, "alias_list_name")
         alias_list.text = alias_list_name
-        _seed_alias_list_from_profile(root, alias_list_name, profile_dir)
-        _ensure_alias_broadcast_channel(root, alias_list_name)
+        alias_seed_changes = int(_seed_alias_list_from_profile(root, alias_list_name, profile_dir) or 0)
+        alias_stream_changes = int(_ensure_alias_broadcast_channel(root, alias_list_name) or 0)
 
         _apply_decode_configuration(channel, decoder_mode)
         if channel.find("record_configuration") is None:
@@ -3276,6 +3284,8 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         after_preferred = str(source_conf.get("preferred_tuner", "")).strip()
         changed = bool(
             stream_changed
+            or alias_seed_changes > 0
+            or alias_stream_changes > 0
             or before_channels != after_channels
             or before_source_type != after_source_type
             or before_preferred != after_preferred
@@ -3346,6 +3356,14 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         if not ok:
             return False, err or reason or "runtime seed failed", False
         return True, "", True
+
+    def runtime_retune_available(self) -> bool:
+        if not DIGITAL_RUNTIME_RETUNE_ENABLED:
+            return False
+        return bool(
+            str(DIGITAL_RUNTIME_RETUNE_URL or "").strip()
+            or str(DIGITAL_RUNTIME_RETUNE_CMD or "").strip()
+        )
 
     def retune_control_frequency(self, freq_mhz: float) -> tuple[bool, str]:
         started = time.monotonic()
@@ -3480,6 +3498,14 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         )
 
         if multi_source:
+            if not self.runtime_retune_available():
+                self._record_retune_metric(
+                    started=started,
+                    method="playlist_retune",
+                    changed=False,
+                    error="multi-frequency retune requires runtime backend",
+                )
+                return False, "multi-frequency retune requires runtime backend"
             # Multi-frequency tuner sources are modeled as repeated <frequency>
             # nodes. Writing a scalar "frequency" attribute can break SDRTrunk
             # deserialization (expects List<Long>), so keep list-only shape.
@@ -5499,14 +5525,22 @@ class DigitalManager:
             control_hz = int(channels[0] or 0)
             control_mhz = float(control_hz) / 1_000_000.0 if control_hz > 0 else 0.0
             if math.isfinite(control_mhz) and control_mhz > 0.0:
-                ok, err = self._adapter.retune_control_frequency(control_mhz)
-                if ok:
-                    self._scheduler_last_applied_system = system_name
-                    self._scheduler_last_apply_time_ms = now_ms
-                    self._scheduler_last_apply_error = ""
-                    self._scheduler_last_apply_error_system = ""
-                    return True, "", True
-                fallback_reason = str(err or f"fast retune failed for {system_name}")
+                runtime_available = False
+                try:
+                    runtime_available = bool(self._adapter.runtime_retune_available())
+                except Exception:
+                    runtime_available = False
+                if runtime_available:
+                    ok, err = self._adapter.retune_control_frequency(control_mhz)
+                    if ok:
+                        self._scheduler_last_applied_system = system_name
+                        self._scheduler_last_apply_time_ms = now_ms
+                        self._scheduler_last_apply_error = ""
+                        self._scheduler_last_apply_error_system = ""
+                        return True, "", True
+                    fallback_reason = str(err or f"fast retune failed for {system_name}")
+                else:
+                    fallback_reason = "runtime retune backend unavailable"
             else:
                 fallback_reason = f"invalid control frequency for {system_name}"
         else:
