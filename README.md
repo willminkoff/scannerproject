@@ -433,6 +433,35 @@ Legacy clients may still POST `squelch` (SNR). Backend defaults to dBFS mode in 
 - Debounced 0.2 seconds (batches rapid changes)
 - Restarts rtl-airband if change detected
 
+### POST /api/auto-squelch
+Quick analog auto-calibration for squelch on both dongles (or selected target list).
+
+**Request** (JSON):
+```json
+{
+  "targets": ["airband", "ground"]
+}
+```
+
+**Response** (JSON):
+```json
+{
+  "ok": true,
+  "changed": true,
+  "sample_sec": 6,
+  "targets": {
+    "airband": {"applied_squelch_dbfs": -47.5},
+    "ground": {"applied_squelch_dbfs": -51.0}
+  }
+}
+```
+
+**Behavior**:
+- Samples `channel_dbfs_noise_level` from rtl-airband stats for a short window.
+- Computes `noise median + margin` per target and clamps to configured dBFS bounds.
+- Writes both analog profile squelch values in one pass.
+- Rebuilds combined config and restarts rtl-airband once if changed.
+
 ### POST /api/avoid
 Add or clear avoid frequencies.
 

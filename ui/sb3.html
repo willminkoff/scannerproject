@@ -2491,6 +2491,7 @@
               <button class="action" id="btn-tune">Tune</button>
               <button class="action" id="btn-avoid">Avoid</button>
               <button class="action" id="btn-clear-avoids">Clear</button>
+              <button class="action" id="btn-auto-squelch" title="Quickly estimate noise floor and apply squelch for both analog dongles">Auto Squelch</button>
               <button class="action" id="btn-apply">Apply</button>
             </div>
 
@@ -4183,6 +4184,7 @@
       filterApplied: document.getElementById('filter-applied'),
       btnPlayAnalog: document.getElementById('btn-play-analog'),
       btnPlayDigital: document.getElementById('btn-play-digital'),
+      btnAutoSquelch: document.getElementById('btn-auto-squelch'),
       btnApply: document.getElementById('btn-apply'),
       bandScan: document.getElementById('band-scan'),
       bandScanBody: document.getElementById('band-scan-body'),
@@ -11926,6 +11928,72 @@
         logActivity(messageFromError(e, 'Batch apply failed'), 'warn', `apply-batch-failed-${activeTarget}`);
       }
     }
+
+    async function autoCalibrateSquelch() {
+      const btn = els.btnAutoSquelch;
+      const originalText = btn ? btn.textContent : '';
+      const analogShouldResume = Boolean(
+        els.audioPlayerAnalog
+        && (!els.audioPlayerAnalog.paused || els.audioPlayerAnalog.dataset.wantplay === '1')
+      );
+      if (analogShouldResume && els.audioPlayerAnalog) {
+        els.audioPlayerAnalog.dataset.wantplay = '1';
+      }
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Calibrating...';
+      }
+      try {
+        const res = await postAPI('/api/auto-squelch', { targets: ['airband', 'ground'] });
+        const targetPayload = (res && typeof res === 'object' && res.targets && typeof res.targets === 'object')
+          ? res.targets
+          : {};
+        const air = targetPayload.airband || {};
+        const ground = targetPayload.ground || {};
+        const airApplied = Number(air.applied_squelch_dbfs);
+        const groundApplied = Number(ground.applied_squelch_dbfs);
+        if (Number.isFinite(airApplied)) {
+          state.airband.squelch_mode = 'dbfs';
+          state.airband.squelch_dbfs = airApplied;
+          state.airband.squelch = airApplied;
+          state.airband.applied_squelch_dbfs = null;
+        }
+        if (Number.isFinite(groundApplied)) {
+          state.ground.squelch_mode = 'dbfs';
+          state.ground.squelch_dbfs = groundApplied;
+          state.ground.squelch = groundApplied;
+          state.ground.applied_squelch_dbfs = null;
+        }
+        if (els.dbfsSlider) {
+          els.dbfsSlider.classList.remove('dirty');
+        }
+        if (activeView !== 'digital') {
+          updateControls();
+        }
+        if (res && res.restart_ok === false) {
+          logActivity('Restart required to apply auto squelch', 'warn', 'auto-squelch-restart-required');
+        } else {
+          scheduleApplyRefreshes();
+          scheduleStreamRecovery('analog', 'auto-squelch', analogShouldResume);
+        }
+        const parts = [];
+        if (Number.isFinite(airApplied)) parts.push(`Air ${airApplied.toFixed(1)} dBFS`);
+        if (Number.isFinite(groundApplied)) parts.push(`Ground ${groundApplied.toFixed(1)} dBFS`);
+        const appliedSummary = parts.length ? parts.join(' / ') : 'values applied';
+        logActivity(`Auto squelch complete: ${appliedSummary}`, 'info', 'auto-squelch-success');
+        if (Array.isArray(res && res.warnings) && res.warnings.length) {
+          logActivity(`Auto squelch warnings: ${res.warnings.join(' | ')}`, 'warn', 'auto-squelch-warnings');
+        }
+      } catch (e) {
+        console.error('Auto squelch failed:', e);
+        logActivity(messageFromError(e, 'Auto squelch failed'), 'warn', 'auto-squelch-failed');
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = originalText || 'Auto Squelch';
+        }
+      }
+    }
     
     async function applyFilter() {
       const cutoff = parseInt(els.filterSlider.value);
@@ -13038,6 +13106,9 @@
       }
       if (els.btnApply) {
         els.btnApply.addEventListener('click', applyBatch);
+      }
+      if (els.btnAutoSquelch) {
+        els.btnAutoSquelch.addEventListener('click', autoCalibrateSquelch);
       }
       if (els.bandScan && els.bandScanToggle) {
         const collapsedSaved = localStorage.getItem(BAND_SCAN_COLLAPSED_STORAGE_KEY);

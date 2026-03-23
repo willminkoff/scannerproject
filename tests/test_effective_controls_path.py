@@ -124,6 +124,64 @@ class EffectiveControlsPathTests(unittest.TestCase):
         resolve_path.assert_called_once_with("airband")
         write_controls.assert_called_once_with("/tmp/effective.conf", 29.7, "dbfs", 10.0, -72.0)
 
+    def test_action_auto_squelch_applies_noise_based_dbfs(self):
+        noise_samples = {
+            "118.600": [-52.0, -51.0],
+            "119.350": [-50.5],
+            "146.460": [-55.4, -54.6],
+        }
+        with mock.patch.object(actions, "_collect_dbfs_noise_samples", return_value=noise_samples), mock.patch.object(
+            actions,
+            "_load_target_profile_freqs",
+            side_effect=[
+                ("/tmp/airband.conf", [118.6, 119.35]),
+                ("/tmp/ground.conf", [146.46]),
+            ],
+        ), mock.patch.object(
+            actions,
+            "parse_controls",
+            side_effect=[(29.7, 10.0, -46.0, "dbfs"), (28.0, 10.0, -51.0, "dbfs")],
+        ), mock.patch.object(
+            actions, "write_controls", side_effect=[True, True]
+        ) as write_controls, mock.patch.object(
+            actions, "write_combined_config", return_value=True
+        ) as write_combined, mock.patch.object(
+            actions, "restart_rtl", return_value=(True, "")
+        ) as restart_rtl, mock.patch.object(
+            actions, "ANALOG_AUTO_SQUELCH_SAMPLE_SEC", 2
+        ), mock.patch.object(
+            actions, "ANALOG_AUTO_SQUELCH_MARGIN_DB", 4.0
+        ), mock.patch.object(
+            actions, "ANALOG_AUTO_SQUELCH_MIN_DBFS", -95.0
+        ), mock.patch.object(
+            actions, "ANALOG_AUTO_SQUELCH_MAX_DBFS", -1.0
+        ):
+            result = actions.action_auto_squelch(["airband", "ground"])
+
+        self.assertEqual(200, result["status"])
+        payload = result["payload"]
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["changed"])
+        self.assertEqual(-47.0, payload["targets"]["airband"]["applied_squelch_dbfs"])
+        self.assertEqual(-51.0, payload["targets"]["ground"]["applied_squelch_dbfs"])
+        self.assertEqual(
+            [
+                mock.call("/tmp/airband.conf", 29.7, "dbfs", 10.0, -47.0),
+                mock.call("/tmp/ground.conf", 28.0, "dbfs", 10.0, -51.0),
+            ],
+            write_controls.call_args_list,
+        )
+        write_combined.assert_called_once()
+        restart_rtl.assert_called_once()
+
+    def test_action_auto_squelch_reports_missing_noise_metrics(self):
+        with mock.patch.object(actions, "_collect_dbfs_noise_samples", return_value={}):
+            result = actions.action_auto_squelch(["airband"])
+
+        self.assertEqual(503, result["status"])
+        self.assertFalse(result["payload"]["ok"])
+        self.assertIn("no noise metrics", result["payload"]["error"])
+
     def test_handlers_control_snapshot_reads_from_resolved_paths(self):
         with mock.patch.object(
             handlers,

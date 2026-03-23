@@ -3993,6 +3993,48 @@ class Handler(BaseHTTPRequestHandler):
             result = enqueue_apply(target, gain, squelch_mode, squelch_snr, squelch_dbfs)
             return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
 
+        if p in ("/api/auto-squelch", "/api/analog/auto-squelch"):
+            raw_targets = form.get("targets")
+            parsed_targets: list[str] = []
+            if isinstance(raw_targets, list):
+                for item in raw_targets:
+                    value = str(item or "").strip().lower()
+                    if value:
+                        parsed_targets.append(value)
+            elif isinstance(raw_targets, str):
+                tokenized = [tok.strip().lower() for tok in raw_targets.replace(";", ",").split(",")]
+                parsed_targets.extend(tok for tok in tokenized if tok)
+            fallback_target = str(form.get("target", "") or "").strip().lower()
+            if fallback_target and not parsed_targets:
+                parsed_targets.append(fallback_target)
+            if not parsed_targets:
+                parsed_targets = ["airband", "ground"]
+
+            ordered_targets: list[str] = []
+            for candidate in parsed_targets:
+                if candidate not in ("airband", "ground"):
+                    continue
+                if candidate in ordered_targets:
+                    continue
+                ordered_targets.append(candidate)
+            if not ordered_targets:
+                return self._send(400, json.dumps({"ok": False, "error": "unknown target"}), "application/json; charset=utf-8")
+
+            blocked: dict[str, Any] = {}
+            for target in ordered_targets:
+                gate = gate_action("apply", target=target)
+                if not gate.get("ok"):
+                    blocked[target] = gate
+            if blocked:
+                return self._send(
+                    409,
+                    json.dumps({"ok": False, "error": "preflight blocked", "preflight": blocked}),
+                    "application/json; charset=utf-8",
+                )
+
+            result = enqueue_action({"type": "auto_squelch", "targets": ordered_targets})
+            return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
+
         if p == "/api/apply-batch":
             target = form.get("target", "airband")
             if target not in ("airband", "ground"):

@@ -12,7 +12,18 @@ except ImportError:  # pragma: no cover - non-POSIX fallback
     fcntl = None
 
 try:
-    from .config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, HOLD_STATE_PATH, TUNE_BACKUP_PATH
+    from .config import (
+        CONFIG_SYMLINK,
+        GROUND_CONFIG_PATH,
+        COMBINED_CONFIG_PATH,
+        HOLD_STATE_PATH,
+        TUNE_BACKUP_PATH,
+        ANALOG_AUTO_SQUELCH_STATS_PATH,
+        ANALOG_AUTO_SQUELCH_SAMPLE_SEC,
+        ANALOG_AUTO_SQUELCH_MARGIN_DB,
+        ANALOG_AUTO_SQUELCH_MIN_DBFS,
+        ANALOG_AUTO_SQUELCH_MAX_DBFS,
+    )
     from .systemd import (
         unit_active,
         stop_rtl,
@@ -28,11 +39,22 @@ try:
     from .profile_config import (
         split_profiles, guess_current_profile, set_profile, write_controls,
         write_combined_config, read_active_config_path, resolve_controls_path, avoid_current_hit,
-        clear_avoids, write_filter, parse_freqs_labels, replace_freqs_labels
+        clear_avoids, write_filter, parse_freqs_labels, replace_freqs_labels, parse_controls
     )
     from .scanner import mark_analog_hit_cutoff
 except ImportError:
-    from ui.config import CONFIG_SYMLINK, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH, HOLD_STATE_PATH, TUNE_BACKUP_PATH
+    from ui.config import (
+        CONFIG_SYMLINK,
+        GROUND_CONFIG_PATH,
+        COMBINED_CONFIG_PATH,
+        HOLD_STATE_PATH,
+        TUNE_BACKUP_PATH,
+        ANALOG_AUTO_SQUELCH_STATS_PATH,
+        ANALOG_AUTO_SQUELCH_SAMPLE_SEC,
+        ANALOG_AUTO_SQUELCH_MARGIN_DB,
+        ANALOG_AUTO_SQUELCH_MIN_DBFS,
+        ANALOG_AUTO_SQUELCH_MAX_DBFS,
+    )
     from ui.systemd import (
         unit_active,
         stop_rtl,
@@ -48,7 +70,7 @@ except ImportError:
     from ui.profile_config import (
         split_profiles, guess_current_profile, set_profile, write_controls,
         write_combined_config, read_active_config_path, resolve_controls_path, avoid_current_hit,
-        clear_avoids, write_filter, parse_freqs_labels, replace_freqs_labels
+        clear_avoids, write_filter, parse_freqs_labels, replace_freqs_labels, parse_controls
     )
     from ui.scanner import mark_analog_hit_cutoff
 
@@ -75,6 +97,11 @@ _USB_RESET_HELPER = (
     "fcntl.ioctl(fd, 0x5514, 0);"
     "os.close(fd)"
 )
+_RE_DBFS_NOISE_LEVEL = re.compile(
+    r'^channel_dbfs_noise_level\{freq="([0-9.]+)"[^}]*\}\s+(-?[0-9.]+)\s*$'
+)
+_AUTO_SQUELCH_POLL_SEC = 1.0
+_AUTO_SQUELCH_FREQ_EPSILON_MHZ = 0.002
 
 
 def _usb_hub_reset_paths() -> list[str]:
@@ -128,6 +155,117 @@ def _reset_usb_hub_path(path: str) -> tuple[bool, str]:
     if direct_error:
         err = f"{direct_error}; sudo fallback: {err}"
     return False, err
+
+
+def _freq_metric_key(freq_mhz: float) -> str:
+    return f"{float(freq_mhz):.3f}"
+
+
+def _median(values: list[float]) -> float | None:
+    ordered = sorted(float(v) for v in values if isinstance(v, (int, float)))
+    if not ordered:
+        return None
+    n = len(ordered)
+    half = n // 2
+    if n % 2 == 1:
+        return ordered[half]
+    return (ordered[half - 1] + ordered[half]) / 2.0
+
+
+def _read_dbfs_noise_metrics(stats_path: str) -> dict[str, float]:
+    noise_by_freq: dict[str, float] = {}
+    with open(stats_path, "r", encoding="utf-8", errors="ignore") as handle:
+        for raw in handle:
+            line = raw.strip()
+            match = _RE_DBFS_NOISE_LEVEL.match(line)
+            if not match:
+                continue
+            freq = str(match.group(1) or "").strip()
+            if not freq:
+                continue
+            try:
+                value = float(match.group(2))
+            except Exception:
+                continue
+            noise_by_freq[freq] = value
+    return noise_by_freq
+
+
+def _collect_dbfs_noise_samples(
+    stats_path: str,
+    sample_sec: int,
+    poll_sec: float = _AUTO_SQUELCH_POLL_SEC,
+) -> dict[str, list[float]]:
+    samples: dict[str, list[float]] = {}
+    duration = max(1.0, float(sample_sec))
+    end_monotonic = time.monotonic() + duration
+    while True:
+        snapshot = _read_dbfs_noise_metrics(stats_path)
+        for freq_key, value in snapshot.items():
+            bucket = samples.setdefault(freq_key, [])
+            bucket.append(float(value))
+        now = time.monotonic()
+        if now >= end_monotonic:
+            break
+        sleep_for = min(max(0.05, float(poll_sec)), max(0.0, end_monotonic - now))
+        if sleep_for > 0:
+            time.sleep(sleep_for)
+    return samples
+
+
+def _load_target_profile_freqs(target: str) -> tuple[str, list[float]]:
+    conf_path = resolve_controls_path(target)
+    with open(conf_path, "r", encoding="utf-8", errors="ignore") as handle:
+        text = handle.read()
+    freqs, _labels = parse_freqs_labels(text)
+    parsed: list[float] = []
+    for freq in freqs:
+        try:
+            parsed.append(float(freq))
+        except Exception:
+            continue
+    return conf_path, parsed
+
+
+def _resolve_noise_values_for_freqs(
+    freqs_mhz: list[float],
+    noise_samples: dict[str, list[float]],
+) -> tuple[list[float], int]:
+    if not freqs_mhz:
+        return [], 0
+    parsed_noise: dict[float, list[float]] = {}
+    for key, values in noise_samples.items():
+        try:
+            parsed_noise[float(key)] = [float(v) for v in values]
+        except Exception:
+            continue
+    resolved: list[float] = []
+    matched_freqs = 0
+    for freq in freqs_mhz:
+        key = _freq_metric_key(freq)
+        if key in noise_samples and noise_samples[key]:
+            resolved.extend(float(v) for v in noise_samples[key])
+            matched_freqs += 1
+            continue
+        best_match = None
+        best_delta = None
+        for candidate, values in parsed_noise.items():
+            delta = abs(candidate - float(freq))
+            if delta > _AUTO_SQUELCH_FREQ_EPSILON_MHZ:
+                continue
+            if best_delta is None or delta < best_delta:
+                best_delta = delta
+                best_match = values
+        if best_match:
+            resolved.extend(best_match)
+            matched_freqs += 1
+    return resolved, matched_freqs
+
+
+def _clamp_squelch_dbfs(value: float) -> float:
+    clamped = max(float(ANALOG_AUTO_SQUELCH_MIN_DBFS), float(value))
+    clamped = min(float(ANALOG_AUTO_SQUELCH_MAX_DBFS), clamped)
+    return round(clamped, 1)
 
 
 def _normalize_hold_state(state):
@@ -546,6 +684,120 @@ def action_apply_batch(target: str, gain: float, squelch_mode: str, squelch_snr:
         payload["restart_ok"] = restart_ok
         if not restart_ok and restart_error:
             payload["restart_error"] = restart_error
+    return {"status": 200, "payload": payload}
+
+
+def action_auto_squelch(targets: list[str] | None = None) -> dict:
+    """Quickly estimate noise floor and apply recommended dBFS squelch."""
+    ordered_targets: list[str] = []
+    for candidate in (targets or ["airband", "ground"]):
+        target = str(candidate or "").strip().lower()
+        if target not in ("airband", "ground"):
+            continue
+        if target in ordered_targets:
+            continue
+        ordered_targets.append(target)
+    if not ordered_targets:
+        return {"status": 400, "payload": {"ok": False, "error": "no valid targets"}}
+
+    stats_path = str(ANALOG_AUTO_SQUELCH_STATS_PATH or "").strip()
+    sample_sec = max(1, int(ANALOG_AUTO_SQUELCH_SAMPLE_SEC))
+    margin_db = float(ANALOG_AUTO_SQUELCH_MARGIN_DB)
+    try:
+        noise_samples = _collect_dbfs_noise_samples(stats_path, sample_sec)
+    except FileNotFoundError:
+        return {
+            "status": 503,
+            "payload": {
+                "ok": False,
+                "error": f"stats file not found: {stats_path}",
+            },
+        }
+    except Exception as e:
+        return {"status": 500, "payload": {"ok": False, "error": str(e)}}
+
+    if not noise_samples:
+        return {
+            "status": 503,
+            "payload": {
+                "ok": False,
+                "error": "no noise metrics available",
+                "stats_path": stats_path,
+            },
+        }
+
+    all_noise_values: list[float] = []
+    for values in noise_samples.values():
+        all_noise_values.extend(float(v) for v in values)
+
+    payload_targets: dict[str, dict[str, Any]] = {}
+    warnings: list[str] = []
+    changed_controls = False
+    try:
+        for target in ordered_targets:
+            conf_path, freqs = _load_target_profile_freqs(target)
+            gain, squelch_snr, current_dbfs, _mode = parse_controls(conf_path)
+            matched_noise_values, matched_freqs = _resolve_noise_values_for_freqs(freqs, noise_samples)
+            used_fallback_noise = False
+            if not matched_noise_values and all_noise_values:
+                matched_noise_values = list(all_noise_values)
+                used_fallback_noise = True
+                warnings.append(f"{target}: no direct frequency noise match; used global noise sample")
+
+            noise_median = _median(matched_noise_values)
+            if noise_median is None:
+                suggested_dbfs = _clamp_squelch_dbfs(float(current_dbfs))
+            else:
+                suggested_dbfs = _clamp_squelch_dbfs(float(noise_median) + margin_db)
+
+            changed = write_controls(
+                conf_path,
+                float(gain),
+                "dbfs",
+                float(squelch_snr),
+                float(suggested_dbfs),
+            )
+            changed_controls = changed_controls or bool(changed)
+            payload_targets[target] = {
+                "config_path": conf_path,
+                "frequency_count": len(freqs),
+                "matched_frequency_count": int(matched_freqs),
+                "sample_count": len(matched_noise_values),
+                "noise_dbfs_median": round(float(noise_median), 2) if noise_median is not None else None,
+                "margin_db": margin_db,
+                "current_squelch_dbfs": float(current_dbfs),
+                "applied_squelch_dbfs": float(suggested_dbfs),
+                "used_global_noise_fallback": bool(used_fallback_noise),
+            }
+    except Exception as e:
+        return {"status": 500, "payload": {"ok": False, "error": str(e)}}
+
+    restart_ok = True
+    restart_error = ""
+    combined_changed = False
+    changed = bool(changed_controls)
+    if changed_controls:
+        try:
+            combined_changed = bool(write_combined_config())
+            changed = bool(changed_controls or combined_changed)
+        except Exception as e:
+            return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
+        if changed:
+            restart_ok, restart_error = restart_rtl()
+
+    payload: dict[str, Any] = {
+        "ok": True,
+        "changed": bool(changed),
+        "stats_path": stats_path,
+        "sample_sec": int(sample_sec),
+        "targets": payload_targets,
+    }
+    if changed:
+        payload["restart_ok"] = bool(restart_ok)
+        if restart_error:
+            payload["restart_error"] = str(restart_error)
+    if warnings:
+        payload["warnings"] = warnings
     return {"status": 200, "payload": payload}
 
 
@@ -1011,6 +1263,8 @@ def execute_action(action: dict) -> dict:
             action.get("squelch_dbfs"),
             action.get("cutoff_hz"),
         )
+    if action_type == "auto_squelch":
+        return action_auto_squelch(action.get("targets"))
     if action_type == "filter":
         return action_apply_filter(action.get("target"), action.get("cutoff_hz"))
     if action_type == "profile":

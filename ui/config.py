@@ -80,6 +80,24 @@ ICECAST_HIT_MIN_DURATION = int(os.getenv("ICECAST_HIT_MIN_DURATION", "2"))
 HOLD_STATE_PATH = os.getenv("HOLD_STATE_PATH", "/run/airband_ui_hold.json")
 TUNE_BACKUP_PATH = os.getenv("TUNE_BACKUP_PATH", "/run/airband_ui_tune_backup.json")
 
+# Analog auto-squelch quick calibration
+ANALOG_AUTO_SQUELCH_STATS_PATH = os.getenv(
+    "ANALOG_AUTO_SQUELCH_STATS_PATH",
+    os.getenv("RTL_AIRBAND_STATS_PATH", "/run/rtl_airband_stats.txt"),
+).strip() or "/run/rtl_airband_stats.txt"
+ANALOG_AUTO_SQUELCH_SAMPLE_SEC = max(
+    1,
+    int(os.getenv("ANALOG_AUTO_SQUELCH_SAMPLE_SEC", "6")),
+)
+ANALOG_AUTO_SQUELCH_MARGIN_DB = float(os.getenv("ANALOG_AUTO_SQUELCH_MARGIN_DB", "4.0"))
+ANALOG_AUTO_SQUELCH_MIN_DBFS = float(os.getenv("ANALOG_AUTO_SQUELCH_MIN_DBFS", "-95.0"))
+ANALOG_AUTO_SQUELCH_MAX_DBFS = float(os.getenv("ANALOG_AUTO_SQUELCH_MAX_DBFS", "-1.0"))
+if ANALOG_AUTO_SQUELCH_MIN_DBFS > ANALOG_AUTO_SQUELCH_MAX_DBFS:
+    ANALOG_AUTO_SQUELCH_MIN_DBFS, ANALOG_AUTO_SQUELCH_MAX_DBFS = (
+        ANALOG_AUTO_SQUELCH_MAX_DBFS,
+        ANALOG_AUTO_SQUELCH_MIN_DBFS,
+    )
+
 # Digital backend configuration
 DIGITAL_BACKEND = os.getenv("DIGITAL_BACKEND", "sdrtrunk").strip().lower()
 DIGITAL_SERVICE_NAME = os.getenv("DIGITAL_SERVICE_NAME", os.getenv("UNIT_DIGITAL", "scanner-digital"))
