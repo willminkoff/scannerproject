@@ -2,6 +2,6 @@
 Type=Application
 Name=Start Scanner
 Comment=Start the SprontPi scanner stack
-Exec=bash -lc "/home/willminkoff/scannerproject/scripts/desktop/start_scanner.sh"
+Exec=/bin/bash -lc "\"\\$HOME/scannerproject/scripts/desktop/start_scanner.sh\""
 Terminal=true
 Categories=System;

@@ -1,4 +1,5 @@
 import importlib.util
+import io
 from pathlib import Path
 import sys
 import tempfile
@@ -292,6 +293,29 @@ class Sb3PowerControlTests(unittest.TestCase):
         self.assertTrue(ok)
         self.assertIn(("kill", "--kill-who=all", "--signal=SIGKILL", "scanner-digital"), commands)
         self.assertTrue(any("Escalating stop for lingering SB3 services..." in line for line in lines))
+
+    def test_run_ui_text_fallback_invokes_selected_action(self):
+        with patch.object(sb3_power, "_supports_zenity", return_value=False), \
+             patch.object(sb3_power.sys.stdin, "isatty", return_value=True), \
+             patch.object(sb3_power, "status_summary", return_value=("on", ["SB3 stack is ON."])), \
+             patch.object(sb3_power, "invoke_elevated", return_value=(True, ["Stopped rtl-airband."])) as mock_invoke, \
+             patch("builtins.input", side_effect=["off", "yes"]), \
+             patch("sys.stdout", new_callable=io.StringIO) as stdout:
+            code = sb3_power.run_ui()
+        self.assertEqual(code, 0)
+        self.assertIn("SB3 stack is ON.", stdout.getvalue())
+        self.assertIn("Stopped rtl-airband.", stdout.getvalue())
+        self.assertEqual(mock_invoke.call_args[0][0], "off")
+
+    def test_run_ui_text_fallback_status_exits_cleanly(self):
+        with patch.object(sb3_power, "_supports_zenity", return_value=False), \
+             patch.object(sb3_power.sys.stdin, "isatty", return_value=True), \
+             patch.object(sb3_power, "status_summary", return_value=("off", ["SB3 stack is OFF."])), \
+             patch("builtins.input", side_effect=["status"]), \
+             patch("sys.stdout", new_callable=io.StringIO) as stdout:
+            code = sb3_power.run_ui()
+        self.assertEqual(code, 0)
+        self.assertIn("SB3 stack is OFF.", stdout.getvalue())
 
 
 if __name__ == "__main__":

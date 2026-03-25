@@ -715,6 +715,46 @@ def _confirm_action(action: str, state: str) -> bool:
     return result.returncode == 0
 
 
+def _choose_action_text(state: str, lines: list[str]) -> str | None:
+    print("\n".join(lines))
+    print("")
+    if state == "off":
+        prompt = "Choose action [on/status/cancel]: "
+        allowed = {"on", "status", "cancel"}
+    elif state == "on":
+        prompt = "Choose action [off/status/cancel]: "
+        allowed = {"off", "status", "cancel"}
+    else:
+        prompt = "Choose action [off/on/status/cancel]: "
+        allowed = {"off", "on", "status", "cancel"}
+    while True:
+        try:
+            selected = input(prompt).strip().lower()
+        except EOFError:
+            return None
+        if not selected:
+            return "status"
+        if selected in {"q", "quit", "exit", "cancel"}:
+            return None
+        if selected in {"s", "status"} and "status" in allowed:
+            return "status"
+        if selected in {"on", "start"} and "on" in allowed:
+            return "on"
+        if selected in {"off", "stop"} and "off" in allowed:
+            return "off"
+        choices = "/".join(item for item in ("off", "on", "status", "cancel") if item in allowed)
+        print(f"Enter one of: {choices}.")
+
+
+def _confirm_action_text(action: str) -> bool:
+    prompt = "Confirm turn SB3 OFF? [y/N]: " if action == "off" else "Confirm turn SB3 ON? [y/N]: "
+    try:
+        answer = input(prompt)
+    except EOFError:
+        return False
+    return answer.strip().lower() in {"y", "yes"}
+
+
 def _choose_action(state: str) -> str | None:
     if not _supports_zenity():
         return None
@@ -765,6 +805,18 @@ def run_ui() -> int:
     state_path = resolve_state_path()
     state, lines = status_summary(specs=specs, state_path=state_path)
     if not _supports_zenity():
+        if sys.stdin.isatty():
+            action = _choose_action_text(state, lines)
+            if not action:
+                return 1
+            if action == "status":
+                return 0
+            if not _confirm_action_text(action):
+                return 1
+            ok, output = invoke_elevated(action, state_home=str(Path.home()))
+            print("")
+            print("\n".join(output))
+            return 0 if ok else 1
         print("\n".join(lines))
         print("")
         print("Run with: on | off | toggle | status")

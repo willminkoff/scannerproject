@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=SB3 Power Control
+Comment=Turn the SB3 scanner stack on or off
+Exec=/bin/bash -lc "/usr/bin/python3 \\$HOME/scannerproject/scripts/desktop/sb3_power.py ui"
+Terminal=true
+Categories=System;

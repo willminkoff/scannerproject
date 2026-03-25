@@ -1,9 +1,5 @@
 #!/bin/bash
 set -euo pipefail
 
-sudo systemctl start icecast2
-sudo systemctl start icecast-keepalive
-sudo systemctl start rtl-airband
-sudo systemctl start airband-ui
-
-echo "Scanner stack started."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec /usr/bin/python3 "${SCRIPT_DIR}/sb3_power.py" on
