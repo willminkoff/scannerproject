@@ -531,24 +531,96 @@ def _verify_outcome(command: str, specs: list[UnitSpec], state_path: Path) -> tu
     return True, []
 
 
-def invoke_elevated(command: str, state_home: str | None = None) -> tuple[bool, list[str]]:
-    helper_args = [sys.executable, str(Path(__file__).resolve()), command, "--elevated-helper"]
-    if state_home:
-        helper_args.extend(["--state-home", state_home])
-    if os.geteuid() == 0:
-        result = subprocess.run(helper_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
-    elif os.getenv("DISPLAY") and PKEXEC_BIN:
-        result = subprocess.run([PKEXEC_BIN, *helper_args], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
-    elif SUDO_BIN:
-        sudo_args = [SUDO_BIN, *helper_args] if sys.stdin.isatty() else [SUDO_BIN, "-n", *helper_args]
-        result = subprocess.run(sudo_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
-    else:
-        return False, ["Unable to elevate privileges for SB3 power control."]
-
+def _result_lines(result: subprocess.CompletedProcess[str]) -> list[str]:
     lines = [line for line in (result.stdout or "").splitlines() if line.strip()]
     err_lines = [line for line in (result.stderr or "").splitlines() if line.strip()]
     if err_lines:
         lines.extend(err_lines)
+    return lines
+
+
+def _sudo_with_askpass(helper_args: list[str]) -> subprocess.CompletedProcess[str] | None:
+    if not (SUDO_BIN and ZENITY_BIN and os.getenv("DISPLAY")):
+        return None
+    askpass_path = ""
+    try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as handle:
+            handle.write("#!/bin/sh\n")
+            handle.write(f'exec "{ZENITY_BIN}" --password --title="SB3 Power Control Authentication"\n')
+            askpass_path = handle.name
+        os.chmod(askpass_path, 0o700)
+        env = os.environ.copy()
+        env["SUDO_ASKPASS"] = askpass_path
+        env["SUDO_ASKPASS_REQUIRE"] = "force"
+        return subprocess.run(
+            [SUDO_BIN, "-A", *helper_args],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+            env=env,
+        )
+    except Exception:
+        return None
+    finally:
+        if askpass_path:
+            try:
+                os.unlink(askpass_path)
+            except OSError:
+                pass
+
+
+def invoke_elevated(command: str, state_home: str | None = None) -> tuple[bool, list[str]]:
+    helper_args = [sys.executable, str(Path(__file__).resolve()), command, "--elevated-helper"]
+    if state_home:
+        helper_args.extend(["--state-home", state_home])
+    failure_notes: list[str] = []
+    result: subprocess.CompletedProcess[str] | None = None
+
+    def _record_failure(label: str, proc: subprocess.CompletedProcess[str]) -> None:
+        lines = _result_lines(proc)
+        if lines:
+            failure_notes.append(f"{label}: {lines[0]}")
+            failure_notes.extend(lines[1:])
+        else:
+            failure_notes.append(f"{label}: command returned code {proc.returncode}")
+
+    if os.geteuid() == 0:
+        result = subprocess.run(helper_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+    else:
+        display = bool(os.getenv("DISPLAY"))
+        if display and PKEXEC_BIN:
+            proc = subprocess.run(
+                [PKEXEC_BIN, *helper_args],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+            if proc.returncode == 0:
+                result = proc
+            else:
+                _record_failure("pkexec", proc)
+        if result is None and SUDO_BIN:
+            sudo_args = [SUDO_BIN, *helper_args] if sys.stdin.isatty() else [SUDO_BIN, "-n", *helper_args]
+            proc = subprocess.run(sudo_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+            if proc.returncode == 0:
+                result = proc
+            else:
+                _record_failure("sudo", proc)
+                if not sys.stdin.isatty():
+                    askpass_proc = _sudo_with_askpass(helper_args)
+                    if askpass_proc is not None:
+                        if askpass_proc.returncode == 0:
+                            result = askpass_proc
+                        else:
+                            _record_failure("sudo-askpass", askpass_proc)
+    if result is None:
+        return False, ["Unable to elevate privileges for SB3 power control."]
+
+    lines = _result_lines(result)
+    if result.returncode != 0 and failure_notes:
+        lines.extend(item for item in failure_notes if item not in lines)
     if not lines:
         lines.append(f"SB3 {command} command returned code {result.returncode}.")
     ok = result.returncode == 0

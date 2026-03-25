@@ -194,6 +194,34 @@ class Sb3PowerControlTests(unittest.TestCase):
         self.assertIn("SB3 is not fully off yet. Still active:", lines)
         self.assertIn("- scanner-digital", lines)
 
+    def test_invoke_elevated_uses_askpass_when_sudo_noninteractive_fails(self):
+        class ProcResult:
+            def __init__(self, returncode=0, stdout="", stderr=""):
+                self.returncode = returncode
+                self.stdout = stdout
+                self.stderr = stderr
+
+        calls = []
+
+        def fake_run(args, **kwargs):
+            calls.append((list(args), dict(kwargs)))
+            if len(calls) == 1:
+                return ProcResult(returncode=1, stderr="sudo: a password is required")
+            return ProcResult(returncode=0, stdout="off complete\n")
+
+        with patch.object(sb3_power, "PKEXEC_BIN", None), \
+             patch.object(sb3_power, "SUDO_BIN", "/usr/bin/sudo"), \
+             patch.object(sb3_power, "ZENITY_BIN", "/usr/bin/zenity"), \
+             patch.object(sb3_power.subprocess, "run", side_effect=fake_run), \
+             patch.object(sb3_power.sys.stdin, "isatty", return_value=False), \
+             patch.object(sb3_power, "_verify_outcome", return_value=(True, [])), \
+             patch.dict(sb3_power.os.environ, {"DISPLAY": ":0"}, clear=False):
+            ok, _ = sb3_power.invoke_elevated("off", state_home="/tmp/sb3-user")
+        self.assertTrue(ok)
+        self.assertGreaterEqual(len(calls), 2)
+        self.assertEqual(calls[0][0][0:2], ["/usr/bin/sudo", "-n"])
+        self.assertEqual(calls[1][0][0:2], ["/usr/bin/sudo", "-A"])
+
     def test_stop_stack_errors_when_unit_never_reaches_inactive(self):
         specs = [
             sb3_power.UnitSpec("rtl", "rtl-airband", holds_tuner=True),
