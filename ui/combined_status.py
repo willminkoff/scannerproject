@@ -29,6 +29,10 @@ RE_INDEX = re.compile(r'index\s*=\s*(\d+)\s*;', re.I)
 RE_GAIN = re.compile(r'gain\s*=\s*([0-9.]+)\s*;', re.I)
 RE_SQUELCH = re.compile(r'squelch_threshold\s*=\s*(-?\d+)\s*;', re.I)
 RE_FREQS_BLOCK = re.compile(r'freqs\s*=\s*\((.*?)\)\s*;', re.S | re.I)
+EXPECTED_DEVICE_INDICES = {
+    "airband": 0,
+    "ground": 1,
+}
 
 
 def _extract_devices_section(text: str) -> str:
@@ -147,11 +151,36 @@ def combined_device_summary(conf_path: str = COMBINED_CONFIG_PATH) -> Dict[str, 
         "airband": AIRBAND_RTL_SERIAL or (airband.get("serial") if airband else None),
         "ground": GROUND_RTL_SERIAL or (ground.get("serial") if ground else None),
     }
+    expected_indices = dict(EXPECTED_DEVICE_INDICES)
+    index_mismatch_detail = []
+    for name, device in (("airband", airband), ("ground", ground)):
+        if not isinstance(device, dict):
+            continue
+        expected_index = expected_indices.get(name)
+        actual_index = device.get("index")
+        if expected_index is None:
+            continue
+        if actual_index is None:
+            index_mismatch_detail.append({
+                "device": name,
+                "expected": expected_index,
+                "actual": None,
+                "reason": f"{name} index missing",
+            })
+        elif int(actual_index) != int(expected_index):
+            index_mismatch_detail.append({
+                "device": name,
+                "expected": expected_index,
+                "actual": int(actual_index),
+                "reason": f"{name} index mismatch",
+            })
     return {
         "devices": devices,
         "airband": airband,
         "ground": ground,
         "expected_serials": expected_serials,
+        "expected_indices": expected_indices,
+        "index_mismatch_detail": index_mismatch_detail,
     }
 
 

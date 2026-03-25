@@ -2823,6 +2823,7 @@ class Handler(BaseHTTPRequestHandler):
             airband_device = combined_info.get("airband")
             ground_device = combined_info.get("ground")
             expected_serials = dict(combined_info.get("expected_serials") or {})
+            expected_indices = dict(combined_info.get("expected_indices") or {})
             if AIRBAND_RTL_SERIAL:
                 expected_serials["airband"] = AIRBAND_RTL_SERIAL
             if GROUND_RTL_SERIAL:
@@ -2831,6 +2832,7 @@ class Handler(BaseHTTPRequestHandler):
             expected_serials["digital_secondary"] = DIGITAL_RTL_SERIAL_SECONDARY or ""
             expected_serials["digital_tertiary"] = DIGITAL_RTL_SERIAL_TERTIARY or ""
             serial_mismatch_detail = []
+            index_mismatch_detail = list(combined_info.get("index_mismatch_detail") or [])
             if AIRBAND_RTL_SERIAL:
                 actual = airband_device.get("serial") if airband_device else ""
                 if not actual:
@@ -2957,9 +2959,12 @@ class Handler(BaseHTTPRequestHandler):
                 "digital_stream_mount": digital_stream_mount,
                 "icecast_expected_mounts": [f"/{PLAYER_MOUNT}", f"/{DIGITAL_STREAM_MOUNT}"],
                 "expected_serials": expected_serials,
+                "expected_indices": expected_indices,
                 "digital_tuner_targets": _digital_tuner_targets(),
                 "serial_mismatch": bool(serial_mismatch_detail),
                 "serial_mismatch_detail": serial_mismatch_detail,
+                "index_mismatch": bool(index_mismatch_detail),
+                "index_mismatch_detail": index_mismatch_detail,
                 "keepalive_active": keepalive_unit_active,
                 "server_time": time.time(),
                 "rtl_active_enter": rtl_active_enter,

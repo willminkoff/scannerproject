@@ -18,6 +18,7 @@ try:
         GROUND_CONFIG_PATH,
         V3_STRICT_PREFLIGHT,
     )
+    from .combined_status import combined_device_summary
     from .digital import get_digital_manager
     from .profile_config import read_active_config_path
     from .system_stats import read_rtl_dongle_health
@@ -34,6 +35,7 @@ except ImportError:
         GROUND_CONFIG_PATH,
         V3_STRICT_PREFLIGHT,
     )
+    from ui.combined_status import combined_device_summary
     from ui.digital import get_digital_manager
     from ui.profile_config import read_active_config_path
     from ui.system_stats import read_rtl_dongle_health
@@ -175,6 +177,34 @@ def evaluate_analog_preflight(
                 f"Active {normalized} config path missing",
             )
         )
+    else:
+        try:
+            combined_info = combined_device_summary()
+        except Exception:
+            combined_info = {}
+        target_device = combined_info.get(normalized) if isinstance(combined_info, dict) else None
+        expected_indices = dict((combined_info or {}).get("expected_indices") or {})
+        expected_index = expected_indices.get(normalized)
+        if isinstance(target_device, dict) and expected_index is not None:
+            actual_index = target_device.get("index")
+            if actual_index is None:
+                reasons.append(
+                    _reason(
+                        "ANALOG_COMBINED_INDEX_MISSING",
+                        "critical",
+                        f"Combined config missing RTL index for {normalized}",
+                        "Regenerate combined config and verify tuner ownership before applying changes.",
+                    )
+                )
+            elif int(actual_index) != int(expected_index):
+                reasons.append(
+                    _reason(
+                        "ANALOG_COMBINED_INDEX_MISMATCH",
+                        "critical",
+                        f"Combined config maps {normalized} to RTL index {actual_index}; expected {expected_index}",
+                        "Regenerate combined config so airband stays on index 0 and ground stays on index 1.",
+                    )
+                )
 
     state = _evaluate_state(reasons)
     blocked = state == "failed"

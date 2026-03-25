@@ -1,3 +1,4 @@
+import os
 import re
 
 RE_AIRBAND = re.compile(r'^\s*airband\s*=\s*(true|false)\s*;\s*$', re.I)
@@ -11,6 +12,16 @@ RE_SERIAL = re.compile(r'^\s*serial\s*=\s*"[^\"]*"\s*;', re.I)
 RE_ICECAST_BLOCK = re.compile(r'\{\s*[^{}]*type\s*=\s*"icecast"[^{}]*\}', re.S)
 RE_MOUNTPOINT = re.compile(r'(\s*mountpoint\s*=\s*)\"/?([^\";]+)\"(\s*;)', re.I)
 RE_BITRATE = re.compile(r'(\s*bitrate\s*=\s*)\d+(\s*;)', re.I)
+AIRBAND_DEVICE_INDEX = 0
+GROUND_DEVICE_INDEX = 1
+AIRBAND_DEVICE_SERIAL = (
+    os.getenv("AIRBAND_RTL_SERIAL", os.getenv("SCANNER1_RTL_DEVICE", "00000002")).strip()
+    or "00000002"
+)
+GROUND_DEVICE_SERIAL = (
+    os.getenv("GROUND_RTL_SERIAL", os.getenv("SCANNER2_RTL_DEVICE", "70613472")).strip()
+    or "70613472"
+)
 
 def extract_top_level_settings(text: str) -> list:
     lines = []
@@ -254,8 +265,8 @@ def build_combined_config(
 
     device_payloads = []
     payloads = [
-        (airband_text, 1, airband_disabled, "00000002"),
-        (ground_text, 0, ground_disabled, "70613472"),
+        (airband_text, AIRBAND_DEVICE_INDEX, airband_disabled, AIRBAND_DEVICE_SERIAL),
+        (ground_text, GROUND_DEVICE_INDEX, ground_disabled, GROUND_DEVICE_SERIAL),
     ]
     for text, desired_index, disabled, serial in payloads:
         if disabled:
