@@ -1,9 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-sudo systemctl stop airband-ui
-sudo systemctl stop rtl-airband
-sudo systemctl stop icecast-keepalive
-sudo systemctl stop icecast2
-
-echo "Scanner stack stopped."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+/usr/bin/python3 "${SCRIPT_DIR}/sb3_power.py" off
+/usr/bin/python3 "${SCRIPT_DIR}/sb3_power.py" status
