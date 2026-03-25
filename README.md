@@ -6,7 +6,7 @@ Scanner control UI and configuration for RTL-SDR dual-dongle airband/GMRS/WX rec
 
 **Current Architecture**: Refactored (Jan 2026) from 1,928-line monolith to 11 modular Python units + static web assets.
 
-## Current Deployment Hardware (2026-03-22)
+## Current Deployment Hardware (2026-03-25)
 
 Current scanner host (replacing the Pi runtime target):
 
@@ -18,11 +18,12 @@ Current scanner host (replacing the Pi runtime target):
 - Storage: `WD PC SN740 NVMe` (`238.5 GiB` usable on `nvme0n1`)
 - Network: Intel `I219-LM` Ethernet + Intel `AX211` Wi-Fi/Bluetooth
 - Graphics: Intel Alder Lake-S GT1 iGPU
-- SDR USB inventory: `4x RTL2838` dongles
+- SDR USB inventory: `5x RTL2838` dongles
   - `00000002` (RTL-SDR Blog V4)
-  - `49571227` (Nooelec NESDR SMArt v5)
+  - `00000001` (Nooelec NESDR SMArt v5, replacement for prior digital secondary `49571227`)
   - `56919602` (Nooelec NESDR SMArt v5)
   - `70613472` (Nooelec NESDR SMArt v5)
+  - `14306619` (Nooelec NESDR SMArt v5, extra digital-capable tuner)
 
 ## Version 2.5 Lock (2026-02-21)
 
@@ -30,7 +31,7 @@ Current scanner host (replacing the Pi runtime target):
 - Added control-channel confidence state for digital profiles using decoded-message metrics (`Locked`, `Searching`, `Inferred` states in UI).
 - Filtered non-actionable headless SDRTrunk warnings from digital decoder error reporting to reduce false alarm noise.
 - Verified stable 4-dongle runtime baseline with a 10-minute soak: `120/120` healthy samples, `0` USB kernel drop events.
-- Captured stable serial-to-path baseline for this hardware layout: `70613472 -> 1-1.2`, `56919602 -> 1-1.3`, `49571227 -> 1-1.4`, `00000002 -> 1-2`.
+- Current Micro serial-to-path baseline after the 2026-03-25 digital-secondary replacement: `00000001 -> 1-5.1.1`, `56919602 -> 1-5.1.2`, `14306619 -> 1-5.1.3`, `00000002 -> 1-5.3`, `70613472 -> 1-5.4`.
 
 ## V3 Foundation (2026-02-22)
 
@@ -572,7 +573,9 @@ At runtime, `ensure-digital-runtime.py` and profile switches now write the SDRTr
 These mappings prevent device-busy conflicts:
 - Airband (rtl-airband): `00000002`
 - Ground (rtl-airband): `70613472`
-- Digital (SDRTrunk): `56919602`
+- Digital primary (SDRTrunk): `56919602`
+- Digital secondary (SDRTrunk): `00000001`
+- Extra digital-capable tuner currently present on Micro: `14306619` (auto-adopted when `DIGITAL_AUTO_ADOPT_EXTRA_TUNERS=1`)
 
 Enforcement:
 - Airband/Ground serials are set in `profiles/rtl_airband_*.conf` and flow into the combined config.
@@ -585,7 +588,7 @@ Use this when you want SDRTrunk to auto-allocate one digital tuner for control a
 Example `/etc/airband-ui.conf`:
 ```bash
 DIGITAL_RTL_SERIAL=56919602
-DIGITAL_RTL_SERIAL_SECONDARY=56919603
+DIGITAL_RTL_SERIAL_SECONDARY=00000001
 DIGITAL_USE_MULTI_FREQ_SOURCE=1
 DIGITAL_SOURCE_ROTATION_DELAY_MS=500
 ```
@@ -717,6 +720,7 @@ If you are on SprontPi, set these in `/etc/airband-ui.conf` (or your UI Environm
 AIRBAND_RTL_SERIAL=00000002
 GROUND_RTL_SERIAL=70613472
 DIGITAL_RTL_SERIAL=56919602
+DIGITAL_RTL_SERIAL_SECONDARY=00000001
 DIGITAL_BOOT_DEFAULT_PROFILE=tacn-all
 DIGITAL_LOCAL_MONITOR=0
 AIRBAND_FALLBACK_PROFILE_PATH=/usr/local/etc/airband-profiles/rtl_airband_airband.conf
