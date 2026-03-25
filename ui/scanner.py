@@ -13,7 +13,8 @@ try:
         RE_ACTIVITY, RE_ACTIVITY_TS, HIT_GAP_RESET_SECONDS,
         AIRBAND_MIN_MHZ, AIRBAND_MAX_MHZ, LAST_HIT_AIRBAND_PATH,
         LAST_HIT_GROUND_PATH, ICECAST_HIT_LOG_PATH, ICECAST_HIT_LOG_LIMIT,
-        ICECAST_HIT_MIN_DURATION, UNITS, GROUND_CONFIG_PATH
+        ICECAST_HIT_MIN_DURATION, UNITS, GROUND_CONFIG_PATH,
+        ANALOG_AUTO_SQUELCH_STATS_PATH,
     )
     from .profile_config import parse_freqs_labels, read_active_config_path
     from .systemd import unit_active
@@ -22,7 +23,8 @@ except ImportError:
         RE_ACTIVITY, RE_ACTIVITY_TS, HIT_GAP_RESET_SECONDS,
         AIRBAND_MIN_MHZ, AIRBAND_MAX_MHZ, LAST_HIT_AIRBAND_PATH,
         LAST_HIT_GROUND_PATH, ICECAST_HIT_LOG_PATH, ICECAST_HIT_LOG_LIMIT,
-        ICECAST_HIT_MIN_DURATION, UNITS, GROUND_CONFIG_PATH
+        ICECAST_HIT_MIN_DURATION, UNITS, GROUND_CONFIG_PATH,
+        ANALOG_AUTO_SQUELCH_STATS_PATH,
     )
     from ui.profile_config import parse_freqs_labels, read_active_config_path
     from ui.systemd import unit_active
@@ -42,8 +44,13 @@ _LIVE_ANALOG_HIT_STATE = {
         "airband": {"path": "", "mtime_ns": 0, "freqs": set()},
         "ground": {"path": "", "mtime_ns": 0, "freqs": set()},
     },
+    "stats": {"path": "", "mtime_ns": 0, "counters": {}, "initialized": False},
 }
 _LIVE_ANALOG_HIT_ENTRY_LIMIT = max(200, int(ICECAST_HIT_LOG_LIMIT or 200))
+_RE_STATS_ACTIVITY_COUNTER = re.compile(
+    r'^channel_activity_counter\{freq="([0-9.]+)"[^}]*\}\s+([0-9.]+)\s*$'
+)
+_STATS_HIT_GAP_SECONDS = max(float(HIT_GAP_RESET_SECONDS), 20.0)
 
 
 def mark_analog_hit_cutoff(target: str, at_ts: Optional[float] = None) -> None:
@@ -77,6 +84,9 @@ def _analog_hit_cutoff_snapshot() -> dict:
 
 
 def _reset_live_analog_hit_state() -> None:
+    with _ANALOG_HIT_CUTOFF_LOCK:
+        _ANALOG_HIT_CUTOFF_TS["airband"] = 0.0
+        _ANALOG_HIT_CUTOFF_TS["ground"] = 0.0
     with _LIVE_ANALOG_HIT_LOCK:
         _LIVE_ANALOG_HIT_STATE["entries"] = []
         _LIVE_ANALOG_HIT_STATE["current"] = {"airband": None, "ground": None}
@@ -88,6 +98,7 @@ def _reset_live_analog_hit_state() -> None:
             "airband": {"path": "", "mtime_ns": 0, "freqs": set()},
             "ground": {"path": "", "mtime_ns": 0, "freqs": set()},
         }
+        _LIVE_ANALOG_HIT_STATE["stats"] = {"path": "", "mtime_ns": 0, "counters": {}, "initialized": False}
     read_hit_list_cached._cache = {"value": [], "ts": 0.0}
     read_last_hit_from_journal_cached._cache = {"value": "", "ts": 0.0}
 
@@ -188,16 +199,27 @@ def _finalize_stale_live_analog_hits_locked(now_ts: float) -> None:
         if last_ts <= 0:
             (_LIVE_ANALOG_HIT_STATE.get("current") or {})[source] = None
             continue
-        if (now_ts - last_ts) > float(HIT_GAP_RESET_SECONDS):
+        gap_reset_sec = max(
+            float(HIT_GAP_RESET_SECONDS),
+            float(current.get("gap_reset_sec") or 0.0),
+        )
+        if (now_ts - last_ts) > gap_reset_sec:
             _append_live_analog_hit_entry_locked(source, current)
             (_LIVE_ANALOG_HIT_STATE.get("current") or {})[source] = None
 
 
-def _record_live_analog_hit(source: str, freq_text: str, ts: float) -> None:
+def _record_live_analog_hit(
+    source: str,
+    freq_text: str,
+    ts: float,
+    *,
+    gap_reset_sec: Optional[float] = None,
+) -> None:
     normalized_source = "ground" if str(source or "").strip().lower() == "ground" else "airband"
     freq = _normalize_freq_text(freq_text)
     if not freq:
         return
+    effective_gap_reset = max(float(HIT_GAP_RESET_SECONDS), float(gap_reset_sec or 0.0))
     cutoffs = _analog_hit_cutoff_snapshot()
     if ts < float(cutoffs.get(normalized_source) or 0.0):
         return
@@ -210,12 +232,42 @@ def _record_live_analog_hit(source: str, freq_text: str, ts: float) -> None:
         if isinstance(current, dict):
             last_ts = float(current.get("last_ts") or 0.0)
             gap = ts - last_ts if last_ts > 0 else None
-            if current.get("freq") == freq and (gap is None or gap <= float(HIT_GAP_RESET_SECONDS)):
+            current_gap_reset = max(
+                float(HIT_GAP_RESET_SECONDS),
+                float(current.get("gap_reset_sec") or 0.0),
+            )
+            if current.get("freq") == freq and (gap is None or gap <= max(current_gap_reset, effective_gap_reset)):
                 current["last_ts"] = max(ts, last_ts)
+                current["gap_reset_sec"] = max(current_gap_reset, effective_gap_reset)
                 return
             _append_live_analog_hit_entry_locked(normalized_source, current)
-        current_map[normalized_source] = {"freq": freq, "start_ts": ts, "last_ts": ts}
+        current_map[normalized_source] = {
+            "freq": freq,
+            "start_ts": ts,
+            "last_ts": ts,
+            "gap_reset_sec": effective_gap_reset,
+        }
         _LIVE_ANALOG_HIT_STATE["current"] = current_map
+
+
+def _read_activity_counter_stats(path: str) -> dict[str, int]:
+    counters: dict[str, int] = {}
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as handle:
+            for raw in handle:
+                match = _RE_STATS_ACTIVITY_COUNTER.match(raw.strip())
+                if not match:
+                    continue
+                freq = _normalize_freq_text(match.group(1))
+                if not freq:
+                    continue
+                try:
+                    counters[freq] = int(float(match.group(2)))
+                except Exception:
+                    continue
+    except Exception:
+        return {}
+    return counters
 
 
 def refresh_analog_hit_state(now: Optional[float] = None) -> None:
@@ -246,6 +298,44 @@ def refresh_analog_hit_state(now: Optional[float] = None) -> None:
             _LIVE_ANALOG_HIT_STATE["files"] = files
         if value:
             _record_live_analog_hit(source, value, mtime_ts)
+    stats_path = str(ANALOG_AUTO_SQUELCH_STATS_PATH or "").strip()
+    if stats_path:
+        try:
+            stat = os.stat(stats_path)
+        except OSError:
+            stat = None
+        if stat is not None:
+            mtime_ns = int(getattr(stat, "st_mtime_ns", int(float(stat.st_mtime) * 1_000_000_000)))
+            mtime_ts = float(stat.st_mtime or now_ts)
+            with _LIVE_ANALOG_HIT_LOCK:
+                stats_state = dict(_LIVE_ANALOG_HIT_STATE.get("stats") or {})
+            if stats_state.get("path") != stats_path or int(stats_state.get("mtime_ns") or 0) != mtime_ns:
+                counters = _read_activity_counter_stats(stats_path)
+                previous_counters = dict(stats_state.get("counters") or {})
+                initialized = bool(stats_state.get("initialized"))
+                with _LIVE_ANALOG_HIT_LOCK:
+                    _LIVE_ANALOG_HIT_STATE["stats"] = {
+                        "path": stats_path,
+                        "mtime_ns": mtime_ns,
+                        "counters": dict(counters),
+                        "initialized": True,
+                    }
+                if initialized:
+                    for freq, count in counters.items():
+                        prev = previous_counters.get(freq)
+                        if prev is None or count <= int(prev):
+                            continue
+                        try:
+                            freq_value = float(freq)
+                        except Exception:
+                            continue
+                        source = "airband" if _freq_in_airband(freq_value) else "ground"
+                        _record_live_analog_hit(
+                            source,
+                            freq,
+                            mtime_ts,
+                            gap_reset_sec=_STATS_HIT_GAP_SECONDS,
+                        )
     with _LIVE_ANALOG_HIT_LOCK:
         _finalize_stale_live_analog_hits_locked(now_ts)
 
@@ -261,7 +351,11 @@ def _live_hit_items_snapshot(limit: int = 20) -> list:
             continue
         last_ts = float(current.get("last_ts") or 0.0)
         start_ts = float(current.get("start_ts") or last_ts or 0.0)
-        if last_ts <= 0 or (now_ts - last_ts) > float(HIT_GAP_RESET_SECONDS):
+        gap_reset_sec = max(
+            float(HIT_GAP_RESET_SECONDS),
+            float(current.get("gap_reset_sec") or 0.0),
+        )
+        if last_ts <= 0 or (now_ts - last_ts) > gap_reset_sec:
             continue
         freq = _normalize_freq_text(current.get("freq"))
         if not freq:
