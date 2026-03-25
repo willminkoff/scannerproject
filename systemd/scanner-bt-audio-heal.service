@@ -1,7 +1,7 @@
 [Unit]
 Description=SB3 Bluetooth Audio Heal
-After=network-online.target bluetooth.service airband-ui.service
-Wants=network-online.target bluetooth.service airband-ui.service
+After=network-online.target bluetooth.service
+Wants=network-online.target bluetooth.service
 
 [Service]
 Type=oneshot
@@ -11,4 +11,3 @@ WorkingDirectory=/home/ubuntu/scannerproject
 EnvironmentFile=-/etc/airband-ui.conf
 ExecStart=/usr/bin/env bash /home/ubuntu/scannerproject/scripts/bt-audio-heal.sh
 TimeoutStartSec=90
-

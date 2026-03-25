@@ -15,6 +15,7 @@ BT_HEAL_MAX_WAIT_SEC="${BT_HEAL_MAX_WAIT_SEC:-45}"
 BT_HEAL_POLL_SEC="${BT_HEAL_POLL_SEC:-2}"
 BT_HEAL_SINK_WAIT_SEC="${BT_HEAL_SINK_WAIT_SEC:-15}"
 BT_HEAL_FORCE_RESTART="${BT_HEAL_FORCE_RESTART:-0}"
+BT_HEAL_REQUIRE_UI_ACTIVE="${BT_HEAL_REQUIRE_UI_ACTIVE:-1}"
 UI_BASE_URL="${UI_BASE_URL:-http://127.0.0.1:5050}"
 
 uid="$(id -u)"
@@ -100,6 +101,11 @@ restart_vlc_target() {
 
 main() {
   local sink_id="" deadline
+
+  if [[ "${BT_HEAL_REQUIRE_UI_ACTIVE}" == "1" ]] && ! systemctl --quiet is-active airband-ui.service; then
+    log "airband-ui inactive; skipping"
+    exit 0
+  fi
 
   if ! have_cmd bluetoothctl || ! have_cmd wpctl || ! have_cmd curl; then
     log "missing dependency (bluetoothctl/wpctl/curl); skipping"
