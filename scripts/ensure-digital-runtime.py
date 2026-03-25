@@ -15,6 +15,7 @@ import csv
 import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from xml.sax.saxutils import escape as _xml_escape
 
 _XSI_NS = "http://www.w3.org/2001/XMLSchema-instance"
 ET.register_namespace("xsi", _XSI_NS)
@@ -33,6 +34,10 @@ DIGITAL_RTL_SERIAL = os.getenv("DIGITAL_RTL_SERIAL", "").strip()
 DIGITAL_RTL_SERIAL_SECONDARY = os.getenv(
     "DIGITAL_RTL_SERIAL_SECONDARY",
     os.getenv("DIGITAL_RTL_SERIAL_2", ""),
+).strip()
+DIGITAL_RTL_SERIAL_TERTIARY = os.getenv(
+    "DIGITAL_RTL_SERIAL_TERTIARY",
+    os.getenv("DIGITAL_RTL_SERIAL_3", ""),
 ).strip()
 DIGITAL_PREFERRED_TUNER = os.getenv("DIGITAL_PREFERRED_TUNER", "").strip()
 DIGITAL_FORCE_PREFERRED_TUNER = os.getenv(
@@ -79,7 +84,14 @@ DIGITAL_STREAM_MOUNT = os.getenv(
     "DIGITAL_STREAM_MOUNT",
     os.getenv("DIGITAL_MIXER_DIGITAL_MOUNT", "DIGITAL.mp3"),
 ).strip().lstrip("/") or "DIGITAL.mp3"
-DIGITAL_STREAM_BITRATE = max(8, _env_int("DIGITAL_STREAM_BITRATE", 32))
+DIGITAL_AUTO_ADOPT_EXTRA_TUNERS = str(os.getenv("DIGITAL_AUTO_ADOPT_EXTRA_TUNERS", "1")).strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+DIGITAL_STREAM_BITRATE = max(8, _env_int("DIGITAL_STREAM_BITRATE", 24))
+DIGITAL_STREAM_LEGACY_BITRATE = 32
 DIGITAL_STREAM_SAMPLE_RATE = max(8000, _env_int("DIGITAL_STREAM_SAMPLE_RATE", 16000))
 DIGITAL_STREAM_CHANNELS = 1 if _env_int("DIGITAL_STREAM_CHANNELS", 1) <= 1 else 2
 DIGITAL_STREAM_MAX_RECORDING_AGE_MS = max(60000, _env_int("DIGITAL_STREAM_MAX_RECORDING_AGE_MS", 600000))
@@ -90,6 +102,20 @@ DIGITAL_STREAM_CHANNELS_OVERRIDE = _env_set("DIGITAL_STREAM_CHANNELS")
 DIGITAL_STREAM_MAX_RECORDING_AGE_OVERRIDE = _env_set("DIGITAL_STREAM_MAX_RECORDING_AGE_MS")
 DIGITAL_STREAM_DELAY_OVERRIDE = _env_set("DIGITAL_STREAM_DELAY_MS")
 DIGITAL_P25_MODULATION = os.getenv("DIGITAL_P25_MODULATION", "").strip()
+DIGITAL_LOCAL_MONITOR = os.getenv("DIGITAL_LOCAL_MONITOR", "0").strip().lower() in _TRUTHY
+DIGITAL_DISABLE_LOCAL_SPEAKER_AUDIO = os.getenv("DIGITAL_DISABLE_LOCAL_SPEAKER_AUDIO", "1").strip().lower() in _TRUTHY
+DIGITAL_LOCAL_AUDIO_MIXER = os.getenv("DIGITAL_LOCAL_AUDIO_MIXER", "").strip()
+SDRTRUNK_PLAYBACK_PREFS_PATH = Path(
+    os.getenv(
+        "DIGITAL_PLAYBACK_PREFS_PATH",
+        str(Path.home() / ".java" / ".userPrefs" / "io" / "github" / "dsheirer" / "preference" / "playback" / "prefs.xml"),
+    )
+).expanduser()
+ASOUND_CARDS_PATH = Path(os.getenv("DIGITAL_ASOUND_CARDS_PATH", "/proc/asound/cards")).expanduser()
+ASOUND_PCM_PATH = Path(os.getenv("DIGITAL_ASOUND_PCM_PATH", "/proc/asound/pcm")).expanduser()
+_PLAYBACK_PREF_KEY = "audio.playback.mixer.channel.configuration"
+_JAVA_PREFS_XML_HEADER = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n'
+_JAVA_PREFS_XML_DOCTYPE = '<!DOCTYPE map SYSTEM "http://java.sun.com/dtd/preferences.dtd">\n'
 
 
 def _log(msg: str) -> None:
@@ -133,6 +159,134 @@ def _discover_rtl_unique_ids_by_serial() -> dict[str, str]:
     return out
 
 
+def _read_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return ""
+
+
+def _parse_card_labels(cards_text: str) -> dict[int, str]:
+    labels: dict[int, str] = {}
+    for raw in str(cards_text or "").splitlines():
+        line = raw.rstrip()
+        m = re.match(r"^\s*(\d+)\s+\[([^\]]+)\]", line)
+        if not m:
+            continue
+        card = int(m.group(1))
+        label = str(m.group(2) or "").strip()
+        if label:
+            labels[card] = label
+    return labels
+
+
+def _detect_preferred_local_audio_mixer(cards_text: str, pcm_text: str) -> str:
+    card_labels = _parse_card_labels(cards_text)
+    best: tuple[int, int, int, str] | None = None
+    for raw in str(pcm_text or "").splitlines():
+        line = raw.strip()
+        m = re.match(r"^(\d+)-(\d+):\s*(.*)$", line)
+        if not m:
+            continue
+        card_num = int(m.group(1))
+        dev_num = int(m.group(2))
+        body = str(m.group(3) or "").strip()
+        low = body.lower()
+        if "playback" not in low:
+            continue
+        score = 0
+        if "hdmi" in low:
+            score += 100
+        if "digital" in low or "iec958" in low:
+            score += 40
+        if "analog" in low:
+            score -= 40
+        if dev_num != 0:
+            score += 10
+        card_label = card_labels.get(card_num, f"CARD{card_num}")
+        mixer_name = f"{card_label} [plughw:{card_num},{dev_num}] - STEREO"
+        candidate = (score, card_num, dev_num, mixer_name)
+        if best is None or candidate > best:
+            best = candidate
+    return best[3] if best else ""
+
+
+def _load_java_pref_entries(path: Path) -> dict[str, str]:
+    if not path.is_file():
+        return {}
+    try:
+        root = ET.parse(path).getroot()
+    except Exception:
+        return {}
+    if root.tag != "map":
+        return {}
+    out: dict[str, str] = {}
+    for entry in root.findall("entry"):
+        key = str(entry.get("key") or "").strip()
+        if not key:
+            continue
+        out[key] = str(entry.get("value") or "")
+    return out
+
+
+def _write_java_pref_entries(path: Path, entries: dict[str, str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        _JAVA_PREFS_XML_HEADER.rstrip("\n"),
+        _JAVA_PREFS_XML_DOCTYPE.rstrip("\n"),
+        '<map MAP_XML_VERSION="1.0">',
+    ]
+    for key in sorted(entries):
+        value = str(entries[key])
+        key_xml = _xml_escape(str(key), {'"': "&quot;"})
+        value_xml = _xml_escape(value, {'"': "&quot;"})
+        lines.append(f'  <entry key="{key_xml}" value="{value_xml}"/>')
+    lines.append("</map>")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _sync_local_audio_playback_preference() -> dict[str, object]:
+    if DIGITAL_LOCAL_MONITOR:
+        return {
+            "updated": False,
+            "reason": "local_monitor_enabled",
+            "mixer": "",
+        }
+    if not DIGITAL_DISABLE_LOCAL_SPEAKER_AUDIO:
+        return {
+            "updated": False,
+            "reason": "disabled_by_env",
+            "mixer": "",
+        }
+
+    mixer = DIGITAL_LOCAL_AUDIO_MIXER
+    if not mixer:
+        mixer = _detect_preferred_local_audio_mixer(_read_text(ASOUND_CARDS_PATH), _read_text(ASOUND_PCM_PATH))
+    if not mixer:
+        return {
+            "updated": False,
+            "reason": "no_candidate_mixer",
+            "mixer": "",
+        }
+
+    entries = _load_java_pref_entries(SDRTRUNK_PLAYBACK_PREFS_PATH)
+    prior = str(entries.get(_PLAYBACK_PREF_KEY) or "")
+    if prior == mixer:
+        return {
+            "updated": False,
+            "reason": "already_set",
+            "mixer": mixer,
+        }
+
+    entries[_PLAYBACK_PREF_KEY] = mixer
+    _write_java_pref_entries(SDRTRUNK_PLAYBACK_PREFS_PATH, entries)
+    return {
+        "updated": True,
+        "reason": "set",
+        "mixer": mixer,
+    }
+
+
 def _default_tuner_config(unique_id: str, template: dict[str, object] | None = None) -> dict[str, object]:
     if template:
         cfg = dict(template)
@@ -158,12 +312,29 @@ def _default_tuner_config(unique_id: str, template: dict[str, object] | None = N
 
 def _discover_tuner_uid_state() -> dict[str, object]:
     serial_to_uid = _discover_rtl_unique_ids_by_serial()
-    digital_serials = [s for s in (DIGITAL_RTL_SERIAL, DIGITAL_RTL_SERIAL_SECONDARY) if s]
+    digital_serials = [
+        s
+        for s in (
+            DIGITAL_RTL_SERIAL,
+            DIGITAL_RTL_SERIAL_SECONDARY,
+            DIGITAL_RTL_SERIAL_TERTIARY,
+        )
+        if s
+    ]
     analog_serials = [s for s in (AIRBAND_RTL_SERIAL, GROUND_RTL_SERIAL) if s]
 
     all_rtl_uids = set(serial_to_uid.values())
     digital_uids = {serial_to_uid[s] for s in digital_serials if s in serial_to_uid}
     analog_uids = {serial_to_uid[s] for s in analog_serials if s in serial_to_uid}
+    auto_extra_serials: list[str] = []
+    if DIGITAL_AUTO_ADOPT_EXTRA_TUNERS:
+        for serial, uid in sorted(serial_to_uid.items()):
+            if serial in digital_serials or serial in analog_serials:
+                continue
+            if uid in analog_uids or uid in digital_uids:
+                continue
+            digital_uids.add(uid)
+            auto_extra_serials.append(serial)
     uid_source = "configured"
     if not digital_uids:
         fallback_uids = {uid for uid in all_rtl_uids if uid not in analog_uids}
@@ -172,11 +343,14 @@ def _discover_tuner_uid_state() -> dict[str, object]:
             uid_source = "fallback_non_analog"
         else:
             uid_source = "none"
+    elif auto_extra_serials:
+        uid_source = "configured_plus_auto_extra"
     return {
         "digital_uids": sorted(digital_uids),
         "analog_uids": sorted(analog_uids),
         "available_rtl_uids": sorted(all_rtl_uids),
         "available_rtl_serials": sorted(serial_to_uid),
+        "digital_auto_extra_serials": auto_extra_serials,
         "digital_uid_source": uid_source,
     }
 
@@ -245,6 +419,29 @@ def _sync_tuner_configuration() -> dict[str, object]:
 
     cfg_in = data.get("tunerConfigurations")
     cfgs = cfg_in if isinstance(cfg_in, list) else []
+    present_rtl_uids = {
+        str(uid or "").strip()
+        for uid in (tuner_state.get("available_rtl_uids") or [])
+        if str(uid or "").strip()
+    }
+    cleaned_cfgs: list[dict[str, object]] = []
+    seen_cfg_ids: set[str] = set()
+    for cfg in cfgs:
+        if not isinstance(cfg, dict):
+            continue
+        uid = str(cfg.get("uniqueID") or "").strip()
+        if not uid:
+            cleaned_cfgs.append(dict(cfg))
+            continue
+        if uid in seen_cfg_ids:
+            changed = True
+            continue
+        if uid.startswith("RTL-2832 ") and present_rtl_uids and uid not in present_rtl_uids:
+            changed = True
+            continue
+        cleaned_cfgs.append(dict(cfg))
+        seen_cfg_ids.add(uid)
+    cfgs = cleaned_cfgs
     template = next((c for c in cfgs if isinstance(c, dict) and c.get("uniqueID")), None)
     existing_ids = {
         str(c.get("uniqueID")).strip()
@@ -382,15 +579,18 @@ def _ensure_child(parent: ET.Element, tag: str) -> ET.Element:
 
 
 def _preferred_tuner_target() -> str:
-    # In dual-dongle digital mode, don't pin the control source to a single
-    # tuner. Let SDRTrunk allocate one tuner for control and the other for
-    # traffic channels.
-    if DIGITAL_RTL_SERIAL_SECONDARY and not DIGITAL_FORCE_PREFERRED_TUNER:
-        return ""
     if DIGITAL_PREFERRED_TUNER:
         return DIGITAL_PREFERRED_TUNER
     if DIGITAL_RTL_SERIAL:
         return DIGITAL_RTL_SERIAL
+    if (
+        any(
+            str(candidate or "").strip()
+            for candidate in (DIGITAL_RTL_SERIAL_SECONDARY, DIGITAL_RTL_SERIAL_TERTIARY)
+        )
+        and not DIGITAL_FORCE_PREFERRED_TUNER
+    ):
+        return ""
     if DIGITAL_RTL_DEVICE and not DIGITAL_RTL_DEVICE.isdigit():
         return DIGITAL_RTL_DEVICE
     return ""
@@ -780,7 +980,12 @@ def _sync_stream_configuration(root: ET.Element) -> bool:
         attrs["sample_rate"] = str(DIGITAL_STREAM_SAMPLE_RATE)
     if created_stream or DIGITAL_STREAM_CHANNELS_OVERRIDE or not str(stream.get("channels", "")).strip():
         attrs["channels"] = str(DIGITAL_STREAM_CHANNELS)
-    if created_stream or DIGITAL_STREAM_BITRATE_OVERRIDE or existing_bitrate < DIGITAL_STREAM_BITRATE:
+    if (
+        created_stream
+        or DIGITAL_STREAM_BITRATE_OVERRIDE
+        or existing_bitrate < DIGITAL_STREAM_BITRATE
+        or existing_bitrate == DIGITAL_STREAM_LEGACY_BITRATE
+    ):
         attrs["bitrate"] = str(DIGITAL_STREAM_BITRATE)
     if created_stream or DIGITAL_STREAM_DELAY_OVERRIDE or not str(stream.get("delay", "")).strip():
         attrs["delay"] = str(DIGITAL_STREAM_DELAY_MS)
@@ -876,13 +1081,14 @@ def main() -> int:
         target = _choose_profile()
         _point_active_link(target)
         tuner_state = _sync_tuner_configuration()
+        local_audio_pref_state = _sync_local_audio_playback_preference()
         digital_uids = tuner_state.get("digital_uids") or []
         if DIGITAL_REQUIRE_TUNER and not digital_uids:
             available_serials = ",".join(tuner_state.get("available_rtl_serials") or []) or "none"
             available_uids = ",".join(tuner_state.get("available_rtl_uids") or []) or "none"
             raise RuntimeError(
                 "no digital RTL tuner detected "
-                f"(configured={','.join([s for s in (DIGITAL_RTL_SERIAL, DIGITAL_RTL_SERIAL_SECONDARY) if s]) or 'none'} "
+                f"(configured={','.join([s for s in (DIGITAL_RTL_SERIAL, DIGITAL_RTL_SERIAL_SECONDARY, DIGITAL_RTL_SERIAL_TERTIARY) if s]) or 'none'} "
                 f"available_serials={available_serials} available_uids={available_uids})"
             )
         control_channels_hz = _read_control_channels_hz(target)
@@ -897,8 +1103,13 @@ def main() -> int:
             f"seeded_aliases={source_state.get('seeded_aliases', 0)} "
             f"stream_alias_updates={source_state.get('stream_alias_updates', 0)} "
             f"digital_secondary={DIGITAL_RTL_SERIAL_SECONDARY or 'unset'} "
+            f"digital_tertiary={DIGITAL_RTL_SERIAL_TERTIARY or 'unset'} "
+            f"digital_auto_extra={','.join(tuner_state.get('digital_auto_extra_serials', [])) or 'none'} "
             f"tuner_config_updated={bool(tuner_state.get('updated'))} "
             f"tuner_config_reason={tuner_state.get('reason') or 'unknown'} "
+            f"local_audio_pref_updated={bool(local_audio_pref_state.get('updated'))} "
+            f"local_audio_pref_reason={local_audio_pref_state.get('reason') or 'unknown'} "
+            f"local_audio_pref_mixer={local_audio_pref_state.get('mixer') or 'none'} "
             f"digital_uid_source={tuner_state.get('digital_uid_source') or 'unknown'} "
             f"digital_uids={','.join(tuner_state.get('digital_uids', [])) or 'none'} "
             f"analog_uids={','.join(tuner_state.get('analog_uids', [])) or 'none'}"
