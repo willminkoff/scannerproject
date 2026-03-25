@@ -10,8 +10,10 @@ from unittest import mock
 import combined_config
 from ui import actions
 from ui import digital
+from ui import favorites_runtime
 from ui import handlers
 from ui.hp_state import HPState
+from ui import managed_analog_controls
 from ui import profile_config
 from ui import scan_mode_controller
 
@@ -35,6 +37,38 @@ def _write_profile(path, *, airband, ui_disabled=False, with_devices=True):
         )
     with open(path, "w", encoding="utf-8") as handle:
         handle.write("\n".join(lines) + "\n")
+
+
+def _write_runtime_profile(path, *, airband, freqs, labels, squelch_dbfs, gain=32.8):
+    freqs_text = ", ".join(f"{float(freq):.4f}" for freq in freqs)
+    labels_text = ", ".join(f'"{label}"' for label in labels)
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(
+            "\n".join(
+                [
+                    f"airband = {'true' if airband else 'false'};",
+                    "",
+                    "devices:",
+                    "({",
+                    '  type = "rtlsdr";',
+                    f"  index = {0 if airband else 1};",
+                    '  mode = "scan";',
+                    f"  gain = {float(gain):.3f};  # UI_CONTROLLED",
+                    "",
+                    "  channels:",
+                    "  (",
+                    "    {",
+                    f"      freqs = ({freqs_text});",
+                    f"      labels = ({labels_text});",
+                    f'      modulation = {"\"am\"" if airband else "\"nfm\""};',
+                    f"      squelch_threshold = {int(round(float(squelch_dbfs)))};  # UI_CONTROLLED",
+                    "    }",
+                    "  );",
+                    "});",
+                    "",
+                ]
+            )
+        )
 
 
 class EffectiveControlsPathTests(unittest.TestCase):
@@ -64,6 +98,8 @@ class EffectiveControlsPathTests(unittest.TestCase):
         with mock.patch.object(actions, "resolve_controls_path", return_value="/tmp/effective.conf") as resolve_path, mock.patch.object(
             actions, "write_controls", return_value=True
         ) as write_controls, mock.patch.object(
+            actions, "persist_managed_controls_override", return_value=False
+        ) as persist_override, mock.patch.object(
             actions, "write_combined_config", return_value=False
         ), mock.patch.object(
             actions, "restart_rtl", return_value=(True, "")
@@ -74,6 +110,14 @@ class EffectiveControlsPathTests(unittest.TestCase):
         self.assertTrue(result["payload"]["ok"])
         resolve_path.assert_called_once_with("ground")
         write_controls.assert_called_once_with("/tmp/effective.conf", 43.4, "dbfs", 10.0, -64.0)
+        persist_override.assert_called_once_with(
+            "ground",
+            "/tmp/effective.conf",
+            gain=43.4,
+            squelch_mode="dbfs",
+            squelch_snr=10.0,
+            squelch_dbfs=-64.0,
+        )
 
     def test_resolve_controls_path_prefers_managed_profile_when_active_is_disabled(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -111,6 +155,8 @@ class EffectiveControlsPathTests(unittest.TestCase):
         with mock.patch.object(actions, "resolve_controls_path", return_value="/tmp/effective.conf") as resolve_path, mock.patch.object(
             actions, "write_controls", return_value=True
         ) as write_controls, mock.patch.object(
+            actions, "persist_managed_controls_override", return_value=False
+        ) as persist_override, mock.patch.object(
             actions, "write_filter", return_value=False
         ), mock.patch.object(
             actions, "write_combined_config", return_value=True
@@ -123,6 +169,14 @@ class EffectiveControlsPathTests(unittest.TestCase):
         self.assertTrue(result["payload"]["ok"])
         resolve_path.assert_called_once_with("airband")
         write_controls.assert_called_once_with("/tmp/effective.conf", 29.7, "dbfs", 10.0, -72.0)
+        persist_override.assert_called_once_with(
+            "airband",
+            "/tmp/effective.conf",
+            gain=29.7,
+            squelch_mode="dbfs",
+            squelch_snr=10.0,
+            squelch_dbfs=-72.0,
+        )
 
     def test_action_auto_squelch_applies_noise_based_dbfs(self):
         noise_samples = {
@@ -144,6 +198,8 @@ class EffectiveControlsPathTests(unittest.TestCase):
         ), mock.patch.object(
             actions, "write_controls", side_effect=[True, True]
         ) as write_controls, mock.patch.object(
+            actions, "persist_managed_controls_override", return_value=False
+        ) as persist_override, mock.patch.object(
             actions, "write_combined_config", return_value=True
         ) as write_combined, mock.patch.object(
             actions, "restart_rtl", return_value=(True, "")
@@ -170,6 +226,27 @@ class EffectiveControlsPathTests(unittest.TestCase):
                 mock.call("/tmp/ground.conf", 28.0, "dbfs", 10.0, -51.0),
             ],
             write_controls.call_args_list,
+        )
+        self.assertEqual(
+            [
+                mock.call(
+                    "airband",
+                    "/tmp/airband.conf",
+                    gain=29.7,
+                    squelch_mode="dbfs",
+                    squelch_snr=10.0,
+                    squelch_dbfs=-47.0,
+                ),
+                mock.call(
+                    "ground",
+                    "/tmp/ground.conf",
+                    gain=28.0,
+                    squelch_mode="dbfs",
+                    squelch_snr=10.0,
+                    squelch_dbfs=-51.0,
+                ),
+            ],
+            persist_override.call_args_list,
         )
         write_combined.assert_called_once()
         restart_rtl.assert_called_once()
@@ -206,6 +283,160 @@ class EffectiveControlsPathTests(unittest.TestCase):
             [mock.call("/tmp/effective-air.conf"), mock.call("/tmp/effective-ground.conf")],
             parse_controls.call_args_list,
         )
+
+
+class ManagedAnalogControlsTests(unittest.TestCase):
+    def test_favorites_runtime_applies_default_airband_squelch_without_override(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            air_path = os.path.join(tmp, "managed_air.conf")
+            ground_path = os.path.join(tmp, "managed_ground.conf")
+            state_path = os.path.join(tmp, "managed_controls.json")
+            _write_runtime_profile(
+                air_path,
+                airband=True,
+                freqs=[118.4],
+                labels=["East"],
+                squelch_dbfs=-60,
+            )
+            _write_runtime_profile(
+                ground_path,
+                airband=False,
+                freqs=[162.55],
+                labels=["WX"],
+                squelch_dbfs=-70,
+            )
+            profiles = [
+                {
+                    "id": "hp3_favorites_airband",
+                    "label": "HP3 Favorites Airband",
+                    "path": air_path,
+                    "airband": True,
+                },
+                {
+                    "id": "hp3_favorites_ground",
+                    "label": "HP3 Favorites Ground",
+                    "path": ground_path,
+                    "airband": False,
+                },
+            ]
+
+            def _ensure(_profiles, *, profile_id, label, airband):
+                del label, airband
+                return favorites_runtime.find_profile(profiles, profile_id), False
+
+            with mock.patch.object(
+                favorites_runtime, "load_profiles_registry", return_value=profiles
+            ), mock.patch.object(
+                favorites_runtime, "_ensure_managed_profile", side_effect=_ensure
+            ), mock.patch.object(
+                favorites_runtime, "_switch_profile_if_needed", return_value=(False, "")
+            ), mock.patch.object(
+                favorites_runtime, "write_combined_config", return_value=False
+            ), mock.patch.object(
+                managed_analog_controls, "MANAGED_ANALOG_CONTROLS_PATH", state_path
+            ), mock.patch.object(
+                managed_analog_controls,
+                "managed_controls_profile_path",
+                side_effect=lambda target: air_path if target == "airband" else ground_path,
+            ):
+                result = favorites_runtime.sync_scan_pool_to_analog_runtime(
+                    force=True,
+                    mode="hp",
+                    pool={
+                        "trunked_sites": [],
+                        "conventional": [
+                            {"frequency": 118.6, "alpha_tag": "Tower"},
+                        ],
+                    },
+                )
+
+            self.assertTrue(result["ok"])
+            self.assertEqual("default", result["profile_controls_source"]["airband"])
+            self.assertEqual(-52.0, profile_config.parse_controls(air_path)[2])
+
+    def test_manual_managed_override_persists_across_runtime_sync(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            air_path = os.path.join(tmp, "managed_air.conf")
+            ground_path = os.path.join(tmp, "managed_ground.conf")
+            state_path = os.path.join(tmp, "managed_controls.json")
+            _write_runtime_profile(
+                air_path,
+                airband=True,
+                freqs=[118.4],
+                labels=["East"],
+                squelch_dbfs=-60,
+            )
+            _write_runtime_profile(
+                ground_path,
+                airband=False,
+                freqs=[162.55],
+                labels=["WX"],
+                squelch_dbfs=-70,
+            )
+            profiles = [
+                {
+                    "id": "hp3_favorites_airband",
+                    "label": "HP3 Favorites Airband",
+                    "path": air_path,
+                    "airband": True,
+                },
+                {
+                    "id": "hp3_favorites_ground",
+                    "label": "HP3 Favorites Ground",
+                    "path": ground_path,
+                    "airband": False,
+                },
+            ]
+
+            with mock.patch.object(actions, "resolve_controls_path", return_value=air_path), mock.patch.object(
+                actions, "write_combined_config", return_value=False
+            ), mock.patch.object(
+                actions, "restart_rtl", return_value=(True, "")
+            ), mock.patch.object(
+                managed_analog_controls, "MANAGED_ANALOG_CONTROLS_PATH", state_path
+            ), mock.patch.object(
+                managed_analog_controls,
+                "managed_controls_profile_path",
+                side_effect=lambda target: air_path if target == "airband" else ground_path,
+            ):
+                apply_result = actions.action_apply_controls("airband", 32.8, "dbfs", 10.0, -58.0)
+
+            self.assertEqual(200, apply_result["status"])
+            self.assertEqual(-58.0, profile_config.parse_controls(air_path)[2])
+
+            def _ensure(_profiles, *, profile_id, label, airband):
+                del label, airband
+                return favorites_runtime.find_profile(profiles, profile_id), False
+
+            with mock.patch.object(
+                favorites_runtime, "load_profiles_registry", return_value=profiles
+            ), mock.patch.object(
+                favorites_runtime, "_ensure_managed_profile", side_effect=_ensure
+            ), mock.patch.object(
+                favorites_runtime, "_switch_profile_if_needed", return_value=(False, "")
+            ), mock.patch.object(
+                favorites_runtime, "write_combined_config", return_value=False
+            ), mock.patch.object(
+                managed_analog_controls, "MANAGED_ANALOG_CONTROLS_PATH", state_path
+            ), mock.patch.object(
+                managed_analog_controls,
+                "managed_controls_profile_path",
+                side_effect=lambda target: air_path if target == "airband" else ground_path,
+            ):
+                result = favorites_runtime.sync_scan_pool_to_analog_runtime(
+                    force=True,
+                    mode="hp",
+                    pool={
+                        "trunked_sites": [],
+                        "conventional": [
+                            {"frequency": 118.6, "alpha_tag": "Tower"},
+                        ],
+                    },
+                )
+
+            self.assertTrue(result["ok"])
+            self.assertEqual("override", result["profile_controls_source"]["airband"])
+            self.assertEqual(-58.0, profile_config.parse_controls(air_path)[2])
 
 
 class SchedulerPayloadExtractionTests(unittest.TestCase):
@@ -455,6 +686,73 @@ class RecentRegressionTests(unittest.TestCase):
             payload = handlers._build_hits_payload(limit=50)
 
         self.assertEqual([], payload.get("items") or [])
+
+    def test_hits_payload_skips_audible_events_without_tgid_when_route_filter_enabled(self):
+        fake_digital = mock.Mock()
+        fake_digital.getRecentEvents.return_value = [
+            {
+                "label": "Metro Dispatch",
+                "timeMs": int(time.time() * 1000),
+                "durationMs": 2100,
+                "mode": "P25P1",
+            }
+        ]
+
+        with mock.patch.object(handlers, "DIGITAL_HITS_REQUIRE_AUDIO_EVENT", True), mock.patch.object(
+            handlers, "read_active_config_path", return_value="/tmp/active.conf"
+        ), mock.patch.object(
+            handlers, "split_profiles", return_value=([], [], [])
+        ), mock.patch.object(
+            handlers, "guess_current_profile", return_value=""
+        ), mock.patch.object(
+            handlers, "_resolve_analog_label_map", return_value={}
+        ), mock.patch.object(
+            handlers, "read_hit_list_cached", return_value=[]
+        ), mock.patch.object(
+            handlers, "_digital_stream_active_for_hits", return_value=True
+        ), mock.patch.object(
+            handlers, "_digital_stream_routed_tgids_for_hits", return_value={"20052"}
+        ), mock.patch.object(
+            handlers, "get_digital_manager", return_value=fake_digital
+        ):
+            payload = handlers._build_hits_payload(limit=50)
+
+        self.assertEqual([], payload.get("items") or [])
+
+    def test_hits_payload_routes_by_tgid_parsed_from_label(self):
+        fake_digital = mock.Mock()
+        fake_digital.getRecentEvents.return_value = [
+            {
+                "label": "Metro Dispatch TG 20052",
+                "timeMs": int(time.time() * 1000),
+                "durationMs": 2100,
+                "mode": "P25P1",
+            }
+        ]
+
+        with mock.patch.object(handlers, "DIGITAL_HITS_REQUIRE_AUDIO_EVENT", True), mock.patch.object(
+            handlers, "read_active_config_path", return_value="/tmp/active.conf"
+        ), mock.patch.object(
+            handlers, "split_profiles", return_value=([], [], [])
+        ), mock.patch.object(
+            handlers, "guess_current_profile", return_value=""
+        ), mock.patch.object(
+            handlers, "_resolve_analog_label_map", return_value={}
+        ), mock.patch.object(
+            handlers, "read_hit_list_cached", return_value=[]
+        ), mock.patch.object(
+            handlers, "_digital_stream_active_for_hits", return_value=True
+        ), mock.patch.object(
+            handlers, "_digital_stream_routed_tgids_for_hits", return_value={"20052"}
+        ), mock.patch.object(
+            handlers, "get_digital_manager", return_value=fake_digital
+        ):
+            payload = handlers._build_hits_payload(limit=50)
+
+        items = payload.get("items") or []
+        self.assertEqual(1, len(items))
+        self.assertEqual("20052", str(items[0].get("tgid") or ""))
+        self.assertEqual("digital", str(items[0].get("source") or ""))
 
     def test_gmrs_frs_murs_profile_infers_ground_target_without_file(self):
         inferred = profile_config._infer_airband_flag("gmrs_frs_murs", "/tmp/does-not-exist.conf")
@@ -1626,6 +1924,81 @@ class HealthPayloadTests(unittest.TestCase):
 
         self.assertEqual("failed", payload["subsystems"]["mixer"]["state"])
         self.assertEqual("degraded", payload["subsystems"]["scheduler"]["state"])
+
+    def test_health_payload_marks_sdrtrunk_failed_when_digital_tuners_missing(self):
+        status_payload = self._base_payload()
+        status_payload["digital_tuner_missing_serials"] = ["56919602"]
+
+        payload = handlers._build_health_payload(
+            status_payload=status_payload,
+            system_stats=self._base_dongles(),
+            analog_air_preflight={"state": "healthy", "reasons": []},
+            analog_ground_preflight={"state": "healthy", "reasons": []},
+            digital_preflight={"state": "failed", "reasons": []},
+            compile_state={"status": "healthy"},
+        )
+
+        self.assertEqual("failed", payload["subsystems"]["sdrtrunk"]["state"])
+        reason_codes = {
+            str((reason or {}).get("code") or "")
+            for reason in payload["subsystems"]["sdrtrunk"].get("reasons") or []
+        }
+        self.assertIn("SDRTRUNK_TUNER_MISSING", reason_codes)
+
+    def test_health_payload_flags_monopolized_analog_scan(self):
+        status_payload = self._base_payload()
+        status_payload["analog_scan_health"] = {
+            "airband": {
+                "monopolized": True,
+                "dominant_frequency": "118.4000",
+                "dominant_ratio": 0.96,
+                "profile_frequency_count": 6,
+            },
+            "ground": {"monopolized": False},
+        }
+
+        payload = handlers._build_health_payload(
+            status_payload=status_payload,
+            system_stats=self._base_dongles(),
+            analog_air_preflight={"state": "healthy", "reasons": []},
+            analog_ground_preflight={"state": "healthy", "reasons": []},
+            digital_preflight={"state": "healthy", "reasons": []},
+            compile_state={"status": "healthy"},
+        )
+
+        self.assertEqual("degraded", payload["subsystems"]["analog_scan"]["state"])
+        reason_codes = {
+            str((reason or {}).get("code") or "")
+            for reason in payload["subsystems"]["analog_scan"].get("reasons") or []
+        }
+        self.assertIn("ANALOG_SCAN_MONOPOLIZED", reason_codes)
+
+
+class DigitalStatusAliasTests(unittest.TestCase):
+    def test_digital_status_aliases_follow_latest_hit_row(self):
+        payload = handlers._digital_status_with_hit_aliases(
+            {
+                "digital_last_label": "",
+                "digital_last_time": 0,
+                "digital_last_tgid": "",
+            },
+            [
+                {"source": "airband", "freq": "118.6000", "ts": 10.0},
+                {
+                    "source": "digital",
+                    "label_full": "Davidson County Transit Authority - Dispatch",
+                    "label": "Dispatch",
+                    "tgid": "10560",
+                    "ts": 1234.5,
+                },
+            ],
+        )
+
+        self.assertEqual("Davidson County Transit Authority - Dispatch", payload["digital_last_label"])
+        self.assertEqual("10560", payload["digital_last_tgid"])
+        self.assertEqual("10560", payload["last_hit_digital"])
+        self.assertEqual("Davidson County Transit Authority - Dispatch", payload["last_hit_digital_label"])
+        self.assertEqual(1234500, payload["last_hit_digital_time"])
 
 
 class LatencyToneTests(unittest.TestCase):

@@ -628,7 +628,7 @@ Required V3 telemetry:
 - `digital_scheduler_active_system`
 - `digital_scheduler_next_system`
 - `digital_scheduler_last_switch_time`
-- `digital_scheduler_switch_reason` (`idle_timeout`, `call_end`, `lock_timeout`, `manual`, `error_recovery`)
+- `digital_scheduler_switch_reason` (`idle_timeout`, `call_end`, `lock_timeout`, `lock_timeout_stale_preflight`, `manual`, `error_recovery`)
 - `digital_scheduler_lock_timeout_ms`
 - `digital_scheduler_system_health` (per-system `state`, `reason`, `lock_failures`, and lock timestamps)
 - `digital_voice_tuner_available` (boolean)
@@ -646,6 +646,8 @@ Scheduler performance profiles:
   - `DIGITAL_SCHEDULER_FAST_TICK_SEC`
   - `DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS`
   - `DIGITAL_SCHEDULER_ADAPTIVE_LOCK_MAX_MS` (cap for adaptive lock-acquisition timeout)
+  - `DIGITAL_SCHEDULER_LOCK_STICKY_MS` (minimum lock hold time before idle rotation, default `1200`)
+  - `DIGITAL_SCHEDULER_STALE_PREFLIGHT_MS` (freshness threshold used by lock-timeout switching, default `max(1500, 2x sampler)`)
   - `DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS`
   - `DIGITAL_SCHEDULER_LOCK_MISS_TICKS`
   - `DIGITAL_SCHEDULER_TICK_SEC`
@@ -675,7 +677,11 @@ Fast-switch verification:
   - `digital_scheduler_tick_interval_ms` near `250` outside call-hold windows
   - `digital_scheduler_apply_method` and `digital_scheduler_last_apply_duration_ms`
   - `digital_scheduler_preflight_cache_age_ms`
+  - `digital_scheduler_preflight_fresh`
+  - `digital_scheduler_preflight_stale_threshold_ms`
   - `digital_scheduler_lock_miss_ticks`
+  - `digital_scheduler_lock_sticky_ms`
+  - `digital_scheduler_active_lock_age_ms`
   - `digital_scheduler_adaptive_lock_timeout_ms`
   - `digital_scheduler_active_control_channel_count`
   - `digital_scheduler_perf_profile`
@@ -1369,9 +1375,14 @@ The `scanner-digital.service` runs:
 - `assets/Brief from Codex CLI 1-2-26.txt`
 
 ## Desktop Buttons
-- Scripts: `scripts/desktop/start_scanner.sh`, `scripts/desktop/stop_scanner.sh`
-- Launchers: `assets/Start Scanner.desktop`, `assets/Stop Scanner.desktop`
+- Primary controller: `scripts/desktop/sb3_power.py`
+- Compatibility wrappers: `scripts/desktop/start_scanner.sh`, `scripts/desktop/stop_scanner.sh`
+- Launchers: `assets/SB3 Power Control.desktop`, `assets/Start Scanner.desktop`, `assets/Stop Scanner.desktop`
 - Install on Pi:
   - `chmod +x /home/willminkoff/scannerproject/scripts/desktop/*.sh`
+  - `chmod +x /home/willminkoff/scannerproject/scripts/desktop/sb3_power.py`
   - `cp /home/willminkoff/scannerproject/scripts/desktop/*.sh /home/willminkoff/Desktop/`
   - `cp /home/willminkoff/scannerproject/assets/*.desktop /home/willminkoff/Desktop/`
+  - `SB3 Power Control.desktop` is the desktop-safe master switch.
+  - `Off` snapshots the active SB3 units, stops UI, Icecast, analog, and digital services, and frees the RTL dongles.
+  - `On` restores the previously active SB3 units so the last profile/config state on disk comes back.
