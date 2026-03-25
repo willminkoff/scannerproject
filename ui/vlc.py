@@ -3,6 +3,7 @@ import os
 import re
 import signal
 import subprocess
+import sys
 import time
 from typing import Optional
 
@@ -13,9 +14,13 @@ except ImportError:
 
 VLC_HTTP_RECONNECT = str(os.getenv("VLC_HTTP_RECONNECT", "1")).strip().lower() in ("1", "true", "yes", "on")
 try:
-    VLC_NETWORK_CACHING_MS = max(0, int(str(os.getenv("VLC_NETWORK_CACHING_MS", "1000")).strip()))
+    VLC_NETWORK_CACHING_MS = max(0, int(str(os.getenv("VLC_NETWORK_CACHING_MS", "150")).strip()))
 except Exception:
-    VLC_NETWORK_CACHING_MS = 1000
+    VLC_NETWORK_CACHING_MS = 150
+try:
+    VLC_START_VERIFY_SEC = max(0.0, float(str(os.getenv("VLC_START_VERIFY_MS", "350")).strip()) / 1000.0)
+except Exception:
+    VLC_START_VERIFY_SEC = 0.35
 
 try:
     _VLC_AUDIO_UID = int(str(os.getenv("VLC_AUDIO_UID", os.getuid())).strip())
@@ -40,6 +45,11 @@ DEFAULT_MOUNTS = {
 }
 
 _MOUNT_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+_LOCAL_MONITOR_SCRIPT = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "scripts",
+    "sdrtrunk-local-monitor.py",
+)
 
 
 def _normalize_target(target: str) -> str:
@@ -199,81 +209,24 @@ def _target_running(target: str) -> bool:
     return True
 
 
-def _is_sdrtrunk_java_pid(pid: str) -> bool:
-    if not pid or not pid.isdigit():
-        return False
-    cmdline_path = f"/proc/{pid}/cmdline"
-    try:
-        with open(cmdline_path, "rb") as f:
-            raw = f.read()
-    except Exception:
-        return False
-    if not raw:
-        return False
-    cmdline = raw.replace(b"\x00", b" ").decode("utf-8", errors="ignore")
-    return "sdrtrunk" in cmdline.lower()
-
-
 def _mute_sdrtrunk_pulse_streams() -> None:
     """Mute local SDRTrunk ALSA sink inputs so UI VLC playback is the only audio path."""
+    if not os.path.isfile(_LOCAL_MONITOR_SCRIPT):
+        return
+    env = _vlc_launch_env()
+    env.setdefault("DIGITAL_LOCAL_MONITOR_WAIT_SEC", "1")
+    env.setdefault("DIGITAL_LOCAL_MONITOR_POLL_SEC", "0.25")
     try:
-        result = subprocess.run(
-            ["pactl", "list", "sink-inputs"],
-            stdout=subprocess.PIPE,
+        subprocess.run(
+            [sys.executable or "python3", _LOCAL_MONITOR_SCRIPT, "apply"],
+            stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            text=True,
+            env=env,
+            timeout=2.5,
             check=False,
         )
     except Exception:
         return
-    if result.returncode != 0 or not result.stdout:
-        return
-
-    sink_id = ""
-    app_name = ""
-    proc_binary = ""
-    proc_pid = ""
-    to_mute = []
-
-    def flush_current():
-        nonlocal sink_id, app_name, proc_binary, proc_pid
-        if not sink_id:
-            return
-        is_java = proc_binary.lower() == "java" or "java" in app_name.lower()
-        if is_java and _is_sdrtrunk_java_pid(proc_pid):
-            to_mute.append(sink_id)
-        sink_id = ""
-        app_name = ""
-        proc_binary = ""
-        proc_pid = ""
-
-    for raw in result.stdout.splitlines():
-        line = raw.strip()
-        if line.startswith("Sink Input #"):
-            flush_current()
-            sink_id = line.split("#", 1)[1].strip()
-            continue
-        if line.startswith("application.name ="):
-            app_name = line.split("=", 1)[1].strip().strip('"')
-            continue
-        if line.startswith("application.process.binary ="):
-            proc_binary = line.split("=", 1)[1].strip().strip('"')
-            continue
-        if line.startswith("application.process.id ="):
-            proc_pid = line.split("=", 1)[1].strip().strip('"')
-            continue
-    flush_current()
-
-    for sid in sorted(set(to_mute)):
-        try:
-            subprocess.run(
-                ["pactl", "set-sink-input-mute", sid, "1"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                check=False,
-            )
-        except Exception:
-            continue
 
 
 def start_vlc(stream_url: str = "", target: str = DEFAULT_TARGET, mount: str = ""):
@@ -288,7 +241,16 @@ def start_vlc(stream_url: str = "", target: str = DEFAULT_TARGET, mount: str = "
     if _target_running(resolved_target):
         _mute_sdrtrunk_pulse_streams()
         return True, "already running"
-    cmd = ["cvlc", "--intf", "dummy", "--aout=pulse", "--quiet"]
+    cmd = [
+        "cvlc",
+        "--intf",
+        "dummy",
+        "--aout=pulse",
+        "--quiet",
+        "--no-video",
+        "--clock-jitter=0",
+        "--clock-synchro=0",
+    ]
     if VLC_HTTP_RECONNECT:
         cmd.append("--http-reconnect")
     if VLC_NETWORK_CACHING_MS > 0:
@@ -304,6 +266,12 @@ def start_vlc(stream_url: str = "", target: str = DEFAULT_TARGET, mount: str = "
             start_new_session=True,
         )
         _write_pid(resolved_target, proc.pid)
+        if VLC_START_VERIFY_SEC > 0:
+            time.sleep(VLC_START_VERIFY_SEC)
+        exit_code = proc.poll()
+        if exit_code is not None:
+            _clear_pid(resolved_target)
+            return False, f"cvlc exited immediately (code {exit_code})"
         _mute_sdrtrunk_pulse_streams()
         return True, ""
     except FileNotFoundError:

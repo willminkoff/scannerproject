@@ -18,9 +18,9 @@ MOUNT_NAME = os.getenv("MOUNT_NAME", "").strip()
 ANALOG_CONTINUOUS = os.getenv("ANALOG_CONTINUOUS", "1").strip().lower() in ("1", "true", "yes", "on")
 MIXER_OUTPUT_CONTINUOUS = os.getenv("MIXER_OUTPUT_CONTINUOUS", "1").strip().lower() in ("1", "true", "yes", "on")
 try:
-    ANALOG_STREAM_BITRATE_KBPS = int(os.getenv("ANALOG_STREAM_BITRATE_KBPS", "64"))
+    ANALOG_STREAM_BITRATE_KBPS = int(os.getenv("ANALOG_STREAM_BITRATE_KBPS", "24"))
 except Exception:
-    ANALOG_STREAM_BITRATE_KBPS = 64
+    ANALOG_STREAM_BITRATE_KBPS = 24
 ANALOG_STREAM_BITRATE_KBPS = max(8, min(320, ANALOG_STREAM_BITRATE_KBPS))
 AIRBAND_FALLBACK_PROFILE_PATH = os.getenv(
     "AIRBAND_FALLBACK_PROFILE_PATH",

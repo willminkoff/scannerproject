@@ -245,7 +245,7 @@ def build_combined_config(
     mount_name: str = "",
     analog_continuous: bool = True,
     mixer_output_continuous: bool = True,
-    analog_bitrate_kbps: int = 64,
+    analog_bitrate_kbps: int = 24,
 ) -> str:
     with open(airband_path, "r", encoding="utf-8", errors="ignore") as f:
         airband_text = f.read()
