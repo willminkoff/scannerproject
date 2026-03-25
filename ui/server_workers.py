@@ -7,15 +7,13 @@ try:
     from .config import APPLY_DEBOUNCE_SEC, ACTION_WAIT_TIMEOUT_SEC
     from .actions import execute_action
     from .scanner import (
-        update_icecast_hit_log,
-        read_hit_list_cached,
+        refresh_analog_hit_state,
     )
 except ImportError:
     from ui.config import APPLY_DEBOUNCE_SEC, ACTION_WAIT_TIMEOUT_SEC
     from ui.actions import execute_action
     from ui.scanner import (
-        update_icecast_hit_log,
-        read_hit_list_cached,
+        refresh_analog_hit_state,
     )
 
 ACTION_QUEUE = deque()
@@ -107,18 +105,13 @@ def config_worker() -> None:
 
 
 def icecast_monitor_worker() -> None:
-    """Background thread that monitors RTL-airband activity and logs hits."""
-    prev_title = None
+    """Background thread that keeps live analog hit state warm."""
     while True:
         try:
-            items = read_hit_list_cached()
-            current_title = items[0].get("freq") if items else ""
-            if current_title != prev_title:
-                update_icecast_hit_log(current_title)
-                prev_title = current_title
+            refresh_analog_hit_state()
         except Exception:
             pass
-        time.sleep(0.5)
+        time.sleep(0.25)
 
 
 def start_config_worker() -> None:

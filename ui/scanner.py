@@ -1,4 +1,5 @@
 """Scanner activity monitoring and hit tracking."""
+import os
 import subprocess
 import time
 import json
@@ -12,21 +13,37 @@ try:
         RE_ACTIVITY, RE_ACTIVITY_TS, HIT_GAP_RESET_SECONDS,
         AIRBAND_MIN_MHZ, AIRBAND_MAX_MHZ, LAST_HIT_AIRBAND_PATH,
         LAST_HIT_GROUND_PATH, ICECAST_HIT_LOG_PATH, ICECAST_HIT_LOG_LIMIT,
-        ICECAST_HIT_MIN_DURATION, UNITS
+        ICECAST_HIT_MIN_DURATION, UNITS, GROUND_CONFIG_PATH
     )
+    from .profile_config import parse_freqs_labels, read_active_config_path
     from .systemd import unit_active
 except ImportError:
     from ui.config import (
         RE_ACTIVITY, RE_ACTIVITY_TS, HIT_GAP_RESET_SECONDS,
         AIRBAND_MIN_MHZ, AIRBAND_MAX_MHZ, LAST_HIT_AIRBAND_PATH,
         LAST_HIT_GROUND_PATH, ICECAST_HIT_LOG_PATH, ICECAST_HIT_LOG_LIMIT,
-        ICECAST_HIT_MIN_DURATION, UNITS
+        ICECAST_HIT_MIN_DURATION, UNITS, GROUND_CONFIG_PATH
     )
+    from ui.profile_config import parse_freqs_labels, read_active_config_path
     from ui.systemd import unit_active
 
 
 _ANALOG_HIT_CUTOFF_LOCK = threading.Lock()
 _ANALOG_HIT_CUTOFF_TS = {"airband": 0.0, "ground": 0.0}
+_LIVE_ANALOG_HIT_LOCK = threading.Lock()
+_LIVE_ANALOG_HIT_STATE = {
+    "entries": [],
+    "current": {"airband": None, "ground": None},
+    "files": {
+        "airband": {"path": "", "mtime_ns": 0, "value": ""},
+        "ground": {"path": "", "mtime_ns": 0, "value": ""},
+    },
+    "allowlists": {
+        "airband": {"path": "", "mtime_ns": 0, "freqs": set()},
+        "ground": {"path": "", "mtime_ns": 0, "freqs": set()},
+    },
+}
+_LIVE_ANALOG_HIT_ENTRY_LIMIT = max(200, int(ICECAST_HIT_LOG_LIMIT or 200))
 
 
 def mark_analog_hit_cutoff(target: str, at_ts: Optional[float] = None) -> None:
@@ -39,8 +56,16 @@ def mark_analog_hit_cutoff(target: str, at_ts: Optional[float] = None) -> None:
         current = float(_ANALOG_HIT_CUTOFF_TS.get(key) or 0.0)
         if ts > current:
             _ANALOG_HIT_CUTOFF_TS[key] = ts
+    with _LIVE_ANALOG_HIT_LOCK:
+        _LIVE_ANALOG_HIT_STATE["current"][key] = None
+        _LIVE_ANALOG_HIT_STATE["entries"] = [
+            dict(item)
+            for item in (_LIVE_ANALOG_HIT_STATE.get("entries") or [])
+            if str(item.get("source") or "").strip().lower() != key or float(item.get("ts") or 0.0) >= ts
+        ]
     # Force cache miss so callers see post-switch hits immediately.
     read_hit_list_cached._cache = {"value": [], "ts": 0.0}
+    read_last_hit_from_journal_cached._cache = {"value": "", "ts": 0.0}
 
 
 def _analog_hit_cutoff_snapshot() -> dict:
@@ -49,6 +74,239 @@ def _analog_hit_cutoff_snapshot() -> dict:
             "airband": float(_ANALOG_HIT_CUTOFF_TS.get("airband") or 0.0),
             "ground": float(_ANALOG_HIT_CUTOFF_TS.get("ground") or 0.0),
         }
+
+
+def _reset_live_analog_hit_state() -> None:
+    with _LIVE_ANALOG_HIT_LOCK:
+        _LIVE_ANALOG_HIT_STATE["entries"] = []
+        _LIVE_ANALOG_HIT_STATE["current"] = {"airband": None, "ground": None}
+        _LIVE_ANALOG_HIT_STATE["files"] = {
+            "airband": {"path": "", "mtime_ns": 0, "value": ""},
+            "ground": {"path": "", "mtime_ns": 0, "value": ""},
+        }
+        _LIVE_ANALOG_HIT_STATE["allowlists"] = {
+            "airband": {"path": "", "mtime_ns": 0, "freqs": set()},
+            "ground": {"path": "", "mtime_ns": 0, "freqs": set()},
+        }
+    read_hit_list_cached._cache = {"value": [], "ts": 0.0}
+    read_last_hit_from_journal_cached._cache = {"value": "", "ts": 0.0}
+
+
+def _normalize_freq_text(value: str) -> str:
+    text = str(value or "").strip()
+    if not text or text == "-":
+        return ""
+    match = re.search(r"[0-9]+(?:\.[0-9]+)?", text)
+    if not match:
+        return ""
+    try:
+        return f"{float(match.group(0)):.4f}"
+    except ValueError:
+        return ""
+
+
+def _active_config_path_for_target(target: str) -> str:
+    if target == "ground":
+        return os.path.realpath(str(GROUND_CONFIG_PATH or "").strip())
+    return os.path.realpath(str(read_active_config_path() or "").strip())
+
+
+def _allowed_freq_keys_for_target(target: str) -> set[str]:
+    key = "ground" if str(target or "").strip().lower() == "ground" else "airband"
+    path = _active_config_path_for_target(key)
+    if not path or not os.path.isfile(path):
+        return set()
+    try:
+        stat = os.stat(path)
+    except OSError:
+        return set()
+    mtime_ns = int(getattr(stat, "st_mtime_ns", int(float(stat.st_mtime) * 1_000_000_000)))
+    with _LIVE_ANALOG_HIT_LOCK:
+        cache = dict((_LIVE_ANALOG_HIT_STATE.get("allowlists") or {}).get(key) or {})
+    if cache.get("path") == path and int(cache.get("mtime_ns") or 0) == mtime_ns:
+        cached_freqs = cache.get("freqs")
+        if isinstance(cached_freqs, set):
+            return set(cached_freqs)
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as handle:
+            freqs, _labels = parse_freqs_labels(handle.read())
+    except Exception:
+        freqs = []
+    keys = set()
+    for freq in freqs or []:
+        try:
+            keys.add(f"{float(freq):.4f}")
+        except Exception:
+            continue
+    with _LIVE_ANALOG_HIT_LOCK:
+        allowlists = _LIVE_ANALOG_HIT_STATE.get("allowlists") or {}
+        allowlists[key] = {"path": path, "mtime_ns": mtime_ns, "freqs": set(keys)}
+        _LIVE_ANALOG_HIT_STATE["allowlists"] = allowlists
+    return keys
+
+
+def _analog_hit_allowed(source: str, freq_text: str) -> bool:
+    normalized_source = "ground" if str(source or "").strip().lower() == "ground" else "airband"
+    normalized_freq = _normalize_freq_text(freq_text)
+    if not normalized_freq:
+        return False
+    allowed = _allowed_freq_keys_for_target(normalized_source)
+    return normalized_freq in allowed if allowed else False
+
+
+def _append_live_analog_hit_entry_locked(source: str, current: dict) -> None:
+    if not isinstance(current, dict):
+        return
+    freq = _normalize_freq_text(current.get("freq"))
+    if not freq:
+        return
+    last_ts = float(current.get("last_ts") or 0.0)
+    start_ts = float(current.get("start_ts") or last_ts or 0.0)
+    if last_ts <= 0:
+        return
+    entry = {
+        "time": time.strftime("%H:%M:%S", time.localtime(last_ts)),
+        "freq": freq,
+        "duration": max(0, int(last_ts - start_ts)),
+        "ts": last_ts,
+        "source": source,
+        "type": source,
+    }
+    entries = list(_LIVE_ANALOG_HIT_STATE.get("entries") or [])
+    entries.append(entry)
+    if len(entries) > _LIVE_ANALOG_HIT_ENTRY_LIMIT:
+        entries = entries[-_LIVE_ANALOG_HIT_ENTRY_LIMIT:]
+    _LIVE_ANALOG_HIT_STATE["entries"] = entries
+
+
+def _finalize_stale_live_analog_hits_locked(now_ts: float) -> None:
+    for source in ("airband", "ground"):
+        current = (_LIVE_ANALOG_HIT_STATE.get("current") or {}).get(source)
+        if not isinstance(current, dict):
+            continue
+        last_ts = float(current.get("last_ts") or 0.0)
+        if last_ts <= 0:
+            (_LIVE_ANALOG_HIT_STATE.get("current") or {})[source] = None
+            continue
+        if (now_ts - last_ts) > float(HIT_GAP_RESET_SECONDS):
+            _append_live_analog_hit_entry_locked(source, current)
+            (_LIVE_ANALOG_HIT_STATE.get("current") or {})[source] = None
+
+
+def _record_live_analog_hit(source: str, freq_text: str, ts: float) -> None:
+    normalized_source = "ground" if str(source or "").strip().lower() == "ground" else "airband"
+    freq = _normalize_freq_text(freq_text)
+    if not freq:
+        return
+    cutoffs = _analog_hit_cutoff_snapshot()
+    if ts < float(cutoffs.get(normalized_source) or 0.0):
+        return
+    if not _analog_hit_allowed(normalized_source, freq):
+        return
+    with _LIVE_ANALOG_HIT_LOCK:
+        _finalize_stale_live_analog_hits_locked(ts)
+        current_map = _LIVE_ANALOG_HIT_STATE.get("current") or {}
+        current = current_map.get(normalized_source)
+        if isinstance(current, dict):
+            last_ts = float(current.get("last_ts") or 0.0)
+            gap = ts - last_ts if last_ts > 0 else None
+            if current.get("freq") == freq and (gap is None or gap <= float(HIT_GAP_RESET_SECONDS)):
+                current["last_ts"] = max(ts, last_ts)
+                return
+            _append_live_analog_hit_entry_locked(normalized_source, current)
+        current_map[normalized_source] = {"freq": freq, "start_ts": ts, "last_ts": ts}
+        _LIVE_ANALOG_HIT_STATE["current"] = current_map
+
+
+def refresh_analog_hit_state(now: Optional[float] = None) -> None:
+    now_ts = float(now if now is not None else time.time())
+    with _LIVE_ANALOG_HIT_LOCK:
+        _finalize_stale_live_analog_hits_locked(now_ts)
+    file_specs = {
+        "airband": str(LAST_HIT_AIRBAND_PATH or "").strip(),
+        "ground": str(LAST_HIT_GROUND_PATH or "").strip(),
+    }
+    for source, path in file_specs.items():
+        if not path:
+            continue
+        try:
+            stat = os.stat(path)
+        except OSError:
+            continue
+        mtime_ns = int(getattr(stat, "st_mtime_ns", int(float(stat.st_mtime) * 1_000_000_000)))
+        mtime_ts = float(stat.st_mtime or now_ts)
+        with _LIVE_ANALOG_HIT_LOCK:
+            file_state = dict((_LIVE_ANALOG_HIT_STATE.get("files") or {}).get(source) or {})
+        if file_state.get("path") == path and int(file_state.get("mtime_ns") or 0) == mtime_ns:
+            continue
+        value = read_last_hit_file(path)
+        with _LIVE_ANALOG_HIT_LOCK:
+            files = _LIVE_ANALOG_HIT_STATE.get("files") or {}
+            files[source] = {"path": path, "mtime_ns": mtime_ns, "value": value}
+            _LIVE_ANALOG_HIT_STATE["files"] = files
+        if value:
+            _record_live_analog_hit(source, value, mtime_ts)
+    with _LIVE_ANALOG_HIT_LOCK:
+        _finalize_stale_live_analog_hits_locked(now_ts)
+
+
+def _live_hit_items_snapshot(limit: int = 20) -> list:
+    now_ts = time.time()
+    with _LIVE_ANALOG_HIT_LOCK:
+        entries = [dict(item) for item in (_LIVE_ANALOG_HIT_STATE.get("entries") or [])]
+        current_map = dict(_LIVE_ANALOG_HIT_STATE.get("current") or {})
+    for source in ("airband", "ground"):
+        current = current_map.get(source)
+        if not isinstance(current, dict):
+            continue
+        last_ts = float(current.get("last_ts") or 0.0)
+        start_ts = float(current.get("start_ts") or last_ts or 0.0)
+        if last_ts <= 0 or (now_ts - last_ts) > float(HIT_GAP_RESET_SECONDS):
+            continue
+        freq = _normalize_freq_text(current.get("freq"))
+        if not freq:
+            continue
+        entries.append({
+            "time": time.strftime("%H:%M:%S", time.localtime(last_ts)),
+            "freq": freq,
+            "duration": max(0, int(now_ts - start_ts)),
+            "ts": last_ts,
+            "source": source,
+            "type": source,
+        })
+    entries.sort(key=lambda item: float(item.get("ts") or 0.0))
+    entries = entries[-max(1, int(limit or 20)):]
+    entries.reverse()
+    return entries
+
+
+def _latest_live_hit_freq(source: str) -> str:
+    refresh_analog_hit_state()
+    source_key = "ground" if str(source or "").strip().lower() == "ground" else "airband"
+    items = _live_hit_items_snapshot(limit=_LIVE_ANALOG_HIT_ENTRY_LIMIT)
+    for item in items:
+        if str(item.get("source") or "").strip().lower() == source_key:
+            freq = _normalize_freq_text(item.get("freq"))
+            if freq:
+                return freq
+    return ""
+
+
+def _filter_legacy_hits_to_active_pool(entries: list) -> list:
+    out = []
+    for item in entries or []:
+        row = dict(item or {})
+        freq = _normalize_freq_text(row.get("freq"))
+        if not freq:
+            continue
+        source = "airband" if _freq_in_airband(float(freq)) else "ground"
+        if not _analog_hit_allowed(source, freq):
+            continue
+        row["freq"] = freq
+        row["source"] = source
+        row["type"] = source
+        out.append(row)
+    return out
 
 
 def read_last_hit_file(path: str) -> str:
@@ -134,35 +392,39 @@ def read_last_hit_for_range(unit: str, in_airband: bool, scan_lines: int = 400) 
 
 def read_last_hit_airband() -> str:
     """Read the last airband hit."""
-    # Try journalctl first with frequency filtering
-    value = read_last_hit_for_range(UNITS["rtl"], True)
+    value = _latest_live_hit_freq("airband")
     if value:
         return value
-    # Fall back to last-hit file if nothing in journal
     value = read_last_hit_file(LAST_HIT_AIRBAND_PATH)
-    if value:
+    if value and _analog_hit_allowed("airband", value):
         return value
-    # Final fallback: only accept journal value if it is in airband range
+    value = read_last_hit_for_range(UNITS["rtl"], True)
+    if value and _analog_hit_allowed("airband", value):
+        return value
     value = read_last_hit_from_journal_unit(UNITS["rtl"])
     try:
         freq_value = float(value)
     except (TypeError, ValueError):
         return ""
-    return value if _freq_in_airband(freq_value) else ""
+    return value if _freq_in_airband(freq_value) and _analog_hit_allowed("airband", value) else ""
 
 
 def read_last_hit_ground() -> str:
     """Read the last ground hit."""
-    value = read_last_hit_file(LAST_HIT_GROUND_PATH)
+    value = _latest_live_hit_freq("ground")
     if value:
+        return value
+    value = read_last_hit_file(LAST_HIT_GROUND_PATH)
+    if value and _analog_hit_allowed("ground", value):
         return value
     value = read_last_hit_for_range(UNITS["rtl"], False)
-    if value:
+    if value and _analog_hit_allowed("ground", value):
         return value
     value = read_last_hit_for_range(UNITS["ground"], False)
-    if value:
+    if value and _analog_hit_allowed("ground", value):
         return value
-    return read_last_hit_from_journal_unit(UNITS["ground"])
+    value = read_last_hit_from_journal_unit(UNITS["ground"])
+    return value if value and _analog_hit_allowed("ground", value) else ""
 
 
 def read_last_hit_from_journal_cached() -> str:
@@ -179,13 +441,13 @@ def read_last_hit_from_journal_cached() -> str:
 
 def read_last_hit() -> str:
     """Read the last hit from any source."""
-    value = read_last_hit_airband()
-    if value:
-        return value
-
     items = read_hit_list_cached()
     if items:
         return items[0].get("freq", "") or ""
+
+    value = read_last_hit_airband()
+    if value:
+        return value
 
     return read_last_hit_from_journal_cached()
 
@@ -270,9 +532,14 @@ def read_hit_list_for_unit(unit: str, limit: int = 20, scan_lines: int = 200) ->
 
 def read_hit_list(limit: int = 20, scan_lines: int = 200) -> list:
     """Read combined hit list from all units."""
+    refresh_analog_hit_state()
+    live_entries = _live_hit_items_snapshot(limit=limit)
+    if live_entries:
+        return live_entries
     entries = []
     entries.extend(read_hit_list_for_unit(UNITS["rtl"], limit=limit, scan_lines=scan_lines))
     entries.extend(read_hit_list_for_unit(UNITS["ground"], limit=limit, scan_lines=scan_lines))
+    entries = _filter_legacy_hits_to_active_pool(entries)
     if not entries:
         return []
     entries.sort(key=lambda item: item.get("ts", 0))
