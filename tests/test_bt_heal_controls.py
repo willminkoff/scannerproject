@@ -98,6 +98,33 @@ class BtHealControlTests(unittest.TestCase):
         self.assertIn("access denied", err)
 
 
+class HostRebootControlTests(unittest.TestCase):
+    def test_reboot_host_runs_systemctl_reboot_with_sudo(self):
+        calls = []
+
+        def fake_run(args, use_sudo=False):
+            calls.append((tuple(args), bool(use_sudo)))
+            return _Proc(returncode=0)
+
+        with mock.patch.object(systemd, "_run_systemctl", side_effect=fake_run):
+            ok, err = systemd.reboot_host()
+
+        self.assertTrue(ok)
+        self.assertEqual("", err)
+        self.assertIn((("reboot",), True), calls)
+
+    def test_reboot_host_propagates_error(self):
+        with mock.patch.object(
+            systemd,
+            "_run_systemctl",
+            return_value=_Proc(returncode=1, stderr="not permitted"),
+        ):
+            ok, err = systemd.reboot_host()
+
+        self.assertFalse(ok)
+        self.assertIn("not permitted", err)
+
+
 class _FakePostRequest:
     def __init__(self, path: str, body: str, ctype: str = "application/x-www-form-urlencoded"):
         self.path = path
@@ -182,6 +209,29 @@ class BtHealApiTests(unittest.TestCase):
         self.assertEqual(400, code)
         self.assertFalse(data["ok"])
         self.assertEqual("unknown action", data["error"])
+
+
+class HostRebootApiTests(unittest.TestCase):
+    def test_api_reboot_host_success(self):
+        req = _FakePostRequest("/api/reboot-host", "")
+        with mock.patch.object(handlers, "reboot_host", return_value=(True, "")) as reboot_mock:
+            code, body, _ = handlers.Handler.do_POST(req)
+        data = json.loads(body)
+        self.assertEqual(200, code)
+        self.assertTrue(data["ok"])
+        self.assertEqual("host reboot requested", data["message"])
+        reboot_mock.assert_called_once_with()
+
+    def test_api_reboot_host_failure(self):
+        req = _FakePostRequest("/api/reboot-host", "")
+        with mock.patch.object(handlers, "reboot_host", return_value=(False, "sudo denied")) as reboot_mock:
+            code, body, _ = handlers.Handler.do_POST(req)
+        data = json.loads(body)
+        self.assertEqual(500, code)
+        self.assertFalse(data["ok"])
+        self.assertEqual("host reboot failed", data["message"])
+        self.assertIn("sudo denied", data["error"])
+        reboot_mock.assert_called_once_with()
 
 
 if __name__ == "__main__":

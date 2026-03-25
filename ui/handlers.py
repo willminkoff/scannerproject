@@ -105,7 +105,14 @@ try:
         list_icecast_mounts,
         extract_icecast_title_for_mount,
     )
-    from .systemd import unit_active, unit_exists, restart_rtl, unit_active_enter_epoch, set_bt_heal_auto_recovery
+    from .systemd import (
+        unit_active,
+        unit_exists,
+        restart_rtl,
+        unit_active_enter_epoch,
+        set_bt_heal_auto_recovery,
+        reboot_host,
+    )
     from .server_workers import enqueue_action, enqueue_apply
     from .diagnostic import write_diagnostic_log
     from .spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
@@ -199,7 +206,14 @@ except ImportError:
         list_icecast_mounts,
         extract_icecast_title_for_mount,
     )
-    from ui.systemd import unit_active, unit_exists, restart_rtl, unit_active_enter_epoch, set_bt_heal_auto_recovery
+    from ui.systemd import (
+        unit_active,
+        unit_exists,
+        restart_rtl,
+        unit_active_enter_epoch,
+        set_bt_heal_auto_recovery,
+        reboot_host,
+    )
     from ui.server_workers import enqueue_action, enqueue_apply
     from ui.diagnostic import write_diagnostic_log
     from ui.spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
@@ -4517,6 +4531,20 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/usb-hub-reset":
             result = enqueue_action({"type": "usb_hub_reset"})
             return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
+
+        if p == "/api/reboot-host":
+            ok, err = reboot_host()
+            payload = {
+                "ok": bool(ok),
+                "message": "host reboot requested" if ok else "host reboot failed",
+            }
+            if err:
+                payload["error"] = str(err)
+            return self._send(
+                200 if ok else 500,
+                json.dumps(payload),
+                "application/json; charset=utf-8",
+            )
 
         if p == "/api/avoid":
             target = form.get("target", "airband")

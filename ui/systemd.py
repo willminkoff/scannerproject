@@ -170,6 +170,20 @@ def set_bt_heal_auto_recovery(enabled: bool) -> Tuple[bool, str]:
     return False, err
 
 
+def reboot_host() -> Tuple[bool, str]:
+    """Request a host reboot through systemd."""
+    try:
+        result = _run_systemctl(["reboot"], use_sudo=True)
+    except Exception as e:
+        return False, str(e)
+    if result.returncode == 0:
+        return True, ""
+    err = (result.stderr or result.stdout or "").strip()
+    if not err:
+        err = f"host reboot request failed (code {result.returncode})"
+    return False, err
+
+
 def stop_rtl():
     """Stop the rtl-airband scanner."""
     subprocess.run(

@@ -2944,6 +2944,7 @@
             <button class="sitrep-btn" id="btn-restart-keepalive" type="button">Restart Keepalive</button>
             <button class="sitrep-btn" id="btn-toggle-bt-heal" type="button">Enable BT Heal Auto</button>
             <button class="sitrep-btn" id="btn-reset-usb-hub" type="button">Reset USB Hub</button>
+            <button class="sitrep-btn danger" id="btn-reboot-pc" type="button">Reboot PC</button>
             <button class="sitrep-btn danger" id="btn-restart-ui" type="button">Restart UI</button>
           </div>
         </div>
@@ -4476,6 +4477,7 @@
       btnRestartKeepalive: document.getElementById('btn-restart-keepalive'),
       btnToggleBtHeal: document.getElementById('btn-toggle-bt-heal'),
       btnResetUsbHub: document.getElementById('btn-reset-usb-hub'),
+      btnRebootPc: document.getElementById('btn-reboot-pc'),
       btnRestartUi: document.getElementById('btn-restart-ui'),
       profileLoopOpenAnalog: document.getElementById('profile-loop-open-analog'),
       profileLoopOpenDigital: document.getElementById('profile-loop-open-digital'),
@@ -11799,6 +11801,48 @@
       }
     }
 
+    async function rebootHostPc() {
+      if (!confirm('Reboot this PC now? Scanner audio and UI will disconnect during restart.')) return;
+      if (els.btnRebootPc) {
+        els.btnRebootPc.disabled = true;
+        els.btnRebootPc.textContent = 'Rebooting PC...';
+      }
+      let requested = false;
+      try {
+        const res = await postAPI('/api/reboot-host', {});
+        if (!res || !res.ok) {
+          logActivity(formatApiError(res, 'PC reboot failed'), 'warn', 'reboot-host-fail');
+          return;
+        }
+        requested = true;
+        logActivity('PC reboot requested', 'warn', 'reboot-host-requested');
+      } catch (e) {
+        const msg = String((e && e.message) || '').toLowerCase();
+        if (
+          msg.includes('failed to fetch')
+          || msg.includes('networkerror')
+          || msg.includes('load failed')
+        ) {
+          requested = true;
+          logActivity('PC reboot requested; connection dropped while restarting', 'warn', 'reboot-host-disconnect');
+        } else {
+          logActivity(messageFromError(e, 'PC reboot failed'), 'warn', 'reboot-host-error');
+        }
+      } finally {
+        if (!els.btnRebootPc) return;
+        if (requested) {
+          els.btnRebootPc.disabled = true;
+          els.btnRebootPc.textContent = 'Rebooting PC...';
+          return;
+        }
+        setTimeout(() => {
+          if (!els.btnRebootPc) return;
+          els.btnRebootPc.disabled = false;
+          els.btnRebootPc.textContent = 'Reboot PC';
+        }, 2500);
+      }
+    }
+
     function applyBtHealStatus(payload) {
       const status = payload && typeof payload === 'object' ? payload : {};
       const timerExists = Boolean(status.timer_exists);
@@ -14144,6 +14188,9 @@
       }
       if (els.btnResetUsbHub) {
         els.btnResetUsbHub.addEventListener('click', () => resetUsbHub());
+      }
+      if (els.btnRebootPc) {
+        els.btnRebootPc.addEventListener('click', () => rebootHostPc());
       }
       if (els.btnRestartUi) {
         els.btnRestartUi.addEventListener('click', () => restartService('ui', 'UI'));
