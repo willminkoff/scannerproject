@@ -4880,6 +4880,7 @@ AreaCounty	AgencyId=5140	CountyId=2446
 C-Group	CGroupId=47579	AgencyId=5140	John C. Tune Airport - Aircraft (VHF AM)	Off	36.182360	-86.886720	5.0	Circle
 C-Freq	CFreqId=192912	CGroupId=47579	AWOS	Off	127075000	AM		15					
 C-Freq	CFreqId=192913	CGroupId=47579	Clearance Delivery	Off	124550000	AM		15					
+C-Freq	CFreqId=492913	CGroupId=47579	Tower	Off	119450000	AM		15					
 C-Freq	CFreqId=192911	CGroupId=47579	Unicom / CTAF	Off	122700000	AM		15					
 Conventional	AgencyId=9579	StateId=47	Johnson County Airport	Off		Conventional
 AreaState	AgencyId=9579	StateId=47
