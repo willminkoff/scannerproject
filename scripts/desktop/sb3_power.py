@@ -21,6 +21,13 @@ ZENITY_BIN = shutil.which("zenity")
 PKEXEC_BIN = shutil.which("pkexec")
 SUDO_BIN = shutil.which("sudo")
 
+ZENITY_STATUS_WIDTH = "1080"
+ZENITY_STATUS_HEIGHT = "760"
+ZENITY_CONFIRM_WIDTH = "760"
+ZENITY_CONFIRM_HEIGHT = "360"
+ZENITY_ACTION_WIDTH = "760"
+ZENITY_ACTION_HEIGHT = "420"
+
 
 @dataclass(frozen=True)
 class UnitSpec:
@@ -660,8 +667,8 @@ def _show_scrollable_text(title: str, text: str) -> None:
                 "--text-info",
                 "--title",
                 title,
-                "--width=860",
-                "--height=620",
+                f"--width={ZENITY_STATUS_WIDTH}",
+                f"--height={ZENITY_STATUS_HEIGHT}",
                 "--filename",
                 temp_path,
                 "--font=14",
@@ -696,7 +703,8 @@ def _confirm_action(action: str, state: str) -> bool:
         [
             "--question",
             "--title=SB3 Power Control",
-            "--width=460",
+            f"--width={ZENITY_CONFIRM_WIDTH}",
+            f"--height={ZENITY_CONFIRM_HEIGHT}",
             "--text",
             text,
             "--ok-label",
@@ -727,8 +735,8 @@ def _choose_action(state: str) -> str | None:
         "--list",
         "--radiolist",
         "--title=SB3 Power Control",
-        "--width=420",
-        "--height=260",
+        f"--width={ZENITY_ACTION_WIDTH}",
+        f"--height={ZENITY_ACTION_HEIGHT}",
         "--text",
         f"SB3 is currently {state.upper()}. Choose an action.",
         "--hide-header",
