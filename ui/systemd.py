@@ -3,9 +3,9 @@ import subprocess
 from typing import Tuple
 
 try:
-    from .config import UNITS
+    from .config import UNITS, BT_HEAL_TIMER_UNIT
 except ImportError:
-    from ui.config import UNITS
+    from ui.config import UNITS, BT_HEAL_TIMER_UNIT
 
 
 def unit_active(unit: str) -> bool:
@@ -37,6 +37,23 @@ def _run_systemctl(args, use_sudo: bool = False):
         text=True,
         check=False,
     )
+
+
+def _enabled_from_result(result: subprocess.CompletedProcess[str]) -> tuple[bool, str]:
+    if result.returncode != 0:
+        return False, (result.stdout or result.stderr or "").strip()
+    state = str(result.stdout or "").strip().lower()
+    return state in ("enabled", "enabled-runtime"), state
+
+
+def unit_enabled(unit: str, use_sudo: bool = False) -> bool:
+    """Check if a systemd unit is enabled."""
+    try:
+        result = _run_systemctl(["is-enabled", unit], use_sudo=use_sudo)
+    except Exception:
+        return False
+    enabled, _state = _enabled_from_result(result)
+    return enabled
 
 
 def _restart_unit(unit: str, use_sudo: bool = False) -> Tuple[bool, str]:
@@ -133,6 +150,24 @@ def restart_ui() -> Tuple[bool, str]:
 def restart_digital() -> Tuple[bool, str]:
     """Restart the digital backend service."""
     return _restart_unit(UNITS["digital"], use_sudo=True)
+
+
+def set_bt_heal_auto_recovery(enabled: bool) -> Tuple[bool, str]:
+    """Enable/disable periodic BT-heal auto-recovery timer."""
+    timer_unit = str(BT_HEAL_TIMER_UNIT or "").strip()
+    if not timer_unit:
+        return False, "BT-heal timer unit not configured"
+    args = ["enable", "--now", timer_unit] if enabled else ["disable", "--now", timer_unit]
+    try:
+        result = _run_systemctl(args, use_sudo=True)
+    except Exception as e:
+        return False, str(e)
+    if result.returncode == 0:
+        return True, ""
+    err = (result.stderr or result.stdout or "").strip()
+    if not err:
+        err = f"bt-heal timer update failed (code {result.returncode})"
+    return False, err
 
 
 def stop_rtl():

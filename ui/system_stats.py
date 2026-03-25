@@ -1,10 +1,18 @@
 """System stats helpers for host/PC health telemetry."""
+from collections import deque
+import json
 import os
 import re
 import time
 import shutil
 import subprocess
 import socket
+import threading
+
+try:
+    from .config import BT_HEAL_DEFAULT_ENABLED, BT_HEAL_SERVICE_UNIT, BT_HEAL_TIMER_UNIT
+except ImportError:
+    from ui.config import BT_HEAL_DEFAULT_ENABLED, BT_HEAL_SERVICE_UNIT, BT_HEAL_TIMER_UNIT
 
 _last_cpu = {"total": None, "idle": None, "ts": None}
 _RTL_USB_SYSFS_ROOT = os.getenv("RTL_USB_SYSFS_ROOT", "/sys/bus/usb/devices")
@@ -19,6 +27,116 @@ try:
     _RTL_DONGLE_TARGET = max(1, int(os.getenv("RTL_DONGLE_TARGET", "4")))
 except Exception:
     _RTL_DONGLE_TARGET = 4
+try:
+    _RTL_DONGLE_EVENT_HISTORY_LIMIT = max(1, int(os.getenv("RTL_DONGLE_EVENT_HISTORY_LIMIT", "40")))
+except Exception:
+    _RTL_DONGLE_EVENT_HISTORY_LIMIT = 40
+_RTL_ALLOW_EXTRA = str(os.getenv("RTL_ALLOW_EXTRA", "1")).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _default_rtl_dongle_event_log_path() -> str:
+    cache_root = str(os.getenv("XDG_CACHE_HOME", "") or "").strip()
+    if cache_root:
+        return os.path.join(cache_root, "airband-ui", "dongle-events.jsonl")
+    home = os.path.expanduser("~")
+    if home and home != "~":
+        return os.path.join(home, ".cache", "airband-ui", "dongle-events.jsonl")
+    return "/tmp/airband_ui_dongle_events.jsonl"
+
+
+_RTL_DONGLE_EVENT_LOG_PATH = os.getenv(
+    "RTL_DONGLE_EVENT_LOG_PATH",
+    _default_rtl_dongle_event_log_path(),
+).strip()
+_RTL_DONGLE_EVENT_LOCK = threading.Lock()
+_RTL_DONGLE_EVENT_STATE = {
+    "initialized": False,
+    "present_serials": [],
+    "details_by_serial": {},
+    "events": [],
+}
+
+
+def _systemctl_capture(args: list[str]):
+    try:
+        return subprocess.run(
+            ["systemctl", *list(args or [])],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        return None
+
+
+def _systemctl_show_value(unit: str, key: str) -> str:
+    target = str(unit or "").strip()
+    prop = str(key or "").strip()
+    if not target or not prop:
+        return ""
+    result = _systemctl_capture(["show", "-p", prop, "--value", target])
+    if result is None or result.returncode != 0:
+        return ""
+    return str(result.stdout or "").strip()
+
+
+def _systemctl_is_enabled_state(unit: str) -> str:
+    target = str(unit or "").strip()
+    if not target:
+        return ""
+    result = _systemctl_capture(["is-enabled", target])
+    if result is None:
+        return ""
+    output = str(result.stdout or result.stderr or "").strip().lower()
+    if result.returncode == 0:
+        return output or "enabled"
+    if output in ("disabled", "static", "masked", "indirect", "generated", "transient", "linked", "alias"):
+        return output
+    return ""
+
+
+def _systemctl_is_active_state(unit: str) -> str:
+    target = str(unit or "").strip()
+    if not target:
+        return ""
+    result = _systemctl_capture(["is-active", target])
+    if result is None:
+        return ""
+    output = str(result.stdout or result.stderr or "").strip().lower()
+    if result.returncode == 0:
+        return output or "active"
+    if output in ("inactive", "failed", "activating", "deactivating"):
+        return output
+    return ""
+
+
+def read_bt_audio_heal_status():
+    timer_unit = str(BT_HEAL_TIMER_UNIT or "").strip()
+    service_unit = str(BT_HEAL_SERVICE_UNIT or "").strip()
+    timer_load = _systemctl_show_value(timer_unit, "LoadState")
+    service_load = _systemctl_show_value(service_unit, "LoadState")
+    timer_exists = bool(timer_unit) and timer_load not in ("", "not-found")
+    service_exists = bool(service_unit) and service_load not in ("", "not-found")
+    timer_enabled_state = _systemctl_is_enabled_state(timer_unit) if timer_exists else "not-found"
+    timer_active_state = _systemctl_is_active_state(timer_unit) if timer_exists else "not-found"
+    service_active_state = _systemctl_is_active_state(service_unit) if service_exists else "not-found"
+    timer_enabled = timer_enabled_state in ("enabled", "enabled-runtime")
+    return {
+        "timer_unit": timer_unit,
+        "service_unit": service_unit,
+        "timer_exists": bool(timer_exists),
+        "service_exists": bool(service_exists),
+        "timer_enabled": bool(timer_enabled),
+        "timer_enabled_state": timer_enabled_state or "unknown",
+        "timer_active": timer_active_state == "active",
+        "timer_active_state": timer_active_state or "unknown",
+        "service_active": service_active_state == "active",
+        "service_active_state": service_active_state or "unknown",
+        "auto_recovery_enabled": bool(timer_enabled),
+        "default_enabled": bool(BT_HEAL_DEFAULT_ENABLED),
+        "status": "on" if timer_enabled else "off",
+    }
 
 
 def _read_first_line(path: str):
@@ -166,11 +284,170 @@ def _expected_rtl_serials():
         "DIGITAL_RTL_SERIAL",
         "DIGITAL_RTL_SERIAL_SECONDARY",
         "DIGITAL_RTL_SERIAL_2",
+        "DIGITAL_RTL_SERIAL_TERTIARY",
+        "DIGITAL_RTL_SERIAL_3",
     ):
         value = str(os.getenv(key, "") or "").strip()
         if value and value not in serials:
             serials.append(value)
     return serials
+
+
+def _rtl_dongle_event_message(status: str, serial: str, *, path: str = "", speed_mbps=None) -> str:
+    action = "connected" if status == "connected" else "lost"
+    detail = serial or "unknown serial"
+    extras = []
+    if path:
+        extras.append(f"path {path}")
+    if speed_mbps not in (None, ""):
+        try:
+            extras.append(f"{int(round(float(speed_mbps)))} Mbps")
+        except Exception:
+            pass
+    if extras:
+        return f"RTL serial {detail} {action} ({', '.join(extras)})"
+    return f"RTL serial {detail} {action}"
+
+
+def _load_rtl_dongle_event_log() -> list[dict]:
+    path = str(_RTL_DONGLE_EVENT_LOG_PATH or "").strip()
+    if not path or not os.path.isfile(path):
+        return []
+    rows = deque(maxlen=_RTL_DONGLE_EVENT_HISTORY_LIMIT)
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                line = str(line or "").strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                except Exception:
+                    continue
+                if isinstance(row, dict):
+                    rows.append(dict(row))
+    except Exception:
+        return []
+    return sorted(
+        [dict(item) for item in rows],
+        key=lambda item: int(item.get("time_ms") or 0),
+        reverse=True,
+    )
+
+
+def _persist_rtl_dongle_event_log(events: list[dict]) -> None:
+    path = str(_RTL_DONGLE_EVENT_LOG_PATH or "").strip()
+    if not path:
+        return
+    rows = sorted(
+        [dict(item) for item in (events or []) if isinstance(item, dict)],
+        key=lambda item: int(item.get("time_ms") or 0),
+        reverse=True,
+    )[:_RTL_DONGLE_EVENT_HISTORY_LIMIT]
+    tmp_path = f"{path}.tmp"
+    try:
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            for item in reversed(rows):
+                f.write(json.dumps(item, sort_keys=True) + "\n")
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+        except Exception:
+            pass
+        return
+def _record_rtl_dongle_events(
+    *,
+    present_paths: list[dict],
+    expected_serials: list[str],
+) -> list[dict]:
+    now_ms = int(time.time() * 1000)
+    current_details = {}
+    for row in present_paths or []:
+        serial = str((row or {}).get("serial") or "").strip()
+        if not serial:
+            continue
+        current_details[serial] = {
+            "path": str((row or {}).get("path") or "").strip(),
+            "speed_mbps": (row or {}).get("speed_mbps"),
+        }
+    current_serials = sorted(current_details.keys())
+    expected = {str(token or "").strip() for token in (expected_serials or []) if str(token or "").strip()}
+
+    with _RTL_DONGLE_EVENT_LOCK:
+        initialized = bool(_RTL_DONGLE_EVENT_STATE.get("initialized"))
+        previous_serials = {
+            str(token or "").strip()
+            for token in (_RTL_DONGLE_EVENT_STATE.get("present_serials") or [])
+            if str(token or "").strip()
+        }
+        previous_details = dict(_RTL_DONGLE_EVENT_STATE.get("details_by_serial") or {})
+        events = list(_RTL_DONGLE_EVENT_STATE.get("events") or [])
+        if not events:
+            events = _load_rtl_dongle_event_log()
+
+        if not initialized:
+            _RTL_DONGLE_EVENT_STATE["initialized"] = True
+            _RTL_DONGLE_EVENT_STATE["present_serials"] = list(current_serials)
+            _RTL_DONGLE_EVENT_STATE["details_by_serial"] = dict(current_details)
+            _RTL_DONGLE_EVENT_STATE["events"] = events
+            return [dict(item) for item in events]
+
+        added = sorted(set(current_serials) - previous_serials)
+        removed = sorted(previous_serials - set(current_serials))
+        new_events = []
+        for serial in added:
+            detail = current_details.get(serial) or {}
+            event = {
+                "event_id": f"{now_ms}:connected:{serial}",
+                "status": "connected",
+                "serial": serial,
+                "expected": serial in expected,
+                "path": str(detail.get("path") or ""),
+                "speed_mbps": detail.get("speed_mbps"),
+                "time_ms": now_ms,
+                "message": _rtl_dongle_event_message(
+                    "connected",
+                    serial,
+                    path=str(detail.get("path") or ""),
+                    speed_mbps=detail.get("speed_mbps"),
+                ),
+            }
+            new_events.append(event)
+        for serial in removed:
+            detail = previous_details.get(serial) or {}
+            event = {
+                "event_id": f"{now_ms}:lost:{serial}",
+                "status": "lost",
+                "serial": serial,
+                "expected": serial in expected,
+                "path": str(detail.get("path") or ""),
+                "speed_mbps": detail.get("speed_mbps"),
+                "time_ms": now_ms,
+                "message": _rtl_dongle_event_message(
+                    "lost",
+                    serial,
+                    path=str(detail.get("path") or ""),
+                    speed_mbps=detail.get("speed_mbps"),
+                ),
+            }
+            new_events.append(event)
+
+        if new_events:
+            events = sorted(
+                [dict(item) for item in new_events] + events,
+                key=lambda item: int(item.get("time_ms") or 0),
+                reverse=True,
+            )[:_RTL_DONGLE_EVENT_HISTORY_LIMIT]
+            _persist_rtl_dongle_event_log(events)
+
+        _RTL_DONGLE_EVENT_STATE["initialized"] = True
+        _RTL_DONGLE_EVENT_STATE["present_serials"] = list(current_serials)
+        _RTL_DONGLE_EVENT_STATE["details_by_serial"] = dict(current_details)
+        _RTL_DONGLE_EVENT_STATE["events"] = list(events)
+        return [dict(item) for item in events]
 
 
 def read_rtl_dongle_health():
@@ -207,6 +484,10 @@ def read_rtl_dongle_health():
                     speed_by_serial[serial] = speed_mbps
 
     expected_serials = _expected_rtl_serials()
+    events = _record_rtl_dongle_events(
+        present_paths=present_paths,
+        expected_serials=expected_serials,
+    )
     missing_expected_serials = [s for s in expected_serials if s not in present_serials]
     unexpected_serials = [s for s in present_serials if s not in expected_serials]
     slow_expected_serials = [
@@ -218,11 +499,9 @@ def read_rtl_dongle_health():
     expected_count = len(expected_serials)
     target_count = max(_RTL_DONGLE_TARGET, expected_count) if expected_count else _RTL_DONGLE_TARGET
 
-    if (
-        present_count == target_count
-        and not missing_expected_serials
-        and not slow_expected_serials
-    ):
+    enough_present = present_count >= target_count if _RTL_ALLOW_EXTRA else present_count == target_count
+
+    if enough_present and not missing_expected_serials and not slow_expected_serials:
         status = "ideal"
     elif present_count >= max(1, target_count - 1):
         status = "degraded"
@@ -243,6 +522,8 @@ def read_rtl_dongle_health():
         "slow_expected_serials": slow_expected_serials,
         "unexpected_serials": unexpected_serials,
         "present_paths": present_paths,
+        "events": events,
+        "last_event_time_ms": int((events[0] or {}).get("time_ms") or 0) if events else 0,
     }
 
 
@@ -440,4 +721,5 @@ def get_system_stats():
         "memory_pressure": read_pressure("/proc/pressure/memory"),
         "io_pressure": read_pressure("/proc/pressure/io"),
         "dongles": read_rtl_dongle_health(),
+        "bt_heal": read_bt_audio_heal_status(),
     }

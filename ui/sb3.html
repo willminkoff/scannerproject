@@ -2595,7 +2595,7 @@
                 <div style="font-weight:700;">Analog Player</div>
                 <a id="lnk-stream-analog" href="#" target="_blank" rel="noopener" style="font-size:12px; opacity:0.85;">Open Analog</a>
               </div>
-              <audio id="audio-player-analog" controls preload="metadata"></audio>
+              <audio id="audio-player-analog" controls preload="none" playsinline></audio>
             </div>
           </div>
 
@@ -2639,7 +2639,7 @@
                   <div style="font-weight:700;">Digital Player</div>
                   <a id="lnk-stream-digital" href="#" target="_blank" rel="noopener" style="font-size:12px; opacity:0.85;">Open Digital</a>
                 </div>
-                <audio id="audio-player-digital" controls preload="none"></audio>
+                <audio id="audio-player-digital" controls preload="none" playsinline></audio>
               </div>
 
             </div>
@@ -2942,6 +2942,7 @@
             <button class="sitrep-btn" id="btn-restart-digital" type="button">Restart Digital</button>
             <button class="sitrep-btn" id="btn-restart-icecast" type="button">Restart Icecast</button>
             <button class="sitrep-btn" id="btn-restart-keepalive" type="button">Restart Keepalive</button>
+            <button class="sitrep-btn" id="btn-toggle-bt-heal" type="button">Enable BT Heal Auto</button>
             <button class="sitrep-btn" id="btn-reset-usb-hub" type="button">Reset USB Hub</button>
             <button class="sitrep-btn danger" id="btn-restart-ui" type="button">Restart UI</button>
           </div>
@@ -3005,6 +3006,14 @@
             <div class="config-row">
               <span class="config-label">Missing</span>
               <span class="config-value" id="sitrep-dongles-missing">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">Recent USB</span>
+              <span class="config-value" id="sitrep-dongles-events">--</span>
+            </div>
+            <div class="config-row">
+              <span class="config-label">BT Heal Auto</span>
+              <span class="config-value" id="sitrep-bt-heal">--</span>
             </div>
           </div>
         </div>
@@ -3539,12 +3548,12 @@
     const VIEW_FLIP_MS = 480;
     const MAX_LOG = 120;
     const LOG_DEDUPE_MS = 4000;
-    const AUDIO_RECOVER_COOLDOWN_MS = 8000;
-    const AUDIO_RECOVER_COOLDOWN_ANALOG_MS = 20000;
-    const AUDIO_WAITING_GRACE_MS = 12000;
-    const AUDIO_WAITING_GRACE_ANALOG_MS = 25000;
-    const AUDIO_STARTUP_RECOVER_GRACE_MS = 8000;
-    const AUDIO_STARTUP_RECOVER_GRACE_ANALOG_MS = 20000;
+    const AUDIO_RECOVER_COOLDOWN_MS = 3000;
+    const AUDIO_RECOVER_COOLDOWN_ANALOG_MS = 5000;
+    const AUDIO_WAITING_GRACE_MS = 4000;
+    const AUDIO_WAITING_GRACE_ANALOG_MS = 6000;
+    const AUDIO_STARTUP_RECOVER_GRACE_MS = 3500;
+    const AUDIO_STARTUP_RECOVER_GRACE_ANALOG_MS = 5000;
     const AUDIO_PROGRESS_CHECK_MS = 3000;
     const AUDIO_PROGRESS_STALL_MS = 30000;
     const AUDIO_USER_PAUSE_WINDOW_MS = 1500;
@@ -3976,6 +3985,14 @@
         lastTx: 0,
         lastRxRate: null,
         lastTxRate: null,
+        dongleEventsPrimed: false,
+        seenDongleEventIds: [],
+      },
+      btHeal: {
+        enabled: false,
+        timerExists: true,
+        busy: false,
+        status: null,
       },
       tempAlarm: {
         active: false,
@@ -4449,12 +4466,15 @@
       sitrepNetTxRate: document.getElementById('sitrep-net-tx-rate'),
       sitrepDongles: document.getElementById('sitrep-dongles'),
       sitrepDonglesMissing: document.getElementById('sitrep-dongles-missing'),
+      sitrepDonglesEvents: document.getElementById('sitrep-dongles-events'),
+      sitrepBtHeal: document.getElementById('sitrep-bt-heal'),
       activityLog: document.getElementById('activity-log'),
       btnRestartAirband: document.getElementById('btn-restart-airband'),
       btnRestartGround: document.getElementById('btn-restart-ground'),
       btnRestartDigital: document.getElementById('btn-restart-digital'),
       btnRestartIcecast: document.getElementById('btn-restart-icecast'),
       btnRestartKeepalive: document.getElementById('btn-restart-keepalive'),
+      btnToggleBtHeal: document.getElementById('btn-toggle-bt-heal'),
       btnResetUsbHub: document.getElementById('btn-reset-usb-hub'),
       btnRestartUi: document.getElementById('btn-restart-ui'),
       profileLoopOpenAnalog: document.getElementById('profile-loop-open-analog'),
@@ -10903,16 +10923,91 @@
       const minSpeedValue = Number(dongles.min_speed_mbps);
       const minSpeed = Number.isFinite(minSpeedValue) ? minSpeedValue : null;
       const status = String(dongles.status || '').toLowerCase();
-      const hasCounts = Number.isFinite(present) && Number.isFinite(target);
-      const expectedText = Number.isFinite(expected) && expected > 0 ? ` (cfg ${expected})` : '';
+      const displayTarget = Number.isFinite(present) && Number.isFinite(target)
+        ? Math.max(present, target)
+        : target;
+      const hasCounts = Number.isFinite(present) && Number.isFinite(displayTarget);
+      const expectedText = Number.isFinite(expected) && expected > 0 && expected !== displayTarget
+        ? ` (cfg ${expected})`
+        : '';
       return {
         hasCounts,
         status,
         missing,
         slow,
         minSpeed,
-        summary: hasCounts ? `${present}/${target}${expectedText}` : '--',
+        summary: hasCounts ? `${present}/${displayTarget}${expectedText}` : '--',
       };
+    }
+
+    function dongleEventsFromStats(stats) {
+      const dongles = (stats && stats.dongles) ? stats.dongles : {};
+      return Array.isArray(dongles.events) ? dongles.events : [];
+    }
+
+    function formatDongleEventSummary(event, includeAge = false) {
+      if (!event || typeof event !== 'object') return '--';
+      const status = String(event.status || '').toLowerCase();
+      const serial = String(event.serial || '').trim() || 'unknown';
+      const path = String(event.path || '').trim();
+      const speed = Number(event.speed_mbps);
+      let text = status === 'lost'
+        ? `lost ${serial}`
+        : status === 'connected'
+          ? `connected ${serial}`
+          : `${status || 'changed'} ${serial}`;
+      const extras = [];
+      if (path) extras.push(path);
+      if (Number.isFinite(speed) && speed > 0) extras.push(`${Math.round(speed)} Mbps`);
+      if (extras.length) text += ` (${extras.join(', ')})`;
+      const timeMs = Number(event.time_ms || 0);
+      if (includeAge && Number.isFinite(timeMs) && timeMs > 0) {
+        const ageMs = Math.max(0, Date.now() - timeMs);
+        text += ` • ${formatDurationCompact(ageMs)} ago`;
+      }
+      return text;
+    }
+
+    function dongleEventTone(event) {
+      const status = String((event && event.status) || '').toLowerCase();
+      if (status === 'lost') return 'bad';
+      if (status === 'connected') return 'good';
+      return '';
+    }
+
+    function syncDongleEventActivity(stats) {
+      const events = dongleEventsFromStats(stats);
+      if (!Array.isArray(state.system.seenDongleEventIds)) {
+        state.system.seenDongleEventIds = [];
+      }
+      if (!state.system.dongleEventsPrimed) {
+        state.system.seenDongleEventIds = events
+          .map((event) => String(
+            (event && event.event_id)
+            || `${event && event.time_ms}:${event && event.status}:${event && event.serial}`
+          ).trim())
+          .filter(Boolean)
+          .slice(-100);
+        state.system.dongleEventsPrimed = true;
+        return;
+      }
+      const seen = new Set(state.system.seenDongleEventIds);
+      let changed = false;
+      [...events].reverse().forEach((event) => {
+        const eventId = String(
+          (event && event.event_id)
+          || `${event && event.time_ms}:${event && event.status}:${event && event.serial}`
+        ).trim();
+        if (!eventId || seen.has(eventId)) return;
+        seen.add(eventId);
+        changed = true;
+        const status = String((event && event.status) || '').toLowerCase();
+        const level = status === 'lost' ? 'warn' : 'info';
+        logActivity(`USB ${formatDongleEventSummary(event)}`, level, `usb-${eventId}`);
+      });
+      if (changed) {
+        state.system.seenDongleEventIds = Array.from(seen).slice(-100);
+      }
     }
 
     function renderDongleHealth(stats) {
@@ -10959,6 +11054,16 @@
         } else {
           els.digitalDongleMissing.textContent = '--';
           setValueTone(els.digitalDongleMissing, '');
+        }
+      }
+      if (els.sitrepDonglesEvents) {
+        const latest = dongleEventsFromStats(stats)[0] || null;
+        if (latest) {
+          els.sitrepDonglesEvents.textContent = formatDongleEventSummary(latest, true);
+          setValueTone(els.sitrepDonglesEvents, dongleEventTone(latest));
+        } else {
+          els.sitrepDonglesEvents.textContent = 'none';
+          setValueTone(els.sitrepDonglesEvents, '');
         }
       }
     }
@@ -11694,6 +11799,83 @@
       }
     }
 
+    function applyBtHealStatus(payload) {
+      const status = payload && typeof payload === 'object' ? payload : {};
+      const timerExists = Boolean(status.timer_exists);
+      const enabled = Boolean(status.auto_recovery_enabled);
+      state.btHeal.status = status;
+      state.btHeal.timerExists = timerExists;
+      state.btHeal.enabled = enabled;
+
+      if (els.sitrepBtHeal) {
+        if (!timerExists) {
+          els.sitrepBtHeal.textContent = 'Unavailable';
+          setValueTone(els.sitrepBtHeal, 'bad');
+        } else if (enabled) {
+          els.sitrepBtHeal.textContent = 'ON (auto-recovery)';
+          setValueTone(els.sitrepBtHeal, 'good');
+        } else {
+          els.sitrepBtHeal.textContent = 'OFF (manual only)';
+          setValueTone(els.sitrepBtHeal, '');
+        }
+      }
+
+      if (els.btnToggleBtHeal) {
+        const busy = Boolean(state.btHeal.busy);
+        if (!timerExists) {
+          els.btnToggleBtHeal.disabled = true;
+          els.btnToggleBtHeal.textContent = 'BT Heal Unavailable';
+        } else if (busy) {
+          els.btnToggleBtHeal.disabled = true;
+          els.btnToggleBtHeal.textContent = 'Updating BT Heal...';
+        } else {
+          els.btnToggleBtHeal.disabled = false;
+          els.btnToggleBtHeal.textContent = enabled ? 'Disable BT Heal Auto' : 'Enable BT Heal Auto';
+        }
+      }
+    }
+
+    async function toggleBtHealAuto() {
+      if (!els.btnToggleBtHeal || state.btHeal.busy) return;
+      const timerExists = Boolean(state.btHeal.timerExists);
+      if (!timerExists) {
+        logActivity('BT heal timer is unavailable', 'warn', 'bt-heal-unavailable');
+        return;
+      }
+      const wantEnable = !Boolean(state.btHeal.enabled);
+      state.btHeal.busy = true;
+      applyBtHealStatus(state.btHeal.status || {});
+      try {
+        const action = wantEnable ? 'enable' : 'disable';
+        const res = await postAPI('/api/bt-heal', { action });
+        const nextStatus = (res && typeof res === 'object' && res.bt_heal && typeof res.bt_heal === 'object')
+          ? res.bt_heal
+          : null;
+        if (nextStatus) {
+          applyBtHealStatus(nextStatus);
+        }
+        logActivity(
+          `BT heal auto-recovery ${wantEnable ? 'enabled' : 'disabled'}`,
+          'info',
+          `bt-heal-${wantEnable ? 'enable' : 'disable'}`
+        );
+      } catch (e) {
+        console.error('BT heal toggle failed:', e);
+        logActivity(
+          messageFromError(e, `BT heal ${wantEnable ? 'enable' : 'disable'} failed`),
+          'warn',
+          `bt-heal-${wantEnable ? 'enable' : 'disable'}-error`
+        );
+      } finally {
+        try {
+          await refresh({ fetchProfiles: false, fetchSystem: true });
+        } catch (_ignored) {}
+        state.btHeal.busy = false;
+        const bt = state.systemStats && state.systemStats.bt_heal ? state.systemStats.bt_heal : state.btHeal.status;
+        applyBtHealStatus(bt || {});
+      }
+    }
+
     function toggleSitrep(force) {
       if (!els.viewMain || !els.viewSitrep) return;
       const targetIsSitrep = typeof force === 'boolean' ? force : currentView !== 'sitrep';
@@ -11726,6 +11908,7 @@
     function updateSystemUI(stats) {
       if (!stats || stats.ok === false) return;
       state.systemStats = stats;
+      syncDongleEventActivity(stats);
       if (els.sysUptimeTile) els.sysUptimeTile.textContent = formatUptime(stats.uptime_s);
       const cpuF = tempFfromC(Number(stats.cpu_temp_c));
       const ambientF = ambientTempFfromStats(stats);
@@ -11796,6 +11979,7 @@
       state.system.lastNetTs = now;
       state.system.lastRx = rx;
       state.system.lastTx = tx;
+      applyBtHealStatus((stats && stats.bt_heal && typeof stats.bt_heal === 'object') ? stats.bt_heal : {});
       updateSitrep();
     }
     
@@ -13954,6 +14138,9 @@
       }
       if (els.btnRestartKeepalive) {
         els.btnRestartKeepalive.addEventListener('click', () => restartService('keepalive', 'Keepalive'));
+      }
+      if (els.btnToggleBtHeal) {
+        els.btnToggleBtHeal.addEventListener('click', () => toggleBtHealAuto());
       }
       if (els.btnResetUsbHub) {
         els.btnResetUsbHub.addEventListener('click', () => resetUsbHub());

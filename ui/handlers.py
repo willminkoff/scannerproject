@@ -4,6 +4,7 @@ import os
 import sys
 import time
 import threading
+import re
 import subprocess
 import ssl
 from datetime import datetime
@@ -36,12 +37,26 @@ def _digital_tuner_targets() -> list[str]:
         DIGITAL_PREFERRED_TUNER,
         DIGITAL_RTL_SERIAL,
         DIGITAL_RTL_SERIAL_SECONDARY,
+        DIGITAL_RTL_SERIAL_TERTIARY,
         DIGITAL_RTL_DEVICE,
     ):
         value = str(candidate or "").strip()
         if value and value not in targets:
             targets.append(value)
     return targets
+
+
+def _configured_digital_serials() -> list[str]:
+    serials = []
+    for candidate in (
+        DIGITAL_RTL_SERIAL,
+        DIGITAL_RTL_SERIAL_SECONDARY,
+        DIGITAL_RTL_SERIAL_TERTIARY,
+    ):
+        value = str(candidate or "").strip()
+        if value and value not in serials:
+            serials.append(value)
+    return serials
 
 
 try:
@@ -58,6 +73,7 @@ try:
         DIGITAL_RTL_DEVICE,
         DIGITAL_RTL_SERIAL,
         DIGITAL_RTL_SERIAL_SECONDARY,
+        DIGITAL_RTL_SERIAL_TERTIARY,
         DIGITAL_RTL_SERIAL_HINT,
         DIGITAL_STREAM_MOUNT,
         DIGITAL_PLAYLIST_PATH,
@@ -89,11 +105,11 @@ try:
         list_icecast_mounts,
         extract_icecast_title_for_mount,
     )
-    from .systemd import unit_active, unit_exists, restart_rtl, unit_active_enter_epoch
+    from .systemd import unit_active, unit_exists, restart_rtl, unit_active_enter_epoch, set_bt_heal_auto_recovery
     from .server_workers import enqueue_action, enqueue_apply
     from .diagnostic import write_diagnostic_log
     from .spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
-    from .system_stats import get_system_stats
+    from .system_stats import get_system_stats, read_bt_audio_heal_status
     from .vlc import start_vlc, stop_vlc, vlc_running, vlc_status
     from .digital import (
         get_digital_manager,
@@ -151,6 +167,7 @@ except ImportError:
         DIGITAL_RTL_DEVICE,
         DIGITAL_RTL_SERIAL,
         DIGITAL_RTL_SERIAL_SECONDARY,
+        DIGITAL_RTL_SERIAL_TERTIARY,
         DIGITAL_RTL_SERIAL_HINT,
         DIGITAL_STREAM_MOUNT,
         DIGITAL_PLAYLIST_PATH,
@@ -182,11 +199,11 @@ except ImportError:
         list_icecast_mounts,
         extract_icecast_title_for_mount,
     )
-    from ui.systemd import unit_active, unit_exists, restart_rtl, unit_active_enter_epoch
+    from ui.systemd import unit_active, unit_exists, restart_rtl, unit_active_enter_epoch, set_bt_heal_auto_recovery
     from ui.server_workers import enqueue_action, enqueue_apply
     from ui.diagnostic import write_diagnostic_log
     from ui.spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
-    from ui.system_stats import get_system_stats
+    from ui.system_stats import get_system_stats, read_bt_audio_heal_status
     from ui.vlc import start_vlc, stop_vlc, vlc_running, vlc_status
     from ui.digital import (
         get_digital_manager,
@@ -250,6 +267,10 @@ DIGITAL_HITS_REQUIRE_STREAM_ROUTE = os.getenv(
 DIGITAL_HIT_RECENT_SEC = max(5.0, float(os.getenv("DIGITAL_HIT_RECENT_SEC", "180")))
 DIGITAL_HITS_MIN_VISIBLE = max(0, int(os.getenv("DIGITAL_HITS_MIN_VISIBLE", "3")))
 _DIGITAL_IDLE_TITLES = {"", "-", "idle", "n/a", "scanning", "scanning..."}
+_DIGITAL_HIT_TGID_RE = re.compile(
+    r"\b(?:tgid|talkgroup|tg)\s*[:=#-]?\s*\(?\s*(\d{1,8})\s*\)?",
+    re.I,
+)
 _DIGITAL_STREAM_ROUTE_CACHE: dict[str, object] = {
     "path": "",
     "mtime": 0.0,
@@ -282,14 +303,14 @@ _HP_STATE_SYNC_COMPLETED = 0
 _HP_STATE_SYNC_LAST_PAYLOAD: dict[str, Any] = {"ok": True, "changed": False, "errors": []}
 STREAM_PROXY_CHUNK_BYTES = max(128, int(os.getenv("STREAM_PROXY_CHUNK_BYTES", "256")))
 try:
-    STREAM_PROXY_TRANSCODE_BITRATE_KBPS = int(os.getenv("STREAM_PROXY_TRANSCODE_BITRATE_KBPS", "64"))
+    STREAM_PROXY_TRANSCODE_BITRATE_KBPS = int(os.getenv("STREAM_PROXY_TRANSCODE_BITRATE_KBPS", "24"))
 except Exception:
-    STREAM_PROXY_TRANSCODE_BITRATE_KBPS = 64
+    STREAM_PROXY_TRANSCODE_BITRATE_KBPS = 24
 STREAM_PROXY_TRANSCODE_BITRATE_KBPS = max(16, min(192, STREAM_PROXY_TRANSCODE_BITRATE_KBPS))
 try:
-    STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ = int(os.getenv("STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ", "24000"))
+    STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ = int(os.getenv("STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ", "16000"))
 except Exception:
-    STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ = 24000
+    STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ = 16000
 STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ = max(8000, min(48000, STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ))
 LATENCY_TONE_DEFAULT_MOUNT = (
     os.getenv("LATENCY_TONE_DEFAULT_MOUNT", "latency-tone.mp3").strip().lstrip("/") or "latency-tone.mp3"
@@ -1530,10 +1551,29 @@ def _digital_stream_routed_tgids_for_hits() -> set[str]:
 def _digital_event_routes_to_stream(event: dict, routed_tgids: set[str]) -> bool:
     if not routed_tgids:
         return True
-    tgid = str((event or {}).get("tgid") or "").strip()
+    tgid = _digital_event_tgid_for_route(event)
     if not tgid:
-        return True
+        return False
     return tgid in routed_tgids
+
+
+def _digital_event_tgid_for_route(event: dict) -> str:
+    if not isinstance(event, dict):
+        return ""
+    token = str(event.get("tgid") or "").strip()
+    if token.isdigit():
+        return token
+    for key in ("label", "raw", "freq", "channel"):
+        text = str(event.get(key) or "").strip()
+        if not text:
+            continue
+        m = _DIGITAL_HIT_TGID_RE.search(text)
+        if m:
+            return str(m.group(1) or "").strip()
+        compact = text.strip().strip("()").strip()
+        if compact.isdigit():
+            return compact
+    return ""
 
 
 def _coalesce_digital_hits(items: list[dict], window_sec: float = DIGITAL_HIT_COALESCE_SEC) -> list[dict]:
@@ -1776,6 +1816,16 @@ def _build_health_payload(
         )
     subsystems["digital"] = {"state": digital_state, "reasons": digital_reasons}
 
+    missing_digital_tuners = [
+        str(token or "").strip()
+        for token in (status_payload.get("digital_tuner_missing_serials") or [])
+        if str(token or "").strip()
+    ]
+    slow_digital_tuners = [
+        str(token or "").strip()
+        for token in (status_payload.get("digital_tuner_slow_serials") or [])
+        if str(token or "").strip()
+    ]
     sdrtrunk_state = "healthy" if bool(status_payload.get("digital_active")) else "failed"
     sdrtrunk_reasons = []
     if sdrtrunk_state != "healthy":
@@ -1784,6 +1834,30 @@ def _build_health_payload(
                 "code": "SDRTRUNK_INACTIVE",
                 "severity": "critical",
                 "message": "scanner-digital.service is not active",
+            }
+        )
+    elif missing_digital_tuners:
+        sdrtrunk_state = "failed"
+        sdrtrunk_reasons.append(
+            {
+                "code": "SDRTRUNK_TUNER_MISSING",
+                "severity": "critical",
+                "message": (
+                    "Configured digital tuner serial(s) missing: "
+                    + ", ".join(missing_digital_tuners)
+                ),
+            }
+        )
+    elif slow_digital_tuners:
+        sdrtrunk_state = "failed"
+        sdrtrunk_reasons.append(
+            {
+                "code": "SDRTRUNK_TUNER_UNDERSPEED",
+                "severity": "critical",
+                "message": (
+                    "Configured digital tuner serial(s) under USB speed threshold: "
+                    + ", ".join(slow_digital_tuners)
+                ),
             }
         )
     subsystems["sdrtrunk"] = {"state": sdrtrunk_state, "reasons": sdrtrunk_reasons}
@@ -2021,7 +2095,7 @@ def _build_hits_payload(limit: int = 50) -> dict:
         if DIGITAL_HITS_REQUIRE_AUDIO_EVENT and not _digital_event_routes_to_stream(event, routed_tgids):
             continue
         label = str(event.get("label") or "").strip()
-        tgid = str(event.get("tgid") or "").strip()
+        tgid = _digital_event_tgid_for_route(event)
         agency = str(event.get("agency") or "").strip()
         department = str(event.get("department") or "").strip()
         if not label and tgid:
@@ -2755,6 +2829,7 @@ class Handler(BaseHTTPRequestHandler):
                 expected_serials["ground"] = GROUND_RTL_SERIAL
             expected_serials["digital"] = DIGITAL_RTL_SERIAL or ""
             expected_serials["digital_secondary"] = DIGITAL_RTL_SERIAL_SECONDARY or ""
+            expected_serials["digital_tertiary"] = DIGITAL_RTL_SERIAL_TERTIARY or ""
             serial_mismatch_detail = []
             if AIRBAND_RTL_SERIAL:
                 actual = airband_device.get("serial") if airband_device else ""
@@ -3051,7 +3126,7 @@ class Handler(BaseHTTPRequestHandler):
             combined_info = combined_device_summary()
             airband_serial = AIRBAND_RTL_SERIAL or (combined_info.get("airband") or {}).get("serial")
             ground_serial = GROUND_RTL_SERIAL or (combined_info.get("ground") or {}).get("serial")
-            digital_serial_configured = bool(DIGITAL_RTL_SERIAL)
+            digital_serial_configured = bool(_configured_digital_serials())
             digital_tuner_target_configured = bool(_digital_tuner_targets())
             payload = {
                 "ok": True,
@@ -3060,6 +3135,7 @@ class Handler(BaseHTTPRequestHandler):
                     "ground": ground_serial,
                     "digital": DIGITAL_RTL_SERIAL or "",
                     "digital_secondary": DIGITAL_RTL_SERIAL_SECONDARY or "",
+                    "digital_tertiary": DIGITAL_RTL_SERIAL_TERTIARY or "",
                 },
                 "digital_serial_configured": digital_serial_configured,
                 "digital_tuner_target_configured": digital_tuner_target_configured,
@@ -4317,6 +4393,52 @@ class Handler(BaseHTTPRequestHandler):
             target = form.get("target", "airband")
             result = enqueue_action({"type": "restart", "target": target})
             return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
+
+        if p == "/api/bt-heal":
+            action = get_str("action", "status").strip().lower() or "status"
+            status_payload = read_bt_audio_heal_status()
+            if action in ("status", "get"):
+                return self._send(
+                    200,
+                    json.dumps(
+                        {
+                            "ok": True,
+                            "enabled": bool(status_payload.get("auto_recovery_enabled")),
+                            "bt_heal": status_payload,
+                        }
+                    ),
+                    "application/json; charset=utf-8",
+                )
+            desired_enabled: bool | None = None
+            if action in ("enable", "on", "start"):
+                desired_enabled = True
+            elif action in ("disable", "off", "stop"):
+                desired_enabled = False
+            elif action == "toggle":
+                desired_enabled = not bool(status_payload.get("auto_recovery_enabled"))
+            elif action in ("set", "update"):
+                desired_enabled = parse_bool_value(form.get("enabled", "0"), field="enabled")
+            if desired_enabled is None:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "unknown action"}),
+                    "application/json; charset=utf-8",
+                )
+            ok, err = set_bt_heal_auto_recovery(bool(desired_enabled))
+            refreshed = read_bt_audio_heal_status()
+            payload = {
+                "ok": bool(ok),
+                "requested_enabled": bool(desired_enabled),
+                "enabled": bool(refreshed.get("auto_recovery_enabled")),
+                "bt_heal": refreshed,
+            }
+            if err:
+                payload["error"] = str(err)
+            return self._send(
+                200 if ok else 500,
+                json.dumps(payload),
+                "application/json; charset=utf-8",
+            )
 
         if p == "/api/usb-hub-reset":
             result = enqueue_action({"type": "usb_hub_reset"})

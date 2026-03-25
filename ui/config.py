@@ -126,6 +126,10 @@ DIGITAL_RTL_SERIAL_SECONDARY = os.getenv(
     "DIGITAL_RTL_SERIAL_SECONDARY",
     os.getenv("DIGITAL_RTL_SERIAL_2", ""),
 ).strip()
+DIGITAL_RTL_SERIAL_TERTIARY = os.getenv(
+    "DIGITAL_RTL_SERIAL_TERTIARY",
+    os.getenv("DIGITAL_RTL_SERIAL_3", ""),
+).strip()
 DIGITAL_PREFERRED_TUNER = os.getenv("DIGITAL_PREFERRED_TUNER", "").strip()
 DIGITAL_FORCE_PREFERRED_TUNER = os.getenv(
     "DIGITAL_FORCE_PREFERRED_TUNER",
@@ -334,6 +338,11 @@ SB3_DEDICATED_DIGITAL_FETCH_ENABLED = os.getenv(
     "0",
 ).strip().lower() in _TRUTHY
 
+# Bluetooth auto-heal controls
+BT_HEAL_TIMER_UNIT = os.getenv("UNIT_BT_HEAL_TIMER", "scanner-bt-audio-heal.timer").strip() or "scanner-bt-audio-heal.timer"
+BT_HEAL_SERVICE_UNIT = os.getenv("UNIT_BT_HEAL_SERVICE", "scanner-bt-audio-heal.service").strip() or "scanner-bt-audio-heal.service"
+BT_HEAL_DEFAULT_ENABLED = os.getenv("BT_HEAL_DEFAULT_ENABLED", "0").strip().lower() in _TRUTHY
+
 # Systemd Units
 UNITS = {
     "rtl": os.getenv("UNIT_RTL", "rtl-airband"),
@@ -343,6 +352,8 @@ UNITS = {
     "ui": os.getenv("UNIT_UI", "airband-ui"),
     "digital": DIGITAL_SERVICE_NAME,
     "digital_mixer": os.getenv("UNIT_DIGITAL_MIXER", "scanner-digital-mixer"),
+    "bt_heal_timer": BT_HEAL_TIMER_UNIT,
+    "bt_heal_service": BT_HEAL_SERVICE_UNIT,
 }
 
 # Mixer Configuration
