@@ -45,12 +45,20 @@ _LIVE_ANALOG_HIT_STATE = {
         "ground": {"path": "", "mtime_ns": 0, "freqs": set()},
     },
     "stats": {"path": "", "mtime_ns": 0, "counters": {}, "initialized": False},
+    "scan_health": {
+        "samples": {"airband": [], "ground": []},
+        "last_update_ts": 0.0,
+    },
 }
 _LIVE_ANALOG_HIT_ENTRY_LIMIT = max(200, int(ICECAST_HIT_LOG_LIMIT or 200))
 _RE_STATS_ACTIVITY_COUNTER = re.compile(
     r'^channel_activity_counter\{freq="([0-9.]+)"[^}]*\}\s+([0-9.]+)\s*$'
 )
 _STATS_HIT_GAP_SECONDS = max(float(HIT_GAP_RESET_SECONDS), 20.0)
+_SCAN_HEALTH_WINDOW_SECONDS = 30.0
+_SCAN_HEALTH_KEEP_SECONDS = max(_SCAN_HEALTH_WINDOW_SECONDS * 2.0, 60.0)
+_SCAN_HEALTH_MONOPOLY_RATIO = 0.85
+_SCAN_HEALTH_MONOPOLY_MIN_ACTIVITY = 50
 
 
 def mark_analog_hit_cutoff(target: str, at_ts: Optional[float] = None) -> None:
@@ -99,6 +107,10 @@ def _reset_live_analog_hit_state() -> None:
             "ground": {"path": "", "mtime_ns": 0, "freqs": set()},
         }
         _LIVE_ANALOG_HIT_STATE["stats"] = {"path": "", "mtime_ns": 0, "counters": {}, "initialized": False}
+        _LIVE_ANALOG_HIT_STATE["scan_health"] = {
+            "samples": {"airband": [], "ground": []},
+            "last_update_ts": 0.0,
+        }
     read_hit_list_cached._cache = {"value": [], "ts": 0.0}
     read_last_hit_from_journal_cached._cache = {"value": "", "ts": 0.0}
 
@@ -270,10 +282,114 @@ def _read_activity_counter_stats(path: str) -> dict[str, int]:
     return counters
 
 
+def _prune_scan_health_samples_locked(now_ts: float) -> None:
+    scan_health = dict(_LIVE_ANALOG_HIT_STATE.get("scan_health") or {})
+    samples = dict(scan_health.get("samples") or {})
+    cutoff = float(now_ts) - float(_SCAN_HEALTH_KEEP_SECONDS)
+    for source in ("airband", "ground"):
+        bucket = []
+        for item in samples.get(source) or []:
+            if float((item or {}).get("ts") or 0.0) >= cutoff:
+                bucket.append(dict(item or {}))
+        samples[source] = bucket
+    scan_health["samples"] = samples
+    scan_health["last_update_ts"] = max(float(scan_health.get("last_update_ts") or 0.0), float(now_ts))
+    _LIVE_ANALOG_HIT_STATE["scan_health"] = scan_health
+
+
+def _record_scan_health_sample(source: str, deltas: dict[str, int], ts: float) -> None:
+    if not deltas:
+        return
+    normalized_source = "ground" if str(source or "").strip().lower() == "ground" else "airband"
+    with _LIVE_ANALOG_HIT_LOCK:
+        scan_health = dict(_LIVE_ANALOG_HIT_STATE.get("scan_health") or {})
+        samples = dict(scan_health.get("samples") or {})
+        bucket = [dict(item or {}) for item in (samples.get(normalized_source) or [])]
+        bucket.append(
+            {
+                "ts": float(ts),
+                "deltas": {
+                    _normalize_freq_text(freq): int(delta)
+                    for freq, delta in (deltas or {}).items()
+                    if _normalize_freq_text(freq) and int(delta) > 0
+                },
+            }
+        )
+        samples[normalized_source] = bucket
+        scan_health["samples"] = samples
+        scan_health["last_update_ts"] = max(float(scan_health.get("last_update_ts") or 0.0), float(ts))
+        _LIVE_ANALOG_HIT_STATE["scan_health"] = scan_health
+        _prune_scan_health_samples_locked(ts)
+
+
+def get_analog_scan_health(now: Optional[float] = None) -> dict:
+    refresh_analog_hit_state(now=now)
+    now_ts = float(now if now is not None else time.time())
+    with _LIVE_ANALOG_HIT_LOCK:
+        stats_state = dict(_LIVE_ANALOG_HIT_STATE.get("stats") or {})
+        scan_health = dict(_LIVE_ANALOG_HIT_STATE.get("scan_health") or {})
+        samples_map = dict(scan_health.get("samples") or {})
+    stats_age_ms = 0
+    if int(stats_state.get("mtime_ns") or 0) > 0:
+        stats_age_ms = max(
+            0,
+            int(round(now_ts * 1000.0)) - int(int(stats_state.get("mtime_ns") or 0) / 1_000_000),
+        )
+    payload: dict[str, dict] = {}
+    window_start = now_ts - float(_SCAN_HEALTH_WINDOW_SECONDS)
+    for source in ("airband", "ground"):
+        allowed = sorted(_allowed_freq_keys_for_target(source), key=float)
+        activity = {freq: 0 for freq in allowed}
+        for sample in samples_map.get(source) or []:
+            sample_ts = float((sample or {}).get("ts") or 0.0)
+            if sample_ts < window_start:
+                continue
+            deltas = dict((sample or {}).get("deltas") or {})
+            for freq, delta in deltas.items():
+                normalized = _normalize_freq_text(freq)
+                if normalized not in activity:
+                    continue
+                activity[normalized] = int(activity.get(normalized) or 0) + max(0, int(delta))
+        active_pairs = [(freq, count) for freq, count in activity.items() if int(count) > 0]
+        total_activity = sum(count for _freq, count in active_pairs)
+        dominant_frequency = ""
+        dominant_activity = 0
+        dominant_ratio = 0.0
+        if active_pairs and total_activity > 0:
+            dominant_frequency, dominant_activity = max(active_pairs, key=lambda item: item[1])
+            dominant_ratio = float(dominant_activity) / float(total_activity)
+        monopolized = (
+            len(allowed) > 1
+            and total_activity >= int(_SCAN_HEALTH_MONOPOLY_MIN_ACTIVITY)
+            and dominant_ratio >= float(_SCAN_HEALTH_MONOPOLY_RATIO)
+        )
+        payload[source] = {
+            "target": source,
+            "window_sec": float(_SCAN_HEALTH_WINDOW_SECONDS),
+            "profile_frequency_count": len(allowed),
+            "profile_frequencies": list(allowed),
+            "active_frequency_count": len(active_pairs),
+            "activity_total": int(total_activity),
+            "activity_by_frequency": [
+                {"freq": freq, "activity": int(activity.get(freq) or 0)}
+                for freq in allowed
+            ],
+            "dominant_frequency": dominant_frequency,
+            "dominant_activity": int(dominant_activity),
+            "dominant_ratio": round(float(dominant_ratio), 4),
+            "monopolized": bool(monopolized),
+            "stats_age_ms": int(stats_age_ms),
+            "stats_fresh": bool(int(stats_state.get("mtime_ns") or 0) > 0 and stats_age_ms <= 5000),
+            "stats_path": str(stats_state.get("path") or ""),
+        }
+    return payload
+
+
 def refresh_analog_hit_state(now: Optional[float] = None) -> None:
     now_ts = float(now if now is not None else time.time())
     with _LIVE_ANALOG_HIT_LOCK:
         _finalize_stale_live_analog_hits_locked(now_ts)
+        _prune_scan_health_samples_locked(now_ts)
     file_specs = {
         "airband": str(LAST_HIT_AIRBAND_PATH or "").strip(),
         "ground": str(LAST_HIT_GROUND_PATH or "").strip(),
@@ -321,21 +437,28 @@ def refresh_analog_hit_state(now: Optional[float] = None) -> None:
                         "initialized": True,
                     }
                 if initialized:
+                    delta_by_source = {"airband": {}, "ground": {}}
                     for freq, count in counters.items():
                         prev = previous_counters.get(freq)
                         if prev is None or count <= int(prev):
+                            continue
+                        delta = int(count) - int(prev)
+                        if delta <= 0:
                             continue
                         try:
                             freq_value = float(freq)
                         except Exception:
                             continue
                         source = "airband" if _freq_in_airband(freq_value) else "ground"
+                        delta_by_source[source][freq] = int(delta_by_source[source].get(freq) or 0) + int(delta)
                         _record_live_analog_hit(
                             source,
                             freq,
                             mtime_ts,
                             gap_reset_sec=_STATS_HIT_GAP_SECONDS,
                         )
+                    for source in ("airband", "ground"):
+                        _record_scan_health_sample(source, delta_by_source[source], mtime_ts)
     with _LIVE_ANALOG_HIT_LOCK:
         _finalize_stale_live_analog_hits_locked(now_ts)
 

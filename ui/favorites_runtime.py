@@ -33,6 +33,7 @@ try:
         write_combined_config,
         write_freqs_labels,
     )
+    from .managed_analog_controls import apply_managed_profile_controls
     from .scan_mode_controller import get_scan_mode_controller
     from .scanner import mark_analog_hit_cutoff
     from .systemd import restart_rtl
@@ -59,6 +60,7 @@ except ImportError:
         write_combined_config,
         write_freqs_labels,
     )
+    from ui.managed_analog_controls import apply_managed_profile_controls
     from ui.scan_mode_controller import get_scan_mode_controller
     from ui.scanner import mark_analog_hit_cutoff
     from ui.systemd import restart_rtl
@@ -115,6 +117,7 @@ def _minimal_profile_template(airband: bool) -> str:
     default_freq = "118.6000" if airband else "462.6500"
     default_mod = "am" if airband else "nfm"
     desired_index = 0 if airband else 1
+    default_squelch = -52 if airband else -70
     return (
         f"airband = {'true' if airband else 'false'};\n\n"
         "devices:\n"
@@ -129,7 +132,7 @@ def _minimal_profile_template(airband: bool) -> str:
         f"      freqs = ({default_freq});\n\n"
         f"      modulation = \"{default_mod}\";\n"
         "      bandwidth = 12000;\n"
-        "      squelch_threshold = -70;  # UI_CONTROLLED\n"
+        f"      squelch_threshold = {default_squelch};  # UI_CONTROLLED\n"
         "      squelch_delay = 0.8;\n\n"
         "      outputs:\n"
         "      (\n"
@@ -750,6 +753,8 @@ def sync_scan_pool_to_runtime(force: bool = False) -> dict[str, Any]:
             "ground_frequency_count": int(analog.get("ground_frequency_count") or 0),
             "selected_profiles": dict(analog.get("selected_profiles") or {}),
             "profile_write_changed": dict(analog.get("profile_write_changed") or {}),
+            "profile_controls_changed": dict(analog.get("profile_controls_changed") or {}),
+            "profile_controls_source": dict(analog.get("profile_controls_source") or {}),
             "profile_switched": dict(analog.get("profile_switched") or {}),
             "combined_changed": bool(analog.get("combined_changed", False)),
             "restart_ok": bool(analog.get("restart_ok", True)),
@@ -801,6 +806,8 @@ def sync_scan_pool_to_analog_runtime(
         errors: list[str] = []
         switched = {"airband": False, "ground": False}
         profile_write_changed = {"airband": False, "ground": False}
+        profile_controls_changed = {"airband": False, "ground": False}
+        profile_controls_source = {"airband": "", "ground": ""}
         selected_profiles = {"airband": "", "ground": ""}
 
         profiles = load_profiles_registry()
@@ -829,6 +836,10 @@ def sync_scan_pool_to_analog_runtime(
             try:
                 profile_write_changed["airband"] = bool(write_freqs_labels(air_path, air_freqs, air_labels))
                 changed = changed or profile_write_changed["airband"]
+                control_result = apply_managed_profile_controls("airband", air_path)
+                profile_controls_changed["airband"] = bool(control_result.get("changed"))
+                profile_controls_source["airband"] = str(control_result.get("source") or "")
+                changed = changed or profile_controls_changed["airband"]
             except Exception as exc:
                 errors.append(f"failed writing airband favorites profile: {exc}")
 
@@ -836,6 +847,10 @@ def sync_scan_pool_to_analog_runtime(
             try:
                 profile_write_changed["ground"] = bool(write_freqs_labels(ground_path, ground_freqs, ground_labels))
                 changed = changed or profile_write_changed["ground"]
+                control_result = apply_managed_profile_controls("ground", ground_path)
+                profile_controls_changed["ground"] = bool(control_result.get("changed"))
+                profile_controls_source["ground"] = str(control_result.get("source") or "")
+                changed = changed or profile_controls_changed["ground"]
             except Exception as exc:
                 errors.append(f"failed writing ground favorites profile: {exc}")
 
@@ -877,6 +892,8 @@ def sync_scan_pool_to_analog_runtime(
             "ground_frequency_count": len(ground_freqs),
             "selected_profiles": selected_profiles,
             "profile_write_changed": profile_write_changed,
+            "profile_controls_changed": profile_controls_changed,
+            "profile_controls_source": profile_controls_source,
             "profile_switched": switched,
             "combined_changed": bool(combined_changed),
             "restart_ok": bool(restart_ok),

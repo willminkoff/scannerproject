@@ -41,6 +41,7 @@ try:
         write_combined_config, read_active_config_path, resolve_controls_path, avoid_current_hit,
         clear_avoids, write_filter, parse_freqs_labels, replace_freqs_labels, parse_controls
     )
+    from .managed_analog_controls import persist_managed_controls_override
     from .scanner import mark_analog_hit_cutoff
 except ImportError:
     from ui.config import (
@@ -72,6 +73,7 @@ except ImportError:
         write_combined_config, read_active_config_path, resolve_controls_path, avoid_current_hit,
         clear_avoids, write_filter, parse_freqs_labels, replace_freqs_labels, parse_controls
     )
+    from ui.managed_analog_controls import persist_managed_controls_override
     from ui.scanner import mark_analog_hit_cutoff
 
 
@@ -647,6 +649,14 @@ def action_apply_controls(target: str, gain: float, squelch_mode: str, squelch_s
     try:
         conf_path = resolve_controls_path(target)
         changed = write_controls(conf_path, gain, squelch_mode, squelch_snr, squelch_dbfs)
+        persist_managed_controls_override(
+            target,
+            conf_path,
+            gain=gain,
+            squelch_mode=squelch_mode,
+            squelch_snr=squelch_snr,
+            squelch_dbfs=squelch_dbfs,
+        )
         combined_changed = write_combined_config()
         changed = changed or combined_changed
     except Exception as e:
@@ -670,6 +680,14 @@ def action_apply_batch(target: str, gain: float, squelch_mode: str, squelch_snr:
     try:
         conf_path = resolve_controls_path(target)
         changed_controls = write_controls(conf_path, gain, squelch_mode, squelch_snr, squelch_dbfs)
+        persist_managed_controls_override(
+            target,
+            conf_path,
+            gain=gain,
+            squelch_mode=squelch_mode,
+            squelch_snr=squelch_snr,
+            squelch_dbfs=squelch_dbfs,
+        )
         changed_filter = write_filter(target, cutoff_hz)
         combined_changed = write_combined_config() if changed_controls else False
         changed = changed_controls or changed_filter or combined_changed
@@ -756,6 +774,14 @@ def action_auto_squelch(targets: list[str] | None = None) -> dict:
                 "dbfs",
                 float(squelch_snr),
                 float(suggested_dbfs),
+            )
+            persist_managed_controls_override(
+                target,
+                conf_path,
+                gain=float(gain),
+                squelch_mode="dbfs",
+                squelch_snr=float(squelch_snr),
+                squelch_dbfs=float(suggested_dbfs),
             )
             changed_controls = changed_controls or bool(changed)
             payload_targets[target] = {

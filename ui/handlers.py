@@ -98,7 +98,7 @@ try:
     )
     from .combined_status import combined_device_summary, combined_config_stale
     from .scanner import (
-        read_last_hit_airband, read_last_hit_ground, read_hit_list_cached
+        get_analog_scan_health, read_last_hit_airband, read_last_hit_ground, read_hit_list_cached
     )
     from .icecast import (
         fetch_local_icecast_status,
@@ -192,7 +192,7 @@ except ImportError:
     )
     from ui.combined_status import combined_device_summary, combined_config_stale
     from ui.scanner import (
-        read_last_hit_airband, read_last_hit_ground, read_hit_list_cached
+        get_analog_scan_health, read_last_hit_airband, read_last_hit_ground, read_hit_list_cached
     )
     from ui.icecast import (
         fetch_local_icecast_status,
@@ -1430,6 +1430,44 @@ def _annotate_analog_hits(items: list[dict], airband_labels: dict[str, str], gro
     return out
 
 
+def _latest_hit_item(items: list[dict], source: str) -> dict[str, Any]:
+    normalized = str(source or "").strip().lower()
+    for item in items or []:
+        row = dict(item or {})
+        item_source = str(row.get("source") or row.get("type") or "").strip().lower()
+        if item_source == normalized:
+            return row
+    return {}
+
+
+def _digital_status_with_hit_aliases(payload: dict[str, Any], hit_items: list[dict]) -> dict[str, Any]:
+    out = dict(payload or {})
+    latest = _latest_hit_item(hit_items, "digital")
+    latest_label = str(
+        latest.get("label_full")
+        or latest.get("label")
+        or latest.get("freq")
+        or out.get("digital_last_label")
+        or ""
+    ).strip()
+    latest_tgid = str(latest.get("tgid") or out.get("digital_last_tgid") or "").strip()
+    latest_ts = 0.0
+    try:
+        latest_ts = float(latest.get("ts") or 0.0)
+    except Exception:
+        latest_ts = 0.0
+    latest_time_ms = int(round(latest_ts * 1000.0)) if latest_ts > 0 else int(out.get("digital_last_time") or 0)
+    if latest_label:
+        out["digital_last_label"] = latest_label
+    if latest_tgid:
+        out["digital_last_tgid"] = latest_tgid
+    out["digital_last_time"] = int(latest_time_ms or 0)
+    out["last_hit_digital"] = latest_tgid or latest_label
+    out["last_hit_digital_label"] = _short_label(latest_label, max_len=48) if latest_label else ""
+    out["last_hit_digital_time"] = int(latest_time_ms or 0)
+    return out
+
+
 def _digital_has_recent_event(max_age_sec: float = DIGITAL_HIT_RECENT_SEC) -> bool:
     """Fallback activity signal when Icecast title stays idle."""
     try:
@@ -1802,6 +1840,29 @@ def _build_health_payload(
     analog_ground_state = str((analog_ground_preflight or {}).get("state") or "unknown")
     analog_ground_reasons = list((analog_ground_preflight or {}).get("reasons") or [])
     subsystems["ground"] = {"state": analog_ground_state, "reasons": analog_ground_reasons}
+
+    analog_scan_health = dict(status_payload.get("analog_scan_health") or {})
+    analog_scan_reasons = []
+    analog_scan_state = "healthy"
+    for target in ("airband", "ground"):
+        snapshot = dict(analog_scan_health.get(target) or {})
+        if not bool(snapshot.get("monopolized")):
+            continue
+        analog_scan_state = _health_worst_state([analog_scan_state, "degraded"])
+        dominant_frequency = str(snapshot.get("dominant_frequency") or "").strip()
+        dominant_ratio = float(snapshot.get("dominant_ratio") or 0.0)
+        profile_count = int(snapshot.get("profile_frequency_count") or 0)
+        analog_scan_reasons.append(
+            {
+                "code": "ANALOG_SCAN_MONOPOLIZED",
+                "severity": "warn",
+                "message": (
+                    f"{target} scan is dominated by {dominant_frequency or 'one frequency'} "
+                    f"({dominant_ratio:.0%} of activity across {profile_count} configured channels)"
+                ),
+            }
+        )
+    subsystems["analog_scan"] = {"state": analog_scan_state, "reasons": analog_scan_reasons}
 
     digital_state = str((digital_preflight or {}).get("state") or "unknown")
     digital_reasons = list((digital_preflight or {}).get("reasons") or [])
@@ -2896,6 +2957,9 @@ class Handler(BaseHTTPRequestHandler):
                 airband_labels,
                 ground_labels,
             )
+            full_hits_payload = _get_hits_payload_cached(limit=20)
+            full_hit_items = full_hits_payload.get("items") or []
+            analog_scan_health = get_analog_scan_health()
             latest_hit = hit_items[0].get("freq") if hit_items else ""
             last_hit_airband_label = ""
             last_hit_ground_label = ""
@@ -3011,6 +3075,7 @@ class Handler(BaseHTTPRequestHandler):
                 "avoids_ground": summarize_avoids(os.path.realpath(GROUND_CONFIG_PATH), "ground"),
                 "hp_avoids": get_scan_mode_controller().get_hp_avoids(),
                 "favorites_runtime_sync": favorites_runtime_sync,
+                "analog_scan_health": analog_scan_health,
             }
             digital_payload = {
                 "digital_active": False,
@@ -3037,6 +3102,7 @@ class Handler(BaseHTTPRequestHandler):
             # Preserve raw digital activity indicators even when stream
             # mount-state is uncertain; expose stream visibility separately.
             digital_payload["digital_stream_active_for_hits"] = bool(digital_stream_active_for_hits)
+            digital_payload = _digital_status_with_hit_aliases(digital_payload, full_hit_items)
             payload.update(digital_payload)
             payload["sb3_connected_status_refresh_sec"] = int(SB3_CONNECTED_STATUS_REFRESH_SEC)
             payload["sb3_connected_system_refresh_sec"] = int(SB3_CONNECTED_SYSTEM_REFRESH_SEC)
@@ -3267,6 +3333,7 @@ class Handler(BaseHTTPRequestHandler):
                 # rows are not dropped by top-10 truncation during busy analog traffic.
                 hits_payload = _get_hits_payload_cached(limit=50)
                 hit_items = hits_payload.get("items") or []
+                analog_scan_health = get_analog_scan_health()
                 last_hit = hit_items[0].get("freq") if hit_items else (read_last_hit_airband() or read_last_hit_ground())
                 last_hit_airband_label = ""
                 last_hit_ground_label = ""
@@ -3297,6 +3364,7 @@ class Handler(BaseHTTPRequestHandler):
                 mixer_enabled, mixer_active = _digital_mixer_runtime_state()
                 digital_payload["digital_mixer_enabled"] = bool(mixer_enabled)
                 digital_payload["digital_mixer_active"] = bool(mixer_active)
+                digital_payload = _digital_status_with_hit_aliases(digital_payload, hit_items)
                 status_data = {
                     "type": "status",
                     "rtl_active": rtl_active,
@@ -3316,6 +3384,7 @@ class Handler(BaseHTTPRequestHandler):
                     "digital_stream_mount": digital_stream_mount,
                     "server_time": time.time(),
                     "hp_avoids": get_scan_mode_controller().get_hp_avoids(),
+                    "analog_scan_health": analog_scan_health,
                     "sb3_connected_status_refresh_sec": int(SB3_CONNECTED_STATUS_REFRESH_SEC),
                     "sb3_connected_system_refresh_sec": int(SB3_CONNECTED_SYSTEM_REFRESH_SEC),
                     "sb3_connected_profiles_refresh_sec": int(SB3_CONNECTED_PROFILES_REFRESH_SEC),

@@ -97,6 +97,16 @@ if ANALOG_AUTO_SQUELCH_MIN_DBFS > ANALOG_AUTO_SQUELCH_MAX_DBFS:
         ANALOG_AUTO_SQUELCH_MAX_DBFS,
         ANALOG_AUTO_SQUELCH_MIN_DBFS,
     )
+MANAGED_ANALOG_CONTROLS_PATH = os.getenv(
+    "MANAGED_ANALOG_CONTROLS_PATH",
+    os.path.join(PROFILES_DIR, "managed_analog_controls.json"),
+).strip() or os.path.join(PROFILES_DIR, "managed_analog_controls.json")
+MANAGED_ANALOG_DEFAULT_AIRBAND_DBFS = float(
+    os.getenv("MANAGED_ANALOG_DEFAULT_AIRBAND_DBFS", "-52.0")
+)
+MANAGED_ANALOG_DEFAULT_GROUND_DBFS = float(
+    os.getenv("MANAGED_ANALOG_DEFAULT_GROUND_DBFS", "-70.0")
+)
 
 # Digital backend configuration
 DIGITAL_BACKEND = os.getenv("DIGITAL_BACKEND", "sdrtrunk").strip().lower()

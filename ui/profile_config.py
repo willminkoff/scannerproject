@@ -301,6 +301,14 @@ def _managed_controls_profile_path(target: str) -> str:
     return _existing_file(candidate)
 
 
+def managed_controls_profile_path(target: str) -> str:
+    """Return the managed HP favorites controls profile path for a target."""
+    normalized = str(target or "").strip().lower()
+    if normalized not in ("airband", "ground"):
+        raise ValueError(f"unknown target: {target}")
+    return _managed_controls_profile_path(normalized)
+
+
 def _resolve_controls_profile_path(target: str, selected_path: str, fallback_path: str) -> str:
     """Resolve writable/readable controls profile for a target.
 

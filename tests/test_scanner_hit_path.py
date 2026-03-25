@@ -188,6 +188,57 @@ class ScannerHitPathTests(unittest.TestCase):
         self.assertEqual(items[0]["freq"], "118.4000")
         self.assertGreaterEqual(int(items[0]["duration"]), 13)
 
+    def test_scan_health_flags_monopolized_frequency(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            air_conf = os.path.join(tmp, "air.conf")
+            ground_conf = os.path.join(tmp, "ground.conf")
+            stats_path = os.path.join(tmp, "stats.txt")
+            self._write_profile(
+                air_conf,
+                airband=True,
+                freqs=[118.4, 118.6, 124.75],
+                labels=["East", "Tower", "Final"],
+            )
+            self._write_profile(ground_conf, airband=False, freqs=[162.55], labels=["WX"])
+
+            base = time.time()
+            with mock.patch.object(scanner, "read_active_config_path", return_value=air_conf), mock.patch.object(
+                scanner, "GROUND_CONFIG_PATH", ground_conf
+            ), mock.patch.object(
+                scanner, "LAST_HIT_AIRBAND_PATH", os.path.join(tmp, "missing-air.txt")
+            ), mock.patch.object(
+                scanner, "LAST_HIT_GROUND_PATH", os.path.join(tmp, "missing-ground.txt")
+            ), mock.patch.object(
+                scanner, "ANALOG_AUTO_SQUELCH_STATS_PATH", stats_path
+            ), mock.patch.object(
+                scanner, "read_hit_list_for_unit", return_value=[]
+            ):
+                self._write_stats(
+                    stats_path,
+                    {"118.4000": 0, "118.6000": 0, "124.7500": 0},
+                    base - 20.0,
+                )
+                scanner.refresh_analog_hit_state(now=base - 19.5)
+
+                self._write_stats(
+                    stats_path,
+                    {"118.4000": 120, "118.6000": 0, "124.7500": 0},
+                    base - 10.0,
+                )
+                scanner.refresh_analog_hit_state(now=base - 9.5)
+
+                self._write_stats(
+                    stats_path,
+                    {"118.4000": 240, "118.6000": 0, "124.7500": 0},
+                    base - 1.0,
+                )
+                health = scanner.get_analog_scan_health(now=base)
+
+        self.assertTrue(health["airband"]["monopolized"])
+        self.assertEqual("118.4000", health["airband"]["dominant_frequency"])
+        self.assertEqual(3, health["airband"]["profile_frequency_count"])
+        self.assertEqual(240, health["airband"]["activity_by_frequency"][0]["activity"])
+
 
 if __name__ == "__main__":
     unittest.main()
