@@ -178,6 +178,67 @@ class EffectiveControlsPathTests(unittest.TestCase):
             squelch_dbfs=-72.0,
         )
 
+    def test_action_set_profile_restarts_when_symlink_changes_without_combined_diff(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            current_path = os.path.join(tmp, "current_air.conf")
+            next_path = os.path.join(tmp, "next_air.conf")
+            _write_runtime_profile(
+                current_path,
+                airband=True,
+                freqs=[118.6],
+                labels=["Tower"],
+                squelch_dbfs=-52,
+            )
+            _write_runtime_profile(
+                next_path,
+                airband=True,
+                freqs=[118.6],
+                labels=["Tower"],
+                squelch_dbfs=-52,
+            )
+            profiles_airband = [
+                {"id": "current", "label": "Current", "path": current_path},
+                {"id": "next", "label": "Next", "path": next_path},
+            ]
+
+            with mock.patch.object(
+                actions,
+                "split_profiles",
+                return_value=([], profiles_airband, []),
+            ), mock.patch.object(
+                actions,
+                "read_active_config_path",
+                return_value=current_path,
+            ), mock.patch.object(
+                actions,
+                "set_profile",
+                return_value=(True, True),
+            ) as set_profile_mock, mock.patch.object(
+                actions,
+                "write_combined_config",
+                return_value=False,
+            ) as write_combined, mock.patch.object(
+                actions,
+                "restart_rtl",
+                return_value=(True, ""),
+            ) as restart_rtl, mock.patch.object(
+                actions,
+                "mark_analog_hit_cutoff",
+            ) as mark_cutoff:
+                result = actions.action_set_profile("next", "airband", restart_service=True)
+
+        self.assertEqual(200, result["status"])
+        self.assertTrue(result["payload"]["ok"])
+        self.assertTrue(result["payload"]["changed"])
+        self.assertTrue(result["payload"]["profile_switched"])
+        self.assertFalse(result["payload"]["combined_changed"])
+        self.assertFalse(result["payload"]["restart_skipped"])
+        self.assertTrue(result["payload"]["restart_ok"])
+        set_profile_mock.assert_called_once()
+        write_combined.assert_called_once()
+        restart_rtl.assert_called_once()
+        mark_cutoff.assert_called_once_with("airband")
+
     def test_action_auto_squelch_applies_noise_based_dbfs(self):
         noise_samples = {
             "118.600": [-52.0, -51.0],

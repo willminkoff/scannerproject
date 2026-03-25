@@ -614,6 +614,8 @@ def action_set_profile(profile_id: str, target: str, *, restart_service: bool = 
         restart_ok = True
         restart_error = ""
 
+        restart_needed = bool(changed or combined_changed)
+
         # Loop-mode profile switches can skip restart to keep stream/mount
         # continuity. Manual profile sets keep restart behavior.
         if restart_service:
@@ -621,14 +623,19 @@ def action_set_profile(profile_id: str, target: str, *, restart_service: bool = 
                 combined_changed = write_combined_config()
             except Exception as e:
                 return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
-
-            # Only restart if combined config actually changed.
-            # This avoids unnecessary restarts when frequency lists are identical.
-            if combined_changed:
+            restart_needed = bool(changed or combined_changed)
+            if restart_needed:
                 restart_ok, restart_error = unit_restart()
 
-        payload = {"ok": True, "changed": changed or combined_changed}
-        if restart_service and combined_changed:
+        payload = {
+            "ok": True,
+            "changed": bool(changed or combined_changed),
+            "profile_switched": bool(changed),
+            "combined_changed": bool(combined_changed),
+        }
+        if restart_service:
+            payload["restart_skipped"] = not restart_needed
+        if restart_service and restart_needed:
             payload["restart_ok"] = restart_ok
             if not restart_ok and restart_error:
                 payload["restart_error"] = restart_error
