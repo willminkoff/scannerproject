@@ -14,6 +14,7 @@ try:
         DIGITAL_RTL_DEVICE,
         DIGITAL_RTL_SERIAL,
         DIGITAL_RTL_SERIAL_SECONDARY,
+        DIGITAL_RTL_SERIAL_TERTIARY,
         GROUND_RTL_SERIAL,
         GROUND_CONFIG_PATH,
         V3_STRICT_PREFLIGHT,
@@ -31,6 +32,7 @@ except ImportError:
         DIGITAL_RTL_DEVICE,
         DIGITAL_RTL_SERIAL,
         DIGITAL_RTL_SERIAL_SECONDARY,
+        DIGITAL_RTL_SERIAL_TERTIARY,
         GROUND_RTL_SERIAL,
         GROUND_CONFIG_PATH,
         V3_STRICT_PREFLIGHT,
@@ -95,6 +97,7 @@ def _digital_targets() -> list[str]:
         DIGITAL_PREFERRED_TUNER,
         DIGITAL_RTL_SERIAL,
         DIGITAL_RTL_SERIAL_SECONDARY,
+        DIGITAL_RTL_SERIAL_TERTIARY,
         DIGITAL_RTL_DEVICE,
     ):
         token = str(item or "").strip()
@@ -239,12 +242,16 @@ def evaluate_digital_preflight(
     slow = set(dongles.get("slow_expected_serials") or [])
 
     if dongles.get("status") == "critical":
+        expected_count = max(
+            1,
+            int(dongles.get("expected_count") or len(dongles.get("expected_serials") or []) or 4),
+        )
         reasons.append(
             _reason(
                 "DONGLE_CRITICAL",
                 "critical",
                 "RTL dongle health is critical",
-                "Verify all four role-bound dongles are present.",
+                f"Verify all {expected_count} configured role-bound dongles are present.",
             )
         )
     elif dongles.get("status") == "degraded":
@@ -277,6 +284,14 @@ def evaluate_digital_preflight(
                 f"Digital secondary serial missing: {DIGITAL_RTL_SERIAL_SECONDARY}",
             )
         )
+    if DIGITAL_RTL_SERIAL_TERTIARY and DIGITAL_RTL_SERIAL_TERTIARY in missing:
+        reasons.append(
+            _reason(
+                "DIGITAL_TERTIARY_SERIAL_MISSING",
+                "critical",
+                f"Digital tertiary serial missing: {DIGITAL_RTL_SERIAL_TERTIARY}",
+            )
+        )
     if DIGITAL_RTL_SERIAL and DIGITAL_RTL_SERIAL in slow:
         reasons.append(
             _reason(
@@ -291,6 +306,14 @@ def evaluate_digital_preflight(
                 "DIGITAL_SECONDARY_SERIAL_SLOW",
                 "critical",
                 f"Digital secondary serial under-speed: {DIGITAL_RTL_SERIAL_SECONDARY}",
+            )
+        )
+    if DIGITAL_RTL_SERIAL_TERTIARY and DIGITAL_RTL_SERIAL_TERTIARY in slow:
+        reasons.append(
+            _reason(
+                "DIGITAL_TERTIARY_SERIAL_SLOW",
+                "critical",
+                f"Digital tertiary serial under-speed: {DIGITAL_RTL_SERIAL_TERTIARY}",
             )
         )
 

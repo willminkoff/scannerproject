@@ -54,6 +54,7 @@ def _make_manager() -> digital.DigitalManager:
     mgr._scheduler_snapshot = {}
     mgr._scheduler_snapshot_at_ms = 0
     mgr._status_snapshot_enabled = False
+    mgr._preflight_sampler_ms = 1000
     mgr._preflight_snapshot = {}
     mgr._preflight_snapshot_at_ms = 0
     mgr._scheduler_system_health = {}
@@ -65,6 +66,7 @@ def _make_manager() -> digital.DigitalManager:
     mgr._scheduler_pool_site_to_system = {}
     mgr._scheduler_pool_talkgroup_labels = {}
     mgr._scheduler_pool_talkgroup_groups = {}
+    mgr._scheduler_active_lock_since_ms = 0
     mgr._scheduler_lock = threading.Lock()
     mgr._scheduler_health_entry = digital.DigitalManager._scheduler_health_entry.__get__(
         mgr, digital.DigitalManager
@@ -97,6 +99,7 @@ class SchedulerFastSwitchTests(unittest.TestCase):
         mgr._scheduler_fast_switch_enabled = True
         mgr._scheduler_mode = "timeslice_multi_system"
         mgr._scheduler_systems = ["alpha", "bravo"]
+        mgr._adapter.runtime_retune_available.return_value = True
 
         with mock.patch.object(
             mgr, "_apply_scheduler_fast_retune", return_value=(True, "", True)
@@ -110,6 +113,93 @@ class SchedulerFastSwitchTests(unittest.TestCase):
         self.assertTrue(changed)
         fast_apply.assert_called_once_with("p1", "alpha", force=True)
         playlist_apply.assert_not_called()
+
+    def test_status_payload_does_not_warn_when_fast_switch_is_actually_disabled(self):
+        mgr = _make_manager()
+        mgr._backend = "sdrtrunk"
+        mgr._adapter._last_error_time_ms = 0
+        mgr._adapter._last_warning_time_ms = 0
+        mgr.getLastEvent = mock.Mock(return_value={})
+        mgr.getLastError = mock.Mock(return_value="")
+        mgr.getLastWarning = mock.Mock(return_value="")
+        mgr.preflight = mock.Mock(
+            return_value={
+                "tuner_busy": False,
+                "control_decode_available": True,
+                "control_channel_locked": True,
+                "control_activity_count": 12,
+                "control_sync_loss_count": 0,
+                "control_last_time_ms": 0,
+                "control_lock_fail_count": 0,
+                "control_lock_fail_last_time_ms": 0,
+                "control_window_ms": 120000,
+                "control_decode_files": 1,
+            }
+        )
+        mgr._runtime_retune_available = mock.Mock(return_value=False)
+        mgr._scheduler_snapshot = {
+            "digital_scheduler_mode": "timeslice_multi_system",
+            "digital_scheduler_fast_switch_enabled": False,
+            "digital_scheduler_runtime_retune_available": False,
+            "digital_scheduler_apply_method": "playlist_apply",
+            "digital_scheduler_effective": {"fast_switch_enabled": True},
+        }
+        mgr._scheduler_snapshot_at_ms = 1000
+
+        with mock.patch.object(digital, "DIGITAL_RTL_SERIAL", "56919602"), mock.patch.object(
+            digital,
+            "_digital_tuner_runtime_health",
+            return_value={"checked": True, "ready": True, "missing_serials": [], "slow_serials": []},
+        ):
+            payload = mgr.status_payload()
+
+        self.assertNotIn("digital_last_warning", payload)
+
+
+class PreferredTunerTargetTests(unittest.TestCase):
+    def test_primary_serial_remains_preferred_in_dual_dongle_mode(self):
+        with mock.patch.object(digital, "DIGITAL_PREFERRED_TUNER", ""), mock.patch.object(
+            digital, "DIGITAL_RTL_SERIAL", "56919602"
+        ), mock.patch.object(
+            digital, "DIGITAL_RTL_SERIAL_SECONDARY", "49571227"
+        ), mock.patch.object(
+            digital, "DIGITAL_FORCE_PREFERRED_TUNER", False
+        ), mock.patch.object(
+            digital, "DIGITAL_RTL_DEVICE", ""
+        ):
+            self.assertEqual("56919602", digital._preferred_tuner_target())
+
+    def test_explicit_preferred_tuner_overrides_primary_serial(self):
+        with mock.patch.object(digital, "DIGITAL_PREFERRED_TUNER", "RTL-2832/R820T 49571227"), mock.patch.object(
+            digital, "DIGITAL_RTL_SERIAL", "56919602"
+        ), mock.patch.object(
+            digital, "DIGITAL_RTL_SERIAL_SECONDARY", "49571227"
+        ), mock.patch.object(
+            digital, "DIGITAL_FORCE_PREFERRED_TUNER", False
+        ), mock.patch.object(
+            digital, "DIGITAL_RTL_DEVICE", ""
+        ):
+            self.assertEqual("RTL-2832/R820T 49571227", digital._preferred_tuner_target())
+
+    def test_apply_scheduler_target_without_runtime_backend_uses_playlist_path(self):
+        mgr = _make_manager()
+        mgr._scheduler_fast_switch_enabled = True
+        mgr._scheduler_mode = "timeslice_multi_system"
+        mgr._scheduler_systems = ["alpha", "bravo"]
+        mgr._adapter.runtime_retune_available.return_value = False
+
+        with mock.patch.object(
+            mgr, "_apply_scheduler_fast_retune", return_value=(True, "", True)
+        ) as fast_apply, mock.patch.object(
+            mgr, "_apply_scheduler_system", return_value=(True, "", True)
+        ) as playlist_apply:
+            ok, err, changed = mgr._apply_scheduler_target("p1", "alpha", force=True)
+
+        self.assertTrue(ok)
+        self.assertEqual("", err)
+        self.assertTrue(changed)
+        fast_apply.assert_not_called()
+        playlist_apply.assert_called_once_with("p1", "alpha", force=True)
 
     def test_fast_retune_falls_back_to_playlist_apply(self):
         mgr = _make_manager()
@@ -144,12 +234,27 @@ class SchedulerFastSwitchTests(unittest.TestCase):
         mgr._apply_scheduler_system.assert_called_once_with("p1", "alpha", force=True)
         self.assertEqual("fast_retune_fallback_playlist", mgr._scheduler_last_apply_method)
 
+    def test_fast_mode_requires_runtime_retune_backend(self):
+        mgr = _make_manager()
+        mgr._scheduler_fast_switch_enabled = True
+        mgr._scheduler_mode = "timeslice_multi_system"
+        mgr._scheduler_systems = ["alpha", "bravo"]
+        mgr._adapter.runtime_retune_available.return_value = False
+
+        enabled = mgr._scheduler_fast_mode_enabled_locked("timeslice_multi_system", ["alpha", "bravo"])
+        self.assertFalse(enabled)
+
+        mgr._adapter.runtime_retune_available.return_value = True
+        enabled = mgr._scheduler_fast_mode_enabled_locked("timeslice_multi_system", ["alpha", "bravo"])
+        self.assertTrue(enabled)
+
     def test_adaptive_tick_interval_only_fast_in_multisystem_without_hold(self):
         mgr = _make_manager()
         mgr._scheduler_fast_switch_enabled = True
         mgr._scheduler_mode = "timeslice_multi_system"
         mgr._scheduler_systems = ["alpha", "bravo"]
         mgr._scheduler_in_call_hold = False
+        mgr._adapter.runtime_retune_available.return_value = True
 
         fast_interval = mgr._scheduler_tick_interval_sec_locked()
         self.assertAlmostEqual(mgr._scheduler_fast_tick_sec, fast_interval)
@@ -168,6 +273,7 @@ class SchedulerFastSwitchTests(unittest.TestCase):
         mgr._scheduler_fast_switch_enabled = True
         mgr._scheduler_mode = "timeslice_multi_system"
         mgr._scheduler_systems = ["alpha", "bravo"]
+        mgr._adapter.runtime_retune_available.return_value = True
         mgr._scheduler_profile = "p1"
         mgr._scheduler_active_system = "alpha"
         mgr._scheduler_pause_on_hit = False
@@ -202,6 +308,7 @@ class SchedulerFastSwitchTests(unittest.TestCase):
         mgr._scheduler_fast_switch_enabled = True
         mgr._scheduler_mode = "timeslice_multi_system"
         mgr._scheduler_systems = ["alpha", "bravo"]
+        mgr._adapter.runtime_retune_available.return_value = True
         mgr._scheduler_fast_lock_timeout_ms = 1000
         mgr._resolve_scheduler_system_control_channels = mock.Mock(
             return_value=[769_831_250, 770_081_250, 770_331_250, 770_581_250]
@@ -243,6 +350,74 @@ class SchedulerFastSwitchTests(unittest.TestCase):
 
         self.assertEqual("alpha", payload["digital_scheduler_active_system"])
         self.assertGreaterEqual(payload["digital_scheduler_lock_timeout_ms"], 2000)
+
+    def test_locked_system_holds_for_sticky_window_before_idle_rotation(self):
+        mgr = _make_manager()
+        mgr._scheduler_fast_switch_enabled = True
+        mgr._scheduler_mode = "timeslice_multi_system"
+        mgr._scheduler_systems = ["alpha", "bravo"]
+        mgr._scheduler_profile = "p1"
+        mgr._scheduler_active_system = "alpha"
+        mgr._scheduler_pause_on_hit = False
+        mgr._scheduler_dwell_ms = 400
+        mgr._scheduler_last_applied_system = "alpha"
+        mgr._scheduler_last_switch_time_ms = 0
+        mgr.getProfile = mock.Mock(return_value="p1")
+        mgr._discover_scheduler_systems = mock.Mock(return_value=["alpha", "bravo"])
+        mgr._apply_scheduler_target_timed = mock.Mock(return_value=(True, "", False))
+
+        preflight = {"control_decode_available": True, "control_channel_locked": True, "tuner_busy": False}
+        with mock.patch.object(digital, "_DIGITAL_SCHEDULER_LOCK_STICKY_MS", 1200), mock.patch.object(
+            digital, "get_current_scan_mode", return_value="profile"
+        ), mock.patch.object(
+            digital.time, "time", return_value=0.6
+        ):
+            payload1 = mgr._scheduler_payload({}, preflight)
+        with mock.patch.object(digital, "_DIGITAL_SCHEDULER_LOCK_STICKY_MS", 1200), mock.patch.object(
+            digital, "get_current_scan_mode", return_value="profile"
+        ), mock.patch.object(
+            digital.time, "time", return_value=2.0
+        ):
+            payload2 = mgr._scheduler_payload({}, preflight)
+
+        self.assertEqual("alpha", payload1["digital_scheduler_active_system"])
+        self.assertEqual("bravo", payload2["digital_scheduler_active_system"])
+        self.assertEqual("idle_timeout", payload2["digital_scheduler_switch_reason"])
+        self.assertGreaterEqual(int(payload2["digital_scheduler_active_lock_age_ms"]), 0)
+
+    def test_stale_preflight_adds_grace_before_lock_timeout_switch(self):
+        mgr = _make_manager()
+        mgr._scheduler_fast_switch_enabled = True
+        mgr._scheduler_mode = "timeslice_multi_system"
+        mgr._scheduler_systems = ["alpha", "bravo"]
+        mgr._scheduler_profile = "p1"
+        mgr._scheduler_active_system = "alpha"
+        mgr._scheduler_pause_on_hit = False
+        mgr._scheduler_last_applied_system = "alpha"
+        mgr._scheduler_last_switch_time_ms = 0
+        mgr._scheduler_last_preflight_cache_age_ms = 5000
+        mgr.getProfile = mock.Mock(return_value="p1")
+        mgr._discover_scheduler_systems = mock.Mock(return_value=["alpha", "bravo"])
+        mgr._apply_scheduler_target_timed = mock.Mock(return_value=(True, "", False))
+
+        preflight = {"control_decode_available": True, "control_channel_locked": False, "tuner_busy": False}
+        with mock.patch.object(digital, "_DIGITAL_SCHEDULER_STALE_PREFLIGHT_MS", 2500), mock.patch.object(
+            digital, "get_current_scan_mode", return_value="profile"
+        ), mock.patch.object(
+            digital.time, "time", return_value=1.2
+        ):
+            payload1 = mgr._scheduler_payload({}, preflight)
+        with mock.patch.object(digital, "_DIGITAL_SCHEDULER_STALE_PREFLIGHT_MS", 2500), mock.patch.object(
+            digital, "get_current_scan_mode", return_value="profile"
+        ), mock.patch.object(
+            digital.time, "time", return_value=3.3
+        ):
+            payload2 = mgr._scheduler_payload({}, preflight)
+
+        self.assertEqual("alpha", payload1["digital_scheduler_active_system"])
+        self.assertEqual("bravo", payload2["digital_scheduler_active_system"])
+        self.assertEqual("lock_timeout_stale_preflight", payload2["digital_scheduler_switch_reason"])
+        self.assertFalse(payload2["digital_scheduler_preflight_fresh"])
 
     def test_scheduler_preflight_cache_respects_ttl(self):
         mgr = _make_manager()

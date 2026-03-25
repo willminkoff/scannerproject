@@ -51,6 +51,7 @@ try:
         DIGITAL_RTL_DEVICE,
         DIGITAL_RTL_SERIAL,
         DIGITAL_RTL_SERIAL_SECONDARY,
+        DIGITAL_RTL_SERIAL_TERTIARY,
         DIGITAL_RTL_SERIAL_HINT,
         DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS,
         DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS_SET,
@@ -78,6 +79,7 @@ try:
         DIGITAL_USE_MULTI_FREQ_SOURCE,
     )
     from .systemd import unit_active
+    from .system_stats import read_rtl_dongle_health
     from .scan_pool_adapter import get_active_scan_pool_snapshot, get_current_scan_mode
 except ImportError:
     from ui.config import (
@@ -111,6 +113,7 @@ except ImportError:
         DIGITAL_RTL_DEVICE,
         DIGITAL_RTL_SERIAL,
         DIGITAL_RTL_SERIAL_SECONDARY,
+        DIGITAL_RTL_SERIAL_TERTIARY,
         DIGITAL_RTL_SERIAL_HINT,
         DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS,
         DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS_SET,
@@ -138,6 +141,7 @@ except ImportError:
         DIGITAL_USE_MULTI_FREQ_SOURCE,
     )
     from ui.systemd import unit_active
+    from ui.system_stats import read_rtl_dongle_health
     from ui.scan_pool_adapter import get_active_scan_pool_snapshot, get_current_scan_mode
 
 
@@ -400,10 +404,30 @@ _DIGITAL_SCHEDULER_ADAPTIVE_LOCK_MAX_MS = max(
     2000,
     int(os.getenv("DIGITAL_SCHEDULER_ADAPTIVE_LOCK_MAX_MS", "60000")),
 )
+_DIGITAL_SCHEDULER_LOCK_STICKY_MS = max(
+    0,
+    int(os.getenv("DIGITAL_SCHEDULER_LOCK_STICKY_MS", "1200")),
+)
+_DIGITAL_SCHEDULER_STALE_PREFLIGHT_MS = max(
+    500,
+    int(
+        os.getenv(
+            "DIGITAL_SCHEDULER_STALE_PREFLIGHT_MS",
+            str(max(1500, int(DIGITAL_PREFLIGHT_SAMPLER_MS or 1000) * 2)),
+        )
+    ),
+)
 _DIGITAL_PLAYLIST_WRITE_LOCK = threading.Lock()
 _DIGITAL_STREAM_SOURCE_USER = os.getenv("ICECAST_SOURCE_USER", "source").strip() or "source"
 _DIGITAL_STREAM_SOURCE_PASSWORD = os.getenv("ICECAST_SOURCE_PASSWORD", "062352").strip() or "062352"
-_DIGITAL_STREAM_BITRATE = max(8, int(os.getenv("DIGITAL_STREAM_BITRATE", "32")))
+_DIGITAL_AUTO_ADOPT_EXTRA_TUNERS = str(os.getenv("DIGITAL_AUTO_ADOPT_EXTRA_TUNERS", "1")).strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+_DIGITAL_STREAM_BITRATE = max(8, int(os.getenv("DIGITAL_STREAM_BITRATE", "24")))
+_DIGITAL_STREAM_LEGACY_BITRATE = 32
 _DIGITAL_STREAM_SAMPLE_RATE = max(8000, int(os.getenv("DIGITAL_STREAM_SAMPLE_RATE", "16000")))
 _DIGITAL_STREAM_CHANNELS = 1 if int(os.getenv("DIGITAL_STREAM_CHANNELS", "1")) <= 1 else 2
 _DIGITAL_STREAM_MAX_RECORDING_AGE_MS = max(
@@ -588,7 +612,12 @@ def _sync_stream_configuration(root: ET.Element) -> bool:
         attrs["sample_rate"] = str(_DIGITAL_STREAM_SAMPLE_RATE)
     if created_stream or _DIGITAL_STREAM_CHANNELS_OVERRIDE or not str(stream.get("channels", "")).strip():
         attrs["channels"] = str(_DIGITAL_STREAM_CHANNELS)
-    if created_stream or _DIGITAL_STREAM_BITRATE_OVERRIDE or existing_bitrate < _DIGITAL_STREAM_BITRATE:
+    if (
+        created_stream
+        or _DIGITAL_STREAM_BITRATE_OVERRIDE
+        or existing_bitrate < _DIGITAL_STREAM_BITRATE
+        or existing_bitrate == _DIGITAL_STREAM_LEGACY_BITRATE
+    ):
         attrs["bitrate"] = str(_DIGITAL_STREAM_BITRATE)
     if created_stream or _DIGITAL_STREAM_DELAY_OVERRIDE or not str(stream.get("delay", "")).strip():
         attrs["delay"] = str(_DIGITAL_STREAM_DELAY_MS)
@@ -618,25 +647,144 @@ def _digital_tuner_targets() -> list[str]:
     targets: list[str] = []
     for candidate in (
         DIGITAL_PREFERRED_TUNER,
-        DIGITAL_RTL_SERIAL,
-        DIGITAL_RTL_SERIAL_SECONDARY,
         DIGITAL_RTL_DEVICE,
     ):
         value = str(candidate or "").strip()
         if value and value not in targets:
             targets.append(value)
+    for serial in _digital_expected_rtl_serials():
+        if serial not in targets:
+            targets.append(serial)
     return targets
 
 
+def _configured_digital_rtl_serials() -> list[str]:
+    serials: list[str] = []
+    for candidate in (
+        DIGITAL_RTL_SERIAL,
+        DIGITAL_RTL_SERIAL_SECONDARY,
+        DIGITAL_RTL_SERIAL_TERTIARY,
+    ):
+        value = str(candidate or "").strip()
+        if value and value not in serials:
+            serials.append(value)
+    return serials
+
+
+def _auto_extra_digital_rtl_serials(*, dongles: dict | None = None) -> list[str]:
+    if not _DIGITAL_AUTO_ADOPT_EXTRA_TUNERS:
+        return []
+    if dongles is None:
+        try:
+            dongles = read_rtl_dongle_health() or {}
+        except Exception:
+            dongles = {}
+    present_paths = dongles.get("present_paths") or []
+    excluded = {
+        str(token or "").strip()
+        for token in (
+            AIRBAND_RTL_SERIAL,
+            GROUND_RTL_SERIAL,
+            DIGITAL_RTL_SERIAL,
+            DIGITAL_RTL_SERIAL_SECONDARY,
+            DIGITAL_RTL_SERIAL_TERTIARY,
+        )
+        if str(token or "").strip()
+    }
+    extras: list[str] = []
+    for row in present_paths:
+        serial = str((row or {}).get("serial") or "").strip()
+        if not serial or serial in excluded or serial in extras:
+            continue
+        extras.append(serial)
+    return extras
+
+
+def _digital_expected_rtl_serials(*, dongles: dict | None = None) -> list[str]:
+    serials = _configured_digital_rtl_serials()
+    for serial in _auto_extra_digital_rtl_serials(dongles=dongles):
+        if serial not in serials:
+            serials.append(serial)
+    return serials
+
+
+def _digital_voice_tuner_serials(
+    *,
+    missing_serials: set[str] | None = None,
+    slow_serials: set[str] | None = None,
+    tuner_busy: bool = False,
+    dongles: dict | None = None,
+) -> list[str]:
+    if tuner_busy:
+        return []
+    configured = _digital_expected_rtl_serials(dongles=dongles)
+    primary = str(DIGITAL_RTL_SERIAL or "").strip()
+    voice_serials: list[str] = []
+    for serial in configured:
+        if primary and serial == primary:
+            continue
+        if serial not in voice_serials:
+            voice_serials.append(serial)
+    if not primary and voice_serials:
+        voice_serials = voice_serials[1:]
+    missing = {
+        str(token or "").strip()
+        for token in (missing_serials or set())
+        if str(token or "").strip()
+    }
+    slow = {
+        str(token or "").strip()
+        for token in (slow_serials or set())
+        if str(token or "").strip()
+    }
+    return [serial for serial in voice_serials if serial not in missing and serial not in slow]
+
+
+def _digital_tuner_runtime_health() -> dict[str, object]:
+    try:
+        dongles = read_rtl_dongle_health() or {}
+    except Exception:
+        dongles = {}
+    expected_serials = _digital_expected_rtl_serials(dongles=dongles)
+
+    missing_all = {
+        str(token or "").strip()
+        for token in (dongles.get("missing_expected_serials") or [])
+        if str(token or "").strip()
+    }
+    slow_all = {
+        str(token or "").strip()
+        for token in (dongles.get("slow_expected_serials") or [])
+        if str(token or "").strip()
+    }
+    missing = [serial for serial in expected_serials if serial in missing_all]
+    slow = [serial for serial in expected_serials if serial in slow_all]
+    checked = bool(expected_serials)
+    ready = (not checked) or (not missing and not slow)
+    return {
+        "checked": bool(checked),
+        "ready": bool(ready),
+        "expected_serials": list(expected_serials),
+        "missing_serials": list(missing),
+        "slow_serials": list(slow),
+    }
+
+
 def _preferred_tuner_target() -> str:
-    # In dual-dongle digital mode, avoid pinning to one tuner so SDRTrunk can
-    # split control and traffic across both enabled digital tuners.
-    if DIGITAL_RTL_SERIAL_SECONDARY and not DIGITAL_FORCE_PREFERRED_TUNER:
-        return ""
     if DIGITAL_PREFERRED_TUNER:
         return DIGITAL_PREFERRED_TUNER
     if DIGITAL_RTL_SERIAL:
         return DIGITAL_RTL_SERIAL
+    # If only non-primary digital serials are configured, keep the old
+    # behavior unless the operator explicitly forces a preferred tuner.
+    if (
+        any(
+            str(candidate or "").strip()
+            for candidate in (DIGITAL_RTL_SERIAL_SECONDARY, DIGITAL_RTL_SERIAL_TERTIARY)
+        )
+        and not DIGITAL_FORCE_PREFERRED_TUNER
+    ):
+        return ""
     if DIGITAL_RTL_DEVICE and not str(DIGITAL_RTL_DEVICE).isdigit():
         return str(DIGITAL_RTL_DEVICE).strip()
     return ""
@@ -4083,6 +4231,7 @@ class DigitalManager:
         self._scheduler_lock_miss_required_ticks = int(_DIGITAL_SCHEDULER_LOCK_MISS_TICKS)
         self._scheduler_lock_miss_ticks = 0
         self._scheduler_lock_miss_system = ""
+        self._scheduler_active_lock_since_ms = 0
         self._scheduler_last_tick_interval_ms = int(round(self._scheduler_base_tick_sec * 1000))
         self._scheduler_cached_preflight: dict = {}
         self._scheduler_cached_preflight_at_ms = 0
@@ -4221,6 +4370,7 @@ class DigitalManager:
                 self._scheduler_last_apply_duration_ms = 0
                 self._scheduler_lock_miss_ticks = 0
                 self._scheduler_lock_miss_system = ""
+                self._scheduler_active_lock_since_ms = 0
                 self._scheduler_system_health = {}
                 self._write_scheduler_state()
             self._ensure_super_profile_seed(str(profileId or "").strip(), force=True)
@@ -4594,7 +4744,20 @@ class DigitalManager:
     def _scheduler_fast_mode_enabled_locked(self, mode: str, systems: list[str]) -> bool:
         if not self._scheduler_fast_switch_enabled:
             return False
-        return str(mode or "") == "timeslice_multi_system" and len(systems) > 1
+        if self._super_profile_mode:
+            return False
+        if str(mode or "") != "timeslice_multi_system" or len(systems) <= 1:
+            return False
+        return self._runtime_retune_available()
+
+    def _runtime_retune_available(self) -> bool:
+        checker = getattr(self._adapter, "runtime_retune_available", None)
+        if not callable(checker):
+            return False
+        try:
+            return bool(checker())
+        except Exception:
+            return False
 
     def _scheduler_control_channel_count_locked(self, profile_id: str, system_name: str) -> int:
         system = str(system_name or "").strip()
@@ -5580,11 +5743,9 @@ class DigitalManager:
         *,
         force: bool = False,
     ) -> tuple[bool, str, bool]:
-        fast_ready = (
-            self._scheduler_fast_switch_enabled
-            and str(self._scheduler_mode or "") == "timeslice_multi_system"
-            and len(self._scheduler_systems) > 1
-            and not self._super_profile_mode
+        fast_ready = self._scheduler_fast_mode_enabled_locked(
+            str(self._scheduler_mode or ""),
+            [str(name or "").strip() for name in (self._scheduler_systems or []) if str(name or "").strip()],
         )
         if fast_ready:
             return self._apply_scheduler_fast_retune(profile_id, system_name, force=force)
@@ -5798,6 +5959,7 @@ class DigitalManager:
             self._scheduler_last_apply_duration_ms = 0
             self._scheduler_lock_miss_ticks = 0
             self._scheduler_lock_miss_system = ""
+            self._scheduler_active_lock_since_ms = 0
             self._scheduler_system_health = {}
             self._write_scheduler_state()
 
@@ -5990,6 +6152,15 @@ class DigitalManager:
         recent_event = event_time_ms > 0 and (now_ms - event_time_ms) <= self._scheduler_hang_ms
         metric_ready = bool(preflight.get("control_decode_available"))
         control_locked = bool(preflight.get("control_channel_locked"))
+        preflight_age_ms = int(self._scheduler_last_preflight_cache_age_ms or 0)
+        preflight_fresh = preflight_age_ms <= int(_DIGITAL_SCHEDULER_STALE_PREFLIGHT_MS)
+        metric_ready_for_switch = bool(metric_ready and preflight_fresh)
+        control_locked_for_switch = bool(control_locked and preflight_fresh)
+        if control_locked_for_switch:
+            if int(self._scheduler_active_lock_since_ms or 0) <= 0:
+                self._scheduler_active_lock_since_ms = now_ms
+        else:
+            self._scheduler_active_lock_since_ms = 0
         if self._scheduler_pause_on_hit and recent_event:
             self._scheduler_in_call_hold = True
 
@@ -5997,8 +6168,8 @@ class DigitalManager:
         if mode == "timeslice_multi_system" and len(systems) > 1 and self._scheduler_active_system:
             lock_miss_ticks = self._scheduler_track_lock_miss_locked(
                 active_system=str(self._scheduler_active_system or ""),
-                metric_ready=metric_ready,
-                control_locked=control_locked,
+                metric_ready=metric_ready_for_switch,
+                control_locked=control_locked_for_switch,
             )
             in_hold_window = (
                 self._scheduler_pause_on_hit
@@ -6018,17 +6189,33 @@ class DigitalManager:
                     should_switch = True
                     switch_reason = "call_end"
                     self._scheduler_in_call_hold = False
-                elif not control_locked:
-                    if elapsed_ms >= lock_timeout_ms and (
-                        (not fast_switch_active)
-                        or (not metric_ready)
-                        or (lock_miss_ticks >= int(self._scheduler_lock_miss_required_ticks or 1))
-                    ):
-                        should_switch = True
-                        switch_reason = "lock_timeout"
+                elif not control_locked_for_switch:
+                    if elapsed_ms >= lock_timeout_ms:
+                        if not fast_switch_active:
+                            should_switch = True
+                            switch_reason = "lock_timeout"
+                        elif metric_ready_for_switch:
+                            if lock_miss_ticks >= int(self._scheduler_lock_miss_required_ticks or 1):
+                                should_switch = True
+                                switch_reason = "lock_timeout"
+                        else:
+                            stale_grace_ms = max(
+                                1000,
+                                int(self._preflight_sampler_ms or DIGITAL_PREFLIGHT_SAMPLER_MS or 1000) * 2,
+                            )
+                            if elapsed_ms >= (lock_timeout_ms + stale_grace_ms):
+                                should_switch = True
+                                switch_reason = "lock_timeout_stale_preflight"
                 elif elapsed_ms >= self._scheduler_dwell_ms:
-                    should_switch = True
-                    switch_reason = "idle_timeout"
+                    active_lock_since_ms = int(self._scheduler_active_lock_since_ms or 0)
+                    active_lock_age_ms = (
+                        max(0, now_ms - active_lock_since_ms)
+                        if active_lock_since_ms > 0
+                        else 0
+                    )
+                    if active_lock_age_ms >= int(_DIGITAL_SCHEDULER_LOCK_STICKY_MS):
+                        should_switch = True
+                        switch_reason = "idle_timeout"
                 if should_switch:
                     previous = str(self._scheduler_active_system or "")
                     candidate = self._next_system(
@@ -6041,6 +6228,7 @@ class DigitalManager:
                         self._scheduler_switch_reason = switch_reason
                         self._scheduler_lock_miss_ticks = 0
                         self._scheduler_lock_miss_system = candidate
+                        self._scheduler_active_lock_since_ms = 0
                         pending_apply = True
                         pending_reason = switch_reason
                         if switch_reason == "lock_timeout" and previous:
@@ -6053,6 +6241,8 @@ class DigitalManager:
         else:
             self._scheduler_lock_miss_ticks = 0
             self._scheduler_lock_miss_system = str(self._scheduler_active_system or "")
+            if not control_locked_for_switch:
+                self._scheduler_active_lock_since_ms = 0
             lock_miss_ticks = 0
 
         active_system = self._scheduler_active_system or (systems[0] if systems else "")
@@ -6082,12 +6272,31 @@ class DigitalManager:
                     )
                     if recovery_ok:
                         active_system = recovery_system
+                        self._scheduler_active_lock_since_ms = 0
             elif pending_reason:
                 self._scheduler_switch_reason = pending_reason
 
         next_system = self._next_system(systems, active_system) if len(systems) > 1 else active_system
-        voice_tuner_available = bool(DIGITAL_RTL_SERIAL_SECONDARY and not preflight.get("tuner_busy"))
+        tuner_health = _digital_tuner_runtime_health()
+        missing_serials = {
+            str(token or "").strip()
+            for token in (tuner_health.get("missing_serials") or [])
+            if str(token or "").strip()
+        }
+        slow_serials = {
+            str(token or "").strip()
+            for token in (tuner_health.get("slow_serials") or [])
+            if str(token or "").strip()
+        }
+        voice_tuner_serials = _digital_voice_tuner_serials(
+            missing_serials=missing_serials,
+            slow_serials=slow_serials,
+            tuner_busy=bool(preflight.get("tuner_busy")),
+        )
+        runtime_retune_available = self._runtime_retune_available()
         effective_settings = self._scheduler_effective_settings_locked()
+        active_lock_since_ms = int(self._scheduler_active_lock_since_ms or 0)
+        active_lock_age_ms = max(0, now_ms - active_lock_since_ms) if active_lock_since_ms > 0 else 0
 
         payload = {
             "digital_scan_mode": configured_mode,
@@ -6105,12 +6314,17 @@ class DigitalManager:
             "digital_scheduler_lock_timeout_ms": int(lock_timeout_ms),
             "digital_scheduler_adaptive_lock_timeout_ms": int(adaptive_lock_timeout_ms),
             "digital_scheduler_active_control_channel_count": int(active_control_channels),
-            "digital_voice_tuner_available": voice_tuner_available,
+            "digital_voice_tuner_available": bool(voice_tuner_serials),
+            "digital_voice_tuner_count": len(voice_tuner_serials),
+            "digital_voice_tuner_serials": list(voice_tuner_serials),
             "digital_scheduler_fast_switch_enabled": bool(fast_switch_active),
+            "digital_scheduler_runtime_retune_available": bool(runtime_retune_available),
             "digital_scheduler_tick_interval_ms": int(self._scheduler_last_tick_interval_ms or 0),
             "digital_scheduler_apply_method": str(self._scheduler_last_apply_method or ""),
             "digital_scheduler_last_apply_duration_ms": int(self._scheduler_last_apply_duration_ms or 0),
             "digital_scheduler_preflight_cache_age_ms": int(self._scheduler_last_preflight_cache_age_ms or 0),
+            "digital_scheduler_preflight_fresh": bool(preflight_fresh),
+            "digital_scheduler_preflight_stale_threshold_ms": int(_DIGITAL_SCHEDULER_STALE_PREFLIGHT_MS),
             "digital_preflight_snapshot_age_ms": max(
                 0,
                 now_ms - int(getattr(self, "_preflight_snapshot_at_ms", 0) or 0),
@@ -6120,6 +6334,8 @@ class DigitalManager:
                 now_ms - int(getattr(self, "_scheduler_snapshot_at_ms", 0) or 0),
             ) if int(getattr(self, "_scheduler_snapshot_at_ms", 0) or 0) > 0 else 0,
             "digital_scheduler_lock_miss_ticks": int(lock_miss_ticks),
+            "digital_scheduler_lock_sticky_ms": int(_DIGITAL_SCHEDULER_LOCK_STICKY_MS),
+            "digital_scheduler_active_lock_age_ms": int(active_lock_age_ms),
             "digital_scheduler_perf_profile": str(effective_settings.get("performance_profile") or ""),
             "digital_scheduler_effective": dict(effective_settings),
         }
@@ -6211,8 +6427,28 @@ class DigitalManager:
             profile_id,
             active_system,
         )
-        voice_tuner_available = bool(DIGITAL_RTL_SERIAL_SECONDARY and not preflight.get("tuner_busy"))
+        tuner_health = _digital_tuner_runtime_health()
+        missing_serials = {
+            str(token or "").strip()
+            for token in (tuner_health.get("missing_serials") or [])
+            if str(token or "").strip()
+        }
+        slow_serials = {
+            str(token or "").strip()
+            for token in (tuner_health.get("slow_serials") or [])
+            if str(token or "").strip()
+        }
+        voice_tuner_serials = _digital_voice_tuner_serials(
+            missing_serials=missing_serials,
+            slow_serials=slow_serials,
+            tuner_busy=bool(preflight.get("tuner_busy")),
+        )
+        runtime_retune_available = self._runtime_retune_available()
         effective_settings = self._scheduler_effective_settings_locked()
+        preflight_age_ms = int(self._scheduler_last_preflight_cache_age_ms or 0)
+        preflight_fresh = preflight_age_ms <= int(_DIGITAL_SCHEDULER_STALE_PREFLIGHT_MS)
+        active_lock_since_ms = int(self._scheduler_active_lock_since_ms or 0)
+        active_lock_age_ms = max(0, now_ms - active_lock_since_ms) if active_lock_since_ms > 0 else 0
         payload = {
             "digital_scan_mode": mode,
             "digital_system_dwell_ms": int(self._scheduler_dwell_ms),
@@ -6229,12 +6465,17 @@ class DigitalManager:
             "digital_scheduler_lock_timeout_ms": int(lock_timeout_ms),
             "digital_scheduler_adaptive_lock_timeout_ms": int(adaptive_lock_timeout_ms),
             "digital_scheduler_active_control_channel_count": int(active_control_channels),
-            "digital_voice_tuner_available": voice_tuner_available,
+            "digital_voice_tuner_available": bool(voice_tuner_serials),
+            "digital_voice_tuner_count": len(voice_tuner_serials),
+            "digital_voice_tuner_serials": list(voice_tuner_serials),
             "digital_scheduler_fast_switch_enabled": bool(fast_switch_active),
+            "digital_scheduler_runtime_retune_available": bool(runtime_retune_available),
             "digital_scheduler_tick_interval_ms": int(self._scheduler_last_tick_interval_ms or 0),
             "digital_scheduler_apply_method": str(self._scheduler_last_apply_method or ""),
             "digital_scheduler_last_apply_duration_ms": int(self._scheduler_last_apply_duration_ms or 0),
             "digital_scheduler_preflight_cache_age_ms": int(self._scheduler_last_preflight_cache_age_ms or 0),
+            "digital_scheduler_preflight_fresh": bool(preflight_fresh),
+            "digital_scheduler_preflight_stale_threshold_ms": int(_DIGITAL_SCHEDULER_STALE_PREFLIGHT_MS),
             "digital_preflight_snapshot_age_ms": max(
                 0,
                 now_ms - int(getattr(self, "_preflight_snapshot_at_ms", 0) or 0),
@@ -6244,6 +6485,8 @@ class DigitalManager:
                 now_ms - int(getattr(self, "_scheduler_snapshot_at_ms", 0) or 0),
             ) if int(getattr(self, "_scheduler_snapshot_at_ms", 0) or 0) > 0 else 0,
             "digital_scheduler_lock_miss_ticks": int(self._scheduler_lock_miss_ticks or 0),
+            "digital_scheduler_lock_sticky_ms": int(_DIGITAL_SCHEDULER_LOCK_STICKY_MS),
+            "digital_scheduler_active_lock_age_ms": int(active_lock_age_ms),
             "digital_scheduler_perf_profile": str(effective_settings.get("performance_profile") or ""),
             "digital_scheduler_effective": dict(effective_settings),
         }
@@ -6287,6 +6530,7 @@ class DigitalManager:
         mode = event.get("mode")
         tgid = str(event.get("tgid") or "").strip()
         time_ms = int(event.get("timeMs") or 0)
+        tuner_health = _digital_tuner_runtime_health()
         payload = {
             "digital_active": bool(self.isActive()),
             "digital_backend": self.backend(),
@@ -6294,7 +6538,13 @@ class DigitalManager:
             "digital_muted": bool(get_digital_muted()),
             "digital_last_label": label,
             "digital_last_time": time_ms if time_ms > 0 else 0,
+            "digital_runtime_retune_available": bool(self._runtime_retune_available()),
+            "digital_tuner_targets_present": bool(tuner_health.get("ready", True)),
+            "digital_tuner_missing_serials": list(tuner_health.get("missing_serials") or []),
+            "digital_tuner_slow_serials": list(tuner_health.get("slow_serials") or []),
         }
+        if tuner_health.get("expected_serials"):
+            payload["digital_tuner_expected_serials"] = list(tuner_health.get("expected_serials") or [])
         if mode:
             payload["digital_last_mode"] = str(mode)
         if tgid:
@@ -6416,11 +6666,40 @@ class DigitalManager:
             payload["digital_listen_filter_blocking"] = bool(preflight.get("listen_filter_blocking"))
         if preflight.get("listen_filter_error"):
             payload["digital_listen_filter_error"] = str(preflight.get("listen_filter_error"))
-        if preflight.get("tuner_busy"):
+        if tuner_health.get("checked") and not tuner_health.get("ready", True):
+            problems = []
+            missing_serials = list(tuner_health.get("missing_serials") or [])
+            slow_serials = list(tuner_health.get("slow_serials") or [])
+            if missing_serials:
+                problems.append(f"missing serial(s): {', '.join(missing_serials)}")
+            if slow_serials:
+                problems.append(f"under-speed serial(s): {', '.join(slow_serials)}")
+            expected = ", ".join(
+                str(token or "").strip()
+                for token in (tuner_health.get("expected_serials") or [])
+                if str(token or "").strip()
+            ) or "unconfigured"
+            detail = "; ".join(problems) if problems else "configured digital tuner unavailable"
+            payload["digital_last_warning"] = (
+                f"Configured digital tuner(s) unavailable ({detail}). "
+                f"Expected digital serials: {expected}. Digital scan performance and hit rate will be degraded "
+                f"until the dongles return at full USB speed."
+            )
+        elif (
+            payload.get("digital_scheduler_mode") == "timeslice_multi_system"
+            and bool(payload.get("digital_scheduler_fast_switch_enabled"))
+            and not bool(payload.get("digital_scheduler_runtime_retune_available"))
+        ):
+            payload["digital_last_warning"] = (
+                "Digital fast-switch runtime retune backend unavailable; scheduler is using playlist-apply "
+                "fallback, which increases switch latency. Configure runtime retune or disable fast switching "
+                "for better stability."
+            )
+        elif preflight.get("tuner_busy"):
             air_serial = os.getenv("AIRBAND_RTL_SERIAL", "").strip()
             ground_serial = os.getenv("GROUND_RTL_SERIAL", "").strip()
             digital_serial = DIGITAL_RTL_SERIAL or ""
-            digital_secondary = DIGITAL_RTL_SERIAL_SECONDARY or ""
+            digital_voice = _digital_voice_tuner_serials()
             tuner_targets = _digital_tuner_targets()
             tuner_target_note = (
                 ", ".join(tuner_targets)
@@ -6428,8 +6707,8 @@ class DigitalManager:
             )
             serials_note = (
                 f"expected serials: airband={air_serial or 'unknown'}, "
-                f"ground={ground_serial or 'unknown'}, digital={digital_serial or 'unknown'}, "
-                f"digital_secondary={digital_secondary or 'unset'}"
+                f"ground={ground_serial or 'unknown'}, digital_primary={digital_serial or 'unknown'}, "
+                f"digital_voice={','.join(digital_voice) or 'unset'}"
             )
             serial_note = f" (serial {DIGITAL_RTL_SERIAL})" if DIGITAL_RTL_SERIAL else ""
             msg = (
