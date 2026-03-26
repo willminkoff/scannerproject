@@ -35,8 +35,6 @@ try:
         ICECAST_PORT,
         DIGITAL_LOG_PATH,
         DIGITAL_PLAYLIST_PATH,
-        DIGITAL_PERF_PROFILE,
-        DIGITAL_PERF_PRESETS,
         DIGITAL_PROFILES_DIR,
         DIGITAL_PREFERRED_TUNER,
         DIGITAL_RUNTIME_RETUNE_CMD,
@@ -54,31 +52,19 @@ try:
         DIGITAL_RTL_SERIAL_SECONDARY,
         DIGITAL_RTL_SERIAL_TERTIARY,
         DIGITAL_RTL_SERIAL_HINT,
-        DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS,
-        DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS_SET,
-        DIGITAL_SCHEDULER_FAST_SWITCH_ENABLED,
-        DIGITAL_SCHEDULER_FAST_SWITCH_ENABLED_SET,
-        DIGITAL_SCHEDULER_FAST_TICK_SEC,
-        DIGITAL_SCHEDULER_FAST_TICK_SEC_SET,
-        DIGITAL_SCHEDULER_LOCK_MISS_TICKS,
-        DIGITAL_SCHEDULER_LOCK_MISS_TICKS_SET,
-        DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS,
-        DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS_SET,
         DIGITAL_SCHEDULER_STATE_PATH,
-        DIGITAL_SCHEDULER_TICK_SEC,
-        DIGITAL_SCHEDULER_TICK_SEC_SET,
         DIGITAL_SDRTRUNK_STREAM_NAME,
         DIGITAL_ATTACH_BROADCAST_CHANNEL,
         DIGITAL_IGNORE_DATA_CALLS,
         DIGITAL_PAUSE_ON_HIT,
         DIGITAL_SCAN_MODE,
-        DIGITAL_SOURCE_ROTATION_DELAY_MS,
         DIGITAL_SERVICE_NAME,
         DIGITAL_SYSTEM_DWELL_MS,
         DIGITAL_SYSTEM_HANG_MS,
         DIGITAL_SYSTEM_ORDER,
         DIGITAL_USE_MULTI_FREQ_SOURCE,
     )
+    from .dongle_allocator import preferred_tuner_for_system
     from .systemd import unit_active
     from .system_stats import read_rtl_dongle_health
     from .scan_pool_adapter import get_active_scan_pool_snapshot, get_current_scan_mode
@@ -97,8 +83,6 @@ except ImportError:
         ICECAST_PORT,
         DIGITAL_LOG_PATH,
         DIGITAL_PLAYLIST_PATH,
-        DIGITAL_PERF_PROFILE,
-        DIGITAL_PERF_PRESETS,
         DIGITAL_PROFILES_DIR,
         DIGITAL_PREFERRED_TUNER,
         DIGITAL_RUNTIME_RETUNE_CMD,
@@ -116,31 +100,19 @@ except ImportError:
         DIGITAL_RTL_SERIAL_SECONDARY,
         DIGITAL_RTL_SERIAL_TERTIARY,
         DIGITAL_RTL_SERIAL_HINT,
-        DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS,
-        DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS_SET,
-        DIGITAL_SCHEDULER_FAST_SWITCH_ENABLED,
-        DIGITAL_SCHEDULER_FAST_SWITCH_ENABLED_SET,
-        DIGITAL_SCHEDULER_FAST_TICK_SEC,
-        DIGITAL_SCHEDULER_FAST_TICK_SEC_SET,
-        DIGITAL_SCHEDULER_LOCK_MISS_TICKS,
-        DIGITAL_SCHEDULER_LOCK_MISS_TICKS_SET,
-        DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS,
-        DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS_SET,
         DIGITAL_SCHEDULER_STATE_PATH,
-        DIGITAL_SCHEDULER_TICK_SEC,
-        DIGITAL_SCHEDULER_TICK_SEC_SET,
         DIGITAL_SDRTRUNK_STREAM_NAME,
         DIGITAL_ATTACH_BROADCAST_CHANNEL,
         DIGITAL_IGNORE_DATA_CALLS,
         DIGITAL_PAUSE_ON_HIT,
         DIGITAL_SCAN_MODE,
-        DIGITAL_SOURCE_ROTATION_DELAY_MS,
         DIGITAL_SERVICE_NAME,
         DIGITAL_SYSTEM_DWELL_MS,
         DIGITAL_SYSTEM_HANG_MS,
         DIGITAL_SYSTEM_ORDER,
         DIGITAL_USE_MULTI_FREQ_SOURCE,
     )
+    from ui.dongle_allocator import preferred_tuner_for_system
     from ui.systemd import unit_active
     from ui.system_stats import read_rtl_dongle_health
     from ui.scan_pool_adapter import get_active_scan_pool_snapshot, get_current_scan_mode
@@ -324,42 +296,7 @@ _DIGITAL_SCHEDULER_LOCK_LOSS_MS = max(
         )
     ),
 )
-_DIGITAL_SCHEDULER_TICK_SEC = max(
-    0.25,
-    float(DIGITAL_SCHEDULER_TICK_SEC or 1.0),
-)
-_DIGITAL_SCHEDULER_FAST_TICK_SEC = max(0.1, float(DIGITAL_SCHEDULER_FAST_TICK_SEC or 0.25))
-_DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS = max(
-    700,
-    int(DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS or 1200),
-)
-_DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS = max(
-    0,
-    int(DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS or 750),
-)
-_DIGITAL_SCHEDULER_LOCK_MISS_TICKS = max(1, int(DIGITAL_SCHEDULER_LOCK_MISS_TICKS or 3))
-_DEFAULT_DIGITAL_PERF_PROFILE = "pc_moderate"
-
-
-def _normalize_scheduler_perf_profile(raw: str) -> str:
-    token = str(raw or "").strip().lower()
-    if token in DIGITAL_PERF_PRESETS:
-        return token
-    return _DEFAULT_DIGITAL_PERF_PROFILE
-
-
-def _scheduler_perf_defaults(profile: str) -> dict[str, object]:
-    normalized = _normalize_scheduler_perf_profile(profile)
-    selected = DIGITAL_PERF_PRESETS.get(normalized) or DIGITAL_PERF_PRESETS.get(_DEFAULT_DIGITAL_PERF_PROFILE) or {}
-    return {
-        "profile": normalized,
-        "fast_switch_enabled": bool(selected.get("fast_switch_enabled")),
-        "fast_tick_sec": max(0.1, float(selected.get("fast_tick_sec") or 0.25)),
-        "fast_lock_timeout_ms": max(700, int(selected.get("fast_lock_timeout_ms") or 1200)),
-        "preflight_cache_ms": max(0, int(selected.get("preflight_cache_ms") or 750)),
-        "lock_miss_ticks": max(1, int(selected.get("lock_miss_ticks") or 3)),
-        "base_tick_sec": max(0.25, float(selected.get("base_tick_sec") or 1.0)),
-    }
+_DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS = 750
 
 
 _CONTROL_MESSAGE_RE = re.compile(
@@ -402,24 +339,6 @@ _DIGITAL_DEBUG_INCLUDE_GRANTS = os.getenv(
     "DIGITAL_DEBUG_INCLUDE_GRANTS",
     "0",
 ).strip().lower() in ("1", "true", "yes", "on")
-_DIGITAL_SOURCE_ROTATION_DELAY_MS = max(100, int(DIGITAL_SOURCE_ROTATION_DELAY_MS or 500))
-_DIGITAL_SCHEDULER_ADAPTIVE_LOCK_MAX_MS = max(
-    2000,
-    int(os.getenv("DIGITAL_SCHEDULER_ADAPTIVE_LOCK_MAX_MS", "60000")),
-)
-_DIGITAL_SCHEDULER_LOCK_STICKY_MS = max(
-    0,
-    int(os.getenv("DIGITAL_SCHEDULER_LOCK_STICKY_MS", "1200")),
-)
-_DIGITAL_SCHEDULER_STALE_PREFLIGHT_MS = max(
-    500,
-    int(
-        os.getenv(
-            "DIGITAL_SCHEDULER_STALE_PREFLIGHT_MS",
-            str(max(1500, int(DIGITAL_PREFLIGHT_SAMPLER_MS or 1000) * 2)),
-        )
-    ),
-)
 _DIGITAL_PLAYLIST_WRITE_LOCK = threading.Lock()
 _DIGITAL_STREAM_SOURCE_USER = os.getenv("ICECAST_SOURCE_USER", "source").strip() or "source"
 _DIGITAL_STREAM_SOURCE_PASSWORD = os.getenv("ICECAST_SOURCE_PASSWORD", "062352").strip() or "062352"
@@ -775,7 +694,23 @@ def _digital_tuner_runtime_health() -> dict[str, object]:
     }
 
 
-def _preferred_tuner_target() -> str:
+def _preferred_tuner_target(system_name: str = "") -> str:
+    """Return the preferred tuner serial for a system.
+
+    If *system_name* is provided, the dongle allocator assignment file is
+    consulted first.  This allows per-system tuner pinning when multiple
+    digital dongles are assigned to different trunked systems.
+
+    Falls back to the legacy global logic (env-var based) when no allocator
+    assignment exists.
+    """
+    # --- Allocator-aware path: per-system assignment ---
+    if system_name:
+        assigned = preferred_tuner_for_system(system_name)
+        if assigned:
+            return assigned
+
+    # --- Legacy global fallback ---
     if DIGITAL_PREFERRED_TUNER:
         return DIGITAL_PREFERRED_TUNER
     if DIGITAL_RTL_SERIAL:
@@ -795,38 +730,35 @@ def _preferred_tuner_target() -> str:
     return ""
 
 
-def _sync_source_configuration(source_conf: ET.Element, control_channels: list[int]) -> dict:
-    use_multi = DIGITAL_USE_MULTI_FREQ_SOURCE and len(control_channels) > 1
-    if use_multi:
-        source_conf.set("type", "sourceConfigTunerMultipleFrequency")
-        source_conf.set("source_type", "TUNER_MULTIPLE_FREQUENCIES")
-        source_conf.set("frequency_rotation_delay", str(_DIGITAL_SOURCE_ROTATION_DELAY_MS))
-        if "frequency" in source_conf.attrib:
-            del source_conf.attrib["frequency"]
-        for child in list(source_conf):
-            if child.tag == "frequency":
-                source_conf.remove(child)
-        for hz in control_channels:
-            child = ET.SubElement(source_conf, "frequency")
-            child.text = str(hz)
-    else:
-        source_conf.set("type", "sourceConfigTuner")
-        source_conf.set("source_type", "TUNER")
-        source_conf.set("frequency", str(control_channels[0]))
-        if "frequency_rotation_delay" in source_conf.attrib:
-            del source_conf.attrib["frequency_rotation_delay"]
-        for child in list(source_conf):
-            if child.tag == "frequency":
-                source_conf.remove(child)
+def _sync_source_configuration(
+    source_conf: ET.Element,
+    control_channels: list[int],
+    *,
+    system_name: str = "",
+) -> dict:
+    """Write source configuration into the playlist XML element.
 
-    preferred_tuner = _preferred_tuner_target()
+    Always uses single-frequency TUNER mode with the first control channel.
+    Multi-frequency rotation is no longer needed — with dedicated control
+    dongles per system, SDRTrunk monitors each control channel natively.
+    """
+    source_conf.set("type", "sourceConfigTuner")
+    source_conf.set("source_type", "TUNER")
+    source_conf.set("frequency", str(control_channels[0]))
+    if "frequency_rotation_delay" in source_conf.attrib:
+        del source_conf.attrib["frequency_rotation_delay"]
+    for child in list(source_conf):
+        if child.tag == "frequency":
+            source_conf.remove(child)
+
+    preferred_tuner = _preferred_tuner_target(system_name=system_name)
     if preferred_tuner:
         source_conf.set("preferred_tuner", preferred_tuner)
     elif "preferred_tuner" in source_conf.attrib:
         del source_conf.attrib["preferred_tuner"]
 
     return {
-        "source_mode": "multi" if use_multi else "single",
+        "source_mode": "single",
         "source_type": source_conf.get("source_type", ""),
         "source_config_type": source_conf.get("type", ""),
         "control_count": len(control_channels),
@@ -3304,6 +3236,9 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
     def _apply_profile_runtime(self, profile_dir: str, profile_id: str):
         started = time.monotonic()
         control_channels = self._read_control_channels(profile_dir)
+        # Resolve the primary system name for per-system dongle allocation.
+        _explicit_systems = self._read_system_definitions(profile_dir)
+        _primary_system_name = _explicit_systems[0][0] if _explicit_systems else ""
         if not control_channels:
             self._record_profile_apply_metric(
                 started=started,
@@ -3414,7 +3349,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         before_channels = DigitalManager._source_configuration_channels(source_conf)
         before_source_type = str(source_conf.get("source_type", "")).strip().upper()
         before_preferred = str(source_conf.get("preferred_tuner", "")).strip()
-        _sync_source_configuration(source_conf, control_channels)
+        _sync_source_configuration(source_conf, control_channels, system_name=_primary_system_name)
 
         # Allow profile-local alias list override so sub-profiles can reuse an
         # existing SDRTrunk alias list without requiring duplicate exports.
@@ -4221,25 +4156,8 @@ class DigitalManager:
         self._scheduler_last_apply_method = "startup"
         self._scheduler_last_apply_duration_ms = 0
         self._scheduler_lock_loss_ms = int(_DIGITAL_SCHEDULER_LOCK_LOSS_MS)
-        self._scheduler_perf_profile = _normalize_scheduler_perf_profile(DIGITAL_PERF_PROFILE)
-        self._scheduler_env_overrides = {
-            "base_tick_sec": bool(DIGITAL_SCHEDULER_TICK_SEC_SET),
-            "fast_switch_enabled": bool(DIGITAL_SCHEDULER_FAST_SWITCH_ENABLED_SET),
-            "fast_tick_sec": bool(DIGITAL_SCHEDULER_FAST_TICK_SEC_SET),
-            "fast_lock_timeout_ms": bool(DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS_SET),
-            "preflight_cache_ms": bool(DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS_SET),
-            "lock_miss_ticks": bool(DIGITAL_SCHEDULER_LOCK_MISS_TICKS_SET),
-        }
-        self._scheduler_base_tick_sec = float(_DIGITAL_SCHEDULER_TICK_SEC)
-        self._scheduler_fast_switch_enabled = bool(DIGITAL_SCHEDULER_FAST_SWITCH_ENABLED)
-        self._scheduler_fast_tick_sec = float(_DIGITAL_SCHEDULER_FAST_TICK_SEC)
-        self._scheduler_fast_lock_timeout_ms = int(_DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS)
         self._scheduler_preflight_cache_ttl_ms = int(_DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS)
-        self._scheduler_lock_miss_required_ticks = int(_DIGITAL_SCHEDULER_LOCK_MISS_TICKS)
-        self._scheduler_lock_miss_ticks = 0
-        self._scheduler_lock_miss_system = ""
         self._scheduler_active_lock_since_ms = 0
-        self._scheduler_last_tick_interval_ms = int(round(self._scheduler_base_tick_sec * 1000))
         self._scheduler_cached_preflight: dict = {}
         self._scheduler_cached_preflight_at_ms = 0
         self._scheduler_last_preflight_cache_age_ms = 0
@@ -4249,36 +4167,17 @@ class DigitalManager:
         self._preflight_sampler_ms = max(250, int(DIGITAL_PREFLIGHT_SAMPLER_MS or 1000))
         self._preflight_snapshot: dict = {}
         self._preflight_snapshot_at_ms = 0
-        self._preflight_sampler_stop = threading.Event()
-        self._preflight_sampler_thread = None
         self._scheduler_system_health: dict[str, dict] = {}
         self._stream_title_cache_at_ms = 0
         self._stream_title_cache_value = ""
         self._super_profile_seeded = False
         self._super_profile_seed_error = ""
         self._scheduler_lock = threading.Lock()
-        self._scheduler_stop = threading.Event()
-        self._apply_scheduler_perf_profile_locked(
-            self._scheduler_perf_profile,
-            update_tick_interval=False,
-        )
         self._load_scheduler_state()
         self._refresh_super_profile_systems()
         self._ensure_super_profile_seed()
         if self._status_snapshot_enabled:
             self._sample_preflight_snapshot()
-            self._preflight_sampler_thread = threading.Thread(
-                target=self._preflight_sampler_loop,
-                name="digital-preflight-sampler",
-                daemon=True,
-            )
-            self._preflight_sampler_thread.start()
-        self._scheduler_thread = threading.Thread(
-            target=self._scheduler_loop,
-            name="digital-scheduler-loop",
-            daemon=True,
-        )
-        self._scheduler_thread.start()
         self._scheduler_tick()
 
     @staticmethod
@@ -4699,11 +4598,6 @@ class DigitalManager:
             self._scheduler_last_preflight_cache_age_ms = 0
         return dict(snapshot)
 
-    def _preflight_sampler_loop(self) -> None:
-        wait_sec = max(0.25, float(self._preflight_sampler_ms) / 1000.0)
-        while not self._preflight_sampler_stop.wait(wait_sec):
-            self._sample_preflight_snapshot()
-
     def _cached_preflight_snapshot(self) -> tuple[dict, int]:
         now_ms = int(time.time() * 1000)
         with self._scheduler_lock:
@@ -4751,15 +4645,6 @@ class DigitalManager:
         self._scheduler_last_preflight_cache_age_ms = 0
         return snapshot
 
-    def _scheduler_fast_mode_enabled_locked(self, mode: str, systems: list[str]) -> bool:
-        if not self._scheduler_fast_switch_enabled:
-            return False
-        if self._super_profile_mode:
-            return False
-        if str(mode or "") != "timeslice_multi_system" or len(systems) <= 1:
-            return False
-        return self._runtime_retune_available()
-
     def _runtime_retune_available(self) -> bool:
         checker = getattr(self._adapter, "runtime_retune_available", None)
         if not callable(checker):
@@ -4789,18 +4674,6 @@ class DigitalManager:
             seen.add(value)
         return len(seen)
 
-    def _scheduler_adaptive_lock_timeout_ms_locked(self, profile_id: str, system_name: str) -> int:
-        count = self._scheduler_control_channel_count_locked(profile_id, system_name)
-        if count <= 1:
-            return 0
-        rotation_ms = max(100, int(_DIGITAL_SOURCE_ROTATION_DELAY_MS or 500))
-        sweep_ms = int(count * rotation_ms)
-        settle_ms = max(500, int(rotation_ms * 2))
-        # Leave headroom above one nominal sweep because tune/decode startup
-        # overhead can consume meaningful time on large CC sets.
-        target = int(round(sweep_ms * 1.2)) + int(settle_ms)
-        return max(0, min(int(_DIGITAL_SCHEDULER_ADAPTIVE_LOCK_MAX_MS), target))
-
     def _scheduler_lock_timeout_ms_locked(
         self,
         mode: str,
@@ -4810,52 +4683,8 @@ class DigitalManager:
         active_system: str = "",
     ) -> int:
         dwell_ms = int(self._scheduler_dwell_ms)
-        lock_loss_ms = int(self._scheduler_lock_loss_ms)
-        if self._scheduler_fast_mode_enabled_locked(mode, systems):
-            base_timeout_ms = max(700, int(self._scheduler_fast_lock_timeout_ms))
-            adaptive_timeout_ms = self._scheduler_adaptive_lock_timeout_ms_locked(
-                profile_id,
-                active_system,
-            )
-            if adaptive_timeout_ms > 0:
-                return max(base_timeout_ms, adaptive_timeout_ms)
-            return base_timeout_ms
+        lock_loss_ms = int(self._scheduler_lock_loss_ms or 2500)
         return max(2000, min(dwell_ms, lock_loss_ms))
-
-    def _scheduler_tick_interval_sec_locked(self) -> float:
-        mode = str(self._scheduler_mode or "single_system")
-        if mode not in {"single_system", "timeslice_multi_system"}:
-            mode = "single_system"
-        systems = [str(name or "").strip() for name in (self._scheduler_systems or []) if str(name or "").strip()]
-        if (
-            self._scheduler_fast_mode_enabled_locked(mode, systems)
-            and not self._scheduler_in_call_hold
-        ):
-            return float(self._scheduler_fast_tick_sec)
-        return float(getattr(self, "_scheduler_base_tick_sec", _DIGITAL_SCHEDULER_TICK_SEC))
-
-    def _scheduler_track_lock_miss_locked(
-        self,
-        *,
-        active_system: str,
-        metric_ready: bool,
-        control_locked: bool,
-    ) -> int:
-        system = str(active_system or "").strip()
-        if not system:
-            self._scheduler_lock_miss_ticks = 0
-            self._scheduler_lock_miss_system = ""
-            return 0
-        if not metric_ready or control_locked:
-            self._scheduler_lock_miss_ticks = 0
-            self._scheduler_lock_miss_system = system
-            return 0
-        if self._scheduler_lock_miss_system != system:
-            self._scheduler_lock_miss_system = system
-            self._scheduler_lock_miss_ticks = 1
-            return 1
-        self._scheduler_lock_miss_ticks = int(self._scheduler_lock_miss_ticks) + 1
-        return int(self._scheduler_lock_miss_ticks)
 
     def _scheduler_snapshot_payload_locked(
         self,
@@ -4871,10 +4700,6 @@ class DigitalManager:
         snapshot["digital_allocation_profile"] = str(self.getProfile() or "")
         snapshot["digital_applied_system"] = str(self._scheduler_last_applied_system or "")
         snapshot["digital_last_apply_time"] = int(self._scheduler_last_apply_time_ms or 0)
-        snapshot["digital_allocation_perf_profile"] = str(
-            self._scheduler_perf_profile or _DEFAULT_DIGITAL_PERF_PROFILE
-        )
-        snapshot["digital_allocation_effective"] = dict(self._scheduler_effective_settings_locked())
         if self._scheduler_last_apply_error:
             snapshot["digital_last_apply_error"] = str(self._scheduler_last_apply_error)
         return snapshot
@@ -4891,15 +4716,6 @@ class DigitalManager:
         except Exception:
             return
 
-    def _scheduler_loop(self):
-        while True:
-            with self._scheduler_lock:
-                interval_sec = max(0.05, float(self._scheduler_tick_interval_sec_locked()))
-                self._scheduler_last_tick_interval_ms = int(round(interval_sec * 1000))
-            if self._scheduler_stop.wait(interval_sec):
-                return
-            self._scheduler_tick()
-
     def _scheduler_state_payload(self) -> dict:
         return {
             "mode": str(self._scheduler_mode or "single_system"),
@@ -4907,7 +4723,6 @@ class DigitalManager:
             "system_hang_ms": int(self._scheduler_hang_ms),
             "pause_on_hit": bool(self._scheduler_pause_on_hit),
             "system_order": list(self._scheduler_order),
-            "performance_profile": str(self._scheduler_perf_profile or _DEFAULT_DIGITAL_PERF_PROFILE),
             "updated_ts": int(time.time()),
         }
 
@@ -4982,14 +4797,6 @@ class DigitalManager:
         order_raw = payload.get("system_order", payload.get("digital_system_order"))
         if order_raw is not None:
             self._scheduler_order = self._parse_scheduler_order(order_raw)
-
-        profile_raw = payload.get(
-            "performance_profile",
-            payload.get("digital_perf_profile", payload.get("digital_allocation_perf_profile")),
-        )
-        if profile_raw is not None:
-            self._apply_scheduler_perf_profile_locked(profile_raw, update_tick_interval=True)
-
     @staticmethod
     def _parse_scheduler_bool(raw) -> bool:
         if isinstance(raw, bool):
@@ -5038,49 +4845,6 @@ class DigitalManager:
             if len(tokens) >= 64:
                 break
         return tokens
-
-    def _scheduler_effective_settings_locked(self) -> dict[str, object]:
-        return {
-            "performance_profile": str(
-                getattr(self, "_scheduler_perf_profile", _DEFAULT_DIGITAL_PERF_PROFILE)
-                or _DEFAULT_DIGITAL_PERF_PROFILE
-            ),
-            "base_tick_sec": float(getattr(self, "_scheduler_base_tick_sec", _DIGITAL_SCHEDULER_TICK_SEC)),
-            "fast_switch_enabled": bool(getattr(self, "_scheduler_fast_switch_enabled", False)),
-            "fast_tick_sec": float(getattr(self, "_scheduler_fast_tick_sec", _DIGITAL_SCHEDULER_FAST_TICK_SEC)),
-            "fast_lock_timeout_ms": int(getattr(self, "_scheduler_fast_lock_timeout_ms", _DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS)),
-            "preflight_cache_ms": int(getattr(self, "_scheduler_preflight_cache_ttl_ms", _DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS)),
-            "lock_miss_ticks": int(getattr(self, "_scheduler_lock_miss_required_ticks", _DIGITAL_SCHEDULER_LOCK_MISS_TICKS)),
-        }
-
-    def _apply_scheduler_perf_profile_locked(
-        self,
-        profile_raw: str,
-        *,
-        update_tick_interval: bool = True,
-    ) -> str:
-        defaults = _scheduler_perf_defaults(profile_raw)
-        profile = str(defaults.get("profile") or _DEFAULT_DIGITAL_PERF_PROFILE)
-        self._scheduler_perf_profile = profile
-        overrides = self._scheduler_env_overrides if isinstance(getattr(self, "_scheduler_env_overrides", None), dict) else {}
-
-        if not bool(overrides.get("base_tick_sec")):
-            self._scheduler_base_tick_sec = float(defaults["base_tick_sec"])
-        if not bool(overrides.get("fast_switch_enabled")):
-            self._scheduler_fast_switch_enabled = bool(defaults["fast_switch_enabled"])
-        if not bool(overrides.get("fast_tick_sec")):
-            self._scheduler_fast_tick_sec = float(defaults["fast_tick_sec"])
-        if not bool(overrides.get("fast_lock_timeout_ms")):
-            self._scheduler_fast_lock_timeout_ms = int(defaults["fast_lock_timeout_ms"])
-        if not bool(overrides.get("preflight_cache_ms")):
-            self._scheduler_preflight_cache_ttl_ms = int(defaults["preflight_cache_ms"])
-        if not bool(overrides.get("lock_miss_ticks")):
-            self._scheduler_lock_miss_required_ticks = int(defaults["lock_miss_ticks"])
-
-        if update_tick_interval:
-            interval_sec = max(0.05, float(self._scheduler_tick_interval_sec_locked()))
-            self._scheduler_last_tick_interval_ms = int(round(interval_sec * 1000))
-        return profile
 
     @staticmethod
     def _read_control_channel_groups_for_dir(profile_dir: str) -> list[tuple[str, list[int]]]:
@@ -5609,7 +5373,7 @@ class DigitalManager:
             return True, "", False
 
         if not source_unchanged:
-            _sync_source_configuration(source_conf, channels)
+            _sync_source_configuration(source_conf, channels, system_name=system_name)
         ok, err = _write_playlist_tree_atomic(tree, playlist_path)
         if not ok:
             self._scheduler_last_apply_error = f"failed to write playlist: {err}"
@@ -5635,166 +5399,6 @@ class DigitalManager:
         self._scheduler_last_apply_error = ""
         self._scheduler_last_apply_error_system = ""
         return True, "", True
-
-    def _apply_scheduler_retune(
-        self,
-        profile_id: str,
-        system_name: str,
-        *,
-        force: bool = False,
-    ) -> tuple[bool, str, bool]:
-        self._scheduler_last_apply_method = "retune"
-        now_ms = int(time.time() * 1000)
-        if not force:
-            delta = now_ms - int(self._scheduler_last_apply_attempt_ms or 0)
-            if delta >= 0 and delta < _DIGITAL_SCHEDULER_APPLY_MIN_INTERVAL_MS:
-                return True, "", False
-        self._scheduler_last_apply_attempt_ms = now_ms
-
-        if not self._super_profile_systems:
-            self._refresh_super_profile_systems(profile_id)
-        system_entry = self._super_profile_systems.get(str(system_name or "").strip())
-        if not isinstance(system_entry, dict):
-            self._scheduler_last_apply_error = f"system has no control frequency: {system_name}"
-            self._scheduler_last_apply_error_system = system_name
-            health = self._scheduler_health_entry(system_name)
-            if health:
-                health["lock_failures"] = int(health.get("lock_failures") or 0) + 1
-                health["last_lock_loss_time_ms"] = now_ms
-            return False, self._scheduler_last_apply_error, False
-
-        try:
-            control_freq = float(system_entry.get("control_frequency") or 0.0)
-        except Exception:
-            control_freq = 0.0
-        if not math.isfinite(control_freq) or control_freq <= 0:
-            self._scheduler_last_apply_error = f"invalid control frequency for {system_name}"
-            self._scheduler_last_apply_error_system = system_name
-            health = self._scheduler_health_entry(system_name)
-            if health:
-                health["lock_failures"] = int(health.get("lock_failures") or 0) + 1
-                health["last_lock_loss_time_ms"] = now_ms
-            return False, self._scheduler_last_apply_error, False
-
-        ok, err = self._adapter.retune_control_frequency(control_freq)
-        if not ok:
-            msg = str(err or f"retune failed for {system_name}")
-            self._scheduler_last_apply_error = msg
-            self._scheduler_last_apply_error_system = system_name
-            health = self._scheduler_health_entry(system_name)
-            if health:
-                health["lock_failures"] = int(health.get("lock_failures") or 0) + 1
-                health["last_lock_loss_time_ms"] = now_ms
-            return False, msg, False
-
-        self._scheduler_last_applied_system = system_name
-        self._scheduler_last_apply_time_ms = now_ms
-        self._scheduler_last_apply_error = ""
-        self._scheduler_last_apply_error_system = ""
-        return True, "", True
-
-    def _apply_scheduler_fast_retune(
-        self,
-        profile_id: str,
-        system_name: str,
-        *,
-        force: bool = False,
-    ) -> tuple[bool, str, bool]:
-        self._scheduler_last_apply_method = "fast_retune"
-        now_ms = int(time.time() * 1000)
-        if not force:
-            delta = now_ms - int(self._scheduler_last_apply_attempt_ms or 0)
-            if delta >= 0 and delta < _DIGITAL_SCHEDULER_APPLY_MIN_INTERVAL_MS:
-                return True, "", False
-        self._scheduler_last_apply_attempt_ms = now_ms
-
-        channels = self._resolve_scheduler_system_control_channels(profile_id, system_name)
-        fallback_reason = ""
-        if channels:
-            control_hz = int(channels[0] or 0)
-            control_mhz = float(control_hz) / 1_000_000.0 if control_hz > 0 else 0.0
-            if math.isfinite(control_mhz) and control_mhz > 0.0:
-                runtime_available = False
-                try:
-                    runtime_available = bool(self._adapter.runtime_retune_available())
-                except Exception:
-                    runtime_available = False
-                if runtime_available:
-                    ok, err = self._adapter.retune_control_frequency(control_mhz)
-                    if ok:
-                        self._scheduler_last_applied_system = system_name
-                        self._scheduler_last_apply_time_ms = now_ms
-                        self._scheduler_last_apply_error = ""
-                        self._scheduler_last_apply_error_system = ""
-                        return True, "", True
-                    fallback_reason = str(err or f"fast retune failed for {system_name}")
-                else:
-                    fallback_reason = "runtime retune backend unavailable"
-            else:
-                fallback_reason = f"invalid control frequency for {system_name}"
-        else:
-            fallback_reason = f"system has no control channels: {system_name}"
-
-        fallback_ok, fallback_err, fallback_changed = self._apply_scheduler_system(
-            profile_id,
-            system_name,
-            force=True,
-        )
-        if fallback_ok:
-            self._scheduler_last_apply_method = "fast_retune_fallback_playlist"
-            return True, "", bool(fallback_changed)
-
-        msg = str(fallback_err or fallback_reason or f"fast retune failed for {system_name}")
-        if fallback_reason and fallback_err and fallback_reason not in fallback_err:
-            msg = f"{fallback_reason}; fallback failed: {fallback_err}"
-        self._scheduler_last_apply_method = "fast_retune_fallback_playlist_failed"
-        self._scheduler_last_apply_error = msg
-        self._scheduler_last_apply_error_system = system_name
-        return False, msg, False
-
-    def _apply_scheduler_target(
-        self,
-        profile_id: str,
-        system_name: str,
-        *,
-        force: bool = False,
-    ) -> tuple[bool, str, bool]:
-        fast_ready = self._scheduler_fast_mode_enabled_locked(
-            str(self._scheduler_mode or ""),
-            [str(name or "").strip() for name in (self._scheduler_systems or []) if str(name or "").strip()],
-        )
-        if fast_ready:
-            return self._apply_scheduler_fast_retune(profile_id, system_name, force=force)
-        if self._super_profile_mode:
-            # In single-system operation, preserve the profile's configured
-            # control-channel set (applied during setProfile) instead of
-            # frequency-retuning on every scheduler apply.
-            if str(self._scheduler_mode or "single_system") != "timeslice_multi_system":
-                now_ms = int(time.time() * 1000)
-                self._scheduler_last_applied_system = system_name
-                self._scheduler_last_apply_time_ms = now_ms
-                self._scheduler_last_apply_error = ""
-                self._scheduler_last_apply_error_system = ""
-                self._scheduler_last_apply_method = "noop_single_system"
-                return True, "", False
-            return self._apply_scheduler_retune(profile_id, system_name, force=force)
-        return self._apply_scheduler_system(profile_id, system_name, force=force)
-
-    def _apply_scheduler_target_timed(
-        self,
-        profile_id: str,
-        system_name: str,
-        *,
-        force: bool = False,
-    ) -> tuple[bool, str, bool]:
-        started = time.monotonic()
-        try:
-            return self._apply_scheduler_target(profile_id, system_name, force=force)
-        finally:
-            self._scheduler_last_apply_duration_ms = max(
-                0,
-                int(round((time.monotonic() - started) * 1000)),
-            )
 
     def getScheduler(self) -> dict:
         now_ms = int(time.time() * 1000)
@@ -5915,10 +5519,6 @@ class DigitalManager:
         hang_raw = payload.get("system_hang_ms", payload.get("digital_system_hang_ms"))
         pause_raw = payload.get("pause_on_hit", payload.get("digital_pause_on_hit"))
         order_raw = payload.get("system_order", payload.get("digital_system_order"))
-        perf_raw = payload.get(
-            "performance_profile",
-            payload.get("digital_perf_profile", payload.get("digital_allocation_perf_profile")),
-        )
 
         with self._scheduler_lock:
             if mode_raw is not None:
@@ -5958,12 +5558,6 @@ class DigitalManager:
             if order_raw is not None:
                 self._scheduler_order = self._parse_scheduler_order(order_raw)
 
-            if perf_raw is not None:
-                profile = str(perf_raw or "").strip().lower()
-                if profile not in DIGITAL_PERF_PRESETS:
-                    return False, "invalid performance_profile", {}
-                self._apply_scheduler_perf_profile_locked(profile, update_tick_interval=True)
-
             self._scheduler_profile = ""
             self._scheduler_switch_reason = "manual"
             self._scheduler_last_switch_time_ms = int(time.time() * 1000)
@@ -5973,8 +5567,6 @@ class DigitalManager:
             self._scheduler_last_apply_error_system = ""
             self._scheduler_last_apply_method = "manual_reset"
             self._scheduler_last_apply_duration_ms = 0
-            self._scheduler_lock_miss_ticks = 0
-            self._scheduler_lock_miss_system = ""
             self._scheduler_active_lock_since_ms = 0
             self._scheduler_system_health = {}
             self._write_scheduler_state()
@@ -6130,7 +5722,7 @@ class DigitalManager:
         mode = configured_mode
         if configured_mode == "timeslice_multi_system" and len(systems) < 2:
             mode = "single_system"
-        fast_switch_active = self._scheduler_fast_mode_enabled_locked(mode, systems)
+        fast_switch_active = False  # Removed: dedicated control dongles per system
 
         systems_changed = systems != self._scheduler_systems
         profile_changed = profile_id != self._scheduler_profile
@@ -6154,10 +5746,7 @@ class DigitalManager:
             profile_id=profile_id,
             active_system=active_system_for_timeout,
         )
-        adaptive_lock_timeout_ms = self._scheduler_adaptive_lock_timeout_ms_locked(
-            profile_id,
-            active_system_for_timeout,
-        )
+        adaptive_lock_timeout_ms = 0  # Removed: no adaptive lock with dedicated dongles
         active_control_channels = self._scheduler_control_channel_count_locked(
             profile_id,
             active_system_for_timeout,
@@ -6169,7 +5758,7 @@ class DigitalManager:
         metric_ready = bool(preflight.get("control_decode_available"))
         control_locked = bool(preflight.get("control_channel_locked"))
         preflight_age_ms = int(self._scheduler_last_preflight_cache_age_ms or 0)
-        preflight_fresh = preflight_age_ms <= int(_DIGITAL_SCHEDULER_STALE_PREFLIGHT_MS)
+        preflight_fresh = preflight_age_ms <= 3000
         metric_ready_for_switch = bool(metric_ready and preflight_fresh)
         control_locked_for_switch = bool(control_locked and preflight_fresh)
         if control_locked_for_switch:
@@ -6181,85 +5770,11 @@ class DigitalManager:
             self._scheduler_in_call_hold = True
 
         lock_miss_ticks = 0
-        if mode == "timeslice_multi_system" and len(systems) > 1 and self._scheduler_active_system:
-            lock_miss_ticks = self._scheduler_track_lock_miss_locked(
-                active_system=str(self._scheduler_active_system or ""),
-                metric_ready=metric_ready_for_switch,
-                control_locked=control_locked_for_switch,
-            )
-            in_hold_window = (
-                self._scheduler_pause_on_hit
-                and event_time_ms > 0
-                and (now_ms - event_time_ms) <= self._scheduler_hang_ms
-            )
-            if in_hold_window:
-                self._scheduler_in_call_hold = True
-                self._scheduler_lock_miss_ticks = 0
-                self._scheduler_lock_miss_system = str(self._scheduler_active_system or "")
-                lock_miss_ticks = 0
-            else:
-                should_switch = False
-                switch_reason = "idle_timeout"
-                elapsed_ms = now_ms - int(self._scheduler_last_switch_time_ms or 0)
-                if self._scheduler_in_call_hold:
-                    should_switch = True
-                    switch_reason = "call_end"
-                    self._scheduler_in_call_hold = False
-                elif not control_locked_for_switch:
-                    if elapsed_ms >= lock_timeout_ms:
-                        if not fast_switch_active:
-                            should_switch = True
-                            switch_reason = "lock_timeout"
-                        elif metric_ready_for_switch:
-                            if lock_miss_ticks >= int(self._scheduler_lock_miss_required_ticks or 1):
-                                should_switch = True
-                                switch_reason = "lock_timeout"
-                        else:
-                            stale_grace_ms = max(
-                                1000,
-                                int(self._preflight_sampler_ms or DIGITAL_PREFLIGHT_SAMPLER_MS or 1000) * 2,
-                            )
-                            if elapsed_ms >= (lock_timeout_ms + stale_grace_ms):
-                                should_switch = True
-                                switch_reason = "lock_timeout_stale_preflight"
-                elif elapsed_ms >= self._scheduler_dwell_ms:
-                    active_lock_since_ms = int(self._scheduler_active_lock_since_ms or 0)
-                    active_lock_age_ms = (
-                        max(0, now_ms - active_lock_since_ms)
-                        if active_lock_since_ms > 0
-                        else 0
-                    )
-                    if active_lock_age_ms >= int(_DIGITAL_SCHEDULER_LOCK_STICKY_MS):
-                        should_switch = True
-                        switch_reason = "idle_timeout"
-                if should_switch:
-                    previous = str(self._scheduler_active_system or "")
-                    candidate = self._next_system(
-                        systems,
-                        self._scheduler_active_system,
-                    )
-                    if candidate:
-                        self._scheduler_active_system = candidate
-                        self._scheduler_last_switch_time_ms = now_ms
-                        self._scheduler_switch_reason = switch_reason
-                        self._scheduler_lock_miss_ticks = 0
-                        self._scheduler_lock_miss_system = candidate
-                        self._scheduler_active_lock_since_ms = 0
-                        pending_apply = True
-                        pending_reason = switch_reason
-                        if switch_reason == "lock_timeout" and previous:
-                            health = self._scheduler_health_entry(previous)
-                            if health:
-                                health["lock_failures"] = int(health.get("lock_failures") or 0) + 1
-                                health["last_lock_loss_time_ms"] = now_ms
-                        if previous and previous != candidate:
-                            recovery_system = previous
-        else:
-            self._scheduler_lock_miss_ticks = 0
-            self._scheduler_lock_miss_system = str(self._scheduler_active_system or "")
-            if not control_locked_for_switch:
-                self._scheduler_active_lock_since_ms = 0
-            lock_miss_ticks = 0
+        # With dedicated control dongles per system, time-slicing rotation is
+        # no longer needed.  The active system is set on profile/fav switch and
+        # SDRTrunk monitors all configured systems simultaneously.
+        if not control_locked_for_switch:
+            self._scheduler_active_lock_since_ms = 0
 
         active_system = self._scheduler_active_system or (systems[0] if systems else "")
         if active_system and self._scheduler_last_applied_system != active_system:
@@ -6268,7 +5783,7 @@ class DigitalManager:
                 pending_reason = "manual"
 
         if pending_apply and active_system:
-            ok, _err, _changed = self._apply_scheduler_target_timed(
+            ok, _err, _changed = self._apply_scheduler_system(
                 profile_id,
                 active_system,
                 force=True,
@@ -6281,7 +5796,7 @@ class DigitalManager:
                     and recovery_system != active_system
                 ):
                     self._scheduler_active_system = recovery_system
-                    recovery_ok, _recovery_err, _recovery_changed = self._apply_scheduler_target_timed(
+                    recovery_ok, _recovery_err, _recovery_changed = self._apply_scheduler_system(
                         profile_id,
                         recovery_system,
                         force=True,
@@ -6310,7 +5825,6 @@ class DigitalManager:
             tuner_busy=bool(preflight.get("tuner_busy")),
         )
         runtime_retune_available = self._runtime_retune_available()
-        effective_settings = self._scheduler_effective_settings_locked()
         active_lock_since_ms = int(self._scheduler_active_lock_since_ms or 0)
         active_lock_age_ms = max(0, now_ms - active_lock_since_ms) if active_lock_since_ms > 0 else 0
 
@@ -6333,14 +5847,14 @@ class DigitalManager:
             "digital_voice_tuner_available": bool(voice_tuner_serials),
             "digital_voice_tuner_count": len(voice_tuner_serials),
             "digital_voice_tuner_serials": list(voice_tuner_serials),
-            "digital_fast_switch_enabled": bool(fast_switch_active),
+            "digital_fast_switch_enabled": False,
             "digital_runtime_retune_available": bool(runtime_retune_available),
-            "digital_tick_interval_ms": int(self._scheduler_last_tick_interval_ms or 0),
+            "digital_tick_interval_ms": 0,
             "digital_apply_method": str(self._scheduler_last_apply_method or ""),
             "digital_last_apply_duration_ms": int(self._scheduler_last_apply_duration_ms or 0),
             "digital_preflight_cache_age_ms": int(self._scheduler_last_preflight_cache_age_ms or 0),
             "digital_preflight_fresh": bool(preflight_fresh),
-            "digital_preflight_stale_threshold_ms": int(_DIGITAL_SCHEDULER_STALE_PREFLIGHT_MS),
+            "digital_preflight_stale_threshold_ms": 3000,
             "digital_preflight_snapshot_age_ms": max(
                 0,
                 now_ms - int(getattr(self, "_preflight_snapshot_at_ms", 0) or 0),
@@ -6350,10 +5864,8 @@ class DigitalManager:
                 now_ms - int(getattr(self, "_scheduler_snapshot_at_ms", 0) or 0),
             ) if int(getattr(self, "_scheduler_snapshot_at_ms", 0) or 0) > 0 else 0,
             "digital_lock_miss_ticks": int(lock_miss_ticks),
-            "digital_lock_sticky_ms": int(_DIGITAL_SCHEDULER_LOCK_STICKY_MS),
+            "digital_lock_sticky_ms": 0,
             "digital_active_lock_age_ms": int(active_lock_age_ms),
-            "digital_allocation_perf_profile": str(effective_settings.get("performance_profile") or ""),
-            "digital_allocation_effective": dict(effective_settings),
         }
         active_label = str(self._scheduler_pool_system_labels.get(active_system) or "").strip()
         if active_label:
@@ -6427,7 +5939,7 @@ class DigitalManager:
         if mode not in {"single_system", "timeslice_multi_system"}:
             mode = "single_system"
         next_system = self._next_system(systems, active_system) if len(systems) > 1 else active_system
-        fast_switch_active = self._scheduler_fast_mode_enabled_locked(mode, systems)
+        fast_switch_active = False  # Removed: dedicated control dongles per system
         profile_id = str(self.getProfile() or "").strip()
         lock_timeout_ms = self._scheduler_lock_timeout_ms_locked(
             mode,
@@ -6435,10 +5947,7 @@ class DigitalManager:
             profile_id=profile_id,
             active_system=active_system,
         )
-        adaptive_lock_timeout_ms = self._scheduler_adaptive_lock_timeout_ms_locked(
-            profile_id,
-            active_system,
-        )
+        adaptive_lock_timeout_ms = 0  # Removed: no adaptive lock with dedicated dongles
         active_control_channels = self._scheduler_control_channel_count_locked(
             profile_id,
             active_system,
@@ -6460,9 +5969,8 @@ class DigitalManager:
             tuner_busy=bool(preflight.get("tuner_busy")),
         )
         runtime_retune_available = self._runtime_retune_available()
-        effective_settings = self._scheduler_effective_settings_locked()
         preflight_age_ms = int(self._scheduler_last_preflight_cache_age_ms or 0)
-        preflight_fresh = preflight_age_ms <= int(_DIGITAL_SCHEDULER_STALE_PREFLIGHT_MS)
+        preflight_fresh = preflight_age_ms <= 3000
         active_lock_since_ms = int(self._scheduler_active_lock_since_ms or 0)
         active_lock_age_ms = max(0, now_ms - active_lock_since_ms) if active_lock_since_ms > 0 else 0
         payload = {
@@ -6484,14 +5992,14 @@ class DigitalManager:
             "digital_voice_tuner_available": bool(voice_tuner_serials),
             "digital_voice_tuner_count": len(voice_tuner_serials),
             "digital_voice_tuner_serials": list(voice_tuner_serials),
-            "digital_fast_switch_enabled": bool(fast_switch_active),
+            "digital_fast_switch_enabled": False,
             "digital_runtime_retune_available": bool(runtime_retune_available),
-            "digital_tick_interval_ms": int(self._scheduler_last_tick_interval_ms or 0),
+            "digital_tick_interval_ms": 0,
             "digital_apply_method": str(self._scheduler_last_apply_method or ""),
             "digital_last_apply_duration_ms": int(self._scheduler_last_apply_duration_ms or 0),
             "digital_preflight_cache_age_ms": int(self._scheduler_last_preflight_cache_age_ms or 0),
             "digital_preflight_fresh": bool(preflight_fresh),
-            "digital_preflight_stale_threshold_ms": int(_DIGITAL_SCHEDULER_STALE_PREFLIGHT_MS),
+            "digital_preflight_stale_threshold_ms": 3000,
             "digital_preflight_snapshot_age_ms": max(
                 0,
                 now_ms - int(getattr(self, "_preflight_snapshot_at_ms", 0) or 0),
@@ -6501,10 +6009,8 @@ class DigitalManager:
                 now_ms - int(getattr(self, "_scheduler_snapshot_at_ms", 0) or 0),
             ) if int(getattr(self, "_scheduler_snapshot_at_ms", 0) or 0) > 0 else 0,
             "digital_lock_miss_ticks": int(self._scheduler_lock_miss_ticks or 0),
-            "digital_lock_sticky_ms": int(_DIGITAL_SCHEDULER_LOCK_STICKY_MS),
+            "digital_lock_sticky_ms": 0,
             "digital_active_lock_age_ms": int(active_lock_age_ms),
-            "digital_allocation_perf_profile": str(effective_settings.get("performance_profile") or ""),
-            "digital_allocation_effective": dict(effective_settings),
         }
         active_label = str(self._scheduler_pool_system_labels.get(active_system) or "").strip()
         if active_label:

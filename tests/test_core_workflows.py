@@ -307,10 +307,6 @@ class DigitalLifecycleWorkflowTests(unittest.TestCase):
             lambda self, profile_id="", force=False: None,
         ), mock.patch.object(
             digital.DigitalManager,
-            "_apply_scheduler_perf_profile_locked",
-            lambda self, profile, update_tick_interval=False: None,
-        ), mock.patch.object(
-            digital.DigitalManager,
             "_scheduler_tick",
             lambda self: None,
         ), mock.patch.object(
