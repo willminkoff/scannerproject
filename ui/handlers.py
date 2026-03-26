@@ -826,17 +826,15 @@ def _read_effective_analog_controls() -> dict[str, Any]:
     """Read analog controls from effective runtime source profiles."""
     controls_airband_path = resolve_controls_path("airband")
     controls_ground_path = resolve_controls_path("ground")
-    airband_gain, airband_snr, airband_dbfs, airband_mode = parse_controls(controls_airband_path)
-    ground_gain, ground_snr, ground_dbfs, ground_mode = parse_controls(controls_ground_path)
+    airband_gain, _airband_snr, airband_dbfs, airband_mode = parse_controls(controls_airband_path)
+    ground_gain, _ground_snr, ground_dbfs, ground_mode = parse_controls(controls_ground_path)
     return {
         "controls_airband_path": controls_airband_path,
         "controls_ground_path": controls_ground_path,
         "airband_gain": airband_gain,
-        "airband_snr": airband_snr,
         "airband_dbfs": airband_dbfs,
         "airband_mode": airband_mode,
         "ground_gain": ground_gain,
-        "ground_snr": ground_snr,
         "ground_dbfs": ground_dbfs,
         "ground_mode": ground_mode,
     }
@@ -2882,11 +2880,9 @@ class Handler(BaseHTTPRequestHandler):
             controls_airband_path = controls_snapshot["controls_airband_path"]
             controls_ground_path = controls_snapshot["controls_ground_path"]
             airband_gain = controls_snapshot["airband_gain"]
-            airband_snr = controls_snapshot["airband_snr"]
             airband_dbfs = controls_snapshot["airband_dbfs"]
             airband_mode = controls_snapshot["airband_mode"]
             ground_gain = controls_snapshot["ground_gain"]
-            ground_snr = controls_snapshot["ground_snr"]
             ground_dbfs = controls_snapshot["ground_dbfs"]
             ground_mode = controls_snapshot["ground_mode"]
             airband_filter = parse_filter("airband")
@@ -3063,17 +3059,12 @@ class Handler(BaseHTTPRequestHandler):
                 "profiles_ground": profiles_ground,
                 "missing_profiles": missing,
                 "gain": float(airband_gain),
-                "squelch": float(airband_snr),
                 "airband_gain": float(airband_gain),
-                "airband_squelch": float(airband_snr),
                 "airband_squelch_mode": airband_mode,
-                "airband_squelch_snr": float(airband_snr),
                 "airband_squelch_dbfs": float(airband_dbfs),
                 "airband_filter": float(airband_filter),
                 "ground_gain": float(ground_gain),
-                "ground_squelch": float(ground_snr),
                 "ground_squelch_mode": ground_mode,
-                "ground_squelch_snr": float(ground_snr),
                 "ground_squelch_dbfs": float(ground_dbfs),
                 "ground_filter": float(ground_filter),
                 "airband_applied_gain": airband_device.get("gain") if airband_device else None,
@@ -3323,7 +3314,6 @@ class Handler(BaseHTTPRequestHandler):
             while True:
                 controls_snapshot = _read_effective_analog_controls()
                 airband_gain = controls_snapshot["airband_gain"]
-                airband_snr = controls_snapshot["airband_snr"]
                 airband_dbfs = controls_snapshot["airband_dbfs"]
                 airband_mode = controls_snapshot["airband_mode"]
                 rtl_unit_active = _unit_active_cached(UNITS["rtl"])
@@ -3387,9 +3377,7 @@ class Handler(BaseHTTPRequestHandler):
                     "ground_unit_active": ground_unit_active,
                     "combined_config_stale": combined_config_stale(),
                     "gain": float(airband_gain),
-                    "squelch": float(airband_snr),
                     "squelch_mode": airband_mode,
-                    "squelch_snr": float(airband_snr),
                     "squelch_dbfs": float(airband_dbfs),
                     "last_hit": last_hit,
                     "last_hit_airband_label": _short_label(last_hit_airband_label, max_len=48),

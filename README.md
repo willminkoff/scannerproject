@@ -415,7 +415,7 @@ Set gain and squelch for a target scanner (dBFS squelch).
   "target": "airband"
 }
 ```
-Legacy clients may still POST `squelch` (SNR). Backend defaults to dBFS mode in the current UI.
+Legacy clients may still POST `squelch`/`squelch_snr` for compatibility, but the active analog control path is dBFS-only in the current UI.
 
 **Response** (JSON):
 ```json

@@ -4006,9 +4006,7 @@
       },
       airband: {
         gain: 32.8,
-        squelch: 0.5,
         squelch_mode: 'dbfs',
-        squelch_snr: 0.5,
         squelch_dbfs: 0,
         applied_gain: null,
         applied_squelch_dbfs: null,
@@ -4019,9 +4017,7 @@
       },
       ground: {
         gain: 32.8,
-        squelch: 0.5,
         squelch_mode: 'dbfs',
-        squelch_snr: 0.5,
         squelch_dbfs: 0,
         applied_gain: null,
         applied_squelch_dbfs: null,
@@ -12251,13 +12247,11 @@
         if (Number.isFinite(airApplied)) {
           state.airband.squelch_mode = 'dbfs';
           state.airband.squelch_dbfs = airApplied;
-          state.airband.squelch = airApplied;
           state.airband.applied_squelch_dbfs = null;
         }
         if (Number.isFinite(groundApplied)) {
           state.ground.squelch_mode = 'dbfs';
           state.ground.squelch_dbfs = groundApplied;
-          state.ground.squelch = groundApplied;
           state.ground.applied_squelch_dbfs = null;
         }
         if (els.dbfsSlider) {
@@ -12955,11 +12949,9 @@
           const airbandAppliedGain = Number.isFinite(data.airband_applied_gain) ? data.airband_applied_gain : null;
           state.airband.gain = resolveAnalogGain('airband', airbandObservedGain, airbandAppliedGain);
           state.airband.squelch_mode = data.airband_squelch_mode || 'dbfs';
-          state.airband.squelch_snr = pickNumber(data.airband_squelch_snr, pickNumber(data.airband_squelch, pickNumber(data.squelch, 0.5)));
           state.airband.squelch_dbfs = pickNumber(data.airband_squelch_dbfs, 0);
           state.airband.applied_gain = airbandAppliedGain;
           state.airband.applied_squelch_dbfs = Number.isFinite(data.airband_applied_squelch_dbfs) ? data.airband_applied_squelch_dbfs : null;
-          state.airband.squelch = state.airband.squelch_dbfs;
           state.airband.filter = pickNumber(data.airband_filter, 3500);
           state.airband.avoids = data.avoids_airband?.sample || [];
 
@@ -12967,11 +12959,9 @@
           const groundAppliedGain = Number.isFinite(data.ground_applied_gain) ? data.ground_applied_gain : null;
           state.ground.gain = resolveAnalogGain('ground', groundObservedGain, groundAppliedGain);
           state.ground.squelch_mode = data.ground_squelch_mode || 'dbfs';
-          state.ground.squelch_snr = pickNumber(data.ground_squelch_snr, pickNumber(data.ground_squelch, 0.5));
           state.ground.squelch_dbfs = pickNumber(data.ground_squelch_dbfs, 0);
           state.ground.applied_gain = groundAppliedGain;
           state.ground.applied_squelch_dbfs = Number.isFinite(data.ground_applied_squelch_dbfs) ? data.ground_applied_squelch_dbfs : null;
-          state.ground.squelch = state.ground.squelch_dbfs;
           state.ground.filter = pickNumber(data.ground_filter, 3500);
           state.ground.avoids = data.avoids_ground?.sample || [];
           state.hpFilters.avoids = Array.isArray(data.hp_avoids)
