@@ -2011,6 +2011,45 @@ class DigitalAdapter:
     def runtime_metrics(self) -> dict:
         return {}
 
+    def apply_system(
+        self,
+        system_name: str,
+        control_channels_hz: list,
+        *,
+        preferred_tuner: str = "",
+        force: bool = False,
+    ) -> tuple:
+        """Activate a single system for monitoring.
+
+        Returns ``(ok, error_message, changed)``.
+        """
+        raise NotImplementedError
+
+    def activate_systems(self, systems: list) -> tuple:
+        """Activate multiple systems simultaneously.
+
+        *systems* is a list of dicts, each with keys ``name``,
+        ``control_channels_hz``, and optionally ``preferred_tuner``.
+        Returns ``(ok, error_message, changed)``.
+
+        The default implementation activates only the first system.
+        """
+        if systems:
+            first = systems[0]
+            return self.apply_system(
+                first["name"],
+                first["control_channels_hz"],
+                preferred_tuner=first.get("preferred_tuner", ""),
+            )
+        return True, "", False
+
+    @property
+    def supports_multi_system(self) -> bool:
+        """Return *True* if the backend can monitor multiple trunked systems
+        simultaneously (one receiver per dongle).  When *True* the scheduler
+        skips time-slice rotation."""
+        return False
+
 
 class _BaseDigitalAdapter(DigitalAdapter):
     """Shared in-memory state for adapters."""
@@ -2164,6 +2203,12 @@ class NullDigitalAdapter(_BaseDigitalAdapter):
 
     def runtime_retune_available(self) -> bool:
         return False
+
+    def apply_system(self, system_name, control_channels_hz, *, preferred_tuner="", force=False):
+        return False, self._reason, False
+
+    def activate_systems(self, systems):
+        return False, self._reason, False
 
 
 class SdrtrunkAdapter(_BaseDigitalAdapter):
@@ -3346,7 +3391,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         source_conf = channel.find("source_configuration")
         if source_conf is None:
             source_conf = ET.SubElement(channel, "source_configuration")
-        before_channels = DigitalManager._source_configuration_channels(source_conf)
+        before_channels = SdrtrunkAdapter._source_conf_channels(source_conf)
         before_source_type = str(source_conf.get("source_type", "")).strip().upper()
         before_preferred = str(source_conf.get("preferred_tuner", "")).strip()
         _sync_source_configuration(source_conf, control_channels, system_name=_primary_system_name)
@@ -3378,7 +3423,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             ET.SubElement(channel, "record_configuration")
         stream_changed = _sync_stream_configuration(root)
 
-        after_channels = DigitalManager._source_configuration_channels(source_conf)
+        after_channels = SdrtrunkAdapter._source_conf_channels(source_conf)
         after_source_type = str(source_conf.get("source_type", "")).strip().upper()
         after_preferred = str(source_conf.get("preferred_tuner", "")).strip()
         changed = bool(
@@ -3455,6 +3500,148 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         if not ok:
             return False, err or reason or "runtime seed failed", False
         return True, "", True
+
+    # ------------------------------------------------------------------
+    # apply_system — write a single system's control channels into the
+    # SDRTrunk playlist XML.  This was extracted from DigitalManager so
+    # that the manager delegates to the adapter without knowing about XML.
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _source_conf_channels(source_conf: ET.Element) -> list[int]:
+        """Read current control-channel frequencies from a <source_configuration>."""
+        frequencies: list[int] = []
+        seen: set[int] = set()
+        attr = str(source_conf.get("frequency", "")).strip()
+        if attr.isdigit():
+            hz = int(attr)
+            if hz > 0 and hz not in seen:
+                seen.add(hz)
+                frequencies.append(hz)
+        for node in source_conf.findall("frequency"):
+            text = str(node.text or "").strip()
+            if not text.isdigit():
+                continue
+            hz = int(text)
+            if hz <= 0 or hz in seen:
+                continue
+            seen.add(hz)
+            frequencies.append(hz)
+        return frequencies
+
+    def apply_system(
+        self,
+        system_name: str,
+        control_channels_hz: list,
+        *,
+        preferred_tuner: str = "",
+        force: bool = False,
+    ) -> tuple[bool, str, bool]:
+        """Write *control_channels_hz* for *system_name* into the SDRTrunk
+        playlist XML, setting *preferred_tuner* on the source configuration.
+
+        Returns ``(ok, error_message, changed)``.
+        """
+        channels = list(control_channels_hz or [])
+        if not channels:
+            return False, f"system has no control channels: {system_name}", False
+
+        playlist_path = _safe_realpath(DIGITAL_PLAYLIST_PATH)
+        if not playlist_path:
+            return False, "digital playlist path not configured", False
+        if not os.path.isfile(playlist_path):
+            return False, f"playlist not found: {playlist_path}", False
+
+        try:
+            tree = ET.parse(playlist_path)
+            root = tree.getroot()
+        except Exception as e:
+            return False, f"failed to parse playlist: {e}", False
+
+        channel = root.find("channel")
+        if channel is None:
+            return False, "playlist has no channel node", False
+        source_conf = channel.find("source_configuration")
+        if source_conf is None:
+            source_conf = ET.SubElement(channel, "source_configuration")
+
+        before_channels = self._source_conf_channels(source_conf)
+        before_source_type = str(source_conf.get("source_type", "")).strip().upper()
+        before_preferred = str(source_conf.get("preferred_tuner", "")).strip()
+        preferred = preferred_tuner or ""
+        expected_source_type = (
+            "TUNER_MULTIPLE_FREQUENCIES"
+            if DIGITAL_USE_MULTI_FREQ_SOURCE and len(channels) > 1
+            else "TUNER"
+        )
+
+        # Build a digest so callers can short-circuit when nothing changed.
+        desired_digest = "|".join(
+            [
+                "scheduler_apply",
+                str(system_name or "").strip(),
+                str(expected_source_type or "").strip(),
+                str(preferred or "").strip(),
+                ",".join(str(int(hz)) for hz in channels),
+            ]
+        )
+
+        # Check playlist-cache to avoid redundant writes.
+        playlist_mtime_ns = 0
+        try:
+            playlist_mtime_ns = int(self._playlist_mtime_ns(playlist_path) or 0)
+        except Exception:
+            try:
+                playlist_mtime_ns = int(os.stat(playlist_path).st_mtime_ns)
+            except Exception:
+                pass
+
+        try:
+            cache = dict(self._playlist_cache_snapshot() or {})
+        except Exception:
+            cache = {}
+        if (
+            not force
+            and cache.get("path") == playlist_path
+            and int(cache.get("mtime_ns") or 0) == int(playlist_mtime_ns or 0)
+            and str(cache.get("profile_digest") or "") == desired_digest
+        ):
+            return True, "", False
+
+        source_unchanged = (
+            before_channels == channels
+            and before_source_type == expected_source_type
+            and before_preferred == preferred
+        )
+        stream_changed = _sync_stream_configuration(root)
+
+        if source_unchanged and not stream_changed:
+            self._try_update_playlist_cache(playlist_path, playlist_mtime_ns, desired_digest)
+            return True, "", False
+
+        if not source_unchanged:
+            _sync_source_configuration(source_conf, channels, system_name=system_name)
+        ok, err = _write_playlist_tree_atomic(tree, playlist_path)
+        if not ok:
+            return False, f"failed to write playlist: {err}", False
+
+        # Update cache with post-write mtime.
+        try:
+            mtime_after = int(self._playlist_mtime_ns(playlist_path) or 0)
+        except Exception:
+            try:
+                mtime_after = int(os.stat(playlist_path).st_mtime_ns)
+            except Exception:
+                mtime_after = 0
+        self._try_update_playlist_cache(playlist_path, mtime_after, desired_digest)
+        return True, "", True
+
+    def _try_update_playlist_cache(self, path: str, mtime_ns: int, digest: str) -> None:
+        """Best-effort playlist cache update."""
+        try:
+            self._playlist_cache_update(path=path, mtime_ns=mtime_ns, profile_digest=digest)
+        except Exception:
+            logger.debug("Failed updating digital playlist cache", exc_info=True)
 
     def runtime_retune_available(self) -> bool:
         if not DIGITAL_RUNTIME_RETUNE_ENABLED:
@@ -4184,6 +4371,9 @@ class DigitalManager:
     def _build_adapter(backend: str):
         if backend in ("sdrtrunk",):
             return SdrtrunkAdapter()
+        if backend in ("op25",):
+            from .op25_adapter import Op25Adapter
+            return Op25Adapter()
         if backend in ("none", "disabled", "off"):
             return NullDigitalAdapter("digital backend disabled")
         return NullDigitalAdapter(f"unknown digital backend: {backend}")
@@ -5434,27 +5624,6 @@ class DigitalManager:
             _add_system(profile_key)
         return systems
 
-    @staticmethod
-    def _source_configuration_channels(source_conf: ET.Element) -> list[int]:
-        frequencies: list[int] = []
-        seen: set[int] = set()
-        attr = str(source_conf.get("frequency", "")).strip()
-        if attr.isdigit():
-            hz = int(attr)
-            if hz > 0 and hz not in seen:
-                seen.add(hz)
-                frequencies.append(hz)
-        for node in source_conf.findall("frequency"):
-            text = str(node.text or "").strip()
-            if not text.isdigit():
-                continue
-            hz = int(text)
-            if hz <= 0 or hz in seen:
-                continue
-            seen.add(hz)
-            frequencies.append(hz)
-        return frequencies
-
     def _resolve_scheduler_system_control_channels(self, profile_id: str, system_name: str) -> list[int]:
         system = str(system_name or "").strip()
         if not system:
@@ -5512,6 +5681,9 @@ class DigitalManager:
         *,
         force: bool = False,
     ) -> tuple[bool, str, bool]:
+        """Resolve control channels for *system_name* and delegate to the
+        adapter's :meth:`apply_system`.  Throttle and scheduler-state
+        bookkeeping live here; backend-specific work lives in the adapter."""
         self._scheduler_last_apply_method = "playlist_apply"
         if self._super_profile_mode:
             return False, "scheduler playlist apply disabled in super profile mode", False
@@ -5528,136 +5700,23 @@ class DigitalManager:
             self._scheduler_last_apply_error_system = system_name
             return False, self._scheduler_last_apply_error, False
 
-        playlist_path = _safe_realpath(DIGITAL_PLAYLIST_PATH)
-        if not playlist_path:
-            self._scheduler_last_apply_error = "digital playlist path not configured"
-            self._scheduler_last_apply_error_system = system_name
-            return False, self._scheduler_last_apply_error, False
-        if not os.path.isfile(playlist_path):
-            self._scheduler_last_apply_error = f"playlist not found: {playlist_path}"
-            self._scheduler_last_apply_error_system = system_name
-            return False, self._scheduler_last_apply_error, False
-
-        try:
-            tree = ET.parse(playlist_path)
-            root = tree.getroot()
-        except Exception as e:
-            self._scheduler_last_apply_error = f"failed to parse playlist: {e}"
-            self._scheduler_last_apply_error_system = system_name
-            return False, self._scheduler_last_apply_error, False
-
-        channel = root.find("channel")
-        if channel is None:
-            self._scheduler_last_apply_error = "playlist has no channel node"
-            self._scheduler_last_apply_error_system = system_name
-            return False, self._scheduler_last_apply_error, False
-        source_conf = channel.find("source_configuration")
-        if source_conf is None:
-            source_conf = ET.SubElement(channel, "source_configuration")
-
-        before_channels = self._source_configuration_channels(source_conf)
-        before_source_type = str(source_conf.get("source_type", "")).strip().upper()
-        before_preferred = str(source_conf.get("preferred_tuner", "")).strip()
         preferred = _preferred_tuner_target()
-        expected_source_type = (
-            "TUNER_MULTIPLE_FREQUENCIES"
-            if DIGITAL_USE_MULTI_FREQ_SOURCE and len(channels) > 1
-            else "TUNER"
+        ok, err, changed = self._adapter.apply_system(
+            system_name,
+            channels,
+            preferred_tuner=preferred,
+            force=force,
         )
-        desired_digest = "|".join(
-            [
-                "scheduler_apply",
-                str(profile_id or "").strip(),
-                str(system_name or "").strip(),
-                str(expected_source_type or "").strip(),
-                str(preferred or "").strip(),
-                ",".join(str(int(hz)) for hz in channels),
-            ]
-        )
-        playlist_mtime_ns = 0
-        playlist_mtime_fn = getattr(self._adapter, "_playlist_mtime_ns", None)
-        if callable(playlist_mtime_fn):
-            try:
-                playlist_mtime_ns = int(playlist_mtime_fn(playlist_path) or 0)
-            except Exception:
-                playlist_mtime_ns = 0
-        else:
-            try:
-                playlist_mtime_ns = int(os.stat(playlist_path).st_mtime_ns)
-            except Exception:
-                playlist_mtime_ns = 0
 
-        playlist_cache_snapshot_fn = getattr(self._adapter, "_playlist_cache_snapshot", None)
-        playlist_cache_update_fn = getattr(self._adapter, "_playlist_cache_update", None)
-        if callable(playlist_cache_snapshot_fn):
-            try:
-                cache = dict(playlist_cache_snapshot_fn() or {})
-            except Exception:
-                cache = {}
-            if (
-                cache.get("path") == playlist_path
-                and int(cache.get("mtime_ns") or 0) == int(playlist_mtime_ns or 0)
-                and str(cache.get("profile_digest") or "") == desired_digest
-            ):
-                self._scheduler_last_applied_system = system_name
-                self._scheduler_last_apply_time_ms = now_ms
-                self._scheduler_last_apply_error = ""
-                self._scheduler_last_apply_error_system = ""
-                return True, "", False
-
-        source_unchanged = (
-            before_channels == channels
-            and before_source_type == expected_source_type
-            and before_preferred == preferred
-        )
-        stream_changed = _sync_stream_configuration(root)
-
-        if source_unchanged and not stream_changed:
-            if callable(playlist_cache_update_fn):
-                try:
-                    playlist_cache_update_fn(
-                        path=playlist_path,
-                        mtime_ns=playlist_mtime_ns,
-                        profile_digest=desired_digest,
-                    )
-                except Exception:
-                    logger.debug(
-                        "Failed updating digital playlist cache for unchanged scheduler apply",
-                        exc_info=True,
-                    )
+        if ok:
             self._scheduler_last_applied_system = system_name
             self._scheduler_last_apply_time_ms = now_ms
             self._scheduler_last_apply_error = ""
             self._scheduler_last_apply_error_system = ""
-            return True, "", False
-
-        if not source_unchanged:
-            _sync_source_configuration(source_conf, channels, system_name=system_name)
-        ok, err = _write_playlist_tree_atomic(tree, playlist_path)
-        if not ok:
-            self._scheduler_last_apply_error = f"failed to write playlist: {err}"
+        else:
+            self._scheduler_last_apply_error = err or f"apply_system failed for {system_name}"
             self._scheduler_last_apply_error_system = system_name
-            return False, self._scheduler_last_apply_error, False
-        if callable(playlist_cache_update_fn):
-            try:
-                mtime_after = 0
-                if callable(playlist_mtime_fn):
-                    mtime_after = int(playlist_mtime_fn(playlist_path) or 0)
-                else:
-                    mtime_after = int(os.stat(playlist_path).st_mtime_ns)
-                playlist_cache_update_fn(
-                    path=playlist_path,
-                    mtime_ns=mtime_after,
-                    profile_digest=desired_digest,
-                )
-            except Exception:
-                logger.debug("Failed updating digital playlist cache after scheduler apply", exc_info=True)
-
-        self._scheduler_last_applied_system = system_name
-        self._scheduler_last_apply_time_ms = now_ms
-        self._scheduler_last_apply_error = ""
-        self._scheduler_last_apply_error_system = ""
-        return True, "", True
+        return ok, err, changed
 
     def getScheduler(self) -> dict:
         now_ms = int(time.time() * 1000)
@@ -6109,6 +6168,7 @@ class DigitalManager:
             "digital_voice_tuner_count": len(voice_tuner_serials),
             "digital_voice_tuner_serials": list(voice_tuner_serials),
             "digital_fast_switch_enabled": False,
+            "digital_multi_system_native": bool(getattr(self._adapter, "supports_multi_system", False)),
             "digital_runtime_retune_available": bool(runtime_retune_available),
             "digital_tick_interval_ms": 0,
             "digital_apply_method": str(self._scheduler_last_apply_method or ""),
@@ -6254,6 +6314,7 @@ class DigitalManager:
             "digital_voice_tuner_count": len(voice_tuner_serials),
             "digital_voice_tuner_serials": list(voice_tuner_serials),
             "digital_fast_switch_enabled": False,
+            "digital_multi_system_native": bool(getattr(self._adapter, "supports_multi_system", False)),
             "digital_runtime_retune_available": bool(runtime_retune_available),
             "digital_tick_interval_ms": 0,
             "digital_apply_method": str(self._scheduler_last_apply_method or ""),
