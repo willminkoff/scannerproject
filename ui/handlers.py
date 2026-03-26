@@ -371,6 +371,19 @@ except Exception:
     _HP_GEOLOOKUP_TIMEOUT_SEC = 4.0
 
 
+def _invalidate_runtime_caches(*names: str) -> None:
+    wanted = {str(name or "").strip().lower() for name in names if str(name or "").strip()}
+    if not wanted:
+        wanted = {"status", "hits"}
+    with _CACHE_LOCK:
+        if "status" in wanted:
+            _STATUS_CACHE["ts"] = 0.0
+            _STATUS_CACHE["payload"] = None
+        if "hits" in wanted:
+            _HITS_CACHE["ts"] = 0.0
+            _HITS_CACHE["payload"] = None
+
+
 def _should_resolve_zip(resolve_zip: bool, use_location: bool) -> bool:
     """Resolve ZIP only when explicitly requested and location scanning is enabled."""
     return bool(resolve_zip) and bool(use_location)
@@ -3978,6 +3991,7 @@ class Handler(BaseHTTPRequestHandler):
             if not ok:
                 payload["error"] = err or "start failed"
                 return self._send(500, json.dumps(payload), "application/json; charset=utf-8")
+            _invalidate_runtime_caches("status", "hits")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/digital/stop":
@@ -3986,6 +4000,7 @@ class Handler(BaseHTTPRequestHandler):
             if not ok:
                 payload["error"] = err or "stop failed"
                 return self._send(500, json.dumps(payload), "application/json; charset=utf-8")
+            _invalidate_runtime_caches("status", "hits")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/digital/restart":
@@ -4001,6 +4016,7 @@ class Handler(BaseHTTPRequestHandler):
             if not ok:
                 payload["error"] = err or "restart failed"
                 return self._send(500, json.dumps(payload), "application/json; charset=utf-8")
+            _invalidate_runtime_caches("status", "hits")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/digital/profile":
@@ -4022,6 +4038,7 @@ class Handler(BaseHTTPRequestHandler):
                 payload["error"] = err or "set profile failed"
                 status = 400 if err in ("invalid profileId", "unknown profileId") else 500
                 return self._send(status, json.dumps(payload), "application/json; charset=utf-8")
+            _invalidate_runtime_caches("status", "hits")
             try:
                 payload["v3_compile"] = set_active_digital_profile(profile_id)
             except Exception as e:
@@ -4344,6 +4361,7 @@ class Handler(BaseHTTPRequestHandler):
             result = enqueue_action({"type": "profile", "profile": pid, "target": target})
             payload = dict(result.get("payload") or {})
             if int(result.get("status") or 500) < 300 and payload.get("ok") and pid:
+                _invalidate_runtime_caches("status", "hits")
                 try:
                     payload["v3_compile"] = set_active_analog_profile(target, str(pid))
                 except Exception as e:
