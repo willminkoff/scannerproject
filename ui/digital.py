@@ -4697,7 +4697,9 @@ class DigitalManager:
         else:
             snapshot = self._scheduler_status_snapshot_locked(event, preflight)
         snapshot["digital_allocation_systems"] = list(self._scheduler_systems)
-        snapshot["digital_allocation_profile"] = str(self.getProfile() or "")
+        profile_id = str(self.getProfile() or "")
+        snapshot["digital_allocation_profile"] = profile_id
+        snapshot["digital_profile"] = profile_id
         snapshot["digital_applied_system"] = str(self._scheduler_last_applied_system or "")
         snapshot["digital_last_apply_time"] = int(self._scheduler_last_apply_time_ms or 0)
         if self._scheduler_last_apply_error:
@@ -4859,6 +4861,9 @@ class DigitalManager:
 
     def _allocation_snapshot_payload_locked(self, snapshot: dict, preflight: dict) -> dict:
         payload = dict(snapshot or {})
+        profile_id = str(self.getProfile() or "")
+        payload["digital_allocation_profile"] = profile_id
+        payload["digital_profile"] = profile_id
         assignments_payload = load_assignments()
         if not isinstance(assignments_payload, dict):
             return payload
