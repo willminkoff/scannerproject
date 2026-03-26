@@ -4867,16 +4867,16 @@ class DigitalManager:
             snapshot = dict(payload)
         else:
             snapshot = self._scheduler_status_snapshot_locked(event, preflight)
-        snapshot["digital_scheduler_systems"] = list(self._scheduler_systems)
-        snapshot["digital_scheduler_profile"] = str(self.getProfile() or "")
-        snapshot["digital_scheduler_applied_system"] = str(self._scheduler_last_applied_system or "")
-        snapshot["digital_scheduler_last_apply_time"] = int(self._scheduler_last_apply_time_ms or 0)
-        snapshot["digital_scheduler_perf_profile"] = str(
+        snapshot["digital_allocation_systems"] = list(self._scheduler_systems)
+        snapshot["digital_allocation_profile"] = str(self.getProfile() or "")
+        snapshot["digital_applied_system"] = str(self._scheduler_last_applied_system or "")
+        snapshot["digital_last_apply_time"] = int(self._scheduler_last_apply_time_ms or 0)
+        snapshot["digital_allocation_perf_profile"] = str(
             self._scheduler_perf_profile or _DEFAULT_DIGITAL_PERF_PROFILE
         )
-        snapshot["digital_scheduler_effective"] = dict(self._scheduler_effective_settings_locked())
+        snapshot["digital_allocation_effective"] = dict(self._scheduler_effective_settings_locked())
         if self._scheduler_last_apply_error:
-            snapshot["digital_scheduler_last_apply_error"] = str(self._scheduler_last_apply_error)
+            snapshot["digital_last_apply_error"] = str(self._scheduler_last_apply_error)
         return snapshot
 
     def _scheduler_tick(self):
@@ -4985,7 +4985,7 @@ class DigitalManager:
 
         profile_raw = payload.get(
             "performance_profile",
-            payload.get("digital_perf_profile", payload.get("digital_scheduler_perf_profile")),
+            payload.get("digital_perf_profile", payload.get("digital_allocation_perf_profile")),
         )
         if profile_raw is not None:
             self._apply_scheduler_perf_profile_locked(profile_raw, update_tick_interval=True)
@@ -5807,7 +5807,7 @@ class DigitalManager:
             if not payload:
                 payload = self._scheduler_snapshot_payload_locked(event, preflight)
                 snapshot_at_ms = now_ms
-            payload["digital_scheduler_snapshot_age_ms"] = max(
+            payload["digital_allocation_snapshot_age_ms"] = max(
                 0,
                 now_ms - snapshot_at_ms,
             ) if snapshot_at_ms > 0 else 0
@@ -5917,7 +5917,7 @@ class DigitalManager:
         order_raw = payload.get("system_order", payload.get("digital_system_order"))
         perf_raw = payload.get(
             "performance_profile",
-            payload.get("digital_perf_profile", payload.get("digital_scheduler_perf_profile")),
+            payload.get("digital_perf_profile", payload.get("digital_allocation_perf_profile")),
         )
 
         with self._scheduler_lock:
@@ -6320,62 +6320,62 @@ class DigitalManager:
             "digital_system_hang_ms": int(self._scheduler_hang_ms),
             "digital_system_order": list(self._scheduler_order),
             "digital_pause_on_hit": bool(self._scheduler_pause_on_hit),
-            "digital_scheduler_mode": mode,
-            "digital_scheduler_active_system": active_system,
-            "digital_scheduler_next_system": next_system,
-            "digital_scheduler_last_switch_time": int(self._scheduler_last_switch_time_ms or 0),
-            "digital_scheduler_switch_reason": self._scheduler_switch_reason,
-            "digital_scheduler_applied_system": self._scheduler_last_applied_system,
-            "digital_scheduler_last_apply_time": int(self._scheduler_last_apply_time_ms or 0),
-            "digital_scheduler_lock_timeout_ms": int(lock_timeout_ms),
-            "digital_scheduler_adaptive_lock_timeout_ms": int(adaptive_lock_timeout_ms),
-            "digital_scheduler_active_control_channel_count": int(active_control_channels),
+            "digital_allocation_strategy": mode,
+            "digital_active_system": active_system,
+            "digital_next_system": next_system,
+            "digital_last_switch_time": int(self._scheduler_last_switch_time_ms or 0),
+            "digital_switch_reason": self._scheduler_switch_reason,
+            "digital_applied_system": self._scheduler_last_applied_system,
+            "digital_last_apply_time": int(self._scheduler_last_apply_time_ms or 0),
+            "digital_lock_timeout_ms": int(lock_timeout_ms),
+            "digital_adaptive_lock_timeout_ms": int(adaptive_lock_timeout_ms),
+            "digital_active_control_channel_count": int(active_control_channels),
             "digital_voice_tuner_available": bool(voice_tuner_serials),
             "digital_voice_tuner_count": len(voice_tuner_serials),
             "digital_voice_tuner_serials": list(voice_tuner_serials),
-            "digital_scheduler_fast_switch_enabled": bool(fast_switch_active),
-            "digital_scheduler_runtime_retune_available": bool(runtime_retune_available),
-            "digital_scheduler_tick_interval_ms": int(self._scheduler_last_tick_interval_ms or 0),
-            "digital_scheduler_apply_method": str(self._scheduler_last_apply_method or ""),
-            "digital_scheduler_last_apply_duration_ms": int(self._scheduler_last_apply_duration_ms or 0),
-            "digital_scheduler_preflight_cache_age_ms": int(self._scheduler_last_preflight_cache_age_ms or 0),
-            "digital_scheduler_preflight_fresh": bool(preflight_fresh),
-            "digital_scheduler_preflight_stale_threshold_ms": int(_DIGITAL_SCHEDULER_STALE_PREFLIGHT_MS),
+            "digital_fast_switch_enabled": bool(fast_switch_active),
+            "digital_runtime_retune_available": bool(runtime_retune_available),
+            "digital_tick_interval_ms": int(self._scheduler_last_tick_interval_ms or 0),
+            "digital_apply_method": str(self._scheduler_last_apply_method or ""),
+            "digital_last_apply_duration_ms": int(self._scheduler_last_apply_duration_ms or 0),
+            "digital_preflight_cache_age_ms": int(self._scheduler_last_preflight_cache_age_ms or 0),
+            "digital_preflight_fresh": bool(preflight_fresh),
+            "digital_preflight_stale_threshold_ms": int(_DIGITAL_SCHEDULER_STALE_PREFLIGHT_MS),
             "digital_preflight_snapshot_age_ms": max(
                 0,
                 now_ms - int(getattr(self, "_preflight_snapshot_at_ms", 0) or 0),
             ) if int(getattr(self, "_preflight_snapshot_at_ms", 0) or 0) > 0 else 0,
-            "digital_scheduler_snapshot_age_ms": max(
+            "digital_allocation_snapshot_age_ms": max(
                 0,
                 now_ms - int(getattr(self, "_scheduler_snapshot_at_ms", 0) or 0),
             ) if int(getattr(self, "_scheduler_snapshot_at_ms", 0) or 0) > 0 else 0,
-            "digital_scheduler_lock_miss_ticks": int(lock_miss_ticks),
-            "digital_scheduler_lock_sticky_ms": int(_DIGITAL_SCHEDULER_LOCK_STICKY_MS),
-            "digital_scheduler_active_lock_age_ms": int(active_lock_age_ms),
-            "digital_scheduler_perf_profile": str(effective_settings.get("performance_profile") or ""),
-            "digital_scheduler_effective": dict(effective_settings),
+            "digital_lock_miss_ticks": int(lock_miss_ticks),
+            "digital_lock_sticky_ms": int(_DIGITAL_SCHEDULER_LOCK_STICKY_MS),
+            "digital_active_lock_age_ms": int(active_lock_age_ms),
+            "digital_allocation_perf_profile": str(effective_settings.get("performance_profile") or ""),
+            "digital_allocation_effective": dict(effective_settings),
         }
         active_label = str(self._scheduler_pool_system_labels.get(active_system) or "").strip()
         if active_label:
-            payload["digital_scheduler_active_system_label"] = active_label
+            payload["digital_active_system_label"] = active_label
         next_label = str(self._scheduler_pool_system_labels.get(next_system) or "").strip()
         if next_label:
-            payload["digital_scheduler_next_system_label"] = next_label
+            payload["digital_next_system_label"] = next_label
         active_department = str(
             self._scheduler_pool_department_labels.get(active_system) or ""
         ).strip()
         if active_department:
-            payload["digital_scheduler_active_department_label"] = active_department
+            payload["digital_active_department_label"] = active_department
         if event_tgid and active_system and recent_event:
             talkgroup_labels = self._scheduler_pool_talkgroup_labels.get(active_system) or {}
             talkgroup_groups = self._scheduler_pool_talkgroup_groups.get(active_system) or {}
             talkgroup_label = str(talkgroup_labels.get(event_tgid) or "").strip()
             talkgroup_group = str(talkgroup_groups.get(event_tgid) or "").strip()
             if talkgroup_label:
-                payload["digital_scheduler_active_talkgroup_label"] = talkgroup_label
+                payload["digital_active_talkgroup_label"] = talkgroup_label
             if talkgroup_group:
-                payload["digital_scheduler_active_department_label"] = talkgroup_group
-        payload["digital_scheduler_system_health"] = self._scheduler_system_health_payload(
+                payload["digital_active_department_label"] = talkgroup_group
+        payload["digital_allocation_system_health"] = self._scheduler_system_health_payload(
             systems,
             active_system,
             mode,
@@ -6384,7 +6384,7 @@ class DigitalManager:
             lock_timeout_ms,
         )
         if self._scheduler_last_apply_error:
-            payload["digital_scheduler_last_apply_error"] = self._scheduler_last_apply_error
+            payload["digital_last_apply_error"] = self._scheduler_last_apply_error
         return payload
 
     def _scheduler_health_snapshot_locked(
@@ -6471,52 +6471,52 @@ class DigitalManager:
             "digital_system_hang_ms": int(self._scheduler_hang_ms),
             "digital_system_order": list(self._scheduler_order),
             "digital_pause_on_hit": bool(self._scheduler_pause_on_hit),
-            "digital_scheduler_mode": mode,
-            "digital_scheduler_active_system": active_system,
-            "digital_scheduler_next_system": next_system,
-            "digital_scheduler_last_switch_time": int(self._scheduler_last_switch_time_ms or 0),
-            "digital_scheduler_switch_reason": str(self._scheduler_switch_reason or ""),
-            "digital_scheduler_applied_system": str(self._scheduler_last_applied_system or ""),
-            "digital_scheduler_last_apply_time": int(self._scheduler_last_apply_time_ms or 0),
-            "digital_scheduler_lock_timeout_ms": int(lock_timeout_ms),
-            "digital_scheduler_adaptive_lock_timeout_ms": int(adaptive_lock_timeout_ms),
-            "digital_scheduler_active_control_channel_count": int(active_control_channels),
+            "digital_allocation_strategy": mode,
+            "digital_active_system": active_system,
+            "digital_next_system": next_system,
+            "digital_last_switch_time": int(self._scheduler_last_switch_time_ms or 0),
+            "digital_switch_reason": str(self._scheduler_switch_reason or ""),
+            "digital_applied_system": str(self._scheduler_last_applied_system or ""),
+            "digital_last_apply_time": int(self._scheduler_last_apply_time_ms or 0),
+            "digital_lock_timeout_ms": int(lock_timeout_ms),
+            "digital_adaptive_lock_timeout_ms": int(adaptive_lock_timeout_ms),
+            "digital_active_control_channel_count": int(active_control_channels),
             "digital_voice_tuner_available": bool(voice_tuner_serials),
             "digital_voice_tuner_count": len(voice_tuner_serials),
             "digital_voice_tuner_serials": list(voice_tuner_serials),
-            "digital_scheduler_fast_switch_enabled": bool(fast_switch_active),
-            "digital_scheduler_runtime_retune_available": bool(runtime_retune_available),
-            "digital_scheduler_tick_interval_ms": int(self._scheduler_last_tick_interval_ms or 0),
-            "digital_scheduler_apply_method": str(self._scheduler_last_apply_method or ""),
-            "digital_scheduler_last_apply_duration_ms": int(self._scheduler_last_apply_duration_ms or 0),
-            "digital_scheduler_preflight_cache_age_ms": int(self._scheduler_last_preflight_cache_age_ms or 0),
-            "digital_scheduler_preflight_fresh": bool(preflight_fresh),
-            "digital_scheduler_preflight_stale_threshold_ms": int(_DIGITAL_SCHEDULER_STALE_PREFLIGHT_MS),
+            "digital_fast_switch_enabled": bool(fast_switch_active),
+            "digital_runtime_retune_available": bool(runtime_retune_available),
+            "digital_tick_interval_ms": int(self._scheduler_last_tick_interval_ms or 0),
+            "digital_apply_method": str(self._scheduler_last_apply_method or ""),
+            "digital_last_apply_duration_ms": int(self._scheduler_last_apply_duration_ms or 0),
+            "digital_preflight_cache_age_ms": int(self._scheduler_last_preflight_cache_age_ms or 0),
+            "digital_preflight_fresh": bool(preflight_fresh),
+            "digital_preflight_stale_threshold_ms": int(_DIGITAL_SCHEDULER_STALE_PREFLIGHT_MS),
             "digital_preflight_snapshot_age_ms": max(
                 0,
                 now_ms - int(getattr(self, "_preflight_snapshot_at_ms", 0) or 0),
             ) if int(getattr(self, "_preflight_snapshot_at_ms", 0) or 0) > 0 else 0,
-            "digital_scheduler_snapshot_age_ms": max(
+            "digital_allocation_snapshot_age_ms": max(
                 0,
                 now_ms - int(getattr(self, "_scheduler_snapshot_at_ms", 0) or 0),
             ) if int(getattr(self, "_scheduler_snapshot_at_ms", 0) or 0) > 0 else 0,
-            "digital_scheduler_lock_miss_ticks": int(self._scheduler_lock_miss_ticks or 0),
-            "digital_scheduler_lock_sticky_ms": int(_DIGITAL_SCHEDULER_LOCK_STICKY_MS),
-            "digital_scheduler_active_lock_age_ms": int(active_lock_age_ms),
-            "digital_scheduler_perf_profile": str(effective_settings.get("performance_profile") or ""),
-            "digital_scheduler_effective": dict(effective_settings),
+            "digital_lock_miss_ticks": int(self._scheduler_lock_miss_ticks or 0),
+            "digital_lock_sticky_ms": int(_DIGITAL_SCHEDULER_LOCK_STICKY_MS),
+            "digital_active_lock_age_ms": int(active_lock_age_ms),
+            "digital_allocation_perf_profile": str(effective_settings.get("performance_profile") or ""),
+            "digital_allocation_effective": dict(effective_settings),
         }
         active_label = str(self._scheduler_pool_system_labels.get(active_system) or "").strip()
         if active_label:
-            payload["digital_scheduler_active_system_label"] = active_label
+            payload["digital_active_system_label"] = active_label
         next_label = str(self._scheduler_pool_system_labels.get(next_system) or "").strip()
         if next_label:
-            payload["digital_scheduler_next_system_label"] = next_label
+            payload["digital_next_system_label"] = next_label
         active_department = str(
             self._scheduler_pool_department_labels.get(active_system) or ""
         ).strip()
         if active_department:
-            payload["digital_scheduler_active_department_label"] = active_department
+            payload["digital_active_department_label"] = active_department
 
         event_tgid = str(event.get("tgid") or "").strip()
         event_time_ms = int(event.get("timeMs") or 0)
@@ -6527,17 +6527,17 @@ class DigitalManager:
             talkgroup_label = str(talkgroup_labels.get(event_tgid) or "").strip()
             talkgroup_group = str(talkgroup_groups.get(event_tgid) or "").strip()
             if talkgroup_label:
-                payload["digital_scheduler_active_talkgroup_label"] = talkgroup_label
+                payload["digital_active_talkgroup_label"] = talkgroup_label
             if talkgroup_group:
-                payload["digital_scheduler_active_department_label"] = talkgroup_group
+                payload["digital_active_department_label"] = talkgroup_group
 
-        payload["digital_scheduler_system_health"] = self._scheduler_health_snapshot_locked(
+        payload["digital_allocation_system_health"] = self._scheduler_health_snapshot_locked(
             systems,
             active_system,
             mode,
         )
         if self._scheduler_last_apply_error:
-            payload["digital_scheduler_last_apply_error"] = str(self._scheduler_last_apply_error)
+            payload["digital_last_apply_error"] = str(self._scheduler_last_apply_error)
         return payload
 
     def status_payload(self):
@@ -6612,13 +6612,13 @@ class DigitalManager:
             payload["digital_retune_last_error"] = str(runtime_metrics.get("retune_last_error"))
         payload["digital_retune_last_changed"] = bool(runtime_metrics.get("retune_last_changed"))
         scheduler_talkgroup_label = str(
-            payload.get("digital_scheduler_active_talkgroup_label") or ""
+            payload.get("digital_active_talkgroup_label") or ""
         ).strip()
         scheduler_department_label = str(
-            payload.get("digital_scheduler_active_department_label") or ""
+            payload.get("digital_active_department_label") or ""
         ).strip()
         now_ms = int(time.time() * 1000)
-        payload["digital_scheduler_snapshot_age_ms"] = max(
+        payload["digital_allocation_snapshot_age_ms"] = max(
             0,
             now_ms - int(scheduler_snapshot_at_ms or 0),
         ) if int(scheduler_snapshot_at_ms or 0) > 0 else 0
@@ -6651,7 +6651,7 @@ class DigitalManager:
         else:
             payload["digital_channel_label"] = ""
         scheduler_system_label = str(
-            payload.get("digital_scheduler_active_system_label") or ""
+            payload.get("digital_active_system_label") or ""
         ).strip()
         if scheduler_system_label:
             payload["digital_system_label"] = scheduler_system_label
@@ -6703,9 +6703,9 @@ class DigitalManager:
                 f"until the dongles return at full USB speed."
             )
         elif (
-            payload.get("digital_scheduler_mode") == "timeslice_multi_system"
-            and bool(payload.get("digital_scheduler_fast_switch_enabled"))
-            and not bool(payload.get("digital_scheduler_runtime_retune_available"))
+            payload.get("digital_allocation_strategy") == "timeslice_multi_system"
+            and bool(payload.get("digital_fast_switch_enabled"))
+            and not bool(payload.get("digital_runtime_retune_available"))
         ):
             payload["digital_last_warning"] = (
                 "Digital fast-switch runtime retune backend unavailable; scheduler is using playlist-apply "

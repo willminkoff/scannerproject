@@ -573,7 +573,7 @@ def _extract_scheduler_payload(form: dict[str, Any]) -> dict:
         "digital_system_order",
         "performance_profile",
         "digital_perf_profile",
-        "digital_scheduler_perf_profile",
+        "digital_allocation_perf_profile",
     ):
         if key in form:
             payload[key] = form.get(key)
@@ -1973,28 +1973,28 @@ def _build_health_payload(
         ]
     subsystems["mixer"] = {"state": mixer_state, "reasons": mixer_reasons}
 
-    scheduler_age_ms = int(status_payload.get("digital_scheduler_snapshot_age_ms") or 0)
+    scheduler_age_ms = int(status_payload.get("digital_allocation_snapshot_age_ms") or 0)
     scheduler_stale_ms = max(1000, int(HEALTH_SCHEDULER_STALE_MS or 3000))
-    scheduler_error = str(status_payload.get("digital_scheduler_last_apply_error") or "").strip()
+    scheduler_error = str(status_payload.get("digital_last_apply_error") or "").strip()
     scheduler_state = "healthy"
     scheduler_reasons = []
     if not bool(status_payload.get("digital_active")):
         scheduler_state = "failed"
         scheduler_reasons.append(
             {
-                "code": "SCHEDULER_OFFLINE",
+                "code": "ALLOCATION_OFFLINE",
                 "severity": "critical",
-                "message": "Scheduler is offline because digital decoder is stopped",
+                "message": "Allocation is offline because digital decoder is stopped",
             }
         )
     elif scheduler_age_ms > (scheduler_stale_ms * 2):
         scheduler_state = "failed"
         scheduler_reasons.append(
             {
-                "code": "SCHEDULER_STALE",
+                "code": "ALLOCATION_STALE",
                 "severity": "critical",
                 "message": (
-                    f"Scheduler snapshot stale ({scheduler_age_ms}ms > "
+                    f"Allocation snapshot stale ({scheduler_age_ms}ms > "
                     f"{scheduler_stale_ms * 2}ms)"
                 ),
             }
@@ -2003,21 +2003,21 @@ def _build_health_payload(
         scheduler_state = "degraded"
         scheduler_reasons.append(
             {
-                "code": "SCHEDULER_STALE",
+                "code": "ALLOCATION_STALE",
                 "severity": "warn",
-                "message": f"Scheduler snapshot stale ({scheduler_age_ms}ms > {scheduler_stale_ms}ms)",
+                "message": f"Allocation snapshot stale ({scheduler_age_ms}ms > {scheduler_stale_ms}ms)",
             }
         )
     if scheduler_error:
         scheduler_state = _health_worst_state([scheduler_state, "degraded"])
         scheduler_reasons.append(
             {
-                "code": "SCHEDULER_APPLY_ERROR",
+                "code": "ALLOCATION_APPLY_ERROR",
                 "severity": "warn",
                 "message": scheduler_error,
             }
         )
-    subsystems["scheduler"] = {"state": scheduler_state, "reasons": scheduler_reasons}
+    subsystems["digital_allocation"] = {"state": scheduler_state, "reasons": scheduler_reasons}
 
     mounts = list(status_payload.get("icecast_mounts") or [])
     expected_mounts = list(status_payload.get("icecast_expected_mounts") or [])
@@ -3686,23 +3686,23 @@ class Handler(BaseHTTPRequestHandler):
             if not hasattr(manager, "getScheduler") or not hasattr(manager, "setScheduler"):
                 return self._send(
                     400,
-                    json.dumps({"ok": False, "error": "digital scheduler not supported"}),
+                    json.dumps({"ok": False, "error": "digital allocation not supported"}),
                     "application/json; charset=utf-8",
                 )
 
             scheduler = dict(manager.getScheduler() or {})
             systems = [
                 str(item).strip()
-                for item in (scheduler.get("digital_scheduler_systems") or [])
+                for item in (scheduler.get("digital_allocation_systems") or [])
                 if str(item).strip()
             ]
-            active = str(scheduler.get("digital_scheduler_active_system") or "").strip()
+            active = str(scheduler.get("digital_active_system") or "").strip()
             mode = str(scheduler.get("digital_scan_mode") or "").strip().lower()
             order = [
                 str(item).strip()
                 for item in (
                     scheduler.get("digital_system_order")
-                    or scheduler.get("digital_scheduler_systems")
+                    or scheduler.get("digital_allocation_systems")
                     or []
                 )
                 if str(item).strip()
@@ -3727,7 +3727,7 @@ class Handler(BaseHTTPRequestHandler):
                         "action": "hold",
                         "runtime_changed": True,
                         "released": True,
-                        "scheduler": snapshot,
+                        "digital_allocation": snapshot,
                     }
                     return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
@@ -3755,7 +3755,7 @@ class Handler(BaseHTTPRequestHandler):
                     "action": "hold",
                     "runtime_changed": True,
                     "active_system": target,
-                    "scheduler": snapshot,
+                    "digital_allocation": snapshot,
                 }
                 return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
@@ -3788,7 +3788,7 @@ class Handler(BaseHTTPRequestHandler):
                     "action": "next",
                     "runtime_changed": True,
                     "active_system": target,
-                    "scheduler": snapshot,
+                    "digital_allocation": snapshot,
                 }
                 return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
@@ -3822,7 +3822,7 @@ class Handler(BaseHTTPRequestHandler):
                 "runtime_changed": True,
                 "avoided_system": active,
                 "avoids": controller.get_hp_avoids(),
-                "scheduler": snapshot,
+                "digital_allocation": snapshot,
             }
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 

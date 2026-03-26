@@ -2907,10 +2907,10 @@
               </div>
               <span class="service-dot"></span>
             </div>
-            <div class="service-item" data-service="scheduler">
+            <div class="service-item" data-service="digital_allocation">
               <div>
-                <div class="service-name">Digital Scheduler</div>
-                <div class="service-meta">Status: <span id="service-scheduler">--</span></div>
+                <div class="service-name">Digital Allocation</div>
+                <div class="service-meta">Status: <span id="service-digital_allocation">--</span></div>
               </div>
               <span class="service-dot"></span>
             </div>
@@ -3091,7 +3091,7 @@
               <span class="config-value" id="sitrep-digital-profile">--</span>
             </div>
             <div class="config-row">
-              <span class="config-label">Digital Mode</span>
+              <span class="config-label">Allocation Strategy</span>
               <span class="config-value" id="sitrep-digital-mode">--</span>
             </div>
             <div class="config-row">
@@ -9119,8 +9119,8 @@
       const parsed = parseDigitalAgencyDepartment(raw);
       const schedulerAgency = String(
         (state.digital && state.digital.schedulerRaw && (
-          state.digital.schedulerRaw.digital_scheduler_active_department_label
-          || state.digital.schedulerRaw.digital_scheduler_active_system_label
+          state.digital.schedulerRaw.digital_active_department_label
+          || state.digital.schedulerRaw.digital_active_system_label
         )) || ''
       ).trim();
       const agency = directAgency || parsed.agency || schedulerAgency;
@@ -11086,25 +11086,25 @@
     function applyDigitalSchedulerPayload(payload) {
       if (!payload || typeof payload !== 'object') return;
       const d = state.digital;
-      d.schedulerMode = payload.digital_scheduler_mode || payload.mode || d.schedulerMode || '';
-      d.schedulerActiveSystem = payload.digital_scheduler_active_system || d.schedulerActiveSystem || '';
-      d.schedulerNextSystem = payload.digital_scheduler_next_system || d.schedulerNextSystem || '';
-      d.schedulerSwitchReason = payload.digital_scheduler_switch_reason || d.schedulerSwitchReason || '';
-      d.schedulerLastSwitchTime = Number.isFinite(payload.digital_scheduler_last_switch_time)
-        ? payload.digital_scheduler_last_switch_time
+      d.schedulerMode = payload.digital_allocation_strategy || payload.mode || d.schedulerMode || '';
+      d.schedulerActiveSystem = payload.digital_active_system || d.schedulerActiveSystem || '';
+      d.schedulerNextSystem = payload.digital_next_system || d.schedulerNextSystem || '';
+      d.schedulerSwitchReason = payload.digital_switch_reason || d.schedulerSwitchReason || '';
+      d.schedulerLastSwitchTime = Number.isFinite(payload.digital_last_switch_time)
+        ? payload.digital_last_switch_time
         : d.schedulerLastSwitchTime || 0;
-      d.schedulerLastApplyError = payload.digital_scheduler_last_apply_error || d.schedulerLastApplyError || '';
-      d.schedulerLockTimeoutMs = Number.isFinite(payload.digital_scheduler_lock_timeout_ms)
-        ? payload.digital_scheduler_lock_timeout_ms
+      d.schedulerLastApplyError = payload.digital_last_apply_error || d.schedulerLastApplyError || '';
+      d.schedulerLockTimeoutMs = Number.isFinite(payload.digital_lock_timeout_ms)
+        ? payload.digital_lock_timeout_ms
         : d.schedulerLockTimeoutMs || 0;
-      d.schedulerSnapshotAgeMs = Number.isFinite(payload.digital_scheduler_snapshot_age_ms)
-        ? payload.digital_scheduler_snapshot_age_ms
+      d.schedulerSnapshotAgeMs = Number.isFinite(payload.digital_allocation_snapshot_age_ms)
+        ? payload.digital_allocation_snapshot_age_ms
         : d.schedulerSnapshotAgeMs || 0;
       d.preflightSnapshotAgeMs = Number.isFinite(payload.digital_preflight_snapshot_age_ms)
         ? payload.digital_preflight_snapshot_age_ms
         : d.preflightSnapshotAgeMs || 0;
-      if (Array.isArray(payload.digital_scheduler_system_health)) {
-        d.schedulerSystemHealth = payload.digital_scheduler_system_health;
+      if (Array.isArray(payload.digital_allocation_system_health)) {
+        d.schedulerSystemHealth = payload.digital_allocation_system_health;
       }
       d.schedulerRaw = payload;
     }
@@ -11150,12 +11150,12 @@
 
     function statusHasSchedulerSnapshot(payload) {
       if (!payload || typeof payload !== 'object') return false;
-      const mode = String(payload.digital_scheduler_mode || payload.digital_scan_mode || '').trim();
-      const systems = payload.digital_scheduler_systems;
+      const mode = String(payload.digital_allocation_strategy || payload.digital_scan_mode || '').trim();
+      const systems = payload.digital_allocation_systems;
       return Boolean(
         mode
         || Array.isArray(systems)
-        || Object.prototype.hasOwnProperty.call(payload, 'digital_scheduler_snapshot_age_ms')
+        || Object.prototype.hasOwnProperty.call(payload, 'digital_allocation_snapshot_age_ms')
       );
     }
 
