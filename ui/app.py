@@ -29,25 +29,43 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
 
 
 def _rehydrate_wx_reader():
-    """If the active ground profile is a wx decoder, start the reader thread."""
+    """If the active ground profile is a wx decoder, ensure the decoder
+    service is running and start the reader thread.
+
+    Handles both airband-ui restarts (service already active) and full
+    cold boots (service not yet started because it is not systemd-enabled).
+    """
     import logging
     try:
         try:
             from .config import GROUND_CONFIG_PATH
             from .profile_config import read_wx_decoder
-            from .systemd import unit_active, UNITS
+            from .systemd import unit_active, UNITS, start_acars, start_radiosonde
             from .server_workers import start_wx_reader
         except ImportError:
             from ui.config import GROUND_CONFIG_PATH
             from ui.profile_config import read_wx_decoder
-            from ui.systemd import unit_active, UNITS
+            from ui.systemd import unit_active, UNITS, start_acars, start_radiosonde
             from ui.server_workers import start_wx_reader
 
         ground_conf = os.path.realpath(GROUND_CONFIG_PATH)
         decoder = read_wx_decoder(ground_conf)
-        if decoder and decoder in UNITS and unit_active(UNITS[decoder]):
-            logging.info("Rehydrating wx reader for active %s decoder", decoder)
-            start_wx_reader(decoder)
+        if not decoder or decoder not in UNITS:
+            return
+
+        # If the decoder service isn't running yet (cold boot), start it.
+        if not unit_active(UNITS[decoder]):
+            logging.info("Cold-boot: starting %s decoder service", decoder)
+            _starters = {"acars": start_acars, "radiosonde": start_radiosonde}
+            starter = _starters.get(decoder)
+            if starter:
+                ok, err = starter()
+                if not ok:
+                    logging.warning("Failed to start %s on boot: %s", decoder, err)
+                    return
+
+        logging.info("Rehydrating wx reader for active %s decoder", decoder)
+        start_wx_reader(decoder)
     except Exception:
         logging.getLogger(__name__).debug("wx rehydration skipped", exc_info=True)
 
