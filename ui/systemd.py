@@ -229,32 +229,32 @@ def start_ground():
 
 def start_acars() -> Tuple[bool, str]:
     """Start the ACARS decoder service."""
-    return _start_unit(UNITS["acars"])
+    return _start_unit(UNITS["acars"], use_sudo=True)
 
 
 def stop_acars() -> Tuple[bool, str]:
     """Stop the ACARS decoder service."""
-    return _stop_unit(UNITS["acars"])
+    return _stop_unit(UNITS["acars"], use_sudo=True)
 
 
 def restart_acars() -> Tuple[bool, str]:
     """Restart the ACARS decoder service."""
-    return _restart_unit(UNITS["acars"])
+    return _restart_unit(UNITS["acars"], use_sudo=True)
 
 
 def start_radiosonde() -> Tuple[bool, str]:
     """Start the radiosonde decoder service."""
-    return _start_unit(UNITS["radiosonde"])
+    return _start_unit(UNITS["radiosonde"], use_sudo=True)
 
 
 def stop_radiosonde() -> Tuple[bool, str]:
     """Stop the radiosonde decoder service."""
-    return _stop_unit(UNITS["radiosonde"])
+    return _stop_unit(UNITS["radiosonde"], use_sudo=True)
 
 
 def restart_radiosonde() -> Tuple[bool, str]:
     """Restart the radiosonde decoder service."""
-    return _restart_unit(UNITS["radiosonde"])
+    return _restart_unit(UNITS["radiosonde"], use_sudo=True)
 
 
 def start_digital() -> Tuple[bool, str]:

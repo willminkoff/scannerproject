@@ -125,6 +125,34 @@ class HostRebootControlTests(unittest.TestCase):
         self.assertIn("not permitted", err)
 
 
+class WxDecoderControlTests(unittest.TestCase):
+    def test_wx_decoder_helpers_use_sudo_for_system_units(self):
+        calls = []
+
+        def fake_run(args, use_sudo=False):
+            calls.append((tuple(args), bool(use_sudo)))
+            return _Proc(returncode=0)
+
+        with mock.patch.dict(
+            systemd.UNITS,
+            {"acars": "acarsdec", "radiosonde": "radiosonde-auto-rx"},
+            clear=False,
+        ), mock.patch.object(systemd, "_run_systemctl", side_effect=fake_run):
+            self.assertEqual((True, ""), systemd.start_acars())
+            self.assertEqual((True, ""), systemd.stop_acars())
+            self.assertEqual((True, ""), systemd.restart_acars())
+            self.assertEqual((True, ""), systemd.start_radiosonde())
+            self.assertEqual((True, ""), systemd.stop_radiosonde())
+            self.assertEqual((True, ""), systemd.restart_radiosonde())
+
+        self.assertIn((("start", "acarsdec"), True), calls)
+        self.assertIn((("stop", "acarsdec"), True), calls)
+        self.assertIn((("restart", "acarsdec"), True), calls)
+        self.assertIn((("start", "radiosonde-auto-rx"), True), calls)
+        self.assertIn((("stop", "radiosonde-auto-rx"), True), calls)
+        self.assertIn((("restart", "radiosonde-auto-rx"), True), calls)
+
+
 class _FakePostRequest:
     def __init__(self, path: str, body: str, ctype: str = "application/x-www-form-urlencoded"):
         self.path = path
