@@ -3323,7 +3323,8 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/wx/status":
             store = get_met_store()
             status = store.get_status()
-            status["acars_installed"] = bool(shutil.which("acarsdec"))
+            _acars = "/usr/local/bin/acarsdec"
+            status["acars_installed"] = bool(shutil.which("acarsdec") or os.path.isfile(_acars))
             _autorx = "/opt/radiosonde_auto_rx/auto_rx.py"
             status["radiosonde_installed"] = bool(shutil.which("auto_rx.py") or os.path.isfile(_autorx))
             return self._send(200, json.dumps(status), "application/json; charset=utf-8")

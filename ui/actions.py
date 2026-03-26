@@ -284,7 +284,7 @@ def _clamp_squelch_dbfs(value: float) -> float:
 # Decoder service helpers keyed by decoder name
 _WX_START = {"acars": start_acars, "radiosonde": start_radiosonde}
 _WX_STOP = {"acars": stop_acars, "radiosonde": stop_radiosonde}
-_WX_BIN = {"acars": "acarsdec", "radiosonde": "/opt/radiosonde_auto_rx/auto_rx.py"}
+_WX_BIN = {"acars": "/usr/local/bin/acarsdec", "radiosonde": "/opt/radiosonde_auto_rx/auto_rx.py"}
 
 
 def _start_wx_reader(decoder: str) -> None:

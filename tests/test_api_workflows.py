@@ -304,6 +304,44 @@ class ProfileApiWorkflowTests(unittest.TestCase):
         self.assertEqual(expected_target, switched_target)
 
 
+class WxApiWorkflowTests(unittest.TestCase):
+    def setUp(self):
+        _reset_handler_caches()
+
+    def tearDown(self):
+        _reset_handler_caches()
+
+    def test_wx_status_accepts_acars_absolute_path_fallback(self):
+        class _Store:
+            def get_status(self):
+                return {
+                    "collecting": False,
+                    "active_decoder": None,
+                    "message_count": 0,
+                    "met_count": 0,
+                    "last_message_time": 0.0,
+                }
+
+        def fake_isfile(path: str) -> bool:
+            return path == "/usr/local/bin/acarsdec"
+
+        with mock.patch.object(handlers, "get_met_store", return_value=_Store()), mock.patch.object(
+            handlers.shutil,
+            "which",
+            return_value=None,
+        ), mock.patch.object(
+            handlers.os.path,
+            "isfile",
+            side_effect=fake_isfile,
+        ):
+            code, body, _ = handlers.Handler.do_GET(_FakeGetRequest("/api/wx/status"))
+
+        self.assertEqual(200, code)
+        payload = json.loads(body)
+        self.assertTrue(payload["acars_installed"])
+        self.assertFalse(payload["radiosonde_installed"])
+
+
 class DigitalApiWorkflowTests(unittest.TestCase):
     def setUp(self):
         _reset_handler_caches()

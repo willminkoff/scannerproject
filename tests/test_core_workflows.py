@@ -105,6 +105,69 @@ class ProfileSwitchWorkflowTests(unittest.TestCase):
                 restart_rtl.assert_called_once()
                 mark_cutoff.assert_called_once_with("airband")
 
+    def test_action_set_profile_accepts_acars_absolute_binary_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            current_path = os.path.join(tmp, "current_ground.conf")
+            next_path = os.path.join(tmp, "acars.conf")
+            active_link = os.path.join(tmp, "active_ground.conf")
+            _write_profile(current_path, airband=False, freqs=[162.55], labels=["WX"])
+            with open(next_path, "w", encoding="utf-8") as handle:
+                handle.write("airband = false;\nui_disabled = true;\nwx_decoder = acars;\n")
+            os.symlink(current_path, active_link)
+
+            profiles_ground = [
+                {"id": "current", "label": "Current", "path": current_path},
+                {"id": "acars", "label": "ACARS", "path": next_path},
+            ]
+            start_acars = mock.Mock(return_value=(True, ""))
+
+            def fake_isfile(path: str) -> bool:
+                return path == "/usr/local/bin/acarsdec"
+
+            with mock.patch.object(
+                actions,
+                "split_profiles",
+                return_value=([], [], profiles_ground),
+            ), mock.patch.object(
+                actions,
+                "GROUND_CONFIG_PATH",
+                active_link,
+            ), mock.patch.object(
+                actions,
+                "write_combined_config",
+                return_value=False,
+            ), mock.patch.object(
+                actions.shutil,
+                "which",
+                return_value=None,
+            ), mock.patch.object(
+                actions.os.path,
+                "isfile",
+                side_effect=fake_isfile,
+            ), mock.patch.object(
+                actions,
+                "restart_rtl",
+                return_value=(True, ""),
+            ), mock.patch.dict(
+                actions._WX_START,
+                {"acars": start_acars},
+                clear=False,
+            ), mock.patch.object(
+                actions,
+                "_start_wx_reader",
+            ) as start_reader, mock.patch.object(
+                actions,
+                "mark_analog_hit_cutoff",
+            ) as mark_cutoff:
+                result = actions.action_set_profile("acars", "ground", restart_service=True)
+
+        self.assertEqual(200, result["status"])
+        self.assertTrue(result["payload"]["ok"])
+        self.assertEqual("acars", result["payload"]["wx_decoder"])
+        start_acars.assert_called_once()
+        start_reader.assert_called_once_with("acars")
+        mark_cutoff.assert_called_once_with("ground")
+
 
 class ScannerWorkflowTests(unittest.TestCase):
     def setUp(self):
