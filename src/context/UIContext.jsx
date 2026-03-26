@@ -35,11 +35,11 @@ const initialState = {
 };
 
 const STICKY_STATUS_KEYS = [
-  "digital_scheduler_active_system",
-  "digital_scheduler_active_system_label",
-  "digital_scheduler_next_system",
-  "digital_scheduler_next_system_label",
-  "digital_scheduler_active_department_label",
+  "digital_active_system",
+  "digital_active_system_label",
+  "digital_next_system",
+  "digital_next_system_label",
+  "digital_active_department_label",
   "digital_last_label",
   "digital_channel_label",
   "digital_department_label",

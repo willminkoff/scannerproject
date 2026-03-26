@@ -78,8 +78,8 @@ def main() -> int:
 
     active_samples: list[tuple[float, dict]] = []
     for ts, payload in samples:
-        mode = str(payload.get("digital_scheduler_mode") or payload.get("digital_scan_mode") or "").strip().lower()
-        systems = payload.get("digital_scheduler_systems") or []
+        mode = str(payload.get("digital_allocation_strategy") or payload.get("digital_scan_mode") or "").strip().lower()
+        systems = payload.get("digital_allocation_systems") or []
         if mode == "timeslice_multi_system" and isinstance(systems, list) and len(systems) > 1:
             active_samples.append((ts, payload))
 
@@ -92,21 +92,21 @@ def main() -> int:
     last_switch_ts = 0.0
 
     for ts, payload in active_samples:
-        tick_ms = int(payload.get("digital_scheduler_tick_interval_ms") or 0)
+        tick_ms = int(payload.get("digital_tick_interval_ms") or 0)
         if tick_ms > 0:
             tick_total += 1
             if tick_ms <= 300:
                 tick_ok += 1
 
-        if str(payload.get("digital_scheduler_last_apply_error") or "").strip():
+        if str(payload.get("digital_last_apply_error") or "").strip():
             apply_error_count += 1
 
-        active_system = str(payload.get("digital_scheduler_active_system") or "").strip()
+        active_system = str(payload.get("digital_active_system") or "").strip()
         if active_system:
             if last_active_system and active_system != last_active_system:
                 if last_switch_ts > 0:
                     switch_intervals.append(max(0.0, ts - last_switch_ts))
-                reason = str(payload.get("digital_scheduler_switch_reason") or "").strip().lower() or "unknown"
+                reason = str(payload.get("digital_switch_reason") or "").strip().lower() or "unknown"
                 switch_reasons[reason] = int(switch_reasons.get(reason) or 0) + 1
                 last_switch_ts = ts
             elif not last_active_system:
