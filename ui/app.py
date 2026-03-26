@@ -28,6 +28,30 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
 
 
+def _rehydrate_wx_reader():
+    """If the active ground profile is a wx decoder, start the reader thread."""
+    import logging
+    try:
+        try:
+            from .config import GROUND_CONFIG_PATH
+            from .profile_config import read_wx_decoder
+            from .systemd import unit_active, UNITS
+            from .server_workers import start_wx_reader
+        except ImportError:
+            from ui.config import GROUND_CONFIG_PATH
+            from ui.profile_config import read_wx_decoder
+            from ui.systemd import unit_active, UNITS
+            from ui.server_workers import start_wx_reader
+
+        ground_conf = os.path.realpath(GROUND_CONFIG_PATH)
+        decoder = read_wx_decoder(ground_conf)
+        if decoder and decoder in UNITS and unit_active(UNITS[decoder]):
+            logging.info("Rehydrating wx reader for active %s decoder", decoder)
+            start_wx_reader(decoder)
+    except Exception:
+        logging.getLogger(__name__).debug("wx rehydration skipped", exc_info=True)
+
+
 def main():
     """Start the UI server."""
     import logging
@@ -57,6 +81,7 @@ def main():
         logging.warning("Favorites runtime sync failed: %s", e)
     start_config_worker()
     start_icecast_monitor()
+    _rehydrate_wx_reader()
     server = ThreadedHTTPServer(("0.0.0.0", UI_PORT), Handler)
     logging.info(f"UI listening on 0.0.0.0:{UI_PORT}")
     server.serve_forever()

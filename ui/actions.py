@@ -284,7 +284,7 @@ def _clamp_squelch_dbfs(value: float) -> float:
 # Decoder service helpers keyed by decoder name
 _WX_START = {"acars": start_acars, "radiosonde": start_radiosonde}
 _WX_STOP = {"acars": stop_acars, "radiosonde": stop_radiosonde}
-_WX_BIN = {"acars": "acarsdec", "radiosonde": "auto_rx.py"}
+_WX_BIN = {"acars": "acarsdec", "radiosonde": "/opt/radiosonde_auto_rx/auto_rx.py"}
 
 
 def _start_wx_reader(decoder: str) -> None:
@@ -663,11 +663,11 @@ def action_set_profile(profile_id: str, target: str, *, restart_service: bool = 
 
             # Validate decoder binary is installed
             if new_decoder and new_decoder in _WX_BIN:
-                bin_name = _WX_BIN[new_decoder]
-                if not shutil.which(bin_name):
+                bin_path = _WX_BIN[new_decoder]
+                if not (shutil.which(bin_path) or os.path.isfile(bin_path)):
                     return {"status": 500, "payload": {
                         "ok": False,
-                        "error": f"{bin_name} not installed; install it to use {new_decoder} mode"
+                        "error": f"{bin_path} not found; install it to use {new_decoder} mode"
                     }}
 
         ok, changed = set_profile(profile_id, conf_path, profiles, target_symlink)
@@ -706,7 +706,8 @@ def action_set_profile(profile_id: str, target: str, *, restart_service: bool = 
             if new_decoder and new_decoder in _WX_START:
                 dec_ok, dec_err = _WX_START[new_decoder]()
                 if not dec_ok:
-                    payload["wx_error"] = dec_err
+                    payload["ok"] = False
+                    payload["error"] = f"{new_decoder} service failed to start: {dec_err}"
                 else:
                     _start_wx_reader(new_decoder)
                 payload["wx_decoder"] = new_decoder

@@ -3324,7 +3324,8 @@ class Handler(BaseHTTPRequestHandler):
             store = get_met_store()
             status = store.get_status()
             status["acars_installed"] = bool(shutil.which("acarsdec"))
-            status["radiosonde_installed"] = bool(shutil.which("auto_rx.py"))
+            _autorx = "/opt/radiosonde_auto_rx/auto_rx.py"
+            status["radiosonde_installed"] = bool(shutil.which("auto_rx.py") or os.path.isfile(_autorx))
             return self._send(200, json.dumps(status), "application/json; charset=utf-8")
 
         if p == "/api/wx/messages":
@@ -4056,6 +4057,11 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 payload["v3_compile_error"] = str(e)
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+        if p == "/api/wx/clear":
+            store = get_met_store()
+            source = get_str("source") or None
+            store.clear(source=source)
+            return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
 
         if p == "/api/digital/start":
             gate = gate_action("digital_start")
