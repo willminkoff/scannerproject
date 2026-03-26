@@ -22,7 +22,7 @@ Current scanner host (replacing the Pi runtime target):
   - `00000002` (RTL-SDR Blog V4)
   - `00000001` (Nooelec NESDR SMArt v5, replacement for prior digital secondary `49571227`)
   - `56919602` (Nooelec NESDR SMArt v5)
-  - `70613472` (Nooelec NESDR SMArt v5)
+  - `83241970` (Nooelec NESDR SMArt v5, reflashed from `70613472`/`00000003`)
   - `14306619` (Nooelec NESDR SMArt v5, extra digital-capable tuner)
 
 ## Version 2.5 Lock (2026-02-21)
@@ -31,7 +31,7 @@ Current scanner host (replacing the Pi runtime target):
 - Added control-channel confidence state for digital profiles using decoded-message metrics (`Locked`, `Searching`, `Inferred` states in UI).
 - Filtered non-actionable headless SDRTrunk warnings from digital decoder error reporting to reduce false alarm noise.
 - Verified stable 4-dongle runtime baseline with a 10-minute soak: `120/120` healthy samples, `0` USB kernel drop events.
-- Current Micro serial-to-path baseline after the 2026-03-25 digital-secondary replacement: `00000001 -> 1-5.1.1`, `56919602 -> 1-5.1.2`, `14306619 -> 1-5.1.3`, `00000002 -> 1-5.3`, `70613472 -> 1-5.4`.
+- Current Micro serial-to-path baseline after the 2026-03-26 ground serial reflash: `00000001 -> 1-5.1.1`, `56919602 -> 1-5.1.2`, `14306619 -> 1-5.1.3`, `00000002 -> 1-5.3`, `83241970 -> 1-5.4`.
 - Analog profile switches now restart `rtl-airband` whenever the active profile symlink changes, even if the combined config bytes are unchanged.
 - Handler cache invalidation now clears stale `/api/status` and `/api/hits` snapshots after analog profile changes and digital lifecycle actions.
 - API workflow coverage now exercises real handler paths for analog `/api/profile` -> `/api/hits` transitions and digital `start` / `profile` / `restart` / `stop`.
@@ -574,7 +574,7 @@ At runtime, `ensure-digital-runtime.py` and profile switches now write the SDRTr
 **Dongle serial locking**:
 These mappings prevent device-busy conflicts:
 - Airband (rtl-airband): `00000002`
-- Ground (rtl-airband): `70613472`
+- Ground (rtl-airband): `83241970`
 - Digital primary (SDRTrunk): `56919602`
 - Digital secondary (SDRTrunk): `00000001`
 - Extra digital-capable tuner currently present on Micro: `14306619` (auto-adopted when `DIGITAL_AUTO_ADOPT_EXTRA_TUNERS=1`)
@@ -652,7 +652,7 @@ SB3 connected refresh controls:
 If you are on SprontPi, set these in `/etc/airband-ui.conf` (or your UI EnvironmentFile):
 ```bash
 AIRBAND_RTL_SERIAL=00000002
-GROUND_RTL_SERIAL=70613472
+GROUND_RTL_SERIAL=83241970
 DIGITAL_RTL_SERIAL=56919602
 DIGITAL_RTL_SERIAL_SECONDARY=00000001
 DIGITAL_BOOT_DEFAULT_PROFILE=tacn-all
@@ -1016,7 +1016,7 @@ When station location is configured (via HomePatrol state with `use_location` en
 - `wind_dir_deg`, `wind_speed_kt`
 
 **Current deployment status (2026-03-26)**:
-Services are wired and systemd units are deployed on Micro. Decoder binaries (`acarsdec`, `radiosonde_auto_rx`) are not yet installed — services exit 127 until the binaries are built/installed.
+Both decoders are installed and validated on Micro. ACARS decodes on 4 standard US channels (`-o 4 -l` file output mode). Radiosonde runs with a generated `station.cfg` from upstream example with targeted sed overrides.
 
 ### GET /static/*
 Serve static web assets.
