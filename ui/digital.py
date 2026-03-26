@@ -64,7 +64,7 @@ try:
         DIGITAL_SYSTEM_ORDER,
         DIGITAL_USE_MULTI_FREQ_SOURCE,
     )
-    from .dongle_allocator import preferred_tuner_for_system
+    from .dongle_allocator import preferred_tuner_for_system, current_strategy as _dongle_strategy, load_assignments as _dongle_load_assignments
     from .systemd import unit_active
     from .system_stats import read_rtl_dongle_health
     from .scan_pool_adapter import get_active_scan_pool_snapshot, get_current_scan_mode
@@ -112,7 +112,7 @@ except ImportError:
         DIGITAL_SYSTEM_ORDER,
         DIGITAL_USE_MULTI_FREQ_SOURCE,
     )
-    from ui.dongle_allocator import preferred_tuner_for_system
+    from ui.dongle_allocator import preferred_tuner_for_system, current_strategy as _dongle_strategy, load_assignments as _dongle_load_assignments
     from ui.systemd import unit_active
     from ui.system_stats import read_rtl_dongle_health
     from ui.scan_pool_adapter import get_active_scan_pool_snapshot, get_current_scan_mode
@@ -611,6 +611,23 @@ def _add_scheduler_compat_aliases(payload: dict) -> None:
     # Re-emit dropped shim fields for any consumer still reading them
     payload.setdefault("digital_scheduler_fast_switch_enabled", False)
     payload.setdefault("digital_scheduler_tick_interval_ms", 0)
+
+
+def _dongle_allocation_snapshot() -> dict:
+    """Return the current dongle-allocation state, or empty dict on error."""
+    try:
+        data = _dongle_load_assignments()
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _dongle_assignment_for_system(alloc: dict, system_name: str) -> dict | None:
+    """Find the dongle assignment entry for a specific system."""
+    for entry in alloc.get("assignments") or []:
+        if str(entry.get("system_name") or "").strip() == str(system_name or "").strip():
+            return entry
+    return None
 
 
 def _digital_tuner_targets() -> list[str]:
@@ -5500,6 +5517,9 @@ class DigitalManager:
         lock_fail_count = int(preflight.get("control_lock_fail_count") or 0)
         window_sec = max(1, int(int(preflight.get("control_window_ms") or _DIGITAL_CONTROL_WINDOW_MS) / 1000))
         tuner_busy = bool(preflight.get("tuner_busy"))
+        alloc = _dongle_allocation_snapshot()
+        strategy = str(alloc.get("strategy") or "").strip()
+        dedicated = strategy in ("all_control", "dedicated_control")
         rows: list[dict] = []
 
         for name in systems:
@@ -5507,8 +5527,17 @@ class DigitalManager:
             if not entry:
                 continue
             is_active = name == active_system
-            state = "standby"
-            reason = "timeslice standby" if mode == "timeslice_multi_system" else "inactive"
+            assignment = _dongle_assignment_for_system(alloc, name)
+            dongle_serial = str(assignment.get("preferred_tuner_serial") or "") if assignment else ""
+            dongle_role = str(assignment.get("role") or "") if assignment else ""
+
+            if dedicated and not is_active:
+                # Each system has its own dongle — not on standby
+                state = "assigned"
+                reason = f"dongle {dongle_serial}" if dongle_serial else "assigned"
+            else:
+                state = "standby"
+                reason = "inactive"
 
             if is_active:
                 elapsed_ms = now_ms - int(self._scheduler_last_switch_time_ms or 0)
@@ -5544,8 +5573,7 @@ class DigitalManager:
                     state = "degraded"
                     reason = "tuner contention"
 
-            rows.append(
-                {
+            row = {
                     "name": name,
                     "active": bool(is_active),
                     "state": state,
@@ -5553,8 +5581,12 @@ class DigitalManager:
                     "lock_failures": int(entry.get("lock_failures") or 0),
                     "last_lock_time": int(entry.get("last_lock_time_ms") or 0),
                     "last_lock_loss_time": int(entry.get("last_lock_loss_time_ms") or 0),
-                }
-            )
+            }
+            if dongle_serial:
+                row["dongle_serial"] = dongle_serial
+            if dongle_role:
+                row["dongle_role"] = dongle_role
+            rows.append(row)
         return rows
 
     def setScheduler(self, payload: dict) -> tuple[bool, str, dict]:
@@ -5875,13 +5907,17 @@ class DigitalManager:
         active_lock_since_ms = int(self._scheduler_active_lock_since_ms or 0)
         active_lock_age_ms = max(0, now_ms - active_lock_since_ms) if active_lock_since_ms > 0 else 0
 
+        alloc = _dongle_allocation_snapshot()
+        strategy = str(alloc.get("strategy") or "").strip() or configured_mode
+
         payload = {
             "digital_scan_mode": configured_mode,
             "digital_system_dwell_ms": int(self._scheduler_dwell_ms),
             "digital_system_hang_ms": int(self._scheduler_hang_ms),
             "digital_system_order": list(self._scheduler_order),
             "digital_pause_on_hit": bool(self._scheduler_pause_on_hit),
-            "digital_tuning_mode": mode,
+            "digital_tuning_mode": strategy,
+            "digital_allocation_strategy": strategy,
             "digital_active_system": active_system,
             "digital_next_system": next_system,
             "digital_last_switch_time": int(self._scheduler_last_switch_time_ms or 0),
@@ -5952,19 +5988,27 @@ class DigitalManager:
         active_system: str,
         mode: str,
     ) -> list[dict]:
+        alloc = _dongle_allocation_snapshot()
+        strategy = str(alloc.get("strategy") or "").strip()
+        dedicated = strategy in ("all_control", "dedicated_control")
         rows: list[dict] = []
         for name in systems:
             key = str(name or "").strip().lower()
             entry = self._scheduler_system_health.get(key) or {}
             is_active = str(name or "").strip() == str(active_system or "").strip()
+            assignment = _dongle_assignment_for_system(alloc, name)
+            dongle_serial = str(assignment.get("preferred_tuner_serial") or "") if assignment else ""
+            dongle_role = str(assignment.get("role") or "") if assignment else ""
             if is_active:
                 state = "active"
                 reason = "active target"
+            elif dedicated:
+                state = "assigned"
+                reason = f"dongle {dongle_serial}" if dongle_serial else "assigned"
             else:
                 state = "standby"
-                reason = "timeslice standby" if mode == "timeslice_multi_system" else "inactive"
-            rows.append(
-                {
+                reason = "inactive"
+            row = {
                     "name": str(name or ""),
                     "active": bool(is_active),
                     "state": state,
@@ -5972,8 +6016,12 @@ class DigitalManager:
                     "lock_failures": int(entry.get("lock_failures") or 0),
                     "last_lock_time": int(entry.get("last_lock_time_ms") or 0),
                     "last_lock_loss_time": int(entry.get("last_lock_loss_time_ms") or 0),
-                }
-            )
+            }
+            if dongle_serial:
+                row["dongle_serial"] = dongle_serial
+            if dongle_role:
+                row["dongle_role"] = dongle_role
+            rows.append(row)
         return rows
 
     def _scheduler_status_snapshot_locked(self, event: dict, preflight: dict) -> dict:
@@ -6020,13 +6068,17 @@ class DigitalManager:
         preflight_fresh = preflight_age_ms <= 3000
         active_lock_since_ms = int(self._scheduler_active_lock_since_ms or 0)
         active_lock_age_ms = max(0, now_ms - active_lock_since_ms) if active_lock_since_ms > 0 else 0
+        alloc = _dongle_allocation_snapshot()
+        strategy = str(alloc.get("strategy") or "").strip() or mode
+
         payload = {
             "digital_scan_mode": mode,
             "digital_system_dwell_ms": int(self._scheduler_dwell_ms),
             "digital_system_hang_ms": int(self._scheduler_hang_ms),
             "digital_system_order": list(self._scheduler_order),
             "digital_pause_on_hit": bool(self._scheduler_pause_on_hit),
-            "digital_tuning_mode": mode,
+            "digital_tuning_mode": strategy,
+            "digital_allocation_strategy": strategy,
             "digital_active_system": active_system,
             "digital_next_system": next_system,
             "digital_last_switch_time": int(self._scheduler_last_switch_time_ms or 0),

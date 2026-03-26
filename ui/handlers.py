@@ -1974,51 +1974,51 @@ def _build_health_payload(
         ]
     subsystems["mixer"] = {"state": mixer_state, "reasons": mixer_reasons}
 
-    scheduler_age_ms = int(status_payload.get("digital_snapshot_age_ms") or 0)
-    scheduler_stale_ms = max(1000, int(HEALTH_SCHEDULER_STALE_MS or 3000))
-    scheduler_error = str(status_payload.get("digital_last_apply_error") or "").strip()
-    scheduler_state = "healthy"
-    scheduler_reasons = []
+    alloc_age_ms = int(status_payload.get("digital_snapshot_age_ms") or 0)
+    alloc_stale_ms = max(1000, int(HEALTH_SCHEDULER_STALE_MS or 3000))
+    alloc_error = str(status_payload.get("digital_last_apply_error") or "").strip()
+    alloc_state = "healthy"
+    alloc_reasons = []
     if not bool(status_payload.get("digital_active")):
-        scheduler_state = "failed"
-        scheduler_reasons.append(
+        alloc_state = "failed"
+        alloc_reasons.append(
             {
-                "code": "SCHEDULER_OFFLINE",
+                "code": "DIGITAL_OFFLINE",
                 "severity": "critical",
-                "message": "Scheduler is offline because digital decoder is stopped",
+                "message": "Digital runtime offline — decoder is stopped",
             }
         )
-    elif scheduler_age_ms > (scheduler_stale_ms * 2):
-        scheduler_state = "failed"
-        scheduler_reasons.append(
+    elif alloc_age_ms > (alloc_stale_ms * 2):
+        alloc_state = "failed"
+        alloc_reasons.append(
             {
-                "code": "SCHEDULER_STALE",
+                "code": "DIGITAL_STALE",
                 "severity": "critical",
                 "message": (
-                    f"Scheduler snapshot stale ({scheduler_age_ms}ms > "
-                    f"{scheduler_stale_ms * 2}ms)"
+                    f"Digital allocation snapshot stale ({alloc_age_ms}ms > "
+                    f"{alloc_stale_ms * 2}ms)"
                 ),
             }
         )
-    elif scheduler_age_ms > scheduler_stale_ms:
-        scheduler_state = "degraded"
-        scheduler_reasons.append(
+    elif alloc_age_ms > alloc_stale_ms:
+        alloc_state = "degraded"
+        alloc_reasons.append(
             {
-                "code": "SCHEDULER_STALE",
+                "code": "DIGITAL_STALE",
                 "severity": "warn",
-                "message": f"Scheduler snapshot stale ({scheduler_age_ms}ms > {scheduler_stale_ms}ms)",
+                "message": f"Digital allocation snapshot stale ({alloc_age_ms}ms > {alloc_stale_ms}ms)",
             }
         )
-    if scheduler_error:
-        scheduler_state = _health_worst_state([scheduler_state, "degraded"])
-        scheduler_reasons.append(
+    if alloc_error:
+        alloc_state = _health_worst_state([alloc_state, "degraded"])
+        alloc_reasons.append(
             {
-                "code": "SCHEDULER_APPLY_ERROR",
+                "code": "DIGITAL_APPLY_ERROR",
                 "severity": "warn",
-                "message": scheduler_error,
+                "message": alloc_error,
             }
         )
-    subsystems["scheduler"] = {"state": scheduler_state, "reasons": scheduler_reasons}
+    subsystems["digital_allocation"] = {"state": alloc_state, "reasons": alloc_reasons}
 
     mounts = list(status_payload.get("icecast_mounts") or [])
     expected_mounts = list(status_payload.get("icecast_expected_mounts") or [])

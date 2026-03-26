@@ -2564,7 +2564,7 @@
                 <div class="control-applied">Profile: <span id="digital-profile">--</span></div>
                 <div class="control-applied">Control Channel: <span class="config-value" id="digital-cc-status">--</span></div>
                 <div class="control-applied"><span id="digital-cc-detail">--</span></div>
-                <div class="control-applied">Systems: <span class="config-value" id="digital-system-health">--</span></div>
+                <div class="control-applied">Assignments: <span class="config-value" id="digital-system-health">--</span></div>
                 <div class="control-applied"><span id="digital-system-health-detail">--</span></div>
                 <div class="control-applied">RTL Dongles: <span class="config-value" id="digital-dongle-health">--</span></div>
                 <div class="control-applied">Missing: <span class="config-value" id="digital-dongle-missing">--</span></div>
@@ -2979,19 +2979,11 @@
               <span class="config-value" id="sitrep-digital-profile">--</span>
             </div>
             <div class="config-row">
-              <span class="config-label">Digital Mode</span>
+              <span class="config-label">Allocation Strategy</span>
               <span class="config-value" id="sitrep-digital-mode">--</span>
             </div>
             <div class="config-row">
-              <span class="config-label">Active System</span>
-              <span class="config-value" id="sitrep-digital-active-system">--</span>
-            </div>
-            <div class="config-row">
-              <span class="config-label">Next System</span>
-              <span class="config-value" id="sitrep-digital-next-system">--</span>
-            </div>
-            <div class="config-row">
-              <span class="config-label">Switch Reason</span>
+              <span class="config-label">Last Apply</span>
               <span class="config-value" id="sitrep-digital-switch">--</span>
             </div>
             <div class="config-row">
@@ -2999,7 +2991,7 @@
               <span class="config-value" id="sitrep-digital-cc">--</span>
             </div>
             <div class="config-row">
-              <span class="config-label">Systems Health</span>
+              <span class="config-label">Control Assignments</span>
               <span class="config-value" id="sitrep-digital-systems">--</span>
             </div>
           </div>
@@ -3904,12 +3896,12 @@
         controlSyncLossCount: 0,
         controlWindowMs: 0,
         metricsUpdatedMs: 0,
+        allocationStrategy: '',
         tuningMode: '',
         activeSystem: '',
-        nextSystem: '',
-        switchReason: '',
-        lastSwitchTime: 0,
         lastApplyError: '',
+        lastApplyMethod: '',
+        lastApplyTime: 0,
         lockTimeoutMs: 0,
         systemHealth: [],
         tuningRaw: null,
@@ -4289,8 +4281,6 @@
       sitrepTuneMode: document.getElementById('sitrep-tune-mode'),
       sitrepDigitalProfile: document.getElementById('sitrep-digital-profile'),
       sitrepDigitalMode: document.getElementById('sitrep-digital-mode'),
-      sitrepDigitalActiveSystem: document.getElementById('sitrep-digital-active-system'),
-      sitrepDigitalNextSystem: document.getElementById('sitrep-digital-next-system'),
       sitrepDigitalSwitch: document.getElementById('sitrep-digital-switch'),
       sitrepDigitalCc: document.getElementById('sitrep-digital-cc'),
       sitrepDigitalSystems: document.getElementById('sitrep-digital-systems'),
@@ -8909,13 +8899,13 @@
       const directAgency = String((hit && hit.agency) || '').trim();
       const directDepartment = String((hit && hit.department) || '').trim();
       const parsed = parseDigitalAgencyDepartment(raw);
-      const schedulerAgency = String(
+      const tuningAgency = String(
         (state.digital && state.digital.tuningRaw && (
           state.digital.tuningRaw.digital_active_department_label
           || state.digital.tuningRaw.digital_active_system_label
         )) || ''
       ).trim();
-      const agency = directAgency || parsed.agency || schedulerAgency;
+      const agency = directAgency || parsed.agency || tuningAgency;
       let department = directDepartment || parsed.department;
       if (!department) {
         department = raw || '';
@@ -9735,28 +9725,37 @@
           els.digitalSystemHealth.textContent = summary || '--';
           setValueTone(
             els.digitalSystemHealth,
-            activeSystemRow ? digitalSchedulerStateTone(activeSystemRow.state) : ''
+            activeSystemRow ? digitalStateTone(activeSystemRow.state) : ''
           );
         }
       }
       if (els.digitalSystemHealthDetail && !loopEnabled) {
-        if (!activeSystemRow) {
+        if (!systemHealthRows.length) {
           els.digitalSystemHealthDetail.textContent = '--';
           setValueTone(els.digitalSystemHealthDetail, '');
         } else {
-          const reason = String(activeSystemRow.reason || '').trim();
-          const switchReason = String(d.switchReason || '').trim();
-          const failures = Number(activeSystemRow.lock_failures || 0);
-          const timeoutMs = Number(d.lockTimeoutMs || 0);
-          const parts = [
-            `Active: ${String(activeSystemRow.name || '--')}`,
-            reason || 'no detail',
-          ];
-          if (switchReason) parts.push(`switch=${switchReason}`);
-          if (timeoutMs > 0) parts.push(`timeout=${Math.round(timeoutMs / 1000)}s`);
-          if (failures > 0) parts.push(`lock timeouts=${failures}`);
-          els.digitalSystemHealthDetail.textContent = parts.join(' • ');
-          setValueTone(els.digitalSystemHealthDetail, digitalSchedulerStateTone(activeSystemRow.state));
+          const detailParts = systemHealthRows.map((row) => {
+            if (!row || typeof row !== 'object') return '';
+            const name = String(row.name || '--').trim();
+            const state = String(row.state || 'unknown').trim();
+            const reason = String(row.reason || '').trim();
+            const serial = String(row.dongle_serial || '').trim();
+            const role = String(row.dongle_role || '').trim();
+            const failures = Number(row.lock_failures || 0);
+            const items = [`${name}:${state}`];
+            if (serial) items.push(`dongle=${serial}${role ? '(' + role + ')' : ''}`);
+            if (reason) items.push(reason);
+            if (failures > 0) items.push(`lock_fail=${failures}`);
+            return items.join(' ');
+          }).filter(Boolean);
+          els.digitalSystemHealthDetail.textContent = detailParts.join(' | ') || '--';
+          const worstTone = systemHealthRows.reduce((worst, row) => {
+            const t = digitalStateTone(row?.state);
+            if (t === 'danger') return 'danger';
+            if (t === 'warn' && worst !== 'danger') return 'warn';
+            return worst;
+          }, '');
+          setValueTone(els.digitalSystemHealthDetail, worstTone);
         }
       }
       renderDongleHealth(state.systemStats);
@@ -10656,10 +10655,10 @@
       }
     }
 
-    function digitalSchedulerStateTone(state) {
+    function digitalStateTone(state) {
       const value = String(state || '').toLowerCase();
-      if (value === 'locked') return 'good';
-      if (value === 'standby') return '';
+      if (value === 'locked' || value === 'active') return 'good';
+      if (value === 'assigned' || value === 'standby') return '';
       if (value === 'searching' || value === 'inferred' || value === 'degraded') return 'warn';
       if (value === 'failed' || value === 'error') return 'bad';
       return '';
@@ -10669,21 +10668,24 @@
       if (!row || typeof row !== 'object') return '';
       const name = String(row.name || '--').trim() || '--';
       const state = String(row.state || 'unknown').trim().toUpperCase();
+      const serial = String(row.dongle_serial || '').trim();
+      const role = String(row.dongle_role || '').trim();
       const marker = row.active ? '●' : '○';
-      return `${marker} ${name}:${state}`;
+      const dongleInfo = serial ? ` [${serial}${role ? ':' + role : ''}]` : '';
+      return `${marker} ${name}:${state}${dongleInfo}`;
     }
 
     function applyDigitalTuningPayload(payload) {
       if (!payload || typeof payload !== 'object') return;
       const d = state.digital;
-      d.tuningMode = payload.digital_tuning_mode || payload.mode || d.tuningMode || '';
+      d.allocationStrategy = payload.digital_allocation_strategy || payload.digital_tuning_mode || d.allocationStrategy || '';
+      d.tuningMode = d.allocationStrategy;
       d.activeSystem = payload.digital_active_system || d.activeSystem || '';
-      d.nextSystem = payload.digital_next_system || d.nextSystem || '';
-      d.switchReason = payload.digital_switch_reason || d.switchReason || '';
-      d.lastSwitchTime = Number.isFinite(payload.digital_last_switch_time)
-        ? payload.digital_last_switch_time
-        : d.lastSwitchTime || 0;
       d.lastApplyError = payload.digital_last_apply_error || d.lastApplyError || '';
+      d.lastApplyMethod = payload.digital_apply_method || d.lastApplyMethod || '';
+      d.lastApplyTime = Number.isFinite(payload.digital_last_apply_time)
+        ? payload.digital_last_apply_time
+        : d.lastApplyTime || 0;
       d.lockTimeoutMs = Number.isFinite(payload.digital_lock_timeout_ms)
         ? payload.digital_lock_timeout_ms
         : d.lockTimeoutMs || 0;
@@ -11013,27 +11015,20 @@
         els.sitrepDigitalProfile.textContent = state.digital.profile || state.digital.activeProfile || '--';
       }
       if (els.sitrepDigitalMode) {
-        els.sitrepDigitalMode.textContent = state.digital.tuningMode || '--';
-      }
-      if (els.sitrepDigitalActiveSystem) {
-        const activeName = state.digital.activeSystem || '--';
-        els.sitrepDigitalActiveSystem.textContent = activeName;
-        const activeRow = (state.digital.systemHealth || []).find((row) => row && row.active);
-        setValueTone(
-          els.sitrepDigitalActiveSystem,
-          activeRow ? digitalSchedulerStateTone(activeRow.state) : ''
-        );
-      }
-      if (els.sitrepDigitalNextSystem) {
-        els.sitrepDigitalNextSystem.textContent = state.digital.nextSystem || '--';
+        els.sitrepDigitalMode.textContent = state.digital.allocationStrategy || state.digital.tuningMode || '--';
       }
       if (els.sitrepDigitalSwitch) {
-        const base = state.digital.switchReason || '--';
-        if (state.digital.lockTimeoutMs > 0) {
-          els.sitrepDigitalSwitch.textContent = `${base} (timeout ${Math.round(state.digital.lockTimeoutMs / 1000)}s)`;
-        } else {
-          els.sitrepDigitalSwitch.textContent = base;
+        const method = state.digital.lastApplyMethod || '';
+        const error = state.digital.lastApplyError || '';
+        const applyTime = Number(state.digital.lastApplyTime || 0);
+        let applyAge = '';
+        if (applyTime > 0) {
+          const ageSec = Math.round((Date.now() - applyTime) / 1000);
+          applyAge = ageSec < 120 ? `${ageSec}s ago` : `${Math.round(ageSec / 60)}m ago`;
         }
+        const parts = [method, applyAge, error].filter(Boolean);
+        els.sitrepDigitalSwitch.textContent = parts.length ? parts.join(' • ') : '--';
+        setValueTone(els.sitrepDigitalSwitch, error ? 'warn' : '');
       }
       if (els.sitrepDigitalCc) {
         const cc = getDigitalControlChannelHealth();
@@ -12115,7 +12110,7 @@
       refreshInFlight = (async () => {
         const wasConnected = state.connected;
         try {
-          const [data, profilesData, systemData, schedulerData, digitalPreflightData] = await Promise.all([
+          const [data, profilesData, systemData, digitalTuningData, digitalPreflightData] = await Promise.all([
             fetchJSON('/api/status'),
             fetchJSON('/api/profiles'),
             fetchJSON('/api/system'),
@@ -12230,8 +12225,8 @@
         state.digital.controlWindowMs = Number.isFinite(data.digital_control_window_ms) ? data.digital_control_window_ms : 0;
         state.digital.metricsUpdatedMs = Date.now();
         applyDigitalTuningPayload(data);
-        if (schedulerData && schedulerData.ok) {
-          applyDigitalTuningPayload(schedulerData);
+        if (digitalTuningData && digitalTuningData.ok) {
+          applyDigitalTuningPayload(digitalTuningData);
         }
         if (digitalPreflightData && digitalPreflightData.ok) {
           applyDigitalPreflightPayload(digitalPreflightData);
