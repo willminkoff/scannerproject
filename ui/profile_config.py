@@ -49,6 +49,7 @@ def read_active_config_path() -> str:
     try:
         return os.path.realpath(CONFIG_SYMLINK)
     except Exception:
+        logger.debug("profile_config: failed to resolve active config symlink %s", CONFIG_SYMLINK, exc_info=True)
         return CONFIG_SYMLINK
 
 
@@ -224,7 +225,7 @@ def load_profiles_registry() -> List[Dict]:
                     save_profiles_registry(cleaned)
                 return cleaned
     except (FileNotFoundError, json.JSONDecodeError):
-        pass
+        logger.debug("profile_config: failed to load registry at %s", PROFILES_REGISTRY_PATH, exc_info=True)
     save_profiles_registry(default_profiles)
     return default_profiles
 
@@ -241,7 +242,7 @@ def _existing_file(path: str) -> str:
         if path and os.path.isfile(path):
             return os.path.realpath(path)
     except Exception:
-        pass
+        logger.debug("profile_config: failed to resolve existing file %s", path, exc_info=True)
     return ""
 
 
@@ -296,6 +297,7 @@ def _managed_controls_profile_path(target: str) -> str:
         profiles = load_profiles_registry()
         row = find_profile(profiles, managed_id)
     except Exception:
+        logger.debug("profile_config: failed to resolve managed profile %s", managed_id, exc_info=True)
         row = None
     candidate = str((row or {}).get("path") or "").strip()
     return _existing_file(candidate)
@@ -621,7 +623,7 @@ def set_profile(profile_id: str, current_conf_path: str, profiles, target_symlin
             if os.path.lexists(tmp_link):
                 os.unlink(tmp_link)
         except Exception:
-            pass
+            logger.debug("profile_config: failed to remove temp symlink %s", tmp_link, exc_info=True)
         os.symlink(target_path, tmp_link)
         os.replace(tmp_link, link_path)
 
@@ -645,9 +647,9 @@ def load_avoids(target: str) -> dict:
                 data.setdefault("profiles", {})
                 return data
     except FileNotFoundError:
-        pass
+        logger.debug("profile_config: avoids file missing for %s at %s", target, path)
     except json.JSONDecodeError:
-        pass
+        logger.debug("profile_config: avoids file invalid JSON for %s at %s", target, path, exc_info=True)
     return {"profiles": {}}
 
 

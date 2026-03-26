@@ -1,4 +1,5 @@
 """Scanner activity monitoring and hit tracking."""
+import logging
 import os
 import subprocess
 import time
@@ -28,6 +29,8 @@ except ImportError:
     )
     from ui.profile_config import parse_freqs_labels, read_active_config_path
     from ui.systemd import unit_active
+
+logger = logging.getLogger(__name__)
 
 
 _ANALOG_HIT_CUTOFF_LOCK = threading.Lock()
@@ -154,6 +157,7 @@ def _allowed_freq_keys_for_target(target: str) -> set[str]:
         with open(path, "r", encoding="utf-8", errors="ignore") as handle:
             freqs, _labels = parse_freqs_labels(handle.read())
     except Exception:
+        logger.debug("scanner: failed to load active profile allowlist from %s", path, exc_info=True)
         freqs = []
     keys = set()
     for freq in freqs or []:
@@ -278,6 +282,7 @@ def _read_activity_counter_stats(path: str) -> dict[str, int]:
                 except Exception:
                     continue
     except Exception:
+        logger.debug("scanner: failed to read activity counters from %s", path, exc_info=True)
         return {}
     return counters
 
@@ -537,9 +542,9 @@ def read_last_hit_file(path: str) -> str:
             if value and value != "-":
                 return value
     except FileNotFoundError:
-        pass
+        logger.debug("scanner: last-hit file missing at %s", path)
     except Exception:
-        pass
+        logger.debug("scanner: failed to read last-hit file %s", path, exc_info=True)
     return ""
 
 
@@ -554,6 +559,7 @@ def read_last_hit_from_journal_unit(unit: str) -> str:
             text=True,
         )
     except Exception:
+        logger.debug("scanner: journal lookup failed for unit %s", unit, exc_info=True)
         return ""
     matches = RE_ACTIVITY.findall(result.stdout or "")
     if not matches:
@@ -583,6 +589,7 @@ def read_last_hit_for_range(unit: str, in_airband: bool, scan_lines: int = 400) 
             text=True,
         )
     except Exception:
+        logger.debug("scanner: journal range lookup failed for unit %s", unit, exc_info=True)
         return ""
 
     latest_ts = None
@@ -680,6 +687,7 @@ def read_hit_list_for_unit(unit: str, limit: int = 20, scan_lines: int = 200) ->
             text=True,
         )
     except Exception:
+        logger.debug("scanner: failed to read hit list for unit %s", unit, exc_info=True)
         return []
 
     cutoffs = _analog_hit_cutoff_snapshot()
@@ -799,7 +807,7 @@ def _load_icecast_hit_log():
                 if isinstance(entry, dict):
                     cache["entries"].append(entry)
     except FileNotFoundError:
-        pass
+        logger.debug("scanner: hit log missing at %s", ICECAST_HIT_LOG_PATH)
     if len(cache["entries"]) > ICECAST_HIT_LOG_LIMIT:
         cache["entries"] = cache["entries"][-ICECAST_HIT_LOG_LIMIT:]
     _load_icecast_hit_log._cache = cache
@@ -816,7 +824,7 @@ def _append_icecast_hit_entry(entry: dict) -> None:
         with open(ICECAST_HIT_LOG_PATH, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, sort_keys=True) + "\n")
     except Exception:
-        pass
+        logger.debug("scanner: failed to append Icecast hit entry to %s", ICECAST_HIT_LOG_PATH, exc_info=True)
 
 
 def update_icecast_hit_log(title: str) -> None:

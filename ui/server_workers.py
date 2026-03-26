@@ -1,4 +1,5 @@
 """Server background workers."""
+import logging
 import time
 import threading
 from collections import deque
@@ -15,6 +16,8 @@ except ImportError:
     from ui.scanner import (
         refresh_analog_hit_state,
     )
+
+logger = logging.getLogger(__name__)
 
 ACTION_QUEUE = deque()
 ACTION_COND = threading.Condition()
@@ -100,6 +103,7 @@ def config_worker() -> None:
         try:
             result = execute_action(action)
         except Exception as e:
+            logger.debug("server_workers: execute_action failed for %s", action.get("type"), exc_info=True)
             result = {"status": 500, "payload": {"ok": False, "error": str(e)}}
         _finish_action(action, result)
 
@@ -110,7 +114,7 @@ def icecast_monitor_worker() -> None:
         try:
             refresh_analog_hit_state()
         except Exception:
-            pass
+            logger.debug("server_workers: refresh_analog_hit_state failed", exc_info=True)
         time.sleep(0.25)
 
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import time
@@ -21,6 +22,8 @@ except ImportError:
         MANAGED_ANALOG_DEFAULT_GROUND_DBFS,
     )
     from ui.profile_config import managed_controls_profile_path, parse_controls, write_controls
+
+logger = logging.getLogger(__name__)
 
 
 _DEFAULT_GAIN = 32.8
@@ -68,6 +71,7 @@ def _load_state() -> dict[str, Any]:
         with open(path, "r", encoding="utf-8") as handle:
             payload = json.load(handle)
     except Exception:
+        logger.debug("managed_analog_controls: failed to load state from %s", path, exc_info=True)
         return _empty_state()
     if not isinstance(payload, dict):
         return _empty_state()
@@ -95,6 +99,7 @@ def _same_path(left: str, right: str) -> bool:
     try:
         return os.path.realpath(left) == os.path.realpath(right)
     except Exception:
+        logger.debug("managed_analog_controls: failed to compare %s and %s", left, right, exc_info=True)
         return False
 
 
@@ -125,7 +130,7 @@ def _fallback_controls(target: str, conf_path: str) -> dict[str, Any]:
     try:
         gain, squelch_snr, _current_dbfs, _mode = parse_controls(conf_path)
     except Exception:
-        pass
+        logger.debug("managed_analog_controls: failed to parse fallback controls from %s", conf_path, exc_info=True)
     payload = _controls_payload(
         gain=gain,
         squelch_mode="dbfs",

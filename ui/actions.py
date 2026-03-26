@@ -3,6 +3,7 @@ import os
 import json
 import time
 import re
+import logging
 import subprocess
 import tempfile
 from typing import Any
@@ -76,6 +77,8 @@ except ImportError:
     from ui.managed_analog_controls import persist_managed_controls_override
     from ui.scanner import mark_analog_hit_cutoff
 
+logger = logging.getLogger(__name__)
+
 
 _DEFAULT_PROFILE_LOOP_BUNDLE_DIR = os.path.join(
     os.path.dirname(str(COMBINED_CONFIG_PATH or "").strip()) or "/tmp",
@@ -137,7 +140,7 @@ def _reset_usb_hub_path(path: str) -> tuple[bool, str]:
                 try:
                     os.close(fd)
                 except Exception:
-                    pass
+                    logger.debug("actions: failed to close USB reset fd for %s", path, exc_info=True)
 
     try:
         result = subprocess.run(
@@ -288,6 +291,7 @@ def _state_path_candidates(path: str):
     try:
         uid = int(os.getuid())
     except Exception:
+        logger.debug("actions: failed to resolve uid for state path candidates", exc_info=True)
         uid = 0
     for candidate in (
         os.path.join("/tmp", f"{base}.{uid}"),
@@ -308,6 +312,7 @@ def _load_json_with_fallback(path: str, default):
         except FileNotFoundError:
             continue
         except Exception:
+            logger.debug("actions: failed to load JSON state candidate %s", candidate, exc_info=True)
             continue
     return default
 
@@ -329,7 +334,7 @@ def _save_json_with_fallback(path: str, data) -> str:
                 if tmp and os.path.exists(tmp):
                     os.remove(tmp)
             except Exception:
-                pass
+                logger.debug("actions: failed to remove temp state file %s", tmp, exc_info=True)
             continue
     raise RuntimeError(f"unable to persist state file {path}: {last_error}")
 
@@ -341,7 +346,7 @@ def _clear_json_with_fallback(path: str) -> None:
         except FileNotFoundError:
             pass
         except Exception:
-            pass
+            logger.debug("actions: failed to clear JSON state candidate %s", candidate, exc_info=True)
 
 
 def _load_hold_state():
@@ -415,7 +420,7 @@ def _swap_symlink(link_path: str, target_path: str) -> None:
         if os.path.lexists(tmp_link):
             os.unlink(tmp_link)
     except Exception:
-        pass
+        logger.debug("actions: failed to remove temp symlink %s", tmp_link, exc_info=True)
     os.symlink(target_path, tmp_link)
     os.replace(tmp_link, link_path)
 
@@ -432,6 +437,7 @@ def _parse_profile_ids(raw: Any) -> list[str]:
                 parsed = json.loads(text)
                 incoming = parsed if isinstance(parsed, list) else [text]
             except Exception:
+                logger.debug("actions: failed to parse profile id list %r as JSON", text, exc_info=True)
                 incoming = text.replace(";", ",").split(",")
         else:
             incoming = text.replace(";", ",").split(",")
@@ -604,7 +610,12 @@ def action_set_profile(profile_id: str, target: str, *, restart_service: bool = 
                     return {"status": 400, "payload": {"ok": False, "error": "profile has no frequencies; add freqs and save first"}}
             except Exception:
                 # If parsing fails, continue; rtl_airband will surface config errors.
-                pass
+                logger.debug(
+                    "actions: failed to pre-validate frequencies for profile %s (%s)",
+                    profile_id,
+                    next_path,
+                    exc_info=True,
+                )
 
         ok, changed = set_profile(profile_id, conf_path, profiles, target_symlink)
         if not ok:
@@ -1099,7 +1110,7 @@ def action_hold_start(target: str, freq) -> dict:
     try:
         _save_hold_state(state)
     except Exception:
-        pass
+        logger.debug("actions: failed to persist hold state", exc_info=True)
 
     try:
         write_combined_config()
@@ -1115,7 +1126,7 @@ def action_hold_start(target: str, freq) -> dict:
             state.pop(target, None)
             _save_or_clear_hold_state(state)
         except Exception:
-            pass
+            logger.debug("actions: failed to roll back hold state after combine error", exc_info=True)
         return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
 
     restart_ok, restart_error = restart_rtl()
@@ -1149,7 +1160,7 @@ def action_hold_stop(target: str) -> dict:
                 try:
                     os.remove(temp_path)
                 except Exception:
-                    pass
+                    logger.debug("actions: failed to remove temporary hold config %s", temp_path, exc_info=True)
         else:
             _write_text(conf_path, original)
     except Exception as e:
@@ -1202,7 +1213,7 @@ def action_tune(target: str, freq) -> dict:
     try:
         _save_tune_backup(backup)
     except Exception:
-        pass
+        logger.debug("actions: failed to persist tune backup", exc_info=True)
 
     label = f"{freq_val:.4f}"
     try:
@@ -1255,7 +1266,7 @@ def action_tune_restore(target: str) -> dict:
                 try:
                     os.remove(temp_path)
                 except Exception:
-                    pass
+                    logger.debug("actions: failed to remove temporary tune config %s", temp_path, exc_info=True)
         else:
             _write_text(conf_path, original)
     except Exception as e:
@@ -1264,7 +1275,7 @@ def action_tune_restore(target: str) -> dict:
     try:
         _save_tune_backup(backup)
     except Exception:
-        pass
+        logger.debug("actions: failed to persist cleared tune backup", exc_info=True)
     try:
         write_combined_config()
     except Exception as e:

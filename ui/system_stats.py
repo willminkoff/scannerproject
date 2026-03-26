@@ -1,6 +1,7 @@
 """System stats helpers for host/PC health telemetry."""
 from collections import deque
 import json
+import logging
 import os
 import re
 import time
@@ -13,6 +14,8 @@ try:
     from .config import BT_HEAL_DEFAULT_ENABLED, BT_HEAL_SERVICE_UNIT, BT_HEAL_TIMER_UNIT
 except ImportError:
     from ui.config import BT_HEAL_DEFAULT_ENABLED, BT_HEAL_SERVICE_UNIT, BT_HEAL_TIMER_UNIT
+
+logger = logging.getLogger(__name__)
 
 _last_cpu = {"total": None, "idle": None, "ts": None}
 _RTL_USB_SYSFS_ROOT = os.getenv("RTL_USB_SYSFS_ROOT", "/sys/bus/usb/devices")
@@ -67,6 +70,7 @@ def _systemctl_capture(args: list[str]):
             check=False,
         )
     except Exception:
+        logger.debug("system_stats: systemctl capture failed for args=%s", args, exc_info=True)
         return None
 
 
@@ -323,10 +327,12 @@ def _load_rtl_dongle_event_log() -> list[dict]:
                 try:
                     row = json.loads(line)
                 except Exception:
+                    logger.debug("system_stats: failed to decode dongle event row from %s", path, exc_info=True)
                     continue
                 if isinstance(row, dict):
                     rows.append(dict(row))
     except Exception:
+        logger.debug("system_stats: failed to read dongle event log %s", path, exc_info=True)
         return []
     return sorted(
         [dict(item) for item in rows],
@@ -356,7 +362,8 @@ def _persist_rtl_dongle_event_log(events: list[dict]) -> None:
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
         except Exception:
-            pass
+            logger.debug("system_stats: failed to clean temp dongle event log %s", tmp_path, exc_info=True)
+        logger.debug("system_stats: failed to persist dongle event log %s", path, exc_info=True)
         return
 def _record_rtl_dongle_events(
     *,
