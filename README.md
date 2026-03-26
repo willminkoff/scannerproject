@@ -32,6 +32,9 @@ Current scanner host (replacing the Pi runtime target):
 - Filtered non-actionable headless SDRTrunk warnings from digital decoder error reporting to reduce false alarm noise.
 - Verified stable 4-dongle runtime baseline with a 10-minute soak: `120/120` healthy samples, `0` USB kernel drop events.
 - Current Micro serial-to-path baseline after the 2026-03-25 digital-secondary replacement: `00000001 -> 1-5.1.1`, `56919602 -> 1-5.1.2`, `14306619 -> 1-5.1.3`, `00000002 -> 1-5.3`, `70613472 -> 1-5.4`.
+- Analog profile switches now restart `rtl-airband` whenever the active profile symlink changes, even if the combined config bytes are unchanged.
+- Handler cache invalidation now clears stale `/api/status` and `/api/hits` snapshots after analog profile changes and digital lifecycle actions.
+- API workflow coverage now exercises real handler paths for analog `/api/profile` -> `/api/hits` transitions and digital `start` / `profile` / `restart` / `stop`.
 
 ## V3 Foundation (2026-02-22)
 
@@ -1307,10 +1310,15 @@ When user selects new profile:
 
 1. **Write config** to symlink target (`${CONFIG_SYMLINK}`)
 2. **Regenerate combined config** via `build-combined-config.py`
-3. **Check if changed**: Only restart rtl-airband if combined config differs from previous version
-4. **Avoid unnecessary restarts**: If frequency list is identical, skip restart entirely
+3. **Check runtime staleness**: Restart `rtl-airband` if either the active profile symlink changed or the combined config differs from the previous version
+4. **Skip only true no-ops**: If requested profile already matches the active profile, return success without restarting
 
-This optimization eliminates 10-15 second delays when switching between profiles with same frequencies.
+This keeps manual profile switches honest even when two profiles render the same combined config bytes, which prevents the UI from showing a new profile while `rtl-airband` keeps scanning the old one.
+
+**UI cache behavior after state changes**:
+- `POST /api/profile` invalidates cached `/api/status` and `/api/hits` payloads before returning success.
+- `POST /api/digital/start`, `POST /api/digital/stop`, `POST /api/digital/restart`, and `POST /api/digital/profile` do the same.
+- Result: the next UI poll sees the newly active profile/hits immediately instead of waiting for handler cache TTL expiry.
 
 **Startup fallback behavior**:
 - If `${CONFIG_SYMLINK}` or `${GROUND_CONFIG_PATH}` is missing/broken at service startup, `build-combined-config.py` falls back to:
@@ -1337,6 +1345,31 @@ The `scanner-digital.service` runs:
   - Mutes SDRTrunk's direct local Java sink inputs by default (`DIGITAL_LOCAL_MONITOR=0`) so local speakers follow the mixed Icecast/VLC path
   - Skip mute for debug by setting `DIGITAL_LOCAL_MONITOR=1`
 - **Restart=always + StartLimitIntervalSec=0**: Keeps recovering after boot-time or runtime failures
+
+### Workflow Test Coverage
+
+High-signal workflow coverage now lives in:
+- `tests/test_core_workflows.py`
+  - direct profile-switch workflow
+  - analog hit-state transition across a profile switch
+  - digital manager lifecycle/status happy path
+  - dBFS-only analog control snapshot contract
+- `tests/test_api_workflows.py`
+  - handler-level analog `/api/profile` cache invalidation
+  - handler-level `/api/hits` refresh after profile change
+  - handler-level digital `start` / `profile` / `restart` / `stop` lifecycle
+
+Recommended quick regression command:
+```bash
+python3 -m unittest \
+  tests.test_api_workflows \
+  tests.test_core_workflows \
+  tests.test_effective_controls_path \
+  tests.test_digital_scheduler_fast_switch \
+  tests.test_sdrtrunk_local_monitor \
+  tests.test_hp_autolocate_regression \
+  tests.test_system_stats_dongle_events -v
+```
 
 ## Pi Notes
 - Repo path on SprontPi: `/home/willminkoff/scannerproject`
