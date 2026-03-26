@@ -319,7 +319,7 @@ class DigitalLifecycleWorkflowTests(unittest.TestCase):
             return_value={"ready": True, "missing_serials": [], "slow_serials": []},
         ):
             manager = digital.DigitalManager(backend="sdrtrunk")
-            manager._scheduler_snapshot = {"digital_scheduler_mode": "single_system"}
+            manager._scheduler_snapshot = {"digital_allocation_strategy": "single_system"}
             manager._scheduler_snapshot_at_ms = int(time.time() * 1000)
 
             start_ok, start_err = manager.start()

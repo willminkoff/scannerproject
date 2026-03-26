@@ -507,14 +507,14 @@ class SchedulerPayloadExtractionTests(unittest.TestCase):
                 "mode": "timeslice_multi_system",
                 "system_dwell_ms": "400",
                 "performance_profile": "pc_moderate",
-                "digital_scheduler_perf_profile": "legacy",
+                "digital_allocation_perf_profile": "legacy",
             }
         )
 
         self.assertEqual("timeslice_multi_system", payload.get("mode"))
         self.assertEqual("400", payload.get("system_dwell_ms"))
         self.assertEqual("pc_moderate", payload.get("performance_profile"))
-        self.assertEqual("legacy", payload.get("digital_scheduler_perf_profile"))
+        self.assertEqual("legacy", payload.get("digital_allocation_perf_profile"))
 
     def test_extract_scheduler_payload_ignores_unrelated_form_keys(self):
         payload = handlers._extract_scheduler_payload(
@@ -1929,8 +1929,8 @@ class HealthPayloadTests(unittest.TestCase):
             "digital_active": True,
             "digital_mixer_enabled": False,
             "digital_mixer_active": False,
-            "digital_scheduler_snapshot_age_ms": 0,
-            "digital_scheduler_last_apply_error": "",
+            "digital_allocation_snapshot_age_ms": 0,
+            "digital_last_apply_error": "",
             "icecast_active": True,
             "icecast_mounts": [],
             "icecast_expected_mounts": [],
@@ -1959,7 +1959,7 @@ class HealthPayloadTests(unittest.TestCase):
 
         self.assertIn("sdrtrunk", payload["subsystems"])
         self.assertIn("mixer", payload["subsystems"])
-        self.assertIn("scheduler", payload["subsystems"])
+        self.assertIn("digital_allocation", payload["subsystems"])
         self.assertEqual("healthy", payload["subsystems"]["mixer"]["state"])
         reason_codes = {
             str((reason or {}).get("code") or "")
@@ -1971,7 +1971,7 @@ class HealthPayloadTests(unittest.TestCase):
         status_payload = self._base_payload()
         status_payload["digital_mixer_enabled"] = True
         status_payload["digital_mixer_active"] = False
-        status_payload["digital_scheduler_snapshot_age_ms"] = 4500
+        status_payload["digital_allocation_snapshot_age_ms"] = 4500
 
         with mock.patch.object(handlers, "HEALTH_SCHEDULER_STALE_MS", 3000):
             payload = handlers._build_health_payload(
@@ -1984,7 +1984,7 @@ class HealthPayloadTests(unittest.TestCase):
             )
 
         self.assertEqual("failed", payload["subsystems"]["mixer"]["state"])
-        self.assertEqual("degraded", payload["subsystems"]["scheduler"]["state"])
+        self.assertEqual("degraded", payload["subsystems"]["digital_allocation"]["state"])
 
     def test_health_payload_marks_sdrtrunk_failed_when_digital_tuners_missing(self):
         status_payload = self._base_payload()

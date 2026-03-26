@@ -139,11 +139,11 @@ class SchedulerFastSwitchTests(unittest.TestCase):
         )
         mgr._runtime_retune_available = mock.Mock(return_value=False)
         mgr._scheduler_snapshot = {
-            "digital_scheduler_mode": "timeslice_multi_system",
-            "digital_scheduler_fast_switch_enabled": False,
-            "digital_scheduler_runtime_retune_available": False,
-            "digital_scheduler_apply_method": "playlist_apply",
-            "digital_scheduler_effective": {"fast_switch_enabled": True},
+            "digital_allocation_strategy": "timeslice_multi_system",
+            "digital_fast_switch_enabled": False,
+            "digital_runtime_retune_available": False,
+            "digital_apply_method": "playlist_apply",
+            "digital_allocation_effective": {"fast_switch_enabled": True},
         }
         mgr._scheduler_snapshot_at_ms = 1000
 
@@ -299,11 +299,11 @@ class PreferredTunerTargetTests(unittest.TestCase):
             payload2 = mgr._scheduler_payload({}, preflight)
             payload3 = mgr._scheduler_payload({}, preflight)
 
-        self.assertEqual("alpha", payload1["digital_scheduler_active_system"])
-        self.assertEqual("alpha", payload2["digital_scheduler_active_system"])
-        self.assertEqual("bravo", payload3["digital_scheduler_active_system"])
-        self.assertEqual("lock_timeout", payload3["digital_scheduler_switch_reason"])
-        self.assertGreaterEqual(payload3["digital_scheduler_lock_miss_ticks"], 3)
+        self.assertEqual("alpha", payload1["digital_active_system"])
+        self.assertEqual("alpha", payload2["digital_active_system"])
+        self.assertEqual("bravo", payload3["digital_active_system"])
+        self.assertEqual("lock_timeout", payload3["digital_switch_reason"])
+        self.assertGreaterEqual(payload3["digital_lock_miss_ticks"], 3)
 
     def test_fast_lock_timeout_scales_for_large_control_channel_sets(self):
         mgr = _make_manager()
@@ -350,8 +350,8 @@ class PreferredTunerTargetTests(unittest.TestCase):
                 {"control_decode_available": True, "control_channel_locked": False, "tuner_busy": False},
             )
 
-        self.assertEqual("alpha", payload["digital_scheduler_active_system"])
-        self.assertGreaterEqual(payload["digital_scheduler_lock_timeout_ms"], 2000)
+        self.assertEqual("alpha", payload["digital_active_system"])
+        self.assertGreaterEqual(payload["digital_lock_timeout_ms"], 2000)
 
     def test_locked_system_holds_for_sticky_window_before_idle_rotation(self):
         mgr = _make_manager()
@@ -382,10 +382,10 @@ class PreferredTunerTargetTests(unittest.TestCase):
         ):
             payload2 = mgr._scheduler_payload({}, preflight)
 
-        self.assertEqual("alpha", payload1["digital_scheduler_active_system"])
-        self.assertEqual("bravo", payload2["digital_scheduler_active_system"])
-        self.assertEqual("idle_timeout", payload2["digital_scheduler_switch_reason"])
-        self.assertGreaterEqual(int(payload2["digital_scheduler_active_lock_age_ms"]), 0)
+        self.assertEqual("alpha", payload1["digital_active_system"])
+        self.assertEqual("bravo", payload2["digital_active_system"])
+        self.assertEqual("idle_timeout", payload2["digital_switch_reason"])
+        self.assertGreaterEqual(int(payload2["digital_active_lock_age_ms"]), 0)
 
     def test_stale_preflight_adds_grace_before_lock_timeout_switch(self):
         mgr = _make_manager()
@@ -416,10 +416,10 @@ class PreferredTunerTargetTests(unittest.TestCase):
         ):
             payload2 = mgr._scheduler_payload({}, preflight)
 
-        self.assertEqual("alpha", payload1["digital_scheduler_active_system"])
-        self.assertEqual("bravo", payload2["digital_scheduler_active_system"])
-        self.assertEqual("lock_timeout_stale_preflight", payload2["digital_scheduler_switch_reason"])
-        self.assertFalse(payload2["digital_scheduler_preflight_fresh"])
+        self.assertEqual("alpha", payload1["digital_active_system"])
+        self.assertEqual("bravo", payload2["digital_active_system"])
+        self.assertEqual("lock_timeout_stale_preflight", payload2["digital_switch_reason"])
+        self.assertFalse(payload2["digital_preflight_fresh"])
 
     def test_scheduler_preflight_cache_respects_ttl(self):
         mgr = _make_manager()
@@ -449,7 +449,7 @@ class PreferredTunerTargetTests(unittest.TestCase):
 
     def test_get_scheduler_read_path_does_not_overwrite_cached_snapshot(self):
         mgr = _make_manager()
-        mgr._scheduler_snapshot = {"digital_scheduler_mode": "single_system"}
+        mgr._scheduler_snapshot = {"digital_allocation_strategy": "single_system"}
         mgr._scheduler_snapshot_at_ms = 1000
         mgr._preflight_snapshot_at_ms = 900
         mgr.getLastEvent = mock.Mock(return_value={})
@@ -458,17 +458,17 @@ class PreferredTunerTargetTests(unittest.TestCase):
         with mock.patch.object(digital.time, "time", return_value=2.0):
             payload = mgr.getScheduler()
 
-        self.assertEqual({"digital_scheduler_mode": "single_system"}, mgr._scheduler_snapshot)
+        self.assertEqual({"digital_allocation_strategy": "single_system"}, mgr._scheduler_snapshot)
         self.assertEqual(1000, mgr._scheduler_snapshot_at_ms)
         self.assertTrue(payload.get("ok"))
-        self.assertEqual("single_system", payload.get("digital_scheduler_mode"))
+        self.assertEqual("single_system", payload.get("digital_allocation_strategy"))
 
     def test_get_scheduler_fallback_payload_is_not_persisted(self):
         mgr = _make_manager()
         mgr.getLastEvent = mock.Mock(return_value={})
         mgr._status_preflight_snapshot = mock.Mock(return_value={})
         mgr._scheduler_snapshot_payload_locked = mock.Mock(
-            return_value={"digital_scheduler_mode": "single_system"}
+            return_value={"digital_allocation_strategy": "single_system"}
         )
 
         with mock.patch.object(digital.time, "time", return_value=2.0):
@@ -477,7 +477,7 @@ class PreferredTunerTargetTests(unittest.TestCase):
         self.assertEqual({}, mgr._scheduler_snapshot)
         self.assertEqual(0, mgr._scheduler_snapshot_at_ms)
         self.assertTrue(payload.get("ok"))
-        self.assertEqual("single_system", payload.get("digital_scheduler_mode"))
+        self.assertEqual("single_system", payload.get("digital_allocation_strategy"))
         mgr._scheduler_snapshot_payload_locked.assert_called_once()
 
     def test_scheduler_snapshot_includes_fast_switch_telemetry_fields(self):
@@ -497,26 +497,26 @@ class PreferredTunerTargetTests(unittest.TestCase):
 
         snapshot = mgr._scheduler_status_snapshot_locked({}, {"tuner_busy": False})
 
-        self.assertIn("digital_scheduler_fast_switch_enabled", snapshot)
-        self.assertIn("digital_scheduler_tick_interval_ms", snapshot)
-        self.assertIn("digital_scheduler_apply_method", snapshot)
-        self.assertIn("digital_scheduler_last_apply_duration_ms", snapshot)
-        self.assertIn("digital_scheduler_preflight_cache_age_ms", snapshot)
-        self.assertIn("digital_scheduler_lock_miss_ticks", snapshot)
-        self.assertIn("digital_scheduler_adaptive_lock_timeout_ms", snapshot)
-        self.assertIn("digital_scheduler_active_control_channel_count", snapshot)
-        self.assertIn("digital_scheduler_perf_profile", snapshot)
-        self.assertIn("digital_scheduler_effective", snapshot)
-        self.assertIsInstance(snapshot["digital_scheduler_fast_switch_enabled"], bool)
-        self.assertIsInstance(snapshot["digital_scheduler_tick_interval_ms"], int)
-        self.assertIsInstance(snapshot["digital_scheduler_apply_method"], str)
-        self.assertIsInstance(snapshot["digital_scheduler_last_apply_duration_ms"], int)
-        self.assertIsInstance(snapshot["digital_scheduler_preflight_cache_age_ms"], int)
-        self.assertIsInstance(snapshot["digital_scheduler_lock_miss_ticks"], int)
-        self.assertIsInstance(snapshot["digital_scheduler_adaptive_lock_timeout_ms"], int)
-        self.assertIsInstance(snapshot["digital_scheduler_active_control_channel_count"], int)
-        self.assertIsInstance(snapshot["digital_scheduler_perf_profile"], str)
-        self.assertIsInstance(snapshot["digital_scheduler_effective"], dict)
+        self.assertIn("digital_fast_switch_enabled", snapshot)
+        self.assertIn("digital_tick_interval_ms", snapshot)
+        self.assertIn("digital_apply_method", snapshot)
+        self.assertIn("digital_last_apply_duration_ms", snapshot)
+        self.assertIn("digital_preflight_cache_age_ms", snapshot)
+        self.assertIn("digital_lock_miss_ticks", snapshot)
+        self.assertIn("digital_adaptive_lock_timeout_ms", snapshot)
+        self.assertIn("digital_active_control_channel_count", snapshot)
+        self.assertIn("digital_allocation_perf_profile", snapshot)
+        self.assertIn("digital_allocation_effective", snapshot)
+        self.assertIsInstance(snapshot["digital_fast_switch_enabled"], bool)
+        self.assertIsInstance(snapshot["digital_tick_interval_ms"], int)
+        self.assertIsInstance(snapshot["digital_apply_method"], str)
+        self.assertIsInstance(snapshot["digital_last_apply_duration_ms"], int)
+        self.assertIsInstance(snapshot["digital_preflight_cache_age_ms"], int)
+        self.assertIsInstance(snapshot["digital_lock_miss_ticks"], int)
+        self.assertIsInstance(snapshot["digital_adaptive_lock_timeout_ms"], int)
+        self.assertIsInstance(snapshot["digital_active_control_channel_count"], int)
+        self.assertIsInstance(snapshot["digital_allocation_perf_profile"], str)
+        self.assertIsInstance(snapshot["digital_allocation_effective"], dict)
 
     def test_set_scheduler_accepts_performance_profile(self):
         mgr = _make_manager()

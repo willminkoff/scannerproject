@@ -157,15 +157,15 @@ export default function MainScreen() {
     "";
   const analogHierarchy = parseAnalogHierarchy(analogLastLabel, analogProfileDisplay);
   const system = isDigitalSource
-    ? liveStatus?.digital_scheduler_active_system_label ||
+    ? liveStatus?.digital_active_system_label ||
       liveStatus?.digital_system_label ||
-      liveStatus?.digital_scheduler_active_system ||
+      liveStatus?.digital_active_system ||
       hpState.system_name ||
       hpState.system
     : analogHierarchy.system;
   const department = isDigitalSource
     ? liveStatus?.digital_department_label ||
-      liveStatus?.digital_scheduler_active_department_label ||
+      liveStatus?.digital_active_department_label ||
       hpState.department_name ||
       hpState.department ||
       liveStatus?.digital_last_label
