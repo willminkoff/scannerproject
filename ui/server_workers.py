@@ -128,3 +128,62 @@ def start_icecast_monitor() -> None:
     """Start the Icecast monitoring worker thread."""
     thread = threading.Thread(target=icecast_monitor_worker, daemon=True)
     thread.start()
+
+
+# ---------------------------------------------------------------------------
+# Weather sounding data (ACARS / Radiosonde)
+# ---------------------------------------------------------------------------
+
+_met_store = None
+_wx_reader_thread = None
+_wx_stop_event = None
+
+
+def get_met_store():
+    """Return the singleton MetStore, creating it if needed."""
+    global _met_store
+    if _met_store is None:
+        from .wxdata import MetStore
+        _met_store = MetStore()
+    return _met_store
+
+
+def start_wx_reader(decoder: str) -> None:
+    """Start the wx reader thread for the given decoder (acars or radiosonde)."""
+    global _wx_reader_thread, _wx_stop_event
+    stop_wx_reader()  # stop any existing reader first
+
+    from .wxdata import acars_reader_worker, radiosonde_reader_worker
+
+    store = get_met_store()
+    store.collecting = True
+    store.active_decoder = decoder
+
+    _wx_stop_event = threading.Event()
+
+    if decoder == "acars":
+        target = acars_reader_worker
+    elif decoder == "radiosonde":
+        target = radiosonde_reader_worker
+    else:
+        return
+
+    _wx_reader_thread = threading.Thread(
+        target=target, args=(store, _wx_stop_event), daemon=True
+    )
+    _wx_reader_thread.start()
+
+
+def stop_wx_reader() -> None:
+    """Stop the active wx reader thread."""
+    global _wx_reader_thread, _wx_stop_event
+    store = get_met_store()
+    store.collecting = False
+    store.active_decoder = None
+
+    if _wx_stop_event:
+        _wx_stop_event.set()
+    if _wx_reader_thread and _wx_reader_thread.is_alive():
+        _wx_reader_thread.join(timeout=3)
+    _wx_reader_thread = None
+    _wx_stop_event = None

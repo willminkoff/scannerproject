@@ -294,10 +294,18 @@ UNITS = {
     "digital_mixer": os.getenv("UNIT_DIGITAL_MIXER", "scanner-digital-mixer"),
     "bt_heal_timer": BT_HEAL_TIMER_UNIT,
     "bt_heal_service": BT_HEAL_SERVICE_UNIT,
+    "acars": os.getenv("UNIT_ACARS", "acarsdec"),
+    "radiosonde": os.getenv("UNIT_RADIOSONDE", "radiosonde-auto-rx"),
 }
 
 # Mixer Configuration
 MIXER_NAME = os.getenv("MIXER_NAME", "combined")
+
+# Weather decoder configuration
+ACARS_OUTPUT_PATH = os.getenv("ACARS_OUTPUT_PATH", "/run/acars_output.json")
+RADIOSONDE_UDP_HOST = os.getenv("RADIOSONDE_UDP_HOST", "127.0.0.1")
+RADIOSONDE_UDP_PORT = int(os.getenv("RADIOSONDE_UDP_PORT", "55673"))
+WX_DECODERS = {"acars", "radiosonde"}
 
 # Profile Definitions (id, label, path)
 PROFILES = [
@@ -309,6 +317,8 @@ PROFILES = [
     ("khop",   "KHOP (Campbell)", os.path.join(PROFILES_DIR, "rtl_airband_khop.conf")),
     ("kmqy",   "KMQY (Smyrna)", os.path.join(PROFILES_DIR, "rtl_airband_kmqy.conf")),
     ("tune_atis", "Tune ATIS", os.path.join(PROFILES_DIR, "rtl_airband_tune_atis.conf")),
+    ("acars", "ACARS Weather", os.path.join(PROFILES_DIR, "rtl_airband_acars.conf")),
+    ("radiosonde", "Radiosonde", os.path.join(PROFILES_DIR, "rtl_airband_radiosonde.conf")),
     ("none_ground", "No Profile", os.path.join(PROFILES_DIR, "rtl_airband_none_ground.conf")),
     ("campbell_ground", "Ft. Campbell", os.path.join(PROFILES_DIR, "rtl_airband_campbell_ground.conf")),
     ("campbell_nfm", "Ft. Campbell NFM", os.path.join(PROFILES_DIR, "rtl_airband_campbell_nfm.conf")),
@@ -324,6 +334,7 @@ RE_SQL  = re.compile(r'^(\s*squelch_snr_threshold\s*=\s*)(-?[0-9.]+)(\s*;(?:\s*#
 RE_SQL_DBFS = re.compile(r'^(\s*squelch_threshold\s*=\s*)\(?\s*(-?[0-9.]+)\s*\)?(\s*;(?:\s*#.*)?\s*)$')
 RE_AIRBAND = re.compile(r'^\s*airband\s*=\s*(true|false)\s*;\s*$', re.I)
 RE_UI_DISABLED = re.compile(r'^\s*ui_disabled\s*=\s*(true|false)\s*;\s*$', re.I)
+RE_WX_DECODER = re.compile(r'^\s*wx_decoder\s*=\s*(\w+)\s*;\s*$', re.I)
 RE_INDEX = re.compile(r'^(\s*index\s*=\s*)(\d+)(\s*;.*)$')
 RE_SERIAL = re.compile(r'^\s*serial\s*=\s*"[^\"]*"\s*;\s*$', re.I)
 RE_FREQS_BLOCK = re.compile(r'(^\s*freqs\s*=\s*\()(.*?)(\)\s*;)', re.S | re.M)

@@ -1,0 +1,16 @@
+[Unit]
+Description=Radiosonde Auto-RX (radiosonde decoder on ground RTL-SDR)
+After=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/airband-ui.conf
+WorkingDirectory=/opt/radiosonde_auto_rx
+ExecStart=/opt/radiosonde_auto_rx/auto_rx.py
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=5
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target

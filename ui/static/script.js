@@ -620,6 +620,7 @@ async function refresh(allowSetSliders=false) {
   );
 
   updateDigitalStatus(st);
+  updateWxStatus(st);
 
   updateWarn(st.missing_profiles);
   avoidsAirband = st.avoids_airband;
@@ -1047,3 +1048,428 @@ setInterval(async ()=> {
     await refreshHitList();
   }
 }, 1500);
+
+
+// ---------------------------------------------------------------------------
+// Weather Sounding Module (ACARS / Radiosonde)
+// ---------------------------------------------------------------------------
+
+(function() {
+  const wxModule = document.getElementById('wx-module');
+  const wxDot = document.getElementById('wx-dot');
+  const wxStatusEl = document.getElementById('wx-status');
+  const wxTitleEl = document.getElementById('wx-title');
+  const wxMsgCount = document.getElementById('wx-msg-count');
+  const wxMetCount = document.getElementById('wx-met-count');
+  const wxFeed = document.getElementById('wx-feed');
+  const skewtCanvas = document.getElementById('wx-skewt');
+  const hodoCanvas = document.getElementById('wx-hodo');
+
+  let wxPolling = null;
+  let wxActive = false;
+
+  // Tab switching
+  document.querySelectorAll('[data-wx-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-wx-tab]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.wx-panel').forEach(p => p.classList.add('hidden'));
+      document.getElementById('wx-panel-' + btn.dataset.wxTab).classList.remove('hidden');
+    });
+  });
+
+  // Export buttons
+  document.getElementById('wx-export-csv').addEventListener('click', () => {
+    window.open('/api/wx/export?format=csv', '_blank');
+  });
+  document.getElementById('wx-export-json').addEventListener('click', () => {
+    window.open('/api/wx/export?format=json', '_blank');
+  });
+  document.getElementById('wx-export-spc').addEventListener('click', () => {
+    window.open('/api/wx/export?format=spc', '_blank');
+  });
+  document.getElementById('wx-clear').addEventListener('click', async () => {
+    await post('/api/wx/clear', {});
+  });
+
+  // Called from refresh() with the /api/status payload
+  window.updateWxStatus = function(st) {
+    const decoder = st.wx_decoder_active;
+    if (decoder) {
+      wxModule.classList.remove('hidden');
+      wxDot.classList.remove('bad');
+      wxDot.classList.add('pulse');
+      const label = decoder === 'radiosonde' ? 'Radiosonde' : 'ACARS Weather';
+      wxTitleEl.textContent = label;
+      wxStatusEl.textContent = 'collecting';
+      wxMsgCount.textContent = st.wx_met_count || 0;
+      if (!wxPolling) {
+        wxPolling = setInterval(refreshWx, 5000);
+        refreshWx();
+      }
+      wxActive = true;
+    } else {
+      if (wxActive) {
+        wxModule.classList.add('hidden');
+        wxDot.classList.remove('pulse');
+        wxDot.classList.add('bad');
+        wxStatusEl.textContent = 'inactive';
+        if (wxPolling) { clearInterval(wxPolling); wxPolling = null; }
+        wxActive = false;
+      }
+    }
+  };
+
+  async function refreshWx() {
+    try {
+      const [status, sounding, msgs] = await Promise.all([
+        getJSON('/api/wx/status'),
+        getJSON('/api/wx/sounding'),
+        getJSON('/api/wx/messages?limit=30'),
+      ]);
+      wxMsgCount.textContent = status.message_count || 0;
+      wxMetCount.textContent = status.met_count || 0;
+
+      if (sounding.levels && sounding.levels.length) {
+        drawSkewT(skewtCanvas, sounding.levels);
+        drawHodograph(hodoCanvas, sounding.levels);
+      } else {
+        drawPlaceholder(skewtCanvas, 'Waiting for meteorological data...');
+        drawPlaceholder(hodoCanvas, 'Waiting for wind data...');
+      }
+
+      renderFeed(msgs.messages || []);
+    } catch(e) {
+      // ignore fetch errors
+    }
+  }
+
+  function renderFeed(messages) {
+    wxFeed.innerHTML = '';
+    messages.reverse().forEach(m => {
+      const div = document.createElement('div');
+      div.className = 'wx-msg' + (m.is_met ? ' met' : '');
+      div.textContent = m.text;
+      wxFeed.appendChild(div);
+    });
+  }
+
+  function drawPlaceholder(canvas, text) {
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#111';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#666';
+    ctx.font = '14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(text, W/2, H/2);
+  }
+
+  // ---- Skew-T Log-P Diagram ----
+
+  function drawSkewT(canvas, levels) {
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const m = { top: 30, right: 70, bottom: 30, left: 55 };
+    const pW = W - m.left - m.right;
+    const pH = H - m.top - m.bottom;
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#111';
+    ctx.fillRect(0, 0, W, H);
+
+    const pMin = 100, pMax = 1050;
+    const logMin = Math.log(pMin), logMax = Math.log(pMax);
+    const tMin = -80, tMax = 40;
+    const skewFactor = 0.7;
+
+    function pToY(p) {
+      return m.top + (Math.log(p) - logMin) / (logMax - logMin) * pH;
+    }
+    function tToX(t, p) {
+      const skew = (pToY(pMax) - pToY(p)) * skewFactor;
+      return m.left + (t - tMin) / (tMax - tMin) * pW + skew;
+    }
+
+    // Draw isotherms (vertical-ish lines, skewed)
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 0.5;
+    for (let t = -80; t <= 40; t += 10) {
+      ctx.beginPath();
+      ctx.moveTo(tToX(t, pMax), pToY(pMax));
+      ctx.lineTo(tToX(t, pMin), pToY(pMin));
+      ctx.stroke();
+      // Label at bottom
+      if (t % 20 === 0) {
+        ctx.fillStyle = '#555';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(t + '\u00B0', tToX(t, pMax), pToY(pMax) + 14);
+      }
+    }
+
+    // Draw pressure lines (horizontal)
+    const pLines = [1000, 925, 850, 700, 500, 400, 300, 250, 200, 150, 100];
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 0.5;
+    pLines.forEach(p => {
+      const y = pToY(p);
+      ctx.beginPath();
+      ctx.moveTo(m.left, y);
+      ctx.lineTo(W - m.right, y);
+      ctx.stroke();
+      ctx.fillStyle = '#555';
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(p + '', m.left - 4, y + 3);
+    });
+
+    // Draw 0°C isotherm in blue
+    ctx.strokeStyle = 'rgba(100,100,255,0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(tToX(0, pMax), pToY(pMax));
+    ctx.lineTo(tToX(0, pMin), pToY(pMin));
+    ctx.stroke();
+
+    // Draw dry adiabats
+    ctx.strokeStyle = 'rgba(200,120,50,0.2)';
+    ctx.lineWidth = 0.5;
+    for (let theta = -30; theta <= 80; theta += 10) {
+      ctx.beginPath();
+      let first = true;
+      for (let p = pMax; p >= pMin; p -= 10) {
+        // Poisson's equation: T = theta * (p/1000)^0.286
+        const tK = (theta + 273.15) * Math.pow(p / 1000, 0.286);
+        const tC = tK - 273.15;
+        const x = tToX(tC, p), y = pToY(p);
+        if (x < m.left - 30 || x > W - m.right + 30) { first = true; continue; }
+        if (first) { ctx.moveTo(x, y); first = false; }
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    // Sort levels by pressure descending (surface first)
+    levels.sort((a, b) => b.pressure_hpa - a.pressure_hpa);
+
+    const isRadiosonde = levels.length > 0 && levels[0].source === 'radiosonde';
+
+    // Temperature profile (red)
+    ctx.strokeStyle = '#ff4444';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    let first = true;
+    levels.forEach(l => {
+      if (l.temp_c === -9999) return;
+      const x = tToX(l.temp_c, l.pressure_hpa);
+      const y = pToY(l.pressure_hpa);
+      if (isRadiosonde) {
+        if (first) { ctx.moveTo(x, y); first = false; }
+        else ctx.lineTo(x, y);
+      } else {
+        ctx.moveTo(x - 3, y); ctx.arc(x, y, 3, 0, Math.PI * 2);
+      }
+    });
+    if (isRadiosonde) ctx.stroke();
+    else { ctx.fillStyle = '#ff4444'; ctx.fill(); }
+
+    // Dewpoint profile (blue/green)
+    ctx.strokeStyle = '#44cc44';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    first = true;
+    levels.forEach(l => {
+      if (l.dewpoint_c === -9999) return;
+      const x = tToX(l.dewpoint_c, l.pressure_hpa);
+      const y = pToY(l.pressure_hpa);
+      if (isRadiosonde) {
+        if (first) { ctx.moveTo(x, y); first = false; }
+        else ctx.lineTo(x, y);
+      } else {
+        ctx.moveTo(x - 3, y); ctx.arc(x, y, 3, 0, Math.PI * 2);
+      }
+    });
+    if (isRadiosonde) ctx.stroke();
+    else { ctx.fillStyle = '#44cc44'; ctx.fill(); }
+
+    // Wind barbs on right margin
+    const barbX = W - m.right + 20;
+    ctx.strokeStyle = '#ccc';
+    ctx.fillStyle = '#ccc';
+    ctx.lineWidth = 1;
+    levels.forEach(l => {
+      if (l.wind_speed_kt <= 0) return;
+      const y = pToY(l.pressure_hpa);
+      drawWindBarb(ctx, barbX, y, l.wind_dir_deg, l.wind_speed_kt);
+    });
+
+    // Title
+    ctx.fillStyle = '#aaa';
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Skew-T Log-P', m.left, 16);
+    ctx.font = '10px monospace';
+    ctx.fillText(levels.length + ' obs', m.left + 120, 16);
+  }
+
+  function drawWindBarb(ctx, x, y, dir, speed) {
+    const len = 20;
+    const rad = (270 - dir) * Math.PI / 180;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(-rad);
+
+    // Staff
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(len, 0);
+    ctx.stroke();
+
+    let remaining = speed;
+    let pos = len;
+
+    // Pennants (50 kt)
+    while (remaining >= 50) {
+      ctx.beginPath();
+      ctx.moveTo(pos, 0);
+      ctx.lineTo(pos - 4, -8);
+      ctx.lineTo(pos - 4, 0);
+      ctx.closePath();
+      ctx.fill();
+      pos -= 5;
+      remaining -= 50;
+    }
+    // Full barbs (10 kt)
+    while (remaining >= 10) {
+      ctx.beginPath();
+      ctx.moveTo(pos, 0);
+      ctx.lineTo(pos - 2, -8);
+      ctx.stroke();
+      pos -= 3;
+      remaining -= 10;
+    }
+    // Half barb (5 kt)
+    if (remaining >= 5) {
+      ctx.beginPath();
+      ctx.moveTo(pos, 0);
+      ctx.lineTo(pos - 1, -5);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  // ---- Hodograph ----
+
+  function drawHodograph(canvas, levels) {
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const cx = W / 2, cy = H / 2;
+    const maxSpeed = 60;
+    const scale = Math.min(cx, cy) * 0.8 / maxSpeed;
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#111';
+    ctx.fillRect(0, 0, W, H);
+
+    // Speed rings
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 0.5;
+    for (let s = 10; s <= maxSpeed; s += 10) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, s * scale, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#555';
+      ctx.font = '9px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(s + 'kt', cx + s * scale + 2, cy - 4);
+    }
+
+    // Cardinal directions
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - maxSpeed * scale); ctx.lineTo(cx, cy + maxSpeed * scale);
+    ctx.moveTo(cx - maxSpeed * scale, cy); ctx.lineTo(cx + maxSpeed * scale, cy);
+    ctx.stroke();
+
+    ctx.fillStyle = '#666';
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('N', cx, cy - maxSpeed * scale - 4);
+    ctx.fillText('S', cx, cy + maxSpeed * scale + 12);
+    ctx.fillText('E', cx + maxSpeed * scale + 12, cy + 4);
+    ctx.fillText('W', cx - maxSpeed * scale - 12, cy + 4);
+
+    // Plot wind vectors
+    levels.sort((a, b) => a.altitude_ft - b.altitude_ft);
+    const pts = levels
+      .filter(l => l.wind_speed_kt > 0)
+      .map(l => {
+        const rad = (270 - l.wind_dir_deg) * Math.PI / 180;
+        return {
+          x: cx + l.wind_speed_kt * Math.cos(rad) * scale,
+          y: cy - l.wind_speed_kt * Math.sin(rad) * scale,
+          alt: l.altitude_ft,
+        };
+      });
+
+    if (pts.length < 2) return;
+
+    // Color by altitude band
+    function altColor(alt) {
+      if (alt < 10000) return '#44cc44';   // 0-3 km green
+      if (alt < 20000) return '#cccc44';   // 3-6 km yellow
+      if (alt < 30000) return '#cc4444';   // 6-9 km red
+      return '#44cccc';                     // 9+ km cyan
+    }
+
+    // Draw segments
+    ctx.lineWidth = 2;
+    for (let i = 1; i < pts.length; i++) {
+      ctx.strokeStyle = altColor(pts[i].alt);
+      ctx.beginPath();
+      ctx.moveTo(pts[i-1].x, pts[i-1].y);
+      ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.stroke();
+    }
+
+    // Dots at each point
+    pts.forEach(p => {
+      ctx.fillStyle = altColor(p.alt);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Title
+    ctx.fillStyle = '#aaa';
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Hodograph', 8, 16);
+    ctx.font = '10px monospace';
+    ctx.fillText(pts.length + ' obs', 100, 16);
+
+    // Legend
+    const leg = [
+      ['0-10kft', '#44cc44'], ['10-20kft', '#cccc44'],
+      ['20-30kft', '#cc4444'], ['30kft+', '#44cccc'],
+    ];
+    let lx = 8, ly = H - 10;
+    ctx.font = '9px monospace';
+    leg.forEach(([label, color]) => {
+      ctx.fillStyle = color;
+      ctx.fillRect(lx, ly - 7, 8, 8);
+      ctx.fillStyle = '#888';
+      ctx.textAlign = 'left';
+      ctx.fillText(label, lx + 10, ly);
+      lx += 70;
+    });
+  }
+
+  // Initial placeholder
+  drawPlaceholder(skewtCanvas, 'Select ACARS or Radiosonde profile to begin');
+  drawPlaceholder(hodoCanvas, 'Select ACARS or Radiosonde profile to begin');
+})();

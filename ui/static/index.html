@@ -167,6 +167,40 @@
           </div>
         </div>
 
+        <div class="ctrl hidden" id="wx-module">
+          <div class="ctrl-head">
+            <b id="wx-title">Weather Sounding</b>
+            <span class="wx-head">
+              <span class="dot" id="wx-dot"></span>
+              <span id="wx-status">inactive</span>
+            </span>
+          </div>
+          <div class="ctrl-readout">
+            <span>Messages: <span id="wx-msg-count">0</span></span>
+            <span>Met Obs: <span id="wx-met-count">0</span></span>
+          </div>
+          <div class="wx-tabs">
+            <button type="button" class="tab active" data-wx-tab="skewt">Skew-T</button>
+            <button type="button" class="tab" data-wx-tab="hodo">Hodograph</button>
+            <button type="button" class="tab" data-wx-tab="feed">Feed</button>
+          </div>
+          <div id="wx-panel-skewt" class="wx-panel">
+            <canvas id="wx-skewt" width="600" height="600"></canvas>
+          </div>
+          <div id="wx-panel-hodo" class="wx-panel hidden">
+            <canvas id="wx-hodo" width="400" height="400"></canvas>
+          </div>
+          <div id="wx-panel-feed" class="wx-panel hidden">
+            <div id="wx-feed" class="wx-feed"></div>
+          </div>
+          <div class="btns" style="margin-top:10px;">
+            <button type="button" id="wx-export-csv">CSV</button>
+            <button type="button" id="wx-export-json">JSON</button>
+            <button type="button" id="wx-export-spc">SHARPpy</button>
+            <button type="button" id="wx-clear">Clear</button>
+          </div>
+        </div>
+
         <div class="warn" id="warn"></div>
         <div class="avoids" id="avoids-summary"></div>
         <div class="foot">© 2026 Will Minkoff • <a href="#" id="lnk-diagnostic">Generate log</a></div>

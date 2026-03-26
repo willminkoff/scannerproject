@@ -1,6 +1,7 @@
 """Business logic for scanner actions."""
 import os
 import json
+import shutil
 import time
 import re
 import logging
@@ -24,6 +25,7 @@ try:
         ANALOG_AUTO_SQUELCH_MARGIN_DB,
         ANALOG_AUTO_SQUELCH_MIN_DBFS,
         ANALOG_AUTO_SQUELCH_MAX_DBFS,
+        RE_UI_DISABLED,
     )
     from .systemd import (
         unit_active,
@@ -36,11 +38,14 @@ try:
         restart_ui,
         restart_digital,
         stop_ground,
+        start_acars, stop_acars, restart_acars,
+        start_radiosonde, stop_radiosonde, restart_radiosonde,
     )
     from .profile_config import (
         split_profiles, guess_current_profile, set_profile, write_controls,
         write_combined_config, read_active_config_path, resolve_controls_path, avoid_current_hit,
-        clear_avoids, write_filter, parse_freqs_labels, replace_freqs_labels, parse_controls
+        clear_avoids, write_filter, parse_freqs_labels, replace_freqs_labels, parse_controls,
+        read_wx_decoder,
     )
     from .managed_analog_controls import persist_managed_controls_override
     from .scanner import mark_analog_hit_cutoff
@@ -56,6 +61,7 @@ except ImportError:
         ANALOG_AUTO_SQUELCH_MARGIN_DB,
         ANALOG_AUTO_SQUELCH_MIN_DBFS,
         ANALOG_AUTO_SQUELCH_MAX_DBFS,
+        RE_UI_DISABLED,
     )
     from ui.systemd import (
         unit_active,
@@ -68,11 +74,14 @@ except ImportError:
         restart_ui,
         restart_digital,
         stop_ground,
+        start_acars, stop_acars, restart_acars,
+        start_radiosonde, stop_radiosonde, restart_radiosonde,
     )
     from ui.profile_config import (
         split_profiles, guess_current_profile, set_profile, write_controls,
         write_combined_config, read_active_config_path, resolve_controls_path, avoid_current_hit,
-        clear_avoids, write_filter, parse_freqs_labels, replace_freqs_labels, parse_controls
+        clear_avoids, write_filter, parse_freqs_labels, replace_freqs_labels, parse_controls,
+        read_wx_decoder,
     )
     from ui.managed_analog_controls import persist_managed_controls_override
     from ui.scanner import mark_analog_hit_cutoff
@@ -271,6 +280,29 @@ def _clamp_squelch_dbfs(value: float) -> float:
     clamped = max(float(ANALOG_AUTO_SQUELCH_MIN_DBFS), float(value))
     clamped = min(float(ANALOG_AUTO_SQUELCH_MAX_DBFS), clamped)
     return round(clamped, 1)
+
+# Decoder service helpers keyed by decoder name
+_WX_START = {"acars": start_acars, "radiosonde": start_radiosonde}
+_WX_STOP = {"acars": stop_acars, "radiosonde": stop_radiosonde}
+_WX_BIN = {"acars": "acarsdec", "radiosonde": "auto_rx.py"}
+
+
+def _start_wx_reader(decoder: str) -> None:
+    """Start the wx data reader thread for the given decoder."""
+    try:
+        from .server_workers import start_wx_reader
+    except ImportError:
+        from ui.server_workers import start_wx_reader
+    start_wx_reader(decoder)
+
+
+def _stop_wx_reader() -> None:
+    """Stop any active wx data reader thread."""
+    try:
+        from .server_workers import stop_wx_reader
+    except ImportError:
+        from ui.server_workers import stop_wx_reader
+    stop_wx_reader()
 
 
 def _normalize_hold_state(state):
@@ -594,20 +626,24 @@ def action_set_profile(profile_id: str, target: str, *, restart_service: bool = 
     
     # Only proceed if profile actually changed
     if profile_id and profile_id != current_profile:
-        # Safety: refuse to activate a profile with an empty freqs list.
-        # rtl_airband will refuse to start if freqs is empty.
+        # Resolve new profile path
         next_path = None
         for pid, _, path in profiles:
             if pid == profile_id:
                 next_path = path
                 break
+
+        # Safety: refuse to activate a profile with an empty freqs list,
+        # UNLESS it has ui_disabled=true (wx decoder or none_* profiles).
         if next_path and os.path.exists(next_path):
             try:
                 with open(next_path, "r", encoding="utf-8", errors="ignore") as f:
                     text = f.read()
-                freqs, _labels = parse_freqs_labels(text)
-                if not freqs:
-                    return {"status": 400, "payload": {"ok": False, "error": "profile has no frequencies; add freqs and save first"}}
+                is_disabled = bool(RE_UI_DISABLED.search(text) and "true" in RE_UI_DISABLED.search(text).group(0).lower())
+                if not is_disabled:
+                    freqs, _labels = parse_freqs_labels(text)
+                    if not freqs:
+                        return {"status": 400, "payload": {"ok": False, "error": "profile has no frequencies; add freqs and save first"}}
             except Exception:
                 # If parsing fails, continue; rtl_airband will surface config errors.
                 logger.debug(
@@ -617,26 +653,37 @@ def action_set_profile(profile_id: str, target: str, *, restart_service: bool = 
                     exc_info=True,
                 )
 
+        # Determine wx decoder state for old and new profiles (ground only)
+        old_decoder = None
+        new_decoder = None
+        if target == "ground":
+            old_decoder = read_wx_decoder(os.path.realpath(GROUND_CONFIG_PATH))
+            if next_path:
+                new_decoder = read_wx_decoder(next_path)
+
+            # Validate decoder binary is installed
+            if new_decoder and new_decoder in _WX_BIN:
+                bin_name = _WX_BIN[new_decoder]
+                if not shutil.which(bin_name):
+                    return {"status": 500, "payload": {
+                        "ok": False,
+                        "error": f"{bin_name} not installed; install it to use {new_decoder} mode"
+                    }}
+
         ok, changed = set_profile(profile_id, conf_path, profiles, target_symlink)
         if not ok:
             return {"status": 400, "payload": {"ok": False, "error": "unknown profile"}}
-        
         combined_changed = False
         restart_ok = True
         restart_error = ""
-
         restart_needed = bool(changed or combined_changed)
 
-        # Loop-mode profile switches can skip restart to keep stream/mount
-        # continuity. Manual profile sets keep restart behavior.
         if restart_service:
             try:
                 combined_changed = write_combined_config()
             except Exception as e:
                 return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
             restart_needed = bool(changed or combined_changed)
-            if restart_needed:
-                restart_ok, restart_error = unit_restart()
 
         payload = {
             "ok": True,
@@ -644,9 +691,30 @@ def action_set_profile(profile_id: str, target: str, *, restart_service: bool = 
             "profile_switched": bool(changed),
             "combined_changed": bool(combined_changed),
         }
+        if restart_service and target == "ground" and (old_decoder or new_decoder):
+            # Stop old decoder if leaving one
+            if old_decoder and old_decoder in _WX_STOP:
+                _WX_STOP[old_decoder]()
+                _stop_wx_reader()
+
+            # Always restart rtl-airband when transitioning decoder state
+            if restart_needed:
+                restart_ok, restart_error = unit_restart()
+                time.sleep(0.5)  # let USB device release
+
+            # Start new decoder if entering one
+            if new_decoder and new_decoder in _WX_START:
+                dec_ok, dec_err = _WX_START[new_decoder]()
+                if not dec_ok:
+                    payload["wx_error"] = dec_err
+                else:
+                    _start_wx_reader(new_decoder)
+                payload["wx_decoder"] = new_decoder
+        elif restart_service and restart_needed:
+                restart_ok, restart_error = unit_restart()
         if restart_service:
             payload["restart_skipped"] = not restart_needed
-        if restart_service and restart_needed:
+        if restart_service and (restart_needed or old_decoder or new_decoder):
             payload["restart_ok"] = restart_ok
             if not restart_ok and restart_error:
                 payload["restart_error"] = restart_error

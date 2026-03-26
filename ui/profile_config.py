@@ -14,6 +14,7 @@ try:
         CONFIG_SYMLINK, PROFILES_DIR, PROFILES_REGISTRY_PATH, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH,
         AVOIDS_DIR, AVOIDS_PATHS, AVOIDS_SUMMARY_PATHS, PROFILES, GAIN_STEPS,
         RE_GAIN, RE_SQL, RE_SQL_DBFS, RE_AIRBAND, RE_INDEX, RE_FREQS_BLOCK, RE_LABELS_BLOCK,
+        RE_WX_DECODER,
         MIXER_NAME, PLAYER_MOUNT, FILTER_AIRBAND_PATH, FILTER_GROUND_PATH, FILTER_DEFAULT_CUTOFF,
         FILTER_MIN_CUTOFF, FILTER_MAX_CUTOFF
     )
@@ -23,6 +24,7 @@ except ImportError:
         CONFIG_SYMLINK, PROFILES_DIR, PROFILES_REGISTRY_PATH, GROUND_CONFIG_PATH, COMBINED_CONFIG_PATH,
         AVOIDS_DIR, AVOIDS_PATHS, AVOIDS_SUMMARY_PATHS, PROFILES, GAIN_STEPS,
         RE_GAIN, RE_SQL, RE_SQL_DBFS, RE_AIRBAND, RE_INDEX, RE_FREQS_BLOCK, RE_LABELS_BLOCK,
+        RE_WX_DECODER,
         MIXER_NAME, PLAYER_MOUNT, FILTER_AIRBAND_PATH, FILTER_GROUND_PATH, FILTER_DEFAULT_CUTOFF,
         FILTER_MIN_CUTOFF, FILTER_MAX_CUTOFF
     )
@@ -61,6 +63,19 @@ def read_airband_flag(conf_path: str) -> Optional[bool]:
                 match = RE_AIRBAND.match(line)
                 if match:
                     return match.group(1).lower() == "true"
+    except FileNotFoundError:
+        return None
+    return None
+
+
+def read_wx_decoder(conf_path: str) -> Optional[str]:
+    """Read the wx_decoder value from a config file (e.g. 'acars', 'radiosonde')."""
+    try:
+        with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                match = RE_WX_DECODER.match(line)
+                if match:
+                    return match.group(1).lower()
     except FileNotFoundError:
         return None
     return None
@@ -112,6 +127,8 @@ def _infer_airband_flag(profile_id: str, path: str) -> Optional[bool]:
         "gmrs": False,
         "gmrs_frs_murs": False,
         "wx": False,
+        "acars": False,
+        "radiosonde": False,
         "none_ground": False,
     }
     if profile_id in pid_overrides:

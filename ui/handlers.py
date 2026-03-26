@@ -113,7 +113,7 @@ try:
         set_bt_heal_auto_recovery,
         reboot_host,
     )
-    from .server_workers import enqueue_action, enqueue_apply
+    from .server_workers import enqueue_action, enqueue_apply, get_met_store
     from .diagnostic import write_diagnostic_log
     from .spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
     from .system_stats import get_system_stats, read_bt_audio_heal_status
@@ -215,7 +215,7 @@ except ImportError:
         set_bt_heal_auto_recovery,
         reboot_host,
     )
-    from ui.server_workers import enqueue_action, enqueue_apply
+    from ui.server_workers import enqueue_action, enqueue_apply, get_met_store
     from ui.diagnostic import write_diagnostic_log
     from ui.spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
     from ui.system_stats import get_system_stats, read_bt_audio_heal_status
@@ -3170,6 +3170,10 @@ class Handler(BaseHTTPRequestHandler):
                 digital_preflight=digital_preflight,
                 compile_state=compile_state,
             )
+            wx_store = get_met_store()
+            payload["wx_decoder_active"] = wx_store.active_decoder
+            payload["wx_collecting"] = wx_store.collecting
+            payload["wx_met_count"] = wx_store.get_status().get("met_count", 0)
             with _CACHE_LOCK:
                 _STATUS_CACHE["ts"] = now_monotonic
                 _STATUS_CACHE["payload"] = dict(payload)
@@ -3314,6 +3318,67 @@ class Handler(BaseHTTPRequestHandler):
             if not ok:
                 return self._send(400, json.dumps({"ok": False, "error": payload}), "application/json; charset=utf-8")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+        # ---- Weather sounding (ACARS / Radiosonde) endpoints ----
+
+        if p == "/api/wx/status":
+            store = get_met_store()
+            status = store.get_status()
+            status["acars_installed"] = bool(shutil.which("acarsdec"))
+            status["radiosonde_installed"] = bool(shutil.which("auto_rx.py"))
+            return self._send(200, json.dumps(status), "application/json; charset=utf-8")
+
+        if p == "/api/wx/messages":
+            q = parse_qs(u.query or "")
+            limit = int((q.get("limit") or ["50"])[0])
+            source = (q.get("source") or [None])[0]
+            store = get_met_store()
+            msgs = store.get_messages(limit=limit, source=source)
+            return self._send(200, json.dumps({"ok": True, "messages": msgs}), "application/json; charset=utf-8")
+
+        if p == "/api/wx/sounding":
+            store = get_met_store()
+            data = store.get_sounding_data()
+            return self._send(200, json.dumps({"ok": True, **data}), "application/json; charset=utf-8")
+
+        if p == "/api/wx/export":
+            q = parse_qs(u.query or "")
+            fmt = (q.get("format") or ["json"])[0]
+            store = get_met_store()
+            if fmt == "spc":
+                body = store.get_sounding_spc()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Content-Disposition", "attachment; filename=sounding.txt")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(body.encode("utf-8"))
+                return
+            elif fmt == "csv":
+                data = store.get_sounding_data()
+                cols = ["timestamp", "source", "source_id", "altitude_ft", "pressure_hpa",
+                        "temp_c", "dewpoint_c", "wind_dir_deg", "wind_speed_kt", "humidity_pct", "lat", "lon"]
+                lines = [",".join(cols)]
+                for obs in data.get("levels", []):
+                    lines.append(",".join(str(obs.get(c, "")) for c in cols))
+                body = "\n".join(lines)
+                self.send_response(200)
+                self.send_header("Content-Type", "text/csv; charset=utf-8")
+                self.send_header("Content-Disposition", "attachment; filename=sounding.csv")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(body.encode("utf-8"))
+                return
+            else:
+                data = store.get_sounding_data()
+                body = json.dumps(data)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Disposition", "attachment; filename=sounding.json")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(body.encode("utf-8"))
+                return
+
         if p == "/api/hits":
             payload = _get_hits_payload_cached(limit=50)
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")

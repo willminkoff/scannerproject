@@ -1,0 +1,15 @@
+[Unit]
+Description=ACARS Decoder (acarsdec on ground RTL-SDR)
+After=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/airband-ui.conf
+ExecStart=/usr/local/bin/acarsdec -j /run/acars_output.json -r ${GROUND_RTL_SERIAL:-70613472} 131.550 130.025 129.125
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=3
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target
