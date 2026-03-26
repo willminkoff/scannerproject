@@ -45,7 +45,14 @@ if [[ "$FORCE" != "1" ]]; then
     if [[ -d "$AUTORX_DIR/venv" ]] && head -1 "$AUTORX_DIR/auto_rx.py" 2>/dev/null | grep -q "^#!/opt/radiosonde_auto_rx/venv/bin/python3"; then
         need_autorx_venv=false
     fi
-    if [[ -f "$AUTORX_DIR/station.cfg" ]] && grep -q "payload_summary_port = 55673" "$AUTORX_DIR/station.cfg"; then
+    if [[ -f "$AUTORX_DIR/station.cfg" ]] \
+        && grep -q "payload_summary_port = 55673" "$AUTORX_DIR/station.cfg" \
+        && grep -q "device_idx = ${GROUND_SERIAL}" "$AUTORX_DIR/station.cfg" \
+        && grep -q "sdr_type = RTLSDR" "$AUTORX_DIR/station.cfg" \
+        && grep -q "min_freq = 400.05" "$AUTORX_DIR/station.cfg" \
+        && grep -q "max_freq = 406.0" "$AUTORX_DIR/station.cfg" \
+        && grep -q "sdr_fm_path = rtl_fm" "$AUTORX_DIR/station.cfg" \
+        && grep -q "sondehub_enabled = False" "$AUTORX_DIR/station.cfg"; then
         need_station_cfg=false
     fi
 fi
@@ -55,10 +62,19 @@ fi
 # ---------------------------------------------------------------------------
 echo "1/7: Installing system dependencies..."
 apt-get update -qq
+# acarsdec: build-essential cmake git librtlsdr-dev libusb-1.0-0-dev libjansson-dev
+# radiosonde_auto_rx (upstream native guide): python3 python3-venv sox git
+#   build-essential libtool cmake usbutils libusb-1.0-0-dev rng-tools
+#   libsamplerate-dev libatlas3-base libgfortran5 libopenblas-dev rtl-sdr
+# rtl-sdr provides rtl_fm and rtl_power used by auto_rx (sdr_fm_path, sdr_power_path)
 apt-get install -y -qq \
-    build-essential cmake git \
+    build-essential cmake git libtool \
     librtlsdr-dev libusb-1.0-0-dev libjansson-dev \
-    python3 python3-pip python3-venv libsndfile1-dev
+    rtl-sdr usbutils \
+    python3 python3-pip python3-venv \
+    libsndfile1-dev libsamplerate-dev \
+    libatlas3-base libgfortran5 libopenblas-dev \
+    sox rng-tools
 echo "  done"
 echo ""
 
@@ -298,6 +314,20 @@ else
     PASS=false
 fi
 
+if command -v rtl_fm &>/dev/null; then
+    echo "  rtl_fm ............... OK ($(command -v rtl_fm))"
+else
+    echo "  rtl_fm ............... MISSING (rtl-sdr package not installed)"
+    PASS=false
+fi
+
+if command -v rtl_power &>/dev/null; then
+    echo "  rtl_power ............ OK ($(command -v rtl_power))"
+else
+    echo "  rtl_power ............ MISSING (rtl-sdr package not installed)"
+    PASS=false
+fi
+
 if [[ -d "$AUTORX_DIR/venv" ]]; then
     echo "  venv ................. OK"
 else
@@ -312,10 +342,22 @@ else
     PASS=false
 fi
 
-if [[ -f "$STATION_CFG" ]] && grep -q "payload_summary_port = 55673" "$STATION_CFG"; then
-    echo "  station.cfg .......... OK (UDP port 55673)"
+CFG_OK=true
+if [[ ! -f "$STATION_CFG" ]]; then
+    CFG_OK=false
 else
-    echo "  station.cfg .......... BAD (missing or wrong port)"
+    grep -q "payload_summary_port = 55673"    "$STATION_CFG" || CFG_OK=false
+    grep -q "device_idx = ${GROUND_SERIAL}"   "$STATION_CFG" || CFG_OK=false
+    grep -q "sdr_type = RTLSDR"              "$STATION_CFG" || CFG_OK=false
+    grep -q "min_freq = 400.05"              "$STATION_CFG" || CFG_OK=false
+    grep -q "max_freq = 406.0"               "$STATION_CFG" || CFG_OK=false
+    grep -q "sdr_fm_path = rtl_fm"           "$STATION_CFG" || CFG_OK=false
+    grep -q "sondehub_enabled = False"       "$STATION_CFG" || CFG_OK=false
+fi
+if [[ "$CFG_OK" == "true" ]]; then
+    echo "  station.cfg .......... OK (serial=${GROUND_SERIAL}, UDP=55673, 400-406 MHz)"
+else
+    echo "  station.cfg .......... BAD (missing or contract mismatch)"
     PASS=false
 fi
 
