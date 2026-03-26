@@ -3,11 +3,19 @@ import json
 import os
 import sys
 import time
+import threading
+import re
+import subprocess
+import ssl
 from datetime import datetime
 import queue
 import shutil
+import xml.etree.ElementTree as ET
+from typing import Any
 from http.server import BaseHTTPRequestHandler
-from urllib.parse import parse_qs, urlparse
+from urllib.error import HTTPError, URLError
+from urllib.parse import parse_qs, quote, unquote, urlparse
+from urllib.request import Request, urlopen
 def combined_num_devices(conf_path=None) -> int:
     """Count devices declared in the combined rtl_airband config.
 
@@ -22,6 +30,35 @@ def combined_num_devices(conf_path=None) -> int:
     except Exception:
         return 0
 
+
+def _digital_tuner_targets() -> list[str]:
+    targets = []
+    for candidate in (
+        DIGITAL_PREFERRED_TUNER,
+        DIGITAL_RTL_SERIAL,
+        DIGITAL_RTL_SERIAL_SECONDARY,
+        DIGITAL_RTL_SERIAL_TERTIARY,
+        DIGITAL_RTL_DEVICE,
+    ):
+        value = str(candidate or "").strip()
+        if value and value not in targets:
+            targets.append(value)
+    return targets
+
+
+def _configured_digital_serials() -> list[str]:
+    serials = []
+    for candidate in (
+        DIGITAL_RTL_SERIAL,
+        DIGITAL_RTL_SERIAL_SECONDARY,
+        DIGITAL_RTL_SERIAL_TERTIARY,
+    ):
+        value = str(candidate or "").strip()
+        if value and value not in serials:
+            serials.append(value)
+    return serials
+
+
 try:
     from .config import (
         CONFIG_SYMLINK,
@@ -30,19 +67,30 @@ try:
         UI_PORT,
         UNITS,
         COMBINED_CONFIG_PATH,
-        DIGITAL_MIXER_ENABLED,
-        DIGITAL_MIXER_AIRBAND_MOUNT,
-        DIGITAL_MIXER_DIGITAL_MOUNT,
-        DIGITAL_MIXER_OUTPUT_MOUNT,
         AIRBAND_RTL_SERIAL,
         GROUND_RTL_SERIAL,
+        DIGITAL_PREFERRED_TUNER,
+        DIGITAL_RTL_DEVICE,
         DIGITAL_RTL_SERIAL,
+        DIGITAL_RTL_SERIAL_SECONDARY,
+        DIGITAL_RTL_SERIAL_TERTIARY,
         DIGITAL_RTL_SERIAL_HINT,
+        DIGITAL_STREAM_MOUNT,
+        DIGITAL_PLAYLIST_PATH,
+        DIGITAL_SDRTRUNK_STREAM_NAME,
+        DIGITAL_MIXER_ENABLED,
+        HEALTH_SCHEDULER_STALE_MS,
         ICECAST_PORT,
         PLAYER_MOUNT,
+        SB3_CONNECTED_STATUS_REFRESH_SEC,
+        SB3_CONNECTED_SYSTEM_REFRESH_SEC,
+        SB3_CONNECTED_PROFILES_REFRESH_SEC,
+        SB3_DEDICATED_DIGITAL_FETCH_ENABLED,
+        STREAM_PROXY_TRANSCODE_ANALOG_DEFAULT,
     )
     from .profile_config import (
         read_active_config_path, parse_controls, split_profiles,
+        resolve_controls_path,
         guess_current_profile, summarize_avoids, parse_filter,
         load_profiles_registry, find_profile, validate_profile_id, safe_profile_path,
         enforce_profile_index, set_profile, save_profiles_registry, write_airband_flag,
@@ -50,19 +98,25 @@ try:
     )
     from .combined_status import combined_device_summary, combined_config_stale
     from .scanner import (
-        read_last_hit_airband, read_last_hit_ground, read_hit_list_cached
+        get_analog_scan_health, read_last_hit_airband, read_last_hit_ground, read_hit_list_cached
     )
     from .icecast import (
-        icecast_up,
         fetch_local_icecast_status,
         list_icecast_mounts,
         extract_icecast_title_for_mount,
     )
-    from .systemd import unit_active, unit_exists, restart_rtl, unit_active_enter_epoch
+    from .systemd import (
+        unit_active,
+        unit_exists,
+        restart_rtl,
+        unit_active_enter_epoch,
+        set_bt_heal_auto_recovery,
+        reboot_host,
+    )
     from .server_workers import enqueue_action, enqueue_apply
     from .diagnostic import write_diagnostic_log
     from .spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
-    from .system_stats import get_system_stats
+    from .system_stats import get_system_stats, read_bt_audio_heal_status
     from .vlc import start_vlc, stop_vlc, vlc_running, vlc_status
     from .digital import (
         get_digital_manager,
@@ -73,6 +127,40 @@ try:
         read_digital_talkgroups,
         write_digital_listen,
     )
+    from .dongle_allocator import load_assignments as load_dongle_assignments
+    from .profile_editor import (
+        analog_profile_is_active,
+        get_analog_editor_payload,
+        get_digital_editor_payload,
+        save_analog_editor_payload,
+        save_digital_editor_payload,
+        validate_analog_editor_payload,
+        validate_digital_editor_payload,
+    )
+    from .hp_state import HPState
+    from .hp_favorites_wizard import HPFavoritesWizard
+    from .favorites_runtime import (
+        get_last_favorites_runtime_sync,
+        get_last_runtime_scan_pool,
+        sync_scan_pool_to_runtime,
+    )
+    from .service_types import get_all_service_types, get_default_enabled_service_types
+    from .zip_lookup import resolve_postal_to_lat_lon
+    from .scan_mode_controller import get_scan_mode_controller
+    from .v3_preflight import (
+        evaluate_analog_preflight,
+        evaluate_digital_preflight,
+        gate_action,
+    )
+    from .v3_runtime import (
+        compile_runtime,
+        load_compiled_state,
+        set_active_analog_profile,
+        set_active_digital_profile,
+        sync_digital_profiles_from_fs,
+        upsert_analog_profile,
+        delete_analog_profile,
+    )
 except ImportError:
     from ui.config import (
         CONFIG_SYMLINK,
@@ -81,19 +169,30 @@ except ImportError:
         UI_PORT,
         UNITS,
         COMBINED_CONFIG_PATH,
-        DIGITAL_MIXER_ENABLED,
-        DIGITAL_MIXER_AIRBAND_MOUNT,
-        DIGITAL_MIXER_DIGITAL_MOUNT,
-        DIGITAL_MIXER_OUTPUT_MOUNT,
         AIRBAND_RTL_SERIAL,
         GROUND_RTL_SERIAL,
+        DIGITAL_PREFERRED_TUNER,
+        DIGITAL_RTL_DEVICE,
         DIGITAL_RTL_SERIAL,
+        DIGITAL_RTL_SERIAL_SECONDARY,
+        DIGITAL_RTL_SERIAL_TERTIARY,
         DIGITAL_RTL_SERIAL_HINT,
+        DIGITAL_STREAM_MOUNT,
+        DIGITAL_PLAYLIST_PATH,
+        DIGITAL_SDRTRUNK_STREAM_NAME,
+        DIGITAL_MIXER_ENABLED,
+        HEALTH_SCHEDULER_STALE_MS,
         ICECAST_PORT,
         PLAYER_MOUNT,
+        SB3_CONNECTED_STATUS_REFRESH_SEC,
+        SB3_CONNECTED_SYSTEM_REFRESH_SEC,
+        SB3_CONNECTED_PROFILES_REFRESH_SEC,
+        SB3_DEDICATED_DIGITAL_FETCH_ENABLED,
+        STREAM_PROXY_TRANSCODE_ANALOG_DEFAULT,
     )
     from ui.profile_config import (
         read_active_config_path, parse_controls, split_profiles,
+        resolve_controls_path,
         guess_current_profile, summarize_avoids, parse_filter,
         load_profiles_registry, find_profile, validate_profile_id, safe_profile_path,
         enforce_profile_index, set_profile, save_profiles_registry, write_airband_flag,
@@ -101,19 +200,25 @@ except ImportError:
     )
     from ui.combined_status import combined_device_summary, combined_config_stale
     from ui.scanner import (
-        read_last_hit_airband, read_last_hit_ground, read_hit_list_cached
+        get_analog_scan_health, read_last_hit_airband, read_last_hit_ground, read_hit_list_cached
     )
     from ui.icecast import (
-        icecast_up,
         fetch_local_icecast_status,
         list_icecast_mounts,
         extract_icecast_title_for_mount,
     )
-    from ui.systemd import unit_active, unit_exists, restart_rtl, unit_active_enter_epoch
+    from ui.systemd import (
+        unit_active,
+        unit_exists,
+        restart_rtl,
+        unit_active_enter_epoch,
+        set_bt_heal_auto_recovery,
+        reboot_host,
+    )
     from ui.server_workers import enqueue_action, enqueue_apply
     from ui.diagnostic import write_diagnostic_log
     from ui.spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
-    from ui.system_stats import get_system_stats
+    from ui.system_stats import get_system_stats, read_bt_audio_heal_status
     from ui.vlc import start_vlc, stop_vlc, vlc_running, vlc_status
     from ui.digital import (
         get_digital_manager,
@@ -124,39 +229,1415 @@ except ImportError:
         read_digital_talkgroups,
         write_digital_listen,
     )
+    from ui.dongle_allocator import load_assignments as load_dongle_assignments
+    from ui.profile_editor import (
+        analog_profile_is_active,
+        get_analog_editor_payload,
+        get_digital_editor_payload,
+        save_analog_editor_payload,
+        save_digital_editor_payload,
+        validate_analog_editor_payload,
+        validate_digital_editor_payload,
+    )
+    from ui.hp_state import HPState
+    from ui.hp_favorites_wizard import HPFavoritesWizard
+    from ui.favorites_runtime import (
+        get_last_favorites_runtime_sync,
+        get_last_runtime_scan_pool,
+        sync_scan_pool_to_runtime,
+    )
+    from ui.service_types import get_all_service_types, get_default_enabled_service_types
+    from ui.zip_lookup import resolve_postal_to_lat_lon
+    from ui.scan_mode_controller import get_scan_mode_controller
+    from ui.v3_preflight import (
+        evaluate_analog_preflight,
+        evaluate_digital_preflight,
+        gate_action,
+    )
+    from ui.v3_runtime import (
+        compile_runtime,
+        load_compiled_state,
+        set_active_analog_profile,
+        set_active_digital_profile,
+        sync_digital_profiles_from_fs,
+        upsert_analog_profile,
+        delete_analog_profile,
+    )
 
 
-def _read_html_template():
-    """Read the static HTML template."""
-    ui_dir = os.path.dirname(os.path.abspath(__file__))
-    html_path = os.path.join(ui_dir, "static", "index.html")
-    try:
-        with open(html_path, "r", encoding="utf-8") as f:
-            return f.read()
-    except FileNotFoundError:
-        return "<!doctype html><html><body>Static files not found</body></html>"
-
-
-HTML_TEMPLATE = _read_html_template()
 # Digital call-event logs can emit rapid "grant/continue" updates for the same talkgroup.
 # Use a wider default coalesce window to align UI hits with perceived audible traffic.
-DIGITAL_HIT_COALESCE_SEC = max(0.0, float(os.getenv("DIGITAL_HIT_COALESCE_SEC", "20")))
+DIGITAL_HIT_COALESCE_SEC = max(0.0, float(os.getenv("DIGITAL_HIT_COALESCE_SEC", "8")))
 DIGITAL_HITS_REQUIRE_ACTIVE_STREAM = os.getenv(
     "DIGITAL_HITS_REQUIRE_ACTIVE_STREAM",
     "1",
 ).strip().lower() in ("1", "true", "yes", "on")
+DIGITAL_HITS_REQUIRE_AUDIO_EVENT = os.getenv(
+    "DIGITAL_HITS_REQUIRE_AUDIO_EVENT",
+    "1",
+).strip().lower() in ("1", "true", "yes", "on")
+DIGITAL_HITS_REQUIRE_STREAM_ROUTE = os.getenv(
+    "DIGITAL_HITS_REQUIRE_STREAM_ROUTE",
+    "1",
+).strip().lower() in ("1", "true", "yes", "on")
+DIGITAL_HIT_RECENT_SEC = max(5.0, float(os.getenv("DIGITAL_HIT_RECENT_SEC", "180")))
+DIGITAL_HITS_MIN_VISIBLE = max(0, int(os.getenv("DIGITAL_HITS_MIN_VISIBLE", "3")))
 _DIGITAL_IDLE_TITLES = {"", "-", "idle", "n/a", "scanning", "scanning..."}
+_DIGITAL_HIT_TGID_RE = re.compile(
+    r"\b(?:tgid|talkgroup|tg)\s*[:=#-]?\s*\(?\s*(\d{1,8})\s*\)?",
+    re.I,
+)
+_DIGITAL_STREAM_ROUTE_CACHE: dict[str, object] = {
+    "path": "",
+    "mtime": 0.0,
+    "ts": 0.0,
+    "tgids": set(),
+}
+_ANALOG_LABEL_CACHE: dict[str, dict] = {}
+_LOCAL_PROFILES_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "profiles"))
+_NOAA_LABELS_BY_FREQ = {
+    "162.5500": "NOAA 1",
+    "162.4000": "NOAA 2",
+    "162.4750": "NOAA 3",
+    "162.4250": "NOAA 4",
+    "162.4500": "NOAA 5",
+    "162.5000": "NOAA 6",
+    "162.5250": "NOAA 7",
+}
+_NOAA_LABEL_TOLERANCE_MHZ = 0.003
+_STATUS_CACHE_TTL_SEC = max(0.1, float(os.getenv("STATUS_CACHE_TTL_SEC", "0.75")))
+_HITS_CACHE_TTL_SEC = max(0.1, float(os.getenv("HITS_CACHE_TTL_SEC", "1.0")))
+_UNIT_ACTIVE_CACHE_TTL_SEC = max(0.1, float(os.getenv("UNIT_ACTIVE_CACHE_TTL_SEC", "1.0")))
+_UNIT_EXISTS_CACHE_TTL_SEC = max(2.0, float(os.getenv("UNIT_EXISTS_CACHE_TTL_SEC", "30")))
+HIT_LIST_MAX_AGE_SEC = max(60, int(os.getenv("HIT_LIST_MAX_AGE_SEC", "1800")))
+STREAM_PROXY_READ_TIMEOUT_SEC = max(120.0, float(os.getenv("STREAM_PROXY_READ_TIMEOUT_SEC", "600")))
+HP_STATE_SYNC_WAIT_SEC = max(0.0, float(os.getenv("HP_STATE_SYNC_WAIT_SEC", "3.0")))
+_HP_STATE_SYNC_COND = threading.Condition()
+_HP_STATE_SYNC_THREAD: threading.Thread | None = None
+_HP_STATE_SYNC_REQUESTED = 0
+_HP_STATE_SYNC_COMPLETED = 0
+_HP_STATE_SYNC_LAST_PAYLOAD: dict[str, Any] = {"ok": True, "changed": False, "errors": []}
+STREAM_PROXY_CHUNK_BYTES = max(128, int(os.getenv("STREAM_PROXY_CHUNK_BYTES", "256")))
+try:
+    STREAM_PROXY_TRANSCODE_BITRATE_KBPS = int(os.getenv("STREAM_PROXY_TRANSCODE_BITRATE_KBPS", "24"))
+except Exception:
+    STREAM_PROXY_TRANSCODE_BITRATE_KBPS = 24
+STREAM_PROXY_TRANSCODE_BITRATE_KBPS = max(16, min(192, STREAM_PROXY_TRANSCODE_BITRATE_KBPS))
+try:
+    STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ = int(os.getenv("STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ", "16000"))
+except Exception:
+    STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ = 16000
+STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ = max(8000, min(48000, STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ))
+LATENCY_TONE_DEFAULT_MOUNT = (
+    os.getenv("LATENCY_TONE_DEFAULT_MOUNT", "latency-tone.mp3").strip().lstrip("/") or "latency-tone.mp3"
+)
+LATENCY_TONE_DEFAULT_TARGET = os.getenv("LATENCY_TONE_DEFAULT_TARGET", "analog").strip().lower() or "analog"
+LATENCY_TONE_DEFAULT_FREQ_HZ = max(120, int(os.getenv("LATENCY_TONE_DEFAULT_FREQ_HZ", "1000")))
+LATENCY_TONE_DEFAULT_DURATION_MS = max(500, int(os.getenv("LATENCY_TONE_DEFAULT_DURATION_MS", "6000")))
+LATENCY_TONE_DEFAULT_PREROLL_MS = max(0, int(os.getenv("LATENCY_TONE_DEFAULT_PREROLL_MS", "800")))
+LATENCY_TONE_DEFAULT_BITRATE_KBPS = max(8, int(os.getenv("LATENCY_TONE_DEFAULT_BITRATE_KBPS", "32")))
+LATENCY_TONE_DEFAULT_SAMPLE_RATE = max(8000, int(os.getenv("LATENCY_TONE_DEFAULT_SAMPLE_RATE", "16000")))
+_CACHE_LOCK = threading.Lock()
+_STATUS_CACHE: dict[str, object] = {"ts": 0.0, "payload": None}
+_HITS_CACHE: dict[str, object] = {"ts": 0.0, "payload": None}
+_UNIT_ACTIVE_CACHE: dict[str, tuple[float, bool]] = {}
+_UNIT_EXISTS_CACHE: dict[str, tuple[float, bool]] = {}
+_LATENCY_TONE_LOCK = threading.Lock()
+_LATENCY_TONE_PROC: subprocess.Popen | None = None
+_LATENCY_TONE_STATE: dict[str, Any] = {
+    "active": False,
+    "pid": 0,
+    "mount": LATENCY_TONE_DEFAULT_MOUNT,
+    "target": LATENCY_TONE_DEFAULT_TARGET,
+    "frequency_hz": LATENCY_TONE_DEFAULT_FREQ_HZ,
+    "duration_ms": LATENCY_TONE_DEFAULT_DURATION_MS,
+    "pre_roll_ms": LATENCY_TONE_DEFAULT_PREROLL_MS,
+    "bitrate_kbps": LATENCY_TONE_DEFAULT_BITRATE_KBPS,
+    "sample_rate_hz": LATENCY_TONE_DEFAULT_SAMPLE_RATE,
+    "started_at_ms": 0,
+    "estimated_tone_start_ms": 0,
+    "ended_at_ms": 0,
+    "last_error": "",
+    "stop_reason": "",
+}
+_HP_GEOLOOKUP_USER_AGENT = "scannerproject-hp3/1.0"
+_HP_GEOLOOKUP_SSL_NO_VERIFY = ssl._create_unverified_context()
+_HP_IP_GEOLOOKUP_PROVIDERS = (
+    "https://ipapi.co/json/",
+    "https://ipwho.is/",
+)
+_HP_REVERSE_GEOLOOKUP_URL = "https://api.bigdatacloud.net/data/reverse-geocode-client"
+try:
+    _HP_GEOLOOKUP_TIMEOUT_SEC = max(1.0, float(os.getenv("HP_GEOLOOKUP_TIMEOUT_SEC", "4.0")))
+except Exception:
+    _HP_GEOLOOKUP_TIMEOUT_SEC = 4.0
+
+
+def _invalidate_runtime_caches(*names: str) -> None:
+    wanted = {str(name or "").strip().lower() for name in names if str(name or "").strip()}
+    if not wanted:
+        wanted = {"status", "hits"}
+    with _CACHE_LOCK:
+        if "status" in wanted:
+            _STATUS_CACHE["ts"] = 0.0
+            _STATUS_CACHE["payload"] = None
+        if "hits" in wanted:
+            _HITS_CACHE["ts"] = 0.0
+            _HITS_CACHE["payload"] = None
+
+
+def _should_resolve_zip(resolve_zip: bool, use_location: bool) -> bool:
+    """Resolve ZIP only when explicitly requested and location scanning is enabled."""
+    return bool(resolve_zip) and bool(use_location)
+
+
+def _parse_bool_value(raw_value, *, field: str) -> bool:
+    if isinstance(raw_value, bool):
+        return raw_value
+    if isinstance(raw_value, (int, float)):
+        return bool(raw_value)
+    token = str(raw_value or "").strip().lower()
+    if token in ("1", "true", "yes", "on"):
+        return True
+    if token in ("0", "false", "no", "off"):
+        return False
+    raise ValueError(f"invalid {field}")
+
+
+def _parse_float_value(raw_value, *, field: str) -> float:
+    try:
+        return float(str(raw_value).strip())
+    except Exception as exc:
+        raise ValueError(f"invalid {field}") from exc
+
+
+def _parse_json_like_list(raw_value) -> list:
+    if isinstance(raw_value, list):
+        return raw_value
+    if isinstance(raw_value, str):
+        text = raw_value.strip()
+        if not text:
+            return []
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, list):
+                return parsed
+            return []
+        except Exception:
+            return [chunk.strip() for chunk in text.split(",") if chunk.strip()]
+    return []
+
+
+def _fetch_json_url_with_tls_fallback(url: str, timeout_sec: float = _HP_GEOLOOKUP_TIMEOUT_SEC) -> dict[str, Any]:
+    req = Request(
+        str(url),
+        headers={
+            "User-Agent": _HP_GEOLOOKUP_USER_AGENT,
+            "Accept": "application/json",
+        },
+    )
+
+    def _load(*, context=None) -> dict[str, Any]:
+        with urlopen(req, timeout=float(timeout_sec), context=context) as resp:
+            body = resp.read().decode("utf-8", errors="replace")
+        payload = json.loads(body or "{}")
+        if not isinstance(payload, dict):
+            raise ValueError("provider returned non-object JSON payload")
+        return payload
+
+    try:
+        return _load()
+    except URLError as exc:
+        text = str(exc)
+        if "CERTIFICATE_VERIFY_FAILED" in text or "self-signed certificate" in text:
+            return _load(context=_HP_GEOLOOKUP_SSL_NO_VERIFY)
+        raise
+
+
+def _parse_geo_float(value) -> float | None:
+    try:
+        parsed = float(str(value).strip())
+    except Exception:
+        return None
+    if not parsed == parsed:
+        return None
+    return parsed
+
+
+def _normalize_ip_geolookup_payload(payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise ValueError("provider returned invalid payload")
+    if payload.get("success") is False:
+        reason = str(payload.get("message") or "provider reported failure").strip()
+        raise ValueError(reason or "provider reported failure")
+
+    lat = _parse_geo_float(payload.get("latitude"))
+    if lat is None:
+        lat = _parse_geo_float(payload.get("lat"))
+    lon = _parse_geo_float(payload.get("longitude"))
+    if lon is None:
+        lon = _parse_geo_float(payload.get("lon"))
+    if lat is None or lon is None or not (-90.0 <= lat <= 90.0) or not (-180.0 <= lon <= 180.0):
+        raise ValueError("provider response missing valid coordinates")
+
+    zip_code = str(
+        payload.get("postal")
+        or payload.get("postcode")
+        or payload.get("zip")
+        or ""
+    ).strip()
+    county = str(
+        payload.get("county")
+        or payload.get("district")
+        or payload.get("region")
+        or payload.get("region_name")
+        or ""
+    ).strip()
+    return {
+        "lat": float(lat),
+        "lon": float(lon),
+        "zip": zip_code,
+        "county": county,
+    }
+
+
+def _normalize_reverse_geolookup_payload(payload: Any) -> dict[str, str]:
+    if not isinstance(payload, dict):
+        raise ValueError("reverse-geocode provider returned invalid payload")
+    zip_code = str(
+        payload.get("postcode")
+        or payload.get("postal_code")
+        or payload.get("postal")
+        or payload.get("zip")
+        or ""
+    ).strip()
+    county = str(payload.get("county") or "").strip()
+    if not county:
+        locality_info = payload.get("localityInfo") if isinstance(payload.get("localityInfo"), dict) else {}
+        administrative = locality_info.get("administrative") if isinstance(locality_info, dict) else []
+        if not isinstance(administrative, list):
+            administrative = []
+        for row in administrative:
+            if not isinstance(row, dict):
+                continue
+            name = str(row.get("name") or "").strip()
+            if not name:
+                continue
+            description = str(row.get("description") or "").strip().lower()
+            if description.endswith("county") or "county" in description or name.lower().endswith(" county"):
+                county = name
+                break
+    return {
+        "zip": zip_code,
+        "county": county,
+    }
+
+
+def _resolve_ip_geolocation(timeout_sec: float = _HP_GEOLOOKUP_TIMEOUT_SEC) -> dict[str, Any]:
+    errors: list[str] = []
+    for provider in _HP_IP_GEOLOOKUP_PROVIDERS:
+        try:
+            payload = _fetch_json_url_with_tls_fallback(provider, timeout_sec=timeout_sec)
+            result = _normalize_ip_geolookup_payload(payload)
+            result["provider"] = str(provider)
+            return result
+        except Exception as exc:
+            errors.append(f"{provider}: {exc}")
+    summary = "; ".join(errors[:3]) if errors else "no provider configured"
+    raise RuntimeError(f"IP geolocation failed ({summary})")
+
+
+def _resolve_reverse_geolocation(lat: float, lon: float, timeout_sec: float = _HP_GEOLOOKUP_TIMEOUT_SEC) -> dict[str, Any]:
+    request_url = (
+        f"{_HP_REVERSE_GEOLOOKUP_URL}"
+        f"?latitude={quote(f'{float(lat):.8f}')}"
+        f"&longitude={quote(f'{float(lon):.8f}')}"
+        f"&localityLanguage=en"
+    )
+    payload = _fetch_json_url_with_tls_fallback(request_url, timeout_sec=timeout_sec)
+    result = _normalize_reverse_geolookup_payload(payload)
+    result["provider"] = _HP_REVERSE_GEOLOOKUP_URL
+    return result
+
+
+def _extract_scheduler_payload(form: dict[str, Any]) -> dict:
+    payload = {}
+    for key in (
+        "mode",
+        "digital_scan_mode",
+        "system_dwell_ms",
+        "digital_system_dwell_ms",
+        "system_hang_ms",
+        "digital_system_hang_ms",
+        "pause_on_hit",
+        "digital_pause_on_hit",
+        "system_order",
+        "digital_system_order",
+        "performance_profile",
+        "digital_perf_profile",
+    ):
+        if key in form:
+            payload[key] = form.get(key)
+    return payload
+
+
+def parse_service_tags(raw_value) -> list[int]:
+    candidates: list[Any]
+    if isinstance(raw_value, list):
+        candidates = raw_value
+    elif isinstance(raw_value, (int, float)):
+        candidates = [raw_value]
+    elif isinstance(raw_value, str):
+        text = raw_value.strip()
+        if not text:
+            return []
+        try:
+            parsed = json.loads(text)
+        except Exception:
+            parsed = [chunk.strip() for chunk in text.split(",") if chunk.strip()]
+        if isinstance(parsed, list):
+            candidates = parsed
+        elif parsed is None:
+            return []
+        else:
+            candidates = [parsed]
+    else:
+        return []
+    out: list[int] = []
+    seen: set[int] = set()
+    for item in candidates:
+        try:
+            value = int(str(item).strip())
+        except Exception:
+            continue
+        if value <= 0 or value in seen:
+            continue
+        seen.add(value)
+        out.append(value)
+    return out
+
+
+def _apply_hp_state_form(
+    state: "HPState",
+    form: dict[str, Any],
+    *,
+    resolve_postal_lookup=resolve_postal_to_lat_lon,
+    default_service_tags_resolver=get_default_enabled_service_types,
+) -> None:
+    """Apply incoming hp/state form data to a state object.
+
+    Raises:
+      ValueError: when a provided field is invalid.
+    """
+    if "mode" in form:
+        mode = str(form.get("mode") or "").strip().lower()
+        if mode not in ("full_database", "favorites"):
+            raise ValueError("invalid mode")
+        state.mode = mode
+
+    if "use_location" in form:
+        state.use_location = _parse_bool_value(form.get("use_location"), field="use_location")
+
+    if "strict_location" in form:
+        state.strict_location = _parse_bool_value(
+            form.get("strict_location"),
+            field="strict_location",
+        )
+
+    if "zip" in form or "postal_code" in form:
+        state.zip = str(form.get("zip") or form.get("postal_code") or "").strip()
+
+    if "lat" in form:
+        state.lat = _parse_float_value(form.get("lat"), field="lat")
+
+    if "lon" in form:
+        state.lon = _parse_float_value(form.get("lon"), field="lon")
+
+    if "resolve_zip" in form:
+        resolve_zip = _parse_bool_value(form.get("resolve_zip"), field="resolve_zip")
+        if _should_resolve_zip(resolve_zip, state.use_location):
+            if not str(state.zip or "").strip():
+                raise ValueError("missing zip")
+            resolved = resolve_postal_lookup(str(state.zip), "US")
+            if not resolved:
+                raise ValueError("unable to resolve zip")
+            state.lat = float(resolved[0])
+            state.lon = float(resolved[1])
+
+    if "range_miles" in form:
+        state.range_miles = max(
+            0.0,
+            _parse_float_value(form.get("range_miles"), field="range_miles"),
+        )
+
+    if "nationwide_systems" in form:
+        state.nationwide_systems = _parse_bool_value(
+            form.get("nationwide_systems"),
+            field="nationwide_systems",
+        )
+
+    if "enabled_service_tags" in form:
+        state.enabled_service_tags = parse_service_tags(form.get("enabled_service_tags"))
+
+    if "favorites" in form:
+        incoming_favorites = _parse_json_like_list(form.get("favorites"))
+        state.favorites = merge_favorites_preserving_custom(state.favorites, incoming_favorites)
+
+    if "favorites_name" in form:
+        state.favorites_name = str(form.get("favorites_name") or "").strip() or "My Favorites"
+
+    if "custom_favorites" in form:
+        state.custom_favorites = _parse_json_like_list(form.get("custom_favorites"))
+
+    if "avoid_list" in form:
+        state.avoid_list = _parse_json_like_list(form.get("avoid_list"))
+
+    if not state.enabled_service_tags:
+        try:
+            state.enabled_service_tags = list(default_service_tags_resolver())
+        except Exception:
+            state.enabled_service_tags = [2, 3, 4]
+
+
+def _save_hp_state_with_sync(state: "HPState") -> dict[str, Any]:
+    """Persist HP state and run runtime sync, preserving sync error details."""
+    state.save()
+    request_id = _enqueue_favorites_runtime_sync()
+    _wait_for_favorites_runtime_sync(request_id, HP_STATE_SYNC_WAIT_SEC)
+    sync_payload = _snapshot_favorites_runtime_sync(request_id)
+    return {
+        "ok": True,
+        "state": state.to_dict(),
+        "favorites_runtime_sync": sync_payload,
+    }
+
+
+def _normalize_runtime_sync_payload(payload: Any) -> dict[str, Any]:
+    if isinstance(payload, dict):
+        normalized = dict(payload)
+    else:
+        normalized = {
+            "ok": False,
+            "changed": False,
+            "errors": [f"unexpected runtime sync payload type: {type(payload).__name__}"],
+        }
+    normalized["ok"] = bool(normalized.get("ok", True))
+    normalized["changed"] = bool(normalized.get("changed", False))
+    errors = normalized.get("errors")
+    if isinstance(errors, list):
+        normalized["errors"] = [str(err) for err in errors if str(err).strip()]
+    elif errors:
+        normalized["errors"] = [str(errors)]
+    else:
+        normalized["errors"] = []
+    return normalized
+
+
+def _favorites_runtime_sync_worker() -> None:
+    global _HP_STATE_SYNC_THREAD
+    global _HP_STATE_SYNC_COMPLETED
+    global _HP_STATE_SYNC_LAST_PAYLOAD
+    while True:
+        with _HP_STATE_SYNC_COND:
+            if _HP_STATE_SYNC_COMPLETED >= _HP_STATE_SYNC_REQUESTED:
+                _HP_STATE_SYNC_THREAD = None
+                _HP_STATE_SYNC_COND.notify_all()
+                return
+            target_request_id = _HP_STATE_SYNC_REQUESTED
+        try:
+            payload = _normalize_runtime_sync_payload(sync_scan_pool_to_runtime(force=True))
+        except Exception as sync_exc:
+            payload = {
+                "ok": False,
+                "changed": False,
+                "errors": [str(sync_exc)],
+            }
+        with _HP_STATE_SYNC_COND:
+            _HP_STATE_SYNC_LAST_PAYLOAD = payload
+            _HP_STATE_SYNC_COMPLETED = max(_HP_STATE_SYNC_COMPLETED, target_request_id)
+            _HP_STATE_SYNC_COND.notify_all()
+
+
+def _enqueue_favorites_runtime_sync() -> int:
+    global _HP_STATE_SYNC_THREAD
+    global _HP_STATE_SYNC_REQUESTED
+    with _HP_STATE_SYNC_COND:
+        _HP_STATE_SYNC_REQUESTED += 1
+        request_id = _HP_STATE_SYNC_REQUESTED
+        thread = _HP_STATE_SYNC_THREAD
+        if thread is None or not thread.is_alive():
+            thread = threading.Thread(
+                target=_favorites_runtime_sync_worker,
+                name="favorites-runtime-sync",
+                daemon=True,
+            )
+            _HP_STATE_SYNC_THREAD = thread
+            thread.start()
+        _HP_STATE_SYNC_COND.notify_all()
+        return request_id
+
+
+def _wait_for_favorites_runtime_sync(request_id: int, timeout_sec: float) -> bool:
+    if timeout_sec <= 0:
+        return False
+    deadline = time.monotonic() + float(timeout_sec)
+    with _HP_STATE_SYNC_COND:
+        while _HP_STATE_SYNC_COMPLETED < request_id:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            _HP_STATE_SYNC_COND.wait(timeout=remaining)
+        return True
+
+
+def _snapshot_favorites_runtime_sync(request_id: int) -> dict[str, Any]:
+    with _HP_STATE_SYNC_COND:
+        payload = _normalize_runtime_sync_payload(_HP_STATE_SYNC_LAST_PAYLOAD)
+        completed_for_request = _HP_STATE_SYNC_COMPLETED >= request_id
+        backlog = max(0, _HP_STATE_SYNC_REQUESTED - _HP_STATE_SYNC_COMPLETED)
+    payload.update(
+        {
+            "request_id": int(request_id),
+            "request_complete": bool(completed_for_request),
+            "pending": bool(not completed_for_request),
+            "backlog": int(backlog),
+        }
+    )
+    return payload
+
+
+def merge_favorites_preserving_custom(existing_rows, incoming_rows) -> list:
+    """Merge incoming favorites while retaining existing custom_favorites metadata."""
+    existing_by_id: dict[str, dict] = {}
+    existing_by_label: dict[str, dict] = {}
+    for item in existing_rows if isinstance(existing_rows, list) else []:
+        if not isinstance(item, dict):
+            continue
+        row_id = str(item.get("id") or "").strip().lower()
+        if row_id and row_id not in existing_by_id:
+            existing_by_id[row_id] = item
+        row_label = str(item.get("label") or item.get("name") or "").strip().lower()
+        if row_label and row_label not in existing_by_label:
+            existing_by_label[row_label] = item
+
+    merged: list = []
+    for item in incoming_rows if isinstance(incoming_rows, list) else []:
+        if not isinstance(item, dict):
+            merged.append(item)
+            continue
+        row = dict(item)
+        if "custom_favorites" not in row:
+            row_id = str(row.get("id") or "").strip().lower()
+            row_label = str(row.get("label") or row.get("name") or "").strip().lower()
+            existing = existing_by_id.get(row_id) or existing_by_label.get(row_label)
+            if isinstance(existing, dict) and "custom_favorites" in existing:
+                row["custom_favorites"] = existing.get("custom_favorites")
+        merged.append(row)
+    return merged
+
+
+def _read_effective_analog_controls() -> dict[str, Any]:
+    """Read analog controls from effective runtime source profiles."""
+    controls_airband_path = resolve_controls_path("airband")
+    controls_ground_path = resolve_controls_path("ground")
+    airband_gain, _airband_snr, airband_dbfs, airband_mode = parse_controls(controls_airband_path)
+    ground_gain, _ground_snr, ground_dbfs, ground_mode = parse_controls(controls_ground_path)
+    return {
+        "controls_airband_path": controls_airband_path,
+        "controls_ground_path": controls_ground_path,
+        "airband_gain": airband_gain,
+        "airband_dbfs": airband_dbfs,
+        "airband_mode": airband_mode,
+        "ground_gain": ground_gain,
+        "ground_dbfs": ground_dbfs,
+        "ground_mode": ground_mode,
+    }
+
+
+def _short_label(text: str, max_len: int = 48) -> str:
+    raw = str(text or "").strip()
+    if not raw:
+        return ""
+    if len(raw) <= max_len:
+        return raw
+    return raw[: max_len - 1].rstrip() + "…"
+
+
+def _safe_int(value) -> int | None:
+    try:
+        return int(str(value).strip())
+    except Exception:
+        return None
+
+
+def _safe_float(value) -> float | None:
+    try:
+        parsed = float(str(value).strip())
+    except Exception:
+        return None
+    if not (parsed == parsed) or parsed in (float("inf"), float("-inf")):
+        return None
+    return parsed
+
+
+def _bounded_int(raw_value, default: int, minimum: int, maximum: int) -> int:
+    try:
+        parsed = int(float(str(raw_value).strip()))
+    except Exception:
+        parsed = int(default)
+    if parsed < minimum:
+        return int(minimum)
+    if parsed > maximum:
+        return int(maximum)
+    return int(parsed)
+
+
+def _sanitize_simple_mount_name(raw_name: str) -> str:
+    mount = unquote(str(raw_name or "")).strip().lstrip("/")
+    if not mount:
+        return ""
+    if "/" in mount or "\\" in mount:
+        return ""
+    for ch in mount:
+        if not (ch.isalnum() or ch in "._-"):
+            return ""
+    return mount
+
+
+def _latency_tone_reap_locked(now_ms: int) -> None:
+    global _LATENCY_TONE_PROC
+    proc = _LATENCY_TONE_PROC
+    if proc is None:
+        return
+    if proc.poll() is None:
+        return
+    _LATENCY_TONE_PROC = None
+    _LATENCY_TONE_STATE["active"] = False
+    _LATENCY_TONE_STATE["pid"] = 0
+    if not int(_LATENCY_TONE_STATE.get("ended_at_ms") or 0):
+        _LATENCY_TONE_STATE["ended_at_ms"] = int(now_ms)
+
+
+def _latency_tone_status_payload_locked(now_ms: int | None = None) -> dict[str, Any]:
+    if now_ms is None:
+        now_ms = int(time.time() * 1000)
+    _latency_tone_reap_locked(int(now_ms))
+    payload = {
+        "active": bool(_LATENCY_TONE_STATE.get("active")),
+        "pid": int(_LATENCY_TONE_STATE.get("pid") or 0),
+        "mount": str(_LATENCY_TONE_STATE.get("mount") or ""),
+        "target": str(_LATENCY_TONE_STATE.get("target") or "analog"),
+        "frequency_hz": int(_LATENCY_TONE_STATE.get("frequency_hz") or 0),
+        "duration_ms": int(_LATENCY_TONE_STATE.get("duration_ms") or 0),
+        "pre_roll_ms": int(_LATENCY_TONE_STATE.get("pre_roll_ms") or 0),
+        "bitrate_kbps": int(_LATENCY_TONE_STATE.get("bitrate_kbps") or 0),
+        "sample_rate_hz": int(_LATENCY_TONE_STATE.get("sample_rate_hz") or 0),
+        "started_at_ms": int(_LATENCY_TONE_STATE.get("started_at_ms") or 0),
+        "estimated_tone_start_ms": int(_LATENCY_TONE_STATE.get("estimated_tone_start_ms") or 0),
+        "ended_at_ms": int(_LATENCY_TONE_STATE.get("ended_at_ms") or 0),
+        "last_error": str(_LATENCY_TONE_STATE.get("last_error") or ""),
+        "stop_reason": str(_LATENCY_TONE_STATE.get("stop_reason") or ""),
+    }
+    mount = str(payload.get("mount") or "").strip().lstrip("/")
+    payload["stream_path"] = f"/stream/{mount}" if mount else "/stream/"
+    return payload
+
+
+def _latency_tone_status_payload() -> dict[str, Any]:
+    with _LATENCY_TONE_LOCK:
+        return _latency_tone_status_payload_locked()
+
+
+def _latency_tone_stop_locked(reason: str = "manual_stop") -> dict[str, Any]:
+    global _LATENCY_TONE_PROC
+    now_ms = int(time.time() * 1000)
+    proc = _LATENCY_TONE_PROC
+    if proc is not None and proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=2)
+        except Exception:
+            proc.kill()
+    _LATENCY_TONE_PROC = None
+    _LATENCY_TONE_STATE["active"] = False
+    _LATENCY_TONE_STATE["pid"] = 0
+    _LATENCY_TONE_STATE["ended_at_ms"] = int(now_ms)
+    _LATENCY_TONE_STATE["stop_reason"] = str(reason or "manual_stop")
+    return _latency_tone_status_payload_locked(now_ms)
+
+
+def _start_latency_tone_injection(
+    *,
+    target: str,
+    mount: str,
+    frequency_hz: int,
+    duration_ms: int,
+    pre_roll_ms: int,
+    bitrate_kbps: int,
+    sample_rate_hz: int,
+) -> tuple[bool, str, dict[str, Any]]:
+    global _LATENCY_TONE_PROC
+
+    ffmpeg_bin = shutil.which("ffmpeg")
+    if not ffmpeg_bin:
+        with _LATENCY_TONE_LOCK:
+            _LATENCY_TONE_STATE["last_error"] = "ffmpeg not found in PATH"
+            status = _latency_tone_status_payload_locked()
+        return False, "ffmpeg not found in PATH", status
+
+    safe_mount = _sanitize_simple_mount_name(mount) or _sanitize_simple_mount_name(LATENCY_TONE_DEFAULT_MOUNT)
+    if not safe_mount:
+        safe_mount = "latency-tone.mp3"
+    safe_target = "digital" if str(target or "").strip().lower() == "digital" else "analog"
+    freq_hz = _bounded_int(frequency_hz, LATENCY_TONE_DEFAULT_FREQ_HZ, 120, 5000)
+    total_ms = _bounded_int(duration_ms, LATENCY_TONE_DEFAULT_DURATION_MS, 500, 30000)
+    lead_ms = _bounded_int(pre_roll_ms, LATENCY_TONE_DEFAULT_PREROLL_MS, 0, min(5000, max(0, total_ms - 100)))
+    kbps = _bounded_int(bitrate_kbps, LATENCY_TONE_DEFAULT_BITRATE_KBPS, 8, 128)
+    rate_hz = _bounded_int(sample_rate_hz, LATENCY_TONE_DEFAULT_SAMPLE_RATE, 8000, 48000)
+    total_sec = total_ms / 1000.0
+    lead_sec = lead_ms / 1000.0
+
+    icecast_user = quote(str(os.getenv("ICECAST_SOURCE_USER", "source") or "source"), safe="")
+    icecast_password = quote(str(os.getenv("ICECAST_SOURCE_PASSWORD", "062352") or "062352"), safe="")
+    source_url = f"icecast://{icecast_user}:{icecast_password}@127.0.0.1:{ICECAST_PORT}/{safe_mount}"
+
+    # Emit silence for pre-roll, then tone, so UI can measure from a known onset.
+    gate_expr = f"volume='if(lt(t,{lead_sec:.3f}),0,0.92)'"
+    cmd = [
+        ffmpeg_bin,
+        "-nostdin",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-re",
+        "-f",
+        "lavfi",
+        "-i",
+        f"sine=frequency={freq_hz}:sample_rate={rate_hz}",
+        "-vn",
+        "-ac",
+        "1",
+        "-ar",
+        str(rate_hz),
+        "-af",
+        gate_expr,
+        "-t",
+        f"{total_sec:.3f}",
+        "-c:a",
+        "libmp3lame",
+        "-b:a",
+        f"{kbps}k",
+        "-write_xing",
+        "0",
+        "-flush_packets",
+        "1",
+        "-content_type",
+        "audio/mpeg",
+        "-legacy_icecast",
+        "1",
+        "-f",
+        "mp3",
+        source_url,
+    ]
+
+    with _LATENCY_TONE_LOCK:
+        now_ms = int(time.time() * 1000)
+        _latency_tone_reap_locked(now_ms)
+        if _LATENCY_TONE_PROC is not None and _LATENCY_TONE_PROC.poll() is None:
+            _latency_tone_stop_locked("replaced_by_new_injection")
+        try:
+            _LATENCY_TONE_PROC = subprocess.Popen(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception as exc:
+            _LATENCY_TONE_STATE["last_error"] = str(exc)
+            status = _latency_tone_status_payload_locked()
+            return False, str(exc), status
+
+        started_ms = int(time.time() * 1000)
+        _LATENCY_TONE_STATE.update(
+            {
+                "active": True,
+                "pid": int(_LATENCY_TONE_PROC.pid or 0),
+                "mount": safe_mount,
+                "target": safe_target,
+                "frequency_hz": freq_hz,
+                "duration_ms": total_ms,
+                "pre_roll_ms": lead_ms,
+                "bitrate_kbps": kbps,
+                "sample_rate_hz": rate_hz,
+                "started_at_ms": started_ms,
+                "estimated_tone_start_ms": started_ms + lead_ms,
+                "ended_at_ms": 0,
+                "last_error": "",
+                "stop_reason": "",
+            }
+        )
+        if _LATENCY_TONE_PROC.poll() is not None:
+            rc = int(_LATENCY_TONE_PROC.returncode or 0)
+            _LATENCY_TONE_PROC = None
+            _LATENCY_TONE_STATE["active"] = False
+            _LATENCY_TONE_STATE["pid"] = 0
+            _LATENCY_TONE_STATE["ended_at_ms"] = int(time.time() * 1000)
+            _LATENCY_TONE_STATE["last_error"] = f"ffmpeg exited rc={rc}"
+            status = _latency_tone_status_payload_locked()
+            return False, _LATENCY_TONE_STATE["last_error"], status
+        status = _latency_tone_status_payload_locked(started_ms)
+    return True, "", status
+
+
+def _flatten_hp_scan_pool_for_preview(pool: dict[str, Any], *, limit: int = 4000) -> dict[str, Any]:
+    payload = pool if isinstance(pool, dict) else {}
+    trunked_sites = payload.get("trunked_sites") if isinstance(payload.get("trunked_sites"), list) else []
+    conventional = payload.get("conventional") if isinstance(payload.get("conventional"), list) else []
+
+    trunked_entries: list[dict[str, Any]] = []
+    conventional_entries: list[dict[str, Any]] = []
+    seen_trunked: set[str] = set()
+    seen_conventional: set[str] = set()
+    trunked_talkgroups = 0
+    conventional_channels = 0
+
+    for site in trunked_sites:
+        if not isinstance(site, dict):
+            continue
+        system_id = _safe_int(site.get("system_id")) or 0
+        system_name = str(site.get("system_name") or "").strip()
+        site_name = str(site.get("site_name") or "").strip()
+        default_department = str(site.get("department_name") or "").strip() or site_name or system_name
+        talkgroups = site.get("talkgroups") if isinstance(site.get("talkgroups"), list) else []
+        labels_map = site.get("talkgroup_labels") if isinstance(site.get("talkgroup_labels"), dict) else {}
+        groups_map = site.get("talkgroup_groups") if isinstance(site.get("talkgroup_groups"), dict) else {}
+        for raw_tgid in talkgroups:
+            tgid = _safe_int(raw_tgid)
+            if tgid is None or tgid <= 0:
+                continue
+            key_base = str(system_id) if system_id > 0 else (system_name.lower() or site_name.lower() or "unknown")
+            dedupe_key = f"{key_base}:{tgid}"
+            if dedupe_key in seen_trunked:
+                continue
+            seen_trunked.add(dedupe_key)
+            trunked_talkgroups += 1
+            tgid_text = str(tgid)
+            alpha_tag = str(labels_map.get(tgid_text) or "").strip()
+            department_name = str(groups_map.get(tgid_text) or "").strip() or default_department
+            trunked_entries.append(
+                {
+                    "id": f"fulldb-trunked-{key_base}-{tgid}",
+                    "kind": "trunked",
+                    "system_id": int(system_id),
+                    "system_key": "",
+                    "system_name": system_name,
+                    "department_name": department_name,
+                    "alpha_tag": alpha_tag or f"TG {tgid}",
+                    "service_tag": 0,
+                    "talkgroup": tgid_text,
+                    "control_channels": [],
+                    "frequency": 0.0,
+                }
+            )
+
+    for row in conventional:
+        if not isinstance(row, dict):
+            continue
+        frequency = _safe_float(row.get("frequency"))
+        if frequency is None or frequency <= 0:
+            continue
+        rounded_frequency = round(float(frequency), 6)
+        alpha_tag = str(row.get("alpha_tag") or "").strip()
+        service_tag = _safe_int(row.get("service_tag")) or 0
+        system_name = str(row.get("system_name") or "").strip()
+        system_key = str(row.get("system_key") or "").strip()
+        dedupe_key = f"{rounded_frequency:.6f}:{service_tag}:{alpha_tag.lower()}:{system_name.lower()}:{system_key.lower()}"
+        if dedupe_key in seen_conventional:
+            continue
+        seen_conventional.add(dedupe_key)
+        conventional_channels += 1
+        conventional_entries.append(
+            {
+                "id": f"fulldb-conv-{rounded_frequency:.6f}-{service_tag}-{len(conventional_entries) + 1}",
+                "kind": "conventional",
+                "system_id": 0,
+                "system_key": system_key,
+                "system_name": system_name,
+                "department_name": "",
+                "alpha_tag": alpha_tag,
+                "service_tag": int(service_tag),
+                "talkgroup": "",
+                "control_channels": [],
+                "frequency": rounded_frequency,
+            }
+        )
+
+    trunked_entries.sort(
+        key=lambda item: (
+            str(item.get("system_name") or "").lower(),
+            str(item.get("department_name") or "").lower(),
+            _safe_int(item.get("talkgroup")) or 0,
+        )
+    )
+    conventional_entries.sort(
+        key=lambda item: (
+            float(item.get("frequency") or 0.0),
+            int(item.get("service_tag") or 0),
+            str(item.get("alpha_tag") or "").lower(),
+            str(item.get("system_name") or "").lower(),
+        )
+    )
+
+    combined_entries = [*trunked_entries, *conventional_entries]
+    total_entries = len(combined_entries)
+    safe_limit = max(100, min(int(limit or 4000), 20000))
+    truncated = total_entries > safe_limit
+    if truncated:
+        combined_entries = combined_entries[:safe_limit]
+
+    return {
+        "entries": combined_entries,
+        "total_entries": total_entries,
+        "trunked_sites": len([row for row in trunked_sites if isinstance(row, dict)]),
+        "trunked_talkgroups": trunked_talkgroups,
+        "conventional_channels": conventional_channels,
+        "truncated": truncated,
+    }
+
+
+def _icecast_sources(status_text: str) -> list[dict]:
+    try:
+        data = json.loads(status_text)
+    except Exception:
+        return []
+    sources = data.get("icestats", {}).get("source")
+    if not sources:
+        return []
+    if not isinstance(sources, list):
+        sources = [sources]
+    out = []
+    for source in sources:
+        listenurl = str(source.get("listenurl") or "").strip()
+        mount = ""
+        if listenurl:
+            mount = listenurl.rsplit("/", 1)[-1].strip()
+        if not mount:
+            mount = str(source.get("mount") or "").strip().lstrip("/")
+        out.append({
+            "mount": mount,
+            "audio_info": str(source.get("audio_info") or "").strip(),
+            "server_type": str(source.get("server_type") or "").strip(),
+            "stream_start": str(source.get("stream_start") or "").strip(),
+            "server_name": str(source.get("server_name") or "").strip(),
+        })
+    return out
+
+
+def _is_live_analog_source(source: dict) -> bool:
+    if not source:
+        return False
+    mount = str(source.get("mount") or "").strip().lower()
+    if not mount:
+        return False
+    if "digital" in mount or "keepalive" in mount:
+        return False
+    return _source_has_audio_metadata(source)
+
+
+def _source_has_audio_metadata(source: dict) -> bool:
+    if not source:
+        return False
+    if str(source.get("audio_info") or "").strip():
+        return True
+    if str(source.get("server_type") or "").strip():
+        return True
+    if str(source.get("stream_start") or "").strip():
+        return True
+    if str(source.get("server_name") or "").strip():
+        return True
+    return False
+
+
+def _resolve_analog_stream_mount(status_text: str) -> str:
+    configured = str(PLAYER_MOUNT or "").strip().lstrip("/")
+    sources = _icecast_sources(status_text)
+    if not sources:
+        return configured
+    by_mount = {
+        str(row.get("mount") or "").strip(): row
+        for row in sources
+        if str(row.get("mount") or "").strip()
+    }
+    configured_row = by_mount.get(configured)
+    if _is_live_analog_source(configured_row):
+        return configured
+    for row in sources:
+        if _is_live_analog_source(row):
+            mount = str(row.get("mount") or "").strip()
+            if mount:
+                return mount
+    return configured
+
+
+def _resolve_digital_stream_mount(status_text: str) -> str:
+    configured = str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/")
+    sources = _icecast_sources(status_text)
+    if not sources:
+        return configured
+    by_mount = {
+        str(row.get("mount") or "").strip(): row
+        for row in sources
+        if str(row.get("mount") or "").strip()
+    }
+    if configured and configured in by_mount:
+        return configured
+    for row in sources:
+        mount = str(row.get("mount") or "").strip()
+        if not mount:
+            continue
+        mount_l = mount.lower()
+        if "digital" not in mount_l:
+            continue
+        if _source_has_audio_metadata(row):
+            return mount
+    for row in sources:
+        mount = str(row.get("mount") or "").strip()
+        if not mount:
+            continue
+        if "digital" in mount.lower():
+            return mount
+    return configured
+
+
+def _normalize_freq_key(value) -> str:
+    try:
+        return f"{float(str(value).strip()):.4f}"
+    except Exception:
+        return ""
+
+
+def _fallback_noaa_label(freq_text: str) -> str:
+    key = _normalize_freq_key(freq_text)
+    if key and key in _NOAA_LABELS_BY_FREQ:
+        return _NOAA_LABELS_BY_FREQ[key]
+    try:
+        freq_num = float(str(freq_text or "").strip())
+    except Exception:
+        return ""
+    for freq_key, label in _NOAA_LABELS_BY_FREQ.items():
+        try:
+            known = float(freq_key)
+        except Exception:
+            continue
+        if abs(freq_num - known) <= _NOAA_LABEL_TOLERANCE_MHZ:
+            return label
+    return ""
+
+
+def _load_profile_label_map(conf_path: str) -> dict[str, str]:
+    path = os.path.realpath(str(conf_path or ""))
+    if not path or not os.path.isfile(path):
+        return {}
+    try:
+        mtime = os.path.getmtime(path)
+    except Exception:
+        return {}
+
+    cached = _ANALOG_LABEL_CACHE.get(path)
+    if cached and cached.get("mtime") == mtime:
+        return dict(cached.get("map") or {})
+
+    mapping: dict[str, str] = {}
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            text = f.read()
+        freqs, labels = parse_freqs_labels(text)
+    except Exception:
+        freqs, labels = [], None
+
+    if labels and len(labels) == len(freqs):
+        for freq, label in zip(freqs, labels):
+            key = _normalize_freq_key(freq)
+            clean = str(label or "").strip()
+            if key and clean:
+                mapping[key] = clean
+
+    _ANALOG_LABEL_CACHE[path] = {"mtime": mtime, "map": mapping}
+    return dict(mapping)
+
+
+def _resolve_analog_label_map(conf_path: str, profile_id: str, profile_rows: list[dict]) -> dict[str, str]:
+    mapping = _load_profile_label_map(conf_path)
+    if mapping:
+        return mapping
+    basename = os.path.basename(str(conf_path or "").strip())
+    if basename:
+        candidate = os.path.realpath(os.path.join(PROFILES_DIR, basename))
+        fallback = _load_profile_label_map(candidate)
+        if fallback:
+            return fallback
+        local_candidate = os.path.realpath(os.path.join(_LOCAL_PROFILES_DIR, basename))
+        fallback = _load_profile_label_map(local_candidate)
+        if fallback:
+            return fallback
+    pid = str(profile_id or "").strip()
+    if not pid:
+        return mapping
+    for row in profile_rows or []:
+        if str(row.get("id") or "").strip() != pid:
+            continue
+        path = str(row.get("path") or "").strip()
+        if not path:
+            continue
+        fallback = _load_profile_label_map(path)
+        if fallback:
+            return fallback
+    # Active profile can be a minimalist "none_*" config (no labels). In that
+    # case, recover labels by frequency from the full profile catalog.
+    merged: dict[str, str] = {}
+    for row in profile_rows or []:
+        path = str((row or {}).get("path") or "").strip()
+        if not path:
+            continue
+        row_map = _load_profile_label_map(path)
+        for key, value in row_map.items():
+            if key and value and key not in merged:
+                merged[key] = value
+    if merged:
+        return merged
+    return mapping
+
+
+def _infer_analog_source(freq_text: str) -> str:
+    try:
+        num = float(str(freq_text or "").strip())
+    except Exception:
+        return "analog"
+    if 118.0 <= num <= 136.991:
+        return "airband"
+    return "ground"
+
+
+def _lookup_analog_label(
+    freq_text: str,
+    source: str,
+    airband_labels: dict[str, str],
+    ground_labels: dict[str, str],
+) -> str:
+    key = _normalize_freq_key(freq_text)
+    if not key:
+        return ""
+
+    if source == "airband":
+        label = airband_labels.get(key, "")
+    elif source == "ground":
+        label = ground_labels.get(key, "")
+    else:
+        label = ""
+
+    if not label:
+        label = airband_labels.get(key, "") or ground_labels.get(key, "")
+    if not label:
+        label = _fallback_noaa_label(freq_text)
+    return str(label or "").strip()
+
+
+def _annotate_analog_hits(items: list[dict], airband_labels: dict[str, str], ground_labels: dict[str, str]) -> list[dict]:
+    out = []
+    for item in items or []:
+        row = dict(item or {})
+        source = _infer_analog_source(row.get("freq"))
+        row["source"] = source
+        row["type"] = source
+        label_full = _lookup_analog_label(row.get("freq"), source, airband_labels, ground_labels)
+        if label_full:
+            row["label_full"] = label_full
+            row["label"] = _short_label(label_full, max_len=48)
+        out.append(row)
+    return out
+
+
+def _latest_hit_item(items: list[dict], source: str) -> dict[str, Any]:
+    normalized = str(source or "").strip().lower()
+    for item in items or []:
+        row = dict(item or {})
+        item_source = str(row.get("source") or row.get("type") or "").strip().lower()
+        if item_source == normalized:
+            return row
+    return {}
+
+
+def _digital_status_with_hit_aliases(payload: dict[str, Any], hit_items: list[dict]) -> dict[str, Any]:
+    out = dict(payload or {})
+    latest = _latest_hit_item(hit_items, "digital")
+    latest_label = str(
+        latest.get("label_full")
+        or latest.get("label")
+        or latest.get("freq")
+        or out.get("digital_last_label")
+        or ""
+    ).strip()
+    latest_tgid = str(latest.get("tgid") or out.get("digital_last_tgid") or "").strip()
+    latest_ts = 0.0
+    try:
+        latest_ts = float(latest.get("ts") or 0.0)
+    except Exception:
+        latest_ts = 0.0
+    latest_time_ms = int(round(latest_ts * 1000.0)) if latest_ts > 0 else int(out.get("digital_last_time") or 0)
+    if latest_label:
+        out["digital_last_label"] = latest_label
+    if latest_tgid:
+        out["digital_last_tgid"] = latest_tgid
+    out["digital_last_time"] = int(latest_time_ms or 0)
+    out["last_hit_digital"] = latest_tgid or latest_label
+    out["last_hit_digital_label"] = _short_label(latest_label, max_len=48) if latest_label else ""
+    out["last_hit_digital_time"] = int(latest_time_ms or 0)
+    return out
+
+
+def _digital_has_recent_event(max_age_sec: float = DIGITAL_HIT_RECENT_SEC) -> bool:
+    """Fallback activity signal when Icecast title stays idle."""
+    try:
+        event = get_digital_manager().getLastEvent() or {}
+        time_ms = int(event.get("timeMs") or 0)
+    except Exception:
+        return False
+    if time_ms <= 0:
+        return False
+    return (int(time.time() * 1000) - time_ms) <= int(max_age_sec * 1000)
 
 
 def _digital_stream_active_for_hits() -> bool:
-    """Treat digital events as user-audible only when DIGITAL mount is not idle."""
-    if not DIGITAL_MIXER_DIGITAL_MOUNT:
+    """Treat digital events as active via mount title, with recent-event fallback."""
+    if not DIGITAL_STREAM_MOUNT:
         return True
     status_text = fetch_local_icecast_status()
-    if not status_text or status_text.startswith("ERROR:"):
+    if status_text and not status_text.startswith("ERROR:"):
+        mount = _resolve_digital_stream_mount(status_text) or str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/")
+        title = extract_icecast_title_for_mount(status_text, f"/{mount}")
+        if title.strip().lower() not in _DIGITAL_IDLE_TITLES:
+            return True
+    return _digital_has_recent_event()
+
+
+def _digital_event_is_audible_hit(event: dict) -> bool:
+    if not isinstance(event, dict):
         return False
-    title = extract_icecast_title_for_mount(status_text, f"/{DIGITAL_MIXER_DIGITAL_MOUNT}")
-    return title.strip().lower() not in _DIGITAL_IDLE_TITLES
+    if bool(event.get("muted")):
+        return False
+    label = str(event.get("label") or "").strip()
+    tgid = str(event.get("tgid") or "").strip()
+    if not label and not tgid:
+        return False
+
+    duration_ms = _safe_int(event.get("durationMs")) or 0
+    if duration_ms > 0:
+        return True
+
+    mode = str(event.get("mode") or "").strip()
+    frequency = str(event.get("frequency") or "").strip()
+    if mode and (tgid or frequency):
+        return True
+    return False
+
+
+def _digital_stream_routed_tgids_for_hits() -> set[str]:
+    if not DIGITAL_HITS_REQUIRE_STREAM_ROUTE:
+        return set()
+    playlist_path = str(DIGITAL_PLAYLIST_PATH or "").strip()
+    if not playlist_path or not os.path.isfile(playlist_path):
+        return set()
+
+    try:
+        mtime = float(os.path.getmtime(playlist_path))
+    except Exception:
+        return set()
+    now_mono = time.monotonic()
+    with _CACHE_LOCK:
+        cached_path = str(_DIGITAL_STREAM_ROUTE_CACHE.get("path") or "")
+        cached_mtime = float(_DIGITAL_STREAM_ROUTE_CACHE.get("mtime") or 0.0)
+        cached_ts = float(_DIGITAL_STREAM_ROUTE_CACHE.get("ts") or 0.0)
+        if (
+            cached_path == playlist_path
+            and cached_mtime == mtime
+            and (now_mono - cached_ts) <= 2.0
+        ):
+            cached = _DIGITAL_STREAM_ROUTE_CACHE.get("tgids")
+            if isinstance(cached, set):
+                return set(cached)
+
+    try:
+        root = ET.parse(playlist_path).getroot()
+    except Exception:
+        return set()
+
+    stream_name = str(DIGITAL_SDRTRUNK_STREAM_NAME or "").strip()
+    if not stream_name:
+        mount_name = "/" + (str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/") or "DIGITAL.mp3")
+        for stream_node in root.findall("stream"):
+            if str(stream_node.get("mount_point") or "").strip() == mount_name:
+                stream_name = str(stream_node.get("name") or "").strip()
+                if stream_name:
+                    break
+    if not stream_name:
+        return set()
+
+    tgid_keys = ("value", "talkgroup", "tgid", "id")
+    tgid_types = {"talkgroup", "talkgroupid", "p25fullyqualifiedtalkgroup"}
+    routed_tgids: set[str] = set()
+    for alias in root.findall("alias"):
+        has_stream_binding = False
+        for alias_id in alias.findall("id"):
+            alias_type = str(alias_id.get("type") or "").strip().lower()
+            channel = str(alias_id.get("channel") or "").strip()
+            if alias_type == "broadcastchannel" and channel == stream_name:
+                has_stream_binding = True
+                break
+        if not has_stream_binding:
+            continue
+        for alias_id in alias.findall("id"):
+            alias_type = str(alias_id.get("type") or "").strip().lower()
+            if alias_type not in tgid_types:
+                continue
+            for key in tgid_keys:
+                token = str(alias_id.get(key) or "").strip()
+                if token.isdigit():
+                    routed_tgids.add(token)
+                    break
+
+    with _CACHE_LOCK:
+        _DIGITAL_STREAM_ROUTE_CACHE["path"] = playlist_path
+        _DIGITAL_STREAM_ROUTE_CACHE["mtime"] = mtime
+        _DIGITAL_STREAM_ROUTE_CACHE["ts"] = now_mono
+        _DIGITAL_STREAM_ROUTE_CACHE["tgids"] = set(routed_tgids)
+    return routed_tgids
+
+
+def _digital_event_routes_to_stream(event: dict, routed_tgids: set[str]) -> bool:
+    if not routed_tgids:
+        return True
+    tgid = _digital_event_tgid_for_route(event)
+    if not tgid:
+        return False
+    return tgid in routed_tgids
+
+
+def _digital_event_tgid_for_route(event: dict) -> str:
+    if not isinstance(event, dict):
+        return ""
+    token = str(event.get("tgid") or "").strip()
+    if token.isdigit():
+        return token
+    for key in ("label", "raw", "freq", "channel"):
+        text = str(event.get(key) or "").strip()
+        if not text:
+            continue
+        m = _DIGITAL_HIT_TGID_RE.search(text)
+        if m:
+            return str(m.group(1) or "").strip()
+        compact = text.strip().strip("()").strip()
+        if compact.isdigit():
+            return compact
+    return ""
 
 
 def _coalesce_digital_hits(items: list[dict], window_sec: float = DIGITAL_HIT_COALESCE_SEC) -> list[dict]:
@@ -164,7 +1645,7 @@ def _coalesce_digital_hits(items: list[dict], window_sec: float = DIGITAL_HIT_CO
     if not items or window_sec <= 0:
         return items
     kept = []
-    last_by_key: dict[str, float] = {}
+    last_by_key: dict[str, tuple[float, int]] = {}
     for item in sorted(items, key=lambda row: float(row.get("_ts", 0.0))):
         ts = float(item.get("_ts", 0.0))
         tgid = str(item.get("tgid") or "").strip()
@@ -176,11 +1657,605 @@ def _coalesce_digital_hits(items: list[dict], window_sec: float = DIGITAL_HIT_CO
         else:
             continue
         prev = last_by_key.get(key)
-        if prev is not None and (ts - prev) < window_sec:
-            continue
-        last_by_key[key] = ts
+        if prev is not None:
+            prev_ts, prev_idx = prev
+            if (ts - prev_ts) < window_sec:
+                # Keep the newest event in-window so hit-list labels stay aligned
+                # with the latest mapped digital label shown in status cards.
+                kept[prev_idx] = item
+                last_by_key[key] = (ts, prev_idx)
+                continue
         kept.append(item)
+        last_by_key[key] = (ts, len(kept) - 1)
     return kept
+
+
+def _hit_row_key(item: dict) -> tuple:
+    return (
+        str(item.get("source") or ""),
+        str(item.get("tgid") or ""),
+        str(item.get("label_full") or item.get("label") or item.get("freq") or ""),
+        str(item.get("time") or ""),
+    )
+
+
+def _dedupe_hit_rows(items: list[dict], window_sec: float = 2.0) -> list[dict]:
+    """Dedupe near-identical hits across analog+digital ingestion windows."""
+    if not items:
+        return []
+    if window_sec <= 0:
+        return list(items)
+
+    out: list[dict] = []
+    last_seen: dict[tuple, float] = {}
+    for row in sorted(items, key=lambda item: float(item.get("_ts", 0.0)), reverse=True):
+        src = str(row.get("source") or row.get("type") or "").strip().lower()
+        tgid = str(row.get("tgid") or "").strip()
+        label = str(row.get("label_full") or row.get("label") or row.get("freq") or "").strip().lower()
+        if src == "digital":
+            key = ("digital", tgid or label)
+        else:
+            freq_key = _normalize_freq_key(row.get("freq"))
+            key = (src or "analog", freq_key or label)
+        ts = float(row.get("_ts", 0.0))
+        prev = last_seen.get(key)
+        if prev is not None and (prev - ts) <= window_sec:
+            continue
+        last_seen[key] = ts
+        out.append(dict(row))
+    out.sort(key=lambda item: float(item.get("_ts", 0.0)), reverse=True)
+    return out
+
+
+def _ensure_digital_visibility(merged: list[dict], digital_items: list[dict], limit: int) -> list[dict]:
+    """Keep at least N digital rows visible in the hit list when digital hits exist."""
+    limit = max(1, int(limit or 1))
+    if not merged:
+        return merged
+    if DIGITAL_HITS_MIN_VISIBLE <= 0 or not digital_items:
+        return merged[:limit]
+
+    top = list(merged[:limit])
+    min_visible = min(DIGITAL_HITS_MIN_VISIBLE, limit, len(digital_items))
+    visible = sum(1 for row in top if str(row.get("source") or "") == "digital")
+    if visible >= min_visible:
+        return top
+
+    need = min_visible - visible
+    existing_keys = {_hit_row_key(row) for row in top}
+    inject: list[dict] = []
+    for row in sorted(digital_items, key=lambda item: float(item.get("_ts", 0.0)), reverse=True):
+        key = _hit_row_key(row)
+        if key in existing_keys:
+            continue
+        inject.append(dict(row))
+        existing_keys.add(key)
+        if len(inject) >= need:
+            break
+    if not inject:
+        return top
+
+    # Drop oldest non-digital rows to make room for injected digital rows.
+    out = list(top)
+    remaining = len(inject)
+    for idx in range(len(out) - 1, -1, -1):
+        if remaining <= 0:
+            break
+        if str(out[idx].get("source") or "") != "digital":
+            out.pop(idx)
+            remaining -= 1
+
+    out = inject + out
+    deduped: list[dict] = []
+    seen: set[tuple] = set()
+    for row in out:
+        key = _hit_row_key(row)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(row)
+        if len(deduped) >= limit:
+            break
+    return deduped
+
+
+def _unit_active_cached(unit: str) -> bool:
+    now = time.monotonic()
+    with _CACHE_LOCK:
+        entry = _UNIT_ACTIVE_CACHE.get(unit)
+        if entry and (now - float(entry[0])) <= _UNIT_ACTIVE_CACHE_TTL_SEC:
+            return bool(entry[1])
+    value = bool(unit_active(unit))
+    with _CACHE_LOCK:
+        _UNIT_ACTIVE_CACHE[unit] = (now, value)
+    return value
+
+
+def _unit_exists_cached(unit: str) -> bool:
+    now = time.monotonic()
+    with _CACHE_LOCK:
+        entry = _UNIT_EXISTS_CACHE.get(unit)
+        if entry and (now - float(entry[0])) <= _UNIT_EXISTS_CACHE_TTL_SEC:
+            return bool(entry[1])
+    value = bool(unit_exists(unit))
+    with _CACHE_LOCK:
+        _UNIT_EXISTS_CACHE[unit] = (now, value)
+    return value
+
+
+def _digital_mixer_runtime_state() -> tuple[bool, bool]:
+    unit = str((UNITS or {}).get("digital_mixer") or "").strip()
+    mixer_unit_exists = bool(unit and _unit_exists_cached(unit))
+    mixer_enabled = bool(DIGITAL_MIXER_ENABLED)
+    mixer_active = bool(unit and mixer_unit_exists and _unit_active_cached(unit))
+    return mixer_enabled, mixer_active
+
+
+def _health_state_rank(state: str) -> int:
+    token = str(state or "").strip().lower()
+    if token in ("failed", "critical", "bad", "offline"):
+        return 3
+    if token in ("degraded", "warn", "warning"):
+        return 2
+    if token in ("unknown",):
+        return 1
+    return 0
+
+
+def _health_worst_state(states: list[str]) -> str:
+    if not states:
+        return "healthy"
+    worst = max(states, key=_health_state_rank)
+    norm = str(worst or "").strip().lower()
+    if norm in ("critical", "bad", "offline"):
+        return "failed"
+    if norm in ("warn", "warning"):
+        return "degraded"
+    if norm in ("unknown",):
+        return "unknown"
+    return "healthy" if norm in ("healthy", "ok", "good") else norm
+
+
+def _build_health_payload(
+    *,
+    status_payload: dict,
+    system_stats: dict,
+    analog_air_preflight: dict,
+    analog_ground_preflight: dict,
+    digital_preflight: dict,
+    compile_state: dict,
+) -> dict:
+    subsystems: dict[str, dict] = {}
+
+    dongles = ((system_stats or {}).get("dongles") or {})
+    dongle_status = str(dongles.get("status") or "").strip().lower() or "unknown"
+    if dongle_status == "critical":
+        dongle_state = "failed"
+    elif dongle_status == "degraded":
+        dongle_state = "degraded"
+    elif dongle_status == "ideal":
+        dongle_state = "healthy"
+    else:
+        dongle_state = "unknown"
+    dongle_reasons = []
+    for serial in (dongles.get("missing_expected_serials") or []):
+        dongle_reasons.append(
+            {
+                "code": "DONGLE_MISSING",
+                "severity": "critical",
+                "message": f"Missing expected serial {serial}",
+            }
+        )
+    for serial in (dongles.get("slow_expected_serials") or []):
+        dongle_reasons.append(
+            {
+                "code": "DONGLE_UNDERSPEED",
+                "severity": "critical",
+                "message": f"Under-speed serial {serial}",
+            }
+        )
+    subsystems["dongles"] = {
+        "state": dongle_state,
+        "reasons": dongle_reasons,
+    }
+
+    analog_air_state = str((analog_air_preflight or {}).get("state") or "unknown")
+    analog_air_reasons = list((analog_air_preflight or {}).get("reasons") or [])
+    subsystems["airband"] = {"state": analog_air_state, "reasons": analog_air_reasons}
+
+    analog_ground_state = str((analog_ground_preflight or {}).get("state") or "unknown")
+    analog_ground_reasons = list((analog_ground_preflight or {}).get("reasons") or [])
+    subsystems["ground"] = {"state": analog_ground_state, "reasons": analog_ground_reasons}
+
+    analog_scan_health = dict(status_payload.get("analog_scan_health") or {})
+    analog_scan_reasons = []
+    analog_scan_state = "healthy"
+    for target in ("airband", "ground"):
+        snapshot = dict(analog_scan_health.get(target) or {})
+        if not bool(snapshot.get("monopolized")):
+            continue
+        analog_scan_state = _health_worst_state([analog_scan_state, "degraded"])
+        dominant_frequency = str(snapshot.get("dominant_frequency") or "").strip()
+        dominant_ratio = float(snapshot.get("dominant_ratio") or 0.0)
+        profile_count = int(snapshot.get("profile_frequency_count") or 0)
+        analog_scan_reasons.append(
+            {
+                "code": "ANALOG_SCAN_MONOPOLIZED",
+                "severity": "warn",
+                "message": (
+                    f"{target} scan is dominated by {dominant_frequency or 'one frequency'} "
+                    f"({dominant_ratio:.0%} of activity across {profile_count} configured channels)"
+                ),
+            }
+        )
+    subsystems["analog_scan"] = {"state": analog_scan_state, "reasons": analog_scan_reasons}
+
+    digital_state = str((digital_preflight or {}).get("state") or "unknown")
+    digital_reasons = list((digital_preflight or {}).get("reasons") or [])
+    if not bool(status_payload.get("digital_active")):
+        digital_state = _health_worst_state([digital_state, "failed"])
+        digital_reasons.append(
+            {
+                "code": "DIGITAL_SERVICE_OFFLINE",
+                "severity": "critical",
+                "message": "Digital decoder service is stopped",
+            }
+        )
+    subsystems["digital"] = {"state": digital_state, "reasons": digital_reasons}
+
+    missing_digital_tuners = [
+        str(token or "").strip()
+        for token in (status_payload.get("digital_tuner_missing_serials") or [])
+        if str(token or "").strip()
+    ]
+    slow_digital_tuners = [
+        str(token or "").strip()
+        for token in (status_payload.get("digital_tuner_slow_serials") or [])
+        if str(token or "").strip()
+    ]
+    sdrtrunk_state = "healthy" if bool(status_payload.get("digital_active")) else "failed"
+    sdrtrunk_reasons = []
+    if sdrtrunk_state != "healthy":
+        sdrtrunk_reasons.append(
+            {
+                "code": "SDRTRUNK_INACTIVE",
+                "severity": "critical",
+                "message": "scanner-digital.service is not active",
+            }
+        )
+    elif missing_digital_tuners:
+        sdrtrunk_state = "failed"
+        sdrtrunk_reasons.append(
+            {
+                "code": "SDRTRUNK_TUNER_MISSING",
+                "severity": "critical",
+                "message": (
+                    "Configured digital tuner serial(s) missing: "
+                    + ", ".join(missing_digital_tuners)
+                ),
+            }
+        )
+    elif slow_digital_tuners:
+        sdrtrunk_state = "failed"
+        sdrtrunk_reasons.append(
+            {
+                "code": "SDRTRUNK_TUNER_UNDERSPEED",
+                "severity": "critical",
+                "message": (
+                    "Configured digital tuner serial(s) under USB speed threshold: "
+                    + ", ".join(slow_digital_tuners)
+                ),
+            }
+        )
+    subsystems["sdrtrunk"] = {"state": sdrtrunk_state, "reasons": sdrtrunk_reasons}
+
+    mixer_enabled = bool(status_payload.get("digital_mixer_enabled"))
+    mixer_active = bool(status_payload.get("digital_mixer_active"))
+    if not mixer_enabled:
+        mixer_state = "healthy"
+        mixer_reasons = [
+            {
+                "code": "MIXER_DISABLED_BY_DESIGN",
+                "severity": "info",
+                "message": "Digital mixer is intentionally disabled",
+            }
+        ]
+    elif mixer_active:
+        mixer_state = "healthy"
+        mixer_reasons = []
+    else:
+        mixer_state = "failed"
+        mixer_reasons = [
+            {
+                "code": "MIXER_ENABLED_BUT_INACTIVE",
+                "severity": "critical",
+                "message": "Digital mixer is enabled but not active",
+            }
+        ]
+    subsystems["mixer"] = {"state": mixer_state, "reasons": mixer_reasons}
+
+    scheduler_age_ms = int(status_payload.get("digital_snapshot_age_ms") or 0)
+    scheduler_stale_ms = max(1000, int(HEALTH_SCHEDULER_STALE_MS or 3000))
+    scheduler_error = str(status_payload.get("digital_last_apply_error") or "").strip()
+    scheduler_state = "healthy"
+    scheduler_reasons = []
+    if not bool(status_payload.get("digital_active")):
+        scheduler_state = "failed"
+        scheduler_reasons.append(
+            {
+                "code": "SCHEDULER_OFFLINE",
+                "severity": "critical",
+                "message": "Scheduler is offline because digital decoder is stopped",
+            }
+        )
+    elif scheduler_age_ms > (scheduler_stale_ms * 2):
+        scheduler_state = "failed"
+        scheduler_reasons.append(
+            {
+                "code": "SCHEDULER_STALE",
+                "severity": "critical",
+                "message": (
+                    f"Scheduler snapshot stale ({scheduler_age_ms}ms > "
+                    f"{scheduler_stale_ms * 2}ms)"
+                ),
+            }
+        )
+    elif scheduler_age_ms > scheduler_stale_ms:
+        scheduler_state = "degraded"
+        scheduler_reasons.append(
+            {
+                "code": "SCHEDULER_STALE",
+                "severity": "warn",
+                "message": f"Scheduler snapshot stale ({scheduler_age_ms}ms > {scheduler_stale_ms}ms)",
+            }
+        )
+    if scheduler_error:
+        scheduler_state = _health_worst_state([scheduler_state, "degraded"])
+        scheduler_reasons.append(
+            {
+                "code": "SCHEDULER_APPLY_ERROR",
+                "severity": "warn",
+                "message": scheduler_error,
+            }
+        )
+    subsystems["scheduler"] = {"state": scheduler_state, "reasons": scheduler_reasons}
+
+    mounts = list(status_payload.get("icecast_mounts") or [])
+    expected_mounts = list(status_payload.get("icecast_expected_mounts") or [])
+    stream_ok = bool(status_payload.get("icecast_active")) and (
+        not expected_mounts or all(m in mounts for m in expected_mounts)
+    )
+    subsystems["stream"] = {
+        "state": "healthy" if stream_ok else "failed",
+        "reasons": [] if stream_ok else [
+            {
+                "code": "STREAM_OFFLINE",
+                "severity": "critical",
+                "message": "Icecast stream not serving all expected mounts",
+            }
+        ],
+    }
+
+    config_reasons = []
+    config_states = []
+    if bool(status_payload.get("combined_config_stale")):
+        config_reasons.append(
+            {
+                "code": "CONFIG_STALE",
+                "severity": "warn",
+                "message": "Combined runtime config is stale",
+            }
+        )
+        config_states.append("degraded")
+    if bool(status_payload.get("rtl_restart_required")):
+        config_reasons.append(
+            {
+                "code": "CONFIG_RESTART_REQUIRED",
+                "severity": "warn",
+                "message": "Runtime restart required to apply config",
+            }
+        )
+        config_states.append("degraded")
+    compile_status = str((compile_state or {}).get("status") or "").strip().lower()
+    if compile_status in ("failed", "degraded"):
+        config_states.append(compile_status)
+        for issue in (compile_state.get("issues") or []):
+            if isinstance(issue, dict):
+                config_reasons.append(issue)
+    subsystems["config"] = {
+        "state": _health_worst_state(config_states or ["healthy"]),
+        "reasons": config_reasons,
+    }
+
+    overall_state = _health_worst_state([row.get("state") or "unknown" for row in subsystems.values()])
+    overall_codes = []
+    for row in subsystems.values():
+        for reason in (row.get("reasons") or []):
+            code = str((reason or {}).get("code") or "").strip()
+            if code and code not in overall_codes:
+                overall_codes.append(code)
+    return {
+        "overall": {
+            "state": overall_state,
+            "reason_codes": overall_codes[:64],
+        },
+        "subsystems": subsystems,
+    }
+
+
+def _parse_time_ts(value: str) -> float:
+    if not value:
+        return 0.0
+    try:
+        dt = datetime.strptime(value, "%H:%M:%S")
+        now = datetime.now()
+        dt = dt.replace(year=now.year, month=now.month, day=now.day)
+        return dt.timestamp()
+    except Exception:
+        return 0.0
+
+
+def _canonical_scan_api_path(path: str) -> str:
+    """Normalize preferred `/api/scan/*` routes to current handler paths."""
+    token = str(path or "").strip()
+    if not token:
+        return ""
+    if token == "/api/scan/mode":
+        return "/api/mode"
+    if token.startswith("/api/scan/favorites-wizard/"):
+        return "/api/hp/" + token[len("/api/scan/") :]
+    scan_aliases = {
+        "/api/scan/state": "/api/hp/state",
+        "/api/scan/pool-preview": "/api/hp/scan-pool-preview",
+        "/api/scan/service-types": "/api/hp/service-types",
+        "/api/scan/avoids": "/api/hp/avoids",
+        "/api/scan/location/ip": "/api/hp/location/ip",
+        "/api/scan/location/reverse": "/api/hp/location/reverse",
+        "/api/scan/favorites-sync": "/api/hp/favorites-sync",
+        "/api/scan/hold": "/api/hp/hold",
+        "/api/scan/next": "/api/hp/next",
+        "/api/scan/avoid": "/api/hp/avoid",
+    }
+    return scan_aliases.get(token, token)
+
+
+def _clone_hit_items(items: list[dict]) -> list[dict]:
+    return [dict(item or {}) for item in (items or [])]
+
+
+def _build_hits_payload(limit: int = 50) -> dict:
+    limit = max(1, int(limit or 50))
+    scan_limit = max(50, limit)
+
+    airband_conf = read_active_config_path()
+    ground_conf = os.path.realpath(GROUND_CONFIG_PATH)
+    _, profiles_airband, profiles_ground = split_profiles()
+    profile_airband = guess_current_profile(
+        airband_conf,
+        [(p["id"], p["label"], p["path"]) for p in profiles_airband],
+    )
+    profile_ground = guess_current_profile(
+        ground_conf,
+        [(p["id"], p["label"], p["path"]) for p in profiles_ground],
+    )
+    airband_labels = _resolve_analog_label_map(airband_conf, profile_airband, profiles_airband)
+    ground_labels = _resolve_analog_label_map(ground_conf, profile_ground, profiles_ground)
+    items = _annotate_analog_hits(
+        read_hit_list_cached(limit=scan_limit),
+        airband_labels,
+        ground_labels,
+    )
+    for item in items:
+        ts_val = 0.0
+        try:
+            ts_val = float(item.get("ts") or 0.0)
+        except Exception:
+            ts_val = 0.0
+        item["_ts"] = ts_val if ts_val > 0 else _parse_time_ts(item.get("time"))
+        item.pop("ts", None)
+
+    digital_items = []
+    include_digital_events = True
+    if DIGITAL_HITS_REQUIRE_ACTIVE_STREAM:
+        # Never hide real digital traffic from the hit list solely based on
+        # stream mount heuristics. Keep events visible whenever decoder is up.
+        try:
+            include_digital_events = bool(_digital_stream_active_for_hits())
+        except Exception:
+            include_digital_events = True
+        if not include_digital_events:
+            try:
+                include_digital_events = bool(get_digital_manager().isActive())
+            except Exception:
+                include_digital_events = True
+    if include_digital_events:
+        try:
+            events = get_digital_manager().getRecentEvents(limit=scan_limit)
+        except Exception:
+            events = []
+    else:
+        events = []
+    routed_tgids = _digital_stream_routed_tgids_for_hits() if DIGITAL_HITS_REQUIRE_AUDIO_EVENT else set()
+    for event in events:
+        if DIGITAL_HITS_REQUIRE_AUDIO_EVENT and not _digital_event_is_audible_hit(event):
+            continue
+        if DIGITAL_HITS_REQUIRE_AUDIO_EVENT and not _digital_event_routes_to_stream(event, routed_tgids):
+            continue
+        label = str(event.get("label") or "").strip()
+        tgid = _digital_event_tgid_for_route(event)
+        agency = str(event.get("agency") or "").strip()
+        department = str(event.get("department") or "").strip()
+        if not label and tgid:
+            label = f"TG {tgid}"
+        if label and label.strip("()").isdigit() and tgid:
+            label = f"TG {tgid}"
+        if not label:
+            continue
+        duration_ms = max(0, _safe_int(event.get("durationMs")) or 0)
+        time_ms = int(event.get("timeMs") or 0)
+        ts = time_ms / 1000.0 if time_ms else time.time()
+        time_str = time.strftime("%H:%M:%S", time.localtime(ts))
+        digital_items.append({
+            "time": time_str,
+            "freq": label,
+            "duration": int((duration_ms + 999) // 1000) if duration_ms > 0 else 0,
+            "label": _short_label(label, max_len=48),
+            "label_full": label,
+            "mode": event.get("mode"),
+            "tgid": tgid,
+            "agency": agency,
+            "department": department,
+            "type": "digital",
+            "source": "digital",
+            "_ts": ts,
+        })
+    digital_items = _coalesce_digital_hits(digital_items)
+
+    merged = items + digital_items
+    merged = _dedupe_hit_rows(merged, window_sec=2.0)
+    now_ts = time.time()
+    min_ts = now_ts - float(HIT_LIST_MAX_AGE_SEC)
+    merged = [
+        item for item in merged
+        if float(item.get("_ts") or 0.0) >= min_ts
+    ]
+    merged.sort(key=lambda item: item.get("_ts", 0.0))
+    merged = merged[-scan_limit:]
+    merged.reverse()
+    if len(merged) > limit:
+        merged = _ensure_digital_visibility(merged, digital_items, limit)
+    else:
+        merged = _ensure_digital_visibility(merged, digital_items, limit)
+    for item in merged:
+        try:
+            ts_val = float(item.get("_ts") or 0.0)
+        except Exception:
+            ts_val = 0.0
+        if ts_val > 0:
+            item["ts"] = ts_val
+        item.pop("_ts", None)
+    return {"items": merged}
+
+
+def _get_hits_payload_cached(limit: int = 50) -> dict:
+    limit = max(1, int(limit or 50))
+    now = time.monotonic()
+    with _CACHE_LOCK:
+        cached_payload = _HITS_CACHE.get("payload")
+        cached_ts = float(_HITS_CACHE.get("ts") or 0.0)
+        if isinstance(cached_payload, dict) and (now - cached_ts) <= _HITS_CACHE_TTL_SEC:
+            items = _clone_hit_items(cached_payload.get("items") or [])
+            if len(items) > limit:
+                items = items[:limit]
+            return {"items": items}
+    payload = _build_hits_payload(limit=max(50, limit))
+    with _CACHE_LOCK:
+        _HITS_CACHE["ts"] = now
+        _HITS_CACHE["payload"] = {"items": _clone_hit_items(payload.get("items") or [])}
+    items = _clone_hit_items(payload.get("items") or [])
+    if len(items) > limit:
+        items = items[:limit]
+    return {"items": items}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -196,12 +2271,217 @@ class Handler(BaseHTTPRequestHandler):
             body = body.encode("utf-8")
         self.wfile.write(body)
 
+    def _send_redirect(self, location: str, code: int = 302):
+        """Send a redirect response."""
+        self.send_response(code)
+        self.send_header("Location", location)
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+
+    def _send_head(self, code: int, ctype: str = "text/plain; charset=utf-8", content_length: int | None = None):
+        """Send headers-only response for HEAD requests."""
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Cache-Control", "no-store")
+        if content_length is not None:
+            self.send_header("Content-Length", str(int(content_length)))
+        self.end_headers()
+
+    def _sanitize_mount_name(self, mount_name: str) -> str:
+        mount = unquote(str(mount_name or "")).strip().lstrip("/")
+        if not mount:
+            mount = str(PLAYER_MOUNT or "").strip().lstrip("/")
+        if not mount:
+            return ""
+        if "/" in mount or "\\" in mount:
+            return ""
+        for ch in mount:
+            if not (ch.isalnum() or ch in "._-"):
+                return ""
+        return mount
+
+    @staticmethod
+    def _parse_optional_bool_query(qs: dict[str, list[str]], key: str) -> bool | None:
+        if key not in qs:
+            return None
+        raw = ((qs.get(key) or [""])[0] or "").strip().lower()
+        if raw in ("1", "true", "yes", "on"):
+            return True
+        if raw in ("", "0", "false", "no", "off"):
+            return False
+        return None
+
+    def _proxy_icecast_mount(self, mount_name: str, head_only: bool = False, transcode: bool | None = None):
+        mount = self._sanitize_mount_name(mount_name)
+        if not mount:
+            if head_only:
+                return self._send_head(400)
+            return self._send(400, "invalid mount", "text/plain; charset=utf-8")
+        transcode_enabled = False
+        if not head_only:
+            if transcode is None:
+                # Favor pass-through for lower live latency; allow opt-in analog
+                # transcoding for clients that cannot decode low-rate source MP3.
+                transcode_enabled = (
+                    STREAM_PROXY_TRANSCODE_ANALOG_DEFAULT and "digital" not in mount.lower()
+                )
+            else:
+                transcode_enabled = bool(transcode)
+        upstream = f"http://127.0.0.1:{ICECAST_PORT}/{mount}"
+        headers_sent = False
+        if transcode_enabled:
+            proc = None
+            try:
+                # Desktop browser compatibility path for low-rate analog streams.
+                # Re-encode to a widely-supported MP3 profile.
+                cmd = [
+                    "ffmpeg",
+                    "-nostdin",
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-fflags",
+                    "nobuffer",
+                    "-flags",
+                    "low_delay",
+                    "-probesize",
+                    "32768",
+                    "-analyzeduration",
+                    "0",
+                    "-f",
+                    "mp3",
+                    "-i",
+                    upstream,
+                    "-vn",
+                    "-ac",
+                    "1",
+                    "-ar",
+                    str(STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ),
+                    "-c:a",
+                    "libmp3lame",
+                    "-b:a",
+                    f"{STREAM_PROXY_TRANSCODE_BITRATE_KBPS}k",
+                    "-write_xing",
+                    "0",
+                    "-flush_packets",
+                    "1",
+                    "-f",
+                    "mp3",
+                    "pipe:1",
+                ]
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                )
+                self.send_response(200)
+                self.send_header("Content-Type", "audio/mpeg")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                headers_sent = True
+                if not proc.stdout:
+                    return
+                while True:
+                    chunk = proc.stdout.read(STREAM_PROXY_CHUNK_BYTES)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    self.wfile.flush()
+                return
+            except FileNotFoundError:
+                if headers_sent:
+                    return
+                return self._send(500, "ffmpeg not found", "text/plain; charset=utf-8")
+            except (BrokenPipeError, ConnectionResetError):
+                return
+            finally:
+                if proc and proc.poll() is None:
+                    proc.terminate()
+        req = Request(
+            upstream,
+            headers={
+                "User-Agent": "airband-ui/stream-proxy",
+                "Connection": "close",
+            },
+            # Icecast can reject HEAD on mounts; use GET for both and suppress body on HEAD.
+            method="GET",
+        )
+        try:
+            # Use a long read timeout for low-traffic mounts so mobile clients
+            # do not see frequent stream teardowns during quiet periods.
+            with urlopen(req, timeout=STREAM_PROXY_READ_TIMEOUT_SEC) as upstream_resp:
+                self.send_response(200)
+                self.send_header("Content-Type", upstream_resp.headers.get("Content-Type") or "audio/mpeg")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Connection", "close")
+                for header in (
+                    "icy-name",
+                    "icy-genre",
+                    "icy-description",
+                    "icy-br",
+                    "icy-metaint",
+                    "ice-audio-info",
+                ):
+                    value = upstream_resp.headers.get(header)
+                    if value:
+                        self.send_header(header, value)
+                self.end_headers()
+                headers_sent = True
+                if head_only:
+                    return
+                while True:
+                    # Keep proxy chunks small so low-bitrate streams flush
+                    # frequently enough for embedded browser players.
+                    chunk = upstream_resp.read(STREAM_PROXY_CHUNK_BYTES)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    self.wfile.flush()
+        except HTTPError as e:
+            status = int(e.code or 502)
+            if headers_sent:
+                return
+            if head_only:
+                return self._send_head(status)
+            return self._send(status, f"upstream error: {e.reason}", "text/plain; charset=utf-8")
+        except (URLError, TimeoutError) as e:
+            if headers_sent:
+                return
+            if head_only:
+                return self._send_head(502)
+            return self._send(502, f"upstream unavailable: {e}", "text/plain; charset=utf-8")
+        except (BrokenPipeError, ConnectionResetError):
+            return
+
+    def do_HEAD(self):
+        """Handle HEAD requests."""
+        u = urlparse(self.path)
+        p = u.path
+        q = parse_qs(u.query or "")
+        transcode = self._parse_optional_bool_query(q, "transcode")
+        if p == "/stream" or p == "/stream/":
+            return self._proxy_icecast_mount("", head_only=True, transcode=transcode)
+        if p.startswith("/stream/"):
+            return self._proxy_icecast_mount(p[len("/stream/"):], head_only=True, transcode=transcode)
+        return self._send_head(404)
+
     def do_GET(self):
         """Handle GET requests."""
         u = urlparse(self.path)
-        p = u.path
+        p = _canonical_scan_api_path(u.path)
+        q = parse_qs(u.query or "")
+        transcode = self._parse_optional_bool_query(q, "transcode")
         if p == "/":
-            return self._send(200, HTML_TEMPLATE)
+            return self._send_redirect("/sb3")
+
+        if p in ("/hp3", "/hp3/", "/hp3.html"):
+            return self._send_redirect("/static/hp3-react.html")
+
+        if p in ("/hp", "/hp/", "/hp.html"):
+            return self._send_redirect("/hp3")
         
         # Serve SB3 UI
         if p == "/sb3" or p == "/sb3.html":
@@ -228,11 +2508,39 @@ class Handler(BaseHTTPRequestHandler):
                     ctype = "text/css; charset=utf-8"
                 elif file_path.endswith(".js"):
                     ctype = "application/javascript; charset=utf-8"
+                elif file_path.endswith(".mjs"):
+                    ctype = "application/javascript; charset=utf-8"
+                elif file_path.endswith(".html"):
+                    ctype = "text/html; charset=utf-8"
+                elif file_path.endswith(".json"):
+                    ctype = "application/json; charset=utf-8"
                 else:
                     ctype = "application/octet-stream"
                 return self._send(200, content, ctype)
             except FileNotFoundError:
                 return self._send(404, "Not found", "text/plain; charset=utf-8")
+
+        if p == "/stream" or p == "/stream/":
+            return self._proxy_icecast_mount("", transcode=transcode)
+        if p.startswith("/stream/"):
+            return self._proxy_icecast_mount(p[len("/stream/"):], transcode=transcode)
+
+        if p == "/api/profile-editor/analog":
+            q = parse_qs(u.query or "")
+            profile_id = (q.get("id") or [""])[0].strip()
+            target = (q.get("target") or ["airband"])[0].strip().lower() or "airband"
+            ok, err, payload = get_analog_editor_payload(profile_id, target)
+            if not ok:
+                return self._send(400, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/profile-editor/digital":
+            q = parse_qs(u.query or "")
+            profile_id = (q.get("profileId") or [""])[0].strip()
+            ok, err, payload = get_digital_editor_payload(profile_id)
+            if not ok:
+                return self._send(400, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         
         if p == "/api/profile":
             q = parse_qs(u.query or "")
@@ -278,27 +2586,338 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(500, json.dumps(payload), "application/json; charset=utf-8")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
+        if p == "/api/hp/location/ip":
+            try:
+                resolved = _resolve_ip_geolocation()
+                payload = {
+                    "ok": True,
+                    "lat": float(resolved.get("lat")),
+                    "lon": float(resolved.get("lon")),
+                    "latitude": float(resolved.get("lat")),
+                    "longitude": float(resolved.get("lon")),
+                    "postal": str(resolved.get("zip") or "").strip(),
+                    "zip": str(resolved.get("zip") or "").strip(),
+                    "county": str(resolved.get("county") or "").strip(),
+                    "provider": str(resolved.get("provider") or ""),
+                }
+            except Exception as e:
+                return self._send(
+                    502,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/hp/location/reverse":
+            try:
+                raw_lat = (q.get("lat") or q.get("latitude") or [""])[0]
+                raw_lon = (q.get("lon") or q.get("longitude") or [""])[0]
+                lat = _parse_float_value(raw_lat, field="lat")
+                lon = _parse_float_value(raw_lon, field="lon")
+                if not (-90.0 <= lat <= 90.0):
+                    raise ValueError("invalid lat")
+                if not (-180.0 <= lon <= 180.0):
+                    raise ValueError("invalid lon")
+                resolved = _resolve_reverse_geolocation(lat, lon)
+                zip_code = str(resolved.get("zip") or "").strip()
+                county = str(resolved.get("county") or "").strip()
+                payload = {
+                    "ok": True,
+                    "postcode": zip_code,
+                    "zip": zip_code,
+                    "county": county,
+                    "provider": str(resolved.get("provider") or ""),
+                }
+            except ValueError as e:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            except Exception as e:
+                return self._send(
+                    502,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/hp/state":
+            try:
+                state = HPState.load()
+                controller = get_scan_mode_controller()
+                payload = {
+                    "ok": True,
+                    "mode": controller.get_mode(),
+                    "state": state.to_dict(),
+                    "favorites_runtime_sync": get_last_favorites_runtime_sync(),
+                }
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/hp/scan-pool-preview":
+            try:
+                state = HPState.load()
+                controller = get_scan_mode_controller()
+                limit_raw = (q.get("limit") or ["4000"])[0]
+                try:
+                    limit = int(str(limit_raw).strip())
+                except Exception:
+                    limit = 4000
+                source_raw = (q.get("source") or ["runtime_applied"])[0]
+                source = str(source_raw or "").strip().lower()
+                preview_source = "computed_state"
+                snapshot_signature = ""
+                snapshot_applied_at_ms = 0
+                snapshot_ready = False
+                pool = None
+                if source in {"", "runtime", "runtime_applied", "active", "applied", "scanned"}:
+                    runtime_snapshot = get_last_runtime_scan_pool()
+                    if isinstance(runtime_snapshot, dict) and bool(runtime_snapshot.get("snapshot_ready")):
+                        candidate_pool = runtime_snapshot.get("pool")
+                        if isinstance(candidate_pool, dict):
+                            pool = candidate_pool
+                            preview_source = "runtime_applied"
+                            snapshot_signature = str(runtime_snapshot.get("signature") or "")
+                            snapshot_applied_at_ms = int(runtime_snapshot.get("applied_at_ms") or 0)
+                            snapshot_ready = True
+                if not isinstance(pool, dict):
+                    pool = controller.get_scan_pool()
+                    preview_source = "computed_state"
+                preview = _flatten_hp_scan_pool_for_preview(pool, limit=limit)
+                payload = {
+                    "ok": True,
+                    "mode": str(getattr(state, "mode", "") or "").strip().lower(),
+                    "pool_source": preview_source,
+                    "pool_snapshot_ready": bool(snapshot_ready),
+                    "pool_signature": snapshot_signature,
+                    "pool_applied_at_ms": snapshot_applied_at_ms,
+                    **preview,
+                }
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p.startswith("/api/hp/favorites-wizard/"):
+            def _query_int(name: str, default: int | None = None, required: bool = False) -> int | None:
+                raw = (q.get(name) or [None])[0]
+                if raw is None or str(raw).strip() == "":
+                    if required:
+                        raise ValueError(f"missing {name}")
+                    return default
+                try:
+                    return int(str(raw).strip())
+                except Exception as exc:
+                    raise ValueError(f"invalid {name}") from exc
+
+            text_filter = str((q.get("q") or [""])[0] or "").strip()
+            try:
+                wizard = HPFavoritesWizard()
+                if p == "/api/hp/favorites-wizard/countries":
+                    payload = {
+                        "ok": True,
+                        "countries": wizard.get_countries(),
+                    }
+                    return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+                if p == "/api/hp/favorites-wizard/states":
+                    country_id = _query_int("country_id", default=1, required=False)
+                    payload = {
+                        "ok": True,
+                        "states": wizard.get_states(country_id=int(country_id or 1)),
+                    }
+                    return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+                if p == "/api/hp/favorites-wizard/counties":
+                    state_id = _query_int("state_id", required=True)
+                    payload = {
+                        "ok": True,
+                        "counties": wizard.get_counties(state_id=int(state_id or 0)),
+                    }
+                    return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+                if p == "/api/hp/favorites-wizard/systems":
+                    state_id = _query_int("state_id", required=True)
+                    county_id = _query_int("county_id", default=0, required=False)
+                    system_type = str((q.get("system_type") or ["digital"])[0] or "").strip().lower()
+                    default_scope = "county" if int(county_id or 0) > 0 else "statewide"
+                    scope = str((q.get("scope") or [default_scope])[0] or "").strip().lower()
+                    if system_type not in {"digital", "analog"}:
+                        return self._send(
+                            400,
+                            json.dumps({"ok": False, "error": "invalid system_type"}),
+                            "application/json; charset=utf-8",
+                        )
+                    if scope not in {"nationwide", "statewide", "county"}:
+                        return self._send(
+                            400,
+                            json.dumps({"ok": False, "error": "invalid scope"}),
+                            "application/json; charset=utf-8",
+                        )
+                    payload = {
+                        "ok": True,
+                        "systems": wizard.get_systems(
+                            state_id=int(state_id or 0),
+                            county_id=int(county_id or 0),
+                            system_type=system_type,
+                            scope=scope,
+                            text_filter=text_filter,
+                        ),
+                    }
+                    return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+                if p == "/api/hp/favorites-wizard/channels":
+                    system_type = str((q.get("system_type") or ["digital"])[0] or "").strip().lower()
+                    if system_type not in {"digital", "analog"}:
+                        return self._send(
+                            400,
+                            json.dumps({"ok": False, "error": "invalid system_type"}),
+                            "application/json; charset=utf-8",
+                        )
+                    system_id = str((q.get("system_id") or [""])[0] or "").strip()
+                    if not system_id:
+                        return self._send(
+                            400,
+                            json.dumps({"ok": False, "error": "missing system_id"}),
+                            "application/json; charset=utf-8",
+                        )
+                    limit = _query_int("limit", default=500, required=False)
+                    limit = max(1, min(int(limit or 500), 5000))
+                    system_name, channels = wizard.get_channels(
+                        system_type=system_type,
+                        system_id=system_id,
+                        text_filter=text_filter,
+                    )
+                    payload = {
+                        "ok": True,
+                        "system_name": system_name,
+                        "channels": list(channels[:limit]),
+                        "total_channels": len(channels),
+                        "truncated": len(channels) > limit,
+                    }
+                    return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+                return self._send(
+                    404,
+                    json.dumps({"ok": False, "error": "not found"}),
+                    "application/json; charset=utf-8",
+                )
+            except ValueError as e:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+
+        if p == "/api/hp/service-types":
+            try:
+                service_types = get_all_service_types()
+                defaults = get_default_enabled_service_types()
+                payload = {
+                    "ok": True,
+                    "service_types": service_types,
+                    "default_enabled_service_tags": defaults,
+                }
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/hp/avoids":
+            try:
+                controller = get_scan_mode_controller()
+                payload = {
+                    "ok": True,
+                    "avoids": controller.get_hp_avoids(),
+                }
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/hp/favorites-sync":
+            return self._send(
+                200,
+                json.dumps(
+                    {
+                        "ok": False,
+                        "available": False,
+                        "in_sync": True,
+                        "reason": "favorites sync retired; favorites route directly to runtime",
+                    }
+                ),
+                "application/json; charset=utf-8",
+            )
+
+        if p == "/api/latency/tone":
+            payload = _latency_tone_status_payload()
+            return self._send(
+                200,
+                json.dumps({"ok": True, "tone": payload}),
+                "application/json; charset=utf-8",
+            )
+
         if p == "/api/status":
+            now_monotonic = time.monotonic()
+            with _CACHE_LOCK:
+                cached_payload = _STATUS_CACHE.get("payload")
+                cached_ts = float(_STATUS_CACHE.get("ts") or 0.0)
+            if isinstance(cached_payload, dict) and (now_monotonic - cached_ts) <= _STATUS_CACHE_TTL_SEC:
+                payload = dict(cached_payload)
+                payload["server_time"] = time.time()
+                return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
             conf_path = read_active_config_path()
             ground_conf_path = os.path.realpath(GROUND_CONFIG_PATH)
             combined_conf_path = COMBINED_CONFIG_PATH
-            airband_gain, airband_snr, airband_dbfs, airband_mode = parse_controls(conf_path)
-            ground_gain, ground_snr, ground_dbfs, ground_mode = parse_controls(GROUND_CONFIG_PATH)
+            controls_snapshot = _read_effective_analog_controls()
+            controls_airband_path = controls_snapshot["controls_airband_path"]
+            controls_ground_path = controls_snapshot["controls_ground_path"]
+            airband_gain = controls_snapshot["airband_gain"]
+            airband_dbfs = controls_snapshot["airband_dbfs"]
+            airband_mode = controls_snapshot["airband_mode"]
+            ground_gain = controls_snapshot["ground_gain"]
+            ground_dbfs = controls_snapshot["ground_dbfs"]
+            ground_mode = controls_snapshot["ground_mode"]
             airband_filter = parse_filter("airband")
             ground_filter = parse_filter("ground")
-            rtl_ok = unit_active(UNITS["rtl"])
-            rtl_unit_active = unit_active(UNITS["rtl"])
-            ground_unit_active = unit_active(UNITS["ground"])
+            rtl_unit_active = _unit_active_cached(UNITS["rtl"])
+            ground_unit_active = _unit_active_cached(UNITS["ground"])
+            keepalive_unit_active = _unit_active_cached(UNITS["keepalive"])
             combined_info = combined_device_summary()
             airband_device = combined_info.get("airband")
             ground_device = combined_info.get("ground")
             expected_serials = dict(combined_info.get("expected_serials") or {})
+            expected_indices = dict(combined_info.get("expected_indices") or {})
             if AIRBAND_RTL_SERIAL:
                 expected_serials["airband"] = AIRBAND_RTL_SERIAL
             if GROUND_RTL_SERIAL:
                 expected_serials["ground"] = GROUND_RTL_SERIAL
             expected_serials["digital"] = DIGITAL_RTL_SERIAL or ""
+            expected_serials["digital_secondary"] = DIGITAL_RTL_SERIAL_SECONDARY or ""
+            expected_serials["digital_tertiary"] = DIGITAL_RTL_SERIAL_TERTIARY or ""
             serial_mismatch_detail = []
+            index_mismatch_detail = list(combined_info.get("index_mismatch_detail") or [])
             if AIRBAND_RTL_SERIAL:
                 actual = airband_device.get("serial") if airband_device else ""
                 if not actual:
@@ -335,12 +2954,16 @@ class Handler(BaseHTTPRequestHandler):
             ground_present = ground_device is not None
             rtl_ok = rtl_unit_active
             ground_ok = rtl_ok and ground_present
-            ice_ok = icecast_up()
+            ice_ok = _unit_active_cached(UNITS["icecast"])
             icecast_mounts = []
+            analog_stream_mount = str(PLAYER_MOUNT or "").strip().lstrip("/")
+            digital_stream_mount = str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/")
             if ice_ok:
                 try:
                     status_text = fetch_local_icecast_status()
                     icecast_mounts = list_icecast_mounts(status_text)
+                    analog_stream_mount = _resolve_analog_stream_mount(status_text)
+                    digital_stream_mount = _resolve_digital_stream_mount(status_text)
                 except Exception:
                     icecast_mounts = []
             combined_stale = combined_config_stale()
@@ -351,8 +2974,41 @@ class Handler(BaseHTTPRequestHandler):
             profile_ground = guess_current_profile(ground_conf_path, [(p["id"], p["label"], p["path"]) for p in profiles_ground])
             last_hit_airband = read_last_hit_airband()
             last_hit_ground = read_last_hit_ground()
-            hit_items = read_hit_list_cached(limit=20)
+            airband_labels = _resolve_analog_label_map(conf_path, profile_airband, profiles_airband)
+            ground_labels = _resolve_analog_label_map(ground_conf_path, profile_ground, profiles_ground)
+            hit_items = _annotate_analog_hits(
+                read_hit_list_cached(limit=20),
+                airband_labels,
+                ground_labels,
+            )
+            full_hits_payload = _get_hits_payload_cached(limit=20)
+            full_hit_items = full_hits_payload.get("items") or []
+            analog_scan_health = get_analog_scan_health()
             latest_hit = hit_items[0].get("freq") if hit_items else ""
+            last_hit_airband_label = ""
+            last_hit_ground_label = ""
+            for item in hit_items:
+                src = str(item.get("source") or "").strip().lower()
+                if src == "airband" and not last_hit_airband_label:
+                    last_hit_airband_label = str(item.get("label_full") or item.get("label") or "").strip()
+                if src == "ground" and not last_hit_ground_label:
+                    last_hit_ground_label = str(item.get("label_full") or item.get("label") or "").strip()
+                if last_hit_airband_label and last_hit_ground_label:
+                    break
+            if not last_hit_airband_label:
+                last_hit_airband_label = _lookup_analog_label(
+                    last_hit_airband,
+                    "airband",
+                    airband_labels,
+                    ground_labels,
+                )
+            if not last_hit_ground_label:
+                last_hit_ground_label = _lookup_analog_label(
+                    last_hit_ground,
+                    "ground",
+                    airband_labels,
+                    ground_labels,
+                )
             config_mtimes = {}
             for key, path in (("airband", conf_path), ("ground", ground_conf_path), ("combined", combined_conf_path)):
                 try:
@@ -363,6 +3019,14 @@ class Handler(BaseHTTPRequestHandler):
             rtl_restart_required = False
             if rtl_active_enter and config_mtimes.get("combined"):
                 rtl_restart_required = config_mtimes["combined"] > rtl_active_enter
+            try:
+                favorites_runtime_sync = get_last_favorites_runtime_sync()
+            except Exception as e:
+                favorites_runtime_sync = {
+                    "ok": False,
+                    "changed": False,
+                    "errors": [str(e)],
+                }
 
             payload = {
                 "rtl_active": rtl_ok,
@@ -378,16 +3042,18 @@ class Handler(BaseHTTPRequestHandler):
                 "icecast_active": ice_ok,
                 "icecast_mounts": icecast_mounts,
                 "icecast_port": ICECAST_PORT,
-                "stream_mount": PLAYER_MOUNT,
-                "digital_stream_mount": DIGITAL_MIXER_DIGITAL_MOUNT,
-                "icecast_expected_mounts": (
-                    [f"/{DIGITAL_MIXER_AIRBAND_MOUNT}", f"/{DIGITAL_MIXER_DIGITAL_MOUNT}", f"/{DIGITAL_MIXER_OUTPUT_MOUNT}"]
-                    if DIGITAL_MIXER_ENABLED else [f"/{DIGITAL_MIXER_OUTPUT_MOUNT}"]
-                ),
+                "stream_mount": analog_stream_mount,
+                "stream_proxy_enabled": True,
+                "digital_stream_mount": digital_stream_mount,
+                "icecast_expected_mounts": [f"/{PLAYER_MOUNT}", f"/{DIGITAL_STREAM_MOUNT}"],
                 "expected_serials": expected_serials,
+                "expected_indices": expected_indices,
+                "digital_tuner_targets": _digital_tuner_targets(),
                 "serial_mismatch": bool(serial_mismatch_detail),
                 "serial_mismatch_detail": serial_mismatch_detail,
-                "keepalive_active": unit_active(UNITS["keepalive"]),
+                "index_mismatch": bool(index_mismatch_detail),
+                "index_mismatch_detail": index_mismatch_detail,
+                "keepalive_active": keepalive_unit_active,
                 "server_time": time.time(),
                 "rtl_active_enter": rtl_active_enter,
                 "rtl_restart_required": rtl_restart_required,
@@ -396,6 +3062,10 @@ class Handler(BaseHTTPRequestHandler):
                     "ground": ground_conf_path,
                     "combined": combined_conf_path,
                 },
+                "config_paths_controls": {
+                    "airband": controls_airband_path,
+                    "ground": controls_ground_path,
+                },
                 "config_mtimes": config_mtimes,
                 "profile_airband": profile_airband,
                 "profile_ground": profile_ground,
@@ -403,17 +3073,12 @@ class Handler(BaseHTTPRequestHandler):
                 "profiles_ground": profiles_ground,
                 "missing_profiles": missing,
                 "gain": float(airband_gain),
-                "squelch": float(airband_snr),
                 "airband_gain": float(airband_gain),
-                "airband_squelch": float(airband_snr),
                 "airband_squelch_mode": airband_mode,
-                "airband_squelch_snr": float(airband_snr),
                 "airband_squelch_dbfs": float(airband_dbfs),
                 "airband_filter": float(airband_filter),
                 "ground_gain": float(ground_gain),
-                "ground_squelch": float(ground_snr),
                 "ground_squelch_mode": ground_mode,
-                "ground_squelch_snr": float(ground_snr),
                 "ground_squelch_dbfs": float(ground_dbfs),
                 "ground_filter": float(ground_filter),
                 "airband_applied_gain": airband_device.get("gain") if airband_device else None,
@@ -423,8 +3088,13 @@ class Handler(BaseHTTPRequestHandler):
                 "last_hit": latest_hit or last_hit_airband or last_hit_ground or "",
                 "last_hit_airband": last_hit_airband,
                 "last_hit_ground": last_hit_ground,
+                "last_hit_airband_label": _short_label(last_hit_airband_label, max_len=48),
+                "last_hit_ground_label": _short_label(last_hit_ground_label, max_len=48),
                 "avoids_airband": summarize_avoids(conf_path, "airband"),
                 "avoids_ground": summarize_avoids(os.path.realpath(GROUND_CONFIG_PATH), "ground"),
+                "hp_avoids": get_scan_mode_controller().get_hp_avoids(),
+                "favorites_runtime_sync": favorites_runtime_sync,
+                "analog_scan_health": analog_scan_health,
             }
             digital_payload = {
                 "digital_active": False,
@@ -439,8 +3109,69 @@ class Handler(BaseHTTPRequestHandler):
                 digital_payload = get_digital_manager().status_payload()
             except Exception as e:
                 digital_payload["digital_last_error"] = str(e)
-            digital_payload["digital_mixer_active"] = unit_active(UNITS["digital_mixer"])
+            mixer_enabled, mixer_active = _digital_mixer_runtime_state()
+            digital_payload["digital_mixer_enabled"] = bool(mixer_enabled)
+            digital_payload["digital_mixer_active"] = bool(mixer_active)
+            digital_stream_active_for_hits = True
+            if DIGITAL_HITS_REQUIRE_ACTIVE_STREAM:
+                try:
+                    digital_stream_active_for_hits = _digital_stream_active_for_hits()
+                except Exception:
+                    digital_stream_active_for_hits = True
+            # Preserve raw digital activity indicators even when stream
+            # mount-state is uncertain; expose stream visibility separately.
+            digital_payload["digital_stream_active_for_hits"] = bool(digital_stream_active_for_hits)
+            digital_payload = _digital_status_with_hit_aliases(digital_payload, full_hit_items)
             payload.update(digital_payload)
+            payload["sb3_connected_status_refresh_sec"] = int(SB3_CONNECTED_STATUS_REFRESH_SEC)
+            payload["sb3_connected_system_refresh_sec"] = int(SB3_CONNECTED_SYSTEM_REFRESH_SEC)
+            payload["sb3_connected_profiles_refresh_sec"] = int(SB3_CONNECTED_PROFILES_REFRESH_SEC)
+            payload["sb3_dedicated_digital_fetch_enabled"] = bool(SB3_DEDICATED_DIGITAL_FETCH_ENABLED)
+            try:
+                compile_state = load_compiled_state() or {}
+            except Exception:
+                compile_state = {}
+            try:
+                system_stats = get_system_stats()
+            except Exception:
+                system_stats = {"ok": False}
+            dongle_snapshot = (system_stats or {}).get("dongles") or None
+            analog_air_preflight = evaluate_analog_preflight(
+                "airband",
+                strict=False,
+                dongles=dongle_snapshot,
+                compile_state=compile_state,
+            )
+            analog_ground_preflight = evaluate_analog_preflight(
+                "ground",
+                strict=False,
+                dongles=dongle_snapshot,
+                compile_state=compile_state,
+            )
+            digital_preflight = evaluate_digital_preflight(
+                profile_id=str(digital_payload.get("digital_profile") or ""),
+                strict=False,
+                dongles=dongle_snapshot,
+                compile_state=compile_state,
+                manager_preflight=digital_payload.get("digital_preflight"),
+            )
+            payload["v3_compile"] = compile_state
+            payload["preflight"] = {
+                "airband": analog_air_preflight,
+                "ground": analog_ground_preflight,
+                "digital": digital_preflight,
+            }
+            payload["health"] = _build_health_payload(
+                status_payload=payload,
+                system_stats=system_stats,
+                analog_air_preflight=analog_air_preflight,
+                analog_ground_preflight=analog_ground_preflight,
+                digital_preflight=digital_preflight,
+                compile_state=compile_state,
+            )
+            with _CACHE_LOCK:
+                _STATUS_CACHE["ts"] = now_monotonic
+                _STATUS_CACHE["payload"] = dict(payload)
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         if p == "/api/profiles":
             profiles = load_profiles_registry()
@@ -485,28 +3216,93 @@ class Handler(BaseHTTPRequestHandler):
             combined_info = combined_device_summary()
             airband_serial = AIRBAND_RTL_SERIAL or (combined_info.get("airband") or {}).get("serial")
             ground_serial = GROUND_RTL_SERIAL or (combined_info.get("ground") or {}).get("serial")
-            digital_serial_configured = bool(DIGITAL_RTL_SERIAL)
+            digital_serial_configured = bool(_configured_digital_serials())
+            digital_tuner_target_configured = bool(_digital_tuner_targets())
             payload = {
                 "ok": True,
                 "expected_serials": {
                     "airband": airband_serial,
                     "ground": ground_serial,
                     "digital": DIGITAL_RTL_SERIAL or "",
+                    "digital_secondary": DIGITAL_RTL_SERIAL_SECONDARY or "",
+                    "digital_tertiary": DIGITAL_RTL_SERIAL_TERTIARY or "",
                 },
                 "digital_serial_configured": digital_serial_configured,
+                "digital_tuner_target_configured": digital_tuner_target_configured,
+                "digital_tuner_targets": _digital_tuner_targets(),
                 "tuner_busy": bool(preflight.get("tuner_busy")),
                 "tuner_busy_lines": preflight.get("tuner_busy_lines") or [],
                 "tuner_busy_count": int(preflight.get("tuner_busy_count") or 0),
                 "tuner_busy_last_time_ms": int(preflight.get("tuner_busy_last_time_ms") or 0),
+                "playlist_source_ok": bool(preflight.get("playlist_source_ok")),
+                "playlist_source_type": preflight.get("playlist_source_type") or "",
+                "playlist_source_config_type": preflight.get("playlist_source_config_type") or "",
+                "playlist_frequency_count": int(preflight.get("playlist_frequency_count") or 0),
+                "playlist_frequency_hz": preflight.get("playlist_frequency_hz") or [],
+                "playlist_preferred_tuner": preflight.get("playlist_preferred_tuner") or "",
+                "playlist_source_error": preflight.get("playlist_source_error") or "",
+                "listen_filter_ok": bool(preflight.get("listen_filter_ok")),
+                "listen_filter_blocking": bool(preflight.get("listen_filter_blocking")),
+                "listen_filter_error": preflight.get("listen_filter_error") or "",
+                "listen_talkgroup_count": int(preflight.get("listen_talkgroup_count") or 0),
+                "listen_enabled_count": int(preflight.get("listen_enabled_count") or 0),
+                "listen_default": bool(preflight.get("listen_default")),
+                "listen_map_entries": int(preflight.get("listen_map_entries") or 0),
                 "rtl_devices": [],
                 "rtl_devices_note": "not implemented",
                 "device_holders": {"ok": False, "error": "not implemented"},
             }
-            if not digital_serial_configured:
+            if not digital_tuner_target_configured:
                 payload["digital_serial_hint"] = DIGITAL_RTL_SERIAL_HINT
-                payload["digital_serial_help"] = "Set DIGITAL_RTL_SERIAL in your EnvironmentFile and restart airband-ui."
+                payload["digital_serial_help"] = "Set DIGITAL_RTL_SERIAL or DIGITAL_PREFERRED_TUNER in your EnvironmentFile and restart airband-ui."
             if preflight.get("error"):
                 payload["error"] = preflight.get("error")
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+        if p == "/api/digital/scheduler":
+            try:
+                manager = get_digital_manager()
+                payload = manager.getScheduler() if hasattr(manager, "getScheduler") else {}
+                payload = dict(payload or {})
+                payload["ok"] = True
+                return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+        if p == "/api/digital/dongle-assignments":
+            try:
+                assignments = load_dongle_assignments()
+                payload = dict(assignments) if assignments else {}
+                payload["ok"] = True
+                return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+        if p == "/api/profile-loop":
+            return self._send(
+                410,
+                json.dumps({"ok": False, "error": "profile loop retired"}),
+                "application/json; charset=utf-8",
+            )
+        if p == "/api/preflight":
+            q = parse_qs(u.query or "")
+            action = (q.get("action") or [""])[0].strip()
+            target = (q.get("target") or [""])[0].strip()
+            profile_id = (q.get("profileId") or [""])[0].strip()
+            payload = gate_action(
+                action,
+                target=target,
+                profile_id=profile_id,
+                strict=False,
+            )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+        if p == "/api/v3/compile-state":
+            payload = {"ok": True, "state": load_compiled_state()}
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         if p == "/api/digital/talkgroups":
             q = parse_qs(u.query or "")
@@ -518,59 +3314,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, json.dumps({"ok": False, "error": payload}), "application/json; charset=utf-8")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         if p == "/api/hits":
-            items = read_hit_list_cached(limit=50)
-            def parse_time_ts(value: str) -> float:
-                if not value:
-                    return 0.0
-                try:
-                    dt = datetime.strptime(value, "%H:%M:%S")
-                    now = datetime.now()
-                    dt = dt.replace(year=now.year, month=now.month, day=now.day)
-                    return dt.timestamp()
-                except Exception:
-                    return 0.0
-            for item in items:
-                item["_ts"] = parse_time_ts(item.get("time"))
-
-            digital_items = []
-            include_digital_events = True
-            if DIGITAL_HITS_REQUIRE_ACTIVE_STREAM:
-                include_digital_events = _digital_stream_active_for_hits()
-            if include_digital_events:
-                try:
-                    events = get_digital_manager().getRecentEvents(limit=50)
-                except Exception:
-                    events = []
-            else:
-                events = []
-            for event in events:
-                label = str(event.get("label") or "").strip()
-                if not label:
-                    continue
-                time_ms = int(event.get("timeMs") or 0)
-                ts = time_ms / 1000.0 if time_ms else time.time()
-                time_str = time.strftime("%H:%M:%S", time.localtime(ts))
-                entry = {
-                    "time": time_str,
-                    "freq": label,
-                    "duration": 0,
-                    "label": label,
-                    "mode": event.get("mode"),
-                    "tgid": event.get("tgid"),
-                    "type": "digital",
-                    "source": "digital",
-                    "_ts": ts,
-                }
-                digital_items.append(entry)
-            digital_items = _coalesce_digital_hits(digital_items)
-
-            merged = items + digital_items
-            merged.sort(key=lambda item: item.get("_ts", 0.0))
-            merged = merged[-50:]
-            merged.reverse()
-            for item in merged:
-                item.pop("_ts", None)
-            payload = {"items": merged}
+            payload = _get_hits_payload_cached(limit=50)
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
         
         if p == "/api/spectrum":
@@ -592,20 +3336,65 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Connection", "keep-alive")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
-        import re
         try:
             while True:
-                conf_path = read_active_config_path()
-                airband_gain, airband_snr, airband_dbfs, airband_mode = parse_controls(conf_path)
-                rtl_unit_active = unit_active(UNITS["rtl"])
-                ground_unit_active = unit_active(UNITS["ground"])
+                controls_snapshot = _read_effective_analog_controls()
+                airband_gain = controls_snapshot["airband_gain"]
+                airband_dbfs = controls_snapshot["airband_dbfs"]
+                airband_mode = controls_snapshot["airband_mode"]
+                rtl_unit_active = _unit_active_cached(UNITS["rtl"])
+                ground_unit_active = _unit_active_cached(UNITS["ground"])
                 combined_info = combined_device_summary()
                 ground_present = combined_info.get("ground") is not None
                 rtl_active = rtl_unit_active
                 ground_active = rtl_active and ground_present
-                ice_ok = icecast_up()
-                hit_items = read_hit_list_cached(limit=20)
+                ice_ok = _unit_active_cached(UNITS["icecast"])
+                analog_stream_mount = str(PLAYER_MOUNT or "").strip().lstrip("/")
+                digital_stream_mount = str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/")
+                if ice_ok:
+                    try:
+                        status_text = fetch_local_icecast_status()
+                        analog_stream_mount = _resolve_analog_stream_mount(status_text)
+                        digital_stream_mount = _resolve_digital_stream_mount(status_text)
+                    except Exception:
+                        analog_stream_mount = str(PLAYER_MOUNT or "").strip().lstrip("/")
+                        digital_stream_mount = str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/")
+                # Keep SSE hits aligned with the full UI hit list so digital
+                # rows are not dropped by top-10 truncation during busy analog traffic.
+                hits_payload = _get_hits_payload_cached(limit=50)
+                hit_items = hits_payload.get("items") or []
+                analog_scan_health = get_analog_scan_health()
                 last_hit = hit_items[0].get("freq") if hit_items else (read_last_hit_airband() or read_last_hit_ground())
+                last_hit_airband_label = ""
+                last_hit_ground_label = ""
+                for item in hit_items:
+                    src = str(item.get("source") or "").strip().lower()
+                    label = str(item.get("label_full") or item.get("label") or "").strip()
+                    if src == "airband" and label and not last_hit_airband_label:
+                        last_hit_airband_label = label
+                    if src == "ground" and label and not last_hit_ground_label:
+                        last_hit_ground_label = label
+                    if last_hit_airband_label and last_hit_ground_label:
+                        break
+                digital_payload = {
+                    "digital_active": False,
+                    "digital_profile": "",
+                    "digital_last_label": "",
+                    "digital_last_time": 0,
+                }
+                try:
+                    digital_payload = dict(get_digital_manager().status_payload() or {})
+                except Exception:
+                    digital_payload = {
+                        "digital_active": False,
+                        "digital_profile": "",
+                        "digital_last_label": "",
+                        "digital_last_time": 0,
+                    }
+                mixer_enabled, mixer_active = _digital_mixer_runtime_state()
+                digital_payload["digital_mixer_enabled"] = bool(mixer_enabled)
+                digital_payload["digital_mixer_active"] = bool(mixer_active)
+                digital_payload = _digital_status_with_hit_aliases(digital_payload, hit_items)
                 status_data = {
                     "type": "status",
                     "rtl_active": rtl_active,
@@ -614,13 +3403,22 @@ class Handler(BaseHTTPRequestHandler):
                     "ground_unit_active": ground_unit_active,
                     "combined_config_stale": combined_config_stale(),
                     "gain": float(airband_gain),
-                    "squelch": float(airband_snr),
                     "squelch_mode": airband_mode,
-                    "squelch_snr": float(airband_snr),
                     "squelch_dbfs": float(airband_dbfs),
                     "last_hit": last_hit,
+                    "last_hit_airband_label": _short_label(last_hit_airband_label, max_len=48),
+                    "last_hit_ground_label": _short_label(last_hit_ground_label, max_len=48),
+                    "stream_mount": analog_stream_mount,
+                    "digital_stream_mount": digital_stream_mount,
                     "server_time": time.time(),
+                    "hp_avoids": get_scan_mode_controller().get_hp_avoids(),
+                    "analog_scan_health": analog_scan_health,
+                    "sb3_connected_status_refresh_sec": int(SB3_CONNECTED_STATUS_REFRESH_SEC),
+                    "sb3_connected_system_refresh_sec": int(SB3_CONNECTED_SYSTEM_REFRESH_SEC),
+                    "sb3_connected_profiles_refresh_sec": int(SB3_CONNECTED_PROFILES_REFRESH_SEC),
+                    "sb3_dedicated_digital_fetch_enabled": bool(SB3_DEDICATED_DIGITAL_FETCH_ENABLED),
                 }
+                status_data.update(digital_payload)
                 self.wfile.write(f"event: status\ndata: {json.dumps(status_data)}\n\n".encode())
                 spectrum_data = {
                     "type": "spectrum",
@@ -629,10 +3427,9 @@ class Handler(BaseHTTPRequestHandler):
                     "note": "stats_filepath not supported in rtl_airband v5.1.1"
                 }
                 self.wfile.write(f"event: spectrum\ndata: {json.dumps(spectrum_data)}\n\n".encode())
-                hits = read_hit_list_cached(limit=10)
                 hits_data = {
                     "type": "hits",
-                    "items": hits,
+                    "items": hit_items,
                 }
                 self.wfile.write(f"event: hits\ndata: {json.dumps(hits_data)}\n\n".encode())
                 self.wfile.flush()
@@ -643,7 +3440,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         """Handle POST requests."""
 
-        p = urlparse(self.path).path
+        p = _canonical_scan_api_path(urlparse(self.path).path)
         length = int(self.headers.get("Content-Length", "0") or "0")
         raw = self.rfile.read(length).decode("utf-8", errors="ignore")
         ctype = (self.headers.get("Content-Type") or "").lower()
@@ -654,7 +3451,16 @@ class Handler(BaseHTTPRequestHandler):
             except json.JSONDecodeError:
                 form = {}
         else:
-            form = {k: v[0] for k, v in parse_qs(raw).items()}
+            parsed_form = parse_qs(raw, keep_blank_values=True)
+            form = {}
+            for key, values in parsed_form.items():
+                if not values:
+                    form[key] = ""
+                    continue
+                if key == "selected_profiles":
+                    form[key] = ",".join(str(item or "").strip() for item in values)
+                    continue
+                form[key] = values[0]
 
         def get_str(key: str, default: str = "") -> str:
             v = form.get(key, default)
@@ -662,12 +3468,543 @@ class Handler(BaseHTTPRequestHandler):
                 return default
             return str(v)
 
+        def parse_bool_value(raw_value, *, field: str) -> bool:
+            return _parse_bool_value(raw_value, field=field)
+
+        def parse_float_value(raw_value, *, field: str) -> float:
+            return _parse_float_value(raw_value, field=field)
+
+        def parse_json_like_list(raw_value) -> list:
+            return _parse_json_like_list(raw_value)
+
+        if p == "/api/latency/tone":
+            action = get_str("action", "status").strip().lower() or "status"
+            if action in ("status", "get"):
+                payload = _latency_tone_status_payload()
+                return self._send(
+                    200,
+                    json.dumps({"ok": True, "tone": payload}),
+                    "application/json; charset=utf-8",
+                )
+            if action in ("stop", "cancel"):
+                with _LATENCY_TONE_LOCK:
+                    payload = _latency_tone_stop_locked("api_stop")
+                return self._send(
+                    200,
+                    json.dumps({"ok": True, "tone": payload}),
+                    "application/json; charset=utf-8",
+                )
+            if action in ("start", "inject"):
+                requested_target = get_str("target", LATENCY_TONE_DEFAULT_TARGET).strip().lower()
+                target = "digital" if requested_target == "digital" else "analog"
+                default_mount = f"latency-{target}.mp3"
+                requested_mount = get_str("mount", "").strip()
+                mount = requested_mount or default_mount
+                frequency_hz = _bounded_int(
+                    form.get("frequency_hz", LATENCY_TONE_DEFAULT_FREQ_HZ),
+                    LATENCY_TONE_DEFAULT_FREQ_HZ,
+                    120,
+                    5000,
+                )
+                duration_ms = _bounded_int(
+                    form.get("duration_ms", LATENCY_TONE_DEFAULT_DURATION_MS),
+                    LATENCY_TONE_DEFAULT_DURATION_MS,
+                    500,
+                    30000,
+                )
+                pre_roll_ms = _bounded_int(
+                    form.get("pre_roll_ms", LATENCY_TONE_DEFAULT_PREROLL_MS),
+                    LATENCY_TONE_DEFAULT_PREROLL_MS,
+                    0,
+                    min(5000, max(0, duration_ms - 100)),
+                )
+                bitrate_kbps = _bounded_int(
+                    form.get("bitrate_kbps", LATENCY_TONE_DEFAULT_BITRATE_KBPS),
+                    LATENCY_TONE_DEFAULT_BITRATE_KBPS,
+                    8,
+                    128,
+                )
+                sample_rate_hz = _bounded_int(
+                    form.get("sample_rate_hz", LATENCY_TONE_DEFAULT_SAMPLE_RATE),
+                    LATENCY_TONE_DEFAULT_SAMPLE_RATE,
+                    8000,
+                    48000,
+                )
+                ok, err, tone_status = _start_latency_tone_injection(
+                    target=target,
+                    mount=mount,
+                    frequency_hz=frequency_hz,
+                    duration_ms=duration_ms,
+                    pre_roll_ms=pre_roll_ms,
+                    bitrate_kbps=bitrate_kbps,
+                    sample_rate_hz=sample_rate_hz,
+                )
+                status_code = 200 if ok else 500
+                body = {
+                    "ok": bool(ok),
+                    "tone": tone_status,
+                }
+                if not ok:
+                    body["error"] = str(err or "unable to start latency tone injection")
+                return self._send(
+                    status_code,
+                    json.dumps(body),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(
+                400,
+                json.dumps({"ok": False, "error": "invalid action"}),
+                "application/json; charset=utf-8",
+            )
+
+        if p == "/api/mode":
+            controller = get_scan_mode_controller()
+            mode = get_str("mode").strip().lower()
+            if not mode:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "missing mode"}),
+                    "application/json; charset=utf-8",
+                )
+            try:
+                controller.set_mode(mode)
+            except ValueError as e:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+
+            sync_payload: dict[str, Any] = {"ok": True, "changed": False}
+            try:
+                sync_payload = sync_scan_pool_to_runtime(force=True)
+            except Exception as exc:
+                sync_payload = {"ok": False, "changed": False, "errors": [str(exc)]}
+
+            return self._send(
+                200,
+                json.dumps(
+                    {
+                        "ok": True,
+                        "mode": controller.get_mode(),
+                        "favorites_runtime_sync": sync_payload,
+                    }
+                ),
+                "application/json; charset=utf-8",
+            )
+
+        if p == "/api/hp/state":
+            try:
+                state = HPState.load()
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+
+            try:
+                _apply_hp_state_form(state, form)
+            except ValueError as e:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+
+            try:
+                payload = _save_hp_state_with_sync(state)
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/hp/avoids":
+            controller = get_scan_mode_controller()
+            action = str(form.get("action") or "").strip().lower()
+            if action == "clear":
+                controller.clear_hp_avoids()
+                return self._send(
+                    200,
+                    json.dumps({"ok": True, "avoids": controller.get_hp_avoids()}),
+                    "application/json; charset=utf-8",
+                )
+            if action == "add":
+                system_token = str(form.get("system") or "").strip()
+                if not system_token:
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": "missing system"}),
+                        "application/json; charset=utf-8",
+                    )
+                added = controller.add_hp_avoid_system(system_token)
+                if not added:
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": "invalid system"}),
+                        "application/json; charset=utf-8",
+                    )
+                return self._send(
+                    200,
+                    json.dumps({"ok": True, "avoids": controller.get_hp_avoids()}),
+                    "application/json; charset=utf-8",
+                )
+            if action == "remove":
+                system_token = str(form.get("system") or "").strip()
+                if not system_token:
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": "missing system"}),
+                        "application/json; charset=utf-8",
+                    )
+                removed = controller.remove_hp_avoid_system(system_token)
+                if not removed:
+                    return self._send(
+                        404,
+                        json.dumps({"ok": False, "error": "system not in avoid list"}),
+                        "application/json; charset=utf-8",
+                    )
+                return self._send(
+                    200,
+                    json.dumps({"ok": True, "avoids": controller.get_hp_avoids()}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(
+                400,
+                json.dumps({"ok": False, "error": "invalid action"}),
+                "application/json; charset=utf-8",
+            )
+
+        if p == "/api/hp/favorites-sync":
+            return self._send(
+                200,
+                json.dumps(
+                    {
+                        "ok": False,
+                        "available": False,
+                        "in_sync": True,
+                        "reason": "favorites sync retired; favorites route directly to runtime",
+                    }
+                ),
+                "application/json; charset=utf-8",
+            )
+
+        if p in ("/api/hp/hold", "/api/hp/next", "/api/hp/avoid"):
+            action = p.rsplit("/", 1)[-1]
+            controller = get_scan_mode_controller()
+            manager = get_digital_manager()
+            if not hasattr(manager, "getScheduler") or not hasattr(manager, "setScheduler"):
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "digital scheduler not supported"}),
+                    "application/json; charset=utf-8",
+                )
+
+            scheduler = dict(manager.getScheduler() or {})
+            systems = [
+                str(item).strip()
+                for item in (scheduler.get("digital_systems") or [])
+                if str(item).strip()
+            ]
+            active = str(scheduler.get("digital_active_system") or "").strip()
+            mode = str(scheduler.get("digital_scan_mode") or "").strip().lower()
+            order = [
+                str(item).strip()
+                for item in (
+                    scheduler.get("digital_system_order")
+                    or scheduler.get("digital_systems")
+                    or []
+                )
+                if str(item).strip()
+            ]
+
+            if action == "hold":
+                if mode == "single_system" and len(order) == 1:
+                    ok, err, snapshot = manager.setScheduler(
+                        {
+                            "mode": "timeslice_multi_system",
+                            "system_order": [],
+                        }
+                    )
+                    if not ok:
+                        return self._send(
+                            500,
+                            json.dumps({"ok": False, "error": err or "hold release failed"}),
+                            "application/json; charset=utf-8",
+                        )
+                    payload = {
+                        "ok": True,
+                        "action": "hold",
+                        "runtime_changed": True,
+                        "released": True,
+                        "scheduler": snapshot,
+                    }
+                    return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+                target = active if active in systems else (systems[0] if systems else "")
+                if not target:
+                    return self._send(
+                        409,
+                        json.dumps({"ok": False, "error": "no schedulable systems"}),
+                        "application/json; charset=utf-8",
+                    )
+                ok, err, snapshot = manager.setScheduler(
+                    {
+                        "mode": "single_system",
+                        "system_order": [target],
+                    }
+                )
+                if not ok:
+                    return self._send(
+                        500,
+                        json.dumps({"ok": False, "error": err or "hold failed"}),
+                        "application/json; charset=utf-8",
+                    )
+                payload = {
+                    "ok": True,
+                    "action": "hold",
+                    "runtime_changed": True,
+                    "active_system": target,
+                    "scheduler": snapshot,
+                }
+                return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+            if action == "next":
+                if not systems:
+                    return self._send(
+                        409,
+                        json.dumps({"ok": False, "error": "no schedulable systems"}),
+                        "application/json; charset=utf-8",
+                    )
+                if active in systems:
+                    idx = systems.index(active)
+                    target = systems[(idx + 1) % len(systems)]
+                else:
+                    target = systems[0]
+                ok, err, snapshot = manager.setScheduler(
+                    {
+                        "mode": "single_system",
+                        "system_order": [target],
+                    }
+                )
+                if not ok:
+                    return self._send(
+                        500,
+                        json.dumps({"ok": False, "error": err or "next failed"}),
+                        "application/json; charset=utf-8",
+                    )
+                payload = {
+                    "ok": True,
+                    "action": "next",
+                    "runtime_changed": True,
+                    "active_system": target,
+                    "scheduler": snapshot,
+                }
+                return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+            if not active:
+                return self._send(
+                    409,
+                    json.dumps({"ok": False, "error": "no active system to avoid"}),
+                    "application/json; charset=utf-8",
+                )
+            if not controller.add_hp_avoid_system(active):
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "invalid active system"}),
+                    "application/json; charset=utf-8",
+                )
+            ok, err, snapshot = manager.setScheduler(
+                {
+                    "mode": "timeslice_multi_system",
+                    "system_order": [],
+                }
+            )
+            if not ok:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": err or "avoid failed"}),
+                    "application/json; charset=utf-8",
+                )
+            payload = {
+                "ok": True,
+                "action": "avoid",
+                "runtime_changed": True,
+                "avoided_system": active,
+                "avoids": controller.get_hp_avoids(),
+                "scheduler": snapshot,
+            }
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/profile-editor/analog/validate":
+            profile_id = get_str("id").strip()
+            target = get_str("target", "airband").strip().lower() or "airband"
+            freqs_text = get_str("freqs_text").strip()
+            modulation = get_str("modulation", "am").strip().lower() or "am"
+            bandwidth_raw = get_str("bandwidth", "12000").strip()
+            if not freqs_text:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "missing freqs_text"}),
+                    "application/json; charset=utf-8",
+                )
+            try:
+                bandwidth = int(round(float(bandwidth_raw)))
+            except Exception:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "invalid bandwidth"}),
+                    "application/json; charset=utf-8",
+                )
+
+            ok, err, payload = validate_analog_editor_payload(
+                profile_id=profile_id,
+                target=target,
+                freqs_text=freqs_text,
+                modulation=modulation,
+                bandwidth=bandwidth,
+            )
+            if not ok:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": err}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/profile-editor/digital/validate":
+            profile_id = get_str("profileId").strip()
+            control_channels_text = get_str("control_channels_text").strip()
+            talkgroups_text = get_str("talkgroups_text")
+            systems_json_text = get_str("systems_json_text")
+            ok, err, payload = validate_digital_editor_payload(
+                profile_id=profile_id,
+                control_channels_text=control_channels_text,
+                talkgroups_text=talkgroups_text,
+                systems_json_text=systems_json_text,
+            )
+            if not ok:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": err}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/profile-editor/analog/save":
+            profile_id = get_str("id").strip()
+            target = get_str("target", "airband").strip().lower() or "airband"
+            freqs_text = get_str("freqs_text").strip()
+            modulation = get_str("modulation", "am").strip().lower() or "am"
+            bandwidth_raw = get_str("bandwidth", "12000").strip()
+            if not freqs_text:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "missing freqs_text"}),
+                    "application/json; charset=utf-8",
+                )
+            try:
+                bandwidth = int(round(float(bandwidth_raw)))
+            except Exception:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "invalid bandwidth"}),
+                    "application/json; charset=utf-8",
+                )
+
+            ok, err, payload = save_analog_editor_payload(
+                profile_id=profile_id,
+                target=target,
+                freqs_text=freqs_text,
+                modulation=modulation,
+                bandwidth=bandwidth,
+            )
+            if not ok:
+                return self._send(400, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
+
+            changed = bool(payload.get("changed"))
+            profile_path = str(((payload.get("profile") or {}).get("path") or "")).strip()
+            payload["active"] = bool(analog_profile_is_active(profile_path))
+            payload["scanner_restarted"] = False
+            payload["combined_changed"] = False
+
+            if changed and payload["active"]:
+                try:
+                    combined_changed = bool(write_combined_config())
+                    payload["combined_changed"] = combined_changed
+                    if combined_changed:
+                        restart_rtl()
+                        payload["scanner_restarted"] = True
+                except Exception as e:
+                    return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
+            try:
+                payload["v3_compile"] = compile_runtime()
+            except Exception as e:
+                payload["v3_compile_error"] = str(e)
+
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/profile-editor/digital/save":
+            profile_id = get_str("profileId").strip()
+            control_channels_text = get_str("control_channels_text").strip()
+            talkgroups_text = get_str("talkgroups_text")
+            systems_json_text = get_str("systems_json_text")
+            apply_now_raw = str(form.get("apply_now", "true")).strip().lower()
+            apply_now = apply_now_raw in ("1", "true", "yes", "on", "")
+
+            ok, err, payload = save_digital_editor_payload(
+                profile_id=profile_id,
+                control_channels_text=control_channels_text,
+                talkgroups_text=talkgroups_text,
+                systems_json_text=systems_json_text,
+            )
+            if not ok:
+                return self._send(400, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
+
+            runtime_applied = False
+            runtime_error = ""
+            runtime_active_profile = ""
+            try:
+                manager = get_digital_manager()
+                runtime_active_profile = str(manager.getProfile() or "")
+                if payload.get("changed") and apply_now and runtime_active_profile == profile_id:
+                    gate = gate_action("digital_profile", profile_id=profile_id)
+                    if not gate.get("ok"):
+                        payload["runtime_applied"] = False
+                        payload["runtime_error"] = "preflight blocked digital profile apply"
+                        payload["preflight"] = gate
+                        return self._send(409, json.dumps(payload), "application/json; charset=utf-8")
+                    runtime_applied, runtime_error = manager.setProfile(profile_id)
+            except Exception as e:
+                runtime_error = str(e)
+
+            payload["runtime_active_profile"] = runtime_active_profile
+            payload["runtime_applied"] = bool(runtime_applied)
+            if runtime_error:
+                payload["runtime_error"] = runtime_error
+            try:
+                payload["v3_compile"] = compile_runtime()
+            except Exception as e:
+                payload["v3_compile_error"] = str(e)
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
         if p == "/api/digital/start":
+            gate = gate_action("digital_start")
+            if not gate.get("ok"):
+                return self._send(
+                    409,
+                    json.dumps({"ok": False, "error": "preflight blocked", "preflight": gate}),
+                    "application/json; charset=utf-8",
+                )
             ok, err = get_digital_manager().start()
             payload = {"ok": bool(ok)}
             if not ok:
                 payload["error"] = err or "start failed"
                 return self._send(500, json.dumps(payload), "application/json; charset=utf-8")
+            _invalidate_runtime_caches("status", "hits")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/digital/stop":
@@ -676,14 +4013,23 @@ class Handler(BaseHTTPRequestHandler):
             if not ok:
                 payload["error"] = err or "stop failed"
                 return self._send(500, json.dumps(payload), "application/json; charset=utf-8")
+            _invalidate_runtime_caches("status", "hits")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/digital/restart":
+            gate = gate_action("digital_restart")
+            if not gate.get("ok"):
+                return self._send(
+                    409,
+                    json.dumps({"ok": False, "error": "preflight blocked", "preflight": gate}),
+                    "application/json; charset=utf-8",
+                )
             ok, err = get_digital_manager().restart()
             payload = {"ok": bool(ok)}
             if not ok:
                 payload["error"] = err or "restart failed"
                 return self._send(500, json.dumps(payload), "application/json; charset=utf-8")
+            _invalidate_runtime_caches("status", "hits")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/digital/profile":
@@ -692,13 +4038,52 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, json.dumps({"ok": False, "error": "missing profileId"}), "application/json; charset=utf-8")
             if not validate_digital_profile_id(profile_id):
                 return self._send(400, json.dumps({"ok": False, "error": "invalid profileId"}), "application/json; charset=utf-8")
+            gate = gate_action("digital_profile", profile_id=profile_id)
+            if not gate.get("ok"):
+                return self._send(
+                    409,
+                    json.dumps({"ok": False, "error": "preflight blocked", "preflight": gate}),
+                    "application/json; charset=utf-8",
+                )
             ok, err = get_digital_manager().setProfile(profile_id)
             payload = {"ok": bool(ok)}
             if not ok:
                 payload["error"] = err or "set profile failed"
                 status = 400 if err in ("invalid profileId", "unknown profileId") else 500
                 return self._send(status, json.dumps(payload), "application/json; charset=utf-8")
+            _invalidate_runtime_caches("status", "hits")
+            try:
+                payload["v3_compile"] = set_active_digital_profile(profile_id)
+            except Exception as e:
+                payload["v3_compile_error"] = str(e)
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/digital/scheduler":
+            manager = get_digital_manager()
+            if not hasattr(manager, "setScheduler"):
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "scheduler not supported"}),
+                    "application/json; charset=utf-8",
+                )
+            scheduler_payload = _extract_scheduler_payload(form)
+            ok, err, payload = manager.setScheduler(scheduler_payload)
+            if not ok:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": err or "invalid scheduler payload"}),
+                    "application/json; charset=utf-8",
+                )
+            response = {"ok": True}
+            response.update(payload or {})
+            return self._send(200, json.dumps(response), "application/json; charset=utf-8")
+
+        if p == "/api/profile-loop":
+            return self._send(
+                410,
+                json.dumps({"ok": False, "error": "profile loop retired"}),
+                "application/json; charset=utf-8",
+            )
 
         if p == "/api/digital/mute":
             raw_muted = form.get("muted")
@@ -726,7 +4111,12 @@ class Handler(BaseHTTPRequestHandler):
             if not ok:
                 status = 400 if err in ("invalid profileId", "profile already exists") else 500
                 return self._send(status, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
-            return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
+            payload = {"ok": True}
+            try:
+                payload["v3_compile"] = sync_digital_profiles_from_fs()
+            except Exception as e:
+                payload["v3_compile_error"] = str(e)
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/digital/profile/delete":
             profile_id = get_str("profileId").strip()
@@ -734,7 +4124,12 @@ class Handler(BaseHTTPRequestHandler):
             if not ok:
                 status = 400 if err in ("invalid profileId", "profile is active", "profile not found", "profile path is a symlink") else 500
                 return self._send(status, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
-            return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
+            payload = {"ok": True}
+            try:
+                payload["v3_compile"] = sync_digital_profiles_from_fs()
+            except Exception as e:
+                payload["v3_compile_error"] = str(e)
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/digital/profile/inspect":
             profile_id = get_str("profileId").strip()
@@ -760,6 +4155,13 @@ class Handler(BaseHTTPRequestHandler):
             if not ok:
                 return self._send(400, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
             return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
+
+        if p == "/api/v3/compile":
+            try:
+                state = compile_runtime()
+                return self._send(200, json.dumps({"ok": True, "state": state}), "application/json; charset=utf-8")
+            except Exception as e:
+                return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
 
         if p == "/api/profile/create":
             profile_id = get_str("id").strip()
@@ -823,7 +4225,7 @@ class Handler(BaseHTTPRequestHandler):
                         "          name = \"SprontPi Radio\";\n" + \
                         "          genre = \"AIRBAND\";\n" + \
                         "          description = \"Custom\";\n" + \
-                        "          bitrate = 16;\n" + \
+                        "          bitrate = 32;\n" + \
                         "        }\n" + \
                         "      );\n" + \
                         "    }\n" + \
@@ -847,7 +4249,12 @@ class Handler(BaseHTTPRequestHandler):
                 "airband": bool(airband_flag),
             })
             save_profiles_registry(profiles)
-            return self._send(200, json.dumps({"ok": True, "profile": profiles[-1]}), "application/json; charset=utf-8")
+            payload = {"ok": True, "profile": profiles[-1]}
+            try:
+                payload["v3_compile"] = upsert_analog_profile(profiles[-1])
+            except Exception as e:
+                payload["v3_compile_error"] = str(e)
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/profile/update_freqs":
             profile_id = get_str("id").strip()
@@ -922,7 +4329,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(404, json.dumps({"ok": False, "error": "profile not found"}), "application/json; charset=utf-8")
             prof["label"] = label
             save_profiles_registry(profiles)
-            return self._send(200, json.dumps({"ok": True, "profile": prof}), "application/json; charset=utf-8")
+            payload = {"ok": True, "profile": prof}
+            try:
+                payload["v3_compile"] = upsert_analog_profile(prof)
+            except Exception as e:
+                payload["v3_compile_error"] = str(e)
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/profile/delete":
             profile_id = get_str("id").strip()
@@ -942,18 +4354,44 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
             profiles = [p for p in profiles if p.get("id") != profile_id]
             save_profiles_registry(profiles)
-            return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
+            payload = {"ok": True}
+            try:
+                payload["v3_compile"] = delete_analog_profile(profile_id)
+            except Exception as e:
+                payload["v3_compile_error"] = str(e)
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/profile":
             pid = form.get("profile", "")
             target = form.get("target", "airband")
+            gate = gate_action("profile", target=target)
+            if not gate.get("ok"):
+                return self._send(
+                    409,
+                    json.dumps({"ok": False, "error": "preflight blocked", "preflight": gate}),
+                    "application/json; charset=utf-8",
+                )
             result = enqueue_action({"type": "profile", "profile": pid, "target": target})
-            return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
+            payload = dict(result.get("payload") or {})
+            if int(result.get("status") or 500) < 300 and payload.get("ok") and pid:
+                _invalidate_runtime_caches("status", "hits")
+                try:
+                    payload["v3_compile"] = set_active_analog_profile(target, str(pid))
+                except Exception as e:
+                    payload["v3_compile_error"] = str(e)
+            return self._send(result["status"], json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/apply":
             target = form.get("target", "airband")
             if target not in ("airband", "ground"):
                 return self._send(400, json.dumps({"ok": False, "error": "unknown target"}), "application/json; charset=utf-8")
+            gate = gate_action("apply", target=target)
+            if not gate.get("ok"):
+                return self._send(
+                    409,
+                    json.dumps({"ok": False, "error": "preflight blocked", "preflight": gate}),
+                    "application/json; charset=utf-8",
+                )
             try:
                 gain = float(form.get("gain", "32.8"))
                 squelch_mode = (form.get("squelch_mode") or "dbfs").lower()
@@ -966,10 +4404,59 @@ class Handler(BaseHTTPRequestHandler):
             result = enqueue_apply(target, gain, squelch_mode, squelch_snr, squelch_dbfs)
             return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
 
+        if p in ("/api/auto-squelch", "/api/analog/auto-squelch"):
+            raw_targets = form.get("targets")
+            parsed_targets: list[str] = []
+            if isinstance(raw_targets, list):
+                for item in raw_targets:
+                    value = str(item or "").strip().lower()
+                    if value:
+                        parsed_targets.append(value)
+            elif isinstance(raw_targets, str):
+                tokenized = [tok.strip().lower() for tok in raw_targets.replace(";", ",").split(",")]
+                parsed_targets.extend(tok for tok in tokenized if tok)
+            fallback_target = str(form.get("target", "") or "").strip().lower()
+            if fallback_target and not parsed_targets:
+                parsed_targets.append(fallback_target)
+            if not parsed_targets:
+                parsed_targets = ["airband", "ground"]
+
+            ordered_targets: list[str] = []
+            for candidate in parsed_targets:
+                if candidate not in ("airband", "ground"):
+                    continue
+                if candidate in ordered_targets:
+                    continue
+                ordered_targets.append(candidate)
+            if not ordered_targets:
+                return self._send(400, json.dumps({"ok": False, "error": "unknown target"}), "application/json; charset=utf-8")
+
+            blocked: dict[str, Any] = {}
+            for target in ordered_targets:
+                gate = gate_action("apply", target=target)
+                if not gate.get("ok"):
+                    blocked[target] = gate
+            if blocked:
+                return self._send(
+                    409,
+                    json.dumps({"ok": False, "error": "preflight blocked", "preflight": blocked}),
+                    "application/json; charset=utf-8",
+                )
+
+            result = enqueue_action({"type": "auto_squelch", "targets": ordered_targets})
+            return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
+
         if p == "/api/apply-batch":
             target = form.get("target", "airband")
             if target not in ("airband", "ground"):
                 return self._send(400, json.dumps({"ok": False, "error": "unknown target"}), "application/json; charset=utf-8")
+            gate = gate_action("apply_batch", target=target)
+            if not gate.get("ok"):
+                return self._send(
+                    409,
+                    json.dumps({"ok": False, "error": "preflight blocked", "preflight": gate}),
+                    "application/json; charset=utf-8",
+                )
             try:
                 gain = float(form.get("gain", "32.8"))
                 squelch_mode = (form.get("squelch_mode") or "dbfs").lower()
@@ -995,6 +4482,13 @@ class Handler(BaseHTTPRequestHandler):
             target = form.get("target", "airband")
             if target not in ("airband", "ground"):
                 return self._send(400, json.dumps({"ok": False, "error": "unknown target"}), "application/json; charset=utf-8")
+            gate = gate_action("filter", target=target)
+            if not gate.get("ok"):
+                return self._send(
+                    409,
+                    json.dumps({"ok": False, "error": "preflight blocked", "preflight": gate}),
+                    "application/json; charset=utf-8",
+                )
             try:
                 cutoff_hz = float(form.get("cutoff_hz", "3500"))
             except ValueError:
@@ -1006,6 +4500,70 @@ class Handler(BaseHTTPRequestHandler):
             target = form.get("target", "airband")
             result = enqueue_action({"type": "restart", "target": target})
             return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
+
+        if p == "/api/bt-heal":
+            action = get_str("action", "status").strip().lower() or "status"
+            status_payload = read_bt_audio_heal_status()
+            if action in ("status", "get"):
+                return self._send(
+                    200,
+                    json.dumps(
+                        {
+                            "ok": True,
+                            "enabled": bool(status_payload.get("auto_recovery_enabled")),
+                            "bt_heal": status_payload,
+                        }
+                    ),
+                    "application/json; charset=utf-8",
+                )
+            desired_enabled: bool | None = None
+            if action in ("enable", "on", "start"):
+                desired_enabled = True
+            elif action in ("disable", "off", "stop"):
+                desired_enabled = False
+            elif action == "toggle":
+                desired_enabled = not bool(status_payload.get("auto_recovery_enabled"))
+            elif action in ("set", "update"):
+                desired_enabled = parse_bool_value(form.get("enabled", "0"), field="enabled")
+            if desired_enabled is None:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "unknown action"}),
+                    "application/json; charset=utf-8",
+                )
+            ok, err = set_bt_heal_auto_recovery(bool(desired_enabled))
+            refreshed = read_bt_audio_heal_status()
+            payload = {
+                "ok": bool(ok),
+                "requested_enabled": bool(desired_enabled),
+                "enabled": bool(refreshed.get("auto_recovery_enabled")),
+                "bt_heal": refreshed,
+            }
+            if err:
+                payload["error"] = str(err)
+            return self._send(
+                200 if ok else 500,
+                json.dumps(payload),
+                "application/json; charset=utf-8",
+            )
+
+        if p == "/api/usb-hub-reset":
+            result = enqueue_action({"type": "usb_hub_reset"})
+            return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
+
+        if p == "/api/reboot-host":
+            ok, err = reboot_host()
+            payload = {
+                "ok": bool(ok),
+                "message": "host reboot requested" if ok else "host reboot failed",
+            }
+            if err:
+                payload["error"] = str(err)
+            return self._send(
+                200 if ok else 500,
+                json.dumps(payload),
+                "application/json; charset=utf-8",
+            )
 
         if p == "/api/avoid":
             target = form.get("target", "airband")
