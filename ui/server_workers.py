@@ -182,7 +182,11 @@ def start_wx_reader(decoder: str) -> None:
     from .wxdata import acars_reader_worker, radiosonde_reader_worker
 
     store = get_met_store()
-    _configure_spatial_filter(store)
+    if decoder == "acars":
+        _configure_spatial_filter(store)
+    else:
+        store.clear_spatial_filter()
+        logger.info("Wx spatial filter disabled for %s (tracking mobile source)", decoder)
     store.collecting = True
     store.active_decoder = decoder
 
