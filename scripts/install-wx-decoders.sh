@@ -2,22 +2,25 @@
 # install-wx-decoders.sh
 # Install acarsdec and radiosonde_auto_rx decoder binaries on the Micro box.
 # Run as root: sudo bash scripts/install-wx-decoders.sh
-# Set FORCE_REBUILD=1 to rebuild even if binaries already exist.
+# Set FORCE_REBUILD=1 to rebuild even if artifacts already exist.
 
 set -euo pipefail
 
 ACARSDEC_REPO="https://github.com/TLeconte/acarsdec.git"
 AUTORX_REPO="https://github.com/projecthorus/radiosonde_auto_rx.git"
 AUTORX_DIR="/opt/radiosonde_auto_rx"
-BUILD_DIR="/tmp/wx-decoder-build-$$"
 FORCE="${FORCE_REBUILD:-0}"
+
+# Temp build directory with trap cleanup
+BUILD_DIR="$(mktemp -d /tmp/wx-decoder-build.XXXXXXXXXX)"
+trap 'rm -rf "$BUILD_DIR"' EXIT
 
 # Source environment for GROUND_RTL_SERIAL
 [[ -f /etc/airband-ui.conf ]] && source /etc/airband-ui.conf
 GROUND_SERIAL="${GROUND_RTL_SERIAL:-70613472}"
 
 if [[ $EUID -ne 0 ]]; then
-    echo "ERROR: this script must be run as root (sudo)."
+    echo "ERROR: this script must be run as root (sudo bash scripts/install-wx-decoders.sh)."
     exit 1
 fi
 
@@ -26,7 +29,26 @@ echo "  Ground RTL-SDR serial: ${GROUND_SERIAL}"
 echo "  Force rebuild: ${FORCE}"
 echo ""
 
-mkdir -p "$BUILD_DIR"
+# ---------------------------------------------------------------------------
+# Artifact checks — decide what needs to be (re)built
+# ---------------------------------------------------------------------------
+need_acarsdec=true
+need_autorx_clone=true
+need_autorx_demod=true
+need_autorx_venv=true
+need_station_cfg=true
+
+if [[ "$FORCE" != "1" ]]; then
+    [[ -x /usr/local/bin/acarsdec ]] && need_acarsdec=false
+    [[ -f "$AUTORX_DIR/auto_rx.py" ]] && need_autorx_clone=false
+    [[ -x "$AUTORX_DIR/dft_detect" && -x "$AUTORX_DIR/rs41mod" ]] && need_autorx_demod=false
+    if [[ -d "$AUTORX_DIR/venv" ]] && head -1 "$AUTORX_DIR/auto_rx.py" 2>/dev/null | grep -q "^#!/opt/radiosonde_auto_rx/venv/bin/python3"; then
+        need_autorx_venv=false
+    fi
+    if [[ -f "$AUTORX_DIR/station.cfg" ]] && grep -q "payload_summary_port = 55673" "$AUTORX_DIR/station.cfg"; then
+        need_station_cfg=false
+    fi
+fi
 
 # ---------------------------------------------------------------------------
 # Step 1/7: System dependencies
@@ -44,8 +66,8 @@ echo ""
 # Step 2/7: Build and install acarsdec
 # ---------------------------------------------------------------------------
 echo "2/7: Building acarsdec..."
-if [[ -x /usr/local/bin/acarsdec && "$FORCE" != "1" ]]; then
-    echo "  /usr/local/bin/acarsdec already exists, skipping (set FORCE_REBUILD=1 to rebuild)"
+if [[ "$need_acarsdec" == "false" ]]; then
+    echo "  /usr/local/bin/acarsdec present, skipping (FORCE_REBUILD=1 to rebuild)"
 else
     git clone --depth 1 "$ACARSDEC_REPO" "$BUILD_DIR/acarsdec"
     mkdir -p "$BUILD_DIR/acarsdec/build"
@@ -62,8 +84,8 @@ echo ""
 # Step 3/7: Clone radiosonde_auto_rx
 # ---------------------------------------------------------------------------
 echo "3/7: Setting up radiosonde_auto_rx..."
-if [[ -f "$AUTORX_DIR/auto_rx.py" && "$FORCE" != "1" ]]; then
-    echo "  $AUTORX_DIR already exists, skipping (set FORCE_REBUILD=1 to rebuild)"
+if [[ "$need_autorx_clone" == "false" ]]; then
+    echo "  $AUTORX_DIR/auto_rx.py present, skipping"
 else
     git clone --depth 1 "$AUTORX_REPO" "$BUILD_DIR/radiosonde_auto_rx"
     mkdir -p "$AUTORX_DIR"
@@ -78,8 +100,8 @@ echo ""
 # Step 4/7: Build radiosonde demodulator binaries
 # ---------------------------------------------------------------------------
 echo "4/7: Building radiosonde demodulator binaries..."
-if [[ -x "$AUTORX_DIR/dft_detect" && "$FORCE" != "1" ]]; then
-    echo "  demod binaries already present, skipping"
+if [[ "$need_autorx_demod" == "false" ]]; then
+    echo "  dft_detect + rs41mod present, skipping"
 else
     cd "$AUTORX_DIR"
     if [[ -f build.sh ]]; then
@@ -93,11 +115,11 @@ fi
 echo ""
 
 # ---------------------------------------------------------------------------
-# Step 5/7: Python virtual environment
+# Step 5/7: Python virtual environment + shebang
 # ---------------------------------------------------------------------------
 echo "5/7: Setting up Python venv for radiosonde_auto_rx..."
-if [[ -d "$AUTORX_DIR/venv" && "$FORCE" != "1" ]]; then
-    echo "  venv already exists, skipping"
+if [[ "$need_autorx_venv" == "false" ]]; then
+    echo "  venv present and shebang patched, skipping"
 else
     python3 -m venv "$AUTORX_DIR/venv"
     "$AUTORX_DIR/venv/bin/pip" install --upgrade pip
@@ -105,32 +127,46 @@ else
         "$AUTORX_DIR/venv/bin/pip" install -r "$AUTORX_DIR/requirements.txt"
     fi
     echo "  venv created and dependencies installed"
-fi
 
-# Patch shebang to use venv python (keeps deployed service file unchanged)
-if head -1 "$AUTORX_DIR/auto_rx.py" | grep -q "^#!/opt/radiosonde_auto_rx/venv/bin/python3"; then
-    echo "  shebang already patched"
-else
-    sed -i "1s|^#!.*|#!/opt/radiosonde_auto_rx/venv/bin/python3|" "$AUTORX_DIR/auto_rx.py"
-    echo "  patched auto_rx.py shebang to use venv python"
+    # Patch shebang to use venv python (keeps deployed service file unchanged)
+    if ! head -1 "$AUTORX_DIR/auto_rx.py" | grep -q "^#!/opt/radiosonde_auto_rx/venv/bin/python3"; then
+        sed -i "1s|^#!.*|#!/opt/radiosonde_auto_rx/venv/bin/python3|" "$AUTORX_DIR/auto_rx.py"
+        echo "  patched auto_rx.py shebang → venv python"
+    fi
 fi
 echo ""
 
 # ---------------------------------------------------------------------------
 # Step 6/7: Generate station.cfg
 # ---------------------------------------------------------------------------
+# Section names and keys validated against upstream station.cfg.example from
+# projecthorus/radiosonde_auto_rx (master, 2026-03).
+# Only sections required for local UDP telemetry output are included.
+# Omitted sections (email, aprs, rotator, web, debugging, filtering, decoder tweaks)
+# inherit upstream defaults when absent.
 echo "6/7: Generating station.cfg..."
 STATION_CFG="$AUTORX_DIR/station.cfg"
-if [[ -f "$STATION_CFG" && "$FORCE" != "1" ]]; then
-    echo "  station.cfg already exists, skipping (set FORCE_REBUILD=1 to regenerate)"
+if [[ "$need_station_cfg" == "false" ]]; then
+    echo "  station.cfg present with UDP port 55673, skipping"
 else
     cat > "$STATION_CFG" <<CFGEOF
+#
 # station.cfg — generated by install-wx-decoders.sh
 # Ground RTL-SDR serial: ${GROUND_SERIAL}
+#
+# Section names and keys match upstream station.cfg.example from
+# projecthorus/radiosonde_auto_rx. Only sections needed for local
+# UDP telemetry output are specified; omitted sections use defaults.
+#
 
+################
+# SDR SETTINGS #
+################
 [sdr]
 sdr_type = RTLSDR
 sdr_quantity = 1
+sdr_hostname = localhost
+sdr_port = 5555
 
 [sdr_1]
 device_idx = ${GROUND_SERIAL}
@@ -138,6 +174,9 @@ ppm = 0
 gain = -1
 bias = False
 
+##############################
+# RADIOSONDE SEARCH SETTINGS #
+##############################
 [search_params]
 min_freq = 400.05
 max_freq = 406.0
@@ -147,42 +186,77 @@ never_scan = []
 always_scan = []
 always_decode = []
 
-[thresholds]
-min_duration = 10
-min_distance = 1000
+####################
+# STATION LOCATION #
+####################
+[location]
+station_lat = 0.0
+station_lon = 0.0
+station_alt = 0.0
+gpsd_enabled = False
+gpsd_host = localhost
+gpsd_port = 2947
 
-[oziplotter]
-ozi_enabled = False
-ozi_update_rate = 5
-ozi_host = 127.0.0.1
-ozi_port = 8942
-payload_summary_enabled = True
-payload_summary_host = 127.0.0.1
-payload_summary_port = 55673
+###################################################
+# SONDEHUB / HABITAT UPLOAD SETTINGS              #
+###################################################
+[habitat]
+uploader_callsign = SB3
+upload_listener_position = False
+uploader_antenna = 1/4 wave monopole
 
 [sondehub]
 sondehub_enabled = False
 sondehub_upload_rate = 15
 sondehub_contact_email = none@none.com
 
-[habitat]
-uploader_callsign = SB3
-upload_listener_position = False
+########################
+# APRS UPLOAD SETTINGS #
+########################
+[aprs]
+aprs_enabled = False
 
-[location]
-station_lat = 0.0
-station_lon = 0.0
-station_alt = 0.0
+###########################
+# CHASEMAPPER DATA OUTPUT #
+###########################
+[oziplotter]
+ozi_update_rate = 5
+ozi_enabled = False
+ozi_host = 127.0.0.1
+ozi_port = 8942
+payload_summary_enabled = True
+payload_summary_host = 127.0.0.1
+payload_summary_port = 55673
 
+###########
+# LOGGING #
+###########
 [logging]
 per_sonde_log = True
+save_system_log = False
+enable_debug_logging = False
+save_cal_data = False
 
+#####################
+# ADVANCED SETTINGS #
+#####################
 [advanced]
-scan_dwell_time = 10
+search_step = 800
+snr_threshold = 10
+max_peaks = 10
+min_distance = 1000
+scan_dwell_time = 20
 detect_dwell_time = 5
-max_sondes = 1
-temporary_block_time = 60
-synchronous_upload = False
+scan_delay = 10
+quantization = 10000
+decoder_spacing_limit = 15000
+temporary_block_time = 120
+synchronous_upload = True
+payload_id_valid = 3
+sdr_fm_path = rtl_fm
+sdr_power_path = rtl_power
+ss_iq_path = ./ss_iq
+ss_power_path = ./ss_power
 CFGEOF
     echo "  wrote $STATION_CFG (UDP telemetry → 127.0.0.1:55673)"
 fi
@@ -224,6 +298,20 @@ else
     PASS=false
 fi
 
+if [[ -d "$AUTORX_DIR/venv" ]]; then
+    echo "  venv ................. OK"
+else
+    echo "  venv ................. MISSING"
+    PASS=false
+fi
+
+if head -1 "$AUTORX_DIR/auto_rx.py" 2>/dev/null | grep -q "^#!/opt/radiosonde_auto_rx/venv/bin/python3"; then
+    echo "  shebang .............. OK (venv python)"
+else
+    echo "  shebang .............. BAD (not patched to venv)"
+    PASS=false
+fi
+
 if [[ -f "$STATION_CFG" ]] && grep -q "payload_summary_port = 55673" "$STATION_CFG"; then
     echo "  station.cfg .......... OK (UDP port 55673)"
 else
@@ -238,18 +326,17 @@ echo ""
 systemctl status radiosonde-auto-rx --no-pager 2>&1 | head -3 || true
 echo ""
 
-# Cleanup build dir
-rm -rf "$BUILD_DIR"
-
 if [[ "$PASS" == "true" ]]; then
     echo "=== Installation Complete ==="
 else
-    echo "=== Installation Complete (with warnings) ==="
+    echo "=== Installation Complete (with warnings — review above) ==="
 fi
 echo ""
+echo "IMPORTANT: Services are NOT auto-started by this script."
+echo ""
 echo "Next steps:"
-echo "  1. Services are NOT auto-started — use the UI profile system."
-echo "  2. Select 'ACARS Weather' or 'Radiosonde' from the ground profile dropdown."
-echo "  3. Check /api/wx/status to confirm acars_installed / radiosonde_installed = true."
-echo "  4. Monitor logs: sudo journalctl -u acarsdec -f"
-echo "                   sudo journalctl -u radiosonde-auto-rx -f"
+echo "  1. Select 'ACARS Weather' or 'Radiosonde' from the ground profile dropdown."
+echo "  2. Check /api/wx/status to confirm acars_installed / radiosonde_installed = true."
+echo "  3. Monitor logs:"
+echo "       journalctl -u acarsdec -f"
+echo "       journalctl -u radiosonde-auto-rx -f"
