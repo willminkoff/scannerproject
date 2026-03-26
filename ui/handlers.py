@@ -4058,6 +4058,30 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 payload["v3_compile_error"] = str(e)
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/wx/filter":
+            store = get_met_store()
+            enabled = get_str("enabled", "")
+            if enabled.lower() in ("false", "0", "off"):
+                store.clear_spatial_filter()
+                return self._send(200, json.dumps({"ok": True, "spatial_filter": False}), "application/json; charset=utf-8")
+            # Apply or update filter
+            try:
+                from .hp_state import HPState
+                state = HPState.load()
+                lat = float(get_str("lat", "") or state.lat)
+                lon = float(get_str("lon", "") or state.lon)
+            except Exception:
+                lat = float(get_str("lat", "0"))
+                lon = float(get_str("lon", "0"))
+            radius_nm = float(get_str("radius_nm", "") or store.get_status().get("filter_radius_nm", 10.0))
+            ceiling_ft = float(get_str("ceiling_ft", "") or store.get_status().get("filter_ceiling_ft", 40000.0))
+            store.set_spatial_filter(lat=lat, lon=lon, radius_nm=radius_nm, ceiling_ft=ceiling_ft)
+            return self._send(200, json.dumps({
+                "ok": True, "spatial_filter": True,
+                "filter_lat": lat, "filter_lon": lon,
+                "filter_radius_nm": radius_nm, "filter_ceiling_ft": ceiling_ft,
+            }), "application/json; charset=utf-8")
         if p == "/api/wx/clear":
             store = get_met_store()
             source = get_str("source") or None
