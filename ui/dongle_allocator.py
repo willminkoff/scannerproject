@@ -36,7 +36,13 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 DONGLE_ASSIGNMENTS_PATH = os.getenv(
     "DONGLE_ASSIGNMENTS_PATH",
-    "/run/airband_ui_dongle_assignments.json",
+    os.path.join(
+        os.path.expanduser("~"),
+        ".local",
+        "state",
+        "scannerproject",
+        "airband_ui_dongle_assignments.json",
+    ),
 ).strip()
 
 _LOCK = threading.Lock()

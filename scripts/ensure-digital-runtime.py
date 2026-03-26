@@ -49,7 +49,7 @@ DIGITAL_FORCE_PREFERRED_TUNER = os.getenv(
 ).strip().lower() in _TRUTHY
 DONGLE_ASSIGNMENTS_PATH = os.getenv(
     "DONGLE_ASSIGNMENTS_PATH",
-    "/run/airband_ui_dongle_assignments.json",
+    str(Path.home() / ".local" / "state" / "scannerproject" / "airband_ui_dongle_assignments.json"),
 ).strip()
 DIGITAL_REQUIRE_TUNER = os.getenv("DIGITAL_REQUIRE_TUNER", "1").strip().lower() in _TRUTHY
 DIGITAL_USE_MULTI_FREQ_SOURCE = os.getenv("DIGITAL_USE_MULTI_FREQ_SOURCE", "1").strip().lower() in _TRUTHY
