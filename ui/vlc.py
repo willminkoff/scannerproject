@@ -1,4 +1,5 @@
 """VLC playback control for local Icecast streams."""
+import logging
 import os
 import re
 import signal
@@ -11,6 +12,8 @@ try:
     from .config import ICECAST_HOST, ICECAST_PORT, PLAYER_MOUNT, DIGITAL_STREAM_MOUNT
 except ImportError:
     from ui.config import ICECAST_HOST, ICECAST_PORT, PLAYER_MOUNT, DIGITAL_STREAM_MOUNT
+
+logger = logging.getLogger(__name__)
 
 VLC_HTTP_RECONNECT = str(os.getenv("VLC_HTTP_RECONNECT", "1")).strip().lower() in ("1", "true", "yes", "on")
 try:
@@ -140,7 +143,7 @@ def _clear_pid(target: str) -> None:
     except FileNotFoundError:
         pass
     except Exception:
-        pass
+        logger.debug("Failed clearing VLC pid file for %s at %s", target, path, exc_info=True)
 
 
 def _pid_alive(pid: int) -> bool:
@@ -205,7 +208,7 @@ def _target_running(target: str) -> bool:
     try:
         _write_pid(target, recovered_pid)
     except Exception:
-        pass
+        logger.debug("Failed writing recovered VLC pid for %s", target, exc_info=True)
     return True
 
 
@@ -226,6 +229,7 @@ def _mute_sdrtrunk_pulse_streams() -> None:
             check=False,
         )
     except Exception:
+        logger.debug("Failed muting SDRTrunk local monitor streams for VLC playback", exc_info=True)
         return
 
 
@@ -293,7 +297,7 @@ def stop_vlc(target: str = DEFAULT_TARGET):
             try:
                 _write_pid(resolved_target, pid)
             except Exception:
-                pass
+                logger.debug("Failed writing discovered VLC pid for %s", resolved_target, exc_info=True)
     if not pid:
         return True, ""
     if not _pid_alive(pid):

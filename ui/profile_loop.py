@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import logging
 import os
 import threading
 import time
@@ -49,6 +50,8 @@ except ImportError:
     from ui.server_workers import enqueue_action
     from ui.v3_preflight import gate_action
     from ui.v3_runtime import set_active_analog_profile
+
+logger = logging.getLogger(__name__)
 
 
 _TARGETS = ("airband", "ground", "digital")
@@ -111,7 +114,7 @@ def _load_json(path: str) -> dict:
         if isinstance(payload, dict):
             return payload
     except Exception:
-        pass
+        logger.debug("Failed loading profile-loop state JSON from %s", path, exc_info=True)
     return {}
 
 
@@ -558,7 +561,12 @@ class ProfileLoopManager:
                 try:
                     set_active_analog_profile(target, pid)
                 except Exception:
-                    pass
+                    logger.debug(
+                        "Failed updating active analog profile after loop switch for %s -> %s",
+                        target,
+                        pid,
+                        exc_info=True,
+                    )
             return True, ""
         try:
             ok, err = get_digital_manager().setProfile(pid, restart_service=False)
@@ -614,7 +622,7 @@ class ProfileLoopManager:
         try:
             self._save_state_locked()
         except Exception:
-            pass
+            logger.debug("Failed persisting migrated profile-loop state", exc_info=True)
 
     def _save_state_locked(self) -> None:
         path = self._state_path
@@ -641,11 +649,12 @@ class ProfileLoopManager:
                 f.write("\n")
             os.replace(tmp, path)
         except Exception:
+            logger.debug("Failed writing profile-loop state to %s", path, exc_info=True)
             try:
                 if os.path.exists(tmp):
                     os.remove(tmp)
             except Exception:
-                pass
+                logger.debug("Failed removing temporary profile-loop state %s", tmp, exc_info=True)
 
     def _snapshot_locked(self) -> dict[str, Any]:
         targets = {}
@@ -948,13 +957,14 @@ class ProfileLoopManager:
             try:
                 self._tick()
             except Exception:
+                logger.debug("Profile-loop tick failed; continuing", exc_info=True)
                 continue
 
     def __del__(self):
         try:
             self._stop.set()
         except Exception:
-            pass
+            logger.debug("Failed stopping profile-loop manager during cleanup", exc_info=True)
 
 
 _PROFILE_LOOP_MANAGER: ProfileLoopManager | None = None

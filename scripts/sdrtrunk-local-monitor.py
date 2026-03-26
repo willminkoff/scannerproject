@@ -8,11 +8,14 @@ VLC/stream path is the only audible output.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shutil
 import subprocess
 import sys
 import time
+
+logger = logging.getLogger(__name__)
 
 
 def env_flag(name: str, default: bool = False) -> bool:
@@ -55,6 +58,7 @@ def _is_sdrtrunk_java_pid(pid: str) -> bool:
         with open(path, "rb") as f:
             raw = f.read()
     except Exception:
+        logger.debug("sdrtrunk-local-monitor: failed to read %s", path, exc_info=True)
         return False
     if not raw:
         return False
@@ -116,7 +120,7 @@ def _audio_session_available() -> bool:
             if res.returncode == 0:
                 return True
         except Exception:
-            pass
+            logger.debug("sdrtrunk-local-monitor: wpctl status check failed", exc_info=True)
     if _have_cmd("pactl"):
         try:
             res = subprocess.run(
@@ -128,7 +132,7 @@ def _audio_session_available() -> bool:
             if res.returncode == 0:
                 return True
         except Exception:
-            pass
+            logger.debug("sdrtrunk-local-monitor: pactl info check failed", exc_info=True)
     return False
 
 
@@ -139,6 +143,7 @@ def _parse_pactl_sink_inputs(text: str) -> list[dict]:
     try:
         lines = str(text).splitlines()
     except Exception:
+        logger.debug("sdrtrunk-local-monitor: failed to split pactl sink-input text", exc_info=True)
         return []
 
     sink_id = ""
@@ -195,6 +200,7 @@ def _list_sink_inputs_pactl() -> list[dict]:
             check=False,
         )
     except Exception:
+        logger.debug("sdrtrunk-local-monitor: pactl sink-input list failed", exc_info=True)
         return []
     if res.returncode != 0 or not res.stdout:
         return []
@@ -207,6 +213,7 @@ def _parse_pw_dump_audio_objects(text: str) -> list[dict]:
     try:
         payload = json.loads(text)
     except Exception:
+        logger.debug("sdrtrunk-local-monitor: failed to parse pw-dump payload", exc_info=True)
         return []
     if not isinstance(payload, list):
         return []
@@ -261,6 +268,7 @@ def _list_sink_inputs_wpctl() -> list[dict]:
             check=False,
         )
     except Exception:
+        logger.debug("sdrtrunk-local-monitor: pw-dump failed", exc_info=True)
         return []
     if res.returncode != 0 or not res.stdout:
         return []
@@ -320,6 +328,7 @@ def _set_sink_mute(item: dict, muted: bool) -> bool:
         )
         return res.returncode == 0
     except Exception:
+        logger.debug("sdrtrunk-local-monitor: mute command failed for %s", cmd, exc_info=True)
         return False
 
 

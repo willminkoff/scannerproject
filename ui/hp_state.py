@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from .config import HPDB_DB_PATH
 from .service_types import get_default_enabled_service_types
+
+logger = logging.getLogger(__name__)
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -234,6 +237,7 @@ class HPState:
         try:
             defaults = list(get_default_enabled_service_types(db_path=db_path))
         except Exception:
+            logger.debug("hp_state: failed to load default enabled service types from %s", db_path, exc_info=True)
             defaults = [2, 3, 4]
         return cls(
             mode="full_database",
@@ -290,6 +294,7 @@ class HPState:
             with in_path.open("r", encoding="utf-8") as handle:
                 payload = json.load(handle)
         except Exception:
+            logger.debug("hp_state: failed to load state from %s; falling back to defaults", in_path, exc_info=True)
             return cls.default(db_path=db_path)
 
         if not isinstance(payload, dict):
@@ -304,6 +309,7 @@ class HPState:
         try:
             legacy_version = int(payload.get("service_tag_schema_version") or 1)
         except Exception:
+            logger.debug("hp_state: invalid service_tag_schema_version in %s", in_path, exc_info=True)
             legacy_version = 1
 
         service_tags = _coerce_service_tags(payload.get("enabled_service_tags"))

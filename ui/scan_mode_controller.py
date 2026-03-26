@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import sqlite3
@@ -13,6 +14,8 @@ from .config import HPDB_DB_PATH, HP_AVOIDS_PATH
 from .hp_scan_pool import ScanPoolBuilder, haversine_miles
 from .zip_lookup import resolve_postal_to_lat_lon
 
+
+logger = logging.getLogger(__name__)
 
 _VALID_MODES = {"expert"}
 _DEFAULT_DB_PATH = str(Path(HPDB_DB_PATH).expanduser().resolve())
@@ -137,6 +140,7 @@ class ScanModeController:
         except FileNotFoundError:
             return
         except Exception:
+            logger.debug("scan_mode_controller: failed to load HP avoids from %s", path, exc_info=True)
             return
         raw_avoids = []
         if isinstance(payload, dict):
@@ -170,6 +174,7 @@ class ScanModeController:
             os.replace(tmp_path, path)
         except Exception:
             # In-memory avoids still apply even if persistence fails.
+            logger.debug("scan_mode_controller: failed to persist HP avoids to %s", path, exc_info=True)
             return
 
     @classmethod
@@ -198,6 +203,7 @@ class ScanModeController:
         try:
             resolved = resolve_postal_to_lat_lon(postal, "US")
         except Exception:
+            logger.debug("scan_mode_controller: failed to resolve postal code %s", postal, exc_info=True)
             return None
         if not resolved or len(resolved) < 2:
             return None
@@ -231,6 +237,7 @@ class ScanModeController:
 
             return self._normalize_service_tags(get_default_enabled_service_types(db_path=self._db_path))
         except Exception:
+            logger.debug("scan_mode_controller: failed to load default service types from %s", self._db_path, exc_info=True)
             return []
 
     @staticmethod
@@ -316,6 +323,7 @@ class ScanModeController:
                     conv_system_keys.add(token)
         except Exception:
             # If scope metadata cannot be read, keep legacy behavior by returning empty override sets.
+            logger.debug("scan_mode_controller: failed to load multistate scope overrides", exc_info=True)
             return set(), set()
 
         self._multistate_localized_trunk_ids = trunk_ids
@@ -496,13 +504,14 @@ class ScanModeController:
                 strict_location=strict_location,
             )
         except Exception:
+            logger.debug("scan_mode_controller: favorites location filtering fell back to service-only results", exc_info=True)
             return filtered_by_service
         finally:
             try:
                 if conn is not None:
                     conn.close()
             except Exception:
-                pass
+                logger.debug("scan_mode_controller: failed to close favorites filter DB connection", exc_info=True)
 
         filtered_by_location: list[dict] = []
         for row in filtered_by_service:
@@ -602,6 +611,12 @@ class ScanModeController:
                     if trunk_id > 0:
                         trunk_ids.append(trunk_id)
             except Exception:
+                logger.debug(
+                    "scan_mode_controller: failed to look up fallback control channels for trunk system %s/%s",
+                    system_id,
+                    system_name,
+                    exc_info=True,
+                )
                 trunk_ids = []
 
         if not trunk_ids:
@@ -622,6 +637,11 @@ class ScanModeController:
                         (int(trunk_id),),
                     ).fetchall()
             except Exception:
+                logger.debug(
+                    "scan_mode_controller: failed to load fallback site frequencies for trunk_id=%s",
+                    trunk_id,
+                    exc_info=True,
+                )
                 continue
             controls_mhz: list[float] = []
             for row in rows:
@@ -884,13 +904,14 @@ class ScanModeController:
                     "site_ids": [int(item[1]) for item in keep],
                 }
         except Exception:
+            logger.debug("scan_mode_controller: nearest-site lookup failed", exc_info=True)
             return {}
         finally:
             try:
                 if conn is not None:
                     conn.close()
             except Exception:
-                pass
+                logger.debug("scan_mode_controller: failed to close nearest-site DB connection", exc_info=True)
         return out
 
     def _trim_favorites_pool_to_nearest_sites(self, pool: dict[str, Any], state) -> dict[str, Any]:
@@ -1071,6 +1092,7 @@ class ScanModeController:
         try:
             from .hp_state import HPState
         except Exception:
+            logger.debug("scan_mode_controller: failed to import HPState", exc_info=True)
             return _empty_pool()
 
         state = HPState.load()

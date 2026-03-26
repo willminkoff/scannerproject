@@ -9,6 +9,7 @@ frequency from control_channels.txt.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import csv
@@ -19,6 +20,8 @@ from xml.sax.saxutils import escape as _xml_escape
 
 _XSI_NS = "http://www.w3.org/2001/XMLSchema-instance"
 ET.register_namespace("xsi", _XSI_NS)
+
+logger = logging.getLogger(__name__)
 
 FREQ_RE = re.compile(r"\d+\.\d+")
 _TRUTHY = ("1", "true", "yes", "on")
@@ -521,7 +524,7 @@ def _point_active_link(target: Path) -> None:
         if tmp_link.exists() or tmp_link.is_symlink():
             tmp_link.unlink()
     except Exception:
-        pass
+        logger.debug("Failed removing temporary active digital profile link %s", tmp_link, exc_info=True)
     tmp_link.symlink_to(target)
     os.replace(tmp_link, ACTIVE_LINK)
 
@@ -739,6 +742,7 @@ def _profile_alias_seed_rows(profile_dir: Path) -> list[tuple[str, str, str]]:
                     seen.add(dec)
                     rows.append((dec, name, group))
     except Exception:
+        logger.debug("Failed seeding alias rows from %s", profile_dir, exc_info=True)
         return []
     return rows
 
@@ -812,6 +816,7 @@ def _seed_aliases_from_profile(root: ET.Element, alias_list_name: str, profile_d
             try:
                 root.remove(alias)
             except Exception:
+                logger.debug("Failed pruning stale alias from list %s", alias_list_name, exc_info=True)
                 continue
 
     existing = _collect_alias_talkgroup_map(root, alias_list_name)
@@ -949,7 +954,7 @@ def _sync_stream_configuration(root: ET.Element) -> bool:
             root.remove(dup)
             changed = True
         except Exception:
-            pass
+            logger.debug("Failed removing duplicate stream entry %s", stream_name, exc_info=True)
 
     attrs = {
         "type": "icecastHTTPConfiguration",

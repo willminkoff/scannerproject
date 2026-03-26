@@ -1,6 +1,7 @@
 """Sync and drift status between HP3 favorites and active digital profile."""
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 
@@ -10,6 +11,8 @@ try:
 except ImportError:
     from ui.digital import get_digital_manager, read_digital_talkgroups, write_digital_listen
     from ui.hp_state import HPState
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_tgid(value: Any) -> str:
@@ -86,6 +89,7 @@ def _active_digital_profile_id() -> str:
         manager = get_digital_manager()
         return str(manager.getProfile() or "").strip()
     except Exception:
+        logger.debug("hp_favorites_sync: failed to resolve active digital profile id", exc_info=True)
         return ""
 
 

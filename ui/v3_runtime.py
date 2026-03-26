@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import time
@@ -44,6 +45,8 @@ except ImportError:
         write_combined_config,
     )
 
+
+logger = logging.getLogger(__name__)
 
 _CANONICAL_VERSION = 3
 _PROFILE_ID_RE = re.compile(r"^[a-z0-9_-]{2,40}$")
@@ -95,6 +98,7 @@ def _path_real(path: str) -> str:
     try:
         return os.path.realpath(str(path or "").strip())
     except Exception:
+        logger.debug("v3_runtime: failed to resolve path %s", path, exc_info=True)
         return str(path or "").strip()
 
 
@@ -266,6 +270,7 @@ def load_canonical_config() -> dict[str, Any]:
                 parsed = json.load(f)
             raw = parsed if isinstance(parsed, dict) else {}
         except Exception:
+            logger.debug("v3_runtime: failed to load canonical config %s", path, exc_info=True)
             raw = {}
     else:
         raw = {}
@@ -316,6 +321,7 @@ def _read_control_channels_count(profile_dir: str) -> int:
                 if hz > 0:
                     seen.add(hz)
     except Exception:
+        logger.debug("v3_runtime: failed to read control channel count from %s", path, exc_info=True)
         return 0
     return len(seen)
 
@@ -441,7 +447,7 @@ def compile_runtime(canonical: dict[str, Any] | None = None) -> dict[str, Any]:
         try:
             _atomic_write_json(state_path, state_payload)
         except Exception:
-            pass
+            logger.debug("v3_runtime: failed to persist compiled state %s", state_path, exc_info=True)
     return state_payload
 
 
@@ -455,6 +461,7 @@ def load_compiled_state() -> dict[str, Any]:
         if isinstance(payload, dict):
             return payload
     except Exception:
+        logger.debug("v3_runtime: failed to load compiled state %s", path, exc_info=True)
         return {}
     return {}
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import csv
+import logging
 import math
 import os
 import re
@@ -143,6 +144,8 @@ except ImportError:
     from ui.systemd import unit_active
     from ui.system_stats import read_rtl_dongle_health
     from ui.scan_pool_adapter import get_active_scan_pool_snapshot, get_current_scan_mode
+
+logger = logging.getLogger(__name__)
 
 
 _NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@-]{0,127}$")
@@ -478,6 +481,7 @@ def _safe_realpath(path: str) -> str:
     try:
         return os.path.realpath(path)
     except Exception:
+        logger.debug("digital: failed to resolve path %s", path, exc_info=True)
         return path
 
 
@@ -490,6 +494,7 @@ def _profile_decoder_mode(profile_dir: str) -> tuple[str, str]:
         with open(system_path, "r", encoding="utf-8", errors="ignore") as f:
             data = json.load(f)
     except Exception:
+        logger.debug("digital: failed to read decoder mode from %s", system_path, exc_info=True)
         return "P25", "default"
     if not isinstance(data, dict):
         return "P25", "default"
@@ -581,7 +586,7 @@ def _sync_stream_configuration(root: ET.Element) -> bool:
             root.remove(dup)
             changed = True
         except Exception:
-            pass
+            logger.debug("Failed removing duplicate digital stream entry %s", stream_name, exc_info=True)
 
     attrs = {
         "type": "icecastHTTPConfiguration",
@@ -843,7 +848,7 @@ def _write_playlist_tree_atomic(tree: ET.ElementTree, path: str) -> tuple[bool, 
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
         except Exception:
-            pass
+            logger.debug("Failed removing temporary digital playlist %s", tmp_path, exc_info=True)
         return False, str(exc)
     return True, ""
 
@@ -1461,7 +1466,7 @@ def _row_to_event(row: dict, raw_line: str, fallback_ms: int) -> dict | None:
             if float(str(freq).strip()) <= 0.0 and not include_grant_debug:
                 return None
         except Exception:
-            pass
+            logger.debug("Failed parsing digital event frequency %r", freq, exc_info=True)
 
     if not label and tgid:
         label = f"TG {tgid}"
@@ -1600,11 +1605,12 @@ def _write_mute_state(muted: bool) -> None:
             json.dump(payload, f)
         os.replace(tmp, _MUTE_STATE_PATH)
     except Exception:
+        logger.debug("Failed writing digital mute state to %s", _MUTE_STATE_PATH, exc_info=True)
         try:
             if os.path.exists(tmp):
                 os.remove(tmp)
         except Exception:
-            pass
+            logger.debug("Failed removing temporary digital mute state %s", tmp, exc_info=True)
 
 
 def get_digital_muted() -> bool:
@@ -3867,7 +3873,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                 if os.path.getmtime(self._tg_map_mtime[0]) == self._tg_map_mtime[1]:
                     return self._tg_map
             except Exception:
-                pass
+                logger.debug("Failed checking talkgroup map cache mtime for %s", self._tg_map_mtime[0], exc_info=True)
         candidates = ["talkgroups_with_group.csv", "talkgroups.csv"]
         path = ""
         for name in candidates:
@@ -3921,6 +3927,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                     if group:
                         tg_group_map[dec] = group
         except Exception:
+            logger.debug("Failed loading talkgroup map from %s", path, exc_info=True)
             tg_map = {}
             tg_group_map = {}
         self._tg_map = tg_map
@@ -4074,7 +4081,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         try:
             os.makedirs(link_dir, exist_ok=True)
         except Exception:
-            pass
+            logger.debug("Failed ensuring digital active-link directory %s", link_dir, exc_info=True)
         if os.path.exists(link) and not os.path.islink(link):
             self._set_last_error("active profile link is not a symlink")
             return False, "active profile link is not a symlink"
@@ -4098,7 +4105,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
                     os.symlink(previous_target, restore_tmp)
                     os.replace(restore_tmp, link)
                 except Exception:
-                    pass
+                    logger.debug("Failed restoring previous digital profile link %s", previous_target, exc_info=True)
             self._set_last_error(err or "runtime profile apply failed")
             return False, err or "runtime profile apply failed"
 
@@ -4527,6 +4534,7 @@ class DigitalManager:
                     title = str(row.get("title") or "").strip()
                     break
         except Exception:
+            logger.debug("digital: failed to read stream title from Icecast status", exc_info=True)
             title = ""
         self._stream_title_cache_at_ms = now_ms
         self._stream_title_cache_value = title
@@ -4603,6 +4611,7 @@ class DigitalManager:
         try:
             raw_events = self._adapter.getRecentEvents(max(1, int(limit or 20)))
         except Exception:
+            logger.debug("digital: adapter getRecentEvents fallback failed", exc_info=True)
             raw_events = []
         if not isinstance(raw_events, list):
             raw_events = []
@@ -4671,6 +4680,7 @@ class DigitalManager:
             try:
                 return self._adapter.preflight()
             except Exception:
+                logger.debug("digital: adapter preflight failed", exc_info=True)
                 return {"tuner_busy": False, "tuner_busy_lines": []}
         return {"tuner_busy": False, "tuner_busy_lines": []}
 
@@ -4757,6 +4767,7 @@ class DigitalManager:
         try:
             return bool(checker())
         except Exception:
+            logger.debug("digital: runtime_retune_available check failed", exc_info=True)
             return False
 
     def _scheduler_control_channel_count_locked(self, profile_id: str, system_name: str) -> int:
@@ -4911,11 +4922,12 @@ class DigitalManager:
                 json.dump(self._scheduler_state_payload(), f, indent=2, sort_keys=True)
             os.replace(tmp, path)
         except Exception:
+            logger.debug("Failed writing digital scheduler state to %s", path, exc_info=True)
             try:
                 if os.path.exists(tmp):
                     os.remove(tmp)
             except Exception:
-                pass
+                logger.debug("Failed removing temporary digital scheduler state %s", tmp, exc_info=True)
 
     def _load_scheduler_state(self) -> None:
         path = str(self._scheduler_state_path or "").strip()
@@ -4925,6 +4937,7 @@ class DigitalManager:
             with open(path, "r", encoding="utf-8", errors="ignore") as f:
                 payload = json.load(f)
         except Exception:
+            logger.debug("Failed loading digital scheduler state from %s", path, exc_info=True)
             return
         if not isinstance(payload, dict):
             return
@@ -5258,7 +5271,7 @@ class DigitalManager:
                 if isinstance(values, list):
                     return [int(v) for v in values if int(v) > 0]
             except Exception:
-                pass
+                logger.debug("Adapter control-channel reader failed for %s", path, exc_info=True)
         groups = self._read_control_channel_groups_for_dir(path)
         if not groups:
             return []
@@ -5585,7 +5598,10 @@ class DigitalManager:
                         profile_digest=desired_digest,
                     )
                 except Exception:
-                    pass
+                    logger.debug(
+                        "Failed updating digital playlist cache for unchanged scheduler apply",
+                        exc_info=True,
+                    )
             self._scheduler_last_applied_system = system_name
             self._scheduler_last_apply_time_ms = now_ms
             self._scheduler_last_apply_error = ""
@@ -5612,7 +5628,7 @@ class DigitalManager:
                     profile_digest=desired_digest,
                 )
             except Exception:
-                pass
+                logger.debug("Failed updating digital playlist cache after scheduler apply", exc_info=True)
 
         self._scheduler_last_applied_system = system_name
         self._scheduler_last_apply_time_ms = now_ms
@@ -6574,6 +6590,7 @@ class DigitalManager:
         try:
             runtime_metrics = dict(self._adapter.runtime_metrics() or {})
         except Exception:
+            logger.debug("digital: adapter runtime_metrics failed", exc_info=True)
             runtime_metrics = {}
         payload["digital_profile_apply_last_duration_ms"] = int(
             runtime_metrics.get("profile_apply_last_duration_ms") or 0
@@ -6771,7 +6788,7 @@ class DigitalManager:
         try:
             self._scheduler_stop.set()
         except Exception:
-            pass
+            logger.debug("Failed stopping digital scheduler thread during cleanup", exc_info=True)
 
     def isMuted(self):
         return get_digital_muted()

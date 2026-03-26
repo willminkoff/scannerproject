@@ -1,11 +1,14 @@
 """Read-only adapter for scheduler scan-pool retrieval."""
 from __future__ import annotations
 
+import logging
 import threading
 import time
 
 from .scan_mode_controller import get_scan_mode_controller
 
+
+logger = logging.getLogger(__name__)
 
 _SNAPSHOT_LOCK = threading.Lock()
 _POOL_SNAPSHOT: dict = {"trunked_sites": [], "conventional": []}
@@ -26,6 +29,7 @@ def get_current_scan_mode() -> str:
         controller = get_scan_mode_controller()
         mode = controller.get_mode()
     except Exception:
+        logger.debug("scan_pool_adapter: failed to read current scan mode", exc_info=True)
         mode = "expert"
     return _normalize_mode(mode)
 
@@ -67,6 +71,7 @@ def get_active_scan_pool_snapshot(force_refresh: bool = False) -> dict:
             controller = get_scan_mode_controller()
             payload = controller.get_scan_pool()
         except Exception:
+            logger.debug("scan_pool_adapter: failed to refresh active scan pool snapshot", exc_info=True)
             payload = {}
 
         _POOL_SNAPSHOT = _normalize_pool(payload)

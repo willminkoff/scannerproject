@@ -5,6 +5,7 @@ import csv
 import hashlib
 import io
 import json
+import logging
 import os
 import shutil
 import threading
@@ -65,6 +66,8 @@ except ImportError:
     from ui.scanner import mark_analog_hit_cutoff
     from ui.systemd import restart_rtl
     from ui.v3_runtime import set_active_analog_profile, upsert_analog_profile
+
+logger = logging.getLogger(__name__)
 
 
 _MANAGED_AIR_ID = "hp3_favorites_airband"
@@ -349,7 +352,12 @@ def _switch_profile_if_needed(target: str, desired_profile_id: str) -> tuple[boo
     try:
         set_active_analog_profile(target, desired_profile_id)
     except Exception:
-        pass
+        logger.debug(
+            "Failed recording active managed analog profile for %s -> %s",
+            target,
+            desired_profile_id,
+            exc_info=True,
+        )
     mark_analog_hit_cutoff(target, time.time())
     return True, ""
 
@@ -691,7 +699,11 @@ def sync_scan_pool_to_digital_runtime(
                 handle.write(rendered_group)
             os.replace(group_path + ".tmp", group_path)
         except Exception:
-            pass
+            logger.debug(
+                "Failed writing grouped talkgroup sidecar for managed digital profile %s",
+                _MANAGED_DIGITAL_ID,
+                exc_info=True,
+            )
 
         try:
             from .digital import get_digital_manager

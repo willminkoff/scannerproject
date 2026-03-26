@@ -307,7 +307,7 @@ def _rtl_dongle_event_message(status: str, serial: str, *, path: str = "", speed
         try:
             extras.append(f"{int(round(float(speed_mbps)))} Mbps")
         except Exception:
-            pass
+            logger.debug("Failed formatting RTL dongle speed %r for serial %s", speed_mbps, serial, exc_info=True)
     if extras:
         return f"RTL serial {detail} {action} ({', '.join(extras)})"
     return f"RTL serial {detail} {action}"

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import logging
 import os
 import sys
 
@@ -7,6 +8,8 @@ if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
 from combined_config import build_combined_config, extract_devices_payload, profile_ui_disabled
+
+logger = logging.getLogger(__name__)
 
 CONFIG_SYMLINK = os.getenv("CONFIG_SYMLINK", "/usr/local/etc/rtl_airband.conf")
 GROUND_CONFIG_PATH = os.getenv("GROUND_CONFIG_PATH", "/usr/local/etc/rtl_airband_ground.conf")
@@ -20,6 +23,7 @@ MIXER_OUTPUT_CONTINUOUS = os.getenv("MIXER_OUTPUT_CONTINUOUS", "1").strip().lowe
 try:
     ANALOG_STREAM_BITRATE_KBPS = int(os.getenv("ANALOG_STREAM_BITRATE_KBPS", "24"))
 except Exception:
+    logger.debug("build_combined_config: invalid ANALOG_STREAM_BITRATE_KBPS; falling back to 24", exc_info=True)
     ANALOG_STREAM_BITRATE_KBPS = 24
 ANALOG_STREAM_BITRATE_KBPS = max(8, min(320, ANALOG_STREAM_BITRATE_KBPS))
 AIRBAND_FALLBACK_PROFILE_PATH = os.getenv(
@@ -30,10 +34,13 @@ GROUND_FALLBACK_PROFILE_PATH = os.getenv(
     "GROUND_FALLBACK_PROFILE_PATH",
     "/usr/local/etc/airband-profiles/rtl_airband_wx.conf",
 )
+
+
 def read_active_config_path() -> str:
     try:
         return os.path.realpath(CONFIG_SYMLINK)
     except Exception:
+        logger.debug("build_combined_config: failed to resolve active config symlink %s", CONFIG_SYMLINK, exc_info=True)
         return CONFIG_SYMLINK
 
 
@@ -42,7 +49,7 @@ def _existing_file(path: str) -> str:
         if path and os.path.isfile(path):
             return os.path.realpath(path)
     except Exception:
-        pass
+        logger.debug("build_combined_config: failed to resolve existing file %s", path, exc_info=True)
     return ""
 
 
@@ -56,7 +63,7 @@ def resolve_config_path(primary: str, fallback: str) -> str:
             if rp and rp not in candidates:
                 candidates.append(rp)
         except Exception:
-            pass
+            logger.debug("build_combined_config: failed to resolve primary path %s", primary, exc_info=True)
     if fallback and fallback not in candidates:
         candidates.append(fallback)
     for candidate in candidates:
@@ -73,6 +80,7 @@ def profile_has_usable_devices(path: str) -> bool:
         with open(path, "r", encoding="utf-8", errors="ignore") as handle:
             text = handle.read()
     except Exception:
+        logger.debug("build_combined_config: failed to read profile %s", path, exc_info=True)
         return False
     if profile_ui_disabled(text):
         return False
@@ -92,6 +100,7 @@ def main() -> None:
             ground_path = resolve_config_path("", GROUND_FALLBACK_PROFILE_PATH)
             ground_usable = profile_has_usable_devices(ground_path)
         except Exception:
+            logger.debug("build_combined_config: failed to resolve fallback ground profile", exc_info=True)
             ground_usable = False
         if not ground_usable:
             airband_path = resolve_config_path("", AIRBAND_FALLBACK_PROFILE_PATH)

@@ -305,7 +305,6 @@ System status snapshot.
   "profiles_ground": [...],
   "missing_profiles": [],
   "gain": 32.8,
-  "squelch": 5.0,
   "airband_gain": 32.8,
   "airband_squelch_mode": "dbfs",
   "airband_squelch_dbfs": -80,
@@ -334,7 +333,7 @@ System status snapshot.
 ```
 **Notes**:
 - `*_squelch_dbfs` is the active squelch value (dBFS).
-- Legacy `squelch` fields may still appear for backward compatibility.
+- Legacy `squelch` request fields are accepted for backward compatibility on POST handlers.
 - `health.overall.state` is one of `healthy`, `degraded`, `failed`, `unknown`.
 - `preflight.*.reasons` contains machine-readable reason codes for blocked/degraded operations.
 
