@@ -64,7 +64,7 @@ try:
         DIGITAL_SYSTEM_ORDER,
         DIGITAL_USE_MULTI_FREQ_SOURCE,
     )
-    from .dongle_allocator import preferred_tuner_for_system
+    from .dongle_allocator import load_assignments, preferred_tuner_for_system
     from .systemd import unit_active
     from .system_stats import read_rtl_dongle_health
     from .scan_pool_adapter import get_active_scan_pool_snapshot, get_current_scan_mode
@@ -112,7 +112,7 @@ except ImportError:
         DIGITAL_SYSTEM_ORDER,
         DIGITAL_USE_MULTI_FREQ_SOURCE,
     )
-    from ui.dongle_allocator import preferred_tuner_for_system
+    from ui.dongle_allocator import load_assignments, preferred_tuner_for_system
     from ui.systemd import unit_active
     from ui.system_stats import read_rtl_dongle_health
     from ui.scan_pool_adapter import get_active_scan_pool_snapshot, get_current_scan_mode
@@ -4702,7 +4702,261 @@ class DigitalManager:
         snapshot["digital_last_apply_time"] = int(self._scheduler_last_apply_time_ms or 0)
         if self._scheduler_last_apply_error:
             snapshot["digital_last_apply_error"] = str(self._scheduler_last_apply_error)
+        snapshot = self._allocation_snapshot_payload_locked(snapshot, preflight)
         return snapshot
+
+    def _allocation_observed_system_locked(
+        self,
+        systems: list[str],
+        assignments_by_system: dict[str, dict],
+        preflight: dict,
+        snapshot: dict,
+    ) -> str:
+        preferred_tuner = str(preflight.get("playlist_preferred_tuner") or "").strip()
+        if preferred_tuner:
+            for name in systems:
+                entry = assignments_by_system.get(str(name or "").strip().lower()) or {}
+                if str(entry.get("preferred_tuner_serial") or "").strip() == preferred_tuner:
+                    return str(name or "").strip()
+
+        active_system = str(snapshot.get("digital_active_system") or self._scheduler_active_system or "").strip()
+        if active_system and active_system.lower() in assignments_by_system:
+            return active_system
+
+        applied_system = str(
+            snapshot.get("digital_applied_system") or self._scheduler_last_applied_system or ""
+        ).strip()
+        if applied_system and applied_system.lower() in assignments_by_system:
+            return applied_system
+
+        assigned_systems = [
+            str(name or "").strip()
+            for name in systems
+            if str(name or "").strip().lower() in assignments_by_system
+        ]
+        if len(assigned_systems) == 1:
+            return assigned_systems[0]
+        return ""
+
+    def _allocation_system_health_payload_locked(
+        self,
+        systems: list[str],
+        assignments_by_system: dict[str, dict],
+        strategy: str,
+        observed_system: str,
+        preflight: dict,
+        now_ms: int,
+        lock_timeout_ms: int,
+        missing_serials: set[str],
+        slow_serials: set[str],
+    ) -> list[dict]:
+        allowed = {str(name or "").strip().lower() for name in systems if str(name or "").strip()}
+        for key in list(self._scheduler_system_health.keys()):
+            if key not in allowed:
+                self._scheduler_system_health.pop(key, None)
+
+        metric_ready = bool(preflight.get("control_decode_available"))
+        control_locked = bool(preflight.get("control_channel_locked"))
+        lock_fail_count = int(preflight.get("control_lock_fail_count") or 0)
+        window_sec = max(1, int(int(preflight.get("control_window_ms") or _DIGITAL_CONTROL_WINDOW_MS) / 1000))
+        tuner_busy = bool(preflight.get("tuner_busy"))
+        rows: list[dict] = []
+
+        for name in systems:
+            system_name = str(name or "").strip()
+            if not system_name:
+                continue
+            entry = self._scheduler_health_entry(system_name)
+            assignment = assignments_by_system.get(system_name.lower()) or {}
+            preferred_tuner = str(assignment.get("preferred_tuner_serial") or "").strip()
+            role = str(assignment.get("role") or "").strip()
+            assigned = bool(assignment)
+            observed = bool(observed_system and system_name == observed_system)
+            active = observed if strategy == "timeslice_multi_system" else bool(assigned and role == "control")
+
+            if not assigned:
+                state = "unmonitored"
+                reason = "no dedicated control dongle"
+            elif not self.isActive():
+                state = "failed"
+                reason = "decoder stopped"
+            elif (
+                self._scheduler_last_apply_error
+                and str(self._scheduler_last_apply_error_system or "").strip().lower() == system_name.lower()
+            ):
+                state = "failed"
+                reason = str(self._scheduler_last_apply_error)
+            elif preferred_tuner and preferred_tuner in missing_serials:
+                state = "failed"
+                reason = f"missing control dongle ({preferred_tuner})"
+            elif preferred_tuner and preferred_tuner in slow_serials:
+                state = "degraded"
+                reason = f"under-speed control dongle ({preferred_tuner})"
+            elif strategy == "timeslice_multi_system":
+                if observed:
+                    elapsed_ms = now_ms - int(self._scheduler_last_switch_time_ms or 0)
+                    if metric_ready:
+                        if control_locked:
+                            state = "locked"
+                            reason = "control decode active"
+                            entry["last_lock_time_ms"] = now_ms
+                            entry["lock_failures"] = 0
+                        elif lock_fail_count > 0:
+                            state = "degraded"
+                            reason = f"decoder lock failures ({lock_fail_count}/{window_sec}s)"
+                        elif elapsed_ms >= lock_timeout_ms:
+                            state = "degraded"
+                            reason = f"no control lock after {int(elapsed_ms / 1000)}s"
+                        else:
+                            state = "searching"
+                            reason = "acquiring control lock"
+                    else:
+                        state = "inferred"
+                        reason = "control metric unavailable"
+                else:
+                    state = "standby"
+                    reason = "rotation pending"
+            elif observed:
+                if metric_ready:
+                    if control_locked:
+                        state = "locked"
+                        reason = "control decode active"
+                        entry["last_lock_time_ms"] = now_ms
+                        entry["lock_failures"] = 0
+                    elif lock_fail_count > 0:
+                        state = "degraded"
+                        reason = f"decoder lock failures ({lock_fail_count}/{window_sec}s)"
+                    else:
+                        state = "searching"
+                        reason = "acquiring control lock"
+                else:
+                    state = "assigned"
+                    reason = "dedicated control assigned"
+            else:
+                state = "assigned"
+                reason = "dedicated control assigned"
+
+            if tuner_busy and state in ("locked", "searching", "inferred", "assigned"):
+                state = "degraded"
+                reason = "tuner contention"
+
+            rows.append(
+                {
+                    "name": system_name,
+                    "active": bool(active),
+                    "assigned": bool(assigned),
+                    "observed": bool(observed),
+                    "role": role,
+                    "preferred_tuner_serial": preferred_tuner,
+                    "state": state,
+                    "reason": reason,
+                    "lock_failures": int(entry.get("lock_failures") or 0),
+                    "last_lock_time": int(entry.get("last_lock_time_ms") or 0),
+                    "last_lock_loss_time": int(entry.get("last_lock_loss_time_ms") or 0),
+                }
+            )
+        return rows
+
+    def _allocation_snapshot_payload_locked(self, snapshot: dict, preflight: dict) -> dict:
+        payload = dict(snapshot or {})
+        assignments_payload = load_assignments()
+        if not isinstance(assignments_payload, dict):
+            return payload
+
+        assignment_rows = []
+        assignments_by_system: dict[str, dict] = {}
+        for raw in assignments_payload.get("assignments") or []:
+            if not isinstance(raw, dict):
+                continue
+            system_name = str(raw.get("system_name") or "").strip()
+            if not system_name:
+                continue
+            row = dict(raw)
+            row["system_name"] = system_name
+            assignment_rows.append(row)
+            assignments_by_system[system_name.lower()] = row
+
+        strategy = str(assignments_payload.get("strategy") or "").strip()
+        if not strategy:
+            return payload
+
+        systems: list[str] = []
+        seen: set[str] = set()
+        for source in (self._scheduler_systems, [row.get("system_name") for row in assignment_rows]):
+            for raw_name in source or []:
+                system_name = str(raw_name or "").strip()
+                key = system_name.lower()
+                if not system_name or key in seen:
+                    continue
+                seen.add(key)
+                systems.append(system_name)
+
+        now_ms = int(time.time() * 1000)
+        configured_mode = str(payload.get("digital_scan_mode") or self._scheduler_mode or "single_system").strip().lower()
+        active_system = self._allocation_observed_system_locked(
+            systems,
+            assignments_by_system,
+            preflight,
+            payload,
+        )
+        if strategy == "single_system" and not active_system and systems:
+            active_system = systems[0]
+
+        next_system = ""
+        switch_reason = ""
+        if strategy == "timeslice_multi_system":
+            if not active_system and systems:
+                active_system = str(self._scheduler_active_system or "").strip() or systems[0]
+            next_system = self._next_system(systems, active_system) if len(systems) > 1 and active_system else active_system
+            switch_reason = str(self._scheduler_switch_reason or payload.get("digital_switch_reason") or "").strip()
+
+        tuner_health = _digital_tuner_runtime_health()
+        missing_serials = {
+            str(token or "").strip()
+            for token in (tuner_health.get("missing_serials") or [])
+            if str(token or "").strip()
+        }
+        slow_serials = {
+            str(token or "").strip()
+            for token in (tuner_health.get("slow_serials") or [])
+            if str(token or "").strip()
+        }
+        lock_timeout_ms = int(payload.get("digital_lock_timeout_ms") or 0)
+        if lock_timeout_ms <= 0:
+            lock_timeout_ms = self._scheduler_lock_timeout_ms_locked(
+                configured_mode,
+                systems,
+                profile_id=str(self.getProfile() or "").strip(),
+                active_system=active_system,
+            )
+
+        payload["digital_allocation_strategy"] = strategy
+        payload["digital_allocation_systems"] = list(systems)
+        payload["digital_active_system"] = active_system
+        payload["digital_next_system"] = next_system
+        payload["digital_switch_reason"] = switch_reason
+        payload["digital_allocation_system_health"] = self._allocation_system_health_payload_locked(
+            systems,
+            assignments_by_system,
+            strategy,
+            active_system,
+            preflight,
+            now_ms,
+            lock_timeout_ms,
+            missing_serials,
+            slow_serials,
+        )
+
+        active_label = str(self._scheduler_pool_system_labels.get(active_system) or "").strip()
+        payload["digital_active_system_label"] = active_label
+        next_label = str(self._scheduler_pool_system_labels.get(next_system) or "").strip()
+        payload["digital_next_system_label"] = next_label
+        active_department = str(self._scheduler_pool_department_labels.get(active_system) or "").strip()
+        if active_department:
+            payload["digital_active_department_label"] = active_department
+        elif not active_system:
+            payload["digital_active_department_label"] = ""
+        return payload
 
     def _scheduler_tick(self):
         try:
@@ -5411,6 +5665,8 @@ class DigitalManager:
             if not payload:
                 payload = self._scheduler_snapshot_payload_locked(event, preflight)
                 snapshot_at_ms = now_ms
+            else:
+                payload = self._allocation_snapshot_payload_locked(payload, preflight)
             payload["digital_allocation_snapshot_age_ms"] = max(
                 0,
                 now_ms - snapshot_at_ms,
@@ -6090,6 +6346,11 @@ class DigitalManager:
             if not scheduler_payload:
                 scheduler_payload = self._scheduler_snapshot_payload_locked(event, preflight)
                 scheduler_snapshot_at_ms = int(time.time() * 1000)
+            else:
+                scheduler_payload = self._allocation_snapshot_payload_locked(
+                    scheduler_payload,
+                    preflight,
+                )
             payload.update(scheduler_payload)
 
         runtime_metrics = {}

@@ -348,6 +348,124 @@ class DigitalLifecycleWorkflowTests(unittest.TestCase):
         self.assertEqual("P25", payload["digital_last_mode"])
         self.assertEqual([], payload["digital_tuner_missing_serials"])
 
+    def test_digital_status_prefers_allocator_snapshot_over_legacy_scheduler_mode(self):
+        adapter = _FakeAdapter()
+        with mock.patch.object(
+            digital.DigitalManager,
+            "_build_adapter",
+            return_value=adapter,
+        ), mock.patch.object(
+            digital.DigitalManager,
+            "_load_scheduler_state",
+            lambda self: None,
+        ), mock.patch.object(
+            digital.DigitalManager,
+            "_refresh_super_profile_systems",
+            lambda self, profile_id="": None,
+        ), mock.patch.object(
+            digital.DigitalManager,
+            "_ensure_super_profile_seed",
+            lambda self, profile_id="", force=False: None,
+        ), mock.patch.object(
+            digital.DigitalManager,
+            "_scheduler_tick",
+            lambda self: None,
+        ), mock.patch.object(
+            digital.threading,
+            "Thread",
+            _DummyThread,
+        ), mock.patch.object(
+            digital,
+            "_digital_tuner_runtime_health",
+            return_value={
+                "ready": True,
+                "missing_serials": [],
+                "slow_serials": [],
+                "expected_serials": ["14306619", "56919602"],
+            },
+        ), mock.patch.object(
+            digital,
+            "load_assignments",
+            return_value={
+                "strategy": "all_control",
+                "assignments": [
+                    {
+                        "system_name": "6355:1",
+                        "preferred_tuner_serial": "14306619",
+                        "role": "control",
+                    },
+                    {
+                        "system_name": "7078:2",
+                        "preferred_tuner_serial": "56919602",
+                        "role": "control",
+                    },
+                ],
+                "traffic_pool": [],
+            },
+        ):
+            manager = digital.DigitalManager(backend="sdrtrunk")
+            manager._scheduler_mode = "timeslice_multi_system"
+            manager._scheduler_systems = ["6355:1", "7078:2"]
+            manager._scheduler_active_system = "6355:1"
+            manager._scheduler_last_applied_system = "6355:1"
+            manager._scheduler_last_switch_time_ms = int(time.time() * 1000)
+            manager._scheduler_pool_system_labels = {
+                "6355:1": "Tennessee Advanced Communications Network (TACN)",
+                "7078:2": "Middle Tennessee Regional Trunked Radio System",
+            }
+            manager._scheduler_snapshot = {
+                "digital_scan_mode": "timeslice_multi_system",
+                "digital_allocation_strategy": "timeslice_multi_system",
+                "digital_next_system": "7078:2",
+                "digital_switch_reason": "manual",
+                "digital_lock_timeout_ms": 2000,
+            }
+            manager._scheduler_snapshot_at_ms = int(time.time() * 1000)
+            preflight = {
+                "playlist_preferred_tuner": "14306619",
+                "control_decode_available": True,
+                "control_channel_locked": True,
+                "control_lock_fail_count": 0,
+                "control_window_ms": 120000,
+                "tuner_busy": False,
+                "playlist_source_ok": True,
+            }
+            manager._status_preflight_snapshot = mock.Mock(return_value=preflight)
+            manager.preflight = mock.Mock(return_value=preflight)
+            start_ok, start_err = manager.start()
+
+            scheduler_payload = manager.getScheduler()
+            status_payload = manager.status_payload()
+
+        self.assertTrue(start_ok)
+        self.assertEqual("", start_err)
+        self.assertEqual("all_control", scheduler_payload["digital_allocation_strategy"])
+        self.assertEqual("all_control", status_payload["digital_allocation_strategy"])
+        self.assertEqual("", scheduler_payload["digital_next_system"])
+        self.assertEqual("", status_payload["digital_next_system"])
+        self.assertEqual("", scheduler_payload["digital_switch_reason"])
+        self.assertEqual("", status_payload["digital_switch_reason"])
+        self.assertEqual("6355:1", scheduler_payload["digital_active_system"])
+        self.assertEqual("6355:1", status_payload["digital_active_system"])
+        scheduler_reasons = {
+            str(row.get("name")): str(row.get("reason"))
+            for row in scheduler_payload["digital_allocation_system_health"]
+        }
+        status_reasons = {
+            str(row.get("name")): str(row.get("reason"))
+            for row in status_payload["digital_allocation_system_health"]
+        }
+        self.assertEqual("control decode active", scheduler_reasons["6355:1"])
+        self.assertEqual("dedicated control assigned", scheduler_reasons["7078:2"])
+        self.assertEqual("control decode active", status_reasons["6355:1"])
+        self.assertEqual("dedicated control assigned", status_reasons["7078:2"])
+        self.assertTrue(
+            all("timeslice" not in str(row.get("reason") or "").lower() for row in scheduler_payload["digital_allocation_system_health"])
+        )
+        self.assertTrue(
+            all("timeslice" not in str(row.get("reason") or "").lower() for row in status_payload["digital_allocation_system_health"])
+        )
+
 
 class AnalogControlsSnapshotTests(unittest.TestCase):
     def test_effective_analog_controls_snapshot_is_dbfs_only(self):
