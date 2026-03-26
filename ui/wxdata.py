@@ -14,7 +14,7 @@ import time
 import logging
 from collections import deque
 from dataclasses import dataclass, asdict
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +78,17 @@ def dewpoint_from_rh(temp_c: float, rh_pct: float) -> float:
     a, b = 17.27, 237.7
     alpha = (a * temp_c) / (b + temp_c) + math.log(rh_pct / 100.0)
     return (b * alpha) / (a - alpha)
+
+
+def haversine_nm(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle distance in nautical miles between two lat/lon points."""
+    R_NM = 3440.065  # Earth radius in nautical miles
+    lat1_r, lon1_r = math.radians(lat1), math.radians(lon1)
+    lat2_r, lon2_r = math.radians(lat2), math.radians(lon2)
+    dlat = lat2_r - lat1_r
+    dlon = lon2_r - lon1_r
+    a = math.sin(dlat / 2) ** 2 + math.cos(lat1_r) * math.cos(lat2_r) * math.sin(dlon / 2) ** 2
+    return 2 * R_NM * math.asin(math.sqrt(a))
 
 
 # ---------------------------------------------------------------------------
@@ -288,7 +299,44 @@ class MetStore:
         self.active_decoder: Optional[str] = None
         self._message_count = 0
         self._met_count = 0
+        self._filtered_count = 0  # observations rejected by spatial filter
         self._last_message_time = 0.0
+        # Spatial filter: cylinder centered on station
+        self._filter_lat: Optional[float] = None
+        self._filter_lon: Optional[float] = None
+        self._filter_radius_nm: float = 10.0   # default 10 nm = 20 mi diameter
+        self._filter_ceiling_ft: float = 40000.0
+        self._filter_enabled: bool = False
+
+    def set_spatial_filter(self, lat: float, lon: float,
+                           radius_nm: float = 10.0,
+                           ceiling_ft: float = 40000.0) -> None:
+        """Configure the collection cylinder. Rejects obs outside it."""
+        with self._lock:
+            self._filter_lat = lat
+            self._filter_lon = lon
+            self._filter_radius_nm = radius_nm
+            self._filter_ceiling_ft = ceiling_ft
+            self._filter_enabled = (lat != 0.0 or lon != 0.0)
+
+    def clear_spatial_filter(self) -> None:
+        """Disable spatial filtering — accept all observations."""
+        with self._lock:
+            self._filter_enabled = False
+            self._filter_lat = None
+            self._filter_lon = None
+
+    def _passes_filter(self, obs: 'MetObservation') -> bool:
+        """Check if an observation falls inside the collection cylinder.
+        Must be called under self._lock."""
+        if not self._filter_enabled:
+            return True
+        if obs.altitude_ft > self._filter_ceiling_ft:
+            return False
+        if obs.lat == 0.0 and obs.lon == 0.0:
+            return False  # no position — can't verify
+        dist = haversine_nm(self._filter_lat, self._filter_lon, obs.lat, obs.lon)
+        return dist <= self._filter_radius_nm
 
     def add_message(self, msg: RawMessage) -> None:
         with self._lock:
@@ -296,10 +344,15 @@ class MetStore:
             self._message_count += 1
             self._last_message_time = msg.timestamp
 
-    def add_observation(self, obs: MetObservation) -> None:
+    def add_observation(self, obs: MetObservation) -> bool:
+        """Add an observation if it passes the spatial filter. Returns True if accepted."""
         with self._lock:
+            if not self._passes_filter(obs):
+                self._filtered_count += 1
+                return False
             self._met_obs.append(obs)
             self._met_count += 1
+            return True
 
     def get_messages(self, limit: int = 50, source: Optional[str] = None) -> List[dict]:
         with self._lock:
@@ -346,13 +399,21 @@ class MetStore:
 
     def get_status(self) -> dict:
         with self._lock:
-            return {
+            status = {
                 "collecting": self.collecting,
                 "active_decoder": self.active_decoder,
                 "message_count": self._message_count,
                 "met_count": self._met_count,
+                "filtered_count": self._filtered_count,
                 "last_message_time": self._last_message_time,
+                "spatial_filter": self._filter_enabled,
             }
+            if self._filter_enabled:
+                status["filter_lat"] = self._filter_lat
+                status["filter_lon"] = self._filter_lon
+                status["filter_radius_nm"] = self._filter_radius_nm
+                status["filter_ceiling_ft"] = self._filter_ceiling_ft
+            return status
 
     def clear(self, source: Optional[str] = None) -> None:
         with self._lock:
@@ -370,6 +431,7 @@ class MetStore:
                 self._met_obs.clear()
                 self._message_count = 0
                 self._met_count = 0
+                self._filtered_count = 0
                 self._last_message_time = 0.0
 
 

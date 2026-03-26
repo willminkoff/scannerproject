@@ -4,6 +4,8 @@ import time
 import threading
 from collections import deque
 
+logger = logging.getLogger(__name__)
+
 try:
     from .config import APPLY_DEBOUNCE_SEC, ACTION_WAIT_TIMEOUT_SEC
     from .actions import execute_action
@@ -148,6 +150,30 @@ def get_met_store():
     return _met_store
 
 
+def _configure_spatial_filter(store) -> None:
+    """Load station location from HPState and set spatial filter on the store."""
+    try:
+        from .hp_state import HPState
+        state = HPState.load()
+        if state.use_location and (state.lat != 0.0 or state.lon != 0.0):
+            # Convert range_miles to nautical miles (1 nm = 1.15078 statute miles)
+            radius_nm = state.range_miles / 1.15078
+            store.set_spatial_filter(
+                lat=state.lat, lon=state.lon,
+                radius_nm=radius_nm, ceiling_ft=40000.0,
+            )
+            logger.info(
+                "Wx spatial filter: %.4f/%.4f, radius %.1f nm (%.1f mi), ceiling 40000 ft",
+                state.lat, state.lon, radius_nm, state.range_miles,
+            )
+        else:
+            store.clear_spatial_filter()
+            logger.info("Wx spatial filter disabled (no station location configured)")
+    except Exception:
+        logger.exception("Failed to load station location for wx filter")
+        store.clear_spatial_filter()
+
+
 def start_wx_reader(decoder: str) -> None:
     """Start the wx reader thread for the given decoder (acars or radiosonde)."""
     global _wx_reader_thread, _wx_stop_event
@@ -156,6 +182,7 @@ def start_wx_reader(decoder: str) -> None:
     from .wxdata import acars_reader_worker, radiosonde_reader_worker
 
     store = get_met_store()
+    _configure_spatial_filter(store)
     store.collecting = True
     store.active_decoder = decoder
 
