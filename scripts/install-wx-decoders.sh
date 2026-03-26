@@ -372,6 +372,7 @@ if [[ "$PASS" == "true" ]]; then
     echo "=== Installation Complete ==="
 else
     echo "=== Installation Complete (with warnings — review above) ==="
+    exit 1
 fi
 echo ""
 echo "IMPORTANT: Services are NOT auto-started by this script."
