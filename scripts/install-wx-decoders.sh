@@ -98,35 +98,29 @@ echo ""
 
 # ---------------------------------------------------------------------------
 # Step 3/7: Clone radiosonde_auto_rx
+# Step 4/7: Build demodulator binaries
 # ---------------------------------------------------------------------------
-echo "3/7: Setting up radiosonde_auto_rx..."
-if [[ "$need_autorx_clone" == "false" ]]; then
-    echo "  $AUTORX_DIR/auto_rx.py present, skipping"
+# build.sh runs "make -C .." from auto_rx/, so it needs the full repo tree
+# (parent Makefile, scan/, demod/, utils/, etc.). We clone the full repo,
+# build in-place, then copy the auto_rx/ directory (now containing compiled
+# binaries) to /opt/radiosonde_auto_rx.
+if [[ "$need_autorx_clone" == "false" && "$need_autorx_demod" == "false" ]]; then
+    echo "3/7: $AUTORX_DIR/auto_rx.py present, skipping clone"
+    echo "4/7: dft_detect + rs41mod present, skipping build"
 else
+    echo "3/7: Cloning radiosonde_auto_rx..."
     git clone --depth 1 "$AUTORX_REPO" "$BUILD_DIR/radiosonde_auto_rx"
+
+    echo "4/7: Building radiosonde demodulator binaries..."
+    cd "$BUILD_DIR/radiosonde_auto_rx/auto_rx"
+    bash build.sh
+    cd /
+
+    # Install: copy auto_rx/ contents (with compiled binaries) to /opt
     mkdir -p "$AUTORX_DIR"
-    # The repo has auto_rx/ as a subdirectory — copy its contents to the install dir
     cp -a "$BUILD_DIR/radiosonde_auto_rx/auto_rx/." "$AUTORX_DIR/"
     chmod +x "$AUTORX_DIR/auto_rx.py"
-    echo "  installed to $AUTORX_DIR"
-fi
-echo ""
-
-# ---------------------------------------------------------------------------
-# Step 4/7: Build radiosonde demodulator binaries
-# ---------------------------------------------------------------------------
-echo "4/7: Building radiosonde demodulator binaries..."
-if [[ "$need_autorx_demod" == "false" ]]; then
-    echo "  dft_detect + rs41mod present, skipping"
-else
-    cd "$AUTORX_DIR"
-    if [[ -f build.sh ]]; then
-        bash build.sh
-        echo "  demod binaries built via build.sh"
-    else
-        echo "  WARNING: build.sh not found in $AUTORX_DIR, demod binaries may be missing"
-    fi
-    cd /
+    echo "  installed to $AUTORX_DIR with demod binaries"
 fi
 echo ""
 
