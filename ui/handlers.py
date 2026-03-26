@@ -127,6 +127,7 @@ try:
         read_digital_talkgroups,
         write_digital_listen,
     )
+    from .dongle_allocator import load_assignments as load_dongle_assignments
     from .profile_editor import (
         analog_profile_is_active,
         get_analog_editor_payload,
@@ -228,6 +229,7 @@ except ImportError:
         read_digital_talkgroups,
         write_digital_listen,
     )
+    from ui.dongle_allocator import load_assignments as load_dongle_assignments
     from ui.profile_editor import (
         analog_profile_is_active,
         get_analog_editor_payload,
@@ -3262,6 +3264,18 @@ class Handler(BaseHTTPRequestHandler):
                 manager = get_digital_manager()
                 payload = manager.getScheduler() if hasattr(manager, "getScheduler") else {}
                 payload = dict(payload or {})
+                payload["ok"] = True
+                return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+        if p == "/api/digital/dongle-assignments":
+            try:
+                assignments = load_dongle_assignments()
+                payload = dict(assignments) if assignments else {}
                 payload["ok"] = True
                 return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
             except Exception as e:

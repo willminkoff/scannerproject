@@ -47,6 +47,10 @@ DIGITAL_FORCE_PREFERRED_TUNER = os.getenv(
     "DIGITAL_FORCE_PREFERRED_TUNER",
     "0",
 ).strip().lower() in _TRUTHY
+DONGLE_ASSIGNMENTS_PATH = os.getenv(
+    "DONGLE_ASSIGNMENTS_PATH",
+    "/run/airband_ui_dongle_assignments.json",
+).strip()
 DIGITAL_REQUIRE_TUNER = os.getenv("DIGITAL_REQUIRE_TUNER", "1").strip().lower() in _TRUTHY
 DIGITAL_USE_MULTI_FREQ_SOURCE = os.getenv("DIGITAL_USE_MULTI_FREQ_SOURCE", "1").strip().lower() in _TRUTHY
 DIGITAL_SDRTRUNK_STREAM_NAME = os.getenv("DIGITAL_SDRTRUNK_STREAM_NAME", "DIGITAL").strip()
@@ -581,7 +585,49 @@ def _ensure_child(parent: ET.Element, tag: str) -> ET.Element:
     return child
 
 
-def _preferred_tuner_target() -> str:
+def _read_primary_system_name(profile_dir: Path) -> str:
+    """Read the first system name from systems.json in the profile directory."""
+    systems_path = profile_dir / "systems.json"
+    if not systems_path.is_file():
+        return ""
+    try:
+        with open(systems_path, "r", encoding="utf-8", errors="ignore") as fh:
+            payload = json.load(fh)
+        systems_raw = payload.get("systems") if isinstance(payload, dict) else payload
+        if isinstance(systems_raw, list) and systems_raw:
+            name = str(systems_raw[0].get("name", "") if isinstance(systems_raw[0], dict) else "").strip()
+            return name
+    except Exception:
+        pass
+    return ""
+
+
+def _load_dongle_assignment_for_system(system_name: str) -> str:
+    """Read persisted dongle assignment file for a specific system's preferred tuner."""
+    if not system_name or not DONGLE_ASSIGNMENTS_PATH:
+        return ""
+    try:
+        if not os.path.isfile(DONGLE_ASSIGNMENTS_PATH):
+            return ""
+        with open(DONGLE_ASSIGNMENTS_PATH, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        for entry in data.get("assignments") or []:
+            if str(entry.get("system_name") or "").strip().lower() == system_name.strip().lower():
+                return str(entry.get("preferred_tuner_serial") or "").strip()
+    except Exception:
+        logger.debug("Failed reading dongle assignment for system %s", system_name, exc_info=True)
+    return ""
+
+
+def _preferred_tuner_target(system_name: str = "") -> str:
+    """Return the preferred tuner serial, checking allocator assignments first."""
+    # --- Allocator-aware path: per-system assignment ---
+    if system_name:
+        assigned = _load_dongle_assignment_for_system(system_name)
+        if assigned:
+            return assigned
+
+    # --- Legacy global fallback ---
     if DIGITAL_PREFERRED_TUNER:
         return DIGITAL_PREFERRED_TUNER
     if DIGITAL_RTL_SERIAL:
@@ -599,38 +645,30 @@ def _preferred_tuner_target() -> str:
     return ""
 
 
-def _sync_source_configuration(source_conf: ET.Element, control_channels_hz: list[int]) -> dict[str, object]:
-    use_multi = DIGITAL_USE_MULTI_FREQ_SOURCE and len(control_channels_hz) > 1
-    if use_multi:
-        source_conf.set("type", "sourceConfigTunerMultipleFrequency")
-        source_conf.set("source_type", "TUNER_MULTIPLE_FREQUENCIES")
-        source_conf.set("frequency_rotation_delay", str(DIGITAL_SOURCE_ROTATION_DELAY_MS))
-        if "frequency" in source_conf.attrib:
-            del source_conf.attrib["frequency"]
-        for child in list(source_conf):
-            if child.tag == "frequency":
-                source_conf.remove(child)
-        for hz in control_channels_hz:
-            child = ET.SubElement(source_conf, "frequency")
-            child.text = str(hz)
-    else:
-        source_conf.set("type", "sourceConfigTuner")
-        source_conf.set("source_type", "TUNER")
-        source_conf.set("frequency", str(control_channels_hz[0]))
-        if "frequency_rotation_delay" in source_conf.attrib:
-            del source_conf.attrib["frequency_rotation_delay"]
-        for child in list(source_conf):
-            if child.tag == "frequency":
-                source_conf.remove(child)
+def _sync_source_configuration(
+    source_conf: ET.Element,
+    control_channels_hz: list[int],
+    *,
+    system_name: str = "",
+) -> dict[str, object]:
+    """Write source configuration — always single-frequency TUNER mode."""
+    source_conf.set("type", "sourceConfigTuner")
+    source_conf.set("source_type", "TUNER")
+    source_conf.set("frequency", str(control_channels_hz[0]))
+    if "frequency_rotation_delay" in source_conf.attrib:
+        del source_conf.attrib["frequency_rotation_delay"]
+    for child in list(source_conf):
+        if child.tag == "frequency":
+            source_conf.remove(child)
 
-    preferred_tuner = _preferred_tuner_target()
+    preferred_tuner = _preferred_tuner_target(system_name=system_name)
     if preferred_tuner:
         source_conf.set("preferred_tuner", preferred_tuner)
     elif "preferred_tuner" in source_conf.attrib:
         del source_conf.attrib["preferred_tuner"]
 
     return {
-        "source_mode": "multi" if use_multi else "single",
+        "source_mode": "single",
         "control_count": len(control_channels_hz),
         "control_hz": int(control_channels_hz[0]),
         "preferred_tuner": preferred_tuner,
@@ -1021,6 +1059,7 @@ def _sync_playlist(profile_dir: Path, control_channels_hz: list[int]) -> dict[st
     tree = _load_playlist(PLAYLIST_PATH)
     root = tree.getroot()
     profile_id = profile_dir.name
+    primary_system_name = _read_primary_system_name(profile_dir)
 
     channel = root.find("channel")
     if channel is None:
@@ -1065,7 +1104,7 @@ def _sync_playlist(profile_dir: Path, control_channels_hz: list[int]) -> dict[st
             logger.text = logger_name
 
     source_conf = _ensure_child(channel, "source_configuration")
-    source_state = _sync_source_configuration(source_conf, control_channels_hz)
+    source_state = _sync_source_configuration(source_conf, control_channels_hz, system_name=primary_system_name)
 
     _sync_decode_configuration(channel)
 

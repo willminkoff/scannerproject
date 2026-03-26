@@ -17,9 +17,13 @@ try:
         AIRBAND_MAX_MHZ,
         AIRBAND_MIN_MHZ,
         CONFIG_SYMLINK,
+        DIGITAL_RTL_SERIAL,
+        DIGITAL_RTL_SERIAL_SECONDARY,
+        DIGITAL_RTL_SERIAL_TERTIARY,
         GROUND_CONFIG_PATH,
         PROFILES_DIR,
     )
+    from .dongle_allocator import allocate as allocate_dongles
     from .profile_config import (
         enforce_profile_index,
         find_profile,
@@ -44,9 +48,13 @@ except ImportError:
         AIRBAND_MAX_MHZ,
         AIRBAND_MIN_MHZ,
         CONFIG_SYMLINK,
+        DIGITAL_RTL_SERIAL,
+        DIGITAL_RTL_SERIAL_SECONDARY,
+        DIGITAL_RTL_SERIAL_TERTIARY,
         GROUND_CONFIG_PATH,
         PROFILES_DIR,
     )
+    from ui.dongle_allocator import allocate as allocate_dongles
     from ui.profile_config import (
         enforce_profile_index,
         find_profile,
@@ -68,6 +76,16 @@ except ImportError:
     from ui.v3_runtime import set_active_analog_profile, upsert_analog_profile
 
 logger = logging.getLogger(__name__)
+
+
+def _digital_serials() -> list[str]:
+    """Collect configured digital dongle serials (primary + secondary + tertiary)."""
+    serials: list[str] = []
+    for s in (DIGITAL_RTL_SERIAL, DIGITAL_RTL_SERIAL_SECONDARY, DIGITAL_RTL_SERIAL_TERTIARY):
+        val = str(s or "").strip()
+        if val and val not in serials:
+            serials.append(val)
+    return serials
 
 
 _MANAGED_AIR_ID = "hp3_favorites_airband"
@@ -614,6 +632,22 @@ def sync_scan_pool_to_digital_runtime(
         active_pool_applied_at_ms = int(_LAST_ACTIVE_POOL_APPLIED_AT_MS or 0)
         active_pool_entry_count = int(len(pool.get("trunked_sites") or []) + len(pool.get("conventional") or []))
         systems, talkgroups, controls_flat, counts = _normalize_digital_pool(pool)
+
+        # --- Dongle allocation: assign digital serials to system roles ---
+        try:
+            allocation = allocate_dongles(
+                _digital_serials(),
+                systems,
+                persist=True,
+            )
+            logger.info(
+                "Dongle allocation: strategy=%s assignments=%d traffic=%d",
+                allocation.get("strategy"),
+                len(allocation.get("assignments") or []),
+                len(allocation.get("traffic_pool") or []),
+            )
+        except Exception:
+            logger.error("Dongle allocation failed; proceeding without assignment", exc_info=True)
 
         signature_payload = {
             "mode": mode,

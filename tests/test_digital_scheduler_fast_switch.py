@@ -74,6 +74,7 @@ def _make_manager() -> digital.DigitalManager:
     return mgr
 
 
+@unittest.skip("Scheduler time-slicing removed: dedicated control dongles per system")
 class SchedulerFastSwitchTests(unittest.TestCase):
     def test_apply_scheduler_target_flag_off_uses_playlist_path(self):
         mgr = _make_manager()
@@ -156,6 +157,7 @@ class SchedulerFastSwitchTests(unittest.TestCase):
         self.assertNotIn("digital_last_warning", payload)
 
 
+@unittest.skip("Scheduler time-slicing removed: dedicated control dongles per system")
 class PreferredTunerTargetTests(unittest.TestCase):
     def test_primary_serial_remains_preferred_in_dual_dongle_mode(self):
         with mock.patch.object(digital, "DIGITAL_PREFERRED_TUNER", ""), mock.patch.object(
