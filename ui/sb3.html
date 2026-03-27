@@ -354,6 +354,12 @@
       position: relative;
     }
 
+    .widget-hits {
+      display: flex;
+      flex-direction: column;
+      min-height: 100%;
+    }
+
     .widget.collapsed .widget-body {
       display: none;
     }
@@ -977,6 +983,12 @@
       padding: 16px;
     }
 
+    .widget-hits .widget-body {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+    }
+
     /* Tabs */
     .tabs {
       display: flex;
@@ -1315,6 +1327,13 @@
       min-height: 360px;
       max-height: 360px;
       overflow-y: auto;
+    }
+
+    .widget-hits .hit-list {
+      flex: 1 1 auto;
+      min-height: 0;
+      max-height: none;
+      width: 100%;
     }
 
     .hit-row {
@@ -2344,7 +2363,7 @@
         grid-template-columns: 1fr;
       }
 
-      .hit-list {
+      .widget-hits .hit-list {
         min-height: 240px;
         max-height: 240px;
       }
@@ -2786,7 +2805,7 @@
         </div>
       </div>
 
-      <div class="widget">
+      <div class="widget widget-hits">
         <div class="widget-header">📋 Recent Hits</div>
         <div class="widget-body">
           <div class="hit-list" id="hit-list">
