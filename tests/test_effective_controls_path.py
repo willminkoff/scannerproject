@@ -815,6 +815,47 @@ class RecentRegressionTests(unittest.TestCase):
         self.assertEqual("20052", str(items[0].get("tgid") or ""))
         self.assertEqual("digital", str(items[0].get("source") or ""))
 
+    def test_hits_payload_op25_backend_skips_route_filter(self):
+        """When DIGITAL_BACKEND=op25, SDRTrunk route filter is bypassed."""
+        fake_digital = mock.Mock()
+        fake_digital.getRecentEvents.return_value = [
+            {
+                "label": "County Fire Dispatch",
+                "tgid": "99999",
+                "timeMs": int(time.time() * 1000),
+                "durationMs": 3000,
+                "mode": "P25P1",
+            }
+        ]
+
+        with mock.patch.object(handlers, "DIGITAL_BACKEND", "op25"), mock.patch.object(
+            handlers, "DIGITAL_HITS_REQUIRE_AUDIO_EVENT", True
+        ), mock.patch.object(
+            handlers, "read_active_config_path", return_value="/tmp/active.conf"
+        ), mock.patch.object(
+            handlers, "split_profiles", return_value=([], [], [])
+        ), mock.patch.object(
+            handlers, "guess_current_profile", return_value=""
+        ), mock.patch.object(
+            handlers, "_resolve_analog_label_map", return_value={}
+        ), mock.patch.object(
+            handlers, "read_hit_list_cached", return_value=[]
+        ), mock.patch.object(
+            handlers, "_digital_stream_active_for_hits", return_value=True
+        ), mock.patch.object(
+            handlers, "_digital_stream_routed_tgids_for_hits", return_value={"20052"}
+        ), mock.patch.object(
+            handlers, "get_digital_manager", return_value=fake_digital
+        ):
+            payload = handlers._build_hits_payload(limit=50)
+
+        items = payload.get("items") or []
+        # TG 99999 is NOT in routed_tgids {"20052"}, but should still appear
+        # because OP25 backend bypasses the SDRTrunk route filter entirely.
+        self.assertEqual(1, len(items))
+        self.assertEqual("99999", str(items[0].get("tgid") or ""))
+        self.assertEqual("digital", str(items[0].get("source") or ""))
+
     def test_gmrs_frs_murs_profile_infers_ground_target_without_file(self):
         inferred = profile_config._infer_airband_flag("gmrs_frs_murs", "/tmp/does-not-exist.conf")
         self.assertIs(inferred, False)
