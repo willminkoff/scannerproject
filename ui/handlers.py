@@ -69,6 +69,7 @@ try:
         COMBINED_CONFIG_PATH,
         AIRBAND_RTL_SERIAL,
         GROUND_RTL_SERIAL,
+        DIGITAL_BACKEND,
         DIGITAL_PREFERRED_TUNER,
         DIGITAL_RTL_DEVICE,
         DIGITAL_RTL_SERIAL,
@@ -171,6 +172,7 @@ except ImportError:
         COMBINED_CONFIG_PATH,
         AIRBAND_RTL_SERIAL,
         GROUND_RTL_SERIAL,
+        DIGITAL_BACKEND,
         DIGITAL_PREFERRED_TUNER,
         DIGITAL_RTL_DEVICE,
         DIGITAL_RTL_SERIAL,
@@ -2176,7 +2178,12 @@ def _build_hits_payload(limit: int = 50) -> dict:
             events = []
     else:
         events = []
-    routed_tgids = _digital_stream_routed_tgids_for_hits() if DIGITAL_HITS_REQUIRE_AUDIO_EVENT else set()
+    # OP25 backend has no SDRTrunk XML playlist, so the route-to-stream
+    # filter is meaningless — skip it to avoid dropping valid OP25 events.
+    if DIGITAL_BACKEND == "op25":
+        routed_tgids: set[str] = set()
+    else:
+        routed_tgids = _digital_stream_routed_tgids_for_hits() if DIGITAL_HITS_REQUIRE_AUDIO_EVENT else set()
     for event in events:
         if DIGITAL_HITS_REQUIRE_AUDIO_EVENT and not _digital_event_is_audible_hit(event):
             continue
