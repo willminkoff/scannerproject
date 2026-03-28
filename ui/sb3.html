@@ -355,8 +355,9 @@
     }
 
     .widget-hits {
-      display: flex;
-      flex-direction: column;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      align-self: stretch;
       height: 100%;
       min-height: 0;
     }
@@ -985,11 +986,10 @@
     }
 
     .widget-hits .widget-body {
-      flex: 1 1 auto;
-      height: 100%;
-      min-height: 0;
       display: flex;
       flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
     }
 
     /* Tabs */
@@ -1334,7 +1334,6 @@
 
     .widget-hits .hit-list {
       flex: 1 1 auto;
-      height: 100%;
       min-height: 0;
       max-height: none;
       width: 100%;
