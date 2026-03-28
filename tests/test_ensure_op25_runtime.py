@@ -2,19 +2,52 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
-import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 
 class EnsureOp25RuntimeTests(unittest.TestCase):
-    def test_bootstrap_writes_coherent_runtime_artifacts(self):
+    @staticmethod
+    def _load_script_module():
         repo_root = Path(__file__).resolve().parents[1]
         script = repo_root / "scripts" / "ensure-op25-runtime.py"
+        spec = importlib.util.spec_from_file_location("ensure_op25_runtime_script", script)
+        module = importlib.util.module_from_spec(spec)
+        assert spec and spec.loader
+        spec.loader.exec_module(module)
+        return module
+
+    def test_build_dongle_arg_map_prefers_runtime_indices(self):
+        module = self._load_script_module()
+        sample = (
+            "Found 5 device(s):\n"
+            "  0:  Nooelec, NESDR SMArt v5, SN: 70613472\n"
+            "  1:  RTLSDRBlog, Blog V4, SN: 00000002\n"
+            "  2:  Nooelec, NESDR SMArt v5, SN: 14306619\n"
+            "  3:  Nooelec, NESDR SMArt v5, SN: 56919602\n"
+            "  4:  RTLSDRBlog, Blog V4, SN: 83241970\n"
+        )
+        parsed = module._parse_rtl_test_device_map(sample)
+        self.assertEqual(2, parsed["14306619"])
+        self.assertEqual(3, parsed["56919602"])
+
+        with unittest.mock.patch.object(
+            module,
+            "_enumerate_rtlsdr_serial_index_map",
+            return_value=parsed,
+        ):
+            args_map = module._build_dongle_arg_map(["14306619", "56919602", "missing"])
+
+        self.assertEqual("rtl=2", args_map["14306619"])
+        self.assertEqual("rtl=3", args_map["56919602"])
+        self.assertEqual("rtl=missing", args_map["missing"])
+
+    def test_bootstrap_writes_coherent_runtime_artifacts(self):
+        repo_root = Path(__file__).resolve().parents[1]
 
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -78,28 +111,15 @@ class EnsureOp25RuntimeTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            env = os.environ.copy()
-            env.update({
-                "DIGITAL_ACTIVE_PROFILE_LINK": str(active_link),
-                "DIGITAL_PROFILES_DIR": str(profiles_dir),
-                "OP25_RUNTIME_DIR": str(runtime_dir),
-                "DONGLE_ASSIGNMENTS_PATH": str(assignments_path),
-                "OP25_STATUS_PORT": "8080",
-            })
-
-            result = subprocess.run(
-                [sys.executable, str(script)],
-                cwd=str(repo_root),
-                env=env,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            self.assertEqual(
-                0,
-                result.returncode,
-                msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
-            )
+            module = self._load_script_module()
+            with unittest.mock.patch.object(module, "DIGITAL_ACTIVE_PROFILE_LINK", str(active_link)), \
+                unittest.mock.patch.object(module, "OP25_RUNTIME_DIR", str(runtime_dir)), \
+                unittest.mock.patch.object(module, "OP25_STATUS_PORT", 8080), \
+                unittest.mock.patch.object(module, "_enumerate_rtlsdr_serial_index_map", return_value={"14306619": 2, "56919602": 3}), \
+                unittest.mock.patch("ui.dongle_allocator.load_assignments", return_value=json.loads(assignments_path.read_text(encoding="utf-8"))), \
+                unittest.mock.patch.object(module, "load_assignments", return_value=json.loads(assignments_path.read_text(encoding="utf-8"))):
+                rc = module.main()
+            self.assertEqual(0, rc)
 
             trunk = (runtime_dir / "trunk.tsv").read_text(encoding="utf-8")
             multi_rx = json.loads((runtime_dir / "multi_rx.json").read_text(encoding="utf-8"))
@@ -112,6 +132,8 @@ class EnsureOp25RuntimeTests(unittest.TestCase):
             self.assertNotIn('"6355:1"', trunk)
             self.assertEqual("7078:1", multi_rx["trunking"]["chans"][0]["sysname"])
             self.assertEqual("7078:1", multi_rx["channels"][0]["trunking_sysname"])
+            self.assertEqual("rtl=2", multi_rx["devices"][0]["args"])
+            self.assertEqual("rtl=3", multi_rx["devices"][1]["args"])
             self.assertIn("3207\tPolice Dispatch", tags)
             self.assertIn("3209\tPolice Tactical 1", tags)
             self.assertEqual("3207\n3209\n", whitelist)

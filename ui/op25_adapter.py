@@ -335,6 +335,7 @@ def generate_multi_rx_config(
     systems: list[dict],
     dongle_map: dict[str, str],
     *,
+    dongle_args_map: dict[str, str] | None = None,
     traffic_dongle_serial: str = "",
     traffic_system_name: str = "",
     op25_overrides: dict | None = None,
@@ -346,6 +347,7 @@ def generate_multi_rx_config(
 ) -> dict:
     """Generate a multi_rx.py JSON config for all systems + optional traffic follower."""
     overrides = op25_overrides or {}
+    arg_map = dongle_args_map or {}
 
     devices: list[dict] = []
     channels: list[dict] = []
@@ -369,7 +371,7 @@ def generate_multi_rx_config(
         dev_name = f"sdr{idx}"
         devices.append({
             "name": dev_name,
-            "args": f"rtl={serial}",
+            "args": str(arg_map.get(serial) or f"rtl={serial}"),
             "rate": sample_rate,
             "frequency": center_hz,
             "offset": offset,
@@ -421,7 +423,7 @@ def generate_multi_rx_config(
             if target_cc_hz:
                 devices.append({
                     "name": "sdr_traffic",
-                    "args": f"rtl={traffic_dongle_serial}",
+                    "args": str(arg_map.get(traffic_dongle_serial) or f"rtl={traffic_dongle_serial}"),
                     "rate": sample_rate,
                     "frequency": target_cc_hz,
                     "offset": offset,

@@ -21,7 +21,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import stat
+import subprocess
 import sys
 
 # Add project root to path so we can import ui modules.
@@ -49,6 +51,8 @@ from ui.op25_adapter import (
 
 # Base UDP port for audio output.
 _UDP_AUDIO_BASE_PORT = 23456
+
+_RTL_TEST_DEVICE_RE = re.compile(r"^\s*(\d+):\s+.*SN:\s+(\S+)\s*$")
 
 
 def _safe_realpath(path: str) -> str:
@@ -105,6 +109,64 @@ def _detect_traffic_dongle(dongle_assignments: dict | None) -> str:
     if pool:
         return str(pool[0]).strip()
     return ""
+
+
+def _parse_rtl_test_device_map(output: str) -> dict[str, int]:
+    """Parse ``rtl_test`` output into ``{serial: index}``."""
+    mapping: dict[str, int] = {}
+    for line in str(output or "").splitlines():
+        match = _RTL_TEST_DEVICE_RE.match(line.strip())
+        if not match:
+            continue
+        index = int(match.group(1))
+        serial = str(match.group(2) or "").strip()
+        if serial:
+            mapping[serial] = index
+    return mapping
+
+
+def _enumerate_rtlsdr_serial_index_map() -> dict[str, int]:
+    """Enumerate current RTL-SDR serials to librtlsdr indices.
+
+    Uses ``rtl_test -d 9999 -t`` so librtlsdr prints the device list but does
+    not open any matching tuner.
+    """
+    cmd = ["rtl_test", "-d", "9999", "-t"]
+    try:
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=False,
+            timeout=3,
+        )
+    except Exception:
+        return {}
+    return _parse_rtl_test_device_map(result.stdout or "")
+
+
+def _build_dongle_arg_map(serials: list[str]) -> dict[str, str]:
+    """Resolve OP25 dongle args for the requested serials.
+
+    Prefer ``rtl=<index>`` when the current librtlsdr enumeration can map the
+    serial to an index. Fall back to ``rtl=<serial>`` when no mapping is
+    available so runtime generation remains resilient on hosts without
+    ``rtl_test``.
+    """
+    mapping = _enumerate_rtlsdr_serial_index_map()
+    args_map: dict[str, str] = {}
+    seen: set[str] = set()
+    for raw_serial in serials:
+        serial = str(raw_serial or "").strip()
+        if not serial or serial in seen:
+            continue
+        seen.add(serial)
+        if serial in mapping:
+            args_map[serial] = f"rtl={mapping[serial]}"
+        else:
+            args_map[serial] = f"rtl={serial}"
+    return args_map
 
 
 def main() -> int:
@@ -170,10 +232,23 @@ def main() -> int:
     else:
         print("OP25 runtime: no traffic follower dongle available")
 
+    requested_serials = list(dongle_map.values())
+    if traffic_serial:
+        requested_serials.append(traffic_serial)
+    dongle_args_map = _build_dongle_arg_map(requested_serials)
+    if dongle_args_map:
+        for serial in requested_serials:
+            serial = str(serial or "").strip()
+            if not serial:
+                continue
+            resolved = dongle_args_map.get(serial, f"rtl={serial}")
+            print(f"OP25 runtime: resolved tuner {serial} -> {resolved}")
+
     # Generate multi_rx.py JSON config.
     config = generate_multi_rx_config(
         systems,
         dongle_map,
+        dongle_args_map=dongle_args_map,
         traffic_dongle_serial=traffic_serial,
         traffic_system_name=traffic_system,
         op25_overrides=op25_overrides,
@@ -202,7 +277,7 @@ def main() -> int:
     # Print device/channel summary.
     for dev in config.get("devices", []):
         print(
-            f"  device {dev['name']}: rtl={dev['args']}  "
+            f"  device {dev['name']}: args={dev['args']}  "
             f"center={dev['frequency']/1e6:.5f} MHz  rate={dev['rate']/1e6:.1f}M"
         )
     for ch in config.get("channels", []):
