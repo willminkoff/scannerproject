@@ -241,6 +241,25 @@ class Op25AdapterLogParsingTests(unittest.TestCase):
             self.assertIsNotNone(event)
             self.assertEqual("54321", event["tgid"])
 
+    def test_parse_micro_voice_update_format(self):
+        with mock.patch("ui.op25_adapter.validate_digital_service_name", return_value=True):
+            adapter = Op25Adapter()
+            event = adapter._parse_log_line(
+                "03/26/26 17:09:06.559189 voice update:  tg(3207), freq(857762500), slot(-), prio(3)"
+            )
+            self.assertIsNotNone(event)
+            self.assertEqual("3207", event["tgid"])
+            self.assertEqual(857762500, event["frequency_hz"])
+            self.assertGreater(event["timeMs"], 0)
+
+    def test_parse_micro_timestamp_format(self):
+        with mock.patch("ui.op25_adapter.validate_digital_service_name", return_value=True):
+            adapter = Op25Adapter()
+            timestamp_ms = adapter._extract_timestamp_ms(
+                "03/26/26 17:09:06.559189 voice update:  tg(3207), freq(857762500), slot(-), prio(3)"
+            )
+            self.assertGreater(timestamp_ms, 0)
+
     def test_parse_non_event_line(self):
         with mock.patch("ui.op25_adapter.validate_digital_service_name", return_value=True):
             adapter = Op25Adapter()

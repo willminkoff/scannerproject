@@ -90,15 +90,15 @@ logger = logging.getLogger(__name__)
 # OP25 log event patterns
 # ---------------------------------------------------------------------------
 # Example OP25 trunk log lines:
-#   tsbk_handler(): cc 851012500 tg 12345 freq 855462500
-#   voice update:   tg 54321 freq 856737500
+#   2026-03-26 14:05:32 tsbk_handler(): cc 851012500 tg 12345 freq 855462500
+#   03/26/26 17:09:06.559189 voice update:  tg(3207), freq(857762500), slot(-), prio(3)
 #   control channel: 851012500  status: locked
 _RE_TSBK = re.compile(
-    r"tsbk.*?tg\s+(\d+)\s+freq\s+(\d+)",
+    r"tsbk.*?tg\s*\(?\s*(\d+)\s*\)?\s*,?\s*freq\s*\(?\s*(\d+)\s*\)?",
     re.IGNORECASE,
 )
 _RE_VOICE = re.compile(
-    r"voice\s+(?:update|grant).*?tg\s+(\d+)\s+freq\s+(\d+)",
+    r"voice\s+(?:update|grant).*?tg\s*\(?\s*(\d+)\s*\)?\s*,?\s*freq\s*\(?\s*(\d+)\s*\)?",
     re.IGNORECASE,
 )
 _RE_CC_STATUS = re.compile(
@@ -106,8 +106,15 @@ _RE_CC_STATUS = re.compile(
     re.IGNORECASE,
 )
 
-# Timestamp at the start of OP25 log lines:  2026-03-26 14:05:32.123
-_RE_TIMESTAMP = re.compile(r"(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})")
+# Timestamps at the start of OP25 log lines can be ISO-like or US short-date.
+_RE_TIMESTAMP = re.compile(
+    r"((?:\d{4}-\d{2}-\d{2}|\d{2}/\d{2}/\d{2})\s+\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?)"
+)
+_TIMESTAMP_FORMATS = (
+    "%Y-%m-%d %H:%M:%S",
+    "%m/%d/%y %H:%M:%S.%f",
+    "%m/%d/%y %H:%M:%S",
+)
 
 
 def _hz_to_mhz(hz: int) -> float:
@@ -859,10 +866,16 @@ class Op25Adapter(_BaseDigitalAdapter):
             return 0
         try:
             from datetime import datetime
-            dt = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S")
-            return int(dt.timestamp() * 1000)
+            token = str(m.group(1) or "").strip()
+            for fmt in _TIMESTAMP_FORMATS:
+                try:
+                    dt = datetime.strptime(token, fmt)
+                    return int(dt.timestamp() * 1000)
+                except ValueError:
+                    continue
         except Exception:
             return 0
+        return 0
 
     def _resolve_tg_label(self, tgid: str) -> str:
         """Lookup talkgroup label from profile data."""
