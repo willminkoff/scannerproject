@@ -10,6 +10,8 @@ from ui.op25_adapter import (
     _parse_control_channels,
     _read_system_definitions,
     _read_talkgroup_labels,
+    _multi_rx_udp_ports,
+    generate_multi_rx_config,
     generate_trunk_tsv,
     generate_tgid_tags_tsv,
 )
@@ -111,27 +113,16 @@ class GenerateTrunkTsvTests(unittest.TestCase):
         ]
         tsv = generate_trunk_tsv(systems)
         lines = tsv.strip().split("\n")
-        self.assertEqual(2, len(lines))
-        parts_a = lines[0].split("\t")
-        self.assertEqual("SYS_A", parts_a[0])
-        self.assertEqual("851012500", parts_a[1])
-        self.assertEqual("cqpsk", parts_a[4])
-        parts_b = lines[1].split("\t")
-        self.assertEqual("SYS_B", parts_b[0])
-        self.assertEqual("855912500", parts_b[1])
-
-    def test_dongle_mapping(self):
-        systems = [
-            {"name": "SYS_A", "control_channels_hz": [851012500]},
-        ]
-        assignments = {
-            "assignments": [
-                {"system_name": "SYS_A", "preferred_tuner_serial": "14306619"},
-            ],
-        }
-        tsv = generate_trunk_tsv(systems, dongle_assignments=assignments)
-        parts = tsv.strip().split("\t")
-        self.assertEqual("rtl:14306619", parts[-1])
+        self.assertEqual(3, len(lines))
+        header = lines[0].split("\t")
+        self.assertEqual('"Sysname"', header[0])
+        parts_a = lines[1].split("\t")
+        self.assertEqual('"SYS_A"', parts_a[0])
+        self.assertEqual('"851.01250,856.46250"', parts_a[1])
+        self.assertEqual('"cqpsk"', parts_a[4])
+        parts_b = lines[2].split("\t")
+        self.assertEqual('"SYS_B"', parts_b[0])
+        self.assertEqual('"855.91250"', parts_b[1])
 
     def test_op25_overrides(self):
         systems = [
@@ -141,12 +132,55 @@ class GenerateTrunkTsvTests(unittest.TestCase):
             "SYS_A": {"nac": "0x293", "modulation": "c4fm"},
         }
         tsv = generate_trunk_tsv(systems, op25_overrides=overrides)
-        parts = tsv.strip().split("\t")
-        self.assertEqual("0x293", parts[3])
-        self.assertEqual("c4fm", parts[4])
+        parts = tsv.strip().split("\n")[1].split("\t")
+        self.assertEqual('"0x293"', parts[3])
+        self.assertEqual('"c4fm"', parts[4])
+
+    def test_tgid_tags_path(self):
+        systems = [
+            {"name": "SYS_A", "control_channels_hz": [851012500]},
+        ]
+        tsv = generate_trunk_tsv(systems, tgid_tags_path="/tmp/tgid_tags.tsv")
+        parts = tsv.strip().split("\n")[1].split("\t")
+        self.assertEqual('"/tmp/tgid_tags.tsv"', parts[5])
 
     def test_empty_systems(self):
         self.assertEqual("", generate_trunk_tsv([]))
+
+
+class GenerateMultiRxConfigTests(unittest.TestCase):
+    def test_basic_generation(self):
+        systems = [
+            {"name": "SYS_A", "control_channels_hz": [851012500]},
+            {"name": "SYS_B", "control_channels_hz": [855912500]},
+        ]
+        config = generate_multi_rx_config(
+            systems,
+            {"SYS_A": "14306619", "SYS_B": "56919602"},
+            traffic_dongle_serial="00000001",
+            traffic_system_name="SYS_A",
+            tgid_tags_path="/run/scannerproject/op25/tgid_tags.tsv",
+            http_port=8080,
+        )
+        self.assertEqual(3, len(config["devices"]))
+        self.assertEqual(3, len(config["channels"]))
+        self.assertEqual("rtl=14306619", config["devices"][0]["args"])
+        self.assertEqual("rtl=00000001", config["devices"][2]["args"])
+        self.assertEqual("SYS_A", config["channels"][0]["trunking_sysname"])
+        self.assertEqual("SYS_A", config["channels"][2]["trunking_sysname"])
+        self.assertEqual(
+            "/run/scannerproject/op25/tgid_tags.tsv",
+            config["trunking"]["chans"][0]["tgid_tags_file"],
+        )
+
+    def test_udp_ports(self):
+        config = {
+            "channels": [
+                {"destination": "udp://127.0.0.1:23456"},
+                {"destination": "udp://127.0.0.1:23458"},
+            ]
+        }
+        self.assertEqual([23456, 23458], _multi_rx_udp_ports(config))
 
 
 class GenerateTgidTagsTsvTests(unittest.TestCase):
@@ -244,7 +278,7 @@ class Op25AdapterActivateSystemsTests(unittest.TestCase):
                 content = fh.read()
             self.assertIn("SYS_A", content)
             self.assertIn("SYS_B", content)
-            self.assertIn("851012500", content)
+            self.assertIn("851.01250", content)
 
 
 if __name__ == "__main__":

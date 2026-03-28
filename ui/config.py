@@ -224,6 +224,12 @@ OP25_STATUS_HOST = os.getenv("OP25_STATUS_HOST", "127.0.0.1").strip()
 OP25_STATUS_PORT = int(os.getenv("OP25_STATUS_PORT", "8080"))
 OP25_RUNTIME_DIR = os.getenv("OP25_RUNTIME_DIR", "/run/scannerproject/op25").strip()
 OP25_RX_PATH = os.getenv("OP25_RX_PATH", "/opt/op25/op25/gr-op25_repeater/apps/rx.py").strip()
+OP25_MULTI_RX_PATH = os.getenv(
+    "OP25_MULTI_RX_PATH",
+    "/opt/op25/op25/gr-op25_repeater/apps/multi_rx.py",
+).strip()
+OP25_DEFAULT_OFFSET = int(os.getenv("OP25_DEFAULT_OFFSET", "25000"))
+OP25_DEFAULT_SAMPLE_RATE = int(os.getenv("OP25_DEFAULT_SAMPLE_RATE", "2400000"))
 OP25_DEFAULT_MODULATION = os.getenv("OP25_DEFAULT_MODULATION", "cqpsk").strip().lower()
 # Multi-profile loop scheduler
 PROFILE_LOOP_STATE_PATH = os.getenv(

@@ -30,7 +30,10 @@ try:
         ICECAST_HOST,
         ICECAST_PORT,
         OP25_DEFAULT_MODULATION,
+        OP25_DEFAULT_OFFSET,
+        OP25_DEFAULT_SAMPLE_RATE,
         OP25_LOG_PATH,
+        OP25_MULTI_RX_PATH,
         OP25_RUNTIME_DIR,
         OP25_RX_PATH,
         OP25_SERVICE_NAME,
@@ -50,7 +53,10 @@ except ImportError:
         ICECAST_HOST,
         ICECAST_PORT,
         OP25_DEFAULT_MODULATION,
+        OP25_DEFAULT_OFFSET,
+        OP25_DEFAULT_SAMPLE_RATE,
         OP25_LOG_PATH,
+        OP25_MULTI_RX_PATH,
         OP25_RUNTIME_DIR,
         OP25_RX_PATH,
         OP25_SERVICE_NAME,
@@ -206,6 +212,12 @@ def _read_talkgroup_labels(profile_dir: str) -> dict[str, str]:
     """Read talkgroup CSV from *profile_dir*.
 
     Returns ``{decimal_tgid_str: label}``.
+
+    Supports two CSV layouts:
+      - ``DEC,HEX,Mode,Alpha Tag,...``  (profile_editor / sidecar)
+      - ``DEC,Mode,Alpha Tag,...``      (_render_talkgroups_text)
+    Detects the header and picks the "Alpha Tag" column.
+    Falls back to column 1 for simple ``TGID<TAB>Label`` TSV files.
     """
     labels: dict[str, str] = {}
     for name in ("talkgroups.csv", "talkgroups.tsv"):
@@ -214,16 +226,36 @@ def _read_talkgroup_labels(profile_dir: str) -> dict[str, str]:
             continue
         try:
             with open(path, "r", encoding="utf-8", errors="ignore") as f:
-                for line in f:
+                alpha_col = 1  # default: second column
+                for lineno, line in enumerate(f):
                     line = line.strip()
                     if not line or line.startswith("#"):
                         continue
-                    parts = re.split(r"[,\t]", line, maxsplit=2)
-                    if len(parts) >= 2:
-                        tgid = parts[0].strip()
-                        label = parts[1].strip()
-                        if tgid.isdigit() and label:
-                            labels[tgid] = label
+                    parts = re.split(r"[,\t]", line)
+                    # Detect header row and find Alpha Tag column.
+                    if lineno == 0 and parts[0].strip().upper() in ("DEC", "TGID"):
+                        lower_parts = [p.strip().lower() for p in parts]
+                        if "alpha tag" in lower_parts:
+                            alpha_col = lower_parts.index("alpha tag")
+                        elif "description" in lower_parts:
+                            alpha_col = lower_parts.index("description")
+                        continue  # skip header
+                    tgid = parts[0].strip()
+                    if not tgid.isdigit():
+                        continue
+                    label = parts[alpha_col].strip() if alpha_col < len(parts) else ""
+                    if not label:
+                        # Fallback: try other columns for a non-hex label.
+                        for p in parts[1:]:
+                            candidate = p.strip()
+                            if candidate and not candidate.isalnum():
+                                label = candidate
+                                break
+                            if candidate and not all(c in "0123456789abcdefABCDEF" for c in candidate):
+                                label = candidate
+                                break
+                    if tgid and label:
+                        labels[tgid] = label
         except Exception:
             pass
     return labels
@@ -233,58 +265,51 @@ def generate_trunk_tsv(
     systems: list[dict],
     dongle_assignments: dict | None = None,
     op25_overrides: dict | None = None,
+    tgid_tags_path: str = "",
 ) -> str:
     """Generate OP25 trunk.tsv content from system definitions.
 
-    Each system gets one row.  Columns:
-    ``Sysname<TAB>Control Channel<TAB>Offset<TAB>NAC<TAB>Modulation<TAB>TGID Tags File<TAB>Whitelist<TAB>Blacklist<TAB>Center Frequency<TAB>Device``
+    OP25 expects a TSV with a header row and quoted fields.  Columns:
+    ``Sysname  Control Channel List  Offset  NAC  Modulation  TGID Tags File  Whitelist  Blacklist  Center Frequency``
 
-    OP25 accepts the control channel in Hz.
+    Control channels are in MHz, comma-separated.
     """
     overrides = op25_overrides or {}
     assignments = dongle_assignments or {}
-    assignment_list = assignments.get("assignments") or []
-    serial_map: dict[str, str] = {}
-    for entry in assignment_list:
-        sname = str(entry.get("system_name") or "").strip()
-        serial = str(entry.get("preferred_tuner_serial") or "").strip()
-        if sname and serial:
-            serial_map[sname] = serial
+    
+    def _q(val: str) -> str:
+        return f'"{val}"'
 
-    lines: list[str] = []
+    header = "\t".join([
+        _q("Sysname"), _q("Control Channel List"), _q("Offset"),
+        _q("NAC"), _q("Modulation"), _q("TGID Tags File"),
+        _q("Whitelist"), _q("Blacklist"), _q("Center Frequency"),
+    ])
+
+    lines: list[str] = [header]
     for sys in systems:
         name = sys["name"]
         channels = sys["control_channels_hz"]
         if not channels:
             continue
-        cc_hz = channels[0]  # OP25 uses the first control channel
+        # OP25 expects MHz, comma-separated for all control channels.
+        cc_mhz = ",".join(f"{hz / 1e6:.5f}" for hz in channels)
         sys_overrides = overrides.get(name) or {}
         nac = str(sys_overrides.get("nac", "0")).strip()
         modulation = str(
             sys_overrides.get("modulation", OP25_DEFAULT_MODULATION)
         ).strip().lower()
         offset = str(sys_overrides.get("offset", "0")).strip()
-        tgid_file = str(sys_overrides.get("tgid_tags_file", "")).strip()
+        tgid_file = str(sys_overrides.get("tgid_tags_file", tgid_tags_path)).strip()
         whitelist = str(sys_overrides.get("whitelist", "")).strip()
         blacklist = str(sys_overrides.get("blacklist", "")).strip()
         center_freq = str(sys_overrides.get("center_frequency", "")).strip()
-        device = serial_map.get(name, "")
-        if device:
-            device = f"rtl:{device}"
         row = "\t".join([
-            name,
-            str(cc_hz),
-            offset,
-            nac,
-            modulation,
-            tgid_file,
-            whitelist,
-            blacklist,
-            center_freq,
-            device,
+            _q(name), _q(cc_mhz), _q(offset), _q(nac), _q(modulation),
+            _q(tgid_file), _q(whitelist), _q(blacklist), _q(center_freq),
         ])
         lines.append(row)
-    return "\n".join(lines) + "\n" if lines else ""
+    return "\n".join(lines) + "\n" if len(lines) > 1 else ""
 
 
 def generate_tgid_tags_tsv(labels: dict[str, str]) -> str:
@@ -296,6 +321,154 @@ def generate_tgid_tags_tsv(labels: dict[str, str]) -> str:
     for tgid, label in sorted(labels.items(), key=lambda kv: int(kv[0]) if kv[0].isdigit() else 0):
         lines.append(f"{tgid}\t{label}")
     return "\n".join(lines) + "\n" if lines else ""
+
+
+# ---------------------------------------------------------------------------
+# multi_rx.py JSON config generation
+# ---------------------------------------------------------------------------
+
+# Default UDP audio base port.  Channel N gets BASE + N*2.
+_UDP_AUDIO_BASE_PORT = 23456
+
+
+def generate_multi_rx_config(
+    systems: list[dict],
+    dongle_map: dict[str, str],
+    *,
+    traffic_dongle_serial: str = "",
+    traffic_system_name: str = "",
+    op25_overrides: dict | None = None,
+    tgid_tags_path: str = "",
+    http_port: int = 8080,
+    udp_audio_base_port: int = _UDP_AUDIO_BASE_PORT,
+    sample_rate: int = OP25_DEFAULT_SAMPLE_RATE,
+    offset: int = OP25_DEFAULT_OFFSET,
+) -> dict:
+    """Generate a multi_rx.py JSON config for all systems + optional traffic follower."""
+    overrides = op25_overrides or {}
+
+    devices: list[dict] = []
+    channels: list[dict] = []
+    trunking_chans: list[dict] = []
+    udp_port_idx = 0
+
+    for idx, sys_def in enumerate(systems):
+        name = sys_def["name"]
+        cc_hz = sys_def["control_channels_hz"]
+        if not cc_hz:
+            continue
+        serial = dongle_map.get(name, "")
+        if not serial:
+            continue
+
+        sys_over = overrides.get(name) or {}
+        modulation = str(sys_over.get("modulation", OP25_DEFAULT_MODULATION)).strip().lower()
+        nac = str(sys_over.get("nac", "0")).strip()
+        center_hz = int(cc_hz[0])
+
+        dev_name = f"sdr{idx}"
+        devices.append({
+            "name": dev_name,
+            "args": f"rtl={serial}",
+            "rate": sample_rate,
+            "frequency": center_hz,
+            "offset": offset,
+            "ppm": 0.0,
+            "gains": "LNA:36",
+            "gain_mode": True,
+            "tunable": True,
+        })
+
+        udp_port = udp_audio_base_port + udp_port_idx * 2
+        channels.append({
+            "name": f"ch_{name}",
+            "device": dev_name,
+            "trunking_sysname": name,
+            "demod_type": modulation,
+            "filter_type": "rc",
+            "if_rate": 24000,
+            "symbol_rate": 4800,
+            "destination": f"udp://127.0.0.1:{udp_port}",
+            "enable_analog": "off",
+        })
+        udp_port_idx += 1
+
+        trunking_chan: dict = {
+            "sysname": name,
+            "control_channel_list": ",".join(f"{hz / 1e6:.5f}" for hz in cc_hz),
+            "nac": nac,
+        }
+        if tgid_tags_path:
+            trunking_chan["tgid_tags_file"] = tgid_tags_path
+        if sys_over.get("whitelist"):
+            trunking_chan["whitelist"] = str(sys_over["whitelist"])
+        if sys_over.get("blacklist"):
+            trunking_chan["blacklist"] = str(sys_over["blacklist"])
+        trunking_chans.append(trunking_chan)
+
+    if traffic_dongle_serial:
+        target_sys = traffic_system_name or (systems[0]["name"] if systems else "")
+        if target_sys:
+            target_cc_hz = 0
+            target_mod = OP25_DEFAULT_MODULATION
+            for sys_def in systems:
+                if sys_def["name"] == target_sys:
+                    if sys_def["control_channels_hz"]:
+                        target_cc_hz = int(sys_def["control_channels_hz"][0])
+                    sys_over = overrides.get(target_sys) or {}
+                    target_mod = str(sys_over.get("modulation", OP25_DEFAULT_MODULATION)).strip().lower()
+                    break
+            if target_cc_hz:
+                devices.append({
+                    "name": "sdr_traffic",
+                    "args": f"rtl={traffic_dongle_serial}",
+                    "rate": sample_rate,
+                    "frequency": target_cc_hz,
+                    "offset": offset,
+                    "ppm": 0.0,
+                    "gains": "LNA:36",
+                    "gain_mode": True,
+                    "tunable": True,
+                })
+                udp_port = udp_audio_base_port + udp_port_idx * 2
+                channels.append({
+                    "name": f"traffic_{target_sys}",
+                    "device": "sdr_traffic",
+                    "trunking_sysname": target_sys,
+                    "demod_type": target_mod,
+                    "filter_type": "rc",
+                    "if_rate": 24000,
+                    "symbol_rate": 4800,
+                    "destination": f"udp://127.0.0.1:{udp_port}",
+                    "enable_analog": "off",
+                })
+                udp_port_idx += 1
+
+    return {
+        "devices": devices,
+        "channels": channels,
+        "trunking": {
+            "module": "tk_p25.py",
+            "chans": trunking_chans,
+        },
+        "terminal": {
+            "module": "terminal.py",
+            "terminal_type": f"http:0.0.0.0:{http_port}",
+        },
+    }
+
+
+def _multi_rx_udp_ports(config: dict) -> list[int]:
+    """Extract the UDP audio ports from a multi_rx config dict."""
+    ports: list[int] = []
+    for ch in config.get("channels") or []:
+        dest = ch.get("destination", "")
+        if dest.startswith("udp://"):
+            try:
+                ports.append(int(dest.rsplit(":", 1)[1]))
+            except (ValueError, IndexError):
+                pass
+    return sorted(ports)
 
 
 # ---------------------------------------------------------------------------
@@ -521,11 +694,13 @@ class Op25Adapter(_BaseDigitalAdapter):
 
         op25_overrides = _read_op25_system_config(profile_dir)
         tg_labels = _read_talkgroup_labels(profile_dir)
+        tags_path = os.path.join(runtime, "tgid_tags.tsv")
 
         trunk_content = generate_trunk_tsv(
             systems,
             dongle_assignments=dongle_assignments,
             op25_overrides=op25_overrides,
+            tgid_tags_path=tags_path,
         )
         tags_content = generate_tgid_tags_tsv(tg_labels)
 
@@ -538,15 +713,13 @@ class Op25Adapter(_BaseDigitalAdapter):
         except Exception as e:
             return False, f"failed to write trunk.tsv: {e}"
 
-        if tags_content:
-            try:
-                tags_path = os.path.join(runtime, "tgid_tags.tsv")
-                tmp = tags_path + ".tmp"
-                with open(tmp, "w", encoding="utf-8") as f:
-                    f.write(tags_content)
-                os.replace(tmp, tags_path)
-            except Exception as e:
-                logger.debug("Failed to write tgid_tags.tsv: %s", e)
+        try:
+            tmp = tags_path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                f.write(tags_content)
+            os.replace(tmp, tags_path)
+        except Exception as e:
+            logger.debug("Failed to write tgid_tags.tsv: %s", e)
 
         self._active_systems = list(systems)
         return True, ""
