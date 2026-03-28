@@ -2732,7 +2732,7 @@
       </div>
 
       <!-- Row 2: Hit Counters + Hit List -->
-      <div class="widget">
+      <div class="widget" id="system-activity-widget">
         <div class="widget-header">📊 System Activity</div>
         <div class="widget-body">
           <div class="counter-grid">
@@ -2808,7 +2808,7 @@
         </div>
       </div>
 
-      <div class="widget widget-hits">
+      <div class="widget widget-hits" id="recent-hits-widget">
         <div class="widget-header">📋 Recent Hits</div>
         <div class="widget-body">
           <div class="hit-list" id="hit-list">
@@ -4422,6 +4422,8 @@
       freqEditor: document.getElementById('freq-editor'),
       freqEditStatus: document.getElementById('freq-edit-status'),
       hitList: document.getElementById('hit-list'),
+      recentHitsWidget: document.getElementById('recent-hits-widget'),
+      systemActivityWidget: document.getElementById('system-activity-widget'),
       hitCount: document.getElementById('hit-count'),
       hitRate: document.getElementById('hit-rate'),
       sessionCount: document.getElementById('session-count'),
@@ -10457,6 +10459,36 @@
       els.hitList.innerHTML = header + rows;
     }
 
+    function syncRecentHitsHeight() {
+      const recentWidget = els.recentHitsWidget;
+      const systemWidget = els.systemActivityWidget;
+      if (!recentWidget || !systemWidget) return;
+      if (window.innerWidth <= 700) {
+        recentWidget.style.height = '';
+        recentWidget.style.maxHeight = '';
+        return;
+      }
+      const systemHeader = systemWidget.querySelector('.widget-header');
+      const systemBody = systemWidget.querySelector('.widget-body');
+      const headerHeight = systemHeader ? systemHeader.offsetHeight : 0;
+      const bodyHeight = systemBody ? systemBody.scrollHeight : 0;
+      const targetHeight = Math.ceil(headerHeight + bodyHeight);
+      if (!targetHeight) return;
+      recentWidget.style.height = `${targetHeight}px`;
+      recentWidget.style.maxHeight = `${targetHeight}px`;
+    }
+
+    function setupRecentHitsHeightSync() {
+      const systemWidget = els.systemActivityWidget;
+      if (!systemWidget) return;
+      syncRecentHitsHeight();
+      if (typeof ResizeObserver === 'function') {
+        const observer = new ResizeObserver(() => syncRecentHitsHeight());
+        observer.observe(systemWidget);
+      }
+      window.addEventListener('resize', syncRecentHitsHeight);
+    }
+
     function hitKey(hit) {
       if (!hit) return '';
       return [
@@ -14244,6 +14276,7 @@
       // Reconnect button removed
       setupAudioAutoRecover();
       bindLatencyTestControls();
+      setupRecentHitsHeightSync();
       
       logActivity('SB3 UI initialized', 'info', 'init');
       try {
