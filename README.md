@@ -527,6 +527,7 @@ Live-only digital backend control with in-memory metadata (no recording or persi
 - `GROUND_RTL_SERIAL` (preferred ground RTL serial; optional)
 - `DIGITAL_RTL_SERIAL` (dedicated RTL-SDR serial for SDRTrunk; recommended)
 - `DIGITAL_RTL_SERIAL_SECONDARY` (optional second digital RTL serial for traffic capacity)
+- `DIGITAL_RTL_SERIAL_TERTIARY` (optional third digital RTL serial for three-system capacity)
 - `DIGITAL_RTL_DEVICE` (RTL-SDR device index or serial; used by your SDRTrunk profile configuration)
 - `DIGITAL_PREFERRED_TUNER` (optional explicit SDRTrunk tuner name; overrides `DIGITAL_RTL_SERIAL` when set)
 - `DIGITAL_FORCE_PREFERRED_TUNER` (default: `0`; when `1`, keeps preferred-tuner pinning even with a secondary digital tuner configured)
@@ -643,6 +644,7 @@ Acceptance criteria for V3 mode:
 - During no-traffic periods, control monitoring rotates across all configured systems.
 - During active clear voice, scheduler does not preempt audio mid-call.
 - UI and sitrep clearly show which system is currently monitored and why switching occurred.
+- In multi-system pools, the hit surface shows in-pool digital events from any configured system; `digital_active_system` is a status label, not a hard exclusion boundary.
 
 Scheduler performance profiles:
 - `DIGITAL_PERF_PROFILE` (`legacy` | `pc_moderate`, default: `pc_moderate`)

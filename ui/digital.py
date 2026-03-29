@@ -5954,6 +5954,11 @@ class DigitalManager:
         tgid = self._event_tgid(event if isinstance(event, dict) else {})
         if not tgid:
             return False
+        # When multiple systems are in the active pool, the hit surface should
+        # surface any in-pool TGID instead of hiding everything behind the
+        # foreground system label.
+        if len(pool_talkgroups) > 1:
+            return tgid in allowed_any
         if active_system and allowed_talkgroups:
             return tgid in allowed_talkgroups
         # If active system context is unavailable, still suppress out-of-pool TGIDs.
