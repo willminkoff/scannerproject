@@ -1,0 +1,2 @@
+[mcp_servers.team_coordination]
+url = "http://<mac-studio-hostname-or-ip>:8765/mcp"
