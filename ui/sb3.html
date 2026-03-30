@@ -2640,6 +2640,7 @@
                   <a id="lnk-stream-digital" href="#" target="_blank" rel="noopener" style="font-size:12px; opacity:0.85;">Open Digital</a>
                 </div>
                 <audio id="audio-player-digital" controls preload="none" playsinline></audio>
+                <div class="control-applied" id="digital-player-status">--</div>
               </div>
 
             </div>
@@ -3905,6 +3906,8 @@
       icecastPort: 8000,
       streamMount: 'ANALOG.mp3',
       digitalStreamMount: 'DIGITAL.mp3',
+      digitalStreamAvailable: null,
+      digitalStreamError: '',
       streamProxyEnabled: true,
       streamBaseUrl: '',
       digitalStreamBaseUrl: '',
@@ -4314,6 +4317,7 @@
       digitalProfilesLoopIndicator: document.getElementById('digital-profiles-loop-indicator'),
       audioPlayerAnalog: document.getElementById('audio-player-analog'),
       audioPlayerDigital: document.getElementById('audio-player-digital'),
+      digitalPlayerStatus: document.getElementById('digital-player-status'),
       lnkStreamAnalog: document.getElementById('lnk-stream-analog'),
       lnkStreamDigital: document.getElementById('lnk-stream-digital'),
       latencyTestBox: document.getElementById('latency-test-box'),
@@ -8061,6 +8065,9 @@
     }
 
     function currentDigitalMountName() {
+      if (state.digitalStreamAvailable === false) {
+        return '';
+      }
       return resolveMountedStreamName(
         state.digitalStreamMount,
         ['DIGITAL.mp3', 'keepalive-digital.mp3'],
@@ -8089,6 +8096,7 @@
 
     function digitalStreamUrl() {
       const mountName = currentDigitalMountName();
+      if (!mountName) return '';
       if (shouldPreferDirectIcecastStream()) {
         return buildIcecastUrl(mountName, 'DIGITAL.mp3');
       }
@@ -8157,6 +8165,14 @@
       if (latencyTestOwnsAudio(audioEl)) return;
       const current = normalizeAudioUrl(audioEl.currentSrc || audioEl.src || '');
       const next = normalizeAudioUrl(base);
+      if (!next) {
+        audioEl.dataset.wantplay = '0';
+        if (current) {
+          audioEl.removeAttribute('src');
+          audioEl.load();
+        }
+        return;
+      }
       if (current !== next) {
         const wasPaused = audioEl.paused;
         const wantsPlay = audioEl.dataset.wantplay === '1';
@@ -8179,10 +8195,28 @@
         els.lnkStreamAnalog.href = analogBase;
       }
       if (els.lnkStreamDigital) {
-        els.lnkStreamDigital.href = digitalBase;
+        els.lnkStreamDigital.href = digitalBase || '#';
+        els.lnkStreamDigital.textContent = digitalBase ? 'Open Digital' : 'Digital unavailable';
+        els.lnkStreamDigital.setAttribute('aria-disabled', digitalBase ? 'false' : 'true');
+        els.lnkStreamDigital.title = digitalBase ? 'Open digital stream' : (state.digitalStreamError || 'Digital audio stream unavailable');
+        els.lnkStreamDigital.tabIndex = digitalBase ? 0 : -1;
       }
       syncAudioSource(els.audioPlayerAnalog, analogBase);
       syncAudioSource(els.audioPlayerDigital, digitalBase);
+      if (els.audioPlayerDigital) {
+        els.audioPlayerDigital.title = digitalBase ? 'Digital audio stream' : (state.digitalStreamError || 'Digital audio stream unavailable');
+      }
+      if (els.btnPlayDigital && !state.vlc.digital.running) {
+        els.btnPlayDigital.disabled = !digitalBase;
+        els.btnPlayDigital.title = digitalBase
+          ? 'Control VLC playback on the PC'
+          : (state.digitalStreamError || 'Digital audio stream unavailable');
+      }
+      if (els.digitalPlayerStatus) {
+        els.digitalPlayerStatus.textContent = digitalBase
+          ? `Mount: ${currentDigitalMountName()}`
+          : (state.digitalStreamError || 'Digital audio stream unavailable');
+      }
       state.streamBaseUrl = analogBase;
       state.digitalStreamBaseUrl = digitalBase;
     }
@@ -8850,7 +8884,10 @@
     }
 
     function vlcMountFor(target) {
-      return normalizeVlcTarget(target) === 'digital' ? state.digitalStreamMount : state.streamMount;
+      if (normalizeVlcTarget(target) === 'digital') {
+        return currentDigitalMountName();
+      }
+      return state.streamMount;
     }
 
     function applyVlcTargetsStatus(targets) {
@@ -8891,8 +8928,12 @@
       const targetState = vlcStateFor(resolvedTarget);
       const button = vlcButtonFor(resolvedTarget);
       if (!targetState || !button || targetState.busy) return;
-      targetState.busy = true;
       const action = targetState.running ? 'stop' : 'start';
+      if (resolvedTarget === 'digital' && action === 'start' && !vlcMountFor('digital')) {
+        logActivity(state.digitalStreamError || 'Digital audio stream unavailable', 'warn', 'vlc-digital-unavailable');
+        return;
+      }
+      targetState.busy = true;
       button.disabled = true;
       try {
         const res = await postAPI('/api/vlc', {
@@ -11286,16 +11327,12 @@
             : 'No recent digital traffic yet',
         };
       }
-      if (hasRecentActivity && (telemetryStale || !metricReady || !controlLocked || !d.playlistSourceOk || d.lastError)) {
+      if (hasRecentActivity && (telemetryStale || !metricReady || !controlLocked || d.lastError)) {
         return {
           label: 'ACTIVE',
           tone: 'good',
           detail: telemetryStale ? `${activityText}; control telemetry stale` : `${activityText}; control telemetry catching up`,
         };
-      }
-      if (!d.playlistSourceOk) {
-        const reason = d.playlistSourceError ? trimServiceNote(d.playlistSourceError) : 'Playlist source not ready';
-        return { label: 'SEARCHING', tone: 'bad', detail: reason };
       }
       if (d.lastError) {
         return { label: 'SEARCHING', tone: 'bad', detail: trimServiceNote(d.lastError) };
@@ -11321,11 +11358,18 @@
           ? `Control decode ${controlCount}/${windowSec}s`
           : `Control decode ${controlCount}`;
         const syncTail = syncLossCount > 0 ? `; sync loss ${syncLossCount}` : '';
+        const sourceTail = !d.playlistSourceOk && d.playlistSourceError
+          ? `; source ${trimServiceNote(d.playlistSourceError)}`
+          : '';
         return {
           label: 'LOCKED',
           tone: 'good',
-          detail: `${base}; last ${lastControlText}${syncTail}`,
+          detail: `${base}; last ${lastControlText}${syncTail}${sourceTail}`,
         };
+      }
+      if (!d.playlistSourceOk) {
+        const reason = d.playlistSourceError ? trimServiceNote(d.playlistSourceError) : 'Playlist source not ready';
+        return { label: 'SEARCHING', tone: 'bad', detail: reason };
       }
       if (Number(d.tunerBusyCount || 0) > 0) {
         return { label: 'DEGRADED', tone: 'warn', detail: `Tuner contention (${Number(d.tunerBusyCount || 0)})` };
@@ -12928,10 +12972,18 @@
           if (typeof data.stream_mount === 'string' && data.stream_mount.trim()) {
             state.streamMount = data.stream_mount.trim();
           }
-          if (typeof data.digital_stream_mount === 'string' && data.digital_stream_mount.trim()) {
+          if (typeof data.digital_stream_mount === 'string') {
             state.digitalStreamMount = data.digital_stream_mount.trim();
           } else if (typeof data.stream_mount_digital === 'string' && data.stream_mount_digital.trim()) {
             state.digitalStreamMount = data.stream_mount_digital.trim();
+          }
+          if (typeof data.digital_stream_available === 'boolean') {
+            state.digitalStreamAvailable = data.digital_stream_available;
+          } else {
+            state.digitalStreamAvailable = Boolean(state.digitalStreamMount);
+          }
+          if (typeof data.digital_stream_error === 'string') {
+            state.digitalStreamError = data.digital_stream_error;
           }
           state.lastHit = data.last_hit || data.last_hit_airband || data.last_hit_ground || '';
           state.lastHitAirband = data.last_hit_airband || '';

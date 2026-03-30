@@ -1311,6 +1311,43 @@ def _resolve_digital_stream_mount(status_text: str) -> str:
     return configured
 
 
+def _digital_stream_status(status_text: str) -> dict[str, Any]:
+    configured = str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/")
+    sources = _icecast_sources(status_text)
+    if not sources:
+        return {
+            "mount": "",
+            "available": False,
+            "error": "Digital audio stream unavailable",
+        }
+
+    by_mount = {
+        str(row.get("mount") or "").strip(): row
+        for row in sources
+        if str(row.get("mount") or "").strip()
+    }
+    chosen = _resolve_digital_stream_mount(status_text)
+    if chosen and chosen in by_mount:
+        return {
+            "mount": chosen,
+            "available": True,
+            "error": "",
+        }
+
+    if configured and configured in by_mount:
+        return {
+            "mount": configured,
+            "available": True,
+            "error": "",
+        }
+
+    return {
+        "mount": "",
+        "available": False,
+        "error": "Digital audio stream unavailable",
+    }
+
+
 def _normalize_freq_key(value) -> str:
     try:
         return f"{float(str(value).strip()):.4f}"
@@ -1461,12 +1498,21 @@ def _annotate_analog_hits(items: list[dict], airband_labels: dict[str, str], gro
 
 def _latest_hit_item(items: list[dict], source: str) -> dict[str, Any]:
     normalized = str(source or "").strip().lower()
+    best_row: dict[str, Any] = {}
+    best_ts = float("-inf")
     for item in items or []:
         row = dict(item or {})
         item_source = str(row.get("source") or row.get("type") or "").strip().lower()
-        if item_source == normalized:
-            return row
-    return {}
+        if item_source != normalized:
+            continue
+        try:
+            ts = float(row.get("ts") or 0.0)
+        except Exception:
+            ts = 0.0
+        if ts >= best_ts:
+            best_ts = ts
+            best_row = row
+    return best_row
 
 
 def _digital_status_with_hit_aliases(payload: dict[str, Any], hit_items: list[dict]) -> dict[str, Any]:
@@ -2965,15 +3011,23 @@ class Handler(BaseHTTPRequestHandler):
             ice_ok = _unit_active_cached(UNITS["icecast"])
             icecast_mounts = []
             analog_stream_mount = str(PLAYER_MOUNT or "").strip().lstrip("/")
-            digital_stream_mount = str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/")
+            digital_stream_mount = ""
+            digital_stream_available = False
+            digital_stream_error = "Digital audio stream unavailable"
             if ice_ok:
                 try:
                     status_text = fetch_local_icecast_status()
                     icecast_mounts = list_icecast_mounts(status_text)
                     analog_stream_mount = _resolve_analog_stream_mount(status_text)
-                    digital_stream_mount = _resolve_digital_stream_mount(status_text)
+                    digital_stream = _digital_stream_status(status_text)
+                    digital_stream_mount = str(digital_stream.get("mount") or "").strip()
+                    digital_stream_available = bool(digital_stream.get("available"))
+                    digital_stream_error = str(digital_stream.get("error") or "").strip()
                 except Exception:
                     icecast_mounts = []
+            expected_mounts = [f"/{PLAYER_MOUNT}"]
+            if DIGITAL_BACKEND != "op25" or digital_stream_available:
+                expected_mounts.append(f"/{DIGITAL_STREAM_MOUNT}")
             combined_stale = combined_config_stale()
 
             prof_payload, profiles_airband, profiles_ground = split_profiles()
@@ -3053,7 +3107,9 @@ class Handler(BaseHTTPRequestHandler):
                 "stream_mount": analog_stream_mount,
                 "stream_proxy_enabled": True,
                 "digital_stream_mount": digital_stream_mount,
-                "icecast_expected_mounts": [f"/{PLAYER_MOUNT}", f"/{DIGITAL_STREAM_MOUNT}"],
+                "digital_stream_available": bool(digital_stream_available),
+                "digital_stream_error": digital_stream_error,
+                "icecast_expected_mounts": expected_mounts,
                 "expected_serials": expected_serials,
                 "expected_indices": expected_indices,
                 "digital_tuner_targets": _digital_tuner_targets(),
@@ -3425,15 +3481,22 @@ class Handler(BaseHTTPRequestHandler):
                 ground_active = rtl_active and ground_present
                 ice_ok = _unit_active_cached(UNITS["icecast"])
                 analog_stream_mount = str(PLAYER_MOUNT or "").strip().lstrip("/")
-                digital_stream_mount = str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/")
+                digital_stream_mount = ""
+                digital_stream_available = False
+                digital_stream_error = "Digital audio stream unavailable"
                 if ice_ok:
                     try:
                         status_text = fetch_local_icecast_status()
                         analog_stream_mount = _resolve_analog_stream_mount(status_text)
-                        digital_stream_mount = _resolve_digital_stream_mount(status_text)
+                        digital_stream = _digital_stream_status(status_text)
+                        digital_stream_mount = str(digital_stream.get("mount") or "").strip()
+                        digital_stream_available = bool(digital_stream.get("available"))
+                        digital_stream_error = str(digital_stream.get("error") or "").strip()
                     except Exception:
                         analog_stream_mount = str(PLAYER_MOUNT or "").strip().lstrip("/")
-                        digital_stream_mount = str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/")
+                        digital_stream_mount = ""
+                        digital_stream_available = False
+                        digital_stream_error = "Digital audio stream unavailable"
                 # Keep SSE hits aligned with the full UI hit list so digital
                 # rows are not dropped by top-10 truncation during busy analog traffic.
                 hits_payload = _get_hits_payload_cached(limit=50)
@@ -3485,6 +3548,8 @@ class Handler(BaseHTTPRequestHandler):
                     "last_hit_ground_label": _short_label(last_hit_ground_label, max_len=48),
                     "stream_mount": analog_stream_mount,
                     "digital_stream_mount": digital_stream_mount,
+                    "digital_stream_available": bool(digital_stream_available),
+                    "digital_stream_error": digital_stream_error,
                     "server_time": time.time(),
                     "hp_avoids": get_scan_mode_controller().get_hp_avoids(),
                     "analog_scan_health": analog_scan_health,

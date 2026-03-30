@@ -2893,6 +2893,12 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         }
 
     def _playlist_source_summary(self) -> dict:
+        if DIGITAL_BACKEND == "op25":
+            return {
+                "playlist_source_ok": True,
+                "playlist_source_type": "OP25",
+                "playlist_source_config_type": "OP25",
+            }
         playlist_path = _safe_realpath(DIGITAL_PLAYLIST_PATH)
         if not playlist_path:
             return {

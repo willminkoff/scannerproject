@@ -2102,6 +2102,92 @@ class DigitalStatusAliasTests(unittest.TestCase):
         self.assertEqual("Davidson County Transit Authority - Dispatch", payload["last_hit_digital_label"])
         self.assertEqual(1234500, payload["last_hit_digital_time"])
 
+    def test_digital_status_aliases_choose_newest_digital_hit(self):
+        payload = handlers._digital_status_with_hit_aliases(
+            {
+                "digital_last_label": "Older status label",
+                "digital_last_time": 1000,
+                "digital_last_tgid": "999",
+            },
+            [
+                {
+                    "source": "digital",
+                    "label_full": "Older dispatch",
+                    "label": "Older dispatch",
+                    "tgid": "47008",
+                    "ts": 100.0,
+                },
+                {
+                    "source": "digital",
+                    "label_full": "Newest dispatch",
+                    "label": "Newest dispatch",
+                    "tgid": "3207",
+                    "ts": 200.0,
+                },
+            ],
+        )
+
+        self.assertEqual("Newest dispatch", payload["digital_last_label"])
+        self.assertEqual("3207", payload["digital_last_tgid"])
+        self.assertEqual(200000, payload["digital_last_time"])
+
+
+class DigitalStreamStatusTests(unittest.TestCase):
+    def test_digital_stream_status_reports_unavailable_when_mount_missing(self):
+        status = handlers._digital_stream_status(
+            json.dumps(
+                {
+                    "icestats": {
+                        "source": [
+                            {
+                                "listenurl": "http://127.0.0.1:8000/ANALOG.mp3",
+                                "audio_info": "bitrate=32;samplerate=16000",
+                                "server_type": "audio/mpeg",
+                            }
+                        ]
+                    }
+                }
+            )
+        )
+
+        self.assertFalse(status["available"])
+        self.assertEqual("", status["mount"])
+        self.assertIn("unavailable", status["error"].lower())
+
+    def test_digital_stream_status_uses_keepalive_fallback_mount(self):
+        status_text = json.dumps(
+            {
+                "icestats": {
+                    "source": [
+                        {
+                            "listenurl": "http://127.0.0.1:8000/keepalive-digital.mp3",
+                            "audio_info": "bitrate=32;samplerate=16000",
+                            "server_type": "audio/mpeg",
+                        }
+                    ]
+                }
+            }
+        )
+
+        with mock.patch.object(handlers, "DIGITAL_STREAM_MOUNT", "DIGITAL.mp3"):
+            status = handlers._digital_stream_status(status_text)
+
+        self.assertTrue(status["available"])
+        self.assertEqual("keepalive-digital.mp3", status["mount"])
+        self.assertEqual("", status["error"])
+
+
+class DigitalPreflightTests(unittest.TestCase):
+    def test_op25_playlist_source_summary_does_not_require_sdrtrunk_playlist(self):
+        adapter = digital.SdrtrunkAdapter()
+        with mock.patch.object(digital, "DIGITAL_BACKEND", "op25"), mock.patch.object(
+            digital, "DIGITAL_PLAYLIST_PATH", "/path/that/does/not/exist.xml"
+        ):
+            payload = adapter._playlist_source_summary()
+
+        self.assertTrue(payload["playlist_source_ok"])
+        self.assertEqual("OP25", payload["playlist_source_type"])
+
 
 class LatencyToneTests(unittest.TestCase):
     def test_sanitize_simple_mount_name_rejects_paths(self):
