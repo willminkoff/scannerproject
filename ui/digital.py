@@ -4949,9 +4949,14 @@ class DigitalManager:
             active = observed if strategy == "timeslice_multi_system" else bool(assigned and role == "control")
             system_truth = op25_truth_by_system.get(system_name.lower()) or {}
             has_system_truth = bool(system_truth)
-            row_metric_ready = bool(system_truth.get("control_decode_available")) if system_truth else metric_ready
-            row_control_locked = bool(system_truth.get("control_locked")) if system_truth else control_locked
-            row_control_last_time = int(system_truth.get("control_last_time") or 0) if system_truth else 0
+            if str(self.backend() or "").strip().lower() == "op25":
+                row_metric_ready = bool(system_truth.get("control_decode_available")) if has_system_truth else False
+                row_control_locked = bool(system_truth.get("control_locked")) if has_system_truth else False
+                row_control_last_time = int(system_truth.get("control_last_time") or 0) if has_system_truth else 0
+            else:
+                row_metric_ready = bool(system_truth.get("control_decode_available")) if has_system_truth else metric_ready
+                row_control_locked = bool(system_truth.get("control_locked")) if has_system_truth else control_locked
+                row_control_last_time = int(system_truth.get("control_last_time") or 0) if has_system_truth else 0
 
             if not assigned:
                 state = "unmonitored"

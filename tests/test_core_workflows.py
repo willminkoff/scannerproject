@@ -785,6 +785,48 @@ class Op25PerSystemControlTruthTests(unittest.TestCase):
         self.assertTrue(status_payload["digital_control_channel_metric_ready"])
         self.assertFalse(status_payload["digital_control_channel_locked"])
 
+    def test_op25_missing_system_does_not_inherit_global_control_truth(self):
+        now = time.time()
+        preflight = {
+            # Aggregate truth is optimistic here on purpose; the missing assigned
+            # system must not inherit it when OP25 lacks per-system evidence.
+            "playlist_preferred_tuner": "14306619",
+            "control_decode_available": True,
+            "control_channel_locked": True,
+            "control_lock_fail_count": 0,
+            "control_window_ms": 120000,
+            "tuner_busy": False,
+            "playlist_source_ok": True,
+            "op25_status_raw": _build_op25_status(
+                [
+                    {"system": "6355:1", "last_tsbk": now, "rxchan": 769831250},
+                ],
+                [
+                    {"system": "6355:1", "freq": 769831250, "tag": "Control Channel"},
+                ],
+            ),
+        }
+        manager = self._build_manager(preflight)
+
+        scheduler_payload = manager.getScheduler()
+        status_payload = manager.status_payload()
+
+        for payload in (scheduler_payload, status_payload):
+            rows = {
+                str(row.get("name")): row
+                for row in payload["digital_allocation_system_health"]
+            }
+            self.assertTrue(rows["6355:1"]["control_decode_available"])
+            self.assertTrue(rows["6355:1"]["control_locked"])
+            self.assertEqual("locked", rows["6355:1"]["state"])
+            self.assertFalse(rows["7078:2"]["control_decode_available"])
+            self.assertFalse(rows["7078:2"]["control_locked"])
+            self.assertEqual("assigned", rows["7078:2"]["state"])
+            self.assertEqual("dedicated control assigned", rows["7078:2"]["reason"])
+
+        self.assertFalse(status_payload["digital_control_channel_metric_ready"])
+        self.assertFalse(status_payload["digital_control_channel_locked"])
+
 
 class AnalogControlsSnapshotTests(unittest.TestCase):
     def test_effective_analog_controls_snapshot_is_dbfs_only(self):
