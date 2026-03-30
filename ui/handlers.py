@@ -702,17 +702,43 @@ def _apply_hp_state_form(
             state.enabled_service_tags = [2, 3, 4]
 
 
+def _normalize_scan_source_mode(value: Any) -> str:
+    token = str(value or "").strip().lower()
+    return "full_database" if token == "full_database" else "favorites"
+
+
+def _build_hp_state_payload(
+    state: "HPState",
+    *,
+    favorites_runtime_sync: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    runtime_mode = "expert"
+    try:
+        runtime_mode = str(get_scan_mode_controller().get_mode() or "expert").strip().lower() or "expert"
+    except Exception:
+        runtime_mode = "expert"
+    source_mode = _normalize_scan_source_mode(getattr(state, "mode", "favorites"))
+    state_payload = state.to_dict()
+    state_payload["mode"] = source_mode
+    payload = {
+        "ok": True,
+        "mode": runtime_mode,
+        "runtime_mode": runtime_mode,
+        "source_mode": source_mode,
+        "state": state_payload,
+    }
+    if favorites_runtime_sync is not None:
+        payload["favorites_runtime_sync"] = favorites_runtime_sync
+    return payload
+
+
 def _save_hp_state_with_sync(state: "HPState") -> dict[str, Any]:
     """Persist HP state and run runtime sync, preserving sync error details."""
     state.save()
     request_id = _enqueue_favorites_runtime_sync()
     _wait_for_favorites_runtime_sync(request_id, HP_STATE_SYNC_WAIT_SEC)
     sync_payload = _snapshot_favorites_runtime_sync(request_id)
-    return {
-        "ok": True,
-        "state": state.to_dict(),
-        "favorites_runtime_sync": sync_payload,
-    }
+    return _build_hp_state_payload(state, favorites_runtime_sync=sync_payload)
 
 
 def _normalize_runtime_sync_payload(payload: Any) -> dict[str, Any]:
@@ -2653,13 +2679,10 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/hp/state":
             try:
                 state = HPState.load()
-                controller = get_scan_mode_controller()
-                payload = {
-                    "ok": True,
-                    "mode": controller.get_mode(),
-                    "state": state.to_dict(),
-                    "favorites_runtime_sync": get_last_favorites_runtime_sync(),
-                }
+                payload = _build_hp_state_payload(
+                    state,
+                    favorites_runtime_sync=get_last_favorites_runtime_sync(),
+                )
             except Exception as e:
                 return self._send(
                     500,
@@ -3662,6 +3685,7 @@ class Handler(BaseHTTPRequestHandler):
                     {
                         "ok": True,
                         "mode": controller.get_mode(),
+                        "runtime_mode": controller.get_mode(),
                         "favorites_runtime_sync": sync_payload,
                     }
                 ),
@@ -4074,7 +4098,6 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, json.dumps({"ok": True, "spatial_filter": False}), "application/json; charset=utf-8")
             # Apply or update filter
             try:
-                from .hp_state import HPState
                 state = HPState.load()
                 lat = float(get_str("lat", "") or state.lat)
                 lon = float(get_str("lon", "") or state.lon)
