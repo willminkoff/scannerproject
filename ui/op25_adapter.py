@@ -90,24 +90,34 @@ logger = logging.getLogger(__name__)
 # OP25 log event patterns
 # ---------------------------------------------------------------------------
 # Example OP25 trunk log lines:
-#   tsbk_handler(): cc 851012500 tg 12345 freq 855462500
-#   voice update:   tg 54321 freq 856737500
+#   2026-03-26 14:05:32 tsbk_handler(): cc 851012500 tg 12345 freq 855462500
+#   03/26/26 17:09:06.559189 voice update:  tg(3207), freq(857762500), slot(-), prio(3)
 #   control channel: 851012500  status: locked
 _RE_TSBK = re.compile(
-    r"tsbk.*?tg\s+(\d+)\s+freq\s+(\d+)",
+    r"tsbk.*?tg\s*\(?\s*(\d+)\s*\)?\s*,?\s*freq\s*\(?\s*(\d+)\s*\)?",
     re.IGNORECASE,
 )
 _RE_VOICE = re.compile(
-    r"voice\s+(?:update|grant).*?tg\s+(\d+)\s+freq\s+(\d+)",
+    r"voice\s+(?:update|grant).*?tg\s*\(?\s*(\d+)\s*\)?\s*,?\s*freq\s*\(?\s*(\d+)\s*\)?",
     re.IGNORECASE,
 )
 _RE_CC_STATUS = re.compile(
     r"control\s+channel.*?(\d{9,10}).*?status:\s*(\w+)",
     re.IGNORECASE,
 )
+_RE_ROOT_TSBKS = re.compile(r"\btsbks\s+(\d+)\b", re.IGNORECASE)
 
-# Timestamp at the start of OP25 log lines:  2026-03-26 14:05:32.123
-_RE_TIMESTAMP = re.compile(r"(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})")
+_OP25_ROOT_ACTIVITY_MAX_AGE_SEC = 15.0
+
+# Timestamps at the start of OP25 log lines can be ISO-like or US short-date.
+_RE_TIMESTAMP = re.compile(
+    r"((?:\d{4}-\d{2}-\d{2}|\d{2}/\d{2}/\d{2})\s+\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?)"
+)
+_TIMESTAMP_FORMATS = (
+    "%Y-%m-%d %H:%M:%S",
+    "%m/%d/%y %H:%M:%S.%f",
+    "%m/%d/%y %H:%M:%S",
+)
 
 
 def _hz_to_mhz(hz: int) -> float:
@@ -859,10 +869,16 @@ class Op25Adapter(_BaseDigitalAdapter):
             return 0
         try:
             from datetime import datetime
-            dt = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S")
-            return int(dt.timestamp() * 1000)
+            token = str(m.group(1) or "").strip()
+            for fmt in _TIMESTAMP_FORMATS:
+                try:
+                    dt = datetime.strptime(token, fmt)
+                    return int(dt.timestamp() * 1000)
+                except ValueError:
+                    continue
         except Exception:
             return 0
+        return 0
 
     def _resolve_tg_label(self, tgid: str) -> str:
         """Lookup talkgroup label from profile data."""
@@ -877,43 +893,310 @@ class Op25Adapter(_BaseDigitalAdapter):
 
     def getLastEvent(self):
         self._refresh_log_cache()
+        self._refresh_http_event_cache()
         return super().getLastEvent()
 
     def getRecentEvents(self, limit: int = 20):
         self._refresh_log_cache()
+        self._refresh_http_event_cache()
         return super().getRecentEvents(limit)
 
     # ------------------------------------------------------------------
     # Health / preflight
     # ------------------------------------------------------------------
 
+    def _request_json(self, path: str, *, method: str = "GET", payload=None):
+        route = str(path or "/").strip()
+        if not route.startswith("/"):
+            route = f"/{route}"
+        url = f"http://{self._status_host}:{self._status_port}{route}"
+        try:
+            body = None
+            headers = {}
+            if payload is not None:
+                body = json.dumps(payload).encode("utf-8")
+                headers["Content-Type"] = "application/json"
+            req = urllib.request.Request(url, data=body, headers=headers, method=method)
+            with urllib.request.urlopen(req, timeout=1.5) as resp:
+                data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+                return data if isinstance(data, (dict, list)) else {}
+        except Exception:
+            return {}
+
+    @staticmethod
+    def _status_needs_root_fallback(status: dict) -> bool:
+        if not isinstance(status, dict) or not status:
+            return True
+        signal_keys = {
+            "locked",
+            "control_channel_locked",
+            "control_decode_available",
+            "decode_rate",
+            "ber",
+            "trunk_update",
+            "channel_update",
+            "call_log",
+        }
+        return not any(key in status for key in signal_keys)
+
+    @staticmethod
+    def _iter_trunk_system_rows(status: dict):
+        if not isinstance(status, dict):
+            return []
+        trunk_update = status.get("trunk_update")
+        if not isinstance(trunk_update, dict):
+            return []
+        systems = trunk_update.get("systems")
+        if isinstance(systems, dict):
+            rows = [row for row in systems.values() if isinstance(row, dict)]
+            if rows:
+                return rows
+        rows = []
+        for key, row in trunk_update.items():
+            if key in {"json_type", "nac", "systems"}:
+                continue
+            if isinstance(row, dict):
+                rows.append(row)
+        return rows
+
+    @classmethod
+    def _root_trunk_decode_available(cls, status: dict) -> bool:
+        if not isinstance(status, dict):
+            return False
+        now_sec = float(time.time())
+        saw_last_tsbk = False
+        fallback_tsbk_count = False
+        for row in cls._iter_trunk_system_rows(status):
+            try:
+                last_tsbk = float(row.get("last_tsbk") or 0.0)
+            except Exception:
+                last_tsbk = 0.0
+            if last_tsbk > 0:
+                saw_last_tsbk = True
+                if last_tsbk <= (now_sec + 120.0) and (now_sec - last_tsbk) <= _OP25_ROOT_ACTIVITY_MAX_AGE_SEC:
+                    return True
+            if last_tsbk <= 0:
+                top_line = str(row.get("top_line") or "").strip()
+                match = _RE_ROOT_TSBKS.search(top_line)
+                if not match:
+                    continue
+                try:
+                    fallback_tsbk_count = int(match.group(1) or 0) > 0
+                except Exception:
+                    fallback_tsbk_count = False
+                if fallback_tsbk_count:
+                    break
+        return fallback_tsbk_count and not saw_last_tsbk
+
+    @staticmethod
+    def _root_control_channel_locked(status: dict) -> bool:
+        if not isinstance(status, dict):
+            return False
+        channel_update = status.get("channel_update")
+        if isinstance(channel_update, dict):
+            for row in channel_update.values():
+                if not isinstance(row, dict):
+                    continue
+                tag = str(row.get("tag") or "").strip().lower()
+                try:
+                    freq = int(row.get("freq") or 0)
+                except Exception:
+                    freq = 0
+                if "control channel" in tag and freq > 0:
+                    return True
+        now_sec = float(time.time())
+        for row in Op25Adapter._iter_trunk_system_rows(status):
+            try:
+                rxchan = int(row.get("rxchan") or 0)
+            except Exception:
+                rxchan = 0
+            try:
+                last_tsbk = float(row.get("last_tsbk") or 0.0)
+            except Exception:
+                last_tsbk = 0.0
+            if rxchan <= 0 or last_tsbk <= 0:
+                continue
+            if last_tsbk <= (now_sec + 120.0) and (now_sec - last_tsbk) <= _OP25_ROOT_ACTIVITY_MAX_AGE_SEC:
+                return True
+        return False
+
+    @staticmethod
+    def _normalize_update_payload(payload) -> dict:
+        if isinstance(payload, dict):
+            return payload
+        if not isinstance(payload, list):
+            return {}
+        status: dict = {}
+        for item in payload:
+            if not isinstance(item, dict):
+                continue
+            json_type = str(item.get("json_type") or "").strip()
+            if not json_type:
+                continue
+            if json_type == "trunk_update":
+                normalized = dict(item)
+                systems = {}
+                for key, row in item.items():
+                    if key in {"json_type", "nac", "systems"}:
+                        continue
+                    if not isinstance(row, dict):
+                        continue
+                    system_key = str(row.get("system") or key).strip() or str(key)
+                    systems[system_key] = row
+                if systems:
+                    normalized["systems"] = systems
+                status["trunk_update"] = normalized
+                continue
+            if json_type == "call_log":
+                status["call_log"] = list(item.get("log") or [])
+                continue
+            status[json_type] = dict(item)
+        return status
+
+    def _fetch_json(self, path: str) -> dict:
+        data = self._request_json(path, method="GET")
+        return data if isinstance(data, dict) else {}
+
+    def _fetch_update_json(self) -> dict:
+        payload = [{"command": "update", "arg1": 0, "arg2": 0}]
+        data = self._request_json("/", method="POST", payload=payload)
+        return self._normalize_update_payload(data)
+
+    @staticmethod
+    def _system_from_call_log_row(row: dict) -> str:
+        if not isinstance(row, dict):
+            return ""
+        system = str(row.get("system") or "").strip()
+        if system:
+            return system
+        receiver = str(row.get("rcvrtag") or "").strip()
+        if receiver.startswith("ch_"):
+            return receiver[3:].strip()
+        return ""
+
+    def _events_from_status(self, status: dict) -> list[dict]:
+        if not isinstance(status, dict):
+            return []
+        events = []
+        for row in status.get("call_log") or []:
+            if not isinstance(row, dict):
+                continue
+            tgid = str(row.get("tgid") or "").strip()
+            label = str(row.get("tgtag") or "").strip() or self._resolve_tg_label(tgid)
+            if not tgid and not label:
+                continue
+            try:
+                freq_hz = int(row.get("freq") or 0)
+            except Exception:
+                freq_hz = 0
+            try:
+                time_ms = int(float(row.get("time") or 0.0) * 1000)
+            except Exception:
+                time_ms = 0
+            event = {
+                "type": "digital",
+                "tgid": tgid,
+                "label": label or (f"TG {tgid}" if tgid else ""),
+                "mode": "P25",
+                "frequency_hz": freq_hz,
+                "timeMs": time_ms or int(time.time() * 1000),
+                "raw": row,
+            }
+            if freq_hz > 0:
+                event["frequency_mhz"] = _hz_to_mhz(freq_hz)
+            system = self._system_from_call_log_row(row)
+            if system:
+                event["system"] = system
+            events.append(event)
+        if events:
+            events.sort(key=lambda item: int(item.get("timeMs") or 0))
+            return events
+
+        now_ms = int(time.time() * 1000)
+        channel_update = status.get("channel_update")
+        if not isinstance(channel_update, dict):
+            return []
+        for row in channel_update.values():
+            if not isinstance(row, dict):
+                continue
+            tgid = str(row.get("tgid") or "").strip()
+            if not tgid:
+                continue
+            label = str(row.get("tag") or "").strip() or self._resolve_tg_label(tgid)
+            try:
+                freq_hz = int(row.get("freq") or 0)
+            except Exception:
+                freq_hz = 0
+            event = {
+                "type": "digital",
+                "tgid": tgid,
+                "label": label or f"TG {tgid}",
+                "mode": str(row.get("mode") or "P25").strip() or "P25",
+                "frequency_hz": freq_hz,
+                "timeMs": now_ms,
+                "raw": row,
+            }
+            if freq_hz > 0:
+                event["frequency_mhz"] = _hz_to_mhz(freq_hz)
+            system = str(row.get("system") or "").strip()
+            if system:
+                event["system"] = system
+            events.append(event)
+        return events
+
+    def _refresh_http_event_cache(self) -> None:
+        status = self._poll_op25_status()
+        if not status:
+            return
+        for event in self._events_from_status(status):
+            self._set_last_event(
+                event.get("label", ""),
+                mode=event.get("mode"),
+                raw=event,
+            )
+            self._record_event(event)
+
     def _poll_op25_status(self) -> dict:
         """Poll OP25's HTTP status endpoint. Returns parsed JSON or {}."""
         now = time.monotonic()
         if (now - self._last_status_time) < self._status_cache_ttl and self._last_status:
             return dict(self._last_status)
-        url = f"http://{self._status_host}:{self._status_port}/status"
-        try:
-            req = urllib.request.Request(url, method="GET")
-            with urllib.request.urlopen(req, timeout=1.5) as resp:
-                data = json.loads(resp.read().decode("utf-8", errors="ignore"))
-                self._last_status = data
-                self._last_status_time = now
-                return data
-        except Exception:
-            return self._last_status or {}
+        data = self._fetch_json("/status")
+        if self._status_needs_root_fallback(data):
+            root_data = self._fetch_json("/")
+            if root_data:
+                data = root_data
+        if self._status_needs_root_fallback(data):
+            update_data = self._fetch_update_json()
+            if update_data:
+                data = update_data
+        if data:
+            self._last_status = data
+            self._last_status_time = now
+            return data
+        return self._last_status or {}
 
     def preflight(self) -> dict:
         """Return health payload compatible with the scheduler's expectations."""
         status = self._poll_op25_status()
         # OP25 status format varies; adapt to common fields.
-        locked = bool(status.get("locked") or status.get("control_channel_locked"))
+        locked = bool(
+            status.get("locked")
+            or status.get("control_channel_locked")
+            or self._root_control_channel_locked(status)
+        )
         ber = float(status.get("ber", 0) or 0)
         decode_rate = float(status.get("decode_rate", 0) or 0)
+        control_decode_available = bool(
+            status.get("control_decode_available")
+            or locked
+            or decode_rate > 0
+            or self._root_trunk_decode_available(status)
+        )
 
         return {
             "control_channel_locked": locked,
-            "control_decode_available": locked,
+            "control_decode_available": control_decode_available,
             "tuner_busy": False,
             "tuner_busy_count": 0,
             "tuner_busy_lines": [],
