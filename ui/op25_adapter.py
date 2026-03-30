@@ -1074,10 +1074,26 @@ class Op25Adapter(_BaseDigitalAdapter):
             return receiver[3:].strip()
         return ""
 
+    @staticmethod
+    def _event_identity_key(event: dict) -> tuple[str, str, int | None, str]:
+        if not isinstance(event, dict):
+            return ("", "", None, "")
+        system = str(event.get("system") or "").strip().lower()
+        tgid = str(event.get("tgid") or "").strip()
+        try:
+            freq_hz = int(event.get("frequency_hz") or 0)
+        except Exception:
+            freq_hz = 0
+        label = str(event.get("label") or "").strip().lower()
+        if tgid:
+            return (system, tgid, freq_hz or None, "")
+        return (system, "", freq_hz or None, label)
+
     def _events_from_status(self, status: dict) -> list[dict]:
         if not isinstance(status, dict):
             return []
         events = []
+        seen: set[tuple[str, str, int | None, str]] = set()
         for row in status.get("call_log") or []:
             if not isinstance(row, dict):
                 continue
@@ -1107,41 +1123,43 @@ class Op25Adapter(_BaseDigitalAdapter):
             system = self._system_from_call_log_row(row)
             if system:
                 event["system"] = system
+            seen.add(self._event_identity_key(event))
             events.append(event)
-        if events:
-            events.sort(key=lambda item: int(item.get("timeMs") or 0))
-            return events
 
         now_ms = int(time.time() * 1000)
         channel_update = status.get("channel_update")
-        if not isinstance(channel_update, dict):
-            return []
-        for row in channel_update.values():
-            if not isinstance(row, dict):
-                continue
-            tgid = str(row.get("tgid") or "").strip()
-            if not tgid:
-                continue
-            label = str(row.get("tag") or "").strip() or self._resolve_tg_label(tgid)
-            try:
-                freq_hz = int(row.get("freq") or 0)
-            except Exception:
-                freq_hz = 0
-            event = {
-                "type": "digital",
-                "tgid": tgid,
-                "label": label or f"TG {tgid}",
-                "mode": str(row.get("mode") or "P25").strip() or "P25",
-                "frequency_hz": freq_hz,
-                "timeMs": now_ms,
-                "raw": row,
-            }
-            if freq_hz > 0:
-                event["frequency_mhz"] = _hz_to_mhz(freq_hz)
-            system = str(row.get("system") or "").strip()
-            if system:
-                event["system"] = system
-            events.append(event)
+        if isinstance(channel_update, dict):
+            for row in channel_update.values():
+                if not isinstance(row, dict):
+                    continue
+                tgid = str(row.get("tgid") or "").strip()
+                if not tgid:
+                    continue
+                label = str(row.get("tag") or "").strip() or self._resolve_tg_label(tgid)
+                try:
+                    freq_hz = int(row.get("freq") or 0)
+                except Exception:
+                    freq_hz = 0
+                event = {
+                    "type": "digital",
+                    "tgid": tgid,
+                    "label": label or f"TG {tgid}",
+                    "mode": str(row.get("mode") or "P25").strip() or "P25",
+                    "frequency_hz": freq_hz,
+                    "timeMs": now_ms,
+                    "raw": row,
+                }
+                if freq_hz > 0:
+                    event["frequency_mhz"] = _hz_to_mhz(freq_hz)
+                system = str(row.get("system") or "").strip()
+                if system:
+                    event["system"] = system
+                identity = self._event_identity_key(event)
+                if identity in seen:
+                    continue
+                seen.add(identity)
+                events.append(event)
+        events.sort(key=lambda item: int(item.get("timeMs") or 0))
         return events
 
     def _refresh_http_event_cache(self) -> None:
