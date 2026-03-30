@@ -5717,6 +5717,89 @@
       renderHpFavoritesBuilder();
     }
 
+    function captureHpFavoritesBuilderSelectionState() {
+      const builder = state.hpFavoritesBuilder || {};
+      const listNames = Array.isArray(builder.lists) && builder.lists.length
+        ? builder.lists.map((name) => hpFavNormalizeName(name))
+        : ['My Favorites'];
+      const activeList = hpFavNormalizeName(builder.activeList || listNames[0] || 'My Favorites');
+      const entriesByList = {};
+      listNames.forEach((name) => {
+        entriesByList[hpFavToken(name)] = hpFavNormalizeEntries(
+          (builder.entriesByList || {})[hpFavToken(name)]
+        );
+      });
+      return {
+        filterMode: String(state?.hpFilters?.mode || 'favorites').trim().toLowerCase() === 'full_database'
+          ? 'full_database'
+          : 'favorites',
+        activeList,
+        lists: listNames,
+        entriesByList,
+        wizardStep: normalizeHpFavoriteWizardStep(builder.wizardStep || 'list'),
+        wizardErrorStep: String(builder.wizardErrorStep || ''),
+        selectedAvoidTokens: Array.isArray(builder.selectedAvoidTokens)
+          ? builder.selectedAvoidTokens.map((token) => String(token || '')).filter(Boolean)
+          : [],
+        fullDbReviewEntries: hpFavNormalizeEntries(builder.fullDbReviewEntries),
+        fullDbReviewMeta: builder.fullDbReviewMeta && typeof builder.fullDbReviewMeta === 'object'
+          ? { ...builder.fullDbReviewMeta }
+          : {
+            totalEntries: 0,
+            trunkedTalkgroups: 0,
+            conventionalChannels: 0,
+            trunkedSites: 0,
+            truncated: false,
+          },
+        fullDbReviewLoading: Boolean(builder.fullDbReviewLoading),
+        fullDbReviewError: String(builder.fullDbReviewError || ''),
+        fullDbReviewKey: String(builder.fullDbReviewKey || ''),
+      };
+    }
+
+    function restoreHpFavoritesBuilderSelectionState(snapshot) {
+      const builder = state.hpFavoritesBuilder;
+      const previous = snapshot && typeof snapshot === 'object' ? snapshot : {};
+      const listNames = Array.isArray(previous.lists) && previous.lists.length
+        ? previous.lists.map((name) => hpFavNormalizeName(name))
+        : ['My Favorites'];
+      const activeList = hpFavNormalizeName(previous.activeList || listNames[0] || 'My Favorites');
+      state.hpFilters.mode = String(previous.filterMode || 'favorites').trim().toLowerCase() === 'full_database'
+        ? 'full_database'
+        : 'favorites';
+      builder.activeList = activeList;
+      builder.lists = listNames;
+      builder.entriesByList = {};
+      listNames.forEach((name) => {
+        builder.entriesByList[hpFavToken(name)] = hpFavNormalizeEntries(
+          previous.entriesByList && typeof previous.entriesByList === 'object'
+            ? previous.entriesByList[hpFavToken(name)]
+            : []
+        );
+      });
+      builder.wizardStep = normalizeHpFavoriteWizardStep(previous.wizardStep || 'list');
+      builder.wizardErrorStep = String(previous.wizardErrorStep || '');
+      builder.selectedAvoidTokens = Array.isArray(previous.selectedAvoidTokens)
+        ? previous.selectedAvoidTokens.map((token) => String(token || '')).filter(Boolean)
+        : [];
+      builder.fullDbReviewEntries = hpFavNormalizeEntries(previous.fullDbReviewEntries);
+      builder.fullDbReviewMeta = previous.fullDbReviewMeta && typeof previous.fullDbReviewMeta === 'object'
+        ? { ...previous.fullDbReviewMeta }
+        : {
+            totalEntries: 0,
+            trunkedTalkgroups: 0,
+            conventionalChannels: 0,
+            trunkedSites: 0,
+            truncated: false,
+          };
+      builder.fullDbReviewLoading = Boolean(previous.fullDbReviewLoading);
+      builder.fullDbReviewError = String(previous.fullDbReviewError || '');
+      builder.fullDbReviewKey = String(previous.fullDbReviewKey || '');
+      renderHpFiltersPanel();
+      renderHpFavoritesBuilder();
+      renderSb3FavoritesPanels();
+    }
+
     function getHpFavActiveToken() {
       return hpFavToken(state.hpFavoritesBuilder.activeList || 'My Favorites');
     }
@@ -6692,10 +6775,13 @@
         const result = await postJSON('/api/scan/state', payload, { timeoutMs: 20000 });
         const hpState = result && result.state && typeof result.state === 'object' ? result.state : result;
         applyHpFavoritesState(hpState);
-        state.hpFilters.mode = desiredMode;
+        const persistedMode = String(hpState && hpState.mode || '').trim().toLowerCase() === 'full_database'
+          ? 'full_database'
+          : 'favorites';
+        state.hpFilters.mode = persistedMode;
         builder.lastLoadedAt = Date.now();
         setHpFavStatus(reasonMessage || 'Favorites saved.');
-        if (desiredMode === 'full_database') {
+        if (persistedMode === 'full_database') {
           await loadHpFullDbReviewEntries({ quiet: true, force: true });
         } else {
           clearHpFullDbReviewSnapshot();
@@ -7194,6 +7280,7 @@
 
     async function selectHpFavoriteFullDatabase() {
       const builder = state.hpFavoritesBuilder;
+      const previousState = captureHpFavoritesBuilderSelectionState();
       state.hpFilters.mode = 'full_database';
       builder.wizardStep = 'review';
       builder.wizardErrorStep = '';
@@ -7201,7 +7288,10 @@
       renderHpFiltersPanel();
       renderHpFavoritesBuilder();
       renderSb3FavoritesPanels();
-      await saveHpFavoritesBuilder('Active source set to Full DB.', { mode: 'full_database' });
+      const saved = await saveHpFavoritesBuilder('Active source set to Full DB.', { mode: 'full_database' });
+      if (!saved) {
+        restoreHpFavoritesBuilderSelectionState(previousState);
+      }
     }
 
     async function selectHpFavoriteList(name) {
@@ -7209,6 +7299,7 @@
       const nextName = hpFavNormalizeName(name);
       const sameList = hpFavToken(nextName) === hpFavToken(builder.activeList || '');
       const modeChanged = isHpFullDatabaseMode();
+      const previousState = captureHpFavoritesBuilderSelectionState();
       state.hpFilters.mode = 'favorites';
       clearHpFullDbReviewSnapshot();
       builder.selectedAvoidTokens = [];
@@ -7227,7 +7318,10 @@
       renderHpFiltersPanel();
       renderHpFavoritesBuilder();
       renderSb3FavoritesPanels();
-      await saveHpFavoritesBuilder(`Active list set to ${nextName}.`, { mode: 'favorites' });
+      const saved = await saveHpFavoritesBuilder(`Active list set to ${nextName}.`, { mode: 'favorites' });
+      if (!saved) {
+        restoreHpFavoritesBuilderSelectionState(previousState);
+      }
     }
 
     async function createHpFavoriteList() {
@@ -7243,6 +7337,7 @@
         setHpFavStatus('A list with that name already exists.', true);
         return;
       }
+      const previousState = captureHpFavoritesBuilderSelectionState();
       builder.lists = [...(builder.lists || []), nextName];
       builder.entriesByList = {
         ...(builder.entriesByList || {}),
@@ -7255,7 +7350,11 @@
       renderHpFiltersPanel();
       renderHpFavoritesBuilder();
       renderSb3FavoritesPanels();
-      await saveHpFavoritesBuilder(`Created list ${nextName}.`, { mode: 'favorites' });
+      const saved = await saveHpFavoritesBuilder(`Created list ${nextName}.`, { mode: 'favorites' });
+      if (!saved) {
+        restoreHpFavoritesBuilderSelectionState(previousState);
+        if (els.hpFavListNew) els.hpFavListNew.value = rawName;
+      }
     }
 
     async function deleteHpFavoriteList() {
@@ -7267,6 +7366,7 @@
       }
       const activeName = hpFavNormalizeName(builder.activeList || names[0]);
       if (!confirm(`Delete favorites list "${activeName}"?`)) return;
+      const previousState = captureHpFavoritesBuilderSelectionState();
       const nextNames = names.filter((name) => hpFavToken(name) !== hpFavToken(activeName));
       const nextEntries = {};
       nextNames.forEach((name) => {
@@ -7278,7 +7378,10 @@
       builder.activeList = nextNames[0] || 'My Favorites';
       renderHpFavoritesBuilder();
       renderSb3FavoritesPanels();
-      await saveHpFavoritesBuilder(`Deleted list ${activeName}.`);
+      const saved = await saveHpFavoritesBuilder(`Deleted list ${activeName}.`);
+      if (!saved) {
+        restoreHpFavoritesBuilderSelectionState(previousState);
+      }
     }
 
     function openHp3BuilderSidecar(options = {}) {

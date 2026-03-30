@@ -67,7 +67,7 @@ class ScanModeController:
     def set_mode(self, mode: str):
         next_mode = _normalize_mode_token(mode)
         if next_mode not in _VALID_MODES:
-            raise ValueError("mode must be SB3/expert")
+            raise ValueError("mode must be expert")
         with self._lock:
             self.mode = next_mode
 
