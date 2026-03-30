@@ -9934,6 +9934,7 @@
       }
       const systemHealthRows = Array.isArray(d.schedulerSystemHealth) ? d.schedulerSystemHealth : [];
       const activeSystemRow = systemHealthRows.find((row) => row && row.active) || null;
+      const systemHealthSummary = summarizeDigitalSystemHealthRows();
       if (els.digitalSystemHealth) {
         if (loopEnabled) {
           const activeLabel = loopLabelForTarget('digital', loopState.currentProfile || loopState.activeProfile || '--');
@@ -9965,16 +9966,23 @@
         } else {
           const summary = systemHealthRows.map((row) => formatDigitalSystemHealthRow(row)).filter(Boolean).join(' | ');
           els.digitalSystemHealth.textContent = summary || '--';
-          setValueTone(
-            els.digitalSystemHealth,
-            activeSystemRow ? digitalSchedulerStateTone(activeSystemRow.state) : ''
-          );
+          setValueTone(els.digitalSystemHealth, digitalSystemRowsTone(systemHealthSummary));
         }
       }
       if (els.digitalSystemHealthDetail && !loopEnabled) {
         if (!activeSystemRow) {
           els.digitalSystemHealthDetail.textContent = '--';
           setValueTone(els.digitalSystemHealthDetail, '');
+        } else if (systemHealthSummary && systemHealthSummary.rows.length > 1) {
+          const parts = [
+            `Locked: ${systemHealthSummary.lockedCount}/${systemHealthSummary.assignedCount}`,
+            `Decoding: ${systemHealthSummary.decodeCount}/${systemHealthSummary.assignedCount}`,
+          ];
+          if (systemHealthSummary.lastControlTime > 0) {
+            parts.push(`last=${formatTimeMs(systemHealthSummary.lastControlTime)}`);
+          }
+          els.digitalSystemHealthDetail.textContent = parts.join(' • ');
+          setValueTone(els.digitalSystemHealthDetail, digitalSystemRowsTone(systemHealthSummary));
         } else {
           const reason = String(activeSystemRow.reason || '').trim();
           const switchReason = String(d.schedulerSwitchReason || '').trim();
@@ -11129,6 +11137,46 @@
       return '';
     }
 
+    function assignedDigitalSystemHealthRows() {
+      const rows = Array.isArray(state.digital.schedulerSystemHealth) ? state.digital.schedulerSystemHealth : [];
+      return rows.filter((row) => row && (row.assigned || row.role === 'control'));
+    }
+
+    function summarizeDigitalSystemHealthRows() {
+      const rows = assignedDigitalSystemHealthRows();
+      if (!rows.length) return null;
+      let lastControlTime = 0;
+      let decodeCount = 0;
+      let lockedCount = 0;
+      let failedCount = 0;
+      rows.forEach((row) => {
+        if (row.control_decode_available) decodeCount += 1;
+        if (row.control_locked) lockedCount += 1;
+        const stateValue = String(row.state || '').toLowerCase();
+        if (stateValue === 'failed' || stateValue === 'error') failedCount += 1;
+        const controlLast = Number(row.control_last_time || 0);
+        if (Number.isFinite(controlLast) && controlLast > lastControlTime) lastControlTime = controlLast;
+      });
+      return {
+        rows,
+        assignedCount: rows.length,
+        decodeCount,
+        lockedCount,
+        failedCount,
+        allDecode: rows.length > 0 && decodeCount === rows.length,
+        allLocked: rows.length > 0 && lockedCount === rows.length,
+        lastControlTime,
+      };
+    }
+
+    function digitalSystemRowsTone(summary) {
+      if (!summary || !summary.rows || !summary.rows.length) return '';
+      if (summary.failedCount > 0) return 'bad';
+      if (summary.allLocked) return 'good';
+      if (summary.decodeCount > 0 || summary.lockedCount > 0) return 'warn';
+      return '';
+    }
+
     function formatDigitalSystemHealthRow(row) {
       if (!row || typeof row !== 'object') return '';
       const name = String(row.name || '--').trim() || '--';
@@ -11283,6 +11331,7 @@
       const d = state.digital || {};
       const loopState = state.profileLoop?.digital || defaultProfileLoopState();
       const loopEnabled = Boolean(loopState.enabled);
+      const systemSummary = summarizeDigitalSystemHealthRows();
       const sourceType = String(d.playlistSourceType || '').trim();
       const metricReady = Boolean(d.controlMetricReady);
       const windowMs = Number.isFinite(d.controlWindowMs) ? Number(d.controlWindowMs) : 0;
@@ -11339,6 +11388,41 @@
             ? `Runtime=${runtimeProfile || '--'}; loop target=${loopProfile || '--'}`
             : 'No recent digital traffic yet',
         };
+      }
+      if (systemSummary) {
+        const detailBase = `${systemSummary.lockedCount}/${systemSummary.assignedCount} systems locked`;
+        const decodeTail = `; ${systemSummary.decodeCount}/${systemSummary.assignedCount} decoding`;
+        const lastTail = systemSummary.lastControlTime > 0
+          ? `; last ${formatTimeMs(systemSummary.lastControlTime)}`
+          : '';
+        if (systemSummary.allLocked) {
+          if (Number(d.tunerBusyCount || 0) > 0) {
+            return {
+              label: 'DEGRADED',
+              tone: 'warn',
+              detail: `${detailBase}; tuner contention (${Number(d.tunerBusyCount || 0)})`,
+            };
+          }
+          if (d.lastWarning) {
+            return {
+              label: 'DEGRADED',
+              tone: 'warn',
+              detail: `${detailBase}; ${trimServiceNote(d.lastWarning)}`,
+            };
+          }
+          return {
+            label: 'LOCKED',
+            tone: 'good',
+            detail: `${detailBase}${lastTail}`,
+          };
+        }
+        if (systemSummary.decodeCount > 0 || systemSummary.lockedCount > 0) {
+          return {
+            label: 'DEGRADED',
+            tone: 'warn',
+            detail: `${detailBase}${decodeTail}${lastTail}`,
+          };
+        }
       }
       if (hasRecentActivity && (telemetryStale || !metricReady || !controlLocked || !d.playlistSourceOk || d.lastError)) {
         return {
