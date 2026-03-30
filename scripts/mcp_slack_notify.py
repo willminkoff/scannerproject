@@ -14,7 +14,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +26,7 @@ except ImportError:  # pragma: no cover - fallback for direct execution in unusu
 
 
 DEFAULT_STATUSES = ("review", "blocked")
+STALE_PROGRESS_HOURS = 12
 SLACK_API_BASE = "https://slack.com/api"
 TASK_STATUSES = {"todo", "claimed", "in_progress", "blocked", "review", "done", "canceled"}
 THREAD_COMMANDS = (
@@ -163,6 +164,32 @@ def _event_timestamp(event: dict[str, Any]) -> datetime | None:
         except ValueError:
             continue
     return None
+
+
+def _task_timestamp(task: dict[str, Any]) -> datetime | None:
+    raw = str(task.get("updated_at") or task.get("created_at") or "").strip()
+    if not raw:
+        return None
+    for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(raw, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _stale_progress_tasks(tasks: list[dict[str, Any]], *, stale_hours: int = STALE_PROGRESS_HOURS) -> list[dict[str, Any]]:
+    cutoff = datetime.now(timezone.utc).timestamp() - stale_hours * 3600
+    stale: list[dict[str, Any]] = []
+    for task in tasks:
+        if task.get("status") in {"done", "canceled"}:
+            continue
+        task_ts = _task_timestamp(task)
+        if task_ts is None:
+            continue
+        if task_ts.timestamp() <= cutoff:
+            stale.append(task)
+    return stale
 
 
 def _focus_events_for_status(task: dict[str, Any], events: list[dict[str, Any]], window_seconds: int = 120) -> list[dict[str, Any]]:
@@ -750,12 +777,13 @@ def _format_team_status(
     ]
     attention = [task for task in tasks if task.get("status") in DEFAULT_STATUSES]
     blocked_tasks = [task for task in tasks if task.get("status") == "blocked"]
+    stale_tasks = _stale_progress_tasks(claude_tasks + codex_tasks)
 
     claude_event = _latest_actor_workspace_event(client, repo_root, "claude")
     codex_event = _latest_actor_workspace_event(client, repo_root, "codex")
 
     lines = [f"Team status in {workspace_label}"]
-    if blocked_tasks:
+    if blocked_tasks or stale_tasks:
         lines.append("PROGRESS IS HALTED")
     lines.extend(
         [
@@ -768,6 +796,8 @@ def _format_team_status(
     )
     if blocked_tasks:
         lines.append(f"- Blocked work: {_format_task_collection(blocked_tasks)}")
+    if stale_tasks:
+        lines.append(f"- Stalled work: {_format_task_collection(stale_tasks)}")
     return "\n".join(lines)
 
 

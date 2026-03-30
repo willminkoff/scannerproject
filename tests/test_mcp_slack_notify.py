@@ -374,6 +374,37 @@ class SlackNotifyTests(unittest.TestCase):
             text,
         )
 
+    def test_format_team_status_flags_stale_active_work_as_halted(self):
+        class WorkspaceClient:
+            def call_tool(self, name, arguments):
+                if name == "get_workspace":
+                    return {"id": "workspace-1"}
+                if name == "list_tasks":
+                    return [
+                        {
+                            "id": "10f18ba7-8519-4274-9817-81b23948c37e",
+                            "status": "in_progress",
+                            "owner_id": "claude",
+                            "priority": 95,
+                            "title": "Fix OP25 runtime system mismatch on Micro",
+                            "updated_at": "2026-03-28 01:32:01",
+                        }
+                    ]
+                if name == "get_event_log":
+                    return []
+                raise AssertionError(name)
+
+        text = mcp_slack_notify._format_team_status(
+            WorkspaceClient(),
+            "/Users/willminkoff/Documents/scannerproject",
+        )
+
+        self.assertIn("PROGRESS IS HALTED", text)
+        self.assertIn(
+            "- Stalled work: 10f18ba7 IN_PROGRESS Fix OP25 runtime system mismatch on Micro",
+            text,
+        )
+
     def test_assign_next_task_to_owner_claims_unique_highest_priority_todo(self):
         class WorkspaceClient(FakeClient):
             def call_tool(self, name, arguments):

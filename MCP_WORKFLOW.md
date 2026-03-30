@@ -12,6 +12,23 @@ Claude should tell Codex a task is ready for review by updating MCP, not by chat
 
 `review` is the handoff signal that Codex watches for.
 
+## Stall rule
+
+No task should sit in `claimed`, `in_progress`, or `blocked` without an explicit next checkpoint recorded in MCP.
+
+If Claude cannot produce a commit, diff artifact, or blocker update before the checkpoint, the task must be treated as stalled and surfaced immediately in Slack.
+
+Slack should show a visible halt signal such as `PROGRESS IS HALTED` when:
+
+- the task is blocked, or
+- the task has not advanced for the configured stale-progress window
+
+The point is to prevent silent waiting. A stalled task must either:
+
+1. produce a commit or artifact,
+2. record a precise blocker,
+3. or be escalated back to Codex / the user with evidence.
+
 ## Helper script
 
 Use `scripts/mcp_queue.py` from the repo root. It reads the `team_coordination` server URL from `~/.codex/config.toml` and talks to the MCP server directly over the standard streamable HTTP transport.
