@@ -283,6 +283,10 @@ _DIGITAL_TUNER_BUSY_WINDOW_MS = max(30000, int(os.getenv("DIGITAL_TUNER_BUSY_WIN
 _DIGITAL_CONTROL_WINDOW_MS = max(30000, int(os.getenv("DIGITAL_CONTROL_WINDOW_MS", "120000")))
 _DIGITAL_CONTROL_TAIL_LINES = max(80, int(os.getenv("DIGITAL_CONTROL_TAIL_LINES", "300")))
 _DIGITAL_CONTROL_TAIL_BYTES = max(16384, int(os.getenv("DIGITAL_CONTROL_TAIL_BYTES", "131072")))
+_OP25_SYSTEM_ACTIVITY_MAX_AGE_SEC = max(
+    5.0,
+    float(os.getenv("OP25_SYSTEM_ACTIVITY_MAX_AGE_SEC", "15")),
+)
 _DIGITAL_SCHEDULER_APPLY_MIN_INTERVAL_MS = max(
     250,
     int(os.getenv("DIGITAL_SCHEDULER_APPLY_MIN_INTERVAL_MS", "1000")),
@@ -4743,6 +4747,165 @@ class DigitalManager:
             return assigned_systems[0]
         return ""
 
+    @staticmethod
+    def _op25_iter_trunk_system_rows(status: dict) -> list[dict]:
+        if not isinstance(status, dict):
+            return []
+        trunk_update = status.get("trunk_update")
+        if not isinstance(trunk_update, dict):
+            return []
+        systems = trunk_update.get("systems")
+        if isinstance(systems, dict):
+            return [row for row in systems.values() if isinstance(row, dict)]
+        rows: list[dict] = []
+        for key, row in trunk_update.items():
+            if key in {"json_type", "nac", "systems"}:
+                continue
+            if isinstance(row, dict):
+                rows.append(row)
+        return rows
+
+    @staticmethod
+    def _op25_iter_channel_rows(status: dict) -> list[dict]:
+        if not isinstance(status, dict):
+            return []
+        channel_update = status.get("channel_update")
+        if not isinstance(channel_update, dict):
+            return []
+        return [row for row in channel_update.values() if isinstance(row, dict)]
+
+    @staticmethod
+    def _op25_system_key(token) -> str:
+        return str(token or "").strip().lower()
+
+    def _op25_per_system_control_truth_locked(
+        self,
+        systems: list[str],
+        preflight: dict,
+        *,
+        profile_id: str = "",
+    ) -> dict[str, dict]:
+        if str(self.backend() or "").strip().lower() != "op25":
+            return {}
+        status = preflight.get("op25_status_raw")
+        if not isinstance(status, dict) or not status:
+            return {}
+
+        system_channels: dict[str, set[int]] = {}
+        for raw_name in systems:
+            system_name = str(raw_name or "").strip()
+            if not system_name:
+                continue
+            channels = list(self._scheduler_pool_system_channels.get(system_name) or [])
+            if not channels and profile_id:
+                try:
+                    channels = self._resolve_scheduler_system_control_channels(profile_id, system_name)
+                except Exception:
+                    channels = []
+            normalized: set[int] = set()
+            for hz in channels:
+                try:
+                    value = int(hz)
+                except Exception:
+                    continue
+                if value > 0:
+                    normalized.add(value)
+            system_channels[system_name.lower()] = normalized
+
+        truth: dict[str, dict] = {}
+        now_sec = float(time.time())
+
+        def _ensure(key: str, display_name: str) -> dict:
+            row = truth.get(key)
+            if not isinstance(row, dict):
+                row = {
+                    "name": display_name,
+                    "control_decode_available": False,
+                    "control_locked": False,
+                    "control_last_time": 0,
+                }
+                truth[key] = row
+            return row
+
+        def _candidate_keys(system_value, freq_hz: int = 0) -> list[str]:
+            keys: list[str] = []
+            exact = self._op25_system_key(system_value)
+            if exact:
+                keys.append(exact)
+            if freq_hz > 0:
+                for key, channels in system_channels.items():
+                    if freq_hz in channels and key not in keys:
+                        keys.append(key)
+            return keys
+
+        for trunk_row in self._op25_iter_trunk_system_rows(status):
+            try:
+                last_tsbk = float(trunk_row.get("last_tsbk") or 0.0)
+            except Exception:
+                last_tsbk = 0.0
+            recent_decode = bool(
+                last_tsbk > 0
+                and last_tsbk <= (now_sec + 120.0)
+                and (now_sec - last_tsbk) <= _OP25_SYSTEM_ACTIVITY_MAX_AGE_SEC
+            )
+            if not recent_decode:
+                continue
+            try:
+                rxchan = int(trunk_row.get("rxchan") or 0)
+            except Exception:
+                rxchan = 0
+            last_time_ms = int(last_tsbk * 1000) if last_tsbk > 0 else 0
+            for key in _candidate_keys(trunk_row.get("system"), rxchan):
+                info = _ensure(key, str(trunk_row.get("system") or key).strip() or key)
+                info["control_decode_available"] = True
+                if last_time_ms > int(info.get("control_last_time") or 0):
+                    info["control_last_time"] = last_time_ms
+
+        for channel_row in self._op25_iter_channel_rows(status):
+            tag = str(channel_row.get("tag") or "").strip().lower()
+            if "control channel" not in tag:
+                continue
+            try:
+                freq_hz = int(channel_row.get("freq") or 0)
+            except Exception:
+                freq_hz = 0
+            if freq_hz <= 0:
+                continue
+            for key in _candidate_keys(channel_row.get("system"), freq_hz):
+                info = _ensure(key, str(channel_row.get("system") or key).strip() or key)
+                info["control_locked"] = bool(info.get("control_decode_available"))
+
+        return truth
+
+    @staticmethod
+    def _allocation_control_summary_from_rows(rows: list[dict]) -> dict:
+        assigned_rows = [
+            row for row in rows
+            if isinstance(row, dict) and bool(row.get("assigned"))
+        ]
+        if not assigned_rows:
+            return {}
+        locked_rows = [row for row in assigned_rows if bool(row.get("control_locked"))]
+        decode_rows = [row for row in assigned_rows if bool(row.get("control_decode_available"))]
+        last_control_time = 0
+        for row in assigned_rows:
+            try:
+                last_control_time = max(last_control_time, int(row.get("control_last_time") or 0))
+            except Exception:
+                continue
+        return {
+            "digital_control_channel_metric_ready": bool(
+                assigned_rows and len(decode_rows) == len(assigned_rows)
+            ),
+            "digital_control_channel_locked": bool(
+                assigned_rows and len(locked_rows) == len(assigned_rows)
+            ),
+            "digital_control_decode_system_count": int(len(decode_rows)),
+            "digital_control_locked_system_count": int(len(locked_rows)),
+            "digital_control_assigned_system_count": int(len(assigned_rows)),
+            "digital_control_channel_last_time": int(last_control_time),
+        }
+
     def _allocation_system_health_payload_locked(
         self,
         systems: list[str],
@@ -4766,6 +4929,12 @@ class DigitalManager:
         window_sec = max(1, int(int(preflight.get("control_window_ms") or _DIGITAL_CONTROL_WINDOW_MS) / 1000))
         tuner_busy = bool(preflight.get("tuner_busy"))
         rows: list[dict] = []
+        profile_id = str(self.getProfile() or "").strip()
+        op25_truth_by_system = self._op25_per_system_control_truth_locked(
+            systems,
+            preflight,
+            profile_id=profile_id,
+        )
 
         for name in systems:
             system_name = str(name or "").strip()
@@ -4778,6 +4947,11 @@ class DigitalManager:
             assigned = bool(assignment)
             observed = bool(observed_system and system_name == observed_system)
             active = observed if strategy == "timeslice_multi_system" else bool(assigned and role == "control")
+            system_truth = op25_truth_by_system.get(system_name.lower()) or {}
+            has_system_truth = bool(system_truth)
+            row_metric_ready = bool(system_truth.get("control_decode_available")) if system_truth else metric_ready
+            row_control_locked = bool(system_truth.get("control_locked")) if system_truth else control_locked
+            row_control_last_time = int(system_truth.get("control_last_time") or 0) if system_truth else 0
 
             if not assigned:
                 state = "unmonitored"
@@ -4800,8 +4974,8 @@ class DigitalManager:
             elif strategy == "timeslice_multi_system":
                 if observed:
                     elapsed_ms = now_ms - int(self._scheduler_last_switch_time_ms or 0)
-                    if metric_ready:
-                        if control_locked:
+                    if row_metric_ready:
+                        if row_control_locked:
                             state = "locked"
                             reason = "control decode active"
                             entry["last_lock_time_ms"] = now_ms
@@ -4809,6 +4983,9 @@ class DigitalManager:
                         elif lock_fail_count > 0:
                             state = "degraded"
                             reason = f"decoder lock failures ({lock_fail_count}/{window_sec}s)"
+                        elif row_control_last_time > 0:
+                            state = "degraded"
+                            reason = "control decode active; control-channel lock not confirmed"
                         elif elapsed_ms >= lock_timeout_ms:
                             state = "degraded"
                             reason = f"no control lock after {int(elapsed_ms / 1000)}s"
@@ -4822,8 +4999,8 @@ class DigitalManager:
                     state = "standby"
                     reason = "rotation pending"
             elif observed:
-                if metric_ready:
-                    if control_locked:
+                if row_metric_ready:
+                    if row_control_locked:
                         state = "locked"
                         reason = "control decode active"
                         entry["last_lock_time_ms"] = now_ms
@@ -4831,6 +5008,9 @@ class DigitalManager:
                     elif lock_fail_count > 0:
                         state = "degraded"
                         reason = f"decoder lock failures ({lock_fail_count}/{window_sec}s)"
+                    elif row_control_last_time > 0:
+                        state = "degraded"
+                        reason = "control decode active; control-channel lock not confirmed"
                     else:
                         state = "searching"
                         reason = "acquiring control lock"
@@ -4838,8 +5018,20 @@ class DigitalManager:
                     state = "assigned"
                     reason = "dedicated control assigned"
             else:
-                state = "assigned"
-                reason = "dedicated control assigned"
+                if has_system_truth and row_metric_ready and row_control_locked:
+                    state = "locked"
+                    reason = "control decode active"
+                    entry["last_lock_time_ms"] = max(
+                        now_ms,
+                        int(entry.get("last_lock_time_ms") or 0),
+                    )
+                    entry["lock_failures"] = 0
+                elif has_system_truth and row_metric_ready:
+                    state = "degraded"
+                    reason = "control decode active; control-channel lock not confirmed"
+                else:
+                    state = "assigned"
+                    reason = "dedicated control assigned"
 
             if tuner_busy and state in ("locked", "searching", "inferred", "assigned"):
                 state = "degraded"
@@ -4855,6 +5047,9 @@ class DigitalManager:
                     "preferred_tuner_serial": preferred_tuner,
                     "state": state,
                     "reason": reason,
+                    "control_decode_available": bool(row_metric_ready),
+                    "control_locked": bool(row_control_locked),
+                    "control_last_time": int(row_control_last_time),
                     "lock_failures": int(entry.get("lock_failures") or 0),
                     "last_lock_time": int(entry.get("last_lock_time_ms") or 0),
                     "last_lock_loss_time": int(entry.get("last_lock_loss_time_ms") or 0),
@@ -4953,6 +5148,11 @@ class DigitalManager:
             lock_timeout_ms,
             missing_serials,
             slow_serials,
+        )
+        payload.update(
+            self._allocation_control_summary_from_rows(
+                payload.get("digital_allocation_system_health") or []
+            )
         )
 
         active_label = str(self._scheduler_pool_system_labels.get(active_system) or "").strip()
@@ -6441,10 +6641,22 @@ class DigitalManager:
             payload["digital_playlist_preferred_tuner"] = str(preflight.get("playlist_preferred_tuner"))
         if preflight.get("playlist_source_error"):
             payload["digital_playlist_source_error"] = str(preflight.get("playlist_source_error"))
-        payload["digital_control_channel_metric_ready"] = bool(preflight.get("control_decode_available"))
-        payload["digital_control_channel_locked"] = bool(preflight.get("control_channel_locked"))
+        payload["digital_control_channel_metric_ready"] = bool(
+            payload.get("digital_control_channel_metric_ready")
+            if "digital_control_channel_metric_ready" in payload
+            else preflight.get("control_decode_available")
+        )
+        payload["digital_control_channel_locked"] = bool(
+            payload.get("digital_control_channel_locked")
+            if "digital_control_channel_locked" in payload
+            else preflight.get("control_channel_locked")
+        )
         payload["digital_control_channel_count"] = int(preflight.get("control_activity_count") or 0)
-        payload["digital_control_channel_last_time"] = int(preflight.get("control_last_time_ms") or 0)
+        payload["digital_control_channel_last_time"] = int(
+            payload.get("digital_control_channel_last_time")
+            if "digital_control_channel_last_time" in payload
+            else (preflight.get("control_last_time_ms") or 0)
+        )
         payload["digital_control_sync_loss_count"] = int(preflight.get("control_sync_loss_count") or 0)
         payload["digital_control_lock_fail_count"] = int(preflight.get("control_lock_fail_count") or 0)
         payload["digital_control_lock_fail_last_time"] = int(preflight.get("control_lock_fail_last_time_ms") or 0)
