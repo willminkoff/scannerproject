@@ -4184,6 +4184,9 @@ class DigitalManager:
     def _build_adapter(backend: str):
         if backend in ("sdrtrunk",):
             return SdrtrunkAdapter()
+        if backend in ("op25",):
+            from .op25_adapter import Op25Adapter
+            return Op25Adapter()
         if backend in ("none", "disabled", "off"):
             return NullDigitalAdapter("digital backend disabled")
         return NullDigitalAdapter(f"unknown digital backend: {backend}")

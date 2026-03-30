@@ -350,6 +350,37 @@ class _FakeAdapter:
 
 
 class DigitalLifecycleWorkflowTests(unittest.TestCase):
+    def test_digital_manager_can_build_op25_backend(self):
+        with mock.patch.object(
+            digital.DigitalManager,
+            "_load_scheduler_state",
+            lambda self: None,
+        ), mock.patch.object(
+            digital.DigitalManager,
+            "_refresh_super_profile_systems",
+            lambda self, profile_id="": None,
+        ), mock.patch.object(
+            digital.DigitalManager,
+            "_ensure_super_profile_seed",
+            lambda self, profile_id="", force=False: None,
+        ), mock.patch.object(
+            digital.DigitalManager,
+            "_scheduler_tick",
+            lambda self: None,
+        ), mock.patch.object(
+            digital.threading,
+            "Thread",
+            _DummyThread,
+        ), mock.patch.object(
+            digital,
+            "_digital_tuner_runtime_health",
+            return_value={"ready": True, "missing_serials": [], "slow_serials": []},
+        ):
+            manager = digital.DigitalManager(backend="op25")
+
+        self.assertEqual("op25", manager.backend())
+        self.assertNotIn("unknown digital backend", str(manager.getLastError() or "").lower())
+
     def test_digital_manager_lifecycle_uses_adapter_and_reports_status(self):
         adapter = _FakeAdapter()
         with mock.patch.object(
