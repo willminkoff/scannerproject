@@ -16,6 +16,19 @@ SPEC.loader.exec_module(sb3_power)
 
 
 class Sb3PowerControlTests(unittest.TestCase):
+    def test_build_unit_specs_uses_op25_audio_sidecar_when_backend_is_op25(self):
+        specs = sb3_power.build_unit_specs({"DIGITAL_BACKEND": "op25"})
+        digital_spec = next(spec for spec in specs if spec.key == "digital")
+        audio_spec = next(spec for spec in specs if spec.key == "op25_audio")
+        self.assertEqual("scanner-digital-op25", digital_spec.unit)
+        self.assertEqual("scanner-digital-op25-audio", audio_spec.unit)
+
+    def test_build_unit_specs_preserves_sdrtrunk_mixer_path_by_default(self):
+        specs = sb3_power.build_unit_specs({})
+        mixer_spec = next(spec for spec in specs if spec.key == "digital_mixer")
+        self.assertEqual("scanner-digital-mixer", mixer_spec.unit)
+        self.assertFalse(any(spec.key == "op25_audio" for spec in specs))
+
     def test_restore_keys_prefers_saved_snapshot(self):
         specs = [
             sb3_power.UnitSpec("icecast", "icecast2", restore_default=True),
@@ -120,7 +133,8 @@ class Sb3PowerControlTests(unittest.TestCase):
             sb3_power.save_state({"restore_units": ["icecast", "digital", "ui"]}, path=state_path)
             with patch.object(sb3_power, "collect_unit_status", return_value=status), \
                  patch.object(sb3_power, "run_systemctl", side_effect=fake_run), \
-                 patch.object(sb3_power, "_wait_for_state", return_value=True):
+                 patch.object(sb3_power, "_wait_for_state", return_value=True), \
+                 patch.object(sb3_power, "unit_active", return_value=False):
                 ok, _ = sb3_power.start_stack(specs, state_path=state_path)
             self.assertTrue(ok)
             self.assertEqual(
@@ -131,6 +145,56 @@ class Sb3PowerControlTests(unittest.TestCase):
                     ("start", "airband-ui"),
                 ],
             )
+
+    def test_start_stack_restores_op25_audio_sidecar_and_stops_mixer_conflict(self):
+        specs = sb3_power.build_unit_specs({"DIGITAL_BACKEND": "op25"})
+        status = {
+            "icecast": {"unit": "icecast2", "exists": True, "active": False, "enabled": True, "holds_tuner": False},
+            "digital": {
+                "unit": "scanner-digital-op25",
+                "exists": True,
+                "active": False,
+                "enabled": True,
+                "holds_tuner": True,
+            },
+            "op25_audio": {
+                "unit": "scanner-digital-op25-audio",
+                "exists": True,
+                "active": False,
+                "enabled": True,
+                "holds_tuner": False,
+            },
+        }
+        commands = []
+
+        class Result:
+            def __init__(self):
+                self.returncode = 0
+                self.stdout = ""
+                self.stderr = ""
+
+        def fake_run(args):
+            commands.append(tuple(args))
+            return Result()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_path = Path(tmpdir) / "sb3-state.json"
+            sb3_power.save_state({"restore_units": ["icecast", "digital", "op25_audio"]}, path=state_path)
+            with patch.object(sb3_power, "collect_unit_status", return_value=status), \
+                 patch.object(sb3_power, "run_systemctl", side_effect=fake_run), \
+                 patch.object(sb3_power, "_wait_for_state", return_value=True), \
+                 patch.object(sb3_power, "unit_active", side_effect=lambda unit: unit == "scanner-digital-mixer"):
+                ok, _ = sb3_power.start_stack(specs, state_path=state_path)
+        self.assertTrue(ok)
+        self.assertEqual(
+            commands,
+            [
+                ("stop", "scanner-digital-mixer"),
+                ("start", "icecast2"),
+                ("start", "scanner-digital-op25"),
+                ("start", "scanner-digital-op25-audio"),
+            ],
+        )
 
     def test_resolve_state_path_uses_explicit_state_home(self):
         path = sb3_power.resolve_state_path("/tmp/sb3-user")

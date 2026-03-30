@@ -101,9 +101,41 @@ def merged_env() -> dict[str, str]:
     return env
 
 
+def _selected_digital_unit(values: dict[str, str]) -> str:
+    explicit = values.get("UNIT_DIGITAL") or values.get("DIGITAL_SERVICE_NAME")
+    if explicit:
+        return str(explicit).strip()
+    backend = str(values.get("DIGITAL_BACKEND") or "").strip().lower()
+    if backend == "op25":
+        return str(values.get("OP25_SERVICE_NAME") or "scanner-digital-op25").strip() or "scanner-digital-op25"
+    return "scanner-digital"
+
+
+def _selected_audio_spec(values: dict[str, str]) -> UnitSpec:
+    backend = str(values.get("DIGITAL_BACKEND") or "").strip().lower()
+    if backend == "op25":
+        unit = (
+            values.get("UNIT_OP25_AUDIO")
+            or values.get("OP25_AUDIO_SERVICE_NAME")
+            or "scanner-digital-op25-audio"
+        )
+        return UnitSpec("op25_audio", str(unit).strip() or "scanner-digital-op25-audio", restore_default=True)
+    unit = values.get("UNIT_DIGITAL_MIXER", "scanner-digital-mixer")
+    return UnitSpec("digital_mixer", str(unit).strip() or "scanner-digital-mixer")
+
+
+def _opposite_digital_unit(unit: str) -> str:
+    selected = str(unit or "").strip()
+    if selected == "scanner-digital":
+        return "scanner-digital-op25"
+    if selected == "scanner-digital-op25":
+        return "scanner-digital"
+    return ""
+
+
 def build_unit_specs(env: dict[str, str] | None = None) -> list[UnitSpec]:
     values = env or merged_env()
-    digital_unit = values.get("UNIT_DIGITAL") or values.get("DIGITAL_SERVICE_NAME") or "scanner-digital"
+    digital_unit = _selected_digital_unit(values)
     return [
         UnitSpec("icecast", values.get("UNIT_ICECAST", "icecast2"), restore_default=True),
         UnitSpec("keepalive", values.get("UNIT_KEEPALIVE", "icecast-keepalive"), restore_default=True),
@@ -112,7 +144,7 @@ def build_unit_specs(env: dict[str, str] | None = None) -> list[UnitSpec]:
         UnitSpec("rtl", values.get("UNIT_RTL", "rtl-airband"), restore_default=True, holds_tuner=True),
         UnitSpec("ground", values.get("UNIT_GROUND", "rtl-airband-ground"), holds_tuner=True),
         UnitSpec("digital", digital_unit, restore_default=True, holds_tuner=True),
-        UnitSpec("digital_mixer", values.get("UNIT_DIGITAL_MIXER", "scanner-digital-mixer")),
+        _selected_audio_spec(values),
         UnitSpec("ui", values.get("UNIT_UI", "airband-ui"), restore_default=True),
     ]
 
@@ -212,7 +244,7 @@ def summarize_stack_state(status: dict[str, dict[str, object]]) -> str:
 
 def _status_lines(status: dict[str, dict[str, object]]) -> list[str]:
     lines = []
-    for key in ("ui", "icecast", "keepalive", "rtl", "ground", "digital", "digital_mixer", "rtl_last_hit", "keepalive_digital"):
+    for key in ("ui", "icecast", "keepalive", "rtl", "ground", "digital", "op25_audio", "digital_mixer", "rtl_last_hit", "keepalive_digital"):
         info = status.get(key)
         if not info or not info.get("exists"):
             continue
@@ -244,6 +276,7 @@ def status_summary(
 def _stop_order() -> list[str]:
     return [
         "ui",
+        "op25_audio",
         "digital_mixer",
         "digital",
         "ground",
@@ -264,9 +297,19 @@ def _start_order() -> list[str]:
         "rtl",
         "ground",
         "digital",
+        "op25_audio",
         "digital_mixer",
         "ui",
     ]
+
+
+def _opposite_audio_unit(unit: str) -> str:
+    selected = str(unit or "").strip()
+    if selected == "scanner-digital-mixer":
+        return "scanner-digital-op25-audio"
+    if selected == "scanner-digital-op25-audio":
+        return "scanner-digital-mixer"
+    return ""
 
 
 def _wait_for_state(unit: str, *, expect_active: bool, timeout_sec: float = 20.0) -> bool:
@@ -466,6 +509,32 @@ def start_stack(specs: list[UnitSpec] | None = None, state_path: Path | None = N
     failures = []
     if not restore:
         return False, ["No restore set is available for SB3."]
+
+    # Keep only one tuner-owning digital backend live while restoring the stack.
+    if "digital" in restore_set:
+        digital_unit = str((status.get("digital") or {}).get("unit") or "").strip()
+        conflict_unit = _opposite_digital_unit(digital_unit)
+        if conflict_unit and unit_active(conflict_unit):
+            result = run_systemctl(["stop", conflict_unit])
+            if result.returncode != 0:
+                failures.append(f"{conflict_unit}: {(result.stderr or result.stdout or '').strip() or f'stop failed ({result.returncode})'}")
+            else:
+                lines.append(f"Stopped conflicting digital backend {conflict_unit}.")
+                if not _wait_for_state(conflict_unit, expect_active=False):
+                    failures.append(f"{conflict_unit}: did not reach inactive state")
+
+    audio_key = next((key for key in ("op25_audio", "digital_mixer") if key in restore_set), "")
+    if audio_key:
+        audio_unit = str((status.get(audio_key) or {}).get("unit") or "").strip()
+        conflict_unit = _opposite_audio_unit(audio_unit)
+        if conflict_unit and unit_active(conflict_unit):
+            result = run_systemctl(["stop", conflict_unit])
+            if result.returncode != 0:
+                failures.append(f"{conflict_unit}: {(result.stderr or result.stdout or '').strip() or f'stop failed ({result.returncode})'}")
+            else:
+                lines.append(f"Stopped conflicting audio backend {conflict_unit}.")
+                if not _wait_for_state(conflict_unit, expect_active=False):
+                    failures.append(f"{conflict_unit}: did not reach inactive state")
 
     for key in _start_order():
         if key not in restore_set:

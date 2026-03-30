@@ -153,6 +153,72 @@ class WxDecoderControlTests(unittest.TestCase):
         self.assertIn((("restart", "radiosonde-auto-rx"), True), calls)
 
 
+class DigitalLifecycleControlTests(unittest.TestCase):
+    def test_op25_digital_lifecycle_controls_audio_sidecar(self):
+        calls = []
+
+        def fake_start(unit, use_sudo=False):
+            calls.append(("start", unit, bool(use_sudo)))
+            return True, ""
+
+        def fake_stop(unit, use_sudo=False):
+            calls.append(("stop", unit, bool(use_sudo)))
+            return True, ""
+
+        def fake_restart(unit, use_sudo=False):
+            calls.append(("restart", unit, bool(use_sudo)))
+            return True, ""
+
+        with mock.patch.object(systemd, "DIGITAL_BACKEND", "op25"), \
+             mock.patch.dict(
+                 systemd.UNITS,
+                 {
+                     "digital": "scanner-digital-op25",
+                     "op25_audio": "scanner-digital-op25-audio",
+                     "digital_mixer": "scanner-digital-mixer",
+                 },
+                 clear=False,
+             ), mock.patch.object(systemd, "_start_unit", side_effect=fake_start), \
+             mock.patch.object(systemd, "_stop_unit", side_effect=fake_stop), \
+             mock.patch.object(systemd, "_restart_unit", side_effect=fake_restart):
+            self.assertEqual((True, ""), systemd.start_digital())
+            self.assertEqual((True, ""), systemd.stop_digital())
+            self.assertEqual((True, ""), systemd.restart_digital())
+
+        self.assertEqual(
+            calls,
+            [
+                ("start", "scanner-digital-op25", False),
+                ("start", "scanner-digital-op25-audio", False),
+                ("stop", "scanner-digital-op25-audio", False),
+                ("stop", "scanner-digital-op25", False),
+                ("restart", "scanner-digital-op25", True),
+                ("restart", "scanner-digital-op25-audio", True),
+            ],
+        )
+
+    def test_sdrtrunk_digital_restart_stays_on_primary_unit(self):
+        calls = []
+
+        def fake_restart(unit, use_sudo=False):
+            calls.append((unit, bool(use_sudo)))
+            return True, ""
+
+        with mock.patch.object(systemd, "DIGITAL_BACKEND", "sdrtrunk"), \
+             mock.patch.dict(
+                 systemd.UNITS,
+                 {
+                     "digital": "scanner-digital",
+                     "op25_audio": "scanner-digital-op25-audio",
+                     "digital_mixer": "scanner-digital-mixer",
+                 },
+                 clear=False,
+             ), mock.patch.object(systemd, "_restart_unit", side_effect=fake_restart):
+            self.assertEqual((True, ""), systemd.restart_digital())
+
+        self.assertEqual(calls, [("scanner-digital", True)])
+
+
 class _FakePostRequest:
     def __init__(self, path: str, body: str, ctype: str = "application/x-www-form-urlencoded"):
         self.path = path

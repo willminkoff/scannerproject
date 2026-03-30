@@ -111,6 +111,10 @@ MANAGED_ANALOG_DEFAULT_GROUND_DBFS = float(
 # Digital backend configuration
 DIGITAL_BACKEND = os.getenv("DIGITAL_BACKEND", "sdrtrunk").strip().lower()
 DIGITAL_SERVICE_NAME = os.getenv("DIGITAL_SERVICE_NAME", os.getenv("UNIT_DIGITAL", "scanner-digital"))
+OP25_AUDIO_SERVICE_NAME = os.getenv(
+    "UNIT_OP25_AUDIO",
+    "scanner-digital-op25-audio",
+).strip() or "scanner-digital-op25-audio"
 DIGITAL_PROFILES_DIR = os.getenv("DIGITAL_PROFILES_DIR", "/etc/scannerproject/digital/profiles")
 DIGITAL_ACTIVE_PROFILE_LINK = os.getenv("DIGITAL_ACTIVE_PROFILE_LINK", "/etc/scannerproject/digital/active")
 DIGITAL_LOG_PATH = os.getenv("DIGITAL_LOG_PATH", "/var/log/sdrtrunk/sdrtrunk.log")
@@ -291,6 +295,7 @@ UNITS = {
     "keepalive": os.getenv("UNIT_KEEPALIVE", "icecast-keepalive"),
     "ui": os.getenv("UNIT_UI", "airband-ui"),
     "digital": DIGITAL_SERVICE_NAME,
+    "op25_audio": OP25_AUDIO_SERVICE_NAME,
     "digital_mixer": os.getenv("UNIT_DIGITAL_MIXER", "scanner-digital-mixer"),
     "bt_heal_timer": BT_HEAL_TIMER_UNIT,
     "bt_heal_service": BT_HEAL_SERVICE_UNIT,

@@ -1,0 +1,19 @@
+[Unit]
+Description=OP25 Digital Audio Bridge
+After=network-online.target icecast2.service scanner-digital-op25.service
+Wants=network-online.target
+PartOf=scanner-digital-op25.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/airband-ui.conf
+User=ubuntu
+ExecStart=/usr/bin/python3 /home/ubuntu/scannerproject/scripts/op25-audio-bridge.py
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=10
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target

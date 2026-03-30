@@ -159,6 +159,8 @@ Browser (http://sprontpi.local:5050)
     └─ Sends: profile/control changes via API
 ```
 
+OP25 uses a separate sidecar for browser audio: `scanner-digital-op25.service` produces the decoder output and `scanner-digital-op25-audio.service` bridges the OP25 UDP PCM feed to Icecast as `/DIGITAL.mp3`. Keep `scanner-digital-mixer.service` for the SDRTrunk path only.
+
 ### Web UI Architecture (Refactored)
 
 **Before (Jan 2026)**: Single 1,928-line file with no separation of concerns.

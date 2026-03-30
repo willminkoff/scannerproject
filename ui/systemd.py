@@ -3,9 +3,9 @@ import subprocess
 from typing import Tuple
 
 try:
-    from .config import UNITS, BT_HEAL_TIMER_UNIT
+    from .config import UNITS, BT_HEAL_TIMER_UNIT, DIGITAL_BACKEND
 except ImportError:
-    from ui.config import UNITS, BT_HEAL_TIMER_UNIT
+    from ui.config import UNITS, BT_HEAL_TIMER_UNIT, DIGITAL_BACKEND
 
 
 def unit_active(unit: str) -> bool:
@@ -68,6 +68,20 @@ def _restart_unit(unit: str, use_sudo: bool = False) -> Tuple[bool, str]:
     if not err:
         err = f"restart failed (code {result.returncode})"
     return False, err
+
+
+def _is_op25_backend() -> bool:
+    return str(DIGITAL_BACKEND or "").strip().lower() == "op25"
+
+
+def _op25_audio_unit() -> str:
+    return str(UNITS.get("op25_audio") or "scanner-digital-op25-audio").strip() or "scanner-digital-op25-audio"
+
+
+def _combine_results(results: list[Tuple[bool, str]]) -> Tuple[bool, str]:
+    ok = all(item[0] for item in results)
+    err = "; ".join(message for _ok, message in results if message)
+    return ok, err
 
 
 def _start_unit(unit: str, use_sudo: bool = False) -> Tuple[bool, str]:
@@ -149,7 +163,10 @@ def restart_ui() -> Tuple[bool, str]:
 
 def restart_digital() -> Tuple[bool, str]:
     """Restart the digital backend service."""
-    return _restart_unit(UNITS["digital"], use_sudo=True)
+    results = [_restart_unit(UNITS["digital"], use_sudo=True)]
+    if _is_op25_backend() and results[0][0]:
+        results.append(_restart_unit(_op25_audio_unit(), use_sudo=True))
+    return _combine_results(results)
 
 
 def set_bt_heal_auto_recovery(enabled: bool) -> Tuple[bool, str]:
@@ -206,7 +223,11 @@ def stop_ground():
 
 def stop_digital() -> Tuple[bool, str]:
     """Stop the digital backend service."""
-    return _stop_unit(UNITS["digital"])
+    results: list[Tuple[bool, str]] = []
+    if _is_op25_backend():
+        results.append(_stop_unit(_op25_audio_unit()))
+    results.append(_stop_unit(UNITS["digital"]))
+    return _combine_results(results)
 
 
 def start_rtl():
@@ -259,7 +280,10 @@ def restart_radiosonde() -> Tuple[bool, str]:
 
 def start_digital() -> Tuple[bool, str]:
     """Start the digital backend service."""
-    return _start_unit(UNITS["digital"])
+    results: list[Tuple[bool, str]] = [_start_unit(UNITS["digital"])]
+    if _is_op25_backend() and results[0][0]:
+        results.append(_start_unit(_op25_audio_unit()))
+    return _combine_results(results)
 
 
 def ground_control_unit():
