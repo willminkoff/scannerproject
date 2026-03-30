@@ -4184,6 +4184,9 @@ class DigitalManager:
     def _build_adapter(backend: str):
         if backend in ("sdrtrunk",):
             return SdrtrunkAdapter()
+        if backend in ("op25",):
+            from .op25_adapter import Op25Adapter
+            return Op25Adapter()
         if backend in ("none", "disabled", "off"):
             return NullDigitalAdapter("digital backend disabled")
         return NullDigitalAdapter(f"unknown digital backend: {backend}")
@@ -5954,6 +5957,10 @@ class DigitalManager:
         tgid = self._event_tgid(event if isinstance(event, dict) else {})
         if not tgid:
             return False
+        # In multi-system pools, the hit surface should allow any in-pool TGID
+        # instead of hiding other systems behind the foreground label.
+        if len(pool_talkgroups) > 1:
+            return tgid in allowed_any
         if active_system and allowed_talkgroups:
             return tgid in allowed_talkgroups
         # If active system context is unavailable, still suppress out-of-pool TGIDs.
