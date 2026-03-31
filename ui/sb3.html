@@ -8179,12 +8179,12 @@
     function syncAudioSource(audioEl, base) {
       if (!audioEl) return;
       if (latencyTestOwnsAudio(audioEl)) return;
+      const wasPaused = audioEl.paused;
+      const wantsPlay = audioEl.dataset.wantplay === '1';
+      const shouldPlay = wantsPlay || !wasPaused;
       const current = normalizeAudioUrl(audioEl.currentSrc || audioEl.src || '');
       const next = normalizeAudioUrl(base);
       if (current !== next) {
-        const wasPaused = audioEl.paused;
-        const wantsPlay = audioEl.dataset.wantplay === '1';
-        const shouldPlay = wantsPlay || !wasPaused;
         if (shouldPlay) {
           audioEl.dataset.wantplay = '1';
         }
