@@ -17,6 +17,8 @@ class Sb3AnalogPlayerGuardrailTests(unittest.TestCase):
         self.assertIn("networkState === 3", self.text)
 
     def test_sync_audio_source_reloads_stranded_analog_stream(self):
+        self.assertIn("const shouldPlay = wantsPlay || !wasPaused;", self.text)
+        self.assertIn("const next = normalizeAudioUrl(base);", self.text)
         self.assertIn("} else if (shouldPlay && analogPlayerNeedsReload(audioEl)) {", self.text)
         self.assertIn("requestAudioPlay(audioEl, 'sync-live-reset');", self.text)
 
