@@ -1515,6 +1515,19 @@
       box-shadow: none;
     }
 
+    #controls-analog .action-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--bg-dark);
+      font-weight: 700;
+      box-shadow: var(--slider-glow);
+    }
+
+    #controls-analog .action-primary:hover {
+      border-color: var(--accent);
+      filter: brightness(1.03);
+    }
+
     /* ADS-B */
     .adsb-frame {
       width: 100%;
@@ -2518,7 +2531,7 @@
               <div class="control-applied">Applied: <span id="dbfs-applied">--</span></div>
             </div>
 
-            <div class="control-item">
+            <div class="control-item hidden" id="analog-filter-control">
               <div class="control-label">
                 <span>Filter (Hz)</span>
                 <span class="control-value" id="filter-value">--</span>
@@ -2529,12 +2542,12 @@
             </div>
 
             <div class="btn-row">
+              <button class="action action-primary" id="btn-apply">Apply</button>
               <button class="action" id="btn-play-analog" title="Control VLC playback on the PC">VLC Play</button>
               <button class="action" id="btn-tune">Tune</button>
               <button class="action" id="btn-avoid">Avoid</button>
               <button class="action" id="btn-clear-avoids">Clear</button>
               <button class="action" id="btn-auto-squelch" title="Quickly estimate noise floor and apply squelch for both analog dongles">Auto Squelch</button>
-              <button class="action" id="btn-apply">Apply</button>
             </div>
 
             <div class="band-scan" id="band-scan">
