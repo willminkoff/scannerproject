@@ -19,6 +19,9 @@ class Sb3RecentHitsLayoutGuardrailTests(unittest.TestCase):
         self.assertIn(".widget-hits {", self.text)
         self.assertIn("display: grid;", self.text)
         self.assertIn("grid-template-rows: auto minmax(0, 1fr);", self.text)
+        self.assertIn(".widget-hits .widget-body {", self.text)
+        self.assertIn("flex: 1 1 auto;", self.text)
+        self.assertIn("height: 100%;", self.text)
 
     def test_recent_hits_height_sync_helpers_exist(self):
         self.assertIn("function syncRecentHitsHeight()", self.text)
@@ -30,6 +33,12 @@ class Sb3RecentHitsLayoutGuardrailTests(unittest.TestCase):
         self.assertIn("setupRecentHitsHeightSync();", self.text)
         self.assertIn("recentWidget.style.height = `${targetHeight}px`;", self.text)
         self.assertIn("recentWidget.style.maxHeight = `${targetHeight}px`;", self.text)
+
+    def test_recent_hits_list_fills_card_and_scrolls_internally(self):
+        self.assertIn(".widget-hits .hit-list {", self.text)
+        self.assertIn("flex: 1 1 auto;", self.text)
+        self.assertIn("height: 100%;", self.text)
+        self.assertIn("overflow-y: auto;", self.text)
 
 
 if __name__ == "__main__":
