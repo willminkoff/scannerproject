@@ -5,7 +5,7 @@ After=network-online.target
 [Service]
 Type=simple
 EnvironmentFile=-/etc/airband-ui.conf
-ExecStart=/bin/bash -c 'exec /usr/local/bin/acarsdec -o 4 -l /run/acars_output.json -r "${GROUND_RTL_SERIAL:-83241970}" 131.550 130.025 130.450 131.125'
+ExecStart=/bin/bash -c 'exec /usr/local/bin/acarsdec -j /run/acars_output.json -r "${GROUND_RTL_SERIAL:-70613472}" 131.550 130.025 129.125'
 Restart=on-failure
 RestartSec=2
 TimeoutStopSec=3

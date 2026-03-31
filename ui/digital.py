@@ -283,10 +283,6 @@ _DIGITAL_TUNER_BUSY_WINDOW_MS = max(30000, int(os.getenv("DIGITAL_TUNER_BUSY_WIN
 _DIGITAL_CONTROL_WINDOW_MS = max(30000, int(os.getenv("DIGITAL_CONTROL_WINDOW_MS", "120000")))
 _DIGITAL_CONTROL_TAIL_LINES = max(80, int(os.getenv("DIGITAL_CONTROL_TAIL_LINES", "300")))
 _DIGITAL_CONTROL_TAIL_BYTES = max(16384, int(os.getenv("DIGITAL_CONTROL_TAIL_BYTES", "131072")))
-_OP25_SYSTEM_ACTIVITY_MAX_AGE_SEC = max(
-    5.0,
-    float(os.getenv("OP25_SYSTEM_ACTIVITY_MAX_AGE_SEC", "15")),
-)
 _DIGITAL_SCHEDULER_APPLY_MIN_INTERVAL_MS = max(
     250,
     int(os.getenv("DIGITAL_SCHEDULER_APPLY_MIN_INTERVAL_MS", "1000")),
@@ -2015,45 +2011,6 @@ class DigitalAdapter:
     def runtime_metrics(self) -> dict:
         return {}
 
-    def apply_system(
-        self,
-        system_name: str,
-        control_channels_hz: list,
-        *,
-        preferred_tuner: str = "",
-        force: bool = False,
-    ) -> tuple:
-        """Activate a single system for monitoring.
-
-        Returns ``(ok, error_message, changed)``.
-        """
-        raise NotImplementedError
-
-    def activate_systems(self, systems: list) -> tuple:
-        """Activate multiple systems simultaneously.
-
-        *systems* is a list of dicts, each with keys ``name``,
-        ``control_channels_hz``, and optionally ``preferred_tuner``.
-        Returns ``(ok, error_message, changed)``.
-
-        The default implementation activates only the first system.
-        """
-        if systems:
-            first = systems[0]
-            return self.apply_system(
-                first["name"],
-                first["control_channels_hz"],
-                preferred_tuner=first.get("preferred_tuner", ""),
-            )
-        return True, "", False
-
-    @property
-    def supports_multi_system(self) -> bool:
-        """Return *True* if the backend can monitor multiple trunked systems
-        simultaneously (one receiver per dongle).  When *True* the scheduler
-        skips time-slice rotation."""
-        return False
-
 
 class _BaseDigitalAdapter(DigitalAdapter):
     """Shared in-memory state for adapters."""
@@ -2207,12 +2164,6 @@ class NullDigitalAdapter(_BaseDigitalAdapter):
 
     def runtime_retune_available(self) -> bool:
         return False
-
-    def apply_system(self, system_name, control_channels_hz, *, preferred_tuner="", force=False):
-        return False, self._reason, False
-
-    def activate_systems(self, systems):
-        return False, self._reason, False
 
 
 class SdrtrunkAdapter(_BaseDigitalAdapter):
@@ -3395,7 +3346,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         source_conf = channel.find("source_configuration")
         if source_conf is None:
             source_conf = ET.SubElement(channel, "source_configuration")
-        before_channels = SdrtrunkAdapter._source_conf_channels(source_conf)
+        before_channels = DigitalManager._source_configuration_channels(source_conf)
         before_source_type = str(source_conf.get("source_type", "")).strip().upper()
         before_preferred = str(source_conf.get("preferred_tuner", "")).strip()
         _sync_source_configuration(source_conf, control_channels, system_name=_primary_system_name)
@@ -3427,7 +3378,7 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
             ET.SubElement(channel, "record_configuration")
         stream_changed = _sync_stream_configuration(root)
 
-        after_channels = SdrtrunkAdapter._source_conf_channels(source_conf)
+        after_channels = DigitalManager._source_configuration_channels(source_conf)
         after_source_type = str(source_conf.get("source_type", "")).strip().upper()
         after_preferred = str(source_conf.get("preferred_tuner", "")).strip()
         changed = bool(
@@ -3504,148 +3455,6 @@ class SdrtrunkAdapter(_BaseDigitalAdapter):
         if not ok:
             return False, err or reason or "runtime seed failed", False
         return True, "", True
-
-    # ------------------------------------------------------------------
-    # apply_system — write a single system's control channels into the
-    # SDRTrunk playlist XML.  This was extracted from DigitalManager so
-    # that the manager delegates to the adapter without knowing about XML.
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _source_conf_channels(source_conf: ET.Element) -> list[int]:
-        """Read current control-channel frequencies from a <source_configuration>."""
-        frequencies: list[int] = []
-        seen: set[int] = set()
-        attr = str(source_conf.get("frequency", "")).strip()
-        if attr.isdigit():
-            hz = int(attr)
-            if hz > 0 and hz not in seen:
-                seen.add(hz)
-                frequencies.append(hz)
-        for node in source_conf.findall("frequency"):
-            text = str(node.text or "").strip()
-            if not text.isdigit():
-                continue
-            hz = int(text)
-            if hz <= 0 or hz in seen:
-                continue
-            seen.add(hz)
-            frequencies.append(hz)
-        return frequencies
-
-    def apply_system(
-        self,
-        system_name: str,
-        control_channels_hz: list,
-        *,
-        preferred_tuner: str = "",
-        force: bool = False,
-    ) -> tuple[bool, str, bool]:
-        """Write *control_channels_hz* for *system_name* into the SDRTrunk
-        playlist XML, setting *preferred_tuner* on the source configuration.
-
-        Returns ``(ok, error_message, changed)``.
-        """
-        channels = list(control_channels_hz or [])
-        if not channels:
-            return False, f"system has no control channels: {system_name}", False
-
-        playlist_path = _safe_realpath(DIGITAL_PLAYLIST_PATH)
-        if not playlist_path:
-            return False, "digital playlist path not configured", False
-        if not os.path.isfile(playlist_path):
-            return False, f"playlist not found: {playlist_path}", False
-
-        try:
-            tree = ET.parse(playlist_path)
-            root = tree.getroot()
-        except Exception as e:
-            return False, f"failed to parse playlist: {e}", False
-
-        channel = root.find("channel")
-        if channel is None:
-            return False, "playlist has no channel node", False
-        source_conf = channel.find("source_configuration")
-        if source_conf is None:
-            source_conf = ET.SubElement(channel, "source_configuration")
-
-        before_channels = self._source_conf_channels(source_conf)
-        before_source_type = str(source_conf.get("source_type", "")).strip().upper()
-        before_preferred = str(source_conf.get("preferred_tuner", "")).strip()
-        preferred = preferred_tuner or ""
-        expected_source_type = (
-            "TUNER_MULTIPLE_FREQUENCIES"
-            if DIGITAL_USE_MULTI_FREQ_SOURCE and len(channels) > 1
-            else "TUNER"
-        )
-
-        # Build a digest so callers can short-circuit when nothing changed.
-        desired_digest = "|".join(
-            [
-                "scheduler_apply",
-                str(system_name or "").strip(),
-                str(expected_source_type or "").strip(),
-                str(preferred or "").strip(),
-                ",".join(str(int(hz)) for hz in channels),
-            ]
-        )
-
-        # Check playlist-cache to avoid redundant writes.
-        playlist_mtime_ns = 0
-        try:
-            playlist_mtime_ns = int(self._playlist_mtime_ns(playlist_path) or 0)
-        except Exception:
-            try:
-                playlist_mtime_ns = int(os.stat(playlist_path).st_mtime_ns)
-            except Exception:
-                pass
-
-        try:
-            cache = dict(self._playlist_cache_snapshot() or {})
-        except Exception:
-            cache = {}
-        if (
-            not force
-            and cache.get("path") == playlist_path
-            and int(cache.get("mtime_ns") or 0) == int(playlist_mtime_ns or 0)
-            and str(cache.get("profile_digest") or "") == desired_digest
-        ):
-            return True, "", False
-
-        source_unchanged = (
-            before_channels == channels
-            and before_source_type == expected_source_type
-            and before_preferred == preferred
-        )
-        stream_changed = _sync_stream_configuration(root)
-
-        if source_unchanged and not stream_changed:
-            self._try_update_playlist_cache(playlist_path, playlist_mtime_ns, desired_digest)
-            return True, "", False
-
-        if not source_unchanged:
-            _sync_source_configuration(source_conf, channels, system_name=system_name)
-        ok, err = _write_playlist_tree_atomic(tree, playlist_path)
-        if not ok:
-            return False, f"failed to write playlist: {err}", False
-
-        # Update cache with post-write mtime.
-        try:
-            mtime_after = int(self._playlist_mtime_ns(playlist_path) or 0)
-        except Exception:
-            try:
-                mtime_after = int(os.stat(playlist_path).st_mtime_ns)
-            except Exception:
-                mtime_after = 0
-        self._try_update_playlist_cache(playlist_path, mtime_after, desired_digest)
-        return True, "", True
-
-    def _try_update_playlist_cache(self, path: str, mtime_ns: int, digest: str) -> None:
-        """Best-effort playlist cache update."""
-        try:
-            self._playlist_cache_update(path=path, mtime_ns=mtime_ns, profile_digest=digest)
-        except Exception:
-            logger.debug("Failed updating digital playlist cache", exc_info=True)
 
     def runtime_retune_available(self) -> bool:
         if not DIGITAL_RUNTIME_RETUNE_ENABLED:
@@ -4375,9 +4184,6 @@ class DigitalManager:
     def _build_adapter(backend: str):
         if backend in ("sdrtrunk",):
             return SdrtrunkAdapter()
-        if backend in ("op25",):
-            from .op25_adapter import Op25Adapter
-            return Op25Adapter()
         if backend in ("none", "disabled", "off"):
             return NullDigitalAdapter("digital backend disabled")
         return NullDigitalAdapter(f"unknown digital backend: {backend}")
@@ -4934,165 +4740,6 @@ class DigitalManager:
             return assigned_systems[0]
         return ""
 
-    @staticmethod
-    def _op25_iter_trunk_system_rows(status: dict) -> list[dict]:
-        if not isinstance(status, dict):
-            return []
-        trunk_update = status.get("trunk_update")
-        if not isinstance(trunk_update, dict):
-            return []
-        systems = trunk_update.get("systems")
-        if isinstance(systems, dict):
-            return [row for row in systems.values() if isinstance(row, dict)]
-        rows: list[dict] = []
-        for key, row in trunk_update.items():
-            if key in {"json_type", "nac", "systems"}:
-                continue
-            if isinstance(row, dict):
-                rows.append(row)
-        return rows
-
-    @staticmethod
-    def _op25_iter_channel_rows(status: dict) -> list[dict]:
-        if not isinstance(status, dict):
-            return []
-        channel_update = status.get("channel_update")
-        if not isinstance(channel_update, dict):
-            return []
-        return [row for row in channel_update.values() if isinstance(row, dict)]
-
-    @staticmethod
-    def _op25_system_key(token) -> str:
-        return str(token or "").strip().lower()
-
-    def _op25_per_system_control_truth_locked(
-        self,
-        systems: list[str],
-        preflight: dict,
-        *,
-        profile_id: str = "",
-    ) -> dict[str, dict]:
-        if str(self.backend() or "").strip().lower() != "op25":
-            return {}
-        status = preflight.get("op25_status_raw")
-        if not isinstance(status, dict) or not status:
-            return {}
-
-        system_channels: dict[str, set[int]] = {}
-        for raw_name in systems:
-            system_name = str(raw_name or "").strip()
-            if not system_name:
-                continue
-            channels = list(self._scheduler_pool_system_channels.get(system_name) or [])
-            if not channels and profile_id:
-                try:
-                    channels = self._resolve_scheduler_system_control_channels(profile_id, system_name)
-                except Exception:
-                    channels = []
-            normalized: set[int] = set()
-            for hz in channels:
-                try:
-                    value = int(hz)
-                except Exception:
-                    continue
-                if value > 0:
-                    normalized.add(value)
-            system_channels[system_name.lower()] = normalized
-
-        truth: dict[str, dict] = {}
-        now_sec = float(time.time())
-
-        def _ensure(key: str, display_name: str) -> dict:
-            row = truth.get(key)
-            if not isinstance(row, dict):
-                row = {
-                    "name": display_name,
-                    "control_decode_available": False,
-                    "control_locked": False,
-                    "control_last_time": 0,
-                }
-                truth[key] = row
-            return row
-
-        def _candidate_keys(system_value, freq_hz: int = 0) -> list[str]:
-            keys: list[str] = []
-            exact = self._op25_system_key(system_value)
-            if exact:
-                keys.append(exact)
-            if freq_hz > 0:
-                for key, channels in system_channels.items():
-                    if freq_hz in channels and key not in keys:
-                        keys.append(key)
-            return keys
-
-        for trunk_row in self._op25_iter_trunk_system_rows(status):
-            try:
-                last_tsbk = float(trunk_row.get("last_tsbk") or 0.0)
-            except Exception:
-                last_tsbk = 0.0
-            recent_decode = bool(
-                last_tsbk > 0
-                and last_tsbk <= (now_sec + 120.0)
-                and (now_sec - last_tsbk) <= _OP25_SYSTEM_ACTIVITY_MAX_AGE_SEC
-            )
-            if not recent_decode:
-                continue
-            try:
-                rxchan = int(trunk_row.get("rxchan") or 0)
-            except Exception:
-                rxchan = 0
-            last_time_ms = int(last_tsbk * 1000) if last_tsbk > 0 else 0
-            for key in _candidate_keys(trunk_row.get("system"), rxchan):
-                info = _ensure(key, str(trunk_row.get("system") or key).strip() or key)
-                info["control_decode_available"] = True
-                if last_time_ms > int(info.get("control_last_time") or 0):
-                    info["control_last_time"] = last_time_ms
-
-        for channel_row in self._op25_iter_channel_rows(status):
-            tag = str(channel_row.get("tag") or "").strip().lower()
-            if "control channel" not in tag:
-                continue
-            try:
-                freq_hz = int(channel_row.get("freq") or 0)
-            except Exception:
-                freq_hz = 0
-            if freq_hz <= 0:
-                continue
-            for key in _candidate_keys(channel_row.get("system"), freq_hz):
-                info = _ensure(key, str(channel_row.get("system") or key).strip() or key)
-                info["control_locked"] = bool(info.get("control_decode_available"))
-
-        return truth
-
-    @staticmethod
-    def _allocation_control_summary_from_rows(rows: list[dict]) -> dict:
-        assigned_rows = [
-            row for row in rows
-            if isinstance(row, dict) and bool(row.get("assigned"))
-        ]
-        if not assigned_rows:
-            return {}
-        locked_rows = [row for row in assigned_rows if bool(row.get("control_locked"))]
-        decode_rows = [row for row in assigned_rows if bool(row.get("control_decode_available"))]
-        last_control_time = 0
-        for row in assigned_rows:
-            try:
-                last_control_time = max(last_control_time, int(row.get("control_last_time") or 0))
-            except Exception:
-                continue
-        return {
-            "digital_control_channel_metric_ready": bool(
-                assigned_rows and len(decode_rows) == len(assigned_rows)
-            ),
-            "digital_control_channel_locked": bool(
-                assigned_rows and len(locked_rows) == len(assigned_rows)
-            ),
-            "digital_control_decode_system_count": int(len(decode_rows)),
-            "digital_control_locked_system_count": int(len(locked_rows)),
-            "digital_control_assigned_system_count": int(len(assigned_rows)),
-            "digital_control_channel_last_time": int(last_control_time),
-        }
-
     def _allocation_system_health_payload_locked(
         self,
         systems: list[str],
@@ -5116,12 +4763,6 @@ class DigitalManager:
         window_sec = max(1, int(int(preflight.get("control_window_ms") or _DIGITAL_CONTROL_WINDOW_MS) / 1000))
         tuner_busy = bool(preflight.get("tuner_busy"))
         rows: list[dict] = []
-        profile_id = str(self.getProfile() or "").strip()
-        op25_truth_by_system = self._op25_per_system_control_truth_locked(
-            systems,
-            preflight,
-            profile_id=profile_id,
-        )
 
         for name in systems:
             system_name = str(name or "").strip()
@@ -5134,16 +4775,6 @@ class DigitalManager:
             assigned = bool(assignment)
             observed = bool(observed_system and system_name == observed_system)
             active = observed if strategy == "timeslice_multi_system" else bool(assigned and role == "control")
-            system_truth = op25_truth_by_system.get(system_name.lower()) or {}
-            has_system_truth = bool(system_truth)
-            if str(self.backend() or "").strip().lower() == "op25":
-                row_metric_ready = bool(system_truth.get("control_decode_available")) if has_system_truth else False
-                row_control_locked = bool(system_truth.get("control_locked")) if has_system_truth else False
-                row_control_last_time = int(system_truth.get("control_last_time") or 0) if has_system_truth else 0
-            else:
-                row_metric_ready = bool(system_truth.get("control_decode_available")) if has_system_truth else metric_ready
-                row_control_locked = bool(system_truth.get("control_locked")) if has_system_truth else control_locked
-                row_control_last_time = int(system_truth.get("control_last_time") or 0) if has_system_truth else 0
 
             if not assigned:
                 state = "unmonitored"
@@ -5166,8 +4797,8 @@ class DigitalManager:
             elif strategy == "timeslice_multi_system":
                 if observed:
                     elapsed_ms = now_ms - int(self._scheduler_last_switch_time_ms or 0)
-                    if row_metric_ready:
-                        if row_control_locked:
+                    if metric_ready:
+                        if control_locked:
                             state = "locked"
                             reason = "control decode active"
                             entry["last_lock_time_ms"] = now_ms
@@ -5175,9 +4806,6 @@ class DigitalManager:
                         elif lock_fail_count > 0:
                             state = "degraded"
                             reason = f"decoder lock failures ({lock_fail_count}/{window_sec}s)"
-                        elif row_control_last_time > 0:
-                            state = "degraded"
-                            reason = "control decode active; control-channel lock not confirmed"
                         elif elapsed_ms >= lock_timeout_ms:
                             state = "degraded"
                             reason = f"no control lock after {int(elapsed_ms / 1000)}s"
@@ -5191,8 +4819,8 @@ class DigitalManager:
                     state = "standby"
                     reason = "rotation pending"
             elif observed:
-                if row_metric_ready:
-                    if row_control_locked:
+                if metric_ready:
+                    if control_locked:
                         state = "locked"
                         reason = "control decode active"
                         entry["last_lock_time_ms"] = now_ms
@@ -5200,9 +4828,6 @@ class DigitalManager:
                     elif lock_fail_count > 0:
                         state = "degraded"
                         reason = f"decoder lock failures ({lock_fail_count}/{window_sec}s)"
-                    elif row_control_last_time > 0:
-                        state = "degraded"
-                        reason = "control decode active; control-channel lock not confirmed"
                     else:
                         state = "searching"
                         reason = "acquiring control lock"
@@ -5210,20 +4835,8 @@ class DigitalManager:
                     state = "assigned"
                     reason = "dedicated control assigned"
             else:
-                if has_system_truth and row_metric_ready and row_control_locked:
-                    state = "locked"
-                    reason = "control decode active"
-                    entry["last_lock_time_ms"] = max(
-                        now_ms,
-                        int(entry.get("last_lock_time_ms") or 0),
-                    )
-                    entry["lock_failures"] = 0
-                elif has_system_truth and row_metric_ready:
-                    state = "degraded"
-                    reason = "control decode active; control-channel lock not confirmed"
-                else:
-                    state = "assigned"
-                    reason = "dedicated control assigned"
+                state = "assigned"
+                reason = "dedicated control assigned"
 
             if tuner_busy and state in ("locked", "searching", "inferred", "assigned"):
                 state = "degraded"
@@ -5239,9 +4852,6 @@ class DigitalManager:
                     "preferred_tuner_serial": preferred_tuner,
                     "state": state,
                     "reason": reason,
-                    "control_decode_available": bool(row_metric_ready),
-                    "control_locked": bool(row_control_locked),
-                    "control_last_time": int(row_control_last_time),
                     "lock_failures": int(entry.get("lock_failures") or 0),
                     "last_lock_time": int(entry.get("last_lock_time_ms") or 0),
                     "last_lock_loss_time": int(entry.get("last_lock_loss_time_ms") or 0),
@@ -5340,11 +4950,6 @@ class DigitalManager:
             lock_timeout_ms,
             missing_serials,
             slow_serials,
-        )
-        payload.update(
-            self._allocation_control_summary_from_rows(
-                payload.get("digital_allocation_system_health") or []
-            )
         )
 
         active_label = str(self._scheduler_pool_system_labels.get(active_system) or "").strip()
@@ -5829,6 +5434,27 @@ class DigitalManager:
             _add_system(profile_key)
         return systems
 
+    @staticmethod
+    def _source_configuration_channels(source_conf: ET.Element) -> list[int]:
+        frequencies: list[int] = []
+        seen: set[int] = set()
+        attr = str(source_conf.get("frequency", "")).strip()
+        if attr.isdigit():
+            hz = int(attr)
+            if hz > 0 and hz not in seen:
+                seen.add(hz)
+                frequencies.append(hz)
+        for node in source_conf.findall("frequency"):
+            text = str(node.text or "").strip()
+            if not text.isdigit():
+                continue
+            hz = int(text)
+            if hz <= 0 or hz in seen:
+                continue
+            seen.add(hz)
+            frequencies.append(hz)
+        return frequencies
+
     def _resolve_scheduler_system_control_channels(self, profile_id: str, system_name: str) -> list[int]:
         system = str(system_name or "").strip()
         if not system:
@@ -5886,9 +5512,6 @@ class DigitalManager:
         *,
         force: bool = False,
     ) -> tuple[bool, str, bool]:
-        """Resolve control channels for *system_name* and delegate to the
-        adapter's :meth:`apply_system`.  Throttle and scheduler-state
-        bookkeeping live here; backend-specific work lives in the adapter."""
         self._scheduler_last_apply_method = "playlist_apply"
         if self._super_profile_mode:
             return False, "scheduler playlist apply disabled in super profile mode", False
@@ -5905,23 +5528,136 @@ class DigitalManager:
             self._scheduler_last_apply_error_system = system_name
             return False, self._scheduler_last_apply_error, False
 
-        preferred = _preferred_tuner_target()
-        ok, err, changed = self._adapter.apply_system(
-            system_name,
-            channels,
-            preferred_tuner=preferred,
-            force=force,
-        )
+        playlist_path = _safe_realpath(DIGITAL_PLAYLIST_PATH)
+        if not playlist_path:
+            self._scheduler_last_apply_error = "digital playlist path not configured"
+            self._scheduler_last_apply_error_system = system_name
+            return False, self._scheduler_last_apply_error, False
+        if not os.path.isfile(playlist_path):
+            self._scheduler_last_apply_error = f"playlist not found: {playlist_path}"
+            self._scheduler_last_apply_error_system = system_name
+            return False, self._scheduler_last_apply_error, False
 
-        if ok:
+        try:
+            tree = ET.parse(playlist_path)
+            root = tree.getroot()
+        except Exception as e:
+            self._scheduler_last_apply_error = f"failed to parse playlist: {e}"
+            self._scheduler_last_apply_error_system = system_name
+            return False, self._scheduler_last_apply_error, False
+
+        channel = root.find("channel")
+        if channel is None:
+            self._scheduler_last_apply_error = "playlist has no channel node"
+            self._scheduler_last_apply_error_system = system_name
+            return False, self._scheduler_last_apply_error, False
+        source_conf = channel.find("source_configuration")
+        if source_conf is None:
+            source_conf = ET.SubElement(channel, "source_configuration")
+
+        before_channels = self._source_configuration_channels(source_conf)
+        before_source_type = str(source_conf.get("source_type", "")).strip().upper()
+        before_preferred = str(source_conf.get("preferred_tuner", "")).strip()
+        preferred = _preferred_tuner_target()
+        expected_source_type = (
+            "TUNER_MULTIPLE_FREQUENCIES"
+            if DIGITAL_USE_MULTI_FREQ_SOURCE and len(channels) > 1
+            else "TUNER"
+        )
+        desired_digest = "|".join(
+            [
+                "scheduler_apply",
+                str(profile_id or "").strip(),
+                str(system_name or "").strip(),
+                str(expected_source_type or "").strip(),
+                str(preferred or "").strip(),
+                ",".join(str(int(hz)) for hz in channels),
+            ]
+        )
+        playlist_mtime_ns = 0
+        playlist_mtime_fn = getattr(self._adapter, "_playlist_mtime_ns", None)
+        if callable(playlist_mtime_fn):
+            try:
+                playlist_mtime_ns = int(playlist_mtime_fn(playlist_path) or 0)
+            except Exception:
+                playlist_mtime_ns = 0
+        else:
+            try:
+                playlist_mtime_ns = int(os.stat(playlist_path).st_mtime_ns)
+            except Exception:
+                playlist_mtime_ns = 0
+
+        playlist_cache_snapshot_fn = getattr(self._adapter, "_playlist_cache_snapshot", None)
+        playlist_cache_update_fn = getattr(self._adapter, "_playlist_cache_update", None)
+        if callable(playlist_cache_snapshot_fn):
+            try:
+                cache = dict(playlist_cache_snapshot_fn() or {})
+            except Exception:
+                cache = {}
+            if (
+                cache.get("path") == playlist_path
+                and int(cache.get("mtime_ns") or 0) == int(playlist_mtime_ns or 0)
+                and str(cache.get("profile_digest") or "") == desired_digest
+            ):
+                self._scheduler_last_applied_system = system_name
+                self._scheduler_last_apply_time_ms = now_ms
+                self._scheduler_last_apply_error = ""
+                self._scheduler_last_apply_error_system = ""
+                return True, "", False
+
+        source_unchanged = (
+            before_channels == channels
+            and before_source_type == expected_source_type
+            and before_preferred == preferred
+        )
+        stream_changed = _sync_stream_configuration(root)
+
+        if source_unchanged and not stream_changed:
+            if callable(playlist_cache_update_fn):
+                try:
+                    playlist_cache_update_fn(
+                        path=playlist_path,
+                        mtime_ns=playlist_mtime_ns,
+                        profile_digest=desired_digest,
+                    )
+                except Exception:
+                    logger.debug(
+                        "Failed updating digital playlist cache for unchanged scheduler apply",
+                        exc_info=True,
+                    )
             self._scheduler_last_applied_system = system_name
             self._scheduler_last_apply_time_ms = now_ms
             self._scheduler_last_apply_error = ""
             self._scheduler_last_apply_error_system = ""
-        else:
-            self._scheduler_last_apply_error = err or f"apply_system failed for {system_name}"
+            return True, "", False
+
+        if not source_unchanged:
+            _sync_source_configuration(source_conf, channels, system_name=system_name)
+        ok, err = _write_playlist_tree_atomic(tree, playlist_path)
+        if not ok:
+            self._scheduler_last_apply_error = f"failed to write playlist: {err}"
             self._scheduler_last_apply_error_system = system_name
-        return ok, err, changed
+            return False, self._scheduler_last_apply_error, False
+        if callable(playlist_cache_update_fn):
+            try:
+                mtime_after = 0
+                if callable(playlist_mtime_fn):
+                    mtime_after = int(playlist_mtime_fn(playlist_path) or 0)
+                else:
+                    mtime_after = int(os.stat(playlist_path).st_mtime_ns)
+                playlist_cache_update_fn(
+                    path=playlist_path,
+                    mtime_ns=mtime_after,
+                    profile_digest=desired_digest,
+                )
+            except Exception:
+                logger.debug("Failed updating digital playlist cache after scheduler apply", exc_info=True)
+
+        self._scheduler_last_applied_system = system_name
+        self._scheduler_last_apply_time_ms = now_ms
+        self._scheduler_last_apply_error = ""
+        self._scheduler_last_apply_error_system = ""
+        return True, "", True
 
     def getScheduler(self) -> dict:
         now_ms = int(time.time() * 1000)
@@ -6373,7 +6109,6 @@ class DigitalManager:
             "digital_voice_tuner_count": len(voice_tuner_serials),
             "digital_voice_tuner_serials": list(voice_tuner_serials),
             "digital_fast_switch_enabled": False,
-            "digital_multi_system_native": bool(getattr(self._adapter, "supports_multi_system", False)),
             "digital_runtime_retune_available": bool(runtime_retune_available),
             "digital_tick_interval_ms": 0,
             "digital_apply_method": str(self._scheduler_last_apply_method or ""),
@@ -6519,7 +6254,6 @@ class DigitalManager:
             "digital_voice_tuner_count": len(voice_tuner_serials),
             "digital_voice_tuner_serials": list(voice_tuner_serials),
             "digital_fast_switch_enabled": False,
-            "digital_multi_system_native": bool(getattr(self._adapter, "supports_multi_system", False)),
             "digital_runtime_retune_available": bool(runtime_retune_available),
             "digital_tick_interval_ms": 0,
             "digital_apply_method": str(self._scheduler_last_apply_method or ""),
@@ -6704,22 +6438,10 @@ class DigitalManager:
             payload["digital_playlist_preferred_tuner"] = str(preflight.get("playlist_preferred_tuner"))
         if preflight.get("playlist_source_error"):
             payload["digital_playlist_source_error"] = str(preflight.get("playlist_source_error"))
-        payload["digital_control_channel_metric_ready"] = bool(
-            payload.get("digital_control_channel_metric_ready")
-            if "digital_control_channel_metric_ready" in payload
-            else preflight.get("control_decode_available")
-        )
-        payload["digital_control_channel_locked"] = bool(
-            payload.get("digital_control_channel_locked")
-            if "digital_control_channel_locked" in payload
-            else preflight.get("control_channel_locked")
-        )
+        payload["digital_control_channel_metric_ready"] = bool(preflight.get("control_decode_available"))
+        payload["digital_control_channel_locked"] = bool(preflight.get("control_channel_locked"))
         payload["digital_control_channel_count"] = int(preflight.get("control_activity_count") or 0)
-        payload["digital_control_channel_last_time"] = int(
-            payload.get("digital_control_channel_last_time")
-            if "digital_control_channel_last_time" in payload
-            else (preflight.get("control_last_time_ms") or 0)
-        )
+        payload["digital_control_channel_last_time"] = int(preflight.get("control_last_time_ms") or 0)
         payload["digital_control_sync_loss_count"] = int(preflight.get("control_sync_loss_count") or 0)
         payload["digital_control_lock_fail_count"] = int(preflight.get("control_lock_fail_count") or 0)
         payload["digital_control_lock_fail_last_time"] = int(preflight.get("control_lock_fail_last_time_ms") or 0)

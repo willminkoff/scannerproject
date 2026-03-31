@@ -2,7 +2,7 @@
 
 **Version:** 2.5.0 (2026-02-21)
 
-Scanner control UI and configuration for RTL-SDR multi-dongle airband/GMRS/WX/digital receiver with weather sounding collection.
+Scanner control UI and configuration for RTL-SDR dual-dongle airband/GMRS/WX receiver on Raspberry Pi.
 
 **Current Architecture**: Refactored (Jan 2026) from 1,928-line monolith to 11 modular Python units + static web assets.
 
@@ -22,7 +22,7 @@ Current scanner host (replacing the Pi runtime target):
   - `00000002` (RTL-SDR Blog V4)
   - `00000001` (Nooelec NESDR SMArt v5, replacement for prior digital secondary `49571227`)
   - `56919602` (Nooelec NESDR SMArt v5)
-  - `83241970` (Nooelec NESDR SMArt v5, reflashed from `70613472`/`00000003`)
+  - `70613472` (Nooelec NESDR SMArt v5)
   - `14306619` (Nooelec NESDR SMArt v5, extra digital-capable tuner)
 
 ## Version 2.5 Lock (2026-02-21)
@@ -31,7 +31,7 @@ Current scanner host (replacing the Pi runtime target):
 - Added control-channel confidence state for digital profiles using decoded-message metrics (`Locked`, `Searching`, `Inferred` states in UI).
 - Filtered non-actionable headless SDRTrunk warnings from digital decoder error reporting to reduce false alarm noise.
 - Verified stable 4-dongle runtime baseline with a 10-minute soak: `120/120` healthy samples, `0` USB kernel drop events.
-- Current Micro serial-to-path baseline after the 2026-03-26 ground serial reflash: `00000001 -> 1-5.1.1`, `56919602 -> 1-5.1.2`, `14306619 -> 1-5.1.3`, `00000002 -> 1-5.3`, `83241970 -> 1-5.4`.
+- Current Micro serial-to-path baseline after the 2026-03-25 digital-secondary replacement: `00000001 -> 1-5.1.1`, `56919602 -> 1-5.1.2`, `14306619 -> 1-5.1.3`, `00000002 -> 1-5.3`, `70613472 -> 1-5.4`.
 - Analog profile switches now restart `rtl-airband` whenever the active profile symlink changes, even if the combined config bytes are unchanged.
 - Handler cache invalidation now clears stale `/api/status` and `/api/hits` snapshots after analog profile changes and digital lifecycle actions.
 - API workflow coverage now exercises real handler paths for analog `/api/profile` -> `/api/hits` transitions and digital `start` / `profile` / `restart` / `stop`.
@@ -64,7 +64,7 @@ V3 foundation is now active in code with hard guardrails and a canonical runtime
   - `slow_expected_serials`
 
 Notes:
-- Time-sliced multi-system scheduler has been replaced by dedicated dongle allocation (2026-03-26).
+- Scheduler/time-sliced multi-system work is intentionally parked and not coupled to this V3 foundation.
 - Current priority is deterministic runtime compilation + safe gating + observable health.
 
 ## Directory Structure
@@ -83,8 +83,6 @@ Notes:
 │   ├── icecast.py               # Icecast stream monitoring
 │   ├── server_workers.py        # Background worker threads
 │   ├── diagnostic.py            # Diagnostic log generation
-│   ├── wxdata.py                # WX sounding data (ACARS/radiosonde parsers, MetStore)
-│   ├── dongle_allocator.py      # Dedicated dongle allocation for digital
 │   ├── __init__.py              # Package marker
 │   ├── sb3.html                 # Scanner Box 3 dashboard (standalone)
 │   └── static/                  # Web assets
@@ -131,7 +129,7 @@ Profiles notes:
 ### High-Level Data Flow
 
 ```
-RTL-SDR Devices (5 role-bound, dedicated allocation)
+RTL-SDR Devices (4 role-bound target)
     ↓
 rtl-airband (combined process)
     ├─ Airband scanner (118-136 MHz)
@@ -142,7 +140,7 @@ Icecast Analog Mount (/ANALOG.mp3 or /GND.mp3)
     ├→ Journalctl (analog activity logging)
     └→ Frequency metadata
     ↓
-scanner-digital.service (SDRTrunk, dedicated dongle allocation)
+scanner-digital.service (SDRTrunk)
     ├─ Digital control + voice decode (P25/DMR as configured)
     └─ Icecast Digital Mount (/DIGITAL.mp3)
     ↓
@@ -150,18 +148,14 @@ Optional digital mixer (scanner-digital-mixer.service)
     ↓
 Composite stream mount (scannerbox.mp3)
     ↓
-WX decoders (optional, ground-profile activated)
-    ├─ acarsdec.service → ACARS/AMDAR meteorological reports
-    └─ radiosonde-auto-rx.service → weather balloon telemetry (UDP)
-    ↓
 airband-ui.service (Web UI backend)
-    ├─ Reads: journalctl, Icecast status, config files, wx decoder output
+    ├─ Reads: journalctl, Icecast status, config files
     ├─ Writes: canonical config, runtime compile artifacts, profile configs
-    └─ Exposes: REST API on port 5050 (including /api/wx/*)
+    └─ Exposes: REST API on port 5050
     ↓
 Browser (http://sprontpi.local:5050)
     ├─ Displays: profile cards, gain/squelch sliders
-    ├─ Shows: last hit pills, hit list, avoids, wx sounding data
+    ├─ Shows: last hit pills, hit list, avoids
     └─ Sends: profile/control changes via API
 ```
 
@@ -542,6 +536,12 @@ Live-only digital backend control with in-memory metadata (no recording or persi
 - `DIGITAL_ATTACH_BROADCAST_CHANNEL` (default: `1`; auto-adds `broadcastChannel` IDs for active profile alias talkgroups)
 - `DIGITAL_IGNORE_DATA_CALLS` (default: `1`; when enabled, SDRTrunk decode config ignores data calls so voice traffic channels are prioritized)
 - `DIGITAL_PERF_PROFILE` (`legacy` | `pc_moderate`; default: `pc_moderate`)
+- `DIGITAL_SCHEDULER_FAST_SWITCH_ENABLED` (optional explicit override)
+- `DIGITAL_SCHEDULER_FAST_TICK_SEC` (optional explicit override)
+- `DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS` (optional explicit override)
+- `DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS` (optional explicit override)
+- `DIGITAL_SCHEDULER_LOCK_MISS_TICKS` (optional explicit override)
+- `DIGITAL_SCHEDULER_TICK_SEC` (optional explicit override)
 - `DIGITAL_MIXER_ENABLED` (default: `0`) - enable mixing SDRTrunk audio into `scannerbox.mp3`
 - `DIGITAL_MIXER_AIRBAND_MOUNT` (default: `GND-air.mp3`) - raw airband+ground input mount for the mixer
 - `DIGITAL_MIXER_DIGITAL_MOUNT` (default: `DIGITAL.mp3`) - SDRTrunk input mount for the mixer
@@ -574,7 +574,7 @@ At runtime, `ensure-digital-runtime.py` and profile switches now write the SDRTr
 **Dongle serial locking**:
 These mappings prevent device-busy conflicts:
 - Airband (rtl-airband): `00000002`
-- Ground (rtl-airband): `83241970`
+- Ground (rtl-airband): `70613472`
 - Digital primary (SDRTrunk): `56919602`
 - Digital secondary (SDRTrunk): `00000001`
 - Extra digital-capable tuner currently present on Micro: `14306619` (auto-adopted when `DIGITAL_AUTO_ADOPT_EXTRA_TUNERS=1`)
@@ -608,51 +608,119 @@ Verification:
   - `playlist_source_type=TUNER_MULTIPLE_FREQUENCIES` (when profile has >1 control channel)
   - `playlist_preferred_tuner` empty when dual-digital auto-allocation is active, or matching your explicit `DIGITAL_PREFERRED_TUNER` when set
 
-**Dedicated dongle allocation (replaces time-sliced scheduler)**:
-Multi-system digital profiles now use dedicated dongle allocation instead of the previous time-slicing scheduler. Each configured system gets its own tuner rather than rotating a single control tuner across systems.
+**V3 planned mode: time-sliced multi-system digital scan (HomePatrol-style)**:
+This is now a V3 product requirement for two-digital-dongle operation.
+
+Goal:
+- Allow one profile to include multiple trunked systems while preserving practical voice follow behavior with only two digital tuners.
 
 Operating model:
-- Each trunked system in a multi-system profile is allocated a dedicated RTL-SDR dongle for control-channel monitoring.
-- Remaining dongles are available for traffic-channel follow on voice grants.
-- No time-slicing or rotation — all configured systems are monitored simultaneously when enough dongles are present.
+- `Tuner A` is the active control-channel monitor for one system at a time.
+- `Tuner B` is reserved for traffic-channel follow on grants from the currently active control system.
+- If no eligible voice traffic is active, scheduler advances `Tuner A` to the next system control-channel set.
+- If a wanted call is active, scheduler holds on that system until call end plus hang-time, then resumes round-robin.
 - Encrypted-only events are ignored for hit/audio purposes.
 
-Allocation controls:
+Required scheduler controls (V3):
 - `digital_scan_mode`: `single_system` or `timeslice_multi_system`.
-- `system_dwell_ms`: idle dwell per system.
-- `system_hang_ms`: post-call hold before releasing.
-- `system_order`: priority order for systems in a combo profile.
-- `pause_on_hit`: hold on system while clear voice is active.
+- `system_dwell_ms`: max idle control-channel dwell per system before advancing.
+- `system_hang_ms`: post-call hold before advancing.
+- `system_order`: deterministic priority order for systems in a combo profile.
+- `pause_on_hit`: hold scheduler while clear voice is active.
 
-Allocation telemetry (in `GET /api/digital/scheduler`):
-- `digital_allocation_strategy`
-- `digital_active_system`
-- `digital_next_system`
-- `digital_last_switch_time`
-- `digital_switch_reason`
-- `digital_lock_timeout_ms`
-- `digital_allocation_system_health` (per-system `state`, `reason`, `lock_failures`, and lock timestamps)
+Required V3 telemetry:
+- `digital_scheduler_mode`
+- `digital_scheduler_active_system`
+- `digital_scheduler_next_system`
+- `digital_scheduler_last_switch_time`
+- `digital_scheduler_switch_reason` (`idle_timeout`, `call_end`, `lock_timeout`, `lock_timeout_stale_preflight`, `manual`, `error_recovery`)
+- `digital_scheduler_lock_timeout_ms`
+- `digital_scheduler_system_health` (per-system `state`, `reason`, `lock_failures`, and lock timestamps)
 - `digital_voice_tuner_available` (boolean)
-- `digital_allocation_snapshot_age_ms`
-- `digital_allocation_perf_profile`
-- `digital_allocation_effective`
 
-Snapshot/read-path controls:
-- `DIGITAL_STATUS_SNAPSHOT_ENABLED` (enable cached allocation/preflight read path)
-- `DIGITAL_PREFLIGHT_SAMPLER_MS` (default `1000`)
-- `HEALTH_SCHEDULER_STALE_MS` (default `3000`, allocation health stale threshold)
+Acceptance criteria for V3 mode:
+- With 2 digital tuners and 2 systems in one profile, voice grants are followed without persistent `CHANNEL START REJECTED TUNER UNAVAILABLE` during normal load.
+- During no-traffic periods, control monitoring rotates across all configured systems.
+- During active clear voice, scheduler does not preempt audio mid-call.
+- UI and sitrep clearly show which system is currently monitored and why switching occurred.
 
-SB3 connected refresh controls:
-- `SB3_CONNECTED_STATUS_REFRESH_SEC` (default `15`)
-- `SB3_CONNECTED_SYSTEM_REFRESH_SEC` (default `30`)
-- `SB3_CONNECTED_PROFILES_REFRESH_SEC` (default `60`)
-- `SB3_DEDICATED_DIGITAL_FETCH_ENABLED` (default `0`; when enabled, SB3 keeps periodic dedicated allocation/preflight fetches)
+Scheduler performance profiles:
+- `DIGITAL_PERF_PROFILE` (`legacy` | `pc_moderate`, default: `pc_moderate`)
+- Profile defaults can still be overridden by explicit scheduler env vars:
+  - `DIGITAL_SCHEDULER_FAST_SWITCH_ENABLED`
+  - `DIGITAL_SCHEDULER_FAST_TICK_SEC`
+  - `DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS`
+  - `DIGITAL_SCHEDULER_ADAPTIVE_LOCK_MAX_MS` (cap for adaptive lock-acquisition timeout)
+  - `DIGITAL_SCHEDULER_LOCK_STICKY_MS` (minimum lock hold time before idle rotation, default `1200`)
+  - `DIGITAL_SCHEDULER_STALE_PREFLIGHT_MS` (freshness threshold used by lock-timeout switching, default `max(1500, 2x sampler)`)
+  - `DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS`
+  - `DIGITAL_SCHEDULER_LOCK_MISS_TICKS`
+  - `DIGITAL_SCHEDULER_TICK_SEC`
+- Snapshot/read-path controls:
+  - `DIGITAL_STATUS_SNAPSHOT_ENABLED` (enable cached scheduler/preflight read path)
+  - `DIGITAL_PREFLIGHT_SAMPLER_MS` (default `1000`)
+  - `HEALTH_SCHEDULER_STALE_MS` (default `3000`, scheduler health stale threshold)
+- SB3 connected refresh controls:
+  - `SB3_CONNECTED_STATUS_REFRESH_SEC` (default `15`)
+  - `SB3_CONNECTED_SYSTEM_REFRESH_SEC` (default `30`)
+  - `SB3_CONNECTED_PROFILES_REFRESH_SEC` (default `60`)
+  - `SB3_DEDICATED_DIGITAL_FETCH_ENABLED` (default `0`; when enabled, SB3 keeps periodic dedicated scheduler/preflight fetches)
+
+`pc_moderate` effective defaults:
+```bash
+DIGITAL_SCHEDULER_FAST_SWITCH_ENABLED=1
+DIGITAL_SCHEDULER_FAST_TICK_SEC=0.25
+DIGITAL_SCHEDULER_FAST_LOCK_TIMEOUT_MS=1000
+DIGITAL_SCHEDULER_PREFLIGHT_CACHE_MS=300
+DIGITAL_SCHEDULER_LOCK_MISS_TICKS=2
+DIGITAL_SCHEDULER_TICK_SEC=0.75
+```
+
+Fast-switch verification:
+- `GET /api/digital/scheduler` should include:
+  - `digital_scheduler_fast_switch_enabled=true` when in `timeslice_multi_system` with 2+ systems
+  - `digital_scheduler_tick_interval_ms` near `250` outside call-hold windows
+  - `digital_scheduler_apply_method` and `digital_scheduler_last_apply_duration_ms`
+  - `digital_scheduler_preflight_cache_age_ms`
+  - `digital_scheduler_preflight_fresh`
+  - `digital_scheduler_preflight_stale_threshold_ms`
+  - `digital_scheduler_lock_miss_ticks`
+  - `digital_scheduler_lock_sticky_ms`
+  - `digital_scheduler_active_lock_age_ms`
+  - `digital_scheduler_adaptive_lock_timeout_ms`
+  - `digital_scheduler_active_control_channel_count`
+  - `digital_scheduler_perf_profile`
+  - `digital_scheduler_effective`
+- While active system is still acquiring control lock, scheduler should not rotate on dwell timeout before `digital_scheduler_lock_timeout_ms`.
+- During no-traffic periods with 2 systems, active system rotation should typically be about 1 second.
+- During clear voice, scheduler should remain on the active system until call end + hang.
+
+Phased canary rollout (new PC):
+1. Baseline:
+```bash
+DIGITAL_PERF_PROFILE=legacy
+```
+2. Canary:
+```bash
+DIGITAL_PERF_PROFILE=pc_moderate
+```
+3. Validate with:
+```bash
+python3 scripts/digital_perf_check.py --duration-sec 180 --strict
+```
+4. Promote by removing the override (repo default remains `pc_moderate`).
+
+Rollback:
+- Set `DIGITAL_PERF_PROFILE=legacy` and restart `airband-ui`.
+
+Non-goal:
+- This mode is not true simultaneous full-fidelity multi-system monitoring. True simultaneous control + voice across multiple systems still requires additional digital tuners.
 
 **SprontPi recommended defaults**:
 If you are on SprontPi, set these in `/etc/airband-ui.conf` (or your UI EnvironmentFile):
 ```bash
 AIRBAND_RTL_SERIAL=00000002
-GROUND_RTL_SERIAL=83241970
+GROUND_RTL_SERIAL=70613472
 DIGITAL_RTL_SERIAL=56919602
 DIGITAL_RTL_SERIAL_SECONDARY=00000001
 DIGITAL_BOOT_DEFAULT_PROFILE=tacn-all
@@ -803,14 +871,11 @@ sudo systemctl restart scanner-digital
 - `digital_last_mode` (string, optional)
 - `digital_last_time` (epoch ms, 0 if none)
 - `digital_last_error` (string, optional)
-- `digital_allocation_snapshot_age_ms` (allocation snapshot age)
+- `digital_scheduler_snapshot_age_ms` (scheduler snapshot age)
 - `digital_preflight_snapshot_age_ms` (preflight snapshot age)
 - `expected_serials` (object with airband/ground/digital expected RTL serials)
 - `serial_mismatch` (boolean)
 - `serial_mismatch_detail` (array with mismatch details)
-- `wx_decoder_active` (string or null; active decoder name: `"acars"` or `"radiosonde"`)
-- `wx_collecting` (boolean; whether data collection is active)
-- `wx_met_count` (integer; total collected meteorological observations)
 
 **Endpoints**:
 - `POST /api/digital/start`
@@ -825,8 +890,8 @@ sudo systemctl restart scanner-digital
 - `GET  /api/digital/talkgroups?profileId=...`
 - `POST /api/digital/talkgroups/listen` → body: `{ "profileId": "...", "items": [{"dec":"47008","listen":true}] }`
 - `GET  /api/digital/preflight` → tuner-busy detection + expected serials
-- `GET  /api/digital/scheduler` → cached read-only allocation/scheduler snapshot
-- `POST /api/digital/scheduler` → allocation controls
+- `GET  /api/digital/scheduler` → cached read-only scheduler snapshot
+- `POST /api/digital/scheduler` → optional `performance_profile` (`legacy` | `pc_moderate`) plus scheduler controls
 
 **SB3 Digital profile management**:
 - Digital tab → Digital Profiles widget lets you create/delete profile folders, select an active profile, and load a preview of files in the profile directory.
@@ -965,58 +1030,6 @@ python3 scripts/digital_profile_audit.py --profile /etc/scannerproject/digital/p
 **Notes**:
 - RadioReference data is subject to their terms; use it as your source and avoid redistributing proprietary exports.
 - SDRTrunk configuration file names may vary by version; the “Inspect” endpoint lets you confirm what’s inside a profile.
-
-### Weather Sounding (WX Decoders)
-
-Upper-air meteorological data collection from aircraft (ACARS) and weather balloons (radiosondes). Decoders are managed as ground-profile alternatives and exposed through a unified REST API.
-
-**Data sources**:
-- **ACARS** — decodes AMDAR meteorological reports from aircraft in flight (temperature, wind, humidity by altitude). Requires `acarsdec` binary at `/usr/local/bin/acarsdec`.
-- **Radiosonde** — receives weather balloon telemetry via `radiosonde_auto_rx`. Requires `/opt/radiosonde_auto_rx/auto_rx.py`.
-
-**Environment variables** (in `ui/config.py`):
-- `ACARS_OUTPUT_PATH` (default: `/run/acars_output.json`) — ACARS decoder JSON output path
-- `RADIOSONDE_UDP_HOST` (default: `127.0.0.1`) — radiosonde telemetry listener address
-- `RADIOSONDE_UDP_PORT` (default: `55673`) — radiosonde telemetry UDP port
-- `UNIT_ACARS` (default: `acarsdec`) — systemd unit name for ACARS service
-- `UNIT_RADIOSONDE` (default: `radiosonde-auto-rx`) — systemd unit name for radiosonde service
-
-**Systemd services**:
-- `acarsdec.service` — ACARS decoder; outputs JSON-line messages to `ACARS_OUTPUT_PATH`
-- `radiosonde-auto-rx.service` — radiosonde decoder; broadcasts JSON telemetry via UDP
-
-Both services are managed through the UI (start/stop/restart) and require sudoers entries:
-```
-willminkoff ALL=NOPASSWD: /bin/systemctl start acarsdec, /bin/systemctl stop acarsdec, /bin/systemctl restart acarsdec
-willminkoff ALL=NOPASSWD: /bin/systemctl start radiosonde-auto-rx, /bin/systemctl stop radiosonde-auto-rx, /bin/systemctl restart radiosonde-auto-rx
-```
-
-**Profile integration**:
-Ground config files can specify `wx_decoder = acars;` or `wx_decoder = radiosonde;` to activate a decoder when the profile is selected. The decoder reader thread starts automatically on profile switch or cold boot.
-
-**Spatial filtering**:
-When station location is configured (via HomePatrol state with `use_location` enabled), observations are filtered to a collection cylinder centered on the station with the configured range radius and a 40,000 ft ceiling.
-
-**Endpoints**:
-- `GET /api/wx/status` — decoder status, collecting state, message/observation counts, installation checks
-- `GET /api/wx/messages?limit=50&source=acars` — raw decoded messages (JSON-line format)
-- `GET /api/wx/sounding` — meteorological observations sorted by altitude for plotting
-- `GET /api/wx/export?format=json` — export sounding data (`json`, `spc` for SHARPpy, or `csv`)
-- `POST /api/wx/clear` — clear collected data (optional `source` field to clear selectively)
-
-**/api/status fields**:
-- `wx_decoder_active` (string or null; `"acars"` or `"radiosonde"`)
-- `wx_collecting` (boolean)
-- `wx_met_count` (integer; total collected observations)
-
-**Observation data model** (MetObservation):
-- `timestamp`, `source` (`"acars"` / `"radiosonde"`), `source_id` (flight number or sonde serial)
-- `lat`, `lon`, `altitude_ft`, `pressure_hpa`
-- `temp_c`, `dewpoint_c`, `humidity_pct`
-- `wind_dir_deg`, `wind_speed_kt`
-
-**Current deployment status (2026-03-26)**:
-Both decoders are installed and validated on Micro. ACARS decodes on 4 standard US channels (`-o 4 -l` file output mode). Radiosonde runs with a generated `station.cfg` from upstream example with targeted sed overrides.
 
 ### GET /static/*
 Serve static web assets.

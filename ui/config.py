@@ -109,19 +109,8 @@ MANAGED_ANALOG_DEFAULT_GROUND_DBFS = float(
 )
 
 # Digital backend configuration
-DIGITAL_BACKEND = os.getenv("DIGITAL_BACKEND", "op25").strip().lower()
-
-
-def _default_digital_service_name() -> str:
-    explicit = os.getenv("DIGITAL_SERVICE_NAME") or os.getenv("UNIT_DIGITAL")
-    if explicit and str(explicit).strip():
-        return str(explicit).strip()
-    if DIGITAL_BACKEND == "op25":
-        return os.getenv("OP25_SERVICE_NAME", "scanner-digital-op25").strip() or "scanner-digital-op25"
-    return "scanner-digital"
-
-
-DIGITAL_SERVICE_NAME = _default_digital_service_name()
+DIGITAL_BACKEND = os.getenv("DIGITAL_BACKEND", "sdrtrunk").strip().lower()
+DIGITAL_SERVICE_NAME = os.getenv("DIGITAL_SERVICE_NAME", os.getenv("UNIT_DIGITAL", "scanner-digital"))
 DIGITAL_PROFILES_DIR = os.getenv("DIGITAL_PROFILES_DIR", "/etc/scannerproject/digital/profiles")
 DIGITAL_ACTIVE_PROFILE_LINK = os.getenv("DIGITAL_ACTIVE_PROFILE_LINK", "/etc/scannerproject/digital/active")
 DIGITAL_LOG_PATH = os.getenv("DIGITAL_LOG_PATH", "/var/log/sdrtrunk/sdrtrunk.log")
@@ -228,20 +217,6 @@ DIGITAL_PREFLIGHT_SAMPLER_MS = max(
     int(os.getenv("DIGITAL_PREFLIGHT_SAMPLER_MS", "1000")),
 )
 DIGITAL_RTL_SERIAL_HINT = "DIGITAL_RTL_SERIAL not set; set it to your digital dongle serial"
-# OP25 backend
-OP25_SERVICE_NAME = os.getenv("OP25_SERVICE_NAME", "scanner-digital-op25").strip()
-OP25_LOG_PATH = os.getenv("OP25_LOG_PATH", "/var/log/op25/op25.log").strip()
-OP25_STATUS_HOST = os.getenv("OP25_STATUS_HOST", "127.0.0.1").strip()
-OP25_STATUS_PORT = int(os.getenv("OP25_STATUS_PORT", "8080"))
-OP25_RUNTIME_DIR = os.getenv("OP25_RUNTIME_DIR", "/run/scannerproject/op25").strip()
-OP25_RX_PATH = os.getenv("OP25_RX_PATH", "/opt/op25/op25/gr-op25_repeater/apps/rx.py").strip()
-OP25_MULTI_RX_PATH = os.getenv(
-    "OP25_MULTI_RX_PATH",
-    "/opt/op25/op25/gr-op25_repeater/apps/multi_rx.py",
-).strip()
-OP25_DEFAULT_OFFSET = int(os.getenv("OP25_DEFAULT_OFFSET", "25000"))
-OP25_DEFAULT_SAMPLE_RATE = int(os.getenv("OP25_DEFAULT_SAMPLE_RATE", "2400000"))
-OP25_DEFAULT_MODULATION = os.getenv("OP25_DEFAULT_MODULATION", "cqpsk").strip().lower()
 # Multi-profile loop scheduler
 PROFILE_LOOP_STATE_PATH = os.getenv(
     "PROFILE_LOOP_STATE_PATH",
