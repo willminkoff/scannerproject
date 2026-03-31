@@ -6875,7 +6875,6 @@
         if (!quiet) setHpFavStatus('Select a state first.', true);
         return;
       }
-      let autoLoadChannels = false;
       clearHpFavoriteSystemsLoadTimer();
       builder.loading = true;
       renderHpFavoritesBuilder();
@@ -6891,14 +6890,12 @@
           resetHpFavoriteSystemAndChannelPicks();
           if (!quiet) setHpFavStatus('No systems found for current filters.', true);
         } else {
-          const firstId = String((builder.systems[0] && builder.systems[0].id) || '');
           if (!builder.systems.some((row) => String(row.id || '') === String(builder.selectedSystemId || ''))) {
-            builder.selectedSystemId = firstId;
+            builder.selectedSystemId = '';
           }
           builder.channels = [];
           builder.selectedDepartment = '';
           builder.selectedChannelIds = [];
-          autoLoadChannels = Boolean(String(builder.selectedSystemId || '').trim());
           if (!quiet) setHpFavStatus(`Loaded ${builder.systems.length} systems.`);
         }
       } catch (e) {
@@ -6907,9 +6904,6 @@
       } finally {
         builder.loading = false;
         renderHpFavoritesBuilder();
-      }
-      if (autoLoadChannels) {
-        await loadHpFavoriteChannels({ quiet: true });
       }
     }
 
