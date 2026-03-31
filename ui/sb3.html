@@ -8944,15 +8944,32 @@
       updateSitrep();
     }
 
+    async function fetchVlcTargetsStatus(target) {
+      const payload = { action: 'status' };
+      const resolvedTarget = normalizeVlcTarget(target);
+      if (resolvedTarget) {
+        payload.target = resolvedTarget;
+      }
+      const res = await postAPI('/api/vlc', payload);
+      if (!res || !res.ok) return null;
+      if (res.targets && typeof res.targets === 'object') {
+        return res.targets;
+      }
+      return { analog: !!res.running, digital: false };
+    }
+
+    function scheduleVlcStatusRefresh(delayMs) {
+      const waitMs = Number.isFinite(delayMs) ? Math.max(0, delayMs) : 0;
+      window.setTimeout(() => {
+        refreshVlcStatus();
+      }, waitMs);
+    }
+
     async function refreshVlcStatus() {
       try {
-        const res = await postAPI('/api/vlc', { action: 'status' });
-        if (res && res.ok) {
-          if (res.targets && typeof res.targets === 'object') {
-            applyVlcTargetsStatus(res.targets);
-          } else {
-            applyVlcTargetsStatus({ analog: !!res.running, digital: false });
-          }
+        const targets = await fetchVlcTargetsStatus();
+        if (targets) {
+          applyVlcTargetsStatus(targets);
         }
       } catch (e) {
         console.error('VLC status failed:', e);
@@ -8965,9 +8982,14 @@
       const button = vlcButtonFor(resolvedTarget);
       if (!targetState || !button || targetState.busy) return;
       targetState.busy = true;
-      const action = targetState.running ? 'stop' : 'start';
       button.disabled = true;
       try {
+        const liveTargets = await fetchVlcTargetsStatus(resolvedTarget);
+        if (liveTargets) {
+          applyVlcTargetsStatus(liveTargets);
+        }
+        const targetRunning = liveTargets ? !!liveTargets[resolvedTarget] : !!targetState.running;
+        const action = targetRunning ? 'stop' : 'start';
         const res = await postAPI('/api/vlc', {
           action,
           target: resolvedTarget,
@@ -8988,6 +9010,8 @@
             'info',
             `vlc-${resolvedTarget}-${action}`
           );
+          scheduleVlcStatusRefresh(350);
+          scheduleVlcStatusRefresh(1500);
         } else {
           console.error('VLC action failed:', res);
           await refreshVlcStatus();
