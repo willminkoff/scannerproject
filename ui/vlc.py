@@ -2,6 +2,7 @@
 import logging
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -117,6 +118,84 @@ def _vlc_launch_env() -> dict:
     if VLC_PULSE_SINK:
         env["PULSE_SINK"] = VLC_PULSE_SINK
     return env
+
+
+def _pulse_tool_output(cmd: list[str]) -> str:
+    try:
+        res = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            env=_vlc_launch_env(),
+            timeout=2.0,
+            check=False,
+        )
+    except Exception:
+        return ""
+    return res.stdout if res.returncode == 0 else ""
+
+
+def _preferred_sink_name() -> str:
+    return str(VLC_PULSE_SINK or "").strip()
+
+
+def _wpctl_sink_id_for_node_name(node_name: str) -> str:
+    if not node_name or not shutil.which("wpctl"):
+        return ""
+    status = _pulse_tool_output(["wpctl", "status"])
+    if not status:
+        return ""
+    in_sinks = False
+    for line in status.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("Sinks:"):
+            in_sinks = True
+            continue
+        if in_sinks and stripped.startswith("Sink endpoints:"):
+            break
+        if not in_sinks:
+            continue
+        match = re.match(r"^[^0-9]*([0-9]+)\.", line)
+        if not match:
+            continue
+        sink_id = match.group(1)
+        inspect = _pulse_tool_output(["wpctl", "inspect", sink_id])
+        if f'node.name = "{node_name}"' in inspect:
+            return sink_id
+    return ""
+
+
+def _prefer_configured_pulse_sink() -> None:
+    sink_name = _preferred_sink_name()
+    if not sink_name:
+        return
+    sink_id = _wpctl_sink_id_for_node_name(sink_name)
+    if sink_id:
+        try:
+            subprocess.run(
+                ["wpctl", "set-default", sink_id],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                env=_vlc_launch_env(),
+                timeout=2.0,
+                check=False,
+            )
+            return
+        except Exception:
+            logger.debug("Failed setting wpctl default sink for VLC playback", exc_info=True)
+    if shutil.which("pactl"):
+        try:
+            subprocess.run(
+                ["pactl", "set-default-sink", sink_name],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                env=_vlc_launch_env(),
+                timeout=2.0,
+                check=False,
+            )
+        except Exception:
+            logger.debug("Failed setting pactl default sink for VLC playback", exc_info=True)
 
 
 def _read_pid(target: str) -> Optional[int]:
@@ -245,6 +324,7 @@ def start_vlc(stream_url: str = "", target: str = DEFAULT_TARGET, mount: str = "
     if _target_running(resolved_target):
         _mute_sdrtrunk_pulse_streams()
         return True, "already running"
+    _prefer_configured_pulse_sink()
     cmd = [
         "cvlc",
         "--intf",

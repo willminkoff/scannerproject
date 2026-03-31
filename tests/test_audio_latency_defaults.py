@@ -53,6 +53,8 @@ class VlcLatencyDefaultsTests(unittest.TestCase):
         ), mock.patch.object(
             vlc, "_vlc_launch_env", return_value={}
         ), mock.patch.object(
+            vlc, "_prefer_configured_pulse_sink"
+        ), mock.patch.object(
             vlc, "_write_pid"
         ), mock.patch.object(
             vlc, "_mute_sdrtrunk_pulse_streams"
@@ -80,6 +82,8 @@ class VlcLatencyDefaultsTests(unittest.TestCase):
         ), mock.patch.object(
             vlc, "_vlc_launch_env", return_value={}
         ), mock.patch.object(
+            vlc, "_prefer_configured_pulse_sink"
+        ), mock.patch.object(
             vlc, "_write_pid"
         ), mock.patch.object(
             vlc, "_clear_pid"
@@ -95,6 +99,33 @@ class VlcLatencyDefaultsTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("exited immediately", err)
         mock_clear_pid.assert_called_once_with("analog")
+
+    def test_prefer_configured_pulse_sink_uses_wpctl_when_node_name_matches(self):
+        status_text = "Sinks:\n  77. bluez_output.C0_28_8D_34_6E_67.1\nSink endpoints:\n"
+        inspect_text = 'node.name = "bluez_output.C0_28_8D_34_6E_67.1"\n'
+        with mock.patch.object(vlc, "VLC_PULSE_SINK", "bluez_output.C0_28_8D_34_6E_67.1"), \
+             mock.patch.object(vlc.shutil, "which", side_effect=lambda name: f"/usr/bin/{name}"), \
+             mock.patch.object(vlc, "_vlc_launch_env", return_value={"PULSE_SERVER": "unix:/tmp/pulse"}), \
+             mock.patch.object(vlc, "_pulse_tool_output", side_effect=[status_text, inspect_text]), \
+             mock.patch.object(vlc.subprocess, "run") as run:
+            vlc._prefer_configured_pulse_sink()
+
+        run.assert_called_once()
+        self.assertEqual(["wpctl", "set-default", "77"], run.call_args.args[0])
+
+    def test_prefer_configured_pulse_sink_falls_back_to_pactl(self):
+        which_map = {"wpctl": None, "pactl": "/usr/bin/pactl"}
+        with mock.patch.object(vlc, "VLC_PULSE_SINK", "bluez_output.C0_28_8D_34_6E_67.1"), \
+             mock.patch.object(vlc.shutil, "which", side_effect=lambda name: which_map.get(name)), \
+             mock.patch.object(vlc, "_vlc_launch_env", return_value={}), \
+             mock.patch.object(vlc.subprocess, "run") as run:
+            vlc._prefer_configured_pulse_sink()
+
+        run.assert_called_once()
+        self.assertEqual(
+            ["pactl", "set-default-sink", "bluez_output.C0_28_8D_34_6E_67.1"],
+            run.call_args.args[0],
+        )
 
 
 class DigitalLatencyDefaultsTests(unittest.TestCase):
