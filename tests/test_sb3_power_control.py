@@ -16,6 +16,27 @@ SPEC.loader.exec_module(sb3_power)
 
 
 class Sb3PowerControlTests(unittest.TestCase):
+    def test_build_unit_specs_defaults_to_op25_when_backend_is_op25(self):
+        specs = sb3_power.build_unit_specs(
+            {
+                "DIGITAL_BACKEND": "op25",
+                "OP25_SERVICE_NAME": "scanner-digital-op25",
+            }
+        )
+        digital = next(spec for spec in specs if spec.key == "digital")
+        self.assertEqual("scanner-digital-op25", digital.unit)
+
+    def test_build_unit_specs_honors_explicit_digital_unit_override(self):
+        specs = sb3_power.build_unit_specs(
+            {
+                "DIGITAL_BACKEND": "op25",
+                "UNIT_DIGITAL": "scanner-digital",
+                "OP25_SERVICE_NAME": "scanner-digital-op25",
+            }
+        )
+        digital = next(spec for spec in specs if spec.key == "digital")
+        self.assertEqual("scanner-digital", digital.unit)
+
     def test_restore_keys_prefers_saved_snapshot(self):
         specs = [
             sb3_power.UnitSpec("icecast", "icecast2", restore_default=True),
