@@ -656,7 +656,9 @@ class RecentRegressionTests(unittest.TestCase):
             }
         ]
 
-        with mock.patch.object(handlers, "DIGITAL_HITS_REQUIRE_AUDIO_EVENT", True), mock.patch.object(
+        with mock.patch.object(handlers, "DIGITAL_BACKEND", "sdrtrunk"), mock.patch.object(
+            handlers, "DIGITAL_HITS_REQUIRE_AUDIO_EVENT", True
+        ), mock.patch.object(
             handlers, "read_active_config_path", return_value="/tmp/active.conf"
         ), mock.patch.object(
             handlers, "split_profiles", return_value=([], [], [])
@@ -690,7 +692,9 @@ class RecentRegressionTests(unittest.TestCase):
             }
         ]
 
-        with mock.patch.object(handlers, "DIGITAL_HITS_REQUIRE_AUDIO_EVENT", True), mock.patch.object(
+        with mock.patch.object(handlers, "DIGITAL_BACKEND", "sdrtrunk"), mock.patch.object(
+            handlers, "DIGITAL_HITS_REQUIRE_AUDIO_EVENT", True
+        ), mock.patch.object(
             handlers, "read_active_config_path", return_value="/tmp/active.conf"
         ), mock.patch.object(
             handlers, "split_profiles", return_value=([], [], [])
@@ -727,7 +731,9 @@ class RecentRegressionTests(unittest.TestCase):
             }
         ]
 
-        with mock.patch.object(handlers, "DIGITAL_HITS_REQUIRE_AUDIO_EVENT", True), mock.patch.object(
+        with mock.patch.object(handlers, "DIGITAL_BACKEND", "sdrtrunk"), mock.patch.object(
+            handlers, "DIGITAL_HITS_REQUIRE_AUDIO_EVENT", True
+        ), mock.patch.object(
             handlers, "read_active_config_path", return_value="/tmp/active.conf"
         ), mock.patch.object(
             handlers, "split_profiles", return_value=([], [], [])
@@ -759,7 +765,9 @@ class RecentRegressionTests(unittest.TestCase):
             }
         ]
 
-        with mock.patch.object(handlers, "DIGITAL_HITS_REQUIRE_AUDIO_EVENT", True), mock.patch.object(
+        with mock.patch.object(handlers, "DIGITAL_BACKEND", "sdrtrunk"), mock.patch.object(
+            handlers, "DIGITAL_HITS_REQUIRE_AUDIO_EVENT", True
+        ), mock.patch.object(
             handlers, "read_active_config_path", return_value="/tmp/active.conf"
         ), mock.patch.object(
             handlers, "split_profiles", return_value=([], [], [])
