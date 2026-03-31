@@ -9,6 +9,7 @@ the OP25 HTTP status endpoint for health.
 """
 from __future__ import annotations
 
+import csv
 import json
 import logging
 import os
@@ -271,6 +272,66 @@ def _read_talkgroup_labels(profile_dir: str) -> dict[str, str]:
     return labels
 
 
+def _read_talkgroup_display_metadata(profile_dir: str) -> dict[str, dict[str, str]]:
+    """Read grouped talkgroup display metadata from *profile_dir*.
+
+    Returns ``{decimal_tgid_str: {label, agency, department, label_full}}``.
+    Falls back to plain labels when grouped metadata is unavailable.
+    """
+    metadata: dict[str, dict[str, str]] = {}
+    grouped_path = os.path.join(profile_dir, "talkgroups_with_group.csv")
+    if os.path.isfile(grouped_path):
+        try:
+            with open(grouped_path, "r", encoding="utf-8", errors="ignore", newline="") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    if not isinstance(row, dict):
+                        continue
+                    tgid = str(
+                        row.get("DEC")
+                        or row.get("Tgid")
+                        or row.get("TGID")
+                        or row.get("Dec")
+                        or ""
+                    ).strip()
+                    if not tgid.isdigit():
+                        continue
+                    label = str(
+                        row.get("Alpha Tag")
+                        or row.get("alpha tag")
+                        or row.get("Description")
+                        or row.get("description")
+                        or ""
+                    ).strip()
+                    agency = str(row.get("Group") or row.get("group") or "").strip()
+                    department = label
+                    entry = {
+                        "label": label,
+                        "agency": agency,
+                        "department": department,
+                        "label_full": "",
+                    }
+                    if agency and department:
+                        entry["label_full"] = f"{agency} - {department}"
+                    else:
+                        entry["label_full"] = department or agency
+                    metadata[tgid] = entry
+        except Exception:
+            metadata = {}
+    if metadata:
+        return metadata
+
+    for tgid, label in _read_talkgroup_labels(profile_dir).items():
+        clean = str(label or "").strip()
+        metadata[tgid] = {
+            "label": clean,
+            "agency": "",
+            "department": clean,
+            "label_full": clean,
+        }
+    return metadata
+
+
 def generate_trunk_tsv(
     systems: list[dict],
     dongle_assignments: dict | None = None,
@@ -509,6 +570,7 @@ class Op25Adapter(_BaseDigitalAdapter):
         self._refresh_min_interval_sec = 0.5
         # Talkgroup labels
         self._tg_labels: dict[str, str] = {}
+        self._tg_display: dict[str, dict[str, str]] = {}
         self._tg_labels_profile = ""
         self._tg_labels_mtime = None
         # Health cache
@@ -852,8 +914,9 @@ class Op25Adapter(_BaseDigitalAdapter):
         freq_hz = int(m.group(2))
         timestamp_ms = self._extract_timestamp_ms(line)
 
-        label = self._resolve_tg_label(tgid)
-        return {
+        metadata = self._resolve_tg_display(tgid)
+        label = str(metadata.get("label") or "").strip() or self._resolve_tg_label(tgid)
+        event = {
             "type": "digital",
             "tgid": tgid,
             "label": label or f"TG {tgid}",
@@ -862,6 +925,16 @@ class Op25Adapter(_BaseDigitalAdapter):
             "frequency_mhz": _hz_to_mhz(freq_hz),
             "timeMs": timestamp_ms or int(time.time() * 1000),
         }
+        agency = str(metadata.get("agency") or "").strip()
+        department = str(metadata.get("department") or "").strip()
+        label_full = str(metadata.get("label_full") or "").strip()
+        if agency:
+            event["agency"] = agency
+        if department:
+            event["department"] = department
+        if label_full:
+            event["label_full"] = label_full
+        return event
 
     def _extract_timestamp_ms(self, line: str) -> int:
         m = _RE_TIMESTAMP.search(line)
@@ -887,9 +960,18 @@ class Op25Adapter(_BaseDigitalAdapter):
             return ""
         profile_id = os.path.basename(profile_dir)
         if profile_id != self._tg_labels_profile:
-            self._tg_labels = _read_talkgroup_labels(profile_dir)
+            self._tg_display = _read_talkgroup_display_metadata(profile_dir)
+            self._tg_labels = {
+                key: str((value or {}).get("label") or "").strip()
+                for key, value in self._tg_display.items()
+            }
             self._tg_labels_profile = profile_id
         return self._tg_labels.get(tgid, "")
+
+    def _resolve_tg_display(self, tgid: str) -> dict[str, str]:
+        """Lookup talkgroup display metadata from profile data."""
+        _ = self._resolve_tg_label(tgid)
+        return dict(self._tg_display.get(str(tgid or "").strip(), {}))
 
     def getLastEvent(self):
         self._refresh_log_cache()
@@ -1098,7 +1180,8 @@ class Op25Adapter(_BaseDigitalAdapter):
             if not isinstance(row, dict):
                 continue
             tgid = str(row.get("tgid") or "").strip()
-            label = str(row.get("tgtag") or "").strip() or self._resolve_tg_label(tgid)
+            metadata = self._resolve_tg_display(tgid)
+            label = str(row.get("tgtag") or "").strip() or str(metadata.get("label") or "").strip() or self._resolve_tg_label(tgid)
             if not tgid and not label:
                 continue
             try:
@@ -1118,6 +1201,15 @@ class Op25Adapter(_BaseDigitalAdapter):
                 "timeMs": time_ms or int(time.time() * 1000),
                 "raw": row,
             }
+            agency = str(metadata.get("agency") or "").strip()
+            department = str(metadata.get("department") or "").strip()
+            label_full = str(metadata.get("label_full") or "").strip()
+            if agency:
+                event["agency"] = agency
+            if department:
+                event["department"] = department
+            if label_full:
+                event["label_full"] = label_full
             if freq_hz > 0:
                 event["frequency_mhz"] = _hz_to_mhz(freq_hz)
             system = self._system_from_call_log_row(row)
@@ -1135,7 +1227,8 @@ class Op25Adapter(_BaseDigitalAdapter):
                 tgid = str(row.get("tgid") or "").strip()
                 if not tgid:
                     continue
-                label = str(row.get("tag") or "").strip() or self._resolve_tg_label(tgid)
+                metadata = self._resolve_tg_display(tgid)
+                label = str(row.get("tag") or "").strip() or str(metadata.get("label") or "").strip() or self._resolve_tg_label(tgid)
                 try:
                     freq_hz = int(row.get("freq") or 0)
                 except Exception:
@@ -1149,6 +1242,15 @@ class Op25Adapter(_BaseDigitalAdapter):
                     "timeMs": now_ms,
                     "raw": row,
                 }
+                agency = str(metadata.get("agency") or "").strip()
+                department = str(metadata.get("department") or "").strip()
+                label_full = str(metadata.get("label_full") or "").strip()
+                if agency:
+                    event["agency"] = agency
+                if department:
+                    event["department"] = department
+                if label_full:
+                    event["label_full"] = label_full
                 if freq_hz > 0:
                     event["frequency_mhz"] = _hz_to_mhz(freq_hz)
                 system = str(row.get("system") or "").strip()

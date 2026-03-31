@@ -109,8 +109,19 @@ MANAGED_ANALOG_DEFAULT_GROUND_DBFS = float(
 )
 
 # Digital backend configuration
-DIGITAL_BACKEND = os.getenv("DIGITAL_BACKEND", "sdrtrunk").strip().lower()
-DIGITAL_SERVICE_NAME = os.getenv("DIGITAL_SERVICE_NAME", os.getenv("UNIT_DIGITAL", "scanner-digital"))
+DIGITAL_BACKEND = os.getenv("DIGITAL_BACKEND", "op25").strip().lower()
+
+
+def _default_digital_service_name() -> str:
+    explicit = os.getenv("DIGITAL_SERVICE_NAME") or os.getenv("UNIT_DIGITAL")
+    if explicit and str(explicit).strip():
+        return str(explicit).strip()
+    if DIGITAL_BACKEND == "op25":
+        return os.getenv("OP25_SERVICE_NAME", "scanner-digital-op25").strip() or "scanner-digital-op25"
+    return "scanner-digital"
+
+
+DIGITAL_SERVICE_NAME = _default_digital_service_name()
 DIGITAL_PROFILES_DIR = os.getenv("DIGITAL_PROFILES_DIR", "/etc/scannerproject/digital/profiles")
 DIGITAL_ACTIVE_PROFILE_LINK = os.getenv("DIGITAL_ACTIVE_PROFILE_LINK", "/etc/scannerproject/digital/active")
 DIGITAL_LOG_PATH = os.getenv("DIGITAL_LOG_PATH", "/var/log/sdrtrunk/sdrtrunk.log")

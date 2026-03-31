@@ -101,9 +101,19 @@ def merged_env() -> dict[str, str]:
     return env
 
 
+def _selected_digital_unit(values: dict[str, str]) -> str:
+    explicit = values.get("UNIT_DIGITAL") or values.get("DIGITAL_SERVICE_NAME")
+    if explicit:
+        return str(explicit).strip()
+    backend = str(values.get("DIGITAL_BACKEND") or "").strip().lower()
+    if backend == "op25":
+        return str(values.get("OP25_SERVICE_NAME") or "scanner-digital-op25").strip() or "scanner-digital-op25"
+    return "scanner-digital"
+
+
 def build_unit_specs(env: dict[str, str] | None = None) -> list[UnitSpec]:
     values = env or merged_env()
-    digital_unit = values.get("UNIT_DIGITAL") or values.get("DIGITAL_SERVICE_NAME") or "scanner-digital"
+    digital_unit = _selected_digital_unit(values)
     return [
         UnitSpec("icecast", values.get("UNIT_ICECAST", "icecast2"), restore_default=True),
         UnitSpec("keepalive", values.get("UNIT_KEEPALIVE", "icecast-keepalive"), restore_default=True),
