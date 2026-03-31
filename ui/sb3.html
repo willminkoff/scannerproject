@@ -8159,6 +8159,13 @@
       return audioEl === els.audioPlayerDigital;
     }
 
+    function analogStreamHealthyForPlayer() {
+      if (!state.icecastActive) return false;
+      const mountSet = normalizedIcecastMountSet();
+      const analogMount = normalizeMountPath(currentAnalogMountName(), 'ANALOG.mp3');
+      return Boolean(analogMount && mountSet.has(analogMount));
+    }
+
     function digitalStreamHealthyForPlayer() {
       if (!state.icecastActive) return false;
       const mountSet = normalizedIcecastMountSet();
@@ -8194,6 +8201,39 @@
       } catch (e) {
         return String(url || '');
       }
+    }
+
+    function nudgeLiveAudioToSeekableEnd(audioEl) {
+      if (!audioEl) return;
+      const seekable = audioEl.seekable;
+      if (!seekable || !Number.isFinite(seekable.length) || seekable.length < 1) return;
+      const duration = Number(audioEl.duration);
+      const liveLike = !Number.isFinite(duration) || duration <= 0;
+      if (!liveLike) return;
+      try {
+        const liveEdge = Number(seekable.end(seekable.length - 1));
+        const current = Number(audioEl.currentTime || 0);
+        if (Number.isFinite(liveEdge) && liveEdge > 0 && (!Number.isFinite(current) || Math.abs(current - liveEdge) > 1)) {
+          audioEl.currentTime = liveEdge;
+        }
+      } catch (e) {
+        // Browsers can reject seekable access on some live mounts.
+      }
+    }
+
+    function analogPlayerNeedsReload(audioEl) {
+      if (!isAnalogAudioElement(audioEl)) return false;
+      if (!analogStreamHealthyForPlayer()) return false;
+      const source = normalizeAudioUrl(audioEl.currentSrc || audioEl.src || '');
+      if (!source) return true;
+      if (audioEl.ended) return true;
+      const duration = Number(audioEl.duration);
+      const liveLike = !Number.isFinite(duration) || duration <= 0;
+      const readyState = Number(audioEl.readyState || 0);
+      const networkState = Number(audioEl.networkState || 0);
+      const position = Number(audioEl.currentTime || 0);
+      if (networkState === 3) return true;
+      return Boolean(liveLike && position <= 0.01 && readyState < 2);
     }
 
     function digitalPlayerNeedsReload(audioEl) {
@@ -8241,6 +8281,12 @@
         if (shouldPlay) {
           requestAudioPlay(audioEl, 'sync-source');
         }
+      } else if (shouldPlay && analogPlayerNeedsReload(audioEl)) {
+        audioEl.removeAttribute('src');
+        audioEl.load();
+        audioEl.src = base;
+        audioEl.load();
+        requestAudioPlay(audioEl, 'sync-live-reset');
       } else if (shouldPlay && digitalPlayerNeedsReload(audioEl)) {
         audioEl.removeAttribute('src');
         audioEl.load();
@@ -8360,6 +8406,8 @@
           waitingSinceTs: 0,
           userPauseHintTs: 0,
           digitalPrimeTs: 0,
+          analogPrimeTs: 0,
+          digitalPrimeTs: 0,
         };
         audioRecoverState.set(audioEl, tracker);
       }
@@ -8464,6 +8512,14 @@
         ensureAudioAudible(audioEl);
         audioEl.dataset.wantplay = '1';
         tracker.playRequestTs = Date.now();
+        if (isAnalogAudioElement(audioEl) && analogPlayerNeedsReload(audioEl)) {
+          const now = Date.now();
+          if ((now - Number(tracker.analogPrimeTs || 0)) > 1500) {
+            tracker.analogPrimeTs = now;
+            reloadAnalogStream('play-prime', true, { hardReset: true });
+          }
+          return;
+        }
         if (isDigitalAudioElement(audioEl) && digitalPlayerNeedsReload(audioEl)) {
           const now = Date.now();
           if ((now - Number(tracker.digitalPrimeTs || 0)) > 1500) {
@@ -8495,7 +8551,14 @@
         clearAudioWaitingTimer(audioEl);
         tracker.lastPlayingTs = Date.now();
         tracker.waitingSinceTs = 0;
+        nudgeLiveAudioToSeekableEnd(audioEl);
         markAudioProgress(audioEl);
+      });
+      audioEl.addEventListener('loadedmetadata', () => {
+        nudgeLiveAudioToSeekableEnd(audioEl);
+      });
+      audioEl.addEventListener('durationchange', () => {
+        nudgeLiveAudioToSeekableEnd(audioEl);
       });
       audioEl.addEventListener('timeupdate', () => markAudioProgress(audioEl));
       audioEl.addEventListener('waiting', () => {
