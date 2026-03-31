@@ -196,6 +196,96 @@ class ManagedAnalogControlsTests(unittest.TestCase):
             self.assertEqual("override", result["profile_controls_source"]["airband"])
             self.assertEqual(-58.0, profile_config.parse_controls(air_path)[2])
 
+    def test_empty_airband_sync_retains_current_explicit_airband_profile(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            managed_air_path = os.path.join(tmp, "managed_air.conf")
+            managed_ground_path = os.path.join(tmp, "managed_ground.conf")
+            tower_path = os.path.join(tmp, "tower.conf")
+            _write_runtime_profile(
+                managed_air_path,
+                airband=True,
+                freqs=[118.4],
+                labels=["Managed"],
+                squelch_dbfs=-60,
+            )
+            _write_runtime_profile(
+                managed_ground_path,
+                airband=False,
+                freqs=[162.55],
+                labels=["WX"],
+                squelch_dbfs=-70,
+            )
+            _write_runtime_profile(
+                tower_path,
+                airband=True,
+                freqs=[118.6],
+                labels=["Tower"],
+                squelch_dbfs=-52,
+            )
+            profiles = [
+                {
+                    "id": "hp3_favorites_airband",
+                    "label": "HP3 Favorites Airband",
+                    "path": managed_air_path,
+                    "airband": True,
+                },
+                {
+                    "id": "hp3_favorites_ground",
+                    "label": "HP3 Favorites Ground",
+                    "path": managed_ground_path,
+                    "airband": False,
+                },
+                {
+                    "id": "tower",
+                    "label": "Tower",
+                    "path": tower_path,
+                    "airband": True,
+                },
+                {
+                    "id": "none_airband",
+                    "label": "No Profile",
+                    "path": managed_air_path,
+                    "airband": True,
+                },
+            ]
+
+            def _ensure(_profiles, *, profile_id, label, airband):
+                del label, airband
+                return favorites_runtime.find_profile(profiles, profile_id), False
+
+            with mock.patch.object(
+                favorites_runtime, "load_profiles_registry", return_value=profiles
+            ), mock.patch.object(
+                favorites_runtime, "_ensure_managed_profile", side_effect=_ensure
+            ), mock.patch.object(
+                favorites_runtime, "_profiles_for_target",
+                side_effect=lambda target: (
+                    tower_path if target == "airband" else managed_ground_path,
+                    [("tower", "Tower", tower_path), ("none_airband", "No Profile", managed_air_path)]
+                    if target == "airband"
+                    else [("hp3_favorites_ground", "HP3 Favorites Ground", managed_ground_path)],
+                    "",
+                )
+            ), mock.patch.object(
+                favorites_runtime, "_switch_profile_if_needed", return_value=(False, "")
+            ) as switch_mock, mock.patch.object(
+                favorites_runtime, "write_combined_config", return_value=False
+            ):
+                result = favorites_runtime.sync_scan_pool_to_analog_runtime(
+                    force=True,
+                    mode="hp",
+                    pool={
+                        "trunked_sites": [],
+                        "conventional": [],
+                    },
+                )
+
+            self.assertTrue(result["ok"])
+            self.assertEqual("tower", result["selected_profiles"]["airband"])
+            self.assertFalse(result["profile_switched"]["airband"])
+            switch_calls = switch_mock.call_args_list
+            self.assertEqual(("airband", "tower"), switch_calls[0].args)
+
 
 class StatusAlignmentTests(unittest.TestCase):
     def test_health_payload_flags_monopolized_analog_scan(self):
