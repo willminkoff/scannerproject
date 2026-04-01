@@ -670,6 +670,26 @@ def _compute_candidate_score(candidate: dict[str, Any], system: dict[str, Any], 
     return int(score)
 
 
+def _alternate_beats_current_for_unhealthy(
+    current: dict[str, Any],
+    alternate: dict[str, Any] | None,
+    *,
+    switch_margin: int,
+) -> bool:
+    if not alternate or not _parse_enabled(alternate.get("enabled", True)):
+        return False
+    current_score = int(current.get("score") or 0)
+    alternate_score = int(alternate.get("score") or 0)
+    current_unhealthy = _candidate_is_unhealthy(current)
+    alternate_unhealthy = _candidate_is_unhealthy(alternate)
+
+    # When the current site is unhealthy, only switch immediately if the
+    # alternate is materially healthier or materially better by score.
+    if current_unhealthy and not alternate_unhealthy:
+        return True
+    return alternate_score >= (current_score + switch_margin)
+
+
 def _parse_control_channels(raw) -> list[int]:
     """Parse a list of control channel values to Hz."""
     if raw is None:
@@ -2081,7 +2101,11 @@ class Op25Adapter(_BaseDigitalAdapter):
             }, sys_state)
 
         if current_unhealthy:
-            if best_alternate and bool(best_alternate.get("enabled")):
+            if _alternate_beats_current_for_unhealthy(
+                selected,
+                best_alternate,
+                switch_margin=switch_margin,
+            ):
                 return ({
                     "action": "switch",
                     "site_id": str(best_alternate.get("site_id") or ""),
@@ -2450,6 +2474,9 @@ class Op25Adapter(_BaseDigitalAdapter):
                     sys_state["revisit_block_until"] = revisit
             elif action_type == "same_site_restart":
                 sys_state["same_site_restart_count"] = int(sys_state.get("same_site_restart_count") or 0) + 1
+                sys_state["_stale_window_times_ms"] = []
+                sys_state["_last_stale_window_time_ms"] = 0
+                sys_state["stale_window_count"] = 0
             elif action_type == "generic_restart":
                 sys_state["generic_restart_count"] = int(sys_state.get("generic_restart_count") or 0) + 1
             systems_state[key] = sys_state

@@ -344,6 +344,34 @@ class SiteSelectionDecisionTests(unittest.TestCase):
         self.assertEqual("18863", decision["site_id"])
         self.assertEqual("site_switch_unhealthy", decision["reason_code"])
 
+    def test_unhealthy_current_site_does_not_switch_to_equal_bad_alternate(self):
+        decision, state = self.adapter._selector_decision_for_system(
+            self.system,
+            self._sys_state(current_site_since=_iso_utc(self.now_ms - 30_000)),
+            [
+                _candidate(
+                    "41154",
+                    score=-30,
+                    site_name="Davidson County Services",
+                    control_locked=True,
+                    control_decode_available=False,
+                    last_tsbk_age_sec=None,
+                ),
+                _candidate(
+                    "18863",
+                    score=-30,
+                    site_name="Davidson County Simulcast",
+                    control_locked=True,
+                    control_decode_available=False,
+                    last_tsbk_age_sec=None,
+                ),
+            ],
+            now_ms=self.now_ms,
+        )
+        self.assertEqual("stay", decision["action"])
+        self.assertEqual("stay_current_unhealthy_no_alternate", decision["reason_code"])
+        self.assertEqual(1, state["stale_window_count"])
+
     def test_healthy_but_unproductive_current_site_switches_when_alternate_exceeds_margin(self):
         decision, _ = self.adapter._selector_decision_for_system(
             self.system,
@@ -673,6 +701,65 @@ class RestartBatchingTests(unittest.TestCase):
             self.assertEqual(0, mtrtrs["site_switch_restart_count"])
             self.assertEqual(0, mtrtrs["same_site_restart_count"])
             self.assertEqual(0, int(mtrtrs["_last_restart_time_ms"]))
+
+    def test_successful_same_site_restart_resets_stale_window_tracking(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            profile_dir = tmp_path / "profile"
+            runtime_dir = tmp_path / "runtime"
+            _write_profile(
+                profile_dir,
+                systems_payload={
+                    "systems": [
+                        {
+                            "name": "TACN",
+                            "sites": [
+                                {"site_id": "legacy:auto", "site_name": "Legacy Control Channel Set", "control_channels_hz": [769831250], "enabled": True},
+                            ],
+                        }
+                    ]
+                },
+            )
+            runtime_dir.mkdir(parents=True, exist_ok=True)
+            state = {
+                "systems": {
+                    "profile::TACN": _selector_state(
+                        2_000_000,
+                        selected_site_id="legacy:auto",
+                        selected_site_name="Legacy Control Channel Set",
+                        stale_window_count=2,
+                        _last_stale_window_time_ms=1_990_000,
+                        _stale_window_times_ms=[1_960_000, 1_990_000],
+                    ),
+                }
+            }
+            (runtime_dir / "site_selector_state.json").write_text(json.dumps(state) + "\n", encoding="utf-8")
+            adapter = _make_adapter(str(runtime_dir))
+            with mock.patch.object(adapter, "_regenerate_runtime_via_script", return_value=(True, "")) as regen, \
+                mock.patch.object(adapter, "restart", return_value=(True, "")) as restart:
+                adapter._handle_selector_restart_requests(
+                    str(profile_dir),
+                    [
+                        {
+                            "type": "same_site_restart",
+                            "system_name": "TACN",
+                            "previous_site_id": "legacy:auto",
+                            "selected_site_id": "legacy:auto",
+                            "reason_code": "same_site_restart_stale",
+                            "reason_text": "Repeated stale windows",
+                            "selection_mode": "legacy",
+                        }
+                    ],
+                )
+
+            regen.assert_called_once()
+            restart.assert_called_once()
+            updated = _load_selector_state(str(runtime_dir))
+            tacn = updated["systems"]["profile::TACN"]
+            self.assertEqual(1, tacn["same_site_restart_count"])
+            self.assertEqual(0, tacn["stale_window_count"])
+            self.assertEqual([], tacn["_stale_window_times_ms"])
+            self.assertEqual(0, int(tacn["_last_stale_window_time_ms"]))
 
 
 class StatusTelemetryTests(unittest.TestCase):
