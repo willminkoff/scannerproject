@@ -1516,16 +1516,16 @@
     }
 
     #controls-analog .action-primary {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: var(--bg-dark);
+      background: color-mix(in srgb, var(--accent) 50%, transparent);
+      border-color: color-mix(in srgb, var(--accent) 72%, transparent);
+      color: var(--text-primary);
       font-weight: 700;
       box-shadow: var(--slider-glow);
     }
 
     #controls-analog .action-primary:hover {
+      background: color-mix(in srgb, var(--accent) 58%, transparent);
       border-color: var(--accent);
-      filter: brightness(1.03);
     }
 
     /* ADS-B */
@@ -3397,10 +3397,6 @@
               <input id="hp-filter-range" type="number" min="0" step="0.5" inputmode="decimal">
             </label>
             <label class="hp-filter-check">
-              <input id="hp-filter-use-location" type="checkbox">
-              <span>Use Location Filter</span>
-            </label>
-            <label class="hp-filter-check">
               <input id="hp-filter-strict-location" type="checkbox">
               <span>Strict Location Radius</span>
             </label>
@@ -4892,7 +4888,14 @@
           name: String(item && item.name ? item.name : '').trim(),
         }))
         .filter((item) => item.tag > 0 && item.name)
-        .sort((a, b) => a.name.localeCompare(b.name));
+        .sort((a, b) => {
+          const aIsCustom = a.name.startsWith('Custom ');
+          const bIsCustom = b.name.startsWith('Custom ');
+          if (aIsCustom !== bIsCustom) return aIsCustom ? 1 : -1;
+          const byName = a.name.localeCompare(b.name);
+          if (byName) return byName;
+          return a.tag - b.tag;
+        });
       const defaults = _normalizeIntList(data.defaults);
       return {
         serviceTypes,
@@ -5349,7 +5352,7 @@
       const usingAutoLocation = Boolean(locationOverride && typeof locationOverride === 'object');
       const payload = {
         mode,
-        use_location: Boolean(els.hpFilterUseLocation && els.hpFilterUseLocation.checked),
+        use_location: true,
         strict_location: Boolean(els.hpFilterStrictLocation && els.hpFilterStrictLocation.checked),
         zip,
         range_miles: rangeMiles,
