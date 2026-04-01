@@ -183,6 +183,59 @@ def _parse_systems_json_text(systems_json_text: str) -> tuple[list[dict[str, Any
             raise ValueError(f"duplicate system name: {name}")
         systems_seen.add(key)
 
+        sites_raw = item.get("sites")
+        if isinstance(sites_raw, list):
+            canonical_sites: list[dict[str, Any]] = []
+            site_ids_seen: set[str] = set()
+            system_has_channels = False
+            for site_idx, raw_site in enumerate(sites_raw, start=1):
+                if not isinstance(raw_site, dict):
+                    raise ValueError(f"systems[{idx}].sites[{site_idx}] must be an object")
+                site_id = str(raw_site.get("site_id") or "").strip()
+                if not site_id:
+                    raise ValueError(f"systems[{idx}].sites[{site_idx}] missing site_id")
+                if site_id in site_ids_seen:
+                    continue
+                site_ids_seen.add(site_id)
+                site_name = str(raw_site.get("site_name") or "").strip() or site_id
+                channels_raw = (
+                    raw_site.get("control_channels_hz")
+                    if raw_site.get("control_channels_hz") is not None
+                    else (
+                        raw_site.get("control_channels_mhz")
+                        if raw_site.get("control_channels_mhz") is not None
+                        else raw_site.get("control_channels")
+                    )
+                )
+                if channels_raw is None:
+                    channels_raw = raw_site.get("controls")
+                channels = _parse_control_channel_values(channels_raw)
+                if not channels:
+                    raise ValueError(f"systems[{idx}].sites[{site_idx}] has no control channels")
+                system_has_channels = True
+                site_payload: dict[str, Any] = {
+                    "site_id": site_id,
+                    "site_name": site_name,
+                    "control_channels_hz": [int(round(float(ch) * 1_000_000.0)) for ch in channels],
+                    "enabled": bool(raw_site.get("enabled", True)),
+                }
+                for key in ("latitude", "longitude", "radius"):
+                    if raw_site.get(key) is not None:
+                        site_payload[key] = raw_site.get(key)
+                canonical_sites.append(site_payload)
+                for ch in channels:
+                    if ch in flattened_seen:
+                        continue
+                    flattened_seen.add(ch)
+                    flattened.append(ch)
+            if not system_has_channels:
+                raise ValueError(f"systems[{idx}] has no control channels")
+            system_payload: dict[str, Any] = {"name": name, "sites": canonical_sites}
+            if item.get("system_id") not in (None, ""):
+                system_payload["system_id"] = str(item.get("system_id")).strip()
+            systems.append(system_payload)
+            continue
+
         channels_raw = (
             item.get("control_channels_hz")
             if item.get("control_channels_hz") is not None
@@ -197,12 +250,13 @@ def _parse_systems_json_text(systems_json_text: str) -> tuple[list[dict[str, Any
         channels = _parse_control_channel_values(channels_raw)
         if not channels:
             raise ValueError(f"systems[{idx}] has no control channels")
-        systems.append(
-            {
-                "name": name,
-                "control_channels_mhz": channels,
-            }
-        )
+        system_payload = {
+            "name": name,
+            "control_channels_mhz": channels,
+        }
+        if item.get("system_id") not in (None, ""):
+            system_payload["system_id"] = str(item.get("system_id")).strip()
+        systems.append(system_payload)
         for ch in channels:
             if ch in flattened_seen:
                 continue
@@ -212,6 +266,7 @@ def _parse_systems_json_text(systems_json_text: str) -> tuple[list[dict[str, Any
     if not systems:
         raise ValueError("systems JSON has no valid systems")
 
+    flattened.sort(key=lambda token: float(token))
     canonical = json.dumps({"systems": systems}, indent=2)
     if canonical and not canonical.endswith("\n"):
         canonical += "\n"
