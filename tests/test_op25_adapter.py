@@ -58,7 +58,7 @@ class ParseControlChannelsTests(unittest.TestCase):
 
 
 class ReadSystemDefinitionsTests(unittest.TestCase):
-    def test_reads_systems_json(self):
+    def test_reads_legacy_systems_json(self):
         with tempfile.TemporaryDirectory() as d:
             data = {
                 "systems": [
@@ -73,6 +73,38 @@ class ReadSystemDefinitionsTests(unittest.TestCase):
             self.assertEqual("TACN", systems[0]["name"])
             self.assertEqual([851012500, 856462500], systems[0]["control_channels_hz"])
             self.assertEqual("MTRTRS", systems[1]["name"])
+
+    def test_reads_site_aware_systems_json_and_flattens_enabled_sites(self):
+        with tempfile.TemporaryDirectory() as d:
+            data = {
+                "systems": [
+                    {
+                        "name": "MTRTRS",
+                        "system_id": "7078",
+                        "sites": [
+                            {
+                                "site_id": "18863",
+                                "site_name": "Davidson County Simulcast",
+                                "control_channels_hz": [856937500, 857437500],
+                                "enabled": True,
+                            },
+                            {
+                                "site_id": "41154",
+                                "site_name": "Davidson County Services",
+                                "control_channels_hz": [855912500, 856937500],
+                                "enabled": False,
+                            },
+                        ],
+                    }
+                ]
+            }
+            with open(os.path.join(d, "systems.json"), "w") as f:
+                json.dump(data, f)
+            systems = _read_system_definitions(d)
+            self.assertEqual(
+                [{"name": "MTRTRS", "control_channels_hz": [856937500, 857437500]}],
+                systems,
+            )
 
     def test_empty_dir(self):
         with tempfile.TemporaryDirectory() as d:

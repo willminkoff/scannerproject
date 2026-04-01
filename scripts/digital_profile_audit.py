@@ -66,6 +66,192 @@ def _parse_control_hz(raw: str) -> int | None:
     return None
 
 
+def _parse_control_channel_values(raw: Any) -> list[int]:
+    if raw is None:
+        return []
+    if isinstance(raw, (int, float)):
+        raw = [raw]
+    if isinstance(raw, str):
+        raw = [token.strip() for token in raw.replace(",", " ").split() if token.strip()]
+    if not isinstance(raw, list):
+        return []
+    out: list[int] = []
+    seen: set[int] = set()
+    for value in raw:
+        hz = _parse_control_hz(str(value))
+        if not hz or hz <= 0 or hz in seen:
+            continue
+        seen.add(hz)
+        out.append(hz)
+    return out
+
+
+def _parse_json_bool(value: Any, default: bool = True) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _parse_optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except Exception:
+        return None
+
+
+def _legacy_control_fields(node: dict[str, Any]) -> list[int]:
+    for key in ("control_channels_hz", "control_channels_mhz", "control_channels", "controls"):
+        channels = _parse_control_channel_values(node.get(key))
+        if channels:
+            return channels
+    return []
+
+
+def _normalize_systems_payload(
+    payload: Any,
+    *,
+    fix_mode: bool = False,
+) -> tuple[list[dict[str, Any]], list[str], list[str], bool]:
+    errors: list[str] = []
+    warnings: list[str] = []
+    changed = False
+
+    raw_systems = payload.get("systems") if isinstance(payload, dict) else payload
+    if not isinstance(raw_systems, list):
+        return [], ["systems.json must contain a top-level systems list"], warnings, changed
+
+    normalized: list[dict[str, Any]] = []
+    for system_index, raw_system in enumerate(raw_systems):
+        if not isinstance(raw_system, dict):
+            errors.append(f"systems[{system_index}] must be an object")
+            continue
+        name = str(raw_system.get("name") or raw_system.get("id") or raw_system.get("system") or "").strip()
+        if not name:
+            errors.append(f"systems[{system_index}] is missing name")
+            continue
+        system_id_raw = raw_system.get("system_id")
+        system_id = "" if system_id_raw in (None, "") else str(system_id_raw).strip()
+
+        raw_sites = raw_system.get("sites")
+        if isinstance(raw_sites, list):
+            candidate_sites = raw_sites
+        else:
+            legacy_channels = _legacy_control_fields(raw_system)
+            if not legacy_channels:
+                errors.append(f"system {name} has no sites and no legacy control-channel fields")
+                continue
+            candidate_sites = [
+                {
+                    "site_id": "legacy:auto",
+                    "site_name": "Legacy Control Channel Set",
+                    "control_channels_hz": legacy_channels,
+                    "enabled": True,
+                }
+            ]
+            changed = True
+
+        normalized_sites: list[dict[str, Any]] = []
+        site_index_by_id: dict[str, int] = {}
+        for site_index, raw_site in enumerate(candidate_sites):
+            if not isinstance(raw_site, dict):
+                errors.append(f"system {name} site[{site_index}] must be an object")
+                continue
+
+            site_id = str(raw_site.get("site_id") or "").strip()
+            site_name = str(raw_site.get("site_name") or "").strip() or "Legacy Control Channel Set"
+            control_channels_hz = _legacy_control_fields(raw_site)
+            if not control_channels_hz:
+                errors.append(f"system {name} site {site_id or site_name} has no parseable control channels")
+                continue
+            enabled = _parse_json_bool(raw_site.get("enabled"), default=True)
+            if raw_site.get("enabled") is None:
+                changed = True
+
+            normalized_site: dict[str, Any] = {
+                "site_id": site_id or "legacy:auto",
+                "site_name": site_name,
+                "control_channels_hz": control_channels_hz,
+                "enabled": enabled,
+            }
+            if not site_id:
+                changed = True
+
+            latitude = _parse_optional_float(raw_site.get("latitude"))
+            longitude = _parse_optional_float(raw_site.get("longitude"))
+            radius = _parse_optional_float(raw_site.get("radius"))
+            if latitude is not None:
+                normalized_site["latitude"] = latitude
+            if longitude is not None:
+                normalized_site["longitude"] = longitude
+            if radius is not None:
+                normalized_site["radius"] = radius
+
+            existing_index = site_index_by_id.get(normalized_site["site_id"])
+            if existing_index is None:
+                site_index_by_id[normalized_site["site_id"]] = len(normalized_sites)
+                normalized_sites.append(normalized_site)
+                continue
+
+            if fix_mode:
+                changed = True
+                merged = normalized_sites[existing_index]
+                merged_channels = sorted(
+                    {
+                        *merged.get("control_channels_hz", []),
+                        *normalized_site["control_channels_hz"],
+                    }
+                )
+                merged["control_channels_hz"] = merged_channels
+                merged["enabled"] = _parse_json_bool(merged.get("enabled"), True) or enabled
+                for field in ("latitude", "longitude", "radius"):
+                    if field not in merged and field in normalized_site:
+                        merged[field] = normalized_site[field]
+            else:
+                warnings.append(f"system {name} has duplicate site_id {normalized_site['site_id']}")
+
+        if not normalized_sites:
+            errors.append(f"system {name} has no usable sites")
+            continue
+
+        normalized_sites = sorted(normalized_sites, key=lambda site: (str(site["site_name"]).lower(), str(site["site_id"])))
+        normalized_system: dict[str, Any] = {
+            "name": name,
+            "sites": normalized_sites,
+        }
+        if system_id:
+            normalized_system["system_id"] = system_id
+        normalized.append(normalized_system)
+
+    return normalized, errors, warnings, changed
+
+
+def _load_and_normalize_systems(path: Path, *, fix_mode: bool = False) -> tuple[dict[str, Any] | None, list[str], list[str], bool]:
+    if not path.is_file():
+        return None, [], [], False
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8", errors="ignore") or "{}")
+    except Exception as exc:
+        return None, [f"failed to parse systems.json: {exc}"], [], False
+    normalized_systems, errors, warnings, changed = _normalize_systems_payload(payload, fix_mode=fix_mode)
+    if errors:
+        return None, errors, warnings, changed
+    return {"systems": normalized_systems}, errors, warnings, changed
+
+
+def _write_systems_json(path: Path, payload: dict[str, Any]) -> None:
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with tmp.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2)
+        handle.write("\n")
+    tmp.replace(path)
+
+
 def _read_control_channels(path: Path) -> list[int]:
     if not path.is_file():
         return []
@@ -262,6 +448,16 @@ def audit_profile(profile_dir: Path) -> dict[str, Any]:
     if not control_hz:
         errors.append("missing/invalid control channels: control_channels.txt has no parseable frequencies")
 
+    systems_path = profile_dir / "systems.json"
+    result["systems_path"] = systems_path
+    systems_payload, systems_errors, systems_warnings, _ = _load_and_normalize_systems(systems_path, fix_mode=False)
+    result["systems_payload"] = systems_payload
+    result["systems_count"] = len((systems_payload or {}).get("systems", []))
+    if systems_errors:
+        errors.extend(systems_errors)
+    if systems_warnings:
+        warnings.extend(systems_warnings)
+
     tg_path = _pick_talkgroups_path(profile_dir)
     result["talkgroups_path"] = tg_path
     talkgroups: dict[str, dict[str, str]] = {}
@@ -327,6 +523,25 @@ def apply_fixes(result: dict[str, Any], default_listen_for_new: bool) -> list[st
     profile_dir: Path = result["profile_dir"]
     talkgroups: dict[str, dict[str, str]] = result.get("talkgroups", {})
 
+    systems_path: Path = result["systems_path"]
+    if systems_path.is_file():
+        systems_payload, systems_errors, systems_warnings, systems_changed = _load_and_normalize_systems(
+            systems_path,
+            fix_mode=True,
+        )
+        if systems_errors:
+            result["errors"].extend(err for err in systems_errors if err not in result["errors"])
+        else:
+            for warning in systems_warnings:
+                if warning not in result["warnings"]:
+                    result["warnings"].append(warning)
+            if systems_payload is not None and systems_changed:
+                backup = systems_path.with_name(f"{systems_path.name}.bak.{_timestamp()}.canon")
+                shutil.copy2(systems_path, backup)
+                fixes.append(f"backed up systems.json to {backup.name}")
+                _write_systems_json(systems_path, systems_payload)
+                fixes.append("normalized systems.json to canonical sites[] form")
+
     tg_path: Path | None = result.get("talkgroups_path")
     if tg_path and tg_path.name == "talkgroups_with_group.csv":
         target = profile_dir / "talkgroups.csv"
@@ -382,12 +597,14 @@ def print_report(result: dict[str, Any]) -> None:
     profile_dir: Path = result["profile_dir"]
     talkgroups_path: Path | None = result.get("talkgroups_path")
     control_hz: list[int] = result.get("control_hz", [])
+    systems_payload: dict[str, Any] | None = result.get("systems_payload")
     talkgroups: dict[str, dict[str, str]] = result.get("talkgroups", {})
     missing_listen_tgids: list[str] = result.get("missing_listen_tgids", [])
 
     print(f"Profile: {profile_dir}")
     print(f"Status: {_status(result)}")
     print(f"Control channels: {len(control_hz)}")
+    print(f"Systems.json: {len((systems_payload or {}).get('systems', [])) if result.get('systems_path') and Path(result['systems_path']).is_file() else '(absent)'}")
     print(f"Talkgroup file: {talkgroups_path.name if talkgroups_path else '(missing)'}")
     print(f"Talkgroups: {len(talkgroups)}")
     print(f"Encrypted TGIDs: {result.get('encrypted_count', 0)}")

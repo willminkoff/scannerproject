@@ -41,6 +41,8 @@ from ui.config import (
 from ui.dongle_allocator import load_assignments
 from ui.op25_adapter import (
     _multi_rx_udp_ports,
+    _flatten_active_runtime_systems,
+    _hydrate_runtime_systems_for_config,
     _read_op25_system_config,
     _read_system_definitions,
     _read_talkgroup_labels,
@@ -178,7 +180,13 @@ def main() -> int:
     profile_id = os.path.basename(profile_dir)
     print(f"OP25 runtime: profile={profile_id} dir={profile_dir}")
 
-    systems = _read_system_definitions(profile_dir)
+    op25_overrides = _read_op25_system_config(profile_dir)
+    runtime_systems, _selector_state = _hydrate_runtime_systems_for_config(
+        profile_dir,
+        OP25_RUNTIME_DIR,
+        op25_overrides=op25_overrides,
+    )
+    systems = _flatten_active_runtime_systems(runtime_systems)
     if not systems:
         print("ERROR: no systems defined in profile", file=sys.stderr)
         return 1
@@ -192,7 +200,6 @@ def main() -> int:
         print(f"WARNING: could not load dongle assignments: {e}", file=sys.stderr)
 
     dongle_map = _build_dongle_map(dongle_assignments)
-    op25_overrides = _read_op25_system_config(profile_dir)
     tg_labels = _read_talkgroup_labels(profile_dir)
 
     runtime_dir = OP25_RUNTIME_DIR
