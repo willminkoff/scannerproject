@@ -3739,6 +3739,17 @@
       ['467.7000', 'CH 21R'],
       ['467.7250', 'CH 22R'],
     ]);
+    const MURS_CHANNEL_FREQS_MHZ = [
+      151.8200,
+      151.8800,
+      151.9400,
+      154.5700,
+      154.6000,
+    ];
+    const GMRS_FRS_MURS_BANDSCAN_FREQS_MHZ = Array.from(new Set([
+      ...Array.from(GMRS_CHANNEL_LABELS_BY_FREQ.keys()).map((freq) => Number(freq)),
+      ...MURS_CHANNEL_FREQS_MHZ,
+    ])).filter((freq) => Number.isFinite(freq)).sort((a, b) => a - b);
 
     function buildLinearBandFrequencies(startMhz, endMhz, stepMhz, decimals = 4) {
       const factor = Math.pow(10, Math.max(0, Math.trunc(Number(decimals) || 0)));
@@ -3779,9 +3790,13 @@
         profileId: QUICK_GROUND_GMRS_FRS_MURS_PROFILE_ID,
         stopProfileId: QUICK_GROUND_OFF_PROFILE_ID,
         label: QUICK_GROUND_GMRS_LABEL,
+        profileLabel: 'GMRS/FRS/MURS',
+        modulation: 'nfm',
+        bandwidth: 12500,
+        buildFrequencies: () => GMRS_FRS_MURS_BANDSCAN_FREQS_MHZ.slice(),
         inactiveTitle: 'Switch to Ground and scan GMRS/FRS/MURS',
         activeTitle: 'GMRS/FRS/MURS scan active. Tap again to stop.',
-        autoProvision: false,
+        autoProvision: true,
       },
       {
         key: 'wx',
