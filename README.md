@@ -667,7 +667,7 @@ For local-audio debugging sessions, set `DIGITAL_LOCAL_MONITOR=1` and restart `s
 Profiles live under `DIGITAL_PROFILES_DIR` and the active profile is pointed to by `DIGITAL_ACTIVE_PROFILE_LINK`.
 Example scaffolding lives in `deploy/examples/digital-profiles/profiles/` (includes `profiles/example/`).
 Each profile directory should contain the SDRTrunk config exports you want to run for that profile.
-Optional for explicit multi-system scheduling: add `systems.json` with this format:
+Optional for explicit multi-system scheduling: legacy flat `systems.json` is still accepted:
 ```json
 {
   "systems": [
@@ -676,7 +676,29 @@ Optional for explicit multi-system scheduling: add `systems.json` with this form
   ]
 }
 ```
-When present, `systems.json` is the scheduler source of truth for per-system control-channel sets.
+Preferred site-aware `systems.json` format:
+```json
+{
+  "systems": [
+    {
+      "name": "MTRTRS",
+      "system_id": "7078",
+      "sites": [
+        {
+          "site_id": "18863",
+          "site_name": "Davidson County Simulcast",
+          "control_channels_hz": [856937500, 857437500],
+          "latitude": 36.17,
+          "longitude": -86.78,
+          "radius": 20.0,
+          "enabled": true
+        }
+      ]
+    }
+  ]
+}
+```
+For the current runtime path, `control_channels.txt` still drives OP25/SDRTrunk control-channel generation. Site-aware `systems.json` is groundwork for future deliberate site selection without breaking existing profiles.
 
 **Canonical workflow (authoritative): create a working digital profile**
 Use this flow for every new or edited digital profile, regardless of source data.
@@ -914,9 +936,10 @@ python3 scripts/homepatrol_db.py --db /home/willminkoff/scanner-db/homepatrol.db
 ```
 - Output files match the Digital UI expectations:
   - `control_channels.txt`
+  - `systems.json`
   - `talkgroups.csv`
   - `talkgroups_with_group.csv`
-- Note: HomePatrol exports do not mark control channels explicitly, so generated `control_channels.txt` contains site frequencies for selected sites.
+- Note: HomePatrol exports do not mark control channels explicitly, so generated `control_channels.txt` contains the union of selected-site frequencies and `systems.json` preserves explicit candidate-site identity for future site-aware runtime use.
 
 **HomePatrol Favorites (HPCOPY.zip) converter**:
 - `scripts/homepatrol_favorites.py` reads `HPCOPY.zip` backups and converts a Favorites list into scannerproject files.
@@ -936,6 +959,7 @@ python3 scripts/homepatrol_favorites.py \
 ```
 - Export creates:
   - `control_channels.txt`
+  - `systems.json` (when trunk systems are present)
   - `talkgroups.csv`
   - `talkgroups_with_group.csv`
   - `conventional.csv` (analog reference)

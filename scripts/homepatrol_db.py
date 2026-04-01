@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import csv
 import datetime as dt
+import json
 import sqlite3
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -914,6 +915,13 @@ def _write_talkgroup_csv(path: Path, rows: Sequence[tuple[object, ...]], with_gr
                 writer.writerow([dec, hex_val, mode, alpha, description, tag])
 
 
+def _write_systems_json(path: Path, systems: list[dict[str, object]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        json.dump({"systems": systems}, handle, indent=2)
+        handle.write("\n")
+
+
 def cmd_build_profile(args: argparse.Namespace) -> int:
     out_dir = Path(args.out).expanduser()
     db_path = Path(args.db).expanduser()
@@ -927,7 +935,7 @@ def cmd_build_profile(args: argparse.Namespace) -> int:
 
         site_rows = conn.execute(
             """
-            SELECT site_id, site_name
+            SELECT site_id, site_name, latitude, longitude, radius
             FROM trunk_sites
             WHERE trunk_id = ?
             ORDER BY site_name
@@ -946,25 +954,63 @@ def cmd_build_profile(args: argparse.Namespace) -> int:
             ]
             if not selected_sites:
                 print("error: no sites matched filter")
-                for _, site_name in site_rows:
+                for _, site_name, *_ in site_rows:
                     print(f"  {site_name}")
                 return 2
 
         site_ids = [int(row[0]) for row in selected_sites]
         placeholders = ",".join("?" for _ in site_ids)
-        freq_rows = conn.execute(
+        freq_rows_raw = conn.execute(
             f"""
-            SELECT DISTINCT freq_hz
+            SELECT site_id, freq_hz
             FROM trunk_freqs
             WHERE site_id IN ({placeholders})
               AND freq_hz > 0
-            ORDER BY freq_hz
+            ORDER BY site_id, freq_hz
             """,
             site_ids,
         ).fetchall()
-        if not freq_rows:
+        freq_by_site: dict[int, list[int]] = {}
+        for site_id, freq_hz in freq_rows_raw:
+            sid = int(site_id)
+            hz = int(freq_hz)
+            bucket = freq_by_site.setdefault(sid, [])
+            if hz not in bucket:
+                bucket.append(hz)
+
+        emitted_sites: list[dict[str, object]] = []
+        excluded_sites: list[str] = []
+        union_freqs: list[int] = []
+        seen_union: set[int] = set()
+        for site_id, site_name, latitude, longitude, radius in selected_sites:
+            site_channels = sorted(freq_by_site.get(int(site_id), []))
+            if not site_channels:
+                excluded_sites.append(str(site_name))
+                continue
+            for freq_hz in site_channels:
+                if freq_hz not in seen_union:
+                    seen_union.add(freq_hz)
+                    union_freqs.append(freq_hz)
+            emitted_sites.append(
+                {
+                    "site_id": str(site_id),
+                    "site_name": str(site_name),
+                    "control_channels_hz": site_channels,
+                    "latitude": latitude,
+                    "longitude": longitude,
+                    "radius": radius,
+                    "enabled": True,
+                }
+            )
+        if excluded_sites:
+            print(
+                "warning: excluding selected sites with zero control channels: "
+                + ", ".join(excluded_sites)
+            )
+        if not emitted_sites:
             print("error: no frequencies found for selected sites")
             return 2
+        freq_rows = [(freq_hz,) for freq_hz in union_freqs]
 
         where = ["tg.trunk_id = ?", "t.dec_tgid GLOB '[0-9]*'"]
         params: list[object] = [trunk_id]
@@ -1022,12 +1068,23 @@ def cmd_build_profile(args: argparse.Namespace) -> int:
                     continue
                 handle.write(f"{_mhz_from_hz(int(freq_hz))}\n")
 
+        _write_systems_json(
+            profile_dir / "systems.json",
+            [
+                {
+                    "name": system_name,
+                    "system_id": str(trunk_id),
+                    "sites": emitted_sites,
+                }
+            ],
+        )
+
         _write_talkgroup_csv(profile_dir / "talkgroups.csv", tg_rows, with_group=False)
         _write_talkgroup_csv(profile_dir / "talkgroups_with_group.csv", tg_rows, with_group=True)
 
         readme_path = profile_dir / "README.md"
         generated = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        site_list = ", ".join(str(row[1]) for row in selected_sites)
+        site_list = ", ".join(str(site["site_name"]) for site in emitted_sites)
         readme_path.write_text(
             (
                 f"# {profile_name}\n\n"
@@ -1036,6 +1093,7 @@ def cmd_build_profile(args: argparse.Namespace) -> int:
                 f"- Trunk ID: `{trunk_id}`\n"
                 f"- Sites: {site_list}\n"
                 f"- Control frequencies: `{len(freq_rows)}` entries in `control_channels.txt`\n"
+                f"- Candidate sites: `{len(emitted_sites)}` entries in `systems.json`\n"
                 f"- Talkgroups: `{len(tg_rows)}` rows in `talkgroups.csv`\n"
                 f"- Grouped copy: `talkgroups_with_group.csv`\n"
             ),

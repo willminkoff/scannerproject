@@ -162,13 +162,37 @@ def _read_system_definitions(profile_dir: str) -> list[dict]:
         if not name or name.lower() in seen:
             continue
         seen.add(name.lower())
-        channels_raw = (
-            item.get("control_channels_hz")
-            or item.get("control_channels_mhz")
-            or item.get("control_channels")
-            or item.get("controls")
-        )
-        channels = _parse_control_channels(channels_raw)
+        channels: list[int] = []
+        sites_raw = item.get("sites")
+        if isinstance(sites_raw, list):
+            seen_channels: set[int] = set()
+            # PR1 compatibility path: flatten enabled candidate sites to one
+            # control-channel union. PR2 will switch runtime generation to one
+            # explicit active site per system instead of this union.
+            for site in sites_raw:
+                if not isinstance(site, dict):
+                    continue
+                if str(site.get("enabled", True)).strip().lower() in ("0", "false", "no", "off"):
+                    continue
+                site_channels = _parse_control_channels(
+                    site.get("control_channels_hz")
+                    or site.get("control_channels_mhz")
+                    or site.get("control_channels")
+                    or site.get("controls")
+                )
+                for hz in site_channels:
+                    if hz not in seen_channels:
+                        seen_channels.add(hz)
+                        channels.append(hz)
+            channels.sort()
+        else:
+            channels_raw = (
+                item.get("control_channels_hz")
+                or item.get("control_channels_mhz")
+                or item.get("control_channels")
+                or item.get("controls")
+            )
+            channels = _parse_control_channels(channels_raw)
         if not channels:
             continue
         systems.append({"name": name, "control_channels_hz": channels})
