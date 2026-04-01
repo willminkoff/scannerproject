@@ -10,6 +10,7 @@ the OP25 HTTP status endpoint for health.
 from __future__ import annotations
 
 import csv
+import datetime as dt
 import json
 import logging
 import os
@@ -19,6 +20,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from typing import Any
 
 try:
     from .config import (
@@ -109,6 +111,22 @@ _RE_CC_STATUS = re.compile(
 _RE_ROOT_TSBKS = re.compile(r"\btsbks\s+(\d+)\b", re.IGNORECASE)
 
 _OP25_ROOT_ACTIVITY_MAX_AGE_SEC = 15.0
+_OP25_SITE_SELECTOR_STATE = "site_selector_state.json"
+_OP25_SITE_SELECTOR_ACTION_COOLDOWN_MS = 30_000
+_OP25_SITE_SELECTOR_SURVEY_DWELL_SEC = 15
+_OP25_SITE_SELECTOR_SURVEY_MAX_SEC = 60
+_OP25_SITE_SELECTOR_STALE_WINDOW_WINDOW_MS = 10 * 60 * 1000
+
+_DEFAULT_SITE_POLICY = {
+    "mode": "auto",
+    "pinned_site_id": "",
+    "preferred_site_ids": [],
+    "avoid_site_ids": [],
+    "min_dwell_sec": 120,
+    "unproductive_window_sec": 300,
+    "revisit_cooldown_sec": 180,
+    "switch_margin": 20,
+}
 
 # Timestamps at the start of OP25 log lines can be ISO-like or US short-date.
 _RE_TIMESTAMP = re.compile(
@@ -127,6 +145,37 @@ def _hz_to_mhz(hz: int) -> float:
 
 def _mhz_to_hz(mhz: float) -> int:
     return int(round(mhz * 1_000_000))
+
+
+def _now_ms() -> int:
+    return int(time.time() * 1000)
+
+
+def _iso_utc(ms: int = 0) -> str:
+    value = int(ms or _now_ms())
+    return dt.datetime.fromtimestamp(value / 1000.0, tz=dt.timezone.utc).isoformat()
+
+
+def _ms_from_iso(text: str) -> int:
+    raw = str(text or "").strip()
+    if not raw:
+        return 0
+    try:
+        if raw.endswith("Z"):
+            raw = raw[:-1] + "+00:00"
+        return int(dt.datetime.fromisoformat(raw).timestamp() * 1000)
+    except Exception:
+        return 0
+
+
+def _parse_enabled(value: Any, default: bool = True) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return str(value).strip().lower() not in {"0", "false", "no", "off"}
 
 
 # ---------------------------------------------------------------------------
@@ -172,7 +221,7 @@ def _read_system_definitions(profile_dir: str) -> list[dict]:
             for site in sites_raw:
                 if not isinstance(site, dict):
                     continue
-                if str(site.get("enabled", True)).strip().lower() in ("0", "false", "no", "off"):
+                if not _parse_enabled(site.get("enabled", True)):
                     continue
                 site_channels = _parse_control_channels(
                     site.get("control_channels_hz")
@@ -197,6 +246,420 @@ def _read_system_definitions(profile_dir: str) -> list[dict]:
             continue
         systems.append({"name": name, "control_channels_hz": channels})
     return systems
+
+
+def _normalize_site_policy(raw_policy: Any, site_ids: set[str]) -> tuple[dict[str, Any], list[str]]:
+    policy = dict(_DEFAULT_SITE_POLICY)
+    warnings: list[str] = []
+    raw_policy = raw_policy if isinstance(raw_policy, dict) else {}
+
+    mode = str(raw_policy.get("mode") or policy["mode"]).strip().lower()
+    policy["mode"] = mode if mode in {"auto", "manual"} else "auto"
+
+    pinned_site_id = str(raw_policy.get("pinned_site_id") or "").strip()
+    if pinned_site_id and pinned_site_id not in site_ids:
+        warnings.append(f"unknown pinned_site_id {pinned_site_id}")
+    policy["pinned_site_id"] = pinned_site_id
+
+    def _norm_site_list(name: str) -> list[str]:
+        seen: set[str] = set()
+        items: list[str] = []
+        raw_values = raw_policy.get(name)
+        if isinstance(raw_values, str):
+            raw_values = [token.strip() for token in raw_values.replace(",", " ").split() if token.strip()]
+        if not isinstance(raw_values, list):
+            raw_values = []
+        for raw in raw_values:
+            site_id = str(raw or "").strip()
+            if not site_id or site_id in seen:
+                continue
+            seen.add(site_id)
+            if site_id not in site_ids:
+                warnings.append(f"unknown {name} entry {site_id}")
+            items.append(site_id)
+        return items
+
+    policy["preferred_site_ids"] = _norm_site_list("preferred_site_ids")
+    policy["avoid_site_ids"] = _norm_site_list("avoid_site_ids")
+
+    for key in ("min_dwell_sec", "unproductive_window_sec", "revisit_cooldown_sec", "switch_margin"):
+        default_value = int(_DEFAULT_SITE_POLICY[key])
+        try:
+            value = int(raw_policy.get(key, default_value))
+        except Exception:
+            value = default_value
+        if value <= 0:
+            value = default_value
+        policy[key] = value
+
+    return policy, warnings
+
+
+def _selector_state_path(runtime_dir: str) -> str:
+    return os.path.join(runtime_dir, _OP25_SITE_SELECTOR_STATE)
+
+
+def _load_selector_state(runtime_dir: str) -> dict[str, Any]:
+    path = _selector_state_path(runtime_dir)
+    if not os.path.isfile(path):
+        return {"systems": {}}
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            payload = json.load(f) or {}
+    except Exception:
+        return {"systems": {}}
+    if not isinstance(payload, dict):
+        return {"systems": {}}
+    systems = payload.get("systems")
+    if not isinstance(systems, dict):
+        payload["systems"] = {}
+    return payload
+
+
+def _save_selector_state(runtime_dir: str, payload: dict[str, Any]) -> None:
+    os.makedirs(runtime_dir, exist_ok=True)
+    path = _selector_state_path(runtime_dir)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, sort_keys=True)
+        f.write("\n")
+    os.replace(tmp, path)
+
+
+def _state_system_key(profile_id: str, system_name: str) -> str:
+    return f"{profile_id}::{system_name}"
+
+
+def _normalize_runtime_system_definitions(
+    profile_dir: str,
+    *,
+    op25_overrides: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    systems_path = os.path.join(profile_dir, "systems.json")
+    if not os.path.isfile(systems_path):
+        return []
+    try:
+        with open(systems_path, "r", encoding="utf-8", errors="ignore") as f:
+            payload = json.load(f)
+    except Exception:
+        return []
+
+    raw_list = payload.get("systems") if isinstance(payload, dict) else payload
+    if not isinstance(raw_list, list):
+        return []
+
+    overrides = op25_overrides or {}
+    systems: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in raw_list:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or item.get("id") or item.get("system") or "").strip()
+        if not name or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        system_id = str(item.get("system_id") or "").strip()
+
+        sites_raw = item.get("sites")
+        normalized_sites: list[dict[str, Any]] = []
+        if isinstance(sites_raw, list):
+            for raw_site in sites_raw:
+                if not isinstance(raw_site, dict):
+                    continue
+                site_channels = _parse_control_channels(
+                    raw_site.get("control_channels_hz")
+                    or raw_site.get("control_channels_mhz")
+                    or raw_site.get("control_channels")
+                    or raw_site.get("controls")
+                )
+                if not site_channels:
+                    continue
+                normalized_sites.append(
+                    {
+                        "site_id": str(raw_site.get("site_id") or "legacy:auto").strip() or "legacy:auto",
+                        "site_name": str(raw_site.get("site_name") or "Legacy Control Channel Set").strip()
+                        or "Legacy Control Channel Set",
+                        "control_channels_hz": sorted(site_channels),
+                        "enabled": _parse_enabled(raw_site.get("enabled", True)),
+                    }
+                )
+        else:
+            legacy_channels = _parse_control_channels(
+                item.get("control_channels_hz")
+                or item.get("control_channels_mhz")
+                or item.get("control_channels")
+                or item.get("controls")
+            )
+            if legacy_channels:
+                normalized_sites.append(
+                    {
+                        "site_id": "legacy:auto",
+                        "site_name": "Legacy Control Channel Set",
+                        "control_channels_hz": sorted(legacy_channels),
+                        "enabled": True,
+                    }
+                )
+        if not normalized_sites:
+            continue
+
+        site_ids = {str(site["site_id"]) for site in normalized_sites}
+        policy, policy_warnings = _normalize_site_policy(
+            (overrides.get(name) or {}).get("site_policy"),
+            site_ids,
+        )
+        systems.append(
+            {
+                "name": name,
+                "system_id": system_id,
+                "sites": normalized_sites,
+                "site_policy": policy,
+                "site_policy_warnings": policy_warnings,
+                "active_site_id": "",
+                "active_control_channels_hz": [],
+            }
+        )
+    return systems
+
+
+def _candidate_state_defaults(site: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "site_id": str(site.get("site_id") or ""),
+        "site_name": str(site.get("site_name") or ""),
+        "enabled": _parse_enabled(site.get("enabled", True)),
+        "state": "candidate",
+        "score": 0,
+        "control_locked": False,
+        "control_decode_available": False,
+        "last_tsbk_age_sec": None,
+        "recent_any_grants": 0,
+        "recent_monitored_tg_hits": 0,
+        "exclusion_reason": "",
+        "demotion_reason": "",
+    }
+
+
+def _initial_selector_system_state(system: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "selected_site_id": "",
+        "selected_site_name": "",
+        "selection_mode": "legacy",
+        "reason_code": "",
+        "reason_text": "",
+        "last_switch_time": "",
+        "switch_count": 0,
+        "same_site_restart_count": 0,
+        "site_switch_restart_count": 0,
+        "generic_restart_count": 0,
+        "stale_window_count": 0,
+        "current_site_since": "",
+        "unproductive_since": "",
+        "revisit_block_until": {},
+        "candidates": [_candidate_state_defaults(site) for site in system.get("sites") or []],
+        "_last_restart_time_ms": 0,
+        "_last_stale_window_time_ms": 0,
+        "_stale_window_times_ms": [],
+        "_survey_started_at_ms": 0,
+        "_survey_candidate_index": 0,
+        "_survey_completed": False,
+    }
+
+
+def _hydrate_runtime_systems_for_config(
+    profile_dir: str,
+    runtime_dir: str,
+    *,
+    op25_overrides: dict[str, Any] | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    profile_id = os.path.basename(profile_dir.rstrip(os.sep))
+    systems = _normalize_runtime_system_definitions(profile_dir, op25_overrides=op25_overrides)
+    state = _load_selector_state(runtime_dir)
+    systems_state = state.setdefault("systems", {})
+    changed = False
+
+    for system in systems:
+        key = _state_system_key(profile_id, system["name"])
+        sys_state = systems_state.get(key)
+        if not isinstance(sys_state, dict):
+            sys_state = _initial_selector_system_state(system)
+            systems_state[key] = sys_state
+            changed = True
+        enabled_sites = [site for site in system["sites"] if _parse_enabled(site.get("enabled", True))]
+        is_legacy_single_site = (
+            len(system.get("sites") or []) == 1
+            and str((system.get("sites") or [{}])[0].get("site_id") or "") == "legacy:auto"
+        )
+        selected_site = None
+        policy = system["site_policy"]
+        pinned_site_id = str(policy.get("pinned_site_id") or "").strip()
+        if pinned_site_id:
+            selected_site = next(
+                (site for site in enabled_sites if str(site.get("site_id") or "") == pinned_site_id),
+                None,
+            )
+            if selected_site is not None:
+                sys_state["selection_mode"] = "pinned"
+                sys_state["reason_code"] = "pinned_site_selected"
+                sys_state["reason_text"] = f"Pinned site {selected_site['site_name']} selected"
+        if selected_site is None:
+            current_site_id = str(sys_state.get("selected_site_id") or "").strip()
+            if current_site_id:
+                selected_site = next(
+                    (site for site in enabled_sites if str(site.get("site_id") or "") == current_site_id),
+                    None,
+                )
+        if selected_site is None:
+            preferred_ids = [str(item or "").strip() for item in policy.get("preferred_site_ids") or [] if str(item or "").strip()]
+            for preferred_id in preferred_ids:
+                selected_site = next(
+                    (site for site in enabled_sites if str(site.get("site_id") or "") == preferred_id),
+                    None,
+                )
+                if selected_site is not None:
+                    sys_state["selection_mode"] = "preferred"
+                    sys_state["reason_code"] = "preferred_site_selected"
+                    sys_state["reason_text"] = f"Preferred site {selected_site['site_name']} selected"
+                    break
+        if selected_site is None and enabled_sites:
+            selected_site = sorted(
+                enabled_sites,
+                key=lambda site: (str(site.get("site_name") or "").lower(), str(site.get("site_id") or "")),
+            )[0]
+            if is_legacy_single_site:
+                sys_state["selection_mode"] = "legacy"
+                sys_state["reason_code"] = "legacy_single_site"
+                sys_state["reason_text"] = "Legacy control-channel set selected"
+            elif len(enabled_sites) > 1 and str(policy.get("mode") or "auto") == "auto" and not pinned_site_id:
+                sys_state["selection_mode"] = "survey"
+                sys_state["reason_code"] = "survey_initial"
+                sys_state["reason_text"] = f"Initial survey candidate {selected_site['site_name']}"
+                if not int(sys_state.get("_survey_started_at_ms") or 0):
+                    sys_state["_survey_started_at_ms"] = _now_ms()
+            else:
+                sys_state["selection_mode"] = "fallback"
+                sys_state["reason_code"] = "fallback_first_enabled"
+                sys_state["reason_text"] = f"First enabled site {selected_site['site_name']} selected"
+        if selected_site is None:
+            system["active_site_id"] = ""
+            system["active_control_channels_hz"] = []
+            sys_state["selected_site_id"] = ""
+            sys_state["selected_site_name"] = ""
+            sys_state["reason_code"] = "no_valid_site"
+            sys_state["reason_text"] = "No enabled sites available"
+            changed = True
+            continue
+
+        selected_site_id = str(selected_site.get("site_id") or "")
+        if str(sys_state.get("selected_site_id") or "") != selected_site_id:
+            sys_state["selected_site_id"] = selected_site_id
+            sys_state["selected_site_name"] = str(selected_site.get("site_name") or "")
+            if not str(sys_state.get("last_switch_time") or ""):
+                now_iso = _iso_utc()
+                sys_state["last_switch_time"] = now_iso
+                sys_state["current_site_since"] = now_iso
+            changed = True
+        elif not str(sys_state.get("selected_site_name") or "").strip():
+            sys_state["selected_site_name"] = str(selected_site.get("site_name") or "")
+            changed = True
+        if not str(sys_state.get("current_site_since") or "").strip():
+            sys_state["current_site_since"] = str(sys_state.get("last_switch_time") or _iso_utc())
+            changed = True
+        system["active_site_id"] = selected_site_id
+        system["active_control_channels_hz"] = list(selected_site.get("control_channels_hz") or [])
+        if not system["active_control_channels_hz"]:
+            sys_state["reason_code"] = "no_valid_site"
+            sys_state["reason_text"] = "Selected site has no control channels"
+
+    if changed:
+        _save_selector_state(runtime_dir, state)
+    return systems, state
+
+
+def _flatten_active_runtime_systems(runtime_systems: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    systems: list[dict[str, Any]] = []
+    for system in runtime_systems:
+        channels = [
+            int(hz)
+            for hz in (system.get("active_control_channels_hz") or [])
+            if isinstance(hz, int) or str(hz).isdigit()
+        ]
+        if not channels:
+            continue
+        systems.append(
+            {
+                "name": str(system.get("name") or ""),
+                "control_channels_hz": sorted(channels),
+            }
+        )
+    return systems
+
+
+def _candidate_is_unhealthy(candidate: dict[str, Any]) -> bool:
+    if not _parse_enabled(candidate.get("enabled", True)):
+        return True
+    if not bool(candidate.get("control_locked")):
+        return True
+    if not bool(candidate.get("control_decode_available")):
+        return True
+    age = candidate.get("last_tsbk_age_sec")
+    if age is None:
+        return True
+    try:
+        return float(age) > 60.0
+    except Exception:
+        return True
+
+
+def _candidate_cooldown_active(candidate: dict[str, Any], *, now_ms: int) -> bool:
+    until_ms = int(candidate.get("_revisit_block_until_ms") or 0)
+    return until_ms > now_ms
+
+
+def _compute_candidate_score(candidate: dict[str, Any], system: dict[str, Any], *, now_ms: int) -> int:
+    site_id = str(candidate.get("site_id") or "")
+    policy = system.get("site_policy") or {}
+    score = 0
+    enabled = _parse_enabled(candidate.get("enabled", True))
+    if not enabled:
+        return -100000
+    if site_id and site_id == str(policy.get("pinned_site_id") or "").strip():
+        score += 1000
+    if site_id in set(policy.get("preferred_site_ids") or []):
+        score += 100
+    if site_id in set(policy.get("avoid_site_ids") or []):
+        score -= 80
+
+    if bool(candidate.get("control_locked")):
+        score += 40
+    if bool(candidate.get("control_decode_available")):
+        score += 20
+    age = candidate.get("last_tsbk_age_sec")
+    if age is None:
+        score -= 20
+    else:
+        try:
+            age_value = float(age)
+        except Exception:
+            age_value = None
+        if age_value is None:
+            score -= 20
+        else:
+            if age_value > 60:
+                score -= 100
+            elif age_value > 30:
+                score -= 60
+            elif age_value > 15:
+                score -= 30
+
+    recent_any = int(candidate.get("recent_any_grants") or 0)
+    recent_monitored = int(candidate.get("recent_monitored_tg_hits") or 0)
+    score += min(20, recent_any)
+    if recent_monitored > 0:
+        score += 60
+    if recent_monitored >= 3:
+        score += 10
+    if _candidate_cooldown_active(candidate, now_ms=now_ms):
+        score -= 50
+    return int(score)
 
 
 def _parse_control_channels(raw) -> list[int]:
@@ -791,11 +1254,17 @@ class Op25Adapter(_BaseDigitalAdapter):
             pass
 
         op25_overrides = _read_op25_system_config(profile_dir)
+        runtime_systems, _selector_state = _hydrate_runtime_systems_for_config(
+            profile_dir,
+            runtime,
+            op25_overrides=op25_overrides,
+        )
+        active_systems = _flatten_active_runtime_systems(runtime_systems)
         tg_labels = _read_talkgroup_labels(profile_dir)
         tags_path = os.path.join(runtime, "tgid_tags.tsv")
 
         trunk_content = generate_trunk_tsv(
-            systems,
+            active_systems or systems,
             dongle_assignments=dongle_assignments,
             op25_overrides=op25_overrides,
             tgid_tags_path=tags_path,
@@ -819,7 +1288,7 @@ class Op25Adapter(_BaseDigitalAdapter):
         except Exception as e:
             logger.debug("Failed to write tgid_tags.tsv: %s", e)
 
-        self._active_systems = list(systems)
+        self._active_systems = list(active_systems or systems)
         return True, ""
 
     # ------------------------------------------------------------------
@@ -1062,8 +1531,21 @@ class Op25Adapter(_BaseDigitalAdapter):
             if key in {"json_type", "nac", "systems"}:
                 continue
             if isinstance(row, dict):
-                rows.append(row)
+                    rows.append(row)
         return rows
+
+    @staticmethod
+    def _iter_channel_rows(status: dict):
+        if not isinstance(status, dict):
+            return []
+        channel_update = status.get("channel_update")
+        if not isinstance(channel_update, dict):
+            return []
+        return [row for row in channel_update.values() if isinstance(row, dict)]
+
+    @staticmethod
+    def _op25_system_key(token) -> str:
+        return str(token or "").strip().lower()
 
     @classmethod
     def _root_trunk_decode_available(cls, status: dict) -> bool:
@@ -1320,9 +1802,591 @@ class Op25Adapter(_BaseDigitalAdapter):
             return data
         return self._last_status or {}
 
+    def _read_runtime_systems(self, profile_dir: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        overrides = _read_op25_system_config(profile_dir)
+        return _hydrate_runtime_systems_for_config(
+            profile_dir,
+            self._runtime_dir,
+            op25_overrides=overrides,
+        )
+
+    def _monitored_tgids(self, profile_dir: str) -> set[str]:
+        return {
+            str(tgid).strip()
+            for tgid in _read_talkgroup_labels(profile_dir).keys()
+            if str(tgid).strip().isdigit()
+        }
+
+    def _status_metrics_for_system(
+        self,
+        status: dict,
+        system_name: str,
+        monitored_tgids: set[str],
+        *,
+        runtime_system_count: int,
+    ) -> dict[str, Any]:
+        system_key = self._op25_system_key(system_name)
+        now_sec = time.time()
+        trunk_rows = self._iter_trunk_system_rows(status)
+        channel_rows = self._iter_channel_rows(status)
+        matched_trunk = [row for row in trunk_rows if self._op25_system_key(row.get("system")) == system_key]
+        matched_channels = [row for row in channel_rows if self._op25_system_key(row.get("system")) == system_key]
+        if runtime_system_count == 1:
+            if not matched_trunk and trunk_rows:
+                matched_trunk = trunk_rows
+            if not matched_channels and channel_rows:
+                matched_channels = channel_rows
+
+        last_tsbk_values: list[float] = []
+        for row in matched_trunk:
+            try:
+                last_tsbk = float(row.get("last_tsbk") or 0.0)
+            except Exception:
+                last_tsbk = 0.0
+            if last_tsbk > 0:
+                last_tsbk_values.append(last_tsbk)
+        last_tsbk_age_sec = None
+        if last_tsbk_values:
+            last_tsbk_age_sec = max(0.0, now_sec - max(last_tsbk_values))
+
+        control_locked = False
+        for row in matched_channels:
+            tag = str(row.get("tag") or "").strip().lower()
+            if "control channel" in tag:
+                control_locked = True
+                break
+        control_decode_available = bool(
+            last_tsbk_age_sec is not None and last_tsbk_age_sec <= _OP25_ROOT_ACTIVITY_MAX_AGE_SEC
+        )
+
+        call_log = status.get("call_log") or []
+        has_explicit_system = any(
+            isinstance(row, dict) and str(row.get("system") or "").strip()
+            for row in call_log
+        )
+        recent_any_grants = 0
+        recent_monitored_tg_hits = 0
+        for row in call_log:
+            if not isinstance(row, dict):
+                continue
+            row_system = self._op25_system_key(row.get("system"))
+            if has_explicit_system and row_system and row_system != system_key:
+                continue
+            tgid = str(row.get("tgid") or "").strip()
+            if not tgid:
+                continue
+            recent_any_grants += 1
+            if monitored_tgids and tgid in monitored_tgids:
+                recent_monitored_tg_hits += 1
+
+        return {
+            "control_locked": bool(control_locked),
+            "control_decode_available": bool(control_decode_available),
+            "last_tsbk_age_sec": round(float(last_tsbk_age_sec), 3) if last_tsbk_age_sec is not None else None,
+            "recent_any_grants": int(recent_any_grants),
+            "recent_monitored_tg_hits": int(recent_monitored_tg_hits),
+        }
+
+    def _candidate_state_map(self, system: dict[str, Any], sys_state: dict[str, Any]) -> dict[str, dict[str, Any]]:
+        existing: dict[str, dict[str, Any]] = {}
+        for row in sys_state.get("candidates") or []:
+            if isinstance(row, dict):
+                site_id = str(row.get("site_id") or "").strip()
+                if site_id:
+                    existing[site_id] = dict(row)
+        candidates: dict[str, dict[str, Any]] = {}
+        for site in system.get("sites") or []:
+            site_id = str(site.get("site_id") or "").strip()
+            base = _candidate_state_defaults(site)
+            stored = existing.get(site_id) or {}
+            for key in (
+                "control_locked",
+                "control_decode_available",
+                "last_tsbk_age_sec",
+                "recent_any_grants",
+                "recent_monitored_tg_hits",
+                "_revisit_block_until_ms",
+                "_last_sample_time_ms",
+            ):
+                if key in stored:
+                    base[key] = stored[key]
+            candidates[site_id] = base
+        return candidates
+
+    def _select_best_alternate(
+        self,
+        candidates: list[dict[str, Any]],
+        *,
+        current_site_id: str,
+    ) -> dict[str, Any] | None:
+        enabled = [
+            row
+            for row in candidates
+            if _parse_enabled(row.get("enabled")) and str(row.get("site_id") or "") != current_site_id
+        ]
+        if not enabled:
+            return None
+        non_avoided = [row for row in enabled if not bool(row.get("_avoided"))]
+        pool = non_avoided if non_avoided else enabled
+        pool = sorted(pool, key=lambda row: (int(row.get("score") or 0), str(row.get("site_name") or "")), reverse=True)
+        return pool[0] if pool else None
+
+    def _selector_decision_for_system(
+        self,
+        system: dict[str, Any],
+        sys_state: dict[str, Any],
+        candidates: list[dict[str, Any]],
+        *,
+        now_ms: int,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        policy = system.get("site_policy") or {}
+        selected_site_id = str(sys_state.get("selected_site_id") or "").strip()
+        selected = next((row for row in candidates if str(row.get("site_id") or "") == selected_site_id), None)
+        enabled_candidates = [row for row in candidates if bool(row.get("enabled"))]
+        if not enabled_candidates:
+            return ({
+                "action": "generic_restart",
+                "site_id": "",
+                "selection_mode": str(sys_state.get("selection_mode") or "auto"),
+                "reason_code": "generic_restart_no_valid_site",
+                "reason_text": "No enabled sites available",
+            }, sys_state)
+
+        pinned_id = str(policy.get("pinned_site_id") or "").strip()
+        if pinned_id:
+            pinned_candidate = next((row for row in enabled_candidates if str(row.get("site_id") or "") == pinned_id), None)
+            if pinned_candidate:
+                if selected_site_id != pinned_id:
+                    return ({
+                        "action": "switch",
+                        "site_id": pinned_id,
+                        "selection_mode": "pinned",
+                        "reason_code": "site_switch_policy_pinned",
+                        "reason_text": f"Pinned site {pinned_candidate['site_name']} selected",
+                    }, sys_state)
+                return ({
+                    "action": "stay",
+                    "site_id": pinned_id,
+                    "selection_mode": "pinned",
+                    "reason_code": "pinned_site_selected",
+                    "reason_text": f"Pinned site {pinned_candidate['site_name']} retained",
+                }, sys_state)
+
+        if selected is None:
+            non_avoided = [row for row in enabled_candidates if not bool(row.get("_avoided"))]
+            selected = sorted(
+                non_avoided or enabled_candidates,
+                key=lambda row: (int(row.get("score") or 0), str(row.get("site_name") or ""), str(row.get("site_id") or "")),
+                reverse=True,
+            )[0]
+            return ({
+                "action": "switch",
+                "site_id": str(selected.get("site_id") or ""),
+                "selection_mode": "fallback",
+                "reason_code": "fallback_first_enabled",
+                "reason_text": f"Selected best available enabled site {selected.get('site_name')}",
+            }, sys_state)
+
+        current_score = int(selected.get("score") or 0)
+        current_unhealthy = _candidate_is_unhealthy(selected)
+        best_alternate = self._select_best_alternate(candidates, current_site_id=selected_site_id)
+        min_dwell_ms = int(policy.get("min_dwell_sec") or 120) * 1000
+        unproductive_window_ms = int(policy.get("unproductive_window_sec") or 300) * 1000
+        switch_margin = int(policy.get("switch_margin") or 20)
+        current_since_ms = _ms_from_iso(str(sys_state.get("current_site_since") or ""))
+        current_dwell_ms = max(0, now_ms - current_since_ms) if current_since_ms > 0 else 0
+
+        survey_mode = (
+            str(sys_state.get("selection_mode") or "") == "survey"
+            and not bool(sys_state.get("_survey_completed"))
+            and len(enabled_candidates) > 1
+            and str(policy.get("mode") or "auto") == "auto"
+        )
+        if survey_mode:
+            survey_started_at_ms = int(sys_state.get("_survey_started_at_ms") or now_ms)
+            survey_index = int(sys_state.get("_survey_candidate_index") or 0)
+            total_elapsed_ms = max(0, now_ms - survey_started_at_ms)
+            if int(selected.get("recent_monitored_tg_hits") or 0) > 0 and not current_unhealthy:
+                sys_state["_survey_completed"] = True
+                return ({
+                    "action": "stay",
+                    "site_id": selected_site_id,
+                    "selection_mode": "survey",
+                    "reason_code": "survey_candidate_productive",
+                    "reason_text": f"Survey retained productive site {selected.get('site_name')}",
+                }, sys_state)
+            if total_elapsed_ms < (_OP25_SITE_SELECTOR_SURVEY_MAX_SEC * 1000) and current_dwell_ms >= (_OP25_SITE_SELECTOR_SURVEY_DWELL_SEC * 1000):
+                if survey_index + 1 < len(enabled_candidates):
+                    next_candidate = enabled_candidates[survey_index + 1]
+                    sys_state["_survey_candidate_index"] = survey_index + 1
+                    return ({
+                        "action": "switch",
+                        "site_id": str(next_candidate.get("site_id") or ""),
+                        "selection_mode": "survey",
+                        "reason_code": "site_survey_switch",
+                        "reason_text": f"Survey switching to {next_candidate.get('site_name')}",
+                    }, sys_state)
+            best = sorted(enabled_candidates, key=lambda row: int(row.get("score") or 0), reverse=True)[0]
+            sys_state["_survey_completed"] = True
+            if str(best.get("site_id") or "") != selected_site_id:
+                return ({
+                    "action": "switch",
+                    "site_id": str(best.get("site_id") or ""),
+                    "selection_mode": "survey",
+                    "reason_code": "site_survey_switch",
+                    "reason_text": f"Survey completed; switching to best scored site {best.get('site_name')}",
+                }, sys_state)
+            return ({
+                "action": "stay",
+                "site_id": selected_site_id,
+                "selection_mode": "survey",
+                "reason_code": "survey_complete_best_score",
+                "reason_text": f"Survey completed; retained best scored site {selected.get('site_name')}",
+            }, sys_state)
+
+        if current_unhealthy:
+            if best_alternate and bool(best_alternate.get("enabled")):
+                return ({
+                    "action": "switch",
+                    "site_id": str(best_alternate.get("site_id") or ""),
+                    "selection_mode": str(sys_state.get("selection_mode") or "auto"),
+                    "reason_code": "site_switch_unhealthy",
+                    "reason_text": f"Current site unhealthy; switching to {best_alternate.get('site_name')}",
+                }, sys_state)
+            stale_times = [
+                int(ts)
+                for ts in (sys_state.get("_stale_window_times_ms") or [])
+                if int(ts) > (now_ms - _OP25_SITE_SELECTOR_STALE_WINDOW_WINDOW_MS)
+            ]
+            last_stale_time_ms = int(sys_state.get("_last_stale_window_time_ms") or 0)
+            if last_stale_time_ms <= 0 or (now_ms - last_stale_time_ms) >= 30_000:
+                stale_times.append(now_ms)
+                sys_state["_last_stale_window_time_ms"] = now_ms
+            sys_state["_stale_window_times_ms"] = stale_times
+            sys_state["stale_window_count"] = len(stale_times)
+            if len(stale_times) >= 2:
+                return ({
+                    "action": "same_site_restart",
+                    "site_id": selected_site_id,
+                    "selection_mode": str(sys_state.get("selection_mode") or "auto"),
+                    "reason_code": "same_site_restart_stale",
+                    "reason_text": f"Repeated stale windows on {selected.get('site_name')}",
+                }, sys_state)
+            return ({
+                "action": "stay",
+                "site_id": selected_site_id,
+                "selection_mode": str(sys_state.get("selection_mode") or "auto"),
+                "reason_code": "stay_current_unhealthy_no_alternate",
+                "reason_text": "Current site unhealthy and no better alternate is available",
+            }, sys_state)
+
+        evidence_other_hits = any(
+            int(row.get("recent_monitored_tg_hits") or 0) > 0
+            for row in candidates
+            if str(row.get("site_id") or "") != selected_site_id
+        )
+        current_monitored = int(selected.get("recent_monitored_tg_hits") or 0)
+        current_any = int(selected.get("recent_any_grants") or 0)
+        unproductive_since_ms = _ms_from_iso(str(sys_state.get("unproductive_since") or ""))
+        if current_monitored > 0:
+            sys_state["unproductive_since"] = ""
+            unproductive_since_ms = 0
+        elif current_any > 0 or evidence_other_hits:
+            if unproductive_since_ms <= 0:
+                sys_state["unproductive_since"] = _iso_utc(now_ms)
+                unproductive_since_ms = now_ms
+        else:
+            sys_state["unproductive_since"] = ""
+            unproductive_since_ms = 0
+
+        current_unproductive = bool(
+            unproductive_since_ms > 0
+            and (now_ms - unproductive_since_ms) >= unproductive_window_ms
+            and (current_any > 0 or evidence_other_hits)
+        )
+        if current_unproductive and best_alternate:
+            best_alternate_score = int(best_alternate.get("score") or 0)
+            if best_alternate_score >= current_score + switch_margin:
+                return ({
+                    "action": "switch",
+                    "site_id": str(best_alternate.get("site_id") or ""),
+                    "selection_mode": str(sys_state.get("selection_mode") or "auto"),
+                    "reason_code": "site_switch_unproductive",
+                    "reason_text": f"Current site healthy but unproductive; switching to {best_alternate.get('site_name')}",
+                }, sys_state)
+
+        if current_dwell_ms < min_dwell_ms:
+            return ({
+                "action": "stay",
+                "site_id": selected_site_id,
+                "selection_mode": str(sys_state.get("selection_mode") or "auto"),
+                "reason_code": "stay_current_min_dwell",
+                "reason_text": "Retaining current site during minimum dwell window",
+            }, sys_state)
+
+        return ({
+            "action": "stay",
+            "site_id": selected_site_id,
+            "selection_mode": str(sys_state.get("selection_mode") or "auto"),
+            "reason_code": "stay_current_healthy",
+            "reason_text": "Current site remains healthy and preferred by policy/score",
+        }, sys_state)
+
+    def _evaluate_site_selector(self, profile_dir: str, status: dict) -> dict[str, Any]:
+        runtime_systems, selector_state = self._read_runtime_systems(profile_dir)
+        profile_id = os.path.basename(profile_dir.rstrip(os.sep))
+        systems_state = selector_state.setdefault("systems", {})
+        monitored_tgids = self._monitored_tgids(profile_dir)
+        now_ms = _now_ms()
+        changed = False
+        restart_requests: list[dict[str, Any]] = []
+        selection_payload: dict[str, Any] = {}
+
+        for system in runtime_systems:
+            key = _state_system_key(profile_id, system["name"])
+            sys_state = systems_state.get(key)
+            if not isinstance(sys_state, dict):
+                sys_state = _initial_selector_system_state(system)
+                systems_state[key] = sys_state
+                changed = True
+            state_before = json.dumps(sys_state, sort_keys=True)
+
+            candidates_by_id = self._candidate_state_map(system, sys_state)
+            current_site_id = str(sys_state.get("selected_site_id") or system.get("active_site_id") or "").strip()
+            metrics = self._status_metrics_for_system(
+                status,
+                system["name"],
+                monitored_tgids,
+                runtime_system_count=len(runtime_systems),
+            )
+            if current_site_id in candidates_by_id:
+                candidates_by_id[current_site_id].update(metrics)
+                candidates_by_id[current_site_id]["_last_sample_time_ms"] = now_ms
+
+            policy = system.get("site_policy") or {}
+            revisit_raw = sys_state.get("revisit_block_until") or {}
+            if not isinstance(revisit_raw, dict):
+                revisit_raw = {}
+
+            candidate_rows: list[dict[str, Any]] = []
+            unproductive_since_ms = _ms_from_iso(str(sys_state.get("unproductive_since") or ""))
+            unproductive_window_ms = int(policy.get("unproductive_window_sec") or 300) * 1000
+            for site in system.get("sites") or []:
+                site_id = str(site.get("site_id") or "")
+                candidate = candidates_by_id.get(site_id) or _candidate_state_defaults(site)
+                candidate["enabled"] = _parse_enabled(site.get("enabled", True))
+                candidate["_avoided"] = site_id in set(policy.get("avoid_site_ids") or [])
+                candidate["_revisit_block_until_ms"] = _ms_from_iso(str(revisit_raw.get(site_id) or ""))
+                candidate["score"] = _compute_candidate_score(candidate, system, now_ms=now_ms)
+                state = "candidate"
+                exclusion_reason = ""
+                demotion_reason = ""
+                if not candidate["enabled"]:
+                    state = "disabled"
+                    exclusion_reason = "site disabled by profile"
+                elif _candidate_cooldown_active(candidate, now_ms=now_ms):
+                    state = "cooldown"
+                    demotion_reason = "under revisit cooldown"
+                elif site_id == current_site_id:
+                    state = "selected"
+                elif candidate["_avoided"]:
+                    state = "avoided"
+                    demotion_reason = "avoid policy"
+                elif site_id in set(policy.get("preferred_site_ids") or []):
+                    state = "preferred"
+                if state not in {"disabled", "cooldown", "avoided"} and _candidate_is_unhealthy(candidate):
+                    state = "unhealthy"
+                    demotion_reason = "stale decode or unlocked control"
+                if state == "selected" and not _candidate_is_unhealthy(candidate):
+                    current_unproductive = bool(
+                        int(candidate.get("recent_monitored_tg_hits") or 0) == 0
+                        and unproductive_since_ms > 0
+                        and (now_ms - unproductive_since_ms) >= unproductive_window_ms
+                    )
+                    if current_unproductive:
+                        state = "unproductive"
+                        demotion_reason = "healthy but unproductive"
+                candidate["state"] = state
+                candidate["exclusion_reason"] = exclusion_reason
+                candidate["demotion_reason"] = demotion_reason
+                candidate_rows.append(candidate)
+
+            decision, sys_state = self._selector_decision_for_system(
+                system,
+                sys_state,
+                candidate_rows,
+                now_ms=now_ms,
+            )
+            reason_code = str(decision.get("reason_code") or "")
+            reason_text = str(decision.get("reason_text") or "")
+            target_site_id = str(decision.get("site_id") or current_site_id or "")
+            selection_mode = str(decision.get("selection_mode") or sys_state.get("selection_mode") or "auto")
+            if target_site_id != current_site_id and decision.get("action") == "switch":
+                previous_site_id = current_site_id
+                previous_name = str(sys_state.get("selected_site_name") or "")
+                sys_state["selected_site_id"] = target_site_id
+                selected_row = next((row for row in candidate_rows if str(row.get("site_id") or "") == target_site_id), None)
+                sys_state["selected_site_name"] = str(selected_row.get("site_name") or "") if selected_row else ""
+                sys_state["selection_mode"] = selection_mode
+                sys_state["reason_code"] = reason_code
+                sys_state["reason_text"] = reason_text
+                sys_state["last_switch_time"] = _iso_utc(now_ms)
+                sys_state["current_site_since"] = _iso_utc(now_ms)
+                sys_state["switch_count"] = int(sys_state.get("switch_count") or 0) + 1
+                sys_state["site_switch_restart_count"] = int(sys_state.get("site_switch_restart_count") or 0) + 1
+                if previous_site_id:
+                    revisit = dict(sys_state.get("revisit_block_until") or {})
+                    revisit[previous_site_id] = _iso_utc(now_ms + int(policy.get("revisit_cooldown_sec") or 180) * 1000)
+                    sys_state["revisit_block_until"] = revisit
+                restart_requests.append({
+                    "type": "switch",
+                    "system_name": system["name"],
+                    "previous_site_id": previous_site_id,
+                    "selected_site_id": target_site_id,
+                    "reason_code": reason_code,
+                    "reason_text": reason_text,
+                    "selection_mode": selection_mode,
+                    "previous_site_name": previous_name,
+                })
+                changed = True
+            else:
+                sys_state["selection_mode"] = selection_mode
+                sys_state["reason_code"] = reason_code
+                sys_state["reason_text"] = reason_text
+                if decision.get("action") == "same_site_restart":
+                    sys_state["same_site_restart_count"] = int(sys_state.get("same_site_restart_count") or 0) + 1
+                    restart_requests.append({
+                        "type": "same_site_restart",
+                        "system_name": system["name"],
+                        "previous_site_id": target_site_id,
+                        "selected_site_id": target_site_id,
+                        "reason_code": reason_code,
+                        "reason_text": reason_text,
+                        "selection_mode": selection_mode,
+                        "previous_site_name": str(sys_state.get("selected_site_name") or ""),
+                    })
+                    changed = True
+                elif decision.get("action") == "generic_restart":
+                    sys_state["generic_restart_count"] = int(sys_state.get("generic_restart_count") or 0) + 1
+                    restart_requests.append({
+                        "type": "generic_restart",
+                        "system_name": system["name"],
+                        "previous_site_id": target_site_id,
+                        "selected_site_id": target_site_id,
+                        "reason_code": reason_code,
+                        "reason_text": reason_text,
+                        "selection_mode": selection_mode,
+                        "previous_site_name": str(sys_state.get("selected_site_name") or ""),
+                    })
+                    changed = True
+
+            sys_state["candidates"] = [{key: value for key, value in row.items() if not key.startswith("_")} for row in candidate_rows]
+            systems_state[key] = sys_state
+            selection_payload[system["name"]] = {
+                "name": system["name"],
+                "selected_site_id": str(sys_state.get("selected_site_id") or ""),
+                "selected_site_name": str(sys_state.get("selected_site_name") or ""),
+                "selection_mode": str(sys_state.get("selection_mode") or ""),
+                "reason_code": str(sys_state.get("reason_code") or ""),
+                "reason_text": str(sys_state.get("reason_text") or ""),
+                "last_switch_time": str(sys_state.get("last_switch_time") or ""),
+                "switch_count": int(sys_state.get("switch_count") or 0),
+                "same_site_restart_count": int(sys_state.get("same_site_restart_count") or 0),
+                "site_switch_restart_count": int(sys_state.get("site_switch_restart_count") or 0),
+                "generic_restart_count": int(sys_state.get("generic_restart_count") or 0),
+                "stale_window_count": int(sys_state.get("stale_window_count") or 0),
+                "candidate_sites": list(sys_state.get("candidates") or []),
+                "policy_warnings": list(system.get("site_policy_warnings") or []),
+            }
+            if json.dumps(sys_state, sort_keys=True) != state_before:
+                changed = True
+
+        if changed:
+            _save_selector_state(self._runtime_dir, selector_state)
+        self._runtime_metrics_data["site_selector"] = selection_payload
+        self._runtime_metrics_data["site_selector_state_path"] = _selector_state_path(self._runtime_dir)
+        return {"systems": selection_payload, "restart_requests": restart_requests}
+
+    def _regenerate_runtime_via_script(self) -> tuple[bool, str]:
+        script_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "scripts",
+            "ensure-op25-runtime.py",
+        )
+        try:
+            result = subprocess.run(
+                ["python3", script_path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+        except Exception as exc:
+            return False, str(exc)
+        if result.returncode == 0:
+            return True, ""
+        return False, (result.stderr or result.stdout or "").strip() or "ensure-op25-runtime failed"
+
+    def _handle_selector_restart_requests(self, profile_dir: str, restart_requests: list[dict[str, Any]]) -> None:
+        if not restart_requests:
+            return
+        now_ms = _now_ms()
+        state = _load_selector_state(self._runtime_dir)
+        systems_state = state.setdefault("systems", {})
+        profile_id = os.path.basename(profile_dir.rstrip(os.sep))
+        for request in restart_requests:
+            system_name = str(request.get("system_name") or "").strip()
+            if not system_name:
+                continue
+            key = _state_system_key(profile_id, system_name)
+            sys_state = systems_state.get(key)
+            if not isinstance(sys_state, dict):
+                continue
+            last_restart_time_ms = int(sys_state.get("_last_restart_time_ms") or 0)
+            if last_restart_time_ms > 0 and (now_ms - last_restart_time_ms) < _OP25_SITE_SELECTOR_ACTION_COOLDOWN_MS:
+                continue
+            reason_code = str(request.get("reason_code") or "")
+            score_summary = ";".join(
+                f"{row.get('site_id')}={row.get('score')}"
+                for row in (sys_state.get("candidates") or [])
+                if isinstance(row, dict)
+            )
+            logger.info(
+                "op25_site_selector action=%s system=%s selected_site_id=%s previous_site_id=%s reason_code=%s scores=%s",
+                request.get("type"),
+                system_name,
+                request.get("selected_site_id"),
+                request.get("previous_site_id"),
+                reason_code,
+                score_summary,
+            )
+            ok, err = self._regenerate_runtime_via_script()
+            if ok:
+                self.restart()
+                sys_state["_last_restart_time_ms"] = now_ms
+                systems_state[key] = sys_state
+                _save_selector_state(self._runtime_dir, state)
+            else:
+                logger.warning(
+                    "op25_site_selector action=restart_failed system=%s selected_site_id=%s previous_site_id=%s reason_code=%s error=%s",
+                    system_name,
+                    request.get("selected_site_id"),
+                    request.get("previous_site_id"),
+                    reason_code,
+                    err,
+                )
+
     def preflight(self) -> dict:
         """Return health payload compatible with the scheduler's expectations."""
         status = self._poll_op25_status()
+        profile_dir = self._read_active_profile_dir()
+        site_selection = {"systems": {}}
+        if profile_dir:
+            try:
+                site_selection = self._evaluate_site_selector(profile_dir, status)
+                self._handle_selector_restart_requests(profile_dir, site_selection.get("restart_requests") or [])
+            except Exception:
+                logger.exception("op25_site_selector action=preflight_error")
         # OP25 status format varies; adapt to common fields.
         locked = bool(
             status.get("locked")
@@ -1347,6 +2411,7 @@ class Op25Adapter(_BaseDigitalAdapter):
             "op25_ber": ber,
             "op25_decode_rate": decode_rate,
             "op25_status_raw": status,
+            "op25_site_selection": site_selection.get("systems") or {},
         }
 
     def runtime_metrics(self) -> dict:

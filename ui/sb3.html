@@ -9985,6 +9985,9 @@
           setValueTone(els.digitalSystemHealthDetail, digitalSystemRowsTone(systemHealthSummary));
         } else {
           const reason = String(activeSystemRow.reason || '').trim();
+          const reasonCode = String(activeSystemRow.reason_code || '').trim();
+          const selectedSiteName = String(activeSystemRow.selected_site_name || '').trim();
+          const selectedSiteId = String(activeSystemRow.selected_site_id || '').trim();
           const switchReason = String(d.schedulerSwitchReason || '').trim();
           const failures = Number(activeSystemRow.lock_failures || 0);
           const timeoutMs = Number(d.schedulerLockTimeoutMs || 0);
@@ -9992,9 +9995,23 @@
             `Active: ${String(activeSystemRow.name || '--')}`,
             reason || 'no detail',
           ];
+          if (selectedSiteName || selectedSiteId) parts.push(`site=${selectedSiteName || selectedSiteId}`);
+          if (reasonCode) parts.push(`selector=${reasonCode}`);
           if (switchReason) parts.push(`switch=${switchReason}`);
           if (timeoutMs > 0) parts.push(`timeout=${Math.round(timeoutMs / 1000)}s`);
           if (failures > 0) parts.push(`lock timeouts=${failures}`);
+          const candidates = Array.isArray(activeSystemRow.candidate_sites) ? activeSystemRow.candidate_sites : [];
+          if (candidates.length) {
+            const candidateText = candidates.map((candidate) => {
+              if (!candidate || typeof candidate !== 'object') return '';
+              const siteId = String(candidate.site_id || '').trim();
+              const siteName = String(candidate.site_name || '').trim() || siteId || '--';
+              const candidateState = String(candidate.state || '').trim() || 'candidate';
+              const score = Number.isFinite(Number(candidate.score)) ? Number(candidate.score) : 0;
+              return `${siteName}:${candidateState}:${score}`;
+            }).filter(Boolean).join(' | ');
+            if (candidateText) parts.push(`candidates=${candidateText}`);
+          }
           els.digitalSystemHealthDetail.textContent = parts.join(' • ');
           setValueTone(els.digitalSystemHealthDetail, digitalSchedulerStateTone(activeSystemRow.state));
         }
@@ -11182,7 +11199,11 @@
       const name = String(row.name || '--').trim() || '--';
       const state = String(row.state || 'unknown').trim().toUpperCase();
       const marker = row.active ? '●' : '○';
-      return `${marker} ${name}:${state}`;
+      const siteName = String(row.selected_site_name || '').trim();
+      const reasonCode = String(row.reason_code || '').trim();
+      const siteSuffix = siteName ? `@${siteName}` : '';
+      const reasonSuffix = reasonCode ? `:${reasonCode}` : '';
+      return `${marker} ${name}:${state}${siteSuffix}${reasonSuffix}`;
     }
 
     function applyDigitalSchedulerPayload(payload) {

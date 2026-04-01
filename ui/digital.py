@@ -5122,6 +5122,7 @@ class DigitalManager:
             preflight,
             profile_id=profile_id,
         )
+        site_selection = preflight.get("op25_site_selection") or {}
 
         for name in systems:
             system_name = str(name or "").strip()
@@ -5229,24 +5230,40 @@ class DigitalManager:
                 state = "degraded"
                 reason = "tuner contention"
 
-            rows.append(
-                {
-                    "name": system_name,
-                    "active": bool(active),
-                    "assigned": bool(assigned),
-                    "observed": bool(observed),
-                    "role": role,
-                    "preferred_tuner_serial": preferred_tuner,
-                    "state": state,
-                    "reason": reason,
-                    "control_decode_available": bool(row_metric_ready),
-                    "control_locked": bool(row_control_locked),
-                    "control_last_time": int(row_control_last_time),
-                    "lock_failures": int(entry.get("lock_failures") or 0),
-                    "last_lock_time": int(entry.get("last_lock_time_ms") or 0),
-                    "last_lock_loss_time": int(entry.get("last_lock_loss_time_ms") or 0),
-                }
-            )
+            row = {
+                "name": system_name,
+                "active": bool(active),
+                "assigned": bool(assigned),
+                "observed": bool(observed),
+                "role": role,
+                "preferred_tuner_serial": preferred_tuner,
+                "state": state,
+                "reason": reason,
+                "control_decode_available": bool(row_metric_ready),
+                "control_locked": bool(row_control_locked),
+                "control_last_time": int(row_control_last_time),
+                "lock_failures": int(entry.get("lock_failures") or 0),
+                "last_lock_time": int(entry.get("last_lock_time_ms") or 0),
+                "last_lock_loss_time": int(entry.get("last_lock_loss_time_ms") or 0),
+            }
+            if isinstance(site_selection, dict):
+                selection = site_selection.get(system_name) or site_selection.get(system_name.lower())
+                if isinstance(selection, dict):
+                    row["selected_site_id"] = str(selection.get("selected_site_id") or "")
+                    row["selected_site_name"] = str(selection.get("selected_site_name") or "")
+                    row["selection_mode"] = str(selection.get("selection_mode") or "")
+                    row["reason_code"] = str(selection.get("reason_code") or "")
+                    row["reason_text"] = str(selection.get("reason_text") or "")
+                    row["last_switch_time"] = str(selection.get("last_switch_time") or "")
+                    row["switch_count"] = int(selection.get("switch_count") or 0)
+                    row["same_site_restart_count"] = int(selection.get("same_site_restart_count") or 0)
+                    row["site_switch_restart_count"] = int(selection.get("site_switch_restart_count") or 0)
+                    row["generic_restart_count"] = int(selection.get("generic_restart_count") or 0)
+                    row["stale_window_count"] = int(selection.get("stale_window_count") or 0)
+                    row["candidate_sites"] = list(selection.get("candidate_sites") or [])
+                    if selection.get("policy_warnings"):
+                        row["policy_warnings"] = list(selection.get("policy_warnings") or [])
+            rows.append(row)
         return rows
 
     def _allocation_snapshot_payload_locked(self, snapshot: dict, preflight: dict) -> dict:

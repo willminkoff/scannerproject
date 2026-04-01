@@ -8,6 +8,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 class EnsureOp25RuntimeTests(unittest.TestCase):
@@ -35,7 +36,7 @@ class EnsureOp25RuntimeTests(unittest.TestCase):
         self.assertEqual(2, parsed["14306619"])
         self.assertEqual(3, parsed["56919602"])
 
-        with unittest.mock.patch.object(
+        with mock.patch.object(
             module,
             "_enumerate_rtlsdr_serial_index_map",
             return_value=parsed,
@@ -112,12 +113,12 @@ class EnsureOp25RuntimeTests(unittest.TestCase):
             )
 
             module = self._load_script_module()
-            with unittest.mock.patch.object(module, "DIGITAL_ACTIVE_PROFILE_LINK", str(active_link)), \
-                unittest.mock.patch.object(module, "OP25_RUNTIME_DIR", str(runtime_dir)), \
-                unittest.mock.patch.object(module, "OP25_STATUS_PORT", 8080), \
-                unittest.mock.patch.object(module, "_enumerate_rtlsdr_serial_index_map", return_value={"14306619": 2, "56919602": 3}), \
-                unittest.mock.patch("ui.dongle_allocator.load_assignments", return_value=json.loads(assignments_path.read_text(encoding="utf-8"))), \
-                unittest.mock.patch.object(module, "load_assignments", return_value=json.loads(assignments_path.read_text(encoding="utf-8"))):
+            with mock.patch.object(module, "DIGITAL_ACTIVE_PROFILE_LINK", str(active_link)), \
+                mock.patch.object(module, "OP25_RUNTIME_DIR", str(runtime_dir)), \
+                mock.patch.object(module, "OP25_STATUS_PORT", 8080), \
+                mock.patch.object(module, "_enumerate_rtlsdr_serial_index_map", return_value={"14306619": 2, "56919602": 3}), \
+                mock.patch("ui.dongle_allocator.load_assignments", return_value=json.loads(assignments_path.read_text(encoding="utf-8"))), \
+                mock.patch.object(module, "load_assignments", return_value=json.loads(assignments_path.read_text(encoding="utf-8"))):
                 rc = module.main()
             self.assertEqual(0, rc)
 
