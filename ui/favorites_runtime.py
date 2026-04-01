@@ -467,6 +467,44 @@ def _normalize_control_channel_mhz(raw: Any) -> str:
     return f"{value:.5f}".rstrip("0").rstrip(".")
 
 
+def _normalize_control_channel_hz(raw: Any) -> int:
+    token = _normalize_control_channel_mhz(raw)
+    if not token:
+        return 0
+    try:
+        hz = int(round(float(token) * 1_000_000.0))
+    except Exception:
+        return 0
+    return hz if hz > 0 else 0
+
+
+def _normalize_site_id(row: dict[str, Any], controls_hz: list[int]) -> str:
+    raw_site_id = str(row.get("site_id") or "").strip()
+    if raw_site_id:
+        return raw_site_id
+    system_id = str(row.get("system_id") or "").strip()
+    site_name = str(row.get("site_name") or row.get("department_name") or row.get("system_name") or "").strip().lower()
+    signature = json.dumps(
+        {
+            "system_id": system_id,
+            "site_name": site_name,
+            "controls_hz": [int(value) for value in controls_hz],
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    digest = hashlib.sha1(signature.encode("utf-8", errors="ignore")).hexdigest()[:12]
+    return f"fav:{digest}"
+
+
+def _coerce_site_float(value: Any) -> float | None:
+    try:
+        parsed = float(str(value).strip())
+    except Exception:
+        return None
+    return parsed if parsed == parsed else None
+
+
 def _normalize_digital_pool(
     pool: dict[str, Any],
 ) -> tuple[list[dict[str, Any]], list[dict[str, str]], list[str], dict[str, int]]:
@@ -474,8 +512,7 @@ def _normalize_digital_pool(
     if not isinstance(trunked, list):
         trunked = []
 
-    systems: list[dict[str, Any]] = []
-    systems_seen: set[str] = set()
+    systems_by_key: dict[str, dict[str, Any]] = {}
     controls_flat: list[str] = []
     controls_seen: set[str] = set()
     talkgroups: list[dict[str, str]] = []
@@ -488,6 +525,7 @@ def _normalize_digital_pool(
 
         controls_raw = row.get("control_channels")
         controls: list[str] = []
+        controls_hz: list[int] = []
         seen_controls: set[str] = set()
         for control in controls_raw if isinstance(controls_raw, list) else []:
             value = _normalize_control_channel_mhz(control)
@@ -495,15 +533,69 @@ def _normalize_digital_pool(
                 continue
             seen_controls.add(value)
             controls.append(value)
+            hz = _normalize_control_channel_hz(value)
+            if hz > 0:
+                controls_hz.append(hz)
             if value not in controls_seen:
                 controls_seen.add(value)
                 controls_flat.append(value)
         if not controls:
             continue
 
-        if key not in systems_seen:
-            systems_seen.add(key)
-            systems.append({"name": token, "control_channels_mhz": controls})
+        system_id = str(row.get("system_id") or "").strip()
+        system_name = str(row.get("system_name") or "").strip() or token
+        system_key = f"id:{system_id}" if system_id else key
+        system_entry = systems_by_key.get(system_key)
+        if system_entry is None:
+            system_entry = {
+                "name": system_name,
+                "sites": [],
+            }
+            if system_id:
+                system_entry["system_id"] = system_id
+            systems_by_key[system_key] = system_entry
+
+        site_id = _normalize_site_id(row, controls_hz)
+        site_name = str(row.get("site_name") or row.get("department_name") or system_name or token).strip() or token
+        site_entry = {
+            "site_id": site_id,
+            "site_name": site_name,
+            "control_channels_hz": controls_hz,
+            "enabled": True,
+        }
+        latitude = _coerce_site_float(row.get("latitude"))
+        longitude = _coerce_site_float(row.get("longitude"))
+        radius = _coerce_site_float(row.get("radius"))
+        if latitude is not None:
+            site_entry["latitude"] = latitude
+        if longitude is not None:
+            site_entry["longitude"] = longitude
+        if radius is not None:
+            site_entry["radius"] = radius
+
+        existing_site = None
+        for candidate in system_entry["sites"]:
+            if str(candidate.get("site_id") or "").strip() == site_id:
+                existing_site = candidate
+                break
+        if existing_site is None:
+            system_entry["sites"].append(site_entry)
+        else:
+            merged = sorted(
+                {
+                    int(value)
+                    for value in list(existing_site.get("control_channels_hz") or []) + controls_hz
+                    if int(value) > 0
+                }
+            )
+            existing_site["control_channels_hz"] = merged
+            existing_site["enabled"] = True
+            if latitude is not None and existing_site.get("latitude") is None:
+                existing_site["latitude"] = latitude
+            if longitude is not None and existing_site.get("longitude") is None:
+                existing_site["longitude"] = longitude
+            if radius is not None and existing_site.get("radius") is None:
+                existing_site["radius"] = radius
 
         labels = row.get("talkgroup_labels") if isinstance(row.get("talkgroup_labels"), dict) else {}
         groups = row.get("talkgroup_groups") if isinstance(row.get("talkgroup_groups"), dict) else {}
@@ -540,6 +632,21 @@ def _normalize_digital_pool(
 
     talkgroups.sort(key=lambda row: int(row["dec"]))
     controls_flat.sort(key=lambda token: float(token))
+    systems = sorted(
+        systems_by_key.values(),
+        key=lambda row: (
+            str(row.get("system_id") or ""),
+            str(row.get("name") or "").lower(),
+        ),
+    )
+    for system in systems:
+        system["sites"] = sorted(
+            list(system.get("sites") or []),
+            key=lambda row: (
+                str(row.get("site_name") or "").lower(),
+                str(row.get("site_id") or ""),
+            ),
+        )
     summary = {
         "systems": len(systems),
         "talkgroups": len(talkgroups),

@@ -1224,6 +1224,7 @@ class RecentRegressionTests(unittest.TestCase):
                     CREATE TABLE trunk_sites (
                         site_id INTEGER PRIMARY KEY,
                         trunk_id INTEGER,
+                        site_name TEXT,
                         source_file TEXT,
                         latitude REAL,
                         longitude REAL,
@@ -1236,12 +1237,12 @@ class RecentRegressionTests(unittest.TestCase):
                     """
                 )
                 conn.execute(
-                    "INSERT INTO trunk_sites(site_id, trunk_id, source_file, latitude, longitude, radius) VALUES (?,?,?,?,?,?)",
-                    (1001, 42, "TN.hpd", 36.1205, -86.5405, 2.0),
+                    "INSERT INTO trunk_sites(site_id, trunk_id, site_name, source_file, latitude, longitude, radius) VALUES (?,?,?,?,?,?,?)",
+                    (1001, 42, "Primary Site", "TN.hpd", 36.1205, -86.5405, 2.0),
                 )
                 conn.execute(
-                    "INSERT INTO trunk_sites(site_id, trunk_id, source_file, latitude, longitude, radius) VALUES (?,?,?,?,?,?)",
-                    (1002, 42, "TN.hpd", 37.5000, -87.9000, 2.0),
+                    "INSERT INTO trunk_sites(site_id, trunk_id, site_name, source_file, latitude, longitude, radius) VALUES (?,?,?,?,?,?,?)",
+                    (1002, 42, "Far Site", "TN.hpd", 37.5000, -87.9000, 2.0),
                 )
                 conn.execute("INSERT INTO trunk_freqs(site_id, freq_hz) VALUES (?,?)", (1001, 851100000))
                 conn.execute("INSERT INTO trunk_freqs(site_id, freq_hz) VALUES (?,?)", (1001, 851300000))
@@ -1284,6 +1285,8 @@ class RecentRegressionTests(unittest.TestCase):
             controls = list(trunked[0].get("control_channels") or [])
             self.assertEqual([851.1, 851.3], controls)
             self.assertNotIn(853.1, controls)
+            self.assertEqual(1001, int(trunked[0].get("site_id") or 0))
+            self.assertEqual("Primary Site", trunked[0].get("site_name"))
 
     def test_scan_pool_favorites_location_keeps_backup_site_when_limit_is_two(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1294,6 +1297,7 @@ class RecentRegressionTests(unittest.TestCase):
                     CREATE TABLE trunk_sites (
                         site_id INTEGER PRIMARY KEY,
                         trunk_id INTEGER,
+                        site_name TEXT,
                         source_file TEXT,
                         latitude REAL,
                         longitude REAL,
@@ -1306,12 +1310,12 @@ class RecentRegressionTests(unittest.TestCase):
                     """
                 )
                 conn.execute(
-                    "INSERT INTO trunk_sites(site_id, trunk_id, source_file, latitude, longitude, radius) VALUES (?,?,?,?,?,?)",
-                    (2001, 84, "TN.hpd", 36.1205, -86.5405, 2.0),
+                    "INSERT INTO trunk_sites(site_id, trunk_id, site_name, source_file, latitude, longitude, radius) VALUES (?,?,?,?,?,?,?)",
+                    (2001, 84, "Primary Site", "TN.hpd", 36.1205, -86.5405, 2.0),
                 )
                 conn.execute(
-                    "INSERT INTO trunk_sites(site_id, trunk_id, source_file, latitude, longitude, radius) VALUES (?,?,?,?,?,?)",
-                    (2002, 84, "TN.hpd", 37.5000, -87.9000, 2.0),
+                    "INSERT INTO trunk_sites(site_id, trunk_id, site_name, source_file, latitude, longitude, radius) VALUES (?,?,?,?,?,?,?)",
+                    (2002, 84, "Backup Site", "TN.hpd", 37.5000, -87.9000, 2.0),
                 )
                 conn.execute("INSERT INTO trunk_freqs(site_id, freq_hz) VALUES (?,?)", (2001, 851100000))
                 conn.execute("INSERT INTO trunk_freqs(site_id, freq_hz) VALUES (?,?)", (2002, 853100000))
@@ -1351,9 +1355,13 @@ class RecentRegressionTests(unittest.TestCase):
                 pool = controller.get_scan_pool()
 
             trunked = pool.get("trunked_sites") or []
-            self.assertEqual(1, len(trunked))
-            controls = list(trunked[0].get("control_channels") or [])
-            self.assertEqual([851.1, 853.1], controls)
+            self.assertEqual(2, len(trunked))
+            site_ids = [int(row.get("site_id") or 0) for row in trunked]
+            self.assertEqual([2001, 2002], site_ids)
+            self.assertEqual([851.1], list(trunked[0].get("control_channels") or []))
+            self.assertEqual([853.1], list(trunked[1].get("control_channels") or []))
+            self.assertEqual("Primary Site", trunked[0].get("site_name"))
+            self.assertEqual("Backup Site", trunked[1].get("site_name"))
 
     def test_build_custom_favorites_pool_merges_trunked_departments_per_system(self):
         controller = scan_mode_controller.ScanModeController(db_path="/tmp/hpdb-test.db")

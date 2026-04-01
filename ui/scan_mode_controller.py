@@ -783,7 +783,7 @@ class ScanModeController:
         range_miles: float,
         include_nationwide: bool,
         strict_location: bool = False,
-    ) -> dict[int, dict[str, Any]]:
+    ) -> dict[int, list[dict[str, Any]]]:
         if not system_ids:
             return {}
 
@@ -791,7 +791,7 @@ class ScanModeController:
         lon_miles_per_degree = max(1e-6, 69.0 * abs(math.cos(math.radians(center_lat))))
         site_limit = _sites_per_system_limit()
 
-        out: dict[int, dict[str, Any]] = {}
+        out: dict[int, list[dict[str, Any]]] = {}
         conn: sqlite3.Connection | None = None
         try:
             conn = sqlite3.connect(self._db_path)
@@ -807,6 +807,7 @@ class ScanModeController:
                     """
                     SELECT
                         ts.site_id,
+                        ts.site_name,
                         ts.source_file,
                         ts.latitude,
                         ts.longitude,
@@ -818,6 +819,7 @@ class ScanModeController:
                     (int(system_id),),
                 ).fetchall()
 
+                site_rows_by_id: dict[int, sqlite3.Row] = {}
                 in_range: list[tuple[float, int]] = []
                 all_candidates: list[tuple[float, int]] = []
                 for row in rows:
@@ -833,6 +835,7 @@ class ScanModeController:
                     site_lon = self._parse_float(row["longitude"])
                     if site_id is None or site_id <= 0:
                         continue
+                    site_rows_by_id[int(site_id)] = row
                     if site_lat is None or site_lon is None:
                         continue
                     distance = haversine_miles(center_lat, center_lon, site_lat, site_lon)
@@ -881,28 +884,44 @@ class ScanModeController:
                 placeholders = ",".join("?" for _ in keep_site_ids)
                 freq_rows = conn.execute(
                     f"""
-                    SELECT DISTINCT freq_hz
+                    SELECT site_id, freq_hz
                     FROM trunk_freqs
                     WHERE site_id IN ({placeholders})
                       AND freq_hz IS NOT NULL
-                    ORDER BY freq_hz
+                    ORDER BY site_id, freq_hz
                     """,
                     keep_site_ids,
                 ).fetchall()
-                controls_mhz: list[float] = []
+                controls_mhz_by_site: dict[int, list[float]] = {}
                 for freq_row in freq_rows:
+                    site_id = self._parse_int(freq_row["site_id"])
                     freq_hz = self._parse_int(freq_row["freq_hz"])
-                    if freq_hz is None or freq_hz <= 0:
+                    if site_id is None or site_id <= 0 or freq_hz is None or freq_hz <= 0:
                         continue
-                    controls_mhz.append(round(float(freq_hz) / 1_000_000.0, 6))
-                controls = self._normalize_control_channels(controls_mhz)
-                if not controls:
+                    controls_mhz_by_site.setdefault(int(site_id), []).append(round(float(freq_hz) / 1_000_000.0, 6))
+                site_candidates: list[dict[str, Any]] = []
+                for distance, site_id in keep:
+                    row = site_rows_by_id.get(int(site_id))
+                    if row is None:
+                        continue
+                    controls = self._normalize_control_channels(controls_mhz_by_site.get(int(site_id)) or [])
+                    if not controls:
+                        continue
+                    site_name = str(row["site_name"] or "").strip() or f"Site {int(site_id)}"
+                    site_candidates.append(
+                        {
+                            "site_id": int(site_id),
+                            "site_name": site_name,
+                            "controls": controls,
+                            "distance_miles": float(distance),
+                            "latitude": self._parse_float(row["latitude"]),
+                            "longitude": self._parse_float(row["longitude"]),
+                            "radius": self._parse_float(row["radius"]),
+                        }
+                    )
+                if not site_candidates:
                     continue
-                out[int(system_id)] = {
-                    "controls": controls,
-                    "distance_miles": float(keep[0][0]),
-                    "site_ids": [int(item[1]) for item in keep],
-                }
+                out[int(system_id)] = site_candidates
         except Exception:
             logger.debug("scan_mode_controller: nearest-site lookup failed", exc_info=True)
             return {}
@@ -953,20 +972,31 @@ class ScanModeController:
         for raw in trunked:
             row = raw if isinstance(raw, dict) else {}
             system_id = int(self._parse_int(row.get("system_id")) or 0)
-            nearest = nearest_by_system.get(system_id)
-            if not nearest:
+            nearest_candidates = nearest_by_system.get(system_id)
+            if not nearest_candidates:
                 if row:
                     trimmed.append(dict(row))
                 continue
-            controls = nearest.get("controls")
-            if not isinstance(controls, list) or not controls:
-                if row:
-                    trimmed.append(dict(row))
-                continue
-            patched = dict(row)
-            patched["control_channels"] = list(controls)
-            patched["distance_miles"] = float(nearest.get("distance_miles") or 0.0)
-            trimmed.append(patched)
+            added = False
+            for candidate in nearest_candidates:
+                controls = candidate.get("controls")
+                if not isinstance(controls, list) or not controls:
+                    continue
+                patched = dict(row)
+                patched["control_channels"] = list(controls)
+                patched["distance_miles"] = float(candidate.get("distance_miles") or 0.0)
+                patched["site_id"] = int(candidate.get("site_id") or 0)
+                patched["site_name"] = str(candidate.get("site_name") or row.get("site_name") or row.get("system_name") or "").strip()
+                if candidate.get("latitude") is not None:
+                    patched["latitude"] = float(candidate["latitude"])
+                if candidate.get("longitude") is not None:
+                    patched["longitude"] = float(candidate["longitude"])
+                if candidate.get("radius") is not None:
+                    patched["radius"] = float(candidate["radius"])
+                trimmed.append(patched)
+                added = True
+            if not added and row:
+                trimmed.append(dict(row))
 
         pool["trunked_sites"] = trimmed
         return pool
