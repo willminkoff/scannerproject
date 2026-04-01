@@ -83,6 +83,34 @@ def _write_profile(
         )
 
 
+def _selector_state(now_ms: int, **overrides) -> dict:
+    state = {
+        "selected_site_id": "41154",
+        "selected_site_name": "Davidson County Services",
+        "selection_mode": "auto",
+        "reason_code": "",
+        "reason_text": "",
+        "last_switch_time": _iso_utc(now_ms - 400_000),
+        "switch_count": 0,
+        "same_site_restart_count": 0,
+        "site_switch_restart_count": 0,
+        "generic_restart_count": 0,
+        "stale_window_count": 0,
+        "current_site_since": _iso_utc(now_ms - 400_000),
+        "unproductive_since": "",
+        "revisit_block_until": {},
+        "candidates": [],
+        "_last_restart_time_ms": 0,
+        "_last_stale_window_time_ms": 0,
+        "_stale_window_times_ms": [],
+        "_survey_started_at_ms": 0,
+        "_survey_candidate_index": 0,
+        "_survey_completed": False,
+    }
+    state.update(overrides)
+    return state
+
+
 class RuntimeNormalizationTests(unittest.TestCase):
     def test_legacy_profile_normalizes_to_synthetic_site(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -235,31 +263,7 @@ class SiteSelectionDecisionTests(unittest.TestCase):
         self.now_ms = 2_000_000
 
     def _sys_state(self, **overrides) -> dict:
-        state = {
-            "selected_site_id": "41154",
-            "selected_site_name": "Davidson County Services",
-            "selection_mode": "auto",
-            "reason_code": "",
-            "reason_text": "",
-            "last_switch_time": _iso_utc(self.now_ms - 400_000),
-            "switch_count": 0,
-            "same_site_restart_count": 0,
-            "site_switch_restart_count": 0,
-            "generic_restart_count": 0,
-            "stale_window_count": 0,
-            "current_site_since": _iso_utc(self.now_ms - 400_000),
-            "unproductive_since": "",
-            "revisit_block_until": {},
-            "candidates": [],
-            "_last_restart_time_ms": 0,
-            "_last_stale_window_time_ms": 0,
-            "_stale_window_times_ms": [],
-            "_survey_started_at_ms": 0,
-            "_survey_candidate_index": 0,
-            "_survey_completed": False,
-        }
-        state.update(overrides)
-        return state
+        return _selector_state(self.now_ms, **overrides)
 
     def test_pinned_enabled_site_always_wins(self):
         system = dict(self.system)
@@ -446,6 +450,30 @@ class SiteSelectionDecisionTests(unittest.TestCase):
         self.assertEqual("generic_restart", decision["action"])
         self.assertEqual("generic_restart_no_valid_site", decision["reason_code"])
 
+    def test_survey_advances_in_canonical_order_not_input_order(self):
+        state = self._sys_state(
+            selected_site_id="a1",
+            selected_site_name="Alpha Site",
+            selection_mode="survey",
+            current_site_since=_iso_utc(self.now_ms - 20_000),
+            _survey_started_at_ms=self.now_ms - 20_000,
+            _survey_candidate_index=0,
+            _survey_completed=False,
+        )
+        decision, state = self.adapter._selector_decision_for_system(
+            self.system,
+            state,
+            [
+                _candidate("z9", site_name="Zulu Site", score=60),
+                _candidate("m5", site_name="Mike Site", score=50),
+                _candidate("a1", site_name="Alpha Site", score=55),
+            ],
+            now_ms=self.now_ms,
+        )
+        self.assertEqual("switch", decision["action"])
+        self.assertEqual("m5", decision["site_id"])
+        self.assertEqual(1, state["_survey_candidate_index"])
+
 
 class RuntimeConfigGenerationTests(unittest.TestCase):
     def test_trunk_and_multi_rx_use_selected_site_channels_only(self):
@@ -504,6 +532,147 @@ class RuntimeConfigGenerationTests(unittest.TestCase):
             self.assertEqual("856.93750,857.43750", config["trunking"]["chans"][0]["control_channel_list"])
             self.assertEqual(856937500, config["devices"][0]["frequency"])
             self.assertEqual(856937500, config["devices"][1]["frequency"])
+
+
+class RestartBatchingTests(unittest.TestCase):
+    def test_batched_restart_runs_once_and_updates_counters_only_after_success(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            profile_dir = tmp_path / "profile"
+            runtime_dir = tmp_path / "runtime"
+            _write_profile(
+                profile_dir,
+                systems_payload={
+                    "systems": [
+                        {
+                            "name": "MTRTRS",
+                            "sites": [
+                                {"site_id": "18863", "site_name": "Davidson County Simulcast", "control_channels_hz": [856937500], "enabled": True},
+                                {"site_id": "41154", "site_name": "Davidson County Services", "control_channels_hz": [855912500], "enabled": True},
+                            ],
+                        },
+                        {
+                            "name": "TACN",
+                            "sites": [
+                                {"site_id": "legacy:auto", "site_name": "Legacy Control Channel Set", "control_channels_hz": [769831250], "enabled": True},
+                            ],
+                        },
+                    ]
+                },
+            )
+            runtime_dir.mkdir(parents=True, exist_ok=True)
+            state = {
+                "systems": {
+                    "profile::MTRTRS": _selector_state(
+                        2_000_000,
+                        selected_site_id="18863",
+                        selected_site_name="Davidson County Simulcast",
+                    ),
+                    "profile::TACN": _selector_state(
+                        2_000_000,
+                        selected_site_id="legacy:auto",
+                        selected_site_name="Legacy Control Channel Set",
+                    ),
+                }
+            }
+            (runtime_dir / "site_selector_state.json").write_text(json.dumps(state) + "\n", encoding="utf-8")
+            adapter = _make_adapter(str(runtime_dir))
+            with mock.patch.object(adapter, "_regenerate_runtime_via_script", return_value=(True, "")) as regen, \
+                mock.patch.object(adapter, "restart", return_value=(True, "")) as restart:
+                adapter._handle_selector_restart_requests(
+                    str(profile_dir),
+                    [
+                        {
+                            "type": "switch",
+                            "system_name": "MTRTRS",
+                            "previous_site_id": "41154",
+                            "selected_site_id": "18863",
+                            "reason_code": "site_switch_unproductive",
+                            "reason_text": "Current site healthy but unproductive",
+                            "selection_mode": "auto",
+                        },
+                        {
+                            "type": "same_site_restart",
+                            "system_name": "TACN",
+                            "previous_site_id": "legacy:auto",
+                            "selected_site_id": "legacy:auto",
+                            "reason_code": "same_site_restart_stale",
+                            "reason_text": "Repeated stale windows",
+                            "selection_mode": "legacy",
+                        },
+                    ],
+                )
+
+            regen.assert_called_once()
+            restart.assert_called_once()
+            updated = _load_selector_state(str(runtime_dir))
+            mtrtrs = updated["systems"]["profile::MTRTRS"]
+            tacn = updated["systems"]["profile::TACN"]
+            self.assertEqual(1, mtrtrs["switch_count"])
+            self.assertEqual(1, mtrtrs["site_switch_restart_count"])
+            self.assertTrue(mtrtrs["last_switch_time"])
+            self.assertTrue(mtrtrs["current_site_since"])
+            self.assertTrue(mtrtrs["revisit_block_until"]["41154"])
+            self.assertGreater(int(mtrtrs["_last_restart_time_ms"]), 0)
+            self.assertEqual(1, tacn["same_site_restart_count"])
+            self.assertGreater(int(tacn["_last_restart_time_ms"]), 0)
+
+    def test_failed_restart_does_not_bump_counters_or_last_restart(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            profile_dir = tmp_path / "profile"
+            runtime_dir = tmp_path / "runtime"
+            _write_profile(
+                profile_dir,
+                systems_payload={
+                    "systems": [
+                        {
+                            "name": "MTRTRS",
+                            "sites": [
+                                {"site_id": "18863", "site_name": "Davidson County Simulcast", "control_channels_hz": [856937500], "enabled": True},
+                                {"site_id": "41154", "site_name": "Davidson County Services", "control_channels_hz": [855912500], "enabled": True},
+                            ],
+                        }
+                    ]
+                },
+            )
+            runtime_dir.mkdir(parents=True, exist_ok=True)
+            state = {
+                "systems": {
+                    "profile::MTRTRS": _selector_state(
+                        2_000_000,
+                        selected_site_id="18863",
+                        selected_site_name="Davidson County Simulcast",
+                    ),
+                }
+            }
+            (runtime_dir / "site_selector_state.json").write_text(json.dumps(state) + "\n", encoding="utf-8")
+            adapter = _make_adapter(str(runtime_dir))
+            with mock.patch.object(adapter, "_regenerate_runtime_via_script", return_value=(True, "")) as regen, \
+                mock.patch.object(adapter, "restart", return_value=(False, "boom")) as restart:
+                adapter._handle_selector_restart_requests(
+                    str(profile_dir),
+                    [
+                        {
+                            "type": "switch",
+                            "system_name": "MTRTRS",
+                            "previous_site_id": "41154",
+                            "selected_site_id": "18863",
+                            "reason_code": "site_switch_unproductive",
+                            "reason_text": "Current site healthy but unproductive",
+                            "selection_mode": "auto",
+                        }
+                    ],
+                )
+
+            regen.assert_called_once()
+            restart.assert_called_once()
+            updated = _load_selector_state(str(runtime_dir))
+            mtrtrs = updated["systems"]["profile::MTRTRS"]
+            self.assertEqual(0, mtrtrs["switch_count"])
+            self.assertEqual(0, mtrtrs["site_switch_restart_count"])
+            self.assertEqual(0, mtrtrs["same_site_restart_count"])
+            self.assertEqual(0, int(mtrtrs["_last_restart_time_ms"]))
 
 
 class StatusTelemetryTests(unittest.TestCase):

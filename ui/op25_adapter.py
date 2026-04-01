@@ -438,6 +438,16 @@ def _candidate_state_defaults(site: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _canonical_site_order(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return sorted(
+        [row for row in rows if isinstance(row, dict)],
+        key=lambda row: (
+            str(row.get("site_name") or "").strip().lower(),
+            str(row.get("site_id") or "").strip().lower(),
+        ),
+    )
+
+
 def _initial_selector_system_state(system: dict[str, Any]) -> dict[str, Any]:
     return {
         "selected_site_id": "",
@@ -520,10 +530,8 @@ def _hydrate_runtime_systems_for_config(
                     sys_state["reason_text"] = f"Preferred site {selected_site['site_name']} selected"
                     break
         if selected_site is None and enabled_sites:
-            selected_site = sorted(
-                enabled_sites,
-                key=lambda site: (str(site.get("site_name") or "").lower(), str(site.get("site_id") or "")),
-            )[0]
+            ordered_enabled_sites = _canonical_site_order(enabled_sites)
+            selected_site = ordered_enabled_sites[0]
             if is_legacy_single_site:
                 sys_state["selection_mode"] = "legacy"
                 sys_state["reason_code"] = "legacy_single_site"
@@ -1928,7 +1936,15 @@ class Op25Adapter(_BaseDigitalAdapter):
             return None
         non_avoided = [row for row in enabled if not bool(row.get("_avoided"))]
         pool = non_avoided if non_avoided else enabled
-        pool = sorted(pool, key=lambda row: (int(row.get("score") or 0), str(row.get("site_name") or "")), reverse=True)
+        pool = sorted(
+            pool,
+            key=lambda row: (
+                int(row.get("score") or 0),
+                str(row.get("site_name") or "").lower(),
+                str(row.get("site_id") or "").lower(),
+            ),
+            reverse=True,
+        )
         return pool[0] if pool else None
 
     def _selector_decision_for_system(
@@ -2003,8 +2019,20 @@ class Op25Adapter(_BaseDigitalAdapter):
             and str(policy.get("mode") or "auto") == "auto"
         )
         if survey_mode:
+            ordered_enabled_candidates = _canonical_site_order(enabled_candidates)
             survey_started_at_ms = int(sys_state.get("_survey_started_at_ms") or now_ms)
             survey_index = int(sys_state.get("_survey_candidate_index") or 0)
+            actual_index = next(
+                (
+                    idx
+                    for idx, row in enumerate(ordered_enabled_candidates)
+                    if str(row.get("site_id") or "") == selected_site_id
+                ),
+                -1,
+            )
+            if actual_index >= 0:
+                survey_index = actual_index
+                sys_state["_survey_candidate_index"] = actual_index
             total_elapsed_ms = max(0, now_ms - survey_started_at_ms)
             if int(selected.get("recent_monitored_tg_hits") or 0) > 0 and not current_unhealthy:
                 sys_state["_survey_completed"] = True
@@ -2016,8 +2044,8 @@ class Op25Adapter(_BaseDigitalAdapter):
                     "reason_text": f"Survey retained productive site {selected.get('site_name')}",
                 }, sys_state)
             if total_elapsed_ms < (_OP25_SITE_SELECTOR_SURVEY_MAX_SEC * 1000) and current_dwell_ms >= (_OP25_SITE_SELECTOR_SURVEY_DWELL_SEC * 1000):
-                if survey_index + 1 < len(enabled_candidates):
-                    next_candidate = enabled_candidates[survey_index + 1]
+                if survey_index + 1 < len(ordered_enabled_candidates):
+                    next_candidate = ordered_enabled_candidates[survey_index + 1]
                     sys_state["_survey_candidate_index"] = survey_index + 1
                     return ({
                         "action": "switch",
@@ -2026,7 +2054,15 @@ class Op25Adapter(_BaseDigitalAdapter):
                         "reason_code": "site_survey_switch",
                         "reason_text": f"Survey switching to {next_candidate.get('site_name')}",
                     }, sys_state)
-            best = sorted(enabled_candidates, key=lambda row: int(row.get("score") or 0), reverse=True)[0]
+            best = sorted(
+                ordered_enabled_candidates,
+                key=lambda row: (
+                    int(row.get("score") or 0),
+                    str(row.get("site_name") or "").lower(),
+                    str(row.get("site_id") or "").lower(),
+                ),
+                reverse=True,
+            )[0]
             sys_state["_survey_completed"] = True
             if str(best.get("site_id") or "") != selected_site_id:
                 return ({
@@ -2230,14 +2266,6 @@ class Op25Adapter(_BaseDigitalAdapter):
                 sys_state["selection_mode"] = selection_mode
                 sys_state["reason_code"] = reason_code
                 sys_state["reason_text"] = reason_text
-                sys_state["last_switch_time"] = _iso_utc(now_ms)
-                sys_state["current_site_since"] = _iso_utc(now_ms)
-                sys_state["switch_count"] = int(sys_state.get("switch_count") or 0) + 1
-                sys_state["site_switch_restart_count"] = int(sys_state.get("site_switch_restart_count") or 0) + 1
-                if previous_site_id:
-                    revisit = dict(sys_state.get("revisit_block_until") or {})
-                    revisit[previous_site_id] = _iso_utc(now_ms + int(policy.get("revisit_cooldown_sec") or 180) * 1000)
-                    sys_state["revisit_block_until"] = revisit
                 restart_requests.append({
                     "type": "switch",
                     "system_name": system["name"],
@@ -2254,7 +2282,6 @@ class Op25Adapter(_BaseDigitalAdapter):
                 sys_state["reason_code"] = reason_code
                 sys_state["reason_text"] = reason_text
                 if decision.get("action") == "same_site_restart":
-                    sys_state["same_site_restart_count"] = int(sys_state.get("same_site_restart_count") or 0) + 1
                     restart_requests.append({
                         "type": "same_site_restart",
                         "system_name": system["name"],
@@ -2267,7 +2294,6 @@ class Op25Adapter(_BaseDigitalAdapter):
                     })
                     changed = True
                 elif decision.get("action") == "generic_restart":
-                    sys_state["generic_restart_count"] = int(sys_state.get("generic_restart_count") or 0) + 1
                     restart_requests.append({
                         "type": "generic_restart",
                         "system_name": system["name"],
@@ -2334,6 +2360,14 @@ class Op25Adapter(_BaseDigitalAdapter):
         state = _load_selector_state(self._runtime_dir)
         systems_state = state.setdefault("systems", {})
         profile_id = os.path.basename(profile_dir.rstrip(os.sep))
+        runtime_policies = {
+            str(system.get("name") or "").strip(): (system.get("site_policy") or {})
+            for system in _normalize_runtime_system_definitions(
+                profile_dir,
+                op25_overrides=_read_op25_system_config(profile_dir),
+            )
+        }
+        eligible_requests: list[tuple[dict[str, Any], str, dict[str, Any]]] = []
         for request in restart_requests:
             system_name = str(request.get("system_name") or "").strip()
             if not system_name:
@@ -2360,21 +2394,66 @@ class Op25Adapter(_BaseDigitalAdapter):
                 reason_code,
                 score_summary,
             )
-            ok, err = self._regenerate_runtime_via_script()
-            if ok:
-                self.restart()
-                sys_state["_last_restart_time_ms"] = now_ms
-                systems_state[key] = sys_state
-                _save_selector_state(self._runtime_dir, state)
-            else:
+            eligible_requests.append((request, key, sys_state))
+
+        if not eligible_requests:
+            return
+
+        _save_selector_state(self._runtime_dir, state)
+        ok, err = self._regenerate_runtime_via_script()
+        if not ok:
+            for request, _key, _sys_state in eligible_requests:
                 logger.warning(
                     "op25_site_selector action=restart_failed system=%s selected_site_id=%s previous_site_id=%s reason_code=%s error=%s",
-                    system_name,
+                    request.get("system_name"),
                     request.get("selected_site_id"),
                     request.get("previous_site_id"),
-                    reason_code,
+                    request.get("reason_code"),
                     err,
                 )
+            return
+
+        restart_result = self.restart()
+        if isinstance(restart_result, tuple):
+            restart_ok = bool(restart_result[0])
+            restart_err = str(restart_result[1] or "")
+        else:
+            restart_ok = bool(restart_result)
+            restart_err = ""
+        if not restart_ok:
+            for request, _key, _sys_state in eligible_requests:
+                logger.warning(
+                    "op25_site_selector action=restart_failed system=%s selected_site_id=%s previous_site_id=%s reason_code=%s error=%s",
+                    request.get("system_name"),
+                    request.get("selected_site_id"),
+                    request.get("previous_site_id"),
+                    request.get("reason_code"),
+                    restart_err or "restart returned false",
+                )
+            return
+
+        success_iso = _iso_utc(now_ms)
+        for request, key, sys_state in eligible_requests:
+            sys_state["_last_restart_time_ms"] = now_ms
+            action_type = str(request.get("type") or "")
+            if action_type == "switch":
+                sys_state["switch_count"] = int(sys_state.get("switch_count") or 0) + 1
+                sys_state["site_switch_restart_count"] = int(sys_state.get("site_switch_restart_count") or 0) + 1
+                sys_state["last_switch_time"] = success_iso
+                sys_state["current_site_since"] = success_iso
+                previous_site_id = str(request.get("previous_site_id") or "")
+                if previous_site_id:
+                    revisit = dict(sys_state.get("revisit_block_until") or {})
+                    system_name = str(request.get("system_name") or "").strip()
+                    policy = runtime_policies.get(system_name) or {}
+                    revisit[previous_site_id] = _iso_utc(now_ms + int(policy.get("revisit_cooldown_sec") or 180) * 1000)
+                    sys_state["revisit_block_until"] = revisit
+            elif action_type == "same_site_restart":
+                sys_state["same_site_restart_count"] = int(sys_state.get("same_site_restart_count") or 0) + 1
+            elif action_type == "generic_restart":
+                sys_state["generic_restart_count"] = int(sys_state.get("generic_restart_count") or 0) + 1
+            systems_state[key] = sys_state
+        _save_selector_state(self._runtime_dir, state)
 
     def preflight(self) -> dict:
         """Return health payload compatible with the scheduler's expectations."""

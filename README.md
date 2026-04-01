@@ -698,7 +698,10 @@ Preferred site-aware `systems.json` format:
   ]
 }
 ```
-For the current runtime path, `control_channels.txt` still drives OP25/SDRTrunk control-channel generation. Site-aware `systems.json` is groundwork for future deliberate site selection without breaking existing profiles.
+Current runtime behavior:
+- legacy profiles without `sites[]` still work from their flat control-channel definitions
+- site-aware profiles keep `control_channels.txt` for compatibility and legacy consumers
+- OP25 now chooses one active site per system at runtime and builds control-channel config from that selected site's control channels
 
 **Canonical workflow (authoritative): create a working digital profile**
 Use this flow for every new or edited digital profile, regardless of source data.
@@ -939,7 +942,7 @@ python3 scripts/homepatrol_db.py --db /home/willminkoff/scanner-db/homepatrol.db
   - `systems.json`
   - `talkgroups.csv`
   - `talkgroups_with_group.csv`
-- Note: HomePatrol exports do not mark control channels explicitly, so generated `control_channels.txt` contains the union of selected-site frequencies and `systems.json` preserves explicit candidate-site identity for future site-aware runtime use.
+- Note: HomePatrol exports do not mark control channels explicitly, so generated `control_channels.txt` contains the union of selected-site frequencies and `systems.json` preserves explicit candidate-site identity for runtime site-aware OP25 selection.
 
 **HomePatrol Favorites (HPCOPY.zip) converter**:
 - `scripts/homepatrol_favorites.py` reads `HPCOPY.zip` backups and converts a Favorites list into scannerproject files.
