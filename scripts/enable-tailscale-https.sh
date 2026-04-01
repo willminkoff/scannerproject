@@ -16,7 +16,37 @@ require_cmd() {
 require_cmd tailscale
 require_cmd curl
 require_cmd python3
-require_cmd timeout
+
+run_with_timeout() {
+  local timeout_sec="$1"
+  shift
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "${timeout_sec}" "$@"
+    return $?
+  fi
+  if command -v gtimeout >/dev/null 2>&1; then
+    gtimeout "${timeout_sec}" "$@"
+    return $?
+  fi
+  python3 - "$timeout_sec" "$@" <<'PY'
+import subprocess
+import sys
+
+timeout_sec = float(sys.argv[1])
+cmd = sys.argv[2:]
+try:
+    completed = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
+except subprocess.TimeoutExpired as exc:
+    if exc.stdout:
+        sys.stdout.write(exc.stdout)
+    if exc.stderr:
+        sys.stderr.write(exc.stderr)
+    raise SystemExit(124)
+sys.stdout.write(completed.stdout)
+sys.stderr.write(completed.stderr)
+raise SystemExit(completed.returncode)
+PY
+}
 
 if ! tailscale status >/dev/null 2>&1; then
   echo "ERROR: tailscaled is not running or not authenticated." >&2
@@ -40,12 +70,12 @@ run_serve_cmd() {
   local timeout_sec="$1"
   shift
   local out rc
-  out="$(timeout "${timeout_sec}" tailscale "$@" 2>&1)"
+  out="$(run_with_timeout "${timeout_sec}" tailscale "$@" 2>&1)"
   rc=$?
   if (( rc != 0 )) && grep -qi "Access denied: serve config denied" <<<"${out}"; then
     if command -v sudo >/dev/null 2>&1; then
       local sudo_out sudo_rc
-      sudo_out="$(timeout "${timeout_sec}" sudo -n tailscale "$@" 2>&1)"
+      sudo_out="$(run_with_timeout "${timeout_sec}" sudo -n tailscale "$@" 2>&1)"
       sudo_rc=$?
       if (( sudo_rc == 0 )); then
         printf "%s" "${sudo_out}"
