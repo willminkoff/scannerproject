@@ -403,14 +403,61 @@ class SiteSelectionDecisionTests(unittest.TestCase):
         self.assertEqual("stay_current_unhealthy_no_alternate", first["reason_code"])
         self.assertEqual(1, state["stale_window_count"])
 
-        second, state = self.adapter._selector_decision_for_system(
+        # Stale threshold is 6: need more stale windows before restart triggers
+        for i in range(2, 6):
+            decision, state = self.adapter._selector_decision_for_system(
+                self.system,
+                state,
+                [stale_site],
+                now_ms=self.now_ms + 31_000 * i,
+            )
+            self.assertEqual("stay", decision["action"], f"iteration {i}")
+
+        # 6th stale window should trigger same_site_restart
+        sixth, state = self.adapter._selector_decision_for_system(
             self.system,
             state,
             [stale_site],
-            now_ms=self.now_ms + 31_000,
+            now_ms=self.now_ms + 31_000 * 6,
         )
-        self.assertEqual("same_site_restart", second["action"])
-        self.assertEqual("same_site_restart_stale", second["reason_code"])
+        self.assertEqual("same_site_restart", sixth["action"])
+        self.assertEqual("same_site_restart_stale", sixth["reason_code"])
+
+    def test_post_restart_grace_period_prevents_stale_counting(self):
+        """After a restart, the grace period (90s) prevents stale window accumulation."""
+        stale_site = _candidate(
+            "41154",
+            score=-40,
+            site_name="Davidson County Services",
+            control_locked=False,
+            control_decode_available=False,
+            last_tsbk_age_sec=120,
+        )
+        # Simulate state right after a restart (30s ago)
+        state = self._sys_state(
+            _last_restart_time_ms=self.now_ms - 30_000,
+        )
+        decision, state = self.adapter._selector_decision_for_system(
+            self.system,
+            state,
+            [stale_site],
+            now_ms=self.now_ms,
+        )
+        self.assertEqual("stay", decision["action"])
+        self.assertEqual("stay_post_restart_grace", decision["reason_code"])
+        # Stale window count should not have increased
+        self.assertEqual(0, state.get("stale_window_count", 0))
+
+        # After grace period expires (91s after restart), stale counting resumes
+        decision2, state2 = self.adapter._selector_decision_for_system(
+            self.system,
+            state,
+            [stale_site],
+            now_ms=self.now_ms + 61_000,  # 91s after restart
+        )
+        self.assertEqual("stay", decision2["action"])
+        self.assertEqual("stay_current_unhealthy_no_alternate", decision2["reason_code"])
+        self.assertEqual(1, state2["stale_window_count"])
 
     def test_alternate_switch_happens_before_same_site_restart_when_better_alternate_exists(self):
         state = self._sys_state(
@@ -616,6 +663,10 @@ class RestartBatchingTests(unittest.TestCase):
             self.assertGreater(int(mtrtrs["_last_restart_time_ms"]), 0)
             self.assertEqual(1, tacn["same_site_restart_count"])
             self.assertGreater(int(tacn["_last_restart_time_ms"]), 0)
+            # Stale window times should be cleared after restart
+            self.assertEqual([], tacn.get("_stale_window_times_ms", []))
+            self.assertEqual(0, tacn.get("stale_window_count", 0))
+            self.assertEqual(0, tacn.get("_last_stale_window_time_ms", 0))
 
     def test_failed_restart_does_not_bump_counters_or_last_restart(self):
         with tempfile.TemporaryDirectory() as tmp:
