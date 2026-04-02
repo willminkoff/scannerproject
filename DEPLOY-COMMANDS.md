@@ -1,4 +1,50 @@
-# Pi Deployment Commands - Quick Reference
+# Deployment Commands - Quick Reference
+
+## SB3 (Micro) — Primary Deploy Target
+
+- Host: `micro` (Dell OptiPlex Micro 7020, via Tailscale)
+- SSH: `root@micro` (Tailscale SSH)
+- User/path: `/home/ubuntu/scannerproject`
+- Service: `airband-ui`
+- No git on Micro — deploy via rsync
+
+### Deploy to Micro (One-Command)
+```bash
+rsync -avz -e ssh ui/ root@micro:/home/ubuntu/scannerproject/ui/ --exclude='__pycache__' --exclude='*.pyc' && ssh root@micro "systemctl restart airband-ui && sleep 3 && curl -s http://localhost:5050/api/status | python3 -m json.tool | head -15"
+```
+
+### Deploy + Verify (Safer)
+```bash
+# 1. Sync files
+rsync -avz -e ssh ui/ root@micro:/home/ubuntu/scannerproject/ui/ --exclude='__pycache__' --exclude='*.pyc'
+
+# 2. Verify imports
+ssh root@micro "cd /home/ubuntu/scannerproject && python3 -c 'from ui.app import main' && echo 'imports ok' || echo 'import error'"
+
+# 3. Restart
+ssh root@micro "systemctl restart airband-ui && sleep 3"
+
+# 4. Verify
+ssh root@micro "systemctl is-active airband-ui && curl -s http://localhost:5050/api/status | python3 -m json.tool | head -15"
+```
+
+### Deploy Scripts Only
+```bash
+rsync -avz -e ssh scripts/ root@micro:/home/ubuntu/scannerproject/scripts/ --exclude='__pycache__' --exclude='*.pyc'
+```
+
+---
+
+## SprontPi — Separate Project (Do NOT deploy SB3 here)
+
+- Host: `sprontpi.local` (Raspberry Pi, also on Tailscale)
+- SSH: `willminkoff@sprontpi.local`
+- Path: `/home/willminkoff/scannerproject`
+- Has its own git checkout — uses `git pull` for updates
+
+---
+
+## Legacy Pi Deployment Reference
 
 ## Prerequisites
 - SSH access to Pi: `willminkoff@sprontpi.local`
