@@ -116,6 +116,9 @@ _OP25_SITE_SELECTOR_ACTION_COOLDOWN_MS = 30_000
 _OP25_SITE_SELECTOR_SURVEY_DWELL_SEC = 15
 _OP25_SITE_SELECTOR_SURVEY_MAX_SEC = 60
 _OP25_SITE_SELECTOR_STALE_WINDOW_WINDOW_MS = 10 * 60 * 1000
+_OP25_SITE_SELECTOR_PROBE_DWELL_SEC = 15
+_OP25_SITE_SELECTOR_SAMPLE_FRESH_SEC = 90
+_OP25_SITE_SELECTOR_SWITCH_SAMPLE_GRACE_MS = 20_000
 
 _DEFAULT_SITE_POLICY = {
     "mode": "auto",
@@ -433,6 +436,13 @@ def _candidate_state_defaults(site: dict[str, Any]) -> dict[str, Any]:
         "last_tsbk_age_sec": None,
         "recent_any_grants": 0,
         "recent_monitored_tg_hits": 0,
+        "sample_state": "unsampled",
+        "sampled_recently": False,
+        "last_sample_age_sec": None,
+        "healthy": False,
+        "unhealthy": False,
+        "unproductive": False,
+        "cooldown_active": False,
         "exclusion_reason": "",
         "demotion_reason": "",
     }
@@ -471,6 +481,8 @@ def _initial_selector_system_state(system: dict[str, Any]) -> dict[str, Any]:
         "_survey_started_at_ms": 0,
         "_survey_candidate_index": 0,
         "_survey_completed": False,
+        "_probe_origin_site_id": "",
+        "_probe_started_at_ms": 0,
     }
 
 
@@ -601,7 +613,40 @@ def _flatten_active_runtime_systems(runtime_systems: list[dict[str, Any]]) -> li
     return systems
 
 
+def _candidate_cooldown_active(candidate: dict[str, Any], *, now_ms: int) -> bool:
+    until_ms = int(candidate.get("_revisit_block_until_ms") or 0)
+    return until_ms > now_ms
+
+
+def _candidate_last_sample_age_sec(candidate: dict[str, Any], *, now_ms: int) -> float | None:
+    sampled_at_ms = int(candidate.get("_last_sample_time_ms") or 0)
+    if sampled_at_ms <= 0:
+        return None
+    return round(max(0.0, (now_ms - sampled_at_ms) / 1000.0), 3)
+
+
+def _candidate_sample_state(candidate: dict[str, Any], *, now_ms: int, current_site_id: str) -> str:
+    sample_age_sec = _candidate_last_sample_age_sec(candidate, now_ms=now_ms)
+    if sample_age_sec is None:
+        return "unsampled"
+    if str(candidate.get("site_id") or "") != current_site_id and sample_age_sec > _OP25_SITE_SELECTOR_SAMPLE_FRESH_SEC:
+        return "stale_alternate"
+    return "sampled_recently"
+
+
+def _metrics_have_sample(metrics: dict[str, Any]) -> bool:
+    return bool(
+        metrics.get("control_locked")
+        or metrics.get("control_decode_available")
+        or metrics.get("last_tsbk_age_sec") is not None
+        or int(metrics.get("recent_any_grants") or 0) > 0
+        or int(metrics.get("recent_monitored_tg_hits") or 0) > 0
+    )
+
+
 def _candidate_is_unhealthy(candidate: dict[str, Any]) -> bool:
+    if str(candidate.get("sample_state") or "") != "sampled_recently":
+        return False
     if not _parse_enabled(candidate.get("enabled", True)):
         return True
     if not bool(candidate.get("control_locked")):
@@ -617,9 +662,21 @@ def _candidate_is_unhealthy(candidate: dict[str, Any]) -> bool:
         return True
 
 
-def _candidate_cooldown_active(candidate: dict[str, Any], *, now_ms: int) -> bool:
-    until_ms = int(candidate.get("_revisit_block_until_ms") or 0)
-    return until_ms > now_ms
+def _alternate_beats_current_for_unhealthy(
+    current: dict[str, Any],
+    alternate: dict[str, Any] | None,
+    *,
+    switch_margin: int,
+) -> bool:
+    if not alternate or not _parse_enabled(alternate.get("enabled", True)):
+        return False
+    current_score = int(current.get("score") or 0)
+    alternate_score = int(alternate.get("score") or 0)
+    alternate_sampled = str(alternate.get("sample_state") or "") == "sampled_recently"
+    alternate_unhealthy = alternate_sampled and _candidate_is_unhealthy(alternate)
+    if alternate_sampled and not alternate_unhealthy:
+        return True
+    return alternate_score >= (current_score + switch_margin)
 
 
 def _compute_candidate_score(candidate: dict[str, Any], system: dict[str, Any], *, now_ms: int) -> int:
@@ -636,27 +693,31 @@ def _compute_candidate_score(candidate: dict[str, Any], system: dict[str, Any], 
     if site_id in set(policy.get("avoid_site_ids") or []):
         score -= 80
 
-    if bool(candidate.get("control_locked")):
-        score += 40
-    if bool(candidate.get("control_decode_available")):
-        score += 20
-    age = candidate.get("last_tsbk_age_sec")
-    if age is None:
-        score -= 20
-    else:
-        try:
-            age_value = float(age)
-        except Exception:
-            age_value = None
-        if age_value is None:
+    sample_state = str(candidate.get("sample_state") or "")
+    if sample_state == "sampled_recently":
+        if bool(candidate.get("control_locked")):
+            score += 40
+        if bool(candidate.get("control_decode_available")):
+            score += 20
+        age = candidate.get("last_tsbk_age_sec")
+        if age is None:
             score -= 20
         else:
-            if age_value > 60:
-                score -= 100
-            elif age_value > 30:
-                score -= 60
-            elif age_value > 15:
-                score -= 30
+            try:
+                age_value = float(age)
+            except Exception:
+                age_value = None
+            if age_value is None:
+                score -= 20
+            else:
+                if age_value > 60:
+                    score -= 100
+                elif age_value > 30:
+                    score -= 60
+                elif age_value > 15:
+                    score -= 30
+    elif sample_state == "stale_alternate":
+        score -= 10
 
     recent_any = int(candidate.get("recent_any_grants") or 0)
     recent_monitored = int(candidate.get("recent_monitored_tg_hits") or 0)
@@ -1947,6 +2008,38 @@ class Op25Adapter(_BaseDigitalAdapter):
         )
         return pool[0] if pool else None
 
+    def _select_probe_candidate(
+        self,
+        candidates: list[dict[str, Any]],
+        *,
+        current_site_id: str,
+        now_ms: int,
+    ) -> dict[str, Any] | None:
+        eligible = []
+        for row in candidates:
+            site_id = str(row.get("site_id") or "")
+            if site_id == current_site_id or not _parse_enabled(row.get("enabled", True)):
+                continue
+            if _candidate_cooldown_active(row, now_ms=now_ms):
+                continue
+            sample_state = str(row.get("sample_state") or "")
+            if sample_state not in {"unsampled", "stale_alternate"}:
+                continue
+            eligible.append(row)
+        if not eligible:
+            return None
+        eligible = sorted(
+            eligible,
+            key=lambda row: (
+                0 if str(row.get("sample_state") or "") == "unsampled" else 1,
+                -1 * int(row.get("recent_monitored_tg_hits") or 0),
+                -1 * int(row.get("recent_any_grants") or 0),
+                str(row.get("site_name") or "").lower(),
+                str(row.get("site_id") or "").lower(),
+            ),
+        )
+        return eligible[0]
+
     def _selector_decision_for_system(
         self,
         system: dict[str, Any],
@@ -2004,6 +2097,7 @@ class Op25Adapter(_BaseDigitalAdapter):
             }, sys_state)
 
         current_score = int(selected.get("score") or 0)
+        current_sample_state = str(selected.get("sample_state") or "")
         current_unhealthy = _candidate_is_unhealthy(selected)
         best_alternate = self._select_best_alternate(candidates, current_site_id=selected_site_id)
         min_dwell_ms = int(policy.get("min_dwell_sec") or 120) * 1000
@@ -2011,6 +2105,8 @@ class Op25Adapter(_BaseDigitalAdapter):
         switch_margin = int(policy.get("switch_margin") or 20)
         current_since_ms = _ms_from_iso(str(sys_state.get("current_site_since") or ""))
         current_dwell_ms = max(0, now_ms - current_since_ms) if current_since_ms > 0 else 0
+        probe_origin_site_id = str(sys_state.get("_probe_origin_site_id") or "").strip()
+        probe_started_at_ms = int(sys_state.get("_probe_started_at_ms") or 0)
 
         survey_mode = (
             str(sys_state.get("selection_mode") or "") == "survey"
@@ -2080,8 +2176,70 @@ class Op25Adapter(_BaseDigitalAdapter):
                 "reason_text": f"Survey completed; retained best scored site {selected.get('site_name')}",
             }, sys_state)
 
+        if current_sample_state != "sampled_recently" and current_dwell_ms < _OP25_SITE_SELECTOR_SWITCH_SAMPLE_GRACE_MS:
+            return ({
+                "action": "stay",
+                "site_id": selected_site_id,
+                "selection_mode": str(sys_state.get("selection_mode") or "auto"),
+                "reason_code": "stay_current_waiting_for_sample",
+                "reason_text": "Retaining current site while awaiting a fresh sample",
+            }, sys_state)
+
+        probe_mode = str(sys_state.get("selection_mode") or "") == "probe" and bool(probe_origin_site_id)
+        if probe_mode:
+            probe_origin = next(
+                (row for row in candidates if str(row.get("site_id") or "") == probe_origin_site_id),
+                None,
+            )
+            probe_dwell_ms = max(0, now_ms - probe_started_at_ms) if probe_started_at_ms > 0 else 0
+            if probe_dwell_ms < (_OP25_SITE_SELECTOR_PROBE_DWELL_SEC * 1000):
+                return ({
+                    "action": "stay",
+                    "site_id": selected_site_id,
+                    "selection_mode": "probe",
+                    "reason_code": "stay_probe_dwell",
+                    "reason_text": f"Sampling alternate site {selected.get('site_name')}",
+                }, sys_state)
+            if not current_unhealthy and int(selected.get("recent_monitored_tg_hits") or 0) > 0:
+                sys_state["_probe_origin_site_id"] = ""
+                sys_state["_probe_started_at_ms"] = 0
+                sys_state["unproductive_since"] = ""
+                return ({
+                    "action": "stay",
+                    "site_id": selected_site_id,
+                    "selection_mode": "auto",
+                    "reason_code": "probe_candidate_productive",
+                    "reason_text": f"Probe retained productive site {selected.get('site_name')}",
+                }, sys_state)
+            origin_score = int(probe_origin.get("score") or 0) if probe_origin else 0
+            if not current_unhealthy and current_score >= origin_score + switch_margin:
+                sys_state["_probe_origin_site_id"] = ""
+                sys_state["_probe_started_at_ms"] = 0
+                return ({
+                    "action": "stay",
+                    "site_id": selected_site_id,
+                    "selection_mode": "auto",
+                    "reason_code": "probe_candidate_better",
+                    "reason_text": f"Probe retained better-scored site {selected.get('site_name')}",
+                }, sys_state)
+            sys_state["_probe_origin_site_id"] = ""
+            sys_state["_probe_started_at_ms"] = 0
+            if probe_origin and _parse_enabled(probe_origin.get("enabled", True)):
+                return ({
+                    "action": "switch",
+                    "site_id": probe_origin_site_id,
+                    "selection_mode": "auto",
+                    "reason_code": "site_probe_return_origin",
+                    "reason_text": f"Probe on {selected.get('site_name')} did not improve monitored traffic",
+                    "cooldown_site_id": selected_site_id,
+                }, sys_state)
+
         if current_unhealthy:
-            if best_alternate and bool(best_alternate.get("enabled")):
+            if _alternate_beats_current_for_unhealthy(
+                selected,
+                best_alternate,
+                switch_margin=switch_margin,
+            ):
                 return ({
                     "action": "switch",
                     "site_id": str(best_alternate.get("site_id") or ""),
@@ -2140,6 +2298,28 @@ class Op25Adapter(_BaseDigitalAdapter):
             and (now_ms - unproductive_since_ms) >= unproductive_window_ms
             and (current_any > 0 or evidence_other_hits)
         )
+        if current_unproductive:
+            probe_candidate = self._select_probe_candidate(
+                candidates,
+                current_site_id=selected_site_id,
+                now_ms=now_ms,
+            )
+            if probe_candidate:
+                probe_reason_code = (
+                    "site_probe_unsampled_alternate"
+                    if str(probe_candidate.get("sample_state") or "") == "unsampled"
+                    else "site_probe_stale_alternate"
+                )
+                sys_state["_probe_origin_site_id"] = selected_site_id
+                sys_state["_probe_started_at_ms"] = now_ms
+                return ({
+                    "action": "switch",
+                    "site_id": str(probe_candidate.get("site_id") or ""),
+                    "selection_mode": "probe",
+                    "reason_code": probe_reason_code,
+                    "reason_text": f"Probing alternate site {probe_candidate.get('site_name')} after unproductive dwell",
+                    "cooldown_site_id": "",
+                }, sys_state)
         if current_unproductive and best_alternate:
             best_alternate_score = int(best_alternate.get("score") or 0)
             if best_alternate_score >= current_score + switch_margin:
@@ -2197,7 +2377,8 @@ class Op25Adapter(_BaseDigitalAdapter):
             )
             if current_site_id in candidates_by_id:
                 candidates_by_id[current_site_id].update(metrics)
-                candidates_by_id[current_site_id]["_last_sample_time_ms"] = now_ms
+                if _metrics_have_sample(metrics):
+                    candidates_by_id[current_site_id]["_last_sample_time_ms"] = now_ms
 
             policy = system.get("site_policy") or {}
             revisit_raw = sys_state.get("revisit_block_until") or {}
@@ -2213,6 +2394,14 @@ class Op25Adapter(_BaseDigitalAdapter):
                 candidate["enabled"] = _parse_enabled(site.get("enabled", True))
                 candidate["_avoided"] = site_id in set(policy.get("avoid_site_ids") or [])
                 candidate["_revisit_block_until_ms"] = _ms_from_iso(str(revisit_raw.get(site_id) or ""))
+                candidate["last_sample_age_sec"] = _candidate_last_sample_age_sec(candidate, now_ms=now_ms)
+                candidate["sample_state"] = _candidate_sample_state(
+                    candidate,
+                    now_ms=now_ms,
+                    current_site_id=current_site_id,
+                )
+                candidate["sampled_recently"] = str(candidate.get("sample_state") or "") == "sampled_recently"
+                candidate["cooldown_active"] = _candidate_cooldown_active(candidate, now_ms=now_ms)
                 candidate["score"] = _compute_candidate_score(candidate, system, now_ms=now_ms)
                 state = "candidate"
                 exclusion_reason = ""
@@ -2220,7 +2409,7 @@ class Op25Adapter(_BaseDigitalAdapter):
                 if not candidate["enabled"]:
                     state = "disabled"
                     exclusion_reason = "site disabled by profile"
-                elif _candidate_cooldown_active(candidate, now_ms=now_ms):
+                elif candidate["cooldown_active"]:
                     state = "cooldown"
                     demotion_reason = "under revisit cooldown"
                 elif site_id == current_site_id:
@@ -2230,7 +2419,21 @@ class Op25Adapter(_BaseDigitalAdapter):
                     demotion_reason = "avoid policy"
                 elif site_id in set(policy.get("preferred_site_ids") or []):
                     state = "preferred"
-                if state not in {"disabled", "cooldown", "avoided"} and _candidate_is_unhealthy(candidate):
+                if (
+                    state not in {"disabled", "cooldown", "avoided"}
+                    and site_id != current_site_id
+                    and str(candidate.get("sample_state") or "") == "unsampled"
+                ):
+                    state = "unsampled"
+                    demotion_reason = "alternate site has not been sampled yet"
+                elif (
+                    state not in {"disabled", "cooldown", "avoided"}
+                    and site_id != current_site_id
+                    and str(candidate.get("sample_state") or "") == "stale_alternate"
+                ):
+                    state = "stale_alternate"
+                    demotion_reason = "alternate sample is stale"
+                if state not in {"disabled", "cooldown", "avoided", "unsampled", "stale_alternate"} and _candidate_is_unhealthy(candidate):
                     state = "unhealthy"
                     demotion_reason = "stale decode or unlocked control"
                 if state == "selected" and not _candidate_is_unhealthy(candidate):
@@ -2242,6 +2445,13 @@ class Op25Adapter(_BaseDigitalAdapter):
                     if current_unproductive:
                         state = "unproductive"
                         demotion_reason = "healthy but unproductive"
+                candidate["healthy"] = bool(
+                    candidate["enabled"]
+                    and str(candidate.get("sample_state") or "") == "sampled_recently"
+                    and not _candidate_is_unhealthy(candidate)
+                )
+                candidate["unhealthy"] = bool(state == "unhealthy")
+                candidate["unproductive"] = bool(state == "unproductive")
                 candidate["state"] = state
                 candidate["exclusion_reason"] = exclusion_reason
                 candidate["demotion_reason"] = demotion_reason
@@ -2271,6 +2481,7 @@ class Op25Adapter(_BaseDigitalAdapter):
                     "system_name": system["name"],
                     "previous_site_id": previous_site_id,
                     "selected_site_id": target_site_id,
+                    "cooldown_site_id": str(decision.get("cooldown_site_id") or previous_site_id or ""),
                     "reason_code": reason_code,
                     "reason_text": reason_text,
                     "selection_mode": selection_mode,
@@ -2441,12 +2652,12 @@ class Op25Adapter(_BaseDigitalAdapter):
                 sys_state["site_switch_restart_count"] = int(sys_state.get("site_switch_restart_count") or 0) + 1
                 sys_state["last_switch_time"] = success_iso
                 sys_state["current_site_since"] = success_iso
-                previous_site_id = str(request.get("previous_site_id") or "")
-                if previous_site_id:
+                cooldown_site_id = str(request.get("cooldown_site_id") or request.get("previous_site_id") or "")
+                if cooldown_site_id:
                     revisit = dict(sys_state.get("revisit_block_until") or {})
                     system_name = str(request.get("system_name") or "").strip()
                     policy = runtime_policies.get(system_name) or {}
-                    revisit[previous_site_id] = _iso_utc(now_ms + int(policy.get("revisit_cooldown_sec") or 180) * 1000)
+                    revisit[cooldown_site_id] = _iso_utc(now_ms + int(policy.get("revisit_cooldown_sec") or 180) * 1000)
                     sys_state["revisit_block_until"] = revisit
             elif action_type == "same_site_restart":
                 sys_state["same_site_restart_count"] = int(sys_state.get("same_site_restart_count") or 0) + 1

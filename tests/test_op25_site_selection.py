@@ -40,6 +40,9 @@ def _candidate(
     recent_monitored_tg_hits: int = 0,
     avoided: bool = False,
     cooldown_until_ms: int = 0,
+    sample_state: str = "sampled_recently",
+    sampled_recently: bool | None = None,
+    last_sample_age_sec: float | None = 1.0,
 ) -> dict:
     return {
         "site_id": site_id,
@@ -51,6 +54,13 @@ def _candidate(
         "last_tsbk_age_sec": last_tsbk_age_sec,
         "recent_any_grants": recent_any_grants,
         "recent_monitored_tg_hits": recent_monitored_tg_hits,
+        "sample_state": sample_state,
+        "sampled_recently": sample_state == "sampled_recently" if sampled_recently is None else sampled_recently,
+        "last_sample_age_sec": last_sample_age_sec,
+        "healthy": sample_state == "sampled_recently" and control_locked and control_decode_available and (last_tsbk_age_sec or 0) <= 60,
+        "unhealthy": False,
+        "unproductive": False,
+        "cooldown_active": cooldown_until_ms > 0,
         "_avoided": avoided,
         "_revisit_block_until_ms": cooldown_until_ms,
         "state": "candidate",
@@ -344,6 +354,34 @@ class SiteSelectionDecisionTests(unittest.TestCase):
         self.assertEqual("18863", decision["site_id"])
         self.assertEqual("site_switch_unhealthy", decision["reason_code"])
 
+    def test_unhealthy_current_site_does_not_switch_to_equal_bad_alternate(self):
+        decision, state = self.adapter._selector_decision_for_system(
+            self.system,
+            self._sys_state(current_site_since=_iso_utc(self.now_ms - 30_000)),
+            [
+                _candidate(
+                    "41154",
+                    score=-30,
+                    site_name="Davidson County Services",
+                    control_locked=True,
+                    control_decode_available=False,
+                    last_tsbk_age_sec=None,
+                ),
+                _candidate(
+                    "18863",
+                    score=-30,
+                    site_name="Davidson County Simulcast",
+                    control_locked=True,
+                    control_decode_available=False,
+                    last_tsbk_age_sec=None,
+                ),
+            ],
+            now_ms=self.now_ms,
+        )
+        self.assertEqual("stay", decision["action"])
+        self.assertEqual("stay_current_unhealthy_no_alternate", decision["reason_code"])
+        self.assertEqual(1, state["stale_window_count"])
+
     def test_healthy_but_unproductive_current_site_switches_when_alternate_exceeds_margin(self):
         decision, _ = self.adapter._selector_decision_for_system(
             self.system,
@@ -382,6 +420,113 @@ class SiteSelectionDecisionTests(unittest.TestCase):
         )
         self.assertEqual("stay", decision["action"])
         self.assertEqual("stay_current_healthy", decision["reason_code"])
+
+    def test_healthy_but_unproductive_current_site_probes_unsampled_alternate(self):
+        state = self._sys_state(unproductive_since=_iso_utc(self.now_ms - 400_000))
+        decision, state = self.adapter._selector_decision_for_system(
+            self.system,
+            state,
+            [
+                _candidate(
+                    "41154",
+                    score=50,
+                    site_name="Davidson County Services",
+                    recent_any_grants=2,
+                    recent_monitored_tg_hits=0,
+                ),
+                _candidate(
+                    "18863",
+                    score=0,
+                    site_name="Davidson County Simulcast",
+                    recent_any_grants=0,
+                    recent_monitored_tg_hits=0,
+                    sample_state="unsampled",
+                    sampled_recently=False,
+                    last_sample_age_sec=None,
+                ),
+            ],
+            now_ms=self.now_ms,
+        )
+        self.assertEqual("switch", decision["action"])
+        self.assertEqual("18863", decision["site_id"])
+        self.assertEqual("probe", decision["selection_mode"])
+        self.assertEqual("site_probe_unsampled_alternate", decision["reason_code"])
+        self.assertEqual("41154", state["_probe_origin_site_id"])
+        self.assertEqual(self.now_ms, state["_probe_started_at_ms"])
+
+    def test_probe_waits_for_dwell_then_retains_productive_alternate(self):
+        state = self._sys_state(
+            selected_site_id="18863",
+            selected_site_name="Davidson County Simulcast",
+            selection_mode="probe",
+            current_site_since=_iso_utc(self.now_ms - 20_000),
+            _probe_origin_site_id="41154",
+            _probe_started_at_ms=self.now_ms - 20_000,
+        )
+        decision, state = self.adapter._selector_decision_for_system(
+            self.system,
+            state,
+            [
+                _candidate(
+                    "41154",
+                    score=50,
+                    site_name="Davidson County Services",
+                    recent_any_grants=2,
+                    recent_monitored_tg_hits=0,
+                    sample_state="stale_alternate",
+                    sampled_recently=False,
+                    last_sample_age_sec=180.0,
+                ),
+                _candidate(
+                    "18863",
+                    score=120,
+                    site_name="Davidson County Simulcast",
+                    recent_any_grants=2,
+                    recent_monitored_tg_hits=3,
+                ),
+            ],
+            now_ms=self.now_ms,
+        )
+        self.assertEqual("stay", decision["action"])
+        self.assertEqual("probe_candidate_productive", decision["reason_code"])
+        self.assertEqual("auto", decision["selection_mode"])
+        self.assertEqual("", state["_probe_origin_site_id"])
+
+    def test_probe_returns_to_origin_when_alternate_does_not_improve(self):
+        state = self._sys_state(
+            selected_site_id="18863",
+            selected_site_name="Davidson County Simulcast",
+            selection_mode="probe",
+            current_site_since=_iso_utc(self.now_ms - 20_000),
+            _probe_origin_site_id="41154",
+            _probe_started_at_ms=self.now_ms - 20_000,
+        )
+        decision, state = self.adapter._selector_decision_for_system(
+            self.system,
+            state,
+            [
+                _candidate(
+                    "41154",
+                    score=80,
+                    site_name="Davidson County Services",
+                    recent_any_grants=2,
+                    recent_monitored_tg_hits=0,
+                ),
+                _candidate(
+                    "18863",
+                    score=40,
+                    site_name="Davidson County Simulcast",
+                    recent_any_grants=1,
+                    recent_monitored_tg_hits=0,
+                ),
+            ],
+            now_ms=self.now_ms,
+        )
+        self.assertEqual("switch", decision["action"])
+        self.assertEqual("41154", decision["site_id"])
+        self.assertEqual("site_probe_return_origin", decision["reason_code"])
+        self.assertEqual("18863", decision["cooldown_site_id"])
+        self.assertEqual("", state["_probe_origin_site_id"])
 
     def test_same_site_restart_only_after_repeated_stale_windows_with_no_alternate(self):
         stale_site = _candidate(
@@ -676,6 +821,230 @@ class RestartBatchingTests(unittest.TestCase):
 
 
 class StatusTelemetryTests(unittest.TestCase):
+    def test_probe_refreshes_alternate_evidence_with_real_sample(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            profile_dir = tmp_path / "profile"
+            runtime_dir = tmp_path / "runtime"
+            _write_profile(
+                profile_dir,
+                systems_payload={
+                    "systems": [
+                        {
+                            "name": "MTRTRS",
+                            "sites": [
+                                {
+                                    "site_id": "41154",
+                                    "site_name": "Davidson County Services",
+                                    "control_channels_hz": [855912500],
+                                    "enabled": True,
+                                },
+                                {
+                                    "site_id": "18863",
+                                    "site_name": "Davidson County Simulcast",
+                                    "control_channels_hz": [856937500],
+                                    "enabled": True,
+                                },
+                            ],
+                        }
+                    ]
+                },
+            )
+            adapter = _make_adapter(str(runtime_dir))
+            state = {
+                "systems": {
+                    "profile::MTRTRS": _selector_state(
+                        1_000_000,
+                        selected_site_id="18863",
+                        selected_site_name="Davidson County Simulcast",
+                        selection_mode="probe",
+                        current_site_since=_iso_utc(1_000_000),
+                        _probe_origin_site_id="41154",
+                        _probe_started_at_ms=1_000_000,
+                    ),
+                }
+            }
+            runtime_dir.mkdir(parents=True, exist_ok=True)
+            (runtime_dir / "site_selector_state.json").write_text(json.dumps(state) + "\n", encoding="utf-8")
+            status = {
+                "trunk_update": {
+                    "systems": {
+                        "0": {
+                            "system": "MTRTRS",
+                            "last_tsbk": 1_000_018.0,
+                        }
+                    }
+                },
+                "channel_update": {
+                    "0": {
+                        "system": "MTRTRS",
+                        "tag": "Control Channel",
+                        "freq": 856937500,
+                    }
+                },
+                "call_log": [
+                    {"system": "MTRTRS", "tgid": "3207"},
+                ],
+            }
+            with mock.patch.object(adapter, "_read_active_profile_dir", return_value=str(profile_dir)), \
+                mock.patch.object(adapter, "_poll_op25_status", return_value=status), \
+                mock.patch.object(adapter, "_handle_selector_restart_requests", return_value=None), \
+                mock.patch("ui.op25_adapter.time.time", return_value=1_000_020.0):
+                payload = adapter.preflight()
+
+            selected = next(
+                row
+                for row in payload["op25_site_selection"]["MTRTRS"]["candidate_sites"]
+                if row["site_id"] == "18863"
+            )
+            self.assertTrue(selected["sampled_recently"])
+            self.assertEqual("sampled_recently", selected["sample_state"])
+            self.assertIsNotNone(selected["last_sample_age_sec"])
+            self.assertFalse(selected["unhealthy"])
+
+    def test_preflight_marks_unsampled_alternate_distinct_from_unhealthy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            profile_dir = tmp_path / "profile"
+            runtime_dir = tmp_path / "runtime"
+            _write_profile(
+                profile_dir,
+                systems_payload={
+                    "systems": [
+                        {
+                            "name": "MTRTRS",
+                            "sites": [
+                                {
+                                    "site_id": "41154",
+                                    "site_name": "Davidson County Services",
+                                    "control_channels_hz": [855912500],
+                                    "enabled": True,
+                                },
+                                {
+                                    "site_id": "18863",
+                                    "site_name": "Davidson County Simulcast",
+                                    "control_channels_hz": [856937500],
+                                    "enabled": True,
+                                },
+                            ],
+                        }
+                    ]
+                },
+            )
+            adapter = _make_adapter(str(runtime_dir))
+            state = {
+                "systems": {
+                    "profile::MTRTRS": _selector_state(
+                        1_000_000,
+                        selected_site_id="41154",
+                        selected_site_name="Davidson County Services",
+                    ),
+                }
+            }
+            runtime_dir.mkdir(parents=True, exist_ok=True)
+            (runtime_dir / "site_selector_state.json").write_text(json.dumps(state) + "\n", encoding="utf-8")
+            status = {
+                "trunk_update": {
+                    "systems": {
+                        "0": {
+                            "system": "MTRTRS",
+                            "last_tsbk": 1_000_005.0,
+                        }
+                    }
+                },
+                "channel_update": {
+                    "0": {
+                        "system": "MTRTRS",
+                        "tag": "Control Channel",
+                        "freq": 855912500,
+                    }
+                },
+                "call_log": [],
+            }
+            with mock.patch.object(adapter, "_read_active_profile_dir", return_value=str(profile_dir)), \
+                mock.patch.object(adapter, "_poll_op25_status", return_value=status), \
+                mock.patch.object(adapter, "_handle_selector_restart_requests", return_value=None), \
+                mock.patch("ui.op25_adapter.time.time", return_value=1_000_010.0):
+                payload = adapter.preflight()
+
+            alternate = next(
+                row
+                for row in payload["op25_site_selection"]["MTRTRS"]["candidate_sites"]
+                if row["site_id"] == "18863"
+            )
+            self.assertEqual("unsampled", alternate["state"])
+            self.assertFalse(alternate["unhealthy"])
+            self.assertFalse(alternate["sampled_recently"])
+            self.assertIsNone(alternate["last_sample_age_sec"])
+
+    def test_preflight_keeps_selected_state_even_when_current_site_lacks_fresh_sample(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            profile_dir = tmp_path / "profile"
+            runtime_dir = tmp_path / "runtime"
+            _write_profile(
+                profile_dir,
+                systems_payload={
+                    "systems": [
+                        {
+                            "name": "MTRTRS",
+                            "sites": [
+                                {
+                                    "site_id": "41154",
+                                    "site_name": "Davidson County Services",
+                                    "control_channels_hz": [855912500],
+                                    "enabled": True,
+                                },
+                                {
+                                    "site_id": "18863",
+                                    "site_name": "Davidson County Simulcast",
+                                    "control_channels_hz": [856937500],
+                                    "enabled": True,
+                                },
+                            ],
+                        }
+                    ]
+                },
+            )
+            adapter = _make_adapter(str(runtime_dir))
+            state = {
+                "systems": {
+                    "profile::MTRTRS": _selector_state(
+                        1_000_000,
+                        selected_site_id="41154",
+                        selected_site_name="Davidson County Services",
+                    ),
+                }
+            }
+            runtime_dir.mkdir(parents=True, exist_ok=True)
+            (runtime_dir / "site_selector_state.json").write_text(json.dumps(state) + "\n", encoding="utf-8")
+            status = {
+                "trunk_update": {"systems": {}},
+                "channel_update": {},
+                "call_log": [],
+            }
+            with mock.patch.object(adapter, "_read_active_profile_dir", return_value=str(profile_dir)), \
+                mock.patch.object(adapter, "_poll_op25_status", return_value=status), \
+                mock.patch.object(adapter, "_handle_selector_restart_requests", return_value=None), \
+                mock.patch("ui.op25_adapter.time.time", return_value=1_000_010.0):
+                payload = adapter.preflight()
+
+            selected = next(
+                row
+                for row in payload["op25_site_selection"]["MTRTRS"]["candidate_sites"]
+                if row["site_id"] == "41154"
+            )
+            alternate = next(
+                row
+                for row in payload["op25_site_selection"]["MTRTRS"]["candidate_sites"]
+                if row["site_id"] == "18863"
+            )
+            self.assertEqual("selected", selected["state"])
+            self.assertEqual("unsampled", selected["sample_state"])
+            self.assertFalse(selected["sampled_recently"])
+            self.assertIsNone(selected["last_sample_age_sec"])
+            self.assertEqual("unsampled", alternate["state"])
+
     def test_preflight_exposes_selected_site_and_candidates(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
