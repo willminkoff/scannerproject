@@ -290,6 +290,35 @@ def _select_fallback_profile(profiles: list[dict[str, Any]], target: str) -> str
     return _MANAGED_GROUND_ID if target == "ground" else _MANAGED_AIR_ID
 
 
+def _current_profile_id_for_target(target: str) -> str:
+    try:
+        conf_path, profiles, _ = _profiles_for_target(target)
+    except Exception:
+        return ""
+    if not profiles:
+        return ""
+    current_real = os.path.realpath(str(conf_path or ""))
+    for pid, _, path in profiles:
+        if os.path.realpath(str(path or "")) == current_real:
+            return str(pid or "").strip()
+    if current_real and os.path.exists(current_real):
+        return str(guess_current_profile(conf_path, profiles) or "").strip()
+    return ""
+
+
+def _desired_analog_profile_for_empty_result(
+    profiles: list[dict[str, Any]],
+    target: str,
+    *,
+    managed_profile_id: str,
+) -> str:
+    fallback_id = "none_ground" if target == "ground" else "none_airband"
+    current_id = _current_profile_id_for_target(target)
+    if current_id and current_id not in {fallback_id, managed_profile_id}:
+        return current_id
+    return _select_fallback_profile(profiles, target)
+
+
 def _normalize_conventional_pool(pool: dict[str, Any]) -> tuple[list[float], list[str], list[float], list[str]]:
     rows = pool.get("conventional")
     if not isinstance(rows, list):
@@ -1007,8 +1036,24 @@ def sync_scan_pool_to_analog_runtime(
             except Exception as exc:
                 errors.append(f"failed writing ground favorites profile: {exc}")
 
-        desired_air_profile = _MANAGED_AIR_ID if air_freqs else _select_fallback_profile(profiles, "airband")
-        desired_ground_profile = _MANAGED_GROUND_ID if ground_freqs else _select_fallback_profile(profiles, "ground")
+        desired_air_profile = (
+            _MANAGED_AIR_ID
+            if air_freqs
+            else _desired_analog_profile_for_empty_result(
+                profiles,
+                "airband",
+                managed_profile_id=_MANAGED_AIR_ID,
+            )
+        )
+        desired_ground_profile = (
+            _MANAGED_GROUND_ID
+            if ground_freqs
+            else _desired_analog_profile_for_empty_result(
+                profiles,
+                "ground",
+                managed_profile_id=_MANAGED_GROUND_ID,
+            )
+        )
         selected_profiles["airband"] = desired_air_profile
         selected_profiles["ground"] = desired_ground_profile
 
