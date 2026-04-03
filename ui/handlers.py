@@ -4072,9 +4072,10 @@ class Handler(BaseHTTPRequestHandler):
             if enabled.lower() in ("false", "0", "off"):
                 store.clear_spatial_filter()
                 return self._send(200, json.dumps({"ok": True, "spatial_filter": False}), "application/json; charset=utf-8")
-            # Apply or update filter
+            # Apply or update filter — HPState is already imported at module level;
+            # a local import here would shadow it for the entire do_POST method
+            # and cause UnboundLocalError in earlier code paths.
             try:
-                from .hp_state import HPState
                 state = HPState.load()
                 lat = float(get_str("lat", "") or state.lat)
                 lon = float(get_str("lon", "") or state.lon)
