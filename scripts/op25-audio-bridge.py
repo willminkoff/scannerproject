@@ -10,6 +10,7 @@ mixes the available mono PCM inputs, and republishes the result to Icecast.
 from __future__ import annotations
 
 import audioop
+import collections
 import json
 import os
 import select
@@ -17,6 +18,7 @@ import signal
 import socket
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from urllib.error import URLError
@@ -33,10 +35,19 @@ FFMPEG_BIN = os.getenv("OP25_AUDIO_FFMPEG_BIN") or "ffmpeg"
 BITRATE_KBPS = int(os.getenv("OP25_AUDIO_BITRATE", "64"))
 SAMPLE_RATE = int(os.getenv("OP25_AUDIO_SAMPLE_RATE", "8000"))
 CHANNELS = int(os.getenv("OP25_AUDIO_CHANNELS", "1"))
-POLL_SEC = float(os.getenv("OP25_AUDIO_POLL_SEC", "0.02"))
 HEALTH_CHECK_SEC = float(os.getenv("OP25_AUDIO_HEALTH_CHECK_SEC", "5.0"))
 GATE_ENABLED = str(os.getenv("OP25_AUDIO_GATE", "1")).strip().lower() not in ("0", "false", "no", "off")
 GATE_RELEASE_SEC = float(os.getenv("OP25_AUDIO_GATE_RELEASE_SEC", "1.5"))
+
+# Output frame size: 20ms at 8kHz mono 16-bit = 320 bytes (160 samples).
+# The output thread delivers exactly this many bytes per tick to ffmpeg,
+# keeping the sample clock steady regardless of UDP input jitter.
+OUTPUT_FRAME_SAMPLES = int(SAMPLE_RATE * 0.020)  # 160 samples = 20ms
+OUTPUT_FRAME_BYTES = OUTPUT_FRAME_SAMPLES * 2     # 320 bytes (16-bit)
+OUTPUT_TICK_SEC = OUTPUT_FRAME_SAMPLES / SAMPLE_RATE  # 0.020
+
+# Ring buffer holds up to 500ms of audio (25 frames × 20ms).
+RING_BUFFER_FRAMES = 25
 
 
 def _log(message: str) -> None:
@@ -100,7 +111,12 @@ class AudioBridge:
         self.running = True
         self.last_audio_at = 0.0
         self.last_health_check = 0.0
-        self.silence_frame = b"\x00" * max(2, int(SAMPLE_RATE * POLL_SEC) * 2)
+        self.silence_frame = b"\x00" * OUTPUT_FRAME_BYTES
+
+        # Ring buffer: output thread pops frames at a constant rate.
+        # Input thread pushes mixed audio frames as they arrive.
+        self._ring: collections.deque[bytes] = collections.deque(maxlen=RING_BUFFER_FRAMES)
+        self._ring_lock = threading.Lock()
 
     def _open_sockets(self) -> None:
         for port in self.ports:
@@ -125,24 +141,16 @@ class AudioBridge:
             FFMPEG_BIN,
             "-nostdin",
             "-hide_banner",
-            "-loglevel",
-            "warning",
-            "-f",
-            "s16le",
-            "-ar",
-            str(SAMPLE_RATE),
-            "-ac",
-            str(CHANNELS),
-            "-i",
-            "pipe:0",
-            "-acodec",
-            "libmp3lame",
-            "-b:a",
-            f"{BITRATE_KBPS}k",
-            "-content_type",
-            "audio/mpeg",
-            "-f",
-            "mp3",
+            "-loglevel", "warning",
+            "-f", "s16le",
+            "-ar", str(SAMPLE_RATE),
+            "-ac", str(CHANNELS),
+            "-i", "pipe:0",
+            "-af", "aresample=async=1:first_pts=0",
+            "-acodec", "libmp3lame",
+            "-b:a", f"{BITRATE_KBPS}k",
+            "-content_type", "audio/mpeg",
+            "-f", "mp3",
             mount_url,
         ]
 
@@ -206,10 +214,11 @@ class AudioBridge:
             self._start_ffmpeg("icecast mount unavailable")
 
     def _drain_packets(self) -> list[bytes]:
+        """Read all pending UDP packets from all sockets without blocking."""
         if not self.sockets:
             return []
         packets: list[bytes] = []
-        ready, _, _ = select.select(self.sockets, [], [], POLL_SEC)
+        ready, _, _ = select.select(self.sockets, [], [], 0.005)
         for sock in ready:
             while True:
                 try:
@@ -226,7 +235,7 @@ class AudioBridge:
         cleaned = [_normalize_pcm(packet) for packet in packets if packet]
         cleaned = [packet for packet in cleaned if packet]
         if not cleaned:
-            return self.silence_frame
+            return b""
         target_len = max(len(packet) for packet in cleaned)
         mix = _pad_pcm(cleaned[0], target_len)
         for packet in cleaned[1:]:
@@ -238,15 +247,75 @@ class AudioBridge:
             mix = audioop.mul(mix, 2, 1.0 / len(cleaned))
         return mix
 
+    def _push_audio(self, pcm: bytes) -> None:
+        """Split mixed PCM into OUTPUT_FRAME_BYTES-sized frames and push to ring."""
+        if not pcm:
+            return
+        with self._ring_lock:
+            offset = 0
+            while offset < len(pcm):
+                chunk = pcm[offset:offset + OUTPUT_FRAME_BYTES]
+                if len(chunk) < OUTPUT_FRAME_BYTES:
+                    chunk = chunk + b"\x00" * (OUTPUT_FRAME_BYTES - len(chunk))
+                self._ring.append(chunk)
+                offset += OUTPUT_FRAME_BYTES
+
+    def _pop_frame(self) -> bytes:
+        """Pop one frame from the ring buffer, or return silence."""
+        with self._ring_lock:
+            if self._ring:
+                return self._ring.popleft()
+        return self.silence_frame
+
     def _write_pcm(self, pcm: bytes) -> None:
         proc = self.proc
         if proc is None or proc.stdin is None:
             return
         try:
             proc.stdin.write(pcm)
-            proc.stdin.flush()
         except (BrokenPipeError, OSError):
             self._start_ffmpeg("ffmpeg pipe closed")
+
+    def _output_thread(self) -> None:
+        """Deliver audio to ffmpeg at a constant rate (one frame per tick).
+
+        This thread runs independently of the UDP input loop, ensuring
+        ffmpeg receives a smooth, clock-steady PCM stream. When no real
+        audio is buffered, silence is delivered to keep the stream alive.
+        """
+        next_tick = time.monotonic()
+        flush_counter = 0
+        while self.running:
+            now = time.monotonic()
+            if now < next_tick:
+                time.sleep(max(0, next_tick - now))
+            next_tick += OUTPUT_TICK_SEC
+
+            # Catch up if we fell behind (e.g. system load spike) — skip
+            # frames rather than delivering a burst that causes jitter.
+            if next_tick < time.monotonic() - 0.1:
+                next_tick = time.monotonic()
+
+            frame = self._pop_frame()
+
+            # Gate: if no real audio recently, force silence.
+            if GATE_ENABLED and self.last_audio_at > 0.0:
+                if (time.time() - self.last_audio_at) > GATE_RELEASE_SEC:
+                    frame = self.silence_frame
+
+            self._write_pcm(frame)
+
+            # Flush less aggressively — every 10 frames (200ms) instead
+            # of every write, reducing syscall overhead.
+            flush_counter += 1
+            if flush_counter >= 10:
+                flush_counter = 0
+                proc = self.proc
+                if proc and proc.stdin:
+                    try:
+                        proc.stdin.flush()
+                    except (BrokenPipeError, OSError):
+                        pass
 
     def run(self) -> int:
         if not self.ports:
@@ -258,20 +327,24 @@ class AudioBridge:
         self._open_sockets()
         try:
             self._start_ffmpeg("bootstrap")
+
+            # Start the output thread — delivers audio to ffmpeg at a
+            # constant 20ms tick rate independent of input timing.
+            out_thread = threading.Thread(target=self._output_thread, daemon=True)
+            out_thread.start()
+
+            # Input loop: drain UDP packets, mix, push to ring buffer.
             while self.running:
                 self._ensure_ffmpeg()
                 packets = self._drain_packets()
-                now = time.time()
                 if packets:
-                    self.last_audio_at = now
+                    self.last_audio_at = time.time()
                     pcm = self._mix_packets(packets)
+                    if pcm:
+                        self._push_audio(pcm)
                 else:
-                    pcm = self.silence_frame
-                if GATE_ENABLED and self.last_audio_at > 0.0:
-                    if now - self.last_audio_at > GATE_RELEASE_SEC:
-                        pcm = self.silence_frame
-                self._write_pcm(pcm)
-                time.sleep(POLL_SEC)
+                    # Brief sleep to avoid busy-waiting when no audio.
+                    time.sleep(0.005)
         finally:
             self._stop_ffmpeg()
             self._close_sockets()
