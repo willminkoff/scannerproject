@@ -572,7 +572,7 @@ class MetStore:
         """Return observations sorted by altitude (ascending) for plotting."""
         with self._lock:
             obs = list(self._met_obs)
-        obs.sort(key=lambda o: o.altitude_ft)
+        obs.sort(key=lambda o: o.altitude_ft, reverse=True)
         return {
             "observations": len(obs),
             "active_decoder": self.active_decoder,

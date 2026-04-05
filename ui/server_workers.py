@@ -183,8 +183,10 @@ def start_wx_reader(decoder: str) -> None:
 
     store = get_met_store()
     if decoder == "acars":
-        _configure_spatial_filter(store)
-    else:
+        # Only apply default HPState filter if user hasn't already set one
+        if not store.get_status().get("spatial_filter"):
+            _configure_spatial_filter(store)
+    elif decoder == "radiosonde":
         store.clear_spatial_filter()
         logger.info("Wx spatial filter disabled for %s (tracking mobile source)", decoder)
     store.collecting = True

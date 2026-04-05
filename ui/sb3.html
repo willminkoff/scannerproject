@@ -1744,12 +1744,11 @@
     .wx-filter-status { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
     .wx-obs-table { width: 100%; font-family: var(--font-mono); font-size: 12px; }
     .wx-obs-header, .wx-obs-row {
-      display: grid; grid-template-columns: 80px 70px 60px 60px 55px 55px 50px;
+      display: grid; grid-template-columns: 68px 70px 70px 60px 55px 55px 50px 50px 45px;
       gap: 4px; padding: 3px 0; border-bottom: 1px solid var(--border);
     }
     .wx-obs-header { font-size: 10px; color: var(--text-muted); text-transform: uppercase; position: sticky; top: 0; background: var(--bg-card); font-family: var(--font-sans); }
-    .wx-obs-row div { text-align: right; }
-    .wx-obs-row div:first-child { text-align: left; }
+    .wx-obs-row div { text-align: left; }
     .wx-obs-list { max-height: 50vh; overflow-y: auto; }
     .wx-empty { text-align: center; color: var(--text-muted); padding: 24px 0; font-size: 13px; }
     .wx-export-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
@@ -3632,7 +3631,7 @@
           <button class="action" id="wx-start-acars" type="button" style="padding:8px 16px;font-size:12px;">Poll ACARS</button>
           <button class="action" id="wx-start-radiosonde" type="button" style="padding:8px 16px;font-size:12px;">Poll Radiosonde</button>
           <button class="action wx-btn-danger" id="wx-stop-decoder" type="button" style="padding:8px 16px;font-size:12px;display:none;">Stop</button>
-          <span style="font-size:12px;color:var(--text-muted);margin-left:4px;" id="wx-decoder-status-label"><span class="wx-status-dot" id="wx-collecting-dot"></span><span id="wx-decoder-name">Idle</span></span>
+          <span style="font-size:12px;color:var(--text-muted);margin-left:4px;" id="wx-decoder-status-label"><span class="wx-status-dot" id="wx-collecting-dot"></span><span id="wx-decoder-name">Idle</span> <span id="wx-decoder-elapsed" style="font-family:var(--font-mono);"></span></span>
         </div>
         <div class="wx-status-grid">
           <div class="wx-status-chip">
@@ -3689,6 +3688,8 @@
         <div class="wx-section-head">Sounding Profile</div>
         <div class="wx-obs-table">
           <div class="wx-obs-header">
+            <div>Time</div>
+            <div>Flight</div>
             <div>Alt (ft)</div>
             <div>hPa</div>
             <div>T (C)</div>
@@ -4310,6 +4311,8 @@
         sounding: null,
         messages: null,
         pollTimer: null,
+        elapsedTimer: null,
+        decoderStartedAt: null,
         lastMsgCount: 0,
         starting: false,
       },
@@ -4740,6 +4743,7 @@
       wxStartRadiosonde: document.getElementById('wx-start-radiosonde'),
       wxStopDecoder: document.getElementById('wx-stop-decoder'),
       wxDecoderName: document.getElementById('wx-decoder-name'),
+      wxDecoderElapsed: document.getElementById('wx-decoder-elapsed'),
       wxCollectingDot: document.getElementById('wx-collecting-dot'),
       wxMsgCount: document.getElementById('wx-msg-count'),
       wxObsCount: document.getElementById('wx-obs-count'),
@@ -7609,6 +7613,40 @@
       }
     }
 
+    function formatWxElapsed(sec) {
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = Math.floor(sec % 60);
+      const mm = String(m).padStart(2, '0');
+      const ss = String(s).padStart(2, '0');
+      return h > 0 ? h + ':' + mm + ':' + ss : mm + ':' + ss;
+    }
+
+    function tickWxElapsed() {
+      if (!state.wxSounding.decoderStartedAt) {
+        if (els.wxDecoderElapsed) els.wxDecoderElapsed.textContent = '';
+        return;
+      }
+      const sec = (Date.now() - state.wxSounding.decoderStartedAt) / 1000;
+      if (els.wxDecoderElapsed) els.wxDecoderElapsed.textContent = formatWxElapsed(sec);
+    }
+
+    function startWxElapsedTimer() {
+      state.wxSounding.decoderStartedAt = Date.now();
+      if (state.wxSounding.elapsedTimer) clearInterval(state.wxSounding.elapsedTimer);
+      state.wxSounding.elapsedTimer = setInterval(tickWxElapsed, 1000);
+      tickWxElapsed();
+    }
+
+    function stopWxElapsedTimer() {
+      state.wxSounding.decoderStartedAt = null;
+      if (state.wxSounding.elapsedTimer) {
+        clearInterval(state.wxSounding.elapsedTimer);
+        state.wxSounding.elapsedTimer = null;
+      }
+      if (els.wxDecoderElapsed) els.wxDecoderElapsed.textContent = '';
+    }
+
     async function startWxDecoder(decoder) {
       if (state.wxSounding.starting) return;
       state.wxSounding.starting = true;
@@ -7624,6 +7662,7 @@
         console.error('Failed to start decoder:', e);
       }
       state.wxSounding.starting = false;
+      startWxElapsedTimer();
       await refreshWxSounding();
     }
 
@@ -7634,6 +7673,7 @@
       } catch (e) {
         console.error('Failed to stop decoder:', e);
       }
+      stopWxElapsedTimer();
       // Clear the live feed
       if (els.wxLiveFeed) els.wxLiveFeed.innerHTML = '<div class="wx-empty" id="wx-feed-empty">No messages yet. Start a decoder above.</div>';
       state.wxSounding.lastMsgCount = 0;
@@ -7705,6 +7745,9 @@
       const active = st.active_decoder;
       if (els.wxDecoderName) els.wxDecoderName.textContent = active ? (active.toUpperCase() + ' active') : 'Idle';
       if (els.wxCollectingDot) els.wxCollectingDot.classList.toggle('active', Boolean(st.collecting));
+      // Start elapsed timer if decoder is active but timer isn't running (e.g. page refresh)
+      if (active && !state.wxSounding.decoderStartedAt) startWxElapsedTimer();
+      if (!active && state.wxSounding.decoderStartedAt) stopWxElapsedTimer();
 
       // Update button states
       updateWxDecoderButtons();
@@ -7760,6 +7803,8 @@
       }
       let html = '';
       for (const obs of levels) {
+        const tm = obs.timestamp ? new Date(obs.timestamp * 1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '--';
+        const flt = obs.source_id || '--';
         const alt = obs.altitude_ft != null ? Math.round(obs.altitude_ft).toLocaleString() : '--';
         const prs = obs.pressure_hpa != null ? obs.pressure_hpa.toFixed(1) : '--';
         const tmp = obs.temp_c != null ? obs.temp_c.toFixed(1) : '--';
@@ -7768,6 +7813,8 @@
         const wsp = obs.wind_speed_kt != null ? Math.round(obs.wind_speed_kt) : '--';
         const rh = obs.humidity_pct != null ? Math.round(obs.humidity_pct) + '%' : '--';
         html += '<div class="wx-obs-row">'
+          + '<div>' + tm + '</div>'
+          + '<div>' + flt + '</div>'
           + '<div>' + alt + '</div>'
           + '<div>' + prs + '</div>'
           + '<div>' + tmp + '</div>'
@@ -7814,12 +7861,14 @@
     }
 
     async function clearWxData() {
-      if (!confirm('Clear all collected weather sounding data?')) return;
       try {
         await fetch('/api/wx/clear', { method: 'POST' });
-        if (els.wxClearStatus) els.wxClearStatus.textContent = 'Data cleared';
         state.wxSounding.lastMsgCount = 0;
+        state.wxSounding.messages = null;
+        state.wxSounding.sounding = null;
         if (els.wxLiveFeed) els.wxLiveFeed.innerHTML = '<div class="wx-empty">No messages yet. Start a decoder above.</div>';
+        if (els.wxObsList) els.wxObsList.innerHTML = '<div class="wx-empty">No observations collected.</div>';
+        if (els.wxClearStatus) els.wxClearStatus.textContent = 'Data cleared';
         await refreshWxSounding();
       } catch (e) {
         if (els.wxClearStatus) els.wxClearStatus.textContent = 'Failed: ' + e.message;
