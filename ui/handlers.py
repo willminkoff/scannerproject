@@ -4095,6 +4095,40 @@ class Handler(BaseHTTPRequestHandler):
             store.clear(source=source)
             return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
 
+        if p == "/api/wx/decoder":
+            # Start or stop ACARS / radiosonde decoders.
+            # POST with action=start&decoder=acars  or action=stop
+            try:
+                from .actions import _WX_START, _WX_STOP, _start_wx_reader, _stop_wx_reader
+            except ImportError:
+                from ui.actions import _WX_START, _WX_STOP, _start_wx_reader, _stop_wx_reader
+            action = get_str("action", "").lower()
+            decoder = get_str("decoder", "").lower()
+            if action == "stop":
+                # Stop whatever is running
+                for name, stop_fn in _WX_STOP.items():
+                    try:
+                        stop_fn()
+                    except Exception:
+                        pass
+                _stop_wx_reader()
+                return self._send(200, json.dumps({"ok": True, "active_decoder": None}), "application/json; charset=utf-8")
+            if action != "start" or decoder not in ("acars", "radiosonde"):
+                return self._send(400, json.dumps({"ok": False, "error": "action must be start|stop, decoder must be acars|radiosonde"}), "application/json; charset=utf-8")
+            # Stop the other decoder first
+            other = "radiosonde" if decoder == "acars" else "acars"
+            try:
+                _WX_STOP[other]()
+            except Exception:
+                pass
+            _stop_wx_reader()
+            # Start the requested decoder
+            ok, err = _WX_START[decoder]()
+            if not ok:
+                return self._send(500, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
+            _start_wx_reader(decoder)
+            return self._send(200, json.dumps({"ok": True, "active_decoder": decoder}), "application/json; charset=utf-8")
+
         if p == "/api/digital/start":
             gate = gate_action("digital_start")
             if not gate.get("ok"):
