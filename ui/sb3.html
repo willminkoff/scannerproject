@@ -1720,6 +1720,42 @@
       width: min(980px, 98vw);
     }
 
+    /* --- WX Sounding Sidecar --- */
+    .wx-sounding-sidecar { width: min(780px, 96vw); }
+    .wx-sounding-sidecar .profile-sidecar-body { overflow: auto; }
+    .wx-status-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 6px; margin-bottom: 12px;
+    }
+    .wx-status-chip {
+      background: var(--bg-widget); border: 1px solid var(--border); border-radius: 6px;
+      padding: 6px 10px; font-size: 12px;
+    }
+    .wx-status-chip .chip-label { color: var(--text-muted); font-size: 10px; text-transform: uppercase; letter-spacing: .5px; }
+    .wx-status-chip .chip-value { font-family: var(--font-mono); font-size: 14px; margin-top: 2px; }
+    .wx-status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); margin-right: 4px; vertical-align: middle; }
+    .wx-status-dot.active { background: var(--accent); }
+    .wx-section { margin-bottom: 14px; }
+    .wx-section-head { font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .5px; }
+    .wx-filter-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin-bottom: 8px; }
+    .wx-filter-field { display: flex; flex-direction: column; gap: 2px; }
+    .wx-filter-field label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
+    .wx-filter-field input { width: 80px; }
+    .wx-filter-status { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+    .wx-obs-table { width: 100%; font-family: var(--font-mono); font-size: 12px; }
+    .wx-obs-header, .wx-obs-row {
+      display: grid; grid-template-columns: 80px 70px 60px 60px 55px 55px 50px;
+      gap: 4px; padding: 3px 0; border-bottom: 1px solid var(--border);
+    }
+    .wx-obs-header { font-size: 10px; color: var(--text-muted); text-transform: uppercase; position: sticky; top: 0; background: var(--bg-card); font-family: var(--font-sans); }
+    .wx-obs-row div { text-align: right; }
+    .wx-obs-row div:first-child { text-align: left; }
+    .wx-obs-list { max-height: 50vh; overflow-y: auto; }
+    .wx-empty { text-align: center; color: var(--text-muted); padding: 24px 0; font-size: 13px; }
+    .wx-export-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .wx-btn-danger { border-color: #c0392b; color: #e74c3c; }
+    .wx-btn-danger:hover { background: #c0392b; color: #fff; }
+
     .hp3-builder-head-actions {
       display: inline-flex;
       align-items: center;
@@ -2749,7 +2785,12 @@
 
       <!-- Row 2: Hit Counters + Hit List -->
       <div class="widget" id="system-activity-widget">
-        <div class="widget-header">📊 System Activity</div>
+        <div class="widget-header with-actions">
+          <span>📊 System Activity</span>
+          <div class="widget-header-actions">
+            <button class="action widget-header-action" id="wx-sounding-open" type="button">🌡️ Sounding</button>
+          </div>
+        </div>
         <div class="widget-body">
           <div class="counter-grid">
             <div class="counter-item">
@@ -3569,6 +3610,104 @@
     </div>
   </aside>
 
+  <!-- WX Sounding Sidecar -->
+  <div class="profile-sidecar-overlay hidden" id="wx-sounding-overlay"></div>
+  <aside class="profile-sidecar wx-sounding-sidecar" id="wx-sounding-sidecar" aria-hidden="true">
+    <div class="profile-sidecar-header">
+      <div>
+        <div class="profile-sidecar-title">Weather Sounding</div>
+        <div class="profile-sidecar-sub">Upper-air observations from ACARS and radiosonde decoders.</div>
+      </div>
+      <div class="hp3-builder-head-actions">
+        <button class="action profile-sidecar-load" id="wx-sounding-refresh" type="button">Refresh</button>
+        <button class="action" id="wx-sounding-close" type="button">Close</button>
+      </div>
+    </div>
+    <div class="profile-sidecar-body">
+
+      <!-- Status -->
+      <div class="wx-section">
+        <div class="wx-section-head">Decoder Status</div>
+        <div class="wx-status-grid">
+          <div class="wx-status-chip">
+            <div class="chip-label">Decoder</div>
+            <div class="chip-value"><span class="wx-status-dot" id="wx-collecting-dot"></span><span id="wx-decoder-name">--</span></div>
+          </div>
+          <div class="wx-status-chip">
+            <div class="chip-label">Messages</div>
+            <div class="chip-value" id="wx-msg-count">0</div>
+          </div>
+          <div class="wx-status-chip">
+            <div class="chip-label">Observations</div>
+            <div class="chip-value" id="wx-obs-count">0</div>
+          </div>
+          <div class="wx-status-chip">
+            <div class="chip-label">In Filter</div>
+            <div class="chip-value" id="wx-filtered-count">0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Spatial Filter -->
+      <div class="wx-section">
+        <div class="wx-section-head">Spatial Filter</div>
+        <div class="wx-filter-row">
+          <div class="wx-filter-field">
+            <label>Lat</label>
+            <input type="text" id="wx-filter-lat" placeholder="35.88">
+          </div>
+          <div class="wx-filter-field">
+            <label>Lon</label>
+            <input type="text" id="wx-filter-lon" placeholder="-86.80">
+          </div>
+          <div class="wx-filter-field">
+            <label>Radius (nm)</label>
+            <input type="number" id="wx-filter-radius" value="10" min="1" max="500">
+          </div>
+          <div class="wx-filter-field">
+            <label>Ceiling (ft)</label>
+            <input type="number" id="wx-filter-ceiling" value="40000" min="1000" max="100000" step="1000">
+          </div>
+          <button class="action" id="wx-filter-apply" type="button">Apply</button>
+          <button class="action" id="wx-filter-clear" type="button">Clear</button>
+        </div>
+        <div class="wx-filter-status" id="wx-filter-status"></div>
+      </div>
+
+      <!-- Observations Table -->
+      <div class="wx-section">
+        <div class="wx-section-head">Sounding Profile</div>
+        <div class="wx-obs-table">
+          <div class="wx-obs-header">
+            <div>Alt (ft)</div>
+            <div>hPa</div>
+            <div>T (C)</div>
+            <div>Td (C)</div>
+            <div>Dir</div>
+            <div>Spd</div>
+            <div>RH</div>
+          </div>
+          <div class="wx-obs-list" id="wx-obs-list">
+            <div class="wx-empty">No observations collected.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Export + Clear -->
+      <div class="wx-section">
+        <div class="wx-section-head">Export</div>
+        <div class="wx-export-row">
+          <button class="action" id="wx-export-json" type="button">JSON</button>
+          <button class="action" id="wx-export-spc" type="button">SPC (SHARPpy)</button>
+          <button class="action" id="wx-export-csv" type="button">CSV</button>
+          <button class="action wx-btn-danger" id="wx-clear-data" type="button">Clear Data</button>
+        </div>
+        <div class="wx-filter-status" id="wx-clear-status"></div>
+      </div>
+
+    </div>
+  </aside>
+
   <script>
     // ============================================
     // CONFIGURATION
@@ -4155,6 +4294,12 @@
           dirty: false,
         },
       },
+      wxSounding: {
+        open: false,
+        status: null,
+        sounding: null,
+        pollTimer: null,
+      },
       hpFavoritesSync: {
         ok: false,
         available: false,
@@ -4572,6 +4717,30 @@
       hp3BuilderOverlay: document.getElementById('hp3-builder-overlay'),
       hp3BuilderClose: document.getElementById('hp3-builder-close'),
       hp3BuilderRefresh: document.getElementById('hp3-builder-refresh'),
+      // WX Sounding
+      wxSoundingOverlay: document.getElementById('wx-sounding-overlay'),
+      wxSoundingSidecar: document.getElementById('wx-sounding-sidecar'),
+      wxSoundingOpen: document.getElementById('wx-sounding-open'),
+      wxSoundingClose: document.getElementById('wx-sounding-close'),
+      wxSoundingRefresh: document.getElementById('wx-sounding-refresh'),
+      wxDecoderName: document.getElementById('wx-decoder-name'),
+      wxCollectingDot: document.getElementById('wx-collecting-dot'),
+      wxMsgCount: document.getElementById('wx-msg-count'),
+      wxObsCount: document.getElementById('wx-obs-count'),
+      wxFilteredCount: document.getElementById('wx-filtered-count'),
+      wxObsList: document.getElementById('wx-obs-list'),
+      wxFilterLat: document.getElementById('wx-filter-lat'),
+      wxFilterLon: document.getElementById('wx-filter-lon'),
+      wxFilterRadius: document.getElementById('wx-filter-radius'),
+      wxFilterCeiling: document.getElementById('wx-filter-ceiling'),
+      wxFilterApply: document.getElementById('wx-filter-apply'),
+      wxFilterClear: document.getElementById('wx-filter-clear'),
+      wxFilterStatus: document.getElementById('wx-filter-status'),
+      wxExportJson: document.getElementById('wx-export-json'),
+      wxExportSpc: document.getElementById('wx-export-spc'),
+      wxExportCsv: document.getElementById('wx-export-csv'),
+      wxClearData: document.getElementById('wx-clear-data'),
+      wxClearStatus: document.getElementById('wx-clear-status'),
       btnReconnect: null,
     };
 
@@ -7334,6 +7503,7 @@
     }
 
     function openHp3BuilderSidecar(options = {}) {
+      if (state.wxSounding.open) closeWxSoundingSidecar();
       if (state.profileEditor.open && !closeProfileEditorSidecar()) {
         return false;
       }
@@ -7389,6 +7559,138 @@
       loadHpFavoritesBuilder({ quiet: false, force: true }).catch((err) => {
         console.error('Favorites builder reload failed:', err);
       });
+    }
+
+    // ============================================
+    // WX SOUNDING SIDECAR
+    // ============================================
+
+    function openWxSoundingSidecar() {
+      if (state.hp3Builder.open) closeHp3BuilderSidecar(false);
+      if (state.profileEditor && state.profileEditor.open) closeProfileEditorSidecar();
+      state.wxSounding.open = true;
+      if (els.wxSoundingSidecar) {
+        els.wxSoundingSidecar.classList.add('open');
+        els.wxSoundingSidecar.setAttribute('aria-hidden', 'false');
+      }
+      if (els.wxSoundingOverlay) els.wxSoundingOverlay.classList.remove('hidden');
+      refreshWxSounding();
+      state.wxSounding.pollTimer = setInterval(refreshWxSounding, 5000);
+    }
+
+    function closeWxSoundingSidecar() {
+      state.wxSounding.open = false;
+      if (els.wxSoundingSidecar) {
+        els.wxSoundingSidecar.classList.remove('open');
+        els.wxSoundingSidecar.setAttribute('aria-hidden', 'true');
+      }
+      if (els.wxSoundingOverlay) els.wxSoundingOverlay.classList.add('hidden');
+      if (state.wxSounding.pollTimer) {
+        clearInterval(state.wxSounding.pollTimer);
+        state.wxSounding.pollTimer = null;
+      }
+    }
+
+    async function refreshWxSounding() {
+      try {
+        const [statusRes, soundingRes] = await Promise.all([
+          fetch('/api/wx/status'), fetch('/api/wx/sounding'),
+        ]);
+        state.wxSounding.status = await statusRes.json();
+        state.wxSounding.sounding = await soundingRes.json();
+        renderWxSounding();
+      } catch (e) {
+        console.error('WX sounding refresh failed:', e);
+      }
+    }
+
+    function renderWxSounding() {
+      const st = state.wxSounding.status;
+      const sd = state.wxSounding.sounding;
+      if (!st) return;
+      if (els.wxDecoderName) els.wxDecoderName.textContent = st.active_decoder || 'none';
+      if (els.wxCollectingDot) els.wxCollectingDot.classList.toggle('active', Boolean(st.collecting));
+      if (els.wxMsgCount) els.wxMsgCount.textContent = st.message_count || 0;
+      if (els.wxObsCount) els.wxObsCount.textContent = st.met_count || 0;
+      if (els.wxFilteredCount) els.wxFilteredCount.textContent = st.filtered_count || 0;
+      // Populate filter fields from status if filter is active
+      if (st.spatial_filter && st.filter_lat != null) {
+        if (els.wxFilterLat && !els.wxFilterLat.matches(':focus')) els.wxFilterLat.value = st.filter_lat;
+        if (els.wxFilterLon && !els.wxFilterLon.matches(':focus')) els.wxFilterLon.value = st.filter_lon;
+        if (els.wxFilterRadius && !els.wxFilterRadius.matches(':focus')) els.wxFilterRadius.value = st.filter_radius_nm || 10;
+        if (els.wxFilterCeiling && !els.wxFilterCeiling.matches(':focus')) els.wxFilterCeiling.value = st.filter_ceiling_ft || 40000;
+      }
+      // Render observations
+      if (!sd || !els.wxObsList) return;
+      const levels = sd.levels || [];
+      if (!levels.length) {
+        els.wxObsList.innerHTML = '<div class="wx-empty">No observations collected.</div>';
+        return;
+      }
+      let html = '';
+      for (const obs of levels) {
+        const alt = obs.altitude_ft != null ? Math.round(obs.altitude_ft).toLocaleString() : '--';
+        const prs = obs.pressure_hpa != null ? obs.pressure_hpa.toFixed(1) : '--';
+        const tmp = obs.temp_c != null ? obs.temp_c.toFixed(1) : '--';
+        const dpt = (obs.dewpoint_c != null && obs.dewpoint_c > -9000) ? obs.dewpoint_c.toFixed(1) : '--';
+        const wdr = obs.wind_dir_deg != null ? Math.round(obs.wind_dir_deg) + '\u00B0' : '--';
+        const wsp = obs.wind_speed_kt != null ? Math.round(obs.wind_speed_kt) : '--';
+        const rh = obs.humidity_pct != null ? Math.round(obs.humidity_pct) + '%' : '--';
+        html += '<div class="wx-obs-row">'
+          + '<div>' + alt + '</div>'
+          + '<div>' + prs + '</div>'
+          + '<div>' + tmp + '</div>'
+          + '<div>' + dpt + '</div>'
+          + '<div>' + wdr + '</div>'
+          + '<div>' + wsp + '</div>'
+          + '<div>' + rh + '</div>'
+          + '</div>';
+      }
+      els.wxObsList.innerHTML = html;
+    }
+
+    async function applyWxFilter() {
+      try {
+        const body = new URLSearchParams({
+          enabled: 'true',
+          lat: els.wxFilterLat.value,
+          lon: els.wxFilterLon.value,
+          radius_nm: els.wxFilterRadius.value,
+          ceiling_ft: els.wxFilterCeiling.value,
+        });
+        const res = await fetch('/api/wx/filter', { method: 'POST', body });
+        const data = await res.json();
+        if (els.wxFilterStatus) els.wxFilterStatus.textContent = data.ok ? 'Filter applied' : 'Error: ' + (data.error || '');
+        await refreshWxSounding();
+      } catch (e) {
+        if (els.wxFilterStatus) els.wxFilterStatus.textContent = 'Failed: ' + e.message;
+      }
+    }
+
+    async function clearWxFilter() {
+      try {
+        const body = new URLSearchParams({ enabled: 'false' });
+        await fetch('/api/wx/filter', { method: 'POST', body });
+        if (els.wxFilterStatus) els.wxFilterStatus.textContent = 'Filter disabled';
+        await refreshWxSounding();
+      } catch (e) {
+        if (els.wxFilterStatus) els.wxFilterStatus.textContent = 'Failed: ' + e.message;
+      }
+    }
+
+    function wxExport(format) {
+      window.open('/api/wx/export?format=' + encodeURIComponent(format), '_blank');
+    }
+
+    async function clearWxData() {
+      if (!confirm('Clear all collected weather sounding data?')) return;
+      try {
+        await fetch('/api/wx/clear', { method: 'POST' });
+        if (els.wxClearStatus) els.wxClearStatus.textContent = 'Data cleared';
+        await refreshWxSounding();
+      } catch (e) {
+        if (els.wxClearStatus) els.wxClearStatus.textContent = 'Failed: ' + e.message;
+      }
     }
 
     function setProfileEditorStatus(kind, message, isError = false) {
@@ -13694,6 +13996,10 @@
         els.logoToggle.addEventListener('click', () => toggleSitrep());
       }
       document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && state.wxSounding.open) {
+          closeWxSoundingSidecar();
+          return;
+        }
         if (e.key === 'Escape' && state.hp3Builder.open) {
           closeHp3BuilderSidecar();
           return;
@@ -14251,6 +14557,17 @@
       if (els.hp3BuilderRefresh) {
         els.hp3BuilderRefresh.addEventListener('click', reloadHp3BuilderFrame);
       }
+      // WX Sounding sidecar
+      if (els.wxSoundingOpen) els.wxSoundingOpen.addEventListener('click', openWxSoundingSidecar);
+      if (els.wxSoundingClose) els.wxSoundingClose.addEventListener('click', closeWxSoundingSidecar);
+      if (els.wxSoundingOverlay) els.wxSoundingOverlay.addEventListener('click', closeWxSoundingSidecar);
+      if (els.wxSoundingRefresh) els.wxSoundingRefresh.addEventListener('click', refreshWxSounding);
+      if (els.wxFilterApply) els.wxFilterApply.addEventListener('click', applyWxFilter);
+      if (els.wxFilterClear) els.wxFilterClear.addEventListener('click', clearWxFilter);
+      if (els.wxExportJson) els.wxExportJson.addEventListener('click', () => wxExport('json'));
+      if (els.wxExportSpc) els.wxExportSpc.addEventListener('click', () => wxExport('spc'));
+      if (els.wxExportCsv) els.wxExportCsv.addEventListener('click', () => wxExport('csv'));
+      if (els.wxClearData) els.wxClearData.addEventListener('click', clearWxData);
       if (els.profileEditorOpenAnalog) {
         els.profileEditorOpenAnalog.addEventListener('click', () => openProfileEditorSidecar('analog'));
       }
