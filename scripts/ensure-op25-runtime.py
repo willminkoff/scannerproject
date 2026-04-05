@@ -205,6 +205,18 @@ def main() -> int:
     runtime_dir = OP25_RUNTIME_DIR
     os.makedirs(runtime_dir, exist_ok=True)
 
+    # Symlink OP25 www assets so the built-in HTTP server can serve
+    # static files from ../www/www-static relative to the runtime dir.
+    _op25_apps_dir = os.path.dirname(OP25_MULTI_RX_PATH)
+    _op25_www_dir = os.path.join(os.path.dirname(_op25_apps_dir), "www")
+    _runtime_www_dir = os.path.join(os.path.dirname(runtime_dir), "www")
+    if os.path.isdir(_op25_www_dir) and not os.path.exists(_runtime_www_dir):
+        try:
+            os.symlink(_op25_www_dir, _runtime_www_dir)
+            print(f"OP25 runtime: symlinked {_runtime_www_dir} -> {_op25_www_dir}")
+        except OSError as exc:
+            print(f"WARNING: could not create www symlink: {exc}", file=sys.stderr)
+
     # Shared talkgroup tags file.
     tags_content = generate_tgid_tags_tsv(tg_labels)
     tags_path = os.path.join(runtime_dir, "tgid_tags.tsv")

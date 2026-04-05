@@ -116,6 +116,7 @@ _OP25_SITE_SELECTOR_ACTION_COOLDOWN_MS = 30_000
 _OP25_SITE_SELECTOR_SURVEY_DWELL_SEC = 15
 _OP25_SITE_SELECTOR_SURVEY_MAX_SEC = 60
 _OP25_SITE_SELECTOR_STALE_WINDOW_WINDOW_MS = 10 * 60 * 1000
+_OP25_SITE_SELECTOR_POST_RESTART_GRACE_MS = 90_000  # 90s grace after restart before counting stale windows
 
 _DEFAULT_SITE_POLICY = {
     "mode": "auto",
@@ -2089,6 +2090,17 @@ class Op25Adapter(_BaseDigitalAdapter):
                     "reason_code": "site_switch_unhealthy",
                     "reason_text": f"Current site unhealthy; switching to {best_alternate.get('site_name')}",
                 }, sys_state)
+            # Grace period: skip stale counting for 90s after a restart so
+            # OP25 has time to scan and lock onto control channels.
+            last_restart_ms = int(sys_state.get("_last_restart_time_ms") or 0)
+            if last_restart_ms > 0 and (now_ms - last_restart_ms) < _OP25_SITE_SELECTOR_POST_RESTART_GRACE_MS:
+                return ({
+                    "action": "stay",
+                    "site_id": selected_site_id,
+                    "selection_mode": str(sys_state.get("selection_mode") or "auto"),
+                    "reason_code": "stay_post_restart_grace",
+                    "reason_text": f"Post-restart grace period ({(now_ms - last_restart_ms) // 1000}s / {_OP25_SITE_SELECTOR_POST_RESTART_GRACE_MS // 1000}s)",
+                }, sys_state)
             stale_times = [
                 int(ts)
                 for ts in (sys_state.get("_stale_window_times_ms") or [])
@@ -2100,7 +2112,7 @@ class Op25Adapter(_BaseDigitalAdapter):
                 sys_state["_last_stale_window_time_ms"] = now_ms
             sys_state["_stale_window_times_ms"] = stale_times
             sys_state["stale_window_count"] = len(stale_times)
-            if len(stale_times) >= 2:
+            if len(stale_times) >= 6:
                 return ({
                     "action": "same_site_restart",
                     "site_id": selected_site_id,
@@ -2452,6 +2464,11 @@ class Op25Adapter(_BaseDigitalAdapter):
                 sys_state["same_site_restart_count"] = int(sys_state.get("same_site_restart_count") or 0) + 1
             elif action_type == "generic_restart":
                 sys_state["generic_restart_count"] = int(sys_state.get("generic_restart_count") or 0) + 1
+            # Clear stale window history after any restart so accumulated
+            # stale events don't immediately re-trigger another restart.
+            sys_state["_stale_window_times_ms"] = []
+            sys_state["_last_stale_window_time_ms"] = 0
+            sys_state["stale_window_count"] = 0
             systems_state[key] = sys_state
         _save_selector_state(self._runtime_dir, state)
 
