@@ -95,10 +95,10 @@ def haversine_nm(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 # ACARS message parsing
 # ---------------------------------------------------------------------------
 
-# AMDAR meteorological labels — H1 is most common
-_AMDAR_LABELS = {"H1", "H2", "4A", "44", "SA"}
+# Labels that may carry meteorological data
+_AMDAR_LABELS = {"H1", "H2", "4A", "44", "SA", "21"}
 
-# Pattern for AMDAR-style met reports in message text
+# --- Plain-text AMDAR patterns (legacy) ---
 _RE_FL = re.compile(r'FL\s*(\d{2,3})')
 _RE_TEMP = re.compile(r'([+-]?\d{1,3}(?:\.\d)?)\s*C\b')
 _RE_WIND = re.compile(r'(\d{3})\s*/\s*(\d{1,3})\s*(?:KT|KTS)')
@@ -106,6 +106,206 @@ _RE_RH = re.compile(r'RH\s*(\d{1,3})')
 _RE_LAT = re.compile(r'(\d{1,2}(?:\.\d+)?)\s*([NS])')
 _RE_LON = re.compile(r'(\d{1,3}(?:\.\d+)?)\s*([EW])')
 _RE_ALT = re.compile(r'(\d{4,5})\s*(?:FT|M)')
+
+# --- Compressed ARINC 620 #M[12]BPOSN format ---
+# Example: #M2BPOSN36363W086581,JONIL,192821,140,FFISK,193128,JNKNS,M5,28344,74,/TS...
+# Fields: lat(5)NS lon(6), wpt, time, FL, wpt2, eta, [wpt3], temp, wind(5), [turb]
+_RE_MBPOSN = re.compile(
+    r'#M\dBPOSN(\d{5})([NEWS])(\d{5,6})'  # lat, hemisphere, lon
+)
+
+# --- #DFB...REP format (Republic/Delta connection) ---
+# Example: ...N36817W 87992350-27-54257 92T 0512 126
+_RE_DFB_POS = re.compile(
+    r'[NS](\d{5})[EW]\s*(\d{4,5})'  # lat(5) lon(4-5)
+    r'(\d{3,4})'                      # FL (3-4 digits, e.g. 2350 = FL235)
+    r'([+-]?\d{1,3})'                 # temp
+    r'([+-]?\d{1,3})'                 # dewpoint or second temp
+    r'(\d{3})\s*'                     # wind dir
+    r'(\d{1,3})'                      # wind speed
+)
+
+# --- Label 21 POSN format (Frontier-style) ---
+# Example: POSN 36.252W 86.790, 136,193036,8931,31280, 31, 2,194006,KBNA
+_RE_POSN21 = re.compile(
+    r'POSN\s+(\d+\.\d+)([NEWS])\s+(\d+\.\d+)'  # lat, hemisphere, lon
+    r',\s*(\d{2,3})'                              # FL
+)
+
+
+def _parse_m_temp(s: str) -> Optional[float]:
+    """Parse compressed temp like 'M5' → -5.0, 'P10' → 10.0, '5' → 5.0."""
+    s = s.strip()
+    if not s:
+        return None
+    if s.startswith("M") or s.startswith("m"):
+        try:
+            return -float(s[1:])
+        except ValueError:
+            return None
+    if s.startswith("P") or s.startswith("p"):
+        try:
+            return float(s[1:])
+        except ValueError:
+            return None
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def _try_parse_mbposn(text: str, ts: float, flight: str, reg: str) -> Optional[MetObservation]:
+    """Try to parse #M[12]BPOSN compressed ARINC 620 position reports.
+
+    Format: POSN{lat5}{hemi}{lon5-6} where hemi is the LONGITUDE hemisphere
+    (N/E = positive lat/lon, S/W = negative).
+    Example: POSN36363W086581 → lat=36.363°N, lon=86.581°W
+    The latitude hemisphere is implicit (positive unless S appears elsewhere).
+    """
+    m = _RE_MBPOSN.search(text)
+    if not m:
+        return None
+
+    lat_raw = m.group(1)  # e.g. "36363"
+    hemi = m.group(2)     # N/S/E/W — this is the longitude hemisphere
+    lon_raw = m.group(3)  # e.g. "086581"
+
+    lat = float(lat_raw) / 1000.0
+    lon = float(lon_raw) / 1000.0
+    # The single hemisphere character between lat and lon indicates lon direction
+    if hemi in ("W", "w"):
+        lon = -lon
+    elif hemi in ("S", "s"):
+        # Southern hemisphere latitude (rare in CONUS but handle it)
+        lat = -lat
+
+    # Parse remaining comma-separated fields after the position
+    # Find where position match ends and split rest by commas
+    rest = text[m.end():]
+    parts = [p.strip() for p in rest.split(",")]
+    # parts[0] = "" (empty before first comma) or waypoint
+    # Typical: ,wpt,time,FL,wpt2,eta,[wpt3],temp,wind5,turb,/TS...
+    # Find FL (3-digit number < 500) and temp (M## or P##) in parts
+
+    altitude_ft = 0.0
+    temp_c = None
+    wind_dir = 0.0
+    wind_spd = 0.0
+    humidity = None
+
+    for i, part in enumerate(parts):
+        if not part:
+            continue
+        # Flight level: 2-3 digit number typically 10-500
+        if altitude_ft == 0 and part.isdigit() and 10 <= int(part) <= 500:
+            altitude_ft = float(part) * 100
+            continue
+        # Temperature: M## or P## format
+        if temp_c is None and len(part) >= 2 and part[0] in ("M", "P", "m", "p"):
+            parsed = _parse_m_temp(part)
+            if parsed is not None and -80 <= parsed <= 50:
+                temp_c = parsed
+                continue
+        # Wind: 5-digit number (first 3 = dir, last 2+ = speed)
+        if part.isdigit() and len(part) == 5:
+            wd = int(part[:3])
+            ws = int(part[3:])
+            if 0 <= wd <= 360 and ws < 300:
+                wind_dir = float(wd)
+                wind_spd = float(ws)
+                continue
+
+    if altitude_ft <= 0 or temp_c is None:
+        return None
+
+    pressure = altitude_to_pressure(altitude_ft)
+    dewpoint = dewpoint_from_rh(temp_c, humidity) if humidity else -9999.0
+
+    return MetObservation(
+        timestamp=ts, source="acars", source_id=flight or reg,
+        lat=lat, lon=lon, altitude_ft=altitude_ft,
+        pressure_hpa=round(pressure, 1), temp_c=temp_c,
+        dewpoint_c=round(dewpoint, 1),
+        wind_dir_deg=wind_dir, wind_speed_kt=wind_spd,
+        humidity_pct=humidity,
+    )
+
+
+def _try_parse_dfb_rep(text: str, ts: float, flight: str, reg: str) -> Optional[MetObservation]:
+    """Try to parse #DFB...REP format (Republic/Delta Connection ACARS reports)."""
+    if "#DFB" not in text.upper() and "#DF" not in text.upper():
+        return None
+    m = _RE_DFB_POS.search(text)
+    if not m:
+        return None
+
+    lat = float(m.group(1)) / 1000.0
+    lon = float(m.group(2)) / (1000.0 if len(m.group(2)) == 5 else 100.0)
+    # Assume CONUS = North lat, West lon
+    if "W" in text[m.start() - 2:m.start() + 20]:
+        lon = -lon
+
+    fl_raw = m.group(3)
+    # FL can be 3 or 4 digits — if 4, first 3 are FL (e.g. 2350 → FL235)
+    if len(fl_raw) == 4:
+        altitude_ft = float(fl_raw[:3]) * 100
+    else:
+        altitude_ft = float(fl_raw) * 100
+
+    temp_c = float(m.group(4))
+    dewpoint_c = float(m.group(5))
+    wind_dir = float(m.group(6))
+    wind_spd = float(m.group(7))
+
+    if altitude_ft <= 0 or temp_c < -80 or temp_c > 50:
+        return None
+
+    pressure = altitude_to_pressure(altitude_ft)
+
+    return MetObservation(
+        timestamp=ts, source="acars", source_id=flight or reg,
+        lat=lat, lon=lon, altitude_ft=altitude_ft,
+        pressure_hpa=round(pressure, 1), temp_c=temp_c,
+        dewpoint_c=round(dewpoint_c, 1),
+        wind_dir_deg=wind_dir, wind_speed_kt=wind_spd,
+        humidity_pct=None,
+    )
+
+
+def _try_parse_posn21(text: str, ts: float, flight: str, reg: str) -> Optional[MetObservation]:
+    """Try to parse label-21 POSN format (Frontier-style position reports)."""
+    m = _RE_POSN21.search(text)
+    if not m:
+        return None
+
+    lat = float(m.group(1))
+    if m.group(2) in ("S", "W"):
+        lat = -lat
+    lon = float(m.group(3))
+    # In CONUS, lon is always West
+    if lon > 0:
+        lon = -lon
+
+    fl = int(m.group(4))
+    altitude_ft = float(fl) * 100
+
+    if altitude_ft <= 0:
+        return None
+
+    # Remaining fields after FL are comma-separated; try to extract temp/wind
+    rest = text[m.end():]
+    parts = [p.strip() for p in rest.split(",")]
+
+    pressure = altitude_to_pressure(altitude_ft)
+
+    return MetObservation(
+        timestamp=ts, source="acars", source_id=flight or reg,
+        lat=lat, lon=lon, altitude_ft=altitude_ft,
+        pressure_hpa=round(pressure, 1), temp_c=-9999.0,
+        dewpoint_c=-9999.0,
+        wind_dir_deg=0.0, wind_speed_kt=0.0,
+        humidity_pct=None,
+    )
 
 
 def parse_acars_message(msg: dict) -> tuple:
@@ -130,13 +330,31 @@ def parse_acars_message(msg: dict) -> tuple:
         is_met=False,
     )
 
-    # Check if this is a meteorological message
+    # Check if this label can carry met data
     if label not in _AMDAR_LABELS:
         return raw, None
 
+    # Try compressed ARINC 620 #M[12]BPOSN format first (most common)
+    obs = _try_parse_mbposn(text, ts, flight, reg)
+    if obs:
+        raw.is_met = True
+        return raw, obs
+
+    # Try #DFB REP format (Republic/Delta Connection)
+    obs = _try_parse_dfb_rep(text, ts, flight, reg)
+    if obs:
+        raw.is_met = True
+        return raw, obs
+
+    # Try label-21 POSN format (Frontier-style)
+    obs = _try_parse_posn21(text, ts, flight, reg)
+    if obs and obs.temp_c > -9000:
+        raw.is_met = True
+        return raw, obs
+
+    # Fall back to legacy plain-text AMDAR parsing
     upper = text.upper()
 
-    # Try to extract met data
     lat, lon = 0.0, 0.0
     m = _RE_LAT.search(upper)
     if m:
@@ -149,7 +367,6 @@ def parse_acars_message(msg: dict) -> tuple:
         if m.group(2) == "W":
             lon = -lon
 
-    # Flight level → altitude
     altitude_ft = 0.0
     m = _RE_FL.search(upper)
     if m:
@@ -162,7 +379,6 @@ def parse_acars_message(msg: dict) -> tuple:
     if altitude_ft <= 0:
         return raw, None
 
-    # Temperature
     temp_c = -9999.0
     m = _RE_TEMP.search(upper)
     if m:
@@ -171,37 +387,28 @@ def parse_acars_message(msg: dict) -> tuple:
     if temp_c == -9999.0:
         return raw, None
 
-    # Wind
     wind_dir, wind_spd = 0.0, 0.0
     m = _RE_WIND.search(upper)
     if m:
         wind_dir = float(m.group(1))
         wind_spd = float(m.group(2))
 
-    # Humidity
     humidity = None
     m = _RE_RH.search(upper)
     if m:
         humidity = float(m.group(1))
 
-    # Dewpoint
     dewpoint = dewpoint_from_rh(temp_c, humidity) if humidity else -9999.0
 
     pressure = altitude_to_pressure(altitude_ft)
 
     raw.is_met = True
     obs = MetObservation(
-        timestamp=ts,
-        source="acars",
-        source_id=flight or reg,
-        lat=lat,
-        lon=lon,
-        altitude_ft=altitude_ft,
-        pressure_hpa=round(pressure, 1),
-        temp_c=temp_c,
+        timestamp=ts, source="acars", source_id=flight or reg,
+        lat=lat, lon=lon, altitude_ft=altitude_ft,
+        pressure_hpa=round(pressure, 1), temp_c=temp_c,
         dewpoint_c=round(dewpoint, 1),
-        wind_dir_deg=wind_dir,
-        wind_speed_kt=wind_spd,
+        wind_dir_deg=wind_dir, wind_speed_kt=wind_spd,
         humidity_pct=humidity,
     )
     return raw, obs
@@ -365,7 +572,7 @@ class MetStore:
         """Return observations sorted by altitude (ascending) for plotting."""
         with self._lock:
             obs = list(self._met_obs)
-        obs.sort(key=lambda o: o.altitude_ft)
+        obs.sort(key=lambda o: o.altitude_ft, reverse=True)
         return {
             "observations": len(obs),
             "active_decoder": self.active_decoder,
