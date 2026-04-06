@@ -9034,7 +9034,11 @@
       });
       audioEl.addEventListener('play', () => {
         ensureAudioAudible(audioEl);
-        audioEl.dataset.wantplay = '1';
+        // Only latch wantplay if user initiated (recent pointer/key) or already wanted
+        const userInitiated = (Date.now() - (tracker.userPauseHintTs || 0)) < 2000;
+        if (userInitiated || audioEl.dataset.wantplay === '1') {
+          audioEl.dataset.wantplay = '1';
+        }
         tracker.playRequestTs = Date.now();
         if (isAnalogAudioElement(audioEl) && analogPlayerNeedsReload(audioEl)) {
           const now = Date.now();
