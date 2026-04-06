@@ -231,9 +231,92 @@ def _try_parse_mbposn(text: str, ts: float, flight: str, reg: str) -> Optional[M
     )
 
 
+def _try_parse_dfbd3m(text: str, ts: float, flight: str, reg: str) -> List[MetObservation]:
+    """Parse #DFBD3M descent meteorological profile messages.
+
+    Format: #DFBD3M{id}{orig} {dest} {obs1}{obs2}...{trailer}
+    Each observation: {position:13}{alt:5}{skip:3}{temp:4}{wdir:3}{wspd:3}{turb:5}
+      position = N/S + 5 digits lat + E/W + 5-6 digits lon
+      alt = 5 digits in tens of feet (00590 = 5,900 ft)
+      skip = 3 digits (ground speed or Mach)
+      temp = P/M + 3 digits in tenths of °C (P007 = +0.7°C)
+      wdir = 3 digits wind direction
+      wspd = 3 digits wind speed (kt)
+      turb = 1 char + 4 digits (EDR turbulence)
+    """
+    if "#DFBD3M" not in text.upper():
+        return []
+
+    results: List[MetObservation] = []
+    # Find all position anchors: N/S + 5 digits + E/W + 5-6 digits
+    pos_re = re.compile(r'([NS])(\d{5})([EW])(\d{5,6})')
+    for m in pos_re.finditer(text):
+        lat_hemi = m.group(1)
+        lat_raw = m.group(2)
+        lon_hemi = m.group(3)
+        lon_raw = m.group(4)
+
+        # DDMMM = DD degrees + MM.M minutes → DD + MMM/600
+        lat = float(lat_raw[:2]) + float(lat_raw[2:]) / 600.0
+        if lat_hemi == "S":
+            lat = -lat
+
+        lon_digits = lon_raw
+        lon = float(lon_digits[:3]) + float(lon_digits[3:]) / 600.0
+        if lon_hemi == "W":
+            lon = -lon
+
+        # Data block starts right after the position match
+        data = text[m.end():]
+        if len(data) < 21:  # need at least alt(5)+skip(3)+temp(4)+wdir(3)+wspd(3)+turb(1+2)
+            continue
+
+        try:
+            alt_raw = data[:5]
+            if not alt_raw.isdigit():
+                continue
+            altitude_ft = int(alt_raw) * 10.0  # tens of feet
+
+            # Skip 3 chars (ground speed / Mach)
+            temp_str = data[8:12]  # P/M + 3 digits
+            if temp_str[0] not in ("P", "M", "p", "m"):
+                continue
+            temp_sign = -1.0 if temp_str[0] in ("M", "m") else 1.0
+            temp_c = temp_sign * float(temp_str[1:]) / 10.0
+
+            wind_dir = float(data[12:15])
+            wind_speed = float(data[15:18])
+        except (ValueError, IndexError):
+            continue
+
+        if altitude_ft <= 0 or altitude_ft > 60000:
+            continue
+        if temp_c < -80 or temp_c > 50:
+            continue
+        if wind_dir > 360:
+            continue
+
+        pressure = altitude_to_pressure(altitude_ft)
+
+        results.append(MetObservation(
+            timestamp=ts, source="acars", source_id=flight or reg,
+            lat=lat, lon=lon, altitude_ft=altitude_ft,
+            pressure_hpa=round(pressure, 1), temp_c=round(temp_c, 1),
+            dewpoint_c=-9999.0,
+            wind_dir_deg=wind_dir, wind_speed_kt=wind_speed,
+            humidity_pct=None,
+        ))
+
+    return results
+
+
 def _try_parse_dfb_rep(text: str, ts: float, flight: str, reg: str) -> Optional[MetObservation]:
     """Try to parse #DFB...REP format (Republic/Delta Connection ACARS reports)."""
-    if "#DFB" not in text.upper() and "#DF" not in text.upper():
+    upper = text.upper()
+    if "#DFB" not in upper and "#DF" not in upper:
+        return None
+    # Skip #DFBD3M descent met profiles — handled by _try_parse_dfbd3m
+    if "#DFBD3M" in upper or "#DFBD" in upper:
         return None
     m = _RE_DFB_POS.search(text)
     if not m:
@@ -257,7 +340,13 @@ def _try_parse_dfb_rep(text: str, ts: float, flight: str, reg: str) -> Optional[
     wind_dir = float(m.group(6))
     wind_spd = float(m.group(7))
 
-    if altitude_ft <= 0 or temp_c < -80 or temp_c > 50:
+    if altitude_ft <= 0 or altitude_ft > 60000:
+        return None
+    if temp_c < -80 or temp_c > 50:
+        return None
+    if dewpoint_c < -80 or dewpoint_c > 50:
+        return None
+    if wind_dir > 360:
         return None
 
     pressure = altitude_to_pressure(altitude_ft)
@@ -309,7 +398,12 @@ def _try_parse_posn21(text: str, ts: float, flight: str, reg: str) -> Optional[M
 
 
 def parse_acars_message(msg: dict) -> tuple:
-    """Parse an acarsdec JSON message. Returns (RawMessage, Optional[MetObservation])."""
+    """Parse an acarsdec JSON message.
+
+    Returns (RawMessage, List[MetObservation]).  The list is empty when
+    the message carries no meteorological data and may contain multiple
+    observations for multi-point descent profiles (#DFBD3M).
+    """
     ts = msg.get("timestamp", time.time())
     if isinstance(ts, str):
         try:
@@ -332,25 +426,31 @@ def parse_acars_message(msg: dict) -> tuple:
 
     # Check if this label can carry met data
     if label not in _AMDAR_LABELS:
-        return raw, None
+        return raw, []
 
-    # Try compressed ARINC 620 #M[12]BPOSN format first (most common)
+    # Try #DFBD3M descent met profile (multi-observation per message)
+    obs_list = _try_parse_dfbd3m(text, ts, flight, reg)
+    if obs_list:
+        raw.is_met = True
+        return raw, obs_list
+
+    # Try compressed ARINC 620 #M[12]BPOSN format (most common)
     obs = _try_parse_mbposn(text, ts, flight, reg)
     if obs:
         raw.is_met = True
-        return raw, obs
+        return raw, [obs]
 
     # Try #DFB REP format (Republic/Delta Connection)
     obs = _try_parse_dfb_rep(text, ts, flight, reg)
     if obs:
         raw.is_met = True
-        return raw, obs
+        return raw, [obs]
 
     # Try label-21 POSN format (Frontier-style)
     obs = _try_parse_posn21(text, ts, flight, reg)
     if obs and obs.temp_c > -9000:
         raw.is_met = True
-        return raw, obs
+        return raw, [obs]
 
     # Fall back to legacy plain-text AMDAR parsing
     upper = text.upper()
@@ -377,7 +477,7 @@ def parse_acars_message(msg: dict) -> tuple:
             altitude_ft = float(m.group(1))
 
     if altitude_ft <= 0:
-        return raw, None
+        return raw, []
 
     temp_c = -9999.0
     m = _RE_TEMP.search(upper)
@@ -385,7 +485,7 @@ def parse_acars_message(msg: dict) -> tuple:
         temp_c = float(m.group(1))
 
     if temp_c == -9999.0:
-        return raw, None
+        return raw, []
 
     wind_dir, wind_spd = 0.0, 0.0
     m = _RE_WIND.search(upper)
@@ -411,7 +511,7 @@ def parse_acars_message(msg: dict) -> tuple:
         wind_dir_deg=wind_dir, wind_speed_kt=wind_spd,
         humidity_pct=humidity,
     )
-    return raw, obs
+    return raw, [obs]
 
 
 # ---------------------------------------------------------------------------
@@ -514,10 +614,12 @@ class MetStore:
         self._filter_radius_nm: float = 10.0   # default 10 nm = 20 mi diameter
         self._filter_ceiling_ft: float = 40000.0
         self._filter_enabled: bool = False
+        self._filter_user_set: bool = False  # True when user explicitly set via API
 
     def set_spatial_filter(self, lat: float, lon: float,
                            radius_nm: float = 10.0,
-                           ceiling_ft: float = 40000.0) -> None:
+                           ceiling_ft: float = 40000.0,
+                           user_set: bool = False) -> None:
         """Configure the collection cylinder. Rejects obs outside it."""
         with self._lock:
             self._filter_lat = lat
@@ -525,6 +627,14 @@ class MetStore:
             self._filter_radius_nm = radius_nm
             self._filter_ceiling_ft = ceiling_ft
             self._filter_enabled = (lat != 0.0 or lon != 0.0)
+            if user_set:
+                self._filter_user_set = True
+
+    @property
+    def filter_user_set(self) -> bool:
+        """Whether the user has explicitly configured the filter."""
+        with self._lock:
+            return self._filter_user_set
 
     def clear_spatial_filter(self) -> None:
         """Disable spatial filtering — accept all observations."""
@@ -532,6 +642,7 @@ class MetStore:
             self._filter_enabled = False
             self._filter_lat = None
             self._filter_lon = None
+            self._filter_user_set = True  # User explicitly cleared = user choice
 
     def _passes_filter(self, obs: 'MetObservation') -> bool:
         """Check if an observation falls inside the collection cylinder.
@@ -674,9 +785,9 @@ def acars_reader_worker(store: MetStore, stop_event: threading.Event) -> None:
                     except json.JSONDecodeError:
                         continue
 
-                    raw, obs = parse_acars_message(msg)
+                    raw, obs_list = parse_acars_message(msg)
                     store.add_message(raw)
-                    if obs:
+                    for obs in obs_list:
                         store.add_observation(obs)
         except FileNotFoundError:
             stop_event.wait(1)

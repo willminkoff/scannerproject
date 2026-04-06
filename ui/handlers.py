@@ -1,5 +1,6 @@
 """HTTP request handlers."""
 import json
+import logging
 import os
 import sys
 import time
@@ -13,6 +14,8 @@ import shutil
 import xml.etree.ElementTree as ET
 from typing import Any
 from http.server import BaseHTTPRequestHandler
+
+logger = logging.getLogger(__name__)
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, unquote, urlparse
 from urllib.request import Request, urlopen
@@ -2424,6 +2427,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Type", upstream_resp.headers.get("Content-Type") or "audio/mpeg")
                 self.send_header("Cache-Control", "no-store")
                 self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Accept-Ranges", "none")
                 self.send_header("Connection", "close")
                 for header in (
                     "icy-name",
@@ -4084,7 +4088,7 @@ class Handler(BaseHTTPRequestHandler):
                 lon = float(get_str("lon", "0"))
             radius_nm = float(get_str("radius_nm", "") or store.get_status().get("filter_radius_nm", 10.0))
             ceiling_ft = float(get_str("ceiling_ft", "") or store.get_status().get("filter_ceiling_ft", 40000.0))
-            store.set_spatial_filter(lat=lat, lon=lon, radius_nm=radius_nm, ceiling_ft=ceiling_ft)
+            store.set_spatial_filter(lat=lat, lon=lon, radius_nm=radius_nm, ceiling_ft=ceiling_ft, user_set=True)
             return self._send(200, json.dumps({
                 "ok": True, "spatial_filter": True,
                 "filter_lat": lat, "filter_lon": lon,
@@ -4098,11 +4102,30 @@ class Handler(BaseHTTPRequestHandler):
 
         if p == "/api/wx/decoder":
             # Start or stop ACARS / radiosonde decoders.
-            # POST with action=start&decoder=acars  or action=stop
+            # These use the ground SDR dongle.  Starting a WX decoder
+            # must stop *both* other WX decoders first (not just the
+            # "other" one) to guarantee the dongle is free.  Stopping
+            # checks whether the digital decoder (OP25) crashed during
+            # the WX session and restarts it if needed.
             try:
                 from .actions import _WX_START, _WX_STOP, _start_wx_reader, _stop_wx_reader
             except ImportError:
                 from ui.actions import _WX_START, _WX_STOP, _start_wx_reader, _stop_wx_reader
+            try:
+                from .systemd import unit_active, restart_digital, UNITS
+            except ImportError:
+                from ui.systemd import unit_active, restart_digital, UNITS
+
+            def _heal_digital():
+                """Restart OP25 if it's in a failed/inactive state."""
+                try:
+                    digital_unit = UNITS.get("digital", "")
+                    if digital_unit and not unit_active(digital_unit):
+                        logger.info("WX decoder stop: digital decoder not active, restarting")
+                        restart_digital()
+                except Exception:
+                    logger.exception("WX decoder stop: failed to heal digital decoder")
+
             action = get_str("action", "").lower()
             decoder = get_str("decoder", "").lower()
             if action == "stop":
@@ -4113,15 +4136,17 @@ class Handler(BaseHTTPRequestHandler):
                     except Exception:
                         pass
                 _stop_wx_reader()
+                # Heal digital decoder if it crashed while WX was active
+                _heal_digital()
                 return self._send(200, json.dumps({"ok": True, "active_decoder": None}), "application/json; charset=utf-8")
             if action != "start" or decoder not in ("acars", "radiosonde"):
                 return self._send(400, json.dumps({"ok": False, "error": "action must be start|stop, decoder must be acars|radiosonde"}), "application/json; charset=utf-8")
-            # Stop the other decoder first
-            other = "radiosonde" if decoder == "acars" else "acars"
-            try:
-                _WX_STOP[other]()
-            except Exception:
-                pass
+            # Stop BOTH WX decoders first to guarantee the ground dongle is free
+            for name, stop_fn in _WX_STOP.items():
+                try:
+                    stop_fn()
+                except Exception:
+                    pass
             _stop_wx_reader()
             # Start the requested decoder
             ok, err = _WX_START[decoder]()
