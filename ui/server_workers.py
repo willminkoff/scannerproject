@@ -156,15 +156,16 @@ def _configure_spatial_filter(store) -> None:
         from .hp_state import HPState
         state = HPState.load()
         if state.use_location and (state.lat != 0.0 or state.lon != 0.0):
-            # Convert range_miles to nautical miles (1 nm = 1.15078 statute miles)
-            radius_nm = state.range_miles / 1.15078
+            # Default ACARS filter: 100 statute miles, 50000 ft ceiling
+            radius_nm = 100.0 / 1.15078  # 100 statute miles → nautical miles
+            ceiling_ft = 50000.0
             store.set_spatial_filter(
                 lat=state.lat, lon=state.lon,
-                radius_nm=radius_nm, ceiling_ft=40000.0,
+                radius_nm=radius_nm, ceiling_ft=ceiling_ft,
             )
             logger.info(
-                "Wx spatial filter: %.4f/%.4f, radius %.1f nm (%.1f mi), ceiling 40000 ft",
-                state.lat, state.lon, radius_nm, state.range_miles,
+                "Wx spatial filter: %.4f/%.4f, radius %.1f nm (100 mi), ceiling %.0f ft",
+                state.lat, state.lon, radius_nm, ceiling_ft,
             )
         else:
             store.clear_spatial_filter()
@@ -183,8 +184,8 @@ def start_wx_reader(decoder: str) -> None:
 
     store = get_met_store()
     if decoder == "acars":
-        # Only apply default HPState filter if user hasn't already set one
-        if not store.get_status().get("spatial_filter"):
+        # Only apply default filter if user hasn't explicitly configured one
+        if not store.filter_user_set:
             _configure_spatial_filter(store)
     elif decoder == "radiosonde":
         store.clear_spatial_filter()

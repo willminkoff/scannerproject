@@ -3671,11 +3671,11 @@
           </div>
           <div class="wx-filter-field">
             <label>Radius (nm)</label>
-            <input type="number" id="wx-filter-radius" value="10" min="1" max="500">
+            <input type="number" id="wx-filter-radius" value="100" min="1" max="500">
           </div>
           <div class="wx-filter-field">
             <label>Ceiling (ft)</label>
-            <input type="number" id="wx-filter-ceiling" value="40000" min="1000" max="100000" step="1000">
+            <input type="number" id="wx-filter-ceiling" value="50000" min="1000" max="100000" step="1000">
           </div>
           <button class="action" id="wx-filter-apply" type="button">Apply</button>
           <button class="action" id="wx-filter-clear" type="button">Clear</button>
@@ -7755,7 +7755,7 @@
       // Counters
       if (els.wxMsgCount) els.wxMsgCount.textContent = st.message_count || 0;
       if (els.wxObsCount) els.wxObsCount.textContent = st.met_count || 0;
-      if (els.wxFilteredCount) els.wxFilteredCount.textContent = st.filtered_count || 0;
+      if (els.wxFilteredCount) els.wxFilteredCount.textContent = (st.met_count || 0) - (st.filtered_count || 0);
 
       // Populate filter fields from status if filter is active
       if (st.spatial_filter && st.filter_lat != null) {
@@ -8684,6 +8684,7 @@
     function normalizeAudioUrl(url) {
       try {
         const parsed = new URL(String(url || ''), location.href);
+        parsed.searchParams.delete('_t');
         return `${parsed.origin}${parsed.pathname}${parsed.search}`;
       } catch (e) {
         return String(url || '');
@@ -8745,7 +8746,6 @@
           if (/interrupted by a new load request/i.test(msg)) {
             return;
           }
-          const label = audioTargetLabel(audioEl);
           logActivity(`${label} player ${msg}`, 'warn', `audio-play-failed-${label}-${reasonKey}`);
         });
       }
@@ -8759,27 +8759,42 @@
       const shouldPlay = wantsPlay || !wasPaused;
       const current = normalizeAudioUrl(audioEl.currentSrc || audioEl.src || '');
       const next = normalizeAudioUrl(base);
+      const label = audioTargetLabel(audioEl);
+
+      function playWhenReady(audioEl, reason) {
+        const onReady = () => {
+          audioEl.removeEventListener('canplay', onReady);
+          audioEl.removeEventListener('canplaythrough', onReady);
+          if (audioEl.dataset.wantplay === '1') {
+            requestAudioPlay(audioEl, reason);
+          }
+        };
+        audioEl.addEventListener('canplay', onReady, { once: true });
+        audioEl.addEventListener('canplaythrough', onReady, { once: true });
+      }
+
       if (current !== next) {
+        // src changed — reload
         if (shouldPlay) {
           audioEl.dataset.wantplay = '1';
         }
         audioEl.src = next;
         audioEl.load();
         if (shouldPlay) {
-          requestAudioPlay(audioEl, 'sync-source');
+          playWhenReady(audioEl, 'sync-source');
         }
       } else if (shouldPlay && analogPlayerNeedsReload(audioEl)) {
         audioEl.removeAttribute('src');
         audioEl.load();
         audioEl.src = base;
         audioEl.load();
-        requestAudioPlay(audioEl, 'sync-live-reset');
+        playWhenReady(audioEl, 'sync-live-reset');
       } else if (shouldPlay && digitalPlayerNeedsReload(audioEl)) {
         audioEl.removeAttribute('src');
         audioEl.load();
         audioEl.src = base;
         audioEl.load();
-        requestAudioPlay(audioEl, 'sync-digital-reset');
+        playWhenReady(audioEl, 'sync-digital-reset');
       }
     }
 
@@ -8800,6 +8815,13 @@
 
     function reloadStreamPlayer(audioEl, base, stateKey, reason, keyPrefix, forcePlay = false, options = {}) {
       if (!audioEl) return;
+      // Prevent re-entrant reload loops
+      const now = Date.now();
+      const reloadKey = `_lastReloadTs_${stateKey}`;
+      const lastReload = Number(audioEl.dataset[reloadKey] || 0);
+      if ((now - lastReload) < 800) return;  // debounce: max 1 reload per 800ms
+      audioEl.dataset[reloadKey] = String(now);
+
       state[stateKey] = base;
       const wasPaused = audioEl.paused;
       const wantsPlay = audioEl.dataset.wantplay === '1';
@@ -8810,18 +8832,27 @@
       if (shouldPlay) {
         audioEl.dataset.wantplay = '1';
       }
-      const current = normalizeAudioUrl(audioEl.currentSrc || audioEl.src || '');
-      const next = normalizeAudioUrl(nextRaw);
+      // Add cache-buster to prevent Chrome from reusing a failed source
+      const bustUrl = nextRaw + (nextRaw.includes('?') ? '&' : '?') + '_t=' + now;
       if (hardReset) {
         audioEl.removeAttribute('src');
         audioEl.load();
       }
-      if (hardReset || current !== next) {
-        audioEl.src = nextRaw;
-      }
+      audioEl.src = bustUrl;
       audioEl.load();
       if (shouldPlay) {
-        requestAudioPlay(audioEl, `reload-${reason || 'manual'}`);
+        // Wait for the browser to buffer enough data (canplay) before
+        // calling play().  Calling play() while readyState=0 causes
+        // "interrupted by a new load request" loops.
+        const onReady = () => {
+          audioEl.removeEventListener('canplay', onReady);
+          audioEl.removeEventListener('canplaythrough', onReady);
+          if (audioEl.dataset.wantplay === '1') {
+            requestAudioPlay(audioEl, `reload-${reason || 'manual'}`);
+          }
+        };
+        audioEl.addEventListener('canplay', onReady, { once: true });
+        audioEl.addEventListener('canplaythrough', onReady, { once: true });
       }
       if (reason) {
         logActivity(reason, 'info', `${keyPrefix}-${reason}`);
@@ -8855,24 +8886,31 @@
     function scheduleStreamRecovery(kind, reason, forcePlay = false) {
       const normalized = kind === 'digital' ? 'digital' : 'analog';
       const reloadFn = normalized === 'digital' ? reloadDigitalStream : reloadAnalogStream;
+      const audioEl = normalized === 'digital' ? els.audioPlayerDigital : els.audioPlayerAnalog;
       const timers = state.streamRecoveryTimers?.[normalized] || [];
       if (timers.length) {
         timers.forEach((id) => clearTimeout(id));
       }
       state.streamRecoveryTimers[normalized] = [];
-      if (!forcePlay) return;
-      const plan = normalized === 'digital'
-        ? [
-            { delayMs: 1200, hardReset: false },
-            { delayMs: 3200, hardReset: true },
-            { delayMs: 6500, hardReset: true },
-          ]
-        : [
-            { delayMs: 1200, hardReset: false },
-          ];
+      // Preserve wantplay before any browser events can clear it
+      if (forcePlay && audioEl) {
+        audioEl.dataset.wantplay = '1';
+      }
+      // Determine if we should attempt recovery: either forcePlay or wantplay is set
+      const shouldRecover = forcePlay || (audioEl && audioEl.dataset.wantplay === '1');
+      if (!shouldRecover) return;
+      const plan = [
+        { delayMs: 1200, hardReset: false },
+        { delayMs: 3500, hardReset: true },
+        { delayMs: 7000, hardReset: true },
+        { delayMs: 12000, hardReset: true },
+      ];
       plan.forEach(({ delayMs, hardReset }, index) => {
         const timerId = setTimeout(() => {
-          reloadFn(`${reason}-${index + 1}`, true, { hardReset });
+          // Only recover if player still wants to play
+          if (audioEl && audioEl.dataset.wantplay === '1') {
+            reloadFn(`${reason}-${index + 1}`, true, { hardReset });
+          }
         }, delayMs);
         state.streamRecoveryTimers[normalized].push(timerId);
       });
@@ -8894,7 +8932,6 @@
           userPauseHintTs: 0,
           digitalPrimeTs: 0,
           analogPrimeTs: 0,
-          digitalPrimeTs: 0,
         };
         audioRecoverState.set(audioEl, tracker);
       }
@@ -9004,25 +9041,34 @@
           if ((now - Number(tracker.analogPrimeTs || 0)) > 1500) {
             tracker.analogPrimeTs = now;
             reloadAnalogStream('play-prime', true, { hardReset: true });
+            return;
           }
-          return;
         }
         if (isDigitalAudioElement(audioEl) && digitalPlayerNeedsReload(audioEl)) {
           const now = Date.now();
           if ((now - Number(tracker.digitalPrimeTs || 0)) > 1500) {
             tracker.digitalPrimeTs = now;
             reloadDigitalStream('play-prime', true, { hardReset: true });
+            return;
           }
-          return;
         }
       });
       audioEl.addEventListener('pause', () => {
         tracker.waitingSinceTs = 0;
         clearAudioWaitingTimer(audioEl);
-        const manualPause = (Date.now() - Number(tracker.userPauseHintTs || 0)) <= AUDIO_USER_PAUSE_WINDOW_MS;
+        const hintAge = Date.now() - Number(tracker.userPauseHintTs || 0);
+        const manualPause = hintAge <= AUDIO_USER_PAUSE_WINDOW_MS;
         if (manualPause) {
-          audioEl.dataset.wantplay = '0';
-          return;
+          // Only honor manual pause if the stream is still healthy —
+          // if Icecast is down, this pause was triggered by the backend
+          // restart, not the user, even if they recently touched the player.
+          const isAnalog = isAnalogAudioElement(audioEl);
+          const streamOk = isAnalog ? analogStreamHealthyForPlayer() : digitalStreamHealthyForPlayer();
+          if (streamOk) {
+            audioEl.dataset.wantplay = '0';
+            return;
+          }
+          // Stream is unhealthy — treat as backend-triggered pause, keep wantplay
         }
         if (audioEl.dataset.wantplay === '1') {
           maybeAutoRecoverAudio(audioEl, reloadFn, 'paused', true);
@@ -12941,10 +12987,17 @@
         els.audioPlayerAnalog
         && (!els.audioPlayerAnalog.paused || els.audioPlayerAnalog.dataset.wantplay === '1')
       );
+      const digitalShouldResume = Boolean(
+        els.audioPlayerDigital
+        && (!els.audioPlayerDigital.paused || els.audioPlayerDigital.dataset.wantplay === '1')
+      );
       if (analogShouldResume && els.audioPlayerAnalog) {
         els.audioPlayerAnalog.dataset.wantplay = '1';
       }
-      
+      if (digitalShouldResume && els.audioPlayerDigital) {
+        els.audioPlayerDigital.dataset.wantplay = '1';
+      }
+
       try {
         const res = await postAPI('/api/apply', {
           target: activeTarget,
@@ -12971,6 +13024,7 @@
         } else {
           scheduleApplyRefreshes();
           scheduleStreamRecovery('analog', `apply-${activeTarget}`, analogShouldResume);
+          scheduleStreamRecovery('digital', `apply-${activeTarget}`, digitalShouldResume);
         }
       } catch (e) {
         console.error('Apply failed:', e);
@@ -12988,8 +13042,15 @@
         els.audioPlayerAnalog
         && (!els.audioPlayerAnalog.paused || els.audioPlayerAnalog.dataset.wantplay === '1')
       );
+      const digitalShouldResume = Boolean(
+        els.audioPlayerDigital
+        && (!els.audioPlayerDigital.paused || els.audioPlayerDigital.dataset.wantplay === '1')
+      );
       if (analogShouldResume && els.audioPlayerAnalog) {
         els.audioPlayerAnalog.dataset.wantplay = '1';
+      }
+      if (digitalShouldResume && els.audioPlayerDigital) {
+        els.audioPlayerDigital.dataset.wantplay = '1';
       }
       try {
         const res = await postAPI('/api/apply-batch', {
@@ -13021,6 +13082,7 @@
         } else {
           scheduleApplyRefreshes();
           scheduleStreamRecovery('analog', `apply-batch-${activeTarget}`, analogShouldResume);
+          scheduleStreamRecovery('digital', `apply-batch-${activeTarget}`, digitalShouldResume);
         }
       } catch (e) {
         console.error('Apply batch failed:', e);
@@ -13035,8 +13097,15 @@
         els.audioPlayerAnalog
         && (!els.audioPlayerAnalog.paused || els.audioPlayerAnalog.dataset.wantplay === '1')
       );
+      const digitalShouldResume = Boolean(
+        els.audioPlayerDigital
+        && (!els.audioPlayerDigital.paused || els.audioPlayerDigital.dataset.wantplay === '1')
+      );
       if (analogShouldResume && els.audioPlayerAnalog) {
         els.audioPlayerAnalog.dataset.wantplay = '1';
+      }
+      if (digitalShouldResume && els.audioPlayerDigital) {
+        els.audioPlayerDigital.dataset.wantplay = '1';
       }
       if (btn) {
         btn.disabled = true;
@@ -13072,6 +13141,7 @@
         } else {
           scheduleApplyRefreshes();
           scheduleStreamRecovery('analog', 'auto-squelch', analogShouldResume);
+          scheduleStreamRecovery('digital', 'auto-squelch', digitalShouldResume);
         }
         const parts = [];
         if (Number.isFinite(airApplied)) parts.push(`Air ${airApplied.toFixed(1)} dBFS`);
@@ -13266,6 +13336,20 @@
         alert('Invalid frequency');
         return;
       }
+      const analogShouldResume = Boolean(
+        els.audioPlayerAnalog
+        && (!els.audioPlayerAnalog.paused || els.audioPlayerAnalog.dataset.wantplay === '1')
+      );
+      const digitalShouldResume = Boolean(
+        els.audioPlayerDigital
+        && (!els.audioPlayerDigital.paused || els.audioPlayerDigital.dataset.wantplay === '1')
+      );
+      if (analogShouldResume && els.audioPlayerAnalog) {
+        els.audioPlayerAnalog.dataset.wantplay = '1';
+      }
+      if (digitalShouldResume && els.audioPlayerDigital) {
+        els.audioPlayerDigital.dataset.wantplay = '1';
+      }
       try {
         await postAPI('/api/tune', { target: activeTarget, freq });
         state.hits = [];
@@ -13285,6 +13369,8 @@
         updateTuneButton();
         const label = activeTarget === 'airband' ? 'Airband' : 'Ground';
         logActivity(`Direct tune: ${label} ${state.tunedFreq} MHz`, 'info', `tune-${activeTarget}-${state.tunedFreq}`);
+        scheduleStreamRecovery('analog', `tune-${activeTarget}`, analogShouldResume);
+        scheduleStreamRecovery('digital', `tune-${activeTarget}`, digitalShouldResume);
         // Refresh to pick up new config state
         setTimeout(() => {
           refresh();
@@ -13360,6 +13446,16 @@
           els.audioPlayerAnalog
           && (!els.audioPlayerAnalog.paused || els.audioPlayerAnalog.dataset.wantplay === '1')
         );
+        const digitalShouldResume = Boolean(
+          els.audioPlayerDigital
+          && (!els.audioPlayerDigital.paused || els.audioPlayerDigital.dataset.wantplay === '1')
+        );
+        if (analogShouldResume && els.audioPlayerAnalog) {
+          els.audioPlayerAnalog.dataset.wantplay = '1';
+        }
+        if (digitalShouldResume && els.audioPlayerDigital) {
+          els.audioPlayerDigital.dataset.wantplay = '1';
+        }
         const t = state[profileTarget];
         if (!force && t.currentProfile === profileId) {
           return true;
@@ -13421,6 +13517,7 @@
           );
         }
         scheduleStreamRecovery('analog', `profile-${profileTarget}`, analogShouldResume);
+        scheduleStreamRecovery('digital', `profile-${profileTarget}`, digitalShouldResume);
         return true;
       } catch (e) {
         console.error('Profile switch failed:', e);
