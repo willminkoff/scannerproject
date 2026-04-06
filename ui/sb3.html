@@ -10747,7 +10747,7 @@
             if (vlcWasRunning) {
               setTimeout(async () => {
                 try {
-                  await postAPI('/api/vlc', { action: 'start', target: 'digital', mount: vlcMountFor('digital') });
+                  await postAPI('/api/vlc', { action: 'restart', target: 'digital', mount: vlcMountFor('digital') });
                   scheduleVlcStatusRefresh(500);
                 } catch (e) { console.error('VLC digital restart failed:', e); }
               }, 2000);
@@ -10778,7 +10778,7 @@
           if (vlcWasRunning) {
             setTimeout(async () => {
               try {
-                await postAPI('/api/vlc', { action: 'start', target: 'digital', mount: vlcMountFor('digital') });
+                await postAPI('/api/vlc', { action: 'restart', target: 'digital', mount: vlcMountFor('digital') });
                 scheduleVlcStatusRefresh(500);
               } catch (e) { console.error('VLC digital restart after profile failed:', e); }
             }, 2000);
@@ -12645,7 +12645,7 @@
             if (vlcAnalogWas) {
               setTimeout(async () => {
                 try {
-                  await postAPI('/api/vlc', { action: 'start', target: 'analog', mount: vlcMountFor('analog') });
+                  await postAPI('/api/vlc', { action: 'restart', target: 'analog', mount: vlcMountFor('analog') });
                   scheduleVlcStatusRefresh(500);
                 } catch (e) { console.error('VLC analog restart failed:', e); }
               }, 2000);
@@ -12655,7 +12655,7 @@
             if (vlcDigitalWas) {
               setTimeout(async () => {
                 try {
-                  await postAPI('/api/vlc', { action: 'start', target: 'digital', mount: vlcMountFor('digital') });
+                  await postAPI('/api/vlc', { action: 'restart', target: 'digital', mount: vlcMountFor('digital') });
                   scheduleVlcStatusRefresh(500);
                 } catch (e) { console.error('VLC digital restart failed:', e); }
               }, 2000);
@@ -12665,8 +12665,8 @@
             if (vlcAnalogWas || vlcDigitalWas) {
               setTimeout(async () => {
                 try {
-                  if (vlcAnalogWas) await postAPI('/api/vlc', { action: 'start', target: 'analog', mount: vlcMountFor('analog') });
-                  if (vlcDigitalWas) await postAPI('/api/vlc', { action: 'start', target: 'digital', mount: vlcMountFor('digital') });
+                  if (vlcAnalogWas) await postAPI('/api/vlc', { action: 'restart', target: 'analog', mount: vlcMountFor('analog') });
+                  if (vlcDigitalWas) await postAPI('/api/vlc', { action: 'restart', target: 'digital', mount: vlcMountFor('digital') });
                   scheduleVlcStatusRefresh(500);
                 } catch (e) { console.error('VLC restart after icecast failed:', e); }
               }, 3000);
@@ -13594,7 +13594,7 @@
           setTimeout(async () => {
             try {
               for (const t of vlcRestartTargets) {
-                await postAPI('/api/vlc', { action: 'start', target: t, mount: vlcMountFor(t) });
+                await postAPI('/api/vlc', { action: 'restart', target: t, mount: vlcMountFor(t) });
               }
               scheduleVlcStatusRefresh(500);
             } catch (e) { console.error('VLC restart after profile change failed:', e); }
