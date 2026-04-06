@@ -4535,6 +4535,9 @@ class Handler(BaseHTTPRequestHandler):
                     json.dumps({"ok": False, "error": "preflight blocked", "preflight": gate}),
                     "application/json; charset=utf-8",
                 )
+            # Snapshot VLC state before profile change may kill Icecast mount
+            vlc_analog_was = vlc_running(target="analog")
+            vlc_digital_was = vlc_running(target="digital")
             result = enqueue_action({"type": "profile", "profile": pid, "target": target})
             payload = dict(result.get("payload") or {})
             if int(result.get("status") or 500) < 300 and payload.get("ok") and pid:
@@ -4543,6 +4546,21 @@ class Handler(BaseHTTPRequestHandler):
                     payload["v3_compile"] = set_active_analog_profile(target, str(pid))
                 except Exception as e:
                     payload["v3_compile_error"] = str(e)
+                # Restart VLC if it was playing before the profile change
+                if target in ("airband", "ground") and vlc_analog_was:
+                    try:
+                        stop_vlc(target="analog")
+                        start_vlc(target="analog")
+                        logger.info("VLC analog restarted after %s profile change", target)
+                    except Exception:
+                        logger.exception("Failed to restart VLC analog after profile change")
+                if target == "digital" and vlc_digital_was:
+                    try:
+                        stop_vlc(target="digital")
+                        start_vlc(target="digital")
+                        logger.info("VLC digital restarted after digital profile change")
+                    except Exception:
+                        logger.exception("Failed to restart VLC digital after profile change")
             return self._send(result["status"], json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/apply":
@@ -4662,7 +4680,30 @@ class Handler(BaseHTTPRequestHandler):
 
         if p == "/api/restart":
             target = form.get("target", "airband")
+            vlc_analog_was = vlc_running(target="analog")
+            vlc_digital_was = vlc_running(target="digital")
             result = enqueue_action({"type": "restart", "target": target})
+            # Restart VLC if it was playing before the service restart
+            try:
+                if target in ("airband", "ground") and vlc_analog_was:
+                    stop_vlc(target="analog")
+                    start_vlc(target="analog")
+                    logger.info("VLC analog restarted after %s restart", target)
+                elif target == "digital" and vlc_digital_was:
+                    stop_vlc(target="digital")
+                    start_vlc(target="digital")
+                    logger.info("VLC digital restarted after digital restart")
+                elif target == "icecast":
+                    if vlc_analog_was:
+                        stop_vlc(target="analog")
+                        start_vlc(target="analog")
+                    if vlc_digital_was:
+                        stop_vlc(target="digital")
+                        start_vlc(target="digital")
+                    if vlc_analog_was or vlc_digital_was:
+                        logger.info("VLC restarted after icecast restart")
+            except Exception:
+                logger.exception("Failed to restart VLC after %s restart", target)
             return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
 
         if p == "/api/bt-heal":
