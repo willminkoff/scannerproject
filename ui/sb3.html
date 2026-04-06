@@ -10736,6 +10736,7 @@
         els.audioPlayerDigital
         && (!els.audioPlayerDigital.paused || els.audioPlayerDigital.dataset.wantplay === '1')
       );
+      const vlcWasRunning = Boolean(state.vlc.digital.running);
       setDigitalStatusMessage(`Digital ${action}...`, false);
       try {
         const res = await postAPI(`/api/digital/${action}`, {}, { timeoutMs: 20000 });
@@ -10743,6 +10744,14 @@
           setDigitalStatusMessage(`Digital ${action} ok`, false);
           if (action === 'restart') {
             scheduleStreamRecovery('digital', 'digital-restart', digitalShouldResume);
+            if (vlcWasRunning) {
+              setTimeout(async () => {
+                try {
+                  await postAPI('/api/vlc', { action: 'start', target: 'digital', mount: vlcMountFor('digital') });
+                  scheduleVlcStatusRefresh(500);
+                } catch (e) { console.error('VLC digital restart failed:', e); }
+              }, 2000);
+            }
           }
         } else {
           setDigitalStatusMessage(formatApiError(res, `${action} failed`), true);
@@ -10759,12 +10768,21 @@
         els.audioPlayerDigital
         && (!els.audioPlayerDigital.paused || els.audioPlayerDigital.dataset.wantplay === '1')
       );
+      const vlcWasRunning = Boolean(state.vlc.digital.running);
       setDigitalStatusMessage('Applying profile...', false);
       try {
         const res = await postAPI('/api/digital/profile', { profileId }, { timeoutMs: 25000 });
         if (res && res.ok) {
           setDigitalStatusMessage('Profile updated', false);
           scheduleStreamRecovery('digital', 'digital-profile', digitalShouldResume);
+          if (vlcWasRunning) {
+            setTimeout(async () => {
+              try {
+                await postAPI('/api/vlc', { action: 'start', target: 'digital', mount: vlcMountFor('digital') });
+                scheduleVlcStatusRefresh(500);
+              } catch (e) { console.error('VLC digital restart after profile failed:', e); }
+            }, 2000);
+          }
         } else {
           setDigitalStatusMessage(formatApiError(res, 'Profile update failed'), true);
         }
@@ -12614,6 +12632,8 @@
       if (btn) {
         btn.disabled = true;
       }
+      const vlcAnalogWas = Boolean(state.vlc.analog.running);
+      const vlcDigitalWas = Boolean(state.vlc.digital.running);
       try {
         const res = await postAPI('/api/restart', { target });
         if (!res || !res.ok) {
@@ -12622,8 +12642,35 @@
           logActivity(`${label} restart issued`, 'info', `restart-${target}`);
           if (target === 'airband' || target === 'ground') {
             setTimeout(() => reloadAnalogStream('restart'), 500);
+            if (vlcAnalogWas) {
+              setTimeout(async () => {
+                try {
+                  await postAPI('/api/vlc', { action: 'start', target: 'analog', mount: vlcMountFor('analog') });
+                  scheduleVlcStatusRefresh(500);
+                } catch (e) { console.error('VLC analog restart failed:', e); }
+              }, 2000);
+            }
           } else if (target === 'digital') {
             setTimeout(() => reloadDigitalStream('restart'), 500);
+            if (vlcDigitalWas) {
+              setTimeout(async () => {
+                try {
+                  await postAPI('/api/vlc', { action: 'start', target: 'digital', mount: vlcMountFor('digital') });
+                  scheduleVlcStatusRefresh(500);
+                } catch (e) { console.error('VLC digital restart failed:', e); }
+              }, 2000);
+            }
+          } else if (target === 'icecast') {
+            // Icecast restart kills all mounts — restart both VLC if they were running
+            if (vlcAnalogWas || vlcDigitalWas) {
+              setTimeout(async () => {
+                try {
+                  if (vlcAnalogWas) await postAPI('/api/vlc', { action: 'start', target: 'analog', mount: vlcMountFor('analog') });
+                  if (vlcDigitalWas) await postAPI('/api/vlc', { action: 'start', target: 'digital', mount: vlcMountFor('digital') });
+                  scheduleVlcStatusRefresh(500);
+                } catch (e) { console.error('VLC restart after icecast failed:', e); }
+              }, 3000);
+            }
           }
         }
       } catch (e) {
@@ -13457,6 +13504,8 @@
       const profileTarget = target === 'ground' ? 'ground' : 'airband';
       if (!profileId) return false;
       try {
+        const vlcWasRunningAnalog = Boolean(state.vlc.analog.running);
+        const vlcWasRunningDigital = Boolean(state.vlc.digital.running);
         const analogShouldResume = Boolean(
           els.audioPlayerAnalog
           && (!els.audioPlayerAnalog.paused || els.audioPlayerAnalog.dataset.wantplay === '1')
@@ -13533,6 +13582,24 @@
         }
         scheduleStreamRecovery('analog', `profile-${profileTarget}`, analogShouldResume);
         scheduleStreamRecovery('digital', `profile-${profileTarget}`, digitalShouldResume);
+        // Restart VLC if it was running before the profile change killed the stream
+        const vlcRestartTargets = [];
+        if (vlcWasRunningAnalog && (profileTarget === 'airband' || profileTarget === 'ground')) {
+          vlcRestartTargets.push('analog');
+        }
+        if (vlcWasRunningDigital && profileTarget === 'digital') {
+          vlcRestartTargets.push('digital');
+        }
+        if (vlcRestartTargets.length) {
+          setTimeout(async () => {
+            try {
+              for (const t of vlcRestartTargets) {
+                await postAPI('/api/vlc', { action: 'start', target: t, mount: vlcMountFor(t) });
+              }
+              scheduleVlcStatusRefresh(500);
+            } catch (e) { console.error('VLC restart after profile change failed:', e); }
+          }, 2000);
+        }
         return true;
       } catch (e) {
         console.error('Profile switch failed:', e);
@@ -15206,6 +15273,12 @@
       setInterval(() => {
         renderPiClock();
       }, 1000);
+      // Poll VLC status so button text stays in sync when VLC dies externally.
+      setInterval(() => {
+        if (state.vlc.analog.running || state.vlc.digital.running) {
+          refreshVlcStatus();
+        }
+      }, 5000);
     }
     
     init();
