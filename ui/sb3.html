@@ -4145,6 +4145,7 @@
       pendingApply: { airband: null, ground: null },
       filterTimeout: null,
       streamRecoveryTimers: { analog: [], digital: [] },
+      userActivatedEmbedAudio: { analog: false, digital: false },
       latencyTest: {
         running: false,
         mode: 'rf_manual',
@@ -8756,7 +8757,9 @@
       if (latencyTestOwnsAudio(audioEl)) return;
       const wasPaused = audioEl.paused;
       const wantsPlay = audioEl.dataset.wantplay === '1';
-      const shouldPlay = wantsPlay || !wasPaused;
+      const kind = isDigitalAudioElement(audioEl) ? 'digital' : 'analog';
+      const activated = state.userActivatedEmbedAudio[kind];
+      const shouldPlay = activated && (wantsPlay || !wasPaused);
       const current = normalizeAudioUrl(audioEl.currentSrc || audioEl.src || '');
       const next = normalizeAudioUrl(base);
       const label = audioTargetLabel(audioEl);
@@ -8825,7 +8828,9 @@
       state[stateKey] = base;
       const wasPaused = audioEl.paused;
       const wantsPlay = audioEl.dataset.wantplay === '1';
-      const shouldPlay = forcePlay || wantsPlay || !wasPaused;
+      const kind = isDigitalAudioElement(audioEl) ? 'digital' : 'analog';
+      const activated = state.userActivatedEmbedAudio[kind];
+      const shouldPlay = activated && (forcePlay || wantsPlay || !wasPaused);
       const hardReset = Boolean(options && options.hardReset);
       const nextRaw = String(base || '').trim();
       if (!nextRaw) return;
@@ -9036,8 +9041,12 @@
         ensureAudioAudible(audioEl);
         // Only latch wantplay if user initiated (recent pointer/key) or already wanted
         const userInitiated = (Date.now() - (tracker.userPauseHintTs || 0)) < 2000;
-        if (userInitiated || audioEl.dataset.wantplay === '1') {
+        if (userInitiated) {
+          const kind = isDigitalAudioElement(audioEl) ? 'digital' : 'analog';
+          state.userActivatedEmbedAudio[kind] = true;
           audioEl.dataset.wantplay = '1';
+        } else if (audioEl.dataset.wantplay === '1') {
+          // already wanted — keep it
         }
         tracker.playRequestTs = Date.now();
         if (isAnalogAudioElement(audioEl) && analogPlayerNeedsReload(audioEl)) {
@@ -9070,6 +9079,8 @@
           const streamOk = isAnalog ? analogStreamHealthyForPlayer() : digitalStreamHealthyForPlayer();
           if (streamOk) {
             audioEl.dataset.wantplay = '0';
+            const pauseKind = isAnalog ? 'analog' : 'digital';
+            state.userActivatedEmbedAudio[pauseKind] = false;
             return;
           }
           // Stream is unhealthy — treat as backend-triggered pause, keep wantplay
