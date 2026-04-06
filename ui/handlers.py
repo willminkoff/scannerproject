@@ -4767,6 +4767,9 @@ class Handler(BaseHTTPRequestHandler):
                 ok, err = start_vlc(target=target, mount=mount)
             elif action == "stop":
                 ok, err = stop_vlc(target=target)
+            elif action == "restart":
+                stop_vlc(target=target)
+                ok, err = start_vlc(target=target, mount=mount)
             else:
                 return self._send(400, json.dumps({"ok": False, "error": "unknown action"}), "application/json; charset=utf-8")
             targets = vlc_status()
