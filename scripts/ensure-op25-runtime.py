@@ -190,6 +190,16 @@ def main() -> int:
     if not systems:
         print("ERROR: no systems defined in profile", file=sys.stderr)
         return 1
+
+    # Re-order systems so the priority system (traffic_priority) is first.
+    # Works around multi_rx issues where channel 0 gets preferential decode.
+    def _sys_sort_key(sys_def: dict) -> tuple:
+        sname = sys_def.get("name") or ""
+        sys_over = op25_overrides.get(sname) or {}
+        priority = 0 if sys_over.get("traffic_priority") else 1
+        return (priority, sname.lower())
+
+    systems.sort(key=_sys_sort_key)
     print(f"OP25 runtime: {len(systems)} system(s) found")
 
     # Read dongle assignments.

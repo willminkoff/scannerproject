@@ -985,6 +985,7 @@ def generate_multi_rx_config(
         modulation = str(sys_over.get("modulation", OP25_DEFAULT_MODULATION)).strip().lower()
         nac = str(sys_over.get("nac", "0")).strip()
         center_hz = int(cc_hz[0])
+        dev_gains = str(sys_over.get("gains", "LNA:36")).strip() or "LNA:36"
 
         dev_name = f"sdr{idx}"
         devices.append({
@@ -994,7 +995,7 @@ def generate_multi_rx_config(
             "frequency": center_hz,
             "offset": offset,
             "ppm": 0.0,
-            "gains": "LNA:36",
+            "gains": dev_gains,
             "gain_mode": True,
             "tunable": True,
         })
