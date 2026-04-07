@@ -9045,6 +9045,7 @@
           const kind = isDigitalAudioElement(audioEl) ? 'digital' : 'analog';
           state.userActivatedEmbedAudio[kind] = true;
           audioEl.dataset.wantplay = '1';
+          try { localStorage.setItem('sb3_wantplay_' + kind, '1'); } catch(e) {}
         } else if (audioEl.dataset.wantplay === '1') {
           // already wanted — keep it
         }
@@ -9080,6 +9081,7 @@
           if (streamOk) {
             audioEl.dataset.wantplay = '0';
             const pauseKind = isAnalog ? 'analog' : 'digital';
+            try { localStorage.setItem('sb3_wantplay_' + pauseKind, '0'); } catch(e) {}
             state.userActivatedEmbedAudio[pauseKind] = false;
             return;
           }
@@ -14197,6 +14199,21 @@
           if (data.digital_preflight && typeof data.digital_preflight === 'object') {
             applyDigitalPreflightPayload(data.digital_preflight);
           }
+          // Stream restart hints — trigger immediate recovery when server signals a restart
+          const hintAnalog = parseInt(data.stream_restart_hint_analog || 0);
+          const hintDigital = parseInt(data.stream_restart_hint_digital || 0);
+          if (hintAnalog > 0 && hintAnalog !== (state._lastRestartHintAnalog || 0)) {
+            state._lastRestartHintAnalog = hintAnalog;
+            scheduleStreamRecovery('analog', 'server-restart-hint');
+          }
+          if (hintDigital > 0 && hintDigital !== (state._lastRestartHintDigital || 0)) {
+            state._lastRestartHintDigital = hintDigital;
+            scheduleStreamRecovery('digital', 'server-restart-hint');
+          }
+          // VLC / audio bridge status
+          if (data.vlc_analog) state.vlcAnalog = data.vlc_analog;
+          if (data.vlc_digital) state.vlcDigital = data.vlc_digital;
+          if (data.audio_bridge_stats) state.audioBridgeStats = data.audio_bridge_stats;
           state.lastHit = data.last_hit || state.lastHit;
           state.serverTime = data.server_time;
           state.lastStatusTick = Date.now();
@@ -15225,6 +15242,39 @@
       }
       // Reconnect button removed
       setupAudioAutoRecover();
+
+      // Auto-activate embedded audio on first user interaction (any click/touch/key).
+      // Persists across page reloads via localStorage.
+      (function autoActivateAudioOnInteraction() {
+        function activate() {
+          document.removeEventListener('click', activate, true);
+          document.removeEventListener('touchstart', activate, true);
+          document.removeEventListener('keydown', activate, true);
+          state.userActivatedEmbedAudio.analog = true;
+          state.userActivatedEmbedAudio.digital = true;
+          try { localStorage.setItem('sb3_audioActivated', '1'); } catch(e) {}
+        }
+        try {
+          if (localStorage.getItem('sb3_audioActivated') === '1') {
+            state.userActivatedEmbedAudio.analog = true;
+            state.userActivatedEmbedAudio.digital = true;
+          }
+        } catch(e) {}
+        document.addEventListener('click', activate, { capture: true, once: true });
+        document.addEventListener('touchstart', activate, { capture: true, once: true, passive: true });
+        document.addEventListener('keydown', activate, { capture: true, once: true });
+      })();
+
+      // Restore wantplay state from localStorage
+      try {
+        if (localStorage.getItem('sb3_wantplay_analog') === '1' && els.audioPlayerAnalog) {
+          els.audioPlayerAnalog.dataset.wantplay = '1';
+        }
+        if (localStorage.getItem('sb3_wantplay_digital') === '1' && els.audioPlayerDigital) {
+          els.audioPlayerDigital.dataset.wantplay = '1';
+        }
+      } catch(e) {}
+
       bindLatencyTestControls();
       setupRecentHitsHeightSync();
       

@@ -113,6 +113,23 @@ class AudioBridge:
         self.last_health_check = 0.0
         self.silence_frame = b"\x00" * OUTPUT_FRAME_BYTES
 
+        # --- Diagnostic sensors ---
+        self._stats_lock = threading.Lock()
+        self._stats = {
+            "packets_received": 0,
+            "packets_by_port": {},       # port -> count
+            "bytes_received": 0,
+            "bytes_to_ffmpeg": 0,
+            "voice_frames": 0,           # non-silence frames
+            "silence_frames": 0,
+            "ffmpeg_restarts": 0,
+            "last_voice_at": 0.0,
+            "last_packet_at": 0.0,
+            "uptime_sec": 0.0,
+        }
+        self._stats_start = time.time()
+        self._stats_file = Path(os.getenv("OP25_AUDIO_STATS_PATH", "/run/scannerproject/op25/audio_bridge_stats.json"))
+
         # Ring buffer: output thread pops frames at a constant rate.
         # Input thread pushes mixed audio frames as they arrive.
         self._ring: collections.deque[bytes] = collections.deque(maxlen=RING_BUFFER_FRAMES)
@@ -182,6 +199,8 @@ class AudioBridge:
         cmd = self._ffmpeg_cmd()
         _log(f"starting ffmpeg ({reason})")
         _log(f"ffmpeg cmd: {self._ffmpeg_cmd_for_log()}")
+        with self._stats_lock:
+            self._stats["ffmpeg_restarts"] += 1
         self.proc = subprocess.Popen(
             cmd,
             stdin=subprocess.PIPE,
@@ -229,6 +248,12 @@ class AudioBridge:
                     break
                 if data:
                     packets.append(data)
+                    with self._stats_lock:
+                        self._stats["packets_received"] += 1
+                        self._stats["bytes_received"] += len(data)
+                        self._stats["last_packet_at"] = time.time()
+                        port_key = str(sock.getsockname()[1])
+                        self._stats["packets_by_port"][port_key] = self._stats["packets_by_port"].get(port_key, 0) + 1
         return packets
 
     def _mix_packets(self, packets: list[bytes]) -> bytes:
@@ -264,7 +289,12 @@ class AudioBridge:
         """Pop one frame from the ring buffer, or return silence."""
         with self._ring_lock:
             if self._ring:
-                return self._ring.popleft()
+                frame = self._ring.popleft()
+                with self._stats_lock:
+                    self._stats["voice_frames"] += 1
+                return frame
+        with self._stats_lock:
+            self._stats["silence_frames"] += 1
         return self.silence_frame
 
     def _write_pcm(self, pcm: bytes) -> None:
@@ -273,8 +303,35 @@ class AudioBridge:
             return
         try:
             proc.stdin.write(pcm)
+            with self._stats_lock:
+                self._stats["bytes_to_ffmpeg"] += len(pcm)
         except (BrokenPipeError, OSError):
             self._start_ffmpeg("ffmpeg pipe closed")
+
+    def _stats_writer_thread(self) -> None:
+        """Periodically write stats to a JSON file for external consumers."""
+        while self.running:
+            time.sleep(5.0)
+            with self._stats_lock:
+                snapshot = dict(self._stats)
+                snapshot["uptime_sec"] = round(time.time() - self._stats_start, 1)
+                now = time.time()
+                snapshot["voice_active"] = bool(
+                    self.last_audio_at > 0 and (now - self.last_audio_at) < 3.0
+                )
+                snapshot["seconds_since_last_voice"] = (
+                    round(now - self.last_audio_at, 1) if self.last_audio_at > 0 else -1
+                )
+                snapshot["seconds_since_last_packet"] = (
+                    round(now - snapshot["last_packet_at"], 1) if snapshot["last_packet_at"] > 0 else -1
+                )
+            try:
+                tmp = str(self._stats_file) + ".tmp"
+                with open(tmp, "w", encoding="utf-8") as f:
+                    json.dump(snapshot, f)
+                os.replace(tmp, str(self._stats_file))
+            except Exception:
+                pass
 
     def _output_thread(self) -> None:
         """Deliver audio to ffmpeg at a constant rate (one frame per tick).
@@ -332,6 +389,9 @@ class AudioBridge:
             # constant 20ms tick rate independent of input timing.
             out_thread = threading.Thread(target=self._output_thread, daemon=True)
             out_thread.start()
+
+            stats_thread = threading.Thread(target=self._stats_writer_thread, daemon=True)
+            stats_thread.start()
 
             # Input loop: drain UDP packets, mix, push to ring buffer.
             while self.running:

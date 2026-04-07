@@ -10,7 +10,7 @@ BT_PULSE_SINK="${BT_PULSE_SINK:-${VLC_PULSE_SINK:-bluez_output.C0_28_8D_34_6E_67
 BT_AUDIO_VOLUME="${BT_AUDIO_VOLUME:-0.75}"
 BT_HEAL_ENFORCE_VOLUME="${BT_HEAL_ENFORCE_VOLUME:-0}"
 BT_HEAL_FORCE_UNMUTE="${BT_HEAL_FORCE_UNMUTE:-0}"
-BT_VLC_TARGET="${BT_VLC_TARGET:-analog}"
+BT_VLC_TARGETS="${BT_VLC_TARGETS:-analog digital}"
 BT_HEAL_MAX_WAIT_SEC="${BT_HEAL_MAX_WAIT_SEC:-45}"
 BT_HEAL_POLL_SEC="${BT_HEAL_POLL_SEC:-2}"
 BT_HEAL_SINK_WAIT_SEC="${BT_HEAL_SINK_WAIT_SEC:-15}"
@@ -82,7 +82,7 @@ find_bt_sink_id() {
   return 1
 }
 
-vlc_stream_routed_to_bt() {
+any_vlc_routed_to_bt() {
   local summary
   summary="$(wpctl status 2>/dev/null)"
   echo "${summary}" | grep -q "VLC media player" || return 1
@@ -94,6 +94,14 @@ vlc_stream_routed_to_bt() {
 
 restart_vlc_target() {
   local target="$1"
+  local unit="scanner-vlc-${target}.service"
+  if systemctl list-unit-files "${unit}" --no-pager 2>/dev/null | grep -q "${unit}"; then
+    log "restarting ${unit} via systemd"
+    systemctl restart "${unit}" 2>/dev/null || true
+    return
+  fi
+  # Fallback to API
+  log "restarting VLC ${target} via API"
   curl -fsS --max-time 4 -X POST -d "action=stop&target=${target}" "${UI_BASE_URL}/api/vlc" >/dev/null || true
   sleep 0.4
   curl -fsS --max-time 4 -X POST -d "action=start&target=${target}" "${UI_BASE_URL}/api/vlc" >/dev/null || true
@@ -162,23 +170,25 @@ main() {
     log "sink ${sink_id} selected (volume unchanged)"
   fi
 
+  local need_restart=0
   if [[ "${BT_HEAL_FORCE_RESTART}" == "1" ]]; then
-    restart_vlc_target "${BT_VLC_TARGET}"
-    log "forced VLC ${BT_VLC_TARGET} restart"
-    exit 0
+    need_restart=1
+  elif ! any_vlc_routed_to_bt; then
+    need_restart=1
   fi
 
-  if vlc_stream_routed_to_bt; then
-    log "VLC stream already healthy on BT sink"
-    exit 0
-  fi
-
-  restart_vlc_target "${BT_VLC_TARGET}"
-  sleep 1
-  if vlc_stream_routed_to_bt; then
-    log "recovered VLC ${BT_VLC_TARGET} stream on BT sink"
+  if [[ "${need_restart}" == "1" ]]; then
+    for target in ${BT_VLC_TARGETS}; do
+      restart_vlc_target "${target}"
+    done
+    sleep 1
+    if any_vlc_routed_to_bt; then
+      log "recovered VLC streams on BT sink"
+    else
+      log "VLC restart requested; stream(s) not yet visible on BT"
+    fi
   else
-    log "VLC ${BT_VLC_TARGET} restart requested; stream not yet visible"
+    log "VLC stream(s) already healthy on BT sink"
   fi
 }
 

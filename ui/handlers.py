@@ -34,6 +34,13 @@ def combined_num_devices(conf_path=None) -> int:
         return 0
 
 
+_STREAM_RESTART_HINT = {"analog": 0, "digital": 0}
+
+
+def _bump_stream_restart_hint(target: str) -> None:
+    _STREAM_RESTART_HINT[target] = int(time.time() * 1000)
+
+
 def _digital_tuner_targets() -> list[str]:
     targets = []
     for candidate in (
@@ -121,7 +128,7 @@ try:
     from .diagnostic import write_diagnostic_log
     from .spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
     from .system_stats import get_system_stats, read_bt_audio_heal_status
-    from .vlc import start_vlc, stop_vlc, vlc_running, vlc_status
+    from .vlc import start_vlc, stop_vlc, vlc_restart, vlc_running, vlc_status
     from .digital import (
         get_digital_manager,
         validate_digital_profile_id,
@@ -3498,6 +3505,33 @@ class Handler(BaseHTTPRequestHandler):
                     "sb3_dedicated_digital_fetch_enabled": bool(SB3_DEDICATED_DIGITAL_FETCH_ENABLED),
                 }
                 status_data.update(digital_payload)
+                # --- Audio pipeline sensors ---
+                try:
+                    _vlc_targets = vlc_status()
+                except Exception:
+                    _vlc_targets = {}
+                status_data["vlc_analog"] = _vlc_targets.get("analog", {}) if isinstance(_vlc_targets.get("analog"), dict) else {"running": bool(_vlc_targets.get("analog"))}
+                status_data["vlc_digital"] = _vlc_targets.get("digital", {}) if isinstance(_vlc_targets.get("digital"), dict) else {"running": bool(_vlc_targets.get("digital"))}
+                try:
+                    import json as _json
+                    _bridge_stats_path = "/run/scannerproject/op25/audio_bridge_stats.json"
+                    if os.path.isfile(_bridge_stats_path):
+                        with open(_bridge_stats_path, "r") as _f:
+                            _bridge_stats = _json.load(_f)
+                        status_data["audio_bridge_stats"] = {
+                            "voice_active": bool(_bridge_stats.get("voice_active")),
+                            "seconds_since_last_voice": _bridge_stats.get("seconds_since_last_voice", -1),
+                            "seconds_since_last_packet": _bridge_stats.get("seconds_since_last_packet", -1),
+                            "packets_received": _bridge_stats.get("packets_received", 0),
+                            "voice_frames": _bridge_stats.get("voice_frames", 0),
+                            "silence_frames": _bridge_stats.get("silence_frames", 0),
+                            "ffmpeg_restarts": _bridge_stats.get("ffmpeg_restarts", 0),
+                            "uptime_sec": _bridge_stats.get("uptime_sec", 0),
+                        }
+                except Exception:
+                    pass
+                status_data["stream_restart_hint_analog"] = _STREAM_RESTART_HINT.get("analog", 0)
+                status_data["stream_restart_hint_digital"] = _STREAM_RESTART_HINT.get("digital", 0)
                 self.wfile.write(f"event: status\ndata: {json.dumps(status_data)}\n\n".encode())
                 spectrum_data = {
                     "type": "spectrum",
@@ -4193,6 +4227,7 @@ class Handler(BaseHTTPRequestHandler):
             if not ok:
                 payload["error"] = err or "restart failed"
                 return self._send(500, json.dumps(payload), "application/json; charset=utf-8")
+            _bump_stream_restart_hint("digital")
             _invalidate_runtime_caches("status", "hits")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
@@ -4551,6 +4586,7 @@ class Handler(BaseHTTPRequestHandler):
                     try:
                         stop_vlc(target="analog")
                         start_vlc(target="analog")
+                        _bump_stream_restart_hint("analog")
                         logger.info("VLC analog restarted after %s profile change", target)
                     except Exception:
                         logger.exception("Failed to restart VLC analog after profile change")
@@ -4558,6 +4594,7 @@ class Handler(BaseHTTPRequestHandler):
                     try:
                         stop_vlc(target="digital")
                         start_vlc(target="digital")
+                        _bump_stream_restart_hint("digital")
                         logger.info("VLC digital restarted after digital profile change")
                     except Exception:
                         logger.exception("Failed to restart VLC digital after profile change")
@@ -4688,18 +4725,22 @@ class Handler(BaseHTTPRequestHandler):
                 if target in ("airband", "ground") and vlc_analog_was:
                     stop_vlc(target="analog")
                     start_vlc(target="analog")
+                    _bump_stream_restart_hint("analog")
                     logger.info("VLC analog restarted after %s restart", target)
                 elif target == "digital" and vlc_digital_was:
                     stop_vlc(target="digital")
                     start_vlc(target="digital")
+                    _bump_stream_restart_hint("digital")
                     logger.info("VLC digital restarted after digital restart")
                 elif target == "icecast":
                     if vlc_analog_was:
                         stop_vlc(target="analog")
                         start_vlc(target="analog")
+                        _bump_stream_restart_hint("analog")
                     if vlc_digital_was:
                         stop_vlc(target="digital")
                         start_vlc(target="digital")
+                        _bump_stream_restart_hint("digital")
                     if vlc_analog_was or vlc_digital_was:
                         logger.info("VLC restarted after icecast restart")
             except Exception:

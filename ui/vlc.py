@@ -41,6 +41,12 @@ VLC_PID_DIR = os.getenv("VLC_PID_DIR", os.path.join(VLC_XDG_RUNTIME_DIR, "airban
 VLC_PID_PREFIX = os.getenv("VLC_PID_PREFIX", "airband-ui-vlc")
 VLC_STOP_TIMEOUT_SEC = max(0.2, float(os.getenv("VLC_STOP_TIMEOUT_SEC", "2.0")))
 
+VLC_USE_SYSTEMD = os.getenv("VLC_USE_SYSTEMD", "1").strip().lower() in ("1", "true", "yes", "on")
+VLC_SYSTEMD_UNITS = {
+    "analog": os.getenv("VLC_SYSTEMD_ANALOG_UNIT", "scanner-vlc-analog.service"),
+    "digital": os.getenv("VLC_SYSTEMD_DIGITAL_UNIT", "scanner-vlc-digital.service"),
+}
+
 VLC_TARGETS = ("analog", "digital")
 DEFAULT_TARGET = "analog"
 DEFAULT_MOUNTS = {
@@ -54,6 +60,78 @@ _LOCAL_MONITOR_SCRIPT = os.path.join(
     "scripts",
     "sdrtrunk-local-monitor.py",
 )
+
+
+def _systemd_unit(target: str) -> str:
+    return VLC_SYSTEMD_UNITS.get(target, "")
+
+def _systemd_is_active(target: str) -> bool:
+    unit = _systemd_unit(target)
+    if not unit:
+        return False
+    try:
+        res = subprocess.run(
+            ["systemctl", "is-active", "--quiet", unit],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=3.0,
+            check=False,
+        )
+        return res.returncode == 0
+    except Exception:
+        return False
+
+def _systemctl_cmd(action: str, unit: str) -> list[str]:
+    """Build systemctl command, using sudo -n when not running as root."""
+    cmd = ["systemctl", action, unit]
+    if os.getuid() != 0:
+        cmd = ["sudo", "-n"] + cmd
+    return cmd
+
+def _systemd_start(target: str) -> tuple[bool, str]:
+    unit = _systemd_unit(target)
+    if not unit:
+        return False, "no unit"
+    try:
+        res = subprocess.run(
+            _systemctl_cmd("start", unit),
+            capture_output=True, text=True, timeout=10.0, check=False,
+        )
+        if res.returncode == 0:
+            return True, ""
+        return False, (res.stderr or "").strip() or f"exit {res.returncode}"
+    except Exception as e:
+        return False, str(e)
+
+def _systemd_stop(target: str) -> tuple[bool, str]:
+    unit = _systemd_unit(target)
+    if not unit:
+        return False, "no unit"
+    try:
+        res = subprocess.run(
+            _systemctl_cmd("stop", unit),
+            capture_output=True, text=True, timeout=10.0, check=False,
+        )
+        if res.returncode == 0:
+            return True, ""
+        return False, (res.stderr or "").strip() or f"exit {res.returncode}"
+    except Exception as e:
+        return False, str(e)
+
+def _systemd_restart(target: str) -> tuple[bool, str]:
+    unit = _systemd_unit(target)
+    if not unit:
+        return False, "no unit"
+    try:
+        res = subprocess.run(
+            _systemctl_cmd("restart", unit),
+            capture_output=True, text=True, timeout=10.0, check=False,
+        )
+        if res.returncode == 0:
+            return True, ""
+        return False, (res.stderr or "").strip() or f"exit {res.returncode}"
+    except Exception as e:
+        return False, str(e)
 
 
 def _normalize_target(target: str) -> str:
@@ -276,6 +354,8 @@ def _find_target_pid(target: str) -> Optional[int]:
 
 
 def _target_running(target: str) -> bool:
+    if VLC_USE_SYSTEMD and _systemd_is_active(target):
+        return True
     pid = _read_pid(target)
     if pid and _pid_alive(pid) and _is_vlc_pid(pid):
         return True
@@ -320,6 +400,18 @@ def start_vlc(stream_url: str = "", target: str = DEFAULT_TARGET, mount: str = "
     if mount and not _sanitize_mount(mount):
         return False, "invalid mount"
     url = _stream_url_for(resolved_target, mount) if mount else (str(stream_url or "").strip() or _stream_url_for(resolved_target))
+
+    if VLC_USE_SYSTEMD:
+        unit = _systemd_unit(resolved_target)
+        if unit:
+            if _systemd_is_active(resolved_target):
+                _mute_sdrtrunk_pulse_streams()
+                return True, "already running (systemd)"
+            ok, err = _systemd_start(resolved_target)
+            if ok:
+                _mute_sdrtrunk_pulse_streams()
+                return True, ""
+            logger.warning("systemd start failed for %s (%s), falling back to PID", resolved_target, err)
 
     if _target_running(resolved_target):
         _mute_sdrtrunk_pulse_streams()
@@ -369,6 +461,15 @@ def stop_vlc(target: str = DEFAULT_TARGET):
     resolved_target = _normalize_target(target)
     if not resolved_target:
         return False, "invalid target"
+
+    if VLC_USE_SYSTEMD:
+        unit = _systemd_unit(resolved_target)
+        if unit and _systemd_is_active(resolved_target):
+            ok, err = _systemd_stop(resolved_target)
+            if ok:
+                _clear_pid(resolved_target)
+                return True, ""
+            logger.warning("systemd stop failed for %s (%s), falling back to PID", resolved_target, err)
 
     pid = _read_pid(resolved_target)
     if not pid:
@@ -422,6 +523,31 @@ def vlc_running(target: str = "") -> bool:
     return any(_target_running(name) for name in VLC_TARGETS)
 
 
+def vlc_restart(target: str = DEFAULT_TARGET, mount: str = ""):
+    """Restart VLC for a target, preferring systemd restart."""
+    resolved_target = _normalize_target(target)
+    if not resolved_target:
+        return False, "invalid target"
+    if VLC_USE_SYSTEMD:
+        unit = _systemd_unit(resolved_target)
+        if unit:
+            ok, err = _systemd_restart(resolved_target)
+            if ok:
+                return True, ""
+            logger.warning("systemd restart failed for %s (%s), falling back", resolved_target, err)
+    stop_vlc(target=resolved_target)
+    time.sleep(0.5)
+    return start_vlc(target=resolved_target, mount=mount)
+
+
 def vlc_status() -> dict:
     """Return running status per playback target."""
-    return {name: _target_running(name) for name in VLC_TARGETS}
+    result = {}
+    for name in VLC_TARGETS:
+        running = _target_running(name)
+        info = {"running": running}
+        if VLC_USE_SYSTEMD:
+            info["systemd"] = _systemd_is_active(name)
+            info["unit"] = _systemd_unit(name)
+        result[name] = info
+    return result
