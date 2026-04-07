@@ -4526,6 +4526,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/profile":
+            logger.info("POST /api/profile hit: form=%s", {k: form.get(k) for k in ("profile", "target")})
             pid = form.get("profile", "")
             target = form.get("target", "airband")
             gate = gate_action("profile", target=target)
@@ -4538,9 +4539,12 @@ class Handler(BaseHTTPRequestHandler):
             # Snapshot VLC state before profile change may kill Icecast mount
             vlc_analog_was = vlc_running(target="analog")
             vlc_digital_was = vlc_running(target="digital")
+            logger.info("Profile change %s->%s: vlc_analog=%s vlc_digital=%s", target, pid, vlc_analog_was, vlc_digital_was)
             result = enqueue_action({"type": "profile", "profile": pid, "target": target})
             payload = dict(result.get("payload") or {})
-            if int(result.get("status") or 500) < 300 and payload.get("ok") and pid:
+            result_ok = int(result.get("status") or 500) < 300 and payload.get("ok") and pid
+            logger.info("Profile change result: status=%s ok=%s pid=%r result_ok=%s", result.get("status"), payload.get("ok"), pid, result_ok)
+            if result_ok:
                 _invalidate_runtime_caches("status", "hits")
                 try:
                     payload["v3_compile"] = set_active_analog_profile(target, str(pid))

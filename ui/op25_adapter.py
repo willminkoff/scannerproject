@@ -187,6 +187,8 @@ def _read_system_definitions(profile_dir: str) -> list[dict]:
     """Read ``systems.json`` from *profile_dir*.
 
     Returns a list of dicts with keys ``name`` and ``control_channels_hz``.
+    Merges ``inject_sites`` from ``op25_system_config.json`` sidecar so
+    extra sites survive scan-pool regeneration of systems.json on reboot.
     """
     systems_path = os.path.join(profile_dir, "systems.json")
     if not os.path.isfile(systems_path):
@@ -200,6 +202,8 @@ def _read_system_definitions(profile_dir: str) -> list[dict]:
     raw_list = payload.get("systems") if isinstance(payload, dict) else payload
     if not isinstance(raw_list, list):
         return []
+
+    overrides = _read_op25_system_config(profile_dir)
 
     systems: list[dict] = []
     seen: set[str] = set()
@@ -234,6 +238,24 @@ def _read_system_definitions(profile_dir: str) -> list[dict]:
                     if hz not in seen_channels:
                         seen_channels.add(hz)
                         channels.append(hz)
+            # Merge inject_sites from sidecar config
+            injected_raw = (overrides.get(name) or {}).get("inject_sites")
+            if isinstance(injected_raw, list):
+                for raw_site in injected_raw:
+                    if not isinstance(raw_site, dict):
+                        continue
+                    if not _parse_enabled(raw_site.get("enabled", True)):
+                        continue
+                    inj_channels = _parse_control_channels(
+                        raw_site.get("control_channels_hz")
+                        or raw_site.get("control_channels_mhz")
+                        or raw_site.get("control_channels")
+                        or raw_site.get("controls")
+                    )
+                    for hz in inj_channels:
+                        if hz not in seen_channels:
+                            seen_channels.add(hz)
+                            channels.append(hz)
             channels.sort()
         else:
             channels_raw = (
@@ -402,6 +424,35 @@ def _normalize_runtime_system_definitions(
                 )
         if not normalized_sites:
             continue
+
+        # Merge inject_sites from op25_system_config.json sidecar so extra
+        # sites survive scan-pool regeneration of systems.json on reboot.
+        injected_raw = (overrides.get(name) or {}).get("inject_sites")
+        if isinstance(injected_raw, list):
+            existing_ids = {str(s["site_id"]) for s in normalized_sites}
+            for raw_site in injected_raw:
+                if not isinstance(raw_site, dict):
+                    continue
+                inj_id = str(raw_site.get("site_id") or "").strip()
+                if not inj_id or inj_id in existing_ids:
+                    continue
+                inj_channels = _parse_control_channels(
+                    raw_site.get("control_channels_hz")
+                    or raw_site.get("control_channels_mhz")
+                    or raw_site.get("control_channels")
+                    or raw_site.get("controls")
+                )
+                if not inj_channels:
+                    continue
+                existing_ids.add(inj_id)
+                normalized_sites.append(
+                    {
+                        "site_id": inj_id,
+                        "site_name": str(raw_site.get("site_name") or f"Injected {inj_id}").strip(),
+                        "control_channels_hz": sorted(inj_channels),
+                        "enabled": _parse_enabled(raw_site.get("enabled", True)),
+                    }
+                )
 
         site_ids = {str(site["site_id"]) for site in normalized_sites}
         policy, policy_warnings = _normalize_site_policy(
