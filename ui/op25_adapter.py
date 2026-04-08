@@ -95,13 +95,14 @@ logger = logging.getLogger(__name__)
 # Example OP25 trunk log lines:
 #   2026-03-26 14:05:32 tsbk_handler(): cc 851012500 tg 12345 freq 855462500
 #   03/26/26 17:09:06.559189 voice update:  tg(3207), freq(857762500), slot(-), prio(3)
+#   04/08/26 12:40:00.123 [0] voice update:  tg(3207), rid(0), freq(854.587500), slot(-), prio(3)
 #   control channel: 851012500  status: locked
 _RE_TSBK = re.compile(
-    r"tsbk.*?tg\s*\(?\s*(\d+)\s*\)?\s*,?\s*freq\s*\(?\s*(\d+)\s*\)?",
+    r"tsbk.*?tg\s*\(?\s*(\d+)\s*\)?\s*,?\s*freq\s*\(?\s*(\d[\d.]*)\s*\)?",
     re.IGNORECASE,
 )
 _RE_VOICE = re.compile(
-    r"voice\s+(?:update|grant).*?tg\s*\(?\s*(\d+)\s*\)?\s*,?\s*freq\s*\(?\s*(\d+)\s*\)?",
+    r"voice\s+(?:update|preempt|grant).*?tg\s*\(?\s*(\d+)\s*\)?\s*.*?freq\s*\(?\s*(\d[\d.]*)\s*\)?",
     re.IGNORECASE,
 )
 _RE_CC_STATUS = re.compile(
@@ -1112,9 +1113,11 @@ class Op25Adapter(_BaseDigitalAdapter):
         self._runtime_dir = OP25_RUNTIME_DIR
         self._status_host = OP25_STATUS_HOST
         self._status_port = OP25_STATUS_PORT
-        # Log parsing state
+        # Log parsing state — start near end of log to avoid re-parsing
+        # the entire file on first run (large logs with old data).
         self._log_offset = 0
         self._log_inode = 0
+        self._init_log_offset()
         self._refresh_lock = threading.Lock()
         self._last_refresh_monotonic = 0.0
         self._refresh_min_interval_sec = 0.5
@@ -1428,6 +1431,19 @@ class Op25Adapter(_BaseDigitalAdapter):
         finally:
             self._refresh_lock.release()
 
+    def _init_log_offset(self) -> None:
+        """Seek to near end of the log file so we only parse recent lines."""
+        path = self._log_path
+        if not path or not os.path.isfile(path):
+            return
+        try:
+            stat = os.stat(path)
+            # Start 32KB from end — enough to pick up recent events
+            self._log_offset = max(0, stat.st_size - 32_768)
+            self._log_inode = stat.st_ino
+        except Exception:
+            pass
+
     def _tail_op25_log(self) -> None:
         path = self._log_path
         if not path or not os.path.isfile(path):
@@ -1467,7 +1483,15 @@ class Op25Adapter(_BaseDigitalAdapter):
         if not m:
             return None
         tgid = m.group(1)
-        freq_hz = int(m.group(2))
+        freq_raw = m.group(2)
+        # Boatbod OP25 logs freq in MHz (e.g. "854.587500"), others in Hz.
+        try:
+            if "." in freq_raw:
+                freq_hz = int(round(float(freq_raw) * 1_000_000))
+            else:
+                freq_hz = int(freq_raw)
+        except (ValueError, OverflowError):
+            freq_hz = 0
         timestamp_ms = self._extract_timestamp_ms(line)
 
         metadata = self._resolve_tg_display(tgid)
@@ -1846,19 +1870,28 @@ class Op25Adapter(_BaseDigitalAdapter):
             self._record_event(event)
 
     def _poll_op25_status(self) -> dict:
-        """Poll OP25's HTTP status endpoint. Returns parsed JSON or {}."""
+        """Poll OP25's HTTP status endpoint. Returns parsed JSON or {}.
+
+        Always tries POST / (update command) first — this is the method
+        used by boatbod OP25 (and all modern builds).  Only falls back
+        to GET /status once, on the very first call, if POST returns
+        nothing, to support legacy OP25 installs.
+        """
         now = time.monotonic()
         if (now - self._last_status_time) < self._status_cache_ttl and self._last_status:
             return dict(self._last_status)
-        data = self._fetch_json("/status")
-        if self._status_needs_root_fallback(data):
-            root_data = self._fetch_json("/")
-            if root_data:
-                data = root_data
-        if self._status_needs_root_fallback(data):
-            update_data = self._fetch_update_json()
-            if update_data:
-                data = update_data
+        data: dict = {}
+        # Always try POST first (works on boatbod and modern OP25)
+        update_data = self._fetch_update_json()
+        if update_data and not self._status_needs_root_fallback(update_data):
+            data = update_data
+        elif not getattr(self, "_status_get_failed", False):
+            # First-time fallback to legacy GET /status
+            legacy = self._fetch_json("/status")
+            if legacy and not self._status_needs_root_fallback(legacy):
+                data = legacy
+            else:
+                self._status_get_failed = True
         if data:
             self._last_status = data
             self._last_status_time = now

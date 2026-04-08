@@ -98,6 +98,8 @@ def _generate_multi_rx_start_script(config_path: str) -> str:
         f'cd "{apps_dir}"',
         f'exec python3 "{OP25_MULTI_RX_PATH}" \\',
         f'  -c "{config_path}" \\',
+        # -v 1 enables "voice update" log lines for hit detection
+        f'  -v 1 \\',
         f'  2>&1',
     ]
     return "\n".join(lines) + "\n"

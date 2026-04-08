@@ -6226,7 +6226,6 @@ class DigitalManager:
             }
         if not pool_talkgroups:
             return True
-        allowed_talkgroups = set(pool_talkgroups.get(active_system) or set())
         allowed_any: set[str] = set()
         for values in pool_talkgroups.values():
             allowed_any.update(values)
@@ -6235,9 +6234,10 @@ class DigitalManager:
         tgid = self._event_tgid(event if isinstance(event, dict) else {})
         if not tgid:
             return False
-        if active_system and allowed_talkgroups:
-            return tgid in allowed_talkgroups
-        # If active system context is unavailable, still suppress out-of-pool TGIDs.
+        # OP25 monitors all systems simultaneously via multiple receivers,
+        # so allow TGs from any pool system — not just the active one.
+        # SDRTrunk-style single-system rotation can re-enable strict
+        # filtering by checking the backend type if needed.
         return tgid in allowed_any
 
     @staticmethod
