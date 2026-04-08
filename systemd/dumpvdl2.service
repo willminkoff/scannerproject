@@ -1,13 +1,13 @@
 [Unit]
-Description=VDL2 Decoder (dumpvdl2 on ground RTL-SDR)
+Description=VDL2 Decoder (dumpvdl2 on dedicated RTL-SDR)
 After=network-online.target
 
 [Service]
 Type=simple
 EnvironmentFile=-/etc/airband-ui.conf
-ExecStart=/bin/bash -c 'exec /usr/local/bin/dumpvdl2 --rtlsdr "${GROUND_RTL_SERIAL:-83241970}" --output decoded:json:file:path=/run/vdl2_output.json 136975000 136875000 136775000'
+ExecStart=/bin/bash -c 'exec /usr/local/bin/dumpvdl2 --rtlsdr "${VDL2_RTL_SERIAL}" --output decoded:json:file:path=/run/vdl2_output.json 136975000 136875000 136775000'
 Restart=on-failure
-RestartSec=2
+RestartSec=5
 TimeoutStopSec=3
 KillSignal=SIGTERM
 
