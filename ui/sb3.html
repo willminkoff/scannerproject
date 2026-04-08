@@ -7744,7 +7744,7 @@
 
       // Decoder status label
       const active = st.active_decoder;
-      if (els.wxDecoderName) els.wxDecoderName.textContent = active ? (active.toUpperCase() + ' active') : 'Idle';
+      if (els.wxDecoderName) els.wxDecoderName.textContent = active ? ((active === 'acars' ? 'ACARS + VDL2' : active.toUpperCase()) + ' active') : 'Idle';
       if (els.wxCollectingDot) els.wxCollectingDot.classList.toggle('active', Boolean(st.collecting));
       // Start elapsed timer if decoder is active but timer isn't running (e.g. page refresh)
       if (active && !state.wxSounding.decoderStartedAt) startWxElapsedTimer();
@@ -9563,8 +9563,8 @@
     }
 
     function applyVlcTargetsStatus(targets) {
-      const analogRunning = !!targets?.analog;
-      const digitalRunning = !!targets?.digital;
+      const analogRunning = !!(typeof targets?.analog === 'object' ? targets.analog.running : targets?.analog);
+      const digitalRunning = !!(typeof targets?.digital === 'object' ? targets.digital.running : targets?.digital);
       const analogBtn = vlcButtonFor('analog');
       const digitalBtn = vlcButtonFor('digital');
       state.vlc.analog.running = analogRunning;

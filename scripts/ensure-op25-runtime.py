@@ -190,6 +190,16 @@ def main() -> int:
     if not systems:
         print("ERROR: no systems defined in profile", file=sys.stderr)
         return 1
+
+    # Re-order systems so the priority system (traffic_priority) is first.
+    # Works around multi_rx issues where channel 0 gets preferential decode.
+    def _sys_sort_key(sys_def: dict) -> tuple:
+        sname = sys_def.get("name") or ""
+        sys_over = op25_overrides.get(sname) or {}
+        priority = 0 if sys_over.get("traffic_priority") else 1
+        return (priority, sname.lower())
+
+    systems.sort(key=_sys_sort_key)
     print(f"OP25 runtime: {len(systems)} system(s) found")
 
     # Read dongle assignments.
@@ -246,7 +256,16 @@ def main() -> int:
     traffic_serial = _detect_traffic_dongle(dongle_assignments)
     traffic_system = ""
     if traffic_serial:
-        traffic_system = systems[0]["name"] if systems else ""
+        # Check op25_system_config.json for a system with traffic_priority flag.
+        traffic_system = ""
+        for sys_def in systems:
+            sname = sys_def["name"]
+            sys_over = op25_overrides.get(sname) or {}
+            if sys_over.get("traffic_priority"):
+                traffic_system = sname
+                break
+        if not traffic_system:
+            traffic_system = systems[0]["name"] if systems else ""
         print(f"OP25 runtime: traffic follower dongle={traffic_serial} -> {traffic_system}")
     else:
         print("OP25 runtime: no traffic follower dongle available")

@@ -1,12 +1,14 @@
 #!/bin/bash
 # install-wx-decoders.sh
-# Install acarsdec and radiosonde_auto_rx decoder binaries on the Micro box.
+# Install acarsdec, dumpvdl2, and radiosonde_auto_rx decoder binaries on the Micro box.
 # Run as root: sudo bash scripts/install-wx-decoders.sh
 # Set FORCE_REBUILD=1 to rebuild even if artifacts already exist.
 
 set -euo pipefail
 
 ACARSDEC_REPO="https://github.com/TLeconte/acarsdec.git"
+DUMPVDL2_REPO="https://github.com/szpajder/dumpvdl2.git"
+LIBACARS_REPO="https://github.com/szpajder/libacars.git"
 AUTORX_REPO="https://github.com/projecthorus/radiosonde_auto_rx.git"
 AUTORX_DIR="/opt/radiosonde_auto_rx"
 FORCE="${FORCE_REBUILD:-0}"
@@ -33,6 +35,8 @@ echo ""
 # Artifact checks — decide what needs to be (re)built
 # ---------------------------------------------------------------------------
 need_acarsdec=true
+need_libacars=true
+need_dumpvdl2=true
 need_autorx_clone=true
 need_autorx_demod=true
 need_autorx_venv=true
@@ -40,6 +44,8 @@ need_station_cfg=true
 
 if [[ "$FORCE" != "1" ]]; then
     [[ -x /usr/local/bin/acarsdec ]] && need_acarsdec=false
+    [[ -f /usr/local/lib/libacars-2.so ]] && need_libacars=false
+    [[ -x /usr/local/bin/dumpvdl2 ]] && need_dumpvdl2=false
     [[ -f "$AUTORX_DIR/auto_rx.py" ]] && need_autorx_clone=false
     [[ -x "$AUTORX_DIR/dft_detect" && -x "$AUTORX_DIR/rs41mod" ]] && need_autorx_demod=false
     if [[ -d "$AUTORX_DIR/venv" ]] && head -1 "$AUTORX_DIR/auto_rx.py" 2>/dev/null | grep -q "^#!/opt/radiosonde_auto_rx/venv/bin/python3"; then
@@ -58,11 +64,12 @@ if [[ "$FORCE" != "1" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Step 1/7: System dependencies
+# Step 1/9: System dependencies
 # ---------------------------------------------------------------------------
-echo "1/7: Installing system dependencies..."
+echo "1/9: Installing system dependencies..."
 apt-get update -qq
 # acarsdec: build-essential cmake git librtlsdr-dev libusb-1.0-0-dev libjansson-dev
+# dumpvdl2: libglib2.0-dev (+ libacars built from source)
 # radiosonde_auto_rx (upstream native guide): python3 python3-venv sox git
 #   build-essential libtool cmake usbutils libusb-1.0-0-dev rng-tools
 #   libsamplerate-dev libatlas3-base libgfortran5 libopenblas-dev rtl-sdr
@@ -70,6 +77,7 @@ apt-get update -qq
 apt-get install -y -qq \
     build-essential cmake git libtool \
     librtlsdr-dev libusb-1.0-0-dev libjansson-dev \
+    libglib2.0-dev \
     rtl-sdr usbutils \
     python3 python3-pip python3-venv \
     libsndfile1-dev libsamplerate-dev \
@@ -79,9 +87,9 @@ echo "  done"
 echo ""
 
 # ---------------------------------------------------------------------------
-# Step 2/7: Build and install acarsdec
+# Step 2/9: Build and install acarsdec
 # ---------------------------------------------------------------------------
-echo "2/7: Building acarsdec..."
+echo "2/9: Building acarsdec..."
 if [[ "$need_acarsdec" == "false" ]]; then
     echo "  /usr/local/bin/acarsdec present, skipping (FORCE_REBUILD=1 to rebuild)"
 else
@@ -97,21 +105,58 @@ fi
 echo ""
 
 # ---------------------------------------------------------------------------
-# Step 3/7: Clone radiosonde_auto_rx
-# Step 4/7: Build demodulator binaries
+# Step 3/9: Build and install libacars (required by dumpvdl2)
+# ---------------------------------------------------------------------------
+echo "3/9: Building libacars..."
+if [[ "$need_libacars" == "false" ]]; then
+    echo "  libacars-2 present, skipping (FORCE_REBUILD=1 to rebuild)"
+else
+    git clone --depth 1 "$LIBACARS_REPO" "$BUILD_DIR/libacars"
+    mkdir -p "$BUILD_DIR/libacars/build"
+    cd "$BUILD_DIR/libacars/build"
+    cmake ..
+    make -j"$(nproc)"
+    make install
+    ldconfig
+    cd /
+    echo "  installed libacars"
+fi
+echo ""
+
+# ---------------------------------------------------------------------------
+# Step 4/9: Build and install dumpvdl2
+# ---------------------------------------------------------------------------
+echo "4/9: Building dumpvdl2..."
+if [[ "$need_dumpvdl2" == "false" ]]; then
+    echo "  /usr/local/bin/dumpvdl2 present, skipping (FORCE_REBUILD=1 to rebuild)"
+else
+    git clone --depth 1 "$DUMPVDL2_REPO" "$BUILD_DIR/dumpvdl2"
+    mkdir -p "$BUILD_DIR/dumpvdl2/build"
+    cd "$BUILD_DIR/dumpvdl2/build"
+    cmake ..
+    make -j"$(nproc)"
+    install -m 0755 dumpvdl2 /usr/local/bin/dumpvdl2
+    cd /
+    echo "  installed /usr/local/bin/dumpvdl2"
+fi
+echo ""
+
+# ---------------------------------------------------------------------------
+# Step 5/9: Clone radiosonde_auto_rx
+# Step 6/9: Build demodulator binaries
 # ---------------------------------------------------------------------------
 # build.sh runs "make -C .." from auto_rx/, so it needs the full repo tree
 # (parent Makefile, scan/, demod/, utils/, etc.). We clone the full repo,
 # build in-place, then copy the auto_rx/ directory (now containing compiled
 # binaries) to /opt/radiosonde_auto_rx.
 if [[ "$need_autorx_clone" == "false" && "$need_autorx_demod" == "false" ]]; then
-    echo "3/7: $AUTORX_DIR/auto_rx.py present, skipping clone"
-    echo "4/7: dft_detect + rs41mod present, skipping build"
+    echo "5/9: $AUTORX_DIR/auto_rx.py present, skipping clone"
+    echo "6/9: dft_detect + rs41mod present, skipping build"
 else
-    echo "3/7: Cloning radiosonde_auto_rx..."
+    echo "5/9: Cloning radiosonde_auto_rx..."
     git clone --depth 1 "$AUTORX_REPO" "$BUILD_DIR/radiosonde_auto_rx"
 
-    echo "4/7: Building radiosonde demodulator binaries..."
+    echo "6/9: Building radiosonde demodulator binaries..."
     cd "$BUILD_DIR/radiosonde_auto_rx/auto_rx"
     bash build.sh
     cd /
@@ -125,9 +170,9 @@ fi
 echo ""
 
 # ---------------------------------------------------------------------------
-# Step 5/7: Python virtual environment + shebang
+# Step 7/9: Python virtual environment + shebang
 # ---------------------------------------------------------------------------
-echo "5/7: Setting up Python venv for radiosonde_auto_rx..."
+echo "7/9: Setting up Python venv for radiosonde_auto_rx..."
 if [[ "$need_autorx_venv" == "false" ]]; then
     echo "  venv present and shebang patched, skipping"
 else
@@ -147,12 +192,12 @@ fi
 echo ""
 
 # ---------------------------------------------------------------------------
-# Step 6/7: Generate station.cfg
+# Step 8/9: Generate station.cfg
 # ---------------------------------------------------------------------------
 # auto_rx is strict: every section and key must be present or it exits.
 # Start from the upstream station.cfg.example (shipped in the clone) and
 # sed the handful of values we need to override for local-only operation.
-echo "6/7: Generating station.cfg..."
+echo "8/9: Generating station.cfg..."
 STATION_CFG="$AUTORX_DIR/station.cfg"
 if [[ "$need_station_cfg" == "false" ]]; then
     echo "  station.cfg present with correct contract, skipping"
@@ -178,9 +223,9 @@ fi
 echo ""
 
 # ---------------------------------------------------------------------------
-# Step 7/7: Verify
+# Step 9/9: Verify
 # ---------------------------------------------------------------------------
-echo "7/7: Verification..."
+echo "9/9: Verification..."
 systemctl daemon-reload
 
 PASS=true
@@ -189,6 +234,20 @@ if [[ -x /usr/local/bin/acarsdec ]]; then
     echo "  acarsdec ............. OK (/usr/local/bin/acarsdec)"
 else
     echo "  acarsdec ............. MISSING"
+    PASS=false
+fi
+
+if [[ -x /usr/local/bin/dumpvdl2 ]]; then
+    echo "  dumpvdl2 ............. OK (/usr/local/bin/dumpvdl2)"
+else
+    echo "  dumpvdl2 ............. MISSING"
+    PASS=false
+fi
+
+if [[ -f /usr/local/lib/libacars-2.so ]]; then
+    echo "  libacars ............. OK"
+else
+    echo "  libacars ............. MISSING"
     PASS=false
 fi
 
@@ -264,6 +323,8 @@ echo ""
 echo "Service status:"
 systemctl status acarsdec --no-pager 2>&1 | head -3 || true
 echo ""
+systemctl status dumpvdl2 --no-pager 2>&1 | head -3 || true
+echo ""
 systemctl status radiosonde-auto-rx --no-pager 2>&1 | head -3 || true
 echo ""
 
@@ -278,7 +339,9 @@ echo "IMPORTANT: Services are NOT auto-started by this script."
 echo ""
 echo "Next steps:"
 echo "  1. Select 'ACARS Weather' or 'Radiosonde' from the ground profile dropdown."
-echo "  2. Check /api/wx/status to confirm acars_installed / radiosonde_installed = true."
-echo "  3. Monitor logs:"
+echo "  2. Check /api/wx/status to confirm acars_installed / vdl2_installed / radiosonde_installed = true."
+echo "  3. 'Poll ACARS' starts both acarsdec + dumpvdl2 for combined ACARS/VDL2 data."
+echo "  4. Monitor logs:"
 echo "       journalctl -u acarsdec -f"
+echo "       journalctl -u dumpvdl2 -f"
 echo "       journalctl -u radiosonde-auto-rx -f"

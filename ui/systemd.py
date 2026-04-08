@@ -242,6 +242,21 @@ def restart_acars() -> Tuple[bool, str]:
     return _restart_unit(UNITS["acars"], use_sudo=True)
 
 
+def start_vdl2() -> Tuple[bool, str]:
+    """Start the VDL2 decoder service."""
+    return _start_unit(UNITS["vdl2"], use_sudo=True)
+
+
+def stop_vdl2() -> Tuple[bool, str]:
+    """Stop the VDL2 decoder service."""
+    return _stop_unit(UNITS["vdl2"], use_sudo=True)
+
+
+def restart_vdl2() -> Tuple[bool, str]:
+    """Restart the VDL2 decoder service."""
+    return _restart_unit(UNITS["vdl2"], use_sudo=True)
+
+
 def start_radiosonde() -> Tuple[bool, str]:
     """Start the radiosonde decoder service."""
     return _start_unit(UNITS["radiosonde"], use_sudo=True)

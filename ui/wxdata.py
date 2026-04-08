@@ -19,9 +19,9 @@ from typing import Optional, List, Dict, Tuple
 logger = logging.getLogger(__name__)
 
 try:
-    from .config import ACARS_OUTPUT_PATH, RADIOSONDE_UDP_HOST, RADIOSONDE_UDP_PORT
+    from .config import ACARS_OUTPUT_PATH, VDL2_OUTPUT_PATH, RADIOSONDE_UDP_HOST, RADIOSONDE_UDP_PORT
 except ImportError:
-    from ui.config import ACARS_OUTPUT_PATH, RADIOSONDE_UDP_HOST, RADIOSONDE_UDP_PORT
+    from ui.config import ACARS_OUTPUT_PATH, VDL2_OUTPUT_PATH, RADIOSONDE_UDP_HOST, RADIOSONDE_UDP_PORT
 
 
 # ---------------------------------------------------------------------------
@@ -96,7 +96,7 @@ def haversine_nm(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 # ---------------------------------------------------------------------------
 
 # Labels that may carry meteorological data
-_AMDAR_LABELS = {"H1", "H2", "4A", "44", "SA", "21"}
+_AMDAR_LABELS = {"H1", "H2", "4A", "44", "SA", "21", "22"}
 
 # --- Plain-text AMDAR patterns (legacy) ---
 _RE_FL = re.compile(r'FL\s*(\d{2,3})')
@@ -109,9 +109,10 @@ _RE_ALT = re.compile(r'(\d{4,5})\s*(?:FT|M)')
 
 # --- Compressed ARINC 620 #M[12]BPOSN format ---
 # Example: #M2BPOSN36363W086581,JONIL,192821,140,FFISK,193128,JNKNS,M5,28344,74,/TS...
+# Variant: #M1B/HDQDLUA.POSN36085W088340,... (routing prefix before POSN)
 # Fields: lat(5)NS lon(6), wpt, time, FL, wpt2, eta, [wpt3], temp, wind(5), [turb]
 _RE_MBPOSN = re.compile(
-    r'#M\dBPOSN(\d{5})([NEWS])(\d{5,6})'  # lat, hemisphere, lon
+    r'#M\dB[^P]*POSN(\d{5})([NEWS])(\d{5,6})'  # lat, hemisphere, lon
 )
 
 # --- #DFB...REP format (Republic/Delta connection) ---
@@ -130,6 +131,17 @@ _RE_DFB_POS = re.compile(
 _RE_POSN21 = re.compile(
     r'POSN\s+(\d+\.\d+)([NEWS])\s+(\d+\.\d+)'  # lat, hemisphere, lon
     r',\s*(\d{2,3})'                              # FL
+)
+
+# --- #DFB*WXR weather report format ---
+# Example: #DFB*WXRN31548W0842301136340-53324302700 N32405W0845371143340-53...
+# Each obs: [NS]lat5[EW]lon6 + skip(4) + FL(3) + temp(signed 2-3) + wdir(3) + wspd(2)
+_RE_WXR_POS = re.compile(r'([NS])(\d{5})([EW])(\d{6})')  # position only
+
+# --- Label 22 position format (e.g. Frontier/Spirit) ---
+# Example: N 351210W 855840,-------,120842,30148, , , ,M 45,24940 21, 100,
+_RE_LABEL22 = re.compile(
+    r'([NS])\s*(\d{6})([EW])\s*(\d{6,7})'  # lat DDMMSS, lon DDDMMSS
 )
 
 
@@ -397,6 +409,175 @@ def _try_parse_posn21(text: str, ts: float, flight: str, reg: str) -> Optional[M
     )
 
 
+def _try_parse_dfb_wxr(text: str, ts: float, flight: str, reg: str) -> List[MetObservation]:
+    """Parse #DFB*WXR weather report messages (multi-observation).
+
+    Format: #DFB*WXR{obs1} {obs2} ...
+    Each observation: [NS]lat5[EW]lon6 + skip(4) + FL(3) + temp(signed) + wdir(3) + wspd(2)
+    Example: N31548W0842301136340-53324302700
+      N31548  = 31.548°N
+      W084230 = 84.230°W
+      1136    = skip (time or distance)
+      340     = FL340
+      -53     = temp -53°C
+      324     = wind from 324°
+      30      = wind 30 kt
+    """
+    upper = text.upper()
+    if "*WXR" not in upper:
+        return []
+
+    results: List[MetObservation] = []
+    for m in _RE_WXR_POS.finditer(text):
+        lat_hemi = m.group(1)
+        lat_raw = m.group(2)
+        lon_hemi = m.group(3)
+        lon_raw = m.group(4)
+
+        lat = float(lat_raw[:2]) + float(lat_raw[2:]) / 1000.0
+        if lat_hemi == "S":
+            lat = -lat
+        lon = float(lon_raw[:3]) + float(lon_raw[3:]) / 1000.0
+        if lon_hemi == "W":
+            lon = -lon
+
+        # After position: skip(4) + FL(3) + temp(signed 2-3) + wdir(3) + wspd(2)
+        rest = text[m.end():]
+        if len(rest) < 12:
+            continue
+
+        try:
+            # skip 4 digits
+            if not rest[:4].isdigit():
+                continue
+            fl_str = rest[4:7]
+            if not fl_str.isdigit():
+                continue
+            altitude_ft = float(int(fl_str)) * 100
+
+            # Temperature: signed, starts at offset 7
+            # Negative: -NN (2 digits) e.g. -53; positive: NN (2 digits)
+            temp_rest = rest[7:]
+            if temp_rest[0] == '-':
+                # Negative temp: sign + 2 digits
+                temp_c = float(temp_rest[:3])  # e.g. "-53"
+                after_temp = temp_rest[3:]
+            else:
+                # Positive temp: 2 digits
+                if not temp_rest[:2].isdigit():
+                    continue
+                temp_c = float(temp_rest[:2])
+                after_temp = temp_rest[2:]
+
+            if len(after_temp) < 5:
+                continue
+            wind_dir = float(after_temp[:3])
+            wind_spd = float(after_temp[3:5])
+        except (ValueError, IndexError):
+            continue
+
+        if altitude_ft <= 0 or altitude_ft > 60000:
+            continue
+        if temp_c < -80 or temp_c > 50:
+            continue
+        if wind_dir > 360:
+            continue
+
+        pressure = altitude_to_pressure(altitude_ft)
+        results.append(MetObservation(
+            timestamp=ts, source="acars", source_id=flight or reg,
+            lat=lat, lon=lon, altitude_ft=altitude_ft,
+            pressure_hpa=round(pressure, 1), temp_c=temp_c,
+            dewpoint_c=-9999.0,
+            wind_dir_deg=wind_dir, wind_speed_kt=wind_spd,
+            humidity_pct=None,
+        ))
+
+    return results
+
+
+def _try_parse_label22(text: str, ts: float, flight: str, reg: str) -> Optional[MetObservation]:
+    """Parse label-22 position reports (Frontier/Spirit style).
+
+    Example: N 351210W 855840,-------,120842,30148, , , ,M 45,24940 21, 100,
+      N 351210 = 35°12'10" N
+      W 855840 = 85°58'40" W
+      30148 = altitude (could be 30,148 ft or FL301)
+      M 45 = temp -45°C
+      24940 = wind 249° at 40 kt
+    """
+    m = _RE_LABEL22.search(text)
+    if not m:
+        return None
+
+    lat_hemi = m.group(1)
+    lat_raw = m.group(2)  # DDMMSS
+    lon_hemi = m.group(3)
+    lon_raw = m.group(4)  # DDDMMSS
+
+    lat = float(lat_raw[:2]) + float(lat_raw[2:4]) / 60.0 + float(lat_raw[4:6]) / 3600.0
+    if lat_hemi == "S":
+        lat = -lat
+
+    if len(lon_raw) >= 7:
+        lon = float(lon_raw[:3]) + float(lon_raw[3:5]) / 60.0 + float(lon_raw[5:7]) / 3600.0
+    else:
+        lon = float(lon_raw[:2]) + float(lon_raw[2:4]) / 60.0 + float(lon_raw[4:6]) / 3600.0
+    if lon_hemi == "W":
+        lon = -lon
+
+    # Parse remaining comma-separated fields
+    rest = text[m.end():]
+    parts = [p.strip() for p in rest.split(",")]
+
+    altitude_ft = 0.0
+    temp_c = None
+    wind_dir = 0.0
+    wind_spd = 0.0
+
+    for part in parts:
+        if not part:
+            continue
+        # Altitude: 5-digit number like 30148
+        if altitude_ft == 0 and part.isdigit() and len(part) == 5:
+            val = int(part)
+            if val > 5000:
+                altitude_ft = float(val)  # raw feet
+            else:
+                altitude_ft = float(val) * 100  # FL
+            continue
+        # Temperature: M ## or P ## format (with possible space)
+        if temp_c is None and len(part) >= 2:
+            temp_str = part.replace(" ", "")
+            parsed = _parse_m_temp(temp_str)
+            if parsed is not None and -80 <= parsed <= 50:
+                temp_c = parsed
+                continue
+        # Wind: 5-digit compact (dddss) like 24940 → 249° at 40kt
+        # May have trailing text after space (e.g. "24940 21")
+        wind_token = part.split()[0] if part else ""
+        if wind_token.isdigit() and len(wind_token) == 5:
+            wd = int(wind_token[:3])
+            ws = int(wind_token[3:])
+            if 0 <= wd <= 360 and ws < 300:
+                wind_dir = float(wd)
+                wind_spd = float(ws)
+                continue
+
+    if altitude_ft <= 0 or temp_c is None:
+        return None
+
+    pressure = altitude_to_pressure(altitude_ft)
+    return MetObservation(
+        timestamp=ts, source="acars", source_id=flight or reg,
+        lat=lat, lon=lon, altitude_ft=altitude_ft,
+        pressure_hpa=round(pressure, 1), temp_c=temp_c,
+        dewpoint_c=-9999.0,
+        wind_dir_deg=wind_dir, wind_speed_kt=wind_spd,
+        humidity_pct=None,
+    )
+
+
 def parse_acars_message(msg: dict) -> tuple:
     """Parse an acarsdec JSON message.
 
@@ -440,8 +621,20 @@ def parse_acars_message(msg: dict) -> tuple:
         raw.is_met = True
         return raw, [obs]
 
+    # Try #DFB*WXR weather report (multi-observation)
+    obs_list = _try_parse_dfb_wxr(text, ts, flight, reg)
+    if obs_list:
+        raw.is_met = True
+        return raw, obs_list
+
     # Try #DFB REP format (Republic/Delta Connection)
     obs = _try_parse_dfb_rep(text, ts, flight, reg)
+    if obs:
+        raw.is_met = True
+        return raw, [obs]
+
+    # Try label-22 position format (Frontier/Spirit)
+    obs = _try_parse_label22(text, ts, flight, reg)
     if obs:
         raw.is_met = True
         return raw, [obs]
@@ -521,8 +714,12 @@ def parse_acars_message(msg: dict) -> tuple:
 def parse_radiosonde_telemetry(frame: dict) -> tuple:
     """Parse a radiosonde_auto_rx JSON telemetry frame.
 
+    Accepts both raw telemetry format (id/lat/lon/alt/vel_h) and
+    payload_summary format (callsign/latitude/longitude/altitude/speed).
+
     Returns (RawMessage, Optional[MetObservation]).
     """
+    # Timestamp: raw uses "datetime" (ISO), payload_summary uses "time" (HH:MM:SS)
     ts = frame.get("datetime", "")
     if isinstance(ts, str) and ts:
         try:
@@ -532,11 +729,18 @@ def parse_radiosonde_telemetry(frame: dict) -> tuple:
     else:
         ts = time.time()
 
-    sonde_id = frame.get("id", frame.get("serial", "unknown"))
+    # payload_summary uses "callsign", raw uses "id"/"serial"
+    sonde_id = frame.get("callsign",
+                         frame.get("id", frame.get("serial", "unknown")))
+    # payload_summary has type="PAYLOAD_SUMMARY" and model="DFM17" etc;
+    # raw telemetry has type="DFM17" directly
     sonde_type = frame.get("type", "")
-    lat = frame.get("lat", 0.0)
-    lon = frame.get("lon", 0.0)
-    alt_m = frame.get("alt", 0.0)
+    if sonde_type == "PAYLOAD_SUMMARY" or not sonde_type:
+        sonde_type = frame.get("model", sonde_type)
+    # payload_summary uses "latitude"/"longitude"/"altitude", raw uses "lat"/"lon"/"alt"
+    lat = frame.get("lat", frame.get("latitude", 0.0))
+    lon = frame.get("lon", frame.get("longitude", 0.0))
+    alt_m = frame.get("alt", frame.get("altitude", 0.0))
     temp_c = frame.get("temp", -9999.0)
     humidity = frame.get("humidity", None)
     pressure = frame.get("pressure", None)
@@ -563,12 +767,17 @@ def parse_radiosonde_telemetry(frame: dict) -> tuple:
     if pressure is None or pressure <= 0:
         pressure = altitude_to_pressure(altitude_ft)
 
-    # Wind: radiosonde_auto_rx provides vel_h (horizontal speed m/s) and heading (degrees)
-    vel_h = frame.get("vel_h", 0.0)  # m/s
+    # Wind: raw provides vel_h (m/s), payload_summary provides speed (km/h)
+    vel_h = frame.get("vel_h", None)
+    if vel_h is not None:
+        wind_speed_ms = vel_h
+    else:
+        speed_kmh = frame.get("speed", 0.0)
+        wind_speed_ms = speed_kmh / 3.6 if speed_kmh > 0 else 0.0
     heading = frame.get("heading", 0.0)  # degrees, direction of travel
     # Wind direction is opposite to heading (wind blows FROM)
     wind_dir = (heading + 180) % 360
-    wind_speed_kt = vel_h * 1.94384  # m/s to knots
+    wind_speed_kt = wind_speed_ms * 1.94384  # m/s to knots
 
     # Dewpoint
     dewpoint = dewpoint_from_rh(temp_c, humidity) if humidity else -9999.0
@@ -796,6 +1005,93 @@ def acars_reader_worker(store: MetStore, stop_event: threading.Event) -> None:
             stop_event.wait(2)
 
     logger.info("ACARS reader thread stopped")
+
+
+def _extract_acars_from_vdl2(frame: dict) -> Optional[dict]:
+    """Extract ACARS message fields from a dumpvdl2 JSON frame.
+
+    dumpvdl2 nests ACARS inside: vdl2 → avlc → acars.
+    Returns a dict compatible with parse_acars_message() or None.
+    """
+    vdl2 = frame.get("vdl2")
+    if not isinstance(vdl2, dict):
+        return None
+    avlc = vdl2.get("avlc")
+    if not isinstance(avlc, dict):
+        return None
+    acars = avlc.get("acars")
+    if not isinstance(acars, dict):
+        return None
+
+    # Map dumpvdl2 field names to acarsdec-compatible names
+    t = vdl2.get("t", {})
+    ts = t.get("sec", 0) if isinstance(t, dict) else 0
+
+    return {
+        "timestamp": ts or time.time(),
+        "flight": (acars.get("flight") or "").strip(),
+        "tail": (acars.get("reg") or acars.get("tail") or "").strip(),
+        "label": (acars.get("label") or "").strip(),
+        "text": (acars.get("msg_text") or acars.get("message") or "").strip(),
+    }
+
+
+def vdl2_reader_worker(store: MetStore, stop_event: threading.Event) -> None:
+    """Tail dumpvdl2 JSON-line output file and parse ACARS messages into store."""
+    logger.info("VDL2 reader thread started")
+    path = VDL2_OUTPUT_PATH
+
+    while not stop_event.is_set():
+        try:
+            if not os.path.exists(path):
+                stop_event.wait(1)
+                continue
+
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                f.seek(0, 2)
+                while not stop_event.is_set():
+                    line = f.readline()
+                    if not line:
+                        stop_event.wait(0.2)
+                        continue
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        frame = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+
+                    acars_msg = _extract_acars_from_vdl2(frame)
+                    if not acars_msg:
+                        # Non-ACARS VDL2 frame (e.g. CPDLC, ADS-C) — log as raw
+                        vdl2 = frame.get("vdl2", {})
+                        t = vdl2.get("t", {})
+                        ts = (t.get("sec", 0) if isinstance(t, dict) else 0) or time.time()
+                        raw = RawMessage(
+                            timestamp=ts,
+                            source="vdl2",
+                            source_id="",
+                            text=str(frame.get("vdl2", {}).get("avlc", {}).get("xid", frame.get("vdl2", {}).get("freq", "")))[:120],
+                            is_met=False,
+                        )
+                        store.add_message(raw)
+                        continue
+
+                    raw, obs_list = parse_acars_message(acars_msg)
+                    # Tag source as vdl2 for the live feed
+                    raw.source = "vdl2"
+                    store.add_message(raw)
+                    for obs in obs_list:
+                        obs.source = "vdl2"
+                        store.add_observation(obs)
+        except FileNotFoundError:
+            stop_event.wait(1)
+        except Exception:
+            logger.exception("VDL2 reader error")
+            stop_event.wait(2)
+
+    logger.info("VDL2 reader thread stopped")
 
 
 def radiosonde_reader_worker(store: MetStore, stop_event: threading.Event) -> None:

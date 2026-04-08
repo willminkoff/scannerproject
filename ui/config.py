@@ -320,6 +320,7 @@ UNITS = {
     "bt_heal_timer": BT_HEAL_TIMER_UNIT,
     "bt_heal_service": BT_HEAL_SERVICE_UNIT,
     "acars": os.getenv("UNIT_ACARS", "acarsdec"),
+    "vdl2": os.getenv("UNIT_VDL2", "dumpvdl2"),
     "radiosonde": os.getenv("UNIT_RADIOSONDE", "radiosonde-auto-rx"),
 }
 
@@ -328,6 +329,7 @@ MIXER_NAME = os.getenv("MIXER_NAME", "combined")
 
 # Weather decoder configuration
 ACARS_OUTPUT_PATH = os.getenv("ACARS_OUTPUT_PATH", "/run/acars_output.json")
+VDL2_OUTPUT_PATH = os.getenv("VDL2_OUTPUT_PATH", "/run/vdl2_output.json")
 RADIOSONDE_UDP_HOST = os.getenv("RADIOSONDE_UDP_HOST", "127.0.0.1")
 RADIOSONDE_UDP_PORT = int(os.getenv("RADIOSONDE_UDP_PORT", "55673"))
 WX_DECODERS = {"acars", "radiosonde"}

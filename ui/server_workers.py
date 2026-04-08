@@ -137,8 +137,7 @@ def start_icecast_monitor() -> None:
 # ---------------------------------------------------------------------------
 
 _met_store = None
-_wx_reader_thread = None
-_wx_stop_event = None
+_wx_reader_threads = []   # list of (thread, stop_event)
 
 
 def get_met_store():
@@ -175,49 +174,56 @@ def _configure_spatial_filter(store) -> None:
         store.clear_spatial_filter()
 
 
-def start_wx_reader(decoder: str) -> None:
-    """Start the wx reader thread for the given decoder (acars or radiosonde)."""
-    global _wx_reader_thread, _wx_stop_event
-    stop_wx_reader()  # stop any existing reader first
+def _start_reader_thread(worker_fn, store) -> tuple:
+    """Start a single reader thread and return (thread, stop_event)."""
+    stop_event = threading.Event()
+    thread = threading.Thread(
+        target=worker_fn, args=(store, stop_event), daemon=True
+    )
+    thread.start()
+    return (thread, stop_event)
 
-    from .wxdata import acars_reader_worker, radiosonde_reader_worker
+
+def start_wx_reader(decoder: str) -> None:
+    """Start wx reader thread(s) for the given decoder.
+
+    'acars' mode starts both ACARS and VDL2 readers for combined data.
+    """
+    global _wx_reader_threads
+    stop_wx_reader()  # stop any existing readers first
+
+    from .wxdata import acars_reader_worker, vdl2_reader_worker, radiosonde_reader_worker
 
     store = get_met_store()
     if decoder == "acars":
         # Only apply default filter if user hasn't explicitly configured one
         if not store.filter_user_set:
             _configure_spatial_filter(store)
+        # ACARS mode runs both ACARS and VDL2 readers for combined sounding
+        store.collecting = True
+        store.active_decoder = decoder
+        _wx_reader_threads.append(_start_reader_thread(acars_reader_worker, store))
+        _wx_reader_threads.append(_start_reader_thread(vdl2_reader_worker, store))
     elif decoder == "radiosonde":
         store.clear_spatial_filter()
         logger.info("Wx spatial filter disabled for %s (tracking mobile source)", decoder)
-    store.collecting = True
-    store.active_decoder = decoder
-
-    _wx_stop_event = threading.Event()
-
-    if decoder == "acars":
-        target = acars_reader_worker
-    elif decoder == "radiosonde":
-        target = radiosonde_reader_worker
+        store.collecting = True
+        store.active_decoder = decoder
+        _wx_reader_threads.append(_start_reader_thread(radiosonde_reader_worker, store))
     else:
         return
 
-    _wx_reader_thread = threading.Thread(
-        target=target, args=(store, _wx_stop_event), daemon=True
-    )
-    _wx_reader_thread.start()
-
 
 def stop_wx_reader() -> None:
-    """Stop the active wx reader thread."""
-    global _wx_reader_thread, _wx_stop_event
+    """Stop all active wx reader threads."""
+    global _wx_reader_threads
     store = get_met_store()
     store.collecting = False
     store.active_decoder = None
 
-    if _wx_stop_event:
-        _wx_stop_event.set()
-    if _wx_reader_thread and _wx_reader_thread.is_alive():
-        _wx_reader_thread.join(timeout=3)
-    _wx_reader_thread = None
-    _wx_stop_event = None
+    for thread, stop_event in _wx_reader_threads:
+        stop_event.set()
+    for thread, stop_event in _wx_reader_threads:
+        if thread.is_alive():
+            thread.join(timeout=3)
+    _wx_reader_threads = []

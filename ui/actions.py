@@ -39,6 +39,7 @@ try:
         restart_digital,
         stop_ground,
         start_acars, stop_acars, restart_acars,
+        start_vdl2, stop_vdl2, restart_vdl2,
         start_radiosonde, stop_radiosonde, restart_radiosonde,
     )
     from .profile_config import (
@@ -75,6 +76,7 @@ except ImportError:
         restart_digital,
         stop_ground,
         start_acars, stop_acars, restart_acars,
+        start_vdl2, stop_vdl2, restart_vdl2,
         start_radiosonde, stop_radiosonde, restart_radiosonde,
     )
     from ui.profile_config import (
@@ -282,9 +284,9 @@ def _clamp_squelch_dbfs(value: float) -> float:
     return round(clamped, 1)
 
 # Decoder service helpers keyed by decoder name
-_WX_START = {"acars": start_acars, "radiosonde": start_radiosonde}
-_WX_STOP = {"acars": stop_acars, "radiosonde": stop_radiosonde}
-_WX_BIN = {"acars": "/usr/local/bin/acarsdec", "radiosonde": "/opt/radiosonde_auto_rx/auto_rx.py"}
+_WX_START = {"acars": start_acars, "vdl2": start_vdl2, "radiosonde": start_radiosonde}
+_WX_STOP = {"acars": stop_acars, "vdl2": stop_vdl2, "radiosonde": stop_radiosonde}
+_WX_BIN = {"acars": "/usr/local/bin/acarsdec", "vdl2": "/usr/local/bin/dumpvdl2", "radiosonde": "/opt/radiosonde_auto_rx/auto_rx.py"}
 
 
 def _start_wx_reader(decoder: str) -> None:
@@ -692,9 +694,13 @@ def action_set_profile(profile_id: str, target: str, *, restart_service: bool = 
             "combined_changed": bool(combined_changed),
         }
         if restart_service and target == "ground" and (old_decoder or new_decoder):
-            # Stop old decoder if leaving one
-            if old_decoder and old_decoder in _WX_STOP:
-                _WX_STOP[old_decoder]()
+            # Stop old decoder(s) if leaving one
+            if old_decoder:
+                for name, stop_fn in _WX_STOP.items():
+                    try:
+                        stop_fn()
+                    except Exception:
+                        pass
                 _stop_wx_reader()
 
             # Always restart rtl-airband when transitioning decoder state
@@ -702,9 +708,16 @@ def action_set_profile(profile_id: str, target: str, *, restart_service: bool = 
                 restart_ok, restart_error = unit_restart()
                 time.sleep(0.5)  # let USB device release
 
-            # Start new decoder if entering one
+            # Start new decoder(s) if entering one
             if new_decoder and new_decoder in _WX_START:
-                dec_ok, dec_err = _WX_START[new_decoder]()
+                if new_decoder == "acars":
+                    # ACARS mode starts both acarsdec and dumpvdl2
+                    dec_ok1, dec_err1 = _WX_START["acars"]()
+                    dec_ok2, dec_err2 = _WX_START.get("vdl2", lambda: (True, ""))()
+                    dec_ok = dec_ok1 or dec_ok2
+                    dec_err = "; ".join(e for e in [dec_err1, dec_err2] if e)
+                else:
+                    dec_ok, dec_err = _WX_START[new_decoder]()
                 if not dec_ok:
                     payload["ok"] = False
                     payload["error"] = f"{new_decoder} service failed to start: {dec_err}"
