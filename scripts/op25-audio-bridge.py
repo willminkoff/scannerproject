@@ -32,12 +32,18 @@ ICECAST_USER = os.getenv("OP25_AUDIO_ICECAST_USER", os.getenv("ICECAST_SOURCE_US
 ICECAST_PASSWORD = os.getenv("OP25_AUDIO_ICECAST_PASSWORD", os.getenv("ICECAST_SOURCE_PASSWORD", "062352"))
 ICECAST_MOUNT = (os.getenv("OP25_AUDIO_ICECAST_MOUNT", "DIGITAL.mp3") or "DIGITAL.mp3").strip().lstrip("/")
 FFMPEG_BIN = os.getenv("OP25_AUDIO_FFMPEG_BIN") or "ffmpeg"
-BITRATE_KBPS = int(os.getenv("OP25_AUDIO_BITRATE", "64"))
+BITRATE_KBPS = int(os.getenv("OP25_AUDIO_BITRATE", "96"))
 SAMPLE_RATE = int(os.getenv("OP25_AUDIO_SAMPLE_RATE", "8000"))
 CHANNELS = int(os.getenv("OP25_AUDIO_CHANNELS", "1"))
 HEALTH_CHECK_SEC = float(os.getenv("OP25_AUDIO_HEALTH_CHECK_SEC", "5.0"))
 GATE_ENABLED = str(os.getenv("OP25_AUDIO_GATE", "1")).strip().lower() not in ("0", "false", "no", "off")
 GATE_RELEASE_SEC = float(os.getenv("OP25_AUDIO_GATE_RELEASE_SEC", "1.5"))
+
+# Audio normalization: boost quiet P25 audio so VLC doesn't need high gain.
+# Target peak is ~80% of full scale (-2 dBFS) leaving headroom for MP3.
+NORMALIZE_ENABLED = str(os.getenv("OP25_AUDIO_NORMALIZE", "1")).strip().lower() not in ("0", "false", "no", "off")
+NORMALIZE_TARGET_PEAK = float(os.getenv("OP25_AUDIO_NORMALIZE_TARGET", "0.80"))  # fraction of full scale
+NORMALIZE_MAX_GAIN = float(os.getenv("OP25_AUDIO_NORMALIZE_MAX_GAIN", "4.0"))    # cap amplification
 
 # Output frame size: 20ms at 8kHz mono 16-bit = 320 bytes (160 samples).
 # The output thread delivers exactly this many bytes per tick to ffmpeg,
@@ -97,6 +103,37 @@ def _normalize_pcm(packet: bytes) -> bytes:
     return packet
 
 
+def _boost_and_limit(pcm: bytes) -> bytes:
+    """Boost quiet PCM toward NORMALIZE_TARGET_PEAK, with soft limiting.
+
+    P25 decoded audio is typically well below full scale.  Rather than
+    cranking VLC gain (which clips the *decoded* MP3), we boost the raw
+    PCM here — before MP3 encoding — so the encoder can shape the signal
+    properly and the output stream is loud enough without post-decode
+    amplification.
+    """
+    if not pcm or not NORMALIZE_ENABLED:
+        return pcm
+    try:
+        peak = audioop.max(pcm, 2)
+    except audioop.error:
+        return pcm
+    if peak <= 0:
+        return pcm
+    target = int(32767 * NORMALIZE_TARGET_PEAK)
+    gain = min(target / peak, NORMALIZE_MAX_GAIN)
+    if gain <= 1.02:
+        # Already near target — skip processing
+        return pcm
+    boosted = audioop.mul(pcm, 2, gain)
+    # Soft-clip: if any samples exceed 95% FS after boost, pull back
+    new_peak = audioop.max(boosted, 2)
+    if new_peak > 31128:  # 95% of 32767
+        pullback = 31128 / new_peak
+        boosted = audioop.mul(boosted, 2, pullback)
+    return boosted
+
+
 def _pad_pcm(packet: bytes, target_len: int) -> bytes:
     if len(packet) >= target_len:
         return packet[:target_len]
@@ -146,7 +183,7 @@ class AudioBridge:
             "-ar", str(SAMPLE_RATE),
             "-ac", str(CHANNELS),
             "-i", "pipe:0",
-            "-af", "aresample=async=1:first_pts=0",
+            "-af", "aresample=async=1:first_pts=0,acompressor=threshold=-18dB:ratio=4:attack=5:release=50:makeup=2dB,alimiter=limit=0.95:attack=0.1:release=50",
             "-acodec", "libmp3lame",
             "-b:a", f"{BITRATE_KBPS}k",
             "-content_type", "audio/mpeg",
@@ -248,9 +285,11 @@ class AudioBridge:
         return mix
 
     def _push_audio(self, pcm: bytes) -> None:
-        """Split mixed PCM into OUTPUT_FRAME_BYTES-sized frames and push to ring."""
+        """Normalize, split into frames, and push to ring buffer."""
         if not pcm:
             return
+        # Boost quiet P25 audio before framing/encoding
+        pcm = _boost_and_limit(pcm)
         with self._ring_lock:
             offset = 0
             while offset < len(pcm):

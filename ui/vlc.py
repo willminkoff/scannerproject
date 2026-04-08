@@ -41,6 +41,19 @@ VLC_PID_DIR = os.getenv("VLC_PID_DIR", os.path.join(VLC_XDG_RUNTIME_DIR, "airban
 VLC_PID_PREFIX = os.getenv("VLC_PID_PREFIX", "airband-ui-vlc")
 VLC_STOP_TIMEOUT_SEC = max(0.2, float(os.getenv("VLC_STOP_TIMEOUT_SEC", "2.0")))
 
+# Per-target VLC playback gain.  1.0 = unity (no change).
+# Digital audio is now normalized in the bridge, so it should not need
+# a large gain boost.  Analog gain can be tuned separately.
+try:
+    VLC_GAIN_ANALOG = float(os.getenv("VLC_GAIN_ANALOG", "1.0"))
+except Exception:
+    VLC_GAIN_ANALOG = 1.0
+try:
+    VLC_GAIN_DIGITAL = float(os.getenv("VLC_GAIN_DIGITAL", "1.5"))
+except Exception:
+    VLC_GAIN_DIGITAL = 1.5
+_VLC_GAINS = {"analog": VLC_GAIN_ANALOG, "digital": VLC_GAIN_DIGITAL}
+
 VLC_TARGETS = ("analog", "digital")
 DEFAULT_TARGET = "analog"
 DEFAULT_MOUNTS = {
@@ -325,6 +338,7 @@ def start_vlc(stream_url: str = "", target: str = DEFAULT_TARGET, mount: str = "
         _mute_sdrtrunk_pulse_streams()
         return True, "already running"
     _prefer_configured_pulse_sink()
+    gain = _VLC_GAINS.get(resolved_target, 1.0)
     cmd = [
         "cvlc",
         "--intf",
@@ -335,6 +349,8 @@ def start_vlc(stream_url: str = "", target: str = DEFAULT_TARGET, mount: str = "
         "--clock-jitter=0",
         "--clock-synchro=0",
     ]
+    if gain and gain != 1.0:
+        cmd.extend(["--gain", str(gain)])
     if VLC_HTTP_RECONNECT:
         cmd.append("--http-reconnect")
     if VLC_NETWORK_CACHING_MS > 0:
