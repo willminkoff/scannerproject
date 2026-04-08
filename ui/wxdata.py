@@ -96,7 +96,7 @@ def haversine_nm(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 # ---------------------------------------------------------------------------
 
 # Labels that may carry meteorological data
-_AMDAR_LABELS = {"H1", "H2", "4A", "44", "SA", "21"}
+_AMDAR_LABELS = {"H1", "H2", "4A", "44", "SA", "21", "22"}
 
 # --- Plain-text AMDAR patterns (legacy) ---
 _RE_FL = re.compile(r'FL\s*(\d{2,3})')
@@ -109,9 +109,10 @@ _RE_ALT = re.compile(r'(\d{4,5})\s*(?:FT|M)')
 
 # --- Compressed ARINC 620 #M[12]BPOSN format ---
 # Example: #M2BPOSN36363W086581,JONIL,192821,140,FFISK,193128,JNKNS,M5,28344,74,/TS...
+# Variant: #M1B/HDQDLUA.POSN36085W088340,... (routing prefix before POSN)
 # Fields: lat(5)NS lon(6), wpt, time, FL, wpt2, eta, [wpt3], temp, wind(5), [turb]
 _RE_MBPOSN = re.compile(
-    r'#M\dBPOSN(\d{5})([NEWS])(\d{5,6})'  # lat, hemisphere, lon
+    r'#M\dB[^P]*POSN(\d{5})([NEWS])(\d{5,6})'  # lat, hemisphere, lon
 )
 
 # --- #DFB...REP format (Republic/Delta connection) ---
@@ -130,6 +131,17 @@ _RE_DFB_POS = re.compile(
 _RE_POSN21 = re.compile(
     r'POSN\s+(\d+\.\d+)([NEWS])\s+(\d+\.\d+)'  # lat, hemisphere, lon
     r',\s*(\d{2,3})'                              # FL
+)
+
+# --- #DFB*WXR weather report format ---
+# Example: #DFB*WXRN31548W0842301136340-53324302700 N32405W0845371143340-53...
+# Each obs: [NS]lat5[EW]lon6 + skip(4) + FL(3) + temp(signed 2-3) + wdir(3) + wspd(2)
+_RE_WXR_POS = re.compile(r'([NS])(\d{5})([EW])(\d{6})')  # position only
+
+# --- Label 22 position format (e.g. Frontier/Spirit) ---
+# Example: N 351210W 855840,-------,120842,30148, , , ,M 45,24940 21, 100,
+_RE_LABEL22 = re.compile(
+    r'([NS])\s*(\d{6})([EW])\s*(\d{6,7})'  # lat DDMMSS, lon DDDMMSS
 )
 
 
@@ -397,6 +409,175 @@ def _try_parse_posn21(text: str, ts: float, flight: str, reg: str) -> Optional[M
     )
 
 
+def _try_parse_dfb_wxr(text: str, ts: float, flight: str, reg: str) -> List[MetObservation]:
+    """Parse #DFB*WXR weather report messages (multi-observation).
+
+    Format: #DFB*WXR{obs1} {obs2} ...
+    Each observation: [NS]lat5[EW]lon6 + skip(4) + FL(3) + temp(signed) + wdir(3) + wspd(2)
+    Example: N31548W0842301136340-53324302700
+      N31548  = 31.548°N
+      W084230 = 84.230°W
+      1136    = skip (time or distance)
+      340     = FL340
+      -53     = temp -53°C
+      324     = wind from 324°
+      30      = wind 30 kt
+    """
+    upper = text.upper()
+    if "*WXR" not in upper:
+        return []
+
+    results: List[MetObservation] = []
+    for m in _RE_WXR_POS.finditer(text):
+        lat_hemi = m.group(1)
+        lat_raw = m.group(2)
+        lon_hemi = m.group(3)
+        lon_raw = m.group(4)
+
+        lat = float(lat_raw[:2]) + float(lat_raw[2:]) / 1000.0
+        if lat_hemi == "S":
+            lat = -lat
+        lon = float(lon_raw[:3]) + float(lon_raw[3:]) / 1000.0
+        if lon_hemi == "W":
+            lon = -lon
+
+        # After position: skip(4) + FL(3) + temp(signed 2-3) + wdir(3) + wspd(2)
+        rest = text[m.end():]
+        if len(rest) < 12:
+            continue
+
+        try:
+            # skip 4 digits
+            if not rest[:4].isdigit():
+                continue
+            fl_str = rest[4:7]
+            if not fl_str.isdigit():
+                continue
+            altitude_ft = float(int(fl_str)) * 100
+
+            # Temperature: signed, starts at offset 7
+            # Negative: -NN (2 digits) e.g. -53; positive: NN (2 digits)
+            temp_rest = rest[7:]
+            if temp_rest[0] == '-':
+                # Negative temp: sign + 2 digits
+                temp_c = float(temp_rest[:3])  # e.g. "-53"
+                after_temp = temp_rest[3:]
+            else:
+                # Positive temp: 2 digits
+                if not temp_rest[:2].isdigit():
+                    continue
+                temp_c = float(temp_rest[:2])
+                after_temp = temp_rest[2:]
+
+            if len(after_temp) < 5:
+                continue
+            wind_dir = float(after_temp[:3])
+            wind_spd = float(after_temp[3:5])
+        except (ValueError, IndexError):
+            continue
+
+        if altitude_ft <= 0 or altitude_ft > 60000:
+            continue
+        if temp_c < -80 or temp_c > 50:
+            continue
+        if wind_dir > 360:
+            continue
+
+        pressure = altitude_to_pressure(altitude_ft)
+        results.append(MetObservation(
+            timestamp=ts, source="acars", source_id=flight or reg,
+            lat=lat, lon=lon, altitude_ft=altitude_ft,
+            pressure_hpa=round(pressure, 1), temp_c=temp_c,
+            dewpoint_c=-9999.0,
+            wind_dir_deg=wind_dir, wind_speed_kt=wind_spd,
+            humidity_pct=None,
+        ))
+
+    return results
+
+
+def _try_parse_label22(text: str, ts: float, flight: str, reg: str) -> Optional[MetObservation]:
+    """Parse label-22 position reports (Frontier/Spirit style).
+
+    Example: N 351210W 855840,-------,120842,30148, , , ,M 45,24940 21, 100,
+      N 351210 = 35°12'10" N
+      W 855840 = 85°58'40" W
+      30148 = altitude (could be 30,148 ft or FL301)
+      M 45 = temp -45°C
+      24940 = wind 249° at 40 kt
+    """
+    m = _RE_LABEL22.search(text)
+    if not m:
+        return None
+
+    lat_hemi = m.group(1)
+    lat_raw = m.group(2)  # DDMMSS
+    lon_hemi = m.group(3)
+    lon_raw = m.group(4)  # DDDMMSS
+
+    lat = float(lat_raw[:2]) + float(lat_raw[2:4]) / 60.0 + float(lat_raw[4:6]) / 3600.0
+    if lat_hemi == "S":
+        lat = -lat
+
+    if len(lon_raw) >= 7:
+        lon = float(lon_raw[:3]) + float(lon_raw[3:5]) / 60.0 + float(lon_raw[5:7]) / 3600.0
+    else:
+        lon = float(lon_raw[:2]) + float(lon_raw[2:4]) / 60.0 + float(lon_raw[4:6]) / 3600.0
+    if lon_hemi == "W":
+        lon = -lon
+
+    # Parse remaining comma-separated fields
+    rest = text[m.end():]
+    parts = [p.strip() for p in rest.split(",")]
+
+    altitude_ft = 0.0
+    temp_c = None
+    wind_dir = 0.0
+    wind_spd = 0.0
+
+    for part in parts:
+        if not part:
+            continue
+        # Altitude: 5-digit number like 30148
+        if altitude_ft == 0 and part.isdigit() and len(part) == 5:
+            val = int(part)
+            if val > 5000:
+                altitude_ft = float(val)  # raw feet
+            else:
+                altitude_ft = float(val) * 100  # FL
+            continue
+        # Temperature: M ## or P ## format (with possible space)
+        if temp_c is None and len(part) >= 2:
+            temp_str = part.replace(" ", "")
+            parsed = _parse_m_temp(temp_str)
+            if parsed is not None and -80 <= parsed <= 50:
+                temp_c = parsed
+                continue
+        # Wind: 5-digit compact (dddss) like 24940 → 249° at 40kt
+        # May have trailing text after space (e.g. "24940 21")
+        wind_token = part.split()[0] if part else ""
+        if wind_token.isdigit() and len(wind_token) == 5:
+            wd = int(wind_token[:3])
+            ws = int(wind_token[3:])
+            if 0 <= wd <= 360 and ws < 300:
+                wind_dir = float(wd)
+                wind_spd = float(ws)
+                continue
+
+    if altitude_ft <= 0 or temp_c is None:
+        return None
+
+    pressure = altitude_to_pressure(altitude_ft)
+    return MetObservation(
+        timestamp=ts, source="acars", source_id=flight or reg,
+        lat=lat, lon=lon, altitude_ft=altitude_ft,
+        pressure_hpa=round(pressure, 1), temp_c=temp_c,
+        dewpoint_c=-9999.0,
+        wind_dir_deg=wind_dir, wind_speed_kt=wind_spd,
+        humidity_pct=None,
+    )
+
+
 def parse_acars_message(msg: dict) -> tuple:
     """Parse an acarsdec JSON message.
 
@@ -440,8 +621,20 @@ def parse_acars_message(msg: dict) -> tuple:
         raw.is_met = True
         return raw, [obs]
 
+    # Try #DFB*WXR weather report (multi-observation)
+    obs_list = _try_parse_dfb_wxr(text, ts, flight, reg)
+    if obs_list:
+        raw.is_met = True
+        return raw, obs_list
+
     # Try #DFB REP format (Republic/Delta Connection)
     obs = _try_parse_dfb_rep(text, ts, flight, reg)
+    if obs:
+        raw.is_met = True
+        return raw, [obs]
+
+    # Try label-22 position format (Frontier/Spirit)
+    obs = _try_parse_label22(text, ts, flight, reg)
     if obs:
         raw.is_met = True
         return raw, [obs]

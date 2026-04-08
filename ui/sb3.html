@@ -9563,8 +9563,8 @@
     }
 
     function applyVlcTargetsStatus(targets) {
-      const analogRunning = !!targets?.analog;
-      const digitalRunning = !!targets?.digital;
+      const analogRunning = !!(typeof targets?.analog === 'object' ? targets.analog.running : targets?.analog);
+      const digitalRunning = !!(typeof targets?.digital === 'object' ? targets.digital.running : targets?.digital);
       const analogBtn = vlcButtonFor('analog');
       const digitalBtn = vlcButtonFor('digital');
       state.vlc.analog.running = analogRunning;
