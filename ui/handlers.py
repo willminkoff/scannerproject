@@ -3336,6 +3336,8 @@ class Handler(BaseHTTPRequestHandler):
             status = store.get_status()
             _acars = "/usr/local/bin/acarsdec"
             status["acars_installed"] = bool(shutil.which("acarsdec") or os.path.isfile(_acars))
+            _vdl2 = "/usr/local/bin/dumpvdl2"
+            status["vdl2_installed"] = bool(shutil.which("dumpvdl2") or os.path.isfile(_vdl2))
             _autorx = "/opt/radiosonde_auto_rx/auto_rx.py"
             status["radiosonde_installed"] = bool(shutil.which("auto_rx.py") or os.path.isfile(_autorx))
             return self._send(200, json.dumps(status), "application/json; charset=utf-8")
@@ -4141,17 +4143,24 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, json.dumps({"ok": True, "active_decoder": None}), "application/json; charset=utf-8")
             if action != "start" or decoder not in ("acars", "radiosonde"):
                 return self._send(400, json.dumps({"ok": False, "error": "action must be start|stop, decoder must be acars|radiosonde"}), "application/json; charset=utf-8")
-            # Stop BOTH WX decoders first to guarantee the ground dongle is free
+            # Stop ALL WX decoders first to guarantee the ground dongle is free
             for name, stop_fn in _WX_STOP.items():
                 try:
                     stop_fn()
                 except Exception:
                     pass
             _stop_wx_reader()
-            # Start the requested decoder
-            ok, err = _WX_START[decoder]()
-            if not ok:
-                return self._send(500, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
+            # Start the requested decoder(s)
+            if decoder == "acars":
+                # ACARS mode starts both acarsdec and dumpvdl2 for combined data
+                ok1, err1 = _WX_START["acars"]()
+                ok2, err2 = _WX_START.get("vdl2", lambda: (True, ""))()
+                if not ok1 and not ok2:
+                    return self._send(500, json.dumps({"ok": False, "error": f"acars: {err1}; vdl2: {err2}"}), "application/json; charset=utf-8")
+            else:
+                ok, err = _WX_START[decoder]()
+                if not ok:
+                    return self._send(500, json.dumps({"ok": False, "error": err}), "application/json; charset=utf-8")
             _start_wx_reader(decoder)
             return self._send(200, json.dumps({"ok": True, "active_decoder": decoder}), "application/json; charset=utf-8")
 

@@ -19,9 +19,9 @@ from typing import Optional, List, Dict, Tuple
 logger = logging.getLogger(__name__)
 
 try:
-    from .config import ACARS_OUTPUT_PATH, RADIOSONDE_UDP_HOST, RADIOSONDE_UDP_PORT
+    from .config import ACARS_OUTPUT_PATH, VDL2_OUTPUT_PATH, RADIOSONDE_UDP_HOST, RADIOSONDE_UDP_PORT
 except ImportError:
-    from ui.config import ACARS_OUTPUT_PATH, RADIOSONDE_UDP_HOST, RADIOSONDE_UDP_PORT
+    from ui.config import ACARS_OUTPUT_PATH, VDL2_OUTPUT_PATH, RADIOSONDE_UDP_HOST, RADIOSONDE_UDP_PORT
 
 
 # ---------------------------------------------------------------------------
@@ -1005,6 +1005,93 @@ def acars_reader_worker(store: MetStore, stop_event: threading.Event) -> None:
             stop_event.wait(2)
 
     logger.info("ACARS reader thread stopped")
+
+
+def _extract_acars_from_vdl2(frame: dict) -> Optional[dict]:
+    """Extract ACARS message fields from a dumpvdl2 JSON frame.
+
+    dumpvdl2 nests ACARS inside: vdl2 → avlc → acars.
+    Returns a dict compatible with parse_acars_message() or None.
+    """
+    vdl2 = frame.get("vdl2")
+    if not isinstance(vdl2, dict):
+        return None
+    avlc = vdl2.get("avlc")
+    if not isinstance(avlc, dict):
+        return None
+    acars = avlc.get("acars")
+    if not isinstance(acars, dict):
+        return None
+
+    # Map dumpvdl2 field names to acarsdec-compatible names
+    t = vdl2.get("t", {})
+    ts = t.get("sec", 0) if isinstance(t, dict) else 0
+
+    return {
+        "timestamp": ts or time.time(),
+        "flight": (acars.get("flight") or "").strip(),
+        "tail": (acars.get("reg") or acars.get("tail") or "").strip(),
+        "label": (acars.get("label") or "").strip(),
+        "text": (acars.get("msg_text") or acars.get("message") or "").strip(),
+    }
+
+
+def vdl2_reader_worker(store: MetStore, stop_event: threading.Event) -> None:
+    """Tail dumpvdl2 JSON-line output file and parse ACARS messages into store."""
+    logger.info("VDL2 reader thread started")
+    path = VDL2_OUTPUT_PATH
+
+    while not stop_event.is_set():
+        try:
+            if not os.path.exists(path):
+                stop_event.wait(1)
+                continue
+
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                f.seek(0, 2)
+                while not stop_event.is_set():
+                    line = f.readline()
+                    if not line:
+                        stop_event.wait(0.2)
+                        continue
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        frame = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+
+                    acars_msg = _extract_acars_from_vdl2(frame)
+                    if not acars_msg:
+                        # Non-ACARS VDL2 frame (e.g. CPDLC, ADS-C) — log as raw
+                        vdl2 = frame.get("vdl2", {})
+                        t = vdl2.get("t", {})
+                        ts = (t.get("sec", 0) if isinstance(t, dict) else 0) or time.time()
+                        raw = RawMessage(
+                            timestamp=ts,
+                            source="vdl2",
+                            source_id="",
+                            text=str(frame.get("vdl2", {}).get("avlc", {}).get("xid", frame.get("vdl2", {}).get("freq", "")))[:120],
+                            is_met=False,
+                        )
+                        store.add_message(raw)
+                        continue
+
+                    raw, obs_list = parse_acars_message(acars_msg)
+                    # Tag source as vdl2 for the live feed
+                    raw.source = "vdl2"
+                    store.add_message(raw)
+                    for obs in obs_list:
+                        obs.source = "vdl2"
+                        store.add_observation(obs)
+        except FileNotFoundError:
+            stop_event.wait(1)
+        except Exception:
+            logger.exception("VDL2 reader error")
+            stop_event.wait(2)
+
+    logger.info("VDL2 reader thread stopped")
 
 
 def radiosonde_reader_worker(store: MetStore, stop_event: threading.Event) -> None:
