@@ -1040,6 +1040,8 @@ def generate_multi_rx_config(
                     target_mod = str(sys_over.get("modulation", OP25_DEFAULT_MODULATION)).strip().lower()
                     break
             if target_cc_hz:
+                traffic_sys_over = overrides.get(target_sys) or {}
+                traffic_gains = str(traffic_sys_over.get("gains", "LNA:36")).strip() or "LNA:36"
                 devices.append({
                     "name": "sdr_traffic",
                     "args": str(arg_map.get(traffic_dongle_serial) or f"rtl={traffic_dongle_serial}"),
@@ -1047,7 +1049,7 @@ def generate_multi_rx_config(
                     "frequency": target_cc_hz,
                     "offset": offset,
                     "ppm": 0.0,
-                    "gains": "LNA:36",
+                    "gains": traffic_gains,
                     "gain_mode": True,
                     "tunable": True,
                 })

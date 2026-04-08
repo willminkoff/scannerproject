@@ -521,8 +521,12 @@ def parse_acars_message(msg: dict) -> tuple:
 def parse_radiosonde_telemetry(frame: dict) -> tuple:
     """Parse a radiosonde_auto_rx JSON telemetry frame.
 
+    Accepts both raw telemetry format (id/lat/lon/alt/vel_h) and
+    payload_summary format (callsign/latitude/longitude/altitude/speed).
+
     Returns (RawMessage, Optional[MetObservation]).
     """
+    # Timestamp: raw uses "datetime" (ISO), payload_summary uses "time" (HH:MM:SS)
     ts = frame.get("datetime", "")
     if isinstance(ts, str) and ts:
         try:
@@ -532,11 +536,18 @@ def parse_radiosonde_telemetry(frame: dict) -> tuple:
     else:
         ts = time.time()
 
-    sonde_id = frame.get("id", frame.get("serial", "unknown"))
+    # payload_summary uses "callsign", raw uses "id"/"serial"
+    sonde_id = frame.get("callsign",
+                         frame.get("id", frame.get("serial", "unknown")))
+    # payload_summary has type="PAYLOAD_SUMMARY" and model="DFM17" etc;
+    # raw telemetry has type="DFM17" directly
     sonde_type = frame.get("type", "")
-    lat = frame.get("lat", 0.0)
-    lon = frame.get("lon", 0.0)
-    alt_m = frame.get("alt", 0.0)
+    if sonde_type == "PAYLOAD_SUMMARY" or not sonde_type:
+        sonde_type = frame.get("model", sonde_type)
+    # payload_summary uses "latitude"/"longitude"/"altitude", raw uses "lat"/"lon"/"alt"
+    lat = frame.get("lat", frame.get("latitude", 0.0))
+    lon = frame.get("lon", frame.get("longitude", 0.0))
+    alt_m = frame.get("alt", frame.get("altitude", 0.0))
     temp_c = frame.get("temp", -9999.0)
     humidity = frame.get("humidity", None)
     pressure = frame.get("pressure", None)
@@ -563,12 +574,17 @@ def parse_radiosonde_telemetry(frame: dict) -> tuple:
     if pressure is None or pressure <= 0:
         pressure = altitude_to_pressure(altitude_ft)
 
-    # Wind: radiosonde_auto_rx provides vel_h (horizontal speed m/s) and heading (degrees)
-    vel_h = frame.get("vel_h", 0.0)  # m/s
+    # Wind: raw provides vel_h (m/s), payload_summary provides speed (km/h)
+    vel_h = frame.get("vel_h", None)
+    if vel_h is not None:
+        wind_speed_ms = vel_h
+    else:
+        speed_kmh = frame.get("speed", 0.0)
+        wind_speed_ms = speed_kmh / 3.6 if speed_kmh > 0 else 0.0
     heading = frame.get("heading", 0.0)  # degrees, direction of travel
     # Wind direction is opposite to heading (wind blows FROM)
     wind_dir = (heading + 180) % 360
-    wind_speed_kt = vel_h * 1.94384  # m/s to knots
+    wind_speed_kt = wind_speed_ms * 1.94384  # m/s to knots
 
     # Dewpoint
     dewpoint = dewpoint_from_rh(temp_c, humidity) if humidity else -9999.0
