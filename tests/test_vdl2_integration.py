@@ -626,5 +626,134 @@ class WxDecodersConfigTests(unittest.TestCase):
         self.assertEqual(UNITS["vdl2"], "dumpvdl2")
 
 
+# ===================================================================
+# Partial observation scraping — accept incomplete wx data
+# ===================================================================
+class PartialObservationTests(unittest.TestCase):
+    """Verify parsers accept partial wx data (temp-only, wind-only, etc.)."""
+
+    def test_mbposn_with_altitude_and_wind_but_no_temp(self):
+        """MBPOSN message with FL and wind but missing temp → still captured."""
+        msg = {
+            "timestamp": 1000,
+            "flight": "DAL100",
+            "tail": ".N100DL",
+            "label": "H1",
+            "text": "#M1BPOSN36100W086450,JONIL,192821,350,FFISK,193128,,28050",
+        }
+        raw, obs = parse_acars_message(msg)
+        self.assertTrue(raw.is_met)
+        self.assertEqual(len(obs), 1)
+        self.assertAlmostEqual(obs[0].altitude_ft, 35000)
+        self.assertEqual(obs[0].temp_c, -9999.0)  # no temp — sentinel
+        self.assertEqual(obs[0].wind_dir_deg, 280)
+        self.assertEqual(obs[0].wind_speed_kt, 50)
+
+    def test_mbposn_with_altitude_and_temp_but_no_wind(self):
+        msg = {
+            "timestamp": 1000,
+            "flight": "UAL200",
+            "tail": ".N200UA",
+            "label": "H1",
+            "text": "#M1BPOSN36100W086450,JONIL,192821,350,FFISK,193128,,M52",
+        }
+        raw, obs = parse_acars_message(msg)
+        self.assertTrue(raw.is_met)
+        self.assertEqual(len(obs), 1)
+        self.assertEqual(obs[0].temp_c, -52.0)
+        self.assertEqual(obs[0].wind_dir_deg, 0.0)
+        self.assertEqual(obs[0].wind_speed_kt, 0.0)
+
+    def test_label22_with_altitude_and_wind_but_no_temp(self):
+        """Label 22 with position and altitude but temp missing."""
+        msg = {
+            "timestamp": 1000,
+            "flight": "NKS400",
+            "tail": "",
+            "label": "22",
+            "text": "N 351210W 855840,-------,120842,30148, , , , ,24940 21, 100,",
+        }
+        raw, obs = parse_acars_message(msg)
+        self.assertTrue(raw.is_met)
+        self.assertEqual(len(obs), 1)
+        self.assertEqual(obs[0].temp_c, -9999.0)  # no temp — sentinel
+        self.assertEqual(obs[0].wind_dir_deg, 249)
+        self.assertEqual(obs[0].wind_speed_kt, 40)
+
+    def test_posn21_accepted_without_temp(self):
+        """Label 21 POSN with altitude but no temp → still captured."""
+        msg = {
+            "timestamp": 1000,
+            "flight": "FFT300",
+            "tail": "",
+            "label": "21",
+            "text": "POSN 36.252W 86.790, 136,193036,8931,31280, 31, 2,194006,KBNA",
+        }
+        raw, obs = parse_acars_message(msg)
+        self.assertTrue(raw.is_met)
+        self.assertEqual(len(obs), 1)
+        self.assertAlmostEqual(obs[0].altitude_ft, 13600)
+        self.assertEqual(obs[0].temp_c, -9999.0)
+
+    def test_no_label_filter_parses_non_amdar_label(self):
+        """Messages with non-AMDAR labels should still be tried for wx data."""
+        msg = {
+            "timestamp": 1000,
+            "flight": "SWA500",
+            "tail": "",
+            "label": "5Z",  # not in old _AMDAR_LABELS
+            "text": "#M1BPOSN36100W086450,JONIL,192821,350,FFISK,193128,,M48,27060",
+        }
+        raw, obs = parse_acars_message(msg)
+        self.assertTrue(raw.is_met)
+        self.assertEqual(len(obs), 1)
+        self.assertEqual(obs[0].temp_c, -48.0)
+
+    def test_legacy_fallback_wind_only_no_temp(self):
+        """Legacy parser: FL + wind but no temp → captured."""
+        msg = {
+            "timestamp": 1000,
+            "flight": "AAL600",
+            "tail": "",
+            "label": "H1",
+            "text": "SOME REPORT FL350 270/085KT",
+        }
+        raw, obs = parse_acars_message(msg)
+        self.assertTrue(raw.is_met)
+        self.assertEqual(len(obs), 1)
+        self.assertAlmostEqual(obs[0].altitude_ft, 35000)
+        self.assertEqual(obs[0].temp_c, -9999.0)
+        self.assertEqual(obs[0].wind_dir_deg, 270)
+        self.assertEqual(obs[0].wind_speed_kt, 85)
+
+    def test_legacy_fallback_no_met_fields_rejected(self):
+        """Legacy parser: FL but no temp/wind/humidity → rejected (no met data)."""
+        msg = {
+            "timestamp": 1000,
+            "flight": "AAL700",
+            "tail": "",
+            "label": "H1",
+            "text": "SOME REPORT FL350 NO WEATHER DATA",
+        }
+        raw, obs = parse_acars_message(msg)
+        self.assertFalse(raw.is_met)
+        self.assertEqual(obs, [])
+
+    def test_legacy_fallback_temp_only(self):
+        """Legacy parser: FL + temp but no wind → captured."""
+        msg = {
+            "timestamp": 1000,
+            "flight": "AAL800",
+            "tail": "",
+            "label": "H1",
+            "text": "SOME REPORT FL350 -52.0C",
+        }
+        raw, obs = parse_acars_message(msg)
+        self.assertTrue(raw.is_met)
+        self.assertEqual(len(obs), 1)
+        self.assertEqual(obs[0].temp_c, -52.0)
+        self.assertEqual(obs[0].wind_dir_deg, 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()

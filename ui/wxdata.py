@@ -227,11 +227,13 @@ def _try_parse_mbposn(text: str, ts: float, flight: str, reg: str) -> Optional[M
                 wind_spd = float(ws)
                 continue
 
-    if altitude_ft <= 0 or temp_c is None:
+    if altitude_ft <= 0:
         return None
 
+    if temp_c is None:
+        temp_c = -9999.0
     pressure = altitude_to_pressure(altitude_ft)
-    dewpoint = dewpoint_from_rh(temp_c, humidity) if humidity else -9999.0
+    dewpoint = dewpoint_from_rh(temp_c, humidity) if humidity and temp_c > -9000 else -9999.0
 
     return MetObservation(
         timestamp=ts, source="acars", source_id=flight or reg,
@@ -564,9 +566,11 @@ def _try_parse_label22(text: str, ts: float, flight: str, reg: str) -> Optional[
                 wind_spd = float(ws)
                 continue
 
-    if altitude_ft <= 0 or temp_c is None:
+    if altitude_ft <= 0:
         return None
 
+    if temp_c is None:
+        temp_c = -9999.0
     pressure = altitude_to_pressure(altitude_ft)
     return MetObservation(
         timestamp=ts, source="acars", source_id=flight or reg,
@@ -605,9 +609,8 @@ def parse_acars_message(msg: dict) -> tuple:
         is_met=False,
     )
 
-    # Check if this label can carry met data
-    if label not in _AMDAR_LABELS:
-        return raw, []
+    # Try every parser — accept partial observations (temp-only, wind-only, etc.)
+    # Structured formats first, then generic fallback.
 
     # Try #DFBD3M descent met profile (multi-observation per message)
     obs_list = _try_parse_dfbd3m(text, ts, flight, reg)
@@ -639,13 +642,13 @@ def parse_acars_message(msg: dict) -> tuple:
         raw.is_met = True
         return raw, [obs]
 
-    # Try label-21 POSN format (Frontier-style)
+    # Try label-21 POSN format (Frontier-style) — accept even without temp
     obs = _try_parse_posn21(text, ts, flight, reg)
-    if obs and obs.temp_c > -9000:
+    if obs:
         raw.is_met = True
         return raw, [obs]
 
-    # Fall back to legacy plain-text AMDAR parsing
+    # Fall back to legacy plain-text scrape — grab any FL/temp/wind we can find
     upper = text.upper()
 
     lat, lon = 0.0, 0.0
@@ -669,16 +672,10 @@ def parse_acars_message(msg: dict) -> tuple:
         if m:
             altitude_ft = float(m.group(1))
 
-    if altitude_ft <= 0:
-        return raw, []
-
     temp_c = -9999.0
     m = _RE_TEMP.search(upper)
     if m:
         temp_c = float(m.group(1))
-
-    if temp_c == -9999.0:
-        return raw, []
 
     wind_dir, wind_spd = 0.0, 0.0
     m = _RE_WIND.search(upper)
@@ -691,8 +688,12 @@ def parse_acars_message(msg: dict) -> tuple:
     if m:
         humidity = float(m.group(1))
 
-    dewpoint = dewpoint_from_rh(temp_c, humidity) if humidity else -9999.0
+    # Accept if we have altitude + at least one met field
+    has_met = temp_c > -9000 or wind_spd > 0 or humidity is not None
+    if altitude_ft <= 0 or not has_met:
+        return raw, []
 
+    dewpoint = dewpoint_from_rh(temp_c, humidity) if humidity and temp_c > -9000 else -9999.0
     pressure = altitude_to_pressure(altitude_ft)
 
     raw.is_met = True
