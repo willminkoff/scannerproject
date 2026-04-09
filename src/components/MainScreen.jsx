@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SCREENS, useUI } from "../context/UIContext";
 import Button from "./Shared/Button";
 
@@ -137,6 +137,52 @@ export default function MainScreen() {
     }, 320);
     return () => clearInterval(timer);
   }, []);
+
+  // --- Audio auto-recovery: reload stream on stall/error ---
+  const audioRef = useRef(null);
+  const recoverTimer = useRef(null);
+
+  const recoverAudio = useCallback(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    const src = el.getAttribute("src");
+    if (!src) return;
+    // Reload with cache-bust to force reconnect.
+    const base = src.replace(/[?]t=\d+$/, "");
+    el.src = `${base}?t=${Date.now()}`;
+    el.load();
+    el.play().catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    const scheduleRecover = () => {
+      if (recoverTimer.current) return;
+      recoverTimer.current = setTimeout(() => {
+        recoverTimer.current = null;
+        recoverAudio();
+      }, 5000);
+    };
+    const cancelRecover = () => {
+      if (recoverTimer.current) {
+        clearTimeout(recoverTimer.current);
+        recoverTimer.current = null;
+      }
+    };
+    const onError = () => scheduleRecover();
+    const onStalled = () => scheduleRecover();
+    const onPlaying = () => cancelRecover();
+    el.addEventListener("error", onError);
+    el.addEventListener("stalled", onStalled);
+    el.addEventListener("playing", onPlaying);
+    return () => {
+      cancelRecover();
+      el.removeEventListener("error", onError);
+      el.removeEventListener("stalled", onStalled);
+      el.removeEventListener("playing", onPlaying);
+    };
+  }, [recoverAudio]);
 
   const selectedMount =
     streamSource === "digital"
@@ -631,6 +677,7 @@ export default function MainScreen() {
           Source: {isDigitalSource ? "Digital" : "Analog"} ({selectedMount || "no mount"})
         </div>
         <audio
+          ref={audioRef}
           controls
           preload="none"
           muted={audioMuted}

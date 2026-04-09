@@ -37,7 +37,13 @@ SAMPLE_RATE = int(os.getenv("OP25_AUDIO_SAMPLE_RATE", "8000"))
 CHANNELS = int(os.getenv("OP25_AUDIO_CHANNELS", "1"))
 HEALTH_CHECK_SEC = float(os.getenv("OP25_AUDIO_HEALTH_CHECK_SEC", "5.0"))
 GATE_ENABLED = str(os.getenv("OP25_AUDIO_GATE", "1")).strip().lower() not in ("0", "false", "no", "off")
-GATE_RELEASE_SEC = float(os.getenv("OP25_AUDIO_GATE_RELEASE_SEC", "1.5"))
+GATE_RELEASE_SEC = float(os.getenv("OP25_AUDIO_GATE_RELEASE_SEC", "3.0"))
+
+# Audio normalization: boost quiet P25 audio so VLC doesn't need high gain.
+# Target peak is ~80% of full scale (-2 dBFS) leaving headroom for MP3.
+NORMALIZE_ENABLED = str(os.getenv("OP25_AUDIO_NORMALIZE", "0")).strip().lower() not in ("0", "false", "no", "off")
+NORMALIZE_TARGET_PEAK = float(os.getenv("OP25_AUDIO_NORMALIZE_TARGET", "0.80"))  # fraction of full scale
+NORMALIZE_MAX_GAIN = float(os.getenv("OP25_AUDIO_NORMALIZE_MAX_GAIN", "2.5"))    # cap amplification
 
 # Audio normalization: boost quiet P25 audio so VLC doesn't need high gain.
 # Target peak is ~80% of full scale (-2 dBFS) leaving headroom for MP3.
@@ -54,6 +60,20 @@ OUTPUT_TICK_SEC = OUTPUT_FRAME_SAMPLES / SAMPLE_RATE  # 0.020
 
 # Ring buffer holds up to 500ms of audio (25 frames × 20ms).
 RING_BUFFER_FRAMES = 25
+
+# Jitter buffer: when voice starts after silence, wait until this many
+# frames are buffered before the output thread starts consuming them.
+# This absorbs UDP timing jitter and eliminates mid-voice dropouts.
+# 5 frames = 100ms of pre-buffer.
+JITTER_PREFILL_FRAMES = int(os.getenv("OP25_AUDIO_JITTER_FRAMES", "5"))
+
+# Packet loss concealment (PLC): when the ring buffer empties during
+# active voice, repeat the last frame with progressive fade instead of
+# hard-cutting to silence. This hides short gaps (< PLC_MAX_FRAMES)
+# caused by OP25 control-channel check-ins.
+# 15 frames × 20ms = 300ms of concealment before silence.
+PLC_MAX_FRAMES = int(os.getenv("OP25_AUDIO_PLC_FRAMES", "15"))
+PLC_FADE_START = int(os.getenv("OP25_AUDIO_PLC_FADE_START", "5"))  # start fading after N repeats
 
 
 def _log(message: str) -> None:
@@ -154,6 +174,12 @@ class AudioBridge:
         # Input thread pushes mixed audio frames as they arrive.
         self._ring: collections.deque[bytes] = collections.deque(maxlen=RING_BUFFER_FRAMES)
         self._ring_lock = threading.Lock()
+        # Jitter buffer: when transitioning from silence to voice,
+        # accumulate JITTER_PREFILL_FRAMES before output starts consuming.
+        self._voice_active = False  # True once prefill threshold met
+        # PLC: repeat last frame with fade to hide short gaps.
+        self._last_voice_frame = self.silence_frame
+        self._plc_count = 0  # consecutive concealment frames delivered
 
     def _open_sockets(self) -> None:
         for port in self.ports:
@@ -300,7 +326,12 @@ class AudioBridge:
                 offset += OUTPUT_FRAME_BYTES
 
     def _pop_frame(self) -> bytes:
-        """Pop one frame from the ring buffer, or return silence."""
+        """Pop one frame from the ring buffer, or return silence.
+
+        Simple pass-through: no jitter buffer prefill, no PLC repeat.
+        Just deliver what's available or silence when empty.  Let ffmpeg's
+        aresample async handle smoothing.
+        """
         with self._ring_lock:
             if self._ring:
                 return self._ring.popleft()

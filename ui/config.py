@@ -265,7 +265,7 @@ if not PLAYER_MOUNT:
 ICECAST_MOUNT_PATH = f"/{PLAYER_MOUNT}"
 STREAM_PROXY_TRANSCODE_ANALOG_DEFAULT = os.getenv(
     "STREAM_PROXY_TRANSCODE_ANALOG_DEFAULT",
-    "0",
+    "1",
 ).strip().lower() in _TRUTHY
 
 # V3 Runtime + Preflight

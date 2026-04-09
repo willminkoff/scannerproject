@@ -8621,7 +8621,11 @@
       if (shouldPreferDirectIcecastStream()) {
         return buildIcecastUrl(mountName, 'ANALOG.mp3');
       }
-      return buildProxyStreamUrl(mountName, 'ANALOG.mp3');
+      // iOS Safari cannot decode 8 kHz MP3 — force transcode to 16 kHz
+      // so the embedded player works. The proxy re-encodes via ffmpeg.
+      return buildProxyStreamUrl(mountName, 'ANALOG.mp3', {
+        transcode: isLikelyIOSClient(),
+      });
     }
 
     function digitalStreamUrl() {
@@ -8846,18 +8850,35 @@
       audioEl.src = bustUrl;
       audioEl.load();
       if (shouldPlay) {
-        // Wait for the browser to buffer enough data (canplay) before
-        // calling play().  Calling play() while readyState=0 causes
-        // "interrupted by a new load request" loops.
-        const onReady = () => {
-          audioEl.removeEventListener('canplay', onReady);
-          audioEl.removeEventListener('canplaythrough', onReady);
-          if (audioEl.dataset.wantplay === '1') {
-            requestAudioPlay(audioEl, `reload-${reason || 'manual'}`);
-          }
-        };
-        audioEl.addEventListener('canplay', onReady, { once: true });
-        audioEl.addEventListener('canplaythrough', onReady, { once: true });
+        // Call play() immediately in the same tick as load(). On iOS
+        // Safari, play() MUST be called within a user-gesture call stack
+        // or in the same tick as load() — waiting for canplay fires
+        // asynchronously and loses the gesture context, causing play()
+        // to silently fail (spinner stuck forever).
+        //
+        // Calling play() right after load() works on all browsers:
+        // the browser internally queues playback until data arrives.
+        // If play() is rejected (no gesture, e.g. from setTimeout
+        // recovery), we pause and re-arm so native controls show a
+        // tappable play button instead of an infinite spinner.
+        const playPromise = audioEl.play();
+        if (playPromise && typeof playPromise.catch === 'function') {
+          playPromise.catch((err) => {
+            const msg = messageFromError(err, 'reload play blocked');
+            if (/interrupted by a new load request/i.test(msg)) return;
+            if (/not allowed|user didn.t interact|gesture|NotAllowedError/i.test(msg)) {
+              // iOS: play() rejected outside gesture context. Pause to
+              // clear the spinner and leave native controls showing a
+              // play button the user can tap. Keep wantplay so the next
+              // user tap on the controls will resume.
+              if (isLikelyIOSClient()) {
+                try { audioEl.pause(); } catch(e) {}
+              }
+              return;
+            }
+            logActivity(`${kind} reload play: ${msg}`, 'warn', `audio-reload-play-${kind}`);
+          });
+        }
       }
       if (reason) {
         logActivity(reason, 'info', `${keyPrefix}-${reason}`);
@@ -8904,7 +8925,21 @@
       // Determine if we should attempt recovery: either forcePlay or wantplay is set
       const shouldRecover = forcePlay || (audioEl && audioEl.dataset.wantplay === '1');
       if (!shouldRecover) return;
-      const plan = [
+      const isiOS = isLikelyIOSClient();
+      // iOS Safari: pause immediately so the player shows a clean paused
+      // state instead of an infinite spinner while the stream is down.
+      // The recovery will reload and the native controls will show a play
+      // button the user can tap if auto-play is blocked.
+      if (isiOS && audioEl && !audioEl.paused) {
+        try { audioEl.pause(); } catch(e) {}
+      }
+      // iOS Safari: multiple rapid load() calls cause an infinite spinner
+      // because each interrupts the previous. Use fewer, wider-spaced
+      // attempts on iOS so the browser has time to settle.
+      const plan = isiOS ? [
+        { delayMs: 2000, hardReset: true },
+        { delayMs: 8000, hardReset: true },
+      ] : [
         { delayMs: 1200, hardReset: false },
         { delayMs: 3500, hardReset: true },
         { delayMs: 7000, hardReset: true },
@@ -9128,14 +9163,8 @@
         const src = (audioEl.currentSrc || audioEl.src || '').split('?')[0];
         const suffix = src ? ` (${src})` : '';
         logActivity(`${targetLabel} player media error code ${codeLabel}${suffix}`, 'warn', `audio-error-${targetLabel}-${codeLabel}`);
-        if (
-          audioEl === els.audioPlayerDigital
-          && state.streamProxyEnabled
-          && !state.digitalStreamForceTranscode
-        ) {
-          state.digitalStreamForceTranscode = true;
-          logActivity('Digital player switched to proxy transcode fallback', 'warn', 'digital-transcode-fallback');
-        }
+        // Don't permanently latch transcode mode — errors are usually
+        // transient mount drops that resolve on the next retry.
         maybeAutoRecoverAudio(audioEl, reloadFn, 'error', true, { hardReset: true });
       });
       audioEl.addEventListener('emptied', () => {
@@ -15279,6 +15308,37 @@
           refreshVlcStatus();
         }
       }, 5000);
+      // Audio player health watchdog: detect players stuck in loading/stalled
+      // state for extended periods and force a hard reset. This catches cases
+      // where the normal event-based recovery fails (e.g., after backend
+      // restarts that tear down and rebuild the Icecast mount).
+      setInterval(() => {
+        [
+          { el: els.audioPlayerAnalog, reload: reloadAnalogStream, kind: 'analog' },
+          { el: els.audioPlayerDigital, reload: reloadDigitalStream, kind: 'digital' },
+        ].forEach(({ el, reload, kind }) => {
+          if (!el) return;
+          const wantsPlay = el.dataset.wantplay === '1';
+          if (!wantsPlay) return;
+          // readyState: 0=HAVE_NOTHING, 1=HAVE_METADATA, 2=HAVE_CURRENT_DATA
+          // If we want to play but readyState <= 2 and paused, we're stuck.
+          const stuck = (el.paused || el.readyState <= 2) && wantsPlay;
+          if (!stuck) return;
+          const tracker = getAudioRecoverTracker(el);
+          if (!tracker) return;
+          const now = Date.now();
+          // Only intervene if the last successful play was > 10s ago
+          const lastOk = tracker.lastPlayingTs || 0;
+          if (lastOk > 0 && (now - lastOk) < 10000) return;
+          // And cooldown since last recovery
+          if ((now - tracker.recoverLastTs) < 8000) return;
+          tracker.recoverLastTs = now;
+          // Reset transcode latch on watchdog recovery
+          state.digitalStreamForceTranscode = false;
+          logActivity(`${kind} player watchdog: hard reset`, 'warn', `watchdog-${kind}`);
+          reload(`watchdog`, true, { hardReset: true });
+        });
+      }, 8000);
     }
     
     init();

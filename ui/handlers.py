@@ -324,14 +324,14 @@ _HP_STATE_SYNC_COMPLETED = 0
 _HP_STATE_SYNC_LAST_PAYLOAD: dict[str, Any] = {"ok": True, "changed": False, "errors": []}
 STREAM_PROXY_CHUNK_BYTES = max(128, int(os.getenv("STREAM_PROXY_CHUNK_BYTES", "256")))
 try:
-    STREAM_PROXY_TRANSCODE_BITRATE_KBPS = int(os.getenv("STREAM_PROXY_TRANSCODE_BITRATE_KBPS", "24"))
+    STREAM_PROXY_TRANSCODE_BITRATE_KBPS = int(os.getenv("STREAM_PROXY_TRANSCODE_BITRATE_KBPS", "48"))
 except Exception:
-    STREAM_PROXY_TRANSCODE_BITRATE_KBPS = 24
+    STREAM_PROXY_TRANSCODE_BITRATE_KBPS = 48
 STREAM_PROXY_TRANSCODE_BITRATE_KBPS = max(16, min(192, STREAM_PROXY_TRANSCODE_BITRATE_KBPS))
 try:
-    STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ = int(os.getenv("STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ", "16000"))
+    STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ = int(os.getenv("STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ", "22050"))
 except Exception:
-    STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ = 16000
+    STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ = 22050
 STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ = max(8000, min(48000, STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ))
 LATENCY_TONE_DEFAULT_MOUNT = (
     os.getenv("LATENCY_TONE_DEFAULT_MOUNT", "latency-tone.mp3").strip().lstrip("/") or "latency-tone.mp3"
@@ -2352,13 +2352,11 @@ class Handler(BaseHTTPRequestHandler):
                     "-loglevel",
                     "error",
                     "-fflags",
-                    "nobuffer",
-                    "-flags",
-                    "low_delay",
+                    "+nobuffer+discardcorrupt",
                     "-probesize",
-                    "32768",
+                    "131072",
                     "-analyzeduration",
-                    "0",
+                    "500000",
                     "-f",
                     "mp3",
                     "-i",
