@@ -5,6 +5,11 @@ The OP25 runtime writes /run/scannerproject/op25/instances.json with one
 entry per channel. Each entry advertises the localhost UDP audio port that
 multi_rx.py is sending to. This bridge keeps a single ffmpeg publisher alive,
 mixes the available mono PCM inputs, and republishes the result to Icecast.
+
+Local playback: when LOCAL_PLAY is enabled, the bridge also spawns a pw-cat
+process that writes PCM directly to PipeWire for Bluetooth / local speaker
+output, bypassing the Icecast encode-decode round-trip.  A file-based mute
+flag lets the UI toggle local playback without restarting the bridge.
 """
 
 from __future__ import annotations
@@ -46,13 +51,7 @@ GATE_RELEASE_SEC = float(os.getenv("OP25_AUDIO_GATE_RELEASE_SEC", "3.0"))
 PRIORITY_GATE = str(os.getenv("OP25_AUDIO_PRIORITY_GATE", "1")).strip().lower() not in ("0", "false", "no", "off")
 PRIORITY_HOLDOFF_SEC = float(os.getenv("OP25_AUDIO_PRIORITY_HOLDOFF_SEC", "1.5"))
 
-# Audio normalization: boost quiet P25 audio so VLC doesn't need high gain.
-# Target peak is ~80% of full scale (-2 dBFS) leaving headroom for MP3.
-NORMALIZE_ENABLED = str(os.getenv("OP25_AUDIO_NORMALIZE", "0")).strip().lower() not in ("0", "false", "no", "off")
-NORMALIZE_TARGET_PEAK = float(os.getenv("OP25_AUDIO_NORMALIZE_TARGET", "0.80"))  # fraction of full scale
-NORMALIZE_MAX_GAIN = float(os.getenv("OP25_AUDIO_NORMALIZE_MAX_GAIN", "2.5"))    # cap amplification
-
-# Audio normalization: boost quiet P25 audio so VLC doesn't need high gain.
+# Audio normalization: boost quiet P25 audio before encoding.
 # Target peak is ~80% of full scale (-2 dBFS) leaving headroom for MP3.
 NORMALIZE_ENABLED = str(os.getenv("OP25_AUDIO_NORMALIZE", "1")).strip().lower() not in ("0", "false", "no", "off")
 NORMALIZE_TARGET_PEAK = float(os.getenv("OP25_AUDIO_NORMALIZE_TARGET", "0.80"))  # fraction of full scale
@@ -81,6 +80,13 @@ JITTER_PREFILL_FRAMES = int(os.getenv("OP25_AUDIO_JITTER_FRAMES", "5"))
 # 15 frames × 20ms = 300ms of concealment before silence.
 PLC_MAX_FRAMES = int(os.getenv("OP25_AUDIO_PLC_FRAMES", "15"))
 PLC_FADE_START = int(os.getenv("OP25_AUDIO_PLC_FADE_START", "5"))  # start fading after N repeats
+
+# Local playback: write PCM directly to PipeWire via pw-cat, skipping the
+# Icecast encode-decode round-trip that VLC required.
+LOCAL_PLAY = str(os.getenv("OP25_AUDIO_LOCAL_PLAY", "1")).strip().lower() not in ("0", "false", "no", "off")
+LOCAL_PLAY_SINK = os.getenv("OP25_AUDIO_LOCAL_SINK", os.getenv("VLC_PULSE_SINK", ""))
+MUTE_FLAG = Path(os.getenv("OP25_AUDIO_MUTE_FLAG", "/run/scannerproject/op25/digital_local_mute"))
+_PA_RUNTIME_DIR = os.getenv("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
 
 
 def _log(message: str) -> None:
@@ -193,6 +199,11 @@ class AudioBridge:
         self._active_port: int | None = None
         self._port_last_audio: dict[int, float] = {}
 
+        # Local playback via pw-cat (direct PipeWire output).
+        self.local_proc: subprocess.Popen[bytes] | None = None
+        self._local_muted: bool = MUTE_FLAG.exists()
+        self._mute_check_counter: int = 0
+
     def _open_sockets(self) -> None:
         for port in self.ports:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -209,6 +220,71 @@ class AudioBridge:
             except OSError:
                 pass
         self.sockets.clear()
+
+    # -- Local playback (pw-cat → PipeWire) ----------------------------------
+
+    def _local_play_env(self) -> dict[str, str]:
+        env = os.environ.copy()
+        env["XDG_RUNTIME_DIR"] = _PA_RUNTIME_DIR
+        pulse_native = os.path.join(_PA_RUNTIME_DIR, "pulse", "native")
+        if os.path.exists(pulse_native):
+            env["PULSE_SERVER"] = f"unix:{pulse_native}"
+        if LOCAL_PLAY_SINK:
+            env["PULSE_SINK"] = LOCAL_PLAY_SINK
+        return env
+
+    def _start_local_play(self, reason: str) -> None:
+        self._stop_local_play()
+        if not LOCAL_PLAY:
+            return
+        cmd = [
+            "pw-cat", "--playback",
+            f"--rate={SAMPLE_RATE}",
+            f"--channels={CHANNELS}",
+            "--format=s16",
+            "--latency=100ms",
+            "-",
+        ]
+        if LOCAL_PLAY_SINK:
+            cmd.insert(-1, f"--target={LOCAL_PLAY_SINK}")
+        _log(f"starting local playback ({reason})")
+        try:
+            self.local_proc = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                env=self._local_play_env(),
+            )
+        except FileNotFoundError:
+            _log("pw-cat not found -- local playback disabled")
+
+    def _stop_local_play(self) -> None:
+        proc = self.local_proc
+        if proc is None:
+            return
+        self.local_proc = None
+        if proc.poll() is not None:
+            return
+        try:
+            proc.terminate()
+            proc.wait(timeout=2)
+        except Exception:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+
+    def _write_local(self, pcm: bytes) -> None:
+        proc = self.local_proc
+        if proc is None or proc.poll() is not None:
+            return
+        try:
+            proc.stdin.write(pcm)
+        except (BrokenPipeError, OSError):
+            self._start_local_play("pipe closed")
+
+    # -- Icecast output (ffmpeg) -----------------------------------------------
 
     def _ffmpeg_cmd(self) -> list[str]:
         mount_url = f"icecast://{ICECAST_USER}:{ICECAST_PASSWORD}@{ICECAST_HOST}:{ICECAST_PORT}/{ICECAST_MOUNT}"
@@ -394,11 +470,14 @@ class AudioBridge:
             self._start_ffmpeg("ffmpeg pipe closed")
 
     def _output_thread(self) -> None:
-        """Deliver audio to ffmpeg at a constant rate (one frame per tick).
+        """Deliver audio to ffmpeg and local playback at a constant rate.
 
         This thread runs independently of the UDP input loop, ensuring
         ffmpeg receives a smooth, clock-steady PCM stream. When no real
         audio is buffered, silence is delivered to keep the stream alive.
+
+        Local playback (pw-cat) gets the same frames when unmuted.
+        The mute flag file is polled every ~1 second.
         """
         next_tick = time.monotonic()
         flush_counter = 0
@@ -408,7 +487,7 @@ class AudioBridge:
                 time.sleep(max(0, next_tick - now))
             next_tick += OUTPUT_TICK_SEC
 
-            # Catch up if we fell behind (e.g. system load spike) — skip
+            # Catch up if we fell behind (e.g. system load spike) -- skip
             # frames rather than delivering a burst that causes jitter.
             if next_tick < time.monotonic() - 0.1:
                 next_tick = time.monotonic()
@@ -422,7 +501,27 @@ class AudioBridge:
 
             self._write_pcm(frame)
 
-            # Flush less aggressively — every 10 frames (200ms) instead
+            # Local playback: write the same frame to pw-cat.
+            if LOCAL_PLAY:
+                self._mute_check_counter += 1
+                if self._mute_check_counter >= 50:  # every ~1s (50 x 20ms)
+                    self._mute_check_counter = 0
+                    muted_now = MUTE_FLAG.exists()
+                    if muted_now != self._local_muted:
+                        self._local_muted = muted_now
+                        if muted_now:
+                            _log("local playback muted")
+                            self._stop_local_play()
+                        else:
+                            _log("local playback unmuted")
+                            self._start_local_play("unmuted")
+                if not self._local_muted:
+                    # Respawn pw-cat if it died.
+                    if self.local_proc is None or self.local_proc.poll() is not None:
+                        self._start_local_play("respawn")
+                    self._write_local(frame)
+
+            # Flush less aggressively -- every 10 frames (200ms) instead
             # of every write, reducing syscall overhead.
             flush_counter += 1
             if flush_counter >= 10:
@@ -431,6 +530,12 @@ class AudioBridge:
                 if proc and proc.stdin:
                     try:
                         proc.stdin.flush()
+                    except (BrokenPipeError, OSError):
+                        pass
+                lproc = self.local_proc
+                if lproc and lproc.stdin:
+                    try:
+                        lproc.stdin.flush()
                     except (BrokenPipeError, OSError):
                         pass
 
@@ -445,8 +550,16 @@ class AudioBridge:
         try:
             self._start_ffmpeg("bootstrap")
 
-            # Start the output thread — delivers audio to ffmpeg at a
-            # constant 20ms tick rate independent of input timing.
+            # Start local playback if enabled and not muted.
+            if LOCAL_PLAY and not self._local_muted:
+                self._start_local_play("bootstrap")
+            elif LOCAL_PLAY and self._local_muted:
+                _log("local playback muted at startup (mute flag present)")
+            elif not LOCAL_PLAY:
+                _log("local playback disabled (OP25_AUDIO_LOCAL_PLAY=0)")
+
+            # Start the output thread -- delivers audio to ffmpeg (and
+            # optionally pw-cat) at a constant 20ms tick rate.
             out_thread = threading.Thread(target=self._output_thread, daemon=True)
             out_thread.start()
 
@@ -465,6 +578,7 @@ class AudioBridge:
                     time.sleep(0.005)
         finally:
             self._stop_ffmpeg()
+            self._stop_local_play()
             self._close_sockets()
         return 0
 

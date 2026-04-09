@@ -2702,7 +2702,7 @@
               </div>
 
               <div class="btn-row">
-                <button class="action" id="btn-play-digital" title="Control VLC playback on the PC">VLC Play</button>
+                <button class="action" id="btn-play-digital" title="Mute/unmute local speaker">Unmute</button>
                 <button class="action" id="digital-stop">Stop</button>
                 <button class="action" id="digital-restart">Restart</button>
               </div>
@@ -9695,20 +9695,22 @@
       const button = vlcButtonFor(resolvedTarget);
       if (!targetState || !button) return;
       const stateValue = String(targetState.state || (targetState.running ? 'running' : 'idle'));
-      let label = 'VLC Play';
+      const isDig = resolvedTarget === 'digital';
+      let label = isDig ? 'Unmute' : 'VLC Play';
       if (stateValue === 'starting') {
-        label = 'VLC Starting...';
+        label = isDig ? 'Unmuting...' : 'VLC Starting...';
       } else if (stateValue === 'stopping') {
-        label = 'VLC Stopping...';
+        label = isDig ? 'Muting...' : 'VLC Stopping...';
       } else if (stateValue === 'running') {
-        label = 'VLC Stop';
+        label = isDig ? 'Mute' : 'VLC Stop';
       } else if (stateValue === 'error') {
-        label = 'VLC Retry';
+        label = isDig ? 'Retry' : 'VLC Retry';
       }
       button.textContent = label;
       button.dataset.vlcState = stateValue;
       button.disabled = Boolean(targetState.busy || stateValue === 'starting' || stateValue === 'stopping');
-      button.title = targetState.error ? `VLC ${resolvedTarget}: ${targetState.error}` : `VLC ${resolvedTarget}: ${stateValue}`;
+      const kind = isDig ? 'Speaker' : 'VLC';
+      button.title = targetState.error ? `${kind} ${resolvedTarget}: ${targetState.error}` : `${kind} ${resolvedTarget}: ${stateValue}`;
     }
 
     function renderVlcControls() {

@@ -1,4 +1,9 @@
-"""VLC playback control for local Icecast streams."""
+"""VLC playback control for local Icecast streams.
+
+Digital audio uses direct PipeWire output from the audio bridge (pw-cat)
+instead of VLC.  A file-based mute flag controls playback; this module
+creates/removes the flag when the UI toggles digital playback.
+"""
 import logging
 import os
 import re
@@ -7,6 +12,7 @@ import signal
 import subprocess
 import sys
 import time
+from pathlib import Path
 from typing import Optional
 
 try:
@@ -60,6 +66,11 @@ DEFAULT_MOUNTS = {
     "analog": PLAYER_MOUNT,
     "digital": DIGITAL_STREAM_MOUNT or PLAYER_MOUNT,
 }
+
+# Digital audio uses direct PipeWire output from the bridge.  The bridge
+# checks for this file to decide whether local playback is muted.
+DIGITAL_DIRECT_PLAY = str(os.getenv("DIGITAL_DIRECT_PLAY", "1")).strip().lower() not in ("0", "false", "no", "off")
+DIGITAL_MUTE_FLAG = Path(os.getenv("OP25_AUDIO_MUTE_FLAG", "/run/scannerproject/op25/digital_local_mute"))
 
 _MOUNT_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 _LOCAL_MONITOR_SCRIPT = os.path.join(
@@ -289,6 +300,9 @@ def _find_target_pid(target: str) -> Optional[int]:
 
 
 def _target_running(target: str) -> bool:
+    # Digital direct play: "running" means the mute flag is absent.
+    if target == "digital" and DIGITAL_DIRECT_PLAY:
+        return not DIGITAL_MUTE_FLAG.exists()
     pid = _read_pid(target)
     if pid and _pid_alive(pid) and _is_vlc_pid(pid):
         return True
@@ -326,10 +340,23 @@ def _mute_sdrtrunk_pulse_streams() -> None:
 
 
 def start_vlc(stream_url: str = "", target: str = DEFAULT_TARGET, mount: str = ""):
-    """Start target-scoped background VLC playback."""
+    """Start target-scoped background VLC playback.
+
+    For digital when DIGITAL_DIRECT_PLAY is enabled, this removes the
+    mute flag so the audio bridge's pw-cat output resumes.
+    """
     resolved_target = _normalize_target(target)
     if not resolved_target:
         return False, "invalid target"
+
+    # Digital direct play: unmute by removing the flag file.
+    if resolved_target == "digital" and DIGITAL_DIRECT_PLAY:
+        try:
+            DIGITAL_MUTE_FLAG.unlink(missing_ok=True)
+        except Exception as exc:
+            return False, str(exc)
+        return True, ""
+
     if mount and not _sanitize_mount(mount):
         return False, "invalid mount"
     url = _stream_url_for(resolved_target, mount) if mount else (str(stream_url or "").strip() or _stream_url_for(resolved_target))
@@ -381,10 +408,23 @@ def start_vlc(stream_url: str = "", target: str = DEFAULT_TARGET, mount: str = "
 
 
 def stop_vlc(target: str = DEFAULT_TARGET):
-    """Stop target-scoped VLC playback."""
+    """Stop target-scoped VLC playback.
+
+    For digital when DIGITAL_DIRECT_PLAY is enabled, this creates the
+    mute flag so the audio bridge's pw-cat output is silenced.
+    """
     resolved_target = _normalize_target(target)
     if not resolved_target:
         return False, "invalid target"
+
+    # Digital direct play: mute by creating the flag file.
+    if resolved_target == "digital" and DIGITAL_DIRECT_PLAY:
+        try:
+            DIGITAL_MUTE_FLAG.parent.mkdir(parents=True, exist_ok=True)
+            DIGITAL_MUTE_FLAG.touch()
+        except Exception as exc:
+            return False, str(exc)
+        return True, ""
 
     pid = _read_pid(resolved_target)
     if not pid:
