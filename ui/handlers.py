@@ -2331,10 +2331,12 @@ class Handler(BaseHTTPRequestHandler):
         transcode_enabled = False
         if not head_only:
             if transcode is None:
-                # Transcode both analog and digital so the browser audio
-                # element sees a clean, streaming-friendly MP3 without
-                # Xing headers that cause finite-duration misdetection.
-                transcode_enabled = bool(STREAM_PROXY_TRANSCODE_ANALOG_DEFAULT)
+                # Analog needs transcode for iOS 8 kHz compat; digital
+                # streams cleanly via passthrough now that the bridge
+                # encodes with -write_xing 0.
+                transcode_enabled = (
+                    STREAM_PROXY_TRANSCODE_ANALOG_DEFAULT and "digital" not in mount.lower()
+                )
             else:
                 transcode_enabled = bool(transcode)
         upstream = f"http://127.0.0.1:{ICECAST_PORT}/{mount}"

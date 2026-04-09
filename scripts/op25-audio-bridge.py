@@ -300,6 +300,8 @@ class AudioBridge:
             "-af", "aresample=async=1:first_pts=0,acompressor=threshold=-18dB:ratio=4:attack=5:release=50:makeup=2dB,alimiter=limit=0.95:attack=5:release=50",
             "-acodec", "libmp3lame",
             "-b:a", f"{BITRATE_KBPS}k",
+            "-write_xing", "0",
+            "-flush_packets", "1",
             "-content_type", "audio/mpeg",
             "-f", "mp3",
             mount_url,
