@@ -3094,6 +3094,13 @@
               <span class="config-label">BT Heal Auto</span>
               <span class="config-value" id="sitrep-bt-heal">--</span>
             </div>
+            <div class="config-row" style="margin-top:10px; flex-direction:column; align-items:stretch; gap:4px;">
+              <div style="display:flex; justify-content:space-between;">
+                <span class="config-label">PC Speaker</span>
+                <span class="config-value" id="sitrep-speaker-vol">--</span>
+              </div>
+              <input type="range" class="slider" id="sitrep-speaker-slider" min="0" max="100" step="5" value="100">
+            </div>
           </div>
         </div>
 
@@ -4677,6 +4684,8 @@
       sitrepDonglesMissing: document.getElementById('sitrep-dongles-missing'),
       sitrepDonglesEvents: document.getElementById('sitrep-dongles-events'),
       sitrepBtHeal: document.getElementById('sitrep-bt-heal'),
+      sitrepSpeakerVol: document.getElementById('sitrep-speaker-vol'),
+      sitrepSpeakerSlider: document.getElementById('sitrep-speaker-slider'),
       activityLog: document.getElementById('activity-log'),
       btnRestartAirband: document.getElementById('btn-restart-airband'),
       btnRestartGround: document.getElementById('btn-restart-ground'),
@@ -15416,6 +15425,31 @@
       }
       if (els.btnResetUsbHub) {
         els.btnResetUsbHub.addEventListener('click', () => resetUsbHub());
+      }
+      // PC Speaker volume slider
+      if (els.sitrepSpeakerSlider) {
+        let _volTimer = null;
+        els.sitrepSpeakerSlider.addEventListener('input', () => {
+          const pct = els.sitrepSpeakerSlider.value;
+          if (els.sitrepSpeakerVol) els.sitrepSpeakerVol.textContent = pct + '%';
+        });
+        els.sitrepSpeakerSlider.addEventListener('change', () => {
+          clearTimeout(_volTimer);
+          _volTimer = setTimeout(() => {
+            const pct = els.sitrepSpeakerSlider.value;
+            fetch('/api/volume', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'action=set&level=' + pct })
+              .then(r => r.json()).then(d => { if (els.sitrepSpeakerVol) els.sitrepSpeakerVol.textContent = (d.volume >= 0 ? d.volume + '%' : '--'); })
+              .catch(() => {});
+          }, 100);
+        });
+        // Fetch initial volume
+        fetch('/api/volume', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'action=get' })
+          .then(r => r.json()).then(d => {
+            if (d.volume >= 0) {
+              els.sitrepSpeakerSlider.value = d.volume;
+              if (els.sitrepSpeakerVol) els.sitrepSpeakerVol.textContent = d.volume + '%';
+            }
+          }).catch(() => {});
       }
       if (els.btnRebootPc) {
         els.btnRebootPc.addEventListener('click', () => rebootHostPc());

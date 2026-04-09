@@ -4791,6 +4791,33 @@ class Handler(BaseHTTPRequestHandler):
             result = enqueue_action({"type": "avoid_clear", "target": target})
             return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
 
+        if p == "/api/volume":
+            action = get_str("action", "get").strip().lower()
+            sink = get_str("sink", "47").strip()
+            _vol_env = os.environ.copy()
+            _vol_env["XDG_RUNTIME_DIR"] = "/run/user/1000"
+            if action == "set":
+                raw_level = get_str("level", "").strip()
+                try:
+                    level = max(0.0, min(1.5, float(raw_level) / 100.0))
+                except (ValueError, TypeError):
+                    return self._send(400, json.dumps({"ok": False, "error": "bad level"}), "application/json; charset=utf-8")
+                try:
+                    subprocess.run(["wpctl", "set-volume", sink, str(round(level, 2))],
+                                   env=_vol_env, timeout=2, check=True,
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception as exc:
+                    return self._send(500, json.dumps({"ok": False, "error": str(exc)}), "application/json; charset=utf-8")
+            try:
+                res = subprocess.run(["wpctl", "get-volume", sink],
+                                     env=_vol_env, timeout=2, capture_output=True, text=True, check=True)
+                raw = res.stdout.strip()
+                vol_frac = float(raw.split(":")[1].strip().split()[0])
+                vol_pct = round(vol_frac * 100)
+            except Exception:
+                vol_pct = -1
+            return self._send(200, json.dumps({"ok": True, "volume": vol_pct, "sink": sink}), "application/json; charset=utf-8")
+
         if p == "/api/vlc":
             action = get_str("action", "start").strip().lower()
             target = get_str("target", "").strip().lower()
