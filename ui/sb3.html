@@ -7808,11 +7808,11 @@
         const flt = obs.source_id || '--';
         const alt = obs.altitude_ft != null ? Math.round(obs.altitude_ft).toLocaleString() : '--';
         const prs = obs.pressure_hpa != null ? obs.pressure_hpa.toFixed(1) : '--';
-        const tmp = obs.temp_c != null ? obs.temp_c.toFixed(1) : '--';
+        const tmp = (obs.temp_c != null && obs.temp_c > -9000) ? obs.temp_c.toFixed(1) : '--';
         const dpt = (obs.dewpoint_c != null && obs.dewpoint_c > -9000) ? obs.dewpoint_c.toFixed(1) : '--';
-        const wdr = obs.wind_dir_deg != null ? Math.round(obs.wind_dir_deg) + '\u00B0' : '--';
-        const wsp = obs.wind_speed_kt != null ? Math.round(obs.wind_speed_kt) : '--';
-        const rh = obs.humidity_pct != null ? Math.round(obs.humidity_pct) + '%' : '--';
+        const wdr = (obs.wind_dir_deg != null && obs.wind_dir_deg > -9000) ? Math.round(obs.wind_dir_deg) + '\u00B0' : '--';
+        const wsp = (obs.wind_speed_kt != null && obs.wind_speed_kt > -9000) ? Math.round(obs.wind_speed_kt) : '--';
+        const rh = (obs.humidity_pct != null && obs.humidity_pct > -9000) ? Math.round(obs.humidity_pct) + '%' : '--';
         html += '<div class="wx-obs-row">'
           + '<div>' + tm + '</div>'
           + '<div>' + flt + '</div>'
