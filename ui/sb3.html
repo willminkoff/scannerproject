@@ -9266,6 +9266,11 @@
       });
       audioEl.addEventListener('ended', () => {
         tracker.waitingSinceTs = 0;
+        // Live streams should never "end" — force reconnect regardless
+        // of wantplay state so the player doesn't go dead.
+        if (!audioEl.paused || audioEl.dataset.wantplay === '1') {
+          audioEl.dataset.wantplay = '1';
+        }
         setEmbeddedPlayerState(audioEl, 'recovering', 'stream ended');
         maybeAutoRecoverAudio(audioEl, reloadFn, 'ended', true, { hardReset: true });
       });
