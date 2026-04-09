@@ -332,8 +332,6 @@ class AudioBridge:
         if self._active_port is not None:
             last = self._port_last_audio.get(self._active_port, 0.0)
             if (now - last) < PRIORITY_HOLDOFF_SEC:
-                # Holdoff active but no audio from this port — return nothing
-                # so the output stays silent rather than switching mid-gap.
                 return []
 
         # Pick the lowest-index (highest-priority) port that has audio.
