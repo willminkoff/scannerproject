@@ -48,18 +48,7 @@ class CombinedConfigLatencyDefaultsTests(unittest.TestCase):
 
 class VlcLatencyDefaultsTests(unittest.TestCase):
     def test_start_vlc_uses_low_latency_flags_and_default_cache(self):
-        with mock.patch.object(
-            vlc,
-            "_refresh_target_status",
-            return_value={
-                "running": False,
-                "process_running": False,
-                "mount": "ANALOG.mp3",
-                "stream_url": "http://127.0.0.1:8000/ANALOG.mp3",
-                "audio_sink": "",
-                "state": "idle",
-            },
-        ), mock.patch.object(
+        with mock.patch.object(vlc, "_target_running", return_value=False), mock.patch.object(
             vlc, "_stream_url_for", return_value="http://127.0.0.1:8000/ANALOG.mp3"
         ), mock.patch.object(
             vlc, "_vlc_launch_env", return_value={}
@@ -69,18 +58,6 @@ class VlcLatencyDefaultsTests(unittest.TestCase):
             vlc, "_write_pid"
         ), mock.patch.object(
             vlc, "_mute_sdrtrunk_pulse_streams"
-        ), mock.patch.object(
-            vlc,
-            "_probe_target_process",
-            return_value={
-                "pid": 12345,
-                "process_running": True,
-                "verified": True,
-                "actual_mount": "ANALOG.mp3",
-                "actual_stream_url": "http://127.0.0.1:8000/ANALOG.mp3",
-                "actual_audio_sink": "",
-                "error": "",
-            },
         ), mock.patch.object(
             vlc.subprocess, "Popen"
         ) as mock_popen:
@@ -100,18 +77,7 @@ class VlcLatencyDefaultsTests(unittest.TestCase):
     def test_start_vlc_fails_when_process_exits_immediately(self):
         proc = mock.Mock(pid=12345)
         proc.poll.return_value = 1
-        with mock.patch.object(
-            vlc,
-            "_refresh_target_status",
-            return_value={
-                "running": False,
-                "process_running": False,
-                "mount": "ANALOG.mp3",
-                "stream_url": "http://127.0.0.1:8000/ANALOG.mp3",
-                "audio_sink": "",
-                "state": "idle",
-            },
-        ), mock.patch.object(
+        with mock.patch.object(vlc, "_target_running", return_value=False), mock.patch.object(
             vlc, "_stream_url_for", return_value="http://127.0.0.1:8000/ANALOG.mp3"
         ), mock.patch.object(
             vlc, "_vlc_launch_env", return_value={}
@@ -124,6 +90,8 @@ class VlcLatencyDefaultsTests(unittest.TestCase):
         ) as mock_clear_pid, mock.patch.object(
             vlc, "_mute_sdrtrunk_pulse_streams"
         ), mock.patch.object(
+            vlc.time, "sleep"
+        ), mock.patch.object(
             vlc.subprocess, "Popen", return_value=proc
         ):
             ok, err = vlc.start_vlc(target="analog")
@@ -131,90 +99,6 @@ class VlcLatencyDefaultsTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("exited immediately", err)
         mock_clear_pid.assert_called_once_with("analog")
-
-    def test_vlc_status_returns_structured_targets(self):
-        with mock.patch.object(
-            vlc,
-            "_probe_target_process",
-            side_effect=[
-                {
-                    "pid": 111,
-                    "process_running": True,
-                    "verified": True,
-                    "actual_mount": "ANALOG.mp3",
-                    "actual_stream_url": "http://127.0.0.1:8000/ANALOG.mp3",
-                    "actual_audio_sink": "",
-                    "error": "",
-                },
-                {
-                    "pid": None,
-                    "process_running": False,
-                    "verified": False,
-                    "actual_mount": "",
-                    "actual_stream_url": "",
-                    "actual_audio_sink": "",
-                    "error": "",
-                },
-            ],
-        ):
-            status = vlc.vlc_status()
-
-        self.assertEqual("running", status["analog"]["state"])
-        self.assertTrue(status["analog"]["running"])
-        self.assertTrue(status["analog"]["verified"])
-        self.assertEqual(111, status["analog"]["pid"])
-        self.assertEqual("idle", status["digital"]["state"])
-        self.assertFalse(status["digital"]["running"])
-        self.assertIn("last_transition_ms", status["digital"])
-
-    def test_vlc_status_preserves_last_error_until_cleared(self):
-        try:
-            vlc._set_target_runtime(
-                "analog",
-                state="error",
-                pid=None,
-                mount="ANALOG.mp3",
-                stream_url="http://127.0.0.1:8000/ANALOG.mp3",
-                audio_sink="",
-                actual_mount="",
-                actual_stream_url="",
-                actual_audio_sink="",
-                error="startup verification timed out",
-                process_running=False,
-                verified=False,
-            )
-            with mock.patch.object(
-                vlc,
-                "_probe_target_process",
-                return_value={
-                    "pid": None,
-                    "process_running": False,
-                    "verified": False,
-                    "actual_mount": "",
-                    "actual_stream_url": "",
-                    "actual_audio_sink": "",
-                    "error": "",
-                },
-            ):
-                status = vlc.vlc_status()["analog"]
-
-            self.assertEqual("error", status["state"])
-            self.assertEqual("startup verification timed out", status["error"])
-        finally:
-            vlc._set_target_runtime(
-                "analog",
-                state="idle",
-                pid=None,
-                mount="ANALOG.mp3",
-                stream_url="http://127.0.0.1:8000/ANALOG.mp3",
-                audio_sink="",
-                actual_mount="",
-                actual_stream_url="",
-                actual_audio_sink="",
-                error="",
-                process_running=False,
-                verified=False,
-            )
 
     def test_prefer_configured_pulse_sink_uses_wpctl_when_node_name_matches(self):
         status_text = "Sinks:\n  77. bluez_output.C0_28_8D_34_6E_67.1\nSink endpoints:\n"

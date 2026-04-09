@@ -121,7 +121,7 @@ try:
     from .diagnostic import write_diagnostic_log
     from .spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
     from .system_stats import get_system_stats, read_bt_audio_heal_status
-    from .vlc import restart_vlc, start_vlc, stop_vlc, vlc_running, vlc_status
+    from .vlc import start_vlc, stop_vlc, vlc_running, vlc_status
     from .digital import (
         get_digital_manager,
         validate_digital_profile_id,
@@ -224,7 +224,7 @@ except ImportError:
     from ui.diagnostic import write_diagnostic_log
     from ui.spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
     from ui.system_stats import get_system_stats, read_bt_audio_heal_status
-    from ui.vlc import restart_vlc, start_vlc, stop_vlc, vlc_running, vlc_status
+    from ui.vlc import start_vlc, stop_vlc, vlc_running, vlc_status
     from ui.digital import (
         get_digital_manager,
         validate_digital_profile_id,
@@ -4798,24 +4798,21 @@ class Handler(BaseHTTPRequestHandler):
             valid_targets = ("analog", "digital")
             if target and target not in valid_targets:
                 return self._send(400, json.dumps({"ok": False, "error": "unknown target"}), "application/json; charset=utf-8")
-
-            def _vlc_payload(targets_map, requested_target: str = ""):
-                payload = {
-                    "ok": True,
-                    "targets": targets_map,
-                    "running": any(bool((targets_map.get(name) or {}).get("running")) for name in valid_targets),
-                }
-                if requested_target:
-                    selected = dict(targets_map.get(requested_target) or {})
-                    payload["target"] = requested_target
-                    payload.update(selected)
-                return payload
-
             if action == "status":
                 targets = vlc_status()
                 if target:
-                    return self._send(200, json.dumps(_vlc_payload(targets, target)), "application/json; charset=utf-8")
-                return self._send(200, json.dumps(_vlc_payload(targets)), "application/json; charset=utf-8")
+                    running = bool(targets.get(target))
+                    return self._send(200, json.dumps({
+                        "ok": True,
+                        "target": target,
+                        "running": running,
+                        "targets": targets,
+                    }), "application/json; charset=utf-8")
+                return self._send(200, json.dumps({
+                    "ok": True,
+                    "running": bool(vlc_running()),
+                    "targets": targets,
+                }), "application/json; charset=utf-8")
             if not target:
                 target = "analog"
             if action == "start":
@@ -4823,12 +4820,17 @@ class Handler(BaseHTTPRequestHandler):
             elif action == "stop":
                 ok, err = stop_vlc(target=target)
             elif action == "restart":
-                ok, err = restart_vlc(target=target, mount=mount)
+                stop_vlc(target=target)
+                ok, err = start_vlc(target=target, mount=mount)
             else:
                 return self._send(400, json.dumps({"ok": False, "error": "unknown action"}), "application/json; charset=utf-8")
             targets = vlc_status()
-            payload = _vlc_payload(targets, target)
-            payload["ok"] = bool(ok)
+            payload = {
+                "ok": ok,
+                "target": target,
+                "running": bool(targets.get(target)),
+                "targets": targets,
+            }
             if not ok:
                 payload["error"] = err or "command failed"
                 return self._send(500, json.dumps(payload), "application/json; charset=utf-8")

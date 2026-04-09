@@ -4313,7 +4313,7 @@
         pollTimer: null,
         elapsedTimer: null,
         decoderStartedAt: null,
-        lastMsgCount: 0,
+        lastMsgTs: 0,
         starting: false,
       },
       hpFavoritesSync: {
@@ -7676,7 +7676,7 @@
       stopWxElapsedTimer();
       // Clear the live feed
       if (els.wxLiveFeed) els.wxLiveFeed.innerHTML = '<div class="wx-empty" id="wx-feed-empty">No messages yet. Start a decoder above.</div>';
-      state.wxSounding.lastMsgCount = 0;
+      state.wxSounding.lastMsgTs = 0;
       await refreshWxSounding();
     }
 
@@ -7770,9 +7770,10 @@
       if (msgData && msgData.messages && els.wxLiveFeed) {
         const msgs = msgData.messages;
         if (msgs.length > 0) {
-          // Only re-render if count changed
-          if (msgs.length !== state.wxSounding.lastMsgCount) {
-            state.wxSounding.lastMsgCount = msgs.length;
+          // Only re-render if newest message changed
+          const newestTs = msgs[msgs.length - 1].timestamp || 0;
+          if (newestTs !== state.wxSounding.lastMsgTs) {
+            state.wxSounding.lastMsgTs = newestTs;
             let feedHtml = '';
             // Show newest first
             for (let i = msgs.length - 1; i >= 0; i--) {
@@ -7863,7 +7864,7 @@
     async function clearWxData() {
       try {
         await fetch('/api/wx/clear', { method: 'POST' });
-        state.wxSounding.lastMsgCount = 0;
+        state.wxSounding.lastMsgTs = 0;
         state.wxSounding.messages = null;
         state.wxSounding.sounding = null;
         if (els.wxLiveFeed) els.wxLiveFeed.innerHTML = '<div class="wx-empty">No messages yet. Start a decoder above.</div>';
