@@ -39,6 +39,13 @@ HEALTH_CHECK_SEC = float(os.getenv("OP25_AUDIO_HEALTH_CHECK_SEC", "5.0"))
 GATE_ENABLED = str(os.getenv("OP25_AUDIO_GATE", "1")).strip().lower() not in ("0", "false", "no", "off")
 GATE_RELEASE_SEC = float(os.getenv("OP25_AUDIO_GATE_RELEASE_SEC", "3.0"))
 
+# Priority gating: when multiple systems have audio, only play the
+# highest-priority one (first port in the list).  HOLDOFF prevents
+# rapid switching by keeping the priority channel active for a brief
+# period after its audio stops.
+PRIORITY_GATE = str(os.getenv("OP25_AUDIO_PRIORITY_GATE", "1")).strip().lower() not in ("0", "false", "no", "off")
+PRIORITY_HOLDOFF_SEC = float(os.getenv("OP25_AUDIO_PRIORITY_HOLDOFF_SEC", "1.5"))
+
 # Audio normalization: boost quiet P25 audio so VLC doesn't need high gain.
 # Target peak is ~80% of full scale (-2 dBFS) leaving headroom for MP3.
 NORMALIZE_ENABLED = str(os.getenv("OP25_AUDIO_NORMALIZE", "0")).strip().lower() not in ("0", "false", "no", "off")
@@ -181,6 +188,11 @@ class AudioBridge:
         self._last_voice_frame = self.silence_frame
         self._plc_count = 0  # consecutive concealment frames delivered
 
+        # Priority gating: track which port is currently "active" and when
+        # it last had audio, so lower-priority ports are suppressed.
+        self._active_port: int | None = None
+        self._port_last_audio: dict[int, float] = {}
+
     def _open_sockets(self) -> None:
         for port in self.ports:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -209,7 +221,7 @@ class AudioBridge:
             "-ar", str(SAMPLE_RATE),
             "-ac", str(CHANNELS),
             "-i", "pipe:0",
-            "-af", "aresample=async=1:first_pts=0,acompressor=threshold=-18dB:ratio=4:attack=5:release=50:makeup=2dB,alimiter=limit=0.95:attack=0.1:release=50",
+            "-af", "aresample=async=1:first_pts=0,acompressor=threshold=-18dB:ratio=4:attack=5:release=50:makeup=2dB,alimiter=limit=0.95:attack=5:release=50",
             "-acodec", "libmp3lame",
             "-b:a", f"{BITRATE_KBPS}k",
             "-content_type", "audio/mpeg",
@@ -276,13 +288,14 @@ class AudioBridge:
             _log("Icecast mount check failed; restarting ffmpeg")
             self._start_ffmpeg("icecast mount unavailable")
 
-    def _drain_packets(self) -> list[bytes]:
-        """Read all pending UDP packets from all sockets without blocking."""
+    def _drain_packets_by_port(self) -> dict[int, list[bytes]]:
+        """Read all pending UDP packets grouped by socket index."""
         if not self.sockets:
-            return []
-        packets: list[bytes] = []
+            return {}
+        by_port: dict[int, list[bytes]] = {}
         ready, _, _ = select.select(self.sockets, [], [], 0.005)
         for sock in ready:
+            idx = self.sockets.index(sock)
             while True:
                 try:
                     data, _ = sock.recvfrom(8192)
@@ -291,8 +304,44 @@ class AudioBridge:
                 except OSError:
                     break
                 if data:
-                    packets.append(data)
-        return packets
+                    by_port.setdefault(idx, []).append(data)
+        return by_port
+
+    def _select_priority_packets(self, by_port: dict[int, list[bytes]]) -> list[bytes]:
+        """Pick packets from the highest-priority port that has audio.
+
+        Port indices are priority-ordered (0 = highest).  Once a port is
+        active, it holds priority for PRIORITY_HOLDOFF_SEC after its last
+        packet to avoid rapid switching during brief gaps.
+        """
+        if not by_port:
+            return []
+        if not PRIORITY_GATE or len(self.sockets) < 2:
+            # Flatten all packets when priority gating is off.
+            return [pkt for pkts in by_port.values() for pkt in pkts]
+
+        now = time.time()
+        for idx in by_port:
+            self._port_last_audio[idx] = now
+
+        # If the currently active port still has audio, keep it.
+        if self._active_port is not None and self._active_port in by_port:
+            return by_port[self._active_port]
+
+        # If the currently active port is within its holdoff window, stay.
+        if self._active_port is not None:
+            last = self._port_last_audio.get(self._active_port, 0.0)
+            if (now - last) < PRIORITY_HOLDOFF_SEC:
+                # Holdoff active but no audio from this port — return nothing
+                # so the output stays silent rather than switching mid-gap.
+                return []
+
+        # Pick the lowest-index (highest-priority) port that has audio.
+        for idx in sorted(by_port.keys()):
+            self._active_port = idx
+            return by_port[idx]
+
+        return []
 
     def _mix_packets(self, packets: list[bytes]) -> bytes:
         cleaned = [_normalize_pcm(packet) for packet in packets if packet]
@@ -403,10 +452,11 @@ class AudioBridge:
             out_thread = threading.Thread(target=self._output_thread, daemon=True)
             out_thread.start()
 
-            # Input loop: drain UDP packets, mix, push to ring buffer.
+            # Input loop: drain UDP packets, select priority, push to ring buffer.
             while self.running:
                 self._ensure_ffmpeg()
-                packets = self._drain_packets()
+                by_port = self._drain_packets_by_port()
+                packets = self._select_priority_packets(by_port)
                 if packets:
                     self.last_audio_at = time.time()
                     pcm = self._mix_packets(packets)
