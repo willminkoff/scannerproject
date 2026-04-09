@@ -7,6 +7,7 @@ RE_LOG_SCAN = re.compile(r'^\s*log_scan_activity\s*=', re.I)
 RE_STATS_PATH = re.compile(r'^\s*stats_filepath\s*=', re.I)
 RE_SQUELCH_THRESHOLD = re.compile(r'^\s*squelch_threshold\s*=', re.I)
 RE_SQUELCH_SNR_THRESHOLD = re.compile(r'^\s*squelch_snr_threshold\s*=', re.I)
+RE_WX_DECODER = re.compile(r'^\s*wx_decoder\s*=', re.I)
 RE_INDEX = re.compile(r'^\s*index\s*=\s*(\d+)\s*;', re.I)
 RE_SERIAL = re.compile(r'^\s*serial\s*=\s*"[^\"]*"\s*;', re.I)
 RE_ICECAST_BLOCK = re.compile(r'\{\s*[^{}]*type\s*=\s*"icecast"[^{}]*\}', re.S)
@@ -42,6 +43,9 @@ def extract_top_level_settings(text: str) -> list:
         if RE_SQUELCH_THRESHOLD.match(line):
             continue
         if RE_SQUELCH_SNR_THRESHOLD.match(line):
+            continue
+        # wx_decoder is profile-specific; must not leak into combined config.
+        if RE_WX_DECODER.match(line):
             continue
         lines.append(line.rstrip())
     return lines

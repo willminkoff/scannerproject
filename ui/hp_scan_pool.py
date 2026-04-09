@@ -1,10 +1,13 @@
 """HomePatrol full-database scan pool builder."""
 from __future__ import annotations
 
+import logging
 import math
 import os
 import sqlite3
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 _EARTH_RADIUS_MILES = 3958.7613
@@ -99,11 +102,16 @@ class ScanPoolBuilder:
     def _bootstrap_indexes(self) -> None:
         if self._indexes_ready:
             return
+        if not Path(self.db_path).is_file():
+            logger.warning("hp_scan_pool: DB not found at %s — scan pool features disabled", self.db_path)
+            return
         conn = sqlite3.connect(self.db_path)
         try:
             self._ensure_indexes(conn)
             conn.commit()
             self._indexes_ready = True
+        except Exception:
+            logger.warning("hp_scan_pool: failed to bootstrap indexes from %s", self.db_path, exc_info=True)
         finally:
             conn.close()
 
@@ -206,6 +214,9 @@ class ScanPoolBuilder:
         )
         tags = self._normalize_service_tags(service_tags)
         if not tags:
+            return {"trunked_sites": [], "conventional": []}
+
+        if not Path(self.db_path).is_file():
             return {"trunked_sites": [], "conventional": []}
 
         conn = sqlite3.connect(self.db_path)
