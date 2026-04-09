@@ -2329,13 +2329,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send_head(400)
             return self._send(400, "invalid mount", "text/plain; charset=utf-8")
         transcode_enabled = False
-        is_digital = "digital" in mount.lower()
         if not head_only:
             if transcode is None:
-                # All mounts go through ffmpeg so the browser audio element
-                # gets clean MP3 framing.  Analog is re-encoded (iOS 8 kHz
-                # compat); digital uses stream copy (no re-encode).
-                transcode_enabled = bool(STREAM_PROXY_TRANSCODE_ANALOG_DEFAULT) or is_digital
+                # All mounts go through ffmpeg re-encode so browser audio
+                # elements get clean, streaming-friendly MP3 framing.
+                transcode_enabled = True
             else:
                 transcode_enabled = bool(transcode)
         upstream = f"http://127.0.0.1:{ICECAST_PORT}/{mount}"
@@ -2343,48 +2341,39 @@ class Handler(BaseHTTPRequestHandler):
         if transcode_enabled:
             proc = None
             try:
-                if is_digital:
-                    # Digital: stream copy (no re-encode) — just fix framing
-                    # for browser audio elements. Near-zero CPU.
-                    cmd = [
-                        "ffmpeg",
-                        "-nostdin",
-                        "-hide_banner",
-                        "-loglevel", "error",
-                        "-fflags", "+nobuffer+discardcorrupt",
-                        "-probesize", "131072",
-                        "-analyzeduration", "500000",
-                        "-f", "mp3",
-                        "-i", upstream,
-                        "-vn",
-                        "-c:a", "copy",
-                        "-write_xing", "0",
-                        "-flush_packets", "1",
-                        "-f", "mp3",
-                        "pipe:1",
-                    ]
-                else:
-                    # Analog: re-encode for iOS 8 kHz compatibility.
-                    cmd = [
-                        "ffmpeg",
-                        "-nostdin",
-                        "-hide_banner",
-                        "-loglevel", "error",
-                        "-fflags", "+nobuffer+discardcorrupt",
-                        "-probesize", "131072",
-                        "-analyzeduration", "500000",
-                        "-f", "mp3",
-                        "-i", upstream,
-                        "-vn",
-                        "-ac", "1",
-                        "-ar", str(STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ),
-                        "-c:a", "libmp3lame",
-                        "-b:a", f"{STREAM_PROXY_TRANSCODE_BITRATE_KBPS}k",
-                        "-write_xing", "0",
-                        "-flush_packets", "1",
-                        "-f", "mp3",
-                        "pipe:1",
-                    ]
+                cmd = [
+                    "ffmpeg",
+                    "-nostdin",
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-fflags",
+                    "+nobuffer+discardcorrupt",
+                    "-probesize",
+                    "131072",
+                    "-analyzeduration",
+                    "500000",
+                    "-f",
+                    "mp3",
+                    "-i",
+                    upstream,
+                    "-vn",
+                    "-ac",
+                    "1",
+                    "-ar",
+                    str(STREAM_PROXY_TRANSCODE_SAMPLE_RATE_HZ),
+                    "-c:a",
+                    "libmp3lame",
+                    "-b:a",
+                    f"{STREAM_PROXY_TRANSCODE_BITRATE_KBPS}k",
+                    "-write_xing",
+                    "0",
+                    "-flush_packets",
+                    "1",
+                    "-f",
+                    "mp3",
+                    "pipe:1",
+                ]
                 proc = subprocess.Popen(
                     cmd,
                     stdout=subprocess.PIPE,
