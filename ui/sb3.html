@@ -4144,7 +4144,6 @@
       applyTimeout: null,
       pendingApply: { airband: null, ground: null },
       filterTimeout: null,
-      streamRecoveryTimers: { analog: [], digital: [] },
       userActivatedEmbedAudio: { analog: false, digital: false },
       latencyTest: {
         running: false,
@@ -4201,8 +4200,8 @@
         popupOpen: false,
       },
       vlc: {
-        analog: { running: false, busy: false },
-        digital: { running: false, busy: false },
+        analog: { running: false, busy: false, state: 'idle', error: '', lastTransitionMs: 0, pid: null, mount: '', processRunning: false, verified: false },
+        digital: { running: false, busy: false, state: 'idle', error: '', lastTransitionMs: 0, pid: null, mount: '', processRunning: false, verified: false },
       },
       airband: {
         gain: 32.8,
@@ -8909,51 +8908,32 @@
       );
     }
 
+    function embeddedStreamHealthy(audioEl) {
+      return isDigitalAudioElement(audioEl) ? digitalStreamHealthyForPlayer() : analogStreamHealthyForPlayer();
+    }
+
+    function embeddedRecoveryPlan(audioEl) {
+      if (isLikelyIOSClient()) {
+        return [
+          { delayMs: 2000, hardReset: true },
+          { delayMs: 8000, hardReset: true },
+        ];
+      }
+      return [
+        { delayMs: 1200, hardReset: false },
+        { delayMs: 3500, hardReset: true },
+        { delayMs: 7000, hardReset: true },
+      ];
+    }
+
     function scheduleStreamRecovery(kind, reason, forcePlay = false) {
       const normalized = kind === 'digital' ? 'digital' : 'analog';
       const reloadFn = normalized === 'digital' ? reloadDigitalStream : reloadAnalogStream;
       const audioEl = normalized === 'digital' ? els.audioPlayerDigital : els.audioPlayerAnalog;
-      const timers = state.streamRecoveryTimers?.[normalized] || [];
-      if (timers.length) {
-        timers.forEach((id) => clearTimeout(id));
-      }
-      state.streamRecoveryTimers[normalized] = [];
-      // Preserve wantplay before any browser events can clear it
       if (forcePlay && audioEl) {
         audioEl.dataset.wantplay = '1';
       }
-      // Determine if we should attempt recovery: either forcePlay or wantplay is set
-      const shouldRecover = forcePlay || (audioEl && audioEl.dataset.wantplay === '1');
-      if (!shouldRecover) return;
-      const isiOS = isLikelyIOSClient();
-      // iOS Safari: pause immediately so the player shows a clean paused
-      // state instead of an infinite spinner while the stream is down.
-      // The recovery will reload and the native controls will show a play
-      // button the user can tap if auto-play is blocked.
-      if (isiOS && audioEl && !audioEl.paused) {
-        try { audioEl.pause(); } catch(e) {}
-      }
-      // iOS Safari: multiple rapid load() calls cause an infinite spinner
-      // because each interrupts the previous. Use fewer, wider-spaced
-      // attempts on iOS so the browser has time to settle.
-      const plan = isiOS ? [
-        { delayMs: 2000, hardReset: true },
-        { delayMs: 8000, hardReset: true },
-      ] : [
-        { delayMs: 1200, hardReset: false },
-        { delayMs: 3500, hardReset: true },
-        { delayMs: 7000, hardReset: true },
-        { delayMs: 12000, hardReset: true },
-      ];
-      plan.forEach(({ delayMs, hardReset }, index) => {
-        const timerId = setTimeout(() => {
-          // Only recover if player still wants to play
-          if (audioEl && audioEl.dataset.wantplay === '1') {
-            reloadFn(`${reason}-${index + 1}`, true, { hardReset });
-          }
-        }, delayMs);
-        state.streamRecoveryTimers[normalized].push(timerId);
-      });
+      startEmbeddedRecovery(audioEl, reloadFn, reason, { forcePlay: Boolean(forcePlay), immediate: false });
     }
 
     function getAudioRecoverTracker(audioEl) {
@@ -8972,10 +8952,90 @@
           userPauseHintTs: 0,
           digitalPrimeTs: 0,
           analogPrimeTs: 0,
+          recoveryTimer: null,
+          recoveryReason: '',
+          recoveryAttempt: 0,
+          playerState: 'idle',
+          lastError: '',
         };
         audioRecoverState.set(audioEl, tracker);
       }
       return tracker;
+    }
+
+    function setEmbeddedPlayerState(audioEl, nextState, error = '') {
+      if (!audioEl) return;
+      const tracker = getAudioRecoverTracker(audioEl);
+      if (!tracker) return;
+      tracker.playerState = String(nextState || 'idle');
+      tracker.lastError = String(error || '');
+      audioEl.dataset.playerState = tracker.playerState;
+      audioEl.dataset.playerError = tracker.lastError ? '1' : '0';
+      const label = audioTargetLabel(audioEl);
+      audioEl.title = tracker.lastError
+        ? `${label} player ${tracker.playerState}: ${tracker.lastError}`
+        : `${label} player ${tracker.playerState}`;
+    }
+
+    function clearEmbeddedRecovery(audioEl) {
+      const tracker = getAudioRecoverTracker(audioEl);
+      if (!tracker) return;
+      if (tracker.recoveryTimer) {
+        clearTimeout(tracker.recoveryTimer);
+        tracker.recoveryTimer = null;
+      }
+      tracker.recoveryReason = '';
+      tracker.recoveryAttempt = 0;
+    }
+
+    function startEmbeddedRecovery(audioEl, reloadFn, reason, options = {}) {
+      if (!audioEl || typeof reloadFn !== 'function') return;
+      if (latencyTestOwnsAudio(audioEl)) return;
+      const tracker = getAudioRecoverTracker(audioEl);
+      if (!tracker) return;
+      const forcePlay = Boolean(options.forcePlay || audioEl.dataset.wantplay === '1');
+      if (!forcePlay) return;
+      if (tracker.recoveryTimer) return;
+      const plan = embeddedRecoveryPlan(audioEl);
+      const reasonLabel = String(reason || 'recover').trim() || 'recover';
+      const immediate = Boolean(options.immediate);
+      const hardResetFirst = Boolean(options.hardReset);
+      tracker.recoveryReason = reasonLabel;
+      setEmbeddedPlayerState(audioEl, embeddedStreamHealthy(audioEl) ? 'recovering' : 'connecting', '');
+
+      const queueAttempt = (index) => {
+        if (!audioEl || audioEl.dataset.wantplay !== '1') {
+          clearEmbeddedRecovery(audioEl);
+          setEmbeddedPlayerState(audioEl, 'idle', '');
+          return;
+        }
+        if (index >= plan.length) {
+          clearEmbeddedRecovery(audioEl);
+          audioEl.dataset.wantplay = '0';
+          try { audioEl.pause(); } catch (e) {}
+          setEmbeddedPlayerState(audioEl, 'error', `${reasonLabel} failed after ${plan.length} retries`);
+          return;
+        }
+        const step = plan[index];
+        const delayMs = (index === 0 && immediate) ? 0 : Number(step.delayMs || 0);
+        tracker.recoveryTimer = setTimeout(() => {
+          tracker.recoveryTimer = null;
+          if (audioEl.dataset.wantplay !== '1') {
+            clearEmbeddedRecovery(audioEl);
+            setEmbeddedPlayerState(audioEl, 'idle', '');
+            return;
+          }
+          tracker.recoverLastTs = Date.now();
+          tracker.recoveryAttempt = index + 1;
+          setEmbeddedPlayerState(audioEl, embeddedStreamHealthy(audioEl) ? 'recovering' : 'connecting', '');
+          reloadFn(`${reasonLabel}-${index + 1}`, true, {
+            hardReset: Boolean((index === 0 && hardResetFirst) || step.hardReset),
+          });
+          queueAttempt(index + 1);
+        }, delayMs);
+      };
+
+      queueAttempt(0);
     }
 
     function clearAudioWaitingTimer(audioEl) {
@@ -9016,9 +9076,11 @@
       const cooldownMs = audioRecoverCooldownMs(audioEl);
       if ((now - tracker.recoverLastTs) < cooldownMs) return;
       tracker.recoverLastTs = now;
-      const forcePlay = Boolean(wantsPlay);
-      const hardReset = Boolean(options && options.hardReset);
-      reloadFn(`auto-${reason}`, forcePlay, { hardReset });
+      startEmbeddedRecovery(audioEl, reloadFn, `auto-${reason}`, {
+        forcePlay: Boolean(wantsPlay),
+        hardReset: Boolean(options && options.hardReset),
+        immediate: true,
+      });
     }
 
     function checkAudioProgress(audioEl, reloadFn) {
@@ -9084,11 +9146,16 @@
           // already wanted — keep it
         }
         tracker.playRequestTs = Date.now();
+        setEmbeddedPlayerState(audioEl, 'connecting', '');
         if (isAnalogAudioElement(audioEl) && analogPlayerNeedsReload(audioEl)) {
           const now = Date.now();
           if ((now - Number(tracker.analogPrimeTs || 0)) > 1500) {
             tracker.analogPrimeTs = now;
-            reloadAnalogStream('play-prime', true, { hardReset: true });
+            startEmbeddedRecovery(audioEl, reloadFn, 'play-prime', {
+              forcePlay: true,
+              hardReset: true,
+              immediate: true,
+            });
             return;
           }
         }
@@ -9096,7 +9163,11 @@
           const now = Date.now();
           if ((now - Number(tracker.digitalPrimeTs || 0)) > 1500) {
             tracker.digitalPrimeTs = now;
-            reloadDigitalStream('play-prime', true, { hardReset: true });
+            startEmbeddedRecovery(audioEl, reloadFn, 'play-prime', {
+              forcePlay: true,
+              hardReset: true,
+              immediate: true,
+            });
             return;
           }
         }
@@ -9116,19 +9187,26 @@
             audioEl.dataset.wantplay = '0';
             const pauseKind = isAnalog ? 'analog' : 'digital';
             state.userActivatedEmbedAudio[pauseKind] = false;
+            clearEmbeddedRecovery(audioEl);
+            setEmbeddedPlayerState(audioEl, 'idle', '');
             return;
           }
           // Stream is unhealthy — treat as backend-triggered pause, keep wantplay
         }
         if (audioEl.dataset.wantplay === '1') {
           maybeAutoRecoverAudio(audioEl, reloadFn, 'paused', true);
+        } else {
+          clearEmbeddedRecovery(audioEl);
+          setEmbeddedPlayerState(audioEl, 'idle', '');
         }
       });
       audioEl.addEventListener('playing', () => {
         clearAudioWaitingTimer(audioEl);
+        clearEmbeddedRecovery(audioEl);
         tracker.lastPlayingTs = Date.now();
         tracker.waitingSinceTs = 0;
         markAudioProgress(audioEl);
+        setEmbeddedPlayerState(audioEl, 'playing', '');
       });
       audioEl.addEventListener('canplay', () => {
         clearAudioWaitingTimer(audioEl);
@@ -9136,6 +9214,9 @@
         tracker.waitingSinceTs = 0;
         nudgeLiveAudioToSeekableEnd(audioEl);
         markAudioProgress(audioEl);
+        if (!audioEl.paused || audioEl.dataset.wantplay === '1') {
+          setEmbeddedPlayerState(audioEl, audioEl.paused ? 'connecting' : 'playing', '');
+        }
       });
       audioEl.addEventListener('loadedmetadata', () => {
         nudgeLiveAudioToSeekableEnd(audioEl);
@@ -9163,21 +9244,30 @@
         const src = (audioEl.currentSrc || audioEl.src || '').split('?')[0];
         const suffix = src ? ` (${src})` : '';
         logActivity(`${targetLabel} player media error code ${codeLabel}${suffix}`, 'warn', `audio-error-${targetLabel}-${codeLabel}`);
+        setEmbeddedPlayerState(audioEl, 'recovering', `media error ${codeLabel}`);
         // Don't permanently latch transcode mode — errors are usually
         // transient mount drops that resolve on the next retry.
         maybeAutoRecoverAudio(audioEl, reloadFn, 'error', true, { hardReset: true });
       });
       audioEl.addEventListener('emptied', () => {
         tracker.waitingSinceTs = 0;
+        setEmbeddedPlayerState(audioEl, 'recovering', 'stream emptied');
         maybeAutoRecoverAudio(audioEl, reloadFn, 'emptied', true, { hardReset: true });
       });
       audioEl.addEventListener('ended', () => {
         tracker.waitingSinceTs = 0;
+        setEmbeddedPlayerState(audioEl, 'recovering', 'stream ended');
         maybeAutoRecoverAudio(audioEl, reloadFn, 'ended', true, { hardReset: true });
       });
     }
 
     function setupAudioAutoRecover() {
+      if (els.audioPlayerAnalog) {
+        setEmbeddedPlayerState(els.audioPlayerAnalog, 'idle', '');
+      }
+      if (els.audioPlayerDigital) {
+        setEmbeddedPlayerState(els.audioPlayerDigital, 'idle', '');
+      }
       bindAudioAutoRecover(els.audioPlayerAnalog, reloadAnalogStream);
       bindAudioAutoRecover(els.audioPlayerDigital, reloadDigitalStream);
     }
@@ -9591,21 +9681,57 @@
       return normalizeVlcTarget(target) === 'digital' ? state.digitalStreamMount : state.streamMount;
     }
 
+    function setVlcTargetState(target, patch = {}) {
+      const targetState = vlcStateFor(target);
+      if (!targetState || !patch || typeof patch !== 'object') return targetState;
+      Object.assign(targetState, patch);
+      return targetState;
+    }
+
+    function renderVlcButton(target) {
+      const resolvedTarget = normalizeVlcTarget(target);
+      const targetState = vlcStateFor(resolvedTarget);
+      const button = vlcButtonFor(resolvedTarget);
+      if (!targetState || !button) return;
+      const stateValue = String(targetState.state || (targetState.running ? 'running' : 'idle'));
+      let label = 'VLC Play';
+      if (stateValue === 'starting') {
+        label = 'VLC Starting...';
+      } else if (stateValue === 'stopping') {
+        label = 'VLC Stopping...';
+      } else if (stateValue === 'running') {
+        label = 'VLC Stop';
+      } else if (stateValue === 'error') {
+        label = 'VLC Retry';
+      }
+      button.textContent = label;
+      button.dataset.vlcState = stateValue;
+      button.disabled = Boolean(targetState.busy || stateValue === 'starting' || stateValue === 'stopping');
+      button.title = targetState.error ? `VLC ${resolvedTarget}: ${targetState.error}` : `VLC ${resolvedTarget}: ${stateValue}`;
+    }
+
+    function renderVlcControls() {
+      renderVlcButton('analog');
+      renderVlcButton('digital');
+    }
+
     function applyVlcTargetsStatus(targets) {
-      const analogRunning = !!(typeof targets?.analog === 'object' ? targets.analog.running : targets?.analog);
-      const digitalRunning = !!(typeof targets?.digital === 'object' ? targets.digital.running : targets?.digital);
-      const analogBtn = vlcButtonFor('analog');
-      const digitalBtn = vlcButtonFor('digital');
-      state.vlc.analog.running = analogRunning;
-      state.vlc.digital.running = digitalRunning;
-      if (analogBtn) {
-        analogBtn.textContent = analogRunning ? 'VLC Stop' : 'VLC Play';
-        analogBtn.dataset.vlcState = analogRunning ? 'running' : 'stopped';
-      }
-      if (digitalBtn) {
-        digitalBtn.textContent = digitalRunning ? 'VLC Stop' : 'VLC Play';
-        digitalBtn.dataset.vlcState = digitalRunning ? 'running' : 'stopped';
-      }
+      ['analog', 'digital'].forEach((target) => {
+        const raw = targets && typeof targets[target] === 'object'
+          ? targets[target]
+          : { running: !!(targets && targets[target]), state: targets && targets[target] ? 'running' : 'idle' };
+        setVlcTargetState(target, {
+          running: !!raw.running,
+          state: String(raw.state || (raw.running ? 'running' : 'idle')),
+          error: String(raw.error || ''),
+          lastTransitionMs: Number(raw.last_transition_ms || 0),
+          pid: Number(raw.pid || 0) || null,
+          mount: String(raw.mount || ''),
+          processRunning: !!raw.process_running,
+          verified: raw.verified !== false && (!!raw.running || !!raw.verified),
+        });
+      });
+      renderVlcControls();
       updateSitrep();
     }
 
@@ -9623,11 +9749,10 @@
       return { analog: !!res.running, digital: false };
     }
 
-    function scheduleVlcStatusRefresh(delayMs) {
-      const waitMs = Number.isFinite(delayMs) ? Math.max(0, delayMs) : 0;
-      window.setTimeout(() => {
-        refreshVlcStatus();
-      }, waitMs);
+    function waitMs(delayMs) {
+      return new Promise((resolve) => {
+        window.setTimeout(resolve, Math.max(0, Number(delayMs) || 0));
+      });
     }
 
     async function refreshVlcStatus() {
@@ -9641,52 +9766,134 @@
       }
     }
 
+    async function waitForVlcSettledState(target, expectedRunning, options = {}) {
+      const resolvedTarget = normalizeVlcTarget(target);
+      const timeoutMs = Math.max(500, Number(options.timeoutMs || 4000));
+      const pollMs = Math.max(150, Number(options.pollMs || 250));
+      const startedAt = Date.now();
+      let lastTargets = null;
+      while ((Date.now() - startedAt) < timeoutMs) {
+        const targets = await fetchVlcTargetsStatus(resolvedTarget);
+        if (targets) {
+          lastTargets = targets;
+          applyVlcTargetsStatus(targets);
+          const status = targets[resolvedTarget] && typeof targets[resolvedTarget] === 'object'
+            ? targets[resolvedTarget]
+            : { running: !!targets[resolvedTarget], state: !!targets[resolvedTarget] ? 'running' : 'idle' };
+          const backendState = String(status.state || (status.running ? 'running' : 'idle'));
+          const backendRunning = !!status.running;
+          if (backendState === 'error') {
+            return {
+              ok: false,
+              targets,
+              error: String(status.error || 'backend entered error state'),
+            };
+          }
+          if (backendState !== 'starting' && backendState !== 'stopping' && backendRunning === expectedRunning) {
+            return { ok: true, targets };
+          }
+        }
+        await waitMs(pollMs);
+      }
+      return {
+        ok: false,
+        targets: lastTargets,
+        error: 'playback status timeout',
+      };
+    }
+
+    async function runVlcCommand(target, action, options = {}) {
+      const resolvedTarget = normalizeVlcTarget(target);
+      const targetState = vlcStateFor(resolvedTarget);
+      if (!targetState || targetState.busy) {
+        return { ok: false, skipped: true, error: 'busy' };
+      }
+      const pendingState = action === 'stop' ? 'stopping' : 'starting';
+      const expectedRunning = action !== 'stop';
+      targetState.busy = true;
+      setVlcTargetState(resolvedTarget, {
+        state: pendingState,
+        error: '',
+      });
+      renderVlcControls();
+      try {
+        const res = await postAPI('/api/vlc', {
+          action,
+          target: resolvedTarget,
+          mount: options.mount || vlcMountFor(resolvedTarget),
+        });
+        if (res && res.targets && typeof res.targets === 'object') {
+          applyVlcTargetsStatus(res.targets);
+        }
+        if (!res || !res.ok) {
+          const error = formatApiError(res, `VLC ${action} failed`);
+          setVlcTargetState(resolvedTarget, {
+            running: false,
+            state: 'error',
+            error,
+          });
+          renderVlcControls();
+          return { ok: false, error, response: res };
+        }
+        const settled = await waitForVlcSettledState(resolvedTarget, expectedRunning, options);
+        if (!settled.ok) {
+          const error = String(settled.error || 'playback status timeout');
+          setVlcTargetState(resolvedTarget, {
+            running: false,
+            state: 'error',
+            error,
+          });
+          renderVlcControls();
+          return { ok: false, error, response: res, targets: settled.targets };
+        }
+        return { ok: true, response: res, targets: settled.targets || res.targets };
+      } catch (e) {
+        const error = messageFromError(e, `VLC ${action} failed`);
+        setVlcTargetState(resolvedTarget, {
+          running: false,
+          state: 'error',
+          error,
+        });
+        renderVlcControls();
+        return { ok: false, error };
+      } finally {
+        targetState.busy = false;
+        renderVlcControls();
+      }
+    }
+
     async function toggleVlcPlayback(target) {
       const resolvedTarget = normalizeVlcTarget(target);
       const targetState = vlcStateFor(resolvedTarget);
-      const button = vlcButtonFor(resolvedTarget);
-      if (!targetState || !button || targetState.busy) return;
-      targetState.busy = true;
-      button.disabled = true;
+      if (!targetState || targetState.busy) return;
       try {
         const liveTargets = await fetchVlcTargetsStatus(resolvedTarget);
         if (liveTargets) {
           applyVlcTargetsStatus(liveTargets);
         }
-        const targetRunning = liveTargets ? !!liveTargets[resolvedTarget] : !!targetState.running;
+        const liveTarget = liveTargets && typeof liveTargets[resolvedTarget] === 'object'
+          ? liveTargets[resolvedTarget]
+          : null;
+        if (liveTarget && (liveTarget.state === 'starting' || liveTarget.state === 'stopping')) {
+          return;
+        }
+        const targetRunning = liveTarget ? !!liveTarget.running : !!targetState.running;
         const action = targetRunning ? 'stop' : 'start';
-        const res = await postAPI('/api/vlc', {
-          action,
-          target: resolvedTarget,
-          mount: vlcMountFor(resolvedTarget),
-        });
-        if (res && res.ok) {
-          if (res.targets && typeof res.targets === 'object') {
-            applyVlcTargetsStatus(res.targets);
-          } else {
-            applyVlcTargetsStatus({
-              analog: resolvedTarget === 'analog' ? action === 'start' : state.vlc.analog.running,
-              digital: resolvedTarget === 'digital' ? action === 'start' : state.vlc.digital.running,
-            });
-          }
+        const result = await runVlcCommand(resolvedTarget, action, { timeoutMs: 4500, pollMs: 250 });
+        if (result.ok) {
           const label = resolvedTarget === 'digital' ? 'Digital' : 'Analog';
           logActivity(
             `${label} local playback ${action === 'start' ? 'started' : 'stopped'}`,
             'info',
             `vlc-${resolvedTarget}-${action}`
           );
-          scheduleVlcStatusRefresh(350);
-          scheduleVlcStatusRefresh(1500);
         } else {
-          console.error('VLC action failed:', res);
+          console.error('VLC action failed:', result);
           await refreshVlcStatus();
         }
       } catch (e) {
         console.error('VLC action failed:', e);
         await refreshVlcStatus();
-      } finally {
-        targetState.busy = false;
-        button.disabled = false;
       }
     }
 
@@ -10776,8 +10983,7 @@
             if (vlcWasRunning) {
               setTimeout(async () => {
                 try {
-                  await postAPI('/api/vlc', { action: 'restart', target: 'digital', mount: vlcMountFor('digital') });
-                  scheduleVlcStatusRefresh(500);
+                  await runVlcCommand('digital', 'restart', { timeoutMs: 5000, pollMs: 250 });
                 } catch (e) { console.error('VLC digital restart failed:', e); }
               }, 2000);
             }
@@ -10807,8 +11013,7 @@
           if (vlcWasRunning) {
             setTimeout(async () => {
               try {
-                await postAPI('/api/vlc', { action: 'restart', target: 'digital', mount: vlcMountFor('digital') });
-                scheduleVlcStatusRefresh(500);
+                await runVlcCommand('digital', 'restart', { timeoutMs: 5000, pollMs: 250 });
               } catch (e) { console.error('VLC digital restart after profile failed:', e); }
             }, 2000);
           }
@@ -12674,8 +12879,7 @@
             if (vlcAnalogWas) {
               setTimeout(async () => {
                 try {
-                  await postAPI('/api/vlc', { action: 'restart', target: 'analog', mount: vlcMountFor('analog') });
-                  scheduleVlcStatusRefresh(500);
+                  await runVlcCommand('analog', 'restart', { timeoutMs: 5000, pollMs: 250 });
                 } catch (e) { console.error('VLC analog restart failed:', e); }
               }, 2000);
             }
@@ -12684,8 +12888,7 @@
             if (vlcDigitalWas) {
               setTimeout(async () => {
                 try {
-                  await postAPI('/api/vlc', { action: 'restart', target: 'digital', mount: vlcMountFor('digital') });
-                  scheduleVlcStatusRefresh(500);
+                  await runVlcCommand('digital', 'restart', { timeoutMs: 5000, pollMs: 250 });
                 } catch (e) { console.error('VLC digital restart failed:', e); }
               }, 2000);
             }
@@ -12694,9 +12897,8 @@
             if (vlcAnalogWas || vlcDigitalWas) {
               setTimeout(async () => {
                 try {
-                  if (vlcAnalogWas) await postAPI('/api/vlc', { action: 'restart', target: 'analog', mount: vlcMountFor('analog') });
-                  if (vlcDigitalWas) await postAPI('/api/vlc', { action: 'restart', target: 'digital', mount: vlcMountFor('digital') });
-                  scheduleVlcStatusRefresh(500);
+                  if (vlcAnalogWas) await runVlcCommand('analog', 'restart', { timeoutMs: 5000, pollMs: 250 });
+                  if (vlcDigitalWas) await runVlcCommand('digital', 'restart', { timeoutMs: 5000, pollMs: 250 });
                 } catch (e) { console.error('VLC restart after icecast failed:', e); }
               }, 3000);
             }
@@ -13623,9 +13825,8 @@
           setTimeout(async () => {
             try {
               for (const t of vlcRestartTargets) {
-                await postAPI('/api/vlc', { action: 'restart', target: t, mount: vlcMountFor(t) });
+                await runVlcCommand(t, 'restart', { timeoutMs: 5000, pollMs: 250 });
               }
-              scheduleVlcStatusRefresh(500);
             } catch (e) { console.error('VLC restart after profile change failed:', e); }
           }, 2000);
         }
@@ -14350,6 +14551,7 @@
       renderSb3FavoritesPanels();
 
       syncStreamLinks();
+      renderVlcControls();
       refreshVlcStatus();
       
       els.gainSlider.addEventListener('input', onGainChange);
@@ -15304,7 +15506,16 @@
       }, 1000);
       // Poll VLC status so button text stays in sync when VLC dies externally.
       setInterval(() => {
-        if (state.vlc.analog.running || state.vlc.digital.running) {
+        if (
+          state.vlc.analog.running
+          || state.vlc.digital.running
+          || state.vlc.analog.state === 'starting'
+          || state.vlc.analog.state === 'stopping'
+          || state.vlc.analog.state === 'error'
+          || state.vlc.digital.state === 'starting'
+          || state.vlc.digital.state === 'stopping'
+          || state.vlc.digital.state === 'error'
+        ) {
           refreshVlcStatus();
         }
       }, 5000);
@@ -15332,11 +15543,14 @@
           if (lastOk > 0 && (now - lastOk) < 10000) return;
           // And cooldown since last recovery
           if ((now - tracker.recoverLastTs) < 8000) return;
-          tracker.recoverLastTs = now;
           // Reset transcode latch on watchdog recovery
           state.digitalStreamForceTranscode = false;
           logActivity(`${kind} player watchdog: hard reset`, 'warn', `watchdog-${kind}`);
-          reload(`watchdog`, true, { hardReset: true });
+          startEmbeddedRecovery(el, reload, 'watchdog', {
+            forcePlay: true,
+            hardReset: true,
+            immediate: true,
+          });
         });
       }, 8000);
     }

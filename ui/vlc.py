@@ -6,8 +6,10 @@ import shutil
 import signal
 import subprocess
 import sys
+import threading
 import time
 from typing import Optional
+from urllib.parse import urlparse
 
 try:
     from .config import ICECAST_HOST, ICECAST_PORT, PLAYER_MOUNT, DIGITAL_STREAM_MOUNT
@@ -25,6 +27,10 @@ try:
     VLC_START_VERIFY_SEC = max(0.0, float(str(os.getenv("VLC_START_VERIFY_MS", "350")).strip()) / 1000.0)
 except Exception:
     VLC_START_VERIFY_SEC = 0.35
+try:
+    VLC_START_VERIFY_POLL_SEC = max(0.02, float(str(os.getenv("VLC_START_VERIFY_POLL_MS", "50")).strip()) / 1000.0)
+except Exception:
+    VLC_START_VERIFY_POLL_SEC = 0.05
 
 try:
     _VLC_AUDIO_UID = int(str(os.getenv("VLC_AUDIO_UID", os.getuid())).strip())
@@ -67,6 +73,8 @@ _LOCAL_MONITOR_SCRIPT = os.path.join(
     "scripts",
     "sdrtrunk-local-monitor.py",
 )
+_STREAM_URL_RE = re.compile(r"https?://\S+")
+_RUNTIME_LOCK = threading.RLock()
 
 
 def _normalize_target(target: str) -> str:
@@ -85,6 +93,145 @@ def _stream_url_for(target: str, mount: str = "") -> str:
     picked_mount = _sanitize_mount(mount) or DEFAULT_MOUNTS.get(target) or PLAYER_MOUNT
     picked_mount = picked_mount.lstrip("/")
     return f"http://{ICECAST_HOST}:{ICECAST_PORT}/{picked_mount}"
+
+
+def _now_ms() -> int:
+    return int(time.time() * 1000)
+
+
+def _runtime_template(target: str) -> dict:
+    mount = _sanitize_mount(DEFAULT_MOUNTS.get(target) or PLAYER_MOUNT)
+    return {
+        "target": target,
+        "state": "idle",
+        "running": False,
+        "process_running": False,
+        "verified": False,
+        "pid": None,
+        "mount": mount,
+        "actual_mount": "",
+        "stream_url": _stream_url_for(target, mount),
+        "actual_stream_url": "",
+        "audio_sink": str(VLC_PULSE_SINK or "").strip(),
+        "actual_audio_sink": "",
+        "error": "",
+        "last_transition_ms": _now_ms(),
+    }
+
+
+_TARGET_RUNTIME = {name: _runtime_template(name) for name in VLC_TARGETS}
+
+
+def _target_runtime(target: str) -> dict:
+    with _RUNTIME_LOCK:
+        return dict(_TARGET_RUNTIME[target])
+
+
+def _set_target_runtime(
+    target: str,
+    *,
+    state: str,
+    pid: Optional[int],
+    mount: str,
+    stream_url: str,
+    audio_sink: str,
+    actual_mount: str,
+    actual_stream_url: str,
+    actual_audio_sink: str,
+    error: str,
+    process_running: bool,
+    verified: bool,
+) -> dict:
+    normalized_mount = _sanitize_mount(mount) or _sanitize_mount(DEFAULT_MOUNTS.get(target) or PLAYER_MOUNT)
+    normalized_stream_url = str(stream_url or "").strip() or _stream_url_for(target, normalized_mount)
+    desired_sink = str(audio_sink or "").strip()
+    payload = {
+        "target": target,
+        "state": str(state or "idle"),
+        "running": str(state or "idle") == "running",
+        "process_running": bool(process_running),
+        "verified": bool(verified),
+        "pid": int(pid) if isinstance(pid, int) and pid > 1 else None,
+        "mount": normalized_mount,
+        "actual_mount": str(actual_mount or "").strip(),
+        "stream_url": normalized_stream_url,
+        "actual_stream_url": str(actual_stream_url or "").strip(),
+        "audio_sink": desired_sink,
+        "actual_audio_sink": str(actual_audio_sink or "").strip(),
+        "error": str(error or "").strip(),
+    }
+    with _RUNTIME_LOCK:
+        current = _TARGET_RUNTIME[target]
+        changed = any(current.get(key) != payload.get(key) for key in payload)
+        payload["last_transition_ms"] = _now_ms() if changed else current.get("last_transition_ms", _now_ms())
+        _TARGET_RUNTIME[target] = payload
+        return dict(payload)
+
+
+def _status_from_probe(
+    target: str,
+    probe: dict,
+    *,
+    mount: str,
+    stream_url: str,
+    audio_sink: str,
+) -> dict:
+    current = _target_runtime(target)
+    if probe.get("process_running") and probe.get("verified"):
+        state = "running"
+        error = ""
+    elif probe.get("process_running"):
+        state = "error"
+        error = str(probe.get("error") or "startup verification failed")
+    elif current.get("state") == "error" and current.get("error"):
+        state = "error"
+        error = str(current.get("error") or "")
+    else:
+        state = "idle"
+        error = ""
+    return _set_target_runtime(
+        target,
+        state=state,
+        pid=probe.get("pid"),
+        mount=mount,
+        stream_url=stream_url,
+        audio_sink=audio_sink,
+        actual_mount=probe.get("actual_mount", ""),
+        actual_stream_url=probe.get("actual_stream_url", ""),
+        actual_audio_sink=probe.get("actual_audio_sink", ""),
+        error=error,
+        process_running=bool(probe.get("process_running")),
+        verified=bool(probe.get("verified")),
+    )
+
+
+def _status_error(
+    target: str,
+    *,
+    mount: str,
+    stream_url: str,
+    audio_sink: str,
+    pid: Optional[int],
+    error: str,
+    process_running: bool,
+    actual_mount: str = "",
+    actual_stream_url: str = "",
+    actual_audio_sink: str = "",
+) -> dict:
+    return _set_target_runtime(
+        target,
+        state="error",
+        pid=pid,
+        mount=mount,
+        stream_url=stream_url,
+        audio_sink=audio_sink,
+        actual_mount=actual_mount,
+        actual_stream_url=actual_stream_url,
+        actual_audio_sink=actual_audio_sink,
+        error=error,
+        process_running=process_running,
+        verified=False,
+    )
 
 
 def _pid_path(target: str) -> str:
@@ -246,11 +393,6 @@ def _pid_alive(pid: int) -> bool:
         return False
 
 
-def _is_vlc_pid(pid: int) -> bool:
-    cmdline = _pid_cmdline(pid)
-    return bool(cmdline and ("vlc" in cmdline or "cvlc" in cmdline))
-
-
 def _pid_cmdline(pid: int) -> str:
     if not isinstance(pid, int) or pid <= 1:
         return ""
@@ -262,18 +404,67 @@ def _pid_cmdline(pid: int) -> str:
     return raw.replace(b"\x00", b" ").decode("utf-8", errors="ignore").lower()
 
 
-def _target_cmdline_token(target: str) -> str:
-    mount = str(DEFAULT_MOUNTS.get(target) or PLAYER_MOUNT or "").strip().lstrip("/").lower()
-    return f"/{mount}" if mount else ""
+def _is_vlc_pid(pid: int) -> bool:
+    cmdline = _pid_cmdline(pid)
+    return bool(cmdline and ("vlc" in cmdline or "cvlc" in cmdline))
 
 
-def _find_target_pid(target: str) -> Optional[int]:
-    token = _target_cmdline_token(target)
-    if not token:
-        return None
-    proc_dir = "/proc"
+def _pid_environ(pid: int) -> dict:
+    if not isinstance(pid, int) or pid <= 1:
+        return {}
     try:
-        entries = os.listdir(proc_dir)
+        with open(f"/proc/{pid}/environ", "rb") as f:
+            raw = f.read()
+    except Exception:
+        return {}
+    env = {}
+    for entry in raw.split(b"\x00"):
+        if b"=" not in entry:
+            continue
+        key, value = entry.split(b"=", 1)
+        try:
+            env[key.decode("utf-8", errors="ignore")] = value.decode("utf-8", errors="ignore")
+        except Exception:
+            continue
+    return env
+
+
+def _normalize_stream_url(url: str) -> str:
+    value = str(url or "").strip()
+    if not value:
+        return ""
+    try:
+        parsed = urlparse(value)
+    except Exception:
+        return value.lower()
+    scheme = str(parsed.scheme or "http").lower()
+    netloc = str(parsed.netloc or "").lower()
+    path = str(parsed.path or "").rstrip("/")
+    return f"{scheme}://{netloc}{path}".lower()
+
+
+def _extract_stream_url(cmdline: str) -> str:
+    match = _STREAM_URL_RE.search(str(cmdline or ""))
+    return match.group(0).strip() if match else ""
+
+
+def _mount_from_url(url: str) -> str:
+    try:
+        return str(urlparse(str(url or "")).path or "").strip().lstrip("/")
+    except Exception:
+        return ""
+
+
+def _target_cmdline_token(target: str, mount: str = "") -> str:
+    picked_mount = _sanitize_mount(mount) or _target_runtime(target).get("mount") or _sanitize_mount(DEFAULT_MOUNTS.get(target))
+    return f"/{picked_mount}".lower() if picked_mount else ""
+
+
+def _find_target_pid(target: str, mount: str = "", stream_url: str = "") -> Optional[int]:
+    token = _target_cmdline_token(target, mount)
+    expected_url = _normalize_stream_url(stream_url)
+    try:
+        entries = os.listdir("/proc")
     except Exception:
         return None
     for name in entries:
@@ -281,27 +472,105 @@ def _find_target_pid(target: str) -> Optional[int]:
             continue
         pid = int(name)
         cmdline = _pid_cmdline(pid)
-        if not cmdline:
+        if not cmdline or ("vlc" not in cmdline and "cvlc" not in cmdline):
             continue
-        if ("vlc" in cmdline or "cvlc" in cmdline) and token in cmdline:
+        if expected_url:
+            actual_url = _normalize_stream_url(_extract_stream_url(cmdline))
+            if actual_url == expected_url:
+                return pid
+        if token and token in cmdline:
             return pid
     return None
 
 
-def _target_running(target: str) -> bool:
-    pid = _read_pid(target)
-    if pid and _pid_alive(pid) and _is_vlc_pid(pid):
-        return True
-    if pid:
+def _probe_target_process(
+    target: str,
+    *,
+    mount: str,
+    stream_url: str,
+    audio_sink: str,
+    pid_hint: Optional[int] = None,
+) -> dict:
+    expected_mount = _sanitize_mount(mount) or _sanitize_mount(DEFAULT_MOUNTS.get(target) or PLAYER_MOUNT)
+    expected_url = str(stream_url or "").strip() or _stream_url_for(target, expected_mount)
+    expected_url_norm = _normalize_stream_url(expected_url)
+    expected_sink = str(audio_sink or "").strip()
+
+    pid = pid_hint if isinstance(pid_hint, int) and pid_hint > 1 else _read_pid(target)
+    if pid and (not _pid_alive(pid) or not _is_vlc_pid(pid)):
+        pid = None
+    if not pid:
+        pid = _find_target_pid(target, mount=expected_mount, stream_url=expected_url)
+        if pid:
+            try:
+                _write_pid(target, pid)
+            except Exception:
+                logger.debug("Failed writing discovered VLC pid for %s", target, exc_info=True)
+    if not pid:
         _clear_pid(target)
-    recovered_pid = _find_target_pid(target)
-    if not recovered_pid:
-        return False
-    try:
-        _write_pid(target, recovered_pid)
-    except Exception:
-        logger.debug("Failed writing recovered VLC pid for %s", target, exc_info=True)
-    return True
+        return {
+            "pid": None,
+            "process_running": False,
+            "verified": False,
+            "actual_mount": "",
+            "actual_stream_url": "",
+            "actual_audio_sink": "",
+            "error": "",
+        }
+
+    cmdline = _pid_cmdline(pid)
+    if not cmdline or ("vlc" not in cmdline and "cvlc" not in cmdline):
+        _clear_pid(target)
+        return {
+            "pid": None,
+            "process_running": False,
+            "verified": False,
+            "actual_mount": "",
+            "actual_stream_url": "",
+            "actual_audio_sink": "",
+            "error": "",
+        }
+
+    actual_stream_url = _extract_stream_url(cmdline)
+    actual_stream_norm = _normalize_stream_url(actual_stream_url)
+    actual_mount = _mount_from_url(actual_stream_url)
+    actual_audio_sink = str(_pid_environ(pid).get("PULSE_SINK", "")).strip()
+
+    mismatches = []
+    if expected_url_norm and actual_stream_norm != expected_url_norm:
+        mismatches.append(f"stream mismatch (expected {expected_url}, got {actual_stream_url or 'unknown'})")
+    if expected_sink and actual_audio_sink != expected_sink:
+        mismatches.append(f"audio sink mismatch (expected {expected_sink}, got {actual_audio_sink or 'default'})")
+    verified = not mismatches
+    return {
+        "pid": pid,
+        "process_running": True,
+        "verified": verified,
+        "actual_mount": actual_mount,
+        "actual_stream_url": actual_stream_url,
+        "actual_audio_sink": actual_audio_sink,
+        "error": "; ".join(mismatches),
+    }
+
+
+def _refresh_target_status(target: str, mount: str = "", stream_url: str = "", audio_sink: str = "") -> dict:
+    runtime = _target_runtime(target)
+    expected_mount = _sanitize_mount(mount) or runtime.get("mount") or _sanitize_mount(DEFAULT_MOUNTS.get(target) or PLAYER_MOUNT)
+    expected_stream_url = str(stream_url or "").strip() or runtime.get("stream_url") or _stream_url_for(target, expected_mount)
+    expected_sink = str(audio_sink or runtime.get("audio_sink") or "").strip()
+    probe = _probe_target_process(
+        target,
+        mount=expected_mount,
+        stream_url=expected_stream_url,
+        audio_sink=expected_sink,
+    )
+    return _status_from_probe(
+        target,
+        probe,
+        mount=expected_mount,
+        stream_url=expected_stream_url,
+        audio_sink=expected_sink,
+    )
 
 
 def _mute_sdrtrunk_pulse_streams() -> None:
@@ -332,12 +601,36 @@ def start_vlc(stream_url: str = "", target: str = DEFAULT_TARGET, mount: str = "
         return False, "invalid target"
     if mount and not _sanitize_mount(mount):
         return False, "invalid mount"
-    url = _stream_url_for(resolved_target, mount) if mount else (str(stream_url or "").strip() or _stream_url_for(resolved_target))
 
-    if _target_running(resolved_target):
+    desired_mount = _sanitize_mount(mount) or _sanitize_mount(DEFAULT_MOUNTS.get(resolved_target) or PLAYER_MOUNT)
+    desired_stream_url = str(stream_url or "").strip() or _stream_url_for(resolved_target, desired_mount)
+    desired_sink = _preferred_sink_name()
+
+    current = _refresh_target_status(resolved_target, mount=desired_mount, stream_url=desired_stream_url, audio_sink=desired_sink)
+    if current.get("running"):
         _mute_sdrtrunk_pulse_streams()
         return True, "already running"
+    if current.get("process_running"):
+        stop_ok, stop_err = stop_vlc(target=resolved_target)
+        if not stop_ok:
+            return False, stop_err or "failed stopping mismatched VLC instance"
+
     _prefer_configured_pulse_sink()
+    _set_target_runtime(
+        resolved_target,
+        state="starting",
+        pid=None,
+        mount=desired_mount,
+        stream_url=desired_stream_url,
+        audio_sink=desired_sink,
+        actual_mount="",
+        actual_stream_url="",
+        actual_audio_sink="",
+        error="",
+        process_running=False,
+        verified=False,
+    )
+
     gain = _VLC_GAINS.get(resolved_target, 1.0)
     cmd = [
         "cvlc",
@@ -355,7 +648,8 @@ def start_vlc(stream_url: str = "", target: str = DEFAULT_TARGET, mount: str = "
         cmd.append("--http-reconnect")
     if VLC_NETWORK_CACHING_MS > 0:
         cmd.extend(["--network-caching", str(VLC_NETWORK_CACHING_MS)])
-    cmd.append(url)
+    cmd.append(desired_stream_url)
+
     try:
         proc = subprocess.Popen(
             cmd,
@@ -365,19 +659,84 @@ def start_vlc(stream_url: str = "", target: str = DEFAULT_TARGET, mount: str = "
             env=_vlc_launch_env(),
             start_new_session=True,
         )
+    except FileNotFoundError:
+        _status_error(
+            resolved_target,
+            mount=desired_mount,
+            stream_url=desired_stream_url,
+            audio_sink=desired_sink,
+            pid=None,
+            error="cvlc not found",
+            process_running=False,
+        )
+        return False, "cvlc not found"
+    except Exception as exc:
+        _status_error(
+            resolved_target,
+            mount=desired_mount,
+            stream_url=desired_stream_url,
+            audio_sink=desired_sink,
+            pid=None,
+            error=str(exc),
+            process_running=False,
+        )
+        return False, str(exc)
+
+    try:
         _write_pid(resolved_target, proc.pid)
-        if VLC_START_VERIFY_SEC > 0:
-            time.sleep(VLC_START_VERIFY_SEC)
+    except Exception:
+        logger.debug("Failed writing VLC pid for %s", resolved_target, exc_info=True)
+
+    deadline = time.monotonic() + max(VLC_START_VERIFY_SEC, 0.0)
+    while True:
         exit_code = proc.poll()
         if exit_code is not None:
             _clear_pid(resolved_target)
+            _status_error(
+                resolved_target,
+                mount=desired_mount,
+                stream_url=desired_stream_url,
+                audio_sink=desired_sink,
+                pid=None,
+                error=f"cvlc exited immediately (code {exit_code})",
+                process_running=False,
+            )
             return False, f"cvlc exited immediately (code {exit_code})"
-        _mute_sdrtrunk_pulse_streams()
-        return True, ""
-    except FileNotFoundError:
-        return False, "cvlc not found"
-    except Exception as e:
-        return False, str(e)
+
+        probe = _probe_target_process(
+            resolved_target,
+            mount=desired_mount,
+            stream_url=desired_stream_url,
+            audio_sink=desired_sink,
+            pid_hint=proc.pid,
+        )
+        if probe.get("verified"):
+            _status_from_probe(
+                resolved_target,
+                probe,
+                mount=desired_mount,
+                stream_url=desired_stream_url,
+                audio_sink=desired_sink,
+            )
+            _mute_sdrtrunk_pulse_streams()
+            return True, ""
+        if time.monotonic() >= deadline:
+            error = str(probe.get("error") or "startup verification timed out")
+            stop_vlc(target=resolved_target)
+            _status_error(
+                resolved_target,
+                mount=desired_mount,
+                stream_url=desired_stream_url,
+                audio_sink=desired_sink,
+                pid=probe.get("pid"),
+                error=error,
+                process_running=bool(probe.get("process_running")),
+                actual_mount=probe.get("actual_mount", ""),
+                actual_stream_url=probe.get("actual_stream_url", ""),
+                actual_audio_sink=probe.get("actual_audio_sink", ""),
+            )
+            return False, error
+        time.sleep(VLC_START_VERIFY_POLL_SEC)
 
 
 def stop_vlc(target: str = DEFAULT_TARGET):
@@ -386,35 +745,101 @@ def stop_vlc(target: str = DEFAULT_TARGET):
     if not resolved_target:
         return False, "invalid target"
 
-    pid = _read_pid(resolved_target)
+    runtime = _target_runtime(resolved_target)
+    desired_mount = runtime.get("mount") or _sanitize_mount(DEFAULT_MOUNTS.get(resolved_target) or PLAYER_MOUNT)
+    desired_stream_url = runtime.get("stream_url") or _stream_url_for(resolved_target, desired_mount)
+    desired_sink = runtime.get("audio_sink") or _preferred_sink_name()
+    probe = _probe_target_process(
+        resolved_target,
+        mount=desired_mount,
+        stream_url=desired_stream_url,
+        audio_sink=desired_sink,
+    )
+    pid = probe.get("pid")
     if not pid:
-        pid = _find_target_pid(resolved_target)
-        if pid:
-            try:
-                _write_pid(resolved_target, pid)
-            except Exception:
-                logger.debug("Failed writing discovered VLC pid for %s", resolved_target, exc_info=True)
-    if not pid:
+        _set_target_runtime(
+            resolved_target,
+            state="idle",
+            pid=None,
+            mount=desired_mount,
+            stream_url=desired_stream_url,
+            audio_sink=desired_sink,
+            actual_mount="",
+            actual_stream_url="",
+            actual_audio_sink="",
+            error="",
+            process_running=False,
+            verified=False,
+        )
         return True, ""
-    if not _pid_alive(pid):
-        _clear_pid(resolved_target)
-        return True, ""
-    if not _is_vlc_pid(pid):
-        _clear_pid(resolved_target)
-        return False, "pid is not vlc"
+
+    _set_target_runtime(
+        resolved_target,
+        state="stopping",
+        pid=pid,
+        mount=desired_mount,
+        stream_url=desired_stream_url,
+        audio_sink=desired_sink,
+        actual_mount=probe.get("actual_mount", ""),
+        actual_stream_url=probe.get("actual_stream_url", ""),
+        actual_audio_sink=probe.get("actual_audio_sink", ""),
+        error="",
+        process_running=True,
+        verified=bool(probe.get("verified")),
+    )
 
     try:
         os.kill(pid, signal.SIGTERM)
     except ProcessLookupError:
         _clear_pid(resolved_target)
+        _set_target_runtime(
+            resolved_target,
+            state="idle",
+            pid=None,
+            mount=desired_mount,
+            stream_url=desired_stream_url,
+            audio_sink=desired_sink,
+            actual_mount="",
+            actual_stream_url="",
+            actual_audio_sink="",
+            error="",
+            process_running=False,
+            verified=False,
+        )
         return True, ""
-    except Exception as e:
-        return False, str(e)
+    except Exception as exc:
+        _status_error(
+            resolved_target,
+            mount=desired_mount,
+            stream_url=desired_stream_url,
+            audio_sink=desired_sink,
+            pid=pid,
+            error=str(exc),
+            process_running=True,
+            actual_mount=probe.get("actual_mount", ""),
+            actual_stream_url=probe.get("actual_stream_url", ""),
+            actual_audio_sink=probe.get("actual_audio_sink", ""),
+        )
+        return False, str(exc)
 
-    deadline = time.time() + VLC_STOP_TIMEOUT_SEC
-    while time.time() < deadline:
+    deadline = time.monotonic() + VLC_STOP_TIMEOUT_SEC
+    while time.monotonic() < deadline:
         if not _pid_alive(pid):
             _clear_pid(resolved_target)
+            _set_target_runtime(
+                resolved_target,
+                state="idle",
+                pid=None,
+                mount=desired_mount,
+                stream_url=desired_stream_url,
+                audio_sink=desired_sink,
+                actual_mount="",
+                actual_stream_url="",
+                actual_audio_sink="",
+                error="",
+                process_running=False,
+                verified=False,
+            )
             return True, ""
         time.sleep(0.05)
 
@@ -422,22 +847,57 @@ def stop_vlc(target: str = DEFAULT_TARGET):
         os.kill(pid, signal.SIGKILL)
     except ProcessLookupError:
         pass
-    except Exception as e:
-        return False, str(e)
+    except Exception as exc:
+        _status_error(
+            resolved_target,
+            mount=desired_mount,
+            stream_url=desired_stream_url,
+            audio_sink=desired_sink,
+            pid=pid,
+            error=str(exc),
+            process_running=True,
+            actual_mount=probe.get("actual_mount", ""),
+            actual_stream_url=probe.get("actual_stream_url", ""),
+            actual_audio_sink=probe.get("actual_audio_sink", ""),
+        )
+        return False, str(exc)
+
     _clear_pid(resolved_target)
+    _set_target_runtime(
+        resolved_target,
+        state="idle",
+        pid=None,
+        mount=desired_mount,
+        stream_url=desired_stream_url,
+        audio_sink=desired_sink,
+        actual_mount="",
+        actual_stream_url="",
+        actual_audio_sink="",
+        error="",
+        process_running=False,
+        verified=False,
+    )
     return True, ""
 
 
+def restart_vlc(target: str = DEFAULT_TARGET, mount: str = ""):
+    """Restart target-scoped VLC playback with explicit stop completion and startup verification."""
+    stop_ok, stop_err = stop_vlc(target=target)
+    if not stop_ok:
+        return False, stop_err
+    return start_vlc(target=target, mount=mount)
+
+
 def vlc_running(target: str = "") -> bool:
-    """Check VLC process status for a target or for any target."""
+    """Check verified VLC playback status for a target or for any target."""
     if target:
         resolved_target = _normalize_target(target)
         if not resolved_target:
             return False
-        return _target_running(resolved_target)
-    return any(_target_running(name) for name in VLC_TARGETS)
+        return bool(_refresh_target_status(resolved_target).get("running"))
+    return any(bool(_refresh_target_status(name).get("running")) for name in VLC_TARGETS)
 
 
 def vlc_status() -> dict:
-    """Return running status per playback target."""
-    return {name: _target_running(name) for name in VLC_TARGETS}
+    """Return structured playback status per target."""
+    return {name: _refresh_target_status(name) for name in VLC_TARGETS}
