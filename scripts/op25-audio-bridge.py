@@ -51,6 +51,11 @@ GATE_RELEASE_SEC = float(os.getenv("OP25_AUDIO_GATE_RELEASE_SEC", "3.0"))
 PRIORITY_GATE = str(os.getenv("OP25_AUDIO_PRIORITY_GATE", "1")).strip().lower() not in ("0", "false", "no", "off")
 PRIORITY_HOLDOFF_SEC = float(os.getenv("OP25_AUDIO_PRIORITY_HOLDOFF_SEC", "1.5"))
 
+# First-speaker-wins gating: minimum RMS energy (0–32767) for a packet to be
+# considered real voice rather than background noise / control-channel chatter.
+# Default 200 ≈ -44 dBFS — low enough to catch quiet P25 IMBE but above idle.
+VOICE_ENERGY_THRESHOLD = int(os.getenv("OP25_AUDIO_VOICE_THRESHOLD", "200"))
+
 # Audio normalization: boost quiet P25 audio before encoding.
 # Target peak is ~80% of full scale (-2 dBFS) leaving headroom for MP3.
 NORMALIZE_ENABLED = str(os.getenv("OP25_AUDIO_NORMALIZE", "1")).strip().lower() not in ("0", "false", "no", "off")
@@ -182,6 +187,19 @@ def _pad_pcm(packet: bytes, target_len: int) -> bytes:
     if len(packet) >= target_len:
         return packet[:target_len]
     return packet + (b"\x00" * (target_len - len(packet)))
+
+
+def _has_voice_energy(packets: list[bytes]) -> bool:
+    """Return True if any packet in the list has RMS energy above threshold."""
+    for pkt in packets:
+        if not pkt or len(pkt) < 2:
+            continue
+        try:
+            if audioop.rms(pkt, 2) >= VOICE_ENERGY_THRESHOLD:
+                return True
+        except audioop.error:
+            pass
+    return False
 
 
 class AudioBridge:
@@ -485,34 +503,39 @@ class AudioBridge:
         return by_port
 
     def _select_priority_packets(self, by_port: dict[int, list[bytes]]) -> list[bytes]:
-        """Pick packets from the highest-priority port that has audio.
+        """First-speaker-wins gating across all ports.
 
-        Port indices are priority-ordered (0 = highest).  Once a port is
-        active, it holds priority for PRIORITY_HOLDOFF_SEC after its last
-        packet to avoid rapid switching during brief gaps.
+        Whichever port first produces real voice energy (RMS >= threshold)
+        claims the speaker slot and holds it until GATE_RELEASE_SEC of
+        silence.  No static priority — both systems are treated equally.
+        Disable with OP25_AUDIO_PRIORITY_GATE=0 to mix all ports.
         """
         if not by_port:
             return []
         if not PRIORITY_GATE or len(self.sockets) < 2:
-            # Flatten all packets when priority gating is off.
             return [pkt for pkts in by_port.values() for pkt in pkts]
 
         now = time.time()
-        for idx in by_port:
-            self._port_last_audio[idx] = now
 
-        # If the currently active port still has audio, keep it.
-        if self._active_port is not None and self._active_port in by_port:
-            return by_port[self._active_port]
+        # Find ports with real voice energy this tick.
+        voice_ports: list[int] = []
+        for idx, pkts in by_port.items():
+            if _has_voice_energy(pkts):
+                voice_ports.append(idx)
+                self._port_last_audio[idx] = now
 
-        # If the currently active port is within its holdoff window, stay.
+        # Release the active port if it has been silent for GATE_RELEASE_SEC.
         if self._active_port is not None:
-            last = self._port_last_audio.get(self._active_port, 0.0)
-            if (now - last) < PRIORITY_HOLDOFF_SEC:
-                return []
+            last_voice = self._port_last_audio.get(self._active_port, 0.0)
+            if last_voice <= 0.0 or (now - last_voice) >= GATE_RELEASE_SEC:
+                self._active_port = None
 
-        # Pick the lowest-index (highest-priority) port that has audio.
-        for idx in sorted(by_port.keys()):
+        # If we have an active speaker, keep passing its audio.
+        if self._active_port is not None:
+            return by_port.get(self._active_port, [])
+
+        # No active speaker — first port with voice energy claims the slot.
+        for idx in sorted(voice_ports):
             self._active_port = idx
             return by_port[idx]
 
@@ -569,27 +592,19 @@ class AudioBridge:
                     return self._ring.popleft()
             return self.silence_frame
 
-        # --- Jitter buffer + PLC path ---
+        # --- PLC path (no prefill) ---
+        # Activate on the very first real frame; no prefill wait.
         with self._ring_lock:
-            ring_len = len(self._ring)
-            if ring_len > 0:
-                if not self._voice_active:
-                    # Prefill: wait until JITTER_PREFILL_FRAMES are ready
-                    # before starting output. Absorbs burst arrival jitter.
-                    if ring_len < JITTER_PREFILL_FRAMES:
-                        return self.silence_frame
-                    self._voice_active = True
-                frame = self._ring.popleft()
-            else:
-                frame = None  # ring empty; handle below
+            frame = self._ring.popleft() if self._ring else None
 
         if frame is not None:
-            # Normal playback: save frame for PLC, reset PLC counter.
+            # Normal playback: mark voice active, save frame for PLC.
+            self._voice_active = True
             self._last_voice_frame = frame
             self._plc_count = 0
             return frame
 
-        # Ring was empty.
+        # Ring is empty.
         if not self._voice_active:
             # Between calls — plain silence, no concealment.
             return self.silence_frame

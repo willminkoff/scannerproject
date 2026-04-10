@@ -255,7 +255,13 @@ def main() -> int:
                 op25_overrides[sname]["whitelist"] = whitelist_path
 
     # Detect traffic follower dongle from allocator's traffic pool.
-    traffic_serial = _detect_traffic_dongle(dongle_assignments)
+    # Disabled by default: each system's control dongle time-slices voice.
+    # Set OP25_DEDICATED_TRAFFIC=1 to re-enable the dedicated traffic follower.
+    if os.environ.get("OP25_DEDICATED_TRAFFIC", "0").strip() == "1":
+        traffic_serial = _detect_traffic_dongle(dongle_assignments)
+    else:
+        traffic_serial = ""
+        print("OP25 runtime: dedicated traffic dongle disabled (time-slice mode)")
     traffic_system = ""
     if traffic_serial:
         # Check op25_system_config.json for a system with traffic_priority flag.
