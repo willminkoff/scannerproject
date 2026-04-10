@@ -29,7 +29,6 @@ from pathlib import Path
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
-
 INSTANCE_MANIFEST = Path(os.getenv("OP25_AUDIO_INSTANCES_PATH", "/run/scannerproject/op25/instances.json"))
 ICECAST_HOST = os.getenv("OP25_AUDIO_ICECAST_HOST", os.getenv("ICECAST_HOST", "127.0.0.1"))
 ICECAST_PORT = int(os.getenv("OP25_AUDIO_ICECAST_PORT", os.getenv("ICECAST_PORT", "8000")))
@@ -89,6 +88,13 @@ PLC_FADE_START = int(os.getenv("OP25_AUDIO_PLC_FADE_START", "5"))  # start fadin
 # Master switch: set OP25_AUDIO_JITTER_ENABLE=0 to restore legacy
 # passthrough behavior (no jitter buffer, no PLC).
 JITTER_ENABLED = str(os.getenv("OP25_AUDIO_JITTER_ENABLE", "1")).strip().lower() not in ("0", "false", "no", "off")
+
+# Single-packet drain: read at most one UDP packet per socket per select()
+# cycle. Prevents _mix_packets() from collapsing sequential IMBE frames
+# (which OP25 delivers in bursts) into a single averaged frame and losing
+# audio. Set OP25_AUDIO_SINGLE_DRAIN=0 to revert to the original drain-all
+# behaviour (useful for debugging).
+SINGLE_DRAIN = str(os.getenv("OP25_AUDIO_SINGLE_DRAIN", "1")).strip().lower() not in ("0", "false", "no", "off")
 
 # Local playback: write PCM directly to PipeWire via pw-cat, skipping the
 # Icecast encode-decode round-trip that VLC required.
@@ -484,22 +490,43 @@ class AudioBridge:
             self._start_ffmpeg("icecast mount unavailable")
 
     def _drain_packets_by_port(self) -> dict[int, list[bytes]]:
-        """Read all pending UDP packets grouped by socket index."""
+        """Read UDP packets from each socket, grouped by socket index.
+
+        SINGLE_DRAIN mode (default): reads at most one packet per socket per
+        call. Sequential IMBE frames that OP25 delivers in rapid bursts are
+        consumed one-at-a-time across consecutive loop iterations and pushed
+        to the ring buffer in sequence. Without this, _mix_packets() would
+        overlay all burst frames into a single averaged 320-byte output,
+        discarding the remaining frames and causing severe audio choppiness.
+
+        Legacy mode (OP25_AUDIO_SINGLE_DRAIN=0): drains all available packets
+        from each socket in a single call. Preserved for debugging.
+        """
         if not self.sockets:
             return {}
         by_port: dict[int, list[bytes]] = {}
         ready, _, _ = select.select(self.sockets, [], [], 0.005)
-        for sock in ready:
-            idx = self.sockets.index(sock)
-            while True:
+        if SINGLE_DRAIN:
+            # One packet per socket per call — keeps frames sequential.
+            for sock in ready:
+                idx = self.sockets.index(sock)
                 try:
                     data, _ = sock.recvfrom(8192)
-                except BlockingIOError:
-                    break
-                except OSError:
-                    break
+                except (BlockingIOError, OSError):
+                    continue
                 if data and len(data) >= OUTPUT_FRAME_BYTES:
-                    by_port.setdefault(idx, []).append(data)
+                    by_port[idx] = [data]
+        else:
+            # Legacy: drain entire kernel buffer in one call.
+            for sock in ready:
+                idx = self.sockets.index(sock)
+                while True:
+                    try:
+                        data, _ = sock.recvfrom(8192)
+                    except (BlockingIOError, OSError):
+                        break
+                    if data and len(data) >= OUTPUT_FRAME_BYTES:
+                        by_port.setdefault(idx, []).append(data)
         return by_port
 
     def _select_priority_packets(self, by_port: dict[int, list[bytes]]) -> list[bytes]:
