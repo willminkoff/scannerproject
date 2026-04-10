@@ -81,6 +81,10 @@ JITTER_PREFILL_FRAMES = int(os.getenv("OP25_AUDIO_JITTER_FRAMES", "5"))
 PLC_MAX_FRAMES = int(os.getenv("OP25_AUDIO_PLC_FRAMES", "15"))
 PLC_FADE_START = int(os.getenv("OP25_AUDIO_PLC_FADE_START", "5"))  # start fading after N repeats
 
+# Master switch: set OP25_AUDIO_JITTER_ENABLE=0 to restore legacy
+# passthrough behavior (no jitter buffer, no PLC).
+JITTER_ENABLED = str(os.getenv("OP25_AUDIO_JITTER_ENABLE", "1")).strip().lower() not in ("0", "false", "no", "off")
+
 # Local playback: write PCM directly to PipeWire via pw-cat, skipping the
 # Icecast encode-decode round-trip that VLC required.
 LOCAL_PLAY = str(os.getenv("OP25_AUDIO_LOCAL_PLAY", "1")).strip().lower() not in ("0", "false", "no", "off")
@@ -546,16 +550,72 @@ class AudioBridge:
                 offset += OUTPUT_FRAME_BYTES
 
     def _pop_frame(self) -> bytes:
-        """Pop one frame from the ring buffer, or return silence.
+        """Pop one frame from the ring buffer, applying jitter buffer and PLC.
 
-        Simple pass-through: no jitter buffer prefill, no PLC repeat.
-        Just deliver what's available or silence when empty.  Let ffmpeg's
-        aresample async handle smoothing.
+        Jitter prefill: on transition from silence to voice, hold back output
+        until JITTER_PREFILL_FRAMES are buffered. This absorbs the natural
+        inter-superframe timing variation in P25 IMBE bursts and prevents the
+        ring from hitting zero between 180ms burst arrivals.
+
+        PLC: when the ring empties during active voice, repeat the last frame
+        with a progressive fade rather than hard-cutting to silence.
+
+        Disable both with OP25_AUDIO_JITTER_ENABLE=0 to restore legacy behavior.
         """
+        if not JITTER_ENABLED:
+            # Legacy passthrough — no jitter buffer, no PLC.
+            with self._ring_lock:
+                if self._ring:
+                    return self._ring.popleft()
+            return self.silence_frame
+
+        # --- Jitter buffer + PLC path ---
         with self._ring_lock:
-            if self._ring:
-                return self._ring.popleft()
-        return self.silence_frame
+            ring_len = len(self._ring)
+            if ring_len > 0:
+                if not self._voice_active:
+                    # Prefill: wait until JITTER_PREFILL_FRAMES are ready
+                    # before starting output. Absorbs burst arrival jitter.
+                    if ring_len < JITTER_PREFILL_FRAMES:
+                        return self.silence_frame
+                    self._voice_active = True
+                frame = self._ring.popleft()
+            else:
+                frame = None  # ring empty; handle below
+
+        if frame is not None:
+            # Normal playback: save frame for PLC, reset PLC counter.
+            self._last_voice_frame = frame
+            self._plc_count = 0
+            return frame
+
+        # Ring was empty.
+        if not self._voice_active:
+            # Between calls — plain silence, no concealment.
+            return self.silence_frame
+
+        # PLC: ring emptied during active voice (inter-burst gap or end of call).
+        if self._plc_count >= PLC_MAX_FRAMES:
+            # PLC budget exhausted — treat call as ended, reset for next call.
+            self._voice_active = False
+            self._plc_count = 0
+            return self.silence_frame
+
+        frame = self._last_voice_frame
+        self._plc_count += 1
+
+        # Progressive fade: hold full volume for PLC_FADE_START repeats,
+        # then linearly fade to silence over the remaining PLC frames.
+        if self._plc_count > PLC_FADE_START:
+            fade_steps = self._plc_count - PLC_FADE_START
+            total_steps = PLC_MAX_FRAMES - PLC_FADE_START  # steps to silence
+            gain = max(0.0, 1.0 - (fade_steps / total_steps))
+            try:
+                frame = audioop.mul(frame, 2, gain)
+            except audioop.error:
+                pass
+
+        return frame
 
     def _write_pcm(self, pcm: bytes) -> None:
         proc = self.proc
@@ -584,9 +644,14 @@ class AudioBridge:
                 time.sleep(max(0, next_tick - now))
             next_tick += OUTPUT_TICK_SEC
 
-            # Catch up if we fell behind (e.g. system load spike) -- skip
-            # frames rather than delivering a burst that causes jitter.
-            if next_tick < time.monotonic() - 0.1:
+            # If the thread fell behind (GIL contention, system load), let
+            # the loop naturally burst frames (no sleep) until next_tick
+            # catches up to now. No explicit skip needed: the ring has
+            # buffered any delayed frames, and bursting raw PCM to ffmpeg
+            # is safe since we write without timestamps.
+            # Guard: if egregiously far behind (>500ms), reset to avoid
+            # a multi-second burst that could overwhelm ffmpeg's input pipe.
+            if next_tick < time.monotonic() - 0.5:
                 next_tick = time.monotonic()
 
             frame = self._pop_frame()
