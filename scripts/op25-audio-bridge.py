@@ -498,7 +498,7 @@ class AudioBridge:
                     break
                 except OSError:
                     break
-                if data:
+                if data and len(data) >= OUTPUT_FRAME_BYTES:
                     by_port.setdefault(idx, []).append(data)
         return by_port
 
