@@ -1946,14 +1946,26 @@ class Op25Adapter(_BaseDigitalAdapter):
             last_tsbk_age_sec = max(0.0, now_sec - max(last_tsbk_values))
 
         control_locked = False
+        on_voice_channel = False
         for row in matched_channels:
             tag = str(row.get("tag") or "").strip().lower()
             if "control channel" in tag:
                 control_locked = True
-                break
-        control_decode_available = bool(
-            last_tsbk_age_sec is not None and last_tsbk_age_sec <= _OP25_ROOT_ACTIVITY_MAX_AGE_SEC
-        )
+            if "voice channel" in tag:
+                on_voice_channel = True
+        # When time-slicing, the SDR legitimately leaves the control channel to
+        # follow voice grants — TSBKs stop arriving during the call.  If the
+        # channel_update shows the SDR is currently on a voice channel, suspend
+        # the staleness check so we don't declare the decode stale mid-call.
+        # Set env var OP25_VOICE_EXEMPT_STALE=0 to disable and revert to the
+        # original unconditional 15-second threshold.
+        _voice_exempt = os.environ.get("OP25_VOICE_EXEMPT_STALE", "1") != "0"
+        if _voice_exempt and on_voice_channel:
+            control_decode_available = True
+        else:
+            control_decode_available = bool(
+                last_tsbk_age_sec is not None and last_tsbk_age_sec <= _OP25_ROOT_ACTIVITY_MAX_AGE_SEC
+            )
 
         call_log = status.get("call_log") or []
         has_explicit_system = any(
