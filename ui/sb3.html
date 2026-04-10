@@ -9054,6 +9054,8 @@
         { delayMs: 1200, hardReset: false },
         { delayMs: 3500, hardReset: true },
         { delayMs: 7000, hardReset: true },
+        { delayMs: 8000, hardReset: true },
+        { delayMs: 10000, hardReset: true },
       ];
     }
 
@@ -9064,6 +9066,11 @@
       if (forcePlay && audioEl) {
         audioEl.dataset.wantplay = '1';
       }
+      // Clear any in-flight auto-recovery so this explicit restart-aware recovery
+      // actually runs. Without this, startEmbeddedRecovery bails immediately
+      // when the event-handler recovery already owns the timer, causing Apply
+      // to leave the player permanently dead after rtl-airband restarts.
+      clearEmbeddedRecovery(audioEl);
       startEmbeddedRecovery(audioEl, reloadFn, reason, { forcePlay: Boolean(forcePlay), immediate: false });
     }
 
