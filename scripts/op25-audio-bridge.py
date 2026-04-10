@@ -88,6 +88,13 @@ LOCAL_PLAY_SINK = os.getenv("OP25_AUDIO_LOCAL_SINK", os.getenv("VLC_PULSE_SINK",
 MUTE_FLAG = Path(os.getenv("OP25_AUDIO_MUTE_FLAG", "/run/scannerproject/op25/digital_local_mute"))
 _PA_RUNTIME_DIR = os.getenv("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
 
+# HLS output: a separate ffmpeg reads from Icecast and writes HLS segments
+# for browser players that cannot handle raw MP3 live streams.
+HLS_ENABLED = str(os.getenv("OP25_AUDIO_HLS", "1")).strip().lower() not in ("0", "false", "no", "off")
+HLS_DIR = Path(os.getenv("OP25_AUDIO_HLS_DIR", "/run/scannerproject/hls/digital"))
+HLS_SEGMENT_SEC = int(os.getenv("OP25_AUDIO_HLS_SEGMENT_SEC", "2"))
+HLS_LIST_SIZE = int(os.getenv("OP25_AUDIO_HLS_LIST_SIZE", "10"))
+
 
 def _log(message: str) -> None:
     ts = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -204,6 +211,9 @@ class AudioBridge:
         self._local_muted: bool = MUTE_FLAG.exists()
         self._mute_check_counter: int = 0
 
+        # HLS segmenter (separate ffmpeg reading from Icecast).
+        self.hls_proc: subprocess.Popen[bytes] | None = None
+
     def _open_sockets(self) -> None:
         for port in self.ports:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -237,27 +247,32 @@ class AudioBridge:
         self._stop_local_play()
         if not LOCAL_PLAY:
             return
-        cmd = [
-            "pw-cat", "--playback",
-            f"--rate={SAMPLE_RATE}",
-            f"--channels={CHANNELS}",
-            "--format=s16",
-            "--latency=100ms",
-            "-",
-        ]
-        if LOCAL_PLAY_SINK:
-            cmd.insert(-1, f"--target={LOCAL_PLAY_SINK}")
+        # Use ffmpeg with soxr resampler to upsample 8kHz→48kHz before
+        # pw-cat.  This avoids PipeWire's basic resampler which adds
+        # aliasing artifacts on the 6× upsample to the BT sink.
+        _LOCAL_OUT_RATE = 48000
+        target_flag = f"--target={LOCAL_PLAY_SINK} " if LOCAL_PLAY_SINK else ""
+        shell_cmd = (
+            f"{FFMPEG_BIN} -nostdin -hide_banner -loglevel warning "
+            f"-f s16le -ar {SAMPLE_RATE} -ac {CHANNELS} -i pipe:0 "
+            f"-af aresample=resampler=soxr:precision=28 "
+            f"-f s16le -ar {_LOCAL_OUT_RATE} -ac {CHANNELS} pipe:1 "
+            f"| pw-cat --playback --rate={_LOCAL_OUT_RATE} --channels={CHANNELS} "
+            f"--format=s16 --latency=100ms {target_flag}-"
+        )
         _log(f"starting local playback ({reason})")
         try:
             self.local_proc = subprocess.Popen(
-                cmd,
+                shell_cmd,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 env=self._local_play_env(),
+                shell=True,
+                start_new_session=True,
             )
         except FileNotFoundError:
-            _log("pw-cat not found -- local playback disabled")
+            _log("ffmpeg/pw-cat not found -- local playback disabled")
 
     def _stop_local_play(self) -> None:
         proc = self.local_proc
@@ -266,14 +281,20 @@ class AudioBridge:
         self.local_proc = None
         if proc.poll() is not None:
             return
+        # The local playback is a shell pipeline (ffmpeg | pw-cat) running
+        # in its own session.  Kill the entire process group so both sides
+        # of the pipe are cleaned up.
         try:
-            proc.terminate()
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
             proc.wait(timeout=2)
         except Exception:
             try:
-                proc.kill()
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
             except Exception:
-                pass
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
 
     def _write_local(self, pcm: bytes) -> None:
         proc = self.local_proc
@@ -283,6 +304,80 @@ class AudioBridge:
             proc.stdin.write(pcm)
         except (BrokenPipeError, OSError):
             self._start_local_play("pipe closed")
+
+    # -- HLS output (separate ffmpeg reads from Icecast) -----------------------
+
+    def _start_hls(self, reason: str) -> None:
+        self._stop_hls()
+        if not HLS_ENABLED:
+            return
+        try:
+            HLS_DIR.mkdir(parents=True, exist_ok=True)
+        except PermissionError:
+            _log(f"cannot create HLS dir {HLS_DIR} (permission denied)")
+            return
+        playlist = HLS_DIR / "live.m3u8"
+        seg_pattern = str(HLS_DIR / "seg%05d.m4s")
+        icecast_url = f"http://{ICECAST_HOST}:{ICECAST_PORT}/{ICECAST_MOUNT}"
+        cmd = [
+            FFMPEG_BIN,
+            "-nostdin", "-hide_banner", "-loglevel", "warning",
+            "-fflags", "+nobuffer+discardcorrupt",
+            "-f", "mp3",
+            "-i", icecast_url,
+            "-ar", "44100",
+            "-c:a", "aac", "-b:a", f"{BITRATE_KBPS}k", "-ac", "1",
+            "-f", "hls",
+            "-hls_time", str(HLS_SEGMENT_SEC),
+            "-hls_list_size", str(HLS_LIST_SIZE),
+            "-hls_segment_type", "fmp4",
+            "-hls_fmp4_init_filename", "init.mp4",
+            "-hls_flags", "delete_segments",
+            "-hls_segment_filename", seg_pattern,
+            str(playlist),
+        ]
+        _log(f"starting HLS segmenter ({reason})")
+        try:
+            self.hls_proc = subprocess.Popen(
+                cmd,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=None,
+            )
+        except FileNotFoundError:
+            _log("ffmpeg not found -- HLS disabled")
+
+    def _stop_hls(self) -> None:
+        proc = self.hls_proc
+        if proc is None:
+            return
+        self.hls_proc = None
+        if proc.poll() is not None:
+            return
+        try:
+            proc.terminate()
+            proc.wait(timeout=5)
+        except Exception:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+        # Clean up stale segments
+        if HLS_DIR.is_dir():
+            for f in HLS_DIR.iterdir():
+                try:
+                    f.unlink()
+                except Exception:
+                    pass
+
+    def _ensure_hls(self) -> None:
+        if not HLS_ENABLED:
+            return
+        if self.hls_proc is not None and self.hls_proc.poll() is None:
+            return
+        # Only start if the Icecast mount is alive.
+        if self._mount_alive():
+            self._start_hls("respawn" if self.hls_proc is not None else "bootstrap")
 
     # -- Icecast output (ffmpeg) -----------------------------------------------
 
@@ -568,6 +663,7 @@ class AudioBridge:
             # Input loop: drain UDP packets, select priority, push to ring buffer.
             while self.running:
                 self._ensure_ffmpeg()
+                self._ensure_hls()
                 by_port = self._drain_packets_by_port()
                 packets = self._select_priority_packets(by_port)
                 if packets:
@@ -579,6 +675,7 @@ class AudioBridge:
                     # Brief sleep to avoid busy-waiting when no audio.
                     time.sleep(0.005)
         finally:
+            self._stop_hls()
             self._stop_ffmpeg()
             self._stop_local_play()
             self._close_sockets()

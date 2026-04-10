@@ -18,12 +18,13 @@ Current scanner host (replacing the Pi runtime target):
 - Storage: `WD PC SN740 NVMe` (`238.5 GiB` usable on `nvme0n1`)
 - Network: Intel `I219-LM` Ethernet + Intel `AX211` Wi-Fi/Bluetooth
 - Graphics: Intel Alder Lake-S GT1 iGPU
-- SDR USB inventory: `5x RTL2838` dongles
-  - `00000002` (RTL-SDR Blog V4)
-  - `00000001` (Nooelec NESDR SMArt v5, replacement for prior digital secondary `49571227`)
-  - `56919602` (Nooelec NESDR SMArt v5)
-  - `83241970` (Nooelec NESDR SMArt v5, reflashed from `70613472`/`00000003`)
-  - `14306619` (Nooelec NESDR SMArt v5, extra digital-capable tuner)
+- SDR USB inventory: `6x RTL2838` dongles
+  - `00000002` (RTL-SDR Blog V4) — Airband
+  - `83241970` (RTL-SDR Blog V4) — VDL2
+  - `56919602` (Nooelec NESDR SMArt v5) — Digital pool
+  - `14306619` (Nooelec NESDR SMArt v5) — Digital pool
+  - `70613472` (Nooelec NESDR SMArt v5) — Digital traffic follower / 3rd system
+  - `45469635` (Nooelec NESDR SMArt v5) — Ground / ACARS / Radiosonde (shared)
 
 ## Version 2.5 Lock (2026-02-21)
 
@@ -131,27 +132,26 @@ Profiles notes:
 ### High-Level Data Flow
 
 ```
-RTL-SDR Devices (5 role-bound, dedicated allocation)
+RTL-SDR Devices (6 role-bound, dedicated + shared allocation)
     ↓
-rtl-airband (combined process)
-    ├─ Airband scanner (118-136 MHz)
-    └─ Ground scanner (VHF/UHF other)
+rtl-airband (combined process, dedicated airband + shared ground dongle)
+    ├─ Airband scanner (118-136 MHz) [00000002]
+    └─ Ground scanner (VHF/UHF other) [45469635, shared with WX]
     ↓
 Icecast Analog Mount (/ANALOG.mp3 or /GND.mp3)
     ├→ Browser (analog player)
     ├→ Journalctl (analog activity logging)
     └→ Frequency metadata
     ↓
-scanner-digital.service (SDRTrunk, dedicated dongle allocation)
-    ├─ Digital control + voice decode (P25/DMR as configured)
-    └─ Icecast Digital Mount (/DIGITAL.mp3)
+scanner-digital-op25.service (OP25 multi_rx, 3 dedicated dongles)
+    ├─ System control channels (2 dongles: 56919602, 14306619)
+    ├─ Traffic follower (1 dongle: 70613472, assigned to priority system)
+    ├─ Audio via UDP → op25-audio-bridge → Icecast (/DIGITAL.mp3)
+    └─ HLS live segments via ffmpeg (/hls/live.m3u8)
     ↓
-Optional digital mixer (scanner-digital-mixer.service)
-    ↓
-Composite stream mount (scannerbox.mp3)
-    ↓
-WX decoders (optional, ground-profile activated)
+WX decoders (mutually exclusive with ground on shared dongle 45469635)
     ├─ acarsdec.service → ACARS/AMDAR meteorological reports
+    ├─ dumpvdl2.service → VDL2 data [83241970, dedicated]
     └─ radiosonde-auto-rx.service → weather balloon telemetry (UDP)
     ↓
 airband-ui.service (Web UI backend)
@@ -159,7 +159,7 @@ airband-ui.service (Web UI backend)
     ├─ Writes: canonical config, runtime compile artifacts, profile configs
     └─ Exposes: REST API on port 5050 (including /api/wx/*)
     ↓
-Browser (http://sprontpi.local:5050)
+Browser (http://micro.local:5050)
     ├─ Displays: profile cards, gain/squelch sliders
     ├─ Shows: last hit pills, hit list, avoids, wx sounding data
     └─ Sends: profile/control changes via API
@@ -515,11 +515,18 @@ Generate diagnostic log bundle.
 
 **Contents**: System info, systemd status, journalctl logs, Icecast status, git commit info.
 
-### Digital (Experimental)
+### Digital
+
 Live-only digital backend control with in-memory metadata (no recording or persistence).
 
+**Current backend**: OP25 (`DIGITAL_BACKEND=op25`, service `scanner-digital-op25`). SDRTrunk is installed but disabled. OP25 runs `multi_rx.py` with dedicated dongle allocation (2-3 dongles for control + traffic following).
+
+**OP25 audio pipeline**: `multi_rx.py` → UDP audio → `op25-audio-bridge.py` → Icecast `/DIGITAL.mp3` → ffmpeg HLS segmenter → `/hls/live.m3u8` (fMP4+AAC segments). The SB3 digital embedded player uses hls.js to play the HLS stream in-browser.
+
+**OP25 per-system config**: `op25_system_config.json` in the active profile directory supports per-system overrides: `gains` (integer, e.g. `"LNA:42"`), `nac`, `modulation`, `traffic_priority` (boolean, designates which system the traffic follower targets), `inject_sites`, `site_policy`.
+
 **Environment variables**:
-- `DIGITAL_BACKEND` (default: `sdrtrunk`)
+- `DIGITAL_BACKEND` (default: `sdrtrunk`; set to `op25` for current deployment)
 - `DIGITAL_SERVICE_NAME` (systemd unit name, default: `scanner-digital`)
 - `DIGITAL_PROFILES_DIR` (profiles root directory)
 - `DIGITAL_ACTIVE_PROFILE_LINK` (symlink pointing at the active profile dir)
@@ -573,26 +580,27 @@ At runtime, `ensure-digital-runtime.py` and profile switches now write the SDRTr
 
 **Dongle serial locking**:
 These mappings prevent device-busy conflicts:
-- Airband (rtl-airband): `00000002`
-- Ground (rtl-airband): `83241970`
-- Digital primary (SDRTrunk): `56919602`
-- Digital secondary (SDRTrunk): `00000001`
-- Extra digital-capable tuner currently present on Micro: `14306619` (auto-adopted when `DIGITAL_AUTO_ADOPT_EXTRA_TUNERS=1`)
+- Airband (rtl-airband): `00000002` (RTL-SDR Blog V4, dedicated)
+- Ground / WX (rtl-airband + acarsdec/radiosonde): `45469635` (shared, mutually exclusive)
+- VDL2 (dumpvdl2): `83241970` (RTL-SDR Blog V4, dedicated)
+- Digital pool (OP25): `56919602`, `14306619` (dynamically assigned to systems by allocator)
+- Digital traffic follower / 3rd system (OP25): `70613472` (traffic follower when 2 systems, 3rd control when 3 systems)
 
 Enforcement:
 - Airband/Ground serials are set in `profiles/rtl_airband_*.conf` and flow into the combined config.
 - Digital serial is set via `DIGITAL_RTL_SERIAL` and selected in SDRTrunk’s tuner configuration.
 - `/api/digital/preflight` reports recent tuner-busy errors and expected serials.
 
-**Second digital dongle (P25 ready)**:
-Use this when you want SDRTrunk to auto-allocate one digital tuner for control and one for traffic.
+**Digital dongle pool (OP25)**:
+The digital pool supports up to 3 dongles. The allocator assigns them dynamically: each system gets a control dongle, remaining dongles go to the traffic pool for voice-channel following.
 
 Example `/etc/airband-ui.conf`:
 ```bash
-DIGITAL_RTL_SERIAL=56919602
-DIGITAL_RTL_SERIAL_SECONDARY=00000001
+DIGITAL_RTL_SERIAL=14306619
+DIGITAL_RTL_SERIAL_SECONDARY=56919602
+DIGITAL_RTL_SERIAL_TERTIARY=70613472
 DIGITAL_USE_MULTI_FREQ_SOURCE=1
-DIGITAL_SOURCE_ROTATION_DELAY_MS=500
+DIGITAL_SOURCE_ROTATION_DELAY_MS=200
 ```
 
 Optional exact tuner-name pinning (from SDRTrunk tuner label). Only set this if you intentionally want to force control onto one tuner:
@@ -648,20 +656,23 @@ SB3 connected refresh controls:
 - `SB3_CONNECTED_PROFILES_REFRESH_SEC` (default `60`)
 - `SB3_DEDICATED_DIGITAL_FETCH_ENABLED` (default `0`; when enabled, SB3 keeps periodic dedicated allocation/preflight fetches)
 
-**SprontPi recommended defaults**:
-If you are on SprontPi, set these in `/etc/airband-ui.conf` (or your UI EnvironmentFile):
+**Micro recommended defaults**:
+Set these in `/etc/airband-ui.conf` (or your UI EnvironmentFile):
 ```bash
 AIRBAND_RTL_SERIAL=00000002
-GROUND_RTL_SERIAL=83241970
-DIGITAL_RTL_SERIAL=56919602
-DIGITAL_RTL_SERIAL_SECONDARY=00000001
-DIGITAL_BOOT_DEFAULT_PROFILE=tacn-all
+GROUND_RTL_SERIAL=45469635
+VDL2_RTL_SERIAL=83241970
+DIGITAL_RTL_SERIAL=14306619
+DIGITAL_RTL_SERIAL_SECONDARY=56919602
+DIGITAL_RTL_SERIAL_TERTIARY=70613472
+DIGITAL_BOOT_DEFAULT_PROFILE=mtrtrs-all
 DIGITAL_LOCAL_MONITOR=0
-AIRBAND_FALLBACK_PROFILE_PATH=/usr/local/etc/airband-profiles/rtl_airband_airband.conf
-GROUND_FALLBACK_PROFILE_PATH=/usr/local/etc/airband-profiles/rtl_airband_wx.conf
 ```
 
-For local-audio debugging sessions, set `DIGITAL_LOCAL_MONITOR=1` and restart `scanner-digital` to leave SDRTrunk's direct monitor path unmuted.
+**Ground / WX mutual exclusivity**:
+Ground scanning and WX decoders (ACARS, radiosonde) share dongle `45469635`. Starting a WX decoder via `POST /api/wx/decoder` automatically stops ground scanning to release the dongle. Stopping the WX decoder restarts ground scanning. Only one of {ground, ACARS, radiosonde} runs at a time on this dongle.
+
+For local-audio debugging sessions, set `DIGITAL_LOCAL_MONITOR=1` and restart `scanner-digital-op25` to leave the direct monitor path unmuted.
 
 **Digital profiles (filesystem layout)**:
 Profiles live under `DIGITAL_PROFILES_DIR` and the active profile is pointed to by `DIGITAL_ACTIVE_PROFILE_LINK`.
