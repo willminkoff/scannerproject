@@ -72,6 +72,56 @@ DEFAULT_MOUNTS = {
 DIGITAL_DIRECT_PLAY = str(os.getenv("DIGITAL_DIRECT_PLAY", "1")).strip().lower() not in ("0", "false", "no", "off")
 DIGITAL_MUTE_FLAG = Path(os.getenv("OP25_AUDIO_MUTE_FLAG", "/run/scannerproject/op25/digital_local_mute"))
 
+# Systemd service names for VLC playback targets.  When present, the UI
+# controls the *service* (start/stop) rather than launching or killing a
+# VLC process directly.  This avoids the race where systemd's Restart=always
+# immediately respawns a process the UI just killed.
+_VLC_SYSTEMD_SERVICES: dict[str, str] = {
+    "analog": os.getenv("VLC_SYSTEMD_SERVICE_ANALOG", "scanner-vlc-analog.service").strip(),
+    "digital": os.getenv("VLC_SYSTEMD_SERVICE_DIGITAL", "scanner-vlc-digital.service").strip(),
+}
+
+
+def _systemd_service_active(unit: str) -> bool:
+    """Return True if a systemd unit is active (running)."""
+    try:
+        res = subprocess.run(
+            ["systemctl", "--user", "is-active", "--quiet", unit],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=3.0, check=False,
+        )
+        if res.returncode == 0:
+            return True
+        # Also try system-level (the VLC services run as system units)
+        res2 = subprocess.run(
+            ["systemctl", "is-active", "--quiet", unit],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=3.0, check=False,
+        )
+        return res2.returncode == 0
+    except Exception:
+        return False
+
+
+def _systemd_service_ctl(unit: str, action: str) -> tuple[bool, str]:
+    """Start or stop a systemd service.  Tries user-level first, then
+    falls back to system-level with sudo -n."""
+    for system_flag in (False, True):
+        cmd: list[str] = ["sudo", "-n", "systemctl", action, unit] if system_flag else ["systemctl", "--user", action, unit]
+        try:
+            res = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, timeout=5.0, check=False,
+            )
+            if res.returncode == 0:
+                return True, ""
+        except Exception as exc:
+            if system_flag:
+                return False, str(exc)
+    return False, "systemctl failed"
+
+
 _MOUNT_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 _LOCAL_MONITOR_SCRIPT = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -303,6 +353,10 @@ def _target_running(target: str) -> bool:
     # Digital direct play: "running" means the mute flag is absent.
     if target == "digital" and DIGITAL_DIRECT_PLAY:
         return not DIGITAL_MUTE_FLAG.exists()
+    # Check systemd service if configured.
+    svc = _VLC_SYSTEMD_SERVICES.get(target, "")
+    if svc:
+        return _systemd_service_active(svc)
     pid = _read_pid(target)
     if pid and _pid_alive(pid) and _is_vlc_pid(pid):
         return True
@@ -356,6 +410,18 @@ def start_vlc(stream_url: str = "", target: str = DEFAULT_TARGET, mount: str = "
         except Exception as exc:
             return False, str(exc)
         return True, ""
+
+    # If a systemd service manages this target, start the service instead
+    # of spawning a VLC process directly.
+    svc = _VLC_SYSTEMD_SERVICES.get(resolved_target, "")
+    if svc and _systemd_service_active(svc):
+        _mute_sdrtrunk_pulse_streams()
+        return True, "already running"
+    if svc:
+        ok, err = _systemd_service_ctl(svc, "start")
+        if ok:
+            _mute_sdrtrunk_pulse_streams()
+        return ok, err
 
     if mount and not _sanitize_mount(mount):
         return False, "invalid mount"
@@ -425,6 +491,14 @@ def stop_vlc(target: str = DEFAULT_TARGET):
         except Exception as exc:
             return False, str(exc)
         return True, ""
+
+    # If a systemd service manages this target, stop the service instead
+    # of killing the process (which systemd would just respawn).
+    svc = _VLC_SYSTEMD_SERVICES.get(resolved_target, "")
+    if svc and _systemd_service_active(svc):
+        return _systemd_service_ctl(svc, "stop")
+    if svc:
+        return True, ""  # service already stopped
 
     pid = _read_pid(resolved_target)
     if not pid:

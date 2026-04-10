@@ -12,6 +12,7 @@ from datetime import datetime
 import queue
 import shutil
 import xml.etree.ElementTree as ET
+from pathlib import Path
 from typing import Any
 from http.server import BaseHTTPRequestHandler
 
@@ -2462,6 +2463,37 @@ class Handler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError):
             return
 
+    _HLS_BASE = Path("/run/scannerproject/hls")
+    _HLS_CONTENT_TYPES = {
+        ".m3u8": "application/vnd.apple.mpegurl",
+        ".ts": "video/MP2T",
+        ".m4s": "video/iso.segment",
+        ".mp4": "video/mp4",
+    }
+
+    def _serve_hls_file(self, url_path: str):
+        """Serve HLS playlist or segment files."""
+        # Sanitize: only allow safe filenames under the HLS directory.
+        rel = url_path[len("/hls/"):].strip("/")
+        if not rel or ".." in rel:
+            return self._send(400, "invalid path", "text/plain; charset=utf-8")
+        fpath = self._HLS_BASE / rel
+        if not fpath.is_file():
+            return self._send(404, "not found", "text/plain; charset=utf-8")
+        ext = fpath.suffix.lower()
+        ctype = self._HLS_CONTENT_TYPES.get(ext, "application/octet-stream")
+        try:
+            data = fpath.read_bytes()
+        except Exception:
+            return self._send(500, "read error", "text/plain; charset=utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-cache, no-store" if ext == ".m3u8" else "max-age=10")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(data)
+
     def do_HEAD(self):
         """Handle HEAD requests."""
         u = urlparse(self.path)
@@ -2530,6 +2562,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._proxy_icecast_mount("", transcode=transcode)
         if p.startswith("/stream/"):
             return self._proxy_icecast_mount(p[len("/stream/"):], transcode=transcode)
+
+        # HLS segment/playlist serving for live audio players.
+        if p.startswith("/hls/"):
+            return self._serve_hls_file(p)
 
         if p == "/api/profile-editor/analog":
             q = parse_qs(u.query or "")
@@ -4108,9 +4144,9 @@ class Handler(BaseHTTPRequestHandler):
             except ImportError:
                 from ui.actions import _WX_START, _WX_STOP, _start_wx_reader, _stop_wx_reader
             try:
-                from .systemd import unit_active, restart_digital, UNITS
+                from .systemd import unit_active, restart_digital, stop_ground, start_ground, UNITS
             except ImportError:
-                from ui.systemd import unit_active, restart_digital, UNITS
+                from ui.systemd import unit_active, restart_digital, stop_ground, start_ground, UNITS
 
             def _heal_digital():
                 """Restart OP25 if it's in a failed/inactive state."""
@@ -4132,6 +4168,8 @@ class Handler(BaseHTTPRequestHandler):
                     except Exception:
                         pass
                 _stop_wx_reader()
+                # Ground shares the WX dongle — restart it now that the dongle is free
+                start_ground()
                 # Heal digital decoder if it crashed while WX was active
                 _heal_digital()
                 return self._send(200, json.dumps({"ok": True, "active_decoder": None}), "application/json; charset=utf-8")
@@ -4144,6 +4182,9 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception:
                     pass
             _stop_wx_reader()
+            # Ground shares the WX dongle — stop it to release the dongle
+            stop_ground()
+            time.sleep(0.5)  # let USB device release
             # Start the requested decoder(s)
             if decoder == "acars":
                 # ACARS mode starts both acarsdec and dumpvdl2 for combined data

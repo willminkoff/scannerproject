@@ -2500,6 +2500,7 @@
       }
     }
   </style>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.light.min.js"></script>
 </head>
 <body>
   <!-- Header -->
@@ -8647,6 +8648,108 @@
       });
     }
 
+    // -- HLS player for digital stream ----------------------------------------
+    const HLS_DIGITAL_URL = '/hls/digital/live.m3u8';
+    let _hlsInstance = null;
+    let _hlsWantPlay = false;
+
+    function hlsSupported() {
+      return typeof Hls !== 'undefined' && Hls.isSupported();
+    }
+
+    function hlsNativeSupported(audioEl) {
+      return audioEl && audioEl.canPlayType('application/vnd.apple.mpegurl') !== '';
+    }
+
+    function hlsDigitalAvailable() {
+      return hlsSupported() || hlsNativeSupported(els.audioPlayerDigital);
+    }
+
+    function startHlsDigital() {
+      const audioEl = els.audioPlayerDigital;
+      if (!audioEl) return;
+      _hlsWantPlay = true;
+      audioEl.dataset.wantplay = '1';
+
+      if (hlsSupported()) {
+        // Desktop browsers with MSE — use hls.js
+        if (_hlsInstance) {
+          _hlsInstance.destroy();
+          _hlsInstance = null;
+        }
+        logActivity('HLS: creating instance, loading ' + HLS_DIGITAL_URL, 'info', 'hls-start');
+        _hlsInstance = new Hls({
+          liveDurationInfinity: true,
+          liveBackBufferLength: 0,
+          maxBufferLength: 10,
+          maxMaxBufferLength: 30,
+          manifestLoadingTimeOut: 10000,
+          manifestLoadingMaxRetry: 20,
+          manifestLoadingRetryDelay: 2000,
+          levelLoadingTimeOut: 10000,
+          levelLoadingMaxRetry: 20,
+          levelLoadingRetryDelay: 2000,
+          debug: false,
+        });
+        _hlsInstance.on(Hls.Events.ERROR, function (event, data) {
+          logActivity('HLS error: ' + data.type + ' / ' + data.details + (data.fatal ? ' [FATAL]' : ''), 'warn', 'hls-err');
+          if (data.fatal) {
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+              setTimeout(function () { if (_hlsWantPlay && _hlsInstance) _hlsInstance.startLoad(); }, 3000);
+            } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              logActivity('HLS: attempting media error recovery', 'warn', 'hls-recover');
+              if (_hlsInstance) _hlsInstance.recoverMediaError();
+            }
+          }
+        });
+        _hlsInstance.on(Hls.Events.MANIFEST_PARSED, function (event, data) {
+          logActivity('HLS: manifest parsed, levels=' + (data.levels ? data.levels.length : '?'), 'info', 'hls-manifest');
+          audioEl.play().then(function () {
+            logActivity('HLS: play() succeeded', 'info', 'hls-play-ok');
+            setEmbeddedPlayerState(audioEl, 'playing', '');
+          }).catch(function (err) {
+            logActivity('HLS: play() FAILED: ' + (err && err.message || err), 'warn', 'hls-play-fail');
+          });
+        });
+        _hlsInstance.on(Hls.Events.FRAG_LOADED, function (event, data) {
+          var frag = data && data.frag;
+          logActivity('HLS: frag loaded sn=' + (frag ? frag.sn : '?') + ' dur=' + (frag ? frag.duration.toFixed(1) : '?') + 's', 'info', 'hls-frag');
+        });
+        _hlsInstance.on(Hls.Events.BUFFER_APPENDED, function () {
+          if (audioEl.paused && audioEl.dataset.wantplay === '1') {
+            audioEl.play().catch(function () {});
+          }
+        });
+        _hlsInstance.loadSource(HLS_DIGITAL_URL);
+        _hlsInstance.attachMedia(audioEl);
+      } else if (hlsNativeSupported(audioEl)) {
+        // iOS Safari — native HLS.  Only set src if not already pointing
+        // at the HLS playlist (avoids aborting an in-progress load which
+        // breaks the user-gesture context required for play on iOS).
+        var currentSrc = audioEl.currentSrc || audioEl.src || '';
+        if (currentSrc.indexOf('live.m3u8') === -1) {
+          audioEl.src = HLS_DIGITAL_URL;
+          audioEl.load();
+        }
+        audioEl.play().catch(function (err) {
+          logActivity('HLS native play() failed: ' + (err && err.message || err), 'warn', 'hls-native-fail');
+        });
+      }
+    }
+
+    function stopHlsDigital() {
+      _hlsWantPlay = false;
+      const audioEl = els.audioPlayerDigital;
+      if (audioEl) {
+        audioEl.dataset.wantplay = '0';
+        try { audioEl.pause(); } catch (e) {}
+      }
+      if (_hlsInstance) {
+        _hlsInstance.destroy();
+        _hlsInstance = null;
+      }
+    }
+
     function audioTargetLabel(audioEl) {
       if (audioEl === els.audioPlayerDigital) return 'Digital';
       return 'Analog';
@@ -8707,6 +8810,9 @@
 
     function nudgeLiveAudioToSeekableEnd(audioEl) {
       if (!audioEl) return;
+      // HLS via hls.js manages its own live-edge position (liveSyncPosition).
+      // Nudging to seekable.end starves the buffer and causes permanent seeking.
+      if (isDigitalAudioElement(audioEl) && _hlsInstance) return;
       const seekable = audioEl.seekable;
       if (!seekable || !Number.isFinite(seekable.length) || seekable.length < 1) return;
       const duration = Number(audioEl.duration);
@@ -8824,7 +8930,13 @@
         els.lnkStreamDigital.href = digitalBase;
       }
       syncAudioSource(els.audioPlayerAnalog, analogBase);
-      syncAudioSource(els.audioPlayerDigital, digitalBase);
+      // When hls.js is actively managing the digital player, don't
+      // overwrite its blob-URL source with a direct Icecast/proxy URL.
+      // Before HLS starts we allow the sync so the player has a valid
+      // src and the native controls aren't greyed out.
+      if (!_hlsInstance) {
+        syncAudioSource(els.audioPlayerDigital, digitalBase);
+      }
       state.streamBaseUrl = analogBase;
       state.digitalStreamBaseUrl = digitalBase;
     }
@@ -8907,6 +9019,15 @@
     }
 
     function reloadDigitalStream(reason, forcePlay = false, options = {}) {
+      // When HLS is available, delegate to the HLS player instead of
+      // setting audioEl.src directly.  hls.js handles its own buffering,
+      // reconnect, and error-recovery so there's nothing else to do here.
+      if (hlsDigitalAvailable()) {
+        if (forcePlay || (els.audioPlayerDigital && els.audioPlayerDigital.dataset.wantplay === '1')) {
+          startHlsDigital();
+        }
+        return;
+      }
       reloadStreamPlayer(
         els.audioPlayerDigital,
         digitalStreamUrl(),
@@ -8933,6 +9054,8 @@
         { delayMs: 1200, hardReset: false },
         { delayMs: 3500, hardReset: true },
         { delayMs: 7000, hardReset: true },
+        { delayMs: 8000, hardReset: true },
+        { delayMs: 10000, hardReset: true },
       ];
     }
 
@@ -8943,6 +9066,11 @@
       if (forcePlay && audioEl) {
         audioEl.dataset.wantplay = '1';
       }
+      // Clear any in-flight auto-recovery so this explicit restart-aware recovery
+      // actually runs. Without this, startEmbeddedRecovery bails immediately
+      // when the event-handler recovery already owns the timer, causing Apply
+      // to leave the player permanently dead after rtl-airband restarts.
+      clearEmbeddedRecovery(audioEl);
       startEmbeddedRecovery(audioEl, reloadFn, reason, { forcePlay: Boolean(forcePlay), immediate: false });
     }
 
@@ -9068,6 +9196,10 @@
 
     function maybeAutoRecoverAudio(audioEl, reloadFn, reason, allowPaused = false, options = {}) {
       if (!audioEl || typeof reloadFn !== 'function') return;
+      // When HLS is active for digital, let hls.js handle error-recovery
+      // internally (manifest reload, media error recovery) instead of
+      // tearing down and rebuilding the player from here.
+      if (isDigitalAudioElement(audioEl) && _hlsInstance) return;
       if (latencyTestOwnsAudio(audioEl)) return;
       const wantsPlay = audioEl.dataset.wantplay === '1';
       if (!allowPaused && audioEl.paused && !wantsPlay) return;
@@ -9157,6 +9289,18 @@
         }
         tracker.playRequestTs = Date.now();
         setEmbeddedPlayerState(audioEl, 'connecting', '');
+        // HLS: for the digital player, start the HLS pipeline instead of
+        // the normal src-based reload path.  Guard with _hlsInstance (for
+        // hls.js) and _hlsWantPlay (for native HLS on iOS) so the play()
+        // call inside startHlsDigital doesn't re-enter in an infinite loop.
+        if (isDigitalAudioElement(audioEl) && hlsDigitalAvailable()) {
+          state.userActivatedEmbedAudio['digital'] = true;
+          audioEl.dataset.wantplay = '1';
+          if (!_hlsInstance && !_hlsWantPlay) {
+            startHlsDigital();
+          }
+          return;
+        }
         if (isAnalogAudioElement(audioEl) && analogPlayerNeedsReload(audioEl)) {
           const now = Date.now();
           if ((now - Number(tracker.analogPrimeTs || 0)) > 1500) {
@@ -9185,6 +9329,12 @@
       audioEl.addEventListener('pause', () => {
         tracker.waitingSinceTs = 0;
         clearAudioWaitingTimer(audioEl);
+        // When HLS is starting up, attachMedia() changes the src which
+        // fires a pause event.  Don't treat that as a manual pause —
+        // _hlsWantPlay means the user wants HLS to play.
+        if (isDigitalAudioElement(audioEl) && _hlsWantPlay) {
+          return;
+        }
         const hintAge = Date.now() - Number(tracker.userPauseHintTs || 0);
         const manualPause = hintAge <= AUDIO_USER_PAUSE_WINDOW_MS;
         if (manualPause) {
@@ -9199,6 +9349,10 @@
             state.userActivatedEmbedAudio[pauseKind] = false;
             clearEmbeddedRecovery(audioEl);
             setEmbeddedPlayerState(audioEl, 'idle', '');
+            // Tear down HLS instance on manual digital pause
+            if (pauseKind === 'digital' && _hlsInstance) {
+              stopHlsDigital();
+            }
             return;
           }
           // Stream is unhealthy — treat as backend-triggered pause, keep wantplay
@@ -9282,6 +9436,12 @@
       }
       if (els.audioPlayerDigital) {
         setEmbeddedPlayerState(els.audioPlayerDigital, 'idle', '');
+        // Pre-set HLS src for native-HLS browsers (iOS Safari) so the
+        // native play button works without changing src in the gesture
+        // handler (which breaks iOS autoplay policy).
+        if (!hlsSupported() && hlsNativeSupported(els.audioPlayerDigital)) {
+          els.audioPlayerDigital.src = HLS_DIGITAL_URL;
+        }
       }
       bindAudioAutoRecover(els.audioPlayerAnalog, reloadAnalogStream);
       bindAudioAutoRecover(els.audioPlayerDigital, reloadDigitalStream);
@@ -15571,6 +15731,8 @@
           { el: els.audioPlayerDigital, reload: reloadDigitalStream, kind: 'digital' },
         ].forEach(({ el, reload, kind }) => {
           if (!el) return;
+          // HLS handles its own recovery for digital
+          if (kind === 'digital' && _hlsInstance) return;
           const wantsPlay = el.dataset.wantplay === '1';
           if (!wantsPlay) return;
           // readyState: 0=HAVE_NOTHING, 1=HAVE_METADATA, 2=HAVE_CURRENT_DATA

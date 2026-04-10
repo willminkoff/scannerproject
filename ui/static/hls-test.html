@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>HLS Test</title>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js"></script>
+<style>
+body { font-family: monospace; background: #111; color: #0f0; padding: 20px; }
+audio { display: block; width: 100%; margin: 20px 0; }
+#log { white-space: pre-wrap; font-size: 12px; max-height: 400px; overflow-y: auto; border: 1px solid #333; padding: 10px; }
+button { font-size: 18px; padding: 10px 30px; margin: 5px; cursor: pointer; }
+</style>
+</head>
+<body>
+<h2>HLS Digital Audio Test</h2>
+<div>
+  <button onclick="startHls()">Start HLS</button>
+  <button onclick="audioEl.play()">Force Play</button>
+  <button onclick="audioEl.pause()">Pause</button>
+  <button onclick="stopHls()">Stop HLS</button>
+</div>
+<div>
+  <audio id="player" controls></audio>
+</div>
+<div id="status" style="font-size:16px; margin:10px 0;">--</div>
+<div id="log"></div>
+
+<script>
+var audioEl = document.getElementById('player');
+var logEl = document.getElementById('log');
+var statusEl = document.getElementById('status');
+var hls = null;
+var HLS_URL = '/hls/digital/live.m3u8';
+
+function log(msg) {
+  var ts = new Date().toLocaleTimeString();
+  logEl.textContent = ts + ' ' + msg + '\n' + logEl.textContent;
+  console.log('[HLS-TEST]', msg);
+}
+
+function updateStatus() {
+  var s = 'paused=' + audioEl.paused +
+    ' muted=' + audioEl.muted +
+    ' vol=' + audioEl.volume.toFixed(2) +
+    ' time=' + audioEl.currentTime.toFixed(1) +
+    ' readyState=' + audioEl.readyState +
+    ' networkState=' + audioEl.networkState +
+    ' buffered=' + (audioEl.buffered.length > 0 ? audioEl.buffered.end(0).toFixed(1) : 'none') +
+    ' src=' + (audioEl.src || '').substring(0, 60);
+  statusEl.textContent = s;
+}
+setInterval(updateStatus, 500);
+
+// Log all audio events
+['play','playing','pause','waiting','stalled','error','canplay','canplaythrough','loadedmetadata','emptied','ended','suspend','abort','timeupdate'].forEach(function(evt) {
+  audioEl.addEventListener(evt, function() {
+    if (evt !== 'timeupdate') log('audio event: ' + evt);
+  });
+});
+
+function startHls() {
+  if (hls) { hls.destroy(); hls = null; }
+
+  if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+    log('Hls.isSupported() = true, creating instance');
+    hls = new Hls({
+      liveDurationInfinity: true,
+      liveBackBufferLength: 0,
+      maxBufferLength: 10,
+      maxMaxBufferLength: 30,
+      enableWorker: true,
+      debug: false,
+    });
+
+    hls.on(Hls.Events.MANIFEST_PARSED, function(e, d) {
+      log('MANIFEST_PARSED levels=' + (d.levels ? d.levels.length : '?') +
+        ' codecs=' + (d.levels && d.levels[0] ? d.levels[0].audioCodec || d.levels[0].codec : '?'));
+      audioEl.play().then(function() {
+        log('play() resolved OK');
+      }).catch(function(err) {
+        log('play() REJECTED: ' + err.name + ': ' + err.message);
+      });
+    });
+
+    hls.on(Hls.Events.MANIFEST_LOADED, function(e, d) {
+      log('MANIFEST_LOADED url=' + (d.url || ''));
+    });
+
+    hls.on(Hls.Events.LEVEL_LOADED, function(e, d) {
+      var details = d.details;
+      log('LEVEL_LOADED frags=' + (details ? details.fragments.length : '?') +
+        ' live=' + (details ? details.live : '?') +
+        ' type=' + (details ? details.type : '?'));
+    });
+
+    hls.on(Hls.Events.INIT_PTS_FOUND, function(e, d) {
+      log('INIT_PTS_FOUND pts=' + (d.initPTS || '?'));
+    });
+
+    hls.on(Hls.Events.FRAG_LOADING, function(e, d) {
+      log('FRAG_LOADING sn=' + (d.frag ? d.frag.sn : '?'));
+    });
+
+    hls.on(Hls.Events.FRAG_LOADED, function(e, d) {
+      var frag = d.frag;
+      var stats = d.stats || d.networkDetails;
+      log('FRAG_LOADED sn=' + (frag ? frag.sn : '?') +
+        ' dur=' + (frag ? frag.duration.toFixed(2) : '?') + 's' +
+        ' bytes=' + (d.payload ? d.payload.byteLength : '?'));
+    });
+
+    hls.on(Hls.Events.FRAG_BUFFERED, function(e, d) {
+      log('FRAG_BUFFERED sn=' + (d.frag ? d.frag.sn : '?'));
+    });
+
+    hls.on(Hls.Events.BUFFER_APPENDED, function(e, d) {
+      log('BUFFER_APPENDED');
+    });
+
+    hls.on(Hls.Events.BUFFER_APPENDING, function(e, d) {
+      log('BUFFER_APPENDING type=' + (d.type || '?') + ' bytes=' + (d.data ? d.data.byteLength : '?'));
+    });
+
+    hls.on(Hls.Events.ERROR, function(e, d) {
+      log('ERROR type=' + d.type + ' details=' + d.details +
+        ' fatal=' + d.fatal + ' reason=' + (d.reason || '') +
+        ' response=' + (d.response ? d.response.code : ''));
+      if (d.fatal) {
+        if (d.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          log('Attempting recoverMediaError...');
+          hls.recoverMediaError();
+        }
+      }
+    });
+
+    hls.loadSource(HLS_URL);
+    hls.attachMedia(audioEl);
+    log('loadSource + attachMedia called');
+  } else if (audioEl.canPlayType('application/vnd.apple.mpegurl')) {
+    log('Using native HLS');
+    audioEl.src = HLS_URL;
+    audioEl.play().catch(function(err) {
+      log('native play() failed: ' + err.message);
+    });
+  } else {
+    log('HLS NOT SUPPORTED in this browser!');
+  }
+}
+
+function stopHls() {
+  if (hls) { hls.destroy(); hls = null; }
+  audioEl.pause();
+  audioEl.removeAttribute('src');
+  audioEl.load();
+  log('stopped');
+}
+</script>
+</body>
+</html>

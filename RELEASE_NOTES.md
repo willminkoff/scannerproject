@@ -19,3 +19,7 @@ Release Notes
 - Digital subsystem: SDRTrunk adapter, systemd unit, and live-only API endpoints (start/stop/restart, profiles, mute, inspect).
 - Digital profiles: filesystem-based profile directories with active symlink model and SB3 management UI.
 - SB3: Digital tab, Digital profiles widget, last-hit pill, and mobile header stacking improvements.
+
+2026-04-10
+----------
+- Fix: analog embedded player no longer permanently stalls after Apply (gain/squelch change). Root cause was two compounding bugs: (1) the 3-step recovery plan (~10.5 s window) expired before rtl-airband finished restarting (10–14 s), setting wantplay=0 and permanently disabling auto-recovery; (2) scheduleStreamRecovery was a silent no-op because startEmbeddedRecovery bailed when the event-handler recovery already held the timer. Fix: extended recovery plan to 5 steps (~29.7 s window) and added clearEmbeddedRecovery() before startEmbeddedRecovery() in scheduleStreamRecovery so Apply-triggered recovery displaces the in-flight auto-recovery and actually runs.
