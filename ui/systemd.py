@@ -152,6 +152,11 @@ def restart_digital() -> Tuple[bool, str]:
     return _restart_unit(UNITS["digital"], use_sudo=True)
 
 
+def restart_digital_audio() -> Tuple[bool, str]:
+    """Restart the OP25 audio bridge service."""
+    return _restart_unit(UNITS["digital_audio"], use_sudo=True)
+
+
 def set_bt_heal_auto_recovery(enabled: bool) -> Tuple[bool, str]:
     """Enable/disable periodic BT-heal auto-recovery timer."""
     timer_unit = str(BT_HEAL_TIMER_UNIT or "").strip()

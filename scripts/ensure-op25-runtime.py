@@ -272,9 +272,44 @@ def main() -> int:
     else:
         print("OP25 runtime: no traffic follower dongle available")
 
+    # Detect optional second traffic follower from VDL2 dongle sharing.
+    # When VDL2 is inactive the spare dongle joins OP25 as sdr_traffic2,
+    # giving each trunked system its own dedicated voice follower.
+    # The handler touches a sentinel file before starting VDL2 so this
+    # script excludes the dongle while VDL2 is using it.
+    _VDL2_SENTINEL = os.environ.get(
+        "OP25_VDL2_SENTINEL",
+        os.path.join(OP25_RUNTIME_DIR, "vdl2_dongle_reserved"),
+    )
+    _vdl2_serial = os.environ.get("VDL2_RTL_SERIAL", "").strip()
+    _vdl2_share = os.environ.get("OP25_VDL2_TRAFFIC_SHARE", "1").strip() != "0"
+    traffic_serial_2 = ""
+    traffic_system_2 = ""
+    if _vdl2_share and _vdl2_serial and not os.path.exists(_VDL2_SENTINEL):
+        traffic_serial_2 = _vdl2_serial
+        # System-agnostic: default target is systems[1], fallback to systems[0].
+        traffic_system_2 = (
+            systems[1]["name"] if len(systems) > 1 else (systems[0]["name"] if systems else "")
+        )
+        print(
+            f"OP25 runtime: VDL2 dongle {_vdl2_serial} shared as sdr_traffic2 -> {traffic_system_2}"
+        )
+    else:
+        reasons: list[str] = []
+        if not _vdl2_share:
+            reasons.append("OP25_VDL2_TRAFFIC_SHARE=0")
+        if not _vdl2_serial:
+            reasons.append("VDL2_RTL_SERIAL not set")
+        if _vdl2_serial and os.path.exists(_VDL2_SENTINEL):
+            reasons.append(f"sentinel present ({_VDL2_SENTINEL})")
+        if reasons:
+            print(f"OP25 runtime: VDL2 traffic share inactive: {', '.join(reasons)}")
+
     requested_serials = list(dongle_map.values())
     if traffic_serial:
         requested_serials.append(traffic_serial)
+    if traffic_serial_2 and traffic_serial_2 not in requested_serials:
+        requested_serials.append(traffic_serial_2)
     dongle_args_map = _build_dongle_arg_map(requested_serials)
     if dongle_args_map:
         for serial in requested_serials:
@@ -291,6 +326,8 @@ def main() -> int:
         dongle_args_map=dongle_args_map,
         traffic_dongle_serial=traffic_serial,
         traffic_system_name=traffic_system,
+        traffic_dongle_serial_2=traffic_serial_2,
+        traffic_system_name_2=traffic_system_2,
         op25_overrides=op25_overrides,
         tgid_tags_path=tags_path,
         http_port=OP25_STATUS_PORT,

@@ -4144,9 +4144,9 @@ class Handler(BaseHTTPRequestHandler):
             except ImportError:
                 from ui.actions import _WX_START, _WX_STOP, _start_wx_reader, _stop_wx_reader
             try:
-                from .systemd import unit_active, restart_digital, stop_ground, start_ground, UNITS
+                from .systemd import unit_active, restart_digital, restart_digital_audio, stop_ground, start_ground, UNITS
             except ImportError:
-                from ui.systemd import unit_active, restart_digital, stop_ground, start_ground, UNITS
+                from ui.systemd import unit_active, restart_digital, restart_digital_audio, stop_ground, start_ground, UNITS
 
             def _heal_digital():
                 """Restart OP25 if it's in a failed/inactive state."""
@@ -4157,6 +4157,79 @@ class Handler(BaseHTTPRequestHandler):
                         restart_digital()
                 except Exception:
                     logger.exception("WX decoder stop: failed to heal digital decoder")
+
+            # Sentinel file: presence tells ensure-op25-runtime.py that VDL2 owns
+            # its dongle so it must not be added as sdr_traffic2 in OP25.
+            import os as _os
+            _VDL2_SENTINEL = _os.environ.get(
+                "OP25_VDL2_SENTINEL",
+                "/run/scannerproject/op25/vdl2_dongle_reserved",
+            )
+            _vdl2_share = _os.environ.get("OP25_VDL2_TRAFFIC_SHARE", "1").strip() != "0"
+
+            def _vdl2_reclaim_dongle():
+                """VDL2 stopped — remove sentinel and restart OP25 to add sdr_traffic2."""
+                if not _vdl2_share:
+                    return
+                try:
+                    _os.unlink(_VDL2_SENTINEL)
+                    logger.info(
+                        "VDL2 dongle sharing: removed sentinel %s, restarting OP25 to add sdr_traffic2",
+                        _VDL2_SENTINEL,
+                    )
+                except FileNotFoundError:
+                    pass  # already gone
+                except Exception:
+                    logger.exception("VDL2 dongle sharing: failed to remove sentinel %s", _VDL2_SENTINEL)
+                try:
+                    ok, err = restart_digital()
+                    if ok:
+                        logger.info("VDL2 dongle sharing: OP25 restarted successfully")
+                    else:
+                        logger.warning("VDL2 dongle sharing: OP25 restart failed: %s", err)
+                except Exception:
+                    logger.exception("VDL2 dongle sharing: exception restarting OP25")
+                # Audio bridge binds UDP ports at startup — restart to pick up new port.
+                try:
+                    ok, err = restart_digital_audio()
+                    if ok:
+                        logger.info("VDL2 dongle sharing: audio bridge restarted successfully")
+                    else:
+                        logger.warning("VDL2 dongle sharing: audio bridge restart failed: %s", err)
+                except Exception:
+                    logger.exception("VDL2 dongle sharing: exception restarting audio bridge")
+
+            def _vdl2_reserve_dongle():
+                """VDL2 starting — touch sentinel and restart OP25 to drop sdr_traffic2."""
+                if not _vdl2_share:
+                    return
+                try:
+                    _os.makedirs(_os.path.dirname(_VDL2_SENTINEL), exist_ok=True)
+                    with open(_VDL2_SENTINEL, "w") as _f:
+                        _f.write("")
+                    logger.info(
+                        "VDL2 dongle sharing: touched sentinel %s, restarting OP25 to drop sdr_traffic2",
+                        _VDL2_SENTINEL,
+                    )
+                except Exception:
+                    logger.exception("VDL2 dongle sharing: failed to touch sentinel %s", _VDL2_SENTINEL)
+                    return  # don't restart OP25 if we couldn't set the sentinel
+                try:
+                    ok, err = restart_digital()
+                    if ok:
+                        logger.info("VDL2 dongle sharing: OP25 restarted successfully (sdr_traffic2 removed)")
+                    else:
+                        logger.warning("VDL2 dongle sharing: OP25 restart failed: %s", err)
+                except Exception:
+                    logger.exception("VDL2 dongle sharing: exception restarting OP25")
+                try:
+                    ok, err = restart_digital_audio()
+                    if ok:
+                        logger.info("VDL2 dongle sharing: audio bridge restarted successfully")
+                    else:
+                        logger.warning("VDL2 dongle sharing: audio bridge restart failed: %s", err)
+                except Exception:
+                    logger.exception("VDL2 dongle sharing: exception restarting audio bridge")
 
             action = get_str("action", "").lower()
             decoder = get_str("decoder", "").lower()
@@ -4172,6 +4245,8 @@ class Handler(BaseHTTPRequestHandler):
                 start_ground()
                 # Heal digital decoder if it crashed while WX was active
                 _heal_digital()
+                # VDL2 stopped — reclaim its dongle as sdr_traffic2 in OP25
+                _vdl2_reclaim_dongle()
                 return self._send(200, json.dumps({"ok": True, "active_decoder": None}), "application/json; charset=utf-8")
             if action != "start" or decoder not in ("acars", "radiosonde"):
                 return self._send(400, json.dumps({"ok": False, "error": "action must be start|stop, decoder must be acars|radiosonde"}), "application/json; charset=utf-8")
@@ -4187,7 +4262,9 @@ class Handler(BaseHTTPRequestHandler):
             time.sleep(0.5)  # let USB device release
             # Start the requested decoder(s)
             if decoder == "acars":
-                # ACARS mode starts both acarsdec and dumpvdl2 for combined data
+                # ACARS mode starts both acarsdec and dumpvdl2 for combined data.
+                # Reserve VDL2 dongle in OP25 before starting dumpvdl2.
+                _vdl2_reserve_dongle()
                 ok1, err1 = _WX_START["acars"]()
                 ok2, err2 = _WX_START.get("vdl2", lambda: (True, ""))()
                 if not ok1 and not ok2:
