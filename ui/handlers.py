@@ -4161,9 +4161,14 @@ class Handler(BaseHTTPRequestHandler):
             # Sentinel file: presence tells ensure-op25-runtime.py that VDL2 owns
             # its dongle so it must not be added as sdr_traffic2 in OP25.
             import os as _os
+            # Default sentinel path is in /run/user/1000/ (ubuntu's runtime dir):
+            #   - writable by ubuntu (the UI process and service user)
+            #   - cleared on reboot (correct: VDL2 won't be running after reboot)
+            #   - survives OP25 service restarts (unlike OP25_RUNTIME_DIR which
+            #     RuntimeDirectory= wipes before ExecStartPre runs)
             _VDL2_SENTINEL = _os.environ.get(
                 "OP25_VDL2_SENTINEL",
-                "/run/scannerproject/op25/vdl2_dongle_reserved",
+                "/run/user/1000/vdl2_dongle_reserved",
             )
             _vdl2_share = _os.environ.get("OP25_VDL2_TRAFFIC_SHARE", "1").strip() != "0"
 

@@ -288,9 +288,10 @@ class EnsureOp25SentinelTest(unittest.TestCase):
             "updated_at_ms": 1,
         }
 
-        sentinel_path = str(runtime_dir / "vdl2_dongle_reserved")
+        # Sentinel is outside runtime_dir (which systemd wipes on service start).
+        sentinel_path = str(tmp_path / "vdl2_dongle_reserved")
         if sentinel_exists:
-            (runtime_dir / "vdl2_dongle_reserved").write_text("")
+            (tmp_path / "vdl2_dongle_reserved").write_text("")
 
         env_patch: dict[str, str] = {
             "VDL2_RTL_SERIAL": "VDL2SERIAL",

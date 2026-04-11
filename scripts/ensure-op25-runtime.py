@@ -277,9 +277,17 @@ def main() -> int:
     # giving each trunked system its own dedicated voice follower.
     # The handler touches a sentinel file before starting VDL2 so this
     # script excludes the dongle while VDL2 is using it.
+    # IMPORTANT: sentinel must be OUTSIDE OP25_RUNTIME_DIR.
+    # RuntimeDirectory=scannerproject/op25 causes systemd to wipe that entire
+    # directory before ExecStartPre runs — anything inside would be deleted
+    # before this script can check it.
+    # Default: /run/user/1000/vdl2_dongle_reserved
+    #   - writable by ubuntu (the service user and UI process)
+    #   - cleared on reboot (correct: VDL2 won't be running after reboot)
+    #   - survives OP25 service restarts
     _VDL2_SENTINEL = os.environ.get(
         "OP25_VDL2_SENTINEL",
-        os.path.join(OP25_RUNTIME_DIR, "vdl2_dongle_reserved"),
+        "/run/user/1000/vdl2_dongle_reserved",
     )
     _vdl2_serial = os.environ.get("VDL2_RTL_SERIAL", "").strip()
     _vdl2_share = os.environ.get("OP25_VDL2_TRAFFIC_SHARE", "1").strip() != "0"
