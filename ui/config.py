@@ -316,6 +316,7 @@ UNITS = {
     "keepalive": os.getenv("UNIT_KEEPALIVE", "icecast-keepalive"),
     "ui": os.getenv("UNIT_UI", "airband-ui"),
     "digital": DIGITAL_SERVICE_NAME,
+    "digital_audio": os.getenv("UNIT_DIGITAL_AUDIO", "scanner-digital-op25-audio"),
     "digital_mixer": os.getenv("UNIT_DIGITAL_MIXER", "scanner-digital-mixer"),
     "bt_heal_timer": BT_HEAL_TIMER_UNIT,
     "bt_heal_service": BT_HEAL_SERVICE_UNIT,
