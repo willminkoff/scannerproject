@@ -968,12 +968,12 @@ def generate_multi_rx_config(
 ) -> dict:
     """Generate a multi_rx.py JSON config for all systems + optional traffic follower(s).
 
-    traffic_dongle_serial / traffic_system_name: first traffic follower (follows system 0
-    by default, or whichever system has traffic_priority set).
+    traffic_dongle_serial / traffic_system_name: first traffic follower (sdr_traffic),
+    follows systems[0] by default or whichever system has traffic_priority set.
     traffic_dongle_serial_2 / traffic_system_name_2: optional second traffic follower
-    (follows system 1 by default). Used when a spare dongle (e.g. VDL2 dongle when VDL2
-    is inactive) is available to give each trunked system its own dedicated voice follower.
-    System names are resolved dynamically from the active profile — never hardcoded.
+    (sdr_traffic2), follows systems[1] by default. Used when a spare dongle (e.g. VDL2
+    dongle when VDL2 is inactive) is available to give each trunked system its own
+    dedicated voice follower. System names are resolved dynamically — never hardcoded.
     """
     overrides = op25_overrides or {}
     arg_map = dongle_args_map or {}
@@ -1134,6 +1134,49 @@ def generate_multi_rx_config(
                     "no control channel found for system=%s",
                     traffic_dongle_serial_2, target_sys_2,
                 )
+
+    if traffic_dongle_serial_2:
+        # Default: second traffic follower targets systems[1] (system-agnostic, never hardcoded).
+        target_sys_2 = traffic_system_name_2 or (
+            systems[1]["name"] if len(systems) > 1 else (systems[0]["name"] if systems else "")
+        )
+        if target_sys_2:
+            target_cc_hz_2 = 0
+            target_mod_2 = OP25_DEFAULT_MODULATION
+            for sys_def in systems:
+                if sys_def["name"] == target_sys_2:
+                    if sys_def["control_channels_hz"]:
+                        target_cc_hz_2 = int(sys_def["control_channels_hz"][0])
+                    sys_over_2 = overrides.get(target_sys_2) or {}
+                    target_mod_2 = str(sys_over_2.get("modulation", OP25_DEFAULT_MODULATION)).strip().lower()
+                    break
+            if target_cc_hz_2:
+                traffic_sys_over_2 = overrides.get(target_sys_2) or {}
+                traffic_gains_2 = str(traffic_sys_over_2.get("gains", "LNA:36")).strip() or "LNA:36"
+                devices.append({
+                    "name": "sdr_traffic2",
+                    "args": str(arg_map.get(traffic_dongle_serial_2) or f"rtl={traffic_dongle_serial_2}"),
+                    "rate": sample_rate,
+                    "frequency": target_cc_hz_2,
+                    "offset": offset,
+                    "ppm": 0.0,
+                    "gains": traffic_gains_2,
+                    "gain_mode": True,
+                    "tunable": True,
+                })
+                udp_port = udp_audio_base_port + udp_port_idx * 2
+                channels.append({
+                    "name": f"traffic2_{target_sys_2}",
+                    "device": "sdr_traffic2",
+                    "trunking_sysname": target_sys_2,
+                    "demod_type": target_mod_2,
+                    "filter_type": "rc",
+                    "if_rate": 24000,
+                    "symbol_rate": 4800,
+                    "destination": f"udp://127.0.0.1:{udp_port}",
+                    "enable_analog": "off",
+                })
+                udp_port_idx += 1
 
     return {
         "devices": devices,
