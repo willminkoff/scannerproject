@@ -322,6 +322,7 @@ UNITS = {
     "acars": os.getenv("UNIT_ACARS", "acarsdec"),
     "vdl2": os.getenv("UNIT_VDL2", "dumpvdl2"),
     "radiosonde": os.getenv("UNIT_RADIOSONDE", "radiosonde-auto-rx"),
+    "digital_audio": os.getenv("UNIT_DIGITAL_AUDIO", "scanner-digital-op25-audio"),
 }
 
 # Mixer Configuration
