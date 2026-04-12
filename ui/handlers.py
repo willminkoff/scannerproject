@@ -4830,9 +4830,22 @@ class Handler(BaseHTTPRequestHandler):
 
         if p == "/api/volume":
             action = get_str("action", "get").strip().lower()
-            sink = get_str("sink", "47").strip()
+            sink_name = get_str("sink", "alsa_output.pci-0000_00_1f.3.analog-stereo").strip()
             _vol_env = os.environ.copy()
             _vol_env["XDG_RUNTIME_DIR"] = "/run/user/1000"
+            # Resolve node name -> numeric ID (wpctl only accepts numeric IDs)
+            sink = sink_name
+            try:
+                _pw = subprocess.run(["pw-cli", "ls", "Node"], env=_vol_env, timeout=3, capture_output=True, text=True)
+                _parts = re.split(r"(?=^\tid \d+, type)", _pw.stdout, flags=re.MULTILINE)
+                for _blk in _parts:
+                    if sink_name in _blk:
+                        _m = re.match(r"^\tid (\d+)", _blk)
+                        if _m:
+                            sink = _m.group(1)
+                            break
+            except Exception:
+                pass
             if action == "set":
                 raw_level = get_str("level", "").strip()
                 try:
