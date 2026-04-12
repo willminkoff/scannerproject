@@ -1,6 +1,6 @@
 # SprontPi Scanner Project
 
-**Version:** 2.6.0 (2026-04-11)
+**Version:** 3.3 (2026-04-11)
 
 Scanner control UI and configuration for RTL-SDR multi-dongle airband/GMRS/WX/digital receiver with weather sounding collection.
 
@@ -26,7 +26,7 @@ Current scanner host (replacing the Pi runtime target):
   - `70613472` (Nooelec NESDR SMArt v5) — Digital traffic follower / 3rd system
   - `45469635` (Nooelec NESDR SMArt v5) — Ground / ACARS / Radiosonde (shared)
 
-## Version 2.6 Lock (2026-04-11)
+## Version 3.3 Lock (2026-04-11)
 
 - HLS digital audio player with OP25 traffic follower, ground/WX dongle sharing.
 - VDL2/traffic automatic dongle sharing (Phase 1).
