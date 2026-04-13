@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ACARS / VDL2 Decode — SB3</title>
+<style>
+  :root {
+    --bg: #0a1628;
+    --bg2: #0d1e36;
+    --bg3: #122342;
+    --border: #1e3a5f;
+    --accent: #00e5c8;
+    --accent2: #00b8a0;
+    --text: #c8d8f0;
+    --text-dim: #6a8ab0;
+    --acars-color: #3b82f6;
+    --vdl2-color: #a855f7;
+    --xid-color: #f97316;
+    --met-color: #22c55e;
+    --warn: #f59e0b;
+    --red: #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    min-height: 100vh;
+  }
+  /* ---- Header ---- */
+  #header {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    flex-wrap: wrap;
+  }
+  #header h1 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  #header .sep { color: var(--border); font-size: 18px; }
+  #status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    flex-shrink: 0;
+  }
+  #status-dot.live { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  #status-dot.err  { background: var(--red); }
+  #msg-count { color: var(--text-dim); font-size: 12px; white-space: nowrap; }
+  #controls {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-left: auto;
+  }
+  #search {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    padding: 4px 10px;
+    font-size: 12px;
+    width: 200px;
+    outline: none;
+  }
+  #search:focus { border-color: var(--accent); }
+  #search::placeholder { color: var(--text-dim); }
+  .filter-btn {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-dim);
+    padding: 4px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    transition: all 0.15s;
+  }
+  .filter-btn:hover { border-color: var(--accent); color: var(--text); }
+  .filter-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0,229,200,0.08); }
+  .filter-btn.src-acars.active { border-color: var(--acars-color); color: var(--acars-color); background: rgba(59,130,246,0.08); }
+  .filter-btn.src-vdl2.active  { border-color: var(--vdl2-color);  color: var(--vdl2-color);  background: rgba(168,85,247,0.08); }
+  #autoscroll-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0,229,200,0.08); }
+  /* ---- Feed ---- */
+  #feed {
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  /* ---- Card ---- */
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    transition: border-color 0.15s;
+  }
+  .card:hover { border-color: #2a4a70; }
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .src-badge {
+    padding: 2px 7px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+  .src-acars { background: rgba(59,130,246,0.18); color: var(--acars-color); border: 1px solid rgba(59,130,246,0.35); }
+  .src-vdl2  { background: rgba(168,85,247,0.18); color: var(--vdl2-color);  border: 1px solid rgba(168,85,247,0.35); }
+  .src-xid   { background: rgba(249,115,22,0.18);  color: var(--xid-color);   border: 1px solid rgba(249,115,22,0.35); }
+  .src-radiosonde { background: rgba(34,197,94,0.15); color: var(--met-color); border: 1px solid rgba(34,197,94,0.3); }
+  .flight-id {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text);
+    min-width: 70px;
+  }
+  .reg { color: var(--text-dim); font-size: 11px; }
+  .freq-chip {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .signal {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  .signal-strong { color: #22c55e; background: rgba(34,197,94,0.12); }
+  .signal-ok     { color: #84cc16; background: rgba(132,204,22,0.12); }
+  .signal-weak   { color: var(--warn); background: rgba(245,158,11,0.12); }
+  .signal-poor   { color: var(--red); background: rgba(239,68,68,0.12); }
+  .label-chip {
+    background: rgba(0,229,200,0.1);
+    border: 1px solid rgba(0,229,200,0.2);
+    border-radius: 3px;
+    padding: 1px 7px;
+    font-size: 11px;
+    color: var(--accent2);
+    flex-shrink: 0;
+  }
+  .label-name { color: var(--text-dim); font-size: 11px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ts { color: var(--text-dim); font-size: 11px; margin-left: auto; white-space: nowrap; flex-shrink: 0; }
+  .expand-icon { color: var(--text-dim); font-size: 11px; flex-shrink: 0; margin-left: 4px; }
+  .met-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--met-color);
+    flex-shrink: 0;
+    box-shadow: 0 0 4px var(--met-color);
+  }
+  /* ---- Card body ---- */
+  .card-body { display: none; padding: 0 10px 10px; }
+  .card.expanded .card-body { display: block; }
+  .card.expanded .expand-icon::before { content: '▲'; }
+  .expand-icon::before { content: '▼'; }
+  /* ---- Fields grid ---- */
+  .fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .field {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 5px 8px;
+  }
+  .field-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px; }
+  .field-value { font-size: 12px; color: var(--text); font-weight: 500; word-break: break-all; }
+  .field-value.mono { font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace; font-size: 11px; }
+  /* ---- Message text ---- */
+  .msg-text-block {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 12px;
+    color: var(--accent);
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin-bottom: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  /* ---- Raw JSON ---- */
+  .raw-toggle {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-dim);
+    font-size: 11px;
+    padding: 3px 10px;
+    cursor: pointer;
+    margin-bottom: 6px;
+    transition: all 0.15s;
+  }
+  .raw-toggle:hover { border-color: var(--accent); color: var(--accent); }
+  .raw-json {
+    display: none;
+    background: #060e1a;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 11px;
+    color: #8ab4d8;
+    white-space: pre;
+    overflow-x: auto;
+    max-height: 350px;
+    overflow-y: auto;
+  }
+  .raw-json.visible { display: block; }
+  /* ---- VDL2 address row ---- */
+  .addr-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 11px;
+  }
+  .addr-badge {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 2px 8px;
+    color: var(--text-dim);
+  }
+  .addr-badge span { color: var(--text); font-family: monospace; }
+  .addr-arrow { color: var(--text-dim); }
+  /* ---- XID params ---- */
+  .xid-params {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 8px;
+  }
+  .xid-param {
+    background: rgba(249,115,22,0.1);
+    border: 1px solid rgba(249,115,22,0.25);
+    border-radius: 3px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: var(--xid-color);
+    font-family: monospace;
+  }
+  /* ---- Empty state ---- */
+  #empty {
+    text-align: center;
+    color: var(--text-dim);
+    padding: 60px 20px;
+    font-size: 13px;
+  }
+  #empty .icon { font-size: 36px; margin-bottom: 12px; }
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #2a4a70; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div id="status-dot"></div>
+  <h1>ACARS / VDL2 Decode</h1>
+  <span class="sep">|</span>
+  <span id="msg-count">—</span>
+  <div id="controls">
+    <input id="search" type="text" placeholder="Search flight, text, label…">
+    <button class="filter-btn active" id="btn-all" onclick="setSource(null)">All</button>
+    <button class="filter-btn src-acars" id="btn-acars" onclick="setSource('acars')">ACARS</button>
+    <button class="filter-btn src-vdl2" id="btn-vdl2" onclick="setSource('vdl2')">VDL2</button>
+    <button class="filter-btn active" id="autoscroll-btn" onclick="toggleAutoScroll()">Auto-scroll</button>
+  </div>
+</div>
+
+<div id="feed">
+  <div id="empty">
+    <div class="icon">📡</div>
+    Waiting for ACARS / VDL2 messages…
+  </div>
+</div>
+
+<script>
+// ---- ACARS label dictionary ----
+const LABEL_NAMES = {
+  '10': 'Enroute Position',
+  '11': 'Enroute Position',
+  '13': 'ETA/Position Report',
+  '21': 'Position Report (Frontier)',
+  '22': 'Position Report',
+  '44': 'Meteorological',
+  '4A': 'AMDAR Meteorological',
+  '52': 'Out/Off/On/In Report',
+  '54': 'OOOI Position',
+  '5Z': 'ADS-C',
+  '80': 'Unit Availability',
+  '83': 'ATIS Download',
+  '8L': 'ATIS/Clearance',
+  'A0': 'Weather Report',
+  'AA': 'Weather/PIREP',
+  'B1': 'Weight & Balance',
+  'B2': 'Fuel Load',
+  'B3': 'Landing Report',
+  'B6': 'Crew Report',
+  'BA': 'Technical Report',
+  'C1': 'Engine Report',
+  'D1': 'Digital ATIS',
+  'E1': 'Prefile PIREP',
+  'E2': 'Winds Aloft',
+  'E9': 'ADS Report',
+  'F3': 'Position/Weather',
+  'H1': 'OOOI/Position (ARINC 633)',
+  'H2': 'Fuel/Position (ARINC 633)',
+  'RA': 'ACARS Logon',
+  'S1': 'Predep Clearance',
+  'SA': 'Winds/Temperature',
+  'SQ': 'Squitter',
+  'PR': 'Position Report',
+  'Q0': 'ATIS',
+  'QT': 'Fuel Status',
+  'QX': 'Crew Query',
+  '5U': 'CPDLC Connect',
+  '5V': 'CPDLC Request',
+  '5W': 'CPDLC Uplink',
+  '5X': 'CPDLC Downlink',
+  '5Y': 'CPDLC Disconnect',
+  '1L': 'SELCAL Test',
+  '1M': 'Datalink Test',
+};
+
+// ---- State ----
+let messages = [];       // all messages from API (most recent last)
+let visibleIds = new Set();
+let sourceFilter = null;
+let autoScroll = true;
+let searchQ = '';
+
+const feed = document.getElementById('feed');
+const empty = document.getElementById('empty');
+const statusDot = document.getElementById('status-dot');
+const msgCount = document.getElementById('msg-count');
+
+// ---- Utilities ----
+function fmtTime(ts) {
+  const d = new Date(ts * 1000);
+  return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function fmtFreq(hz) {
+  if (!hz) return null;
+  return (hz / 1e6).toFixed(3) + ' MHz';
+}
+
+function signalClass(dbfs) {
+  if (dbfs === null || dbfs === undefined) return '';
+  if (dbfs >= -30) return 'signal-strong';
+  if (dbfs >= -50) return 'signal-ok';
+  if (dbfs >= -70) return 'signal-weak';
+  return 'signal-poor';
+}
+
+function labelName(lbl) {
+  if (!lbl) return '';
+  return LABEL_NAMES[lbl.toUpperCase()] || '';
+}
+
+function escHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ---- Detect XID frames ----
+function isXidFrame(raw) {
+  try {
+    const vdl2 = raw.vdl2 || {};
+    const avlc = vdl2.avlc || {};
+    return !!(avlc.xid);
+  } catch { return false; }
+}
+
+// ---- Build source badge ----
+function sourceBadge(msg) {
+  const raw = msg.raw || {};
+  if (isXidFrame(raw)) return '<span class="src-badge src-xid">XID</span>';
+  if (msg.source === 'acars') return '<span class="src-badge src-acars">ACARS</span>';
+  if (msg.source === 'vdl2')  return '<span class="src-badge src-vdl2">VDL2</span>';
+  if (msg.source === 'radiosonde') return '<span class="src-badge src-radiosonde">SONDE</span>';
+  return `<span class="src-badge">${escHtml(msg.source)}</span>`;
+}
+
+// ---- Extract fields from raw dict ----
+function extractFields(msg) {
+  const raw = msg.raw || {};
+  const out = {};
+
+  // ACARS direct (acarsdec format)
+  if (raw.flight)    out.flight    = raw.flight;
+  if (raw.tail)      out.reg       = raw.tail;
+  if (raw.label)     out.label     = raw.label;
+  if (raw.msg_num !== undefined) out.msg_num  = raw.msg_num;
+  if (raw.block_id !== undefined) out.block_id = raw.block_id;
+  if (raw.ack !== undefined)  out.ack  = raw.ack;
+  if (raw.sublabel)  out.sublabel  = raw.sublabel;
+  if (raw.text || raw.message) out.msg_text = raw.text || raw.message;
+  if (raw.freq)      out.freq_hz   = raw.freq;
+  if (raw.level !== undefined) out.signal_dbfs = raw.level;
+  if (raw.error !== undefined) out.error_bits = raw.error;
+
+  // VDL2 dumpvdl2 format — dig into nested structure
+  const vdl2 = raw.vdl2 || {};
+  const avlc = vdl2.avlc || {};
+  const acars = avlc.acars || {};
+  const xid   = avlc.xid   || {};
+  const t     = vdl2.t     || {};
+
+  if (vdl2.freq)  out.freq_hz   = vdl2.freq;
+  if (vdl2.sig_level !== undefined) out.signal_dbfs = vdl2.sig_level;
+  if (vdl2.frame_type) out.vdl2_frame_type = vdl2.frame_type;
+  if (vdl2.t && typeof t === 'object' && t.sec) out.vdl2_ts = t.sec;
+
+  // AVLC addresses
+  if (avlc.src) out.vdl2_src = typeof avlc.src === 'object' ? (avlc.src.addr || JSON.stringify(avlc.src)) : avlc.src;
+  if (avlc.dst) out.vdl2_dst = typeof avlc.dst === 'object' ? (avlc.dst.addr || JSON.stringify(avlc.dst)) : avlc.dst;
+  if (avlc.frame_type) out.avlc_frame_type = avlc.frame_type;
+
+  // ACARS inside VDL2
+  if (acars.flight)  out.flight   = acars.flight;
+  if (acars.reg)     out.reg      = acars.reg;
+  if (acars.label)   out.label    = acars.label;
+  if (acars.msg_num !== undefined) out.msg_num = acars.msg_num;
+  if (acars.block_id !== undefined) out.block_id = acars.block_id;
+  if (acars.ack !== undefined) out.ack = acars.ack;
+  if (acars.sublabel) out.sublabel = acars.sublabel;
+  if (acars.msg_text) out.msg_text = acars.msg_text;
+
+  // XID params
+  if (xid.params) out.xid_params = xid.params;
+  if (xid.vdl_params) out.xid_vdl_params = xid.vdl_params;
+  if (xid.conn_mgmt !== undefined) out.xid_conn_mgmt = xid.conn_mgmt;
+
+  return out;
+}
+
+// ---- Build card DOM ----
+function buildCard(msg) {
+  const f = extractFields(msg);
+  const label = f.label || '';
+  const lname = labelName(label);
+  const flight = f.flight || msg.source_id || '';
+  const reg = f.reg || '';
+  const freqMhz = f.freq_hz ? fmtFreq(f.freq_hz) : null;
+  const sigDbfs = f.signal_dbfs !== undefined ? f.signal_dbfs : null;
+  const isMet = msg.is_met;
+  const raw = msg.raw || {};
+  const vdl2 = raw.vdl2 || {};
+  const avlc = vdl2.avlc || {};
+  const xid = avlc.xid || {};
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.dataset.id = msg.timestamp + '_' + msg.source_id;
+
+  // ---- Header ----
+  let headerHtml = `<div class="card-header" onclick="this.parentElement.classList.toggle('expanded')">`;
+  headerHtml += sourceBadge(msg);
+  headerHtml += `<span class="flight-id">${escHtml(flight) || '—'}</span>`;
+  if (reg && reg !== flight) headerHtml += `<span class="reg">${escHtml(reg)}</span>`;
+  if (freqMhz) headerHtml += `<span class="freq-chip">${escHtml(freqMhz)}</span>`;
+  if (sigDbfs !== null) {
+    const sc = signalClass(sigDbfs);
+    headerHtml += `<span class="signal ${sc}">${sigDbfs} dBFS</span>`;
+  }
+  if (label) headerHtml += `<span class="label-chip">${escHtml(label)}</span>`;
+  if (lname) headerHtml += `<span class="label-name">${escHtml(lname)}</span>`;
+  if (isMet) headerHtml += `<span class="met-dot" title="MET data"></span>`;
+  headerHtml += `<span class="ts">${fmtTime(msg.timestamp)}</span>`;
+  headerHtml += `<span class="expand-icon"></span>`;
+  headerHtml += `</div>`;
+
+  // ---- Body ----
+  let bodyHtml = `<div class="card-body">`;
+
+  // VDL2 address row
+  const srcAddr = f.vdl2_src;
+  const dstAddr = f.vdl2_dst;
+  if (srcAddr || dstAddr) {
+    bodyHtml += `<div class="addr-row">`;
+    if (srcAddr) bodyHtml += `<span class="addr-badge">SRC <span>${escHtml(srcAddr)}</span></span>`;
+    if (srcAddr && dstAddr) bodyHtml += `<span class="addr-arrow">→</span>`;
+    if (dstAddr) bodyHtml += `<span class="addr-badge">DST <span>${escHtml(dstAddr)}</span></span>`;
+    if (f.avlc_frame_type) bodyHtml += `<span class="freq-chip">${escHtml(f.avlc_frame_type)}</span>`;
+    if (f.vdl2_frame_type) bodyHtml += `<span class="freq-chip">${escHtml(f.vdl2_frame_type)}</span>`;
+    bodyHtml += `</div>`;
+  }
+
+  // XID params
+  const xidParams = [
+    ...(f.xid_params ? (Array.isArray(f.xid_params) ? f.xid_params : Object.entries(f.xid_params).map(([k,v]) => `${k}=${v}`)) : []),
+    ...(f.xid_vdl_params ? (Array.isArray(f.xid_vdl_params) ? f.xid_vdl_params : Object.entries(f.xid_vdl_params).map(([k,v]) => `${k}=${v}`)) : []),
+  ];
+  if (xidParams.length) {
+    bodyHtml += `<div class="xid-params">`;
+    for (const p of xidParams) bodyHtml += `<span class="xid-param">${escHtml(String(p))}</span>`;
+    bodyHtml += `</div>`;
+  }
+
+  // Fields grid
+  const fieldDefs = [
+    ['Flight',    f.flight],
+    ['Reg / Tail', f.reg],
+    ['Frequency', freqMhz],
+    ['Signal',    sigDbfs !== null ? `${sigDbfs} dBFS` : null],
+    ['Label',     label ? `${label}${lname ? ' — ' + lname : ''}` : null],
+    ['Msg #',     f.msg_num],
+    ['Block ID',  f.block_id],
+    ['Ack',       f.ack],
+    ['Sublabel',  f.sublabel],
+    ['Error bits', f.error_bits !== undefined ? f.error_bits : null],
+    ['Frame type', f.avlc_frame_type || f.vdl2_frame_type],
+    ['Source', msg.source],
+    ['Is MET', isMet ? 'Yes' : null],
+  ].filter(([, v]) => v !== null && v !== undefined && v !== '');
+
+  if (fieldDefs.length) {
+    bodyHtml += `<div class="fields">`;
+    for (const [label_, val] of fieldDefs) {
+      bodyHtml += `<div class="field"><div class="field-label">${escHtml(label_)}</div><div class="field-value">${escHtml(String(val))}</div></div>`;
+    }
+    bodyHtml += `</div>`;
+  }
+
+  // Message text
+  const msgText = f.msg_text || (msg.source !== 'acars' && msg.source !== 'vdl2' ? msg.text : null);
+  if (msgText && msgText.trim()) {
+    bodyHtml += `<div class="msg-text-block">${escHtml(msgText)}</div>`;
+  }
+
+  // Raw JSON toggle
+  bodyHtml += `<button class="raw-toggle" onclick="toggleRaw(this)">{ } Raw JSON</button>`;
+  bodyHtml += `<pre class="raw-json">${escHtml(JSON.stringify(msg.raw, null, 2))}</pre>`;
+
+  bodyHtml += `</div>`;
+
+  card.innerHTML = headerHtml + bodyHtml;
+  return card;
+}
+
+function toggleRaw(btn) {
+  const pre = btn.nextElementSibling;
+  pre.classList.toggle('visible');
+  btn.textContent = pre.classList.contains('visible') ? '{ } Hide JSON' : '{ } Raw JSON';
+}
+
+// ---- Filter & render ----
+function msgMatchesFilter(msg) {
+  if (sourceFilter && msg.source !== sourceFilter) return false;
+  if (!searchQ) return true;
+  const q = searchQ.toLowerCase();
+  const f = extractFields(msg);
+  const haystack = [
+    msg.source_id, msg.text, f.flight, f.reg, f.label, f.sublabel, f.msg_text,
+    f.vdl2_src, f.vdl2_dst,
+  ].filter(Boolean).join(' ').toLowerCase();
+  return haystack.includes(q);
+}
+
+function refilter() {
+  // Remove all existing cards, re-add matching ones
+  const existing = feed.querySelectorAll('.card');
+  existing.forEach(c => c.remove());
+  const toShow = messages.filter(msgMatchesFilter);
+  if (toShow.length === 0) {
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+  for (const msg of toShow) {
+    feed.appendChild(buildCard(msg));
+  }
+  if (autoScroll) window.scrollTo(0, document.body.scrollHeight);
+}
+
+// ---- Dedupe key ----
+// Combines source + timestamp + source_id + label + msg_num + block_id + ack
+// + first 16 chars of text to distinguish same-flight burst retransmits.
+function msgKey(m) {
+  const r = m.raw || {};
+  const acars = (r.vdl2 && r.vdl2.avlc && r.vdl2.avlc.acars) ? r.vdl2.avlc.acars : r;
+  const label    = m.label    || acars.label    || '';
+  const msg_num  = acars.msg_num  || acars.msg_no   || '';
+  const block_id = acars.blk_id  || acars.block_id  || r.block_id || '';
+  const ack      = acars.ack     || r.ack            || '';
+  const textSlice = (m.text || '').slice(0, 16);
+  return [m.source, m.timestamp, m.source_id, label, msg_num, block_id, ack, textSlice].join('\x00');
+}
+
+// ---- Incremental update (prepend new cards) ----
+let lastTimestamp = 0;
+
+function applyNewMessages(newMsgs) {
+  // newMsgs are sorted oldest-first from API (we take the tail)
+  const added = newMsgs.filter(m => !visibleIds.has(msgKey(m)));
+  if (!added.length) return;
+
+  for (const m of added) {
+    const key = msgKey(m);
+    visibleIds.add(key);
+    messages.push(m);
+    if (messages.length > 2000) {
+      const old = messages.shift();
+      const oldKey = msgKey(old);
+      visibleIds.delete(oldKey);
+      // Also remove oldest DOM card
+      const firstCard = feed.querySelector('.card');
+      if (firstCard) firstCard.remove();
+    }
+  }
+
+  if (empty.style.display !== 'none') {
+    empty.style.display = 'none';
+  }
+
+  for (const m of added) {
+    if (msgMatchesFilter(m)) {
+      feed.appendChild(buildCard(m));
+    }
+  }
+
+  updateCount();
+  if (autoScroll) window.scrollTo(0, document.body.scrollHeight);
+}
+
+function updateCount() {
+  const visible = feed.querySelectorAll('.card').length;
+  msgCount.textContent = `${messages.length} msg${messages.length !== 1 ? 's' : ''} (${visible} shown)`;
+}
+
+// ---- Poll ----
+let pollTimer = null;
+let pollFailing = false;
+
+async function poll() {
+  try {
+    const url = '/api/wx/messages/raw?limit=200' + (sourceFilter ? '&source=' + encodeURIComponent(sourceFilter) : '');
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(resp.status);
+    const data = await resp.json();
+    if (!data.ok) throw new Error('API error');
+
+    statusDot.className = 'live';
+    pollFailing = false;
+    applyNewMessages(data.messages || []);
+  } catch (e) {
+    if (!pollFailing) {
+      statusDot.className = 'err';
+      pollFailing = true;
+    }
+  }
+}
+
+function startPolling() {
+  poll();
+  pollTimer = setInterval(poll, 2000);
+}
+
+// ---- Controls ----
+function setSource(src) {
+  sourceFilter = src;
+  document.getElementById('btn-all').classList.toggle('active', src === null);
+  document.getElementById('btn-acars').classList.toggle('active', src === 'acars');
+  document.getElementById('btn-vdl2').classList.toggle('active', src === 'vdl2');
+  // Clear and re-poll to get source-filtered data
+  messages = [];
+  visibleIds.clear();
+  refilter();
+  poll();
+}
+
+function toggleAutoScroll() {
+  autoScroll = !autoScroll;
+  document.getElementById('autoscroll-btn').classList.toggle('active', autoScroll);
+  if (autoScroll) window.scrollTo(0, document.body.scrollHeight);
+}
+
+document.getElementById('search').addEventListener('input', function() {
+  searchQ = this.value.trim();
+  refilter();
+  updateCount();
+});
+
+// Pause auto-scroll when user scrolls up manually
+window.addEventListener('scroll', () => {
+  const atBottom = (window.innerHeight + window.scrollY) >= document.body.scrollHeight - 50;
+  if (!atBottom && autoScroll) {
+    autoScroll = false;
+    document.getElementById('autoscroll-btn').classList.remove('active');
+  }
+});
+
+startPolling();
+</script>
+</body>
+</html>

@@ -13,7 +13,7 @@ import threading
 import time
 import logging
 from collections import deque
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from typing import Optional, List, Dict, Tuple
 
 logger = logging.getLogger(__name__)
@@ -53,6 +53,7 @@ class RawMessage:
     source_id: str
     text: str
     is_met: bool = False
+    raw: dict = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -607,6 +608,7 @@ def parse_acars_message(msg: dict) -> tuple:
         source_id=flight or reg,
         text=f"[{label}] {flight}: {text}",
         is_met=False,
+        raw=msg,
     )
 
     # Try every parser — accept partial observations (temp-only, wind-only, etc.)
@@ -871,6 +873,13 @@ class MetStore:
             self._messages.append(msg)
             self._message_count += 1
             self._last_message_time = msg.timestamp
+            if self._message_count % 100 == 0:
+                logger.debug(
+                    "MetStore: %d total messages, %d in buffer (cap %d)",
+                    self._message_count,
+                    len(self._messages),
+                    self._messages.maxlen,
+                )
 
     def add_observation(self, obs: MetObservation) -> bool:
         """Add an observation if it passes the spatial filter. Returns True if accepted."""
@@ -993,9 +1002,18 @@ def acars_reader_worker(store: MetStore, stop_event: threading.Event) -> None:
                     try:
                         msg = json.loads(line)
                     except json.JSONDecodeError:
+                        logger.warning("ACARS: malformed JSON discarded (%.80r)", line)
                         continue
 
                     raw, obs_list = parse_acars_message(msg)
+                    logger.debug(
+                        "ACARS stored: flight=%r label=%r fields=%d has_freq=%s has_level=%s",
+                        msg.get("flight") or msg.get("tail", ""),
+                        msg.get("label", ""),
+                        len(msg),
+                        "freq" in msg,
+                        "level" in msg,
+                    )
                     store.add_message(raw)
                     for obs in obs_list:
                         store.add_observation(obs)
@@ -1061,7 +1079,35 @@ def vdl2_reader_worker(store: MetStore, stop_event: threading.Event) -> None:
                     try:
                         frame = json.loads(line)
                     except json.JSONDecodeError:
+                        logger.warning("VDL2: malformed JSON discarded (%.80r)", line)
                         continue
+
+                    # Classify the frame for logging
+                    _vdl2_meta = frame.get("vdl2", {})
+                    _avlc_meta = _vdl2_meta.get("avlc", {}) if isinstance(_vdl2_meta, dict) else {}
+                    if isinstance(_avlc_meta, dict):
+                        if "acars" in _avlc_meta:
+                            _frame_kind = "ACARS"
+                        elif "xid" in _avlc_meta:
+                            _frame_kind = "XID"
+                        elif "x25" in _avlc_meta:
+                            _frame_kind = "CPDLC"
+                        elif "gsif" in _avlc_meta:
+                            _frame_kind = "GSIF"
+                        elif _avlc_meta:
+                            _frame_kind = "AVLC"
+                        else:
+                            _frame_kind = "unknown"
+                    else:
+                        _frame_kind = "unknown"
+                    _freq_hz = _vdl2_meta.get("freq") if isinstance(_vdl2_meta, dict) else None
+                    _sig = _vdl2_meta.get("sig_level") if isinstance(_vdl2_meta, dict) else None
+                    logger.debug(
+                        "VDL2 stored: type=%s freq=%s sig=%s",
+                        _frame_kind,
+                        f"{_freq_hz/1e6:.3f}MHz" if _freq_hz else "?",
+                        f"{_sig:.1f}dBFS" if _sig is not None else "?",
+                    )
 
                     acars_msg = _extract_acars_from_vdl2(frame)
                     if not acars_msg:
@@ -1075,13 +1121,15 @@ def vdl2_reader_worker(store: MetStore, stop_event: threading.Event) -> None:
                             source_id="",
                             text=str(frame.get("vdl2", {}).get("avlc", {}).get("xid", frame.get("vdl2", {}).get("freq", "")))[:120],
                             is_met=False,
+                            raw=frame,
                         )
                         store.add_message(raw)
                         continue
 
                     raw, obs_list = parse_acars_message(acars_msg)
-                    # Tag source as vdl2 for the live feed
+                    # Tag source as vdl2 for the live feed; attach full frame for decode view
                     raw.source = "vdl2"
+                    raw.raw = frame
                     store.add_message(raw)
                     for obs in obs_list:
                         obs.source = "vdl2"
