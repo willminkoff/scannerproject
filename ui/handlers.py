@@ -3395,6 +3395,10 @@ class Handler(BaseHTTPRequestHandler):
             source = (q.get("source") or [None])[0]
             store = get_met_store()
             msgs = store.get_messages(limit=limit, source=source)
+            logger.debug(
+                "/api/wx/messages/raw: limit=%d source=%r returning %d messages",
+                limit, source, len(msgs),
+            )
             return self._send(200, json.dumps({"ok": True, "messages": msgs}), "application/json; charset=utf-8")
 
         if p == "/api/wx/sounding":
