@@ -183,6 +183,38 @@
   .card.expanded .card-body { display: block; }
   .card.expanded .expand-icon::before { content: '▲'; }
   .expand-icon::before { content: '▼'; }
+  .summary-panel {
+    background: linear-gradient(180deg, rgba(0,229,200,0.08), rgba(0,229,200,0.03));
+    border: 1px solid rgba(0,229,200,0.18);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+  .summary-kicker {
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .summary-title {
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .summary-body {
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .summary-note {
+    color: var(--text-dim);
+    font-size: 12px;
+    line-height: 1.4;
+    margin-top: 6px;
+  }
   /* ---- Fields grid ---- */
   .fields {
     display: grid;
@@ -242,6 +274,14 @@
     overflow-y: auto;
   }
   .raw-json.visible { display: block; }
+  .section-label {
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin: 8px 0 6px;
+  }
   /* ---- VDL2 address row ---- */
   .addr-row {
     display: flex;
@@ -283,6 +323,45 @@
     font-size: 13px;
   }
   #empty .icon { font-size: 36px; margin-bottom: 12px; }
+  #legend-panel {
+    max-width: 1400px;
+    margin: 10px auto 0;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+  }
+  #legend-panel[hidden] { display: none; }
+  .legend-title {
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .legend-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 8px 14px;
+  }
+  .legend-item {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 8px 10px;
+  }
+  .legend-item strong {
+    display: block;
+    color: var(--text);
+    font-size: 12px;
+    margin-bottom: 3px;
+  }
+  .legend-item span {
+    color: var(--text-dim);
+    font-size: 12px;
+    line-height: 1.4;
+  }
   /* Scrollbar */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: var(--bg); }
@@ -302,7 +381,22 @@
     <button class="filter-btn active" id="btn-all" onclick="setSource(null)">All</button>
     <button class="filter-btn src-acars" id="btn-acars" onclick="setSource('acars')">ACARS</button>
     <button class="filter-btn src-vdl2" id="btn-vdl2" onclick="setSource('vdl2')">VDL2</button>
+    <button class="filter-btn" id="legend-btn" onclick="toggleLegend()">Legend</button>
     <button class="filter-btn active" id="autoscroll-btn" onclick="toggleAutoScroll()">Auto-scroll</button>
+  </div>
+</div>
+
+<div id="legend-panel" hidden>
+  <div class="legend-title">How To Read This View</div>
+  <div class="legend-grid">
+    <div class="legend-item"><strong>ACARS</strong><span>Aircraft data messages. These often carry position reports, ATIS, weather, maintenance, or operational updates.</span></div>
+    <div class="legend-item"><strong>VDL2</strong><span>The radio link carrying ACARS and other datalink traffic. A VDL2 badge means the message was heard on the VHF data link itself.</span></div>
+    <div class="legend-item"><strong>XID</strong><span>VDL2 link negotiation. Usually not an operational airline message. It is mostly useful when debugging the air-ground data link.</span></div>
+    <div class="legend-item"><strong>OOOI</strong><span>Out / Off / On / In. Airline movement milestones: leaves gate, takes off, lands, arrives at gate.</span></div>
+    <div class="legend-item"><strong>ATIS</strong><span>Automatic Terminal Information Service. Airport weather and runway information distributed as text or datalink.</span></div>
+    <div class="legend-item"><strong>SRC / DST</strong><span>Radio-link addresses on VDL2. These are network IDs, not aircraft tail numbers or airport names.</span></div>
+    <div class="legend-item"><strong>Msg # / Block / Ack</strong><span>Datalink sequencing and delivery bookkeeping. Useful for protocol analysis, but not usually the main operator takeaway.</span></div>
+    <div class="legend-item"><strong>dBFS</strong><span>Signal level. Less negative numbers mean a stronger received signal.</span></div>
   </div>
 </div>
 
@@ -361,6 +455,31 @@ const LABEL_NAMES = {
   '1M': 'Datalink Test',
 };
 
+const ATIS_LABELS = new Set(['Q0', '83', '8L', 'D1']);
+const POSITION_LABELS = new Set(['10', '11', '13', '21', '22', '52', '54', 'H1', 'H2', 'PR']);
+const WEATHER_LABELS = new Set(['44', '4A', 'A0', 'AA', 'E1', 'E2', 'F3', 'SA']);
+const LOGON_LABELS = new Set(['RA', '80', '1L', '1M']);
+const CPDLC_LABELS = new Set(['5U', '5V', '5W', '5X', '5Y']);
+
+const LABEL_EXPLAINERS = {
+  'H1': 'OOOI means Out / Off / On / In. This family is commonly used for movement milestones and position updates.',
+  'H2': 'Often used for fuel and position status updates sent by the aircraft.',
+  'Q0': 'ATIS means Automatic Terminal Information Service: airport weather and operational information.',
+  '83': 'This usually carries an ATIS download or request response.',
+  '8L': 'This is usually airport information or clearance text.',
+  '44': 'A weather-related ACARS message, often with meteorological content.',
+  '4A': 'AMDAR is aircraft-based weather reporting.',
+  'SA': 'Usually a winds and temperature report from the aircraft.',
+  'RA': 'A datalink logon or session-setup message.',
+};
+
+const XID_TYPE_NAMES = {
+  'XID_CMD_LCR': 'Link capability negotiation',
+  'XID_CMD_HO_REQ': 'Handover request',
+  'XID_CMD_HO_CFM': 'Handover confirm',
+  'XID_CMD_HO_CPL': 'Handover complete',
+};
+
 // ---- State ----
 let messages = [];       // all messages from API (most recent last)
 let visibleIds = new Set();
@@ -397,6 +516,11 @@ function labelName(lbl) {
   return LABEL_NAMES[lbl.toUpperCase()] || '';
 }
 
+function labelExplainer(lbl) {
+  if (!lbl) return '';
+  return LABEL_EXPLAINERS[lbl.toUpperCase()] || '';
+}
+
 function escHtml(s) {
   if (s === null || s === undefined) return '';
   return String(s)
@@ -404,6 +528,26 @@ function escHtml(s) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function friendlySourceName(source) {
+  if (source === 'acars') return 'Direct ACARS decoder';
+  if (source === 'vdl2') return 'VDL2 radio link';
+  if (source === 'radiosonde') return 'Radiosonde decoder';
+  return source || '';
+}
+
+function toggleLegend() {
+  const panel = document.getElementById('legend-panel');
+  const btn = document.getElementById('legend-btn');
+  const show = panel.hasAttribute('hidden');
+  if (show) {
+    panel.removeAttribute('hidden');
+    btn.classList.add('active');
+  } else {
+    panel.setAttribute('hidden', '');
+    btn.classList.remove('active');
+  }
 }
 
 // ---- Detect XID frames ----
@@ -478,6 +622,98 @@ function extractFields(msg) {
   return out;
 }
 
+function messageSubject(flight, reg) {
+  if (flight && reg && reg !== flight) return `${flight} (${reg})`;
+  return flight || reg || 'This aircraft';
+}
+
+function xidTypeName(raw) {
+  const vdl2 = raw.vdl2 || {};
+  const avlc = vdl2.avlc || {};
+  const xid = avlc.xid || {};
+  const rawType = xid.type || '';
+  return XID_TYPE_NAMES[rawType] || rawType || 'Link negotiation';
+}
+
+function summarizeMessage(msg, f) {
+  const raw = msg.raw || {};
+  const label = (f.label || '').toUpperCase();
+  const lname = labelName(label);
+  const subject = messageSubject(f.flight || msg.source_id || '', f.reg || '');
+  const path = msg.source === 'vdl2' ? 'over the VDL2 data link' : 'through the ACARS decoder';
+
+  if (isXidFrame(raw)) {
+    const xidLabel = xidTypeName(raw);
+    return {
+      kicker: 'Plain-English decode',
+      title: 'VDL2 link setup / negotiation',
+      body: `${subject} is exchanging link-management traffic ${path}. This is usually radio-network setup, not the operational airline message itself.`,
+      note: `${xidLabel}. Usually safe to ignore unless you are debugging the data link.`,
+    };
+  }
+
+  if (ATIS_LABELS.has(label)) {
+    return {
+      kicker: 'Plain-English decode',
+      title: 'Airport information / ATIS message',
+      body: `${subject} sent or received an airport information message ${path}. This family usually carries ATIS or related airport text.`,
+      note: labelExplainer(label) || 'ATIS = Automatic Terminal Information Service.',
+    };
+  }
+
+  if (POSITION_LABELS.has(label)) {
+    return {
+      kicker: 'Plain-English decode',
+      title: 'Position / movement report',
+      body: `${subject} sent a movement or position update ${path}. These messages often track gate, takeoff, landing, and arrival status.`,
+      note: labelExplainer(label) || 'This is an operational aircraft status message.',
+    };
+  }
+
+  if (WEATHER_LABELS.has(label) || msg.is_met) {
+    return {
+      kicker: 'Plain-English decode',
+      title: 'Weather-related aircraft message',
+      body: `${subject} sent a weather or atmosphere-related report ${path}. This is the traffic most likely to feed the sounding / wx side of the system.`,
+      note: labelExplainer(label) || 'Weather labels often carry winds, temperature, position, or observation data.',
+    };
+  }
+
+  if (LOGON_LABELS.has(label)) {
+    return {
+      kicker: 'Plain-English decode',
+      title: 'Datalink session / logon message',
+      body: `${subject} sent a session-management message ${path}. This is usually about bringing the datalink up, not operational flight content.`,
+      note: labelExplainer(label) || 'Useful for understanding connectivity, less useful for flight operations.',
+    };
+  }
+
+  if (CPDLC_LABELS.has(label)) {
+    return {
+      kicker: 'Plain-English decode',
+      title: 'Controller-pilot datalink control message',
+      body: `${subject} sent a controller-pilot datalink message ${path}. This is part of managed text communications rather than a voice transmission.`,
+      note: labelExplainer(label) || 'CPDLC = Controller-Pilot Data Link Communications.',
+    };
+  }
+
+  if (label || lname) {
+    return {
+      kicker: 'Plain-English decode',
+      title: lname || 'Labeled datalink message',
+      body: `${subject} sent an ACARS/VDL2 message ${path}. The label ${label || 'unknown'} identifies the message family.`,
+      note: labelExplainer(label) || 'Use the raw payload below if you need the exact protocol content.',
+    };
+  }
+
+  return {
+    kicker: 'Plain-English decode',
+    title: 'Unclassified datalink traffic',
+    body: `${subject} sent a datalink message ${path}, but this frame does not map cleanly to one of the common ACARS families yet.`,
+    note: 'Use Raw JSON for the exact frame structure and payload fields.',
+  };
+}
+
 // ---- Build card DOM ----
 function buildCard(msg) {
   const f = extractFields(msg);
@@ -492,6 +728,7 @@ function buildCard(msg) {
   const vdl2 = raw.vdl2 || {};
   const avlc = vdl2.avlc || {};
   const xid = avlc.xid || {};
+  const summary = summarizeMessage(msg, f);
 
   const card = document.createElement('div');
   card.className = 'card';
@@ -516,11 +753,18 @@ function buildCard(msg) {
 
   // ---- Body ----
   let bodyHtml = `<div class="card-body">`;
+  bodyHtml += `<div class="summary-panel">`;
+  bodyHtml += `<div class="summary-kicker">${escHtml(summary.kicker)}</div>`;
+  bodyHtml += `<div class="summary-title">${escHtml(summary.title)}</div>`;
+  bodyHtml += `<div class="summary-body">${escHtml(summary.body)}</div>`;
+  if (summary.note) bodyHtml += `<div class="summary-note">${escHtml(summary.note)}</div>`;
+  bodyHtml += `</div>`;
 
   // VDL2 address row
   const srcAddr = f.vdl2_src;
   const dstAddr = f.vdl2_dst;
   if (srcAddr || dstAddr) {
+    bodyHtml += `<div class="section-label">Protocol addresses</div>`;
     bodyHtml += `<div class="addr-row">`;
     if (srcAddr) bodyHtml += `<span class="addr-badge">SRC <span>${escHtml(srcAddr)}</span></span>`;
     if (srcAddr && dstAddr) bodyHtml += `<span class="addr-arrow">→</span>`;
@@ -536,6 +780,7 @@ function buildCard(msg) {
     ...(f.xid_vdl_params ? (Array.isArray(f.xid_vdl_params) ? f.xid_vdl_params : Object.entries(f.xid_vdl_params).map(([k,v]) => `${k}=${v}`)) : []),
   ];
   if (xidParams.length) {
+    bodyHtml += `<div class="section-label">Negotiated parameters</div>`;
     bodyHtml += `<div class="xid-params">`;
     for (const p of xidParams) bodyHtml += `<span class="xid-param">${escHtml(String(p))}</span>`;
     bodyHtml += `</div>`;
@@ -543,25 +788,26 @@ function buildCard(msg) {
 
   // Fields grid
   const fieldDefs = [
-    ['Flight',    f.flight],
-    ['Reg / Tail', f.reg],
-    ['Frequency', freqMhz],
-    ['Signal',    sigDbfs !== null ? `${sigDbfs} dBFS` : null],
-    ['Label',     label ? `${label}${lname ? ' — ' + lname : ''}` : null],
-    ['Msg #',     f.msg_num],
-    ['Block ID',  f.block_id],
-    ['Ack',       f.ack],
-    ['Sublabel',  f.sublabel],
-    ['Error bits', f.error_bits !== undefined ? f.error_bits : null],
-    ['Frame type', f.avlc_frame_type || f.vdl2_frame_type],
-    ['Source', msg.source],
-    ['Is MET', isMet ? 'Yes' : null],
-  ].filter(([, v]) => v !== null && v !== undefined && v !== '');
+    { label: 'Flight / callsign', value: f.flight },
+    { label: 'Tail number', value: f.reg },
+    { label: 'Frequency', value: freqMhz },
+    { label: 'Signal level', value: sigDbfs !== null ? `${sigDbfs} dBFS` : null },
+    { label: 'Message family', value: label ? `${label}${lname ? ' — ' + lname : ''}` : null },
+    { label: 'Sequence #', value: f.msg_num, mono: true },
+    { label: 'Block', value: f.block_id, mono: true },
+    { label: 'Ack flag', value: f.ack, mono: true },
+    { label: 'Sub-label', value: f.sublabel, mono: true },
+    { label: 'Error bits', value: f.error_bits !== undefined ? f.error_bits : null, mono: true },
+    { label: 'Link frame', value: f.avlc_frame_type || f.vdl2_frame_type, mono: true },
+    { label: 'Decoder path', value: friendlySourceName(msg.source) },
+    { label: 'Feeds weather pipeline', value: isMet ? 'Yes' : null },
+  ].filter(({ value }) => value !== null && value !== undefined && value !== '');
 
   if (fieldDefs.length) {
+    bodyHtml += `<div class="section-label">Key fields</div>`;
     bodyHtml += `<div class="fields">`;
-    for (const [label_, val] of fieldDefs) {
-      bodyHtml += `<div class="field"><div class="field-label">${escHtml(label_)}</div><div class="field-value">${escHtml(String(val))}</div></div>`;
+    for (const field of fieldDefs) {
+      bodyHtml += `<div class="field"><div class="field-label">${escHtml(field.label)}</div><div class="field-value${field.mono ? ' mono' : ''}">${escHtml(String(field.value))}</div></div>`;
     }
     bodyHtml += `</div>`;
   }
@@ -569,6 +815,7 @@ function buildCard(msg) {
   // Message text
   const msgText = f.msg_text || (msg.source !== 'acars' && msg.source !== 'vdl2' ? msg.text : null);
   if (msgText && msgText.trim()) {
+    bodyHtml += `<div class="section-label">Payload text</div>`;
     bodyHtml += `<div class="msg-text-block">${escHtml(msgText)}</div>`;
   }
 

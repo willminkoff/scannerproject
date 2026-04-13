@@ -8,6 +8,7 @@ Covers:
 - /api/wx/messages/raw endpoint response format
 - Backward-compat: RawMessage without raw field defaults to {}
 - ACARS label dictionary in acars-decode.html
+- Decode-view readability helpers and plain-language glossary
 - MetStore 2000-message cap (raw messages respect the deque maxlen)
 """
 from __future__ import annotations
@@ -508,7 +509,52 @@ class AcarsLabelDictionaryTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# 8. MetStore 2000-message cap
+# 8. Readability helpers / glossary
+# ---------------------------------------------------------------------------
+class DecodeReadabilityTests(unittest.TestCase):
+    """The decode view should help an operator interpret protocol traffic."""
+
+    @classmethod
+    def setUpClass(cls):
+        html_path = os.path.join(
+            os.path.dirname(__file__), "..", "ui", "acars-decode.html"
+        )
+        with open(html_path, "r", encoding="utf-8") as f:
+            cls.html = f.read()
+
+    def test_legend_button_present(self):
+        self.assertIn('id="legend-btn"', self.html)
+        self.assertIn("How To Read This View", self.html)
+
+    def test_glossary_explains_ooii(self):
+        self.assertIn("Out / Off / On / In", self.html)
+
+    def test_glossary_explains_atis(self):
+        self.assertIn("Automatic Terminal Information Service", self.html)
+
+    def test_glossary_explains_xid(self):
+        self.assertIn("VDL2 link negotiation", self.html)
+
+    def test_summary_function_present(self):
+        self.assertIn("function summarizeMessage", self.html)
+
+    def test_summary_panel_present(self):
+        self.assertIn("summary-panel", self.html)
+        self.assertIn("Plain-English decode", self.html)
+
+    def test_source_names_are_operator_friendly(self):
+        self.assertIn("Direct ACARS decoder", self.html)
+        self.assertIn("VDL2 radio link", self.html)
+
+    def test_field_labels_are_operator_friendly(self):
+        self.assertIn("Flight / callsign", self.html)
+        self.assertIn("Tail number", self.html)
+        self.assertIn("Signal level", self.html)
+        self.assertIn("Decoder path", self.html)
+
+
+# ---------------------------------------------------------------------------
+# 9. MetStore 2000-message cap
 # ---------------------------------------------------------------------------
 class MetStoreCapTests(unittest.TestCase):
     """Raw messages in MetStore must respect the deque maxlen cap."""
@@ -582,7 +628,7 @@ class MetStoreCapTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# 9. Dedupe key regression — acars-decode.html msgKey function
+# 10. Dedupe key regression — acars-decode.html msgKey function
 # ---------------------------------------------------------------------------
 class DedupeKeyRegressionTests(unittest.TestCase):
     """Regression tests for the msgKey() dedupe logic in acars-decode.html.
