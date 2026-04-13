@@ -227,10 +227,32 @@ def _decode_meta(protocol_family: str, title: str, body: str,
     return meta
 
 
-def _classify_acars_decode(label: str, is_met: bool) -> dict:
+def _format_position_phrase(obs_list: List['MetObservation']) -> str:
+    if not obs_list:
+        return ""
+    obs = obs_list[0]
+    pieces = []
+    if obs.lat or obs.lon:
+        lat_hemi = "N" if obs.lat >= 0 else "S"
+        lon_hemi = "E" if obs.lon >= 0 else "W"
+        pieces.append(f"near {abs(obs.lat):.3f}{lat_hemi} {abs(obs.lon):.3f}{lon_hemi}")
+    if obs.altitude_ft > 0:
+        if obs.altitude_ft >= 18000:
+            pieces.append(f"at FL{int(round(obs.altitude_ft / 100.0))}")
+        else:
+            pieces.append(f"at {int(round(obs.altitude_ft)):,} ft")
+    if not pieces:
+        return ""
+    return " Position " + " ".join(pieces) + "."
+
+
+def _classify_acars_decode(label: str, text: str, is_met: bool,
+                           obs_list: Optional[List['MetObservation']] = None) -> dict:
     label = (label or "").upper()
+    text_upper = (text or "").upper()
     label_name = _ACARS_LABEL_NAMES.get(label, "")
     label_note = _ACARS_LABEL_EXPLAINERS.get(label, "")
+    position_phrase = _format_position_phrase(obs_list or [])
 
     if label in _ATIS_LABELS:
         return _decode_meta(
@@ -242,6 +264,51 @@ def _classify_acars_decode(label: str, is_met: bool) -> dict:
         )
 
     if label in _POSITION_LABELS:
+        if label in {"52", "54"} or "OOOI" in text_upper:
+            return _decode_meta(
+                "acars_oooi",
+                "OOOI milestone / movement status",
+                "This is an aircraft movement milestone in the Out / Off / On / In family. It usually marks gate departure, takeoff, landing, or gate arrival.",
+                label_note or "Movement milestone traffic rather than free-text dispatch content.",
+                "high",
+            )
+
+        if label == "H2":
+            return _decode_meta(
+                "acars_fuel_position",
+                "Fuel / position status update",
+                "This is an ARINC 633 fuel and position status message." + position_phrase,
+                label_note or "Often used for fuel and position status updates sent by the aircraft.",
+                "high",
+            )
+
+        if label == "11":
+            return _decode_meta(
+                "acars_arrival_status",
+                "Arrival status message",
+                "This is an arrival-side milestone or progress message in the aircraft movement family.",
+                label_note or "Movement/status traffic rather than free-text dispatch content.",
+                "high",
+            )
+
+        if label == "13":
+            return _decode_meta(
+                "acars_departure_status",
+                "Departure status message",
+                "This is a departure-side milestone or progress message in the aircraft movement family.",
+                label_note or "Movement/status traffic rather than free-text dispatch content.",
+                "high",
+            )
+
+        if label in {"H1", "21", "22", "PR", "10"} or "POSN" in text_upper:
+            return _decode_meta(
+                "acars_enroute_position",
+                "Enroute position update",
+                "This is an aircraft position update in the movement-report family." + position_phrase,
+                label_note or "Position/status traffic rather than a free-text operational message.",
+                "high",
+            )
+
         return _decode_meta(
             "acars_position",
             "Position / movement report",
@@ -848,7 +915,7 @@ def parse_acars_message(msg: dict) -> tuple:
     )
 
     def _finish(obs_list: List[MetObservation]) -> tuple:
-        raw.decode_meta = _classify_acars_decode(label, raw.is_met)
+        raw.decode_meta = _classify_acars_decode(label, text, raw.is_met, obs_list)
         return raw, obs_list
 
     # Try every parser — accept partial observations (temp-only, wind-only, etc.)

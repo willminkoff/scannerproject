@@ -205,8 +205,47 @@ class AcarsParsingRawFieldTests(unittest.TestCase):
         self.assertGreater(len(obs), 0)
         self.assertEqual(raw.raw["label"], "H1")
         self.assertIn("POSN", raw.raw["text"])
-        self.assertEqual(raw.decode_meta["protocol_family"], "acars_position")
-        self.assertEqual(raw.decode_meta["title"], "Position / movement report")
+        self.assertEqual(raw.decode_meta["protocol_family"], "acars_enroute_position")
+        self.assertEqual(raw.decode_meta["title"], "Enroute position update")
+        self.assertIn("FL350", raw.decode_meta["body"])
+
+    def test_h2_message_gets_fuel_position_summary(self):
+        msg = {
+            "timestamp": 1712700001,
+            "flight": "AAL124",
+            "tail": ".N124AA",
+            "label": "H2",
+            "text": "#M1BPOSN36100W086450,JONIL,192821,330,FFISK,193128,,M50,26555",
+        }
+        raw, _ = parse_acars_message(msg)
+        self.assertEqual(raw.decode_meta["protocol_family"], "acars_fuel_position")
+        self.assertEqual(raw.decode_meta["title"], "Fuel / position status update")
+
+    def test_label_54_gets_oooi_summary(self):
+        msg = {
+            "timestamp": 1712700002,
+            "flight": "DAL125",
+            "tail": ".N125DL",
+            "label": "54",
+            "text": "OUT 1614 OFF 1622 ON ---- IN ----",
+        }
+        raw, obs = parse_acars_message(msg)
+        self.assertEqual(obs, [])
+        self.assertEqual(raw.decode_meta["protocol_family"], "acars_oooi")
+        self.assertEqual(raw.decode_meta["title"], "OOOI milestone / movement status")
+
+    def test_label_13_gets_departure_summary(self):
+        msg = {
+            "timestamp": 1712700003,
+            "flight": "DAL126",
+            "tail": ".N126DL",
+            "label": "13",
+            "text": "DEPARTURE REPORT",
+        }
+        raw, obs = parse_acars_message(msg)
+        self.assertEqual(obs, [])
+        self.assertEqual(raw.decode_meta["protocol_family"], "acars_departure_status")
+        self.assertEqual(raw.decode_meta["title"], "Departure status message")
 
 
 # ---------------------------------------------------------------------------
