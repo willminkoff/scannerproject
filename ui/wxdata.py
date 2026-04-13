@@ -326,7 +326,7 @@ def _summarize_vdl2_non_acars_frame(frame: dict) -> tuple[str, dict]:
             "vdl2_xid",
             "VDL2 link setup / negotiation",
             "This is link-management traffic used to establish or maintain the VDL2 radio/data session, not the operational airline message itself.",
-            f"{xid_name}. Usually safe to ignore unless you are debugging the data link.",
+            f"{xid_name}. Not an operational message.",
             "high",
         )
 
