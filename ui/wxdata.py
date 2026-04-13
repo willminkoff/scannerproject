@@ -13,7 +13,7 @@ import threading
 import time
 import logging
 from collections import deque
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from typing import Optional, List, Dict, Tuple
 
 logger = logging.getLogger(__name__)
@@ -53,6 +53,7 @@ class RawMessage:
     source_id: str
     text: str
     is_met: bool = False
+    raw: dict = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -607,6 +608,7 @@ def parse_acars_message(msg: dict) -> tuple:
         source_id=flight or reg,
         text=f"[{label}] {flight}: {text}",
         is_met=False,
+        raw=msg,
     )
 
     # Try every parser — accept partial observations (temp-only, wind-only, etc.)
@@ -1075,13 +1077,15 @@ def vdl2_reader_worker(store: MetStore, stop_event: threading.Event) -> None:
                             source_id="",
                             text=str(frame.get("vdl2", {}).get("avlc", {}).get("xid", frame.get("vdl2", {}).get("freq", "")))[:120],
                             is_met=False,
+                            raw=frame,
                         )
                         store.add_message(raw)
                         continue
 
                     raw, obs_list = parse_acars_message(acars_msg)
-                    # Tag source as vdl2 for the live feed
+                    # Tag source as vdl2 for the live feed; attach full frame for decode view
                     raw.source = "vdl2"
+                    raw.raw = frame
                     store.add_message(raw)
                     for obs in obs_list:
                         obs.source = "vdl2"

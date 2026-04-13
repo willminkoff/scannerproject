@@ -2530,6 +2530,15 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, f.read())
             except FileNotFoundError:
                 return self._send(404, "SB3 UI not found", "text/plain; charset=utf-8")
+
+        if p in ("/decode", "/decode/", "/decode.html"):
+            ui_dir = os.path.dirname(os.path.abspath(__file__))
+            decode_path = os.path.join(ui_dir, "acars-decode.html")
+            try:
+                with open(decode_path, "r", encoding="utf-8") as f:
+                    return self._send(200, f.read())
+            except FileNotFoundError:
+                return self._send(404, "ACARS decode view not found", "text/plain; charset=utf-8")
         
         # Serve static files
         if p.startswith("/static/"):
@@ -3375,6 +3384,14 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/wx/messages":
             q = parse_qs(u.query or "")
             limit = int((q.get("limit") or ["50"])[0])
+            source = (q.get("source") or [None])[0]
+            store = get_met_store()
+            msgs = store.get_messages(limit=limit, source=source)
+            return self._send(200, json.dumps({"ok": True, "messages": msgs}), "application/json; charset=utf-8")
+
+        if p == "/api/wx/messages/raw":
+            q = parse_qs(u.query or "")
+            limit = int((q.get("limit") or ["200"])[0])
             source = (q.get("source") or [None])[0]
             store = get_met_store()
             msgs = store.get_messages(limit=limit, source=source)
