@@ -54,6 +54,7 @@ class RawMessage:
     text: str
     is_met: bool = False
     raw: dict = field(default_factory=dict)
+    decode_meta: dict = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -98,6 +99,66 @@ def haversine_nm(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 # Labels that may carry meteorological data
 _AMDAR_LABELS = {"H1", "H2", "4A", "44", "SA", "21", "22"}
+_ATIS_LABELS = {"Q0", "83", "8L", "D1"}
+_POSITION_LABELS = {"10", "11", "13", "21", "22", "52", "54", "H1", "H2", "PR"}
+_WEATHER_LABELS = {"44", "4A", "A0", "AA", "E1", "E2", "F3", "SA"}
+_LOGON_LABELS = {"RA", "80", "1L", "1M"}
+_CPDLC_LABELS = {"5U", "5V", "5W", "5X", "5Y"}
+_ADSC_LABELS = {"5Z", "E9"}
+
+_ACARS_LABEL_NAMES = {
+    "10": "Position Report",
+    "11": "Arrival Report",
+    "13": "Departure Report",
+    "21": "Position Report",
+    "22": "Position Report",
+    "44": "Meteorological Report",
+    "4A": "AMDAR Report",
+    "52": "Out/Off/On/In Report",
+    "54": "OOOI Position",
+    "5U": "CPDLC Connect",
+    "5V": "CPDLC Request",
+    "5W": "CPDLC Uplink",
+    "5X": "CPDLC Downlink",
+    "5Y": "CPDLC Disconnect",
+    "5Z": "ADS-C",
+    "80": "Unit Availability",
+    "83": "ATIS Download",
+    "8L": "ATIS/Clearance",
+    "A0": "Weather Report",
+    "AA": "Weather/PIREP",
+    "D1": "Digital ATIS",
+    "E1": "Prefile PIREP",
+    "E2": "Winds Aloft",
+    "E9": "ADS Report",
+    "F3": "Position/Weather",
+    "H1": "OOOI/Position (ARINC 633)",
+    "H2": "Fuel/Position (ARINC 633)",
+    "PR": "Position Report",
+    "Q0": "ATIS",
+    "RA": "ACARS Logon",
+    "SA": "Winds/Temperature",
+}
+
+_ACARS_LABEL_EXPLAINERS = {
+    "H1": "OOOI means Out / Off / On / In. This family is commonly used for movement milestones and position updates.",
+    "H2": "Often used for fuel and position status updates sent by the aircraft.",
+    "Q0": "ATIS means Automatic Terminal Information Service: airport weather and operational information.",
+    "83": "This usually carries an ATIS download or request response.",
+    "8L": "This is usually airport information or clearance text.",
+    "44": "A weather-related ACARS message, often with meteorological content.",
+    "4A": "AMDAR is aircraft-based weather reporting.",
+    "5Z": "ADS-C is contract-based position and surveillance reporting over datalink.",
+    "SA": "Usually a winds and temperature report from the aircraft.",
+    "RA": "A datalink logon or session-setup message.",
+}
+
+_XID_TYPE_NAMES = {
+    "XID_CMD_LCR": "Link capability negotiation",
+    "XID_CMD_HO_REQ": "Handover request",
+    "XID_CMD_HO_CFM": "Handover confirm",
+    "XID_CMD_HO_CPL": "Handover complete",
+}
 
 # --- Plain-text AMDAR patterns (legacy) ---
 _RE_FL = re.compile(r'FL\s*(\d{2,3})')
@@ -151,6 +212,181 @@ def _parse_m_temp(s: str) -> Optional[float]:
     s = s.strip()
     if not s:
         return None
+
+
+def _decode_meta(protocol_family: str, title: str, body: str,
+                 note: str = "", confidence: str = "medium") -> dict:
+    meta = {
+        "protocol_family": protocol_family,
+        "title": title,
+        "body": body,
+        "confidence": confidence,
+    }
+    if note:
+        meta["note"] = note
+    return meta
+
+
+def _classify_acars_decode(label: str, is_met: bool) -> dict:
+    label = (label or "").upper()
+    label_name = _ACARS_LABEL_NAMES.get(label, "")
+    label_note = _ACARS_LABEL_EXPLAINERS.get(label, "")
+
+    if label in _ATIS_LABELS:
+        return _decode_meta(
+            "acars_atis",
+            "Airport information / ATIS message",
+            "This is an airport information message. It usually carries ATIS or related airport operational text.",
+            label_note or "ATIS = Automatic Terminal Information Service.",
+            "high",
+        )
+
+    if label in _POSITION_LABELS:
+        return _decode_meta(
+            "acars_position",
+            "Position / movement report",
+            "This is an operational aircraft movement or position report. These messages commonly track gate, takeoff, landing, or progress milestones.",
+            label_note or "Operational aircraft status traffic.",
+            "high",
+        )
+
+    if label in _WEATHER_LABELS or is_met:
+        return _decode_meta(
+            "acars_weather",
+            "Weather-related aircraft message",
+            "This is a weather or atmosphere-related aircraft report. It is the family most likely to feed the sounding and winds/temperature workflow.",
+            label_note or "Weather labels often carry winds, temperature, position, or observation data.",
+            "high" if label in _WEATHER_LABELS else "medium",
+        )
+
+    if label in _LOGON_LABELS:
+        return _decode_meta(
+            "acars_logon",
+            "Datalink session / logon message",
+            "This is session-management traffic used to bring the datalink up or verify connectivity, not the operational flight message itself.",
+            label_note or "Useful for connectivity context more than flight operations.",
+            "high",
+        )
+
+    if label in _CPDLC_LABELS:
+        return _decode_meta(
+            "acars_cpdlc",
+            "Controller-pilot datalink control message",
+            "This is CPDLC control traffic rather than a voice transmission. It belongs to controller-pilot text communications.",
+            label_note or "CPDLC = Controller-Pilot Data Link Communications.",
+            "high",
+        )
+
+    if label in _ADSC_LABELS:
+        return _decode_meta(
+            "acars_adsc",
+            "ADS-C surveillance / contract report",
+            "This is ADS-C datalink traffic, typically used for surveillance or position contract reporting rather than plain airline text.",
+            label_note or "ADS-C = Automatic Dependent Surveillance-Contract.",
+            "high",
+        )
+
+    if label or label_name:
+        return _decode_meta(
+            "acars_labeled",
+            label_name or "Labeled datalink message",
+            f"This ACARS message is in label family {label or 'unknown'}. The family is identified, but the content is not fully interpreted here yet.",
+            label_note or "Use the raw payload when you need the exact protocol content.",
+            "medium",
+        )
+
+    return _decode_meta(
+        "acars_unknown",
+        "Unclassified datalink traffic",
+        "This is aircraft datalink traffic, but it does not map cleanly to one of the common ACARS families yet.",
+        "Use the raw payload for the exact frame structure and message fields.",
+        "low",
+    )
+
+
+def _summarize_vdl2_non_acars_frame(frame: dict) -> tuple[str, dict]:
+    vdl2 = frame.get("vdl2", {})
+    avlc = vdl2.get("avlc", {}) if isinstance(vdl2, dict) else {}
+    frame_type = (avlc.get("frame_type") or vdl2.get("frame_type") or "").upper()
+
+    if not isinstance(avlc, dict):
+        return "VDL2 frame", _decode_meta(
+            "vdl2_unknown",
+            "Unclassified VDL2 traffic",
+            "This is a VDL2 frame, but the decoder did not expose enough structure to classify it further here.",
+            "Use the raw payload for the exact frame structure.",
+            "low",
+        )
+
+    if "xid" in avlc:
+        xid = avlc.get("xid", {}) if isinstance(avlc.get("xid"), dict) else {}
+        xid_type = xid.get("type", "")
+        xid_name = _XID_TYPE_NAMES.get(xid_type, xid_type or "Link negotiation")
+        return xid_name, _decode_meta(
+            "vdl2_xid",
+            "VDL2 link setup / negotiation",
+            "This is link-management traffic used to establish or maintain the VDL2 radio/data session, not the operational airline message itself.",
+            f"{xid_name}. Usually safe to ignore unless you are debugging the data link.",
+            "high",
+        )
+
+    if "x25" in avlc:
+        x25 = avlc.get("x25", {}) if isinstance(avlc.get("x25"), dict) else {}
+        x25_keys = ", ".join(sorted(k for k in x25.keys() if isinstance(k, str))[:4])
+        note = "Higher-layer VDL2 network payload."
+        if x25_keys:
+            note = f"Higher-layer keys present: {x25_keys}."
+        return "ATN / CPDLC data", _decode_meta(
+            "vdl2_x25",
+            "ATN / CPDLC-style network payload",
+            "This is higher-layer VDL2 network traffic. It often carries controller-pilot data, ADS-C, or other ATN application data rather than plain ACARS text.",
+            note,
+            "medium",
+        )
+
+    if "gsif" in avlc:
+        return "Ground-station service info", _decode_meta(
+            "vdl2_gsif",
+            "Ground-station information",
+            "This is service or network information broadcast by a ground station to support VDL2 operations.",
+            "Useful for radio-network context more than aircraft operations.",
+            "high",
+        )
+
+    if frame_type == "I":
+        return "Addressed VDL2 data", _decode_meta(
+            "vdl2_information",
+            "VDL2 addressed data frame",
+            "This is a point-to-point VDL2 information frame. It carries data between a specific air and ground endpoint, but the application payload is not decoded here yet.",
+            "Common on busy links even when the higher-layer payload is not human-readable.",
+            "medium",
+        )
+
+    if frame_type == "S":
+        return "VDL2 supervisory frame", _decode_meta(
+            "vdl2_supervisory",
+            "VDL2 supervisory frame",
+            "This is link-layer flow-control or acknowledgment traffic. It keeps the radio session synchronized rather than carrying an operator-facing message.",
+            "Usually safe to ignore unless you are debugging the link.",
+            "high",
+        )
+
+    if frame_type == "U":
+        return "VDL2 control frame", _decode_meta(
+            "vdl2_control",
+            "VDL2 control frame",
+            "This is a VDL2 link-layer control frame used for management or session control rather than airline message content.",
+            "Usually useful only for protocol/debug analysis.",
+            "high",
+        )
+
+    return "Unclassified VDL2 traffic", _decode_meta(
+        "vdl2_unknown",
+        "Unclassified VDL2 traffic",
+        "This is VDL2 traffic that does not map cleanly to the common ACARS or management families yet.",
+        "Use the raw payload for the exact frame structure and message fields.",
+        "low",
+    )
     if s.startswith("M") or s.startswith("m"):
         try:
             return -float(s[1:])
@@ -611,6 +847,10 @@ def parse_acars_message(msg: dict) -> tuple:
         raw=msg,
     )
 
+    def _finish(obs_list: List[MetObservation]) -> tuple:
+        raw.decode_meta = _classify_acars_decode(label, raw.is_met)
+        return raw, obs_list
+
     # Try every parser — accept partial observations (temp-only, wind-only, etc.)
     # Structured formats first, then generic fallback.
 
@@ -618,37 +858,37 @@ def parse_acars_message(msg: dict) -> tuple:
     obs_list = _try_parse_dfbd3m(text, ts, flight, reg)
     if obs_list:
         raw.is_met = True
-        return raw, obs_list
+        return _finish(obs_list)
 
     # Try compressed ARINC 620 #M[12]BPOSN format (most common)
     obs = _try_parse_mbposn(text, ts, flight, reg)
     if obs:
         raw.is_met = True
-        return raw, [obs]
+        return _finish([obs])
 
     # Try #DFB*WXR weather report (multi-observation)
     obs_list = _try_parse_dfb_wxr(text, ts, flight, reg)
     if obs_list:
         raw.is_met = True
-        return raw, obs_list
+        return _finish(obs_list)
 
     # Try #DFB REP format (Republic/Delta Connection)
     obs = _try_parse_dfb_rep(text, ts, flight, reg)
     if obs:
         raw.is_met = True
-        return raw, [obs]
+        return _finish([obs])
 
     # Try label-22 position format (Frontier/Spirit)
     obs = _try_parse_label22(text, ts, flight, reg)
     if obs:
         raw.is_met = True
-        return raw, [obs]
+        return _finish([obs])
 
     # Try label-21 POSN format (Frontier-style) — accept even without temp
     obs = _try_parse_posn21(text, ts, flight, reg)
     if obs:
         raw.is_met = True
-        return raw, [obs]
+        return _finish([obs])
 
     # Fall back to legacy plain-text scrape — grab any FL/temp/wind we can find
     upper = text.upper()
@@ -693,7 +933,7 @@ def parse_acars_message(msg: dict) -> tuple:
     # Accept if we have altitude + at least one met field
     has_met = temp_c > -9000 or wind_spd > 0 or humidity is not None
     if altitude_ft <= 0 or not has_met:
-        return raw, []
+        return _finish([])
 
     dewpoint = dewpoint_from_rh(temp_c, humidity) if humidity and temp_c > -9000 else -9999.0
     pressure = altitude_to_pressure(altitude_ft)
@@ -707,7 +947,7 @@ def parse_acars_message(msg: dict) -> tuple:
         wind_dir_deg=wind_dir, wind_speed_kt=wind_spd,
         humidity_pct=humidity,
     )
-    return raw, [obs]
+    return _finish([obs])
 
 
 # ---------------------------------------------------------------------------
@@ -1115,13 +1355,15 @@ def vdl2_reader_worker(store: MetStore, stop_event: threading.Event) -> None:
                         vdl2 = frame.get("vdl2", {})
                         t = vdl2.get("t", {})
                         ts = (t.get("sec", 0) if isinstance(t, dict) else 0) or time.time()
+                        summary_text, decode_meta = _summarize_vdl2_non_acars_frame(frame)
                         raw = RawMessage(
                             timestamp=ts,
                             source="vdl2",
                             source_id="",
-                            text=str(frame.get("vdl2", {}).get("avlc", {}).get("xid", frame.get("vdl2", {}).get("freq", "")))[:120],
+                            text=summary_text,
                             is_met=False,
                             raw=frame,
+                            decode_meta=decode_meta,
                         )
                         store.add_message(raw)
                         continue

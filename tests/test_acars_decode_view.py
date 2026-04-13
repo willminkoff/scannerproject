@@ -2,6 +2,7 @@
 
 Covers:
 - RawMessage.raw field serialization via dataclasses.asdict()
+- RawMessage.decode_meta serialization via dataclasses.asdict()
 - ACARS parsing preserves full raw dict
 - VDL2 ACARS parsing passes full frame as raw
 - VDL2 non-ACARS (XID) parsing passes full frame as raw
@@ -24,6 +25,7 @@ from ui.wxdata import (
     MetStore,
     RawMessage,
     _extract_acars_from_vdl2,
+    _summarize_vdl2_non_acars_frame,
     parse_acars_message,
 )
 
@@ -114,18 +116,22 @@ class RawMessageRawFieldTests(unittest.TestCase):
     def test_raw_field_default_is_empty_dict(self):
         msg = RawMessage(timestamp=1000.0, source="acars", source_id="AAL1", text="hi")
         self.assertEqual(msg.raw, {})
+        self.assertEqual(msg.decode_meta, {})
 
     def test_raw_field_survives_asdict(self):
         payload = {"flight": "AAL1", "label": "H1", "freq": 129125000}
         msg = RawMessage(
             timestamp=1000.0, source="acars", source_id="AAL1",
             text="[H1] AAL1:", raw=payload,
+            decode_meta={"protocol_family": "acars_position", "title": "Position / movement report"},
         )
         d = asdict(msg)
         self.assertIn("raw", d)
+        self.assertIn("decode_meta", d)
         self.assertEqual(d["raw"]["flight"], "AAL1")
         self.assertEqual(d["raw"]["label"], "H1")
         self.assertEqual(d["raw"]["freq"], 129125000)
+        self.assertEqual(d["decode_meta"]["protocol_family"], "acars_position")
 
     def test_raw_field_with_nested_dict_survives_asdict(self):
         """Nested dicts in raw (e.g. full VDL2 frame) are copied correctly."""
@@ -190,6 +196,8 @@ class AcarsParsingRawFieldTests(unittest.TestCase):
         self.assertEqual(obs, [])
         self.assertEqual(raw.raw["flight"], "UAL999")
         self.assertEqual(raw.raw["freq"], 129125000)
+        self.assertEqual(raw.decode_meta["protocol_family"], "acars_atis")
+        self.assertEqual(raw.decode_meta["title"], "Airport information / ATIS message")
 
     def test_raw_dict_populated_for_met_message(self):
         raw, obs = parse_acars_message(SAMPLE_ACARS_MSG)
@@ -197,6 +205,8 @@ class AcarsParsingRawFieldTests(unittest.TestCase):
         self.assertGreater(len(obs), 0)
         self.assertEqual(raw.raw["label"], "H1")
         self.assertIn("POSN", raw.raw["text"])
+        self.assertEqual(raw.decode_meta["protocol_family"], "acars_position")
+        self.assertEqual(raw.decode_meta["title"], "Position / movement report")
 
 
 # ---------------------------------------------------------------------------
@@ -292,6 +302,27 @@ class Vdl2NonAcarsRawFieldTests(unittest.TestCase):
         raw = self._make_non_acars_raw(SAMPLE_VDL2_XID_FRAME)
         self.assertEqual(raw.source, "vdl2")
 
+    def test_non_acars_helper_classifies_xid(self):
+        summary_text, meta = _summarize_vdl2_non_acars_frame(SAMPLE_VDL2_XID_FRAME)
+        self.assertEqual(summary_text, "Link capability negotiation")
+        self.assertEqual(meta["protocol_family"], "vdl2_xid")
+        self.assertEqual(meta["title"], "VDL2 link setup / negotiation")
+
+    def test_non_acars_helper_classifies_x25(self):
+        frame = {
+            "vdl2": {
+                "t": {"sec": 1712700201},
+                "avlc": {
+                    "frame_type": "I",
+                    "x25": {"clnp": {"pdu_type": "DT"}, "cotp": {"type": "CC"}},
+                },
+            }
+        }
+        summary_text, meta = _summarize_vdl2_non_acars_frame(frame)
+        self.assertEqual(summary_text, "ATN / CPDLC data")
+        self.assertEqual(meta["protocol_family"], "vdl2_x25")
+        self.assertIn("clnp", meta["note"])
+
 
 # ---------------------------------------------------------------------------
 # 5. /api/wx/messages/raw endpoint response format
@@ -350,6 +381,7 @@ class RawMessagesEndpointTests(unittest.TestCase):
         data = json.loads(body)
         msg = data["messages"][0]
         self.assertIn("raw", msg)
+        self.assertIn("decode_meta", msg)
         self.assertEqual(msg["raw"]["flight"], "AAL1")
         self.assertEqual(msg["raw"]["freq"], 129125000)
 
@@ -414,13 +446,16 @@ class RawMessageBackwardCompatTests(unittest.TestCase):
     def test_default_raw_is_empty_dict(self):
         msg = RawMessage(timestamp=1.0, source="acars", source_id="X", text="y")
         self.assertEqual(msg.raw, {})
+        self.assertEqual(msg.decode_meta, {})
         self.assertIsInstance(msg.raw, dict)
 
     def test_asdict_raw_is_empty_dict(self):
         msg = RawMessage(timestamp=1.0, source="acars", source_id="X", text="y")
         d = asdict(msg)
         self.assertIn("raw", d)
+        self.assertIn("decode_meta", d)
         self.assertEqual(d["raw"], {})
+        self.assertEqual(d["decode_meta"], {})
 
     def test_store_and_retrieve_no_raw(self):
         """Messages with no raw field can be stored and retrieved without error."""
@@ -442,6 +477,7 @@ class RawMessageBackwardCompatTests(unittest.TestCase):
         encoded = json.dumps(msgs)
         decoded = json.loads(encoded)
         self.assertEqual(decoded[0]["raw"], {})
+        self.assertEqual(decoded[0]["decode_meta"], {})
 
 
 # ---------------------------------------------------------------------------
@@ -537,6 +573,7 @@ class DecodeReadabilityTests(unittest.TestCase):
 
     def test_summary_function_present(self):
         self.assertIn("function summarizeMessage", self.html)
+        self.assertIn("msg.decode_meta", self.html)
 
     def test_summary_panel_present(self):
         self.assertIn("summary-panel", self.html)

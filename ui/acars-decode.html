@@ -636,6 +636,16 @@ function xidTypeName(raw) {
 }
 
 function summarizeMessage(msg, f) {
+  const meta = msg.decode_meta || {};
+  if (meta && (meta.title || meta.body)) {
+    return {
+      kicker: meta.kicker || 'Plain-English decode',
+      title: meta.title || 'Decoded datalink traffic',
+      body: meta.body || 'This message has backend decode metadata available.',
+      note: meta.note || '',
+    };
+  }
+
   const raw = msg.raw || {};
   const label = (f.label || '').toUpperCase();
   const lname = labelName(label);

@@ -87,27 +87,9 @@ echo "  done"
 echo ""
 
 # ---------------------------------------------------------------------------
-# Step 2/9: Build and install acarsdec
+# Step 2/9: Build and install libacars
 # ---------------------------------------------------------------------------
-echo "2/9: Building acarsdec..."
-if [[ "$need_acarsdec" == "false" ]]; then
-    echo "  /usr/local/bin/acarsdec present, skipping (FORCE_REBUILD=1 to rebuild)"
-else
-    git clone --depth 1 "$ACARSDEC_REPO" "$BUILD_DIR/acarsdec"
-    mkdir -p "$BUILD_DIR/acarsdec/build"
-    cd "$BUILD_DIR/acarsdec/build"
-    cmake .. -Drtl=ON
-    make -j"$(nproc)"
-    install -m 0755 acarsdec /usr/local/bin/acarsdec
-    cd /
-    echo "  installed /usr/local/bin/acarsdec"
-fi
-echo ""
-
-# ---------------------------------------------------------------------------
-# Step 3/9: Build and install libacars (required by dumpvdl2)
-# ---------------------------------------------------------------------------
-echo "3/9: Building libacars..."
+echo "2/9: Building libacars..."
 if [[ "$need_libacars" == "false" ]]; then
     echo "  libacars-2 present, skipping (FORCE_REBUILD=1 to rebuild)"
 else
@@ -120,6 +102,24 @@ else
     ldconfig
     cd /
     echo "  installed libacars"
+fi
+echo ""
+
+# ---------------------------------------------------------------------------
+# Step 3/9: Build and install acarsdec
+# ---------------------------------------------------------------------------
+echo "3/9: Building acarsdec..."
+if [[ "$need_acarsdec" == "false" ]]; then
+    echo "  /usr/local/bin/acarsdec present, skipping (FORCE_REBUILD=1 to rebuild)"
+else
+    git clone --depth 1 "$ACARSDEC_REPO" "$BUILD_DIR/acarsdec"
+    mkdir -p "$BUILD_DIR/acarsdec/build"
+    cd "$BUILD_DIR/acarsdec/build"
+    cmake .. -Drtl=ON
+    make -j"$(nproc)"
+    install -m 0755 acarsdec /usr/local/bin/acarsdec
+    cd /
+    echo "  installed /usr/local/bin/acarsdec"
 fi
 echo ""
 
