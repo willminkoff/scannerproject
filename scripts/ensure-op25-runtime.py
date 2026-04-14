@@ -115,6 +115,21 @@ def _detect_traffic_dongle(dongle_assignments: dict | None) -> str:
     return ""
 
 
+def _assigned_digital_serials(dongle_assignments: dict | None) -> set[str]:
+    serials: set[str] = set()
+    if not dongle_assignments:
+        return serials
+    for entry in dongle_assignments.get("assignments") or []:
+        serial = str(entry.get("preferred_tuner_serial") or "").strip()
+        if serial:
+            serials.add(serial)
+    for serial in dongle_assignments.get("traffic_pool") or []:
+        value = str(serial or "").strip()
+        if value:
+            serials.add(value)
+    return serials
+
+
 def _parse_rtl_test_device_map(output: str) -> dict[str, int]:
     """Parse ``rtl_test`` output into ``{serial: index}``."""
     mapping: dict[str, int] = {}
@@ -294,7 +309,8 @@ def main() -> int:
     _vdl2_share = os.environ.get("OP25_VDL2_TRAFFIC_SHARE", "1").strip() != "0"
     traffic_serial_2 = ""
     traffic_system_2 = ""
-    if _vdl2_share and _vdl2_serial and not os.path.exists(_VDL2_SENTINEL):
+    assigned_serials = _assigned_digital_serials(dongle_assignments)
+    if _vdl2_share and _vdl2_serial and not os.path.exists(_VDL2_SENTINEL) and _vdl2_serial not in assigned_serials:
         traffic_serial_2 = _vdl2_serial
         # System-agnostic: default target is systems[1], fallback to systems[0].
         traffic_system_2 = (
@@ -311,6 +327,8 @@ def main() -> int:
             reasons.append("VDL2_RTL_SERIAL not set")
         if _vdl2_serial and os.path.exists(_VDL2_SENTINEL):
             reasons.append(f"sentinel present ({_VDL2_SENTINEL})")
+        if _vdl2_serial and _vdl2_serial in assigned_serials:
+            reasons.append("VDL2 serial already included in allocator pool")
         if reasons:
             print(f"OP25 runtime: VDL2 traffic share inactive: {', '.join(reasons)}")
 

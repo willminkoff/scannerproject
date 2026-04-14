@@ -23,6 +23,7 @@ try:
         GROUND_CONFIG_PATH,
         PROFILES_DIR,
     )
+    from .digital_dongles import digital_first_serials
     from .dongle_allocator import allocate as allocate_dongles
     from .profile_config import (
         enforce_profile_index,
@@ -54,6 +55,7 @@ except ImportError:
         GROUND_CONFIG_PATH,
         PROFILES_DIR,
     )
+    from ui.digital_dongles import digital_first_serials
     from ui.dongle_allocator import allocate as allocate_dongles
     from ui.profile_config import (
         enforce_profile_index,
@@ -79,13 +81,14 @@ logger = logging.getLogger(__name__)
 
 
 def _digital_serials() -> list[str]:
-    """Collect configured digital dongle serials (primary + secondary + tertiary)."""
-    serials: list[str] = []
-    for s in (DIGITAL_RTL_SERIAL, DIGITAL_RTL_SERIAL_SECONDARY, DIGITAL_RTL_SERIAL_TERTIARY):
-        val = str(s or "").strip()
-        if val and val not in serials:
-            serials.append(val)
-    return serials
+    """Collect digital-capacity serials, including a free VDL2 dongle."""
+    return digital_first_serials(
+        (
+            DIGITAL_RTL_SERIAL,
+            DIGITAL_RTL_SERIAL_SECONDARY,
+            DIGITAL_RTL_SERIAL_TERTIARY,
+        )
+    )
 
 
 _MANAGED_AIR_ID = "hp3_favorites_airband"

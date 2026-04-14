@@ -20,6 +20,11 @@ logger = logging.getLogger(__name__)
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, unquote, urlparse
 from urllib.request import Request, urlopen
+try:
+    from .digital_dongles import digital_first_serials
+except ImportError:
+    from ui.digital_dongles import digital_first_serials
+
 def combined_num_devices(conf_path=None) -> int:
     """Count devices declared in the combined rtl_airband config.
 
@@ -39,28 +44,25 @@ def _digital_tuner_targets() -> list[str]:
     targets = []
     for candidate in (
         DIGITAL_PREFERRED_TUNER,
-        DIGITAL_RTL_SERIAL,
-        DIGITAL_RTL_SERIAL_SECONDARY,
-        DIGITAL_RTL_SERIAL_TERTIARY,
         DIGITAL_RTL_DEVICE,
     ):
         value = str(candidate or "").strip()
         if value and value not in targets:
             targets.append(value)
+    for serial in _configured_digital_serials():
+        if serial not in targets:
+            targets.append(serial)
     return targets
 
 
 def _configured_digital_serials() -> list[str]:
-    serials = []
-    for candidate in (
-        DIGITAL_RTL_SERIAL,
-        DIGITAL_RTL_SERIAL_SECONDARY,
-        DIGITAL_RTL_SERIAL_TERTIARY,
-    ):
-        value = str(candidate or "").strip()
-        if value and value not in serials:
-            serials.append(value)
-    return serials
+    return digital_first_serials(
+        (
+            DIGITAL_RTL_SERIAL,
+            DIGITAL_RTL_SERIAL_SECONDARY,
+            DIGITAL_RTL_SERIAL_TERTIARY,
+        )
+    )
 
 
 try:

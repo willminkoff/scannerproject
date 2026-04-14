@@ -64,6 +64,7 @@ try:
         DIGITAL_SYSTEM_ORDER,
         DIGITAL_USE_MULTI_FREQ_SOURCE,
     )
+    from .digital_dongles import digital_first_serials
     from .dongle_allocator import load_assignments, preferred_tuner_for_system
     from .systemd import unit_active
     from .system_stats import read_rtl_dongle_health
@@ -112,6 +113,7 @@ except ImportError:
         DIGITAL_SYSTEM_ORDER,
         DIGITAL_USE_MULTI_FREQ_SOURCE,
     )
+    from ui.digital_dongles import digital_first_serials
     from ui.dongle_allocator import load_assignments, preferred_tuner_for_system
     from ui.systemd import unit_active
     from ui.system_stats import read_rtl_dongle_health
@@ -587,16 +589,13 @@ def _digital_tuner_targets() -> list[str]:
 
 
 def _configured_digital_rtl_serials() -> list[str]:
-    serials: list[str] = []
-    for candidate in (
-        DIGITAL_RTL_SERIAL,
-        DIGITAL_RTL_SERIAL_SECONDARY,
-        DIGITAL_RTL_SERIAL_TERTIARY,
-    ):
-        value = str(candidate or "").strip()
-        if value and value not in serials:
-            serials.append(value)
-    return serials
+    return digital_first_serials(
+        (
+            DIGITAL_RTL_SERIAL,
+            DIGITAL_RTL_SERIAL_SECONDARY,
+            DIGITAL_RTL_SERIAL_TERTIARY,
+        )
+    )
 
 
 def _auto_extra_digital_rtl_serials(*, dongles: dict | None = None) -> list[str]:
