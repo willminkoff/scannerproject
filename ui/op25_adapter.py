@@ -16,6 +16,7 @@ import logging
 import os
 import re
 import subprocess
+import tempfile
 import threading
 import time
 import urllib.error
@@ -343,11 +344,23 @@ def _load_selector_state(runtime_dir: str) -> dict[str, Any]:
 def _save_selector_state(runtime_dir: str, payload: dict[str, Any]) -> None:
     os.makedirs(runtime_dir, exist_ok=True)
     path = _selector_state_path(runtime_dir)
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2, sort_keys=True)
-        f.write("\n")
-    os.replace(tmp, path)
+    fd, tmp = tempfile.mkstemp(
+        prefix=f"{_OP25_SITE_SELECTOR_STATE}.",
+        suffix=".tmp",
+        dir=runtime_dir,
+        text=True,
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, sort_keys=True)
+            f.write("\n")
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def _state_system_key(profile_id: str, system_name: str) -> str:
@@ -657,17 +670,15 @@ def _flatten_active_runtime_systems(runtime_systems: list[dict[str, Any]]) -> li
 def _candidate_is_unhealthy(candidate: dict[str, Any]) -> bool:
     if not _parse_enabled(candidate.get("enabled", True)):
         return True
-    if not bool(candidate.get("control_locked")):
-        return True
     if not bool(candidate.get("control_decode_available")):
         return True
     age = candidate.get("last_tsbk_age_sec")
     if age is None:
-        return True
+        return False
     try:
         return float(age) > 60.0
     except Exception:
-        return True
+        return False
 
 
 def _candidate_cooldown_active(candidate: dict[str, Any], *, now_ms: int) -> bool:
@@ -2011,6 +2022,10 @@ class Op25Adapter(_BaseDigitalAdapter):
         last_tsbk_age_sec = None
         if last_tsbk_values:
             last_tsbk_age_sec = max(0.0, now_sec - max(last_tsbk_values))
+        fresh_tsbk = bool(
+            last_tsbk_age_sec is not None
+            and last_tsbk_age_sec <= _OP25_ROOT_ACTIVITY_MAX_AGE_SEC
+        )
 
         control_locked = False
         on_voice_channel = False
@@ -2030,9 +2045,13 @@ class Op25Adapter(_BaseDigitalAdapter):
         if _voice_exempt and on_voice_channel:
             control_decode_available = True
         else:
-            control_decode_available = bool(
-                last_tsbk_age_sec is not None and last_tsbk_age_sec <= _OP25_ROOT_ACTIVITY_MAX_AGE_SEC
-            )
+            control_decode_available = fresh_tsbk
+        # OP25 may time-slice onto voice traffic or expose a tagged voice row
+        # instead of the control row on the current update. Fresh TSBKs still
+        # prove the site is locked and decoding, so don't mark that site as
+        # unlocked just because the snapshot is currently on a voice frequency.
+        if not control_locked and (control_decode_available or fresh_tsbk) and (matched_trunk or matched_channels):
+            control_locked = True
 
         call_log = status.get("call_log") or []
         has_explicit_system = any(

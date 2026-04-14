@@ -9,11 +9,13 @@ from unittest import mock
 from ui import digital
 from ui.op25_adapter import (
     Op25Adapter,
+    _candidate_is_unhealthy,
     _flatten_active_runtime_systems,
     _hydrate_runtime_systems_for_config,
     _iso_utc,
     _load_selector_state,
     _normalize_runtime_system_definitions,
+    _save_selector_state,
     generate_multi_rx_config,
     generate_trunk_tsv,
 )
@@ -343,6 +345,44 @@ class SiteSelectionDecisionTests(unittest.TestCase):
         self.assertEqual("switch", decision["action"])
         self.assertEqual("18863", decision["site_id"])
         self.assertEqual("site_switch_unhealthy", decision["reason_code"])
+
+    def test_fresh_decode_without_control_tag_is_not_unhealthy(self):
+        self.assertFalse(
+            _candidate_is_unhealthy(
+                _candidate(
+                    "41154",
+                    score=20,
+                    site_name="Davidson County Services",
+                    control_locked=False,
+                    control_decode_available=True,
+                    last_tsbk_age_sec=1.0,
+                )
+            )
+        )
+
+    def test_fresh_decode_without_control_tag_does_not_trigger_same_site_restart(self):
+        decision, state = self.adapter._selector_decision_for_system(
+            self.system,
+            self._sys_state(
+                _stale_window_times_ms=[self.now_ms - 31_000] * 5,
+                _last_stale_window_time_ms=self.now_ms - 31_000,
+                stale_window_count=5,
+            ),
+            [
+                _candidate(
+                    "41154",
+                    score=20,
+                    site_name="Davidson County Services",
+                    control_locked=False,
+                    control_decode_available=True,
+                    last_tsbk_age_sec=1.0,
+                ),
+            ],
+            now_ms=self.now_ms,
+        )
+        self.assertEqual("stay", decision["action"])
+        self.assertEqual("stay_current_healthy", decision["reason_code"])
+        self.assertEqual(5, state["stale_window_count"])
 
     def test_healthy_but_unproductive_current_site_switches_when_alternate_exceeds_margin(self):
         decision, _ = self.adapter._selector_decision_for_system(
@@ -726,7 +766,64 @@ class RestartBatchingTests(unittest.TestCase):
             self.assertEqual(0, int(mtrtrs["_last_restart_time_ms"]))
 
 
+class SelectorStatePersistenceTests(unittest.TestCase):
+    def test_save_selector_state_uses_unique_temp_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime_dir = Path(tmp)
+            created: list[str] = []
+            real_mkstemp = tempfile.mkstemp
+
+            def _wrapped_mkstemp(*args, **kwargs):
+                fd, path = real_mkstemp(*args, **kwargs)
+                created.append(path)
+                return fd, path
+
+            with mock.patch("ui.op25_adapter.tempfile.mkstemp", side_effect=_wrapped_mkstemp) as mocked:
+                _save_selector_state(str(runtime_dir), {"systems": {"p::s": {"selected_site_id": "x"}}})
+
+            self.assertEqual(1, mocked.call_count)
+            self.assertEqual(
+                {"systems": {"p::s": {"selected_site_id": "x"}}},
+                _load_selector_state(str(runtime_dir)),
+            )
+            self.assertTrue(created)
+            self.assertTrue(created[0].startswith(str(runtime_dir / "site_selector_state.json.")))
+            self.assertFalse((runtime_dir / "site_selector_state.json.tmp").exists())
+
+
 class StatusTelemetryTests(unittest.TestCase):
+    def test_status_metrics_infers_lock_from_fresh_decode_without_control_tag(self):
+        adapter = _make_adapter()
+        status = {
+            "trunk_update": {
+                "systems": {
+                    "0": {
+                        "system": "TACN",
+                        "last_tsbk": 1_000_005.0,
+                    }
+                }
+            },
+            "channel_update": {
+                "0": {
+                    "system": "TACN",
+                    "tag": "Region 3 Dispatch - Nashville",
+                    "tgid": 47152,
+                    "freq": 773581250,
+                }
+            },
+            "call_log": [],
+        }
+        with mock.patch("ui.op25_adapter.time.time", return_value=1_000_010.0):
+            metrics = adapter._status_metrics_for_system(
+                status,
+                "TACN",
+                {"47008", "47152"},
+                runtime_system_count=1,
+            )
+        self.assertTrue(metrics["control_decode_available"])
+        self.assertTrue(metrics["control_locked"])
+        self.assertEqual(5.0, metrics["last_tsbk_age_sec"])
+
     def test_preflight_exposes_selected_site_and_candidates(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
