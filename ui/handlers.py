@@ -2531,6 +2531,12 @@ class Handler(BaseHTTPRequestHandler):
             except FileNotFoundError:
                 return self._send(404, "SB3 UI not found", "text/plain; charset=utf-8")
 
+        # Captive portal detection (iOS, Android, Windows)
+        if p in ("/hotspot-detect.html", "/library/test/success.html",
+                 "/generate_204", "/connecttest.txt", "/ncsi.txt",
+                 "/redirect", "/canonical.html"):
+            return self._send_redirect("/sb3")
+
         if p in ("/decode", "/decode/", "/decode.html"):
             ui_dir = os.path.dirname(os.path.abspath(__file__))
             decode_path = os.path.join(ui_dir, "acars-decode.html")

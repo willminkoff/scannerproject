@@ -115,6 +115,8 @@ listen-address=$ap_ip
 dhcp-range=$dhcp_start,$dhcp_end,$netmask,$lease_time
 dhcp-option=3,$ap_ip
 dhcp-option=6,$ap_ip
+address=/sb3.local/$ap_ip
+address=/#/$ap_ip
 EOF_DNSMASQ
 
   log "Starting hostapd for SSID '$ssid' on $iface"
@@ -192,7 +194,20 @@ if ping_reachable "$PING_IP" "$PING_COUNT" "$PING_TIMEOUT" "$PING_IFACE"; then
   exit 0
 fi
 
+cleanup_iptables() {
+  iptables -t nat -D PREROUTING -i "$AP_INTERFACE" -p tcp --dport 80 -j REDIRECT --to-port 5050 2>/dev/null || true
+  iptables -t nat -D PREROUTING -i "$AP_INTERFACE" -p tcp --dport 443 -j REDIRECT --to-port 5050 2>/dev/null || true
+  log "iptables captive portal rules removed"
+}
+
 log "Reachability failed; starting fallback AP"
 start_ap "$AP_INTERFACE" "$AP_SSID" "$AP_CHANNEL" "$AP_COUNTRY" \
   "$AP_IP" "$AP_CIDR" "$AP_DHCP_START" "$AP_DHCP_END" "$AP_LEASE_TIME" \
   "$AP_PASSPHRASE" "$HOSTAPD_BIN" "$DNSMASQ_BIN" "$STATE_DIR"
+
+trap cleanup_iptables EXIT INT TERM
+
+log "Adding captive portal iptables rules on $AP_INTERFACE"
+iptables -t nat -A PREROUTING -i "$AP_INTERFACE" -p tcp --dport 80 -j REDIRECT --to-port 5050
+iptables -t nat -A PREROUTING -i "$AP_INTERFACE" -p tcp --dport 443 -j REDIRECT --to-port 5050
+log "Captive portal active: HTTP/HTTPS on $AP_INTERFACE → port 5050"
