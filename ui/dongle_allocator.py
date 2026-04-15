@@ -15,6 +15,8 @@ Allocation strategy
 * If only one system is active, assign one control dongle and leave the rest
   for traffic.
 * If systems >= dongles, all dongles go to control (no dedicated traffic).
+* If 4+ systems are active and 4+ dongles are available, pin exactly the
+  first 4 systems to control. Overflow systems remain unmonitored.
 
 The assignment map is written atomically to ``DONGLE_ASSIGNMENTS_PATH`` and
 read by callers via :func:`load_assignments` or :func:`preferred_tuner_for_system`.
@@ -30,6 +32,8 @@ import time
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+_MAX_OVERFLOW_CONTROL_SYSTEMS = 4
 
 # ---------------------------------------------------------------------------
 # Default path -- overridable via env var for tests
@@ -109,6 +113,29 @@ def allocate(
             "control_channels_mhz": list(systems[0].get("control_channels_mhz") or []),
         })
         traffic_pool = serials[1:]
+    elif n_systems >= _MAX_OVERFLOW_CONTROL_SYSTEMS and n_dongles >= _MAX_OVERFLOW_CONTROL_SYSTEMS:
+        # Full-database cap: when 4+ systems are available and we have 4+
+        # digital-capacity dongles, pin exactly 4 systems to control and let
+        # lower-priority systems remain unmonitored. Any surplus dongles above
+        # the first four remain available for traffic following.
+        control_count = min(_MAX_OVERFLOW_CONTROL_SYSTEMS, n_systems, n_dongles)
+        for i in range(control_count):
+            assignments.append({
+                "system_name": systems[i]["name"],
+                "preferred_tuner_serial": serials[i],
+                "role": "control",
+                "control_channels_mhz": list(systems[i].get("control_channels_mhz") or []),
+            })
+        traffic_pool = serials[control_count:]
+        strategy = "all_control" if not traffic_pool else "dedicated_control"
+        unmonitored = [s["name"] for s in systems[control_count:]]
+        if unmonitored:
+            logger.warning(
+                "Capped digital control monitoring at %d systems. "
+                "Unmonitored systems: %s",
+                control_count,
+                ", ".join(unmonitored),
+            )
     elif n_systems < n_dongles:
         # Fewer systems than dongles: dedicate one per system, rest are traffic.
         strategy = "dedicated_control"

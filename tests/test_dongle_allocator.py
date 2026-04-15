@@ -96,6 +96,44 @@ class TestAllocate(unittest.TestCase):
         self.assertEqual(result["assignments"][1]["system_name"], "Vanderbilt")
         self.assertEqual(result["traffic_pool"], ["56919602"])
 
+    def test_five_systems_four_dongles_monitor_four_controls(self):
+        """With 4+ systems and 4 dongles, monitor exactly 4 systems on control."""
+        result = allocate(
+            ["00000001", "14306619", "56919602", "70613472"],
+            [
+                _sys("TACN", "769.83125"),
+                _sys("Vanderbilt", "856.9375"),
+                _sys("Metro", "851.0125"),
+                _sys("Airport", "851.5"),
+                _sys("Lebanon", "852.0"),
+            ],
+            persist=False,
+        )
+        self.assertEqual(result["strategy"], "all_control")
+        self.assertEqual(len(result["assignments"]), 4)
+        self.assertEqual(
+            [item["system_name"] for item in result["assignments"]],
+            ["TACN", "Vanderbilt", "Metro", "Airport"],
+        )
+        self.assertEqual(result["traffic_pool"], [])
+
+    def test_five_systems_five_dongles_caps_controls_at_four(self):
+        """Overflow above 4 systems stays unmonitored even if a fifth dongle exists."""
+        result = allocate(
+            ["00000001", "14306619", "56919602", "70613472", "83241970"],
+            [
+                _sys("TACN", "769.83125"),
+                _sys("Vanderbilt", "856.9375"),
+                _sys("Metro", "851.0125"),
+                _sys("Airport", "851.5"),
+                _sys("Lebanon", "852.0"),
+            ],
+            persist=False,
+        )
+        self.assertEqual(result["strategy"], "dedicated_control")
+        self.assertEqual(len(result["assignments"]), 4)
+        self.assertEqual(result["traffic_pool"], ["83241970"])
+
     def test_deduplicates_serials(self):
         result = allocate(
             ["56919602", "56919602", "00000001"],
