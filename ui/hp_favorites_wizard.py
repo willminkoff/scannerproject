@@ -437,6 +437,9 @@ class HPFavoritesWizard:
             talkgroup = str(row["dec_tgid"] or "").strip()
             if not talkgroup.isdigit():
                 continue
+            mode = str(row["mode"] or "").strip().upper()
+            if mode and "E" in mode:
+                continue
             alpha_tag = str(row["alpha_tag"] or "").strip()
             group_name = str(row["group_name"] or "").strip()
             service_tag = int(row["service_tag"] or 0)

@@ -349,6 +349,92 @@ class DigitalApiWorkflowTests(unittest.TestCase):
     def tearDown(self):
         _reset_handler_caches()
 
+    def test_api_hits_filters_encrypted_digital_events(self):
+        now_ms = int(time.time() * 1000)
+
+        class _DigitalManager:
+            def isActive(self):
+                return True
+
+            def getRecentEvents(self, limit: int = 20):
+                del limit
+                return [
+                    {
+                        "label": "Police Dispatch",
+                        "tgid": "3207",
+                        "mode": "P25",
+                        "timeMs": now_ms,
+                        "durationMs": 4000,
+                    },
+                    {
+                        "label": "Fire Dispatch (Encrypted)",
+                        "tgid": "3208",
+                        "mode": "P25",
+                        "timeMs": now_ms + 1000,
+                        "durationMs": 4000,
+                    },
+                    {
+                        "label": "Tac 2",
+                        "tgid": "3209",
+                        "mode": "DE",
+                        "timeMs": now_ms + 2000,
+                        "durationMs": 4000,
+                    },
+                ]
+
+        with mock.patch.object(handlers, "read_active_config_path", return_value="/tmp/air.conf"), mock.patch.object(
+            handlers, "GROUND_CONFIG_PATH", "/tmp/ground.conf"
+        ), mock.patch.object(
+            handlers, "split_profiles", return_value=([], [], [])
+        ), mock.patch.object(
+            handlers, "_resolve_analog_label_map", return_value={}
+        ), mock.patch.object(
+            handlers, "_annotate_analog_hits", return_value=[]
+        ), mock.patch.object(
+            handlers, "get_digital_manager", return_value=_DigitalManager()
+        ), mock.patch.object(
+            handlers, "DIGITAL_HITS_REQUIRE_ACTIVE_STREAM", False
+        ), mock.patch.object(
+            handlers, "DIGITAL_HITS_REQUIRE_AUDIO_EVENT", False
+        ), mock.patch.object(
+            handlers, "_HITS_CACHE_TTL_SEC", 0.0
+        ):
+            code, body, _ = handlers.Handler.do_GET(_FakeGetRequest("/api/hits"))
+
+        self.assertEqual(200, code)
+        payload = json.loads(body)
+        labels = [str(item.get("label_full") or item.get("label") or "") for item in payload["items"]]
+        self.assertEqual(["Police Dispatch"], labels)
+
+    def test_flatten_hp_scan_pool_preview_filters_encrypted_trunked_labels(self):
+        preview = handlers._flatten_hp_scan_pool_for_preview(
+            {
+                "trunked_sites": [
+                    {
+                        "system_id": 6355,
+                        "system_name": "TACN",
+                        "site_name": "West Nashville",
+                        "talkgroups": [47152, 47153],
+                        "talkgroup_labels": {
+                            "47152": "HELP Dispatch",
+                            "47153": "Fire Dispatch (Encrypted)",
+                        },
+                        "talkgroup_groups": {
+                            "47152": "TDOT",
+                            "47153": "Fire",
+                        },
+                    }
+                ],
+                "conventional": [],
+            }
+        )
+
+        self.assertEqual(1, preview["trunked_talkgroups"])
+        self.assertEqual(1, preview["total_entries"])
+        entries = preview["entries"]
+        self.assertEqual(1, len(entries))
+        self.assertEqual("HELP Dispatch", entries[0]["alpha_tag"])
+
     def test_api_digital_lifecycle_sequence_uses_manager_and_invalidates_runtime_caches(self):
         manager = _RecordingDigitalManager()
 

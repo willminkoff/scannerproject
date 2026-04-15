@@ -295,6 +295,7 @@ _DIGITAL_HIT_TGID_RE = re.compile(
     r"\b(?:tgid|talkgroup|tg)\s*[:=#-]?\s*\(?\s*(\d{1,8})\s*\)?",
     re.I,
 )
+_ENCRYPTED_TEXT_RE = re.compile(r"\b(encrypt|encrypted|encryption)\b", re.I)
 _DIGITAL_STREAM_ROUTE_CACHE: dict[str, object] = {
     "path": "",
     "mtime": 0.0,
@@ -889,6 +890,33 @@ def _safe_float(value) -> float | None:
     return parsed
 
 
+def _mode_looks_encrypted(value: Any) -> bool:
+    token = str(value or "").strip().upper()
+    return bool(token) and ("E" in token)
+
+
+def _text_looks_encrypted(value: Any) -> bool:
+    text = str(value or "").strip()
+    return bool(text) and bool(_ENCRYPTED_TEXT_RE.search(text))
+
+
+def _digital_hit_looks_encrypted(event: dict[str, Any], label: str = "") -> bool:
+    if not isinstance(event, dict):
+        return False
+    if _mode_looks_encrypted(event.get("mode")):
+        return True
+    for candidate in (
+        label,
+        event.get("label"),
+        event.get("label_full"),
+        event.get("details"),
+        event.get("raw"),
+    ):
+        if _text_looks_encrypted(candidate):
+            return True
+    return False
+
+
 def _bounded_int(raw_value, default: int, minimum: int, maximum: int) -> int:
     try:
         parsed = int(float(str(raw_value).strip()))
@@ -1127,10 +1155,12 @@ def _flatten_hp_scan_pool_for_preview(pool: dict[str, Any], *, limit: int = 4000
             dedupe_key = f"{key_base}:{tgid}"
             if dedupe_key in seen_trunked:
                 continue
-            seen_trunked.add(dedupe_key)
-            trunked_talkgroups += 1
             tgid_text = str(tgid)
             alpha_tag = str(labels_map.get(tgid_text) or "").strip()
+            if _text_looks_encrypted(alpha_tag):
+                continue
+            seen_trunked.add(dedupe_key)
+            trunked_talkgroups += 1
             department_name = str(groups_map.get(tgid_text) or "").strip() or default_department
             trunked_entries.append(
                 {
@@ -2196,6 +2226,8 @@ def _build_hits_payload(limit: int = 50) -> dict:
         if DIGITAL_HITS_REQUIRE_AUDIO_EVENT and not _digital_event_routes_to_stream(event, routed_tgids):
             continue
         label = str(event.get("label") or "").strip()
+        if _digital_hit_looks_encrypted(event, label):
+            continue
         tgid = _digital_event_tgid_for_route(event)
         agency = str(event.get("agency") or "").strip()
         department = str(event.get("department") or "").strip()
