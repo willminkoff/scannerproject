@@ -374,6 +374,7 @@ class ScanPoolBuilder:
                     SELECT
                         tg.trunk_id,
                         t.dec_tgid,
+                        t.mode,
                         t.alpha_tag,
                         tg.group_name,
                         tg.latitude,
@@ -406,6 +407,9 @@ class ScanPoolBuilder:
                             continue
                     elif strict:
                         # Strict mode requires explicit local geometry for talkgroups.
+                        continue
+                    mode = str(row["mode"] or "").strip().upper()
+                    if "E" in mode:
                         continue
                     dec_text = str(row["dec_tgid"] or "").strip()
                     if not dec_text.isdigit():
