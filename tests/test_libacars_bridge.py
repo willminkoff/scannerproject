@@ -56,6 +56,18 @@ SAMPLE_NON_NATIVE_ACARS = {
     "text": "UNPARSED HIGHER LAYER WEATHER PAYLOAD",
 }
 
+SAMPLE_DFB_ACARS = {
+    "timestamp": 1712800005,
+    "flight": "FFT902",
+    "tail": ".N902FR",
+    "label": "5Z",
+    "text": (
+        "#DFB/VFFT902/X36100N086450W/"
+        "S FL350 270/080 RH45/"
+        "T FL330 255/070 M47 DP M55"
+    ),
+}
+
 SAMPLE_NATIVE_ACARS = {
     "timestamp": 1712800001,
     "flight": "DAL901",
@@ -75,6 +87,21 @@ SAMPLE_VDL2_NON_ACARS = {
             }
         },
     }
+}
+
+SAMPLE_VDL2_DFB_NON_ACARS = {
+    "timestamp": 1712800006,
+    "vdl2": {
+        "t": {"sec": 1712800006},
+        "freq": 136875000,
+        "avlc": {
+            "x25": {
+                "clnp": {"pdu_type": "DT"},
+                "cotp": {"type": "CC"},
+                "text": "#DFB/VUAL777/X36100N086450W/S FL280 240/068",
+            }
+        },
+    },
 }
 
 
@@ -112,6 +139,111 @@ class LibacarsBridgeNormalizationTests(unittest.TestCase):
 
         self.assertIsNone(raw)
         self.assertEqual([], obs)
+
+    def test_decode_message_local_dfb_payload_produces_multiple_levels_without_backend(self):
+        backend = libacars_bridge._UnavailableBackend("test unavailable")
+        with mock.patch.object(libacars_bridge, "_BACKEND", backend):
+            raw, obs = libacars_bridge.decode_message_to_observations(SAMPLE_DFB_ACARS)
+
+        self.assertIsNotNone(raw)
+        self.assertEqual(2, len(obs))
+        self.assertEqual("acars", raw.source)
+        self.assertEqual("local_text", raw.decode_meta["backend"])
+        self.assertEqual("libacars_bridge", raw.decode_meta["protocol_family"])
+        self.assertTrue(raw.decode_meta["title"])
+        self.assertEqual("acars", obs[0].source)
+        self.assertEqual(35000.0, obs[0].altitude_ft)
+        self.assertEqual(-9999.0, obs[0].temp_c)
+        self.assertEqual(270.0, obs[0].wind_dir_deg)
+        self.assertEqual(80.0, obs[0].wind_speed_kt)
+        self.assertAlmostEqual(45.0, obs[0].humidity_pct)
+        self.assertEqual(33000.0, obs[1].altitude_ft)
+        self.assertEqual(-47.0, obs[1].temp_c)
+        self.assertEqual(-55.0, obs[1].dewpoint_c)
+
+    def test_decode_message_preserves_multiple_nested_levels_from_backend(self):
+        backend = _FakeBackend(
+            message_result={
+                "summary": "Structured profile",
+                "normalized": {
+                    "flight": "AAL900",
+                    "weather": {
+                        "profile": {
+                            "position": {"lat": 36.12, "lon": -86.72},
+                            "levels": [
+                                {
+                                    "flight_level": 350,
+                                    "wind": {"direction": 270, "speed": 80, "unit": "kt"},
+                                    "temperature": {"value": -52, "unit": "c"},
+                                },
+                                {
+                                    "altitude": {"value": 10000, "unit": "m"},
+                                    "humidity": {"value": 0.45, "unit": "fraction"},
+                                    "dewpoint": {"value": -58, "unit": "c"},
+                                },
+                            ],
+                        }
+                    },
+                },
+            }
+        )
+        with mock.patch.object(libacars_bridge, "_BACKEND", backend):
+            raw, obs = libacars_bridge.decode_message_to_observations(SAMPLE_NON_NATIVE_ACARS)
+
+        self.assertIsNotNone(raw)
+        self.assertEqual(2, len(obs))
+        self.assertEqual("fake", raw.decode_meta["backend"])
+        self.assertEqual("acars", obs[0].source)
+        self.assertEqual(35000.0, obs[0].altitude_ft)
+        self.assertEqual(-52.0, obs[0].temp_c)
+        self.assertAlmostEqual(32808.4, obs[1].altitude_ft, places=1)
+        self.assertAlmostEqual(45.0, obs[1].humidity_pct)
+        self.assertEqual(-58.0, obs[1].dewpoint_c)
+
+    def test_decode_vdl2_frame_normalizes_non_acars_higher_layer_payload(self):
+        backend = _FakeBackend(
+            vdl2_result={
+                "summary": "VDL2 normalized profile",
+                "adsc": {
+                    "wx": {
+                        "vertical_profile": {
+                            "reports": [
+                                {
+                                    "altitude": {"value": 280, "unit": "fl"},
+                                    "wind": {"direction": 240, "speed": 68, "unit": "kt"},
+                                }
+                            ]
+                        }
+                    }
+                },
+                "callsign": "UAL777",
+            }
+        )
+        with mock.patch.object(libacars_bridge, "_BACKEND", backend):
+            raw, obs = libacars_bridge.decode_vdl2_frame_to_observations(SAMPLE_VDL2_NON_ACARS)
+
+        self.assertIsNotNone(raw)
+        self.assertEqual(1, len(obs))
+        self.assertEqual("vdl2", raw.source)
+        self.assertEqual("vdl2", obs[0].source)
+        self.assertEqual("UAL777", obs[0].source_id)
+        self.assertEqual(28000.0, obs[0].altitude_ft)
+        self.assertEqual(-9999.0, obs[0].temp_c)
+        self.assertEqual(68.0, obs[0].wind_speed_kt)
+
+    def test_decode_vdl2_frame_local_dfb_payload_works_without_backend(self):
+        backend = libacars_bridge._UnavailableBackend("test unavailable")
+        with mock.patch.object(libacars_bridge, "_BACKEND", backend):
+            raw, obs = libacars_bridge.decode_vdl2_frame_to_observations(SAMPLE_VDL2_DFB_NON_ACARS)
+
+        self.assertIsNotNone(raw)
+        self.assertEqual(1, len(obs))
+        self.assertEqual("vdl2", raw.source)
+        self.assertEqual("local_text", raw.decode_meta["backend"])
+        self.assertEqual("vdl2", obs[0].source)
+        self.assertEqual(28000.0, obs[0].altitude_ft)
+        self.assertEqual(-9999.0, obs[0].temp_c)
+        self.assertEqual(68.0, obs[0].wind_speed_kt)
 
 
 class WxdataLibacarsFallbackTests(unittest.TestCase):
