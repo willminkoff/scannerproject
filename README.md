@@ -1016,38 +1016,53 @@ python3 scripts/digital_profile_audit.py --profile /etc/scannerproject/digital/p
 
 ### Weather Sounding (WX Decoders)
 
-Upper-air meteorological data collection from aircraft (ACARS) and weather balloons (radiosondes). Decoders are managed as ground-profile alternatives and exposed through a unified REST API.
+Upper-air meteorological data collection from aircraft (ACARS + VDL2) and weather balloons (radiosondes). Decoders are managed as ground-profile alternatives and exposed through a unified REST API.
 
 **Data sources**:
 - **ACARS** — decodes AMDAR meteorological reports from aircraft in flight (temperature, wind, humidity by altitude). Requires `acarsdec` binary at `/usr/local/bin/acarsdec`.
+- **VDL2** — decodes ACARS-over-VDL2 plus non-ACARS higher-layer traffic from `dumpvdl2`, including optional libacars-backed normalization for structured ADS-C / ATN weather payloads. Requires `dumpvdl2` at `/usr/local/bin/dumpvdl2`.
 - **Radiosonde** — receives weather balloon telemetry via `radiosonde_auto_rx`. Requires `/opt/radiosonde_auto_rx/auto_rx.py`.
 
 **Environment variables** (in `ui/config.py`):
 - `ACARS_OUTPUT_PATH` (default: `/run/acars_output.json`) — ACARS decoder JSON output path
+- `VDL2_OUTPUT_PATH` (default: `/run/vdl2_output.json`) — VDL2 decoder JSON output path
 - `RADIOSONDE_UDP_HOST` (default: `127.0.0.1`) — radiosonde telemetry listener address
 - `RADIOSONDE_UDP_PORT` (default: `55673`) — radiosonde telemetry UDP port
 - `UNIT_ACARS` (default: `acarsdec`) — systemd unit name for ACARS service
+- `UNIT_VDL2` (default: `dumpvdl2`) — systemd unit name for VDL2 service
 - `UNIT_RADIOSONDE` (default: `radiosonde-auto-rx`) — systemd unit name for radiosonde service
+- `LIBACARS_BRIDGE_CMD` (optional) — subprocess command used by `ui/libacars_bridge.py` to normalize structured ACARS/VDL2 weather payloads into `MetObservation` records
+
+Optional libacars bridge helper:
+- Repo helper: `scripts/libacars_bridge_helper.py`
+- Typical wiring in `/etc/airband-ui.conf`:
+```bash
+LIBACARS_BRIDGE_CMD="/usr/bin/python3 /opt/airband-ui/scripts/libacars_bridge_helper.py"
+LIBACARS_HELPER_BACKEND="your_backend_module"
+```
+- `LIBACARS_HELPER_BACKEND` may point to either a module with a `decode(mode, payload)` function or `module:attr`, where `attr` is a callable `(mode, payload)` or an object/class exposing `decode_message()` and `decode_vdl2_frame()`.
 
 **Systemd services**:
 - `acarsdec.service` — ACARS decoder; outputs JSON-line messages to `ACARS_OUTPUT_PATH`
+- `dumpvdl2.service` — VDL2 decoder; outputs JSON-line messages to `VDL2_OUTPUT_PATH`
 - `radiosonde-auto-rx.service` — radiosonde decoder; broadcasts JSON telemetry via UDP
 
 Both services are managed through the UI (start/stop/restart) and require sudoers entries:
 ```
 willminkoff ALL=NOPASSWD: /bin/systemctl start acarsdec, /bin/systemctl stop acarsdec, /bin/systemctl restart acarsdec
+willminkoff ALL=NOPASSWD: /bin/systemctl start dumpvdl2, /bin/systemctl stop dumpvdl2, /bin/systemctl restart dumpvdl2
 willminkoff ALL=NOPASSWD: /bin/systemctl start radiosonde-auto-rx, /bin/systemctl stop radiosonde-auto-rx, /bin/systemctl restart radiosonde-auto-rx
 ```
 
 **Profile integration**:
-Ground config files can specify `wx_decoder = acars;` or `wx_decoder = radiosonde;` to activate a decoder when the profile is selected. The decoder reader thread starts automatically on profile switch or cold boot.
+Ground config files can specify `wx_decoder = acars;` or `wx_decoder = radiosonde;` to activate a decoder when the profile is selected. `wx_decoder = acars` starts both `acarsdec` and `dumpvdl2` so ACARS + VDL2 observations are collected together. The decoder reader thread starts automatically on profile switch or cold boot.
 
 **Spatial filtering**:
 When station location is configured (via HomePatrol state with `use_location` enabled), observations are filtered to a collection cylinder centered on the station with the configured range radius and a 40,000 ft ceiling.
 
 **Endpoints**:
 - `GET /api/wx/status` — decoder status, collecting state, message/observation counts, installation checks
-- `GET /api/wx/messages?limit=50&source=acars` — raw decoded messages (JSON-line format)
+- `GET /api/wx/messages?limit=50&source=acars` — raw decoded messages (JSON-line format; `source` may be `acars`, `vdl2`, or omitted for both)
 - `GET /api/wx/sounding` — meteorological observations sorted by altitude for plotting
 - `GET /api/wx/export?format=json` — export sounding data (`json`, `spc` for SHARPpy, or `csv`)
 - `POST /api/wx/clear` — clear collected data (optional `source` field to clear selectively)
@@ -1058,7 +1073,7 @@ When station location is configured (via HomePatrol state with `use_location` en
 - `wx_met_count` (integer; total collected observations)
 
 **Observation data model** (MetObservation):
-- `timestamp`, `source` (`"acars"` / `"radiosonde"`), `source_id` (flight number or sonde serial)
+- `timestamp`, `source` (`"acars"` / `"vdl2"` / `"radiosonde"`), `source_id` (flight number or sonde serial)
 - `lat`, `lon`, `altitude_ft`, `pressure_hpa`
 - `temp_c`, `dewpoint_c`, `humidity_pct`
 - `wind_dir_deg`, `wind_speed_kt`

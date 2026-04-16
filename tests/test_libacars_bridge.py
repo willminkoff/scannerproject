@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import tempfile
 import threading
 import time
@@ -244,6 +245,159 @@ class LibacarsBridgeNormalizationTests(unittest.TestCase):
         self.assertEqual(28000.0, obs[0].altitude_ft)
         self.assertEqual(-9999.0, obs[0].temp_c)
         self.assertEqual(68.0, obs[0].wind_speed_kt)
+
+
+class LibacarsBridgeSubprocessBackendTests(unittest.TestCase):
+    def _helper_command(self) -> str:
+        helper_path = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "scripts", "libacars_bridge_helper.py")
+        )
+        return f"{sys.executable} {helper_path}"
+
+    def _decode_with_env(self, mode: str, payload: dict, env: dict[str, str]):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "LIBACARS_BRIDGE_CMD": self._helper_command(),
+                **env,
+            },
+            clear=False,
+        ), mock.patch.object(libacars_bridge, "_BACKEND", None):
+            if mode == "message":
+                return libacars_bridge.decode_message_to_observations(payload)
+            return libacars_bridge.decode_vdl2_frame_to_observations(payload)
+
+    def _decode_with_fixture(self, mode: str, payload: dict, fixture: dict):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as handle:
+            json.dump(fixture, handle)
+            fixture_path = handle.name
+        try:
+            return self._decode_with_env(
+                mode,
+                payload,
+                {"LIBACARS_HELPER_FIXTURE_FILE": fixture_path},
+            )
+        finally:
+            os.unlink(fixture_path)
+
+    def test_subprocess_helper_decodes_message_via_libacars_bridge_cmd(self):
+        raw, obs = self._decode_with_fixture(
+            "message",
+            SAMPLE_NON_NATIVE_ACARS,
+            {
+                "message": {
+                    "summary": "Helper ACARS profile",
+                    "normalized": {
+                        "profiles": [
+                            {
+                                "position": {"lat": 36.12, "lon": -86.72},
+                                "levels": [
+                                    {
+                                        "flight_level": 340,
+                                        "wind": {"direction": 265, "speed": 78, "unit": "kt"},
+                                        "temperature": {"value": -50, "unit": "c"},
+                                    }
+                                ],
+                            }
+                        ]
+                    },
+                    "flight": "AAL900",
+                }
+            },
+        )
+
+        self.assertIsNotNone(raw)
+        self.assertEqual(1, len(obs))
+        self.assertEqual("subprocess", raw.decode_meta["backend"])
+        self.assertEqual("libacars_bridge", raw.decode_meta["protocol_family"])
+        self.assertEqual("acars", raw.source)
+        self.assertEqual("acars", obs[0].source)
+        self.assertEqual("AAL900", obs[0].source_id)
+        self.assertEqual(34000.0, obs[0].altitude_ft)
+        self.assertEqual(-50.0, obs[0].temp_c)
+        self.assertEqual(78.0, obs[0].wind_speed_kt)
+
+    def test_subprocess_helper_decodes_vdl2_via_libacars_bridge_cmd(self):
+        raw, obs = self._decode_with_fixture(
+            "vdl2",
+            SAMPLE_VDL2_NON_ACARS,
+            {
+                "vdl2": {
+                    "summary": "Helper VDL2 profile",
+                    "adsc": {
+                        "wx": {
+                            "vertical_profile": {
+                                "reports": [
+                                    {
+                                        "altitude": {"value": 280, "unit": "fl"},
+                                        "wind": {"direction": 240, "speed": 68, "unit": "kt"},
+                                        "humidity": {"value": 0.42, "unit": "fraction"},
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "callsign": "UAL777",
+                }
+            },
+        )
+
+        self.assertIsNotNone(raw)
+        self.assertEqual(1, len(obs))
+        self.assertEqual("subprocess", raw.decode_meta["backend"])
+        self.assertEqual("vdl2", raw.source)
+        self.assertEqual("vdl2", obs[0].source)
+        self.assertEqual("UAL777", obs[0].source_id)
+        self.assertEqual(28000.0, obs[0].altitude_ft)
+        self.assertAlmostEqual(42.0, obs[0].humidity_pct)
+        self.assertEqual(-9999.0, obs[0].temp_c)
+
+    def test_subprocess_helper_accepts_module_attr_callable_backend(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            module_path = os.path.join(tmp, "test_helper_backend.py")
+            with open(module_path, "w", encoding="utf-8") as handle:
+                handle.write(
+                    "def decode_payload(mode, payload):\n"
+                    "    if mode == 'message':\n"
+                    "        return {\n"
+                    "            'summary': 'Callable ACARS profile',\n"
+                    "            'normalized': {\n"
+                    "                'profiles': [\n"
+                    "                    {\n"
+                    "                        'levels': [\n"
+                    "                            {\n"
+                    "                                'flight_level': 300,\n"
+                    "                                'wind': {'direction': 250, 'speed': 72, 'unit': 'kt'},\n"
+                    "                                'temperature': {'value': -46, 'unit': 'c'},\n"
+                    "                            }\n"
+                    "                        ]\n"
+                    "                    }\n"
+                    "                ]\n"
+                    "            },\n"
+                    "            'flight': payload.get('flight') or 'TEST100',\n"
+                    "        }\n"
+                    "    return None\n"
+                )
+            pythonpath = tmp
+            existing = str(os.environ.get("PYTHONPATH", "")).strip()
+            if existing:
+                pythonpath = f"{tmp}{os.pathsep}{existing}"
+            raw, obs = self._decode_with_env(
+                "message",
+                SAMPLE_NON_NATIVE_ACARS,
+                {
+                    "LIBACARS_HELPER_BACKEND": "test_helper_backend:decode_payload",
+                    "PYTHONPATH": pythonpath,
+                },
+            )
+
+        self.assertIsNotNone(raw)
+        self.assertEqual(1, len(obs))
+        self.assertEqual("subprocess", raw.decode_meta["backend"])
+        self.assertEqual("AAL900", obs[0].source_id)
+        self.assertEqual(30000.0, obs[0].altitude_ft)
+        self.assertEqual(-46.0, obs[0].temp_c)
+        self.assertEqual(72.0, obs[0].wind_speed_kt)
 
 
 class WxdataLibacarsFallbackTests(unittest.TestCase):
