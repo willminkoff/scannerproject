@@ -62,7 +62,7 @@ class RawMessage:
 # ---------------------------------------------------------------------------
 
 def altitude_to_pressure(altitude_ft: float) -> float:
-    """Convert altitude (feet) to pressure (hPa) using the ISA model."""
+    """Convert altitude (feet) to pressure (mb / hPa — numerically identical) using ISA."""
     alt_m = altitude_ft * 0.3048
     if alt_m <= 11000:
         # Troposphere: T = 288.15 - 0.0065 * h
@@ -204,6 +204,38 @@ _RE_WXR_POS = re.compile(r'([NS])(\d{5})([EW])(\d{6})')  # position only
 # Example: N 351210W 855840,-------,120842,30148, , , ,M 45,24940 21, 100,
 _RE_LABEL22 = re.compile(
     r'([NS])\s*(\d{6})([EW])\s*(\d{6,7})'  # lat DDMMSS, lon DDDMMSS
+)
+
+# --- NW/DL POSN comma format (VDL2-heavy) ---
+# Example: POSN36363W086581,JONIL,192821,350,FFISK,193128,JNKNS,M57,28344,...
+_RE_POSN_COMMA = re.compile(
+    r"POSN(\d{5})W(\d{6}),"        # position
+    r"[A-Z0-9]{1,6},"              # fix
+    r"(\d{6}),"                    # HHMMSS
+    r"(\d{3}),"                    # flight level
+    r"[A-Z0-9]{1,6},"              # next fix
+    r"\d{6},"                      # next eta
+    r"[A-Z0-9]{1,6},"              # enroute fix
+    r"M(\d{2,3}),"                 # temp (M = minus)
+    r"(\d{3})(\d{2,3})"            # wind dir(3) + speed(2-3)
+)
+
+# --- WN/OO 02E16 VDL2 position format ---
+# Example: 02E16KMDWKBNA\nN36123W086451 19213700 M54 27040...
+_RE_WN_02E16 = re.compile(
+    r"02E16[A-Z]{4,8}\s*\r?\n?\s*"  # header + orig/dest
+    r"N(\d{5})W(\d{6})\s+"          # position
+    r"(\d{4})(\d{4})\s+"            # HHMM + alt4 (FL370 stored as 3700)
+    r"M(\d{2,3})\s+"                # temp (ARINC minus)
+    r"(\d{3})(\d{3})"               # wind dir + speed
+)
+
+# --- DL compact ACARS cruise report ---
+# Format: LAT4 -LON4 FL3 -TAT -SAT DIR3 SPD2 [750511|AA-###]
+# Trailing anchor disambiguates wind speed from the fuel/misc trailer.
+_RE_DL_COMPACT = re.compile(
+    r"(?<![0-9])(\d{4})\s*-(\d{4})\s*(\d{3})\s*-(\d{2,3})\s*-(\d{2,3})\s*"
+    r"(\d{3})\s*(\d{2,3})\s*(?:750511|AA-\d{3})"
 )
 
 
@@ -886,6 +918,100 @@ def _try_parse_label22(text: str, ts: float, flight: str, reg: str) -> Optional[
     )
 
 
+def _try_parse_posn_comma(text: str, ts: float, flight: str, reg: str) -> Optional[MetObservation]:
+    """Parse NW/DL POSN comma format: POSN#####W######,fix,HHMMSS,FL,...M##,WWWSS,..."""
+    m = _RE_POSN_COMMA.search(text)
+    if not m:
+        return None
+    lat = int(m.group(1)) / 1000.0
+    lon = -int(m.group(2)) / 1000.0
+    if not (20 <= lat <= 55 and -130 <= lon <= -60):
+        return None
+    altitude_ft = float(int(m.group(4)) * 100)
+    temp_c = float(-int(m.group(5)))
+    wind_dir = float(int(m.group(6)))
+    wind_spd = float(int(m.group(7)))
+    if wind_dir > 360 or wind_spd > 300:
+        return None
+    if altitude_ft <= 0 or altitude_ft > 60000:
+        return None
+    if temp_c < -80 or temp_c > 50:
+        return None
+    pressure = altitude_to_pressure(altitude_ft)
+    return MetObservation(
+        timestamp=ts, source="acars", source_id=flight or reg,
+        lat=round(lat, 3), lon=round(lon, 3), altitude_ft=altitude_ft,
+        pressure_hpa=round(pressure, 1), temp_c=temp_c,
+        dewpoint_c=-9999.0,
+        wind_dir_deg=wind_dir, wind_speed_kt=wind_spd,
+        humidity_pct=None,
+    )
+
+
+def _try_parse_wn_02e16(text: str, ts: float, flight: str, reg: str) -> Optional[MetObservation]:
+    """Parse WN/OO 02E16 VDL2 position format: 02E16[orig][dest]\\nN#####W###### HHMMFL## M## WWWSSS."""
+    m = _RE_WN_02E16.search(text)
+    if not m:
+        return None
+    lat = int(m.group(1)) / 1000.0
+    lon = -int(m.group(2)) / 1000.0
+    if not (20 <= lat <= 55 and -130 <= lon <= -60):
+        return None
+    altitude_ft = float(int(m.group(4)) * 10)  # FLXXX stored as XXX0 (3700 → 37000ft)
+    temp_c = float(-int(m.group(5)))
+    wind_dir = float(int(m.group(6)))
+    wind_spd = float(int(m.group(7)))
+    if wind_dir > 360 or wind_spd > 300:
+        return None
+    if altitude_ft <= 0 or altitude_ft > 60000:
+        return None
+    if temp_c < -80 or temp_c > 50:
+        return None
+    pressure = altitude_to_pressure(altitude_ft)
+    return MetObservation(
+        timestamp=ts, source="acars", source_id=flight or reg,
+        lat=round(lat, 3), lon=round(lon, 3), altitude_ft=altitude_ft,
+        pressure_hpa=round(pressure, 1), temp_c=temp_c,
+        dewpoint_c=-9999.0,
+        wind_dir_deg=wind_dir, wind_speed_kt=wind_spd,
+        humidity_pct=None,
+    )
+
+
+def _try_parse_dl_compact(text: str, ts: float, flight: str, reg: str) -> Optional[MetObservation]:
+    """Parse DL compact ACARS cruise report: LAT4 -LON4 FL3 -TAT -SAT DIR3 SPD2 [750511|AA-###]."""
+    m = _RE_DL_COMPACT.search(text)
+    if not m:
+        return None
+    lat_raw = m.group(1)
+    lon_raw = m.group(2)
+    # 3627 → 36.27, 08642 is four digits so use same scheme
+    lat = int(lat_raw[:2]) + int(lat_raw[2:]) / 100.0
+    lon = -(int(lon_raw[:2]) + int(lon_raw[2:]) / 100.0)
+    if not (20 <= lat <= 55 and -130 <= lon <= -60):
+        return None
+    altitude_ft = float(int(m.group(3)) * 100)
+    # First is TAT, second is SAT — use SAT (static air temp) for sounding
+    temp_c = float(-int(m.group(5)))
+    wind_dir = float(int(m.group(6)))
+    wind_spd = float(int(m.group(7)))
+    if wind_dir > 360 or wind_spd > 300:
+        return None
+    if altitude_ft <= 0 or altitude_ft > 60000:
+        return None
+    if temp_c < -80 or temp_c > 50:
+        return None
+    pressure = altitude_to_pressure(altitude_ft)
+    return MetObservation(
+        timestamp=ts, source="acars", source_id=flight or reg,
+        lat=round(lat, 3), lon=round(lon, 3), altitude_ft=altitude_ft,
+        pressure_hpa=round(pressure, 1), temp_c=temp_c,
+        dewpoint_c=-9999.0,
+        wind_dir_deg=wind_dir, wind_speed_kt=wind_spd,
+        humidity_pct=None,
+    )
+
+
 def parse_acars_message(msg: dict) -> tuple:
     """Parse an acarsdec JSON message.
 
@@ -953,6 +1079,24 @@ def parse_acars_message(msg: dict) -> tuple:
 
     # Try label-21 POSN format (Frontier-style) — accept even without temp
     obs = _try_parse_posn21(text, ts, flight, reg)
+    if obs:
+        raw.is_met = True
+        return _finish([obs])
+
+    # NW/DL POSN comma format (VDL2-heavy)
+    obs = _try_parse_posn_comma(text, ts, flight, reg)
+    if obs:
+        raw.is_met = True
+        return _finish([obs])
+
+    # WN/OO 02E16 VDL2 position report
+    obs = _try_parse_wn_02e16(text, ts, flight, reg)
+    if obs:
+        raw.is_met = True
+        return _finish([obs])
+
+    # DL compact ACARS cruise report
+    obs = _try_parse_dl_compact(text, ts, flight, reg)
     if obs:
         raw.is_met = True
         return _finish([obs])
