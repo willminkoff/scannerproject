@@ -373,19 +373,19 @@ class CombinedReaderStartStopTests(unittest.TestCase):
         server_workers._wx_reader_threads = []
         server_workers._met_store = None
 
-        acars_worker = mock.Mock()
-        vdl2_worker = mock.Mock()
-        radiosonde_worker = mock.Mock()
+        def blocking_worker(store, stop_event):
+            del store
+            stop_event.wait()
 
         with mock.patch(
-            "ui.server_workers.acars_reader_worker", acars_worker, create=True
+            "ui.server_workers.acars_reader_worker", blocking_worker, create=True
         ), mock.patch(
-            "ui.server_workers.vdl2_reader_worker", vdl2_worker, create=True
+            "ui.server_workers.vdl2_reader_worker", blocking_worker, create=True
         ), mock.patch(
-            "ui.server_workers.radiosonde_reader_worker", radiosonde_worker, create=True
+            "ui.server_workers.radiosonde_reader_worker", blocking_worker, create=True
         ), mock.patch.dict(
             "ui.wxdata.__dict__",
-            {"acars_reader_worker": acars_worker, "vdl2_reader_worker": vdl2_worker, "radiosonde_reader_worker": radiosonde_worker},
+            {"acars_reader_worker": blocking_worker, "vdl2_reader_worker": blocking_worker, "radiosonde_reader_worker": blocking_worker},
         ), mock.patch(
             "ui.server_workers._configure_spatial_filter"
         ):

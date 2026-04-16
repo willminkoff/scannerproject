@@ -18,6 +18,9 @@ from typing import Optional, List, Dict, Tuple
 
 logger = logging.getLogger(__name__)
 
+_LIBACARS_BRIDGE_SENTINEL = object()
+_LIBACARS_BRIDGE = _LIBACARS_BRIDGE_SENTINEL
+
 try:
     from .config import ACARS_OUTPUT_PATH, VDL2_OUTPUT_PATH, RADIOSONDE_UDP_HOST, RADIOSONDE_UDP_PORT
 except ImportError:
@@ -454,6 +457,52 @@ def _summarize_vdl2_non_acars_frame(frame: dict) -> tuple[str, dict]:
         "Use the raw payload for the exact frame structure and message fields.",
         "low",
     )
+
+
+def _get_libacars_bridge():
+    global _LIBACARS_BRIDGE
+    if _LIBACARS_BRIDGE is _LIBACARS_BRIDGE_SENTINEL:
+        try:
+            from . import libacars_bridge as bridge
+        except ImportError:
+            try:
+                from ui import libacars_bridge as bridge
+            except ImportError:
+                bridge = None
+        except Exception:
+            logger.debug("WX libacars bridge import failed", exc_info=True)
+            bridge = None
+        _LIBACARS_BRIDGE = bridge
+    return None if _LIBACARS_BRIDGE is _LIBACARS_BRIDGE_SENTINEL else _LIBACARS_BRIDGE
+
+
+def _bridge_decode_acars_message(msg: dict) -> tuple[Optional[RawMessage], List[MetObservation]]:
+    bridge = _get_libacars_bridge()
+    if bridge is None:
+        return None, []
+    try:
+        return bridge.decode_message_to_observations(msg)
+    except Exception:
+        logger.debug("WX libacars bridge failed on ACARS message", exc_info=True)
+        return None, []
+
+
+def _bridge_decode_vdl2_frame(frame: dict) -> tuple[Optional[RawMessage], List[MetObservation]]:
+    bridge = _get_libacars_bridge()
+    if bridge is None:
+        return None, []
+    try:
+        return bridge.decode_vdl2_frame_to_observations(frame)
+    except Exception:
+        logger.debug("WX libacars bridge failed on VDL2 frame", exc_info=True)
+        return None, []
+
+
+def _parse_m_temp(s: str) -> Optional[float]:
+    """Parse compressed temp like 'M5' → -5.0, 'P10' → 10.0, '5' → 5.0."""
+    s = s.strip()
+    if not s:
+        return None
     if s.startswith("M") or s.startswith("m"):
         try:
             return -float(s[1:])
@@ -915,7 +964,8 @@ def parse_acars_message(msg: dict) -> tuple:
     )
 
     def _finish(obs_list: List[MetObservation]) -> tuple:
-        raw.decode_meta = _classify_acars_decode(label, text, raw.is_met, obs_list)
+        if not raw.decode_meta:
+            raw.decode_meta = _classify_acars_decode(label, text, raw.is_met, obs_list)
         return raw, obs_list
 
     # Try every parser — accept partial observations (temp-only, wind-only, etc.)
@@ -1000,6 +1050,18 @@ def parse_acars_message(msg: dict) -> tuple:
     # Accept if we have altitude + at least one met field
     has_met = temp_c > -9000 or wind_spd > 0 or humidity is not None
     if altitude_ft <= 0 or not has_met:
+        bridge_raw, bridge_obs = _bridge_decode_acars_message(msg)
+        if bridge_obs:
+            raw.is_met = True
+            if bridge_raw and bridge_raw.decode_meta:
+                raw.decode_meta = bridge_raw.decode_meta
+            logger.debug(
+                "ACARS libacars bridge fallback accepted %d observation(s) for label=%r flight=%r",
+                len(bridge_obs),
+                label,
+                flight or reg,
+            )
+            return _finish(bridge_obs)
         return _finish([])
 
     dewpoint = dewpoint_from_rh(temp_c, humidity) if humidity and temp_c > -9000 else -9999.0
@@ -1418,6 +1480,25 @@ def vdl2_reader_worker(store: MetStore, stop_event: threading.Event) -> None:
 
                     acars_msg = _extract_acars_from_vdl2(frame)
                     if not acars_msg:
+                        bridge_raw, bridge_obs = _bridge_decode_vdl2_frame(frame)
+                        if bridge_obs:
+                            if bridge_raw is None:
+                                bridge_raw = RawMessage(
+                                    timestamp=time.time(),
+                                    source="vdl2",
+                                    source_id="",
+                                    text="VDL2 normalized met payload",
+                                    is_met=True,
+                                    raw=frame,
+                                )
+                            store.add_message(bridge_raw)
+                            for obs in bridge_obs:
+                                store.add_observation(obs)
+                            logger.debug(
+                                "VDL2 libacars bridge stored %d normalized observation(s)",
+                                len(bridge_obs),
+                            )
+                            continue
                         # Non-ACARS VDL2 frame (e.g. CPDLC, ADS-C) — log as raw
                         vdl2 = frame.get("vdl2", {})
                         t = vdl2.get("t", {})
