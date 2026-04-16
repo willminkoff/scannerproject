@@ -583,7 +583,7 @@ function extractFields(msg) {
   if (raw.ack !== undefined)  out.ack  = raw.ack;
   if (raw.sublabel)  out.sublabel  = raw.sublabel;
   if (raw.text || raw.message) out.msg_text = raw.text || raw.message;
-  if (raw.freq)      out.freq_hz   = raw.freq;
+  if (raw.freq)      out.freq_hz   = raw.freq * 1e6;
   if (raw.level !== undefined) out.signal_dbfs = raw.level;
   if (raw.error !== undefined) out.error_bits = raw.error;
 
