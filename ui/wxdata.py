@@ -82,6 +82,21 @@ def dewpoint_from_rh(temp_c: float, rh_pct: float) -> float:
     return (b * alpha) / (a - alpha)
 
 
+def _isa_temp_c(altitude_ft: float) -> float:
+    """ISA standard-atmosphere temperature at altitude (°C)."""
+    h_m = altitude_ft * 0.3048
+    if h_m < 11000:
+        return 15 - 0.0065 * h_m
+    return -56.5
+
+
+def _isa_plausible(altitude_ft: float, temp_c: float, max_dev_c: float = 25.0) -> bool:
+    """Reject obs where temp deviates from ISA by more than the given bound.
+    The global upper bound on real-world ISA deviation is ~±20°C; 25°C leaves slack
+    for the warmest/coldest airmasses without accepting parser garbage."""
+    return abs(temp_c - _isa_temp_c(altitude_ft)) <= max_dev_c
+
+
 def haversine_nm(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Great-circle distance in nautical miles between two lat/lon points."""
     R_NM = 3440.065  # Earth radius in nautical miles
@@ -222,12 +237,13 @@ _RE_POSN_COMMA = re.compile(
 )
 
 # --- WN/OO 02E16 VDL2 position format ---
-# Example: 02E16KMDWKBNA\nN36123W086451 19213700 M54 27040...
+# Cruise example (spaced): 02E16KMDWKBNA\nN36123W086451 19213700 M54 27040...
+# Descent example (concat, plus-temp): 02E16KHOUKBNA\nN36122W086886 19460842 P006 275018
 _RE_WN_02E16 = re.compile(
     r"02E16[A-Z]{4,8}\s*\r?\n?\s*"  # header + orig/dest
-    r"N(\d{5})W(\d{6})\s+"          # position
-    r"(\d{4})(\d{4})\s+"            # HHMM + alt4 (FL370 stored as 3700)
-    r"M(\d{2,3})\s+"                # temp (ARINC minus)
+    r"N(\d{5})W(\d{6})\s*"          # position
+    r"(\d{4})\s*(\d{4})\s*"         # HHMM + alt4 (stored in tens of feet)
+    r"([MP])(\d{2,3})\s*"           # sign + temp magnitude
     r"(\d{3})(\d{3})"               # wind dir + speed
 )
 
@@ -237,6 +253,44 @@ _RE_WN_02E16 = re.compile(
 _RE_DL_COMPACT = re.compile(
     r"(?<![0-9])(\d{4})\s*-(\d{4})\s*(\d{3})\s*-(\d{2,3})\s*-(\d{2,3})\s*"
     r"(\d{3})\s*(\d{2,3})\s*(?:750511|AA-\d{3})"
+)
+
+# --- WN descent profile (multi-obs) ---
+# Per-obs: Ndd mm.m,Wddd mm.m,SEQ,ALT,TEMP,WDIR,WSPD,DC,...
+# Example: N3538.8,W08802.5,161936,22384,-23.5,243,070,DC,00000,0,
+_RE_WN_DESCENT = re.compile(
+    r"N(\d{2})(\d{2}\.\d),W(\d{3})(\d{2}\.\d),"
+    r"\d+,(\d{4,5}),"                # seq + altitude in feet
+    r"([+-]?\d{2,3}\.\d),"           # temp °C (signed, 2-3 digits before decimal)
+    r"(\d{3}),(\d{3})"               # wind dir + speed (both 3 digits)
+)
+
+# --- AA D3M short-form descent profile (no #DFB prefix) ---
+# Per-obs: N#####W###### HHMMSS FL2 [MP]###(temp*10) WDIR3 WSPD3 [GB]####
+# Example: N35572W086328 151509 55 P022 262 026 G0009
+_RE_D3M_SHORT = re.compile(
+    r"N(\d{5})W(\d{5,6})"           # position
+    r"\d{6}"                         # HHMMSS (skip)
+    r"(\d{2})"                       # FL × 100 (2 digits)
+    r"([MP])(\d{3})"                 # temp sign + tenths
+    r"(\d{3})(\d{3})"                # wind dir + speed
+    r"[GB]\d{4}"                     # trailer
+)
+
+# --- OO label-32 ground-station relay CSV ---
+# Example: P,R,2026-04-16 16:27:40,5612,60900,N36.038 W086.565,28144,202,67,-33,392,...
+# Fields of interest: pos, altitude_ft, heading, mach*100, temp_c
+_RE_OO_GS = re.compile(
+    r"^P,[A-Z],"                     # prefix + type
+    r"[^,]+,"                        # timestamp
+    r"[^,]*,[^,]*,"                  # 2 skip fields
+    r"N\s*(\d{1,2}\.\d{2,4})\s+"     # lat decimal
+    r"W\s*(\d{1,3}\.\d{2,4})\s*,"    # lon decimal
+    r"\s*(\d{4,5})\s*,"              # altitude ft
+    r"\s*\d{1,3}\s*,"                # heading (skip)
+    r"\s*\d{1,3}\s*,"                # mach*100 or GS (skip)
+    r"\s*(-?\s*\d{1,3})\s*,"         # temp °C (may have space after sign)
+    , re.MULTILINE
 )
 
 
@@ -983,7 +1037,7 @@ def _try_parse_posn_comma(text: str, ts: float, flight: str, reg: str) -> Option
 
 
 def _try_parse_wn_02e16(text: str, ts: float, flight: str, reg: str) -> Optional[MetObservation]:
-    """Parse WN/OO 02E16 VDL2 position format: 02E16[orig][dest]\\nN#####W###### HHMMFL## M## WWWSSS."""
+    """Parse WN/OO 02E16 VDL2 position format: 02E16[orig][dest] N#####W###### HHMM ALT4 [MP]## WWWSSS."""
     m = _RE_WN_02E16.search(text)
     if not m:
         return None
@@ -991,10 +1045,11 @@ def _try_parse_wn_02e16(text: str, ts: float, flight: str, reg: str) -> Optional
     lon = -int(m.group(2)) / 1000.0
     if not (20 <= lat <= 55 and -130 <= lon <= -60):
         return None
-    altitude_ft = float(int(m.group(4)) * 10)  # FLXXX stored as XXX0 (3700 → 37000ft)
-    temp_c = float(-int(m.group(5)))
-    wind_dir = float(int(m.group(6)))
-    wind_spd = float(int(m.group(7)))
+    altitude_ft = float(int(m.group(4)) * 10)  # alt stored in tens of feet (3700 → 37000ft, 0842 → 8420ft)
+    temp_sign = -1.0 if m.group(5) in ("M", "m") else 1.0
+    temp_c = temp_sign * float(int(m.group(6)))
+    wind_dir = float(int(m.group(7)))
+    wind_spd = float(int(m.group(8)))
     if wind_dir > 360 or wind_spd > 300:
         return None
     if altitude_ft <= 0 or altitude_ft > 60000:
@@ -1046,6 +1101,111 @@ def _try_parse_dl_compact(text: str, ts: float, flight: str, reg: str) -> Option
     )
 
 
+def _try_parse_wn_descent(text: str, ts: float, flight: str, reg: str) -> List[MetObservation]:
+    """Parse WN #DFB descent profile (multi-obs with deg+min position)."""
+    if "#DFB" not in text.upper():
+        return []
+    results: List[MetObservation] = []
+    for m in _RE_WN_DESCENT.finditer(text):
+        lat_deg = int(m.group(1))
+        lat_min = float(m.group(2))
+        lon_deg = int(m.group(3))
+        lon_min = float(m.group(4))
+        lat = lat_deg + lat_min / 60.0
+        lon = -(lon_deg + lon_min / 60.0)
+        if not (20 <= lat <= 55 and -130 <= lon <= -60):
+            continue
+        altitude_ft = float(int(m.group(5)))
+        temp_c = float(m.group(6))
+        wind_dir = float(int(m.group(7)))
+        wind_spd = float(int(m.group(8)))
+        if altitude_ft <= 0 or altitude_ft > 60000:
+            continue
+        if not _isa_plausible(altitude_ft, temp_c):
+            continue
+        if wind_dir > 360 or wind_spd > 300:
+            continue
+        pressure = altitude_to_pressure(altitude_ft)
+        results.append(MetObservation(
+            timestamp=ts, source="acars", source_id=flight or reg,
+            lat=round(lat, 4), lon=round(lon, 4), altitude_ft=altitude_ft,
+            pressure_hpa=round(pressure, 1), temp_c=round(temp_c, 1),
+            dewpoint_c=-9999.0,
+            wind_dir_deg=wind_dir, wind_speed_kt=wind_spd,
+            humidity_pct=None,
+        ))
+    return results
+
+
+def _try_parse_d3m_short(text: str, ts: float, flight: str, reg: str) -> List[MetObservation]:
+    """Parse AA D3M short-form descent (multi-obs, no #DFB prefix, 2-digit FL)."""
+    upper = text.upper()
+    if "D3M" not in upper or "#DFBD3M" in upper:
+        return []  # let _try_parse_dfbd3m handle the long-form
+    # Remove line breaks so positions that span wraps still match
+    flat = text.replace("\r", "").replace("\n", "")
+    results: List[MetObservation] = []
+    for m in _RE_D3M_SHORT.finditer(flat):
+        lat_raw = m.group(1)
+        lon_raw = m.group(2)
+        # DDMMM = DD degrees + MM.M minutes (same scheme as _try_parse_dfbd3m)
+        lat = int(lat_raw[:2]) + int(lat_raw[2:]) / 600.0
+        lon = -(int(lon_raw[:3]) + int(lon_raw[3:]) / 600.0)
+        if not (20 <= lat <= 55 and -130 <= lon <= -60):
+            continue
+        altitude_ft = float(int(m.group(3)) * 100)  # FL in 100s of ft
+        temp_sign = -1.0 if m.group(4) in ("M", "m") else 1.0
+        temp_c = temp_sign * float(int(m.group(5))) / 10.0  # tenths of °C
+        wind_dir = float(int(m.group(6)))
+        wind_spd = float(int(m.group(7)))
+        if altitude_ft <= 0 or altitude_ft > 60000:
+            continue
+        if not _isa_plausible(altitude_ft, temp_c):
+            continue
+        if wind_dir > 360 or wind_spd > 300:
+            continue
+        pressure = altitude_to_pressure(altitude_ft)
+        results.append(MetObservation(
+            timestamp=ts, source="acars", source_id=flight or reg,
+            lat=round(lat, 4), lon=round(lon, 4), altitude_ft=altitude_ft,
+            pressure_hpa=round(pressure, 1), temp_c=round(temp_c, 1),
+            dewpoint_c=-9999.0,
+            wind_dir_deg=wind_dir, wind_speed_kt=wind_spd,
+            humidity_pct=None,
+        ))
+    return results
+
+
+def _try_parse_oo_gs32(text: str, ts: float, flight: str, reg: str) -> Optional[MetObservation]:
+    """Parse OO label-32 ground-station relay CSV (position + alt + temp; no wind)."""
+    m = _RE_OO_GS.search(text)
+    if not m:
+        return None
+    lat = float(m.group(1))
+    lon = -float(m.group(2))
+    if not (20 <= lat <= 55 and -130 <= lon <= -60):
+        return None
+    altitude_ft = float(int(m.group(3)))
+    temp_str = m.group(4).replace(" ", "")
+    try:
+        temp_c = float(temp_str)
+    except ValueError:
+        return None
+    if altitude_ft <= 0 or altitude_ft > 60000:
+        return None
+    if not _isa_plausible(altitude_ft, temp_c):
+        return None
+    pressure = altitude_to_pressure(altitude_ft)
+    return MetObservation(
+        timestamp=ts, source="acars", source_id=flight or reg,
+        lat=round(lat, 3), lon=round(lon, 3), altitude_ft=altitude_ft,
+        pressure_hpa=round(pressure, 1), temp_c=temp_c,
+        dewpoint_c=-9999.0,
+        wind_dir_deg=0.0, wind_speed_kt=0.0,
+        humidity_pct=None,
+    )
+
+
 def parse_acars_message(msg: dict) -> tuple:
     """Parse an acarsdec JSON message.
 
@@ -1083,6 +1243,18 @@ def parse_acars_message(msg: dict) -> tuple:
 
     # Try #DFBD3M descent met profile (multi-observation per message)
     obs_list = _try_parse_dfbd3m(text, ts, flight, reg)
+    if obs_list:
+        raw.is_met = True
+        return _finish(obs_list)
+
+    # Try AA D3M short-form descent (no #DFB prefix)
+    obs_list = _try_parse_d3m_short(text, ts, flight, reg)
+    if obs_list:
+        raw.is_met = True
+        return _finish(obs_list)
+
+    # Try WN #DFB descent profile (deg+min multi-obs)
+    obs_list = _try_parse_wn_descent(text, ts, flight, reg)
     if obs_list:
         raw.is_met = True
         return _finish(obs_list)
@@ -1131,6 +1303,12 @@ def parse_acars_message(msg: dict) -> tuple:
 
     # DL compact ACARS cruise report
     obs = _try_parse_dl_compact(text, ts, flight, reg)
+    if obs:
+        raw.is_met = True
+        return _finish([obs])
+
+    # OO label-32 ground-station relay CSV
+    obs = _try_parse_oo_gs32(text, ts, flight, reg)
     if obs:
         raw.is_met = True
         return _finish([obs])
