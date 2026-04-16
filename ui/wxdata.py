@@ -189,10 +189,11 @@ _RE_DFB_POS = re.compile(
 )
 
 # --- Label 21 POSN format (Frontier-style) ---
-# Example: POSN 36.252W 86.790, 136,193036,8931,31280, 31, 2,194006,KBNA
+# Example: POSN 35.341W 85.827, 125,150830,34005,24235,  73,-47,155936,KSTL
+#   125 = heading, 150830 = HHMMSS, 34005 = altitude, 24235 = wind 242°/35kt,
+#   73 = mach*100, -47 = OAT, 155936 = ETA, KSTL = next fix
 _RE_POSN21 = re.compile(
     r'POSN\s+(\d+\.\d+)([NEWS])\s+(\d+\.\d+)'  # lat, hemisphere, lon
-    r',\s*(\d{2,3})'                              # FL
 )
 
 # --- #DFB*WXR weather report format ---
@@ -240,10 +241,19 @@ _RE_DL_COMPACT = re.compile(
 
 
 def _parse_m_temp(s: str) -> Optional[float]:
-    """Parse compressed temp like 'M5' → -5.0, 'P10' → 10.0, '5' → 5.0."""
-    s = s.strip()
+    """Parse compressed temp like 'M5' → -5.0, 'P10' → 10.0, '-5' → -5.0, '5' → 5.0."""
+    s = s.strip().replace(" ", "")
     if not s:
         return None
+    sign = 1.0
+    if s[0] in ("M", "m", "-"):
+        sign = -1.0
+        s = s[1:]
+    elif s[0] in ("P", "p", "+"):
+        s = s[1:]
+    if not s or not s.isdigit():
+        return None
+    return sign * float(s)
 
 
 def _decode_meta(protocol_family: str, title: str, body: str,
@@ -554,8 +564,8 @@ def _try_parse_mbposn(text: str, ts: float, flight: str, reg: str) -> Optional[M
             if parsed is not None and -80 <= parsed <= 50:
                 temp_c = parsed
                 continue
-        # Wind: 5-digit number (first 3 = dir, last 2+ = speed)
-        if part.isdigit() and len(part) == 5:
+        # Wind: 5- or 6-digit number (first 3 = dir, last 2-3 = speed)
+        if part.isdigit() and 5 <= len(part) <= 6 and wind_spd == 0:
             wd = int(part[:3])
             ws = int(part[3:])
             if 0 <= wd <= 360 and ws < 300:
@@ -725,24 +735,48 @@ def _try_parse_posn21(text: str, ts: float, flight: str, reg: str) -> Optional[M
     if lon > 0:
         lon = -lon
 
-    fl = int(m.group(4))
-    altitude_ft = float(fl) * 100
+    # Parse CSV tail: heading, HHMMSS, altitude(5-digit, first 3 = FL),
+    # wind(5-digit dddss), mach*100, OAT, ETA, next_fix.
+    rest = text[m.end():]
+    parts = [p.strip() for p in rest.split(",")]
+    altitude_ft = 0.0
+    temp_c = -9999.0
+    wind_dir = 0.0
+    wind_spd = 0.0
+    for idx, part in enumerate(parts):
+        if not part:
+            continue
+        # Altitude: 5-digit number, take first 3 as FL. Skip 6-digit (timestamps).
+        if altitude_ft == 0 and part.isdigit() and len(part) == 5:
+            fl = int(part[:3])
+            if 10 <= fl <= 500:
+                altitude_ft = float(fl) * 100
+                continue
+        # Wind: 5-digit dddss (after altitude is set to avoid swallowing it)
+        if altitude_ft > 0 and wind_spd == 0 and part.isdigit() and len(part) == 5:
+            wd = int(part[:3])
+            ws = int(part[3:])
+            if 0 <= wd <= 360 and ws < 300:
+                wind_dir = float(wd)
+                wind_spd = float(ws)
+                continue
+        # Signed temp: -47, +20, M45, P20 (length bound prevents grabbing timestamps)
+        if temp_c < -9000 and 2 <= len(part) <= 4 and part[0] in ("-", "+", "M", "m", "P", "p"):
+            parsed = _parse_m_temp(part)
+            if parsed is not None and -80 <= parsed <= 50:
+                temp_c = parsed
 
     if altitude_ft <= 0:
         return None
-
-    # Remaining fields after FL are comma-separated; try to extract temp/wind
-    rest = text[m.end():]
-    parts = [p.strip() for p in rest.split(",")]
 
     pressure = altitude_to_pressure(altitude_ft)
 
     return MetObservation(
         timestamp=ts, source="acars", source_id=flight or reg,
         lat=lat, lon=lon, altitude_ft=altitude_ft,
-        pressure_hpa=round(pressure, 1), temp_c=-9999.0,
+        pressure_hpa=round(pressure, 1), temp_c=temp_c,
         dewpoint_c=-9999.0,
-        wind_dir_deg=0.0, wind_speed_kt=0.0,
+        wind_dir_deg=wind_dir, wind_speed_kt=wind_spd,
         humidity_pct=None,
     )
 
