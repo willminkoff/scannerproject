@@ -2270,6 +2270,298 @@ def _get_hits_payload_cached(limit: int = 50) -> dict:
     return {"items": items}
 
 
+def _compute_sounding_params(levels):
+    """Compute severe weather parameters from sounding levels using SHARPpy.
+
+    Levels must be dicts with pressure_hpa, altitude_ft, temp_c, dewpoint_c,
+    wind_dir_deg, wind_speed_kt — already filtered and sorted pressure desc.
+    Returns a dict of parameter values (floats or None for missing).
+    """
+    try:
+        import numpy as np
+        import sharppy.sharptab.profile as sp_profile
+        import sharppy.sharptab.params as sp_params
+        import sharppy.sharptab.winds as sp_winds
+        import sharppy.sharptab.interp as sp_interp
+        import sharppy.sharptab.utils as sp_utils
+    except ImportError as e:
+        return {"error": f"SHARPpy not available: {e}"}
+
+    def _f(v):
+        if v is None:
+            return None
+        try:
+            f = float(v)
+            return None if (f != f) else f  # NaN check
+        except Exception:
+            return None
+
+    def _ma(v):
+        """Convert masked array scalar to float or None."""
+        try:
+            import numpy as np
+            if np.ma.is_masked(v):
+                return None
+            return _f(v)
+        except Exception:
+            return None
+
+    pres = np.array([o["pressure_hpa"] for o in levels], dtype=float)
+    hght = np.array([o["altitude_ft"] * 0.3048 for o in levels], dtype=float)
+    tmpc = np.array([o["temp_c"] for o in levels], dtype=float)
+    dwpc = np.array([o["dewpoint_c"] for o in levels], dtype=float)
+    wdir = np.array([o["wind_dir_deg"] for o in levels], dtype=float)
+    wspd = np.array([o["wind_speed_kt"] for o in levels], dtype=float)
+
+    try:
+        prof = sp_profile.create_profile(
+            profile="default",
+            pres=pres, hght=hght, tmpc=tmpc, dwpc=dwpc,
+            wdir=wdir, wspd=wspd,
+        )
+
+        sb = sp_params.parcelx(prof, flag=1)
+        mu = sp_params.parcelx(prof, flag=4)
+        ml = sp_params.parcelx(prof, flag=3)
+
+        p_sfc = prof.pres[prof.sfc]
+        try:
+            p_6km = sp_interp.pres(prof, sp_interp.to_msl(prof, 6000))
+            shr_u, shr_v = sp_winds.wind_shear(prof, pbot=p_sfc, ptop=p_6km)
+            shear_06 = _ma(sp_utils.mag(shr_u, shr_v))
+        except Exception:
+            shear_06 = None
+
+        try:
+            srh1 = sp_winds.helicity(prof, 0, 1000)
+            srh1_val = _ma(srh1[0]) if srh1 else None
+        except Exception:
+            srh1_val = None
+
+        try:
+            srh3 = sp_winds.helicity(prof, 0, 3000)
+            srh3_val = _ma(srh3[0]) if srh3 else None
+        except Exception:
+            srh3_val = None
+
+        return {
+            "sb_cape": _ma(sb.bplus),
+            "sb_cin": _ma(sb.bminus),
+            "mu_cape": _ma(mu.bplus),
+            "mu_cin": _ma(mu.bminus),
+            "ml_cape": _ma(ml.bplus),
+            "ml_cin": _ma(ml.bminus),
+            "lcl_hpa": _ma(sb.lclpres),
+            "lfc_hpa": _ma(sb.lfcpres),
+            "el_hpa": _ma(sb.elpres),
+            "shear_06km_kt": shear_06,
+            "srh_1km": srh1_val,
+            "srh_3km": srh3_val,
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def _generate_skewt_png(levels, params_dict):
+    """Render a skew-T/log-P diagram with hodograph; return PNG bytes."""
+    try:
+        import io
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.ticker as ticker
+        import numpy as np
+    except ImportError as e:
+        raise RuntimeError(f"matplotlib/numpy not available: {e}")
+
+    # Sort surface→top (pressure descending)
+    levels = sorted(levels, key=lambda o: o["pressure_hpa"], reverse=True)
+
+    pres = np.array([o["pressure_hpa"] for o in levels], dtype=float)
+    tmpc = np.array([o["temp_c"] for o in levels], dtype=float)
+    dwpc = np.array([o["dewpoint_c"] for o in levels], dtype=float)
+    wspd = np.array([o.get("wind_speed_kt", 0) or 0 for o in levels], dtype=float)
+    wdir = np.array([o.get("wind_dir_deg", 0) or 0 for o in levels], dtype=float)
+
+    SKEW = 45.0  # °C per log10-pressure decade
+
+    def sx(t, p, p_ref=1000.0):
+        return t + SKEW * np.log10(p_ref / p)
+
+    def py(p):
+        return np.log10(p)
+
+    BG = "#0d1117"
+    fig = plt.figure(figsize=(11, 9), facecolor=BG)
+    ax = fig.add_axes([0.08, 0.06, 0.58, 0.88], facecolor=BG)
+    ax_h = fig.add_axes([0.72, 0.52, 0.26, 0.42], facecolor=BG)
+    ax_p = fig.add_axes([0.72, 0.06, 0.26, 0.40], facecolor=BG)
+
+    ISOBARS = [1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150, 100]
+    T_MIN, T_MAX = -50, 45
+    P_MIN, P_MAX = 100, 1050
+
+    # --- Background lines ---
+    for t in range(-100, 55, 10):
+        pa = np.array([P_MAX, P_MIN], dtype=float)
+        clr = "#2a4a2a" if t % 20 == 0 else "#1a2e1a"
+        ax.plot(sx(np.full(2, float(t)), pa), py(pa), color=clr, lw=0.5, zorder=1)
+        xt = sx(float(t), P_MAX)
+        if sx(T_MIN, P_MAX) <= xt <= sx(T_MAX, P_MIN) + 5:
+            ax.text(xt, py(P_MAX) - 0.008, str(t), color="#3a5a3a",
+                    fontsize=6.5, ha="center", va="top")
+
+    for p in ISOBARS:
+        ax.axhline(py(p), color="#1a2a3a", lw=0.6, zorder=1)
+        ax.text(sx(T_MIN, p) - 0.5, py(p), str(p), color="#4a7a9a",
+                fontsize=6.5, ha="right", va="center")
+
+    # Dry adiabats
+    KAPPA = 0.2854
+    for theta_c in range(-30, 110, 10):
+        pa = np.linspace(P_MAX, P_MIN, 80)
+        ta = (theta_c + 273.15) * (pa / 1000.0) ** KAPPA - 273.15
+        mask = ta >= -75
+        if mask.sum() > 1:
+            ax.plot(sx(ta[mask], pa[mask]), py(pa[mask]),
+                    color="#2a2a0a", lw=0.45, zorder=1)
+
+    # Moist adiabats
+    def _moist_lapse(t_c, p_hpa):
+        t_k = t_c + 273.15
+        es = 6.112 * np.exp(17.67 * t_c / (t_c + 243.5))
+        rs = 0.622 * es / max(p_hpa - es, 0.01)
+        numer = (287.04 * t_k + 2501000.0 * rs) / (p_hpa * 100.0)
+        denom = 1004.0 + (2501000.0 ** 2 * rs) / (461.5 * t_k ** 2)
+        return numer / denom
+
+    for t_sfc in range(-20, 35, 5):
+        pa = np.linspace(P_MAX, P_MIN, 100)
+        ta = [float(t_sfc)]
+        for i in range(1, len(pa)):
+            dp = (pa[i] - pa[i - 1]) * 100.0
+            ta.append(ta[-1] + _moist_lapse(ta[-1], pa[i - 1]) * dp)
+        ta = np.array(ta)
+        mask = ta >= -75
+        if mask.sum() > 1:
+            ax.plot(sx(ta[mask], pa[mask]), py(pa[mask]),
+                    color="#0a2a2a", lw=0.45, zorder=1)
+
+    # --- Temperature / dewpoint traces ---
+    ax.plot(sx(tmpc, pres), py(pres), "-", color="#e74c3c", lw=2.0, zorder=5, label="T (°C)")
+    ax.plot(sx(tmpc, pres), py(pres), "o", color="#e74c3c", ms=2.5, zorder=6)
+    ax.plot(sx(dwpc, pres), py(pres), "-", color="#2ecc71", lw=2.0, zorder=5, label="Td (°C)")
+    ax.plot(sx(dwpc, pres), py(pres), "o", color="#2ecc71", ms=2.5, zorder=6)
+
+    # Wind barbs (right margin)
+    u = -wspd * np.sin(np.radians(wdir))
+    v = -wspd * np.cos(np.radians(wdir))
+    x_barb = np.full(len(pres), sx(T_MAX, P_MIN) + 6)
+    ax.barbs(x_barb, py(pres), u, v,
+             barbcolor="#9090b0", flagcolor="#9090b0",
+             length=5, linewidth=0.8, zorder=7)
+
+    # Axes limits / labels
+    ax.set_xlim(sx(T_MIN, P_MAX) - 2, sx(T_MAX, P_MIN) + 12)
+    ax.set_ylim(py(P_MAX) + 0.02, py(P_MIN) - 0.02)
+    ax.set_yticks([py(p) for p in ISOBARS])
+    ax.set_yticklabels([str(p) for p in ISOBARS], fontsize=7, color="#8090a0")
+    ax.set_ylabel("Pressure (hPa)", color="#8090a0", fontsize=9)
+    ax.set_xlabel("Temperature (°C)  [isotherms skewed]", color="#8090a0", fontsize=8)
+    ax.tick_params(axis="x", colors="#606070")
+    ax.set_title("Skew-T / Log-P", color="#d0d0e0", fontsize=11, pad=6)
+    for sp in ax.spines.values():
+        sp.set_edgecolor("#303040")
+    ax.legend(loc="upper right", fontsize=8, facecolor="#1a1a2a",
+              edgecolor="#404050", labelcolor="#d0d0e0")
+
+    # --- Hodograph ---
+    sort_idx = np.argsort(pres)[::-1]
+    u_s, v_s = u[sort_idx], v[sort_idx]
+    for r in [20, 40, 60, 80]:
+        th = np.linspace(0, 2 * np.pi, 120)
+        ax_h.plot(r * np.cos(th), r * np.sin(th), color="#252535", lw=0.6)
+        ax_h.text(r + 0.5, 0.5, str(r), color="#404050", fontsize=5.5)
+    ax_h.axhline(0, color="#303040", lw=0.5)
+    ax_h.axvline(0, color="#303040", lw=0.5)
+    ax_h.plot(u_s, v_s, "-", color="#a060e0", lw=1.8, zorder=5)
+    ax_h.plot(u_s[:1], v_s[:1], "o", color="#60a0ff", ms=5, zorder=6)
+    ax_h.set_aspect("equal")
+    ax_h.set_title("Hodograph (kt)", color="#c0c0d0", fontsize=8, pad=3)
+    ax_h.tick_params(colors="#606070", labelsize=6)
+    for sp in ax_h.spines.values():
+        sp.set_edgecolor("#303040")
+
+    # --- Parameters panel ---
+    ax_p.axis("off")
+    ax_p.set_title("Parameters", color="#c0c0d0", fontsize=8, pad=3)
+
+    def _fv(v, fmt=".0f", unit=""):
+        if v is None:
+            return "--"
+        try:
+            return ("{:" + fmt + "}{}").format(float(v), unit)
+        except Exception:
+            return "--"
+
+    if params_dict and "error" not in params_dict:
+        rows = [
+            ("SBCAPE", _fv(params_dict.get("sb_cape"), unit=" J/kg")),
+            ("SBCIN", _fv(params_dict.get("sb_cin"), unit=" J/kg")),
+            ("MUCAPE", _fv(params_dict.get("mu_cape"), unit=" J/kg")),
+            ("MLCAPE", _fv(params_dict.get("ml_cape"), unit=" J/kg")),
+            ("LCL", _fv(params_dict.get("lcl_hpa"), unit=" hPa")),
+            ("LFC", _fv(params_dict.get("lfc_hpa"), unit=" hPa")),
+            ("EL", _fv(params_dict.get("el_hpa"), unit=" hPa")),
+            ("Shr 0-6km", _fv(params_dict.get("shear_06km_kt"), unit=" kt")),
+            ("SRH 0-1km", _fv(params_dict.get("srh_1km"), unit=" m²/s²")),
+            ("SRH 0-3km", _fv(params_dict.get("srh_3km"), unit=" m²/s²")),
+        ]
+    else:
+        err = params_dict.get("error", "unavailable") if params_dict else "unavailable"
+        rows = [("Params", err[:30])]
+
+    for i, (label, val) in enumerate(rows):
+        y = 0.96 - i * 0.095
+        ax_p.text(0.02, y, label + ":", color="#8090a0", fontsize=7.5,
+                  transform=ax_p.transAxes, va="top", fontfamily="monospace")
+        ax_p.text(0.98, y, val, color="#d0e0d0", fontsize=7.5,
+                  transform=ax_p.transAxes, va="top", ha="right",
+                  fontfamily="monospace")
+
+    for sp in ax_h.spines.values():
+        sp.set_edgecolor("#303040")
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=110, bbox_inches="tight", facecolor=BG)
+    plt.close(fig)
+    buf.seek(0)
+    return buf.read()
+
+
+def _filter_sounding_levels(levels, max_age_sec=5400):
+    """Filter levels to recent observations with valid met data."""
+    cutoff = time.time() - max_age_sec
+    out = []
+    for o in levels:
+        if o.get("timestamp", 0) < cutoff:
+            continue
+        p = o.get("pressure_hpa")
+        t = o.get("temp_c")
+        td = o.get("dewpoint_c")
+        if not p or p <= 0:
+            continue
+        if t is None or t < -9000:
+            continue
+        if td is None or td < -9000:
+            continue
+        if o.get("altitude_ft") is None:
+            continue
+        out.append(o)
+    out.sort(key=lambda o: o["pressure_hpa"], reverse=True)
+    return out
+
+
 class Handler(BaseHTTPRequestHandler):
     """HTTP request handler for the UI."""
 
@@ -3411,6 +3703,44 @@ class Handler(BaseHTTPRequestHandler):
             store = get_met_store()
             data = store.get_sounding_data()
             return self._send(200, json.dumps({"ok": True, **data}), "application/json; charset=utf-8")
+
+        if p == "/api/wx/sounding/parameters":
+            store = get_met_store()
+            data = store.get_sounding_data()
+            levels = _filter_sounding_levels(data.get("levels", []))
+            if len(levels) < 5:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": f"Not enough data: {len(levels)} levels (need ≥5 from last 90 min)"}),
+                    "application/json; charset=utf-8",
+                )
+            result = _compute_sounding_params(levels)
+            result["levels_used"] = len(levels)
+            return self._send(200, json.dumps({"ok": True, **result}), "application/json; charset=utf-8")
+
+        if p == "/api/wx/sounding/skewt":
+            store = get_met_store()
+            data = store.get_sounding_data()
+            levels = _filter_sounding_levels(data.get("levels", []))
+            if len(levels) < 5:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": f"Not enough data: {len(levels)} levels (need ≥5 from last 90 min)"}),
+                    "application/json; charset=utf-8",
+                )
+            try:
+                params_dict = _compute_sounding_params(levels)
+                png_bytes = _generate_skewt_png(levels, params_dict)
+            except Exception as exc:
+                logging.exception("skewt generation failed")
+                return self._send(500, json.dumps({"ok": False, "error": str(exc)}), "application/json; charset=utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(png_bytes)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(png_bytes)
+            return
 
         if p == "/api/wx/export":
             q = parse_qs(u.query or "")

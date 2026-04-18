@@ -3719,6 +3719,7 @@
           <button class="action" id="wx-export-json" type="button">JSON</button>
           <button class="action" id="wx-export-spc" type="button">SPC (SHARPpy)</button>
           <button class="action" id="wx-export-csv" type="button">CSV</button>
+          <button class="action" id="wx-skewt-btn" type="button">Skew-T</button>
           <button class="action" type="button" onclick="window.open('/decode','_blank')">Decode View</button>
           <button class="action wx-btn-danger" id="wx-clear-data" type="button">Clear Data</button>
         </div>
@@ -3727,6 +3728,20 @@
 
     </div>
   </aside>
+
+  <!-- Skew-T modal -->
+  <div id="skewt-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:9000;overflow:auto;padding:24px 16px;">
+    <div style="max-width:1100px;margin:0 auto;background:#0d1117;border:1px solid #303040;border-radius:8px;padding:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <span style="color:#d0d0e0;font-size:15px;font-weight:600;">Skew-T / Log-P</span>
+        <button onclick="closeSkewtModal()" style="background:none;border:1px solid #404050;color:#a0a0b0;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:13px;">Close</button>
+      </div>
+      <div id="skewt-status" style="color:#a0a0b0;font-size:12px;margin-bottom:8px;"></div>
+      <div id="skewt-img-wrap" style="text-align:center;">
+        <img id="skewt-img" src="" alt="Skew-T diagram" style="max-width:100%;border-radius:4px;display:none;">
+      </div>
+    </div>
+  </div>
 
   <script>
     // ============================================
@@ -7870,6 +7885,40 @@
 
     function wxExport(format) {
       window.open('/api/wx/export?format=' + encodeURIComponent(format), '_blank');
+    }
+
+    async function openSkewtModal() {
+      const modal = document.getElementById('skewt-modal');
+      const img = document.getElementById('skewt-img');
+      const status = document.getElementById('skewt-status');
+      modal.style.display = 'block';
+      img.style.display = 'none';
+      status.textContent = 'Generating Skew-T diagram…';
+      try {
+        // Use timestamp to bust cache
+        const url = '/api/wx/sounding/skewt?t=' + Date.now();
+        const res = await fetch(url);
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          status.textContent = 'Error: ' + (j.error || res.statusText);
+          return;
+        }
+        const blob = await res.blob();
+        const objUrl = URL.createObjectURL(blob);
+        img.onload = () => URL.revokeObjectURL(objUrl);
+        img.src = objUrl;
+        img.style.display = '';
+        status.textContent = '';
+      } catch (e) {
+        status.textContent = 'Failed: ' + e.message;
+      }
+    }
+
+    function closeSkewtModal() {
+      const modal = document.getElementById('skewt-modal');
+      modal.style.display = 'none';
+      const img = document.getElementById('skewt-img');
+      img.src = '';
     }
 
     async function clearWxData() {
@@ -15340,6 +15389,8 @@
       if (els.wxExportJson) els.wxExportJson.addEventListener('click', () => wxExport('json'));
       if (els.wxExportSpc) els.wxExportSpc.addEventListener('click', () => wxExport('spc'));
       if (els.wxExportCsv) els.wxExportCsv.addEventListener('click', () => wxExport('csv'));
+      const wxSkewtBtn = document.getElementById('wx-skewt-btn');
+      if (wxSkewtBtn) wxSkewtBtn.addEventListener('click', openSkewtModal);
       if (els.wxClearData) els.wxClearData.addEventListener('click', clearWxData);
       if (els.profileEditorOpenAnalog) {
         els.profileEditorOpenAnalog.addEventListener('click', () => openProfileEditorSidecar('analog'));
