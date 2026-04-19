@@ -1744,9 +1744,11 @@
     .wx-filter-status { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
     .wx-obs-table { width: 100%; font-family: var(--font-mono); font-size: 12px; }
     .wx-obs-header, .wx-obs-row {
-      display: grid; grid-template-columns: 68px 70px 70px 60px 55px 55px 50px 50px 45px;
+      display: grid; grid-template-columns: 20px 68px 70px 70px 60px 55px 55px 50px 50px 45px;
       gap: 4px; padding: 3px 0; border-bottom: 1px solid var(--border);
     }
+    .wx-obs-chk { cursor: pointer; }
+    .wx-delete-row { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
     .wx-obs-header { font-size: 10px; color: var(--text-muted); text-transform: uppercase; position: sticky; top: 0; background: var(--bg-card); font-family: var(--font-sans); }
     .wx-obs-row div { text-align: left; }
     .wx-obs-list { max-height: 50vh; overflow-y: auto; }
@@ -3696,6 +3698,7 @@
         <div class="wx-section-head">Sounding Profile</div>
         <div class="wx-obs-table">
           <div class="wx-obs-header">
+            <div><input type="checkbox" id="wx-obs-select-all" title="Select all" class="wx-obs-chk"></div>
             <div>Time</div>
             <div>Flight</div>
             <div>Alt (ft)</div>
@@ -3709,6 +3712,10 @@
           <div class="wx-obs-list" id="wx-obs-list">
             <div class="wx-empty">No observations collected.</div>
           </div>
+        </div>
+        <div class="wx-delete-row">
+          <button class="action wx-btn-danger" id="wx-delete-selected" type="button">Delete Selected</button>
+          <span class="wx-filter-status" id="wx-delete-status"></span>
         </div>
       </div>
 
@@ -4789,6 +4796,8 @@
       wxExportCsv: document.getElementById('wx-export-csv'),
       wxClearData: document.getElementById('wx-clear-data'),
       wxClearStatus: document.getElementById('wx-clear-status'),
+      wxDeleteSelected: document.getElementById('wx-delete-selected'),
+      wxDeleteStatus: document.getElementById('wx-delete-status'),
       btnReconnect: null,
     };
 
@@ -7839,7 +7848,11 @@
         const wdr = (obs.wind_dir_deg != null && obs.wind_dir_deg > -9000) ? Math.round(obs.wind_dir_deg) + '\u00B0' : '--';
         const wsp = (obs.wind_speed_kt != null && obs.wind_speed_kt > -9000) ? Math.round(obs.wind_speed_kt) : '--';
         const rh = (obs.humidity_pct != null && obs.humidity_pct > -9000) ? Math.round(obs.humidity_pct) + '%' : '--';
-        html += '<div class="wx-obs-row">'
+        const ts = obs.timestamp != null ? obs.timestamp : '';
+        const altRaw = obs.altitude_ft != null ? obs.altitude_ft : '';
+        const sid = (obs.source_id || '').replace(/"/g, '&quot;');
+        html += '<div class="wx-obs-row" data-ts="' + ts + '" data-alt="' + altRaw + '" data-sid="' + sid + '">'
+          + '<div><input type="checkbox" class="wx-obs-chk"></div>'
           + '<div>' + tm + '</div>'
           + '<div>' + flt + '</div>'
           + '<div>' + alt + '</div>'
@@ -7852,6 +7865,8 @@
           + '</div>';
       }
       els.wxObsList.innerHTML = html;
+      const selectAll = document.getElementById('wx-obs-select-all');
+      if (selectAll) selectAll.checked = false;
     }
 
     async function applyWxFilter() {
@@ -7880,6 +7895,38 @@
         await refreshWxSounding();
       } catch (e) {
         if (els.wxFilterStatus) els.wxFilterStatus.textContent = 'Failed: ' + e.message;
+      }
+    }
+
+    async function deleteSelectedObs() {
+      const checkboxes = document.querySelectorAll('#wx-obs-list .wx-obs-chk:checked');
+      if (!checkboxes.length) {
+        if (els.wxDeleteStatus) els.wxDeleteStatus.textContent = 'No rows selected.';
+        return;
+      }
+      const keys = Array.from(checkboxes).map(cb => {
+        const row = cb.closest('.wx-obs-row');
+        return {
+          timestamp: parseFloat(row.dataset.ts),
+          altitude_ft: parseFloat(row.dataset.alt),
+          source_id: row.dataset.sid,
+        };
+      });
+      try {
+        const res = await fetch('/api/wx/sounding/delete', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({keys}),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          if (els.wxDeleteStatus) els.wxDeleteStatus.textContent = 'Deleted ' + data.deleted + ' observation' + (data.deleted !== 1 ? 's' : '') + '.';
+          await refreshWxSounding();
+        } else {
+          if (els.wxDeleteStatus) els.wxDeleteStatus.textContent = 'Error: ' + (data.error || 'unknown');
+        }
+      } catch (e) {
+        if (els.wxDeleteStatus) els.wxDeleteStatus.textContent = 'Failed: ' + e.message;
       }
     }
 
@@ -15392,6 +15439,11 @@
       const wxSkewtBtn = document.getElementById('wx-skewt-btn');
       if (wxSkewtBtn) wxSkewtBtn.addEventListener('click', openSkewtModal);
       if (els.wxClearData) els.wxClearData.addEventListener('click', clearWxData);
+      if (els.wxDeleteSelected) els.wxDeleteSelected.addEventListener('click', deleteSelectedObs);
+      const wxSelectAll = document.getElementById('wx-obs-select-all');
+      if (wxSelectAll) wxSelectAll.addEventListener('change', () => {
+        document.querySelectorAll('#wx-obs-list .wx-obs-chk').forEach(cb => { cb.checked = wxSelectAll.checked; });
+      });
       if (els.profileEditorOpenAnalog) {
         els.profileEditorOpenAnalog.addEventListener('click', () => openProfileEditorSidecar('analog'));
       }

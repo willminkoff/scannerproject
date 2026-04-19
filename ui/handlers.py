@@ -4489,6 +4489,12 @@ class Handler(BaseHTTPRequestHandler):
             store.clear(source=source)
             return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8")
 
+        if p == "/api/wx/sounding/delete":
+            keys = form.get("keys") if isinstance(form.get("keys"), list) else []
+            store = get_met_store()
+            deleted = store.delete_observations(keys)
+            return self._send(200, json.dumps({"ok": True, "deleted": deleted}), "application/json; charset=utf-8")
+
         if p == "/api/wx/decoder":
             # Start or stop ACARS / radiosonde decoders.
             # These use the ground SDR dongle.  Starting a WX decoder

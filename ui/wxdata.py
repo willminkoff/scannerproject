@@ -1615,6 +1615,26 @@ class MetStore:
                 status["filter_ceiling_ft"] = self._filter_ceiling_ft
             return status
 
+    def delete_observations(self, keys: list) -> int:
+        """Remove observations by composite key (timestamp, altitude_ft, source_id).
+        Also removes corresponding raw messages matched by (timestamp, source_id).
+        Returns count of deleted observations."""
+        if not keys:
+            return 0
+        obs_keys = {(k["timestamp"], k["altitude_ft"], k["source_id"]) for k in keys}
+        msg_keys = {(k["timestamp"], k["source_id"]) for k in keys}
+        with self._lock:
+            before = len(self._met_obs)
+            self._met_obs = deque(
+                (o for o in self._met_obs if (o.timestamp, o.altitude_ft, o.source_id) not in obs_keys),
+                maxlen=self._met_obs.maxlen,
+            )
+            self._messages = deque(
+                (m for m in self._messages if (m.timestamp, m.source_id) not in msg_keys),
+                maxlen=self._messages.maxlen,
+            )
+            return before - len(self._met_obs)
+
     def clear(self, source: Optional[str] = None) -> None:
         with self._lock:
             if source:
