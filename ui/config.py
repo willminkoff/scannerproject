@@ -78,6 +78,10 @@ ICECAST_HIT_MIN_DURATION = int(os.getenv("ICECAST_HIT_MIN_DURATION", "2"))
 
 # Hold/lock state
 HOLD_STATE_PATH = os.getenv("HOLD_STATE_PATH", "/run/airband_ui_hold.json")
+
+# Dongle power control
+DONGLE_POWER_STATE_PATH = os.getenv("DONGLE_POWER_STATE_PATH", "/run/airband_ui_dongle_power.json")
+DONGLE_SCHEDULE_CONFIG_PATH = os.getenv("DONGLE_SCHEDULE_CONFIG_PATH", "/etc/scannerproject/dongle-schedule.json")
 TUNE_BACKUP_PATH = os.getenv("TUNE_BACKUP_PATH", "/run/airband_ui_tune_backup.json")
 
 # Analog auto-squelch quick calibration

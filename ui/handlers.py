@@ -133,6 +133,7 @@ try:
         write_digital_listen,
     )
     from .dongle_allocator import load_assignments as load_dongle_assignments
+    from .dongle_power import get_power_state, power_off, power_on, load_schedule, save_schedule
     from .profile_editor import (
         analog_profile_is_active,
         get_analog_editor_payload,
@@ -236,6 +237,7 @@ except ImportError:
         write_digital_listen,
     )
     from ui.dongle_allocator import load_assignments as load_dongle_assignments
+    from ui.dongle_power import get_power_state, power_off, power_on, load_schedule, save_schedule
     from ui.profile_editor import (
         analog_profile_is_active,
         get_analog_editor_payload,
@@ -3522,6 +3524,12 @@ class Handler(BaseHTTPRequestHandler):
             payload["wx_decoder_active"] = wx_store.active_decoder
             payload["wx_collecting"] = wx_store.collecting
             payload["wx_met_count"] = wx_store.get_status().get("met_count", 0)
+            try:
+                payload["dongle_power"] = get_power_state()
+                payload["dongle_schedule"] = load_schedule()
+            except Exception:
+                payload["dongle_power"] = "unknown"
+                payload["dongle_schedule"] = {}
             with _CACHE_LOCK:
                 _STATUS_CACHE["ts"] = now_monotonic
                 _STATUS_CACHE["payload"] = dict(payload)
@@ -3636,6 +3644,18 @@ class Handler(BaseHTTPRequestHandler):
                     json.dumps({"ok": False, "error": str(e)}),
                     "application/json; charset=utf-8",
                 )
+        if p == "/api/dongles/power":
+            try:
+                state = get_power_state()
+                schedule = load_schedule()
+                return self._send(
+                    200,
+                    json.dumps({"ok": True, "state": state, "schedule": schedule}),
+                    "application/json; charset=utf-8",
+                )
+            except Exception as e:
+                logger.exception("GET /api/dongles/power failed")
+                return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
         if p == "/api/profile-loop":
             return self._send(
                 410,
@@ -5198,6 +5218,51 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 logger.exception("Failed to restart VLC after %s restart", target)
             return self._send(result["status"], json.dumps(result["payload"]), "application/json; charset=utf-8")
+
+        if p in ("/api/dongles/power", "/api/dongles/power/schedule"):
+            if p == "/api/dongles/power/schedule":
+                auto_off = get_str("auto_off", "").strip()
+                auto_on = get_str("auto_on", "").strip()
+                enabled_raw = get_str("enabled", "0").strip().lower()
+                enabled = enabled_raw in ("1", "true", "yes", "on")
+                logger.info(
+                    "POST /api/dongles/power/schedule enabled=%s auto_off=%s auto_on=%s",
+                    enabled, auto_off, auto_on,
+                )
+                try:
+                    ok, err = save_schedule(auto_off, auto_on, enabled)
+                    schedule = load_schedule()
+                    payload = {"ok": ok, "schedule": schedule}
+                    if not ok:
+                        payload["error"] = err
+                    return self._send(200 if ok else 500, json.dumps(payload), "application/json; charset=utf-8")
+                except Exception as e:
+                    logger.exception("POST /api/dongles/power/schedule failed")
+                    return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
+
+            # POST /api/dongles/power
+            action = get_str("action", "").strip().lower()
+            if action not in ("on", "off"):
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "action must be 'on' or 'off'"}),
+                    "application/json; charset=utf-8",
+                )
+            logger.info("POST /api/dongles/power action=%s", action)
+            try:
+                if action == "off":
+                    ok, lines = power_off(set_by="api")
+                else:
+                    ok, lines = power_on(set_by="api")
+                _invalidate_runtime_caches()
+                state = get_power_state()
+                schedule = load_schedule()
+                payload = {"ok": ok, "state": state, "schedule": schedule, "lines": lines}
+                status_code = 200 if ok else 500
+                return self._send(status_code, json.dumps(payload), "application/json; charset=utf-8")
+            except Exception as e:
+                logger.exception("POST /api/dongles/power action=%s failed", action)
+                return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
 
         if p == "/api/bt-heal":
             action = get_str("action", "status").strip().lower() or "status"

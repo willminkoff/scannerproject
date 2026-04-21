@@ -2387,6 +2387,142 @@
       cursor: not-allowed;
     }
 
+    /* Dongle power button — header */
+    .dongle-power-btn {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font: inherit;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+    }
+    .dongle-power-btn.state-on {
+      border-color: #22c55e;
+      color: #22c55e;
+    }
+    .dongle-power-btn.state-off {
+      border-color: #6b7280;
+      color: #6b7280;
+      background: rgba(107,114,128,0.08);
+    }
+    .dongle-power-btn.state-partial {
+      border-color: #f59e0b;
+      color: #f59e0b;
+    }
+    .dongle-power-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* SCANNERS OFF banner — shown below header when SDRs are powered down */
+    .dongles-off-banner {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 8px 16px;
+      background: rgba(107,114,128,0.12);
+      border-bottom: 1px solid rgba(107,114,128,0.3);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #9ca3af;
+    }
+    .dongles-off-banner.hidden { display: none; }
+
+    /* In SITREP: when dongles are off, dim service dots and mark as intentional */
+    body.dongles-off .service-item .service-dot {
+      background: #374151 !important;
+      box-shadow: none !important;
+      animation: none !important;
+    }
+    body.dongles-off .service-item.online .service-dot {
+      background: #374151 !important;
+    }
+    body.dongles-off .service-item.offline .service-dot {
+      background: #374151 !important;
+    }
+
+    /* Dongle power SITREP button states */
+    .sitrep-btn.power-off-btn {
+      border-color: rgba(239, 68, 68, 0.45);
+      color: #f87171;
+    }
+    .sitrep-btn.power-on-btn {
+      border-color: rgba(34, 197, 94, 0.45);
+      color: #4ade80;
+    }
+
+    /* Schedule panel inside SITREP card */
+    .dongle-schedule-panel {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg-panel);
+    }
+    .dongle-schedule-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+    .dongle-schedule-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .dongle-schedule-row label {
+      font-size: 11px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+    .dongle-schedule-row input[type="time"],
+    .dongle-schedule-row input[type="text"] {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      border-radius: 4px;
+      padding: 3px 7px;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      width: 90px;
+    }
+    .dongle-schedule-row input[type="checkbox"] {
+      accent-color: var(--accent);
+    }
+    .dongle-schedule-save-btn {
+      padding: 4px 12px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-primary);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      font: inherit;
+    }
+    .dongle-schedule-save-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .dongle-schedule-status {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 5px;
+    }
+
     .heartbeat {
       display: inline-flex;
       align-items: center;
@@ -2528,8 +2664,13 @@
       </button>
     </div>
     <div class="header-right">
+      <button class="dongle-power-btn" id="btn-dongle-power" type="button" title="SDR power toggle">SDR ●</button>
       <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle red theme">🔴</button>
     </div>
+  </div>
+
+  <div class="dongles-off-banner hidden" id="dongles-off-banner">
+    ⏸ SCANNERS OFF — SDR dongles are powered down
   </div>
 
   <div class="view-stack">
@@ -3018,6 +3159,8 @@
             </div>
           </div>
           <div class="sitrep-actions">
+            <button class="sitrep-btn power-off-btn" id="btn-sitrep-dongle-off" type="button">⏸ Power Off SDRs</button>
+            <button class="sitrep-btn power-on-btn" id="btn-sitrep-dongle-on" type="button">▶ Power On SDRs</button>
             <button class="sitrep-btn" id="btn-restart-airband" type="button">Restart Airband</button>
             <button class="sitrep-btn" id="btn-restart-ground" type="button">Restart Ground</button>
             <button class="sitrep-btn" id="btn-restart-digital" type="button">Restart Digital</button>
@@ -3027,6 +3170,17 @@
             <button class="sitrep-btn" id="btn-reset-usb-hub" type="button">Reset USB Hub</button>
             <button class="sitrep-btn danger" id="btn-reboot-pc" type="button">Reboot PC</button>
             <button class="sitrep-btn danger" id="btn-restart-ui" type="button">Restart UI</button>
+          </div>
+
+          <div class="dongle-schedule-panel">
+            <div class="dongle-schedule-title">Auto Power Schedule</div>
+            <div class="dongle-schedule-row">
+              <label><input type="checkbox" id="dongle-schedule-enabled"> Enabled</label>
+              <label>Off at <input type="time" id="dongle-schedule-off" placeholder="00:00" title="Auto power-off time (HH:MM)"></label>
+              <label>On at <input type="time" id="dongle-schedule-on" placeholder="06:00" title="Auto power-on time (HH:MM)"></label>
+              <button class="dongle-schedule-save-btn" id="btn-dongle-schedule-save" type="button">Save Schedule</button>
+            </div>
+            <div class="dongle-schedule-status" id="dongle-schedule-status"></div>
           </div>
         </div>
 
@@ -4425,6 +4579,8 @@
         open: false,
         src: '',
       },
+      donglePower: 'unknown',
+      dongleSchedule: { enabled: false, auto_off: '', auto_on: '' },
     };
 
     let digitalProfilesLoaded = false;
@@ -4711,6 +4867,15 @@
       sitrepSpeakerVol: document.getElementById('sitrep-speaker-vol'),
       sitrepSpeakerSlider: document.getElementById('sitrep-speaker-slider'),
       activityLog: document.getElementById('activity-log'),
+      btnDonglePower: document.getElementById('btn-dongle-power'),
+      donglesOffBanner: document.getElementById('dongles-off-banner'),
+      btnSitrepDongleOff: document.getElementById('btn-sitrep-dongle-off'),
+      btnSitrepDongleOn: document.getElementById('btn-sitrep-dongle-on'),
+      dongleScheduleEnabled: document.getElementById('dongle-schedule-enabled'),
+      dongleScheduleOff: document.getElementById('dongle-schedule-off'),
+      dongleScheduleOn: document.getElementById('dongle-schedule-on'),
+      btnDongleScheduleSave: document.getElementById('btn-dongle-schedule-save'),
+      dongleScheduleStatus: document.getElementById('dongle-schedule-status'),
       btnRestartAirband: document.getElementById('btn-restart-airband'),
       btnRestartGround: document.getElementById('btn-restart-ground'),
       btnRestartDigital: document.getElementById('btn-restart-digital'),
@@ -13188,6 +13353,130 @@
       }
     }
 
+    function updateDonglePowerUI() {
+      const s = state.donglePower;
+      const btn = els.btnDonglePower;
+      const banner = els.donglesOffBanner;
+      const offBtn = els.btnSitrepDongleOff;
+      const onBtn = els.btnSitrepDongleOn;
+
+      if (btn) {
+        btn.classList.remove('state-on', 'state-off', 'state-partial');
+        if (s === 'on') {
+          btn.textContent = 'SDR ●';
+          btn.classList.add('state-on');
+          btn.title = 'SDR dongles ON — click to power off';
+        } else if (s === 'off') {
+          btn.textContent = 'SDR ○';
+          btn.classList.add('state-off');
+          btn.title = 'SDR dongles OFF — click to power on';
+        } else if (s === 'partial') {
+          btn.textContent = 'SDR ◑';
+          btn.classList.add('state-partial');
+          btn.title = 'SDR dongles PARTIAL — some services stopped';
+        } else {
+          btn.textContent = 'SDR ?';
+          btn.title = 'SDR power state unknown';
+        }
+      }
+
+      const isOff = s === 'off';
+      if (banner) banner.classList.toggle('hidden', !isOff);
+      document.body.classList.toggle('dongles-off', isOff);
+
+      if (offBtn) offBtn.disabled = (s === 'off');
+      if (onBtn) onBtn.disabled = (s === 'on');
+    }
+
+    function applyDongleScheduleToUI(schedule) {
+      if (!schedule) return;
+      if (els.dongleScheduleEnabled) {
+        els.dongleScheduleEnabled.checked = Boolean(schedule.enabled);
+      }
+      if (els.dongleScheduleOff && schedule.auto_off) {
+        els.dongleScheduleOff.value = schedule.auto_off;
+      }
+      if (els.dongleScheduleOn && schedule.auto_on) {
+        els.dongleScheduleOn.value = schedule.auto_on;
+      }
+    }
+
+    async function toggleDonglePower(action) {
+      const label = action === 'off' ? 'Stop all SDR scanners' : 'Start SDR scanners';
+      const confirmMsg = action === 'off'
+        ? 'Stop all scanners?\n\nThis powers off the SDR dongles. Audio streaming will stop.'
+        : 'Start SDR scanners?\n\nThis restores the scanner stack and reclaims RTL dongles.';
+      if (!confirm(confirmMsg)) return;
+
+      const btn = els.btnDonglePower;
+      const offBtn = els.btnSitrepDongleOff;
+      const onBtn = els.btnSitrepDongleOn;
+      [btn, offBtn, onBtn].forEach((b) => { if (b) b.disabled = true; });
+      logActivity(`SDR power ${action} requested`, 'info', `dongle-power-${action}`);
+
+      try {
+        const res = await postAPI('/api/dongles/power', { action }, { timeoutMs: 30000 });
+        if (res && typeof res.state === 'string') {
+          state.donglePower = res.state;
+        }
+        if (res && res.schedule && typeof res.schedule === 'object') {
+          state.dongleSchedule = res.schedule;
+          applyDongleScheduleToUI(res.schedule);
+        }
+        const ok = Boolean(res && res.ok);
+        const lines = Array.isArray(res && res.lines) ? res.lines : [];
+        logActivity(
+          ok ? `SDR power ${action} complete` : `SDR power ${action} had errors`,
+          ok ? 'info' : 'warn',
+          `dongle-power-${action}-result`,
+        );
+        if (!ok && lines.length) {
+          console.warn('SDR power', action, 'lines:', lines);
+        }
+        updateDonglePowerUI();
+        setTimeout(() => refresh(), 1500);
+      } catch (e) {
+        console.error('SDR power toggle failed:', e);
+        logActivity(messageFromError(e, `SDR power ${action} failed`), 'warn', `dongle-power-${action}-error`);
+      } finally {
+        [btn, offBtn, onBtn].forEach((b) => { if (b) b.disabled = false; });
+        updateDonglePowerUI();
+      }
+    }
+
+    async function saveDongleSchedule() {
+      const enabled = els.dongleScheduleEnabled ? els.dongleScheduleEnabled.checked : false;
+      const autoOff = els.dongleScheduleOff ? els.dongleScheduleOff.value.trim() : '';
+      const autoOn = els.dongleScheduleOn ? els.dongleScheduleOn.value.trim() : '';
+      const saveBtn = els.btnDongleScheduleSave;
+      const statusEl = els.dongleScheduleStatus;
+      if (saveBtn) saveBtn.disabled = true;
+      if (statusEl) statusEl.textContent = 'Saving…';
+      try {
+        const res = await postAPI('/api/dongles/power/schedule', {
+          enabled: enabled ? '1' : '0',
+          auto_off: autoOff,
+          auto_on: autoOn,
+        });
+        const ok = Boolean(res && res.ok);
+        if (statusEl) {
+          statusEl.textContent = ok
+            ? (enabled ? `Schedule saved — off at ${autoOff || '(none)'}, on at ${autoOn || '(none)'}` : 'Schedule saved (disabled)')
+            : `Error: ${(res && res.error) || 'unknown'}`;
+        }
+        if (ok && res.schedule) {
+          state.dongleSchedule = res.schedule;
+        }
+        logActivity(ok ? 'Dongle schedule saved' : 'Dongle schedule save failed', ok ? 'info' : 'warn', 'dongle-schedule-save');
+      } catch (e) {
+        if (statusEl) statusEl.textContent = `Error: ${e.message || 'unknown'}`;
+        logActivity(messageFromError(e, 'Dongle schedule save failed'), 'warn', 'dongle-schedule-error');
+      } finally {
+        if (saveBtn) saveBtn.disabled = false;
+        setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 6000);
+      }
+    }
+
     async function resetUsbHub() {
       if (!confirm('Reset USB hub? SDR devices may disconnect briefly.')) return;
       if (els.btnResetUsbHub) {
@@ -14519,6 +14808,14 @@
           applyHpFavoritesSyncStatus(data.hp_favorites_sync, data);
 
           state.connected = true;
+          if (typeof data.dongle_power === 'string') {
+            state.donglePower = data.dongle_power;
+          }
+          if (data.dongle_schedule && typeof data.dongle_schedule === 'object') {
+            state.dongleSchedule = data.dongle_schedule;
+            applyDongleScheduleToUI(data.dongle_schedule);
+          }
+          updateDonglePowerUI();
           if (!wasConnected) {
             logActivity('API connection restored', 'info', 'api-up');
           }
@@ -14713,6 +15010,14 @@
           if (state.sdr1Active) state.sdr1LastSeen = state.lastStatusTick;
           if (state.sdr2Active) state.sdr2LastSeen = state.lastStatusTick;
           state.connected = true;
+          if (typeof data.dongle_power === 'string') {
+            state.donglePower = data.dongle_power;
+          }
+          if (data.dongle_schedule && typeof data.dongle_schedule === 'object') {
+            state.dongleSchedule = data.dongle_schedule;
+            applyDongleScheduleToUI(data.dongle_schedule);
+          }
+          updateDonglePowerUI();
           updateStatus();
           updateCounters();
         } catch (err) {
@@ -15673,6 +15978,21 @@
             setManageStatus(messageFromError(e, 'Delete failed'), true);
           }
         });
+      }
+      if (els.btnDonglePower) {
+        els.btnDonglePower.addEventListener('click', () => {
+          const action = state.donglePower === 'off' ? 'on' : 'off';
+          toggleDonglePower(action);
+        });
+      }
+      if (els.btnSitrepDongleOff) {
+        els.btnSitrepDongleOff.addEventListener('click', () => toggleDonglePower('off'));
+      }
+      if (els.btnSitrepDongleOn) {
+        els.btnSitrepDongleOn.addEventListener('click', () => toggleDonglePower('on'));
+      }
+      if (els.btnDongleScheduleSave) {
+        els.btnDongleScheduleSave.addEventListener('click', () => saveDongleSchedule());
       }
       if (els.btnRestartAirband) {
         els.btnRestartAirband.addEventListener('click', () => restartService('airband', 'Airband'));
