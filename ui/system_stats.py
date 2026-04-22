@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 _last_cpu = {"total": None, "idle": None, "ts": None}
 _RTL_USB_SYSFS_ROOT = os.getenv("RTL_USB_SYSFS_ROOT", "/sys/bus/usb/devices")
 _RTL_USB_VENDOR = os.getenv("RTL_USB_VENDOR", "0bda").strip().lower()
-_RTL_USB_PRODUCT = os.getenv("RTL_USB_PRODUCT", "2838").strip().lower()
+_RTL_USB_PRODUCTS = {p.strip().lower() for p in os.getenv("RTL_USB_PRODUCT", "2838,2832").split(",") if p.strip()}
 try:
     _RTL_MIN_USB_SPEED_MBPS = max(1, int(os.getenv("RTL_MIN_USB_SPEED_MBPS", "480")))
 except Exception:
@@ -290,6 +290,7 @@ def _expected_rtl_serials():
         "DIGITAL_RTL_SERIAL_2",
         "DIGITAL_RTL_SERIAL_TERTIARY",
         "DIGITAL_RTL_SERIAL_3",
+        "VDL2_RTL_SERIAL",
     ):
         value = str(os.getenv(key, "") or "").strip()
         if value and value not in serials:
@@ -471,7 +472,7 @@ def read_rtl_dongle_health():
                 continue
             if vendor.strip().lower() != _RTL_USB_VENDOR:
                 continue
-            if product.strip().lower() != _RTL_USB_PRODUCT:
+            if product.strip().lower() not in _RTL_USB_PRODUCTS:
                 continue
             serial = _read_first_line(os.path.join(dev_path, "serial")) or ""
             serial = serial.strip()

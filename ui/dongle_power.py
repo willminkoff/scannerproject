@@ -12,10 +12,10 @@ logger = logging.getLogger(__name__)
 
 try:
     from .config import DONGLE_POWER_STATE_PATH, DONGLE_SCHEDULE_CONFIG_PATH, UNITS, UI_PORT
-    from .systemd import _start_unit, _stop_unit, unit_active
+    from .systemd import _start_unit, _stop_unit, unit_active, unit_exists
 except ImportError:
     from ui.config import DONGLE_POWER_STATE_PATH, DONGLE_SCHEDULE_CONFIG_PATH, UNITS, UI_PORT
-    from ui.systemd import _start_unit, _stop_unit, unit_active
+    from ui.systemd import _start_unit, _stop_unit, unit_active, unit_exists
 
 # SDR dongle-holding services: stop order on power-off.
 # digital_audio must stop before digital to release UDP ports cleanly.
@@ -61,10 +61,13 @@ def _save_state(state: str, set_by: str = "api") -> None:
 def get_power_state() -> str:
     """Return 'on', 'off', or 'partial' based on live service status."""
     units = _sdr_service_units()
-    active_count = sum(1 for k in _START_ORDER if k in units and unit_active(units[k]))
-    if active_count == 0:
+    # Only count units that are actually installed on this system.
+    installed = [k for k in _START_ORDER if k in units and unit_exists(units[k])]
+    active_count = sum(1 for k in installed if unit_active(units[k]))
+    total = len(installed)
+    if total == 0 or active_count == 0:
         state = "off"
-    elif active_count == len(_START_ORDER):
+    elif active_count == total:
         state = "on"
     else:
         state = "partial"

@@ -5288,6 +5288,21 @@ class Handler(BaseHTTPRequestHandler):
                 desired_enabled = not bool(status_payload.get("auto_recovery_enabled"))
             elif action in ("set", "update"):
                 desired_enabled = parse_bool_value(form.get("enabled", "0"), field="enabled")
+            elif action == "connect":
+                proc = subprocess.run(
+                    ["sudo", "systemctl", "start", "scanner-bt-audio-heal"],
+                    capture_output=True, text=True, check=False,
+                )
+                ok = proc.returncode == 0
+                err = (proc.stderr or proc.stdout or "").strip()
+                payload = {"ok": bool(ok), "action": "connect"}
+                if err:
+                    payload["error"] = str(err)
+                return self._send(
+                    200 if ok else 500,
+                    json.dumps(payload),
+                    "application/json; charset=utf-8",
+                )
             if desired_enabled is None:
                 return self._send(
                     400,

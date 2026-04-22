@@ -3166,6 +3166,7 @@
             <button class="sitrep-btn" id="btn-restart-digital" type="button">Restart Digital</button>
             <button class="sitrep-btn" id="btn-restart-icecast" type="button">Restart Icecast</button>
             <button class="sitrep-btn" id="btn-restart-keepalive" type="button">Restart Keepalive</button>
+            <button class="sitrep-btn" id="btn-connect-bt" type="button">Connect BT</button>
             <button class="sitrep-btn" id="btn-toggle-bt-heal" type="button">Enable BT Heal Auto</button>
             <button class="sitrep-btn" id="btn-reset-usb-hub" type="button">Reset USB Hub</button>
             <button class="sitrep-btn danger" id="btn-reboot-pc" type="button">Reboot PC</button>
@@ -4881,6 +4882,7 @@
       btnRestartDigital: document.getElementById('btn-restart-digital'),
       btnRestartIcecast: document.getElementById('btn-restart-icecast'),
       btnRestartKeepalive: document.getElementById('btn-restart-keepalive'),
+      btnConnectBt: document.getElementById('btn-connect-bt'),
       btnToggleBtHeal: document.getElementById('btn-toggle-bt-heal'),
       btnResetUsbHub: document.getElementById('btn-reset-usb-hub'),
       btnRebootPc: document.getElementById('btn-reboot-pc'),
@@ -13584,6 +13586,28 @@
       }
     }
 
+    async function connectBt() {
+      if (!els.btnConnectBt) return;
+      els.btnConnectBt.disabled = true;
+      els.btnConnectBt.textContent = 'Connecting...';
+      try {
+        await postAPI('/api/bt-heal', { action: 'connect' });
+        logActivity('BT connect requested', 'info', 'bt-connect');
+        els.btnConnectBt.textContent = 'Connect BT ✓';
+        setTimeout(() => {
+          if (els.btnConnectBt) {
+            els.btnConnectBt.disabled = false;
+            els.btnConnectBt.textContent = 'Connect BT';
+          }
+        }, 4000);
+      } catch (e) {
+        console.error('BT connect failed:', e);
+        logActivity(messageFromError(e, 'BT connect failed'), 'warn', 'bt-connect-fail');
+        els.btnConnectBt.disabled = false;
+        els.btnConnectBt.textContent = 'Connect BT';
+      }
+    }
+
     async function toggleBtHealAuto() {
       if (!els.btnToggleBtHeal || state.btHeal.busy) return;
       const timerExists = Boolean(state.btHeal.timerExists);
@@ -16010,6 +16034,7 @@
         els.btnRestartKeepalive.addEventListener('click', () => restartService('keepalive', 'Keepalive'));
       }
       if (els.btnToggleBtHeal) {
+        if (els.btnConnectBt) els.btnConnectBt.addEventListener('click', () => connectBt());
         els.btnToggleBtHeal.addEventListener('click', () => toggleBtHealAuto());
       }
       if (els.btnResetUsbHub) {
