@@ -3,7 +3,11 @@
 # Wrapper for rtl_airband that applies a low-pass filter via SoX
 # Reads filter configuration from JSON files
 
-set -euo pipefail
+# set -u catches unset variables in the config section above.
+# Intentionally NOT using -e or -o pipefail: the final rtl_airband|sox pipeline
+# must survive transient sox exits (SIGPIPE, audio glitch) without triggering a
+# systemd restart.  We propagate rtl_airband's exit code manually via PIPESTATUS.
+set -u
 
 # Configuration
 RTLAIRBAND_BIN="${RTLAIRBAND_BIN:-/usr/local/bin/rtl_airband}"
@@ -57,9 +61,10 @@ if [[ -z "$CUTOFF" ]] || [[ "$CUTOFF" == "None" ]]; then
     CUTOFF="$DEFAULT_CUTOFF"
 fi
 
-# Execute rtl_airband with output piped through sox low-pass filter
-# rtl_airband outputs raw PCM audio to stdout
-# sox applies low-pass filter to reduce high-frequency noise
-# Final output goes to stdout (connected to Icecast by the shell)
-# Note: We do NOT use 'exec' here so the pipe to sox is properly maintained
+# Execute rtl_airband with output piped through sox low-pass filter.
+# rtl_airband outputs raw PCM audio to stdout; sox applies the lowpass filter.
+# We use PIPESTATUS to exit with rtl_airband's code, not sox's.  This means
+# a transient sox failure (SIGPIPE, audio glitch, momentary EOF) does NOT
+# cause systemd to restart the service — only a real rtl_airband crash does.
 "$RTLAIRBAND_BIN" -F -e -c "$CONFIG_FILE" | sox -t raw -r 48000 -b 16 -c 1 -e signed-integer - -t raw - lowpass "$CUTOFF"
+exit ${PIPESTATUS[0]}
