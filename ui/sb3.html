@@ -13568,13 +13568,13 @@
 
     function applyDongleScheduleToUI(schedule) {
       if (!schedule) return;
-      if (els.dongleScheduleEnabled) {
+      if (els.dongleScheduleEnabled && !els.dongleScheduleEnabled.dataset.userTouched) {
         els.dongleScheduleEnabled.checked = Boolean(schedule.enabled);
       }
-      if (els.dongleScheduleOff && schedule.auto_off) {
+      if (els.dongleScheduleOff && !els.dongleScheduleOff.dataset.userTouched && schedule.auto_off) {
         els.dongleScheduleOff.value = schedule.auto_off;
       }
-      if (els.dongleScheduleOn && schedule.auto_on) {
+      if (els.dongleScheduleOn && !els.dongleScheduleOn.dataset.userTouched && schedule.auto_on) {
         els.dongleScheduleOn.value = schedule.auto_on;
       }
     }
@@ -13644,6 +13644,9 @@
         }
         if (ok && res.schedule) {
           state.dongleSchedule = res.schedule;
+          [els.dongleScheduleEnabled, els.dongleScheduleOff, els.dongleScheduleOn].forEach(el => {
+            if (el) delete el.dataset.userTouched;
+          });
         }
         logActivity(ok ? 'Dongle schedule saved' : 'Dongle schedule save failed', ok ? 'info' : 'warn', 'dongle-schedule-save');
       } catch (e) {
@@ -16205,6 +16208,9 @@
       if (els.btnDongleScheduleSave) {
         els.btnDongleScheduleSave.addEventListener('click', () => saveDongleSchedule());
       }
+      [els.dongleScheduleEnabled, els.dongleScheduleOff, els.dongleScheduleOn].forEach(el => {
+        if (el) el.addEventListener('change', () => { el.dataset.userTouched = '1'; });
+      });
       if (els.btnRestartAirband) {
         els.btnRestartAirband.addEventListener('click', () => restartService('airband', 'Airband'));
       }
