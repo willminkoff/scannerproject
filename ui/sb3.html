@@ -2922,7 +2922,7 @@
                   <span class="philly-dot" id="philly-icecast-dot"></span>
                   Philly Scanner
                 </div>
-                <a id="lnk-stream-philly" href="http://100.69.95.13:8000/scanner.mp3" target="_blank" rel="noopener" style="font-size:12px;opacity:0.85;">Open Stream</a>
+                <a id="lnk-stream-philly" href="http://100.69.95.13:8000/gqrx.mp3" target="_blank" rel="noopener" style="font-size:12px;opacity:0.85;">Open Stream</a>
               </div>
               <audio id="audio-player-philly" controls preload="none" playsinline></audio>
             </div>
@@ -2935,6 +2935,8 @@
               </div>
               <div class="control-applied">Profile: <span id="philly-active-profile">--</span></div>
               <div class="control-applied">Squelch AM: <span id="philly-squelch-am">--</span> dB &nbsp;|&nbsp; NFM: <span id="philly-squelch-nfm">--</span> dB</div>
+              <div class="control-applied">Scanner: <span id="philly-scanner-state">--</span></div>
+              <div class="control-applied" id="philly-activation-row" style="display:none;">Step: <span id="philly-activation-step" style="color:var(--text-secondary);">--</span></div>
             </div>
 
             <!-- Profile selector -->
@@ -3009,7 +3011,9 @@
             <!-- Action buttons -->
             <div class="btn-row" style="margin-top:10px;">
               <button class="action action-primary" id="btn-philly-squelch-apply" type="button">Apply Squelch</button>
-              <button class="action" id="btn-philly-restart" type="button">Restart Scanner</button>
+              <button class="action" id="btn-philly-pause" type="button">Pause</button>
+              <button class="action" id="btn-philly-resume" type="button">Resume</button>
+              <button class="action" id="btn-philly-restart" type="button">Restart</button>
             </div>
 
           </div>
@@ -16438,7 +16442,7 @@
       async function pollStatus() {
         try {
           const data = await _fetch('/api/status');
-          // API returns: {service, active_profile, am:{squelch}, nfm:{squelch}}
+          // API returns: {service, active_profile, am:{squelch}, nfm:{squelch}, gqrx_scanner, activation}
           const running = data.service === 'active' || data.service === 'running';
           _updateDot(running);
           if (els.phillyServiceStatus) {
@@ -16453,6 +16457,38 @@
           const nfmSq = data.nfm && data.nfm.squelch != null ? data.nfm.squelch : null;
           if (amSq != null && els.phillySquelchAm) els.phillySquelchAm.textContent = amSq;
           if (nfmSq != null && els.phillySquelchNfm) els.phillySquelchNfm.textContent = nfmSq;
+
+          // gqrx-scanner state
+          const gs = data.gqrx_scanner || {};
+          const scannerStateEl = document.getElementById('philly-scanner-state');
+          if (scannerStateEl) {
+            let txt = gs.state || '--';
+            if (gs.current_freq) txt += ` @ ${(gs.current_freq / 1e6).toFixed(4)} MHz`;
+            scannerStateEl.textContent = txt;
+          }
+
+          // activation progress
+          const act = data.activation || {};
+          const actRow = document.getElementById('philly-activation-row');
+          const actStep = document.getElementById('philly-activation-step');
+          if (actRow && actStep) {
+            if (act.busy) {
+              actRow.style.display = '';
+              actStep.textContent = act.step || '…';
+              actStep.style.color = 'var(--text-secondary)';
+            } else if (act.error) {
+              actRow.style.display = '';
+              actStep.textContent = 'Error: ' + act.error;
+              actStep.style.color = 'var(--bad)';
+            } else if (act.step === 'done') {
+              actRow.style.display = '';
+              actStep.textContent = 'Ready';
+              actStep.style.color = 'var(--good)';
+              setTimeout(() => { if (actRow) actRow.style.display = 'none'; }, 5000);
+            } else {
+              actRow.style.display = 'none';
+            }
+          }
         } catch (e) {
           _updateDot(false);
           if (els.phillyServiceStatus) {
@@ -16523,19 +16559,45 @@
       async function activateProfile() {
         const sel = els.phillyProfileSelect;
         if (!sel || !sel.value) return;
-        _setStatus('Activating…', false);
+        _setStatus('Starting activation…', false);
         try {
-          await _fetch('/api/profile/activate', {
+          const resp = await _fetch('/api/profile/activate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: sel.value }),
           });
-          _setStatus('Activated: ' + sel.value, false);
+          if (resp.activating) {
+            _setStatus('Launching GQRX — check Step for progress', false);
+          } else {
+            _setStatus('Activated: ' + sel.value, false);
+          }
           _activeProfileName = sel.value;
           await pollStatus();
           await loadProfiles();
         } catch (e) {
           _setStatus('Activate failed: ' + e.message, true);
+        }
+      }
+
+      async function pauseScanner() {
+        _setStatus('Pausing scanner…', false);
+        try {
+          await _fetch('/api/scanner/pause', { method: 'POST' });
+          _setStatus('Scanner paused', false);
+          setTimeout(pollStatus, 1000);
+        } catch (e) {
+          _setStatus('Pause failed: ' + e.message, true);
+        }
+      }
+
+      async function resumeScanner() {
+        _setStatus('Resuming scanner…', false);
+        try {
+          await _fetch('/api/scanner/resume', { method: 'POST' });
+          _setStatus('Scanner resumed', false);
+          setTimeout(pollStatus, 1000);
+        } catch (e) {
+          _setStatus('Resume failed: ' + e.message, true);
         }
       }
 
@@ -16721,6 +16783,9 @@
         const btnRestart = document.getElementById('btn-philly-restart');
         const profSel = els.phillyProfileSelect;
 
+        const btnPause = document.getElementById('btn-philly-pause');
+        const btnResume = document.getElementById('btn-philly-resume');
+
         if (btnActivate) btnActivate.addEventListener('click', activateProfile);
         if (btnNew) btnNew.addEventListener('click', newProfile);
         if (btnDel) btnDel.addEventListener('click', deleteProfile);
@@ -16728,11 +16793,13 @@
         if (btnConfirmAdd) btnConfirmAdd.addEventListener('click', addFreq);
         if (btnCancelAdd) btnCancelAdd.addEventListener('click', hideAddFreqForm);
         if (btnSqApply) btnSqApply.addEventListener('click', applySquelch);
+        if (btnPause) btnPause.addEventListener('click', pauseScanner);
+        if (btnResume) btnResume.addEventListener('click', resumeScanner);
         if (btnRestart) btnRestart.addEventListener('click', restartScanner);
         if (profSel) profSel.addEventListener('change', onProfileSelectChange);
 
         if (els.audioPlayerPhilly) {
-          els.audioPlayerPhilly.src = 'http://100.69.95.13:8000/scanner.mp3';
+          els.audioPlayerPhilly.src = 'http://100.69.95.13:8000/gqrx.mp3';
         }
       }
 

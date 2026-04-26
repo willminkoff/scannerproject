@@ -6,7 +6,9 @@ import argparse
 import csv
 import datetime as dt
 import json
+import re
 import sqlite3
+import urllib.request
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -1192,6 +1194,71 @@ def _write_analog_profile(
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
+def _safe_profile_name(name: str) -> str:
+    return re.sub(r"[^a-zA-Z0-9_-]", "_", name.strip())[:64]
+
+
+def _write_philly_profile(
+    path: Path,
+    rows: Sequence[tuple[int, int, str, str, str]],
+    profile_name: str,
+    gain: float,
+    squelch_am: int,
+    squelch_nfm: int,
+) -> None:
+    seen: set[int] = set()
+    freqs = []
+    for _cfreq_id, freq_hz, mode, alpha, group_name in rows:
+        if freq_hz in seen:
+            continue
+        seen.add(freq_hz)
+        label = alpha.strip() or group_name.strip() or _mhz_from_hz(freq_hz)
+        norm_mode = "am" if _mode_to_modulation(mode) == "am" else "nfm"
+        freqs.append({
+            "freq": freq_hz,
+            "label": label,
+            "mode": norm_mode,
+            "squelch": squelch_am if norm_mode == "am" else squelch_nfm,
+        })
+    safe = _safe_profile_name(profile_name)
+    now = dt.datetime.now(dt.timezone.utc).isoformat()
+    profile = {
+        "name": profile_name,
+        "file": safe,
+        "created": now,
+        "updated": now,
+        "gain": int(gain),
+        "frequencies": freqs,
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(profile, indent=2), encoding="utf-8")
+
+
+def _push_philly_profile(profile_path: Path, pi_base: str) -> None:
+    """POST a philly profile JSON to the Pi API; create or overwrite."""
+    data = json.loads(profile_path.read_text())
+    payload = json.dumps(data).encode()
+    headers = {"Content-Type": "application/json"}
+    for endpoint in ("/api/profile/create", "/api/profile/update"):
+        req = urllib.request.Request(
+            pi_base.rstrip("/") + endpoint,
+            data=payload,
+            headers=headers,
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                resp = json.loads(r.read())
+                if resp.get("ok"):
+                    print(f"Pushed to Pi via {endpoint}: {data['name']}")
+                    return
+        except urllib.error.HTTPError as e:
+            if e.code == 409 and endpoint == "/api/profile/create":
+                continue  # profile exists — try update
+            raise
+    print("Warning: push to Pi did not confirm ok", flush=True)
+
+
 def cmd_build_analog_profile(args: argparse.Namespace) -> int:
     db_path = Path(args.db).expanduser()
     conn = _connect(db_path)
@@ -1273,6 +1340,33 @@ def cmd_build_analog_profile(args: argparse.Namespace) -> int:
 
     out_arg = Path(args.out).expanduser()
     profile_id = _slug(args.profile_id) if args.profile_id else _slug(f"{system_name}-{args.profile_type}")
+    fmt = getattr(args, "format", "rtl-airband")
+
+    if fmt == "philly":
+        profile_name = (getattr(args, "profile_name", "") or system_name).strip()
+        if out_arg.name.endswith(".json"):
+            out_path = out_arg
+        else:
+            safe = _safe_profile_name(profile_name)
+            out_path = out_arg / f"{safe}.json"
+        squelch_am = args.squelch_dbfs if args.squelch_dbfs is not None else -44
+        squelch_nfm = args.squelch_dbfs if args.squelch_dbfs is not None else -42
+        _write_philly_profile(
+            path=out_path,
+            rows=filtered_dedup,
+            profile_name=profile_name,
+            gain=float(args.gain),
+            squelch_am=int(squelch_am),
+            squelch_nfm=int(squelch_nfm),
+        )
+        print(f"Philly profile created: {out_path}")
+        print(f"System: {system_name}")
+        print(f"Frequencies: {len(filtered_dedup)}")
+        push_to = getattr(args, "push_to_pi", "")
+        if push_to:
+            _push_philly_profile(out_path, push_to)
+        return 0
+
     if out_arg.name.endswith(".conf"):
         out_path = out_arg
     else:
@@ -1423,6 +1517,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_analog.add_argument("--genre", default="Scanner", help="Icecast stream genre")
     p_analog.add_argument("--description", default="", help="Icecast stream description")
     p_analog.add_argument("--max-freqs", type=int, default=0, help="Limit exported frequencies (0 = no limit)")
+    p_analog.add_argument(
+        "--format",
+        choices=("rtl-airband", "philly"),
+        default="rtl-airband",
+        help="Output format: rtl-airband .conf (default) or philly Pi JSON profile",
+    )
+    p_analog.add_argument("--profile-name", default="", help="Profile display name (philly format only)")
+    p_analog.add_argument(
+        "--push-to-pi",
+        default="",
+        metavar="URL",
+        help="Pi API base URL to push philly profile after writing, e.g. http://100.69.95.13:5050",
+    )
     p_analog.set_defaults(func=cmd_build_analog_profile)
 
     return parser
