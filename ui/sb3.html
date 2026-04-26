@@ -2109,6 +2109,53 @@
       box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
     }
 
+    .philly-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--bad);
+      box-shadow: 0 0 8px rgba(239, 68, 68, 0.25);
+    }
+
+    .philly-dot.active {
+      background: #f59e0b;
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
+    }
+
+    .philly-freq-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 3px 8px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 4px;
+      font-size: 11px;
+      gap: 6px;
+    }
+
+    .philly-freq-row .freq-info { flex: 1; min-width: 0; }
+    .philly-freq-row .freq-mode {
+      font-size: 10px;
+      color: var(--text-secondary);
+      background: rgba(255,255,255,0.06);
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
+    .philly-freq-row .freq-rm {
+      cursor: pointer;
+      color: var(--bad);
+      opacity: 0.6;
+      font-size: 14px;
+      line-height: 1;
+      padding: 0 2px;
+    }
+    .philly-freq-row .freq-rm:hover { opacity: 1; }
+
+    .hit-src-phi {
+      color: #f59e0b;
+      font-weight: 700;
+    }
+
     .digital-preview {
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -2647,6 +2694,9 @@
       <button class="logo" id="logo-toggle" type="button" aria-pressed="false" title="Open situation report">
         SB3
       </button>
+      <button class="logo" id="btn-weather-dash" type="button" title="Open WeatherDash" onclick="window.open('http://' + location.hostname + ':5051/', '_blank', 'noopener')">
+        WX
+      </button>
     </div>
     <div class="last-hit-group">
       <button class="last-hit-btn" id="last-hit-airband" type="button">
@@ -2664,7 +2714,6 @@
       </button>
     </div>
     <div class="header-right">
-      <button class="dongle-power-btn" id="btn-dongle-power" type="button" title="SDR power toggle">SDR ●</button>
       <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle red theme">🔴</button>
     </div>
   </div>
@@ -2686,6 +2735,7 @@
             <button class="tab active" id="tab-airband" type="button" onclick="switchTarget('airband')">Airband</button>
             <button class="tab" id="tab-ground" type="button" onclick="switchTarget('ground')">Ground</button>
             <button class="tab" id="tab-digital" type="button" onclick="switchTarget('digital')">Digital</button>
+            <button class="tab" id="tab-philly" type="button" onclick="switchTarget('philly')">Philly</button>
           </div>
         </div>
         <div class="widget-body">
@@ -2861,6 +2911,109 @@
 
             </div>
           </div>
+
+          <!-- ═══ PHILLY TAB ═══ -->
+          <div id="controls-philly" class="hidden">
+
+            <!-- Player -->
+            <div class="player-box" id="player-box-philly">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px;">
+                <div style="font-weight:700;display:flex;align-items:center;gap:7px;">
+                  <span class="philly-dot" id="philly-icecast-dot"></span>
+                  Philly Scanner
+                </div>
+                <a id="lnk-stream-philly" href="http://100.69.95.13:8000/scanner.mp3" target="_blank" rel="noopener" style="font-size:12px;opacity:0.85;">Open Stream</a>
+              </div>
+              <audio id="audio-player-philly" controls preload="none" playsinline></audio>
+            </div>
+
+            <!-- Status row -->
+            <div class="control-item" style="margin-top:10px;">
+              <div class="control-label">
+                <span>Service</span>
+                <span class="control-value" id="philly-service-status">--</span>
+              </div>
+              <div class="control-applied">Profile: <span id="philly-active-profile">--</span></div>
+              <div class="control-applied">Squelch AM: <span id="philly-squelch-am">--</span> dB &nbsp;|&nbsp; NFM: <span id="philly-squelch-nfm">--</span> dB</div>
+            </div>
+
+            <!-- Profile selector -->
+            <div class="control-item" style="margin-top:10px;">
+              <div class="control-label"><span>Profile</span></div>
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                <select id="philly-profile-select" style="flex:1;min-width:120px;background:var(--bg-panel);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:12px;">
+                  <option value="">Loading…</option>
+                </select>
+                <button class="action action-primary" id="btn-philly-activate" type="button" style="white-space:nowrap;">Activate</button>
+                <button class="action" id="btn-philly-new-profile" type="button">New</button>
+                <button class="action" id="btn-philly-del-profile" type="button" style="color:var(--bad);">Delete</button>
+              </div>
+              <div class="control-applied" id="philly-profile-status" style="margin-top:4px;"></div>
+            </div>
+
+            <!-- Frequency list for selected profile -->
+            <div style="margin-top:10px;">
+              <div style="font-size:11px;color:var(--text-secondary);margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
+                <span>Frequencies</span>
+                <button class="action" id="btn-philly-add-freq" type="button" style="font-size:10px;padding:2px 8px;">+ Add</button>
+              </div>
+              <div id="philly-freq-list" style="display:flex;flex-direction:column;gap:3px;max-height:200px;overflow-y:auto;"></div>
+            </div>
+
+            <!-- Add frequency form (hidden by default) -->
+            <div id="philly-add-freq-form" class="hidden" style="margin-top:8px;padding:8px;background:rgba(0,0,0,.2);border-radius:8px;border:1px solid var(--border);display:flex;flex-direction:column;gap:6px;">
+              <div style="font-size:11px;color:var(--text-secondary);font-weight:600;">Add Frequency</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                <div>
+                  <div style="font-size:10px;color:var(--text-secondary);margin-bottom:2px;">Freq (Hz)</div>
+                  <input type="number" id="philly-new-freq-hz" placeholder="118500000" style="width:100%;background:var(--bg-panel);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:12px;">
+                </div>
+                <div>
+                  <div style="font-size:10px;color:var(--text-secondary);margin-bottom:2px;">Label</div>
+                  <input type="text" id="philly-new-freq-label" placeholder="PHL Tower" style="width:100%;background:var(--bg-panel);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:12px;">
+                </div>
+                <div>
+                  <div style="font-size:10px;color:var(--text-secondary);margin-bottom:2px;">Mode</div>
+                  <select id="philly-new-freq-mode" style="width:100%;background:var(--bg-panel);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:12px;">
+                    <option value="am">AM</option>
+                    <option value="nfm">NFM</option>
+                  </select>
+                </div>
+                <div>
+                  <div style="font-size:10px;color:var(--text-secondary);margin-bottom:2px;">Squelch (dB)</div>
+                  <input type="number" id="philly-new-freq-squelch" value="-44" min="-120" max="0" style="width:100%;background:var(--bg-panel);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:12px;">
+                </div>
+              </div>
+              <div style="display:flex;gap:6px;">
+                <button class="action action-primary" id="btn-philly-confirm-add-freq" type="button">Add</button>
+                <button class="action" id="btn-philly-cancel-add-freq" type="button">Cancel</button>
+              </div>
+            </div>
+
+            <!-- Squelch sliders -->
+            <div class="control-item" style="margin-top:10px;">
+              <div class="control-label">
+                <span>Squelch AM (dB)</span>
+                <span class="control-value" id="philly-sq-am-value">--</span>
+              </div>
+              <input type="range" class="slider" id="philly-sq-am-slider" min="-120" max="0" step="1" value="-44">
+            </div>
+            <div class="control-item" style="margin-top:6px;">
+              <div class="control-label">
+                <span>Squelch NFM (dB)</span>
+                <span class="control-value" id="philly-sq-nfm-value">--</span>
+              </div>
+              <input type="range" class="slider" id="philly-sq-nfm-slider" min="-120" max="0" step="1" value="-42">
+            </div>
+
+            <!-- Action buttons -->
+            <div class="btn-row" style="margin-top:10px;">
+              <button class="action action-primary" id="btn-philly-squelch-apply" type="button">Apply Squelch</button>
+              <button class="action" id="btn-philly-restart" type="button">Restart Scanner</button>
+            </div>
+
+          </div>
+          <!-- ═══ /PHILLY TAB ═══ -->
 
         </div>
       </div>
@@ -4810,6 +4963,26 @@
       tabAirband: document.getElementById('tab-airband'),
       tabGround: document.getElementById('tab-ground'),
       tabDigital: document.getElementById('tab-digital'),
+      tabPhilly: document.getElementById('tab-philly'),
+      controlsPhilly: document.getElementById('controls-philly'),
+      phillyProfileSelect: document.getElementById('philly-profile-select'),
+      phillyProfileStatus: document.getElementById('philly-profile-status'),
+      phillyFreqList: document.getElementById('philly-freq-list'),
+      phillyAddFreqForm: document.getElementById('philly-add-freq-form'),
+      phillyServiceStatus: document.getElementById('philly-service-status'),
+      phillyActiveProfile: document.getElementById('philly-active-profile'),
+      phillySquelchAm: document.getElementById('philly-squelch-am'),
+      phillySquelchNfm: document.getElementById('philly-squelch-nfm'),
+      phillySqAmSlider: document.getElementById('philly-sq-am-slider'),
+      phillySqAmValue: document.getElementById('philly-sq-am-value'),
+      phillySqNfmSlider: document.getElementById('philly-sq-nfm-slider'),
+      phillySqNfmValue: document.getElementById('philly-sq-nfm-value'),
+      phillyIcecastDot: document.getElementById('philly-icecast-dot'),
+      audioPlayerPhilly: document.getElementById('audio-player-philly'),
+      phillyNewFreqHz: document.getElementById('philly-new-freq-hz'),
+      phillyNewFreqLabel: document.getElementById('philly-new-freq-label'),
+      phillyNewFreqMode: document.getElementById('philly-new-freq-mode'),
+      phillyNewFreqSquelch: document.getElementById('philly-new-freq-squelch'),
       logoToggle: document.getElementById('logo-toggle'),
       viewMain: document.querySelector('.view-main'),
       viewSitrep: document.querySelector('.view-sitrep'),
@@ -11843,10 +12016,12 @@
       const rows = visibleHits.map(hit => {
         const source = (() => {
           const sourceName = String(hit.source || '').trim().toLowerCase();
+          if (sourceName === 'philly') return 'PHI';
           if (sourceName === 'digital') return 'DIG';
           if (sourceName === 'airband') return 'AIR';
           if (sourceName === 'ground') return 'GND';
           const type = String(hit.type || '').trim().toLowerCase();
+          if (type === 'philly') return 'PHI';
           if (type === 'digital') return 'DIG';
           if (type === 'airband') return 'AIR';
           if (type === 'ground') return 'GND';
@@ -11873,10 +12048,11 @@
         }
         const durationVal = Number(hit.duration || 0);
         const durationText = durationVal > 0 ? `${durationVal}s` : (hit.mode ? hit.mode : '--');
+        const srcClass = source === 'PHI' ? ' hit-src-phi' : '';
         return `
         <div class="hit-row">
           <div class="time">${escapeHtml(hit.time || '--')}</div>
-          <div class="src">${escapeHtml(source)}</div>
+          <div class="src${srcClass}">${escapeHtml(source)}</div>
           <div class="freq" title="${escapeHtml(labelRaw || '--')}">${escapeHtml(hitText)}</div>
           <div class="duration">${escapeHtml(durationText)}</div>
         </div>
@@ -13764,11 +13940,15 @@
       els.tabAirband.classList.toggle('active', target === 'airband');
       els.tabGround.classList.toggle('active', target === 'ground');
       if (els.tabDigital) els.tabDigital.classList.toggle('active', target === 'digital');
-      if (els.controlsAnalog) els.controlsAnalog.classList.toggle('hidden', target === 'digital');
+      if (els.tabPhilly) els.tabPhilly.classList.toggle('active', target === 'philly');
+      if (els.controlsAnalog) els.controlsAnalog.classList.toggle('hidden', target === 'digital' || target === 'philly');
       if (els.controlsDigital) els.controlsDigital.classList.toggle('hidden', target !== 'digital');
-      if (els.profilesWidget) els.profilesWidget.classList.toggle('hidden', target === 'digital');
+      if (els.controlsPhilly) els.controlsPhilly.classList.toggle('hidden', target !== 'philly');
+      if (els.profilesWidget) els.profilesWidget.classList.toggle('hidden', target === 'digital' || target === 'philly');
       if (els.digitalProfilesWidget) els.digitalProfilesWidget.classList.toggle('hidden', target !== 'digital');
-      if (target !== 'digital') {
+      if (target === 'philly') {
+        PhillyPi.onTabOpen();
+      } else if (target !== 'digital') {
         els.gainSlider.classList.remove('dirty');
         els.filterSlider.classList.remove('dirty');
         updateControls();
@@ -15180,6 +15360,13 @@
           switchTarget('digital');
         };
       }
+      if (els.tabPhilly) {
+        els.tabPhilly.onclick = (e) => {
+          e.preventDefault();
+          switchTarget('philly');
+        };
+      }
+      PhillyPi.init();
       els.lastHitAirband.addEventListener('click', () => toggleHoldFor('airband'));
       els.lastHitGround.addEventListener('click', () => toggleHoldFor('ground'));
       if (els.lastHitDigital) {
@@ -16208,6 +16395,344 @@
       }, 8000);
     }
     
+    // ============================================
+    // PHILLY PI MODULE
+    // ============================================
+
+    const PhillyPi = (() => {
+      const PI_BASE = 'http://100.69.95.13:5050';
+      const POLL_INTERVAL_MS = 8000;
+      const HIT_POLL_INTERVAL_MS = 5000;
+
+      let _statusTimer = null;
+      let _hitTimer = null;
+      let _profiles = [];
+      let _activeProfileName = null;
+      let _currentFreqs = [];
+      let _lastHitTs = null;
+      let _initialized = false;
+
+      async function _fetch(path, opts) {
+        const resp = await fetch(PI_BASE + path, { signal: AbortSignal.timeout(6000), ...opts });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        return resp.json();
+      }
+
+      function _setStatus(msg, isErr) {
+        if (!els.phillyProfileStatus) return;
+        els.phillyProfileStatus.textContent = msg;
+        els.phillyProfileStatus.style.color = isErr ? 'var(--bad)' : 'var(--text-secondary)';
+      }
+
+      function _updateDot(active) {
+        if (!els.phillyIcecastDot) return;
+        els.phillyIcecastDot.classList.toggle('active', !!active);
+      }
+
+      async function pollStatus() {
+        try {
+          const data = await _fetch('/api/status');
+          // API returns: {service, active_profile, am:{squelch}, nfm:{squelch}}
+          const running = data.service === 'active' || data.service === 'running';
+          _updateDot(running);
+          if (els.phillyServiceStatus) {
+            els.phillyServiceStatus.textContent = data.service || '--';
+            els.phillyServiceStatus.style.color = running ? 'var(--good)' : 'var(--bad)';
+          }
+          if (data.active_profile && els.phillyActiveProfile) {
+            els.phillyActiveProfile.textContent = data.active_profile.replace(/_/g, ' ');
+            _activeProfileName = data.active_profile.replace(/_/g, ' ');
+          }
+          const amSq = data.am && data.am.squelch != null ? data.am.squelch : null;
+          const nfmSq = data.nfm && data.nfm.squelch != null ? data.nfm.squelch : null;
+          if (amSq != null && els.phillySquelchAm) els.phillySquelchAm.textContent = amSq;
+          if (nfmSq != null && els.phillySquelchNfm) els.phillySquelchNfm.textContent = nfmSq;
+        } catch (e) {
+          _updateDot(false);
+          if (els.phillyServiceStatus) {
+            els.phillyServiceStatus.textContent = 'offline';
+            els.phillyServiceStatus.style.color = 'var(--bad)';
+          }
+        }
+      }
+
+      async function loadProfiles() {
+        try {
+          const data = await _fetch('/api/profiles');
+          _profiles = data.profiles || [];
+          _activeProfileName = data.active || null;
+          const sel = els.phillyProfileSelect;
+          if (!sel) return;
+          const prev = sel.value;
+          sel.innerHTML = '';
+          _profiles.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.name;
+            opt.textContent = p.name + (p.name === _activeProfileName ? ' ✓' : '');
+            sel.appendChild(opt);
+          });
+          if (prev && _profiles.find(p => p.name === prev)) sel.value = prev;
+          else if (_activeProfileName && _profiles.find(p => p.name === _activeProfileName)) sel.value = _activeProfileName;
+          onProfileSelectChange();
+        } catch (e) {
+          _setStatus('Could not load profiles: ' + e.message, true);
+        }
+      }
+
+      async function onProfileSelectChange() {
+        const sel = els.phillyProfileSelect;
+        if (!sel || !sel.value) return;
+        try {
+          const data = await _fetch('/api/profile?name=' + encodeURIComponent(sel.value));
+          _currentFreqs = (data.profile && data.profile.frequencies) || [];
+        } catch (_) {
+          _currentFreqs = [];
+        }
+        renderFreqList(_currentFreqs);
+      }
+
+      function renderFreqList(freqs) {
+        const container = els.phillyFreqList;
+        if (!container) return;
+        if (!freqs || !freqs.length) {
+          container.innerHTML = '<div style="font-size:11px;color:var(--text-secondary);padding:4px;">No frequencies</div>';
+          return;
+        }
+        container.innerHTML = freqs.map((f, i) => {
+          const hz = Number(f.freq || f.frequency || 0);
+          const mhz = hz >= 1e6 ? (hz / 1e6).toFixed(4) + ' MHz' : hz + ' Hz';
+          const label = f.label || f.description || '';
+          const mode = (f.mode || f.modulation || '').toUpperCase();
+          return `<div class="philly-freq-row">
+            <div class="freq-info"><span style="font-family:var(--font-mono)">${mhz}</span>${label ? ' — ' + escapeHtml(label) : ''}</div>
+            <span class="freq-mode">${escapeHtml(mode)}</span>
+            <span class="freq-rm" title="Remove" data-idx="${i}">×</span>
+          </div>`;
+        }).join('');
+        container.querySelectorAll('.freq-rm').forEach(btn => {
+          btn.addEventListener('click', () => removeFreq(parseInt(btn.dataset.idx)));
+        });
+      }
+
+      async function activateProfile() {
+        const sel = els.phillyProfileSelect;
+        if (!sel || !sel.value) return;
+        _setStatus('Activating…', false);
+        try {
+          await _fetch('/api/profile/activate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: sel.value }),
+          });
+          _setStatus('Activated: ' + sel.value, false);
+          _activeProfileName = sel.value;
+          await pollStatus();
+          await loadProfiles();
+        } catch (e) {
+          _setStatus('Activate failed: ' + e.message, true);
+        }
+      }
+
+      async function newProfile() {
+        const name = prompt('Profile name:');
+        if (!name || !name.trim()) return;
+        _setStatus('Creating…', false);
+        try {
+          await _fetch('/api/profile/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name.trim(), frequencies: [] }),
+          });
+          _setStatus('Created: ' + name.trim(), false);
+          await loadProfiles();
+          if (els.phillyProfileSelect) els.phillyProfileSelect.value = name.trim();
+          onProfileSelectChange();
+        } catch (e) {
+          _setStatus('Create failed: ' + e.message, true);
+        }
+      }
+
+      async function deleteProfile() {
+        const sel = els.phillyProfileSelect;
+        if (!sel || !sel.value) return;
+        if (!confirm('Delete profile "' + sel.value + '"?')) return;
+        _setStatus('Deleting…', false);
+        try {
+          await _fetch('/api/profile/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: sel.value }),
+          });
+          _setStatus('Deleted', false);
+          await loadProfiles();
+        } catch (e) {
+          _setStatus('Delete failed: ' + e.message, true);
+        }
+      }
+
+      function showAddFreqForm() {
+        if (els.phillyAddFreqForm) els.phillyAddFreqForm.classList.remove('hidden');
+      }
+
+      function hideAddFreqForm() {
+        if (els.phillyAddFreqForm) els.phillyAddFreqForm.classList.add('hidden');
+      }
+
+      async function addFreq() {
+        const sel = els.phillyProfileSelect;
+        if (!sel || !sel.value) { _setStatus('Select a profile first', true); return; }
+        const hz = parseInt(els.phillyNewFreqHz ? els.phillyNewFreqHz.value : '');
+        const label = els.phillyNewFreqLabel ? els.phillyNewFreqLabel.value.trim() : '';
+        const mode = els.phillyNewFreqMode ? els.phillyNewFreqMode.value : 'am';
+        const squelch = els.phillyNewFreqSquelch ? parseInt(els.phillyNewFreqSquelch.value) : -44;
+        if (!hz || isNaN(hz)) { _setStatus('Enter a valid frequency in Hz', true); return; }
+        const updated = [..._currentFreqs, { freq: hz, label, mode, squelch }];
+        _setStatus('Saving…', false);
+        try {
+          await _fetch('/api/profile/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: sel.value, frequencies: updated }),
+          });
+          _currentFreqs = updated;
+          renderFreqList(_currentFreqs);
+          const prof = _profiles.find(p => p.name === sel.value);
+          if (prof) prof.frequencies = updated;
+          hideAddFreqForm();
+          if (els.phillyNewFreqHz) els.phillyNewFreqHz.value = '';
+          if (els.phillyNewFreqLabel) els.phillyNewFreqLabel.value = '';
+          _setStatus('Frequency added', false);
+        } catch (e) {
+          _setStatus('Save failed: ' + e.message, true);
+        }
+      }
+
+      async function removeFreq(idx) {
+        const sel = els.phillyProfileSelect;
+        if (!sel || !sel.value) return;
+        const updated = _currentFreqs.filter((_, i) => i !== idx);
+        _setStatus('Saving…', false);
+        try {
+          await _fetch('/api/profile/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: sel.value, frequencies: updated }),
+          });
+          _currentFreqs = updated;
+          renderFreqList(_currentFreqs);
+          const prof = _profiles.find(p => p.name === sel.value);
+          if (prof) prof.frequencies = updated;
+          _setStatus('Removed', false);
+        } catch (e) {
+          _setStatus('Save failed: ' + e.message, true);
+        }
+      }
+
+      async function applySquelch() {
+        const am = els.phillySqAmSlider ? parseInt(els.phillySqAmSlider.value) : -44;
+        const nfm = els.phillySqNfmSlider ? parseInt(els.phillySqNfmSlider.value) : -42;
+        _setStatus('Applying squelch…', false);
+        try {
+          await _fetch('/api/squelch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ am, nfm }),
+          });
+          _setStatus(`Squelch set: AM ${am} dB / NFM ${nfm} dB`, false);
+          await pollStatus();
+        } catch (e) {
+          _setStatus('Squelch failed: ' + e.message, true);
+        }
+      }
+
+      async function restartScanner() {
+        if (!confirm('Restart Philly scanner service?')) return;
+        _setStatus('Restarting…', false);
+        try {
+          await _fetch('/api/restart', { method: 'POST' });
+          _setStatus('Restart triggered', false);
+          setTimeout(pollStatus, 3000);
+        } catch (e) {
+          _setStatus('Restart failed: ' + e.message, true);
+        }
+      }
+
+      async function pollHits() {
+        try {
+          const params = _lastHitTs ? `?since=${encodeURIComponent(_lastHitTs)}` : '';
+          const data = await _fetch('/api/hits' + params);
+          const hits = data.hits || [];
+          if (hits.length) {
+            _lastHitTs = hits[hits.length - 1].time || null;
+            hits.forEach(h => {
+              state.hits.unshift({ ...h, source: 'philly', type: 'philly' });
+            });
+            if (state.hits.length > 200) state.hits = state.hits.slice(0, 200);
+            updateHitList();
+          }
+        } catch (_) { /* Pi offline — swallow */ }
+      }
+
+      function _startTimers() {
+        if (_statusTimer) return;
+        _statusTimer = setInterval(pollStatus, POLL_INTERVAL_MS);
+        _hitTimer = setInterval(pollHits, HIT_POLL_INTERVAL_MS);
+      }
+
+      function _stopTimers() {
+        if (_statusTimer) { clearInterval(_statusTimer); _statusTimer = null; }
+        if (_hitTimer) { clearInterval(_hitTimer); _hitTimer = null; }
+      }
+
+      function onTabOpen() {
+        pollStatus();
+        pollHits();
+        loadProfiles();
+        _startTimers();
+      }
+
+      function _wireSlider(slider, valueEl) {
+        if (!slider || !valueEl) return;
+        const update = () => { valueEl.textContent = slider.value; };
+        slider.addEventListener('input', update);
+        update();
+      }
+
+      function init() {
+        if (_initialized) return;
+        _initialized = true;
+
+        _wireSlider(els.phillySqAmSlider, els.phillySqAmValue);
+        _wireSlider(els.phillySqNfmSlider, els.phillySqNfmValue);
+
+        const btnActivate = document.getElementById('btn-philly-activate');
+        const btnNew = document.getElementById('btn-philly-new-profile');
+        const btnDel = document.getElementById('btn-philly-del-profile');
+        const btnAddFreq = document.getElementById('btn-philly-add-freq');
+        const btnConfirmAdd = document.getElementById('btn-philly-confirm-add-freq');
+        const btnCancelAdd = document.getElementById('btn-philly-cancel-add-freq');
+        const btnSqApply = document.getElementById('btn-philly-squelch-apply');
+        const btnRestart = document.getElementById('btn-philly-restart');
+        const profSel = els.phillyProfileSelect;
+
+        if (btnActivate) btnActivate.addEventListener('click', activateProfile);
+        if (btnNew) btnNew.addEventListener('click', newProfile);
+        if (btnDel) btnDel.addEventListener('click', deleteProfile);
+        if (btnAddFreq) btnAddFreq.addEventListener('click', showAddFreqForm);
+        if (btnConfirmAdd) btnConfirmAdd.addEventListener('click', addFreq);
+        if (btnCancelAdd) btnCancelAdd.addEventListener('click', hideAddFreqForm);
+        if (btnSqApply) btnSqApply.addEventListener('click', applySquelch);
+        if (btnRestart) btnRestart.addEventListener('click', restartScanner);
+        if (profSel) profSel.addEventListener('change', onProfileSelectChange);
+
+        if (els.audioPlayerPhilly) {
+          els.audioPlayerPhilly.src = 'http://100.69.95.13:8000/scanner.mp3';
+        }
+      }
+
+      return { init, onTabOpen, pollStatus, loadProfiles, renderFreqList };
+    })();
+
     init();
   </script>
 </body>
