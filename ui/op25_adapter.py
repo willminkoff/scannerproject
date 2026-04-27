@@ -134,6 +134,133 @@ def _device_sample_rate_for_args(args: str, default_rate: int) -> int:
     return default_rate
 
 
+# RTL-SDR's gr-osmosdr backend exposes a single ``LNA`` gain element
+# (0-49 dB).  SoapySDRPlay3 (used for RSPduo) does NOT expose ``LNA`` —
+# its gain elements are ``IFGR`` (IF gain reduction, 20-59 dB; lower=more
+# IF gain) and ``RFGR`` (RF gain reduction step, 0-9 on UHF; lower=more
+# LNA gain).  Setting ``gains: "LNA:36"`` on a SDRplay device causes
+# ``osmo_src.set_gain(36, "LNA")`` to silently no-op because no element
+# by that name exists, leaving the device pinned at its driver-default
+# AGC setpoint — usually too low to recover a distant P25 control
+# channel.
+_DEFAULT_GAINS_RTL = "LNA:36"
+_DEFAULT_GAINS_SDRPLAY = "IFGR:40,RFGR:0"
+
+
+def _is_sdrplay_args(args: str) -> bool:
+    """Return True if *args* describes a SoapySDRPlay3 (RSPduo) source."""
+    return "driver=sdrplay" in str(args or "").lower()
+
+
+def _default_gains_for_args(args: str) -> str:
+    """Pick a sensible default ``gains`` string for the given device args.
+
+    See module-level note on ``_DEFAULT_GAINS_*``.  Returns the SDRplay
+    default for ``soapy=,driver=sdrplay,...`` args; otherwise the
+    legacy RTL-SDR default.  Per-system override via
+    ``op25_system_config.json`` -> ``gains`` still wins when present.
+    """
+    if _is_sdrplay_args(args):
+        return _DEFAULT_GAINS_SDRPLAY
+    return _DEFAULT_GAINS_RTL
+
+
+def _default_gain_mode_for_args(args: str) -> bool:
+    """Pick a sensible ``gain_mode`` (AGC enable) per device backend.
+
+    On SoapySDRPlay3 the driver-side IF AGC interacts unpredictably with
+    manually-set IFGR — turning AGC on top of a manual IFGR setpoint
+    causes the driver to override the user value at runtime.  For
+    deterministic gain we disable ``gain_mode`` whenever the device is
+    SDRplay so the IFGR/RFGR elements take effect verbatim.  RTL-SDR's
+    osmosdr AGC implementation cooperates with manual LNA gain, so we
+    leave it on for backwards compatibility.
+    """
+    return not _is_sdrplay_args(args)
+
+
+# Gain element names recognised per backend.  Anything outside these sets
+# is silently no-op'd by the underlying source plugin, leaving the device
+# pinned at its driver default (the bug ``_resolve_gains_for_args``
+# protects against).
+_VALID_GAIN_ELEMENTS_RTL = frozenset({"LNA", "TUNER", "IF"})
+_VALID_GAIN_ELEMENTS_SDRPLAY = frozenset({"IFGR", "RFGR"})
+
+
+def _valid_gain_elements_for_args(args: str) -> frozenset[str]:
+    """Return the set of gain-element names valid for the given device args."""
+    if _is_sdrplay_args(args):
+        return _VALID_GAIN_ELEMENTS_SDRPLAY
+    return _VALID_GAIN_ELEMENTS_RTL
+
+
+def _resolve_gains_for_args(args: str, override: str | None) -> str:
+    """Resolve the multi_rx ``gains`` string for *args*, honouring *override*.
+
+    If *override* is empty/None, return the backend-appropriate default.
+    Otherwise, parse the override into ``Name:Value`` parts and keep only
+    those whose ``Name`` is recognised by the device's backend (e.g.
+    ``LNA`` is kept for RTL but dropped for SDRplay).  If *all* parts are
+    dropped (legacy RTL-only profile pointing at an SDRplay device, e.g.
+    ``"LNA:42"`` post-RSPduo migration), fall back to the default and log
+    a warning so the operator sees that the override didn't apply.
+
+    This protects against the silent-no-op trap where a profile carries
+    ``"gains": "LNA:42"`` after the dongle behind a system migrated from
+    RTL-SDR to RSPduo: SoapySDRPlay3 has no element named ``LNA``, so
+    ``set_gain(42, "LNA")`` does nothing, and the device falls to its
+    driver default — typically too low to recover a distant control
+    channel.
+    """
+    default = _default_gains_for_args(args)
+    text = str(override or "").strip()
+    if not text:
+        return default
+    valid = _valid_gain_elements_for_args(args)
+    kept: list[str] = []
+    dropped: list[str] = []
+    for raw in text.split(","):
+        part = raw.strip()
+        if not part or ":" not in part:
+            continue
+        name_raw, _, value = part.partition(":")
+        name = name_raw.strip().upper()
+        value = value.strip()
+        if name in valid:
+            # Normalise to canonical uppercase: gr-osmosdr / Soapy gain
+            # element lookup is case-sensitive, so ``ifgr:25`` would
+            # silently no-op the same way ``LNA:36`` does on SDRplay.
+            kept.append(f"{name}:{value}")
+        else:
+            dropped.append(part)
+    if not kept:
+        logger.warning(
+            "op25 gains override %r drops every element on this backend "
+            "(args=%r, valid=%s); using default %r instead",
+            text, args, sorted(valid), default,
+        )
+        return default
+    if dropped:
+        logger.warning(
+            "op25 gains override %r contains elements unknown to backend "
+            "(args=%r); dropping %s, keeping %s",
+            text, args, dropped, kept,
+        )
+    return ",".join(kept)
+
+
+def _resolve_gain_mode_for_args(args: str, override: bool | None) -> bool:
+    """Resolve ``gain_mode`` for *args*, honouring an explicit override.
+
+    Per-system overrides win when present.  Otherwise pick the
+    backend-appropriate default (``False`` for SDRplay so manual IFGR
+    sticks; ``True`` for RTL-SDR).
+    """
+    if override is not None:
+        return bool(override)
+    return _default_gain_mode_for_args(args)
+
+
 def _master_first_device_order_key(device: dict) -> int:
     """Sort key that pulls RSPduo Master entries to the front of the device list.
 
@@ -1094,10 +1221,11 @@ def generate_multi_rx_config(
         modulation = str(sys_over.get("modulation", OP25_DEFAULT_MODULATION)).strip().lower()
         nac = str(sys_over.get("nac", "0")).strip()
         center_hz = int(cc_hz[0])
-        dev_gains = str(sys_over.get("gains", "LNA:36")).strip() or "LNA:36"
 
         dev_name = f"sdr{idx}"
         dev_args = str(arg_map.get(serial) or f"rtl={serial}")
+        dev_gains = _resolve_gains_for_args(dev_args, sys_over.get("gains"))
+        dev_gain_mode = _resolve_gain_mode_for_args(dev_args, sys_over.get("gain_mode"))
         devices.append({
             "name": dev_name,
             "args": dev_args,
@@ -1106,7 +1234,7 @@ def generate_multi_rx_config(
             "offset": offset,
             "ppm": 0.0,
             "gains": dev_gains,
-            "gain_mode": True,
+            "gain_mode": dev_gain_mode,
             "tunable": True,
         })
 
@@ -1151,8 +1279,13 @@ def generate_multi_rx_config(
                     break
             if target_cc_hz:
                 traffic_sys_over = overrides.get(target_sys) or {}
-                traffic_gains = str(traffic_sys_over.get("gains", "LNA:36")).strip() or "LNA:36"
                 traffic_args = str(arg_map.get(traffic_dongle_serial) or f"rtl={traffic_dongle_serial}")
+                traffic_gains = _resolve_gains_for_args(
+                    traffic_args, traffic_sys_over.get("gains")
+                )
+                traffic_gain_mode = _resolve_gain_mode_for_args(
+                    traffic_args, traffic_sys_over.get("gain_mode")
+                )
                 devices.append({
                     "name": "sdr_traffic",
                     "args": traffic_args,
@@ -1161,7 +1294,7 @@ def generate_multi_rx_config(
                     "offset": offset,
                     "ppm": 0.0,
                     "gains": traffic_gains,
-                    "gain_mode": True,
+                    "gain_mode": traffic_gain_mode,
                     "tunable": True,
                 })
                 udp_port = udp_audio_base_port + udp_port_idx * 2
@@ -1199,8 +1332,13 @@ def generate_multi_rx_config(
                     break
             if target_cc_hz_2:
                 traffic_sys_over_2 = overrides.get(target_sys_2) or {}
-                traffic_gains_2 = str(traffic_sys_over_2.get("gains", "LNA:36")).strip() or "LNA:36"
                 traffic2_args = str(arg_map.get(traffic_dongle_serial_2) or f"rtl={traffic_dongle_serial_2}")
+                traffic_gains_2 = _resolve_gains_for_args(
+                    traffic2_args, traffic_sys_over_2.get("gains")
+                )
+                traffic_gain_mode_2 = _resolve_gain_mode_for_args(
+                    traffic2_args, traffic_sys_over_2.get("gain_mode")
+                )
                 devices.append({
                     "name": "sdr_traffic2",
                     "args": traffic2_args,
@@ -1209,7 +1347,7 @@ def generate_multi_rx_config(
                     "offset": offset,
                     "ppm": 0.0,
                     "gains": traffic_gains_2,
-                    "gain_mode": True,
+                    "gain_mode": traffic_gain_mode_2,
                     "tunable": True,
                 })
                 udp_port = udp_audio_base_port + udp_port_idx * 2

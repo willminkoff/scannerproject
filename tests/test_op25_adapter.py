@@ -10,10 +10,14 @@ from unittest import mock
 
 from ui.op25_adapter import (
     Op25Adapter,
+    _default_gain_mode_for_args,
+    _default_gains_for_args,
     _parse_control_channels,
     _read_system_definitions,
     _read_talkgroup_labels,
     _multi_rx_udp_ports,
+    _resolve_gain_mode_for_args,
+    _resolve_gains_for_args,
     generate_multi_rx_config,
     generate_trunk_tsv,
     generate_tgid_tags_tsv,
@@ -216,6 +220,248 @@ class GenerateMultiRxConfigTests(unittest.TestCase):
             ]
         }
         self.assertEqual([23456, 23458], _multi_rx_udp_ports(config))
+
+    def test_rspduo_uses_sdrplay_native_gain_elements(self):
+        """RSPduo args must produce IFGR/RFGR (not LNA) gains and gain_mode=False.
+
+        Setting ``gains: "LNA:36"`` on a SoapySDRPlay3 source silently no-ops
+        because the driver has no element by that name, leaving the device
+        at its default-AGC setpoint.  This is the regression that prevented
+        control-channel lock with the dual-tuner RSPduo split runtime.
+        """
+        systems = [
+            {"name": "TACN", "control_channels_hz": [769456250]},
+            {"name": "MTRTRS", "control_channels_hz": [856487500]},
+        ]
+        rspduo_args = {
+            "RSPduo Tuner 1 SER#180903EF32": "soapy=,driver=sdrplay,serial=180903EF32,mode=MA,tuner=1",
+            "RSPduo Tuner 2 SER#180903EF32": "soapy=,driver=sdrplay,serial=180903EF32,mode=SL,tuner=2",
+        }
+        config = generate_multi_rx_config(
+            systems,
+            {
+                "TACN": "RSPduo Tuner 1 SER#180903EF32",
+                "MTRTRS": "RSPduo Tuner 2 SER#180903EF32",
+            },
+            dongle_args_map=rspduo_args,
+            http_port=8080,
+        )
+        self.assertEqual(2, len(config["devices"]))
+        for dev in config["devices"]:
+            self.assertIn("driver=sdrplay", dev["args"])
+            self.assertEqual("IFGR:40,RFGR:0", dev["gains"])
+            self.assertFalse(dev["gain_mode"])
+            self.assertNotIn("LNA", dev["gains"])
+
+    def test_rtl_keeps_legacy_lna_gain_default(self):
+        """RTL-SDR continues to receive LNA:36 + gain_mode=True (regression guard)."""
+        systems = [{"name": "SYS_A", "control_channels_hz": [851012500]}]
+        config = generate_multi_rx_config(
+            systems,
+            {"SYS_A": "14306619"},
+            http_port=8080,
+        )
+        dev = config["devices"][0]
+        self.assertEqual("rtl=14306619", dev["args"])
+        self.assertEqual("LNA:36", dev["gains"])
+        self.assertTrue(dev["gain_mode"])
+
+    def test_per_system_gain_override_wins_over_default(self):
+        """``op25_system_config.json`` -> gains/gain_mode still wins."""
+        systems = [{"name": "TACN", "control_channels_hz": [769456250]}]
+        rspduo_args = {
+            "RSPduo Tuner 1 SER#180903EF32": "soapy=,driver=sdrplay,serial=180903EF32,mode=MA,tuner=1",
+        }
+        config = generate_multi_rx_config(
+            systems,
+            {"TACN": "RSPduo Tuner 1 SER#180903EF32"},
+            dongle_args_map=rspduo_args,
+            op25_overrides={"TACN": {"gains": "IFGR:25,RFGR:1", "gain_mode": True}},
+            http_port=8080,
+        )
+        dev = config["devices"][0]
+        self.assertEqual("IFGR:25,RFGR:1", dev["gains"])
+        self.assertTrue(dev["gain_mode"])
+
+    def test_legacy_lna_override_dropped_on_rspduo(self):
+        """Legacy ``"LNA:42"`` from a pre-RSPduo profile must not silently
+        no-op on a SoapySDRPlay3 device — the override is dropped and the
+        SDRplay default is used instead.
+
+        Regression: the live ``op25_system_config.json`` carried a
+        ``"gains": "LNA:42"`` override from RTL-SDR days; after the
+        dongle behind TACN/MTRTRS migrated to RSPduo, multi_rx applied
+        ``LNA:42`` verbatim, the SoapySDRPlay3 plugin had no element by
+        that name, the call became a no-op, and the device ran at the
+        driver's default-AGC setpoint — too low to recover the control
+        channel.
+        """
+        systems = [{"name": "TACN", "control_channels_hz": [769456250]}]
+        rspduo_args = {
+            "RSPduo Tuner 1 SER#180903EF32": "soapy=,driver=sdrplay,serial=180903EF32,mode=MA,tuner=1",
+        }
+        config = generate_multi_rx_config(
+            systems,
+            {"TACN": "RSPduo Tuner 1 SER#180903EF32"},
+            dongle_args_map=rspduo_args,
+            op25_overrides={"TACN": {"gains": "LNA:42"}},
+            http_port=8080,
+        )
+        dev = config["devices"][0]
+        self.assertEqual("IFGR:40,RFGR:0", dev["gains"])
+        self.assertNotIn("LNA", dev["gains"])
+        self.assertFalse(dev["gain_mode"])
+
+    def test_mixed_override_keeps_only_valid_elements(self):
+        """A mixed ``LNA:42,IFGR:25`` override on SDRplay drops the LNA part
+        and keeps the IFGR part."""
+        systems = [{"name": "TACN", "control_channels_hz": [769456250]}]
+        rspduo_args = {
+            "RSPduo Tuner 1 SER#180903EF32": "soapy=,driver=sdrplay,serial=180903EF32,mode=MA,tuner=1",
+        }
+        config = generate_multi_rx_config(
+            systems,
+            {"TACN": "RSPduo Tuner 1 SER#180903EF32"},
+            dongle_args_map=rspduo_args,
+            op25_overrides={"TACN": {"gains": "LNA:42,IFGR:25"}},
+            http_port=8080,
+        )
+        self.assertEqual("IFGR:25", config["devices"][0]["gains"])
+
+    def test_traffic_follower_gets_backend_appropriate_default(self):
+        """The traffic follower picks RTL vs SDRplay defaults from its own args."""
+        systems = [{"name": "TACN", "control_channels_hz": [769456250]}]
+        rspduo_args = {
+            "RSPduo Tuner 1 SER#180903EF32": "soapy=,driver=sdrplay,serial=180903EF32,mode=MA,tuner=1",
+        }
+        config = generate_multi_rx_config(
+            systems,
+            {"TACN": "RSPduo Tuner 1 SER#180903EF32"},
+            dongle_args_map=rspduo_args,
+            traffic_dongle_serial="70613472",  # bare RTL serial
+            traffic_system_name="TACN",
+            http_port=8080,
+        )
+        # Index 0: control source on RSPduo MA -> SDRplay defaults.
+        self.assertEqual("IFGR:40,RFGR:0", config["devices"][0]["gains"])
+        self.assertFalse(config["devices"][0]["gain_mode"])
+        # Index 1: traffic follower on bare RTL -> legacy defaults.
+        self.assertEqual("rtl=70613472", config["devices"][1]["args"])
+        self.assertEqual("LNA:36", config["devices"][1]["gains"])
+        self.assertTrue(config["devices"][1]["gain_mode"])
+
+
+class DefaultGainsForArgsTests(unittest.TestCase):
+    def test_rtl_serial(self):
+        self.assertEqual("LNA:36", _default_gains_for_args("rtl=70613472"))
+
+    def test_rtl_index(self):
+        self.assertEqual("LNA:36", _default_gains_for_args("rtl=0"))
+
+    def test_rspduo_master(self):
+        self.assertEqual(
+            "IFGR:40,RFGR:0",
+            _default_gains_for_args(
+                "soapy=,driver=sdrplay,serial=180903EF32,mode=MA,tuner=1"
+            ),
+        )
+
+    def test_rspduo_slave(self):
+        self.assertEqual(
+            "IFGR:40,RFGR:0",
+            _default_gains_for_args(
+                "soapy=,driver=sdrplay,serial=180903EF32,mode=SL,tuner=2"
+            ),
+        )
+
+    def test_rspduo_single_tuner(self):
+        self.assertEqual(
+            "IFGR:40,RFGR:0",
+            _default_gains_for_args(
+                "soapy=,driver=sdrplay,serial=180903EF32,mode=ST,tuner=1"
+            ),
+        )
+
+    def test_empty_args_falls_back_to_rtl(self):
+        self.assertEqual("LNA:36", _default_gains_for_args(""))
+
+
+class DefaultGainModeForArgsTests(unittest.TestCase):
+    def test_rtl_keeps_agc_on(self):
+        self.assertTrue(_default_gain_mode_for_args("rtl=70613472"))
+
+    def test_sdrplay_disables_agc(self):
+        self.assertFalse(
+            _default_gain_mode_for_args(
+                "soapy=,driver=sdrplay,serial=180903EF32,mode=MA,tuner=1"
+            )
+        )
+
+
+class ResolveGainsForArgsTests(unittest.TestCase):
+    RSPDUO = "soapy=,driver=sdrplay,serial=180903EF32,mode=MA,tuner=1"
+    RTL = "rtl=70613472"
+
+    def test_empty_override_returns_default(self):
+        self.assertEqual("LNA:36", _resolve_gains_for_args(self.RTL, None))
+        self.assertEqual("LNA:36", _resolve_gains_for_args(self.RTL, ""))
+        self.assertEqual("IFGR:40,RFGR:0", _resolve_gains_for_args(self.RSPDUO, ""))
+
+    def test_lna_override_dropped_on_sdrplay(self):
+        self.assertEqual(
+            "IFGR:40,RFGR:0",
+            _resolve_gains_for_args(self.RSPDUO, "LNA:42"),
+        )
+
+    def test_lna_override_kept_on_rtl(self):
+        self.assertEqual("LNA:42", _resolve_gains_for_args(self.RTL, "LNA:42"))
+
+    def test_ifgr_override_kept_on_sdrplay(self):
+        self.assertEqual(
+            "IFGR:25,RFGR:0",
+            _resolve_gains_for_args(self.RSPDUO, "IFGR:25,RFGR:0"),
+        )
+
+    def test_ifgr_override_dropped_on_rtl(self):
+        # IFGR is meaningless to the RTL-SDR osmosdr source; it must be
+        # dropped and the RTL default used instead.
+        self.assertEqual(
+            "LNA:36",
+            _resolve_gains_for_args(self.RTL, "IFGR:25"),
+        )
+
+    def test_mixed_override_keeps_only_valid_elements(self):
+        self.assertEqual(
+            "IFGR:25",
+            _resolve_gains_for_args(self.RSPDUO, "LNA:42,IFGR:25"),
+        )
+
+    def test_whitespace_and_case_in_override(self):
+        self.assertEqual(
+            "IFGR:25,RFGR:1",
+            _resolve_gains_for_args(self.RSPDUO, "  ifgr:25 , rfgr:1 "),
+        )
+
+    def test_malformed_override_falls_back_to_default(self):
+        # No "Name:Value" parts present at all → use default.
+        self.assertEqual(
+            "IFGR:40,RFGR:0",
+            _resolve_gains_for_args(self.RSPDUO, "garbage,nonsense"),
+        )
+
+
+class ResolveGainModeForArgsTests(unittest.TestCase):
+    RSPDUO = "soapy=,driver=sdrplay,serial=180903EF32,mode=MA,tuner=1"
+    RTL = "rtl=70613472"
+
+    def test_no_override_uses_default(self):
+        self.assertTrue(_resolve_gain_mode_for_args(self.RTL, None))
+        self.assertFalse(_resolve_gain_mode_for_args(self.RSPDUO, None))
+
+    def test_explicit_override_wins(self):
+        # User can force AGC on for SDRplay if they want.
+        self.assertTrue(_resolve_gain_mode_for_args(self.RSPDUO, True))
+        self.assertFalse(_resolve_gain_mode_for_args(self.RTL, False))
 
 
 class GenerateTgidTagsTsvTests(unittest.TestCase):
