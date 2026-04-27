@@ -111,11 +111,23 @@ def unit_active_enter_epoch(unit: str):
         except Exception:
             return None
 
+    def needs_sudo_fallback(result):
+        if result.returncode == 0:
+            return False
+        detail = f"{result.stdout or ''}\n{result.stderr or ''}".lower()
+        return (
+            "interactive authentication required" in detail
+            or "access denied" in detail
+            or "permission denied" in detail
+        )
+
     try:
         result = _run_systemctl(["show", "-p", "ActiveEnterTimestampUSec", "--value", unit], use_sudo=False)
         epoch = parse_epoch(result)
         if epoch is not None:
             return epoch
+        if not needs_sudo_fallback(result):
+            return None
         result = _run_systemctl(["show", "-p", "ActiveEnterTimestampUSec", "--value", unit], use_sudo=True)
         return parse_epoch(result)
     except Exception:

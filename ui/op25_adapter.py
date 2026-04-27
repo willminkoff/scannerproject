@@ -16,6 +16,7 @@ import logging
 import os
 import re
 import subprocess
+import tempfile
 import threading
 import time
 import urllib.error
@@ -361,6 +362,17 @@ def _normalize_site_policy(raw_policy: Any, site_ids: set[str]) -> tuple[dict[st
 
 
 def _selector_state_path(runtime_dir: str) -> str:
+    override_path = str(os.getenv("OP25_SITE_SELECTOR_STATE_PATH") or "").strip()
+    if override_path:
+        return override_path
+    override_dir = str(os.getenv("OP25_SITE_SELECTOR_STATE_DIR") or "").strip()
+    if override_dir:
+        return os.path.join(override_dir, _OP25_SITE_SELECTOR_STATE)
+    runtime_real = os.path.realpath(str(runtime_dir or "").strip() or ".")
+    if runtime_real.startswith("/run/"):
+        home = os.path.expanduser("~")
+        if home and home != "~":
+            return os.path.join(home, ".local", "state", "scannerproject", "op25", _OP25_SITE_SELECTOR_STATE)
     return os.path.join(runtime_dir, _OP25_SITE_SELECTOR_STATE)
 
 
@@ -382,13 +394,30 @@ def _load_selector_state(runtime_dir: str) -> dict[str, Any]:
 
 
 def _save_selector_state(runtime_dir: str, payload: dict[str, Any]) -> None:
-    os.makedirs(runtime_dir, exist_ok=True)
     path = _selector_state_path(runtime_dir)
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2, sort_keys=True)
-        f.write("\n")
-    os.replace(tmp, path)
+    parent = os.path.dirname(path) or "."
+    os.makedirs(parent, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(
+        prefix=".site-selector-state-",
+        suffix=".tmp",
+        dir=parent,
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, sort_keys=True)
+            f.write("\n")
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def _same_site_restart_enabled() -> bool:
+    value = str(os.getenv("OP25_SITE_SELECTOR_SAME_SITE_RESTART", "1") or "").strip().lower()
+    return value not in {"0", "false", "no", "off"}
 
 
 def _state_system_key(profile_id: str, system_name: str) -> str:
@@ -542,10 +571,31 @@ def _canonical_site_order(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     )
 
 
+def _ordered_control_channels_for_state(
+    raw_channels: list[Any],
+    selected_control_hz: int,
+) -> list[int]:
+    channels: list[int] = []
+    seen: set[int] = set()
+    for value in raw_channels or []:
+        try:
+            hz = int(value)
+        except Exception:
+            continue
+        if hz <= 0 or hz in seen:
+            continue
+        seen.add(hz)
+        channels.append(hz)
+    if selected_control_hz > 0 and selected_control_hz in channels:
+        return [selected_control_hz] + [hz for hz in channels if hz != selected_control_hz]
+    return channels
+
+
 def _initial_selector_system_state(system: dict[str, Any]) -> dict[str, Any]:
     return {
         "selected_site_id": "",
         "selected_site_name": "",
+        "selected_control_frequency_hz": 0,
         "selection_mode": "legacy",
         "reason_code": "",
         "reason_text": "",
@@ -665,8 +715,16 @@ def _hydrate_runtime_systems_for_config(
         if not str(sys_state.get("current_site_since") or "").strip():
             sys_state["current_site_since"] = str(sys_state.get("last_switch_time") or _iso_utc())
             changed = True
+        ordered_channels = _ordered_control_channels_for_state(
+            list(selected_site.get("control_channels_hz") or []),
+            int(sys_state.get("selected_control_frequency_hz") or 0),
+        )
+        selected_control_hz = ordered_channels[0] if ordered_channels else 0
+        if int(sys_state.get("selected_control_frequency_hz") or 0) != selected_control_hz:
+            sys_state["selected_control_frequency_hz"] = selected_control_hz
+            changed = True
         system["active_site_id"] = selected_site_id
-        system["active_control_channels_hz"] = list(selected_site.get("control_channels_hz") or [])
+        system["active_control_channels_hz"] = ordered_channels
         if not system["active_control_channels_hz"]:
             sys_state["reason_code"] = "no_valid_site"
             sys_state["reason_text"] = "Selected site has no control channels"
@@ -679,17 +737,16 @@ def _hydrate_runtime_systems_for_config(
 def _flatten_active_runtime_systems(runtime_systems: list[dict[str, Any]]) -> list[dict[str, Any]]:
     systems: list[dict[str, Any]] = []
     for system in runtime_systems:
-        channels = [
-            int(hz)
-            for hz in (system.get("active_control_channels_hz") or [])
-            if isinstance(hz, int) or str(hz).isdigit()
-        ]
+        channels = _ordered_control_channels_for_state(
+            list(system.get("active_control_channels_hz") or []),
+            0,
+        )
         if not channels:
             continue
         systems.append(
             {
                 "name": str(system.get("name") or ""),
-                "control_channels_hz": sorted(channels),
+                "control_channels_hz": channels,
             }
         )
     return systems
@@ -2437,6 +2494,14 @@ class Op25Adapter(_BaseDigitalAdapter):
             sys_state["_stale_window_times_ms"] = stale_times
             sys_state["stale_window_count"] = len(stale_times)
             if len(stale_times) >= 6:
+                if not _same_site_restart_enabled():
+                    return ({
+                        "action": "stay",
+                        "site_id": selected_site_id,
+                        "selection_mode": str(sys_state.get("selection_mode") or "auto"),
+                        "reason_code": "stay_same_site_restart_disabled",
+                        "reason_text": "Current site unhealthy, no alternate is available, and same-site restart is disabled",
+                    }, sys_state)
                 return ({
                     "action": "same_site_restart",
                     "site_id": selected_site_id,
@@ -2696,12 +2761,18 @@ class Op25Adapter(_BaseDigitalAdapter):
         state = _load_selector_state(self._runtime_dir)
         systems_state = state.setdefault("systems", {})
         profile_id = os.path.basename(profile_dir.rstrip(os.sep))
+        runtime_system_defs = _normalize_runtime_system_definitions(
+            profile_dir,
+            op25_overrides=_read_op25_system_config(profile_dir),
+        )
         runtime_policies = {
             str(system.get("name") or "").strip(): (system.get("site_policy") or {})
-            for system in _normalize_runtime_system_definitions(
-                profile_dir,
-                op25_overrides=_read_op25_system_config(profile_dir),
-            )
+            for system in runtime_system_defs
+        }
+        runtime_system_map = {
+            str(system.get("name") or "").strip(): system
+            for system in runtime_system_defs
+            if str(system.get("name") or "").strip()
         }
         eligible_requests: list[tuple[dict[str, Any], str, dict[str, Any]]] = []
         for request in restart_requests:
@@ -2734,6 +2805,50 @@ class Op25Adapter(_BaseDigitalAdapter):
 
         if not eligible_requests:
             return
+
+        for request, _key, sys_state in eligible_requests:
+            if str(request.get("type") or "") != "same_site_restart":
+                continue
+            system_name = str(request.get("system_name") or "").strip()
+            system_def = runtime_system_map.get(system_name) or {}
+            selected_site_id = str(
+                request.get("selected_site_id")
+                or sys_state.get("selected_site_id")
+                or ""
+            ).strip()
+            if not selected_site_id:
+                continue
+            selected_site = next(
+                (
+                    site
+                    for site in (system_def.get("sites") or [])
+                    if str(site.get("site_id") or "").strip() == selected_site_id
+                ),
+                None,
+            )
+            if not isinstance(selected_site, dict):
+                continue
+            channels = _ordered_control_channels_for_state(
+                list(selected_site.get("control_channels_hz") or []),
+                0,
+            )
+            if len(channels) <= 1:
+                continue
+            current_hz = int(sys_state.get("selected_control_frequency_hz") or 0)
+            try:
+                current_idx = channels.index(current_hz)
+            except ValueError:
+                current_idx = -1
+            next_hz = channels[(current_idx + 1) % len(channels)]
+            if next_hz <= 0 or next_hz == current_hz:
+                continue
+            sys_state["selected_control_frequency_hz"] = next_hz
+            request["previous_control_frequency_hz"] = current_hz
+            request["selected_control_frequency_hz"] = next_hz
+            request["reason_text"] = (
+                f"{str(request.get('reason_text') or '').strip()} "
+                f"(rotating control to {next_hz / 1_000_000:.5f} MHz)"
+            ).strip()
 
         _save_selector_state(self._runtime_dir, state)
         ok, err = self._regenerate_runtime_via_script()
