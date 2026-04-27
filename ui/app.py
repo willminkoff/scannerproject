@@ -1,6 +1,7 @@
 """Main server application."""
 import os
 import sys
+import threading
 from http.server import HTTPServer
 from socketserver import ThreadingMixIn
 
@@ -26,6 +27,31 @@ except ImportError:
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     """HTTP server with threading support."""
     daemon_threads = True
+
+
+def _start_runtime_sync_thread() -> None:
+    """Kick favorites runtime sync off without blocking HTTP startup."""
+
+    def _worker() -> None:
+        import logging
+
+        try:
+            runtime_sync = sync_scan_pool_to_runtime(force=True)
+            logging.info(
+                "Favorites runtime sync ok=%s changed=%s analog_changed=%s digital_changed=%s",
+                bool(runtime_sync.get("ok")),
+                bool(runtime_sync.get("changed")),
+                bool((runtime_sync.get("analog") or {}).get("changed")),
+                bool((runtime_sync.get("digital") or {}).get("changed")),
+            )
+        except Exception as e:
+            logging.warning("Favorites runtime sync failed: %s", e)
+
+    threading.Thread(
+        target=_worker,
+        name="favorites-runtime-sync",
+        daemon=True,
+    ).start()
 
 
 def _rehydrate_wx_reader():
@@ -86,20 +112,10 @@ def main():
         )
     except Exception as e:
         logging.warning("V3 runtime bootstrap failed: %s", e)
-    try:
-        runtime_sync = sync_scan_pool_to_runtime(force=True)
-        logging.info(
-            "Favorites runtime sync ok=%s changed=%s analog_changed=%s digital_changed=%s",
-            bool(runtime_sync.get("ok")),
-            bool(runtime_sync.get("changed")),
-            bool((runtime_sync.get("analog") or {}).get("changed")),
-            bool((runtime_sync.get("digital") or {}).get("changed")),
-        )
-    except Exception as e:
-        logging.warning("Favorites runtime sync failed: %s", e)
     start_config_worker()
     start_icecast_monitor()
     _rehydrate_wx_reader()
+    _start_runtime_sync_thread()
     server = ThreadedHTTPServer(("0.0.0.0", UI_PORT), Handler)
     logging.info(f"UI listening on 0.0.0.0:{UI_PORT}")
     server.serve_forever()

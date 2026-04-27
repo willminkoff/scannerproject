@@ -21,6 +21,7 @@ try:
     )
     from .combined_status import combined_device_summary
     from .digital import get_digital_manager
+    from .dongle_allocator import assigned_digital_rtl_serials, assigned_digital_tuner_ids, load_assignments
     from .profile_config import read_active_config_path
     from .system_stats import read_rtl_dongle_health
     from .v3_runtime import load_compiled_state
@@ -39,6 +40,7 @@ except ImportError:
     )
     from ui.combined_status import combined_device_summary
     from ui.digital import get_digital_manager
+    from ui.dongle_allocator import assigned_digital_rtl_serials, assigned_digital_tuner_ids, load_assignments
     from ui.profile_config import read_active_config_path
     from ui.system_stats import read_rtl_dongle_health
     from ui.v3_runtime import load_compiled_state
@@ -92,6 +94,12 @@ def _control_channels_count(profile_id: str) -> int:
 
 
 def _digital_targets() -> list[str]:
+    assignments_payload = load_assignments()
+    if isinstance(assignments_payload, dict):
+        assigned_targets = assigned_digital_tuner_ids(assignments_payload)
+        if assigned_targets:
+            return assigned_targets
+
     targets = []
     for item in (
         DIGITAL_PREFERRED_TUNER,
@@ -241,22 +249,6 @@ def evaluate_digital_preflight(
     missing = set(dongles.get("missing_expected_serials") or [])
     slow = set(dongles.get("slow_expected_serials") or [])
 
-    if dongles.get("status") == "critical":
-        expected_count = max(
-            1,
-            int(dongles.get("expected_count") or len(dongles.get("expected_serials") or []) or 4),
-        )
-        reasons.append(
-            _reason(
-                "DONGLE_CRITICAL",
-                "critical",
-                "RTL dongle health is critical",
-                f"Verify all {expected_count} configured role-bound dongles are present.",
-            )
-        )
-    elif dongles.get("status") == "degraded":
-        reasons.append(_reason("DONGLE_DEGRADED", "warn", "RTL dongle health is degraded"))
-
     targets = _digital_targets()
     if not targets:
         reasons.append(
@@ -268,54 +260,104 @@ def evaluate_digital_preflight(
             )
         )
 
-    if DIGITAL_RTL_SERIAL and DIGITAL_RTL_SERIAL in missing:
+    assignments_payload = load_assignments()
+    assigned_targets = assigned_digital_tuner_ids(assignments_payload)
+    assigned_rtl_serials = assigned_digital_rtl_serials(assignments_payload)
+    effective_rtl_serials = (
+        list(assigned_rtl_serials)
+        if assigned_targets
+        else [
+            token
+            for token in (
+                str(DIGITAL_RTL_SERIAL or "").strip(),
+                str(DIGITAL_RTL_SERIAL_SECONDARY or "").strip(),
+                str(DIGITAL_RTL_SERIAL_TERTIARY or "").strip(),
+            )
+            if token
+        ]
+    )
+    digital_missing = [serial for serial in effective_rtl_serials if serial in missing]
+    digital_slow = [serial for serial in effective_rtl_serials if serial in slow]
+
+    if dongles.get("status") == "critical" and (digital_missing or digital_slow):
         reasons.append(
             _reason(
-                "DIGITAL_PRIMARY_SERIAL_MISSING",
+                "DONGLE_CRITICAL",
                 "critical",
-                f"Digital primary serial missing: {DIGITAL_RTL_SERIAL}",
+                "RTL dongle health is critical",
+                f"Verify all {max(1, len(effective_rtl_serials))} active digital RTL tuners are present.",
             )
         )
-    if DIGITAL_RTL_SERIAL_SECONDARY and DIGITAL_RTL_SERIAL_SECONDARY in missing:
-        reasons.append(
-            _reason(
-                "DIGITAL_SECONDARY_SERIAL_MISSING",
-                "critical",
-                f"Digital secondary serial missing: {DIGITAL_RTL_SERIAL_SECONDARY}",
+    elif dongles.get("status") == "degraded" and (digital_missing or digital_slow):
+        reasons.append(_reason("DONGLE_DEGRADED", "warn", "RTL dongle health is degraded"))
+
+    if assigned_targets:
+        for serial in assigned_rtl_serials:
+            if serial in digital_missing:
+                reasons.append(
+                    _reason(
+                        "DIGITAL_ASSIGNED_SERIAL_MISSING",
+                        "critical",
+                        f"Assigned digital RTL serial missing: {serial}",
+                    )
+                )
+            if serial in digital_slow:
+                reasons.append(
+                    _reason(
+                        "DIGITAL_ASSIGNED_SERIAL_SLOW",
+                        "critical",
+                        f"Assigned digital RTL serial under-speed: {serial}",
+                    )
+                )
+    else:
+        if DIGITAL_RTL_SERIAL and DIGITAL_RTL_SERIAL in digital_missing:
+            reasons.append(
+                _reason(
+                    "DIGITAL_PRIMARY_SERIAL_MISSING",
+                    "critical",
+                    f"Digital primary serial missing: {DIGITAL_RTL_SERIAL}",
+                )
             )
-        )
-    if DIGITAL_RTL_SERIAL_TERTIARY and DIGITAL_RTL_SERIAL_TERTIARY in missing:
-        reasons.append(
-            _reason(
-                "DIGITAL_TERTIARY_SERIAL_MISSING",
-                "critical",
-                f"Digital tertiary serial missing: {DIGITAL_RTL_SERIAL_TERTIARY}",
+        if DIGITAL_RTL_SERIAL_SECONDARY and DIGITAL_RTL_SERIAL_SECONDARY in digital_missing:
+            reasons.append(
+                _reason(
+                    "DIGITAL_SECONDARY_SERIAL_MISSING",
+                    "critical",
+                    f"Digital secondary serial missing: {DIGITAL_RTL_SERIAL_SECONDARY}",
+                )
             )
-        )
-    if DIGITAL_RTL_SERIAL and DIGITAL_RTL_SERIAL in slow:
-        reasons.append(
-            _reason(
-                "DIGITAL_PRIMARY_SERIAL_SLOW",
-                "critical",
-                f"Digital primary serial under-speed: {DIGITAL_RTL_SERIAL}",
+        if DIGITAL_RTL_SERIAL_TERTIARY and DIGITAL_RTL_SERIAL_TERTIARY in digital_missing:
+            reasons.append(
+                _reason(
+                    "DIGITAL_TERTIARY_SERIAL_MISSING",
+                    "critical",
+                    f"Digital tertiary serial missing: {DIGITAL_RTL_SERIAL_TERTIARY}",
+                )
             )
-        )
-    if DIGITAL_RTL_SERIAL_SECONDARY and DIGITAL_RTL_SERIAL_SECONDARY in slow:
-        reasons.append(
-            _reason(
-                "DIGITAL_SECONDARY_SERIAL_SLOW",
-                "critical",
-                f"Digital secondary serial under-speed: {DIGITAL_RTL_SERIAL_SECONDARY}",
+        if DIGITAL_RTL_SERIAL and DIGITAL_RTL_SERIAL in digital_slow:
+            reasons.append(
+                _reason(
+                    "DIGITAL_PRIMARY_SERIAL_SLOW",
+                    "critical",
+                    f"Digital primary serial under-speed: {DIGITAL_RTL_SERIAL}",
+                )
             )
-        )
-    if DIGITAL_RTL_SERIAL_TERTIARY and DIGITAL_RTL_SERIAL_TERTIARY in slow:
-        reasons.append(
-            _reason(
-                "DIGITAL_TERTIARY_SERIAL_SLOW",
-                "critical",
-                f"Digital tertiary serial under-speed: {DIGITAL_RTL_SERIAL_TERTIARY}",
+        if DIGITAL_RTL_SERIAL_SECONDARY and DIGITAL_RTL_SERIAL_SECONDARY in digital_slow:
+            reasons.append(
+                _reason(
+                    "DIGITAL_SECONDARY_SERIAL_SLOW",
+                    "critical",
+                    f"Digital secondary serial under-speed: {DIGITAL_RTL_SERIAL_SECONDARY}",
+                )
             )
-        )
+        if DIGITAL_RTL_SERIAL_TERTIARY and DIGITAL_RTL_SERIAL_TERTIARY in digital_slow:
+            reasons.append(
+                _reason(
+                    "DIGITAL_TERTIARY_SERIAL_SLOW",
+                    "critical",
+                    f"Digital tertiary serial under-speed: {DIGITAL_RTL_SERIAL_TERTIARY}",
+                )
+            )
 
     manager_preflight = manager_preflight if isinstance(manager_preflight, dict) else {}
     if not manager_preflight:

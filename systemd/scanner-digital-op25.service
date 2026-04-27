@@ -1,0 +1,29 @@
+[Unit]
+Description=OP25 P25 Digital Decoder
+After=network-online.target icecast2.service
+Wants=network-online.target scanner-digital-op25-audio.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/airband-ui.conf
+User=ubuntu
+Nice=0
+IOSchedulingClass=best-effort
+IOSchedulingPriority=4
+RuntimeDirectory=scannerproject/op25
+RuntimeDirectoryMode=0755
+ExecStartPre=/usr/bin/python3 /home/ubuntu/scannerproject/scripts/ensure-op25-runtime.py
+WorkingDirectory=/run/scannerproject/op25
+ExecStart=/bin/bash /run/scannerproject/op25/start.sh
+Restart=on-failure
+RestartSec=15
+TimeoutStopSec=10
+KillSignal=SIGINT
+LimitNOFILE=16384
+LogsDirectory=op25
+StandardOutput=append:/var/log/op25/op25.log
+StandardError=append:/var/log/op25/op25.log
+
+[Install]
+WantedBy=multi-user.target

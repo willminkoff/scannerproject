@@ -243,6 +243,48 @@ def traffic_pool_serials() -> list[str]:
     return list(assignments.get("traffic_pool") or [])
 
 
+def assigned_digital_tuner_ids(assignments: dict[str, Any] | None = None) -> list[str]:
+    """Return the ordered set of digital tuner identifiers from allocator state."""
+    payload = assignments if isinstance(assignments, dict) else load_assignments()
+    if not isinstance(payload, dict):
+        return []
+
+    ordered: list[str] = []
+
+    def _append(value: Any) -> None:
+        token = str(value or "").strip()
+        if token and token not in ordered:
+            ordered.append(token)
+
+    for raw in payload.get("digital_serials") or []:
+        _append(raw)
+
+    for row in payload.get("assignments") or []:
+        if not isinstance(row, dict):
+            continue
+        _append(row.get("preferred_tuner_serial"))
+
+    for raw in payload.get("traffic_pool") or []:
+        _append(raw)
+
+    return ordered
+
+
+def tuner_id_looks_like_rtl_serial(value: Any) -> bool:
+    """Best-effort classifier for raw RTL EEPROM serial strings."""
+    token = str(value or "").strip()
+    return token.isdigit() and len(token) >= 6
+
+
+def assigned_digital_rtl_serials(assignments: dict[str, Any] | None = None) -> list[str]:
+    """Return allocator digital tuner identifiers that look like RTL serials."""
+    return [
+        token
+        for token in assigned_digital_tuner_ids(assignments)
+        if tuner_id_looks_like_rtl_serial(token)
+    ]
+
+
 def current_strategy() -> str:
     """Return the active allocation strategy label."""
     assignments = load_assignments()

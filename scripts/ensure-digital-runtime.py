@@ -58,6 +58,7 @@ DIGITAL_ATTACH_BROADCAST_CHANNEL = os.getenv("DIGITAL_ATTACH_BROADCAST_CHANNEL",
 DIGITAL_IGNORE_DATA_CALLS = os.getenv("DIGITAL_IGNORE_DATA_CALLS", "1").strip().lower() in _TRUTHY
 AIRBAND_RTL_SERIAL = os.getenv("AIRBAND_RTL_SERIAL", os.getenv("SCANNER1_RTL_DEVICE", "")).strip()
 GROUND_RTL_SERIAL = os.getenv("GROUND_RTL_SERIAL", os.getenv("SCANNER2_RTL_DEVICE", "")).strip()
+ACARS_RTL_SERIAL = os.getenv("ACARS_RTL_SERIAL", "").strip()
 SDRTRUNK_TUNER_CONFIG_PATH = Path(
     os.getenv(
         "DIGITAL_TUNER_CONFIG_PATH",
@@ -328,7 +329,7 @@ def _discover_tuner_uid_state() -> dict[str, object]:
         )
         if s
     ]
-    analog_serials = [s for s in (AIRBAND_RTL_SERIAL, GROUND_RTL_SERIAL) if s]
+    analog_serials = [s for s in (AIRBAND_RTL_SERIAL, GROUND_RTL_SERIAL, ACARS_RTL_SERIAL) if s]
 
     all_rtl_uids = set(serial_to_uid.values())
     digital_uids = {serial_to_uid[s] for s in digital_serials if s in serial_to_uid}

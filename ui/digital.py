@@ -23,6 +23,7 @@ ET.register_namespace("xsi", _XSI_NS)
 try:
     from .config import (
         AIRBAND_RTL_SERIAL,
+        ACARS_RTL_SERIAL,
         GROUND_RTL_SERIAL,
         DIGITAL_ACTIVE_PROFILE_LINK,
         DIGITAL_BACKEND,
@@ -64,13 +65,19 @@ try:
         DIGITAL_SYSTEM_ORDER,
         DIGITAL_USE_MULTI_FREQ_SOURCE,
     )
-    from .dongle_allocator import load_assignments, preferred_tuner_for_system
+    from .dongle_allocator import (
+        assigned_digital_rtl_serials,
+        assigned_digital_tuner_ids,
+        load_assignments,
+        preferred_tuner_for_system,
+    )
     from .systemd import unit_active
     from .system_stats import read_rtl_dongle_health
     from .scan_pool_adapter import get_active_scan_pool_snapshot, get_current_scan_mode
 except ImportError:
     from ui.config import (
         AIRBAND_RTL_SERIAL,
+        ACARS_RTL_SERIAL,
         GROUND_RTL_SERIAL,
         DIGITAL_ACTIVE_PROFILE_LINK,
         DIGITAL_BACKEND,
@@ -112,7 +119,12 @@ except ImportError:
         DIGITAL_SYSTEM_ORDER,
         DIGITAL_USE_MULTI_FREQ_SOURCE,
     )
-    from ui.dongle_allocator import load_assignments, preferred_tuner_for_system
+    from ui.dongle_allocator import (
+        assigned_digital_rtl_serials,
+        assigned_digital_tuner_ids,
+        load_assignments,
+        preferred_tuner_for_system,
+    )
     from ui.systemd import unit_active
     from ui.system_stats import read_rtl_dongle_health
     from ui.scan_pool_adapter import get_active_scan_pool_snapshot, get_current_scan_mode
@@ -572,6 +584,10 @@ def _sync_stream_configuration(root: ET.Element) -> bool:
 
 
 def _digital_tuner_targets() -> list[str]:
+    assigned_targets = assigned_digital_tuner_ids()
+    if assigned_targets:
+        return assigned_targets
+
     targets: list[str] = []
     for candidate in (
         DIGITAL_PREFERRED_TUNER,
@@ -612,6 +628,7 @@ def _auto_extra_digital_rtl_serials(*, dongles: dict | None = None) -> list[str]
         str(token or "").strip()
         for token in (
             AIRBAND_RTL_SERIAL,
+            ACARS_RTL_SERIAL,
             GROUND_RTL_SERIAL,
             DIGITAL_RTL_SERIAL,
             DIGITAL_RTL_SERIAL_SECONDARY,
@@ -629,6 +646,12 @@ def _auto_extra_digital_rtl_serials(*, dongles: dict | None = None) -> list[str]
 
 
 def _digital_expected_rtl_serials(*, dongles: dict | None = None) -> list[str]:
+    assignments_payload = load_assignments()
+    if isinstance(assignments_payload, dict):
+        assigned_targets = assigned_digital_tuner_ids(assignments_payload)
+        if assigned_targets:
+            return assigned_digital_rtl_serials(assignments_payload)
+
     serials = _configured_digital_rtl_serials()
     for serial in _auto_extra_digital_rtl_serials(dongles=dongles):
         if serial not in serials:
@@ -5373,6 +5396,7 @@ class DigitalManager:
             payload["digital_active_department_label"] = active_department
         elif not active_system:
             payload["digital_active_department_label"] = ""
+        payload["digital_allocation_snapshot_at_ms"] = int(now_ms)
         return payload
 
     def _scheduler_tick(self):
@@ -5953,10 +5977,11 @@ class DigitalManager:
                 snapshot_at_ms = now_ms
             else:
                 payload = self._allocation_snapshot_payload_locked(payload, preflight)
+            allocation_snapshot_at_ms = int(payload.get("digital_allocation_snapshot_at_ms") or snapshot_at_ms or 0)
             payload["digital_allocation_snapshot_age_ms"] = max(
                 0,
-                now_ms - snapshot_at_ms,
-            ) if snapshot_at_ms > 0 else 0
+                now_ms - allocation_snapshot_at_ms,
+            ) if allocation_snapshot_at_ms > 0 else 0
             payload["digital_preflight_snapshot_age_ms"] = max(
                 0,
                 now_ms - preflight_at_ms,
@@ -6673,10 +6698,13 @@ class DigitalManager:
             payload.get("digital_active_department_label") or ""
         ).strip()
         now_ms = int(time.time() * 1000)
+        allocation_snapshot_at_ms = int(
+            payload.get("digital_allocation_snapshot_at_ms") or scheduler_snapshot_at_ms or 0
+        )
         payload["digital_allocation_snapshot_age_ms"] = max(
             0,
-            now_ms - int(scheduler_snapshot_at_ms or 0),
-        ) if int(scheduler_snapshot_at_ms or 0) > 0 else 0
+            now_ms - allocation_snapshot_at_ms,
+        ) if allocation_snapshot_at_ms > 0 else 0
         payload["digital_preflight_snapshot_age_ms"] = max(
             0,
             now_ms - int(preflight_snapshot_at_ms or 0),

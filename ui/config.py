@@ -145,6 +145,7 @@ DIGITAL_SCHEDULER_STATE_PATH = os.getenv(
 ).strip()
 AIRBAND_RTL_SERIAL = os.getenv("AIRBAND_RTL_SERIAL", "").strip()
 GROUND_RTL_SERIAL = os.getenv("GROUND_RTL_SERIAL", "").strip()
+ACARS_RTL_SERIAL = os.getenv("ACARS_RTL_SERIAL", "").strip()
 DIGITAL_RTL_DEVICE = os.getenv("DIGITAL_RTL_DEVICE", "").strip()
 DIGITAL_RTL_SERIAL = os.getenv("DIGITAL_RTL_SERIAL", "").strip()
 DIGITAL_RTL_SERIAL_SECONDARY = os.getenv(

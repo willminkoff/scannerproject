@@ -364,6 +364,86 @@ class Op25AdapterEventExtractionTests(unittest.TestCase):
         self.assertEqual("Police Dispatch", by_tgid["3207"]["label"])
         self.assertEqual(855912500, by_tgid["3207"]["frequency_hz"])
 
+    def test_poll_status_merges_multi_instance_ports(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            runtime_dir = Path(tmpdir)
+            (runtime_dir / "instances.json").write_text(
+                json.dumps(
+                    [
+                        {"http_status_port": 8080, "system_name": "SYS_A", "udp_audio_port": 23456},
+                        {"http_status_port": 8081, "system_name": "SYS_B", "udp_audio_port": 23458},
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            with mock.patch("ui.op25_adapter.validate_digital_service_name", return_value=True):
+                adapter = Op25Adapter()
+            adapter._runtime_dir = str(runtime_dir)
+
+            now_sec = time.time()
+            port_status = {
+                8080: {
+                    "trunk_update": {
+                        "systems": {
+                            "SYS_A": {
+                                "system": "SYS_A",
+                                "last_tsbk": now_sec,
+                                "rxchan": 851012500,
+                            }
+                        }
+                    },
+                    "channel_update": {
+                        "0": {
+                            "tgid": "100",
+                            "tag": "Dispatch A",
+                            "freq": 851012500,
+                            "system": "SYS_A",
+                            "mode": "P25",
+                        }
+                    },
+                    "call_log": [
+                        {"tgid": "100", "tgtag": "Dispatch A", "time": now_sec, "system": "SYS_A"}
+                    ],
+                },
+                8081: {
+                    "trunk_update": {
+                        "systems": {
+                            "SYS_B": {
+                                "system": "SYS_B",
+                                "last_tsbk": now_sec,
+                                "rxchan": 852012500,
+                            }
+                        }
+                    },
+                    "channel_update": {
+                        "0": {
+                            "tgid": "200",
+                            "tag": "Dispatch B",
+                            "freq": 852012500,
+                            "system": "SYS_B",
+                            "mode": "P25",
+                        }
+                    },
+                    "call_log": [
+                        {"tgid": "200", "tgtag": "Dispatch B", "time": now_sec, "system": "SYS_B"}
+                    ],
+                },
+            }
+
+            with mock.patch.object(
+                adapter,
+                "_fetch_update_json",
+                side_effect=lambda *, port=None: port_status.get(int(port or 0), {}),
+            ), mock.patch.object(adapter, "_fetch_json", return_value={}):
+                status = adapter._poll_op25_status()
+
+        trunk_systems = status["trunk_update"]["systems"]
+        self.assertEqual({"SYS_A", "SYS_B"}, set(trunk_systems.keys()))
+        self.assertEqual([8080, 8081], status["op25_instance_ports"])
+        self.assertTrue(status["control_channel_locked"])
+        self.assertEqual(2, len([row for row in status["channel_update"].values() if isinstance(row, dict)]))
+
     def test_events_from_status_include_verbose_grouped_metadata(self):
         adapter = Op25Adapter()
         now_sec = time.time()

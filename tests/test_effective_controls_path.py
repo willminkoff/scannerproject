@@ -42,6 +42,7 @@ def _write_profile(path, *, airband, ui_disabled=False, with_devices=True):
 def _write_runtime_profile(path, *, airband, freqs, labels, squelch_dbfs, gain=32.8):
     freqs_text = ", ".join(f"{float(freq):.4f}" for freq in freqs)
     labels_text = ", ".join(f'"{label}"' for label in labels)
+    modulation = '"am"' if airband else '"nfm"'
     with open(path, "w", encoding="utf-8") as handle:
         handle.write(
             "\n".join(
@@ -60,7 +61,7 @@ def _write_runtime_profile(path, *, airband, freqs, labels, squelch_dbfs, gain=3
                     "    {",
                     f"      freqs = ({freqs_text});",
                     f"      labels = ({labels_text});",
-                    f'      modulation = {"\"am\"" if airband else "\"nfm\""};',
+                    f"      modulation = {modulation};",
                     f"      squelch_threshold = {int(round(float(squelch_dbfs)))};  # UI_CONTROLLED",
                     "    }",
                     "  );",
@@ -2090,6 +2091,32 @@ class HealthPayloadTests(unittest.TestCase):
             for reason in payload["subsystems"]["analog_scan"].get("reasons") or []
         }
         self.assertIn("ANALOG_SCAN_MONOPOLIZED", reason_codes)
+
+
+class DigitalTargetSelectionTests(unittest.TestCase):
+    def test_handler_digital_tuner_targets_prefer_allocator_assignments(self):
+        assignments = {
+            "digital_serials": [
+                "RSPduo Tuner 1 SER#180903EF32",
+                "70613472",
+            ]
+        }
+        with mock.patch.object(handlers, "DIGITAL_PREFERRED_TUNER", ""), mock.patch.object(
+            handlers, "DIGITAL_RTL_SERIAL", "14306619"
+        ), mock.patch.object(
+            handlers, "DIGITAL_RTL_SERIAL_SECONDARY", "70613472"
+        ), mock.patch.object(
+            handlers, "DIGITAL_RTL_SERIAL_TERTIARY", "80000003"
+        ), mock.patch.object(
+            handlers, "DIGITAL_RTL_DEVICE", ""
+        ), mock.patch.object(
+            handlers, "load_dongle_assignments", return_value=assignments
+        ):
+            self.assertEqual(
+                ["RSPduo Tuner 1 SER#180903EF32", "70613472"],
+                handlers._digital_tuner_targets(),
+            )
+            self.assertEqual(["70613472"], handlers._effective_digital_rtl_serials())
 
 
 class DigitalStatusAliasTests(unittest.TestCase):

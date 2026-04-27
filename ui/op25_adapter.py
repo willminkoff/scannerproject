@@ -1245,6 +1245,7 @@ class Op25Adapter(_BaseDigitalAdapter):
         self._last_status: dict = {}
         self._last_status_time = 0.0
         self._status_cache_ttl = 1.5
+        self._status_get_failed_ports: set[int] = set()
         # Active systems
         self._active_systems: list[dict] = []
         self._runtime_metrics_data: dict = {
@@ -1682,11 +1683,41 @@ class Op25Adapter(_BaseDigitalAdapter):
     # Health / preflight
     # ------------------------------------------------------------------
 
-    def _request_json(self, path: str, *, method: str = "GET", payload=None):
+    def _load_instance_manifest(self) -> list[dict[str, Any]]:
+        path = os.path.join(self._runtime_dir, "instances.json")
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as handle:
+                payload = json.load(handle)
+        except Exception:
+            return []
+        if isinstance(payload, list):
+            return [entry for entry in payload if isinstance(entry, dict)]
+        if isinstance(payload, dict):
+            channels = payload.get("channels")
+            if isinstance(channels, list):
+                return [entry for entry in channels if isinstance(entry, dict)]
+        return []
+
+    def _status_ports_from_manifest(self) -> list[int]:
+        ports: list[int] = []
+        seen: set[int] = set()
+        for entry in self._load_instance_manifest():
+            try:
+                port = int(entry.get("http_status_port") or 0)
+            except Exception:
+                port = 0
+            if port <= 0 or port in seen:
+                continue
+            seen.add(port)
+            ports.append(port)
+        return ports
+
+    def _request_json(self, path: str, *, method: str = "GET", payload=None, port: int | None = None):
         route = str(path or "/").strip()
         if not route.startswith("/"):
             route = f"/{route}"
-        url = f"http://{self._status_host}:{self._status_port}{route}"
+        target_port = int(port or self._status_port)
+        url = f"http://{self._status_host}:{target_port}{route}"
         try:
             body = None
             headers = {}
@@ -1843,13 +1874,88 @@ class Op25Adapter(_BaseDigitalAdapter):
             status[json_type] = dict(item)
         return status
 
-    def _fetch_json(self, path: str) -> dict:
-        data = self._request_json(path, method="GET")
+    @classmethod
+    def _merge_instance_statuses(cls, statuses: list[tuple[int, dict]]) -> dict:
+        valid = [
+            (int(port), dict(status))
+            for port, status in statuses
+            if isinstance(status, dict) and status
+        ]
+        if not valid:
+            return {}
+        if len(valid) == 1:
+            merged = dict(valid[0][1])
+            merged["op25_instance_ports"] = [valid[0][0]]
+            return merged
+
+        trunk_systems: dict[str, dict[str, Any]] = {}
+        channel_update: dict[str, dict[str, Any]] = {}
+        call_log: list[dict[str, Any]] = []
+        locked = False
+        control_decode_available = False
+        decode_rate = 0.0
+        ber_values: list[float] = []
+
+        for port, status in valid:
+            if bool(status.get("locked") or status.get("control_channel_locked")) or cls._root_control_channel_locked(status):
+                locked = True
+            if bool(status.get("control_decode_available")) or cls._root_trunk_decode_available(status):
+                control_decode_available = True
+            try:
+                decode_rate += float(status.get("decode_rate", 0) or 0)
+            except Exception:
+                pass
+            try:
+                ber_values.append(float(status.get("ber", 0) or 0))
+            except Exception:
+                pass
+
+            for idx, row in enumerate(cls._iter_trunk_system_rows(status)):
+                if not isinstance(row, dict):
+                    continue
+                system_name = str(row.get("system") or row.get("sysname") or "").strip()
+                key = system_name or f"{port}:{idx}"
+                trunk_systems[key] = dict(row)
+
+            for idx, row in enumerate(cls._iter_channel_rows(status)):
+                if not isinstance(row, dict):
+                    continue
+                channel_update[f"{port}:{idx}"] = dict(row)
+
+            for row in status.get("call_log") or []:
+                if isinstance(row, dict):
+                    call_log.append(dict(row))
+
+        merged: dict[str, Any] = {
+            "locked": locked,
+            "control_channel_locked": locked,
+            "control_decode_available": control_decode_available,
+            "decode_rate": decode_rate,
+            "ber": max(ber_values) if ber_values else 0.0,
+            "op25_instance_ports": [port for port, _status in valid],
+        }
+        if trunk_systems:
+            merged["trunk_update"] = {
+                "json_type": "trunk_update",
+                "systems": trunk_systems,
+            }
+        if channel_update:
+            merged["channel_update"] = channel_update
+        if call_log:
+            try:
+                call_log.sort(key=lambda row: float(row.get("time") or 0.0))
+            except Exception:
+                pass
+            merged["call_log"] = call_log
+        return merged
+
+    def _fetch_json(self, path: str, *, port: int | None = None) -> dict:
+        data = self._request_json(path, method="GET", port=port)
         return data if isinstance(data, dict) else {}
 
-    def _fetch_update_json(self) -> dict:
+    def _fetch_update_json(self, *, port: int | None = None) -> dict:
         payload = [{"command": "update", "arg1": 0, "arg2": 0}]
-        data = self._request_json("/", method="POST", payload=payload)
+        data = self._request_json("/", method="POST", payload=payload, port=port)
         return self._normalize_update_payload(data)
 
     @staticmethod
@@ -1995,18 +2101,22 @@ class Op25Adapter(_BaseDigitalAdapter):
         now = time.monotonic()
         if (now - self._last_status_time) < self._status_cache_ttl and self._last_status:
             return dict(self._last_status)
-        data: dict = {}
-        # Always try POST first (works on boatbod and modern OP25)
-        update_data = self._fetch_update_json()
-        if update_data and not self._status_needs_root_fallback(update_data):
-            data = update_data
-        elif not getattr(self, "_status_get_failed", False):
-            # First-time fallback to legacy GET /status
-            legacy = self._fetch_json("/status")
-            if legacy and not self._status_needs_root_fallback(legacy):
-                data = legacy
-            else:
-                self._status_get_failed = True
+        ports = self._status_ports_from_manifest() or [self._status_port]
+        instance_statuses: list[tuple[int, dict]] = []
+        for port in ports:
+            data: dict = {}
+            update_data = self._fetch_update_json(port=port)
+            if update_data and not self._status_needs_root_fallback(update_data):
+                data = update_data
+            elif port not in self._status_get_failed_ports:
+                legacy = self._fetch_json("/status", port=port)
+                if legacy and not self._status_needs_root_fallback(legacy):
+                    data = legacy
+                else:
+                    self._status_get_failed_ports.add(port)
+            if data:
+                instance_statuses.append((port, data))
+        data = self._merge_instance_statuses(instance_statuses)
         if data:
             self._last_status = data
             self._last_status_time = now

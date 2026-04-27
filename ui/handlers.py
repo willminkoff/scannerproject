@@ -36,6 +36,12 @@ def combined_num_devices(conf_path=None) -> int:
 
 
 def _digital_tuner_targets() -> list[str]:
+    assignments_payload = load_dongle_assignments()
+    if isinstance(assignments_payload, dict):
+        assigned_targets = assigned_digital_tuner_ids(assignments_payload)
+        if assigned_targets:
+            return assigned_targets
+
     targets = []
     for candidate in (
         DIGITAL_PREFERRED_TUNER,
@@ -61,6 +67,31 @@ def _configured_digital_serials() -> list[str]:
         if value and value not in serials:
             serials.append(value)
     return serials
+
+
+def _effective_digital_rtl_serials() -> list[str]:
+    assignments_payload = load_dongle_assignments()
+    if isinstance(assignments_payload, dict):
+        assigned_targets = assigned_digital_tuner_ids(assignments_payload)
+        if assigned_targets:
+            return assigned_digital_rtl_serials(assignments_payload)
+    return _configured_digital_serials()
+
+
+def _expected_icecast_mounts(
+    *,
+    analog_active: bool,
+    keepalive_active: bool,
+    digital_active: bool,
+) -> list[str]:
+    mounts = []
+    analog_mount = "/" + str(PLAYER_MOUNT or "").strip().lstrip("/")
+    digital_mount = "/" + str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/")
+    if analog_mount != "/" and (analog_active or keepalive_active):
+        mounts.append(analog_mount)
+    if digital_mount != "/" and digital_active:
+        mounts.append(digital_mount)
+    return mounts
 
 
 try:
@@ -132,7 +163,11 @@ try:
         read_digital_talkgroups,
         write_digital_listen,
     )
-    from .dongle_allocator import load_assignments as load_dongle_assignments
+    from .dongle_allocator import (
+        assigned_digital_rtl_serials,
+        assigned_digital_tuner_ids,
+        load_assignments as load_dongle_assignments,
+    )
     from .dongle_power import get_power_state, power_off, power_on, load_schedule, save_schedule
     from .profile_editor import (
         analog_profile_is_active,
@@ -236,7 +271,11 @@ except ImportError:
         read_digital_talkgroups,
         write_digital_listen,
     )
-    from ui.dongle_allocator import load_assignments as load_dongle_assignments
+    from ui.dongle_allocator import (
+        assigned_digital_rtl_serials,
+        assigned_digital_tuner_ids,
+        load_assignments as load_dongle_assignments,
+    )
     from ui.dongle_power import get_power_state, power_off, power_on, load_schedule, save_schedule
     from ui.profile_editor import (
         analog_profile_is_active,
@@ -3255,18 +3294,20 @@ class Handler(BaseHTTPRequestHandler):
             rtl_unit_active = _unit_active_cached(UNITS["rtl"])
             ground_unit_active = _unit_active_cached(UNITS["ground"])
             keepalive_unit_active = _unit_active_cached(UNITS["keepalive"])
+            digital_audio_unit_active = _unit_active_cached(UNITS["digital_audio"])
             combined_info = combined_device_summary()
             airband_device = combined_info.get("airband")
             ground_device = combined_info.get("ground")
             expected_serials = dict(combined_info.get("expected_serials") or {})
             expected_indices = dict(combined_info.get("expected_indices") or {})
+            effective_digital_serials = _effective_digital_rtl_serials()
             if AIRBAND_RTL_SERIAL:
                 expected_serials["airband"] = AIRBAND_RTL_SERIAL
             if GROUND_RTL_SERIAL:
                 expected_serials["ground"] = GROUND_RTL_SERIAL
-            expected_serials["digital"] = DIGITAL_RTL_SERIAL or ""
-            expected_serials["digital_secondary"] = DIGITAL_RTL_SERIAL_SECONDARY or ""
-            expected_serials["digital_tertiary"] = DIGITAL_RTL_SERIAL_TERTIARY or ""
+            expected_serials["digital"] = effective_digital_serials[0] if len(effective_digital_serials) > 0 else ""
+            expected_serials["digital_secondary"] = effective_digital_serials[1] if len(effective_digital_serials) > 1 else ""
+            expected_serials["digital_tertiary"] = effective_digital_serials[2] if len(effective_digital_serials) > 2 else ""
             serial_mismatch_detail = []
             index_mismatch_detail = list(combined_info.get("index_mismatch_detail") or [])
             if AIRBAND_RTL_SERIAL:
@@ -3396,7 +3437,7 @@ class Handler(BaseHTTPRequestHandler):
                 "stream_mount": analog_stream_mount,
                 "stream_proxy_enabled": True,
                 "digital_stream_mount": digital_stream_mount,
-                "icecast_expected_mounts": [f"/{PLAYER_MOUNT}", f"/{DIGITAL_STREAM_MOUNT}"],
+                "icecast_expected_mounts": [],
                 "expected_serials": expected_serials,
                 "expected_indices": expected_indices,
                 "digital_tuner_targets": _digital_tuner_targets(),
@@ -3461,6 +3502,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 digital_payload["digital_last_error"] = str(e)
             mixer_enabled, mixer_active = _digital_mixer_runtime_state()
+            digital_payload["digital_audio_active"] = bool(digital_audio_unit_active)
             digital_payload["digital_mixer_enabled"] = bool(mixer_enabled)
             digital_payload["digital_mixer_active"] = bool(mixer_active)
             digital_stream_active_for_hits = True
@@ -3474,6 +3516,11 @@ class Handler(BaseHTTPRequestHandler):
             digital_payload["digital_stream_active_for_hits"] = bool(digital_stream_active_for_hits)
             digital_payload = _digital_status_with_hit_aliases(digital_payload, full_hit_items)
             payload.update(digital_payload)
+            payload["icecast_expected_mounts"] = _expected_icecast_mounts(
+                analog_active=bool(rtl_unit_active or ground_unit_active),
+                keepalive_active=bool(keepalive_unit_active),
+                digital_active=bool(payload.get("digital_active")),
+            )
             payload["sb3_connected_status_refresh_sec"] = int(SB3_CONNECTED_STATUS_REFRESH_SEC)
             payload["sb3_connected_system_refresh_sec"] = int(SB3_CONNECTED_SYSTEM_REFRESH_SEC)
             payload["sb3_connected_profiles_refresh_sec"] = int(SB3_CONNECTED_PROFILES_REFRESH_SEC)
@@ -3577,16 +3624,17 @@ class Handler(BaseHTTPRequestHandler):
             combined_info = combined_device_summary()
             airband_serial = AIRBAND_RTL_SERIAL or (combined_info.get("airband") or {}).get("serial")
             ground_serial = GROUND_RTL_SERIAL or (combined_info.get("ground") or {}).get("serial")
-            digital_serial_configured = bool(_configured_digital_serials())
+            effective_digital_serials = _effective_digital_rtl_serials()
+            digital_serial_configured = bool(effective_digital_serials)
             digital_tuner_target_configured = bool(_digital_tuner_targets())
             payload = {
                 "ok": True,
                 "expected_serials": {
                     "airband": airband_serial,
                     "ground": ground_serial,
-                    "digital": DIGITAL_RTL_SERIAL or "",
-                    "digital_secondary": DIGITAL_RTL_SERIAL_SECONDARY or "",
-                    "digital_tertiary": DIGITAL_RTL_SERIAL_TERTIARY or "",
+                    "digital": effective_digital_serials[0] if len(effective_digital_serials) > 0 else "",
+                    "digital_secondary": effective_digital_serials[1] if len(effective_digital_serials) > 1 else "",
+                    "digital_tertiary": effective_digital_serials[2] if len(effective_digital_serials) > 2 else "",
                 },
                 "digital_serial_configured": digital_serial_configured,
                 "digital_tuner_target_configured": digital_tuner_target_configured,

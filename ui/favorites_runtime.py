@@ -80,6 +80,15 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+def _env_flag(name: str, default: str = "0") -> bool:
+    return str(os.getenv(name, default) or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 def _enumerated_rtl_serials() -> set[str] | None:
     """Best-effort: serials currently visible to librtlsdr.
 
@@ -158,32 +167,73 @@ def _digital_serials() -> list[str]:
     return filtered
 
 
-def _rspduo_tuner_ids() -> list[str]:
+def _rspduo_tuner_ids(*, max_tuners: int = 1) -> list[str]:
     """Discover RSPduo tuner identifiers available to the digital backend.
 
-    Enumerates SDRplay devices via ``SoapySDR.Device.enumerate(driver=sdrplay)``
-    and, for every attached RSPduo, returns ONLY ``"RSPduo Tuner 1 SER#<serial>"``
-    in Single-Tuner mode.  The 12-bit ADC and lower noise figure make this
-    a higher-quality control-channel receiver than the 8-bit RTL-SDRs it
-    joins in the pool, so it is passed as a priority entry to the
-    allocator (assigned to control duty before any RTL serial).
+    Prefer a Linux sysfs probe of the attached SDRplay USB device so we can
+    derive the canonical tuner IDs without touching the SoapySDR Python
+    bindings.  On the Micro this avoids a hanging
+    ``SoapySDR.Device.enumerate(driver=sdrplay)`` call while still yielding
+    the exact IDs consumed by OP25.  When sysfs is unavailable, fall back to
+    SoapySDR enumeration.
 
-    **Tuner 2 is not exposed.**  Running both RSPduo tuners as a
-    coordinated Master/Slave pair within a single multi_rx.py process
-    isn't supported by the current SoapySDRPlay3 driver: the Slave's
-    ``sdrplay_api_SelectDevice()`` returns ``sdrplay_api_Fail`` when
-    invoked back-to-back with the Master in the same process — observed
-    on sdrplay-api 3.15.2 + SoapySDRPlay3 0.5.2 + gnuradio 3.10.9.2.
-    Cross-process Master/Slave would work but requires splitting OP25
-    into two services (one per tuner) and is a separate refactor.
-    Until then, the second active P25 system in the scan pool falls
-    through to an RTL-SDR.
+    For every attached RSPduo, returns ``"RSPduo Tuner 1 SER#<serial>"``
+    plus, when the OP25 split-process path is enabled and at least two
+    digital control slots are needed, ``"RSPduo Tuner 2 SER#<serial>"``.
+
+    The 12-bit ADC and lower noise figure make the RSPduo a higher-quality
+    control-channel receiver than the 8-bit RTL-SDRs it joins in the pool,
+    so its tuner identifiers are passed as priority entries to the allocator.
+
+    Tuner 2 is withheld unless ``OP25_RSPDUO_SPLIT_PROCESSES`` is enabled
+    because the current single-process multi_rx.py path cannot safely open
+    Master and Slave back-to-back in one process.
 
     Returns an empty list when SoapySDR isn't installed, when no RSPduo
     is attached, or on any enumeration failure — the allocator then runs
     as a pure-RTL pool without RSPduo participation.
     """
+    def _sysfs_text(path: str) -> str:
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as handle:
+                return handle.readline().strip()
+        except Exception:
+            return ""
+
+    def _rspduo_usb_serials() -> list[str]:
+        base = "/sys/bus/usb/devices"
+        if not os.path.isdir(base):
+            return []
+        serials: list[str] = []
+        seen: set[str] = set()
+        try:
+            entries = os.listdir(base)
+        except Exception:
+            return []
+        for entry in entries:
+            dev_dir = os.path.join(base, entry)
+            vendor = _sysfs_text(os.path.join(dev_dir, "idVendor")).lower()
+            product = _sysfs_text(os.path.join(dev_dir, "idProduct")).lower()
+            if vendor != "1df7" or product != "3020":
+                continue
+            serial = _sysfs_text(os.path.join(dev_dir, "serial")).strip().upper()
+            if not serial or serial in seen:
+                continue
+            seen.add(serial)
+            serials.append(serial)
+        return sorted(serials)
+
     out: list[str] = []
+    allow_dual = max_tuners >= 2 and _env_flag("OP25_RSPDUO_SPLIT_PROCESSES", "1")
+
+    sysfs_serials = _rspduo_usb_serials()
+    if sysfs_serials:
+        for serial in sysfs_serials:
+            out.append(f"RSPduo Tuner 1 SER#{serial}")
+            if allow_dual:
+                out.append(f"RSPduo Tuner 2 SER#{serial}")
+        return out
+
     try:
         import SoapySDR  # type: ignore[import-untyped]
     except ImportError:
@@ -203,6 +253,8 @@ def _rspduo_tuner_ids() -> list[str]:
             continue
         seen_serials.add(serial)
         out.append(f"RSPduo Tuner 1 SER#{serial}")
+        if allow_dual:
+            out.append(f"RSPduo Tuner 2 SER#{serial}")
     return out
 
 
@@ -917,7 +969,7 @@ def sync_scan_pool_to_digital_runtime(
         # are passed as priority_serials so they are picked for control-channel
         # duty ahead of RTL-SDRs (better RF performance: 12-bit vs 8-bit ADC).
         try:
-            rspduo_ids = _rspduo_tuner_ids()
+            rspduo_ids = _rspduo_tuner_ids(max_tuners=min(2, len(systems)))
             allocation = allocate_dongles(
                 _digital_serials(),
                 systems,
@@ -1258,7 +1310,7 @@ def sync_scan_pool_to_analog_runtime(
 
 
 def get_last_favorites_runtime_sync() -> dict[str, Any]:
-    with _SYNC_LOCK:
+    if not _SYNC_LOCK.acquire(blocking=False):
         analog = dict(_LAST_RESULT)
         digital = dict(_LAST_DIGITAL_RESULT)
         payload = {
@@ -1266,6 +1318,22 @@ def get_last_favorites_runtime_sync() -> dict[str, Any]:
             "changed": bool(analog.get("changed", False)) or bool(digital.get("changed", False)),
             "analog": analog,
             "digital": digital,
+            "sync_in_progress": True,
         }
         payload.update(analog)
         return payload
+
+    try:
+        analog = dict(_LAST_RESULT)
+        digital = dict(_LAST_DIGITAL_RESULT)
+        payload = {
+            "ok": bool(analog.get("ok", True)) and bool(digital.get("ok", True)),
+            "changed": bool(analog.get("changed", False)) or bool(digital.get("changed", False)),
+            "analog": analog,
+            "digital": digital,
+            "sync_in_progress": False,
+        }
+        payload.update(analog)
+        return payload
+    finally:
+        _SYNC_LOCK.release()
