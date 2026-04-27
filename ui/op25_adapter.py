@@ -111,6 +111,47 @@ _RE_CC_STATUS = re.compile(
 )
 _RE_ROOT_TSBKS = re.compile(r"\btsbks\s+(\d+)\b", re.IGNORECASE)
 
+# RSPduo Master/Slave dual-tuner mode constrains the SoapySDRPlay3 driver
+# to a small set of sample rates (max 2 MSps).  When the gr-osmosdr device
+# args put the RSPduo in MA or SL mode, override the per-device rate to a
+# valid value so the driver doesn't silently snap and produce garbage.
+RSPDUO_DT_SAMPLE_RATE = 2_000_000
+
+
+def _device_sample_rate_for_args(args: str, default_rate: int) -> int:
+    """Pick a per-device sample rate compatible with the device's mode.
+
+    RSPduo Single Tuner mode (mode=ST) and all non-RSPduo devices use the
+    caller-supplied default.  RSPduo Master (mode=MA) or Slave (mode=SL)
+    forces the rate to ``RSPDUO_DT_SAMPLE_RATE``.
+
+    Match is on whole-token substrings so we don't false-positive on
+    other args containing ``MA`` or ``SL``.
+    """
+    if "mode=MA" in args or "mode=SL" in args:
+        return RSPDUO_DT_SAMPLE_RATE
+    return default_rate
+
+
+def _master_first_device_order_key(device: dict) -> int:
+    """Sort key that pulls RSPduo Master entries to the front of the device list.
+
+    SoapySDRPlay3 requires that any RSPduo opened with ``mode=MA`` is
+    initialised before its companion ``mode=SL``.  multi_rx.py opens
+    devices in JSON list order, so the device list must order Master
+    before Slave.  Other devices (RTL-SDR, RSPduo ST, etc.) keep their
+    relative position via Python's stable sort.
+
+    Returns 0 for Master, 2 for Slave, 1 for everything else.
+    """
+    args = str(device.get("args") or "")
+    if "mode=MA" in args:
+        return 0
+    if "mode=SL" in args:
+        return 2
+    return 1
+
+
 _OP25_ROOT_ACTIVITY_MAX_AGE_SEC = 15.0
 _OP25_SITE_SELECTOR_STATE = "site_selector_state.json"
 _OP25_SITE_SELECTOR_ACTION_COOLDOWN_MS = 30_000
@@ -999,10 +1040,11 @@ def generate_multi_rx_config(
         dev_gains = str(sys_over.get("gains", "LNA:36")).strip() or "LNA:36"
 
         dev_name = f"sdr{idx}"
+        dev_args = str(arg_map.get(serial) or f"rtl={serial}")
         devices.append({
             "name": dev_name,
-            "args": str(arg_map.get(serial) or f"rtl={serial}"),
-            "rate": sample_rate,
+            "args": dev_args,
+            "rate": _device_sample_rate_for_args(dev_args, sample_rate),
             "frequency": center_hz,
             "offset": offset,
             "ppm": 0.0,
@@ -1053,10 +1095,11 @@ def generate_multi_rx_config(
             if target_cc_hz:
                 traffic_sys_over = overrides.get(target_sys) or {}
                 traffic_gains = str(traffic_sys_over.get("gains", "LNA:36")).strip() or "LNA:36"
+                traffic_args = str(arg_map.get(traffic_dongle_serial) or f"rtl={traffic_dongle_serial}")
                 devices.append({
                     "name": "sdr_traffic",
-                    "args": str(arg_map.get(traffic_dongle_serial) or f"rtl={traffic_dongle_serial}"),
-                    "rate": sample_rate,
+                    "args": traffic_args,
+                    "rate": _device_sample_rate_for_args(traffic_args, sample_rate),
                     "frequency": target_cc_hz,
                     "offset": offset,
                     "ppm": 0.0,
@@ -1100,10 +1143,11 @@ def generate_multi_rx_config(
             if target_cc_hz_2:
                 traffic_sys_over_2 = overrides.get(target_sys_2) or {}
                 traffic_gains_2 = str(traffic_sys_over_2.get("gains", "LNA:36")).strip() or "LNA:36"
+                traffic2_args = str(arg_map.get(traffic_dongle_serial_2) or f"rtl={traffic_dongle_serial_2}")
                 devices.append({
                     "name": "sdr_traffic2",
-                    "args": str(arg_map.get(traffic_dongle_serial_2) or f"rtl={traffic_dongle_serial_2}"),
-                    "rate": sample_rate,
+                    "args": traffic2_args,
+                    "rate": _device_sample_rate_for_args(traffic2_args, sample_rate),
                     "frequency": target_cc_hz_2,
                     "offset": offset,
                     "ppm": 0.0,
@@ -1134,6 +1178,10 @@ def generate_multi_rx_config(
                     "no control channel found for system=%s",
                     traffic_dongle_serial_2, target_sys_2,
                 )
+
+    # Reorder devices so any RSPduo Master precedes its Slave (and any other
+    # device).  Channels reference devices by ``name`` so this is safe.
+    devices.sort(key=_master_first_device_order_key)
 
     return {
         "devices": devices,

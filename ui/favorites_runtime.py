@@ -7,7 +7,9 @@ import io
 import json
 import logging
 import os
+import re
 import shutil
+import subprocess
 import threading
 import time
 from typing import Any
@@ -78,14 +80,155 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+def _enumerated_rtl_serials() -> set[str] | None:
+    """Best-effort: serials currently visible to librtlsdr.
+
+    Used by ``_digital_serials()`` to drop configured-but-absent dongles
+    from the digital pool so the allocator never hands the OP25 / SDRTrunk
+    runtime an EEPROM serial that ``osmosdr.source('rtl=<serial>')`` would
+    fail to open.
+
+    Return values:
+
+    * ``set`` of serial strings — ``rtl_test`` ran successfully; the set
+      reflects what is currently present (may be empty if no RTL-SDR is
+      attached, in which case the caller should drop ALL configured
+      RTL serials from the pool).
+    * ``None`` — ``rtl_test`` itself failed (binary missing, timeout,
+      crash).  The caller should NOT filter, preserving the configured
+      pool as-is so digital decoding doesn't silently lose dongles on
+      hosts without the SDR tooling.
+    """
+    try:
+        result = subprocess.run(
+            ["rtl_test", "-t"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=False,
+            timeout=3,
+        )
+    except Exception:
+        logger.debug("rtl_test enumeration for digital pool filter failed", exc_info=True)
+        return None
+
+    out: set[str] = set()
+    # Format: "  0:  Realtek, RTL2832U, SN: 80000003"
+    for raw in (result.stdout or "").splitlines():
+        m = re.search(r"^\s*\d+:\s+.*SN:\s+(\S+)\s*$", raw)
+        if m:
+            out.add(m.group(1).strip())
+    return out
+
+
 def _digital_serials() -> list[str]:
-    """Collect configured digital dongle serials (primary + secondary + tertiary)."""
-    serials: list[str] = []
+    """Collect configured digital dongle serials (primary + secondary + tertiary).
+
+    Filters out serials that librtlsdr cannot currently see, so the
+    allocator never hands the runtime a dead EEPROM serial.  When
+    ``rtl_test`` itself fails (returns ``None``), the configured list is
+    returned unfiltered — better to let the allocator try a stale serial
+    than silently lose digital decoding on hosts without the SDR tooling.
+    """
+    configured: list[str] = []
+    seen: set[str] = set()
     for s in (DIGITAL_RTL_SERIAL, DIGITAL_RTL_SERIAL_SECONDARY, DIGITAL_RTL_SERIAL_TERTIARY):
         val = str(s or "").strip()
-        if val and val not in serials:
-            serials.append(val)
-    return serials
+        if val and val not in seen:
+            seen.add(val)
+            configured.append(val)
+    if not configured:
+        return configured
+
+    enumerated = _enumerated_rtl_serials()
+    if enumerated is None:
+        # Tooling failure: don't filter.
+        return configured
+
+    # rtl_test ran (possibly returning 0 devices) — filter to what's present.
+    filtered = [s for s in configured if s in enumerated]
+    dropped = [s for s in configured if s not in enumerated]
+    if dropped:
+        logger.info(
+            "Digital pool filter dropped configured-but-absent dongles: %s "
+            "(enumerated: %s)",
+            ", ".join(sorted(dropped)),
+            ", ".join(sorted(enumerated)) or "(none)",
+        )
+    return filtered
+
+
+def _rspduo_tuner_ids() -> list[str]:
+    """Discover RSPduo tuner identifiers available to the digital backend.
+
+    Enumerates SDRplay devices via ``SoapySDR.Device.enumerate(driver=sdrplay)``
+    and, for every attached RSPduo, returns ONLY ``"RSPduo Tuner 1 SER#<serial>"``
+    in Single-Tuner mode.  The 12-bit ADC and lower noise figure make this
+    a higher-quality control-channel receiver than the 8-bit RTL-SDRs it
+    joins in the pool, so it is passed as a priority entry to the
+    allocator (assigned to control duty before any RTL serial).
+
+    **Tuner 2 is not exposed.**  Running both RSPduo tuners as a
+    coordinated Master/Slave pair within a single multi_rx.py process
+    isn't supported by the current SoapySDRPlay3 driver: the Slave's
+    ``sdrplay_api_SelectDevice()`` returns ``sdrplay_api_Fail`` when
+    invoked back-to-back with the Master in the same process — observed
+    on sdrplay-api 3.15.2 + SoapySDRPlay3 0.5.2 + gnuradio 3.10.9.2.
+    Cross-process Master/Slave would work but requires splitting OP25
+    into two services (one per tuner) and is a separate refactor.
+    Until then, the second active P25 system in the scan pool falls
+    through to an RTL-SDR.
+
+    Returns an empty list when SoapySDR isn't installed, when no RSPduo
+    is attached, or on any enumeration failure — the allocator then runs
+    as a pure-RTL pool without RSPduo participation.
+    """
+    out: list[str] = []
+    try:
+        import SoapySDR  # type: ignore[import-untyped]
+    except ImportError:
+        return out
+    try:
+        results = SoapySDR.Device.enumerate(dict(driver="sdrplay"))
+    except Exception:
+        logger.debug("SoapySDR RSPduo enumeration failed", exc_info=True)
+        return out
+
+    seen_serials: set[str] = set()
+    for kw in (results or []):
+        kvs = _parse_soapy_kwargs(kw)
+        serial = kvs.get("serial", "").strip().upper()
+        hardware = kvs.get("label") or kvs.get("hardware") or ""
+        if not serial or "RSPduo" not in hardware or serial in seen_serials:
+            continue
+        seen_serials.add(serial)
+        out.append(f"RSPduo Tuner 1 SER#{serial}")
+    return out
+
+
+def _parse_soapy_kwargs(kw: Any) -> dict[str, str]:
+    """Parse a SoapySDR Kwargs object into a plain dict.
+
+    SoapySDRKwargs (the SWIG-wrapped std::map<string,string>) does NOT
+    implement Python's mapping protocol fully on older bindings — no
+    ``.get()`` method, no ``in`` operator.  But ``str(kw)`` always
+    produces the canonical ``{key=value, key=value}`` format, so parse
+    that.  When ``kw`` is already a plain dict (as in the test fakes),
+    just shallow-copy it.
+    """
+    if isinstance(kw, dict):
+        return {str(k): str(v) for k, v in kw.items()}
+    text = str(kw or "").strip()
+    if text.startswith("{") and text.endswith("}"):
+        text = text[1:-1]
+    out: dict[str, str] = {}
+    for token in text.split(","):
+        token = token.strip()
+        if not token or "=" not in token:
+            continue
+        key, _, value = token.partition("=")
+        out[key.strip()] = value.strip()
+    return out
 
 
 _MANAGED_AIR_ID = "hp3_favorites_airband"
@@ -769,18 +912,26 @@ def sync_scan_pool_to_digital_runtime(
         active_pool_entry_count = int(len(pool.get("trunked_sites") or []) + len(pool.get("conventional") or []))
         systems, talkgroups, controls_flat, counts = _normalize_digital_pool(pool)
 
-        # --- Dongle allocation: assign digital serials to system roles ---
+        # --- Dongle allocation: assign digital tuners to system roles ---
+        # RSPduo tuners (auto-discovered from SDRTrunk's tuner_configuration.json)
+        # are passed as priority_serials so they are picked for control-channel
+        # duty ahead of RTL-SDRs (better RF performance: 12-bit vs 8-bit ADC).
         try:
+            rspduo_ids = _rspduo_tuner_ids()
             allocation = allocate_dongles(
                 _digital_serials(),
                 systems,
+                priority_serials=rspduo_ids,
                 persist=True,
             )
             logger.info(
-                "Dongle allocation: strategy=%s assignments=%d traffic=%d",
+                "Dongle allocation: strategy=%s assignments=%d traffic=%d "
+                "rspduo_priority=%d rtl_pool=%d",
                 allocation.get("strategy"),
                 len(allocation.get("assignments") or []),
                 len(allocation.get("traffic_pool") or []),
+                len(rspduo_ids),
+                len(_digital_serials()),
             )
         except Exception:
             logger.error("Dongle allocation failed; proceeding without assignment", exc_info=True)

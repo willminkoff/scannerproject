@@ -58,6 +58,7 @@ def allocate(
     digital_serials: list[str],
     systems: list[dict[str, Any]],
     *,
+    priority_serials: list[str] | None = None,
     persist: bool = True,
 ) -> dict[str, Any]:
     """Compute and optionally persist a dongle-to-system assignment map.
@@ -65,11 +66,24 @@ def allocate(
     Parameters
     ----------
     digital_serials:
-        Available RTL-SDR serial numbers reserved for digital use,
-        e.g. ``["00000001", "14306619", "56919602"]``.
+        Available tuner identifiers reserved for digital use.  Historically
+        these were RTL-SDR EEPROM serials like ``"14306619"``; non-RTL
+        identifiers (e.g. SDRTrunk uniqueIDs such as
+        ``"RSPduo Tuner 1 SER#180903EF32"``) are also accepted and are
+        passed through verbatim to the playlist's ``preferred_tuner``
+        attribute.
     systems:
         Active trunked systems from the scan pool.  Each dict must have at
         least ``"name"`` (str) and ``"control_channels_mhz"`` (list[str]).
+    priority_serials:
+        Tuner identifiers that should be preferred for control-channel
+        assignment (e.g. RSPduo tuners with their 12-bit ADC and lower
+        noise figure are higher-quality control receivers than RTL-SDR's
+        8-bit ADC).  These are assigned to systems before any entries in
+        ``digital_serials``.  Within priority and non-priority tiers, sort
+        order is lexicographic for determinism.  An identifier appearing
+        in both lists is deduplicated (priority wins).  Defaults to no
+        priority entries (legacy behavior — flat sorted pool).
     persist:
         When *True* (default) the result is written to
         ``DONGLE_ASSIGNMENTS_PATH``.
@@ -82,11 +96,20 @@ def allocate(
         ``traffic_pool`` – list of serial strings not pinned to control.
         ``strategy`` – ``"dedicated_control"`` | ``"all_control"`` |
         ``"single_system"`` | ``"no_systems"`` | ``"no_dongles"``.
-        ``digital_serials`` – echo of the input serials.
+        ``digital_serials`` – ordered final pool: priority entries first
+        (sorted), then non-priority entries (sorted).  Reflects what the
+        allocator actually used, not the raw input.
+        ``priority_serials`` – echo of the priority input (sorted, deduped).
         ``system_count`` – number of systems.
         ``updated_at_ms`` – epoch millis when computed.
     """
-    serials = sorted(set(s for s in digital_serials if s))
+    priority_set = {s for s in (priority_serials or []) if s}
+    regular_set = {s for s in digital_serials if s} - priority_set
+    # Priority entries assigned first, then regulars; lex sort within tier
+    # keeps determinism for a given pool composition.
+    priority_sorted = sorted(priority_set)
+    regular_sorted = sorted(regular_set)
+    serials = priority_sorted + regular_sorted
     n_dongles = len(serials)
     n_systems = len(systems)
     now_ms = int(time.time() * 1000)
@@ -160,6 +183,7 @@ def allocate(
         "traffic_pool": traffic_pool,
         "strategy": strategy,
         "digital_serials": serials,
+        "priority_serials": priority_sorted,
         "system_count": n_systems,
         "updated_at_ms": now_ms,
     }
