@@ -1,4 +1,5 @@
 import unittest
+from unittest import mock
 
 from ui import favorites_runtime
 
@@ -82,6 +83,21 @@ class FavoritesRuntimeSiteAwareTests(unittest.TestCase):
         self.assertEqual("District 3", sites[0]["site_name"])
         self.assertEqual([769831250], sites[0]["control_channels_hz"])
         self.assertEqual(["769.83125"], controls_flat)
+
+    def test_empty_digital_pool_does_not_persist_no_dongles_assignment(self):
+        pool = {"trunked_sites": [], "conventional": []}
+
+        with mock.patch.object(favorites_runtime, "allocate_dongles") as allocate_dongles:
+            result = favorites_runtime.sync_scan_pool_to_digital_runtime(
+                force=True,
+                mode="hp",
+                pool=pool,
+            )
+
+        allocate_dongles.assert_not_called()
+        self.assertTrue(result["ok"])
+        self.assertEqual("no digital targets in active scan pool", result["reason"])
+        self.assertEqual(0, result["system_count"])
 
 
 if __name__ == "__main__":

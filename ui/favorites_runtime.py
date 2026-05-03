@@ -7,7 +7,9 @@ import io
 import json
 import logging
 import os
+import re
 import shutil
+import subprocess
 import threading
 import time
 from typing import Any
@@ -78,14 +80,228 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+def _env_flag(name: str, default: str = "0") -> bool:
+    return str(os.getenv(name, default) or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _enumerated_rtl_serials() -> set[str] | None:
+    """Best-effort: serials currently visible to librtlsdr.
+
+    Used by ``_digital_serials()`` to drop configured-but-absent dongles
+    from the digital pool so the allocator never hands the OP25 / SDRTrunk
+    runtime an EEPROM serial that ``osmosdr.source('rtl=<serial>')`` would
+    fail to open.
+
+    Return values:
+
+    * ``set`` of serial strings — ``rtl_test`` ran successfully; the set
+      reflects what is currently present (may be empty if no RTL-SDR is
+      attached, in which case the caller should drop ALL configured
+      RTL serials from the pool).
+    * ``None`` — ``rtl_test`` itself failed (binary missing, timeout,
+      crash).  The caller should NOT filter, preserving the configured
+      pool as-is so digital decoding doesn't silently lose dongles on
+      hosts without the SDR tooling.
+    """
+    try:
+        result = subprocess.run(
+            ["rtl_test", "-t"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=False,
+            timeout=3,
+        )
+    except Exception:
+        logger.debug("rtl_test enumeration for digital pool filter failed", exc_info=True)
+        return None
+
+    out: set[str] = set()
+    # Format: "  0:  Realtek, RTL2832U, SN: 80000003"
+    for raw in (result.stdout or "").splitlines():
+        m = re.search(r"^\s*\d+:\s+.*SN:\s+(\S+)\s*$", raw)
+        if m:
+            out.add(m.group(1).strip())
+    return out
+
+
 def _digital_serials() -> list[str]:
-    """Collect configured digital dongle serials (primary + secondary + tertiary)."""
-    serials: list[str] = []
+    """Collect configured digital dongle serials (primary + secondary + tertiary).
+
+    Filters out serials that librtlsdr cannot currently see, so the
+    allocator never hands the runtime a dead EEPROM serial.  When
+    ``rtl_test`` itself fails (returns ``None``), the configured list is
+    returned unfiltered — better to let the allocator try a stale serial
+    than silently lose digital decoding on hosts without the SDR tooling.
+    """
+    configured: list[str] = []
+    seen: set[str] = set()
     for s in (DIGITAL_RTL_SERIAL, DIGITAL_RTL_SERIAL_SECONDARY, DIGITAL_RTL_SERIAL_TERTIARY):
         val = str(s or "").strip()
-        if val and val not in serials:
-            serials.append(val)
-    return serials
+        if val and val not in seen:
+            seen.add(val)
+            configured.append(val)
+    if not configured:
+        return configured
+
+    enumerated = _enumerated_rtl_serials()
+    if enumerated is None:
+        # Tooling failure: don't filter.
+        return configured
+
+    # rtl_test ran (possibly returning 0 devices) — filter to what's present.
+    filtered = [s for s in configured if s in enumerated]
+    dropped = [s for s in configured if s not in enumerated]
+    if dropped:
+        logger.info(
+            "Digital pool filter dropped configured-but-absent dongles: %s "
+            "(enumerated: %s)",
+            ", ".join(sorted(dropped)),
+            ", ".join(sorted(enumerated)) or "(none)",
+        )
+    return filtered
+
+
+def _rspduo_tuner_ids(*, max_tuners: int | None = None) -> list[str]:
+    """Discover RSPduo tuner identifiers available to the digital backend.
+
+    Prefer a Linux sysfs probe of the attached SDRplay USB device so we can
+    derive the canonical tuner IDs without touching the SoapySDR Python
+    bindings.  On the Micro this avoids a hanging
+    ``SoapySDR.Device.enumerate(driver=sdrplay)`` call while still yielding
+    the exact IDs consumed by OP25.  When sysfs is unavailable, fall back to
+    SoapySDR enumeration.
+
+    Returns ``"RSPduo Tuner 1 SER#<serial>"`` for each attached device
+    first. When the caller requests more control slots than there are
+    physical RSPduos, and the OP25 split-process path is enabled, the
+    corresponding ``"RSPduo Tuner 2 SER#<serial>"`` identifiers are
+    appended after all Tuner 1 entries.
+
+    The 12-bit ADC and lower noise figure make the RSPduo a higher-quality
+    control-channel receiver than the 8-bit RTL-SDRs it joins in the pool,
+    so its tuner identifiers are passed as priority entries to the allocator.
+
+    Tuner 2 is withheld unless ``OP25_RSPDUO_SPLIT_PROCESSES`` is enabled
+    because the current single-process multi_rx.py path cannot safely open
+    Master and Slave back-to-back in one process. With multiple physical
+    RSPduos we prefer independent Tuner 1 receivers across boxes before
+    reaching for any Slave tuner.
+
+    Returns an empty list when SoapySDR isn't installed, when no RSPduo
+    is attached, or on any enumeration failure — the allocator then runs
+    as a pure-RTL pool without RSPduo participation.
+    """
+    def _sysfs_text(path: str) -> str:
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as handle:
+                return handle.readline().strip()
+        except Exception:
+            return ""
+
+    def _rspduo_usb_serials() -> list[str]:
+        base = "/sys/bus/usb/devices"
+        if not os.path.isdir(base):
+            return []
+        serials: list[str] = []
+        seen: set[str] = set()
+        try:
+            entries = os.listdir(base)
+        except Exception:
+            return []
+        for entry in entries:
+            dev_dir = os.path.join(base, entry)
+            vendor = _sysfs_text(os.path.join(dev_dir, "idVendor")).lower()
+            product = _sysfs_text(os.path.join(dev_dir, "idProduct")).lower()
+            if vendor != "1df7" or product != "3020":
+                continue
+            serial = _sysfs_text(os.path.join(dev_dir, "serial")).strip().upper()
+            if not serial or serial in seen:
+                continue
+            seen.add(serial)
+            serials.append(serial)
+        return sorted(serials)
+
+    tuner_limit: int | None = None
+    if max_tuners is not None:
+        try:
+            tuner_limit = max(0, int(max_tuners))
+        except Exception:
+            tuner_limit = 1
+
+    out: list[str] = []
+    allow_dual = tuner_limit is not None and tuner_limit >= 2 and _env_flag("OP25_RSPDUO_SPLIT_PROCESSES", "1")
+
+    def _expand_rspduo_ids(serials: list[str]) -> list[str]:
+        limit = len(serials) if tuner_limit is None else tuner_limit
+        if limit <= 0:
+            return []
+        expanded: list[str] = []
+        for serial in serials:
+            expanded.append(f"RSPduo Tuner 1 SER#{serial}")
+            if len(expanded) >= limit:
+                return expanded
+        if allow_dual:
+            for serial in serials:
+                expanded.append(f"RSPduo Tuner 2 SER#{serial}")
+                if len(expanded) >= limit:
+                    return expanded
+        return expanded
+
+    sysfs_serials = _rspduo_usb_serials()
+    if sysfs_serials:
+        return _expand_rspduo_ids(sysfs_serials)
+
+    try:
+        import SoapySDR  # type: ignore[import-untyped]
+    except ImportError:
+        return out
+    try:
+        results = SoapySDR.Device.enumerate(dict(driver="sdrplay"))
+    except Exception:
+        logger.debug("SoapySDR RSPduo enumeration failed", exc_info=True)
+        return out
+
+    seen_serials: set[str] = set()
+    for kw in (results or []):
+        kvs = _parse_soapy_kwargs(kw)
+        serial = kvs.get("serial", "").strip().upper()
+        hardware = kvs.get("label") or kvs.get("hardware") or ""
+        if not serial or "RSPduo" not in hardware or serial in seen_serials:
+            continue
+        seen_serials.add(serial)
+        out.append(serial)
+    return _expand_rspduo_ids(out)
+
+
+def _parse_soapy_kwargs(kw: Any) -> dict[str, str]:
+    """Parse a SoapySDR Kwargs object into a plain dict.
+
+    SoapySDRKwargs (the SWIG-wrapped std::map<string,string>) does NOT
+    implement Python's mapping protocol fully on older bindings — no
+    ``.get()`` method, no ``in`` operator.  But ``str(kw)`` always
+    produces the canonical ``{key=value, key=value}`` format, so parse
+    that.  When ``kw`` is already a plain dict (as in the test fakes),
+    just shallow-copy it.
+    """
+    if isinstance(kw, dict):
+        return {str(k): str(v) for k, v in kw.items()}
+    text = str(kw or "").strip()
+    if text.startswith("{") and text.endswith("}"):
+        text = text[1:-1]
+    out: dict[str, str] = {}
+    for token in text.split(","):
+        token = token.strip()
+        if not token or "=" not in token:
+            continue
+        key, _, value = token.partition("=")
+        out[key.strip()] = value.strip()
+    return out
 
 
 _MANAGED_AIR_ID = "hp3_favorites_airband"
@@ -314,7 +530,7 @@ def _desired_analog_profile_for_empty_result(
 ) -> str:
     fallback_id = "none_ground" if target == "ground" else "none_airband"
     current_id = _current_profile_id_for_target(target)
-    if current_id and current_id not in {fallback_id, managed_profile_id}:
+    if current_id and current_id != fallback_id:
         return current_id
     return _select_fallback_profile(profiles, target)
 
@@ -769,22 +985,6 @@ def sync_scan_pool_to_digital_runtime(
         active_pool_entry_count = int(len(pool.get("trunked_sites") or []) + len(pool.get("conventional") or []))
         systems, talkgroups, controls_flat, counts = _normalize_digital_pool(pool)
 
-        # --- Dongle allocation: assign digital serials to system roles ---
-        try:
-            allocation = allocate_dongles(
-                _digital_serials(),
-                systems,
-                persist=True,
-            )
-            logger.info(
-                "Dongle allocation: strategy=%s assignments=%d traffic=%d",
-                allocation.get("strategy"),
-                len(allocation.get("assignments") or []),
-                len(allocation.get("traffic_pool") or []),
-            )
-        except Exception:
-            logger.error("Dongle allocation failed; proceeding without assignment", exc_info=True)
-
         signature_payload = {
             "mode": mode,
             "systems": systems,
@@ -821,6 +1021,31 @@ def sync_scan_pool_to_digital_runtime(
             _LAST_DIGITAL_SIGNATURE = signature
             _LAST_DIGITAL_RESULT = dict(result)
             return result
+
+        # --- Dongle allocation: assign digital tuners to system roles ---
+        # RSPduo tuners are passed as priority_serials so they are picked for
+        # control-channel duty ahead of RTL-SDRs (better RF performance: 12-bit
+        # vs 8-bit ADC). We expose as many RSPduo tuners as there are active
+        # systems, preferring Tuner 1 across physical boxes before any Tuner 2.
+        try:
+            rspduo_ids = _rspduo_tuner_ids(max_tuners=len(systems))
+            allocation = allocate_dongles(
+                _digital_serials(),
+                systems,
+                priority_serials=rspduo_ids,
+                persist=True,
+            )
+            logger.info(
+                "Dongle allocation: strategy=%s assignments=%d traffic=%d "
+                "rspduo_priority=%d rtl_pool=%d",
+                allocation.get("strategy"),
+                len(allocation.get("assignments") or []),
+                len(allocation.get("traffic_pool") or []),
+                len(rspduo_ids),
+                len(_digital_serials()),
+            )
+        except Exception:
+            logger.error("Dongle allocation failed; proceeding without assignment", exc_info=True)
 
         ok_profile, err_profile = _ensure_managed_digital_profile()
         if not ok_profile:
@@ -1107,7 +1332,7 @@ def sync_scan_pool_to_analog_runtime(
 
 
 def get_last_favorites_runtime_sync() -> dict[str, Any]:
-    with _SYNC_LOCK:
+    if not _SYNC_LOCK.acquire(blocking=False):
         analog = dict(_LAST_RESULT)
         digital = dict(_LAST_DIGITAL_RESULT)
         payload = {
@@ -1115,6 +1340,22 @@ def get_last_favorites_runtime_sync() -> dict[str, Any]:
             "changed": bool(analog.get("changed", False)) or bool(digital.get("changed", False)),
             "analog": analog,
             "digital": digital,
+            "sync_in_progress": True,
         }
         payload.update(analog)
         return payload
+
+    try:
+        analog = dict(_LAST_RESULT)
+        digital = dict(_LAST_DIGITAL_RESULT)
+        payload = {
+            "ok": bool(analog.get("ok", True)) and bool(digital.get("ok", True)),
+            "changed": bool(analog.get("changed", False)) or bool(digital.get("changed", False)),
+            "analog": analog,
+            "digital": digital,
+            "sync_in_progress": False,
+        }
+        payload.update(analog)
+        return payload
+    finally:
+        _SYNC_LOCK.release()

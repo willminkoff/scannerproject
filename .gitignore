@@ -22,3 +22,21 @@ icecast/icecast.xml
 __pycache__/
 *.py[cod]
 *.pyo
+
+# pre-edit backup files (safety snapshots, not for git)
+*.pre-*
+
+# macOS resource forks
+._*
+
+# codex/agent backup directories
+.codex-backups/
+
+# runtime / data directories
+/runtime/
+/data/
+
+# local databases
+*.db
+*.db-shm
+*.db-wal

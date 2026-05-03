@@ -16,6 +16,7 @@ import logging
 import os
 import re
 import subprocess
+import tempfile
 import threading
 import time
 import urllib.error
@@ -44,7 +45,7 @@ try:
         OP25_STATUS_PORT,
     )
     from .dongle_allocator import load_assignments
-    from .systemd import unit_active
+    from .systemd import restart_digital, unit_active
 except ImportError:
     from ui.config import (  # type: ignore[no-redef]
         DIGITAL_ACTIVE_PROFILE_LINK,
@@ -67,7 +68,7 @@ except ImportError:
         OP25_STATUS_PORT,
     )
     from ui.dongle_allocator import load_assignments  # type: ignore[no-redef]
-    from ui.systemd import unit_active  # type: ignore[no-redef]
+    from ui.systemd import restart_digital, unit_active  # type: ignore[no-redef]
 
 # Late import to avoid circular dependency — digital.py defines the base classes.
 try:
@@ -110,6 +111,174 @@ _RE_CC_STATUS = re.compile(
     re.IGNORECASE,
 )
 _RE_ROOT_TSBKS = re.compile(r"\btsbks\s+(\d+)\b", re.IGNORECASE)
+
+# RSPduo Master/Slave dual-tuner mode constrains the SoapySDRPlay3 driver
+# to a small set of sample rates (max 2 MSps).  When the gr-osmosdr device
+# args put the RSPduo in MA or SL mode, override the per-device rate to a
+# valid value so the driver doesn't silently snap and produce garbage.
+RSPDUO_DT_SAMPLE_RATE = 2_000_000
+
+
+def _device_sample_rate_for_args(args: str, default_rate: int) -> int:
+    """Pick a per-device sample rate compatible with the device's mode.
+
+    RSPduo Single Tuner mode (mode=ST) and all non-RSPduo devices use the
+    caller-supplied default.  RSPduo Master (mode=MA) or Slave (mode=SL)
+    forces the rate to ``RSPDUO_DT_SAMPLE_RATE``.
+
+    Match is on whole-token substrings so we don't false-positive on
+    other args containing ``MA`` or ``SL``.
+    """
+    if "mode=MA" in args or "mode=SL" in args:
+        return RSPDUO_DT_SAMPLE_RATE
+    return default_rate
+
+
+# RTL-SDR's gr-osmosdr backend exposes a single ``LNA`` gain element
+# (0-49 dB).  SoapySDRPlay3 (used for RSPduo) does NOT expose ``LNA`` —
+# its gain elements are ``IFGR`` (IF gain reduction, 20-59 dB; lower=more
+# IF gain) and ``RFGR`` (RF gain reduction step, 0-9 on UHF; lower=more
+# LNA gain).  Setting ``gains: "LNA:36"`` on a SDRplay device causes
+# ``osmo_src.set_gain(36, "LNA")`` to silently no-op because no element
+# by that name exists, leaving the device pinned at its driver-default
+# AGC setpoint — usually too low to recover a distant P25 control
+# channel.
+_DEFAULT_GAINS_RTL = "LNA:36"
+_DEFAULT_GAINS_SDRPLAY = "IFGR:40,RFGR:0"
+
+
+def _is_sdrplay_args(args: str) -> bool:
+    """Return True if *args* describes a SoapySDRPlay3 (RSPduo) source."""
+    return "driver=sdrplay" in str(args or "").lower()
+
+
+def _default_gains_for_args(args: str) -> str:
+    """Pick a sensible default ``gains`` string for the given device args.
+
+    See module-level note on ``_DEFAULT_GAINS_*``.  Returns the SDRplay
+    default for ``soapy=,driver=sdrplay,...`` args; otherwise the
+    legacy RTL-SDR default.  Per-system override via
+    ``op25_system_config.json`` -> ``gains`` still wins when present.
+    """
+    if _is_sdrplay_args(args):
+        return _DEFAULT_GAINS_SDRPLAY
+    return _DEFAULT_GAINS_RTL
+
+
+def _default_gain_mode_for_args(args: str) -> bool:
+    """Pick a sensible ``gain_mode`` (AGC enable) per device backend.
+
+    On SoapySDRPlay3 the driver-side IF AGC interacts unpredictably with
+    manually-set IFGR — turning AGC on top of a manual IFGR setpoint
+    causes the driver to override the user value at runtime.  For
+    deterministic gain we disable ``gain_mode`` whenever the device is
+    SDRplay so the IFGR/RFGR elements take effect verbatim.  RTL-SDR's
+    osmosdr AGC implementation cooperates with manual LNA gain, so we
+    leave it on for backwards compatibility.
+    """
+    return not _is_sdrplay_args(args)
+
+
+# Gain element names recognised per backend.  Anything outside these sets
+# is silently no-op'd by the underlying source plugin, leaving the device
+# pinned at its driver default (the bug ``_resolve_gains_for_args``
+# protects against).
+_VALID_GAIN_ELEMENTS_RTL = frozenset({"LNA", "TUNER", "IF"})
+_VALID_GAIN_ELEMENTS_SDRPLAY = frozenset({"IFGR", "RFGR"})
+
+
+def _valid_gain_elements_for_args(args: str) -> frozenset[str]:
+    """Return the set of gain-element names valid for the given device args."""
+    if _is_sdrplay_args(args):
+        return _VALID_GAIN_ELEMENTS_SDRPLAY
+    return _VALID_GAIN_ELEMENTS_RTL
+
+
+def _resolve_gains_for_args(args: str, override: str | None) -> str:
+    """Resolve the multi_rx ``gains`` string for *args*, honouring *override*.
+
+    If *override* is empty/None, return the backend-appropriate default.
+    Otherwise, parse the override into ``Name:Value`` parts and keep only
+    those whose ``Name`` is recognised by the device's backend (e.g.
+    ``LNA`` is kept for RTL but dropped for SDRplay).  If *all* parts are
+    dropped (legacy RTL-only profile pointing at an SDRplay device, e.g.
+    ``"LNA:42"`` post-RSPduo migration), fall back to the default and log
+    a warning so the operator sees that the override didn't apply.
+
+    This protects against the silent-no-op trap where a profile carries
+    ``"gains": "LNA:42"`` after the dongle behind a system migrated from
+    RTL-SDR to RSPduo: SoapySDRPlay3 has no element named ``LNA``, so
+    ``set_gain(42, "LNA")`` does nothing, and the device falls to its
+    driver default — typically too low to recover a distant control
+    channel.
+    """
+    default = _default_gains_for_args(args)
+    text = str(override or "").strip()
+    if not text:
+        return default
+    valid = _valid_gain_elements_for_args(args)
+    kept: list[str] = []
+    dropped: list[str] = []
+    for raw in text.split(","):
+        part = raw.strip()
+        if not part or ":" not in part:
+            continue
+        name_raw, _, value = part.partition(":")
+        name = name_raw.strip().upper()
+        value = value.strip()
+        if name in valid:
+            # Normalise to canonical uppercase: gr-osmosdr / Soapy gain
+            # element lookup is case-sensitive, so ``ifgr:25`` would
+            # silently no-op the same way ``LNA:36`` does on SDRplay.
+            kept.append(f"{name}:{value}")
+        else:
+            dropped.append(part)
+    if not kept:
+        logger.warning(
+            "op25 gains override %r drops every element on this backend "
+            "(args=%r, valid=%s); using default %r instead",
+            text, args, sorted(valid), default,
+        )
+        return default
+    if dropped:
+        logger.warning(
+            "op25 gains override %r contains elements unknown to backend "
+            "(args=%r); dropping %s, keeping %s",
+            text, args, dropped, kept,
+        )
+    return ",".join(kept)
+
+
+def _resolve_gain_mode_for_args(args: str, override: bool | None) -> bool:
+    """Resolve ``gain_mode`` for *args*, honouring an explicit override.
+
+    Per-system overrides win when present.  Otherwise pick the
+    backend-appropriate default (``False`` for SDRplay so manual IFGR
+    sticks; ``True`` for RTL-SDR).
+    """
+    if override is not None:
+        return bool(override)
+    return _default_gain_mode_for_args(args)
+
+
+def _master_first_device_order_key(device: dict) -> int:
+    """Sort key that pulls RSPduo Master entries to the front of the device list.
+
+    SoapySDRPlay3 requires that any RSPduo opened with ``mode=MA`` is
+    initialised before its companion ``mode=SL``.  multi_rx.py opens
+    devices in JSON list order, so the device list must order Master
+    before Slave.  Other devices (RTL-SDR, RSPduo ST, etc.) keep their
+    relative position via Python's stable sort.
+
+    Returns 0 for Master, 2 for Slave, 1 for everything else.
+    """
+    args = str(device.get("args") or "")
+    if "mode=MA" in args:
+        return 0
+    if "mode=SL" in args:
+        return 2
+    return 1
+
 
 _OP25_ROOT_ACTIVITY_MAX_AGE_SEC = 15.0
 _OP25_SITE_SELECTOR_STATE = "site_selector_state.json"
@@ -320,6 +489,17 @@ def _normalize_site_policy(raw_policy: Any, site_ids: set[str]) -> tuple[dict[st
 
 
 def _selector_state_path(runtime_dir: str) -> str:
+    override_path = str(os.getenv("OP25_SITE_SELECTOR_STATE_PATH") or "").strip()
+    if override_path:
+        return override_path
+    override_dir = str(os.getenv("OP25_SITE_SELECTOR_STATE_DIR") or "").strip()
+    if override_dir:
+        return os.path.join(override_dir, _OP25_SITE_SELECTOR_STATE)
+    runtime_real = os.path.realpath(str(runtime_dir or "").strip() or ".")
+    if runtime_real.startswith("/run/"):
+        home = os.path.expanduser("~")
+        if home and home != "~":
+            return os.path.join(home, ".local", "state", "scannerproject", "op25", _OP25_SITE_SELECTOR_STATE)
     return os.path.join(runtime_dir, _OP25_SITE_SELECTOR_STATE)
 
 
@@ -341,13 +521,30 @@ def _load_selector_state(runtime_dir: str) -> dict[str, Any]:
 
 
 def _save_selector_state(runtime_dir: str, payload: dict[str, Any]) -> None:
-    os.makedirs(runtime_dir, exist_ok=True)
     path = _selector_state_path(runtime_dir)
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2, sort_keys=True)
-        f.write("\n")
-    os.replace(tmp, path)
+    parent = os.path.dirname(path) or "."
+    os.makedirs(parent, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(
+        prefix=".site-selector-state-",
+        suffix=".tmp",
+        dir=parent,
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, sort_keys=True)
+            f.write("\n")
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def _same_site_restart_enabled() -> bool:
+    value = str(os.getenv("OP25_SITE_SELECTOR_SAME_SITE_RESTART", "1") or "").strip().lower()
+    return value not in {"0", "false", "no", "off"}
 
 
 def _state_system_key(profile_id: str, system_name: str) -> str:
@@ -501,10 +698,31 @@ def _canonical_site_order(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     )
 
 
+def _ordered_control_channels_for_state(
+    raw_channels: list[Any],
+    selected_control_hz: int,
+) -> list[int]:
+    channels: list[int] = []
+    seen: set[int] = set()
+    for value in raw_channels or []:
+        try:
+            hz = int(value)
+        except Exception:
+            continue
+        if hz <= 0 or hz in seen:
+            continue
+        seen.add(hz)
+        channels.append(hz)
+    if selected_control_hz > 0 and selected_control_hz in channels:
+        return [selected_control_hz] + [hz for hz in channels if hz != selected_control_hz]
+    return channels
+
+
 def _initial_selector_system_state(system: dict[str, Any]) -> dict[str, Any]:
     return {
         "selected_site_id": "",
         "selected_site_name": "",
+        "selected_control_frequency_hz": 0,
         "selection_mode": "legacy",
         "reason_code": "",
         "reason_text": "",
@@ -624,8 +842,16 @@ def _hydrate_runtime_systems_for_config(
         if not str(sys_state.get("current_site_since") or "").strip():
             sys_state["current_site_since"] = str(sys_state.get("last_switch_time") or _iso_utc())
             changed = True
+        ordered_channels = _ordered_control_channels_for_state(
+            list(selected_site.get("control_channels_hz") or []),
+            int(sys_state.get("selected_control_frequency_hz") or 0),
+        )
+        selected_control_hz = ordered_channels[0] if ordered_channels else 0
+        if int(sys_state.get("selected_control_frequency_hz") or 0) != selected_control_hz:
+            sys_state["selected_control_frequency_hz"] = selected_control_hz
+            changed = True
         system["active_site_id"] = selected_site_id
-        system["active_control_channels_hz"] = list(selected_site.get("control_channels_hz") or [])
+        system["active_control_channels_hz"] = ordered_channels
         if not system["active_control_channels_hz"]:
             sys_state["reason_code"] = "no_valid_site"
             sys_state["reason_text"] = "Selected site has no control channels"
@@ -638,17 +864,16 @@ def _hydrate_runtime_systems_for_config(
 def _flatten_active_runtime_systems(runtime_systems: list[dict[str, Any]]) -> list[dict[str, Any]]:
     systems: list[dict[str, Any]] = []
     for system in runtime_systems:
-        channels = [
-            int(hz)
-            for hz in (system.get("active_control_channels_hz") or [])
-            if isinstance(hz, int) or str(hz).isdigit()
-        ]
+        channels = _ordered_control_channels_for_state(
+            list(system.get("active_control_channels_hz") or []),
+            0,
+        )
         if not channels:
             continue
         systems.append(
             {
                 "name": str(system.get("name") or ""),
-                "control_channels_hz": sorted(channels),
+                "control_channels_hz": channels,
             }
         )
     return systems
@@ -996,18 +1221,20 @@ def generate_multi_rx_config(
         modulation = str(sys_over.get("modulation", OP25_DEFAULT_MODULATION)).strip().lower()
         nac = str(sys_over.get("nac", "0")).strip()
         center_hz = int(cc_hz[0])
-        dev_gains = str(sys_over.get("gains", "LNA:36")).strip() or "LNA:36"
 
         dev_name = f"sdr{idx}"
+        dev_args = str(arg_map.get(serial) or f"rtl={serial}")
+        dev_gains = _resolve_gains_for_args(dev_args, sys_over.get("gains"))
+        dev_gain_mode = _resolve_gain_mode_for_args(dev_args, sys_over.get("gain_mode"))
         devices.append({
             "name": dev_name,
-            "args": str(arg_map.get(serial) or f"rtl={serial}"),
-            "rate": sample_rate,
+            "args": dev_args,
+            "rate": _device_sample_rate_for_args(dev_args, sample_rate),
             "frequency": center_hz,
             "offset": offset,
             "ppm": 0.0,
             "gains": dev_gains,
-            "gain_mode": True,
+            "gain_mode": dev_gain_mode,
             "tunable": True,
         })
 
@@ -1052,16 +1279,22 @@ def generate_multi_rx_config(
                     break
             if target_cc_hz:
                 traffic_sys_over = overrides.get(target_sys) or {}
-                traffic_gains = str(traffic_sys_over.get("gains", "LNA:36")).strip() or "LNA:36"
+                traffic_args = str(arg_map.get(traffic_dongle_serial) or f"rtl={traffic_dongle_serial}")
+                traffic_gains = _resolve_gains_for_args(
+                    traffic_args, traffic_sys_over.get("gains")
+                )
+                traffic_gain_mode = _resolve_gain_mode_for_args(
+                    traffic_args, traffic_sys_over.get("gain_mode")
+                )
                 devices.append({
                     "name": "sdr_traffic",
-                    "args": str(arg_map.get(traffic_dongle_serial) or f"rtl={traffic_dongle_serial}"),
-                    "rate": sample_rate,
+                    "args": traffic_args,
+                    "rate": _device_sample_rate_for_args(traffic_args, sample_rate),
                     "frequency": target_cc_hz,
                     "offset": offset,
                     "ppm": 0.0,
                     "gains": traffic_gains,
-                    "gain_mode": True,
+                    "gain_mode": traffic_gain_mode,
                     "tunable": True,
                 })
                 udp_port = udp_audio_base_port + udp_port_idx * 2
@@ -1099,16 +1332,22 @@ def generate_multi_rx_config(
                     break
             if target_cc_hz_2:
                 traffic_sys_over_2 = overrides.get(target_sys_2) or {}
-                traffic_gains_2 = str(traffic_sys_over_2.get("gains", "LNA:36")).strip() or "LNA:36"
+                traffic2_args = str(arg_map.get(traffic_dongle_serial_2) or f"rtl={traffic_dongle_serial_2}")
+                traffic_gains_2 = _resolve_gains_for_args(
+                    traffic2_args, traffic_sys_over_2.get("gains")
+                )
+                traffic_gain_mode_2 = _resolve_gain_mode_for_args(
+                    traffic2_args, traffic_sys_over_2.get("gain_mode")
+                )
                 devices.append({
                     "name": "sdr_traffic2",
-                    "args": str(arg_map.get(traffic_dongle_serial_2) or f"rtl={traffic_dongle_serial_2}"),
-                    "rate": sample_rate,
+                    "args": traffic2_args,
+                    "rate": _device_sample_rate_for_args(traffic2_args, sample_rate),
                     "frequency": target_cc_hz_2,
                     "offset": offset,
                     "ppm": 0.0,
                     "gains": traffic_gains_2,
-                    "gain_mode": True,
+                    "gain_mode": traffic_gain_mode_2,
                     "tunable": True,
                 })
                 udp_port = udp_audio_base_port + udp_port_idx * 2
@@ -1134,6 +1373,10 @@ def generate_multi_rx_config(
                     "no control channel found for system=%s",
                     traffic_dongle_serial_2, target_sys_2,
                 )
+
+    # Reorder devices so any RSPduo Master precedes its Slave (and any other
+    # device).  Channels reference devices by ``name`` so this is safe.
+    devices.sort(key=_master_first_device_order_key)
 
     return {
         "devices": devices,
@@ -1197,6 +1440,7 @@ class Op25Adapter(_BaseDigitalAdapter):
         self._last_status: dict = {}
         self._last_status_time = 0.0
         self._status_cache_ttl = 1.5
+        self._status_get_failed_ports: set[int] = set()
         # Active systems
         self._active_systems: list[dict] = []
         self._runtime_metrics_data: dict = {
@@ -1271,7 +1515,10 @@ class Op25Adapter(_BaseDigitalAdapter):
         return True, ""
 
     def restart(self):
-        ok, err = self._systemctl(["restart"])
+        if not validate_digital_service_name(self._service_name):
+            self._set_last_error("invalid OP25 service name")
+            return False, self._last_error
+        ok, err = restart_digital(self._service_name)
         if not ok:
             self._set_last_error(err or "restart failed")
             return False, self._last_error
@@ -1634,11 +1881,41 @@ class Op25Adapter(_BaseDigitalAdapter):
     # Health / preflight
     # ------------------------------------------------------------------
 
-    def _request_json(self, path: str, *, method: str = "GET", payload=None):
+    def _load_instance_manifest(self) -> list[dict[str, Any]]:
+        path = os.path.join(self._runtime_dir, "instances.json")
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as handle:
+                payload = json.load(handle)
+        except Exception:
+            return []
+        if isinstance(payload, list):
+            return [entry for entry in payload if isinstance(entry, dict)]
+        if isinstance(payload, dict):
+            channels = payload.get("channels")
+            if isinstance(channels, list):
+                return [entry for entry in channels if isinstance(entry, dict)]
+        return []
+
+    def _status_ports_from_manifest(self) -> list[int]:
+        ports: list[int] = []
+        seen: set[int] = set()
+        for entry in self._load_instance_manifest():
+            try:
+                port = int(entry.get("http_status_port") or 0)
+            except Exception:
+                port = 0
+            if port <= 0 or port in seen:
+                continue
+            seen.add(port)
+            ports.append(port)
+        return ports
+
+    def _request_json(self, path: str, *, method: str = "GET", payload=None, port: int | None = None):
         route = str(path or "/").strip()
         if not route.startswith("/"):
             route = f"/{route}"
-        url = f"http://{self._status_host}:{self._status_port}{route}"
+        target_port = int(port or self._status_port)
+        url = f"http://{self._status_host}:{target_port}{route}"
         try:
             body = None
             headers = {}
@@ -1795,13 +2072,88 @@ class Op25Adapter(_BaseDigitalAdapter):
             status[json_type] = dict(item)
         return status
 
-    def _fetch_json(self, path: str) -> dict:
-        data = self._request_json(path, method="GET")
+    @classmethod
+    def _merge_instance_statuses(cls, statuses: list[tuple[int, dict]]) -> dict:
+        valid = [
+            (int(port), dict(status))
+            for port, status in statuses
+            if isinstance(status, dict) and status
+        ]
+        if not valid:
+            return {}
+        if len(valid) == 1:
+            merged = dict(valid[0][1])
+            merged["op25_instance_ports"] = [valid[0][0]]
+            return merged
+
+        trunk_systems: dict[str, dict[str, Any]] = {}
+        channel_update: dict[str, dict[str, Any]] = {}
+        call_log: list[dict[str, Any]] = []
+        locked = False
+        control_decode_available = False
+        decode_rate = 0.0
+        ber_values: list[float] = []
+
+        for port, status in valid:
+            if bool(status.get("locked") or status.get("control_channel_locked")) or cls._root_control_channel_locked(status):
+                locked = True
+            if bool(status.get("control_decode_available")) or cls._root_trunk_decode_available(status):
+                control_decode_available = True
+            try:
+                decode_rate += float(status.get("decode_rate", 0) or 0)
+            except Exception:
+                pass
+            try:
+                ber_values.append(float(status.get("ber", 0) or 0))
+            except Exception:
+                pass
+
+            for idx, row in enumerate(cls._iter_trunk_system_rows(status)):
+                if not isinstance(row, dict):
+                    continue
+                system_name = str(row.get("system") or row.get("sysname") or "").strip()
+                key = system_name or f"{port}:{idx}"
+                trunk_systems[key] = dict(row)
+
+            for idx, row in enumerate(cls._iter_channel_rows(status)):
+                if not isinstance(row, dict):
+                    continue
+                channel_update[f"{port}:{idx}"] = dict(row)
+
+            for row in status.get("call_log") or []:
+                if isinstance(row, dict):
+                    call_log.append(dict(row))
+
+        merged: dict[str, Any] = {
+            "locked": locked,
+            "control_channel_locked": locked,
+            "control_decode_available": control_decode_available,
+            "decode_rate": decode_rate,
+            "ber": max(ber_values) if ber_values else 0.0,
+            "op25_instance_ports": [port for port, _status in valid],
+        }
+        if trunk_systems:
+            merged["trunk_update"] = {
+                "json_type": "trunk_update",
+                "systems": trunk_systems,
+            }
+        if channel_update:
+            merged["channel_update"] = channel_update
+        if call_log:
+            try:
+                call_log.sort(key=lambda row: float(row.get("time") or 0.0))
+            except Exception:
+                pass
+            merged["call_log"] = call_log
+        return merged
+
+    def _fetch_json(self, path: str, *, port: int | None = None) -> dict:
+        data = self._request_json(path, method="GET", port=port)
         return data if isinstance(data, dict) else {}
 
-    def _fetch_update_json(self) -> dict:
+    def _fetch_update_json(self, *, port: int | None = None) -> dict:
         payload = [{"command": "update", "arg1": 0, "arg2": 0}]
-        data = self._request_json("/", method="POST", payload=payload)
+        data = self._request_json("/", method="POST", payload=payload, port=port)
         return self._normalize_update_payload(data)
 
     @staticmethod
@@ -1947,18 +2299,22 @@ class Op25Adapter(_BaseDigitalAdapter):
         now = time.monotonic()
         if (now - self._last_status_time) < self._status_cache_ttl and self._last_status:
             return dict(self._last_status)
-        data: dict = {}
-        # Always try POST first (works on boatbod and modern OP25)
-        update_data = self._fetch_update_json()
-        if update_data and not self._status_needs_root_fallback(update_data):
-            data = update_data
-        elif not getattr(self, "_status_get_failed", False):
-            # First-time fallback to legacy GET /status
-            legacy = self._fetch_json("/status")
-            if legacy and not self._status_needs_root_fallback(legacy):
-                data = legacy
-            else:
-                self._status_get_failed = True
+        ports = self._status_ports_from_manifest() or [self._status_port]
+        instance_statuses: list[tuple[int, dict]] = []
+        for port in ports:
+            data: dict = {}
+            update_data = self._fetch_update_json(port=port)
+            if update_data and not self._status_needs_root_fallback(update_data):
+                data = update_data
+            elif port not in self._status_get_failed_ports:
+                legacy = self._fetch_json("/status", port=port)
+                if legacy and not self._status_needs_root_fallback(legacy):
+                    data = legacy
+                else:
+                    self._status_get_failed_ports.add(port)
+            if data:
+                instance_statuses.append((port, data))
+        data = self._merge_instance_statuses(instance_statuses)
         if data:
             self._last_status = data
             self._last_status_time = now
@@ -2279,6 +2635,14 @@ class Op25Adapter(_BaseDigitalAdapter):
             sys_state["_stale_window_times_ms"] = stale_times
             sys_state["stale_window_count"] = len(stale_times)
             if len(stale_times) >= 6:
+                if not _same_site_restart_enabled():
+                    return ({
+                        "action": "stay",
+                        "site_id": selected_site_id,
+                        "selection_mode": str(sys_state.get("selection_mode") or "auto"),
+                        "reason_code": "stay_same_site_restart_disabled",
+                        "reason_text": "Current site unhealthy, no alternate is available, and same-site restart is disabled",
+                    }, sys_state)
                 return ({
                     "action": "same_site_restart",
                     "site_id": selected_site_id,
@@ -2538,12 +2902,18 @@ class Op25Adapter(_BaseDigitalAdapter):
         state = _load_selector_state(self._runtime_dir)
         systems_state = state.setdefault("systems", {})
         profile_id = os.path.basename(profile_dir.rstrip(os.sep))
+        runtime_system_defs = _normalize_runtime_system_definitions(
+            profile_dir,
+            op25_overrides=_read_op25_system_config(profile_dir),
+        )
         runtime_policies = {
             str(system.get("name") or "").strip(): (system.get("site_policy") or {})
-            for system in _normalize_runtime_system_definitions(
-                profile_dir,
-                op25_overrides=_read_op25_system_config(profile_dir),
-            )
+            for system in runtime_system_defs
+        }
+        runtime_system_map = {
+            str(system.get("name") or "").strip(): system
+            for system in runtime_system_defs
+            if str(system.get("name") or "").strip()
         }
         eligible_requests: list[tuple[dict[str, Any], str, dict[str, Any]]] = []
         for request in restart_requests:
@@ -2576,6 +2946,50 @@ class Op25Adapter(_BaseDigitalAdapter):
 
         if not eligible_requests:
             return
+
+        for request, _key, sys_state in eligible_requests:
+            if str(request.get("type") or "") != "same_site_restart":
+                continue
+            system_name = str(request.get("system_name") or "").strip()
+            system_def = runtime_system_map.get(system_name) or {}
+            selected_site_id = str(
+                request.get("selected_site_id")
+                or sys_state.get("selected_site_id")
+                or ""
+            ).strip()
+            if not selected_site_id:
+                continue
+            selected_site = next(
+                (
+                    site
+                    for site in (system_def.get("sites") or [])
+                    if str(site.get("site_id") or "").strip() == selected_site_id
+                ),
+                None,
+            )
+            if not isinstance(selected_site, dict):
+                continue
+            channels = _ordered_control_channels_for_state(
+                list(selected_site.get("control_channels_hz") or []),
+                0,
+            )
+            if len(channels) <= 1:
+                continue
+            current_hz = int(sys_state.get("selected_control_frequency_hz") or 0)
+            try:
+                current_idx = channels.index(current_hz)
+            except ValueError:
+                current_idx = -1
+            next_hz = channels[(current_idx + 1) % len(channels)]
+            if next_hz <= 0 or next_hz == current_hz:
+                continue
+            sys_state["selected_control_frequency_hz"] = next_hz
+            request["previous_control_frequency_hz"] = current_hz
+            request["selected_control_frequency_hz"] = next_hz
+            request["reason_text"] = (
+                f"{str(request.get('reason_text') or '').strip()} "
+                f"(rotating control to {next_hz / 1_000_000:.5f} MHz)"
+            ).strip()
 
         _save_selector_state(self._runtime_dir, state)
         ok, err = self._regenerate_runtime_via_script()

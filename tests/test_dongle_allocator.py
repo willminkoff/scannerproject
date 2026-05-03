@@ -143,6 +143,136 @@ class TestAllocate(unittest.TestCase):
         )
 
 
+class TestPriorityPool(unittest.TestCase):
+    """Priority tier (e.g. RSPduo) gets control assignment ahead of regulars."""
+
+    def test_priority_serials_ignored_when_none(self):
+        """priority_serials=None preserves legacy behavior."""
+        result = allocate(
+            ["00000001", "14306619"],
+            [_sys("A", "851.0")],
+            persist=False,
+        )
+        # First sorted regular gets control; identical to before.
+        self.assertEqual(result["assignments"][0]["preferred_tuner_serial"], "00000001")
+        self.assertEqual(result["traffic_pool"], ["14306619"])
+        self.assertEqual(result["priority_serials"], [])
+
+    def test_priority_assigned_first_for_control(self):
+        """RSPduo (priority) gets control even when its lex-sort key beats the RTLs'."""
+        # Lexicographically "RSPduo Tuner 1..." > "70613472" > "80000003",
+        # so without priority handling the RTLs would win. Priority must override.
+        result = allocate(
+            ["70613472", "80000003"],
+            [_sys("MTRTRS", "851.0")],
+            priority_serials=["RSPduo Tuner 1 SER#180903EF32"],
+            persist=False,
+        )
+        self.assertEqual(result["strategy"], "single_system")
+        self.assertEqual(
+            result["assignments"][0]["preferred_tuner_serial"],
+            "RSPduo Tuner 1 SER#180903EF32",
+        )
+        # The RTLs land in the traffic pool.
+        self.assertEqual(sorted(result["traffic_pool"]), ["70613472", "80000003"])
+        self.assertEqual(
+            result["priority_serials"], ["RSPduo Tuner 1 SER#180903EF32"]
+        )
+
+    def test_priority_pair_assigned_to_two_systems(self):
+        """Two RSPduo tuners take control on two systems, RTLs go to traffic."""
+        result = allocate(
+            ["70613472", "80000003"],
+            [_sys("MTRTRS", "851.0"), _sys("davidson-services", "856.0")],
+            priority_serials=[
+                "RSPduo Tuner 1 SER#180903EF32",
+                "RSPduo Tuner 2 SER#180903EF32",
+            ],
+            persist=False,
+        )
+        self.assertEqual(result["strategy"], "dedicated_control")
+        # Both RSPduo tuners on control, in lex order (Tuner 1 then Tuner 2).
+        self.assertEqual(
+            result["assignments"][0]["preferred_tuner_serial"],
+            "RSPduo Tuner 1 SER#180903EF32",
+        )
+        self.assertEqual(
+            result["assignments"][1]["preferred_tuner_serial"],
+            "RSPduo Tuner 2 SER#180903EF32",
+        )
+        self.assertEqual(sorted(result["traffic_pool"]), ["70613472", "80000003"])
+
+    def test_priority_dedup_against_regular(self):
+        """An identifier listed in both priority and regular is treated as priority."""
+        result = allocate(
+            ["RSPduo Tuner 1 SER#180903EF32", "70613472"],
+            [_sys("MTRTRS", "851.0")],
+            priority_serials=["RSPduo Tuner 1 SER#180903EF32"],
+            persist=False,
+        )
+        # Pool size is 2 (deduped), with RSPduo as priority.
+        self.assertEqual(len(result["digital_serials"]), 2)
+        self.assertEqual(
+            result["digital_serials"][0],
+            "RSPduo Tuner 1 SER#180903EF32",
+        )
+        self.assertEqual(
+            result["assignments"][0]["preferred_tuner_serial"],
+            "RSPduo Tuner 1 SER#180903EF32",
+        )
+        self.assertEqual(result["traffic_pool"], ["70613472"])
+
+    def test_three_systems_two_priority_one_regular(self):
+        """3 systems, 2 RSPduo + 1 RTL -> all_control with RSPduo first, RTL last."""
+        result = allocate(
+            ["70613472"],
+            [
+                _sys("MTRTRS", "851.0"),
+                _sys("davidson-services", "856.0"),
+                _sys("Vanderbilt", "769.0"),
+            ],
+            priority_serials=[
+                "RSPduo Tuner 1 SER#180903EF32",
+                "RSPduo Tuner 2 SER#180903EF32",
+            ],
+            persist=False,
+        )
+        self.assertEqual(result["strategy"], "all_control")
+        self.assertEqual(
+            result["assignments"][0]["preferred_tuner_serial"],
+            "RSPduo Tuner 1 SER#180903EF32",
+        )
+        self.assertEqual(
+            result["assignments"][1]["preferred_tuner_serial"],
+            "RSPduo Tuner 2 SER#180903EF32",
+        )
+        # Lone RTL takes the third system's control.
+        self.assertEqual(
+            result["assignments"][2]["preferred_tuner_serial"], "70613472"
+        )
+        self.assertEqual(result["traffic_pool"], [])
+
+    def test_priority_only_pool(self):
+        """No regulars, just RSPduo tuners."""
+        result = allocate(
+            [],
+            [_sys("MTRTRS", "851.0")],
+            priority_serials=[
+                "RSPduo Tuner 1 SER#180903EF32",
+                "RSPduo Tuner 2 SER#180903EF32",
+            ],
+            persist=False,
+        )
+        self.assertEqual(result["strategy"], "single_system")
+        self.assertEqual(
+            result["assignments"][0]["preferred_tuner_serial"],
+            "RSPduo Tuner 1 SER#180903EF32",
+        )
+        self.assertEqual(
+            result["traffic_pool"], ["RSPduo Tuner 2 SER#180903EF32"]
+        )
+
+
 class TestPersistAndLoad(unittest.TestCase):
     """Round-trip through disk."""
 

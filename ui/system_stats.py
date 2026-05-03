@@ -12,8 +12,10 @@ import threading
 
 try:
     from .config import BT_HEAL_DEFAULT_ENABLED, BT_HEAL_SERVICE_UNIT, BT_HEAL_TIMER_UNIT
+    from .dongle_allocator import assigned_digital_rtl_serials, assigned_digital_tuner_ids, load_assignments
 except ImportError:
     from ui.config import BT_HEAL_DEFAULT_ENABLED, BT_HEAL_SERVICE_UNIT, BT_HEAL_TIMER_UNIT
+    from ui.dongle_allocator import assigned_digital_rtl_serials, assigned_digital_tuner_ids, load_assignments
 
 logger = logging.getLogger(__name__)
 
@@ -282,17 +284,33 @@ def _read_ambient_temp_with_source() -> tuple[float | None, str]:
 
 def _expected_rtl_serials():
     serials = []
+
+    assignments_payload = load_assignments()
+    assigned_targets = assigned_digital_tuner_ids(assignments_payload)
+    assigned_digital_serials = assigned_digital_rtl_serials(assignments_payload)
+
     for key in (
         "AIRBAND_RTL_SERIAL",
         "GROUND_RTL_SERIAL",
+        "VDL2_RTL_SERIAL",
+    ):
+        value = str(os.getenv(key, "") or "").strip()
+        if value and value not in serials:
+            serials.append(value)
+
+    digital_serial_keys = (
         "DIGITAL_RTL_SERIAL",
         "DIGITAL_RTL_SERIAL_SECONDARY",
         "DIGITAL_RTL_SERIAL_2",
         "DIGITAL_RTL_SERIAL_TERTIARY",
         "DIGITAL_RTL_SERIAL_3",
         "VDL2_RTL_SERIAL",
-    ):
-        value = str(os.getenv(key, "") or "").strip()
+    )
+    digital_source = assigned_digital_serials if assigned_targets else [
+        str(os.getenv(key, "") or "").strip()
+        for key in digital_serial_keys
+    ]
+    for value in digital_source:
         if value and value not in serials:
             serials.append(value)
     return serials

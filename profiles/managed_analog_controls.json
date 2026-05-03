@@ -1,0 +1,25 @@
+{
+  "targets": {
+    "airband": {
+      "override": {
+        "gain": 25.4,
+        "squelch_dbfs": -45.0,
+        "squelch_mode": "dbfs",
+        "squelch_snr": 10.0
+      },
+      "profile_path": "/home/ubuntu/scannerproject/profiles/rtl_airband_hp3_favorites_airband.conf",
+      "updated_at_ms": 1777666313664
+    },
+    "ground": {
+      "override": {
+        "gain": 20.7,
+        "squelch_dbfs": -35.0,
+        "squelch_mode": "dbfs",
+        "squelch_snr": 10.0
+      },
+      "profile_path": "/home/ubuntu/scannerproject/profiles/rtl_airband_hp3_favorites_ground.conf",
+      "updated_at_ms": 1777436100897
+    }
+  },
+  "version": 1
+}
