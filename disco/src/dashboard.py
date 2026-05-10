@@ -127,6 +127,12 @@ class StopBody(BaseModel):
     user_id: str | None = None
 
 
+class MuteBody(BaseModel):
+    freq_hz: float
+    muted: bool
+    user_id: str | None = None
+
+
 @app.post("/api/decode/listen")
 def api_decode_listen(body: ListenBody):
     if not _LISTEN_AVAILABLE:
@@ -163,6 +169,18 @@ def api_decode_active():
     if not _LISTEN_AVAILABLE:
         return {"items": [], "stream_url": ""}
     return listen_mod.list_active()
+
+
+@app.post("/api/decode/mute")
+def api_decode_mute(body: MuteBody):
+    if not _LISTEN_AVAILABLE:
+        return {"status": "error", "detail": f"listen module unavailable: {_LISTEN_IMPORT_ERROR}"}
+    listen_mod.init_schema(DB_PATH)
+    res = listen_mod.mute(body.freq_hz, body.muted, db_path=DB_PATH, user_id=body.user_id)
+    return {
+        "status": res.status, "detail": res.detail,
+        "stream_url": res.stream_url, "target": res.target,
+    }
 
 
 # --- Phase 4 polish: persistent favorites -----------------------------------
@@ -592,10 +610,16 @@ th{color:#888;font-weight:normal;font-size:var(--fs-th);text-transform:uppercase
 .listen-empty{color:#666;font-style:italic}
 .listen-list{display:flex;flex-wrap:wrap;gap:6px}
 .listen-pill{display:inline-flex;align-items:center;gap:6px;background:#16161c;border:1px solid #3a5a3a;color:#a8e6a8;padding:2px 4px 2px 10px;border-radius:14px;font-size:12px}
-.listen-pill button{background:transparent;color:#e6a8a8;border:0;cursor:pointer;font-size:14px;padding:0 6px;line-height:1}
+.listen-pill.is-muted{border-color:#5a5a3a;color:#aaa}
+.listen-pill.is-muted .listen-freq{text-decoration:line-through;opacity:.7}
+.listen-pill button{background:transparent;color:#e6a8a8;border:0;cursor:pointer;font-size:14px;padding:0 4px;line-height:1}
 .listen-pill button:hover{color:#fff}
+.listen-pill .pill-mute{color:#e6c97a}
+.listen-pill .pill-mute:hover{color:#fff}
 .listen-stream a{color:#7fc7ff;text-decoration:none}
 .listen-stream a:hover{text-decoration:underline}
+#disco-audio-player{height:30px;max-width:280px;display:none;vertical-align:middle}
+#disco-audio-player.is-active{display:inline-block}
 .listen-btn{background:#16161c;color:#a8e6a8;border:1px solid #3a5a3a;border-radius:3px;padding:1px 7px;font-size:11px;cursor:pointer;font-family:inherit;margin-left:6px;line-height:1.3}
 .listen-btn.is-active{color:#e6a8a8;border-color:#5a3a3a}
 .listen-btn:hover{background:#222}
@@ -644,6 +668,7 @@ th{color:#888;font-weight:normal;font-size:var(--fs-th);text-transform:uppercase
   <span class="listen-bar-label">Listening</span>
   <span class="listen-empty" id="listen-empty">— click 🎧 on any FM/AM row to wire audio</span>
   <span class="listen-list" id="listen-list"></span>
+  <audio id="disco-audio-player" preload="none" controls></audio>
   <span class="listen-stream" id="listen-stream"></span>
 </div>
 <div class="fav-bar" id="fav-bar">
@@ -1124,6 +1149,18 @@ async function decodeStop(freq_hz){
   }
   refreshActiveListens();
 }
+async function decodeMute(freq_hz, muted){
+  try {
+    await fetch("/api/decode/mute", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({freq_hz: freq_hz, muted: !!muted, user_id: "will"}),
+    });
+  } catch (e) {
+    alert("decode/mute request failed: " + e);
+  }
+  refreshActiveListens();
+}
 async function refreshActiveListens(){
   let resp;
   try { resp = await fetch("/api/decode/active").then(r => r.json()); }
@@ -1134,19 +1171,45 @@ async function refreshActiveListens(){
   const elEmpty = document.getElementById("listen-empty");
   const elList = document.getElementById("listen-list");
   const elStream = document.getElementById("listen-stream");
+  const elAudio = document.getElementById("disco-audio-player");
   if (!elEmpty || !elList || !elStream) return;
   if (items.length === 0) {
     elEmpty.style.display = "";
     elList.innerHTML = "";
     elStream.innerHTML = "";
+    if (elAudio) {
+      elAudio.classList.remove("is-active");
+      try { elAudio.pause(); } catch (e) {}
+      elAudio.removeAttribute("src");
+      elAudio.load();
+    }
     return;
   }
   elEmpty.style.display = "none";
   elList.innerHTML = items.map(it => {
     const mhz = (it.freq_hz/1e6).toFixed(4);
     const tag = it.modulation || it.label || "";
-    return `<span class="listen-pill">${mhz} MHz <span style="opacity:.7">${tag}</span><button data-stop-freq="${it.freq_hz}" title="Stop">×</button></span>`;
+    const muted = !!it.muted;
+    const pillClass = muted ? "listen-pill is-muted" : "listen-pill";
+    const muteIcon = muted ? "🔇" : "🔊";
+    const muteTitle = muted ? "Unmute" : "Mute";
+    return `<span class="${pillClass}"><span class="listen-freq">${mhz} MHz</span> <span style="opacity:.7">${tag}</span>`
+      + `<button class="pill-mute" data-mute-freq="${it.freq_hz}" data-muted="${muted ? 1 : 0}" title="${muteTitle}">${muteIcon}</button>`
+      + `<button data-stop-freq="${it.freq_hz}" title="Stop">×</button></span>`;
   }).join("");
+  // Wire the embedded audio element to the disco mount the moment we have at
+  // least one active listen. We don't auto-play (browser autoplay policies);
+  // user clicks play once.
+  if (elAudio && resp.stream_url) {
+    const wantSrc = resp.stream_url;
+    if (elAudio.getAttribute("src") !== wantSrc) {
+      elAudio.setAttribute("src", wantSrc);
+      // Only call .load() when the src actually changed to avoid restarting
+      // a stream the user is currently listening to.
+      try { elAudio.load(); } catch (e) {}
+    }
+    elAudio.classList.add("is-active");
+  }
   elStream.innerHTML = resp.stream_url
     ? `→ <a href="${resp.stream_url}" target="_blank" rel="noopener">${resp.stream_url}</a>`
     : "";
@@ -1170,6 +1233,14 @@ document.addEventListener("click", (e) => {
   if (e.target.classList && e.target.classList.contains("hide-btn")) {
     if (e.target._is_hidden) hideRemove(e.target._freq_hz);
     else hideAdd(e.target);
+    e.stopPropagation();
+    return;
+  }
+  // listen pill mute toggle
+  const muteFreq = e.target && e.target.getAttribute && e.target.getAttribute("data-mute-freq");
+  if (muteFreq) {
+    const wasMuted = e.target.getAttribute("data-muted") === "1";
+    decodeMute(parseFloat(muteFreq), !wasMuted);
     e.stopPropagation();
     return;
   }

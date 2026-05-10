@@ -74,19 +74,31 @@ AIRBAND_MAX_MHZ = 136.0
 # bandwidth_hz is what we emit into the profile if the detection's bandwidth
 # is missing; the profile only takes a single bandwidth per channel block,
 # but rtl-airband supports per-channel modulation in mixed configs.
+# rtl-airband 5.x supports "am" and "nfm" only. We map FM_BROADCAST → nfm and
+# rely on a wider per-channel bandwidth (rtl-airband applies the IF lowpass
+# proportional to bandwidth). Demodulating wide FM through nfm is imperfect
+# but it's what's available without rebuilding rtl-airband; clipping at the
+# device sample rate keeps it from rejecting the channel.
 MOD_TO_CHANNEL_SPEC = {
-    "FM_BROADCAST": {"modulation": "fm",  "bandwidth_default_hz": 200_000, "max_bandwidth_hz": 250_000},
+    "FM_BROADCAST": {"modulation": "nfm", "bandwidth_default_hz": 200_000, "max_bandwidth_hz": 250_000},
     "FM_NARROW":    {"modulation": "nfm", "bandwidth_default_hz": 12_500,  "max_bandwidth_hz": 25_000},
     "AM_VOICE":     {"modulation": "am",  "bandwidth_default_hz": 12_000,  "max_bandwidth_hz": 16_000},
 }
 
+# Whitelist of rtl-airband-accepted modulations. The disco merge inherits
+# the base channel block's modulation (Option A constraint), so the spec
+# values here are reference only — they may differ from what the user
+# actually hears (e.g. an FM_BROADCAST 200 kHz signal demodulated through
+# the base channel's 12 kHz NFM filter is intelligible but compressed).
+_VALID_MODULATIONS = {"am", "nfm"}
+
 ICECAST_HOST_PUBLIC = os.environ.get("DISCO_ICECAST_HOST", "100.67.20.40")
 ICECAST_PORT_PUBLIC = int(os.environ.get("DISCO_ICECAST_PORT", "8000"))
 
-# Currently the combined config emits a single "ANALOG.mp3" mount fed by the
-# mixer that combines airband + ground devices. Both targets feed that mount,
-# so the user always tunes the same URL.
-DEFAULT_STREAM_MOUNT = os.environ.get("DISCO_STREAM_MOUNT", "ANALOG.mp3")
+# Disco-decoded freqs are routed to a dedicated icecast mount via the
+# disco_mixer block emitted by combined_config.py. The combined ANALOG.mp3
+# mount keeps carrying the user's regular airband + ground scans, untouched.
+DEFAULT_STREAM_MOUNT = os.environ.get("DISCO_STREAM_MOUNT", "disco.mp3")
 
 PROFILES_DIR = os.environ.get("DISCO_PROFILES_DIR", "/home/ubuntu/scannerproject/profiles")
 RUNTIME_DIR = os.environ.get("DISCO_RUNTIME_DIR", "/home/ubuntu/scannerproject/runtime")
@@ -258,15 +270,45 @@ def _read_profile_freqs_labels(path: str) -> tuple[list[float], list[str] | None
     return freqs, labels, text
 
 
+# Sentinel comment placed in the channel block when at least one disco-managed
+# freq has been merged into it. combined_config.py uses this to add a parallel
+# disco_mixer output on that channel block (in addition to the standard
+# combined mixer), surfacing the audio on /disco.mp3.
+#
+# Architectural note (Option A — selected because rtl-airband 5.1.1 rejects
+# multiple channel blocks per device when mode = "scan"): disco freqs are
+# merged into the existing channel block's freqs/labels list. The channel
+# block routes to BOTH the combined mixer (analog stream) AND the disco_mixer
+# (disco stream), so /disco.mp3 carries the same audio as /ANALOG.mp3 when a
+# disco freq is wired. Disco-only isolation isn't possible without
+# rebuilding rtl-airband or rearchitecting onto a third dongle.
+_DISCO_MANAGED_SENTINEL = "DISCO_MANAGED_CHANNELS"
+
+
+def _format_disco_label(entry: dict[str, Any]) -> str:
+    freq_mhz = float(entry["freq_hz"]) / 1e6
+    label = entry.get("label") or f"DISCO {freq_mhz:.4f}"
+    # Strip embedded quotes — rtl-airband libconfig will reject malformed
+    # label strings.
+    return label.replace("\"", "")
+
+
 def _write_merged_profile(
     *,
     base_profile_path: str,
     output_path: str,
-    extra_freqs_mhz: list[float],
-    extra_labels: list[str],
+    disco_entries: list[dict[str, Any]],
 ) -> bool:
-    """Read the base profile, replace its freqs/labels with (base + extras),
-    and write to output_path. Returns True if file was created/changed."""
+    """Merge disco entries into the base profile's channel-block freqs/labels
+    list and add a DISCO_MANAGED_CHANNELS sentinel comment. Muted entries are
+    omitted from the merged freqs list — rtl-airband 5.x scan mode does not
+    support per-freq output muting (one channel block per device, single
+    output config), so muting takes the freq out of the scan entirely. The
+    dashboard preserves the muted entry in its scratch list so the user can
+    unmute later.
+
+    Returns True if the output file contents changed.
+    """
     base_freqs, base_labels, base_text = _read_profile_freqs_labels(base_profile_path)
 
     # If base has no labels, synthesize labels from frequency strings to keep
@@ -275,14 +317,20 @@ def _write_merged_profile(
     if base_labels is None:
         base_labels = [f"{f:.4f}" for f in base_freqs]
 
-    # Deduplicate: skip extras that already exist in base (within 1 kHz).
+    # Filter to non-muted disco entries; muted ones intentionally aren't tuned.
+    audible_entries = [e for e in disco_entries if not e.get("muted")]
+
+    # Deduplicate against base freqs (within 1 kHz).
     final_freqs = list(base_freqs)
     final_labels = list(base_labels)
-    for f, lab in zip(extra_freqs_mhz, extra_labels):
-        if any(abs(f - existing) < 0.001 for existing in final_freqs):
+    has_disco = False
+    for e in audible_entries:
+        f_mhz = float(e["freq_hz"]) / 1e6
+        if any(abs(f_mhz - existing) < 0.001 for existing in final_freqs):
             continue
-        final_freqs.append(f)
-        final_labels.append(lab or f"{f:.4f}")
+        final_freqs.append(f_mhz)
+        final_labels.append(_format_disco_label(e))
+        has_disco = True
 
     if _UI_AVAILABLE:
         try:
@@ -291,11 +339,15 @@ def _write_merged_profile(
             LOGGER.warning("replace_freqs_labels failed (%s); cannot merge profile", e)
             return False
     else:
-        # Without ui helpers we can't safely rewrite libconfig blocks. Bail.
         LOGGER.error("ui.profile_config not importable; cannot rewrite profile")
         return False
 
-    # Read current output to detect changes
+    # Tag the channel block so combined_config knows to add a disco_mixer
+    # output. We insert the sentinel comment as the first line inside the
+    # channel block (right after the opening "{" of the first channel block).
+    if has_disco and _DISCO_MANAGED_SENTINEL not in new_text:
+        new_text = _tag_first_channel_block(new_text)
+
     prior = ""
     try:
         with open(output_path, "r", encoding="utf-8") as f:
@@ -310,6 +362,26 @@ def _write_merged_profile(
         f.write(new_text)
     os.replace(tmp, output_path)
     return True
+
+
+def _tag_first_channel_block(text: str) -> str:
+    """Insert a DISCO_MANAGED_CHANNELS comment at the top of the first channel
+    block in the profile, so combined_config can detect we should add a
+    disco_mixer output."""
+    idx = text.find("channels:")
+    if idx == -1:
+        return text
+    start = text.find("(", idx)
+    if start == -1:
+        return text
+    brace = text.find("{", start)
+    if brace == -1:
+        return text
+    # Find end of the line containing brace.
+    eol = text.find("\n", brace)
+    if eol == -1:
+        return text
+    return text[: eol + 1] + f"      # {_DISCO_MANAGED_SENTINEL}\n" + text[eol + 1 :]
 
 
 def _swap_symlink(target: str, new_dest: str) -> bool:
@@ -446,15 +518,11 @@ def _apply_scratch_to_runtime(scratch: dict[str, Any]) -> tuple[bool, str]:
             base = cur_active
             orig[target] = base  # remember so we can revert later
 
-        extras_mhz = [e["freq_hz"] / 1e6 for e in entries]
-        extras_labels = [e.get("label") or f"{e['freq_hz']/1e6:.4f}" for e in entries]
-
         try:
             wrote = _write_merged_profile(
                 base_profile_path=base,
                 output_path=disco_profile,
-                extra_freqs_mhz=extras_mhz,
-                extra_labels=extras_labels,
+                disco_entries=list(entries),
             )
             if wrote:
                 changed_any = True
@@ -498,6 +566,13 @@ def listen(req: ListenRequest, *, db_path: str, user_id: str | None = None) -> L
 
     with _LOCK:
         scratch = _load_scratch()
+        # Preserve mute state if re-listening to a freq that was previously
+        # muted (e.g. user stops + re-clicks Listen on a muted favorite).
+        prior_mute = False
+        for e in scratch[target]:
+            if abs(e["freq_hz"] - req.freq_hz) <= 1.0:
+                prior_mute = bool(e.get("muted") or False)
+                break
         # Add (or update) entry for this freq.
         existing = [e for e in scratch[target] if abs(e["freq_hz"] - req.freq_hz) > 1.0]
         existing.append({
@@ -505,6 +580,7 @@ def listen(req: ListenRequest, *, db_path: str, user_id: str | None = None) -> L
             "label": label,
             "modulation": spec["modulation"],
             "bandwidth_hz": float(req.bandwidth_hz or spec["bandwidth_default_hz"]),
+            "muted": prior_mute,
             "ts": time.time(),
         })
         scratch[target] = existing
@@ -561,6 +637,52 @@ def stop(freq_hz: float, *, db_path: str, user_id: str | None = None) -> ListenR
     return result
 
 
+def mute(freq_hz: float, muted: bool, *, db_path: str, user_id: str | None = None) -> ListenResult:
+    """Set the mute state for a currently-listened freq.
+
+    A muted disco channel keeps its slot in the scan (rtl-airband still tunes
+    it and logs activity hits) but its mixer ampfactor is forced to 0.0 so no
+    audio reaches the disco mount. Implementing this requires re-emitting the
+    merged profile and restarting rtl-airband (the binary doesn't support
+    config reload short of a restart).
+    """
+    target = _decide_target(freq_hz)
+    with _LOCK:
+        scratch = _load_scratch()
+        found = False
+        for e in scratch[target]:
+            if abs(e["freq_hz"] - freq_hz) <= 1.0:
+                e["muted"] = bool(muted)
+                found = True
+                break
+        if not found:
+            result = ListenResult(status="no-op", detail="frequency is not currently listened")
+            _record_request(
+                db_path, freq_hz=freq_hz, bandwidth_hz=None, modulation_class=None,
+                requested_action=("mute" if muted else "unmute"),
+                status=result.status, detail=result.detail, user_id=user_id,
+            )
+            return result
+        _save_scratch(scratch)
+        ok, err = _apply_scratch_to_runtime(scratch)
+
+    if not ok:
+        result = ListenResult(status="error", detail=err or "unknown error")
+    else:
+        result = ListenResult(
+            status=("muted" if muted else "unmuted"),
+            detail=_stream_url(),
+            stream_url=_stream_url(),
+            target=target,
+        )
+    _record_request(
+        db_path, freq_hz=freq_hz, bandwidth_hz=None, modulation_class=None,
+        requested_action=("mute" if muted else "unmute"),
+        status=result.status, detail=result.detail, user_id=user_id,
+    )
+    return result
+
+
 def list_active() -> dict[str, Any]:
     """Return current scratch + computed stream URL."""
     scratch = _load_scratch()
@@ -572,6 +694,7 @@ def list_active() -> dict[str, Any]:
                 "label": e.get("label") or "",
                 "modulation": e.get("modulation") or "",
                 "bandwidth_hz": e.get("bandwidth_hz"),
+                "muted": bool(e.get("muted") or False),
                 "target": target,
                 "ts": e.get("ts"),
             })
