@@ -88,24 +88,51 @@ def call_claude(api_key: str, bundle: dict, model: str, timeout: float = 20.0) -
     """Call Anthropic Messages API. Returns interpretation string or stub error string."""
     if not api_key:
         return "no key configured"
-    prompt = f"""You are helping a user understand RF detections from their SDR scanner.
-Geographic / user context: {GEOGRAPHIC_CONTEXT}
+    # ULS/CDBS licensee context — included only when the row was enriched.
+    # Some bands (broadcast FM via CDBS, ULS land-mobile) hit; ISM 902-928,
+    # NOAA WX, etc. don't have licensees and stay None.
+    licensee_block = ""
+    if bundle.get("uls_callsign") or bundle.get("uls_entity_name"):
+        bits = []
+        if bundle.get("uls_callsign"):
+            bits.append(f"  Callsign: {bundle['uls_callsign']}")
+        if bundle.get("uls_entity_name"):
+            bits.append(f"  Licensee/owner: {bundle['uls_entity_name']}")
+        if bundle.get("uls_emission_designator"):
+            bits.append(f"  Emission designator: {bundle['uls_emission_designator']}")
+        if bundle.get("uls_station_class"):
+            bits.append(f"  Station class: {bundle['uls_station_class']}")
+        if bundle.get("uls_distance_km") is not None:
+            bits.append(f"  Distance from receiver: {bundle['uls_distance_km']:.1f} km")
+        if bundle.get("uls_source"):
+            bits.append(f"  Database source: {bundle['uls_source']} (uls = land mobile, "
+                        f"cdbs = broadcast)")
+        licensee_block = "FCC database match for this frequency:\n" + "\n".join(bits) + "\n"
 
-Given the following detection, write a SINGLE one-sentence plain-English description of what this signal most likely is. Name a likely service or system if you can confidently infer it from the frequency + modulation; otherwise say "unclear" plainly. Be concrete — e.g. "Likely Nashville BNA airport tower (118.6 MHz AM is the BNA tower frequency)", not "AM signal in airband".
+    prompt = f"""You are helping a user understand RF detections from their SDR scanner. Be substantive and concrete — the user is technical (a meteorologist running a multi-RSPduo scanner) and wants real signal-identification reasoning, not generic prose.
+
+Geographic / user context: {GEOGRAPHIC_CONTEXT}
 
 Detection:
 - Frequency: {bundle.get('freq_mhz', 0):.4f} MHz
-- Modulation class: {bundle.get('modulation_class', '?')}
-- Heuristic/model confidence: {bundle.get('confidence', 0):.2f}
+- Modulation class (from local CNN classifier): {bundle.get('modulation_class', '?')}
+- Classifier confidence: {bundle.get('confidence', 0):.2f}
 - Bandwidth: {bundle.get('bandwidth_khz', 0):.1f} kHz
 - SNR: {bundle.get('snr_db', 0):.1f} dB
-- Tuner: {bundle.get('tuner', '?')}
-- Tagged protocol guess: {bundle.get('protocol_tag', 'none')}
+- Tuner band: {bundle.get('tuner', '?')}
+- Heuristic protocol tag: {bundle.get('protocol_tag', 'none')}
+{licensee_block}
+Write a 2-4 sentence interpretation. Cover, in this order:
+1. **Identification**: what this signal most likely is (be specific — name the service, allocation, or system if the freq + modulation + licensee combination supports it). If the FCC match looks plausible, lead with the licensee name; otherwise reason from the frequency band plan.
+2. **Context**: typical use, common activity patterns, any time-of-day / day-of-week notes if relevant. For amateur callsigns, mention the band and likely modes (e.g. 70cm typically NFM repeater, FM voice, occasional D-STAR/DMR digital).
+3. **Confidence / caveats**: where you're sure vs guessing. If the licensee name doesn't match the modulation/bandwidth (e.g. ULS hit on a commercial freq but classifier says NOISE), flag it. If the freq is in an unlicensed band (ISM 902-928, broadcast 88-108) say so.
 
-One-sentence answer only:"""
+Style: plain English, no bullet lists, no markdown. Short paragraphs separated by a blank line. Do not restate the freq or class in your answer (the UI shows that already). Prefer "likely" / "almost certainly" / "unclear" over hedge words. If you genuinely don't know, say "unclear from this data" and stop.
+
+Interpretation:"""
     body = {
         "model": model,
-        "max_tokens": 200,
+        "max_tokens": 700,
         "messages": [{"role": "user", "content": prompt}],
     }
     req = urllib.request.Request(
@@ -172,7 +199,9 @@ def interpret_loop(cfg, conn):
 
         rows = conn.execute(
             "SELECT id, tuner_id, freq_hz, modulation_class, modulation_confidence, "
-            "bandwidth_hz, snr_db, ts, protocol_tag "
+            "bandwidth_hz, snr_db, ts, protocol_tag, "
+            "uls_callsign, uls_entity_name, uls_emission_designator, "
+            "uls_station_class, uls_distance_km, uls_source "
             "FROM detections "
             "WHERE modulation_class IS NOT NULL "
             "  AND modulation_class != 'unclassified' "
@@ -200,7 +229,8 @@ def interpret_loop(cfg, conn):
                 time.sleep(2)
                 continue
 
-            det_id, tuner, freq, mod, conf, bw, snr, ts, ptag = row
+            (det_id, tuner, freq, mod, conf, bw, snr, ts, ptag,
+             uls_call, uls_name, uls_emit, uls_stcl, uls_dist, uls_src) = row
             bundle = {
                 "freq_mhz": freq / 1e6,
                 "modulation_class": mod,
@@ -209,6 +239,12 @@ def interpret_loop(cfg, conn):
                 "snr_db": snr,
                 "tuner": tuner,
                 "protocol_tag": ptag,
+                "uls_callsign": uls_call,
+                "uls_entity_name": uls_name,
+                "uls_emission_designator": uls_emit,
+                "uls_station_class": uls_stcl,
+                "uls_distance_km": uls_dist,
+                "uls_source": uls_src,
             }
             bin_idx = int((freq / 1e3) / bin_khz)
             cache_key_obj = {"bin_idx": bin_idx, "modulation_class": mod}
