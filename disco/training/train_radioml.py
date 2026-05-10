@@ -23,40 +23,56 @@ CLASSES_24 = [
     "AM-SSB-WC","AM-SSB-SC","AM-DSB-WC","AM-DSB-SC","FM","GMSK","OQPSK"
 ]
 
+# RadioML 2018.01A stores Y in this RAW (shuffled) order. The dataset ships
+# classes-fixed.json with the canonical mapping; we hard-code it here so the
+# trained model always emits CLASSES_24 indices regardless of dataset version.
+RAW_CLASSES_24 = [
+    "32PSK","16APSK","32QAM","FM","GMSK","32APSK","OQPSK","8ASK","BPSK","8PSK",
+    "AM-SSB-SC","4ASK","16PSK","64APSK","128QAM","128APSK","AM-DSB-SC","AM-SSB-WC",
+    "64QAM","QPSK","256QAM","AM-DSB-WC","OOK","16QAM"
+]
+RAW_TO_FIXED = [CLASSES_24.index(name) for name in RAW_CLASSES_24]
+
+
 
 class RML2018Dataset(Dataset):
     """Lazy-load slices from RadioML 2018.01A HDF5."""
     def __init__(self, hdf5_path, snr_min_db=0, sample_per_class=None):
         self.hdf5_path = hdf5_path
         with h5py.File(hdf5_path, "r") as f:
-            self.X = f["X"]
-            self.Y = np.argmax(f["Y"][...], axis=1)
-            self.Z = f["Z"][...].squeeze()
-        self.mask = self.Z >= snr_min_db
-        self.indices = np.nonzero(self.mask)[0]
-        if sample_per_class:
-            new_idx = []
-            for c in range(24):
-                pool = self.indices[self.Y[self.indices] == c]
-                if len(pool):
-                    pick = np.random.choice(pool, size=min(sample_per_class, len(pool)), replace=False)
-                    new_idx.extend(pick.tolist())
-            self.indices = np.array(new_idx)
-        self._h = None
+            raw_y = np.argmax(f["Y"][...], axis=1)
+            remap = np.array(RAW_TO_FIXED, dtype=np.int64)
+            Y_full = remap[raw_y]
+            Z_full = f["Z"][...].squeeze()
+            mask = Z_full >= snr_min_db
+            indices = np.nonzero(mask)[0]
+            if sample_per_class:
+                new_idx = []
+                for c in range(24):
+                    pool = indices[Y_full[indices] == c]
+                    if len(pool):
+                        pick = np.random.choice(pool, size=min(sample_per_class, len(pool)), replace=False)
+                        new_idx.extend(pick.tolist())
+                indices = np.array(new_idx)
+            # h5py fancy-indexing requires sorted, monotonically increasing
+            # selectors for efficient slab reads on chunked datasets. Sort,
+            # bulk-read into RAM, then we can serve __getitem__ from numpy.
+            # 480k samples × 1024 × 2 × 4B ≈ 3.9 GB — fits in RAM and avoids
+            # 30+min/epoch random-IO thrash on external SSDs.
+            sorted_idx = np.sort(indices)
+            t0 = time.time()
+            print(f"loading {len(sorted_idx)} samples into RAM ...", flush=True)
+            self.X = f["X"][sorted_idx]
+            print(f"X loaded: {self.X.shape} {self.X.dtype}  ({time.time()-t0:.1f}s)", flush=True)
+            self.Y = Y_full[sorted_idx]
+            self.Z = Z_full[sorted_idx]
 
     def __len__(self):
-        return len(self.indices)
-
-    def _open(self):
-        if self._h is None:
-            self._h = h5py.File(self.hdf5_path, "r")
-        return self._h
+        return len(self.X)
 
     def __getitem__(self, i):
-        idx = int(self.indices[i])
-        h = self._open()
-        x = h["X"][idx]
-        y = int(self.Y[idx])
+        x = self.X[i]
+        y = int(self.Y[i])
         x = np.transpose(x, (1, 0)).astype(np.float32)
         x = x / (np.max(np.abs(x)) + 1e-12)
         return torch.from_numpy(x), y
@@ -116,8 +132,8 @@ def train(args):
         model.train()
         t0 = time.time()
         train_loss = 0.0; train_correct = 0; train_total = 0
-        for xb, yb in train_loader:
-            xb = xb.to(device, non_blocking=True); yb = yb.to(device, non_blocking=True)
+        for step, (xb, yb) in enumerate(train_loader):
+            xb = xb.to(device); yb = yb.to(device)
             opt.zero_grad()
             out = model(xb)
             loss = crit(out, yb)
@@ -125,6 +141,8 @@ def train(args):
             train_loss += loss.item() * xb.size(0)
             train_correct += (out.argmax(1) == yb).sum().item()
             train_total += xb.size(0)
+            if ep == 0 and step in (0, 5, 25, 100, 500):
+                print(f"  step {step}: loss={loss.item():.4f} acc={(out.argmax(1)==yb).float().mean().item():.4f}", flush=True)
         train_loss /= train_total; train_acc = train_correct / train_total
         sched.step()
 
@@ -156,7 +174,7 @@ def train(args):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--dataset", required=True, help="Path to GOLD_XYZ_OSC.0001_1024.hdf5")
+    ap.add_argument("--dataset", default="data/GOLD_XYZ_OSC.0001_1024.hdf5", help="Path to GOLD_XYZ_OSC.0001_1024.hdf5 (default: data/ relative to CWD)")
     ap.add_argument("--epochs", type=int, default=30)
     ap.add_argument("--batch-size", type=int, default=256)
     ap.add_argument("--lr", type=float, default=1e-3)

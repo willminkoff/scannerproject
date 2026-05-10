@@ -1,0 +1,34 @@
+#!/bin/bash
+# Disco service control wrapper. Allowed action set is hardcoded so this
+# wrapper can be granted NOPASSWD sudo without opening up systemctl wholesale.
+# Targets are exactly the services that own the RSPduos (sweep@*) plus the
+# classifier and the interpreter — NOT the dashboard, which has to stay up to
+# host the start button.
+set -euo pipefail
+
+UNITS=(
+  disco-sweep@A-T1.service
+  disco-sweep@A-T2.service
+  disco-sweep@B-T1.service
+  disco-sweep@B-T2.service
+  disco-classifier.service
+  disco-interpret.service
+)
+
+action="${1:-}"
+case "$action" in
+  start|stop|restart)
+    /bin/systemctl "$action" "${UNITS[@]}"
+    ;;
+  status)
+    # one-line per unit, machine-friendly
+    for u in "${UNITS[@]}"; do
+      state=$(/bin/systemctl is-active "$u" 2>/dev/null || true)
+      printf '%s %s\n' "$u" "${state:-unknown}"
+    done
+    ;;
+  *)
+    echo "usage: $0 {start|stop|restart|status}" >&2
+    exit 2
+    ;;
+esac

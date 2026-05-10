@@ -1,0 +1,3 @@
+# Allow ubuntu to start/stop the disco RSPduo-owning services via the
+# /usr/local/bin/disco-svc-ctl wrapper without a password.
+ubuntu ALL=(root) NOPASSWD: /usr/local/bin/disco-svc-ctl

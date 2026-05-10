@@ -1,0 +1,12 @@
+[
+  "NOISE",
+  "FM_BROADCAST",
+  "FM_NARROW",
+  "AM_VOICE",
+  "DMR",
+  "GMSK",
+  "QPSK",
+  "OQPSK",
+  "QAM",
+  "OOK"
+]
