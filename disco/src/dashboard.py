@@ -1118,6 +1118,14 @@ const SWEEP_UNIT_NAMES = [
   "disco-sweep@B-T2.service",
 ];
 const SB3_PRIMARY_UNIT = "scanner-digital-op25.service";
+// Stuck-recovery: how long the mode bar can sit in "transitioning" before we
+// re-enable both buttons so the user can retry from the UI instead of being
+// forced to ssh in. The legitimate transition window is ~13–18s; 25s is a
+// generous "this is wedged" threshold.
+const STUCK_AFTER_MS = 25000;
+const MODE_DETAIL_DEFAULT = "at-home handoff — classifier stays warm across the toggle";
+const MODE_DETAIL_STUCK = "stuck — both buttons re-enabled; click to retry, or use CLI";
+let _transitioningSinceMs = null;
 
 function deriveMode(units){
   const sweepStates = SWEEP_UNIT_NAMES.map(u => units[u] || "unknown");
@@ -1133,6 +1141,7 @@ async function refreshModeStatus(){
   const elStatus = document.getElementById("mode-status");
   const elOff = document.getElementById("mode-off-btn");
   const elOn = document.getElementById("mode-on-btn");
+  const elDetail = document.getElementById("mode-detail");
   if (!elStatus || !elOff || !elOn) return;
   let resp;
   try {
@@ -1151,12 +1160,32 @@ async function refreshModeStatus(){
   elStatus.textContent = label;
   elStatus.className = klass;
   elStatus.title = Object.entries(units).map(([u,s]) => `${u} ${s}`).join("\\n");
-  elOff.disabled = (mode !== "disco");
-  elOn.disabled = (mode !== "handoff");
+
+  // Stuck-recovery: while mode === "transitioning", keep both buttons
+  // disabled until STUCK_AFTER_MS elapses since the first such observation,
+  // then re-enable both so the user has a UI-side retry path. Reset the
+  // timer the instant we leave "transitioning".
+  if (mode === "transitioning") {
+    if (_transitioningSinceMs === null) _transitioningSinceMs = Date.now();
+    const stuck = (Date.now() - _transitioningSinceMs) >= STUCK_AFTER_MS;
+    elOff.disabled = !stuck;
+    elOn.disabled = !stuck;
+    if (elDetail) elDetail.textContent = stuck ? MODE_DETAIL_STUCK : MODE_DETAIL_DEFAULT;
+  } else {
+    _transitioningSinceMs = null;
+    elOff.disabled = (mode !== "disco");
+    elOn.disabled = (mode !== "handoff");
+    if (elDetail) elDetail.textContent = MODE_DETAIL_DEFAULT;
+  }
 }
 
 async function modeAction(action){
   // action is "mode-off" or "mode-on"
+  // Reset the stuck timer so a fresh click gets a fresh ~25s window before
+  // the recovery affordance re-fires — otherwise a click made while stuck
+  // would briefly disable the buttons and re-enable them on the next poll
+  // with no visible feedback.
+  _transitioningSinceMs = null;
   const elOff = document.getElementById("mode-off-btn");
   const elOn = document.getElementById("mode-on-btn");
   elOff.disabled = true;
