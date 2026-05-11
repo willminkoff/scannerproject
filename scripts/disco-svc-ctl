@@ -1,12 +1,26 @@
 #!/bin/bash
 # Disco service control wrapper. Allowed action set is hardcoded so this
 # wrapper can be granted NOPASSWD sudo without opening up systemctl wholesale.
-# Targets are exactly the services that own the RSPduos (sweep@*) plus the
-# classifier and the interpreter — NOT the dashboard, which has to stay up to
-# host the start button.
+#
+# Two distinct shapes of action:
+#
+#   start | stop | restart | status
+#       Acts on the full Disco unit set (sweeps + classifier + interpret).
+#       "stop" takes the classifier DOWN — use when you want Disco fully off
+#       and don't care about preserving the trained-model warm cache.
+#       Dashboard is intentionally NOT in the controlled set so the start
+#       button stays reachable.
+#
+#   mode-off | mode-on | mode-status
+#       At-home Disco<->SB3 handoff. Toggles ONLY the four sweep@ instances
+#       and the SB3 digital stack; the classifier and interpret services
+#       keep running across the toggle so the trained model, ULS DB, and
+#       caches stay warm. mode-off masks the sweep instances while SB3
+#       owns the radios so a classifier restart can't accidentally pull
+#       them back. mode-on unmasks them. Both are idempotent.
 set -euo pipefail
 
-UNITS=(
+DISCO_UNITS=(
   disco-sweep@A-T1.service
   disco-sweep@A-T2.service
   disco-sweep@B-T1.service
@@ -15,20 +29,179 @@ UNITS=(
   disco-interpret.service
 )
 
+# Subset of DISCO_UNITS that owns the RSPduo handles. Mode-off masks these.
+SWEEP_UNITS=(
+  disco-sweep@A-T1.service
+  disco-sweep@A-T2.service
+  disco-sweep@B-T1.service
+  disco-sweep@B-T2.service
+)
+
+# SB3 digital stack. scanner-digital-op25-audio.service is pulled in via
+# Wants=/PartOf= from scanner-digital-op25.service, so we don't list it.
+# scanner-vlc-digital.service is the BT-speaker playback consumer of the
+# DIGITAL.mp3 icecast stream — included per home-config requirement.
+SB3_UNITS=(
+  scanner-digital-op25.service
+  scanner-vlc-digital.service
+)
+
+# Standing rule: 6 s after stopping a SoapySDR-holding process before
+# starting anything that competes for the same handles. SDRplay devices
+# need this beat to settle through sdrplay_apiService.
+DRAIN_SECONDS=6
+
+# After the initial drain sleep, poll process tables this many times,
+# 2 s apart, before bailing.
+DRAIN_RETRIES=4
+DRAIN_RETRY_INTERVAL=2
+
+usage() {
+  cat >&2 <<'USAGE'
+usage: disco-svc-ctl ACTION
+
+Full Disco control (classifier goes down with stop):
+  start       Start all Disco units (sweeps + classifier + interpret).
+  stop        Stop all Disco units. WARM CACHE LOST.
+  restart     Restart all Disco units.
+  status      One-line-per-unit state for the Disco set only.
+
+At-home handoff (classifier stays up across the toggle):
+  mode-off    Hand RSPduos to SB3. Mask + stop sweep@*, drain SoapySDR
+              handles, start SB3 digital stack. Classifier untouched.
+  mode-on     Hand RSPduos back to Disco. Stop SB3 digital stack, drain,
+              unmask + start sweep@*. Classifier untouched.
+  mode-status One-line-per-unit state for sweep + SB3 + classifier.
+
+Both mode-off and mode-on are idempotent: re-running when already in the
+target mode is a no-op (exit 0).
+USAGE
+}
+
+# Print one-line-per-unit state. Args: unit names.
+report_units() {
+  local u state
+  for u in "$@"; do
+    state=$(/bin/systemctl is-active "$u" 2>/dev/null || true)
+    printf '%s %s\n' "$u" "${state:-unknown}"
+  done
+}
+
+# True if every unit in $@ is in the given target state ("active" or "inactive").
+all_in_state() {
+  local target="$1"; shift
+  local u state
+  for u in "$@"; do
+    state=$(/bin/systemctl is-active "$u" 2>/dev/null || true)
+    [[ "$state" == "$target" ]] || return 1
+  done
+  return 0
+}
+
+# True if any unit in $@ is masked.
+any_masked() {
+  local u state
+  for u in "$@"; do
+    state=$(/bin/systemctl is-enabled "$u" 2>/dev/null || true)
+    [[ "$state" == "masked" ]] && return 0
+  done
+  return 1
+}
+
+# Wait for a process pattern to disappear from pgrep. Returns 0 on clean
+# drain, 1 if still present after retries.
+wait_for_drain() {
+  local pattern="$1"
+  sleep "$DRAIN_SECONDS"
+  local i
+  for ((i=0; i<DRAIN_RETRIES; i++)); do
+    pgrep -f "$pattern" >/dev/null 2>&1 || return 0
+    sleep "$DRAIN_RETRY_INTERVAL"
+  done
+  pgrep -f "$pattern" >/dev/null 2>&1 && return 1
+  return 0
+}
+
+mode_off() {
+  # Idempotency: if all sweeps are already down AND op25 is up, nothing to do.
+  if all_in_state inactive "${SWEEP_UNITS[@]}" && all_in_state active scanner-digital-op25.service; then
+    echo "mode-off: already in handoff state, no-op" >&2
+    report_units "${SWEEP_UNITS[@]}" "${SB3_UNITS[@]}" disco-classifier.service
+    return 0
+  fi
+
+  echo "mode-off: masking sweep instances" >&2
+  /bin/systemctl mask "${SWEEP_UNITS[@]}"
+
+  echo "mode-off: stopping sweep instances" >&2
+  /bin/systemctl stop "${SWEEP_UNITS[@]}"
+
+  echo "mode-off: draining SoapySDR handles (${DRAIN_SECONDS}s)" >&2
+  if ! wait_for_drain 'disco/src/sweep\.py'; then
+    echo "mode-off: ERROR sweep.py processes still present after drain; bailing" >&2
+    return 3
+  fi
+
+  echo "mode-off: starting SB3 digital stack" >&2
+  /bin/systemctl start "${SB3_UNITS[@]}"
+
+  report_units "${SWEEP_UNITS[@]}" "${SB3_UNITS[@]}" disco-classifier.service
+}
+
+mode_on() {
+  # Idempotency: if op25 is already down AND sweeps are up AND not masked, nothing to do.
+  if all_in_state inactive scanner-digital-op25.service \
+     && all_in_state active "${SWEEP_UNITS[@]}" \
+     && ! any_masked "${SWEEP_UNITS[@]}"; then
+    echo "mode-on: already in disco state, no-op" >&2
+    report_units "${SWEEP_UNITS[@]}" "${SB3_UNITS[@]}" disco-classifier.service
+    return 0
+  fi
+
+  echo "mode-on: stopping SB3 digital stack" >&2
+  /bin/systemctl stop "${SB3_UNITS[@]}"
+
+  echo "mode-on: draining SoapySDR handles (${DRAIN_SECONDS}s)" >&2
+  if ! wait_for_drain 'multi_rx\.py'; then
+    echo "mode-on: ERROR multi_rx.py processes still present after drain; bailing" >&2
+    return 3
+  fi
+
+  if any_masked "${SWEEP_UNITS[@]}"; then
+    echo "mode-on: unmasking sweep instances" >&2
+    /bin/systemctl unmask "${SWEEP_UNITS[@]}"
+  fi
+
+  echo "mode-on: starting sweep instances" >&2
+  /bin/systemctl start "${SWEEP_UNITS[@]}"
+
+  report_units "${SWEEP_UNITS[@]}" "${SB3_UNITS[@]}" disco-classifier.service
+}
+
 action="${1:-}"
 case "$action" in
   start|stop|restart)
-    /bin/systemctl "$action" "${UNITS[@]}"
+    /bin/systemctl "$action" "${DISCO_UNITS[@]}"
     ;;
   status)
-    # one-line per unit, machine-friendly
-    for u in "${UNITS[@]}"; do
-      state=$(/bin/systemctl is-active "$u" 2>/dev/null || true)
-      printf '%s %s\n' "$u" "${state:-unknown}"
-    done
+    report_units "${DISCO_UNITS[@]}"
+    ;;
+  mode-off)
+    mode_off
+    ;;
+  mode-on)
+    mode_on
+    ;;
+  mode-status)
+    report_units "${SWEEP_UNITS[@]}" "${SB3_UNITS[@]}" disco-classifier.service
+    ;;
+  ""|-h|--help|help)
+    usage
+    exit 2
     ;;
   *)
-    echo "usage: $0 {start|stop|restart|status}" >&2
+    echo "disco-svc-ctl: unknown action '$action'" >&2
+    usage
     exit 2
     ;;
 esac

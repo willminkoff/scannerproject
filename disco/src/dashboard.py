@@ -72,17 +72,22 @@ def api_config():
 
 def _svc_ctl(action: str) -> dict:
     """Invoke the disco-svc-ctl wrapper via sudo. Returns parsed status."""
+    # mode-off / mode-on can take ~12-15s end-to-end (drain + service start),
+    # so widen the timeout for those.
+    timeout = 45 if action in ("mode-off", "mode-on") else 30
     try:
         proc = subprocess.run(
             ["sudo", "-n", SVC_CTL, action],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, timeout=timeout,
         )
     except subprocess.TimeoutExpired:
         return {"ok": False, "error": "timeout", "action": action}
     out = proc.stdout.strip()
     err = proc.stderr.strip()
     units = {}
-    if action == "status":
+    # status, mode-status, and the mode-off/mode-on actions all emit
+    # one-line-per-unit state on stdout.
+    if action in ("status", "mode-status", "mode-off", "mode-on"):
         for line in out.splitlines():
             parts = line.split()
             if len(parts) == 2:
@@ -110,6 +115,25 @@ def api_services_start():
 @app.post("/api/services/stop")
 def api_services_stop():
     return _svc_ctl("stop")
+
+
+# Handoff actions — toggle only the radio-owning sweep@ instances and the
+# SB3 digital stack. Classifier and interpret stay running across the
+# toggle (warm-cache preservation), and sweep@ instances are masked while
+# SB3 owns the radios so a classifier restart can't pull them back.
+@app.post("/api/services/mode-off")
+def api_services_mode_off():
+    return _svc_ctl("mode-off")
+
+
+@app.post("/api/services/mode-on")
+def api_services_mode_on():
+    return _svc_ctl("mode-on")
+
+
+@app.get("/api/services/mode-status")
+def api_services_mode_status():
+    return _svc_ctl("mode-status")
 
 
 # --- Phase 5 listen endpoints -----------------------------------------------
@@ -603,8 +627,12 @@ th{color:#888;font-weight:normal;font-size:var(--fs-th);text-transform:uppercase
 .svc-btn:hover{background:#2a2a35;color:#fff}
 .svc-btn.start{color:#a8e6a8}
 .svc-btn.stop{color:#e6a8a8}
+.svc-btn.mode-off{color:#e6c97a}
+.svc-btn.mode-on{color:#a8c8e6}
 .svc-btn:disabled{opacity:0.45;cursor:not-allowed}
 .svc-detail{color:#666;font-size:12px}
+.svc-status.handoff{color:#e6c97a;border-color:#5a4a2a}
+.svc-status.disco{color:#a8c8e6;border-color:#3a4a5a}
 .listen-bar{display:flex;align-items:center;gap:10px;margin:6px 0 10px 0;font-size:13px;font-family:ui-monospace,monospace;flex-wrap:wrap}
 .listen-bar-label{color:#888;letter-spacing:.5px;font-size:12px;text-transform:uppercase}
 .listen-empty{color:#666;font-style:italic}
@@ -662,7 +690,13 @@ th{color:#888;font-weight:normal;font-size:var(--fs-th);text-transform:uppercase
   <span class="svc-status" id="svc-status">checking…</span>
   <button class="svc-btn start" id="svc-start" type="button" disabled>Start</button>
   <button class="svc-btn stop" id="svc-stop" type="button" disabled>Stop</button>
-  <span class="svc-detail" id="svc-detail">stops sweep + classifier so RSPduos return to SB3</span>
+  <span class="svc-detail" id="svc-detail">full Disco control — Stop also takes the classifier down (warm cache lost)</span>
+</div>
+<div class="svc-bar mode-bar">
+  <span class="svc-status" id="mode-status">checking…</span>
+  <button class="svc-btn mode-off" id="mode-off-btn" type="button" disabled>Hand off to SB3</button>
+  <button class="svc-btn mode-on" id="mode-on-btn" type="button" disabled>Reclaim radios</button>
+  <span class="svc-detail" id="mode-detail">at-home handoff — classifier stays warm across the toggle</span>
 </div>
 <div class="listen-bar" id="listen-bar">
   <span class="listen-bar-label">Listening</span>
@@ -1072,6 +1106,74 @@ async function svcAction(action){
   // give systemd a beat to settle
   setTimeout(refreshSvcStatus, 1500);
 }
+
+// Mode bar: at-home Disco<->SB3 handoff. Calls disco-svc-ctl mode-off /
+// mode-on / mode-status. Classifier is intentionally NOT toggled here —
+// the wrapper preserves it across the handoff so the trained model and
+// caches stay warm.
+const SWEEP_UNIT_NAMES = [
+  "disco-sweep@A-T1.service",
+  "disco-sweep@A-T2.service",
+  "disco-sweep@B-T1.service",
+  "disco-sweep@B-T2.service",
+];
+const SB3_PRIMARY_UNIT = "scanner-digital-op25.service";
+
+function deriveMode(units){
+  const sweepStates = SWEEP_UNIT_NAMES.map(u => units[u] || "unknown");
+  const op25 = units[SB3_PRIMARY_UNIT] || "unknown";
+  const allSweepActive = sweepStates.every(s => s === "active");
+  const allSweepInactive = sweepStates.every(s => s === "inactive");
+  if (allSweepActive && op25 === "inactive") return "disco";
+  if (allSweepInactive && op25 === "active") return "handoff";
+  return "transitioning";
+}
+
+async function refreshModeStatus(){
+  const elStatus = document.getElementById("mode-status");
+  const elOff = document.getElementById("mode-off-btn");
+  const elOn = document.getElementById("mode-on-btn");
+  if (!elStatus || !elOff || !elOn) return;
+  let resp;
+  try {
+    resp = await fetch("/api/services/mode-status").then(r => r.json());
+  } catch (e) {
+    elStatus.textContent = "mode unreachable";
+    elStatus.className = "svc-status stopped";
+    return;
+  }
+  const units = resp.units || {};
+  const mode = deriveMode(units);
+  let label, klass;
+  if (mode === "disco") { label = "mode: disco"; klass = "svc-status disco"; }
+  else if (mode === "handoff") { label = "mode: handoff (SB3)"; klass = "svc-status handoff"; }
+  else { label = "mode: transitioning"; klass = "svc-status partial"; }
+  elStatus.textContent = label;
+  elStatus.className = klass;
+  elStatus.title = Object.entries(units).map(([u,s]) => `${u} ${s}`).join("\\n");
+  elOff.disabled = (mode !== "disco");
+  elOn.disabled = (mode !== "handoff");
+}
+
+async function modeAction(action){
+  // action is "mode-off" or "mode-on"
+  const elOff = document.getElementById("mode-off-btn");
+  const elOn = document.getElementById("mode-on-btn");
+  elOff.disabled = true;
+  elOn.disabled = true;
+  const elStatus = document.getElementById("mode-status");
+  elStatus.textContent = action === "mode-off" ? "handing off to SB3…" : "reclaiming radios…";
+  elStatus.className = "svc-status partial";
+  try {
+    await fetch(`/api/services/${action}`, { method: "POST" });
+  } catch (e) { /* fall through; refresh will show the real state */ }
+  // mode-off / mode-on take ~10-15s end-to-end (drain wait + service start),
+  // so wait longer than svcAction's 1.5s. Refresh once after the toggle
+  // should be done, then again 5s later in case the first refresh caught
+  // mid-transition.
+  setTimeout(refreshModeStatus, 13000);
+  setTimeout(refreshModeStatus, 18000);
+}
 // --- Details popup -----------------------------------------------------------
 // Click a "details" button → popup positions next to it with the full Phase 2.5
 // interpretation prose. Click anywhere else closes it. Tables refresh every 2s
@@ -1411,6 +1513,10 @@ async function init(){
   document.getElementById("svc-stop").addEventListener("click", () => svcAction("stop"));
   refreshSvcStatus();
   setInterval(refreshSvcStatus, 5000);
+  document.getElementById("mode-off-btn").addEventListener("click", () => modeAction("mode-off"));
+  document.getElementById("mode-on-btn").addEventListener("click", () => modeAction("mode-on"));
+  refreshModeStatus();
+  setInterval(refreshModeStatus, 5000);
   refreshActiveListens();
   setInterval(refreshActiveListens, 4000);
   refreshFavorites();
