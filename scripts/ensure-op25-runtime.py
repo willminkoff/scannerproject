@@ -95,9 +95,24 @@ def _rspduo_split_processes_enabled() -> bool:
     return _env_flag("OP25_RSPDUO_SPLIT_PROCESSES", "1")
 
 
-def _rspduo_slave_start_delay_sec() -> float:
+def _rspduo_launch_gap_sec() -> float:
+    """Seconds of sleep emitted between every multi_rx.py launch in start.sh.
+
+    The SDRplay user-space daemon does not safely serialize concurrent
+    sdrplay_api_Open calls from different processes — even when the calls
+    target different physical RSPduos. Concurrent opens can deadlock or
+    return spurious "RSPduo slave mode not available" errors that segfault
+    gr-osmosdr. With the previous logic, only Slave-bearing instances got a
+    delay; two Master instances on different RSPduos still launched at the
+    same instant and hit the race. With this gap applied unconditionally
+    between every launch, no two opens overlap.
+
+    Mirrors the disco R1b pattern (sweep@A-T2 / @B-T2 systemd drop-ins);
+    same daemon, same root cause, same workaround. Default 2.0 s is the
+    proven-healthy attach time + 2x safety margin.
+    """
     try:
-        return max(0.0, float(os.getenv("OP25_RSPDUO_SLAVE_START_DELAY_SEC", "2.0")))
+        return max(0.0, float(os.getenv("OP25_RSPDUO_LAUNCH_GAP_SEC", "2.0")))
     except Exception:
         return 2.0
 
@@ -748,11 +763,11 @@ def main() -> int:
             "device_args": [str(dev.get("args") or "") for dev in config.get("devices", [])],
             "sort_key": 0 if any("mode=MA" in str(dev.get("args") or "") for dev in config.get("devices", []))
             else (2 if any("mode=SL" in str(dev.get("args") or "") for dev in config.get("devices", [])) else 1),
-            "delay_before_start_sec": (
-                _rspduo_slave_start_delay_sec()
-                if any("mode=SL" in str(dev.get("args") or "") for dev in config.get("devices", []))
-                else 0.0
-            ),
+            # Applied unconditionally (was previously only for SL specs). The
+            # generator emits the sleep before every non-first launch, so this
+            # serializes ALL concurrent opens against the SDRplay daemon — not
+            # just Slave-after-Master per RSPduo.
+            "delay_before_start_sec": _rspduo_launch_gap_sec(),
         })
 
         _multi_rx_udp_ports(config)
