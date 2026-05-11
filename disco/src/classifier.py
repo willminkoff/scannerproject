@@ -16,9 +16,80 @@ from typing import Optional, Tuple
 import numpy as np
 import yaml
 
+# ULS lookup is loaded from the same package; failure to import is non-fatal —
+# the classifier still classifies, just without licensee enrichment.
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from uls import lookup_uls
+    _ULS_AVAILABLE = True
+except Exception as _e:
+    lookup_uls = None
+    _ULS_AVAILABLE = False
+    _ULS_IMPORT_ERROR = _e
+
+# CDBS lookup (FCC Media Bureau broadcast database — covers commercial FM
+# 88-108 MHz and AM 530-1700 kHz that ULS doesn't carry). Used as a fallback
+# after lookup_uls returns nothing for in-band broadcast frequencies.
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from cdbs import lookup_cdbs
+    _CDBS_AVAILABLE = True
+except Exception as _ce:
+    lookup_cdbs = None
+    _CDBS_AVAILABLE = False
+    _CDBS_IMPORT_ERROR = _ce
+
+# Broadcast band cutoffs (Hz) — CDBS fallback only fires when freq is in-band.
+_BCAST_AM_LO_HZ = 530e3
+_BCAST_AM_HI_HZ = 1710e3
+_BCAST_FM_LO_HZ = 87.9e6
+_BCAST_FM_HI_HZ = 108.0e6
+
+
+def _is_broadcast_band(freq_hz: float) -> bool:
+    """True if `freq_hz` is in the AM or FM commercial broadcast band."""
+    if freq_hz is None or freq_hz <= 0:
+        return False
+    return (_BCAST_AM_LO_HZ <= freq_hz <= _BCAST_AM_HI_HZ) or \
+           (_BCAST_FM_LO_HZ <= freq_hz <= _BCAST_FM_HI_HZ)
+
+
 CONFIG_PATH = os.environ.get("DISCO_CONFIG", "/home/ubuntu/scannerproject/disco/configs/sweep.yaml")
 SLICES_DIR = os.environ.get("DISCO_SLICES_DIR", "/run/scannerproject/disco/slices")
 MODEL_PATH = os.environ.get("DISCO_MODEL_PATH", "/home/ubuntu/scannerproject/disco/models/radioml.onnx")
+# Phase 7-mini capture: when enabled, slices from frequency ranges whose true
+# modulation we know a priori get archived to per-label directories before the
+# normal `unlink` happens. Used to assemble a real-data fine-tune dataset for
+# the disco-trained CNN. Disable by setting DISCO_CAPTURE_ENABLED=0.
+CAPTURE_DIR = os.environ.get("DISCO_CAPTURE_DIR", "/home/ubuntu/scannerproject/disco/captures")
+CAPTURE_ENABLED = os.environ.get("DISCO_CAPTURE_ENABLED", "1") not in ("0", "false", "False", "")
+CAPTURE_MAX_PER_LABEL = int(os.environ.get("DISCO_CAPTURE_MAX_PER_LABEL", "2000"))
+# Frequency-range → ground-truth label. Order matters: first matching rule wins.
+# Bandwidth filters are optional — leave bw_min/bw_max as None to skip.
+CAPTURE_RULES = [
+    # commercial FM broadcast — wide signal, easy classify
+    {"label": "FM_BROADCAST", "freq_min": 88e6, "freq_max": 108e6, "bw_min": 100e3, "bw_max": None},
+    # NOAA WX (narrow FM voice with subaudible tone)
+    {"label": "FM_NARROW",    "freq_min": 162.4e6, "freq_max": 162.6e6, "bw_min": None, "bw_max": 30e3},
+    # 2m amateur repeaters — narrow FM, busy in metro Nashville
+    {"label": "FM_NARROW",    "freq_min": 144e6, "freq_max": 148e6, "bw_min": None, "bw_max": 30e3},
+    # VHF business/public-safety NFM voice (12.5/25 kHz channels)
+    {"label": "FM_NARROW",    "freq_min": 150e6, "freq_max": 162e6, "bw_min": None, "bw_max": 30e3},
+    # 70cm amateur — narrow FM repeaters
+    {"label": "FM_NARROW",    "freq_min": 440e6, "freq_max": 450e6, "bw_min": None, "bw_max": 30e3},
+    # GMRS / FRS UHF NFM (462-467 MHz, 12.5 kHz)
+    {"label": "FM_NARROW",    "freq_min": 462e6, "freq_max": 468e6, "bw_min": None, "bw_max": 30e3},
+    # Airband voice — narrow AM (118-137 MHz)
+    {"label": "AM_VOICE",     "freq_min": 118e6, "freq_max": 137e6, "bw_min": None, "bw_max": 25e3},
+    # MURS narrow FM (151.82, 151.88, 151.94, 154.57, 154.60 MHz)
+    {"label": "FM_NARROW",    "freq_min": 151.7e6, "freq_max": 154.65e6, "bw_min": None, "bw_max": 30e3},
+]
+# Resample IQ to this rate before ONNX inference. RadioML 2018.01A's CNN learned
+# the absolute sample rate, not just the modulation, so feeding it slices at the
+# sweep's per-signal-adaptive rate (50 kHz floor) makes commercial FM look
+# nothing like the FM examples it trained on. Fixed-rate resample is a
+# diagnostic to confirm the rate-mismatch theory; 0 disables.
+TARGET_RATE_HZ = int(os.environ.get("DISCO_TARGET_RATE_HZ", "1000000"))
 LOG = logging.getLogger("disco.classifier")
 _STOP = False
 
@@ -53,6 +124,17 @@ def migrate_schema(conn):
         ("classified_ts", "REAL"),
         ("interpretation", "TEXT"),
         ("interpreted_ts", "REAL"),
+        # Phase 3 — FCC ULS enrichment columns. Populated per-detection when
+        # `lookup_uls` returns a match within the freq guard band; left NULL
+        # for unlicensed bands (broadcast FM, ISM 902-928, airband, etc.) and
+        # for amateur-band fallback hits where no point-frequency match exists.
+        ("uls_callsign", "TEXT"),
+        ("uls_entity_name", "TEXT"),
+        ("uls_emission_designator", "TEXT"),
+        ("uls_station_class", "TEXT"),
+        ("uls_distance_km", "REAL"),
+        ("uls_source", "TEXT"),
+        ("uls_lookup_ts", "REAL"),
     ]:
         if col not in existing:
             conn.execute(f"ALTER TABLE detections ADD COLUMN {col} {ddl}")
@@ -133,17 +215,27 @@ def heuristic_classify(iq: np.ndarray, sample_rate: float) -> Tuple[str, float]:
 def derive_protocol_tag(class_name: str, freq_hz: float, bandwidth_hz: float) -> str:
     f_mhz = freq_hz / 1e6
     bw_khz = bandwidth_hz / 1e3
-    if class_name == "AM" and 118 <= f_mhz <= 137 and bw_khz < 25:
+    # heuristic-era classes ("AM", "FM", "FSK2/4", "SSB") and RadioML class names
+    # ("AM-DSB-WC", "AM-DSB-SC", "AM-SSB-WC", "AM-SSB-SC", "FM", "GMSK", PSK/QAM/APSK
+    # families) coexist — derive a canonical family tag first.
+    is_am = class_name == "AM" or class_name.startswith("AM-")
+    is_fm = class_name == "FM"
+    is_ssb = class_name == "SSB" or class_name.startswith("AM-SSB-")
+    is_qam_psk = class_name in ("BPSK","QPSK","8PSK","16PSK","32PSK","OQPSK") \
+                 or class_name.endswith("QAM") or class_name.endswith("APSK")
+    if is_am and 118 <= f_mhz <= 137 and bw_khz < 25:
         return "Airband (AM)"
-    if class_name == "FM" and 162.0 <= f_mhz <= 162.6 and bw_khz < 25:
+    if is_am and 108 <= f_mhz <= 118:
+        return "Aero NavBeacon (AM)"
+    if is_fm and 162.0 <= f_mhz <= 162.6 and bw_khz < 25:
         return "NOAA WX"
-    if class_name == "FM" and 88 <= f_mhz <= 108:
+    if is_fm and 88 <= f_mhz <= 108:
         return "Broadcast FM"
-    if class_name == "FM" and 144 <= f_mhz <= 148:
+    if is_fm and 144 <= f_mhz <= 148:
         return "2m amateur"
-    if class_name == "FM" and 420 <= f_mhz <= 450:
+    if is_fm and 420 <= f_mhz <= 450:
         return "70cm amateur"
-    if class_name == "FM" and 154 <= f_mhz <= 161 and bw_khz < 30:
+    if is_fm and 154 <= f_mhz <= 161 and bw_khz < 30:
         return "VHF business / public safety"
     if class_name in ("FSK4", "FSK2") and 450 <= f_mhz <= 470 and 8 <= bw_khz <= 16:
         return "DMR/NXDN candidate"
@@ -151,15 +243,77 @@ def derive_protocol_tag(class_name: str, freq_hz: float, bandwidth_hz: float) ->
         return "P25 candidate"
     if class_name in ("FSK4", "FSK2") and 25 <= f_mhz <= 60:
         return "Lo-VHF FSK / pager"
-    if class_name in ("FSK4",) and 880 <= f_mhz <= 960:
+    if (class_name in ("FSK4",) or is_qam_psk) and 880 <= f_mhz <= 960:
         return "Cellular candidate"
-    if class_name == "FM" and 470 <= f_mhz <= 700:
+    if class_name == "GMSK" and 880 <= f_mhz <= 960:
+        return "GSM candidate"
+    if is_qam_psk and 700 <= f_mhz <= 900:
+        return "LTE/cellular candidate"
+    if is_fm and 470 <= f_mhz <= 700:
         return "UHF TV audio?"
-    if class_name == "AM" and 108 <= f_mhz <= 118:
-        return "Aero NavBeacon (AM)"
-    if class_name == "FM" and 902 <= f_mhz <= 928:
+    if is_fm and 902 <= f_mhz <= 928:
         return "ISM 902"
     return class_name
+
+
+def _match_capture_rule(meta: dict):
+    """Return the label of the first matching CAPTURE_RULES entry, or None."""
+    f = meta.get("freq_hz")
+    bw = meta.get("bandwidth_hz") or 0.0
+    if f is None:
+        return None
+    for rule in CAPTURE_RULES:
+        if not (rule["freq_min"] <= f <= rule["freq_max"]):
+            continue
+        if rule["bw_min"] is not None and bw < rule["bw_min"]:
+            continue
+        if rule["bw_max"] is not None and bw > rule["bw_max"]:
+            continue
+        return rule["label"]
+    return None
+
+
+_CAPTURE_COUNTS: dict = {}
+
+
+def _capture_count(label: str) -> int:
+    """Lazy count of files in the capture dir for a label."""
+    if label not in _CAPTURE_COUNTS:
+        d = os.path.join(CAPTURE_DIR, label)
+        try:
+            _CAPTURE_COUNTS[label] = len(os.listdir(d))
+        except FileNotFoundError:
+            _CAPTURE_COUNTS[label] = 0
+    return _CAPTURE_COUNTS[label]
+
+
+def maybe_archive_slice(slice_path: str, meta: dict, snr_db: Optional[float]) -> Optional[str]:
+    """Archive the slice to /captures/<label>/ if a rule matches and we're under
+    the per-label cap. Returns the destination path if archived, else None.
+    Errors are logged but never block the classifier."""
+    if not CAPTURE_ENABLED:
+        return None
+    label = _match_capture_rule(meta)
+    if label is None:
+        return None
+    n = _capture_count(label)
+    if n >= CAPTURE_MAX_PER_LABEL:
+        return None
+    try:
+        import shutil
+        d = os.path.join(CAPTURE_DIR, label)
+        os.makedirs(d, exist_ok=True)
+        dst = os.path.join(d, os.path.basename(slice_path))
+        shutil.copy2(slice_path, dst)
+        # tiny sidecar with snr (filename already encodes freq/bw/rate/ts)
+        if snr_db is not None:
+            with open(dst + ".meta", "w") as fh:
+                fh.write(f"snr_db={snr_db:.2f}\n")
+        _CAPTURE_COUNTS[label] = n + 1
+        return dst
+    except Exception as e:
+        LOG.warning("capture archive failed for %s: %s", slice_path, e)
+        return None
 
 
 def init_onnx_model(path: str):
@@ -173,6 +327,44 @@ def init_onnx_model(path: str):
     except Exception as e:
         LOG.warning("failed to load ONNX model %s: %s", path, e)
         return None
+
+
+def resample_iq(iq: np.ndarray, src_rate: float, target_rate: int) -> np.ndarray:
+    """Polyphase resample complex IQ from src_rate to target_rate. Returns
+    iq unchanged if rates are equal or target_rate <= 0 (resample disabled)."""
+    if target_rate <= 0:
+        return iq
+    src = int(round(src_rate))
+    if src == target_rate:
+        return iq
+    from math import gcd
+    g = gcd(src, target_rate)
+    up = target_rate // g
+    down = src // g
+    from scipy.signal import resample_poly
+    # resample real+imag separately to keep dtype tight; resample_poly handles
+    # complex but routes through abs/angle which is slower than two real passes.
+    r = resample_poly(iq.real.astype(np.float32), up, down).astype(np.float32)
+    i = resample_poly(iq.imag.astype(np.float32), up, down).astype(np.float32)
+    return r + 1j * i
+
+
+def load_class_names(model_path: str):
+    """Class names sit next to the ONNX as `<model>.classes.json`.
+    Returns [] if not present — caller falls back to `class_<idx>`."""
+    sidecar = os.path.splitext(model_path)[0] + ".classes.json"
+    try:
+        import json
+        with open(sidecar) as f:
+            names = json.load(f)
+        if isinstance(names, list) and all(isinstance(n, str) for n in names):
+            LOG.info("loaded %d class names from %s", len(names), sidecar)
+            return names
+    except FileNotFoundError:
+        LOG.info("no class names sidecar at %s; using class_<idx> labels", sidecar)
+    except Exception as e:
+        LOG.warning("failed to read class names %s: %s", sidecar, e)
+    return []
 
 
 def parse_slice_meta(filename: str) -> Optional[dict]:
@@ -215,8 +407,16 @@ def classifier_loop(cfg, conn):
     max_buffered = int(classifier_cfg.get("max_buffered_slices", 1000))
 
     onnx_sess = init_onnx_model(MODEL_PATH)
+    class_names = load_class_names(MODEL_PATH) if onnx_sess is not None else []
     backend = "onnx" if onnx_sess else "heuristic"
-    LOG.info("classifier backend=%s confidence_threshold=%.2f", backend, confidence_threshold)
+    LOG.info("classifier backend=%s confidence_threshold=%.2f target_rate_hz=%d uls=%s cdbs=%s",
+             backend, confidence_threshold, TARGET_RATE_HZ,
+             "available" if _ULS_AVAILABLE else "DISABLED",
+             "available" if _CDBS_AVAILABLE else "DISABLED")
+    if not _ULS_AVAILABLE:
+        LOG.warning("ULS lookup disabled: %s", _ULS_IMPORT_ERROR)
+    if not _CDBS_AVAILABLE:
+        LOG.warning("CDBS lookup disabled: %s", _CDBS_IMPORT_ERROR)
 
     seen_count = 0; classified_count = 0; last_log = time.time()
 
@@ -249,14 +449,27 @@ def classifier_loop(cfg, conn):
             slice_rate = meta["rate_hz"]
             if onnx_sess is not None:
                 try:
-                    iq_norm = iq[:1024] / (np.max(np.abs(iq[:1024])) + 1e-12)
+                    iq_for_model = resample_iq(iq, slice_rate, TARGET_RATE_HZ)
+                    n = len(iq_for_model)
+                    if n < 1024:
+                        # short slice — pad with zeros at the end to match model input
+                        pad = np.zeros(1024 - n, dtype=iq_for_model.dtype)
+                        iq_window = np.concatenate([iq_for_model, pad])
+                    else:
+                        # take the central 1024 samples; resampling can stretch the
+                        # array well past 1024 (e.g. 50kHz → 1MHz on a 2048-sample
+                        # slice yields 40960 samples) and the central window holds
+                        # the cleanest signal away from edge filter artifacts.
+                        start = (n - 1024) // 2
+                        iq_window = iq_for_model[start:start + 1024]
+                    iq_norm = iq_window / (np.max(np.abs(iq_window)) + 1e-12)
                     inp = np.stack([iq_norm.real, iq_norm.imag]).astype(np.float32)[None, :]
                     out = onnx_sess.run(None, {onnx_sess.get_inputs()[0].name: inp})[0]
                     probs = np.exp(out - np.max(out))
                     probs = probs / probs.sum()
                     cls_idx = int(np.argmax(probs))
                     conf = float(probs[0, cls_idx])
-                    cls_name = f"class_{cls_idx}"
+                    cls_name = class_names[cls_idx] if cls_idx < len(class_names) else f"class_{cls_idx}"
                 except Exception as e:
                     LOG.warning("ONNX inference failed: %s; falling back to heuristic", e)
                     cls_name, conf = heuristic_classify(iq, slice_rate)
@@ -271,13 +484,73 @@ def classifier_loop(cfg, conn):
             det_id = find_detection_id(conn, slice_path)
             now = time.time()
             if det_id is not None:
+                # Phase 3: enrich with FCC ULS licensee info. Only the top-ranked
+                # match (closest in geo & freq) is persisted. Errors are logged
+                # but never block the classification update.
+                uls_call = uls_name = uls_emit = uls_stclass = uls_src = None
+                uls_dist = None
+                if _ULS_AVAILABLE and lookup_uls is not None:
+                    try:
+                        matches = lookup_uls(meta["freq_hz"], limit=1)
+                        if matches:
+                            m = matches[0]
+                            uls_call = m.get("callsign")
+                            uls_name = m.get("entity_name")
+                            uls_emit = m.get("emission_designator")
+                            uls_stclass = m.get("station_class")
+                            uls_dist = m.get("distance_km")
+                            uls_src = m.get("source")
+                    except Exception as _ee:
+                        LOG.warning("uls lookup failed at %.6f MHz: %s",
+                                    meta["freq_hz"] / 1e6, _ee)
+                # CDBS fallback: ULS doesn't carry commercial AM/FM broadcast
+                # — those licenses live in the FCC Media Bureau's CDBS. Only
+                # query when ULS returned nothing AND the freq is in an
+                # AM or FM broadcast band. Tag with uls_source='cdbs' so
+                # downstream consumers can distinguish the source.
+                if (uls_call is None and uls_name is None
+                        and _CDBS_AVAILABLE and lookup_cdbs is not None
+                        and _is_broadcast_band(meta["freq_hz"])):
+                    try:
+                        cdbs_matches = lookup_cdbs(meta["freq_hz"], limit=1)
+                        if cdbs_matches:
+                            m = cdbs_matches[0]
+                            uls_call = m.get("callsign")
+                            uls_name = m.get("entity_name")
+                            uls_emit = m.get("emission_designator")
+                            uls_stclass = m.get("station_class")
+                            uls_dist = m.get("distance_km")
+                            uls_src = m.get("source") or "cdbs"
+                    except Exception as _ce2:
+                        LOG.warning("cdbs lookup failed at %.6f MHz: %s",
+                                    meta["freq_hz"] / 1e6, _ce2)
                 conn.execute(
                     "UPDATE detections SET modulation_class = ?, modulation_confidence = ?, "
-                    "protocol_tag = ?, classified_ts = ? WHERE id = ?",
-                    (final_class, conf, tag, now, det_id)
+                    "protocol_tag = ?, classified_ts = ?, "
+                    "uls_callsign = ?, uls_entity_name = ?, uls_emission_designator = ?, "
+                    "uls_station_class = ?, uls_distance_km = ?, uls_source = ?, "
+                    "uls_lookup_ts = ? "
+                    "WHERE id = ?",
+                    (final_class, conf, tag, now,
+                     uls_call, uls_name, uls_emit, uls_stclass, uls_dist, uls_src, now,
+                     det_id)
                 )
                 conn.commit()
                 classified_count += 1
+            # Phase 7-mini capture: archive slice to /captures/<label>/ if a
+            # frequency-range rule matches and we're under the per-label cap.
+            # Pulls SNR from the freshly-updated row so the .meta sidecar has
+            # the snr that sweep.py computed (more accurate than re-deriving).
+            try:
+                snr_db = None
+                if det_id is not None:
+                    cur = conn.execute("SELECT snr_db FROM detections WHERE id = ?", (det_id,))
+                    row = cur.fetchone()
+                    if row and row[0] is not None:
+                        snr_db = float(row[0])
+                maybe_archive_slice(slice_path, meta, snr_db)
+            except Exception as _ce:
+                LOG.warning("capture step failed: %s", _ce)
             try: os.unlink(slice_path)
             except: pass
             seen_count += 1

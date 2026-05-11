@@ -19,11 +19,17 @@ def main():
     model.eval()
 
     dummy = torch.randn(1, 2, args.samples)
+    # dynamo=False uses the legacy TorchScript exporter, which writes a single
+    # self-contained .onnx file with weights inlined. The default dynamo path on
+    # PyTorch 2.11 splits weights into a sibling `.onnx.data` file, which breaks
+    # one-file scp deployment to the Micro and trips ValidateExternalDataPath in
+    # onnxruntime if the .data file isn't co-located.
     torch.onnx.export(
         model, dummy, args.out,
         input_names=["iq"], output_names=["logits"],
         dynamic_axes={"iq": {0: "batch"}, "logits": {0: "batch"}},
         opset_version=14,
+        dynamo=False,
     )
     print(f"wrote {args.out}")
     print(f"classes ({len(ckpt.get('classes', []))}): {ckpt.get('classes', [])}")

@@ -2,14 +2,35 @@
 import asyncio
 import json
 import os
+import shlex
 import sqlite3
+import subprocess
+import sys
 import time
 from typing import Optional
 
 import yaml
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
+from pydantic import BaseModel
 import uvicorn
+
+# Phase 5 listen integration. listen.py exposes module-level listen()/stop()/
+# list_active() that manage rtl-airband symlinks + restart. We just wrap them
+# as endpoints; all the rtl-airband + sudoers plumbing is over there.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    import listen as listen_mod
+    _LISTEN_AVAILABLE = True
+except Exception as _le:
+    listen_mod = None
+    _LISTEN_AVAILABLE = False
+    _LISTEN_IMPORT_ERROR = _le
+
+# /usr/local/bin/disco-svc-ctl is allowed via NOPASSWD sudoers for the ubuntu
+# user — it stops/starts the RSPduo-owning sweep + classifier services so the
+# user can hand the radios back to SB3 without ssh'ing.
+SVC_CTL = "/usr/local/bin/disco-svc-ctl"
 
 CONFIG_PATH = os.environ.get("DISCO_CONFIG", "/home/ubuntu/scannerproject/disco/configs/sweep.yaml")
 STATE_DIR = os.environ.get("DISCO_STATE_DIR", "/run/scannerproject/disco")
@@ -49,13 +70,353 @@ def api_config():
     }
 
 
+def _svc_ctl(action: str) -> dict:
+    """Invoke the disco-svc-ctl wrapper via sudo. Returns parsed status."""
+    # mode-off / mode-on can take ~12-15s end-to-end (drain + service start),
+    # so widen the timeout for those.
+    timeout = 45 if action in ("mode-off", "mode-on") else 30
+    try:
+        proc = subprocess.run(
+            ["sudo", "-n", SVC_CTL, action],
+            capture_output=True, text=True, timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": "timeout", "action": action}
+    out = proc.stdout.strip()
+    err = proc.stderr.strip()
+    units = {}
+    # status, mode-status, and the mode-off/mode-on actions all emit
+    # one-line-per-unit state on stdout.
+    if action in ("status", "mode-status", "mode-off", "mode-on"):
+        for line in out.splitlines():
+            parts = line.split()
+            if len(parts) == 2:
+                units[parts[0]] = parts[1]
+    return {
+        "ok": proc.returncode == 0,
+        "action": action,
+        "returncode": proc.returncode,
+        "stdout": out,
+        "stderr": err,
+        "units": units,
+    }
+
+
+@app.get("/api/services/status")
+def api_services_status():
+    return _svc_ctl("status")
+
+
+@app.post("/api/services/start")
+def api_services_start():
+    return _svc_ctl("start")
+
+
+@app.post("/api/services/stop")
+def api_services_stop():
+    return _svc_ctl("stop")
+
+
+# Handoff actions — toggle only the radio-owning sweep@ instances and the
+# SB3 digital stack. Classifier and interpret stay running across the
+# toggle (warm-cache preservation), and sweep@ instances are masked while
+# SB3 owns the radios so a classifier restart can't pull them back.
+@app.post("/api/services/mode-off")
+def api_services_mode_off():
+    return _svc_ctl("mode-off")
+
+
+@app.post("/api/services/mode-on")
+def api_services_mode_on():
+    return _svc_ctl("mode-on")
+
+
+@app.get("/api/services/mode-status")
+def api_services_mode_status():
+    return _svc_ctl("mode-status")
+
+
+# --- Phase 5 listen endpoints -----------------------------------------------
+
+class ListenBody(BaseModel):
+    freq_hz: float
+    bandwidth_hz: float | None = None
+    modulation_class: str = ""
+    protocol_tag: str | None = None
+    user_id: str | None = None
+
+
+class StopBody(BaseModel):
+    freq_hz: float
+    user_id: str | None = None
+
+
+class MuteBody(BaseModel):
+    freq_hz: float
+    muted: bool
+    user_id: str | None = None
+
+
+@app.post("/api/decode/listen")
+def api_decode_listen(body: ListenBody):
+    if not _LISTEN_AVAILABLE:
+        return {"status": "error", "detail": f"listen module unavailable: {_LISTEN_IMPORT_ERROR}"}
+    listen_mod.init_schema(DB_PATH)
+    req = listen_mod.ListenRequest(
+        freq_hz=body.freq_hz,
+        bandwidth_hz=body.bandwidth_hz,
+        modulation_class=body.modulation_class,
+        protocol_tag=body.protocol_tag,
+    )
+    res = listen_mod.listen(req, db_path=DB_PATH, user_id=body.user_id)
+    return {
+        "status": res.status, "detail": res.detail,
+        "stream_url": res.stream_url, "target": res.target,
+        "modulation": res.modulation,
+    }
+
+
+@app.post("/api/decode/stop")
+def api_decode_stop(body: StopBody):
+    if not _LISTEN_AVAILABLE:
+        return {"status": "error", "detail": f"listen module unavailable: {_LISTEN_IMPORT_ERROR}"}
+    listen_mod.init_schema(DB_PATH)
+    res = listen_mod.stop(body.freq_hz, db_path=DB_PATH, user_id=body.user_id)
+    return {
+        "status": res.status, "detail": res.detail,
+        "stream_url": res.stream_url, "target": res.target,
+    }
+
+
+@app.get("/api/decode/active")
+def api_decode_active():
+    if not _LISTEN_AVAILABLE:
+        return {"items": [], "stream_url": ""}
+    return listen_mod.list_active()
+
+
+@app.post("/api/decode/mute")
+def api_decode_mute(body: MuteBody):
+    if not _LISTEN_AVAILABLE:
+        return {"status": "error", "detail": f"listen module unavailable: {_LISTEN_IMPORT_ERROR}"}
+    listen_mod.init_schema(DB_PATH)
+    res = listen_mod.mute(body.freq_hz, body.muted, db_path=DB_PATH, user_id=body.user_id)
+    return {
+        "status": res.status, "detail": res.detail,
+        "stream_url": res.stream_url, "target": res.target,
+    }
+
+
+# --- Phase 4 polish: persistent favorites -----------------------------------
+
+def _ensure_favorites_table():
+    """Create the favorites table if absent. Cheap; called per-request."""
+    c = _conn()
+    try:
+        c.execute(
+            "CREATE TABLE IF NOT EXISTS disco_favorites ("
+            "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "  freq_hz REAL NOT NULL UNIQUE,"
+            "  label TEXT,"
+            "  modulation_class TEXT,"
+            "  protocol_tag TEXT,"
+            "  uls_callsign TEXT,"
+            "  uls_entity_name TEXT,"
+            "  added_ts REAL NOT NULL,"
+            "  notes TEXT"
+            ")"
+        )
+        c.execute("CREATE INDEX IF NOT EXISTS idx_fav_freq ON disco_favorites(freq_hz)")
+        c.commit()
+    finally:
+        c.close()
+
+
+class FavoriteAddBody(BaseModel):
+    freq_hz: float
+    label: str | None = None
+    modulation_class: str | None = None
+    protocol_tag: str | None = None
+    uls_callsign: str | None = None
+    uls_entity_name: str | None = None
+
+
+class FavoriteRemoveBody(BaseModel):
+    freq_hz: float
+
+
+@app.get("/api/favorites")
+def api_favorites_list(active_window_s: float = 600.0):
+    """Return favorites with last-seen activity in the recent window."""
+    _ensure_favorites_table()
+    cutoff = time.time() - active_window_s
+    c = _conn()
+    try:
+        favs = c.execute(
+            "SELECT freq_hz, label, modulation_class, protocol_tag, "
+            "uls_callsign, uls_entity_name, added_ts, notes "
+            "FROM disco_favorites ORDER BY freq_hz"
+        ).fetchall()
+        out = []
+        for f in favs:
+            d = dict(f)
+            # Bin-aware last-seen (25 kHz bin matches the strongest-signals SQL)
+            row = c.execute(
+                "SELECT MAX(ts) as last_seen, COUNT(*) as hits, MAX(snr_db) as max_snr "
+                "FROM detections "
+                "WHERE ts >= ? AND ABS(freq_hz - ?) < 25000",
+                (cutoff, d["freq_hz"]),
+            ).fetchone()
+            d["last_seen"] = row["last_seen"]
+            d["recent_hits"] = row["hits"] or 0
+            d["recent_max_snr"] = row["max_snr"]
+            out.append(d)
+        return {"items": out, "active_window_s": active_window_s}
+    finally:
+        c.close()
+
+
+@app.post("/api/favorites/add")
+def api_favorites_add(body: FavoriteAddBody):
+    _ensure_favorites_table()
+    c = _conn()
+    try:
+        # 25 kHz bin dedup so re-clicking near the same freq doesn't create a duplicate
+        existing = c.execute(
+            "SELECT id FROM disco_favorites WHERE ABS(freq_hz - ?) < 25000 LIMIT 1",
+            (body.freq_hz,),
+        ).fetchone()
+        if existing:
+            return {"status": "already", "id": existing["id"]}
+        cur = c.execute(
+            "INSERT INTO disco_favorites (freq_hz, label, modulation_class, protocol_tag,"
+            " uls_callsign, uls_entity_name, added_ts) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (body.freq_hz, body.label, body.modulation_class, body.protocol_tag,
+             body.uls_callsign, body.uls_entity_name, time.time()),
+        )
+        c.commit()
+        return {"status": "added", "id": cur.lastrowid}
+    finally:
+        c.close()
+
+
+@app.post("/api/favorites/remove")
+def api_favorites_remove(body: FavoriteRemoveBody):
+    _ensure_favorites_table()
+    c = _conn()
+    try:
+        cur = c.execute(
+            "DELETE FROM disco_favorites WHERE ABS(freq_hz - ?) < 25000",
+            (body.freq_hz,),
+        )
+        c.commit()
+        return {"status": "removed", "n": cur.rowcount}
+    finally:
+        c.close()
+
+
+# --- Phase 4 polish: hidden rows --------------------------------------------
+# Mirrors the favorites pattern. Stations the user doesn't want cluttering the
+# table (e.g. all 30 commercial FM broadcast stations once CDBS labels them)
+# get a freq stored in disco_hidden; refreshTables filters them out client-side.
+
+def _ensure_hidden_table():
+    c = _conn()
+    try:
+        c.execute(
+            "CREATE TABLE IF NOT EXISTS disco_hidden ("
+            "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "  freq_hz REAL NOT NULL UNIQUE,"
+            "  label TEXT,"
+            "  added_ts REAL NOT NULL,"
+            "  notes TEXT"
+            ")"
+        )
+        c.execute("CREATE INDEX IF NOT EXISTS idx_hidden_freq ON disco_hidden(freq_hz)")
+        c.commit()
+    finally:
+        c.close()
+
+
+class HideAddBody(BaseModel):
+    freq_hz: float
+    label: str | None = None
+
+
+class HideRemoveBody(BaseModel):
+    freq_hz: float
+
+
+@app.get("/api/hidden")
+def api_hidden_list():
+    _ensure_hidden_table()
+    c = _conn()
+    try:
+        rows = c.execute(
+            "SELECT freq_hz, label, added_ts FROM disco_hidden ORDER BY freq_hz"
+        ).fetchall()
+        return {"items": [dict(r) for r in rows]}
+    finally:
+        c.close()
+
+
+@app.post("/api/hidden/add")
+def api_hidden_add(body: HideAddBody):
+    _ensure_hidden_table()
+    c = _conn()
+    try:
+        existing = c.execute(
+            "SELECT id FROM disco_hidden WHERE ABS(freq_hz - ?) < 25000 LIMIT 1",
+            (body.freq_hz,),
+        ).fetchone()
+        if existing:
+            return {"status": "already", "id": existing["id"]}
+        cur = c.execute(
+            "INSERT INTO disco_hidden (freq_hz, label, added_ts) VALUES (?, ?, ?)",
+            (body.freq_hz, body.label, time.time()),
+        )
+        c.commit()
+        return {"status": "added", "id": cur.lastrowid}
+    finally:
+        c.close()
+
+
+@app.post("/api/hidden/remove")
+def api_hidden_remove(body: HideRemoveBody):
+    _ensure_hidden_table()
+    c = _conn()
+    try:
+        cur = c.execute(
+            "DELETE FROM disco_hidden WHERE ABS(freq_hz - ?) < 25000",
+            (body.freq_hz,),
+        )
+        c.commit()
+        return {"status": "removed", "n": cur.rowcount}
+    finally:
+        c.close()
+
+
+@app.post("/api/hidden/clear")
+def api_hidden_clear():
+    _ensure_hidden_table()
+    c = _conn()
+    try:
+        cur = c.execute("DELETE FROM disco_hidden")
+        c.commit()
+        return {"status": "cleared", "n": cur.rowcount}
+    finally:
+        c.close()
+
+
 @app.get("/api/detections")
 def api_detections(since_seconds: float = 60.0, limit: int = 1000):
     cutoff = time.time() - since_seconds
     c = _conn()
     rows = c.execute(
         "SELECT ts, tuner_id, freq_hz, bandwidth_hz, power_dbfs, snr_db, "
-        "modulation_class, modulation_confidence, protocol_tag "
+        "modulation_class, modulation_confidence, protocol_tag, "
+        "uls_callsign, uls_entity_name, uls_emission_designator, "
+        "uls_station_class, uls_distance_km, uls_source "
         "FROM detections WHERE ts >= ? ORDER BY ts DESC LIMIT ?",
         (cutoff, limit),
     ).fetchall()
@@ -91,11 +452,50 @@ def api_strongest(since_seconds: float = 60.0, per_tuner: int = 15, bin_khz: flo
             "    AND CAST(d2.freq_hz / ? AS INTEGER) = CAST(detections.freq_hz / ? AS INTEGER) "
             "    AND d2.modulation_class IS NOT NULL "
             "    AND d2.ts >= ? "
-            "  ORDER BY d2.modulation_confidence DESC LIMIT 1 ) as protocol_tag, ( SELECT interpretation FROM detections d2   WHERE d2.tuner_id = detections.tuner_id     AND CAST(d2.freq_hz / ? AS INTEGER) = CAST(detections.freq_hz / ? AS INTEGER)     AND d2.interpretation IS NOT NULL     AND d2.ts >= ?   ORDER BY d2.interpreted_ts DESC LIMIT 1 ) as interpretation "
+            "  ORDER BY d2.modulation_confidence DESC LIMIT 1 ) as protocol_tag, "
+            "( SELECT interpretation FROM detections d2 "
+            "  WHERE d2.tuner_id = detections.tuner_id "
+            "    AND CAST(d2.freq_hz / ? AS INTEGER) = CAST(detections.freq_hz / ? AS INTEGER) "
+            "    AND d2.interpretation IS NOT NULL "
+            "    AND d2.ts >= ? "
+            "  ORDER BY d2.interpreted_ts DESC LIMIT 1 ) as interpretation, "
+            # Phase 3: ULS enrichment per bin. We want the licensee for the
+            # strongest hit in the bin; ranking by snr_db DESC reuses the same
+            # row the modulation columns above already used for tag/class.
+            "( SELECT uls_callsign FROM detections d2 "
+            "  WHERE d2.tuner_id = detections.tuner_id "
+            "    AND CAST(d2.freq_hz / ? AS INTEGER) = CAST(detections.freq_hz / ? AS INTEGER) "
+            "    AND d2.uls_callsign IS NOT NULL AND d2.ts >= ? "
+            "  ORDER BY d2.snr_db DESC LIMIT 1 ) as uls_callsign, "
+            "( SELECT uls_entity_name FROM detections d2 "
+            "  WHERE d2.tuner_id = detections.tuner_id "
+            "    AND CAST(d2.freq_hz / ? AS INTEGER) = CAST(detections.freq_hz / ? AS INTEGER) "
+            "    AND d2.uls_callsign IS NOT NULL AND d2.ts >= ? "
+            "  ORDER BY d2.snr_db DESC LIMIT 1 ) as uls_entity_name, "
+            "( SELECT uls_emission_designator FROM detections d2 "
+            "  WHERE d2.tuner_id = detections.tuner_id "
+            "    AND CAST(d2.freq_hz / ? AS INTEGER) = CAST(detections.freq_hz / ? AS INTEGER) "
+            "    AND d2.uls_callsign IS NOT NULL AND d2.ts >= ? "
+            "  ORDER BY d2.snr_db DESC LIMIT 1 ) as uls_emission_designator, "
+            "( SELECT uls_station_class FROM detections d2 "
+            "  WHERE d2.tuner_id = detections.tuner_id "
+            "    AND CAST(d2.freq_hz / ? AS INTEGER) = CAST(detections.freq_hz / ? AS INTEGER) "
+            "    AND d2.uls_callsign IS NOT NULL AND d2.ts >= ? "
+            "  ORDER BY d2.snr_db DESC LIMIT 1 ) as uls_station_class, "
+            "( SELECT uls_distance_km FROM detections d2 "
+            "  WHERE d2.tuner_id = detections.tuner_id "
+            "    AND CAST(d2.freq_hz / ? AS INTEGER) = CAST(detections.freq_hz / ? AS INTEGER) "
+            "    AND d2.uls_callsign IS NOT NULL AND d2.ts >= ? "
+            "  ORDER BY d2.snr_db DESC LIMIT 1 ) as uls_distance_km "
             "FROM detections WHERE ts >= ? AND tuner_id = ? "
             "GROUP BY CAST(freq_hz / ? AS INTEGER) "
             "ORDER BY max_snr DESC LIMIT ?",
             (bin_hz, bin_hz, cutoff,
+             bin_hz, bin_hz, cutoff,
+             bin_hz, bin_hz, cutoff,
+             bin_hz, bin_hz, cutoff,
+             bin_hz, bin_hz, cutoff,
+             bin_hz, bin_hz, cutoff,
              bin_hz, bin_hz, cutoff,
              bin_hz, bin_hz, cutoff,
              bin_hz, bin_hz, cutoff,
@@ -213,15 +613,151 @@ th{color:#888;font-weight:normal;font-size:var(--fs-th);text-transform:uppercase
 .empty{color:#666;font-style:italic;font-size:var(--fs-empty)}
 .hot{color:#ffb84d}.warm{color:#7fc7ff}
 .mod-high{color:#a8e6a8;font-weight:600}.mod-mid{color:#cccc77}.mod-low{color:#666}
+.uls{color:#cdd0d6;max-width:240px;overflow:hidden;text-overflow:ellipsis;cursor:help}
+.uls-cs{color:#7a8696;font-size:0.85em;margin-left:6px}
+.details-btn{background:#2a2a35;color:#cdd0d6;border:1px solid #3a3a45;border-radius:3px;padding:1px 7px;font-size:11px;cursor:pointer;font-family:inherit;margin-left:6px;line-height:1.3}
+.details-btn:hover{background:#3a3a45;color:#fff}
+#detail-popup{position:absolute;display:none;z-index:9500;background:#16161c;border:1px solid #3a3a45;color:#dde0e6;padding:10px 14px;border-radius:6px;max-width:420px;font-size:13px;line-height:1.45;box-shadow:0 6px 20px rgba(0,0,0,0.6);white-space:pre-wrap;font-family:-apple-system,sans-serif}
+.svc-bar{display:flex;align-items:center;gap:10px;margin:6px 0 10px 0;font-size:14px;font-family:ui-monospace,monospace}
+.svc-status{padding:3px 9px;border-radius:4px;border:1px solid #2a2a35;background:#16161c;color:#aaa}
+.svc-status.running{color:#a8e6a8;border-color:#3a5a3a}
+.svc-status.stopped{color:#e6a8a8;border-color:#5a3a3a}
+.svc-status.partial{color:#e6c97a;border-color:#5a4a2a}
+.svc-btn{background:#222;color:#bbb;border:1px solid #333;padding:5px 14px;font-size:13px;border-radius:4px;cursor:pointer;font-family:inherit}
+.svc-btn:hover{background:#2a2a35;color:#fff}
+.svc-btn.start{color:#a8e6a8}
+.svc-btn.stop{color:#e6a8a8}
+.svc-btn.mode-off{color:#e6c97a}
+.svc-btn.mode-on{color:#a8c8e6}
+.svc-btn:disabled{opacity:0.45;cursor:not-allowed}
+.svc-detail{color:#666;font-size:12px}
+.svc-status.handoff{color:#e6c97a;border-color:#5a4a2a}
+.svc-status.disco{color:#a8c8e6;border-color:#3a4a5a}
+.listen-bar{display:flex;align-items:center;gap:10px;margin:6px 0 10px 0;font-size:13px;font-family:ui-monospace,monospace;flex-wrap:wrap}
+.listen-bar-label{color:#888;letter-spacing:.5px;font-size:12px;text-transform:uppercase}
+.listen-empty{color:#666;font-style:italic}
+.listen-list{display:flex;flex-wrap:wrap;gap:6px}
+.listen-pill{display:inline-flex;align-items:center;gap:6px;background:#16161c;border:1px solid #3a5a3a;color:#a8e6a8;padding:2px 4px 2px 10px;border-radius:14px;font-size:12px}
+.listen-pill.is-muted{border-color:#5a5a3a;color:#aaa}
+.listen-pill.is-muted .listen-freq{text-decoration:line-through;opacity:.7}
+.listen-pill button{background:transparent;color:#e6a8a8;border:0;cursor:pointer;font-size:14px;padding:0 4px;line-height:1}
+.listen-pill button:hover{color:#fff}
+.listen-pill .pill-mute{color:#e6c97a}
+.listen-pill .pill-mute:hover{color:#fff}
+.listen-stream a{color:#7fc7ff;text-decoration:none}
+.listen-stream a:hover{text-decoration:underline}
+#disco-audio-player{height:30px;max-width:280px;display:none;vertical-align:middle}
+#disco-audio-player.is-active{display:inline-block}
+.listen-btn{background:#16161c;color:#a8e6a8;border:1px solid #3a5a3a;border-radius:3px;padding:1px 7px;font-size:11px;cursor:pointer;font-family:inherit;margin-left:6px;line-height:1.3}
+.listen-btn.is-active{color:#e6a8a8;border-color:#5a3a3a}
+.listen-btn:hover{background:#222}
+.filter-bar{display:flex;align-items:center;gap:14px;margin:6px 0 10px 0;font-size:13px;font-family:ui-monospace,monospace;flex-wrap:wrap}
+.filter-bar label{color:#888;font-size:11px;letter-spacing:.5px;text-transform:uppercase;display:flex;align-items:center;gap:6px}
+.filter-bar select,.filter-bar input{background:#16161c;color:#cdd0d6;border:1px solid #2a2a35;padding:3px 6px;font-family:inherit;font-size:13px;border-radius:3px}
+.filter-bar input[type=number]{width:60px}
+.filter-bar input[type=text]{width:180px}
+.filter-bar .clear{background:#2a2a35;color:#cdd0d6;border:1px solid #3a3a45;padding:3px 10px;font-size:12px;cursor:pointer;border-radius:3px;font-family:inherit}
+.filter-bar .clear:hover{background:#3a3a45;color:#fff}
+.fav-bar{display:flex;align-items:center;gap:10px;margin:6px 0 10px 0;font-size:13px;font-family:ui-monospace,monospace;flex-wrap:wrap}
+.fav-bar-label{color:#888;letter-spacing:.5px;font-size:12px;text-transform:uppercase}
+.fav-empty{color:#666;font-style:italic}
+.fav-list{display:flex;flex-wrap:wrap;gap:6px}
+.fav-pill{display:inline-flex;align-items:center;gap:6px;background:#16161c;border:1px solid #4a4a2a;color:#e6c97a;padding:2px 4px 2px 10px;border-radius:14px;font-size:12px}
+.fav-pill.active{border-color:#3a5a3a;color:#a8e6a8}
+.fav-pill .fav-meta{color:#7a8696;font-size:11px}
+.fav-pill button{background:transparent;color:#7a8696;border:0;cursor:pointer;font-size:14px;padding:0 6px;line-height:1}
+.fav-pill button:hover{color:#fff}
+.star-btn{background:transparent;color:#666;border:0;cursor:pointer;font-size:14px;padding:0 4px;line-height:1;font-family:inherit;vertical-align:middle}
+.star-btn:hover{color:#e6c97a}
+.star-btn.is-fav{color:#e6c97a}
+/* Hide button — match the star button's muted/transparent aesthetic. The
+   default "hide this row" state is a grey eye with a CSS slash drawn across
+   it; when a row is currently hidden but the user has toggled "show", the
+   slash drops and the eye goes a touch brighter to mean "currently visible". */
+.hide-btn{background:transparent;border:0;cursor:pointer;font-size:13px;padding:0 4px;line-height:1;font-family:inherit;vertical-align:middle;position:relative;filter:grayscale(1) brightness(0.85);opacity:0.55}
+.hide-btn:hover{opacity:1;filter:grayscale(1) brightness(1.15)}
+.hide-btn::after{content:"";position:absolute;left:3px;right:3px;top:50%;border-top:1.5px solid #999;transform:rotate(-22deg);pointer-events:none}
+.hide-btn.is-hidden{opacity:0.85;filter:grayscale(0.4) brightness(1)}
+.hide-btn.is-hidden::after{display:none}
+.hidden-control{color:#7a8696;font-size:12px;display:flex;align-items:center;gap:6px}
+.hidden-control button{background:#16161c;color:#cdd0d6;border:1px solid #2a2a35;padding:2px 8px;font-size:11px;cursor:pointer;border-radius:3px;font-family:inherit}
+.hidden-control button:hover{background:#2a2a35;color:#fff}
+.hidden-control.has-items{color:#e6c97a}
+.row-hidden{display:none !important}
 </style></head><body>
 <h1>Disco — Phase 2</h1>
+<div class="svc-bar">
+  <span class="svc-status" id="svc-status">checking…</span>
+  <button class="svc-btn start" id="svc-start" type="button" disabled>Start</button>
+  <button class="svc-btn stop" id="svc-stop" type="button" disabled>Stop</button>
+  <span class="svc-detail" id="svc-detail">full Disco control — Stop also takes the classifier down (warm cache lost)</span>
+</div>
+<div class="svc-bar mode-bar">
+  <span class="svc-status" id="mode-status">checking…</span>
+  <button class="svc-btn mode-off" id="mode-off-btn" type="button" disabled>Hand off to SB3</button>
+  <button class="svc-btn mode-on" id="mode-on-btn" type="button" disabled>Reclaim radios</button>
+  <span class="svc-detail" id="mode-detail">at-home handoff — classifier stays warm across the toggle</span>
+</div>
+<div class="listen-bar" id="listen-bar">
+  <span class="listen-bar-label">Listening</span>
+  <span class="listen-empty" id="listen-empty">— click 🎧 on any FM/AM row to wire audio</span>
+  <span class="listen-list" id="listen-list"></span>
+  <audio id="disco-audio-player" preload="none" controls></audio>
+  <span class="listen-stream" id="listen-stream"></span>
+</div>
+<div class="fav-bar" id="fav-bar">
+  <span class="fav-bar-label">Favorites</span>
+  <span class="fav-empty" id="fav-empty">— click ☆ on any row to track it over time</span>
+  <span class="fav-list" id="fav-list"></span>
+</div>
+<div class="filter-bar" id="filter-bar">
+  <label>mode
+    <select id="filter-mode">
+      <option value="">all</option>
+      <option value="FM_BROADCAST">FM_BROADCAST</option>
+      <option value="FM_NARROW">FM_NARROW</option>
+      <option value="AM_VOICE">AM_VOICE</option>
+      <option value="DMR">DMR</option>
+      <option value="GMSK">GMSK</option>
+      <option value="QPSK">QPSK</option>
+      <option value="OQPSK">OQPSK</option>
+      <option value="QAM">QAM</option>
+      <option value="OOK">OOK</option>
+      <option value="NOISE">NOISE</option>
+      <option value="unclassified">unclassified</option>
+    </select>
+  </label>
+  <label>min SNR <input type="number" id="filter-snr" min="0" max="80" step="1" value="0"></label>
+  <label>licensee <input type="text" id="filter-licensee" placeholder="contains…"></label>
+  <label>window
+    <select id="filter-window">
+      <option value="60">60s</option>
+      <option value="120" selected>120s</option>
+      <option value="300">5m</option>
+      <option value="900">15m</option>
+      <option value="1800">30m</option>
+    </select>
+  </label>
+  <button class="clear" id="filter-clear" type="button">clear</button>
+  <span class="hidden-control" id="hidden-control">
+    <span id="hidden-count">0 hidden</span>
+    <button id="hidden-toggle" type="button" title="Temporarily show hidden rows">show</button>
+    <button id="hidden-clear" type="button" title="Unhide everything">unhide all</button>
+  </span>
+  <span class="svc-detail" id="filter-summary"></span>
+</div>
 <div class="status" id="status">loading…</div>
 <div class="tuners" id="tuners"></div>
+<div id="detail-popup" role="dialog" aria-hidden="true"></div>
 <script>
 const WATERFALL_ROWS = 160;
 const SPECTRUM_DB_MIN = -100, SPECTRUM_DB_MAX = -30;
 let CONFIG = null;
 const tuners = {};
+// Phase 5 listen integration: rtl-airband only handles analog FM/AM at the
+// moment, so the per-row "Listen" button only appears for these classes.
+const LISTEN_SUPPORTED = new Set(["FM_BROADCAST", "FM_NARROW", "AM_VOICE"]);
+const ACTIVE_LISTEN_FREQS = new Set();  // freqs (Hz, rounded) currently wired
 
 function dbToColor(db){
   let t = (db - SPECTRUM_DB_MIN) / (SPECTRUM_DB_MAX - SPECTRUM_DB_MIN);
@@ -255,7 +791,7 @@ function setupTunerCard(tid, cfg){
     <div class="summary" data-summary>—</div>
     <canvas class="spectrum" data-spectrum width="800" height="100"></canvas>
     <canvas class="waterfall" data-waterfall width="800" height="160"></canvas>
-    <table data-strongest><thead><tr><th>freq</th><th>SNR</th><th>pwr</th><th>hits</th><th>mode</th><th>conf</th><th>age</th></tr></thead><tbody></tbody></table>
+    <table data-strongest><thead><tr><th>freq</th><th>SNR</th><th>pwr</th><th>hits</th><th>mode</th><th>conf</th><th>licensed&nbsp;to</th><th>age</th></tr></thead><tbody></tbody></table>
   `;
   document.getElementById("tuners").appendChild(card);
   const t = {
@@ -362,54 +898,631 @@ function drawWaterfall(t){
   }
   ctx.putImageData(img, 0, 0);
 }
+// --- Phase 4 polish: filter + favorites state -------------------------------
+const FILTER_STATE = (() => {
+  // Hydrate from localStorage so filters persist across refreshes.
+  let s = {};
+  try { s = JSON.parse(localStorage.getItem("disco-filter") || "{}"); } catch (e) {}
+  return {
+    mode: s.mode || "",
+    snr: typeof s.snr === "number" ? s.snr : 0,
+    licensee: s.licensee || "",
+    window_s: s.window_s || 120,
+  };
+})();
+function persistFilter(){
+  try { localStorage.setItem("disco-filter", JSON.stringify(FILTER_STATE)); } catch (e) {}
+}
+const FAV_FREQS = new Set();   // freqs (rounded Hz) currently favorited
+const HIDDEN_FREQS = new Set();  // freqs (rounded Hz) the user has hidden
+let SHOW_HIDDEN = false;          // temporary "reveal" toggle (not persisted)
+
+function rowMatchesFilter(r){
+  // Hidden rows drop out unless the user has flipped the "show hidden" toggle.
+  if (!SHOW_HIDDEN) {
+    const fid = Math.round(r.freq_hz);
+    if (HIDDEN_FREQS.has(fid)) return false;
+  }
+  if (FILTER_STATE.mode) {
+    const want = FILTER_STATE.mode;
+    const got = r.modulation_class || (r.protocol_tag === "unclassified" ? "unclassified" : "");
+    if (want === "unclassified") {
+      if (got && got !== "unclassified") return false;
+    } else if (got !== want) {
+      return false;
+    }
+  }
+  if (FILTER_STATE.snr > 0 && (r.max_snr || 0) < FILTER_STATE.snr) return false;
+  if (FILTER_STATE.licensee) {
+    const needle = FILTER_STATE.licensee.toLowerCase();
+    const ent = (r.uls_entity_name || "").toLowerCase();
+    const cs = (r.uls_callsign || "").toLowerCase();
+    if (!ent.includes(needle) && !cs.includes(needle)) return false;
+  }
+  return true;
+}
+
 async function refreshTables(){
+  const win = FILTER_STATE.window_s;
   const [strong, summ] = await Promise.all([
-    fetch("/api/strongest?since_seconds=120&per_tuner=8&bin_khz=25").then(r=>r.json()),
-    fetch("/api/summary?since_seconds=120").then(r=>r.json()),
+    fetch(`/api/strongest?since_seconds=${win}&per_tuner=8&bin_khz=25`).then(r=>r.json()),
+    fetch(`/api/summary?since_seconds=${win}`).then(r=>r.json()),
   ]);
   for(const tid of CONFIG.tuner_order){
     const t = tuners[tid]; if(!t) continue;
     const s = summ[tid] || {count:0,max_snr:null,last_seen:null,classified:0};
-    let sumStr = `120s: ${s.count} det`;
+    const winLabel = win >= 60 ? (win >= 60 ? `${win}s` : `${win}s`) : `${win}s`;
+    let sumStr = `${win}s: ${s.count} det`;
     if(s.classified) sumStr += `, ${s.classified} classified`;
     if(s.max_snr!=null) sumStr += `, peak ${s.max_snr.toFixed(1)} dB`;
     if(s.last_seen) sumStr += `, last ${(Math.round(Date.now()/1000-s.last_seen))}s`;
     t.summary.textContent = sumStr;
     const buckets = (strong.buckets && strong.buckets[tid]) || [];
+    const filtered = buckets.filter(rowMatchesFilter);
     const tbody = t.strongestTbody;
     tbody.innerHTML = "";
     if(buckets.length===0){
-      tbody.innerHTML = `<tr><td colspan="7" class="empty">no detections in last 120s</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="empty">no detections in last ${win}s</td></tr>`;
+    } else if (filtered.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="8" class="empty">${buckets.length} detections hidden by filters</td></tr>`;
     } else {
-      for(const r of buckets){
+      for(const r of filtered){
         const age = Math.round(Date.now()/1000 - r.last_seen);
         const cls = snrClass(r.max_snr);
         const modCls = modConfClass(r.modulation_confidence);
         let modLabel = r.protocol_tag || r.modulation_class || "—";
-        if (r.interpretation) modLabel = modLabel + " 💬";
+        if (r.interpretation) modLabel = modLabel + ` <button class="details-btn" type="button">details</button>`;
+        const cleanClass = (r.modulation_class || "").toUpperCase();
+        const freqId = Math.round(r.freq_hz);
+        if (LISTEN_SUPPORTED.has(cleanClass)) {
+          const isActive = ACTIVE_LISTEN_FREQS.has(freqId);
+          const lbl = isActive ? "Stop" : "🎧 Listen";
+          const cls = isActive ? "listen-btn is-active" : "listen-btn";
+          modLabel = modLabel + ` <button class="${cls}" type="button">${lbl}</button>`;
+        }
         const modConf = r.modulation_confidence != null ? r.modulation_confidence.toFixed(2) : "—";
         const tr = document.createElement("tr");
-        if (r.interpretation) tr.title = r.interpretation;
-        tr.innerHTML = `<td>${(r.freq_hz/1e6).toFixed(4)}</td>`+
+        // Compose a single "licensed to" cell from the ULS columns. We show
+        // entity_name truncated + callsign in a smaller dim font, with a
+        // tooltip carrying emission designator + distance so the user can
+        // hover for technical detail without bloating the table.
+        let ulsCell = "—";
+        let ulsTitle = "";
+        if (r.uls_entity_name || r.uls_callsign) {
+          const ent = (r.uls_entity_name || "").trim();
+          const cs = (r.uls_callsign || "").trim();
+          const entShort = ent.length > 22 ? ent.slice(0, 21) + "…" : ent;
+          ulsCell = entShort
+            ? `${entShort}${cs ? ` <span class="uls-cs">${cs}</span>` : ""}`
+            : cs;
+          const bits = [];
+          if (ent && ent !== entShort) bits.push(ent);
+          if (cs) bits.push("callsign " + cs);
+          if (r.uls_emission_designator) bits.push("emission " + r.uls_emission_designator);
+          if (r.uls_station_class) bits.push("class " + r.uls_station_class);
+          if (r.uls_distance_km != null) bits.push(r.uls_distance_km.toFixed(1) + " km");
+          ulsTitle = bits.join(" • ");
+        }
+        // Row tooltip carries ULS technical detail. Interpretation goes into
+        // the click-popup below — different information densities (hover =
+        // quick aside, click = full prose).
+        tr.title = ulsTitle;
+        const isFav = FAV_FREQS.has(freqId);
+        const isHidden = HIDDEN_FREQS.has(freqId);
+        const starHtml = `<button class="star-btn ${isFav ? "is-fav" : ""}" type="button" title="${isFav ? "Remove from favorites" : "Add to favorites"}">${isFav ? "★" : "☆"}</button>`;
+        const hideHtml = `<button class="hide-btn ${isHidden ? "is-hidden" : ""}" type="button" title="${isHidden ? "Unhide this row" : "Hide this row"}">👁</button>`;
+        tr.innerHTML = `<td>${starHtml}${hideHtml}${(r.freq_hz/1e6).toFixed(4)}</td>`+
           `<td class="${cls}">${r.max_snr.toFixed(1)}</td>`+
           `<td>${r.max_power.toFixed(1)}</td>`+
           `<td>${r.hits}</td>`+
           `<td class="${modCls}">${modLabel}</td>`+
           `<td>${modConf}</td>`+
+          `<td class="uls">${ulsCell}</td>`+
           `<td>${age}s</td>`;
+        // Stash interpretation on the freshly-rendered button so the popup
+        // can read it back without HTML-escaping prose into an attribute.
+        // tbody re-renders every 2s, so we re-attach per row each refresh.
+        if (r.interpretation) {
+          const btn = tr.querySelector(".details-btn");
+          if (btn) btn._detail = r.interpretation;
+        }
+        // Stash decode-call args on the listen button (same reason — avoid
+        // attribute-encoding floats and modulation strings into onclick).
+        const listenBtn = tr.querySelector(".listen-btn");
+        if (listenBtn) {
+          listenBtn._freq_hz = r.freq_hz;
+          listenBtn._bandwidth_hz = r.bandwidth_hz;
+          listenBtn._modulation_class = cleanClass;
+          listenBtn._protocol_tag = r.protocol_tag || "";
+          listenBtn._is_active = ACTIVE_LISTEN_FREQS.has(freqId);
+        }
+        // Stash row context on the star button so favorites/add can carry the
+        // current modulation + ULS info into the new row.
+        const starBtn = tr.querySelector(".star-btn");
+        if (starBtn) {
+          starBtn._freq_hz = r.freq_hz;
+          starBtn._modulation_class = cleanClass;
+          starBtn._protocol_tag = r.protocol_tag || "";
+          starBtn._uls_callsign = r.uls_callsign || "";
+          starBtn._uls_entity_name = r.uls_entity_name || "";
+          starBtn._is_fav = isFav;
+        }
+        const hideBtn = tr.querySelector(".hide-btn");
+        if (hideBtn) {
+          hideBtn._freq_hz = r.freq_hz;
+          hideBtn._label = (r.uls_entity_name || r.uls_callsign || cleanClass || "").slice(0, 60);
+          hideBtn._is_hidden = isHidden;
+        }
         tbody.appendChild(tr);
       }
     }
   }
   document.getElementById("status").textContent = `updated ${new Date().toLocaleTimeString()}`;
 }
+// --- service control (Start / Stop) -----------------------------------------
+// Stops the 4 sweep services + classifier + interpreter when the user wants
+// to hand the RSPduos back to SB3. Dashboard itself is intentionally NOT in
+// the controlled set — if it stopped, the user couldn't restart from here.
+async function refreshSvcStatus(){
+  const elStatus = document.getElementById("svc-status");
+  const elStart = document.getElementById("svc-start");
+  const elStop = document.getElementById("svc-stop");
+  if (!elStatus || !elStart || !elStop) return;
+  let resp;
+  try {
+    resp = await fetch("/api/services/status").then(r => r.json());
+  } catch (e) {
+    elStatus.textContent = "status unreachable";
+    elStatus.className = "svc-status stopped";
+    return resp;
+  }
+  const units = resp.units || {};
+  const states = Object.values(units);
+  const total = states.length;
+  const active = states.filter(s => s === "active").length;
+  let label, klass;
+  if (total === 0) { label = "no units"; klass = "svc-status"; }
+  else if (active === total) { label = `running (${active}/${total})`; klass = "svc-status running"; }
+  else if (active === 0) { label = "stopped"; klass = "svc-status stopped"; }
+  else { label = `partial (${active}/${total})`; klass = "svc-status partial"; }
+  elStatus.textContent = label;
+  elStatus.className = klass;
+  elStatus.title = Object.entries(units).map(([u,s]) => `${u} ${s}`).join("\\n");
+  elStart.disabled = (active === total);
+  elStop.disabled = (active === 0);
+  return resp;
+}
+async function svcAction(action){
+  const elStart = document.getElementById("svc-start");
+  const elStop = document.getElementById("svc-stop");
+  elStart.disabled = true;
+  elStop.disabled = true;
+  const elStatus = document.getElementById("svc-status");
+  elStatus.textContent = action === "stop" ? "stopping…" : "starting…";
+  elStatus.className = "svc-status partial";
+  try {
+    await fetch(`/api/services/${action}`, { method: "POST" });
+  } catch (e) { /* fall through to refresh, which will show the real state */ }
+  // give systemd a beat to settle
+  setTimeout(refreshSvcStatus, 1500);
+}
+
+// Mode bar: at-home Disco<->SB3 handoff. Calls disco-svc-ctl mode-off /
+// mode-on / mode-status. Classifier is intentionally NOT toggled here —
+// the wrapper preserves it across the handoff so the trained model and
+// caches stay warm.
+const SWEEP_UNIT_NAMES = [
+  "disco-sweep@A-T1.service",
+  "disco-sweep@A-T2.service",
+  "disco-sweep@B-T1.service",
+  "disco-sweep@B-T2.service",
+];
+const SB3_PRIMARY_UNIT = "scanner-digital-op25.service";
+
+function deriveMode(units){
+  const sweepStates = SWEEP_UNIT_NAMES.map(u => units[u] || "unknown");
+  const op25 = units[SB3_PRIMARY_UNIT] || "unknown";
+  const allSweepActive = sweepStates.every(s => s === "active");
+  const allSweepInactive = sweepStates.every(s => s === "inactive");
+  if (allSweepActive && op25 === "inactive") return "disco";
+  if (allSweepInactive && op25 === "active") return "handoff";
+  return "transitioning";
+}
+
+async function refreshModeStatus(){
+  const elStatus = document.getElementById("mode-status");
+  const elOff = document.getElementById("mode-off-btn");
+  const elOn = document.getElementById("mode-on-btn");
+  if (!elStatus || !elOff || !elOn) return;
+  let resp;
+  try {
+    resp = await fetch("/api/services/mode-status").then(r => r.json());
+  } catch (e) {
+    elStatus.textContent = "mode unreachable";
+    elStatus.className = "svc-status stopped";
+    return;
+  }
+  const units = resp.units || {};
+  const mode = deriveMode(units);
+  let label, klass;
+  if (mode === "disco") { label = "mode: disco"; klass = "svc-status disco"; }
+  else if (mode === "handoff") { label = "mode: handoff (SB3)"; klass = "svc-status handoff"; }
+  else { label = "mode: transitioning"; klass = "svc-status partial"; }
+  elStatus.textContent = label;
+  elStatus.className = klass;
+  elStatus.title = Object.entries(units).map(([u,s]) => `${u} ${s}`).join("\\n");
+  elOff.disabled = (mode !== "disco");
+  elOn.disabled = (mode !== "handoff");
+}
+
+async function modeAction(action){
+  // action is "mode-off" or "mode-on"
+  const elOff = document.getElementById("mode-off-btn");
+  const elOn = document.getElementById("mode-on-btn");
+  elOff.disabled = true;
+  elOn.disabled = true;
+  const elStatus = document.getElementById("mode-status");
+  elStatus.textContent = action === "mode-off" ? "handing off to SB3…" : "reclaiming radios…";
+  elStatus.className = "svc-status partial";
+  try {
+    await fetch(`/api/services/${action}`, { method: "POST" });
+  } catch (e) { /* fall through; refresh will show the real state */ }
+  // mode-off / mode-on take ~10-15s end-to-end (drain wait + service start),
+  // so wait longer than svcAction's 1.5s. Refresh once after the toggle
+  // should be done, then again 5s later in case the first refresh caught
+  // mid-transition.
+  setTimeout(refreshModeStatus, 13000);
+  setTimeout(refreshModeStatus, 18000);
+}
+// --- Details popup -----------------------------------------------------------
+// Click a "details" button → popup positions next to it with the full Phase 2.5
+// interpretation prose. Click anywhere else closes it. Tables refresh every 2s
+// so we delegate via a single document listener instead of per-button binding.
+function showDetailPopup(target){
+  const popup = document.getElementById("detail-popup");
+  if (!popup) return;
+  popup.textContent = target._detail || "";
+  popup.style.display = "block";
+  popup.setAttribute("aria-hidden", "false");
+  const rect = target.getBoundingClientRect();
+  const top = rect.bottom + window.scrollY + 6;
+  let left = rect.left + window.scrollX;
+  popup.style.top = top + "px";
+  popup.style.left = left + "px";
+  const popRect = popup.getBoundingClientRect();
+  if (popRect.right > window.innerWidth - 8) {
+    left = Math.max(8, window.innerWidth - popRect.width - 8) + window.scrollX;
+    popup.style.left = left + "px";
+  }
+}
+function hideDetailPopup(){
+  const popup = document.getElementById("detail-popup");
+  if (!popup) return;
+  popup.style.display = "none";
+  popup.setAttribute("aria-hidden", "true");
+}
+document.addEventListener("click", (e) => {
+  const popup = document.getElementById("detail-popup");
+  if (e.target.classList && e.target.classList.contains("details-btn")) {
+    showDetailPopup(e.target);
+    e.stopPropagation();
+    return;
+  }
+  if (popup && popup.style.display === "block" && !popup.contains(e.target)) {
+    hideDetailPopup();
+  }
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") hideDetailPopup();
+});
+
+// --- Phase 5 listen wiring --------------------------------------------------
+async function decodeListen(btn){
+  try {
+    const resp = await fetch("/api/decode/listen", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        freq_hz: btn._freq_hz,
+        bandwidth_hz: btn._bandwidth_hz,
+        modulation_class: btn._modulation_class,
+        protocol_tag: btn._protocol_tag,
+        user_id: "will",
+      }),
+    });
+    const d = await resp.json();
+    if (d.status !== "wired") {
+      alert(`Could not wire ${(btn._freq_hz/1e6).toFixed(4)} MHz: ${d.status}\\n${d.detail}`);
+    }
+  } catch (e) {
+    alert("decode/listen request failed: " + e);
+  }
+  refreshActiveListens();
+}
+async function decodeStop(freq_hz){
+  try {
+    await fetch("/api/decode/stop", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({freq_hz: freq_hz, user_id: "will"}),
+    });
+  } catch (e) {
+    alert("decode/stop request failed: " + e);
+  }
+  refreshActiveListens();
+}
+async function decodeMute(freq_hz, muted){
+  try {
+    await fetch("/api/decode/mute", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({freq_hz: freq_hz, muted: !!muted, user_id: "will"}),
+    });
+  } catch (e) {
+    alert("decode/mute request failed: " + e);
+  }
+  refreshActiveListens();
+}
+async function refreshActiveListens(){
+  let resp;
+  try { resp = await fetch("/api/decode/active").then(r => r.json()); }
+  catch (e) { return; }
+  const items = resp.items || [];
+  ACTIVE_LISTEN_FREQS.clear();
+  for (const it of items) ACTIVE_LISTEN_FREQS.add(Math.round(it.freq_hz));
+  const elEmpty = document.getElementById("listen-empty");
+  const elList = document.getElementById("listen-list");
+  const elStream = document.getElementById("listen-stream");
+  const elAudio = document.getElementById("disco-audio-player");
+  if (!elEmpty || !elList || !elStream) return;
+  if (items.length === 0) {
+    elEmpty.style.display = "";
+    elList.innerHTML = "";
+    elStream.innerHTML = "";
+    if (elAudio) {
+      elAudio.classList.remove("is-active");
+      try { elAudio.pause(); } catch (e) {}
+      elAudio.removeAttribute("src");
+      elAudio.load();
+    }
+    return;
+  }
+  elEmpty.style.display = "none";
+  elList.innerHTML = items.map(it => {
+    const mhz = (it.freq_hz/1e6).toFixed(4);
+    const tag = it.modulation || it.label || "";
+    const muted = !!it.muted;
+    const pillClass = muted ? "listen-pill is-muted" : "listen-pill";
+    const muteIcon = muted ? "🔇" : "🔊";
+    const muteTitle = muted ? "Unmute" : "Mute";
+    return `<span class="${pillClass}"><span class="listen-freq">${mhz} MHz</span> <span style="opacity:.7">${tag}</span>`
+      + `<button class="pill-mute" data-mute-freq="${it.freq_hz}" data-muted="${muted ? 1 : 0}" title="${muteTitle}">${muteIcon}</button>`
+      + `<button data-stop-freq="${it.freq_hz}" title="Stop">×</button></span>`;
+  }).join("");
+  // Wire the embedded audio element to the disco mount the moment we have at
+  // least one active listen. We don't auto-play (browser autoplay policies);
+  // user clicks play once.
+  if (elAudio && resp.stream_url) {
+    const wantSrc = resp.stream_url;
+    if (elAudio.getAttribute("src") !== wantSrc) {
+      elAudio.setAttribute("src", wantSrc);
+      // Only call .load() when the src actually changed to avoid restarting
+      // a stream the user is currently listening to.
+      try { elAudio.load(); } catch (e) {}
+    }
+    elAudio.classList.add("is-active");
+  }
+  elStream.innerHTML = resp.stream_url
+    ? `→ <a href="${resp.stream_url}" target="_blank" rel="noopener">${resp.stream_url}</a>`
+    : "";
+}
+document.addEventListener("click", (e) => {
+  if (e.target.classList && e.target.classList.contains("listen-btn")) {
+    if (e.target._is_active) {
+      decodeStop(e.target._freq_hz);
+    } else {
+      decodeListen(e.target);
+    }
+    e.stopPropagation();
+    return;
+  }
+  if (e.target.classList && e.target.classList.contains("star-btn")) {
+    if (e.target._is_fav) favoriteRemove(e.target._freq_hz);
+    else favoriteAdd(e.target);
+    e.stopPropagation();
+    return;
+  }
+  if (e.target.classList && e.target.classList.contains("hide-btn")) {
+    if (e.target._is_hidden) hideRemove(e.target._freq_hz);
+    else hideAdd(e.target);
+    e.stopPropagation();
+    return;
+  }
+  // listen pill mute toggle
+  const muteFreq = e.target && e.target.getAttribute && e.target.getAttribute("data-mute-freq");
+  if (muteFreq) {
+    const wasMuted = e.target.getAttribute("data-muted") === "1";
+    decodeMute(parseFloat(muteFreq), !wasMuted);
+    e.stopPropagation();
+    return;
+  }
+  // pill stop button (either listen pills or favorite pills)
+  const stopFreq = e.target && e.target.getAttribute && e.target.getAttribute("data-stop-freq");
+  if (stopFreq) {
+    decodeStop(parseFloat(stopFreq));
+    e.stopPropagation();
+    return;
+  }
+  const unfavFreq = e.target && e.target.getAttribute && e.target.getAttribute("data-unfav-freq");
+  if (unfavFreq) {
+    favoriteRemove(parseFloat(unfavFreq));
+    e.stopPropagation();
+  }
+});
+
+// --- Phase 4 polish: favorites ----------------------------------------------
+async function favoriteAdd(btn){
+  try {
+    await fetch("/api/favorites/add", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        freq_hz: btn._freq_hz,
+        modulation_class: btn._modulation_class,
+        protocol_tag: btn._protocol_tag,
+        uls_callsign: btn._uls_callsign,
+        uls_entity_name: btn._uls_entity_name,
+      }),
+    });
+  } catch (e) { console.warn("favorite add failed", e); }
+  refreshFavorites();
+  refreshTables();
+}
+async function favoriteRemove(freq_hz){
+  try {
+    await fetch("/api/favorites/remove", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({freq_hz: freq_hz}),
+    });
+  } catch (e) { console.warn("favorite remove failed", e); }
+  refreshFavorites();
+  refreshTables();
+}
+// --- Phase 4 polish: hide rows ---------------------------------------------
+async function hideAdd(btn){
+  try {
+    await fetch("/api/hidden/add", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({freq_hz: btn._freq_hz, label: btn._label || null}),
+    });
+  } catch (e) { console.warn("hide add failed", e); }
+  refreshHidden();
+  refreshTables();
+}
+async function hideRemove(freq_hz){
+  try {
+    await fetch("/api/hidden/remove", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({freq_hz: freq_hz}),
+    });
+  } catch (e) { console.warn("hide remove failed", e); }
+  refreshHidden();
+  refreshTables();
+}
+async function hideClearAll(){
+  try {
+    await fetch("/api/hidden/clear", {method: "POST"});
+  } catch (e) { console.warn("hide clear failed", e); }
+  refreshHidden();
+  refreshTables();
+}
+async function refreshHidden(){
+  let resp;
+  try { resp = await fetch("/api/hidden").then(r=>r.json()); }
+  catch (e) { return; }
+  const items = resp.items || [];
+  HIDDEN_FREQS.clear();
+  for (const it of items) HIDDEN_FREQS.add(Math.round(it.freq_hz));
+  const elCount = document.getElementById("hidden-count");
+  const elCtrl = document.getElementById("hidden-control");
+  const elToggle = document.getElementById("hidden-toggle");
+  if (elCount) elCount.textContent = `${items.length} hidden`;
+  if (elCtrl) elCtrl.classList.toggle("has-items", items.length > 0);
+  if (elToggle) elToggle.textContent = SHOW_HIDDEN ? "re-hide" : "show";
+}
+function toggleShowHidden(){
+  SHOW_HIDDEN = !SHOW_HIDDEN;
+  const elToggle = document.getElementById("hidden-toggle");
+  if (elToggle) elToggle.textContent = SHOW_HIDDEN ? "re-hide" : "show";
+  refreshTables();
+}
+
+async function refreshFavorites(){
+  let resp;
+  try { resp = await fetch("/api/favorites").then(r=>r.json()); }
+  catch (e) { return; }
+  const items = resp.items || [];
+  FAV_FREQS.clear();
+  for (const it of items) FAV_FREQS.add(Math.round(it.freq_hz));
+  const elEmpty = document.getElementById("fav-empty");
+  const elList = document.getElementById("fav-list");
+  if (!elEmpty || !elList) return;
+  if (items.length === 0) {
+    elEmpty.style.display = "";
+    elList.innerHTML = "";
+    return;
+  }
+  elEmpty.style.display = "none";
+  elList.innerHTML = items.map(it => {
+    const mhz = (it.freq_hz/1e6).toFixed(4);
+    const isActive = (it.recent_hits || 0) > 0;
+    const meta = isActive
+      ? `${it.recent_hits} hit${it.recent_hits === 1 ? "" : "s"}`
+      : "quiet";
+    const owner = it.uls_entity_name || it.uls_callsign || it.modulation_class || "";
+    const ownerSpan = owner ? `<span class="fav-meta">${owner}</span>` : "";
+    return `<span class="fav-pill ${isActive ? "active" : ""}">${mhz} MHz ${ownerSpan} <span class="fav-meta">(${meta})</span><button data-unfav-freq="${it.freq_hz}" title="Remove">×</button></span>`;
+  }).join("");
+}
+
+// --- Phase 4 polish: filter wiring ------------------------------------------
+function applyFilterUiToState(){
+  FILTER_STATE.mode = document.getElementById("filter-mode").value || "";
+  FILTER_STATE.snr = parseFloat(document.getElementById("filter-snr").value || "0") || 0;
+  FILTER_STATE.licensee = document.getElementById("filter-licensee").value || "";
+  FILTER_STATE.window_s = parseInt(document.getElementById("filter-window").value || "120", 10) || 120;
+  persistFilter();
+  // Re-render immediately so the user sees the effect without waiting for the 2s tick.
+  refreshTables();
+}
+function hydrateFilterUi(){
+  document.getElementById("filter-mode").value = FILTER_STATE.mode;
+  document.getElementById("filter-snr").value = FILTER_STATE.snr;
+  document.getElementById("filter-licensee").value = FILTER_STATE.licensee;
+  document.getElementById("filter-window").value = String(FILTER_STATE.window_s);
+}
+function clearFilters(){
+  FILTER_STATE.mode = "";
+  FILTER_STATE.snr = 0;
+  FILTER_STATE.licensee = "";
+  FILTER_STATE.window_s = 120;
+  hydrateFilterUi();
+  persistFilter();
+  refreshTables();
+}
+
 async function init(){
   await loadConfig();
   for(const tid of CONFIG.tuner_order){
     setupTunerCard(tid, CONFIG.tuners[tid]);
   }
+  hydrateFilterUi();
+  document.getElementById("filter-mode").addEventListener("change", applyFilterUiToState);
+  document.getElementById("filter-snr").addEventListener("change", applyFilterUiToState);
+  document.getElementById("filter-licensee").addEventListener("input", applyFilterUiToState);
+  document.getElementById("filter-window").addEventListener("change", applyFilterUiToState);
+  document.getElementById("filter-clear").addEventListener("click", clearFilters);
+  document.getElementById("hidden-toggle").addEventListener("click", toggleShowHidden);
+  document.getElementById("hidden-clear").addEventListener("click", hideClearAll);
   refreshTables();
   setInterval(refreshTables, 2000);
+  document.getElementById("svc-start").addEventListener("click", () => svcAction("start"));
+  document.getElementById("svc-stop").addEventListener("click", () => svcAction("stop"));
+  refreshSvcStatus();
+  setInterval(refreshSvcStatus, 5000);
+  document.getElementById("mode-off-btn").addEventListener("click", () => modeAction("mode-off"));
+  document.getElementById("mode-on-btn").addEventListener("click", () => modeAction("mode-on"));
+  refreshModeStatus();
+  setInterval(refreshModeStatus, 5000);
+  refreshActiveListens();
+  setInterval(refreshActiveListens, 4000);
+  refreshFavorites();
+  setInterval(refreshFavorites, 5000);
+  refreshHidden();
+  setInterval(refreshHidden, 7000);
 }
 init();
 </script></body></html>

@@ -1,5 +1,5 @@
 classifier:
-  confidence_threshold: 0.6
+  confidence_threshold: 0.7
   max_buffered_slices: 1000
   poll_interval_ms: 250
   slice_min_snr_db: 18.0
@@ -42,10 +42,10 @@ tuners:
 interpret:
   poll_interval_s: 10
   rate_per_min: 10
-  daily_budget_usd: 1.0
-  cost_per_call_cents: 0.05
-  cache_ttl_s: 3600
-  model: claude-haiku-4-5-20251001
+  daily_budget_usd: 5.0
+  cost_per_call_cents: 0.5
+  cache_ttl_s: 86400
+  model: claude-sonnet-4-6
   min_confidence: 0.6
   dedupe_bin_khz: 25.0
   max_per_cycle: 5
