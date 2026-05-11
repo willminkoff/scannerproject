@@ -6,6 +6,7 @@ import os
 import signal
 import sqlite3
 import sys
+import threading
 import time
 import uuid
 
@@ -21,12 +22,46 @@ N_COMPOSITE_BINS = 1024
 N_DISPLAY_BINS = 1024
 LOG = logging.getLogger("disco.sweep")
 _STOP = False
+_FORCE_EXIT_ARMED = False
+
+# Bounded graceful shutdown: SoapySDR's RSPduo Master/Slave teardown can hang
+# indefinitely inside closeStream() when the SDRplay daemon is still draining
+# internal state, holding the systemd unit in stop-sigterm until the 90 s
+# default timeout expires and the unit gets SIGKILLed (and reported as
+# failed). That breaks any caller — including disco-svc-ctl mode-off — that
+# does `systemctl stop` and then expects to acquire the SDR right after.
+#
+# A daemon watchdog thread armed from _handle_stop bounds the entire shutdown
+# at FORCE_EXIT_TIMEOUT_SEC. Healthy closes complete in well under a second;
+# this only fires when the SoapySDR call is actually wedged. os._exit(0)
+# bypasses the GIL, so it works even when the C call is holding it. Exit code
+# 0 means systemd marks the unit inactive (not failed), which lets the wrapper
+# proceed to start the next side cleanly.
+FORCE_EXIT_TIMEOUT_SEC = 5.0
+
+
+def _arm_force_exit_watchdog(timeout_sec):
+    global _FORCE_EXIT_ARMED
+    if _FORCE_EXIT_ARMED:
+        return
+    _FORCE_EXIT_ARMED = True
+
+    def _killer():
+        time.sleep(timeout_sec)
+        LOG.warning(
+            "graceful shutdown exceeded %ss (likely SoapySDR closeStream hang); force-exiting",
+            timeout_sec,
+        )
+        os._exit(0)
+
+    threading.Thread(target=_killer, daemon=True, name="disco-sweep-force-exit").start()
 
 
 def _handle_stop(signum, frame):
     global _STOP
     LOG.info("stopping on signal %s", signum)
     _STOP = True
+    _arm_force_exit_watchdog(FORCE_EXIT_TIMEOUT_SEC)
 
 
 def setup_logging():
