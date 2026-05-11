@@ -12,6 +12,7 @@ from typing import Any
 
 from .config import HPDB_DB_PATH, HP_AVOIDS_PATH
 from .hp_scan_pool import ScanPoolBuilder, haversine_miles
+from .protocol_bands import has_band_rule, is_site_viable
 from .zip_lookup import resolve_postal_to_lat_lon
 
 
@@ -1008,7 +1009,10 @@ class ScanModeController:
         if not isinstance(trunked_sites, list) or len(trunked_sites) <= 1:
             return pool
 
-        best_by_system: dict[int, dict[str, Any]] = {}
+        # Group by system so we can apply per-protocol band-viability filtering
+        # before the distance pick. If every site for a system is implausible,
+        # fall back to all sites and log info (option-c fallback).
+        per_system: dict[int, list[dict[str, Any]]] = {}
         passthrough_rows: list[dict[str, Any]] = []
         for raw in trunked_sites:
             row = raw if isinstance(raw, dict) else {}
@@ -1017,24 +1021,38 @@ class ScanModeController:
                 if row:
                     passthrough_rows.append(row)
                 continue
-            candidate = best_by_system.get(system_id)
-            if candidate is None:
-                best_by_system[system_id] = row
-                continue
-            cand_dist = self._parse_float(candidate.get("distance_miles"))
-            row_dist = self._parse_float(row.get("distance_miles"))
-            cand_site = self._parse_int(candidate.get("site_id")) or 0
-            row_site = self._parse_int(row.get("site_id")) or 0
-            cand_key = (
-                float(cand_dist) if cand_dist is not None else float("inf"),
-                cand_site,
+            per_system.setdefault(system_id, []).append(row)
+
+        def _row_key(row: dict[str, Any]) -> tuple[float, int]:
+            dist = self._parse_float(row.get("distance_miles"))
+            return (
+                float(dist) if dist is not None else float("inf"),
+                self._parse_int(row.get("site_id")) or 0,
             )
-            row_key = (
-                float(row_dist) if row_dist is not None else float("inf"),
-                row_site,
-            )
-            if row_key < cand_key:
-                best_by_system[system_id] = row
+
+        best_by_system: dict[int, dict[str, Any]] = {}
+        for system_id, rows in per_system.items():
+            viable_rows: list[dict[str, Any]] = []
+            for r in rows:
+                proto = r.get("protocol")
+                freqs = r.get("control_channels")
+                if not isinstance(freqs, list):
+                    freqs = []
+                if is_site_viable(proto, freqs):
+                    viable_rows.append(r)
+            if viable_rows:
+                pool_rows = viable_rows
+            else:
+                pool_rows = rows
+                if rows and has_band_rule(rows[0].get("protocol")):
+                    sys_name = str(rows[0].get("system_name") or "").strip() or f"#{system_id}"
+                    logger.info(
+                        "scan_mode_controller: no band-viable site for system %s "
+                        "(protocol=%s); falling back to nearest by distance",
+                        sys_name,
+                        rows[0].get("protocol"),
+                    )
+            best_by_system[system_id] = min(pool_rows, key=_row_key)
 
         ordered_best = sorted(
             best_by_system.values(),
