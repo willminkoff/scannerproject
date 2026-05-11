@@ -1,0 +1,19 @@
+[Unit]
+Description=Disco sweep — %i
+After=network.target sdrplay.service
+Wants=sdrplay.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/scannerproject/disco
+Environment=DISCO_CONFIG=/home/ubuntu/scannerproject/disco/configs/sweep.yaml
+ExecStart=/home/ubuntu/scannerproject/disco/.venv/bin/python /home/ubuntu/scannerproject/disco/src/sweep.py --tuner-id %i
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

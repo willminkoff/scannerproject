@@ -39,6 +39,19 @@ _FORCE_EXIT_ARMED = False
 # proceed to start the next side cleanly.
 FORCE_EXIT_TIMEOUT_SEC = 5.0
 
+# Bounded startup: SoapySDR.Device(args) can deadlock when Master+Slave on the
+# same RSPduo open concurrently — the SDRplay daemon doesn't safely serialize
+# concurrent opens against the same physical device, and Python is trapped
+# inside the C constructor with the GIL held, so signals can't reach the
+# Python signal handler. Systemd ordering (After= drop-in on the slave
+# instance) is the primary mitigation; this watchdog is defense in depth so a
+# stuck open is bounded at STARTUP_WATCHDOG_TIMEOUT_SEC instead of hanging
+# until systemd's TimeoutStartSec / TimeoutStopSec fires. os._exit(2) makes
+# systemd treat the unit as failed → Restart=on-failure → fresh attempt with
+# RestartSec backoff. Healthy opens complete in <1 s; this only fires when
+# the call is actually wedged.
+STARTUP_WATCHDOG_TIMEOUT_SEC = 10.0
+
 
 def _arm_force_exit_watchdog(timeout_sec):
     global _FORCE_EXIT_ARMED
@@ -55,6 +68,28 @@ def _arm_force_exit_watchdog(timeout_sec):
         os._exit(0)
 
     threading.Thread(target=_killer, daemon=True, name="disco-sweep-force-exit").start()
+
+
+def _arm_startup_watchdog(timeout_sec, tuner_id):
+    """Arm a watchdog that os._exit(2)s if the constructor doesn't return in
+    time. Returns a threading.Event the caller MUST .set() once the open
+    completes (success or exception) so the watchdog stands down."""
+    completed = threading.Event()
+
+    def _killer():
+        if completed.wait(timeout_sec):
+            return
+        LOG.warning(
+            "[%s] SoapySDR.Device() exceeded %ss (likely RSPduo Master/Slave race); "
+            "force-exiting for systemd restart",
+            tuner_id, timeout_sec,
+        )
+        os._exit(2)
+
+    threading.Thread(
+        target=_killer, daemon=True, name=f"disco-sweep-startup-watchdog-{tuner_id}"
+    ).start()
+    return completed
 
 
 def _handle_stop(signum, frame):
@@ -267,12 +302,15 @@ def open_device_with_retry(soapy_args, tuner_id):
     for attempt in range(1, 21):
         if _STOP:
             return None
+        completed = _arm_startup_watchdog(STARTUP_WATCHDOG_TIMEOUT_SEC, tuner_id)
         try:
             return SoapySDR.Device(soapy_args)
         except Exception as e:
             LOG.warning("[%s] open attempt %d failed: %s; sleep %.1fs", tuner_id, attempt, e, backoff)
             time.sleep(backoff)
             backoff = min(backoff * 1.6, 20.0)
+        finally:
+            completed.set()
     return None
 
 
