@@ -2,10 +2,10 @@
 """Pre-flight bootstrap for the OP25 digital backend.
 
 Generates runtime config for one or more OP25 ``multi_rx.py`` processes.
-The common case stays single-process. When both RSPduo tuners are assigned
-to active control duties and ``OP25_RSPDUO_SPLIT_PROCESSES`` is enabled,
-the launcher splits OP25 into two child processes so Tuner 1 (Master) and
-Tuner 2 (Slave) never open in the same Python process.
+The common case stays single-process. When multiple RSPduo control tuners
+are assigned and ``OP25_RSPDUO_SPLIT_PROCESSES`` is enabled, the launcher
+splits OP25 into child processes so gr-osmosdr never has to open multiple
+SDRplay sources in the same Python process.
 
 Output layout:
 
@@ -286,26 +286,18 @@ def _summarize_processes(processes: list[dict[str, object]]) -> dict[str, object
     }
 
 
-def _split_rspduo_anchor_systems(
+def _rspduo_anchor_systems(
     systems: list[dict[str, object]],
     dongle_map: dict[str, str],
-) -> tuple[str, str] | None:
-    """Return the system names anchored on Tuner 1 and Tuner 2, if both exist."""
-    by_device: dict[str, dict[int, str]] = {}
+) -> list[str]:
+    """Return system names whose control source is an RSPduo tuner."""
+    anchors: list[str] = []
     for system in systems:
         system_name = str(system.get("name") or "").strip()
         serial = str(dongle_map.get(system_name) or "").strip()
-        parts = _rspduo_uid_parts(serial)
-        if not parts:
-            continue
-        tuner_n, device_serial = parts
-        by_device.setdefault(device_serial, {})[tuner_n] = system_name
-
-    for device_serial in sorted(by_device):
-        tuners = by_device[device_serial]
-        if 1 in tuners and 2 in tuners:
-            return tuners[1], tuners[2]
-    return None
+        if system_name and _rspduo_uid_parts(serial):
+            anchors.append(system_name)
+    return anchors
 
 
 def _build_runtime_process_plans(
@@ -323,37 +315,42 @@ def _build_runtime_process_plans(
     if not ordered_systems:
         return []
 
-    split_pair = _split_rspduo_anchor_systems(ordered_systems, dongle_map)
-    if not (_rspduo_split_processes_enabled() and split_pair):
+    rspduo_anchors = _rspduo_anchor_systems(ordered_systems, dongle_map)
+    if not (_rspduo_split_processes_enabled() and len(rspduo_anchors) >= 2):
         return [{
             "label": "op25-main",
             "systems": ordered_systems,
             "traffic_followers": list(traffic_followers),
         }]
 
-    system_a, system_b = split_pair
-    plan_a: dict[str, object] = {"label": "op25-main", "systems": [], "traffic_followers": []}
-    plan_b: dict[str, object] = {"label": "op25-aux", "systems": [], "traffic_followers": []}
+    def _plan_label(index: int) -> str:
+        if index == 0:
+            return "op25-main"
+        if index == 1:
+            return "op25-aux"
+        return f"op25-aux{index}"
+
+    plans: list[dict[str, object]] = [
+        {"label": _plan_label(idx), "systems": [], "traffic_followers": []}
+        for idx, _system_name in enumerate(rspduo_anchors)
+    ]
     plan_for_system: dict[str, dict[str, object]] = {}
+    anchor_plan = dict(zip(rspduo_anchors, plans))
 
     for system in ordered_systems:
         name = str(system.get("name") or "").strip()
-        if name == system_a:
-            cast = list(plan_a["systems"])  # type: ignore[arg-type]
+        target = anchor_plan.get(name)
+        if target is not None:
+            cast = list(target["systems"])  # type: ignore[arg-type]
             cast.append(system)
-            plan_a["systems"] = cast
-            plan_for_system[name] = plan_a
-        elif name == system_b:
-            cast = list(plan_b["systems"])  # type: ignore[arg-type]
-            cast.append(system)
-            plan_b["systems"] = cast
-            plan_for_system[name] = plan_b
+            target["systems"] = cast
+            plan_for_system[name] = target
 
     for system in ordered_systems:
         name = str(system.get("name") or "").strip()
         if name in plan_for_system:
             continue
-        target = plan_a if len(list(plan_a["systems"])) <= len(list(plan_b["systems"])) else plan_b
+        target = min(plans, key=lambda plan: len(list(plan.get("systems") or [])))
         cast = list(target["systems"])  # type: ignore[arg-type]
         cast.append(system)
         target["systems"] = cast
@@ -371,13 +368,13 @@ def _build_runtime_process_plans(
                 "(traffic follower must stay in the same process as its control channel)"
             )
             continue
-        target_plan = plan_for_system.get(target_system) or plan_a
+        target_plan = plan_for_system.get(target_system) or plans[0]
         followers = list(target_plan["traffic_followers"])  # type: ignore[arg-type]
         followers.append((serial, target_system))
         target_plan["traffic_followers"] = followers
         used_followers.add(serial)
 
-    return [plan_a, plan_b]
+    return plans
 
 
 def _detect_traffic_dongle(dongle_assignments: dict | None) -> str:

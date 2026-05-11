@@ -167,7 +167,7 @@ def _digital_serials() -> list[str]:
     return filtered
 
 
-def _rspduo_tuner_ids(*, max_tuners: int = 1) -> list[str]:
+def _rspduo_tuner_ids(*, max_tuners: int | None = None) -> list[str]:
     """Discover RSPduo tuner identifiers available to the digital backend.
 
     Prefer a Linux sysfs probe of the attached SDRplay USB device so we can
@@ -177,9 +177,11 @@ def _rspduo_tuner_ids(*, max_tuners: int = 1) -> list[str]:
     the exact IDs consumed by OP25.  When sysfs is unavailable, fall back to
     SoapySDR enumeration.
 
-    For every attached RSPduo, returns ``"RSPduo Tuner 1 SER#<serial>"``
-    plus, when the OP25 split-process path is enabled and at least two
-    digital control slots are needed, ``"RSPduo Tuner 2 SER#<serial>"``.
+    Returns ``"RSPduo Tuner 1 SER#<serial>"`` for each attached device
+    first. When the caller requests more control slots than there are
+    physical RSPduos, and the OP25 split-process path is enabled, the
+    corresponding ``"RSPduo Tuner 2 SER#<serial>"`` identifiers are
+    appended after all Tuner 1 entries.
 
     The 12-bit ADC and lower noise figure make the RSPduo a higher-quality
     control-channel receiver than the 8-bit RTL-SDRs it joins in the pool,
@@ -187,7 +189,9 @@ def _rspduo_tuner_ids(*, max_tuners: int = 1) -> list[str]:
 
     Tuner 2 is withheld unless ``OP25_RSPDUO_SPLIT_PROCESSES`` is enabled
     because the current single-process multi_rx.py path cannot safely open
-    Master and Slave back-to-back in one process.
+    Master and Slave back-to-back in one process. With multiple physical
+    RSPduos we prefer independent Tuner 1 receivers across boxes before
+    reaching for any Slave tuner.
 
     Returns an empty list when SoapySDR isn't installed, when no RSPduo
     is attached, or on any enumeration failure — the allocator then runs
@@ -223,16 +227,35 @@ def _rspduo_tuner_ids(*, max_tuners: int = 1) -> list[str]:
             serials.append(serial)
         return sorted(serials)
 
+    tuner_limit: int | None = None
+    if max_tuners is not None:
+        try:
+            tuner_limit = max(0, int(max_tuners))
+        except Exception:
+            tuner_limit = 1
+
     out: list[str] = []
-    allow_dual = max_tuners >= 2 and _env_flag("OP25_RSPDUO_SPLIT_PROCESSES", "1")
+    allow_dual = tuner_limit is not None and tuner_limit >= 2 and _env_flag("OP25_RSPDUO_SPLIT_PROCESSES", "1")
+
+    def _expand_rspduo_ids(serials: list[str]) -> list[str]:
+        limit = len(serials) if tuner_limit is None else tuner_limit
+        if limit <= 0:
+            return []
+        expanded: list[str] = []
+        for serial in serials:
+            expanded.append(f"RSPduo Tuner 1 SER#{serial}")
+            if len(expanded) >= limit:
+                return expanded
+        if allow_dual:
+            for serial in serials:
+                expanded.append(f"RSPduo Tuner 2 SER#{serial}")
+                if len(expanded) >= limit:
+                    return expanded
+        return expanded
 
     sysfs_serials = _rspduo_usb_serials()
     if sysfs_serials:
-        for serial in sysfs_serials:
-            out.append(f"RSPduo Tuner 1 SER#{serial}")
-            if allow_dual:
-                out.append(f"RSPduo Tuner 2 SER#{serial}")
-        return out
+        return _expand_rspduo_ids(sysfs_serials)
 
     try:
         import SoapySDR  # type: ignore[import-untyped]
@@ -252,10 +275,8 @@ def _rspduo_tuner_ids(*, max_tuners: int = 1) -> list[str]:
         if not serial or "RSPduo" not in hardware or serial in seen_serials:
             continue
         seen_serials.add(serial)
-        out.append(f"RSPduo Tuner 1 SER#{serial}")
-        if allow_dual:
-            out.append(f"RSPduo Tuner 2 SER#{serial}")
-    return out
+        out.append(serial)
+    return _expand_rspduo_ids(out)
 
 
 def _parse_soapy_kwargs(kw: Any) -> dict[str, str]:
@@ -509,7 +530,7 @@ def _desired_analog_profile_for_empty_result(
 ) -> str:
     fallback_id = "none_ground" if target == "ground" else "none_airband"
     current_id = _current_profile_id_for_target(target)
-    if current_id and current_id not in {fallback_id, managed_profile_id}:
+    if current_id and current_id != fallback_id:
         return current_id
     return _select_fallback_profile(profiles, target)
 
@@ -964,30 +985,6 @@ def sync_scan_pool_to_digital_runtime(
         active_pool_entry_count = int(len(pool.get("trunked_sites") or []) + len(pool.get("conventional") or []))
         systems, talkgroups, controls_flat, counts = _normalize_digital_pool(pool)
 
-        # --- Dongle allocation: assign digital tuners to system roles ---
-        # RSPduo tuners (auto-discovered from SDRTrunk's tuner_configuration.json)
-        # are passed as priority_serials so they are picked for control-channel
-        # duty ahead of RTL-SDRs (better RF performance: 12-bit vs 8-bit ADC).
-        try:
-            rspduo_ids = _rspduo_tuner_ids(max_tuners=min(2, len(systems)))
-            allocation = allocate_dongles(
-                _digital_serials(),
-                systems,
-                priority_serials=rspduo_ids,
-                persist=True,
-            )
-            logger.info(
-                "Dongle allocation: strategy=%s assignments=%d traffic=%d "
-                "rspduo_priority=%d rtl_pool=%d",
-                allocation.get("strategy"),
-                len(allocation.get("assignments") or []),
-                len(allocation.get("traffic_pool") or []),
-                len(rspduo_ids),
-                len(_digital_serials()),
-            )
-        except Exception:
-            logger.error("Dongle allocation failed; proceeding without assignment", exc_info=True)
-
         signature_payload = {
             "mode": mode,
             "systems": systems,
@@ -1024,6 +1021,31 @@ def sync_scan_pool_to_digital_runtime(
             _LAST_DIGITAL_SIGNATURE = signature
             _LAST_DIGITAL_RESULT = dict(result)
             return result
+
+        # --- Dongle allocation: assign digital tuners to system roles ---
+        # RSPduo tuners are passed as priority_serials so they are picked for
+        # control-channel duty ahead of RTL-SDRs (better RF performance: 12-bit
+        # vs 8-bit ADC). We expose as many RSPduo tuners as there are active
+        # systems, preferring Tuner 1 across physical boxes before any Tuner 2.
+        try:
+            rspduo_ids = _rspduo_tuner_ids(max_tuners=len(systems))
+            allocation = allocate_dongles(
+                _digital_serials(),
+                systems,
+                priority_serials=rspduo_ids,
+                persist=True,
+            )
+            logger.info(
+                "Dongle allocation: strategy=%s assignments=%d traffic=%d "
+                "rspduo_priority=%d rtl_pool=%d",
+                allocation.get("strategy"),
+                len(allocation.get("assignments") or []),
+                len(allocation.get("traffic_pool") or []),
+                len(rspduo_ids),
+                len(_digital_serials()),
+            )
+        except Exception:
+            logger.error("Dongle allocation failed; proceeding without assignment", exc_info=True)
 
         ok_profile, err_profile = _ensure_managed_digital_profile()
         if not ok_profile:

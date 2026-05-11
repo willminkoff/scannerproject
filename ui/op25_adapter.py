@@ -45,7 +45,7 @@ try:
         OP25_STATUS_PORT,
     )
     from .dongle_allocator import load_assignments
-    from .systemd import unit_active
+    from .systemd import restart_digital, unit_active
 except ImportError:
     from ui.config import (  # type: ignore[no-redef]
         DIGITAL_ACTIVE_PROFILE_LINK,
@@ -68,7 +68,7 @@ except ImportError:
         OP25_STATUS_PORT,
     )
     from ui.dongle_allocator import load_assignments  # type: ignore[no-redef]
-    from ui.systemd import unit_active  # type: ignore[no-redef]
+    from ui.systemd import restart_digital, unit_active  # type: ignore[no-redef]
 
 # Late import to avoid circular dependency — digital.py defines the base classes.
 try:
@@ -1515,7 +1515,10 @@ class Op25Adapter(_BaseDigitalAdapter):
         return True, ""
 
     def restart(self):
-        ok, err = self._systemctl(["restart"])
+        if not validate_digital_service_name(self._service_name):
+            self._set_last_error("invalid OP25 service name")
+            return False, self._last_error
+        ok, err = restart_digital(self._service_name)
         if not ok:
             self._set_last_error(err or "restart failed")
             return False, self._last_error

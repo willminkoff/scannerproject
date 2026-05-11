@@ -1,9 +1,34 @@
 import unittest
+from unittest import mock
 
 from ui import favorites_runtime
 
 
 class FavoritesRuntimeSiteAwareTests(unittest.TestCase):
+    def test_empty_analog_pool_preserves_managed_active_profile(self):
+        profiles = [
+            {"id": "none_airband", "path": "/tmp/none_airband.conf"},
+            {"id": "hp3_favorites_airband", "path": "/tmp/hp3_favorites_airband.conf"},
+        ]
+
+        with mock.patch.object(
+            favorites_runtime,
+            "_current_profile_id_for_target",
+            return_value="hp3_favorites_airband",
+        ), mock.patch.object(
+            favorites_runtime,
+            "_select_fallback_profile",
+            return_value="none_airband",
+        ) as select_fallback:
+            result = favorites_runtime._desired_analog_profile_for_empty_result(
+                profiles,
+                "airband",
+                managed_profile_id="hp3_favorites_airband",
+            )
+
+        self.assertEqual("hp3_favorites_airband", result)
+        select_fallback.assert_not_called()
+
     def test_normalize_digital_pool_emits_site_aware_systems_for_multiple_sites(self):
         pool = {
             "trunked_sites": [
@@ -82,6 +107,21 @@ class FavoritesRuntimeSiteAwareTests(unittest.TestCase):
         self.assertEqual("District 3", sites[0]["site_name"])
         self.assertEqual([769831250], sites[0]["control_channels_hz"])
         self.assertEqual(["769.83125"], controls_flat)
+
+    def test_empty_digital_pool_does_not_persist_no_dongles_assignment(self):
+        pool = {"trunked_sites": [], "conventional": []}
+
+        with mock.patch.object(favorites_runtime, "allocate_dongles") as allocate_dongles:
+            result = favorites_runtime.sync_scan_pool_to_digital_runtime(
+                force=True,
+                mode="hp",
+                pool=pool,
+            )
+
+        allocate_dongles.assert_not_called()
+        self.assertTrue(result["ok"])
+        self.assertEqual("no digital targets in active scan pool", result["reason"])
+        self.assertEqual(0, result["system_count"])
 
 
 if __name__ == "__main__":

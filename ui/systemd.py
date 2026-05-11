@@ -1,6 +1,8 @@
 """System unit control via systemd."""
+import os
 import subprocess
-from typing import Tuple
+import time
+from typing import Optional, Tuple
 
 try:
     from .config import UNITS, BT_HEAL_TIMER_UNIT
@@ -98,6 +100,44 @@ def _stop_unit(unit: str, use_sudo: bool = False) -> Tuple[bool, str]:
     return False, err
 
 
+def _env_float(name: str, default: float, minimum: float = 0.0) -> float:
+    try:
+        value = float(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, value)
+
+
+def _unit_configured(unit: str) -> bool:
+    text = str(unit or "").strip()
+    if not text:
+        return False
+    try:
+        return unit_exists(text)
+    except Exception:
+        return False
+
+
+def _kill_unit(unit: str) -> None:
+    unit = str(unit or "").strip()
+    if not unit:
+        return
+    try:
+        _run_systemctl(["kill", "-s", "SIGKILL", unit], use_sudo=True)
+    except Exception:
+        pass
+
+
+def _reset_failed_units(units) -> None:
+    names = [str(unit or "").strip() for unit in units if str(unit or "").strip()]
+    if not names:
+        return
+    try:
+        _run_systemctl(["reset-failed"] + names, use_sudo=True)
+    except Exception:
+        pass
+
+
 def unit_active_enter_epoch(unit: str):
     """Return ActiveEnterTimestampUSec as epoch seconds, or None."""
     def parse_epoch(result):
@@ -159,9 +199,49 @@ def restart_ui() -> Tuple[bool, str]:
     return _restart_unit(UNITS["ui"])
 
 
-def restart_digital() -> Tuple[bool, str]:
-    """Restart the digital backend service."""
-    return _restart_unit(UNITS["digital"], use_sudo=True)
+def restart_digital(unit: Optional[str] = None) -> Tuple[bool, str]:
+    """Recover and restart the OP25 digital backend service."""
+    digital_unit = str(unit or UNITS["digital"] or "").strip()
+    audio_unit = str(UNITS.get("digital_audio", "") or "").strip()
+    audio_exists = _unit_configured(audio_unit)
+    sdrplay_unit = (
+        os.getenv("UNIT_SDRPLAY")
+        or os.getenv("SDRPLAY_SERVICE_NAME")
+        or "sdrplay"
+    ).strip()
+    sdrplay_exists = _unit_configured(sdrplay_unit)
+    sdrplay_settle_sec = _env_float("DIGITAL_RESTART_SDRPLAY_SETTLE_SEC", 3.0)
+    op25_settle_sec = _env_float("DIGITAL_RESTART_OP25_SETTLE_SEC", 16.0)
+
+    if not digital_unit:
+        return False, "digital unit not configured"
+
+    if audio_exists:
+        _stop_unit(audio_unit, use_sudo=True)
+    _stop_unit(digital_unit, use_sudo=True)
+    _kill_unit(digital_unit)
+    if audio_exists:
+        _kill_unit(audio_unit)
+    _reset_failed_units([digital_unit, audio_unit if audio_exists else ""])
+
+    if sdrplay_exists:
+        ok, err = _restart_unit(sdrplay_unit, use_sudo=True)
+        if not ok:
+            return False, f"sdrplay restart: {err}"
+        if sdrplay_settle_sec > 0:
+            time.sleep(sdrplay_settle_sec)
+
+    ok, err = _start_unit(digital_unit, use_sudo=True)
+    if not ok:
+        return False, f"digital start: {err}"
+    if op25_settle_sec > 0:
+        time.sleep(op25_settle_sec)
+
+    if audio_exists:
+        ok, err = _restart_unit(audio_unit, use_sudo=True)
+        if not ok:
+            return False, f"digital audio restart: {err}"
+    return True, ""
 
 
 def restart_digital_audio() -> Tuple[bool, str]:
