@@ -287,6 +287,7 @@ _OP25_SITE_SELECTOR_SURVEY_DWELL_SEC = 15
 _OP25_SITE_SELECTOR_SURVEY_MAX_SEC = 60
 _OP25_SITE_SELECTOR_STALE_WINDOW_WINDOW_MS = 10 * 60 * 1000
 _OP25_SITE_SELECTOR_POST_RESTART_GRACE_MS = 90_000  # 90s grace after restart before counting stale windows
+_OP25_SITE_SELECTOR_RESTART_LOCK = threading.Lock()
 
 _DEFAULT_SITE_POLICY = {
     "mode": "auto",
@@ -773,6 +774,7 @@ def _initial_selector_system_state(system: dict[str, Any]) -> dict[str, Any]:
         "revisit_block_until": {},
         "candidates": [_candidate_state_defaults(site) for site in system.get("sites") or []],
         "_last_restart_time_ms": 0,
+        "_last_restart_attempt_time_ms": 0,
         "_last_stale_window_time_ms": 0,
         "_stale_window_times_ms": [],
         "_survey_started_at_ms": 0,
@@ -929,6 +931,40 @@ def _candidate_is_unhealthy(candidate: dict[str, Any]) -> bool:
         return float(age) > 60.0
     except Exception:
         return True
+
+
+def _candidate_has_recovery_evidence(candidate: dict[str, Any]) -> bool:
+    """Return True when an alternate has real decode evidence.
+
+    Cold-start candidates default to "unlocked/no decode/no TSBK age". Treating
+    those unknowns as viable alternates caused status polls to bounce OP25
+    through every in-radius site before any receiver had a chance to lock.
+    """
+    if int(candidate.get("recent_any_grants") or 0) > 0:
+        return True
+    if int(candidate.get("recent_monitored_tg_hits") or 0) > 0:
+        return True
+    if not bool(candidate.get("control_locked")):
+        return False
+    if not bool(candidate.get("control_decode_available")):
+        return False
+    age = candidate.get("last_tsbk_age_sec")
+    if age is None:
+        return False
+    try:
+        return float(age) <= 60.0
+    except Exception:
+        return False
+
+
+def _last_selector_restart_activity_ms(sys_state: dict[str, Any]) -> int:
+    values: list[int] = []
+    for key in ("_last_restart_time_ms", "_last_restart_attempt_time_ms"):
+        try:
+            values.append(int(sys_state.get(key) or 0))
+        except Exception:
+            values.append(0)
+    return max(values) if values else 0
 
 
 def _candidate_cooldown_active(candidate: dict[str, Any], *, now_ms: int) -> bool:
@@ -2640,17 +2676,9 @@ class Op25Adapter(_BaseDigitalAdapter):
             }, sys_state)
 
         if current_unhealthy:
-            if best_alternate and bool(best_alternate.get("enabled")):
-                return ({
-                    "action": "switch",
-                    "site_id": str(best_alternate.get("site_id") or ""),
-                    "selection_mode": str(sys_state.get("selection_mode") or "auto"),
-                    "reason_code": "site_switch_unhealthy",
-                    "reason_text": f"Current site unhealthy; switching to {best_alternate.get('site_name')}",
-                }, sys_state)
-            # Grace period: skip stale counting for 90s after a restart so
-            # OP25 has time to scan and lock onto control channels.
-            last_restart_ms = int(sys_state.get("_last_restart_time_ms") or 0)
+            # Grace period: skip switching and stale counting after a restart
+            # so OP25 has time to scan and lock onto control channels.
+            last_restart_ms = _last_selector_restart_activity_ms(sys_state)
             if last_restart_ms > 0 and (now_ms - last_restart_ms) < _OP25_SITE_SELECTOR_POST_RESTART_GRACE_MS:
                 return ({
                     "action": "stay",
@@ -2658,6 +2686,18 @@ class Op25Adapter(_BaseDigitalAdapter):
                     "selection_mode": str(sys_state.get("selection_mode") or "auto"),
                     "reason_code": "stay_post_restart_grace",
                     "reason_text": f"Post-restart grace period ({(now_ms - last_restart_ms) // 1000}s / {_OP25_SITE_SELECTOR_POST_RESTART_GRACE_MS // 1000}s)",
+                }, sys_state)
+            if (
+                best_alternate
+                and bool(best_alternate.get("enabled"))
+                and _candidate_has_recovery_evidence(best_alternate)
+            ):
+                return ({
+                    "action": "switch",
+                    "site_id": str(best_alternate.get("site_id") or ""),
+                    "selection_mode": str(sys_state.get("selection_mode") or "auto"),
+                    "reason_code": "site_switch_unhealthy",
+                    "reason_text": f"Current site unhealthy; switching to {best_alternate.get('site_name')}",
                 }, sys_state)
             stale_times = [
                 int(ts)
@@ -2934,159 +2974,174 @@ class Op25Adapter(_BaseDigitalAdapter):
     def _handle_selector_restart_requests(self, profile_dir: str, restart_requests: list[dict[str, Any]]) -> None:
         if not restart_requests:
             return
-        now_ms = _now_ms()
-        state = _load_selector_state(self._runtime_dir)
-        systems_state = state.setdefault("systems", {})
-        profile_id = os.path.basename(profile_dir.rstrip(os.sep))
-        runtime_system_defs = _normalize_runtime_system_definitions(
-            profile_dir,
-            op25_overrides=_read_op25_system_config(profile_dir),
-        )
-        runtime_policies = {
-            str(system.get("name") or "").strip(): (system.get("site_policy") or {})
-            for system in runtime_system_defs
-        }
-        runtime_system_map = {
-            str(system.get("name") or "").strip(): system
-            for system in runtime_system_defs
-            if str(system.get("name") or "").strip()
-        }
-        eligible_requests: list[tuple[dict[str, Any], str, dict[str, Any]]] = []
-        for request in restart_requests:
-            system_name = str(request.get("system_name") or "").strip()
-            if not system_name:
-                continue
-            key = _state_system_key(profile_id, system_name)
-            sys_state = systems_state.get(key)
-            if not isinstance(sys_state, dict):
-                continue
-            last_restart_time_ms = int(sys_state.get("_last_restart_time_ms") or 0)
-            if last_restart_time_ms > 0 and (now_ms - last_restart_time_ms) < _OP25_SITE_SELECTOR_ACTION_COOLDOWN_MS:
-                continue
-            reason_code = str(request.get("reason_code") or "")
-            score_summary = ";".join(
-                f"{row.get('site_id')}={row.get('score')}"
-                for row in (sys_state.get("candidates") or [])
-                if isinstance(row, dict)
-            )
+        if not _OP25_SITE_SELECTOR_RESTART_LOCK.acquire(blocking=False):
             logger.info(
-                "op25_site_selector action=%s system=%s selected_site_id=%s previous_site_id=%s reason_code=%s scores=%s",
-                request.get("type"),
-                system_name,
-                request.get("selected_site_id"),
-                request.get("previous_site_id"),
-                reason_code,
-                score_summary,
+                "op25_site_selector action=restart_deferred reason=restart_in_progress requests=%d",
+                len(restart_requests),
             )
-            eligible_requests.append((request, key, sys_state))
-
-        if not eligible_requests:
             return
-
-        for request, _key, sys_state in eligible_requests:
-            if str(request.get("type") or "") != "same_site_restart":
-                continue
-            system_name = str(request.get("system_name") or "").strip()
-            system_def = runtime_system_map.get(system_name) or {}
-            selected_site_id = str(
-                request.get("selected_site_id")
-                or sys_state.get("selected_site_id")
-                or ""
-            ).strip()
-            if not selected_site_id:
-                continue
-            selected_site = next(
-                (
-                    site
-                    for site in (system_def.get("sites") or [])
-                    if str(site.get("site_id") or "").strip() == selected_site_id
-                ),
-                None,
+        try:
+            now_ms = _now_ms()
+            state = _load_selector_state(self._runtime_dir)
+            systems_state = state.setdefault("systems", {})
+            profile_id = os.path.basename(profile_dir.rstrip(os.sep))
+            runtime_system_defs = _normalize_runtime_system_definitions(
+                profile_dir,
+                op25_overrides=_read_op25_system_config(profile_dir),
             )
-            if not isinstance(selected_site, dict):
-                continue
-            channels = _ordered_control_channels_for_state(
-                list(selected_site.get("control_channels_hz") or []),
-                0,
-            )
-            if len(channels) <= 1:
-                continue
-            current_hz = int(sys_state.get("selected_control_frequency_hz") or 0)
-            try:
-                current_idx = channels.index(current_hz)
-            except ValueError:
-                current_idx = -1
-            next_hz = channels[(current_idx + 1) % len(channels)]
-            if next_hz <= 0 or next_hz == current_hz:
-                continue
-            sys_state["selected_control_frequency_hz"] = next_hz
-            request["previous_control_frequency_hz"] = current_hz
-            request["selected_control_frequency_hz"] = next_hz
-            request["reason_text"] = (
-                f"{str(request.get('reason_text') or '').strip()} "
-                f"(rotating control to {next_hz / 1_000_000:.5f} MHz)"
-            ).strip()
-
-        _save_selector_state(self._runtime_dir, state)
-        ok, err = self._regenerate_runtime_via_script()
-        if not ok:
-            for request, _key, _sys_state in eligible_requests:
-                logger.warning(
-                    "op25_site_selector action=restart_failed system=%s selected_site_id=%s previous_site_id=%s reason_code=%s error=%s",
-                    request.get("system_name"),
+            runtime_policies = {
+                str(system.get("name") or "").strip(): (system.get("site_policy") or {})
+                for system in runtime_system_defs
+            }
+            runtime_system_map = {
+                str(system.get("name") or "").strip(): system
+                for system in runtime_system_defs
+                if str(system.get("name") or "").strip()
+            }
+            eligible_requests: list[tuple[dict[str, Any], str, dict[str, Any]]] = []
+            for request in restart_requests:
+                system_name = str(request.get("system_name") or "").strip()
+                if not system_name:
+                    continue
+                key = _state_system_key(profile_id, system_name)
+                sys_state = systems_state.get(key)
+                if not isinstance(sys_state, dict):
+                    continue
+                last_restart_time_ms = _last_selector_restart_activity_ms(sys_state)
+                if last_restart_time_ms > 0 and (now_ms - last_restart_time_ms) < _OP25_SITE_SELECTOR_ACTION_COOLDOWN_MS:
+                    continue
+                reason_code = str(request.get("reason_code") or "")
+                score_summary = ";".join(
+                    f"{row.get('site_id')}={row.get('score')}"
+                    for row in (sys_state.get("candidates") or [])
+                    if isinstance(row, dict)
+                )
+                logger.info(
+                    "op25_site_selector action=%s system=%s selected_site_id=%s previous_site_id=%s reason_code=%s scores=%s",
+                    request.get("type"),
+                    system_name,
                     request.get("selected_site_id"),
                     request.get("previous_site_id"),
-                    request.get("reason_code"),
-                    err,
+                    reason_code,
+                    score_summary,
                 )
-            return
+                eligible_requests.append((request, key, sys_state))
 
-        restart_result = self.restart()
-        if isinstance(restart_result, tuple):
-            restart_ok = bool(restart_result[0])
-            restart_err = str(restart_result[1] or "")
-        else:
-            restart_ok = bool(restart_result)
-            restart_err = ""
-        if not restart_ok:
-            for request, _key, _sys_state in eligible_requests:
-                logger.warning(
-                    "op25_site_selector action=restart_failed system=%s selected_site_id=%s previous_site_id=%s reason_code=%s error=%s",
-                    request.get("system_name"),
-                    request.get("selected_site_id"),
-                    request.get("previous_site_id"),
-                    request.get("reason_code"),
-                    restart_err or "restart returned false",
+            if not eligible_requests:
+                return
+
+            for request, _key, sys_state in eligible_requests:
+                if str(request.get("type") or "") != "same_site_restart":
+                    continue
+                system_name = str(request.get("system_name") or "").strip()
+                system_def = runtime_system_map.get(system_name) or {}
+                selected_site_id = str(
+                    request.get("selected_site_id")
+                    or sys_state.get("selected_site_id")
+                    or ""
+                ).strip()
+                if not selected_site_id:
+                    continue
+                selected_site = next(
+                    (
+                        site
+                        for site in (system_def.get("sites") or [])
+                        if str(site.get("site_id") or "").strip() == selected_site_id
+                    ),
+                    None,
                 )
-            return
+                if not isinstance(selected_site, dict):
+                    continue
+                channels = _ordered_control_channels_for_state(
+                    list(selected_site.get("control_channels_hz") or []),
+                    0,
+                )
+                if len(channels) <= 1:
+                    continue
+                current_hz = int(sys_state.get("selected_control_frequency_hz") or 0)
+                try:
+                    current_idx = channels.index(current_hz)
+                except ValueError:
+                    current_idx = -1
+                next_hz = channels[(current_idx + 1) % len(channels)]
+                if next_hz <= 0 or next_hz == current_hz:
+                    continue
+                sys_state["selected_control_frequency_hz"] = next_hz
+                request["previous_control_frequency_hz"] = current_hz
+                request["selected_control_frequency_hz"] = next_hz
+                request["reason_text"] = (
+                    f"{str(request.get('reason_text') or '').strip()} "
+                    f"(rotating control to {next_hz / 1_000_000:.5f} MHz)"
+                ).strip()
 
-        success_iso = _iso_utc(now_ms)
-        for request, key, sys_state in eligible_requests:
-            sys_state["_last_restart_time_ms"] = now_ms
-            action_type = str(request.get("type") or "")
-            if action_type == "switch":
-                sys_state["switch_count"] = int(sys_state.get("switch_count") or 0) + 1
-                sys_state["site_switch_restart_count"] = int(sys_state.get("site_switch_restart_count") or 0) + 1
-                sys_state["last_switch_time"] = success_iso
-                sys_state["current_site_since"] = success_iso
-                previous_site_id = str(request.get("previous_site_id") or "")
-                if previous_site_id:
-                    revisit = dict(sys_state.get("revisit_block_until") or {})
-                    system_name = str(request.get("system_name") or "").strip()
-                    policy = runtime_policies.get(system_name) or {}
-                    revisit[previous_site_id] = _iso_utc(now_ms + int(policy.get("revisit_cooldown_sec") or 180) * 1000)
-                    sys_state["revisit_block_until"] = revisit
-            elif action_type == "same_site_restart":
-                sys_state["same_site_restart_count"] = int(sys_state.get("same_site_restart_count") or 0) + 1
-            elif action_type == "generic_restart":
-                sys_state["generic_restart_count"] = int(sys_state.get("generic_restart_count") or 0) + 1
-            # Clear stale window history after any restart so accumulated
-            # stale events don't immediately re-trigger another restart.
-            sys_state["_stale_window_times_ms"] = []
-            sys_state["_last_stale_window_time_ms"] = 0
-            sys_state["stale_window_count"] = 0
-            systems_state[key] = sys_state
-        _save_selector_state(self._runtime_dir, state)
+            # Mark the cooldown before expensive regenerate/restart work so
+            # concurrent preflight/status requests cannot enqueue duplicates.
+            for _request, key, sys_state in eligible_requests:
+                sys_state["_last_restart_attempt_time_ms"] = now_ms
+                systems_state[key] = sys_state
+            _save_selector_state(self._runtime_dir, state)
+
+            ok, err = self._regenerate_runtime_via_script()
+            if not ok:
+                for request, _key, _sys_state in eligible_requests:
+                    logger.warning(
+                        "op25_site_selector action=restart_failed system=%s selected_site_id=%s previous_site_id=%s reason_code=%s error=%s",
+                        request.get("system_name"),
+                        request.get("selected_site_id"),
+                        request.get("previous_site_id"),
+                        request.get("reason_code"),
+                        err,
+                    )
+                return
+
+            restart_result = self.restart()
+            if isinstance(restart_result, tuple):
+                restart_ok = bool(restart_result[0])
+                restart_err = str(restart_result[1] or "")
+            else:
+                restart_ok = bool(restart_result)
+                restart_err = ""
+            if not restart_ok:
+                for request, _key, _sys_state in eligible_requests:
+                    logger.warning(
+                        "op25_site_selector action=restart_failed system=%s selected_site_id=%s previous_site_id=%s reason_code=%s error=%s",
+                        request.get("system_name"),
+                        request.get("selected_site_id"),
+                        request.get("previous_site_id"),
+                        request.get("reason_code"),
+                        restart_err or "restart returned false",
+                    )
+                return
+
+            success_iso = _iso_utc(now_ms)
+            for request, key, sys_state in eligible_requests:
+                sys_state["_last_restart_time_ms"] = now_ms
+                action_type = str(request.get("type") or "")
+                if action_type == "switch":
+                    sys_state["switch_count"] = int(sys_state.get("switch_count") or 0) + 1
+                    sys_state["site_switch_restart_count"] = int(sys_state.get("site_switch_restart_count") or 0) + 1
+                    sys_state["last_switch_time"] = success_iso
+                    sys_state["current_site_since"] = success_iso
+                    previous_site_id = str(request.get("previous_site_id") or "")
+                    if previous_site_id:
+                        revisit = dict(sys_state.get("revisit_block_until") or {})
+                        system_name = str(request.get("system_name") or "").strip()
+                        policy = runtime_policies.get(system_name) or {}
+                        revisit[previous_site_id] = _iso_utc(now_ms + int(policy.get("revisit_cooldown_sec") or 180) * 1000)
+                        sys_state["revisit_block_until"] = revisit
+                elif action_type == "same_site_restart":
+                    sys_state["same_site_restart_count"] = int(sys_state.get("same_site_restart_count") or 0) + 1
+                elif action_type == "generic_restart":
+                    sys_state["generic_restart_count"] = int(sys_state.get("generic_restart_count") or 0) + 1
+                # Clear stale window history after any restart so accumulated
+                # stale events don't immediately re-trigger another restart.
+                sys_state["_stale_window_times_ms"] = []
+                sys_state["_last_stale_window_time_ms"] = 0
+                sys_state["stale_window_count"] = 0
+                systems_state[key] = sys_state
+            _save_selector_state(self._runtime_dir, state)
+        finally:
+            _OP25_SITE_SELECTOR_RESTART_LOCK.release()
 
     def preflight(self) -> dict:
         """Return health payload compatible with the scheduler's expectations."""

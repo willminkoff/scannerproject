@@ -404,6 +404,34 @@ class SiteSelectionDecisionTests(unittest.TestCase):
         self.assertEqual("18863", decision["site_id"])
         self.assertEqual("site_switch_unhealthy", decision["reason_code"])
 
+    def test_unknown_alternate_does_not_trigger_unhealthy_switch(self):
+        decision, state = self.adapter._selector_decision_for_system(
+            self.system,
+            self._sys_state(current_site_since=_iso_utc(self.now_ms - 30_000)),
+            [
+                _candidate(
+                    "41154",
+                    score=-20,
+                    site_name="Davidson County Services",
+                    control_locked=False,
+                    control_decode_available=False,
+                    last_tsbk_age_sec=None,
+                ),
+                _candidate(
+                    "18863",
+                    score=-20,
+                    site_name="Davidson County Simulcast",
+                    control_locked=False,
+                    control_decode_available=False,
+                    last_tsbk_age_sec=None,
+                ),
+            ],
+            now_ms=self.now_ms,
+        )
+        self.assertEqual("stay", decision["action"])
+        self.assertEqual("stay_current_unhealthy_no_alternate", decision["reason_code"])
+        self.assertEqual(1, state["stale_window_count"])
+
     def test_healthy_but_unproductive_current_site_switches_when_alternate_exceeds_margin(self):
         decision, _ = self.adapter._selector_decision_for_system(
             self.system,
