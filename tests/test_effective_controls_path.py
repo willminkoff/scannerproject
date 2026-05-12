@@ -1166,7 +1166,7 @@ class RecentRegressionTests(unittest.TestCase):
         kwargs = build_pool.call_args.kwargs
         self.assertTrue(bool(kwargs.get("strict_location")))
 
-    def test_scan_pool_full_database_prefers_nearest_site_per_system(self):
+    def test_scan_pool_full_database_preserves_multiple_sites_per_system(self):
         controller = scan_mode_controller.ScanModeController(db_path="/tmp/hpdb-test.db")
         state = HPState.default()
         state.mode = "full_database"
@@ -1212,9 +1212,9 @@ class RecentRegressionTests(unittest.TestCase):
             filtered = controller.get_scan_pool()
 
         trunked = filtered.get("trunked_sites") or []
-        self.assertEqual(2, len(trunked))
+        self.assertEqual(3, len(trunked))
         site_ids = sorted(int(row.get("site_id") or 0) for row in trunked)
-        self.assertEqual([11, 20], site_ids)
+        self.assertEqual([10, 11, 20], site_ids)
 
     def test_scan_pool_favorites_location_trims_controls_to_nearest_sites(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1316,7 +1316,7 @@ class RecentRegressionTests(unittest.TestCase):
                 )
                 conn.execute(
                     "INSERT INTO trunk_sites(site_id, trunk_id, site_name, source_file, latitude, longitude, radius) VALUES (?,?,?,?,?,?,?)",
-                    (2002, 84, "Backup Site", "TN.hpd", 37.5000, -87.9000, 2.0),
+                    (2002, 84, "Backup Site", "TN.hpd", 37.5000, -87.9000, 200.0),
                 )
                 conn.execute("INSERT INTO trunk_freqs(site_id, freq_hz) VALUES (?,?)", (2001, 851100000))
                 conn.execute("INSERT INTO trunk_freqs(site_id, freq_hz) VALUES (?,?)", (2002, 853100000))
@@ -1358,11 +1358,11 @@ class RecentRegressionTests(unittest.TestCase):
             trunked = pool.get("trunked_sites") or []
             self.assertEqual(2, len(trunked))
             site_ids = [int(row.get("site_id") or 0) for row in trunked]
-            self.assertEqual([2001, 2002], site_ids)
-            self.assertEqual([851.1], list(trunked[0].get("control_channels") or []))
-            self.assertEqual([853.1], list(trunked[1].get("control_channels") or []))
-            self.assertEqual("Primary Site", trunked[0].get("site_name"))
-            self.assertEqual("Backup Site", trunked[1].get("site_name"))
+            self.assertEqual([2002, 2001], site_ids)
+            self.assertEqual([853.1], list(trunked[0].get("control_channels") or []))
+            self.assertEqual([851.1], list(trunked[1].get("control_channels") or []))
+            self.assertEqual("Backup Site", trunked[0].get("site_name"))
+            self.assertEqual("Primary Site", trunked[1].get("site_name"))
 
     def test_build_custom_favorites_pool_merges_trunked_departments_per_system(self):
         controller = scan_mode_controller.ScanModeController(db_path="/tmp/hpdb-test.db")

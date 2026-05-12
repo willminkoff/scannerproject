@@ -750,6 +750,20 @@ def _coerce_site_float(value: Any) -> float | None:
     return parsed if parsed == parsed else None
 
 
+def _site_radius_sort_value(value: Any) -> float:
+    parsed = _coerce_site_float(value)
+    if parsed is None or parsed <= 0:
+        return 0.0
+    return float(parsed)
+
+
+def _site_distance_sort_value(value: Any) -> float:
+    parsed = _coerce_site_float(value)
+    if parsed is None or parsed < 0:
+        return float("inf")
+    return float(parsed)
+
+
 def _normalize_digital_pool(
     pool: dict[str, Any],
 ) -> tuple[list[dict[str, Any]], list[dict[str, str]], list[str], dict[str, int]]:
@@ -888,6 +902,8 @@ def _normalize_digital_pool(
         system["sites"] = sorted(
             list(system.get("sites") or []),
             key=lambda row: (
+                -_site_radius_sort_value(row.get("radius")),
+                _site_distance_sort_value(row.get("distance_miles")),
                 str(row.get("site_name") or "").lower(),
                 str(row.get("site_id") or ""),
             ),

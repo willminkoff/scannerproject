@@ -23,11 +23,26 @@ _DEFAULT_HP_AVOIDS_PATH = str(Path(HP_AVOIDS_PATH).expanduser())
 
 
 def _sites_per_system_limit() -> int:
+    raw = os.getenv("HP_TRUNK_MAX_SITES_PER_SYSTEM")
+    if raw is None:
+        raw = os.getenv("HP_TRUNK_SITES_PER_SYSTEM")
+    if raw is None:
+        raw = "5"
     try:
-        parsed = int(os.getenv("HP_TRUNK_SITES_PER_SYSTEM", "1"))
+        parsed = int(str(raw).strip())
     except Exception:
-        parsed = 1
+        parsed = 5
     return max(1, int(parsed))
+
+
+def _site_radius_sort_value(value) -> float:
+    try:
+        parsed = float(str(value).strip())
+    except Exception:
+        return 0.0
+    if not math.isfinite(parsed) or parsed <= 0:
+        return 0.0
+    return parsed
 
 
 def _normalize_mode_token(mode: str) -> str:
@@ -278,6 +293,28 @@ class ScanModeController:
         distance = haversine_miles(center_lat, center_lon, target_lat, target_lon)
         return distance <= threshold
 
+    @classmethod
+    def _within_site_radius_gate(
+        cls,
+        *,
+        center_lat: float,
+        center_lon: float,
+        target_lat: float,
+        target_lon: float,
+        target_radius: float | None,
+        lat_miles_per_degree: float,
+        lon_miles_per_degree: float,
+    ) -> bool:
+        radius = cls._parse_float(target_radius)
+        if radius is None or radius <= 0:
+            return True
+        if abs(target_lat - center_lat) * lat_miles_per_degree > radius:
+            return False
+        if abs(target_lon - center_lon) * lon_miles_per_degree > radius:
+            return False
+        distance = haversine_miles(center_lat, center_lon, target_lat, target_lon)
+        return distance <= radius
+
     def _load_multistate_scope_overrides(self, conn: sqlite3.Connection) -> tuple[set[int], set[str]]:
         cached_trunk_ids = self._multistate_localized_trunk_ids
         cached_conv_keys = self._multistate_localized_conv_system_keys
@@ -372,12 +409,12 @@ class ScanModeController:
                 continue
             target_lat = self._parse_float(row["latitude"])
             target_lon = self._parse_float(row["longitude"])
-            target_radius = self._parse_float(row["radius"]) or 0.0
+            target_radius = self._parse_float(row["radius"])
             if trunk_id is None or trunk_id <= 0:
                 continue
             if target_lat is None or target_lon is None:
                 continue
-            if not self._within_location_threshold(
+            if not self._within_site_radius_gate(
                 center_lat=center_lat,
                 center_lon=center_lon,
                 target_lat=target_lat,
@@ -385,8 +422,6 @@ class ScanModeController:
                 target_radius=target_radius,
                 lat_miles_per_degree=lat_miles_per_degree,
                 lon_miles_per_degree=lon_miles_per_degree,
-                range_miles=range_miles,
-                strict_location=strict_location,
             ):
                 continue
             nearby_ids.add(int(trunk_id))
@@ -821,7 +856,6 @@ class ScanModeController:
 
                 site_rows_by_id: dict[int, sqlite3.Row] = {}
                 in_range: list[tuple[float, int]] = []
-                all_candidates: list[tuple[float, int]] = []
                 for row in rows:
                     source_file = str(row["source_file"] or "").strip().lower()
                     if (
@@ -839,9 +873,8 @@ class ScanModeController:
                     if site_lat is None or site_lon is None:
                         continue
                     distance = haversine_miles(center_lat, center_lon, site_lat, site_lon)
-                    all_candidates.append((float(distance), int(site_id)))
-                    target_radius = max(0.0, float(self._parse_float(row["radius"]) or 0.0))
-                    if self._within_location_threshold(
+                    target_radius = self._parse_float(row["radius"])
+                    if self._within_site_radius_gate(
                         center_lat=center_lat,
                         center_lon=center_lon,
                         target_lat=site_lat,
@@ -849,15 +882,25 @@ class ScanModeController:
                         target_radius=target_radius,
                         lat_miles_per_degree=lat_miles_per_degree,
                         lon_miles_per_degree=lon_miles_per_degree,
-                        range_miles=range_miles,
-                        strict_location=strict_location,
                     ):
                         in_range.append((float(distance), int(site_id)))
 
-                if not all_candidates:
+                if not in_range:
                     continue
-                ranked_in = sorted(in_range, key=lambda item: (float(item[0]), int(item[1])))
-                ranked_all = sorted(all_candidates, key=lambda item: (float(item[0]), int(item[1])))
+                def _radius_for_site(site_id: int):
+                    row = site_rows_by_id.get(int(site_id))
+                    if row is None:
+                        return None
+                    return row["radius"]
+
+                ranked_in = sorted(
+                    in_range,
+                    key=lambda item: (
+                        -_site_radius_sort_value(_radius_for_site(int(item[1]))),
+                        float(item[0]),
+                        int(item[1]),
+                    ),
+                )
                 keep: list[tuple[float, int]] = []
                 seen_site_ids: set[int] = set()
                 for distance, site_id in ranked_in:
@@ -867,14 +910,6 @@ class ScanModeController:
                     seen_site_ids.add(int(site_id))
                     if len(keep) >= site_limit:
                         break
-                if len(keep) < site_limit:
-                    for distance, site_id in ranked_all:
-                        if site_id in seen_site_ids:
-                            continue
-                        keep.append((float(distance), int(site_id)))
-                        seen_site_ids.add(int(site_id))
-                        if len(keep) >= site_limit:
-                            break
                 if not keep:
                     continue
                 keep_site_ids = [int(site_id) for _distance, site_id in keep if int(site_id) > 0]
@@ -1151,7 +1186,6 @@ class ScanModeController:
                 include_nationwide=bool(getattr(state, "nationwide_systems", False)),
                 strict_location=bool(getattr(state, "strict_location", False)),
             )
-            pool = self._prefer_nearest_site_per_system(pool)
         else:
             return _empty_pool()
         with self._lock:

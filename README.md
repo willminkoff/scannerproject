@@ -722,7 +722,10 @@ Preferred site-aware `systems.json` format:
 Current runtime behavior:
 - legacy profiles without `sites[]` still work from their flat control-channel definitions
 - site-aware profiles keep `control_channels.txt` for compatibility and legacy consumers
-- OP25 now chooses one active site per system at runtime and builds control-channel config from that selected site's control channels
+- HP full-database trunked site selection uses the HomePatrol site radius as the inclusion gate: sites with `distance <= radius` are candidates, and sites with missing/zero radius fail open
+- multiple candidate sites per trunked system are preserved into `systems.json`; `HP_TRUNK_MAX_SITES_PER_SYSTEM` caps each system's candidate list (default `5`, legacy `HP_TRUNK_SITES_PER_SYSTEM` is accepted as an alias)
+- candidate sites are ordered by largest radius first, then distance, as the initial OP25 selector hint
+- OP25 chooses one active site per system at runtime and builds control-channel config from that selected site's control channels
 
 **Canonical workflow (authoritative): create a working digital profile**
 Use this flow for every new or edited digital profile, regardless of source data.

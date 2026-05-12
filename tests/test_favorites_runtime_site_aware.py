@@ -82,6 +82,37 @@ class FavoritesRuntimeSiteAwareTests(unittest.TestCase):
         self.assertEqual(1, len(talkgroups))
         self.assertEqual({"systems": 1, "talkgroups": 1, "control_channels": 3}, summary)
 
+    def test_normalize_digital_pool_orders_candidate_sites_by_radius(self):
+        pool = {
+            "trunked_sites": [
+                {
+                    "system_id": 7078,
+                    "system_name": "MTRTRS",
+                    "site_id": 1,
+                    "site_name": "Alpha Small",
+                    "radius": 5.0,
+                    "distance_miles": 1.0,
+                    "control_channels": [851.1],
+                    "talkgroups": [3207],
+                },
+                {
+                    "system_id": 7078,
+                    "system_name": "MTRTRS",
+                    "site_id": 2,
+                    "site_name": "Zulu Wide",
+                    "radius": 25.0,
+                    "distance_miles": 10.0,
+                    "control_channels": [852.2],
+                    "talkgroups": [3207],
+                },
+            ],
+            "conventional": [],
+        }
+
+        systems, _talkgroups, _controls_flat, _summary = favorites_runtime._normalize_digital_pool(pool)
+
+        self.assertEqual(["2", "1"], [site["site_id"] for site in systems[0]["sites"]])
+
     def test_normalize_digital_pool_synthesizes_stable_site_id_when_missing(self):
         pool = {
             "trunked_sites": [

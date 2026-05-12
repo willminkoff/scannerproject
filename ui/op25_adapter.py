@@ -488,6 +488,30 @@ def _normalize_site_policy(raw_policy: Any, site_ids: set[str]) -> tuple[dict[st
     return policy, warnings
 
 
+def _optional_float(value: Any) -> float | None:
+    try:
+        parsed = float(str(value).strip())
+    except Exception:
+        return None
+    if parsed != parsed:
+        return None
+    return parsed
+
+
+def _site_radius_sort_value(value: Any) -> float:
+    parsed = _optional_float(value)
+    if parsed is None or parsed <= 0:
+        return 0.0
+    return float(parsed)
+
+
+def _site_distance_sort_value(value: Any) -> float:
+    parsed = _optional_float(value)
+    if parsed is None or parsed < 0:
+        return float("inf")
+    return float(parsed)
+
+
 def _selector_state_path(runtime_dir: str) -> str:
     override_path = str(os.getenv("OP25_SITE_SELECTOR_STATE_PATH") or "").strip()
     if override_path:
@@ -595,15 +619,18 @@ def _normalize_runtime_system_definitions(
                 )
                 if not site_channels:
                     continue
-                normalized_sites.append(
-                    {
-                        "site_id": str(raw_site.get("site_id") or "legacy:auto").strip() or "legacy:auto",
-                        "site_name": str(raw_site.get("site_name") or "Legacy Control Channel Set").strip()
-                        or "Legacy Control Channel Set",
-                        "control_channels_hz": sorted(site_channels),
-                        "enabled": _parse_enabled(raw_site.get("enabled", True)),
-                    }
-                )
+                site_payload: dict[str, Any] = {
+                    "site_id": str(raw_site.get("site_id") or "legacy:auto").strip() or "legacy:auto",
+                    "site_name": str(raw_site.get("site_name") or "Legacy Control Channel Set").strip()
+                    or "Legacy Control Channel Set",
+                    "control_channels_hz": sorted(site_channels),
+                    "enabled": _parse_enabled(raw_site.get("enabled", True)),
+                }
+                for field in ("latitude", "longitude", "radius", "distance_miles"):
+                    parsed = _optional_float(raw_site.get(field))
+                    if parsed is not None:
+                        site_payload[field] = parsed
+                normalized_sites.append(site_payload)
         else:
             legacy_channels = _parse_control_channels(
                 item.get("control_channels_hz")
@@ -643,14 +670,17 @@ def _normalize_runtime_system_definitions(
                 if not inj_channels:
                     continue
                 existing_ids.add(inj_id)
-                normalized_sites.append(
-                    {
-                        "site_id": inj_id,
-                        "site_name": str(raw_site.get("site_name") or f"Injected {inj_id}").strip(),
-                        "control_channels_hz": sorted(inj_channels),
-                        "enabled": _parse_enabled(raw_site.get("enabled", True)),
-                    }
-                )
+                site_payload = {
+                    "site_id": inj_id,
+                    "site_name": str(raw_site.get("site_name") or f"Injected {inj_id}").strip(),
+                    "control_channels_hz": sorted(inj_channels),
+                    "enabled": _parse_enabled(raw_site.get("enabled", True)),
+                }
+                for field in ("latitude", "longitude", "radius", "distance_miles"):
+                    parsed = _optional_float(raw_site.get(field))
+                    if parsed is not None:
+                        site_payload[field] = parsed
+                normalized_sites.append(site_payload)
 
         site_ids = {str(site["site_id"]) for site in normalized_sites}
         policy, policy_warnings = _normalize_site_policy(
@@ -675,6 +705,10 @@ def _candidate_state_defaults(site: dict[str, Any]) -> dict[str, Any]:
     return {
         "site_id": str(site.get("site_id") or ""),
         "site_name": str(site.get("site_name") or ""),
+        "latitude": site.get("latitude"),
+        "longitude": site.get("longitude"),
+        "radius": site.get("radius"),
+        "distance_miles": site.get("distance_miles"),
         "enabled": _parse_enabled(site.get("enabled", True)),
         "state": "candidate",
         "score": 0,
@@ -692,6 +726,8 @@ def _canonical_site_order(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(
         [row for row in rows if isinstance(row, dict)],
         key=lambda row: (
+            -_site_radius_sort_value(row.get("radius")),
+            _site_distance_sort_value(row.get("distance_miles")),
             str(row.get("site_name") or "").strip().lower(),
             str(row.get("site_id") or "").strip().lower(),
         ),
