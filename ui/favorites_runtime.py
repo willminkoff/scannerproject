@@ -80,6 +80,9 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+_RSPDUO_USB_ENUM_RETRY_SLEEP_SEC = 2.0
+
+
 def _env_flag(name: str, default: str = "0") -> bool:
     return str(os.getenv(name, default) or "").strip().lower() in {
         "1",
@@ -167,6 +170,95 @@ def _digital_serials() -> list[str]:
     return filtered
 
 
+def _sysfs_text(path: str) -> str:
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as handle:
+            return handle.readline().strip()
+    except Exception:
+        return ""
+
+
+def _rspduo_usb_sample() -> tuple[int, list[str]]:
+    """Single sysfs pass: return (matching-device-count, collected-serials).
+
+    Counts every ``/sys/bus/usb/devices`` entry whose ``idVendor``/``idProduct``
+    match the RSPduo VID:PID (``1df7:3020``).  The count is populated even when
+    the device's firmware load is still mid-flight and ``serial`` is empty —
+    that asymmetry is the signal used by ``_rspduo_usb_serials()`` to detect
+    the post-boot USB-enum race.
+    """
+    base = "/sys/bus/usb/devices"
+    if not os.path.isdir(base):
+        return 0, []
+    try:
+        entries = os.listdir(base)
+    except Exception:
+        return 0, []
+    count = 0
+    serials: list[str] = []
+    seen: set[str] = set()
+    for entry in entries:
+        dev_dir = os.path.join(base, entry)
+        vendor = _sysfs_text(os.path.join(dev_dir, "idVendor")).lower()
+        product = _sysfs_text(os.path.join(dev_dir, "idProduct")).lower()
+        if vendor != "1df7" or product != "3020":
+            continue
+        count += 1
+        serial = _sysfs_text(os.path.join(dev_dir, "serial")).strip().upper()
+        if not serial or serial in seen:
+            continue
+        seen.add(serial)
+        serials.append(serial)
+    return count, sorted(serials)
+
+
+def _rspduo_usb_serials() -> list[str]:
+    """Resolve attached RSPduo serial numbers via Linux sysfs.
+
+    Two-pass with one-shot retry to survive the sdrplay-api firmware-load
+    USB-enum race on boot: when ``idVendor``/``idProduct`` are populated but
+    ``serial`` is still empty for one or more devices, the first sample
+    yields fewer serials than VID:PID matches.  We sleep briefly and
+    re-sample; if the mismatch persists we return ``[]`` and let the caller
+    fall back to SoapySDR enumeration (which has its own retries).
+
+    Retry sleep is overridable via ``RSPDUO_USB_ENUM_RETRY_SLEEP_SEC``.
+    """
+    count, serials = _rspduo_usb_sample()
+    if count == 0:
+        return []
+    if len(serials) == count:
+        return serials
+
+    try:
+        sleep_s = float(
+            os.getenv("RSPDUO_USB_ENUM_RETRY_SLEEP_SEC", "")
+            or _RSPDUO_USB_ENUM_RETRY_SLEEP_SEC
+        )
+    except (TypeError, ValueError):
+        sleep_s = _RSPDUO_USB_ENUM_RETRY_SLEEP_SEC
+
+    logger.info(
+        "RSPduo USB enum incomplete (%d device(s), %d serial(s)) — retry in %.1fs",
+        count, len(serials), sleep_s,
+    )
+    time.sleep(max(0.0, sleep_s))
+
+    count2, serials2 = _rspduo_usb_sample()
+    if count2 > 0 and len(serials2) == count2:
+        logger.info(
+            "RSPduo USB enum retry recovered %d serial(s)", len(serials2)
+        )
+        return serials2
+
+    logger.warning(
+        "RSPduo USB enum still incomplete after retry "
+        "(pass1: %d/%d, pass2: %d/%d) — returning [] for SoapySDR fallback",
+        len(serials), count, len(serials2), count2,
+    )
+    return []
+
+
 def _rspduo_tuner_ids(*, max_tuners: int | None = None) -> list[str]:
     """Discover RSPduo tuner identifiers available to the digital backend.
 
@@ -197,36 +289,6 @@ def _rspduo_tuner_ids(*, max_tuners: int | None = None) -> list[str]:
     is attached, or on any enumeration failure — the allocator then runs
     as a pure-RTL pool without RSPduo participation.
     """
-    def _sysfs_text(path: str) -> str:
-        try:
-            with open(path, "r", encoding="utf-8", errors="ignore") as handle:
-                return handle.readline().strip()
-        except Exception:
-            return ""
-
-    def _rspduo_usb_serials() -> list[str]:
-        base = "/sys/bus/usb/devices"
-        if not os.path.isdir(base):
-            return []
-        serials: list[str] = []
-        seen: set[str] = set()
-        try:
-            entries = os.listdir(base)
-        except Exception:
-            return []
-        for entry in entries:
-            dev_dir = os.path.join(base, entry)
-            vendor = _sysfs_text(os.path.join(dev_dir, "idVendor")).lower()
-            product = _sysfs_text(os.path.join(dev_dir, "idProduct")).lower()
-            if vendor != "1df7" or product != "3020":
-                continue
-            serial = _sysfs_text(os.path.join(dev_dir, "serial")).strip().upper()
-            if not serial or serial in seen:
-                continue
-            seen.add(serial)
-            serials.append(serial)
-        return sorted(serials)
-
     tuner_limit: int | None = None
     if max_tuners is not None:
         try:
