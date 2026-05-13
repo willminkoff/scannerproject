@@ -45,7 +45,7 @@ try:
         OP25_STATUS_PORT,
     )
     from .dongle_allocator import load_assignments
-    from .systemd import restart_digital, unit_active
+    from .systemd import restart_digital, unit_active, unit_active_enter_epoch
 except ImportError:
     from ui.config import (  # type: ignore[no-redef]
         DIGITAL_ACTIVE_PROFILE_LINK,
@@ -68,7 +68,7 @@ except ImportError:
         OP25_STATUS_PORT,
     )
     from ui.dongle_allocator import load_assignments  # type: ignore[no-redef]
-    from ui.systemd import restart_digital, unit_active  # type: ignore[no-redef]
+    from ui.systemd import restart_digital, unit_active, unit_active_enter_epoch  # type: ignore[no-redef]
 
 # Late import to avoid circular dependency — digital.py defines the base classes.
 try:
@@ -288,6 +288,53 @@ _OP25_SITE_SELECTOR_SURVEY_MAX_SEC = 60
 _OP25_SITE_SELECTOR_STALE_WINDOW_WINDOW_MS = 10 * 60 * 1000
 _OP25_SITE_SELECTOR_POST_RESTART_GRACE_MS = 90_000  # 90s grace after restart before counting stale windows
 _OP25_SITE_SELECTOR_RESTART_LOCK = threading.Lock()
+
+# Suppress selector-driven restarts during this many seconds after op25 service
+# start. Lets a freshly-restarted op25 acquire lock without the selector
+# force-restarting it again because lock hadn't arrived during the first poll
+# window. Distinct from _OP25_SITE_SELECTOR_POST_RESTART_GRACE_MS above
+# (which is the per-system-decision cooldown for selector-vs-selector
+# rapid cycles); this one is a global guard that respects op25's actual
+# systemd ActiveEnter timestamp regardless of who triggered the restart
+# (sync, manual, watchdog, etc.). Empirically the 4-instance MS-mode
+# topology takes ~60-90s to all-lock; default 75s sits in that window.
+# Env override: OP25_SELECTOR_POST_RESTART_GRACE_SEC.
+_OP25_SELECTOR_POST_RESTART_GRACE_SEC = 75.0
+
+
+def _op25_selector_post_restart_grace_sec() -> float:
+    try:
+        raw = os.getenv(
+            "OP25_SELECTOR_POST_RESTART_GRACE_SEC",
+            str(_OP25_SELECTOR_POST_RESTART_GRACE_SEC),
+        )
+        return max(0.0, float(raw))
+    except Exception:
+        return float(_OP25_SELECTOR_POST_RESTART_GRACE_SEC)
+
+
+# Short-lived cache for the systemd ActiveEnter query so the selector's
+# preflight poll (every ~30s) doesn't pay subprocess cost on every call.
+_OP25_ACTIVE_ENTER_CACHE_TTL_SEC = 5.0
+_OP25_ACTIVE_ENTER_CACHE: tuple[float, float | None] = (0.0, None)
+_OP25_ACTIVE_ENTER_CACHE_LOCK = threading.Lock()
+
+
+def _op25_active_enter_epoch() -> float | None:
+    """Return op25 service ActiveEnter timestamp (epoch seconds) with a
+    5s cache. Returns None if op25 is inactive or the systemd query fails."""
+    global _OP25_ACTIVE_ENTER_CACHE
+    now = time.monotonic()
+    with _OP25_ACTIVE_ENTER_CACHE_LOCK:
+        cached_at, cached_value = _OP25_ACTIVE_ENTER_CACHE
+        if (now - cached_at) < _OP25_ACTIVE_ENTER_CACHE_TTL_SEC:
+            return cached_value
+        try:
+            value = unit_active_enter_epoch(OP25_SERVICE_NAME)
+        except Exception:
+            value = None
+        _OP25_ACTIVE_ENTER_CACHE = (now, value)
+        return value
 
 _DEFAULT_SITE_POLICY = {
     "mode": "auto",
@@ -2974,6 +3021,29 @@ class Op25Adapter(_BaseDigitalAdapter):
     def _handle_selector_restart_requests(self, profile_dir: str, restart_requests: list[dict[str, Any]]) -> None:
         if not restart_requests:
             return
+
+        # Global post-restart grace: if op25 was started recently (sync-driven,
+        # manual, watchdog, anything), let it settle before the selector can
+        # touch it. The 4-instance MS-mode topology takes ~60-90s to all-lock;
+        # without this guard the selector observes "no lock yet" mid-startup
+        # and rotates control channels by issuing another restart, discarding
+        # in-progress lock acquisition. Empirically this produced 2-3 cascade
+        # cycles per single Apply (cycle 1 sync-driven; cycles 2-3 selector-
+        # driven). Skipping selector restarts during the grace window drops
+        # full-DB sync from 3 cascades to 1, favorites from 2 to 1.
+        grace_sec = _op25_selector_post_restart_grace_sec()
+        if grace_sec > 0:
+            active_enter_epoch = _op25_active_enter_epoch()
+            if active_enter_epoch is not None:
+                process_uptime = time.time() - active_enter_epoch
+                if 0 <= process_uptime < grace_sec:
+                    logger.info(
+                        "op25_site_selector action=skipped reason=post_restart_grace "
+                        "uptime_sec=%.1f grace_sec=%.1f requests=%d",
+                        process_uptime, grace_sec, len(restart_requests),
+                    )
+                    return
+
         if not _OP25_SITE_SELECTOR_RESTART_LOCK.acquire(blocking=False):
             logger.info(
                 "op25_site_selector action=restart_deferred reason=restart_in_progress requests=%d",
