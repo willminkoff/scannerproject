@@ -35,6 +35,75 @@ rsync -avz -e ssh scripts/ root@micro:/home/ubuntu/scannerproject/scripts/ --exc
 
 ---
 
+## OP25 multi_rx.py patch (in-place on Micro — NOT in repo)
+
+The OP25 install at `/opt/op25/` is upstream (boatbod/osmocom fork) and is
+not tracked in this repo. We carry a single targeted patch in-place.
+
+### Path on Micro
+`/opt/op25/op25/gr-op25_repeater/apps/multi_rx.py`
+
+### Why
+Every restart_digital() cascade was observed to segfault the `sdrplay_apiServ`
+daemon (12/12 on 2026-05-13). Root cause: op25's SIGINT handler calls
+`tb.stop()` + `tb.kill()` but never explicitly drops device.src references,
+so `~source_impl` (the C++ gr-osmosdr destructor that calls `sdrplay_api_Close`)
+only fires via Python GC. With KillSignal=SIGINT + TimeoutStopSec=10s
+(now 30s), GC timing was unreliable; handles were abandoned mid-grpc-call,
+and the sdrplay daemon segfaulted on its next stop.
+
+### Patch shape
+In `rx_main.run()`'s `except (KeyboardInterrupt):` block, drop device.src
+refs BEFORE `tb.stop()` so the graph's stop releases the last hold on each
+source — destructor runs promptly, sdrplay_api_Close called cleanly.
+
+### Snapshot (pre-patch)
+`/opt/op25/op25/gr-op25_repeater/apps/multi_rx.py.pre-sdrplay-close-20260513-152413`
+
+### Diff (effective lines)
+```python
+# Before:
+        except (KeyboardInterrupt):
+            self.tb.stop()
+            self.tb.kill()
+            self.keep_running = False
+            sys.stderr.write("Ctrl-C detected\n")
+
+# After:
+        except (KeyboardInterrupt):
+            # Drop device.src refs before tb.stop() so the graph releases
+            # the last hold on the gr-osmosdr source -> ~source_impl runs
+            # promptly -> sdrplay_api_Close called -> sdrplay daemon does
+            # not segfault on its next restart with abandoned grpc clients.
+            try:
+                for _dev in getattr(self.tb, "devices", []) or []:
+                    if getattr(_dev, "src", None) is not None:
+                        _dev.src = None
+            except Exception as _e:
+                sys.stderr.write("explicit src teardown failed: %s\n" % _e)
+            self.tb.stop()
+            self.tb.kill()
+            self.keep_running = False
+            sys.stderr.write("Ctrl-C detected\n")
+```
+
+### Re-applying after an op25 reinstall
+If `/opt/op25/` is rebuilt (e.g. `make install` from upstream sources),
+this patch is wiped. To restore:
+```bash
+ssh ubuntu@micro 'sudo diff /opt/op25/op25/gr-op25_repeater/apps/multi_rx.py.pre-sdrplay-close-20260513-152413 /opt/op25/op25/gr-op25_repeater/apps/multi_rx.py'
+# If diff is empty → patch was wiped. Re-apply the patch shape above.
+```
+
+Verify syntax after re-apply:
+```bash
+ssh ubuntu@micro 'python3 -c "import ast; ast.parse(open(\"/opt/op25/op25/gr-op25_repeater/apps/multi_rx.py\").read())" && echo OK'
+```
+
+No service restart needed — patch takes effect on next op25 SIGINT/restart.
+
+---
+
 ## SprontPi — Separate Project (Do NOT deploy SB3 here)
 
 - Host: `sprontpi.local` (Raspberry Pi, also on Tailscale)
