@@ -50,6 +50,21 @@ _CACHED_ASSIGNMENTS: dict[str, Any] | None = None
 _CACHED_ASSIGNMENTS_MTIME: float = 0.0
 
 
+def _format_system_for_audit(system: dict[str, Any]) -> str:
+    name = str(system.get("name") or "?").strip() or "?"
+    sites = system.get("sites") or []
+    primary = sites[0] if (isinstance(sites, list) and sites and isinstance(sites[0], dict)) else {}
+    site_name = str(primary.get("site_name") or "?").strip() or "?"
+    raw_dist = primary.get("distance_miles")
+    try:
+        dist = float(raw_dist)
+        if dist != dist or dist < 0:
+            raise ValueError
+        return f"{name}@{site_name}({dist:.1f}mi)"
+    except (TypeError, ValueError):
+        return f"{name}@{site_name}(?mi)"
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -158,7 +173,9 @@ def allocate(
         # More systems than dongles: pin (n_dongles - 1) to top-priority
         # systems for control, keep 1 for traffic.  Remaining systems get
         # no dedicated control dongle -- SDRTrunk will not monitor them
-        # unless we add rotation later.
+        # unless we add rotation later.  Caller is expected to deliver
+        # `systems` sorted closest-first (see favorites_runtime), so the
+        # tail dropped here is the geographically farthest set.
         strategy = "dedicated_control"
         control_count = max(1, n_dongles - 1)
         for i in range(control_count):
@@ -169,13 +186,20 @@ def allocate(
                 "control_channels_mhz": list(systems[i].get("control_channels_mhz") or []),
             })
         traffic_pool = serials[control_count:]
-        # Log that some systems won't have dedicated control monitoring.
-        unmonitored = [s["name"] for s in systems[control_count:]]
-        if unmonitored:
-            logger.warning(
-                "Not enough digital dongles for all systems. "
-                "Unmonitored systems (no dedicated control): %s",
-                ", ".join(unmonitored),
+        # Audit log: who was kept and who was dropped, with primary-site
+        # distance so an operator can grep the journal for unexpected drops.
+        kept = [_format_system_for_audit(s) for s in systems[:control_count]]
+        dropped = [_format_system_for_audit(s) for s in systems[control_count:]]
+        if dropped:
+            logger.info(
+                "Dongle over-subscription: %d systems > %d dongles. "
+                "Kept %d (closest): %s. Dropped %d: %s",
+                n_systems,
+                n_dongles,
+                control_count,
+                ", ".join(kept),
+                len(dropped),
+                ", ".join(dropped),
             )
 
     result: dict[str, Any] = {

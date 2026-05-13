@@ -139,6 +139,108 @@ class FavoritesRuntimeSiteAwareTests(unittest.TestCase):
         self.assertEqual([769831250], sites[0]["control_channels_hz"])
         self.assertEqual(["769.83125"], controls_flat)
 
+    def test_normalize_digital_pool_orders_systems_by_primary_site_distance(self):
+        # Three systems, primary sites at 22 / 4 / 11 miles. Expect closest-first
+        # cross-system ordering; the alphabetical "Alpha" system is FARTHEST so
+        # it must not float to the top.
+        pool = {
+            "trunked_sites": [
+                {
+                    "system_id": 1001,
+                    "system_name": "Alpha",
+                    "site_id": 11,
+                    "site_name": "Alpha Primary",
+                    "radius": 25.0,
+                    "distance_miles": 22.0,
+                    "control_channels": [851.1],
+                    "talkgroups": [100],
+                },
+                {
+                    "system_id": 1002,
+                    "system_name": "Bravo",
+                    "site_id": 22,
+                    "site_name": "Bravo Primary",
+                    "radius": 25.0,
+                    "distance_miles": 4.0,
+                    "control_channels": [852.2],
+                    "talkgroups": [200],
+                },
+                {
+                    "system_id": 1003,
+                    "system_name": "Charlie",
+                    "site_id": 33,
+                    "site_name": "Charlie Primary",
+                    "radius": 25.0,
+                    "distance_miles": 11.0,
+                    "control_channels": [853.3],
+                    "talkgroups": [300],
+                },
+            ],
+            "conventional": [],
+        }
+
+        systems, _talkgroups, _controls_flat, _summary = favorites_runtime._normalize_digital_pool(pool)
+
+        self.assertEqual(["Bravo", "Charlie", "Alpha"], [s["name"] for s in systems])
+
+    def test_normalize_digital_pool_uses_largest_radius_site_for_primary_distance(self):
+        # Davidson Services-vs-Simulcast trap: two systems each with a tiny
+        # close site and a large far site. The picker's primary is the
+        # largest-radius site, so the SYSTEM-level distance must reflect THAT.
+        # System "Far" should sort after "Near" using the simulcast distance
+        # (20 vs 6), not the services distance (1 vs 2).
+        pool = {
+            "trunked_sites": [
+                {
+                    "system_id": 7001,
+                    "system_name": "Near",
+                    "site_id": 1,
+                    "site_name": "Near Services",
+                    "radius": 5.0,
+                    "distance_miles": 1.0,
+                    "control_channels": [851.1],
+                    "talkgroups": [100],
+                },
+                {
+                    "system_id": 7001,
+                    "system_name": "Near",
+                    "site_id": 2,
+                    "site_name": "Near Simulcast",
+                    "radius": 25.0,
+                    "distance_miles": 6.0,
+                    "control_channels": [852.2],
+                    "talkgroups": [100],
+                },
+                {
+                    "system_id": 7002,
+                    "system_name": "Far",
+                    "site_id": 3,
+                    "site_name": "Far Services",
+                    "radius": 5.0,
+                    "distance_miles": 2.0,
+                    "control_channels": [853.3],
+                    "talkgroups": [200],
+                },
+                {
+                    "system_id": 7002,
+                    "system_name": "Far",
+                    "site_id": 4,
+                    "site_name": "Far Simulcast",
+                    "radius": 25.0,
+                    "distance_miles": 20.0,
+                    "control_channels": [854.4],
+                    "talkgroups": [200],
+                },
+            ],
+            "conventional": [],
+        }
+
+        systems, _talkgroups, _controls_flat, _summary = favorites_runtime._normalize_digital_pool(pool)
+
+        self.assertEqual(["Near", "Far"], [s["name"] for s in systems])
+        self.assertEqual("Near Simulcast", systems[0]["sites"][0]["site_name"])
+        self.assertEqual("Far Simulcast", systems[1]["sites"][0]["site_name"])
+
     def test_empty_digital_pool_does_not_persist_no_dongles_assignment(self):
         pool = {"trunked_sites": [], "conventional": []}
 
