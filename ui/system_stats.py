@@ -1,4 +1,6 @@
 """System stats helpers for host/PC health telemetry."""
+from __future__ import annotations
+
 from collections import deque
 import json
 import logging
