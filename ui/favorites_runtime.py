@@ -388,6 +388,48 @@ def _profile_path_for(profile_id: str) -> str:
     return os.path.join(str(PROFILES_DIR), filename)
 
 
+_RE_MANAGED_SERIAL = re.compile(r'^(\s*)serial(\s*=\s*)"([^"]*)"(\s*;.*)$')
+
+
+def _enforce_managed_profile_serial(conf_path: str, desired_serial: str) -> bool:
+    """Re-sync a managed profile's ``serial = "…";`` line to match env.
+
+    Returns True if the file was rewritten. No-op if ``desired_serial`` is
+    empty/unset, if the file is missing, or if no ``serial`` line exists
+    (seeding a serial is left to the runtime config builder).
+    """
+    desired = str(desired_serial or "").strip()
+    if not desired:
+        return False
+    conf_path = os.path.realpath(conf_path)
+    try:
+        with open(conf_path, "r", encoding="utf-8", errors="ignore") as handle:
+            lines = handle.readlines()
+    except FileNotFoundError:
+        return False
+
+    out: list[str] = []
+    changed = False
+    for line in lines:
+        match = _RE_MANAGED_SERIAL.match(line)
+        if match and match.group(3) != desired:
+            indent, equals, _, tail = match.groups()
+            trailing_nl = "\n" if line.endswith("\n") else ""
+            out.append(f'{indent}serial{equals}"{desired}"{tail}{trailing_nl}')
+            changed = True
+            continue
+        out.append(line)
+
+    if not changed:
+        return False
+
+    tmp = conf_path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as handle:
+        handle.writelines(out)
+    os.replace(tmp, conf_path)
+    return True
+
+
 def _coerce_float(value: Any) -> float | None:
     try:
         parsed = float(str(value).strip())
@@ -530,6 +572,11 @@ def _ensure_managed_profile(
 
     write_airband_flag(safe_path, bool(airband))
     enforce_profile_index(safe_path)
+
+    serial_env_key = "AIRBAND_RTL_SERIAL" if airband else "GROUND_RTL_SERIAL"
+    desired_serial = os.environ.get(serial_env_key, "").strip()
+    if _enforce_managed_profile_serial(safe_path, desired_serial):
+        changed = True
 
     if profile is None:
         profile = {
