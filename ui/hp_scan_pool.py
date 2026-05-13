@@ -13,6 +13,22 @@ logger = logging.getLogger(__name__)
 _EARTH_RADIUS_MILES = 3958.7613
 _HP_TRUNK_MAX_SITES_PER_SYSTEM_DEFAULT = 5
 
+# Pre-filter padding for the SQL bounding box added to trunk_sites and
+# conventional_freqs queries in build_full_database_pool. Computed as
+# (user_range + RADIUS_PAD_MILES) on each side of center, the box is a
+# pre-filter that lets the lat/lon indexes (idx_conventional_groups_lat_lon,
+# idx_trunk_sites lat/lon) skip the >90% of nationwide rows that can't
+# possibly be in range. The Python-side haversine() check stays as the
+# precise post-filter.
+#
+# 100 mi padding preserves >91% of conventional_freqs (post-JOIN) by row
+# count and >95% of trunk_sites; the excluded rows are large-radius
+# pseudo-rows (mostly _MultipleStates.hpd nationwide entries already
+# special-cased downstream) plus a small tail of remote province/state
+# centroids that wouldn't intersect any reasonable user range from the
+# typical ~25-50 mi user setting. Bump if a real-world miss is observed.
+RADIUS_PAD_MILES = 100.0
+
 
 def _hp_trunk_max_sites_per_system() -> int:
     raw = os.getenv("HP_TRUNK_MAX_SITES_PER_SYSTEM")
@@ -252,6 +268,19 @@ class ScanPoolBuilder:
 
             tag_placeholders = ",".join("?" for _ in tags)
 
+            # SQL pre-filter bounding box. (lat_miles_per_degree and
+            # lon_miles_per_degree were computed at the top of this method.)
+            # Both trunk_sites and conventional_freqs queries use the same
+            # box; conservative pad lets the lat/lon indexes skip ~90% of
+            # nationwide rows.
+            bb_range = float(user_range) + RADIUS_PAD_MILES
+            bb_lat_delta = bb_range / lat_miles_per_degree
+            bb_lon_delta = bb_range / lon_miles_per_degree
+            lat_min = center_lat - bb_lat_delta
+            lat_max = center_lat + bb_lat_delta
+            lon_min = center_lon - bb_lon_delta
+            lon_max = center_lon + bb_lon_delta
+
             site_rows = conn.execute(
                 """
                 SELECT
@@ -265,8 +294,11 @@ class ScanPoolBuilder:
                     sys.system_name
                 FROM trunk_sites ts
                 LEFT JOIN trunk_systems sys ON sys.trunk_id = ts.trunk_id
+                WHERE ts.latitude BETWEEN ? AND ?
+                  AND ts.longitude BETWEEN ? AND ?
                 ORDER BY ts.trunk_id, ts.site_id
-                """
+                """,
+                (lat_min, lat_max, lon_min, lon_max),
             ).fetchall()
             localized_trunk_ids: set[int] = set()
             localized_agency_ids: set[int] = set()
@@ -518,9 +550,11 @@ class ScanPoolBuilder:
                 JOIN conventional_groups cg ON cg.cgroup_id = cf.cgroup_id
                 WHERE cf.service_tag IN ({tag_placeholders})
                   AND cf.freq_hz IS NOT NULL
+                  AND cg.latitude BETWEEN ? AND ?
+                  AND cg.longitude BETWEEN ? AND ?
                 ORDER BY cf.cgroup_id, cf.freq_hz, cf.cfreq_id
                 """,
-                tags,
+                list(tags) + [lat_min, lat_max, lon_min, lon_max],
             ).fetchall()
 
             conventional_set: set[tuple[float, str, int]] = set()
