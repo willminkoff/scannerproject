@@ -826,6 +826,14 @@ def _site_distance_sort_value(value: Any) -> float:
     return float(parsed)
 
 
+def _primary_site_distance_sort_value(system: dict[str, Any]) -> float:
+    sites = system.get("sites") or []
+    if not isinstance(sites, list) or not sites:
+        return float("inf")
+    primary = sites[0] if isinstance(sites[0], dict) else {}
+    return _site_distance_sort_value(primary.get("distance_miles"))
+
+
 def _normalize_digital_pool(
     pool: dict[str, Any],
 ) -> tuple[list[dict[str, Any]], list[dict[str, str]], list[str], dict[str, int]]:
@@ -887,12 +895,15 @@ def _normalize_digital_pool(
         latitude = _coerce_site_float(row.get("latitude"))
         longitude = _coerce_site_float(row.get("longitude"))
         radius = _coerce_site_float(row.get("radius"))
+        distance_miles = _coerce_site_float(row.get("distance_miles"))
         if latitude is not None:
             site_entry["latitude"] = latitude
         if longitude is not None:
             site_entry["longitude"] = longitude
         if radius is not None:
             site_entry["radius"] = radius
+        if distance_miles is not None:
+            site_entry["distance_miles"] = distance_miles
 
         existing_site = None
         for candidate in system_entry["sites"]:
@@ -917,6 +928,8 @@ def _normalize_digital_pool(
                 existing_site["longitude"] = longitude
             if radius is not None and existing_site.get("radius") is None:
                 existing_site["radius"] = radius
+            if distance_miles is not None and existing_site.get("distance_miles") is None:
+                existing_site["distance_miles"] = distance_miles
 
         labels = row.get("talkgroup_labels") if isinstance(row.get("talkgroup_labels"), dict) else {}
         groups = row.get("talkgroup_groups") if isinstance(row.get("talkgroup_groups"), dict) else {}
@@ -953,14 +966,13 @@ def _normalize_digital_pool(
 
     talkgroups.sort(key=lambda row: int(row["dec"]))
     controls_flat.sort(key=lambda token: float(token))
-    systems = sorted(
-        systems_by_key.values(),
-        key=lambda row: (
-            str(row.get("system_id") or ""),
-            str(row.get("name") or "").lower(),
-        ),
-    )
-    for system in systems:
+    # Sort sites within each system first so sites[0] is the primary
+    # (largest-radius, then closest). The allocator may drop the tail when
+    # over-subscribed; using the primary site's distance as the cross-system
+    # key keeps geographically appropriate systems and avoids the Davidson
+    # Services-vs-Simulcast trap (small-radius services don't outrank big
+    # simulcasts on the same system).
+    for system in systems_by_key.values():
         system["sites"] = sorted(
             list(system.get("sites") or []),
             key=lambda row: (
@@ -970,6 +982,13 @@ def _normalize_digital_pool(
                 str(row.get("site_id") or ""),
             ),
         )
+    systems = sorted(
+        systems_by_key.values(),
+        key=lambda row: (
+            _primary_site_distance_sort_value(row),
+            str(row.get("name") or "").lower(),
+        ),
+    )
     summary = {
         "systems": len(systems),
         "talkgroups": len(talkgroups),
