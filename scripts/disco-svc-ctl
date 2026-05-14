@@ -149,6 +149,12 @@ mode_off() {
 }
 
 mode_on() {
+  # Warm-cache invariant: classifier+interpret must be up before sweeps produce data.
+  # Idempotent; runs before the early-exit check, which validates only sweep state.
+  echo "mode-on: ensuring classifier+interpret are running" >&2
+  /bin/systemctl unmask disco-classifier.service disco-interpret.service
+  /bin/systemctl start disco-classifier.service disco-interpret.service
+
   # Idempotency: if op25 is already down AND sweeps are up AND not masked, nothing to do.
   if all_in_state inactive scanner-digital-op25.service \
      && all_in_state active "${SWEEP_UNITS[@]}" \
