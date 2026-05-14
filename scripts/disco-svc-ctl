@@ -133,13 +133,22 @@ mode_off() {
   echo "mode-off: masking sweep instances" >&2
   /bin/systemctl mask "${SWEEP_UNITS[@]}"
 
+  # Tolerant stop: a unit ending in 'failed' (forcible SIGKILL) makes
+  # `systemctl stop` exit non-zero and would trip set -e.
   echo "mode-off: stopping sweep instances" >&2
-  /bin/systemctl stop "${SWEEP_UNITS[@]}"
+  /bin/systemctl stop "${SWEEP_UNITS[@]}" 2>&1 | sed 's/^/mode-off: stop> /' >&2 || true
+  /bin/systemctl reset-failed "${SWEEP_UNITS[@]}" 2>/dev/null || true
 
+  # If sweep.py orphans survived systemd's kill, escalate to SIGKILL.
   echo "mode-off: draining SoapySDR handles (${DRAIN_SECONDS}s)" >&2
   if ! wait_for_drain 'disco/src/sweep\.py'; then
-    echo "mode-off: ERROR sweep.py processes still present after drain; bailing" >&2
-    return 3
+    echo "mode-off: WARN sweep.py orphans surviving systemd kill; pkill -9 escalation" >&2
+    pkill -9 -f 'disco/src/sweep\.py' 2>/dev/null || true
+    sleep 2
+    if ! wait_for_drain 'disco/src/sweep\.py'; then
+      echo "mode-off: ERROR even pkill -9 didn't clear sweep.py; bailing" >&2
+      return 3
+    fi
   fi
 
   echo "mode-off: starting SB3 digital stack" >&2
@@ -149,6 +158,12 @@ mode_off() {
 }
 
 mode_on() {
+  # Warm-cache invariant: classifier+interpret must be up before sweeps produce data.
+  # Idempotent; runs before the early-exit check, which validates only sweep state.
+  echo "mode-on: ensuring classifier+interpret are running" >&2
+  /bin/systemctl unmask disco-classifier.service disco-interpret.service
+  /bin/systemctl start disco-classifier.service disco-interpret.service
+
   # Idempotency: if op25 is already down AND sweeps are up AND not masked, nothing to do.
   if all_in_state inactive scanner-digital-op25.service \
      && all_in_state active "${SWEEP_UNITS[@]}" \
@@ -158,13 +173,25 @@ mode_on() {
     return 0
   fi
 
+  # Tolerant stop: op25's KillSignal=SIGINT + 30s TimeoutStopSec reliably
+  # ends in 'failed' state because multi_rx.py blocks in C++ SoapySDR code
+  # and never delivers SIGINT to its Python handler. Without || true,
+  # set -e bails the script before unmask+start can run.
   echo "mode-on: stopping SB3 digital stack" >&2
-  /bin/systemctl stop "${SB3_UNITS[@]}"
+  /bin/systemctl stop "${SB3_UNITS[@]}" 2>&1 | sed 's/^/mode-on: stop> /' >&2 || true
+  /bin/systemctl reset-failed "${SB3_UNITS[@]}" 2>/dev/null || true
 
+  # If multi_rx.py children survived the cgroup kill, escalate to SIGKILL
+  # so the incoming sweeps can claim the SDRplay handles.
   echo "mode-on: draining SoapySDR handles (${DRAIN_SECONDS}s)" >&2
   if ! wait_for_drain 'multi_rx\.py'; then
-    echo "mode-on: ERROR multi_rx.py processes still present after drain; bailing" >&2
-    return 3
+    echo "mode-on: WARN multi_rx.py orphans surviving systemd kill; pkill -9 escalation" >&2
+    pkill -9 -f 'multi_rx\.py' 2>/dev/null || true
+    sleep 2
+    if ! wait_for_drain 'multi_rx\.py'; then
+      echo "mode-on: ERROR even pkill -9 didn't clear multi_rx.py; bailing" >&2
+      return 3
+    fi
   fi
 
   if any_masked "${SWEEP_UNITS[@]}"; then

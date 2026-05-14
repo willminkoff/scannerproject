@@ -1,0 +1,72 @@
+# Downstream signal-handler patch for op25's multi_rx.py
+# ====================================================================
+# Target file:  /opt/op25/op25/gr-op25_repeater/apps/multi_rx.py
+# Source repo:  vendored op25 (not tracked in this repo)
+# 
+# This patch lives here because op25 is installed from upstream and the
+# fix can't be committed to the canonical location. It MUST be re-applied
+# whenever op25 is upgraded on the target machine.
+#
+# What it does
+# ------------
+# Installs SIGTERM + SIGINT handlers on rx_main.run() that call
+# tb.stop() (thread-safe in gnuradio) and raise KeyboardInterrupt so
+# the existing handler at L1080 runs to do the explicit gr-osmosdr
+# device.src teardown. Re-installs the handlers after self.tb.start()
+# because gr.top_block.start() registers its own SIGINT handler that
+# swallows Ctrl-C (which is why op25 used to hang 30s on SIGINT until
+# systemd's SendSIGKILL fired).
+#
+# Pairs with: systemd/scanner-digital-op25.service
+#   (KillSignal=SIGTERM, TimeoutStopSec=10, SendSIGKILL=yes)
+#
+# How to apply
+# ------------
+#   cd /opt/op25/op25/gr-op25_repeater/apps
+#   sudo cp -p multi_rx.py multi_rx.py.pre-sigterm-handler-$(date -u +%Y%m%dT%H%M%SZ)
+#   sudo patch -p1 < /path/to/this/multi_rx-sigterm-handler.patch
+#   sudo python3 -m py_compile multi_rx.py
+#
+# Verification after apply
+# ------------------------
+# After op25 is restarted, `systemctl stop scanner-digital-op25` should
+# complete in <5s with exit code 143 (SIGTERM clean) instead of timing
+# out at 30s. Look for "rx_main: signal N received, stopping" in
+# /var/log/op25/op25.log.
+--- a/multi_rx.py
++++ b/multi_rx.py
+@@ -44,6 +44,7 @@
+ '''
+ import io
+ import os
++import signal
+ import sys
+ import threading
+ import time
+@@ -1066,8 +1067,26 @@
+             self.keep_running = False
+ 
+     def run(self):
++        # Install SIGTERM/SIGINT handlers so systemd's `systemctl stop` breaks
++        # the flowgraph cleanly. Re-installed after tb.start() because
++        # gr.top_block.start() installs its own SIGINT handler that swallows
++        # Ctrl-C. tb.stop() is thread-safe and unblocks both the Python
++        # interactive loop's time.sleep AND tb.wait()'s C++ block.
++        def _on_term(_signum, _frame):
++            sys.stderr.write("%s rx_main: signal %d received, stopping\n" % (log_ts.get(), _signum))
++            self.keep_running = False
++            try:
++                self.tb.stop()
++            except Exception as _e:
++                sys.stderr.write("rx_main: tb.stop() in handler failed: %s\n" % _e)
++            raise KeyboardInterrupt
++        signal.signal(signal.SIGTERM, _on_term)
++        signal.signal(signal.SIGINT, _on_term)
++
+         try:
+             self.tb.start()
++            signal.signal(signal.SIGTERM, _on_term)
++            signal.signal(signal.SIGINT, _on_term)
+             if self.tb.get_interactive():
+                 while self.keep_running:
+                     time.sleep(1.0)
