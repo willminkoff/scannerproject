@@ -1840,7 +1840,15 @@ init();
 
 @app.get("/", response_class=HTMLResponse)
 def index():
-    return HTMLResponse(HTML)
+    # Force-revalidate every load. The dashboard HTML is tiny, single-user, and
+    # state is fetched via /api/* + SSE — there's nothing to cache. Without these
+    # headers iOS Safari (and some desktop browsers) heuristically cache the page
+    # so that post-deploy reloads silently serve the previous version.
+    return HTMLResponse(HTML, headers={
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    })
 
 
 def main():
