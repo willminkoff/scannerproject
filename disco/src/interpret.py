@@ -17,7 +17,19 @@ import urllib.error
 
 import yaml
 
+# Phase 4 band-plan lookup (Layer 1). Failure to import is non-fatal —
+# interpret_loop falls back to a None plan and skips band-plan augmentation.
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import band_plan
+    _BAND_PLAN_AVAILABLE = True
+except Exception as _bpe:
+    band_plan = None
+    _BAND_PLAN_AVAILABLE = False
+    _BAND_PLAN_IMPORT_ERROR = _bpe
+
 CONFIG_PATH = os.environ.get("DISCO_CONFIG", "/home/ubuntu/scannerproject/disco/configs/sweep.yaml")
+BAND_PLAN_PATH = os.environ.get("DISCO_BAND_PLAN_PATH", "/home/ubuntu/scannerproject/disco/configs/us_band_plan.yaml")
 KEY_FILE = os.environ.get("DISCO_API_KEY_FILE", "/etc/disco/api_keys.conf")
 LOG = logging.getLogger("disco.interpret")
 _STOP = False
@@ -109,23 +121,63 @@ def call_claude(api_key: str, bundle: dict, model: str, timeout: float = 20.0) -
                         f"cdbs = broadcast)")
         licensee_block = "FCC database match for this frequency:\n" + "\n".join(bits) + "\n"
 
+    # Phase 4 band-plan context — populated from band_plan helpers when interpret_loop
+    # has the plan loaded. When band_rejected is true, instructs Claude to discuss
+    # the anomaly explicitly rather than rationalizing the ML output as correct.
+    band_block = ""
+    band_anomaly_clause = ""
+    band_name = bundle.get("band_name")
+    ml_class = bundle.get("ml_class") or bundle.get("modulation_class", "?")
+    band_rejected = bool(bundle.get("band_rejected"))
+    if band_name:
+        allowed = ", ".join(bundle.get("band_allowed_modes") or []) or "(none — protected band)"
+        if band_rejected:
+            band_block = (
+                f"FCC band-plan check for this frequency:\n"
+                f"  Allocation: {band_name}\n"
+                f"  Allowed modes per FCC table: {allowed}\n"
+                f"  ML model output: {ml_class} — NOT in allowed_modes (band-plan REJECTED)\n"
+            )
+            band_anomaly_clause = (
+                f"\n**Band-plan anomaly**: The local CNN predicted {ml_class}, but the FCC allocation "
+                f"for {band_name} only allows {allowed}. Treat as a possible anomaly — common explanations: "
+                f"(1) model misidentification (most common, especially with low SNR or short slices); "
+                f"(2) spurious emission from a neighboring band / harmonic; "
+                f"(3) equipment leak (cellphone amp, switching power supply, intermod); "
+                f"(4) propagation anomaly (sporadic-E, tropospheric ducting); "
+                f"(5) unauthorized transmitter operating outside its allocation. "
+                f"Do not write prose that assumes the ML class is correct — explicitly note the "
+                f"band-plan conflict and pick the most likely explanation given the SNR and band context."
+            )
+        else:
+            band_block = (
+                f"FCC band-plan agreement for this frequency:\n"
+                f"  Allocation: {band_name}\n"
+                f"  ML model output: {ml_class} (in allowed_modes for this band)\n"
+            )
+    elif ml_class:
+        band_block = (
+            f"FCC band-plan: this frequency is outside the band-plan's covered range "
+            f"(permissive default — no allowed_modes constraint applied). ML model said {ml_class}.\n"
+        )
+
     prompt = f"""You are helping a user understand RF detections from their SDR scanner. Be substantive and concrete — the user is technical (a meteorologist running a multi-RSPduo scanner) and wants real signal-identification reasoning, not generic prose.
 
 Geographic / user context: {GEOGRAPHIC_CONTEXT}
 
 Detection:
 - Frequency: {bundle.get('freq_mhz', 0):.4f} MHz
-- Modulation class (from local CNN classifier): {bundle.get('modulation_class', '?')}
+- Modulation class (from local CNN classifier): {ml_class}
 - Classifier confidence: {bundle.get('confidence', 0):.2f}
 - Bandwidth: {bundle.get('bandwidth_khz', 0):.1f} kHz
 - SNR: {bundle.get('snr_db', 0):.1f} dB
 - Tuner band: {bundle.get('tuner', '?')}
-- Heuristic protocol tag: {bundle.get('protocol_tag', 'none')}
-{licensee_block}
+- Band-plan tag: {bundle.get('protocol_tag', 'none')}
+{licensee_block}{band_block}
 Write a 2-4 sentence interpretation. Cover, in this order:
 1. **Identification**: what this signal most likely is (be specific — name the service, allocation, or system if the freq + modulation + licensee combination supports it). If the FCC match looks plausible, lead with the licensee name; otherwise reason from the frequency band plan.
 2. **Context**: typical use, common activity patterns, any time-of-day / day-of-week notes if relevant. For amateur callsigns, mention the band and likely modes (e.g. 70cm typically NFM repeater, FM voice, occasional D-STAR/DMR digital).
-3. **Confidence / caveats**: where you're sure vs guessing. If the licensee name doesn't match the modulation/bandwidth (e.g. ULS hit on a commercial freq but classifier says NOISE), flag it. If the freq is in an unlicensed band (ISM 902-928, broadcast 88-108) say so.
+3. **Confidence / caveats**: where you're sure vs guessing. If the licensee name doesn't match the modulation/bandwidth (e.g. ULS hit on a commercial freq but classifier says NOISE), flag it. If the freq is in an unlicensed band (ISM 902-928, broadcast 88-108) say so.{band_anomaly_clause}
 
 Style: plain English, no bullet lists, no markdown. Short paragraphs separated by a blank line. Do not restate the freq or class in your answer (the UI shows that already). Prefer "likely" / "almost certainly" / "unclear" over hedge words. If you genuinely don't know, say "unclear from this data" and stop.
 
@@ -170,8 +222,23 @@ def interpret_loop(cfg, conn):
 
     api_key = load_api_key(KEY_FILE)
     backend = "claude" if api_key else "stub"
-    LOG.info("interpret backend=%s model=%s daily_budget=$%.2f rate=%d/min min_conf=%.2f cache_ttl=%.0fs",
-             backend, model, daily_budget_usd, rate_per_min, min_confidence, cache_ttl_s)
+
+    # Phase 4: load FCC band plan once at startup. Failure is non-fatal —
+    # bundle augmentation falls through and the prompt's band-plan section
+    # is omitted. Same fallback path classifier.py uses.
+    plan = None
+    if _BAND_PLAN_AVAILABLE:
+        try:
+            plan = band_plan.load_band_plan(BAND_PLAN_PATH)
+            LOG.info("band-plan loaded: %d bands from %s", len(plan), BAND_PLAN_PATH)
+        except Exception as _bpe:
+            LOG.warning("band-plan load failed (%s); interpretations will skip band-plan augmentation", _bpe)
+    else:
+        LOG.warning("band-plan import unavailable: %s", _BAND_PLAN_IMPORT_ERROR)
+
+    LOG.info("interpret backend=%s model=%s daily_budget=$%.2f rate=%d/min min_conf=%.2f cache_ttl=%.0fs band_plan=%s",
+             backend, model, daily_budget_usd, rate_per_min, min_confidence, cache_ttl_s,
+             "available" if plan else "DISABLED")
 
     call_times = []
     daily_cents_used = 0.0
@@ -231,14 +298,30 @@ def interpret_loop(cfg, conn):
 
             (det_id, tuner, freq, mod, conf, bw, snr, ts, ptag,
              uls_call, uls_name, uls_emit, uls_stcl, uls_dist, uls_src) = row
+            # Phase 4 band-plan augmentation: re-derive band info at interpret-time
+            # (least invasive — no DB schema change). modulation_class is the raw ML
+            # output; band_plan tells us if it's allowed in the freq's allocation.
+            band_name = None
+            band_allowed_modes = []
+            band_rejected = False
+            if plan is not None:
+                band_entry = band_plan.band_for(freq, plan)
+                if band_entry is not None:
+                    band_name = band_entry.name
+                    band_allowed_modes = sorted(band_entry.allowed_modes)
+                    band_rejected = bool(mod and mod not in band_entry.allowed_modes)
             bundle = {
                 "freq_mhz": freq / 1e6,
                 "modulation_class": mod,
+                "ml_class": mod,
                 "confidence": conf,
                 "bandwidth_khz": bw / 1e3,
                 "snr_db": snr,
                 "tuner": tuner,
                 "protocol_tag": ptag,
+                "band_name": band_name,
+                "band_allowed_modes": band_allowed_modes,
+                "band_rejected": band_rejected,
                 "uls_callsign": uls_call,
                 "uls_entity_name": uls_name,
                 "uls_emission_designator": uls_emit,
