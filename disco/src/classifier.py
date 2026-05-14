@@ -39,6 +39,17 @@ except Exception as _ce:
     _CDBS_AVAILABLE = False
     _CDBS_IMPORT_ERROR = _ce
 
+# Phase 4 band-plan lookup. If the YAML can't be loaded, classifier_loop
+# falls back to _legacy_derive_protocol_tag so detection still works.
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import band_plan
+    _BAND_PLAN_AVAILABLE = True
+except Exception as _bpe:
+    band_plan = None
+    _BAND_PLAN_AVAILABLE = False
+    _BAND_PLAN_IMPORT_ERROR = _bpe
+
 # Broadcast band cutoffs (Hz) — CDBS fallback only fires when freq is in-band.
 _BCAST_AM_LO_HZ = 530e3
 _BCAST_AM_HI_HZ = 1710e3
@@ -57,6 +68,7 @@ def _is_broadcast_band(freq_hz: float) -> bool:
 CONFIG_PATH = os.environ.get("DISCO_CONFIG", "/home/ubuntu/scannerproject/disco/configs/sweep.yaml")
 SLICES_DIR = os.environ.get("DISCO_SLICES_DIR", "/run/scannerproject/disco/slices")
 MODEL_PATH = os.environ.get("DISCO_MODEL_PATH", "/home/ubuntu/scannerproject/disco/models/radioml.onnx")
+BAND_PLAN_PATH = os.environ.get("DISCO_BAND_PLAN_PATH", "/home/ubuntu/scannerproject/disco/configs/us_band_plan.yaml")
 # Phase 7-mini capture: when enabled, slices from frequency ranges whose true
 # modulation we know a priori get archived to per-label directories before the
 # normal `unlink` happens. Used to assemble a real-data fine-tune dataset for
@@ -212,7 +224,17 @@ def heuristic_classify(iq: np.ndarray, sample_rate: float) -> Tuple[str, float]:
     return ("unclassified", 0.30)
 
 
-def derive_protocol_tag(class_name: str, freq_hz: float, bandwidth_hz: float) -> str:
+def _legacy_derive_protocol_tag(class_name: str, freq_hz: float, bandwidth_hz: float) -> str:
+    """Pre-Phase-4 tag derivation. Superseded by band_plan.tag_for() called via
+    the new derive_protocol_tag() below. Kept in place for one release as a
+    fallback when the band-plan YAML can't be loaded.
+
+    The body checks for class names ("AM", "FM", "FSK2", "FSK4", "BPSK",
+    "8PSK", RadioML's "AM-DSB-*" / "AM-SSB-*") that don't match the v3 ONNX
+    model's actual output (FM_BROADCAST, FM_NARROW, AM_VOICE, NXDN, P25, etc.)
+    — most branches are dead code against the deployed model. Phase 4's
+    band_plan path is the source of truth for new code.
+    """
     f_mhz = freq_hz / 1e6
     bw_khz = bandwidth_hz / 1e3
     # heuristic-era classes ("AM", "FM", "FSK2/4", "SSB") and RadioML class names
@@ -254,6 +276,33 @@ def derive_protocol_tag(class_name: str, freq_hz: float, bandwidth_hz: float) ->
     if is_fm and 902 <= f_mhz <= 928:
         return "ISM 902"
     return class_name
+
+
+def derive_protocol_tag(class_name: str, freq_hz: float, bandwidth_hz: float, plan=None) -> str:
+    """Phase 4 band-plan-first tag derivation.
+
+    Delegates to band_plan.tag_for(), which constrains the v3 ML class against
+    FCC band-plan allowed_modes. Out-of-band predictions get downgraded to
+    "<BAND_NAME> — unidentified (model said: <ml_class>)" — useful both for
+    operator review and for retrain-set curation.
+
+    `bandwidth_hz` is unused (kept for API compatibility with the pre-Phase-4
+    signature). Bandwidth was only consulted by stale heuristic-era branches.
+
+    `plan` is the loaded band-plan returned by band_plan.load_band_plan().
+    When None, falls back to _legacy_derive_protocol_tag — happens at startup
+    if the YAML can't be loaded, and during isolated tests.
+    """
+    if plan is None or band_plan is None:
+        return _legacy_derive_protocol_tag(class_name, freq_hz, bandwidth_hz)
+    tag = band_plan.tag_for(class_name, freq_hz, plan)
+    if "unidentified (model said:" in tag:
+        # Operator-visible audit trail — every band-plan rejection logs once
+        # so historical anomalies can be grep'd from the journal.
+        b = band_plan.band_for(freq_hz, plan)
+        LOG.info("band-plan rejected: freq=%.4f MHz ml=%s band=%s → %s",
+                 freq_hz / 1e6, class_name, b.name if b else "?", tag)
+    return tag
 
 
 def _match_capture_rule(meta: dict):
@@ -409,10 +458,24 @@ def classifier_loop(cfg, conn):
     onnx_sess = init_onnx_model(MODEL_PATH)
     class_names = load_class_names(MODEL_PATH) if onnx_sess is not None else []
     backend = "onnx" if onnx_sess else "heuristic"
-    LOG.info("classifier backend=%s confidence_threshold=%.2f target_rate_hz=%d uls=%s cdbs=%s",
+
+    # Phase 4: load FCC band plan once at startup. Failure is non-fatal —
+    # derive_protocol_tag() falls back to _legacy_derive_protocol_tag when plan is None.
+    plan = None
+    if _BAND_PLAN_AVAILABLE:
+        try:
+            plan = band_plan.load_band_plan(BAND_PLAN_PATH)
+            LOG.info("band-plan loaded: %d bands from %s", len(plan), BAND_PLAN_PATH)
+        except Exception as _bpe:
+            LOG.warning("band-plan load failed (%s); falling back to legacy tag derivation", _bpe)
+    else:
+        LOG.warning("band-plan import unavailable: %s; using legacy tag derivation", _BAND_PLAN_IMPORT_ERROR)
+
+    LOG.info("classifier backend=%s confidence_threshold=%.2f target_rate_hz=%d uls=%s cdbs=%s band_plan=%s",
              backend, confidence_threshold, TARGET_RATE_HZ,
              "available" if _ULS_AVAILABLE else "DISABLED",
-             "available" if _CDBS_AVAILABLE else "DISABLED")
+             "available" if _CDBS_AVAILABLE else "DISABLED",
+             "available" if plan else "DISABLED")
     if not _ULS_AVAILABLE:
         LOG.warning("ULS lookup disabled: %s", _ULS_IMPORT_ERROR)
     if not _CDBS_AVAILABLE:
@@ -480,7 +543,7 @@ def classifier_loop(cfg, conn):
                 tag = "unclassified"
             else:
                 final_class = cls_name
-                tag = derive_protocol_tag(cls_name, meta["freq_hz"], meta["bandwidth_hz"])
+                tag = derive_protocol_tag(cls_name, meta["freq_hz"], meta["bandwidth_hz"], plan)
             det_id = find_detection_id(conn, slice_path)
             now = time.time()
             if det_id is not None:
