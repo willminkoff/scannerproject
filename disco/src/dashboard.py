@@ -581,15 +581,18 @@ async def stream_spectrum(tuner_id: str, mode: str = "composite", request: Reque
 HTML = """<!doctype html>
 <html><head><meta charset="utf-8"><title>Disco</title><style>
 :root{
-  --fs-h1:26px;
+  --fs-h1:30px;
   --fs-status:15px;
-  --fs-card-h:18px;
+  --fs-card-h:19px;
   --fs-btn:14px;
   --fs-band:14px;
   --fs-summary:14px;
   --fs-table:14px;
   --fs-th:13px;
   --fs-empty:14px;
+  --color-info:#7fc7ff;
+  --color-warn:#e6c97a;
+  --color-good:#a8e6a8;
 }
 body{font-family:-apple-system,sans-serif;margin:0;padding:14px;background:#0c0c10;color:#ddd;font-size:var(--fs-table)}
 h1{margin:0 0 4px 0;font-size:var(--fs-h1)}
@@ -684,8 +687,175 @@ th{color:#888;font-weight:normal;font-size:var(--fs-th);text-transform:uppercase
 .hidden-control button:hover{background:#2a2a35;color:#fff}
 .hidden-control.has-items{color:#e6c97a}
 .row-hidden{display:none !important}
+/* ============================================================
+ * Tier 4 — sticky compact header + gear-revealed controls drawer
+ * ============================================================ */
+.app-header{position:sticky;top:0;z-index:200;background:rgba(12,12,16,0.96);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:10px 14px 8px;margin:-14px -14px 12px;border-bottom:1px solid #1a1a22;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.app-header .brand{margin:0;font-size:var(--fs-h1);font-weight:800;letter-spacing:-0.5px;color:#f0f0f4;flex-shrink:0;line-height:1.1}
+.app-header .brand-sub{color:#7a8696;font-size:12px;margin-left:8px;font-weight:400;letter-spacing:0;vertical-align:middle}
+.header-listen{flex:1;min-width:200px;display:flex;align-items:center;gap:10px;font-size:13px;font-family:ui-monospace,monospace;flex-wrap:wrap;margin:0}
+.header-listen .listen-bar-label{color:#888;letter-spacing:.5px;font-size:11px;text-transform:uppercase}
+.gear-btn{background:#1a1a22;color:#cdd0d6;border:1px solid #2a2a35;border-radius:6px;padding:6px 12px;font-size:18px;cursor:pointer;font-family:inherit;line-height:1;display:none;margin-left:auto}
+.gear-btn:hover{background:#2a2a35;color:#fff}
+.gear-btn.is-open{background:#3a5a8a;color:#fff;border-color:#5a7aaa}
+#controls-drawer{display:block}
+.collapsible-toggle{display:none;background:#16161c;color:#cdd0d6;border:1px solid #2a2a35;border-radius:6px;padding:9px 12px;font-size:13px;font-family:ui-monospace,monospace;cursor:pointer;width:100%;text-align:left;align-items:center;justify-content:space-between;margin:6px 0;letter-spacing:.5px;text-transform:uppercase}
+.collapsible-toggle:hover{background:#1f1f28;color:#fff}
+.collapsible-toggle .chev{display:inline-block;transition:transform 0.18s ease;margin-right:6px;color:#7a8696}
+.collapsible-toggle.is-open .chev{transform:rotate(180deg);color:#cdd0d6}
+.collapsible-toggle .count{color:#7a8696;font-size:11px;margin-left:6px;text-transform:none;letter-spacing:0}
+.collapsible-toggle.has-active .count{color:var(--color-warn)}
+
+/* ============================================================
+ * Tier 4 — compact band badges (BCST/AVI/HAM/...) shown on phone
+ * ============================================================ */
+.mode-compact{display:none}
+.mode-badge{display:inline-block;font-weight:700;letter-spacing:.5px;padding:1px 6px;border-radius:3px;font-size:11px;margin-right:6px;background:#1a1a22;border:1px solid #2a2a35;vertical-align:baseline}
+.mode-badge.band-allowed{color:var(--color-info);border-color:#3a4a5a;background:rgba(127,199,255,0.08)}
+.mode-badge.band-rejected{color:var(--color-warn);border-color:#5a4a2a;background:rgba(230,201,122,0.08)}
+
+/* ============================================================
+ * Tier 4 — pulsing border on rows currently piped to audio
+ * ============================================================ */
+@keyframes listen-pulse{
+  0%,100%{box-shadow:inset 3px 0 0 rgba(168,230,168,0.85)}
+  50%{box-shadow:inset 3px 0 0 rgba(168,230,168,0.25)}
+}
+tr.is-listening td:first-child{position:relative}
+tr.is-listening{background:rgba(58,90,58,0.10);animation:listen-pulse 1.5s ease-in-out infinite}
+tr.is-listening:hover{background:rgba(58,90,58,0.18)}
+
+/* ============================================================
+ * Tier 4 — tuner card visual punch (always-on)
+ * ============================================================ */
+.tuner h2 span:first-child{font-weight:700;letter-spacing:.2px}
+.tuner .summary{font-weight:500;color:#bbb}
+.tuner .band{font-weight:600;color:#9aa0aa}
+
+/* ============================================================
+ * Tier 4 — tablet (≤820px): single column, smaller canvases
+ * ============================================================ */
+@media (max-width: 820px){
+  body{padding:10px}
+  .app-header{margin:-10px -10px 10px;padding:10px 12px 8px}
+  .tuners{grid-template-columns:1fr;gap:16px}
+  canvas.spectrum{height:100px}
+  canvas.waterfall{height:140px}
+  .filter-bar input[type=text]{width:140px}
+}
+
+/* ============================================================
+ * Tier 4 — phone (≤480px): drawer, card-view rows, badges, etc.
+ * ============================================================ */
+@media (max-width: 480px){
+  body{padding:0;font-size:15px}
+  :root{
+    --fs-h1:26px;
+    --fs-card-h:18px;
+    --fs-table:14px;
+    --fs-status:12px;
+    --fs-band:13px;
+    --fs-summary:13px;
+  }
+  .app-header{padding:10px 12px 8px;margin:0 0 10px;border-radius:0;flex-wrap:nowrap;gap:8px}
+  .app-header .brand{font-size:24px}
+  .app-header .brand-sub{display:none}
+  .header-listen{flex:1;min-width:0;font-size:12px;gap:6px}
+  #disco-audio-player{max-width:160px;height:26px}
+  .gear-btn{display:block;flex-shrink:0;padding:6px 10px;font-size:16px}
+
+  /* Drawer collapsed by default — gear toggles is-open */
+  #controls-drawer{display:none;padding:0 12px 4px;border-bottom:1px solid #1a1a22;margin-bottom:10px}
+  #controls-drawer.is-open{display:block}
+  .svc-bar{margin:6px 0;flex-wrap:wrap;font-size:13px;gap:8px}
+  .svc-btn{padding:7px 14px;font-size:13px}
+  .svc-detail{font-size:11px;flex-basis:100%;line-height:1.3}
+
+  /* Collapsible Favorites + Filters on phone */
+  .collapsible-toggle{display:flex}
+  .fav-bar,.filter-bar{display:none;margin:0 0 8px 0;padding:8px 2px 4px;flex-direction:column;align-items:stretch;gap:8px;border-top:1px solid #1a1a22}
+  .fav-bar.is-open,.filter-bar.is-open{display:flex}
+  .filter-bar label{font-size:11px;color:#888;flex-direction:column;align-items:stretch;gap:4px}
+  .filter-bar select,.filter-bar input,.filter-bar input[type=number],.filter-bar input[type=text]{width:100%;box-sizing:border-box;font-size:14px;padding:6px 8px}
+  .filter-bar .clear{padding:6px 10px;font-size:13px}
+  .hidden-control{flex-wrap:wrap;border-top:1px solid #1a1a22;padding-top:8px;font-size:12px}
+  .fav-bar .fav-list{flex-direction:column;align-items:stretch;gap:6px}
+  .fav-bar .fav-pill{justify-content:space-between}
+
+  /* Tuner cards padded inline + bigger card header */
+  .status{padding:0 12px}
+  .tuners{padding:0 12px;gap:14px}
+  .tuner{padding:10px;border-radius:10px}
+  .tuner h2{font-size:18px;flex-direction:column;align-items:flex-start;gap:8px;margin-bottom:8px}
+  .tuner h2 .ctrl{margin-left:0}
+  .tuner h2 span:first-child{font-weight:800;letter-spacing:0;color:#fff}
+  canvas.spectrum{height:80px}
+  canvas.waterfall{height:110px}
+
+  /* Compact MODE badge replaces full band-class text on phone */
+  .mode-full{display:none}
+  .mode-compact{display:inline-block}
+
+  /* Convert detection table rows to standalone cards */
+  table[data-strongest]{display:block;margin-top:6px}
+  table[data-strongest] thead{display:none}
+  table[data-strongest] tbody{display:block}
+  table[data-strongest] tr{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:10px 12px;margin:0 0 8px 0;background:#16161c;border:1px solid #25252c;border-bottom:1px solid #25252c;border-radius:8px;white-space:normal}
+  table[data-strongest] tr:hover{background:#1a1a22}
+  table[data-strongest] tr.is-listening{border-color:#3a5a3a}
+  table[data-strongest] td{display:block;padding:0;border:0;white-space:normal;font-size:13px;line-height:1.4}
+  /* Row 1: freq (big, headline) — full width */
+  table[data-strongest] td:nth-child(1){grid-column:1/-1;font-size:18px;font-weight:700;color:#e8e8ec;font-family:ui-monospace,monospace;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  /* SNR / pwr / hits — inline mini stats */
+  table[data-strongest] td:nth-child(2),
+  table[data-strongest] td:nth-child(3),
+  table[data-strongest] td:nth-child(4){display:inline-block;margin-right:14px;font-size:13px}
+  table[data-strongest] td:nth-child(2)::before{content:"SNR ";color:#666;font-size:11px;text-transform:uppercase;margin-right:2px}
+  table[data-strongest] td:nth-child(3)::before{content:"PWR ";color:#666;font-size:11px;text-transform:uppercase;margin-right:2px}
+  table[data-strongest] td:nth-child(4)::before{content:"HITS ";color:#666;font-size:11px;text-transform:uppercase;margin-right:2px}
+  /* Wrap the SNR/PWR/HITS trio into one logical row */
+  table[data-strongest] td:nth-child(2){grid-column:1/-1;padding-top:4px;border-top:1px solid #25252c;margin-top:2px}
+  table[data-strongest] td:nth-child(3),
+  table[data-strongest] td:nth-child(4){grid-column:1/-1;padding-top:0;margin-top:-22px;padding-left:90px}
+  table[data-strongest] td:nth-child(4){padding-left:180px}
+  /* Mode + conf — full width line */
+  table[data-strongest] td:nth-child(5){grid-column:1/-1;padding-top:6px;border-top:1px solid #25252c;margin-top:4px;font-size:14px}
+  table[data-strongest] td:nth-child(6){display:none}
+  /* Licensee row */
+  table[data-strongest] td:nth-child(7){grid-column:1/-1;max-width:none;color:#cdd0d6;font-size:12px}
+  table[data-strongest] td:nth-child(7):empty,
+  table[data-strongest] td.uls:not(:empty){overflow:visible;text-overflow:initial}
+  /* Age — right column, tiny */
+  table[data-strongest] td:nth-child(8){grid-column:2;grid-row:1;justify-self:end;color:#666;font-size:11px;font-weight:400;align-self:start;padding-top:6px}
+  /* Empty-state row spans entire card */
+  table[data-strongest] tr td.empty{grid-column:1/-1;text-align:center;padding:14px}
+  /* Detail popup full-width on phone */
+  #detail-popup{max-width:calc(100vw - 24px);left:12px !important;right:12px}
+}
+
+/* ============================================================
+ * Tier 4 — desktop (>1024px): drawer always open, gear hidden
+ * ============================================================ */
+@media (min-width: 1025px){
+  .app-header{padding:14px 18px 12px}
+  .gear-btn{display:none}
+  #controls-drawer{display:block !important}
+  .fav-bar,.filter-bar{display:flex !important}
+  .collapsible-toggle{display:none !important}
+}
 </style></head><body>
-<h1>Disco — Phase 2</h1>
+<header class="app-header">
+  <h1 class="brand">Disco<span class="brand-sub">Phase 2</span></h1>
+  <div class="listen-bar header-listen" id="listen-bar">
+    <span class="listen-bar-label">Listening</span>
+    <span class="listen-empty" id="listen-empty">— tap 🎧 on a row to wire audio</span>
+    <span class="listen-list" id="listen-list"></span>
+    <audio id="disco-audio-player" preload="none" controls></audio>
+    <span class="listen-stream" id="listen-stream"></span>
+  </div>
+  <button class="gear-btn" id="gear-btn" type="button" aria-label="Show controls" title="Show controls">⚙</button>
+</header>
+<div id="controls-drawer">
 <div class="svc-bar">
   <span class="svc-status" id="svc-status">checking…</span>
   <button class="svc-btn start" id="svc-start" type="button" disabled>Start</button>
@@ -698,18 +868,17 @@ th{color:#888;font-weight:normal;font-size:var(--fs-th);text-transform:uppercase
   <button class="svc-btn mode-on" id="mode-on-btn" type="button" disabled>Reclaim radios</button>
   <span class="svc-detail" id="mode-detail">at-home handoff — classifier stays warm across the toggle</span>
 </div>
-<div class="listen-bar" id="listen-bar">
-  <span class="listen-bar-label">Listening</span>
-  <span class="listen-empty" id="listen-empty">— click 🎧 on any FM/AM row to wire audio</span>
-  <span class="listen-list" id="listen-list"></span>
-  <audio id="disco-audio-player" preload="none" controls></audio>
-  <span class="listen-stream" id="listen-stream"></span>
-</div>
+<button class="collapsible-toggle" id="fav-toggle" type="button" aria-controls="fav-bar" aria-expanded="false">
+  <span><span class="chev">▼</span>Favorites<span class="count" id="fav-toggle-count">(0)</span></span>
+</button>
 <div class="fav-bar" id="fav-bar">
   <span class="fav-bar-label">Favorites</span>
   <span class="fav-empty" id="fav-empty">— click ☆ on any row to track it over time</span>
   <span class="fav-list" id="fav-list"></span>
 </div>
+<button class="collapsible-toggle" id="filter-toggle" type="button" aria-controls="filter-bar" aria-expanded="false">
+  <span><span class="chev">▼</span>Filters<span class="count" id="filter-toggle-count">(0 active)</span></span>
+</button>
 <div class="filter-bar" id="filter-bar">
   <label>mode
     <select id="filter-mode">
@@ -746,6 +915,7 @@ th{color:#888;font-weight:normal;font-size:var(--fs-th);text-transform:uppercase
   </span>
   <span class="svc-detail" id="filter-summary"></span>
 </div>
+</div>
 <div class="status" id="status">loading…</div>
 <div class="tuners" id="tuners"></div>
 <div id="detail-popup" role="dialog" aria-hidden="true"></div>
@@ -771,6 +941,38 @@ function dbToColor(db){
 }
 function snrClass(snr){ if(snr>=25) return "hot"; if(snr>=18) return "warm"; return ""; }
 function modConfClass(c){ if(c==null) return "mod-low"; if(c>=0.75) return "mod-high"; if(c>=0.5) return "mod-mid"; return "mod-low"; }
+
+// Tier 4: derive a 3-letter band badge from protocol_tag for the phone view.
+// `protocol_tag` shape from band_plan.tag_for() is "<BAND_NAME> — <class>" for
+// in-band hits and "<BAND_NAME> — unidentified" for band-rejected ones; out-of-
+// band signals fall through to bare modulation_class. Specific bands (LMR_800,
+// PS_700_NARROW, PS_800_NARROW, NOAA_WX, RADIO_ASTRONOMY, DME_TACAN, METAIDS)
+// match before the prefix groups so they don't get folded into [LMR] / [WX].
+const BAND_ABBREV_EXACT = {
+  "LMR_800":"LMR8", "PS_700_NARROW":"PS7", "PS_800_NARROW":"PS8",
+  "NOAA_WX":"WX", "RADIO_ASTRONOMY":"RA", "DME_TACAN":"DME", "METAIDS":"MET",
+};
+const BAND_ABBREV_PREFIX = [
+  ["BCAST_","BCST"], ["AVIATION_","AVI"], ["GOV_","GOV"], ["MIL_","MIL"],
+  ["CELL_","CEL"], ["UHF_LMR_","LMR"], ["VHF_LMR_","LMR"], ["LMR_","LMR"],
+  ["PS_","LMR"], ["TV_","TV"], ["AMATEUR_","HAM"], ["ISM_","ISM"],
+];
+function bandAbbrev(protocolTag, modulationClass){
+  if (!protocolTag) {
+    // No band-plan tag — fall back to the first 4 chars of the modulation class.
+    const m = (modulationClass || "").toUpperCase().replace(/[^A-Z0-9]/g,"");
+    return {label: m.slice(0,4) || "?", rejected: false, bandName: ""};
+  }
+  // Split on em-dash; left side is BAND_NAME, right side is class or "unidentified"
+  const parts = String(protocolTag).split(/\s*[—\-]\s*/);
+  const bandName = (parts[0] || "").trim().toUpperCase();
+  const rejected = parts.length > 1 && /unidentified/i.test(parts[1] || "");
+  if (BAND_ABBREV_EXACT[bandName]) return {label: BAND_ABBREV_EXACT[bandName], rejected, bandName};
+  for (const [pfx, abbr] of BAND_ABBREV_PREFIX) {
+    if (bandName.startsWith(pfx)) return {label: abbr, rejected, bandName};
+  }
+  return {label: bandName.slice(0,4) || "?", rejected, bandName};
+}
 
 async function loadConfig(){
   const r = await fetch("/api/config");
@@ -970,18 +1172,29 @@ async function refreshTables(){
         const age = Math.round(Date.now()/1000 - r.last_seen);
         const cls = snrClass(r.max_snr);
         const modCls = modConfClass(r.modulation_confidence);
-        let modLabel = r.protocol_tag || r.modulation_class || "—";
+        // Tier 4: full mode tag (desktop) + compact band-badge (phone). Both
+        // spans always render; CSS media query swaps visibility — no JS resize
+        // listener needed and the table-refresh cadence stays untouched.
+        const fullText = r.protocol_tag || r.modulation_class || "—";
+        const ab = bandAbbrev(r.protocol_tag, r.modulation_class);
+        const compactClassName = r.modulation_class
+          || (r.protocol_tag === "unclassified" ? "unclassified" : "—");
+        const badgeCls = ab.rejected ? "mode-badge band-rejected" : "mode-badge band-allowed";
+        let modLabel = `<span class="mode-full">${fullText}</span>`
+          + `<span class="mode-compact"><span class="${badgeCls}" title="${ab.bandName || ""}">[${ab.label}]</span>${compactClassName}</span>`;
         if (r.interpretation) modLabel = modLabel + ` <button class="details-btn" type="button">details</button>`;
         const cleanClass = (r.modulation_class || "").toUpperCase();
         const freqId = Math.round(r.freq_hz);
+        const isListening = ACTIVE_LISTEN_FREQS.has(freqId);
         if (LISTEN_SUPPORTED.has(cleanClass)) {
-          const isActive = ACTIVE_LISTEN_FREQS.has(freqId);
-          const lbl = isActive ? "Stop" : "🎧 Listen";
-          const cls = isActive ? "listen-btn is-active" : "listen-btn";
+          const lbl = isListening ? "Stop" : "🎧 Listen";
+          const cls = isListening ? "listen-btn is-active" : "listen-btn";
           modLabel = modLabel + ` <button class="${cls}" type="button">${lbl}</button>`;
         }
         const modConf = r.modulation_confidence != null ? r.modulation_confidence.toFixed(2) : "—";
         const tr = document.createElement("tr");
+        // Tier 4: pulse the source row while audio is wired to it.
+        if (isListening) tr.classList.add("is-listening");
         // Compose a single "licensed to" cell from the ULS columns. We show
         // entity_name truncated + callsign in a smaller dim font, with a
         // tooltip carrying emission designator + distance so the user can
@@ -1482,6 +1695,7 @@ async function refreshFavorites(){
   if (items.length === 0) {
     elEmpty.style.display = "";
     elList.innerHTML = "";
+    updateFavToggleCount(0);
     return;
   }
   elEmpty.style.display = "none";
@@ -1495,6 +1709,7 @@ async function refreshFavorites(){
     const ownerSpan = owner ? `<span class="fav-meta">${owner}</span>` : "";
     return `<span class="fav-pill ${isActive ? "active" : ""}">${mhz} MHz ${ownerSpan} <span class="fav-meta">(${meta})</span><button data-unfav-freq="${it.freq_hz}" title="Remove">×</button></span>`;
   }).join("");
+  updateFavToggleCount(items.length);
 }
 
 // --- Phase 4 polish: filter wiring ------------------------------------------
@@ -1504,6 +1719,7 @@ function applyFilterUiToState(){
   FILTER_STATE.licensee = document.getElementById("filter-licensee").value || "";
   FILTER_STATE.window_s = parseInt(document.getElementById("filter-window").value || "120", 10) || 120;
   persistFilter();
+  updateFilterToggleCount();
   // Re-render immediately so the user sees the effect without waiting for the 2s tick.
   refreshTables();
 }
@@ -1520,7 +1736,63 @@ function clearFilters(){
   FILTER_STATE.window_s = 120;
   hydrateFilterUi();
   persistFilter();
+  updateFilterToggleCount();
   refreshTables();
+}
+
+// --- Tier 4: gear-drawer + collapsible filter/favorites sections -------------
+// On phone, the controls drawer is collapsed by default. Tapping the ⚙ gear in
+// the sticky header toggles the .is-open class — CSS media query handles the
+// actual visibility. On desktop the gear is hidden and the drawer is always
+// open via the >1024px media query (rules force display:block).
+function toggleDrawer(){
+  const drawer = document.getElementById("controls-drawer");
+  const gear = document.getElementById("gear-btn");
+  if (!drawer || !gear) return;
+  const open = !drawer.classList.contains("is-open");
+  drawer.classList.toggle("is-open", open);
+  gear.classList.toggle("is-open", open);
+}
+// Generic collapsible — wires a .collapsible-toggle button to a target panel.
+function bindCollapsible(toggleId, panelId, defaultOpen){
+  const toggle = document.getElementById(toggleId);
+  const panel = document.getElementById(panelId);
+  if (!toggle || !panel) return;
+  // Mirror state to the button so the chevron flips correctly.
+  const setOpen = (open) => {
+    panel.classList.toggle("is-open", open);
+    toggle.classList.toggle("is-open", open);
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  };
+  setOpen(!!defaultOpen);
+  toggle.addEventListener("click", () => {
+    setOpen(!panel.classList.contains("is-open"));
+  });
+}
+// Filter toggle "count" badge — surfaces how many filters are active so the
+// collapsed header still tells the user the table is being narrowed.
+function activeFilterCount(){
+  let n = 0;
+  if (FILTER_STATE.mode) n++;
+  if (FILTER_STATE.snr > 0) n++;
+  if (FILTER_STATE.licensee) n++;
+  if (FILTER_STATE.window_s !== 120) n++;
+  return n;
+}
+function updateFilterToggleCount(){
+  const el = document.getElementById("filter-toggle-count");
+  const tog = document.getElementById("filter-toggle");
+  if (!el || !tog) return;
+  const n = activeFilterCount();
+  el.textContent = n === 0 ? "(none active)" : `(${n} active)`;
+  tog.classList.toggle("has-active", n > 0);
+}
+function updateFavToggleCount(n){
+  const el = document.getElementById("fav-toggle-count");
+  const tog = document.getElementById("fav-toggle");
+  if (!el || !tog) return;
+  el.textContent = `(${n || 0})`;
+  tog.classList.toggle("has-active", (n || 0) > 0);
 }
 
 async function init(){
@@ -1536,6 +1808,12 @@ async function init(){
   document.getElementById("filter-clear").addEventListener("click", clearFilters);
   document.getElementById("hidden-toggle").addEventListener("click", toggleShowHidden);
   document.getElementById("hidden-clear").addEventListener("click", hideClearAll);
+  // Tier 4: gear drawer + filter/favorites collapsibles. Filters open by default
+  // when any are active so the user can see what's narrowing the view.
+  document.getElementById("gear-btn").addEventListener("click", toggleDrawer);
+  bindCollapsible("fav-toggle", "fav-bar", false);
+  bindCollapsible("filter-toggle", "filter-bar", activeFilterCount() > 0);
+  updateFilterToggleCount();
   refreshTables();
   setInterval(refreshTables, 2000);
   document.getElementById("svc-start").addEventListener("click", () => svcAction("start"));
