@@ -51,7 +51,7 @@ class DeriveProtocolTagTests(unittest.TestCase):
         tag = classifier.derive_protocol_tag("NXDN", 116_980_100, 8_000, plan)
         self.assertEqual(
             tag,
-            "TEST_AVIATION_NAV — unidentified (model said: NXDN)",
+            "TEST_AVIATION_NAV — unidentified",
         )
 
     def test_outside_any_band_returns_unmodified(self):
@@ -112,7 +112,7 @@ class RealUsBandPlanIntegrationTests(unittest.TestCase):
         tag = classifier.derive_protocol_tag("NXDN", 116_980_100, 8_000, self.plan)
         self.assertEqual(
             tag,
-            "AVIATION_NAV — unidentified (model said: NXDN)",
+            "AVIATION_NAV — unidentified",
         )
 
     def test_legitimate_p25_at_mtrtrs(self):
@@ -131,7 +131,7 @@ class RealUsBandPlanIntegrationTests(unittest.TestCase):
         tag = classifier.derive_protocol_tag("LTE", 110_500_000, 10_000_000, self.plan)
         self.assertEqual(
             tag,
-            "AVIATION_NAV — unidentified (model said: LTE)",
+            "AVIATION_NAV — unidentified",
         )
 
 

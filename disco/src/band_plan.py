@@ -73,16 +73,17 @@ def tag_for(class_name: str, freq_hz: float, plan: List[Band]) -> str:
 
     Three cases:
       - In a band, mode allowed:   "<BAND_NAME> — <class_name>"
-      - In a band, mode rejected:  "<BAND_NAME> — unidentified (model said: <class_name>)"
+      - In a band, mode rejected:  "<BAND_NAME> — unidentified"
       - Outside all bands:         "<class_name>" unmodified (permissive default)
 
-    The reject form preserves the ML output verbatim so downstream consumers
-    (retrain dataset curation, anomaly review) can still see what the model
-    predicted, while the operator-facing label flags the band-plan conflict.
+    The raw ML output is no longer embedded in the tag string (C6 cleanup —
+    the tag column is operator-facing and the parenthetical was noise). The
+    underlying ml_class is still available via detections.modulation_class
+    for retrain-set curation, and interpret.py reads it from there directly.
     """
     band = band_for(freq_hz, plan)
     if band is None:
         return class_name
     if class_name in band.allowed_modes:
         return f"{band.name} — {class_name}"
-    return f"{band.name} — unidentified (model said: {class_name})"
+    return f"{band.name} — unidentified"
