@@ -901,7 +901,7 @@ tr.is-listening:hover{background:rgba(58,90,58,0.18)}
     <audio id="disco-audio-player" preload="none" controls></audio>
     <span class="listen-stream" id="listen-stream"></span>
   </div>
-  <button class="lmr-btn lmr-btn-header" id="lmr-btn-header" type="button" title="LMR Mode — walkies + PS + gov only">
+  <button class="lmr-btn lmr-btn-header" id="lmr-btn-header" type="button" title="LMR Mode — handhelds + dispatch side: walkies, PS, gov, amateur, pagers">
     <span class="lmr-label-short">LMR</span>
     <span class="lmr-state">OFF</span>
   </button>
@@ -929,11 +929,11 @@ tr.is-listening:hover{background:rgba(58,90,58,0.18)}
   <span class="fav-list" id="fav-list"></span>
 </div>
 <div class="filter-preset-row">
-  <button class="lmr-btn" id="lmr-btn" type="button" title="LMR Mode — walkies + PS + gov only">
+  <button class="lmr-btn" id="lmr-btn" type="button" title="LMR Mode — handhelds + dispatch side: walkies, PS, gov, amateur, pagers">
     <span class="lmr-label-full">LMR Mode</span>
     <span class="lmr-state">OFF</span>
   </button>
-  <span class="preset-detail">walkies + public safety + gov + amateur, FM_NARROW/DMR/NXDN/P25 only</span>
+  <span class="preset-detail">handhelds + dispatch: walkies, PS, gov, amateur, pagers · FM_NARROW/DMR/NXDN/P25/GMSK/POCSAG</span>
 </div>
 <button class="collapsible-toggle" id="filter-toggle" type="button" aria-controls="filter-bar" aria-expanded="false">
   <span><span class="chev">▼</span>Filters<span class="count" id="filter-toggle-count">(0 active)</span></span>
@@ -1189,8 +1189,13 @@ const BAND_CATEGORY_MAP = {
   "METAIDS":"Specialized", "RADIO_ASTRONOMY":"Specialized",
   "AMTS":"Specialized", "EPIRB_406":"Specialized",
   "NAV_SAT_UPLINK":"Specialized", "GNSS_L5":"Specialized",
-  "FIXED_940":"Specialized", "PAGING_929":"Specialized",
+  "FIXED_940":"Specialized",
   "MARINE_VHF":"LMR / Walkie", "MARINE_VHF_HIGH":"LMR / Walkie", "SMR_900":"LMR / Walkie",
+  // Pagers are dispatch-adjacent and Will wants POCSAG rows reachable in LMR
+  // Mode. Re-categorizing PAGING_929 into "LMR / Walkie" lets the preset
+  // surface them without dragging the rest of Specialized (RADIO_ASTRONOMY,
+  // METAIDS, EPIRB, GNSS, etc.) into the LMR view.
+  "PAGING_929":"LMR / Walkie",
   "NB_PCS_901":"Cellular",
   "LO_VHF":"Other",
 };
@@ -1221,9 +1226,14 @@ function bandNameOfRow(r){
   const parts = String(r.protocol_tag).split(/\\s*[—\\-]\\s*/);
   return (parts[0] || "").trim().toUpperCase();
 }
-// LMR Mode preset — Will's "walkies + PS + gov + amateur" definition.
+// LMR Mode preset — broadened to "any handheld OR the dispatch side of one".
+// Modulation: analog narrow-FM handhelds + the digital voice modes that ride
+// LMR/PS trunks + GMSK (DMR-family variant + some pager/data) + POCSAG so
+// dispatch pagers surface. Bands: walkie/business LMR, PS, gov, amateur 2m/
+// 70cm/220/900 — pagers ride PAGING_929 which we re-categorize into LMR/
+// Walkie below so this preset reaches them.
 const LMR_PRESET = Object.freeze({
-  modulationClasses: ["FM_NARROW","DMR","NXDN","P25"],
+  modulationClasses: ["FM_NARROW","DMR","NXDN","P25","GMSK","POCSAG"],
   bandCategories: ["LMR / Walkie","Public Safety","Government","Amateur"],
 });
 
