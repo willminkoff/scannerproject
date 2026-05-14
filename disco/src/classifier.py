@@ -283,8 +283,9 @@ def derive_protocol_tag(class_name: str, freq_hz: float, bandwidth_hz: float, pl
 
     Delegates to band_plan.tag_for(), which constrains the v3 ML class against
     FCC band-plan allowed_modes. Out-of-band predictions get downgraded to
-    "<BAND_NAME> — unidentified (model said: <ml_class>)" — useful both for
-    operator review and for retrain-set curation.
+    "<BAND_NAME> — unidentified" — operator-facing tag, no parenthetical.
+    The raw ml_class is still preserved in detections.modulation_class for
+    retrain-set curation and is what interpret.py reads directly.
 
     `bandwidth_hz` is unused (kept for API compatibility with the pre-Phase-4
     signature). Bandwidth was only consulted by stale heuristic-era branches.
@@ -296,7 +297,7 @@ def derive_protocol_tag(class_name: str, freq_hz: float, bandwidth_hz: float, pl
     if plan is None or band_plan is None:
         return _legacy_derive_protocol_tag(class_name, freq_hz, bandwidth_hz)
     tag = band_plan.tag_for(class_name, freq_hz, plan)
-    if "unidentified (model said:" in tag:
+    if not band_plan.is_mode_allowed(class_name, freq_hz, plan):
         # Operator-visible audit trail — every band-plan rejection logs once
         # so historical anomalies can be grep'd from the journal.
         b = band_plan.band_for(freq_hz, plan)

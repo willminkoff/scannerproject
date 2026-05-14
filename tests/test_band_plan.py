@@ -131,7 +131,7 @@ class TagForTests(unittest.TestCase):
         tag = tag_for("NXDN", 116_980_100, plan)
         self.assertEqual(
             tag,
-            "TEST_AVIATION_NAV — unidentified (model said: NXDN)",
+            "TEST_AVIATION_NAV — unidentified",
         )
 
     def test_outside_band_returns_class_unmodified(self):
@@ -144,7 +144,7 @@ class TagForTests(unittest.TestCase):
         tag = tag_for("FM_NARROW", 611_000_000, plan)
         self.assertEqual(
             tag,
-            "TEST_RADIO_ASTRONOMY — unidentified (model said: FM_NARROW)",
+            "TEST_RADIO_ASTRONOMY — unidentified",
         )
 
 
@@ -222,7 +222,7 @@ class RealUsBandPlanTests(unittest.TestCase):
         tag = tag_for("NXDN", 116_980_100, self.plan)
         self.assertEqual(
             tag,
-            "AVIATION_NAV — unidentified (model said: NXDN)",
+            "AVIATION_NAV — unidentified",
         )
 
     def test_legitimate_airband_am(self):
@@ -254,11 +254,12 @@ class RealUsBandPlanTests(unittest.TestCase):
 
     def test_radio_astronomy_rejects_everything(self):
         """608-614 MHz is protected radio astronomy — any signal is
-        anomalous. RADIO_ASTRONOMY band has empty allowed_modes."""
+        anomalous. RADIO_ASTRONOMY band has empty allowed_modes. Every
+        ml_class produces the same reject tag (C6: ml_class no longer
+        embedded in tag string; preserved in detections.modulation_class)."""
         for cls in ("FM_NARROW", "QAM", "P25", "NOISE"):
             tag = tag_for(cls, 611_000_000, self.plan)
-            self.assertIn("unidentified", tag)
-            self.assertIn(cls, tag)
+            self.assertEqual(tag, "RADIO_ASTRONOMY — unidentified")
 
     def test_below_30mhz_is_permissive(self):
         """Out of the band-plan's covered range — should return class

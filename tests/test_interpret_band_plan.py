@@ -30,7 +30,7 @@ def _base_bundle(**overrides):
         "bandwidth_khz": 8.0,
         "snr_db": 25.0,
         "tuner": "A-T1",
-        "protocol_tag": "AVIATION_NAV — unidentified (model said: NXDN)",
+        "protocol_tag": "AVIATION_NAV — unidentified",
         "band_name": "AVIATION_NAV",
         "band_allowed_modes": ["AM_VOICE"],
         "band_rejected": True,
@@ -122,7 +122,7 @@ class CallClaudePromptBandRejectedTests(unittest.TestCase):
         # Raw ML output should be visible separately from band-plan tag,
         # so Claude can reason about model misidentification.
         self.assertIn("Modulation class (from local CNN classifier): NXDN", prompt)
-        self.assertIn("Band-plan tag: AVIATION_NAV — unidentified (model said: NXDN)", prompt)
+        self.assertIn("Band-plan tag: AVIATION_NAV — unidentified", prompt)
 
 
 class CallClaudePromptBandAcceptedTests(unittest.TestCase):
