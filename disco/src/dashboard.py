@@ -579,7 +579,7 @@ async def stream_spectrum(tuner_id: str, mode: str = "composite", request: Reque
 
 
 HTML = """<!doctype html>
-<html><head><meta charset="utf-8"><title>Disco</title><style>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Disco</title><style>
 :root{
   --fs-h1:30px;
   --fs-status:15px;
