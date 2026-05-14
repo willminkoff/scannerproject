@@ -963,8 +963,11 @@ function bandAbbrev(protocolTag, modulationClass){
     const m = (modulationClass || "").toUpperCase().replace(/[^A-Z0-9]/g,"");
     return {label: m.slice(0,4) || "?", rejected: false, bandName: ""};
   }
-  // Split on em-dash; left side is BAND_NAME, right side is class or "unidentified"
-  const parts = String(protocolTag).split(/\s*[—\-]\s*/);
+  // Split on em-dash; left side is BAND_NAME, right side is class or "unidentified".
+  // Python sees this triple-quoted HTML as a regular string, so \\s here escapes
+  // the regex \s into the rendered JS — without the double backslash Python emits
+  // SyntaxWarning ("invalid escape sequence") on every import.
+  const parts = String(protocolTag).split(/\\s*[—\\-]\\s*/);
   const bandName = (parts[0] || "").trim().toUpperCase();
   const rejected = parts.length > 1 && /unidentified/i.test(parts[1] || "");
   if (BAND_ABBREV_EXACT[bandName]) return {label: BAND_ABBREV_EXACT[bandName], rejected, bandName};
