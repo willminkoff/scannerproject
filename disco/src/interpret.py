@@ -121,9 +121,12 @@ def call_claude(api_key: str, bundle: dict, model: str, timeout: float = 20.0) -
                         f"cdbs = broadcast)")
         licensee_block = "FCC database match for this frequency:\n" + "\n".join(bits) + "\n"
 
-    # Phase 4 band-plan context — populated from band_plan helpers when interpret_loop
-    # has the plan loaded. When band_rejected is true, instructs Claude to discuss
-    # the anomaly explicitly rather than rationalizing the ML output as correct.
+    # Phase 4 band-plan context — the band allocation is treated as authoritative
+    # (FCC regulatory source) and supersedes any prior knowledge the model has
+    # about specific licensees at this frequency. C5 fix: previously the rejected-
+    # case prose hallucinated specific licensees (MNPD, BNA approach, etc.) at
+    # frequencies that don't have those services. Anomaly clause now explicitly
+    # forbids licensee invention when band_rejected=true.
     band_block = ""
     band_anomaly_clause = ""
     band_name = bundle.get("band_name")
@@ -131,33 +134,44 @@ def call_claude(api_key: str, bundle: dict, model: str, timeout: float = 20.0) -
     band_rejected = bool(bundle.get("band_rejected"))
     if band_name:
         allowed = ", ".join(bundle.get("band_allowed_modes") or []) or "(none — protected band)"
+        agreement = "REJECTED — ML class is not allowed in this band" if band_rejected else "accepted"
+        ml_qualifier = "HYPOTHESIS, may be wrong" if band_rejected else "in allowed_modes for this band"
+        band_block = (
+            f"AUTHORITATIVE BAND ALLOCATION (per FCC 47 CFR § 2.106):\n"
+            f"  This frequency is allocated to: {band_name}\n"
+            f"  Allowed modulation modes for this band: {allowed}\n"
+            f"  ML classifier output: {ml_class}  ({ml_qualifier})\n"
+            f"  Band-plan agreement: {agreement}\n"
+            f"\n"
+            f"The band allocation above is from a regulatory source and supersedes any\n"
+            f"prior knowledge you have about specific licensees at this frequency. Do\n"
+            f"not contradict it.\n"
+        )
         if band_rejected:
-            band_block = (
-                f"FCC band-plan check for this frequency:\n"
-                f"  Allocation: {band_name}\n"
-                f"  Allowed modes per FCC table: {allowed}\n"
-                f"  ML model output: {ml_class} — NOT in allowed_modes (band-plan REJECTED)\n"
-            )
             band_anomaly_clause = (
-                f"\n**Band-plan anomaly**: The local CNN predicted {ml_class}, but the FCC allocation "
-                f"for {band_name} only allows {allowed}. Treat as a possible anomaly — common explanations: "
-                f"(1) model misidentification (most common, especially with low SNR or short slices); "
-                f"(2) spurious emission from a neighboring band / harmonic; "
-                f"(3) equipment leak (cellphone amp, switching power supply, intermod); "
-                f"(4) propagation anomaly (sporadic-E, tropospheric ducting); "
-                f"(5) unauthorized transmitter operating outside its allocation. "
-                f"Do not write prose that assumes the ML class is correct — explicitly note the "
-                f"band-plan conflict and pick the most likely explanation given the SNR and band context."
-            )
-        else:
-            band_block = (
-                f"FCC band-plan agreement for this frequency:\n"
-                f"  Allocation: {band_name}\n"
-                f"  ML model output: {ml_class} (in allowed_modes for this band)\n"
+                "\n**Band-plan anomaly handling** (band_rejected=true):\n\n"
+                "You MUST NOT:\n"
+                "  - Name specific services (e.g., \"Metro Nashville Police\", \"BNA approach\")\n"
+                "  - Cite specific licensees, agencies, or call signs\n"
+                "  - Claim the signal is from a service that contradicts the band allocation\n\n"
+                "You MAY:\n"
+                "  - Describe what services the band allocation IS for (in general)\n"
+                "  - List candidate explanations for the anomaly:\n"
+                "      (1) model misidentification (most common, especially low SNR or short slices)\n"
+                "      (2) spurious emission from a neighboring band / harmonic\n"
+                "      (3) equipment leak (cellphone amp, switching power supply, intermod)\n"
+                "      (4) propagation anomaly (sporadic-E, tropospheric ducting)\n"
+                "      (5) unauthorized transmitter operating outside its allocation\n"
+                "  - Note that without further data (callsign, traffic pattern) the actual source is unknown\n\n"
+                f"Required prose structure (3-4 sentences):\n"
+                f"  1. This frequency is in {band_name}, allocated to <band's intended use>.\n"
+                f"  2. The ML classifier reported {ml_class}, which is not consistent with this allocation.\n"
+                f"  3. Most likely explanation: <pick one of the 5 candidates above and justify briefly>.\n"
+                f"  4. (optional) Without more data the actual source cannot be confirmed.\n"
             )
     elif ml_class:
         band_block = (
-            f"FCC band-plan: this frequency is outside the band-plan's covered range "
+            f"FCC band-plan: this frequency is outside the band-plan's covered range\n"
             f"(permissive default — no allowed_modes constraint applied). ML model said {ml_class}.\n"
         )
 
@@ -330,7 +344,19 @@ def interpret_loop(cfg, conn):
                 "uls_source": uls_src,
             }
             bin_idx = int((freq / 1e3) / bin_khz)
-            cache_key_obj = {"bin_idx": bin_idx, "modulation_class": mod}
+            # C5: include band_rejected in the cache key so the C5 prompt fix
+            # doesn't serve stale (hallucinated) prose from before the fix.
+            # Adding the field also bumps the cache hash for ALL rows — a
+            # one-time invalidation of pre-C5 cache entries that's intentional.
+            # The "prompt_v" version marker explicitly signals a prompt-shape
+            # change so future prompt revisions can invalidate cleanly without
+            # a schema-meaningful field having to carry the load.
+            cache_key_obj = {
+                "bin_idx": bin_idx,
+                "modulation_class": mod,
+                "band_rejected": band_rejected,
+                "prompt_v": "c5",
+            }
             bundle_hash = hash_bundle(cache_key_obj)
             cached = conn.execute(
                 "SELECT text, ts FROM interpretation_cache WHERE bundle_hash = ?",

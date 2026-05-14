@@ -62,24 +62,59 @@ def _capture_prompt(mock_urlopen, api_key, bundle, model="test-model"):
 
 
 class CallClaudePromptBandRejectedTests(unittest.TestCase):
-    """The canonical NXDN-at-116.98 case — band_rejected=True."""
+    """The canonical NXDN-at-116.98 case — band_rejected=True. C5: prompt now
+    frames the band allocation as authoritative (not advisory) and forbids
+    licensee invention."""
 
     @mock.patch("urllib.request.urlopen")
-    def test_rejected_block_present(self, mock_urlopen):
+    def test_authoritative_block_present(self, mock_urlopen):
         prompt = _capture_prompt(mock_urlopen, "FAKE_KEY", _base_bundle())
-        self.assertIn("FCC band-plan check for this frequency", prompt)
-        self.assertIn("Allocation: AVIATION_NAV", prompt)
-        self.assertIn("Allowed modes per FCC table: AM_VOICE", prompt)
-        self.assertIn("ML model output: NXDN — NOT in allowed_modes", prompt)
-        self.assertIn("REJECTED", prompt)
+        self.assertIn("AUTHORITATIVE BAND ALLOCATION (per FCC 47 CFR § 2.106)", prompt)
+        self.assertIn("This frequency is allocated to: AVIATION_NAV", prompt)
+        self.assertIn("Allowed modulation modes for this band: AM_VOICE", prompt)
+        self.assertIn("ML classifier output: NXDN  (HYPOTHESIS, may be wrong)", prompt)
+        self.assertIn("Band-plan agreement: REJECTED", prompt)
 
     @mock.patch("urllib.request.urlopen")
-    def test_anomaly_instructions_present(self, mock_urlopen):
+    def test_supersedes_prior_knowledge_warning(self, mock_urlopen):
+        """C5: explicit instruction that band allocation overrides Claude's
+        prior knowledge of specific licensees."""
         prompt = _capture_prompt(mock_urlopen, "FAKE_KEY", _base_bundle())
-        self.assertIn("Band-plan anomaly", prompt)
-        self.assertIn("misidentification", prompt)
+        self.assertIn("regulatory source and supersedes any", prompt)
+        self.assertIn("prior knowledge", prompt)
+        self.assertIn("Do\nnot contradict it", prompt)
+
+    @mock.patch("urllib.request.urlopen")
+    def test_must_not_invent_licensees(self, mock_urlopen):
+        """C5: rejected case must explicitly forbid hallucinating service names.
+        This is the core fix for the MNPD/BNA/etc. hallucinations Will saw."""
+        prompt = _capture_prompt(mock_urlopen, "FAKE_KEY", _base_bundle())
+        self.assertIn("You MUST NOT", prompt)
+        self.assertIn("Name specific services", prompt)
+        self.assertIn("Metro Nashville Police", prompt)
+        self.assertIn("BNA approach", prompt)
+        self.assertIn("Cite specific licensees", prompt)
+
+    @mock.patch("urllib.request.urlopen")
+    def test_required_prose_structure(self, mock_urlopen):
+        """C5: rejected case has a required 4-sentence prose template that
+        leads with the band facts, not Claude's freq-based guess."""
+        prompt = _capture_prompt(mock_urlopen, "FAKE_KEY", _base_bundle())
+        self.assertIn("Required prose structure", prompt)
+        self.assertIn("This frequency is in AVIATION_NAV", prompt)
+        self.assertIn("The ML classifier reported NXDN", prompt)
+        self.assertIn("not consistent with this allocation", prompt)
+        self.assertIn("Most likely explanation", prompt)
+
+    @mock.patch("urllib.request.urlopen")
+    def test_anomaly_candidate_explanations_listed(self, mock_urlopen):
+        prompt = _capture_prompt(mock_urlopen, "FAKE_KEY", _base_bundle())
+        # All 5 candidate causes must be enumerated
+        self.assertIn("model misidentification", prompt)
         self.assertIn("spurious emission", prompt)
-        self.assertIn("Do not write prose that assumes the ML class is correct", prompt)
+        self.assertIn("equipment leak", prompt)
+        self.assertIn("propagation anomaly", prompt)
+        self.assertIn("unauthorized transmitter", prompt)
 
     @mock.patch("urllib.request.urlopen")
     def test_ml_class_preserved_in_prompt(self, mock_urlopen):
@@ -91,10 +126,11 @@ class CallClaudePromptBandRejectedTests(unittest.TestCase):
 
 
 class CallClaudePromptBandAcceptedTests(unittest.TestCase):
-    """In-band match (band_rejected=False) — agreement block, no anomaly clause."""
+    """In-band match (band_rejected=False) — authoritative block with 'accepted'
+    agreement, no anomaly clause, no MUST NOT directives."""
 
     @mock.patch("urllib.request.urlopen")
-    def test_agreement_block_present(self, mock_urlopen):
+    def test_authoritative_block_with_accepted(self, mock_urlopen):
         bundle = _base_bundle(
             freq_mhz=851.55,
             modulation_class="P25",
@@ -105,9 +141,11 @@ class CallClaudePromptBandAcceptedTests(unittest.TestCase):
             protocol_tag="PS_800_NARROW — P25",
         )
         prompt = _capture_prompt(mock_urlopen, "FAKE_KEY", bundle)
-        self.assertIn("FCC band-plan agreement for this frequency", prompt)
-        self.assertIn("Allocation: PS_800_NARROW", prompt)
-        self.assertIn("ML model output: P25 (in allowed_modes for this band)", prompt)
+        self.assertIn("AUTHORITATIVE BAND ALLOCATION", prompt)
+        self.assertIn("This frequency is allocated to: PS_800_NARROW", prompt)
+        self.assertIn("Allowed modulation modes for this band: P25, FM_NARROW", prompt)
+        self.assertIn("ML classifier output: P25  (in allowed_modes for this band)", prompt)
+        self.assertIn("Band-plan agreement: accepted", prompt)
 
     @mock.patch("urllib.request.urlopen")
     def test_no_anomaly_clause_when_in_band(self, mock_urlopen):
@@ -174,6 +212,40 @@ class CallClaudeNoApiKeyTests(unittest.TestCase):
         result = interpret.call_claude("", _base_bundle(), "model")
         self.assertEqual(result, "no key configured")
         mock_urlopen.assert_not_called()
+
+
+class CacheKeyVersioningTests(unittest.TestCase):
+    """C5 added band_rejected and prompt_v='c5' to the cache key. Two purposes:
+       1. Pre-C5 cache entries no longer match (one-time invalidation of stale
+          hallucinated prose).
+       2. Future prompt revisions can bump prompt_v to invalidate cleanly."""
+
+    def test_pre_c5_hash_does_not_match_post_c5(self):
+        pre_c5_key = {"bin_idx": 4679, "modulation_class": "NXDN"}
+        post_c5_key = {
+            "bin_idx": 4679,
+            "modulation_class": "NXDN",
+            "band_rejected": True,
+            "prompt_v": "c5",
+        }
+        self.assertNotEqual(
+            interpret.hash_bundle(pre_c5_key),
+            interpret.hash_bundle(post_c5_key),
+        )
+
+    def test_band_rejected_distinguishes_otherwise_identical_keys(self):
+        """A rejected vs accepted detection at the same bin_idx / class must
+        get different cache entries — otherwise a future re-run would serve
+        the wrong prose for an accepted detection that happens to match a
+        previously-rejected one's bin."""
+        rejected_key = {"bin_idx": 100, "modulation_class": "QAM",
+                        "band_rejected": True, "prompt_v": "c5"}
+        accepted_key = {"bin_idx": 100, "modulation_class": "QAM",
+                        "band_rejected": False, "prompt_v": "c5"}
+        self.assertNotEqual(
+            interpret.hash_bundle(rejected_key),
+            interpret.hash_bundle(accepted_key),
+        )
 
 
 if __name__ == "__main__":
