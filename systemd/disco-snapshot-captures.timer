@@ -1,0 +1,18 @@
+[Unit]
+Description=Daily-at-23:55-LOCAL trigger for disco-snapshot-captures.service
+Documentation=https://github.com/willminkoff/scannerproject
+
+[Timer]
+# Fires at 23:55 in the system's LOCAL timezone (set on Micro to
+# America/Chicago via timedatectl), which is what the script's
+# DISCO_LOCAL_TZ default already expects. Using a tz-naive OnCalendar
+# expression means systemd reads the local TZ at fire time — this
+# avoids drift if the system TZ changes (DST, etc.).
+OnCalendar=*-*-* 23:55:00
+# Catch up if the system was off when the timer should have fired.
+Persistent=true
+# Tiny random spread so multiple timers don't co-fire on the second.
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target
