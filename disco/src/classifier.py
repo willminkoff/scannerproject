@@ -356,11 +356,21 @@ _CAPTURE_COUNTS: dict = {}
 
 
 def _capture_count(label: str) -> int:
-    """Lazy count of files in the capture dir for a label."""
+    """Lazy count of .iq.f32 captures in the dir for a label.
+
+    Counts ONLY .iq.f32 files, not the .meta sidecars maybe_archive_slice
+    writes alongside each capture. Before this fix, os.listdir() returned
+    both and the cap check (`>= CAPTURE_MAX_PER_LABEL`) was effectively
+    halved — labels with >1000 captures (FM_BROADCAST, P25) silently
+    stopped archiving because 2*N entries exceeded the 2000-file cap
+    even though only N slices were present. P25 was the operational
+    casualty: 1208 actual captures × 2 sidecars = 2416 ≥ 2000, so the
+    hill-stint P25 traffic was being classified but not archived.
+    """
     if label not in _CAPTURE_COUNTS:
         d = os.path.join(CAPTURE_DIR, label)
         try:
-            _CAPTURE_COUNTS[label] = len(os.listdir(d))
+            _CAPTURE_COUNTS[label] = sum(1 for f in os.listdir(d) if f.endswith(".iq.f32"))
         except FileNotFoundError:
             _CAPTURE_COUNTS[label] = 0
     return _CAPTURE_COUNTS[label]
