@@ -166,6 +166,33 @@ class RspduoDiscoveryTests(unittest.TestCase):
             ],
         )
 
+    def test_two_rspduos_two_slots_prefer_both_tuner_1s(self):
+        _FakeSoapyDevice.enumerate_return = [
+            {"driver": "sdrplay", "serial": "180903EF32", "label": "RSPduo A"},
+            {"driver": "sdrplay", "serial": "9F00112233", "label": "RSPduo B"},
+        ]
+        self.assertEqual(
+            favorites_runtime._rspduo_tuner_ids(max_tuners=2),
+            [
+                "RSPduo Tuner 1 SER#180903EF32",
+                "RSPduo Tuner 1 SER#9F00112233",
+            ],
+        )
+
+    def test_second_tuner_only_appears_after_all_tuner_1_slots(self):
+        _FakeSoapyDevice.enumerate_return = [
+            {"driver": "sdrplay", "serial": "180903EF32", "label": "RSPduo A"},
+            {"driver": "sdrplay", "serial": "9F00112233", "label": "RSPduo B"},
+        ]
+        self.assertEqual(
+            favorites_runtime._rspduo_tuner_ids(max_tuners=3),
+            [
+                "RSPduo Tuner 1 SER#180903EF32",
+                "RSPduo Tuner 1 SER#9F00112233",
+                "RSPduo Tuner 2 SER#180903EF32",
+            ],
+        )
+
     def test_blank_serial_skipped(self):
         _FakeSoapyDevice.enumerate_return = [
             {"driver": "sdrplay", "serial": "", "label": "RSPduo no-serial"},

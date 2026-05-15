@@ -80,6 +80,9 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+_RSPDUO_USB_ENUM_RETRY_SLEEP_SEC = 2.0
+
+
 def _env_flag(name: str, default: str = "0") -> bool:
     return str(os.getenv(name, default) or "").strip().lower() in {
         "1",
@@ -167,6 +170,95 @@ def _digital_serials() -> list[str]:
     return filtered
 
 
+def _sysfs_text(path: str) -> str:
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as handle:
+            return handle.readline().strip()
+    except Exception:
+        return ""
+
+
+def _rspduo_usb_sample() -> tuple[int, list[str]]:
+    """Single sysfs pass: return (matching-device-count, collected-serials).
+
+    Counts every ``/sys/bus/usb/devices`` entry whose ``idVendor``/``idProduct``
+    match the RSPduo VID:PID (``1df7:3020``).  The count is populated even when
+    the device's firmware load is still mid-flight and ``serial`` is empty —
+    that asymmetry is the signal used by ``_rspduo_usb_serials()`` to detect
+    the post-boot USB-enum race.
+    """
+    base = "/sys/bus/usb/devices"
+    if not os.path.isdir(base):
+        return 0, []
+    try:
+        entries = os.listdir(base)
+    except Exception:
+        return 0, []
+    count = 0
+    serials: list[str] = []
+    seen: set[str] = set()
+    for entry in entries:
+        dev_dir = os.path.join(base, entry)
+        vendor = _sysfs_text(os.path.join(dev_dir, "idVendor")).lower()
+        product = _sysfs_text(os.path.join(dev_dir, "idProduct")).lower()
+        if vendor != "1df7" or product != "3020":
+            continue
+        count += 1
+        serial = _sysfs_text(os.path.join(dev_dir, "serial")).strip().upper()
+        if not serial or serial in seen:
+            continue
+        seen.add(serial)
+        serials.append(serial)
+    return count, sorted(serials)
+
+
+def _rspduo_usb_serials() -> list[str]:
+    """Resolve attached RSPduo serial numbers via Linux sysfs.
+
+    Two-pass with one-shot retry to survive the sdrplay-api firmware-load
+    USB-enum race on boot: when ``idVendor``/``idProduct`` are populated but
+    ``serial`` is still empty for one or more devices, the first sample
+    yields fewer serials than VID:PID matches.  We sleep briefly and
+    re-sample; if the mismatch persists we return ``[]`` and let the caller
+    fall back to SoapySDR enumeration (which has its own retries).
+
+    Retry sleep is overridable via ``RSPDUO_USB_ENUM_RETRY_SLEEP_SEC``.
+    """
+    count, serials = _rspduo_usb_sample()
+    if count == 0:
+        return []
+    if len(serials) == count:
+        return serials
+
+    try:
+        sleep_s = float(
+            os.getenv("RSPDUO_USB_ENUM_RETRY_SLEEP_SEC", "")
+            or _RSPDUO_USB_ENUM_RETRY_SLEEP_SEC
+        )
+    except (TypeError, ValueError):
+        sleep_s = _RSPDUO_USB_ENUM_RETRY_SLEEP_SEC
+
+    logger.info(
+        "RSPduo USB enum incomplete (%d device(s), %d serial(s)) — retry in %.1fs",
+        count, len(serials), sleep_s,
+    )
+    time.sleep(max(0.0, sleep_s))
+
+    count2, serials2 = _rspduo_usb_sample()
+    if count2 > 0 and len(serials2) == count2:
+        logger.info(
+            "RSPduo USB enum retry recovered %d serial(s)", len(serials2)
+        )
+        return serials2
+
+    logger.warning(
+        "RSPduo USB enum still incomplete after retry "
+        "(pass1: %d/%d, pass2: %d/%d) — returning [] for SoapySDR fallback",
+        len(serials), count, len(serials2), count2,
+    )
+    return []
+
+
 def _rspduo_tuner_ids(*, max_tuners: int | None = None) -> list[str]:
     """Discover RSPduo tuner identifiers available to the digital backend.
 
@@ -197,36 +289,6 @@ def _rspduo_tuner_ids(*, max_tuners: int | None = None) -> list[str]:
     is attached, or on any enumeration failure — the allocator then runs
     as a pure-RTL pool without RSPduo participation.
     """
-    def _sysfs_text(path: str) -> str:
-        try:
-            with open(path, "r", encoding="utf-8", errors="ignore") as handle:
-                return handle.readline().strip()
-        except Exception:
-            return ""
-
-    def _rspduo_usb_serials() -> list[str]:
-        base = "/sys/bus/usb/devices"
-        if not os.path.isdir(base):
-            return []
-        serials: list[str] = []
-        seen: set[str] = set()
-        try:
-            entries = os.listdir(base)
-        except Exception:
-            return []
-        for entry in entries:
-            dev_dir = os.path.join(base, entry)
-            vendor = _sysfs_text(os.path.join(dev_dir, "idVendor")).lower()
-            product = _sysfs_text(os.path.join(dev_dir, "idProduct")).lower()
-            if vendor != "1df7" or product != "3020":
-                continue
-            serial = _sysfs_text(os.path.join(dev_dir, "serial")).strip().upper()
-            if not serial or serial in seen:
-                continue
-            seen.add(serial)
-            serials.append(serial)
-        return sorted(serials)
-
     tuner_limit: int | None = None
     if max_tuners is not None:
         try:
@@ -324,6 +386,48 @@ _LAST_ACTIVE_POOL: dict[str, Any] = {"trunked_sites": [], "conventional": []}
 def _profile_path_for(profile_id: str) -> str:
     filename = f"rtl_airband_{profile_id}.conf"
     return os.path.join(str(PROFILES_DIR), filename)
+
+
+_RE_MANAGED_SERIAL = re.compile(r'^(\s*)serial(\s*=\s*)"([^"]*)"(\s*;.*)$')
+
+
+def _enforce_managed_profile_serial(conf_path: str, desired_serial: str) -> bool:
+    """Re-sync a managed profile's ``serial = "…";`` line to match env.
+
+    Returns True if the file was rewritten. No-op if ``desired_serial`` is
+    empty/unset, if the file is missing, or if no ``serial`` line exists
+    (seeding a serial is left to the runtime config builder).
+    """
+    desired = str(desired_serial or "").strip()
+    if not desired:
+        return False
+    conf_path = os.path.realpath(conf_path)
+    try:
+        with open(conf_path, "r", encoding="utf-8", errors="ignore") as handle:
+            lines = handle.readlines()
+    except FileNotFoundError:
+        return False
+
+    out: list[str] = []
+    changed = False
+    for line in lines:
+        match = _RE_MANAGED_SERIAL.match(line)
+        if match and match.group(3) != desired:
+            indent, equals, _, tail = match.groups()
+            trailing_nl = "\n" if line.endswith("\n") else ""
+            out.append(f'{indent}serial{equals}"{desired}"{tail}{trailing_nl}')
+            changed = True
+            continue
+        out.append(line)
+
+    if not changed:
+        return False
+
+    tmp = conf_path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as handle:
+        handle.writelines(out)
+    os.replace(tmp, conf_path)
+    return True
 
 
 def _coerce_float(value: Any) -> float | None:
@@ -468,6 +572,11 @@ def _ensure_managed_profile(
 
     write_airband_flag(safe_path, bool(airband))
     enforce_profile_index(safe_path)
+
+    serial_env_key = "AIRBAND_RTL_SERIAL" if airband else "GROUND_RTL_SERIAL"
+    desired_serial = os.environ.get(serial_env_key, "").strip()
+    if _enforce_managed_profile_serial(safe_path, desired_serial):
+        changed = True
 
     if profile is None:
         profile = {
@@ -750,6 +859,28 @@ def _coerce_site_float(value: Any) -> float | None:
     return parsed if parsed == parsed else None
 
 
+def _site_radius_sort_value(value: Any) -> float:
+    parsed = _coerce_site_float(value)
+    if parsed is None or parsed <= 0:
+        return 0.0
+    return float(parsed)
+
+
+def _site_distance_sort_value(value: Any) -> float:
+    parsed = _coerce_site_float(value)
+    if parsed is None or parsed < 0:
+        return float("inf")
+    return float(parsed)
+
+
+def _primary_site_distance_sort_value(system: dict[str, Any]) -> float:
+    sites = system.get("sites") or []
+    if not isinstance(sites, list) or not sites:
+        return float("inf")
+    primary = sites[0] if isinstance(sites[0], dict) else {}
+    return _site_distance_sort_value(primary.get("distance_miles"))
+
+
 def _normalize_digital_pool(
     pool: dict[str, Any],
 ) -> tuple[list[dict[str, Any]], list[dict[str, str]], list[str], dict[str, int]]:
@@ -811,12 +942,15 @@ def _normalize_digital_pool(
         latitude = _coerce_site_float(row.get("latitude"))
         longitude = _coerce_site_float(row.get("longitude"))
         radius = _coerce_site_float(row.get("radius"))
+        distance_miles = _coerce_site_float(row.get("distance_miles"))
         if latitude is not None:
             site_entry["latitude"] = latitude
         if longitude is not None:
             site_entry["longitude"] = longitude
         if radius is not None:
             site_entry["radius"] = radius
+        if distance_miles is not None:
+            site_entry["distance_miles"] = distance_miles
 
         existing_site = None
         for candidate in system_entry["sites"]:
@@ -841,6 +975,8 @@ def _normalize_digital_pool(
                 existing_site["longitude"] = longitude
             if radius is not None and existing_site.get("radius") is None:
                 existing_site["radius"] = radius
+            if distance_miles is not None and existing_site.get("distance_miles") is None:
+                existing_site["distance_miles"] = distance_miles
 
         labels = row.get("talkgroup_labels") if isinstance(row.get("talkgroup_labels"), dict) else {}
         groups = row.get("talkgroup_groups") if isinstance(row.get("talkgroup_groups"), dict) else {}
@@ -877,21 +1013,29 @@ def _normalize_digital_pool(
 
     talkgroups.sort(key=lambda row: int(row["dec"]))
     controls_flat.sort(key=lambda token: float(token))
-    systems = sorted(
-        systems_by_key.values(),
-        key=lambda row: (
-            str(row.get("system_id") or ""),
-            str(row.get("name") or "").lower(),
-        ),
-    )
-    for system in systems:
+    # Sort sites within each system first so sites[0] is the primary
+    # (largest-radius, then closest). The allocator may drop the tail when
+    # over-subscribed; using the primary site's distance as the cross-system
+    # key keeps geographically appropriate systems and avoids the Davidson
+    # Services-vs-Simulcast trap (small-radius services don't outrank big
+    # simulcasts on the same system).
+    for system in systems_by_key.values():
         system["sites"] = sorted(
             list(system.get("sites") or []),
             key=lambda row: (
+                -_site_radius_sort_value(row.get("radius")),
+                _site_distance_sort_value(row.get("distance_miles")),
                 str(row.get("site_name") or "").lower(),
                 str(row.get("site_id") or ""),
             ),
         )
+    systems = sorted(
+        systems_by_key.values(),
+        key=lambda row: (
+            _primary_site_distance_sort_value(row),
+            str(row.get("name") or "").lower(),
+        ),
+    )
     summary = {
         "systems": len(systems),
         "talkgroups": len(talkgroups),

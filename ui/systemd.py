@@ -138,6 +138,51 @@ def _reset_failed_units(units) -> None:
         pass
 
 
+def _sdrplay_daemon_healthy() -> Tuple[bool, str]:
+    """Probe whether the sdrplay daemon can be left alone during op25 restart.
+
+    Healthy = daemon process exists AND no recent sdrplay_apiServ segfault
+    in the kernel journal within OP25_SDRPLAY_HEALTH_PROBE_WINDOW_SEC (default
+    30s). When healthy, restart_digital() skips the daemon restart — every
+    restart-cycle was observed to segfault the daemon, so skipping is a
+    correctness win, not just a perf win.
+
+    Returns (healthy, reason). On probe errors, defaults to "unhealthy"
+    so the cascade falls through to the existing restart path.
+    """
+    window_sec = int(_env_float("OP25_SDRPLAY_HEALTH_PROBE_WINDOW_SEC", 30.0, minimum=1.0))
+
+    try:
+        pgrep = subprocess.run(
+            ["pgrep", "-x", "sdrplay_apiServ"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            check=False,
+        )
+    except Exception as e:
+        return False, f"pgrep failed: {e}"
+    if pgrep.returncode != 0 or not (pgrep.stdout or "").strip():
+        return False, "daemon process not running"
+
+    try:
+        jc = subprocess.run(
+            ["journalctl", "-k", "--since", f"{window_sec} seconds ago", "--no-pager"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            check=False,
+        )
+    except Exception as e:
+        return False, f"journalctl probe failed: {e}"
+    if jc.returncode != 0:
+        return False, f"journalctl returned {jc.returncode}"
+    for line in (jc.stdout or "").splitlines():
+        if "sdrplay_apiServ" in line and "segfault" in line:
+            return False, f"recent segfault within {window_sec}s"
+    return True, f"daemon running, no segfault in {window_sec}s"
+
+
 def unit_active_enter_epoch(unit: str):
     """Return ActiveEnterTimestampUSec as epoch seconds, or None."""
     def parse_epoch(result):
@@ -225,11 +270,16 @@ def restart_digital(unit: Optional[str] = None) -> Tuple[bool, str]:
     _reset_failed_units([digital_unit, audio_unit if audio_exists else ""])
 
     if sdrplay_exists:
-        ok, err = _restart_unit(sdrplay_unit, use_sudo=True)
-        if not ok:
-            return False, f"sdrplay restart: {err}"
-        if sdrplay_settle_sec > 0:
-            time.sleep(sdrplay_settle_sec)
+        healthy, reason = _sdrplay_daemon_healthy()
+        if healthy:
+            print(f"restart_digital: sdrplay daemon healthy ({reason}); skipping restart", flush=True)
+        else:
+            print(f"restart_digital: sdrplay daemon needs restart ({reason})", flush=True)
+            ok, err = _restart_unit(sdrplay_unit, use_sudo=True)
+            if not ok:
+                return False, f"sdrplay restart: {err}"
+            if sdrplay_settle_sec > 0:
+                time.sleep(sdrplay_settle_sec)
 
     ok, err = _start_unit(digital_unit, use_sudo=True)
     if not ok:

@@ -16,7 +16,46 @@ logger = logging.getLogger(__name__)
 
 
 _EARTH_RADIUS_MILES = 3958.7613
-_HP_TRUNK_SITES_PER_SYSTEM = max(1, int(os.getenv("HP_TRUNK_SITES_PER_SYSTEM", "1")))
+_HP_TRUNK_MAX_SITES_PER_SYSTEM_DEFAULT = 5
+
+# Pre-filter padding for the SQL bounding box added to trunk_sites and
+# conventional_freqs queries in build_full_database_pool. Computed as
+# (user_range + RADIUS_PAD_MILES) on each side of center, the box is a
+# pre-filter that lets the lat/lon indexes (idx_conventional_groups_lat_lon,
+# idx_trunk_sites lat/lon) skip the >90% of nationwide rows that can't
+# possibly be in range. The Python-side haversine() check stays as the
+# precise post-filter.
+#
+# 100 mi padding preserves >91% of conventional_freqs (post-JOIN) by row
+# count and >95% of trunk_sites; the excluded rows are large-radius
+# pseudo-rows (mostly _MultipleStates.hpd nationwide entries already
+# special-cased downstream) plus a small tail of remote province/state
+# centroids that wouldn't intersect any reasonable user range from the
+# typical ~25-50 mi user setting. Bump if a real-world miss is observed.
+RADIUS_PAD_MILES = 100.0
+
+
+def _hp_trunk_max_sites_per_system() -> int:
+    raw = os.getenv("HP_TRUNK_MAX_SITES_PER_SYSTEM")
+    if raw is None:
+        raw = os.getenv("HP_TRUNK_SITES_PER_SYSTEM")
+    if raw is None:
+        raw = str(_HP_TRUNK_MAX_SITES_PER_SYSTEM_DEFAULT)
+    try:
+        parsed = int(str(raw).strip())
+    except Exception:
+        parsed = _HP_TRUNK_MAX_SITES_PER_SYSTEM_DEFAULT
+    return max(1, int(parsed))
+
+
+def _site_radius_sort_value(value) -> float:
+    try:
+        parsed = float(str(value).strip())
+    except Exception:
+        return 0.0
+    if not math.isfinite(parsed) or parsed <= 0:
+        return 0.0
+    return parsed
 
 
 def haversine_miles(lat1, lon1, lat2, lon2) -> float:
@@ -290,6 +329,20 @@ class ScanPoolBuilder:
 
             has_protocol_col = self._table_has_column(conn, "trunk_systems", "protocol")
             protocol_select = "sys.protocol AS protocol" if has_protocol_col else "NULL AS protocol"
+
+            # SQL pre-filter bounding box. (lat_miles_per_degree and
+            # lon_miles_per_degree were computed at the top of this method.)
+            # Both trunk_sites and conventional_freqs queries use the same
+            # box; conservative pad lets the lat/lon indexes skip ~90% of
+            # nationwide rows.
+            bb_range = float(user_range) + RADIUS_PAD_MILES
+            bb_lat_delta = bb_range / lat_miles_per_degree
+            bb_lon_delta = bb_range / lon_miles_per_degree
+            lat_min = center_lat - bb_lat_delta
+            lat_max = center_lat + bb_lat_delta
+            lon_min = center_lon - bb_lon_delta
+            lon_max = center_lon + bb_lon_delta
+
             site_rows = conn.execute(
                 f"""
                 SELECT
@@ -304,8 +357,11 @@ class ScanPoolBuilder:
                     {protocol_select}
                 FROM trunk_sites ts
                 LEFT JOIN trunk_systems sys ON sys.trunk_id = ts.trunk_id
+                WHERE ts.latitude BETWEEN ? AND ?
+                  AND ts.longitude BETWEEN ? AND ?
                 ORDER BY ts.trunk_id, ts.site_id
-                """
+                """,
+                (lat_min, lat_max, lon_min, lon_max),
             ).fetchall()
             localized_trunk_ids: set[int] = set()
             localized_agency_ids: set[int] = set()
@@ -313,7 +369,6 @@ class ScanPoolBuilder:
                 localized_trunk_ids, localized_agency_ids = self._load_multistate_scope_overrides(conn)
 
             selected_sites: list[dict[str, object]] = []
-            selected_by_system: dict[int, set[int]] = {}
             for row in site_rows:
                 source_file = str(row["source_file"] or "").strip()
                 site_id = self._parse_int(row["site_id"])
@@ -330,21 +385,23 @@ class ScanPoolBuilder:
                 site_lon = self._parse_float(row["longitude"])
                 if site_lat is None or site_lon is None:
                     continue
-                site_radius = max(0.0, float(self._parse_float(row["radius"]) or 0.0))
+                site_radius_raw = self._parse_float(row["radius"])
+                site_radius = float(site_radius_raw) if site_radius_raw is not None else None
                 # Some _MultipleStates rows are synthetic national/regional
                 # centroids (e.g. 42,-98 with 1000+ mile radius). Treat those
                 # as out-of-scope for local full-db mode unless nationwide is
                 # explicitly enabled.
                 if source_file.lower() == "_multiplestates.hpd" and not include_nationwide:
-                    if site_radius > max(75.0, user_range * 3.0):
+                    if site_radius is not None and site_radius > max(75.0, user_range * 3.0):
                         continue
-                threshold = user_range if strict else (user_range + site_radius)
-                if abs(site_lat - center_lat) * lat_miles_per_degree > threshold:
-                    continue
-                if abs(site_lon - center_lon) * lon_miles_per_degree > threshold:
-                    continue
+                if site_radius is not None and site_radius > 0:
+                    threshold = site_radius
+                    if abs(site_lat - center_lat) * lat_miles_per_degree > threshold:
+                        continue
+                    if abs(site_lon - center_lon) * lon_miles_per_degree > threshold:
+                        continue
                 distance = haversine_miles(center_lat, center_lon, site_lat, site_lon)
-                if distance > threshold:
+                if site_radius is not None and site_radius > 0 and distance > site_radius:
                     continue
                 try:
                     raw_protocol = row["protocol"]
@@ -356,16 +413,19 @@ class ScanPoolBuilder:
                         "site_id": int(site_id),
                         "system_name": str(row["system_name"] or "").strip(),
                         "site_name": str(row["site_name"] or "").strip(),
+                        "latitude": float(site_lat),
+                        "longitude": float(site_lon),
+                        "radius": site_radius,
                         "distance_miles": float(distance),
                         "protocol": str(raw_protocol or "").strip() or None,
                     }
                 )
-                selected_by_system.setdefault(system_id, set()).add(site_id)
 
             # Load control-channel freqs up-front so the per-system trim can
             # apply the per-protocol band-viability filter (see
             # ui/protocol_bands.py). The same dict is reused after trimming.
             control_channels_by_site: dict[int, list[float]] = {}
+            selected_by_system: dict[int, set[int]] = {}
             if selected_sites:
                 site_ids = sorted(
                     {
@@ -402,7 +462,8 @@ class ScanPoolBuilder:
                     selected_sites, control_channels_by_site
                 )
 
-            if _HP_TRUNK_SITES_PER_SYSTEM > 0 and selected_sites:
+            if selected_sites:
+                site_limit = _hp_trunk_max_sites_per_system()
                 per_system: dict[int, list[dict[str, object]]] = {}
                 for item in selected_sites:
                     sys_id = int(item.get("system_id") or 0)
@@ -410,33 +471,33 @@ class ScanPoolBuilder:
                         continue
                     per_system.setdefault(sys_id, []).append(item)
 
-                trimmed_sites: list[dict[str, object]] = []
-                trimmed_by_system: dict[int, set[int]] = {}
+                capped_sites: list[dict[str, object]] = []
                 for sys_id, rows in per_system.items():
                     ranked = sorted(
                         rows,
                         key=lambda item: (
+                            -_site_radius_sort_value(item.get("radius")),
                             float(item.get("distance_miles") or 0.0),
                             int(item.get("site_id") or 0),
                         ),
                     )
-                    keep = ranked[:_HP_TRUNK_SITES_PER_SYSTEM]
+                    keep = ranked[:site_limit]
                     for item in keep:
                         site_id = int(item.get("site_id") or 0)
                         if site_id <= 0:
                             continue
-                        trimmed_sites.append(item)
-                        trimmed_by_system.setdefault(sys_id, set()).add(site_id)
+                        capped_sites.append(item)
+                        selected_by_system.setdefault(sys_id, set()).add(site_id)
 
                 selected_sites = sorted(
-                    trimmed_sites,
+                    capped_sites,
                     key=lambda item: (
-                        float(item.get("distance_miles") or 0.0),
                         int(item.get("system_id") or 0),
+                        -_site_radius_sort_value(item.get("radius")),
+                        float(item.get("distance_miles") or 0.0),
                         int(item.get("site_id") or 0),
                     ),
                 )
-                selected_by_system = trimmed_by_system
 
             talkgroups_by_system: dict[int, list[int]] = {}
             talkgroup_labels_by_system: dict[int, dict[int, str]] = {}
@@ -506,8 +567,9 @@ class ScanPoolBuilder:
             for row in sorted(
                 selected_sites,
                 key=lambda item: (
-                    float(item.get("distance_miles") or 0.0),
                     int(item.get("system_id") or 0),
+                    -_site_radius_sort_value(item.get("radius")),
+                    float(item.get("distance_miles") or 0.0),
                     int(item.get("site_id") or 0),
                 ),
             ):
@@ -537,6 +599,9 @@ class ScanPoolBuilder:
                         "system_name": str(row.get("system_name") or "").strip(),
                         "site_name": str(row.get("site_name") or "").strip(),
                         "department_name": str(row.get("site_name") or "").strip(),
+                        "latitude": row.get("latitude"),
+                        "longitude": row.get("longitude"),
+                        "radius": row.get("radius"),
                         "distance_miles": float(row.get("distance_miles") or 0.0),
                         "protocol": row.get("protocol") or None,
                         "control_channels": control_channels,
@@ -562,9 +627,11 @@ class ScanPoolBuilder:
                 JOIN conventional_groups cg ON cg.cgroup_id = cf.cgroup_id
                 WHERE cf.service_tag IN ({tag_placeholders})
                   AND cf.freq_hz IS NOT NULL
+                  AND cg.latitude BETWEEN ? AND ?
+                  AND cg.longitude BETWEEN ? AND ?
                 ORDER BY cf.cgroup_id, cf.freq_hz, cf.cfreq_id
                 """,
-                tags,
+                list(tags) + [lat_min, lat_max, lon_min, lon_max],
             ).fetchall()
 
             conventional_set: set[tuple[float, str, int]] = set()

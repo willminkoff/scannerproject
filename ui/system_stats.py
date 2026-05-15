@@ -1,4 +1,6 @@
 """System stats helpers for host/PC health telemetry."""
+from __future__ import annotations
+
 from collections import deque
 import json
 import logging
@@ -292,6 +294,7 @@ def _expected_rtl_serials():
     for key in (
         "AIRBAND_RTL_SERIAL",
         "GROUND_RTL_SERIAL",
+        "ACARS_RTL_SERIAL",
         "VDL2_RTL_SERIAL",
     ):
         value = str(os.getenv(key, "") or "").strip()
@@ -304,7 +307,6 @@ def _expected_rtl_serials():
         "DIGITAL_RTL_SERIAL_2",
         "DIGITAL_RTL_SERIAL_TERTIARY",
         "DIGITAL_RTL_SERIAL_3",
-        "VDL2_RTL_SERIAL",
     )
     digital_source = assigned_digital_serials if assigned_targets else [
         str(os.getenv(key, "") or "").strip()

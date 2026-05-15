@@ -96,6 +96,59 @@ class TestAllocate(unittest.TestCase):
         self.assertEqual(result["assignments"][1]["system_name"], "Vanderbilt")
         self.assertEqual(result["traffic_pool"], ["56919602"])
 
+    def test_over_subscription_audit_log_includes_primary_site_distance(self):
+        """When dropping the tail, log a single INFO line that names the dropped
+        systems with primary-site + distance so operators can grep for surprises."""
+        import logging
+        systems = [
+            {
+                "name": "TACN",
+                "control_channels_mhz": ["769.83125"],
+                "sites": [{"site_name": "District 3", "distance_miles": 3.2}],
+            },
+            {
+                "name": "MTRTRS",
+                "control_channels_mhz": ["856.9375"],
+                "sites": [{"site_name": "Simulcast", "distance_miles": 6.0}],
+            },
+            {
+                "name": "FarAway",
+                "control_channels_mhz": ["851.5"],
+                "sites": [{"site_name": "Edge Tower", "distance_miles": 28.7}],
+            },
+        ]
+        with self.assertLogs("ui.dongle_allocator", level="INFO") as cm:
+            allocate(
+                ["00000001", "14306619"],
+                systems,
+                persist=False,
+            )
+        joined = "\n".join(cm.output)
+        self.assertIn("Dongle over-subscription: 3 systems > 2 dongles", joined)
+        self.assertIn("TACN@District 3(3.2mi)", joined)
+        self.assertIn("FarAway@Edge Tower(28.7mi)", joined)
+        # Dropped list must contain the farthest; kept list must contain the closest.
+        # Split on "Kept" / "Dropped" markers for ordering check.
+        self.assertIn("Kept 1 (closest): TACN@District 3(3.2mi)", joined)
+        self.assertIn("Dropped 2:", joined)
+
+    def test_over_subscription_audit_log_handles_missing_site_metadata(self):
+        """Systems without site data still produce a usable log line."""
+        import logging
+        with self.assertLogs("ui.dongle_allocator", level="INFO") as cm:
+            allocate(
+                ["00000001", "14306619"],
+                [
+                    _sys("A", "851.0"),
+                    _sys("B", "852.0"),
+                    _sys("C", "853.0"),
+                ],
+                persist=False,
+            )
+        joined = "\n".join(cm.output)
+        self.assertIn("Dongle over-subscription:", joined)
+        self.assertIn("(?mi)", joined)
+
     def test_deduplicates_serials(self):
         result = allocate(
             ["56919602", "56919602", "00000001"],

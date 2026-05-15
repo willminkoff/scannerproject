@@ -42,6 +42,7 @@ def _write_profile(path, *, airband, ui_disabled=False, with_devices=True):
 def _write_runtime_profile(path, *, airband, freqs, labels, squelch_dbfs, gain=32.8):
     freqs_text = ", ".join(f"{float(freq):.4f}" for freq in freqs)
     labels_text = ", ".join(f'"{label}"' for label in labels)
+    modulation = '"am"' if airband else '"nfm"'
     with open(path, "w", encoding="utf-8") as handle:
         handle.write(
             "\n".join(
@@ -60,7 +61,7 @@ def _write_runtime_profile(path, *, airband, freqs, labels, squelch_dbfs, gain=3
                     "    {",
                     f"      freqs = ({freqs_text});",
                     f"      labels = ({labels_text});",
-                    f'      modulation = {"\"am\"" if airband else "\"nfm\""};',
+                    f"      modulation = {modulation};",
                     f"      squelch_threshold = {int(round(float(squelch_dbfs)))};  # UI_CONTROLLED",
                     "    }",
                     "  );",
@@ -1165,7 +1166,7 @@ class RecentRegressionTests(unittest.TestCase):
         kwargs = build_pool.call_args.kwargs
         self.assertTrue(bool(kwargs.get("strict_location")))
 
-    def test_scan_pool_full_database_prefers_nearest_site_per_system(self):
+    def test_scan_pool_full_database_preserves_multiple_sites_per_system(self):
         controller = scan_mode_controller.ScanModeController(db_path="/tmp/hpdb-test.db")
         state = HPState.default()
         state.mode = "full_database"
@@ -1211,9 +1212,9 @@ class RecentRegressionTests(unittest.TestCase):
             filtered = controller.get_scan_pool()
 
         trunked = filtered.get("trunked_sites") or []
-        self.assertEqual(2, len(trunked))
+        self.assertEqual(3, len(trunked))
         site_ids = sorted(int(row.get("site_id") or 0) for row in trunked)
-        self.assertEqual([11, 20], site_ids)
+        self.assertEqual([10, 11, 20], site_ids)
 
     def test_scan_pool_favorites_location_trims_controls_to_nearest_sites(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1315,7 +1316,7 @@ class RecentRegressionTests(unittest.TestCase):
                 )
                 conn.execute(
                     "INSERT INTO trunk_sites(site_id, trunk_id, site_name, source_file, latitude, longitude, radius) VALUES (?,?,?,?,?,?,?)",
-                    (2002, 84, "Backup Site", "TN.hpd", 37.5000, -87.9000, 2.0),
+                    (2002, 84, "Backup Site", "TN.hpd", 37.5000, -87.9000, 200.0),
                 )
                 conn.execute("INSERT INTO trunk_freqs(site_id, freq_hz) VALUES (?,?)", (2001, 851100000))
                 conn.execute("INSERT INTO trunk_freqs(site_id, freq_hz) VALUES (?,?)", (2002, 853100000))
@@ -1357,11 +1358,11 @@ class RecentRegressionTests(unittest.TestCase):
             trunked = pool.get("trunked_sites") or []
             self.assertEqual(2, len(trunked))
             site_ids = [int(row.get("site_id") or 0) for row in trunked]
-            self.assertEqual([2001, 2002], site_ids)
-            self.assertEqual([851.1], list(trunked[0].get("control_channels") or []))
-            self.assertEqual([853.1], list(trunked[1].get("control_channels") or []))
-            self.assertEqual("Primary Site", trunked[0].get("site_name"))
-            self.assertEqual("Backup Site", trunked[1].get("site_name"))
+            self.assertEqual([2002, 2001], site_ids)
+            self.assertEqual([853.1], list(trunked[0].get("control_channels") or []))
+            self.assertEqual([851.1], list(trunked[1].get("control_channels") or []))
+            self.assertEqual("Backup Site", trunked[0].get("site_name"))
+            self.assertEqual("Primary Site", trunked[1].get("site_name"))
 
     def test_build_custom_favorites_pool_merges_trunked_departments_per_system(self):
         controller = scan_mode_controller.ScanModeController(db_path="/tmp/hpdb-test.db")
@@ -2090,6 +2091,32 @@ class HealthPayloadTests(unittest.TestCase):
             for reason in payload["subsystems"]["analog_scan"].get("reasons") or []
         }
         self.assertIn("ANALOG_SCAN_MONOPOLIZED", reason_codes)
+
+
+class DigitalTargetSelectionTests(unittest.TestCase):
+    def test_handler_digital_tuner_targets_prefer_allocator_assignments(self):
+        assignments = {
+            "digital_serials": [
+                "RSPduo Tuner 1 SER#180903EF32",
+                "70613472",
+            ]
+        }
+        with mock.patch.object(handlers, "DIGITAL_PREFERRED_TUNER", ""), mock.patch.object(
+            handlers, "DIGITAL_RTL_SERIAL", "14306619"
+        ), mock.patch.object(
+            handlers, "DIGITAL_RTL_SERIAL_SECONDARY", "70613472"
+        ), mock.patch.object(
+            handlers, "DIGITAL_RTL_SERIAL_TERTIARY", "80000003"
+        ), mock.patch.object(
+            handlers, "DIGITAL_RTL_DEVICE", ""
+        ), mock.patch.object(
+            handlers, "load_dongle_assignments", return_value=assignments
+        ):
+            self.assertEqual(
+                ["RSPduo Tuner 1 SER#180903EF32", "70613472"],
+                handlers._digital_tuner_targets(),
+            )
+            self.assertEqual(["70613472"], handlers._effective_digital_rtl_serials())
 
 
 class DigitalStatusAliasTests(unittest.TestCase):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,6 +15,7 @@ from ui.op25_adapter import (
     _iso_utc,
     _load_selector_state,
     _normalize_runtime_system_definitions,
+    _selector_state_path,
     generate_multi_rx_config,
     generate_trunk_tsv,
 )
@@ -112,6 +114,14 @@ def _selector_state(now_ms: int, **overrides) -> dict:
 
 
 class RuntimeNormalizationTests(unittest.TestCase):
+    def test_selector_state_path_moves_run_runtime_to_persistent_state_dir(self):
+        with mock.patch.dict(os.environ, {}, clear=False), \
+            mock.patch("os.path.expanduser", return_value="/home/ubuntu"):
+            self.assertEqual(
+                "/home/ubuntu/.local/state/scannerproject/op25/site_selector_state.json",
+                _selector_state_path("/run/scannerproject/op25"),
+            )
+
     def test_legacy_profile_normalizes_to_synthetic_site(self):
         with tempfile.TemporaryDirectory() as tmp:
             profile_dir = Path(tmp)
@@ -239,6 +249,56 @@ class RuntimeNormalizationTests(unittest.TestCase):
             self.assertEqual("18863", runtime_systems_again[0]["active_site_id"])
             self.assertEqual(systems_before, (profile_dir / "systems.json").read_text(encoding="utf-8"))
 
+    def test_hydrate_runtime_state_preserves_selected_control_frequency_order(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            profile_dir = tmp_path / "profile"
+            runtime_dir = tmp_path / "runtime"
+            _write_profile(
+                profile_dir,
+                systems_payload={
+                    "systems": [
+                        {
+                            "name": "MTRTRS",
+                            "sites": [
+                                {
+                                    "site_id": "18863",
+                                    "site_name": "Davidson County Simulcast",
+                                    "control_channels_hz": [856937500, 857437500, 855912500],
+                                    "enabled": True,
+                                }
+                            ],
+                        }
+                    ]
+                },
+            )
+            runtime_dir.mkdir(parents=True, exist_ok=True)
+            state = {
+                "systems": {
+                    "profile::MTRTRS": _selector_state(
+                        2_000_000,
+                        selected_site_id="18863",
+                        selected_site_name="Davidson County Simulcast",
+                        selected_control_frequency_hz=857437500,
+                    ),
+                }
+            }
+            (runtime_dir / "site_selector_state.json").write_text(json.dumps(state) + "\n", encoding="utf-8")
+            systems, hydrated_state = _hydrate_runtime_systems_for_config(str(profile_dir), str(runtime_dir))
+            self.assertEqual(
+                [857437500, 855912500, 856937500],
+                systems[0]["active_control_channels_hz"],
+            )
+            flattened = _flatten_active_runtime_systems(systems)
+            self.assertEqual(
+                [857437500, 855912500, 856937500],
+                flattened[0]["control_channels_hz"],
+            )
+            self.assertEqual(
+                857437500,
+                hydrated_state["systems"]["profile::MTRTRS"]["selected_control_frequency_hz"],
+            )
+
 
 class SiteSelectionDecisionTests(unittest.TestCase):
     def setUp(self):
@@ -344,6 +404,34 @@ class SiteSelectionDecisionTests(unittest.TestCase):
         self.assertEqual("18863", decision["site_id"])
         self.assertEqual("site_switch_unhealthy", decision["reason_code"])
 
+    def test_unknown_alternate_does_not_trigger_unhealthy_switch(self):
+        decision, state = self.adapter._selector_decision_for_system(
+            self.system,
+            self._sys_state(current_site_since=_iso_utc(self.now_ms - 30_000)),
+            [
+                _candidate(
+                    "41154",
+                    score=-20,
+                    site_name="Davidson County Services",
+                    control_locked=False,
+                    control_decode_available=False,
+                    last_tsbk_age_sec=None,
+                ),
+                _candidate(
+                    "18863",
+                    score=-20,
+                    site_name="Davidson County Simulcast",
+                    control_locked=False,
+                    control_decode_available=False,
+                    last_tsbk_age_sec=None,
+                ),
+            ],
+            now_ms=self.now_ms,
+        )
+        self.assertEqual("stay", decision["action"])
+        self.assertEqual("stay_current_unhealthy_no_alternate", decision["reason_code"])
+        self.assertEqual(1, state["stale_window_count"])
+
     def test_healthy_but_unproductive_current_site_switches_when_alternate_exceeds_margin(self):
         decision, _ = self.adapter._selector_decision_for_system(
             self.system,
@@ -422,6 +510,35 @@ class SiteSelectionDecisionTests(unittest.TestCase):
         )
         self.assertEqual("same_site_restart", sixth["action"])
         self.assertEqual("same_site_restart_stale", sixth["reason_code"])
+
+    def test_same_site_restart_can_be_disabled(self):
+        stale_site = _candidate(
+            "41154",
+            score=-40,
+            site_name="Davidson County Services",
+            control_locked=False,
+            control_decode_available=False,
+            last_tsbk_age_sec=120,
+        )
+        state = self._sys_state()
+        with mock.patch.dict(os.environ, {"OP25_SITE_SELECTOR_SAME_SITE_RESTART": "0"}, clear=False):
+            for i in range(1, 6):
+                decision, state = self.adapter._selector_decision_for_system(
+                    self.system,
+                    state,
+                    [stale_site],
+                    now_ms=self.now_ms + 31_000 * i,
+                )
+                self.assertEqual("stay", decision["action"])
+            sixth, state = self.adapter._selector_decision_for_system(
+                self.system,
+                state,
+                [stale_site],
+                now_ms=self.now_ms + 31_000 * 6,
+            )
+        self.assertEqual("stay", sixth["action"])
+        self.assertEqual("stay_same_site_restart_disabled", sixth["reason_code"])
+        self.assertEqual(6, state["stale_window_count"])
 
     def test_post_restart_grace_period_prevents_stale_counting(self):
         """After a restart, the grace period (90s) prevents stale window accumulation."""
@@ -724,6 +841,64 @@ class RestartBatchingTests(unittest.TestCase):
             self.assertEqual(0, mtrtrs["site_switch_restart_count"])
             self.assertEqual(0, mtrtrs["same_site_restart_count"])
             self.assertEqual(0, int(mtrtrs["_last_restart_time_ms"]))
+
+    def test_same_site_restart_rotates_selected_control_frequency_before_regenerate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            profile_dir = tmp_path / "profile"
+            runtime_dir = tmp_path / "runtime"
+            _write_profile(
+                profile_dir,
+                systems_payload={
+                    "systems": [
+                        {
+                            "name": "TACN",
+                            "sites": [
+                                {
+                                    "site_id": "22125",
+                                    "site_name": "West Nashville",
+                                    "control_channels_hz": [769456250, 769831250, 770256250],
+                                    "enabled": True,
+                                }
+                            ],
+                        }
+                    ]
+                },
+            )
+            runtime_dir.mkdir(parents=True, exist_ok=True)
+            state = {
+                "systems": {
+                    "profile::TACN": _selector_state(
+                        2_000_000,
+                        selected_site_id="22125",
+                        selected_site_name="West Nashville",
+                        selected_control_frequency_hz=769456250,
+                    ),
+                }
+            }
+            (runtime_dir / "site_selector_state.json").write_text(json.dumps(state) + "\n", encoding="utf-8")
+            adapter = _make_adapter(str(runtime_dir))
+            with mock.patch.object(adapter, "_regenerate_runtime_via_script", return_value=(True, "")) as regen, \
+                mock.patch.object(adapter, "restart", return_value=(True, "")) as restart:
+                adapter._handle_selector_restart_requests(
+                    str(profile_dir),
+                    [
+                        {
+                            "type": "same_site_restart",
+                            "system_name": "TACN",
+                            "previous_site_id": "22125",
+                            "selected_site_id": "22125",
+                            "reason_code": "same_site_restart_stale",
+                            "reason_text": "Repeated stale windows",
+                            "selection_mode": "fallback",
+                        }
+                    ],
+                )
+            regen.assert_called_once()
+            restart.assert_called_once()
+            updated = _load_selector_state(str(runtime_dir))
+            tacn = updated["systems"]["profile::TACN"]
+            self.assertEqual(769831250, tacn["selected_control_frequency_hz"])
 
 
 class StatusTelemetryTests(unittest.TestCase):

@@ -23,6 +23,7 @@ ET.register_namespace("xsi", _XSI_NS)
 try:
     from .config import (
         AIRBAND_RTL_SERIAL,
+        ACARS_RTL_SERIAL,
         GROUND_RTL_SERIAL,
         DIGITAL_ACTIVE_PROFILE_LINK,
         DIGITAL_BACKEND,
@@ -76,6 +77,7 @@ try:
 except ImportError:
     from ui.config import (
         AIRBAND_RTL_SERIAL,
+        ACARS_RTL_SERIAL,
         GROUND_RTL_SERIAL,
         DIGITAL_ACTIVE_PROFILE_LINK,
         DIGITAL_BACKEND,
@@ -626,6 +628,7 @@ def _auto_extra_digital_rtl_serials(*, dongles: dict | None = None) -> list[str]
         str(token or "").strip()
         for token in (
             AIRBAND_RTL_SERIAL,
+            ACARS_RTL_SERIAL,
             GROUND_RTL_SERIAL,
             DIGITAL_RTL_SERIAL,
             DIGITAL_RTL_SERIAL_SECONDARY,
