@@ -579,17 +579,20 @@ async def stream_spectrum(tuner_id: str, mode: str = "composite", request: Reque
 
 
 HTML = """<!doctype html>
-<html><head><meta charset="utf-8"><title>Disco</title><style>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Disco</title><style>
 :root{
-  --fs-h1:26px;
+  --fs-h1:30px;
   --fs-status:15px;
-  --fs-card-h:18px;
+  --fs-card-h:19px;
   --fs-btn:14px;
   --fs-band:14px;
   --fs-summary:14px;
   --fs-table:14px;
   --fs-th:13px;
   --fs-empty:14px;
+  --color-info:#7fc7ff;
+  --color-warn:#e6c97a;
+  --color-good:#a8e6a8;
 }
 body{font-family:-apple-system,sans-serif;margin:0;padding:14px;background:#0c0c10;color:#ddd;font-size:var(--fs-table)}
 h1{margin:0 0 4px 0;font-size:var(--fs-h1)}
@@ -684,8 +687,227 @@ th{color:#888;font-weight:normal;font-size:var(--fs-th);text-transform:uppercase
 .hidden-control button:hover{background:#2a2a35;color:#fff}
 .hidden-control.has-items{color:#e6c97a}
 .row-hidden{display:none !important}
+/* ============================================================
+ * Tier 4 — sticky compact header + gear-revealed controls drawer
+ * ============================================================ */
+.app-header{position:sticky;top:0;z-index:200;background:rgba(12,12,16,0.96);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:10px 14px 8px;margin:-14px -14px 12px;border-bottom:1px solid #1a1a22;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.app-header .brand{margin:0;font-size:var(--fs-h1);font-weight:800;letter-spacing:-0.5px;color:#f0f0f4;flex-shrink:0;line-height:1.1}
+.app-header .brand-sub{color:#7a8696;font-size:12px;margin-left:8px;font-weight:400;letter-spacing:0;vertical-align:middle}
+.header-listen{flex:1;min-width:200px;display:flex;align-items:center;gap:10px;font-size:13px;font-family:ui-monospace,monospace;flex-wrap:wrap;margin:0}
+.header-listen .listen-bar-label{color:#888;letter-spacing:.5px;font-size:11px;text-transform:uppercase}
+.gear-btn{background:#1a1a22;color:#cdd0d6;border:1px solid #2a2a35;border-radius:6px;padding:6px 12px;font-size:18px;cursor:pointer;font-family:inherit;line-height:1;display:none;margin-left:auto}
+.gear-btn:hover{background:#2a2a35;color:#fff}
+.gear-btn.is-open{background:#3a5a8a;color:#fff;border-color:#5a7aaa}
+#controls-drawer{display:block}
+.collapsible-toggle{display:none;background:#16161c;color:#cdd0d6;border:1px solid #2a2a35;border-radius:6px;padding:9px 12px;font-size:13px;font-family:ui-monospace,monospace;cursor:pointer;width:100%;text-align:left;align-items:center;justify-content:space-between;margin:6px 0;letter-spacing:.5px;text-transform:uppercase}
+.collapsible-toggle:hover{background:#1f1f28;color:#fff}
+.collapsible-toggle .chev{display:inline-block;transition:transform 0.18s ease;margin-right:6px;color:#7a8696}
+.collapsible-toggle.is-open .chev{transform:rotate(180deg);color:#cdd0d6}
+.collapsible-toggle .count{color:#7a8696;font-size:11px;margin-left:6px;text-transform:none;letter-spacing:0}
+.collapsible-toggle.has-active .count{color:var(--color-warn)}
+
+/* ============================================================
+ * Tier 4 — compact band badges (BCST/AVI/HAM/...) shown on phone
+ * ============================================================ */
+.mode-compact{display:none}
+.mode-badge{display:inline-block;font-weight:700;letter-spacing:.5px;padding:1px 6px;border-radius:3px;font-size:11px;margin-right:6px;background:#1a1a22;border:1px solid #2a2a35;vertical-align:baseline}
+.mode-badge.band-allowed{color:var(--color-info);border-color:#3a4a5a;background:rgba(127,199,255,0.08)}
+.mode-badge.band-rejected{color:var(--color-warn);border-color:#5a4a2a;background:rgba(230,201,122,0.08)}
+
+/* ============================================================
+ * Tier 4 — pulsing border on rows currently piped to audio
+ * ============================================================ */
+@keyframes listen-pulse{
+  0%,100%{box-shadow:inset 3px 0 0 rgba(168,230,168,0.85)}
+  50%{box-shadow:inset 3px 0 0 rgba(168,230,168,0.25)}
+}
+tr.is-listening td:first-child{position:relative}
+tr.is-listening{background:rgba(58,90,58,0.10);animation:listen-pulse 1.5s ease-in-out infinite}
+tr.is-listening:hover{background:rgba(58,90,58,0.18)}
+
+/* ============================================================
+ * Tier 4 — tuner card visual punch (always-on)
+ * ============================================================ */
+.tuner h2 span:first-child{font-weight:700;letter-spacing:.2px}
+.tuner .summary{font-weight:500;color:#bbb}
+.tuner .band{font-weight:600;color:#9aa0aa}
+
+/* ============================================================
+ * Tier 4 — tablet (≤820px): single column, smaller canvases
+ * ============================================================ */
+@media (max-width: 820px){
+  body{padding:10px}
+  .app-header{margin:-10px -10px 10px;padding:10px 12px 8px}
+  .tuners{grid-template-columns:1fr;gap:16px}
+  canvas.spectrum{height:100px}
+  canvas.waterfall{height:140px}
+  .filter-bar input[type=text]{width:140px}
+}
+
+/* ============================================================
+ * Tier 4 — phone (≤480px): drawer, card-view rows, badges, etc.
+ * ============================================================ */
+@media (max-width: 480px){
+  body{padding:0;font-size:15px}
+  :root{
+    --fs-h1:26px;
+    --fs-card-h:18px;
+    --fs-table:14px;
+    --fs-status:12px;
+    --fs-band:13px;
+    --fs-summary:13px;
+  }
+  .app-header{padding:10px 12px 8px;margin:0 0 10px;border-radius:0;flex-wrap:nowrap;gap:8px}
+  .app-header .brand{font-size:24px}
+  .app-header .brand-sub{display:none}
+  .header-listen{flex:1;min-width:0;font-size:12px;gap:6px}
+  #disco-audio-player{max-width:160px;height:26px}
+  .gear-btn{display:block;flex-shrink:0;padding:6px 10px;font-size:16px}
+
+  /* Drawer collapsed by default — gear toggles is-open */
+  #controls-drawer{display:none;padding:0 12px 4px;border-bottom:1px solid #1a1a22;margin-bottom:10px}
+  #controls-drawer.is-open{display:block}
+  .svc-bar{margin:6px 0;flex-wrap:wrap;font-size:13px;gap:8px}
+  .svc-btn{padding:7px 14px;font-size:13px}
+  .svc-detail{font-size:11px;flex-basis:100%;line-height:1.3}
+
+  /* Collapsible Favorites + Filters on phone */
+  .collapsible-toggle{display:flex}
+  .fav-bar,.filter-bar{display:none;margin:0 0 8px 0;padding:8px 2px 4px;flex-direction:column;align-items:stretch;gap:8px;border-top:1px solid #1a1a22}
+  .fav-bar.is-open,.filter-bar.is-open{display:flex}
+  .filter-bar label{font-size:11px;color:#888;flex-direction:column;align-items:stretch;gap:4px}
+  .filter-bar select,.filter-bar input,.filter-bar input[type=number],.filter-bar input[type=text]{width:100%;box-sizing:border-box;font-size:14px;padding:6px 8px}
+  .filter-bar .clear{padding:6px 10px;font-size:13px}
+  .hidden-control{flex-wrap:wrap;border-top:1px solid #1a1a22;padding-top:8px;font-size:12px}
+  .fav-bar .fav-list{flex-direction:column;align-items:stretch;gap:6px}
+  .fav-bar .fav-pill{justify-content:space-between}
+
+  /* Tuner cards padded inline + bigger card header */
+  .status{padding:0 12px}
+  .tuners{padding:0 12px;gap:14px}
+  .tuner{padding:10px;border-radius:10px}
+  .tuner h2{font-size:18px;flex-direction:column;align-items:flex-start;gap:8px;margin-bottom:8px}
+  .tuner h2 .ctrl{margin-left:0}
+  .tuner h2 span:first-child{font-weight:800;letter-spacing:0;color:#fff}
+  canvas.spectrum{height:80px}
+  canvas.waterfall{height:110px}
+
+  /* Compact MODE badge replaces full band-class text on phone */
+  .mode-full{display:none}
+  .mode-compact{display:inline-block}
+
+  /* Convert detection table rows to standalone cards */
+  table[data-strongest]{display:block;margin-top:6px}
+  table[data-strongest] thead{display:none}
+  table[data-strongest] tbody{display:block}
+  table[data-strongest] tr{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:10px 12px;margin:0 0 8px 0;background:#16161c;border:1px solid #25252c;border-bottom:1px solid #25252c;border-radius:8px;white-space:normal}
+  table[data-strongest] tr:hover{background:#1a1a22}
+  table[data-strongest] tr.is-listening{border-color:#3a5a3a}
+  table[data-strongest] td{display:block;padding:0;border:0;white-space:normal;font-size:13px;line-height:1.4}
+  /* Row 1: freq (big, headline) — full width */
+  table[data-strongest] td:nth-child(1){grid-column:1/-1;font-size:18px;font-weight:700;color:#e8e8ec;font-family:ui-monospace,monospace;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  /* SNR / pwr / hits — inline mini stats */
+  table[data-strongest] td:nth-child(2),
+  table[data-strongest] td:nth-child(3),
+  table[data-strongest] td:nth-child(4){display:inline-block;margin-right:14px;font-size:13px}
+  table[data-strongest] td:nth-child(2)::before{content:"SNR ";color:#666;font-size:11px;text-transform:uppercase;margin-right:2px}
+  table[data-strongest] td:nth-child(3)::before{content:"PWR ";color:#666;font-size:11px;text-transform:uppercase;margin-right:2px}
+  table[data-strongest] td:nth-child(4)::before{content:"HITS ";color:#666;font-size:11px;text-transform:uppercase;margin-right:2px}
+  /* Wrap the SNR/PWR/HITS trio into one logical row */
+  table[data-strongest] td:nth-child(2){grid-column:1/-1;padding-top:4px;border-top:1px solid #25252c;margin-top:2px}
+  table[data-strongest] td:nth-child(3),
+  table[data-strongest] td:nth-child(4){grid-column:1/-1;padding-top:0;margin-top:-22px;padding-left:90px}
+  table[data-strongest] td:nth-child(4){padding-left:180px}
+  /* Mode + conf — full width line */
+  table[data-strongest] td:nth-child(5){grid-column:1/-1;padding-top:6px;border-top:1px solid #25252c;margin-top:4px;font-size:14px}
+  table[data-strongest] td:nth-child(6){display:none}
+  /* Licensee row */
+  table[data-strongest] td:nth-child(7){grid-column:1/-1;max-width:none;color:#cdd0d6;font-size:12px}
+  table[data-strongest] td:nth-child(7):empty,
+  table[data-strongest] td.uls:not(:empty){overflow:visible;text-overflow:initial}
+  /* Age — right column, tiny */
+  table[data-strongest] td:nth-child(8){grid-column:2;grid-row:1;justify-self:end;color:#666;font-size:11px;font-weight:400;align-self:start;padding-top:6px}
+  /* Empty-state row spans entire card */
+  table[data-strongest] tr td.empty{grid-column:1/-1;text-align:center;padding:14px}
+  /* Detail popup full-width on phone */
+  #detail-popup{max-width:calc(100vw - 24px);left:12px !important;right:12px}
+}
+
+/* ============================================================
+ * Tier 5 — LMR preset toggle + multi-select filter checkbox groups
+ * ============================================================ */
+.lmr-btn{background:#1a1a22;color:#cdd0d6;border:1px solid #2a2a35;border-radius:6px;padding:6px 12px;font-size:13px;font-family:ui-monospace,monospace;cursor:pointer;letter-spacing:.5px;text-transform:uppercase;display:inline-flex;align-items:center;gap:6px;line-height:1.2}
+.lmr-btn:hover{background:#2a2a35;color:#fff}
+.lmr-btn .lmr-state{font-weight:700;font-size:11px;padding:1px 5px;border-radius:3px;background:#0c0c10;color:#7a8696;border:1px solid #2a2a35;letter-spacing:0}
+.lmr-btn.is-on{background:rgba(230,201,122,0.10);color:var(--color-warn);border-color:var(--color-warn)}
+.lmr-btn.is-on .lmr-state{background:var(--color-warn);color:#0c0c10;border-color:var(--color-warn)}
+/* Header version — phone only, compact next to gear */
+.lmr-btn.lmr-btn-header{display:none;padding:5px 8px;font-size:11px;flex-shrink:0;margin-left:auto}
+.lmr-btn.lmr-btn-header .lmr-label-full{display:none}
+.lmr-btn.lmr-btn-header .lmr-label-short{display:inline}
+.lmr-btn .lmr-label-short{display:none}
+.filter-preset-row{display:flex;align-items:center;gap:10px;margin:6px 0;flex-wrap:wrap}
+.filter-preset-row .preset-detail{color:#7a8696;font-size:11px;font-family:ui-monospace,monospace}
+
+.filter-group{display:flex;flex-direction:column;gap:6px;width:100%;margin-bottom:4px}
+.filter-group-label{color:#888;font-size:11px;letter-spacing:.5px;text-transform:uppercase;display:flex;align-items:center;gap:8px}
+.filter-group-label .group-actions{margin-left:auto;display:flex;gap:6px}
+.filter-group-label .group-actions button{background:transparent;color:#7a8696;border:1px solid #2a2a35;padding:1px 7px;font-size:10px;cursor:pointer;font-family:inherit;border-radius:3px}
+.filter-group-label .group-actions button:hover{color:#cdd0d6;border-color:#3a3a45}
+.filter-group .checkbox-grid{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
+.filter-group .checkbox-grid label{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#cdd0d6;padding:2px 6px;background:#16161c;border:1px solid #2a2a35;border-radius:4px;cursor:pointer;font-family:ui-monospace,monospace;letter-spacing:0;text-transform:none}
+.filter-group .checkbox-grid label:hover{background:#1f1f28;border-color:#3a3a45}
+.filter-group .checkbox-grid label.is-off{color:#666;background:#0e0e12;border-color:#1f1f25}
+.filter-group .checkbox-grid label.is-off .cb-text{text-decoration:line-through;opacity:.7}
+.filter-group .checkbox-grid input[type=checkbox]{margin:0;cursor:pointer;accent-color:#7fc7ff}
+
+#filter-summary{color:#7a8696;font-size:12px;font-family:ui-monospace,monospace;margin-left:auto}
+#filter-summary.active{color:var(--color-warn)}
+.empty .reset-link{background:transparent;color:#7fc7ff;border:0;cursor:pointer;font:inherit;font-style:normal;padding:0;margin-left:4px;text-decoration:underline}
+.empty .reset-link:hover{color:#fff}
+
+@media (max-width: 480px){
+  .filter-preset-row{margin:6px 0 8px}
+  .filter-preset-row .preset-detail{flex-basis:100%;font-size:11px}
+  .filter-group .checkbox-grid label{font-size:13px;padding:4px 8px}
+  /* LMR header button shows on phone */
+  .lmr-btn.lmr-btn-header{display:inline-flex}
+  /* The drawer-version LMR button slightly larger on phone */
+  .filter-preset-row .lmr-btn:not(.lmr-btn-header){font-size:13px;padding:7px 12px}
+  #filter-summary{margin-left:0;flex-basis:100%;padding-top:4px;border-top:1px solid #1a1a22;margin-top:4px}
+}
+@media (min-width: 1025px){
+  /* Header LMR button hidden on desktop (drawer one is always visible) */
+  .lmr-btn.lmr-btn-header{display:none !important}
+}
+
+/* ============================================================
+ * Tier 4 — desktop (>1024px): drawer always open, gear hidden
+ * ============================================================ */
+@media (min-width: 1025px){
+  .app-header{padding:14px 18px 12px}
+  .gear-btn{display:none}
+  #controls-drawer{display:block !important}
+  .fav-bar,.filter-bar{display:flex !important}
+  .collapsible-toggle{display:none !important}
+}
 </style></head><body>
-<h1>Disco — Phase 2</h1>
+<header class="app-header">
+  <h1 class="brand">Disco<span class="brand-sub">Phase 2</span></h1>
+  <div class="listen-bar header-listen" id="listen-bar">
+    <span class="listen-bar-label">Listening</span>
+    <span class="listen-empty" id="listen-empty">— tap 🎧 on a row to wire audio</span>
+    <span class="listen-list" id="listen-list"></span>
+    <audio id="disco-audio-player" preload="none" controls></audio>
+    <span class="listen-stream" id="listen-stream"></span>
+  </div>
+  <button class="lmr-btn lmr-btn-header" id="lmr-btn-header" type="button" title="LMR Mode — handhelds + dispatch side: walkies, PS, gov, amateur, pagers">
+    <span class="lmr-label-short">LMR</span>
+    <span class="lmr-state">OFF</span>
+  </button>
+  <button class="gear-btn" id="gear-btn" type="button" aria-label="Show controls" title="Show controls">⚙</button>
+</header>
+<div id="controls-drawer">
 <div class="svc-bar">
   <span class="svc-status" id="svc-status">checking…</span>
   <button class="svc-btn start" id="svc-start" type="button" disabled>Start</button>
@@ -698,35 +920,43 @@ th{color:#888;font-weight:normal;font-size:var(--fs-th);text-transform:uppercase
   <button class="svc-btn mode-on" id="mode-on-btn" type="button" disabled>Reclaim radios</button>
   <span class="svc-detail" id="mode-detail">at-home handoff — classifier stays warm across the toggle</span>
 </div>
-<div class="listen-bar" id="listen-bar">
-  <span class="listen-bar-label">Listening</span>
-  <span class="listen-empty" id="listen-empty">— click 🎧 on any FM/AM row to wire audio</span>
-  <span class="listen-list" id="listen-list"></span>
-  <audio id="disco-audio-player" preload="none" controls></audio>
-  <span class="listen-stream" id="listen-stream"></span>
-</div>
+<button class="collapsible-toggle" id="fav-toggle" type="button" aria-controls="fav-bar" aria-expanded="false">
+  <span><span class="chev">▼</span>Favorites<span class="count" id="fav-toggle-count">(0)</span></span>
+</button>
 <div class="fav-bar" id="fav-bar">
   <span class="fav-bar-label">Favorites</span>
   <span class="fav-empty" id="fav-empty">— click ☆ on any row to track it over time</span>
   <span class="fav-list" id="fav-list"></span>
 </div>
+<div class="filter-preset-row">
+  <button class="lmr-btn" id="lmr-btn" type="button" title="LMR Mode — handhelds + dispatch side: walkies, PS, gov, amateur, pagers">
+    <span class="lmr-label-full">LMR Mode</span>
+    <span class="lmr-state">OFF</span>
+  </button>
+  <span class="preset-detail">handhelds + dispatch: walkies, PS, gov, amateur, pagers · FM_NARROW/DMR/NXDN/P25/GMSK/POCSAG</span>
+</div>
+<button class="collapsible-toggle" id="filter-toggle" type="button" aria-controls="filter-bar" aria-expanded="false">
+  <span><span class="chev">▼</span>Filters<span class="count" id="filter-toggle-count">(0 active)</span></span>
+</button>
 <div class="filter-bar" id="filter-bar">
-  <label>mode
-    <select id="filter-mode">
-      <option value="">all</option>
-      <option value="FM_BROADCAST">FM_BROADCAST</option>
-      <option value="FM_NARROW">FM_NARROW</option>
-      <option value="AM_VOICE">AM_VOICE</option>
-      <option value="DMR">DMR</option>
-      <option value="GMSK">GMSK</option>
-      <option value="QPSK">QPSK</option>
-      <option value="OQPSK">OQPSK</option>
-      <option value="QAM">QAM</option>
-      <option value="OOK">OOK</option>
-      <option value="NOISE">NOISE</option>
-      <option value="unclassified">unclassified</option>
-    </select>
-  </label>
+  <div class="filter-group" id="filter-class-group">
+    <div class="filter-group-label">modulation class
+      <span class="group-actions">
+        <button type="button" data-group-action="all" data-group="class">all</button>
+        <button type="button" data-group-action="none" data-group="class">none</button>
+      </span>
+    </div>
+    <div class="checkbox-grid" id="filter-class-grid"></div>
+  </div>
+  <div class="filter-group" id="filter-band-group">
+    <div class="filter-group-label">band category
+      <span class="group-actions">
+        <button type="button" data-group-action="all" data-group="band">all</button>
+        <button type="button" data-group-action="none" data-group="band">none</button>
+      </span>
+    </div>
+    <div class="checkbox-grid" id="filter-band-grid"></div>
+  </div>
   <label>min SNR <input type="number" id="filter-snr" min="0" max="80" step="1" value="0"></label>
   <label>licensee <input type="text" id="filter-licensee" placeholder="contains…"></label>
   <label>window
@@ -745,6 +975,7 @@ th{color:#888;font-weight:normal;font-size:var(--fs-th);text-transform:uppercase
     <button id="hidden-clear" type="button" title="Unhide everything">unhide all</button>
   </span>
   <span class="svc-detail" id="filter-summary"></span>
+</div>
 </div>
 <div class="status" id="status">loading…</div>
 <div class="tuners" id="tuners"></div>
@@ -771,6 +1002,41 @@ function dbToColor(db){
 }
 function snrClass(snr){ if(snr>=25) return "hot"; if(snr>=18) return "warm"; return ""; }
 function modConfClass(c){ if(c==null) return "mod-low"; if(c>=0.75) return "mod-high"; if(c>=0.5) return "mod-mid"; return "mod-low"; }
+
+// Tier 4: derive a 3-letter band badge from protocol_tag for the phone view.
+// `protocol_tag` shape from band_plan.tag_for() is "<BAND_NAME> — <class>" for
+// in-band hits and "<BAND_NAME> — unidentified" for band-rejected ones; out-of-
+// band signals fall through to bare modulation_class. Specific bands (LMR_800,
+// PS_700_NARROW, PS_800_NARROW, NOAA_WX, RADIO_ASTRONOMY, DME_TACAN, METAIDS)
+// match before the prefix groups so they don't get folded into [LMR] / [WX].
+const BAND_ABBREV_EXACT = {
+  "LMR_800":"LMR8", "PS_700_NARROW":"PS7", "PS_800_NARROW":"PS8",
+  "NOAA_WX":"WX", "RADIO_ASTRONOMY":"RA", "DME_TACAN":"DME", "METAIDS":"MET",
+};
+const BAND_ABBREV_PREFIX = [
+  ["BCAST_","BCST"], ["AVIATION_","AVI"], ["GOV_","GOV"], ["MIL_","MIL"],
+  ["CELL_","CEL"], ["UHF_LMR_","LMR"], ["VHF_LMR_","LMR"], ["LMR_","LMR"],
+  ["PS_","LMR"], ["TV_","TV"], ["AMATEUR_","HAM"], ["ISM_","ISM"],
+];
+function bandAbbrev(protocolTag, modulationClass){
+  if (!protocolTag) {
+    // No band-plan tag — fall back to the first 4 chars of the modulation class.
+    const m = (modulationClass || "").toUpperCase().replace(/[^A-Z0-9]/g,"");
+    return {label: m.slice(0,4) || "?", rejected: false, bandName: ""};
+  }
+  // Split on em-dash; left side is BAND_NAME, right side is class or "unidentified".
+  // Backslashes below are doubled because this whole HTML literal is a Python
+  // triple-quoted string — a single backslash before "s" would emit
+  // SyntaxWarning ("invalid escape sequence") on every import.
+  const parts = String(protocolTag).split(/\\s*[—\\-]\\s*/);
+  const bandName = (parts[0] || "").trim().toUpperCase();
+  const rejected = parts.length > 1 && /unidentified/i.test(parts[1] || "");
+  if (BAND_ABBREV_EXACT[bandName]) return {label: BAND_ABBREV_EXACT[bandName], rejected, bandName};
+  for (const [pfx, abbr] of BAND_ABBREV_PREFIX) {
+    if (bandName.startsWith(pfx)) return {label: abbr, rejected, bandName};
+  }
+  return {label: bandName.slice(0,4) || "?", rejected, bandName};
+}
 
 async function loadConfig(){
   const r = await fetch("/api/config");
@@ -898,24 +1164,123 @@ function drawWaterfall(t){
   }
   ctx.putImageData(img, 0, 0);
 }
-// --- Phase 4 polish: filter + favorites state -------------------------------
+// --- Tier 5: granular multi-select filters + LMR preset ---------------------
+// v3 classifier modulation classes. Default state = all checked (show all).
+const MODULATION_CLASSES = [
+  "FM_BROADCAST","FM_NARROW","AM_VOICE",
+  "DMR","NXDN","P25",
+  "QAM","OQPSK","GMSK",
+  "LTE","CELLULAR",
+  "OOK","POCSAG","NOISE",
+];
+// Band categories — collapsed view of the 58 specific bands in us_band_plan.yaml.
+// BAND_CATEGORY_ORDER is the order the checkboxes render in; BAND_CATEGORY_MAP
+// holds exact-band overrides and BAND_CATEGORY_PREFIX is the fallback prefix
+// rule list. Anything not matched lands in "Other".
+const BAND_CATEGORY_ORDER = [
+  "Broadcast","TV","Aviation","Military","Government",
+  "LMR / Walkie","Public Safety","Cellular","Amateur",
+  "ISM","Weather","Specialized","Other",
+];
+const BAND_CATEGORY_MAP = {
+  "BCAST_FM":"Broadcast",
+  "NOAA_WX":"Weather", "METSAT_VHF":"Weather", "METSAT_400":"Weather", "GOV_NOAA_PRE":"Weather",
+  "DME_TACAN":"Aviation", "AIR_GROUND":"Aviation",
+  "METAIDS":"Specialized", "RADIO_ASTRONOMY":"Specialized",
+  "AMTS":"Specialized", "EPIRB_406":"Specialized",
+  "NAV_SAT_UPLINK":"Specialized", "GNSS_L5":"Specialized",
+  "FIXED_940":"Specialized",
+  "MARINE_VHF":"LMR / Walkie", "MARINE_VHF_HIGH":"LMR / Walkie", "SMR_900":"LMR / Walkie",
+  // Pagers are dispatch-adjacent and Will wants POCSAG rows reachable in LMR
+  // Mode. Re-categorizing PAGING_929 into "LMR / Walkie" lets the preset
+  // surface them without dragging the rest of Specialized (RADIO_ASTRONOMY,
+  // METAIDS, EPIRB, GNSS, etc.) into the LMR view.
+  "PAGING_929":"LMR / Walkie",
+  "NB_PCS_901":"Cellular",
+  "LO_VHF":"Other",
+};
+const BAND_CATEGORY_PREFIX = [
+  ["BCAST_","Broadcast"], ["TV_","TV"],
+  ["AVIATION_","Aviation"],
+  ["MIL_","Military"],
+  ["GOV_","Government"],
+  ["VHF_LMR_","LMR / Walkie"], ["UHF_LMR_","LMR / Walkie"], ["LMR_","LMR / Walkie"],
+  ["PS_","Public Safety"],
+  ["CELL_","Cellular"], ["LTE_","Cellular"],
+  ["AMATEUR_","Amateur"],
+  ["ISM_","ISM"],
+  ["NOAA_","Weather"], ["METSAT_","Weather"],
+  ["POCSAG_","Specialized"],
+];
+function bandCategoryOf(bandName){
+  if (!bandName) return "Other";
+  const up = String(bandName).toUpperCase();
+  if (BAND_CATEGORY_MAP[up]) return BAND_CATEGORY_MAP[up];
+  for (const [pfx, cat] of BAND_CATEGORY_PREFIX) {
+    if (up.startsWith(pfx)) return cat;
+  }
+  return "Other";
+}
+function bandNameOfRow(r){
+  if (!r || !r.protocol_tag) return "";
+  const parts = String(r.protocol_tag).split(/\\s*[—\\-]\\s*/);
+  return (parts[0] || "").trim().toUpperCase();
+}
+// LMR Mode preset — broadened to "any handheld OR the dispatch side of one".
+// Modulation: analog narrow-FM handhelds + the digital voice modes that ride
+// LMR/PS trunks + GMSK (DMR-family variant + some pager/data) + POCSAG so
+// dispatch pagers surface. Bands: walkie/business LMR, PS, gov, amateur 2m/
+// 70cm/220/900 — pagers ride PAGING_929 which we re-categorize into LMR/
+// Walkie below so this preset reaches them.
+const LMR_PRESET = Object.freeze({
+  modulationClasses: ["FM_NARROW","DMR","NXDN","P25","GMSK","POCSAG"],
+  bandCategories: ["LMR / Walkie","Public Safety","Government","Amateur"],
+});
+
+const FILTER_STORAGE_KEY = "disco_dashboard_filters_v1";
 const FILTER_STATE = (() => {
-  // Hydrate from localStorage so filters persist across refreshes.
-  let s = {};
-  try { s = JSON.parse(localStorage.getItem("disco-filter") || "{}"); } catch (e) {}
+  // Read new key first; fall back to legacy "disco-filter" so SNR/licensee/
+  // window stick if a user upgrades from Tier 4. New checkbox state defaults
+  // to "all checked" when absent.
+  let raw = null;
+  try { raw = JSON.parse(localStorage.getItem(FILTER_STORAGE_KEY) || "null"); } catch (e) {}
+  if (!raw) { try { raw = JSON.parse(localStorage.getItem("disco-filter") || "null") || {}; } catch (e) { raw = {}; } }
   return {
-    mode: s.mode || "",
-    snr: typeof s.snr === "number" ? s.snr : 0,
-    licensee: s.licensee || "",
-    window_s: s.window_s || 120,
+    modulationClasses: new Set(Array.isArray(raw.modulationClasses) ? raw.modulationClasses : MODULATION_CLASSES),
+    bandCategories: new Set(Array.isArray(raw.bandCategories) ? raw.bandCategories : BAND_CATEGORY_ORDER),
+    lmrMode: !!raw.lmrMode,
+    preLmrState: raw.preLmrState || null,
+    snr: typeof raw.snr === "number" ? raw.snr : 0,
+    licensee: typeof raw.licensee === "string" ? raw.licensee : "",
+    window_s: raw.window_s || 120,
   };
 })();
+let _persistTimer = null;
 function persistFilter(){
-  try { localStorage.setItem("disco-filter", JSON.stringify(FILTER_STATE)); } catch (e) {}
+  // 200ms debounce — typing in licensee/SNR shouldn't thrash localStorage.
+  if (_persistTimer) clearTimeout(_persistTimer);
+  _persistTimer = setTimeout(_writeFilterStorage, 200);
 }
+function _writeFilterStorage(){
+  try {
+    localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify({
+      modulationClasses: Array.from(FILTER_STATE.modulationClasses),
+      bandCategories: Array.from(FILTER_STATE.bandCategories),
+      lmrMode: FILTER_STATE.lmrMode,
+      preLmrState: FILTER_STATE.preLmrState,
+      snr: FILTER_STATE.snr,
+      licensee: FILTER_STATE.licensee,
+      window_s: FILTER_STATE.window_s,
+    }));
+  } catch (e) {}
+}
+
 const FAV_FREQS = new Set();   // freqs (rounded Hz) currently favorited
 const HIDDEN_FREQS = new Set();  // freqs (rounded Hz) the user has hidden
 let SHOW_HIDDEN = false;          // temporary "reveal" toggle (not persisted)
+// Cross-tuner row totals so the FILTERS-summary line can show "N of M shown".
+let _lastTotalBuckets = 0;
+let _lastTotalFiltered = 0;
 
 function rowMatchesFilter(r){
   // Hidden rows drop out unless the user has flipped the "show hidden" toggle.
@@ -923,14 +1288,20 @@ function rowMatchesFilter(r){
     const fid = Math.round(r.freq_hz);
     if (HIDDEN_FREQS.has(fid)) return false;
   }
-  if (FILTER_STATE.mode) {
-    const want = FILTER_STATE.mode;
-    const got = r.modulation_class || (r.protocol_tag === "unclassified" ? "unclassified" : "");
-    if (want === "unclassified") {
-      if (got && got !== "unclassified") return false;
-    } else if (got !== want) {
-      return false;
-    }
+  // Modulation class — "all checked" lets every row through including
+  // unclassified ones. Any uncheck switches to strict-match: the row's class
+  // must be in the checked set, and null-class rows drop out.
+  const allClasses = FILTER_STATE.modulationClasses.size === MODULATION_CLASSES.length;
+  if (!allClasses) {
+    const cls = (r.modulation_class || "").toUpperCase();
+    if (!cls || !FILTER_STATE.modulationClasses.has(cls)) return false;
+  }
+  // Band category — same semantics as classes. Unknown / no-protocol-tag rows
+  // fall into "Other" so they're filterable.
+  const allCats = FILTER_STATE.bandCategories.size === BAND_CATEGORY_ORDER.length;
+  if (!allCats) {
+    const cat = bandCategoryOf(bandNameOfRow(r));
+    if (!FILTER_STATE.bandCategories.has(cat)) return false;
   }
   if (FILTER_STATE.snr > 0 && (r.max_snr || 0) < FILTER_STATE.snr) return false;
   if (FILTER_STATE.licensee) {
@@ -948,6 +1319,7 @@ async function refreshTables(){
     fetch(`/api/strongest?since_seconds=${win}&per_tuner=8&bin_khz=25`).then(r=>r.json()),
     fetch(`/api/summary?since_seconds=${win}`).then(r=>r.json()),
   ]);
+  let totalBuckets = 0, totalFiltered = 0;
   for(const tid of CONFIG.tuner_order){
     const t = tuners[tid]; if(!t) continue;
     const s = summ[tid] || {count:0,max_snr:null,last_seen:null,classified:0};
@@ -959,29 +1331,44 @@ async function refreshTables(){
     t.summary.textContent = sumStr;
     const buckets = (strong.buckets && strong.buckets[tid]) || [];
     const filtered = buckets.filter(rowMatchesFilter);
+    totalBuckets += buckets.length;
+    totalFiltered += filtered.length;
     const tbody = t.strongestTbody;
     tbody.innerHTML = "";
     if(buckets.length===0){
       tbody.innerHTML = `<tr><td colspan="8" class="empty">no detections in last ${win}s</td></tr>`;
     } else if (filtered.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="8" class="empty">${buckets.length} detections hidden by filters</td></tr>`;
+      // Tier 5: include a one-click reset to drop all class/band filters so
+      // the user isn't stuck wondering which checkbox is hiding things.
+      tbody.innerHTML = `<tr><td colspan="8" class="empty">${buckets.length} rows hidden by filters — <button class="reset-link" type="button" data-action="reset-filters">reset all</button></td></tr>`;
     } else {
       for(const r of filtered){
         const age = Math.round(Date.now()/1000 - r.last_seen);
         const cls = snrClass(r.max_snr);
         const modCls = modConfClass(r.modulation_confidence);
-        let modLabel = r.protocol_tag || r.modulation_class || "—";
+        // Tier 4: full mode tag (desktop) + compact band-badge (phone). Both
+        // spans always render; CSS media query swaps visibility — no JS resize
+        // listener needed and the table-refresh cadence stays untouched.
+        const fullText = r.protocol_tag || r.modulation_class || "—";
+        const ab = bandAbbrev(r.protocol_tag, r.modulation_class);
+        const compactClassName = r.modulation_class
+          || (r.protocol_tag === "unclassified" ? "unclassified" : "—");
+        const badgeCls = ab.rejected ? "mode-badge band-rejected" : "mode-badge band-allowed";
+        let modLabel = `<span class="mode-full">${fullText}</span>`
+          + `<span class="mode-compact"><span class="${badgeCls}" title="${ab.bandName || ""}">[${ab.label}]</span>${compactClassName}</span>`;
         if (r.interpretation) modLabel = modLabel + ` <button class="details-btn" type="button">details</button>`;
         const cleanClass = (r.modulation_class || "").toUpperCase();
         const freqId = Math.round(r.freq_hz);
+        const isListening = ACTIVE_LISTEN_FREQS.has(freqId);
         if (LISTEN_SUPPORTED.has(cleanClass)) {
-          const isActive = ACTIVE_LISTEN_FREQS.has(freqId);
-          const lbl = isActive ? "Stop" : "🎧 Listen";
-          const cls = isActive ? "listen-btn is-active" : "listen-btn";
+          const lbl = isListening ? "Stop" : "🎧 Listen";
+          const cls = isListening ? "listen-btn is-active" : "listen-btn";
           modLabel = modLabel + ` <button class="${cls}" type="button">${lbl}</button>`;
         }
         const modConf = r.modulation_confidence != null ? r.modulation_confidence.toFixed(2) : "—";
         const tr = document.createElement("tr");
+        // Tier 4: pulse the source row while audio is wired to it.
+        if (isListening) tr.classList.add("is-listening");
         // Compose a single "licensed to" cell from the ULS columns. We show
         // entity_name truncated + callsign in a smaller dim font, with a
         // tooltip carrying emission designator + distance so the user can
@@ -1058,6 +1445,9 @@ async function refreshTables(){
     }
   }
   document.getElementById("status").textContent = `updated ${new Date().toLocaleTimeString()}`;
+  _lastTotalBuckets = totalBuckets;
+  _lastTotalFiltered = totalFiltered;
+  updateFilterSummary();
 }
 // --- service control (Start / Stop) -----------------------------------------
 // Stops the 4 sweep services + classifier + interpreter when the user wants
@@ -1482,6 +1872,7 @@ async function refreshFavorites(){
   if (items.length === 0) {
     elEmpty.style.display = "";
     elList.innerHTML = "";
+    updateFavToggleCount(0);
     return;
   }
   elEmpty.style.display = "none";
@@ -1495,32 +1886,228 @@ async function refreshFavorites(){
     const ownerSpan = owner ? `<span class="fav-meta">${owner}</span>` : "";
     return `<span class="fav-pill ${isActive ? "active" : ""}">${mhz} MHz ${ownerSpan} <span class="fav-meta">(${meta})</span><button data-unfav-freq="${it.freq_hz}" title="Remove">×</button></span>`;
   }).join("");
+  updateFavToggleCount(items.length);
 }
 
-// --- Phase 4 polish: filter wiring ------------------------------------------
+// --- Tier 5 filter wiring (replaces Phase 4 single-mode wiring) -------------
 function applyFilterUiToState(){
-  FILTER_STATE.mode = document.getElementById("filter-mode").value || "";
   FILTER_STATE.snr = parseFloat(document.getElementById("filter-snr").value || "0") || 0;
   FILTER_STATE.licensee = document.getElementById("filter-licensee").value || "";
   FILTER_STATE.window_s = parseInt(document.getElementById("filter-window").value || "120", 10) || 120;
   persistFilter();
-  // Re-render immediately so the user sees the effect without waiting for the 2s tick.
+  updateFilterToggleCount();
   refreshTables();
 }
+// Render the two checkbox groups (modulation class + band category) into the
+// filter-bar placeholders. Called once at init; checkbox state is then mutated
+// in place rather than re-rendered, so user focus / scroll position stick.
+function renderClassCheckboxes(){
+  const grid = document.getElementById("filter-class-grid");
+  if (!grid) return;
+  grid.innerHTML = MODULATION_CLASSES.map(c => {
+    const on = FILTER_STATE.modulationClasses.has(c);
+    return `<label class="${on ? "" : "is-off"}" data-class="${c}">`
+      + `<input type="checkbox" ${on ? "checked" : ""} data-filter-class="${c}">`
+      + `<span class="cb-text">${c}</span></label>`;
+  }).join("");
+}
+function renderBandCheckboxes(){
+  const grid = document.getElementById("filter-band-grid");
+  if (!grid) return;
+  grid.innerHTML = BAND_CATEGORY_ORDER.map(cat => {
+    const on = FILTER_STATE.bandCategories.has(cat);
+    return `<label class="${on ? "" : "is-off"}" data-band="${cat}">`
+      + `<input type="checkbox" ${on ? "checked" : ""} data-filter-band="${cat}">`
+      + `<span class="cb-text">${cat}</span></label>`;
+  }).join("");
+}
 function hydrateFilterUi(){
-  document.getElementById("filter-mode").value = FILTER_STATE.mode;
+  // Numeric / text / window inputs hydrate from state directly.
   document.getElementById("filter-snr").value = FILTER_STATE.snr;
   document.getElementById("filter-licensee").value = FILTER_STATE.licensee;
   document.getElementById("filter-window").value = String(FILTER_STATE.window_s);
+  // Checkboxes: walk existing DOM rather than re-rendering so the user keeps
+  // focus / scroll position when LMR mode toggles the checked state.
+  document.querySelectorAll("[data-filter-class]").forEach(cb => {
+    const c = cb.getAttribute("data-filter-class");
+    const on = FILTER_STATE.modulationClasses.has(c);
+    cb.checked = on;
+    cb.closest("label").classList.toggle("is-off", !on);
+  });
+  document.querySelectorAll("[data-filter-band]").forEach(cb => {
+    const cat = cb.getAttribute("data-filter-band");
+    const on = FILTER_STATE.bandCategories.has(cat);
+    cb.checked = on;
+    cb.closest("label").classList.toggle("is-off", !on);
+  });
+  // LMR button state (both placements) reflects FILTER_STATE.lmrMode.
+  ["lmr-btn", "lmr-btn-header"].forEach(id => {
+    const b = document.getElementById(id);
+    if (!b) return;
+    b.classList.toggle("is-on", FILTER_STATE.lmrMode);
+    const stateEl = b.querySelector(".lmr-state");
+    if (stateEl) stateEl.textContent = FILTER_STATE.lmrMode ? "ON" : "OFF";
+  });
 }
 function clearFilters(){
-  FILTER_STATE.mode = "";
+  FILTER_STATE.modulationClasses = new Set(MODULATION_CLASSES);
+  FILTER_STATE.bandCategories = new Set(BAND_CATEGORY_ORDER);
   FILTER_STATE.snr = 0;
   FILTER_STATE.licensee = "";
   FILTER_STATE.window_s = 120;
+  FILTER_STATE.lmrMode = false;
+  FILTER_STATE.preLmrState = null;
   hydrateFilterUi();
   persistFilter();
+  updateFilterToggleCount();
   refreshTables();
+}
+// LMR Mode preset toggle. Saves the pre-toggle state when entering so the
+// "off" press restores whatever granular state the user had configured.
+function toggleLmrMode(){
+  if (!FILTER_STATE.lmrMode) {
+    FILTER_STATE.preLmrState = {
+      modulationClasses: Array.from(FILTER_STATE.modulationClasses),
+      bandCategories: Array.from(FILTER_STATE.bandCategories),
+    };
+    FILTER_STATE.modulationClasses = new Set(LMR_PRESET.modulationClasses);
+    FILTER_STATE.bandCategories = new Set(LMR_PRESET.bandCategories);
+    FILTER_STATE.lmrMode = true;
+  } else {
+    if (FILTER_STATE.preLmrState) {
+      FILTER_STATE.modulationClasses = new Set(FILTER_STATE.preLmrState.modulationClasses);
+      FILTER_STATE.bandCategories = new Set(FILTER_STATE.preLmrState.bandCategories);
+    } else {
+      FILTER_STATE.modulationClasses = new Set(MODULATION_CLASSES);
+      FILTER_STATE.bandCategories = new Set(BAND_CATEGORY_ORDER);
+    }
+    FILTER_STATE.preLmrState = null;
+    FILTER_STATE.lmrMode = false;
+  }
+  hydrateFilterUi();
+  persistFilter();
+  updateFilterToggleCount();
+  refreshTables();
+}
+// User toggled a single checkbox — sync FILTER_STATE, drop LMR mode (manual
+// change means the preset no longer reflects state), persist + redraw.
+function onClassCheckboxChange(ev){
+  const cb = ev.target;
+  const c = cb.getAttribute("data-filter-class");
+  if (cb.checked) FILTER_STATE.modulationClasses.add(c);
+  else FILTER_STATE.modulationClasses.delete(c);
+  cb.closest("label").classList.toggle("is-off", !cb.checked);
+  if (FILTER_STATE.lmrMode) {
+    FILTER_STATE.lmrMode = false;
+    FILTER_STATE.preLmrState = null;
+    hydrateFilterUi();
+  }
+  persistFilter();
+  updateFilterToggleCount();
+  refreshTables();
+}
+function onBandCheckboxChange(ev){
+  const cb = ev.target;
+  const cat = cb.getAttribute("data-filter-band");
+  if (cb.checked) FILTER_STATE.bandCategories.add(cat);
+  else FILTER_STATE.bandCategories.delete(cat);
+  cb.closest("label").classList.toggle("is-off", !cb.checked);
+  if (FILTER_STATE.lmrMode) {
+    FILTER_STATE.lmrMode = false;
+    FILTER_STATE.preLmrState = null;
+    hydrateFilterUi();
+  }
+  persistFilter();
+  updateFilterToggleCount();
+  refreshTables();
+}
+// Group "all" / "none" actions — bulk check or uncheck inside a single group.
+function onGroupAction(ev){
+  const btn = ev.target.closest("[data-group-action]");
+  if (!btn) return;
+  const action = btn.getAttribute("data-group-action");
+  const group = btn.getAttribute("data-group");
+  const set = group === "class" ? FILTER_STATE.modulationClasses : FILTER_STATE.bandCategories;
+  const universe = group === "class" ? MODULATION_CLASSES : BAND_CATEGORY_ORDER;
+  set.clear();
+  if (action === "all") universe.forEach(x => set.add(x));
+  if (FILTER_STATE.lmrMode) { FILTER_STATE.lmrMode = false; FILTER_STATE.preLmrState = null; }
+  hydrateFilterUi();
+  persistFilter();
+  updateFilterToggleCount();
+  refreshTables();
+}
+
+// --- Tier 4: gear-drawer + collapsible filter/favorites sections -------------
+// On phone, the controls drawer is collapsed by default. Tapping the ⚙ gear in
+// the sticky header toggles the .is-open class — CSS media query handles the
+// actual visibility. On desktop the gear is hidden and the drawer is always
+// open via the >1024px media query (rules force display:block).
+function toggleDrawer(){
+  const drawer = document.getElementById("controls-drawer");
+  const gear = document.getElementById("gear-btn");
+  if (!drawer || !gear) return;
+  const open = !drawer.classList.contains("is-open");
+  drawer.classList.toggle("is-open", open);
+  gear.classList.toggle("is-open", open);
+}
+// Generic collapsible — wires a .collapsible-toggle button to a target panel.
+function bindCollapsible(toggleId, panelId, defaultOpen){
+  const toggle = document.getElementById(toggleId);
+  const panel = document.getElementById(panelId);
+  if (!toggle || !panel) return;
+  // Mirror state to the button so the chevron flips correctly.
+  const setOpen = (open) => {
+    panel.classList.toggle("is-open", open);
+    toggle.classList.toggle("is-open", open);
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  };
+  setOpen(!!defaultOpen);
+  toggle.addEventListener("click", () => {
+    setOpen(!panel.classList.contains("is-open"));
+  });
+}
+// Filter toggle "count" badge — surfaces how many filters are active so the
+// collapsed header still tells the user the table is being narrowed. Counts:
+// 1 for any non-full class set, 1 for any non-full band set, then the usual
+// snr / licensee / non-default window.
+function activeFilterCount(){
+  let n = 0;
+  if (FILTER_STATE.modulationClasses.size !== MODULATION_CLASSES.length) n++;
+  if (FILTER_STATE.bandCategories.size !== BAND_CATEGORY_ORDER.length) n++;
+  if (FILTER_STATE.snr > 0) n++;
+  if (FILTER_STATE.licensee) n++;
+  if (FILTER_STATE.window_s !== 120) n++;
+  return n;
+}
+function updateFilterToggleCount(){
+  const el = document.getElementById("filter-toggle-count");
+  const tog = document.getElementById("filter-toggle");
+  if (!el || !tog) return;
+  const n = activeFilterCount();
+  el.textContent = n === 0 ? "(none active)" : `(${n} active)`;
+  tog.classList.toggle("has-active", n > 0);
+}
+// "N of M shown" line in the filter-summary slot. Empty when no filtering
+// is happening — drops out so the strip doesn't look noisy at defaults.
+function updateFilterSummary(){
+  const el = document.getElementById("filter-summary");
+  if (!el) return;
+  const n = activeFilterCount();
+  if (n === 0 || _lastTotalBuckets === 0) {
+    el.textContent = "";
+    el.classList.remove("active");
+    return;
+  }
+  el.textContent = `${_lastTotalFiltered} of ${_lastTotalBuckets} shown`;
+  el.classList.toggle("active", _lastTotalFiltered < _lastTotalBuckets);
+}
+function updateFavToggleCount(n){
+  const el = document.getElementById("fav-toggle-count");
+  const tog = document.getElementById("fav-toggle");
+  if (!el || !tog) return;
+  el.textContent = `(${n || 0})`;
+  tog.classList.toggle("has-active", (n || 0) > 0);
 }
 
 async function init(){
@@ -1528,14 +2115,45 @@ async function init(){
   for(const tid of CONFIG.tuner_order){
     setupTunerCard(tid, CONFIG.tuners[tid]);
   }
+  // Tier 5: render the two checkbox groups before hydrate so the hydrate step
+  // can flip checked state on existing inputs (preserves focus on re-applies).
+  renderClassCheckboxes();
+  renderBandCheckboxes();
   hydrateFilterUi();
-  document.getElementById("filter-mode").addEventListener("change", applyFilterUiToState);
   document.getElementById("filter-snr").addEventListener("change", applyFilterUiToState);
   document.getElementById("filter-licensee").addEventListener("input", applyFilterUiToState);
   document.getElementById("filter-window").addEventListener("change", applyFilterUiToState);
   document.getElementById("filter-clear").addEventListener("click", clearFilters);
   document.getElementById("hidden-toggle").addEventListener("click", toggleShowHidden);
   document.getElementById("hidden-clear").addEventListener("click", hideClearAll);
+  // Tier 5: LMR Mode buttons (drawer + header), checkbox-group delegated
+  // change events, group "all/none" action buttons, and the empty-state
+  // "reset all" link that lives inside table tbodies (delegated).
+  const lmrBtn = document.getElementById("lmr-btn");
+  if (lmrBtn) lmrBtn.addEventListener("click", toggleLmrMode);
+  const lmrBtnHeader = document.getElementById("lmr-btn-header");
+  if (lmrBtnHeader) lmrBtnHeader.addEventListener("click", toggleLmrMode);
+  document.getElementById("filter-class-grid").addEventListener("change", (e) => {
+    if (e.target && e.target.hasAttribute("data-filter-class")) onClassCheckboxChange(e);
+  });
+  document.getElementById("filter-band-grid").addEventListener("change", (e) => {
+    if (e.target && e.target.hasAttribute("data-filter-band")) onBandCheckboxChange(e);
+  });
+  document.querySelectorAll("[data-group-action]").forEach(b => b.addEventListener("click", onGroupAction));
+  // Empty-state reset link is rendered into tbody on every refresh — delegate
+  // from document so we don't lose it across refreshes.
+  document.addEventListener("click", (e) => {
+    if (e.target && e.target.getAttribute && e.target.getAttribute("data-action") === "reset-filters") {
+      clearFilters();
+      e.stopPropagation();
+    }
+  });
+  // Tier 4: gear drawer + filter/favorites collapsibles. Filters open by default
+  // when any are active so the user can see what's narrowing the view.
+  document.getElementById("gear-btn").addEventListener("click", toggleDrawer);
+  bindCollapsible("fav-toggle", "fav-bar", false);
+  bindCollapsible("filter-toggle", "filter-bar", activeFilterCount() > 0);
+  updateFilterToggleCount();
   refreshTables();
   setInterval(refreshTables, 2000);
   document.getElementById("svc-start").addEventListener("click", () => svcAction("start"));
@@ -1559,7 +2177,15 @@ init();
 
 @app.get("/", response_class=HTMLResponse)
 def index():
-    return HTMLResponse(HTML)
+    # Force-revalidate every load. The dashboard HTML is tiny, single-user, and
+    # state is fetched via /api/* + SSE — there's nothing to cache. Without these
+    # headers iOS Safari (and some desktop browsers) heuristically cache the page
+    # so that post-deploy reloads silently serve the previous version.
+    return HTMLResponse(HTML, headers={
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    })
 
 
 def main():
