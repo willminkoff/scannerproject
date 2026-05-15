@@ -77,8 +77,28 @@ CAPTURE_DIR = os.environ.get("DISCO_CAPTURE_DIR", "/home/ubuntu/scannerproject/d
 CAPTURE_ENABLED = os.environ.get("DISCO_CAPTURE_ENABLED", "1") not in ("0", "false", "False", "")
 CAPTURE_MAX_PER_LABEL = int(os.environ.get("DISCO_CAPTURE_MAX_PER_LABEL", "2000"))
 # Frequency-range → ground-truth label. Order matters: first matching rule wins.
-# Bandwidth filters are optional — leave bw_min/bw_max as None to skip.
+# Bandwidth filters and snr_min are optional — omit to skip a check.
 CAPTURE_RULES = [
+    # ----- Phase 5 digital-mode rules (placed BEFORE the FM_NARROW rules so
+    # digital traffic wins on freq overlaps) ----------------------------------
+    #
+    # P25 — Nashville public-safety trunked (MTRTRS + TACN) lives in the
+    # 700 MHz PS band (769-776 MHz) and 800 MHz PS band (851-869 MHz). These
+    # bands are essentially 100% digital P25 in Nashville — band-wide rule
+    # has near-zero FP risk. BW window 6-11 kHz covers Phase 1 (C4FM, ~9 kHz)
+    # and Phase 2 (TDMA, ~8 kHz), per empirical p10-p90 of legacy P25 captures.
+    {"label": "P25",  "freq_min": 769e6, "freq_max": 776e6, "bw_min": 6e3,   "bw_max": 11e3, "snr_min": 15.0},
+    {"label": "P25",  "freq_min": 851e6, "freq_max": 869e6, "bw_min": 6e3,   "bw_max": 11e3, "snr_min": 15.0},
+    # NXDN — narrow digital in UHF LMR business band. 6.25 kHz channels with
+    # ~4-7 kHz occupied BW (textbook; tighter than legacy NXDN_uls empirical
+    # tail which extended to 15 kHz and almost certainly wasn't true NXDN).
+    {"label": "NXDN", "freq_min": 452e6, "freq_max": 454e6, "bw_min": 4e3,   "bw_max": 7e3,  "snr_min": 15.0},
+    # DMR — wider digital in UHF LMR business band. 12.5 kHz channels, ~8-12
+    # kHz typical occupied BW. Range 8-14 covers empirical p25-p90 of legacy
+    # DMR_uls; 452-458 MHz matches where Nashville commercial DMR actually
+    # operates (24 in 452, 47 in 457 per the prior capture histogram).
+    {"label": "DMR",  "freq_min": 452e6, "freq_max": 458e6, "bw_min": 8e3,   "bw_max": 14e3, "snr_min": 15.0},
+    # ----- Analog-mode rules (existing) --------------------------------------
     # commercial FM broadcast — wide signal, easy classify
     {"label": "FM_BROADCAST", "freq_min": 88e6, "freq_max": 108e6, "bw_min": 100e3, "bw_max": None},
     # NOAA WX (narrow FM voice with subaudible tone)
@@ -306,8 +326,14 @@ def derive_protocol_tag(class_name: str, freq_hz: float, bandwidth_hz: float, pl
     return tag
 
 
-def _match_capture_rule(meta: dict):
-    """Return the label of the first matching CAPTURE_RULES entry, or None."""
+def _match_capture_rule(meta: dict, snr_db: Optional[float] = None):
+    """Return the label of the first matching CAPTURE_RULES entry, or None.
+
+    `snr_db` is optional — only rules with a `snr_min` field consult it. The
+    analog (FM_BROADCAST / FM_NARROW / AM_VOICE) rules omit `snr_min` so they
+    keep matching unchanged. Digital rules use snr_min=15.0 to drop low-SNR
+    captures that won't make useful training data anyway.
+    """
     f = meta.get("freq_hz")
     bw = meta.get("bandwidth_hz") or 0.0
     if f is None:
@@ -315,9 +341,12 @@ def _match_capture_rule(meta: dict):
     for rule in CAPTURE_RULES:
         if not (rule["freq_min"] <= f <= rule["freq_max"]):
             continue
-        if rule["bw_min"] is not None and bw < rule["bw_min"]:
+        if rule.get("bw_min") is not None and bw < rule["bw_min"]:
             continue
-        if rule["bw_max"] is not None and bw > rule["bw_max"]:
+        if rule.get("bw_max") is not None and bw > rule["bw_max"]:
+            continue
+        snr_min = rule.get("snr_min")
+        if snr_min is not None and (snr_db is None or snr_db < snr_min):
             continue
         return rule["label"]
     return None
@@ -343,7 +372,7 @@ def maybe_archive_slice(slice_path: str, meta: dict, snr_db: Optional[float]) ->
     Errors are logged but never block the classifier."""
     if not CAPTURE_ENABLED:
         return None
-    label = _match_capture_rule(meta)
+    label = _match_capture_rule(meta, snr_db)
     if label is None:
         return None
     n = _capture_count(label)

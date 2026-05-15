@@ -1,0 +1,22 @@
+[Unit]
+Description=Disco daily capture snapshot (mtime → /training_captures/<DATE>/<LABEL>/)
+After=disco-classifier.service
+Documentation=https://github.com/willminkoff/scannerproject
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+# Defaults the script picks up: today's local-TZ date, /captures/, /training_captures/,
+# state/disco.sqlite. Override via env if needed at install time.
+Environment=DISCO_LOCAL_TZ=America/Chicago
+ExecStart=/usr/bin/python3 /home/ubuntu/scannerproject/disco/bin/snapshot-captures.py
+# Cap runtime — manifest write on a busy DB shouldn't take more than a few
+# seconds; 10min is a generous wall-clock fence.
+TimeoutStartSec=600
+# Logs to journalctl via stdout (the script uses print(..., flush=True)).
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
