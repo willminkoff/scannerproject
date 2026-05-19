@@ -798,18 +798,49 @@ def _apply_travel_push(state: "HPState", payload: dict[str, Any]) -> None:
     state.zip = zip_text
 
 
+def _last_travel_push_receipt() -> dict[str, Any] | None:
+    """Return the most recent push receipt parsed from the JSONL log, or None."""
+    log_path = (HP_LOCATION_PUSH_LOG_PATH or "").strip()
+    if not log_path:
+        return None
+    try:
+        path = Path(log_path).expanduser()
+        if not path.is_file():
+            return None
+        last_line = ""
+        with path.open("rb") as handle:
+            for raw in handle:
+                stripped = raw.strip()
+                if stripped:
+                    last_line = stripped.decode("utf-8", errors="replace")
+        if not last_line:
+            return None
+        record = json.loads(last_line)
+        if not isinstance(record, dict):
+            return None
+        return record
+    except Exception:
+        logger.debug("travel push log read failed", exc_info=True)
+        return None
+
+
 def _log_travel_push(record: dict[str, Any]) -> None:
     """Append a travel-push receipt to the log file and INFO log it.
 
-    Log errors are swallowed: logging must not break the request path.
+    The record may include an `accepted` boolean; rejected pushes (travel mode
+    off) are logged so Will can see his iPhone is trying to push even when the
+    system isn't accepting. Log errors are swallowed: logging must not break
+    the request path.
     """
     try:
         logger.info(
-            "Travel mode push: zip=%s lat=%s lon=%s source=%s",
+            "Travel mode push: accepted=%s zip=%s lat=%s lon=%s source=%s reason=%s",
+            record.get("accepted", True),
             record.get("zip"),
             record.get("lat"),
             record.get("lon"),
             record.get("source") or "",
+            record.get("reason") or "",
         )
     except Exception:
         pass
@@ -3105,6 +3136,7 @@ class Handler(BaseHTTPRequestHandler):
                     "ok": True,
                     "mode": controller.get_mode(),
                     "state": state.to_dict(),
+                    "travel_mode_last_push": _last_travel_push_receipt(),
                     "favorites_runtime_sync": get_last_favorites_runtime_sync(),
                 }
             except Exception as e:
@@ -4237,12 +4269,37 @@ class Handler(BaseHTTPRequestHandler):
             # ANYONE on the internet can move the scanner's ZIP. Re-add a
             # shared-secret check (see git history at 61864b5 for the
             # hmac.compare_digest pattern) before doing any of that.
+            #
+            # Pushes are also gated on HPState.travel_mode_enabled — the SB3
+            # UI Travel Mode toggle is the user-facing on/off switch. iPhone
+            # pushes when off are rejected with 409 and logged with
+            # accepted=false so Will can see them in the receipt log.
             try:
                 state = HPState.load()
             except Exception as e:
                 return self._send(
                     500,
                     json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+
+            if not state.travel_mode_enabled:
+                rejected_at = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+                attempted_zip = str(form.get("zip") or "").strip()
+                _log_travel_push(
+                    {
+                        "ts": rejected_at,
+                        "accepted": False,
+                        "reason": "travel_mode_disabled",
+                        "zip": attempted_zip,
+                        "lat": form.get("lat"),
+                        "lon": form.get("lon"),
+                        "source": str(form.get("source") or "").strip(),
+                    }
+                )
+                return self._send(
+                    409,
+                    json.dumps({"ok": False, "reason": "travel_mode_disabled"}),
                     "application/json; charset=utf-8",
                 )
 
@@ -4268,6 +4325,7 @@ class Handler(BaseHTTPRequestHandler):
             _log_travel_push(
                 {
                     "ts": updated_at,
+                    "accepted": True,
                     "zip": state.zip,
                     "lat": state.lat,
                     "lon": state.lon,
@@ -4283,6 +4341,66 @@ class Handler(BaseHTTPRequestHandler):
                         "lat": state.lat,
                         "lon": state.lon,
                         "updated_at": updated_at,
+                        "favorites_runtime_sync": save_payload.get("favorites_runtime_sync"),
+                    }
+                ),
+                "application/json; charset=utf-8",
+            )
+
+        if p == "/api/hp/travel_mode/toggle":
+            # User-facing on/off switch for travel mode. Mutates only
+            # HPState.travel_mode_enabled — never touches zip/lat/lon or any
+            # other field. The flag is a pure gate over /api/hp/location/push;
+            # manual sidecar ZIP entry remains the way to set baseline.
+            if "enabled" not in form:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "missing enabled"}),
+                    "application/json; charset=utf-8",
+                )
+            raw_enabled = form.get("enabled")
+            if not isinstance(raw_enabled, bool):
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "enabled must be a boolean"}),
+                    "application/json; charset=utf-8",
+                )
+
+            try:
+                state = HPState.load()
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+
+            previous = bool(state.travel_mode_enabled)
+            state.travel_mode_enabled = bool(raw_enabled)
+
+            try:
+                save_payload = _save_hp_state_with_sync(state)
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+
+            logger.info(
+                "Travel mode toggle: %s -> %s",
+                previous,
+                state.travel_mode_enabled,
+            )
+            return self._send(
+                200,
+                json.dumps(
+                    {
+                        "ok": True,
+                        "travel_mode_enabled": state.travel_mode_enabled,
+                        "zip": state.zip,
+                        "lat": state.lat,
+                        "lon": state.lon,
                         "favorites_runtime_sync": save_payload.get("favorites_runtime_sync"),
                     }
                 ),
