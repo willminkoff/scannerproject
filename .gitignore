@@ -36,6 +36,11 @@ __pycache__/
 /runtime/
 /data/
 
+# disco bulk RF / FCC data (regeneratable from upstream sources)
+disco/training_captures/
+disco/uls/
+disco/cdbs/
+
 # local databases
 *.db
 *.db-shm
