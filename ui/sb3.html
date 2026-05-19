@@ -2759,6 +2759,42 @@
       }
     }
 
+    /* Travel Mode group: under mobile, stack vertically inside
+       .header-left so the button row stays compact and the ZIP +
+       last-push line drop below the chip instead of overflowing
+       horizontally into the .last-hit-group. */
+    @media (max-width: 700px) {
+      .travel-mode-group {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+        padding-left: 8px;
+        margin-left: 2px;
+      }
+
+      .travel-mode-btn {
+        font-size: 11px;
+        padding: 3px 8px;
+        letter-spacing: 0.5px;
+      }
+
+      .travel-mode-meta {
+        line-height: 1.2;
+      }
+
+      .travel-mode-meta .zip {
+        font-size: 10px;
+      }
+
+      .travel-mode-meta .last-push {
+        font-size: 8px;
+        max-width: 160px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+    }
+
     @media (max-width: 420px) {
       .btn-row > .action {
         flex-basis: 100%;
