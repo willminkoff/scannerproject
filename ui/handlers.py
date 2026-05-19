@@ -1,7 +1,6 @@
 """HTTP request handlers."""
 from __future__ import annotations
 
-import hmac
 import json
 import logging
 import os
@@ -120,7 +119,6 @@ try:
         DIGITAL_MIXER_ENABLED,
         HEALTH_SCHEDULER_STALE_MS,
         HP_LOCATION_PUSH_LOG_PATH,
-        HP_LOCATION_PUSH_SECRET,
         ICECAST_PORT,
         PLAYER_MOUNT,
         SB3_CONNECTED_STATUS_REFRESH_SEC,
@@ -230,7 +228,6 @@ except ImportError:
         DIGITAL_MIXER_ENABLED,
         HEALTH_SCHEDULER_STALE_MS,
         HP_LOCATION_PUSH_LOG_PATH,
-        HP_LOCATION_PUSH_SECRET,
         ICECAST_PORT,
         PLAYER_MOUNT,
         SB3_CONNECTED_STATUS_REFRESH_SEC,
@@ -768,15 +765,6 @@ def _save_hp_state_with_sync(state: "HPState") -> dict[str, Any]:
 
 
 _TRAVEL_PUSH_ZIP_RE = re.compile(r"^\d{5}$")
-
-
-def _travel_push_secret_ok(header_value: str | None) -> bool:
-    """Constant-time comparison of the X-Travel-Secret header against the configured secret."""
-    expected = HP_LOCATION_PUSH_SECRET
-    if not expected:
-        return False
-    provided = "" if header_value is None else str(header_value)
-    return hmac.compare_digest(expected.encode("utf-8"), provided.encode("utf-8"))
 
 
 def _apply_travel_push(state: "HPState", payload: dict[str, Any]) -> None:
@@ -4237,19 +4225,19 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/hp/location/push":
-            if not HP_LOCATION_PUSH_SECRET:
-                return self._send(
-                    404,
-                    json.dumps({"ok": False, "error": "travel mode disabled"}),
-                    "application/json; charset=utf-8",
-                )
-            if not _travel_push_secret_ok(self.headers.get("X-Travel-Secret")):
-                return self._send(
-                    401,
-                    json.dumps({"ok": False, "error": "unauthorized"}),
-                    "application/json; charset=utf-8",
-                )
-
+            # TAILNET-ONLY-TRUSTED. This endpoint has NO authentication. It is
+            # safe only because the UI listens on a Tailscale-only interface
+            # (no Funnel, no public reverse proxy, no port forward). The
+            # iPhone Shortcut reaches it over the tailnet via Tailscale's iOS
+            # app — that's the access control.
+            #
+            # >>> DO NOT expose port 5050 publicly without re-adding auth. <<<
+            #
+            # If you ever enable `tailscale funnel`, an nginx/Caddy reverse
+            # proxy, an ngrok tunnel, or a router port-forward to :5050,
+            # ANYONE on the internet can move the scanner's ZIP. Re-add a
+            # shared-secret check (see git history at 61864b5 for the
+            # hmac.compare_digest pattern) before doing any of that.
             try:
                 state = HPState.load()
             except Exception as e:

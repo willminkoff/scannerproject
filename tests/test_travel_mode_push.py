@@ -5,6 +5,10 @@ use_location, strict_location, range_miles, favorites, or service tags. That
 isolation is what keeps travel mode from regressing the failure mode the
 sidecar "Use location" toggle had (commit 48c68ca): users flipping location
 settings out from under their saved configuration.
+
+Note: the endpoint is intentionally unauthenticated. It is safe only because
+the UI listens on a tailnet-only interface (no Funnel, no public proxy). If
+that ever changes, the auth layer at commit 61864b5 needs to come back.
 """
 from __future__ import annotations
 
@@ -20,19 +24,14 @@ from ui import handlers
 from ui.hp_state import HPState
 
 
-_TEST_SECRET = "test-secret-abcd1234"
-
-
 class _FakePostRequest:
-    def __init__(self, path: str, body: str, *, secret_header: str | None = _TEST_SECRET):
+    def __init__(self, path: str, body: str):
         self.path = path
         payload = body.encode("utf-8")
         self.headers = {
             "Content-Length": str(len(payload)),
             "Content-Type": "application/json",
         }
-        if secret_header is not None:
-            self.headers["X-Travel-Secret"] = secret_header
         self.rfile = io.BytesIO(payload)
         self.sent = []
 
@@ -92,42 +91,15 @@ class TravelModePushTests(unittest.TestCase):
         self._sync_patcher.start()
         self.addCleanup(self._sync_patcher.stop)
 
-        self._secret_patcher = mock.patch.object(
-            handlers, "HP_LOCATION_PUSH_SECRET", _TEST_SECRET
-        )
-        self._secret_patcher.start()
-        self.addCleanup(self._secret_patcher.stop)
-
         self._log_patcher = mock.patch.object(
             handlers, "HP_LOCATION_PUSH_LOG_PATH", str(self.log_path)
         )
         self._log_patcher.start()
         self.addCleanup(self._log_patcher.stop)
 
-    def _post(self, body, *, secret_header=_TEST_SECRET):
-        req = _FakePostRequest("/api/hp/location/push", body, secret_header=secret_header)
+    def _post(self, body):
+        req = _FakePostRequest("/api/hp/location/push", body)
         return handlers.Handler.do_POST(req)
-
-    def test_missing_secret_header_returns_401(self):
-        code, body, _ = self._post(json.dumps({"zip": "10001"}), secret_header=None)
-        self.assertEqual(401, code)
-        payload = json.loads(body)
-        self.assertFalse(payload["ok"])
-        self.assertEqual("unauthorized", payload["error"])
-
-    def test_wrong_secret_returns_401(self):
-        code, body, _ = self._post(
-            json.dumps({"zip": "10001"}), secret_header="not-the-secret"
-        )
-        self.assertEqual(401, code)
-        self.assertIn("unauthorized", body)
-
-    def test_endpoint_disabled_when_secret_unset(self):
-        with mock.patch.object(handlers, "HP_LOCATION_PUSH_SECRET", ""):
-            code, body, _ = self._post(json.dumps({"zip": "10001"}))
-        self.assertEqual(404, code)
-        payload = json.loads(body)
-        self.assertFalse(payload["ok"])
 
     def test_malformed_zip_returns_400(self):
         for bad in ("", "abcde", "123", "1234567", "12345-1234"):
@@ -199,7 +171,7 @@ class TravelModePushTests(unittest.TestCase):
         self.assertAlmostEqual(before.lat, after.lat)
         self.assertAlmostEqual(before.lon, after.lon)
 
-    def test_push_writes_log_line_without_secret(self):
+    def test_push_writes_log_line(self):
         code, _, _ = self._post(
             json.dumps({"zip": "10001", "lat": 40.7, "lon": -74.0, "source": "ios_shortcut"})
         )
@@ -211,24 +183,9 @@ class TravelModePushTests(unittest.TestCase):
         record = json.loads(lines[0])
         self.assertEqual("10001", record["zip"])
         self.assertEqual("ios_shortcut", record["source"])
-        self.assertNotIn("secret", lines[0].lower())
-        self.assertNotIn(_TEST_SECRET, lines[0])
 
 
 class TravelModePushUnitTests(unittest.TestCase):
-    def test_secret_ok_rejects_empty_configured_secret(self):
-        with mock.patch.object(handlers, "HP_LOCATION_PUSH_SECRET", ""):
-            self.assertFalse(handlers._travel_push_secret_ok("anything"))
-            self.assertFalse(handlers._travel_push_secret_ok(""))
-            self.assertFalse(handlers._travel_push_secret_ok(None))
-
-    def test_secret_ok_constant_time_compare(self):
-        with mock.patch.object(handlers, "HP_LOCATION_PUSH_SECRET", "abc123"):
-            self.assertTrue(handlers._travel_push_secret_ok("abc123"))
-            self.assertFalse(handlers._travel_push_secret_ok("abc124"))
-            self.assertFalse(handlers._travel_push_secret_ok("abc12"))
-            self.assertFalse(handlers._travel_push_secret_ok("abc1234"))
-
     def test_apply_travel_push_strips_zip(self):
         state = HPState.default()
         handlers._apply_travel_push(state, {"zip": " 10001 "})

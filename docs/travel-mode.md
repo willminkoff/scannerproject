@@ -1,22 +1,33 @@
 # Travel mode — iPhone-driven SB3 ZIP push
 
-When Will travels, his iPhone pushes its current location to SB3 over public
-HTTPS. SB3 updates `HPState.zip/lat/lon` so the scan pool follows him.
+When Will travels, his iPhone pushes its current location to SB3 over the
+tailnet. SB3 updates `HPState.zip/lat/lon` so the scan pool follows him.
 Bobby and NSW broadcast stay Nashville-anchored — they do not consume this
 endpoint.
+
+## Tailnet-only by design
+
+The endpoint is **unauthenticated**. It is safe only because the SB3 UI
+listens on a tailnet-only interface — there is no Tailscale Funnel, no
+public reverse proxy, no port-forward to :5050. The iPhone reaches it via
+the Tailscale iOS app, which is the access control.
+
+> **Do not expose port 5050 publicly without re-adding auth.** Enabling
+> Funnel, an nginx/Caddy reverse proxy, an ngrok tunnel, or a router port
+> forward to :5050 would let anyone on the internet move the scanner's ZIP.
+> The shared-secret auth layer at commit `61864b5` is the pattern to revive
+> if public exposure is ever needed.
 
 ## Architecture
 
 ```
-iPhone (Shortcut, on arrival / every 30 min)
-  └─ POST https://<host>.<tailnet>.ts.net/api/hp/location/push
-     headers: X-Travel-Secret: <HP_LOCATION_PUSH_SECRET>
-     body:    {"zip": "10001", "lat": 40.7128, "lon": -74.0060, "source": "ios_shortcut"}
+iPhone (Shortcut, on arrival / every 30 min, over Tailscale)
+  └─ POST http://<sb3-host>.<tailnet>.ts.net:5050/api/hp/location/push
+     body: {"zip": "10001", "lat": 40.7128, "lon": -74.0060, "source": "ios_shortcut"}
      │
      ▼
-SB3 UI (Tailscale Funnel terminates TLS)
+SB3 UI
   └─ /api/hp/location/push
-     ├─ hmac.compare_digest secret check
      ├─ Validate ZIP (5 digits) + lat/lon ranges
      ├─ Mutate ONLY HPState.zip / .lat / .lon
      ├─ HPState.save() + favorites_runtime_sync
@@ -27,42 +38,9 @@ The endpoint never modifies `use_location`, `strict_location`, `range_miles`,
 `enabled_service_tags`, `favorites`, or any other user-controlled field. That
 isolation is enforced by `tests/test_travel_mode_push.py`.
 
-## Server-side setup (on the Micro)
-
-1. Set the shared secret in the systemd unit environment:
-
-   ```
-   HP_LOCATION_PUSH_SECRET=<long random string>
-   ```
-
-   Generate one with `openssl rand -hex 32`. If unset, the endpoint returns
-   404 and the UI logs a warning on startup.
-
-2. Restart the UI service:
-
-   ```
-   sudo systemctl restart airband-ui
-   ```
-
-3. Enable Funnel (first run only; subsequent reboots persist):
-
-   ```
-   ./scripts/enable-tailscale-funnel.sh
-   ```
-
-   This may fail the first time with "Funnel is not enabled on your tailnet".
-   Go to the Tailscale admin → DNS → HTTPS Certificates + Funnel, grant the
-   `funnel` attribute to the SB3 device, then re-run the script.
-
-4. Verify the public URL responds:
-
-   ```
-   curl -sS https://<host>.<tailnet>.ts.net/api/status
-   ```
-
 ## iPhone Shortcut setup
 
-Build a new Shortcut in the iOS Shortcuts app. Steps:
+Open the Shortcuts app on iPhone and build a new Shortcut:
 
 1. **Get Current Location** (Location → Get Current Location).
 2. **Get Postal Code from Location** (Location → Get Component of Address →
@@ -80,11 +58,11 @@ Build a new Shortcut in the iOS Shortcuts app. Steps:
    Make sure the ZIP is quoted as a string and lat/lon are NOT quoted.
 
 6. **Get contents of URL** action:
-   - URL: `https://<host>.<tailnet>.ts.net/api/hp/location/push`
+   - URL: `http://<sb3-host>.<tailnet>.ts.net:5050/api/hp/location/push`
+     (use the SB3's tailnet hostname — the iPhone must be on the tailnet via
+     the Tailscale iOS app for this to reach SB3)
    - Method: `POST`
-   - Headers:
-     - `Content-Type: application/json`
-     - `X-Travel-Secret: <paste the secret value here>`
+   - Headers: `Content-Type: application/json`
    - Request Body: `File` → use the Text from step 5
 7. **Show Notification** action — show the result of the previous step so a
    failure is visible.
@@ -101,7 +79,7 @@ Set the automation to **Run Immediately** so it doesn't prompt every time.
 
 ### Test the Shortcut once manually
 
-Run it from the Shortcuts app on iPhone and confirm:
+Run it from the Shortcuts app on iPhone with Tailscale active and confirm:
 
 - Notification shows a 200 response with the new ZIP.
 - `tail -f /run/airband_ui_travel_mode.jsonl` on the Micro shows the receipt.
@@ -119,9 +97,6 @@ Default home ZIP is `37221`. Override with `HOME_ZIP=NNNNN ./scripts/reset-home-
 
 ## Notes
 
-- The endpoint is exempt from CSRF / origin checks because it requires the
-  shared secret. Treat the secret as you would an API token: rotate by
-  changing the env var, restarting the UI, and updating the Shortcut.
 - Disco (port 8092) does not consume this endpoint. ULS / band-plan logic is
   national, not ZIP-driven.
 - Bobby + NSW broadcast read their own ZIP from elsewhere (different boxes);

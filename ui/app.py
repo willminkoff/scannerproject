@@ -6,7 +6,7 @@ from http.server import HTTPServer
 from socketserver import ThreadingMixIn
 
 try:
-    from .config import UI_PORT, HP_LOCATION_PUSH_SECRET
+    from .config import UI_PORT
     from .handlers import Handler
     from .server_workers import start_config_worker, start_icecast_monitor
     from .favorites_runtime import sync_scan_pool_to_runtime
@@ -17,7 +17,7 @@ except ImportError:
     repo_root = os.path.dirname(script_dir)
     if repo_root not in sys.path:
         sys.path.insert(0, repo_root)
-    from ui.config import UI_PORT, HP_LOCATION_PUSH_SECRET
+    from ui.config import UI_PORT
     from ui.handlers import Handler
     from ui.server_workers import start_config_worker, start_icecast_monitor
     from ui.favorites_runtime import sync_scan_pool_to_runtime
@@ -116,12 +116,6 @@ def main():
     start_icecast_monitor()
     _rehydrate_wx_reader()
     _start_runtime_sync_thread()
-    if HP_LOCATION_PUSH_SECRET:
-        logging.info("Travel mode push endpoint enabled at POST /api/hp/location/push")
-    else:
-        logging.warning(
-            "Travel mode push endpoint DISABLED: HP_LOCATION_PUSH_SECRET is unset"
-        )
     server = ThreadedHTTPServer(("0.0.0.0", UI_PORT), Handler)
     logging.info(f"UI listening on 0.0.0.0:{UI_PORT}")
     server.serve_forever()
