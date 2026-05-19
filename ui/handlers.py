@@ -1,6 +1,7 @@
 """HTTP request handlers."""
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 import os
@@ -118,6 +119,8 @@ try:
         DIGITAL_SDRTRUNK_STREAM_NAME,
         DIGITAL_MIXER_ENABLED,
         HEALTH_SCHEDULER_STALE_MS,
+        HP_LOCATION_PUSH_LOG_PATH,
+        HP_LOCATION_PUSH_SECRET,
         ICECAST_PORT,
         PLAYER_MOUNT,
         SB3_CONNECTED_STATUS_REFRESH_SEC,
@@ -226,6 +229,8 @@ except ImportError:
         DIGITAL_SDRTRUNK_STREAM_NAME,
         DIGITAL_MIXER_ENABLED,
         HEALTH_SCHEDULER_STALE_MS,
+        HP_LOCATION_PUSH_LOG_PATH,
+        HP_LOCATION_PUSH_SECRET,
         ICECAST_PORT,
         PLAYER_MOUNT,
         SB3_CONNECTED_STATUS_REFRESH_SEC,
@@ -760,6 +765,77 @@ def _save_hp_state_with_sync(state: "HPState") -> dict[str, Any]:
         "state": state.to_dict(),
         "favorites_runtime_sync": sync_payload,
     }
+
+
+_TRAVEL_PUSH_ZIP_RE = re.compile(r"^\d{5}$")
+
+
+def _travel_push_secret_ok(header_value: str | None) -> bool:
+    """Constant-time comparison of the X-Travel-Secret header against the configured secret."""
+    expected = HP_LOCATION_PUSH_SECRET
+    if not expected:
+        return False
+    provided = "" if header_value is None else str(header_value)
+    return hmac.compare_digest(expected.encode("utf-8"), provided.encode("utf-8"))
+
+
+def _apply_travel_push(state: "HPState", payload: dict[str, Any]) -> None:
+    """Mutate only zip/lat/lon on state from a travel push payload.
+
+    Does NOT touch use_location, strict_location, range_miles, favorites, or service tags.
+    Raises ValueError when the payload is malformed.
+    """
+    zip_raw = payload.get("zip")
+    if zip_raw is None:
+        raise ValueError("missing zip")
+    zip_text = str(zip_raw).strip()
+    if not _TRAVEL_PUSH_ZIP_RE.match(zip_text):
+        raise ValueError("invalid zip")
+
+    lat_present = "lat" in payload and payload.get("lat") is not None
+    lon_present = "lon" in payload and payload.get("lon") is not None
+    if lat_present != lon_present:
+        raise ValueError("lat and lon must be provided together")
+
+    if lat_present:
+        lat = _parse_float_value(payload.get("lat"), field="lat")
+        lon = _parse_float_value(payload.get("lon"), field="lon")
+        if not (-90.0 <= lat <= 90.0):
+            raise ValueError("invalid lat")
+        if not (-180.0 <= lon <= 180.0):
+            raise ValueError("invalid lon")
+        state.lat = lat
+        state.lon = lon
+
+    state.zip = zip_text
+
+
+def _log_travel_push(record: dict[str, Any]) -> None:
+    """Append a travel-push receipt to the log file and INFO log it.
+
+    The secret is never written. Log errors are swallowed (logging must not break
+    the request path).
+    """
+    try:
+        logger.info(
+            "Travel mode push: zip=%s lat=%s lon=%s source=%s",
+            record.get("zip"),
+            record.get("lat"),
+            record.get("lon"),
+            record.get("source") or "",
+        )
+    except Exception:
+        pass
+    log_path = (HP_LOCATION_PUSH_LOG_PATH or "").strip()
+    if not log_path:
+        return
+    try:
+        path = Path(log_path).expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
+    except Exception:
+        logger.debug("travel push log write failed for %s", log_path, exc_info=True)
 
 
 def _normalize_runtime_sync_payload(payload: Any) -> dict[str, Any]:
@@ -4159,6 +4235,72 @@ class Handler(BaseHTTPRequestHandler):
                     "application/json; charset=utf-8",
                 )
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/hp/location/push":
+            if not HP_LOCATION_PUSH_SECRET:
+                return self._send(
+                    404,
+                    json.dumps({"ok": False, "error": "travel mode disabled"}),
+                    "application/json; charset=utf-8",
+                )
+            if not _travel_push_secret_ok(self.headers.get("X-Travel-Secret")):
+                return self._send(
+                    401,
+                    json.dumps({"ok": False, "error": "unauthorized"}),
+                    "application/json; charset=utf-8",
+                )
+
+            try:
+                state = HPState.load()
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+
+            try:
+                _apply_travel_push(state, form)
+            except ValueError as e:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+
+            try:
+                save_payload = _save_hp_state_with_sync(state)
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+
+            updated_at = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+            _log_travel_push(
+                {
+                    "ts": updated_at,
+                    "zip": state.zip,
+                    "lat": state.lat,
+                    "lon": state.lon,
+                    "source": str(form.get("source") or "").strip(),
+                }
+            )
+            return self._send(
+                200,
+                json.dumps(
+                    {
+                        "ok": True,
+                        "zip": state.zip,
+                        "lat": state.lat,
+                        "lon": state.lon,
+                        "updated_at": updated_at,
+                        "favorites_runtime_sync": save_payload.get("favorites_runtime_sync"),
+                    }
+                ),
+                "application/json; charset=utf-8",
+            )
 
         if p == "/api/hp/avoids":
             controller = get_scan_mode_controller()
