@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# Panic-reset SB3 ZIP back to home (37221) when a travel-mode push went wrong.
+# EMERGENCY-ONLY. The SB3 UI Travel Mode toggle is the primary control —
+# turning it OFF in the UI snaps the ZIP back to home automatically.
+#
+# Use this script only when:
+#   - the UI is unreachable but you have shell access, or
+#   - you need to script the reset (cron, recovery automation, etc.)
 #
 # Calls the local /api/hp/state endpoint over loopback (no auth needed, tailnet
 # trust) and forces zip to HOME_ZIP. Leaves use_location, strict_location, and

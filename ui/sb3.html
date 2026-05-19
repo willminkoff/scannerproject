@@ -143,6 +143,84 @@
       outline-offset: 2px;
     }
 
+    /* Travel Mode toggle — must be unambiguous at a glance. */
+    .travel-mode-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding-left: 8px;
+      border-left: 1px solid var(--border);
+      margin-left: 4px;
+    }
+
+    .travel-mode-btn {
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 5px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font: inherit;
+      transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+    }
+
+    /* OFF — at home, quiet and neutral. */
+    .travel-mode-btn[data-travel="off"] {
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+
+    .travel-mode-btn[data-travel="off"]:hover {
+      color: var(--text-primary);
+      border-color: var(--text-secondary);
+    }
+
+    /* ON — traveling, hard to miss. Orange/amber so it stands out
+       against both the teal and red accent themes. */
+    .travel-mode-btn[data-travel="on"] {
+      background: #f59e0b;
+      color: #1a0f00;
+      border: 1px solid #f59e0b;
+      box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25);
+    }
+
+    .travel-mode-btn[data-travel="on"]:hover {
+      background: #fbbf24;
+      border-color: #fbbf24;
+    }
+
+    .travel-mode-btn[disabled] {
+      opacity: 0.5;
+      cursor: wait;
+    }
+
+    .travel-mode-meta {
+      display: inline-flex;
+      flex-direction: column;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      color: var(--text-secondary);
+      line-height: 1.3;
+    }
+
+    .travel-mode-meta .zip {
+      font-weight: 700;
+      font-size: 11px;
+      color: var(--text-primary);
+      letter-spacing: 0.04em;
+    }
+
+    .travel-mode-meta .last-push {
+      font-size: 9px;
+      color: var(--text-secondary);
+    }
+
+    .travel-mode-meta .last-push.rejected {
+      color: #f59e0b;
+    }
+
     .status-indicators {
       display: flex;
       gap: 12px;
@@ -2702,6 +2780,15 @@
       <button class="logo" id="btn-disco" type="button" title="Open Disco wideband discovery" onclick="window.open('http://' + window.location.hostname + ':8092/', '_blank', 'noopener')">
         DISCO
       </button>
+      <div class="travel-mode-group" id="travel-mode-group">
+        <button class="travel-mode-btn" id="btn-travel-mode" type="button" data-travel="off" aria-pressed="false" title="Toggle Travel Mode (accepts iPhone location pushes when ON)">
+          Travel: OFF
+        </button>
+        <span class="travel-mode-meta">
+          <span class="zip" id="travel-mode-zip">ZIP: --</span>
+          <span class="last-push" id="travel-mode-last-push"></span>
+        </span>
+      </div>
     </div>
     <div class="last-hit-group">
       <button class="last-hit-btn" id="last-hit-airband" type="button">
@@ -15333,13 +15420,116 @@
     }
     
     // ============================================
+    // TRAVEL MODE TOGGLE
+    // ============================================
+
+    const TRAVEL_MODE_REFRESH_MS = 60000;
+    const TRAVEL_PUSH_VISIBLE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+    function formatRelativeTime(ts) {
+      if (!ts) return '';
+      const then = Date.parse(ts);
+      if (!Number.isFinite(then)) return '';
+      const deltaMs = Date.now() - then;
+      if (deltaMs < 0 || deltaMs > TRAVEL_PUSH_VISIBLE_WINDOW_MS) return '';
+      const seconds = Math.floor(deltaMs / 1000);
+      if (seconds < 60) return 'just now';
+      const minutes = Math.floor(seconds / 60);
+      if (minutes < 60) return minutes + ' min ago';
+      const hours = Math.floor(minutes / 60);
+      return hours + ' h ago';
+    }
+
+    function renderTravelMode(payload) {
+      const btn = document.getElementById('btn-travel-mode');
+      const zipEl = document.getElementById('travel-mode-zip');
+      const lastEl = document.getElementById('travel-mode-last-push');
+      if (!btn || !zipEl || !lastEl) return;
+
+      const stateBlock = (payload && payload.state) || {};
+      const enabled = Boolean(stateBlock.travel_mode_enabled);
+      const zip = String(stateBlock.zip || '').trim() || '--';
+      btn.setAttribute('data-travel', enabled ? 'on' : 'off');
+      btn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+      btn.textContent = enabled ? 'Travel: ON' : 'Travel: OFF';
+      zipEl.textContent = 'ZIP: ' + zip;
+
+      const last = payload && payload.travel_mode_last_push;
+      lastEl.classList.remove('rejected');
+      if (last && typeof last === 'object') {
+        const rel = formatRelativeTime(last.ts);
+        if (rel) {
+          const source = String(last.source || '').trim() || 'unknown';
+          if (last.accepted === false) {
+            lastEl.classList.add('rejected');
+            lastEl.textContent = 'Last push REJECTED ' + rel + ' (' + source + ')';
+          } else {
+            lastEl.textContent = 'Last push ' + rel + ' from ' + source;
+          }
+          return;
+        }
+      }
+      lastEl.textContent = '';
+    }
+
+    async function refreshTravelModeState() {
+      try {
+        const response = await fetch('/api/hp/state', { cache: 'no-store' });
+        if (!response.ok) return;
+        const payload = await response.json();
+        renderTravelMode(payload);
+      } catch (err) {
+        // Network blip; the next refresh will catch up.
+      }
+    }
+
+    async function toggleTravelMode() {
+      const btn = document.getElementById('btn-travel-mode');
+      if (!btn) return;
+      const currentlyOn = btn.getAttribute('data-travel') === 'on';
+      const target = !currentlyOn;
+      const confirmMsg = target
+        ? 'Turn Travel Mode ON? iPhone pushes will start moving the scanner ZIP.'
+        : 'Turn Travel Mode OFF? iPhone pushes will be rejected. ' +
+          'Current ZIP stays as-is — use the sidecar Location screen to change it manually.';
+      if (!window.confirm(confirmMsg)) return;
+      btn.disabled = true;
+      try {
+        const response = await fetch('/api/hp/travel_mode/toggle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: target }),
+        });
+        if (!response.ok) {
+          const text = await response.text();
+          window.alert('Travel mode toggle failed: HTTP ' + response.status + '\n' + text);
+          return;
+        }
+        await refreshTravelModeState();
+      } catch (err) {
+        window.alert('Travel mode toggle failed: ' + (err && err.message ? err.message : err));
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function setupTravelMode() {
+      const btn = document.getElementById('btn-travel-mode');
+      if (!btn) return;
+      btn.addEventListener('click', toggleTravelMode);
+      refreshTravelModeState();
+      setInterval(refreshTravelModeState, TRAVEL_MODE_REFRESH_MS);
+    }
+
+    // ============================================
     // INIT
     // ============================================
-    
+
     async function init() {
       loadTheme();
       state.bandScanReturnProfile = loadBandScanReturnProfiles();
       setupCollapsibleWidgets();
+      setupTravelMode();
       updateTuneButton();
       setProfileEditorTab('analog');
       refreshProfileEditorOptions();

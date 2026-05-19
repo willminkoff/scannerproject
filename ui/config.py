@@ -404,3 +404,7 @@ HP_LOCATION_PUSH_LOG_PATH = os.getenv(
     os.path.join(AVOIDS_DIR, "travel_mode_push.jsonl"),
 ).strip()
 HOME_ZIP = os.getenv("HOME_ZIP", "37221").strip() or "37221"
+# Home coordinates for the ZIP. Used when Travel Mode toggles OFF and the system
+# snaps zip/lat/lon back to home.
+HOME_LAT = float(os.getenv("HOME_LAT", "36.0662"))
+HOME_LON = float(os.getenv("HOME_LON", "-86.9639"))

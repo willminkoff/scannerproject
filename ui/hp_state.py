@@ -230,6 +230,7 @@ class HPState:
     favorites_name: str = "My Favorites"
     custom_favorites: list[dict] = field(default_factory=list)
     avoid_list: list[dict] = field(default_factory=list)
+    travel_mode_enabled: bool = False
     service_tag_schema_version: int = _SERVICE_TAG_SCHEMA_VERSION
 
     @classmethod
@@ -253,6 +254,7 @@ class HPState:
             favorites_name="My Favorites",
             custom_favorites=[],
             avoid_list=[],
+            travel_mode_enabled=False,
             service_tag_schema_version=_SERVICE_TAG_SCHEMA_VERSION,
         )
 
@@ -271,6 +273,7 @@ class HPState:
             "favorites_name": str(self.favorites_name or "My Favorites").strip() or "My Favorites",
             "custom_favorites": _coerce_custom_favorites(self.custom_favorites),
             "avoid_list": _coerce_avoid_list(self.avoid_list),
+            "travel_mode_enabled": bool(self.travel_mode_enabled),
             "service_tag_schema_version": int(self.service_tag_schema_version or _SERVICE_TAG_SCHEMA_VERSION),
         }
 
@@ -338,5 +341,9 @@ class HPState:
             or default_state.favorites_name,
             custom_favorites=_coerce_custom_favorites(payload.get("custom_favorites")),
             avoid_list=_coerce_avoid_list(payload.get("avoid_list")),
+            travel_mode_enabled=_coerce_bool(
+                payload.get("travel_mode_enabled"),
+                default=default_state.travel_mode_enabled,
+            ),
             service_tag_schema_version=_SERVICE_TAG_SCHEMA_VERSION,
         )
