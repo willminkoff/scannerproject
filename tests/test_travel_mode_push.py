@@ -183,6 +183,20 @@ class TravelModePushTests(unittest.TestCase):
         record = json.loads(lines[0])
         self.assertEqual("10001", record["zip"])
         self.assertEqual("ios_shortcut", record["source"])
+        self.assertAlmostEqual(40.7, record["lat"])
+        self.assertAlmostEqual(-74.0, record["lon"])
+        self.assertIn("ts", record)
+
+    def test_push_creates_missing_log_parent_directory(self):
+        nested = Path(self._tmp.name) / "missing" / "nested" / "travel.jsonl"
+        with mock.patch.object(handlers, "HP_LOCATION_PUSH_LOG_PATH", str(nested)):
+            code, _, _ = self._post(
+                json.dumps({"zip": "10001", "lat": 40.7, "lon": -74.0, "source": "manual_test"})
+            )
+        self.assertEqual(200, code)
+        self.assertTrue(nested.is_file())
+        record = json.loads(nested.read_text(encoding="utf-8").strip().splitlines()[-1])
+        self.assertEqual("10001", record["zip"])
 
 
 class TravelModePushUnitTests(unittest.TestCase):

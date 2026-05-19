@@ -801,8 +801,7 @@ def _apply_travel_push(state: "HPState", payload: dict[str, Any]) -> None:
 def _log_travel_push(record: dict[str, Any]) -> None:
     """Append a travel-push receipt to the log file and INFO log it.
 
-    The secret is never written. Log errors are swallowed (logging must not break
-    the request path).
+    Log errors are swallowed: logging must not break the request path.
     """
     try:
         logger.info(

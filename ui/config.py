@@ -395,8 +395,12 @@ ACTION_WAIT_TIMEOUT_SEC = max(1.0, float(os.getenv("ACTION_WAIT_TIMEOUT_SEC", "4
 # Travel mode: iPhone-driven location push endpoint.
 # Tailnet-only-trusted; no auth on /api/hp/location/push. See the docstring
 # on that route in ui/handlers.py before exposing the UI port publicly.
+#
+# Receipts live alongside the other audit logs in AVOIDS_DIR so log rotation
+# and cleanup conventions apply uniformly. /run/ was the original default but
+# isn't writable by the airband-ui service user.
 HP_LOCATION_PUSH_LOG_PATH = os.getenv(
     "HP_LOCATION_PUSH_LOG_PATH",
-    "/run/airband_ui_travel_mode.jsonl",
+    os.path.join(AVOIDS_DIR, "travel_mode_push.jsonl"),
 ).strip()
 HOME_ZIP = os.getenv("HOME_ZIP", "37221").strip() or "37221"
