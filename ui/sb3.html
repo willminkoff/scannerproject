@@ -2759,17 +2759,39 @@
       }
     }
 
-    /* Travel Mode group: under mobile, stack vertically inside
-       .header-left so the button row stays compact and the ZIP +
-       last-push line drop below the chip instead of overflowing
-       horizontally into the .last-hit-group. */
+    /* Travel Mode group: under mobile, move the entire chip + meta block
+       onto its own row beneath the SB3/WX/DISCO buttons so it no longer
+       collides with the centered .last-hit-group (Airband/Ground/Digital
+       tiles).
+
+       To make flex-basis: 100% actually wrap inside .header-left, we
+       have to take .header-left out of position: absolute at mobile —
+       an unconstrained absolute container has no width to wrap against.
+       Trade-off: .header itself also needs flex-wrap so .header-left
+       takes a full row of its own. .header-right stays absolute and
+       overlays the top-right corner (existing pattern). */
     @media (max-width: 700px) {
+      .header {
+        flex-wrap: wrap;
+      }
+
+      .header-left {
+        position: static;
+        flex-wrap: wrap;
+        width: 100%;
+        /* Leave room for the still-absolute .header-right (SDR + theme
+           toggle) which overlays the top-right corner. */
+        padding-right: 80px;
+      }
+
       .travel-mode-group {
         flex-direction: column;
         align-items: flex-start;
-        gap: 2px;
-        padding-left: 8px;
-        margin-left: 2px;
+        flex-basis: 100%;
+        margin-top: 6px;
+        padding-left: 0;
+        margin-left: 0;
+        border-left: none;
       }
 
       .travel-mode-btn {
@@ -2788,7 +2810,7 @@
 
       .travel-mode-meta .last-push {
         font-size: 8px;
-        max-width: 160px;
+        max-width: 280px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
