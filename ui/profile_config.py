@@ -862,7 +862,11 @@ def replace_freqs_labels(text: str, freqs, labels):
             out = RE_LABELS_BLOCK.sub("", out, count=1)
         return out
 
-    labels_values = [json.dumps(s) for s in labels_to_write]  # includes quotes
+    # ensure_ascii=False: keep non-ASCII chars (e.g. em-dash in disco labels)
+    # as literal UTF-8. Default json.dumps emits \uXXXX escapes, which then
+    # break re.sub() at line 873 below — Python's regex engine reads "\u" in
+    # a replacement string as an invalid backreference escape and raises.
+    labels_values = [json.dumps(s, ensure_ascii=False) for s in labels_to_write]  # includes quotes
     labels_block = f"{base_indent}labels = " + _format_list_block(base_indent, labels_values)
     if lm:
         out = RE_LABELS_BLOCK.sub(labels_block, out, count=1)

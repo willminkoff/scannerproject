@@ -1,0 +1,390 @@
+# FCC Table of Frequency Allocations — disco Phase 4 Layer 1.
+#
+# Source:      47 CFR § 2.106 (FCC Online Table of Frequency Allocations)
+# Source URL:  https://www.fcc.gov/engineering-technology/policy-and-rules-division/general/radio-spectrum-allocation
+# PDF:         https://www.fcc.gov/file/14014/download
+# Retrieved:   2026-05-13 (by scope/lookup at disco Phase 4 design time)
+# Pinned rev:  Verify the table cover date on next refresh and update this line.
+#
+# Each band entry constrains which v3 model classes are physically plausible in
+# that frequency range. Predictions outside `allowed_modes` are downgraded by
+# the Layer 2 classifier integration (band_plan.tag_for) to:
+#   "<BAND_NAME> — unidentified (model said: <ml_class>)"
+#
+# Coverage: 30 MHz – 1.3 GHz contiguous, plus ISM 2.4 GHz.
+# Out of scope: HF (<30 MHz, hardware can't tune), microwave above 2.5 GHz
+# except ISM 2.4. Gaps in the table mean "permissive default" — return the
+# unmodified ML class without a band tag.
+#
+# v3 class list (from disco/models/radioml.classes.json — keep in sync):
+#   NOISE FM_BROADCAST FM_NARROW AM_VOICE DMR GMSK QPSK OQPSK QAM OOK
+#   CELLULAR LTE P25 NXDN POCSAG
+#
+# To add a band: append entry with name (UPPER_SNAKE), freq_min_hz/freq_max_hz
+# (underscored ints), allowed_modes (subset of the v3 list), notes (rationale).
+# Order: narrower / more specific bands first; first frequency match wins.
+# The current table has no overlaps, but the lookup tolerates them.
+
+bands:
+  # --- Low VHF (30-88 MHz) -------------------------------------------------
+  - name: LO_VHF
+    freq_min_hz: 30_000_000
+    freq_max_hz: 50_000_000
+    allowed_modes: [FM_NARROW, AM_VOICE, POCSAG]
+    notes: "Low VHF — government, business, historical paging, occasional CB"
+
+  - name: AMATEUR_6M
+    freq_min_hz: 50_000_000
+    freq_max_hz: 54_000_000
+    allowed_modes: [FM_NARROW, AM_VOICE]
+    notes: "6m amateur — FM repeaters, AM, SSB (SSB not in v3)"
+
+  - name: TV_VHF_LOW
+    freq_min_hz: 54_000_000
+    freq_max_hz: 88_000_000
+    allowed_modes: [QAM, FM_NARROW]
+    notes: "TV channels 2-6 — ATSC 8VSB (closest v3 = QAM); audio subcarriers FM"
+
+  # --- Broadcast FM (88-108 MHz) -------------------------------------------
+  - name: BCAST_FM
+    freq_min_hz: 88_000_000
+    freq_max_hz: 108_000_000
+    allowed_modes: [FM_BROADCAST]
+    notes: "FCC commercial FM broadcast, 200 kHz channels"
+
+  # --- Aviation (108-137 MHz) ----------------------------------------------
+  - name: AVIATION_NAV
+    freq_min_hz: 108_000_000
+    freq_max_hz: 117_975_000
+    allowed_modes: [AM_VOICE]
+    notes: "VOR/ILS localizer — AM only. NXDN/P25/digital here is impossible by allocation; this is the bug class Phase 4 catches."
+
+  - name: AVIATION_VOICE
+    freq_min_hz: 118_000_000
+    freq_max_hz: 136_975_000
+    allowed_modes: [AM_VOICE]
+    notes: "Airband ATC voice — AM, 8.33/25 kHz channels"
+
+  # --- VHF mid (137-174 MHz) -----------------------------------------------
+  - name: METSAT_VHF
+    freq_min_hz: 137_000_000
+    freq_max_hz: 138_000_000
+    allowed_modes: [AM_VOICE, FM_NARROW, QPSK]
+    notes: "Meteorological satellites — NOAA APT (AM subcarrier), digital weather sats"
+
+  - name: GOV_VHF_138
+    freq_min_hz: 138_000_000
+    freq_max_hz: 144_000_000
+    allowed_modes: [FM_NARROW, AM_VOICE, P25, DMR]
+    notes: "Government fixed/mobile — permissive (military uses many modes)"
+
+  - name: AMATEUR_2M
+    freq_min_hz: 144_000_000
+    freq_max_hz: 148_000_000
+    allowed_modes: [FM_NARROW, AM_VOICE, DMR]
+    notes: "2m amateur — FM repeaters, AM, D-STAR/DMR digital"
+
+  - name: GOV_VHF_148
+    freq_min_hz: 148_000_000
+    freq_max_hz: 150_800_000
+    allowed_modes: [FM_NARROW, P25]
+    notes: "Government fixed/mobile (mil P25 trunked)"
+
+  - name: VHF_LMR_LOW
+    freq_min_hz: 150_800_000
+    freq_max_hz: 156_000_000
+    allowed_modes: [FM_NARROW, DMR, NXDN, P25]
+    notes: "Land mobile — business / public safety / itinerant. Multiple digital protocols coexist."
+
+  - name: MARINE_VHF
+    freq_min_hz: 156_000_000
+    freq_max_hz: 157_450_000
+    allowed_modes: [FM_NARROW]
+    notes: "Marine VHF (incl. 156.8 channel 16 emergency) — 25 kHz FM"
+
+  - name: VHF_LMR_MID
+    freq_min_hz: 157_450_000
+    freq_max_hz: 160_600_000
+    allowed_modes: [FM_NARROW, DMR, NXDN, P25]
+    notes: "More VHF land mobile — business / public safety"
+
+  - name: MARINE_VHF_HIGH
+    freq_min_hz: 160_600_000
+    freq_max_hz: 161_575_000
+    allowed_modes: [FM_NARROW]
+    notes: "More marine VHF"
+
+  - name: VHF_LMR_LAST
+    freq_min_hz: 161_575_000
+    freq_max_hz: 162_012_500
+    allowed_modes: [FM_NARROW]
+    notes: "Last sliver of VHF LMR before NOAA WX"
+
+  - name: GOV_NOAA_PRE
+    freq_min_hz: 162_012_500
+    freq_max_hz: 162_400_000
+    allowed_modes: [FM_NARROW]
+    notes: "Government VHF immediately below NOAA WX"
+
+  - name: NOAA_WX
+    freq_min_hz: 162_400_000
+    freq_max_hz: 162_550_000
+    allowed_modes: [FM_NARROW]
+    notes: "7 NOAA weather channels (162.400 to 162.550 MHz, 25 kHz spacing)"
+
+  - name: GOV_VHF_HIGH
+    freq_min_hz: 162_550_000
+    freq_max_hz: 174_000_000
+    allowed_modes: [FM_NARROW, P25, DMR]
+    notes: "Government VHF — fixed/mobile, includes federal P25 trunked"
+
+  # --- VHF high (174-225 MHz) ----------------------------------------------
+  - name: TV_VHF_HIGH
+    freq_min_hz: 174_000_000
+    freq_max_hz: 216_000_000
+    allowed_modes: [QAM, FM_NARROW]
+    notes: "TV channels 7-13 — ATSC 8VSB"
+
+  - name: AMTS
+    freq_min_hz: 216_000_000
+    freq_max_hz: 220_000_000
+    allowed_modes: [FM_NARROW, DMR]
+    notes: "Automated Maritime Telecommunications System"
+
+  - name: AMATEUR_125
+    freq_min_hz: 220_000_000
+    freq_max_hz: 225_000_000
+    allowed_modes: [FM_NARROW]
+    notes: "1.25m amateur + commercial LMR (220-222 MHz amateur, 220-225 LMR)"
+
+  # --- UHF military aviation (225-400 MHz) ---------------------------------
+  - name: MIL_UHF_AVIATION
+    freq_min_hz: 225_000_000
+    freq_max_hz: 328_600_000
+    allowed_modes: [AM_VOICE]
+    notes: "Military aviation UHF airband — AM"
+
+  - name: AVIATION_GLIDESLOPE
+    freq_min_hz: 328_600_000
+    freq_max_hz: 335_400_000
+    allowed_modes: [AM_VOICE]
+    notes: "ILS glideslope — AM"
+
+  - name: MIL_UHF
+    freq_min_hz: 335_400_000
+    freq_max_hz: 399_900_000
+    allowed_modes: [FM_NARROW, AM_VOICE, P25]
+    notes: "Military / federal fixed/mobile/satellite — permissive"
+
+  - name: NAV_SAT_UPLINK
+    freq_min_hz: 399_900_000
+    freq_max_hz: 400_050_000
+    allowed_modes: [QPSK]
+    notes: "Navigation satellite uplinks"
+
+  # --- Met-Aids / radiosondes (400-406 MHz) — Will's specialty -------------
+  - name: METSAT_400
+    freq_min_hz: 400_050_000
+    freq_max_hz: 401_000_000
+    allowed_modes: [GMSK, FM_NARROW, QPSK]
+    notes: "Meteorological satellite downlinks"
+
+  - name: METAIDS
+    freq_min_hz: 401_000_000
+    freq_max_hz: 406_000_000
+    allowed_modes: [GMSK, FM_NARROW]
+    notes: "Met-aids — radiosondes / weather balloons (GMSK/GFSK modulation typical)"
+
+  - name: EPIRB_406
+    freq_min_hz: 406_000_000
+    freq_max_hz: 406_100_000
+    allowed_modes: [QPSK]
+    notes: "Cospas-Sarsat emergency beacons — 406 MHz BPSK/QPSK distress"
+
+  # --- UHF gov + amateur (406-450 MHz) -------------------------------------
+  - name: GOV_UHF_LOW
+    freq_min_hz: 406_100_000
+    freq_max_hz: 420_000_000
+    allowed_modes: [FM_NARROW, P25, DMR]
+    notes: "Government UHF fixed/mobile"
+
+  - name: AMATEUR_70CM
+    freq_min_hz: 420_000_000
+    freq_max_hz: 450_000_000
+    allowed_modes: [FM_NARROW, AM_VOICE, DMR]
+    notes: "70cm amateur — FM repeaters, AM, D-STAR/DMR/Yaesu Fusion"
+
+  # --- UHF business / public safety (450-470 MHz) --------------------------
+  - name: UHF_LMR_LOW
+    freq_min_hz: 450_000_000
+    freq_max_hz: 454_000_000
+    allowed_modes: [FM_NARROW, DMR, NXDN, P25]
+    notes: "UHF business / public safety / itinerant"
+
+  - name: UHF_LMR_454
+    freq_min_hz: 454_000_000
+    freq_max_hz: 460_000_000
+    allowed_modes: [FM_NARROW, DMR, NXDN, POCSAG]
+    notes: "UHF LMR — historical paging band (POCSAG), now mostly LMR"
+
+  - name: UHF_LMR_HIGH
+    freq_min_hz: 460_000_000
+    freq_max_hz: 470_000_000
+    allowed_modes: [FM_NARROW, DMR, NXDN, P25]
+    notes: "UHF business / public safety — DMR/NXDN/P25 commonly here"
+
+  # --- TV UHF (470-698 MHz) ------------------------------------------------
+  - name: TV_UHF_LOW
+    freq_min_hz: 470_000_000
+    freq_max_hz: 512_000_000
+    allowed_modes: [QAM, P25, FM_NARROW]
+    notes: "TV channels 14-20 + T-Band public safety (some cities — NYC, LA, Philly etc.)"
+
+  - name: TV_UHF_MID
+    freq_min_hz: 512_000_000
+    freq_max_hz: 608_000_000
+    allowed_modes: [QAM]
+    notes: "TV channels 21-36 — ATSC"
+
+  - name: RADIO_ASTRONOMY
+    freq_min_hz: 608_000_000
+    freq_max_hz: 614_000_000
+    allowed_modes: []
+    notes: "Protected radio astronomy band — no transmitters legal. Any signal here is anomalous; intentional empty allowed_modes rejects ALL classes."
+
+  - name: TV_UHF_HIGH
+    freq_min_hz: 614_000_000
+    freq_max_hz: 698_000_000
+    allowed_modes: [QAM, FM_NARROW]
+    notes: "TV channels 38-51 — post 2017 incentive auction, also wireless mics + repurposed for 600 MHz cellular (T-Mobile)"
+
+  # --- 700 MHz band (cellular + public safety) -----------------------------
+  - name: LTE_LOWER_700
+    freq_min_hz: 698_000_000
+    freq_max_hz: 758_000_000
+    allowed_modes: [LTE, QAM, OQPSK, QPSK, CELLULAR]
+    notes: "700 MHz lower A/B/C blocks — carrier LTE downlinks"
+
+  - name: PS_700_BROADBAND
+    freq_min_hz: 758_000_000
+    freq_max_hz: 769_000_000
+    allowed_modes: [LTE, QAM, OQPSK, QPSK]
+    notes: "FirstNet — public safety broadband LTE"
+
+  - name: PS_700_NARROW
+    freq_min_hz: 769_000_000
+    freq_max_hz: 775_000_000
+    allowed_modes: [P25, FM_NARROW]
+    notes: "Public safety 700 MHz narrowband — TACN (Tennessee Advanced Communications Network) is here"
+
+  - name: LTE_UPPER_700
+    freq_min_hz: 775_000_000
+    freq_max_hz: 788_000_000
+    allowed_modes: [LTE, QAM, OQPSK, QPSK, CELLULAR]
+    notes: "700 MHz upper A/B/C — carrier LTE"
+
+  - name: LTE_D_700
+    freq_min_hz: 788_000_000
+    freq_max_hz: 799_000_000
+    allowed_modes: [LTE, QAM, OQPSK, QPSK, CELLULAR]
+    notes: "700 MHz upper D block — carrier LTE"
+
+  # --- 800 MHz (LMR + cellular) --------------------------------------------
+  - name: LMR_800
+    freq_min_hz: 806_000_000
+    freq_max_hz: 851_000_000
+    allowed_modes: [FM_NARROW, P25, LTE, QAM, GMSK]
+    notes: "800 MHz SMR + LMR — Sprint legacy iDEN, now mostly LTE; some P25"
+
+  - name: PS_800_NARROW
+    freq_min_hz: 851_000_000
+    freq_max_hz: 869_000_000
+    allowed_modes: [P25, FM_NARROW]
+    notes: "Public safety 800 MHz narrowband — MTRTRS (Middle Tennessee Regional Trunked Radio System) is here"
+
+  - name: CELL_850_DL
+    freq_min_hz: 869_000_000
+    freq_max_hz: 894_000_000
+    allowed_modes: [LTE, GMSK, QAM, OQPSK, QPSK, CELLULAR]
+    notes: "Cellular 850 MHz downlinks — legacy GSM, 3G, LTE"
+
+  - name: AIR_GROUND
+    freq_min_hz: 894_000_000
+    freq_max_hz: 896_000_000
+    allowed_modes: [FM_NARROW, QAM]
+    notes: "Air-to-ground (Gogo inflight Wi-Fi)"
+
+  # --- 900 MHz ------------------------------------------------------------
+  - name: LMR_896
+    freq_min_hz: 896_000_000
+    freq_max_hz: 901_000_000
+    allowed_modes: [FM_NARROW, DMR, NXDN]
+    notes: "900 MHz business / SMR narrowband"
+
+  - name: NB_PCS_901
+    freq_min_hz: 901_000_000
+    freq_max_hz: 902_000_000
+    allowed_modes: [POCSAG, QPSK]
+    notes: "Narrowband PCS — data / paging"
+
+  - name: ISM_915
+    freq_min_hz: 902_000_000
+    freq_max_hz: 928_000_000
+    allowed_modes: [FM_NARROW, GMSK, OOK, QPSK, QAM, OQPSK]
+    notes: "ISM 915 — LoRa, FSK telemetry, ITRON smart meters, garage doors, RFID. Very permissive."
+
+  - name: GOV_928
+    freq_min_hz: 928_000_000
+    freq_max_hz: 929_000_000
+    allowed_modes: [FM_NARROW]
+    notes: "Government / business fixed point-to-point"
+
+  - name: PAGING_929
+    freq_min_hz: 929_000_000
+    freq_max_hz: 932_000_000
+    allowed_modes: [POCSAG]
+    notes: "Paging carriers — legacy POCSAG / FLEX"
+
+  - name: GOV_932
+    freq_min_hz: 932_000_000
+    freq_max_hz: 935_000_000
+    allowed_modes: [FM_NARROW]
+    notes: "Government / fixed"
+
+  - name: SMR_900
+    freq_min_hz: 935_000_000
+    freq_max_hz: 940_000_000
+    allowed_modes: [FM_NARROW, DMR, NXDN]
+    notes: "Business 900 MHz narrowband"
+
+  - name: FIXED_940
+    freq_min_hz: 940_000_000
+    freq_max_hz: 960_000_000
+    allowed_modes: [LTE, QAM, GMSK, CELLULAR, FM_NARROW]
+    notes: "Mix of fixed point-to-point + cellular extensions"
+
+  # --- 960-1300 MHz (aeronav + GNSS + amateur 23cm) ------------------------
+  - name: DME_TACAN
+    freq_min_hz: 960_000_000
+    freq_max_hz: 1_164_000_000
+    allowed_modes: [OOK]
+    notes: "Distance Measuring Equipment / TACAN — OOK pulse pairs (12 µs spacing)"
+
+  - name: GNSS_L5
+    freq_min_hz: 1_164_000_000
+    freq_max_hz: 1_240_000_000
+    allowed_modes: [QPSK]
+    notes: "GPS L5, GLONASS, Galileo E5 — BPSK/QPSK spread spectrum"
+
+  - name: AMATEUR_23CM
+    freq_min_hz: 1_240_000_000
+    freq_max_hz: 1_300_000_000
+    allowed_modes: [FM_NARROW, AM_VOICE, DMR]
+    notes: "23cm amateur — FM repeaters, ATV, digital"
+
+  # --- ISM 2.4 GHz (Wi-Fi, Bluetooth, ZigBee) -----------------------------
+  - name: ISM_2_4
+    freq_min_hz: 2_400_000_000
+    freq_max_hz: 2_483_500_000
+    allowed_modes: [OQPSK, QAM, QPSK, GMSK, OOK]
+    notes: "ISM 2.4 — Wi-Fi (DSSS/OFDM), Bluetooth (GFSK), ZigBee (OQPSK), microwave ovens"

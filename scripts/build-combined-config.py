@@ -26,6 +26,13 @@ except Exception:
     logger.debug("build_combined_config: invalid ANALOG_STREAM_BITRATE_KBPS; falling back to 24", exc_info=True)
     ANALOG_STREAM_BITRATE_KBPS = 24
 ANALOG_STREAM_BITRATE_KBPS = max(8, min(320, ANALOG_STREAM_BITRATE_KBPS))
+DISCO_MOUNT_NAME = os.getenv("DISCO_MOUNT_NAME", "disco.mp3").strip() or "disco.mp3"
+try:
+    DISCO_STREAM_BITRATE_KBPS = int(os.getenv("DISCO_STREAM_BITRATE_KBPS", "32"))
+except Exception:
+    logger.debug("build_combined_config: invalid DISCO_STREAM_BITRATE_KBPS; falling back to 32", exc_info=True)
+    DISCO_STREAM_BITRATE_KBPS = 32
+DISCO_STREAM_BITRATE_KBPS = max(8, min(320, DISCO_STREAM_BITRATE_KBPS))
 AIRBAND_FALLBACK_PROFILE_PATH = os.getenv(
     "AIRBAND_FALLBACK_PROFILE_PATH",
     "/usr/local/etc/airband-profiles/rtl_airband_airband.conf",
@@ -116,6 +123,8 @@ def main() -> None:
         analog_continuous=ANALOG_CONTINUOUS,
         mixer_output_continuous=MIXER_OUTPUT_CONTINUOUS,
         analog_bitrate_kbps=ANALOG_STREAM_BITRATE_KBPS,
+        disco_mount_name=DISCO_MOUNT_NAME,
+        disco_bitrate_kbps=DISCO_STREAM_BITRATE_KBPS,
     )
     # Final safety net: never emit an empty devices block.
     if not extract_devices_payload(combined):
@@ -129,6 +138,8 @@ def main() -> None:
             analog_continuous=ANALOG_CONTINUOUS,
             mixer_output_continuous=MIXER_OUTPUT_CONTINUOUS,
             analog_bitrate_kbps=ANALOG_STREAM_BITRATE_KBPS,
+            disco_mount_name=DISCO_MOUNT_NAME,
+            disco_bitrate_kbps=DISCO_STREAM_BITRATE_KBPS,
         )
         if not extract_devices_payload(combined):
             raise RuntimeError("combined config generation produced no devices")

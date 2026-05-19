@@ -1,0 +1,28 @@
+# Python venv
+.venv/
+
+# Runtime state (DB, WAL, SHM)
+state/*
+!state/.gitkeep
+
+# Trained models (large binaries; produced by training pipeline)
+models/*
+!models/.gitkeep
+
+# Captured IQ slices and any raw binary captures
+captures/*
+!captures/.gitkeep
+*.iq.f32
+*.bin
+
+# Service logs
+logs/*
+!logs/.gitkeep
+
+# Ad-hoc workspace
+scratch/
+
+# Training data and checkpoints (in case anyone runs training here)
+training/data/
+training/*.pth
+training/*.onnx

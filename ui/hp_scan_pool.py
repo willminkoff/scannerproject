@@ -7,6 +7,11 @@ import os
 import sqlite3
 from pathlib import Path
 
+try:
+    from .protocol_bands import PROTOCOL_BANDS, has_band_rule, is_site_viable
+except ImportError:  # pragma: no cover - import shim for script-style use
+    from ui.protocol_bands import PROTOCOL_BANDS, has_band_rule, is_site_viable
+
 logger = logging.getLogger(__name__)
 
 
@@ -233,6 +238,60 @@ class ScanPoolBuilder:
         self._multistate_localized_agency_ids = agency_ids
         return trunk_ids, agency_ids
 
+    @staticmethod
+    def _apply_band_viability_filter(
+        sites: list[dict[str, object]],
+        control_channels_by_site: dict[int, list[float]],
+    ) -> tuple[list[dict[str, object]], dict[int, set[int]]]:
+        """Drop sites whose freq band is implausible for their protocol.
+
+        If every candidate site for a system is implausible, keep all of them
+        (option-c fallback) and log info so the journal records the choice.
+        """
+        if not sites:
+            return [], {}
+
+        per_system: dict[int, list[dict[str, object]]] = {}
+        passthrough: list[dict[str, object]] = []
+        for item in sites:
+            sys_id = int(item.get("system_id") or 0)
+            if sys_id <= 0:
+                passthrough.append(item)
+                continue
+            per_system.setdefault(sys_id, []).append(item)
+
+        kept: list[dict[str, object]] = list(passthrough)
+        kept_by_system: dict[int, set[int]] = {}
+        for sys_id, rows in per_system.items():
+            viable_rows: list[dict[str, object]] = []
+            non_viable_rows: list[dict[str, object]] = []
+            for r in rows:
+                site_id = int(r.get("site_id") or 0)
+                freqs = control_channels_by_site.get(site_id) or []
+                proto = r.get("protocol")
+                if is_site_viable(proto, freqs):
+                    viable_rows.append(r)
+                else:
+                    non_viable_rows.append(r)
+            if viable_rows:
+                chosen = viable_rows
+            else:
+                chosen = rows
+                if non_viable_rows and rows and has_band_rule(rows[0].get("protocol")):
+                    sys_name = str(rows[0].get("system_name") or "").strip() or f"#{sys_id}"
+                    logger.info(
+                        "hp_scan_pool: no band-viable site for system %s (protocol=%s); "
+                        "falling back to nearest by distance",
+                        sys_name,
+                        rows[0].get("protocol"),
+                    )
+            for r in chosen:
+                kept.append(r)
+                site_id = int(r.get("site_id") or 0)
+                if site_id > 0:
+                    kept_by_system.setdefault(sys_id, set()).add(site_id)
+        return kept, kept_by_system
+
     def build_full_database_pool(
         self,
         lat: float,
@@ -268,6 +327,9 @@ class ScanPoolBuilder:
 
             tag_placeholders = ",".join("?" for _ in tags)
 
+            has_protocol_col = self._table_has_column(conn, "trunk_systems", "protocol")
+            protocol_select = "sys.protocol AS protocol" if has_protocol_col else "NULL AS protocol"
+
             # SQL pre-filter bounding box. (lat_miles_per_degree and
             # lon_miles_per_degree were computed at the top of this method.)
             # Both trunk_sites and conventional_freqs queries use the same
@@ -282,7 +344,7 @@ class ScanPoolBuilder:
             lon_max = center_lon + bb_lon_delta
 
             site_rows = conn.execute(
-                """
+                f"""
                 SELECT
                     ts.site_id,
                     ts.trunk_id,
@@ -291,7 +353,8 @@ class ScanPoolBuilder:
                     ts.longitude,
                     ts.radius,
                     ts.site_name,
-                    sys.system_name
+                    sys.system_name,
+                    {protocol_select}
                 FROM trunk_sites ts
                 LEFT JOIN trunk_systems sys ON sys.trunk_id = ts.trunk_id
                 WHERE ts.latitude BETWEEN ? AND ?
@@ -340,6 +403,10 @@ class ScanPoolBuilder:
                 distance = haversine_miles(center_lat, center_lon, site_lat, site_lon)
                 if site_radius is not None and site_radius > 0 and distance > site_radius:
                     continue
+                try:
+                    raw_protocol = row["protocol"]
+                except (IndexError, KeyError):
+                    raw_protocol = None
                 selected_sites.append(
                     {
                         "system_id": int(system_id),
@@ -350,10 +417,51 @@ class ScanPoolBuilder:
                         "longitude": float(site_lon),
                         "radius": site_radius,
                         "distance_miles": float(distance),
+                        "protocol": str(raw_protocol or "").strip() or None,
                     }
                 )
 
+            # Load control-channel freqs up-front so the per-system trim can
+            # apply the per-protocol band-viability filter (see
+            # ui/protocol_bands.py). The same dict is reused after trimming.
+            control_channels_by_site: dict[int, list[float]] = {}
             selected_by_system: dict[int, set[int]] = {}
+            if selected_sites:
+                site_ids = sorted(
+                    {
+                        int(item.get("site_id") or 0)
+                        for item in selected_sites
+                        if int(item.get("site_id") or 0) > 0
+                    }
+                )
+                if site_ids:
+                    site_placeholders = ",".join("?" for _ in site_ids)
+                    freq_rows = conn.execute(
+                        f"""
+                        SELECT site_id, freq_hz
+                        FROM trunk_freqs
+                        WHERE site_id IN ({site_placeholders})
+                          AND freq_hz IS NOT NULL
+                        ORDER BY site_id, freq_hz, COALESCE(lcn, '')
+                        """,
+                        site_ids,
+                    ).fetchall()
+                    bucket: dict[int, set[float]] = {}
+                    for row in freq_rows:
+                        s_id = self._parse_int(row["site_id"])
+                        freq_hz = self._parse_int(row["freq_hz"])
+                        if s_id is None or freq_hz is None or freq_hz <= 0:
+                            continue
+                        bucket.setdefault(s_id, set()).add(_hz_to_mhz(freq_hz))
+                    control_channels_by_site = {
+                        s_id: sorted(list(values))
+                        for s_id, values in bucket.items()
+                    }
+
+                selected_sites, selected_by_system = self._apply_band_viability_filter(
+                    selected_sites, control_channels_by_site
+                )
+
             if selected_sites:
                 site_limit = _hp_trunk_max_sites_per_system()
                 per_system: dict[int, list[dict[str, object]]] = {}
@@ -390,38 +498,6 @@ class ScanPoolBuilder:
                         int(item.get("site_id") or 0),
                     ),
                 )
-
-            control_channels_by_site: dict[int, list[float]] = {}
-            if selected_sites:
-                site_ids = sorted(
-                    {
-                        int(row.get("site_id") or 0)
-                        for row in selected_sites
-                        if int(row.get("site_id") or 0) > 0
-                    }
-                )
-                site_placeholders = ",".join("?" for _ in site_ids)
-                freq_rows = conn.execute(
-                    f"""
-                    SELECT site_id, freq_hz
-                    FROM trunk_freqs
-                    WHERE site_id IN ({site_placeholders})
-                      AND freq_hz IS NOT NULL
-                    ORDER BY site_id, freq_hz, COALESCE(lcn, '')
-                    """,
-                    site_ids,
-                ).fetchall()
-                bucket: dict[int, set[float]] = {}
-                for row in freq_rows:
-                    site_id = self._parse_int(row["site_id"])
-                    freq_hz = self._parse_int(row["freq_hz"])
-                    if site_id is None or freq_hz is None or freq_hz <= 0:
-                        continue
-                    bucket.setdefault(site_id, set()).add(_hz_to_mhz(freq_hz))
-                control_channels_by_site = {
-                    site_id: sorted(list(values))
-                    for site_id, values in bucket.items()
-                }
 
             talkgroups_by_system: dict[int, list[int]] = {}
             talkgroup_labels_by_system: dict[int, dict[int, str]] = {}
@@ -527,6 +603,7 @@ class ScanPoolBuilder:
                         "longitude": row.get("longitude"),
                         "radius": row.get("radius"),
                         "distance_miles": float(row.get("distance_miles") or 0.0),
+                        "protocol": row.get("protocol") or None,
                         "control_channels": control_channels,
                         "talkgroups": talkgroups,
                         "talkgroup_labels": talkgroup_labels,

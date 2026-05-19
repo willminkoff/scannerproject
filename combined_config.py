@@ -156,9 +156,21 @@ def enforce_device_serial(text: str, desired_serial: str) -> str:
     return "\n".join(out_lines)
 
 
-def replace_outputs_with_mixer(text: str, mixer_name: str, continuous: bool = True) -> str:
+DISCO_MANAGED_SENTINEL = "DISCO_MANAGED_CHANNELS"
+DISCO_MIXER_NAME = "disco_mixer"
+
+
+def _outputs_replacement(mixer_name: str, continuous: bool, also_disco: bool = False) -> list:
+    """Build the libconfig outputs:( ... ); replacement for a channel block.
+
+    When ``also_disco`` is True, an extra ``disco_mixer`` output is appended.
+    rtl-airband 5.1.1 with mode="scan" allows only one channel block per
+    device, so we cannot isolate disco freqs onto their own block — the
+    second mixer output is the only way to surface the channel's audio on
+    a dedicated /disco.mp3 mount in addition to the combined ANALOG.mp3.
+    """
     continuous_value = "true" if continuous else "false"
-    replacement = [
+    block = [
         "      outputs:",
         "      (",
         "        {",
@@ -166,18 +178,69 @@ def replace_outputs_with_mixer(text: str, mixer_name: str, continuous: bool = Tr
         f"          name = \"{mixer_name}\";",
         f"          continuous = {continuous_value};",
         "        }",
-        "      );",
     ]
+    if also_disco:
+        block[-1] = block[-1] + ","
+        block.extend([
+            "        {",
+            "          type = \"mixer\";",
+            f"          name = \"{DISCO_MIXER_NAME}\";",
+            f"          continuous = {continuous_value};",
+            "        }",
+        ])
+    block.append("      );")
+    return block
+
+
+def replace_outputs_with_mixer(text: str, mixer_name: str, continuous: bool = True) -> str:
+    """Replace each channel block's outputs: with a mixer pointing at mixer_name.
+
+    Channel blocks tagged with DISCO_MANAGED_CHANNELS get a parallel
+    disco_mixer output appended so audio for the channel block (which now
+    contains one or more disco-merged freqs) is also published on the
+    dedicated /disco.mp3 mount. Listening to /disco.mp3 from the dashboard
+    is therefore equivalent to /ANALOG.mp3 audibly, but lets the user point
+    the embedded <audio> player at a dedicated URL.
+    """
+    default_replacement = _outputs_replacement(mixer_name, continuous)
+    disco_replacement = _outputs_replacement(mixer_name, continuous, also_disco=True)
+
     lines = text.splitlines()
     out_lines = []
     in_outputs = False
     depth = 0
+    # Track which channel-block scope we're inside so disco-tagged channels
+    # get the disco mixer added. We detect channel-block entry by tracking
+    # brace depth: top-level device opens at depth 1, channels:( wraps a
+    # list, each channel block opens at depth >= 2.
+    in_channel = False
+    channel_brace_depth = 0
+    cur_brace_depth = 0
+    is_disco_channel = False
+
     for line in lines:
         tokens = line.strip().split()
+        opens = line.count("{")
+        closes = line.count("}")
+        if not in_outputs:
+            cur_brace_depth += opens
+            if not in_channel and opens and cur_brace_depth >= 2:
+                in_channel = True
+                channel_brace_depth = cur_brace_depth
+                is_disco_channel = False
+
+        if in_channel and not in_outputs:
+            stripped = line.strip()
+            if DISCO_MANAGED_SENTINEL in stripped:
+                is_disco_channel = True
+
         if not in_outputs and tokens and tokens[0] == "outputs:":
             in_outputs = True
             depth = line.count("(") - line.count(")")
-            out_lines.extend(replacement)
+            if is_disco_channel:
+                out_lines.extend(disco_replacement)
+            else:
+                out_lines.extend(default_replacement)
             continue
         if in_outputs:
             depth += line.count("(") - line.count(")")
@@ -185,7 +248,52 @@ def replace_outputs_with_mixer(text: str, mixer_name: str, continuous: bool = Tr
                 in_outputs = False
             continue
         out_lines.append(line)
+
+        if not in_outputs:
+            cur_brace_depth -= closes
+            if in_channel and cur_brace_depth < channel_brace_depth:
+                in_channel = False
+                is_disco_channel = False
+
     return "\n".join(out_lines)
+
+
+def combined_uses_disco_mixer(combined_text: str) -> bool:
+    """True when at least one channel routes to disco_mixer (i.e. a Listen is active)."""
+    return f'name = "{DISCO_MIXER_NAME}"' in combined_text
+
+
+def render_disco_mixer_block(
+    *,
+    mount_name: str = "disco.mp3",
+    bitrate_kbps: int = 32,
+    icecast_password: str = "062352",
+) -> str:
+    """Emit the disco_mixer libconfig block. Output is a dedicated icecast
+    mount so the dashboard's <audio> tag can listen to disco-decoded freqs in
+    isolation from the combined analog stream."""
+    lines = [
+        f"  {DISCO_MIXER_NAME}: {{",
+        "    outputs:",
+        "    (",
+        "      {",
+        "        type = \"icecast\";",
+        "        send_scan_freq_tags = true;",
+        "        server = \"127.0.0.1\";",
+        "        port = 8000;",
+        f"        mountpoint = \"{mount_name}\";",
+        "        username = \"source\";",
+        f"        password = \"{icecast_password}\";",
+        "        name = \"SprontPi Disco\";",
+        "        genre = \"DISCO\";",
+        "        description = \"Disco-decoded audio (auto-wired listens)\";",
+        f"        bitrate = {int(bitrate_kbps)};",
+        "        continuous = true;",
+        "      }",
+        "    );",
+        "  };",
+    ]
+    return "\n".join(lines)
 
 
 def normalize_mountpoint(text: str) -> str:
@@ -250,6 +358,8 @@ def build_combined_config(
     analog_continuous: bool = True,
     mixer_output_continuous: bool = True,
     analog_bitrate_kbps: int = 24,
+    disco_mount_name: str = "disco.mp3",
+    disco_bitrate_kbps: int = 32,
 ) -> str:
     with open(airband_path, "r", encoding="utf-8", errors="ignore") as f:
         airband_text = f.read()
@@ -319,6 +429,10 @@ def build_combined_config(
     combined.extend(top_lines)
     if top_lines:
         combined.append("")
+    # Build all device payloads first so we can inspect whether any disco-
+    # managed channels exist. If they do, emit the disco_mixer alongside the
+    # standard combined mixer; otherwise omit it (rtl-airband 5.1.1 errors on
+    # mixers with no connected inputs).
     combined.append("mixers: {")
     combined.append(f"  {mixer_name}: {{")
     combined.append("    outputs:")
@@ -326,6 +440,12 @@ def build_combined_config(
     combined.append(indent_block(icecast_block, 6))
     combined.append("    );")
     combined.append("  };")
+    has_disco_inputs = any(combined_uses_disco_mixer(p) for p in device_payloads)
+    if has_disco_inputs:
+        combined.append(render_disco_mixer_block(
+            mount_name=disco_mount_name,
+            bitrate_kbps=disco_bitrate_kbps,
+        ))
     combined.append("};")
     combined.append("")
     combined.append("devices:")

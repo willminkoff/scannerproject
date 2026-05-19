@@ -9089,6 +9089,7 @@
     const HLS_DIGITAL_URL = '/hls/digital/live.m3u8';
     let _hlsInstance = null;
     let _hlsWantPlay = false;
+    let _hlsAttachTs = 0;
 
     function hlsSupported() {
       return typeof Hls !== 'undefined' && Hls.isSupported();
@@ -9159,6 +9160,7 @@
         });
         _hlsInstance.loadSource(HLS_DIGITAL_URL);
         _hlsInstance.attachMedia(audioEl);
+        _hlsAttachTs = Date.now();
       } else if (hlsNativeSupported(audioEl)) {
         // iOS Safari — native HLS.  Only set src if not already pointing
         // at the HLS playlist (avoids aborting an in-progress load which
@@ -9766,10 +9768,21 @@
       audioEl.addEventListener('pause', () => {
         tracker.waitingSinceTs = 0;
         clearAudioWaitingTimer(audioEl);
-        // When HLS is starting up, attachMedia() changes the src which
-        // fires a pause event.  Don't treat that as a manual pause —
-        // _hlsWantPlay means the user wants HLS to play.
-        if (isDigitalAudioElement(audioEl) && _hlsWantPlay) {
+        // HLS attachMedia() fires a spurious pause event mid-startup as it
+        // changes the audio element's source.  We ignore any pause within
+        // HLS_STARTUP_PAUSE_GRACE_MS of attach so that spurious pause doesn't
+        // tear down the HLS instance.  After that window, every pause is
+        // treated as a real user pause — without this, the manual-pause path
+        // below never runs and the BUFFER_APPENDED handler / health watchdog
+        // resume the player ~1s after every user click.
+        // Kill-switch: set window.HLS_STARTUP_PAUSE_GRACE_MS_OVERRIDE = 0
+        // before page init to disable the grace entirely.
+        const hlsStartupGraceMs = Number(window.HLS_STARTUP_PAUSE_GRACE_MS_OVERRIDE ?? 1500);
+        if (
+          isDigitalAudioElement(audioEl) &&
+          _hlsWantPlay &&
+          (Date.now() - _hlsAttachTs) < hlsStartupGraceMs
+        ) {
           return;
         }
         const hintAge = Date.now() - Number(tracker.userPauseHintTs || 0);
