@@ -151,6 +151,7 @@ try:
         unit_active_enter_epoch,
         set_bt_heal_auto_recovery,
         reboot_host,
+        digital_restart_state,
     )
     from .server_workers import enqueue_action, enqueue_apply, get_met_store
     from .diagnostic import write_diagnostic_log
@@ -260,6 +261,7 @@ except ImportError:
         unit_active_enter_epoch,
         set_bt_heal_auto_recovery,
         reboot_host,
+        digital_restart_state,
     )
     from ui.server_workers import enqueue_action, enqueue_apply, get_met_store
     from ui.diagnostic import write_diagnostic_log
@@ -3612,6 +3614,28 @@ class Handler(BaseHTTPRequestHandler):
             # mount-state is uncertain; expose stream visibility separately.
             digital_payload["digital_stream_active_for_hits"] = bool(digital_stream_active_for_hits)
             digital_payload = _digital_status_with_hit_aliases(digital_payload, full_hit_items)
+            try:
+                restart_state = digital_restart_state()
+                digital_payload["digital_restart_attempts"] = int(
+                    restart_state.get("attempts_total") or 0
+                )
+                digital_payload["digital_last_restart_reason"] = str(
+                    restart_state.get("last_attempt_reason") or ""
+                )
+                digital_payload["digital_health_probe_result"] = str(
+                    restart_state.get("last_health_probe_result") or ""
+                )
+                digital_payload["digital_health_probe_detail"] = str(
+                    restart_state.get("last_health_probe_detail") or ""
+                )
+                digital_payload["digital_wedge_recovery_total"] = int(
+                    restart_state.get("wedge_recovery_total") or 0
+                )
+                digital_payload["digital_last_wedge_recovery_ts"] = float(
+                    restart_state.get("last_wedge_recovery_ts") or 0.0
+                )
+            except Exception:
+                pass
             payload.update(digital_payload)
             payload["icecast_expected_mounts"] = _expected_icecast_mounts(
                 analog_active=bool(rtl_unit_active or ground_unit_active),
@@ -4834,7 +4858,7 @@ class Handler(BaseHTTPRequestHandler):
                     digital_unit = UNITS.get("digital", "")
                     if digital_unit and not unit_active(digital_unit):
                         logger.info("WX decoder stop: digital decoder not active, restarting")
-                        restart_digital()
+                        restart_digital(reason="wx_decoder_stop_heal")
                 except Exception:
                     logger.exception("WX decoder stop: failed to heal digital decoder")
 
@@ -4867,7 +4891,7 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception:
                     logger.exception("VDL2 dongle sharing: failed to remove sentinel %s", _VDL2_SENTINEL)
                 try:
-                    ok, err = restart_digital()
+                    ok, err = restart_digital(reason="vdl2_reclaim_dongle")
                     if ok:
                         logger.info("VDL2 dongle sharing: OP25 restarted successfully")
                     else:
@@ -4900,7 +4924,7 @@ class Handler(BaseHTTPRequestHandler):
                     logger.exception("VDL2 dongle sharing: failed to touch sentinel %s", _VDL2_SENTINEL)
                     return  # don't restart OP25 if we couldn't set the sentinel
                 try:
-                    ok, err = restart_digital()
+                    ok, err = restart_digital(reason="vdl2_reserve_dongle")
                     if ok:
                         logger.info("VDL2 dongle sharing: OP25 restarted successfully (sdr_traffic2 removed)")
                     else:

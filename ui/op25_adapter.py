@@ -1633,11 +1633,11 @@ class Op25Adapter(_BaseDigitalAdapter):
         self._clear_error()
         return True, ""
 
-    def restart(self):
+    def restart(self, reason: str = "manager_restart"):
         if not validate_digital_service_name(self._service_name):
             self._set_last_error("invalid OP25 service name")
             return False, self._last_error
-        ok, err = restart_digital(self._service_name)
+        ok, err = restart_digital(self._service_name, reason=reason)
         if not ok:
             self._set_last_error(err or "restart failed")
             return False, self._last_error
@@ -1727,7 +1727,7 @@ class Op25Adapter(_BaseDigitalAdapter):
                 return False, err
 
         if restart_service and self.isActive():
-            return self.restart()
+            return self.restart(reason="profile_switch")
         return True, ""
 
     # ------------------------------------------------------------------
@@ -1823,7 +1823,7 @@ class Op25Adapter(_BaseDigitalAdapter):
 
         changed = True
         if self.isActive():
-            rok, rerr = self.restart()
+            rok, rerr = self.restart(reason="profile_apply")
             if not rok:
                 self._runtime_metrics_data["profile_apply_last_error"] = rerr
                 return False, rerr, changed
@@ -3164,7 +3164,7 @@ class Op25Adapter(_BaseDigitalAdapter):
                     )
                 return
 
-            restart_result = self.restart()
+            restart_result = self.restart(reason="site_selector_restart")
             if isinstance(restart_result, tuple):
                 restart_ok = bool(restart_result[0])
                 restart_err = str(restart_result[1] or "")

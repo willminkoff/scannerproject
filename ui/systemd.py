@@ -1,13 +1,41 @@
 """System unit control via systemd."""
+import json
 import os
 import subprocess
+import threading
 import time
 from typing import Optional, Tuple
+from urllib.error import URLError
+from urllib.request import urlopen
 
 try:
     from .config import UNITS, BT_HEAL_TIMER_UNIT
 except ImportError:
     from ui.config import UNITS, BT_HEAL_TIMER_UNIT
+
+
+_TRUTHY = ("1", "true", "yes", "on")
+
+# digital restart health state. Updated by restart_digital() on every
+# invocation + post-start probe. Surfaced via digital_restart_state() so
+# /api/status can render it for visibility into wedge incidents.
+_DIGITAL_RESTART_STATE_LOCK = threading.Lock()
+_DIGITAL_RESTART_STATE: dict = {
+    "attempts_total": 0,
+    "last_attempt_ts": 0.0,
+    "last_attempt_reason": "",
+    "wedge_recovery_total": 0,
+    "last_wedge_recovery_ts": 0.0,
+    "last_health_probe_result": "",   # "ok" / "wedged" / "skipped" / ""
+    "last_health_probe_ts": 0.0,
+    "last_health_probe_detail": "",
+}
+
+
+def digital_restart_state() -> dict:
+    """Snapshot of the digital restart / health probe state. Thread-safe."""
+    with _DIGITAL_RESTART_STATE_LOCK:
+        return dict(_DIGITAL_RESTART_STATE)
 
 
 def unit_active(unit: str) -> bool:
@@ -138,6 +166,140 @@ def _reset_failed_units(units) -> None:
         pass
 
 
+def _sdrplay_daemon_alive() -> bool:
+    """True iff the sdrplay daemon process exists.
+
+    Narrower than _sdrplay_daemon_healthy: doesn't look at segfaults, just
+    checks whether the daemon is running at all. Used as a pre-flight gate
+    before restart_digital decides whether to bounce the daemon.
+    """
+    try:
+        result = subprocess.run(
+            ["pgrep", "-x", "sdrplay_apiServ"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        return False
+    return result.returncode == 0 and bool((result.stdout or "").strip())
+
+
+def _op25_http_status_ports() -> list:
+    """Discover which OP25 instance HTTP status ports to probe after start.
+
+    Multi-instance (Phase: split processes per RSPduo Master/Slave/aux) writes
+    an instances.json under /run/scannerproject/op25/ listing each
+    multi_rx.py instance's http_status_port. Single-instance falls back to
+    the legacy OP25_STATUS_PORT env (default 8080).
+
+    Returns a list of ints, deduplicated.
+    """
+    instances_path = os.getenv(
+        "OP25_INSTANCES_PATH",
+        "/run/scannerproject/op25/instances.json",
+    ).strip()
+    if instances_path:
+        try:
+            with open(instances_path, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            if isinstance(data, list):
+                ports: list = []
+                for entry in data:
+                    if not isinstance(entry, dict):
+                        continue
+                    port = entry.get("http_status_port")
+                    if isinstance(port, int) and port > 0 and port not in ports:
+                        ports.append(port)
+                if ports:
+                    return ports
+        except FileNotFoundError:
+            pass
+        except Exception:
+            pass
+
+    try:
+        fallback = int(os.getenv("OP25_STATUS_PORT", "8080"))
+    except Exception:
+        fallback = 8080
+    return [fallback] if fallback > 0 else []
+
+
+def _probe_op25_http_port(
+    port: int,
+    host: str = "127.0.0.1",
+    timeout_sec: float = 2.0,
+) -> Tuple[bool, str]:
+    """Single HTTP GET to op25's status port. True iff HTTP 200 returned.
+
+    multi_rx.py binds its HTTP terminal only after gr-osmosdr + SoapySDR +
+    sdrplay tuner-claim all complete. If the process is wedged at
+    sdrplay_api_Open, the port never binds and this returns (False, ...).
+    """
+    url = f"http://{host}:{int(port)}/"
+    try:
+        with urlopen(url, timeout=timeout_sec) as resp:
+            code = resp.getcode()
+            if code == 200:
+                return True, f"port {port}: HTTP 200"
+            return False, f"port {port}: HTTP {code}"
+    except URLError as exc:
+        return False, f"port {port}: {exc.reason}"
+    except Exception as exc:
+        return False, f"port {port}: {type(exc).__name__}: {exc}"
+
+
+def _wait_for_op25_health(
+    timeout_sec: float = 45.0,
+    poll_interval_sec: float = 2.0,
+    per_port_timeout_sec: float = 2.0,
+) -> Tuple[bool, str]:
+    """Poll all discovered op25 status ports until each returns HTTP 200.
+
+    Returns (ok, detail). ok=True only when every port returned 200 within
+    timeout_sec. detail is a semicolon-joined per-port string suitable for
+    logging or for /api/status surfacing.
+    """
+    ports = _op25_http_status_ports()
+    if not ports:
+        return False, "no op25 status ports discovered"
+
+    deadline = time.monotonic() + max(0.1, timeout_sec)
+    last_detail = ""
+    while True:
+        per_port = [
+            _probe_op25_http_port(port, timeout_sec=per_port_timeout_sec)
+            for port in ports
+        ]
+        if all(ok for ok, _ in per_port):
+            return True, "; ".join(detail for _, detail in per_port)
+        last_detail = "; ".join(detail for _, detail in per_port)
+        if time.monotonic() >= deadline:
+            return False, f"timeout after {timeout_sec:.1f}s; {last_detail}"
+        time.sleep(max(0.0, poll_interval_sec))
+
+
+def _record_digital_restart_attempt(reason: str) -> None:
+    with _DIGITAL_RESTART_STATE_LOCK:
+        _DIGITAL_RESTART_STATE["attempts_total"] += 1
+        _DIGITAL_RESTART_STATE["last_attempt_ts"] = time.time()
+        _DIGITAL_RESTART_STATE["last_attempt_reason"] = str(reason or "unspecified")
+
+
+def _record_digital_health_probe(result: str, detail: str) -> None:
+    with _DIGITAL_RESTART_STATE_LOCK:
+        _DIGITAL_RESTART_STATE["last_health_probe_result"] = str(result or "")
+        _DIGITAL_RESTART_STATE["last_health_probe_ts"] = time.time()
+        _DIGITAL_RESTART_STATE["last_health_probe_detail"] = str(detail or "")
+
+
+def _record_digital_wedge_recovery() -> None:
+    with _DIGITAL_RESTART_STATE_LOCK:
+        _DIGITAL_RESTART_STATE["wedge_recovery_total"] += 1
+        _DIGITAL_RESTART_STATE["last_wedge_recovery_ts"] = time.time()
+
+
 def _sdrplay_daemon_healthy() -> Tuple[bool, str]:
     """Probe whether the sdrplay daemon can be left alone during op25 restart.
 
@@ -244,8 +406,27 @@ def restart_ui() -> Tuple[bool, str]:
     return _restart_unit(UNITS["ui"])
 
 
-def restart_digital(unit: Optional[str] = None) -> Tuple[bool, str]:
-    """Recover and restart the OP25 digital backend service."""
+def restart_digital(
+    unit: Optional[str] = None,
+    reason: str = "unspecified",
+) -> Tuple[bool, str]:
+    """Recover and restart the OP25 digital backend service.
+
+    Stop op25 (with SIGKILL escalation) → optionally restart sdrplay daemon →
+    start op25 → settle → **poll op25 HTTP status ports for HTTP 200**.
+
+    The post-start probe is the load-bearing addition. multi_rx.py binds its
+    HTTP terminal only after gr-osmosdr / SoapySDR / sdrplay tuner-claim all
+    succeed. If the probe times out, op25 is wedged at sdrplay tuner-claim —
+    the observed pattern is an alive sdrplay daemon with state corruption
+    from accumulated client wedges across multiple restart cycles. The fix
+    is to force a sdrplay daemon restart, then retry op25.
+
+    Escalation is capped at OP25_WEDGE_RECOVERY_MAX_ATTEMPTS (default 2) so
+    we never spin forever. The reason argument is recorded in
+    _DIGITAL_RESTART_STATE so wedge incidents can be correlated to their
+    triggers (profile_switch / vdl2_share_toggle / manager_restart / etc).
+    """
     digital_unit = str(unit or UNITS["digital"] or "").strip()
     audio_unit = str(UNITS.get("digital_audio", "") or "").strip()
     audio_exists = _unit_configured(audio_unit)
@@ -258,40 +439,131 @@ def restart_digital(unit: Optional[str] = None) -> Tuple[bool, str]:
     sdrplay_settle_sec = _env_float("DIGITAL_RESTART_SDRPLAY_SETTLE_SEC", 3.0)
     op25_settle_sec = _env_float("DIGITAL_RESTART_OP25_SETTLE_SEC", 16.0)
 
+    probe_enabled = (
+        os.getenv("OP25_POST_START_PROBE_ENABLED", "1").strip().lower() in _TRUTHY
+    )
+    probe_timeout_sec = _env_float(
+        "OP25_POST_START_PROBE_TIMEOUT_SEC", 45.0, minimum=1.0
+    )
+    probe_poll_sec = _env_float(
+        "OP25_POST_START_PROBE_POLL_SEC", 2.0, minimum=0.1
+    )
+    max_escalations = int(
+        _env_float("OP25_WEDGE_RECOVERY_MAX_ATTEMPTS", 2.0, minimum=1.0)
+    )
+
+    _record_digital_restart_attempt(reason)
+    print(
+        f"restart_digital: reason={reason!r} probe_enabled={probe_enabled} "
+        f"probe_timeout_sec={probe_timeout_sec}",
+        flush=True,
+    )
+
     if not digital_unit:
         return False, "digital unit not configured"
 
-    if audio_exists:
-        _stop_unit(audio_unit, use_sudo=True)
-    _stop_unit(digital_unit, use_sudo=True)
-    _kill_unit(digital_unit)
-    if audio_exists:
-        _kill_unit(audio_unit)
-    _reset_failed_units([digital_unit, audio_unit if audio_exists else ""])
+    def _attempt(force_sdrplay_restart: bool, attempt_label: str) -> Tuple[bool, str]:
+        if audio_exists:
+            _stop_unit(audio_unit, use_sudo=True)
+        _stop_unit(digital_unit, use_sudo=True)
+        _kill_unit(digital_unit)
+        if audio_exists:
+            _kill_unit(audio_unit)
+        _reset_failed_units([digital_unit, audio_unit if audio_exists else ""])
 
-    if sdrplay_exists:
-        healthy, reason = _sdrplay_daemon_healthy()
-        if healthy:
-            print(f"restart_digital: sdrplay daemon healthy ({reason}); skipping restart", flush=True)
-        else:
-            print(f"restart_digital: sdrplay daemon needs restart ({reason})", flush=True)
-            ok, err = _restart_unit(sdrplay_unit, use_sudo=True)
-            if not ok:
-                return False, f"sdrplay restart: {err}"
-            if sdrplay_settle_sec > 0:
-                time.sleep(sdrplay_settle_sec)
+        if sdrplay_exists:
+            daemon_alive = _sdrplay_daemon_alive()
+            if force_sdrplay_restart or not daemon_alive:
+                print(
+                    f"restart_digital[{attempt_label}]: bouncing sdrplay daemon "
+                    f"(force={force_sdrplay_restart}, alive={daemon_alive})",
+                    flush=True,
+                )
+                ok, err = _restart_unit(sdrplay_unit, use_sudo=True)
+                if not ok:
+                    return False, f"sdrplay restart: {err}"
+                if sdrplay_settle_sec > 0:
+                    time.sleep(sdrplay_settle_sec)
+            else:
+                healthy, hreason = _sdrplay_daemon_healthy()
+                if healthy:
+                    print(
+                        f"restart_digital[{attempt_label}]: sdrplay daemon "
+                        f"healthy ({hreason}); skipping restart",
+                        flush=True,
+                    )
+                else:
+                    print(
+                        f"restart_digital[{attempt_label}]: sdrplay daemon "
+                        f"needs restart ({hreason})",
+                        flush=True,
+                    )
+                    ok, err = _restart_unit(sdrplay_unit, use_sudo=True)
+                    if not ok:
+                        return False, f"sdrplay restart: {err}"
+                    if sdrplay_settle_sec > 0:
+                        time.sleep(sdrplay_settle_sec)
 
-    ok, err = _start_unit(digital_unit, use_sudo=True)
-    if not ok:
-        return False, f"digital start: {err}"
-    if op25_settle_sec > 0:
-        time.sleep(op25_settle_sec)
-
-    if audio_exists:
-        ok, err = _restart_unit(audio_unit, use_sudo=True)
+        ok, err = _start_unit(digital_unit, use_sudo=True)
         if not ok:
-            return False, f"digital audio restart: {err}"
-    return True, ""
+            return False, f"digital start: {err}"
+        if op25_settle_sec > 0:
+            time.sleep(op25_settle_sec)
+
+        if probe_enabled:
+            probe_ok, probe_detail = _wait_for_op25_health(
+                timeout_sec=probe_timeout_sec,
+                poll_interval_sec=probe_poll_sec,
+            )
+            _record_digital_health_probe(
+                "ok" if probe_ok else "wedged",
+                probe_detail,
+            )
+            print(
+                f"restart_digital[{attempt_label}]: probe "
+                f"{'ok' if probe_ok else 'WEDGED'} — {probe_detail}",
+                flush=True,
+            )
+            if not probe_ok:
+                return False, f"post-start probe failed: {probe_detail}"
+        else:
+            _record_digital_health_probe("skipped", "probe disabled by env")
+
+        if audio_exists:
+            ok, err = _restart_unit(audio_unit, use_sudo=True)
+            if not ok:
+                return False, f"digital audio restart: {err}"
+        return True, ""
+
+    # Gentle attempt 1: don't force sdrplay unless the daemon is dead.
+    ok, err = _attempt(force_sdrplay_restart=False, attempt_label="gentle")
+    if ok:
+        return True, ""
+    print(
+        f"restart_digital: gentle attempt failed ({err}); escalating to wedge recovery",
+        flush=True,
+    )
+
+    # Escalation: each retry forces a sdrplay daemon bounce to clear stale
+    # client connections, then retries op25.
+    last_err = err
+    for escalation in range(1, max_escalations + 1):
+        ok, err = _attempt(
+            force_sdrplay_restart=True,
+            attempt_label=f"escalation-{escalation}",
+        )
+        _record_digital_wedge_recovery()
+        if ok:
+            print(
+                f"restart_digital: wedge recovery succeeded on escalation {escalation}",
+                flush=True,
+            )
+            return True, ""
+        last_err = err
+
+    return False, (
+        f"wedge recovery exhausted after {max_escalations} escalations: {last_err}"
+    )
 
 
 def restart_digital_audio() -> Tuple[bool, str]:
