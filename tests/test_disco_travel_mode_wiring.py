@@ -146,6 +146,20 @@ class InterpretLicenseeHeaderTests(unittest.TestCase):
         self.assertIn("FCC license match (ULS)", prompt)
         self.assertNotIn("HomePatrol", prompt)
 
+    def test_full_prompt_omits_personal_identifier(self):
+        """Belt-and-suspenders: the full assembled Claude prompt — system-prompt
+        header + geographic-context + licensee_block — must not contain
+        "meteorologist" or Will's name anywhere. Catches regressions where a
+        future change re-adds personal identifiers somewhere outside
+        _build_geographic_context().
+        """
+        prompt = self._capture_prompt(self._build_bundle_with_source("hpdb-conventional"))
+        self.assertNotIn("meteorologist", prompt)
+        self.assertNotIn("Will is", prompt)
+        self.assertNotIn("User Will", prompt)
+        # Equipment context is preserved.
+        self.assertIn("multi-RSPduo", prompt)
+
     def test_cdbs_header(self):
         prompt = self._capture_prompt(self._build_bundle_with_source("cdbs"))
         self.assertIn("Broadcast station match (CDBS)", prompt)

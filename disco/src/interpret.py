@@ -223,7 +223,7 @@ def call_claude(api_key: str, bundle: dict, model: str, timeout: float = 20.0) -
             f"(permissive default — no allowed_modes constraint applied). ML model said {ml_class}.\n"
         )
 
-    prompt = f"""You are helping a user understand RF detections from their SDR scanner. Be substantive and concrete — the user is technical (a meteorologist running a multi-RSPduo scanner) and wants real signal-identification reasoning, not generic prose.
+    prompt = f"""You are helping a user understand RF detections from their SDR scanner. Be substantive and concrete — the user is technical (running a multi-RSPduo scanner) and wants real signal-identification reasoning, not generic prose.
 
 Geographic / user context: {_build_geographic_context()}
 
