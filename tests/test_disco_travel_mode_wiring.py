@@ -48,14 +48,20 @@ class InterpretGeographicContextTests(unittest.TestCase):
         self.assertIn("ZIP 19146", ctx)
         self.assertIn("39.9526", ctx)
         self.assertIn("-75.1652", ctx)
-        self.assertIn("meteorologist", ctx)
+        self.assertIn("multi-RSPduo SDR scanner setup", ctx)
+        # Personal identifiers must be absent — the geographic-context line
+        # should not leak Will's name or profession into every Claude prompt.
+        self.assertNotIn("Will", ctx)
+        self.assertNotIn("meteorologist", ctx)
 
     def test_falls_back_to_nashville_when_module_unavailable(self):
         with mock.patch.object(interpret, "_LOCATION_AVAILABLE", False), \
              mock.patch.object(interpret, "get_current_location", None):
             ctx = interpret._build_geographic_context()
         self.assertIn("Nashville, TN", ctx)
-        self.assertIn("meteorologist", ctx)
+        self.assertIn("multi-RSPduo SDR scanner setup", ctx)
+        self.assertNotIn("Will", ctx)
+        self.assertNotIn("meteorologist", ctx)
 
     def test_nashville_context_renders_natively_for_home_zip(self):
         fake = _LocMock("37221", 36.0662, -86.9639, "Nashville, TN")

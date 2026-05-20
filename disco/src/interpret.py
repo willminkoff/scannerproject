@@ -59,13 +59,12 @@ def _build_geographic_context() -> str:
     Disco should keep working even if the module is missing).
     """
     if not _LOCATION_AVAILABLE or get_current_location is None:
-        return ("Nashville, TN. User Will is a meteorologist running a "
-                "multi-RSPduo SDR scanner setup.")
+        return "Nashville, TN. Operating a multi-RSPduo SDR scanner setup."
     loc = get_current_location()
     return (
-        f"User is currently at {loc.label} (ZIP {loc.zip}, "
-        f"{loc.lat:.4f}, {loc.lon:.4f}). Will is a meteorologist running a "
-        f"multi-RSPduo SDR scanner setup."
+        f"User is at {loc.label} (ZIP {loc.zip}, "
+        f"{loc.lat:.4f}, {loc.lon:.4f}). "
+        f"Operating a multi-RSPduo SDR scanner setup."
     )
 
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
