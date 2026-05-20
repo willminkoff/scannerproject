@@ -132,9 +132,14 @@ def call_claude(api_key: str, bundle: dict, model: str, timeout: float = 20.0) -
     """Call Anthropic Messages API. Returns interpretation string or stub error string."""
     if not api_key:
         return "no key configured"
-    # ULS/CDBS licensee context — included only when the row was enriched.
-    # Some bands (broadcast FM via CDBS, ULS land-mobile) hit; ISM 902-928,
-    # NOAA WX, etc. don't have licensees and stay None.
+    # Licensee / curated-label context — included only when the row was
+    # enriched. Header differs by source (uls_source) so Claude knows which
+    # database the match came from and how much to trust it:
+    #   hpdb-conventional   → "Curated label match (HomePatrol)"
+    #   hpdb-trunk_control  → "Curated label match (HomePatrol — trunked control)"
+    #   <uls source string> → "FCC license match (ULS)"
+    #   cdbs                → "Broadcast station match (CDBS)"
+    #   (other)             → generic "Database match"
     licensee_block = ""
     if bundle.get("uls_callsign") or bundle.get("uls_entity_name"):
         bits = []
@@ -148,10 +153,22 @@ def call_claude(api_key: str, bundle: dict, model: str, timeout: float = 20.0) -
             bits.append(f"  Station class: {bundle['uls_station_class']}")
         if bundle.get("uls_distance_km") is not None:
             bits.append(f"  Distance from receiver: {bundle['uls_distance_km']:.1f} km")
-        if bundle.get("uls_source"):
-            bits.append(f"  Database source: {bundle['uls_source']} (uls = land mobile, "
-                        f"cdbs = broadcast)")
-        licensee_block = "FCC database match for this frequency:\n" + "\n".join(bits) + "\n"
+        src_value = (bundle.get("uls_source") or "").strip()
+        if src_value:
+            bits.append(f"  Database source: {src_value}")
+        src_lower = src_value.lower()
+        if src_lower.startswith("hpdb-trunk"):
+            header = ("Curated label match (HomePatrol — trunked control channel; "
+                      "indicates the system covering this site, not a per-call talkgroup)")
+        elif src_lower.startswith("hpdb"):
+            header = "Curated label match (HomePatrol — conventional channel)"
+        elif src_lower == "cdbs":
+            header = "Broadcast station match (CDBS)"
+        elif src_lower:
+            header = "FCC license match (ULS)"
+        else:
+            header = "Database match for this frequency"
+        licensee_block = f"{header}:\n" + "\n".join(bits) + "\n"
 
     # Phase 4 band-plan context — the band allocation is treated as authoritative
     # (FCC regulatory source) and supersedes any prior knowledge the model has
@@ -394,12 +411,17 @@ def interpret_loop(cfg, conn):
                 get_location_bucket() if _LOCATION_AVAILABLE and get_location_bucket
                 else "372"
             )
+            # C8 (HPDB): bump from c7 → c8 to invalidate cache entries built
+            # before HPDB lookups started landing curated labels. Pre-c8
+            # interpretations were keyed only on (ULS / CDBS / band-plan)
+            # context and could miss the HPDB-curated label rendered into
+            # the new licensee_block header.
             cache_key_obj = {
                 "bin_idx": bin_idx,
                 "modulation_class": mod,
                 "band_rejected": band_rejected,
                 "location_bucket": location_bucket,
-                "prompt_v": "c7",
+                "prompt_v": "c8",
             }
             bundle_hash = hash_bundle(cache_key_obj)
             cached = conn.execute(
