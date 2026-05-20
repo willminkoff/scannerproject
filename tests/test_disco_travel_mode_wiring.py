@@ -12,6 +12,7 @@ test_classifier_band_plan suite covers the full classifier loop).
 """
 from __future__ import annotations
 
+import json
 import os
 import sys
 import unittest
@@ -66,18 +67,114 @@ class InterpretGeographicContextTests(unittest.TestCase):
 
 
 class InterpretCacheKeyTests(unittest.TestCase):
-    """The interpret loop builds a cache key that must include location_bucket + prompt_v=c7."""
+    """The interpret loop builds a cache key with location_bucket + prompt_v=c8 (HPDB era)."""
 
-    def test_cache_key_includes_location_bucket_and_prompt_v_c7(self):
-        # Read the source to assert the cache_key_obj literal includes the
-        # right fields. Avoids needing a full interpret_loop integration test
-        # — the literal is the contract.
+    def test_cache_key_includes_location_bucket_and_prompt_v_c8(self):
         src = Path(_DISCO_SRC).joinpath("interpret.py").read_text(encoding="utf-8")
         self.assertIn('"location_bucket": location_bucket', src)
-        self.assertIn('"prompt_v": "c7"', src)
-        # Old prompt_v values must be gone (one-way invalidation).
+        self.assertIn('"prompt_v": "c8"', src)
+        # Old prompt_v values must be gone (one-way invalidation across c5→c7→c8).
         self.assertNotIn('"prompt_v": "c5"', src)
         self.assertNotIn('"prompt_v": "c6"', src)
+        self.assertNotIn('"prompt_v": "c7"', src)
+
+
+class InterpretLicenseeHeaderTests(unittest.TestCase):
+    """Three different licensee_block headers depending on uls_source value."""
+
+    def _build_bundle_with_source(self, source: str) -> dict:
+        return {
+            "freq_mhz": 769.4563,
+            "modulation_class": "P25",
+            "ml_class": "P25",
+            "confidence": 0.91,
+            "bandwidth_khz": 8.5,
+            "snr_db": 22.0,
+            "tuner": "B-T1",
+            "protocol_tag": "P25",
+            "uls_callsign": "TACN — West Nashville",
+            "uls_entity_name": "Tennessee Advanced Communications Network (TACN)",
+            "uls_emission_designator": None,
+            "uls_station_class": "P25X2_TDMA",
+            "uls_distance_km": 5.0,
+            "uls_source": source,
+            "band_name": "PS_700_NB",
+            "band_allowed_modes": ["P25", "DMR"],
+            "band_rejected": False,
+        }
+
+    def _capture_prompt(self, bundle: dict) -> str:
+        """Run call_claude with a mocked HTTP layer; capture the prompt sent."""
+        captured = {}
+
+        class _FakeResp:
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def read(self):
+                return b'{"content":[{"text":"x"}]}'
+
+        def fake_urlopen(req, timeout=None):
+            data = req.data
+            text = data.decode("utf-8") if isinstance(data, (bytes, bytearray)) else (data or "")
+            payload = json.loads(text)
+            captured["prompt"] = payload["messages"][0]["content"]
+            return _FakeResp()
+
+        with mock.patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            interpret.call_claude("fake-key", bundle, "claude-haiku-4-5-20251001", timeout=5.0)
+        return captured.get("prompt", "")
+
+    def test_hpdb_conventional_header(self):
+        prompt = self._capture_prompt(self._build_bundle_with_source("hpdb-conventional"))
+        self.assertIn("Curated label match (HomePatrol — conventional channel)", prompt)
+        self.assertNotIn("FCC license match", prompt)
+        self.assertNotIn("Broadcast station match", prompt)
+
+    def test_hpdb_trunk_control_header(self):
+        prompt = self._capture_prompt(self._build_bundle_with_source("hpdb-trunk_control"))
+        self.assertIn("Curated label match (HomePatrol — trunked control channel", prompt)
+        self.assertIn("not a per-call talkgroup", prompt)
+
+    def test_uls_header(self):
+        prompt = self._capture_prompt(self._build_bundle_with_source("ULS-LM"))
+        self.assertIn("FCC license match (ULS)", prompt)
+        self.assertNotIn("HomePatrol", prompt)
+
+    def test_cdbs_header(self):
+        prompt = self._capture_prompt(self._build_bundle_with_source("cdbs"))
+        self.assertIn("Broadcast station match (CDBS)", prompt)
+        self.assertNotIn("HomePatrol", prompt)
+        self.assertNotIn("FCC license", prompt)
+
+
+class ClassifierHpdbWiringTests(unittest.TestCase):
+    """Source-level assertions: classifier imports + calls HPDB before ULS."""
+
+    def setUp(self):
+        self.src = Path(_DISCO_SRC).joinpath("classifier.py").read_text(encoding="utf-8")
+
+    def test_classifier_imports_lookup_hpdb(self):
+        self.assertIn("from hpdb import lookup_hpdb", self.src)
+        self.assertIn("_HPDB_AVAILABLE", self.src)
+
+    def test_hpdb_block_appears_before_uls_block(self):
+        hpdb_idx = self.src.find("if _HPDB_AVAILABLE and lookup_hpdb is not None:")
+        uls_idx = self.src.find("if uls_call is None and _ULS_AVAILABLE and lookup_uls is not None:")
+        self.assertGreater(hpdb_idx, 0)
+        self.assertGreater(uls_idx, 0)
+        self.assertLess(hpdb_idx, uls_idx,
+                        "HPDB block must appear before ULS so curated labels win")
+
+    def test_hpdb_call_passes_lat_lon_from_current_location(self):
+        self.assertIn("lookup_hpdb(\n", self.src)
+        # 3 lookup callers now (HPDB + ULS + CDBS) each in a location-aware branch.
+        self.assertGreaterEqual(
+            self.src.count("lat_dd=_loc.lat"), 3,
+            "expected lat_dd=_loc.lat passed to HPDB + ULS + CDBS lookups",
+        )
+
+    def test_uls_src_set_to_hpdb_prefix_when_match(self):
+        self.assertIn('uls_src = f"hpdb-', self.src)
 
 
 class ClassifierWiringTests(unittest.TestCase):
