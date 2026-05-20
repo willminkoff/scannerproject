@@ -39,6 +39,20 @@ except Exception as _ce:
     _CDBS_AVAILABLE = False
     _CDBS_IMPORT_ERROR = _ce
 
+# HPDB lookup (HomePatrol / RadioReference curated DB). Surfaces human
+# labels like "Williamson County Fire — Dispatch" and trunked-system
+# identities ("Tennessee Advanced Communications Network — West Nashville")
+# that ULS/CDBS can't. Tried BEFORE ULS so curated labels win when both
+# match; ULS+CDBS still run as fallbacks when HPDB returns nothing.
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from hpdb import lookup_hpdb
+    _HPDB_AVAILABLE = True
+except Exception as _he:
+    lookup_hpdb = None
+    _HPDB_AVAILABLE = False
+    _HPDB_IMPORT_ERROR = _he
+
 # Phase 4 band-plan lookup. If the YAML can't be loaded, classifier_loop
 # falls back to _legacy_derive_protocol_tag so detection still works.
 try:
@@ -605,7 +619,41 @@ def classifier_loop(cfg, conn):
                 # but never block the classification update.
                 uls_call = uls_name = uls_emit = uls_stclass = uls_src = None
                 uls_dist = None
-                if _ULS_AVAILABLE and lookup_uls is not None:
+
+                # HPDB (RadioReference / HomePatrol curated) tried FIRST. Wins
+                # over ULS/CDBS when both match because HPDB's labels are
+                # human-curated for radio enthusiasts ("Williamson County Fire
+                # — Dispatch", "TACN — West Nashville") and more useful than
+                # raw FCC licensee strings ("WILLIAMSON CTY GOV'T"). Disco's
+                # downstream uses the same uls_* fields, discriminated by
+                # uls_src ("hpdb-conventional" / "hpdb-trunk_control").
+                if _HPDB_AVAILABLE and lookup_hpdb is not None:
+                    try:
+                        if _LOCATION_AVAILABLE and get_current_location is not None:
+                            _loc = get_current_location()
+                            hpdb_matches = lookup_hpdb(
+                                meta["freq_hz"],
+                                lat_dd=_loc.lat,
+                                lon_dd=_loc.lon,
+                                limit=1,
+                            )
+                        else:
+                            hpdb_matches = lookup_hpdb(meta["freq_hz"], limit=1)
+                        if hpdb_matches:
+                            m = hpdb_matches[0]
+                            # Map HPDB columns onto the existing uls_* fields
+                            # so the detection row schema stays stable.
+                            uls_call = m.get("alpha_tag")
+                            uls_name = m.get("system_name") or m.get("group_name")
+                            uls_emit = m.get("mode")
+                            uls_stclass = m.get("service_type")
+                            uls_dist = m.get("distance_km")
+                            uls_src = f"hpdb-{m.get('source_table', 'unknown')}"
+                    except Exception as _he2:
+                        LOG.warning("hpdb lookup failed at %.6f MHz: %s",
+                                    meta["freq_hz"] / 1e6, _he2)
+
+                if uls_call is None and _ULS_AVAILABLE and lookup_uls is not None:
                     try:
                         # Travel Mode: pass the current scanner location so the
                         # 80 km radius filter follows the iPhone push instead
