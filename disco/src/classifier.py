@@ -50,6 +50,19 @@ except Exception as _bpe:
     _BAND_PLAN_AVAILABLE = False
     _BAND_PLAN_IMPORT_ERROR = _bpe
 
+# Travel Mode: current scanner location, sourced from SB3's HPState. ULS
+# and CDBS distance filtering follows the iPhone push instead of being
+# pinned to Nashville. Import failure is non-fatal: lookups fall back to
+# the uls.py/cdbs.py DEFAULT_LAT_DD/DEFAULT_LON_DD constants.
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from current_location import get_current_location
+    _LOCATION_AVAILABLE = True
+except Exception as _loce:
+    get_current_location = None
+    _LOCATION_AVAILABLE = False
+    _LOCATION_IMPORT_ERROR = _loce
+
 # Broadcast band cutoffs (Hz) — CDBS fallback only fires when freq is in-band.
 _BCAST_AM_LO_HZ = 530e3
 _BCAST_AM_HI_HZ = 1710e3
@@ -594,7 +607,21 @@ def classifier_loop(cfg, conn):
                 uls_dist = None
                 if _ULS_AVAILABLE and lookup_uls is not None:
                     try:
-                        matches = lookup_uls(meta["freq_hz"], limit=1)
+                        # Travel Mode: pass the current scanner location so the
+                        # 80 km radius filter follows the iPhone push instead
+                        # of staying pinned to Nashville. Falls back to the
+                        # uls.py DEFAULT_* constants if current_location is
+                        # unavailable.
+                        if _LOCATION_AVAILABLE and get_current_location is not None:
+                            _loc = get_current_location()
+                            matches = lookup_uls(
+                                meta["freq_hz"],
+                                lat_dd=_loc.lat,
+                                lon_dd=_loc.lon,
+                                limit=1,
+                            )
+                        else:
+                            matches = lookup_uls(meta["freq_hz"], limit=1)
                         if matches:
                             m = matches[0]
                             uls_call = m.get("callsign")
@@ -615,7 +642,19 @@ def classifier_loop(cfg, conn):
                         and _CDBS_AVAILABLE and lookup_cdbs is not None
                         and _is_broadcast_band(meta["freq_hz"])):
                     try:
-                        cdbs_matches = lookup_cdbs(meta["freq_hz"], limit=1)
+                        # Travel Mode: same location-passing pattern as ULS
+                        # above; defaults to Nashville via cdbs.DEFAULT_* if
+                        # current_location is unavailable.
+                        if _LOCATION_AVAILABLE and get_current_location is not None:
+                            _loc = get_current_location()
+                            cdbs_matches = lookup_cdbs(
+                                meta["freq_hz"],
+                                lat_dd=_loc.lat,
+                                lon_dd=_loc.lon,
+                                limit=1,
+                            )
+                        else:
+                            cdbs_matches = lookup_cdbs(meta["freq_hz"], limit=1)
                         if cdbs_matches:
                             m = cdbs_matches[0]
                             uls_call = m.get("callsign")
