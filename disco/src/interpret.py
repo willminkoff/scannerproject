@@ -34,7 +34,39 @@ KEY_FILE = os.environ.get("DISCO_API_KEY_FILE", "/etc/disco/api_keys.conf")
 LOG = logging.getLogger("disco.interpret")
 _STOP = False
 
-GEOGRAPHIC_CONTEXT = "Nashville, TN. User Will is a meteorologist running a multi-RSPduo SDR scanner setup."
+# Geographic context is now sourced from SB3's HPState at prompt-construction
+# time so Disco follows Travel Mode. See disco/src/current_location.py for
+# the read/cache/fallback behavior.
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from current_location import (
+        get_current_location,
+        get_location_bucket,
+    )
+    _LOCATION_AVAILABLE = True
+except Exception as _le:  # pragma: no cover - import failure path
+    get_current_location = None
+    get_location_bucket = None
+    _LOCATION_AVAILABLE = False
+    _LOCATION_IMPORT_ERROR = _le
+
+
+def _build_geographic_context() -> str:
+    """Compose the geographic-context line injected into every Claude prompt.
+
+    Reads SB3's current location at call time; falls back to a static
+    Nashville string if `current_location` can't be imported (defensive —
+    Disco should keep working even if the module is missing).
+    """
+    if not _LOCATION_AVAILABLE or get_current_location is None:
+        return ("Nashville, TN. User Will is a meteorologist running a "
+                "multi-RSPduo SDR scanner setup.")
+    loc = get_current_location()
+    return (
+        f"User is currently at {loc.label} (ZIP {loc.zip}, "
+        f"{loc.lat:.4f}, {loc.lon:.4f}). Will is a meteorologist running a "
+        f"multi-RSPduo SDR scanner setup."
+    )
 
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 
@@ -177,7 +209,7 @@ def call_claude(api_key: str, bundle: dict, model: str, timeout: float = 20.0) -
 
     prompt = f"""You are helping a user understand RF detections from their SDR scanner. Be substantive and concrete — the user is technical (a meteorologist running a multi-RSPduo scanner) and wants real signal-identification reasoning, not generic prose.
 
-Geographic / user context: {GEOGRAPHIC_CONTEXT}
+Geographic / user context: {_build_geographic_context()}
 
 Detection:
 - Frequency: {bundle.get('freq_mhz', 0):.4f} MHz
@@ -351,11 +383,23 @@ def interpret_loop(cfg, conn):
             # The "prompt_v" version marker explicitly signals a prompt-shape
             # change so future prompt revisions can invalidate cleanly without
             # a schema-meaningful field having to carry the load.
+            # C7 (Travel Mode): add location_bucket so cached interpretations
+            # don't bleed across regions when Will travels. Bucket is the
+            # ZIP's first 3 digits (SCF) — coarse enough that intra-metro
+            # moves stay cached, fine enough that Nashville and Philly
+            # interpretations don't share entries. prompt_v bump from c5 to
+            # c7 invalidates ALL prior entries (pre-Travel-Mode interpretations
+            # were keyed on the implicit Nashville context).
+            location_bucket = (
+                get_location_bucket() if _LOCATION_AVAILABLE and get_location_bucket
+                else "372"
+            )
             cache_key_obj = {
                 "bin_idx": bin_idx,
                 "modulation_class": mod,
                 "band_rejected": band_rejected,
-                "prompt_v": "c5",
+                "location_bucket": location_bucket,
+                "prompt_v": "c7",
             }
             bundle_hash = hash_bundle(cache_key_obj)
             cached = conn.execute(
