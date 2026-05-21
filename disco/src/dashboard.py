@@ -486,11 +486,38 @@ def api_strongest(since_seconds: float = 60.0, per_tuner: int = 15, bin_khz: flo
             "  WHERE d2.tuner_id = detections.tuner_id "
             "    AND CAST(d2.freq_hz / ? AS INTEGER) = CAST(detections.freq_hz / ? AS INTEGER) "
             "    AND d2.uls_callsign IS NOT NULL AND d2.ts >= ? "
-            "  ORDER BY d2.snr_db DESC LIMIT 1 ) as uls_distance_km "
+            "  ORDER BY d2.snr_db DESC LIMIT 1 ) as uls_distance_km, "
+            # PR A — trust-hierarchy id_* fields. Take the values from the
+            # SNR-strongest row in the bin so the tier badge matches the row
+            # whose other fields are surfaced above.
+            "( SELECT id_service FROM detections d2 "
+            "  WHERE d2.tuner_id = detections.tuner_id "
+            "    AND CAST(d2.freq_hz / ? AS INTEGER) = CAST(detections.freq_hz / ? AS INTEGER) "
+            "    AND d2.id_confidence IS NOT NULL AND d2.ts >= ? "
+            "  ORDER BY d2.snr_db DESC LIMIT 1 ) as id_service, "
+            "( SELECT id_confidence FROM detections d2 "
+            "  WHERE d2.tuner_id = detections.tuner_id "
+            "    AND CAST(d2.freq_hz / ? AS INTEGER) = CAST(detections.freq_hz / ? AS INTEGER) "
+            "    AND d2.id_confidence IS NOT NULL AND d2.ts >= ? "
+            "  ORDER BY d2.snr_db DESC LIMIT 1 ) as id_confidence, "
+            "( SELECT id_source FROM detections d2 "
+            "  WHERE d2.tuner_id = detections.tuner_id "
+            "    AND CAST(d2.freq_hz / ? AS INTEGER) = CAST(detections.freq_hz / ? AS INTEGER) "
+            "    AND d2.id_confidence IS NOT NULL AND d2.ts >= ? "
+            "  ORDER BY d2.snr_db DESC LIMIT 1 ) as id_source, "
+            "( SELECT id_band_name FROM detections d2 "
+            "  WHERE d2.tuner_id = detections.tuner_id "
+            "    AND CAST(d2.freq_hz / ? AS INTEGER) = CAST(detections.freq_hz / ? AS INTEGER) "
+            "    AND d2.id_confidence IS NOT NULL AND d2.ts >= ? "
+            "  ORDER BY d2.snr_db DESC LIMIT 1 ) as id_band_name "
             "FROM detections WHERE ts >= ? AND tuner_id = ? "
             "GROUP BY CAST(freq_hz / ? AS INTEGER) "
             "ORDER BY max_snr DESC LIMIT ?",
             (bin_hz, bin_hz, cutoff,
+             bin_hz, bin_hz, cutoff,
+             bin_hz, bin_hz, cutoff,
+             bin_hz, bin_hz, cutoff,
+             bin_hz, bin_hz, cutoff,
              bin_hz, bin_hz, cutoff,
              bin_hz, bin_hz, cutoff,
              bin_hz, bin_hz, cutoff,
@@ -618,6 +645,20 @@ th{color:#888;font-weight:normal;font-size:var(--fs-th);text-transform:uppercase
 .mod-high{color:#a8e6a8;font-weight:600}.mod-mid{color:#cccc77}.mod-low{color:#666}
 .uls{color:#cdd0d6;max-width:240px;overflow:hidden;text-overflow:ellipsis;cursor:help}
 .uls-cs{color:#7a8696;font-size:0.85em;margin-left:6px}
+/* PR A — trust-hierarchy tier badges + curated service line. */
+.tier-badge{display:inline-block;margin-right:6px;font-size:13px;line-height:1;cursor:help;vertical-align:middle}
+.tier-high{filter:drop-shadow(0 0 2px rgba(80,200,120,0.5))}
+.tier-medium{filter:drop-shadow(0 0 2px rgba(220,180,80,0.4))}
+.tier-low,.tier-unknown{opacity:0.7}
+.tier-spurious{opacity:0.6}
+.id-service{color:#e8e8ec;font-weight:600;font-size:13px;padding:2px 0 1px;line-height:1.3}
+/* Spurious rows get a subtle muting so they don't shout for attention even
+   when the toggle reveals them. */
+tr.tier-spurious-row{opacity:0.65}
+/* Hide-spurious toggle button in the header. */
+.spurious-toggle{background:#1d1d24;color:#cdd0d6;border:1px solid #2f2f38;border-radius:4px;padding:3px 9px;font-size:11px;cursor:pointer;font-family:inherit;margin-left:8px}
+.spurious-toggle:hover{background:#262630;color:#fff}
+.spurious-toggle[data-on="true"]{background:#2a3a2a;color:#a8e6a8;border-color:#3a5a3a}
 .details-btn{background:#2a2a35;color:#cdd0d6;border:1px solid #3a3a45;border-radius:3px;padding:1px 7px;font-size:11px;cursor:pointer;font-family:inherit;margin-left:6px;line-height:1.3}
 .details-btn:hover{background:#3a3a45;color:#fff}
 #detail-popup{position:absolute;display:none;z-index:9500;background:#16161c;border:1px solid #3a3a45;color:#dde0e6;padding:10px 14px;border-radius:6px;max-width:420px;font-size:13px;line-height:1.45;box-shadow:0 6px 20px rgba(0,0,0,0.6);white-space:pre-wrap;font-family:-apple-system,sans-serif}
@@ -905,6 +946,10 @@ tr.is-listening:hover{background:rgba(58,90,58,0.18)}
     <span class="lmr-label-short">LMR</span>
     <span class="lmr-state">OFF</span>
   </button>
+  <button class="spurious-toggle" id="spurious-toggle" type="button" data-on="true"
+          title="Show or hide spurious-tier rows (band-rejected ML class, NOISE, sub-floor SNR)">
+    🔴 Hide spurious
+  </button>
   <button class="gear-btn" id="gear-btn" type="button" aria-label="Show controls" title="Show controls">⚙</button>
 </header>
 <div id="controls-drawer">
@@ -1002,6 +1047,28 @@ function dbToColor(db){
 }
 function snrClass(snr){ if(snr>=25) return "hot"; if(snr>=18) return "warm"; return ""; }
 function modConfClass(c){ if(c==null) return "mod-low"; if(c>=0.75) return "mod-high"; if(c>=0.5) return "mod-mid"; return "mod-low"; }
+
+// PR A — trust-hierarchy tier badge. Emoji + CSS class are derived from
+// id_confidence so the row hints visually how much trust to put in the
+// identification before reading the rest.
+//
+//   🟢 high     — curated DB hit (HPDB / CDBS) or strong signature
+//   🟡 medium   — band/service identified but not specific (ULS licensee)
+//   ⚪ unknown  — band only, no service name; signal is real but unidentified
+//   🔴 spurious — band-rejected ML class, NOISE class, or sub-floor SNR
+//                 (hidden by default; visible when HIDE_SPURIOUS is false)
+function tierBadge(confidence) {
+  if (!confidence) return '<span class="tier-badge tier-unknown" title="no identification">⚪</span>';
+  const labels = {
+    high:     ['🟢', 'high — curated DB match'],
+    medium:   ['🟡', 'medium — band/service identified'],
+    low:      ['⚪', 'low — modulation class only'],
+    unknown:  ['⚪', 'unknown — no identification'],
+    spurious: ['🔴', 'spurious — band-rejected or noise'],
+  };
+  const [emoji, title] = labels[confidence] || ['⚪', 'unknown'];
+  return `<span class="tier-badge tier-${confidence}" title="${title}">${emoji}</span>`;
+}
 
 // Tier 4: derive a 3-letter band badge from protocol_tag for the phone view.
 // `protocol_tag` shape from band_plan.tag_for() is "<BAND_NAME> — <class>" for
@@ -1278,11 +1345,21 @@ function _writeFilterStorage(){
 const FAV_FREQS = new Set();   // freqs (rounded Hz) currently favorited
 const HIDDEN_FREQS = new Set();  // freqs (rounded Hz) the user has hidden
 let SHOW_HIDDEN = false;          // temporary "reveal" toggle (not persisted)
+// PR A — hide rows whose id_confidence is 'spurious' by default. Will sees
+// only high/medium/low/unknown tiers; spurious goes behind a toggle.
+let HIDE_SPURIOUS = (function(){
+  try { const v = localStorage.getItem("disco_hide_spurious"); return v === null ? true : v === "true"; }
+  catch (e) { return true; }
+})();
 // Cross-tuner row totals so the FILTERS-summary line can show "N of M shown".
 let _lastTotalBuckets = 0;
 let _lastTotalFiltered = 0;
 
 function rowMatchesFilter(r){
+  // PR A — trust-hierarchy: spurious tier hides by default. The toggle in
+  // the header flips HIDE_SPURIOUS so the user can audit raw classifier
+  // output when curating retrain data.
+  if (HIDE_SPURIOUS && r.id_confidence === "spurious") return false;
   // Hidden rows drop out unless the user has flipped the "show hidden" toggle.
   if (!SHOW_HIDDEN) {
     const fid = Math.round(r.freq_hz);
@@ -1398,11 +1475,18 @@ async function refreshTables(){
         const isHidden = HIDDEN_FREQS.has(freqId);
         const starHtml = `<button class="star-btn ${isFav ? "is-fav" : ""}" type="button" title="${isFav ? "Remove from favorites" : "Add to favorites"}">${isFav ? "★" : "☆"}</button>`;
         const hideHtml = `<button class="hide-btn ${isHidden ? "is-hidden" : ""}" type="button" title="${isHidden ? "Unhide this row" : "Hide this row"}">👁</button>`;
-        tr.innerHTML = `<td>${starHtml}${hideHtml}${(r.freq_hz/1e6).toFixed(4)}</td>`+
+        // PR A — tier badge and curated service name (when the trust hierarchy
+        // produced one). The badge prefixes the freq cell; the service name
+        // is rendered as a strong-emphasis line above the mod cell when set.
+        const tierBadgeHtml = tierBadge(r.id_confidence);
+        const serviceLine = r.id_service
+          ? `<div class="id-service" title="${r.id_source || ""}">${r.id_service}</div>`
+          : "";
+        tr.innerHTML = `<td>${tierBadgeHtml}${starHtml}${hideHtml}${(r.freq_hz/1e6).toFixed(4)}</td>`+
           `<td class="${cls}">${r.max_snr.toFixed(1)}</td>`+
           `<td>${r.max_power.toFixed(1)}</td>`+
           `<td>${r.hits}</td>`+
-          `<td class="${modCls}">${modLabel}</td>`+
+          `<td class="${modCls}">${serviceLine}${modLabel}</td>`+
           `<td>${modConf}</td>`+
           `<td class="uls">${ulsCell}</td>`+
           `<td>${age}s</td>`;
@@ -2151,6 +2235,24 @@ async function init(){
   // Tier 4: gear drawer + filter/favorites collapsibles. Filters open by default
   // when any are active so the user can see what's narrowing the view.
   document.getElementById("gear-btn").addEventListener("click", toggleDrawer);
+  // PR A — Hide-spurious toggle. State persists in localStorage so the
+  // dashboard reload remembers Will's preference.
+  (function bindSpuriousToggle(){
+    const btn = document.getElementById("spurious-toggle");
+    if (!btn) return;
+    function paint() {
+      btn.dataset.on = HIDE_SPURIOUS ? "true" : "false";
+      btn.textContent = HIDE_SPURIOUS ? "🔴 Hide spurious" : "🔴 Show spurious";
+    }
+    paint();
+    btn.addEventListener("click", function() {
+      HIDE_SPURIOUS = !HIDE_SPURIOUS;
+      try { localStorage.setItem("disco_hide_spurious", HIDE_SPURIOUS ? "true" : "false"); }
+      catch (e) {}
+      paint();
+      refreshTables();
+    });
+  })();
   bindCollapsible("fav-toggle", "fav-bar", false);
   bindCollapsible("filter-toggle", "filter-bar", activeFilterCount() > 0);
   updateFilterToggleCount();
