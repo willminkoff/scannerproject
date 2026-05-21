@@ -86,35 +86,40 @@ class CallClaudePromptBandRejectedTests(unittest.TestCase):
 
     @mock.patch("urllib.request.urlopen")
     def test_must_not_invent_licensees(self, mock_urlopen):
-        """C5: rejected case must explicitly forbid hallucinating service names.
-        This is the core fix for the MNPD/BNA/etc. hallucinations Will saw."""
+        """C10: rejected case still forbids hallucinating service names, just
+        with tighter wording — no candidate-cause enumeration, no licensee
+        invention, and an explicit "Do not name candidate causes" directive.
+        """
         prompt = _capture_prompt(mock_urlopen, "FAKE_KEY", _base_bundle())
-        self.assertIn("You MUST NOT", prompt)
-        self.assertIn("Name specific services", prompt)
-        self.assertIn("Metro Nashville Police", prompt)
-        self.assertIn("BNA approach", prompt)
-        self.assertIn("Cite specific licensees", prompt)
+        # The hard-rules block in the c10 body forbids inventing licensees /
+        # callsigns / agencies / systems and also disallows candidate-cause
+        # speculation outright.
+        self.assertIn("Do NOT invent licensees", prompt)
+        self.assertIn("Do not name candidate causes", prompt)
 
     @mock.patch("urllib.request.urlopen")
     def test_required_prose_structure(self, mock_urlopen):
-        """C5: rejected case has a required 4-sentence prose template that
-        leads with the band facts, not Claude's freq-based guess."""
+        """C10: anomaly handling is now ONE sentence, not a 4-sentence
+        template. The clause names the rejected ML class and the band
+        allocation, then stops."""
         prompt = _capture_prompt(mock_urlopen, "FAKE_KEY", _base_bundle())
-        self.assertIn("Required prose structure", prompt)
-        self.assertIn("This frequency is in AVIATION_NAV", prompt)
-        self.assertIn("The ML classifier reported NXDN", prompt)
-        self.assertIn("not consistent with this allocation", prompt)
-        self.assertIn("Most likely explanation", prompt)
+        self.assertIn("Write ONE sentence", prompt)
+        self.assertIn("the ML classifier reported NXDN", prompt)
+        self.assertIn("allocated to AVIATION_NAV", prompt)
+        self.assertIn("Stop there", prompt)
 
     @mock.patch("urllib.request.urlopen")
-    def test_anomaly_candidate_explanations_listed(self, mock_urlopen):
+    def test_anomaly_candidate_explanations_forbidden(self, mock_urlopen):
+        """C10: candidate explanations are NO LONGER enumerated — under c10
+        the prompt forbids the model from speculating about causes at all.
+        Sequence number stays in test name for diff readability vs c5/c9."""
         prompt = _capture_prompt(mock_urlopen, "FAKE_KEY", _base_bundle())
-        # All 5 candidate causes must be enumerated
-        self.assertIn("model misidentification", prompt)
-        self.assertIn("spurious emission", prompt)
-        self.assertIn("equipment leak", prompt)
-        self.assertIn("propagation anomaly", prompt)
-        self.assertIn("unauthorized transmitter", prompt)
+        # The old enumerated list of candidate explanations is gone.
+        self.assertNotIn("model misidentification", prompt)
+        self.assertNotIn("propagation anomaly", prompt)
+        self.assertNotIn("unauthorized transmitter", prompt)
+        # And the prompt explicitly tells Claude not to list them.
+        self.assertIn("Do not list possibilities", prompt)
 
     @mock.patch("urllib.request.urlopen")
     def test_ml_class_preserved_in_prompt(self, mock_urlopen):

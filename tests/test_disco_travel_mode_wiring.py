@@ -73,18 +73,19 @@ class InterpretGeographicContextTests(unittest.TestCase):
 
 
 class InterpretCacheKeyTests(unittest.TestCase):
-    """The interpret loop builds a cache key with location_bucket + prompt_v=c9 (trust-hierarchy era)."""
+    """The interpret loop builds a cache key with location_bucket + prompt_v=c10 (output-discipline era)."""
 
-    def test_cache_key_includes_location_bucket_and_prompt_v_c9(self):
+    def test_cache_key_includes_location_bucket_and_prompt_v_c10(self):
         src = Path(_DISCO_SRC).joinpath("interpret.py").read_text(encoding="utf-8")
         self.assertIn('"location_bucket": location_bucket', src)
-        self.assertIn('"prompt_v": "c9"', src)
+        self.assertIn('"prompt_v": "c10"', src)
         # Old prompt_v values must be gone (one-way invalidation across the
-        # cache-key history: c5 → c7 → c8 → c9. c6 was skipped.)
+        # cache-key history: c5 → c7 → c8 → c9 → c10. c6 was skipped.)
         self.assertNotIn('"prompt_v": "c5"', src)
         self.assertNotIn('"prompt_v": "c6"', src)
         self.assertNotIn('"prompt_v": "c7"', src)
         self.assertNotIn('"prompt_v": "c8"', src)
+        self.assertNotIn('"prompt_v": "c9"', src)
         # PR A — the trust-hierarchy fields must be in the cache key so a
         # row that upgrades from medium → high regenerates prose.
         self.assertIn('"id_confidence": id_confidence', src)
@@ -246,6 +247,82 @@ class ClassifierWiringTests(unittest.TestCase):
             self.src.count("lat_dd=_loc.lat"), 2,
             "expected lat_dd=_loc.lat passed to both ULS and CDBS lookups",
         )
+
+
+class InterpretSqlGateTightenedToHighTests(unittest.TestCase):
+    """PR C: only HIGH-tier rows from curated DBs reach Claude.
+
+    Prior to PR C the gate was ``id_confidence IN ('high', 'medium')``. PR C
+    tightens to ``id_confidence = 'high'``: medium-tier rows now render a
+    structured card in the UI without burning a Claude call.
+    """
+
+    def setUp(self) -> None:
+        self.src = Path(_DISCO_SRC).joinpath("interpret.py").read_text(encoding="utf-8")
+
+    def test_gate_targets_high_tier_only(self):
+        self.assertIn("id_confidence = 'high'", self.src)
+        # The old looser gate must not be reachable.
+        self.assertNotIn("id_confidence IN ('high', 'medium')", self.src)
+
+    def test_gate_keeps_curated_source_constraint(self):
+        # HPDB / CDBS / signature still gate which sources are sent to Claude.
+        self.assertIn("id_source IN ('hpdb', 'cdbs', 'signature')", self.src)
+
+
+class InterpretPromptC10ShapeTests(unittest.TestCase):
+    """PR C: c10 prompt is tighter — 1-2 sentences cap, hard rules forbidding
+    invention and candidate-cause speculation."""
+
+    def setUp(self) -> None:
+        self.src = Path(_DISCO_SRC).joinpath("interpret.py").read_text(encoding="utf-8")
+
+    def test_prompt_caps_at_two_sentences(self):
+        self.assertIn("Write EXACTLY 1-2 sentences", self.src)
+
+    def test_prompt_forbids_inventing_licensees(self):
+        self.assertIn("Do NOT invent licensees", self.src)
+
+    def test_prompt_forbids_candidate_speculation(self):
+        self.assertIn("Do NOT speculate", self.src)
+
+    def test_prompt_has_thin_data_fallback(self):
+        # If curated data is too thin, model must say so and stop — no
+        # filler prose.
+        self.assertIn("Curated data names this licensee but does not support", self.src)
+
+
+class DashboardStructuredCardSurfaceTests(unittest.TestCase):
+    """PR C: dashboard exposes id_evidence_json + renders the details popup
+    as a structured card for rows without Claude prose."""
+
+    def setUp(self) -> None:
+        self.src = Path(_DISCO_SRC).joinpath("dashboard.py").read_text(encoding="utf-8")
+
+    def test_api_strongest_selects_id_evidence_json(self):
+        # The structured card needs the evidence dict to surface signature
+        # features + HPDB/CDBS payloads; expose it via /api/strongest.
+        self.assertIn("id_evidence_json", self.src)
+
+    def test_details_button_renders_for_non_prose_tiered_rows(self):
+        # PR C — details button gets a "no-prose" variant for medium/unknown.
+        self.assertIn("details-btn no-prose", self.src)
+
+    def test_show_detail_popup_dispatches_on_prose_vs_card(self):
+        # The popup logic must branch on presence of prose, calling the
+        # structured-card builder when prose is absent.
+        self.assertIn("buildStructuredCard", self.src)
+        self.assertIn('"No Claude prose for"', self.src) if False else self.assertIn(
+            "No Claude prose for", self.src
+        )
+
+    def test_card_surfaces_signature_features_when_present(self):
+        # When the trust hierarchy fired from signature_match, the card
+        # surfaces the fingerprint's bw / shape / duty so Will can see what
+        # the fingerprinter measured.
+        self.assertIn("Signature BW (-3 dB)", self.src)
+        self.assertIn("Signature shape", self.src)
+        self.assertIn("Signature duty", self.src)
 
 
 if __name__ == "__main__":
