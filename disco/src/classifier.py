@@ -4,6 +4,7 @@ Heuristic v0 by default. If an ONNX model is present at MODEL_PATH, switch to it
 Filename format: {tuner}_{freq_hz}_{bw_hz}_{rate_hz}_{ts}_{uid}.iq.f32 (6 fields)
 """
 import argparse
+import json
 import logging
 import os
 import signal
@@ -76,6 +77,17 @@ except Exception as _loce:
     get_current_location = None
     _LOCATION_AVAILABLE = False
     _LOCATION_IMPORT_ERROR = _loce
+
+# PR A — trust hierarchy. Folds raw HPDB/CDBS/ULS/ML inputs into a single
+# IdentificationResult with a confidence tier so the UI can hide conjecture.
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from identification import build_identification
+    _IDENT_AVAILABLE = True
+except Exception as _iee:
+    build_identification = None
+    _IDENT_AVAILABLE = False
+    _IDENT_IMPORT_ERROR = _iee
 
 # Broadcast band cutoffs (Hz) — CDBS fallback only fires when freq is in-band.
 _BCAST_AM_LO_HZ = 530e3
@@ -194,6 +206,17 @@ def migrate_schema(conn):
         ("uls_distance_km", "REAL"),
         ("uls_source", "TEXT"),
         ("uls_lookup_ts", "REAL"),
+        # PR A (trust hierarchy): the IdentificationResult's tier + source +
+        # service-name string get persisted alongside the raw ML fields so the
+        # dashboard can filter by confidence without re-running the layer
+        # fall-through on every render. `id_evidence_json` is the dict-as-JSON
+        # of supporting evidence (raw lookup payloads, ml class, band-rejected
+        # flag, snr) for the details panel.
+        ("id_service", "TEXT"),
+        ("id_confidence", "TEXT"),
+        ("id_source", "TEXT"),
+        ("id_band_name", "TEXT"),
+        ("id_evidence_json", "TEXT"),
     ]:
         if col not in existing:
             conn.execute(f"ALTER TABLE detections ADD COLUMN {col} {ddl}")
@@ -614,115 +637,184 @@ def classifier_loop(cfg, conn):
             det_id = find_detection_id(conn, slice_path)
             now = time.time()
             if det_id is not None:
-                # Phase 3: enrich with FCC ULS licensee info. Only the top-ranked
-                # match (closest in geo & freq) is persisted. Errors are logged
-                # but never block the classification update.
-                uls_call = uls_name = uls_emit = uls_stclass = uls_src = None
-                uls_dist = None
+                # Run all three FCC database lookups concurrently in terms of
+                # what we capture — the trust hierarchy (PR A) decides which
+                # one wins based on the IdentificationResult fall-through. We
+                # capture the RAW match dict for each so build_identification()
+                # can compose the structured result and so the details panel
+                # gets the full evidence.
+                hpdb_match: dict | None = None
+                cdbs_match: dict | None = None
+                uls_match: dict | None = None
 
-                # HPDB (RadioReference / HomePatrol curated) tried FIRST. Wins
-                # over ULS/CDBS when both match because HPDB's labels are
-                # human-curated for radio enthusiasts ("Williamson County Fire
-                # — Dispatch", "TACN — West Nashville") and more useful than
-                # raw FCC licensee strings ("WILLIAMSON CTY GOV'T"). Disco's
-                # downstream uses the same uls_* fields, discriminated by
-                # uls_src ("hpdb-conventional" / "hpdb-trunk_control").
                 if _HPDB_AVAILABLE and lookup_hpdb is not None:
                     try:
                         if _LOCATION_AVAILABLE and get_current_location is not None:
                             _loc = get_current_location()
-                            hpdb_matches = lookup_hpdb(
+                            _hpdb_rows = lookup_hpdb(
                                 meta["freq_hz"],
                                 lat_dd=_loc.lat,
                                 lon_dd=_loc.lon,
                                 limit=1,
                             )
                         else:
-                            hpdb_matches = lookup_hpdb(meta["freq_hz"], limit=1)
-                        if hpdb_matches:
-                            m = hpdb_matches[0]
-                            # Map HPDB columns onto the existing uls_* fields
-                            # so the detection row schema stays stable.
-                            uls_call = m.get("alpha_tag")
-                            uls_name = m.get("system_name") or m.get("group_name")
-                            uls_emit = m.get("mode")
-                            uls_stclass = m.get("service_type")
-                            uls_dist = m.get("distance_km")
-                            uls_src = f"hpdb-{m.get('source_table', 'unknown')}"
+                            _hpdb_rows = lookup_hpdb(meta["freq_hz"], limit=1)
+                        if _hpdb_rows:
+                            hpdb_match = dict(_hpdb_rows[0])
                     except Exception as _he2:
                         LOG.warning("hpdb lookup failed at %.6f MHz: %s",
                                     meta["freq_hz"] / 1e6, _he2)
 
-                if uls_call is None and _ULS_AVAILABLE and lookup_uls is not None:
+                if hpdb_match is None and _ULS_AVAILABLE and lookup_uls is not None:
                     try:
-                        # Travel Mode: pass the current scanner location so the
-                        # 80 km radius filter follows the iPhone push instead
-                        # of staying pinned to Nashville. Falls back to the
-                        # uls.py DEFAULT_* constants if current_location is
-                        # unavailable.
                         if _LOCATION_AVAILABLE and get_current_location is not None:
                             _loc = get_current_location()
-                            matches = lookup_uls(
+                            _uls_rows = lookup_uls(
                                 meta["freq_hz"],
                                 lat_dd=_loc.lat,
                                 lon_dd=_loc.lon,
                                 limit=1,
                             )
                         else:
-                            matches = lookup_uls(meta["freq_hz"], limit=1)
-                        if matches:
-                            m = matches[0]
-                            uls_call = m.get("callsign")
-                            uls_name = m.get("entity_name")
-                            uls_emit = m.get("emission_designator")
-                            uls_stclass = m.get("station_class")
-                            uls_dist = m.get("distance_km")
-                            uls_src = m.get("source")
+                            _uls_rows = lookup_uls(meta["freq_hz"], limit=1)
+                        if _uls_rows:
+                            uls_match = dict(_uls_rows[0])
                     except Exception as _ee:
                         LOG.warning("uls lookup failed at %.6f MHz: %s",
                                     meta["freq_hz"] / 1e6, _ee)
-                # CDBS fallback: ULS doesn't carry commercial AM/FM broadcast
-                # — those licenses live in the FCC Media Bureau's CDBS. Only
-                # query when ULS returned nothing AND the freq is in an
-                # AM or FM broadcast band. Tag with uls_source='cdbs' so
-                # downstream consumers can distinguish the source.
-                if (uls_call is None and uls_name is None
+
+                # CDBS fallback: ULS doesn't carry commercial AM/FM broadcast.
+                # Only query when ULS returned nothing AND the freq is in an
+                # AM or FM broadcast band.
+                if (hpdb_match is None and uls_match is None
                         and _CDBS_AVAILABLE and lookup_cdbs is not None
                         and _is_broadcast_band(meta["freq_hz"])):
                     try:
-                        # Travel Mode: same location-passing pattern as ULS
-                        # above; defaults to Nashville via cdbs.DEFAULT_* if
-                        # current_location is unavailable.
                         if _LOCATION_AVAILABLE and get_current_location is not None:
                             _loc = get_current_location()
-                            cdbs_matches = lookup_cdbs(
+                            _cdbs_rows = lookup_cdbs(
                                 meta["freq_hz"],
                                 lat_dd=_loc.lat,
                                 lon_dd=_loc.lon,
                                 limit=1,
                             )
                         else:
-                            cdbs_matches = lookup_cdbs(meta["freq_hz"], limit=1)
-                        if cdbs_matches:
-                            m = cdbs_matches[0]
-                            uls_call = m.get("callsign")
-                            uls_name = m.get("entity_name")
-                            uls_emit = m.get("emission_designator")
-                            uls_stclass = m.get("station_class")
-                            uls_dist = m.get("distance_km")
-                            uls_src = m.get("source") or "cdbs"
+                            _cdbs_rows = lookup_cdbs(meta["freq_hz"], limit=1)
+                        if _cdbs_rows:
+                            cdbs_match = dict(_cdbs_rows[0])
                     except Exception as _ce2:
                         LOG.warning("cdbs lookup failed at %.6f MHz: %s",
                                     meta["freq_hz"] / 1e6, _ce2)
+
+                # Capture snr_db ahead of the identification so the spurious
+                # tier can fire on sub-floor signals. Reads the sweep-computed
+                # value persisted earlier in the same row.
+                _snr_db = None
+                try:
+                    _cur = conn.execute(
+                        "SELECT snr_db FROM detections WHERE id = ?", (det_id,)
+                    )
+                    _r = _cur.fetchone()
+                    if _r and _r[0] is not None:
+                        _snr_db = float(_r[0])
+                except Exception:
+                    pass
+
+                # Resolve band info for the identification fall-through. The
+                # `tag` string already encodes band-rejection ("BAND — unidentified")
+                # but the dataclass wants band_name + band_rejected explicitly.
+                _band_name = None
+                _band_rejected = False
+                _band_allowed_modes: list = []
+                if _BAND_PLAN_AVAILABLE and band_plan is not None and plan:
+                    try:
+                        _b = band_plan.band_for(meta["freq_hz"], plan)
+                        if _b is not None:
+                            _band_name = _b.name
+                            _band_allowed_modes = list(_b.allowed_modes)
+                            _band_rejected = not band_plan.is_mode_allowed(
+                                final_class, meta["freq_hz"], plan
+                            )
+                    except Exception:
+                        pass
+
+                # Run the trust hierarchy fall-through. The result drives the
+                # new id_* columns AND interpret.py's Claude gate.
+                ident = None
+                if _IDENT_AVAILABLE and build_identification is not None:
+                    try:
+                        ident = build_identification(
+                            modulation_class=final_class,
+                            modulation_confidence=conf,
+                            snr_db=_snr_db,
+                            band_name=_band_name,
+                            band_rejected=_band_rejected,
+                            band_allowed_modes=_band_allowed_modes,
+                            hpdb_match=hpdb_match,
+                            cdbs_match=cdbs_match,
+                            uls_match=uls_match,
+                        )
+                    except Exception as _ide:
+                        LOG.warning("build_identification failed at %.6f MHz: %s",
+                                    meta["freq_hz"] / 1e6, _ide)
+
+                # Legacy uls_* fields kept for back-compat with the dashboard's
+                # existing /api/strongest SQL and any third-party consumers.
+                # Populated from whichever DB layer the identification picked,
+                # so the legacy columns and the new id_* columns agree on the
+                # source.
+                uls_call = uls_name = uls_emit = uls_stclass = uls_src = None
+                uls_dist = None
+                if hpdb_match is not None:
+                    uls_call = hpdb_match.get("alpha_tag")
+                    uls_name = hpdb_match.get("system_name") or hpdb_match.get("group_name")
+                    uls_emit = hpdb_match.get("mode")
+                    uls_stclass = hpdb_match.get("service_type")
+                    uls_dist = hpdb_match.get("distance_km")
+                    uls_src = f"hpdb-{hpdb_match.get('source_table', 'unknown')}"
+                elif uls_match is not None:
+                    uls_call = uls_match.get("callsign")
+                    uls_name = uls_match.get("entity_name")
+                    uls_emit = uls_match.get("emission_designator")
+                    uls_stclass = uls_match.get("station_class")
+                    uls_dist = uls_match.get("distance_km")
+                    uls_src = uls_match.get("source")
+                elif cdbs_match is not None:
+                    uls_call = cdbs_match.get("callsign")
+                    uls_name = cdbs_match.get("entity_name")
+                    uls_emit = cdbs_match.get("emission_designator")
+                    uls_stclass = cdbs_match.get("station_class")
+                    uls_dist = cdbs_match.get("distance_km")
+                    uls_src = cdbs_match.get("source") or "cdbs"
+
+                # Serialize id_evidence_json — small enough at ~1 KB per row to
+                # keep inline rather than spinning up a sidecar table.
+                _id_service = _id_confidence = _id_source = _id_band = None
+                _id_evidence_json = None
+                if ident is not None:
+                    _id_service = ident.service
+                    _id_confidence = ident.confidence
+                    _id_source = ident.source
+                    _id_band = ident.band_name
+                    try:
+                        _id_evidence_json = json.dumps(
+                            ident.evidence, default=str, sort_keys=True
+                        )
+                    except Exception:
+                        _id_evidence_json = None
+
                 conn.execute(
                     "UPDATE detections SET modulation_class = ?, modulation_confidence = ?, "
                     "protocol_tag = ?, classified_ts = ?, "
                     "uls_callsign = ?, uls_entity_name = ?, uls_emission_designator = ?, "
                     "uls_station_class = ?, uls_distance_km = ?, uls_source = ?, "
-                    "uls_lookup_ts = ? "
+                    "uls_lookup_ts = ?, "
+                    "id_service = ?, id_confidence = ?, id_source = ?, "
+                    "id_band_name = ?, id_evidence_json = ? "
                     "WHERE id = ?",
                     (final_class, conf, tag, now,
                      uls_call, uls_name, uls_emit, uls_stclass, uls_dist, uls_src, now,
+                     _id_service, _id_confidence, _id_source, _id_band, _id_evidence_json,
                      det_id)
                 )
                 conn.commit()

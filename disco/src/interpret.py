@@ -326,16 +326,25 @@ def interpret_loop(cfg, conn):
             time.sleep(60)
             continue
 
+        # PR A — trust hierarchy gate. Only invoke Claude when the
+        # IdentificationResult tier is high/medium AND its source is a curated
+        # database (HPDB or CDBS). Spurious / unknown / low rows don't get
+        # Claude prose — they render structured-only in the dashboard. This
+        # cuts the per-cycle Claude spend by skipping bands of detections
+        # where prose adds nothing the structured fields don't already carry.
         rows = conn.execute(
             "SELECT id, tuner_id, freq_hz, modulation_class, modulation_confidence, "
             "bandwidth_hz, snr_db, ts, protocol_tag, "
             "uls_callsign, uls_entity_name, uls_emission_designator, "
-            "uls_station_class, uls_distance_km, uls_source "
+            "uls_station_class, uls_distance_km, uls_source, "
+            "id_confidence, id_source, id_service, id_band_name "
             "FROM detections "
             "WHERE modulation_class IS NOT NULL "
             "  AND modulation_class != 'unclassified' "
             "  AND modulation_confidence >= ? "
             "  AND interpretation IS NULL "
+            "  AND id_confidence IN ('high', 'medium') "
+            "  AND id_source IN ('hpdb', 'cdbs', 'signature') "
             "ORDER BY snr_db DESC "
             "LIMIT ?",
             (min_confidence, max_per_cycle * 4)
@@ -359,7 +368,8 @@ def interpret_loop(cfg, conn):
                 continue
 
             (det_id, tuner, freq, mod, conf, bw, snr, ts, ptag,
-             uls_call, uls_name, uls_emit, uls_stcl, uls_dist, uls_src) = row
+             uls_call, uls_name, uls_emit, uls_stcl, uls_dist, uls_src,
+             id_confidence, id_source, id_service, id_band_name) = row
             # Phase 4 band-plan augmentation: re-derive band info at interpret-time
             # (least invasive — no DB schema change). modulation_class is the raw ML
             # output; band_plan tells us if it's allowed in the freq's allocation.
@@ -410,17 +420,21 @@ def interpret_loop(cfg, conn):
                 get_location_bucket() if _LOCATION_AVAILABLE and get_location_bucket
                 else "372"
             )
-            # C8 (HPDB): bump from c7 → c8 to invalidate cache entries built
-            # before HPDB lookups started landing curated labels. Pre-c8
-            # interpretations were keyed only on (ULS / CDBS / band-plan)
-            # context and could miss the HPDB-curated label rendered into
-            # the new licensee_block header.
+            # C9 (trust hierarchy): bump c8 → c9. Pre-c9 cached prose was
+            # generated for ALL detections — including spurious / band-rejected
+            # rows that should never have been sent to Claude. With the new
+            # gate (id_confidence in {high, medium} AND id_source in {hpdb,
+            # cdbs, signature}), only curated-DB hits get Claude. The cache
+            # also gets id_confidence + id_source in the key so a row that
+            # later upgrades from medium → high regenerates fresh prose.
             cache_key_obj = {
                 "bin_idx": bin_idx,
                 "modulation_class": mod,
                 "band_rejected": band_rejected,
                 "location_bucket": location_bucket,
-                "prompt_v": "c8",
+                "id_confidence": id_confidence,
+                "id_source": id_source,
+                "prompt_v": "c9",
             }
             bundle_hash = hash_bundle(cache_key_obj)
             cached = conn.execute(
