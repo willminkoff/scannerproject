@@ -376,6 +376,37 @@ def _score_entry(features: FingerprintFeatures, entry: dict) -> float:
     )
 
 
+def _entry_band_allows(entry: dict, band_name: Optional[str]) -> bool:
+    """Decide whether a catalog entry is permitted in the detection's band.
+
+    Bug-1 fix (post-#27 live data): some broad catalog entries — most
+    notably "Wide FM (generic)" — were matching wide-FM-shaped energy in
+    bands where wide FM cannot legally appear (RADIO_ASTRONOMY,
+    TV_VHF_HIGH, AVIATION_NAV, LMR_800, etc.) and landing in HIGH tier.
+    The frequency-range gate was too coarse: a 30 MHz – 1 GHz catch-all
+    entry covers many bands that don't actually host wide FM.
+
+    Entries may opt in to band-context filtering by setting either
+    ``allowed_bands`` (allowlist; entry is REJECTED if band_name is not
+    in the list) or ``forbidden_bands`` (denylist; entry is REJECTED if
+    band_name IS in the list). Entries without either field are
+    unconstrained (back-compat — existing tests that don't pass band_name
+    keep working).
+
+    When ``band_name`` is None (detection is outside the band-plan's
+    covered range), an ``allowed_bands``-restricted entry is rejected too
+    — a strict allowlist + an unknown band means we don't have evidence
+    that the entry's service actually exists there.
+    """
+    allowed = entry.get("allowed_bands")
+    forbidden = entry.get("forbidden_bands")
+    if isinstance(allowed, (list, tuple)) and allowed:
+        return bool(band_name) and band_name in allowed
+    if isinstance(forbidden, (list, tuple)) and forbidden:
+        return not (band_name and band_name in forbidden)
+    return True
+
+
 def match_signature(
     iq: np.ndarray,
     sample_rate_hz: float,
@@ -384,12 +415,15 @@ def match_signature(
     snr_db: float = 0.0,
     catalog_path: Optional[str] = None,
     min_confidence: float = 0.65,
+    band_name: Optional[str] = None,
 ) -> Optional[SignatureMatch]:
     """Top-level API: measure features, score the catalog, return best hit.
 
     Returns None when:
       - catalog is missing or empty
       - no catalog entry brackets `freq_hz`
+      - no remaining entry's ``allowed_bands`` / ``forbidden_bands``
+        scope admits the detection band
       - best score < min_confidence
 
     Otherwise returns the highest-scoring SignatureMatch.
@@ -407,6 +441,8 @@ def match_signature(
         if f_min <= 0 or f_max <= 0 or f_min > f_max:
             continue
         if not (f_min <= freq_hz <= f_max):
+            continue
+        if not _entry_band_allows(entry, band_name):
             continue
         candidates.append(entry)
 

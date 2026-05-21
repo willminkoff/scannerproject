@@ -26,6 +26,16 @@
 #   confidence_weight       Operator hint [0.0, 1.0]. Lower = "this entry
 #                           is generic, prefer a more specific match if
 #                           one exists." Default 1.0.
+#   allowed_bands           Optional list of band-plan band names where
+#                           this signature is permitted. If set, the
+#                           entry is REJECTED when the detection's band
+#                           is not in the list (or unknown). Prevents
+#                           catch-all entries from over-firing in bands
+#                           that physically can't host the service.
+#   forbidden_bands         Optional denylist. Same semantics as
+#                           allowed_bands but inverted — entry is
+#                           rejected when band IS in the list. Use when
+#                           it's easier to enumerate exclusions.
 #   notes                   Free-form documentation for the next person.
 #
 # Coverage today (MVP): WiFi, broadcast, NOAA, P25 control, GMRS/FRS,
@@ -46,6 +56,8 @@ signatures:
     shape: narrow_carrier
     duty_cycle: bursty
     confidence_weight: 0.9
+    allowed_bands:
+      - AVIATION_VOICE
     notes: "Air-band voice. 8.33 kHz variants exist in Europe; US still mostly 25 kHz."
 
   # ============================================================
@@ -59,6 +71,8 @@ signatures:
     shape: narrow_carrier
     duty_cycle: continuous
     confidence_weight: 1.0
+    allowed_bands:
+      - NOAA_WX
     notes: "Channels at 162.400, 162.425, 162.450, 162.475, 162.500, 162.525, 162.550 MHz. NWS broadcasts continuously."
 
   # ============================================================
@@ -72,6 +86,9 @@ signatures:
     shape: narrow_carrier
     duty_cycle: bursty
     confidence_weight: 0.85
+    allowed_bands:
+      - MARINE_VHF
+      - MARINE_VHF_HIGH
     notes: "Maritime mobile. Not common inland but watch for harbor/inland-waterway use."
 
   # ============================================================
@@ -85,7 +102,11 @@ signatures:
     shape: narrow_carrier
     duty_cycle: bursty
     confidence_weight: 0.8
-    notes: "MURS channels (5 freqs: 151.820, 151.880, 151.940, 154.570, 154.600 MHz)."
+    allowed_bands:
+      - VHF_LMR_LOW
+      - VHF_LMR_MID
+      - MARINE_VHF
+    notes: "MURS channels (5 freqs: 151.820, 151.880, 151.940, 154.570, 154.600 MHz). Straddles VHF_LMR_LOW/MID and clips MARINE_VHF on the high end."
 
   - name: "GMRS / FRS"
     freq_min_hz: 462000000
@@ -95,6 +116,9 @@ signatures:
     shape: narrow_carrier
     duty_cycle: bursty
     confidence_weight: 0.85
+    allowed_bands:
+      - UHF_LMR_HIGH
+      - UHF_LMR_454
     notes: "GMRS/FRS narrowband. 462.5500–462.7250 main channels, 467.x for repeaters."
 
   # ============================================================
@@ -108,6 +132,8 @@ signatures:
     shape: wide_flat
     duty_cycle: continuous
     confidence_weight: 1.0
+    allowed_bands:
+      - BCAST_FM
     notes: "FCC FM broadcast. CDBS provides the licensee; this entry confirms the modulation+bandwidth fit."
 
   # ============================================================
@@ -135,6 +161,11 @@ signatures:
     shape: wide_flat
     duty_cycle: continuous
     confidence_weight: 0.9
+    allowed_bands:
+      - TV_VHF_HIGH
+      - TV_UHF_LOW
+      - TV_UHF_MID
+      - TV_UHF_HIGH
     notes: "Post-2009 US DTV. 6 MHz channels, 8VSB modulation. CDBS provides the station."
 
   # ============================================================
@@ -148,6 +179,8 @@ signatures:
     shape: narrow_carrier
     duty_cycle: continuous
     confidence_weight: 0.9
+    allowed_bands:
+      - PS_700_NARROW
     notes: "700 MHz public safety. Control channels are continuous; voice TDMA bursts coexist."
 
   - name: "P25 / Public Safety (800 MHz)"
@@ -158,6 +191,9 @@ signatures:
     shape: narrow_carrier
     duty_cycle: continuous
     confidence_weight: 0.85
+    allowed_bands:
+      - PS_800_NARROW
+      - LMR_800
     notes: "800 MHz PS narrowband. HPDB usually gives the specific system."
 
   - name: "Public Safety (700 MHz narrowband)"
@@ -168,6 +204,8 @@ signatures:
     shape: narrow_carrier
     duty_cycle: bursty
     confidence_weight: 0.7
+    allowed_bands:
+      - PS_700_NARROW
     notes: "700 MHz public safety. Often P25 but could be DMR/NXDN — narrow FM/digital."
 
   # ============================================================
@@ -181,6 +219,10 @@ signatures:
     shape: ofdm_multicarrier
     duty_cycle: continuous
     confidence_weight: 0.8
+    allowed_bands:
+      - LTE_LOWER_700
+      - LTE_UPPER_700
+      - PS_700_BROADBAND
     notes: "T-Mobile / AT&T 700 MHz LTE. Downlink-only — uplink lives at 698-716 MHz."
 
   - name: "LTE Band 13 (Verizon 700 MHz)"
@@ -191,6 +233,9 @@ signatures:
     shape: ofdm_multicarrier
     duty_cycle: continuous
     confidence_weight: 0.85
+    allowed_bands:
+      - LTE_UPPER_700
+      - LTE_D_700
     notes: "Verizon LTE upper-C block downlink, 10 MHz channels."
 
   - name: "Cellular (Cellular Band, 850 MHz)"
@@ -201,6 +246,8 @@ signatures:
     shape: ofdm_multicarrier
     duty_cycle: continuous
     confidence_weight: 0.7
+    allowed_bands:
+      - CELL_850_DL
     notes: "Legacy cellular + LTE Band 5 downlink overlap."
 
   # ============================================================
@@ -227,6 +274,8 @@ signatures:
     shape: unknown
     duty_cycle: bursty
     confidence_weight: 0.6
+    allowed_bands:
+      - ISM_915
     notes: "LoRa chirp spread spectrum. 125 / 250 / 500 kHz variants. Shape varies wildly."
 
   - name: "ISM 915 MHz (generic)"
@@ -237,6 +286,8 @@ signatures:
     shape: unknown
     duty_cycle: bursty
     confidence_weight: 0.4
+    allowed_bands:
+      - ISM_915
     notes: "Catch-all for ISM 915. Smart meters, baby monitors, FHSS pagers — many shapes."
 
   # ============================================================
@@ -251,6 +302,8 @@ signatures:
     shape: ofdm_multicarrier
     duty_cycle: bursty
     confidence_weight: 0.9
+    allowed_bands:
+      - ISM_2_4
     notes: "20 MHz OFDM channels. Beacons every 102.4 ms. Out of RSPduo tuning range but listed for reference."
 
   # ============================================================
@@ -264,7 +317,10 @@ signatures:
     shape: narrow_carrier
     duty_cycle: bursty
     confidence_weight: 0.5
-    notes: "Theatrical / broadcast wireless mics. Overlaps with TV; lower confidence."
+    allowed_bands:
+      - TV_UHF_LOW
+      - TV_UHF_MID
+    notes: "Theatrical / broadcast wireless mics. Operate in the TV UHF gaps (Part 74)."
 
   # ============================================================
   # Amateur — VHF/UHF narrow FM, repeaters mostly
@@ -277,6 +333,8 @@ signatures:
     shape: narrow_carrier
     duty_cycle: bursty
     confidence_weight: 0.7
+    allowed_bands:
+      - AMATEUR_2M
     notes: "2m amateur band. Mostly NFM voice; some D-STAR/DMR digital narrower."
 
   - name: "Amateur 70cm (NFM repeater)"
@@ -287,6 +345,8 @@ signatures:
     shape: narrow_carrier
     duty_cycle: bursty
     confidence_weight: 0.7
+    allowed_bands:
+      - AMATEUR_70CM
     notes: "70cm amateur band. NFM voice + digital + simplex/repeater pairs."
 
   # ============================================================
@@ -300,7 +360,13 @@ signatures:
     shape: narrow_carrier
     duty_cycle: bursty
     confidence_weight: 0.6
-    notes: "Pager networks. 25 kHz FSK / 4FSK. Increasingly rare but still active in healthcare."
+    forbidden_bands:
+      - NOAA_WX
+      - MARINE_VHF
+      - MARINE_VHF_HIGH
+      - AVIATION_VOICE
+      - AMATEUR_2M
+    notes: "Pager networks. 25 kHz FSK / 4FSK. Forbidden inside protected sub-bands (NOAA, marine, air, ham 2m); allowed elsewhere in the 138–174 MHz range."
 
   # ============================================================
   # ACARS — aircraft data link, 2.4 kHz MSK
@@ -313,6 +379,8 @@ signatures:
     shape: narrow_carrier
     duty_cycle: bursty
     confidence_weight: 0.85
+    allowed_bands:
+      - AVIATION_VOICE
     notes: "Aircraft Communications Addressing and Reporting System. 2.4 kHz MSK on 131.55, 131.725, 130.025, etc."
 
   # ============================================================
@@ -326,6 +394,8 @@ signatures:
     shape: narrow_carrier
     duty_cycle: bursty
     confidence_weight: 0.85
+    allowed_bands:
+      - AVIATION_VOICE
     notes: "VHF Data Link mode 2. 25 kHz channel, D8PSK modulation."
 
   # ============================================================
@@ -339,6 +409,11 @@ signatures:
     shape: fsk_two_tone
     duty_cycle: bursty
     confidence_weight: 0.7
+    allowed_bands:
+      - AMATEUR_70CM
+      - UHF_LMR_LOW
+      - UHF_LMR_454
+      - UHF_LMR_HIGH
     notes: "DMR is 4FSK so shape may render as fsk_two_tone in spectral view. Commercial business + amateur."
 
   # ============================================================
@@ -352,6 +427,15 @@ signatures:
     shape: fsk_two_tone
     duty_cycle: bursty
     confidence_weight: 0.6
+    allowed_bands:
+      - VHF_LMR_LOW
+      - VHF_LMR_MID
+      - VHF_LMR_LAST
+      - UHF_LMR_LOW
+      - UHF_LMR_454
+      - UHF_LMR_HIGH
+      - AMATEUR_2M
+      - AMATEUR_70CM
     notes: "Very narrow 4FSK. Some commercial + utility users."
 
   # ============================================================
@@ -365,7 +449,10 @@ signatures:
     shape: narrow_carrier
     duty_cycle: bursty
     confidence_weight: 0.8
-    notes: "AAR railroad band. Will's TACN-area systems include CSX/NS lines."
+    allowed_bands:
+      - VHF_LMR_MID
+      - VHF_LMR_LAST
+    notes: "AAR railroad band. CSX/NS rail lines."
 
   # ============================================================
   # CB radio — 26.965–27.405 MHz, 10 kHz AM (largely defunct
@@ -392,6 +479,10 @@ signatures:
     shape: narrow_carrier
     duty_cycle: bursty
     confidence_weight: 0.5
+    allowed_bands:
+      - UHF_LMR_LOW
+      - UHF_LMR_454
+      - UHF_LMR_HIGH
     notes: "Generic UHF NFM business band. ULS usually identifies the licensee."
 
   # ============================================================
@@ -399,11 +490,13 @@ signatures:
   # the above" cases, e.g. studio-to-transmitter links.
   # ============================================================
   - name: "Wide FM (generic)"
-    freq_min_hz: 30000000
-    freq_max_hz: 1000000000
+    freq_min_hz: 87900000
+    freq_max_hz: 108000000
     bandwidth_3db_hz_min: 80000
     bandwidth_3db_hz_max: 300000
     shape: wide_flat
     duty_cycle: continuous
     confidence_weight: 0.3
-    notes: "Last-resort match for wide-FM-shaped continuous signals that don't fit specific entries."
+    allowed_bands:
+      - BCAST_FM
+    notes: "Last-resort match for wide-FM-shaped continuous signals in BCAST_FM that don't fit FM Broadcast's stricter bw bracket. Freq range and band-scope both pinned to BCAST_FM after live data showed the prior 30 MHz–1 GHz range over-firing in RADIO_ASTRONOMY, TV bands, AVIATION_NAV, and LMR_800."

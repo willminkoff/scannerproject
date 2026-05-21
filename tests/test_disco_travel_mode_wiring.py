@@ -73,19 +73,20 @@ class InterpretGeographicContextTests(unittest.TestCase):
 
 
 class InterpretCacheKeyTests(unittest.TestCase):
-    """The interpret loop builds a cache key with location_bucket + prompt_v=c10 (output-discipline era)."""
+    """The interpret loop builds a cache key with location_bucket + prompt_v=c11 (post-#27 live-data fixes)."""
 
-    def test_cache_key_includes_location_bucket_and_prompt_v_c10(self):
+    def test_cache_key_includes_location_bucket_and_prompt_v_c11(self):
         src = Path(_DISCO_SRC).joinpath("interpret.py").read_text(encoding="utf-8")
         self.assertIn('"location_bucket": location_bucket', src)
-        self.assertIn('"prompt_v": "c10"', src)
+        self.assertIn('"prompt_v": "c11"', src)
         # Old prompt_v values must be gone (one-way invalidation across the
-        # cache-key history: c5 → c7 → c8 → c9 → c10. c6 was skipped.)
+        # cache-key history: c5 → c7 → c8 → c9 → c10 → c11. c6 was skipped.)
         self.assertNotIn('"prompt_v": "c5"', src)
         self.assertNotIn('"prompt_v": "c6"', src)
         self.assertNotIn('"prompt_v": "c7"', src)
         self.assertNotIn('"prompt_v": "c8"', src)
         self.assertNotIn('"prompt_v": "c9"', src)
+        self.assertNotIn('"prompt_v": "c10"', src)
         # PR A — the trust-hierarchy fields must be in the cache key so a
         # row that upgrades from medium → high regenerates prose.
         self.assertIn('"id_confidence": id_confidence', src)

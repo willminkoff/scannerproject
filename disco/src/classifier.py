@@ -767,6 +767,7 @@ def classifier_loop(cfg, conn):
                             float(slice_rate),
                             float(meta["freq_hz"]),
                             snr_db=float(_snr_db or 0.0),
+                            band_name=_band_name,
                         )
                         if sig is not None:
                             sig_match_dict = sig.to_dict()
