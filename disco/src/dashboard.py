@@ -509,11 +509,20 @@ def api_strongest(since_seconds: float = 60.0, per_tuner: int = 15, bin_khz: flo
             "  WHERE d2.tuner_id = detections.tuner_id "
             "    AND CAST(d2.freq_hz / ? AS INTEGER) = CAST(detections.freq_hz / ? AS INTEGER) "
             "    AND d2.id_confidence IS NOT NULL AND d2.ts >= ? "
-            "  ORDER BY d2.snr_db DESC LIMIT 1 ) as id_band_name "
+            "  ORDER BY d2.snr_db DESC LIMIT 1 ) as id_band_name, "
+            # PR C — surface the raw evidence JSON so the dashboard can render
+            # a structured "details" card for medium/unknown rows that don't
+            # carry Claude prose.
+            "( SELECT id_evidence_json FROM detections d2 "
+            "  WHERE d2.tuner_id = detections.tuner_id "
+            "    AND CAST(d2.freq_hz / ? AS INTEGER) = CAST(detections.freq_hz / ? AS INTEGER) "
+            "    AND d2.id_confidence IS NOT NULL AND d2.ts >= ? "
+            "  ORDER BY d2.snr_db DESC LIMIT 1 ) as id_evidence_json "
             "FROM detections WHERE ts >= ? AND tuner_id = ? "
             "GROUP BY CAST(freq_hz / ? AS INTEGER) "
             "ORDER BY max_snr DESC LIMIT ?",
             (bin_hz, bin_hz, cutoff,
+             bin_hz, bin_hz, cutoff,
              bin_hz, bin_hz, cutoff,
              bin_hz, bin_hz, cutoff,
              bin_hz, bin_hz, cutoff,
@@ -661,7 +670,15 @@ tr.tier-spurious-row{opacity:0.65}
 .spurious-toggle[data-on="true"]{background:#2a3a2a;color:#a8e6a8;border-color:#3a5a3a}
 .details-btn{background:#2a2a35;color:#cdd0d6;border:1px solid #3a3a45;border-radius:3px;padding:1px 7px;font-size:11px;cursor:pointer;font-family:inherit;margin-left:6px;line-height:1.3}
 .details-btn:hover{background:#3a3a45;color:#fff}
-#detail-popup{position:absolute;display:none;z-index:9500;background:#16161c;border:1px solid #3a3a45;color:#dde0e6;padding:10px 14px;border-radius:6px;max-width:420px;font-size:13px;line-height:1.45;box-shadow:0 6px 20px rgba(0,0,0,0.6);white-space:pre-wrap;font-family:-apple-system,sans-serif}
+.details-btn.no-prose{color:#a0a8b4;border-color:#2f2f38;background:#1c1c24}
+#detail-popup{position:absolute;display:none;z-index:9500;background:#16161c;border:1px solid #3a3a45;color:#dde0e6;padding:10px 14px;border-radius:6px;max-width:460px;font-size:13px;line-height:1.45;box-shadow:0 6px 20px rgba(0,0,0,0.6);font-family:-apple-system,sans-serif}
+#detail-popup .card-row{display:flex;justify-content:space-between;gap:14px;padding:3px 0;border-bottom:1px dashed #2a2a32}
+#detail-popup .card-row:last-child{border-bottom:none}
+#detail-popup .card-row .k{color:#9aa0aa;font-size:12px}
+#detail-popup .card-row .v{color:#dde0e6;font-size:13px;text-align:right;word-break:break-word;max-width:60%}
+#detail-popup .card-title{font-weight:600;color:#fff;padding-bottom:6px;margin-bottom:6px;border-bottom:1px solid #2a2a32;font-size:13px}
+#detail-popup .card-note{color:#8a909c;font-size:11.5px;font-style:italic;padding-top:6px}
+#detail-popup .prose-body{white-space:pre-wrap}
 .svc-bar{display:flex;align-items:center;gap:10px;margin:6px 0 10px 0;font-size:14px;font-family:ui-monospace,monospace}
 .svc-status{padding:3px 9px;border-radius:4px;border:1px solid #2a2a35;background:#16161c;color:#aaa}
 .svc-status.running{color:#a8e6a8;border-color:#3a5a3a}
@@ -1433,7 +1450,18 @@ async function refreshTables(){
         const badgeCls = ab.rejected ? "mode-badge band-rejected" : "mode-badge band-allowed";
         let modLabel = `<span class="mode-full">${fullText}</span>`
           + `<span class="mode-compact"><span class="${badgeCls}" title="${ab.bandName || ""}">[${ab.label}]</span>${compactClassName}</span>`;
-        if (r.interpretation) modLabel = modLabel + ` <button class="details-btn" type="button">details</button>`;
+        // PR C — the details button now opens a card for every row that has
+        // a trust-hierarchy tier, not just rows with Claude prose. High-tier
+        // rows render the prose; medium/low/unknown render the structured
+        // evidence (band, ID source, signature features, ULS lookup) so the
+        // user can still inspect what the classifier and lookups produced.
+        const hasTier = !!r.id_confidence;
+        const hasProse = !!r.interpretation;
+        if (hasProse) {
+          modLabel = modLabel + ` <button class="details-btn" type="button">details</button>`;
+        } else if (hasTier) {
+          modLabel = modLabel + ` <button class="details-btn no-prose" type="button" title="No Claude prose — medium/unknown tier shows structured fields">details</button>`;
+        }
         const cleanClass = (r.modulation_class || "").toUpperCase();
         const freqId = Math.round(r.freq_hz);
         const isListening = ACTIVE_LISTEN_FREQS.has(freqId);
@@ -1490,12 +1518,28 @@ async function refreshTables(){
           `<td>${modConf}</td>`+
           `<td class="uls">${ulsCell}</td>`+
           `<td>${age}s</td>`;
-        // Stash interpretation on the freshly-rendered button so the popup
-        // can read it back without HTML-escaping prose into an attribute.
-        // tbody re-renders every 2s, so we re-attach per row each refresh.
-        if (r.interpretation) {
-          const btn = tr.querySelector(".details-btn");
-          if (btn) btn._detail = r.interpretation;
+        // Stash row context on the freshly-rendered button so the popup can
+        // build a card (or pull prose) without re-fetching. tbody re-renders
+        // every 2s, so we re-attach per row each refresh.
+        const detailsBtn = tr.querySelector(".details-btn");
+        if (detailsBtn) {
+          detailsBtn._detail = r.interpretation || "";
+          detailsBtn._row = {
+            freq_hz: r.freq_hz,
+            id_service: r.id_service || null,
+            id_confidence: r.id_confidence || null,
+            id_source: r.id_source || null,
+            id_band_name: r.id_band_name || null,
+            id_evidence_json: r.id_evidence_json || null,
+            modulation_class: r.modulation_class || null,
+            modulation_confidence: r.modulation_confidence,
+            bandwidth_hz: r.bandwidth_hz,
+            max_snr: r.max_snr,
+            uls_callsign: r.uls_callsign || null,
+            uls_entity_name: r.uls_entity_name || null,
+            uls_emission_designator: r.uls_emission_designator || null,
+            uls_distance_km: r.uls_distance_km,
+          };
         }
         // Stash decode-call args on the listen button (same reason — avoid
         // attribute-encoding floats and modulation strings into onclick).
@@ -1678,13 +1722,88 @@ async function modeAction(action){
   setTimeout(refreshModeStatus, 18000);
 }
 // --- Details popup -----------------------------------------------------------
-// Click a "details" button → popup positions next to it with the full Phase 2.5
-// interpretation prose. Click anywhere else closes it. Tables refresh every 2s
-// so we delegate via a single document listener instead of per-button binding.
+// Click a "details" button → popup positions next to it.
+//   - HIGH tier rows have Claude prose (after PR C, only HIGH gets Claude):
+//     popup shows the prose, whitespace-preserved.
+//   - MEDIUM / LOW / UNKNOWN rows have no prose: popup shows a structured
+//     card with the trust-hierarchy fields + measurement + curated lookups
+//     that drove the tier decision. Lets Will inspect WHY a row landed
+//     without prose without re-querying the API.
+// Click anywhere else closes it. Tables refresh every 2s so we delegate via
+// a single document listener instead of per-button binding.
+function escapeHtml(s){
+  if (s == null) return "";
+  return String(s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+function tierLabel(c){
+  if (c === "high") return "🟢 High";
+  if (c === "medium") return "🟡 Medium";
+  if (c === "low") return "⚪ Low";
+  if (c === "spurious") return "🔴 Spurious";
+  return "⚪ Unknown";
+}
+function buildStructuredCard(row){
+  if (!row) return "";
+  const lines = [];
+  const title = row.id_service
+    ? `${tierLabel(row.id_confidence)} — ${escapeHtml(row.id_service)}`
+    : `${tierLabel(row.id_confidence)} — Unknown signal${row.id_band_name ? ` in ${escapeHtml(row.id_band_name)}` : ""}`;
+  lines.push(`<div class="card-title">${title}</div>`);
+  const kv = (k, v) => lines.push(`<div class="card-row"><span class="k">${escapeHtml(k)}</span><span class="v">${escapeHtml(v)}</span></div>`);
+  kv("Frequency", (row.freq_hz/1e6).toFixed(4) + " MHz");
+  if (row.id_band_name) kv("Band", row.id_band_name);
+  if (row.id_source) kv("ID source", row.id_source);
+  if (row.modulation_class) {
+    const conf = (row.modulation_confidence != null) ? ` (${row.modulation_confidence.toFixed(2)})` : "";
+    kv("Modulation (ML)", row.modulation_class + conf);
+  }
+  if (row.max_snr != null) kv("SNR", row.max_snr.toFixed(1) + " dB");
+  if (row.bandwidth_hz != null) kv("Bandwidth", (row.bandwidth_hz/1e3).toFixed(1) + " kHz");
+  // Surface fingerprint features when the trust-hierarchy source was
+  // a signature match — Will wants to see what the fingerprinter measured.
+  if (row.id_evidence_json) {
+    try {
+      const ev = JSON.parse(row.id_evidence_json);
+      if (ev.signature_match && ev.signature_match.features) {
+        const f = ev.signature_match.features;
+        if (f.bw_3db_hz != null) kv("Signature BW (-3 dB)", (f.bw_3db_hz/1e3).toFixed(1) + " kHz");
+        if (f.peak_count != null) kv("Signature peaks", String(f.peak_count));
+        if (f.shape) kv("Signature shape", f.shape);
+        if (f.duty) kv("Signature duty", f.duty);
+        if (ev.signature_match.confidence != null) {
+          kv("Signature confidence", ev.signature_match.confidence.toFixed(2));
+        }
+      }
+      if (ev.hpdb_match && ev.hpdb_match.alpha_tag) kv("HPDB label", ev.hpdb_match.alpha_tag);
+      if (ev.cdbs_match && ev.cdbs_match.callsign) kv("CDBS callsign", ev.cdbs_match.callsign);
+    } catch (e) { /* malformed JSON — silently skip */ }
+  }
+  if (row.uls_entity_name || row.uls_callsign) {
+    const ent = row.uls_entity_name ? row.uls_entity_name : "";
+    const cs = row.uls_callsign ? ` (${row.uls_callsign})` : "";
+    kv("ULS licensee", (ent + cs).trim());
+    if (row.uls_emission_designator) kv("Emission", row.uls_emission_designator);
+    if (row.uls_distance_km != null) kv("Distance", row.uls_distance_km.toFixed(1) + " km");
+  }
+  if (!row.id_service && row.id_confidence !== "high") {
+    lines.push(`<div class="card-note">No Claude prose for ${row.id_confidence || "untiered"} rows — only HIGH tier rows are sent to Claude.</div>`);
+  }
+  return lines.join("");
+}
 function showDetailPopup(target){
   const popup = document.getElementById("detail-popup");
   if (!popup) return;
-  popup.textContent = target._detail || "";
+  const prose = target._detail || "";
+  const row = target._row || null;
+  if (prose) {
+    popup.innerHTML = `<div class="prose-body">${escapeHtml(prose)}</div>`;
+  } else if (row) {
+    popup.innerHTML = buildStructuredCard(row);
+  } else {
+    popup.innerHTML = "";
+  }
   popup.style.display = "block";
   popup.setAttribute("aria-hidden", "false");
   const rect = target.getBoundingClientRect();
