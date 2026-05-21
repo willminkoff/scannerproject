@@ -154,8 +154,19 @@ def _format_hpdb_service(match: dict) -> str:
 
 
 def _format_cdbs_service(match: dict) -> str:
+    """Render a CDBS station as a single human-readable label.
+
+    Bug-3 fix (post-#27 live data): the CDBS loader synthesizes
+    ``entity_name`` as ``"<callsign> (<community>)"`` already (see
+    disco/src/cdbs_load.py), so naive ``f"{cs} ({name})"`` was producing
+    ``"WHHM-FM (WHHM-FM (HENDERSON, TN))"``. Detect the embedded
+    callsign and avoid double-printing.
+    """
     cs = (match.get("callsign") or "").strip()
     name = (match.get("entity_name") or "").strip()
+    if name and cs and name.startswith(cs):
+        # entity_name already begins with the callsign — render it as-is.
+        return name
     if cs and name:
         return f"{cs} ({name})"
     return cs or name or "Broadcast station"
@@ -270,11 +281,19 @@ def build_identification(
             evidence=evidence,
         )
 
-    # Layer F: band-rejected ML class is structurally spurious. The signal
-    # is physically real (high SNR usually) but the classifier's mode label
-    # doesn't fit the band's regulatory allocation. Show as "Signal in <band>
-    # — unidentified" without naming a service.
-    if band_name and band_rejected:
+    # Layer F: band-rejected ML class is structurally spurious — only when
+    # the ML class is a real one. Bug-2 fix (post-#27 live data): the prior
+    # version landed every band-rejected row in the spurious bucket, but
+    # "unclassified" / None classes aren't in any band's allowed_modes by
+    # construction, so unclassified-in-real-band rows were being treated
+    # identically to band-rejected real classes. They aren't the same:
+    # "FM_BROADCAST in CELL_850_DL" is structurally spurious (classifier
+    # output contradicts allocation); "unclassified in CELL_850_DL" is just
+    # an unknown signal in a real band. Drop the latter to the unknown
+    # bucket below so the dashboard surfaces it instead of hiding it.
+    if (band_name and band_rejected
+            and modulation_class
+            and modulation_class not in ("unclassified", "NOISE")):
         return IdentificationResult(
             service=None,
             confidence=CONFIDENCE_SPURIOUS,
@@ -314,7 +333,12 @@ def build_identification(
             evidence=evidence,
         )
 
-    # No layer fired and we don't even have a useful ML class.
+    # Fallthrough: signal exists but no curated label, no useful ML class,
+    # SNR above floor. This catches modulation_class == "unclassified" or
+    # None — including the case where the signal is in a real band but
+    # the classifier didn't recognize the modulation. Tier=unknown, NOT
+    # spurious — the dashboard should still surface "Unknown signal in
+    # <band>" for these rows so Will can see something is there.
     return IdentificationResult(
         service=None,
         confidence=CONFIDENCE_UNKNOWN,
