@@ -73,16 +73,22 @@ class InterpretGeographicContextTests(unittest.TestCase):
 
 
 class InterpretCacheKeyTests(unittest.TestCase):
-    """The interpret loop builds a cache key with location_bucket + prompt_v=c8 (HPDB era)."""
+    """The interpret loop builds a cache key with location_bucket + prompt_v=c9 (trust-hierarchy era)."""
 
-    def test_cache_key_includes_location_bucket_and_prompt_v_c8(self):
+    def test_cache_key_includes_location_bucket_and_prompt_v_c9(self):
         src = Path(_DISCO_SRC).joinpath("interpret.py").read_text(encoding="utf-8")
         self.assertIn('"location_bucket": location_bucket', src)
-        self.assertIn('"prompt_v": "c8"', src)
-        # Old prompt_v values must be gone (one-way invalidation across c5→c7→c8).
+        self.assertIn('"prompt_v": "c9"', src)
+        # Old prompt_v values must be gone (one-way invalidation across the
+        # cache-key history: c5 → c7 → c8 → c9. c6 was skipped.)
         self.assertNotIn('"prompt_v": "c5"', src)
         self.assertNotIn('"prompt_v": "c6"', src)
         self.assertNotIn('"prompt_v": "c7"', src)
+        self.assertNotIn('"prompt_v": "c8"', src)
+        # PR A — the trust-hierarchy fields must be in the cache key so a
+        # row that upgrades from medium → high regenerates prose.
+        self.assertIn('"id_confidence": id_confidence', src)
+        self.assertIn('"id_source": id_source', src)
 
 
 class InterpretLicenseeHeaderTests(unittest.TestCase):
@@ -178,12 +184,20 @@ class ClassifierHpdbWiringTests(unittest.TestCase):
         self.assertIn("_HPDB_AVAILABLE", self.src)
 
     def test_hpdb_block_appears_before_uls_block(self):
+        # PR A refactored the guard from `uls_call is None` to `hpdb_match is
+        # None` since we now capture raw match dicts rather than flattening
+        # to uls_* fields up-front. Order still HPDB → ULS → CDBS so curated
+        # labels win in build_identification's fall-through.
         hpdb_idx = self.src.find("if _HPDB_AVAILABLE and lookup_hpdb is not None:")
-        uls_idx = self.src.find("if uls_call is None and _ULS_AVAILABLE and lookup_uls is not None:")
-        self.assertGreater(hpdb_idx, 0)
-        self.assertGreater(uls_idx, 0)
+        uls_idx = self.src.find("if hpdb_match is None and _ULS_AVAILABLE and lookup_uls is not None:")
+        cdbs_idx = self.src.find("if (hpdb_match is None and uls_match is None")
+        self.assertGreater(hpdb_idx, 0, "HPDB block missing")
+        self.assertGreater(uls_idx, 0, "ULS guarded-by-hpdb_match block missing")
+        self.assertGreater(cdbs_idx, 0, "CDBS guarded-by-hpdb+uls block missing")
         self.assertLess(hpdb_idx, uls_idx,
                         "HPDB block must appear before ULS so curated labels win")
+        self.assertLess(uls_idx, cdbs_idx,
+                        "ULS block must appear before CDBS (CDBS is broadcast-only fallback)")
 
     def test_hpdb_call_passes_lat_lon_from_current_location(self):
         self.assertIn("lookup_hpdb(\n", self.src)
@@ -219,11 +233,12 @@ class ClassifierWiringTests(unittest.TestCase):
         self.assertIn("lon_dd=_loc.lon", self.src)
 
     def test_lookup_uls_legacy_fallback_path_preserved(self):
-        # When _LOCATION_AVAILABLE is False, the original positional call
+        # When _LOCATION_AVAILABLE is False, the positional fallback call
         # shape must remain so Disco still works if current_location fails
-        # to import.
-        self.assertIn("matches = lookup_uls(meta[\"freq_hz\"], limit=1)", self.src)
-        self.assertIn("cdbs_matches = lookup_cdbs(meta[\"freq_hz\"], limit=1)", self.src)
+        # to import. PR A renamed the captured variables (`_uls_rows`,
+        # `_cdbs_rows`) but the no-location-args call form is preserved.
+        self.assertIn("_uls_rows = lookup_uls(meta[\"freq_hz\"], limit=1)", self.src)
+        self.assertIn("_cdbs_rows = lookup_cdbs(meta[\"freq_hz\"], limit=1)", self.src)
 
     def test_cdbs_call_pattern_matches_uls(self):
         # Both lookups should follow the same location-aware pattern.
