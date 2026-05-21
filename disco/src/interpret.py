@@ -410,14 +410,20 @@ def interpret_loop(cfg, conn):
                 get_location_bucket() if _LOCATION_AVAILABLE and get_location_bucket
                 else "372"
             )
-            # C10 (output discipline): bump c9 → c10. The prompt is tightened
-            # to a 2-sentence cap that forbids speculation when the curated
-            # row doesn't directly support a named claim, and the SQL gate
-            # above now lets ONLY high-tier rows reach Claude. Together these
-            # invalidate every pre-c10 cache entry whose prose was either
-            # generated under the looser gate (medium tier) or written under
-            # the longer 2-4-sentence prompt that allowed candidate-cause
-            # speculation.
+            # C11 (trust-hierarchy live-data fixes): bump c10 → c11. Three
+            # post-#27 bug fixes change which rows reach Claude and what
+            # label they carry, so every pre-c11 cache entry must be
+            # invalidated:
+            #   - fingerprinter band-context filtering: "Wide FM (generic)"
+            #     no longer fires outside BCAST_FM, etc. Pre-c11 HIGH/
+            #     signature prose for those off-band hits is now wrong.
+            #   - tier-logic fix: unclassified-in-real-band promotes from
+            #     spurious → unknown. Those rows didn't reach Claude under
+            #     either tier, but the id_confidence/id_source cache-key
+            #     fields change for them.
+            #   - CDBS dedup: "WHHM-FM (WHHM-FM (HENDERSON, TN))" → just
+            #     "WHHM-FM (HENDERSON, TN)". Cached prose carries the
+            #     duplicated label and must be regenerated.
             cache_key_obj = {
                 "bin_idx": bin_idx,
                 "modulation_class": mod,
@@ -425,7 +431,7 @@ def interpret_loop(cfg, conn):
                 "location_bucket": location_bucket,
                 "id_confidence": id_confidence,
                 "id_source": id_source,
-                "prompt_v": "c10",
+                "prompt_v": "c11",
             }
             bundle_hash = hash_bundle(cache_key_obj)
             cached = conn.execute(
