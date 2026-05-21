@@ -1,0 +1,409 @@
+# Disco — service signature catalog.
+#
+# Each entry describes a wireless service Disco can identify by combining
+# frequency range with spectral / temporal features. The fingerprinter
+# (disco/src/fingerprint.py) scores entries that bracket the detection
+# frequency and returns the best fit above min_confidence.
+#
+# Field meanings:
+#   name                    Human-readable label rendered in the dashboard
+#                           and in Claude prompts (when fingerprint hit
+#                           drives high-tier identification).
+#   freq_min_hz/freq_max_hz Inclusive frequency range where this signature
+#                           is plausible. Required.
+#   bandwidth_3db_hz_min/max Expected 3 dB bandwidth bracket. Soft fade
+#                           outside the range — score decays linearly to 0
+#                           at 2× spread.
+#   shape                   One of: narrow_carrier, wide_flat,
+#                           ofdm_multicarrier, fsk_two_tone,
+#                           broadband_noise, unknown.
+#                           See fingerprint._classify_shape() for the
+#                           classification rules.
+#   duty_cycle              One of: continuous, bursty, hopping, unknown.
+#                           "hopping" entries can't be confirmed from a
+#                           single slice today — the matcher treats them
+#                           as soft hints rather than strict.
+#   confidence_weight       Operator hint [0.0, 1.0]. Lower = "this entry
+#                           is generic, prefer a more specific match if
+#                           one exists." Default 1.0.
+#   notes                   Free-form documentation for the next person.
+#
+# Coverage today (MVP): WiFi, broadcast, NOAA, P25 control, GMRS/FRS,
+# marine VHF, aircraft AM, LoRa, ISM 433/915, garage door, paging,
+# wireless mics, ATSC TV. Extending the catalog is YAML-only — no code
+# changes needed. New entries go through PR review.
+
+signatures:
+
+  # ============================================================
+  # Aviation VHF — 118–137 MHz AM voice
+  # ============================================================
+  - name: "Aircraft VHF AM (25 kHz channel)"
+    freq_min_hz: 118000000
+    freq_max_hz: 137000000
+    bandwidth_3db_hz_min: 6000
+    bandwidth_3db_hz_max: 12000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.9
+    notes: "Air-band voice. 8.33 kHz variants exist in Europe; US still mostly 25 kHz."
+
+  # ============================================================
+  # NOAA Weather Radio — 7 channels in 162.4–162.55 MHz, 25 kHz NFM
+  # ============================================================
+  - name: "NOAA Weather Radio"
+    freq_min_hz: 162395000
+    freq_max_hz: 162555000
+    bandwidth_3db_hz_min: 10000
+    bandwidth_3db_hz_max: 18000
+    shape: narrow_carrier
+    duty_cycle: continuous
+    confidence_weight: 1.0
+    notes: "Channels at 162.400, 162.425, 162.450, 162.475, 162.500, 162.525, 162.550 MHz. NWS broadcasts continuously."
+
+  # ============================================================
+  # Marine VHF — 156–162 MHz, 25 kHz NFM
+  # ============================================================
+  - name: "Marine VHF"
+    freq_min_hz: 156000000
+    freq_max_hz: 162000000
+    bandwidth_3db_hz_min: 12000
+    bandwidth_3db_hz_max: 20000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.85
+    notes: "Maritime mobile. Not common inland but watch for harbor/inland-waterway use."
+
+  # ============================================================
+  # GMRS / FRS / MURS — VHF + UHF narrow FM
+  # ============================================================
+  - name: "MURS"
+    freq_min_hz: 151820000
+    freq_max_hz: 154600000
+    bandwidth_3db_hz_min: 8000
+    bandwidth_3db_hz_max: 15000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.8
+    notes: "MURS channels (5 freqs: 151.820, 151.880, 151.940, 154.570, 154.600 MHz)."
+
+  - name: "GMRS / FRS"
+    freq_min_hz: 462000000
+    freq_max_hz: 468000000
+    bandwidth_3db_hz_min: 10000
+    bandwidth_3db_hz_max: 15000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.85
+    notes: "GMRS/FRS narrowband. 462.5500–462.7250 main channels, 467.x for repeaters."
+
+  # ============================================================
+  # FM broadcast — 87.9–108 MHz, 200 kHz wide
+  # ============================================================
+  - name: "FM Broadcast"
+    freq_min_hz: 87900000
+    freq_max_hz: 108000000
+    bandwidth_3db_hz_min: 100000
+    bandwidth_3db_hz_max: 250000
+    shape: wide_flat
+    duty_cycle: continuous
+    confidence_weight: 1.0
+    notes: "FCC FM broadcast. CDBS provides the licensee; this entry confirms the modulation+bandwidth fit."
+
+  # ============================================================
+  # AM broadcast — 530–1700 kHz (out of disco's tuning range
+  # for RSPduo, but listed for completeness)
+  # ============================================================
+  - name: "AM Broadcast"
+    freq_min_hz: 530000
+    freq_max_hz: 1710000
+    bandwidth_3db_hz_min: 8000
+    bandwidth_3db_hz_max: 15000
+    shape: narrow_carrier
+    duty_cycle: continuous
+    confidence_weight: 0.7
+    notes: "Commercial AM broadcast. Outside RSPduo's normal tuning range — listed for completeness."
+
+  # ============================================================
+  # ATSC TV — 6 MHz wide 8VSB, channels 2–69
+  # ============================================================
+  - name: "ATSC TV (8VSB)"
+    freq_min_hz: 174000000
+    freq_max_hz: 698000000
+    bandwidth_3db_hz_min: 5500000
+    bandwidth_3db_hz_max: 6200000
+    shape: wide_flat
+    duty_cycle: continuous
+    confidence_weight: 0.9
+    notes: "Post-2009 US DTV. 6 MHz channels, 8VSB modulation. CDBS provides the station."
+
+  # ============================================================
+  # P25 trunked control channels
+  # ============================================================
+  - name: "P25 Phase 1 control (C4FM)"
+    freq_min_hz: 769000000
+    freq_max_hz: 776000000
+    bandwidth_3db_hz_min: 8000
+    bandwidth_3db_hz_max: 11000
+    shape: narrow_carrier
+    duty_cycle: continuous
+    confidence_weight: 0.9
+    notes: "700 MHz public safety. Control channels are continuous; voice TDMA bursts coexist."
+
+  - name: "P25 / Public Safety (800 MHz)"
+    freq_min_hz: 851000000
+    freq_max_hz: 869000000
+    bandwidth_3db_hz_min: 8000
+    bandwidth_3db_hz_max: 12500
+    shape: narrow_carrier
+    duty_cycle: continuous
+    confidence_weight: 0.85
+    notes: "800 MHz PS narrowband. HPDB usually gives the specific system."
+
+  - name: "Public Safety (700 MHz narrowband)"
+    freq_min_hz: 762000000
+    freq_max_hz: 776000000
+    bandwidth_3db_hz_min: 8000
+    bandwidth_3db_hz_max: 13000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.7
+    notes: "700 MHz public safety. Often P25 but could be DMR/NXDN — narrow FM/digital."
+
+  # ============================================================
+  # Cellular (LTE / 5G NR) — multi-band
+  # ============================================================
+  - name: "LTE Band 12/17 (downlink)"
+    freq_min_hz: 728000000
+    freq_max_hz: 757000000
+    bandwidth_3db_hz_min: 4500000
+    bandwidth_3db_hz_max: 11000000
+    shape: ofdm_multicarrier
+    duty_cycle: continuous
+    confidence_weight: 0.8
+    notes: "T-Mobile / AT&T 700 MHz LTE. Downlink-only — uplink lives at 698-716 MHz."
+
+  - name: "LTE Band 13 (Verizon 700 MHz)"
+    freq_min_hz: 746000000
+    freq_max_hz: 756000000
+    bandwidth_3db_hz_min: 9000000
+    bandwidth_3db_hz_max: 11000000
+    shape: ofdm_multicarrier
+    duty_cycle: continuous
+    confidence_weight: 0.85
+    notes: "Verizon LTE upper-C block downlink, 10 MHz channels."
+
+  - name: "Cellular (Cellular Band, 850 MHz)"
+    freq_min_hz: 869000000
+    freq_max_hz: 894000000
+    bandwidth_3db_hz_min: 200000
+    bandwidth_3db_hz_max: 11000000
+    shape: ofdm_multicarrier
+    duty_cycle: continuous
+    confidence_weight: 0.7
+    notes: "Legacy cellular + LTE Band 5 downlink overlap."
+
+  # ============================================================
+  # ISM 433 MHz — garage door, RF remotes, weather sensors
+  # ============================================================
+  - name: "ISM 433 MHz (OOK remote)"
+    freq_min_hz: 433050000
+    freq_max_hz: 434790000
+    bandwidth_3db_hz_min: 20000
+    bandwidth_3db_hz_max: 250000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.7
+    notes: "Garage door openers, tire-pressure sensors, weather stations, cheap RF remotes."
+
+  # ============================================================
+  # ISM 902–928 MHz — LoRa, FHSS pagers, smart-meter, generic 915
+  # ============================================================
+  - name: "LoRa (915 MHz)"
+    freq_min_hz: 902000000
+    freq_max_hz: 928000000
+    bandwidth_3db_hz_min: 100000
+    bandwidth_3db_hz_max: 550000
+    shape: unknown
+    duty_cycle: bursty
+    confidence_weight: 0.6
+    notes: "LoRa chirp spread spectrum. 125 / 250 / 500 kHz variants. Shape varies wildly."
+
+  - name: "ISM 915 MHz (generic)"
+    freq_min_hz: 902000000
+    freq_max_hz: 928000000
+    bandwidth_3db_hz_min: 10000
+    bandwidth_3db_hz_max: 1000000
+    shape: unknown
+    duty_cycle: bursty
+    confidence_weight: 0.4
+    notes: "Catch-all for ISM 915. Smart meters, baby monitors, FHSS pagers — many shapes."
+
+  # ============================================================
+  # WiFi 2.4 GHz — out of disco's tuning range but listed for
+  # completeness; would require external SDR / wideband tuner.
+  # ============================================================
+  - name: "WiFi 2.4 GHz (802.11 OFDM)"
+    freq_min_hz: 2400000000
+    freq_max_hz: 2483500000
+    bandwidth_3db_hz_min: 16000000
+    bandwidth_3db_hz_max: 22000000
+    shape: ofdm_multicarrier
+    duty_cycle: bursty
+    confidence_weight: 0.9
+    notes: "20 MHz OFDM channels. Beacons every 102.4 ms. Out of RSPduo tuning range but listed for reference."
+
+  # ============================================================
+  # Wireless mics — 470–700 MHz narrow FM (per FCC Part 74)
+  # ============================================================
+  - name: "Wireless microphone (UHF NFM)"
+    freq_min_hz: 470000000
+    freq_max_hz: 698000000
+    bandwidth_3db_hz_min: 80000
+    bandwidth_3db_hz_max: 250000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.5
+    notes: "Theatrical / broadcast wireless mics. Overlaps with TV; lower confidence."
+
+  # ============================================================
+  # Amateur — VHF/UHF narrow FM, repeaters mostly
+  # ============================================================
+  - name: "Amateur 2m (NFM repeater / simplex)"
+    freq_min_hz: 144000000
+    freq_max_hz: 148000000
+    bandwidth_3db_hz_min: 10000
+    bandwidth_3db_hz_max: 16000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.7
+    notes: "2m amateur band. Mostly NFM voice; some D-STAR/DMR digital narrower."
+
+  - name: "Amateur 70cm (NFM repeater)"
+    freq_min_hz: 420000000
+    freq_max_hz: 450000000
+    bandwidth_3db_hz_min: 10000
+    bandwidth_3db_hz_max: 16000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.7
+    notes: "70cm amateur band. NFM voice + digital + simplex/repeater pairs."
+
+  # ============================================================
+  # Paging — VHF + UHF, POCSAG/FLEX
+  # ============================================================
+  - name: "POCSAG / FLEX paging"
+    freq_min_hz: 138000000
+    freq_max_hz: 174000000
+    bandwidth_3db_hz_min: 12000
+    bandwidth_3db_hz_max: 25000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.6
+    notes: "Pager networks. 25 kHz FSK / 4FSK. Increasingly rare but still active in healthcare."
+
+  # ============================================================
+  # ACARS — aircraft data link, 2.4 kHz MSK
+  # ============================================================
+  - name: "ACARS"
+    freq_min_hz: 129000000
+    freq_max_hz: 131000000
+    bandwidth_3db_hz_min: 2000
+    bandwidth_3db_hz_max: 4000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.85
+    notes: "Aircraft Communications Addressing and Reporting System. 2.4 kHz MSK on 131.55, 131.725, 130.025, etc."
+
+  # ============================================================
+  # VDL2 — newer aircraft data link, 25 kHz D8PSK
+  # ============================================================
+  - name: "VDL2 (aircraft data)"
+    freq_min_hz: 136700000
+    freq_max_hz: 137000000
+    bandwidth_3db_hz_min: 15000
+    bandwidth_3db_hz_max: 25000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.85
+    notes: "VHF Data Link mode 2. 25 kHz channel, D8PSK modulation."
+
+  # ============================================================
+  # DMR — 12.5 kHz 4FSK, commercial + amateur
+  # ============================================================
+  - name: "DMR / Mototrbo"
+    freq_min_hz: 420000000
+    freq_max_hz: 470000000
+    bandwidth_3db_hz_min: 9000
+    bandwidth_3db_hz_max: 13000
+    shape: fsk_two_tone
+    duty_cycle: bursty
+    confidence_weight: 0.7
+    notes: "DMR is 4FSK so shape may render as fsk_two_tone in spectral view. Commercial business + amateur."
+
+  # ============================================================
+  # NXDN — 6.25 or 12.5 kHz 4-level FSK
+  # ============================================================
+  - name: "NXDN (6.25 kHz)"
+    freq_min_hz: 150000000
+    freq_max_hz: 470000000
+    bandwidth_3db_hz_min: 4500
+    bandwidth_3db_hz_max: 7000
+    shape: fsk_two_tone
+    duty_cycle: bursty
+    confidence_weight: 0.6
+    notes: "Very narrow 4FSK. Some commercial + utility users."
+
+  # ============================================================
+  # Railroad — VHF NFM 159.81–161.565 MHz, 25 kHz
+  # ============================================================
+  - name: "Railroad (VHF NFM)"
+    freq_min_hz: 159810000
+    freq_max_hz: 161565000
+    bandwidth_3db_hz_min: 10000
+    bandwidth_3db_hz_max: 18000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.8
+    notes: "AAR railroad band. Will's TACN-area systems include CSX/NS lines."
+
+  # ============================================================
+  # CB radio — 26.965–27.405 MHz, 10 kHz AM (largely defunct
+  # but still active in trucking + offroad)
+  # ============================================================
+  - name: "CB radio (27 MHz AM)"
+    freq_min_hz: 26965000
+    freq_max_hz: 27405000
+    bandwidth_3db_hz_min: 5000
+    bandwidth_3db_hz_max: 12000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.8
+    notes: "Citizens band. 40-channel AM. Still active among truckers + offroad community."
+
+  # ============================================================
+  # Generic fallback — business/public-safety narrow FM 450-470 MHz
+  # ============================================================
+  - name: "Business / Public Safety narrow FM (UHF)"
+    freq_min_hz: 450000000
+    freq_max_hz: 470000000
+    bandwidth_3db_hz_min: 8000
+    bandwidth_3db_hz_max: 18000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.5
+    notes: "Generic UHF NFM business band. ULS usually identifies the licensee."
+
+  # ============================================================
+  # Catch-all wide-FM-like — for "this is FM-shaped but doesn't fit
+  # the above" cases, e.g. studio-to-transmitter links.
+  # ============================================================
+  - name: "Wide FM (generic)"
+    freq_min_hz: 30000000
+    freq_max_hz: 1000000000
+    bandwidth_3db_hz_min: 80000
+    bandwidth_3db_hz_max: 300000
+    shape: wide_flat
+    duty_cycle: continuous
+    confidence_weight: 0.3
+    notes: "Last-resort match for wide-FM-shaped continuous signals that don't fit specific entries."

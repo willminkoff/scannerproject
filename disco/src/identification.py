@@ -183,6 +183,7 @@ def build_identification(
     hpdb_match: Optional[dict] = None,
     cdbs_match: Optional[dict] = None,
     uls_match: Optional[dict] = None,
+    signature_match: Optional[dict] = None,
 ) -> IdentificationResult:
     """Run the fall-through and return the highest-trust result.
 
@@ -222,6 +223,23 @@ def build_identification(
             service=_format_cdbs_service(cdbs_match),
             confidence=CONFIDENCE_HIGH,
             source=SOURCE_CDBS,
+            band_name=band_name,
+            evidence=evidence,
+        )
+
+    # Layer B-prime: spectral signature match (PR B). Confidence comes from
+    # the fingerprinter's score against the curated catalog. >= 0.85 is
+    # high tier (clean WiFi / FM-broadcast / NOAA-WX / etc. fit); 0.65–0.85
+    # downgrades to medium. Below 0.65 the fingerprinter returns None and
+    # this layer doesn't fire.
+    if signature_match:
+        evidence["signature_match"] = dict(signature_match)
+        sig_conf = float(signature_match.get("confidence") or 0.0)
+        tier = CONFIDENCE_HIGH if sig_conf >= 0.85 else CONFIDENCE_MEDIUM
+        return IdentificationResult(
+            service=str(signature_match.get("name") or "Signature match"),
+            confidence=tier,
+            source=SOURCE_SIGNATURE,
             band_name=band_name,
             evidence=evidence,
         )

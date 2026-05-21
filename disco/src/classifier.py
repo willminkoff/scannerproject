@@ -89,6 +89,20 @@ except Exception as _iee:
     _IDENT_AVAILABLE = False
     _IDENT_IMPORT_ERROR = _iee
 
+# PR B — spectrum-signature fingerprinter. Matches measured IQ features
+# (3 dB bandwidth, duty cycle, spectral shape) against the curated catalog
+# at disco/configs/service_signatures.yaml. Surfaces service names
+# (WiFi, NOAA WX, FM broadcast, GMRS/FRS, etc.) where HPDB/ULS/CDBS can't
+# — particularly in unlicensed bands.
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from fingerprint import match_signature as _match_signature
+    _FINGERPRINT_AVAILABLE = True
+except Exception as _fpe:
+    _match_signature = None
+    _FINGERPRINT_AVAILABLE = False
+    _FINGERPRINT_IMPORT_ERROR = _fpe
+
 # Broadcast band cutoffs (Hz) — CDBS fallback only fires when freq is in-band.
 _BCAST_AM_LO_HZ = 530e3
 _BCAST_AM_HI_HZ = 1710e3
@@ -738,6 +752,28 @@ def classifier_loop(cfg, conn):
                     except Exception:
                         pass
 
+                # PR B — fingerprint the slice's spectral + temporal features
+                # against the curated catalog. Only fires when HPDB/CDBS
+                # both returned empty (the fingerprint layer in the trust
+                # hierarchy sits between CDBS and ULS, so a HPDB or CDBS hit
+                # already supersedes signature_match). Errors are swallowed
+                # so a misbehaving fingerprinter never blocks classification.
+                sig_match_dict: dict | None = None
+                if (hpdb_match is None and cdbs_match is None
+                        and _FINGERPRINT_AVAILABLE and _match_signature is not None):
+                    try:
+                        sig = _match_signature(
+                            iq,
+                            float(slice_rate),
+                            float(meta["freq_hz"]),
+                            snr_db=float(_snr_db or 0.0),
+                        )
+                        if sig is not None:
+                            sig_match_dict = sig.to_dict()
+                    except Exception as _sige:
+                        LOG.warning("fingerprint failed at %.6f MHz: %s",
+                                    meta["freq_hz"] / 1e6, _sige)
+
                 # Run the trust hierarchy fall-through. The result drives the
                 # new id_* columns AND interpret.py's Claude gate.
                 ident = None
@@ -753,6 +789,7 @@ def classifier_loop(cfg, conn):
                             hpdb_match=hpdb_match,
                             cdbs_match=cdbs_match,
                             uls_match=uls_match,
+                            signature_match=sig_match_dict,
                         )
                     except Exception as _ide:
                         LOG.warning("build_identification failed at %.6f MHz: %s",
