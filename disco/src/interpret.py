@@ -197,25 +197,10 @@ def call_claude(api_key: str, bundle: dict, model: str, timeout: float = 20.0) -
         )
         if band_rejected:
             band_anomaly_clause = (
-                "\n**Band-plan anomaly handling** (band_rejected=true):\n\n"
-                "You MUST NOT:\n"
-                "  - Name specific services (e.g., \"Metro Nashville Police\", \"BNA approach\")\n"
-                "  - Cite specific licensees, agencies, or call signs\n"
-                "  - Claim the signal is from a service that contradicts the band allocation\n\n"
-                "You MAY:\n"
-                "  - Describe what services the band allocation IS for (in general)\n"
-                "  - List candidate explanations for the anomaly:\n"
-                "      (1) model misidentification (most common, especially low SNR or short slices)\n"
-                "      (2) spurious emission from a neighboring band / harmonic\n"
-                "      (3) equipment leak (cellphone amp, switching power supply, intermod)\n"
-                "      (4) propagation anomaly (sporadic-E, tropospheric ducting)\n"
-                "      (5) unauthorized transmitter operating outside its allocation\n"
-                "  - Note that without further data (callsign, traffic pattern) the actual source is unknown\n\n"
-                f"Required prose structure (3-4 sentences):\n"
-                f"  1. This frequency is in {band_name}, allocated to <band's intended use>.\n"
-                f"  2. The ML classifier reported {ml_class}, which is not consistent with this allocation.\n"
-                f"  3. Most likely explanation: <pick one of the 5 candidates above and justify briefly>.\n"
-                f"  4. (optional) Without more data the actual source cannot be confirmed.\n"
+                f"\nBand-plan anomaly (band_rejected=true). Write ONE sentence: "
+                f"the ML classifier reported {ml_class} but this frequency is allocated to "
+                f"{band_name}, so the signal does not match this band's allocation. Stop there. "
+                f"Do not name candidate causes, services, or licensees. Do not list possibilities."
             )
     elif ml_class:
         band_block = (
@@ -223,7 +208,7 @@ def call_claude(api_key: str, bundle: dict, model: str, timeout: float = 20.0) -
             f"(permissive default — no allowed_modes constraint applied). ML model said {ml_class}.\n"
         )
 
-    prompt = f"""You are helping a user understand RF detections from their SDR scanner. Be substantive and concrete — the user is technical (running a multi-RSPduo scanner) and wants real signal-identification reasoning, not generic prose.
+    prompt = f"""You are annotating RF detections from a multi-RSPduo SDR scanner. The dashboard already shows the structured fields (frequency, modulation, SNR, licensee name, band) — your only job is to add a tight prose annotation that names the service and adds one useful sentence of context. This text only appears on HIGH-tier detections that already have a curated-database match — you are not making a discovery; you are explaining one.
 
 Geographic / user context: {_build_geographic_context()}
 
@@ -236,12 +221,15 @@ Detection:
 - Tuner band: {bundle.get('tuner', '?')}
 - Band-plan tag: {bundle.get('protocol_tag', 'none')}
 {licensee_block}{band_block}
-Write a 2-4 sentence interpretation. Cover, in this order:
-1. **Identification**: what this signal most likely is (be specific — name the service, allocation, or system if the freq + modulation + licensee combination supports it). If the FCC match looks plausible, lead with the licensee name; otherwise reason from the frequency band plan.
-2. **Context**: typical use, common activity patterns, any time-of-day / day-of-week notes if relevant. For amateur callsigns, mention the band and likely modes (e.g. 70cm typically NFM repeater, FM voice, occasional D-STAR/DMR digital).
-3. **Confidence / caveats**: where you're sure vs guessing. If the licensee name doesn't match the modulation/bandwidth (e.g. ULS hit on a commercial freq but classifier says NOISE), flag it. If the freq is in an unlicensed band (ISM 902-928, broadcast 88-108) say so.{band_anomaly_clause}
+Write EXACTLY 1-2 sentences. Sentence 1 names what the signal is, grounded in the curated data above. Sentence 2 (optional) gives one piece of context that is directly supported by the curated data — typical traffic on this licensee class, or what this band's allocation is for.
 
-Style: plain English, no bullet lists, no markdown. Short paragraphs separated by a blank line. Do not restate the freq or class in your answer (the UI shows that already). Prefer "likely" / "almost certainly" / "unclear" over hedge words. If you genuinely don't know, say "unclear from this data" and stop.
+Hard rules:
+- Do NOT invent licensees, callsigns, agencies, or systems that aren't in the curated data above.
+- Do NOT speculate about "candidate explanations", "possible sources", or "could be X or Y". If the curated data doesn't say it, do not say it.
+- Do NOT restate freq, class, SNR, or licensee name (the UI shows those already).
+- Do NOT list candidates for anomalies. If band_rejected=true, write one sentence saying the ML class doesn't match this band's allocation and stop.
+- No bullets, no markdown, no hedging filler ("It is possible that…", "This could potentially be…").
+- If the curated data is too thin to support a confident sentence, write "Curated data names this licensee but does not support specifics beyond the row above." and stop.{band_anomaly_clause}
 
 Interpretation:"""
     body = {
@@ -326,12 +314,14 @@ def interpret_loop(cfg, conn):
             time.sleep(60)
             continue
 
-        # PR A — trust hierarchy gate. Only invoke Claude when the
-        # IdentificationResult tier is high/medium AND its source is a curated
-        # database (HPDB or CDBS). Spurious / unknown / low rows don't get
-        # Claude prose — they render structured-only in the dashboard. This
-        # cuts the per-cycle Claude spend by skipping bands of detections
-        # where prose adds nothing the structured fields don't already carry.
+        # PR C — tightened trust-hierarchy gate. Only invoke Claude for
+        # HIGH-tier rows from a curated database (HPDB / CDBS / signature
+        # match). MEDIUM tier no longer triggers Claude — its prose was
+        # adding little beyond the structured fields the dashboard already
+        # shows, while still incurring per-call cost. Medium / unknown rows
+        # render a structured card in the UI; spurious rows stay hidden.
+        # The prompt itself (c10) is tightened to forbid speculation when
+        # the curated data doesn't directly support a named claim.
         rows = conn.execute(
             "SELECT id, tuner_id, freq_hz, modulation_class, modulation_confidence, "
             "bandwidth_hz, snr_db, ts, protocol_tag, "
@@ -343,7 +333,7 @@ def interpret_loop(cfg, conn):
             "  AND modulation_class != 'unclassified' "
             "  AND modulation_confidence >= ? "
             "  AND interpretation IS NULL "
-            "  AND id_confidence IN ('high', 'medium') "
+            "  AND id_confidence = 'high' "
             "  AND id_source IN ('hpdb', 'cdbs', 'signature') "
             "ORDER BY snr_db DESC "
             "LIMIT ?",
@@ -420,13 +410,14 @@ def interpret_loop(cfg, conn):
                 get_location_bucket() if _LOCATION_AVAILABLE and get_location_bucket
                 else "372"
             )
-            # C9 (trust hierarchy): bump c8 → c9. Pre-c9 cached prose was
-            # generated for ALL detections — including spurious / band-rejected
-            # rows that should never have been sent to Claude. With the new
-            # gate (id_confidence in {high, medium} AND id_source in {hpdb,
-            # cdbs, signature}), only curated-DB hits get Claude. The cache
-            # also gets id_confidence + id_source in the key so a row that
-            # later upgrades from medium → high regenerates fresh prose.
+            # C10 (output discipline): bump c9 → c10. The prompt is tightened
+            # to a 2-sentence cap that forbids speculation when the curated
+            # row doesn't directly support a named claim, and the SQL gate
+            # above now lets ONLY high-tier rows reach Claude. Together these
+            # invalidate every pre-c10 cache entry whose prose was either
+            # generated under the looser gate (medium tier) or written under
+            # the longer 2-4-sentence prompt that allowed candidate-cause
+            # speculation.
             cache_key_obj = {
                 "bin_idx": bin_idx,
                 "modulation_class": mod,
@@ -434,7 +425,7 @@ def interpret_loop(cfg, conn):
                 "location_bucket": location_bucket,
                 "id_confidence": id_confidence,
                 "id_source": id_source,
-                "prompt_v": "c9",
+                "prompt_v": "c10",
             }
             bundle_hash = hash_bundle(cache_key_obj)
             cached = conn.execute(
