@@ -38,6 +38,15 @@ except Exception as _r4de:
     _RTL433_AVAILABLE = False
     _RTL433_IMPORT_ERROR = _r4de
 
+# PR #32 — multimon-ng status surfacing (same pattern as rtl433).
+try:
+    import multimon as multimon_mod
+    _MULTIMON_AVAILABLE = True
+except Exception as _mmde:
+    multimon_mod = None
+    _MULTIMON_AVAILABLE = False
+    _MULTIMON_IMPORT_ERROR = _mmde
+
 # /usr/local/bin/disco-svc-ctl is allowed via NOPASSWD sudoers for the ubuntu
 # user — it stops/starts the RSPduo-owning sweep + classifier services so the
 # user can hand the radios back to SB3 without ssh'ing.
@@ -575,17 +584,35 @@ def api_status():
             out.update(rtl433_mod.read_stats())
         except Exception:
             pass
-    # Cross-check the live match count against the DB (the stats file is a
+    # PR #32 — multimon-ng counters (same stats-file channel).
+    out.update({
+        "multimon_available": False,
+        "multimon_enabled": False,
+        "multimon_invocations_total": 0,
+        "multimon_matches_total": 0,
+        "multimon_errors_total": 0,
+        "multimon_last_match_capcode": "",
+        "multimon_last_match_ts": 0.0,
+    })
+    if _MULTIMON_AVAILABLE and multimon_mod is not None:
+        try:
+            out.update(multimon_mod.read_stats())
+        except Exception:
+            pass
+    # Cross-check the live match counts against the DB (the stats files are a
     # best-effort mirror; the DB is authoritative for rows actually written).
     try:
         c = _conn()
-        n = c.execute(
+        out["rtl433_matches_in_db"] = int(c.execute(
             "SELECT COUNT(*) FROM detections WHERE id_source = 'rtl_433'"
-        ).fetchone()[0]
+        ).fetchone()[0])
+        out["multimon_matches_in_db"] = int(c.execute(
+            "SELECT COUNT(*) FROM detections WHERE id_source = 'multimon'"
+        ).fetchone()[0])
         c.close()
-        out["rtl433_matches_in_db"] = int(n)
     except Exception:
         out["rtl433_matches_in_db"] = None
+        out["multimon_matches_in_db"] = None
     return out
 
 
