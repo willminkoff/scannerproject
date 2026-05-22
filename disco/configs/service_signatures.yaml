@@ -510,3 +510,734 @@ signatures:
     allowed_bands:
       - BCAST_FM
     notes: "Last-resort match for wide-FM-shaped continuous signals in BCAST_FM that don't fit FM Broadcast's stricter bw bracket. Freq range and band-scope both pinned to BCAST_FM after live data showed the prior 30 MHz–1 GHz range over-firing in RADIO_ASTRONOMY, TV bands, AVIATION_NAV, and LMR_800."
+
+  # ============================================================
+  # PR #34 — community / manual signal-type catalog (sigidwiki-
+  # informed). source: manual on each. allowed_bands computed from
+  # the US band plan by scripts/ingest_sigidwiki.py.
+  # ============================================================
+  - name: "NOAA APT (weather sat)"
+    freq_min_hz: 137000000
+    freq_max_hz: 138000000
+    bandwidth_3db_hz_min: 30000
+    bandwidth_3db_hz_max: 40000
+    shape: wide_flat
+    duty_cycle: continuous
+    confidence_weight: 0.7
+    source: manual
+    allowed_bands:
+      - METSAT_VHF
+    notes: "NOAA POES automatic picture transmission, 137 MHz, ~34 kHz FM. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "Meteor-M LRPT"
+    freq_min_hz: 137000000
+    freq_max_hz: 138000000
+    bandwidth_3db_hz_min: 110000
+    bandwidth_3db_hz_max: 140000
+    shape: wide_flat
+    duty_cycle: continuous
+    confidence_weight: 0.7
+    source: manual
+    allowed_bands:
+      - METSAT_VHF
+    notes: "Russian Meteor-M low-rate picture transmission, QPSK ~120 kHz. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "Orbcomm (downlink)"
+    freq_min_hz: 137000000
+    freq_max_hz: 138000000
+    bandwidth_3db_hz_min: 10000
+    bandwidth_3db_hz_max: 20000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.6
+    source: manual
+    allowed_bands:
+      - METSAT_VHF
+    notes: "Orbcomm LEO data sat downlink, 137-138 MHz SDPSK. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "HFDL (HF aircraft data)"
+    freq_min_hz: 2800000
+    freq_max_hz: 22000000
+    bandwidth_3db_hz_min: 1700
+    bandwidth_3db_hz_max: 2700
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.6
+    source: manual
+    notes: "HF Data Link, aircraft. Out of normal RSPduo VHF range; listed for reference. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "AIS (marine AIS1/AIS2)"
+    freq_min_hz: 161900000
+    freq_max_hz: 162100000
+    bandwidth_3db_hz_min: 12000
+    bandwidth_3db_hz_max: 16000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.85
+    source: manual
+    allowed_bands:
+      - VHF_LMR_LAST
+      - GOV_NOAA_PRE
+    notes: "Automatic Identification System, 161.975 / 162.025 MHz GMSK 9600. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "NAVTEX"
+    freq_min_hz: 490000
+    freq_max_hz: 520000
+    bandwidth_3db_hz_min: 300
+    bandwidth_3db_hz_max: 600
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.6
+    source: manual
+    notes: "Maritime safety text, 518 kHz FSK. Out of RSPduo range; reference. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "APRS (144.39)"
+    freq_min_hz: 144000000
+    freq_max_hz: 148000000
+    bandwidth_3db_hz_min: 12000
+    bandwidth_3db_hz_max: 16000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.7
+    source: manual
+    allowed_bands:
+      - AMATEUR_2M
+    notes: "Automatic Packet Reporting System, 144.39 MHz AFSK 1200 over NFM. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "D-STAR (amateur DV)"
+    freq_min_hz: 144000000
+    freq_max_hz: 148000000
+    bandwidth_3db_hz_min: 5000
+    bandwidth_3db_hz_max: 7000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.6
+    source: manual
+    allowed_bands:
+      - AMATEUR_2M
+    notes: "Amateur digital voice, GMSK 4800; 2m. See 70cm variant. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "D-STAR 70cm (amateur DV)"
+    freq_min_hz: 420000000
+    freq_max_hz: 450000000
+    bandwidth_3db_hz_min: 5000
+    bandwidth_3db_hz_max: 7000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.6
+    source: manual
+    allowed_bands:
+      - AMATEUR_70CM
+    notes: "Amateur D-STAR digital voice on 70cm. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "System Fusion C4FM (amateur)"
+    freq_min_hz: 420000000
+    freq_max_hz: 450000000
+    bandwidth_3db_hz_min: 10000
+    bandwidth_3db_hz_max: 13000
+    shape: fsk_two_tone
+    duty_cycle: bursty
+    confidence_weight: 0.6
+    source: manual
+    allowed_bands:
+      - AMATEUR_70CM
+    notes: "Yaesu System Fusion C4FM digital voice, 70cm. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "M17 (amateur DV)"
+    freq_min_hz: 420000000
+    freq_max_hz: 450000000
+    bandwidth_3db_hz_min: 8000
+    bandwidth_3db_hz_max: 11000
+    shape: fsk_two_tone
+    duty_cycle: bursty
+    confidence_weight: 0.6
+    source: manual
+    allowed_bands:
+      - AMATEUR_70CM
+    notes: "Open-source amateur digital voice/data, 4FSK 9600, 70cm. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "Packet AX.25 (VHF 1200)"
+    freq_min_hz: 144000000
+    freq_max_hz: 148000000
+    bandwidth_3db_hz_min: 12000
+    bandwidth_3db_hz_max: 16000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.6
+    source: manual
+    allowed_bands:
+      - AMATEUR_2M
+    notes: "Amateur AX.25 packet, AFSK1200 over NFM, 2m. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "Packet AX.25 (UHF 9600)"
+    freq_min_hz: 420000000
+    freq_max_hz: 450000000
+    bandwidth_3db_hz_min: 12000
+    bandwidth_3db_hz_max: 18000
+    shape: fsk_two_tone
+    duty_cycle: bursty
+    confidence_weight: 0.6
+    source: manual
+    allowed_bands:
+      - AMATEUR_70CM
+    notes: "Amateur AX.25 G3RUH 9600 baud direct FSK, 70cm. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "EDACS (trunked)"
+    freq_min_hz: 450000000
+    freq_max_hz: 470000000
+    bandwidth_3db_hz_min: 10000
+    bandwidth_3db_hz_max: 14000
+    shape: narrow_carrier
+    duty_cycle: continuous
+    confidence_weight: 0.6
+    source: manual
+    allowed_bands:
+      - UHF_LMR_LOW
+      - UHF_LMR_454
+      - UHF_LMR_HIGH
+    notes: "GE/Ericsson EDACS trunked control, UHF. Also exists VHF/800. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "LTR (trunked)"
+    freq_min_hz: 450000000
+    freq_max_hz: 470000000
+    bandwidth_3db_hz_min: 10000
+    bandwidth_3db_hz_max: 14000
+    shape: narrow_carrier
+    duty_cycle: continuous
+    confidence_weight: 0.6
+    source: manual
+    allowed_bands:
+      - UHF_LMR_LOW
+      - UHF_LMR_454
+      - UHF_LMR_HIGH
+    notes: "Logic Trunked Radio sub-audible, UHF business. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "MPT-1327 (trunked)"
+    freq_min_hz: 450000000
+    freq_max_hz: 470000000
+    bandwidth_3db_hz_min: 10000
+    bandwidth_3db_hz_max: 14000
+    shape: narrow_carrier
+    duty_cycle: continuous
+    confidence_weight: 0.55
+    source: manual
+    allowed_bands:
+      - UHF_LMR_LOW
+      - UHF_LMR_454
+      - UHF_LMR_HIGH
+    notes: "MPT-1327 analog trunking control, UHF. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "dPMR (446 / UHF)"
+    freq_min_hz: 450000000
+    freq_max_hz: 470000000
+    bandwidth_3db_hz_min: 5000
+    bandwidth_3db_hz_max: 7000
+    shape: fsk_two_tone
+    duty_cycle: bursty
+    confidence_weight: 0.55
+    source: manual
+    allowed_bands:
+      - UHF_LMR_LOW
+      - UHF_LMR_454
+      - UHF_LMR_HIGH
+    notes: "Digital PMR 6.25 kHz 4FSK, UHF business. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "P25 Phase 2 (TDMA)"
+    freq_min_hz: 450000000
+    freq_max_hz: 470000000
+    bandwidth_3db_hz_min: 10000
+    bandwidth_3db_hz_max: 13000
+    shape: fsk_two_tone
+    duty_cycle: bursty
+    confidence_weight: 0.7
+    source: manual
+    allowed_bands:
+      - UHF_LMR_LOW
+      - UHF_LMR_454
+      - UHF_LMR_HIGH
+    notes: "P25 Phase 2 H-DQPSK TDMA traffic, UHF LMR. Also 700/800. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "P25 Phase 2 (800 TDMA)"
+    freq_min_hz: 851000000
+    freq_max_hz: 869000000
+    bandwidth_3db_hz_min: 10000
+    bandwidth_3db_hz_max: 13000
+    shape: fsk_two_tone
+    duty_cycle: bursty
+    confidence_weight: 0.7
+    source: manual
+    allowed_bands:
+      - PS_800_NARROW
+    notes: "P25 Phase 2 TDMA traffic, 800 MHz public safety. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "TETRA (control)"
+    freq_min_hz: 450000000
+    freq_max_hz: 470000000
+    bandwidth_3db_hz_min: 22000
+    bandwidth_3db_hz_max: 27000
+    shape: ofdm_multicarrier
+    duty_cycle: continuous
+    confidence_weight: 0.55
+    source: manual
+    allowed_bands:
+      - UHF_LMR_LOW
+      - UHF_LMR_454
+      - UHF_LMR_HIGH
+    notes: "TETRA pi/4-DQPSK 25 kHz; uncommon in US, common abroad. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "ERMES paging"
+    freq_min_hz: 169000000
+    freq_max_hz: 170000000
+    bandwidth_3db_hz_min: 20000
+    bandwidth_3db_hz_max: 30000
+    shape: fsk_two_tone
+    duty_cycle: bursty
+    confidence_weight: 0.5
+    source: manual
+    allowed_bands:
+      - GOV_VHF_HIGH
+    notes: "European paging, 169 MHz 4FSK. Rare in US. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "Mobitex (data)"
+    freq_min_hz: 900000000
+    freq_max_hz: 941000000
+    bandwidth_3db_hz_min: 10000
+    bandwidth_3db_hz_max: 14000
+    shape: fsk_two_tone
+    duty_cycle: bursty
+    confidence_weight: 0.5
+    source: manual
+    allowed_bands:
+      - LMR_896
+      - NB_PCS_901
+      - ISM_915
+      - GOV_928
+      - PAGING_929
+      - GOV_932
+      - SMR_900
+      - FIXED_940
+    notes: "Mobitex packet data network, 900 MHz. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "Radiosonde (weather balloon)"
+    freq_min_hz: 400000000
+    freq_max_hz: 406000000
+    bandwidth_3db_hz_min: 8000
+    bandwidth_3db_hz_max: 14000
+    shape: narrow_carrier
+    duty_cycle: continuous
+    confidence_weight: 0.7
+    source: manual
+    allowed_bands:
+      - NAV_SAT_UPLINK
+      - METSAT_400
+      - METAIDS
+    notes: "Weather balloon telemetry, 400-406 MHz GFSK (RS41 etc). (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "EPIRB / PLB (406)"
+    freq_min_hz: 406000000
+    freq_max_hz: 406100000
+    bandwidth_3db_hz_min: 20000
+    bandwidth_3db_hz_max: 30000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.7
+    source: manual
+    allowed_bands:
+      - EPIRB_406
+    notes: "Emergency beacon distress burst, 406 MHz. Transmits briefly. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "Bluetooth (2.4 GHz)"
+    freq_min_hz: 2400000000
+    freq_max_hz: 2483500000
+    bandwidth_3db_hz_min: 900000
+    bandwidth_3db_hz_max: 1100000
+    shape: fsk_two_tone
+    duty_cycle: hopping
+    confidence_weight: 0.6
+    source: manual
+    allowed_bands:
+      - ISM_2_4
+    notes: "Bluetooth/BLE FHSS, 1-2 MHz channels, 2.4 GHz. Out of RSPduo range. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "ZigBee / 802.15.4 (2.4)"
+    freq_min_hz: 2400000000
+    freq_max_hz: 2483500000
+    bandwidth_3db_hz_min: 1800000
+    bandwidth_3db_hz_max: 2200000
+    shape: ofdm_multicarrier
+    duty_cycle: bursty
+    confidence_weight: 0.6
+    source: manual
+    allowed_bands:
+      - ISM_2_4
+    notes: "ZigBee O-QPSK 2 MHz channels, 2.4 GHz. Out of RSPduo range. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "Wi-SUN (915 MHz)"
+    freq_min_hz: 902000000
+    freq_max_hz: 928000000
+    bandwidth_3db_hz_min: 150000
+    bandwidth_3db_hz_max: 320000
+    shape: fsk_two_tone
+    duty_cycle: bursty
+    confidence_weight: 0.55
+    source: manual
+    allowed_bands:
+      - ISM_915
+    notes: "Wi-SUN FAN 2FSK utility mesh, 915 MHz ISM. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "Z-Wave (908 MHz)"
+    freq_min_hz: 902000000
+    freq_max_hz: 928000000
+    bandwidth_3db_hz_min: 30000
+    bandwidth_3db_hz_max: 60000
+    shape: fsk_two_tone
+    duty_cycle: bursty
+    confidence_weight: 0.55
+    source: manual
+    allowed_bands:
+      - ISM_915
+    notes: "Z-Wave home automation, ~908.4 MHz GFSK, 915 ISM. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "RFID active (915)"
+    freq_min_hz: 902000000
+    freq_max_hz: 928000000
+    bandwidth_3db_hz_min: 100000
+    bandwidth_3db_hz_max: 500000
+    shape: unknown
+    duty_cycle: bursty
+    confidence_weight: 0.4
+    source: manual
+    allowed_bands:
+      - ISM_915
+    notes: "Active RFID / EPC Gen2 interrogator, 915 MHz ISM. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "LoRa (433 MHz)"
+    freq_min_hz: 433050000
+    freq_max_hz: 434790000
+    bandwidth_3db_hz_min: 100000
+    bandwidth_3db_hz_max: 550000
+    shape: unknown
+    duty_cycle: bursty
+    confidence_weight: 0.55
+    source: manual
+    allowed_bands:
+      - AMATEUR_70CM
+    notes: "LoRa chirp spread spectrum, 433 MHz ISM (EU/global). (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "Remote keyless entry (315)"
+    freq_min_hz: 314000000
+    freq_max_hz: 316000000
+    bandwidth_3db_hz_min: 10000
+    bandwidth_3db_hz_max: 60000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.5
+    source: manual
+    allowed_bands:
+      - MIL_UHF_AVIATION
+    notes: "Car RKE / TPMS OOK/FSK burst, 315 MHz. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "HD Radio (FM IBOC)"
+    freq_min_hz: 87900000
+    freq_max_hz: 108000000
+    bandwidth_3db_hz_min: 100000
+    bandwidth_3db_hz_max: 200000
+    shape: ofdm_multicarrier
+    duty_cycle: continuous
+    confidence_weight: 0.6
+    source: manual
+    allowed_bands:
+      - TV_VHF_LOW
+      - BCAST_FM
+    notes: "iBiquity HD Radio OFDM sidebands around an FM carrier. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "DRM (digital HF/MW)"
+    freq_min_hz: 150000
+    freq_max_hz: 30000000
+    bandwidth_3db_hz_min: 8000
+    bandwidth_3db_hz_max: 11000
+    shape: ofdm_multicarrier
+    duty_cycle: continuous
+    confidence_weight: 0.5
+    source: manual
+    notes: "Digital Radio Mondiale, HF/MW OFDM. Out of RSPduo VHF range. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "SCADA telemetry (VHF)"
+    freq_min_hz: 150800000
+    freq_max_hz: 174000000
+    bandwidth_3db_hz_min: 8000
+    bandwidth_3db_hz_max: 16000
+    shape: fsk_two_tone
+    duty_cycle: bursty
+    confidence_weight: 0.45
+    source: manual
+    allowed_bands:
+      - VHF_LMR_LOW
+      - MARINE_VHF
+      - VHF_LMR_MID
+      - MARINE_VHF_HIGH
+      - VHF_LMR_LAST
+      - GOV_NOAA_PRE
+      - NOAA_WX
+      - GOV_VHF_HIGH
+    notes: "Utility SCADA / remote telemetry FSK, VHF land-mobile. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "SCADA telemetry (UHF)"
+    freq_min_hz: 450000000
+    freq_max_hz: 470000000
+    bandwidth_3db_hz_min: 8000
+    bandwidth_3db_hz_max: 16000
+    shape: fsk_two_tone
+    duty_cycle: bursty
+    confidence_weight: 0.45
+    source: manual
+    allowed_bands:
+      - UHF_LMR_LOW
+      - UHF_LMR_454
+      - UHF_LMR_HIGH
+    notes: "Utility SCADA / remote telemetry FSK, UHF land-mobile. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "MIL UHF SATCOM (UFO)"
+    freq_min_hz: 240000000
+    freq_max_hz: 270000000
+    bandwidth_3db_hz_min: 5000
+    bandwidth_3db_hz_max: 25000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.4
+    source: manual
+    allowed_bands:
+      - MIL_UHF_AVIATION
+    notes: "Military UHF SATCOM downlink, 240-270 MHz. NFM/PSK. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "CW beacon (VHF)"
+    freq_min_hz: 144000000
+    freq_max_hz: 148000000
+    bandwidth_3db_hz_min: 100
+    bandwidth_3db_hz_max: 500
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.4
+    source: manual
+    allowed_bands:
+      - AMATEUR_2M
+    notes: "Amateur CW propagation beacon, very narrow, 2m. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "GSM 850 (downlink)"
+    freq_min_hz: 869000000
+    freq_max_hz: 894000000
+    bandwidth_3db_hz_min: 180000
+    bandwidth_3db_hz_max: 220000
+    shape: ofdm_multicarrier
+    duty_cycle: continuous
+    confidence_weight: 0.6
+    source: manual
+    allowed_bands:
+      - CELL_850_DL
+    notes: "Legacy GSM 850 downlink, 200 kHz GMSK carriers. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "5G NR n71 (600 MHz DL)"
+    freq_min_hz: 614000000
+    freq_max_hz: 698000000
+    bandwidth_3db_hz_min: 5000000
+    bandwidth_3db_hz_max: 20000000
+    shape: ofdm_multicarrier
+    duty_cycle: continuous
+    confidence_weight: 0.6
+    source: manual
+    allowed_bands:
+      - TV_UHF_HIGH
+    notes: "T-Mobile 5G NR band n71 downlink, 600 MHz, wide OFDM. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "Wireless mic (VHF)"
+    freq_min_hz: 174000000
+    freq_max_hz: 216000000
+    bandwidth_3db_hz_min: 80000
+    bandwidth_3db_hz_max: 200000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.45
+    source: manual
+    allowed_bands:
+      - TV_VHF_HIGH
+    notes: "VHF wireless microphones in the high-VHF TV band, NFM. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "STL studio link (950)"
+    freq_min_hz: 940000000
+    freq_max_hz: 960000000
+    bandwidth_3db_hz_min: 150000
+    bandwidth_3db_hz_max: 300000
+    shape: wide_flat
+    duty_cycle: continuous
+    confidence_weight: 0.5
+    source: manual
+    allowed_bands:
+      - FIXED_940
+    notes: "Aural studio-transmitter link, 944-952 MHz, wide FM. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "Inmarsat (L-band)"
+    freq_min_hz: 1525000000
+    freq_max_hz: 1660000000
+    bandwidth_3db_hz_min: 5000
+    bandwidth_3db_hz_max: 40000
+    shape: narrow_carrier
+    duty_cycle: continuous
+    confidence_weight: 0.4
+    source: manual
+    notes: "Inmarsat geostationary L-band. Out of RSPduo range; reference. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "Iridium (L-band)"
+    freq_min_hz: 1616000000
+    freq_max_hz: 1626500000
+    bandwidth_3db_hz_min: 30000
+    bandwidth_3db_hz_max: 50000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.4
+    source: manual
+    notes: "Iridium LEO L-band bursts. Out of RSPduo range; reference. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "GPS L1 (C/A)"
+    freq_min_hz: 1575000000
+    freq_max_hz: 1576000000
+    bandwidth_3db_hz_min: 1900000
+    bandwidth_3db_hz_max: 2100000
+    shape: broadband_noise
+    duty_cycle: continuous
+    confidence_weight: 0.5
+    source: manual
+    notes: "GPS L1 C/A spread-spectrum, ~2 MHz, -130 dBm. Out of range; reference. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "ADS-B (1090, fingerprint)"
+    freq_min_hz: 1089000000
+    freq_max_hz: 1091000000
+    bandwidth_3db_hz_min: 50000
+    bandwidth_3db_hz_max: 100000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.5
+    source: manual
+    allowed_bands:
+      - DME_TACAN
+    notes: "ADS-B Mode S extended squitter envelope, 1090 MHz. dump1090 owns decode; this is the spectral-shape fallback. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "DECT (cordless phone)"
+    freq_min_hz: 1880000000
+    freq_max_hz: 1900000000
+    bandwidth_3db_hz_min: 1500000
+    bandwidth_3db_hz_max: 1900000
+    shape: ofdm_multicarrier
+    duty_cycle: hopping
+    confidence_weight: 0.5
+    source: manual
+    notes: "DECT cordless phone, 1.728 MHz GFSK TDMA. Out of RSPduo range; reference. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "RTTY (HF)"
+    freq_min_hz: 1800000
+    freq_max_hz: 30000000
+    bandwidth_3db_hz_min: 200
+    bandwidth_3db_hz_max: 600
+    shape: fsk_two_tone
+    duty_cycle: continuous
+    confidence_weight: 0.4
+    source: manual
+    notes: "Radioteletype 45/50 baud FSK, HF. Out of RSPduo VHF range; reference. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "PSK31 (HF)"
+    freq_min_hz: 1800000
+    freq_max_hz: 30000000
+    bandwidth_3db_hz_min: 31
+    bandwidth_3db_hz_max: 100
+    shape: narrow_carrier
+    duty_cycle: continuous
+    confidence_weight: 0.4
+    source: manual
+    notes: "Narrowband keyboard mode, HF. Out of RSPduo range; reference. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "FT8 (HF/VHF digital)"
+    freq_min_hz: 1800000
+    freq_max_hz: 148000000
+    bandwidth_3db_hz_min: 50
+    bandwidth_3db_hz_max: 100
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.4
+    source: manual
+    allowed_bands:
+      - LO_VHF
+      - AMATEUR_6M
+      - TV_VHF_LOW
+      - BCAST_FM
+      - AVIATION_NAV
+      - AVIATION_VOICE
+      - METSAT_VHF
+      - GOV_VHF_138
+      - AMATEUR_2M
+    notes: "FT8 weak-signal digital, 15 s bursts, very narrow. HF mostly. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "WSPR (HF beacon)"
+    freq_min_hz: 1800000
+    freq_max_hz: 30000000
+    bandwidth_3db_hz_min: 6
+    bandwidth_3db_hz_max: 20
+    shape: narrow_carrier
+    duty_cycle: continuous
+    confidence_weight: 0.4
+    source: manual
+    notes: "Weak-signal propagation reporter, ultra-narrow, HF. Reference. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "Pager FLEX (929 wide)"
+    freq_min_hz: 929000000
+    freq_max_hz: 932000000
+    bandwidth_3db_hz_min: 15000
+    bandwidth_3db_hz_max: 30000
+    shape: fsk_two_tone
+    duty_cycle: bursty
+    confidence_weight: 0.55
+    source: manual
+    allowed_bands:
+      - PAGING_929
+    notes: "FLEX paging 1600/3200/6400 bps 4FSK in the 929-932 MHz band. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "Marine DSC (156.525)"
+    freq_min_hz: 156400000
+    freq_max_hz: 156600000
+    bandwidth_3db_hz_min: 1500
+    bandwidth_3db_hz_max: 3000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.55
+    source: manual
+    allowed_bands:
+      - MARINE_VHF
+    notes: "Digital Selective Calling on marine ch70, 156.525 MHz FSK. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "Railroad ATCS (UHF data)"
+    freq_min_hz: 450000000
+    freq_max_hz: 470000000
+    bandwidth_3db_hz_min: 8000
+    bandwidth_3db_hz_max: 14000
+    shape: fsk_two_tone
+    duty_cycle: bursty
+    confidence_weight: 0.5
+    source: manual
+    allowed_bands:
+      - UHF_LMR_LOW
+      - UHF_LMR_454
+      - UHF_LMR_HIGH
+    notes: "Advanced Train Control System data, UHF, FSK. (ref: sigidwiki.com/wiki/Database)"
+
+  - name: "Itinerant business (UHF)"
+    freq_min_hz: 450000000
+    freq_max_hz: 470000000
+    bandwidth_3db_hz_min: 8000
+    bandwidth_3db_hz_max: 14000
+    shape: narrow_carrier
+    duty_cycle: bursty
+    confidence_weight: 0.4
+    source: manual
+    allowed_bands:
+      - UHF_LMR_LOW
+      - UHF_LMR_454
+      - UHF_LMR_HIGH
+    notes: "Part 90 itinerant business NFM (MURS-like UHF), licensee via ULS. (ref: sigidwiki.com/wiki/Database)"
