@@ -78,6 +78,26 @@ _ISM_RANGES_HZ = (
     (902_000_000, 928_000_000),   # 915 MHz — NA ISM
 )
 
+# PR #31 — "classic" ISM sub-ranges where rtl_433 runs FIRST (before the
+# licensee/curated DBs). In these dedicated device bands a decoded device
+# packet ("Acurite-606TX, serial 4815") is more useful than a licensee
+# lookup. Subset of _ISM_RANGES_HZ, deliberately carved to EXCLUDE the
+# 915–920 MHz amateur-concentration sub-band (see _AMATEUR_33CM_HZ) so
+# AA0JE-style amateur ULS hits keep winning there.
+CLASSIC_ISM_RANGES_HZ = (
+    (314_500_000, 315_500_000),   # 315 MHz ISM (US RC)
+    (432_920_000, 434_920_000),   # 433.92 MHz center ±1 MHz (RC, weather)
+    (867_500_000, 868_500_000),   # 868 MHz EU SRD
+    (902_000_000, 915_000_000),   # 902–915 MHz — US 902-928 below amateur
+    (920_000_000, 928_000_000),   # 920–928 MHz — US 902-928 above amateur
+)
+
+# 33 cm amateur concentration. Within the US 902–928 ISM allocation amateur
+# is secondary, but ham activity (repeaters, beacons, digital) clusters
+# here. We never invoke rtl_433 in this window so licensee identification
+# (ULS amateur) wins — a documented trade-off in docs/disco-rtl433.md.
+_AMATEUR_33CM_HZ = (915_000_000, 920_000_000)
+
 # In-process counters. Mirrored to STATS_PATH after every invocation so a
 # separate reader (dashboard) sees fresh numbers.
 _STATS = {
@@ -114,6 +134,27 @@ def is_ism_band(freq_hz: float) -> bool:
     except (TypeError, ValueError):
         return False
     return any(lo <= f <= hi for (lo, hi) in _ISM_RANGES_HZ)
+
+
+def is_in_classic_ism(freq_hz: float) -> bool:
+    """True if ``freq_hz`` is in a dedicated ISM sub-range where rtl_433
+    should run FIRST (PR #31), ahead of the licensee/curated databases."""
+    try:
+        f = float(freq_hz)
+    except (TypeError, ValueError):
+        return False
+    return any(lo <= f <= hi for (lo, hi) in CLASSIC_ISM_RANGES_HZ)
+
+
+def is_amateur_33cm(freq_hz: float) -> bool:
+    """True if ``freq_hz`` is in the 33 cm amateur-concentration window
+    (915–920 MHz). rtl_433 is never invoked here so amateur ULS wins."""
+    try:
+        f = float(freq_hz)
+    except (TypeError, ValueError):
+        return False
+    lo, hi = _AMATEUR_33CM_HZ
+    return lo <= f < hi
 
 
 def _rate_from_filename(name: str) -> Optional[int]:
