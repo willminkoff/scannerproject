@@ -12,9 +12,12 @@ identification. A tag like "[TV] AM_VOICE" should display as
 class kept in the details panel for retrain-set curation.
 
 Layer order (first hit wins):
+  0   rtl_433 device decode (CLASSIC-ISM priority) → high source=rtl_433
+       (only when rtl433_priority — classic-ISM sub-ranges, PR #31)
   A   HPDB exact-freq match           → confidence=high   source=hpdb
   B   CDBS exact-freq match           → confidence=high   source=cdbs
-  B2  rtl_433 device decode (ISM)     → confidence=high   source=rtl_433
+  B2  rtl_433 device decode (ISM fallback) → high source=rtl_433
+       (non-priority: general-ISM where HPDB+CDBS missed, PR #30)
   B3  spectral signature match        → confidence=high/medium source=signature
   C   ULS amateur band fallback hit   → confidence=medium source=uls (amateur)
   D   ULS land-mobile licensee ≤80 km → confidence=medium source=uls
@@ -198,6 +201,7 @@ def build_identification(
     hpdb_match: Optional[dict] = None,
     cdbs_match: Optional[dict] = None,
     rtl433_match: Optional[dict] = None,
+    rtl433_priority: bool = False,
     uls_match: Optional[dict] = None,
     signature_match: Optional[dict] = None,
 ) -> IdentificationResult:
@@ -220,6 +224,24 @@ def build_identification(
         "band_rejected": bool(band_rejected),
         "band_allowed_modes": list(band_allowed_modes or []),
     }
+
+    # Step 0 (PR #31): classic-ISM priority. In a dedicated ISM sub-range
+    # (315 / 433.92 / 868 MHz, 902-915 + 920-928 MHz) a decoded rtl_433
+    # device packet is the single most informative identification available
+    # — more useful than a licensee/curated-DB lookup. When the classifier
+    # flags rtl433_priority and rtl_433 decoded a device, it wins ahead of
+    # HPDB/CDBS/ULS. The classifier deliberately does NOT set the priority
+    # flag for the 915-920 MHz amateur window, so ham ULS still wins there.
+    if rtl433_priority and rtl433_match:
+        evidence["rtl433_match"] = dict(rtl433_match)
+        evidence["rtl433_priority"] = True
+        return IdentificationResult(
+            service=str(rtl433_match.get("device_name") or "rtl_433 device"),
+            confidence=CONFIDENCE_HIGH,
+            source=SOURCE_RTL433,
+            band_name=band_name,
+            evidence=evidence,
+        )
 
     # Layer A: HPDB exact-freq match. Already curated and location-filtered.
     if hpdb_match:
