@@ -103,6 +103,20 @@ except Exception as _fpe:
     _FINGERPRINT_AVAILABLE = False
     _FINGERPRINT_IMPORT_ERROR = _fpe
 
+# PR #30 — rtl_433 specialist identifier for ISM-band devices. Replays the
+# IQ slice through the rtl_433 binary; on a device decode it overrides the
+# identification with a high-confidence device name. Import failure is
+# non-fatal and the module itself never raises into the caller, so a missing
+# binary / disabled flag is a transparent no-op.
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import rtl433 as _rtl433
+    _RTL433_AVAILABLE = True
+except Exception as _r4e:
+    _rtl433 = None
+    _RTL433_AVAILABLE = False
+    _RTL433_IMPORT_ERROR = _r4e
+
 # Broadcast band cutoffs (Hz) — CDBS fallback only fires when freq is in-band.
 _BCAST_AM_LO_HZ = 530e3
 _BCAST_AM_HI_HZ = 1710e3
@@ -585,6 +599,20 @@ def classifier_loop(cfg, conn):
     if not _CDBS_AVAILABLE:
         LOG.warning("CDBS lookup disabled: %s", _CDBS_IMPORT_ERROR)
 
+    # PR #30 — log rtl_433 status and seed the stats file so /api/status
+    # reflects this classifier's actual config (binary + kill switch) even
+    # before the first ISM detection.
+    if _RTL433_AVAILABLE and _rtl433 is not None:
+        LOG.info("rtl_433 layer: binary=%s enabled=%s",
+                 "present" if _rtl433.is_available() else "MISSING",
+                 _rtl433.is_enabled())
+        try:
+            _rtl433._write_stats()
+        except Exception:
+            pass
+    else:
+        LOG.warning("rtl_433 module import unavailable: %s", _RTL433_IMPORT_ERROR)
+
     seen_count = 0; classified_count = 0; last_log = time.time()
 
     while not _STOP:
@@ -752,6 +780,32 @@ def classifier_loop(cfg, conn):
                     except Exception:
                         pass
 
+                # PR #30 — rtl_433 device decode for ISM-band slices. Sits
+                # above the signature fingerprint in the trust hierarchy: a
+                # decoded device packet is a definitive protocol-level ID.
+                # Gated identically to the signature layer (only when HPDB+CDBS
+                # missed) plus an ISM-band check, so the subprocess only runs
+                # where it can plausibly help. The module never raises — a
+                # missing binary, disabled flag, timeout, or garbage output
+                # all return None and we fall through to the signature layer.
+                rtl433_match_dict: dict | None = None
+                if (hpdb_match is None and cdbs_match is None
+                        and _RTL433_AVAILABLE and _rtl433 is not None
+                        and _rtl433.is_ism_band(meta["freq_hz"])
+                        and _rtl433.is_available() and _rtl433.is_enabled()):
+                    try:
+                        rtl433_match_dict = _rtl433.lookup_rtl433(
+                            slice_path,
+                            meta["freq_hz"],
+                            sample_rate_hz=slice_rate,
+                        )
+                    except Exception as _r4le:
+                        # Defense in depth — the module already swallows all
+                        # exceptions, but never let it break classification.
+                        LOG.warning("rtl_433 lookup raised at %.6f MHz: %s",
+                                    meta["freq_hz"] / 1e6, _r4le)
+                        rtl433_match_dict = None
+
                 # PR B — fingerprint the slice's spectral + temporal features
                 # against the curated catalog. Only fires when HPDB/CDBS
                 # both returned empty (the fingerprint layer in the trust
@@ -789,6 +843,7 @@ def classifier_loop(cfg, conn):
                             band_allowed_modes=_band_allowed_modes,
                             hpdb_match=hpdb_match,
                             cdbs_match=cdbs_match,
+                            rtl433_match=rtl433_match_dict,
                             uls_match=uls_match,
                             signature_match=sig_match_dict,
                         )

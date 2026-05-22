@@ -12,13 +12,15 @@ identification. A tag like "[TV] AM_VOICE" should display as
 class kept in the details panel for retrain-set curation.
 
 Layer order (first hit wins):
-  A  HPDB exact-freq match           → confidence=high   source=hpdb
-  B  CDBS exact-freq match           → confidence=high   source=cdbs
-  C  ULS amateur band fallback hit   → confidence=medium source=uls (amateur)
-  D  ULS land-mobile licensee ≤80 km → confidence=medium source=uls
-  E  ML class IN band allowed_modes  → confidence=low    source=modulation_class
-  F  ML class REJECTED by band-plan  → confidence=spurious source=band_plan
-  G  NOISE / very low SNR            → confidence=spurious source=modulation_class
+  A   HPDB exact-freq match           → confidence=high   source=hpdb
+  B   CDBS exact-freq match           → confidence=high   source=cdbs
+  B2  rtl_433 device decode (ISM)     → confidence=high   source=rtl_433
+  B3  spectral signature match        → confidence=high/medium source=signature
+  C   ULS amateur band fallback hit   → confidence=medium source=uls (amateur)
+  D   ULS land-mobile licensee ≤80 km → confidence=medium source=uls
+  E   ML class IN band allowed_modes  → confidence=low    source=modulation_class
+  F   ML class REJECTED by band-plan  → confidence=spurious source=band_plan
+  G   NOISE / very low SNR            → confidence=spurious source=modulation_class
 
 The `evidence` dict carries the raw lookup payloads and the measured
 ML features so the details panel and Claude prompts (when invoked) can
@@ -50,6 +52,7 @@ _VALID_CONFIDENCE = {
 # layer fires AND we don't even have a band tag.
 SOURCE_HPDB = "hpdb"
 SOURCE_CDBS = "cdbs"
+SOURCE_RTL433 = "rtl_433"           # PR #30 — rtl_433 device decode (ISM bands)
 SOURCE_ULS = "uls"
 SOURCE_SIGNATURE = "signature"     # reserved for PR B fingerprinter
 SOURCE_BAND_PLAN = "band_plan"
@@ -59,6 +62,7 @@ SOURCE_UNKNOWN = "unknown"
 _VALID_SOURCE = {
     SOURCE_HPDB,
     SOURCE_CDBS,
+    SOURCE_RTL433,
     SOURCE_ULS,
     SOURCE_SIGNATURE,
     SOURCE_BAND_PLAN,
@@ -193,6 +197,7 @@ def build_identification(
     band_allowed_modes: Optional[list] = None,
     hpdb_match: Optional[dict] = None,
     cdbs_match: Optional[dict] = None,
+    rtl433_match: Optional[dict] = None,
     uls_match: Optional[dict] = None,
     signature_match: Optional[dict] = None,
 ) -> IdentificationResult:
@@ -234,6 +239,23 @@ def build_identification(
             service=_format_cdbs_service(cdbs_match),
             confidence=CONFIDENCE_HIGH,
             source=SOURCE_CDBS,
+            band_name=band_name,
+            evidence=evidence,
+        )
+
+    # Layer B-rtl433 (PR #30): rtl_433 device decode. When the slice replays
+    # cleanly through rtl_433 and a device packet decodes, that's a
+    # definitive protocol-level identification (a named weather sensor, TPMS,
+    # doorbell, …) — strictly better than the generic spectral fingerprint,
+    # so it sits ABOVE the signature layer and below the curated DBs
+    # (HPDB/CDBS). High tier. Only ever populated for ISM-band detections
+    # where HPDB+CDBS already missed (the classifier gates the lookup).
+    if rtl433_match:
+        evidence["rtl433_match"] = dict(rtl433_match)
+        return IdentificationResult(
+            service=str(rtl433_match.get("device_name") or "rtl_433 device"),
+            confidence=CONFIDENCE_HIGH,
+            source=SOURCE_RTL433,
             band_name=band_name,
             evidence=evidence,
         )

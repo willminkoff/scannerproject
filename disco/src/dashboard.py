@@ -27,6 +27,17 @@ except Exception as _le:
     _LISTEN_AVAILABLE = False
     _LISTEN_IMPORT_ERROR = _le
 
+# PR #30 — rtl_433 status surfacing. The classifier (separate process) writes
+# invocation counters to a stats file; we read them here for /api/status.
+# Import failure is non-fatal — /api/status degrades to zeroed counters.
+try:
+    import rtl433 as rtl433_mod
+    _RTL433_AVAILABLE = True
+except Exception as _r4de:
+    rtl433_mod = None
+    _RTL433_AVAILABLE = False
+    _RTL433_IMPORT_ERROR = _r4de
+
 # /usr/local/bin/disco-svc-ctl is allowed via NOPASSWD sudoers for the ubuntu
 # user — it stops/starts the RSPduo-owning sweep + classifier services so the
 # user can hand the radios back to SB3 without ssh'ing.
@@ -541,6 +552,41 @@ def api_strongest(since_seconds: float = 60.0, per_tuner: int = 15, bin_khz: flo
         total += len(rows)
     c.close()
     return {"buckets": out, "total": total, "since_seconds": since_seconds}
+
+
+@app.get("/api/status")
+def api_status():
+    """Subsystem health/counters. PR #30 adds rtl_433 fields, sourced from
+    the stats file the classifier writes (see disco/src/rtl433.py). Falls
+    back to zeroed counters + live availability if the module or file is
+    unavailable, so this endpoint never errors on a host without rtl_433.
+    """
+    out = {
+        "rtl433_available": False,
+        "rtl433_enabled": False,
+        "rtl433_invocations_total": 0,
+        "rtl433_matches_total": 0,
+        "rtl433_errors_total": 0,
+        "rtl433_last_match_ts": 0.0,
+        "rtl433_last_match_service": "",
+    }
+    if _RTL433_AVAILABLE and rtl433_mod is not None:
+        try:
+            out.update(rtl433_mod.read_stats())
+        except Exception:
+            pass
+    # Cross-check the live match count against the DB (the stats file is a
+    # best-effort mirror; the DB is authoritative for rows actually written).
+    try:
+        c = _conn()
+        n = c.execute(
+            "SELECT COUNT(*) FROM detections WHERE id_source = 'rtl_433'"
+        ).fetchone()[0]
+        c.close()
+        out["rtl433_matches_in_db"] = int(n)
+    except Exception:
+        out["rtl433_matches_in_db"] = None
+    return out
 
 
 @app.get("/api/summary")
