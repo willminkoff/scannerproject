@@ -47,6 +47,15 @@ except Exception as _mmde:
     _MULTIMON_AVAILABLE = False
     _MULTIMON_IMPORT_ERROR = _mmde
 
+# PR #33 — dump1090 status surfacing (same pattern).
+try:
+    import dump1090 as dump1090_mod
+    _DUMP1090_AVAILABLE = True
+except Exception as _d1de:
+    dump1090_mod = None
+    _DUMP1090_AVAILABLE = False
+    _DUMP1090_IMPORT_ERROR = _d1de
+
 # /usr/local/bin/disco-svc-ctl is allowed via NOPASSWD sudoers for the ubuntu
 # user — it stops/starts the RSPduo-owning sweep + classifier services so the
 # user can hand the radios back to SB3 without ssh'ing.
@@ -599,6 +608,21 @@ def api_status():
             out.update(multimon_mod.read_stats())
         except Exception:
             pass
+    # PR #33 — dump1090 counters (same stats-file channel).
+    out.update({
+        "dump1090_available": False,
+        "dump1090_enabled": False,
+        "dump1090_invocations_total": 0,
+        "dump1090_matches_total": 0,
+        "dump1090_errors_total": 0,
+        "dump1090_last_match_icao": "",
+        "dump1090_last_match_ts": 0.0,
+    })
+    if _DUMP1090_AVAILABLE and dump1090_mod is not None:
+        try:
+            out.update(dump1090_mod.read_stats())
+        except Exception:
+            pass
     # Cross-check the live match counts against the DB (the stats files are a
     # best-effort mirror; the DB is authoritative for rows actually written).
     try:
@@ -609,10 +633,14 @@ def api_status():
         out["multimon_matches_in_db"] = int(c.execute(
             "SELECT COUNT(*) FROM detections WHERE id_source = 'multimon'"
         ).fetchone()[0])
+        out["dump1090_matches_in_db"] = int(c.execute(
+            "SELECT COUNT(*) FROM detections WHERE id_source = 'dump1090'"
+        ).fetchone()[0])
         c.close()
     except Exception:
         out["rtl433_matches_in_db"] = None
         out["multimon_matches_in_db"] = None
+        out["dump1090_matches_in_db"] = None
     return out
 
 
