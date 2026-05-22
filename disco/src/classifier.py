@@ -129,6 +129,17 @@ except Exception as _mme:
     _MULTIMON_AVAILABLE = False
     _MULTIMON_IMPORT_ERROR = _mme
 
+# PR #33 — dump1090 specialist decoder for ADS-B (1090 MHz). Same non-fatal
+# import + never-raises contract as rtl433 / multimon.
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import dump1090 as _dump1090
+    _DUMP1090_AVAILABLE = True
+except Exception as _d1e:
+    _dump1090 = None
+    _DUMP1090_AVAILABLE = False
+    _DUMP1090_IMPORT_ERROR = _d1e
+
 # Broadcast band cutoffs (Hz) — CDBS fallback only fires when freq is in-band.
 _BCAST_AM_LO_HZ = 530e3
 _BCAST_AM_HI_HZ = 1710e3
@@ -637,6 +648,18 @@ def classifier_loop(cfg, conn):
     else:
         LOG.warning("multimon module import unavailable: %s", _MULTIMON_IMPORT_ERROR)
 
+    # PR #33 — same for dump1090.
+    if _DUMP1090_AVAILABLE and _dump1090 is not None:
+        LOG.info("dump1090 layer: binary=%s enabled=%s",
+                 "present" if _dump1090.is_available() else "MISSING",
+                 _dump1090.is_enabled())
+        try:
+            _dump1090._write_stats()
+        except Exception:
+            pass
+    else:
+        LOG.warning("dump1090 module import unavailable: %s", _DUMP1090_IMPORT_ERROR)
+
     seen_count = 0; classified_count = 0; last_log = time.time()
 
     while not _STOP:
@@ -864,6 +887,24 @@ def classifier_loop(cfg, conn):
                                     meta["freq_hz"] / 1e6, _mmle)
                         multimon_match_dict = None
 
+                # PR #33 — dump1090 ADS-B decode at 1090 MHz. A decoded
+                # aircraft (ICAO + flight + altitude) wins ahead of everything
+                # (no DB covers ADS-B). Invoked only for the 1090 MHz band.
+                # Module never raises.
+                dump1090_match_dict: dict | None = None
+                if (_DUMP1090_AVAILABLE and _dump1090 is not None
+                        and _dump1090.is_available() and _dump1090.is_enabled()
+                        and _dump1090.is_adsb_band(meta["freq_hz"])):
+                    try:
+                        dump1090_match_dict = _dump1090.lookup_dump1090(
+                            slice_path,
+                            meta["freq_hz"],
+                        )
+                    except Exception as _d1le:
+                        LOG.warning("dump1090 lookup raised at %.6f MHz: %s",
+                                    meta["freq_hz"] / 1e6, _d1le)
+                        dump1090_match_dict = None
+
                 # PR B — fingerprint the slice's spectral + temporal features
                 # against the curated catalog. Only fires when HPDB/CDBS
                 # both returned empty (the fingerprint layer in the trust
@@ -904,6 +945,7 @@ def classifier_loop(cfg, conn):
                             rtl433_match=rtl433_match_dict,
                             rtl433_priority=rtl433_priority,
                             multimon_match=multimon_match_dict,
+                            dump1090_match=dump1090_match_dict,
                             uls_match=uls_match,
                             signature_match=sig_match_dict,
                         )

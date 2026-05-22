@@ -16,6 +16,8 @@ Layer order (first hit wins):
        (only when rtl433_priority — classic-ISM sub-ranges, PR #31)
   0b  multimon-ng page decode (PAGING priority)   → high source=multimon
        (only for paging-band slices that decoded a page, PR #32)
+  0c  dump1090 ADS-B decode (1090 MHz priority)   → high source=dump1090
+       (only for 1090 MHz slices that decoded an aircraft, PR #33)
   A   HPDB exact-freq match           → confidence=high   source=hpdb
   B   CDBS exact-freq match           → confidence=high   source=cdbs
   B2  rtl_433 device decode (ISM fallback) → high source=rtl_433
@@ -59,6 +61,7 @@ SOURCE_HPDB = "hpdb"
 SOURCE_CDBS = "cdbs"
 SOURCE_RTL433 = "rtl_433"           # PR #30 — rtl_433 device decode (ISM bands)
 SOURCE_MULTIMON = "multimon"        # PR #32 — multimon-ng page decode (paging)
+SOURCE_DUMP1090 = "dump1090"        # PR #33 — dump1090 ADS-B decode (1090 MHz)
 SOURCE_ULS = "uls"
 SOURCE_SIGNATURE = "signature"     # reserved for PR B fingerprinter
 SOURCE_BAND_PLAN = "band_plan"
@@ -70,6 +73,7 @@ _VALID_SOURCE = {
     SOURCE_CDBS,
     SOURCE_RTL433,
     SOURCE_MULTIMON,
+    SOURCE_DUMP1090,
     SOURCE_ULS,
     SOURCE_SIGNATURE,
     SOURCE_BAND_PLAN,
@@ -207,6 +211,7 @@ def build_identification(
     rtl433_match: Optional[dict] = None,
     rtl433_priority: bool = False,
     multimon_match: Optional[dict] = None,
+    dump1090_match: Optional[dict] = None,
     uls_match: Optional[dict] = None,
     signature_match: Optional[dict] = None,
 ) -> IdentificationResult:
@@ -260,6 +265,20 @@ def build_identification(
             service=str(multimon_match.get("device_name") or "Paging page"),
             confidence=CONFIDENCE_HIGH,
             source=SOURCE_MULTIMON,
+            band_name=band_name,
+            evidence=evidence,
+        )
+
+    # Step 0c (PR #33): ADS-B priority. At 1090 MHz a dump1090 aircraft
+    # decode (ICAO + flight + altitude) is a definitive identification — no
+    # licensee/curated DB covers ADS-B — so it wins ahead of everything.
+    # The classifier only passes dump1090_match for 1090 MHz slices.
+    if dump1090_match:
+        evidence["dump1090_match"] = dict(dump1090_match)
+        return IdentificationResult(
+            service=str(dump1090_match.get("device_name") or "ADS-B aircraft"),
+            confidence=CONFIDENCE_HIGH,
+            source=SOURCE_DUMP1090,
             band_name=band_name,
             evidence=evidence,
         )
