@@ -780,31 +780,46 @@ def classifier_loop(cfg, conn):
                     except Exception:
                         pass
 
-                # PR #30 — rtl_433 device decode for ISM-band slices. Sits
-                # above the signature fingerprint in the trust hierarchy: a
-                # decoded device packet is a definitive protocol-level ID.
-                # Gated identically to the signature layer (only when HPDB+CDBS
-                # missed) plus an ISM-band check, so the subprocess only runs
-                # where it can plausibly help. The module never raises — a
-                # missing binary, disabled flag, timeout, or garbage output
-                # all return None and we fall through to the signature layer.
+                # rtl_433 device decode. Two modes (PR #30 + PR #31):
+                #   - CLASSIC-ISM priority (PR #31): in a dedicated ISM
+                #     sub-range, invoke rtl_433 FIRST and let a decoded device
+                #     win ahead of HPDB/CDBS/ULS. Invoked regardless of the DB
+                #     matches so it can override them.
+                #   - general-ISM fallback (PR #30): elsewhere in the ISM
+                #     bands, invoke only when HPDB+CDBS missed; rtl_433 then
+                #     slots between CDBS and the signature layer.
+                #   - 915-920 MHz amateur window: never invoked, so amateur
+                #     ULS wins.
+                # The module never raises — a missing binary, disabled flag,
+                # timeout, or garbage output all return None and we fall
+                # through to the existing chain unchanged.
                 rtl433_match_dict: dict | None = None
-                if (hpdb_match is None and cdbs_match is None
-                        and _RTL433_AVAILABLE and _rtl433 is not None
-                        and _rtl433.is_ism_band(meta["freq_hz"])
+                rtl433_priority = False
+                if (_RTL433_AVAILABLE and _rtl433 is not None
                         and _rtl433.is_available() and _rtl433.is_enabled()):
-                    try:
-                        rtl433_match_dict = _rtl433.lookup_rtl433(
-                            slice_path,
-                            meta["freq_hz"],
-                            sample_rate_hz=slice_rate,
-                        )
-                    except Exception as _r4le:
-                        # Defense in depth — the module already swallows all
-                        # exceptions, but never let it break classification.
-                        LOG.warning("rtl_433 lookup raised at %.6f MHz: %s",
-                                    meta["freq_hz"] / 1e6, _r4le)
-                        rtl433_match_dict = None
+                    _f = meta["freq_hz"]
+                    _do_lookup = False
+                    if _rtl433.is_amateur_33cm(_f):
+                        _do_lookup = False  # protect amateur ULS
+                    elif _rtl433.is_in_classic_ism(_f):
+                        _do_lookup = True
+                        rtl433_priority = True
+                    elif (_rtl433.is_ism_band(_f)
+                            and hpdb_match is None and cdbs_match is None):
+                        _do_lookup = True
+                    if _do_lookup:
+                        try:
+                            rtl433_match_dict = _rtl433.lookup_rtl433(
+                                slice_path,
+                                _f,
+                                sample_rate_hz=slice_rate,
+                            )
+                        except Exception as _r4le:
+                            # Defense in depth — the module already swallows
+                            # all exceptions, but never break classification.
+                            LOG.warning("rtl_433 lookup raised at %.6f MHz: %s",
+                                        _f / 1e6, _r4le)
+                            rtl433_match_dict = None
 
                 # PR B — fingerprint the slice's spectral + temporal features
                 # against the curated catalog. Only fires when HPDB/CDBS
@@ -844,12 +859,26 @@ def classifier_loop(cfg, conn):
                             hpdb_match=hpdb_match,
                             cdbs_match=cdbs_match,
                             rtl433_match=rtl433_match_dict,
+                            rtl433_priority=rtl433_priority,
                             uls_match=uls_match,
                             signature_match=sig_match_dict,
                         )
                     except Exception as _ide:
                         LOG.warning("build_identification failed at %.6f MHz: %s",
                                     meta["freq_hz"] / 1e6, _ide)
+
+                # PR #31 — surface the priority override for debugging: when a
+                # classic-ISM rtl_433 decode displaced a DB layer that would
+                # otherwise have matched, log which one it beat.
+                if (ident is not None and rtl433_priority
+                        and ident.source == "rtl_433"):
+                    _displaced = ("hpdb" if hpdb_match else
+                                  "cdbs" if cdbs_match else
+                                  "uls" if uls_match else None)
+                    if _displaced is not None:
+                        LOG.info("[rtl_433] freq=%.4f ISM_PRIORITY_OVERRIDE — "
+                                 "used rtl_433 instead of %s",
+                                 meta["freq_hz"] / 1e6, _displaced)
 
                 # Legacy uls_* fields kept for back-compat with the dashboard's
                 # existing /api/strongest SQL and any third-party consumers.

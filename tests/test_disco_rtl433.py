@@ -229,5 +229,92 @@ class ClassifierGateLogicTests(unittest.TestCase):
             self.assertFalse(rtl433.is_ism_band(f))
 
 
+class ClassicIsmRangeTests(unittest.TestCase):
+    """PR #31 — classic-ISM sub-range + amateur-window predicates."""
+
+    def test_classic_ism_centers(self):
+        for f in (315.0e6, 433.92e6, 868.0e6, 903.0e6, 910.0e6, 925.0e6):
+            self.assertTrue(rtl433.is_in_classic_ism(f), f"{f} should be classic-ISM")
+
+    def test_amateur_window_excluded_from_classic(self):
+        # 915-920 MHz is deliberately NOT classic-ISM.
+        for f in (915.5e6, 917.0e6, 919.9e6):
+            self.assertFalse(rtl433.is_in_classic_ism(f), f"{f} must not be classic-ISM")
+            self.assertTrue(rtl433.is_amateur_33cm(f), f"{f} should be amateur window")
+
+    def test_amateur_predicate_bounds(self):
+        self.assertTrue(rtl433.is_amateur_33cm(915.0e6))
+        self.assertFalse(rtl433.is_amateur_33cm(920.0e6))   # upper edge → classic
+        self.assertFalse(rtl433.is_amateur_33cm(914.9e6))   # just below → classic
+        self.assertTrue(rtl433.is_in_classic_ism(914.9e6))
+        self.assertTrue(rtl433.is_in_classic_ism(920.0e6))
+
+    def test_non_ism_not_classic(self):
+        for f in (162.55e6, 460.0e6, 98.5e6):
+            self.assertFalse(rtl433.is_in_classic_ism(f))
+            self.assertFalse(rtl433.is_amateur_33cm(f))
+
+
+class Rtl433PriorityTrustHierarchyTests(unittest.TestCase):
+    """PR #31 — rtl433_priority=True makes rtl_433 win ahead of HPDB/CDBS/ULS."""
+
+    def _match(self):
+        return {"device_name": "Acurite-606TX (id 4815)", "device_id": "4815",
+                "metadata": {"model": "Acurite-606TX"}, "confidence": 0.9}
+
+    def test_priority_beats_uls_at_classic_ism(self):
+        # 903 MHz classic-ISM: rtl_433 device decode wins over an amateur ULS.
+        r = identification.build_identification(
+            modulation_class="unclassified", modulation_confidence=0.0,
+            snr_db=20.0, band_name="ISM_915",
+            rtl433_match=self._match(), rtl433_priority=True,
+            uls_match={"callsign": "AA0JE", "source": "amateur"},
+        )
+        self.assertEqual(identification.SOURCE_RTL433, r.source)
+        self.assertEqual(identification.CONFIDENCE_HIGH, r.confidence)
+        self.assertIn("Acurite-606TX", r.service)
+        self.assertTrue(r.evidence.get("rtl433_priority"))
+
+    def test_priority_beats_hpdb(self):
+        r = identification.build_identification(
+            modulation_class="FM_NARROW", modulation_confidence=0.8, snr_db=22.0,
+            rtl433_match=self._match(), rtl433_priority=True,
+            hpdb_match={"source_table": "conventional", "alpha_tag": "X"},
+        )
+        self.assertEqual(identification.SOURCE_RTL433, r.source)
+
+    def test_priority_no_match_falls_through_to_uls(self):
+        # Classic-ISM but rtl_433 returned nothing → chain proceeds, ULS wins.
+        r = identification.build_identification(
+            modulation_class="unclassified", modulation_confidence=0.0,
+            snr_db=20.0, band_name="ISM_915",
+            rtl433_match=None, rtl433_priority=True,
+            uls_match={"callsign": "AA0JE", "source": "amateur"},
+        )
+        self.assertEqual(identification.SOURCE_ULS, r.source)
+
+    def test_amateur_window_uls_wins_no_priority(self):
+        # 915.5 MHz: classifier would NOT set priority (and would not invoke
+        # rtl_433 at all). Simulate that — no rtl433_match, priority False —
+        # and confirm ULS wins.
+        r = identification.build_identification(
+            modulation_class="unclassified", modulation_confidence=0.0,
+            snr_db=20.0, band_name="ISM_915",
+            rtl433_match=None, rtl433_priority=False,
+            uls_match={"callsign": "AA0JE", "source": "amateur"},
+        )
+        self.assertEqual(identification.SOURCE_ULS, r.source)
+
+    def test_non_priority_match_still_below_hpdb_cdbs(self):
+        # PR #30 fallback path unchanged: non-priority rtl_433 defers to CDBS.
+        r = identification.build_identification(
+            modulation_class="FM_BROADCAST", modulation_confidence=0.85,
+            snr_db=30.0,
+            cdbs_match={"callsign": "WPLN-FM", "entity_name": "NPR"},
+            rtl433_match=self._match(), rtl433_priority=False,
+        )
+        self.assertEqual(identification.SOURCE_CDBS, r.source)
+
+
 if __name__ == "__main__":
     unittest.main()

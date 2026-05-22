@@ -45,20 +45,37 @@ replay yield proves too low (see *Known limitations*).
 ### Where it sits in the trust hierarchy
 
 ```
-A   HPDB exact-freq match        → high      (curated)
-B   CDBS exact-freq match        → high      (curated)
-B2  rtl_433 device decode (ISM)  → high      ← NEW
-B3  spectral signature match     → high/med
-C/D ULS licensee                 → medium
-E   ML class in band             → low
-F/G band-rejected / NOISE        → spurious
+0   rtl_433 device decode (CLASSIC-ISM)  → high   ← PR #31, runs FIRST
+A   HPDB exact-freq match                → high   (curated)
+B   CDBS exact-freq match                → high   (curated)
+B2  rtl_433 device decode (ISM fallback) → high   ← PR #30
+B3  spectral signature match             → high/med
+C/D ULS licensee                         → medium
+E   ML class in band                     → low
+F/G band-rejected / NOISE                → spurious
 ```
 
-rtl_433 outranks the generic spectral signature and ULS (a decoded packet
-is a definitive protocol-level ID) but **defers to the curated HPDB/CDBS
-databases**. It is only invoked when HPDB **and** CDBS both miss **and** the
-frequency is in an ISM band — so the subprocess never runs where it can't
-help.
+**PR #31 — classic-ISM priority.** In a dedicated ISM sub-range (315 /
+433.92 / 868 MHz, and 902–915 + 920–928 MHz), a decoded device packet is
+the most informative identification available — more useful than a
+licensee/curated-DB lookup — so rtl_433 runs **first** and a decode wins
+ahead of HPDB/CDBS/ULS. Such an override logs
+`[rtl_433] freq=<MHz> ISM_PRIORITY_OVERRIDE — used rtl_433 instead of <layer>`.
+
+**Amateur protection.** The 915–920 MHz amateur-concentration window is
+deliberately excluded from the classic ranges, and rtl_433 is **never
+invoked there** — so amateur ULS hits (e.g. a 33 cm ham licensee) still win.
+
+**General-ISM fallback (PR #30).** Outside the classic sub-ranges (and the
+amateur window), rtl_433 runs as a lower-priority layer between CDBS and the
+signature, invoked only when HPDB **and** CDBS both miss — it defers to the
+curated databases there.
+
+Known trade-off: a classic-ISM frequency that happens to host a ham
+licensee (e.g. 903.0 MHz, AA0JE) will have rtl_433 tried first; if rtl_433
+decodes a device the device label wins, otherwise the ULS amateur label
+still shows. Accepted because classic-ISM device IDs are usually the more
+interesting answer there.
 
 ## Do-no-harm guarantees
 
