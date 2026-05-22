@@ -88,8 +88,10 @@ signatures:
     confidence_weight: 0.85
     allowed_bands:
       - MARINE_VHF
+      - VHF_LMR_MID
       - MARINE_VHF_HIGH
-    notes: "Maritime mobile. Not common inland but watch for harbor/inland-waterway use."
+      - VHF_LMR_LAST
+    notes: "Maritime mobile, 156–162 MHz. Channels interleave the band-plan's MARINE_VHF / MARINE_VHF_HIGH allocations with VHF_LMR_MID / VHF_LMR_LAST, so all four are in scope. Not common inland but watch for harbor/inland-waterway use."
 
   # ============================================================
   # GMRS / FRS / MURS — VHF + UHF narrow FM
@@ -104,9 +106,7 @@ signatures:
     confidence_weight: 0.8
     allowed_bands:
       - VHF_LMR_LOW
-      - VHF_LMR_MID
-      - MARINE_VHF
-    notes: "MURS channels (5 freqs: 151.820, 151.880, 151.940, 154.570, 154.600 MHz). Straddles VHF_LMR_LOW/MID and clips MARINE_VHF on the high end."
+    notes: "MURS channels (5 freqs: 151.820, 151.880, 151.940, 154.570, 154.600 MHz). All five fall in VHF_LMR_LOW (150.8–156 MHz)."
 
   - name: "GMRS / FRS"
     freq_min_hz: 462000000
@@ -118,8 +118,7 @@ signatures:
     confidence_weight: 0.85
     allowed_bands:
       - UHF_LMR_HIGH
-      - UHF_LMR_454
-    notes: "GMRS/FRS narrowband. 462.5500–462.7250 main channels, 467.x for repeaters."
+    notes: "GMRS/FRS narrowband. 462.5500–462.7250 main channels, 467.x for repeaters — all in UHF_LMR_HIGH (460–470 MHz)."
 
   # ============================================================
   # FM broadcast — 87.9–108 MHz, 200 kHz wide
@@ -193,8 +192,7 @@ signatures:
     confidence_weight: 0.85
     allowed_bands:
       - PS_800_NARROW
-      - LMR_800
-    notes: "800 MHz PS narrowband. HPDB usually gives the specific system."
+    notes: "800 MHz PS narrowband, 851–869 MHz = PS_800_NARROW. HPDB usually gives the specific system."
 
   - name: "Public Safety (700 MHz narrowband)"
     freq_min_hz: 762000000
@@ -221,9 +219,7 @@ signatures:
     confidence_weight: 0.8
     allowed_bands:
       - LTE_LOWER_700
-      - LTE_UPPER_700
-      - PS_700_BROADBAND
-    notes: "T-Mobile / AT&T 700 MHz LTE. Downlink-only — uplink lives at 698-716 MHz."
+    notes: "T-Mobile / AT&T 700 MHz LTE downlink, 728–757 MHz — all within the band-plan's LTE_LOWER_700 (698–758 MHz). Uplink lives at 698-716 MHz."
 
   - name: "LTE Band 13 (Verizon 700 MHz)"
     freq_min_hz: 746000000
@@ -234,9 +230,8 @@ signatures:
     duty_cycle: continuous
     confidence_weight: 0.85
     allowed_bands:
-      - LTE_UPPER_700
-      - LTE_D_700
-    notes: "Verizon LTE upper-C block downlink, 10 MHz channels."
+      - LTE_LOWER_700
+    notes: "Verizon LTE upper-C block downlink, 746–756 MHz. This falls in the band-plan's LTE_LOWER_700 (698–758 MHz) — the prior LTE_UPPER_700/LTE_D_700 scope (775–799 MHz) never overlapped this entry's freq range, so it could never match. 10 MHz channels."
 
   - name: "Cellular (Cellular Band, 850 MHz)"
     freq_min_hz: 869000000
@@ -261,7 +256,9 @@ signatures:
     shape: narrow_carrier
     duty_cycle: bursty
     confidence_weight: 0.7
-    notes: "Garage door openers, tire-pressure sensors, weather stations, cheap RF remotes."
+    allowed_bands:
+      - AMATEUR_70CM
+    notes: "Garage door openers, tire-pressure sensors, weather stations, cheap RF remotes. The 433.05–434.79 MHz ISM segment sits inside the band-plan's AMATEUR_70CM allocation (420–450 MHz)."
 
   # ============================================================
   # ISM 902–928 MHz — LoRa, FHSS pagers, smart-meter, generic 915
@@ -320,7 +317,8 @@ signatures:
     allowed_bands:
       - TV_UHF_LOW
       - TV_UHF_MID
-    notes: "Theatrical / broadcast wireless mics. Operate in the TV UHF gaps (Part 74)."
+      - TV_UHF_HIGH
+    notes: "Theatrical / broadcast wireless mics. Operate in the vacant TV UHF channels across 470–698 MHz (Part 74), so TV_UHF_LOW/MID/HIGH are all in scope. RADIO_ASTRONOMY (608–614) is excluded — mics avoid the protected guard band."
 
   # ============================================================
   # Amateur — VHF/UHF narrow FM, repeaters mostly
@@ -402,7 +400,7 @@ signatures:
   # DMR — 12.5 kHz 4FSK, commercial + amateur
   # ============================================================
   - name: "DMR / Mototrbo"
-    freq_min_hz: 420000000
+    freq_min_hz: 144000000
     freq_max_hz: 470000000
     bandwidth_3db_hz_min: 9000
     bandwidth_3db_hz_max: 13000
@@ -410,17 +408,25 @@ signatures:
     duty_cycle: bursty
     confidence_weight: 0.7
     allowed_bands:
+      - GOV_VHF_148
+      - VHF_LMR_LOW
+      - VHF_LMR_MID
+      - VHF_LMR_LAST
+      - GOV_VHF_HIGH
+      - AMATEUR_2M
+      - AMATEUR_125
+      - GOV_UHF_LOW
       - AMATEUR_70CM
       - UHF_LMR_LOW
       - UHF_LMR_454
       - UHF_LMR_HIGH
-    notes: "DMR is 4FSK so shape may render as fsk_two_tone in spectral view. Commercial business + amateur."
+    notes: "DMR is 4FSK so shape may render as fsk_two_tone in spectral view. Commercial business + amateur, deployed across the VHF and UHF LMR allocations (150–470 MHz). Band scope excludes the protected sub-bands (marine, NOAA, TV, military, aviation). 700/800 MHz trunked DMR is normally caught by HPDB before this layer."
 
   # ============================================================
   # NXDN — 6.25 or 12.5 kHz 4-level FSK
   # ============================================================
   - name: "NXDN (6.25 kHz)"
-    freq_min_hz: 150000000
+    freq_min_hz: 144000000
     freq_max_hz: 470000000
     bandwidth_3db_hz_min: 4500
     bandwidth_3db_hz_max: 7000
@@ -428,15 +434,19 @@ signatures:
     duty_cycle: bursty
     confidence_weight: 0.6
     allowed_bands:
+      - GOV_VHF_148
       - VHF_LMR_LOW
       - VHF_LMR_MID
       - VHF_LMR_LAST
+      - GOV_VHF_HIGH
+      - AMATEUR_2M
+      - AMATEUR_125
+      - GOV_UHF_LOW
+      - AMATEUR_70CM
       - UHF_LMR_LOW
       - UHF_LMR_454
       - UHF_LMR_HIGH
-      - AMATEUR_2M
-      - AMATEUR_70CM
-    notes: "Very narrow 4FSK. Some commercial + utility users."
+    notes: "Very narrow 4FSK, commercial + utility + gov land-mobile across the VHF/UHF LMR allocations between 150–470 MHz. Excludes the protected sub-bands inside that range (marine, NOAA, TV, military, aviation) where NXDN does not operate."
 
   # ============================================================
   # Railroad — VHF NFM 159.81–161.565 MHz, 25 kHz
@@ -451,8 +461,8 @@ signatures:
     confidence_weight: 0.8
     allowed_bands:
       - VHF_LMR_MID
-      - VHF_LMR_LAST
-    notes: "AAR railroad band. CSX/NS rail lines."
+      - MARINE_VHF_HIGH
+    notes: "AAR railroad band 159.81–161.565 MHz. The AAR channels above 160.6 MHz fall in the band-plan's MARINE_VHF_HIGH allocation (160.6–161.575), so both VHF_LMR_MID and MARINE_VHF_HIGH are in scope. CSX/NS rail lines."
 
   # ============================================================
   # CB radio — 26.965–27.405 MHz, 10 kHz AM (largely defunct
