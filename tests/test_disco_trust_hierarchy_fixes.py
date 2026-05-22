@@ -156,10 +156,19 @@ class CatalogScopeWalkTests(unittest.TestCase):
     showed live-data over-firing in the bug report."""
 
     def setUp(self) -> None:
-        path = Path(__file__).resolve().parents[1] / "disco" / "configs" / "service_signatures.yaml"
-        with open(path) as f:
+        cfg = Path(__file__).resolve().parents[1] / "disco" / "configs"
+        with open(cfg / "service_signatures.yaml") as f:
             self.catalog = yaml.safe_load(f)["signatures"]
         self.by_name = {e["name"]: e for e in self.catalog}
+        with open(cfg / "us_band_plan.yaml") as f:
+            self.band_ranges = [
+                (b["name"], b["freq_min_hz"], b["freq_max_hz"])
+                for b in yaml.safe_load(f)["bands"]
+            ]
+
+    def _spans_any_band(self, entry) -> bool:
+        fmin, fmax = entry["freq_min_hz"], entry["freq_max_hz"]
+        return any(not (hi <= fmin or lo >= fmax) for (_, lo, hi) in self.band_ranges)
 
     def test_wide_fm_generic_scoped_to_bcast_fm_only(self):
         entry = self.by_name["Wide FM (generic)"]
@@ -208,18 +217,22 @@ class CatalogScopeWalkTests(unittest.TestCase):
                             "AVIATION_VOICE", "AMATEUR_2M"):
             self.assertIn(must_forbid, forbidden)
 
-    def test_almost_all_entries_have_band_scope(self):
-        """Catch any new catalog entry shipped without band scope. Only
-        entries operating outside the band-plan's covered range
-        (AM Broadcast / ISM 433 / CB at 27 MHz) are exempt."""
-        unscoped_allowed = {"AM Broadcast", "ISM 433 MHz (OOK remote)", "CB radio (27 MHz AM)"}
+    def test_entries_in_band_plan_range_have_scope(self):
+        """Any entry whose frequency range overlaps the band plan must carry
+        band scope (allowed_bands or forbidden_bands). Entries operating
+        entirely outside the plan's covered range (HF, microwave — e.g. WSPR,
+        Inmarsat, GPS L1) are exempt: the freq range alone gates them, and
+        there is no band name to scope to. This is band-plan-aware rather than
+        a hardcoded whitelist so new catalog additions are checked
+        automatically."""
         for entry in self.catalog:
-            if entry["name"] in unscoped_allowed:
-                continue
+            if not self._spans_any_band(entry):
+                continue  # out of band-plan range — unscoped is correct
             has_scope = bool(entry.get("allowed_bands")) or bool(entry.get("forbidden_bands"))
             with self.subTest(name=entry["name"]):
                 self.assertTrue(has_scope,
-                                f"{entry['name']!r} missing allowed_bands/forbidden_bands")
+                                f"{entry['name']!r} overlaps the band plan but "
+                                f"is missing allowed_bands/forbidden_bands")
 
 
 # ---- Bug 2 — tier logic for unclassified-in-real-band --------------------
