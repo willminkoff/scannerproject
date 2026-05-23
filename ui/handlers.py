@@ -157,7 +157,6 @@ try:
     from .diagnostic import write_diagnostic_log
     from .spectrum import get_spectrum_bins, spectrum_to_json, start_spectrum
     from .system_stats import get_system_stats, read_bt_audio_heal_status
-    from .zip_lookup import nearest_zip as _nearest_zip
     from .vlc import start_vlc, stop_vlc, vlc_running, vlc_status
     from .digital import (
         get_digital_manager,
@@ -825,20 +824,6 @@ def _last_travel_push_receipt() -> dict[str, Any] | None:
     except Exception:
         logger.debug("travel push log read failed", exc_info=True)
         return None
-
-
-# PR #35 — Owntracks adapter counters. In-process; surfaced via /api/status.
-# A simple dict (no lock) is acceptable here — increments are integer adds,
-# and the loss tolerance for a status counter is high.
-_OWNTRACKS_STATS: dict[str, Any] = {
-    "invocations_total": 0,
-    "pushes_accepted_total": 0,
-    "pushes_rejected_total": 0,
-    "last_push_ts": 0.0,
-    "last_lat": None,
-    "last_lon": None,
-    "last_battery_pct": None,
-}
 
 
 def _log_travel_push(record: dict[str, Any]) -> None:
@@ -3713,14 +3698,6 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 payload["dongle_power"] = "unknown"
                 payload["dongle_schedule"] = {}
-            # PR #35 — Owntracks adapter counters.
-            payload["owntracks_invocations_total"] = int(_OWNTRACKS_STATS["invocations_total"])
-            payload["owntracks_pushes_accepted_total"] = int(_OWNTRACKS_STATS["pushes_accepted_total"])
-            payload["owntracks_pushes_rejected_total"] = int(_OWNTRACKS_STATS["pushes_rejected_total"])
-            payload["owntracks_last_push_ts"] = float(_OWNTRACKS_STATS["last_push_ts"] or 0.0)
-            payload["owntracks_last_lat"] = _OWNTRACKS_STATS["last_lat"]
-            payload["owntracks_last_lon"] = _OWNTRACKS_STATS["last_lon"]
-            payload["owntracks_last_battery_pct"] = _OWNTRACKS_STATS["last_battery_pct"]
             with _CACHE_LOCK:
                 _STATUS_CACHE["ts"] = now_monotonic
                 _STATUS_CACHE["payload"] = dict(payload)
@@ -4377,178 +4354,6 @@ class Handler(BaseHTTPRequestHandler):
                     "lat": state.lat,
                     "lon": state.lon,
                     "source": str(form.get("source") or "").strip(),
-                }
-            )
-            return self._send(
-                200,
-                json.dumps(
-                    {
-                        "ok": True,
-                        "zip": state.zip,
-                        "lat": state.lat,
-                        "lon": state.lon,
-                        "updated_at": updated_at,
-                        "favorites_runtime_sync": save_payload.get("favorites_runtime_sync"),
-                    }
-                ),
-                "application/json; charset=utf-8",
-            )
-
-        if p == "/api/hp/owntracks":
-            # PR #35 — Owntracks iOS app adapter. Same TAILNET-ONLY-TRUSTED
-            # security posture as /api/hp/location/push: no auth, safe only
-            # because the UI binds to a Tailscale-only interface. >>> DO NOT
-            # expose port 5050 publicly without re-adding auth. <<<
-            #
-            # Owntracks publishes multiple message types over HTTP/MQTT:
-            #   _type=location   — periodic GPS push (the one we route)
-            #   _type=lwt        — last-will/ping (no action)
-            #   _type=transition — geofence entry/exit (no action)
-            #   _type=waypoint   — user-defined POI (no action)
-            #   _type=…          — anything else (no action)
-            # We ack non-location types 200 so the iOS app doesn't retry.
-            _OWNTRACKS_STATS["invocations_total"] += 1
-
-            mtype = str(form.get("_type") or "").strip().lower()
-            if mtype != "location":
-                logger.info("Owntracks: ignored _type=%s tid=%s",
-                            mtype or "(none)", form.get("tid"))
-                return self._send(
-                    200,
-                    json.dumps({"ok": True, "ignored": mtype or "no _type"}),
-                    "application/json; charset=utf-8",
-                )
-
-            lat_raw = form.get("lat")
-            lon_raw = form.get("lon")
-            if lat_raw is None or lon_raw is None:
-                _OWNTRACKS_STATS["pushes_rejected_total"] += 1
-                return self._send(
-                    400,
-                    json.dumps({"ok": False, "error": "missing lat/lon"}),
-                    "application/json; charset=utf-8",
-                )
-            try:
-                lat_f = float(lat_raw)
-                lon_f = float(lon_raw)
-            except (TypeError, ValueError):
-                _OWNTRACKS_STATS["pushes_rejected_total"] += 1
-                return self._send(
-                    400,
-                    json.dumps({"ok": False, "error": "invalid lat/lon"}),
-                    "application/json; charset=utf-8",
-                )
-            if not (-90.0 <= lat_f <= 90.0 and -180.0 <= lon_f <= 180.0):
-                _OWNTRACKS_STATS["pushes_rejected_total"] += 1
-                return self._send(
-                    400,
-                    json.dumps({"ok": False, "error": "lat/lon out of range"}),
-                    "application/json; charset=utf-8",
-                )
-
-            try:
-                zip_resolved = _nearest_zip(lat_f, lon_f)
-            except Exception:
-                zip_resolved = ""
-            if not zip_resolved:
-                _OWNTRACKS_STATS["pushes_rejected_total"] += 1
-                return self._send(
-                    400,
-                    json.dumps(
-                        {"ok": False,
-                         "error": "could not resolve nearest US ZIP "
-                                  "(outside US coverage or index missing)"}
-                    ),
-                    "application/json; charset=utf-8",
-                )
-
-            try:
-                state = HPState.load()
-            except Exception as e:
-                _OWNTRACKS_STATS["pushes_rejected_total"] += 1
-                return self._send(
-                    500,
-                    json.dumps({"ok": False, "error": str(e)}),
-                    "application/json; charset=utf-8",
-                )
-
-            # Gate on the same Travel Mode flag as /api/hp/location/push.
-            if not state.travel_mode_enabled:
-                _OWNTRACKS_STATS["pushes_rejected_total"] += 1
-                rejected_at = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-                _log_travel_push(
-                    {
-                        "ts": rejected_at,
-                        "accepted": False,
-                        "reason": "travel_mode_disabled",
-                        "zip": zip_resolved,
-                        "lat": lat_f,
-                        "lon": lon_f,
-                        "source": "owntracks",
-                    }
-                )
-                return self._send(
-                    409,
-                    json.dumps({"ok": False, "reason": "travel_mode_disabled"}),
-                    "application/json; charset=utf-8",
-                )
-
-            # Build the internal payload and route through the shared push
-            # helpers. Reuses _apply_travel_push / _save_hp_state_with_sync
-            # exactly — no special-case for Owntracks beyond the reverse
-            # geocode and source tag.
-            internal = {
-                "zip": zip_resolved,
-                "lat": lat_f,
-                "lon": lon_f,
-                "source": "owntracks",
-            }
-            try:
-                _apply_travel_push(state, internal)
-            except ValueError as e:
-                _OWNTRACKS_STATS["pushes_rejected_total"] += 1
-                return self._send(
-                    400,
-                    json.dumps({"ok": False, "error": str(e)}),
-                    "application/json; charset=utf-8",
-                )
-
-            try:
-                save_payload = _save_hp_state_with_sync(state)
-            except Exception as e:
-                _OWNTRACKS_STATS["pushes_rejected_total"] += 1
-                return self._send(
-                    500,
-                    json.dumps({"ok": False, "error": str(e)}),
-                    "application/json; charset=utf-8",
-                )
-
-            now_ts = time.time()
-            updated_at = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-            _OWNTRACKS_STATS["pushes_accepted_total"] += 1
-            _OWNTRACKS_STATS["last_push_ts"] = now_ts
-            _OWNTRACKS_STATS["last_lat"] = lat_f
-            _OWNTRACKS_STATS["last_lon"] = lon_f
-            batt_raw = form.get("batt")
-            try:
-                _OWNTRACKS_STATS["last_battery_pct"] = (
-                    int(batt_raw) if batt_raw is not None else None
-                )
-            except (TypeError, ValueError):
-                _OWNTRACKS_STATS["last_battery_pct"] = None
-
-            _log_travel_push(
-                {
-                    "ts": updated_at,
-                    "accepted": True,
-                    "zip": state.zip,
-                    "lat": state.lat,
-                    "lon": state.lon,
-                    "source": "owntracks",
-                    "owntracks_tid": str(form.get("tid") or "").strip(),
-                    "owntracks_acc_m": form.get("acc"),
-                    "owntracks_vel_kmh": form.get("vel"),
-                    "owntracks_battery_pct": _OWNTRACKS_STATS["last_battery_pct"],
                 }
             )
             return self._send(
