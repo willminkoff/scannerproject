@@ -165,34 +165,29 @@
       transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
     }
 
-    /* OFF — at home, quiet and neutral. */
-    .travel-mode-btn[data-travel="off"] {
+    /* PR #36 — button is now a one-tap location-refresh action, not a
+       toggle. Two visual states: "ready" (idle, neutral) and "busy"
+       (in-flight GPS + save). */
+    .travel-mode-btn[data-travel="ready"] {
       background: transparent;
       color: var(--text-secondary);
       border: 1px solid var(--border);
     }
 
-    .travel-mode-btn[data-travel="off"]:hover {
+    .travel-mode-btn[data-travel="ready"]:hover {
       color: var(--text-primary);
       border-color: var(--text-secondary);
     }
 
-    /* ON — traveling, hard to miss. Orange/amber so it stands out
-       against both the teal and red accent themes. */
-    .travel-mode-btn[data-travel="on"] {
+    .travel-mode-btn[data-travel="busy"] {
       background: #f59e0b;
       color: #1a0f00;
       border: 1px solid #f59e0b;
       box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25);
     }
 
-    .travel-mode-btn[data-travel="on"]:hover {
-      background: #fbbf24;
-      border-color: #fbbf24;
-    }
-
     .travel-mode-btn[disabled] {
-      opacity: 0.5;
+      opacity: 0.6;
       cursor: wait;
     }
 
@@ -2839,8 +2834,8 @@
         DISCO
       </button>
       <div class="travel-mode-group" id="travel-mode-group">
-        <button class="travel-mode-btn" id="btn-travel-mode" type="button" data-travel="off" aria-pressed="false" title="Toggle Travel Mode (accepts iPhone location pushes when ON)">
-          Travel: OFF
+        <button class="travel-mode-btn" id="btn-travel-mode" type="button" data-travel="ready" title="Refresh scanner location to your current GPS position (mirrors the sidecar's 'Use Current Location + Apply' action)">
+          📍 Refresh Location
         </button>
         <span class="travel-mode-meta">
           <span class="zip" id="travel-mode-zip">ZIP: --</span>
@@ -15499,17 +15494,15 @@
     }
 
     function renderTravelMode(payload) {
-      const btn = document.getElementById('btn-travel-mode');
+      // PR #36 — button is now a one-tap "refresh location" action that
+      // mirrors the sidecar's "Use Current Location + Apply" flow. The
+      // travel_mode_enabled toggle is no longer driven from this surface;
+      // we just display the current ZIP and the last push timestamp.
       const zipEl = document.getElementById('travel-mode-zip');
       const lastEl = document.getElementById('travel-mode-last-push');
-      if (!btn || !zipEl || !lastEl) return;
-
+      if (!zipEl || !lastEl) return;
       const stateBlock = (payload && payload.state) || {};
-      const enabled = Boolean(stateBlock.travel_mode_enabled);
       const zip = String(stateBlock.zip || '').trim() || '--';
-      btn.setAttribute('data-travel', enabled ? 'on' : 'off');
-      btn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
-      btn.textContent = enabled ? 'Travel: ON' : 'Travel: OFF';
       zipEl.textContent = 'ZIP: ' + zip;
 
       const last = payload && payload.travel_mode_last_push;
@@ -15522,7 +15515,7 @@
             lastEl.classList.add('rejected');
             lastEl.textContent = 'Last push REJECTED ' + rel + ' (' + source + ')';
           } else {
-            lastEl.textContent = 'Last push ' + rel + ' from ' + source;
+            lastEl.textContent = 'Last refresh ' + rel + ' from ' + source;
           }
           return;
         }
@@ -15541,40 +15534,47 @@
       }
     }
 
-    async function toggleTravelMode() {
+    // PR #36 — one-tap location refresh from the SB3 main display. Runs
+    // the exact same chain the sidecar's "Use Current Location + Apply"
+    // button uses (autoLocateHpFiltersPanel), so the scanner reallocates
+    // to the user's current ZIP without going through the iOS-Shortcut /
+    // travel_mode_enabled gate.
+    //
+    // Pipeline (all functions already defined elsewhere in this file):
+    //   resolveCurrentLocationForHpFilters   browser GPS → IP fallback
+    //   resolveLocationDetailsForHpFilters   reverse-geocode → ZIP/county
+    //   saveHpFiltersPanel(...)              POST /api/scan/state
+    //
+    // We don't reimplement any of that — calling autoLocateHpFiltersPanel
+    // keeps the two surfaces (top-bar button + sidecar button) in lock-step
+    // so any future change to the sidecar flow is picked up here for free.
+    async function fetchAndPushLocation() {
       const btn = document.getElementById('btn-travel-mode');
       if (!btn) return;
-      const currentlyOn = btn.getAttribute('data-travel') === 'on';
-      const target = !currentlyOn;
-      const confirmMsg = target
-        ? 'Turn Travel Mode ON? iPhone pushes will start moving the scanner ZIP.'
-        : 'Turn Travel Mode OFF? iPhone pushes will be rejected. ' +
-          'Current ZIP stays as-is — use the sidecar Location screen to change it manually.';
-      if (!window.confirm(confirmMsg)) return;
+      if (state.hpFilters.locating || state.hpFilters.saving) return;
+      const originalText = btn.textContent;
       btn.disabled = true;
+      btn.setAttribute('data-travel', 'busy');
+      btn.textContent = '⏳ Refreshing…';
       try {
-        const response = await fetch('/api/hp/travel_mode/toggle', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ enabled: target }),
-        });
-        if (!response.ok) {
-          const text = await response.text();
-          window.alert('Travel mode toggle failed: HTTP ' + response.status + '\n' + text);
-          return;
-        }
-        await refreshTravelModeState();
+        await autoLocateHpFiltersPanel();
       } catch (err) {
-        window.alert('Travel mode toggle failed: ' + (err && err.message ? err.message : err));
+        window.alert('Location refresh failed: ' + (err && err.message ? err.message : err));
       } finally {
         btn.disabled = false;
+        btn.setAttribute('data-travel', 'ready');
+        btn.textContent = originalText || '📍 Refresh Location';
+        // Pull fresh ZIP + last-push receipt from the backend so the meta
+        // display reflects the new state immediately rather than waiting
+        // for the next polling tick.
+        refreshTravelModeState();
       }
     }
 
     function setupTravelMode() {
       const btn = document.getElementById('btn-travel-mode');
       if (!btn) return;
-      btn.addEventListener('click', toggleTravelMode);
+      btn.addEventListener('click', fetchAndPushLocation);
       refreshTravelModeState();
       setInterval(refreshTravelModeState, TRAVEL_MODE_REFRESH_MS);
     }
