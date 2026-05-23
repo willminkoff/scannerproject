@@ -165,18 +165,33 @@
       transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
     }
 
-    /* PR #36 — button is now a one-tap location-refresh action, not a
-       toggle. Two visual states: "ready" (idle, neutral) and "busy"
-       (in-flight GPS + save). */
+    /* PR #37 — button is a one-tap location refresh whose ON/OFF visual
+       reflects PUSH FRESHNESS (was a toggle in pre-#36, was label-only in
+       #36). Recent push (within ~60 min) → "on" (green-ish). Stale or
+       never → "off" (neutral). In-flight → "busy" (amber). The post-click
+       "success"/"error" states flash for ~1.5 s, then fade back to the
+       freshness-driven on/off. */
+    .travel-mode-btn[data-travel="off"],
     .travel-mode-btn[data-travel="ready"] {
       background: transparent;
       color: var(--text-secondary);
       border: 1px solid var(--border);
     }
 
+    .travel-mode-btn[data-travel="off"]:hover,
     .travel-mode-btn[data-travel="ready"]:hover {
       color: var(--text-primary);
       border-color: var(--text-secondary);
+    }
+
+    .travel-mode-btn[data-travel="on"] {
+      background: rgba(16, 185, 129, 0.18);
+      color: var(--good);
+      border: 1px solid var(--good);
+    }
+
+    .travel-mode-btn[data-travel="on"]:hover {
+      background: rgba(16, 185, 129, 0.28);
     }
 
     .travel-mode-btn[data-travel="busy"] {
@@ -184,6 +199,22 @@
       color: #1a0f00;
       border: 1px solid #f59e0b;
       box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25);
+    }
+
+    .travel-mode-btn[data-travel="success"] {
+      background: var(--good);
+      color: #00180f;
+      border: 1px solid var(--good);
+      box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.35);
+      transition: background-color 200ms ease, color 200ms ease;
+    }
+
+    .travel-mode-btn[data-travel="error"] {
+      background: var(--bad);
+      color: #1a0707;
+      border: 1px solid var(--bad);
+      box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.35);
+      transition: background-color 200ms ease, color 200ms ease;
     }
 
     .travel-mode-btn[disabled] {
@@ -2834,8 +2865,8 @@
         DISCO
       </button>
       <div class="travel-mode-group" id="travel-mode-group">
-        <button class="travel-mode-btn" id="btn-travel-mode" type="button" data-travel="ready" title="Refresh scanner location to your current GPS position (mirrors the sidecar's 'Use Current Location + Apply' action)">
-          📍 Refresh Location
+        <button class="travel-mode-btn" id="btn-travel-mode" type="button" data-travel="off" title="Click to refresh scanner location to your current GPS. ON = a push landed in the last hour; OFF = stale or never. (Travel Mode is enabled transparently so the push goes through.)">
+          Travel: OFF
         </button>
         <span class="travel-mode-meta">
           <span class="zip" id="travel-mode-zip">ZIP: --</span>
@@ -15478,6 +15509,11 @@
 
     const TRAVEL_MODE_REFRESH_MS = 60000;
     const TRAVEL_PUSH_VISIBLE_WINDOW_MS = 24 * 60 * 60 * 1000;
+    // PR #37 — "Travel: ON" means a push landed within this many ms.
+    const TRAVEL_PUSH_FRESH_WINDOW_MS = 60 * 60 * 1000;  // 60 min
+    // Success / error post-click flash duration before the button settles
+    // back to the freshness-driven on/off state.
+    const TRAVEL_PUSH_FLASH_MS = 1500;
 
     function formatRelativeTime(ts) {
       if (!ts) return '';
@@ -15494,18 +15530,36 @@
     }
 
     function renderTravelMode(payload) {
-      // PR #36 — button is now a one-tap "refresh location" action that
-      // mirrors the sidecar's "Use Current Location + Apply" flow. The
-      // travel_mode_enabled toggle is no longer driven from this surface;
-      // we just display the current ZIP and the last push timestamp.
+      // PR #37 — Travel Mode button is a one-tap location refresh whose
+      // ON/OFF visual is driven by PUSH FRESHNESS (a push landed within
+      // TRAVEL_PUSH_FRESH_WINDOW_MS), not by the travel_mode_enabled flag.
+      // While a click is in flight ("busy"/"success"/"error") the click
+      // handler owns the button's appearance — we leave it alone here and
+      // only refresh the meta line.
+      const btn = document.getElementById('btn-travel-mode');
       const zipEl = document.getElementById('travel-mode-zip');
       const lastEl = document.getElementById('travel-mode-last-push');
-      if (!zipEl || !lastEl) return;
+      if (!btn || !zipEl || !lastEl) return;
+      const inFlight = (function () {
+        const s = btn.getAttribute('data-travel');
+        return s === 'busy' || s === 'success' || s === 'error';
+      })();
+
       const stateBlock = (payload && payload.state) || {};
       const zip = String(stateBlock.zip || '').trim() || '--';
       zipEl.textContent = 'ZIP: ' + zip;
 
       const last = payload && payload.travel_mode_last_push;
+      const lastTs = (last && typeof last === 'object') ? Date.parse(last.ts) : NaN;
+      const fresh = Number.isFinite(lastTs)
+        && last.accepted !== false
+        && (Date.now() - lastTs) <= TRAVEL_PUSH_FRESH_WINDOW_MS;
+
+      if (!inFlight) {
+        btn.setAttribute('data-travel', fresh ? 'on' : 'off');
+        btn.textContent = fresh ? 'Travel: ON' : 'Travel: OFF';
+      }
+
       lastEl.classList.remove('rejected');
       if (last && typeof last === 'object') {
         const rel = formatRelativeTime(last.ts);
@@ -15534,41 +15588,83 @@
       }
     }
 
-    // PR #36 — one-tap location refresh from the SB3 main display. Runs
-    // the exact same chain the sidecar's "Use Current Location + Apply"
-    // button uses (autoLocateHpFiltersPanel), so the scanner reallocates
-    // to the user's current ZIP without going through the iOS-Shortcut /
-    // travel_mode_enabled gate.
+    // PR #37 — one-tap "refresh my scanner location" from the SB3 main
+    // display. Replaces the pre-#36 toggle and the #36 sidecar-delegation.
+    // The chain matches the user spec exactly: get browser GPS (with IP
+    // fallback), reverse-geocode to a ZIP, transparently enable Travel
+    // Mode if it was off, then POST through /api/hp/location/push so the
+    // receipt log captures it — that's what drives the button's ON/OFF
+    // freshness indicator on the next render.
     //
-    // Pipeline (all functions already defined elsewhere in this file):
-    //   resolveCurrentLocationForHpFilters   browser GPS → IP fallback
-    //   resolveLocationDetailsForHpFilters   reverse-geocode → ZIP/county
-    //   saveHpFiltersPanel(...)              POST /api/scan/state
-    //
-    // We don't reimplement any of that — calling autoLocateHpFiltersPanel
-    // keeps the two surfaces (top-bar button + sidecar button) in lock-step
-    // so any future change to the sidecar flow is picked up here for free.
+    // The first two helpers are the SAME functions the sidecar's "Use
+    // Current Location + Apply" button uses, so the GPS / IP-fallback /
+    // reverse-geocode behavior stays in lock-step with the sidecar.
     async function fetchAndPushLocation() {
       const btn = document.getElementById('btn-travel-mode');
       if (!btn) return;
-      if (state.hpFilters.locating || state.hpFilters.saving) return;
+      if (btn.disabled) return;
       const originalText = btn.textContent;
       btn.disabled = true;
       btn.setAttribute('data-travel', 'busy');
       btn.textContent = '⏳ Refreshing…';
-      try {
-        await autoLocateHpFiltersPanel();
-      } catch (err) {
-        window.alert('Location refresh failed: ' + (err && err.message ? err.message : err));
-      } finally {
+      const restoreFromFreshness = () => {
         btn.disabled = false;
-        btn.setAttribute('data-travel', 'ready');
-        btn.textContent = originalText || '📍 Refresh Location';
-        // Pull fresh ZIP + last-push receipt from the backend so the meta
-        // display reflects the new state immediately rather than waiting
-        // for the next polling tick.
         refreshTravelModeState();
+      };
+      try {
+        const loc = await resolveCurrentLocationForHpFilters();
+        const lat = Number(loc && loc.lat);
+        const lon = Number(loc && loc.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+          throw new Error('Could not determine current location.');
+        }
+        let zip = String((loc && loc.zip) || '').trim();
+        if (!zip) {
+          const details = await resolveLocationDetailsForHpFilters(lat, lon);
+          zip = String((details && details.zip) || '').trim();
+        }
+        if (!zip) {
+          throw new Error('Could not resolve a ZIP for the current location.');
+        }
+        // Transparently enable Travel Mode — the push endpoint is gated on
+        // it. Idempotent: a no-op if already ON. Failures here are
+        // non-fatal — if the toggle is somehow rejected, the push below
+        // will surface the real error.
+        try {
+          await fetch('/api/hp/travel_mode/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: true }),
+          });
+        } catch (_) { /* fall through to the push */ }
+        // The actual push. Source tag identifies this click in the
+        // receipt log so Will can tell SB3-button pushes apart from
+        // iOS-Shortcut or Owntracks pushes.
+        const pushResp = await fetch('/api/hp/location/push', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ zip, lat, lon, source: 'sb3_button' }),
+        });
+        if (!pushResp.ok) {
+          let detail = '';
+          try { detail = (await pushResp.text()).slice(0, 200); } catch (_) {}
+          throw new Error('Push HTTP ' + pushResp.status + (detail ? ': ' + detail : ''));
+        }
+        btn.setAttribute('data-travel', 'success');
+        btn.textContent = '✓ Updated';
+        setTimeout(restoreFromFreshness, TRAVEL_PUSH_FLASH_MS);
+      } catch (err) {
+        btn.setAttribute('data-travel', 'error');
+        btn.textContent = '✗ Failed';
+        const msg = err && err.message ? err.message : String(err);
+        // Console log instead of an alert — the visual flash is the user-
+        // facing signal; the console message is for debugging.
+        try { console.error('Travel mode refresh failed:', msg); } catch (_) {}
+        setTimeout(restoreFromFreshness, TRAVEL_PUSH_FLASH_MS);
       }
+      // (No finally — the setTimeout above is the only path that re-enables
+      // the button + restores the freshness-driven state, so the flash is
+      // visible for the full TRAVEL_PUSH_FLASH_MS regardless of outcome.)
     }
 
     function setupTravelMode() {
