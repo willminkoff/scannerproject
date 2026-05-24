@@ -10,6 +10,7 @@ from unittest import mock
 from ui import digital
 from ui.op25_adapter import (
     Op25Adapter,
+    _canonical_site_order,
     _flatten_active_runtime_systems,
     _hydrate_runtime_systems_for_config,
     _iso_utc,
@@ -121,6 +122,32 @@ class RuntimeNormalizationTests(unittest.TestCase):
                 "/home/ubuntu/.local/state/scannerproject/op25/site_selector_state.json",
                 _selector_state_path("/run/scannerproject/op25"),
             )
+
+    def test_canonical_site_order_prefers_closer_site_over_larger_radius(self):
+        # Mirrors the NJICS travel scenario from Sea Isle City NJ:
+        # STR I Trailer is 70 miles north with an 85-mile radius;
+        # Cape May County Simulcast is 6 miles away with a 17-mile radius.
+        # Previously radius was the primary sort key, so the larger-radius
+        # (and more distant) site won the initial survey.  After the fix,
+        # the geographically-closer site is surveyed first.
+        rows = [
+            {"site_id": "26838", "site_name": "STR I Trailer", "radius": 85.0, "distance_miles": 70.2},
+            {"site_id": "21557", "site_name": "Cape May County Simulcast", "radius": 17.0, "distance_miles": 5.5},
+        ]
+        ordered = _canonical_site_order(rows)
+        self.assertEqual("21557", ordered[0]["site_id"])
+        self.assertEqual("26838", ordered[1]["site_id"])
+
+    def test_canonical_site_order_falls_back_to_radius_when_distance_unknown(self):
+        # When distance_miles is missing (no user location available), the
+        # larger-radius site wins as a coverage hint.
+        rows = [
+            {"site_id": "small", "site_name": "Small", "radius": 17.0},
+            {"site_id": "wide", "site_name": "Wide", "radius": 85.0},
+        ]
+        ordered = _canonical_site_order(rows)
+        self.assertEqual("wide", ordered[0]["site_id"])
+        self.assertEqual("small", ordered[1]["site_id"])
 
     def test_legacy_profile_normalizes_to_synthetic_site(self):
         with tempfile.TemporaryDirectory() as tmp:

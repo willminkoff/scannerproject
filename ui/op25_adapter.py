@@ -771,11 +771,19 @@ def _candidate_state_defaults(site: dict[str, Any]) -> dict[str, Any]:
 
 
 def _canonical_site_order(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    # Sort by distance first (closer = better) so geographically-nearest sites
+    # are surveyed before wider-radius alternatives.  Radius is the tiebreaker
+    # when distance is unknown (returns +inf via _site_distance_sort_value) or
+    # equal, in which case a larger radius is preferred as a coverage hint.
+    # Prior order put radius first, which biased toward wide-area / simulcast
+    # sites even when a much-closer dedicated site was reachable — e.g. a
+    # 17-mile-radius site 6 miles away losing to an 85-mile-radius site
+    # 70 miles away during initial survey.
     return sorted(
         [row for row in rows if isinstance(row, dict)],
         key=lambda row: (
-            -_site_radius_sort_value(row.get("radius")),
             _site_distance_sort_value(row.get("distance_miles")),
+            -_site_radius_sort_value(row.get("radius")),
             str(row.get("site_name") or "").strip().lower(),
             str(row.get("site_id") or "").strip().lower(),
         ),
