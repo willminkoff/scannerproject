@@ -3,10 +3,13 @@
 ## SB3 (Micro) — Primary Deploy Target
 
 - Host: `micro` (Dell OptiPlex Micro 7020, via Tailscale)
-- SSH: `root@micro` (Tailscale SSH)
+- Tailscale IP: `100.67.20.40`
+- SSH: `ubuntu@100.67.20.40` (Tailscale SSH; previously documented as `root@micro`)
 - User/path: `/home/ubuntu/scannerproject`
 - Service: `airband-ui`
-- No git on Micro — deploy via rsync
+- Micro has a working git checkout — both `git pull` and rsync are valid deploy paths.
+  rsync is recommended for in-flight hot-fixes (don't pollute history). `git pull`
+  is the canonical path for landing already-committed changes.
 
 ### Deploy to Micro (One-Command)
 ```bash
@@ -32,6 +35,43 @@ ssh root@micro "systemctl is-active airband-ui && curl -s http://localhost:5050/
 ```bash
 rsync -avz -e ssh scripts/ root@micro:/home/ubuntu/scannerproject/scripts/ --exclude='__pycache__' --exclude='*.pyc'
 ```
+
+### Pulling commits that untrack runtime files (GOTCHA)
+
+When origin lands a commit that runs `git rm --cached` on a file that Micro
+*is currently writing to at runtime* (e.g. `profiles/rtl_airband_*.conf`,
+`profiles/managed_analog_controls.json`, `disco/configs/sweep.yaml`), a
+naive `git pull` on Micro will either:
+
+1. **Abort** with "Your local changes would be overwritten by merge" if the
+   working tree is dirty (very common — the UI rewrites these files on
+   every slider tap), or
+2. **Silently delete the working-tree file** if you first ran
+   `git checkout HEAD -- <file>` to discard the dirt. Pull then sees an
+   unmodified tracked-file being untracked and removes it from disk.
+
+Hit case (2) on 2026-05-24 — the cleanup deleted all 27 runtime profile
+configs on Micro before the airband-ui could rewrite them. rtl-airband
+kept running with cached in-memory state but a service restart would have
+failed. Recovery: `git checkout <previous-commit> -- <files>` then
+`git reset HEAD -- <files>` to put them back on disk as Untracked.
+
+**Correct sequence** for pulling an untrack-commit cleanly onto Micro:
+
+```bash
+ssh ubuntu@100.67.20.40 'cd /home/ubuntu/scannerproject && \
+    sudo git rm --cached <same files the commit untracks> 2>/dev/null; \
+    sudo git pull --ff-only origin main'
+```
+
+The local `git rm --cached` matches the commit's index change, so the pull
+is a no-op for those files — working-tree contents stay intact. After the
+pull, `git status` will show them as Untracked + ignored, which is the
+intended steady state.
+
+**Alternative** (when you forget): `git stash --include-untracked` *before*
+pulling preserves the dirt; you can drop the stash afterward since the
+files are now gitignored and the runtime will rewrite them anyway.
 
 ---
 
