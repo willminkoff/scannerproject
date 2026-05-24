@@ -5982,6 +5982,73 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
             return self._send(200, json.dumps({"ok": True, "path": path}), "application/json; charset=utf-8")
 
+        if p == "/api/ask-claude":
+            try:
+                try:
+                    from .claude_ask import ask as claude_ask
+                except ImportError:
+                    from ui.claude_ask import ask as claude_ask
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": f"claude_ask import failed: {e}"}),
+                    "application/json; charset=utf-8",
+                )
+            question = str(form.get("question") or "").strip()
+            if not question:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "missing question"}),
+                    "application/json; charset=utf-8",
+                )
+            session_id = str(form.get("session_id") or "").strip() or None
+            include_status_raw = form.get("include_status")
+            include_status = True
+            if include_status_raw is not None:
+                include_status = str(include_status_raw).strip().lower() not in (
+                    "0",
+                    "false",
+                    "no",
+                    "off",
+                )
+            result = claude_ask(
+                question,
+                session_id=session_id,
+                include_status=include_status,
+            )
+            status_code = 200 if result.get("ok") else 500
+            return self._send(
+                status_code,
+                json.dumps(result),
+                "application/json; charset=utf-8",
+            )
+
+        if p == "/api/ask-claude/reset":
+            try:
+                try:
+                    from .claude_ask import reset_session
+                except ImportError:
+                    from ui.claude_ask import reset_session
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": f"claude_ask import failed: {e}"}),
+                    "application/json; charset=utf-8",
+                )
+            session_id = str(form.get("session_id") or "").strip()
+            if not session_id:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "missing session_id"}),
+                    "application/json; charset=utf-8",
+                )
+            removed = reset_session(session_id)
+            return self._send(
+                200,
+                json.dumps({"ok": True, "removed": bool(removed)}),
+                "application/json; charset=utf-8",
+            )
+
         return self._send(404, json.dumps({"ok": False, "error": "not found"}), "application/json; charset=utf-8")
 
     def log_message(self, format, *args):

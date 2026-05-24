@@ -2469,6 +2469,104 @@
       gap: 6px;
     }
 
+    .ask-claude-panel {
+      display: grid;
+      gap: 10px;
+      margin-top: 4px;
+    }
+    .ask-claude-panel.hidden { display: none; }
+    .ask-claude-history {
+      background: #0b0f14;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      max-height: 360px;
+      overflow: auto;
+      display: grid;
+      gap: 12px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .ask-claude-hint {
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-style: italic;
+    }
+    .ask-claude-turn {
+      display: grid;
+      gap: 8px;
+      padding: 8px 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .ask-claude-turn:first-child { border-top: none; padding-top: 0; }
+    .ask-claude-turn .q,
+    .ask-claude-turn .a {
+      display: grid;
+      gap: 4px;
+    }
+    .ask-claude-turn .label {
+      font-size: 10px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+    }
+    .ask-claude-turn .q .label { color: var(--accent, #5eead4); }
+    .ask-claude-turn .a .body {
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: "SFMono-Regular", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+    }
+    .ask-claude-turn .meta {
+      font-size: 10px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+    .ask-claude-turn.error .a .body {
+      color: #f87171;
+    }
+    .ask-claude-input-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: end;
+    }
+    .ask-claude-input-row textarea {
+      width: 100%;
+      background: #0b0f14;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 13px;
+      resize: vertical;
+      min-height: 44px;
+    }
+    .ask-claude-actions {
+      display: grid;
+      gap: 6px;
+      grid-template-columns: 1fr 1fr;
+    }
+    .ask-claude-status {
+      font-size: 11px;
+      color: var(--text-secondary);
+      min-height: 14px;
+    }
+    .ask-claude-status.error { color: #f87171; }
+    .ask-claude-status.busy { color: var(--accent, #5eead4); }
+    .btn-link {
+      background: transparent;
+      border: none;
+      color: var(--accent, #5eead4);
+      font-size: 11px;
+      cursor: pointer;
+      padding: 2px 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .btn-link:hover { text-decoration: underline; }
+
     .log-row {
       display: flex;
       align-items: baseline;
@@ -3731,6 +3829,31 @@
               <div>Baseline <b id="latency-test-baseline">0.000</b></div>
               <div>Latency <b id="latency-test-latency">--</b></div>
             </div>
+          </div>
+        </div>
+
+        <div class="sitrep-card grid-full">
+          <div class="sitrep-card-title">
+            <span>Ask Claude</span>
+            <button class="btn-link" id="ask-claude-toggle" type="button" aria-expanded="false" aria-controls="ask-claude-panel">Open</button>
+          </div>
+          <div class="ask-claude-panel hidden" id="ask-claude-panel">
+            <div class="ask-claude-history" id="ask-claude-history" aria-live="polite">
+              <div class="ask-claude-hint">Ask anything about scanner state, configuration, or behavior. Multi-turn — follow-ups carry context. Each question includes a fresh /api/status snapshot so Claude can answer "what's up with X" directly.</div>
+            </div>
+            <div class="ask-claude-input-row">
+              <textarea
+                id="ask-claude-input"
+                placeholder="e.g. why is airband silent on 124.6 when 126.7 had signal?"
+                rows="2"
+                autocomplete="off"
+                spellcheck="false"></textarea>
+              <div class="ask-claude-actions">
+                <button class="action" id="ask-claude-send" type="button">Ask</button>
+                <button class="action" id="ask-claude-reset" type="button" title="Drop conversation history and start fresh">New</button>
+              </div>
+            </div>
+            <div class="ask-claude-status" id="ask-claude-status"></div>
           </div>
         </div>
 
@@ -15730,6 +15853,180 @@
       // visible for the full TRAVEL_PUSH_FLASH_MS regardless of outcome.)
     }
 
+    // ----- Ask Claude panel -----
+    // Backend: POST /api/ask-claude  { question, session_id?, include_status? }
+    //          POST /api/ask-claude/reset  { session_id }
+    // Subprocess wraps `claude -p` on Micro.  Multi-turn via session_id.
+    const ASK_CLAUDE_SESSION_KEY = 'sb3.askClaude.sessionId';
+    const ASK_CLAUDE_TIMEOUT_MS = 200000;
+    let askClaudeBusy = false;
+
+    function setupAskClaude() {
+      const toggleBtn = document.getElementById('ask-claude-toggle');
+      const panel = document.getElementById('ask-claude-panel');
+      const sendBtn = document.getElementById('ask-claude-send');
+      const resetBtn = document.getElementById('ask-claude-reset');
+      const input = document.getElementById('ask-claude-input');
+      if (!toggleBtn || !panel || !sendBtn || !resetBtn || !input) return;
+
+      toggleBtn.addEventListener('click', () => {
+        const open = panel.classList.toggle('hidden');
+        const expanded = !open; // hidden==open-was-true means now closed
+        toggleBtn.textContent = open ? 'Open' : 'Close';
+        toggleBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        if (!open) {
+          // Focus input when opening
+          setTimeout(() => input.focus(), 50);
+        }
+      });
+
+      sendBtn.addEventListener('click', () => submitAskClaude());
+      resetBtn.addEventListener('click', () => resetAskClaude());
+      input.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' && (ev.metaKey || ev.ctrlKey)) {
+          ev.preventDefault();
+          submitAskClaude();
+        }
+      });
+    }
+
+    function askClaudeSessionId() {
+      try { return localStorage.getItem(ASK_CLAUDE_SESSION_KEY) || ''; }
+      catch (_) { return ''; }
+    }
+    function setAskClaudeSessionId(id) {
+      try {
+        if (id) localStorage.setItem(ASK_CLAUDE_SESSION_KEY, String(id));
+        else localStorage.removeItem(ASK_CLAUDE_SESSION_KEY);
+      } catch (_) {}
+    }
+
+    function askClaudeSetStatus(text, kind) {
+      const el = document.getElementById('ask-claude-status');
+      if (!el) return;
+      el.textContent = text || '';
+      el.classList.remove('busy', 'error');
+      if (kind === 'busy') el.classList.add('busy');
+      else if (kind === 'error') el.classList.add('error');
+    }
+
+    function askClaudeAppendTurn({question, answer, elapsedMs, error}) {
+      const history = document.getElementById('ask-claude-history');
+      if (!history) return;
+      // Clear hint on first real turn
+      const hint = history.querySelector('.ask-claude-hint');
+      if (hint) hint.remove();
+
+      const turn = document.createElement('div');
+      turn.className = 'ask-claude-turn' + (error ? ' error' : '');
+
+      const qEl = document.createElement('div');
+      qEl.className = 'q';
+      qEl.innerHTML = '<div class="label">You</div>';
+      const qBody = document.createElement('div');
+      qBody.className = 'body';
+      qBody.textContent = question;
+      qEl.appendChild(qBody);
+
+      const aEl = document.createElement('div');
+      aEl.className = 'a';
+      aEl.innerHTML = '<div class="label">' + (error ? 'Error' : 'Claude') + '</div>';
+      const aBody = document.createElement('div');
+      aBody.className = 'body';
+      aBody.textContent = answer || error || '(no response)';
+      aEl.appendChild(aBody);
+
+      if (typeof elapsedMs === 'number' && elapsedMs >= 0) {
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        meta.textContent = `${(elapsedMs/1000).toFixed(1)}s`;
+        aEl.appendChild(meta);
+      }
+
+      turn.appendChild(qEl);
+      turn.appendChild(aEl);
+      history.appendChild(turn);
+      history.scrollTop = history.scrollHeight;
+    }
+
+    async function submitAskClaude() {
+      if (askClaudeBusy) return;
+      const input = document.getElementById('ask-claude-input');
+      const sendBtn = document.getElementById('ask-claude-send');
+      if (!input || !sendBtn) return;
+      const question = String(input.value || '').trim();
+      if (!question) {
+        askClaudeSetStatus('Type a question first.', 'error');
+        return;
+      }
+      askClaudeBusy = true;
+      sendBtn.disabled = true;
+      sendBtn.textContent = '...';
+      askClaudeSetStatus('Asking Claude... (can take 30-120s for complex questions)', 'busy');
+
+      const startedAt = Date.now();
+      const ctl = new AbortController();
+      const timeout = setTimeout(() => ctl.abort(), ASK_CLAUDE_TIMEOUT_MS);
+      try {
+        const params = new URLSearchParams();
+        params.set('question', question);
+        const sid = askClaudeSessionId();
+        if (sid) params.set('session_id', sid);
+        const resp = await fetch('/api/ask-claude', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: params.toString(),
+          signal: ctl.signal,
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (data && data.session_id) setAskClaudeSessionId(data.session_id);
+        if (data && data.ok) {
+          askClaudeAppendTurn({
+            question,
+            answer: data.answer || '(empty)',
+            elapsedMs: data.elapsed_ms,
+          });
+          input.value = '';
+          const turnCount = data.turn_count || 0;
+          askClaudeSetStatus(`Turn ${turnCount} · ${((data.elapsed_ms||0)/1000).toFixed(1)}s`, '');
+        } else {
+          const err = (data && data.error) || `HTTP ${resp.status}`;
+          askClaudeAppendTurn({question, error: err, elapsedMs: Date.now()-startedAt});
+          askClaudeSetStatus(err, 'error');
+        }
+      } catch (e) {
+        const err = (e && e.name === 'AbortError') ? 'Request timed out (client side).' : String((e && e.message) || e);
+        askClaudeAppendTurn({question, error: err, elapsedMs: Date.now()-startedAt});
+        askClaudeSetStatus(err, 'error');
+      } finally {
+        clearTimeout(timeout);
+        askClaudeBusy = false;
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Ask';
+      }
+    }
+
+    async function resetAskClaude() {
+      const sid = askClaudeSessionId();
+      const history = document.getElementById('ask-claude-history');
+      if (history) {
+        history.innerHTML = '<div class="ask-claude-hint">New conversation. Previous context cleared.</div>';
+      }
+      if (sid) {
+        try {
+          const params = new URLSearchParams();
+          params.set('session_id', sid);
+          await fetch('/api/ask-claude/reset', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: params.toString(),
+          });
+        } catch (_) {}
+      }
+      setAskClaudeSessionId('');
+      askClaudeSetStatus('', '');
+    }
+
     function setupTravelMode() {
       const btn = document.getElementById('btn-travel-mode');
       if (!btn) return;
@@ -15747,6 +16044,7 @@
       state.bandScanReturnProfile = loadBandScanReturnProfiles();
       setupCollapsibleWidgets();
       setupTravelMode();
+      setupAskClaude();
       updateTuneButton();
       setProfileEditorTab('analog');
       refreshProfileEditorOptions();
