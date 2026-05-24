@@ -1364,6 +1364,46 @@ class RecentRegressionTests(unittest.TestCase):
             self.assertEqual("Backup Site", trunked[0].get("site_name"))
             self.assertEqual("Primary Site", trunked[1].get("site_name"))
 
+    def test_filter_favorites_entries_includes_distant_user_favorite(self):
+        # User explicitly favorited a conventional channel whose HPDB system
+        # sits outside their range_miles bubble. Before the fix, the location
+        # filter dropped these even though the user added them to their tile.
+        controller = scan_mode_controller.ScanModeController(db_path="/tmp/hpdb-test.db")
+        state = HPState.default()
+        state.use_location = True
+        state.lat = 39.13
+        state.lon = -74.71
+        state.range_miles = 10.0
+        state.enabled_service_tags = [15]
+        entries = [
+            {
+                "kind": "conventional",
+                "frequency": 124.6,
+                "service_tag": 15,
+                "system_name": "Atlantic City International Airport (ACY)",
+                "alpha_tag": "Approach/Departure",
+            }
+        ]
+
+        out = controller._filter_favorites_entries(entries, state, [15])
+
+        self.assertEqual(1, len(out))
+        self.assertEqual(124.6, out[0]["frequency"])
+
+    def test_filter_favorites_entries_still_applies_service_tag_filter(self):
+        controller = scan_mode_controller.ScanModeController(db_path="/tmp/hpdb-test.db")
+        state = HPState.default()
+        state.use_location = False
+        state.enabled_service_tags = [15]
+        entries = [
+            {"kind": "conventional", "frequency": 124.6, "service_tag": 15},
+            {"kind": "conventional", "frequency": 155.0, "service_tag": 4},
+        ]
+
+        out = controller._filter_favorites_entries(entries, state, [15])
+
+        self.assertEqual([124.6], [row["frequency"] for row in out])
+
     def test_build_custom_favorites_pool_merges_trunked_departments_per_system(self):
         controller = scan_mode_controller.ScanModeController(db_path="/tmp/hpdb-test.db")
         entries = [
