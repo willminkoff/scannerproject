@@ -45,3 +45,18 @@ disco/cdbs/
 *.db
 *.db-shm
 *.db-wal
+
+# Runtime-written profile state.  The airband UI rewrites gain/squelch
+# (look for "# UI_CONTROLLED" markers) on every slider adjustment, and
+# favorites_runtime regenerates rtl_airband_hp3_favorites_*.conf wholesale
+# on every favorite tile tap.  These files diverge from origin on normal
+# use, so we untrack them rather than constantly fight a dirty working
+# tree.  A fresh deploy seeds them via the first profile activation /
+# managed-analog-controls bootstrap; nothing about a clean checkout needs
+# them present.
+profiles/rtl_airband_*.conf
+profiles/managed_analog_controls.json
+profiles/profiles.json
+
+# Runtime-tuned disco sweep config (manual tuning, not source of truth)
+disco/configs/sweep.yaml
