@@ -9880,6 +9880,10 @@
       };
       audioEl.addEventListener('pointerdown', markUserPauseHint);
       audioEl.addEventListener('touchstart', markUserPauseHint, { passive: true });
+      // Native audio controls in Chromium do not always bubble pointerdown/
+      // touchstart from shadow-DOM control buttons; bind click as a fallback
+      // so user pause clicks set the manual-pause hint.
+      audioEl.addEventListener('click', markUserPauseHint);
       audioEl.addEventListener('keydown', (ev) => {
         const key = String(ev && ev.key ? ev.key : '').toLowerCase();
         if (key === ' ' || key === 'k' || key === 'mediaplaypause') {
@@ -9957,7 +9961,19 @@
           return;
         }
         const hintAge = Date.now() - Number(tracker.userPauseHintTs || 0);
-        const manualPause = hintAge <= AUDIO_USER_PAUSE_WINDOW_MS;
+        // For digital with active HLS past the startup grace, any pause is
+        // user-initiated (browser does not pause HLS mid-stream except via
+        // error events, which fire separately).  Native audio controls in
+        // Chromium do not reliably bubble pointer/touch events to the audio
+        // element from shadow-DOM control buttons, leaving userPauseHintTs
+        // stale; without this override the BUFFER_APPENDED handler resumes
+        // playback within ~1s of every user pause click.
+        const hlsDigitalPauseDefinite = (
+          isDigitalAudioElement(audioEl) &&
+          _hlsInstance &&
+          (Date.now() - _hlsAttachTs) >= Number(window.HLS_STARTUP_PAUSE_GRACE_MS_OVERRIDE ?? 1500)
+        );
+        const manualPause = hlsDigitalPauseDefinite || hintAge <= AUDIO_USER_PAUSE_WINDOW_MS;
         if (manualPause) {
           // Only honor manual pause if the stream is still healthy —
           // if Icecast is down, this pause was triggered by the backend
@@ -9970,9 +9986,13 @@
             state.userActivatedEmbedAudio[pauseKind] = false;
             clearEmbeddedRecovery(audioEl);
             setEmbeddedPlayerState(audioEl, 'idle', '');
-            // Tear down HLS instance on manual digital pause
-            if (pauseKind === 'digital' && _hlsInstance) {
-              stopHlsDigital();
+            // For digital + HLS, do NOT destroy the HLS instance: doing so
+            // detaches the audio source and leaves the native play button
+            // greyed out, requiring a page reload to recover.  Setting
+            // wantplay=0 above already prevents the BUFFER_APPENDED handler
+            // from resuming playback; the audio element stays paused.
+            if (pauseKind === 'digital') {
+              _hlsWantPlay = false;
             }
             return;
           }
