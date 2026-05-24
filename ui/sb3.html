@@ -4363,6 +4363,30 @@
       .map((freq) => Number(freq))
       .filter((freq) => Number.isFinite(freq))
       .sort((a, b) => a - b);
+    // Priority-scan pattern for marine: Ch 16 (156.800, distress/calling) is
+    // inserted into the scan rotation every N non-priority freqs, so a full
+    // ~59-channel cycle samples Ch 16 roughly every 4-5 dwells (~0.5s) instead
+    // of once per ~6s rotation.  rtl-airband honours duplicate entries in the
+    // freqs array as additional dwells — this is the documented priority
+    // technique.  See ensureBandScanProfile -> uniqueFrequencyStrings, which
+    // is bypassed via the marine preset's allowDuplicates: true flag.
+    const MARINE_PRIORITY_FREQ_MHZ = 156.800;
+    const MARINE_PRIORITY_INTERVAL = 4;
+    function buildMarinePriorityFrequencies() {
+      const priority = MARINE_PRIORITY_FREQ_MHZ;
+      const others = MARINE_BANDSCAN_FREQS_MHZ.filter(
+        (f) => Math.abs(f - priority) > 1e-4
+      );
+      const result = [];
+      for (let i = 0; i < others.length; i++) {
+        if (i % MARINE_PRIORITY_INTERVAL === 0) {
+          result.push(priority);
+        }
+        result.push(others[i]);
+      }
+      result.push(priority);
+      return result;
+    }
     const CB_40_CHANNELS_MHZ = [
       26.965, 26.975, 26.985, 27.005, 27.015,
       27.025, 27.035, 27.055, 27.065, 27.075,
@@ -4508,9 +4532,14 @@
         modulation: 'nfm',
         bandwidth: 12500,
         // US marine channelized plan (duplex + simplex + AIS), not full 25 kHz sweep.
-        buildFrequencies: () => MARINE_BANDSCAN_FREQS_MHZ.slice(),
-        inactiveTitle: 'Scan Marine VHF band (156-162 MHz)',
-        activeTitle: 'Marine scan active. Tap again to stop.',
+        // Priority-interleaves Ch 16 (156.800) so it is sampled every ~4 dwells
+        // instead of once per full rotation.  allowDuplicates bypasses the
+        // default uniqueFrequencyStrings() dedup so the priority entries
+        // survive into the rtl-airband profile.
+        buildFrequencies: () => buildMarinePriorityFrequencies(),
+        allowDuplicates: true,
+        inactiveTitle: 'Scan Marine VHF band (156-162 MHz, CH 16 priority)',
+        activeTitle: 'Marine scan active (CH 16 priority). Tap again to stop.',
         autoProvision: true,
       },
       {
@@ -14838,7 +14867,21 @@
         return bandScanFreqTextCache.get(key) || '';
       }
       if (typeof preset.buildFrequencies !== 'function') return '';
-      const lines = uniqueFrequencyStrings(preset.buildFrequencies(), 4);
+      const raw = preset.buildFrequencies();
+      let lines;
+      if (preset.allowDuplicates) {
+        // Priority-scan patterns rely on duplicate entries in the freqs
+        // array (rtl-airband samples each entry as a separate dwell).
+        // Preserve order and duplicates; just normalize formatting.
+        lines = [];
+        for (const item of raw || []) {
+          const num = Number(item);
+          if (!Number.isFinite(num)) continue;
+          lines.push(num.toFixed(4));
+        }
+      } else {
+        lines = uniqueFrequencyStrings(raw, 4);
+      }
       const text = lines.join('\n');
       bandScanFreqTextCache.set(key, text);
       return text;
