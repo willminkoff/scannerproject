@@ -35,16 +35,51 @@ EXPECTED_DEVICE_INDICES = {
 }
 
 
+def _iter_struct_chars(text: str, start: int = 0):
+    """Yield (i, ch) pairs for ``text[start:]``, skipping characters
+    inside ``"..."`` string literals.
+
+    rtl-airband config strings legitimately contain ``(``, ``)``, ``{``,
+    and ``}`` (e.g. ``"ZNY Sector 58 Coyle (Ship Bottom RCAG)"``).  Any
+    parser that walks the file for structural brackets must ignore
+    string contents or it will lose track of nesting and return an
+    empty section.  Honors ``\\"`` escapes inside strings.
+    """
+    in_string = False
+    escape = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if escape:
+            escape = False
+            continue
+        if ch == "\\":
+            escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        yield i, ch
+
+
 def _extract_devices_section(text: str) -> str:
     idx = text.find("devices:")
     if idx == -1:
         return ""
-    start = text.find("(", idx)
+    # Find the opening ``(`` for the devices list, skipping any ``(``
+    # that appears inside a string literal between ``devices:`` and the
+    # real opener.  Then walk to the matching close-paren with the same
+    # string-aware iteration.
+    start = -1
+    for i, ch in _iter_struct_chars(text, idx):
+        if ch == "(":
+            start = i
+            break
     if start == -1:
         return ""
     depth = 0
-    for i in range(start, len(text)):
-        ch = text[i]
+    for i, ch in _iter_struct_chars(text, start):
         if ch == "(":
             depth += 1
         elif ch == ")":
@@ -58,7 +93,7 @@ def _split_device_blocks(section: str) -> List[str]:
     blocks = []
     depth = 0
     start = None
-    for i, ch in enumerate(section):
+    for i, ch in _iter_struct_chars(section):
         if ch == "{":
             if depth == 0:
                 start = i

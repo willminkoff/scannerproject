@@ -381,6 +381,45 @@ def unit_active_enter_epoch(unit: str):
         return None
 
 
+def unit_restart_count(unit: str):
+    """Return systemd's ``NRestarts`` counter for *unit*, or ``None``.
+
+    ``NRestarts`` is monotonic over the unit's lifetime (since systemd
+    daemon-reload).  Sampling deltas over a sliding window lets callers
+    detect crash-loops that would otherwise be hidden behind the
+    happens-to-be-active glitch where ``systemctl is-active`` returns
+    ``active`` during the brief execution window of each restart cycle.
+    """
+    def parse_count(result):
+        if result.returncode != 0:
+            return None
+        val = (result.stdout or "").strip()
+        if not val.lstrip("-").isdigit():
+            return None
+        try:
+            return int(val)
+        except Exception:
+            return None
+
+    try:
+        result = _run_systemctl(["show", "-p", "NRestarts", "--value", unit], use_sudo=False)
+        count = parse_count(result)
+        if count is not None:
+            return count
+        detail = f"{result.stdout or ''}\n{result.stderr or ''}".lower()
+        needs_sudo = (
+            "interactive authentication required" in detail
+            or "access denied" in detail
+            or "permission denied" in detail
+        )
+        if not needs_sudo:
+            return None
+        result = _run_systemctl(["show", "-p", "NRestarts", "--value", unit], use_sudo=True)
+        return parse_count(result)
+    except Exception:
+        return None
+
+
 def restart_rtl() -> Tuple[bool, str]:
     """Restart the rtl-airband scanner."""
     return _restart_unit(UNITS["rtl"], use_sudo=True)

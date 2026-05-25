@@ -396,6 +396,17 @@ _STATUS_CACHE: dict[str, object] = {"ts": 0.0, "payload": None}
 _HITS_CACHE: dict[str, object] = {"ts": 0.0, "payload": None}
 _UNIT_ACTIVE_CACHE: dict[str, tuple[float, bool]] = {}
 _UNIT_EXISTS_CACHE: dict[str, tuple[float, bool]] = {}
+
+# Sliding-window samples of (NRestarts, monotonic_ts) per unit, used by
+# _unit_restart_loop_state() to detect crash-loops behind the
+# happens-to-be-active glitch.  Tunables exposed via env vars below.
+_UNIT_RESTART_SAMPLES: dict[str, list[tuple[int, float]]] = {}
+RTL_RESTART_LOOP_WINDOW_SEC = max(15, int(os.getenv("RTL_RESTART_LOOP_WINDOW_SEC", "60")))
+RTL_RESTART_LOOP_THRESHOLD = max(2, int(os.getenv("RTL_RESTART_LOOP_THRESHOLD", "3")))
+RTL_RESTART_SAMPLE_RETAIN_SEC = max(
+    RTL_RESTART_LOOP_WINDOW_SEC + 30,
+    int(os.getenv("RTL_RESTART_SAMPLE_RETAIN_SEC", "180")),
+)
 _LATENCY_TONE_LOCK = threading.Lock()
 _LATENCY_TONE_PROC: subprocess.Popen | None = None
 _LATENCY_TONE_STATE: dict[str, Any] = {
@@ -1967,6 +1978,66 @@ def _unit_exists_cached(unit: str) -> bool:
     with _CACHE_LOCK:
         _UNIT_EXISTS_CACHE[unit] = (now, value)
     return value
+
+
+def _unit_restart_loop_state(unit: str) -> dict[str, Any]:
+    """Sample systemd's NRestarts for *unit* and detect crash-loops.
+
+    Maintains a per-unit ring of (count, timestamp) samples; on each
+    call adds a fresh sample and prunes any entry older than
+    ``RTL_RESTART_SAMPLE_RETAIN_SEC``.  The "loop detected" flag fires
+    when the delta between the newest and the oldest in-window sample
+    is at or above ``RTL_RESTART_LOOP_THRESHOLD`` restarts within
+    ``RTL_RESTART_LOOP_WINDOW_SEC`` seconds.
+
+    Returns a dict shaped for direct inclusion in /api/status:
+      - ``count``            : current NRestarts (int or None)
+      - ``window_sec``       : configured window
+      - ``threshold``        : configured restart threshold
+      - ``window_restarts``  : restarts observed within window
+      - ``loop_detected``    : bool
+    """
+    try:
+        from .systemd import unit_restart_count
+    except ImportError:  # pragma: no cover - test/dev fallback
+        from ui.systemd import unit_restart_count  # type: ignore[no-redef]
+
+    current = unit_restart_count(unit)
+    now = time.monotonic()
+    window_sec = float(RTL_RESTART_LOOP_WINDOW_SEC)
+    retain_sec = float(RTL_RESTART_SAMPLE_RETAIN_SEC)
+    threshold = int(RTL_RESTART_LOOP_THRESHOLD)
+    window_restarts = 0
+    loop_detected = False
+
+    if current is not None:
+        with _CACHE_LOCK:
+            samples = _UNIT_RESTART_SAMPLES.setdefault(unit, [])
+            samples.append((int(current), now))
+            cutoff = now - retain_sec
+            # Drop samples outside the retain window (keep a little more
+            # than the detection window so brand-new samples can still
+            # find an older baseline to subtract from).
+            _UNIT_RESTART_SAMPLES[unit] = [
+                (c, t) for (c, t) in samples if t >= cutoff
+            ]
+            in_window = [
+                (c, t) for (c, t) in _UNIT_RESTART_SAMPLES[unit]
+                if t >= (now - window_sec)
+            ]
+        if in_window:
+            oldest_in_window = min(in_window, key=lambda s: s[1])
+            window_restarts = max(0, int(current) - int(oldest_in_window[0]))
+            if window_restarts >= threshold:
+                loop_detected = True
+
+    return {
+        "count": current,
+        "window_sec": int(window_sec),
+        "threshold": threshold,
+        "window_restarts": int(window_restarts),
+        "loop_detected": bool(loop_detected),
+    }
 
 
 def _digital_mixer_runtime_state() -> tuple[bool, bool]:
@@ -3550,6 +3621,15 @@ class Handler(BaseHTTPRequestHandler):
             rtl_restart_required = False
             if rtl_active_enter and config_mtimes.get("combined"):
                 rtl_restart_required = config_mtimes["combined"] > rtl_active_enter
+            # Crash-loop detection: rtl_active above is just is-active, which
+            # stays true through the brief active window of each restart
+            # cycle.  Sample NRestarts on a sliding window so the API can
+            # actually tell when the unit is thrashing.
+            rtl_restart_loop = _unit_restart_loop_state(UNITS["rtl"])
+            if rtl_restart_loop.get("loop_detected"):
+                # Effective health drops even though is-active is true.
+                rtl_ok = False
+                ground_ok = False
             try:
                 favorites_runtime_sync = get_last_favorites_runtime_sync()
             except Exception as e:
@@ -3565,6 +3645,9 @@ class Handler(BaseHTTPRequestHandler):
                 "ground_exists": ground_present,
                 "rtl_unit_active": rtl_unit_active,
                 "ground_unit_active": ground_unit_active,
+                "rtl_restart_loop": rtl_restart_loop,
+                "rtl_restart_count": rtl_restart_loop.get("count"),
+                "rtl_restart_loop_detected": bool(rtl_restart_loop.get("loop_detected")),
                 "combined_config_stale": combined_stale,
                 "combined_devices": len(combined_info.get("devices") or []),
                 "combined_devices_detail": combined_info.get("devices") or [],
