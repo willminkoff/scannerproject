@@ -739,7 +739,32 @@ def _apply_hp_state_form(
         state.favorites = merge_favorites_preserving_custom(state.favorites, incoming_favorites)
 
     if "favorites_name" in form:
-        state.favorites_name = str(form.get("favorites_name") or "").strip() or "My Favorites"
+        incoming_name = str(form.get("favorites_name") or "").strip()
+        if incoming_name:
+            # Only accept a favorites_name that names an *enabled* tile.  Stale
+            # browser sessions, multi-tab races, and accidental refreshes have
+            # been observed to POST the label of a disabled tile, which then
+            # caused the favorites_runtime sync to write that disabled tile's
+            # custom_favorites into the active rtl-airband / OP25 profiles.
+            # Layer 2 of the defense lives in scan_mode_controller's
+            # _resolve_active_favorites_entries.
+            enabled_labels = {
+                str(f.get("label") or "").strip().lower()
+                for f in (state.favorites or [])
+                if isinstance(f, dict) and bool(f.get("enabled"))
+            }
+            if incoming_name.lower() in enabled_labels:
+                state.favorites_name = incoming_name
+            else:
+                logger.warning(
+                    "rejecting favorites_name=%r: not an enabled tile (enabled=%s)",
+                    incoming_name,
+                    sorted(enabled_labels),
+                )
+                # leave state.favorites_name untouched so the previously-active
+                # tile remains the source of truth
+        else:
+            state.favorites_name = "My Favorites"
 
     if "custom_favorites" in form:
         state.custom_favorites = _parse_json_like_list(form.get("custom_favorites"))

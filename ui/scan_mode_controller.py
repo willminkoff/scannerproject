@@ -893,6 +893,14 @@ class ScanModeController:
         for item in favorites:
             if not isinstance(item, dict):
                 continue
+            # A disabled tile must never become the active source, even when
+            # state.favorites_name happens to point at its label.  Otherwise a
+            # stale handler payload that slips past _apply_hp_state_form (or a
+            # caller that mutates state.favorites_name directly) would cause
+            # the disabled tile's custom_favorites to flow into the
+            # rtl-airband / OP25 profiles via the favorites_runtime sync.
+            if not bool(item.get("enabled")):
+                continue
             label = str(item.get("label") or "").strip().lower()
             if not label:
                 continue
