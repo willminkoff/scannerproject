@@ -695,13 +695,20 @@ def action_set_profile(profile_id: str, target: str, *, restart_service: bool = 
             "profile_switched": bool(changed),
             "combined_changed": bool(combined_changed),
         }
-        # Preflight: free any RTL serials the new combined config will
-        # claim from decoders (acarsdec, dumpvdl2, radiosonde-auto-rx)
-        # that currently hold them.  Without this, switching to a
-        # profile that overlaps a wx decoder's dongle yields a silent
-        # rtl-airband LIBUSB_BUSY crash-loop hidden behind systemd's
-        # Restart=on-failure.  See ui/device_ownership.py and the
-        # rtl_restart_loop_detected payload field in /api/status.
+        # Preflight, two layers:
+        #
+        # 1. IMPLICIT (ui/device_ownership.py): parse the about-to-be-
+        #    loaded combined config to discover which RTL serials it
+        #    will claim, then stop any active decoder service whose
+        #    env-resolved serial overlaps.  Catches the LIBUSB_BUSY
+        #    crash-loop case where systemd's Restart=on-failure hides
+        #    the failure behind a perpetually-active unit state.
+        #
+        # 2. EXPLICIT (ui/profile_metadata.py): honor the declarative
+        #    ``requires_stop`` list for the incoming profile, even for
+        #    units whose serial does not appear in the combined config
+        #    (e.g. a wx decoder running on a non-target dongle that the
+        #    operator nonetheless wants stopped on profile switch).
         device_release_actions: list[dict] = []
         if restart_service and restart_needed:
             try:
@@ -709,16 +716,66 @@ def action_set_profile(profile_id: str, target: str, *, restart_service: bool = 
                     from .device_ownership import (
                         release_rtl_serials,
                         serials_from_combined_config,
+                        _stop_unit as _release_stop_unit,
                     )
+                    from .profile_metadata import (
+                        get_requires_stop,
+                        get_claims_serials,
+                    )
+                    from .systemd import unit_active as _unit_active
                 except ImportError:
                     from ui.device_ownership import (  # type: ignore[no-redef]
                         release_rtl_serials,
                         serials_from_combined_config,
+                        _stop_unit as _release_stop_unit,
                     )
+                    from ui.profile_metadata import (  # type: ignore[no-redef]
+                        get_requires_stop,
+                        get_claims_serials,
+                    )
+                    from ui.systemd import unit_active as _unit_active  # type: ignore
                 from ui.config import COMBINED_CONFIG_PATH as _COMBINED_PATH  # type: ignore
-                target_serials = serials_from_combined_config(_COMBINED_PATH)
+                # Layer 1: implicit (serial overlap).  Merge declared
+                # claims_serials so dynamically-tuned profiles (acarsdec
+                # picks its serial via env, not via rtl-airband conf)
+                # still trigger displacement of other holders.
+                target_serials = list(serials_from_combined_config(_COMBINED_PATH))
+                declared_claims = get_claims_serials(profile_id)
+                for s in declared_claims:
+                    if s and s not in target_serials:
+                        target_serials.append(s)
                 if target_serials:
                     device_release_actions = release_rtl_serials(target_serials)
+                # Layer 2: explicit (per-profile requires_stop).  Stop
+                # any unit named in the metadata that is currently
+                # active and has not already been stopped by Layer 1.
+                already_stopped = {a["unit"] for a in device_release_actions if a.get("stopped")}
+                for unit_name in get_requires_stop(profile_id):
+                    if unit_name in already_stopped:
+                        continue
+                    if not _unit_active(unit_name):
+                        continue
+                    try:
+                        ok_stop, err_stop = _release_stop_unit(unit_name, use_sudo=True)
+                    except Exception as exc:
+                        ok_stop, err_stop = False, str(exc)
+                    device_release_actions.append({
+                        "unit": unit_name,
+                        "serial": "",
+                        "source": "requires_stop",
+                        "stopped": bool(ok_stop),
+                        "error": (err_stop or "") if not ok_stop else "",
+                    })
+                    if ok_stop:
+                        logger.info(
+                            "actions: stopped %s for profile=%s (requires_stop metadata)",
+                            unit_name, profile_id,
+                        )
+                    else:
+                        logger.warning(
+                            "actions: failed to stop %s for profile=%s: %s",
+                            unit_name, profile_id, err_stop,
+                        )
             except Exception as exc:
                 logger.warning(
                     "actions: device-ownership preflight failed (continuing): %s",

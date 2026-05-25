@@ -1,0 +1,42 @@
+{
+  "_comment": "Per-profile teardown/startup contract. Read by ui/profile_metadata.py. The ui/device_ownership.py preflight handles the implicit case (serials computed from the combined config) — this file is for the explicit case (decoders that must be stopped or started by name regardless of serial overlap). Each profile id maps to a dict with optional keys: requires_stop (list of systemd unit names to stop before the new profile takes effect), starts (list of systemd unit names to start after rtl-airband settles), claims_serials (list of RTL serials this profile reserves; merged with the combined.conf scan).",
+  "schema_version": 1,
+  "profiles": {
+    "acars": {
+      "_description": "ACARS / VDL2 decoder mode. Releases the ground RTL from rtl-airband and runs acarsdec + dumpvdl2 directly against it.",
+      "requires_stop": [],
+      "starts": ["acarsdec.service", "dumpvdl2.service"],
+      "claims_serials": []
+    },
+    "radiosonde": {
+      "_description": "Radiosonde scan mode. Runs radiosonde-auto-rx against the ground RTL.",
+      "requires_stop": [],
+      "starts": ["radiosonde-auto-rx.service"],
+      "claims_serials": []
+    },
+    "hp3_favorites_airband": {
+      "_description": "Managed favorites airband profile. Explicitly displaces wx decoders that may have been left running by a prior ground profile.",
+      "requires_stop": ["acarsdec.service", "dumpvdl2.service", "radiosonde-auto-rx.service"],
+      "starts": [],
+      "claims_serials": []
+    },
+    "hp3_favorites_ground": {
+      "_description": "Managed favorites ground profile. Same displacement contract as airband — favorites mode does not run any wx decoder.",
+      "requires_stop": ["acarsdec.service", "dumpvdl2.service", "radiosonde-auto-rx.service"],
+      "starts": [],
+      "claims_serials": []
+    },
+    "none_airband": {
+      "_description": "No-op airband profile (silences device #0). Should free any wx decoder that may have been claiming the airband RTL.",
+      "requires_stop": ["acarsdec.service", "dumpvdl2.service"],
+      "starts": [],
+      "claims_serials": []
+    },
+    "none_ground": {
+      "_description": "No-op ground profile (silences device #1). Frees wx decoders unconditionally.",
+      "requires_stop": ["acarsdec.service", "dumpvdl2.service", "radiosonde-auto-rx.service"],
+      "starts": [],
+      "claims_serials": []
+    }
+  }
+}
