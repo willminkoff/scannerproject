@@ -695,6 +695,39 @@ def action_set_profile(profile_id: str, target: str, *, restart_service: bool = 
             "profile_switched": bool(changed),
             "combined_changed": bool(combined_changed),
         }
+        # Preflight: free any RTL serials the new combined config will
+        # claim from decoders (acarsdec, dumpvdl2, radiosonde-auto-rx)
+        # that currently hold them.  Without this, switching to a
+        # profile that overlaps a wx decoder's dongle yields a silent
+        # rtl-airband LIBUSB_BUSY crash-loop hidden behind systemd's
+        # Restart=on-failure.  See ui/device_ownership.py and the
+        # rtl_restart_loop_detected payload field in /api/status.
+        device_release_actions: list[dict] = []
+        if restart_service and restart_needed:
+            try:
+                try:
+                    from .device_ownership import (
+                        release_rtl_serials,
+                        serials_from_combined_config,
+                    )
+                except ImportError:
+                    from ui.device_ownership import (  # type: ignore[no-redef]
+                        release_rtl_serials,
+                        serials_from_combined_config,
+                    )
+                from ui.config import COMBINED_CONFIG_PATH as _COMBINED_PATH  # type: ignore
+                target_serials = serials_from_combined_config(_COMBINED_PATH)
+                if target_serials:
+                    device_release_actions = release_rtl_serials(target_serials)
+            except Exception as exc:
+                logger.warning(
+                    "actions: device-ownership preflight failed (continuing): %s",
+                    exc,
+                    exc_info=True,
+                )
+        if device_release_actions:
+            payload["device_release"] = device_release_actions
+
         if restart_service and target == "ground" and (old_decoder or new_decoder):
             # Stop old decoder(s) if leaving one
             if old_decoder:
@@ -765,9 +798,36 @@ def action_apply_controls(target: str, gain: float, squelch_mode: str, squelch_s
         return {"status": 500, "payload": {"ok": False, "error": str(e)}}
     restart_ok = True
     restart_error = ""
+    device_release_actions: list[dict] = []
     if changed:
+        # Preflight: free RTL serials the new combined config claims
+        # from active wx decoders before restarting rtl-airband.  See
+        # ui/device_ownership.py for the discovery contract.
+        try:
+            try:
+                from .device_ownership import (
+                    release_rtl_serials,
+                    serials_from_combined_config,
+                )
+            except ImportError:
+                from ui.device_ownership import (  # type: ignore[no-redef]
+                    release_rtl_serials,
+                    serials_from_combined_config,
+                )
+            from ui.config import COMBINED_CONFIG_PATH as _COMBINED_PATH  # type: ignore
+            target_serials = serials_from_combined_config(_COMBINED_PATH)
+            if target_serials:
+                device_release_actions = release_rtl_serials(target_serials)
+        except Exception as exc:
+            logger.warning(
+                "actions: device-ownership preflight failed (continuing): %s",
+                exc,
+                exc_info=True,
+            )
         restart_ok, restart_error = restart_rtl()
     payload = {"ok": True, "changed": changed}
+    if device_release_actions:
+        payload["device_release"] = device_release_actions
     if changed:
         payload["restart_ok"] = restart_ok
         if not restart_ok and restart_error:
