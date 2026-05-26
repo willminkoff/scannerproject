@@ -137,7 +137,19 @@ PYEOF
 fi
 
 log "Step 5: mask legacy rtl-airband.service"
-sudo systemctl mask rtl-airband.service
+# ``systemctl mask`` creates a /dev/null symlink at
+# /etc/systemd/system/<unit>.  When a real unit file already exists
+# at that path (admin-installed unit, our case), mask refuses unless
+# --force is used — which silently overwrites the existing file.
+# Back the original up first so the rollback step can restore it.
+LEGACY_UNIT=/etc/systemd/system/rtl-airband.service
+if [[ -f "$LEGACY_UNIT" && ! -L "$LEGACY_UNIT" ]]; then
+    if [[ ! -f "${LEGACY_UNIT}${BACKUP_SUFFIX}" ]]; then
+        sudo cp -a "$LEGACY_UNIT" "${LEGACY_UNIT}${BACKUP_SUFFIX}"
+        printf '  backed up legacy unit -> %s%s\n' "$LEGACY_UNIT" "$BACKUP_SUFFIX"
+    fi
+fi
+sudo systemctl mask --force rtl-airband.service
 printf '  legacy rtl-airband.service masked (rollback step un-masks it)\n'
 
 log "Step 6: migrate profile files DT -> MA/SL"
