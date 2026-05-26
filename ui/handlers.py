@@ -122,6 +122,8 @@ try:
         ICECAST_PORT,
         PLAYER_MOUNT,
         RTL_AIRBAND_STATS_PATH,
+        RTL_AIRBAND_AIRBAND_STATS_PATH,
+        RTL_AIRBAND_GROUND_STATS_PATH,
         RTL_AIRBAND_STATS_STALE_SEC,
         SB3_CONNECTED_STATUS_REFRESH_SEC,
         SB3_CONNECTED_SYSTEM_REFRESH_SEC,
@@ -156,6 +158,10 @@ try:
         reboot_host,
         digital_restart_state,
         rtl_restart_state,
+        restart_rtl_airband,
+        restart_rtl_ground,
+        rtl_airband_restart_state,
+        rtl_ground_restart_state,
     )
     from .server_workers import enqueue_action, enqueue_apply, get_met_store
     from .diagnostic import write_diagnostic_log
@@ -237,6 +243,8 @@ except ImportError:
         ICECAST_PORT,
         PLAYER_MOUNT,
         RTL_AIRBAND_STATS_PATH,
+        RTL_AIRBAND_AIRBAND_STATS_PATH,
+        RTL_AIRBAND_GROUND_STATS_PATH,
         RTL_AIRBAND_STATS_STALE_SEC,
         SB3_CONNECTED_STATUS_REFRESH_SEC,
         SB3_CONNECTED_SYSTEM_REFRESH_SEC,
@@ -271,6 +279,10 @@ except ImportError:
         reboot_host,
         digital_restart_state,
         rtl_restart_state,
+        restart_rtl_airband,
+        restart_rtl_ground,
+        rtl_airband_restart_state,
+        rtl_ground_restart_state,
     )
     from ui.server_workers import enqueue_action, enqueue_apply, get_met_store
     from ui.diagnostic import write_diagnostic_log
@@ -3568,11 +3580,35 @@ class Handler(BaseHTTPRequestHandler):
             # stats file mtime is the contractual heartbeat — rtl_airband
             # rewrites it every output_thread cycle.  Stale mtime ⇒ the
             # pipeline is dead regardless of unit state.
+            #
+            # PRE-SPLIT (legacy): one rtl-airband process, one stats file.
             sample_flow = rtl_airband_sample_flow_state(
                 RTL_AIRBAND_STATS_PATH,
                 RTL_AIRBAND_STATS_STALE_SEC,
             )
             sample_flow_ok = bool(sample_flow.get("sample_flow_ok"))
+            # POST-SPLIT: two rtl-airband processes, two stats files.
+            # During the transition both blocks are evaluated; the
+            # legacy ``rtl_ok`` stays bound to the legacy unit while
+            # the new ``rtl_airband_ok`` / ``rtl_ground_ok`` track the
+            # split services.  ``_unit_active_cached`` returns False
+            # for nonexistent units, so during pre-cutover the new
+            # signals report unhealthy without breaking anything.
+            rtl_airband_unit_active = _unit_active_cached(UNITS.get("rtl_airband", ""))
+            rtl_ground_unit_active = _unit_active_cached(UNITS.get("rtl_ground", ""))
+            sample_flow_airband = rtl_airband_sample_flow_state(
+                RTL_AIRBAND_AIRBAND_STATS_PATH,
+                RTL_AIRBAND_STATS_STALE_SEC,
+            )
+            sample_flow_ground = rtl_airband_sample_flow_state(
+                RTL_AIRBAND_GROUND_STATS_PATH,
+                RTL_AIRBAND_STATS_STALE_SEC,
+            )
+            rtl_airband_sample_flow_ok = bool(sample_flow_airband.get("sample_flow_ok"))
+            rtl_ground_sample_flow_ok = bool(sample_flow_ground.get("sample_flow_ok"))
+            rtl_airband_ok = rtl_airband_unit_active and rtl_airband_sample_flow_ok
+            rtl_ground_ok = rtl_ground_unit_active and rtl_ground_sample_flow_ok
+
             rtl_ok = rtl_unit_active and sample_flow_ok
             ground_ok = rtl_ok and ground_present
             ice_unit_active = _unit_active_cached(UNITS["icecast"])
@@ -3597,6 +3633,12 @@ class Handler(BaseHTTPRequestHandler):
             mount_analog = mount_publishing(icecast_status_text, PLAYER_MOUNT or "ANALOG.mp3")
             mount_digital = mount_publishing(
                 icecast_status_text, DIGITAL_STREAM_MOUNT or "DIGITAL.mp3"
+            )
+            # MA/SL split adds a sister mount for the ground service;
+            # before cutover this returns False (no source publishing
+            # there), which is the truthful answer.
+            mount_analog_ground = mount_publishing(
+                icecast_status_text, "ANALOG_GROUND.mp3"
             )
             # icecast_active retains its is-active semantic for backwards
             # compatibility; callers that need real liveness consume the
@@ -3685,6 +3727,20 @@ class Handler(BaseHTTPRequestHandler):
                     "stale_threshold_sec"
                 ),
                 "rtl_airband_sample_flow_reason": sample_flow.get("reason") or "",
+                # MA/SL split-process truth fields.  Pre-cutover the
+                # underlying units don't exist yet so these report
+                # ``False`` honestly.  Post-cutover these become the
+                # primary signals the dashboard heartbeats consume.
+                "rtl_airband_service_active": rtl_airband_ok,
+                "rtl_airband_unit_active": rtl_airband_unit_active,
+                "rtl_airband_service_sample_flow_ok": rtl_airband_sample_flow_ok,
+                "rtl_airband_service_stats_age_sec": sample_flow_airband.get("stats_age_sec"),
+                "rtl_airband_service_sample_flow_reason": sample_flow_airband.get("reason") or "",
+                "rtl_ground_service_active": rtl_ground_ok,
+                "rtl_ground_unit_active": rtl_ground_unit_active,
+                "rtl_ground_service_sample_flow_ok": rtl_ground_sample_flow_ok,
+                "rtl_ground_service_stats_age_sec": sample_flow_ground.get("stats_age_sec"),
+                "rtl_ground_service_sample_flow_reason": sample_flow_ground.get("reason") or "",
                 "rtl_restart_loop": rtl_restart_loop,
                 "rtl_restart_count": rtl_restart_loop.get("count"),
                 "rtl_restart_loop_detected": bool(rtl_restart_loop.get("loop_detected")),
@@ -3697,6 +3753,7 @@ class Handler(BaseHTTPRequestHandler):
                 "icecast_unit_active": ice_unit_active,
                 "icecast_mount_analog_alive": bool(mount_analog),
                 "icecast_mount_digital_alive": bool(mount_digital),
+                "icecast_mount_analog_ground_alive": bool(mount_analog_ground),
                 "icecast_mounts": icecast_mounts,
                 "icecast_port": ICECAST_PORT,
                 "stream_mount": analog_stream_mount,
@@ -3828,6 +3885,39 @@ class Handler(BaseHTTPRequestHandler):
                 )
             except Exception:
                 pass
+            # MA/SL split-process restart telemetry.  Each band's
+            # restart machinery has its own state dict (mirrors the
+            # legacy ``_RTL_RESTART_STATE`` shape); surface both so
+            # the dashboard can show independent wedge counters per
+            # band and any watchdog correlating events across bands
+            # has both signals available.  Empty/zero before the
+            # cutover when the new functions haven't been called yet.
+            for prefix, state_fn in (
+                ("rtl_airband", rtl_airband_restart_state),
+                ("rtl_ground", rtl_ground_restart_state),
+            ):
+                try:
+                    svc_state = state_fn()
+                    payload[f"{prefix}_service_restart_attempts"] = int(
+                        svc_state.get("attempts_total") or 0
+                    )
+                    payload[f"{prefix}_service_last_restart_reason"] = str(
+                        svc_state.get("last_attempt_reason") or ""
+                    )
+                    payload[f"{prefix}_service_health_probe_result"] = str(
+                        svc_state.get("last_health_probe_result") or ""
+                    )
+                    payload[f"{prefix}_service_health_probe_detail"] = str(
+                        svc_state.get("last_health_probe_detail") or ""
+                    )
+                    payload[f"{prefix}_service_wedge_recovery_total"] = int(
+                        svc_state.get("wedge_recovery_total") or 0
+                    )
+                    payload[f"{prefix}_service_last_wedge_recovery_ts"] = float(
+                        svc_state.get("last_wedge_recovery_ts") or 0.0
+                    )
+                except Exception:
+                    pass
             payload.update(digital_payload)
             payload["icecast_expected_mounts"] = _expected_icecast_mounts(
                 analog_active=bool(rtl_unit_active or ground_unit_active),
