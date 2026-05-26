@@ -29,6 +29,11 @@ RE_INDEX = re.compile(r'index\s*=\s*(\d+)\s*;', re.I)
 RE_GAIN = re.compile(r'gain\s*=\s*([0-9.]+)\s*;', re.I)
 RE_SQUELCH = re.compile(r'squelch_threshold\s*=\s*(-?\d+)\s*;', re.I)
 RE_FREQS_BLOCK = re.compile(r'freqs\s*=\s*\((.*?)\)\s*;', re.S | re.I)
+RE_DEVICE_TYPE = re.compile(r'type\s*=\s*"([^"]+)"', re.I)
+RE_DEVICE_STRING = re.compile(r'device_string\s*=\s*"([^"]+)"', re.I)
+# Inside a SoapySDR device_string ("driver=sdrplay,serial=180903EF32,..."),
+# extract the comma-separated key=value pairs.
+RE_KV_PAIR = re.compile(r'([A-Za-z_][\w]*)\s*=\s*([^,]+)')
 EXPECTED_DEVICE_INDICES = {
     "airband": 0,
     "ground": 1,
@@ -121,7 +126,32 @@ def _freq_in_airband(freq: float) -> bool:
     return AIRBAND_MIN_MHZ <= freq <= AIRBAND_MAX_MHZ
 
 
-def read_combined_devices(conf_path: str = COMBINED_CONFIG_PATH) -> List[Dict]:
+def _parse_device_string_kv(value: str) -> Dict[str, str]:
+    """Parse a SoapySDR ``device_string`` (``key=value,key=value...``)
+    into a flat dict.  Empty / malformed input yields ``{}``.
+
+    The serial of a SoapySDR sdrplay device lives here rather than in
+    a top-level ``serial = "..."`` field — this is how we recover it
+    so callers can answer "which physical RSPduo does this device
+    block claim".
+    """
+    out: Dict[str, str] = {}
+    if not value:
+        return out
+    for match in RE_KV_PAIR.finditer(value):
+        key = match.group(1).strip().lower()
+        val = match.group(2).strip()
+        if val:
+            out[key] = val
+    return out
+
+
+def read_combined_devices(conf_path: Optional[str] = None) -> List[Dict]:
+    # Resolve the default at call time, not import time, so callers
+    # (and tests) can override ``COMBINED_CONFIG_PATH`` at the module
+    # level after this module has been imported.
+    if conf_path is None:
+        conf_path = COMBINED_CONFIG_PATH
     try:
         with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
             text = f.read()
@@ -136,8 +166,24 @@ def read_combined_devices(conf_path: str = COMBINED_CONFIG_PATH) -> List[Dict]:
         index = None
         gain = None
         squelch_dbfs = None
-        m = RE_SERIAL.search(block)
+        device_type = None
+        soapy_driver = None
+        soapy_kwargs: Dict[str, str] = {}
+        m = RE_DEVICE_TYPE.search(block)
         if m:
+            device_type = m.group(1).strip().lower() or None
+        m = RE_DEVICE_STRING.search(block)
+        if m:
+            soapy_kwargs = _parse_device_string_kv(m.group(1))
+            soapy_driver = soapy_kwargs.get("driver")
+            # For SoapySDR devices the canonical serial lives in
+            # device_string; surface it at the top level so existing
+            # callers that look at dev["serial"] don't need to know
+            # about the soapy nesting.
+            if "serial" in soapy_kwargs:
+                serial = soapy_kwargs["serial"]
+        m = RE_SERIAL.search(block)
+        if m and not serial:
             serial = m.group(1).strip()
         m = RE_INDEX.search(block)
         if m:
@@ -166,11 +212,45 @@ def read_combined_devices(conf_path: str = COMBINED_CONFIG_PATH) -> List[Dict]:
             "squelch_dbfs": squelch_dbfs,
             "freqs": freqs,
             "is_airband": is_airband,
+            # SoapySDR-specific structured info — None for legacy rtlsdr
+            # blocks.  Lets callers reason about the device backend
+            # without re-parsing the raw config.
+            "device_type": device_type,
+            "soapy_driver": soapy_driver,
+            "soapy_kwargs": soapy_kwargs or None,
         })
     return devices
 
 
-def combined_device_summary(conf_path: str = COMBINED_CONFIG_PATH) -> Dict[str, Optional[Dict]]:
+def serials_claimed_by_combined_config(
+    conf_path: Optional[str] = None,
+) -> set:
+    """Return the set of physical-device serials currently claimed by
+    the active combined rtl-airband config.
+
+    Used by the OP25 dongle allocator to avoid handing out a tuner
+    that rtl-airband already owns.  The combined config is the single
+    source of truth for rtl-airband's device ownership — derive from
+    it rather than maintaining a parallel env var that has to be kept
+    in sync by hand.
+
+    Works for both legacy ``type = "rtlsdr"; serial = "..."`` blocks
+    and ``type = "soapysdr"; device_string = "...serial=X,..."``
+    blocks.  Returns ``set()`` when the config is missing or empty.
+    """
+    if conf_path is None:
+        conf_path = COMBINED_CONFIG_PATH
+    out: set = set()
+    for dev in read_combined_devices(conf_path):
+        serial = str(dev.get("serial") or "").strip()
+        if serial:
+            out.add(serial)
+    return out
+
+
+def combined_device_summary(conf_path: Optional[str] = None) -> Dict[str, Optional[Dict]]:
+    if conf_path is None:
+        conf_path = COMBINED_CONFIG_PATH
     devices = read_combined_devices(conf_path)
     airband = None
     ground = None
@@ -219,7 +299,9 @@ def combined_device_summary(conf_path: str = COMBINED_CONFIG_PATH) -> Dict[str, 
     }
 
 
-def combined_config_stale(conf_path: str = COMBINED_CONFIG_PATH) -> bool:
+def combined_config_stale(conf_path: Optional[str] = None) -> bool:
+    if conf_path is None:
+        conf_path = COMBINED_CONFIG_PATH
     try:
         combined_mtime = os.path.getmtime(conf_path)
     except FileNotFoundError:

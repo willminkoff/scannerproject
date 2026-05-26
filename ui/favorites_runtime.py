@@ -212,6 +212,47 @@ def _rspduo_usb_sample() -> tuple[int, list[str]]:
     return count, sorted(serials)
 
 
+def _rtl_airband_dedicated_rspduo_serials() -> set[str]:
+    """Return device serials currently claimed by rtl-airband.
+
+    Authoritative source: the active combined rtl-airband config.
+    The config IS the declaration of which devices rtl-airband owns
+    — derive from it rather than maintaining a parallel env var that
+    has to be kept in sync by hand.
+
+    Both legacy ``type = "rtlsdr"; serial = "..."`` and SoapySDR
+    ``type = "soapysdr"; device_string = "...serial=X,..."`` blocks
+    are recognized (the latter via
+    ``ui.combined_status.serials_claimed_by_combined_config``).
+
+    The ``RTL_AIRBAND_RSPDUO_SERIAL`` env var remains as an opt-in
+    override / belt-and-suspenders for setups where the combined
+    config can't be read (e.g. rtl-airband not yet installed, or
+    operator wants to reserve a device that isn't in the config
+    yet).  Env-var values are unioned with the config-derived set.
+    """
+    out: set[str] = set()
+    try:
+        try:
+            from .combined_status import serials_claimed_by_combined_config
+        except ImportError:  # pragma: no cover
+            from ui.combined_status import serials_claimed_by_combined_config  # type: ignore[no-redef]
+        out |= serials_claimed_by_combined_config()
+    except Exception:
+        logger.debug(
+            "favorites_runtime: could not read combined config for "
+            "rtl-airband-claimed serials (continuing with env var only)",
+            exc_info=True,
+        )
+    raw = str(os.getenv("RTL_AIRBAND_RSPDUO_SERIAL", "") or "").strip()
+    if raw:
+        for token in raw.replace(";", ",").split(","):
+            token = token.strip()
+            if token:
+                out.add(token)
+    return out
+
+
 def _rspduo_usb_serials() -> list[str]:
     """Resolve attached RSPduo serial numbers via Linux sysfs.
 
@@ -223,12 +264,30 @@ def _rspduo_usb_serials() -> list[str]:
     fall back to SoapySDR enumeration (which has its own retries).
 
     Retry sleep is overridable via ``RSPDUO_USB_ENUM_RETRY_SLEEP_SEC``.
+
+    Serials listed in ``RTL_AIRBAND_RSPDUO_SERIAL`` are filtered out
+    of the result so the digital allocator can't claim a tuner that
+    rtl-airband already owns in DT mode.
     """
+    excluded = _rtl_airband_dedicated_rspduo_serials()
+
+    def _filter(serials: list[str]) -> list[str]:
+        if not excluded:
+            return serials
+        return [s for s in serials if s not in excluded]
+
     count, serials = _rspduo_usb_sample()
     if count == 0:
         return []
     if len(serials) == count:
-        return serials
+        filtered = _filter(serials)
+        if excluded and len(filtered) != len(serials):
+            logger.info(
+                "RSPduo USB enum: excluding %d serial(s) reserved for rtl-airband: %s",
+                len(serials) - len(filtered),
+                sorted(excluded),
+            )
+        return filtered
 
     try:
         sleep_s = float(
@@ -249,7 +308,14 @@ def _rspduo_usb_serials() -> list[str]:
         logger.info(
             "RSPduo USB enum retry recovered %d serial(s)", len(serials2)
         )
-        return serials2
+        filtered2 = _filter(serials2)
+        if excluded and len(filtered2) != len(serials2):
+            logger.info(
+                "RSPduo USB enum (retry): excluding %d serial(s) reserved for rtl-airband: %s",
+                len(serials2) - len(filtered2),
+                sorted(excluded),
+            )
+        return filtered2
 
     logger.warning(
         "RSPduo USB enum still incomplete after retry "
