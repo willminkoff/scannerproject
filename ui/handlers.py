@@ -155,6 +155,7 @@ try:
         set_bt_heal_auto_recovery,
         reboot_host,
         digital_restart_state,
+        rtl_restart_state,
     )
     from .server_workers import enqueue_action, enqueue_apply, get_met_store
     from .diagnostic import write_diagnostic_log
@@ -269,6 +270,7 @@ except ImportError:
         set_bt_heal_auto_recovery,
         reboot_host,
         digital_restart_state,
+        rtl_restart_state,
     )
     from ui.server_workers import enqueue_action, enqueue_apply, get_met_store
     from ui.diagnostic import write_diagnostic_log
@@ -3797,6 +3799,32 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 digital_payload["digital_last_wedge_recovery_ts"] = float(
                     restart_state.get("last_wedge_recovery_ts") or 0.0
+                )
+            except Exception:
+                pass
+            # Symmetric rtl-airband restart telemetry — same keys as the
+            # digital block above, just rtl_-prefixed.  Useful for the
+            # sitrep and any external watchdog correlating wedge events
+            # across the two SoapySDR-consuming pipelines.
+            try:
+                rtl_state = rtl_restart_state()
+                payload["rtl_restart_attempts"] = int(
+                    rtl_state.get("attempts_total") or 0
+                )
+                payload["rtl_last_restart_reason"] = str(
+                    rtl_state.get("last_attempt_reason") or ""
+                )
+                payload["rtl_health_probe_result"] = str(
+                    rtl_state.get("last_health_probe_result") or ""
+                )
+                payload["rtl_health_probe_detail"] = str(
+                    rtl_state.get("last_health_probe_detail") or ""
+                )
+                payload["rtl_wedge_recovery_total"] = int(
+                    rtl_state.get("wedge_recovery_total") or 0
+                )
+                payload["rtl_last_wedge_recovery_ts"] = float(
+                    rtl_state.get("last_wedge_recovery_ts") or 0.0
                 )
             except Exception:
                 pass

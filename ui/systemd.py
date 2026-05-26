@@ -9,9 +9,21 @@ from urllib.error import URLError
 from urllib.request import urlopen
 
 try:
-    from .config import UNITS, BT_HEAL_TIMER_UNIT
+    from .config import (
+        UNITS,
+        BT_HEAL_TIMER_UNIT,
+        RTL_AIRBAND_STATS_PATH,
+        RTL_AIRBAND_STATS_STALE_SEC,
+    )
+    from .sample_flow import rtl_airband_sample_flow_state
 except ImportError:
-    from ui.config import UNITS, BT_HEAL_TIMER_UNIT
+    from ui.config import (
+        UNITS,
+        BT_HEAL_TIMER_UNIT,
+        RTL_AIRBAND_STATS_PATH,
+        RTL_AIRBAND_STATS_STALE_SEC,
+    )
+    from ui.sample_flow import rtl_airband_sample_flow_state
 
 
 _TRUTHY = ("1", "true", "yes", "on")
@@ -36,6 +48,82 @@ def digital_restart_state() -> dict:
     """Snapshot of the digital restart / health probe state. Thread-safe."""
     with _DIGITAL_RESTART_STATE_LOCK:
         return dict(_DIGITAL_RESTART_STATE)
+
+
+# rtl-airband restart health state.  Mirrors _DIGITAL_RESTART_STATE so
+# /api/status can render symmetric wedge-recovery telemetry for both
+# pipelines.  Surfaced via rtl_restart_state().
+_RTL_RESTART_STATE_LOCK = threading.Lock()
+_RTL_RESTART_STATE: dict = {
+    "attempts_total": 0,
+    "last_attempt_ts": 0.0,
+    "last_attempt_reason": "",
+    "wedge_recovery_total": 0,
+    "last_wedge_recovery_ts": 0.0,
+    "last_health_probe_result": "",   # "ok" / "wedged" / "skipped" / ""
+    "last_health_probe_ts": 0.0,
+    "last_health_probe_detail": "",
+}
+
+
+def rtl_restart_state() -> dict:
+    """Snapshot of the rtl-airband restart / health probe state. Thread-safe."""
+    with _RTL_RESTART_STATE_LOCK:
+        return dict(_RTL_RESTART_STATE)
+
+
+def _record_rtl_restart_attempt(reason: str) -> None:
+    with _RTL_RESTART_STATE_LOCK:
+        _RTL_RESTART_STATE["attempts_total"] += 1
+        _RTL_RESTART_STATE["last_attempt_ts"] = time.time()
+        _RTL_RESTART_STATE["last_attempt_reason"] = str(reason or "unspecified")
+
+
+def _record_rtl_health_probe(result: str, detail: str) -> None:
+    with _RTL_RESTART_STATE_LOCK:
+        _RTL_RESTART_STATE["last_health_probe_result"] = str(result or "")
+        _RTL_RESTART_STATE["last_health_probe_ts"] = time.time()
+        _RTL_RESTART_STATE["last_health_probe_detail"] = str(detail or "")
+
+
+def _record_rtl_wedge_recovery() -> None:
+    with _RTL_RESTART_STATE_LOCK:
+        _RTL_RESTART_STATE["wedge_recovery_total"] += 1
+        _RTL_RESTART_STATE["last_wedge_recovery_ts"] = time.time()
+
+
+def _wait_for_rtl_airband_health(
+    timeout_sec: float = 30.0,
+    poll_interval_sec: float = 2.0,
+) -> Tuple[bool, str]:
+    """Poll ``rtl_airband_stats.txt`` until sample_flow_ok or timeout.
+
+    rtl_airband writes its prometheus stats file on every output_thread
+    cycle (~1 s in steady state).  After a fresh start, the binary needs
+    a few seconds to walk through SoapySDR init for both DT tuners
+    before the first cycle.  Anything later than ``timeout_sec`` means
+    the channel pipeline is wedged — typical cause is a stuck SoapySDR
+    handle inheriting bad state from the sdrplay daemon.
+
+    Returns (ok, detail).  ok=True when the stats file is fresh (age <
+    RTL_AIRBAND_STATS_STALE_SEC).  detail is a human-readable summary.
+    """
+    deadline = time.monotonic() + max(0.1, timeout_sec)
+    last_state: dict = {}
+    while True:
+        state = rtl_airband_sample_flow_state(
+            RTL_AIRBAND_STATS_PATH,
+            RTL_AIRBAND_STATS_STALE_SEC,
+        )
+        if state.get("sample_flow_ok"):
+            age = state.get("stats_age_sec")
+            age_str = f"{age:.1f}s" if isinstance(age, (int, float)) else "?"
+            return True, f"stats fresh (age {age_str})"
+        last_state = state
+        if time.monotonic() >= deadline:
+            reason = state.get("reason") or "stats not fresh"
+            return False, f"timeout after {timeout_sec:.1f}s; {reason}"
+        time.sleep(max(0.0, poll_interval_sec))
 
 
 def unit_active(unit: str) -> bool:
@@ -420,9 +508,168 @@ def unit_restart_count(unit: str):
         return None
 
 
-def restart_rtl() -> Tuple[bool, str]:
-    """Restart the rtl-airband scanner."""
-    return _restart_unit(UNITS["rtl"], use_sudo=True)
+def restart_rtl(reason: str = "unspecified") -> Tuple[bool, str]:
+    """Recover and restart rtl-airband with sequenced sdrplay handling.
+
+    Mirrors restart_digital()'s gentle-then-escalate pattern so both
+    SoapySDR-consuming pipelines have symmetric recovery behavior.
+
+    Why this isn't a bare ``systemctl restart``
+    -------------------------------------------
+    Six failure modes observed in a single 24 h window all looked the
+    same from the outside: ``systemctl is-active rtl-airband`` returns
+    ``active``, but no samples are flowing.  The binary doesn't exit on
+    a SoapySDR ``readStream TIMEOUT`` or ``Device has been removed`` —
+    it logs a warning and limps along in a wait state.  systemd's
+    ``Restart=on-failure`` never fires because the process didn't fail.
+    A plain ``systemctl restart`` then talks to the same broken
+    sdrplay daemon and inherits the same wedge.
+
+    Recovery
+    --------
+    Stop rtl-airband (with SIGKILL escalation) → cycle sdrplay daemon
+    if it's dead OR if we're escalating → start rtl-airband → settle
+    → **poll the stats file mtime**.  The stats file is rtl_airband's
+    contractual heartbeat (written every output_thread cycle); seeing
+    fresh writes is the only reliable evidence that the channel
+    pipeline actually came back to life.
+
+    If the probe fails, escalate up to ``RTL_WEDGE_RECOVERY_MAX_ATTEMPTS``
+    (default 2) with a forced daemon bounce each time.  Capped so we
+    don't spin forever on hardware-level problems (cable unplugged,
+    USB renumber, etc.).
+    """
+    rtl_unit = str(UNITS.get("rtl") or "").strip()
+    sdrplay_unit = (
+        os.getenv("UNIT_SDRPLAY")
+        or os.getenv("SDRPLAY_SERVICE_NAME")
+        or "sdrplay"
+    ).strip()
+    sdrplay_exists = _unit_configured(sdrplay_unit)
+    sdrplay_settle_sec = _env_float("RTL_RESTART_SDRPLAY_SETTLE_SEC", 3.0)
+    # rtl-airband DT-mode init takes ~3-6s to walk both tuners through
+    # SoapySDR before the first stats write; settle BEFORE probing so
+    # we don't false-alarm during normal startup.
+    rtl_settle_sec = _env_float("RTL_RESTART_SETTLE_SEC", 6.0)
+
+    probe_enabled = (
+        os.getenv("RTL_POST_START_PROBE_ENABLED", "1").strip().lower() in _TRUTHY
+    )
+    probe_timeout_sec = _env_float(
+        "RTL_POST_START_PROBE_TIMEOUT_SEC", 30.0, minimum=1.0
+    )
+    probe_poll_sec = _env_float(
+        "RTL_POST_START_PROBE_POLL_SEC", 2.0, minimum=0.1
+    )
+    max_escalations = int(
+        _env_float("RTL_WEDGE_RECOVERY_MAX_ATTEMPTS", 2.0, minimum=1.0)
+    )
+
+    _record_rtl_restart_attempt(reason)
+    print(
+        f"restart_rtl: reason={reason!r} probe_enabled={probe_enabled} "
+        f"probe_timeout_sec={probe_timeout_sec}",
+        flush=True,
+    )
+
+    if not rtl_unit:
+        return False, "rtl unit not configured"
+
+    def _attempt(force_sdrplay_restart: bool, attempt_label: str) -> Tuple[bool, str]:
+        _stop_unit(rtl_unit, use_sudo=True)
+        _kill_unit(rtl_unit)
+        _reset_failed_units([rtl_unit])
+
+        if sdrplay_exists:
+            daemon_alive = _sdrplay_daemon_alive()
+            if force_sdrplay_restart or not daemon_alive:
+                print(
+                    f"restart_rtl[{attempt_label}]: bouncing sdrplay daemon "
+                    f"(force={force_sdrplay_restart}, alive={daemon_alive})",
+                    flush=True,
+                )
+                ok, err = _restart_unit(sdrplay_unit, use_sudo=True)
+                if not ok:
+                    return False, f"sdrplay restart: {err}"
+                if sdrplay_settle_sec > 0:
+                    time.sleep(sdrplay_settle_sec)
+            else:
+                healthy, hreason = _sdrplay_daemon_healthy()
+                if healthy:
+                    print(
+                        f"restart_rtl[{attempt_label}]: sdrplay daemon "
+                        f"healthy ({hreason}); skipping restart",
+                        flush=True,
+                    )
+                else:
+                    print(
+                        f"restart_rtl[{attempt_label}]: sdrplay daemon "
+                        f"needs restart ({hreason})",
+                        flush=True,
+                    )
+                    ok, err = _restart_unit(sdrplay_unit, use_sudo=True)
+                    if not ok:
+                        return False, f"sdrplay restart: {err}"
+                    if sdrplay_settle_sec > 0:
+                        time.sleep(sdrplay_settle_sec)
+
+        ok, err = _start_unit(rtl_unit, use_sudo=True)
+        if not ok:
+            return False, f"rtl start: {err}"
+        if rtl_settle_sec > 0:
+            time.sleep(rtl_settle_sec)
+
+        if probe_enabled:
+            probe_ok, probe_detail = _wait_for_rtl_airband_health(
+                timeout_sec=probe_timeout_sec,
+                poll_interval_sec=probe_poll_sec,
+            )
+            _record_rtl_health_probe(
+                "ok" if probe_ok else "wedged",
+                probe_detail,
+            )
+            print(
+                f"restart_rtl[{attempt_label}]: probe "
+                f"{'ok' if probe_ok else 'WEDGED'} — {probe_detail}",
+                flush=True,
+            )
+            if not probe_ok:
+                return False, f"post-start probe failed: {probe_detail}"
+        else:
+            _record_rtl_health_probe("skipped", "probe disabled by env")
+
+        return True, ""
+
+    # Gentle attempt 1: don't force sdrplay unless the daemon is dead.
+    ok, err = _attempt(force_sdrplay_restart=False, attempt_label="gentle")
+    if ok:
+        return True, ""
+    print(
+        f"restart_rtl: gentle attempt failed ({err}); escalating to wedge recovery",
+        flush=True,
+    )
+
+    # Escalation: each retry forces a sdrplay daemon bounce to clear
+    # stale client connections, then retries rtl-airband.  This is the
+    # canonical pattern we kept executing by hand from bash one-liners.
+    last_err = err
+    for escalation in range(1, max_escalations + 1):
+        ok, err = _attempt(
+            force_sdrplay_restart=True,
+            attempt_label=f"escalation-{escalation}",
+        )
+        _record_rtl_wedge_recovery()
+        if ok:
+            print(
+                f"restart_rtl: wedge recovery succeeded on escalation {escalation}",
+                flush=True,
+            )
+            return True, ""
+        last_err = err
+
+    return False, (
+        f"wedge recovery exhausted after {max_escalations} escalations: {last_err}"
+    )
 
 
 def restart_ground() -> Tuple[bool, str]:
