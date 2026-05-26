@@ -540,17 +540,32 @@ def restart_rtl(reason: str = "unspecified") -> Tuple[bool, str]:
     USB renumber, etc.).
     """
     rtl_unit = str(UNITS.get("rtl") or "").strip()
+    # OP25 holds a persistent client connection to the same sdrplay
+    # daemon.  When restart_rtl forces a daemon bounce, the daemon's
+    # state can still be corrupted by OP25's surviving connection —
+    # the post-probe wedge we kept observing at 12:00–12:02 was caused
+    # by OP25 immediately reconnecting and confusing the daemon's
+    # multi-tuner coordination.  On escalation we briefly stop OP25,
+    # bounce the daemon clean, bring rtl-airband back, verify its
+    # sample flow, THEN restart OP25.  This is exactly the manual
+    # bash-one-liner clean-cycle that always worked.
+    digital_unit = str(UNITS.get("digital") or "").strip()
     sdrplay_unit = (
         os.getenv("UNIT_SDRPLAY")
         or os.getenv("SDRPLAY_SERVICE_NAME")
         or "sdrplay"
     ).strip()
     sdrplay_exists = _unit_configured(sdrplay_unit)
+    digital_exists = _unit_configured(digital_unit) if digital_unit else False
     sdrplay_settle_sec = _env_float("RTL_RESTART_SDRPLAY_SETTLE_SEC", 3.0)
     # rtl-airband DT-mode init takes ~3-6s to walk both tuners through
     # SoapySDR before the first stats write; settle BEFORE probing so
     # we don't false-alarm during normal startup.
     rtl_settle_sec = _env_float("RTL_RESTART_SETTLE_SEC", 6.0)
+    # Settle after restarting OP25 — short, since we don't probe OP25
+    # health here (restart_digital owns that).  Just enough for systemd
+    # to start its process.
+    digital_settle_sec = _env_float("RTL_RESTART_DIGITAL_SETTLE_SEC", 2.0)
 
     probe_enabled = (
         os.getenv("RTL_POST_START_PROBE_ENABLED", "1").strip().lower() in _TRUTHY
@@ -578,7 +593,30 @@ def restart_rtl(reason: str = "unspecified") -> Tuple[bool, str]:
     def _attempt(force_sdrplay_restart: bool, attempt_label: str) -> Tuple[bool, str]:
         _stop_unit(rtl_unit, use_sudo=True)
         _kill_unit(rtl_unit)
-        _reset_failed_units([rtl_unit])
+
+        # Stop OP25 too on escalations so the sdrplay daemon can fully
+        # clear all client state before we cycle it.  Only on
+        # escalation: gentle attempts don't touch OP25 because if a
+        # plain rtl-airband restart fixes things, there's no reason
+        # to interrupt digital audio.
+        op25_was_stopped = False
+        if (
+            force_sdrplay_restart
+            and digital_exists
+            and unit_active(digital_unit)
+        ):
+            print(
+                f"restart_rtl[{attempt_label}]: stopping OP25 to free "
+                f"sdrplay daemon for clean cycle",
+                flush=True,
+            )
+            _stop_unit(digital_unit, use_sudo=True)
+            _kill_unit(digital_unit)
+            op25_was_stopped = True
+
+        _reset_failed_units(
+            [rtl_unit, digital_unit if op25_was_stopped else ""]
+        )
 
         if sdrplay_exists:
             daemon_alive = _sdrplay_daemon_alive()
@@ -634,9 +672,42 @@ def restart_rtl(reason: str = "unspecified") -> Tuple[bool, str]:
                 flush=True,
             )
             if not probe_ok:
+                # rtl-airband itself didn't come back; leave OP25
+                # stopped so the next escalation can re-cycle the
+                # whole stack cleanly.  Restarting OP25 here would
+                # just re-corrupt the daemon for the next attempt.
                 return False, f"post-start probe failed: {probe_detail}"
         else:
             _record_rtl_health_probe("skipped", "probe disabled by env")
+
+        # rtl-airband is healthy.  If we stopped OP25 on the way in,
+        # bring it back up so the operator gets a complete recovery
+        # from one button click.  We don't probe OP25 health here —
+        # restart_digital() owns that — but we wait the systemd-start
+        # settle so a quick follow-up status read can see it active.
+        if op25_was_stopped:
+            print(
+                f"restart_rtl[{attempt_label}]: restarting OP25 "
+                f"(rtl-airband recovered)",
+                flush=True,
+            )
+            ok_start, err_start = _start_unit(digital_unit, use_sudo=True)
+            if not ok_start:
+                # Don't fail the whole restart_rtl call for this —
+                # rtl-airband IS recovered.  Log the OP25 problem
+                # in the health-probe detail so /api/status surfaces
+                # it, then let the operator restart digital manually.
+                _record_rtl_health_probe(
+                    "ok-rtl-but-op25-failed-to-restart",
+                    f"rtl-airband healthy; op25 restart err: {err_start}",
+                )
+                print(
+                    f"restart_rtl[{attempt_label}]: WARN OP25 restart "
+                    f"failed: {err_start} (rtl-airband still ok)",
+                    flush=True,
+                )
+            elif digital_settle_sec > 0:
+                time.sleep(digital_settle_sec)
 
         return True, ""
 
