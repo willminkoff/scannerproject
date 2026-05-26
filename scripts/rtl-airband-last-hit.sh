@@ -27,12 +27,19 @@ process_activity() {
 echo "-" > "$OUT_AIRBAND"
 echo "-" > "$OUT_GROUND"
 
-# First, read recent history (last 100 lines)
-journalctl -u rtl-airband -n 100 -o cat --no-pager | while read -r line; do
+# Watch both rtl-airband-* services post-MA/SL-cutover, falling back
+# to the legacy rtl-airband.service name if those don't exist yet
+# (pre-cutover or rolled-back deployments).  journalctl tolerates
+# unknown unit names — they just yield no output — so it's safe to
+# list all three.
+JC_UNITS=(-u rtl-airband-airband -u rtl-airband-ground -u rtl-airband)
+
+# First, read recent history (last 100 lines from each)
+journalctl "${JC_UNITS[@]}" -n 100 -o cat --no-pager | while read -r line; do
   process_activity "$line"
 done
 
 # Then follow new entries in real time
-journalctl -u rtl-airband -f -n 0 -o cat --no-pager | while read -r line; do
+journalctl "${JC_UNITS[@]}" -f -n 0 -o cat --no-pager | while read -r line; do
   process_activity "$line"
 done
