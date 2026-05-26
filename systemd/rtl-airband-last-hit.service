@@ -1,14 +1,17 @@
 [Unit]
 Description=RTLSDR-Airband last-hit tracker
-After=rtl-airband.service
-Requires=rtl-airband.service
-PartOf=rtl-airband.service
+# Post-MA/SL-split (2026-05-26): tail both new service units' logs.
+# Use Wants= (soft dep) instead of Requires= so this unit stays up
+# even if one of the rtl-airband-* services is briefly down — the
+# tracker just sees less journal output for that band.
+After=rtl-airband-airband.service rtl-airband-ground.service
+Wants=rtl-airband-airband.service rtl-airband-ground.service
 
 [Service]
 Type=simple
-ExecStart=/bin/bash /home/willminkoff/scannerproject/scripts/rtl-airband-last-hit.sh
+ExecStart=/bin/bash /home/ubuntu/scannerproject/scripts/rtl-airband-last-hit.sh
 Restart=always
 RestartSec=1
 
 [Install]
-WantedBy=rtl-airband.service
+WantedBy=multi-user.target
