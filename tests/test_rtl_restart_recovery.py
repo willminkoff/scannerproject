@@ -189,10 +189,20 @@ class RestartRtlOrchestrationTests(unittest.TestCase):
         # Capture an ordered log of mocked-helper invocations so the
         # tests can assert the exact sequence the orchestrator runs.
         self.calls: list = []
+        # ``_unit_configured`` returns False for the new MA/SL units
+        # so restart_rtl()'s auto-dispatch (added in the MA/SL split
+        # commit) falls through to the LEGACY code path that these
+        # tests pin.  Returns True for everything else so the legacy
+        # path's own ``_unit_configured`` calls (sdrplay, op25, etc.)
+        # behave as before.
+        def _unit_cfg_side_effect(u):
+            self.calls.append(("_unit_configured", u))
+            return u not in ("rtl-airband-airband", "rtl-airband-ground")
+
         self.patches = [
             mock.patch.object(
                 systemd_mod, "_unit_configured",
-                side_effect=lambda u: self.calls.append(("_unit_configured", u)) or True,
+                side_effect=_unit_cfg_side_effect,
             ),
             mock.patch.object(
                 systemd_mod, "_sdrplay_daemon_alive",

@@ -523,6 +523,15 @@ def unit_restart_count(unit: str):
 def restart_rtl(reason: str = "unspecified") -> Tuple[bool, str]:
     """Recover and restart rtl-airband with sequenced sdrplay handling.
 
+    Post-MA/SL-split auto-dispatch: if the new
+    ``rtl-airband-airband.service`` unit is present, route to
+    ``restart_rtl_airband()`` instead of operating on the retired
+    legacy ``rtl-airband.service``.  This keeps all the existing
+    actions.py callers (profile switches, control changes, etc.)
+    working through the cutover without touching ten separate call
+    sites.  Pre-cutover or post-rollback, the legacy code path
+    below still runs.
+
     Mirrors restart_digital()'s gentle-then-escalate pattern so both
     SoapySDR-consuming pipelines have symmetric recovery behavior.
 
@@ -551,6 +560,17 @@ def restart_rtl(reason: str = "unspecified") -> Tuple[bool, str]:
     don't spin forever on hardware-level problems (cable unplugged,
     USB renumber, etc.).
     """
+    # Post-MA/SL-split auto-dispatch.  The new
+    # ``rtl-airband-airband.service`` replaces the legacy
+    # ``rtl-airband.service`` for everything actions.py wants when
+    # it calls "restart_rtl()" — keep the gentle/escalate semantics
+    # consistent across both pre- and post-cutover deployments.
+    new_airband_unit = str(UNITS.get("rtl_airband") or "").strip()
+    if new_airband_unit and _unit_configured(new_airband_unit):
+        # Defined later in this module — Python resolves at call time so
+        # forward reference is fine.
+        return restart_rtl_airband(reason)
+
     rtl_unit = str(UNITS.get("rtl") or "").strip()
     # OP25 holds a persistent client connection to the same sdrplay
     # daemon.  When restart_rtl forces a daemon bounce, the daemon's
@@ -756,7 +776,16 @@ def restart_rtl(reason: str = "unspecified") -> Tuple[bool, str]:
 
 
 def restart_ground() -> Tuple[bool, str]:
-    """Restart the ground scanner."""
+    """Restart the ground scanner.
+
+    Post-MA/SL-split auto-dispatch: route to ``restart_rtl_ground()``
+    (the new SL-mode unit with sequenced-recovery semantics) when
+    the new unit is present.  Pre-cutover / post-rollback we fall
+    through to the legacy ``rtl-airband-ground`` unit start.
+    """
+    new_ground_unit = str(UNITS.get("rtl_ground") or "").strip()
+    if new_ground_unit and _unit_configured(new_ground_unit):
+        return restart_rtl_ground()
     return _restart_unit(UNITS["ground"])
 
 
