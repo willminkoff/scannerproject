@@ -168,17 +168,21 @@ sudo -u ubuntu python3 "${SCRIPTS_DIR}/migrate_dt_to_ma_sl_profiles.py" \
 log "Step 7: generate per-service runtime configs"
 # The build script reads CONFIG_SYMLINK / GROUND_CONFIG_PATH / etc.
 # from the environment — set in /etc/airband-ui.conf which our
-# systemd units source via EnvironmentFile=.  Source it here too so
-# the cutover-time config generation sees the same paths the
-# services will use at runtime.
+# systemd units source via EnvironmentFile=.  Source the file here
+# too so cutover-time config generation sees the same paths the
+# services will use at runtime.  Use ``set -a; source`` so bash
+# parses quoted values (e.g. LIBACARS_BRIDGE_CMD="...spaces...")
+# correctly.
 AIRBAND_UI_ENV=/etc/airband-ui.conf
 if [[ -f "$AIRBAND_UI_ENV" ]]; then
-    # systemd EnvironmentFile syntax is KEY=VALUE per line, comments
-    # via #.  ``grep -v ^#`` + ``xargs`` translates that into env(1)
-    # arguments without spawning a sub-shell that strips quoting.
-    ENV_ARGS=$(grep -vE '^\s*(#|$)' "$AIRBAND_UI_ENV" | tr '\n' '\0' | xargs -0)
-    sudo -u ubuntu env $ENV_ARGS python3 "${SCRIPTS_DIR}/build-service-config.py" --service airband
-    sudo -u ubuntu env $ENV_ARGS python3 "${SCRIPTS_DIR}/build-service-config.py" --service ground
+    set -a
+    # shellcheck disable=SC1090
+    source "$AIRBAND_UI_ENV"
+    set +a
+    # Pass the resolved paths explicitly via sudo -E so they survive
+    # the privilege drop to the ubuntu user.
+    sudo -E -u ubuntu python3 "${SCRIPTS_DIR}/build-service-config.py" --service airband
+    sudo -E -u ubuntu python3 "${SCRIPTS_DIR}/build-service-config.py" --service ground
 else
     warn "no $AIRBAND_UI_ENV — running build-service-config.py with script defaults"
     sudo -u ubuntu python3 "${SCRIPTS_DIR}/build-service-config.py" --service airband
