@@ -112,10 +112,14 @@ xml_path = sys.argv[1]
 snippet_path = sys.argv[2]
 xml = open(xml_path).read()
 snippet_raw = open(snippet_path).read()
-# Strip the snippet's own comment header — keep just the <mount> block.
-m = re.search(r"(<mount>.*?</mount>)", snippet_raw, re.S)
+# Strip XML comments from the snippet BEFORE searching for the
+# mount block — otherwise a comment that mentions ``<mount>`` (a
+# previous version did, helpfully) gets matched as if it WERE the
+# block to insert.
+snippet_no_comments = re.sub(r"<!--.*?-->", "", snippet_raw, flags=re.S)
+m = re.search(r"(<mount>\s*<mount-name>.*?</mount>)", snippet_no_comments, re.S)
 if not m:
-    sys.exit("snippet file missing <mount>...</mount> block")
+    sys.exit("snippet file missing <mount><mount-name>...</mount> block")
 mount_block = m.group(1)
 pattern = re.compile(
     r"(<mount>\s*<mount-name>/ANALOG\.mp3</mount-name>.*?</mount>)",
@@ -136,21 +140,25 @@ print(f"  inserted ANALOG_GROUND.mp3 mount block into {xml_path}")
 PYEOF
 fi
 
-log "Step 5: mask legacy rtl-airband.service"
-# ``systemctl mask`` creates a /dev/null symlink at
-# /etc/systemd/system/<unit>.  When a real unit file already exists
-# at that path (admin-installed unit, our case), mask refuses unless
-# --force is used — which silently overwrites the existing file.
-# Back the original up first so the rollback step can restore it.
+log "Step 5: retire legacy rtl-airband.service"
+# Originally tried ``systemctl mask`` here, but on this systemd build
+# mask refuses to replace an admin-installed unit file even with
+# --force.  Cleanest fix: rename the file out from under systemd so
+# the unit name resolves to "not-found" and nothing — neither the
+# auto-restart chain nor a manual ``systemctl start rtl-airband`` —
+# can bring it up.  Rollback step renames it back into place.
 LEGACY_UNIT=/etc/systemd/system/rtl-airband.service
+RETIRED_UNIT="${LEGACY_UNIT}.retired-ma-sl-split-20260526"
 if [[ -f "$LEGACY_UNIT" && ! -L "$LEGACY_UNIT" ]]; then
-    if [[ ! -f "${LEGACY_UNIT}${BACKUP_SUFFIX}" ]]; then
-        sudo cp -a "$LEGACY_UNIT" "${LEGACY_UNIT}${BACKUP_SUFFIX}"
-        printf '  backed up legacy unit -> %s%s\n' "$LEGACY_UNIT" "$BACKUP_SUFFIX"
-    fi
+    sudo systemctl disable rtl-airband.service 2>/dev/null || true
+    sudo mv "$LEGACY_UNIT" "$RETIRED_UNIT"
+    printf '  renamed legacy unit -> %s\n' "$RETIRED_UNIT"
+    sudo systemctl daemon-reload
+elif [[ -L "$LEGACY_UNIT" ]]; then
+    printf '  legacy unit already masked (/dev/null symlink) — leaving as-is\n'
+else
+    printf '  legacy unit not present — nothing to retire\n'
 fi
-sudo systemctl mask --force rtl-airband.service
-printf '  legacy rtl-airband.service masked (rollback step un-masks it)\n'
 
 log "Step 6: migrate profile files DT -> MA/SL"
 sudo -u ubuntu python3 "${SCRIPTS_DIR}/migrate_dt_to_ma_sl_profiles.py" \

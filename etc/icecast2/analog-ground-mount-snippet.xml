@@ -6,10 +6,12 @@
   fallback so the dashboard player never gets HTTP 404 when no source
   is publishing.
 
-  Cutover step: insert this <mount>...</mount> block into
-  /etc/icecast2/icecast.xml immediately after the existing
-  /ANALOG.mp3 mount block.  ``systemctl reload icecast2`` picks it up
-  without disrupting active listeners on other mounts.
+  Cutover step: the script inserts the mount block below into
+  icecast.xml right after the ANALOG.mp3 block.  ``systemctl reload
+  icecast2`` picks it up without disrupting active listeners on
+  other mounts.  Do not put XML tags inside this comment body — the
+  cutover script's regex looks for the FIRST mount-block-shaped
+  match and a tagged comment can fool it.
 -->
 <mount>
   <mount-name>/ANALOG_GROUND.mp3</mount-name>
