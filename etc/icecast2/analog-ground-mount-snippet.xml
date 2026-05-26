@@ -1,0 +1,19 @@
+<!--
+  ANALOG_GROUND.mp3 — ground VHF stream from rtl-airband-ground.service.
+  Added 2026-05-26 as part of the MA/SL split-process architecture
+  (docs/rspduo_ma_sl_split.md).  Mirrors the existing /ANALOG.mp3
+  block; both mounts share /keepalive-analog.mp3 as the silence
+  fallback so the dashboard player never gets HTTP 404 when no source
+  is publishing.
+
+  Cutover step: insert this <mount>...</mount> block into
+  /etc/icecast2/icecast.xml immediately after the existing
+  /ANALOG.mp3 mount block.  ``systemctl reload icecast2`` picks it up
+  without disrupting active listeners on other mounts.
+-->
+<mount>
+  <mount-name>/ANALOG_GROUND.mp3</mount-name>
+  <type>audio/mpeg</type>
+  <fallback-mount>/keepalive-analog.mp3</fallback-mount>
+  <fallback-override>1</fallback-override>
+</mount>

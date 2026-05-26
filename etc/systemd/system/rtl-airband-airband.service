@@ -1,0 +1,31 @@
+[Unit]
+Description=rtl-airband (airband — RSPduo Tuner 1, MA mode)
+# This unit replaces the legacy rtl-airband.service.  See
+# docs/rspduo_ma_sl_split.md for the architectural reason: each tuner
+# of the RSPduo gets its own rtl-airband process, daemon-coordinated
+# via Master/Slave mode.  Tuner 1 (airband) is the Master.
+After=network-online.target icecast2.service sdrplay.service
+Wants=network-online.target
+Requires=icecast2.service sdrplay.service
+Wants=rtl-airband-last-hit.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/airband-ui.conf
+# Pre-flight: any leftover rtl-airband processes from a previous
+# generation (legacy single-service, or a wedged sibling) need to die
+# so this instance can open its tuner.  pkill -x matches the binary
+# basename exactly, so the bash wrapper shim isn't affected.
+ExecStartPre=-/usr/bin/pkill -x rtl_airband
+# Render this service's standalone runtime config from the active
+# airband profile.  Writes /run/rtl_airband_airband_runtime.conf.
+ExecStartPre=/usr/bin/python3 /home/ubuntu/scannerproject/scripts/build-service-config.py --service airband
+ExecStart=/bin/bash /home/ubuntu/scannerproject/scripts/rtl-airband-filter.sh /run/rtl_airband_airband_runtime.conf
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=1
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target

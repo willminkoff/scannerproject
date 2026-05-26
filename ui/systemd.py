@@ -13,6 +13,8 @@ try:
         UNITS,
         BT_HEAL_TIMER_UNIT,
         RTL_AIRBAND_STATS_PATH,
+        RTL_AIRBAND_AIRBAND_STATS_PATH,
+        RTL_AIRBAND_GROUND_STATS_PATH,
         RTL_AIRBAND_STATS_STALE_SEC,
     )
     from .sample_flow import rtl_airband_sample_flow_state
@@ -21,6 +23,8 @@ except ImportError:
         UNITS,
         BT_HEAL_TIMER_UNIT,
         RTL_AIRBAND_STATS_PATH,
+        RTL_AIRBAND_AIRBAND_STATS_PATH,
+        RTL_AIRBAND_GROUND_STATS_PATH,
         RTL_AIRBAND_STATS_STALE_SEC,
     )
     from ui.sample_flow import rtl_airband_sample_flow_state
@@ -95,6 +99,7 @@ def _record_rtl_wedge_recovery() -> None:
 def _wait_for_rtl_airband_health(
     timeout_sec: float = 30.0,
     poll_interval_sec: float = 2.0,
+    stats_path: Optional[str] = None,
 ) -> Tuple[bool, str]:
     """Poll ``rtl_airband_stats.txt`` until sample_flow_ok or timeout.
 
@@ -107,12 +112,19 @@ def _wait_for_rtl_airband_health(
 
     Returns (ok, detail).  ok=True when the stats file is fresh (age <
     RTL_AIRBAND_STATS_STALE_SEC).  detail is a human-readable summary.
+
+    ``stats_path`` is optional: if omitted, the function probes the
+    legacy ``RTL_AIRBAND_STATS_PATH`` (single-process pre-split layout).
+    The MA/SL split passes a per-service path so each service can be
+    probed independently — see ``restart_rtl_airband`` /
+    ``restart_rtl_ground`` callers.
     """
+    target_path = stats_path if stats_path else RTL_AIRBAND_STATS_PATH
     deadline = time.monotonic() + max(0.1, timeout_sec)
     last_state: dict = {}
     while True:
         state = rtl_airband_sample_flow_state(
-            RTL_AIRBAND_STATS_PATH,
+            target_path,
             RTL_AIRBAND_STATS_STALE_SEC,
         )
         if state.get("sample_flow_ok"):
@@ -1060,3 +1072,383 @@ def ground_control_unit():
     if unit_active(UNITS["rtl"]):
         return "rtl"
     return "ground"
+
+
+# ---------------------------------------------------------------------------
+# MA/SL split-process restart machinery (2026-05-26)
+#
+# The legacy ``restart_rtl()`` above operates on the single pre-split
+# unit ``rtl-airband.service``.  After the MA/SL cutover (see
+# docs/rspduo_ma_sl_split.md) that unit is masked and TWO new units
+# take over: ``rtl-airband-airband.service`` (Master / Tuner 1) and
+# ``rtl-airband-ground.service`` (Slave / Tuner 2).  Each runs in its
+# own process.  Each writes its own stats file.  Each gets its own
+# restart function with telemetry mirrored from the legacy
+# ``_RTL_RESTART_STATE`` pattern.
+#
+# Gentle attempt only touches the target service.  Escalation
+# (forced sdrplay daemon bounce) stops BOTH new services AND OP25
+# because all three share the daemon — leaving any client connected
+# during the bounce risks the same state-corruption pattern we saw
+# with the pre-split DT-mode setup.  Per-band escalations then bring
+# everything back up in the correct order: airband first (Master),
+# ground second (Slave depends on Master), OP25 last.
+# ---------------------------------------------------------------------------
+
+_RTL_AIRBAND_RESTART_STATE_LOCK = threading.Lock()
+_RTL_AIRBAND_RESTART_STATE: dict = {
+    "attempts_total": 0,
+    "last_attempt_ts": 0.0,
+    "last_attempt_reason": "",
+    "wedge_recovery_total": 0,
+    "last_wedge_recovery_ts": 0.0,
+    "last_health_probe_result": "",
+    "last_health_probe_ts": 0.0,
+    "last_health_probe_detail": "",
+}
+
+_RTL_GROUND_RESTART_STATE_LOCK = threading.Lock()
+_RTL_GROUND_RESTART_STATE: dict = {
+    "attempts_total": 0,
+    "last_attempt_ts": 0.0,
+    "last_attempt_reason": "",
+    "wedge_recovery_total": 0,
+    "last_wedge_recovery_ts": 0.0,
+    "last_health_probe_result": "",
+    "last_health_probe_ts": 0.0,
+    "last_health_probe_detail": "",
+}
+
+
+def rtl_airband_restart_state() -> dict:
+    """Snapshot of the airband-service restart / probe state."""
+    with _RTL_AIRBAND_RESTART_STATE_LOCK:
+        return dict(_RTL_AIRBAND_RESTART_STATE)
+
+
+def rtl_ground_restart_state() -> dict:
+    """Snapshot of the ground-service restart / probe state."""
+    with _RTL_GROUND_RESTART_STATE_LOCK:
+        return dict(_RTL_GROUND_RESTART_STATE)
+
+
+def _record_service_restart_attempt(state_lock, state, reason: str) -> None:
+    with state_lock:
+        state["attempts_total"] += 1
+        state["last_attempt_ts"] = time.time()
+        state["last_attempt_reason"] = str(reason or "unspecified")
+
+
+def _record_service_health_probe(state_lock, state, result: str, detail: str) -> None:
+    with state_lock:
+        state["last_health_probe_result"] = str(result or "")
+        state["last_health_probe_ts"] = time.time()
+        state["last_health_probe_detail"] = str(detail or "")
+
+
+def _record_service_wedge_recovery(state_lock, state) -> None:
+    with state_lock:
+        state["wedge_recovery_total"] += 1
+        state["last_wedge_recovery_ts"] = time.time()
+
+
+def _restart_rtl_service(
+    *,
+    service_label: str,
+    target_unit: str,
+    peer_unit: str,
+    stats_path: str,
+    state_lock: threading.Lock,
+    state: dict,
+    reason: str,
+) -> Tuple[bool, str]:
+    """Generic sequenced-restart worker for either rtl-airband-airband or
+    rtl-airband-ground.
+
+    Why this is a shared helper instead of two copies: the gentle/
+    escalate dance, sdrplay daemon coordination, OP25 coordination,
+    and post-start probe logic are all identical between the two
+    services.  Only three things differ: the unit name, the peer
+    service that needs to come down during escalation, and the stats
+    file the probe reads.  Parameterizing those keeps the recovery
+    logic in one place — what we tune for one band, both bands get.
+
+    Service ordering on a full-stack escalation:
+
+      gentle:    stop TARGET → start TARGET → probe
+      escalate:  stop TARGET + PEER + OP25 → bounce daemon →
+                 start airband (Master) → probe airband →
+                 start ground (Slave)  → start OP25
+    """
+    digital_unit = str(UNITS.get("digital") or "").strip()
+    digital_exists = _unit_configured(digital_unit) if digital_unit else False
+    peer_exists = _unit_configured(peer_unit) if peer_unit else False
+    sdrplay_unit = (
+        os.getenv("UNIT_SDRPLAY")
+        or os.getenv("SDRPLAY_SERVICE_NAME")
+        or "sdrplay"
+    ).strip()
+    sdrplay_exists = _unit_configured(sdrplay_unit)
+
+    sdrplay_settle_sec = _env_float("RTL_RESTART_SDRPLAY_SETTLE_SEC", 3.0)
+    rtl_settle_sec = _env_float("RTL_RESTART_SETTLE_SEC", 6.0)
+    digital_settle_sec = _env_float("RTL_RESTART_DIGITAL_SETTLE_SEC", 2.0)
+
+    probe_enabled = (
+        os.getenv("RTL_POST_START_PROBE_ENABLED", "1").strip().lower() in _TRUTHY
+    )
+    probe_timeout_sec = _env_float(
+        "RTL_POST_START_PROBE_TIMEOUT_SEC", 30.0, minimum=1.0
+    )
+    probe_poll_sec = _env_float(
+        "RTL_POST_START_PROBE_POLL_SEC", 2.0, minimum=0.1
+    )
+    max_escalations = int(
+        _env_float("RTL_WEDGE_RECOVERY_MAX_ATTEMPTS", 2.0, minimum=1.0)
+    )
+
+    _record_service_restart_attempt(state_lock, state, reason)
+    print(
+        f"restart_{service_label}: reason={reason!r} probe_enabled={probe_enabled} "
+        f"probe_timeout_sec={probe_timeout_sec}",
+        flush=True,
+    )
+
+    if not target_unit:
+        return False, f"{service_label}: target unit not configured"
+
+    def _attempt(force_sdrplay_restart: bool, attempt_label: str) -> Tuple[bool, str]:
+        _stop_unit(target_unit, use_sudo=True)
+        _kill_unit(target_unit)
+
+        # On escalation: bring down the peer service AND OP25 so the
+        # sdrplay daemon can fully clear all client state before its
+        # restart.  Gentle attempts leave peers running.
+        peer_was_stopped = False
+        op25_was_stopped = False
+        if force_sdrplay_restart:
+            if peer_exists and unit_active(peer_unit):
+                print(
+                    f"restart_{service_label}[{attempt_label}]: stopping peer "
+                    f"{peer_unit} to free sdrplay daemon",
+                    flush=True,
+                )
+                _stop_unit(peer_unit, use_sudo=True)
+                _kill_unit(peer_unit)
+                peer_was_stopped = True
+            if digital_exists and unit_active(digital_unit):
+                print(
+                    f"restart_{service_label}[{attempt_label}]: stopping OP25 "
+                    f"to free sdrplay daemon",
+                    flush=True,
+                )
+                _stop_unit(digital_unit, use_sudo=True)
+                _kill_unit(digital_unit)
+                op25_was_stopped = True
+
+        units_to_reset = [target_unit]
+        if peer_was_stopped:
+            units_to_reset.append(peer_unit)
+        if op25_was_stopped:
+            units_to_reset.append(digital_unit)
+        _reset_failed_units(units_to_reset)
+
+        if sdrplay_exists:
+            daemon_alive = _sdrplay_daemon_alive()
+            if force_sdrplay_restart or not daemon_alive:
+                print(
+                    f"restart_{service_label}[{attempt_label}]: bouncing sdrplay "
+                    f"daemon (force={force_sdrplay_restart}, alive={daemon_alive})",
+                    flush=True,
+                )
+                ok, err = _restart_unit(sdrplay_unit, use_sudo=True)
+                if not ok:
+                    return False, f"sdrplay restart: {err}"
+                if sdrplay_settle_sec > 0:
+                    time.sleep(sdrplay_settle_sec)
+            else:
+                healthy, hreason = _sdrplay_daemon_healthy()
+                if not healthy:
+                    print(
+                        f"restart_{service_label}[{attempt_label}]: sdrplay "
+                        f"daemon needs restart ({hreason})",
+                        flush=True,
+                    )
+                    ok, err = _restart_unit(sdrplay_unit, use_sudo=True)
+                    if not ok:
+                        return False, f"sdrplay restart: {err}"
+                    if sdrplay_settle_sec > 0:
+                        time.sleep(sdrplay_settle_sec)
+
+        # Service start ordering: airband (Master) ALWAYS comes up
+        # before ground (Slave).  Even if the operator restarted the
+        # ground service, the Master must be open before the Slave's
+        # sdrplay_api_Open call.  We resolve the airband unit by
+        # checking if the target IS airband or if its peer is.
+        airband_unit = (
+            target_unit if service_label == "rtl_airband" else peer_unit
+        )
+        ground_unit = (
+            target_unit if service_label == "rtl_ground" else peer_unit
+        )
+
+        if force_sdrplay_restart and peer_was_stopped:
+            # Full stack restart: start airband first, probe it healthy,
+            # then start ground.  This is the canonical clean-cycle.
+            ok, err = _start_unit(airband_unit, use_sudo=True)
+            if not ok:
+                return False, f"airband start: {err}"
+            if rtl_settle_sec > 0:
+                time.sleep(rtl_settle_sec)
+            if probe_enabled:
+                probe_ok, probe_detail = _wait_for_rtl_airband_health(
+                    timeout_sec=probe_timeout_sec,
+                    poll_interval_sec=probe_poll_sec,
+                    stats_path=RTL_AIRBAND_AIRBAND_STATS_PATH,
+                )
+                if not probe_ok:
+                    _record_service_health_probe(
+                        state_lock, state, "wedged",
+                        f"airband (Master) probe failed: {probe_detail}",
+                    )
+                    return False, f"airband probe failed: {probe_detail}"
+            ok, err = _start_unit(ground_unit, use_sudo=True)
+            if not ok:
+                return False, f"ground start: {err}"
+            if rtl_settle_sec > 0:
+                time.sleep(rtl_settle_sec)
+            if probe_enabled:
+                # Probe whichever service the caller is restarting.
+                # Target's stats path is what matters for THIS call's
+                # success — the peer's probe success is implicit if
+                # the start succeeded.
+                probe_ok, probe_detail = _wait_for_rtl_airband_health(
+                    timeout_sec=probe_timeout_sec,
+                    poll_interval_sec=probe_poll_sec,
+                    stats_path=stats_path,
+                )
+                _record_service_health_probe(
+                    state_lock, state,
+                    "ok" if probe_ok else "wedged",
+                    probe_detail,
+                )
+                if not probe_ok:
+                    return False, f"post-start probe failed: {probe_detail}"
+            else:
+                _record_service_health_probe(
+                    state_lock, state, "skipped", "probe disabled by env"
+                )
+        else:
+            # Gentle path: just bring the one target back up.
+            ok, err = _start_unit(target_unit, use_sudo=True)
+            if not ok:
+                return False, f"{service_label} start: {err}"
+            if rtl_settle_sec > 0:
+                time.sleep(rtl_settle_sec)
+            if probe_enabled:
+                probe_ok, probe_detail = _wait_for_rtl_airband_health(
+                    timeout_sec=probe_timeout_sec,
+                    poll_interval_sec=probe_poll_sec,
+                    stats_path=stats_path,
+                )
+                _record_service_health_probe(
+                    state_lock, state,
+                    "ok" if probe_ok else "wedged",
+                    probe_detail,
+                )
+                if not probe_ok:
+                    return False, f"post-start probe failed: {probe_detail}"
+            else:
+                _record_service_health_probe(
+                    state_lock, state, "skipped", "probe disabled by env"
+                )
+
+        # Finally, if we'd stopped OP25 for the daemon bounce, bring
+        # it back.  Failure here doesn't fail the analog restart —
+        # surface in the probe detail and let the operator hit
+        # Restart Digital manually.
+        if op25_was_stopped:
+            ok_d, err_d = _start_unit(digital_unit, use_sudo=True)
+            if not ok_d:
+                _record_service_health_probe(
+                    state_lock, state,
+                    "ok-but-op25-failed-to-restart",
+                    f"{service_label} healthy; op25 restart err: {err_d}",
+                )
+                print(
+                    f"restart_{service_label}[{attempt_label}]: WARN op25 "
+                    f"restart failed: {err_d} ({service_label} still ok)",
+                    flush=True,
+                )
+            elif digital_settle_sec > 0:
+                time.sleep(digital_settle_sec)
+
+        return True, ""
+
+    # Gentle attempt 1: just the target service, no daemon touch.
+    ok, err = _attempt(force_sdrplay_restart=False, attempt_label="gentle")
+    if ok:
+        return True, ""
+    print(
+        f"restart_{service_label}: gentle attempt failed ({err}); "
+        f"escalating to wedge recovery",
+        flush=True,
+    )
+
+    last_err = err
+    for escalation in range(1, max_escalations + 1):
+        ok, err = _attempt(
+            force_sdrplay_restart=True,
+            attempt_label=f"escalation-{escalation}",
+        )
+        _record_service_wedge_recovery(state_lock, state)
+        if ok:
+            print(
+                f"restart_{service_label}: wedge recovery succeeded on "
+                f"escalation {escalation}",
+                flush=True,
+            )
+            return True, ""
+        last_err = err
+
+    return False, (
+        f"wedge recovery exhausted after {max_escalations} escalations: {last_err}"
+    )
+
+
+def restart_rtl_airband(reason: str = "unspecified") -> Tuple[bool, str]:
+    """Sequenced recovery for the airband (Master / Tuner 1) service.
+
+    Gentle path touches only ``rtl-airband-airband.service``.
+    Escalation cycles airband + ground + OP25 together with a forced
+    sdrplay daemon bounce, then brings them up in dependency order
+    (airband → ground → op25).
+    """
+    return _restart_rtl_service(
+        service_label="rtl_airband",
+        target_unit=str(UNITS.get("rtl_airband") or "").strip(),
+        peer_unit=str(UNITS.get("rtl_ground") or "").strip(),
+        stats_path=RTL_AIRBAND_AIRBAND_STATS_PATH,
+        state_lock=_RTL_AIRBAND_RESTART_STATE_LOCK,
+        state=_RTL_AIRBAND_RESTART_STATE,
+        reason=reason,
+    )
+
+
+def restart_rtl_ground(reason: str = "unspecified") -> Tuple[bool, str]:
+    """Sequenced recovery for the ground (Slave / Tuner 2) service.
+
+    Gentle path touches only ``rtl-airband-ground.service``.
+    Escalation cycles airband + ground + OP25 — airband must come up
+    BEFORE ground because the SDRplay Slave open requires the Master
+    to already be present.
+    """
+    return _restart_rtl_service(
+        service_label="rtl_ground",
+        target_unit=str(UNITS.get("rtl_ground") or "").strip(),
+        peer_unit=str(UNITS.get("rtl_airband") or "").strip(),
+        stats_path=RTL_AIRBAND_GROUND_STATS_PATH,
+        state_lock=_RTL_GROUND_RESTART_STATE_LOCK,
+        state=_RTL_GROUND_RESTART_STATE,
+        reason=reason,
+    )
