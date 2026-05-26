@@ -174,19 +174,21 @@ log "Step 7: generate per-service runtime configs"
 # parses quoted values (e.g. LIBACARS_BRIDGE_CMD="...spaces...")
 # correctly.
 AIRBAND_UI_ENV=/etc/airband-ui.conf
+# Run as root (not the ubuntu user) because the build script writes
+# the runtime config to /run/, which is root-only.  This mirrors how
+# the systemd units invoke build-service-config.py at startup —
+# they don't drop privileges either.
 if [[ -f "$AIRBAND_UI_ENV" ]]; then
     set -a
     # shellcheck disable=SC1090
     source "$AIRBAND_UI_ENV"
     set +a
-    # Pass the resolved paths explicitly via sudo -E so they survive
-    # the privilege drop to the ubuntu user.
-    sudo -E -u ubuntu python3 "${SCRIPTS_DIR}/build-service-config.py" --service airband
-    sudo -E -u ubuntu python3 "${SCRIPTS_DIR}/build-service-config.py" --service ground
+    sudo -E python3 "${SCRIPTS_DIR}/build-service-config.py" --service airband
+    sudo -E python3 "${SCRIPTS_DIR}/build-service-config.py" --service ground
 else
     warn "no $AIRBAND_UI_ENV — running build-service-config.py with script defaults"
-    sudo -u ubuntu python3 "${SCRIPTS_DIR}/build-service-config.py" --service airband
-    sudo -u ubuntu python3 "${SCRIPTS_DIR}/build-service-config.py" --service ground
+    sudo python3 "${SCRIPTS_DIR}/build-service-config.py" --service airband
+    sudo python3 "${SCRIPTS_DIR}/build-service-config.py" --service ground
 fi
 
 log "Step 8: validate the new configs together"
