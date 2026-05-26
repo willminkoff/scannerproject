@@ -46,6 +46,17 @@ else:
 LAST_HIT_AIRBAND_PATH = os.getenv("LAST_HIT_AIRBAND_PATH", "/run/rtl_airband_last_freq_airband.txt")
 LAST_HIT_GROUND_PATH = os.getenv("LAST_HIT_GROUND_PATH", "/run/rtl_airband_last_freq_ground.txt")
 
+# rtl-airband sample-flow liveness probe.  The rtl_airband binary writes
+# its prometheus-shaped stats file every output_thread cycle (~1 s in
+# normal operation).  Going more than RTL_AIRBAND_STATS_STALE_SEC without
+# a write means samples have stopped flowing through the channel
+# pipeline — even when systemd still reports the unit "active".  This is
+# the zombie state we keep hitting; surfacing the freshness as a first-
+# class signal in /api/status lets the dashboard (and any watchdog) tell
+# the truth instead of trusting is-active.
+RTL_AIRBAND_STATS_PATH = os.getenv("RTL_AIRBAND_STATS_PATH", "/run/rtl_airband_stats.txt")
+RTL_AIRBAND_STATS_STALE_SEC = float(os.getenv("RTL_AIRBAND_STATS_STALE_SEC", "15"))
+
 # Filter Configuration
 FILTER_CONFIG_DIR = os.getenv("FILTER_CONFIG_DIR", "/run")
 FILTER_AIRBAND_PATH = os.path.join(FILTER_CONFIG_DIR, "rtl_airband_filter.json")

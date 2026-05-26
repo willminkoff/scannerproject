@@ -121,12 +121,15 @@ try:
         HP_LOCATION_PUSH_LOG_PATH,
         ICECAST_PORT,
         PLAYER_MOUNT,
+        RTL_AIRBAND_STATS_PATH,
+        RTL_AIRBAND_STATS_STALE_SEC,
         SB3_CONNECTED_STATUS_REFRESH_SEC,
         SB3_CONNECTED_SYSTEM_REFRESH_SEC,
         SB3_CONNECTED_PROFILES_REFRESH_SEC,
         SB3_DEDICATED_DIGITAL_FETCH_ENABLED,
         STREAM_PROXY_TRANSCODE_ANALOG_DEFAULT,
     )
+    from .sample_flow import rtl_airband_sample_flow_state, mount_publishing
     from .profile_config import (
         read_active_config_path, parse_controls, split_profiles,
         resolve_controls_path,
@@ -232,12 +235,15 @@ except ImportError:
         HP_LOCATION_PUSH_LOG_PATH,
         ICECAST_PORT,
         PLAYER_MOUNT,
+        RTL_AIRBAND_STATS_PATH,
+        RTL_AIRBAND_STATS_STALE_SEC,
         SB3_CONNECTED_STATUS_REFRESH_SEC,
         SB3_CONNECTED_SYSTEM_REFRESH_SEC,
         SB3_CONNECTED_PROFILES_REFRESH_SEC,
         SB3_DEDICATED_DIGITAL_FETCH_ENABLED,
         STREAM_PROXY_TRANSCODE_ANALOG_DEFAULT,
     )
+    from ui.sample_flow import rtl_airband_sample_flow_state, mount_publishing
     from ui.profile_config import (
         read_active_config_path, parse_controls, split_profiles,
         resolve_controls_path,
@@ -3554,20 +3560,46 @@ class Handler(BaseHTTPRequestHandler):
                     })
             airband_present = airband_device is not None
             ground_present = ground_device is not None
-            rtl_ok = rtl_unit_active
+            # Sample-flow liveness for rtl-airband: systemd "active" stays
+            # true through zombie states where the SoapySDR readStream is
+            # stuck and the channel pipeline writes no samples.  The
+            # stats file mtime is the contractual heartbeat — rtl_airband
+            # rewrites it every output_thread cycle.  Stale mtime ⇒ the
+            # pipeline is dead regardless of unit state.
+            sample_flow = rtl_airband_sample_flow_state(
+                RTL_AIRBAND_STATS_PATH,
+                RTL_AIRBAND_STATS_STALE_SEC,
+            )
+            sample_flow_ok = bool(sample_flow.get("sample_flow_ok"))
+            rtl_ok = rtl_unit_active and sample_flow_ok
             ground_ok = rtl_ok and ground_present
-            ice_ok = _unit_active_cached(UNITS["icecast"])
+            ice_unit_active = _unit_active_cached(UNITS["icecast"])
             icecast_mounts = []
+            icecast_status_text = ""
             analog_stream_mount = str(PLAYER_MOUNT or "").strip().lstrip("/")
             digital_stream_mount = str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/")
-            if ice_ok:
+            if ice_unit_active:
                 try:
-                    status_text = fetch_local_icecast_status()
-                    icecast_mounts = list_icecast_mounts(status_text)
-                    analog_stream_mount = _resolve_analog_stream_mount(status_text)
-                    digital_stream_mount = _resolve_digital_stream_mount(status_text)
+                    icecast_status_text = fetch_local_icecast_status()
+                    icecast_mounts = list_icecast_mounts(icecast_status_text)
+                    analog_stream_mount = _resolve_analog_stream_mount(icecast_status_text)
+                    digital_stream_mount = _resolve_digital_stream_mount(icecast_status_text)
                 except Exception:
                     icecast_mounts = []
+                    icecast_status_text = ""
+            # Mount-publishing liveness: icecast's systemd wrapper can
+            # report "active (exited)" after the daemon dies (SysV init
+            # script wrapper artifact), and mount entries persist after
+            # source disconnects.  Truth is whether a source is actively
+            # publishing to the expected mounts right now.
+            mount_analog = mount_publishing(icecast_status_text, PLAYER_MOUNT or "ANALOG.mp3")
+            mount_digital = mount_publishing(
+                icecast_status_text, DIGITAL_STREAM_MOUNT or "DIGITAL.mp3"
+            )
+            # icecast_active retains its is-active semantic for backwards
+            # compatibility; callers that need real liveness consume the
+            # mount-publishing booleans.
+            ice_ok = ice_unit_active
             combined_stale = combined_config_stale()
 
             prof_payload, profiles_airband, profiles_ground = split_profiles()
@@ -3645,6 +3677,12 @@ class Handler(BaseHTTPRequestHandler):
                 "ground_exists": ground_present,
                 "rtl_unit_active": rtl_unit_active,
                 "ground_unit_active": ground_unit_active,
+                "rtl_airband_sample_flow_ok": sample_flow_ok,
+                "rtl_airband_stats_age_sec": sample_flow.get("stats_age_sec"),
+                "rtl_airband_stats_stale_threshold_sec": sample_flow.get(
+                    "stale_threshold_sec"
+                ),
+                "rtl_airband_sample_flow_reason": sample_flow.get("reason") or "",
                 "rtl_restart_loop": rtl_restart_loop,
                 "rtl_restart_count": rtl_restart_loop.get("count"),
                 "rtl_restart_loop_detected": bool(rtl_restart_loop.get("loop_detected")),
@@ -3654,6 +3692,9 @@ class Handler(BaseHTTPRequestHandler):
                 "airband_present": airband_present,
                 "ground_present": ground_present,
                 "icecast_active": ice_ok,
+                "icecast_unit_active": ice_unit_active,
+                "icecast_mount_analog_alive": bool(mount_analog),
+                "icecast_mount_digital_alive": bool(mount_digital),
                 "icecast_mounts": icecast_mounts,
                 "icecast_port": ICECAST_PORT,
                 "stream_mount": analog_stream_mount,
@@ -4134,19 +4175,34 @@ class Handler(BaseHTTPRequestHandler):
                 ground_unit_active = _unit_active_cached(UNITS["ground"])
                 combined_info = combined_device_summary()
                 ground_present = combined_info.get("ground") is not None
-                rtl_active = rtl_unit_active
+                # Sample-flow gate: see /api/status path above for rationale.
+                # Both code paths must agree or the SSE-driven sitrep dots
+                # will disagree with the polled /api/status view.
+                sample_flow = rtl_airband_sample_flow_state(
+                    RTL_AIRBAND_STATS_PATH,
+                    RTL_AIRBAND_STATS_STALE_SEC,
+                )
+                sample_flow_ok = bool(sample_flow.get("sample_flow_ok"))
+                rtl_active = rtl_unit_active and sample_flow_ok
                 ground_active = rtl_active and ground_present
-                ice_ok = _unit_active_cached(UNITS["icecast"])
+                ice_unit_active = _unit_active_cached(UNITS["icecast"])
+                ice_ok = ice_unit_active
+                icecast_status_text = ""
                 analog_stream_mount = str(PLAYER_MOUNT or "").strip().lstrip("/")
                 digital_stream_mount = str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/")
-                if ice_ok:
+                if ice_unit_active:
                     try:
-                        status_text = fetch_local_icecast_status()
-                        analog_stream_mount = _resolve_analog_stream_mount(status_text)
-                        digital_stream_mount = _resolve_digital_stream_mount(status_text)
+                        icecast_status_text = fetch_local_icecast_status()
+                        analog_stream_mount = _resolve_analog_stream_mount(icecast_status_text)
+                        digital_stream_mount = _resolve_digital_stream_mount(icecast_status_text)
                     except Exception:
+                        icecast_status_text = ""
                         analog_stream_mount = str(PLAYER_MOUNT or "").strip().lstrip("/")
                         digital_stream_mount = str(DIGITAL_STREAM_MOUNT or "").strip().lstrip("/")
+                mount_analog = mount_publishing(icecast_status_text, PLAYER_MOUNT or "ANALOG.mp3")
+                mount_digital = mount_publishing(
+                    icecast_status_text, DIGITAL_STREAM_MOUNT or "DIGITAL.mp3"
+                )
                 # Keep SSE hits aligned with the full UI hit list so digital
                 # rows are not dropped by top-10 truncation during busy analog traffic.
                 hits_payload = _get_hits_payload_cached(limit=50)
@@ -4188,6 +4244,16 @@ class Handler(BaseHTTPRequestHandler):
                     "rtl_active": rtl_active,
                     "ground_active": ground_active,
                     "icecast_active": ice_ok,
+                    "icecast_unit_active": ice_unit_active,
+                    "icecast_mount_analog_alive": bool(mount_analog),
+                    "icecast_mount_digital_alive": bool(mount_digital),
+                    "rtl_airband_sample_flow_ok": sample_flow_ok,
+                    "rtl_airband_stats_age_sec": sample_flow.get("stats_age_sec"),
+                    "rtl_airband_stats_stale_threshold_sec": sample_flow.get(
+                        "stale_threshold_sec"
+                    ),
+                    "rtl_airband_sample_flow_reason": sample_flow.get("reason") or "",
+                    "rtl_unit_active": rtl_unit_active,
                     "ground_unit_active": ground_unit_active,
                     "combined_config_stale": combined_config_stale(),
                     "gain": float(airband_gain),
