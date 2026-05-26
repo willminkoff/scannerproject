@@ -52,6 +52,7 @@ try:
     )
     from .managed_analog_controls import persist_managed_controls_override
     from .scanner import mark_analog_hit_cutoff
+    from .config_validator import validate_combined_config_text
 except ImportError:
     from ui.config import (
         CONFIG_SYMLINK,
@@ -89,6 +90,7 @@ except ImportError:
     )
     from ui.managed_analog_controls import persist_managed_controls_override
     from ui.scanner import mark_analog_hit_cutoff
+    from ui.config_validator import validate_combined_config_text
 
 logger = logging.getLogger(__name__)
 
@@ -674,6 +676,16 @@ def action_set_profile(profile_id: str, target: str, *, restart_service: bool = 
                         "error": f"{bin_path} not found; install it to use {new_decoder} mode"
                     }}
 
+        # Snapshot the current combined config text BEFORE swapping
+        # symlinks, so we can roll back cleanly if the prospective
+        # config fails validation.
+        prev_combined_text = ""
+        try:
+            with open(COMBINED_CONFIG_PATH, "r", encoding="utf-8", errors="ignore") as fh:
+                prev_combined_text = fh.read()
+        except Exception:
+            prev_combined_text = ""
+
         ok, changed = set_profile(profile_id, conf_path, profiles, target_symlink)
         if not ok:
             return {"status": 400, "payload": {"ok": False, "error": "unknown profile"}}
@@ -688,6 +700,74 @@ def action_set_profile(profile_id: str, target: str, *, restart_service: bool = 
             except Exception as e:
                 return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
             restart_needed = bool(changed or combined_changed)
+
+            # Pre-flight: validate the prospective combined config
+            # against currently-plugged devices BEFORE we trigger a
+            # restart.  The 2026-05-26 bandscan_marine outage was caused
+            # by a profile whose serial referenced a long-unplugged
+            # RTL-SDR; rtl_airband crash-looped for ~20 minutes before
+            # someone noticed.  Catching it here turns that class of
+            # bug into a clean 409 with no restart and no audio outage.
+            try:
+                with open(COMBINED_CONFIG_PATH, "r", encoding="utf-8", errors="ignore") as fh:
+                    new_combined_text = fh.read()
+                validation = validate_combined_config_text(new_combined_text)
+            except Exception:
+                logger.warning(
+                    "action_set_profile: validator raised; allowing apply "
+                    "to proceed (sample-flow watchdog will catch failure)",
+                    exc_info=True,
+                )
+                validation = {"ok": True, "issues": [], "checked_devices": []}
+
+            if not validation["ok"]:
+                # Roll back symlinks + combined config to the previous
+                # known-good state before returning the rejection.
+                logger.warning(
+                    "action_set_profile: rejecting profile=%s target=%s: "
+                    "%d issue(s) in prospective combined config",
+                    profile_id, target, len(validation["issues"]),
+                )
+                rollback_ok = False
+                rollback_detail = ""
+                try:
+                    if current_profile:
+                        set_profile(current_profile, conf_path, profiles, target_symlink)
+                    write_combined_config()
+                    rollback_ok = True
+                except Exception as exc:
+                    rollback_detail = f"rollback failed: {exc}"
+                    logger.error(
+                        "action_set_profile: rollback failed after "
+                        "validation rejection: %s", exc, exc_info=True,
+                    )
+                    # Best-effort: drop the previous combined text back
+                    # directly so we don't leave rtl-airband pointed at
+                    # the rejected config.
+                    if prev_combined_text:
+                        try:
+                            with open(COMBINED_CONFIG_PATH, "w", encoding="utf-8") as fh:
+                                fh.write(prev_combined_text)
+                            rollback_ok = True
+                        except Exception:
+                            logger.error(
+                                "action_set_profile: direct combined-config "
+                                "restore also failed",
+                                exc_info=True,
+                            )
+                return {
+                    "status": 409,
+                    "payload": {
+                        "ok": False,
+                        "error": "combined config validation failed",
+                        "issues": validation["issues"],
+                        "checked_devices": validation["checked_devices"],
+                        "rolled_back": rollback_ok,
+                        "rollback_detail": rollback_detail,
+                        "rejected_profile": profile_id,
+                        "restored_profile": current_profile or "",
+                    },
+                }
 
         payload = {
             "ok": True,

@@ -146,6 +146,84 @@ def _parse_device_string_kv(value: str) -> Dict[str, str]:
     return out
 
 
+def _parse_device_block(block: str) -> Dict:
+    """Parse a single ``{ ... }`` device block into the canonical dict."""
+    serial = None
+    index = None
+    gain = None
+    squelch_dbfs = None
+    device_type = None
+    soapy_driver = None
+    soapy_kwargs: Dict[str, str] = {}
+    m = RE_DEVICE_TYPE.search(block)
+    if m:
+        device_type = m.group(1).strip().lower() or None
+    m = RE_DEVICE_STRING.search(block)
+    if m:
+        soapy_kwargs = _parse_device_string_kv(m.group(1))
+        soapy_driver = soapy_kwargs.get("driver")
+        # For SoapySDR devices the canonical serial lives in
+        # device_string; surface it at the top level so existing
+        # callers that look at dev["serial"] don't need to know
+        # about the soapy nesting.
+        if "serial" in soapy_kwargs:
+            serial = soapy_kwargs["serial"]
+    m = RE_SERIAL.search(block)
+    if m and not serial:
+        serial = m.group(1).strip()
+    m = RE_INDEX.search(block)
+    if m:
+        try:
+            index = int(m.group(1))
+        except ValueError:
+            index = None
+    m = RE_GAIN.search(block)
+    if m:
+        try:
+            gain = float(m.group(1))
+        except ValueError:
+            gain = None
+    m = RE_SQUELCH.search(block)
+    if m:
+        try:
+            squelch_dbfs = float(m.group(1))
+        except ValueError:
+            squelch_dbfs = None
+    freqs = _parse_freqs(block)
+    is_airband = any(_freq_in_airband(f) for f in freqs)
+    return {
+        "serial": serial,
+        "index": index,
+        "gain": gain,
+        "squelch_dbfs": squelch_dbfs,
+        "freqs": freqs,
+        "is_airband": is_airband,
+        # SoapySDR-specific structured info — None for legacy rtlsdr
+        # blocks.  Lets callers reason about the device backend
+        # without re-parsing the raw config.
+        "device_type": device_type,
+        "soapy_driver": soapy_driver,
+        "soapy_kwargs": soapy_kwargs or None,
+    }
+
+
+def parse_combined_devices_text(text: str) -> List[Dict]:
+    """Parse devices out of raw combined-config text — no file I/O.
+
+    The file-path version (``read_combined_devices``) delegates here.
+    Exposed separately so callers like the config validator can
+    pre-flight a prospective combined config (e.g. the one a profile
+    switch is about to apply) without writing to disk first, or
+    validate an in-memory candidate during dry-run.
+    """
+    if not text:
+        return []
+    section = _extract_devices_section(text)
+    if not section:
+        return []
+    return [_parse_device_block(block) for block in _split_device_blocks(section)]
+
+
 def read_combined_devices(conf_path: Optional[str] = None) -> List[Dict]:
     # Resolve the default at call time, not import time, so callers
     # (and tests) can override ``COMBINED_CONFIG_PATH`` at the module
@@ -157,69 +235,7 @@ def read_combined_devices(conf_path: Optional[str] = None) -> List[Dict]:
             text = f.read()
     except FileNotFoundError:
         return []
-    section = _extract_devices_section(text)
-    if not section:
-        return []
-    devices = []
-    for block in _split_device_blocks(section):
-        serial = None
-        index = None
-        gain = None
-        squelch_dbfs = None
-        device_type = None
-        soapy_driver = None
-        soapy_kwargs: Dict[str, str] = {}
-        m = RE_DEVICE_TYPE.search(block)
-        if m:
-            device_type = m.group(1).strip().lower() or None
-        m = RE_DEVICE_STRING.search(block)
-        if m:
-            soapy_kwargs = _parse_device_string_kv(m.group(1))
-            soapy_driver = soapy_kwargs.get("driver")
-            # For SoapySDR devices the canonical serial lives in
-            # device_string; surface it at the top level so existing
-            # callers that look at dev["serial"] don't need to know
-            # about the soapy nesting.
-            if "serial" in soapy_kwargs:
-                serial = soapy_kwargs["serial"]
-        m = RE_SERIAL.search(block)
-        if m and not serial:
-            serial = m.group(1).strip()
-        m = RE_INDEX.search(block)
-        if m:
-            try:
-                index = int(m.group(1))
-            except ValueError:
-                index = None
-        m = RE_GAIN.search(block)
-        if m:
-            try:
-                gain = float(m.group(1))
-            except ValueError:
-                gain = None
-        m = RE_SQUELCH.search(block)
-        if m:
-            try:
-                squelch_dbfs = float(m.group(1))
-            except ValueError:
-                squelch_dbfs = None
-        freqs = _parse_freqs(block)
-        is_airband = any(_freq_in_airband(f) for f in freqs)
-        devices.append({
-            "serial": serial,
-            "index": index,
-            "gain": gain,
-            "squelch_dbfs": squelch_dbfs,
-            "freqs": freqs,
-            "is_airband": is_airband,
-            # SoapySDR-specific structured info — None for legacy rtlsdr
-            # blocks.  Lets callers reason about the device backend
-            # without re-parsing the raw config.
-            "device_type": device_type,
-            "soapy_driver": soapy_driver,
-            "soapy_kwargs": soapy_kwargs or None,
-        })
-    return devices
+    return parse_combined_devices_text(text)
 
 
 def serials_claimed_by_combined_config(
