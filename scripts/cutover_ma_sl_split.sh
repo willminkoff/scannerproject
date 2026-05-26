@@ -72,15 +72,27 @@ backup_then_install \
     "${WORKTREE_ROOT}/etc/systemd/system/rtl-airband-ground.service" \
     "${SYSTEMD_DIR}/rtl-airband-ground.service"
 
-log "Step 3: install build-service-config.py"
-sudo install -m 755 -o ubuntu -g ubuntu \
-    "${WORKTREE_ROOT}/scripts/build-service-config.py" \
-    "${SCRIPTS_DIR}/build-service-config.py"
-printf '  installed %s/build-service-config.py\n' "$SCRIPTS_DIR"
-sudo install -m 755 -o ubuntu -g ubuntu \
-    "${WORKTREE_ROOT}/scripts/migrate_dt_to_ma_sl_profiles.py" \
-    "${SCRIPTS_DIR}/migrate_dt_to_ma_sl_profiles.py"
-printf '  installed %s/migrate_dt_to_ma_sl_profiles.py\n' "$SCRIPTS_DIR"
+log "Step 3: ensure new scripts are present + executable"
+# When the worktree IS the deployed repo (the typical case when the
+# code arrived via ``git pull`` on Micro), source path == dest path
+# and ``install`` refuses to copy a file onto itself.  Just chmod the
+# files in place.  When worktree != repo (developer staging from
+# elsewhere), copy them.
+for s in build-service-config.py migrate_dt_to_ma_sl_profiles.py; do
+    src="${WORKTREE_ROOT}/scripts/${s}"
+    dst="${SCRIPTS_DIR}/${s}"
+    if [[ ! -f "$src" ]]; then
+        die "missing source script: $src"
+    fi
+    if [[ "$(readlink -f "$src")" != "$(readlink -f "$dst")" ]]; then
+        sudo install -m 755 -o ubuntu -g ubuntu "$src" "$dst"
+        printf '  copied %s -> %s\n' "$src" "$dst"
+    else
+        sudo chmod 755 "$dst"
+        sudo chown ubuntu:ubuntu "$dst"
+        printf '  in-place: %s (worktree == repo)\n' "$dst"
+    fi
+done
 
 log "Step 4: add ANALOG_GROUND.mp3 mount block to icecast.xml"
 if grep -q "ANALOG_GROUND.mp3" "$ICECAST_XML"; then
