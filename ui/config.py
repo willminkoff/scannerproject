@@ -54,7 +54,18 @@ LAST_HIT_GROUND_PATH = os.getenv("LAST_HIT_GROUND_PATH", "/run/rtl_airband_last_
 # the zombie state we keep hitting; surfacing the freshness as a first-
 # class signal in /api/status lets the dashboard (and any watchdog) tell
 # the truth instead of trusting is-active.
+#
+# After the MA/SL split (2026-05-26) each rtl-airband instance writes
+# to its OWN stats file so the watchdog can distinguish airband from
+# ground.  RTL_AIRBAND_STATS_PATH stays as the legacy path for the
+# pre-split single-service deployment so rollback works.
 RTL_AIRBAND_STATS_PATH = os.getenv("RTL_AIRBAND_STATS_PATH", "/run/rtl_airband_stats.txt")
+RTL_AIRBAND_AIRBAND_STATS_PATH = os.getenv(
+    "RTL_AIRBAND_AIRBAND_STATS_PATH", "/run/rtl_airband_airband_stats.txt"
+)
+RTL_AIRBAND_GROUND_STATS_PATH = os.getenv(
+    "RTL_AIRBAND_GROUND_STATS_PATH", "/run/rtl_airband_ground_stats.txt"
+)
 RTL_AIRBAND_STATS_STALE_SEC = float(os.getenv("RTL_AIRBAND_STATS_STALE_SEC", "15"))
 
 # Filter Configuration
@@ -325,8 +336,21 @@ BT_HEAL_SERVICE_UNIT = os.getenv("UNIT_BT_HEAL_SERVICE", "scanner-bt-audio-heal.
 BT_HEAL_DEFAULT_ENABLED = os.getenv("BT_HEAL_DEFAULT_ENABLED", "0").strip().lower() in _TRUTHY
 
 # Systemd Units
+#
+# MA/SL split-process architecture (2026-05-26):
+#   "rtl_airband" + "rtl_ground" — the new per-tuner rtl-airband units
+#                                  introduced by the split.  Master
+#                                  (airband) + Slave (ground) on the
+#                                  same RSPduo, daemon-coordinated.
+#   "rtl" — legacy alias for the pre-split single-process unit.
+#           Kept so rollback works and so any out-of-tree caller that
+#           still references UNITS["rtl"] keeps working.  Resolves to
+#           "rtl-airband" which is the OLD unit name; the split
+#           cutover script masks it.
 UNITS = {
     "rtl": os.getenv("UNIT_RTL", "rtl-airband"),
+    "rtl_airband": os.getenv("UNIT_RTL_AIRBAND", "rtl-airband-airband"),
+    "rtl_ground":  os.getenv("UNIT_RTL_GROUND",  "rtl-airband-ground"),
     "ground": os.getenv("UNIT_GROUND", "rtl-airband-ground"),
     "icecast": os.getenv("UNIT_ICECAST", "icecast2"),
     "keepalive": os.getenv("UNIT_KEEPALIVE", "icecast-keepalive"),

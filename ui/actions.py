@@ -1146,12 +1146,59 @@ def action_apply_filter(target: str, cutoff_hz: float) -> dict:
     return {"status": 200, "payload": payload}
 
 
+def _select_analog_restart(target: str):
+    """Pick the right restart function for the analog band based on what
+    units actually exist.
+
+    Pre-MA/SL-cutover (legacy state): rtl-airband.service is the only
+    real analog unit; the new ``rtl-airband-airband.service`` and
+    ``rtl-airband-ground.service`` aren't installed yet.  Route to
+    the legacy ``restart_rtl()`` / ``restart_ground()``.
+
+    Post-cutover: the new units exist and the legacy unit is masked.
+    Route to the new sequenced-recovery functions that know about
+    Master/Slave ordering and OP25 coordination.
+
+    This runtime-dispatch keeps the same "Restart Airband" button
+    working through the cutover without an intermediate UI redeploy.
+    """
+    try:
+        try:
+            from .systemd import (
+                unit_exists,
+                restart_rtl_airband,
+                restart_rtl_ground,
+            )
+        except ImportError:  # pragma: no cover — packaging fallback
+            from ui.systemd import (  # type: ignore[no-redef]
+                unit_exists,
+                restart_rtl_airband,
+                restart_rtl_ground,
+            )
+    except Exception:
+        # If even the import path is broken, fall through to the
+        # legacy functions that have been working pre-split.
+        unit_exists = None
+        restart_rtl_airband = None
+        restart_rtl_ground = None
+
+    if target == "airband":
+        if unit_exists and restart_rtl_airband and unit_exists("rtl-airband-airband"):
+            return restart_rtl_airband()
+        return restart_rtl()
+    if target == "ground":
+        if unit_exists and restart_rtl_ground and unit_exists("rtl-airband-ground"):
+            return restart_rtl_ground()
+        return restart_ground()
+    raise ValueError(f"unknown analog target: {target!r}")
+
+
 def action_restart(target: str) -> dict:
     """Action: Restart a scanner."""
     if target == "ground":
-        ok, err = restart_ground()
+        ok, err = _select_analog_restart("ground")
     elif target == "airband":
-        ok, err = restart_rtl()
+        ok, err = _select_analog_restart("airband")
     elif target == "icecast":
         ok, err = restart_icecast()
     elif target == "keepalive":
@@ -1162,8 +1209,8 @@ def action_restart(target: str) -> dict:
         ok, err = restart_digital()
     elif target == "all":
         results = {
-            "airband": restart_rtl(),
-            "ground": restart_ground(),
+            "airband": _select_analog_restart("airband"),
+            "ground": _select_analog_restart("ground"),
             "icecast": restart_icecast(),
             "keepalive": restart_keepalive(),
             "ui": restart_ui(),

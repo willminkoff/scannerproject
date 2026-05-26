@@ -315,3 +315,175 @@ def validate_combined_config_text(
         "issues": issues,
         "checked_devices": checked,
     }
+
+
+# ---------------------------------------------------------------------------
+# MA/SL split-process validation
+#
+# The split architecture (docs/rspduo_ma_sl_split.md) replaces the one
+# combined config with TWO standalone per-service configs.  Each one
+# passes the regular ``validate_combined_config_text`` rules individually,
+# but there's a new cross-config invariant: together they must declare
+# EXACTLY one Master (MA) on Tuner 1 and EXACTLY one Slave (SL) on
+# Tuner 2, both on the same RSPduo serial.  A pair with mismatched
+# serials, two MAs, two SLs, or a missing band wouldn't crash
+# rtl-airband but would silently mis-route audio between bands.
+# ---------------------------------------------------------------------------
+
+
+def validate_dual_service_configs(
+    airband_text: str,
+    ground_text: str,
+    *,
+    plugged_rtl_serials: Optional[Iterable[str]] = None,
+    plugged_sdrplay_serials: Optional[Iterable[str]] = None,
+    rtl_enumerator: Optional[Callable[[], Set[str]]] = None,
+    sdrplay_enumerator: Optional[Callable[[], Set[str]]] = None,
+) -> Dict:
+    """Validate the airband + ground configs as a coordinated pair.
+
+    Runs the per-config validator on each, then checks the cross-
+    config invariants the MA/SL architecture demands:
+
+      - Each config declares exactly one device block.
+      - airband_text's device is type=soapysdr, driver=sdrplay,
+        mode=MA, tuner=1.
+      - ground_text's device is type=soapysdr, driver=sdrplay,
+        mode=SL, tuner=2.
+      - Both reference the SAME RSPduo serial (otherwise MA/SL clock
+        coordination won't work — they need to be the same physical
+        device).
+
+    Returns a dict shaped like ``validate_combined_config_text`` so
+    callers can render it the same way: ``ok``, ``issues``, plus a
+    ``per_service`` map showing each config's individual validation
+    result.
+    """
+    per_service = {
+        "airband": validate_combined_config_text(
+            airband_text,
+            plugged_rtl_serials=plugged_rtl_serials,
+            plugged_sdrplay_serials=plugged_sdrplay_serials,
+            rtl_enumerator=rtl_enumerator,
+            sdrplay_enumerator=sdrplay_enumerator,
+        ),
+        "ground": validate_combined_config_text(
+            ground_text,
+            plugged_rtl_serials=plugged_rtl_serials,
+            plugged_sdrplay_serials=plugged_sdrplay_serials,
+            rtl_enumerator=rtl_enumerator,
+            sdrplay_enumerator=sdrplay_enumerator,
+        ),
+    }
+
+    cross_issues: List[Dict] = []
+
+    # 1. Each config must have exactly one device block.
+    for service_name, result in per_service.items():
+        n_devices = len(result.get("checked_devices") or [])
+        if n_devices != 1:
+            cross_issues.append({
+                "code": "service_config_wrong_device_count",
+                "detail": (
+                    f"{service_name} config has {n_devices} device "
+                    f"blocks; the MA/SL architecture requires exactly 1"
+                ),
+                "service": service_name,
+                "device_count": n_devices,
+            })
+
+    # 2. Inspect each service's single device for mode/tuner correctness.
+    airband_dev = (per_service["airband"].get("checked_devices") or [None])[0]
+    ground_dev = (per_service["ground"].get("checked_devices") or [None])[0]
+
+    def _check_service_device(service_name, dev, expected_mode, expected_tuner):
+        if dev is None:
+            return None
+        kwargs = dev.get("soapy_kwargs") or {}
+        actual_mode = str(kwargs.get("mode") or "").upper()
+        actual_tuner = str(kwargs.get("tuner") or "").strip()
+        actual_driver = str(kwargs.get("driver") or "").lower()
+        if dev.get("type") != "soapysdr":
+            cross_issues.append({
+                "code": "service_wrong_device_type",
+                "detail": (
+                    f"{service_name} device must be type=soapysdr "
+                    f"(MA/SL is sdrplay-only); got type={dev.get('type')!r}"
+                ),
+                "service": service_name,
+            })
+            return None
+        if actual_driver != "sdrplay":
+            cross_issues.append({
+                "code": "service_wrong_driver",
+                "detail": (
+                    f"{service_name} device must use driver=sdrplay; "
+                    f"got driver={actual_driver!r}"
+                ),
+                "service": service_name,
+            })
+        if actual_mode != expected_mode:
+            cross_issues.append({
+                "code": "service_wrong_mode",
+                "detail": (
+                    f"{service_name} device must be mode={expected_mode} "
+                    f"(MA/SL architecture); got mode={actual_mode!r}"
+                ),
+                "service": service_name,
+                "expected_mode": expected_mode,
+                "actual_mode": actual_mode,
+            })
+        if actual_tuner != expected_tuner:
+            cross_issues.append({
+                "code": "service_wrong_tuner",
+                "detail": (
+                    f"{service_name} device must be tuner={expected_tuner}; "
+                    f"got tuner={actual_tuner!r}"
+                ),
+                "service": service_name,
+                "expected_tuner": expected_tuner,
+                "actual_tuner": actual_tuner,
+            })
+        return kwargs.get("serial")
+
+    airband_serial = _check_service_device(
+        "airband", airband_dev, "MA", "1"
+    )
+    ground_serial = _check_service_device(
+        "ground", ground_dev, "SL", "2"
+    )
+
+    # 3. Both services must point at the same physical RSPduo serial.
+    if (
+        airband_serial and ground_serial
+        and _normalize_serial(airband_serial) != _normalize_serial(ground_serial)
+    ):
+        cross_issues.append({
+            "code": "service_serial_mismatch",
+            "detail": (
+                f"airband and ground services target different RSPduo "
+                f"serials ({airband_serial!r} vs {ground_serial!r}); "
+                f"MA/SL clock coordination requires the same physical "
+                f"device"
+            ),
+            "airband_serial": airband_serial,
+            "ground_serial": ground_serial,
+        })
+
+    all_issues = list(cross_issues)
+    for result in per_service.values():
+        for issue in result.get("issues") or []:
+            # Skip duplicate-tuner / capacity errors that are vacuously
+            # true on single-device configs.
+            if issue.get("code") in (
+                "duplicate_tuner_claim", "rspduo_too_many_tuners"
+            ):
+                continue
+            all_issues.append(issue)
+
+    blocking = [i for i in all_issues if i.get("blocking", True)]
+    return {
+        "ok": len(blocking) == 0,
+        "issues": all_issues,
+        "per_service": per_service,
+    }

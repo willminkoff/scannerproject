@@ -1,0 +1,25 @@
+[Unit]
+Description=rtl-airband (ground VHF — RSPduo Tuner 2, SL mode)
+# Slave to the airband instance.  See docs/rspduo_ma_sl_split.md.
+# Order matters: SDRplay's MA/SL discipline requires the Master to be
+# open BEFORE the Slave can open — express that via After= +
+# Requires= on the airband unit.  systemd then refuses to start this
+# service until the airband one is at least in 'active' state.
+After=network-online.target icecast2.service sdrplay.service rtl-airband-airband.service
+Wants=network-online.target
+Requires=icecast2.service sdrplay.service rtl-airband-airband.service
+Wants=rtl-airband-last-hit.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/airband-ui.conf
+ExecStartPre=/usr/bin/python3 /home/ubuntu/scannerproject/scripts/build-service-config.py --service ground
+ExecStart=/bin/bash /home/ubuntu/scannerproject/scripts/rtl-airband-filter.sh /run/rtl_airband_ground_runtime.conf
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=1
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target

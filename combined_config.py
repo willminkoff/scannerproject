@@ -350,6 +350,158 @@ def indent_block(text: str, spaces: int) -> str:
     return "\n".join(pad + line.rstrip() for line in text.strip().splitlines())
 
 
+def build_service_config(
+    profile_path: str,
+    service: str,
+    mixer_name: str,
+    mount_name: str,
+    stats_filepath: str,
+    analog_continuous: bool = True,
+    mixer_output_continuous: bool = True,
+    analog_bitrate_kbps: int = 24,
+    include_disco_mixer: bool = False,
+    disco_mount_name: str = "disco.mp3",
+    disco_bitrate_kbps: int = 32,
+) -> str:
+    """Render a standalone rtl-airband config for ONE service (airband
+    or ground) targeting ONE tuner of the RSPduo.
+
+    Unlike ``build_combined_config`` (which merges two profiles into a
+    single dual-device-block rtl-airband config), this emits a config
+    intended to be loaded by its own rtl-airband process — so each
+    band runs in isolation with its own systemd unit, its own stats
+    file, and its own icecast mount.
+
+    The MA/SL split-process architecture (see
+    docs/rspduo_ma_sl_split.md) requires this shape: one rtl-airband
+    process per tuner, daemon-coordinated via Master/Slave mode.
+
+    Parameters
+    ----------
+    profile_path:
+        Path to the active profile file for this service.  Its single
+        device block (already in MA mode for airband or SL mode for
+        ground after the migration) is used verbatim with only the
+        mixer/output rewired.
+    service:
+        ``"airband"`` or ``"ground"`` — used in comments + sanity
+        checks; doesn't change the rendering logic itself.
+    mixer_name:
+        Name of the internal rtl-airband mixer (e.g.
+        ``"combined_airband"``).  All channels in the profile get
+        their output rewritten to point here.
+    mount_name:
+        Icecast mount path (e.g. ``"ANALOG.mp3"`` or
+        ``"ANALOG_GROUND.mp3"``).  The icecast block emitted in the
+        mixer outputs publishes to this mount.
+    stats_filepath:
+        Per-service stats file path (e.g. ``"/run/rtl_airband_airband_stats.txt"``).
+        Each rtl-airband instance MUST write to a distinct path so the
+        sample-flow watchdog can tell them apart.
+    include_disco_mixer:
+        Emit a sibling disco_mixer block when this service's profile
+        has any DISCO_MANAGED_CHANNELS tags.  Disco/Listen feature
+        currently airband-only in practice, but the flag stays per-
+        service so a future ground-band Listen wouldn't need a
+        special-case.
+    """
+    if service not in ("airband", "ground"):
+        raise ValueError(f"service must be 'airband' or 'ground', got {service!r}")
+
+    with open(profile_path, "r", encoding="utf-8", errors="ignore") as f:
+        profile_text = f.read()
+
+    # We intentionally don't gate on ``profile_ui_disabled`` here.  The
+    # existing regex used by ``profile_ui_disabled`` lacks ``re.MULTILINE``,
+    # so it only matches when ``ui_disabled = true;`` is the FIRST line —
+    # a latent bug we're not fixing in this commit.  Callers
+    # (build-service-config.py) are responsible for resolving a usable
+    # profile path via fallback BEFORE calling us; if they hand us a
+    # profile with no device block we raise loudly rather than render
+    # an empty config that rtl-airband would refuse to start on.
+    payload = extract_devices_payload(profile_text)
+    if not payload:
+        raise RuntimeError(
+            f"profile {profile_path!r} for service={service!r} has no "
+            f"usable device block; refusing to render an empty config"
+        )
+    payload = replace_outputs_with_mixer(
+        payload, mixer_name, continuous=mixer_output_continuous
+    )
+    device_block = payload.strip().rstrip(",")
+
+    # Carry forward top-level settings the operator may have set in
+    # the profile (e.g. wx_decoder, custom log levels) but skip the
+    # ones we control ourselves (log_scan_activity, stats_filepath,
+    # airband flag — they're rendered explicitly below).
+    top_lines = []
+    for line in extract_top_level_settings(profile_text):
+        setting_key = line.split("=", 1)[0].strip().lower()
+        if setting_key in ("log_scan_activity", "stats_filepath", "airband"):
+            continue
+        top_lines.append(line)
+
+    icecast_block = extract_icecast_block(profile_text)
+    try:
+        normalized_bitrate_kbps = int(analog_bitrate_kbps)
+    except Exception:
+        normalized_bitrate_kbps = 24
+    normalized_bitrate_kbps = max(8, min(320, normalized_bitrate_kbps))
+    if not icecast_block:
+        icecast_block = (
+            "{\n"
+            "  type = \"icecast\";\n"
+            "  server = \"127.0.0.1\";\n"
+            "  port = 8000;\n"
+            f"  mountpoint = \"{mount_name}\";\n"
+            "  username = \"source\";\n"
+            "  password = \"062352\";\n"
+            "  name = \"SprontPi Radio\";\n"
+            f"  genre = \"{ 'Airband' if service == 'airband' else 'Public Safety' }\";\n"
+            f"  bitrate = {normalized_bitrate_kbps};\n"
+            "  send_scan_freq_tags = true;\n"
+            "}\n"
+        )
+    else:
+        icecast_block = override_icecast_bitrate(icecast_block, normalized_bitrate_kbps)
+    icecast_block = override_icecast_mountpoint(icecast_block, mount_name)
+    icecast_block = upsert_icecast_bool_option(icecast_block, "continuous", analog_continuous)
+
+    parts = []
+    parts.append(
+        f"# Auto-generated by build-service-config.py for service={service!r}."
+    )
+    parts.append("# Do not edit directly — changes will be overwritten on next restart.")
+    parts.append("")
+    parts.append(f"airband = {'true' if service == 'airband' else 'false'};")
+    parts.append("log_scan_activity = true;")
+    parts.append(f"stats_filepath = \"{stats_filepath}\";")
+    parts.append("")
+    parts.extend(top_lines)
+    if top_lines:
+        parts.append("")
+    parts.append("mixers: {")
+    parts.append(f"  {mixer_name}: {{")
+    parts.append("    outputs:")
+    parts.append("    (")
+    parts.append(indent_block(icecast_block, 6))
+    parts.append("    );")
+    parts.append("  };")
+    if include_disco_mixer and combined_uses_disco_mixer(device_block):
+        parts.append(render_disco_mixer_block(
+            mount_name=disco_mount_name,
+            bitrate_kbps=disco_bitrate_kbps,
+        ))
+    parts.append("};")
+    parts.append("")
+    parts.append("devices:")
+    parts.append("(")
+    parts.append(indent_block(device_block, 2))
+    parts.append(");")
+    parts.append("")
+    return "\n".join(parts)
+
+
 def build_combined_config(
     airband_path: str,
     ground_path: str,
