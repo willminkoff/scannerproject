@@ -41,8 +41,13 @@ SWEEP_UNITS=(
 # Wants=/PartOf= from scanner-digital-op25.service, so we don't list it.
 # scanner-vlc-digital.service is the BT-speaker playback consumer of the
 # DIGITAL.mp3 icecast stream — included per home-config requirement.
+# rtl-airband.service was added 2026-05-26 after rtl-airband migrated off
+# RTL-SDR dongles onto RSPduo A (serial 1809063632) in DT mode — it now
+# owns one of the two RSPduos that disco-sweep@A-T* want, so the handoff
+# must cycle it.
 SB3_UNITS=(
   scanner-digital-op25.service
+  rtl-airband.service
   scanner-vlc-digital.service
 )
 
@@ -123,8 +128,11 @@ wait_for_drain() {
 }
 
 mode_off() {
-  # Idempotency: if all sweeps are already down AND op25 is up, nothing to do.
-  if all_in_state inactive "${SWEEP_UNITS[@]}" && all_in_state active scanner-digital-op25.service; then
+  # Idempotency: if all sweeps are already down AND both RSPduo-holding
+  # SB3 services (op25 + rtl-airband) are up, nothing to do. Both must be
+  # checked or an anomalous half-state would silently skip the bring-up.
+  if all_in_state inactive "${SWEEP_UNITS[@]}" \
+     && all_in_state active scanner-digital-op25.service rtl-airband.service; then
     echo "mode-off: already in handoff state, no-op" >&2
     report_units "${SWEEP_UNITS[@]}" "${SB3_UNITS[@]}" disco-classifier.service
     return 0
@@ -164,8 +172,11 @@ mode_on() {
   /bin/systemctl unmask disco-classifier.service disco-interpret.service
   /bin/systemctl start disco-classifier.service disco-interpret.service
 
-  # Idempotency: if op25 is already down AND sweeps are up AND not masked, nothing to do.
-  if all_in_state inactive scanner-digital-op25.service \
+  # Idempotency: if op25 AND rtl-airband are both down AND sweeps are up AND
+  # not masked, nothing to do. Both RSPduo-holding SB3 services must be
+  # confirmed inactive — checking only op25 would let an anomalous
+  # rtl-airband-still-running state silently pass through.
+  if all_in_state inactive scanner-digital-op25.service rtl-airband.service \
      && all_in_state active "${SWEEP_UNITS[@]}" \
      && ! any_masked "${SWEEP_UNITS[@]}"; then
     echo "mode-on: already in disco state, no-op" >&2
@@ -190,6 +201,21 @@ mode_on() {
     sleep 2
     if ! wait_for_drain 'multi_rx\.py'; then
       echo "mode-on: ERROR even pkill -9 didn't clear multi_rx.py; bailing" >&2
+      return 3
+    fi
+  fi
+
+  # rtl-airband holds RSPduo A in DT mode; if its binary survives the
+  # cgroup kill, disco-sweep@A-T* will hang in sdrplay_api_Open. Pattern
+  # is the absolute binary path so we don't match the bash wrapper or
+  # the filter shim (both legitimate non-target processes that contain
+  # the string "rtl_airband" in their cmdline).
+  if ! wait_for_drain '/usr/local/bin/rtl_airband'; then
+    echo "mode-on: WARN rtl_airband orphans surviving systemd kill; pkill -9 escalation" >&2
+    pkill -9 -f '/usr/local/bin/rtl_airband' 2>/dev/null || true
+    sleep 2
+    if ! wait_for_drain '/usr/local/bin/rtl_airband'; then
+      echo "mode-on: ERROR even pkill -9 didn't clear rtl_airband; bailing" >&2
       return 3
     fi
   fi
