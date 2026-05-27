@@ -22,6 +22,20 @@ logger = logging.getLogger(__name__)
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, unquote, urlparse
 from urllib.request import Request, urlopen
+
+def _resolve_server_timezone() -> str:
+    try:
+        return Path("/etc/timezone").read_text().strip() or "UTC"
+    except OSError:
+        try:
+            return datetime.now().astimezone().tzinfo.key
+        except (AttributeError, Exception):
+            return "UTC"
+
+
+_RESOLVED_SERVER_TIMEZONE = _resolve_server_timezone()
+
+
 def combined_num_devices(conf_path=None) -> int:
     """Count devices declared in the combined rtl_airband config.
 
@@ -3506,6 +3520,7 @@ class Handler(BaseHTTPRequestHandler):
             if isinstance(cached_payload, dict) and (now_monotonic - cached_ts) <= _STATUS_CACHE_TTL_SEC:
                 payload = dict(cached_payload)
                 payload["server_time"] = time.time()
+                payload["server_timezone"] = _RESOLVED_SERVER_TIMEZONE
                 return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
             conf_path = read_active_config_path()
             ground_conf_path = os.path.realpath(GROUND_CONFIG_PATH)
@@ -3790,6 +3805,7 @@ class Handler(BaseHTTPRequestHandler):
                 "index_mismatch_detail": index_mismatch_detail,
                 "keepalive_active": keepalive_unit_active,
                 "server_time": time.time(),
+                "server_timezone": _RESOLVED_SERVER_TIMEZONE,
                 "rtl_active_enter": rtl_active_enter,
                 "rtl_restart_required": rtl_restart_required,
                 "config_paths": {
@@ -4458,6 +4474,7 @@ class Handler(BaseHTTPRequestHandler):
                     "digital_stream_mount": digital_stream_mount,
                     "ground_stream_mount": ground_stream_mount,
                     "server_time": time.time(),
+                    "server_timezone": _RESOLVED_SERVER_TIMEZONE,
                     "hp_avoids": get_scan_mode_controller().get_hp_avoids(),
                     "analog_scan_health": analog_scan_health,
                     "sb3_connected_status_refresh_sec": int(SB3_CONNECTED_STATUS_REFRESH_SEC),

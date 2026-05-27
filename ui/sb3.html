@@ -4893,6 +4893,7 @@
         baselineSum: 0,
       },
       serverTime: null,
+      serverTimezone: null,
       systemStats: null,
       v3Compile: null,
       preflight: {
@@ -8540,7 +8541,7 @@
             // Show newest first
             for (let i = msgs.length - 1; i >= 0; i--) {
               const m = msgs[i];
-              const ts = m.timestamp ? new Date(m.timestamp * 1000).toLocaleTimeString() : '';
+              const ts = m.timestamp ? new Date(m.timestamp * 1000).toLocaleTimeString(undefined, serverTzOpts({})) : '';
               const src = (m.source || '').toUpperCase();
               const met = m.is_met ? ' \u2601' : '';
               const txt = (m.text || m.source_id || '').substring(0, 120);
@@ -8566,7 +8567,7 @@
       }
       let html = '';
       for (const obs of levels) {
-        const tm = obs.timestamp ? new Date(obs.timestamp * 1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '--';
+        const tm = obs.timestamp ? new Date(obs.timestamp * 1000).toLocaleTimeString([], serverTzOpts({hour:'2-digit',minute:'2-digit'})) : '--';
         const flt = obs.source_id || '--';
         const alt = obs.altitude_ft != null ? Math.round(obs.altitude_ft).toLocaleString() : '--';
         const prs = obs.pressure_hpa != null ? obs.pressure_hpa.toFixed(1) : '--';
@@ -12500,7 +12501,7 @@
       els.sessionCount.textContent = state.sessionHits;
       
       const startDate = new Date(state.sessionStart);
-      els.sessionStart.textContent = 'Since ' + startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      els.sessionStart.textContent = 'Since ' + startDate.toLocaleTimeString([], serverTzOpts({ hour: '2-digit', minute: '2-digit' }));
       
       const allAvoids = [...state.airband.avoids, ...state.ground.avoids];
       const freqs = allAvoids.map(a => a.freq || a);
@@ -12539,12 +12540,12 @@
     function renderPiClock() {
       if (!els.piTime) return;
       const now = estimatedServerDate();
-      els.piTime.textContent = now.toLocaleTimeString([], {
+      els.piTime.textContent = now.toLocaleTimeString([], serverTzOpts({
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
         hour12: false,
-      });
+      }));
     }
     
     function formatFreq(freq) {
@@ -12734,10 +12735,16 @@
       return `${seconds}s`;
     }
 
+    function serverTzOpts(extra) {
+      const opts = Object.assign({}, extra || {});
+      if (state.serverTimezone) opts.timeZone = state.serverTimezone;
+      return opts;
+    }
+
     function formatTimeMs(ms) {
       if (!Number.isFinite(ms) || ms <= 0) return '--';
       const d = new Date(ms);
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+      return d.toLocaleTimeString([], serverTzOpts({ hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }));
     }
 
     function trimServiceNote(value, maxLen = 120) {
@@ -13470,7 +13477,7 @@
     function updateSitrep() {
       if (!els.sitrepUpdated) return;
       const updated = state.serverTime ? new Date(state.serverTime * 1000) : new Date();
-      els.sitrepUpdated.textContent = updated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      els.sitrepUpdated.textContent = updated.toLocaleTimeString([], serverTzOpts({ hour: '2-digit', minute: '2-digit', second: '2-digit' }));
 
       const sessionMs = Date.now() - state.sessionStart;
       els.sitrepSession.textContent = formatDurationCompact(sessionMs);
@@ -13849,7 +13856,7 @@
         if (now - last < LOG_DEDUPE_MS) return;
         logDedupe.set(key, now);
       }
-      const stamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+      const stamp = new Date().toLocaleTimeString([], serverTzOpts({ hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }));
       activityLog.unshift({ time: stamp, level, message });
       if (activityLog.length > MAX_LOG) {
         activityLog.pop();
@@ -15410,6 +15417,7 @@
           }
 
           state.serverTime = data.server_time;
+          state.serverTimezone = data.server_timezone || null;
           state.v3Compile = data.v3_compile || null;
           state.preflight = data.preflight || { airband: null, ground: null, digital: null };
           state.health = data.health || { overall: { state: 'unknown', reasonCodes: [] }, subsystems: {} };
@@ -15636,6 +15644,7 @@
           }
           state.lastHit = data.last_hit || state.lastHit;
           state.serverTime = data.server_time;
+          state.serverTimezone = data.server_timezone || null;
           state.lastStatusTick = Date.now();
           if (
             (data.hp_favorites_sync && typeof data.hp_favorites_sync === 'object')
