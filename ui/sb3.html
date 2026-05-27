@@ -3213,8 +3213,8 @@
                 <div class="control-applied"><span id="digital-cc-detail">--</span></div>
                 <div class="control-applied">Systems: <span class="config-value" id="digital-system-health">--</span></div>
                 <div class="control-applied"><span id="digital-system-health-detail">--</span></div>
-                <div class="control-applied">RTL Dongles: <span class="config-value" id="digital-dongle-health">--</span></div>
-                <div class="control-applied">Missing: <span class="config-value" id="digital-dongle-missing">--</span></div>
+                <div class="control-applied" id="digital-dongle-health-row">RTL Dongles: <span class="config-value" id="digital-dongle-health">--</span></div>
+                <div class="control-applied" id="digital-dongle-missing-row">Missing: <span class="config-value" id="digital-dongle-missing">--</span></div>
               </div>
 
               <div class="control-item">
@@ -5293,6 +5293,8 @@
       digitalSystemHealthDetail: document.getElementById('digital-system-health-detail'),
       digitalDongleHealth: document.getElementById('digital-dongle-health'),
       digitalDongleMissing: document.getElementById('digital-dongle-missing'),
+      digitalDongleHealthRow: document.getElementById('digital-dongle-health-row'),
+      digitalDongleMissingRow: document.getElementById('digital-dongle-missing-row'),
       digitalLastTime: document.getElementById('digital-last-time'),
       digitalLastLabel: document.getElementById('digital-last-label'),
       digitalLastMode: document.getElementById('digital-last-mode'),
@@ -13128,6 +13130,22 @@
           setValueTone(els.sitrepDonglesMissing, '');
         }
       }
+      // Hide the Digital tab's "RTL Dongles" + "Missing" rows when
+      // digital is running on a non-RTL tuner (RSPduo).  The same data
+      // still appears in the System Activity sitrep where it correctly
+      // reflects WX-decoder (ACARS / VDL2) dongle state, which is what
+      // those missing serials actually belong to.
+      const digitalTunerTargets = (state.digital && Array.isArray(state.digital.tunerTargets))
+        ? state.digital.tunerTargets
+        : [];
+      const digitalUsesRtl = digitalTunerTargets.length === 0
+        || digitalTunerTargets.some((t) => !/^RSPduo\s/i.test(String(t || '').trim()));
+      if (els.digitalDongleHealthRow) {
+        els.digitalDongleHealthRow.style.display = digitalUsesRtl ? '' : 'none';
+      }
+      if (els.digitalDongleMissingRow) {
+        els.digitalDongleMissingRow.style.display = digitalUsesRtl ? '' : 'none';
+      }
       if (els.digitalDongleHealth) {
         els.digitalDongleHealth.textContent = info.summary;
         setValueTone(els.digitalDongleHealth, statusTone);
@@ -15413,6 +15431,7 @@
           state.digital.lastTime = Number.isFinite(data.digital_last_time) ? data.digital_last_time : 0;
           state.digital.lastError = data.digital_last_error || '';
           state.digital.lastWarning = data.digital_last_warning || '';
+          state.digital.tunerTargets = Array.isArray(data.digital_tuner_targets) ? data.digital_tuner_targets : [];
           state.digital.playlistSourceOk = Boolean(data.digital_playlist_source_ok);
           state.digital.playlistSourceType = data.digital_playlist_source_type || '';
           state.digital.playlistSourceError = data.digital_playlist_source_error || '';

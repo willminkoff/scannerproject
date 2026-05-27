@@ -6848,7 +6848,21 @@ class DigitalManager:
                 f"{int(preflight.get('listen_talkgroup_count') or 0)})."
             )
         elif not DIGITAL_RTL_SERIAL and not _preferred_tuner_target() and DIGITAL_RTL_SERIAL_HINT:
-            payload.setdefault("digital_last_warning", DIGITAL_RTL_SERIAL_HINT)
+            # Suppress the legacy "set DIGITAL_RTL_SERIAL" hint when the
+            # dongle allocator has already assigned a tuner (typically an
+            # RSPduo) to any digital system.  The env-var nag is a
+            # leftover from the RTL-SDR-only era and shouldn't drive a
+            # DEGRADED status when OP25 is actually running on an
+            # allocator-assigned RSPduo.
+            try:
+                _allocator_payload = load_assignments()
+                _allocator_has_digital = bool(
+                    assigned_digital_tuner_ids(_allocator_payload)
+                )
+            except Exception:
+                _allocator_has_digital = False
+            if not _allocator_has_digital:
+                payload.setdefault("digital_last_warning", DIGITAL_RTL_SERIAL_HINT)
 
         # Auto-clear stale error/warning once digital has recovered and is producing activity.
         if payload.get("digital_active") and not preflight.get("tuner_busy"):
