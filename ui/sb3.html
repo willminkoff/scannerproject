@@ -2633,38 +2633,8 @@
       color: #ef4444;
     }
 
-    /* MA/SL split-process band selector for the analog player.
-       Hidden by default; revealed by JS once the ANALOG_GROUND.mp3
-       mount has been observed publishing (i.e. post-cutover).      */
-    .analog-band-selector {
-      display: none;
-      align-items: center;
-      gap: 4px;
-    }
-    .analog-band-selector:not(.hidden) {
-      display: inline-flex !important;
-    }
-    .analog-band-btn {
-      padding: 3px 8px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: transparent;
-      color: var(--text-secondary, var(--text-primary));
-      font-size: 11px;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
-    }
-    .analog-band-btn:hover {
-      border-color: var(--accent);
-      color: var(--accent);
-    }
-    .analog-band-btn.analog-band-btn-active {
-      border-color: var(--accent);
-      color: var(--accent);
-      background: rgba(56, 189, 248, 0.08);
-    }
+    /* (Removed) MA/SL analog band-selector CSS — per-tab players now
+       have fixed mounts, so the inline band-switch UI is gone. */
 
     .sitrep-btn:disabled {
       opacity: 0.6;
@@ -3165,35 +3135,29 @@
               </div>
             </div>
 
+            <!-- Airband player.  Fixed src=/ANALOG.mp3 (airband mount).
+                 Hidden when the active tab is Ground; the Ground tab has
+                 its own #controls-ground pane with /ANALOG_GROUND.mp3. -->
             <div class="player-box" id="player-box-analog">
               <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px;">
-                <div style="font-weight:700;">Analog Player</div>
-                <!--
-                  Band selector for the MA/SL split architecture
-                  (docs/rspduo_ma_sl_split.md).  Pre-cutover only
-                  /ANALOG.mp3 exists, so the Ground option is hidden
-                  by JS at startup when icecast_mount_analog_ground_alive
-                  is never observed truthy.  Post-cutover both
-                  mounts publish independently and the user picks
-                  which one the embedded player streams.
-                -->
-                <div id="analog-band-selector" class="analog-band-selector hidden"
-                     role="group" aria-label="Analog band selector"
-                     style="display:none; gap:4px; font-size:12px;">
-                  <button type="button" class="analog-band-btn analog-band-btn-active"
-                          id="btn-analog-band-airband"
-                          data-band="airband" title="Stream airband (rtl-airband-airband.service)">
-                    Airband
-                  </button>
-                  <button type="button" class="analog-band-btn"
-                          id="btn-analog-band-ground"
-                          data-band="ground" title="Stream ground VHF (rtl-airband-ground.service)">
-                    Ground
-                  </button>
-                </div>
-                <a id="lnk-stream-analog" href="#" target="_blank" rel="noopener" style="font-size:12px; opacity:0.85;">Open Analog</a>
+                <div style="font-weight:700;">Airband Player</div>
+                <a id="lnk-stream-analog" href="/ANALOG.mp3" target="_blank" rel="noopener" style="font-size:12px; opacity:0.85;">Open Airband</a>
               </div>
-              <audio id="audio-player-analog" controls preload="none" playsinline></audio>
+              <audio id="audio-player-analog" src="/ANALOG.mp3" controls preload="none" playsinline></audio>
+            </div>
+          </div>
+
+          <div id="controls-ground" class="hidden">
+            <!-- Ground player pane.  Shows only when the Ground tab is
+                 active.  The shared analog controls (gain/squelch/etc.)
+                 live in #controls-analog and auto-bind via activeTarget,
+                 which is already set to 'ground' by switchTarget(). -->
+            <div class="player-box" id="player-box-ground">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px;">
+                <div style="font-weight:700;">Ground Player</div>
+                <a id="lnk-stream-ground" href="/ANALOG_GROUND.mp3" target="_blank" rel="noopener" style="font-size:12px; opacity:0.85;">Open Ground</a>
+              </div>
+              <audio id="audio-player-ground" src="/ANALOG_GROUND.mp3" controls preload="none" playsinline></audio>
             </div>
           </div>
 
@@ -4821,16 +4785,12 @@
       icecastPort: 8000,
       streamMount: 'ANALOG.mp3',
       digitalStreamMount: 'DIGITAL.mp3',
-      // MA/SL split-process band selection.  ``preferredAnalogBand``
-      // governs which icecast mount the embedded analog player
-      // streams from: "airband" → /ANALOG.mp3, "ground" → /ANALOG_GROUND.mp3.
-      // Persisted across page loads.  Default is airband.  The selector
-      // UI stays hidden until we observe the ground mount publishing
-      // at least once (otherwise switching to it would just give silence).
-      preferredAnalogBand: 'airband',
-      analogGroundMountEverAlive: false,
+      // Each tab now owns its own <audio> element with a fixed mount:
+      // Airband -> /ANALOG.mp3, Ground -> /ANALOG_GROUND.mp3.  The old
+      // band-selector / preferredAnalogBand swap logic has been removed.
       streamProxyEnabled: true,
       streamBaseUrl: '',
+      groundStreamBaseUrl: '',
       digitalStreamBaseUrl: '',
       digitalStreamForceTranscode: false,
       sseConnected: false,
@@ -5251,8 +5211,10 @@
       digitalLoopClear: document.getElementById('digital-loop-clear'),
       digitalProfilesLoopIndicator: document.getElementById('digital-profiles-loop-indicator'),
       audioPlayerAnalog: document.getElementById('audio-player-analog'),
+      audioPlayerGround: document.getElementById('audio-player-ground'),
       audioPlayerDigital: document.getElementById('audio-player-digital'),
       lnkStreamAnalog: document.getElementById('lnk-stream-analog'),
+      lnkStreamGround: document.getElementById('lnk-stream-ground'),
       lnkStreamDigital: document.getElementById('lnk-stream-digital'),
       latencyTestBox: document.getElementById('latency-test-box'),
       latencyTestMode: document.getElementById('latency-test-mode'),
@@ -5282,6 +5244,8 @@
       sysNetRxRate: document.getElementById('sys-net-rx-rate'),
       sysNetTxRate: document.getElementById('sys-net-tx-rate'),
       controlsAnalog: document.getElementById('controls-analog'),
+      controlsGround: document.getElementById('controls-ground'),
+      playerBoxAnalog: document.getElementById('player-box-analog'),
       controlsDigital: document.getElementById('controls-digital'),
       digitalDot: document.getElementById('digital-dot'),
       digitalStatus: document.getElementById('digital-status'),
@@ -9425,20 +9389,11 @@
     }
 
     function currentAnalogMountName() {
-      // MA/SL split: if the user has explicitly picked "ground" via
-      // the band selector and the ground mount has been observed
-      // publishing, prefer /ANALOG_GROUND.mp3.  Otherwise fall back
-      // to the airband stream (the legacy/default).
-      if (
-        state.preferredAnalogBand === 'ground'
-        && state.analogGroundMountEverAlive
-      ) {
-        return resolveMountedStreamName(
-          'ANALOG_GROUND.mp3',
-          ['ANALOG_GROUND.mp3', 'keepalive-analog.mp3'],
-          'ANALOG_GROUND.mp3'
-        );
-      }
+      // The embedded Airband player always streams from /ANALOG.mp3.
+      // The Ground tab has its own <audio id="audio-player-ground">
+      // with a hard-coded /ANALOG_GROUND.mp3 src and is not managed
+      // here.  This helper is retained for the analog-stream-health
+      // checks and the (now-fixed) Airband href sync.
       return resolveMountedStreamName(
         state.streamMount,
         ['ANALOG.mp3', 'keepalive-analog.mp3'],
@@ -9473,6 +9428,19 @@
       // iOS Safari cannot decode 8 kHz MP3 — force transcode to 16 kHz
       // so the embedded player works. The proxy re-encodes via ffmpeg.
       return buildProxyStreamUrl(mountName, 'ANALOG.mp3', {
+        transcode: isLikelyIOSClient(),
+      });
+    }
+
+    function groundStreamUrl() {
+      // Ground tab streams the fixed /ANALOG_GROUND.mp3 mount.
+      // Mirrors analogStreamUrl() but with no mount-resolution
+      // logic since the ground mount name is invariant.
+      const mountName = 'ANALOG_GROUND.mp3';
+      if (shouldPreferDirectIcecastStream()) {
+        return buildIcecastUrl(mountName, 'ANALOG_GROUND.mp3');
+      }
+      return buildProxyStreamUrl(mountName, 'ANALOG_GROUND.mp3', {
         transcode: isLikelyIOSClient(),
       });
     }
@@ -9763,14 +9731,19 @@
 
     function syncStreamLinks() {
       const analogBase = analogStreamUrl();
+      const groundBase = groundStreamUrl();
       const digitalBase = digitalStreamUrl();
       if (els.lnkStreamAnalog) {
         els.lnkStreamAnalog.href = analogBase;
+      }
+      if (els.lnkStreamGround) {
+        els.lnkStreamGround.href = groundBase;
       }
       if (els.lnkStreamDigital) {
         els.lnkStreamDigital.href = digitalBase;
       }
       syncAudioSource(els.audioPlayerAnalog, analogBase);
+      syncAudioSource(els.audioPlayerGround, groundBase);
       // When hls.js is actively managing the digital player, don't
       // overwrite its blob-URL source with a direct Icecast/proxy URL.
       // Before HLS starts we allow the sync so the player has a valid
@@ -9779,6 +9752,7 @@
         syncAudioSource(els.audioPlayerDigital, digitalBase);
       }
       state.streamBaseUrl = analogBase;
+      state.groundStreamBaseUrl = groundBase;
       state.digitalStreamBaseUrl = digitalBase;
     }
 
@@ -14337,7 +14311,14 @@
       els.tabGround.classList.toggle('active', target === 'ground');
       if (els.tabDigital) els.tabDigital.classList.toggle('active', target === 'digital');
       if (els.tabPhilly) els.tabPhilly.classList.toggle('active', target === 'philly');
-      if (els.controlsAnalog) els.controlsAnalog.classList.toggle('hidden', target === 'digital' || target === 'philly');
+      // Airband pane (#controls-analog) holds the shared analog controls
+      // AND the Airband player-box.  We show it for both 'airband' and
+      // 'ground' so the gain/squelch UI keeps working on the Ground tab
+      // (state binds via activeTarget).  The Airband <audio> itself is
+      // hidden when the active tab is Ground via #player-box-analog.
+      if (els.controlsAnalog) els.controlsAnalog.classList.toggle('hidden', target !== 'airband' && target !== 'ground');
+      if (els.controlsGround) els.controlsGround.classList.toggle('hidden', target !== 'ground');
+      if (els.playerBoxAnalog) els.playerBoxAnalog.classList.toggle('hidden', target !== 'airband');
       if (els.controlsDigital) els.controlsDigital.classList.toggle('hidden', target !== 'digital');
       if (els.controlsPhilly) els.controlsPhilly.classList.toggle('hidden', target !== 'philly');
       if (els.profilesWidget) els.profilesWidget.classList.toggle('hidden', target === 'digital' || target === 'philly');
@@ -15596,21 +15577,8 @@
             data.rtl_ground_service_active || data.ground_active
           );
           state.icecastActive = data.icecast_active;
-          // Reveal the band selector once we observe the ground
-          // mount publishing (i.e. we're post-cutover).  Sticky:
-          // once we've seen it alive even once, keep the selector
-          // visible across transient mount drops so the user can
-          // pick which band to wait on.
-          if (data.icecast_mount_analog_ground_alive) {
-            state.analogGroundMountEverAlive = true;
-          }
-          if (state.analogGroundMountEverAlive) {
-            const selector = document.getElementById('analog-band-selector');
-            if (selector) {
-              selector.classList.remove('hidden');
-              selector.style.display = '';
-            }
-          }
+          // Ground band is now exposed via its own tab + #controls-ground
+          // pane (fixed /ANALOG_GROUND.mp3 src). No band-selector gate.
           if (typeof data.ground_unit_active === 'boolean') {
             state.groundUnitActive = data.ground_unit_active;
           }
@@ -17001,44 +16969,9 @@
         els.btnRestartGround.addEventListener('click', () => restartService('ground', 'Ground'));
       }
 
-      // MA/SL analog band selector click handlers.  Restoring the
-      // last-used band from localStorage so refresh / restart picks
-      // up where the user left off; default airband.
-      try {
-        const stored = localStorage.getItem('preferredAnalogBand');
-        if (stored === 'airband' || stored === 'ground') {
-          state.preferredAnalogBand = stored;
-        }
-      } catch (e) { /* localStorage may be blocked; default stands */ }
-      const bandButtons = document.querySelectorAll('.analog-band-btn');
-      bandButtons.forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const band = btn.dataset.band;
-          if (band !== 'airband' && band !== 'ground') return;
-          if (state.preferredAnalogBand === band) return;
-          state.preferredAnalogBand = band;
-          try { localStorage.setItem('preferredAnalogBand', band); } catch (e) { /* ignore */ }
-          bandButtons.forEach((b) => {
-            b.classList.toggle(
-              'analog-band-btn-active',
-              b.dataset.band === band,
-            );
-          });
-          // Switch the embedded player over to the new mount.  The
-          // reload keeps the same playing/paused state — if the user
-          // was listening, they continue listening on the new band.
-          try { reloadAnalogStream('band-switch', true); } catch (e) {
-            logActivity('Band switch failed: ' + e, 'warn', 'band-switch-fail');
-          }
-        });
-      });
-      // Reflect any restored preference in the initial button state.
-      bandButtons.forEach((b) => {
-        b.classList.toggle(
-          'analog-band-btn-active',
-          b.dataset.band === state.preferredAnalogBand,
-        );
-      });
+      // (Removed) MA/SL analog band-selector handlers — each tab now
+      // owns its own <audio> with a fixed mount, no swap needed.
+
       if (els.btnRestartDigital) {
         els.btnRestartDigital.addEventListener('click', () => restartService('digital', 'Digital'));
       }
