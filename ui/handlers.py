@@ -3759,6 +3759,7 @@ class Handler(BaseHTTPRequestHandler):
                 "stream_mount": analog_stream_mount,
                 "stream_proxy_enabled": True,
                 "digital_stream_mount": digital_stream_mount,
+                "ground_stream_mount": "ANALOG_GROUND.mp3",
                 "icecast_expected_mounts": [],
                 "expected_serials": expected_serials,
                 "expected_indices": expected_indices,
@@ -4321,6 +4322,22 @@ class Handler(BaseHTTPRequestHandler):
                 mount_digital = mount_publishing(
                     icecast_status_text, DIGITAL_STREAM_MOUNT or "DIGITAL.mp3"
                 )
+                # MA/SL split publishes ground audio on its own mount.
+                # Hard-coded here because there's no separate ground stream
+                # mount env var today; the rtl-airband-ground service config
+                # always uses ANALOG_GROUND.mp3.
+                ground_stream_mount = "ANALOG_GROUND.mp3"
+                mount_analog_ground = mount_publishing(
+                    icecast_status_text, ground_stream_mount
+                )
+                try:
+                    from .dongle_power import get_power_state as _sse_get_dongle_power
+                except ImportError:
+                    from ui.dongle_power import get_power_state as _sse_get_dongle_power
+                try:
+                    sse_dongle_power = _sse_get_dongle_power()
+                except Exception:
+                    sse_dongle_power = "unknown"
                 # Keep SSE hits aligned with the full UI hit list so digital
                 # rows are not dropped by top-10 truncation during busy analog traffic.
                 hits_payload = _get_hits_payload_cached(limit=50)
@@ -4365,6 +4382,8 @@ class Handler(BaseHTTPRequestHandler):
                     "icecast_unit_active": ice_unit_active,
                     "icecast_mount_analog_alive": bool(mount_analog),
                     "icecast_mount_digital_alive": bool(mount_digital),
+                    "icecast_mount_analog_ground_alive": bool(mount_analog_ground),
+                    "dongle_power": sse_dongle_power,
                     "rtl_airband_sample_flow_ok": sample_flow_ok,
                     "rtl_airband_stats_age_sec": sample_flow.get("stats_age_sec"),
                     "rtl_airband_stats_stale_threshold_sec": sample_flow.get(
@@ -4382,6 +4401,7 @@ class Handler(BaseHTTPRequestHandler):
                     "last_hit_ground_label": _short_label(last_hit_ground_label, max_len=48),
                     "stream_mount": analog_stream_mount,
                     "digital_stream_mount": digital_stream_mount,
+                    "ground_stream_mount": ground_stream_mount,
                     "server_time": time.time(),
                     "hp_avoids": get_scan_mode_controller().get_hp_avoids(),
                     "analog_scan_health": analog_scan_health,

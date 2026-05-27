@@ -72,6 +72,7 @@ let digitalProfilesCache = null;
 let digitalProfilesCacheAt = 0;
 let digitalMuted = false;
 let streamMount = 'scannerbox.mp3';
+let groundStreamMount = 'ANALOG_GROUND.mp3';
 let icecastPort = 8000;
 let streamProxyEnabled = true;
 let streamBaseUrl = '';
@@ -329,12 +330,17 @@ function buildProfiles(profilesEl, profiles, selected, target) {
   });
 }
 
-function streamUrl() {
-  const mount = (streamMount || 'scannerbox.mp3').replace(/^\/+/, '');
+function streamUrlFor(mountName) {
+  const mount = (mountName || 'scannerbox.mp3').replace(/^\/+/, '');
   if (streamProxyEnabled) {
     return `${location.origin}/stream/${encodeURIComponent(mount)}`;
   }
   return `http://${location.hostname}:${icecastPort}/${mount}`;
+}
+
+function streamUrl() {
+  // Back-compat: legacy callers expect the analog (airband) URL.
+  return streamUrlFor(streamMount);
 }
 
 function icecastRootUrl() {
@@ -342,10 +348,15 @@ function icecastRootUrl() {
 }
 
 function syncStreamLinks() {
-  const base = streamUrl();
-  streamBaseUrl = base;
-  if (audioAirbandEl) audioAirbandEl.src = base;
-  if (audioGroundEl) audioGroundEl.src = base;
+  const airbandBase = streamUrlFor(streamMount);
+  const groundBase = streamUrlFor(groundStreamMount || streamMount);
+  streamBaseUrl = airbandBase;
+  if (audioAirbandEl && audioAirbandEl.src !== airbandBase) {
+    audioAirbandEl.src = airbandBase;
+  }
+  if (audioGroundEl && audioGroundEl.src !== groundBase) {
+    audioGroundEl.src = groundBase;
+  }
   if (lnkStreamAirbandEl) {
     lnkStreamAirbandEl.href = icecastRootUrl();
     lnkStreamAirbandEl.target = '_blank';
@@ -357,7 +368,7 @@ function syncStreamLinks() {
     lnkStreamGroundEl.rel = 'noopener';
   }
   if (mountAirbandEl) mountAirbandEl.textContent = streamMount || 'scannerbox.mp3';
-  if (mountGroundEl) mountGroundEl.textContent = streamMount || 'scannerbox.mp3';
+  if (mountGroundEl) mountGroundEl.textContent = groundStreamMount || streamMount || 'scannerbox.mp3';
 }
 
 function clearAudioWaitingTimer(audioEl) {
@@ -580,8 +591,14 @@ async function refresh(allowSetSliders=false) {
   if (typeof st.stream_mount === 'string' && st.stream_mount.trim()) {
     streamMount = st.stream_mount.trim();
   }
+  if (typeof st.ground_stream_mount === 'string' && st.ground_stream_mount.trim()) {
+    groundStreamMount = st.ground_stream_mount.trim();
+  }
   const base = streamUrl();
-  if (streamBaseUrl !== base) {
+  const groundBase = streamUrlFor(groundStreamMount || streamMount);
+  if (streamBaseUrl !== base
+      || (audioGroundEl && audioGroundEl.src !== groundBase)
+      || (mountGroundEl && mountGroundEl.textContent !== (groundStreamMount || streamMount))) {
     syncStreamLinks();
   }
 

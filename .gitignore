@@ -60,3 +60,6 @@ profiles/profiles.json
 
 # Runtime-tuned disco sweep config (manual tuning, not source of truth)
 disco/configs/sweep.yaml
+
+# Local Claude Code state (settings, worktrees) — never commit
+.claude/
