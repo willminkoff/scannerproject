@@ -3212,7 +3212,6 @@
                 <div class="control-applied">Control Channel: <span class="config-value" id="digital-cc-status">--</span></div>
                 <div class="control-applied"><span id="digital-cc-detail">--</span></div>
                 <div class="control-applied">Systems: <span class="config-value" id="digital-system-health">--</span></div>
-                <div class="control-applied"><span id="digital-system-health-detail">--</span></div>
                 <div class="control-applied" id="digital-dongle-health-row">RTL Dongles: <span class="config-value" id="digital-dongle-health">--</span></div>
                 <div class="control-applied" id="digital-dongle-missing-row">Missing: <span class="config-value" id="digital-dongle-missing">--</span></div>
               </div>
@@ -5290,7 +5289,6 @@
       digitalCcStatus: document.getElementById('digital-cc-status'),
       digitalCcDetail: document.getElementById('digital-cc-detail'),
       digitalSystemHealth: document.getElementById('digital-system-health'),
-      digitalSystemHealthDetail: document.getElementById('digital-system-health-detail'),
       digitalDongleHealth: document.getElementById('digital-dongle-health'),
       digitalDongleMissing: document.getElementById('digital-dongle-missing'),
       digitalDongleHealthRow: document.getElementById('digital-dongle-health-row'),
@@ -11942,19 +11940,6 @@
           } else {
             setValueTone(els.digitalSystemHealth, '');
           }
-          if (els.digitalSystemHealthDetail) {
-            const parts = [
-              `Loop active=${activeLabel}`,
-              `next=${nextLabel}`,
-              `reason=${reason}`,
-              `switches=${switches}`,
-            ];
-            if (runtimeProfile && loopProfile && runtimeProfile !== loopProfile) {
-              parts.push(`runtime=${runtimeProfile}`);
-            }
-            els.digitalSystemHealthDetail.textContent = parts.join(' • ');
-            setValueTone(els.digitalSystemHealthDetail, ccHealth.tone || '');
-          }
         } else if (!systemHealthRows.length) {
           els.digitalSystemHealth.textContent = '--';
           setValueTone(els.digitalSystemHealth, '');
@@ -11962,53 +11947,6 @@
           const summary = systemHealthRows.map((row) => formatDigitalSystemHealthRow(row)).filter(Boolean).join(' | ');
           els.digitalSystemHealth.textContent = summary || '--';
           setValueTone(els.digitalSystemHealth, digitalSystemRowsTone(systemHealthSummary));
-        }
-      }
-      if (els.digitalSystemHealthDetail && !loopEnabled) {
-        if (!activeSystemRow) {
-          els.digitalSystemHealthDetail.textContent = '--';
-          setValueTone(els.digitalSystemHealthDetail, '');
-        } else if (systemHealthSummary && systemHealthSummary.rows.length > 1) {
-          const parts = [
-            `Locked: ${systemHealthSummary.lockedCount}/${systemHealthSummary.assignedCount}`,
-            `Decoding: ${systemHealthSummary.decodeCount}/${systemHealthSummary.assignedCount}`,
-          ];
-          if (systemHealthSummary.lastControlTime > 0) {
-            parts.push(`last=${formatTimeMs(systemHealthSummary.lastControlTime)}`);
-          }
-          els.digitalSystemHealthDetail.textContent = parts.join(' • ');
-          setValueTone(els.digitalSystemHealthDetail, digitalSystemRowsTone(systemHealthSummary));
-        } else {
-          const reason = String(activeSystemRow.reason || '').trim();
-          const reasonCode = String(activeSystemRow.reason_code || '').trim();
-          const selectedSiteName = String(activeSystemRow.selected_site_name || '').trim();
-          const selectedSiteId = String(activeSystemRow.selected_site_id || '').trim();
-          const switchReason = String(d.schedulerSwitchReason || '').trim();
-          const failures = Number(activeSystemRow.lock_failures || 0);
-          const timeoutMs = Number(d.schedulerLockTimeoutMs || 0);
-          const parts = [
-            `Active: ${String(activeSystemRow.name || '--')}`,
-            reason || 'no detail',
-          ];
-          if (selectedSiteName || selectedSiteId) parts.push(`site=${selectedSiteName || selectedSiteId}`);
-          if (reasonCode) parts.push(`selector=${reasonCode}`);
-          if (switchReason) parts.push(`switch=${switchReason}`);
-          if (timeoutMs > 0) parts.push(`timeout=${Math.round(timeoutMs / 1000)}s`);
-          if (failures > 0) parts.push(`lock timeouts=${failures}`);
-          const candidates = Array.isArray(activeSystemRow.candidate_sites) ? activeSystemRow.candidate_sites : [];
-          if (candidates.length) {
-            const candidateText = candidates.map((candidate) => {
-              if (!candidate || typeof candidate !== 'object') return '';
-              const siteId = String(candidate.site_id || '').trim();
-              const siteName = String(candidate.site_name || '').trim() || siteId || '--';
-              const candidateState = String(candidate.state || '').trim() || 'candidate';
-              const score = Number.isFinite(Number(candidate.score)) ? Number(candidate.score) : 0;
-              return `${siteName}:${candidateState}:${score}`;
-            }).filter(Boolean).join(' | ');
-            if (candidateText) parts.push(`candidates=${candidateText}`);
-          }
-          els.digitalSystemHealthDetail.textContent = parts.join(' • ');
-          setValueTone(els.digitalSystemHealthDetail, digitalSchedulerStateTone(activeSystemRow.state));
         }
       }
       renderDongleHealth(state.systemStats);
@@ -13228,13 +13166,10 @@
     function formatDigitalSystemHealthRow(row) {
       if (!row || typeof row !== 'object') return '';
       const name = String(row.name || '--').trim() || '--';
-      const state = String(row.state || 'unknown').trim().toUpperCase();
       const marker = row.active ? '●' : '○';
       const siteName = String(row.selected_site_name || '').trim();
-      const reasonCode = String(row.reason_code || '').trim();
       const siteSuffix = siteName ? `@${siteName}` : '';
-      const reasonSuffix = reasonCode ? `:${reasonCode}` : '';
-      return `${marker} ${name}:${state}${siteSuffix}${reasonSuffix}`;
+      return `${marker} ${name}${siteSuffix}`;
     }
 
     function applyDigitalSchedulerPayload(payload) {

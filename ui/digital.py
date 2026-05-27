@@ -5287,6 +5287,36 @@ class DigitalManager:
                     if selection.get("policy_warnings"):
                         row["policy_warnings"] = list(selection.get("policy_warnings") or [])
             rows.append(row)
+
+        # Suppress per-site pool rows whose system already has a friendly-name
+        # row.  Pool rows are named "<system_id>:<site_id>" (two ints joined by
+        # ":"); the dongle-assignment table is keyed on the friendly system
+        # name so these rows always fall through to "unmonitored" and add no
+        # information.  Drop them when a friendly row for the same system_id
+        # is present.  Orphan per-site rows (no friendly row for that
+        # system_id) are kept so a real system isn't accidentally hidden.
+        friendly_label_to_system_id: dict[str, str] = {}
+        for pool_name, label in (self._scheduler_pool_system_labels or {}).items():
+            m = re.fullmatch(r"(\d+):(\d+)", str(pool_name or "").strip())
+            if not m:
+                continue
+            label_key = str(label or "").strip().lower()
+            if label_key:
+                friendly_label_to_system_id.setdefault(label_key, m.group(1))
+        friendly_system_ids = {
+            friendly_label_to_system_id[str(r.get("name") or "").strip().lower()]
+            for r in rows
+            if not re.fullmatch(r"\d+:\d+", str(r.get("name") or "").strip())
+            and str(r.get("name") or "").strip().lower() in friendly_label_to_system_id
+        }
+        if friendly_system_ids:
+            rows = [
+                r for r in rows
+                if not (
+                    re.fullmatch(r"\d+:\d+", str(r.get("name") or "").strip())
+                    and str(r.get("name") or "").strip().split(":", 1)[0] in friendly_system_ids
+                )
+            ]
         return rows
 
     def _allocation_snapshot_payload_locked(self, snapshot: dict, preflight: dict) -> dict:
