@@ -5,6 +5,9 @@ set -euo pipefail
 # Intended for periodic one-shot execution under systemd.
 
 BT_SPEAKER_MAC="${BT_SPEAKER_MAC:-C0:28:8D:34:6E:67}"
+# Default to the current PipeWire default-sink description (e.g. "UE BOOM 2")
+# so vlc_stream_routed_to_bt and find_bt_sink_id work without hard-coding a name.
+BT_SINK_NAME="${BT_SINK_NAME:-$(XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)} wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null | sed -n 's/.*node.description = "\([^"]*\)".*/\1/p' | head -n1)}"
 BT_SINK_NAME="${BT_SINK_NAME:-BLUE}"
 BT_PULSE_SINK="${BT_PULSE_SINK:-${VLC_PULSE_SINK:-bluez_output.C0_28_8D_34_6E_67.1}}"
 BT_AUDIO_VOLUME="${BT_AUDIO_VOLUME:-0.75}"

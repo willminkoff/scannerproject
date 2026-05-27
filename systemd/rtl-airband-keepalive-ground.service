@@ -1,0 +1,20 @@
+[Unit]
+Description=Icecast Keepalive Ground (silent fallback)
+After=network-online.target icecast2.service
+Wants=network-online.target icecast2.service
+Requires=icecast2.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/airband-ui.conf
+ExecStartPre=-/bin/sh -c '/usr/bin/curl -s -u "${ICECAST_SOURCE_USER}:${ICECAST_SOURCE_PASSWORD}" "http://${ICECAST_HOST}:${ICECAST_PORT}/admin/killsource?mount=/${ICECAST_KEEPALIVE_MOUNT_GROUND}" >/dev/null 2>&1 || true'
+ExecStart=/usr/bin/ffmpeg -nostdin -hide_banner -loglevel warning \
+  -re -f lavfi -i anullsrc=channel_layout=mono:sample_rate=8000 \
+  -ar 8000 -c:a libmp3lame -b:a 8k -content_type audio/mpeg -f mp3 \
+  icecast://${ICECAST_SOURCE_USER}:${ICECAST_SOURCE_PASSWORD}@${ICECAST_HOST}:${ICECAST_PORT}/${ICECAST_KEEPALIVE_MOUNT_GROUND}
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
