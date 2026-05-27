@@ -147,17 +147,24 @@ def evaluate_analog_preflight(
     slow = set(dongles.get("slow_expected_serials") or [])
     expected_serial = GROUND_RTL_SERIAL if normalized == "ground" else AIRBAND_RTL_SERIAL
 
-    if dongles.get("status") == "critical":
-        reasons.append(
-            _reason(
-                "DONGLE_CRITICAL",
-                "critical",
-                "RTL dongle health is critical",
-                "Check USB connections and powered hub before applying changes.",
+    # If this analog target has no RTL serial configured, it's running on
+    # a non-RTL backend (typically RSPduo via SoapySDR after the MA/SL
+    # cutover).  Global RTL dongle health is irrelevant in that case —
+    # those missing/slow serials belong to other consumers (WX decoders,
+    # digital follower, etc.) and shouldn't fail this subsystem.
+    analog_uses_rtl = bool(str(expected_serial or "").strip())
+    if analog_uses_rtl:
+        if dongles.get("status") == "critical":
+            reasons.append(
+                _reason(
+                    "DONGLE_CRITICAL",
+                    "critical",
+                    "RTL dongle health is critical",
+                    "Check USB connections and powered hub before applying changes.",
+                )
             )
-        )
-    elif dongles.get("status") == "degraded":
-        reasons.append(_reason("DONGLE_DEGRADED", "warn", "RTL dongle health is degraded"))
+        elif dongles.get("status") == "degraded":
+            reasons.append(_reason("DONGLE_DEGRADED", "warn", "RTL dongle health is degraded"))
 
     if expected_serial:
         if expected_serial in missing:

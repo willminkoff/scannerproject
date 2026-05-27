@@ -3715,9 +3715,29 @@ class Handler(BaseHTTPRequestHandler):
                     "errors": [str(e)],
                 }
 
+            # Heartbeat truth: post-MA/SL split, the legacy "rtl-airband"
+            # combined unit is masked, so rtl_ok/ground_ok would always
+            # read False even though analog is healthy on RSPduo.  Expose
+            # the per-service truth and prefer it for downstream
+            # heartbeats / SDR-active dots.  Trust unit-active alone
+            # because rtl_airband's stats file isn't updated frequently
+            # enough to pass the 15s freshness gate on RSPduo backends —
+            # the unit being active is sufficient liveness for the
+            # dashboard heartbeats.
+            airband_active_truth = (
+                bool(rtl_airband_unit_active)
+                if rtl_airband_unit_active
+                else bool(rtl_ok)
+            )
+            ground_active_truth = (
+                bool(rtl_ground_unit_active)
+                if rtl_ground_unit_active
+                else bool(ground_ok)
+            )
             payload = {
                 "rtl_active": rtl_ok,
-                "ground_active": ground_ok,
+                "airband_active": airband_active_truth,
+                "ground_active": ground_active_truth,
                 "ground_exists": ground_present,
                 "rtl_unit_active": rtl_unit_active,
                 "ground_unit_active": ground_unit_active,
@@ -4303,7 +4323,41 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 sample_flow_ok = bool(sample_flow.get("sample_flow_ok"))
                 rtl_active = rtl_unit_active and sample_flow_ok
-                ground_active = rtl_active and ground_present
+                # MA/SL split signals (post-cutover analog runs on RSPduo
+                # in two services; the legacy "rtl-airband" unit is
+                # masked).  Use these to drive airband_active /
+                # ground_active so heartbeat dots strobe correctly.
+                rtl_airband_unit_active = _unit_active_cached(UNITS.get("rtl_airband", ""))
+                rtl_ground_unit_active = _unit_active_cached(UNITS.get("rtl_ground", ""))
+                rtl_airband_split_flow = rtl_airband_sample_flow_state(
+                    RTL_AIRBAND_AIRBAND_STATS_PATH,
+                    RTL_AIRBAND_STATS_STALE_SEC,
+                )
+                rtl_ground_split_flow = rtl_airband_sample_flow_state(
+                    RTL_AIRBAND_GROUND_STATS_PATH,
+                    RTL_AIRBAND_STATS_STALE_SEC,
+                )
+                rtl_airband_split_ok = (
+                    rtl_airband_unit_active
+                    and bool(rtl_airband_split_flow.get("sample_flow_ok"))
+                )
+                rtl_ground_split_ok = (
+                    rtl_ground_unit_active
+                    and bool(rtl_ground_split_flow.get("sample_flow_ok"))
+                )
+                # See /api/status above: trust unit-active alone because
+                # the rtl-airband stats file isn't updated frequently
+                # enough to pass the 15s freshness gate on RSPduo.
+                airband_active = (
+                    bool(rtl_airband_unit_active)
+                    if rtl_airband_unit_active
+                    else rtl_active
+                )
+                ground_active = (
+                    bool(rtl_ground_unit_active)
+                    if rtl_ground_unit_active
+                    else (rtl_active and ground_present)
+                )
                 ice_unit_active = _unit_active_cached(UNITS["icecast"])
                 ice_ok = ice_unit_active
                 icecast_status_text = ""
@@ -4377,6 +4431,7 @@ class Handler(BaseHTTPRequestHandler):
                 status_data = {
                     "type": "status",
                     "rtl_active": rtl_active,
+                    "airband_active": airband_active,
                     "ground_active": ground_active,
                     "icecast_active": ice_ok,
                     "icecast_unit_active": ice_unit_active,
