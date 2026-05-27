@@ -1372,6 +1372,19 @@ def _restart_rtl_service(
             ok, err = _start_unit(target_unit, use_sudo=True)
             if not ok:
                 return False, f"{service_label} start: {err}"
+            # Cascade-restart safety net: stopping target_unit also stopped
+            # peer via Requires=.  Systemd Upholds= (drop-in) will restart
+            # it, but bring it up explicitly here too so we don't race the
+            # post-start probe against an empty mountpoint.
+            if peer_unit and peer_exists and not unit_active(peer_unit):
+                peer_ok, peer_err = _start_unit(peer_unit, use_sudo=True)
+                if not peer_ok:
+                    print(
+                        f"restart_{service_label}[gentle]: WARN peer "
+                        f"{peer_unit} restart after gentle {target_unit} "
+                        f"failed: {peer_err}",
+                        flush=True,
+                    )
             if rtl_settle_sec > 0:
                 time.sleep(rtl_settle_sec)
             if probe_enabled:
