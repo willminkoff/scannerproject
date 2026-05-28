@@ -3421,6 +3421,10 @@
               <div>Loading favorites...</div>
             </div>
           </div>
+          <div id="airband-profiles-section" class="airband-profiles-section" style="display:none;">
+            <div class="airband-profiles-label">Airband Profiles</div>
+            <div class="profiles-grid airband-profiles-grid" id="airband-profiles-list"></div>
+          </div>
           <div class="favorites-sync-row" id="favorites-sync-row-analog">
             <div class="favorites-sync-copy">
               <div class="favorites-sync-primary" id="favorites-sync-primary-analog">SB3 profile sync status loading...</div>
@@ -6983,24 +6987,7 @@ serverTimezone: null,
           const fullDbBanner = fullDbMode
             ? '<div class="muted" style="margin-bottom:10px;">Full DB mode active. Favorites are shown for edit only.</div>'
             : '';
-          // Append rtl-airband profile tiles INSIDE the same favorites grid so
-          // the user sees one unified list.  Each tile is data-airband-profile-id
-          // distinguishing it from HP favorites (data-hp-fav-list-index).
-          const _airbandProfs = (state.airband && Array.isArray(state.airband.profiles)) ? state.airband.profiles : [];
-          const _hiddenIds = new Set(['hp3_favorites_airband', 'bandscan_airband', 'none_airband']);
-          const _activeAirbandId = String((state.airband && state.airband.currentProfile) || '').trim();
-          const _escAB = (s) => String(s == null ? '' : s)
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-          const _airbandTiles = _airbandProfs
-            .filter((p) => p && p.id && !_hiddenIds.has(String(p.id)))
-            .map((p) => {
-              const id = String(p.id || '').trim();
-              const label = String(p.label || id).trim();
-              const isActive = id === _activeAirbandId;
-              return '<button class="profile-btn ' + (isActive ? 'active' : '') + '" data-airband-profile-id="' + _escAB(id) + '"><div class="label">' + _escAB(label) + '</div><div class="meta">Airband profile</div></button>';
-            }).join('');
-          els.profilesList.innerHTML = `${fullDbBanner}${listMarkup}${_airbandTiles}`;
+          els.profilesList.innerHTML = `${fullDbBanner}${listMarkup}`;
         }
       }
 
@@ -8951,10 +8938,6 @@ serverTimezone: null,
     }
 
     function renderAirbandProfileTiles() {
-      // Tiles now render inside #profiles-list itself (see the renderer that
-      // builds listMarkup + _airbandTiles).  Kept as a no-op shim because
-      // status apply paths still call it.
-      return;
       const section = document.getElementById('airband-profiles-section');
       const list = document.getElementById('airband-profiles-list');
       if (!section || !list) return;
@@ -16787,21 +16770,23 @@ serverTimezone: null,
       }
       if (els.profilesList) {
         els.profilesList.addEventListener('click', (e) => {
-          if (!(e.target && e.target.closest)) return;
-          const airbandBtn = e.target.closest('button[data-airband-profile-id]');
-          if (airbandBtn) {
-            const pid = airbandBtn.getAttribute('data-airband-profile-id');
-            if (!pid) return;
-            airbandBtn.disabled = true;
-            selectAirbandProfile(pid).finally(() => { airbandBtn.disabled = false; });
-            return;
-          }
-          const btn = e.target.closest('button[data-hp-fav-list-index]');
+          const btn = e.target && e.target.closest ? e.target.closest('button[data-hp-fav-list-index]') : null;
           if (!btn) return;
           const idx = _toInt(btn.getAttribute('data-hp-fav-list-index'), -1);
           const names = Array.isArray(state.hpFavoritesBuilder.lists) ? state.hpFavoritesBuilder.lists : [];
           if (idx < 0 || idx >= names.length) return;
           selectHpFavoriteList(names[idx]);
+        });
+      }
+      const _airbandProfilesListEl = document.getElementById('airband-profiles-list');
+      if (_airbandProfilesListEl) {
+        _airbandProfilesListEl.addEventListener('click', (e) => {
+          const btn = e.target && e.target.closest ? e.target.closest('button[data-airband-profile-id]') : null;
+          if (!btn) return;
+          const pid = btn.getAttribute('data-airband-profile-id');
+          if (!pid) return;
+          btn.disabled = true;
+          selectAirbandProfile(pid).finally(() => { btn.disabled = false; });
         });
       }
       if (els.hpFavListSelect) {
