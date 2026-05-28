@@ -59,6 +59,25 @@ _CATALOG_BY_TAG = {
 }
 
 
+def service_tag_label(service_tag) -> str:
+    """Human-readable label for a service tag, with a stable fallback.
+
+    Uses the in-code static catalog (no DB hit per call).  Returns
+    "Service Tag N" when the tag isn't in the catalog so the caller
+    always has *something* to display.
+    """
+    try:
+        tag = int(service_tag)
+    except Exception:
+        return ''
+    entry = _CATALOG_BY_TAG.get(tag)
+    if entry:
+        name = str(entry[0] or '').strip()
+        if name:
+            return name
+    return f'Service Tag {tag}'
+
+
 def _connect(db_path: str) -> sqlite3.Connection:
     path = str(Path(db_path).expanduser().resolve())
     conn = sqlite3.connect(path)

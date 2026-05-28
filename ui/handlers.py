@@ -3844,6 +3844,10 @@ class Handler(BaseHTTPRequestHandler):
                 "avoids_airband": summarize_avoids(conf_path, "airband"),
                 "avoids_ground": summarize_avoids(os.path.realpath(GROUND_CONFIG_PATH), "ground"),
                 "hp_avoids": get_scan_mode_controller().get_hp_avoids(),
+                "stripped_custom_favorites": {
+                    str(tag_id): bucket
+                    for tag_id, bucket in (get_scan_mode_controller().get_last_stripped_custom_favorites() or {}).items()
+                },
                 "favorites_runtime_sync": favorites_runtime_sync,
                 "analog_scan_health": analog_scan_health,
             }
@@ -4476,6 +4480,10 @@ class Handler(BaseHTTPRequestHandler):
                     "server_time": time.time(),
                     "server_timezone": _RESOLVED_SERVER_TIMEZONE,
                     "hp_avoids": get_scan_mode_controller().get_hp_avoids(),
+                    "stripped_custom_favorites": {
+                        str(tag_id): bucket
+                        for tag_id, bucket in (get_scan_mode_controller().get_last_stripped_custom_favorites() or {}).items()
+                    },
                     "analog_scan_health": analog_scan_health,
                     "sb3_connected_status_refresh_sec": int(SB3_CONNECTED_STATUS_REFRESH_SEC),
                     "sb3_connected_system_refresh_sec": int(SB3_CONNECTED_SYSTEM_REFRESH_SEC),

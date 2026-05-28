@@ -2024,6 +2024,49 @@
     }
 
     /* Sitrep */
+    .banner-warn {
+      background: rgba(255, 167, 38, 0.10);
+      border: 1px solid rgba(255, 167, 38, 0.35);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin: 10px 0 4px;
+      font-size: 13px;
+    }
+    .banner-warn-title {
+      font-weight: 600;
+      color: var(--warn, #ffa726);
+      margin-bottom: 6px;
+    }
+    .banner-warn-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 3px 0;
+      flex-wrap: wrap;
+    }
+    .banner-warn-row .row-meta {
+      flex: 1;
+      min-width: 0;
+      font-size: 12px;
+      color: var(--text-secondary, #aaa);
+    }
+    .banner-warn-row .row-tag {
+      color: var(--text-primary, #fff);
+      font-weight: 600;
+    }
+    .banner-warn-row .row-btn {
+      border: 1px solid var(--accent-dim, #4dd0e1);
+      background: transparent;
+      color: var(--accent-dim, #4dd0e1);
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 11px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .banner-warn-row .row-btn:hover { opacity: 0.85; }
+    .banner-warn-row .row-btn:disabled { opacity: 0.4; cursor: default; }
+
     .sitrep {
       max-width: 1200px;
       margin: 0 auto;
@@ -3013,6 +3056,7 @@
   <div class="view-stack">
     <!-- Main Content -->
     <div class="main view view-main">
+      <div id="stripped-favorites-banner" class="banner-warn" style="display:none;"></div>
       <div class="grid">
 
       <!-- Row 1: Controls + Profiles -->
@@ -4867,7 +4911,8 @@
         baselineSum: 0,
       },
       serverTime: null,
-      serverTimezone: null,
+serverTimezone: null,
+      strippedCustomFavorites: {},
       systemStats: null,
       v3Compile: null,
       preflight: {
@@ -8838,6 +8883,84 @@
 
     function normalizeAnalogTarget(target) {
       return target === 'ground' ? 'ground' : 'airband';
+    }
+
+    function renderStrippedFavoritesBanner() {
+      const el = document.getElementById("stripped-favorites-banner");
+      if (!el) return;
+      const data = (state.strippedCustomFavorites && typeof state.strippedCustomFavorites === "object")
+        ? state.strippedCustomFavorites
+        : {};
+      const tagIds = Object.keys(data);
+      if (tagIds.length === 0) {
+        el.style.display = "none";
+        el.innerHTML = "";
+        return;
+      }
+      const escape = (s) => String(s == null ? "" : s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+      tagIds.sort((a, b) => Number(a) - Number(b));
+      const total = tagIds.reduce((acc, t) => acc + ((data[t] && data[t].entries && data[t].entries.length) || 0), 0);
+      const rows = tagIds.map((tagId) => {
+        const bucket = data[tagId] || {};
+        const label = String(bucket.tag_label || ("Service Tag " + tagId)).trim();
+        const entries = Array.isArray(bucket.entries) ? bucket.entries.slice() : [];
+        const entriesText = entries.length > 0 ? entries.map(escape).join(", ") : "(no system names)";
+        return "<div class=\"banner-warn-row\">"
+          + "<div class=\"row-meta\"><span class=\"row-tag\">" + escape(label) + "</span> disabled (" + entries.length + ") — " + entriesText + "</div>"
+          + "<button class=\"row-btn\" type=\"button\" data-enable-tag=\"" + escape(tagId) + "\" data-enable-label=\"" + escape(label) + "\">Enable " + escape(label) + "</button>"
+          + "</div>";
+      }).join("");
+      el.innerHTML = "<div class=\"banner-warn-title\">⚠ " + total + " custom favorites not monitored (service tags disabled)</div>" + rows;
+      el.style.display = "block";
+      el.querySelectorAll("button[data-enable-tag]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const tag = parseInt(btn.getAttribute("data-enable-tag"), 10);
+          if (Number.isInteger(tag)) {
+            btn.disabled = true;
+            btn.textContent = "Enabling…";
+            enableServiceTag(tag).catch((err) => {
+              console.error("enableServiceTag:", err);
+              btn.disabled = false;
+              btn.textContent = "Enable " + (btn.getAttribute("data-enable-label") || ("Service Tag " + tag));
+            });
+          }
+        });
+      });
+    }
+
+    async function enableServiceTag(tagId) {
+      if (!Number.isInteger(tagId)) return;
+      const current = new Set(
+        (state.hpFilters && Array.isArray(state.hpFilters.enabledServiceTags))
+          ? state.hpFilters.enabledServiceTags.map((n) => Number(n)).filter(Number.isFinite)
+          : []
+      );
+      current.add(tagId);
+      const payload = {
+        mode: state.hpFilters && state.hpFilters.mode === "full_database" ? "full_database" : "favorites",
+        use_location: Boolean(state.hpFilters && state.hpFilters.useLocation),
+        strict_location: Boolean(state.hpFilters && state.hpFilters.strictLocation),
+        zip: String((state.hpFilters && state.hpFilters.zip) || "").trim(),
+        range_miles: Number((state.hpFilters && state.hpFilters.rangeMiles) || 15),
+        nationwide_systems: Boolean(state.hpFilters && state.hpFilters.nationwideSystems),
+        enabled_service_tags: Array.from(current).sort((a, b) => a - b),
+      };
+      const resp = await fetch("/api/scan/state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!resp.ok) {
+        throw new Error("enableServiceTag: HTTP " + resp.status);
+      }
+      if (state.hpFilters) {
+        state.hpFilters.enabledServiceTags = Array.from(current).sort((a, b) => a - b);
+      }
+      state.lastStatusTick = 0;
     }
 
     function loadBandScanReturnProfiles() {
@@ -15435,6 +15558,8 @@
 
           state.serverTime = data.server_time;
           state.serverTimezone = data.server_timezone || null;
+          state.strippedCustomFavorites = (data && typeof data.stripped_custom_favorites === "object" && data.stripped_custom_favorites) ? data.stripped_custom_favorites : {};
+          try { renderStrippedFavoritesBanner(); } catch (e) { console.error("renderStrippedFavoritesBanner:", e); }
           state.v3Compile = data.v3_compile || null;
           state.preflight = data.preflight || { airband: null, ground: null, digital: null };
           state.health = data.health || { overall: { state: 'unknown', reasonCodes: [] }, subsystems: {} };
@@ -15649,6 +15774,8 @@
           state.lastHit = data.last_hit || state.lastHit;
           state.serverTime = data.server_time;
           state.serverTimezone = data.server_timezone || null;
+          state.strippedCustomFavorites = (data && typeof data.stripped_custom_favorites === "object" && data.stripped_custom_favorites) ? data.stripped_custom_favorites : {};
+          try { renderStrippedFavoritesBanner(); } catch (e) { console.error("renderStrippedFavoritesBanner:", e); }
           state.lastStatusTick = Date.now();
           if (
             (data.hp_favorites_sync && typeof data.hp_favorites_sync === 'object')

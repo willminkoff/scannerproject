@@ -76,6 +76,7 @@ class ScanModeController:
         self._hp_builder = ScanPoolBuilder(self._db_path)
         self._hp_avoided_systems: set[str] = set()
         self._multistate_localized_trunk_ids: set[int] | None = None
+        self._last_stripped_custom_favorites: dict[int, dict] = {}
         self._multistate_localized_conv_system_keys: set[str] | None = None
         self._lock = threading.Lock()
         self._load_hp_avoids_from_disk()
@@ -343,19 +344,71 @@ class ScanModeController:
         self._multistate_localized_conv_system_keys = conv_system_keys
         return trunk_ids, conv_system_keys
 
-    def _filter_favorites_entries(self, entries: list[dict], state, service_tags: list[int]) -> list[dict]:
-        # Custom favorites are filtered by the enabled service-tag set, the
-        # same gate that the full-database auto-pop path uses.  Users add
-        # favorites freely, but the service-tag toggles decide what is
-        # actually monitored; this is a deliberate "safety belt" pattern
-        # so a forgotten favorite doesnt secretly burn an SDR slot.  When
-        # entries are stripped here, the upstream caller should surface a
-        # visible warning so the user can choose to enable the tag.
+    def _split_favorites_by_service_tag(
+        self, entries: list[dict], service_tags: list[int]
+    ) -> tuple[list[dict], dict[int, dict]]:
+        # Strict service-tag gating (same as _filter_favorites_entries) plus a
+        # per-tag report of stripped entries so the UI can surface a visible
+        # warning instead of silently dropping favorites.
+        from .service_types import service_tag_label
+
         raw_entries = [row for row in (entries or []) if isinstance(row, dict)]
         tag_set = set(self._normalize_service_tags(service_tags))
-        if not tag_set:
-            return []
-        return [row for row in raw_entries if self._entry_matches_service_tags(row, tag_set)]
+        kept: list[dict] = []
+        stripped_by_tag: dict[int, dict] = {}
+        for row in raw_entries:
+            if tag_set and self._entry_matches_service_tags(row, tag_set):
+                kept.append(row)
+                continue
+            try:
+                tag_id = int(row.get('service_tag') or 0)
+            except Exception:
+                tag_id = 0
+            if tag_id <= 0:
+                continue
+            bucket = stripped_by_tag.get(tag_id)
+            if bucket is None:
+                bucket = {
+                    'tag_label': service_tag_label(tag_id),
+                    'entries': [],
+                    '_seen': set(),
+                }
+                stripped_by_tag[tag_id] = bucket
+            name = (
+                str(row.get('system_name') or '').strip()
+                or str(row.get('alpha_tag') or '').strip()
+                or str(row.get('department_name') or '').strip()
+                or str(row.get('id') or '').strip()
+                or f'service_tag={tag_id}'
+            )
+            if name not in bucket['_seen']:
+                bucket['_seen'].add(name)
+                bucket['entries'].append(name)
+        # Drop the internal seen-set before returning so it doesn't end up
+        # in JSON payloads downstream.
+        for bucket in stripped_by_tag.values():
+            bucket.pop('_seen', None)
+        return kept, stripped_by_tag
+
+    def _filter_favorites_entries(self, entries: list[dict], state, service_tags: list[int]) -> list[dict]:
+        # Custom favorites are filtered by the enabled service-tag set, the
+        # same gate that the full-database auto-pop path uses.  Thin wrapper
+        # around the split helper for callers that don't need the strip
+        # report.
+        kept, _ = self._split_favorites_by_service_tag(entries, service_tags)
+        return kept
+
+    def get_last_stripped_custom_favorites(self) -> dict[int, dict]:
+        """Returns {tag_id: {'tag_label': str, 'entries': [name, ...]}} from
+        the most recent get_scan_pool() call.  Empty when not in favorites mode
+        or when all custom favorites match the enabled service-tag set."""
+        return {
+            tag: {
+                'tag_label': str(payload.get('tag_label') or ''),
+                'entries': list(payload.get('entries') or []),
+            }
+            for tag, payload in (self._last_stripped_custom_favorites or {}).items()
+        }
 
     @classmethod
     def _normalize_control_channels(cls, value) -> list[float]:
@@ -977,7 +1030,8 @@ class ScanModeController:
             return _empty_pool()
         if state_mode == "favorites":
             entries = self._resolve_active_favorites_entries(state)
-            filtered_entries = self._filter_favorites_entries(entries, state, service_tags)
+            filtered_entries, _stripped_by_tag = self._split_favorites_by_service_tag(entries, service_tags)
+            self._last_stripped_custom_favorites = _stripped_by_tag
             pool = self._build_custom_favorites_pool(filtered_entries)
             pool = self._trim_favorites_pool_to_nearest_sites(pool, state)
         elif state_mode == "full_database":
