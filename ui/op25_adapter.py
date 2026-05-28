@@ -1533,6 +1533,164 @@ def _multi_rx_udp_ports(config: dict) -> list[int]:
 
 
 # ---------------------------------------------------------------------------
+# multi_rx.json diff classifier (Phase 2a: soft-reload on talkgroup edits)
+# ---------------------------------------------------------------------------
+
+def load_current_op25_multi_rx(path: str | None = None) -> dict:
+    """Load the live multi_rx.json from disk.
+
+    Returns an empty dict on any error (missing file, bad JSON, etc.).
+    Caller treats empty dict as "no prior state known" — classifier then
+    biases toward FULL_RECONFIG.
+    """
+    target = path or os.path.join(OP25_RUNTIME_DIR, "multi_rx.json")
+    try:
+        with open(target, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _norm_sysname(name: Any) -> str:
+    """Stable system key: case-folded, whitespace-collapsed sysname."""
+    s = str(name or "")
+    return re.sub(r"\s+", " ", s).strip().casefold()
+
+
+def _norm_cc_list(cc: Any) -> list[str]:
+    """Stable control_channel_list key: sorted, whitespace-stripped tokens."""
+    raw = str(cc or "")
+    parts = [p.strip() for p in raw.split(",") if p.strip()]
+    return sorted(parts)
+
+
+def _device_signature(devices: list) -> list[tuple]:
+    """Sort-stable structural signature of devices[] — for FULL_RECONFIG check.
+
+    Compares name, args, rate, gains, gain_mode, tunable, ppm, offset.
+    Frequency is excluded (it changes whenever the CC list changes; that's
+    already covered by the SYSTEMS_OR_FREQS bucket).
+    """
+    out = []
+    for d in devices or []:
+        if not isinstance(d, dict):
+            continue
+        out.append((
+            str(d.get("name", "")),
+            str(d.get("args", "")),
+            int(d.get("rate", 0) or 0),
+            str(d.get("gains", "")),
+            bool(d.get("gain_mode", False)),
+            bool(d.get("tunable", False)),
+            float(d.get("ppm", 0) or 0),
+            int(d.get("offset", 0) or 0),
+        ))
+    return sorted(out)
+
+
+def _channel_signature(channels: list) -> list[tuple]:
+    """Sort-stable structural signature of channels[] — for FULL_RECONFIG check.
+
+    Compares the demod-path fields (demod_type, filter_type, if_rate,
+    symbol_rate, enable_analog) plus device binding and trunking_sysname.
+    The udp destination port is excluded — it can shift purely from device
+    re-ordering and would force spurious restarts.
+    """
+    out = []
+    for c in channels or []:
+        if not isinstance(c, dict):
+            continue
+        out.append((
+            str(c.get("name", "")),
+            str(c.get("device", "")),
+            _norm_sysname(c.get("trunking_sysname", "")),
+            str(c.get("demod_type", "")),
+            str(c.get("filter_type", "")),
+            int(c.get("if_rate", 0) or 0),
+            int(c.get("symbol_rate", 0) or 0),
+            str(c.get("enable_analog", "")),
+        ))
+    return sorted(out)
+
+
+def _system_set_signature(trunking: dict) -> list[tuple]:
+    """Sort-stable signature of the trunking system set.
+
+    Stable key: norm(sysname) + sorted(control_channel_list). NAC is NOT
+    eligible — our configs use the "0" wildcard so NAC never distinguishes.
+    """
+    out = []
+    chans = trunking.get("chans") if isinstance(trunking, dict) else None
+    for c in chans or []:
+        if not isinstance(c, dict):
+            continue
+        out.append((
+            _norm_sysname(c.get("sysname", "")),
+            tuple(_norm_cc_list(c.get("control_channel_list", ""))),
+        ))
+    return sorted(out)
+
+
+def classify_op25_profile_change(old_multi_rx: dict, new_multi_rx: dict) -> str:
+    """Return one of: NONE, TALKGROUPS_ONLY, SYSTEMS_OR_FREQS, FULL_RECONFIG.
+
+    Decision rules:
+      * NONE              — dicts are byte-for-byte equal.
+      * FULL_RECONFIG     — devices[] or channels[] structural signature
+                            differs (SDR args, sample rates, demod params).
+      * SYSTEMS_OR_FREQS  — trunking system set differs (sysname or sorted
+                            control_channel_list).
+      * TALKGROUPS_ONLY   — none of the above; only sidecar paths or non-
+                            system-defining fields differ.
+
+    Defensive: any unknown top-level structural diff escalates to
+    FULL_RECONFIG — safer to over-restart than miss a real config change.
+    """
+    if not isinstance(old_multi_rx, dict) or not isinstance(new_multi_rx, dict):
+        return "FULL_RECONFIG"
+    if old_multi_rx == new_multi_rx:
+        return "NONE"
+
+    # If either side is empty, we have no prior baseline — be conservative.
+    if not old_multi_rx or not new_multi_rx:
+        return "FULL_RECONFIG"
+
+    # devices[] / channels[] = full reconfig.
+    if _device_signature(old_multi_rx.get("devices") or []) != \
+       _device_signature(new_multi_rx.get("devices") or []):
+        return "FULL_RECONFIG"
+    if _channel_signature(old_multi_rx.get("channels") or []) != \
+       _channel_signature(new_multi_rx.get("channels") or []):
+        return "FULL_RECONFIG"
+
+    # System set diff = systems-or-freqs.
+    old_sys = _system_set_signature(old_multi_rx.get("trunking") or {})
+    new_sys = _system_set_signature(new_multi_rx.get("trunking") or {})
+    if old_sys != new_sys:
+        return "SYSTEMS_OR_FREQS"
+
+    # Anything else (sidecar paths, terminal block, etc.) — talkgroups-only.
+    # The only remaining differences are sidecar-referenced file paths or
+    # non-system-defining fields. The reload command will re-read those.
+    return "TALKGROUPS_ONLY"
+
+
+def _first_trunking_nac(multi_rx: dict) -> int:
+    """Return the NAC of the first trunking chan as an int (0 = wildcard)."""
+    try:
+        chans = multi_rx.get("trunking", {}).get("chans") or []
+        if not chans:
+            return 0
+        raw = str(chans[0].get("nac", "0")).strip()
+        if raw.lower().startswith("0x"):
+            return int(raw, 16)
+        return int(raw)
+    except Exception:
+        return 0
+
+
+# ---------------------------------------------------------------------------
 # Op25Adapter
 # ---------------------------------------------------------------------------
 
@@ -1708,7 +1866,21 @@ class Op25Adapter(_BaseDigitalAdapter):
     def getProfile(self):
         return self._read_active_profile_id()
 
-    def setProfile(self, profileId: str, *, restart_service: bool = True):
+    def setProfile(self, profileId: str, *, restart_service: bool = True, change_class: str | None = None):
+        """Activate *profileId* and reconcile the OP25 runtime.
+
+        change_class (Phase 2a soft-reload):
+          * None              — legacy callers; always do the full restart
+                                path when ``restart_service`` is True.
+          * 'NONE'             — no-op; do not restart, do not reload.
+          * 'TALKGROUPS_ONLY'  — write sidecars then POST 'reload' over the
+                                 op25 HTTP terminal (default :8080). On any
+                                 HTTP failure, fall back to a full restart so
+                                 behaviour never regresses below the previous
+                                 baseline.
+          * 'SYSTEMS_OR_FREQS' / 'FULL_RECONFIG'
+                              — write sidecars then full systemctl restart.
+        """
         pid = _normalize_name(profileId)
         if not validate_digital_profile_id(pid):
             return False, "invalid profileId"
@@ -1727,16 +1899,112 @@ class Op25Adapter(_BaseDigitalAdapter):
         except Exception as e:
             return False, f"symlink failed: {e}"
 
-        # Regenerate OP25 config and optionally restart.
+        # Regenerate OP25 config (always writes sidecars).
         systems = _read_system_definitions(target)
         if systems:
             ok, err = self._write_runtime_config(target, systems)
             if not ok:
                 return False, err
 
-        if restart_service and self.isActive():
-            return self.restart(reason="profile_switch")
-        return True, ""
+        # Refresh /run/.../multi_rx.json so on-disk state reflects the new
+        # profile *before* the restart-vs-reload decision.  Idempotent;
+        # ensure-op25-runtime.py is also ExecStartPre for the unit so the
+        # next restart re-runs it harmlessly.  Failure here is non-fatal —
+        # the systemd unit will regenerate on its own if/when we restart.
+        try:
+            self._regenerate_runtime_via_script()
+        except Exception as exc:
+            logger.debug("setProfile: runtime regen swallowed %s", exc)
+
+        # Track which path setProfile takes — exposed via
+        # self._last_setprofile_path / self._last_setprofile_reason so the
+        # caller (favorites_runtime) can emit accurate telemetry without
+        # having to re-derive it from timing heuristics.
+        self._last_setprofile_path = ""
+        self._last_setprofile_reason = "-"
+
+        # Honour explicit NONE — no-op regardless of restart_service.
+        if change_class == "NONE":
+            self._last_setprofile_path = "noop"
+            return True, ""
+
+        if not restart_service:
+            self._last_setprofile_path = "noop"
+            return True, ""
+
+        if not self.isActive():
+            # Service isn't running; nothing to reload, nothing to restart.
+            self._last_setprofile_path = "noop"
+            self._last_setprofile_reason = "service_inactive"
+            return True, ""
+
+        # change_class == TALKGROUPS_ONLY → try HTTP soft-reload, fall back
+        # to full restart on any failure.
+        if change_class == "TALKGROUPS_ONLY":
+            ok, err = self._http_reload_current_nac()
+            if ok:
+                self._last_setprofile_path = "soft"
+                return True, ""
+            # Fallback: escalate to restart. Reason encodes the http error
+            # so telemetry/journald can see why the soft path failed.
+            short = (err or "unknown")[:48].replace(" ", "_")
+            self._last_setprofile_path = "fallback_restart"
+            self._last_setprofile_reason = short
+            return self.restart(reason=f"reload_escalation_{short}")
+
+        # SYSTEMS_OR_FREQS / FULL_RECONFIG / None → legacy restart path.
+        self._last_setprofile_path = "restart"
+        return self.restart(reason="profile_switch")
+
+    def _http_reload_current_nac(self, multi_rx_path: str | None = None) -> tuple[bool, str]:
+        """POST a 'reload' command to op25 over HTTP for the current NAC.
+
+        Returns (True, '') on a clean 200-with-parseable-JSON response.
+        Returns (False, '<short_reason>') on any failure. Caller is
+        expected to fall back to a full restart on failure.
+
+        URL override: env var OP25_RELOAD_URL (used by test harness).
+        Default: http://127.0.0.1:<OP25_STATUS_PORT>.
+        Timeout: 3s combined (urllib applies it to both connect and read).
+        """
+        try:
+            multi_rx = load_current_op25_multi_rx(multi_rx_path)
+            nac = _first_trunking_nac(multi_rx)
+            url = os.environ.get("OP25_RELOAD_URL", "").strip()
+            if not url:
+                url = f"http://{self._status_host}:{int(self._status_port)}"
+            payload = [{"command": "reload", "arg1": int(nac), "arg2": 0}]
+            body = json.dumps(payload).encode("utf-8")
+            req = urllib.request.Request(
+                url,
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=3.0) as resp:
+                    status = int(getattr(resp, "status", 0) or resp.getcode() or 0)
+                    raw = resp.read().decode("utf-8", errors="replace")
+            except urllib.error.HTTPError as he:
+                return False, f"non200_{int(getattr(he, 'code', 0) or 0)}"
+            except urllib.error.URLError as ue:
+                reason = str(getattr(ue, "reason", ue))
+                if "refused" in reason.lower():
+                    return False, "conn_refused"
+                if "timed out" in reason.lower() or "timeout" in reason.lower():
+                    return False, "http_timeout"
+                return False, f"urlerror_{reason[:32].replace(' ', '_')}"
+            except TimeoutError:
+                return False, "http_timeout"
+            if status < 200 or status >= 300:
+                return False, f"non200_{status}"
+            try:
+                json.loads(raw or "[]")
+            except Exception:
+                return False, "bad_json"
+            return True, ""
+        except Exception as exc:
+            return False, f"exc_{type(exc).__name__}"
 
     # ------------------------------------------------------------------
     # Config generation & runtime

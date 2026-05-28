@@ -1318,13 +1318,78 @@ def sync_scan_pool_to_digital_runtime(
         current_profile = str(manager.getProfile() or "").strip()
         should_switch = current_profile != _MANAGED_DIGITAL_ID
         if should_switch or bool(result["profile_save_changed"]):
-            switched_ok, switched_err = manager.setProfile(_MANAGED_DIGITAL_ID, restart_service=True)
-            if not switched_ok:
+            # Phase 2a: classify the impending change so op25 can soft-reload
+            # (HTTP terminal 'reload') for talkgroup-only edits and skip the
+            # 12-15s SDR reacquisition.  Two-stage flow:
+            #   1. setProfile(restart_service=False) writes sidecars and
+            #      regenerates /run/.../multi_rx.json so we can diff it.
+            #   2. classify_op25_profile_change(old, new) -> bucket.
+            #   3. setProfile(change_class=bucket) dispatches the action.
+            try:
+                from .op25_adapter import (
+                    load_current_op25_multi_rx,
+                    classify_op25_profile_change,
+                )
+            except ImportError:
+                from ui.op25_adapter import (
+                    load_current_op25_multi_rx,
+                    classify_op25_profile_change,
+                )
+
+            t0 = time.monotonic()
+            from_profile = current_profile or "?"
+            to_profile = _MANAGED_DIGITAL_ID
+            old_multi_rx = load_current_op25_multi_rx()
+
+            # Stage 1: write sidecars + regenerate multi_rx.json. No restart.
+            sidecar_ok, sidecar_err = manager.setProfile(
+                _MANAGED_DIGITAL_ID, restart_service=False,
+            )
+            if not sidecar_ok:
+                duration_ms = int((time.monotonic() - t0) * 1000)
+                print(
+                    f"favorites_switch[bucket=UNKNOWN path=error "
+                    f"duration_ms={duration_ms} outcome=err reason=sidecar_write "
+                    f"from_profile={from_profile} to_profile={to_profile}]",
+                    flush=True,
+                )
                 result["ok"] = False
-                result["errors"].append(str(switched_err or "failed applying managed digital profile"))
+                result["errors"].append(str(sidecar_err or "failed applying managed digital profile"))
             else:
-                result["profile_switch_changed"] = bool(should_switch)
-                result["changed"] = bool(should_switch or result["profile_save_changed"])
+                new_multi_rx = load_current_op25_multi_rx()
+                bucket = classify_op25_profile_change(old_multi_rx, new_multi_rx)
+                # If the JSON is byte-identical but sidecars (whitelist /
+                # tag map) were rewritten, treat as TALKGROUPS_ONLY so op25
+                # is told to re-read those files.  The sidecar-write
+                # decision is encoded in profile_save_changed.
+                if bucket == "NONE" and bool(result.get("profile_save_changed")):
+                    bucket = "TALKGROUPS_ONLY"
+
+                # Stage 2: dispatch.  setProfile records the path taken in
+                # manager._last_setprofile_path so we can emit accurate
+                # telemetry without timing heuristics.
+                switched_ok, switched_err = manager.setProfile(
+                    _MANAGED_DIGITAL_ID, restart_service=True, change_class=bucket,
+                )
+                duration_ms = int((time.monotonic() - t0) * 1000)
+
+                tpath = getattr(manager, "_last_setprofile_path", "") or "restart"
+                reason = getattr(manager, "_last_setprofile_reason", "-") or "-"
+                outcome = "fallback_restart" if tpath == "fallback_restart" else ("ok" if switched_ok else "err")
+
+                print(
+                    f"favorites_switch[bucket={bucket} path={tpath} "
+                    f"duration_ms={duration_ms} outcome={outcome} reason={reason} "
+                    f"from_profile={from_profile} to_profile={to_profile}]",
+                    flush=True,
+                )
+
+                if not switched_ok:
+                    result["ok"] = False
+                    result["errors"].append(str(switched_err or "failed applying managed digital profile"))
+                else:
+                    result["profile_switch_changed"] = bool(should_switch)
+                    result["changed"] = bool(should_switch or result["profile_save_changed"])
         result["applied_profile"] = str(manager.getProfile() or "").strip()
 
         try:

@@ -4457,8 +4457,15 @@ class DigitalManager:
         self._scheduler_last_apply_error = msg
         self._scheduler_last_apply_error_system = pid
 
-    def setProfile(self, profileId: str, *, restart_service: bool = True):
-        ok, err = self._adapter.setProfile(profileId, restart_service=restart_service)
+    def setProfile(self, profileId: str, *, restart_service: bool = True, change_class: str | None = None):
+        ok, err = self._adapter.setProfile(
+            profileId,
+            restart_service=restart_service,
+            change_class=change_class,
+        )
+        # Pass-through of the path taken (Phase 2a soft-reload telemetry).
+        self._last_setprofile_path = getattr(self._adapter, "_last_setprofile_path", "")
+        self._last_setprofile_reason = getattr(self._adapter, "_last_setprofile_reason", "-")
         if ok:
             with self._scheduler_lock:
                 self._refresh_super_profile_systems(str(profileId or "").strip())
