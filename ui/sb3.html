@@ -2067,6 +2067,32 @@
     .banner-warn-row .row-btn:hover { opacity: 0.85; }
     .banner-warn-row .row-btn:disabled { opacity: 0.4; cursor: default; }
 
+    .stripped-favorites-chip {
+      border: 1px solid rgba(255, 167, 38, 0.5);
+      background: rgba(255, 167, 38, 0.12);
+      color: var(--warn, #ffa726);
+      border-radius: 999px;
+      padding: 2px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      line-height: 1.4;
+      white-space: nowrap;
+    }
+    .stripped-favorites-chip:hover { background: rgba(255, 167, 38, 0.20); }
+    .stripped-favorites-chip.active {
+      background: rgba(255, 167, 38, 0.28);
+      box-shadow: 0 0 0 1px rgba(255, 167, 38, 0.7) inset;
+    }
+
+    .stripped-favorites-details {
+      background: rgba(255, 167, 38, 0.06);
+      border: 1px solid rgba(255, 167, 38, 0.25);
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin-bottom: 8px;
+    }
+
     .sitrep {
       max-width: 1200px;
       margin: 0 auto;
@@ -3056,7 +3082,6 @@
   <div class="view-stack">
     <!-- Main Content -->
     <div class="main view view-main">
-      <div id="stripped-favorites-banner" class="banner-warn" style="display:none;"></div>
       <div class="grid">
 
       <!-- Row 1: Controls + Profiles -->
@@ -3363,10 +3388,12 @@
         <div class="widget-header with-actions">
           <span>🎯 Favorites (Analog)</span>
           <div class="widget-header-actions">
+            <button class="stripped-favorites-chip" id="stripped-favorites-chip" type="button" style="display:none;" title="Some custom favorites aren't being monitored because their service tags are disabled."></button>
             <button class="action widget-header-action sidecar-toggle" id="hp3-builder-open-analog" type="button">Open Sidecar</button>
           </div>
         </div>
         <div class="widget-body">
+          <div id="stripped-favorites-details" class="stripped-favorites-details" style="display:none;"></div>
           <div class="profiles-grid" id="profiles-list">
             <div class="empty-state">
               <div class="icon">⭐</div>
@@ -8886,15 +8913,19 @@ serverTimezone: null,
     }
 
     function renderStrippedFavoritesBanner() {
-      const el = document.getElementById("stripped-favorites-banner");
-      if (!el) return;
+      const chip = document.getElementById("stripped-favorites-chip");
+      const details = document.getElementById("stripped-favorites-details");
+      if (!chip || !details) return;
       const data = (state.strippedCustomFavorites && typeof state.strippedCustomFavorites === "object")
         ? state.strippedCustomFavorites
         : {};
       const tagIds = Object.keys(data);
       if (tagIds.length === 0) {
-        el.style.display = "none";
-        el.innerHTML = "";
+        chip.style.display = "none";
+        chip.textContent = "";
+        chip.classList.remove("active");
+        details.style.display = "none";
+        details.innerHTML = "";
         return;
       }
       const escape = (s) => String(s == null ? "" : s)
@@ -8904,35 +8935,53 @@ serverTimezone: null,
         .replace(/"/g, "&quot;");
       tagIds.sort((a, b) => Number(a) - Number(b));
       const total = tagIds.reduce((acc, t) => acc + ((data[t] && data[t].entries && data[t].entries.length) || 0), 0);
-      const rows = tagIds.map((tagId) => {
-        const bucket = data[tagId] || {};
-        const label = String(bucket.tag_label || ("Service Tag " + tagId)).trim();
-        const entries = Array.isArray(bucket.entries) ? bucket.entries.slice() : [];
-        const entriesText = entries.length > 0 ? entries.map(escape).join(", ") : "(no system names)";
-        return "<div class=\"banner-warn-row\">"
-          + "<div class=\"row-meta\"><span class=\"row-tag\">" + escape(label) + "</span> disabled (" + entries.length + ") — " + entriesText + "</div>"
-          + "<button class=\"row-btn\" type=\"button\" data-enable-tag=\"" + escape(tagId) + "\" data-enable-label=\"" + escape(label) + "\">Enable " + escape(label) + "</button>"
-          + "</div>";
-      }).join("");
-      el.innerHTML = "<div class=\"banner-warn-title\">⚠ " + total + " custom favorites not monitored (service tags disabled)</div>" + rows;
-      el.style.display = "block";
-      el.querySelectorAll("button[data-enable-tag]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const tag = parseInt(btn.getAttribute("data-enable-tag"), 10);
-          if (Number.isInteger(tag)) {
-            btn.disabled = true;
-            btn.textContent = "Enabling…";
-            enableServiceTag(tag).catch((err) => {
-              console.error("enableServiceTag:", err);
-              btn.disabled = false;
-              btn.textContent = "Enable " + (btn.getAttribute("data-enable-label") || ("Service Tag " + tag));
+      chip.textContent = "⚠ " + total + " stripped";
+      chip.style.display = "inline-block";
+      chip.onclick = function () {
+        const isOpen = details.style.display !== "none";
+        if (isOpen) {
+          details.style.display = "none";
+          chip.classList.remove("active");
+        } else {
+          // Build details on open so values are fresh
+          const rows = tagIds.map((tagId) => {
+            const bucket = data[tagId] || {};
+            const label = String(bucket.tag_label || ("Service Tag " + tagId)).trim();
+            const entries = Array.isArray(bucket.entries) ? bucket.entries.slice() : [];
+            const entriesText = entries.length > 0 ? entries.map(escape).join(", ") : "(no system names)";
+            return "<div class=\"banner-warn-row\">"
+              + "<div class=\"row-meta\"><span class=\"row-tag\">" + escape(label) + "</span> (" + entries.length + ") — " + entriesText + "</div>"
+              + "<button class=\"row-btn\" type=\"button\" data-enable-tag=\"" + escape(tagId) + "\" data-enable-label=\"" + escape(label) + "\">Enable " + escape(label) + "</button>"
+              + "</div>";
+          }).join("");
+          details.innerHTML = rows;
+          details.style.display = "block";
+          chip.classList.add("active");
+          // Wire up enable buttons
+          details.querySelectorAll("button[data-enable-tag]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const tag = parseInt(btn.getAttribute("data-enable-tag"), 10);
+              if (Number.isInteger(tag)) {
+                btn.disabled = true;
+                btn.textContent = "Enabling…";
+                enableServiceTag(tag).catch((err) => {
+                  console.error("enableServiceTag:", err);
+                  btn.disabled = false;
+                  btn.textContent = "Enable " + (btn.getAttribute("data-enable-label") || ("Service Tag " + tag));
+                });
+              }
             });
-          }
-        });
-      });
+          });
+        }
+      };
+      // If currently open, refresh inline content without toggling
+      if (details.style.display !== "none") {
+        chip.click();
+        chip.click();
+      }
     }
 
-    async function enableServiceTag(tagId) {
+        async function enableServiceTag(tagId) {
       if (!Number.isInteger(tagId)) return;
       const current = new Set(
         (state.hpFilters && Array.isArray(state.hpFilters.enabledServiceTags))
