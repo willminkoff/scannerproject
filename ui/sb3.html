@@ -2093,27 +2093,6 @@
       margin-bottom: 8px;
     }
 
-    .airband-profiles-section {
-      margin-top: 10px;
-      padding-top: 8px;
-      border-top: 1px solid var(--border, rgba(255,255,255,0.1));
-    }
-    .airband-profiles-label {
-      font-size: 11px;
-      color: var(--text-secondary, #aaa);
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      margin-bottom: 6px;
-      font-weight: 600;
-    }
-    .airband-profiles-grid .profile-btn {
-      /* Visually distinct from HP favorites: smaller, no analog/digital count. */
-    }
-    .airband-profiles-grid .profile-btn .meta {
-      font-size: 10px;
-      color: var(--text-secondary, #aaa);
-    }
-
     .sitrep {
       max-width: 1200px;
       margin: 0 auto;
@@ -3420,10 +3399,6 @@
               <div class="icon">⭐</div>
               <div>Loading favorites...</div>
             </div>
-          </div>
-          <div id="airband-profiles-section" class="airband-profiles-section" style="display:none;">
-            <div class="airband-profiles-label">Airband Profiles</div>
-            <div class="profiles-grid airband-profiles-grid" id="airband-profiles-list"></div>
           </div>
           <div class="favorites-sync-row" id="favorites-sync-row-analog">
             <div class="favorites-sync-copy">
@@ -8935,60 +8910,6 @@ serverTimezone: null,
 
     function normalizeAnalogTarget(target) {
       return target === 'ground' ? 'ground' : 'airband';
-    }
-
-    function renderAirbandProfileTiles() {
-      const section = document.getElementById('airband-profiles-section');
-      const list = document.getElementById('airband-profiles-list');
-      if (!section || !list) return;
-      const all = (state.airband && Array.isArray(state.airband.profiles)) ? state.airband.profiles : [];
-      // Hide internal profiles that aren't user-meaningful one-tap targets.
-      // HP3 Favorites is what the FAVORITES widget already represents;
-      // Band Scan Airband is the band-scan tile's target; No Profile is reset.
-      const hidden = new Set(['hp3_favorites_airband', 'bandscan_airband', 'none_airband']);
-      const tiles = all.filter((p) => p && p.id && !hidden.has(String(p.id)));
-      if (tiles.length === 0) {
-        section.style.display = 'none';
-        list.innerHTML = '';
-        return;
-      }
-      const escape = (s) => String(s == null ? '' : s)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-      const activeId = String((state.airband && state.airband.currentProfile) || '').trim();
-      list.innerHTML = tiles.map((p) => {
-        const id = String(p.id || '').trim();
-        const label = String(p.label || id).trim();
-        const isActive = id === activeId;
-        return '<button class="profile-btn ' + (isActive ? 'active' : '') + '" data-airband-profile-id="' + escape(id) + '">'
-          + '<div class="label">' + escape(label) + '</div>'
-          + '<div class="meta">Airband-side rtl-airband profile</div>'
-          + '</button>';
-      }).join('');
-      section.style.display = 'block';
-    }
-
-    async function selectAirbandProfile(profileId) {
-      if (!profileId) return;
-      const params = new URLSearchParams();
-      params.set('profile', profileId);
-      params.set('target', 'airband');
-      try {
-        const resp = await fetch('/api/profile', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: params.toString(),
-        });
-        if (!resp.ok) {
-          throw new Error('HTTP ' + resp.status);
-        }
-        // Force next status poll to refresh active-profile state.
-        state.lastStatusTick = 0;
-      } catch (err) {
-        console.error('selectAirbandProfile failed:', err);
-      }
     }
 
     function renderStrippedFavoritesBanner() {
@@ -15688,7 +15609,6 @@ serverTimezone: null,
           state.serverTimezone = data.server_timezone || null;
           state.strippedCustomFavorites = (data && typeof data.stripped_custom_favorites === "object" && data.stripped_custom_favorites) ? data.stripped_custom_favorites : {};
           try { renderStrippedFavoritesBanner(); } catch (e) { console.error("renderStrippedFavoritesBanner:", e); }
-          try { renderAirbandProfileTiles(); } catch (e) { console.error("renderAirbandProfileTiles:", e); }
           state.v3Compile = data.v3_compile || null;
           state.preflight = data.preflight || { airband: null, ground: null, digital: null };
           state.health = data.health || { overall: { state: 'unknown', reasonCodes: [] }, subsystems: {} };
@@ -15905,7 +15825,6 @@ serverTimezone: null,
           state.serverTimezone = data.server_timezone || null;
           state.strippedCustomFavorites = (data && typeof data.stripped_custom_favorites === "object" && data.stripped_custom_favorites) ? data.stripped_custom_favorites : {};
           try { renderStrippedFavoritesBanner(); } catch (e) { console.error("renderStrippedFavoritesBanner:", e); }
-          try { renderAirbandProfileTiles(); } catch (e) { console.error("renderAirbandProfileTiles:", e); }
           state.lastStatusTick = Date.now();
           if (
             (data.hp_favorites_sync && typeof data.hp_favorites_sync === 'object')
@@ -16776,17 +16695,6 @@ serverTimezone: null,
           const names = Array.isArray(state.hpFavoritesBuilder.lists) ? state.hpFavoritesBuilder.lists : [];
           if (idx < 0 || idx >= names.length) return;
           selectHpFavoriteList(names[idx]);
-        });
-      }
-      const _airbandProfilesListEl = document.getElementById('airband-profiles-list');
-      if (_airbandProfilesListEl) {
-        _airbandProfilesListEl.addEventListener('click', (e) => {
-          const btn = e.target && e.target.closest ? e.target.closest('button[data-airband-profile-id]') : null;
-          if (!btn) return;
-          const pid = btn.getAttribute('data-airband-profile-id');
-          if (!pid) return;
-          btn.disabled = true;
-          selectAirbandProfile(pid).finally(() => { btn.disabled = false; });
         });
       }
       if (els.hpFavListSelect) {
