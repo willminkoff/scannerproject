@@ -1128,6 +1128,16 @@
       color: var(--bg-dark);
     }
 
+    @keyframes tab-flash {
+      0%   { box-shadow: 0 0 0 0 var(--accent-dim); }
+      50%  { box-shadow: 0 0 0 6px var(--accent-glow); }
+      100% { box-shadow: 0 0 0 0 transparent; }
+    }
+
+    .tab.tab-flash {
+      animation: tab-flash 0.45s ease-out 3;
+    }
+
     /* Controls */
     .control-group {
       display: flex;
@@ -4643,9 +4653,13 @@
         profileId: QUICK_GROUND_WX_PROFILE_ID,
         stopProfileId: QUICK_GROUND_OFF_PROFILE_ID,
         label: QUICK_GROUND_WX_LABEL,
+        profileLabel: 'WX',
+        modulation: 'nfm',
+        bandwidth: 5000,
+        buildFrequencies: () => NOAA_WX_CHANNELS.map((row) => row.freq),
         inactiveTitle: 'Switch to Ground and scan NOAA Weather Radio',
         activeTitle: 'WX scan active. Tap again to stop.',
-        autoProvision: false,
+        autoProvision: true,
       },
       {
         key: 'airband',
@@ -14302,6 +14316,26 @@
       updateSitrep();
     }
     
+    function flashTabForTarget(target) {
+      const tabMap = {
+        airband: els.tabAirband,
+        ground: els.tabGround,
+        digital: els.tabDigital,
+        philly: els.tabPhilly,
+      };
+      const tab = tabMap[target];
+      if (!tab) return;
+      tab.classList.remove('tab-flash');
+      // Force reflow so the animation restarts on rapid repeat clicks.
+      void tab.offsetWidth;
+      const onEnd = () => {
+        tab.classList.remove('tab-flash');
+        tab.removeEventListener('animationend', onEnd);
+      };
+      tab.addEventListener('animationend', onEnd);
+      tab.classList.add('tab-flash');
+    }
+
     function switchTarget(target) {
       activeView = target;
       if (target === 'airband' || target === 'ground') {
@@ -15150,7 +15184,9 @@
           if (!isActive && preset.autoProvision) {
             await ensureBandScanProfile(preset);
           }
+          const previousView = activeView;
           switchTarget(target);
+          if (target !== previousView) flashTabForTarget(target);
           const ok = await selectProfileForTarget(target, nextProfile, true);
           if (ok) {
             if (isActive) {
