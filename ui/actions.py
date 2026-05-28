@@ -592,7 +592,7 @@ def action_apply_profile_loop_bundle(target: str, selected_profiles: Any, active
     restart_ok = True
     restart_error = ""
     if restart_needed:
-        restart_ok, restart_error = restart_rtl()
+        restart_ok, restart_error = _select_analog_restart(target)
 
     payload = {
         "ok": True,
@@ -617,13 +617,12 @@ def action_set_profile(profile_id: str, target: str, *, restart_service: bool = 
     if target == "ground":
         conf_path = os.path.realpath(GROUND_CONFIG_PATH)
         profiles = [(p["id"], p["label"], p["path"]) for p in profiles_ground]
-        unit_restart = restart_rtl
         target_symlink = GROUND_CONFIG_PATH
     else:
         conf_path = read_active_config_path()
         profiles = [(p["id"], p["label"], p["path"]) for p in profiles_airband]
-        unit_restart = restart_rtl
         target_symlink = CONFIG_SYMLINK
+    unit_restart = lambda: _select_analog_restart(target)
 
     if not profiles:
         return {"status": 400, "payload": {"ok": False, "error": "no profiles available"}}
@@ -961,7 +960,7 @@ def action_apply_controls(target: str, gain: float, squelch_mode: str, squelch_s
                 exc,
                 exc_info=True,
             )
-        restart_ok, restart_error = restart_rtl()
+        restart_ok, restart_error = _select_analog_restart(target)
     payload = {"ok": True, "changed": changed}
     if device_release_actions:
         payload["device_release"] = device_release_actions
@@ -995,7 +994,7 @@ def action_apply_batch(target: str, gain: float, squelch_mode: str, squelch_snr:
     restart_ok = True
     restart_error = ""
     if changed:
-        restart_ok, restart_error = restart_rtl()
+        restart_ok, restart_error = _select_analog_restart(target)
     payload = {"ok": True, "changed": changed}
     if changed:
         payload["restart_ok"] = restart_ok
@@ -1108,7 +1107,18 @@ def action_auto_squelch(targets: list[str] | None = None) -> dict:
         except Exception as e:
             return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
         if changed:
-            restart_ok, restart_error = restart_rtl()
+            # Per-target restart: never bundle multiple bands into a single
+            # airband-side restart.  Each target hits its own MA/SL service
+            # so SL doesnt race MA at sdrplay_api_Open.
+            for _tgt in ordered_targets:
+                _ok, _err = _select_analog_restart(_tgt)
+                if not _ok:
+                    restart_ok = False
+                    if _err:
+                        restart_error = (
+                            f"{restart_error}; {_tgt}: {_err}"
+                            if restart_error else f"{_tgt}: {_err}"
+                        )
 
     payload: dict[str, Any] = {
         "ok": True,
@@ -1137,7 +1147,7 @@ def action_apply_filter(target: str, cutoff_hz: float) -> dict:
     restart_ok = True
     restart_error = ""
     if changed:
-        restart_ok, restart_error = restart_rtl()
+        restart_ok, restart_error = _select_analog_restart(target)
     payload = {"ok": True, "changed": changed}
     if changed:
         payload["restart_ok"] = restart_ok
@@ -1279,7 +1289,7 @@ def action_avoid(target: str) -> dict:
     except Exception as e:
         start_rtl()
         return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
-    restart_ok, restart_error = restart_rtl()
+    restart_ok, restart_error = _select_analog_restart(target)
     payload = {"ok": True, "freq": f"{freq:.4f}", "restart_ok": restart_ok}
     if not restart_ok and restart_error:
         payload["restart_error"] = restart_error
@@ -1305,7 +1315,7 @@ def action_avoid_clear(target: str) -> dict:
     except Exception as e:
         start_rtl()
         return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
-    restart_ok, restart_error = restart_rtl()
+    restart_ok, restart_error = _select_analog_restart(target)
     payload = {"ok": True, "restart_ok": restart_ok}
     if not restart_ok and restart_error:
         payload["restart_error"] = restart_error
@@ -1457,7 +1467,7 @@ def action_hold_start(target: str, freq) -> dict:
             logger.debug("actions: failed to roll back hold state after combine error", exc_info=True)
         return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
 
-    restart_ok, restart_error = restart_rtl()
+    restart_ok, restart_error = _select_analog_restart(target)
     payload = {"ok": True, "freq": f"{freq_val:.4f}", "target": target, "restart_ok": restart_ok}
     if not restart_ok and restart_error:
         payload["restart_error"] = restart_error
@@ -1502,7 +1512,7 @@ def action_hold_stop(target: str) -> dict:
     except Exception as e:
         return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
 
-    restart_ok, restart_error = restart_rtl()
+    restart_ok, restart_error = _select_analog_restart(target)
     payload = {"ok": True, "restored": True, "restart_ok": restart_ok}
     if not restart_ok and restart_error:
         payload["restart_error"] = restart_error
@@ -1565,7 +1575,7 @@ def action_tune(target: str, freq) -> dict:
     except Exception as e:
         return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
 
-    restart_ok, restart_error = restart_rtl()
+    restart_ok, restart_error = _select_analog_restart(target)
     payload = {"ok": True, "freq": f"{freq_val:.4f}", "target": target, "restart_ok": restart_ok}
     if not restart_ok and restart_error:
         payload["restart_error"] = restart_error
@@ -1608,7 +1618,7 @@ def action_tune_restore(target: str) -> dict:
         write_combined_config()
     except Exception as e:
         return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
-    restart_ok, restart_error = restart_rtl()
+    restart_ok, restart_error = _select_analog_restart(target)
     payload = {"ok": True, "restart_ok": restart_ok}
     if not restart_ok and restart_error:
         payload["restart_error"] = restart_error

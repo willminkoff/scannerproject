@@ -5332,7 +5332,11 @@ class Handler(BaseHTTPRequestHandler):
                     combined_changed = bool(write_combined_config())
                     payload["combined_changed"] = combined_changed
                     if combined_changed:
-                        restart_rtl()
+                        try:
+                            from .actions import _select_analog_restart
+                        except ImportError:
+                            from ui.actions import _select_analog_restart
+                        _select_analog_restart(target)
                         payload["scanner_restarted"] = True
                 except Exception as e:
                     return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
@@ -5887,13 +5891,20 @@ class Handler(BaseHTTPRequestHandler):
             # If editing the active profile, regenerate combined config and restart rtl only if needed.
             active_airband = os.path.realpath(read_active_config_path())
             active_ground = os.path.realpath(GROUND_CONFIG_PATH)
-            is_active = os.path.realpath(safe_path) in (active_airband, active_ground)
+            real_path = os.path.realpath(safe_path)
+            is_active_ground = (real_path == active_ground)
+            is_active_airband = (real_path == active_airband)
+            is_active = is_active_ground or is_active_airband
             if is_active:
                 try:
                     combined_changed = write_combined_config()
                     changed = changed or combined_changed
                     if combined_changed:
-                        restart_rtl()
+                        try:
+                            from .actions import _select_analog_restart
+                        except ImportError:
+                            from ui.actions import _select_analog_restart
+                        _select_analog_restart("ground" if is_active_ground else "airband")
                 except Exception as e:
                     return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
 

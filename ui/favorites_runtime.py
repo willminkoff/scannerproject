@@ -1578,9 +1578,30 @@ def sync_scan_pool_to_analog_runtime(
             except Exception as exc:
                 errors.append(f"failed updating combined config: {exc}")
             if combined_changed or switched_air or switched_ground:
-                restart_ok, restart_error = restart_rtl()
-                if not restart_ok and restart_error:
-                    errors.append(f"rtl restart failed: {restart_error}")
+                # Per-target restart: never bundle airband+ground into one
+                # airband-side restart.  If only one band switched, only that
+                # bands MA or SL service bounces.  Eliminates the SDRplay
+                # MA/SL race at sdrplay_api_Open.
+                try:
+                    from .actions import _select_analog_restart
+                except ImportError:
+                    from ui.actions import _select_analog_restart
+                targets_to_restart: list[str] = []
+                if switched_air:
+                    targets_to_restart.append("airband")
+                if switched_ground:
+                    targets_to_restart.append("ground")
+                if not targets_to_restart:
+                    # combined_changed alone: both halves rendered configs
+                    # may have shifted.  Restart both, MA first.
+                    targets_to_restart = ["airband", "ground"]
+                for _tgt in targets_to_restart:
+                    _ok, _err = _select_analog_restart(_tgt)
+                    if not _ok:
+                        restart_ok = False
+                        if _err:
+                            restart_error = _err
+                            errors.append(f"{_tgt} restart failed: {_err}")
 
         result = {
             "ok": len(errors) == 0,
