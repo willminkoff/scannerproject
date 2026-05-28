@@ -344,14 +344,18 @@ class ScanModeController:
         return trunk_ids, conv_system_keys
 
     def _filter_favorites_entries(self, entries: list[dict], state, service_tags: list[int]) -> list[dict]:
-        # Custom favorites are user-curated and authoritative — they should
-        # flow through regardless of the service-tag toggle list, which was
-        # designed for full-database / nationwide auto-population (a separate
-        # code path).  Without this bypass, hand-added favorites whose
-        # service tag isn't currently enabled get silently stripped here,
-        # which surprised the user on 2026-05-27 when an NJ Turnpike
-        # (service_tag=14 Public Works) add to SIC never reached op25.
-        return [row for row in (entries or []) if isinstance(row, dict)]
+        # Custom favorites are filtered by the enabled service-tag set, the
+        # same gate that the full-database auto-pop path uses.  Users add
+        # favorites freely, but the service-tag toggles decide what is
+        # actually monitored; this is a deliberate "safety belt" pattern
+        # so a forgotten favorite doesnt secretly burn an SDR slot.  When
+        # entries are stripped here, the upstream caller should surface a
+        # visible warning so the user can choose to enable the tag.
+        raw_entries = [row for row in (entries or []) if isinstance(row, dict)]
+        tag_set = set(self._normalize_service_tags(service_tags))
+        if not tag_set:
+            return []
+        return [row for row in raw_entries if self._entry_matches_service_tags(row, tag_set)]
 
     @classmethod
     def _normalize_control_channels(cls, value) -> list[float]:
