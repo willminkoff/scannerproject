@@ -1,0 +1,101 @@
+{
+  "custom_favorites": [
+    {
+      "alpha_tag": "Clearance Delivery",
+      "control_channels": [],
+      "department_name": "Aircraft (VHF AM)",
+      "frequency": 118.0,
+      "id": "freq:fav-acy-airshow:0",
+      "kind": "conventional",
+      "service_tag": 15,
+      "system_id": 2485,
+      "system_key": "AgencyId:2485",
+      "system_name": "Atlantic City International Airport (ACY)",
+      "talkgroup": ""
+    },
+    {
+      "alpha_tag": "Tower",
+      "control_channels": [],
+      "department_name": "Aircraft (VHF AM)",
+      "frequency": 120.3,
+      "id": "freq:fav-acy-airshow:1",
+      "kind": "conventional",
+      "service_tag": 15,
+      "system_id": 2485,
+      "system_key": "AgencyId:2485",
+      "system_name": "Atlantic City International Airport (ACY)",
+      "talkgroup": ""
+    },
+    {
+      "alpha_tag": "Guard 121.5",
+      "control_channels": [],
+      "department_name": "Aircraft (VHF AM)",
+      "frequency": 121.5,
+      "id": "freq:fav-acy-airshow:2",
+      "kind": "conventional",
+      "service_tag": 15,
+      "system_id": 2485,
+      "system_key": "AgencyId:2485",
+      "system_name": "Atlantic City International Airport (ACY)",
+      "talkgroup": ""
+    },
+    {
+      "alpha_tag": "Ground Control",
+      "control_channels": [],
+      "department_name": "Aircraft (VHF AM)",
+      "frequency": 121.9,
+      "id": "freq:fav-acy-airshow:3",
+      "kind": "conventional",
+      "service_tag": 15,
+      "system_id": 2485,
+      "system_key": "AgencyId:2485",
+      "system_name": "Atlantic City International Airport (ACY)",
+      "talkgroup": ""
+    },
+    {
+      "alpha_tag": "Approach/Departure N",
+      "control_channels": [],
+      "department_name": "Aircraft (VHF AM)",
+      "frequency": 124.6,
+      "id": "freq:fav-acy-airshow:4",
+      "kind": "conventional",
+      "service_tag": 15,
+      "system_id": 2485,
+      "system_key": "AgencyId:2485",
+      "system_name": "Atlantic City International Airport (ACY)",
+      "talkgroup": ""
+    },
+    {
+      "alpha_tag": "Mil/ATC Common",
+      "control_channels": [],
+      "department_name": "Aircraft (VHF AM)",
+      "frequency": 126.2,
+      "id": "freq:fav-acy-airshow:5",
+      "kind": "conventional",
+      "service_tag": 15,
+      "system_id": 2485,
+      "system_key": "AgencyId:2485",
+      "system_name": "Atlantic City International Airport (ACY)",
+      "talkgroup": ""
+    },
+    {
+      "alpha_tag": "Approach/Departure S",
+      "control_channels": [],
+      "department_name": "Aircraft (VHF AM)",
+      "frequency": 127.85,
+      "id": "freq:fav-acy-airshow:6",
+      "kind": "conventional",
+      "service_tag": 15,
+      "system_id": 2485,
+      "system_key": "AgencyId:2485",
+      "system_name": "Atlantic City International Airport (ACY)",
+      "talkgroup": ""
+    }
+  ],
+  "enabled": false,
+  "id": "fav-acy-airshow",
+  "label": "ACY_Airshow",
+  "profile_id": "",
+  "target": "favorites",
+  "type": "list"
+}
