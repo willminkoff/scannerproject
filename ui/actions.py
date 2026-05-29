@@ -27,6 +27,8 @@ try:
         ANALOG_AUTO_SQUELCH_MARGIN_DB,
         ANALOG_AUTO_SQUELCH_MIN_DBFS,
         ANALOG_AUTO_SQUELCH_MAX_DBFS,
+        RTL_AIRBAND_AIRBAND_STATS_PATH,
+        RTL_AIRBAND_GROUND_STATS_PATH,
         RE_UI_DISABLED,
     )
     from .systemd import (
@@ -65,6 +67,8 @@ except ImportError:
         ANALOG_AUTO_SQUELCH_MARGIN_DB,
         ANALOG_AUTO_SQUELCH_MIN_DBFS,
         ANALOG_AUTO_SQUELCH_MAX_DBFS,
+        RTL_AIRBAND_AIRBAND_STATS_PATH,
+        RTL_AIRBAND_GROUND_STATS_PATH,
         RE_UI_DISABLED,
     )
     from ui.systemd import (
@@ -231,6 +235,21 @@ def _collect_dbfs_noise_samples(
         if sleep_for > 0:
             time.sleep(sleep_for)
     return samples
+
+
+def _stats_path_for_target(target: str) -> str:
+    """Return the per-target rtl-airband stats file path.
+
+    Post-MA/SL-split (commit 2cd6afb) each rtl-airband instance writes to its
+    own stats file.  Auto-squelch needs to read the correct one for the
+    target it is calibrating, otherwise it sees /run/rtl_airband_stats.txt
+    (the legacy single-process path) which no longer exists and the action
+    fails with FileNotFoundError.
+    """
+    t = str(target or "").strip().lower()
+    if t == "ground":
+        return str(RTL_AIRBAND_GROUND_STATS_PATH or "").strip()
+    return str(RTL_AIRBAND_AIRBAND_STATS_PATH or "").strip()
 
 
 def _load_target_profile_freqs(target: str) -> tuple[str, list[float]]:
@@ -1016,35 +1035,36 @@ def action_auto_squelch(targets: list[str] | None = None) -> dict:
     if not ordered_targets:
         return {"status": 400, "payload": {"ok": False, "error": "no valid targets"}}
 
-    stats_path = str(ANALOG_AUTO_SQUELCH_STATS_PATH or "").strip()
     sample_sec = max(1, int(ANALOG_AUTO_SQUELCH_SAMPLE_SEC))
     margin_db = float(ANALOG_AUTO_SQUELCH_MARGIN_DB)
-    try:
-        noise_samples = _collect_dbfs_noise_samples(stats_path, sample_sec)
-    except FileNotFoundError:
-        return {
-            "status": 503,
-            "payload": {
-                "ok": False,
-                "error": f"stats file not found: {stats_path}",
-            },
-        }
-    except Exception as e:
-        return {"status": 500, "payload": {"ok": False, "error": str(e)}}
+    # Post-MA/SL-split each target writes to its own stats file.  Read the
+    # correct one per target so noise floors come from the band were calibrating.
+    noise_samples_by_target: dict[str, dict[str, list[float]]] = {}
+    for _tgt in ordered_targets:
+        _path = _stats_path_for_target(_tgt)
+        try:
+            noise_samples_by_target[_tgt] = _collect_dbfs_noise_samples(_path, sample_sec)
+        except FileNotFoundError:
+            return {
+                "status": 503,
+                "payload": {
+                    "ok": False,
+                    "error": f"stats file not found: {_path}",
+                    "target": _tgt,
+                },
+            }
+        except Exception as e:
+            return {"status": 500, "payload": {"ok": False, "error": str(e), "target": _tgt}}
 
-    if not noise_samples:
+    if not any(noise_samples_by_target.values()):
         return {
             "status": 503,
             "payload": {
                 "ok": False,
                 "error": "no noise metrics available",
-                "stats_path": stats_path,
+                "stats_paths": {t: _stats_path_for_target(t) for t in ordered_targets},
             },
         }
-
-    all_noise_values: list[float] = []
-    for values in noise_samples.values():
-        all_noise_values.extend(float(v) for v in values)
 
     payload_targets: dict[str, dict[str, Any]] = {}
     warnings: list[str] = []
@@ -1053,6 +1073,10 @@ def action_auto_squelch(targets: list[str] | None = None) -> dict:
         for target in ordered_targets:
             conf_path, freqs = _load_target_profile_freqs(target)
             gain, squelch_snr, current_dbfs, _mode = parse_controls(conf_path)
+            noise_samples = noise_samples_by_target.get(target) or {}
+            all_noise_values: list[float] = []
+            for _vs in noise_samples.values():
+                all_noise_values.extend(float(v) for v in _vs)
             matched_noise_values, matched_freqs = _resolve_noise_values_for_freqs(freqs, noise_samples)
             used_fallback_noise = False
             if not matched_noise_values and all_noise_values:
