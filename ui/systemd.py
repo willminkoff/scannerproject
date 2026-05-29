@@ -32,6 +32,14 @@ except ImportError:
 
 _TRUTHY = ("1", "true", "yes", "on")
 
+# Icecast mount names for the post-start health probe.  Used in addition to
+# stats-file freshness so the probe succeeds the instant rtl-airband
+# connects and starts publishing, not when its stats writer happens to
+# flush.  Race-free because icecast sets stream_start only on a real
+# source connect.
+RTL_AIRBAND_AIRBAND_MOUNT = os.getenv("RTL_AIRBAND_AIRBAND_MOUNT", "ANALOG.mp3").strip().lstrip("/")
+RTL_AIRBAND_GROUND_MOUNT = os.getenv("RTL_AIRBAND_GROUND_MOUNT", "ANALOG_GROUND.mp3").strip().lstrip("/")
+
 # digital restart health state. Updated by restart_digital() on every
 # invocation + post-start probe. Surfaced via digital_restart_state() so
 # /api/status can render it for visibility into wedge incidents.
@@ -123,6 +131,25 @@ def _wait_for_rtl_airband_health(
     deadline = time.monotonic() + max(0.1, timeout_sec)
     last_state: dict = {}
     while True:
+        # Race-free signal: icecast stream_start is set the instant a
+        # source connects.  Catches the common case where rtl-airband is
+        # publishing audio bytes well before it has flushed its first
+        # stats line (~20-60s delay during cold-start of MA/SL pair).
+        if mount_name:
+            try:
+                # Lazy import to dodge a circular: ui/icecast.py imports
+                # unit_active from this module at top-level.
+                try:
+                    from .sample_flow import mount_publishing as _mount_publishing
+                    from .icecast import fetch_local_icecast_status as _fetch_ice
+                except ImportError:
+                    from ui.sample_flow import mount_publishing as _mount_publishing
+                    from ui.icecast import fetch_local_icecast_status as _fetch_ice
+                status_text = _fetch_ice()
+                if status_text and not status_text.startswith("ERROR:") and _mount_publishing(status_text, mount_name):
+                    return True, f"mount /{mount_name} publishing"
+            except Exception:
+                pass  # fall through to stats check
         state = rtl_airband_sample_flow_state(
             target_path,
             RTL_AIRBAND_STATS_STALE_SEC,
@@ -134,7 +161,8 @@ def _wait_for_rtl_airband_health(
         last_state = state
         if time.monotonic() >= deadline:
             reason = state.get("reason") or "stats not fresh"
-            return False, f"timeout after {timeout_sec:.1f}s; {reason}"
+            mount_note = f"; mount /{mount_name} not publishing" if mount_name else ""
+            return False, f"timeout after {timeout_sec:.1f}s; {reason}{mount_note}"
         time.sleep(max(0.0, poll_interval_sec))
 
 
@@ -581,6 +609,9 @@ def restart_rtl(reason: str = "unspecified") -> Tuple[bool, str]:
     # bounce the daemon clean, bring rtl-airband back, verify its
     # sample flow, THEN restart OP25.  This is exactly the manual
     # bash-one-liner clean-cycle that always worked.
+    target_mount = (
+        RTL_AIRBAND_AIRBAND_MOUNT if service_label == "rtl_airband" else RTL_AIRBAND_GROUND_MOUNT
+    )
     digital_unit = str(UNITS.get("digital") or "").strip()
     sdrplay_unit = (
         os.getenv("UNIT_SDRPLAY")
@@ -1334,6 +1365,7 @@ def _restart_rtl_service(
                     timeout_sec=probe_timeout_sec,
                     poll_interval_sec=probe_poll_sec,
                     stats_path=RTL_AIRBAND_AIRBAND_STATS_PATH,
+                    mount_name=RTL_AIRBAND_AIRBAND_MOUNT,
                 )
                 if not probe_ok:
                     _record_service_health_probe(
@@ -1355,6 +1387,7 @@ def _restart_rtl_service(
                     timeout_sec=probe_timeout_sec,
                     poll_interval_sec=probe_poll_sec,
                     stats_path=stats_path,
+                    mount_name=target_mount,
                 )
                 _record_service_health_probe(
                     state_lock, state,
@@ -1392,6 +1425,7 @@ def _restart_rtl_service(
                     timeout_sec=probe_timeout_sec,
                     poll_interval_sec=probe_poll_sec,
                     stats_path=stats_path,
+                    mount_name=target_mount,
                 )
                 _record_service_health_probe(
                     state_lock, state,
