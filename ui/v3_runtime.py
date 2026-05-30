@@ -119,6 +119,12 @@ def _clean_analog_profiles(items: list[dict[str, Any]] | None) -> list[dict[str,
         safe = safe_profile_path(path) if path else None
         if not safe:
             continue
+        # Phase 2B self-healing: drop entries whose underlying .conf is
+        # missing on disk. Prevents stale registry rows pointing at deleted
+        # profile files from leaking back into the active set through
+        # _merge_runtime_items (which uses the registry as a fallback).
+        if not os.path.isfile(safe):
+            continue
         out.append(
             {
                 "id": pid,

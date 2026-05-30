@@ -372,14 +372,7 @@ WX_DECODERS = {"acars", "radiosonde"}
 
 # Profile Definitions (id, label, path)
 PROFILES = [
-    ("airband", "KBNA (Nashville)", os.path.join(PROFILES_DIR, "rtl_airband_airband.conf")),
-    ("atl", "KATL (Atlanta)", os.path.join(PROFILES_DIR, "rtl_airband_atl.conf")),
-    ("nashville_centers", "Nashville Centers", os.path.join(PROFILES_DIR, "rtl_airband_nashville_centers.conf")),
     ("none_airband", "No Profile", os.path.join(PROFILES_DIR, "rtl_airband_none_airband.conf")),
-    ("tower",  "TOWER (118.600)", os.path.join(PROFILES_DIR, "rtl_airband_tower.conf")),
-    ("khop",   "KHOP (Campbell)", os.path.join(PROFILES_DIR, "rtl_airband_khop.conf")),
-    ("kmqy",   "KMQY (Smyrna)", os.path.join(PROFILES_DIR, "rtl_airband_kmqy.conf")),
-    ("tune_atis", "Tune ATIS", os.path.join(PROFILES_DIR, "rtl_airband_tune_atis.conf")),
     ("acars", "ACARS Weather", os.path.join(PROFILES_DIR, "rtl_airband_acars.conf")),
     ("radiosonde", "Radiosonde", os.path.join(PROFILES_DIR, "rtl_airband_radiosonde.conf")),
     ("none_ground", "No Profile", os.path.join(PROFILES_DIR, "rtl_airband_none_ground.conf")),

@@ -121,8 +121,6 @@ def write_airband_flag(conf_path: str, airband: bool) -> None:
 def _infer_airband_flag(profile_id: str, path: str) -> Optional[bool]:
     """Infer airband flag using overrides or file contents."""
     pid_overrides = {
-        "airband": True,
-        "tower": True,
         "none_airband": True,
         "wx": False,
         "acars": False,
