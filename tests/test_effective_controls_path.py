@@ -103,7 +103,7 @@ class EffectiveControlsPathTests(unittest.TestCase):
         ) as persist_override, mock.patch.object(
             actions, "write_combined_config", return_value=False
         ), mock.patch.object(
-            actions, "restart_rtl", return_value=(True, "")
+            actions, "_select_analog_restart", return_value=(True, "")
         ):
             result = actions.action_apply_controls("ground", 43.4, "dbfs", 10.0, -64.0)
 
@@ -162,7 +162,7 @@ class EffectiveControlsPathTests(unittest.TestCase):
         ), mock.patch.object(
             actions, "write_combined_config", return_value=True
         ), mock.patch.object(
-            actions, "restart_rtl", return_value=(True, "")
+            actions, "_select_analog_restart", return_value=(True, "")
         ):
             result = actions.action_apply_batch("airband", 29.7, "dbfs", 10.0, -72.0, 3500)
 
@@ -220,9 +220,9 @@ class EffectiveControlsPathTests(unittest.TestCase):
                 return_value=False,
             ) as write_combined, mock.patch.object(
                 actions,
-                "restart_rtl",
+                "_select_analog_restart",
                 return_value=(True, ""),
-            ) as restart_rtl, mock.patch.object(
+            ) as select_analog_restart, mock.patch.object(
                 actions,
                 "mark_analog_hit_cutoff",
             ) as mark_cutoff:
@@ -237,7 +237,7 @@ class EffectiveControlsPathTests(unittest.TestCase):
         self.assertTrue(result["payload"]["restart_ok"])
         set_profile_mock.assert_called_once()
         write_combined.assert_called_once()
-        restart_rtl.assert_called_once()
+        select_analog_restart.assert_called_once_with("airband", reason="set_profile")
         mark_cutoff.assert_called_once_with("airband")
 
     def test_action_auto_squelch_applies_noise_based_dbfs(self):
@@ -264,8 +264,8 @@ class EffectiveControlsPathTests(unittest.TestCase):
         ) as persist_override, mock.patch.object(
             actions, "write_combined_config", return_value=True
         ) as write_combined, mock.patch.object(
-            actions, "restart_rtl", return_value=(True, "")
-        ) as restart_rtl, mock.patch.object(
+            actions, "_select_analog_restart", return_value=(True, "")
+        ) as select_analog_restart, mock.patch.object(
             actions, "ANALOG_AUTO_SQUELCH_SAMPLE_SEC", 2
         ), mock.patch.object(
             actions, "ANALOG_AUTO_SQUELCH_MARGIN_DB", 4.0
@@ -311,7 +311,13 @@ class EffectiveControlsPathTests(unittest.TestCase):
             persist_override.call_args_list,
         )
         write_combined.assert_called_once()
-        restart_rtl.assert_called_once()
+        self.assertEqual(
+            [
+                mock.call("airband", reason="auto_squelch"),
+                mock.call("ground", reason="auto_squelch"),
+            ],
+            select_analog_restart.call_args_list,
+        )
 
     def test_action_auto_squelch_reports_missing_noise_metrics(self):
         with mock.patch.object(actions, "_collect_dbfs_noise_samples", return_value={}):
@@ -453,7 +459,7 @@ class ManagedAnalogControlsTests(unittest.TestCase):
             with mock.patch.object(actions, "resolve_controls_path", return_value=air_path), mock.patch.object(
                 actions, "write_combined_config", return_value=False
             ), mock.patch.object(
-                actions, "restart_rtl", return_value=(True, "")
+                actions, "_select_analog_restart", return_value=(True, "")
             ), mock.patch.object(
                 managed_analog_controls, "MANAGED_ANALOG_CONTROLS_PATH", state_path
             ), mock.patch.object(
@@ -550,7 +556,7 @@ class RecentRegressionTests(unittest.TestCase):
         ) as save_state, mock.patch.object(
             actions, "write_combined_config", return_value=False
         ), mock.patch.object(
-            actions, "restart_rtl", return_value=(True, "")
+            actions, "_select_analog_restart", return_value=(True, "")
         ):
             result = actions.action_hold_stop("airband")
 

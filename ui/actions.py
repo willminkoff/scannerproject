@@ -1021,7 +1021,7 @@ def action_auto_squelch(targets: list[str] | None = None) -> dict:
     payload: dict[str, Any] = {
         "ok": True,
         "changed": bool(changed),
-        "stats_path": stats_path,
+        "stats_paths": {t: _stats_path_for_target(t) for t in ordered_targets},
         "sample_sec": int(sample_sec),
         "targets": payload_targets,
     }
