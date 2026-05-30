@@ -520,6 +520,30 @@ def _is_airband_frequency(freq_mhz: float) -> bool:
     return float(AIRBAND_MIN_MHZ) <= freq_mhz <= float(AIRBAND_MAX_MHZ)
 
 
+def _modulation_for_freq(freq_mhz: float) -> tuple[str, int]:
+    """Return (modulation, bandwidth_hz) for a frequency in MHz.
+
+    Routing is by RF band, matching real-world demodulation conventions:
+
+      108-137 MHz  -> ("am",  8000)  # civilian airband (AM voice)
+      137-225 MHz  -> ("nfm", 12000) # marine, public-safety VHF (NFM)
+      225-400 MHz  -> ("am",  8000)  # military airband / UHF mil-air (AM)
+      400+   MHz   -> ("nfm", 12000) # UHF business/public safety (NFM)
+
+    Frequencies below 108 MHz are treated as NFM by default — favorites
+    that low are rare and almost never AM voice (broadcast FM is the only
+    common case and lives below the renderer's interest).
+    """
+    f = float(freq_mhz)
+    if 108.0 <= f < 137.0:
+        return ("am", 8000)
+    if 137.0 <= f < 225.0:
+        return ("nfm", 12000)
+    if 225.0 <= f < 400.0:
+        return ("am", 8000)
+    return ("nfm", 12000)
+
+
 def _minimal_profile_template(airband: bool) -> str:
     default_freq = "118.6000" if airband else "462.6500"
     default_mod = "am" if airband else "nfm"
@@ -726,7 +750,18 @@ def _normalize_conventional_pool(pool: dict[str, Any]) -> tuple[list[float], lis
             continue
         mhz = round(freq, 6)
         label = _normalize_label(item, f"{mhz:.4f}")
-        if _is_airband_frequency(mhz):
+        # Route by modulation, not raw frequency band. Each rtl-airband
+        # instance is single-modulation (airband=AM, ground=NFM in scan
+        # mode), so an AM-mode favorite must land in the airband conf
+        # regardless of band — otherwise UHF mil-air (225-400 MHz, AM)
+        # ends up demodulated as NFM in the ground conf and produces
+        # garbage audio.
+        explicit_mod = str(item.get("modulation") or "").strip().lower()
+        if explicit_mod in ("am", "nfm"):
+            mod = explicit_mod
+        else:
+            mod, _bw = _modulation_for_freq(mhz)
+        if mod == "am":
             air_labels_by_freq.setdefault(mhz, label)
         else:
             ground_labels_by_freq.setdefault(mhz, label)
