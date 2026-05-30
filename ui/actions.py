@@ -611,7 +611,7 @@ def action_apply_profile_loop_bundle(target: str, selected_profiles: Any, active
     restart_ok = True
     restart_error = ""
     if restart_needed:
-        restart_ok, restart_error = _select_analog_restart(target)
+        restart_ok, restart_error = _select_analog_restart(target, reason="profile_loop_bundle")
 
     payload = {
         "ok": True,
@@ -641,7 +641,7 @@ def action_set_profile(profile_id: str, target: str, *, restart_service: bool = 
         conf_path = read_active_config_path()
         profiles = [(p["id"], p["label"], p["path"]) for p in profiles_airband]
         target_symlink = CONFIG_SYMLINK
-    unit_restart = lambda: _select_analog_restart(target)
+    unit_restart = lambda: _select_analog_restart(target, reason="set_profile")
 
     if not profiles:
         return {"status": 400, "payload": {"ok": False, "error": "no profiles available"}}
@@ -979,7 +979,7 @@ def action_apply_controls(target: str, gain: float, squelch_mode: str, squelch_s
                 exc,
                 exc_info=True,
             )
-        restart_ok, restart_error = _select_analog_restart(target)
+        restart_ok, restart_error = _select_analog_restart(target, reason="apply_controls")
     payload = {"ok": True, "changed": changed}
     if device_release_actions:
         payload["device_release"] = device_release_actions
@@ -1013,7 +1013,7 @@ def action_apply_batch(target: str, gain: float, squelch_mode: str, squelch_snr:
     restart_ok = True
     restart_error = ""
     if changed:
-        restart_ok, restart_error = _select_analog_restart(target)
+        restart_ok, restart_error = _select_analog_restart(target, reason="apply_batch")
     payload = {"ok": True, "changed": changed}
     if changed:
         payload["restart_ok"] = restart_ok
@@ -1135,7 +1135,7 @@ def action_auto_squelch(targets: list[str] | None = None) -> dict:
             # airband-side restart.  Each target hits its own MA/SL service
             # so SL doesnt race MA at sdrplay_api_Open.
             for _tgt in ordered_targets:
-                _ok, _err = _select_analog_restart(_tgt)
+                _ok, _err = _select_analog_restart(_tgt, reason="auto_squelch")
                 if not _ok:
                     restart_ok = False
                     if _err:
@@ -1171,7 +1171,7 @@ def action_apply_filter(target: str, cutoff_hz: float) -> dict:
     restart_ok = True
     restart_error = ""
     if changed:
-        restart_ok, restart_error = _select_analog_restart(target)
+        restart_ok, restart_error = _select_analog_restart(target, reason="apply_filter")
     payload = {"ok": True, "changed": changed}
     if changed:
         payload["restart_ok"] = restart_ok
@@ -1180,7 +1180,7 @@ def action_apply_filter(target: str, cutoff_hz: float) -> dict:
     return {"status": 200, "payload": payload}
 
 
-def _select_analog_restart(target: str):
+def _select_analog_restart(target: str, *, reason: str = "unspecified"):
     """Pick the right restart function for the analog band based on what
     units actually exist.
 
@@ -1218,12 +1218,12 @@ def _select_analog_restart(target: str):
 
     if target == "airband":
         if unit_exists and restart_rtl_airband and unit_exists("rtl-airband-airband"):
-            return restart_rtl_airband()
-        return restart_rtl()
+            return restart_rtl_airband(reason=reason)
+        return restart_rtl(reason=reason)
     if target == "ground":
         if unit_exists and restart_rtl_ground and unit_exists("rtl-airband-ground"):
-            return restart_rtl_ground()
-        return restart_ground()
+            return restart_rtl_ground(reason=reason)
+        return restart_ground(reason=reason)
     raise ValueError(f"unknown analog target: {target!r}")
 
 
@@ -1313,7 +1313,7 @@ def action_avoid(target: str) -> dict:
     except Exception as e:
         start_rtl()
         return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
-    restart_ok, restart_error = _select_analog_restart(target)
+    restart_ok, restart_error = _select_analog_restart(target, reason="avoid")
     payload = {"ok": True, "freq": f"{freq:.4f}", "restart_ok": restart_ok}
     if not restart_ok and restart_error:
         payload["restart_error"] = restart_error
@@ -1339,7 +1339,7 @@ def action_avoid_clear(target: str) -> dict:
     except Exception as e:
         start_rtl()
         return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
-    restart_ok, restart_error = _select_analog_restart(target)
+    restart_ok, restart_error = _select_analog_restart(target, reason="avoid_clear")
     payload = {"ok": True, "restart_ok": restart_ok}
     if not restart_ok and restart_error:
         payload["restart_error"] = restart_error
@@ -1491,7 +1491,7 @@ def action_hold_start(target: str, freq) -> dict:
             logger.debug("actions: failed to roll back hold state after combine error", exc_info=True)
         return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
 
-    restart_ok, restart_error = _select_analog_restart(target)
+    restart_ok, restart_error = _select_analog_restart(target, reason="hold_start")
     payload = {"ok": True, "freq": f"{freq_val:.4f}", "target": target, "restart_ok": restart_ok}
     if not restart_ok and restart_error:
         payload["restart_error"] = restart_error
@@ -1536,7 +1536,7 @@ def action_hold_stop(target: str) -> dict:
     except Exception as e:
         return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
 
-    restart_ok, restart_error = _select_analog_restart(target)
+    restart_ok, restart_error = _select_analog_restart(target, reason="hold_stop")
     payload = {"ok": True, "restored": True, "restart_ok": restart_ok}
     if not restart_ok and restart_error:
         payload["restart_error"] = restart_error
@@ -1599,7 +1599,7 @@ def action_tune(target: str, freq) -> dict:
     except Exception as e:
         return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
 
-    restart_ok, restart_error = _select_analog_restart(target)
+    restart_ok, restart_error = _select_analog_restart(target, reason="tune")
     payload = {"ok": True, "freq": f"{freq_val:.4f}", "target": target, "restart_ok": restart_ok}
     if not restart_ok and restart_error:
         payload["restart_error"] = restart_error
@@ -1642,7 +1642,7 @@ def action_tune_restore(target: str) -> dict:
         write_combined_config()
     except Exception as e:
         return {"status": 500, "payload": {"ok": False, "error": f"combine failed: {e}"}}
-    restart_ok, restart_error = _select_analog_restart(target)
+    restart_ok, restart_error = _select_analog_restart(target, reason="tune_restore")
     payload = {"ok": True, "restart_ok": restart_ok}
     if not restart_ok and restart_error:
         payload["restart_error"] = restart_error

@@ -5336,7 +5336,7 @@ class Handler(BaseHTTPRequestHandler):
                             from .actions import _select_analog_restart
                         except ImportError:
                             from ui.actions import _select_analog_restart
-                        _select_analog_restart(target)
+                        _select_analog_restart(target, reason="profile_editor_save")
                         payload["scanner_restarted"] = True
                 except Exception as e:
                     return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
@@ -5904,7 +5904,7 @@ class Handler(BaseHTTPRequestHandler):
                             from .actions import _select_analog_restart
                         except ImportError:
                             from ui.actions import _select_analog_restart
-                        _select_analog_restart("ground" if is_active_ground else "airband")
+                        _select_analog_restart("ground" if is_active_ground else "airband", reason="profile_update_freqs")
                 except Exception as e:
                     return self._send(500, json.dumps({"ok": False, "error": str(e)}), "application/json; charset=utf-8")
 

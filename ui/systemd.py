@@ -807,17 +807,21 @@ def restart_rtl(reason: str = "unspecified") -> Tuple[bool, str]:
     )
 
 
-def restart_ground() -> Tuple[bool, str]:
+def restart_ground(reason: str = "unspecified") -> Tuple[bool, str]:
     """Restart the ground scanner.
 
     Post-MA/SL-split auto-dispatch: route to ``restart_rtl_ground()``
     (the new SL-mode unit with sequenced-recovery semantics) when
     the new unit is present.  Pre-cutover / post-rollback we fall
     through to the legacy ``rtl-airband-ground`` unit start.
+
+    ``reason`` is plumbed through to ``restart_rtl_ground`` so journal
+    triage can attribute the restart to its caller; the legacy fallback
+    path does not consume it.
     """
     new_ground_unit = str(UNITS.get("rtl_ground") or "").strip()
     if new_ground_unit and _unit_configured(new_ground_unit):
-        return restart_rtl_ground()
+        return restart_rtl_ground(reason=reason)
     return _restart_unit(UNITS["ground"])
 
 

@@ -1611,7 +1611,7 @@ def sync_scan_pool_to_analog_runtime(
                     targets_to_restart = ["airband", "ground"]
                 for _tgt in targets_to_restart:
                     try:
-                        _ok, _err = _select_analog_restart(_tgt)
+                        _ok, _err = _select_analog_restart(_tgt, reason="favorites_runtime_sync")
                     except Exception as exc:
                         logger.warning(
                             "favorites_runtime: per-target restart %s failed: %s",
