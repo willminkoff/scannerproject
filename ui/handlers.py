@@ -24,13 +24,24 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 from urllib.request import Request, urlopen
 
 def _resolve_server_timezone() -> str:
+    # systemd boxes: /etc/localtime is a symlink to /usr/share/zoneinfo/<IANA>.
+    # `timedatectl set-timezone` updates this symlink but does NOT touch
+    # /etc/timezone, so the realpath is the canonical source of truth.
     try:
-        return Path("/etc/timezone").read_text().strip() or "UTC"
+        link = os.path.realpath("/etc/localtime")
+        prefix = "/usr/share/zoneinfo/"
+        if link.startswith(prefix):
+            return link[len(prefix):]
     except OSError:
-        try:
-            return datetime.now().astimezone().tzinfo.key
-        except (AttributeError, Exception):
-            return "UTC"
+        pass
+    # Fallback for older systems that still maintain /etc/timezone.
+    try:
+        tz = Path("/etc/timezone").read_text().strip()
+        if tz:
+            return tz
+    except OSError:
+        pass
+    return "UTC"
 
 
 _RESOLVED_SERVER_TIMEZONE = _resolve_server_timezone()
