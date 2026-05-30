@@ -3922,147 +3922,6 @@
     </div>
   </div>
 
-  <div class="profile-sidecar-overlay hidden" id="profile-sidecar-overlay"></div>
-  <aside class="profile-sidecar" id="profile-sidecar" aria-hidden="true">
-    <div class="profile-sidecar-header">
-      <div>
-        <div class="profile-sidecar-title">Profile Editor Sidecar</div>
-        <div class="profile-sidecar-sub">Edit analog and digital profile data in one place</div>
-      </div>
-      <button class="action" id="profile-sidecar-close" type="button">Close</button>
-    </div>
-    <div class="profile-sidecar-tabs">
-      <div class="profile-sidecar-tab-group">
-        <button class="profile-sidecar-tab active" id="profile-editor-tab-analog" type="button">Analog</button>
-        <button class="profile-sidecar-tab" id="profile-editor-tab-digital" type="button">Digital</button>
-      </div>
-      <div class="profile-sidecar-actions">
-        <button class="action profile-sidecar-load" id="profile-editor-new-active" type="button">New</button>
-        <button class="action profile-sidecar-load" id="profile-editor-load-active" type="button">Load</button>
-      </div>
-    </div>
-    <div class="profile-sidecar-body">
-      <section class="profile-sidecar-panel" id="profile-editor-panel-analog">
-        <div class="profile-editor-card">
-          <div class="control-label">
-            <span>Analog Profile</span>
-            <span class="control-value">freq + hit text + modulation</span>
-          </div>
-          <div class="profile-editor-grid">
-            <label>
-              Target
-              <select id="profile-editor-analog-target">
-                <option value="airband">Airband</option>
-                <option value="ground">Ground</option>
-              </select>
-            </label>
-            <label>
-              Profile
-              <select id="profile-editor-analog-profile"></select>
-            </label>
-          </div>
-          <div class="profile-editor-grid">
-            <label>
-              Modulation
-              <input id="profile-editor-analog-modulation" type="text" value="am" spellcheck="false">
-            </label>
-            <label>
-              Bandwidth (Hz)
-              <input id="profile-editor-analog-bandwidth" type="number" min="2000" max="250000" step="100" value="12000">
-            </label>
-          </div>
-          <label>
-            Frequencies (one per line: <code>118.600 TOWER</code>)
-            <textarea id="profile-editor-analog-freqs" rows="10" spellcheck="false"></textarea>
-          </label>
-          <div class="profile-editor-actions">
-            <button class="action" id="profile-editor-analog-validate" type="button">Validate</button>
-            <button class="action" id="profile-editor-analog-save" type="button">Save</button>
-            <button class="action" id="profile-editor-analog-delete" type="button">Delete</button>
-            <span class="profile-editor-pill hidden" id="profile-editor-analog-dirty">Unsaved</span>
-          </div>
-          <div class="profile-editor-status" id="profile-editor-analog-status"></div>
-        </div>
-      </section>
-
-      <section class="profile-sidecar-panel hidden" id="profile-editor-panel-digital">
-        <div class="profile-editor-card">
-          <div class="control-label">
-            <span>Digital Profile</span>
-            <span class="control-value">control channels + TG metadata</span>
-          </div>
-          <div class="profile-editor-grid">
-            <label>
-              Profile
-              <select id="profile-editor-digital-profile"></select>
-            </label>
-            <div></div>
-          </div>
-          <label>
-            Control Channels (MHz, one per line)
-            <textarea id="profile-editor-digital-controls" rows="4" spellcheck="false"></textarea>
-          </label>
-          <label>
-            Systems JSON (optional explicit per-system definitions)
-            <textarea id="profile-editor-digital-systems" rows="8" spellcheck="false"></textarea>
-          </label>
-          <div class="control-applied" style="opacity:0.75;">
-            Format: <code>{"systems":[{"name":"TACN D3","control_channels_mhz":[769.83125]}]}</code>
-          </div>
-          <label>
-            Talkgroups CSV
-            <textarea id="profile-editor-digital-talkgroups" rows="16" spellcheck="false"></textarea>
-          </label>
-          <div class="control-applied" style="opacity:0.75;">
-            Expected columns: <code>DEC,MODE,ALPHA,DESCRIPTION,TAG,LISTEN</code>
-          </div>
-          <div class="digital-listen" id="digital-listen">
-            <div class="control-label" style="margin-bottom:8px;">
-              <span>Talkgroup Listen</span>
-              <span class="control-value" id="digital-listen-status"></span>
-            </div>
-            <div class="digital-listen-toolbar">
-              <input id="digital-listen-search" type="text" placeholder="Search TGID, mode, tag">
-              <select id="digital-listen-filter">
-                <option value="all">All</option>
-                <option value="listen">Listening</option>
-                <option value="muted">Muted</option>
-              </select>
-              <select id="digital-listen-mode-filter">
-                <option value="all">All Modes</option>
-                <option value="clear">Clear</option>
-                <option value="encrypted">Encrypted</option>
-                <option value="D">D</option>
-                <option value="T">T</option>
-                <option value="DE">DE</option>
-                <option value="TE">TE</option>
-              </select>
-              <button class="action" id="digital-listen-mute-encrypted">Mute Encrypted</button>
-              <button class="action" id="digital-listen-load">Load</button>
-              <button class="action" id="digital-listen-enable-filtered">Select Filtered</button>
-              <button class="action" id="digital-listen-disable-filtered">Unselect Filtered</button>
-              <button class="action" id="digital-listen-save">Save</button>
-              <button class="action" id="digital-listen-toggle">Hide</button>
-            </div>
-            <div class="digital-listen-body">
-              <div class="digital-listen-list" id="digital-listen-list"></div>
-              <div class="control-applied" style="opacity:0.75;">
-                Listen flags only affect SB3 hit display for now (SDRTrunk still scans everything).
-              </div>
-            </div>
-          </div>
-          <div class="profile-editor-actions">
-            <button class="action" id="profile-editor-digital-validate" type="button">Validate</button>
-            <button class="action" id="profile-editor-digital-save" type="button">Save</button>
-            <button class="action" id="profile-editor-digital-delete" type="button">Delete</button>
-            <span class="profile-editor-pill hidden" id="profile-editor-digital-dirty">Unsaved</span>
-          </div>
-          <div class="profile-editor-status" id="profile-editor-digital-status"></div>
-        </div>
-      </section>
-    </div>
-  </aside>
-
   <div class="profile-sidecar-overlay hidden" id="hp3-builder-overlay"></div>
   <aside class="profile-sidecar hp3-builder-sidecar" id="hp3-builder-sidecar" aria-hidden="true">
     <div class="profile-sidecar-header">
@@ -5387,8 +5246,6 @@
       btnRestartUi: document.getElementById('btn-restart-ui'),
       hp3BuilderOpenAnalog: document.getElementById('hp3-builder-open-analog'),
       hp3BuilderOpenDigital: document.getElementById('hp3-builder-open-digital'),
-      profileEditorOpenAnalog: document.getElementById('profile-editor-open-analog'),
-      profileEditorOpenDigital: document.getElementById('profile-editor-open-digital'),
       profileSidecar: document.getElementById('profile-sidecar'),
       profileSidecarOverlay: document.getElementById('profile-sidecar-overlay'),
       profileSidecarClose: document.getElementById('profile-sidecar-close'),
@@ -8692,29 +8549,6 @@
         refreshDigitalListen();
       }
       return true;
-    }
-
-    function openProfileEditorSidecar(tab = null) {
-      if (state.hp3Builder.open) {
-        closeHp3BuilderSidecar(false);
-      }
-      if (tab) {
-        const changed = setProfileEditorTab(tab);
-        if (!changed) return;
-      }
-      state.profileEditor.open = true;
-      if (els.profileSidecar) {
-        els.profileSidecar.classList.add('open');
-        els.profileSidecar.setAttribute('aria-hidden', 'false');
-      }
-      if (els.profileSidecarOverlay) {
-        els.profileSidecarOverlay.classList.remove('hidden');
-      }
-      refreshProfileEditorOptions();
-      if (state.profileEditor.tab === 'digital') {
-        refreshDigitalProfiles();
-        refreshDigitalListen();
-      }
     }
 
     function closeProfileEditorSidecar() {
@@ -15994,12 +15828,6 @@
       if (wxSelectAll) wxSelectAll.addEventListener('change', () => {
         document.querySelectorAll('#wx-obs-list .wx-obs-chk').forEach(cb => { cb.checked = wxSelectAll.checked; });
       });
-      if (els.profileEditorOpenAnalog) {
-        els.profileEditorOpenAnalog.addEventListener('click', () => openProfileEditorSidecar('analog'));
-      }
-      if (els.profileEditorOpenDigital) {
-        els.profileEditorOpenDigital.addEventListener('click', () => openProfileEditorSidecar('digital'));
-      }
       if (els.profileSidecarClose) {
         els.profileSidecarClose.addEventListener('click', closeProfileEditorSidecar);
       }

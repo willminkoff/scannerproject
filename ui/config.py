@@ -269,12 +269,6 @@ OP25_MULTI_RX_PATH = os.getenv(
 OP25_DEFAULT_OFFSET = int(os.getenv("OP25_DEFAULT_OFFSET", "25000"))
 OP25_DEFAULT_SAMPLE_RATE = int(os.getenv("OP25_DEFAULT_SAMPLE_RATE", "2400000"))
 OP25_DEFAULT_MODULATION = os.getenv("OP25_DEFAULT_MODULATION", "cqpsk").strip().lower()
-# Multi-profile loop scheduler
-PROFILE_LOOP_STATE_PATH = os.getenv(
-    "PROFILE_LOOP_STATE_PATH",
-    "/run/airband_ui_profile_loop.json",
-).strip()
-PROFILE_LOOP_TICK_SEC = max(0.5, float(os.getenv("PROFILE_LOOP_TICK_SEC", "1.0")))
 # Legacy mixer envs are intentionally ignored by runtime paths. Keep these
 # variables for backward compatibility with older env files.
 DIGITAL_MIXER_ENABLED = os.getenv("DIGITAL_MIXER_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
