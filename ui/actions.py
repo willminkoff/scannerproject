@@ -116,6 +116,15 @@ _RE_DBFS_NOISE_LEVEL = re.compile(
 )
 _AUTO_SQUELCH_POLL_SEC = 1.0
 _AUTO_SQUELCH_FREQ_EPSILON_MHZ = 0.002
+# rtl-airband seeds its per-channel noise_level_ at ~0.2828 linear before any
+# real measurement lands, which the stats writer publishes as ~-10.964 dBFS.
+# Channels that haven't yet measured a real noise floor (just-restarted band,
+# starved tuner, dropped frame burst) keep emitting that sentinel.  Folding
+# those into the median pulled auto-squelch's target ~15 dB above the live
+# noise floor (observed 2026-05-30: floor ~-44, suggestion landed at -29);
+# anything weaker than this cutoff is treated as uninitialized/sentinel and
+# excluded from the noise-floor aggregation.
+_AUTO_SQUELCH_NOISE_SENTINEL_DBFS = -20.0
 
 
 def _usb_hub_reset_paths() -> list[str]:
@@ -213,11 +222,21 @@ def _collect_dbfs_noise_samples(
     samples: dict[str, list[float]] = {}
     duration = max(1.0, float(sample_sec))
     end_monotonic = time.monotonic() + duration
+    sentinel_cutoff = float(_AUTO_SQUELCH_NOISE_SENTINEL_DBFS)
     while True:
         snapshot = _read_dbfs_noise_metrics(stats_path)
         for freq_key, value in snapshot.items():
+            try:
+                fvalue = float(value)
+            except Exception:
+                continue
+            # Skip uninitialized / sentinel readings (rtl-airband's pre-measure
+            # seed value sits near -10.964 dBFS).  Including them poisons the
+            # median and lands the suggested squelch well above the real floor.
+            if fvalue >= sentinel_cutoff:
+                continue
             bucket = samples.setdefault(freq_key, [])
-            bucket.append(float(value))
+            bucket.append(fvalue)
         now = time.monotonic()
         if now >= end_monotonic:
             break
