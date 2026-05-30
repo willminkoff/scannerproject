@@ -1128,16 +1128,6 @@
       color: var(--bg-dark);
     }
 
-    @keyframes tab-flash {
-      0%   { box-shadow: 0 0 0 0 var(--accent-dim); }
-      50%  { box-shadow: 0 0 0 6px var(--accent-glow); }
-      100% { box-shadow: 0 0 0 0 transparent; }
-    }
-
-    .tab.tab-flash {
-      animation: tab-flash 0.45s ease-out 3;
-    }
-
     /* Controls */
     .control-group {
       display: flex;
@@ -2024,75 +2014,6 @@
     }
 
     /* Sitrep */
-    .banner-warn {
-      background: rgba(255, 167, 38, 0.10);
-      border: 1px solid rgba(255, 167, 38, 0.35);
-      border-radius: 8px;
-      padding: 10px 12px;
-      margin: 10px 0 4px;
-      font-size: 13px;
-    }
-    .banner-warn-title {
-      font-weight: 600;
-      color: var(--warn, #ffa726);
-      margin-bottom: 6px;
-    }
-    .banner-warn-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 3px 0;
-      flex-wrap: wrap;
-    }
-    .banner-warn-row .row-meta {
-      flex: 1;
-      min-width: 0;
-      font-size: 12px;
-      color: var(--text-secondary, #aaa);
-    }
-    .banner-warn-row .row-tag {
-      color: var(--text-primary, #fff);
-      font-weight: 600;
-    }
-    .banner-warn-row .row-btn {
-      border: 1px solid var(--accent-dim, #4dd0e1);
-      background: transparent;
-      color: var(--accent-dim, #4dd0e1);
-      border-radius: 4px;
-      padding: 2px 8px;
-      font-size: 11px;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-    .banner-warn-row .row-btn:hover { opacity: 0.85; }
-    .banner-warn-row .row-btn:disabled { opacity: 0.4; cursor: default; }
-
-    .stripped-favorites-chip {
-      border: 1px solid rgba(255, 167, 38, 0.5);
-      background: rgba(255, 167, 38, 0.12);
-      color: var(--warn, #ffa726);
-      border-radius: 999px;
-      padding: 2px 10px;
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      line-height: 1.4;
-      white-space: nowrap;
-    }
-    .stripped-favorites-chip:hover { background: rgba(255, 167, 38, 0.20); }
-    .stripped-favorites-chip.active {
-      background: rgba(255, 167, 38, 0.28);
-      box-shadow: 0 0 0 1px rgba(255, 167, 38, 0.7) inset;
-    }
-
-    .stripped-favorites-details {
-      background: rgba(255, 167, 38, 0.06);
-      border: 1px solid rgba(255, 167, 38, 0.25);
-      border-radius: 8px;
-      padding: 8px 10px;
-      margin-bottom: 8px;
-    }
-
     .sitrep {
       max-width: 1200px;
       margin: 0 auto;
@@ -2712,8 +2633,38 @@
       color: #ef4444;
     }
 
-    /* (Removed) MA/SL analog band-selector CSS — per-tab players now
-       have fixed mounts, so the inline band-switch UI is gone. */
+    /* MA/SL split-process band selector for the analog player.
+       Hidden by default; revealed by JS once the ANALOG_GROUND.mp3
+       mount has been observed publishing (i.e. post-cutover).      */
+    .analog-band-selector {
+      display: none;
+      align-items: center;
+      gap: 4px;
+    }
+    .analog-band-selector:not(.hidden) {
+      display: inline-flex !important;
+    }
+    .analog-band-btn {
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-secondary, var(--text-primary));
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+    }
+    .analog-band-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .analog-band-btn.analog-band-btn-active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(56, 189, 248, 0.08);
+    }
 
     .sitrep-btn:disabled {
       opacity: 0.6;
@@ -3214,29 +3165,35 @@
               </div>
             </div>
 
-            <!-- Airband player.  Fixed src=/ANALOG.mp3 (airband mount).
-                 Hidden when the active tab is Ground; the Ground tab has
-                 its own #controls-ground pane with /ANALOG_GROUND.mp3. -->
             <div class="player-box" id="player-box-analog">
               <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px;">
-                <div style="font-weight:700;">Airband Player</div>
-                <a id="lnk-stream-analog" href="/ANALOG.mp3" target="_blank" rel="noopener" style="font-size:12px; opacity:0.85;">Open Airband</a>
+                <div style="font-weight:700;">Analog Player</div>
+                <!--
+                  Band selector for the MA/SL split architecture
+                  (docs/rspduo_ma_sl_split.md).  Pre-cutover only
+                  /ANALOG.mp3 exists, so the Ground option is hidden
+                  by JS at startup when icecast_mount_analog_ground_alive
+                  is never observed truthy.  Post-cutover both
+                  mounts publish independently and the user picks
+                  which one the embedded player streams.
+                -->
+                <div id="analog-band-selector" class="analog-band-selector hidden"
+                     role="group" aria-label="Analog band selector"
+                     style="display:none; gap:4px; font-size:12px;">
+                  <button type="button" class="analog-band-btn analog-band-btn-active"
+                          id="btn-analog-band-airband"
+                          data-band="airband" title="Stream airband (rtl-airband-airband.service)">
+                    Airband
+                  </button>
+                  <button type="button" class="analog-band-btn"
+                          id="btn-analog-band-ground"
+                          data-band="ground" title="Stream ground VHF (rtl-airband-ground.service)">
+                    Ground
+                  </button>
+                </div>
+                <a id="lnk-stream-analog" href="#" target="_blank" rel="noopener" style="font-size:12px; opacity:0.85;">Open Analog</a>
               </div>
-              <audio id="audio-player-analog" src="/ANALOG.mp3" controls preload="none" playsinline></audio>
-            </div>
-          </div>
-
-          <div id="controls-ground" class="hidden">
-            <!-- Ground player pane.  Shows only when the Ground tab is
-                 active.  The shared analog controls (gain/squelch/etc.)
-                 live in #controls-analog and auto-bind via activeTarget,
-                 which is already set to 'ground' by switchTarget(). -->
-            <div class="player-box" id="player-box-ground">
-              <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px;">
-                <div style="font-weight:700;">Ground Player</div>
-                <a id="lnk-stream-ground" href="/ANALOG_GROUND.mp3" target="_blank" rel="noopener" style="font-size:12px; opacity:0.85;">Open Ground</a>
-              </div>
-              <audio id="audio-player-ground" src="/ANALOG_GROUND.mp3" controls preload="none" playsinline></audio>
+              <audio id="audio-player-analog" controls preload="none" playsinline></audio>
             </div>
           </div>
 
@@ -3388,12 +3345,10 @@
         <div class="widget-header with-actions">
           <span>🎯 Favorites (Analog)</span>
           <div class="widget-header-actions">
-            <button class="stripped-favorites-chip" id="stripped-favorites-chip" type="button" style="display:none;" title="Some custom favorites aren't being monitored because their service tags are disabled."></button>
             <button class="action widget-header-action sidecar-toggle" id="hp3-builder-open-analog" type="button">Open Sidecar</button>
           </div>
         </div>
         <div class="widget-body">
-          <div id="stripped-favorites-details" class="stripped-favorites-details" style="display:none;"></div>
           <div class="profiles-grid" id="profiles-list">
             <div class="empty-state">
               <div class="icon">⭐</div>
@@ -4724,13 +4679,9 @@
         profileId: QUICK_GROUND_WX_PROFILE_ID,
         stopProfileId: QUICK_GROUND_OFF_PROFILE_ID,
         label: QUICK_GROUND_WX_LABEL,
-        profileLabel: 'WX',
-        modulation: 'nfm',
-        bandwidth: 5000,
-        buildFrequencies: () => NOAA_WX_CHANNELS.map((row) => row.freq),
         inactiveTitle: 'Switch to Ground and scan NOAA Weather Radio',
         activeTitle: 'WX scan active. Tap again to stop.',
-        autoProvision: true,
+        autoProvision: false,
       },
       {
         key: 'airband',
@@ -4836,28 +4787,6 @@
     let latencyAudioContext = null;
     const latencyAnalyserByEl = new WeakMap();
 
-    function defaultProfileLoopState() {
-      return {
-        enabled: false,
-        selectedProfiles: [],
-        availableProfiles: [],
-        currentProfile: '',
-        activeProfile: '',
-        nextProfile: '',
-        dwellMs: 10000,
-        hangMs: 2000,
-        pauseOnHit: true,
-        switchFailCount: 0,
-        recentHit: false,
-        inHitHold: false,
-        blockedReason: '',
-        switchReason: '',
-        switchCount: 0,
-        lastError: '',
-        lastSwitchTimeMs: 0,
-      };
-    }
-    
     let state = {
       connected: false,
       sdr1Active: false,
@@ -4870,12 +4799,16 @@
       icecastPort: 8000,
       streamMount: 'ANALOG.mp3',
       digitalStreamMount: 'DIGITAL.mp3',
-      // Each tab now owns its own <audio> element with a fixed mount:
-      // Airband -> /ANALOG.mp3, Ground -> /ANALOG_GROUND.mp3.  The old
-      // band-selector / preferredAnalogBand swap logic has been removed.
+      // MA/SL split-process band selection.  ``preferredAnalogBand``
+      // governs which icecast mount the embedded analog player
+      // streams from: "airband" → /ANALOG.mp3, "ground" → /ANALOG_GROUND.mp3.
+      // Persisted across page loads.  Default is airband.  The selector
+      // UI stays hidden until we observe the ground mount publishing
+      // at least once (otherwise switching to it would just give silence).
+      preferredAnalogBand: 'airband',
+      analogGroundMountEverAlive: false,
       streamProxyEnabled: true,
       streamBaseUrl: '',
-      groundStreamBaseUrl: '',
       digitalStreamBaseUrl: '',
       digitalStreamForceTranscode: false,
       sseConnected: false,
@@ -4938,8 +4871,7 @@
         baselineSum: 0,
       },
       serverTime: null,
-serverTimezone: null,
-      strippedCustomFavorites: {},
+      serverTimezone: null,
       systemStats: null,
       v3Compile: null,
       preflight: {
@@ -5044,25 +4976,6 @@ serverTimezone: null,
         sortDir: 'asc',
         dirty: false,
         profile: '',
-      },
-      profileLoop: {
-        airband: defaultProfileLoopState(),
-        ground: defaultProfileLoopState(),
-        digital: { ...defaultProfileLoopState(), dwellMs: 10000, hangMs: 2000 },
-      },
-      profileLoopUi: {
-        open: false,
-        tab: 'analog',
-        draftSelected: {
-          airband: null,
-          ground: null,
-          digital: null,
-        },
-        applyTimers: {
-          airband: null,
-          ground: null,
-          digital: null,
-        },
       },
       profileEditor: {
         open: false,
@@ -5268,39 +5181,15 @@ serverTimezone: null,
       hpFavClearAvoids: document.getElementById('hp-fav-clear-avoids'),
       hpFavReviewSelection: document.getElementById('hp-fav-review-selection'),
       hpFavEntries: document.getElementById('hp-fav-entries'),
-      loopStatus: document.getElementById('loop-status'),
-      loopDetail: document.getElementById('loop-detail'),
-      loopList: document.getElementById('loop-list'),
-      loopDwell: document.getElementById('loop-dwell'),
-      loopHang: document.getElementById('loop-hang'),
-      loopPause: document.getElementById('loop-pause'),
-      loopSave: document.getElementById('loop-save'),
-      loopToggle: document.getElementById('loop-toggle'),
-      loopSelectAll: document.getElementById('loop-select-all'),
-      loopClear: document.getElementById('loop-clear'),
-      profilesLoopIndicator: document.getElementById('profiles-loop-indicator'),
       digitalProfilesWidget: document.getElementById('digital-profiles-widget'),
       digitalProfilesList: document.getElementById('digital-profiles-list'),
       favoritesSyncRowDigital: document.getElementById('favorites-sync-row-digital'),
       favoritesSyncPrimaryDigital: document.getElementById('favorites-sync-primary-digital'),
       favoritesSyncSecondaryDigital: document.getElementById('favorites-sync-secondary-digital'),
       favoritesSyncBtnDigital: document.getElementById('favorites-sync-btn-digital'),
-      digitalLoopStatus: document.getElementById('digital-loop-status'),
-      digitalLoopDetail: document.getElementById('digital-loop-detail'),
-      digitalLoopList: document.getElementById('digital-loop-list'),
-      digitalLoopDwell: document.getElementById('digital-loop-dwell'),
-      digitalLoopHang: document.getElementById('digital-loop-hang'),
-      digitalLoopPause: document.getElementById('digital-loop-pause'),
-      digitalLoopSave: document.getElementById('digital-loop-save'),
-      digitalLoopToggle: document.getElementById('digital-loop-toggle'),
-      digitalLoopSelectAll: document.getElementById('digital-loop-select-all'),
-      digitalLoopClear: document.getElementById('digital-loop-clear'),
-      digitalProfilesLoopIndicator: document.getElementById('digital-profiles-loop-indicator'),
       audioPlayerAnalog: document.getElementById('audio-player-analog'),
-      audioPlayerGround: document.getElementById('audio-player-ground'),
       audioPlayerDigital: document.getElementById('audio-player-digital'),
       lnkStreamAnalog: document.getElementById('lnk-stream-analog'),
-      lnkStreamGround: document.getElementById('lnk-stream-ground'),
       lnkStreamDigital: document.getElementById('lnk-stream-digital'),
       latencyTestBox: document.getElementById('latency-test-box'),
       latencyTestMode: document.getElementById('latency-test-mode'),
@@ -5330,8 +5219,6 @@ serverTimezone: null,
       sysNetRxRate: document.getElementById('sys-net-rx-rate'),
       sysNetTxRate: document.getElementById('sys-net-tx-rate'),
       controlsAnalog: document.getElementById('controls-analog'),
-      controlsGround: document.getElementById('controls-ground'),
-      playerBoxAnalog: document.getElementById('player-box-analog'),
       controlsDigital: document.getElementById('controls-digital'),
       digitalDot: document.getElementById('digital-dot'),
       digitalStatus: document.getElementById('digital-status'),
@@ -5498,16 +5385,6 @@ serverTimezone: null,
       btnResetUsbHub: document.getElementById('btn-reset-usb-hub'),
       btnRebootPc: document.getElementById('btn-reboot-pc'),
       btnRestartUi: document.getElementById('btn-restart-ui'),
-      profileLoopOpenAnalog: document.getElementById('profile-loop-open-analog'),
-      profileLoopOpenDigital: document.getElementById('profile-loop-open-digital'),
-      profileLoopSidecar: document.getElementById('profile-loop-sidecar'),
-      profileLoopSidecarOverlay: document.getElementById('profile-loop-sidecar-overlay'),
-      profileLoopSidecarClose: document.getElementById('profile-loop-sidecar-close'),
-      profileLoopTabAnalog: document.getElementById('profile-loop-tab-analog'),
-      profileLoopTabDigital: document.getElementById('profile-loop-tab-digital'),
-      profileLoopPanelAnalog: document.getElementById('profile-loop-panel-analog'),
-      profileLoopPanelDigital: document.getElementById('profile-loop-panel-digital'),
-      profileLoopRefresh: document.getElementById('profile-loop-refresh'),
       hp3BuilderOpenAnalog: document.getElementById('hp3-builder-open-analog'),
       hp3BuilderOpenDigital: document.getElementById('hp3-builder-open-digital'),
       profileEditorOpenAnalog: document.getElementById('profile-editor-open-analog'),
@@ -8342,9 +8219,6 @@ serverTimezone: null,
       if (state.profileEditor.open && !closeProfileEditorSidecar()) {
         return false;
       }
-      if (state.profileLoopUi.open) {
-        closeProfileLoopSidecar();
-      }
       const preferredType = String(options && options.systemType ? options.systemType : '').trim().toLowerCase();
       if (preferredType === 'analog' || preferredType === 'digital') {
         state.hpFavoritesBuilder.systemType = preferredType;
@@ -8821,9 +8695,6 @@ serverTimezone: null,
     }
 
     function openProfileEditorSidecar(tab = null) {
-      if (state.profileLoopUi.open) {
-        closeProfileLoopSidecar();
-      }
       if (state.hp3Builder.open) {
         closeHp3BuilderSidecar(false);
       }
@@ -8861,155 +8732,12 @@ serverTimezone: null,
       return true;
     }
 
-    function setProfileLoopTab(tab) {
-      const next = tab === 'digital' ? 'digital' : 'analog';
-      state.profileLoopUi.tab = next;
-      if (els.profileLoopTabAnalog) els.profileLoopTabAnalog.classList.toggle('active', next === 'analog');
-      if (els.profileLoopTabDigital) els.profileLoopTabDigital.classList.toggle('active', next === 'digital');
-      if (els.profileLoopPanelAnalog) els.profileLoopPanelAnalog.classList.toggle('hidden', next !== 'analog');
-      if (els.profileLoopPanelDigital) els.profileLoopPanelDigital.classList.toggle('hidden', next !== 'digital');
-      renderProfileLoopControls();
-    }
-
-    function openProfileLoopSidecar(tab = null) {
-      if (state.profileEditor.open && !closeProfileEditorSidecar()) {
-        return;
-      }
-      if (state.hp3Builder.open) {
-        closeHp3BuilderSidecar(false);
-      }
-      if (tab) {
-        setProfileLoopTab(tab);
-      }
-      state.profileLoopUi.open = true;
-      if (els.profileLoopSidecar) {
-        els.profileLoopSidecar.classList.add('open');
-        els.profileLoopSidecar.setAttribute('aria-hidden', 'false');
-      }
-      if (els.profileLoopSidecarOverlay) {
-        els.profileLoopSidecarOverlay.classList.remove('hidden');
-      }
-      renderProfileLoopControls();
-    }
-
-    function closeProfileLoopSidecar() {
-      state.profileLoopUi.open = false;
-      if (els.profileLoopSidecar) {
-        els.profileLoopSidecar.classList.remove('open');
-        els.profileLoopSidecar.setAttribute('aria-hidden', 'true');
-      }
-      if (els.profileLoopSidecarOverlay) {
-        els.profileLoopSidecarOverlay.classList.add('hidden');
-      }
-      return true;
-    }
-
     function _profilesForAnalogTarget(target) {
       return target === 'ground' ? (state.ground.profiles || []) : (state.airband.profiles || []);
     }
 
     function normalizeAnalogTarget(target) {
       return target === 'ground' ? 'ground' : 'airband';
-    }
-
-    function renderStrippedFavoritesBanner() {
-      const chip = document.getElementById("stripped-favorites-chip");
-      const details = document.getElementById("stripped-favorites-details");
-      if (!chip || !details) return;
-      const data = (state.strippedCustomFavorites && typeof state.strippedCustomFavorites === "object")
-        ? state.strippedCustomFavorites
-        : {};
-      const tagIds = Object.keys(data);
-      if (tagIds.length === 0) {
-        chip.style.display = "none";
-        chip.textContent = "";
-        chip.classList.remove("active");
-        details.style.display = "none";
-        details.innerHTML = "";
-        return;
-      }
-      const escape = (s) => String(s == null ? "" : s)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
-      tagIds.sort((a, b) => Number(a) - Number(b));
-      const total = tagIds.reduce((acc, t) => acc + ((data[t] && data[t].entries && data[t].entries.length) || 0), 0);
-      chip.textContent = "⚠ " + total + " stripped";
-      chip.style.display = "inline-block";
-      chip.onclick = function () {
-        const isOpen = details.style.display !== "none";
-        if (isOpen) {
-          details.style.display = "none";
-          chip.classList.remove("active");
-        } else {
-          // Build details on open so values are fresh
-          const rows = tagIds.map((tagId) => {
-            const bucket = data[tagId] || {};
-            const label = String(bucket.tag_label || ("Service Tag " + tagId)).trim();
-            const entries = Array.isArray(bucket.entries) ? bucket.entries.slice() : [];
-            const entriesText = entries.length > 0 ? entries.map(escape).join(", ") : "(no system names)";
-            return "<div class=\"banner-warn-row\">"
-              + "<div class=\"row-meta\"><span class=\"row-tag\">" + escape(label) + "</span> (" + entries.length + ") — " + entriesText + "</div>"
-              + "<button class=\"row-btn\" type=\"button\" data-enable-tag=\"" + escape(tagId) + "\" data-enable-label=\"" + escape(label) + "\">Enable " + escape(label) + "</button>"
-              + "</div>";
-          }).join("");
-          details.innerHTML = rows;
-          details.style.display = "block";
-          chip.classList.add("active");
-          // Wire up enable buttons
-          details.querySelectorAll("button[data-enable-tag]").forEach((btn) => {
-            btn.addEventListener("click", () => {
-              const tag = parseInt(btn.getAttribute("data-enable-tag"), 10);
-              if (Number.isInteger(tag)) {
-                btn.disabled = true;
-                btn.textContent = "Enabling…";
-                enableServiceTag(tag).catch((err) => {
-                  console.error("enableServiceTag:", err);
-                  btn.disabled = false;
-                  btn.textContent = "Enable " + (btn.getAttribute("data-enable-label") || ("Service Tag " + tag));
-                });
-              }
-            });
-          });
-        }
-      };
-      // If currently open, refresh inline content without toggling
-      if (details.style.display !== "none") {
-        chip.click();
-        chip.click();
-      }
-    }
-
-        async function enableServiceTag(tagId) {
-      if (!Number.isInteger(tagId)) return;
-      const current = new Set(
-        (state.hpFilters && Array.isArray(state.hpFilters.enabledServiceTags))
-          ? state.hpFilters.enabledServiceTags.map((n) => Number(n)).filter(Number.isFinite)
-          : []
-      );
-      current.add(tagId);
-      const payload = {
-        mode: state.hpFilters && state.hpFilters.mode === "full_database" ? "full_database" : "favorites",
-        use_location: Boolean(state.hpFilters && state.hpFilters.useLocation),
-        strict_location: Boolean(state.hpFilters && state.hpFilters.strictLocation),
-        zip: String((state.hpFilters && state.hpFilters.zip) || "").trim(),
-        range_miles: Number((state.hpFilters && state.hpFilters.rangeMiles) || 15),
-        nationwide_systems: Boolean(state.hpFilters && state.hpFilters.nationwideSystems),
-        enabled_service_tags: Array.from(current).sort((a, b) => a - b),
-      };
-      const resp = await fetch("/api/scan/state", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!resp.ok) {
-        throw new Error("enableServiceTag: HTTP " + resp.status);
-      }
-      if (state.hpFilters) {
-        state.hpFilters.enabledServiceTags = Array.from(current).sort((a, b) => a - b);
-      }
-      state.lastStatusTick = 0;
     }
 
     function loadBandScanReturnProfiles() {
@@ -9575,11 +9303,20 @@ serverTimezone: null,
     }
 
     function currentAnalogMountName() {
-      // The embedded Airband player always streams from /ANALOG.mp3.
-      // The Ground tab has its own <audio id="audio-player-ground">
-      // with a hard-coded /ANALOG_GROUND.mp3 src and is not managed
-      // here.  This helper is retained for the analog-stream-health
-      // checks and the (now-fixed) Airband href sync.
+      // MA/SL split: if the user has explicitly picked "ground" via
+      // the band selector and the ground mount has been observed
+      // publishing, prefer /ANALOG_GROUND.mp3.  Otherwise fall back
+      // to the airband stream (the legacy/default).
+      if (
+        state.preferredAnalogBand === 'ground'
+        && state.analogGroundMountEverAlive
+      ) {
+        return resolveMountedStreamName(
+          'ANALOG_GROUND.mp3',
+          ['ANALOG_GROUND.mp3', 'keepalive-analog.mp3'],
+          'ANALOG_GROUND.mp3'
+        );
+      }
       return resolveMountedStreamName(
         state.streamMount,
         ['ANALOG.mp3', 'keepalive-analog.mp3'],
@@ -9614,19 +9351,6 @@ serverTimezone: null,
       // iOS Safari cannot decode 8 kHz MP3 — force transcode to 16 kHz
       // so the embedded player works. The proxy re-encodes via ffmpeg.
       return buildProxyStreamUrl(mountName, 'ANALOG.mp3', {
-        transcode: isLikelyIOSClient(),
-      });
-    }
-
-    function groundStreamUrl() {
-      // Ground tab streams the fixed /ANALOG_GROUND.mp3 mount.
-      // Mirrors analogStreamUrl() but with no mount-resolution
-      // logic since the ground mount name is invariant.
-      const mountName = 'ANALOG_GROUND.mp3';
-      if (shouldPreferDirectIcecastStream()) {
-        return buildIcecastUrl(mountName, 'ANALOG_GROUND.mp3');
-      }
-      return buildProxyStreamUrl(mountName, 'ANALOG_GROUND.mp3', {
         transcode: isLikelyIOSClient(),
       });
     }
@@ -9917,19 +9641,14 @@ serverTimezone: null,
 
     function syncStreamLinks() {
       const analogBase = analogStreamUrl();
-      const groundBase = groundStreamUrl();
       const digitalBase = digitalStreamUrl();
       if (els.lnkStreamAnalog) {
         els.lnkStreamAnalog.href = analogBase;
-      }
-      if (els.lnkStreamGround) {
-        els.lnkStreamGround.href = groundBase;
       }
       if (els.lnkStreamDigital) {
         els.lnkStreamDigital.href = digitalBase;
       }
       syncAudioSource(els.audioPlayerAnalog, analogBase);
-      syncAudioSource(els.audioPlayerGround, groundBase);
       // When hls.js is actively managing the digital player, don't
       // overwrite its blob-URL source with a direct Icecast/proxy URL.
       // Before HLS starts we allow the sync so the player has a valid
@@ -9938,7 +9657,6 @@ serverTimezone: null,
         syncAudioSource(els.audioPlayerDigital, digitalBase);
       }
       state.streamBaseUrl = analogBase;
-      state.groundStreamBaseUrl = groundBase;
       state.digitalStreamBaseUrl = digitalBase;
     }
 
@@ -11417,495 +11135,7 @@ serverTimezone: null,
       refreshFreqEditOptions();
       refreshProfileEditorOptions();
       updateQuickScanButtons();
-      renderAnalogLoopControls();
       updateSitrep();
-    }
-
-    function normalizeProfileLoopTarget(raw, target) {
-      const fallback = state.profileLoop[target] || defaultProfileLoopState();
-      const out = { ...fallback };
-      if (!raw || typeof raw !== 'object') return out;
-      out.enabled = Boolean(raw.enabled);
-      out.selectedProfiles = Array.isArray(raw.selected_profiles)
-        ? raw.selected_profiles.map((item) => String(item || '').trim()).filter(Boolean)
-        : out.selectedProfiles;
-      out.dwellMs = Number.isFinite(raw.dwell_ms) ? Number(raw.dwell_ms) : out.dwellMs;
-      out.hangMs = Number.isFinite(raw.hang_ms) ? Number(raw.hang_ms) : out.hangMs;
-      out.pauseOnHit = ('pause_on_hit' in raw) ? Boolean(raw.pause_on_hit) : out.pauseOnHit;
-      out.currentProfile = String(raw.current_profile || '');
-      out.activeProfile = String(raw.active_profile || '');
-      out.nextProfile = String(raw.next_profile || '');
-      out.lastSwitchTimeMs = Number.isFinite(raw.last_switch_time_ms) ? Number(raw.last_switch_time_ms) : 0;
-      out.switchReason = String(raw.switch_reason || '');
-      out.switchCount = Number.isFinite(raw.switch_count) ? Number(raw.switch_count) : 0;
-      out.switchFailCount = Number.isFinite(raw.switch_fail_count) ? Number(raw.switch_fail_count) : 0;
-      out.lastError = String(raw.last_error || '');
-      out.recentHit = Boolean(raw.recent_hit);
-      out.inHitHold = Boolean(raw.in_hit_hold);
-      out.blockedReason = String(raw.blocked_reason || '');
-      out.availableProfiles = Array.isArray(raw.available_profiles)
-        ? raw.available_profiles
-          .map((item) => {
-            if (typeof item === 'string') {
-              const id = String(item || '').trim();
-              return id ? { id, label: id } : null;
-            }
-            if (!item || typeof item !== 'object') return null;
-            const id = String(item.id || '').trim();
-            if (!id) return null;
-            const label = String(item.label || id).trim();
-            return { id, label };
-          })
-          .filter(Boolean)
-        : out.availableProfiles;
-      return out;
-    }
-
-    function applyProfileLoopPayload(payload) {
-      if (!payload || typeof payload !== 'object') return;
-      const targets = payload.targets && typeof payload.targets === 'object'
-        ? payload.targets
-        : payload;
-      if (!targets || typeof targets !== 'object') return;
-      ['airband', 'ground', 'digital'].forEach((target) => {
-        if (!(target in targets)) return;
-        const normalized = normalizeProfileLoopTarget(targets[target], target);
-        const draft = getLoopDraftSelection(target);
-        if (Array.isArray(draft)) {
-          normalized.selectedProfiles = draft;
-        }
-        state.profileLoop[target] = normalized;
-      });
-      renderProfileLoopControls();
-    }
-
-    function loopLabelForTarget(target, profileId) {
-      const pid = String(profileId || '').trim();
-      if (!pid) return '';
-      if (target === 'digital') {
-        const list = (state.profileLoop.digital.availableProfiles || []);
-        const match = list.find((row) => row && row.id === pid);
-        return match ? match.label : pid;
-      }
-      const rows = (state[target]?.profiles || []).filter((row) => row && !String(row.id || '').startsWith('none_'));
-      const match = rows.find((row) => String(row.id || '') === pid);
-      return match ? String(match.label || pid) : pid;
-    }
-
-    function fallbackLoopProfiles(target) {
-      if (target === 'digital') {
-        return (state.digital.profiles || []).map((id) => ({ id: String(id || ''), label: String(id || '') })).filter((row) => row.id);
-      }
-      return (state[target]?.profiles || [])
-        .filter((row) => row && !String(row.id || '').startsWith('none_'))
-        .map((row) => ({ id: String(row.id || ''), label: String(row.label || row.id || '') }))
-        .filter((row) => row.id);
-    }
-
-    function normalizeLoopTarget(target) {
-      if (target === 'ground') return 'ground';
-      if (target === 'digital') return 'digital';
-      return 'airband';
-    }
-
-    function normalizeProfileIdList(items) {
-      if (!Array.isArray(items)) return [];
-      const out = [];
-      items.forEach((item) => {
-        const id = String(item || '').trim();
-        if (!id || out.includes(id)) return;
-        out.push(id);
-      });
-      return out;
-    }
-
-    function getLoopDraftSelection(target) {
-      const name = normalizeLoopTarget(target);
-      const drafts = state.profileLoopUi?.draftSelected;
-      if (!drafts || !Object.prototype.hasOwnProperty.call(drafts, name)) return null;
-      return Array.isArray(drafts[name]) ? normalizeProfileIdList(drafts[name]) : null;
-    }
-
-    function setLoopDraftSelection(target, items) {
-      const name = normalizeLoopTarget(target);
-      if (!state.profileLoopUi.draftSelected) {
-        state.profileLoopUi.draftSelected = { airband: null, ground: null, digital: null };
-      }
-      state.profileLoopUi.draftSelected[name] = normalizeProfileIdList(items);
-    }
-
-    function clearLoopDraftSelection(target) {
-      const name = normalizeLoopTarget(target);
-      if (!state.profileLoopUi.draftSelected) return;
-      state.profileLoopUi.draftSelected[name] = null;
-    }
-
-    function selectedLoopProfilesForUi(target, loopState) {
-      const draft = getLoopDraftSelection(target);
-      if (Array.isArray(draft)) return draft;
-      return normalizeProfileIdList(loopState?.selectedProfiles || []);
-    }
-
-    function localLoopState(target) {
-      const name = normalizeLoopTarget(target);
-      if (!state.profileLoop[name]) {
-        state.profileLoop[name] = name === 'digital'
-          ? { ...defaultProfileLoopState(), dwellMs: 10000, hangMs: 2000 }
-          : defaultProfileLoopState();
-      }
-      return state.profileLoop[name];
-    }
-
-    function clampLoopSeconds(rawValue, fallbackSec, minSec, maxSec) {
-      const raw = Number(rawValue);
-      if (!Number.isFinite(raw)) return fallbackSec;
-      const rounded = Math.round(raw);
-      if (rounded < minSec) return minSec;
-      if (rounded > maxSec) return maxSec;
-      return rounded;
-    }
-
-    function updateLoopLocalSettingsFromInputs(target) {
-      const name = normalizeLoopTarget(target);
-      const loopState = localLoopState(name);
-      const isDigital = name === 'digital';
-      const dwellEl = isDigital ? els.digitalLoopDwell : els.loopDwell;
-      const hangEl = isDigital ? els.digitalLoopHang : els.loopHang;
-      const pauseEl = isDigital ? els.digitalLoopPause : els.loopPause;
-      const defaultDwellMs = 10000;
-      const defaultHangMs = 2000;
-      const fallbackDwellSec = Math.max(1, Math.round(Number(loopState.dwellMs || defaultDwellMs) / 1000));
-      const fallbackHangSec = Math.max(1, Math.round(Number(loopState.hangMs || defaultHangMs) / 1000));
-      const dwellSec = clampLoopSeconds(dwellEl && dwellEl.value, fallbackDwellSec, 1, 1800);
-      const hangSec = clampLoopSeconds(hangEl && hangEl.value, fallbackHangSec, 1, 600);
-      loopState.dwellMs = dwellSec * 1000;
-      loopState.hangMs = hangSec * 1000;
-      loopState.pauseOnHit = Boolean(pauseEl && pauseEl.checked);
-      return loopState;
-    }
-
-    function clearLoopAutoApplyTimer(target) {
-      const name = normalizeLoopTarget(target);
-      const timers = state.profileLoopUi?.applyTimers;
-      if (!timers || !timers[name]) return;
-      clearTimeout(timers[name]);
-      timers[name] = null;
-    }
-
-    function scheduleLoopAutoApply(target) {
-      const name = normalizeLoopTarget(target);
-      if (!state.profileLoopUi.applyTimers) {
-        state.profileLoopUi.applyTimers = { airband: null, ground: null, digital: null };
-      }
-      clearLoopAutoApplyTimer(name);
-      state.profileLoopUi.applyTimers[name] = setTimeout(() => {
-        if (state.profileLoopUi.applyTimers) {
-          state.profileLoopUi.applyTimers[name] = null;
-        }
-        applyProfileLoopConfig(name, null);
-      }, 300);
-    }
-
-    function collectLoopSelection(listEl) {
-      if (!listEl) return [];
-      const out = [];
-      listEl.querySelectorAll('input[type="checkbox"][data-profile-id]').forEach((input) => {
-        if (!input.checked) return;
-        const id = String(input.dataset.profileId || '').trim();
-        if (!id || out.includes(id)) return;
-        out.push(id);
-      });
-      return out;
-    }
-
-    function renderLoopChecklist(listEl, target, loopState) {
-      if (!listEl) return;
-      const available = Array.isArray(loopState.availableProfiles) && loopState.availableProfiles.length
-        ? loopState.availableProfiles
-        : fallbackLoopProfiles(target);
-      if (!available.length) {
-        listEl.innerHTML = '<div class="control-applied">No profiles available for loop</div>';
-        return;
-      }
-      const selected = new Set(selectedLoopProfilesForUi(target, loopState));
-      listEl.innerHTML = '';
-      available.forEach((row) => {
-        const id = String(row.id || '').trim();
-        if (!id) return;
-        const label = String(row.label || id).trim() || id;
-        const wrapper = document.createElement('label');
-        wrapper.className = 'loop-item';
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.dataset.profileId = id;
-        cb.checked = selected.has(id);
-        const text = document.createElement('span');
-        text.innerHTML = `<span>${escapeHtml(label)}</span> <span class="meta">(${escapeHtml(id)})</span>`;
-        wrapper.appendChild(cb);
-        wrapper.appendChild(text);
-        listEl.appendChild(wrapper);
-      });
-    }
-
-    function loopStatusTone(loopState) {
-      if (!loopState) return '';
-      if (loopState.enabled && !loopState.lastError) return 'good';
-      if (loopState.lastError || loopState.blockedReason) return 'warn';
-      return '';
-    }
-
-    function loopSwitchReasonForDisplay(target, reason) {
-      const raw = String(reason || '').trim();
-      if (!raw) return '';
-      const code = raw.toLowerCase();
-      if (target !== 'digital') {
-        // Keep analog bundle internals backend-only.
-        if (code === 'bundle' || code === 'bundle_sync') return 'dwell';
-        if (code === 'disable_restore') return 'manual';
-      }
-      return raw;
-    }
-
-    function loopValidationModeForDisplay(target, loopState) {
-      if (target !== 'digital') return '';
-      return loopState && loopState.enabled ? 'fast_loop' : 'validate';
-    }
-
-    function formatLoopDetailText(target, loopState) {
-      if (!loopState) return '--';
-      const parts = [];
-      const mode = loopValidationModeForDisplay(target, loopState);
-      if (mode) {
-        parts.push(`mode=${mode}`);
-      }
-      if (loopState.activeProfile) {
-        parts.push(`active=${loopLabelForTarget(target, loopState.activeProfile)}`);
-      }
-      if (loopState.nextProfile) {
-        parts.push(`next=${loopLabelForTarget(target, loopState.nextProfile)}`);
-      }
-      if (loopState.inHitHold) {
-        parts.push('holding on hit');
-      }
-      if (loopState.blockedReason) {
-        parts.push(`blocked=${loopState.blockedReason}`);
-      }
-      const reason = loopSwitchReasonForDisplay(target, loopState.switchReason);
-      if (reason) {
-        parts.push(`reason=${reason}`);
-      }
-      if (loopState.enabled) {
-        parts.push(`switches=${Number(loopState.switchCount || 0)}`);
-        if (Number(loopState.switchFailCount || 0) > 0) {
-          parts.push(`failures=${Number(loopState.switchFailCount || 0)}`);
-        }
-      }
-      if (loopState.lastError) {
-        parts.push(`error=${trimServiceNote(loopState.lastError, 120)}`);
-      }
-      return parts.join(' • ') || '--';
-    }
-
-    function setLoopHeaderIndicator(el, target, loopState) {
-      if (!el) return;
-      const stateRow = loopState || defaultProfileLoopState();
-      let text = 'Loop Off';
-      let tone = '';
-      if (stateRow.enabled) {
-        if (stateRow.lastError) {
-          text = 'Loop Err';
-          tone = 'bad';
-        } else if (stateRow.blockedReason || stateRow.inHitHold) {
-          text = 'Loop Hold';
-          tone = 'warn';
-        } else {
-          text = 'Loop On';
-          tone = 'good';
-        }
-      }
-      el.textContent = text;
-      setValueTone(el, tone);
-      const details = [];
-      details.push(`target=${target}`);
-      details.push(`enabled=${stateRow.enabled ? 'yes' : 'no'}`);
-      const mode = loopValidationModeForDisplay(target, stateRow);
-      if (mode) {
-        details.push(`mode=${mode}`);
-      }
-      if (stateRow.activeProfile) {
-        details.push(`active=${loopLabelForTarget(target, stateRow.activeProfile)}`);
-      }
-      if (stateRow.nextProfile) {
-        details.push(`next=${loopLabelForTarget(target, stateRow.nextProfile)}`);
-      }
-      if (stateRow.inHitHold) {
-        details.push('holding on hit');
-      }
-      if (stateRow.blockedReason) {
-        details.push(`blocked=${stateRow.blockedReason}`);
-      }
-      const switchReason = loopSwitchReasonForDisplay(target, stateRow.switchReason);
-      if (switchReason) {
-        details.push(`reason=${switchReason}`);
-      }
-      if (stateRow.enabled) {
-        details.push(`switches=${Number(stateRow.switchCount || 0)}`);
-        if (Number(stateRow.switchFailCount || 0) > 0) {
-          details.push(`failures=${Number(stateRow.switchFailCount || 0)}`);
-        }
-      }
-      if (stateRow.lastError) {
-        details.push(`error=${trimServiceNote(stateRow.lastError, 80)}`);
-      }
-      el.title = details.join(' • ');
-    }
-
-    function renderMainLoopIndicators() {
-      const analogTarget = activeTarget === 'ground' ? 'ground' : 'airband';
-      const analogLoopState = state.profileLoop[analogTarget] || defaultProfileLoopState();
-      const digitalLoopState = state.profileLoop.digital || defaultProfileLoopState();
-      setLoopHeaderIndicator(els.profilesLoopIndicator, analogTarget, analogLoopState);
-      setLoopHeaderIndicator(els.digitalProfilesLoopIndicator, 'digital', digitalLoopState);
-    }
-
-    function renderTargetLoopControls(target, listEl, statusEl, detailEl, dwellEl, hangEl, pauseEl, toggleEl, defaultDwellMs, defaultHangMs) {
-      const loopState = localLoopState(target);
-      renderLoopChecklist(listEl, target, loopState);
-      if (statusEl) {
-        statusEl.textContent = loopState.enabled ? 'LOOPING' : 'IDLE';
-        setValueTone(statusEl, loopStatusTone(loopState));
-      }
-      if (detailEl) {
-        detailEl.textContent = formatLoopDetailText(target, loopState);
-      }
-      if (dwellEl && document.activeElement !== dwellEl) {
-        dwellEl.value = Math.max(1, Math.round(Number(loopState.dwellMs || defaultDwellMs) / 1000));
-      }
-      if (hangEl && document.activeElement !== hangEl) {
-        hangEl.value = Math.max(1, Math.round(Number(loopState.hangMs || defaultHangMs) / 1000));
-      }
-      if (pauseEl) {
-        pauseEl.checked = Boolean(loopState.pauseOnHit);
-      }
-      if (toggleEl) {
-        toggleEl.textContent = loopState.enabled ? 'Stop Loop' : 'Start Loop';
-      }
-      if (listEl) {
-        listEl.querySelectorAll('input[type="checkbox"][data-profile-id]').forEach((cb) => {
-          cb.addEventListener('change', () => {
-            const ids = collectLoopSelection(listEl);
-            state.profileLoop[target].selectedProfiles = ids;
-            setLoopDraftSelection(target, ids);
-            if (detailEl) {
-              detailEl.textContent = `${ids.length} selected (pending apply)`;
-            }
-            scheduleLoopAutoApply(target);
-          });
-        });
-      }
-      renderMainLoopIndicators();
-    }
-
-    function renderAnalogLoopControls() {
-      const target = activeTarget === 'ground' ? 'ground' : 'airband';
-      renderTargetLoopControls(
-        target,
-        els.loopList,
-        els.loopStatus,
-        els.loopDetail,
-        els.loopDwell,
-        els.loopHang,
-        els.loopPause,
-        els.loopToggle,
-        10000,
-        2000
-      );
-    }
-
-    function renderDigitalLoopControls() {
-      renderTargetLoopControls(
-        'digital',
-        els.digitalLoopList,
-        els.digitalLoopStatus,
-        els.digitalLoopDetail,
-        els.digitalLoopDwell,
-        els.digitalLoopHang,
-        els.digitalLoopPause,
-        els.digitalLoopToggle,
-        10000,
-        2000
-      );
-    }
-
-    function renderProfileLoopControls() {
-      renderAnalogLoopControls();
-      renderDigitalLoopControls();
-    }
-
-    async function applyProfileLoopConfig(target, enabledOverride = null) {
-      const targetName = normalizeLoopTarget(target);
-      const isDigital = targetName === 'digital';
-      const dwellEl = isDigital ? els.digitalLoopDwell : els.loopDwell;
-      const hangEl = isDigital ? els.digitalLoopHang : els.loopHang;
-      const pauseEl = isDigital ? els.digitalLoopPause : els.loopPause;
-      const loopState = updateLoopLocalSettingsFromInputs(targetName);
-      clearLoopAutoApplyTimer(targetName);
-      const selectedProfiles = selectedLoopProfilesForUi(targetName, loopState);
-      const requestedEnabled = enabledOverride === null
-        ? Boolean(loopState.enabled)
-        : Boolean(enabledOverride);
-      const canEnable = selectedProfiles.length >= 2;
-      const effectiveEnabled = requestedEnabled && canEnable;
-      loopState.enabled = effectiveEnabled;
-      const dwellSec = Number(dwellEl && dwellEl.value);
-      const hangSec = Number(hangEl && hangEl.value);
-      const payload = {
-        target: targetName,
-        enabled: effectiveEnabled,
-        selected_profiles: selectedProfiles,
-        dwell_ms: Number.isFinite(dwellSec) ? Math.round(dwellSec * 1000) : Number(loopState.dwellMs || 10000),
-        hang_ms: Number.isFinite(hangSec) ? Math.round(hangSec * 1000) : Number(loopState.hangMs || 2000),
-        pause_on_hit: Boolean(pauseEl && pauseEl.checked),
-      };
-      try {
-        const res = await postAPI('/api/profile-loop', payload, { timeoutMs: 12000 });
-        if (res && res.ok) {
-          clearLoopDraftSelection(targetName);
-          if (res.snapshot) {
-            applyProfileLoopPayload(res.snapshot);
-          }
-          logActivity(`Profile loop updated: ${targetName}`, 'info', `profile-loop-${targetName}`);
-          return;
-        }
-        logActivity(formatApiError(res, `Profile loop update failed (${targetName})`), 'warn', `profile-loop-${targetName}-failed`);
-      } catch (e) {
-        logActivity(messageFromError(e, `Profile loop update failed (${targetName})`), 'warn', `profile-loop-${targetName}-error`);
-      }
-      await refresh();
-    }
-
-    function selectAllLoopProfiles(target, checked) {
-      const loopState = state.profileLoop[target] || defaultProfileLoopState();
-      const available = Array.isArray(loopState.availableProfiles) && loopState.availableProfiles.length
-        ? loopState.availableProfiles
-        : fallbackLoopProfiles(target);
-      loopState.selectedProfiles = checked
-        ? available.map((row) => String(row.id || '').trim()).filter(Boolean)
-        : [];
-      if (!checked) {
-        loopState.enabled = false;
-      }
-      setLoopDraftSelection(target, loopState.selectedProfiles);
-      if (!checked) {
-        applyProfileLoopConfig(target, false);
-      } else {
-        scheduleLoopAutoApply(target);
-      }
-      if (target === 'digital') {
-        renderDigitalLoopControls();
-      } else {
-        renderAnalogLoopControls();
-      }
     }
 
     function setDigitalStatusMessage(message, isError=false) {
@@ -12036,23 +11266,9 @@ serverTimezone: null,
       els.digitalStatus.textContent = statusText;
       if (els.digitalDot) els.digitalDot.classList.toggle('active', Boolean(d.active));
       if (els.digitalBackend) els.digitalBackend.textContent = d.backend || '--';
-      const loopState = state.profileLoop.digital || defaultProfileLoopState();
-      const loopEnabled = Boolean(loopState.enabled);
       const runtimeProfile = String(d.profile || d.activeProfile || '').trim();
-      const loopProfile = String(loopState.currentProfile || loopState.activeProfile || '').trim();
       if (els.digitalProfile) {
-        const profileBase = runtimeProfile || '--';
-        if (loopEnabled) {
-          const next = loopState.nextProfile || '--';
-          if (loopProfile && runtimeProfile && loopProfile !== runtimeProfile) {
-            els.digitalProfile.textContent = `${profileBase} (switching→${loopProfile}, next→${next})`;
-          } else {
-            const shown = loopProfile || profileBase;
-            els.digitalProfile.textContent = `${shown} (loop→${next})`;
-          }
-        } else {
-          els.digitalProfile.textContent = profileBase;
-        }
+        els.digitalProfile.textContent = runtimeProfile || '--';
       }
       const hold = state.hold.digital;
       const label = (hold && hold.label) || d.lastLabel;
@@ -12090,18 +11306,7 @@ serverTimezone: null,
       const activeSystemRow = systemHealthRows.find((row) => row && row.active) || null;
       const systemHealthSummary = summarizeDigitalSystemHealthRows();
       if (els.digitalSystemHealth) {
-        if (loopEnabled) {
-          const activeLabel = loopLabelForTarget('digital', loopState.currentProfile || loopState.activeProfile || '--');
-          const nextLabel = loopLabelForTarget('digital', loopState.nextProfile || '--');
-          const reason = loopSwitchReasonForDisplay('digital', loopState.switchReason) || '--';
-          const switches = Number(loopState.switchCount || 0);
-          els.digitalSystemHealth.textContent = `● ${activeLabel}:${ccHealth.label} | next=${nextLabel}`;
-          if (ccHealth.tone) {
-            setValueTone(els.digitalSystemHealth, ccHealth.tone);
-          } else {
-            setValueTone(els.digitalSystemHealth, '');
-          }
-        } else if (!systemHealthRows.length) {
+        if (!systemHealthRows.length) {
           els.digitalSystemHealth.textContent = '--';
           setValueTone(els.digitalSystemHealth, '');
         } else {
@@ -12113,7 +11318,6 @@ serverTimezone: null,
       renderDongleHealth(state.systemStats);
       updateDigitalProfileSelect();
       updateDigitalProfilesList();
-      renderDigitalLoopControls();
     }
 
     async function runDigitalAction(action) {
@@ -13483,8 +12687,6 @@ serverTimezone: null,
 
     function getDigitalControlChannelHealth() {
       const d = state.digital || {};
-      const loopState = state.profileLoop?.digital || defaultProfileLoopState();
-      const loopEnabled = Boolean(loopState.enabled);
       const systemSummary = summarizeDigitalSystemHealthRows();
       const sourceType = String(d.playlistSourceType || '').trim();
       const metricReady = Boolean(d.controlMetricReady);
@@ -13501,47 +12703,9 @@ serverTimezone: null,
       const activityText = hasRecentActivity
         ? `Recent digital activity ${formatDurationCompact(activityAgeMs)} ago`
         : '';
-      const runtimeProfile = String(d.profile || '').trim();
-      const loopProfile = String(loopState.currentProfile || loopState.activeProfile || '').trim();
-      const switchingMismatch = Boolean(loopEnabled && runtimeProfile && loopProfile && runtimeProfile !== loopProfile);
-      const dwellMs = Number.isFinite(loopState.dwellMs) ? Number(loopState.dwellMs) : 0;
-      const lastSwitchAgeMs = Math.max(0, Date.now() - Number(loopState.lastSwitchTimeMs || 0));
-      const switchingGraceMs = Math.max(6000, dwellMs * 2);
 
       if (!d.active) {
         return { label: 'OFFLINE', tone: 'bad', detail: 'Digital decoder stopped' };
-      }
-      if (loopEnabled) {
-        const loopError = String(loopState.lastError || '').trim();
-        if (loopError) {
-          return {
-            label: 'LOOP ERR',
-            tone: 'bad',
-            detail: trimServiceNote(loopError),
-          };
-        }
-        if (hasRecentActivity) {
-          const activeName = loopProfile || runtimeProfile || '--';
-          return {
-            label: 'ACTIVE',
-            tone: 'good',
-            detail: `Loop active=${activeName}; ${activityText || 'recent traffic'}`,
-          };
-        }
-        if (switchingMismatch && lastSwitchAgeMs <= switchingGraceMs) {
-          return {
-            label: 'SWITCHING',
-            tone: 'warn',
-            detail: `Runtime=${runtimeProfile}; loop target=${loopProfile}; ${formatDurationCompact(lastSwitchAgeMs)} since switch`,
-          };
-        }
-        return {
-          label: 'SCANNING',
-          tone: 'good',
-          detail: switchingMismatch
-            ? `Runtime=${runtimeProfile || '--'}; loop target=${loopProfile || '--'}`
-            : 'No recent digital traffic yet',
-        };
       }
       if (systemSummary) {
         const detailBase = `${systemSummary.lockedCount}/${systemSummary.assignedCount} systems locked`;
@@ -14488,26 +13652,6 @@ serverTimezone: null,
       updateSitrep();
     }
     
-    function flashTabForTarget(target) {
-      const tabMap = {
-        airband: els.tabAirband,
-        ground: els.tabGround,
-        digital: els.tabDigital,
-        philly: els.tabPhilly,
-      };
-      const tab = tabMap[target];
-      if (!tab) return;
-      tab.classList.remove('tab-flash');
-      // Force reflow so the animation restarts on rapid repeat clicks.
-      void tab.offsetWidth;
-      const onEnd = () => {
-        tab.classList.remove('tab-flash');
-        tab.removeEventListener('animationend', onEnd);
-      };
-      tab.addEventListener('animationend', onEnd);
-      tab.classList.add('tab-flash');
-    }
-
     function switchTarget(target) {
       activeView = target;
       if (target === 'airband' || target === 'ground') {
@@ -14517,14 +13661,7 @@ serverTimezone: null,
       els.tabGround.classList.toggle('active', target === 'ground');
       if (els.tabDigital) els.tabDigital.classList.toggle('active', target === 'digital');
       if (els.tabPhilly) els.tabPhilly.classList.toggle('active', target === 'philly');
-      // Airband pane (#controls-analog) holds the shared analog controls
-      // AND the Airband player-box.  We show it for both 'airband' and
-      // 'ground' so the gain/squelch UI keeps working on the Ground tab
-      // (state binds via activeTarget).  The Airband <audio> itself is
-      // hidden when the active tab is Ground via #player-box-analog.
-      if (els.controlsAnalog) els.controlsAnalog.classList.toggle('hidden', target !== 'airband' && target !== 'ground');
-      if (els.controlsGround) els.controlsGround.classList.toggle('hidden', target !== 'ground');
-      if (els.playerBoxAnalog) els.playerBoxAnalog.classList.toggle('hidden', target !== 'airband');
+      if (els.controlsAnalog) els.controlsAnalog.classList.toggle('hidden', target === 'digital' || target === 'philly');
       if (els.controlsDigital) els.controlsDigital.classList.toggle('hidden', target !== 'digital');
       if (els.controlsPhilly) els.controlsPhilly.classList.toggle('hidden', target !== 'philly');
       if (els.profilesWidget) els.profilesWidget.classList.toggle('hidden', target === 'digital' || target === 'philly');
@@ -15356,9 +14493,7 @@ serverTimezone: null,
           if (!isActive && preset.autoProvision) {
             await ensureBandScanProfile(preset);
           }
-          const previousView = activeView;
           switchTarget(target);
-          if (target !== previousView) flashTabForTarget(target);
           const ok = await selectProfileForTarget(target, nextProfile, true);
           if (ok) {
             if (isActive) {
@@ -15607,8 +14742,6 @@ serverTimezone: null,
 
           state.serverTime = data.server_time;
           state.serverTimezone = data.server_timezone || null;
-          state.strippedCustomFavorites = (data && typeof data.stripped_custom_favorites === "object" && data.stripped_custom_favorites) ? data.stripped_custom_favorites : {};
-          try { renderStrippedFavoritesBanner(); } catch (e) { console.error("renderStrippedFavoritesBanner:", e); }
           state.v3Compile = data.v3_compile || null;
           state.preflight = data.preflight || { airband: null, ground: null, digital: null };
           state.health = data.health || { overall: { state: 'unknown', reasonCodes: [] }, subsystems: {} };
@@ -15787,8 +14920,21 @@ serverTimezone: null,
             data.rtl_ground_service_active || data.ground_active
           );
           state.icecastActive = data.icecast_active;
-          // Ground band is now exposed via its own tab + #controls-ground
-          // pane (fixed /ANALOG_GROUND.mp3 src). No band-selector gate.
+          // Reveal the band selector once we observe the ground
+          // mount publishing (i.e. we're post-cutover).  Sticky:
+          // once we've seen it alive even once, keep the selector
+          // visible across transient mount drops so the user can
+          // pick which band to wait on.
+          if (data.icecast_mount_analog_ground_alive) {
+            state.analogGroundMountEverAlive = true;
+          }
+          if (state.analogGroundMountEverAlive) {
+            const selector = document.getElementById('analog-band-selector');
+            if (selector) {
+              selector.classList.remove('hidden');
+              selector.style.display = '';
+            }
+          }
           if (typeof data.ground_unit_active === 'boolean') {
             state.groundUnitActive = data.ground_unit_active;
           }
@@ -15823,8 +14969,6 @@ serverTimezone: null,
           state.lastHit = data.last_hit || state.lastHit;
           state.serverTime = data.server_time;
           state.serverTimezone = data.server_timezone || null;
-          state.strippedCustomFavorites = (data && typeof data.stripped_custom_favorites === "object" && data.stripped_custom_favorites) ? data.stripped_custom_favorites : {};
-          try { renderStrippedFavoritesBanner(); } catch (e) { console.error("renderStrippedFavoritesBanner:", e); }
           state.lastStatusTick = Date.now();
           if (
             (data.hp_favorites_sync && typeof data.hp_favorites_sync === 'object')
@@ -16406,52 +15550,6 @@ serverTimezone: null,
         els.btnBandscanRail.addEventListener('click', applyBandScanRail);
       }
       updateQuickScanButtons();
-      if (els.loopSave) {
-        els.loopSave.addEventListener('click', () => {
-          const target = activeTarget === 'ground' ? 'ground' : 'airband';
-          applyProfileLoopConfig(target, null);
-        });
-      }
-      if (els.loopToggle) {
-        els.loopToggle.addEventListener('click', () => {
-          const target = activeTarget === 'ground' ? 'ground' : 'airband';
-          const enabled = Boolean((state.profileLoop[target] || {}).enabled);
-          applyProfileLoopConfig(target, !enabled);
-        });
-      }
-      if (els.loopDwell) {
-        els.loopDwell.addEventListener('change', () => {
-          const target = activeTarget === 'ground' ? 'ground' : 'airband';
-          updateLoopLocalSettingsFromInputs(target);
-          scheduleLoopAutoApply(target);
-        });
-      }
-      if (els.loopHang) {
-        els.loopHang.addEventListener('change', () => {
-          const target = activeTarget === 'ground' ? 'ground' : 'airband';
-          updateLoopLocalSettingsFromInputs(target);
-          scheduleLoopAutoApply(target);
-        });
-      }
-      if (els.loopPause) {
-        els.loopPause.addEventListener('change', () => {
-          const target = activeTarget === 'ground' ? 'ground' : 'airband';
-          updateLoopLocalSettingsFromInputs(target);
-          scheduleLoopAutoApply(target);
-        });
-      }
-      if (els.loopSelectAll) {
-        els.loopSelectAll.addEventListener('click', () => {
-          const target = activeTarget === 'ground' ? 'ground' : 'airband';
-          selectAllLoopProfiles(target, true);
-        });
-      }
-      if (els.loopClear) {
-        els.loopClear.addEventListener('click', () => {
-          const target = activeTarget === 'ground' ? 'ground' : 'airband';
-          selectAllLoopProfiles(target, false);
-        });
-      }
       document.getElementById('btn-avoid').addEventListener('click', async function() {
         const btn = document.getElementById('btn-avoid');
         btn.disabled = true;
@@ -16489,39 +15587,6 @@ serverTimezone: null,
       }
       if (els.digitalProfileSelect) {
         els.digitalProfileSelect.addEventListener('change', onDigitalProfileChange);
-      }
-      if (els.digitalLoopSave) {
-        els.digitalLoopSave.addEventListener('click', () => applyProfileLoopConfig('digital', null));
-      }
-      if (els.digitalLoopToggle) {
-        els.digitalLoopToggle.addEventListener('click', () => {
-          const enabled = Boolean((state.profileLoop.digital || {}).enabled);
-          applyProfileLoopConfig('digital', !enabled);
-        });
-      }
-      if (els.digitalLoopDwell) {
-        els.digitalLoopDwell.addEventListener('change', () => {
-          updateLoopLocalSettingsFromInputs('digital');
-          scheduleLoopAutoApply('digital');
-        });
-      }
-      if (els.digitalLoopHang) {
-        els.digitalLoopHang.addEventListener('change', () => {
-          updateLoopLocalSettingsFromInputs('digital');
-          scheduleLoopAutoApply('digital');
-        });
-      }
-      if (els.digitalLoopPause) {
-        els.digitalLoopPause.addEventListener('change', () => {
-          updateLoopLocalSettingsFromInputs('digital');
-          scheduleLoopAutoApply('digital');
-        });
-      }
-      if (els.digitalLoopSelectAll) {
-        els.digitalLoopSelectAll.addEventListener('click', () => selectAllLoopProfiles('digital', true));
-      }
-      if (els.digitalLoopClear) {
-        els.digitalLoopClear.addEventListener('click', () => selectAllLoopProfiles('digital', false));
       }
       if (els.digitalManageCreate) {
         els.digitalManageCreate.addEventListener('click', createDigitalProfile);
@@ -16935,27 +16000,6 @@ serverTimezone: null,
       if (els.profileEditorOpenDigital) {
         els.profileEditorOpenDigital.addEventListener('click', () => openProfileEditorSidecar('digital'));
       }
-      if (els.profileLoopOpenAnalog) {
-        els.profileLoopOpenAnalog.addEventListener('click', () => openProfileLoopSidecar('analog'));
-      }
-      if (els.profileLoopOpenDigital) {
-        els.profileLoopOpenDigital.addEventListener('click', () => openProfileLoopSidecar('digital'));
-      }
-      if (els.profileLoopSidecarClose) {
-        els.profileLoopSidecarClose.addEventListener('click', closeProfileLoopSidecar);
-      }
-      if (els.profileLoopSidecarOverlay) {
-        els.profileLoopSidecarOverlay.addEventListener('click', closeProfileLoopSidecar);
-      }
-      if (els.profileLoopTabAnalog) {
-        els.profileLoopTabAnalog.addEventListener('click', () => setProfileLoopTab('analog'));
-      }
-      if (els.profileLoopTabDigital) {
-        els.profileLoopTabDigital.addEventListener('click', () => setProfileLoopTab('digital'));
-      }
-      if (els.profileLoopRefresh) {
-        els.profileLoopRefresh.addEventListener('click', () => refresh());
-      }
       if (els.profileSidecarClose) {
         els.profileSidecarClose.addEventListener('click', closeProfileEditorSidecar);
       }
@@ -17181,9 +16225,44 @@ serverTimezone: null,
         els.btnRestartGround.addEventListener('click', () => restartService('ground', 'Ground'));
       }
 
-      // (Removed) MA/SL analog band-selector handlers — each tab now
-      // owns its own <audio> with a fixed mount, no swap needed.
-
+      // MA/SL analog band selector click handlers.  Restoring the
+      // last-used band from localStorage so refresh / restart picks
+      // up where the user left off; default airband.
+      try {
+        const stored = localStorage.getItem('preferredAnalogBand');
+        if (stored === 'airband' || stored === 'ground') {
+          state.preferredAnalogBand = stored;
+        }
+      } catch (e) { /* localStorage may be blocked; default stands */ }
+      const bandButtons = document.querySelectorAll('.analog-band-btn');
+      bandButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const band = btn.dataset.band;
+          if (band !== 'airband' && band !== 'ground') return;
+          if (state.preferredAnalogBand === band) return;
+          state.preferredAnalogBand = band;
+          try { localStorage.setItem('preferredAnalogBand', band); } catch (e) { /* ignore */ }
+          bandButtons.forEach((b) => {
+            b.classList.toggle(
+              'analog-band-btn-active',
+              b.dataset.band === band,
+            );
+          });
+          // Switch the embedded player over to the new mount.  The
+          // reload keeps the same playing/paused state — if the user
+          // was listening, they continue listening on the new band.
+          try { reloadAnalogStream('band-switch', true); } catch (e) {
+            logActivity('Band switch failed: ' + e, 'warn', 'band-switch-fail');
+          }
+        });
+      });
+      // Reflect any restored preference in the initial button state.
+      bandButtons.forEach((b) => {
+        b.classList.toggle(
+          'analog-band-btn-active',
+          b.dataset.band === state.preferredAnalogBand,
+        );
+      });
       if (els.btnRestartDigital) {
         els.btnRestartDigital.addEventListener('click', () => restartService('digital', 'Digital'));
       }
