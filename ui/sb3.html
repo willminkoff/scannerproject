@@ -3104,14 +3104,6 @@
                 <div class="band-scan-grid">
                   <button
                     class="action quick-scan-action"
-                    id="btn-ground-gmrs-frs-murs"
-                    type="button"
-                    title="Switch to Ground and scan GMRS/FRS/MURS"
-                  >
-                    GMRS/FRS/MURS
-                  </button>
-                  <button
-                    class="action quick-scan-action"
                     id="btn-ground-wx"
                     type="button"
                     title="Switch to Ground and scan NOAA Weather Radio"
@@ -4312,10 +4304,8 @@
     const TEMP_ALARM_AMBIENT_F = 185.0;
     const TEMP_ALARM_HYSTERESIS_F = 5.0;
     const TEMP_ALARM_COOLDOWN_MS = 5 * 60 * 1000;
-    const QUICK_GROUND_GMRS_FRS_MURS_PROFILE_ID = 'gmrs_frs_murs';
     const QUICK_GROUND_WX_PROFILE_ID = 'wx';
     const QUICK_GROUND_OFF_PROFILE_ID = 'none_ground';
-    const QUICK_GROUND_GMRS_LABEL = 'GMRS/FRS/MURS';
     const QUICK_GROUND_WX_LABEL = 'WX';
     const QUICK_AIRBAND_OFF_PROFILE_ID = 'none_airband';
     const BAND_SCAN_COLLAPSED_STORAGE_KEY = 'sb3-band-scan-collapsed';
@@ -4440,50 +4430,6 @@
         `CH ${String(idx + 1).padStart(2, '0')}`,
       ])
     );
-    const GMRS_CHANNEL_LABELS_BY_FREQ = new Map([
-      ['462.5625', 'CH 01'],
-      ['462.5875', 'CH 02'],
-      ['462.6125', 'CH 03'],
-      ['462.6375', 'CH 04'],
-      ['462.6625', 'CH 05'],
-      ['462.6875', 'CH 06'],
-      ['462.7125', 'CH 07'],
-      ['467.5625', 'CH 08'],
-      ['467.5875', 'CH 09'],
-      ['467.6125', 'CH 10'],
-      ['467.6375', 'CH 11'],
-      ['467.6625', 'CH 12'],
-      ['467.6875', 'CH 13'],
-      ['467.7125', 'CH 14'],
-      ['462.5500', 'CH 15'],
-      ['462.5750', 'CH 16'],
-      ['462.6000', 'CH 17'],
-      ['462.6250', 'CH 18'],
-      ['462.6500', 'CH 19'],
-      ['462.6750', 'CH 20'],
-      ['462.7000', 'CH 21'],
-      ['462.7250', 'CH 22'],
-      ['467.5500', 'CH 15R'],
-      ['467.5750', 'CH 16R'],
-      ['467.6000', 'CH 17R'],
-      ['467.6250', 'CH 18R'],
-      ['467.6500', 'CH 19R'],
-      ['467.6750', 'CH 20R'],
-      ['467.7000', 'CH 21R'],
-      ['467.7250', 'CH 22R'],
-    ]);
-    const MURS_CHANNEL_FREQS_MHZ = [
-      151.8200,
-      151.8800,
-      151.9400,
-      154.5700,
-      154.6000,
-    ];
-    const GMRS_FRS_MURS_BANDSCAN_FREQS_MHZ = Array.from(new Set([
-      ...Array.from(GMRS_CHANNEL_LABELS_BY_FREQ.keys()).map((freq) => Number(freq)),
-      ...MURS_CHANNEL_FREQS_MHZ,
-    ])).filter((freq) => Number.isFinite(freq)).sort((a, b) => a - b);
-
     function buildLinearBandFrequencies(startMhz, endMhz, stepMhz, decimals = 4) {
       const factor = Math.pow(10, Math.max(0, Math.trunc(Number(decimals) || 0)));
       const startUnits = Math.round(Number(startMhz) * factor);
@@ -4516,21 +4462,6 @@
     }
 
     const BAND_SCAN_PRESETS = [
-      {
-        key: 'gmrs_frs_murs',
-        buttonId: 'btn-ground-gmrs-frs-murs',
-        target: 'ground',
-        profileId: QUICK_GROUND_GMRS_FRS_MURS_PROFILE_ID,
-        stopProfileId: QUICK_GROUND_OFF_PROFILE_ID,
-        label: QUICK_GROUND_GMRS_LABEL,
-        profileLabel: 'GMRS/FRS/MURS',
-        modulation: 'nfm',
-        bandwidth: 12500,
-        buildFrequencies: () => GMRS_FRS_MURS_BANDSCAN_FREQS_MHZ.slice(),
-        inactiveTitle: 'Switch to Ground and scan GMRS/FRS/MURS',
-        activeTitle: 'GMRS/FRS/MURS scan active. Tap again to stop.',
-        autoProvision: true,
-      },
       {
         key: 'wx',
         buttonId: 'btn-ground-wx',
@@ -4978,7 +4909,6 @@
       bandScan: document.getElementById('band-scan'),
       bandScanBody: document.getElementById('band-scan-body'),
       bandScanToggle: document.getElementById('band-scan-toggle'),
-      btnGroundGmrsFrsMurs: document.getElementById('btn-ground-gmrs-frs-murs'),
       btnGroundWx: document.getElementById('btn-ground-wx'),
       btnBandscanAirband: document.getElementById('btn-bandscan-airband'),
       btnBandscanMarine: document.getElementById('btn-bandscan-marine'),
@@ -11806,12 +11736,6 @@
       return CB_CHANNEL_LABELS_BY_FREQ.get(num.toFixed(3)) || '';
     }
 
-    function gmrsChannelLabelFromFreq(freq) {
-      const num = Number(freq);
-      if (!Number.isFinite(num)) return '';
-      return GMRS_CHANNEL_LABELS_BY_FREQ.get(num.toFixed(4)) || '';
-    }
-
     function activeGroundProfileId() {
       const profileId = String(((state && state.ground) ? state.ground.currentProfile : '') || '').trim().toLowerCase();
       return profileId;
@@ -11825,15 +11749,9 @@
       return activeGroundProfileId() === 'bandscan_cb';
     }
 
-    function isGmrsProfileActive() {
-      const profileId = activeGroundProfileId();
-      return profileId === QUICK_GROUND_GMRS_FRS_MURS_PROFILE_ID || profileId === 'gmrs';
-    }
-
     function groundChannelLabelFromFreq(freq) {
       if (isMarineBandScanActive()) return marineChannelLabelFromFreq(freq);
       if (isCbBandScanActive()) return cbChannelLabelFromFreq(freq);
-      if (isGmrsProfileActive()) return gmrsChannelLabelFromFreq(freq);
       return '';
     }
 
@@ -14355,10 +14273,6 @@
       });
     }
 
-    async function applyGroundQuickGmrsFrsMurs() {
-      await applyBandScanPresetByKey('gmrs_frs_murs');
-    }
-
     async function applyGroundQuickWx() {
       await applyBandScanPresetByKey('wx');
     }
@@ -15361,9 +15275,6 @@
           const nextCollapsed = !els.bandScan.classList.contains('collapsed');
           setBandScanCollapsed(nextCollapsed, true);
         });
-      }
-      if (els.btnGroundGmrsFrsMurs) {
-        els.btnGroundGmrsFrsMurs.addEventListener('click', applyGroundQuickGmrsFrsMurs);
       }
       if (els.btnGroundWx) {
         els.btnGroundWx.addEventListener('click', applyGroundQuickWx);

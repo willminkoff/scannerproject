@@ -124,8 +124,6 @@ def _infer_airband_flag(profile_id: str, path: str) -> Optional[bool]:
         "airband": True,
         "tower": True,
         "none_airband": True,
-        "gmrs": False,
-        "gmrs_frs_murs": False,
         "wx": False,
         "acars": False,
         "radiosonde": False,

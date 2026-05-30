@@ -383,11 +383,6 @@ PROFILES = [
     ("acars", "ACARS Weather", os.path.join(PROFILES_DIR, "rtl_airband_acars.conf")),
     ("radiosonde", "Radiosonde", os.path.join(PROFILES_DIR, "rtl_airband_radiosonde.conf")),
     ("none_ground", "No Profile", os.path.join(PROFILES_DIR, "rtl_airband_none_ground.conf")),
-    ("campbell_ground", "Ft. Campbell", os.path.join(PROFILES_DIR, "rtl_airband_campbell_ground.conf")),
-    ("campbell_nfm", "Ft. Campbell NFM", os.path.join(PROFILES_DIR, "rtl_airband_campbell_nfm.conf")),
-    ("gmrs",   "GMRS", os.path.join(PROFILES_DIR, "rtl_airband_gmrs.conf")),
-    ("gmrs_frs_murs", "GMRS/FRS/MURS", os.path.join(PROFILES_DIR, "rtl_airband_gmrs_frs_murs.conf")),
-    ("mtears", "MTEARS", os.path.join(PROFILES_DIR, "rtl_airband_mtears.conf")),
     ("wx",     "WX (162.550)", os.path.join(PROFILES_DIR, "rtl_airband_wx.conf")),
 ]
 
