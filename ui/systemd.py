@@ -108,6 +108,7 @@ def _wait_for_rtl_airband_health(
     timeout_sec: float = 30.0,
     poll_interval_sec: float = 2.0,
     stats_path: Optional[str] = None,
+    mount_name: Optional[str] = None,
 ) -> Tuple[bool, str]:
     """Poll ``rtl_airband_stats.txt`` until sample_flow_ok or timeout.
 
@@ -1218,6 +1219,7 @@ def _restart_rtl_service(
     target_unit: str,
     peer_unit: str,
     stats_path: str,
+    mount_name: str,
     state_lock: threading.Lock,
     state: dict,
     reason: str,
@@ -1387,7 +1389,7 @@ def _restart_rtl_service(
                     timeout_sec=probe_timeout_sec,
                     poll_interval_sec=probe_poll_sec,
                     stats_path=stats_path,
-                    mount_name=target_mount,
+                    mount_name=mount_name,
                 )
                 _record_service_health_probe(
                     state_lock, state,
@@ -1425,7 +1427,7 @@ def _restart_rtl_service(
                     timeout_sec=probe_timeout_sec,
                     poll_interval_sec=probe_poll_sec,
                     stats_path=stats_path,
-                    mount_name=target_mount,
+                    mount_name=mount_name,
                 )
                 _record_service_health_probe(
                     state_lock, state,
@@ -1505,6 +1507,7 @@ def restart_rtl_airband(reason: str = "unspecified") -> Tuple[bool, str]:
         target_unit=str(UNITS.get("rtl_airband") or "").strip(),
         peer_unit=str(UNITS.get("rtl_ground") or "").strip(),
         stats_path=RTL_AIRBAND_AIRBAND_STATS_PATH,
+        mount_name=RTL_AIRBAND_AIRBAND_MOUNT,
         state_lock=_RTL_AIRBAND_RESTART_STATE_LOCK,
         state=_RTL_AIRBAND_RESTART_STATE,
         reason=reason,
@@ -1524,6 +1527,7 @@ def restart_rtl_ground(reason: str = "unspecified") -> Tuple[bool, str]:
         target_unit=str(UNITS.get("rtl_ground") or "").strip(),
         peer_unit=str(UNITS.get("rtl_airband") or "").strip(),
         stats_path=RTL_AIRBAND_GROUND_STATS_PATH,
+        mount_name=RTL_AIRBAND_GROUND_MOUNT,
         state_lock=_RTL_GROUND_RESTART_STATE_LOCK,
         state=_RTL_GROUND_RESTART_STATE,
         reason=reason,
