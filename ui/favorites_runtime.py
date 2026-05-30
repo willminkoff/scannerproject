@@ -1587,17 +1587,24 @@ def sync_scan_pool_to_analog_runtime(
                 except ImportError:
                     from ui.actions import _select_analog_restart
                 targets_to_restart: list[str] = []
-                # Fix C: AND-gate switched_X with real per-target on-disk delta.
-                # _switch_profile_if_needed flips switched_X whenever the
-                # registry-recorded active profile disagrees with the on-disk
-                # symlink, even when the on-disk conf is already correct.  Only
-                # restart when the profile flip is accompanied by an actual
-                # change to that band's frequencies/labels or controls.
-                air_needs_restart = switched_air and (
+                # Fix C v2: per-band restart gated on the real on-disk change
+                # signal only.  switched_X is the registry-vs-symlink drift
+                # indicator and is orthogonal to whether the rendered .conf
+                # actually changed; on a UI-initiated profile change the disk
+                # delta arrives as profile_write_changed[band]=True with
+                # switched_X=False (the symlink was flipped on a prior sync).
+                # The original Fix C AND-gate blocked that legitimate restart
+                # and let the combined_changed fallback cascade both bands.
+                # A band restarts iff its own content changed; switched_X is
+                # informational only (still logged for forensic value).  The
+                # boot-reapply-no-change path stays quiet because Fix D
+                # (commit a351ab3) ensures both write_changed and
+                # controls_changed are False on a no-op cycle.
+                air_needs_restart = (
                     profile_write_changed.get("airband", False)
                     or profile_controls_changed.get("airband", False)
                 )
-                ground_needs_restart = switched_ground and (
+                ground_needs_restart = (
                     profile_write_changed.get("ground", False)
                     or profile_controls_changed.get("ground", False)
                 )
@@ -1626,7 +1633,13 @@ def sync_scan_pool_to_analog_runtime(
                     targets_to_restart.append("ground")
                 if not targets_to_restart and combined_changed:
                     # Combined wrapper changed but no per-band delta — restart
-                    # both as a conservative fallback.  Rare in normal operation.
+                    # both as a conservative fallback.  Rare in normal operation
+                    # (wrapper-only edit).  Logged at WARNING so cascade-restart
+                    # events stay visible in the journal.
+                    logger.warning(
+                        "favorites_runtime gate: combined_changed=True with no "
+                        "per-band signal, falling back to restart both"
+                    )
                     targets_to_restart = ["airband", "ground"]
                 for _tgt in targets_to_restart:
                     try:
