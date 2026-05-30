@@ -1587,16 +1587,41 @@ def sync_scan_pool_to_analog_runtime(
                 except ImportError:
                     from ui.actions import _select_analog_restart
                 targets_to_restart: list[str] = []
-                if switched_air:
+                # Fix C: AND-gate switched_X with real per-target on-disk delta.
+                # _switch_profile_if_needed flips switched_X whenever the
+                # registry-recorded active profile disagrees with the on-disk
+                # symlink, even when the on-disk conf is already correct.  Only
+                # restart when the profile flip is accompanied by an actual
+                # change to that band's frequencies/labels or controls.
+                air_needs_restart = switched_air and (
+                    profile_write_changed.get("airband", False)
+                    or profile_controls_changed.get("airband", False)
+                )
+                ground_needs_restart = switched_ground and (
+                    profile_write_changed.get("ground", False)
+                    or profile_controls_changed.get("ground", False)
+                )
+                if air_needs_restart:
                     targets_to_restart.append("airband")
-                if switched_ground:
+                if ground_needs_restart:
                     targets_to_restart.append("ground")
-                if not targets_to_restart:
-                    # combined_changed alone: both halves rendered configs
-                    # may have shifted.  Restart both, MA first.
+                if not targets_to_restart and combined_changed:
+                    # Combined wrapper changed but no per-band delta — restart
+                    # both as a conservative fallback.  Rare in normal operation.
                     targets_to_restart = ["airband", "ground"]
                 for _tgt in targets_to_restart:
-                    _ok, _err = _select_analog_restart(_tgt)
+                    try:
+                        _ok, _err = _select_analog_restart(_tgt)
+                    except Exception as exc:
+                        logger.warning(
+                            "favorites_runtime: per-target restart %s failed: %s",
+                            _tgt,
+                            exc,
+                        )
+                        restart_ok = False
+                        restart_error = str(exc)
+                        errors.append(f"{_tgt} restart failed: {exc}")
+                        continue
                     if not _ok:
                         restart_ok = False
                         if _err:
