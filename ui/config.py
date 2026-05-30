@@ -336,13 +336,20 @@ BT_HEAL_DEFAULT_ENABLED = os.getenv("BT_HEAL_DEFAULT_ENABLED", "0").strip().lowe
 #                                  introduced by the split.  Master
 #                                  (airband) + Slave (ground) on the
 #                                  same RSPduo, daemon-coordinated.
-#   "rtl" — legacy alias for the pre-split single-process unit.
-#           Kept so rollback works and so any out-of-tree caller that
-#           still references UNITS["rtl"] keeps working.  Resolves to
-#           "rtl-airband" which is the OLD unit name; the split
-#           cutover script masks it.
+#   "rtl" — legacy alias retained for backward compat with in-tree
+#           callers that still reference UNITS["rtl"]:
+#             - ui/handlers.py state-check call sites
+#             - ui/diagnostic.py status / journal dumps
+#             - ui/scanner.py hit-list / last-hit reads
+#             - ui/systemd.py legacy restart_rtl() and stop/start seq
+#             - ui/dongle_power.py power-on/power-off sequencing
+#           Post-MA/SL-split it resolves to the master tuner unit
+#           (rtl-airband-airband); the slave follows via Requires=
+#           cascade, preserving pre-split single-unit semantics for
+#           these consumers.  Env-var name UNIT_RTL is preserved so
+#           operator deployments overriding it continue to work.
 UNITS = {
-    "rtl": os.getenv("UNIT_RTL", "rtl-airband"),
+    "rtl": os.getenv("UNIT_RTL", "rtl-airband-airband"),
     "rtl_airband": os.getenv("UNIT_RTL_AIRBAND", "rtl-airband-airband"),
     "rtl_ground":  os.getenv("UNIT_RTL_GROUND",  "rtl-airband-ground"),
     "ground": os.getenv("UNIT_GROUND", "rtl-airband-ground"),
