@@ -1601,6 +1601,25 @@ def sync_scan_pool_to_analog_runtime(
                     profile_write_changed.get("ground", False)
                     or profile_controls_changed.get("ground", False)
                 )
+                # Fix D: structured gate log so future restart investigations
+                # are grep-able from the journal in a single shot rather than
+                # requiring forensic reconstruction of write_controls return
+                # paths and profile_write_changed transitions.
+                logger.info(
+                    "favorites_runtime gate: "
+                    "air switched=%s write=%s controls=%s -> restart=%s; "
+                    "ground switched=%s write=%s controls=%s -> restart=%s; "
+                    "combined_changed=%s",
+                    switched_air,
+                    profile_write_changed.get("airband", False),
+                    profile_controls_changed.get("airband", False),
+                    air_needs_restart,
+                    switched_ground,
+                    profile_write_changed.get("ground", False),
+                    profile_controls_changed.get("ground", False),
+                    ground_needs_restart,
+                    combined_changed,
+                )
                 if air_needs_restart:
                     targets_to_restart.append("airband")
                 if ground_needs_restart:

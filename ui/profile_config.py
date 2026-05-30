@@ -518,25 +518,33 @@ def write_controls(conf_path: str, gain: float, squelch_mode: str, squelch_snr: 
     saw_snr = False
     saw_dbfs = False
     snr_insert_idx = None
-    for line in lines:
+    for raw in lines:
+        # Fix D: rstrip the trailing newline before matching/comparing.  The
+        # group(3) captures of RE_GAIN / RE_SQL / RE_SQL_DBFS end in \s*$, and
+        # because \s matches \n in default regex mode, the captured tail
+        # already contains the source line's '\n'.  Appending an extra '\n'
+        # to the rebuilt line guaranteed new_line != line on every call,
+        # which falsely reported changed=True even on no-op writes.  Compare
+        # without trailing '\n' and append it consistently on output.
+        line = raw.rstrip("\n")
         m = RE_GAIN.match(line)
         if m:
-            new_line = f"{m.group(1)}{gain:.3f}{m.group(3)}\n"
+            new_line = f"{m.group(1)}{gain:.3f}{m.group(3)}"
             if new_line != line:
                 changed = True
-            out.append(new_line)
+            out.append(new_line + "\n")
             continue
         m = RE_SQL.match(line)
         if m:
             if squelch_mode == "dbfs":
                 indent_match = re.match(r'^(\s*)', line)
                 indent = indent_match.group(1) if indent_match else ""
-                new_line = f"{indent}// squelch_snr_threshold = {squelch_snr:.3f};  # UI_CONTROLLED\n"
+                new_line = f"{indent}// squelch_snr_threshold = {squelch_snr:.3f};  # UI_CONTROLLED"
             else:
-                new_line = f"{m.group(1)}{squelch_snr:.3f}{m.group(3)}\n"
+                new_line = f"{m.group(1)}{squelch_snr:.3f}{m.group(3)}"
             if new_line != line:
                 changed = True
-            out.append(new_line)
+            out.append(new_line + "\n")
             saw_snr = True
             snr_insert_idx = len(out)
             continue
@@ -544,13 +552,13 @@ def write_controls(conf_path: str, gain: float, squelch_mode: str, squelch_snr: 
         if m:
             value = squelch_dbfs if squelch_mode == "dbfs" else 0.0
             value_int = int(round(value))
-            new_line = f"{m.group(1)}{value_int}{m.group(3)}\n"
+            new_line = f"{m.group(1)}{value_int}{m.group(3)}"
             if new_line != line:
                 changed = True
-            out.append(new_line)
+            out.append(new_line + "\n")
             saw_dbfs = True
             continue
-        out.append(line)
+        out.append(raw)
 
     if not saw_dbfs:
         value = squelch_dbfs if squelch_mode == "dbfs" else 0.0
