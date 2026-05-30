@@ -1447,6 +1447,66 @@ def sync_scan_pool_to_runtime(force: bool = False) -> dict[str, Any]:
     return payload
 
 
+def compute_restart_targets(
+    *,
+    switched_air: bool,
+    switched_ground: bool,
+    profile_write_changed: dict[str, bool],
+    profile_controls_changed: dict[str, bool],
+    combined_changed: bool,
+    log_context: str = "favorites_runtime gate",
+) -> list[str]:
+    """Decide which rtl-airband targets need a restart based on per-band deltas.
+
+    Returns a list ["airband", "ground"] subset, possibly empty.
+    Logs the structured decision so callers don't have to.
+
+    Fix C v2 semantics: a band restarts iff its own content actually
+    changed (write OR controls).  ``switched_*`` is the registry-vs-symlink
+    drift indicator and is orthogonal to whether the rendered .conf
+    actually changed; it is logged for forensic value but does not gate
+    the restart decision.  When ``combined_changed=True`` arrives with no
+    per-band signal (rare wrapper-only edit), fall back to restarting
+    both bands and log a WARNING so cascade events stay visible.
+    """
+    air_needs = (
+        profile_write_changed.get("airband", False)
+        or profile_controls_changed.get("airband", False)
+    )
+    ground_needs = (
+        profile_write_changed.get("ground", False)
+        or profile_controls_changed.get("ground", False)
+    )
+    logger.info(
+        "%s: air switched=%s write=%s controls=%s -> restart=%s; "
+        "ground switched=%s write=%s controls=%s -> restart=%s; "
+        "combined_changed=%s",
+        log_context,
+        switched_air,
+        profile_write_changed.get("airband", False),
+        profile_controls_changed.get("airband", False),
+        air_needs,
+        switched_ground,
+        profile_write_changed.get("ground", False),
+        profile_controls_changed.get("ground", False),
+        ground_needs,
+        combined_changed,
+    )
+    targets: list[str] = []
+    if air_needs:
+        targets.append("airband")
+    if ground_needs:
+        targets.append("ground")
+    if not targets and combined_changed:
+        logger.warning(
+            "%s: combined_changed=True with no per-band signal, "
+            "falling back to restart both",
+            log_context,
+        )
+        targets = ["airband", "ground"]
+    return targets
+
+
 def sync_scan_pool_to_analog_runtime(
     force: bool = False,
     *,
@@ -1586,61 +1646,19 @@ def sync_scan_pool_to_analog_runtime(
                     from .actions import _select_analog_restart
                 except ImportError:
                     from ui.actions import _select_analog_restart
-                targets_to_restart: list[str] = []
-                # Fix C v2: per-band restart gated on the real on-disk change
-                # signal only.  switched_X is the registry-vs-symlink drift
-                # indicator and is orthogonal to whether the rendered .conf
-                # actually changed; on a UI-initiated profile change the disk
-                # delta arrives as profile_write_changed[band]=True with
-                # switched_X=False (the symlink was flipped on a prior sync).
-                # The original Fix C AND-gate blocked that legitimate restart
-                # and let the combined_changed fallback cascade both bands.
-                # A band restarts iff its own content changed; switched_X is
-                # informational only (still logged for forensic value).  The
-                # boot-reapply-no-change path stays quiet because Fix D
-                # (commit a351ab3) ensures both write_changed and
-                # controls_changed are False on a no-op cycle.
-                air_needs_restart = (
-                    profile_write_changed.get("airband", False)
-                    or profile_controls_changed.get("airband", False)
+                # Fix C v2 / Fix 3: gate decision (including its structured
+                # log line and combined_changed fallback) lives in
+                # compute_restart_targets so the apply-batch path can share
+                # the exact same semantics.  See helper docstring for the
+                # write-OR-controls rule and switched_* rationale.
+                targets_to_restart = compute_restart_targets(
+                    switched_air=switched_air,
+                    switched_ground=switched_ground,
+                    profile_write_changed=profile_write_changed,
+                    profile_controls_changed=profile_controls_changed,
+                    combined_changed=combined_changed,
+                    log_context="favorites_runtime gate",
                 )
-                ground_needs_restart = (
-                    profile_write_changed.get("ground", False)
-                    or profile_controls_changed.get("ground", False)
-                )
-                # Fix D: structured gate log so future restart investigations
-                # are grep-able from the journal in a single shot rather than
-                # requiring forensic reconstruction of write_controls return
-                # paths and profile_write_changed transitions.
-                logger.info(
-                    "favorites_runtime gate: "
-                    "air switched=%s write=%s controls=%s -> restart=%s; "
-                    "ground switched=%s write=%s controls=%s -> restart=%s; "
-                    "combined_changed=%s",
-                    switched_air,
-                    profile_write_changed.get("airband", False),
-                    profile_controls_changed.get("airband", False),
-                    air_needs_restart,
-                    switched_ground,
-                    profile_write_changed.get("ground", False),
-                    profile_controls_changed.get("ground", False),
-                    ground_needs_restart,
-                    combined_changed,
-                )
-                if air_needs_restart:
-                    targets_to_restart.append("airband")
-                if ground_needs_restart:
-                    targets_to_restart.append("ground")
-                if not targets_to_restart and combined_changed:
-                    # Combined wrapper changed but no per-band delta — restart
-                    # both as a conservative fallback.  Rare in normal operation
-                    # (wrapper-only edit).  Logged at WARNING so cascade-restart
-                    # events stay visible in the journal.
-                    logger.warning(
-                        "favorites_runtime gate: combined_changed=True with no "
-                        "per-band signal, falling back to restart both"
-                    )
-                    targets_to_restart = ["airband", "ground"]
                 for _tgt in targets_to_restart:
                     try:
                         _ok, _err = _select_analog_restart(_tgt, reason="favorites_runtime_sync")

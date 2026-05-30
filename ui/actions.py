@@ -906,7 +906,38 @@ def action_apply_batch(target: str, gain: float, squelch_mode: str, squelch_snr:
     restart_ok = True
     restart_error = ""
     if changed:
-        restart_ok, restart_error = _select_analog_restart(target, reason="apply_batch")
+        # Fix 3: route through favorites_runtime.compute_restart_targets so
+        # the manual apply-batch path picks up the same per-band write/
+        # controls gate and structured log line as the favorites-sync path.
+        # apply-batch is single-target, so only the requested band's deltas
+        # are populated; the other band's flags stay False so it never
+        # picks up a spurious restart from the shared gate.  ``switched_*``
+        # is always False here because apply-batch never flips profiles.
+        try:
+            from .favorites_runtime import compute_restart_targets
+        except ImportError:  # pragma: no cover - packaging fallback
+            from ui.favorites_runtime import compute_restart_targets  # type: ignore[no-redef]
+        write_changed_map = {"airband": False, "ground": False}
+        controls_changed_map = {"airband": False, "ground": False}
+        write_changed_map[target] = bool(changed_filter)
+        controls_changed_map[target] = bool(changed_controls)
+        targets_to_restart = compute_restart_targets(
+            switched_air=False,
+            switched_ground=False,
+            profile_write_changed=write_changed_map,
+            profile_controls_changed=controls_changed_map,
+            combined_changed=bool(combined_changed),
+            log_context="apply_batch gate",
+        )
+        for _tgt in targets_to_restart:
+            _ok, _err = _select_analog_restart(_tgt, reason="apply_batch")
+            if not _ok:
+                restart_ok = False
+                if _err:
+                    restart_error = (
+                        f"{restart_error}; {_tgt}: {_err}"
+                        if restart_error else f"{_tgt}: {_err}"
+                    )
     payload = {"ok": True, "changed": changed}
     if changed:
         payload["restart_ok"] = restart_ok
