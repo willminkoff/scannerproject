@@ -2967,6 +2967,138 @@
         flex-basis: 100%;
       }
     }
+
+    /* ---------------------------------------------------------------
+       Phase 1b — Heartbeat card
+       Answers "is the radio quiet, the RF chain broken, or a process
+       wedged?" with a state-tinted left edge bar, a serif headline,
+       and a mono evidence table.  Three states (V1 ships quiet + wedged;
+       rf-degraded reserved for a follow-up).
+       --------------------------------------------------------------- */
+    .heartbeat-card {
+      position: relative;
+      overflow: hidden;
+    }
+    .heartbeat-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 5px;
+      background: var(--text-secondary);
+      transition: background 240ms ease;
+    }
+    .heartbeat-card[data-state="quiet"]::before        { background: var(--good); }
+    .heartbeat-card[data-state="rf_degraded"]::before  { background: var(--warn); }
+    .heartbeat-card[data-state="wedged"]::before       { background: var(--bad);  }
+    .heartbeat-card[data-state="loading"]::before      { background: var(--text-secondary); }
+    .heartbeat-card[data-state="error"]::before        { background: var(--bad);  }
+    .heartbeat-card[data-state="quiet"]                { background: linear-gradient(to right, var(--good-bg), var(--bg-card) 25%); }
+    .heartbeat-card[data-state="rf_degraded"]          { background: linear-gradient(to right, var(--warn-bg), var(--bg-card) 25%); }
+    .heartbeat-card[data-state="wedged"]               { background: linear-gradient(to right, var(--bad-bg),  var(--bg-card) 25%); }
+    .heartbeat-card[data-state="error"]                { background: linear-gradient(to right, var(--bad-bg),  var(--bg-card) 25%); }
+    .heartbeat-card .widget-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-left: 14px;
+    }
+    .heartbeat-since {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+      font-weight: 400;
+      letter-spacing: 0.02em;
+    }
+    .heartbeat-body {
+      padding-left: 14px !important;
+    }
+    .heartbeat-headline {
+      font-family: var(--font-serif);
+      font-size: 18px;
+      font-weight: 500;
+      line-height: 1.32;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+    .heartbeat-card[data-state="quiet"]       .heartbeat-headline { color: var(--good); }
+    .heartbeat-card[data-state="rf_degraded"] .heartbeat-headline { color: var(--warn); }
+    .heartbeat-card[data-state="wedged"]      .heartbeat-headline { color: var(--bad);  }
+    .heartbeat-card[data-state="error"]       .heartbeat-headline { color: var(--bad);  }
+    .heartbeat-explanation {
+      font-family: var(--font-sans);
+      font-size: 13px;
+      line-height: 1.42;
+      color: var(--text-secondary);
+      margin-bottom: 10px;
+    }
+    .heartbeat-recovery {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      background: color-mix(in srgb, var(--bad) 12%, var(--bg-card));
+      border-left: 3px solid var(--bad);
+      color: var(--text-primary);
+      padding: 8px 10px;
+      margin-bottom: 10px;
+      border-radius: 2px;
+      user-select: all;
+      cursor: text;
+      word-break: break-all;
+    }
+    .heartbeat-recovery::before {
+      content: "↻ recovery: ";
+      color: var(--bad);
+      font-weight: 600;
+    }
+    .heartbeat-evidence {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.55;
+      display: grid;
+      grid-template-columns: max-content 1fr auto;
+      gap: 2px 12px;
+      align-items: baseline;
+      border-top: 1px solid var(--border);
+      padding-top: 8px;
+    }
+    .heartbeat-evidence-empty {
+      grid-column: 1 / -1;
+      color: var(--text-secondary);
+      font-style: italic;
+    }
+    .heartbeat-evidence-label {
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+    .heartbeat-evidence-value {
+      color: var(--text-primary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .heartbeat-evidence-status {
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 2px;
+      justify-self: end;
+    }
+    .heartbeat-evidence-status[data-status="ok"]   { color: var(--good); background: var(--good-bg); }
+    .heartbeat-evidence-status[data-status="warn"] { color: var(--warn); background: var(--warn-bg); }
+    .heartbeat-evidence-status[data-status="bad"]  { color: var(--bad);  background: var(--bad-bg);  }
+    @media (max-width: 700px) {
+      .heartbeat-evidence {
+        grid-template-columns: max-content 1fr;
+      }
+      .heartbeat-evidence-status {
+        grid-column: 1 / -1;
+        justify-self: start;
+        margin-top: -2px;
+      }
+    }
   </style>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.light.min.js"></script>
 </head>
@@ -3376,10 +3508,32 @@
         </div>
       </div>
 
-      <!-- Row 2: Hit Counters + Hit List -->
-      <div class="widget" id="system-activity-widget">
+      <!-- Row 2: Heartbeat (Phase 1b) + Counters & Health + Hit List
+           Phase 1b replaces the old System Activity card with two new cards:
+             1. Heartbeat — at-a-glance "is the radio quiet, broken, or wedged"
+             2. Counters & Health — preserves the hit counters and PC Health
+                subgrid that previously lived inside System Activity.
+           Recent Hits height sync is rewired below in JS to measure the
+           combined height of these two widgets so the column visual balance
+           is roughly preserved without further widget surgery. -->
+      <div class="widget heartbeat-card" id="heartbeat-widget" data-state="loading">
+        <div class="widget-header">
+          <span>💓 Heartbeat</span>
+          <span class="heartbeat-since" id="heartbeat-since"></span>
+        </div>
+        <div class="widget-body heartbeat-body">
+          <div class="heartbeat-headline" id="heartbeat-headline">Reading state…</div>
+          <div class="heartbeat-explanation" id="heartbeat-explanation"></div>
+          <div class="heartbeat-recovery" id="heartbeat-recovery" hidden></div>
+          <div class="heartbeat-evidence" id="heartbeat-evidence">
+            <div class="heartbeat-evidence-empty">No evidence yet.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="widget" id="counters-health-widget">
         <div class="widget-header with-actions">
-          <span>📊 System Activity</span>
+          <span>📊 Counters &amp; Health</span>
           <div class="widget-header-actions">
             <button class="action widget-header-action" id="wx-sounding-open" type="button" style="font-size:12px;padding:6px 14px;background:color-mix(in srgb,var(--accent) 50%,transparent);border-color:color-mix(in srgb,var(--accent) 72%,transparent);color:var(--text-primary);font-weight:700;">🌡️ Sounding</button>
           </div>
@@ -5048,7 +5202,19 @@
       freqEditStatus: document.getElementById('freq-edit-status'),
       hitList: document.getElementById('hit-list'),
       recentHitsWidget: document.getElementById('recent-hits-widget'),
-      systemActivityWidget: document.getElementById('system-activity-widget'),
+      // Phase 1b: split the old #system-activity-widget into two:
+      //   heartbeatWidget — Phase 1b at-a-glance state card
+      //   countersHealthWidget — preserved counters + PC Health subgrid
+      // Old `systemActivityWidget` alias points at countersHealthWidget so
+      // any out-of-band references that survive still find a sensible target.
+      heartbeatWidget: document.getElementById('heartbeat-widget'),
+      countersHealthWidget: document.getElementById('counters-health-widget'),
+      systemActivityWidget: document.getElementById('counters-health-widget'),
+      heartbeatHeadline: document.getElementById('heartbeat-headline'),
+      heartbeatExplanation: document.getElementById('heartbeat-explanation'),
+      heartbeatRecovery: document.getElementById('heartbeat-recovery'),
+      heartbeatEvidence: document.getElementById('heartbeat-evidence'),
+      heartbeatSince: document.getElementById('heartbeat-since'),
       hitCount: document.getElementById('hit-count'),
       hitRate: document.getElementById('hit-rate'),
       sessionCount: document.getElementById('session-count'),
@@ -11560,32 +11726,157 @@
 
     function syncRecentHitsHeight() {
       const recentWidget = els.recentHitsWidget;
-      const systemWidget = els.systemActivityWidget;
-      if (!recentWidget || !systemWidget) return;
+      // Phase 1b — measure the combined height of Heartbeat + Counters &
+      // Health so the Recent Hits column still ends roughly even with the
+      // info column. If either widget is missing (older HTML cached, etc.),
+      // we fall back to whichever exists.
+      const heartbeatWidget = els.heartbeatWidget;
+      const countersWidget = els.countersHealthWidget;
+      if (!recentWidget || (!heartbeatWidget && !countersWidget)) return;
       if (window.innerWidth <= 700) {
         recentWidget.style.height = '';
         recentWidget.style.maxHeight = '';
         return;
       }
-      const systemHeader = systemWidget.querySelector('.widget-header');
-      const systemBody = systemWidget.querySelector('.widget-body');
-      const headerHeight = systemHeader ? systemHeader.offsetHeight : 0;
-      const bodyHeight = systemBody ? systemBody.scrollHeight : 0;
-      const targetHeight = Math.ceil(headerHeight + bodyHeight);
+      const measure = (w) => {
+        if (!w) return 0;
+        // outerHeight including border; offsetHeight is a close enough
+        // approximation since widgets share the same border treatment.
+        return w.offsetHeight || 0;
+      };
+      const heartbeatH = measure(heartbeatWidget);
+      const countersH = measure(countersWidget);
+      // The two widgets are stacked siblings in the grid column with the
+      // grid-gap between them.  Read the computed grid row gap when present
+      // so we account for it; default to 0 if not in a grid.
+      let gap = 0;
+      const parent = (heartbeatWidget || countersWidget).parentElement;
+      if (parent) {
+        const cs = window.getComputedStyle(parent);
+        const rawGap = parseFloat(cs.rowGap || cs.gap || '0');
+        if (!Number.isNaN(rawGap)) gap = rawGap;
+      }
+      const targetHeight = Math.ceil(heartbeatH + countersH + (heartbeatH && countersH ? gap : 0));
       if (!targetHeight) return;
       recentWidget.style.height = `${targetHeight}px`;
       recentWidget.style.maxHeight = `${targetHeight}px`;
     }
 
     function setupRecentHitsHeightSync() {
-      const systemWidget = els.systemActivityWidget;
-      if (!systemWidget) return;
+      const heartbeatWidget = els.heartbeatWidget;
+      const countersWidget = els.countersHealthWidget;
+      if (!heartbeatWidget && !countersWidget) return;
       syncRecentHitsHeight();
       if (typeof ResizeObserver === 'function') {
         const observer = new ResizeObserver(() => syncRecentHitsHeight());
-        observer.observe(systemWidget);
+        if (heartbeatWidget) observer.observe(heartbeatWidget);
+        if (countersWidget) observer.observe(countersWidget);
       }
       window.addEventListener('resize', syncRecentHitsHeight);
+    }
+
+    // ---------------------------------------------------------------
+    // Phase 1b — Heartbeat polling + render
+    // Polls /api/heartbeat every HEARTBEAT_POLL_MS and re-renders the
+    // heartbeat card. Read-only — never triggers any service action.
+    // ---------------------------------------------------------------
+    const HEARTBEAT_POLL_MS = 5000;
+    const _heartbeatState = { lastState: null, lastSince: null };
+
+    function _heartbeatAgeText(sinceIso, serverTime) {
+      if (!sinceIso) return '';
+      const sinceDate = new Date(sinceIso);
+      if (Number.isNaN(sinceDate.getTime())) return '';
+      const refMs = (typeof serverTime === 'number' && serverTime > 0)
+        ? serverTime * 1000
+        : Date.now();
+      let secs = Math.max(0, Math.round((refMs - sinceDate.getTime()) / 1000));
+      if (secs < 60) return `${secs}s`;
+      const mins = Math.floor(secs / 60);
+      if (mins < 60) return `${mins}m`;
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return `${hrs}h ${mins % 60}m`;
+      const days = Math.floor(hrs / 24);
+      return `${days}d ${hrs % 24}h`;
+    }
+
+    function renderHeartbeat(payload) {
+      const card = els.heartbeatWidget;
+      if (!card) return;
+      const state = (payload && payload.state) ? String(payload.state) : 'loading';
+      card.setAttribute('data-state', state);
+
+      if (els.heartbeatHeadline) {
+        els.heartbeatHeadline.textContent =
+          (payload && payload.headline) ? payload.headline : 'Reading state…';
+      }
+      if (els.heartbeatExplanation) {
+        els.heartbeatExplanation.textContent =
+          (payload && payload.explanation) ? payload.explanation : '';
+      }
+      if (els.heartbeatRecovery) {
+        const rec = payload && payload.recovery;
+        if (rec && typeof rec === 'string' && rec.trim()) {
+          els.heartbeatRecovery.textContent = rec.trim();
+          els.heartbeatRecovery.hidden = false;
+        } else {
+          els.heartbeatRecovery.textContent = '';
+          els.heartbeatRecovery.hidden = true;
+        }
+      }
+      if (els.heartbeatSince) {
+        const age = _heartbeatAgeText(payload && payload.since, payload && payload.server_time);
+        // Show e.g. "quiet for 2m" or "wedged for 12s".
+        els.heartbeatSince.textContent = age
+          ? `${state.replace('_', ' ')} for ${age}`
+          : '';
+      }
+      if (els.heartbeatEvidence) {
+        const items = (payload && Array.isArray(payload.evidence)) ? payload.evidence : [];
+        if (!items.length) {
+          els.heartbeatEvidence.innerHTML =
+            '<div class="heartbeat-evidence-empty">No evidence yet.</div>';
+        } else {
+          els.heartbeatEvidence.innerHTML = items.map((row) => {
+            const label = escapeHtml(String(row && row.label || ''));
+            const value = escapeHtml(String(row && row.value || ''));
+            const st = String(row && row.status || 'ok').toLowerCase();
+            const safeStatus = (st === 'ok' || st === 'warn' || st === 'bad') ? st : 'ok';
+            return (
+              `<div class="heartbeat-evidence-label">${label}</div>` +
+              `<div class="heartbeat-evidence-value" title="${value}">${value}</div>` +
+              `<div class="heartbeat-evidence-status" data-status="${safeStatus}">${safeStatus}</div>`
+            );
+          }).join('');
+        }
+      }
+
+      _heartbeatState.lastState = state;
+      _heartbeatState.lastSince = (payload && payload.since) || null;
+    }
+
+    async function pollHeartbeat() {
+      if (!els.heartbeatWidget) return;
+      try {
+        const resp = await fetch('/api/heartbeat', { cache: 'no-store' });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        renderHeartbeat(data);
+      } catch (e) {
+        // Don't blow away the previous state on a transient error; show an
+        // error band on top of whatever was previously rendered.
+        if (els.heartbeatWidget && els.heartbeatWidget.getAttribute('data-state') === 'loading') {
+          renderHeartbeat({
+            state: 'error',
+            headline: 'Heartbeat probe unreachable.',
+            explanation: String((e && e.message) || e || 'unknown error'),
+            recovery: null,
+            evidence: [],
+            since: new Date().toISOString(),
+          });
+        }
+        // Otherwise stay silent — the next tick will retry.
+      }
     }
 
     function hitKey(hit) {
@@ -16038,7 +16329,14 @@
       setupAudioAutoRecover();
       bindLatencyTestControls();
       setupRecentHitsHeightSync();
-      
+
+      // Phase 1b — Heartbeat poll. Immediate render, then poll every
+      // HEARTBEAT_POLL_MS. Read-only — never triggers any service action.
+      pollHeartbeat().catch(() => {});
+      setInterval(() => {
+        pollHeartbeat().catch(() => {});
+      }, HEARTBEAT_POLL_MS);
+
       logActivity('SB3 UI initialized', 'info', 'init');
       try {
         await refreshProfilesFast();

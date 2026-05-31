@@ -2857,6 +2857,290 @@ def _filter_sounding_levels(levels, max_age_sec=5400):
     return out
 
 
+# ---------------------------------------------------------------------------
+# Heartbeat: dashboard-grade answer to "what is the radio doing right now?"
+# ---------------------------------------------------------------------------
+# Phase 1b — V1 ships QUIET vs WEDGED only. RF_DEGRADED (noise-floor and
+# sentinel-channel heuristics) is intentionally deferred to a follow-up so
+# this endpoint stays cheap, deterministic, and read-only.
+#
+# All probes here MUST be read-only — no service restarts, no config writes.
+# Total compute budget is bounded by `_HEARTBEAT_CACHE_TTL_SEC` (the
+# foreground sample is wall-time capped via `_HEARTBEAT_MP3_SAMPLE_*`).
+_HEARTBEAT_CACHE_TTL_SEC = max(2.0, float(os.getenv("HEARTBEAT_CACHE_TTL_SEC", "5.0")))
+_HEARTBEAT_STATS_STALE_SEC = max(5.0, float(os.getenv("HEARTBEAT_STATS_STALE_SEC", "60.0")))
+_HEARTBEAT_MP3_SAMPLE_DURATION_SEC = max(0.3, float(os.getenv("HEARTBEAT_MP3_SAMPLE_DURATION_SEC", "1.5")))
+_HEARTBEAT_MP3_SAMPLE_TIMEOUT_SEC = max(0.5, float(os.getenv("HEARTBEAT_MP3_SAMPLE_TIMEOUT_SEC", "2.0")))
+_HEARTBEAT_LOCK = threading.Lock()
+_HEARTBEAT_CACHE: dict[str, Any] = {
+    "ts": 0.0,
+    "payload": None,
+    "since_state": None,
+    "since_ts": 0.0,
+}
+
+
+def _heartbeat_format_age(age_sec) -> str:
+    """Compact human-readable age for evidence rows."""
+    if age_sec is None:
+        return "unknown"
+    age_sec = float(age_sec)
+    if age_sec < 60:
+        return f"{age_sec:.0f}s"
+    if age_sec < 3600:
+        return f"{age_sec/60:.0f}m"
+    if age_sec < 86400:
+        return f"{age_sec/3600:.0f}h"
+    return f"{age_sec/86400:.0f}d"
+
+
+def _heartbeat_sample_mount_bytes(mount: str,
+                                  duration_sec: float,
+                                  total_timeout_sec: float) -> dict:
+    """Read a short slice of a local icecast mount and report byte count.
+
+    Bounded by `duration_sec` (read window) and `total_timeout_sec` (hard
+    cap on wall-time spent in this call). Read-only — opens a listener
+    socket, drains a few KB, closes.
+    """
+    import socket as _socket
+    url = f"http://127.0.0.1:{ICECAST_PORT}/{str(mount or '').lstrip('/')}"
+    start = time.monotonic()
+    bytes_read = 0
+    err = ""
+    try:
+        req = Request(url, headers={"User-Agent": "sb3-heartbeat/1.0"})
+        # Halve the connect timeout so the total stays under the cap even
+        # if the connect takes longer than expected.
+        connect_timeout = max(0.3, total_timeout_sec / 2.0)
+        with urlopen(req, timeout=connect_timeout) as resp:
+            deadline = start + min(duration_sec, total_timeout_sec)
+            # Best-effort: tighten the underlying socket read timeout so
+            # we never block past the deadline waiting for the next chunk.
+            raw = getattr(resp.fp, "raw", None)
+            sock = getattr(raw, "_sock", None) if raw is not None else None
+            if sock is not None:
+                try:
+                    sock.settimeout(0.25)
+                except Exception:
+                    pass
+            while time.monotonic() < deadline:
+                try:
+                    chunk = resp.read(4096)
+                except (_socket.timeout, TimeoutError):
+                    break
+                except Exception as e:
+                    err = str(e)[:200]
+                    break
+                if not chunk:
+                    break
+                bytes_read += len(chunk)
+    except Exception as e:
+        err = str(e)[:200]
+    elapsed = time.monotonic() - start
+    return {
+        "bytes": int(bytes_read),
+        "elapsed_sec": float(elapsed),
+        "ok": bytes_read > 0 and not err,
+        "error": err,
+    }
+
+
+def _compute_heartbeat_payload() -> dict:
+    """Compute the heartbeat payload. Cached via `_HEARTBEAT_CACHE_TTL_SEC`.
+
+    V1 state space: ``quiet`` | ``wedged``.
+
+    Decision rule:
+      WEDGED ⇐ any service in {airband-ui, rtl-airband-airband, icecast2,
+               scanner-vlc-digital, rtl-airband-ground} is inactive
+            OR rtl_airband_airband stats file is missing / >threshold stale
+            OR ANALOG.mp3 mount is publishing-but-empty (0 bytes/window)
+      QUIET ⇐ everything healthy.
+
+    All probes read-only. Designed to be safe to poll at 5s intervals.
+    """
+    now_wall = time.time()
+    now_mono = time.monotonic()
+    with _HEARTBEAT_LOCK:
+        cached_ts = float(_HEARTBEAT_CACHE.get("ts") or 0.0)
+        cached_payload = _HEARTBEAT_CACHE.get("payload")
+    if isinstance(cached_payload, dict) and (now_mono - cached_ts) <= _HEARTBEAT_CACHE_TTL_SEC:
+        out = dict(cached_payload)
+        out["server_time"] = now_wall
+        out["cached"] = True
+        return out
+
+    evidence: list[dict] = []
+    wedged_reasons: list[str] = []
+    recovery: str | None = None
+
+    # 1) rtl-airband stats file freshness — the contractual heartbeat of
+    #    the RF→audio sample path. Stale ⇒ pipeline stuck.
+    try:
+        stats = rtl_airband_sample_flow_state(
+            RTL_AIRBAND_AIRBAND_STATS_PATH,
+            _HEARTBEAT_STATS_STALE_SEC,
+        )
+    except Exception as exc:
+        stats = {
+            "sample_flow_ok": False,
+            "stats_age_sec": None,
+            "reason": f"probe error: {exc}",
+        }
+    stats_age = stats.get("stats_age_sec")
+    if stats_age is None:
+        evidence.append({"label": "stats file", "value": "missing", "status": "bad"})
+        wedged_reasons.append("rtl-airband stats file missing")
+        recovery = recovery or f"systemctl restart {UNITS.get('rtl_airband','rtl-airband-airband')}"
+    else:
+        ok_flag = bool(stats.get("sample_flow_ok"))
+        evidence.append({
+            "label": "stats file",
+            "value": (f"fresh ({_heartbeat_format_age(stats_age)})" if ok_flag
+                      else f"stale ({_heartbeat_format_age(stats_age)})"),
+            "status": "ok" if ok_flag else "bad",
+        })
+        if not ok_flag:
+            wedged_reasons.append(stats.get("reason") or "rtl-airband stats stale")
+            recovery = recovery or f"systemctl restart {UNITS.get('rtl_airband','rtl-airband-airband')}"
+
+    # 2) Service active state for the 5 core units.
+    service_units = [
+        ("airband-ui",          UNITS.get("ui", "airband-ui")),
+        ("rtl-airband-airband", UNITS.get("rtl_airband", "rtl-airband-airband")),
+        ("rtl-airband-ground",  UNITS.get("rtl_ground", "rtl-airband-ground")),
+        ("icecast2",            UNITS.get("icecast", "icecast2")),
+        ("scanner-vlc-digital", "scanner-vlc-digital.service"),
+    ]
+    for label, unit in service_units:
+        try:
+            active = _unit_active_cached(unit)
+        except Exception:
+            active = False
+        evidence.append({
+            "label": label,
+            "value": "active" if active else "inactive",
+            "status": "ok" if active else "bad",
+        })
+        if not active:
+            wedged_reasons.append(f"{label} inactive")
+            if not recovery:
+                recovery = f"systemctl restart {unit}"
+
+    # 3) Icecast ANALOG.mp3 mount-publishing state (cheap — icecast JSON).
+    analog_mount_publishing = False
+    icecast_status_text = ""
+    try:
+        icecast_status_text = fetch_local_icecast_status()
+        analog_mount_publishing = mount_publishing(
+            icecast_status_text, PLAYER_MOUNT or "ANALOG.mp3"
+        )
+    except Exception:
+        evidence.append({
+            "label": "/ANALOG.mp3 mount",
+            "value": "icecast status unreachable",
+            "status": "bad",
+        })
+        wedged_reasons.append("icecast status unreachable")
+    else:
+        evidence.append({
+            "label": "/ANALOG.mp3 mount",
+            "value": "publishing" if analog_mount_publishing else "no source",
+            "status": "ok" if analog_mount_publishing else "warn",
+        })
+        if not analog_mount_publishing:
+            # `no source` is not always wedged (the upstream may be in a
+            # legitimate retune), but flag for follow-on byte probe.
+            wedged_reasons.append("/ANALOG.mp3 has no source")
+
+    # 4) Foreground mp3 byte sample — corroborating evidence that bytes
+    #    are actually flowing out of icecast right now.  Bounded by the
+    #    configured wall-time cap; cached for the TTL.
+    #
+    #    IMPORTANT: a 0-byte sample over ~1.5s does NOT prove the pipeline
+    #    is wedged.  Icecast buffers, and the keepalive silence stream is
+    #    ~6.5 kbps, so a short window can legitimately catch a frame gap.
+    #    The contractual liveness signal is `mount_publishing` (above) —
+    #    if icecast says a source is publishing, trust that for the wedge
+    #    decision.  Surface the sample as evidence only.
+    if analog_mount_publishing:
+        sample = _heartbeat_sample_mount_bytes(
+            PLAYER_MOUNT or "ANALOG.mp3",
+            _HEARTBEAT_MP3_SAMPLE_DURATION_SEC,
+            _HEARTBEAT_MP3_SAMPLE_TIMEOUT_SEC,
+        )
+        if sample.get("ok"):
+            kbps = (sample["bytes"] * 8) / max(0.05, sample["elapsed_sec"]) / 1000.0
+            evidence.append({
+                "label": "/ANALOG.mp3 byte rate",
+                "value": f"{sample['bytes']} B / {sample['elapsed_sec']:.1f}s ({kbps:.0f} kbps)",
+                "status": "ok",
+            })
+        elif sample.get("error"):
+            evidence.append({
+                "label": "/ANALOG.mp3 byte rate",
+                "value": sample.get("error") or "error",
+                "status": "warn",
+            })
+        else:
+            # 0 bytes in the window. Mount is publishing per icecast, so
+            # this is a frame gap, not a wedge. Surface as info/warn only.
+            evidence.append({
+                "label": "/ANALOG.mp3 byte rate",
+                "value": f"0 B in {sample['elapsed_sec']:.1f}s (frame gap)",
+                "status": "warn",
+            })
+
+    # Decide state.
+    if wedged_reasons:
+        state = "wedged"
+        headline = "A pipeline component is wedged."
+        # Show up to four reasons in the explanation to avoid pathological growth.
+        explanation = "; ".join(wedged_reasons[:4]) + (
+            "" if len(wedged_reasons) <= 4 else f" (+{len(wedged_reasons) - 4} more)"
+        )
+    else:
+        state = "quiet"
+        headline = "All systems healthy. No traffic on selected channels."
+        explanation = (
+            "RF chain alive, mounts publishing, services active. The radio "
+            "is simply quiet right now."
+        )
+        recovery = None
+
+    # `since` — wall-time of last state transition. Stays stable while the
+    # state is unchanged so the UI can show "wedged for 4m".
+    with _HEARTBEAT_LOCK:
+        prev_state = _HEARTBEAT_CACHE.get("since_state")
+        since_ts = float(_HEARTBEAT_CACHE.get("since_ts") or 0.0)
+        if prev_state != state or since_ts <= 0.0:
+            since_ts = now_wall
+            _HEARTBEAT_CACHE["since_state"] = state
+            _HEARTBEAT_CACHE["since_ts"] = since_ts
+
+    since_iso = (
+        datetime.utcfromtimestamp(since_ts).replace(microsecond=0).isoformat() + "Z"
+    )
+
+    payload = {
+        "state": state,
+        "since": since_iso,
+        "headline": headline,
+        "explanation": explanation,
+        "recovery": recovery,
+        "evidence": evidence,
+        "server_time": now_wall,
+        "cached": False,
+    }
+
+    with _HEARTBEAT_LOCK:
+        _HEARTBEAT_CACHE["ts"] = now_mono
+        _HEARTBEAT_CACHE["payload"] = payload
+
+    return dict(payload)
+
+
 class Handler(BaseHTTPRequestHandler):
     """HTTP request handler for the UI."""
 
@@ -3175,6 +3459,26 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 payload = {"ok": False, "error": str(e)}
                 return self._send(500, json.dumps(payload), "application/json; charset=utf-8")
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/heartbeat":
+            # Phase 1b — read-only state inspection: QUIET vs WEDGED.
+            # See `_compute_heartbeat_payload` for the decision rule.
+            try:
+                payload = _compute_heartbeat_payload()
+            except Exception as e:
+                logger.exception("/api/heartbeat probe failed")
+                fallback = {
+                    "state": "wedged",
+                    "since": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+                    "headline": "Heartbeat probe failed.",
+                    "explanation": f"Heartbeat computation raised: {e}",
+                    "recovery": None,
+                    "evidence": [],
+                    "server_time": time.time(),
+                    "cached": False,
+                }
+                return self._send(500, json.dumps(fallback), "application/json; charset=utf-8")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/hp/location/ip":
