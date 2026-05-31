@@ -299,53 +299,68 @@
       display: none !important;
     }
 
+    /* Phase 2.1 — Last Hit pills restored to the top bar between the
+       status pill (left) and the clock (right).  Tightened down from the
+       original treatment so they read as SECONDARY: the status pill is
+       primary, the Last Hit pills give per-chain context at a glance. */
     .last-hit-group {
       display: flex;
-      gap: 10px;
+      gap: 6px;
       flex-wrap: wrap;
-      width: min(900px, 78vw);
-      max-width: calc(100% - 160px);
+      max-width: calc(100% - 360px);  /* leave room for absolute left/right wrappers */
       justify-content: center;
     }
 
     .last-hit-btn {
       display: grid;
-      gap: 4px;
-      min-width: 90px;
-      flex: 1 1 0;
-      padding: 6px 10px;
-      border-radius: 10px;
+      gap: 1px;
+      min-width: 78px;
+      flex: 0 1 auto;            /* content-sized; don't stretch */
+      padding: 4px 10px;
+      border-radius: 8px;
       border: 1px solid var(--border);
-      background: var(--bg-panel);
-      color: var(--text);
+      background: var(--bg-card);
+      color: var(--text-primary);
       cursor: pointer;
       text-align: center;
       align-items: center;
       justify-items: center;
-      transition: color 0.15s ease, border-color 0.15s ease;
+      transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .last-hit-btn:hover {
+      border-color: var(--accent-dim);
+      background: color-mix(in srgb, var(--accent) 6%, var(--bg-card));
+    }
+
+    .last-hit-btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
     }
 
     .last-hit-btn .label {
-      font-size: 10px;
+      font-size: 9px;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.10em;
       color: var(--text-secondary);
+      line-height: 1.1;
     }
 
     .last-hit-btn .value {
-      font-family: monospace;
-      font-size: 20px;
+      font-family: var(--font-mono);
+      font-size: 13px;
       font-weight: 600;
-      color: var(--accent);
+      color: var(--text-primary);
       max-width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      line-height: 1.2;
     }
 
     .last-hit-btn .subvalue {
-      font-size: 11px;
-      line-height: 1.2;
+      font-size: 10px;
+      line-height: 1.15;
       color: var(--text-secondary);
       max-width: 100%;
       overflow: hidden;
@@ -354,14 +369,15 @@
     }
 
     #last-hit-digital {
-      flex: 1.8 1 0;
-      min-width: 220px;
+      flex: 0 1 auto;
+      min-width: 140px;
+      max-width: 220px;
     }
 
     #last-hit-digital .value {
-      font-family: inherit;
-      font-size: 17px;
-      font-weight: 700;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
       line-height: 1.2;
       white-space: nowrap;
       text-overflow: ellipsis;
@@ -371,12 +387,20 @@
     }
 
     #last-hit-digital .subvalue {
-      font-size: 11px;
+      font-size: 10px;
       text-align: center;
       max-width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    /* Hold state — chain locked on the last hit's frequency. Keep the
+       warn color so this is unmistakable against the otherwise-neutral
+       secondary treatment. */
+    .last-hit-btn.holding {
+      border-color: var(--warn);
+      background: color-mix(in srgb, var(--warn) 10%, var(--bg-card));
     }
 
     .last-hit-btn.holding .value {
@@ -3223,24 +3247,44 @@
 </head>
 <body>
   <!-- Header -->
-  <!-- Phase 2: collapsed top bar.
-       LEFT: single pill — active tab + active favorite + play-state icon.
-             Click opens the sitrep view and scrolls to the 11-dot service card.
-       RIGHT: clock (#pi-time relocated from the old Counters & Health card).
-       All other displaced controls (Travel Mode, SDR power, theme toggle,
-       DISCO) now live inside the Counters & Health card's quick-controls
-       strip.  WX and the Last-Hit row were dropped per Will's Phase 2 spec. -->
+  <!-- Phase 2 (rev): three-zone top bar.
+       LEFT  (.header-left, absolute):   status pill (tab + favorite + play state)
+       CENTER (.last-hit-group, flow):   three Last Hit pills (restored after
+                                         Phase 2 deletion — Will pushed back;
+                                         the pills are not redundant with the
+                                         Hit Feed)
+       RIGHT (.header-right, absolute):  clock (#pi-time)
+       WX button still deleted.  Sitrep still reached via status-pill click. -->
   <div class="header">
-    <button class="status-pill" id="status-pill" type="button" aria-pressed="false"
-            title="Click for full service health (Esc to return)">
-      <span class="status-pill-chain" id="status-pill-chain">—</span>
-      <span class="status-pill-divider" aria-hidden="true">|</span>
-      <span class="status-pill-favorite" id="status-pill-favorite">—</span>
-      <span class="status-pill-divider" aria-hidden="true">|</span>
-      <span class="status-pill-play" id="status-pill-play" data-state="quiet" aria-label="play state">❚❚</span>
-    </button>
-    <div class="header-clock">
-      <span id="pi-time">--</span>
+    <div class="header-left">
+      <button class="status-pill" id="status-pill" type="button" aria-pressed="false"
+              title="Click for full service health (Esc to return)">
+        <span class="status-pill-chain" id="status-pill-chain">—</span>
+        <span class="status-pill-divider" aria-hidden="true">|</span>
+        <span class="status-pill-favorite" id="status-pill-favorite">—</span>
+        <span class="status-pill-divider" aria-hidden="true">|</span>
+        <span class="status-pill-play" id="status-pill-play" data-state="quiet" aria-label="play state">❚❚</span>
+      </button>
+    </div>
+    <div class="last-hit-group">
+      <button class="last-hit-btn" id="last-hit-airband" type="button" title="Toggle hold on the last airband hit">
+        <span class="label">Airband</span>
+        <span class="value" id="last-hit-airband-value">--</span>
+      </button>
+      <button class="last-hit-btn" id="last-hit-ground" type="button" title="Toggle hold on the last ground hit">
+        <span class="label">Ground</span>
+        <span class="value" id="last-hit-ground-value">--</span>
+      </button>
+      <button class="last-hit-btn" id="last-hit-digital" type="button" title="Toggle hold on the last digital hit">
+        <span class="label">Digital</span>
+        <span class="value" id="last-hit-digital-value">--</span>
+        <span class="subvalue hidden" id="last-hit-digital-subvalue"></span>
+      </button>
+    </div>
+    <div class="header-right">
+      <div class="header-clock">
+        <span id="pi-time">--</span>
+      </div>
     </div>
   </div>
 
