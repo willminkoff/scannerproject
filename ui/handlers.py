@@ -3402,6 +3402,16 @@ class Handler(BaseHTTPRequestHandler):
             except FileNotFoundError:
                 return self._send(404, "SB3 UI not found", "text/plain; charset=utf-8")
 
+        # Serve SB4 UI (Phase 3a -- tabbed single-page scaffold)
+        if p == "/sb4" or p == "/sb4.html":
+            ui_dir = os.path.dirname(os.path.abspath(__file__))
+            mockup_path = os.path.join(ui_dir, "sb4.html")
+            try:
+                with open(mockup_path, "r", encoding="utf-8") as f:
+                    return self._send(200, f.read())
+            except FileNotFoundError:
+                return self._send(404, "SB4 UI not found", "text/plain; charset=utf-8")
+
         # Captive portal detection (iOS, Android, Windows)
         if p in ("/hotspot-detect.html", "/library/test/success.html",
                  "/generate_204", "/connecttest.txt", "/ncsi.txt",
