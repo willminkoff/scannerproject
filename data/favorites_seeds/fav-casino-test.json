@@ -1,0 +1,23 @@
+{
+  "custom_favorites": [
+    {
+      "alpha_tag": "Casino ARTCC",
+      "control_channels": [],
+      "department_name": "Sea Isle RCAG - NY ARTCC",
+      "frequency": 127.7,
+      "id": "freq:fav-casino-test:0",
+      "kind": "conventional",
+      "service_tag": 15,
+      "system_id": 0,
+      "system_key": "AgencyId:ACY",
+      "system_name": "Atlantic City International Airport (ACY)",
+      "talkgroup": ""
+    }
+  ],
+  "enabled": true,
+  "id": "fav-casino-test",
+  "label": "Casino ARTCC (test)",
+  "profile_id": "",
+  "target": "favorites",
+  "type": "list"
+}
