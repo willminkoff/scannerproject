@@ -3100,50 +3100,147 @@
         margin-top: -2px;
       }
     }
+
+    /* ---------------------------------------------------------------
+       Phase 2 — collapsed top bar
+       Pill (left) + clock (right) replaces the dense multi-cluster bar.
+       --------------------------------------------------------------- */
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      max-width: min(58vw, 520px);
+      padding: 6px 14px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      color: var(--text-primary);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      cursor: pointer;
+      transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+      overflow: hidden;
+    }
+    .status-pill:hover {
+      border-color: var(--accent-dim);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+    .status-pill:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .status-pill-chain {
+      flex: 0 0 auto;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+    .status-pill-favorite {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text-primary);
+    }
+    .status-pill-divider {
+      flex: 0 0 auto;
+      color: var(--text-secondary);
+      opacity: 0.6;
+    }
+    .status-pill-play {
+      flex: 0 0 auto;
+      font-family: var(--font-mono);
+      letter-spacing: 0;
+    }
+    .status-pill-play[data-state="playing"]  { color: var(--good); }
+    .status-pill-play[data-state="quiet"]    { color: var(--text-secondary); }
+    .status-pill-play[data-state="wedged"]   { color: var(--bad); }
+
+    .header-clock {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-primary);
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .header-clock #pi-time {
+      display: inline-block;
+    }
+
+    /* Counters & Health: quick-controls strip (relocated top-bar buttons). */
+    .quick-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .quick-controls .travel-mode-group {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .quick-controls-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    @media (max-width: 700px) {
+      .status-pill {
+        max-width: 60vw;
+        font-size: 12px;
+        padding: 5px 12px;
+        gap: 6px;
+      }
+      .status-pill-divider {
+        display: none;
+      }
+      .status-pill-favorite {
+        /* Tighter ellipsis on narrow viewports. */
+      }
+      .header-clock {
+        font-size: 12px;
+      }
+      .quick-controls {
+        gap: 6px;
+      }
+      .quick-controls-actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
+    }
   </style>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.light.min.js"></script>
 </head>
 <body>
   <!-- Header -->
+  <!-- Phase 2: collapsed top bar.
+       LEFT: single pill — active tab + active favorite + play-state icon.
+             Click opens the sitrep view and scrolls to the 11-dot service card.
+       RIGHT: clock (#pi-time relocated from the old Counters & Health card).
+       All other displaced controls (Travel Mode, SDR power, theme toggle,
+       DISCO) now live inside the Counters & Health card's quick-controls
+       strip.  WX and the Last-Hit row were dropped per Will's Phase 2 spec. -->
   <div class="header">
-    <div class="header-left">
-      <button class="logo" id="logo-toggle" type="button" aria-pressed="false" title="Open situation report">
-        SB3
-      </button>
-      <button class="logo" id="btn-weather-dash" type="button" title="Open WeatherDash" onclick="window.open('http://will-rog:5051/', '_blank', 'noopener')">
-        WX
-      </button>
-      <button class="logo" id="btn-disco" type="button" title="Open Disco wideband discovery" onclick="window.open('http://' + window.location.hostname + ':8092/', '_blank', 'noopener')">
-        DISCO
-      </button>
-      <div class="travel-mode-group" id="travel-mode-group">
-        <button class="travel-mode-btn" id="btn-travel-mode" type="button" data-travel="off" title="Click to refresh scanner location to your current GPS. ON = a push landed in the last hour; OFF = stale or never. (Travel Mode is enabled transparently so the push goes through.)">
-          Travel: OFF
-        </button>
-        <span class="travel-mode-meta">
-          <span class="zip" id="travel-mode-zip">ZIP: --</span>
-          <span class="last-push" id="travel-mode-last-push"></span>
-        </span>
-      </div>
-    </div>
-    <div class="last-hit-group">
-      <button class="last-hit-btn" id="last-hit-airband" type="button">
-        <span class="label">Airband</span>
-        <span class="value" id="last-hit-airband-value">--</span>
-      </button>
-      <button class="last-hit-btn" id="last-hit-ground" type="button">
-        <span class="label">Ground</span>
-        <span class="value" id="last-hit-ground-value">--</span>
-      </button>
-      <button class="last-hit-btn" id="last-hit-digital" type="button">
-        <span class="label">Digital</span>
-        <span class="value" id="last-hit-digital-value">--</span>
-        <span class="subvalue hidden" id="last-hit-digital-subvalue"></span>
-      </button>
-    </div>
-    <div class="header-right">
-      <button class="dongle-power-btn" id="btn-dongle-power" type="button" title="SDR power toggle">SDR ●</button>
-      <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle red theme">🔴</button>
+    <button class="status-pill" id="status-pill" type="button" aria-pressed="false"
+            title="Click for full service health (Esc to return)">
+      <span class="status-pill-chain" id="status-pill-chain">—</span>
+      <span class="status-pill-divider" aria-hidden="true">|</span>
+      <span class="status-pill-favorite" id="status-pill-favorite">—</span>
+      <span class="status-pill-divider" aria-hidden="true">|</span>
+      <span class="status-pill-play" id="status-pill-play" data-state="quiet" aria-label="play state">❚❚</span>
+    </button>
+    <div class="header-clock">
+      <span id="pi-time">--</span>
     </div>
   </div>
 
@@ -3540,6 +3637,26 @@
           </div>
         </div>
         <div class="widget-body">
+          <!-- Phase 2: quick-controls strip absorbing the displaced top-bar
+               buttons.  IDs preserved so all existing JS handlers
+               (toggleTheme, btn-travel-mode, btn-dongle-power, btn-disco,
+               travel-mode-zip, travel-mode-last-push) continue to bind. -->
+          <div class="quick-controls">
+            <div class="travel-mode-group" id="travel-mode-group">
+              <button class="travel-mode-btn" id="btn-travel-mode" type="button" data-travel="off" title="Click to refresh scanner location to your current GPS. ON = a push landed in the last hour; OFF = stale or never. (Travel Mode is enabled transparently so the push goes through.)">
+                Travel: OFF
+              </button>
+              <span class="travel-mode-meta">
+                <span class="zip" id="travel-mode-zip">ZIP: --</span>
+                <span class="last-push" id="travel-mode-last-push"></span>
+              </span>
+            </div>
+            <div class="quick-controls-actions">
+              <button class="dongle-power-btn" id="btn-dongle-power" type="button" title="SDR power toggle">SDR ●</button>
+              <button class="logo" id="btn-disco" type="button" title="Open Disco wideband discovery" onclick="window.open('http://' + window.location.hostname + ':8092/', '_blank', 'noopener')">DISCO</button>
+              <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle red theme">🔴</button>
+            </div>
+          </div>
           <div class="counter-grid">
             <div class="counter-item">
               <div class="counter-label">Hits/Hour</div>
@@ -3556,10 +3673,7 @@
               <div class="counter-value" id="avoids-count">--</div>
               <div class="counter-rate" id="avoids-target"></div>
             </div>
-            <div class="counter-item">
-              <div class="counter-label">Local Time</div>
-              <div class="counter-value" id="pi-time">--</div>
-            </div>
+            <!-- Local Time tile moved to the new top-bar clock (#pi-time). -->
           </div>
           <div class="control-item" style="margin-top:14px;">
             <div class="control-label">
@@ -3681,7 +3795,9 @@
           </div>
         </div>
 
-        <div class="sitrep-card">
+        <!-- Phase 2: id added so the new top-bar status pill can scroll
+             here on click.  Card contents unchanged. -->
+        <div class="sitrep-card" id="sitrep-service-card">
           <div class="sitrep-card-title">Service + Microservice Health</div>
           <div class="service-list">
             <div class="service-item" data-service="api">
@@ -5216,6 +5332,12 @@
       heartbeatRecovery: document.getElementById('heartbeat-recovery'),
       heartbeatEvidence: document.getElementById('heartbeat-evidence'),
       heartbeatSince: document.getElementById('heartbeat-since'),
+      // Phase 2: top-bar status pill
+      statusPill: document.getElementById('status-pill'),
+      statusPillChain: document.getElementById('status-pill-chain'),
+      statusPillFavorite: document.getElementById('status-pill-favorite'),
+      statusPillPlay: document.getElementById('status-pill-play'),
+      sitrepServiceCard: document.getElementById('sitrep-service-card'),
       hitCount: document.getElementById('hit-count'),
       hitRate: document.getElementById('hit-rate'),
       sessionCount: document.getElementById('session-count'),
@@ -10964,8 +11086,10 @@
     function updateStatus() {
       const airbandDisplay = getDisplayForTarget('airband');
       const groundDisplay = getDisplayForTarget('ground');
-      els.lastHitAirbandValue.textContent = airbandDisplay || '--';
-      els.lastHitGroundValue.textContent = groundDisplay || '--';
+      // Phase 2: Last-Hit row was removed from the top bar. Null-check the
+      // refs so the renderer is safe whether the buttons are present or not.
+      if (els.lastHitAirbandValue) els.lastHitAirbandValue.textContent = airbandDisplay || '--';
+      if (els.lastHitGroundValue)  els.lastHitGroundValue.textContent  = groundDisplay  || '--';
       const digitalHold = state.hold.digital;
       const liveDigitalHit = latestDigitalHit();
       const digitalParts = digitalHold
@@ -10987,8 +11111,9 @@
         els.lastHitDigitalSubvalue.textContent = sub;
         els.lastHitDigitalSubvalue.classList.toggle('hidden', !sub);
       }
-      els.lastHitAirband.classList.toggle('holding', Boolean(state.hold.airband));
-      els.lastHitGround.classList.toggle('holding', Boolean(state.hold.ground));
+      // Phase 2: same null-check as above for the .holding class toggles.
+      if (els.lastHitAirband) els.lastHitAirband.classList.toggle('holding', Boolean(state.hold.airband));
+      if (els.lastHitGround)  els.lastHitGround.classList.toggle('holding', Boolean(state.hold.ground));
       if (els.lastHitDigital) {
         els.lastHitDigital.classList.toggle('holding', Boolean(state.hold.digital));
       }
@@ -11856,6 +11981,121 @@
       _heartbeatState.lastSince = (payload && payload.since) || null;
     }
 
+    // ---------------------------------------------------------------
+    // Phase 2 — top-bar status pill
+    //   chain: AIR | GND | DIG | PHI (from activeView)
+    //   favorite: profile label from state[target].profiles
+    //   play: ▶ playing | ❚❚ quiet | ⚠ wedged
+    // The pill polls on the same cadence as Heartbeat so the wedge icon
+    // tracks the same source of truth.  Clicking the pill flips to the
+    // sitrep view and scrolls to the 11-dot service card.
+    // ---------------------------------------------------------------
+    const STATUS_PILL_CHAIN_LABELS = {
+      airband: 'AIR',
+      ground:  'GND',
+      digital: 'DIG',
+      philly:  'PHI',
+    };
+
+    function _statusPillFavoriteLabel(target) {
+      try {
+        if (target === 'digital') {
+          const id = state.digital && (state.digital.activeProfile || state.digital.profile);
+          if (!id) return '';
+          const profiles = (state.digital && state.digital.profiles) || [];
+          const match = profiles.find((p) => p && (p.id === id || String(p.id) === String(id)));
+          return (match && (match.label || match.name)) || String(id);
+        }
+        if (target === 'airband' || target === 'ground') {
+          const bucket = state[target];
+          if (!bucket) return '';
+          const id = bucket.currentProfile;
+          if (!id) return '';
+          const profiles = bucket.profiles || [];
+          const match = profiles.find((p) => p && (p.id === id || String(p.id) === String(id)));
+          return (match && (match.label || match.name)) || String(id);
+        }
+        return ''; // philly handled by its own module — pill omits favorite
+      } catch (_e) {
+        return '';
+      }
+    }
+
+    function _statusPillPlayState() {
+      // Wedge wins over everything — surface it the instant heartbeat sees it.
+      if (_heartbeatState && _heartbeatState.lastState === 'wedged') {
+        return { glyph: '⚠', state: 'wedged' };
+      }
+      // Check the audio element that corresponds to the active tab.
+      const tab = activeView;
+      let audioEl = null;
+      if (tab === 'digital') audioEl = els.audioPlayerDigital;
+      else if (tab === 'airband' || tab === 'ground') audioEl = els.audioPlayerAnalog;
+      const isPlaying = audioEl
+        && !audioEl.paused
+        && audioEl.readyState > 2
+        && !audioEl.ended;
+      if (isPlaying) return { glyph: '▶', state: 'playing' };
+      // Fall back to VLC running flag if the embedded player isn't active
+      // (some setups rely entirely on VLC playback on the box itself).
+      try {
+        if (tab === 'digital' && state.vlc && state.vlc.digital && state.vlc.digital.running) {
+          return { glyph: '▶', state: 'playing' };
+        }
+        if ((tab === 'airband' || tab === 'ground')
+            && state.vlc && state.vlc.analog && state.vlc.analog.running) {
+          return { glyph: '▶', state: 'playing' };
+        }
+      } catch (_e) { /* state may not be fully populated yet */ }
+      return { glyph: '❚❚', state: 'quiet' };
+    }
+
+    function renderStatusPill() {
+      if (!els.statusPill) return;
+      const tab = activeView;
+      const chain = STATUS_PILL_CHAIN_LABELS[tab] || '—';
+      const favorite = _statusPillFavoriteLabel(tab) || '—';
+      const play = _statusPillPlayState();
+
+      if (els.statusPillChain) els.statusPillChain.textContent = chain;
+      if (els.statusPillFavorite) {
+        els.statusPillFavorite.textContent = favorite;
+        els.statusPillFavorite.title = favorite;
+      }
+      if (els.statusPillPlay) {
+        els.statusPillPlay.textContent = play.glyph;
+        els.statusPillPlay.setAttribute('data-state', play.state);
+        els.statusPillPlay.setAttribute(
+          'aria-label',
+          play.state === 'playing' ? 'audio playing'
+            : play.state === 'wedged' ? 'system wedged'
+            : 'quiet',
+        );
+      }
+    }
+
+    function handleStatusPillClick() {
+      // Flip into the sitrep view (if not already), then scroll the
+      // 11-dot service card into view after the view-flip animation.
+      try {
+        if (typeof toggleSitrep === 'function') toggleSitrep(true);
+      } catch (_e) { /* ignore — function may not be in scope yet */ }
+      const target = els.sitrepServiceCard;
+      if (!target) return;
+      // Allow the view-flip animation (VIEW_FLIP_MS, ~280-300ms typically)
+      // to complete before scrolling; otherwise the target is still hidden.
+      const wait = (typeof VIEW_FLIP_MS === 'number' && VIEW_FLIP_MS > 0)
+        ? VIEW_FLIP_MS + 40
+        : 320;
+      setTimeout(() => {
+        try {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } catch (_e) {
+          target.scrollIntoView();
+        }
+      }, wait);
+    }
+
     async function pollHeartbeat() {
       if (!els.heartbeatWidget) return;
       try {
@@ -11863,6 +12103,8 @@
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const data = await resp.json();
         renderHeartbeat(data);
+        // Phase 2: keep the pill's wedge icon in lockstep with heartbeat.
+        try { renderStatusPill(); } catch (_e) { /* render is best-effort */ }
       } catch (e) {
         // Don't blow away the previous state on a transient error; show an
         // error band on top of whatever was previously rendered.
@@ -13722,8 +13964,10 @@
         refreshDigitalListen(true);
       }
       updateTuneButton();
+      // Phase 2: keep the top-bar pill in sync with the active tab.
+      try { renderStatusPill(); } catch (_e) { /* best-effort */ }
     }
-    
+
     // ============================================
     // SLIDER HANDLERS
     // ============================================
@@ -15506,8 +15750,12 @@
         };
       }
       PhillyPi.init();
-      els.lastHitAirband.addEventListener('click', () => toggleHoldFor('airband'));
-      els.lastHitGround.addEventListener('click', () => toggleHoldFor('ground'));
+      // Phase 2: null-check Last-Hit click handlers; the buttons were
+      // removed from the top bar. Hold-toggle behavior is preserved if
+      // the buttons ever come back; users can also toggle hold from the
+      // Hit Feed or via keyboard shortcut.
+      if (els.lastHitAirband) els.lastHitAirband.addEventListener('click', () => toggleHoldFor('airband'));
+      if (els.lastHitGround)  els.lastHitGround.addEventListener('click', () => toggleHoldFor('ground'));
       if (els.lastHitDigital) {
         els.lastHitDigital.addEventListener('click', () => {
           toggleHoldFor('digital');
@@ -16337,6 +16585,12 @@
       setInterval(() => {
         pollHeartbeat().catch(() => {});
       }, HEARTBEAT_POLL_MS);
+
+      // Phase 2 — wire the status pill click and seed an initial render.
+      if (els.statusPill) {
+        els.statusPill.addEventListener('click', handleStatusPillClick);
+      }
+      try { renderStatusPill(); } catch (_e) { /* state not ready yet — pollHeartbeat will retry */ }
 
       logActivity('SB3 UI initialized', 'info', 'init');
       try {
