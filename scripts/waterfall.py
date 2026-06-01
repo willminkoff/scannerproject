@@ -239,6 +239,19 @@ class ConfigPoller:
         self._last_mtime: float = 0.0
         self._last_loaded_ts: float = 0.0
 
+    def prime(self) -> None:
+        """Adopt the current config.json mtime without applying it.
+
+        Called at startup so a stale retune command left in /run (which
+        survives a service restart) is NOT replayed over the persisted
+        band — the persisted band is authoritative on startup, and
+        config.json only signals genuinely new commands thereafter.
+        """
+        try:
+            self._last_mtime = os.stat(self.path).st_mtime
+        except OSError:
+            self._last_mtime = 0.0
+
     def poll(self) -> Optional[dict]:
         try:
             st = os.stat(self.path)
@@ -702,6 +715,11 @@ def main() -> int:
     b.start()
 
     config_poller = ConfigPoller(CONFIG_PATH)
+    # Persisted band is authoritative on startup — adopt (don't replay) any
+    # stale config.json left in /run from a prior session, and materialize
+    # the persist file so the current band survives a reboot too.
+    config_poller.prime()
+    _persist_band(current_center_mhz, current_bw_mhz)
 
     LOG.info(
         "waterfall up: A=%s @ %.3f MHz, B=%s @ %.3f MHz; center=%.3f MHz "
