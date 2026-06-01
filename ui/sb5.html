@@ -1019,9 +1019,9 @@
   <section class="pane pane-waterfall" id="pane-waterfall">
     <div class="pane-hd">
       <span class="eyebrow">Live IQ</span>
-      <span class="title">125 — 130 MHz · stitched</span>
-      <span class="demo-tag">DEMO — coming when hardware lands</span>
-      <span class="sub">2 × RTL-SDR · TBD</span>
+      <span class="title" id="wf-title">125 — 130 MHz · stitched</span>
+      <span class="live-tag" id="wf-live-tag">Live · 2 dongles · 4.8 MHz</span>
+      <span class="sub" id="wf-sub">2 × RTL-SDR</span>
     </div>
     <div class="pane-body">
       <div class="wf-canvas-wrap">
@@ -1443,10 +1443,42 @@ function renderProfile(hpState, profiles) {
 }
 
 function renderWaterfall(data) {
-  if (!data || !Array.isArray(data.bins)) return;
-  const center = Number(data.center_mhz || 127.5);
-  const bw = Number(data.bw_mhz || 5.0);
-  const min = center - bw/2, max = center + bw/2;
+  if (!data) return;
+  // Phase 6a: live state from /run/scannerproject/waterfall/state.json.
+  // Honor top-level state="down"/"degraded" for the dropped-dongle overlay.
+  const topState = String(data.state || "ok").toLowerCase();
+  const downOverlay = $("wf-down-overlay");
+  if (downOverlay) {
+    downOverlay.classList.toggle("show", topState === "down" || topState === "degraded");
+    const sub = downOverlay.querySelector(".sub");
+    if (sub) {
+      if (topState === "down") {
+        sub.textContent = data.reason ? `Waterfall: ${data.reason}.` : "Both waterfall dongles lost frames.";
+      } else if (topState === "degraded") {
+        sub.textContent = "Live IQ stitch is running on one dongle; the other is reconnecting.";
+      }
+    }
+  }
+  if (!Array.isArray(data.bins) || data.bins.length === 0) {
+    // state.json missing or service down — keep last-drawn canvas but
+    // surface "down" in the live-tag.
+    const tag = $("wf-live-tag");
+    if (tag) tag.textContent = topState === "down" ? "DOWN" : "Degraded";
+    return;
+  }
+  // Prefer the explicit freq_min/freq_max from the backend (covers retune
+  // edge cases), fall back to center +/- bw/2.
+  let min, max, center, bw;
+  if (typeof data.freq_min_mhz === "number" && typeof data.freq_max_mhz === "number") {
+    min = data.freq_min_mhz;
+    max = data.freq_max_mhz;
+    center = (min + max) / 2;
+    bw = max - min;
+  } else {
+    center = Number(data.center_mhz || 123.7);
+    bw = Number(data.bw_mhz || 4.8);
+    min = center - bw/2; max = center + bw/2;
+  }
   $("wf-axis-min").textContent = min.toFixed(2);
   $("wf-axis-mid").textContent = center.toFixed(2);
   $("wf-axis-max").textContent = max.toFixed(2);
@@ -1460,9 +1492,39 @@ function renderWaterfall(data) {
   $("wf-pill-peak").textContent = `peak ${peakVal.toFixed(1)} dBFS @ ${peakF.toFixed(3)}`;
   $("wf-pill-age").textContent = `last frame ${data.last_frame_age_ms || 0}ms`;
 
-  const serials = Array.isArray(data.dongle_serials) ? data.dongle_serials : [];
-  $("ev-wf-a").textContent = serials[0] ? `connected · ${serials[0]}` : "not deployed";
-  $("ev-wf-b").textContent = serials[1] ? `connected · ${serials[1]}` : "not deployed";
+  // Live tag: dongle count + bw.
+  const tag = $("wf-live-tag");
+  if (tag) {
+    if (topState === "ok") tag.textContent = `Live · 2 dongles · ${bw.toFixed(1)} MHz`;
+    else if (topState === "degraded") tag.textContent = `Degraded · 1 dongle · ${bw.toFixed(1)} MHz`;
+    else tag.textContent = "DOWN";
+  }
+
+  // Per-dongle evidence rows.  Backend ships an array of {serial,state,
+  // last_frame_age_ms,center_mhz} dongle dicts.
+  const dongles = Array.isArray(data.dongles) ? data.dongles : [];
+  const dA = dongles[0] || {};
+  const dB = dongles[1] || {};
+  const evA = $("ev-wf-a");
+  const evB = $("ev-wf-b");
+  if (evA) {
+    if (dA.state === "ok") {
+      evA.textContent = `live · ${dA.serial || "?"} · ${dA.last_frame_age_ms|0}ms`;
+      evA.className = "val";
+    } else {
+      evA.textContent = `DOWN · ${dA.serial || "?"}`;
+      evA.className = "val bad";
+    }
+  }
+  if (evB) {
+    if (dB.state === "ok") {
+      evB.textContent = `live · ${dB.serial || "?"} · ${dB.last_frame_age_ms|0}ms`;
+      evB.className = "val";
+    } else {
+      evB.textContent = `DOWN · ${dB.serial || "?"}`;
+      evB.className = "val bad";
+    }
+  }
   $("ev-wf-frame").textContent = `${data.last_frame_age_ms || 0} ms ago`;
 
   updateFreqWindowLabel("wf-window", "wf-window-label", min, max);
@@ -1568,7 +1630,7 @@ function updateFreqWindowLabel(elId, labelId, fLo, fHi) {
   const lab = $(labelId);
   if (lab) lab.textContent = `${fCenter.toFixed(3)} MHz`;
 }
-function attachDrag(elId, labelId, fLoFn, fHiFn, onCenterChange) {
+function attachDrag(elId, labelId, fLoFn, fHiFn, onCenterChange, onRelease) {
   const el = $(elId); if (!el) return;
   let dragging = false;
   let startX = 0;
@@ -1604,11 +1666,15 @@ function attachDrag(elId, labelId, fLoFn, fHiFn, onCenterChange) {
     }
   }
   function onUp() {
+    const wasDragging = dragging;
     dragging = false;
     document.removeEventListener("mousemove", onMove);
     document.removeEventListener("mouseup", onUp);
     document.removeEventListener("touchmove", onMove);
     document.removeEventListener("touchend", onUp);
+    if (wasDragging && typeof onRelease === "function") {
+      try { onRelease(currentCenter()); } catch (_e) {}
+    }
   }
   function onDown(e) {
     dragging = true;
@@ -1625,9 +1691,19 @@ function attachDrag(elId, labelId, fLoFn, fHiFn, onCenterChange) {
 }
 
 // ----- Live IQ (Waterfall) center-freq local state -----
-// Drag handle + numeric input both write to WF_CENTER_LOCAL.
-// No POST — /api/waterfall retune endpoint doesn't exist yet.
-const WF_CENTER_LOCAL = { mhz: 127.5 };
+// Drag handle + numeric input both POST to /api/waterfall, which writes
+// /run/scannerproject/waterfall/config.json.  scanner-waterfall.service
+// polls that file by mtime and retunes both dongles around `center_mhz`.
+const WF_CENTER_LOCAL = { mhz: 123.7 };
+function postWaterfallCenter(mhz) {
+  const m = Number(mhz);
+  if (!Number.isFinite(m)) return;
+  fetch("/api/waterfall", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ center_mhz: m }),
+  }).catch(()=>{});
+}
 function setWfCenterFromMhz(mhz) {
   const m = Number(mhz);
   if (!Number.isFinite(m)) return;
@@ -1659,6 +1735,7 @@ function wireWfCenterInput() {
     const v = parseFloat(input.value);
     if (!Number.isFinite(v)) return;
     setWfCenterFromMhz(v);
+    postWaterfallCenter(v);
   }
   input.addEventListener("change", commit);
   input.addEventListener("blur", commit);
@@ -1961,13 +2038,13 @@ async function pollDisco() {
 function boot() {
   attachDrag("wf-window", "wf-window-label",
     () => {
-      const c = parseFloat(($("wf-pill-center").textContent || "").replace(/[^0-9.\-]/g,"")) || 127.5;
-      const bw = parseFloat(($("wf-pill-bw").textContent || "").replace(/[^0-9.\-]/g,"")) || 5.0;
+      const c = parseFloat(($("wf-pill-center").textContent || "").replace(/[^0-9.\-]/g,"")) || 123.7;
+      const bw = parseFloat(($("wf-pill-bw").textContent || "").replace(/[^0-9.\-]/g,"")) || 4.8;
       return c - bw/2;
     },
     () => {
-      const c = parseFloat(($("wf-pill-center").textContent || "").replace(/[^0-9.\-]/g,"")) || 127.5;
-      const bw = parseFloat(($("wf-pill-bw").textContent || "").replace(/[^0-9.\-]/g,"")) || 5.0;
+      const c = parseFloat(($("wf-pill-center").textContent || "").replace(/[^0-9.\-]/g,"")) || 123.7;
+      const bw = parseFloat(($("wf-pill-bw").textContent || "").replace(/[^0-9.\-]/g,"")) || 4.8;
       return c + bw/2;
     },
     (centerMhz) => {
@@ -1976,6 +2053,10 @@ function boot() {
       if (input && document.activeElement !== input) {
         input.value = centerMhz.toFixed(3);
       }
+    },
+    (centerMhz) => {
+      // onRelease: POST the final center to the backend.
+      postWaterfallCenter(centerMhz);
     });
   attachDrag("disco-window", "disco-window-label",
     () => parseFloat(($("disco-axis-min").textContent || "30")) || 30,

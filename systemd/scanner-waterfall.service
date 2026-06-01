@@ -1,0 +1,13 @@
+[Unit]
+Description=Scanner Waterfall (2x RTL-SDR live spectrum)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+ExecStart=/home/ubuntu/scannerproject/disco/.venv/bin/python /home/ubuntu/scannerproject/scripts/waterfall.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

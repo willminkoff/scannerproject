@@ -3093,11 +3093,12 @@ def _compute_heartbeat_payload() -> dict:
                 "status": "warn",
             })
 
-    # Phase 5a — placeholder evidence rows for the not-yet-deployed RTL-SDR
-    # dongles (waterfall ×2, VFO ×1, disco ×3).  Status="info" so they
-    # surface in the heartbeat strip without contributing to wedge state.
-    evidence.append({"label": "Waterfall dongle A", "value": "not deployed yet", "status": "info"})
-    evidence.append({"label": "Waterfall dongle B", "value": "not deployed yet", "status": "info"})
+    # Phase 6a — live evidence rows for the two waterfall RTL-SDRs.
+    # Backed by /run/scannerproject/waterfall/state.json which the
+    # scanner-waterfall.service writes once a frame is in hand.
+    for row in _waterfall_dongle_evidence_rows():
+        evidence.append(row)
+    # VFO + Disco rows remain placeholders until phases 6b / 6c.
     evidence.append({"label": "VFO dongle",        "value": "not deployed yet", "status": "info"})
     evidence.append({"label": "Disco dongles ×3",  "value": "not deployed yet", "status": "info"})
 
@@ -3149,6 +3150,151 @@ def _compute_heartbeat_payload() -> dict:
 
     return dict(payload)
 
+
+
+
+# =====================================================================
+# Phase 6a — waterfall state plumbing.
+# scripts/waterfall.py writes state.json atomically; /api/waterfall is
+# a file-backed pass-through, /api/heartbeat surfaces per-dongle status
+# via _waterfall_dongle_evidence_rows().
+# =====================================================================
+
+WATERFALL_STATE_DIR = "/run/scannerproject/waterfall"
+WATERFALL_STATE_PATH = os.path.join(WATERFALL_STATE_DIR, "state.json")
+WATERFALL_CONFIG_PATH = os.path.join(WATERFALL_STATE_DIR, "config.json")
+WATERFALL_STALE_SEC = 5.0   # state.json older than this -> treat as down
+
+
+def _waterfall_read_state() -> dict | None:
+    """Best-effort read of waterfall state.json.
+
+    Returns the parsed dict on success, or None if the file is missing /
+    unreadable / older than WATERFALL_STALE_SEC.
+    """
+    try:
+        st = os.stat(WATERFALL_STATE_PATH)
+    except FileNotFoundError:
+        return None
+    except OSError:
+        return None
+    if (time.time() - st.st_mtime) > WATERFALL_STALE_SEC:
+        return None
+    try:
+        with open(WATERFALL_STATE_PATH) as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    return data
+
+
+def _waterfall_dongle_evidence_rows() -> list[dict]:
+    """Build the per-dongle heartbeat evidence rows (A, B).
+
+    On dropout we surface "DOWN since Nm ago - reconnecting in Ks" with
+    status=bad.  Reconnect countdown is best-effort (we don't have the
+    backoff timer exposed, so we compute it from the dongle.state and the
+    age of state.json).
+    """
+    state = _waterfall_read_state()
+    out: list[dict] = []
+    labels = ["A", "B"]
+    if state is None:
+        # Service down or stale.  Show both as bad with a hint that the
+        # service isn't writing state.
+        for lbl in labels:
+            out.append({
+                "label": f"Waterfall dongle {lbl}",
+                "value": "DOWN - waterfall service not running",
+                "status": "bad",
+            })
+        return out
+    dongles = state.get("dongles") if isinstance(state.get("dongles"), list) else []
+    by_label = {d.get("label"): d for d in dongles if isinstance(d, dict)}
+    for lbl in labels:
+        d = by_label.get(lbl) or {}
+        serial = str(d.get("serial") or "?")
+        d_state = str(d.get("state") or "down")
+        age_ms = d.get("last_frame_age_ms")
+        if d_state == "ok" and isinstance(age_ms, (int, float)) and age_ms >= 0:
+            out.append({
+                "label": f"Waterfall dongle {lbl}",
+                "value": f"live · {serial} · {int(age_ms)}ms",
+                "status": "ok",
+            })
+        else:
+            # Compute a coarse "down since" from the most recent state.json
+            # write minus the last_frame_age_ms (if present).
+            since_phrase = "recently"
+            try:
+                wf_mtime = os.stat(WATERFALL_STATE_PATH).st_mtime
+                # When the dongle is down the watchdog stops updating the
+                # frame age, so the most useful "since" is the difference
+                # between state.json updates and the bad-read window.
+                down_for_sec = max(0.0, time.time() - wf_mtime + 5.0)
+                if down_for_sec < 60:
+                    since_phrase = f"{int(down_for_sec)}s ago"
+                elif down_for_sec < 3600:
+                    since_phrase = f"{int(down_for_sec / 60)}m ago"
+                else:
+                    since_phrase = f"{int(down_for_sec / 3600)}h ago"
+            except OSError:
+                pass
+            out.append({
+                "label": f"Waterfall dongle {lbl}",
+                "value": f"DOWN since {since_phrase} · reconnecting",
+                "status": "bad",
+            })
+    return out
+
+
+def _waterfall_pass_through_payload() -> dict:
+    """GET /api/waterfall body — file-backed pass-through.
+
+    If state.json is missing or stale (> WATERFALL_STALE_SEC), return a
+    minimal "down" payload so the client doesn't see a 500.
+    """
+    state = _waterfall_read_state()
+    if state is None:
+        return {
+            "state": "down",
+            "reason": "service not running",
+            "bins": [],
+            "dongles": [],
+        }
+    return state
+
+
+def _waterfall_write_config(center_mhz: float) -> tuple[bool, str]:
+    """POST /api/waterfall body handler — atomically write config.json.
+
+    Returns (ok, message).  Validates the requested center freq against
+    the RTL-SDR tuning range (24 MHz - 1.7 GHz).
+    """
+    if not (24.0 <= center_mhz <= 1700.0):
+        return False, f"center_mhz {center_mhz} out of range (24-1700)"
+    try:
+        os.makedirs(WATERFALL_STATE_DIR, exist_ok=True)
+    except OSError as e:
+        return False, f"mkdir failed: {e}"
+    payload = {"center_mhz": float(center_mhz)}
+    tmp = WATERFALL_CONFIG_PATH + ".tmp"
+    try:
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+        with os.fdopen(fd, "w") as f:
+            json.dump(payload, f)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, WATERFALL_CONFIG_PATH)
+    except OSError as e:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        return False, f"write failed: {e}"
+    return True, "ok"
 
 
 # =====================================================================
@@ -4749,9 +4895,13 @@ class Handler(BaseHTTPRequestHandler):
         # not return "dongle-lost" in normal operation.
         # ============================================================
         if p == "/api/waterfall":
+            # Phase 6a: file-backed pass-through.  Returns state.json
+            # written by scanner-waterfall.service, or a "down" stub if
+            # the service isn't running / state is stale.
+            payload = _waterfall_pass_through_payload()
             return self._send(
                 200,
-                json.dumps(_mock_waterfall_payload()),
+                json.dumps(payload),
                 "application/json; charset=utf-8",
             )
 
@@ -6536,6 +6686,34 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(
                 200,
                 json.dumps({"ok": True, "removed": bool(removed)}),
+                "application/json; charset=utf-8",
+            )
+
+        # ============================================================
+        # Phase 6a — POST /api/waterfall: writes /run/scannerproject/
+        # waterfall/config.json, which scanner-waterfall.service polls
+        # by mtime and uses to retune both dongles around `center_mhz`.
+        # ============================================================
+        if p == "/api/waterfall":
+            try:
+                payload_in = form if isinstance(form, dict) else {}
+                center_mhz = float(payload_in.get("center_mhz"))
+            except (TypeError, ValueError) as exc:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": f"invalid center_mhz: {exc}"}),
+                    "application/json; charset=utf-8",
+                )
+            ok, msg = _waterfall_write_config(center_mhz)
+            if not ok:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": msg}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(
+                200,
+                json.dumps({"ok": True, "center_mhz": center_mhz}),
                 "application/json; charset=utf-8",
             )
 
