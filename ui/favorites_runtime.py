@@ -1145,6 +1145,87 @@ def _normalize_digital_pool(
     return systems, talkgroups, controls_flat, summary
 
 
+def _available_digital_tuner_count(rspduo_ids: list[str] | None = None) -> int:
+    """Number of *independent* digital control receivers currently available.
+
+    One receiver per non-airband RSPduo box (its Tuner 1) plus any RTL-SDR
+    serials in the digital pool.  Deliberately does **not** count an RSPduo's
+    second tuner: op25's split-process path opens each child on the *physical*
+    device, so a single RSPduo cannot host two independent control receivers
+    without the Master/Slave collision that opens-then-closes the Slave
+    (``status=1/FAILURE`` restart loop) and wedges the sdrplay-api daemon.
+
+    ``rspduo_ids`` may be passed to reuse a prior ``_rspduo_tuner_ids`` probe;
+    when omitted it is sampled here (one Tuner 1 per box, no Tuner 2).
+    """
+    if rspduo_ids is None:
+        try:
+            rspduo_ids = _rspduo_tuner_ids(max_tuners=None)
+        except Exception:
+            rspduo_ids = []
+    try:
+        rtl = len(_digital_serials())
+    except Exception:
+        rtl = 0
+    return len(rspduo_ids) + rtl
+
+
+def _system_has_operator_intent(system: dict[str, Any], overrides: dict[str, Any]) -> bool:
+    """True when the operator has configured this system in op25_system_config.
+
+    "Intent" = an explicit per-system override the operator set: a non-empty
+    ``nac`` or a ``site_policy.pinned_site_id``.  These mark the system the
+    operator actually cares about for the active favorite (e.g. NJICS is
+    pinned to Cape May site 21557 with NAC 0x39B for the Sea Isle City
+    favorite), as opposed to a system that the scan-pool's geographic
+    expansion merely pulled in by proximity (e.g. the NJ Turnpike system).
+    """
+    name = str((system or {}).get("name") or "").strip()
+    entry = overrides.get(name) if isinstance(overrides, dict) else None
+    if not isinstance(entry, dict):
+        return False
+    if str(entry.get("nac") or "").strip():
+        return True
+    site_policy = entry.get("site_policy")
+    if isinstance(site_policy, dict) and str(site_policy.get("pinned_site_id") or "").strip():
+        return True
+    return False
+
+
+def _cap_systems_to_tuners(
+    systems: list[dict[str, Any]],
+    n_tuners: int,
+    overrides: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Cap the enqueued trunked systems to the available digital tuner count.
+
+    Resolver contract
+    -----------------
+    Never enqueue more trunked systems than there are independent digital
+    tuners (see :func:`_available_digital_tuner_count`).  Each enqueued system
+    becomes an op25 control receiver that needs its own physical tuner; over-
+    subscribing makes two receivers contend for one SDR and neither locks.
+
+    When the active scan pool over-subscribes the tuners — a coastal favorite
+    whose geographic expansion pulls in both NJICS *and* the NJ Turnpike
+    system while only one RSPduo is free — keep the systems the operator has
+    expressed intent for (a NAC or pinned site in ``op25_system_config.json``)
+    and fall back to the incoming closest-first order as a stable tiebreaker.
+    The list is returned unchanged when ``n_tuners`` is unknown (``<= 0``) or
+    the pool already fits, so a healthy single-system favorite is untouched.
+    """
+    if n_tuners <= 0 or len(systems) <= n_tuners:
+        return list(systems)
+    overrides = overrides if isinstance(overrides, dict) else {}
+    ranked = sorted(
+        enumerate(systems),
+        # 0 sorts before 1 -> operator-configured systems are kept first;
+        # original index preserves the closest-first order within each tier.
+        key=lambda pair: (0 if _system_has_operator_intent(pair[1], overrides) else 1, pair[0]),
+    )
+    return [system for _, system in ranked[:n_tuners]]
+
+
 def _render_talkgroups_text(rows: list[dict[str, str]]) -> str:
     out = io.StringIO()
     writer = csv.writer(out, lineterminator="\n")
@@ -1267,13 +1348,43 @@ def sync_scan_pool_to_digital_runtime(
             _LAST_DIGITAL_RESULT = dict(result)
             return result
 
+        # --- Resolver contract: cap enqueued systems to available tuners ---
+        # One Tuner 1 per non-airband RSPduo box (never a same-box Tuner 2 —
+        # that collides on the physical SDR and wedges the sdrplay daemon),
+        # plus any RTL digital serials.  If the scan pool's geographic
+        # expansion over-subscribed the tuners, keep the operator-configured
+        # ("intended") systems and drop the rest before they ever reach
+        # systems.json or the allocator.
+        rspduo_ids = _rspduo_tuner_ids(max_tuners=None)
+        n_digital_tuners = _available_digital_tuner_count(rspduo_ids)
+        if n_digital_tuners > 0 and len(systems) > n_digital_tuners:
+            try:
+                from .config import DIGITAL_PROFILES_DIR
+            except ImportError:
+                from ui.config import DIGITAL_PROFILES_DIR
+            try:
+                from .op25_adapter import _read_op25_system_config
+            except ImportError:
+                from ui.op25_adapter import _read_op25_system_config
+            managed_profile_dir = os.path.join(str(DIGITAL_PROFILES_DIR), _MANAGED_DIGITAL_ID)
+            overrides = _read_op25_system_config(managed_profile_dir)
+            capped = _cap_systems_to_tuners(systems, n_digital_tuners, overrides)
+            if len(capped) != len(systems):
+                kept_names = [str(s.get("name") or "?") for s in capped]
+                dropped_names = [str(s.get("name") or "?") for s in systems if s not in capped]
+                logger.warning(
+                    "Digital resolver: %d trunked system(s) > %d digital tuner(s); "
+                    "keeping %s, dropping %s",
+                    len(systems), n_digital_tuners, kept_names, dropped_names,
+                )
+                systems = capped
+                result["system_count"] = len(systems)
+
         # --- Dongle allocation: assign digital tuners to system roles ---
         # RSPduo tuners are passed as priority_serials so they are picked for
         # control-channel duty ahead of RTL-SDRs (better RF performance: 12-bit
-        # vs 8-bit ADC). We expose as many RSPduo tuners as there are active
-        # systems, preferring Tuner 1 across physical boxes before any Tuner 2.
+        # vs 8-bit ADC). One control receiver per physical box (Tuner 1 only).
         try:
-            rspduo_ids = _rspduo_tuner_ids(max_tuners=len(systems))
             allocation = allocate_dongles(
                 _digital_serials(),
                 systems,
