@@ -1,0 +1,15 @@
+{
+  "_comment": "Phase 6d broker policy. ACARS-only — dumpvdl2 lives on a dedicated dongle (VDL2A001) outside the Disco pool, so sounding mode swaps only the acars dongle. Disco pool: 45469635 (A) + 61108285 (B). ACARS is configured (via /etc/airband-ui.conf ACARS_RTL_SERIAL=61108285) to claim dongle B.",
+  "dongles": [
+    {
+      "serial": "45469635",
+      "normal_role": "disco",
+      "sounding_role": "disco"
+    },
+    {
+      "serial": "61108285",
+      "normal_role": "disco",
+      "sounding_role": "acars"
+    }
+  ]
+}

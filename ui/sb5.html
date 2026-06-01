@@ -80,6 +80,50 @@
   .tb-pill .verdict { color: rgba(232, 240, 250, 0.78); font-weight: 500; text-transform: none; }
   body.state-wedged .tb-pill { background: rgba(255, 69, 58, 0.16); border-color: rgba(255, 69, 58, 0.4); color: #ffd0cc; }
   body.state-wedged .tb-pill .dot { background: var(--red); animation: pulse 1.4s ease-in-out infinite; }
+
+  /* Phase 6d — Sounding mode toggle (topbar). */
+  .tb-sounding {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 5px 10px;
+    background: rgba(232, 240, 250, 0.06);
+    border: 1px solid rgba(232, 240, 250, 0.14);
+    border-radius: 999px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+    color: var(--text-2); text-transform: uppercase;
+    cursor: pointer; user-select: none;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  }
+  .tb-sounding .sw {
+    position: relative; width: 30px; height: 16px;
+    background: rgba(232, 240, 250, 0.16); border-radius: 999px;
+    transition: background 120ms ease;
+  }
+  .tb-sounding .sw::after {
+    content: ""; position: absolute; top: 2px; left: 2px;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    transition: transform 140ms ease;
+  }
+  .tb-sounding.on { background: rgba(255, 159, 10, 0.18); border-color: rgba(255, 159, 10, 0.45); color: #ffd58a; }
+  .tb-sounding.on .sw { background: rgba(255, 159, 10, 0.75); }
+  .tb-sounding.on .sw::after { transform: translateX(14px); }
+  .tb-sounding.pending { opacity: 0.55; pointer-events: none; }
+  .tb-sounding:hover { background: rgba(232, 240, 250, 0.10); }
+
+  /* Phase 6d — sounding overlay over the Disco pane when sounding on. */
+  .sounding-overlay {
+    position: absolute; inset: 0;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(8, 12, 20, 0.74); backdrop-filter: blur(2px);
+    color: #ffd58a; font-weight: 600; font-size: 13px; letter-spacing: 0.04em;
+    text-transform: uppercase; pointer-events: none; z-index: 5;
+    border-radius: 8px;
+  }
+  .sounding-overlay .label { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .sounding-overlay .label .sub { font-weight: 500; font-size: 11px; color: rgba(255, 213, 138, 0.78); text-transform: none; letter-spacing: 0; }
+  body.sounding-on .sounding-overlay { display: flex; }
+  body.sounding-on .pane-disco .disco-canvas-wrap { opacity: 0.35; filter: saturate(0.4); }
+  body.sounding-on .pane-disco .disco-detections { opacity: 0.45; }
   /* Phase 5b: when wedged, anchor the headline/explanation to the upper-RIGHT
      of the hb-strip (previously left-aligned). Pill keeps its upper-right
      placement in the topbar above. */
@@ -846,6 +890,11 @@
   <span class="tb-title">Scanner<span class="sub" id="tb-sub">sb5 · 5-pane</span></span>
   <span class="tb-spacer"></span>
   <button class="tb-sitrep-btn" id="tb-sitrep-btn" type="button" title="Open Sitrep">Sitrep</button>
+  <span class="tb-sounding" id="tb-sounding" role="button" tabindex="0"
+        title="Sounding mode — swap Disco's B dongle to ACARS/VDL2 decoder">
+    <span class="sw" aria-hidden="true"></span>
+    <span id="tb-sounding-label">Sounding off</span>
+  </span>
   <span class="tb-pill" id="tb-pill" role="button" tabindex="0" title="Open Sitrep" style="cursor: pointer;">
     <span class="dot"></span>
     <span id="tb-state">Loading</span>
@@ -1101,6 +1150,12 @@
         <div class="label">DONGLE LOST <span id="disco-down-since">4m ago</span></div>
         <div class="sub">Disco sweep lost frames from dongle E.</div>
         <div class="countdown">reconnect in <span id="disco-down-cd">8</span>s</div>
+      </div>
+      <div class="sounding-overlay" id="disco-sounding-overlay">
+        <div class="label">
+          Sounding active — Disco paused
+          <span class="sub" id="disco-sounding-sub">B dongle loaned to ACARS</span>
+        </div>
       </div>
     </div>
     <div class="pane-evidence" id="disco-evidence">
@@ -2177,6 +2232,93 @@ async function pollDisco() {
   }
 }
 
+// ============ Phase 6d — Sounding mode toggle ============
+const POLL_SOUNDING_MS = 2500;
+const SOUNDING_STATE = { sounding: false, pending: false };
+
+function renderSounding(data) {
+  const btn = $("tb-sounding");
+  const label = $("tb-sounding-label");
+  if (!btn || !label) return;
+  const on = !!(data && data.sounding);
+  SOUNDING_STATE.sounding = on;
+  // Visual sync to live broker state — but don't yank the toggle out
+  // from under the user mid-click.
+  if (!SOUNDING_STATE.pending) {
+    btn.classList.toggle("on", on);
+    label.textContent = on ? "Sounding ON" : "Sounding off";
+  }
+  document.body.classList.toggle("sounding-on", on);
+  // Update overlay sub-label with the actual current roles.
+  const sub = $("disco-sounding-sub");
+  if (sub) {
+    const ds = (data && Array.isArray(data.dongles)) ? data.dongles : [];
+    const loaned = ds.filter(d => d && d.current_role && d.current_role !== "disco");
+    if (loaned.length) {
+      sub.textContent = loaned
+        .map(d => `${d.serial} -> ${String(d.current_role || "").toUpperCase()}`)
+        .join(" · ");
+    } else if (on) {
+      sub.textContent = "swap in progress";
+    } else {
+      sub.textContent = "B dongle loaned to ACARS";
+    }
+  }
+  // Surface broker errors in the footer (best-effort).
+  if (data && data.last_error) {
+    const f = $("footer-meta");
+    if (f) f.textContent = `sb5 · broker error: ${data.last_error}`;
+  }
+}
+async function pollSounding() {
+  try {
+    const data = await fetchJSON("/api/sounding");
+    renderSounding(data);
+  } catch (e) {} finally {
+    setTimeout(pollSounding, POLL_SOUNDING_MS);
+  }
+}
+async function postSounding(desired) {
+  const btn = $("tb-sounding");
+  const label = $("tb-sounding-label");
+  if (!btn) return;
+  SOUNDING_STATE.pending = true;
+  btn.classList.add("pending");
+  if (label) label.textContent = desired ? "Switching ON…" : "Switching OFF…";
+  try {
+    const resp = await fetch("/api/sounding", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sounding: !!desired }),
+    });
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+  } catch (e) {
+    if (label) label.textContent = "Failed";
+  } finally {
+    // Poll quickly for a few cycles so the user sees the transition.
+    setTimeout(() => {
+      SOUNDING_STATE.pending = false;
+      btn.classList.remove("pending");
+      pollSounding();
+    }, 1200);
+  }
+}
+function wireSounding() {
+  const btn = $("tb-sounding");
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    if (SOUNDING_STATE.pending) return;
+    postSounding(!SOUNDING_STATE.sounding);
+  });
+  btn.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter" || ev.key === " ") {
+      ev.preventDefault();
+      if (SOUNDING_STATE.pending) return;
+      postSounding(!SOUNDING_STATE.sounding);
+    }
+  });
+}
+
 function boot() {
   attachDrag("wf-window", "wf-window-label",
     () => {
@@ -2213,6 +2355,7 @@ function boot() {
   wireSitrep();
   wireProfileBuilder();
   wireStatusDisclosure();
+  wireSounding();
   applyHashOverlays();
 
   pollHeartbeat();
@@ -2221,6 +2364,7 @@ function boot() {
   pollWaterfall();
   pollVFO();
   pollDisco();
+  pollSounding();
 }
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", boot);

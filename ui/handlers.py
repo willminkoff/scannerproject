@@ -3102,7 +3102,10 @@ def _compute_heartbeat_payload() -> dict:
     evidence.append(_vfo_dongle_evidence_row())
     # Phase 6c — per-Disco-dongle live evidence rows backed by
     # /run/scannerproject/disco/coord_state.json.
-    for row in _disco_dongle_evidence_rows():
+    # Phase 6d — overridden by broker ownership when sounding is on:
+    # a dongle loaned to ACARS / VDL2 shows the consumer's evidence
+    # instead of the (stale) disco coordinator view.
+    for row in _broker_aware_dongle_rows():
         evidence.append(row)
 
     # Decide state.
@@ -3651,6 +3654,210 @@ def _disco_dongle_evidence_rows() -> list[dict]:
                 "value": f"DOWN since {since} . reconnecting in {cd}s . {serial}",
                 "status": "bad",
             })
+    return out
+
+
+# =====================================================================
+# Phase 6d — tuner broker (Disco <-> ACARS/VDL2 ownership swap).
+#
+# scripts/tuner_broker.py owns /run/scannerproject/broker/state.json and
+# reads /run/scannerproject/broker/mode.json.  The UI exposes:
+#   GET  /api/sounding -> broker state (current ownership)
+#   POST /api/sounding -> writes mode.json; broker swaps within ~500ms
+# Heartbeat surfaces per-dongle role via _broker_aware_dongle_rows()
+# which replaces _disco_dongle_evidence_rows() so a swapped dongle
+# reads e.g. "Sounding (ACARS) . 61108285 . 131.550 MHz . 12ms" rather
+# than the disco coordinator's stale "DOWN" view.
+# =====================================================================
+
+BROKER_STATE_DIR = "/run/scannerproject/broker"
+BROKER_MODE_PATH = os.path.join(BROKER_STATE_DIR, "mode.json")
+BROKER_STATE_PATH = os.path.join(BROKER_STATE_DIR, "state.json")
+BROKER_STALE_SEC = 5.0
+
+
+def _broker_read_state() -> dict | None:
+    """Best-effort read of broker state.json. Returns None if missing,
+    unreadable, or older than BROKER_STALE_SEC."""
+    try:
+        st = os.stat(BROKER_STATE_PATH)
+    except (FileNotFoundError, OSError):
+        return None
+    if (time.time() - st.st_mtime) > BROKER_STALE_SEC:
+        return None
+    try:
+        with open(BROKER_STATE_PATH) as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    return data
+
+
+def _broker_pass_through_payload() -> dict:
+    """GET /api/sounding body — broker state or 'down' stub on miss."""
+    state = _broker_read_state()
+    if state is None:
+        return {
+            "sounding": False,
+            "state": "down",
+            "reason": "broker not running",
+            "dongles": [],
+        }
+    out = {
+        "sounding": bool(state.get("sounding", False)),
+        "state": "ok",
+        "dongles": state.get("dongles") or [],
+        "updated_ts": state.get("updated_ts"),
+        "last_transition_ts": state.get("last_transition_ts"),
+    }
+    if state.get("last_error"):
+        out["last_error"] = state["last_error"]
+    return out
+
+
+def _broker_write_mode(sounding: bool) -> tuple[bool, str]:
+    """POST /api/sounding body handler — atomically write mode.json.
+    Broker (running as root) picks up the change on its next mtime poll
+    (within ~500ms)."""
+    try:
+        os.makedirs(BROKER_STATE_DIR, exist_ok=True)
+    except OSError as e:
+        return False, f"mkdir failed: {e}"
+    payload = {"sounding": bool(sounding)}
+    tmp = BROKER_MODE_PATH + ".tmp"
+    try:
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+        with os.fdopen(fd, "w") as f:
+            json.dump(payload, f)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, BROKER_MODE_PATH)
+    except OSError as e:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        return False, f"write failed: {e}"
+    return True, "ok"
+
+
+# ---------------------------------------------------------------------
+# Sounding-mode evidence sources — when a Disco dongle is loaned out to
+# ACARS or VDL2, we read live evidence from the consumer's output file
+# rather than the (now-stale) disco coord_state.json.  Fallback values
+# are sensible defaults when the file is missing.
+# ---------------------------------------------------------------------
+_ACARS_OUTPUT_PATH = "/run/acars_output.json"
+_VDL2_OUTPUT_PATH = "/run/vdl2_output.json"
+
+
+def _file_age_ms(path: str) -> int | None:
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    return int(max(0.0, time.time() - st.st_mtime) * 1000)
+
+
+def _sounding_evidence_for_role(role: str, serial: str) -> tuple[str, str]:
+    """Return (value_string, status) for a dongle in a sounding role.
+    Reads the consumer output file for a freshness signal.  The serial
+    is *not* repeated in the value because the row label already
+    contains it ("Dongle <serial>")."""
+    role = (role or "").lower()
+    if role == "acars":
+        age = _file_age_ms(_ACARS_OUTPUT_PATH)
+        if age is None:
+            return ("Sounding (ACARS) . 131.550 MHz . waiting", "warn")
+        # acarsdec writes one JSON line per message; output file mtime
+        # advances on each message.  A quiet channel can be many minutes
+        # between messages — we surface the age in seconds rather than
+        # ms once it exceeds 5s so the row doesn't look broken.
+        if age < 5000:
+            age_str = f"{age}ms"
+        elif age < 60_000:
+            age_str = f"{age // 1000}s"
+        else:
+            age_str = f"{age // 60_000}m"
+        return (f"Sounding (ACARS) . 131.550 MHz . {age_str}", "ok")
+    if role == "vdl2":
+        age = _file_age_ms(_VDL2_OUTPUT_PATH)
+        if age is None:
+            return ("Sounding (VDL2) . 136.975 MHz . waiting", "warn")
+        if age < 5000:
+            age_str = f"{age}ms"
+        elif age < 60_000:
+            age_str = f"{age // 1000}s"
+        else:
+            age_str = f"{age // 60_000}m"
+        return (f"Sounding (VDL2) . 136.975 MHz . {age_str}", "ok")
+    return (f"Sounding ({role})", "info")
+
+
+def _broker_aware_dongle_rows() -> list[dict]:
+    """Heartbeat rows that reflect live broker ownership.
+
+    When sounding is OFF, each dongle uses the Disco evidence row.  When
+    sounding is ON and a dongle has been loaned to ACARS/VDL2, we replace
+    that dongle's row with a sounding-consumer-evidence row.  This avoids
+    surfacing the disco-coordinator's "DOWN" view for a dongle that's
+    intentionally not feeding the coordinator.
+    """
+    broker = _broker_read_state()
+    disco_rows = _disco_dongle_evidence_rows()
+    if broker is None:
+        # Broker not running — fall back to the raw disco rows so we
+        # don't lose the heartbeat entirely on broker outage.
+        return disco_rows
+    broker_dongles = broker.get("dongles") or []
+    if not broker_dongles:
+        return disco_rows
+    # Map disco row index -> broker serial via positional alignment is
+    # fragile; instead, parse the serial out of each disco row's value
+    # string ("live . <serial> . ..." or "DOWN ... <serial>") and
+    # rebuild rows.  When in doubt, keep the disco row.
+    out: list[dict] = []
+    # We need parallel ordering: build rows keyed by broker policy
+    # serial order so a swapped dongle appears alongside the unswapped.
+    # We assume broker_dongles ordering is stable (broker emits them in
+    # policy order).
+    for bd in broker_dongles:
+        serial = str(bd.get("serial") or "")
+        role = str(bd.get("current_role") or "").lower()
+        # Phase 6d — label is "Dongle <serial>" so the heartbeat shows
+        # the live owner per-dongle.  Replaces the Phase 6c "Disco
+        # dongle N" rows entirely.
+        label = f"Dongle {serial}" if serial else "Dongle ?"
+        if role == "disco":
+            # Use the disco coordinator's row for this serial if present.
+            match = None
+            for r in disco_rows:
+                val = str(r.get("value") or "")
+                if serial and serial in val:
+                    match = r
+                    break
+            if match is not None:
+                # Strip the leading "live . <serial> . " redundancy so
+                # the row reads "Disco · 64-241 MHz · 283ms".
+                v = str(match.get("value") or "")
+                prefix = f"live . {serial} . "
+                if v.startswith(prefix):
+                    v = "Disco . " + v[len(prefix):]
+                out.append({"label": label, "value": v, "status": match.get("status", "ok")})
+            else:
+                out.append({
+                    "label": label,
+                    "value": f"Disco . (no coord data)",
+                    "status": "warn",
+                })
+        else:
+            # Sounding consumer owns this dongle.
+            value, status = _sounding_evidence_for_role(role, serial)
+            out.append({"label": label, "value": value, "status": status})
+    if not out:
+        return disco_rows
     return out
 
 
@@ -5278,6 +5485,17 @@ class Handler(BaseHTTPRequestHandler):
             # written by disco-coordinator.service, or a 'down' stub if
             # the service isn't running / state is stale.
             payload = _disco_pass_through_payload()
+            return self._send(
+                200,
+                json.dumps(payload),
+                "application/json; charset=utf-8",
+            )
+
+        if p == "/api/sounding":
+            # Phase 6d: file-backed pass-through. Returns broker state.json
+            # written by scanner-tuner-broker.service, or a 'down' stub if
+            # the broker isn't running / state is stale.
+            payload = _broker_pass_through_payload()
             return self._send(
                 200,
                 json.dumps(payload),
@@ -7128,6 +7346,32 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(
                 200,
                 json.dumps({"ok": True, "start_mhz": start_mhz, "end_mhz": end_mhz}),
+                "application/json; charset=utf-8",
+            )
+
+        # Phase 6d — POST /api/sounding: writes /run/scannerproject/
+        # broker/mode.json which scanner-tuner-broker.service picks up
+        # via mtime poll (within ~500ms) and uses to swap dongle
+        # ownership between Disco and the sounding consumers.
+        if p == "/api/sounding":
+            payload_in = form if isinstance(form, dict) else {}
+            sounding = payload_in.get("sounding")
+            if not isinstance(sounding, bool):
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "sounding must be a boolean"}),
+                    "application/json; charset=utf-8",
+                )
+            ok, msg = _broker_write_mode(sounding)
+            if not ok:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": msg}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(
+                200,
+                json.dumps({"ok": True, "sounding": sounding}),
                 "application/json; charset=utf-8",
             )
 

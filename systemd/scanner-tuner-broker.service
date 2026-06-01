@@ -1,0 +1,13 @@
+[Unit]
+Description=Scanner Tuner Broker (Disco <-> ACARS/VDL2 ownership swap)
+After=network.target disco-coordinator.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/home/ubuntu/scannerproject/disco/.venv/bin/python /home/ubuntu/scannerproject/scripts/tuner_broker.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
