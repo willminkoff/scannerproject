@@ -80,6 +80,10 @@
   .tb-pill .verdict { color: rgba(232, 240, 250, 0.78); font-weight: 500; text-transform: none; }
   body.state-wedged .tb-pill { background: rgba(255, 69, 58, 0.16); border-color: rgba(255, 69, 58, 0.4); color: #ffd0cc; }
   body.state-wedged .tb-pill .dot { background: var(--red); animation: pulse 1.4s ease-in-out infinite; }
+  /* Phase 5b: when wedged, anchor the headline/explanation to the upper-RIGHT
+     of the hb-strip (previously left-aligned). Pill keeps its upper-right
+     placement in the topbar above. */
+  body.state-wedged .hb-row { justify-content: flex-end; text-align: right; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
   /* ============ heartbeat strip pinned under topbar ============ */
@@ -282,7 +286,7 @@
   .digital-profile {
     border-top: 1px solid var(--line);
     padding: 10px 0;
-    display: grid; grid-template-columns: 36px 1fr; gap: 12px;
+    display: grid; grid-template-columns: 36px 1fr auto; gap: 12px;
     align-items: center;
   }
   .digital-profile .glyph {
@@ -339,6 +343,46 @@
     color: var(--text-2);
   }
   .wf-meta .pill.peak { color: var(--sky-2); }
+
+  /* ============ Live IQ tunability row ============ */
+  .wf-tune-row {
+    margin-top: 10px;
+    display: flex; flex-wrap: wrap;
+    align-items: center; gap: 10px 14px;
+    font-size: 11.5px;
+  }
+  .wf-tune-caption {
+    color: var(--text-3);
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .wf-tune-input-wrap {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(8, 14, 28, 0.55);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 4px 8px 4px 10px;
+  }
+  .wf-tune-label {
+    font-size: 10px; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--text-4); font-weight: 600;
+  }
+  .wf-tune-input {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    width: 80px;
+    outline: none;
+    padding: 2px 0;
+    -moz-appearance: textfield;
+  }
+  .wf-tune-input::-webkit-outer-spin-button,
+  .wf-tune-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .wf-tune-unit {
+    font-size: 10px; color: var(--text-4); font-weight: 500;
+  }
 
   /* ============ draggable freq-window widget ============ */
   .freq-window {
@@ -558,6 +602,240 @@
     font-family: ui-monospace, monospace; font-size: 10.5px;
     color: var(--text-4); letter-spacing: 0.04em;
   }
+
+  /* ============ Sitrep button + modal (Phase 5b) ============ */
+  .tb-sitrep-btn {
+    background: rgba(90, 184, 255, 0.10);
+    border: 1px solid rgba(90, 184, 255, 0.30);
+    color: var(--sky-2);
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 11.5px; font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    font-family: inherit;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .tb-sitrep-btn:hover {
+    background: rgba(90, 184, 255, 0.18);
+    border-color: rgba(90, 184, 255, 0.50);
+  }
+  .tb-pill:focus { outline: 2px solid rgba(90,184,255,0.45); outline-offset: 2px; }
+
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(2, 6, 14, 0.66);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal-card {
+    background: linear-gradient(180deg, rgba(20, 32, 54, 0.96), rgba(14, 22, 38, 0.96));
+    border: 1px solid rgba(138, 155, 181, 0.22);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 560px;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .modal-hd {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  .modal-hd .title {
+    flex: 1;
+    font-size: 14px; font-weight: 700;
+    color: var(--text); letter-spacing: -0.01em;
+  }
+  .modal-close {
+    background: rgba(138, 155, 181, 0.12);
+    border: 1px solid var(--line);
+    color: var(--text-2);
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    font-size: 16px; line-height: 1;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .modal-close:hover { background: rgba(138, 155, 181, 0.20); color: var(--text); }
+  .modal-body {
+    padding: 16px 18px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  /* 11-dot service-health card pattern (lifted from sb3 visual style) */
+  .sitrep-service-list {
+    display: grid;
+    gap: 8px;
+  }
+  .sitrep-service-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: rgba(8, 14, 28, 0.45);
+  }
+  .sitrep-service-item .name {
+    font-size: 11.5px;
+    color: var(--text);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+  }
+  .sitrep-service-item .meta {
+    font-size: 11px;
+    color: var(--text-3);
+    font-family: ui-monospace, monospace;
+    margin-top: 2px;
+  }
+  .sitrep-service-item .svc-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--text-3);
+    box-shadow: 0 0 8px rgba(138, 155, 181, 0.20);
+    flex-shrink: 0;
+  }
+  .sitrep-service-item.ok { border-color: rgba(52, 199, 89, 0.45); }
+  .sitrep-service-item.ok .svc-dot {
+    background: var(--green);
+    box-shadow: 0 0 10px rgba(52, 199, 89, 0.42);
+  }
+  .sitrep-service-item.warn { border-color: rgba(255, 159, 10, 0.45); }
+  .sitrep-service-item.warn .svc-dot {
+    background: var(--amber);
+    box-shadow: 0 0 10px rgba(255, 159, 10, 0.42);
+  }
+  .sitrep-service-item.bad { border-color: rgba(255, 69, 58, 0.45); }
+  .sitrep-service-item.bad .svc-dot {
+    background: var(--red);
+    box-shadow: 0 0 10px rgba(255, 69, 58, 0.42);
+  }
+  .sitrep-service-item.info { border-color: rgba(126, 211, 255, 0.28); }
+  .sitrep-service-item.info .svc-dot {
+    background: var(--sky-2); opacity: 0.7;
+    box-shadow: 0 0 10px rgba(126, 211, 255, 0.32);
+  }
+  .modal-sitrep .summary {
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    background: rgba(8, 14, 28, 0.50);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .modal-sitrep .summary .headline { font-weight: 600; color: var(--text); margin-bottom: 2px; }
+
+  /* Mobile: full-screen modal */
+  @media (max-width: 700px) {
+    .modal-overlay { padding: 0; }
+    .modal-card {
+      max-width: none;
+      max-height: 100vh;
+      height: 100vh;
+      border-radius: 0;
+    }
+  }
+
+  /* ============ Status disclosure (per-pane) ============ */
+  .pane-disclosure {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: rgba(8, 14, 28, 0.40);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 11.5px;
+    color: var(--text-2);
+    cursor: pointer;
+    user-select: none;
+  }
+  .pane-disclosure:hover { background: rgba(8, 14, 28, 0.60); }
+  .pane-disclosure .summary-row {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .pane-disclosure .chev {
+    color: var(--text-4); font-size: 12px;
+    transition: transform 0.15s;
+    flex-shrink: 0;
+  }
+  .pane-disclosure.open .chev { transform: rotate(90deg); }
+  .pane-disclosure .summary-text { flex: 1; }
+  .pane-disclosure .summary-text .fav-name { color: var(--text); font-weight: 600; }
+  .pane-disclosure .summary-text .sep { color: var(--text-4); margin: 0 6px; }
+  .pane-disclosure .expanded-body {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--line);
+    display: none;
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    color: var(--text-3);
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  .pane-disclosure.open .expanded-body { display: block; }
+  .pane-disclosure .freq-row {
+    display: flex; justify-content: space-between;
+    gap: 8px;
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(138, 155, 181, 0.06);
+  }
+  .pane-disclosure .freq-row:last-child { border-bottom: none; }
+  .pane-disclosure .freq-row .f { color: var(--sky-2); }
+  .pane-disclosure .freq-row .lab { color: var(--text-2); }
+
+  /* ============ Profile Builder button ============ */
+  .profile-build-btn {
+    background: rgba(90, 184, 255, 0.10);
+    border: 1px solid rgba(90, 184, 255, 0.30);
+    color: var(--sky-2);
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-size: 11px; font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    margin-left: auto;
+  }
+  .profile-build-btn:hover {
+    background: rgba(90, 184, 255, 0.18);
+    border-color: rgba(90, 184, 255, 0.50);
+  }
+  .modal-profile-builder .pb-placeholder {
+    padding: 14px 16px;
+    background: rgba(8, 14, 28, 0.40);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font-size: 13px;
+    color: var(--text-2);
+    line-height: 1.5;
+  }
+  .modal-profile-builder .pb-actions {
+    margin-top: 14px;
+    display: flex; gap: 8px; flex-wrap: wrap;
+  }
+  .modal-profile-builder .pb-btn {
+    background: var(--sky);
+    color: #04101e;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 12px; font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .modal-profile-builder .pb-btn:hover { background: var(--sky-2); }
 </style>
 </head>
 <body class="state-loading">
@@ -567,7 +845,8 @@
   <span class="tb-time mono" id="tb-time">—:—</span>
   <span class="tb-title">Scanner<span class="sub" id="tb-sub">sb5 · 5-pane</span></span>
   <span class="tb-spacer"></span>
-  <span class="tb-pill">
+  <button class="tb-sitrep-btn" id="tb-sitrep-btn" type="button" title="Open Sitrep">Sitrep</button>
+  <span class="tb-pill" id="tb-pill" role="button" tabindex="0" title="Open Sitrep" style="cursor: pointer;">
     <span class="dot"></span>
     <span id="tb-state">Loading</span>
     <span class="verdict" id="tb-verdict">— reading state…</span>
@@ -616,6 +895,13 @@
       <div class="hits-list" id="analog-hits">
         <div class="hits-empty">Loading hits…</div>
       </div>
+      <div class="pane-disclosure" id="analog-disclosure">
+        <div class="summary-row">
+          <span class="chev">›</span>
+          <span class="summary-text"><span class="fav-name" id="analog-disc-fav">—</span><span id="analog-disc-detail"></span></span>
+        </div>
+        <div class="expanded-body" id="analog-disc-body">No frequency list available.</div>
+      </div>
     </div>
     <div class="pane-evidence" id="analog-evidence">
       <div class="ev-cell"><span class="lbl">DONGLE</span><span class="val">RSPduo Tuner 1</span></div>
@@ -648,10 +934,18 @@
           <div class="pname" id="dig-pname">Loading…</div>
           <div class="psub" id="dig-psub">—</div>
         </div>
+        <button class="profile-build-btn" id="profile-build-btn" type="button">Build / Edit</button>
       </div>
       <div class="digital-chips" id="dig-chips"></div>
       <div class="hits-list" id="digital-hits">
         <div class="hits-empty">Loading hits…</div>
+      </div>
+      <div class="pane-disclosure" id="digital-disclosure">
+        <div class="summary-row">
+          <span class="chev">›</span>
+          <span class="summary-text"><span class="fav-name" id="digital-disc-fav">—</span><span id="digital-disc-detail"></span></span>
+        </div>
+        <div class="expanded-body" id="digital-disc-body">No talkgroup list available.</div>
       </div>
     </div>
     <div class="pane-evidence" id="digital-evidence">
@@ -724,7 +1018,7 @@
   <!-- ============ WATERFALL pane (2 RTL-SDRs stitched — MOCK) ============ -->
   <section class="pane pane-waterfall" id="pane-waterfall">
     <div class="pane-hd">
-      <span class="eyebrow">Waterfall</span>
+      <span class="eyebrow">Live IQ</span>
       <span class="title">125 — 130 MHz · stitched</span>
       <span class="demo-tag">DEMO — coming when hardware lands</span>
       <span class="sub">2 × RTL-SDR · TBD</span>
@@ -748,10 +1042,19 @@
         <span class="pill mono peak" id="wf-pill-peak">peak —</span>
         <span class="pill" id="wf-pill-age">last frame —</span>
       </div>
+      <div class="wf-tune-row">
+        <div class="wf-tune-caption">Tunable 24 MHz – 1.7 GHz · drag window or type center freq</div>
+        <div class="wf-tune-input-wrap">
+          <label class="wf-tune-label" for="wf-center-input">Center freq</label>
+          <input type="number" id="wf-center-input" class="wf-tune-input mono"
+                 step="0.1" min="24" max="1700" placeholder="MHz" inputmode="decimal">
+          <span class="wf-tune-unit">MHz</span>
+        </div>
+      </div>
       <div class="dongle-overlay" id="wf-down-overlay">
         <div class="icon">⚠</div>
         <div class="label">DONGLE LOST <span id="wf-down-since">4m ago</span></div>
-        <div class="sub">Waterfall stitch lost frames from dongle A.</div>
+        <div class="sub">Live IQ stitch lost frames from dongle A.</div>
         <div class="countdown">reconnect in <span id="wf-down-cd">8</span>s</div>
       </div>
     </div>
@@ -767,7 +1070,7 @@
   <section class="pane pane-disco" id="pane-disco">
     <div class="pane-hd">
       <span class="eyebrow">Disco</span>
-      <span class="title">Wide sweep 30 — 1700 MHz</span>
+      <span class="title">Discovery 30 — 1700 MHz</span>
       <span class="demo-tag">DEMO — coming when hardware lands</span>
       <span class="sub">3 × RTL-SDR · TBD</span>
     </div>
@@ -805,6 +1108,49 @@
 </main>
 
 <div class="footer" id="footer-meta">sb5 · 5-pane dense dashboard · loading…</div>
+
+<!-- ============ Sitrep modal (Phase 5b) ============ -->
+<div class="modal-overlay modal-sitrep" id="sitrep-modal" role="dialog" aria-modal="true" aria-labelledby="sitrep-modal-title">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <span class="title" id="sitrep-modal-title">Sitrep · Service health</span>
+      <button class="modal-close" id="sitrep-modal-close" type="button" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="summary">
+        <div class="headline" id="sitrep-headline">—</div>
+        <div id="sitrep-explain">—</div>
+      </div>
+      <div class="sitrep-service-list" id="sitrep-service-list">
+        <div class="sitrep-service-item">
+          <div>
+            <div class="name">Loading…</div>
+            <div class="meta">Reading /api/heartbeat</div>
+          </div>
+          <span class="svc-dot"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Profile Builder modal (Phase 5b) ============ -->
+<div class="modal-overlay modal-profile-builder" id="pb-modal" role="dialog" aria-modal="true" aria-labelledby="pb-modal-title">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <span class="title" id="pb-modal-title">Profile Builder</span>
+      <button class="modal-close" id="pb-modal-close" type="button" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="pb-placeholder">
+        Profile Builder — coming in Phase 5c. For now, use /sb3 Favorites widget.
+      </div>
+      <div class="pb-actions">
+        <button class="pb-btn" id="pb-open-sb3" type="button">Open /sb3</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
 "use strict";
@@ -951,6 +1297,12 @@ function renderHeartbeat(hb) {
   }
 
   renderNowListeningFromHeartbeat(hb);
+
+  // If sitrep modal is open, refresh it inline.
+  const sm = $("sitrep-modal");
+  if (sm && sm.classList.contains("show")) {
+    try { renderSitrepModal(); } catch (_e) {}
+  }
 }
 
 function recentHitForBand(band) {
@@ -1086,6 +1438,8 @@ function renderProfile(hpState, profiles) {
   }).join("") + (favList.length > 5 ? `<span class="chip">+${favList.length - 5}</span>` : "");
 
   $("tb-sub").textContent = `sb5 · ${label}` + (zip ? " · " + zip : "");
+
+  try { renderPaneDisclosure(); } catch (_e) {}
 }
 
 function renderWaterfall(data) {
@@ -1214,11 +1568,24 @@ function updateFreqWindowLabel(elId, labelId, fLo, fHi) {
   const lab = $(labelId);
   if (lab) lab.textContent = `${fCenter.toFixed(3)} MHz`;
 }
-function attachDrag(elId, labelId, fLoFn, fHiFn) {
+function attachDrag(elId, labelId, fLoFn, fHiFn, onCenterChange) {
   const el = $(elId); if (!el) return;
   let dragging = false;
   let startX = 0;
   let startLeftFraction = 0;
+  function currentCenter() {
+    const parent = el.parentElement;
+    const pw = parent ? (parent.clientWidth || 1) : 1;
+    const elw = el.offsetWidth || 1;
+    let leftFraction;
+    if (el.style.left && el.style.left.endsWith("%")) {
+      leftFraction = parseFloat(el.style.left) / 100;
+    } else {
+      leftFraction = (parseFloat(el.style.left || "0") || 0) / pw;
+    }
+    const centerFraction = leftFraction + (elw / pw) / 2;
+    return fLoFn() + centerFraction * (fHiFn() - fLoFn());
+  }
   function onMove(e) {
     if (!dragging) return;
     const parent = el.parentElement;
@@ -1232,6 +1599,9 @@ function attachDrag(elId, labelId, fLoFn, fHiFn) {
     if (frac > maxFrac) frac = maxFrac;
     el.style.left = (frac * 100).toFixed(2) + "%";
     updateFreqWindowLabel(elId, labelId, fLoFn(), fHiFn());
+    if (typeof onCenterChange === "function") {
+      try { onCenterChange(currentCenter()); } catch (_e) {}
+    }
   }
   function onUp() {
     dragging = false;
@@ -1252,6 +1622,49 @@ function attachDrag(elId, labelId, fLoFn, fHiFn) {
   }
   el.addEventListener("mousedown", onDown);
   el.addEventListener("touchstart", onDown, {passive: false});
+}
+
+// ----- Live IQ (Waterfall) center-freq local state -----
+// Drag handle + numeric input both write to WF_CENTER_LOCAL.
+// No POST — /api/waterfall retune endpoint doesn't exist yet.
+const WF_CENTER_LOCAL = { mhz: 127.5 };
+function setWfCenterFromMhz(mhz) {
+  const m = Number(mhz);
+  if (!Number.isFinite(m)) return;
+  const el = $("wf-window");
+  if (!el) return;
+  const parent = el.parentElement;
+  if (!parent) return;
+  const pw = parent.clientWidth || 1;
+  const elw = el.offsetWidth || 1;
+  // Map mhz to a position inside the current waterfall band [min..max].
+  // Source the band from the axis labels which renderWaterfall keeps updated.
+  const lo = parseFloat(($("wf-axis-min").textContent || "")) || 125;
+  const hi = parseFloat(($("wf-axis-max").textContent || "")) || 130;
+  const span = hi - lo || 1;
+  let centerFrac = (m - lo) / span;
+  // Convert window-center fraction back to left fraction.
+  let leftFrac = centerFrac - (elw / pw) / 2;
+  const maxFrac = Math.max(0, (pw - elw) / pw);
+  if (leftFrac < 0) leftFrac = 0;
+  if (leftFrac > maxFrac) leftFrac = maxFrac;
+  el.style.left = (leftFrac * 100).toFixed(2) + "%";
+  WF_CENTER_LOCAL.mhz = m;
+  updateFreqWindowLabel("wf-window", "wf-window-label", lo, hi);
+}
+function wireWfCenterInput() {
+  const input = $("wf-center-input");
+  if (!input) return;
+  function commit() {
+    const v = parseFloat(input.value);
+    if (!Number.isFinite(v)) return;
+    setWfCenterFromMhz(v);
+  }
+  input.addEventListener("change", commit);
+  input.addEventListener("blur", commit);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { commit(); input.blur(); }
+  });
 }
 
 function postVFO(patch) {
@@ -1289,6 +1702,176 @@ function wireVFOControls() {
   }
   wireToggle("vfo-mute", "muted");
   wireToggle("vfo-bt", "bt_routed");
+}
+
+// =========================================================================
+// Phase 5b: Sitrep modal — uses /api/heartbeat evidence array.
+// =========================================================================
+function openModal(modalId) {
+  const m = $(modalId);
+  if (m) m.classList.add("show");
+}
+function closeModal(modalId) {
+  const m = $(modalId);
+  if (m) m.classList.remove("show");
+}
+function renderSitrepModal() {
+  const hb = STATE.heartbeat;
+  const headlineEl = $("sitrep-headline");
+  const explainEl = $("sitrep-explain");
+  const listEl = $("sitrep-service-list");
+  if (!hb) {
+    if (headlineEl) headlineEl.textContent = "Reading scanner state…";
+    if (explainEl) explainEl.textContent = "Awaiting /api/heartbeat";
+    if (listEl) listEl.innerHTML = '<div class="sitrep-service-item"><div><div class="name">Loading…</div><div class="meta">Reading /api/heartbeat</div></div><span class="svc-dot"></span></div>';
+    return;
+  }
+  if (headlineEl) headlineEl.textContent = hb.headline || "—";
+  if (explainEl) explainEl.textContent = hb.explanation || "";
+  const evid = Array.isArray(hb.evidence) ? hb.evidence : [];
+  if (!listEl) return;
+  if (!evid.length) {
+    listEl.innerHTML = '<div class="sitrep-service-item"><div><div class="name">No evidence rows</div><div class="meta">heartbeat returned empty list</div></div><span class="svc-dot"></span></div>';
+    return;
+  }
+  listEl.innerHTML = evid.map(row => {
+    const label = escapeHtml(String(row.label || ""));
+    const value = escapeHtml(String(row.value || ""));
+    const status = String(row.status || "ok").toLowerCase();
+    const cls = ["ok","warn","bad","info"].includes(status) ? status : "ok";
+    return `<div class="sitrep-service-item ${cls}">
+      <div>
+        <div class="name">${label}</div>
+        <div class="meta">${value}</div>
+      </div>
+      <span class="svc-dot"></span>
+    </div>`;
+  }).join("");
+}
+function wireSitrep() {
+  const open = () => { renderSitrepModal(); openModal("sitrep-modal"); };
+  const closeBtn = $("sitrep-modal-close");
+  const openBtn = $("tb-sitrep-btn");
+  const pill = $("tb-pill");
+  const overlay = $("sitrep-modal");
+  if (openBtn) openBtn.addEventListener("click", open);
+  if (pill) {
+    pill.addEventListener("click", open);
+    pill.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); }
+    });
+  }
+  if (closeBtn) closeBtn.addEventListener("click", () => closeModal("sitrep-modal"));
+  if (overlay) {
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) closeModal("sitrep-modal");
+    });
+  }
+}
+function wireProfileBuilder() {
+  const open = () => openModal("pb-modal");
+  const btn = $("profile-build-btn");
+  const closeBtn = $("pb-modal-close");
+  const openSb3 = $("pb-open-sb3");
+  const overlay = $("pb-modal");
+  if (btn) btn.addEventListener("click", open);
+  if (closeBtn) closeBtn.addEventListener("click", () => closeModal("pb-modal"));
+  if (openSb3) openSb3.addEventListener("click", () => { window.location.href = "/sb3"; });
+  if (overlay) {
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) closeModal("pb-modal");
+    });
+  }
+}
+function wireStatusDisclosure() {
+  ["analog-disclosure", "digital-disclosure"].forEach(id => {
+    const el = $(id); if (!el) return;
+    el.addEventListener("click", () => el.classList.toggle("open"));
+  });
+}
+
+// Populate per-pane disclosure rows. Sourced from /api/hp/state favorites.
+// Analog: count conventional freqs by band (118-137 = airband, else ground)
+//         and count enabled service tags.
+// Digital: count trunked items (talkgroups) in the active favorite.
+function renderPaneDisclosure() {
+  const hp = STATE.hpState;
+  const favList = (hp && hp.state && Array.isArray(hp.state.favorites)) ? hp.state.favorites : [];
+  const active = favList.find(f => f.enabled) || favList[0] || null;
+  const favLabel = active ? (active.label || active.id || "fav") : "—";
+  const customs = (active && Array.isArray(active.custom_favorites)) ? active.custom_favorites : [];
+  const conv = customs.filter(c => String(c.kind || "").toLowerCase() === "conventional");
+  const trunked = customs.filter(c => String(c.kind || "").toLowerCase() === "trunked");
+  const air = conv.filter(c => {
+    const f = Number(c.frequency || 0);
+    return f >= 118 && f <= 137;
+  });
+  const gnd = conv.filter(c => {
+    const f = Number(c.frequency || 0);
+    return f && !(f >= 118 && f <= 137);
+  });
+  const enabledTags = (hp && hp.state && Array.isArray(hp.state.enabled_service_tags))
+    ? hp.state.enabled_service_tags.length
+    : 0;
+
+  // ----- Analog disclosure -----
+  const aFav = $("analog-disc-fav");
+  const aDetail = $("analog-disc-detail");
+  const aBody = $("analog-disc-body");
+  if (aFav) aFav.textContent = favLabel;
+  if (aDetail) {
+    const parts = [];
+    if (air.length || gnd.length) {
+      const seg = [];
+      if (air.length) seg.push(`${air.length} airband`);
+      if (gnd.length) seg.push(`${gnd.length} ground`);
+      parts.push(`${seg.join(" + ")} freq${(air.length+gnd.length)===1?"":"s"} scanning`);
+    }
+    if (enabledTags) parts.push(`${enabledTags} service tag${enabledTags===1?"":"s"} enabled`);
+    aDetail.textContent = parts.length ? (" · " + parts.join(" · ")) : "";
+  }
+  if (aBody) {
+    if (!conv.length) {
+      aBody.textContent = "No conventional frequencies in this favorite.";
+    } else {
+      const rows = conv.slice(0, 80).map(c => {
+        const f = Number(c.frequency || 0).toFixed(3);
+        const lbl = escapeHtml(c.alpha_tag || c.department_name || c.system_name || "");
+        return `<div class="freq-row"><span class="f mono">${f} MHz</span><span class="lab">${lbl}</span></div>`;
+      }).join("");
+      aBody.innerHTML = rows + (conv.length > 80 ? `<div class="freq-row"><span class="lab">+${conv.length - 80} more…</span></div>` : "");
+    }
+  }
+
+  // ----- Digital disclosure -----
+  const dFav = $("digital-disc-fav");
+  const dDetail = $("digital-disc-detail");
+  const dBody = $("digital-disc-body");
+  if (dFav) dFav.textContent = favLabel;
+  if (dDetail) {
+    // Try to derive control channel + count.
+    let ccText = "";
+    for (const t of trunked) {
+      const ccs = Array.isArray(t.control_channels) ? t.control_channels : [];
+      if (ccs.length) { ccText = `CC ${Number(ccs[0]).toFixed(3)} MHz`; break; }
+    }
+    const parts = [];
+    if (ccText) parts.push(ccText);
+    if (trunked.length) parts.push(`${trunked.length} talkgroup${trunked.length===1?"":"s"}`);
+    dDetail.textContent = parts.length ? (" · " + parts.join(" · ")) : "";
+  }
+  if (dBody) {
+    if (!trunked.length) {
+      dBody.textContent = "No talkgroups in this favorite.";
+    } else {
+      const rows = trunked.slice(0, 80).map(t => {
+        const tg = escapeHtml(String(t.talkgroup || ""));
+        const lbl = escapeHtml(t.alpha_tag || t.department_name || t.system_name || "");
+        return `<div class="freq-row"><span class="f mono">TG ${tg}</span><span class="lab">${lbl}</span></div>`;
+      }).join("");
+      dBody.innerHTML = rows + (trunked.length > 80 ? `<div class="freq-row"><span class="lab">+${trunked.length - 80} more…</span></div>` : "");
+    }
+  }
 }
 
 function applyHashOverlays() {
@@ -1386,12 +1969,23 @@ function boot() {
       const c = parseFloat(($("wf-pill-center").textContent || "").replace(/[^0-9.\-]/g,"")) || 127.5;
       const bw = parseFloat(($("wf-pill-bw").textContent || "").replace(/[^0-9.\-]/g,"")) || 5.0;
       return c + bw/2;
+    },
+    (centerMhz) => {
+      WF_CENTER_LOCAL.mhz = centerMhz;
+      const input = $("wf-center-input");
+      if (input && document.activeElement !== input) {
+        input.value = centerMhz.toFixed(3);
+      }
     });
   attachDrag("disco-window", "disco-window-label",
     () => parseFloat(($("disco-axis-min").textContent || "30")) || 30,
     () => parseFloat(($("disco-axis-max").textContent || "1700")) || 1700);
 
   wireVFOControls();
+  wireWfCenterInput();
+  wireSitrep();
+  wireProfileBuilder();
+  wireStatusDisclosure();
   applyHashOverlays();
 
   pollHeartbeat();
