@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0a1426">
-<title>Scanner · sb5</title>
+<title>Scanner · sb5 · 5-pane</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -27,11 +27,8 @@
     --sky-dim: #3a7fbd;
 
     --green: #34c759;
-    --green-bg: rgba(52, 199, 89, 0.14);
     --amber: #ff9f0a;
-    --amber-bg: rgba(255, 159, 10, 0.12);
     --red: #ff453a;
-    --red-bg: rgba(255, 69, 58, 0.13);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
@@ -49,858 +46,769 @@
       radial-gradient(600px 400px at -10% 12%, rgba(126, 211, 255, 0.10), transparent 60%),
       linear-gradient(180deg, #0c1a36 0%, #06101f 50%, #04091a 100%);
     min-height: 100vh;
-    padding-bottom: 24px;
+    padding-bottom: 28px;
   }
   .mono { font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; letter-spacing: 0; }
 
-  /* ============ sticky top status bar ============ */
+  /* ============ sticky top bar ============ */
   .topbar {
-    position: sticky; top: 0; z-index: 100;
+    position: sticky; top: 0; z-index: 50;
     height: 52px;
-    background: rgba(8, 14, 28, 0.82);
+    background: rgba(8, 14, 28, 0.78);
     backdrop-filter: blur(22px) saturate(160%);
     -webkit-backdrop-filter: blur(22px) saturate(160%);
     border-bottom: 1px solid rgba(255,255,255,0.05);
     display: flex; align-items: center;
-    padding: 0 16px;
-    gap: 12px;
+    padding: 0 18px;
+    gap: 14px;
   }
-  .tb-hb-pill {
+  .tb-time { font-family: ui-monospace, monospace; font-size: 14px; color: var(--text); font-weight: 600; min-width: 50px; }
+  .tb-title { font-size: 14px; color: var(--text-2); font-weight: 600; letter-spacing: -0.01em; }
+  .tb-title .sub { color: var(--text-4); font-weight: 500; margin-left: 6px; }
+  .tb-spacer { flex: 1; }
+  .tb-pill {
     display: inline-flex; align-items: center; gap: 8px;
-    padding: 6px 14px 6px 10px;
-    background: var(--green-bg);
-    border: 1px solid rgba(52, 199, 89, 0.36);
+    padding: 6px 12px 6px 10px;
+    background: rgba(52, 199, 89, 0.14);
+    border: 1px solid rgba(52, 199, 89, 0.32);
     border-radius: 999px;
-    font-size: 13px; font-weight: 600;
+    font-size: 12px; font-weight: 600;
     color: #c8f3d3;
     text-transform: capitalize;
   }
-  .tb-hb-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 5px rgba(52, 199, 89, 0.7); }
-  .tb-hb-pill .verdict { color: rgba(232, 240, 250, 0.78); font-weight: 500; text-transform: none; }
-  body.state-wedged .tb-hb-pill { background: var(--red-bg); border-color: rgba(255, 69, 58, 0.45); color: #ffd0cc; }
-  body.state-wedged .tb-hb-pill .dot { background: var(--red); animation: pulse 1.4s ease-in-out infinite; }
+  .tb-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px rgba(52,199,89,0.85); }
+  .tb-pill .verdict { color: rgba(232, 240, 250, 0.78); font-weight: 500; text-transform: none; }
+  body.state-wedged .tb-pill { background: rgba(255, 69, 58, 0.16); border-color: rgba(255, 69, 58, 0.4); color: #ffd0cc; }
+  body.state-wedged .tb-pill .dot { background: var(--red); animation: pulse 1.4s ease-in-out infinite; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
-  .tb-fav {
-    display: none;
-    align-items: center; gap: 6px;
-    padding: 5px 12px;
-    background: rgba(28, 46, 74, 0.55);
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    font-size: 12.5px; color: var(--text-2);
+  /* ============ heartbeat strip pinned under topbar ============ */
+  .hb-strip {
+    position: sticky; top: 52px; z-index: 49;
+    background: rgba(8, 14, 28, 0.72);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    padding: 10px 18px 12px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
-  .tb-fav b { color: var(--text); font-weight: 600; }
-
-  .tb-spacer { flex: 1; }
-
-  .tb-chip {
-    display: none;
-    align-items: center; gap: 6px;
-    padding: 5px 11px;
-    background: rgba(28, 46, 74, 0.55);
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    font-size: 11.5px; color: var(--text-2);
+  .hb-row {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    font-size: 13px;
   }
-  .tb-chip .d { width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
-  .tb-chip .d.amber { background: var(--amber); }
-  .tb-chip .d.red { background: var(--red); }
-  .tb-chip .d.gray { background: var(--text-4); }
-  .tb-chip .mono { color: var(--text); }
-
-  .tb-clock {
-    font-family: ui-monospace, "SF Mono", "JetBrains Mono", monospace;
-    font-size: 13.5px; color: var(--text); font-weight: 500;
-    padding: 0 6px;
-  }
-
-  /* ============ mobile large title ============ */
-  .page-title { padding: 14px 18px 8px; }
-  .page-title h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.022em; color: var(--text); }
-  .page-title .sub { margin-top: 2px; font-size: 13px; color: var(--text-3); }
-
-  /* ============ main grid ============ */
-  .grid {
-    padding: 0 14px;
-    display: flex; flex-direction: column; gap: 12px;
-  }
-
-  /* ============ Heartbeat hero (mobile only) ============ */
-  .hb-hero {
-    position: relative;
-    border-radius: 22px;
-    overflow: hidden;
-    padding: 18px 20px 20px;
-    background:
-      radial-gradient(160% 120% at 100% 0%, rgba(52, 199, 89, 0.32) 0%, rgba(52, 199, 89, 0.0) 55%),
-      radial-gradient(140% 100% at -10% -20%, rgba(90, 184, 255, 0.36) 0%, rgba(90, 184, 255, 0.0) 55%),
-      linear-gradient(170deg, rgba(28, 76, 132, 0.92) 0%, rgba(15, 36, 70, 0.94) 60%, rgba(11, 24, 50, 0.96) 100%);
-    border: 1px solid rgba(255,255,255,0.06);
-    box-shadow: 0 16px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
-  }
-  body.state-wedged .hb-hero {
-    background:
-      radial-gradient(160% 120% at 100% 0%, rgba(255, 69, 58, 0.32) 0%, rgba(255, 69, 58, 0.0) 55%),
-      radial-gradient(140% 100% at -10% -20%, rgba(255, 159, 10, 0.30) 0%, rgba(255, 159, 10, 0.0) 55%),
-      linear-gradient(170deg, rgba(132, 28, 28, 0.90) 0%, rgba(70, 15, 22, 0.94) 60%, rgba(40, 11, 15, 0.96) 100%);
-  }
-  .hb-pulse { height: 44px; overflow: hidden; margin-bottom: 2px; }
-  .hb-pulse canvas { width: 100%; height: 100%; display: block; }
-  .hb-state-row { display: flex; align-items: baseline; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
-  .hb-state { font-size: 34px; font-weight: 700; letter-spacing: -0.025em; color: #fff; text-transform: capitalize; }
-  .hb-stateunit { font-size: 14px; color: rgba(255,255,255,0.78); font-weight: 500; }
-  .hb-verdict { margin-top: 6px; font-size: 14.5px; line-height: 1.4; color: rgba(232, 240, 250, 0.92); }
+  .hb-headline { color: var(--text); font-weight: 600; }
+  .hb-explain { color: var(--text-3); }
   .hb-evidence {
-    margin-top: 14px;
-    border-top: 1px solid rgba(255,255,255,0.10);
-    padding-top: 12px;
-    display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px 14px;
+    font-size: 11.5px;
   }
-  .ev-cell .lbl { font-size: 10.5px; color: rgba(232, 240, 250, 0.62); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500; }
-  .ev-cell .val { font-size: 13.5px; color: #fff; margin-top: 3px; font-weight: 500; word-break: break-word; }
+  .ev-cell { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+  .ev-cell .lbl { color: var(--text-4); text-transform: uppercase; letter-spacing: 0.05em; font-size: 10px; font-weight: 600; white-space: nowrap; }
+  .ev-cell .val { color: var(--text-2); font-weight: 500; font-family: ui-monospace, monospace; font-size: 11.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ev-cell .val.warn { color: #ffd58a; }
   .ev-cell .val.bad { color: #ffb3ad; }
-  .ev-cell .val.muted { color: rgba(232,240,250,0.55); }
+  .ev-cell .val.info { color: var(--sky-2); opacity: 0.75; }
 
-  /* ============ generic pane card ============ */
+  /* ============ overall grid — desktop = 5-pane, mobile = stack ============ */
+  .panes {
+    padding: 14px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+
+  /* ============ Pane card base ============ */
   .pane {
+    position: relative;
     background: var(--card);
     border: 1px solid var(--line);
     border-radius: 18px;
     backdrop-filter: blur(20px) saturate(150%);
     -webkit-backdrop-filter: blur(20px) saturate(150%);
     overflow: hidden;
-    position: relative;
-    display: flex; flex-direction: column;
-    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 200px;
   }
-  .pane-head {
-    display: flex; align-items: baseline; gap: 10px;
+  .pane-hd {
     padding: 12px 16px 8px;
+    display: flex; align-items: baseline; gap: 10px;
+    border-bottom: 1px solid var(--line);
     flex-wrap: wrap;
   }
-  .pane-head .ptitle {
-    font-size: 16px; font-weight: 700; letter-spacing: -0.012em; color: var(--text);
+  .pane-hd .eyebrow {
+    font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--sky);
   }
-  .pane-head .psub {
-    font-size: 12px; color: var(--text-3); font-weight: 500;
+  .pane-hd .title {
+    font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: -0.012em;
   }
-  .pane-head .right { margin-left: auto; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
-  .ppill {
-    display: inline-flex; align-items: center; gap: 5px;
-    padding: 3px 9px;
+  .pane-hd .sub {
+    font-size: 11.5px; color: var(--text-3); margin-left: auto;
+    font-family: ui-monospace, monospace;
+  }
+  .demo-tag {
+    display: inline-block;
+    padding: 3px 8px;
+    background: rgba(255, 159, 10, 0.16);
+    border: 1px solid rgba(255, 159, 10, 0.35);
     border-radius: 999px;
-    font-size: 10.5px; font-weight: 600;
-    letter-spacing: 0.04em; text-transform: uppercase;
+    font-size: 10px; color: #ffd58a;
+    font-weight: 600; letter-spacing: 0.03em;
+    margin-left: 6px;
   }
-  .ppill.live { background: var(--green-bg); color: #c8f3d3; border: 1px solid rgba(52,199,89,0.35); }
-  .ppill.idle { background: rgba(138,155,181,0.10); color: var(--text-3); border: 1px solid var(--line-2); }
-  .ppill.demo { background: var(--amber-bg); color: #ffd58a; border: 1px solid rgba(255,159,10,0.30); }
-  .ppill.down { background: var(--red-bg); color: #ffb3ad; border: 1px solid rgba(255,69,58,0.36); }
-  .ppill .d { width: 6px; height: 6px; border-radius: 50%; }
-  .ppill.live .d { background: var(--green); box-shadow: 0 0 5px rgba(52,199,89,0.7); }
-  .ppill.idle .d { background: var(--text-4); }
-  .ppill.demo .d { background: var(--amber); }
-  .ppill.down .d { background: var(--red); animation: pulse 1.4s ease-in-out infinite; }
-
-  /* per-pane evidence row (heartbeat-style) */
+  .live-tag {
+    display: inline-block;
+    padding: 3px 8px;
+    background: rgba(52, 199, 89, 0.14);
+    border: 1px solid rgba(52, 199, 89, 0.32);
+    border-radius: 999px;
+    font-size: 10px; color: #c8f3d3;
+    font-weight: 600; letter-spacing: 0.03em;
+    margin-left: 6px;
+  }
+  .pane-body { padding: 12px 16px; flex: 1; min-height: 0; }
   .pane-evidence {
-    padding: 4px 16px 8px;
-    display: flex; flex-direction: column; gap: 4px;
+    padding: 10px 16px 12px;
+    border-top: 1px solid var(--line);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 6px 12px;
+    font-size: 11px;
   }
-  .ev-row {
-    display: flex; align-items: center; gap: 8px;
-    font-family: ui-monospace, "SF Mono", "JetBrains Mono", monospace;
-    font-size: 11px; color: var(--text-3);
-    letter-spacing: 0;
-  }
-  .ev-row .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 4px rgba(52,199,89,0.6); flex-shrink: 0; }
-  .ev-row.warn .dot { background: var(--amber); box-shadow: 0 0 4px rgba(255,159,10,0.6); }
-  .ev-row.bad .dot { background: var(--red); box-shadow: 0 0 4px rgba(255,69,58,0.6); }
-  .ev-row.muted .dot { background: var(--text-4); box-shadow: none; }
-  .ev-row .k { color: var(--text-2); font-weight: 500; }
-  .ev-row .sep { color: var(--text-4); margin: 0 2px; }
+  .pane-evidence .ev-cell .lbl { font-size: 9.5px; }
 
-  .pane-body { padding: 8px 16px 16px; min-height: 0; flex: 1; display: flex; flex-direction: column; gap: 10px; }
-
-  /* dongle dropped overlay */
-  .pane-overlay {
+  /* ============ dongle-lost overlay ============ */
+  .dongle-overlay {
     position: absolute; inset: 0;
     background: rgba(40, 8, 12, 0.78);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    color: #ffb3ad;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 69, 58, 0.55);
+    border-radius: 18px;
+    display: none;
+    flex-direction: column; align-items: center; justify-content: center;
+    z-index: 12;
     text-align: center;
-    padding: 20px;
-    z-index: 10;
+    padding: 18px;
   }
-  .pane-overlay[hidden] { display: none; }
-  .pane-overlay .ot { font-size: 18px; font-weight: 700; color: #ff6b62; letter-spacing: -0.005em; }
-  .pane-overlay .os { font-size: 13px; margin-top: 6px; color: #ffb3ad; }
-  .pane-overlay .ocd {
+  .dongle-overlay.show { display: flex; }
+  .dongle-overlay .icon {
+    font-size: 38px; color: var(--red);
+    text-shadow: 0 0 18px rgba(255,69,58,0.6);
+    margin-bottom: 6px;
+  }
+  .dongle-overlay .label {
+    font-size: 18px; color: #ffd0cc; font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .dongle-overlay .sub {
+    margin-top: 6px;
+    font-size: 13px; color: #f7c3bd;
+  }
+  .dongle-overlay .countdown {
+    margin-top: 12px;
     font-family: ui-monospace, monospace;
-    font-size: 22px; font-weight: 600; margin-top: 12px; color: #fff;
-    padding: 6px 14px;
-    background: rgba(255, 69, 58, 0.22);
-    border: 1px solid rgba(255, 69, 58, 0.5);
-    border-radius: 10px;
-  }
-  .pane-overlay .obtn {
-    margin-top: 14px;
-    padding: 8px 16px;
-    background: rgba(255,255,255,0.92);
-    color: #6b1a14;
-    border-radius: 10px;
-    font-weight: 600;
-    font-size: 13px;
+    font-size: 12px; color: #ffaa9f;
+    padding: 5px 12px;
+    background: rgba(255, 69, 58, 0.16);
+    border: 1px solid rgba(255, 69, 58, 0.36);
+    border-radius: 999px;
   }
 
-  /* ===================================================================== */
-  /* ============== analog + digital pane internals ====================== */
-  /* ===================================================================== */
-  .now-playing {
-    display: grid; grid-template-columns: 44px 1fr; gap: 12px; align-items: center;
-    padding: 8px 0 4px;
+  /* ============ Analog/Digital pane internals ============ */
+  .now-row {
+    display: grid; grid-template-columns: 40px 1fr auto; gap: 12px;
+    align-items: center;
+    padding: 4px 0 12px;
   }
-  .np-icon {
-    width: 44px; height: 44px; border-radius: 12px;
+  .now-row .icon {
+    width: 40px; height: 40px; border-radius: 12px;
     display: flex; align-items: center; justify-content: center;
-    font-size: 18px;
-    background: linear-gradient(160deg, rgba(90, 184, 255, 0.36), rgba(90, 184, 255, 0.12));
-    color: #e0f2ff;
+    font-size: 16px;
+    background: linear-gradient(160deg, rgba(52, 199, 89, 0.32), rgba(52, 199, 89, 0.12));
+    color: #d2f5dc;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.10);
   }
-  .np-icon.muted {
+  .now-row .icon.muted {
     background: linear-gradient(160deg, rgba(138, 155, 181, 0.18), rgba(138, 155, 181, 0.06));
     color: var(--text-3);
   }
-  .np-icon.green {
-    background: linear-gradient(160deg, rgba(52, 199, 89, 0.32), rgba(52, 199, 89, 0.12));
-    color: #d2f5dc;
+  .now-row .icon.hot {
+    background: linear-gradient(160deg, rgba(90, 184, 255, 0.38), rgba(90, 184, 255, 0.14));
+    color: #e0f2ff;
   }
-  .np-body { min-width: 0; }
-  .np-band-row { display: flex; gap: 10px; align-items: baseline; }
-  .np-freq { font-family: ui-monospace, monospace; font-size: 16px; color: var(--sky-2); font-weight: 600; }
-  .np-label { font-size: 13px; color: var(--text-2); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .np-quote { margin-top: 3px; font-size: 13px; color: var(--text); line-height: 1.35;
-              display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .np-quote.dim { color: var(--text-3); font-style: italic; }
-
-  .audio-level {
-    margin-top: 8px;
-    height: 4px; background: rgba(138,155,181,0.12); border-radius: 2px;
-    overflow: hidden;
+  .now-row .icon.dig {
+    background: linear-gradient(160deg, rgba(90, 184, 255, 0.34), rgba(90, 184, 255, 0.10));
+    color: #e0f2ff;
   }
-  .audio-level > i { display: block; height: 100%; background: linear-gradient(to right, var(--sky-dim), var(--sky)); }
+  .now-row .band { font-size: 10.5px; color: var(--text-3); font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; }
+  .now-row .now-line { font-size: 13.5px; color: var(--text); margin-top: 2px; line-height: 1.35; word-break: break-word; }
+  .now-row .now-line .freq { font-family: ui-monospace, monospace; color: var(--sky-2); margin-right: 6px; font-size: 13px; }
+  .now-row .now-line.dim { color: var(--text-3); }
+  .now-row .chev { color: var(--text-4); font-size: 16px; }
 
-  .mini-hits { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
-  .mini-hits .mhit {
-    display: grid; grid-template-columns: 46px 1fr auto; gap: 8px; align-items: center;
-    padding: 5px 0;
+  .hits-list {
     border-top: 1px solid var(--line);
-    font-size: 12.5px;
+    margin-top: 4px;
+    max-height: 220px;
+    overflow-y: auto;
   }
-  .mini-hits .mhit:first-child { border-top: none; }
-  .mini-hits .t { font-family: ui-monospace, monospace; color: var(--text-3); font-size: 11.5px; }
-  .mini-hits .lbl { color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .mini-hits .lbl .sub { color: var(--text-4); font-size: 10.5px; font-family: ui-monospace, monospace; margin-left: 6px; }
-  .mini-hits .b {
+  .hits-list .hit-row {
+    display: grid; grid-template-columns: 50px 1fr auto;
+    gap: 10px; align-items: center;
+    padding: 8px 0;
+    border-top: 1px solid var(--line);
+  }
+  .hits-list .hit-row:first-of-type { border-top: none; }
+  .hits-list .hit-row .t { font-family: ui-monospace, monospace; font-size: 11px; color: var(--text-3); }
+  .hits-list .hit-row .label { font-size: 12.5px; color: var(--text); line-height: 1.3; word-break: break-word; }
+  .hits-list .hit-row .label .sub { display: block; color: var(--text-4); font-size: 10.5px; font-family: ui-monospace, monospace; margin-top: 1px; }
+  .hits-list .hit-row .badge {
     font-family: ui-monospace, monospace; font-size: 9.5px;
     padding: 2px 6px;
-    background: rgba(90, 184, 255, 0.13); color: var(--sky);
-    border-radius: 4px; letter-spacing: 0.04em;
+    background: rgba(90, 184, 255, 0.13);
+    color: var(--sky);
+    border-radius: 4px;
+    letter-spacing: 0.04em;
   }
-  .mini-hits .b.dig { background: rgba(126, 211, 255, 0.13); color: var(--sky-2); }
-  .mini-hits .b.gnd { background: rgba(138, 155, 181, 0.13); color: var(--text-2); }
+  .hits-list .hit-row .badge.gnd { background: rgba(138, 155, 181, 0.13); color: var(--text-2); }
+  .hits-list .hit-row .badge.dig { background: rgba(126, 211, 255, 0.13); color: var(--sky-2); }
+  .hits-empty { padding: 12px 0; color: var(--text-3); text-align: center; font-size: 11.5px; }
 
-  /* ===================================================================== */
-  /* ============== waterfall pane internals ============================= */
-  /* ===================================================================== */
-  .wf-frame {
+  /* digital profile block */
+  .digital-profile {
+    border-top: 1px solid var(--line);
+    padding: 10px 0;
+    display: grid; grid-template-columns: 36px 1fr; gap: 12px;
+    align-items: center;
+  }
+  .digital-profile .glyph {
+    width: 36px; height: 36px;
+    background: linear-gradient(160deg, var(--sky), var(--sky-dim));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    color: #04101e; font-weight: 700; font-size: 11px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
+  }
+  .digital-profile .pname { font-size: 13.5px; font-weight: 600; color: var(--text); }
+  .digital-profile .psub { font-size: 11px; color: var(--text-3); margin-top: 1px; font-family: ui-monospace, monospace; }
+  .digital-chips {
+    padding-top: 8px;
+    display: flex; flex-wrap: wrap; gap: 5px;
+    border-top: 1px dashed var(--line);
+    margin-top: 6px;
+  }
+  .digital-chips .chip {
+    padding: 4px 10px;
+    background: rgba(138, 155, 181, 0.10);
+    color: var(--text-2);
+    border-radius: 999px;
+    font-size: 11px;
+  }
+  .digital-chips .chip.on { background: var(--sky); color: #04101e; font-weight: 600; }
+
+  /* ============ Waterfall pane internals ============ */
+  .wf-canvas-wrap {
     position: relative;
+    height: 200px;
     background: #04060d;
     border-radius: 12px;
     overflow: hidden;
-    flex: 1; min-height: 180px;
     border: 1px solid rgba(255,255,255,0.04);
   }
-  .wf-frame canvas { display: block; width: 100%; height: 100%; }
-
-  /* draggable freq window widget on top of the waterfall */
-  .freq-window {
-    position: absolute; left: 0; right: 0; bottom: 0;
-    height: 32px;
-    background: linear-gradient(0deg, rgba(4,6,13,0.85), rgba(4,6,13,0.40));
-    border-top: 1px solid rgba(255,255,255,0.06);
-    display: flex; align-items: center;
-    padding: 0 8px;
-    user-select: none;
-  }
-  .fw-track {
-    position: relative;
-    flex: 1; height: 8px;
-    background: rgba(138,155,181,0.12);
-    border-radius: 4px;
-    margin: 0 8px;
-  }
-  .fw-band {
-    position: absolute; top: 0; bottom: 0;
-    background: linear-gradient(90deg, rgba(90,184,255,0.55), rgba(126,211,255,0.65));
-    border-radius: 4px;
-    border: 1px solid rgba(232,247,255,0.45);
-  }
-  .fw-handle {
-    position: absolute; top: 50%;
-    width: 12px; height: 22px;
-    background: #fff;
-    border-radius: 4px;
-    transform: translate(-50%, -50%);
-    box-shadow: 0 2px 6px rgba(0,0,0,0.5);
-    cursor: ew-resize;
-  }
-  .fw-readout {
-    font-family: ui-monospace, monospace;
-    font-size: 11px;
-    color: var(--text-2);
-    white-space: nowrap;
-  }
-
-  /* freq axis ticks under the waterfall */
+  .wf-canvas-wrap canvas { display: block; width: 100%; height: 100%; }
   .wf-axis {
     display: flex; justify-content: space-between;
     margin-top: 6px;
-    padding: 0 4px;
+    font-family: ui-monospace, monospace;
+    font-size: 10px; color: var(--text-4);
+  }
+  .wf-meta {
+    margin-top: 10px;
+    display: flex; gap: 8px; flex-wrap: wrap;
+    font-size: 11px; color: var(--text-3);
+  }
+  .wf-meta .pill {
+    padding: 3px 9px;
+    background: rgba(8, 14, 28, 0.55);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--text-2);
+  }
+  .wf-meta .pill.peak { color: var(--sky-2); }
+
+  /* ============ draggable freq-window widget ============ */
+  .freq-window {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 22%;
+    background: rgba(126, 211, 255, 0.10);
+    border: 1.5px solid rgba(126, 211, 255, 0.55);
+    border-radius: 6px;
+    pointer-events: auto;
+    cursor: ew-resize;
+    z-index: 5;
+    transition: background 0.1s;
+  }
+  .freq-window:hover { background: rgba(126, 211, 255, 0.18); }
+  .freq-window::before, .freq-window::after {
+    content: ""; position: absolute;
+    top: 50%; transform: translateY(-50%);
+    width: 3px; height: 22px;
+    background: rgba(126, 211, 255, 0.85);
+    border-radius: 2px;
+  }
+  .freq-window::before { left: 4px; }
+  .freq-window::after { right: 4px; }
+  .freq-window .center-mark {
+    position: absolute; left: 50%; top: 0; bottom: 0;
+    width: 1px;
+    background: rgba(255,255,255,0.30);
+    transform: translateX(-50%);
+  }
+  .freq-window .label {
+    position: absolute; left: 50%; bottom: -22px;
+    transform: translateX(-50%);
     font-family: ui-monospace, monospace;
     font-size: 10px;
-    color: var(--text-4);
+    color: var(--sky-2);
+    white-space: nowrap;
+    padding: 1px 6px;
+    background: rgba(8,14,28,0.65);
+    border-radius: 4px;
   }
 
-  /* ===================================================================== */
-  /* ============== VFO pane internals =================================== */
-  /* ===================================================================== */
-  .vfo-display {
-    display: flex; align-items: center; gap: 8px;
-    background: rgba(4,6,13,0.45);
-    border: 1px solid rgba(126,211,255,0.18);
-    border-radius: 12px;
-    padding: 10px 14px;
-  }
-  .vfo-step {
-    width: 30px; height: 30px;
-    background: rgba(138,155,181,0.12);
-    border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    color: var(--text-2); font-size: 16px;
-    cursor: pointer;
-  }
-  .vfo-freq-block { flex: 1; text-align: center; }
-  .vfo-freq-block .freqv {
-    font-family: ui-monospace, monospace;
-    font-size: 28px; font-weight: 600; color: var(--sky-2);
-    letter-spacing: -0.01em;
-    line-height: 1;
-  }
-  .vfo-freq-block .freqv small {
-    font-size: 12px; color: var(--text-3); margin-left: 4px; font-weight: 500;
-    letter-spacing: 0;
-  }
-  .vfo-freq-block .freq-meta {
-    margin-top: 4px;
-    font-size: 11px; color: var(--text-4);
-    font-family: ui-monospace, monospace;
-  }
-
-  .seg {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    background: rgba(4,6,13,0.55);
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    padding: 3px;
-    gap: 2px;
-  }
-  .seg > span {
-    padding: 6px 0;
-    text-align: center;
-    font-size: 12px;
-    color: var(--text-3);
-    font-weight: 500;
-    border-radius: 7px;
-    cursor: pointer;
-  }
-  .seg > span.on { background: var(--sky); color: #04101e; font-weight: 700; }
-
+  /* ============ VFO pane internals ============ */
+  .vfo-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
   .vfo-row {
-    display: grid; grid-template-columns: 1fr auto;
-    gap: 8px;
-    padding: 6px 0;
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 10px;
     align-items: center;
-    border-top: 1px solid var(--line);
+    padding: 6px 0;
   }
-  .vfo-row:first-of-type { border-top: none; }
-  .vfo-row .lbl { font-size: 13px; color: var(--text); }
-  .vfo-row .lbl .sub { display: block; font-size: 11px; color: var(--text-3); margin-top: 1px; }
-
+  .vfo-row .label {
+    font-size: 11.5px; color: var(--text-3); font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .vfo-input {
+    background: rgba(8, 14, 28, 0.55);
+    border: 1px solid var(--line);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-family: ui-monospace, monospace;
+    font-size: 14px;
+    width: 100%;
+    outline: none;
+    transition: border 0.15s;
+  }
+  .vfo-input:focus { border-color: var(--sky); }
+  .vfo-select {
+    background: rgba(8, 14, 28, 0.55);
+    border: 1px solid var(--line);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 13px;
+    width: 100%;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' stroke='%238a9bb5' stroke-width='1.5' fill='none' stroke-linecap='round'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+  }
+  .vfo-toggles { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+  .vfo-toggle-card {
+    flex: 1; min-width: 130px;
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px;
+    background: rgba(8, 14, 28, 0.45);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+  .vfo-toggle-card .lab {
+    flex: 1; font-size: 12px; color: var(--text-2); font-weight: 500;
+  }
   .toggle {
-    width: 42px; height: 26px; background: var(--green); border-radius: 14px; position: relative;
+    width: 42px; height: 26px;
+    background: var(--green);
+    border-radius: 14px;
+    position: relative;
+    cursor: pointer;
+    flex-shrink: 0;
   }
   .toggle::after {
     content: ""; position: absolute; top: 2px; left: 18px;
     width: 22px; height: 22px;
     background: #fff; border-radius: 50%;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.35);
+    transition: left 0.18s ease;
   }
-  .toggle.off { background: rgba(138,155,181,0.22); }
+  .toggle.off { background: rgba(138, 155, 181, 0.22); }
   .toggle.off::after { left: 2px; }
 
-  /* ===================================================================== */
-  /* ============== disco pane internals ================================ */
-  /* ===================================================================== */
-  .disco-range {
-    background: rgba(4,6,13,0.45);
-    border: 1px solid rgba(126,211,255,0.14);
+  .vfo-mini-wf {
+    margin-top: 6px;
+    position: relative;
+    height: 90px;
+    background: #04060d;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.04);
+  }
+  .vfo-mini-wf canvas { display: block; width: 100%; height: 100%; }
+  .vfo-mini-wf .axis {
+    position: absolute; left: 8px; right: 8px; bottom: 4px;
+    display: flex; justify-content: space-between;
+    font-family: ui-monospace, monospace;
+    font-size: 9.5px;
+    color: rgba(255,255,255,0.55);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.7);
+  }
+  .vfo-mini-wf .center-line {
+    position: absolute; top: 0; bottom: 0; left: 50%;
+    width: 1px; background: rgba(255,255,255,0.32);
+  }
+
+  /* ============ Disco pane internals ============ */
+  .disco-canvas-wrap {
+    position: relative;
+    height: 160px;
+    background: #04060d;
     border-radius: 12px;
-    padding: 12px 14px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.04);
   }
-  .disco-range .head {
-    display: flex; align-items: baseline; gap: 8px;
-    margin-bottom: 10px;
-  }
-  .disco-range .h-lbl { font-size: 12px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
-  .disco-range .h-val { margin-left: auto; font-family: ui-monospace, monospace; font-size: 13px; color: var(--sky-2); }
-  .disco-bar { position: relative; height: 30px; }
-  .disco-bar .track {
-    position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
-    height: 6px; background: rgba(138,155,181,0.12); border-radius: 3px;
-  }
-  .disco-bar .band {
-    position: absolute; top: 50%; transform: translateY(-50%);
-    height: 10px;
-    background: linear-gradient(90deg, rgba(90,184,255,0.55), rgba(126,211,255,0.65));
-    border-radius: 5px;
-    border: 1px solid rgba(232,247,255,0.4);
-  }
-  .disco-bar .h {
-    position: absolute; top: 50%;
-    width: 12px; height: 22px;
-    background: #fff; border-radius: 4px;
-    transform: translate(-50%, -50%);
-    box-shadow: 0 2px 6px rgba(0,0,0,0.5);
-    cursor: ew-resize;
-  }
+  .disco-canvas-wrap canvas { display: block; width: 100%; height: 100%; }
   .disco-axis {
     display: flex; justify-content: space-between;
     margin-top: 6px;
     font-family: ui-monospace, monospace;
-    font-size: 10px;
-    color: var(--text-4);
+    font-size: 10px; color: var(--text-4);
   }
-
-  .disco-events {
-    display: flex; flex-direction: column; gap: 4px;
-    margin-top: 8px;
+  .disco-detections {
+    margin-top: 10px;
+    display: flex; flex-direction: column;
+    gap: 4px;
+    max-height: 130px;
+    overflow-y: auto;
   }
-  .disco-events .evt {
-    display: grid; grid-template-columns: 48px 80px 1fr auto; gap: 10px;
+  .disco-detect-row {
+    display: grid; grid-template-columns: 90px 1fr auto;
+    gap: 10px;
     align-items: center;
-    padding: 5px 0;
+    padding: 5px 9px;
+    background: rgba(8, 14, 28, 0.45);
+    border: 1px solid var(--line);
+    border-radius: 8px;
     font-size: 12px;
-    border-top: 1px solid var(--line);
   }
-  .disco-events .evt:first-of-type { border-top: none; }
-  .disco-events .t { font-family: ui-monospace, monospace; color: var(--text-3); font-size: 11px; }
-  .disco-events .f { font-family: ui-monospace, monospace; color: var(--sky-2); font-size: 12px; }
-  .disco-events .l { color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .disco-events .conf {
-    font-family: ui-monospace, monospace; font-size: 10px;
-    padding: 1px 6px; background: rgba(126,211,255,0.10); color: var(--sky); border-radius: 4px;
+  .disco-detect-row .freq {
+    font-family: ui-monospace, monospace;
+    color: var(--sky-2); font-size: 12px;
   }
-  .disco-events .conf.warn { background: var(--amber-bg); color: #ffd58a; }
+  .disco-detect-row .cls { color: var(--text); font-weight: 500; }
+  .disco-detect-row .conf {
+    font-family: ui-monospace, monospace;
+    color: var(--text-3); font-size: 11px;
+  }
+  .disco-detect-row .conf.hi { color: #c8f3d3; }
+  .disco-detect-row .conf.lo { color: #ffd58a; }
 
-  /* ===================================================================== */
-  /* ============== Profile + Controls (used on both layouts) ============ */
-  /* ===================================================================== */
-  .section {
-    background: var(--card); border: 1px solid var(--line); border-radius: 18px;
-    backdrop-filter: blur(20px) saturate(150%);
-    -webkit-backdrop-filter: blur(20px) saturate(150%);
-    overflow: hidden;
-  }
-  .section-hd {
-    padding: 13px 18px 4px;
-    font-size: 12px; color: var(--text-3); font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.06em;
-  }
-  .prof-row { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; padding: 12px 18px; }
-  .prof-glyph {
-    width: 44px; height: 44px;
-    background: linear-gradient(160deg, var(--sky), var(--sky-dim));
-    border-radius: 12px;
-    display: flex; align-items: center; justify-content: center;
-    color: #04101e; font-weight: 700; font-size: 13px;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
-  }
-  .prof-name { font-size: 15px; font-weight: 600; color: var(--text); }
-  .prof-sub { font-size: 12.5px; color: var(--text-3); margin-top: 2px; }
-  .prof-chev { color: var(--text-4); font-size: 16px; }
-  .tag-chips {
-    padding: 12px 18px 16px;
-    display: flex; flex-wrap: wrap; gap: 6px;
-    border-top: 1px solid var(--line);
-  }
-  .tag-chips .chip {
-    padding: 5px 11px;
-    background: rgba(138, 155, 181, 0.10);
-    color: var(--text-2);
-    border-radius: 999px;
-    font-size: 12.5px;
-  }
-  .tag-chips .chip.on { background: var(--sky); color: #04101e; font-weight: 600; }
-
-  /* footer */
-  .footer {
-    text-align: center;
-    padding: 14px 0 4px;
-    font-family: ui-monospace, monospace; font-size: 10.5px;
-    color: var(--text-4);
-  }
-
-  /* ============== mobile-only / desktop-only toggles ============== */
-  .desktop-only { display: none; }
-  .mobile-only { display: block; }
-  .hb-hero { display: block; }
-  .page-title { display: block; }
-
-  /* ===================================================================== */
-  /* ====== DESKTOP @media — 5-pane grid =============================== */
-  /* ===================================================================== */
-  @media (min-width: 1024px) {
-    body { padding-bottom: 12px; }
-    .desktop-only { display: inline-flex; }
-    .mobile-only { display: none; }
-    .tb-fav { display: inline-flex; }
-    .tb-chip { display: inline-flex; }
-    .hb-hero { display: none; }
-    .page-title { display: none; }
-    .section.profile, .section.controls { display: none; }
-
-    .grid {
-      padding: 12px;
+  /* ============ DESKTOP — 5-pane grid layout ============ */
+  @media (min-width: 1100px) {
+    .panes {
+      padding: 16px;
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
-      grid-template-rows: 332px 360px 256px;
+      grid-template-rows: auto auto;
       grid-template-areas:
-        "analog digital vfo"
-        "wf     wf      wf"
-        "disco  disco   disco";
-      gap: 12px;
+        "analog      digital     vfo"
+        "waterfall   waterfall   disco";
+      gap: 16px;
+      align-items: stretch;
     }
     .pane-analog    { grid-area: analog; }
     .pane-digital   { grid-area: digital; }
     .pane-vfo       { grid-area: vfo; }
-    .pane-waterfall { grid-area: wf; }
+    .pane-waterfall { grid-area: waterfall; }
     .pane-disco     { grid-area: disco; }
-
-    .wf-frame { min-height: 240px; }
-    .pane-vfo .wf-frame { min-height: 60px; }
-    .pane-vfo .pane-body { gap: 6px; padding-bottom: 12px; }
-    .pane-vfo .vfo-display { padding: 6px 10px; }
-    .pane-vfo .vfo-freq-block .freqv { font-size: 26px; }
-    .pane-vfo .vfo-row { padding: 4px 0; }
-
-    /* desktop fonts a touch larger */
-    .pane-head .ptitle { font-size: 17px; }
+    .pane { min-height: 0; }
+    .wf-canvas-wrap { height: 240px; }
+    .disco-canvas-wrap { height: 180px; }
+  }
+  @media (min-width: 1600px) {
+    .panes {
+      grid-template-columns: 1fr 1fr 1fr 1fr;
+      grid-template-areas:
+        "analog      digital     vfo         vfo"
+        "waterfall   waterfall   disco       disco";
+    }
   }
 
-  @media (min-width: 1440px) {
-    .grid { padding: 16px; gap: 16px; grid-template-rows: 320px 400px 280px; }
-    .pane-vfo .vfo-freq-block .freqv { font-size: 30px; }
-    .pane-vfo .wf-frame { min-height: 80px; }
+  .footer {
+    text-align: center;
+    padding: 18px 0 6px;
+    font-family: ui-monospace, monospace; font-size: 10.5px;
+    color: var(--text-4); letter-spacing: 0.04em;
   }
 </style>
 </head>
 <body class="state-loading">
 
-<!-- ============ sticky top status bar ============ -->
+<!-- ============ sticky top bar with HB pill ============ -->
 <div class="topbar">
-  <span class="tb-hb-pill">
+  <span class="tb-time mono" id="tb-time">—:—</span>
+  <span class="tb-title">Scanner<span class="sub" id="tb-sub">sb5 · 5-pane</span></span>
+  <span class="tb-spacer"></span>
+  <span class="tb-pill">
     <span class="dot"></span>
     <span id="tb-state">Loading</span>
-    <span class="verdict desktop-only" id="tb-verdict">— reading state…</span>
+    <span class="verdict" id="tb-verdict">— reading state…</span>
   </span>
-  <span class="tb-fav desktop-only">
-    <b id="tb-fav-name">fav-—</b><span style="color:var(--text-4)">·</span><span id="tb-fav-loc">—</span>
-  </span>
-  <span class="tb-spacer"></span>
-  <span class="tb-chip desktop-only" id="tb-don-analog"><span class="d"></span>Analog<span class="mono" id="tb-don-analog-rate">—</span></span>
-  <span class="tb-chip desktop-only" id="tb-don-digital"><span class="d"></span>Digital<span class="mono" id="tb-don-digital-rate">—</span></span>
-  <span class="tb-chip desktop-only"><span class="d gray"></span>Waterfall ×2<span class="mono">not deployed</span></span>
-  <span class="tb-chip desktop-only"><span class="d gray"></span>VFO<span class="mono">not deployed</span></span>
-  <span class="tb-chip desktop-only"><span class="d gray"></span>Disco ×3<span class="mono">not deployed</span></span>
-  <span class="tb-clock mono" id="tb-clock">—:—</span>
 </div>
 
-<!-- ============ mobile large title ============ -->
-<div class="page-title">
-  <h1>Scanner</h1>
-  <div class="sub" id="page-sub">Loading…</div>
+<!-- ============ heartbeat strip ============ -->
+<div class="hb-strip">
+  <div class="hb-row">
+    <span class="hb-headline" id="hb-headline">Reading scanner state…</span>
+    <span class="hb-explain" id="hb-explain"></span>
+  </div>
+  <div class="hb-evidence" id="hb-evidence">
+    <div class="ev-cell"><span class="lbl">Status</span><span class="val">—</span></div>
+  </div>
 </div>
 
-<main class="grid">
+<!-- ============ 5 panes ============ -->
+<main class="panes">
 
-  <!-- ============ Heartbeat hero (mobile only) ============ -->
-  <section class="hb-hero">
-    <div class="hb-pulse"><canvas id="hb-canvas" width="700" height="100"></canvas></div>
-    <div class="hb-state-row">
-      <span class="hb-state" id="hero-state">Loading</span>
-      <span class="hb-stateunit" id="hero-stateunit">reading state…</span>
-    </div>
-    <div class="hb-verdict" id="hero-verdict">Reading scanner state…</div>
-    <div class="hb-evidence" id="hero-evid">
-      <div class="ev-cell"><div class="lbl">Status</div><div class="val">—</div></div>
-    </div>
-  </section>
-
-  <!-- ============ ANALOG PANE ============ -->
+  <!-- ============ ANALOG pane (RSPduo 1 — LIVE) ============ -->
   <section class="pane pane-analog" id="pane-analog">
-    <header class="pane-head">
-      <span class="ptitle">Analog</span>
-      <span class="psub">RSPduo Tuner 1 · 118–137 MHz</span>
-      <span class="right"><span class="ppill live" id="analog-pill"><span class="d"></span>Live</span></span>
-    </header>
+    <div class="pane-hd">
+      <span class="eyebrow">Analog</span>
+      <span class="title">Airband 118–137 MHz</span>
+      <span class="live-tag">LIVE</span>
+      <span class="sub">RSPduo 1 · AM</span>
+    </div>
+    <div class="pane-body">
+      <div class="now-row" id="analog-now-air">
+        <div class="icon muted">❚❚</div>
+        <div>
+          <div class="band">Airband · AM</div>
+          <div class="now-line dim">Loading…</div>
+        </div>
+        <div class="chev">›</div>
+      </div>
+      <div class="now-row" id="analog-now-gnd">
+        <div class="icon muted">❚❚</div>
+        <div>
+          <div class="band">Ground · NFM</div>
+          <div class="now-line dim">Loading…</div>
+        </div>
+        <div class="chev">›</div>
+      </div>
+      <div class="hits-list" id="analog-hits">
+        <div class="hits-empty">Loading hits…</div>
+      </div>
+    </div>
     <div class="pane-evidence" id="analog-evidence">
-      <div class="ev-row"><span class="dot"></span><span class="k">DONGLE 0</span><span class="sep">·</span><span>RSPduo Tuner 1</span><span class="sep">·</span><span>2.4 MSPS</span><span class="sep">·</span><span id="analog-frame-age">last frame —</span></div>
-      <div class="ev-row" id="analog-mounts-row"><span class="dot"></span><span class="k">MOUNT</span><span class="sep">·</span><span id="analog-mount-state">checking…</span></div>
-    </div>
-    <div class="pane-body">
-      <div class="now-playing">
-        <div class="np-icon" id="analog-np-icon">▶</div>
-        <div class="np-body">
-          <div class="np-band-row">
-            <span class="np-freq mono" id="analog-np-freq">—</span>
-            <span class="np-label" id="analog-np-label">Awaiting traffic…</span>
-          </div>
-          <div class="np-quote dim" id="analog-np-quote">No recent transmission.</div>
-          <div class="audio-level"><i id="analog-audio-level" style="width:24%"></i></div>
-        </div>
-      </div>
-      <div class="mini-hits" id="analog-mini-hits"></div>
-    </div>
-    <div class="pane-overlay" id="analog-overlay" hidden>
-      <div class="ot">Analog dongle dropped</div>
-      <div class="os">USB / sample-flow lost. Reconnecting…</div>
-      <div class="ocd"><span id="analog-cd">15</span>s</div>
+      <div class="ev-cell"><span class="lbl">DONGLE</span><span class="val">RSPduo Tuner 1</span></div>
+      <div class="ev-cell"><span class="lbl">MODE</span><span class="val">MA · 2.4 MSPS</span></div>
+      <div class="ev-cell"><span class="lbl">RTL-AIRBAND</span><span class="val" id="ev-analog-svc">—</span></div>
+      <div class="ev-cell"><span class="lbl">STATS</span><span class="val" id="ev-analog-stats">—</span></div>
     </div>
   </section>
 
-  <!-- ============ DIGITAL PANE ============ -->
+  <!-- ============ DIGITAL pane (RSPduo 2 — LIVE) ============ -->
   <section class="pane pane-digital" id="pane-digital">
-    <header class="pane-head">
-      <span class="ptitle">Digital</span>
-      <span class="psub">RSPduo Tuner 2 · P25 Phase II · NJICS</span>
-      <span class="right"><span class="ppill live" id="digital-pill"><span class="d"></span>Live</span></span>
-    </header>
+    <div class="pane-hd">
+      <span class="eyebrow">Digital</span>
+      <span class="title">P25 trunked</span>
+      <span class="live-tag">LIVE</span>
+      <span class="sub">RSPduo 2 · OP25</span>
+    </div>
+    <div class="pane-body">
+      <div class="now-row" id="digital-now">
+        <div class="icon muted">❚❚</div>
+        <div>
+          <div class="band">Digital · P25</div>
+          <div class="now-line dim">Loading…</div>
+        </div>
+        <div class="chev">›</div>
+      </div>
+      <div class="digital-profile">
+        <div class="glyph" id="dig-glyph">—</div>
+        <div>
+          <div class="pname" id="dig-pname">Loading…</div>
+          <div class="psub" id="dig-psub">—</div>
+        </div>
+      </div>
+      <div class="digital-chips" id="dig-chips"></div>
+      <div class="hits-list" id="digital-hits">
+        <div class="hits-empty">Loading hits…</div>
+      </div>
+    </div>
     <div class="pane-evidence" id="digital-evidence">
-      <div class="ev-row"><span class="dot"></span><span class="k">DONGLE 1</span><span class="sep">·</span><span>RSPduo Tuner 2</span><span class="sep">·</span><span>2.4 MSPS</span><span class="sep">·</span><span id="digital-frame-age">last frame —</span></div>
-      <div class="ev-row" id="digital-trunk-row"><span class="dot"></span><span class="k">TRUNK</span><span class="sep">·</span><span id="digital-trunk-state">NJICS · checking…</span></div>
-    </div>
-    <div class="pane-body">
-      <div class="now-playing">
-        <div class="np-icon green" id="digital-np-icon">▶</div>
-        <div class="np-body">
-          <div class="np-band-row">
-            <span class="np-freq mono" id="digital-np-freq">—</span>
-            <span class="np-label" id="digital-np-label">Awaiting traffic…</span>
-          </div>
-          <div class="np-quote dim" id="digital-np-quote">No recent talkgroup activity.</div>
-          <div class="audio-level"><i id="digital-audio-level" style="width:18%"></i></div>
-        </div>
-      </div>
-      <div class="mini-hits" id="digital-mini-hits"></div>
-    </div>
-    <div class="pane-overlay" id="digital-overlay" hidden>
-      <div class="ot">Digital dongle dropped</div>
-      <div class="os">OP25 control channel lost. Reconnecting…</div>
-      <div class="ocd"><span id="digital-cd">22</span>s</div>
+      <div class="ev-cell"><span class="lbl">DONGLE</span><span class="val">RSPduo Tuner 2</span></div>
+      <div class="ev-cell"><span class="lbl">MODE</span><span class="val">SL · CQPSK</span></div>
+      <div class="ev-cell"><span class="lbl">OP25 SVC</span><span class="val" id="ev-digital-svc">—</span></div>
+      <div class="ev-cell"><span class="lbl">VLC BRIDGE</span><span class="val" id="ev-digital-vlc">—</span></div>
     </div>
   </section>
 
-  <!-- ============ VFO PANE ============ -->
+  <!-- ============ VFO pane (1 RTL-SDR — MOCK) ============ -->
   <section class="pane pane-vfo" id="pane-vfo">
-    <header class="pane-head">
-      <span class="ptitle">VFO</span>
-      <span class="psub">1 RTL-SDR · single freq receiver</span>
-      <span class="right"><span class="ppill demo"><span class="d"></span>Demo</span></span>
-    </header>
-    <div class="pane-evidence" id="vfo-evidence">
-      <div class="ev-row warn"><span class="dot"></span><span class="k">VFO DONGLE</span><span class="sep">·</span><span>not deployed yet</span><span class="sep">·</span><span>hardware on order</span></div>
-      <div class="ev-row muted"><span class="dot"></span><span class="k">SEEK</span><span class="sep">·</span><span>manual tune</span></div>
+    <div class="pane-hd">
+      <span class="eyebrow">VFO</span>
+      <span class="title">Manual tune</span>
+      <span class="demo-tag">DEMO — coming when hardware lands</span>
+      <span class="sub">RTL-SDR · TBD</span>
     </div>
     <div class="pane-body">
-      <div class="vfo-display">
-        <div class="vfo-step" id="vfo-step-down">‹</div>
-        <div class="vfo-freq-block">
-          <div class="freqv"><span id="vfo-freq">146.520</span><small>MHz</small></div>
-          <div class="freq-meta"><span id="vfo-mod-meta">NFM</span> · <span id="vfo-bw-meta">12.5 kHz BW</span></div>
-        </div>
-        <div class="vfo-step" id="vfo-step-up">›</div>
-      </div>
-      <div class="seg" id="vfo-mod-seg">
-        <span data-mod="AM">AM</span>
-        <span data-mod="NFM" class="on">NFM</span>
-        <span data-mod="WFM">WFM</span>
-        <span data-mod="USB">USB</span>
-        <span data-mod="LSB">LSB</span>
-      </div>
-      <div>
+      <div class="vfo-grid">
         <div class="vfo-row">
-          <span class="lbl">Mute<span class="sub">silence audio without stopping receiver</span></span>
-          <span class="toggle off" id="vfo-mute" data-on="0"></span>
+          <span class="label">Frequency</span>
+          <input type="text" class="vfo-input mono" id="vfo-freq" value="127.700" inputmode="decimal">
         </div>
         <div class="vfo-row">
-          <span class="lbl">Route to BT speaker<span class="sub">stream to paired Bluetooth output</span></span>
-          <span class="toggle off" id="vfo-bt" data-on="0"></span>
+          <span class="label">Mode</span>
+          <select class="vfo-select" id="vfo-mod">
+            <option value="am">AM</option>
+            <option value="nfm">NFM</option>
+            <option value="wfm">WFM</option>
+            <option value="usb">USB</option>
+            <option value="lsb">LSB</option>
+          </select>
         </div>
-      </div>
-      <div class="wf-frame" style="min-height: 80px;">
-        <canvas id="wf-vfo"></canvas>
-        <div class="wf-axis" style="position:absolute; left:8px; right:8px; bottom:4px; pointer-events:none;">
-          <span id="vfo-wf-lo">—</span><span id="vfo-wf-ctr">—</span><span id="vfo-wf-hi">—</span>
-        </div>
-      </div>
-    </div>
-    <div class="pane-overlay" id="vfo-overlay" hidden>
-      <div class="ot">VFO dongle dropped</div>
-      <div class="os">USB device disappeared. Reconnecting…</div>
-      <div class="ocd"><span id="vfo-cd">9</span>s</div>
-    </div>
-  </section>
-
-  <!-- ============ WATERFALL PANE ============ -->
-  <section class="pane pane-waterfall" id="pane-waterfall">
-    <header class="pane-head">
-      <span class="ptitle">Waterfall</span>
-      <span class="psub">2 RTL-SDRs stitched · wide RF survey</span>
-      <span class="right">
-        <span class="ppill demo"><span class="d"></span>Demo</span>
-        <span class="ppill idle" id="waterfall-range-pill"><span class="d"></span><span id="waterfall-range-text">—</span></span>
-      </span>
-    </header>
-    <div class="pane-evidence" id="waterfall-evidence">
-      <div class="ev-row warn"><span class="dot"></span><span class="k">DONGLE A</span><span class="sep">·</span><span>not deployed yet</span><span class="sep">·</span><span>RTL-SDR slot pending</span></div>
-      <div class="ev-row warn"><span class="dot"></span><span class="k">DONGLE B</span><span class="sep">·</span><span>not deployed yet</span><span class="sep">·</span><span>RTL-SDR slot pending</span></div>
-      <div class="ev-row muted"><span class="dot"></span><span class="k">STITCH</span><span class="sep">·</span><span>seam blender idle</span></div>
-    </div>
-    <div class="pane-body">
-      <div class="wf-frame">
-        <canvas id="wf-main"></canvas>
-        <div class="freq-window">
-          <span class="fw-readout" id="wf-readout-lo">—</span>
-          <div class="fw-track">
-            <div class="fw-band" id="wf-band" style="left: 20%; right: 25%;"></div>
-            <div class="fw-handle" id="wf-handle-left" style="left: 20%;"></div>
-            <div class="fw-handle" id="wf-handle-right" style="left: 75%;"></div>
+        <div class="vfo-toggles">
+          <div class="vfo-toggle-card">
+            <span class="lab">Mute</span>
+            <span class="toggle off" id="vfo-mute" data-key="muted"></span>
           </div>
-          <span class="fw-readout" id="wf-readout-hi">—</span>
+          <div class="vfo-toggle-card">
+            <span class="lab">Route to BT speaker</span>
+            <span class="toggle off" id="vfo-bt" data-key="bt_routed"></span>
+          </div>
+        </div>
+        <div class="vfo-mini-wf">
+          <canvas id="vfo-wf"></canvas>
+          <div class="center-line"></div>
+          <div class="axis">
+            <span id="vfo-low">—</span>
+            <span id="vfo-center">—</span>
+            <span id="vfo-high">—</span>
+          </div>
         </div>
       </div>
-      <div class="wf-axis">
-        <span id="wf-axis-lo">—</span>
-        <span id="wf-axis-c1">—</span>
-        <span id="wf-axis-c2">—</span>
-        <span id="wf-axis-c3">—</span>
-        <span id="wf-axis-hi">—</span>
+      <div class="dongle-overlay" id="vfo-down-overlay">
+        <div class="icon">⚠</div>
+        <div class="label">DONGLE LOST <span id="vfo-down-since">4m ago</span></div>
+        <div class="sub">VFO dongle stopped reporting frames.</div>
+        <div class="countdown">reconnect in <span id="vfo-down-cd">8</span>s</div>
       </div>
     </div>
-    <div class="pane-overlay" id="waterfall-overlay" hidden>
-      <div class="ot">Waterfall dongles dropped</div>
-      <div class="os">One or both RTL-SDRs lost. Reconnecting…</div>
-      <div class="ocd"><span id="waterfall-cd">12</span>s</div>
+    <div class="pane-evidence" id="vfo-evidence">
+      <div class="ev-cell"><span class="lbl">DONGLE C</span><span class="val info" id="ev-vfo-state">not deployed</span></div>
+      <div class="ev-cell"><span class="lbl">SAMPLE</span><span class="val" id="ev-vfo-rate">2.4 MSPS</span></div>
+      <div class="ev-cell"><span class="lbl">LAST FRAME</span><span class="val" id="ev-vfo-frame">— ms ago</span></div>
+      <div class="ev-cell"><span class="lbl">SERIAL</span><span class="val mono" id="ev-vfo-serial">—</span></div>
     </div>
   </section>
 
-  <!-- ============ DISCO PANE ============ -->
-  <section class="pane pane-disco" id="pane-disco">
-    <header class="pane-head">
-      <span class="ptitle">Disco</span>
-      <span class="psub">3 RTL-SDRs unified · coordinated sweep + classifier</span>
-      <span class="right"><span class="ppill demo"><span class="d"></span>Demo</span></span>
-    </header>
-    <div class="pane-evidence" id="disco-evidence">
-      <div class="ev-row warn"><span class="dot"></span><span class="k">DONGLES ×3</span><span class="sep">·</span><span>not deployed yet</span><span class="sep">·</span><span>3-slot allocation pending</span></div>
-      <div class="ev-row muted"><span class="dot"></span><span class="k">CLASSIFIER</span><span class="sep">·</span><span>idle</span></div>
+  <!-- ============ WATERFALL pane (2 RTL-SDRs stitched — MOCK) ============ -->
+  <section class="pane pane-waterfall" id="pane-waterfall">
+    <div class="pane-hd">
+      <span class="eyebrow">Waterfall</span>
+      <span class="title">125 — 130 MHz · stitched</span>
+      <span class="demo-tag">DEMO — coming when hardware lands</span>
+      <span class="sub">2 × RTL-SDR · TBD</span>
     </div>
     <div class="pane-body">
-      <div class="disco-range">
-        <div class="head">
-          <span class="h-lbl">Sweep range</span>
-          <span class="h-val" id="disco-range-val">—</span>
-        </div>
-        <div class="disco-bar">
-          <div class="track"></div>
-          <div class="band" id="disco-band" style="left: 18%; right: 22%;"></div>
-          <div class="h" id="disco-handle-left" style="left: 18%;"></div>
-          <div class="h" id="disco-handle-right" style="left: 78%;"></div>
-        </div>
-        <div class="disco-axis">
-          <span id="disco-axis-lo">—</span>
-          <span id="disco-axis-mid">—</span>
-          <span id="disco-axis-hi">—</span>
+      <div class="wf-canvas-wrap">
+        <canvas id="wf-canvas"></canvas>
+        <div class="freq-window" id="wf-window" style="left: 40%;">
+          <div class="center-mark"></div>
+          <div class="label mono" id="wf-window-label">127.500 MHz</div>
         </div>
       </div>
-      <div class="disco-events" id="disco-events">
-        <div class="evt">
-          <span class="t">—</span>
-          <span class="f">—</span>
-          <span class="l" style="color:var(--text-3);">Waiting for sweep data…</span>
-          <span class="conf">—</span>
-        </div>
+      <div class="wf-axis mono">
+        <span id="wf-axis-min">—</span>
+        <span id="wf-axis-mid">—</span>
+        <span id="wf-axis-max">—</span>
+      </div>
+      <div class="wf-meta">
+        <span class="pill mono" id="wf-pill-center">center —</span>
+        <span class="pill mono" id="wf-pill-bw">bw —</span>
+        <span class="pill mono peak" id="wf-pill-peak">peak —</span>
+        <span class="pill" id="wf-pill-age">last frame —</span>
+      </div>
+      <div class="dongle-overlay" id="wf-down-overlay">
+        <div class="icon">⚠</div>
+        <div class="label">DONGLE LOST <span id="wf-down-since">4m ago</span></div>
+        <div class="sub">Waterfall stitch lost frames from dongle A.</div>
+        <div class="countdown">reconnect in <span id="wf-down-cd">8</span>s</div>
       </div>
     </div>
-    <div class="pane-overlay" id="disco-overlay" hidden>
-      <div class="ot">Disco dongles dropped</div>
-      <div class="os">One or more sweep dongles lost. Reallocating…</div>
-      <div class="ocd"><span id="disco-cd">18</span>s</div>
+    <div class="pane-evidence" id="wf-evidence">
+      <div class="ev-cell"><span class="lbl">DONGLE A</span><span class="val info" id="ev-wf-a">not deployed</span></div>
+      <div class="ev-cell"><span class="lbl">DONGLE B</span><span class="val info" id="ev-wf-b">not deployed</span></div>
+      <div class="ev-cell"><span class="lbl">SAMPLE</span><span class="val" id="ev-wf-rate">2.4 MSPS</span></div>
+      <div class="ev-cell"><span class="lbl">LAST FRAME</span><span class="val" id="ev-wf-frame">— ms ago</span></div>
     </div>
   </section>
 
-  <!-- ============ PROFILE (mobile only) ============ -->
-  <section class="section profile">
-    <div class="section-hd">Profile</div>
-    <div class="prof-row">
-      <div class="prof-glyph" id="prof-glyph">—</div>
-      <div>
-        <div class="prof-name" id="prof-name">Loading…</div>
-        <div class="prof-sub" id="prof-sub">—</div>
+  <!-- ============ DISCO pane (3 RTL-SDRs unified — MOCK) ============ -->
+  <section class="pane pane-disco" id="pane-disco">
+    <div class="pane-hd">
+      <span class="eyebrow">Disco</span>
+      <span class="title">Wide sweep 30 — 1700 MHz</span>
+      <span class="demo-tag">DEMO — coming when hardware lands</span>
+      <span class="sub">3 × RTL-SDR · TBD</span>
+    </div>
+    <div class="pane-body">
+      <div class="disco-canvas-wrap">
+        <canvas id="disco-canvas"></canvas>
+        <div class="freq-window" id="disco-window" style="left: 18%;">
+          <div class="center-mark"></div>
+          <div class="label mono" id="disco-window-label">— MHz</div>
+        </div>
       </div>
-      <div class="prof-chev">›</div>
+      <div class="disco-axis mono">
+        <span id="disco-axis-min">—</span>
+        <span id="disco-axis-mid">—</span>
+        <span id="disco-axis-max">—</span>
+      </div>
+      <div class="disco-detections" id="disco-detections">
+        <div class="hits-empty">Loading detections…</div>
+      </div>
+      <div class="dongle-overlay" id="disco-down-overlay">
+        <div class="icon">⚠</div>
+        <div class="label">DONGLE LOST <span id="disco-down-since">4m ago</span></div>
+        <div class="sub">Disco sweep lost frames from dongle E.</div>
+        <div class="countdown">reconnect in <span id="disco-down-cd">8</span>s</div>
+      </div>
     </div>
-    <div class="tag-chips" id="prof-chips"></div>
-  </section>
-
-  <!-- ============ CONTROLS (mobile only) ============ -->
-  <section class="section controls">
-    <div class="section-hd">Controls</div>
-    <div class="vfo-row" style="padding: 12px 18px;">
-      <span class="lbl">Auto-squelch<span class="sub">tune squelch to noise floor</span></span>
-      <span class="toggle"></span>
-    </div>
-    <div class="vfo-row" style="padding: 12px 18px;">
-      <span class="lbl">Quiet hours<span class="sub">10:00 PM — 7:00 AM</span></span>
-      <span class="toggle off"></span>
+    <div class="pane-evidence" id="disco-evidence">
+      <div class="ev-cell"><span class="lbl">DONGLE D</span><span class="val info" id="ev-disco-d">not deployed</span></div>
+      <div class="ev-cell"><span class="lbl">DONGLE E</span><span class="val info" id="ev-disco-e">not deployed</span></div>
+      <div class="ev-cell"><span class="lbl">DONGLE F</span><span class="val info" id="ev-disco-f">not deployed</span></div>
+      <div class="ev-cell"><span class="lbl">LAST FRAME</span><span class="val" id="ev-disco-frame">— ms ago</span></div>
     </div>
   </section>
 
 </main>
 
-<div class="footer" id="footer-meta">sb5 · 5-pane dashboard · loading…</div>
+<div class="footer" id="footer-meta">sb5 · 5-pane dense dashboard · loading…</div>
 
 <script>
 "use strict";
 
-/* ============ utilities ============ */
 const $ = (id) => document.getElementById(id);
 function escapeHtml(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({
@@ -917,20 +825,20 @@ async function fetchJSON(url, ms) {
   } finally { clearTimeout(t); }
 }
 
-/* ============ clock ============ */
 function tickClock() {
   const now = new Date();
-  const s = String(now.getHours()).padStart(2,"0") + ":" + String(now.getMinutes()).padStart(2,"0");
-  $("tb-clock").textContent = s;
+  const hh = String(now.getHours()).padStart(2,"0");
+  const mm = String(now.getMinutes()).padStart(2,"0");
+  const tb = $("tb-time"); if (tb) tb.textContent = hh + ":" + mm;
 }
 setInterval(tickClock, 30 * 1000);
 tickClock();
 
-/* ============ colormap (deep navy → cyan → near-white) ============ */
 function colormap(v) {
   const stops = [
-    [0.00, [5, 10, 22]],   [0.18, [11, 31, 60]],   [0.36, [26, 78, 133]],
-    [0.55, [75, 169, 230]],[0.78, [141, 224, 255]],[1.00, [232, 247, 255]],
+    [0.00, [5, 10, 22]],    [0.18, [11, 31, 60]],
+    [0.36, [26, 78, 133]],  [0.55, [75, 169, 230]],
+    [0.78, [141, 224, 255]],[1.00, [232, 247, 255]],
   ];
   for (let i = 1; i < stops.length; i++) {
     if (v <= stops[i][0]) {
@@ -946,393 +854,490 @@ function colormap(v) {
   return stops[stops.length-1][1];
 }
 
-/* ============ mock waterfall canvas (procedural; demo data) ============ */
-function mulberry32(seed) {
-  return function() {
-    let t = seed += 0x6D2B79F5;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+function normalizeBins(bins, lo, hi) {
+  lo = lo || -100; hi = hi || -25;
+  const span = hi - lo;
+  const out = new Float32Array(bins.length);
+  for (let i = 0; i < bins.length; i++) {
+    out[i] = Math.max(0, Math.min(1, (bins[i] - lo) / span));
+  }
+  return out;
 }
 
-// Convert API bins (dBFS, range roughly -110..-10) → intensity [0..1]
-function dbfsToIntensity(d) {
-  if (d == null || isNaN(d)) return 0;
-  return Math.max(0, Math.min(1, (d + 110) / 80));
-}
-
-// Per-canvas rolling history (column buffer)
-const _wfHistory = new Map();   // canvasId -> [{intensities: Float32Array}]
-const WF_HISTORY_MAX = 240;
-function wfPush(canvasId, intensities) {
-  let h = _wfHistory.get(canvasId);
-  if (!h) { h = []; _wfHistory.set(canvasId, h); }
-  h.push({ intensities, ts: performance.now() });
-  while (h.length > WF_HISTORY_MAX) h.shift();
-}
-function wfRender(canvasId) {
+const WF_HIST = new Map();
+function pushWaterfallRow(canvasId, intensity) {
   const canvas = $(canvasId);
   if (!canvas) return;
   const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
   if (cssW < 4 || cssH < 4) return;
-  if (canvas.width !== cssW || canvas.height !== cssH) { canvas.width = cssW; canvas.height = cssH; }
-  const ctx = canvas.getContext("2d");
-  const h = _wfHistory.get(canvasId) || [];
-  if (!h.length) {
-    ctx.fillStyle = "#04060d"; ctx.fillRect(0, 0, cssW, cssH); return;
+  if (canvas.width !== cssW || canvas.height !== cssH) {
+    canvas.width = cssW; canvas.height = cssH;
+    WF_HIST.delete(canvasId);
+  }
+  const ctx = canvas.getContext('2d');
+  let prev = WF_HIST.get(canvasId);
+  if (!prev || prev.width !== cssW || prev.height !== cssH) {
+    prev = ctx.createImageData(cssW, cssH);
+    for (let i = 0; i < cssW * cssH; i++) {
+      prev.data[i*4]   = 5;
+      prev.data[i*4+1] = 10;
+      prev.data[i*4+2] = 22;
+      prev.data[i*4+3] = 255;
+    }
+    WF_HIST.set(canvasId, prev);
   }
   const W = cssW, H = cssH;
-  const nFrames = h.length;
-  const nChan = h[h.length - 1].intensities.length;
-  if (!nChan) { ctx.fillStyle = "#04060d"; ctx.fillRect(0,0,W,H); return; }
-  ctx.fillStyle = "#04060d"; ctx.fillRect(0, 0, W, H);
-  const colW = W / WF_HISTORY_MAX;
-  const rowH = H / nChan;
-  const startSlot = WF_HISTORY_MAX - nFrames;
-  for (let f = 0; f < nFrames; f++) {
-    const intensities = h[f].intensities;
-    const x = Math.floor((startSlot + f) * colW);
-    const w = Math.max(1, Math.ceil(colW + 1));
-    for (let i = 0; i < nChan; i++) {
-      const v = intensities[i];
-      if (v < 0.02) continue;
-      const [r, g, b] = colormap(v);
-      ctx.fillStyle = "rgb(" + r + "," + g + "," + b + ")";
-      ctx.fillRect(x, Math.floor(i * rowH), w, Math.max(1, Math.ceil(rowH + 1)));
-    }
+  const data = prev.data;
+  data.copyWithin(0, W * 4, W * H * 4);
+  const N = intensity.length;
+  for (let x = 0; x < W; x++) {
+    const xi = Math.floor((x / W) * N);
+    const v = intensity[Math.min(N-1, xi)];
+    const [r,g,b] = colormap(v);
+    const i = ((H - 1) * W + x) * 4;
+    data[i] = r; data[i+1] = g; data[i+2] = b; data[i+3] = 255;
   }
+  ctx.putImageData(prev, 0, 0);
 }
 
-/* ============ STATE ============ */
 const STATE = {
   heartbeat: null,
   hits: [],
   profiles: [],
   hpState: null,
-  waterfall: null,
-  vfo: null,
-  disco: null,
 };
-function applyState(wedged) {
+
+function applyWedged(wedged) {
   document.body.classList.toggle("state-wedged", !!wedged);
+  document.body.classList.toggle("state-quiet", !wedged);
   document.body.classList.toggle("state-loading", false);
 }
 
-/* ============ Heartbeat rendering (top bar + mobile hero) ============ */
 function renderHeartbeat(hb) {
   STATE.heartbeat = hb;
   const state = String((hb && hb.state) || "loading").toLowerCase();
   const wedged = (state === "wedged" || state === "stalled" || state === "bad");
-  applyState(wedged);
-  const stateCap = state.charAt(0).toUpperCase() + state.slice(1).replace(/_/g, " ");
+  applyWedged(wedged);
+
+  const displayState = state.replace(/_/g, " ");
+  const stateCap = displayState.charAt(0).toUpperCase() + displayState.slice(1);
+
   $("tb-state").textContent = stateCap;
   $("tb-verdict").textContent = "— " + ((hb && hb.headline) || "");
-  $("hero-state").textContent = stateCap;
-  $("hero-stateunit").textContent = wedged ? "audio pipeline stalled" : "healthy";
-  $("hero-verdict").textContent = (hb && hb.headline) || "—";
+  $("hb-headline").textContent = (hb && hb.headline) || "—";
+  $("hb-explain").textContent = (hb && hb.explanation) || "";
 
-  // build evidence: real heartbeat evidence + injected future-dongle rows
-  const realEvid = (hb && Array.isArray(hb.evidence)) ? hb.evidence : [];
-  const futureEvid = [
-    { label: "Waterfall dongle A", value: "not deployed yet", status: "warn" },
-    { label: "Waterfall dongle B", value: "not deployed yet", status: "warn" },
-    { label: "VFO dongle",         value: "not deployed yet", status: "warn" },
-    { label: "Disco dongles ×3",   value: "not deployed yet", status: "warn" },
-  ];
-  const allEvid = realEvid.concat(futureEvid);
-  $("hero-evid").innerHTML = allEvid.slice(0, 12).map(row => {
+  const evid = (hb && Array.isArray(hb.evidence)) ? hb.evidence : [];
+  $("hb-evidence").innerHTML = evid.map(row => {
     const lbl = escapeHtml(String(row.label || ""));
     const val = escapeHtml(String(row.value || ""));
     const st  = String(row.status || "ok").toLowerCase();
-    const cls = (st === "warn" || st === "bad") ? ` ${st}` : "";
-    return `<div class="ev-cell"><div class="lbl">${lbl}</div><div class="val${cls}">${val}</div></div>`;
+    let cls = "";
+    if (st === "warn") cls = " warn";
+    else if (st === "bad") cls = " bad";
+    else if (st === "info") cls = " info";
+    return `<div class="ev-cell"><span class="lbl">${lbl}</span><span class="val${cls}">${val}</span></div>`;
   }).join("");
 
-  drawHeartbeatPulse(wedged);
+  const find = (needle) => evid.find(e => String(e.label||"").toLowerCase().includes(needle));
+  const analogSvc = find("rtl-airband-airband");
+  if (analogSvc) $("ev-analog-svc").textContent = analogSvc.value || "—";
+  const analogStats = find("stats file");
+  if (analogStats) $("ev-analog-stats").textContent = analogStats.value || "—";
+  const digSvc = find("scanner-vlc-digital");
+  if (digSvc) {
+    $("ev-digital-svc").textContent = digSvc.value || "—";
+    $("ev-digital-vlc").textContent = digSvc.value || "—";
+  }
 
-  // derive per-band service health for the analog/digital pane evidence rows
-  function evFor(needle) {
-    return realEvid.find(e => String(e.label||"").toLowerCase().includes(needle));
-  }
-  function paintEvidence(prefix, serviceLabels, mountLabel) {
-    let serviceOk = false;
-    let frameAge = "—";
-    for (const s of serviceLabels) {
-      const e = evFor(s);
-      if (e && String(e.status||"").toLowerCase() === "ok") { serviceOk = true; frameAge = String(e.value); break; }
-    }
-    const mountEv = evFor(mountLabel);
-    const mountTxt = mountEv ? String(mountEv.value) : "(unknown)";
-    const mountSt = mountEv ? String(mountEv.status||"ok").toLowerCase() : "ok";
-    $(prefix + "-frame-age").textContent = "last frame " + (serviceOk ? frameAge : "stale");
-    const mountRow = $(prefix + (prefix === "analog" ? "-mounts-row" : "-trunk-row"));
-    if (mountRow) {
-      mountRow.className = "ev-row" + (mountSt === "warn" ? " warn" : mountSt === "bad" ? " bad" : "");
-      $(prefix + (prefix === "analog" ? "-mount-state" : "-trunk-state")).textContent = mountTxt;
-    }
-    // pill state
-    const pill = $(prefix + "-pill");
-    if (pill) {
-      pill.className = "ppill " + (serviceOk ? "live" : "down");
-      pill.innerHTML = '<span class="d"></span>' + (serviceOk ? "Live" : "Down");
-    }
-    // overlay show on hard failure
-    const ov = $(prefix + "-overlay");
-    if (ov) ov.hidden = serviceOk;
-  }
-  paintEvidence("analog", ["rtl-airband-airband", "rtl_airband_service"], "/analog.mp3 mount");
-  paintEvidence("digital", ["scanner-vlc-digital"], "/digital.mp3 mount");
+  renderNowListeningFromHeartbeat(hb);
 }
 
-/* ============ heartbeat pulse line (mobile hero) ============ */
-function drawHeartbeatPulse(wedged) {
-  const canvas = $("hb-canvas");
-  if (!canvas) return;
-  const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
-  if (cssW < 4 || cssH < 4) return;
-  canvas.width = cssW * 2; canvas.height = cssH * 2;
-  canvas.style.width = cssW + "px"; canvas.style.height = cssH + "px";
-  const ctx = canvas.getContext("2d");
-  ctx.scale(2, 2);
-  const W = cssW, H = cssH;
-  ctx.clearRect(0, 0, W, H);
-  const rand = mulberry32(99);
-  ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.lineCap = "round";
-  const baseY = H * 0.6;
-  ctx.beginPath();
-  let x = 0; ctx.moveTo(x, baseY);
-  while (x < W) {
-    let y = baseY + (rand() - 0.5) * 1.5;
-    if (Math.floor(x) % 105 === 0 && x > 60 && x < W - 60) {
-      ctx.lineTo(x + 1, y - 4);
-      ctx.lineTo(x + 3, y + 6);
-      ctx.lineTo(x + 6, y - 22);
-      ctx.lineTo(x + 9, y + 10);
-      ctx.lineTo(x + 12, y - 2);
-      ctx.lineTo(x + 16, y);
-      x += 18; continue;
-    }
-    ctx.lineTo(x, y); x += 2;
+function recentHitForBand(band) {
+  if (!STATE.hits || !STATE.hits.length) return null;
+  const wanted = band.toLowerCase();
+  for (const h of STATE.hits) {
+    const t = String(h.type || h.source || "").toLowerCase();
+    if (t.includes(wanted)) return h;
+    if (wanted === "airband" && (t === "air" || t === "analog" || t === "airband")) return h;
+    if (wanted === "ground" && (t === "gnd" || t.includes("ground"))) return h;
+    if (wanted === "digital" && (t === "dig" || t.includes("digital") || t.includes("p25"))) return h;
   }
-  ctx.shadowColor = wedged ? "rgba(255, 69, 58, 0.7)" : "rgba(126, 211, 255, 0.85)";
-  ctx.shadowBlur = 8;
-  ctx.strokeStyle = wedged ? "#ffb3ad" : "#e8f7ff";
-  ctx.stroke();
+  return null;
 }
 
-/* ============ Hits → mini-hits in analog + digital panes ============ */
-function bandFor(h) {
-  const t = String(h.type || h.source || "").toLowerCase();
-  if (t.includes("digital") || t.includes("p25")) return "digital";
-  if (t.includes("ground") || t === "gnd") return "ground";
-  return "analog";
+function renderNowListeningFromHeartbeat(hb) {
+  const evid = (hb && Array.isArray(hb.evidence)) ? hb.evidence : [];
+  function evidenceFor(needle) {
+    return evid.find(e => String(e.label||"").toLowerCase().includes(needle));
+  }
+  function paint(rowId, bandHit, serviceLabels, hotClass) {
+    const row = $(rowId);
+    if (!row) return;
+    const icon = row.querySelector(".icon");
+    const now  = row.querySelector(".now-line");
+    const serviceOk = serviceLabels.some(l => {
+      const e = evidenceFor(l);
+      return e && String(e.status||"").toLowerCase() === "ok";
+    });
+    if (!serviceOk) {
+      icon.className = "icon muted"; icon.textContent = "⏸";
+      now.className = "now-line dim"; now.textContent = "Service offline";
+      return;
+    }
+    if (bandHit) {
+      const ageS = Math.max(0, Math.round((Date.now()/1000) - (bandHit.ts||0)));
+      const fresh = ageS < 30;
+      icon.className = fresh ? ("icon " + (hotClass || "hot")) : "icon";
+      icon.textContent = "▶";
+      const txt = bandHit.label_full || bandHit.label || bandHit.freq || "—";
+      let prefix = "";
+      if (typeof bandHit.freq === "number") {
+        prefix = `<span class="freq">${bandHit.freq.toFixed(3)}</span>`;
+      } else if (typeof bandHit.freq === "string" && /^\d+(\.\d+)?$/.test(bandHit.freq)) {
+        prefix = `<span class="freq">${parseFloat(bandHit.freq).toFixed(3)}</span>`;
+      }
+      now.className = "now-line";
+      now.innerHTML = `${prefix}${escapeHtml(txt)} <span style="color:var(--text-4); font-size:11px;">· ${ageS}s ago</span>`;
+    } else {
+      icon.className = "icon muted"; icon.textContent = "❚❚";
+      now.className = "now-line dim";
+      now.textContent = "Squelched — no recent hits";
+    }
+  }
+  paint("analog-now-air", recentHitForBand("airband"), ["rtl-airband-airband"]);
+  paint("analog-now-gnd", recentHitForBand("ground"),  ["rtl-airband-ground"]);
+  paint("digital-now",   recentHitForBand("digital"), ["scanner-vlc-digital"], "dig");
 }
+
+function bandBadge(t) {
+  const k = String(t || "").toLowerCase();
+  if (k.includes("digital") || k.includes("p25") || k === "dig") return ["DIG", "dig"];
+  if (k.includes("ground") || k === "gnd") return ["GND", "gnd"];
+  return ["AIR", ""];
+}
+
 function renderHits(payload) {
   const items = (payload && Array.isArray(payload.items)) ? payload.items.slice() : [];
   items.sort((a, b) => (b.ts || 0) - (a.ts || 0));
   STATE.hits = items;
 
-  const analog = items.filter(h => bandFor(h) === "analog").slice(0, 5);
-  const digital = items.filter(h => bandFor(h) === "digital").slice(0, 5);
+  const analogItems = items.filter(h => {
+    const t = String(h.type || h.source || "").toLowerCase();
+    return !(t.includes("digital") || t.includes("p25") || t === "dig");
+  });
+  const digitalItems = items.filter(h => {
+    const t = String(h.type || h.source || "").toLowerCase();
+    return (t.includes("digital") || t.includes("p25") || t === "dig");
+  });
 
-  function paintMini(elId, list, badge, badgeCls) {
+  function renderInto(elId, list) {
     const el = $(elId);
-    if (!el) return;
     if (!list.length) {
-      el.innerHTML = '<div class="mhit" style="color:var(--text-4); font-size:11.5px;">No recent hits yet.</div>';
+      el.innerHTML = '<div class="hits-empty">No hits yet.</div>';
       return;
     }
-    el.innerHTML = list.map(h => {
-      const t = h.time || "—";
-      const lbl = h.label_full || h.label || (h.freq != null ? String(h.freq) : "—");
-      const sub = (h.freq != null && /^\d+(\.\d+)?$/.test(String(h.freq))) ? String(h.freq) : "";
-      const tg = h.tgid ? " · TG " + h.tgid : "";
-      return `<div class="mhit">
-        <span class="t">${escapeHtml(t)}</span>
-        <span class="lbl">${escapeHtml(lbl)}<span class="sub">${escapeHtml(sub + tg)}</span></span>
-        <span class="b ${badgeCls}">${badge}</span>
-      </div>`;
+    el.innerHTML = list.slice(0, 30).map(h => {
+      const [badge, badgeCls] = bandBadge(h.type || h.source);
+      const time = h.time || "—";
+      const lbl  = h.label_full || h.label || (h.freq != null ? String(h.freq) : "—");
+      const freq = (typeof h.freq === "number")
+        ? h.freq.toFixed(3)
+        : (typeof h.freq === "string" && /^\d+(\.\d+)?$/.test(h.freq) ? parseFloat(h.freq).toFixed(3) : "");
+      const tg = h.tgid ? ` · TG ${h.tgid}` : "";
+      const dur = (typeof h.duration === "number" && h.duration > 0) ? ` · ${Math.round(h.duration)}s` : "";
+      const sub = (freq ? freq : "") + (h.mode ? ` · ${h.mode}` : "") + tg + dur;
+      return `
+        <div class="hit-row">
+          <span class="t">${escapeHtml(time)}</span>
+          <span class="label">${escapeHtml(lbl)}<span class="sub">${escapeHtml(sub)}</span></span>
+          <span class="badge ${badgeCls}">${badge}</span>
+        </div>`;
     }).join("");
   }
-  paintMini("analog-mini-hits", analog, "AIR", "");
-  paintMini("digital-mini-hits", digital, "DIG", "dig");
+  renderInto("analog-hits", analogItems);
+  renderInto("digital-hits", digitalItems);
 
-  // also refresh now-playing block of each pane with latest
-  if (analog[0]) {
-    const h = analog[0];
-    $("analog-np-freq").textContent = (typeof h.freq === "number") ? h.freq.toFixed(3) :
-      (/^\d+(\.\d+)?$/.test(String(h.freq)) ? parseFloat(h.freq).toFixed(3) : "—");
-    $("analog-np-label").textContent = h.label || h.label_full || "—";
-    $("analog-np-quote").textContent = h.label_full || h.label || "Last hit captured.";
-    $("analog-np-quote").classList.remove("dim");
-  }
-  if (digital[0]) {
-    const h = digital[0];
-    $("digital-np-freq").textContent = h.tgid ? ("TG " + h.tgid) : (h.freq != null ? String(h.freq) : "—");
-    $("digital-np-label").textContent = h.label_full || h.label || "—";
-    $("digital-np-quote").textContent = h.label_full || h.label || "Last hit captured.";
-    $("digital-np-quote").classList.remove("dim");
-  }
-
-  // status bar dongle chips
-  $("tb-don-analog-rate").textContent = (analog.length ? analog.length + " recent" : "idle");
-  $("tb-don-digital-rate").textContent = (digital.length ? digital.length + " recent" : "idle");
+  if (STATE.heartbeat) renderNowListeningFromHeartbeat(STATE.heartbeat);
 }
 
-/* ============ Profile rendering ============ */
 function renderProfile(hpState, profiles) {
   STATE.hpState = hpState;
   STATE.profiles = (profiles && profiles.profiles) || [];
+
   const favList = (hpState && hpState.state && Array.isArray(hpState.state.favorites)) ? hpState.state.favorites : [];
   const enabled = favList.find(f => f.enabled);
   const active = enabled || favList[0] || null;
   const zip = (hpState && hpState.state && hpState.state.zip) || "";
+
   const label = active ? (active.label || active.id || "fav") : "—";
   const glyph = String(label || "—").replace(/[^A-Za-z0-9]/g, "").slice(0, 3).toUpperCase() || "—";
 
-  $("prof-name").textContent = label;
-  $("prof-sub").textContent = favList.length + " favorite" + (favList.length === 1 ? "" : "s") +
-    (zip ? " · ZIP " + zip : "") + (hpState && hpState.mode ? " · " + hpState.mode + " mode" : "");
-  $("prof-glyph").textContent = glyph;
-  $("page-sub").textContent = label + (zip ? " · " + zip : "");
-  $("tb-fav-name").textContent = label;
-  $("tb-fav-loc").textContent = zip ? "ZIP " + zip : "—";
+  $("dig-pname").textContent = label;
+  $("dig-psub").textContent = `${favList.length} favorite${favList.length === 1 ? "" : "s"}` +
+    (zip ? ` · ZIP ${zip}` : "") +
+    (hpState && hpState.mode ? ` · ${hpState.mode} mode` : "");
+  $("dig-glyph").textContent = glyph;
+
   const top = favList.slice(0, 5);
-  $("prof-chips").innerHTML = top.map(f => {
+  $("dig-chips").innerHTML = top.map(f => {
     const cls = f.enabled ? "chip on" : "chip";
     return `<span class="${cls}">${escapeHtml(f.label || f.id || "fav")}</span>`;
   }).join("") + (favList.length > 5 ? `<span class="chip">+${favList.length - 5}</span>` : "");
+
+  $("tb-sub").textContent = `sb5 · ${label}` + (zip ? " · " + zip : "");
 }
 
-/* ============ Waterfall pane (live from /api/waterfall mock) ============ */
-function renderWaterfallPane(payload) {
-  STATE.waterfall = payload;
-  const bins = (payload && Array.isArray(payload.bins)) ? payload.bins : [];
-  const center = payload && payload.center_mhz;
-  const bw = payload && payload.bw_mhz;
-  if (center && bw) {
-    const lo = (center - bw/2).toFixed(3);
-    const hi = (center + bw/2).toFixed(3);
-    $("wf-axis-lo").textContent = lo;
-    $("wf-axis-hi").textContent = hi;
-    $("wf-axis-c1").textContent = (center - bw/4).toFixed(3);
-    $("wf-axis-c2").textContent = center.toFixed(3);
-    $("wf-axis-c3").textContent = (center + bw/4).toFixed(3);
-    // freq window readout (use the existing left:20% / right:25% defaults)
-    const lFrac = 0.20, rFrac = 0.75;
-    const winLo = (center - bw/2) + lFrac * bw;
-    const winHi = (center - bw/2) + rFrac * bw;
-    $("wf-readout-lo").textContent = winLo.toFixed(3);
-    $("wf-readout-hi").textContent = winHi.toFixed(3);
-    $("waterfall-range-text").textContent = winLo.toFixed(2) + "–" + winHi.toFixed(2) + " MHz";
+function renderWaterfall(data) {
+  if (!data || !Array.isArray(data.bins)) return;
+  const center = Number(data.center_mhz || 127.5);
+  const bw = Number(data.bw_mhz || 5.0);
+  const min = center - bw/2, max = center + bw/2;
+  $("wf-axis-min").textContent = min.toFixed(2);
+  $("wf-axis-mid").textContent = center.toFixed(2);
+  $("wf-axis-max").textContent = max.toFixed(2);
+  $("wf-pill-center").textContent = `center ${center.toFixed(3)} MHz`;
+  $("wf-pill-bw").textContent = `bw ${bw.toFixed(2)} MHz`;
+  let peakIdx = 0, peakVal = -999;
+  for (let i = 0; i < data.bins.length; i++) {
+    if (data.bins[i] > peakVal) { peakVal = data.bins[i]; peakIdx = i; }
   }
-  if (bins.length) {
-    const intensities = new Float32Array(bins.length);
-    for (let i = 0; i < bins.length; i++) intensities[i] = dbfsToIntensity(bins[i]);
-    wfPush("wf-main", intensities);
-  }
+  const peakF = min + (peakIdx / data.bins.length) * bw;
+  $("wf-pill-peak").textContent = `peak ${peakVal.toFixed(1)} dBFS @ ${peakF.toFixed(3)}`;
+  $("wf-pill-age").textContent = `last frame ${data.last_frame_age_ms || 0}ms`;
+
+  const serials = Array.isArray(data.dongle_serials) ? data.dongle_serials : [];
+  $("ev-wf-a").textContent = serials[0] ? `connected · ${serials[0]}` : "not deployed";
+  $("ev-wf-b").textContent = serials[1] ? `connected · ${serials[1]}` : "not deployed";
+  $("ev-wf-frame").textContent = `${data.last_frame_age_ms || 0} ms ago`;
+
+  updateFreqWindowLabel("wf-window", "wf-window-label", min, max);
+
+  const intensity = normalizeBins(data.bins, -95, -25);
+  pushWaterfallRow("wf-canvas", intensity);
 }
 
-/* ============ VFO pane (live from /api/vfo mock) ============ */
-function renderVfoPane(payload) {
-  STATE.vfo = payload;
-  const f = payload && payload.freq_mhz;
-  if (typeof f === "number") {
-    $("vfo-freq").textContent = f.toFixed(3);
-    const halfBw = 1.2;
-    $("vfo-wf-lo").textContent  = (f - halfBw).toFixed(3);
-    $("vfo-wf-ctr").textContent = f.toFixed(3);
-    $("vfo-wf-hi").textContent  = (f + halfBw).toFixed(3);
+let VFO_LOCAL = { freq_mhz: 127.700, mod: "am", muted: false, bt_routed: false };
+function renderVFO(data) {
+  if (!data) return;
+  if (typeof data.freq_mhz === "number") {
+    VFO_LOCAL.freq_mhz = data.freq_mhz;
+    const freqInput = $("vfo-freq");
+    if (freqInput && !freqInput.dataset.userEdited) {
+      freqInput.value = data.freq_mhz.toFixed(3);
+    }
   }
-  if (payload && payload.mod) {
-    $("vfo-mod-meta").textContent = payload.mod;
-    document.querySelectorAll("#vfo-mod-seg span").forEach(s => {
-      s.classList.toggle("on", s.dataset.mod === payload.mod);
-    });
-    const bws = { AM: "10 kHz BW", NFM: "12.5 kHz BW", WFM: "200 kHz BW", USB: "2.7 kHz BW", LSB: "2.7 kHz BW" };
-    $("vfo-bw-meta").textContent = bws[payload.mod] || "12.5 kHz BW";
+  if (data.mod) {
+    VFO_LOCAL.mod = data.mod;
+    const sel = $("vfo-mod");
+    if (sel && !sel.dataset.userEdited) sel.value = data.mod;
   }
-  if (payload && typeof payload.muted === "boolean") {
+  if (typeof data.muted === "boolean") {
+    VFO_LOCAL.muted = data.muted;
     const t = $("vfo-mute");
-    t.classList.toggle("off", !payload.muted);
-    t.dataset.on = payload.muted ? "1" : "0";
+    if (t && !t.dataset.userEdited) t.classList.toggle("off", !data.muted);
   }
-  if (payload && typeof payload.bt_routed === "boolean") {
+  if (typeof data.bt_routed === "boolean") {
+    VFO_LOCAL.bt_routed = data.bt_routed;
     const t = $("vfo-bt");
-    t.classList.toggle("off", !payload.bt_routed);
-    t.dataset.on = payload.bt_routed ? "1" : "0";
+    if (t && !t.dataset.userEdited) t.classList.toggle("off", !data.bt_routed);
   }
-  const bins = (payload && Array.isArray(payload.bins)) ? payload.bins : [];
-  if (bins.length) {
-    const intensities = new Float32Array(bins.length);
-    for (let i = 0; i < bins.length; i++) intensities[i] = dbfsToIntensity(bins[i]);
-    wfPush("wf-vfo", intensities);
+  if (Array.isArray(data.bins)) {
+    const intensity = normalizeBins(data.bins, -95, -25);
+    pushWaterfallRow("vfo-wf", intensity);
+  }
+  const f = VFO_LOCAL.freq_mhz;
+  $("vfo-low").textContent = (f - 1.2).toFixed(2);
+  $("vfo-center").textContent = f.toFixed(3);
+  $("vfo-high").textContent = (f + 1.2).toFixed(2);
+
+  if (data.dongle_serial) {
+    $("ev-vfo-serial").textContent = data.dongle_serial;
+    $("ev-vfo-state").textContent = "connected";
+  } else {
+    $("ev-vfo-serial").textContent = "—";
+    $("ev-vfo-state").textContent = "not deployed";
+  }
+  $("ev-vfo-frame").textContent = "demo · simulated";
+}
+
+function renderDisco(data) {
+  if (!data || !Array.isArray(data.bins)) return;
+  const start = (data.range && Number(data.range.start_mhz)) || 30;
+  const end   = (data.range && Number(data.range.end_mhz))   || 1700;
+  $("disco-axis-min").textContent = start.toFixed(0);
+  $("disco-axis-mid").textContent = ((start + end) / 2).toFixed(0);
+  $("disco-axis-max").textContent = end.toFixed(0);
+
+  const serials = Array.isArray(data.dongle_serials) ? data.dongle_serials : [];
+  $("ev-disco-d").textContent = serials[0] ? `connected · ${serials[0]}` : "not deployed";
+  $("ev-disco-e").textContent = serials[1] ? `connected · ${serials[1]}` : "not deployed";
+  $("ev-disco-f").textContent = serials[2] ? `connected · ${serials[2]}` : "not deployed";
+  $("ev-disco-frame").textContent = "demo · simulated";
+
+  updateFreqWindowLabel("disco-window", "disco-window-label", start, end);
+
+  const intensity = normalizeBins(data.bins, -95, -25);
+  pushWaterfallRow("disco-canvas", intensity);
+
+  const dets = Array.isArray(data.detections) ? data.detections : [];
+  if (!dets.length) {
+    $("disco-detections").innerHTML = '<div class="hits-empty">No detections.</div>';
+  } else {
+    $("disco-detections").innerHTML = dets.slice(0, 8).map(d => {
+      const c = Number(d.confidence || 0);
+      const ccls = c >= 0.8 ? "hi" : (c < 0.5 ? "lo" : "");
+      return `
+        <div class="disco-detect-row">
+          <span class="freq">${Number(d.freq_mhz || 0).toFixed(3)}</span>
+          <span class="cls">${escapeHtml(d.classification || "—")}</span>
+          <span class="conf ${ccls}">${(c * 100).toFixed(0)}%</span>
+        </div>`;
+    }).join("");
   }
 }
 
-/* ============ Disco pane (live from /api/disco mock) ============ */
-const MOCK_DISCO_EVENTS = [
-  { t: "13:55", f: "144.390", l: "APRS digi heard · WB2OSZ-1", c: "94%" },
-  { t: "13:54", f: "446.000", l: "PMR/FRS voice burst (≤3s)", c: "78%", cls: "warn" },
-  { t: "13:52", f: "433.920", l: "ISM device · ASK pulse train", c: "88%" },
-  { t: "13:48", f: "462.625", l: "GMRS rpt 16 · brief carrier", c: "61%", cls: "warn" },
-  { t: "13:41", f: "147.330", l: "Voice TX · likely 2m repeater", c: "82%" },
-];
-function renderDiscoPane(payload) {
-  STATE.disco = payload;
-  const r = payload && payload.range;
-  if (r) {
-    $("disco-range-val").textContent = r.start_mhz.toFixed(3) + " — " + r.end_mhz.toFixed(3) + " MHz";
-    const ctr = (r.start_mhz + r.end_mhz) / 2;
-    $("disco-axis-lo").textContent = (r.start_mhz - (r.end_mhz - r.start_mhz) * 0.3).toFixed(2);
-    $("disco-axis-mid").textContent = ctr.toFixed(2);
-    $("disco-axis-hi").textContent = (r.end_mhz + (r.end_mhz - r.start_mhz) * 0.3).toFixed(2);
+function updateFreqWindowLabel(elId, labelId, fLo, fHi) {
+  const el = $(elId); if (!el) return;
+  const parent = el.parentElement;
+  if (!parent) return;
+  const pw = parent.clientWidth || 1;
+  const elw = el.offsetWidth || 1;
+  let leftFraction;
+  if (el.style.left && el.style.left.endsWith("%")) {
+    leftFraction = parseFloat(el.style.left) / 100;
+  } else {
+    leftFraction = (parseFloat(el.style.left || "0") || 0) / pw;
   }
-  // Render mock event list (deterministic for now — real disco classifier feeds this later)
-  const el = $("disco-events");
-  el.innerHTML = MOCK_DISCO_EVENTS.map(e => `
-    <div class="evt">
-      <span class="t">${escapeHtml(e.t)}</span>
-      <span class="f">${escapeHtml(e.f)}</span>
-      <span class="l">${escapeHtml(e.l)}</span>
-      <span class="conf ${e.cls || ""}">${escapeHtml(e.c)}</span>
-    </div>`).join("");
+  const centerFraction = leftFraction + (elw / pw) / 2;
+  const fCenter = fLo + centerFraction * (fHi - fLo);
+  const lab = $(labelId);
+  if (lab) lab.textContent = `${fCenter.toFixed(3)} MHz`;
+}
+function attachDrag(elId, labelId, fLoFn, fHiFn) {
+  const el = $(elId); if (!el) return;
+  let dragging = false;
+  let startX = 0;
+  let startLeftFraction = 0;
+  function onMove(e) {
+    if (!dragging) return;
+    const parent = el.parentElement;
+    const pw = parent.clientWidth || 1;
+    const elw = el.offsetWidth || 1;
+    const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+    const dx = clientX - startX;
+    let frac = startLeftFraction + (dx / pw);
+    const maxFrac = (pw - elw) / pw;
+    if (frac < 0) frac = 0;
+    if (frac > maxFrac) frac = maxFrac;
+    el.style.left = (frac * 100).toFixed(2) + "%";
+    updateFreqWindowLabel(elId, labelId, fLoFn(), fHiFn());
+  }
+  function onUp() {
+    dragging = false;
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onUp);
+    document.removeEventListener("touchmove", onMove);
+    document.removeEventListener("touchend", onUp);
+  }
+  function onDown(e) {
+    dragging = true;
+    startX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+    startLeftFraction = (parseFloat(el.style.left || "0") || 0) / 100;
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.addEventListener("touchmove", onMove, {passive: true});
+    document.addEventListener("touchend", onUp);
+    e.preventDefault();
+  }
+  el.addEventListener("mousedown", onDown);
+  el.addEventListener("touchstart", onDown, {passive: false});
 }
 
-/* ============ rAF render loop for canvases ============ */
-function tick() {
-  wfRender("wf-main");
-  wfRender("wf-vfo");
-  requestAnimationFrame(tick);
+function postVFO(patch) {
+  Object.assign(VFO_LOCAL, patch);
+  fetch("/api/vfo", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(VFO_LOCAL),
+  }).catch(()=>{});
+}
+function wireVFOControls() {
+  const freq = $("vfo-freq");
+  if (freq) {
+    freq.addEventListener("input", () => { freq.dataset.userEdited = "1"; });
+    freq.addEventListener("change", () => {
+      const v = parseFloat(freq.value);
+      if (Number.isFinite(v)) postVFO({ freq_mhz: v });
+    });
+  }
+  const mod = $("vfo-mod");
+  if (mod) {
+    mod.addEventListener("change", () => {
+      mod.dataset.userEdited = "1";
+      postVFO({ mod: mod.value });
+    });
+  }
+  function wireToggle(id, key) {
+    const t = $(id); if (!t) return;
+    t.addEventListener("click", () => {
+      t.dataset.userEdited = "1";
+      const on = t.classList.contains("off");
+      t.classList.toggle("off", !on);
+      postVFO({ [key]: on });
+    });
+  }
+  wireToggle("vfo-mute", "muted");
+  wireToggle("vfo-bt", "bt_routed");
 }
 
-/* ============ poll loops ============ */
-const POLL_HB_MS = 5000;
+function applyHashOverlays() {
+  const h = (window.location.hash || "").toLowerCase();
+  $("wf-down-overlay").classList.toggle("show", h.includes("waterfall-down"));
+  $("vfo-down-overlay").classList.toggle("show", h.includes("vfo-down"));
+  $("disco-down-overlay").classList.toggle("show", h.includes("disco-down"));
+}
+window.addEventListener("hashchange", applyHashOverlays);
+
+let DOWN_T = 8;
+setInterval(() => {
+  DOWN_T = DOWN_T <= 0 ? 8 : DOWN_T - 1;
+  ["wf-down-cd", "vfo-down-cd", "disco-down-cd"].forEach(id => {
+    const el = $(id); if (el) el.textContent = DOWN_T;
+  });
+}, 1000);
+
+const POLL_HEARTBEAT_MS = 5000;
 const POLL_HITS_MS = 7000;
 const POLL_PROFILE_MS = 60000;
-const POLL_WF_MS = 1500;
-const POLL_VFO_MS = 1500;
-const POLL_DISCO_MS = 3000;
+const POLL_WATERFALL_MS = 2500;
+const POLL_VFO_MS = 3500;
+const POLL_DISCO_MS = 3500;
 
 async function pollHeartbeat() {
   try {
     const hb = await fetchJSON("/api/heartbeat");
     renderHeartbeat(hb);
-    $("footer-meta").textContent = "sb5 · 5-pane dashboard · heartbeat ok · " + new Date().toLocaleTimeString();
+    $("footer-meta").textContent =
+      `sb5 · 5-pane · heartbeat ok · ${new Date().toLocaleTimeString()}`;
   } catch (e) {
+    $("footer-meta").textContent = `sb5 · heartbeat error: ${e.message}`;
     document.body.classList.add("state-wedged");
     $("tb-state").textContent = "Offline";
-    $("hero-state").textContent = "Offline";
-    $("hero-stateunit").textContent = "lost API connection";
-    $("hero-verdict").textContent = "Could not reach /api/heartbeat.";
-    $("footer-meta").textContent = "sb5 · heartbeat error: " + e.message;
-  } finally { setTimeout(pollHeartbeat, POLL_HB_MS); }
+    $("tb-verdict").textContent = "— lost API connection";
+    $("hb-headline").textContent = "Lost API connection.";
+    $("hb-explain").textContent = "Could not reach /api/heartbeat.";
+  } finally {
+    setTimeout(pollHeartbeat, POLL_HEARTBEAT_MS);
+  }
 }
 async function pollHits() {
-  try { renderHits(await fetchJSON("/api/hits")); }
-  catch (e) { /* keep last */ }
-  finally { setTimeout(pollHits, POLL_HITS_MS); }
+  try {
+    const data = await fetchJSON("/api/hits");
+    renderHits(data);
+  } catch (e) {} finally {
+    setTimeout(pollHits, POLL_HITS_MS);
+  }
 }
 async function pollProfile() {
   try {
@@ -1341,104 +1346,66 @@ async function pollProfile() {
       fetchJSON("/api/hp/state").catch(() => null),
     ]);
     renderProfile(hp, profiles);
-  } catch (e) { /* keep last */ }
-  finally { setTimeout(pollProfile, POLL_PROFILE_MS); }
+  } catch (e) {} finally {
+    setTimeout(pollProfile, POLL_PROFILE_MS);
+  }
 }
 async function pollWaterfall() {
-  try { renderWaterfallPane(await fetchJSON("/api/waterfall")); }
-  catch (e) { /* keep last */ }
-  finally { setTimeout(pollWaterfall, POLL_WF_MS); }
+  try {
+    const data = await fetchJSON("/api/waterfall");
+    renderWaterfall(data);
+  } catch (e) {} finally {
+    setTimeout(pollWaterfall, POLL_WATERFALL_MS);
+  }
 }
-async function pollVfo() {
-  try { renderVfoPane(await fetchJSON("/api/vfo")); }
-  catch (e) { /* keep last */ }
-  finally { setTimeout(pollVfo, POLL_VFO_MS); }
+async function pollVFO() {
+  try {
+    const data = await fetchJSON("/api/vfo");
+    renderVFO(data);
+  } catch (e) {} finally {
+    setTimeout(pollVFO, POLL_VFO_MS);
+  }
 }
 async function pollDisco() {
-  try { renderDiscoPane(await fetchJSON("/api/disco")); }
-  catch (e) { /* keep last */ }
-  finally { setTimeout(pollDisco, POLL_DISCO_MS); }
-}
-
-/* ============ VFO POST helpers (mute/bt toggles + freq nudge) ============ */
-async function postVfo(params) {
   try {
-    const body = new URLSearchParams();
-    for (const k in params) body.append(k, String(params[k]));
-    const r = await fetch("/api/vfo", { method: "POST", body, cache: "no-store" });
-    if (r.ok) {
-      const data = await r.json();
-      if (data && data.accepted) {
-        // apply optimistically — backend will return our new state on next GET
-        renderVfoPane(Object.assign({}, STATE.vfo || {}, data.accepted));
-      }
-    }
-  } catch (_) { /* swallow — UI will reconverge on next poll */ }
-}
-function wireVfoControls() {
-  $("vfo-mute").addEventListener("click", (e) => {
-    const on = e.currentTarget.dataset.on === "1";
-    postVfo({ muted: on ? 0 : 1 });
-  });
-  $("vfo-bt").addEventListener("click", (e) => {
-    const on = e.currentTarget.dataset.on === "1";
-    postVfo({ bt_routed: on ? 0 : 1 });
-  });
-  document.querySelectorAll("#vfo-mod-seg span").forEach(s => {
-    s.addEventListener("click", () => postVfo({ mod: s.dataset.mod }));
-  });
-  $("vfo-step-down").addEventListener("click", () => {
-    const f = (STATE.vfo && STATE.vfo.freq_mhz) || 146.520;
-    postVfo({ freq_mhz: (f - 0.025).toFixed(3) });
-  });
-  $("vfo-step-up").addEventListener("click", () => {
-    const f = (STATE.vfo && STATE.vfo.freq_mhz) || 146.520;
-    postVfo({ freq_mhz: (f + 0.025).toFixed(3) });
-  });
+    const data = await fetchJSON("/api/disco");
+    renderDisco(data);
+  } catch (e) {} finally {
+    setTimeout(pollDisco, POLL_DISCO_MS);
+  }
 }
 
-/* ============ dongle-dropped overlay countdowns (mock) ============
-   Overlays are hidden by paintEvidence() when the underlying service is OK.
-   When wedged (e.g. service goes down), the overlay shows; tick a mock
-   countdown so it visually behaves like a reconnect timer. */
-function tickOverlays() {
-  ["analog", "digital", "vfo", "waterfall", "disco"].forEach(p => {
-    const ov = $(p + "-overlay");
-    if (!ov || ov.hidden) return;
-    const cdEl = $(p + "-cd");
-    if (!cdEl) return;
-    let n = parseInt(cdEl.textContent, 10);
-    if (isNaN(n) || n <= 0) n = (p === "analog" ? 15 : p === "digital" ? 22 : p === "vfo" ? 9 : p === "waterfall" ? 12 : 18);
-    else n -= 1;
-    cdEl.textContent = String(n);
-  });
-}
-setInterval(tickOverlays, 1000);
-
-/* ============ boot ============ */
 function boot() {
-  // initial canvas draws (will become live as data arrives)
-  requestAnimationFrame(tick);
-  let resizeT;
-  window.addEventListener("resize", () => {
-    clearTimeout(resizeT);
-    resizeT = setTimeout(() => {
-      wfRender("wf-main");
-      wfRender("wf-vfo");
-      drawHeartbeatPulse(document.body.classList.contains("state-wedged"));
-    }, 200);
-  });
-  wireVfoControls();
+  attachDrag("wf-window", "wf-window-label",
+    () => {
+      const c = parseFloat(($("wf-pill-center").textContent || "").replace(/[^0-9.\-]/g,"")) || 127.5;
+      const bw = parseFloat(($("wf-pill-bw").textContent || "").replace(/[^0-9.\-]/g,"")) || 5.0;
+      return c - bw/2;
+    },
+    () => {
+      const c = parseFloat(($("wf-pill-center").textContent || "").replace(/[^0-9.\-]/g,"")) || 127.5;
+      const bw = parseFloat(($("wf-pill-bw").textContent || "").replace(/[^0-9.\-]/g,"")) || 5.0;
+      return c + bw/2;
+    });
+  attachDrag("disco-window", "disco-window-label",
+    () => parseFloat(($("disco-axis-min").textContent || "30")) || 30,
+    () => parseFloat(($("disco-axis-max").textContent || "1700")) || 1700);
+
+  wireVFOControls();
+  applyHashOverlays();
+
   pollHeartbeat();
   pollHits();
   pollProfile();
   pollWaterfall();
-  pollVfo();
+  pollVFO();
   pollDisco();
 }
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", boot);
-} else { boot(); }
+} else {
+  boot();
+}
 </script>
 </body>
 </html>

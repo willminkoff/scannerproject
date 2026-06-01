@@ -7,6 +7,7 @@ import os
 import sys
 import time
 import threading
+import random
 import re
 import subprocess
 import ssl
@@ -3092,6 +3093,14 @@ def _compute_heartbeat_payload() -> dict:
                 "status": "warn",
             })
 
+    # Phase 5a — placeholder evidence rows for the not-yet-deployed RTL-SDR
+    # dongles (waterfall ×2, VFO ×1, disco ×3).  Status="info" so they
+    # surface in the heartbeat strip without contributing to wedge state.
+    evidence.append({"label": "Waterfall dongle A", "value": "not deployed yet", "status": "info"})
+    evidence.append({"label": "Waterfall dongle B", "value": "not deployed yet", "status": "info"})
+    evidence.append({"label": "VFO dongle",        "value": "not deployed yet", "status": "info"})
+    evidence.append({"label": "Disco dongles ×3",  "value": "not deployed yet", "status": "info"})
+
     # Decide state.
     if wedged_reasons:
         state = "wedged"
@@ -3142,137 +3151,146 @@ def _compute_heartbeat_payload() -> dict:
 
 
 
-# === PHASE5A_MOCK_SPECTRUM_MARKER ============================================
-# Phase 5a mock backends for the future-hardware panes (Waterfall, VFO, Disco).
-# All return realistic-looking JSON; the real implementations land when the
-# RTL-SDR dongles for those roles are deployed.  None of these mutate any
-# real hardware state.
-import math as _p5a_math
-import random as _p5a_random
+# =====================================================================
+# Phase 5a — mock-data builders for the new dongle panes.
+#
+# These return realistic-looking JSON for /api/waterfall, /api/vfo,
+# /api/disco.  Bins use a noise floor of -95..-85 dBFS with bursts at
+# real airband / public-safety / FM-broadcast / NOAA-wx frequencies
+# so the UI doesn't look like lorem-ipsum.  Slight per-call jitter
+# keeps the display from looking frozen.
+#
+# Real RF-backed implementations land per-pane as the 6 RTL-SDRs
+# (2 waterfall stitched, 1 VFO, 3 disco unified) come online.
+# =====================================================================
+
+def _mock_bin_floor(n: int, floor_lo: float = -95.0, floor_hi: float = -85.0) -> list[float]:
+    """A baseline noise floor with mild per-bin jitter."""
+    span = floor_hi - floor_lo
+    return [floor_lo + random.random() * span for _ in range(n)]
 
 
-def _p5a_mock_bins(center_mhz, bw_mhz, n_bins, peaks, time_phase):
-    """Generate plausible-looking spectrum bins in dBFS (-110..-10 range)."""
-    rng = _p5a_random.Random(int(time_phase * 100) & 0xFFFFFFFF)
-    out = []
-    f_lo = center_mhz - bw_mhz / 2.0
-    f_hi = center_mhz + bw_mhz / 2.0
-    for i in range(n_bins):
-        f = f_lo + (i / max(1, n_bins - 1)) * bw_mhz
-        v = -95.0 + rng.uniform(-3.0, 3.0)
-        for pf, ph in peaks:
-            df = f - pf
-            v += ph * _p5a_math.exp(-(df * df) / (2.0 * 0.045 * 0.045))
-        edge = min(f - f_lo, f_hi - f)
-        if edge < 0.5:
-            v -= (0.5 - edge) * 18.0
-        out.append(round(v, 2))
-    return out
+def _mock_add_burst(bins: list[float], f_min: float, f_max: float,
+                    freq_mhz: float, peak_dbfs: float, width_bins: int) -> None:
+    """Add a Gaussian-ish bump at `freq_mhz` into `bins`."""
+    n = len(bins)
+    if n <= 0 or f_max <= f_min:
+        return
+    if not (f_min <= freq_mhz <= f_max):
+        return
+    center = int(round((freq_mhz - f_min) / (f_max - f_min) * (n - 1)))
+    width = max(1, int(width_bins))
+    floor_amp = -90.0  # the floor we add over (approx)
+    for i in range(max(0, center - 4 * width), min(n, center + 4 * width + 1)):
+        d = i - center
+        g = pow(2.718281828, -(d * d) / (2.0 * width * width))
+        # jitter the burst peak a touch
+        jitter = (random.random() - 0.5) * 1.5
+        val = floor_amp + (peak_dbfs - floor_amp) * g + jitter
+        if val > bins[i]:
+            bins[i] = val
 
 
-_P5A_VFO_STATE = {"freq_mhz": 146.520, "mod": "NFM", "muted": False, "bt_routed": False}
-_P5A_DISCO_RANGE = {"start_mhz": 420.000, "end_mhz": 450.000}
+def _mock_waterfall_payload() -> dict:
+    """Mock GET /api/waterfall payload — 2 RTL-SDRs stitched, ~5 MHz around 127.5 MHz."""
+    center_mhz = 127.5
+    bw_mhz = 5.0
+    f_min = center_mhz - bw_mhz / 2
+    f_max = center_mhz + bw_mhz / 2
+    n = 1024
+    bins = _mock_bin_floor(n)
+    # plausible airband bursts inside the window
+    air_chans = [
+        (125.450, -42.0, 5),  # busy approach
+        (127.700, -36.0, 6),  # tower
+        (126.150, -58.0, 4),  # ground
+        (124.600, -52.0, 5),
+        (128.825, -64.0, 3),
+        (129.300, -48.0, 5),
+        (125.900, -70.0, 3),
+    ]
+    for f, peak, w in air_chans:
+        _mock_add_burst(bins, f_min, f_max, f, peak + (random.random() - 0.5) * 4.0, w)
+    return {
+        "state": "ok",
+        "center_mhz": center_mhz,
+        "bw_mhz": bw_mhz,
+        "bins": bins,
+        "last_frame_age_ms": random.randint(8, 28),
+        "dongle_serials": ["00000001", "00000002"],
+    }
 
 
-def _p5a_waterfall_payload():
-    import time as _t
-    t = _t.time()
-    peaks = [
-        (146.52, 28), (147.30, 18), (155.565, 32),
-        (156.800, 22), (162.45, 20), (158.10, 14),
+def _mock_vfo_payload() -> dict:
+    """Mock GET /api/vfo payload — 1 RTL-SDR, 2.4 MHz around the tuned freq."""
+    freq_mhz = 127.700
+    bw_mhz = 2.4
+    f_min = freq_mhz - bw_mhz / 2
+    f_max = freq_mhz + bw_mhz / 2
+    n = 256
+    bins = _mock_bin_floor(n, -94.0, -84.0)
+    # local airband activity around the tuned freq
+    _mock_add_burst(bins, f_min, f_max, 127.700, -34.0, 3)
+    _mock_add_burst(bins, f_min, f_max, 127.450, -62.0, 2)
+    _mock_add_burst(bins, f_min, f_max, 128.150, -55.0, 2)
+    _mock_add_burst(bins, f_min, f_max, 126.950, -68.0, 2)
+    return {
+        "state": "ok",
+        "freq_mhz": freq_mhz,
+        "mod": "am",
+        "muted": False,
+        "bt_routed": False,
+        "bins": bins,
+        "dongle_serial": "00000003",
+    }
+
+
+def _mock_disco_payload() -> dict:
+    """Mock GET /api/disco payload — 3 RTL-SDRs unified, 30..1700 MHz wide sweep."""
+    start_mhz = 30.0
+    end_mhz = 1700.0
+    n = 1024
+    bins = _mock_bin_floor(n, -94.0, -82.0)
+    # Sprinkle bursts across the wide sweep at plausible real-world freqs.
+    sweep_bursts = [
+        ( 88.5, -48.0, 4),    # FM broadcast
+        ( 92.9, -38.0, 4),    # FM broadcast (strong local)
+        ( 99.7, -50.0, 4),    # FM broadcast
+        (104.5, -45.0, 4),    # FM broadcast
+        (121.5, -55.0, 3),    # aviation guard
+        (125.450, -42.0, 3),  # airband approach
+        (127.700, -38.0, 3),  # airband tower
+        (155.160, -52.0, 3),  # public-safety VHF
+        (159.480, -58.0, 3),  # public-safety VHF
+        (162.400, -48.0, 3),  # NOAA wx
+        (162.550, -46.0, 3),  # NOAA wx
+        (462.6125, -60.0, 2), # GMRS
+        (851.4625, -58.0, 2), # public-safety 800
+        (855.7375, -55.0, 2), # public-safety 800
+        (1090.0, -62.0, 2),   # ADS-B
+        (1575.42, -70.0, 2),  # GPS L1 leak (very faint)
+    ]
+    for f, peak, w in sweep_bursts:
+        _mock_add_burst(bins, start_mhz, end_mhz, f,
+                        peak + (random.random() - 0.5) * 4.0, w)
+    detections = [
+        {"freq_mhz": 121.500, "classification": "AM voice (emergency guard)", "confidence": 0.91},
+        {"freq_mhz": 127.700, "classification": "AM voice (airband tower)",   "confidence": 0.88},
+        {"freq_mhz": 162.550, "classification": "NFM weather broadcast",      "confidence": 0.96},
+        {"freq_mhz":  92.900, "classification": "WFM broadcast",              "confidence": 0.99},
+        {"freq_mhz": 155.160, "classification": "NFM public-safety (TN VHF)", "confidence": 0.74},
+        {"freq_mhz": 851.4625,"classification": "P25 control channel",        "confidence": 0.82},
+        {"freq_mhz":1090.000, "classification": "ADS-B Mode-S",               "confidence": 0.67},
     ]
     return {
-        "state": "demo",
-        "deployed": False,
-        "center_mhz": 154.000,
-        "bw_mhz": 20.000,
-        "bins": _p5a_mock_bins(154.0, 20.0, 256, peaks, t),
-        "last_frame_age_ms": None,
-        "dongle_serials": [],
-        "note": "Demo \u2014 2-dongle stitched live coming when hardware lands",
-        "server_time": t,
+        "state": "ok",
+        "range": {"start_mhz": start_mhz, "end_mhz": end_mhz},
+        "bins": bins,
+        "dongle_serials": ["00000004", "00000005", "00000006"],
+        "detections": detections,
     }
 
 
-def _p5a_vfo_payload():
-    import time as _t
-    t = _t.time()
-    f = float(_P5A_VFO_STATE["freq_mhz"])
-    return {
-        "state": "demo",
-        "deployed": False,
-        "freq_mhz": f,
-        "mod": _P5A_VFO_STATE["mod"],
-        "muted": _P5A_VFO_STATE["muted"],
-        "bt_routed": _P5A_VFO_STATE["bt_routed"],
-        "bins": _p5a_mock_bins(f, 2.4, 128, [(f, 28)], t),
-        "dongle_serial": None,
-        "note": "Demo \u2014 live receiver coming when hardware lands",
-        "server_time": t,
-    }
-
-
-def _p5a_disco_payload():
-    import time as _t
-    t = _t.time()
-    r = _P5A_DISCO_RANGE
-    center = (r["start_mhz"] + r["end_mhz"]) / 2.0
-    bw = r["end_mhz"] - r["start_mhz"]
-    peaks = [(424.5, 24), (432.0, 18), (446.0, 28), (449.5, 20)]
-    return {
-        "state": "demo",
-        "deployed": False,
-        "range": dict(r),
-        "center_mhz": center,
-        "bw_mhz": bw,
-        "bins": _p5a_mock_bins(center, bw, 256, peaks, t),
-        "dongle_serials": [],
-        "note": "Demo \u2014 Disco coordinator + 3-dongle sweep coming when hardware lands",
-        "server_time": t,
-    }
-
-
-def _p5a_vfo_apply(form):
-    """Accept VFO retune/mod request \u2014 stub, real retune lands with hardware."""
-    try:
-        if "freq_mhz" in form:
-            raw = form["freq_mhz"]
-            val = raw[0] if isinstance(raw, list) else raw
-            _P5A_VFO_STATE["freq_mhz"] = max(0.1, min(2000.0, float(val)))
-        if "mod" in form:
-            raw = form["mod"]
-            val = (raw[0] if isinstance(raw, list) else raw)
-            mode = str(val).upper()
-            if mode in ("AM", "NFM", "WFM", "USB", "LSB"):
-                _P5A_VFO_STATE["mod"] = mode
-        for boolkey in ("muted", "bt_routed"):
-            if boolkey in form:
-                raw = form[boolkey]
-                val = raw[0] if isinstance(raw, list) else raw
-                _P5A_VFO_STATE[boolkey] = str(val).lower() in ("1", "true", "yes", "on")
-    except (TypeError, ValueError):
-        return {"ok": False, "error": "invalid params", "state": dict(_P5A_VFO_STATE)}
-    return {"ok": True, "accepted": dict(_P5A_VFO_STATE),
-            "note": "stub \u2014 real retune lands with hardware"}
-
-
-def _p5a_disco_range_apply(form):
-    try:
-        if "start_mhz" in form:
-            raw = form["start_mhz"]
-            val = raw[0] if isinstance(raw, list) else raw
-            _P5A_DISCO_RANGE["start_mhz"] = float(val)
-        if "end_mhz" in form:
-            raw = form["end_mhz"]
-            val = raw[0] if isinstance(raw, list) else raw
-            _P5A_DISCO_RANGE["end_mhz"] = float(val)
-        if _P5A_DISCO_RANGE["end_mhz"] <= _P5A_DISCO_RANGE["start_mhz"]:
-            _P5A_DISCO_RANGE["end_mhz"] = _P5A_DISCO_RANGE["start_mhz"] + 1.0
-    except (TypeError, ValueError):
-        return {"ok": False, "error": "invalid params", "range": dict(_P5A_DISCO_RANGE)}
-    return {"ok": True, "accepted": dict(_P5A_DISCO_RANGE),
-            "note": "stub \u2014 real Disco coordinator lands with hardware"}
-# === END PHASE5A_MOCK_SPECTRUM_MARKER ========================================
 
 class Handler(BaseHTTPRequestHandler):
     """HTTP request handler for the UI."""
@@ -4713,14 +4731,6 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/hits":
             payload = _get_hits_payload_cached(limit=50)
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
-
-        # --- Phase 5a mock spectrum endpoints (future-hardware roles) ---
-        if p == "/api/waterfall":
-            return self._send(200, json.dumps(_p5a_waterfall_payload()), "application/json; charset=utf-8")
-        if p == "/api/vfo":
-            return self._send(200, json.dumps(_p5a_vfo_payload()), "application/json; charset=utf-8")
-        if p == "/api/disco":
-            return self._send(200, json.dumps(_p5a_disco_payload()), "application/json; charset=utf-8")
         
         if p == "/api/spectrum":
             # One-shot spectrum data
@@ -4730,7 +4740,35 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/stream":
             # Server-Sent Events stream for real-time updates
             return self._handle_sse_stream()
-        
+
+        # ============================================================
+        # Phase 5a — mock dongle-pane endpoints.  Real RF-backed
+        # implementations land per-pane as the 6 RTL-SDRs come online.
+        # All three GETs return realistic mock JSON; the URL-hash
+        # dongle-lost overlay is purely client-side, so the GETs do
+        # not return "dongle-lost" in normal operation.
+        # ============================================================
+        if p == "/api/waterfall":
+            return self._send(
+                200,
+                json.dumps(_mock_waterfall_payload()),
+                "application/json; charset=utf-8",
+            )
+
+        if p == "/api/vfo":
+            return self._send(
+                200,
+                json.dumps(_mock_vfo_payload()),
+                "application/json; charset=utf-8",
+            )
+
+        if p == "/api/disco":
+            return self._send(
+                200,
+                json.dumps(_mock_disco_payload()),
+                "application/json; charset=utf-8",
+            )
+
         return self._send(404, "Not found", "text/plain; charset=utf-8")
 
     def _handle_sse_stream(self):
@@ -4965,12 +5003,6 @@ class Handler(BaseHTTPRequestHandler):
 
         def parse_json_like_list(raw_value) -> list:
             return _parse_json_like_list(raw_value)
-
-        # --- Phase 5a mock POST stubs (future-hardware roles) ---
-        if p == "/api/vfo":
-            return self._send(200, json.dumps(_p5a_vfo_apply(form)), "application/json; charset=utf-8")
-        if p == "/api/disco/range":
-            return self._send(200, json.dumps(_p5a_disco_range_apply(form)), "application/json; charset=utf-8")
 
         if p == "/api/latency/tone":
             action = get_str("action", "status").strip().lower() or "status"
@@ -6504,6 +6536,50 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(
                 200,
                 json.dumps({"ok": True, "removed": bool(removed)}),
+                "application/json; charset=utf-8",
+            )
+
+        # ============================================================
+        # Phase 5a — mock dongle-pane POST stubs.  Accept & echo the
+        # tuning intent so the UI feels responsive; no hardware retune.
+        # ============================================================
+        if p == "/api/vfo":
+            try:
+                payload_in = form if isinstance(form, dict) else {}
+                echoed = {
+                    "freq_mhz":  float(payload_in.get("freq_mhz", 127.700)),
+                    "mod":       str(payload_in.get("mod", "am")),
+                    "muted":     bool(payload_in.get("muted", False)),
+                    "bt_routed": bool(payload_in.get("bt_routed", False)),
+                }
+            except (TypeError, ValueError) as exc:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": f"invalid vfo payload: {exc}"}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(
+                200,
+                json.dumps({"ok": True, "accepted": echoed, "stub": True}),
+                "application/json; charset=utf-8",
+            )
+
+        if p == "/api/disco/range":
+            try:
+                payload_in = form if isinstance(form, dict) else {}
+                echoed = {
+                    "start_mhz": float(payload_in.get("start_mhz", 30.0)),
+                    "end_mhz":   float(payload_in.get("end_mhz", 1700.0)),
+                }
+            except (TypeError, ValueError) as exc:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": f"invalid disco range: {exc}"}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(
+                200,
+                json.dumps({"ok": True, "accepted": echoed, "stub": True}),
                 "application/json; charset=utf-8",
             )
 
