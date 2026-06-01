@@ -383,10 +383,13 @@ class DongleWorker:
                 self._sdr.setBandwidth(SOAPY_SDR_RX, 0, rate * 0.8)
             except Exception:
                 pass
-            # Modest fixed gain — auto-gain on RTL-SDR is hit-or-miss.
+            # Fixed gain — auto-gain on RTL-SDR is hit-or-miss.  40 dB sits
+            # high in the R820T2's range (~0-49.6 dB) so airband bursts land
+            # ~10 dB hotter and punch clearly above the noise floor in the
+            # waterfall; the adaptive color-stretch in the UI rides the floor.
             try:
                 self._sdr.setGainMode(SOAPY_SDR_RX, 0, False)
-                self._sdr.setGain(SOAPY_SDR_RX, 0, 30.0)
+                self._sdr.setGain(SOAPY_SDR_RX, 0, 40.0)
             except Exception:
                 pass
             self._sdr.setFrequency(SOAPY_SDR_RX, 0, center)

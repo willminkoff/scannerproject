@@ -431,7 +431,14 @@
     border-radius: 12px;
     overflow: hidden;
     border: 1px solid rgba(255,255,255,0.04);
+    cursor: grab;
+    touch-action: none;   /* let touch-drag pan instead of scrolling */
+    transition: box-shadow 0.12s;
   }
+  .wf-canvas-wrap.dragging { cursor: grabbing; }
+  /* brief edge glow when a pan soft-clamps at the RTL-SDR band edge */
+  .wf-canvas-wrap.wf-edge-lo { box-shadow: inset 7px 0 18px -4px rgba(255,176,64,0.9); }
+  .wf-canvas-wrap.wf-edge-hi { box-shadow: inset -7px 0 18px -4px rgba(255,176,64,0.9); }
   .wf-canvas-wrap canvas { display: block; width: 100%; height: 100%; }
   .wf-axis {
     display: flex; justify-content: space-between;
@@ -534,12 +541,10 @@
     background: rgba(126, 211, 255, 0.10);
     border: 1.5px solid rgba(126, 211, 255, 0.55);
     border-radius: 6px;
-    pointer-events: auto;
-    cursor: ew-resize;
+    pointer-events: none;   /* center marker only — drag the body to pan */
     z-index: 5;
     transition: background 0.1s;
   }
-  .freq-window:hover { background: rgba(126, 211, 255, 0.18); }
   .freq-window::before, .freq-window::after {
     content: ""; position: absolute;
     top: 50%; transform: translateY(-50%);
@@ -1228,7 +1233,7 @@
     <div class="pane-body">
       <div class="wf-canvas-wrap">
         <canvas id="wf-canvas"></canvas>
-        <div class="freq-window" id="wf-window" style="left: 40%;">
+        <div class="freq-window" id="wf-window" style="left: 39%;">
           <div class="center-mark"></div>
           <div class="label mono" id="wf-window-label">127.500 MHz</div>
         </div>
@@ -1439,8 +1444,62 @@ function normalizeBins(bins, lo, hi) {
   return out;
 }
 
+// Phase R3: adaptive color-stretch for the Live IQ waterfall.  The old
+// fixed -95..-25 dBFS map left the ~-66 dBFS airband noise floor sitting
+// at ~40% color, so real bursts only a few dB hotter barely changed hue
+// and "looked like noise".  Instead we track the per-frame noise floor (a
+// low percentile, smoothed) and map [floor-4 .. floor+SPAN] -> [0..1] so
+// noise stays dark and anything ~10 dB above it jumps to a clearly
+// different, bright color.
+const WF_DISPLAY_SPAN_DB = 30;   // dB above the noise floor that saturates
+const WF_RANGE = new Map();      // canvasId -> smoothed noise-floor dBFS
+function _wfPercentile(sorted, p) {
+  if (!sorted.length) return -100;
+  const idx = Math.max(0, Math.min(sorted.length - 1, Math.floor(p * sorted.length)));
+  return sorted[idx];
+}
+function autoStretchIntensity(bins, key) {
+  // Estimate the noise floor from a low percentile so a handful of hot
+  // signal bins don't drag it up.  Skip the gap-fill sentinel (-120) the
+  // stitcher writes for bins no dongle covered.
+  const real = [];
+  for (let i = 0; i < bins.length; i++) {
+    if (bins[i] > -119) real.push(bins[i]);
+  }
+  const sorted = real.slice().sort((a, b) => a - b);
+  const floorNow = _wfPercentile(sorted, 0.30);
+  let floor = WF_RANGE.get(key);
+  floor = (typeof floor === "number") ? (floor * 0.8 + floorNow * 0.2) : floorNow;
+  WF_RANGE.set(key, floor);
+  return normalizeBins(bins, floor - 4, floor + WF_DISPLAY_SPAN_DB);
+}
+// High-contrast "turbo"-style palette: noise = dark navy, signal sweeps
+// blue -> cyan -> green -> yellow -> orange -> red so a 10 dB-over-noise
+// burst is an obvious hue change, not just "a touch lighter".
+function wfColormap(v) {
+  const stops = [
+    [0.00, [6, 10, 28]],     [0.12, [22, 38, 120]],
+    [0.30, [34, 92, 222]],   [0.46, [20, 178, 205]],
+    [0.60, [54, 208, 96]],   [0.74, [212, 222, 40]],
+    [0.86, [255, 148, 24]],  [1.00, [255, 64, 48]],
+  ];
+  for (let i = 1; i < stops.length; i++) {
+    if (v <= stops[i][0]) {
+      const [t0, c0] = stops[i-1], [t1, c1] = stops[i];
+      const t = (v - t0) / (t1 - t0);
+      return [
+        Math.round(c0[0] + (c1[0]-c0[0])*t),
+        Math.round(c0[1] + (c1[1]-c0[1])*t),
+        Math.round(c0[2] + (c1[2]-c0[2])*t),
+      ];
+    }
+  }
+  return stops[stops.length-1][1];
+}
+
 const WF_HIST = new Map();
-function pushWaterfallRow(canvasId, intensity) {
+function pushWaterfallRow(canvasId, intensity, cmap) {
+  cmap = cmap || colormap;
   const canvas = $(canvasId);
   if (!canvas) return;
   const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
@@ -1468,7 +1527,7 @@ function pushWaterfallRow(canvasId, intensity) {
   for (let x = 0; x < W; x++) {
     const xi = Math.floor((x / W) * N);
     const v = intensity[Math.min(N-1, xi)];
-    const [r,g,b] = colormap(v);
+    const [r,g,b] = cmap(v);
     const i = ((H - 1) * W + x) * 4;
     data[i] = r; data[i+1] = g; data[i+2] = b; data[i+3] = 255;
   }
@@ -1801,13 +1860,19 @@ function renderWaterfall(data) {
   $("wf-pill-peak").textContent = `peak ${peakVal.toFixed(1)} dBFS @ ${peakF.toFixed(3)}`;
   $("wf-pill-age").textContent = `last frame ${data.last_frame_age_ms || 0}ms`;
 
-  // Live tag: dongle count + bw.
+  // Live tag: dongle count + bw — driven by the actual dongle array the
+  // backend ships (was hardcoded "2", which could drift from reality).
+  const dlist = Array.isArray(data.dongles) ? data.dongles : [];
+  const nTotal = dlist.length || 2;
+  const nOk = dlist.filter(d => d && d.state === "ok").length;
   const tag = $("wf-live-tag");
   if (tag) {
-    if (topState === "ok") tag.textContent = `Live · 2 dongles · ${bw.toFixed(1)} MHz`;
-    else if (topState === "degraded") tag.textContent = `Degraded · 1 dongle · ${bw.toFixed(1)} MHz`;
+    if (topState === "ok") tag.textContent = `Live · ${nTotal} dongles · ${bw.toFixed(1)} MHz`;
+    else if (topState === "degraded") tag.textContent = `Degraded · ${nOk}/${nTotal} dongles · ${bw.toFixed(1)} MHz`;
     else tag.textContent = "DOWN";
   }
+  const wfSub = $("wf-sub");
+  if (wfSub) wfSub.textContent = `${nTotal} × RTL-SDR`;
 
   // Per-dongle evidence rows.  Backend ships an array of {serial,state,
   // last_frame_age_ms,center_mhz} dongle dicts.
@@ -1836,10 +1901,10 @@ function renderWaterfall(data) {
   }
   $("ev-wf-frame").textContent = `${data.last_frame_age_ms || 0} ms ago`;
 
-  updateFreqWindowLabel("wf-window", "wf-window-label", min, max);
+  if (!WF_DRAGGING) updateFreqWindowLabel("wf-window", "wf-window-label", min, max);
 
-  const intensity = normalizeBins(data.bins, -95, -25);
-  pushWaterfallRow("wf-canvas", intensity);
+  const intensity = autoStretchIntensity(data.bins, "wf-canvas");
+  pushWaterfallRow("wf-canvas", intensity, wfColormap);
 }
 
 let VFO_LOCAL = { freq_mhz: 127.700, mod: "am", muted: false, bt_routed: false };
@@ -2149,26 +2214,98 @@ function syncWfJumpActive(centerMhz, bwMhz) {
 function setWfCenterFromMhz(mhz) {
   const m = Number(mhz);
   if (!Number.isFinite(m)) return;
-  const el = $("wf-window");
-  if (!el) return;
-  const parent = el.parentElement;
-  if (!parent) return;
-  const pw = parent.clientWidth || 1;
-  const elw = el.offsetWidth || 1;
-  // Map mhz to a position inside the current waterfall band [min..max].
-  // Source the band from the axis labels which renderWaterfall keeps updated.
-  const lo = parseFloat(($("wf-axis-min").textContent || "")) || 125;
-  const hi = parseFloat(($("wf-axis-max").textContent || "")) || 130;
-  const span = hi - lo || 1;
-  let centerFrac = (m - lo) / span;
-  // Convert window-center fraction back to left fraction.
-  let leftFrac = centerFrac - (elw / pw) / 2;
-  const maxFrac = Math.max(0, (pw - elw) / pw);
-  if (leftFrac < 0) leftFrac = 0;
-  if (leftFrac > maxFrac) leftFrac = maxFrac;
-  el.style.left = (leftFrac * 100).toFixed(2) + "%";
+  // The window is now a fixed center marker (drag the body to pan), so we
+  // no longer move it within the band — just record the requested center
+  // and reflect it in the label for instant feedback before the backend
+  // retunes and the whole band recenters.
   WF_CENTER_LOCAL.mhz = m;
-  updateFreqWindowLabel("wf-window", "wf-window-label", lo, hi);
+  const lab = $("wf-window-label");
+  if (lab) lab.textContent = m.toFixed(3) + " MHz";
+}
+
+// ----- Live IQ drag-to-pan (SDR#/GQRX-style) -----
+// Click/touch-drag the waterfall body to shift center freq: drag right ->
+// lower freq, drag left -> higher freq (panning the spectrum like a map).
+// Live + debounced (~100ms) so both dongles retune continuously mid-drag;
+// snapped to 50 kHz; soft-clamped to the RTL-SDR R820T2 range.
+let WF_DRAGGING = false;
+const WF_TUNE_MIN_MHZ = 24.0;
+const WF_TUNE_MAX_MHZ = 1700.0;
+const WF_SNAP_MHZ = 0.05;   // 50 kHz
+function wfSnap(mhz) { return Math.round(mhz / WF_SNAP_MHZ) * WF_SNAP_MHZ; }
+let _wfEdgeTimer = null;
+function wfEdgeHint(side) {
+  const wrap = document.querySelector(".wf-canvas-wrap");
+  if (!wrap) return;
+  wrap.classList.remove("wf-edge-lo", "wf-edge-hi");
+  wrap.classList.add(side === "lo" ? "wf-edge-lo" : "wf-edge-hi");
+  if (_wfEdgeTimer) clearTimeout(_wfEdgeTimer);
+  _wfEdgeTimer = setTimeout(() => {
+    wrap.classList.remove("wf-edge-lo", "wf-edge-hi");
+  }, 450);
+}
+function wireWfPan() {
+  const wrap = document.querySelector(".wf-canvas-wrap");
+  if (!wrap) return;
+  let startX = 0, startCenter = 0, postTimer = null;
+  function liveBand() {
+    const c = parseFloat(($("wf-pill-center").textContent || "").replace(/[^0-9.\-]/g, "")) ||
+              WF_CENTER_LOCAL.mhz || 133.5;
+    const bw = parseFloat(($("wf-pill-bw").textContent || "").replace(/[^0-9.\-]/g, "")) ||
+               WF_CENTER_LOCAL.bw || 4.8;
+    return { c, bw };
+  }
+  function schedulePost() {
+    // leading-edge ~100ms throttle: continuous retune while dragging
+    // without firing a POST per pixel.
+    if (postTimer) return;
+    postTimer = setTimeout(() => {
+      postTimer = null;
+      postWaterfallCenter(WF_CENTER_LOCAL.mhz);   // bw omitted -> backend keeps current bw
+    }, 100);
+  }
+  function onMove(e) {
+    if (!WF_DRAGGING) return;
+    const pw = wrap.clientWidth || 1;
+    const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+    const dx = clientX - startX;
+    const { bw } = liveBand();
+    // drag right (dx>0) -> lower freq, like panning a map
+    let c = wfSnap(startCenter - (dx / pw) * bw);
+    if (c < WF_TUNE_MIN_MHZ) { c = WF_TUNE_MIN_MHZ; wfEdgeHint("lo"); }
+    else if (c > WF_TUNE_MAX_MHZ) { c = WF_TUNE_MAX_MHZ; wfEdgeHint("hi"); }
+    WF_CENTER_LOCAL.mhz = c;
+    const input = $("wf-center-input");
+    if (input && document.activeElement !== input) input.value = c.toFixed(3);
+    const lab = $("wf-window-label");
+    if (lab) lab.textContent = c.toFixed(3) + " MHz";
+    schedulePost();
+    if (e.cancelable) e.preventDefault();
+  }
+  function onUp() {
+    if (!WF_DRAGGING) return;
+    WF_DRAGGING = false;
+    wrap.classList.remove("dragging");
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onUp);
+    document.removeEventListener("touchmove", onMove);
+    document.removeEventListener("touchend", onUp);
+    if (postTimer) { clearTimeout(postTimer); postTimer = null; }
+    postWaterfallCenter(WF_CENTER_LOCAL.mhz);   // ensure the final position lands
+  }
+  function onDown(e) {
+    WF_DRAGGING = true;
+    startX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+    startCenter = liveBand().c;
+    wrap.classList.add("dragging");
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchend", onUp);
+    if (e.cancelable) e.preventDefault();
+  }
+  wrap.addEventListener("mousedown", onDown);
+  wrap.addEventListener("touchstart", onDown, { passive: false });
 }
 function wireWfCenterInput() {
   const input = $("wf-center-input");
@@ -2647,28 +2784,8 @@ function wireSounding() {
 }
 
 function boot() {
-  attachDrag("wf-window", "wf-window-label",
-    () => {
-      const c = parseFloat(($("wf-pill-center").textContent || "").replace(/[^0-9.\-]/g,"")) || 123.7;
-      const bw = parseFloat(($("wf-pill-bw").textContent || "").replace(/[^0-9.\-]/g,"")) || 4.8;
-      return c - bw/2;
-    },
-    () => {
-      const c = parseFloat(($("wf-pill-center").textContent || "").replace(/[^0-9.\-]/g,"")) || 123.7;
-      const bw = parseFloat(($("wf-pill-bw").textContent || "").replace(/[^0-9.\-]/g,"")) || 4.8;
-      return c + bw/2;
-    },
-    (centerMhz) => {
-      WF_CENTER_LOCAL.mhz = centerMhz;
-      const input = $("wf-center-input");
-      if (input && document.activeElement !== input) {
-        input.value = centerMhz.toFixed(3);
-      }
-    },
-    (centerMhz) => {
-      // onRelease: POST the final center to the backend.
-      postWaterfallCenter(centerMhz);
-    });
+  // Live IQ: drag the waterfall body to pan center freq (SDR#/GQRX-style).
+  wireWfPan();
   // Phase 6c — drag the disco window to recenter the WHOLE range
   // (preserves bandwidth).  POSTs on release.
   attachDrag("disco-window", "disco-window-label",
