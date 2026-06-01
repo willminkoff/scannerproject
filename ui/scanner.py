@@ -204,6 +204,13 @@ def _append_live_analog_hit_entry_locked(source: str, current: dict) -> None:
     if len(entries) > _LIVE_ANALOG_HIT_ENTRY_LIMIT:
         entries = entries[-_LIVE_ANALOG_HIT_ENTRY_LIMIT:]
     _LIVE_ANALOG_HIT_STATE["entries"] = entries
+    # Persist each finalized analog hit to the on-disk hit log exactly once.
+    # The Mar-25 live-hit refactor (commit 0eec825) replaced the old
+    # icecast-title poller — which used to drive update_icecast_hit_log() —
+    # with refresh_analog_hit_state(), but dropped disk persistence, leaving
+    # ICECAST_HIT_LOG_PATH unwritten. This restores it at the single point
+    # where a hit is finalized, so no de-dup bookkeeping is needed.
+    _append_icecast_hit_entry(dict(entry))
 
 
 def _finalize_stale_live_analog_hits_locked(now_ts: float) -> None:
