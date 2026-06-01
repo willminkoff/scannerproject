@@ -1,7 +1,7 @@
 """Live 2-dongle stitched RTL-SDR spectrum backend (Phase 6a).
 
 Owns 2 RTL-SDR devices via SoapySDR (opened by serial), parks them at
-adjacent center frequencies, FFTs each every ~500 ms, and stitches the
+adjacent center frequencies, FFTs each every ~100 ms, and stitches the
 two outputs into a continuous ~5 MHz spectrum view.
 
 Per-dongle health watchdog: after 3 consecutive bad/short reads a dongle
@@ -55,7 +55,13 @@ HALF_SPACING_MHZ = 1.2   # A = center-1.2, B = center+1.2 (2.4 MHz apart)
 
 SAMPLE_RATE_HZ = 2_400_000   # 2.4 MS/s per dongle
 FFT_SIZE = 1024
-FRAME_PERIOD_SEC = 0.5
+# Phase 6a.1: 100ms per-dongle FFT pacing (10 Hz).  readStream + window
+# + FFT(1024) typically runs well under 50ms on the Pi-class host, so
+# the loop has ample headroom at 100ms.  If CPU saturates in the field,
+# back off to 0.15 / 0.2.  Retunes are still idempotent in _maybe_retune
+# (a no-op when wanted == self.center_hz), so faster pacing only causes
+# more setFrequency calls when the commanded center actually changes.
+FRAME_PERIOD_SEC = 0.1
 # 1024 bins per dongle stitched edge-to-edge with the 2.4 MHz spacing
 # gives ~2048 bins of unique spectrum.  The overlap region is averaged
 # (see _stitch_bins) — see comment in _stitch_bins for the rationale.
@@ -550,7 +556,7 @@ def main() -> int:
 
     current_center_hz = initial_center
     last_state_write = 0.0
-    STATE_WRITE_PERIOD = 0.25   # 4 Hz cap
+    STATE_WRITE_PERIOD = 0.1    # Phase 6a.1: 10 Hz cap (was 0.25 / 4 Hz)
 
     while not _STOP.is_set():
         # Retune?

@@ -1697,6 +1697,12 @@ function renderWaterfall(data) {
   $("wf-axis-min").textContent = min.toFixed(2);
   $("wf-axis-mid").textContent = center.toFixed(2);
   $("wf-axis-max").textContent = max.toFixed(2);
+  // Phase 6a.1: pane subtitle reflects the live stitched window —
+  // Phase 5c promoted "LIVE IQ" to the primary header and added this
+  // subtitle, but it was static.  Drive it from the same min/max we
+  // just wrote to the axis labels so retunes update it immediately.
+  const wfTitle = $("wf-title");
+  if (wfTitle) wfTitle.textContent = `${min.toFixed(2)} — ${max.toFixed(2)} MHz · stitched`;
   $("wf-pill-center").textContent = `center ${center.toFixed(3)} MHz`;
   $("wf-pill-bw").textContent = `bw ${bw.toFixed(2)} MHz`;
   let peakIdx = 0, peakVal = -999;
@@ -2325,7 +2331,11 @@ setInterval(() => {
 const POLL_HEARTBEAT_MS = 5000;
 const POLL_HITS_MS = 7000;
 const POLL_PROFILE_MS = 60000;
-const POLL_WATERFALL_MS = 2500;
+// Phase 6a.1: 100ms (10 Hz) to match the scripts/waterfall.py state.json
+// write cadence.  pollWaterfall awaits the fetch before re-arming the
+// setTimeout, so a slow fetch can't pile up overlapping requests — the
+// effective cadence floor is fetch_duration + 100ms.
+const POLL_WATERFALL_MS = 100;
 const POLL_VFO_MS = 3500;
 const POLL_DISCO_MS = 3500;
 
