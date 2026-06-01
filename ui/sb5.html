@@ -124,11 +124,76 @@
   body.sounding-on .sounding-overlay { display: flex; }
   body.sounding-on .pane-disco .disco-canvas-wrap { opacity: 0.35; filter: saturate(0.4); }
   body.sounding-on .pane-disco .disco-detections { opacity: 0.45; }
-  /* Phase 5b: when wedged, anchor the headline/explanation to the upper-RIGHT
-     of the hb-strip (previously left-aligned). Pill keeps its upper-right
-     placement in the topbar above. */
-  body.state-wedged .hb-row { justify-content: flex-end; text-align: right; }
+  /* Phase 5c: keep the heartbeat row left-aligned in all states; the primary
+     status indicator is now the upper-LEFT state-badge in the topbar. */
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  /* ============ Phase 5c — state-badge (upper-left, always visible) ============ */
+  .state-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 78px;
+    padding: 6px 10px;
+    background: rgba(138, 155, 181, 0.18);
+    border: 1px solid rgba(138, 155, 181, 0.32);
+    border-radius: 10px;
+    color: var(--text-2);
+    font-size: 11px; font-weight: 700; letter-spacing: 0.10em;
+    text-transform: uppercase;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .state-badge:hover { background: rgba(138, 155, 181, 0.28); }
+  .state-badge:focus { outline: 2px solid rgba(90,184,255,0.45); outline-offset: 2px; }
+  body.state-quiet .state-badge {
+    background: rgba(52, 199, 89, 0.16);
+    border-color: rgba(52, 199, 89, 0.45);
+    color: #c8f3d3;
+  }
+  body.state-degraded .state-badge {
+    background: rgba(255, 159, 10, 0.18);
+    border-color: rgba(255, 159, 10, 0.50);
+    color: #ffd58a;
+  }
+  body.state-wedged .state-badge {
+    background: rgba(255, 69, 58, 0.20);
+    border-color: rgba(255, 69, 58, 0.55);
+    color: #ffd0cc;
+    animation: badge-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes badge-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 69, 58, 0.0); }
+    50%      { box-shadow: 0 0 0 6px rgba(255, 69, 58, 0.20); }
+  }
+  /* Legacy tb-pill is retained as a hidden compat node for any code that
+     still writes to #tb-state / #tb-verdict. The new state-badge is the
+     visible indicator. */
+  .tb-pill { display: none !important; }
+
+  /* ============ Phase 5c — hb-evidence expander (hide-by-default) ============ */
+  .hb-evidence-toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-left: auto;
+    padding: 4px 10px;
+    background: rgba(138, 155, 181, 0.10);
+    border: 1px solid var(--line-2);
+    border-radius: 999px;
+    color: var(--text-2);
+    font-size: 11px; font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .hb-evidence-toggle:hover { background: rgba(138, 155, 181, 0.20); color: var(--text); }
+  .hb-evidence-toggle .chev { transition: transform 0.15s; font-size: 11px; line-height: 1; }
+  .hb-evidence-toggle[aria-expanded="true"] .chev { transform: rotate(90deg); }
+  .hb-evidence[hidden] { display: none !important; }
+
+  /* ============ Phase 5c — pane header title/subtitle stack ============ */
+  .pane-hd-titles { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+  .pane-hd-titles .title { font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: -0.012em; line-height: 1.1; }
+  .pane-hd-titles .subtitle { font-size: 11.5px; color: var(--text-3); font-family: ui-monospace, monospace; line-height: 1.2; }
 
   /* ============ heartbeat strip pinned under topbar ============ */
   .hb-strip {
@@ -647,24 +712,32 @@
     color: var(--text-4); letter-spacing: 0.04em;
   }
 
-  /* ============ Sitrep button + modal (Phase 5b) ============ */
+  /* ============ Sitrep button + modal (Phase 5b, polished in 5c) ============ */
   .tb-sitrep-btn {
-    background: rgba(90, 184, 255, 0.10);
-    border: 1px solid rgba(90, 184, 255, 0.30);
-    color: var(--sky-2);
-    padding: 5px 12px;
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(90, 184, 255, 0.20);
+    border: 1px solid rgba(90, 184, 255, 0.55);
+    color: #e0f2ff;
+    padding: 6px 14px;
     border-radius: 999px;
-    font-size: 11.5px; font-weight: 600;
+    font-size: 12px; font-weight: 700;
     cursor: pointer;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.04em;
     font-family: inherit;
-    transition: background 0.15s, border-color 0.15s;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    box-shadow: 0 0 12px rgba(90, 184, 255, 0.16);
   }
   .tb-sitrep-btn:hover {
-    background: rgba(90, 184, 255, 0.18);
-    border-color: rgba(90, 184, 255, 0.50);
+    background: rgba(90, 184, 255, 0.32);
+    border-color: rgba(126, 211, 255, 0.75);
+    color: #fff;
   }
-  .tb-pill:focus { outline: 2px solid rgba(90,184,255,0.45); outline-offset: 2px; }
+  .tb-sitrep-btn:focus { outline: 2px solid rgba(90,184,255,0.55); outline-offset: 2px; }
+  .tb-sitrep-btn .icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 14px; height: 14px;
+    font-size: 13px; line-height: 1;
+  }
 
   .modal-overlay {
     position: fixed; inset: 0;
@@ -793,6 +866,19 @@
     }
   }
 
+  /* Phase 5c — mobile topbar tightening (state-badge stays prominent on narrow). */
+  @media (max-width: 600px) {
+    .topbar { padding: 0 10px; gap: 8px; }
+    .tb-title .sub { display: none; }
+    .tb-sounding { font-size: 10px; padding: 4px 8px; }
+    .tb-sounding .sw { width: 26px; height: 14px; }
+    .tb-sounding .sw::after { width: 10px; height: 10px; }
+    .tb-sounding.on .sw::after { transform: translateX(12px); }
+    .state-badge { min-width: 64px; padding: 5px 8px; font-size: 10px; letter-spacing: 0.08em; }
+    .tb-sitrep-btn { padding: 5px 10px; font-size: 11px; }
+    .hb-evidence-toggle { font-size: 10.5px; padding: 4px 9px; }
+  }
+
   /* ============ Status disclosure (per-pane) ============ */
   .pane-disclosure {
     margin-top: 8px;
@@ -884,31 +970,48 @@
 </head>
 <body class="state-loading">
 
-<!-- ============ sticky top bar with HB pill ============ -->
+<!-- ============ sticky top bar: state badge (upper-LEFT) + sitrep btn (right) ============ -->
 <div class="topbar">
+  <!-- Phase 5c: primary status indicator, pinned upper-LEFT. Click opens Sitrep. -->
+  <button class="state-badge" id="state-badge" type="button"
+          title="Open Sitrep — scanner health detail"
+          aria-label="Scanner state — click to open Sitrep">
+    <span id="state-badge-word">…</span>
+  </button>
   <span class="tb-time mono" id="tb-time">—:—</span>
   <span class="tb-title">Scanner<span class="sub" id="tb-sub">sb5 · 5-pane</span></span>
   <span class="tb-spacer"></span>
-  <button class="tb-sitrep-btn" id="tb-sitrep-btn" type="button" title="Open Sitrep">Sitrep</button>
   <span class="tb-sounding" id="tb-sounding" role="button" tabindex="0"
         title="Sounding mode — swap Disco's B dongle to ACARS/VDL2 decoder">
     <span class="sw" aria-hidden="true"></span>
     <span id="tb-sounding-label">Sounding off</span>
   </span>
-  <span class="tb-pill" id="tb-pill" role="button" tabindex="0" title="Open Sitrep" style="cursor: pointer;">
+  <button class="tb-sitrep-btn" id="tb-sitrep-btn" type="button" title="Open Sitrep">
+    <span class="icon" aria-hidden="true">ⓘ</span>
+    <span>Sitrep</span>
+  </button>
+  <!-- Phase 5c: legacy pill kept as hidden compat node so JS that writes to
+       #tb-state / #tb-verdict (and tests that check for #tb-pill) keeps working. -->
+  <span class="tb-pill" id="tb-pill" role="presentation" aria-hidden="true">
     <span class="dot"></span>
     <span id="tb-state">Loading</span>
     <span class="verdict" id="tb-verdict">— reading state…</span>
   </span>
 </div>
 
-<!-- ============ heartbeat strip ============ -->
+<!-- ============ heartbeat strip — Phase 5c collapses evidence behind an expander ============ -->
 <div class="hb-strip">
   <div class="hb-row">
     <span class="hb-headline" id="hb-headline">Reading scanner state…</span>
     <span class="hb-explain" id="hb-explain"></span>
+    <button class="hb-evidence-toggle" id="hb-evidence-toggle" type="button"
+            aria-expanded="false" aria-controls="hb-evidence"
+            title="Show or hide per-service evidence rows">
+      <span class="chev" aria-hidden="true">›</span>
+      <span id="hb-evidence-summary">Details</span>
+    </button>
   </div>
-  <div class="hb-evidence" id="hb-evidence">
+  <div class="hb-evidence" id="hb-evidence" hidden>
     <div class="ev-cell"><span class="lbl">Status</span><span class="val">—</span></div>
   </div>
 </div>
@@ -1070,11 +1173,13 @@
     </div>
   </section>
 
-  <!-- ============ WATERFALL pane (2 RTL-SDRs stitched — MOCK) ============ -->
+  <!-- ============ WATERFALL pane (2 RTL-SDRs stitched) ============ -->
   <section class="pane pane-waterfall" id="pane-waterfall">
     <div class="pane-hd">
-      <span class="eyebrow">Live IQ</span>
-      <span class="title" id="wf-title">125 — 130 MHz · stitched</span>
+      <div class="pane-hd-titles">
+        <span class="title">LIVE IQ</span>
+        <span class="subtitle" id="wf-title">125 — 130 MHz · stitched</span>
+      </div>
       <span class="live-tag" id="wf-live-tag">Live · 2 dongles · 4.8 MHz</span>
       <span class="sub" id="wf-sub">2 × RTL-SDR</span>
     </div>
@@ -1124,8 +1229,10 @@
   <!-- ============ DISCO pane (Phase 6c — N-dongle unified sweep, LIVE) ============ -->
   <section class="pane pane-disco" id="pane-disco">
     <div class="pane-hd">
-      <span class="eyebrow">Disco</span>
-      <span class="title" id="disco-title">Discovery 117 — 470 MHz</span>
+      <div class="pane-hd-titles">
+        <span class="title">DISCOVERY</span>
+        <span class="subtitle" id="disco-title">117 — 470 MHz</span>
+      </div>
       <span class="live-tag" id="disco-live-tag">Live · 2 dongles · 353 MHz</span>
       <span class="sub" id="disco-sub">2 × RTL-SDR · unified sweep</span>
     </div>
@@ -1141,6 +1248,9 @@
         <span id="disco-axis-min">—</span>
         <span id="disco-axis-mid">—</span>
         <span id="disco-axis-max">—</span>
+      </div>
+      <div class="wf-tune-row">
+        <div class="wf-tune-caption">Sweep 24 MHz – 1.7 GHz · drag range or recenter sweep</div>
       </div>
       <div class="disco-detections" id="disco-detections">
         <div class="hits-empty">Loading detections…</div>
@@ -1314,23 +1424,59 @@ const STATE = {
   hpState: null,
 };
 
+// Phase 5c: heartbeat state collapses into one of four categories that drive
+// the upper-left state-badge color + word and the body class.
+//   "wedged"   -> red,   "WEDGED"
+//   "degraded" -> amber, "RF DEGRADED"
+//   "quiet"    -> green, "QUIET"
+//   "loading"  -> dim,   "…"
+function categorizeState(rawState, hb) {
+  const s = String(rawState || "").toLowerCase();
+  if (!hb) return "loading";
+  if (s === "wedged" || s === "stalled" || s === "bad") return "wedged";
+  if (s === "degraded" || s === "rf_degraded" || s === "warn" || s === "warning") return "degraded";
+  if (s === "loading" || s === "unknown" || s === "") return "loading";
+  // Anything else (e.g. "quiet", "ok", "idle") is treated as healthy.
+  return "quiet";
+}
+function applyStateCategory(category) {
+  const b = document.body.classList;
+  b.toggle("state-wedged",   category === "wedged");
+  b.toggle("state-degraded", category === "degraded");
+  b.toggle("state-quiet",    category === "quiet");
+  b.toggle("state-loading",  category === "loading");
+}
+const STATE_BADGE_WORD = {
+  wedged:   "WEDGED",
+  degraded: "RF DEGRADED",
+  quiet:    "QUIET",
+  loading:  "…",
+};
+
+// Backward-compat: keep applyWedged for any callers (was previously a 2-state
+// helper).  Forward to the new 4-state classifier.
 function applyWedged(wedged) {
-  document.body.classList.toggle("state-wedged", !!wedged);
-  document.body.classList.toggle("state-quiet", !wedged);
-  document.body.classList.toggle("state-loading", false);
+  applyStateCategory(wedged ? "wedged" : "quiet");
 }
 
 function renderHeartbeat(hb) {
   STATE.heartbeat = hb;
   const state = String((hb && hb.state) || "loading").toLowerCase();
-  const wedged = (state === "wedged" || state === "stalled" || state === "bad");
-  applyWedged(wedged);
+  const category = categorizeState(state, hb);
+  applyStateCategory(category);
 
   const displayState = state.replace(/_/g, " ");
   const stateCap = displayState.charAt(0).toUpperCase() + displayState.slice(1);
 
-  $("tb-state").textContent = stateCap;
-  $("tb-verdict").textContent = "— " + ((hb && hb.headline) || "");
+  // Phase 5c: upper-LEFT state badge is the primary visible indicator.
+  const badgeWord = $("state-badge-word");
+  if (badgeWord) badgeWord.textContent = STATE_BADGE_WORD[category] || "…";
+
+  // Legacy compat — these nodes are hidden in Phase 5c but kept in the DOM
+  // so any code (or tests) that reads them still works.
+  const tbState = $("tb-state"); if (tbState) tbState.textContent = stateCap;
+  const tbVerdict = $("tb-verdict"); if (tbVerdict) tbVerdict.textContent = "— " + ((hb && hb.headline) || "");
+
   $("hb-headline").textContent = (hb && hb.headline) || "—";
   $("hb-explain").textContent = (hb && hb.explanation) || "";
 
@@ -1345,6 +1491,14 @@ function renderHeartbeat(hb) {
     else if (st === "info") cls = " info";
     return `<div class="ev-cell"><span class="lbl">${lbl}</span><span class="val${cls}">${val}</span></div>`;
   }).join("");
+
+  // Phase 5c: update the expander button label with the live evidence count.
+  const evSummary = $("hb-evidence-summary");
+  if (evSummary) {
+    evSummary.textContent = evid.length
+      ? `Details (${evid.length} check${evid.length === 1 ? "" : "s"})`
+      : "Details";
+  }
 
   const find = (needle) => evid.find(e => String(e.label||"").toLowerCase().includes(needle));
   const analogSvc = find("rtl-airband-airband");
@@ -1717,8 +1871,10 @@ function renderDisco(data) {
     $("disco-axis-min").textContent = start.toFixed(0);
     $("disco-axis-mid").textContent = ((start + end) / 2).toFixed(0);
     $("disco-axis-max").textContent = end.toFixed(0);
+    // Phase 5c: disco-title is now the small subtitle below the "DISCOVERY"
+    // heading, so it just shows the range.
     const title = $("disco-title");
-    if (title) title.textContent = `Discovery ${start.toFixed(0)} — ${end.toFixed(0)} MHz`;
+    if (title) title.textContent = `${start.toFixed(0)} — ${end.toFixed(0)} MHz`;
     updateFreqWindowLabel("disco-window", "disco-window-label", start, end);
   }
   // Live tag.
@@ -2005,9 +2161,18 @@ function wireSitrep() {
   const open = () => { renderSitrepModal(); openModal("sitrep-modal"); };
   const closeBtn = $("sitrep-modal-close");
   const openBtn = $("tb-sitrep-btn");
+  const badge = $("state-badge");
+  // tb-pill is hidden in Phase 5c but we still wire it for any code path
+  // (or test) that programmatically clicks it.
   const pill = $("tb-pill");
   const overlay = $("sitrep-modal");
   if (openBtn) openBtn.addEventListener("click", open);
+  if (badge) {
+    badge.addEventListener("click", open);
+    badge.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); }
+    });
+  }
   if (pill) {
     pill.addEventListener("click", open);
     pill.addEventListener("keydown", (e) => {
@@ -2020,6 +2185,20 @@ function wireSitrep() {
       if (e.target === overlay) closeModal("sitrep-modal");
     });
   }
+}
+
+// Phase 5c: hide-by-default expander for the heartbeat evidence grid.
+function wireHbEvidenceToggle() {
+  const btn = $("hb-evidence-toggle");
+  const panel = $("hb-evidence");
+  if (!btn || !panel) return;
+  btn.addEventListener("click", () => {
+    const open = btn.getAttribute("aria-expanded") === "true";
+    const next = !open;
+    btn.setAttribute("aria-expanded", String(next));
+    if (next) panel.removeAttribute("hidden");
+    else panel.setAttribute("hidden", "");
+  });
 }
 function wireProfileBuilder() {
   const open = () => openModal("pb-modal");
@@ -2158,9 +2337,10 @@ async function pollHeartbeat() {
       `sb5 · 5-pane · heartbeat ok · ${new Date().toLocaleTimeString()}`;
   } catch (e) {
     $("footer-meta").textContent = `sb5 · heartbeat error: ${e.message}`;
-    document.body.classList.add("state-wedged");
-    $("tb-state").textContent = "Offline";
-    $("tb-verdict").textContent = "— lost API connection";
+    applyStateCategory("wedged");
+    const bw = $("state-badge-word"); if (bw) bw.textContent = "OFFLINE";
+    const tbs = $("tb-state"); if (tbs) tbs.textContent = "Offline";
+    const tbv = $("tb-verdict"); if (tbv) tbv.textContent = "— lost API connection";
     $("hb-headline").textContent = "Lost API connection.";
     $("hb-explain").textContent = "Could not reach /api/heartbeat.";
   } finally {
@@ -2353,6 +2533,7 @@ function boot() {
   wireVFOControls();
   wireWfCenterInput();
   wireSitrep();
+  wireHbEvidenceToggle();
   wireProfileBuilder();
   wireStatusDisclosure();
   wireSounding();
