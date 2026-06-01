@@ -94,7 +94,10 @@ ICECAST_PORT = int(os.getenv("ICECAST_PORT", "8000"))
 ICECAST_HOST = os.getenv("ICECAST_HOST", "127.0.0.1").strip() or "127.0.0.1"
 MOUNT_NAME = os.getenv("MOUNT_NAME", "GND.mp3").strip().lstrip("/")
 ICECAST_STATUS_URL = f"http://{ICECAST_HOST}:{ICECAST_PORT}/status-json.xsl"
-ICECAST_HIT_LOG_PATH = os.getenv("ICECAST_HIT_LOG_PATH", "/run/airband_ui_hitlog.jsonl")
+# NOTE: must live under /run/scannerproject (ubuntu:ubuntu, writable by the
+# non-root airband-ui service). The historical /run/airband_ui_hitlog.jsonl
+# default sat in root-owned /run and was silently un-writable by the service.
+ICECAST_HIT_LOG_PATH = os.getenv("ICECAST_HIT_LOG_PATH", "/run/scannerproject/airband_ui_hitlog.jsonl")
 ICECAST_HIT_LOG_LIMIT = int(os.getenv("ICECAST_HIT_LOG_LIMIT", "200"))
 ICECAST_HIT_MIN_DURATION = int(os.getenv("ICECAST_HIT_MIN_DURATION", "2"))
 

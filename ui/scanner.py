@@ -828,6 +828,9 @@ def _append_icecast_hit_entry(entry: dict) -> None:
     if len(cache["entries"]) > ICECAST_HIT_LOG_LIMIT:
         cache["entries"] = cache["entries"][-ICECAST_HIT_LOG_LIMIT:]
     try:
+        parent = os.path.dirname(ICECAST_HIT_LOG_PATH)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
         with open(ICECAST_HIT_LOG_PATH, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, sort_keys=True) + "\n")
     except Exception:
