@@ -1072,13 +1072,13 @@
     </div>
   </section>
 
-  <!-- ============ DISCO pane (3 RTL-SDRs unified — MOCK) ============ -->
+  <!-- ============ DISCO pane (Phase 6c — N-dongle unified sweep, LIVE) ============ -->
   <section class="pane pane-disco" id="pane-disco">
     <div class="pane-hd">
       <span class="eyebrow">Disco</span>
-      <span class="title">Discovery 30 — 1700 MHz</span>
-      <span class="demo-tag">DEMO — coming when hardware lands</span>
-      <span class="sub">3 × RTL-SDR · TBD</span>
+      <span class="title" id="disco-title">Discovery 117 — 470 MHz</span>
+      <span class="live-tag" id="disco-live-tag">Live · 2 dongles · 353 MHz</span>
+      <span class="sub" id="disco-sub">2 × RTL-SDR · unified sweep</span>
     </div>
     <div class="pane-body">
       <div class="disco-canvas-wrap">
@@ -1104,9 +1104,9 @@
       </div>
     </div>
     <div class="pane-evidence" id="disco-evidence">
-      <div class="ev-cell"><span class="lbl">DONGLE D</span><span class="val info" id="ev-disco-d">not deployed</span></div>
-      <div class="ev-cell"><span class="lbl">DONGLE E</span><span class="val info" id="ev-disco-e">not deployed</span></div>
-      <div class="ev-cell"><span class="lbl">DONGLE F</span><span class="val info" id="ev-disco-f">not deployed</span></div>
+      <div class="ev-cell"><span class="lbl">DONGLE 1</span><span class="val info" id="ev-disco-1">…</span></div>
+      <div class="ev-cell"><span class="lbl">DONGLE 2</span><span class="val info" id="ev-disco-2">…</span></div>
+      <div class="ev-cell"><span class="lbl">CYCLE</span><span class="val" id="ev-disco-cycle">—</span></div>
       <div class="ev-cell"><span class="lbl">LAST FRAME</span><span class="val" id="ev-disco-frame">— ms ago</span></div>
     </div>
   </section>
@@ -1644,27 +1644,82 @@ function renderVFO(data) {
 }
 
 function renderDisco(data) {
-  if (!data || !Array.isArray(data.bins)) return;
-  const start = (data.range && Number(data.range.start_mhz)) || 30;
-  const end   = (data.range && Number(data.range.end_mhz))   || 1700;
-  $("disco-axis-min").textContent = start.toFixed(0);
-  $("disco-axis-mid").textContent = ((start + end) / 2).toFixed(0);
-  $("disco-axis-max").textContent = end.toFixed(0);
-
-  const serials = Array.isArray(data.dongle_serials) ? data.dongle_serials : [];
-  $("ev-disco-d").textContent = serials[0] ? `connected · ${serials[0]}` : "not deployed";
-  $("ev-disco-e").textContent = serials[1] ? `connected · ${serials[1]}` : "not deployed";
-  $("ev-disco-f").textContent = serials[2] ? `connected · ${serials[2]}` : "not deployed";
-  $("ev-disco-frame").textContent = "demo · simulated";
-
-  updateFreqWindowLabel("disco-window", "disco-window-label", start, end);
-
-  const intensity = normalizeBins(data.bins, -95, -25);
-  pushWaterfallRow("disco-canvas", intensity);
-
+  // Phase 6c: live coord_state.json from disco-coordinator.service.
+  if (!data) return;
+  const topState = String(data.state || "ok").toLowerCase();
+  const downOverlay = $("disco-down-overlay");
+  if (downOverlay) {
+    downOverlay.classList.toggle("show", topState === "down");
+    const sub = downOverlay.querySelector(".sub");
+    if (sub && topState === "down") {
+      sub.textContent = data.reason ? `Disco: ${data.reason}.` : "Disco sweep lost frames from all dongles.";
+    }
+  }
+  const start = (data.range && Number(data.range.start_mhz));
+  const end   = (data.range && Number(data.range.end_mhz));
+  const haveRange = Number.isFinite(start) && Number.isFinite(end) && end > start;
+  if (haveRange) {
+    $("disco-axis-min").textContent = start.toFixed(0);
+    $("disco-axis-mid").textContent = ((start + end) / 2).toFixed(0);
+    $("disco-axis-max").textContent = end.toFixed(0);
+    const title = $("disco-title");
+    if (title) title.textContent = `Discovery ${start.toFixed(0)} — ${end.toFixed(0)} MHz`;
+    updateFreqWindowLabel("disco-window", "disco-window-label", start, end);
+  }
+  // Live tag.
+  const tag = $("disco-live-tag");
+  const dongles = Array.isArray(data.dongles) ? data.dongles : [];
+  const okN = dongles.filter(d => d && d.state === "ok").length;
+  if (tag) {
+    if (topState === "down") tag.textContent = "DOWN";
+    else if (topState === "degraded") tag.textContent = `Degraded · ${okN}/${dongles.length} dongles`;
+    else if (haveRange) tag.textContent = `Live · ${dongles.length} dongles · ${(end-start).toFixed(0)} MHz`;
+    else tag.textContent = `Live · ${dongles.length} dongles`;
+  }
+  const sub = $("disco-sub");
+  if (sub) sub.textContent = `${dongles.length} × RTL-SDR · unified sweep`;
+  // Per-dongle evidence cells (up to 2 visible).
+  for (let i = 0; i < 2; i++) {
+    const el = $("ev-disco-" + (i + 1));
+    if (!el) continue;
+    const d = dongles[i];
+    if (!d) {
+      el.textContent = "not configured";
+      el.className = "val info";
+      continue;
+    }
+    const sr = Array.isArray(d.sub_range_mhz) ? d.sub_range_mhz : [];
+    const lo = Number(sr[0]) || 0, hi = Number(sr[1]) || 0;
+    if (d.state === "ok") {
+      el.textContent = `live · ${d.serial || "?"} · ${lo.toFixed(0)}-${hi.toFixed(0)}MHz · ${d.last_frame_age_ms|0}ms`;
+      el.className = "val";
+    } else {
+      el.textContent = `${(d.state || "down").toUpperCase()} · ${d.serial || "?"}`;
+      el.className = "val bad";
+    }
+  }
+  // Cycle + frame age cells.
+  const cycleEl = $("ev-disco-cycle");
+  if (cycleEl) {
+    const ca = data.last_full_cycle_age_sec;
+    cycleEl.textContent = (typeof ca === "number") ? `${ca.toFixed(1)}s ago` : "—";
+  }
+  const frameEl = $("ev-disco-frame");
+  if (frameEl) {
+    // Pick the freshest per-dongle frame age.
+    let ages = dongles.map(d => Number(d && d.last_frame_age_ms))
+                      .filter(n => Number.isFinite(n) && n >= 0);
+    frameEl.textContent = ages.length ? `${Math.min.apply(null, ages)} ms ago` : "—";
+  }
+  // Composite spectrum.
+  if (Array.isArray(data.bins) && data.bins.length) {
+    const intensity = normalizeBins(data.bins, -95, -25);
+    pushWaterfallRow("disco-canvas", intensity);
+  }
+  // Detections — replace mock with live classifier output.
   const dets = Array.isArray(data.detections) ? data.detections : [];
   if (!dets.length) {
-    $("disco-detections").innerHTML = '<div class="hits-empty">No detections.</div>';
+    $("disco-detections").innerHTML = '<div class="hits-empty">Scanning — no detections yet.</div>';
   } else {
     $("disco-detections").innerHTML = dets.slice(0, 8).map(d => {
       const c = Number(d.confidence || 0);
@@ -2092,6 +2147,27 @@ async function pollVFO() {
     setTimeout(pollVFO, POLL_VFO_MS);
   }
 }
+function postDiscoRange(startMhz, endMhz) {
+  const s = Number(startMhz), e = Number(endMhz);
+  if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s) return;
+  fetch("/api/disco/range", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ start_mhz: s, end_mhz: e }),
+  }).catch(()=>{});
+}
+function postDiscoRangeFromCenter(centerMhz) {
+  // Preserve the current bandwidth, shift the range to be centered
+  // on centerMhz.  Clamp into [24, 1700].
+  const lo = parseFloat(($("disco-axis-min").textContent || "117")) || 117;
+  const hi = parseFloat(($("disco-axis-max").textContent || "470")) || 470;
+  const bw = Math.max(1, hi - lo);
+  let s = centerMhz - bw/2, e = centerMhz + bw/2;
+  if (s < 24) { s = 24; e = s + bw; }
+  if (e > 1700) { e = 1700; s = e - bw; }
+  if (s < 24) s = 24;
+  postDiscoRange(s, e);
+}
 async function pollDisco() {
   try {
     const data = await fetchJSON("/api/disco");
@@ -2124,9 +2200,13 @@ function boot() {
       // onRelease: POST the final center to the backend.
       postWaterfallCenter(centerMhz);
     });
+  // Phase 6c — drag the disco window to recenter the WHOLE range
+  // (preserves bandwidth).  POSTs on release.
   attachDrag("disco-window", "disco-window-label",
-    () => parseFloat(($("disco-axis-min").textContent || "30")) || 30,
-    () => parseFloat(($("disco-axis-max").textContent || "1700")) || 1700);
+    () => parseFloat(($("disco-axis-min").textContent || "117")) || 117,
+    () => parseFloat(($("disco-axis-max").textContent || "470")) || 470,
+    null,
+    (centerMhz) => { postDiscoRangeFromCenter(centerMhz); });
 
   wireVFOControls();
   wireWfCenterInput();

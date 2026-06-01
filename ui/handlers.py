@@ -3098,9 +3098,12 @@ def _compute_heartbeat_payload() -> dict:
     # scanner-waterfall.service writes once a frame is in hand.
     for row in _waterfall_dongle_evidence_rows():
         evidence.append(row)
-    # Phase 6b — live VFO row.  Disco remains a placeholder until 6c.
+    # Phase 6b — live VFO row.
     evidence.append(_vfo_dongle_evidence_row())
-    evidence.append({"label": "Disco dongles ×3",  "value": "not deployed yet", "status": "info"})
+    # Phase 6c — per-Disco-dongle live evidence rows backed by
+    # /run/scannerproject/disco/coord_state.json.
+    for row in _disco_dongle_evidence_rows():
+        evidence.append(row)
 
     # Decide state.
     if wedged_reasons:
@@ -3473,6 +3476,182 @@ def _vfo_write_config(patch: dict) -> tuple[bool, str, dict]:
             pass
         return False, f"write failed: {e}", {}
     return True, "ok", merged
+
+
+
+# =====================================================================
+# Phase 6c — Disco (N-dongle unified sweep) file-backed pass-through.
+#
+# scripts/disco_coordinator.py owns coord_state.json (composite bins +
+# per-dongle status + classified detections) and reads coord_config.json
+# (user-set frequency range + dongle serial list).  GET /api/disco is a
+# pass-through; POST /api/disco/range validates + atomic-writes the
+# range portion of the config which the coordinator picks up via re-read
+# on its next tick.
+# =====================================================================
+
+DISCO_STATE_DIR = "/run/scannerproject/disco"
+DISCO_STATE_PATH = os.path.join(DISCO_STATE_DIR, "coord_state.json")
+DISCO_CONFIG_PATH = os.path.join(DISCO_STATE_DIR, "coord_config.json")
+DISCO_STALE_SEC = 5.0
+DISCO_FREQ_MIN_MHZ = 24.0
+DISCO_FREQ_MAX_MHZ = 1700.0
+DISCO_MIN_SPAN_MHZ = 1.0
+
+
+def _disco_read_state() -> dict | None:
+    """Best-effort read of coord_state.json. Returns None if missing,
+    unreadable, or older than DISCO_STALE_SEC. Mirrors waterfall/VFO."""
+    try:
+        st = os.stat(DISCO_STATE_PATH)
+    except (FileNotFoundError, OSError):
+        return None
+    if (time.time() - st.st_mtime) > DISCO_STALE_SEC:
+        return None
+    try:
+        with open(DISCO_STATE_PATH) as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    return data
+
+
+def _disco_read_config() -> dict | None:
+    """Read coord_config.json so POST can merge into existing."""
+    try:
+        with open(DISCO_CONFIG_PATH) as f:
+            data = json.load(f)
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    return data
+
+
+def _disco_pass_through_payload() -> dict:
+    """GET /api/disco body — coord_state.json or 'down' stub."""
+    state = _disco_read_state()
+    if state is None:
+        return {
+            "state": "down",
+            "reason": "service not running",
+            "bins": [],
+            "dongles": [],
+            "detections": [],
+            "range": {"start_mhz": 117.0, "end_mhz": 470.0},
+        }
+    return state
+
+
+def _disco_write_range(start_mhz: float, end_mhz: float) -> tuple[bool, str]:
+    """POST /api/disco/range — validate and atomically merge into config."""
+    if not (DISCO_FREQ_MIN_MHZ <= start_mhz <= DISCO_FREQ_MAX_MHZ):
+        return False, f"start_mhz {start_mhz} out of range ({DISCO_FREQ_MIN_MHZ}-{DISCO_FREQ_MAX_MHZ})"
+    if not (DISCO_FREQ_MIN_MHZ <= end_mhz <= DISCO_FREQ_MAX_MHZ):
+        return False, f"end_mhz {end_mhz} out of range ({DISCO_FREQ_MIN_MHZ}-{DISCO_FREQ_MAX_MHZ})"
+    if end_mhz <= start_mhz:
+        return False, "end_mhz must be > start_mhz"
+    if (end_mhz - start_mhz) < DISCO_MIN_SPAN_MHZ:
+        return False, f"span must be >= {DISCO_MIN_SPAN_MHZ} MHz"
+    existing = _disco_read_config() or {}
+    serials = existing.get("dongle_serials") or ["45469635", "61108285"]
+    merged = {
+        "range": {"start_mhz": float(start_mhz), "end_mhz": float(end_mhz)},
+        "dongle_serials": list(serials),
+    }
+    try:
+        os.makedirs(DISCO_STATE_DIR, exist_ok=True)
+    except OSError as e:
+        return False, f"mkdir failed: {e}"
+    tmp = DISCO_CONFIG_PATH + ".tmp"
+    try:
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+        with os.fdopen(fd, "w") as f:
+            json.dump(merged, f)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, DISCO_CONFIG_PATH)
+    except OSError as e:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        return False, f"write failed: {e}"
+    return True, "ok"
+
+
+def _disco_dongle_evidence_rows() -> list[dict]:
+    """Build per-Disco-dongle heartbeat rows from coord_state.json.
+
+    Healthy: "live . 45469635 . 117-293 MHz . 22ms"
+    Dropped: "DOWN since 4m ago . reconnecting in 16s"
+
+    Separator matches the Phase 6b VFO row style (ASCII '.').
+    """
+    state = _disco_read_state()
+    out: list[dict] = []
+    if state is None:
+        # Service down or stale — surface two bad rows so the user sees
+        # the coordinator isn't writing state.
+        for i in (1, 2):
+            out.append({
+                "label": f"Disco dongle {i}",
+                "value": "DOWN - disco coordinator not running",
+                "status": "bad",
+            })
+        return out
+    dongles = state.get("dongles") if isinstance(state.get("dongles"), list) else []
+    # Render up to len(dongles); if fewer than two, still render 2 rows
+    # so the heartbeat shape is predictable.
+    n = max(2, len(dongles))
+    for i in range(n):
+        d = dongles[i] if i < len(dongles) and isinstance(dongles[i], dict) else None
+        label = f"Disco dongle {i + 1}"
+        if d is None:
+            out.append({
+                "label": label,
+                "value": "not configured",
+                "status": "info",
+            })
+            continue
+        serial = str(d.get("serial") or "?")
+        d_state = str(d.get("state") or "down")
+        age_ms = d.get("last_frame_age_ms")
+        sub = d.get("sub_range_mhz") or []
+        try:
+            sub_lo = int(round(float(sub[0]))) if len(sub) > 0 else 0
+            sub_hi = int(round(float(sub[1]))) if len(sub) > 1 else 0
+            sub_str = f"{sub_lo}-{sub_hi} MHz"
+        except (TypeError, ValueError):
+            sub_str = "?-? MHz"
+        if d_state == "ok" and isinstance(age_ms, (int, float)) and age_ms >= 0:
+            out.append({
+                "label": label,
+                "value": f"live . {serial} . {sub_str} . {int(age_ms)}ms",
+                "status": "ok",
+            })
+        else:
+            # Best-effort "DOWN since" from coord_state mtime.
+            try:
+                st = os.stat(DISCO_STATE_PATH)
+                down_secs = max(0.0, time.time() - st.st_mtime)
+            except OSError:
+                down_secs = 0.0
+            if down_secs < 60:
+                since = f"{int(down_secs)}s ago"
+            elif down_secs < 3600:
+                since = f"{int(down_secs / 60)}m ago"
+            else:
+                since = f"{int(down_secs / 3600)}h ago"
+            cd = min(60, max(5, int(down_secs)))
+            out.append({
+                "label": label,
+                "value": f"DOWN since {since} . reconnecting in {cd}s . {serial}",
+                "status": "bad",
+            })
+    return out
 
 
 # =====================================================================
@@ -5095,9 +5274,13 @@ class Handler(BaseHTTPRequestHandler):
             )
 
         if p == "/api/disco":
+            # Phase 6c: file-backed pass-through. Returns coord_state.json
+            # written by disco-coordinator.service, or a 'down' stub if
+            # the service isn't running / state is stale.
+            payload = _disco_pass_through_payload()
             return self._send(
                 200,
-                json.dumps(_mock_disco_payload()),
+                json.dumps(payload),
                 "application/json; charset=utf-8",
             )
 
@@ -6920,24 +7103,31 @@ class Handler(BaseHTTPRequestHandler):
                 "application/json; charset=utf-8",
             )
 
-        # Phase 5a — mock dongle-pane POST stub for disco (real impl
-        # lands in 6c).
+        # Phase 6c — POST /api/disco/range: validates + atomically
+        # writes /run/scannerproject/disco/coord_config.json, which
+        # disco-coordinator.service picks up next tick and propagates
+        # to per-tuner sweep_config_<serial>.json.
         if p == "/api/disco/range":
             try:
                 payload_in = form if isinstance(form, dict) else {}
-                echoed = {
-                    "start_mhz": float(payload_in.get("start_mhz", 30.0)),
-                    "end_mhz":   float(payload_in.get("end_mhz", 1700.0)),
-                }
+                start_mhz = float(payload_in.get("start_mhz"))
+                end_mhz = float(payload_in.get("end_mhz"))
             except (TypeError, ValueError) as exc:
                 return self._send(
                     400,
                     json.dumps({"ok": False, "error": f"invalid disco range: {exc}"}),
                     "application/json; charset=utf-8",
                 )
+            ok, msg = _disco_write_range(start_mhz, end_mhz)
+            if not ok:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": msg}),
+                    "application/json; charset=utf-8",
+                )
             return self._send(
                 200,
-                json.dumps({"ok": True, "accepted": echoed, "stub": True}),
+                json.dumps({"ok": True, "start_mhz": start_mhz, "end_mhz": end_mhz}),
                 "application/json; charset=utf-8",
             )
 

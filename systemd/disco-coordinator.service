@@ -1,0 +1,13 @@
+[Unit]
+Description=Scanner Disco Coordinator (N-dongle unified sweep)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+ExecStart=/home/ubuntu/scannerproject/disco/.venv/bin/python /home/ubuntu/scannerproject/scripts/disco_coordinator.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

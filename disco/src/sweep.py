@@ -3,6 +3,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import signal
 import sqlite3
 import sys
@@ -52,6 +53,17 @@ FORCE_EXIT_TIMEOUT_SEC = 5.0
 # the call is actually wedged.
 STARTUP_WATCHDOG_TIMEOUT_SEC = 10.0
 
+# Phase 6c — bare RTL-SDR serial tuner-id support (e.g. '45469635')
+# + per-tuner sweep_config_<id>.json mtime polling for retunes.
+def _read_sweep_cfg(tid):
+    try:
+        p = os.path.join(STATE_DIR, f"sweep_config_{tid}.json")
+        st = os.stat(p)
+        d = json.load(open(p))
+        s, e = float(d["start_mhz"])*1e6, float(d["end_mhz"])*1e6
+        return (s, e, st.st_mtime) if e > s else None
+    except Exception:
+        return None
 
 def _arm_force_exit_watchdog(timeout_sec):
     global _FORCE_EXIT_ARMED
@@ -359,13 +371,12 @@ def sweep_loop(tuner_id, cfg, conn):
     LOG.info("[%s] stream activated", tuner_id)
 
     step_hz = max(actual_rate * step_factor, 1e3)
-    freqs_to_visit = []
-    f = band_start + actual_rate / 2
-    while f < band_end - actual_rate / 2 + 1:
-        freqs_to_visit.append(f)
-        f += step_hz
-    if not freqs_to_visit:
-        freqs_to_visit = [(band_start + band_end) / 2]
+    def _build_freqs(bs, be):
+        out, f = [], bs + actual_rate / 2
+        while f < be - actual_rate / 2 + 1:
+            out.append(f); f += step_hz
+        return out or [(bs + be) / 2]
+    freqs_to_visit = _build_freqs(band_start, band_end)
     total_steps = len(freqs_to_visit)
     LOG.info("[%s] sweep: %d steps from %.2f to %.2f MHz; slice: shift+decim, samples=%d, rate_floor=%.0fHz",
              tuner_id, total_steps, freqs_to_visit[0]/1e6, freqs_to_visit[-1]/1e6, slice_samples, slice_target_rate_floor)
@@ -373,8 +384,18 @@ def sweep_loop(tuner_id, cfg, conn):
     n_samps_dwell = max(int(actual_rate * dwell_s), fft_size)
     last_cleanup = time.time()
     last_age_update = time.time()
+    _sc = _read_sweep_cfg(tuner_id); last_cfg_mt = _sc[2] if _sc else 0.0
 
     while not _STOP:
+        _sc = _read_sweep_cfg(tuner_id)  # Phase 6c retune
+        if _sc and _sc[2] != last_cfg_mt:
+            ns, ne, last_cfg_mt = _sc
+            if abs(ns - state["band_min_hz"]) > 1 or abs(ne - state["band_max_hz"]) > 1:
+                LOG.info("[%s] retune %.2f-%.2fMHz", tuner_id, ns/1e6, ne/1e6)
+                band_start, band_end = ns, ne
+                state = init_state(tuner_id, band_start, band_end)
+                freqs_to_visit = _build_freqs(band_start, band_end)
+                total_steps = len(freqs_to_visit)
         for sweep_pos, center_freq in enumerate(freqs_to_visit):
             if _STOP:
                 break
@@ -455,8 +476,16 @@ def main():
     args = p.parse_args()
     cfg = load_config(CONFIG_PATH)
     if args.tuner_id not in cfg["tuners"]:
-        LOG.error("unknown tuner-id: %s; available: %s", args.tuner_id, list(cfg["tuners"].keys()))
-        sys.exit(2)
+        if re.match(r"^[A-Za-z0-9]+$", args.tuner_id) and "-T" not in args.tuner_id:
+            sc = _read_sweep_cfg(args.tuner_id)
+            bs, be = (sc[0], sc[1]) if sc else (117e6, 470e6)
+            cfg["tuners"][args.tuner_id] = {
+                "soapy_args": f"driver=rtlsdr,serial={args.tuner_id}",
+                "band_start_hz": bs, "band_end_hz": be}
+            LOG.info("synthesized RTL-SDR cfg for %s: %.2f-%.2fMHz", args.tuner_id, bs/1e6, be/1e6)
+        else:
+            LOG.error("unknown tuner-id: %s; available: %s", args.tuner_id, list(cfg["tuners"].keys()))
+            sys.exit(2)
     conn = init_db(cfg["db"]["path"])
     LOG.info("DB: %s  STATE_DIR: %s  SLICES_DIR: %s", cfg["db"]["path"], STATE_DIR, SLICES_DIR)
     try:
