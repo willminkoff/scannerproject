@@ -956,13 +956,13 @@
     </div>
   </section>
 
-  <!-- ============ VFO pane (1 RTL-SDR — MOCK) ============ -->
+  <!-- ============ VFO pane (1 RTL-SDR — LIVE, Phase 6b) ============ -->
   <section class="pane pane-vfo" id="pane-vfo">
     <div class="pane-hd">
       <span class="eyebrow">VFO</span>
       <span class="title">Manual tune</span>
-      <span class="demo-tag">DEMO — coming when hardware lands</span>
-      <span class="sub">RTL-SDR · TBD</span>
+      <span class="live-tag" id="vfo-live-tag">Live · 80000003</span>
+      <span class="sub">RTL-SDR · 2.4 MS/s</span>
     </div>
     <div class="pane-body">
       <div class="vfo-grid">
@@ -976,8 +976,8 @@
             <option value="am">AM</option>
             <option value="nfm">NFM</option>
             <option value="wfm">WFM</option>
-            <option value="usb">USB</option>
-            <option value="lsb">LSB</option>
+            <option value="usb">USB (not yet)</option>
+            <option value="lsb">LSB (not yet)</option>
           </select>
         </div>
         <div class="vfo-toggles">
@@ -999,16 +999,22 @@
             <span id="vfo-high">—</span>
           </div>
         </div>
+        <div class="vfo-row">
+          <span class="label">Audio</span>
+          <audio id="vfo-audio" controls preload="none" style="width:100%;max-width:280px;">
+            <source id="vfo-audio-src" src="" type="audio/mpeg">
+          </audio>
+        </div>
       </div>
       <div class="dongle-overlay" id="vfo-down-overlay">
         <div class="icon">⚠</div>
-        <div class="label">DONGLE LOST <span id="vfo-down-since">4m ago</span></div>
+        <div class="label">DONGLE LOST <span id="vfo-down-since">—</span></div>
         <div class="sub">VFO dongle stopped reporting frames.</div>
-        <div class="countdown">reconnect in <span id="vfo-down-cd">8</span>s</div>
+        <div class="countdown">reconnect in <span id="vfo-down-cd">—</span>s</div>
       </div>
     </div>
     <div class="pane-evidence" id="vfo-evidence">
-      <div class="ev-cell"><span class="lbl">DONGLE C</span><span class="val info" id="ev-vfo-state">not deployed</span></div>
+      <div class="ev-cell"><span class="lbl">DONGLE C</span><span class="val" id="ev-vfo-state">—</span></div>
       <div class="ev-cell"><span class="lbl">SAMPLE</span><span class="val" id="ev-vfo-rate">2.4 MSPS</span></div>
       <div class="ev-cell"><span class="lbl">LAST FRAME</span><span class="val" id="ev-vfo-frame">— ms ago</span></div>
       <div class="ev-cell"><span class="lbl">SERIAL</span><span class="val mono" id="ev-vfo-serial">—</span></div>
@@ -1534,8 +1540,37 @@ function renderWaterfall(data) {
 }
 
 let VFO_LOCAL = { freq_mhz: 127.700, mod: "am", muted: false, bt_routed: false };
+let VFO_AUDIO_WIRED = false;
+function _wireVFOAudioSrcOnce() {
+  if (VFO_AUDIO_WIRED) return;
+  VFO_AUDIO_WIRED = true;
+  // Point the audio element at the icecast mount.  Same host:8000 the
+  // analog/digital players use; no host introspection needed.
+  const src = $("vfo-audio-src");
+  const aud = $("vfo-audio");
+  if (src && aud) {
+    src.src = `${location.protocol}//${location.hostname}:8000/VFO.mp3`;
+    try { aud.load(); } catch (_e) {}
+  }
+}
 function renderVFO(data) {
   if (!data) return;
+  _wireVFOAudioSrcOnce();
+
+  // Phase 6b: honor top-level state="down"/"degraded" for the dropped-
+  // dongle overlay (mirrors renderWaterfall).
+  const topState = String(data.state || "ok").toLowerCase();
+  const downOverlay = $("vfo-down-overlay");
+  if (downOverlay) {
+    downOverlay.classList.toggle("show", topState === "down");
+    if (topState === "down") {
+      // Best-effort: pull the count-up/-down text out of the reason
+      // string the heartbeat builds, or fall back to a generic msg.
+      const sub = downOverlay.querySelector(".sub");
+      if (sub) sub.textContent = data.reason ? `VFO: ${data.reason}.` : "VFO dongle stopped reporting frames.";
+    }
+  }
+
   if (typeof data.freq_mhz === "number") {
     VFO_LOCAL.freq_mhz = data.freq_mhz;
     const freqInput = $("vfo-freq");
@@ -1558,23 +1593,54 @@ function renderVFO(data) {
     const t = $("vfo-bt");
     if (t && !t.dataset.userEdited) t.classList.toggle("off", !data.bt_routed);
   }
-  if (Array.isArray(data.bins)) {
+  if (Array.isArray(data.bins) && data.bins.length) {
     const intensity = normalizeBins(data.bins, -95, -25);
     pushWaterfallRow("vfo-wf", intensity);
   }
-  const f = VFO_LOCAL.freq_mhz;
-  $("vfo-low").textContent = (f - 1.2).toFixed(2);
-  $("vfo-center").textContent = f.toFixed(3);
-  $("vfo-high").textContent = (f + 1.2).toFixed(2);
 
-  if (data.dongle_serial) {
-    $("ev-vfo-serial").textContent = data.dongle_serial;
-    $("ev-vfo-state").textContent = "connected";
-  } else {
-    $("ev-vfo-serial").textContent = "—";
-    $("ev-vfo-state").textContent = "not deployed";
+  // Axis labels — prefer backend-provided window, fall back to +/-1.2.
+  const f = (typeof data.freq_mhz === "number") ? data.freq_mhz : VFO_LOCAL.freq_mhz;
+  const lo = (typeof data.freq_min_mhz === "number") ? data.freq_min_mhz : (f - 1.2);
+  const hi = (typeof data.freq_max_mhz === "number") ? data.freq_max_mhz : (f + 1.2);
+  $("vfo-low").textContent = lo.toFixed(2);
+  $("vfo-center").textContent = f.toFixed(3);
+  $("vfo-high").textContent = hi.toFixed(2);
+
+  // Live tag.
+  const liveTag = $("vfo-live-tag");
+  const dongle = (data.dongle && typeof data.dongle === "object") ? data.dongle : {};
+  const serial = dongle.serial || data.dongle_serial || "—";
+  if (liveTag) {
+    if (topState === "ok") liveTag.textContent = `Live · ${serial}`;
+    else if (topState === "degraded") liveTag.textContent = `Degraded · ${serial}`;
+    else liveTag.textContent = `DOWN · ${serial}`;
   }
-  $("ev-vfo-frame").textContent = "demo · simulated";
+
+  // Evidence cells.
+  const stateEl = $("ev-vfo-state");
+  if (stateEl) {
+    if (topState === "ok") {
+      stateEl.textContent = "live";
+      stateEl.className = "val";
+    } else if (topState === "degraded") {
+      stateEl.textContent = "degraded";
+      stateEl.className = "val";
+    } else {
+      stateEl.textContent = "DOWN";
+      stateEl.className = "val bad";
+    }
+  }
+  $("ev-vfo-serial").textContent = serial;
+  const ageMs = (typeof dongle.last_frame_age_ms === "number") ? dongle.last_frame_age_ms
+                : (typeof data.last_frame_age_ms === "number") ? data.last_frame_age_ms
+                : null;
+  if (ageMs !== null && ageMs >= 0) {
+    $("ev-vfo-frame").textContent = `${ageMs} ms ago`;
+  } else if (topState === "down") {
+    $("ev-vfo-frame").textContent = "— · service down";
+  } else {
+    $("ev-vfo-frame").textContent = "— ms ago";
+  }
 }
 
 function renderDisco(data) {

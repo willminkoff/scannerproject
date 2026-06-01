@@ -1,0 +1,13 @@
+[Unit]
+Description=Scanner VFO (tunable RTL-SDR receiver)
+After=network.target icecast2.service
+
+[Service]
+Type=simple
+User=ubuntu
+ExecStart=/home/ubuntu/scannerproject/disco/.venv/bin/python /home/ubuntu/scannerproject/scripts/vfo.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

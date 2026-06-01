@@ -3098,8 +3098,8 @@ def _compute_heartbeat_payload() -> dict:
     # scanner-waterfall.service writes once a frame is in hand.
     for row in _waterfall_dongle_evidence_rows():
         evidence.append(row)
-    # VFO + Disco rows remain placeholders until phases 6b / 6c.
-    evidence.append({"label": "VFO dongle",        "value": "not deployed yet", "status": "info"})
+    # Phase 6b — live VFO row.  Disco remains a placeholder until 6c.
+    evidence.append(_vfo_dongle_evidence_row())
     evidence.append({"label": "Disco dongles ×3",  "value": "not deployed yet", "status": "info"})
 
     # Decide state.
@@ -3295,6 +3295,184 @@ def _waterfall_write_config(center_mhz: float) -> tuple[bool, str]:
             pass
         return False, f"write failed: {e}"
     return True, "ok"
+
+
+# =====================================================================
+# Phase 6b — VFO (single tunable RTL-SDR) file-backed pass-through.
+#
+# Mirrors the waterfall pattern: scripts/vfo.py owns the dongle and
+# writes state.json once per loop; this module reads it.  POST
+# /api/vfo merges into config.json which the script picks up via
+# mtime-poll.  If state.json is missing or stale we surface a "down"
+# stub rather than 500ing.
+# =====================================================================
+
+VFO_STATE_DIR = "/run/scannerproject/vfo"
+VFO_STATE_PATH = os.path.join(VFO_STATE_DIR, "state.json")
+VFO_CONFIG_PATH = os.path.join(VFO_STATE_DIR, "config.json")
+VFO_STALE_SEC = 5.0
+VFO_FREQ_MIN_MHZ = 24.0
+VFO_FREQ_MAX_MHZ = 1700.0
+VFO_VALID_MODS = ("am", "nfm", "wfm", "usb", "lsb")
+
+
+def _vfo_read_state() -> dict | None:
+    """Best-effort read of /run/scannerproject/vfo/state.json.
+
+    Returns the parsed dict, or None if missing/unreadable/older than
+    VFO_STALE_SEC.  Mirrors _waterfall_read_state.
+    """
+    try:
+        st = os.stat(VFO_STATE_PATH)
+    except FileNotFoundError:
+        return None
+    except OSError:
+        return None
+    if (time.time() - st.st_mtime) > VFO_STALE_SEC:
+        return None
+    try:
+        with open(VFO_STATE_PATH) as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    return data
+
+
+def _vfo_read_config() -> dict | None:
+    """Best-effort read of config.json so POST can merge into existing."""
+    try:
+        with open(VFO_CONFIG_PATH) as f:
+            data = json.load(f)
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    return data
+
+
+def _vfo_dongle_evidence_row() -> dict:
+    """Build the single VFO dongle heartbeat row.
+
+    On healthy: "live . 80000003 . 22ms . 127.700 AM"
+    On dropout: "DOWN since 4m ago . reconnecting in 8s"
+
+    The reconnect countdown is best-effort — scripts/vfo.py doesn't
+    surface its current backoff, so we round-estimate from how long
+    state.json has been stale (capped at 60s like the script's backoff
+    ceiling).
+    """
+    state = _vfo_read_state()
+    if state is None:
+        return {
+            "label": "VFO dongle",
+            "value": "DOWN - vfo service not running",
+            "status": "bad",
+        }
+    dongle = state.get("dongle") if isinstance(state.get("dongle"), dict) else {}
+    serial = str(dongle.get("serial") or state.get("dongle_serial") or "?")
+    d_state = str(dongle.get("state") or state.get("state") or "down")
+    age_ms = dongle.get("last_frame_age_ms")
+    if age_ms is None:
+        age_ms = state.get("last_frame_age_ms")
+    freq_mhz = state.get("freq_mhz")
+    mod = str(state.get("mod") or "?").upper()
+    top_state = str(state.get("state") or "down").lower()
+
+    if d_state == "ok" and top_state in ("ok", "degraded") and isinstance(age_ms, (int, float)) and age_ms >= 0:
+        try:
+            f_str = f"{float(freq_mhz):.3f}"
+        except (TypeError, ValueError):
+            f_str = "?"
+        return {
+            "label": "VFO dongle",
+            "value": f"live . {serial} . {int(age_ms)}ms . {f_str} {mod}",
+            "status": "ok",
+        }
+    # Down/degraded path.  Best-effort time-since estimate from
+    # state.json mtime (which the script touches every ~250ms when
+    # healthy, every loop when degraded).
+    try:
+        wf_mtime = os.stat(VFO_STATE_PATH).st_mtime
+        down_secs = max(0.0, time.time() - wf_mtime)
+    except OSError:
+        down_secs = 0.0
+    # Reconnect cadence: 5 -> 10 -> 20 -> 40 -> 60 s; the time until
+    # the next attempt is best surfaced as min(60, down_secs) since
+    # the user really just wants to know "is it still trying".
+    cd = min(60, max(5, int(down_secs)))
+    return {
+        "label": "VFO dongle",
+        "value": f"DOWN since {int(down_secs)}s ago . reconnecting in {cd}s",
+        "status": "bad",
+    }
+
+
+def _vfo_pass_through_payload() -> dict:
+    """GET /api/vfo body — file-backed pass-through, "down" stub on miss."""
+    state = _vfo_read_state()
+    if state is None:
+        return {
+            "state": "down",
+            "reason": "service not running",
+            "bins": [],
+        }
+    return state
+
+
+def _vfo_write_config(patch: dict) -> tuple[bool, str, dict]:
+    """POST /api/vfo body handler — merge patch into config.json atomically.
+
+    Accepts any subset of {freq_mhz, mod, muted, bt_routed}.  Validates
+    freq range + mod choice.  USB/LSB are accepted as mod values but
+    the worker stubs them (Phase 6b.1).  Returns (ok, msg, applied).
+    """
+    existing = _vfo_read_config() or {
+        "freq_mhz": 127.700, "mod": "am", "muted": False, "bt_routed": False,
+    }
+
+    merged = dict(existing)
+    if "freq_mhz" in patch:
+        try:
+            f = float(patch["freq_mhz"])
+        except (TypeError, ValueError) as e:
+            return False, f"invalid freq_mhz: {e}", {}
+        if not (VFO_FREQ_MIN_MHZ <= f <= VFO_FREQ_MAX_MHZ):
+            return False, (
+                f"freq_mhz {f} out of range ({VFO_FREQ_MIN_MHZ}-{VFO_FREQ_MAX_MHZ})"
+            ), {}
+        merged["freq_mhz"] = f
+    if "mod" in patch:
+        m = str(patch["mod"]).lower()
+        if m not in VFO_VALID_MODS:
+            return False, f"invalid mod {m!r}: must be one of {VFO_VALID_MODS}", {}
+        merged["mod"] = m
+    if "muted" in patch:
+        merged["muted"] = bool(patch["muted"])
+    if "bt_routed" in patch:
+        merged["bt_routed"] = bool(patch["bt_routed"])
+
+    try:
+        os.makedirs(VFO_STATE_DIR, exist_ok=True)
+    except OSError as e:
+        return False, f"mkdir failed: {e}", {}
+
+    tmp = VFO_CONFIG_PATH + ".tmp"
+    try:
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+        with os.fdopen(fd, "w") as f:
+            json.dump(merged, f)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, VFO_CONFIG_PATH)
+    except OSError as e:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        return False, f"write failed: {e}", {}
+    return True, "ok", merged
 
 
 # =====================================================================
@@ -4906,9 +5084,13 @@ class Handler(BaseHTTPRequestHandler):
             )
 
         if p == "/api/vfo":
+            # Phase 6b: file-backed pass-through.  Returns state.json
+            # written by scanner-vfo.service, or a "down" stub if the
+            # service isn't running / state is stale.
+            payload = _vfo_pass_through_payload()
             return self._send(
                 200,
-                json.dumps(_mock_vfo_payload()),
+                json.dumps(payload),
                 "application/json; charset=utf-8",
             )
 
@@ -6718,30 +6900,28 @@ class Handler(BaseHTTPRequestHandler):
             )
 
         # ============================================================
-        # Phase 5a — mock dongle-pane POST stubs.  Accept & echo the
-        # tuning intent so the UI feels responsive; no hardware retune.
+        # Phase 6b — VFO POST: file-backed config merge.  Accepts any
+        # subset of {freq_mhz, mod, muted, bt_routed}, validates, and
+        # atomically writes /run/scannerproject/vfo/config.json which
+        # scripts/vfo.py picks up via mtime-poll.
         # ============================================================
         if p == "/api/vfo":
-            try:
-                payload_in = form if isinstance(form, dict) else {}
-                echoed = {
-                    "freq_mhz":  float(payload_in.get("freq_mhz", 127.700)),
-                    "mod":       str(payload_in.get("mod", "am")),
-                    "muted":     bool(payload_in.get("muted", False)),
-                    "bt_routed": bool(payload_in.get("bt_routed", False)),
-                }
-            except (TypeError, ValueError) as exc:
+            payload_in = form if isinstance(form, dict) else {}
+            ok, msg, applied = _vfo_write_config(payload_in)
+            if not ok:
                 return self._send(
                     400,
-                    json.dumps({"ok": False, "error": f"invalid vfo payload: {exc}"}),
+                    json.dumps({"ok": False, "error": msg}),
                     "application/json; charset=utf-8",
                 )
             return self._send(
                 200,
-                json.dumps({"ok": True, "accepted": echoed, "stub": True}),
+                json.dumps({"ok": True, "applied": applied}),
                 "application/json; charset=utf-8",
             )
 
+        # Phase 5a — mock dongle-pane POST stub for disco (real impl
+        # lands in 6c).
         if p == "/api/disco/range":
             try:
                 payload_in = form if isinstance(form, dict) else {}
