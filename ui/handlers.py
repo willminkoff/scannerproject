@@ -2947,6 +2947,62 @@ def _heartbeat_sample_mount_bytes(mount: str,
     }
 
 
+# Evidence-row status → severity. The overall heartbeat state is the worst
+# severity across ALL evidence rows (see `_heartbeat_rollup_state`).
+_HEARTBEAT_STATUS_SEVERITY = {"bad": 2, "warn": 1, "warning": 1, "ok": 0, "info": 0}
+
+
+def _heartbeat_row_severity(row: dict) -> int:
+    """Severity of one evidence row (unknown statuses are treated as healthy)."""
+    if not isinstance(row, dict):
+        return 0
+    return _HEARTBEAT_STATUS_SEVERITY.get(str(row.get("status") or "").strip().lower(), 0)
+
+
+def _heartbeat_summarize_row(row: dict | None) -> str:
+    """`label: value` one-liner for an evidence row (empty when row is falsy)."""
+    if not isinstance(row, dict):
+        return ""
+    label = str(row.get("label") or "component").strip()
+    value = str(row.get("value") or "").strip()
+    return f"{label}: {value}" if value else label
+
+
+def _heartbeat_rollup_state(evidence: list[dict], wedged_reasons: list[str]) -> tuple[str, dict | None]:
+    """Roll evidence rows + core wedge reasons up into one overall state.
+
+    Phase R1 fix: the rollup must reflect EVERY evidence row, not just the
+    core-pipeline `wedged_reasons`. Previously dongle rows (waterfall A/B,
+    VFO, disco) and warn rows (e.g. "/ANALOG.mp3 byte rate 0 B") were appended
+    to `evidence` but never influenced `state`, so the badge could read
+    "All systems healthy" while a row literally said "dongle A DOWN".
+
+    Severity → state:  any ``bad`` row (or a core wedged_reason) ⇒ ``wedged``;
+    else any ``warn`` row ⇒ ``degraded`` (RF_DEGRADED); else ``quiet``.
+    Returns ``(state, worst_row)`` where ``worst_row`` is the highest-severity
+    evidence row (ties broken toward the earliest / most core row), or ``None``.
+    """
+    worst_severity = max((_heartbeat_row_severity(r) for r in evidence), default=0)
+    # A core pipeline failure is authoritatively `bad` even if no row carries
+    # the severity — `wedged_reasons` is the core signal of last resort.
+    if wedged_reasons:
+        worst_severity = 2
+
+    worst_row = None
+    worst_row_sev = -1
+    for row in evidence:
+        sev = _heartbeat_row_severity(row)
+        if sev > worst_row_sev:
+            worst_row_sev = sev
+            worst_row = row
+
+    if worst_severity >= 2:
+        return "wedged", worst_row
+    if worst_severity == 1:
+        return "degraded", worst_row
+    return "quiet", worst_row
+
+
 def _compute_heartbeat_payload() -> dict:
     """Compute the heartbeat payload. Cached via `_HEARTBEAT_CACHE_TTL_SEC`.
 
@@ -3108,22 +3164,41 @@ def _compute_heartbeat_payload() -> dict:
     for row in _broker_aware_dongle_rows():
         evidence.append(row)
 
-    # Decide state.
-    if wedged_reasons:
-        state = "wedged"
-        headline = "A pipeline component is wedged."
-        # Show up to four reasons in the explanation to avoid pathological growth.
-        explanation = "; ".join(wedged_reasons[:4]) + (
-            "" if len(wedged_reasons) <= 4 else f" (+{len(wedged_reasons) - 4} more)"
+    # Decide state. The rollup reflects EVERY evidence row (see
+    # `_heartbeat_rollup_state` for the severity rule and the bug it fixes).
+    state, worst_row = _heartbeat_rollup_state(evidence, wedged_reasons)
+
+    if state == "wedged":
+        if wedged_reasons:
+            headline = "A pipeline component is wedged."
+            # Show up to four reasons to avoid pathological growth.
+            explanation = "; ".join(wedged_reasons[:4]) + (
+                "" if len(wedged_reasons) <= 4 else f" (+{len(wedged_reasons) - 4} more)"
+            )
+        else:
+            # No core wedge, but a `bad` evidence row (e.g. a downed dongle).
+            headline = f"Component failure — {_heartbeat_summarize_row(worst_row)}."
+            explanation = (
+                "Core audio pipeline is alive, but a monitored component "
+                "reports a hard failure. See evidence rows below."
+            )
+    elif state == "degraded":
+        headline = f"RF degraded — {_heartbeat_summarize_row(worst_row)}."
+        explanation = (
+            "Core services are active, but at least one component is "
+            "publishing a warning. The audio path is up; a secondary "
+            "subsystem needs attention."
         )
     else:
-        state = "quiet"
         headline = "All systems healthy. No traffic on selected channels."
         explanation = (
             "RF chain alive, mounts publishing, services active. The radio "
             "is simply quiet right now."
         )
         recovery = None
+
+    # One-line summary naming the worst-offending component (empty when quiet).
+    summary = "" if state == "quiet" else _heartbeat_summarize_row(worst_row)
 
     # `since` — wall-time of last state transition. Stays stable while the
     # state is unchanged so the UI can show "wedged for 4m".
@@ -3144,6 +3219,7 @@ def _compute_heartbeat_payload() -> dict:
         "since": since_iso,
         "headline": headline,
         "explanation": explanation,
+        "summary": summary,
         "recovery": recovery,
         "evidence": evidence,
         "server_time": now_wall,
@@ -4013,7 +4089,13 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         if isinstance(body, str):
             body = body.encode("utf-8")
-        self.wfile.write(body)
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError) as exc:
+            # Client hung up mid-write (closed tab, refresh, dropped socket).
+            # Benign — log at debug instead of letting it bubble into a
+            # noisy traceback / 500 in the worker thread.
+            logger.debug("client disconnected during _send write: %s", exc)
 
     def _send_redirect(self, location: str, code: int = 302):
         """Send a redirect response."""
