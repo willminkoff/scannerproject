@@ -3141,6 +3141,139 @@ def _compute_heartbeat_payload() -> dict:
     return dict(payload)
 
 
+
+# === PHASE5A_MOCK_SPECTRUM_MARKER ============================================
+# Phase 5a mock backends for the future-hardware panes (Waterfall, VFO, Disco).
+# All return realistic-looking JSON; the real implementations land when the
+# RTL-SDR dongles for those roles are deployed.  None of these mutate any
+# real hardware state.
+import math as _p5a_math
+import random as _p5a_random
+
+
+def _p5a_mock_bins(center_mhz, bw_mhz, n_bins, peaks, time_phase):
+    """Generate plausible-looking spectrum bins in dBFS (-110..-10 range)."""
+    rng = _p5a_random.Random(int(time_phase * 100) & 0xFFFFFFFF)
+    out = []
+    f_lo = center_mhz - bw_mhz / 2.0
+    f_hi = center_mhz + bw_mhz / 2.0
+    for i in range(n_bins):
+        f = f_lo + (i / max(1, n_bins - 1)) * bw_mhz
+        v = -95.0 + rng.uniform(-3.0, 3.0)
+        for pf, ph in peaks:
+            df = f - pf
+            v += ph * _p5a_math.exp(-(df * df) / (2.0 * 0.045 * 0.045))
+        edge = min(f - f_lo, f_hi - f)
+        if edge < 0.5:
+            v -= (0.5 - edge) * 18.0
+        out.append(round(v, 2))
+    return out
+
+
+_P5A_VFO_STATE = {"freq_mhz": 146.520, "mod": "NFM", "muted": False, "bt_routed": False}
+_P5A_DISCO_RANGE = {"start_mhz": 420.000, "end_mhz": 450.000}
+
+
+def _p5a_waterfall_payload():
+    import time as _t
+    t = _t.time()
+    peaks = [
+        (146.52, 28), (147.30, 18), (155.565, 32),
+        (156.800, 22), (162.45, 20), (158.10, 14),
+    ]
+    return {
+        "state": "demo",
+        "deployed": False,
+        "center_mhz": 154.000,
+        "bw_mhz": 20.000,
+        "bins": _p5a_mock_bins(154.0, 20.0, 256, peaks, t),
+        "last_frame_age_ms": None,
+        "dongle_serials": [],
+        "note": "Demo \u2014 2-dongle stitched live coming when hardware lands",
+        "server_time": t,
+    }
+
+
+def _p5a_vfo_payload():
+    import time as _t
+    t = _t.time()
+    f = float(_P5A_VFO_STATE["freq_mhz"])
+    return {
+        "state": "demo",
+        "deployed": False,
+        "freq_mhz": f,
+        "mod": _P5A_VFO_STATE["mod"],
+        "muted": _P5A_VFO_STATE["muted"],
+        "bt_routed": _P5A_VFO_STATE["bt_routed"],
+        "bins": _p5a_mock_bins(f, 2.4, 128, [(f, 28)], t),
+        "dongle_serial": None,
+        "note": "Demo \u2014 live receiver coming when hardware lands",
+        "server_time": t,
+    }
+
+
+def _p5a_disco_payload():
+    import time as _t
+    t = _t.time()
+    r = _P5A_DISCO_RANGE
+    center = (r["start_mhz"] + r["end_mhz"]) / 2.0
+    bw = r["end_mhz"] - r["start_mhz"]
+    peaks = [(424.5, 24), (432.0, 18), (446.0, 28), (449.5, 20)]
+    return {
+        "state": "demo",
+        "deployed": False,
+        "range": dict(r),
+        "center_mhz": center,
+        "bw_mhz": bw,
+        "bins": _p5a_mock_bins(center, bw, 256, peaks, t),
+        "dongle_serials": [],
+        "note": "Demo \u2014 Disco coordinator + 3-dongle sweep coming when hardware lands",
+        "server_time": t,
+    }
+
+
+def _p5a_vfo_apply(form):
+    """Accept VFO retune/mod request \u2014 stub, real retune lands with hardware."""
+    try:
+        if "freq_mhz" in form:
+            raw = form["freq_mhz"]
+            val = raw[0] if isinstance(raw, list) else raw
+            _P5A_VFO_STATE["freq_mhz"] = max(0.1, min(2000.0, float(val)))
+        if "mod" in form:
+            raw = form["mod"]
+            val = (raw[0] if isinstance(raw, list) else raw)
+            mode = str(val).upper()
+            if mode in ("AM", "NFM", "WFM", "USB", "LSB"):
+                _P5A_VFO_STATE["mod"] = mode
+        for boolkey in ("muted", "bt_routed"):
+            if boolkey in form:
+                raw = form[boolkey]
+                val = raw[0] if isinstance(raw, list) else raw
+                _P5A_VFO_STATE[boolkey] = str(val).lower() in ("1", "true", "yes", "on")
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "invalid params", "state": dict(_P5A_VFO_STATE)}
+    return {"ok": True, "accepted": dict(_P5A_VFO_STATE),
+            "note": "stub \u2014 real retune lands with hardware"}
+
+
+def _p5a_disco_range_apply(form):
+    try:
+        if "start_mhz" in form:
+            raw = form["start_mhz"]
+            val = raw[0] if isinstance(raw, list) else raw
+            _P5A_DISCO_RANGE["start_mhz"] = float(val)
+        if "end_mhz" in form:
+            raw = form["end_mhz"]
+            val = raw[0] if isinstance(raw, list) else raw
+            _P5A_DISCO_RANGE["end_mhz"] = float(val)
+        if _P5A_DISCO_RANGE["end_mhz"] <= _P5A_DISCO_RANGE["start_mhz"]:
+            _P5A_DISCO_RANGE["end_mhz"] = _P5A_DISCO_RANGE["start_mhz"] + 1.0
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "invalid params", "range": dict(_P5A_DISCO_RANGE)}
+    return {"ok": True, "accepted": dict(_P5A_DISCO_RANGE),
+            "note": "stub \u2014 real Disco coordinator lands with hardware"}
+# === END PHASE5A_MOCK_SPECTRUM_MARKER ========================================
+
 class Handler(BaseHTTPRequestHandler):
     """HTTP request handler for the UI."""
 
@@ -4580,6 +4713,14 @@ class Handler(BaseHTTPRequestHandler):
         if p == "/api/hits":
             payload = _get_hits_payload_cached(limit=50)
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        # --- Phase 5a mock spectrum endpoints (future-hardware roles) ---
+        if p == "/api/waterfall":
+            return self._send(200, json.dumps(_p5a_waterfall_payload()), "application/json; charset=utf-8")
+        if p == "/api/vfo":
+            return self._send(200, json.dumps(_p5a_vfo_payload()), "application/json; charset=utf-8")
+        if p == "/api/disco":
+            return self._send(200, json.dumps(_p5a_disco_payload()), "application/json; charset=utf-8")
         
         if p == "/api/spectrum":
             # One-shot spectrum data
@@ -4824,6 +4965,12 @@ class Handler(BaseHTTPRequestHandler):
 
         def parse_json_like_list(raw_value) -> list:
             return _parse_json_like_list(raw_value)
+
+        # --- Phase 5a mock POST stubs (future-hardware roles) ---
+        if p == "/api/vfo":
+            return self._send(200, json.dumps(_p5a_vfo_apply(form)), "application/json; charset=utf-8")
+        if p == "/api/disco/range":
+            return self._send(200, json.dumps(_p5a_disco_range_apply(form)), "application/json; charset=utf-8")
 
         if p == "/api/latency/tone":
             action = get_str("action", "status").strip().lower() or "status"
