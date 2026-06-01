@@ -13,9 +13,19 @@ closeStream() can't hang systemd at unit-stop time.
 State is written atomically (write tmp, fsync, rename) to
 /run/scannerproject/waterfall/state.json.  Retune commands are read by
 mtime-polling /run/scannerproject/waterfall/config.json — a write of
-{"center_mhz": 462.0} retunes BOTH dongles so the stitched window
-centers on that frequency (A goes to center - half_spacing, B to
-center + half_spacing, preserving the 2.4 MHz dongle spacing).
+{"center_mhz": 462.0, "bw_mhz": 3.0} retunes BOTH dongles so the
+stitched window centers on that frequency at that width (A goes to
+center - half_spacing, B to center + half_spacing).  bw_mhz is optional
+(a missing key preserves the current width); the requested width is
+planned into a valid per-dongle sample rate + half-spacing by
+_plan_band(), capped at the gap-free 4.8 MHz the two dongles can cover
+at 2.4 MS/s.  The active band is persisted to data/waterfall_band.json
+so it survives a reboot (/run is tmpfs).
+
+Phase R2: SOAPY_SDR_OVERFLOW (-4) on readStream is treated as benign —
+we read far slower than the 2.4 MS/s stream fills, so the ring overflows
+routinely; we just re-read the fresh post-overflow samples and surface a
+cumulative overflow count in state.json rather than dropping the frame.
 """
 
 from __future__ import annotations
@@ -31,7 +41,7 @@ from typing import Optional
 
 import numpy as np
 import SoapySDR
-from SoapySDR import SOAPY_SDR_RX, SOAPY_SDR_CF32
+from SoapySDR import SOAPY_SDR_RX, SOAPY_SDR_CF32, SOAPY_SDR_OVERFLOW
 
 # ---------------------------------------------------------------------
 # Constants & defaults
@@ -42,6 +52,14 @@ STATE_DIR = os.environ.get(
 STATE_PATH = os.path.join(STATE_DIR, "state.json")
 CONFIG_PATH = os.path.join(STATE_DIR, "config.json")
 
+# Persistent last-known band (survives reboot — /run is tmpfs).  Seeded at
+# startup and rewritten whenever a retune is applied.  Defaults to
+# <repo>/data/waterfall_band.json (repo root = parent of this scripts dir).
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BAND_PERSIST_PATH = os.environ.get(
+    "WATERFALL_BAND_PATH", os.path.join(_REPO_ROOT, "data", "waterfall_band.json")
+)
+
 # Dongle assignment (Phase 6a):
 #   A = Nooelec SMArt v5   (serial 70613472, port 1-4.1.4)
 #   B = RTL-SDR Blog V4    (serial 83241970, port 1-4.1.2 — best DR)
@@ -51,9 +69,21 @@ SERIAL_B = os.environ.get("WATERFALL_SERIAL_B", "83241970")
 # Default center frequencies — stitched window covers roughly
 # 121.3 .. 126.1 MHz (most of civilian airband + a margin).
 DEFAULT_CENTER_MHZ = 123.7
-HALF_SPACING_MHZ = 1.2   # A = center-1.2, B = center+1.2 (2.4 MHz apart)
+DEFAULT_BW_MHZ = 4.8     # default stitched window width (2x 2.4 MS/s dongles)
 
-SAMPLE_RATE_HZ = 2_400_000   # 2.4 MS/s per dongle
+# Tunable bandwidth (Phase R2).  The stitched window width is
+#   total_bw = per_dongle_rate + 2 * half_spacing
+# so for a requested bw we pick a per-dongle sample rate near bw/2 (with a
+# little overlap headroom) and set the half-spacing to fill the rest.  The
+# per-dongle rate is clamped to the RTL-SDR's usable high band so we never
+# command an unsupported rate; 4.8 MHz (2 x 2.4 MS/s, half-spacing 1.2)
+# remains the gap-free maximum and is the unchanged default.
+MIN_BW_MHZ = 1.0
+MAX_BW_MHZ = 4.8
+RTL_RATE_MIN_HZ = 960_000      # stay above the RTL-SDR ~900 kHz low-band edge
+RTL_RATE_MAX_HZ = 2_400_000    # 2.4 MS/s — proven-good per-dongle rate
+
+SAMPLE_RATE_HZ = 2_400_000   # default/max per-dongle rate (2.4 MS/s)
 FFT_SIZE = 1024
 # Phase 6a.1: 100ms per-dongle FFT pacing (10 Hz).  readStream + window
 # + FFT(1024) typically runs well under 50ms on the Pi-class host, so
@@ -68,6 +98,14 @@ FRAME_PERIOD_SEC = 0.1
 
 # Watchdog: 3 consecutive short/failed reads -> mark dongle down.
 WATCHDOG_BAD_READS = 3
+
+# Overflow handling (Phase R2).  We consume ~10k samples/s (1024 every
+# ~100ms) from a 2.4 MS/s stream, so the driver ring overflows routinely —
+# SOAPY_SDR_OVERFLOW (-4).  That is BENIGN for a snapshot FFT: the
+# post-overflow samples are contiguous and fresh, so we just re-read.  We
+# cap re-reads per frame so a genuinely stuck stream still falls through to
+# the watchdog, and surface a cumulative count in state.json for health.
+MAX_OVERFLOW_RETRIES_PER_FRAME = 16
 RECONNECT_BACKOFF_INIT_S = 5.0
 RECONNECT_BACKOFF_MAX_S = 60.0
 RECONNECT_BACKOFF_GROWTH = 1.6
@@ -137,6 +175,56 @@ def _write_state_atomic(state: dict, path: str) -> None:
 
 
 # ---------------------------------------------------------------------
+# Band planning + persistence (Phase R2)
+# ---------------------------------------------------------------------
+def _plan_band(bw_mhz: float) -> tuple[float, float, float]:
+    """Plan the 2-dongle stitch for a requested total bandwidth.
+
+    Returns (clamped_bw_mhz, per_dongle_rate_hz, half_spacing_hz) such that
+    ``per_dongle_rate + 2*half_spacing == clamped_bw`` (gap-free).  The
+    per-dongle rate is chosen near bw/2 with ~5% overlap headroom and
+    clamped to the RTL-SDR's usable high band, so narrower bandwidths are a
+    genuine zoom (lower rate, tighter spacing) and the 4.8 MHz default maps
+    back to the original 2.4 MS/s / 1.2 MHz spacing exactly.
+    """
+    bw = min(MAX_BW_MHZ, max(MIN_BW_MHZ, float(bw_mhz)))
+    rate_hz = bw / 2.0 * 1.05 * 1e6
+    rate_hz = min(RTL_RATE_MAX_HZ, max(RTL_RATE_MIN_HZ, rate_hz))
+    half_spacing_hz = max(0.0, (bw * 1e6 - rate_hz) / 2.0)
+    return bw, rate_hz, half_spacing_hz
+
+
+def _load_persisted_band() -> tuple[float, float]:
+    """Read the last-applied band, or fall back to the defaults."""
+    try:
+        with open(BAND_PERSIST_PATH) as f:
+            data = json.load(f)
+        center = float(data["center_mhz"])
+        bw = float(data["bw_mhz"])
+        if 24.0 <= center <= 1700.0:
+            LOG.info(
+                "restored persisted band: center=%.3f MHz bw=%.3f MHz",
+                center, bw,
+            )
+            return center, bw
+    except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
+        LOG.info("no usable persisted band (%s); using defaults", e)
+    return DEFAULT_CENTER_MHZ, DEFAULT_BW_MHZ
+
+
+def _persist_band(center_mhz: float, bw_mhz: float) -> None:
+    """Best-effort atomic write of the active band for restart persistence."""
+    try:
+        os.makedirs(os.path.dirname(BAND_PERSIST_PATH), exist_ok=True)
+        _write_state_atomic(
+            {"center_mhz": round(center_mhz, 4), "bw_mhz": round(bw_mhz, 4)},
+            BAND_PERSIST_PATH,
+        )
+    except OSError as e:
+        LOG.warning("band persist failed: %s", e)
+
+
+# ---------------------------------------------------------------------
 # Config mtime polling — used to detect /sb5 retune commands.
 # ---------------------------------------------------------------------
 class ConfigPoller:
@@ -197,11 +285,19 @@ class DongleWorker:
       .start() / .stop()
     """
 
-    def __init__(self, label: str, serial: str, initial_center_hz: float):
+    def __init__(
+        self,
+        label: str,
+        serial: str,
+        initial_center_hz: float,
+        initial_rate_hz: float = SAMPLE_RATE_HZ,
+    ):
         self.label = label
         self.serial = serial
         self.center_hz = float(initial_center_hz)
         self._next_center_hz = float(initial_center_hz)
+        self.sample_rate_hz = float(initial_rate_hz)
+        self._next_rate_hz = float(initial_rate_hz)
         self._lock = threading.Lock()
         self._latest: Optional[tuple] = None
         self._thread: Optional[threading.Thread] = None
@@ -210,6 +306,7 @@ class DongleWorker:
         self._sdr = None
         self._stream = None
         self._bad_reads = 0
+        self.overflow_count = 0   # cumulative SOAPY_SDR_OVERFLOW (Phase R2)
 
     # ---- public ---------------------------------------------------------
     def start(self) -> None:
@@ -221,6 +318,12 @@ class DongleWorker:
     def request_center_hz(self, hz: float) -> None:
         with self._lock:
             self._next_center_hz = float(hz)
+
+    def request_band(self, center_hz: float, rate_hz: float) -> None:
+        """Thread-safe: command a new center AND per-dongle sample rate."""
+        with self._lock:
+            self._next_center_hz = float(center_hz)
+            self._next_rate_hz = float(rate_hz)
 
     def latest_frame(self):
         with self._lock:
@@ -257,11 +360,14 @@ class DongleWorker:
         try:
             args = {"driver": "rtlsdr", "serial": self.serial}
             self._sdr = SoapySDR.Device(args)
-            self._sdr.setSampleRate(SOAPY_SDR_RX, 0, SAMPLE_RATE_HZ)
+            with self._lock:
+                center = self._next_center_hz
+                rate = self._next_rate_hz
+                self.center_hz = center
+                self.sample_rate_hz = rate
+            self._sdr.setSampleRate(SOAPY_SDR_RX, 0, rate)
             try:
-                self._sdr.setBandwidth(
-                    SOAPY_SDR_RX, 0, SAMPLE_RATE_HZ * 0.8
-                )
+                self._sdr.setBandwidth(SOAPY_SDR_RX, 0, rate * 0.8)
             except Exception:
                 pass
             # Modest fixed gain — auto-gain on RTL-SDR is hit-or-miss.
@@ -270,9 +376,6 @@ class DongleWorker:
                 self._sdr.setGain(SOAPY_SDR_RX, 0, 30.0)
             except Exception:
                 pass
-            with self._lock:
-                center = self._next_center_hz
-                self.center_hz = center
             self._sdr.setFrequency(SOAPY_SDR_RX, 0, center)
             self._stream = self._sdr.setupStream(
                 SOAPY_SDR_RX, SOAPY_SDR_CF32, [0]
@@ -285,7 +388,7 @@ class DongleWorker:
                 self.serial,
                 self.last_bus_path or "?",
                 center / 1e6,
-                SAMPLE_RATE_HZ / 1e6,
+                rate / 1e6,
             )
             self._bad_reads = 0
             self.state = "ok"
@@ -327,27 +430,56 @@ class DongleWorker:
     def _maybe_retune(self) -> None:
         with self._lock:
             wanted = self._next_center_hz
-        if wanted == self.center_hz:
+            wanted_rate = self._next_rate_hz
+        rate_changed = abs(wanted_rate - self.sample_rate_hz) > 1.0
+        if wanted == self.center_hz and not rate_changed:
             return
         try:
-            self._sdr.setFrequency(SOAPY_SDR_RX, 0, wanted)
-            LOG.info(
-                "[%s] retuned serial=%s %.3f -> %.3f MHz",
-                self.label, self.serial,
-                self.center_hz / 1e6, wanted / 1e6,
-            )
-            self.center_hz = wanted
+            if rate_changed:
+                # RTL-SDR sample-rate changes are safest with the stream
+                # quiesced — bracket the change in deactivate/reactivate so
+                # the async reader restarts cleanly at the new rate.
+                self._sdr.deactivateStream(self._stream)
+                self._sdr.setSampleRate(SOAPY_SDR_RX, 0, wanted_rate)
+                try:
+                    self._sdr.setBandwidth(SOAPY_SDR_RX, 0, wanted_rate * 0.8)
+                except Exception:
+                    pass
+                self._sdr.setFrequency(SOAPY_SDR_RX, 0, wanted)
+                self._sdr.activateStream(self._stream)
+                LOG.info(
+                    "[%s] reband serial=%s center %.3f->%.3f MHz "
+                    "rate %.3f->%.3f MS/s",
+                    self.label, self.serial,
+                    self.center_hz / 1e6, wanted / 1e6,
+                    self.sample_rate_hz / 1e6, wanted_rate / 1e6,
+                )
+                self.sample_rate_hz = wanted_rate
+                self.center_hz = wanted
+            else:
+                self._sdr.setFrequency(SOAPY_SDR_RX, 0, wanted)
+                LOG.info(
+                    "[%s] retuned serial=%s %.3f -> %.3f MHz",
+                    self.label, self.serial,
+                    self.center_hz / 1e6, wanted / 1e6,
+                )
+                self.center_hz = wanted
         except Exception as e:
             LOG.warning(
                 "[%s] retune failed serial=%s -> %.3f MHz: %s",
                 self.label, self.serial, wanted / 1e6, e,
             )
+            # A failed reband can leave the stream deactivated — force a
+            # reopen so the watchdog path reconfigures cleanly.
+            self._safe_close()
+            self.state = "down"
 
     def _read_frame(self) -> Optional[np.ndarray]:
         """Read FFT_SIZE samples; return the complex64 buffer or None."""
         buf = np.zeros(FFT_SIZE, dtype=np.complex64)
         pos = 0
         t0 = time.time()
+        overflows = 0
         # SoapyRTL returns small chunks; loop until we've got a full frame
         # or the read goes sideways.
         while pos < FFT_SIZE:
@@ -366,6 +498,23 @@ class DongleWorker:
                     self.last_bus_path or "?", e,
                 )
                 return None
+            if sr.ret == SOAPY_SDR_OVERFLOW:
+                # Benign for a snapshot FFT — the driver ring overflowed
+                # because we read far slower than the stream fills.  The
+                # post-overflow samples are contiguous and fresh; just
+                # re-read.  Bounded so a truly stuck stream still bails.
+                self.overflow_count += 1
+                overflows += 1
+                if overflows > MAX_OVERFLOW_RETRIES_PER_FRAME:
+                    LOG.warning(
+                        "[%s] overflow flood (%d in one frame) serial=%s; "
+                        "bailing to watchdog",
+                        self.label, overflows, self.serial,
+                    )
+                    return None
+                if time.time() - t0 > 1.0:
+                    return None
+                continue
             if sr.ret < 0:
                 LOG.warning(
                     "[%s] readStream err serial=%s ret=%s flags=%s",
@@ -459,30 +608,32 @@ class DongleWorker:
 # Stitch — two 1024-bin per-dongle FFTs -> single 2048-bin spectrum.
 # ---------------------------------------------------------------------
 def _stitch_bins(
-    mag_a, center_a_hz: float,
-    mag_b, center_b_hz: float,
-    sample_rate_hz: float,
+    mag_a, center_a_hz: float, rate_a_hz: float,
+    mag_b, center_b_hz: float, rate_b_hz: float,
 ):
     """Stitch two FFT outputs into a continuous bin array.
 
     Returns (bins, freq_min_hz, freq_max_hz).
 
-    Strategy: each FFT covers [center - sr/2, center + sr/2].  We map both
-    onto a shared frequency grid spanning [min(low_a, low_b),
-    max(high_a, high_b)] at the same per-bin Hz as the input FFTs.  Where
-    the two windows overlap we average the dBFS values — averaging is the
-    simplest defensible reduction when both dongles are healthy; if either
-    is contributing garbage the higher noise floor will pull the average
-    up which is fine for a visual waterfall (it just makes the overlap
-    region a touch noisier; the surrounding non-overlapping bins are
-    untouched and look clean).
+    Strategy: each FFT covers [center - sr/2, center + sr/2] at its own
+    per-dongle sample rate (they share a rate in steady state but may
+    differ momentarily mid-reband).  We map both onto a shared frequency
+    grid at the finer of the two bin sizes.  Where the two windows overlap
+    we average the dBFS values — averaging is the simplest defensible
+    reduction when both dongles are healthy; if either is contributing
+    garbage the higher noise floor will pull the average up which is fine
+    for a visual waterfall (it just makes the overlap region a touch
+    noisier; the surrounding non-overlapping bins are untouched and look
+    clean).
     """
     n = FFT_SIZE
-    bin_hz = sample_rate_hz / n
-    low_a = center_a_hz - sample_rate_hz / 2.0
-    high_a = center_a_hz + sample_rate_hz / 2.0
-    low_b = center_b_hz - sample_rate_hz / 2.0
-    high_b = center_b_hz + sample_rate_hz / 2.0
+    # Use the finer (smaller) per-bin Hz so neither dongle is undersampled
+    # on the shared grid.
+    bin_hz = min(rate_a_hz, rate_b_hz) / n
+    low_a = center_a_hz - rate_a_hz / 2.0
+    high_a = center_a_hz + rate_a_hz / 2.0
+    low_b = center_b_hz - rate_b_hz / 2.0
+    high_b = center_b_hz + rate_b_hz / 2.0
     f_min = min(low_a, low_b)
     f_max = max(high_a, high_b)
     total_bins = int(round((f_max - f_min) / bin_hz))
@@ -535,12 +686,17 @@ def main() -> int:
 
     os.makedirs(STATE_DIR, exist_ok=True)
 
-    initial_center = DEFAULT_CENTER_MHZ * 1e6
+    # Seed the active band from the persisted last-known band (Phase R2),
+    # falling back to the airband defaults on first run / unreadable file.
+    current_center_mhz, current_bw_mhz = _load_persisted_band()
+    current_bw_mhz, rate_hz, half_spacing_hz = _plan_band(current_bw_mhz)
+    current_center_hz = current_center_mhz * 1e6
+
     a = DongleWorker(
-        "A", SERIAL_A, initial_center - HALF_SPACING_MHZ * 1e6,
+        "A", SERIAL_A, current_center_hz - half_spacing_hz, rate_hz,
     )
     b = DongleWorker(
-        "B", SERIAL_B, initial_center + HALF_SPACING_MHZ * 1e6,
+        "B", SERIAL_B, current_center_hz + half_spacing_hz, rate_hz,
     )
     a.start()
     b.start()
@@ -548,36 +704,46 @@ def main() -> int:
     config_poller = ConfigPoller(CONFIG_PATH)
 
     LOG.info(
-        "waterfall up: A=%s @ %.3f MHz, B=%s @ %.3f MHz; default center=%.3f MHz",
-        SERIAL_A, (initial_center - HALF_SPACING_MHZ * 1e6) / 1e6,
-        SERIAL_B, (initial_center + HALF_SPACING_MHZ * 1e6) / 1e6,
-        DEFAULT_CENTER_MHZ,
+        "waterfall up: A=%s @ %.3f MHz, B=%s @ %.3f MHz; center=%.3f MHz "
+        "bw=%.3f MHz (rate=%.3f MS/s, half-spacing=%.3f MHz)",
+        SERIAL_A, (current_center_hz - half_spacing_hz) / 1e6,
+        SERIAL_B, (current_center_hz + half_spacing_hz) / 1e6,
+        current_center_mhz, current_bw_mhz,
+        rate_hz / 1e6, half_spacing_hz / 1e6,
     )
 
-    current_center_hz = initial_center
     last_state_write = 0.0
     STATE_WRITE_PERIOD = 0.1    # Phase 6a.1: 10 Hz cap (was 0.25 / 4 Hz)
 
     while not _STOP.is_set():
-        # Retune?
+        # Retune?  Accepts {center_mhz} and/or {bw_mhz}; missing keys keep
+        # the current value so a center-only POST preserves bandwidth.
         cfg = config_poller.poll()
         if cfg is not None:
             try:
-                new_center_mhz = float(cfg.get("center_mhz", DEFAULT_CENTER_MHZ))
-                # Sanity-clamp to the RTL-SDR range (24 MHz - 1.7 GHz).
+                new_center_mhz = float(cfg.get("center_mhz", current_center_mhz))
+                new_bw_mhz = float(cfg.get("bw_mhz", current_bw_mhz))
+                # Sanity-clamp center to the RTL-SDR range (24 MHz - 1.7 GHz).
                 if 24.0 <= new_center_mhz <= 1700.0:
+                    current_center_mhz = new_center_mhz
                     current_center_hz = new_center_mhz * 1e6
-                    a.request_center_hz(
-                        current_center_hz - HALF_SPACING_MHZ * 1e6
+                    current_bw_mhz, rate_hz, half_spacing_hz = _plan_band(
+                        new_bw_mhz
                     )
-                    b.request_center_hz(
-                        current_center_hz + HALF_SPACING_MHZ * 1e6
+                    a.request_band(
+                        current_center_hz - half_spacing_hz, rate_hz
                     )
+                    b.request_band(
+                        current_center_hz + half_spacing_hz, rate_hz
+                    )
+                    _persist_band(current_center_mhz, current_bw_mhz)
                     LOG.info(
-                        "config retune: center=%.3f MHz (A=%.3f, B=%.3f)",
-                        new_center_mhz,
-                        (current_center_hz - HALF_SPACING_MHZ * 1e6) / 1e6,
-                        (current_center_hz + HALF_SPACING_MHZ * 1e6) / 1e6,
+                        "config retune: center=%.3f MHz bw=%.3f MHz "
+                        "(A=%.3f, B=%.3f, rate=%.3f MS/s)",
+                        new_center_mhz, current_bw_mhz,
+                        (current_center_hz - half_spacing_hz) / 1e6,
+                        (current_center_hz + half_spacing_hz) / 1e6,
+                        rate_hz / 1e6,
                     )
                 else:
                     LOG.warning(
@@ -597,9 +763,8 @@ def main() -> int:
         age_b_ms = frame_b[2] if frame_b is not None else None
 
         bins, f_min_hz, f_max_hz = _stitch_bins(
-            mag_a, a.center_hz,
-            mag_b, b.center_hz,
-            SAMPLE_RATE_HZ,
+            mag_a, a.center_hz, a.sample_rate_hz,
+            mag_b, b.center_hz, b.sample_rate_hz,
         )
 
         a_ok = (a.state == "ok") and (age_a_ms is not None) and (age_a_ms < 5000)
@@ -633,6 +798,8 @@ def main() -> int:
                     "state": "ok" if a_ok else a.state,
                     "last_frame_age_ms": age_a_ms if age_a_ms is not None else -1,
                     "center_mhz": round(a.center_hz / 1e6, 4),
+                    "sample_rate_mhz": round(a.sample_rate_hz / 1e6, 4),
+                    "overflow_count": a.overflow_count,
                     "bus": a.last_bus_path or "",
                     "label": "A",
                 },
@@ -641,11 +808,20 @@ def main() -> int:
                     "state": "ok" if b_ok else b.state,
                     "last_frame_age_ms": age_b_ms if age_b_ms is not None else -1,
                     "center_mhz": round(b.center_hz / 1e6, 4),
+                    "sample_rate_mhz": round(b.sample_rate_hz / 1e6, 4),
+                    "overflow_count": b.overflow_count,
                     "bus": b.last_bus_path or "",
                     "label": "B",
                 },
             ],
             "config_age_sec": round(config_poller.age_sec(), 1),
+            # Phase R2 — tunable band + overflow health.  `overflows_total`
+            # is cumulative since process start; the heartbeat rolls the
+            # dongle rows up, and a steadily-climbing count vs a flat one
+            # distinguishes "recovering fine" from "wedged".
+            "overflows_total": a.overflow_count + b.overflow_count,
+            "min_bw_mhz": MIN_BW_MHZ,
+            "max_bw_mhz": MAX_BW_MHZ,
             # Convenience flat fields for the existing /sb5 renderer that
             # already reads `last_frame_age_ms` and `dongle_serials` from
             # the Phase 5a mock payload.

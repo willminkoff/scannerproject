@@ -492,6 +492,39 @@
   .wf-tune-unit {
     font-size: 10px; color: var(--text-4); font-weight: 500;
   }
+  .wf-apply-btn {
+    background: rgba(126, 211, 255, 0.14);
+    border: 1px solid rgba(126, 211, 255, 0.45);
+    color: var(--sky-2);
+    border-radius: 8px;
+    padding: 5px 14px;
+    font-size: 11.5px; font-weight: 600;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .wf-apply-btn:hover { background: rgba(126, 211, 255, 0.24); }
+  .wf-apply-btn:active { transform: translateY(1px); }
+  .wf-jump-row {
+    margin-top: 8px;
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .wf-jump {
+    background: rgba(8, 14, 28, 0.55);
+    border: 1px solid var(--line);
+    color: var(--text-2);
+    border-radius: 999px;
+    padding: 4px 11px;
+    font-size: 10.5px; font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+  }
+  .wf-jump:hover { background: rgba(126, 211, 255, 0.12); color: var(--text); }
+  .wf-jump.active {
+    background: rgba(126, 211, 255, 0.18);
+    border-color: rgba(126, 211, 255, 0.55);
+    color: var(--sky-2);
+  }
 
   /* ============ draggable freq-window widget ============ */
   .freq-window {
@@ -1212,13 +1245,29 @@
         <span class="pill" id="wf-pill-age">last frame —</span>
       </div>
       <div class="wf-tune-row">
-        <div class="wf-tune-caption">Tunable 24 MHz – 1.7 GHz · drag window or type center freq</div>
+        <div class="wf-tune-caption">Tunable 24 MHz – 1.7 GHz · drag window, type a center, or jump to a band</div>
         <div class="wf-tune-input-wrap">
           <label class="wf-tune-label" for="wf-center-input">Center freq</label>
           <input type="number" id="wf-center-input" class="wf-tune-input mono"
                  step="0.1" min="24" max="1700" placeholder="MHz" inputmode="decimal">
           <span class="wf-tune-unit">MHz</span>
         </div>
+        <div class="wf-tune-input-wrap">
+          <label class="wf-tune-label" for="wf-bw-input">Bandwidth</label>
+          <input type="number" id="wf-bw-input" class="wf-tune-input mono"
+                 step="0.2" min="1" max="4.8" placeholder="MHz" inputmode="decimal"
+                 style="width:56px;">
+          <span class="wf-tune-unit">MHz</span>
+        </div>
+        <button type="button" id="wf-apply-btn" class="wf-apply-btn">Apply</button>
+      </div>
+      <div class="wf-jump-row" id="wf-jump-row">
+        <button type="button" class="wf-jump" data-center="124.0" data-bw="4.8">Airband 118–137</button>
+        <button type="button" class="wf-jump" data-center="133.5" data-bw="4.8">AIR 133.5</button>
+        <button type="button" class="wf-jump" data-center="159.0" data-bw="4.8">VHF Marine 156–162</button>
+        <button type="button" class="wf-jump" data-center="157.0" data-bw="4.8">VHF Public 154–160</button>
+        <button type="button" class="wf-jump" data-center="300.0" data-bw="4.8">UHF Mil-air 225–400</button>
+        <button type="button" class="wf-jump" data-center="855.0" data-bw="4.8">800 MHz</button>
       </div>
       <div class="dongle-overlay" id="wf-down-overlay">
         <div class="icon">⚠</div>
@@ -1738,6 +1787,12 @@ function renderWaterfall(data) {
   if (wfTitle) wfTitle.textContent = `${min.toFixed(2)} — ${max.toFixed(2)} MHz · stitched`;
   $("wf-pill-center").textContent = `center ${center.toFixed(3)} MHz`;
   $("wf-pill-bw").textContent = `bw ${bw.toFixed(2)} MHz`;
+  // Reflect the live band into the tuning controls (don't fight the user
+  // mid-edit) and highlight a matching quick-jump chip.
+  WF_CENTER_LOCAL.bw = bw;
+  const bwInput = $("wf-bw-input");
+  if (bwInput && document.activeElement !== bwInput) bwInput.value = bw.toFixed(1);
+  syncWfJumpActive(center, bw);
   let peakIdx = 0, peakVal = -999;
   for (let i = 0; i < data.bins.length; i++) {
     if (data.bins[i] > peakVal) { peakVal = data.bins[i]; peakIdx = i; }
@@ -2065,15 +2120,31 @@ function attachDrag(elId, labelId, fLoFn, fHiFn, onCenterChange, onRelease) {
 // Drag handle + numeric input both POST to /api/waterfall, which writes
 // /run/scannerproject/waterfall/config.json.  scanner-waterfall.service
 // polls that file by mtime and retunes both dongles around `center_mhz`.
-const WF_CENTER_LOCAL = { mhz: 123.7 };
-function postWaterfallCenter(mhz) {
+const WF_CENTER_LOCAL = { mhz: 123.7, bw: 4.8 };
+function postWaterfallCenter(mhz, bw) {
   const m = Number(mhz);
   if (!Number.isFinite(m)) return;
+  const body = { center_mhz: m };
+  const b = Number(bw);
+  if (Number.isFinite(b) && b > 0) { body.bw_mhz = b; WF_CENTER_LOCAL.bw = b; }
+  WF_CENTER_LOCAL.mhz = m;
   fetch("/api/waterfall", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ center_mhz: m }),
+    body: JSON.stringify(body),
   }).catch(()=>{});
+}
+// Highlight the quick-jump chip whose (center,bw) matches the live band.
+function syncWfJumpActive(centerMhz, bwMhz) {
+  const row = $("wf-jump-row");
+  if (!row) return;
+  row.querySelectorAll(".wf-jump").forEach((btn) => {
+    const c = parseFloat(btn.dataset.center);
+    const w = parseFloat(btn.dataset.bw);
+    const match = Number.isFinite(c) && Math.abs(c - centerMhz) < 0.05 &&
+                  (!Number.isFinite(w) || Math.abs(w - bwMhz) < 0.25);
+    btn.classList.toggle("active", match);
+  });
 }
 function setWfCenterFromMhz(mhz) {
   const m = Number(mhz);
@@ -2101,18 +2172,49 @@ function setWfCenterFromMhz(mhz) {
 }
 function wireWfCenterInput() {
   const input = $("wf-center-input");
-  if (!input) return;
+  const bwInput = $("wf-bw-input");
+  // commit(): read center (+ optional bw) from the inputs and POST both.
+  // A blank bw box preserves the current bandwidth (backend treats a
+  // missing bw_mhz as "keep current").
   function commit() {
-    const v = parseFloat(input.value);
+    const v = parseFloat(input && input.value);
     if (!Number.isFinite(v)) return;
+    const b = parseFloat(bwInput && bwInput.value);
+    const bw = Number.isFinite(b) && b > 0 ? b : undefined;
     setWfCenterFromMhz(v);
-    postWaterfallCenter(v);
+    postWaterfallCenter(v, bw);
   }
-  input.addEventListener("change", commit);
-  input.addEventListener("blur", commit);
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") { commit(); input.blur(); }
-  });
+  if (input) {
+    input.addEventListener("change", commit);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { commit(); input.blur(); }
+    });
+  }
+  if (bwInput) {
+    bwInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { commit(); bwInput.blur(); }
+    });
+  }
+  const applyBtn = $("wf-apply-btn");
+  if (applyBtn) applyBtn.addEventListener("click", commit);
+
+  // Quick-jump chips: jump center + bw to a common band in one click.
+  const jumpRow = $("wf-jump-row");
+  if (jumpRow) {
+    jumpRow.addEventListener("click", (e) => {
+      const btn = e.target.closest(".wf-jump");
+      if (!btn) return;
+      const c = parseFloat(btn.dataset.center);
+      const w = parseFloat(btn.dataset.bw);
+      if (!Number.isFinite(c)) return;
+      const bw = Number.isFinite(w) && w > 0 ? w : undefined;
+      if (input) input.value = c.toFixed(3);
+      if (bwInput && bw !== undefined) bwInput.value = String(bw);
+      setWfCenterFromMhz(c);
+      postWaterfallCenter(c, bw);
+      syncWfJumpActive(c, bw === undefined ? WF_CENTER_LOCAL.bw : bw);
+    });
+  }
 }
 
 function postVFO(patch) {

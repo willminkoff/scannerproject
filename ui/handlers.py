@@ -3349,11 +3349,15 @@ def _waterfall_pass_through_payload() -> dict:
     return state
 
 
-def _waterfall_write_config(center_mhz: float) -> tuple[bool, str]:
+def _waterfall_write_config(
+    center_mhz: float, bw_mhz: float | None = None
+) -> tuple[bool, str]:
     """POST /api/waterfall body handler — atomically write config.json.
 
     Returns (ok, message).  Validates the requested center freq against
-    the RTL-SDR tuning range (24 MHz - 1.7 GHz).
+    the RTL-SDR tuning range (24 MHz - 1.7 GHz).  An optional bw_mhz is
+    passed through (the waterfall service clamps it to its supported
+    stitched range); a missing bw_mhz preserves the current bandwidth.
     """
     if not (24.0 <= center_mhz <= 1700.0):
         return False, f"center_mhz {center_mhz} out of range (24-1700)"
@@ -3362,6 +3366,10 @@ def _waterfall_write_config(center_mhz: float) -> tuple[bool, str]:
     except OSError as e:
         return False, f"mkdir failed: {e}"
     payload = {"center_mhz": float(center_mhz)}
+    if bw_mhz is not None:
+        if not (0.1 <= bw_mhz <= 60.0):
+            return False, f"bw_mhz {bw_mhz} out of sane range (0.1-60)"
+        payload["bw_mhz"] = float(bw_mhz)
     tmp = WATERFALL_CONFIG_PATH + ".tmp"
     try:
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
@@ -7369,16 +7377,29 @@ class Handler(BaseHTTPRequestHandler):
                     json.dumps({"ok": False, "error": f"invalid center_mhz: {exc}"}),
                     "application/json; charset=utf-8",
                 )
-            ok, msg = _waterfall_write_config(center_mhz)
+            bw_mhz = None
+            if payload_in.get("bw_mhz") is not None:
+                try:
+                    bw_mhz = float(payload_in.get("bw_mhz"))
+                except (TypeError, ValueError) as exc:
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": f"invalid bw_mhz: {exc}"}),
+                        "application/json; charset=utf-8",
+                    )
+            ok, msg = _waterfall_write_config(center_mhz, bw_mhz)
             if not ok:
                 return self._send(
                     400,
                     json.dumps({"ok": False, "error": msg}),
                     "application/json; charset=utf-8",
                 )
+            resp = {"ok": True, "center_mhz": center_mhz}
+            if bw_mhz is not None:
+                resp["bw_mhz"] = bw_mhz
             return self._send(
                 200,
-                json.dumps({"ok": True, "center_mhz": center_mhz}),
+                json.dumps(resp),
                 "application/json; charset=utf-8",
             )
 
