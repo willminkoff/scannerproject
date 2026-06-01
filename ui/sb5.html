@@ -392,13 +392,13 @@
   .hits-empty { padding: 12px 0; color: var(--text-3); text-align: center; font-size: 11.5px; }
 
   /* digital profile block */
-  .digital-profile {
+  .digital-profile, .analog-profile {
     border-top: 1px solid var(--line);
     padding: 10px 0;
     display: grid; grid-template-columns: 36px 1fr auto; gap: 12px;
     align-items: center;
   }
-  .digital-profile .glyph {
+  .digital-profile .glyph, .analog-profile .glyph {
     width: 36px; height: 36px;
     background: linear-gradient(160deg, var(--sky), var(--sky-dim));
     border-radius: 10px;
@@ -406,22 +406,22 @@
     color: #04101e; font-weight: 700; font-size: 11px;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
   }
-  .digital-profile .pname { font-size: 13.5px; font-weight: 600; color: var(--text); }
-  .digital-profile .psub { font-size: 11px; color: var(--text-3); margin-top: 1px; font-family: ui-monospace, monospace; }
-  .digital-chips {
+  .digital-profile .pname, .analog-profile .pname { font-size: 13.5px; font-weight: 600; color: var(--text); }
+  .digital-profile .psub, .analog-profile .psub { font-size: 11px; color: var(--text-3); margin-top: 1px; font-family: ui-monospace, monospace; }
+  .digital-chips, .analog-chips {
     padding-top: 8px;
     display: flex; flex-wrap: wrap; gap: 5px;
     border-top: 1px dashed var(--line);
     margin-top: 6px;
   }
-  .digital-chips .chip {
+  .digital-chips .chip, .analog-chips .chip {
     padding: 4px 10px;
     background: rgba(138, 155, 181, 0.10);
     color: var(--text-2);
     border-radius: 999px;
     font-size: 11px;
   }
-  .digital-chips .chip.on { background: var(--sky); color: #04101e; font-weight: 600; }
+  .digital-chips .chip.on, .analog-chips .chip.on { background: var(--sky); color: #04101e; font-weight: 600; }
 
   /* ============ Waterfall pane internals ============ */
   .wf-canvas-wrap {
@@ -1044,6 +1044,15 @@
         </div>
         <div class="chev">›</div>
       </div>
+      <div class="analog-profile">
+        <div class="glyph" id="ana-glyph">—</div>
+        <div>
+          <div class="pname" id="ana-pname">Loading…</div>
+          <div class="psub" id="ana-psub">—</div>
+        </div>
+        <button class="profile-build-btn" id="ana-profile-build-btn" type="button">Build / Edit</button>
+      </div>
+      <div class="analog-chips" id="ana-chips"></div>
       <div class="hits-list" id="analog-hits">
         <div class="hits-empty">Loading hits…</div>
       </div>
@@ -1628,30 +1637,54 @@ function renderHits(payload) {
   if (STATE.heartbeat) renderNowListeningFromHeartbeat(STATE.heartbeat);
 }
 
+// Classify a favorite by the kind of channels it carries. A favorite can be
+// mixed (both conventional + trunked customs) — it then appears in both panes.
+function favHasKind(f, kind) {
+  const cf = (f && Array.isArray(f.custom_favorites)) ? f.custom_favorites : [];
+  return cf.some(c => String(c.kind || "").toLowerCase() === kind);
+}
+function favIsAnalog(f)  { return favHasKind(f, "conventional"); }
+function favIsDigital(f) { return favHasKind(f, "trunked"); }
+
+// Paint one pane's favorites widget (prefix "dig" or "ana") from a filtered list.
+function paintProfile(prefix, list, zip, mode) {
+  const active = list.find(f => f.enabled) || list[0] || null;
+  const label = active ? (active.label || active.id || "fav") : "—";
+  const glyph = String(label || "—").replace(/[^A-Za-z0-9]/g, "").slice(0, 3).toUpperCase() || "—";
+
+  const gEl = $(prefix + "-glyph");
+  const nEl = $(prefix + "-pname");
+  const sEl = $(prefix + "-psub");
+  const cEl = $(prefix + "-chips");
+  if (nEl) nEl.textContent = label;
+  if (sEl) sEl.textContent = `${list.length} favorite${list.length === 1 ? "" : "s"}` +
+    (zip ? ` · ZIP ${zip}` : "") +
+    (mode ? ` · ${mode} mode` : "");
+  if (gEl) gEl.textContent = glyph;
+
+  if (cEl) {
+    const top = list.slice(0, 5);
+    cEl.innerHTML = top.map(f => {
+      const cls = f.enabled ? "chip on" : "chip";
+      return `<span class="${cls}">${escapeHtml(f.label || f.id || "fav")}</span>`;
+    }).join("") + (list.length > 5 ? `<span class="chip">+${list.length - 5}</span>` : "");
+  }
+}
+
 function renderProfile(hpState, profiles) {
   STATE.hpState = hpState;
   STATE.profiles = (profiles && profiles.profiles) || [];
 
   const favList = (hpState && hpState.state && Array.isArray(hpState.state.favorites)) ? hpState.state.favorites : [];
-  const enabled = favList.find(f => f.enabled);
-  const active = enabled || favList[0] || null;
   const zip = (hpState && hpState.state && hpState.state.zip) || "";
+  const mode = (hpState && hpState.mode) || "";
 
+  // Digital pane: P25 / trunked favorites. Analog pane: conventional favorites.
+  paintProfile("dig", favList.filter(favIsDigital), zip, mode);
+  paintProfile("ana", favList.filter(favIsAnalog), zip, mode);
+
+  const active = favList.find(f => f.enabled) || favList[0] || null;
   const label = active ? (active.label || active.id || "fav") : "—";
-  const glyph = String(label || "—").replace(/[^A-Za-z0-9]/g, "").slice(0, 3).toUpperCase() || "—";
-
-  $("dig-pname").textContent = label;
-  $("dig-psub").textContent = `${favList.length} favorite${favList.length === 1 ? "" : "s"}` +
-    (zip ? ` · ZIP ${zip}` : "") +
-    (hpState && hpState.mode ? ` · ${hpState.mode} mode` : "");
-  $("dig-glyph").textContent = glyph;
-
-  const top = favList.slice(0, 5);
-  $("dig-chips").innerHTML = top.map(f => {
-    const cls = f.enabled ? "chip on" : "chip";
-    return `<span class="${cls}">${escapeHtml(f.label || f.id || "fav")}</span>`;
-  }).join("") + (favList.length > 5 ? `<span class="chip">+${favList.length - 5}</span>` : "");
-
   $("tb-sub").textContent = `sb5 · ${label}` + (zip ? " · " + zip : "");
 
   try { renderPaneDisclosure(); } catch (_e) {}
@@ -2209,10 +2242,12 @@ function wireHbEvidenceToggle() {
 function wireProfileBuilder() {
   const open = () => openModal("pb-modal");
   const btn = $("profile-build-btn");
+  const anaBtn = $("ana-profile-build-btn");
   const closeBtn = $("pb-modal-close");
   const openSb3 = $("pb-open-sb3");
   const overlay = $("pb-modal");
   if (btn) btn.addEventListener("click", open);
+  if (anaBtn) anaBtn.addEventListener("click", open);
   if (closeBtn) closeBtn.addEventListener("click", () => closeModal("pb-modal"));
   if (openSb3) openSb3.addEventListener("click", () => { window.location.href = "/sb3"; });
   if (overlay) {
