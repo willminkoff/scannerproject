@@ -158,6 +158,7 @@
   .sounding-overlay .label { display: flex; flex-direction: column; align-items: center; gap: 4px; }
   .sounding-overlay .label .sub { font-weight: 500; font-size: var(--type-micro); color: rgba(255, 213, 138, 0.78); text-transform: none; letter-spacing: 0; }
   body.sounding-on .sounding-overlay { display: flex; }
+  body.sounding-on .pane-disco .disco-canvas-wrap { opacity: 0.35; filter: saturate(0.4); }
   body.sounding-on .pane-disco .disco-detections { opacity: 0.45; }
   /* Phase 5c: keep the heartbeat row left-aligned in all states; the primary
      status indicator is now the upper-LEFT state-badge in the topbar. */
@@ -499,14 +500,24 @@
     border-top-right-radius: 12px;
   }
   .spec-canvas-wrap canvas { display: block; width: 100%; height: 100%; }
+  /* VFO pane is smaller — match its mini-waterfall's tighter radius and
+     give the spec a shorter height so the pane stays balanced. */
+  .pane-vfo .spec-canvas-wrap {
+    height: 60px;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+  }
   /* When a spec sits directly above a waterfall wrap, square the top of
      the waterfall so the two read as one block instead of two cards. */
-  .spec-canvas-wrap + .wf-canvas-wrap {
+  .spec-canvas-wrap + .wf-canvas-wrap,
+  .spec-canvas-wrap + .disco-canvas-wrap,
+  .spec-canvas-wrap + .vfo-mini-wf {
     border-top-left-radius: 0;
     border-top-right-radius: 0;
   }
   @media (max-width: 600px) {
     .spec-canvas-wrap { height: 60px; }
+    .pane-vfo .spec-canvas-wrap { height: 50px; }
   }
 
   /* ============ Waterfall pane internals ============ */
@@ -643,6 +654,60 @@
     border-color: rgba(126, 211, 255, 0.55);
     color: var(--sky-2);
   }
+  /* ============ Live IQ tune step buttons (native-tuner-style) ============ */
+  .wf-step-row {
+    margin-top: 6px;
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .wf-step {
+    background: rgba(8, 14, 28, 0.55);
+    border: 1px solid var(--line);
+    color: var(--text-2);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-family: ui-monospace, monospace;
+    font-size: var(--type-meta); font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+  }
+  .wf-step:hover {
+    background: rgba(126, 211, 255, 0.14);
+    border-color: rgba(126, 211, 255, 0.45);
+    color: var(--sky-2);
+  }
+  .wf-step:active { transform: translateY(1px); }
+  .pane-waterfall:focus { outline: none; }
+  .pane-waterfall:focus-visible {
+    outline: 2px solid rgba(126, 211, 255, 0.45);
+    outline-offset: 2px;
+  }
+  /* ============ Live IQ center-freq marker (vertical line + label) ============ */
+  .wf-marker {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 2px;
+    background: var(--sky-2);
+    transform: translateX(-1px);
+    pointer-events: none;
+    z-index: 6;
+    opacity: 0.9;
+  }
+  .wf-marker-label {
+    position: absolute;
+    top: 2px;
+    transform: translateX(-50%);
+    font-family: ui-monospace, monospace;
+    font-size: var(--type-meta);
+    color: var(--sky-2);
+    background: rgba(8, 14, 28, 0.78);
+    border: 1px solid rgba(126, 211, 255, 0.45);
+    border-radius: 4px;
+    padding: 1px 6px;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 7;
+  }
 
   /* ============ draggable freq-window widget ============ */
   .freq-window {
@@ -755,7 +820,45 @@
   .toggle.off { background: rgba(138, 155, 181, 0.22); }
   .toggle.off::after { left: 2px; }
 
+  .vfo-mini-wf {
+    margin-top: 6px;
+    position: relative;
+    height: 90px;
+    background: #04060d;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.04);
+  }
+  .vfo-mini-wf canvas { display: block; width: 100%; height: 100%; }
+  .vfo-mini-wf .axis {
+    position: absolute; left: 8px; right: 8px; bottom: 4px;
+    display: flex; justify-content: space-between;
+    font-family: ui-monospace, monospace;
+    font-size: var(--type-meta);
+    color: rgba(255,255,255,0.55);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.7);
+  }
+  .vfo-mini-wf .center-line {
+    position: absolute; top: 0; bottom: 0; left: 50%;
+    width: 1px; background: rgba(255,255,255,0.32);
+  }
+
   /* ============ Disco pane internals ============ */
+  .disco-canvas-wrap {
+    position: relative;
+    height: 160px;
+    background: #04060d;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.04);
+  }
+  .disco-canvas-wrap canvas { display: block; width: 100%; height: 100%; }
+  .disco-axis {
+    display: flex; justify-content: space-between;
+    margin-top: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: var(--type-meta); color: var(--text-4);
+  }
   .disco-detections {
     margin-top: 10px;
     display: flex; flex-direction: column;
@@ -821,6 +924,7 @@
     .pane-sounding  { grid-area: sounding; }
     .pane { min-height: 0; }
     .wf-canvas-wrap { height: 240px; }
+    .disco-canvas-wrap { height: 180px; }
   }
   @media (min-width: 1600px) {
     .panes {
@@ -1609,6 +1713,18 @@
             <span class="toggle off" id="vfo-bt" data-key="bt_routed"></span>
           </div>
         </div>
+        <div class="spec-canvas-wrap">
+          <canvas id="vfo-spec" class="spec-canvas"></canvas>
+        </div>
+        <div class="vfo-mini-wf">
+          <canvas id="vfo-wf"></canvas>
+          <div class="center-line"></div>
+          <div class="axis">
+            <span id="vfo-low">—</span>
+            <span id="vfo-center">—</span>
+            <span id="vfo-high">—</span>
+          </div>
+        </div>
       </div>
       <div class="dongle-overlay" id="vfo-down-overlay">
         <div class="icon">⚠</div>
@@ -1626,7 +1742,7 @@
   </section>
 
   <!-- ============ WATERFALL pane (2 RTL-SDRs stitched) ============ -->
-  <section class="pane pane-waterfall" id="pane-waterfall">
+  <section class="pane pane-waterfall" id="pane-waterfall" tabindex="0">
     <div class="pane-hd">
       <div class="pane-hd-titles">
         <span class="title">LIVE IQ</span>
@@ -1638,6 +1754,8 @@
     <div class="pane-body">
       <div class="spec-canvas-wrap">
         <canvas id="wf-spec" class="spec-canvas"></canvas>
+        <div class="wf-marker" id="wf-spec-marker" style="left: 50%; display: none;"></div>
+        <div class="wf-marker-label mono" id="wf-spec-marker-label" style="left: 50%; display: none;">—</div>
       </div>
       <div class="wf-canvas-wrap">
         <canvas id="wf-canvas"></canvas>
@@ -1646,6 +1764,7 @@
           <div class="label mono" id="wf-window-label">127.500 MHz</div>
         </div>
         <div class="wf-cursor-chip mono" id="wf-cursor-chip">—</div>
+        <div class="wf-marker" id="wf-canvas-marker" style="left: 50%; display: none;"></div>
       </div>
       <div class="wf-axis mono">
         <span id="wf-axis-min">—</span>
@@ -1683,6 +1802,14 @@
         <button type="button" class="wf-jump" data-center="300.0" data-bw="4.8">UHF Mil-air 225–400</button>
         <button type="button" class="wf-jump" data-center="855.0" data-bw="4.8">800 MHz</button>
       </div>
+      <div class="wf-step-row" id="wf-step-row" aria-label="Tune step buttons">
+        <button type="button" class="wf-step" data-step-mhz="-10">-10 MHz</button>
+        <button type="button" class="wf-step" data-step-mhz="-1">-1 MHz</button>
+        <button type="button" class="wf-step" data-step-mhz="-0.1">-100 kHz</button>
+        <button type="button" class="wf-step" data-step-mhz="0.1">+100 kHz</button>
+        <button type="button" class="wf-step" data-step-mhz="1">+1 MHz</button>
+        <button type="button" class="wf-step" data-step-mhz="10">+10 MHz</button>
+      </div>
       <div class="dongle-overlay" id="wf-down-overlay">
         <div class="icon">⚠</div>
         <div class="label">DONGLE LOST <span id="wf-down-since">4m ago</span></div>
@@ -1709,6 +1836,21 @@
       <span class="sub" id="disco-sub">2 × RTL-SDR · unified sweep</span>
     </div>
     <div class="pane-body">
+      <div class="spec-canvas-wrap">
+        <canvas id="disco-spec" class="spec-canvas"></canvas>
+      </div>
+      <div class="disco-canvas-wrap">
+        <canvas id="disco-canvas"></canvas>
+        <div class="freq-window" id="disco-window" style="left: 18%;">
+          <div class="center-mark"></div>
+          <div class="label mono" id="disco-window-label">— MHz</div>
+        </div>
+      </div>
+      <div class="disco-axis mono">
+        <span id="disco-axis-min">—</span>
+        <span id="disco-axis-mid">—</span>
+        <span id="disco-axis-max">—</span>
+      </div>
       <div class="wf-tune-row">
         <div class="wf-tune-caption">Sweep 24 MHz – 1.7 GHz · set low/high or jump to a band</div>
         <div class="wf-tune-input-wrap">
@@ -2653,6 +2795,7 @@ function renderWaterfall(data) {
   center = Number(data.center_mhz);
   if (!Number.isFinite(center)) center = gmid;
   WF_VIEW.min = min; WF_VIEW.max = max;
+  updateWfMarker(center);
   $("wf-axis-min").textContent = min.toFixed(2);
   $("wf-axis-mid").textContent = gmid.toFixed(2);
   $("wf-axis-max").textContent = max.toFixed(2);
@@ -2798,6 +2941,19 @@ function renderVFO(data) {
     const t = $("vfo-bt");
     if (t && !t.dataset.userEdited) t.classList.toggle("off", !data.bt_routed);
   }
+  // Axis labels — prefer backend-provided window, fall back to +/-1.2.
+  const f = (typeof data.freq_mhz === "number") ? data.freq_mhz : VFO_LOCAL.freq_mhz;
+  const lo = (typeof data.freq_min_mhz === "number") ? data.freq_min_mhz : (f - 1.2);
+  const hi = (typeof data.freq_max_mhz === "number") ? data.freq_max_mhz : (f + 1.2);
+  if (Array.isArray(data.bins) && data.bins.length && !wsBinsFresh(WS_PANE_VFO)) {
+    const intensity = normalizeBins(data.bins, -95, -25);
+    pushWaterfallRow("vfo-wf", intensity);
+    specSubmitFrame($("vfo-spec"), data.bins, lo, hi, "vfo-spec");
+  }
+  $("vfo-low").textContent = lo.toFixed(2);
+  $("vfo-center").textContent = f.toFixed(3);
+  $("vfo-high").textContent = hi.toFixed(2);
+
   // Live tag.
   const liveTag = $("vfo-live-tag");
   const dongle = (data.dongle && typeof data.dongle === "object") ? data.dongle : {};
@@ -2835,10 +2991,6 @@ function renderVFO(data) {
   }
 }
 
-// Last range the backend reported for Disco. Used to seed range inputs
-// and the freq-from-center helpers now that the disco canvas/axis are
-// gone — the renderer is the single source of truth.
-const DISCO_LAST_RANGE = { start: null, end: null };
 function renderDisco(data) {
   // Phase 6c: live coord_state.json from disco-coordinator.service.
   if (!data) return;
@@ -2855,12 +3007,14 @@ function renderDisco(data) {
   const end   = (data.range && Number(data.range.end_mhz));
   const haveRange = Number.isFinite(start) && Number.isFinite(end) && end > start;
   if (haveRange) {
-    DISCO_LAST_RANGE.start = start;
-    DISCO_LAST_RANGE.end = end;
+    $("disco-axis-min").textContent = start.toFixed(0);
+    $("disco-axis-mid").textContent = ((start + end) / 2).toFixed(0);
+    $("disco-axis-max").textContent = end.toFixed(0);
     // Phase 5c: disco-title is now the small subtitle below the "DISCOVERY"
     // heading, so it just shows the range.
     const title = $("disco-title");
     if (title) title.textContent = `${start.toFixed(0)} — ${end.toFixed(0)} MHz`;
+    updateFreqWindowLabel("disco-window", "disco-window-label", start, end);
   }
   // Live tag.
   const tag = $("disco-live-tag");
@@ -2906,6 +3060,14 @@ function renderDisco(data) {
     let ages = dongles.map(d => Number(d && d.last_frame_age_ms))
                       .filter(n => Number.isFinite(n) && n >= 0);
     frameEl.textContent = ages.length ? `${Math.min.apply(null, ages)} ms ago` : "—";
+  }
+  // Composite spectrum.
+  if (Array.isArray(data.bins) && data.bins.length && !wsBinsFresh(WS_PANE_DISCO)) {
+    const intensity = normalizeBins(data.bins, -95, -25);
+    pushWaterfallRow("disco-canvas", intensity);
+    if (haveRange) {
+      specSubmitFrame($("disco-spec"), data.bins, start, end, "disco-spec");
+    }
   }
   // Detections — surface both classified and pending rows from
   // /api/disco. Pending rows are sweep peaks the classifier hasn't
@@ -3063,6 +3225,7 @@ function setWfCenterFromMhz(mhz) {
   WF_CENTER_LOCAL.mhz = m;
   const lab = $("wf-window-label");
   if (lab) lab.textContent = m.toFixed(3) + " MHz";
+  updateWfMarker(m);
 }
 
 // ----- Live IQ drag-to-pan (SDR#/GQRX-style) -----
@@ -3079,6 +3242,66 @@ function wfSnap(mhz) { return Math.round(mhz / WF_SNAP_MHZ) * WF_SNAP_MHZ; }
 // Last rendered displayed span — maps a cursor pixel-column to a frequency
 // for the drag readout chip; kept in sync by updateWaterfall().
 const WF_VIEW = { min: 121.3, max: 126.1 };
+
+// ----- Live IQ tune-step constants (native-tuner-style) -----
+// Named so the step buttons + keyboard shortcuts share one source of truth;
+// soft-clamp to the RTL-SDR R820T2 range like the drag-to-pan handler.
+const STEP_100K = 0.1;
+const STEP_1M = 1.0;
+const STEP_10M = 10.0;
+const CLICK_DRAG_THRESHOLD_PX = 5;
+// SNAP_KHZ = 50 — owned by WF_SNAP_MHZ (defined above) and applied via wfSnap().
+const FREQ_MIN_MHZ = WF_TUNE_MIN_MHZ;
+const FREQ_MAX_MHZ = WF_TUNE_MAX_MHZ;
+
+// ----- Center-freq marker (vertical line on both wf-spec + wf-canvas) -----
+// Maps the current center freq to a pixel-column inside the displayed span
+// (WF_VIEW), then positions twin overlay divs (one over the spec canvas,
+// one over the heatmap canvas).  Hidden when center falls outside the
+// visible span; label is the same color as the line via --sky-2.
+function updateWfMarker(centerMhz) {
+  const c = Number(centerMhz);
+  const lo = Number(WF_VIEW.min);
+  const hi = Number(WF_VIEW.max);
+  const line1 = document.getElementById("wf-spec-marker");
+  const line2 = document.getElementById("wf-canvas-marker");
+  const lab = document.getElementById("wf-spec-marker-label");
+  if (!Number.isFinite(c) || !Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo) {
+    if (line1) line1.style.display = "none";
+    if (line2) line2.style.display = "none";
+    if (lab)   lab.style.display = "none";
+    return;
+  }
+  const frac = (c - lo) / (hi - lo);
+  if (frac < 0 || frac > 1) {
+    if (line1) line1.style.display = "none";
+    if (line2) line2.style.display = "none";
+    if (lab)   lab.style.display = "none";
+    return;
+  }
+  const pct = (frac * 100).toFixed(3) + "%";
+  if (line1) { line1.style.left = pct; line1.style.display = "block"; }
+  if (line2) { line2.style.left = pct; line2.style.display = "block"; }
+  if (lab)   { lab.style.left = pct; lab.style.display = "block"; lab.textContent = c.toFixed(3) + " MHz"; }
+}
+
+// Apply an additive MHz step to the current center freq, soft-clamped to
+// the RTL-SDR R820T2 range and snapped to the same 50 kHz grid the
+// drag-to-pan handler uses.  Updates local state, the marker, the input
+// field, and POSTs to /api/waterfall.
+function applyWfStep(deltaMhz) {
+  const cur = Number(WF_CENTER_LOCAL.mhz);
+  if (!Number.isFinite(cur)) return;
+  let next = wfSnap(cur + Number(deltaMhz));
+  if (!Number.isFinite(next)) return;
+  if (next < FREQ_MIN_MHZ) next = FREQ_MIN_MHZ;
+  if (next > FREQ_MAX_MHZ) next = FREQ_MAX_MHZ;
+  setWfCenterFromMhz(next);
+  updateWfMarker(next);
+  const input = document.getElementById("wf-center-input");
+  if (input && document.activeElement !== input) input.value = next.toFixed(3);
+  postWaterfallCenter(next);
+}
 
 // Axis tick slide: when the displayed midpoint shifts, nudge the freq labels
 // in the pan direction and ease them back over ~200ms so a retune reads as
@@ -3159,24 +3382,55 @@ function wireWfPan() {
       postWaterfallCenter(WF_CENTER_LOCAL.mhz);   // bw omitted -> backend keeps current bw
     }, 100);
   }
+  // Track total mouse displacement so onUp can distinguish a click from a
+  // drag (< CLICK_DRAG_THRESHOLD_PX -> click-to-tune; >= threshold -> pan).
+  // While under threshold we suppress center mutations and POSTs so a stray
+  // 1-2px wobble doesn't kick off a retune.
+  let totalMoved = 0;
+  let lastClientX = 0;
+  let dragArmed = false;
   function onMove(e) {
     if (!WF_DRAGGING) return;
-    const pw = wrap.clientWidth || 1;
     const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+    totalMoved += Math.abs(clientX - lastClientX);
+    lastClientX = clientX;
+    if (!dragArmed && totalMoved < CLICK_DRAG_THRESHOLD_PX) {
+      // still inside the click dead-zone — do nothing
+      if (e.cancelable) e.preventDefault();
+      return;
+    }
+    if (!dragArmed) {
+      dragArmed = true;
+      wrap.classList.add("dragging");
+      if (chip) { chip.classList.add("show"); updateChip(clientX); }
+    }
+    const pw = wrap.clientWidth || 1;
     const dx = clientX - startX;
     const { bw } = liveBand();
     // drag right (dx>0) -> lower freq, like panning a map
     let c = wfSnap(startCenter - (dx / pw) * bw);
-    if (c < WF_TUNE_MIN_MHZ) { c = WF_TUNE_MIN_MHZ; wfEdgeHint("lo"); }
-    else if (c > WF_TUNE_MAX_MHZ) { c = WF_TUNE_MAX_MHZ; wfEdgeHint("hi"); }
+    if (c < FREQ_MIN_MHZ) { c = FREQ_MIN_MHZ; wfEdgeHint("lo"); }
+    else if (c > FREQ_MAX_MHZ) { c = FREQ_MAX_MHZ; wfEdgeHint("hi"); }
     WF_CENTER_LOCAL.mhz = c;
     const input = $("wf-center-input");
     if (input && document.activeElement !== input) input.value = c.toFixed(3);
     const lab = $("wf-window-label");
     if (lab) lab.textContent = c.toFixed(3) + " MHz";
+    updateWfMarker(c);
     updateChip(clientX);
     schedulePost();
     if (e.cancelable) e.preventDefault();
+  }
+  // Map a cursor pixel-column to the freq the column represents in the
+  // currently-displayed span (WF_VIEW); snapped to the 50 kHz grid the
+  // drag-to-pan uses so click-tune lands on the same lattice.
+  function freqAtClientX(clientX) {
+    const rect = wrap.getBoundingClientRect();
+    const w = rect.width || 1;
+    const x = Math.max(0, Math.min(w, clientX - rect.left));
+    const frac = x / w;
+    const f = WF_VIEW.min + frac * (WF_VIEW.max - WF_VIEW.min);
+    return wfSnap(f);
   }
   function onUp() {
     if (!WF_DRAGGING) return;
@@ -3188,14 +3442,27 @@ function wireWfPan() {
     document.removeEventListener("touchmove", onMove);
     document.removeEventListener("touchend", onUp);
     if (postTimer) { clearTimeout(postTimer); postTimer = null; }
-    postWaterfallCenter(WF_CENTER_LOCAL.mhz);   // ensure the final position lands
+    if (!dragArmed && totalMoved < CLICK_DRAG_THRESHOLD_PX) {
+      // Click-to-tune: pixel column under the cursor becomes the new center.
+      let c = freqAtClientX(lastClientX || startX);
+      if (!Number.isFinite(c)) return;
+      if (c < FREQ_MIN_MHZ) c = FREQ_MIN_MHZ;
+      if (c > FREQ_MAX_MHZ) c = FREQ_MAX_MHZ;
+      setWfCenterFromMhz(c);
+      const input = $("wf-center-input");
+      if (input && document.activeElement !== input) input.value = c.toFixed(3);
+      postWaterfallCenter(c);
+      return;
+    }
+    postWaterfallCenter(WF_CENTER_LOCAL.mhz);   // ensure the final drag position lands
   }
   function onDown(e) {
     WF_DRAGGING = true;
+    totalMoved = 0;
+    dragArmed = false;
     startX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+    lastClientX = startX;
     startCenter = liveBand().c;
-    if (chip) { chip.classList.add("show"); updateChip(startX); }
-    wrap.classList.add("dragging");
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
     document.addEventListener("touchmove", onMove, { passive: false });
@@ -3204,6 +3471,40 @@ function wireWfPan() {
   }
   wrap.addEventListener("mousedown", onDown);
   wrap.addEventListener("touchstart", onDown, { passive: false });
+}
+function wireWfStepButtons() {
+  // The native-tuner-style step strip: each button POSTs an additive
+  // offset (in MHz) via applyWfStep, which clamps + snaps + sends.
+  const row = $("wf-step-row");
+  if (!row) return;
+  row.addEventListener("click", (e) => {
+    const btn = e.target.closest(".wf-step");
+    if (!btn) return;
+    const d = parseFloat(btn.dataset.stepMhz);
+    if (!Number.isFinite(d)) return;
+    applyWfStep(d);
+  });
+}
+function wireWfKeyboard() {
+  // Arrow-key tuning when the Live IQ pane has keyboard focus.
+  //   ArrowLeft / ArrowRight = -/+ 100 kHz
+  //   Shift+arrow            = -/+ 1 MHz
+  //   Ctrl/Cmd+arrow         = -/+ 10 MHz
+  // Inputs inside the pane are excluded so number-fields keep their
+  // native cursor behaviour.
+  const pane = $("pane-waterfall");
+  if (!pane) return;
+  pane.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    const t = e.target;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+    const sign = e.key === "ArrowRight" ? 1 : -1;
+    let step = STEP_100K;
+    if (e.ctrlKey || e.metaKey) step = STEP_10M;
+    else if (e.shiftKey) step = STEP_1M;
+    e.preventDefault();
+    applyWfStep(sign * step);
+  });
 }
 function wireWfCenterInput() {
   const input = $("wf-center-input");
@@ -3295,18 +3596,17 @@ function wireDiscoRangeControls() {
   seedDiscoInputsFromState();
 }
 function seedDiscoInputsFromState() {
-  // Best-effort: pollDisco fires every POLL_DISCO_MS and stashes the
-  // current range in DISCO_LAST_RANGE.  Read that once at boot; if the
-  // poll hasn't landed yet, retry briefly so the inputs aren't stuck at
-  // the placeholder.
+  // Best-effort: pollDisco fires every POLL_DISCO_MS and updates
+  // disco-axis-{min,max}. Read those once at boot; if the poll hasn't
+  // landed yet, retry briefly so the inputs aren't stuck at placeholder.
   const lo = $("disco-low-input");
   const hi = $("disco-high-input");
   if (!lo || !hi) return;
   let tries = 0;
   function attempt() {
     tries += 1;
-    const s = DISCO_LAST_RANGE.start;
-    const e = DISCO_LAST_RANGE.end;
+    const s = parseFloat(($("disco-axis-min").textContent || ""));
+    const e = parseFloat(($("disco-axis-max").textContent || ""));
     if (Number.isFinite(s) && Number.isFinite(e) && e > s) {
       if (!lo.value) lo.value = String(Math.round(s));
       if (!hi.value) hi.value = String(Math.round(e));
@@ -3868,6 +4168,18 @@ function _wsDispatch(paneId, centerMhz, spanMhz, bins) {
     const intensity = autoStretchIntensity(bins, "wf-canvas");
     pushWaterfallRow("wf-canvas", intensity, wfColormap);
     specSubmitFrame($("wf-spec"), bins, min, max, "wf-canvas");
+  } else if (paneId === WS_PANE_VFO) {
+    const lo = centerMhz - spanMhz / 2;
+    const hi = centerMhz + spanMhz / 2;
+    const intensity = normalizeBins(bins, -95, -25);
+    pushWaterfallRow("vfo-wf", intensity);
+    specSubmitFrame($("vfo-spec"), bins, lo, hi, "vfo-spec");
+  } else if (paneId === WS_PANE_DISCO) {
+    const start = centerMhz - spanMhz / 2;
+    const end = centerMhz + spanMhz / 2;
+    const intensity = normalizeBins(bins, -95, -25);
+    pushWaterfallRow("disco-canvas", intensity);
+    specSubmitFrame($("disco-spec"), bins, start, end, "disco-spec");
   }
 }
 
@@ -3986,6 +4298,18 @@ function postDiscoRange(startMhz, endMhz) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ start_mhz: s, end_mhz: e }),
   }).catch(()=>{});
+}
+function postDiscoRangeFromCenter(centerMhz) {
+  // Preserve the current bandwidth, shift the range to be centered
+  // on centerMhz.  Clamp into [24, 1700].
+  const lo = parseFloat(($("disco-axis-min").textContent || "117")) || 117;
+  const hi = parseFloat(($("disco-axis-max").textContent || "470")) || 470;
+  const bw = Math.max(1, hi - lo);
+  let s = centerMhz - bw/2, e = centerMhz + bw/2;
+  if (s < 24) { s = 24; e = s + bw; }
+  if (e > 1700) { e = 1700; s = e - bw; }
+  if (s < 24) s = 24;
+  postDiscoRange(s, e);
 }
 async function pollDisco() {
   try {
@@ -4163,10 +4487,19 @@ function wireSounding() {
 function boot() {
   // Live IQ: drag the waterfall body to pan center freq (SDR#/GQRX-style).
   wireWfPan();
+  // Phase 6c — drag the disco window to recenter the WHOLE range
+  // (preserves bandwidth).  POSTs on release.
+  attachDrag("disco-window", "disco-window-label",
+    () => parseFloat(($("disco-axis-min").textContent || "117")) || 117,
+    () => parseFloat(($("disco-axis-max").textContent || "470")) || 470,
+    null,
+    (centerMhz) => { postDiscoRangeFromCenter(centerMhz); });
 
   wireVFOControls();
   wireAudioBar();
   wireWfCenterInput();
+  wireWfStepButtons();
+  wireWfKeyboard();
   wireDiscoRangeControls();
   wireSitrep();
   wireHbEvidenceToggle();
