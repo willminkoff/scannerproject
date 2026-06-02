@@ -1301,6 +1301,67 @@
     color: var(--amber);
   }
 
+  /* ============ Auto-apply countdown status (Phase 7h) ============
+     One status block per AIR/GROUND card.  When the operator commits a
+     squelch/gain slider or toggles Auto / Default, a shared 6-second
+     countdown begins (mirrored on both cards).  At zero the UI POSTs
+     /api/sitrep/action {action:'reset_radios'} so rtl-airband picks up
+     the change.  Cancel kills the pending apply without affecting the
+     persisted slider value. */
+  .band-ctl-apply {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: var(--space-sm);
+    padding: 6px 10px;
+    border: 1px solid rgba(90, 184, 255, 0.30);
+    background: rgba(90, 184, 255, 0.08);
+    border-radius: 6px;
+    font-size: var(--type-meta);
+    color: var(--sky-2);
+  }
+  .band-ctl-apply[hidden] { display: none; }
+  .band-ctl-apply .apply-msg {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .band-ctl-apply .apply-cancel {
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--line-2);
+    color: var(--text-2);
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: var(--type-micro);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+  }
+  .band-ctl-apply .apply-cancel:hover {
+    background: rgba(138, 155, 181, 0.16);
+    color: var(--text);
+  }
+  .band-ctl-apply.applying {
+    border-color: rgba(255, 159, 10, 0.40);
+    background: rgba(255, 159, 10, 0.10);
+    color: var(--amber);
+  }
+  .band-ctl-apply.applied {
+    border-color: rgba(52, 199, 89, 0.40);
+    background: rgba(52, 199, 89, 0.10);
+    color: var(--green);
+  }
+  .band-ctl-apply.error {
+    border-color: rgba(255, 69, 58, 0.40);
+    background: rgba(255, 69, 58, 0.10);
+    color: var(--red);
+  }
+
   /* ============ DESKTOP — 8-pane grid layout (Phase 7f) ============
      The former ANALOG card is now split into AIR and GROUND, giving the
      top row four equal-width cards: AIR · GROUND · DIGITAL · VFO. Row 3
@@ -2268,6 +2329,13 @@
           <span class="ctl-val" data-role="gain-val">—</span>
           <span class="band-ctl-hint" data-role="ctl-hint"></span>
         </div>
+        <!-- Auto-apply countdown: shared between AIR + GROUND.  Shown
+             while a 6s timer is counting down before /api/sitrep/action
+             reset_radios fires.  Cancel kills the pending apply. -->
+        <div class="band-ctl-apply" data-role="auto-apply" data-band="air" hidden>
+          <span class="apply-msg" data-role="apply-msg"></span>
+          <button type="button" class="apply-cancel" data-role="apply-cancel">Cancel</button>
+        </div>
       </div>
       <div class="pane-disclosure" id="analog-disclosure">
         <div class="summary-row">
@@ -2345,6 +2413,12 @@
           </div>
           <span class="ctl-val" data-role="gain-val">—</span>
           <span class="band-ctl-hint" data-role="ctl-hint"></span>
+        </div>
+        <!-- Auto-apply countdown: shared between AIR + GROUND.  See AIR
+             card above for the contract. -->
+        <div class="band-ctl-apply" data-role="auto-apply" data-band="ground" hidden>
+          <span class="apply-msg" data-role="apply-msg"></span>
+          <button type="button" class="apply-cancel" data-role="apply-cancel">Cancel</button>
         </div>
       </div>
     </div>
@@ -6263,6 +6337,105 @@ function _bandCommit(band, kind) {
   }, 120);
 }
 
+// ============ Auto-apply countdown (Phase 7h) ============
+// Shared 6-second debounced restart trigger for AIR + GROUND.  After
+// the user commits any squelch/gain slider or hits Auto/Default the
+// countdown begins; further commits during the window reset it back
+// to AUTO_APPLY_DELAY_SEC.  At zero, POST /api/sitrep/action with
+// action=reset_radios — the existing endpoint already restarts
+// rtl-airband-airband / rtl-airband-ground / scanner-digital-op25 /
+// scanner-vfo.  Cancel kills the pending apply; the slider value is
+// already persisted to the runtime conf and stays put.
+const AUTO_APPLY_DELAY_SEC = 6;
+const _autoApply = {
+  intervalId: null,
+  remaining: 0,
+  applying: false,
+};
+
+function _autoApplyBlocks() {
+  return Array.from(document.querySelectorAll('.band-ctl-apply[data-role="auto-apply"]'));
+}
+
+function _autoApplyRender(text, variant) {
+  // variant: "" | "applying" | "applied" | "error"
+  _autoApplyBlocks().forEach(block => {
+    block.hidden = false;
+    block.classList.remove("applying", "applied", "error");
+    if (variant) block.classList.add(variant);
+    const msg = block.querySelector('[data-role="apply-msg"]');
+    if (msg) msg.textContent = text;
+    const cancel = block.querySelector('[data-role="apply-cancel"]');
+    if (cancel) cancel.hidden = (variant === "applying" || variant === "applied");
+  });
+}
+
+function _autoApplyHide() {
+  _autoApplyBlocks().forEach(block => {
+    block.hidden = true;
+    block.classList.remove("applying", "applied", "error");
+    const cancel = block.querySelector('[data-role="apply-cancel"]');
+    if (cancel) cancel.hidden = false;
+  });
+}
+
+function _autoApplyStopTimer() {
+  if (_autoApply.intervalId !== null) {
+    clearInterval(_autoApply.intervalId);
+    _autoApply.intervalId = null;
+  }
+  _autoApply.remaining = 0;
+}
+
+function _autoApplyCancel() {
+  _autoApplyStopTimer();
+  _autoApply.applying = false;
+  _autoApplyHide();
+}
+
+function _autoApplyFire() {
+  _autoApplyStopTimer();
+  _autoApply.applying = true;
+  _autoApplyRender("Applying…", "applying");
+  fetch("/api/sitrep/action", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify({ action: "reset_radios" }),
+  }).then(r => r.json().then(j => ({ ok: r.ok, json: j })).catch(() => ({ ok: r.ok, json: {} })))
+    .then(res => {
+      _autoApply.applying = false;
+      if (res.ok && res.json && res.json.ok !== false) {
+        _autoApplyRender("Applied ✓", "applied");
+        setTimeout(() => { if (!_autoApply.intervalId && !_autoApply.applying) _autoApplyHide(); }, 2500);
+      } else {
+        const err = (res.json && res.json.error) ? String(res.json.error) : "restart failed";
+        _autoApplyRender("Apply failed: " + err, "error");
+        setTimeout(() => { if (!_autoApply.intervalId && !_autoApply.applying) _autoApplyHide(); }, 5000);
+      }
+    })
+    .catch(e => {
+      _autoApply.applying = false;
+      _autoApplyRender("Apply failed: " + String(e && e.message || e), "error");
+      setTimeout(() => { if (!_autoApply.intervalId && !_autoApply.applying) _autoApplyHide(); }, 5000);
+    });
+}
+
+function _scheduleAutoApply() {
+  _autoApplyStopTimer();
+  _autoApply.applying = false;
+  _autoApply.remaining = AUTO_APPLY_DELAY_SEC;
+  _autoApplyRender(`Applying in ${_autoApply.remaining}s · Cancel`, "");
+  _autoApply.intervalId = setInterval(() => {
+    _autoApply.remaining -= 1;
+    if (_autoApply.remaining <= 0) {
+      _autoApplyFire();
+    } else {
+      _autoApplyRender(`Applying in ${_autoApply.remaining}s · Cancel`, "");
+    }
+  }, 1000);
+}
+
 function wireBandControls() {
   ["air", "ground"].forEach(band => {
     const card = _bandCard(band); if (!card) return;
@@ -6279,6 +6452,7 @@ function wireBandControls() {
       sql.addEventListener("change", () => {
         st.squelch_dbfs = Number(sql.value);
         _bandCommit(band, "sql");
+        _scheduleAutoApply();
       });
     }
     if (gain) {
@@ -6289,6 +6463,7 @@ function wireBandControls() {
       gain.addEventListener("change", () => {
         st.gain = Number(gain.value);
         _bandCommit(band, "gain");
+        _scheduleAutoApply();
       });
     }
     if (autoBtn) {
@@ -6296,6 +6471,7 @@ function wireBandControls() {
         st.auto = !st.auto;
         renderBandControls(band);
         _bandCommit(band, "sql");
+        _scheduleAutoApply();
       });
     }
     if (defBtn) {
@@ -6303,7 +6479,12 @@ function wireBandControls() {
         st.gain = BAND_DEFAULTS[band].gain;
         renderBandControls(band);
         _bandCommit(band, "gain");
+        _scheduleAutoApply();
       });
+    }
+    const cancelBtn = card.querySelector('[data-role="apply-cancel"]');
+    if (cancelBtn) {
+      cancelBtn.addEventListener("click", _autoApplyCancel);
     }
     renderBandControls(band);
   });
