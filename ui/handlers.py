@@ -165,7 +165,7 @@ try:
     from .sample_flow import rtl_airband_sample_flow_state, mount_publishing
     from .profile_config import (
         read_active_config_path, parse_controls, split_profiles,
-        resolve_controls_path,
+        resolve_controls_path, write_controls,
         guess_current_profile, summarize_avoids, parse_filter,
         load_profiles_registry, find_profile, validate_profile_id, safe_profile_path,
         enforce_profile_index, set_profile, save_profiles_registry, write_airband_flag,
@@ -286,7 +286,7 @@ except ImportError:
     from ui.sample_flow import rtl_airband_sample_flow_state, mount_publishing
     from ui.profile_config import (
         read_active_config_path, parse_controls, split_profiles,
-        resolve_controls_path,
+        resolve_controls_path, write_controls,
         guess_current_profile, summarize_avoids, parse_filter,
         load_profiles_registry, find_profile, validate_profile_id, safe_profile_path,
         enforce_profile_index, set_profile, save_profiles_registry, write_airband_flag,
@@ -7404,6 +7404,110 @@ class Handler(BaseHTTPRequestHandler):
                     except Exception:
                         logger.exception("Failed to restart VLC digital after profile change")
             return self._send(result["status"], json.dumps(payload), "application/json; charset=utf-8")
+
+        # ============ /api/airband/{squelch,gain} — Phase 7f ============
+        # Lightweight per-band knobs powering the new AIR + GROUND cards
+        # on sb5. Each slider commit POSTs one of:
+        #   POST /api/airband/squelch  {band:'air'|'ground', threshold_dbfs, auto}
+        #   POST /api/airband/gain     {band:'air'|'ground', gain_db}
+        # We persist the new value via write_controls + the managed
+        # controls override store, but DO NOT auto-restart rtl-airband
+        # (TimeoutStopSec=5; risky to bounce on every slider drag, and
+        # the SDRplay daemon can wedge on SIGKILL). The change applies
+        # on the next manual restart via Sitrep → Reset Radios; we
+        # signal that with `pending_restart: true` in the response so
+        # the UI can render a "pending" hint. The existing /api/apply
+        # path remains the way to commit-and-restart in one shot.
+        if p in ("/api/airband/squelch", "/api/airband/gain"):
+            band_raw = str(form.get("band", "")).strip().lower()
+            band_map = {"air": "airband", "airband": "airband", "ground": "ground", "gnd": "ground"}
+            target = band_map.get(band_raw)
+            if not target:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "unknown band (expected 'air' or 'ground')"}),
+                    "application/json; charset=utf-8",
+                )
+            try:
+                conf_path = resolve_controls_path(target)
+                cur_gain, cur_snr, cur_dbfs, cur_mode = parse_controls(conf_path)
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": f"controls read failed: {e}"}),
+                    "application/json; charset=utf-8",
+                )
+
+            new_gain = float(cur_gain)
+            new_snr = float(cur_snr)
+            new_dbfs = float(cur_dbfs)
+            new_mode = str(cur_mode or "dbfs").lower()
+
+            try:
+                if p == "/api/airband/squelch":
+                    # Auto mode flips to rtl-airband's SNR floor detector.
+                    if "auto" in form:
+                        auto_flag = _parse_bool_value(form.get("auto"), field="auto")
+                        new_mode = "snr" if auto_flag else "dbfs"
+                    if "threshold_dbfs" in form:
+                        new_dbfs = float(form.get("threshold_dbfs"))
+                        # Clamp to UI range so a typo can't push a wild value.
+                        if new_dbfs < -80.0: new_dbfs = -80.0
+                        if new_dbfs > 0.0:   new_dbfs = 0.0
+                else:  # /api/airband/gain
+                    if "gain_db" in form:
+                        new_gain = float(form.get("gain_db"))
+                        if new_gain < 0.0:  new_gain = 0.0
+                        if new_gain > 60.0: new_gain = 60.0
+            except (TypeError, ValueError):
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "bad value"}),
+                    "application/json; charset=utf-8",
+                )
+
+            try:
+                changed = write_controls(conf_path, new_gain, new_mode, new_snr, new_dbfs)
+                # Persist as a managed-controls override so the value
+                # survives across favorites-runtime regenerations.
+                try:
+                    try:
+                        from .managed_analog_controls import persist_managed_controls_override
+                    except ImportError:
+                        from ui.managed_analog_controls import persist_managed_controls_override
+                    persist_managed_controls_override(
+                        target,
+                        conf_path,
+                        gain=new_gain,
+                        squelch_mode=new_mode,
+                        squelch_snr=new_snr,
+                        squelch_dbfs=new_dbfs,
+                    )
+                except Exception:
+                    logger.debug("managed override persist skipped", exc_info=True)
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": f"write_controls failed: {e}"}),
+                    "application/json; charset=utf-8",
+                )
+
+            return self._send(
+                200,
+                json.dumps({
+                    "ok": True,
+                    "band": "air" if target == "airband" else "ground",
+                    "target": target,
+                    "gain_db": float(new_gain),
+                    "threshold_dbfs": float(new_dbfs),
+                    "auto": new_mode == "snr",
+                    "changed": bool(changed),
+                    # Hot reload of rtl-airband is intentionally NOT done
+                    # here. The operator restarts manually via Sitrep.
+                    "pending_restart": bool(changed),
+                }),
+                "application/json; charset=utf-8",
+            )
 
         if p == "/api/apply":
             target = form.get("target", "airband")

@@ -1043,25 +1043,129 @@
   .disco-detect-row .conf.hi { color: #c8f3d3; }
   .disco-detect-row .conf.lo { color: #ffd58a; }
 
-  /* ============ DESKTOP — 7-pane grid layout (Phase 7e) ============
-     Row 3 now SHARES space between Sounding (left ~2/3) and the new
-     Player card (right ~1/3). On <1100px viewports the panes drop to
-     a single stacked column (default block flow), so the Player card
-     naturally lands below Sounding on mobile. */
+  /* ============ AIR / GROUND band-tinted accents (Phase 7f) ============
+     The split ANALOG card needs a one-glance distinction between AIR
+     and GROUND. We tint the eyebrow + live-tag using existing palette
+     tokens (--sky for AIR, --amber for GROUND) — no new hardcoded colors. */
+  .pane-air .pane-hd .eyebrow    { color: var(--sky-2); }
+  .pane-ground .pane-hd .eyebrow { color: var(--amber); }
+  .pane-ground .live-tag {
+    background: rgba(255, 159, 10, 0.14);
+    border-color: rgba(255, 159, 10, 0.36);
+    color: #ffd58a;
+  }
+
+  /* ============ Per-card squelch + gain controls (Phase 7f) ============
+     One-glance "easier to tune than SB3" replacement for the old grouped
+     controls. Each card carries one squelch slider and one gain slider
+     plus an Auto / Default reset button. Numeric readout updates live as
+     the user drags; commit happens on `change` (slider release) with a
+     small debounce in JS. The squelch slider is disabled when AUTO is
+     engaged (mode='snr'). All sizes/colors use CSS vars. */
+  .band-controls {
+    border-top: 1px solid var(--line);
+    margin-top: var(--space-sm);
+    padding-top: var(--space-md);
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-sm);
+  }
+  .band-ctl {
+    display: grid;
+    grid-template-columns: 64px 1fr auto;
+    gap: 10px;
+    align-items: center;
+  }
+  .band-ctl .ctl-lbl {
+    font-size: var(--type-micro);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-3);
+    font-weight: 600;
+  }
+  .band-ctl .ctl-val {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: var(--type-meta);
+    color: var(--text);
+    min-width: 64px;
+    text-align: right;
+  }
+  .band-ctl .ctl-val.auto {
+    color: var(--sky-2);
+    font-style: italic;
+  }
+  .band-ctl input[type="range"] {
+    width: 100%;
+    accent-color: var(--sky);
+    background: transparent;
+    cursor: pointer;
+  }
+  .band-ctl input[type="range"]:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .band-ctl-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: center;
+  }
+  .band-ctl-btn {
+    appearance: none;
+    background: rgba(138, 155, 181, 0.10);
+    border: 1px solid var(--line-2);
+    color: var(--text-2);
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: var(--type-micro);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  }
+  .band-ctl-btn:hover {
+    background: rgba(138, 155, 181, 0.20);
+    color: var(--text);
+  }
+  .band-ctl-btn.on {
+    background: rgba(90, 184, 255, 0.20);
+    border-color: rgba(90, 184, 255, 0.55);
+    color: #e0f2ff;
+  }
+  .band-ctl-hint {
+    grid-column: 1 / -1;
+    font-size: var(--type-micro);
+    color: var(--text-4);
+    font-family: ui-monospace, monospace;
+    margin-top: 2px;
+  }
+  .band-ctl-hint.pending {
+    color: var(--amber);
+  }
+
+  /* ============ DESKTOP — 8-pane grid layout (Phase 7f) ============
+     The former ANALOG card is now split into AIR and GROUND, giving the
+     top row four equal-width cards: AIR · GROUND · DIGITAL · VFO. Row 3
+     still shares Sounding (left ~3/4) and Player (right ~1/4).
+     On <1100px viewports the panes drop to a single stacked column
+     (default block flow), so each card lands below the previous one. */
   @media (min-width: 1100px) {
     .panes {
       padding: 16px;
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr 1fr;
       grid-template-rows: auto auto auto;
       grid-template-areas:
-        "analog      digital     vfo"
-        "waterfall   waterfall   disco"
-        "sounding    sounding    player";
+        "air         ground      digital     vfo"
+        "waterfall   waterfall   disco       disco"
+        "sounding    sounding    sounding    player";
       gap: 16px;
       align-items: stretch;
     }
-    .pane-analog    { grid-area: analog; }
+    .pane-air       { grid-area: air; }
+    .pane-ground    { grid-area: ground; }
     .pane-digital   { grid-area: digital; }
     .pane-vfo       { grid-area: vfo; }
     .pane-waterfall { grid-area: waterfall; }
@@ -1075,7 +1179,7 @@
     .panes {
       grid-template-columns: 1fr 1fr 1fr 1fr;
       grid-template-areas:
-        "analog      digital     vfo         vfo"
+        "air         ground      digital     vfo"
         "waterfall   waterfall   disco       disco"
         "sounding    sounding    sounding    player";
     }
@@ -1869,27 +1973,25 @@
 <!-- ============ 5 panes ============ -->
 <main class="panes">
 
-  <!-- ============ ANALOG pane (RSPduo 1 — LIVE) ============ -->
-  <section class="pane pane-analog" id="pane-analog">
+  <!-- ============ AIR pane (split from ANALOG, RSPduo 1 — LIVE) ============
+       AIR + GROUND share one SIC favorite + one RSPduo (tuner 1+2). The
+       fav picker / profile chip / disclosure all live on the AIR card
+       (since AIR is the primary surface) and are mirrored to GROUND only
+       through the per-band hits list below. Per-band squelch + gain
+       controls POST to /api/airband/squelch and /api/airband/gain;
+       see ui/handlers.py for the persistence + restart contract. -->
+  <section class="pane pane-air" id="pane-air">
     <div class="pane-hd">
-      <span class="eyebrow">Analog</span>
-      <span class="title">Airband 118–137 MHz</span>
+      <span class="eyebrow">Air</span>
+      <span class="title">Airband</span>
       <span class="live-tag">LIVE</span>
-      <span class="sub">RSPduo 1 · AM</span>
+      <span class="sub">118–137 MHz · AM</span>
     </div>
     <div class="pane-body">
-      <div class="now-row" id="analog-now-air">
+      <div class="now-row" id="air-now">
         <div class="icon muted">❚❚</div>
         <div>
           <div class="band">Airband · AM</div>
-          <div class="now-line dim">Loading…</div>
-        </div>
-        <div class="chev">›</div>
-      </div>
-      <div class="now-row" id="analog-now-gnd">
-        <div class="icon muted">❚❚</div>
-        <div>
-          <div class="band">Ground · NFM</div>
           <div class="now-line dim">Loading…</div>
         </div>
         <div class="chev">›</div>
@@ -1903,8 +2005,43 @@
         <button class="profile-build-btn" id="ana-profile-build-btn" type="button">Build / Edit</button>
       </div>
       <div class="analog-chips" id="ana-chips"></div>
-      <div class="hits-list" id="analog-hits">
+      <div class="hits-list" id="air-hits">
         <div class="hits-empty">Loading hits…</div>
+      </div>
+      <!-- Per-band squelch + gain. data-band drives the POST target.
+           Values are POSTed on slider release (debounced) to:
+             POST /api/airband/squelch  {band, threshold_dbfs, auto}
+             POST /api/airband/gain     {band, gain_db}
+           Backend persists via managed_analog_controls and writes the
+           runtime .conf; rtl-airband is NOT auto-restarted (changes
+           apply on next manual restart via Sitrep → Reset Radios). -->
+      <div class="band-controls" data-band="air" id="ctl-air">
+        <div class="band-ctl">
+          <span class="ctl-lbl">Squelch</span>
+          <div class="band-ctl-row">
+            <input type="range" min="-80" max="0" step="1" value="-38"
+                   class="ctl-squelch" data-band="air"
+                   aria-label="AIR squelch threshold in dBFS">
+            <button type="button" class="band-ctl-btn ctl-auto"
+                    data-band="air"
+                    aria-pressed="false"
+                    title="Toggle automatic squelch (rtl-airband SNR floor detector)">Auto</button>
+          </div>
+          <span class="ctl-val" data-role="squelch-val">—</span>
+        </div>
+        <div class="band-ctl">
+          <span class="ctl-lbl">Gain</span>
+          <div class="band-ctl-row">
+            <input type="range" min="0" max="59" step="1" value="33"
+                   class="ctl-gain" data-band="air"
+                   aria-label="AIR dongle gain in dB">
+            <button type="button" class="band-ctl-btn ctl-default"
+                    data-band="air"
+                    title="Reset gain to the recommended default for this dongle">Default</button>
+          </div>
+          <span class="ctl-val" data-role="gain-val">—</span>
+          <span class="band-ctl-hint" data-role="ctl-hint"></span>
+        </div>
       </div>
       <div class="pane-disclosure" id="analog-disclosure">
         <div class="summary-row">
@@ -1914,12 +2051,72 @@
         <div class="expanded-body" id="analog-disc-body">No frequency list available.</div>
       </div>
     </div>
-    <div class="pane-evidence" id="analog-evidence">
-      <button type="button" class="dongle-badge" id="ev-analog-badge"
+    <div class="pane-evidence" id="air-evidence">
+      <button type="button" class="dongle-badge" id="ev-air-badge"
               data-sitrep="open"
               title="Tuner status — click to open Sitrep for detail"
               aria-label="Open Sitrep for tuner detail">
-        <span class="db-num" id="ev-analog-badge-num">—/1</span>
+        <span class="db-num" id="ev-air-badge-num">—/1</span>
+        <span class="db-lbl">tuner</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- ============ GROUND pane (split from ANALOG, RSPduo 1 — LIVE) ============ -->
+  <section class="pane pane-ground" id="pane-ground">
+    <div class="pane-hd">
+      <span class="eyebrow">Ground</span>
+      <span class="title">Ground services</span>
+      <span class="live-tag">LIVE</span>
+      <span class="sub">VHF / UHF · NFM</span>
+    </div>
+    <div class="pane-body">
+      <div class="now-row" id="ground-now">
+        <div class="icon muted">❚❚</div>
+        <div>
+          <div class="band">Ground · NFM</div>
+          <div class="now-line dim">Loading…</div>
+        </div>
+        <div class="chev">›</div>
+      </div>
+      <div class="hits-list" id="ground-hits">
+        <div class="hits-empty">Loading hits…</div>
+      </div>
+      <div class="band-controls" data-band="ground" id="ctl-ground">
+        <div class="band-ctl">
+          <span class="ctl-lbl">Squelch</span>
+          <div class="band-ctl-row">
+            <input type="range" min="-80" max="0" step="1" value="-38"
+                   class="ctl-squelch" data-band="ground"
+                   aria-label="GROUND squelch threshold in dBFS">
+            <button type="button" class="band-ctl-btn ctl-auto"
+                    data-band="ground"
+                    aria-pressed="false"
+                    title="Toggle automatic squelch (rtl-airband SNR floor detector)">Auto</button>
+          </div>
+          <span class="ctl-val" data-role="squelch-val">—</span>
+        </div>
+        <div class="band-ctl">
+          <span class="ctl-lbl">Gain</span>
+          <div class="band-ctl-row">
+            <input type="range" min="0" max="59" step="1" value="33"
+                   class="ctl-gain" data-band="ground"
+                   aria-label="GROUND dongle gain in dB">
+            <button type="button" class="band-ctl-btn ctl-default"
+                    data-band="ground"
+                    title="Reset gain to the recommended default for this dongle">Default</button>
+          </div>
+          <span class="ctl-val" data-role="gain-val">—</span>
+          <span class="band-ctl-hint" data-role="ctl-hint"></span>
+        </div>
+      </div>
+    </div>
+    <div class="pane-evidence" id="ground-evidence">
+      <button type="button" class="dongle-badge" id="ev-ground-badge"
+              data-sitrep="open"
+              title="Tuner status — click to open Sitrep for detail"
+              aria-label="Open Sitrep for tuner detail">
+        <span class="db-num" id="ev-ground-badge-num">—/1</span>
         <span class="db-lbl">tuner</span>
       </button>
     </div>
@@ -3318,7 +3515,10 @@ function renderHeartbeat(hb) {
     const st = String(row.status || "ok").toLowerCase();
     return (st === "ok" || st === "warn") ? 1 : 0;
   };
-  setDongleBadge("ev-analog-badge", svcAliveFromEvid(find("rtl-airband-airband")), 1);
+  // AIR + GROUND are split cards, each with its own tuner badge.
+  // AIR tracks rtl-airband-airband; GROUND tracks rtl-airband-ground.
+  setDongleBadge("ev-air-badge",     svcAliveFromEvid(find("rtl-airband-airband")), 1);
+  setDongleBadge("ev-ground-badge",  svcAliveFromEvid(find("rtl-airband-ground")),  1);
   setDongleBadge("ev-digital-badge", svcAliveFromEvid(find("scanner-vlc-digital")), 1);
 
   renderNowListeningFromHeartbeat(hb);
@@ -3382,9 +3582,9 @@ function renderNowListeningFromHeartbeat(hb) {
       now.textContent = "Squelched — no recent hits";
     }
   }
-  paint("analog-now-air", recentHitForBand("airband"), ["rtl-airband-airband"]);
-  paint("analog-now-gnd", recentHitForBand("ground"),  ["rtl-airband-ground"]);
-  paint("digital-now",   recentHitForBand("digital"), ["scanner-vlc-digital"], "dig");
+  paint("air-now",     recentHitForBand("airband"), ["rtl-airband-airband"]);
+  paint("ground-now",  recentHitForBand("ground"),  ["rtl-airband-ground"]);
+  paint("digital-now", recentHitForBand("digital"), ["scanner-vlc-digital"], "dig");
 }
 
 function bandBadge(t) {
@@ -3399,14 +3599,32 @@ function renderHits(payload) {
   items.sort((a, b) => (b.ts || 0) - (a.ts || 0));
   STATE.hits = items;
 
-  const analogItems = items.filter(h => {
+  // Split hits by physical band so each card only shows its own traffic.
+  // Heuristic: explicit source/type tags first; otherwise fall back to a
+  // frequency-range check (118-137 MHz = airband, everything else analog
+  // = ground). Digital is the same trunked-only filter as before.
+  function isAirHit(h) {
     const t = String(h.type || h.source || "").toLowerCase();
-    return !(t.includes("digital") || t.includes("p25") || t === "dig");
-  });
-  const digitalItems = items.filter(h => {
+    if (t.includes("ground") || t === "gnd") return false;
+    if (t.includes("airband") || t === "air" || t === "analog") return true;
+    const f = Number(h.freq || 0);
+    return f >= 118 && f <= 137;
+  }
+  function isGroundHit(h) {
+    const t = String(h.type || h.source || "").toLowerCase();
+    if (t.includes("ground") || t === "gnd") return true;
+    if (t.includes("airband") || t === "air") return false;
+    if (t.includes("digital") || t.includes("p25") || t === "dig") return false;
+    const f = Number(h.freq || 0);
+    return f > 0 && !(f >= 118 && f <= 137);
+  }
+  const isDigitalHit = h => {
     const t = String(h.type || h.source || "").toLowerCase();
     return (t.includes("digital") || t.includes("p25") || t === "dig");
-  });
+  };
+  const airItems     = items.filter(isAirHit);
+  const groundItems  = items.filter(isGroundHit);
+  const digitalItems = items.filter(isDigitalHit);
 
   function renderInto(elId, list) {
     const el = $(elId);
@@ -3432,7 +3650,8 @@ function renderHits(payload) {
         </div>`;
     }).join("");
   }
-  renderInto("analog-hits", analogItems);
+  renderInto("air-hits",     airItems);
+  renderInto("ground-hits",  groundItems);
   renderInto("digital-hits", digitalItems);
 
   if (STATE.heartbeat) renderNowListeningFromHeartbeat(STATE.heartbeat);
@@ -5066,7 +5285,9 @@ function wireProfileBuilder() {
   if (digBtn) digBtn.addEventListener("click", () => _favPickerOpen("dig"));
   if (anaBtn) anaBtn.addEventListener("click", () => _favPickerOpen("ana"));
   // Also let users open the picker by clicking the favorite badge itself.
-  document.querySelectorAll(".pane-analog .analog-profile, .pane-digital .digital-profile").forEach(row => {
+  // The fav-picker badge lives on the AIR card (analog favorite, shared
+  // with GROUND). Digital still hangs off the DIGITAL card.
+  document.querySelectorAll(".pane-air .analog-profile, .pane-digital .digital-profile").forEach(row => {
     row.style.cursor = "pointer";
     row.addEventListener("click", (e) => {
       if (e.target.closest("button")) return;
@@ -5085,6 +5306,161 @@ function wireStatusDisclosure() {
   ["analog-disclosure", "digital-disclosure"].forEach(id => {
     const el = $(id); if (!el) return;
     el.addEventListener("click", () => el.classList.toggle("open"));
+  });
+}
+
+// ============ Per-band squelch + gain controls (Phase 7f) ============
+// One control surface per card (AIR, GROUND). Reads current values from
+// /api/status (airband_gain, airband_squelch_dbfs, airband_squelch_mode,
+// + ground_*), populates each card's sliders, and POSTs on slider commit
+// to the new endpoints:
+//   POST /api/airband/squelch  {band:'air'|'ground', threshold_dbfs, auto}
+//   POST /api/airband/gain     {band, gain_db}
+// Backend writes to /run/rtl_airband_{airband,ground}_runtime.conf and
+// persists overrides to managed_analog_controls.json — but does NOT
+// auto-restart rtl-airband (TimeoutStopSec=5 is risky to bounce on every
+// slider commit). Changes apply on next manual restart via Sitrep →
+// Reset Radios; the UI shows a small "pending restart" hint when set.
+const BAND_DEFAULTS = {
+  air:    { gain: 32.8, squelch_dbfs: -17, squelch_mode: "dbfs", gain_min: 0, gain_max: 59 },
+  ground: { gain: 32.8, squelch_dbfs: -38, squelch_mode: "dbfs", gain_min: 0, gain_max: 59 }
+};
+const BAND_STATE = {
+  air:    { gain: 32.8, squelch_dbfs: -17, auto: false, pending: false },
+  ground: { gain: 32.8, squelch_dbfs: -38, auto: false, pending: false }
+};
+const BAND_API_NAME = { air: "airband", ground: "ground" };
+
+function _bandCard(band) { return $("ctl-" + band); }
+function _bandSetVal(band, role, text, klass) {
+  const card = _bandCard(band); if (!card) return;
+  const el = card.querySelector(`[data-role="${role}"]`); if (!el) return;
+  el.textContent = text;
+  el.classList.toggle("auto", !!klass && klass === "auto");
+}
+function _bandSetHint(band, text, pending) {
+  const card = _bandCard(band); if (!card) return;
+  const el = card.querySelector('[data-role="ctl-hint"]'); if (!el) return;
+  el.textContent = text || "";
+  el.classList.toggle("pending", !!pending);
+}
+
+function renderBandControls(band) {
+  const card = _bandCard(band); if (!card) return;
+  const st = BAND_STATE[band];
+  const sql = card.querySelector(".ctl-squelch");
+  const gain = card.querySelector(".ctl-gain");
+  const autoBtn = card.querySelector(".ctl-auto");
+  if (sql) {
+    sql.disabled = !!st.auto;
+    if (!sql.matches(":active")) sql.value = String(Math.round(st.squelch_dbfs));
+  }
+  if (gain && !gain.matches(":active")) gain.value = String(Math.round(st.gain));
+  if (autoBtn) {
+    autoBtn.classList.toggle("on", !!st.auto);
+    autoBtn.setAttribute("aria-pressed", st.auto ? "true" : "false");
+  }
+  _bandSetVal(band, "squelch-val",
+    st.auto ? "AUTO" : `${Math.round(st.squelch_dbfs)} dBFS`,
+    st.auto ? "auto" : "");
+  _bandSetVal(band, "gain-val", `${Math.round(st.gain)} dB`);
+  _bandSetHint(band, st.pending ? "pending · applies on next rtl-airband restart" : "", st.pending);
+}
+
+function updateBandStateFromStatus(status) {
+  if (!status || typeof status !== "object") return;
+  const map = {
+    air:    { gain: "airband_gain", dbfs: "airband_squelch_dbfs", mode: "airband_squelch_mode" },
+    ground: { gain: "ground_gain",  dbfs: "ground_squelch_dbfs",  mode: "ground_squelch_mode"  }
+  };
+  for (const band of ["air", "ground"]) {
+    const k = map[band];
+    const st = BAND_STATE[band];
+    if (typeof status[k.gain] === "number") st.gain = status[k.gain];
+    if (typeof status[k.dbfs] === "number") st.squelch_dbfs = status[k.dbfs];
+    if (typeof status[k.mode] === "string") st.auto = (status[k.mode].toLowerCase() === "snr");
+    renderBandControls(band);
+  }
+}
+
+function _postJSON(url, body) {
+  return fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  }).then(r => r.json().then(j => ({ ok: r.ok, status: r.status, json: j })).catch(() => ({ ok: r.ok, status: r.status, json: {} })));
+}
+
+const _bandCommitTimers = { air: { sql: null, gain: null }, ground: { sql: null, gain: null } };
+function _bandCommit(band, kind) {
+  clearTimeout(_bandCommitTimers[band][kind]);
+  _bandCommitTimers[band][kind] = setTimeout(() => {
+    const st = BAND_STATE[band];
+    const apiBand = BAND_API_NAME[band];
+    if (kind === "sql") {
+      _postJSON("/api/airband/squelch", {
+        band: apiBand,
+        threshold_dbfs: Math.round(st.squelch_dbfs),
+        auto: !!st.auto
+      }).then(r => {
+        st.pending = !!(r.ok && r.json && r.json.pending_restart);
+        renderBandControls(band);
+      }).catch(() => {});
+    } else {
+      _postJSON("/api/airband/gain", {
+        band: apiBand,
+        gain_db: Math.round(st.gain)
+      }).then(r => {
+        st.pending = !!(r.ok && r.json && r.json.pending_restart);
+        renderBandControls(band);
+      }).catch(() => {});
+    }
+  }, 120);
+}
+
+function wireBandControls() {
+  ["air", "ground"].forEach(band => {
+    const card = _bandCard(band); if (!card) return;
+    const st = BAND_STATE[band];
+    const sql = card.querySelector(".ctl-squelch");
+    const gain = card.querySelector(".ctl-gain");
+    const autoBtn = card.querySelector(".ctl-auto");
+    const defBtn  = card.querySelector(".ctl-default");
+    if (sql) {
+      sql.addEventListener("input", () => {
+        st.squelch_dbfs = Number(sql.value);
+        _bandSetVal(band, "squelch-val", `${Math.round(st.squelch_dbfs)} dBFS`);
+      });
+      sql.addEventListener("change", () => {
+        st.squelch_dbfs = Number(sql.value);
+        _bandCommit(band, "sql");
+      });
+    }
+    if (gain) {
+      gain.addEventListener("input", () => {
+        st.gain = Number(gain.value);
+        _bandSetVal(band, "gain-val", `${Math.round(st.gain)} dB`);
+      });
+      gain.addEventListener("change", () => {
+        st.gain = Number(gain.value);
+        _bandCommit(band, "gain");
+      });
+    }
+    if (autoBtn) {
+      autoBtn.addEventListener("click", () => {
+        st.auto = !st.auto;
+        renderBandControls(band);
+        _bandCommit(band, "sql");
+      });
+    }
+    if (defBtn) {
+      defBtn.addEventListener("click", () => {
+        st.gain = BAND_DEFAULTS[band].gain;
+        renderBandControls(band);
+        _bandCommit(band, "gain");
+      });
+    }
+    renderBandControls(band);
   });
 }
 
@@ -5360,6 +5736,20 @@ async function pollProfile() {
     setTimeout(pollProfile, POLL_PROFILE_MS);
   }
 }
+
+// Poll /api/status for current gain + squelch values per band, so the
+// AIR / GROUND control sliders always reflect the live config rather
+// than stale defaults. Slower cadence — these only change on operator
+// commits.
+const POLL_BAND_CONTROLS_MS = 15000;
+async function pollBandControls() {
+  try {
+    const data = await fetchJSON("/api/status");
+    updateBandStateFromStatus(data);
+  } catch (e) {} finally {
+    setTimeout(pollBandControls, POLL_BAND_CONTROLS_MS);
+  }
+}
 async function pollWaterfall() {
   try {
     const data = await fetchJSON("/api/waterfall");
@@ -5580,6 +5970,7 @@ function boot() {
   wireHbEvidenceToggle();
   wireProfileBuilder();
   wireStatusDisclosure();
+  wireBandControls();
   wireSounding();
   applyHashOverlays();
 
@@ -5587,6 +5978,7 @@ function boot() {
   pollHeartbeat();
   pollHits();
   pollProfile();
+  pollBandControls();
   pollWaterfall();
   pollVFO();
   pollDisco();
