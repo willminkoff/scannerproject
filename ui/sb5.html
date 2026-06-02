@@ -1066,6 +1066,23 @@
     display: flex; align-items: center; justify-content: center;
   }
   .modal-close:hover { background: rgba(138, 155, 181, 0.20); color: var(--text); }
+  /* Primary "back to dashboard" affordance — sits at the left of the modal
+     header, mirrors the close X on the right. 44px hit target for phones. */
+  .modal-back {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(90, 184, 255, 0.18);
+    border: 1px solid rgba(90, 184, 255, 0.45);
+    color: var(--sky-2);
+    font-size: var(--type-body); font-weight: 600;
+    padding: 0 14px;
+    min-height: 44px;
+    border-radius: 10px;
+    cursor: pointer;
+    letter-spacing: -0.01em;
+    flex-shrink: 0;
+  }
+  .modal-back:hover { background: rgba(90, 184, 255, 0.28); color: var(--text); }
+  .modal-back:focus-visible { outline: 2px solid rgba(90, 184, 255, 0.55); outline-offset: 2px; }
   .modal-body {
     padding: 16px 18px;
     overflow-y: auto;
@@ -1971,6 +1988,7 @@
 <div class="modal-overlay modal-sitrep" id="sitrep-modal" role="dialog" aria-modal="true" aria-labelledby="sitrep-modal-title">
   <div class="modal-card">
     <div class="modal-hd">
+      <button class="modal-back" id="sitrep-modal-back" type="button" aria-label="Back to dashboard">← Back</button>
       <span class="title" id="sitrep-modal-title">Sitrep · Operator situation report</span>
       <button class="modal-close" id="sitrep-modal-close" type="button" aria-label="Close">×</button>
     </div>
@@ -4368,6 +4386,8 @@ function wireSitrep() {
   });
   const closeAndClear = () => { _hideSitrepConfirm(); closeModal("sitrep-modal"); };
   if (closeBtn) closeBtn.addEventListener("click", closeAndClear);
+  const backBtn = $("sitrep-modal-back");
+  if (backBtn) backBtn.addEventListener("click", closeAndClear);
   if (overlay) {
     overlay.addEventListener("click", (e) => {
       if (e.target === overlay) closeAndClear();
