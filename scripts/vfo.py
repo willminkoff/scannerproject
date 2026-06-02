@@ -65,11 +65,10 @@ SAMPLE_RATE_HZ = 2_400_000        # 2.4 MS/s — matches waterfall pattern
 AUDIO_SR = 48_000                 # output audio sample rate
 DECIMATION = SAMPLE_RATE_HZ // AUDIO_SR   # = 50 (clean integer)
 
-# FFT for mini-waterfall.  We splat each 2400-sample block into a 256
-# bin FFT covering the full 2.4 MHz window.
-FFT_SIZE_AUDIO = 2400             # 1 ms of audio = 50ms of IQ per block (50:1 dec)
-MINI_FFT_BINS = 256
-MINI_FFT_PERIOD_SEC = 0.05        # Phase 6a.2: 20 Hz mini-waterfall (30 Hz pegged a core; was 0.5 / 2 Hz)
+# IQ block size feeding the demod chain.  1 ms of audio = 50 ms of IQ
+# per block (50:1 dec).  No FFT here — the operator-facing spectrum view
+# lives on Live IQ; VFO is data-only (controls, status).
+FFT_SIZE_AUDIO = 2400
 
 # Watchdog: 3 consecutive bad reads -> close + reopen with exponential
 # backoff (5s -> 60s).  Matches Phase 6a waterfall.
@@ -508,35 +507,6 @@ def _resolve_bus_path(serial: str) -> str:
 
 
 # ---------------------------------------------------------------------
-# Mini-waterfall FFT helper.
-# ---------------------------------------------------------------------
-def _compute_mini_bins(iq: np.ndarray) -> np.ndarray:
-    """Return MINI_FFT_BINS dBFS values covering the 2.4 MHz window.
-
-    We FFT the first MINI_FFT_BINS samples (or the whole block, taking
-    the dominant magnitude per bin via reshaping).  Keep it cheap —
-    this is a visual aid, not an analyzer.
-    """
-    n = MINI_FFT_BINS
-    if iq.shape[0] < n:
-        return np.full(n, -120.0, dtype=np.float32)
-    # Take a centered slice equal to a power-of-two multiple of n so the
-    # reshape + mean averages noisy bins down toward the noise floor.
-    take = n
-    while take * 2 <= iq.shape[0]:
-        take *= 2
-    blk = iq[:take]
-    win = np.hanning(take).astype(np.float32)
-    spec = np.fft.fftshift(np.fft.fft(blk * win))
-    mag2 = (spec.real * spec.real + spec.imag * spec.imag).astype(np.float32)
-    # Group every (take/n) consecutive bins down to n bins via mean.
-    group = take // n
-    mag2 = mag2[: group * n].reshape(n, group).mean(axis=1)
-    mag_db = 10.0 * np.log10(mag2 + 1e-30) - 20.0 * np.log10(take)
-    return mag_db.astype(np.float32)
-
-
-# ---------------------------------------------------------------------
 # DongleWorker — owns the SoapySDR device + demod + audio publish chain.
 # ---------------------------------------------------------------------
 class VFOWorker:
@@ -577,10 +547,6 @@ class VFOWorker:
         self._demod_am = AMDemod()
         self._demod_nfm = FMDemod(deemph_us=None)
         self._demod_wfm = FMDemod(deemph_us=75.0)
-
-        # Mini-waterfall throttle.
-        self._mini_last_ts = 0.0
-        self.mini_bins: list[float] = [-120.0] * MINI_FFT_BINS
 
     # ---- public config surface --------------------------------------
     def apply_config(self, cfg: dict) -> None:
@@ -815,16 +781,6 @@ class VFOWorker:
             self.icecast.write(pcm)
             self.bt_pipe.write(pcm)
 
-            # Mini-waterfall throttle.
-            now = time.time()
-            if now - self._mini_last_ts >= MINI_FFT_PERIOD_SEC:
-                try:
-                    bins = _compute_mini_bins(iq)
-                    self.mini_bins = [round(float(v), 1) for v in bins.tolist()]
-                except Exception as e:
-                    LOG.warning("mini fft failed: %s", e)
-                self._mini_last_ts = now
-
         self._safe_close()
         LOG.info("worker exiting serial=%s", self.serial)
 
@@ -920,7 +876,6 @@ def main() -> int:
             "bt_routed": bool(snap["bt_routed"]),
             "bt_active": bool(bt_pipe.active),
             "bt_last_error": bt_pipe.last_error,
-            "bins": worker.mini_bins,
             "freq_min_mhz": round(f - bw / 2, 4),
             "freq_max_mhz": round(f + bw / 2, 4),
             "dongle": {

@@ -15,11 +15,15 @@ Binary frame layout (sent on each pane update, little-endian throughout)::
     9       2     u16  n_bins
     11      4*N   f32[]  bins  (dBFS)
 
-The handler mtime-polls the three state files at ``WS_MTIME_POLL_INTERVAL_S``
-and emits a frame to the client whenever a file is newer than the last one
-sent for that pane.  No data fan-out: each connected client owns its own
-poller thread and its own copy of the state.  At our scale (~1 operator,
-maybe 2 tabs) this is cheaper than a shared broadcaster.
+The handler mtime-polls the waterfall state file at ``WS_MTIME_POLL_INTERVAL_S``
+and emits a frame to the client whenever the file is newer than the last
+one sent.  VFO and Discovery panes are data-only on /sb5 — their spectrum
+plot + waterfall were dropped in favour of Live IQ as the single spectrum
+view, so the WS push only carries pane_id=0 (waterfall).  pane_id slots
+1 (VFO) and 2 (Disco) stay reserved in the wire protocol for future use.
+No data fan-out: each connected client owns its own poller thread and its
+own copy of the state.  At our scale (~1 operator, maybe 2 tabs) this is
+cheaper than a shared broadcaster.
 
 Read path: inbound client frames are read directly from the raw socket
 (handler.connection) rather than handler.rfile, because BufferedReader
@@ -88,29 +92,24 @@ WS_LEN_16BIT_MAX = 65535
 # so the role is obvious at the call site.
 WS_SELECT_TIMEOUT_S = WS_MTIME_POLL_INTERVAL_S
 
-# Pane registry.  Order matters: the index is the wire pane_id.
+# Pane registry.  Slot indices match the wire pane_id.  VFO (1) and
+# Disco (2) are reserved but no longer broadcast — see module docstring.
 WATERFALL_STATE_PATH = "/run/scannerproject/waterfall/state.json"
-VFO_STATE_PATH = "/run/scannerproject/vfo/state.json"
-DISCO_STATE_PATH = "/run/scannerproject/disco/coord_state.json"
 
 PANE_WATERFALL = 0
 PANE_VFO = 1
 PANE_DISCO = 2
 
-# (pane_id, state_path) tuples polled per-client.
+# (pane_id, state_path) tuples polled per-client.  Only the waterfall
+# pane is broadcast; adding more tuples here re-enables their pane.
 WS_PANES = (
     (PANE_WATERFALL, WATERFALL_STATE_PATH),
-    (PANE_VFO, VFO_STATE_PATH),
-    (PANE_DISCO, DISCO_STATE_PATH),
 )
 
-# Default center/span fallbacks if a state file omits them.  Matches the
-# values the HTTP pass-through and the JS client use today.
+# Default center/span fallbacks if the waterfall state file omits them.
+# Matches the values the HTTP pass-through and the JS client use today.
 WATERFALL_DEFAULT_CENTER_MHZ = 123.7
 WATERFALL_DEFAULT_BW_MHZ = 4.8
-VFO_DEFAULT_SPAN_MHZ = 2.4
-DISCO_DEFAULT_START_MHZ = 117.0
-DISCO_DEFAULT_END_MHZ = 470.0
 
 
 # ---------------------------------------------------------------------------
@@ -236,21 +235,8 @@ def build_spectrum_frame(pane_id, state):
             span = float(fmax) - float(fmin)
         else:
             span = float(state.get("bw_mhz") or WATERFALL_DEFAULT_BW_MHZ)
-    elif pane_id == PANE_VFO:
-        center = float(state.get("freq_mhz") or 0.0)
-        fmin = state.get("freq_min_mhz")
-        fmax = state.get("freq_max_mhz")
-        if isinstance(fmin, (int, float)) and isinstance(fmax, (int, float)) and fmax > fmin:
-            span = float(fmax) - float(fmin)
-        else:
-            span = VFO_DEFAULT_SPAN_MHZ
-    elif pane_id == PANE_DISCO:
-        rng = state.get("range") or {}
-        start = float(rng.get("start_mhz") or DISCO_DEFAULT_START_MHZ)
-        end = float(rng.get("end_mhz") or DISCO_DEFAULT_END_MHZ)
-        center = (start + end) / 2.0
-        span = end - start
     else:
+        # VFO + Disco panes are not broadcast (see module docstring).
         return None
     header = struct.pack("<BffH", pane_id, center, span, n)
     body = struct.pack("<" + str(n) + "f", *floats)

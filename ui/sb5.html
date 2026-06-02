@@ -158,7 +158,6 @@
   .sounding-overlay .label { display: flex; flex-direction: column; align-items: center; gap: 4px; }
   .sounding-overlay .label .sub { font-weight: 500; font-size: var(--type-micro); color: rgba(255, 213, 138, 0.78); text-transform: none; letter-spacing: 0; }
   body.sounding-on .sounding-overlay { display: flex; }
-  body.sounding-on .pane-disco .disco-canvas-wrap { opacity: 0.35; filter: saturate(0.4); }
   body.sounding-on .pane-disco .disco-detections { opacity: 0.45; }
   /* Phase 5c: keep the heartbeat row left-aligned in all states; the primary
      status indicator is now the upper-LEFT state-badge in the topbar. */
@@ -500,24 +499,14 @@
     border-top-right-radius: 12px;
   }
   .spec-canvas-wrap canvas { display: block; width: 100%; height: 100%; }
-  /* VFO pane is smaller — match its mini-waterfall's tighter radius and
-     give the spec a shorter height so the pane stays balanced. */
-  .pane-vfo .spec-canvas-wrap {
-    height: 60px;
-    border-top-left-radius: 10px;
-    border-top-right-radius: 10px;
-  }
   /* When a spec sits directly above a waterfall wrap, square the top of
      the waterfall so the two read as one block instead of two cards. */
-  .spec-canvas-wrap + .wf-canvas-wrap,
-  .spec-canvas-wrap + .disco-canvas-wrap,
-  .spec-canvas-wrap + .vfo-mini-wf {
+  .spec-canvas-wrap + .wf-canvas-wrap {
     border-top-left-radius: 0;
     border-top-right-radius: 0;
   }
   @media (max-width: 600px) {
     .spec-canvas-wrap { height: 60px; }
-    .pane-vfo .spec-canvas-wrap { height: 50px; }
   }
 
   /* ============ Waterfall pane internals ============ */
@@ -766,45 +755,7 @@
   .toggle.off { background: rgba(138, 155, 181, 0.22); }
   .toggle.off::after { left: 2px; }
 
-  .vfo-mini-wf {
-    margin-top: 6px;
-    position: relative;
-    height: 90px;
-    background: #04060d;
-    border-radius: 10px;
-    overflow: hidden;
-    border: 1px solid rgba(255,255,255,0.04);
-  }
-  .vfo-mini-wf canvas { display: block; width: 100%; height: 100%; }
-  .vfo-mini-wf .axis {
-    position: absolute; left: 8px; right: 8px; bottom: 4px;
-    display: flex; justify-content: space-between;
-    font-family: ui-monospace, monospace;
-    font-size: var(--type-meta);
-    color: rgba(255,255,255,0.55);
-    text-shadow: 0 1px 2px rgba(0,0,0,0.7);
-  }
-  .vfo-mini-wf .center-line {
-    position: absolute; top: 0; bottom: 0; left: 50%;
-    width: 1px; background: rgba(255,255,255,0.32);
-  }
-
   /* ============ Disco pane internals ============ */
-  .disco-canvas-wrap {
-    position: relative;
-    height: 160px;
-    background: #04060d;
-    border-radius: 12px;
-    overflow: hidden;
-    border: 1px solid rgba(255,255,255,0.04);
-  }
-  .disco-canvas-wrap canvas { display: block; width: 100%; height: 100%; }
-  .disco-axis {
-    display: flex; justify-content: space-between;
-    margin-top: 6px;
-    font-family: ui-monospace, monospace;
-    font-size: var(--type-meta); color: var(--text-4);
-  }
   .disco-detections {
     margin-top: 10px;
     display: flex; flex-direction: column;
@@ -870,7 +821,6 @@
     .pane-sounding  { grid-area: sounding; }
     .pane { min-height: 0; }
     .wf-canvas-wrap { height: 240px; }
-    .disco-canvas-wrap { height: 180px; }
   }
   @media (min-width: 1600px) {
     .panes {
@@ -1659,18 +1609,6 @@
             <span class="toggle off" id="vfo-bt" data-key="bt_routed"></span>
           </div>
         </div>
-        <div class="spec-canvas-wrap">
-          <canvas id="vfo-spec" class="spec-canvas"></canvas>
-        </div>
-        <div class="vfo-mini-wf">
-          <canvas id="vfo-wf"></canvas>
-          <div class="center-line"></div>
-          <div class="axis">
-            <span id="vfo-low">—</span>
-            <span id="vfo-center">—</span>
-            <span id="vfo-high">—</span>
-          </div>
-        </div>
       </div>
       <div class="dongle-overlay" id="vfo-down-overlay">
         <div class="icon">⚠</div>
@@ -1771,21 +1709,6 @@
       <span class="sub" id="disco-sub">2 × RTL-SDR · unified sweep</span>
     </div>
     <div class="pane-body">
-      <div class="spec-canvas-wrap">
-        <canvas id="disco-spec" class="spec-canvas"></canvas>
-      </div>
-      <div class="disco-canvas-wrap">
-        <canvas id="disco-canvas"></canvas>
-        <div class="freq-window" id="disco-window" style="left: 18%;">
-          <div class="center-mark"></div>
-          <div class="label mono" id="disco-window-label">— MHz</div>
-        </div>
-      </div>
-      <div class="disco-axis mono">
-        <span id="disco-axis-min">—</span>
-        <span id="disco-axis-mid">—</span>
-        <span id="disco-axis-max">—</span>
-      </div>
       <div class="wf-tune-row">
         <div class="wf-tune-caption">Sweep 24 MHz – 1.7 GHz · set low/high or jump to a band</div>
         <div class="wf-tune-input-wrap">
@@ -2875,19 +2798,6 @@ function renderVFO(data) {
     const t = $("vfo-bt");
     if (t && !t.dataset.userEdited) t.classList.toggle("off", !data.bt_routed);
   }
-  // Axis labels — prefer backend-provided window, fall back to +/-1.2.
-  const f = (typeof data.freq_mhz === "number") ? data.freq_mhz : VFO_LOCAL.freq_mhz;
-  const lo = (typeof data.freq_min_mhz === "number") ? data.freq_min_mhz : (f - 1.2);
-  const hi = (typeof data.freq_max_mhz === "number") ? data.freq_max_mhz : (f + 1.2);
-  if (Array.isArray(data.bins) && data.bins.length && !wsBinsFresh(WS_PANE_VFO)) {
-    const intensity = normalizeBins(data.bins, -95, -25);
-    pushWaterfallRow("vfo-wf", intensity);
-    specSubmitFrame($("vfo-spec"), data.bins, lo, hi, "vfo-spec");
-  }
-  $("vfo-low").textContent = lo.toFixed(2);
-  $("vfo-center").textContent = f.toFixed(3);
-  $("vfo-high").textContent = hi.toFixed(2);
-
   // Live tag.
   const liveTag = $("vfo-live-tag");
   const dongle = (data.dongle && typeof data.dongle === "object") ? data.dongle : {};
@@ -2925,6 +2835,10 @@ function renderVFO(data) {
   }
 }
 
+// Last range the backend reported for Disco. Used to seed range inputs
+// and the freq-from-center helpers now that the disco canvas/axis are
+// gone — the renderer is the single source of truth.
+const DISCO_LAST_RANGE = { start: null, end: null };
 function renderDisco(data) {
   // Phase 6c: live coord_state.json from disco-coordinator.service.
   if (!data) return;
@@ -2941,14 +2855,12 @@ function renderDisco(data) {
   const end   = (data.range && Number(data.range.end_mhz));
   const haveRange = Number.isFinite(start) && Number.isFinite(end) && end > start;
   if (haveRange) {
-    $("disco-axis-min").textContent = start.toFixed(0);
-    $("disco-axis-mid").textContent = ((start + end) / 2).toFixed(0);
-    $("disco-axis-max").textContent = end.toFixed(0);
+    DISCO_LAST_RANGE.start = start;
+    DISCO_LAST_RANGE.end = end;
     // Phase 5c: disco-title is now the small subtitle below the "DISCOVERY"
     // heading, so it just shows the range.
     const title = $("disco-title");
     if (title) title.textContent = `${start.toFixed(0)} — ${end.toFixed(0)} MHz`;
-    updateFreqWindowLabel("disco-window", "disco-window-label", start, end);
   }
   // Live tag.
   const tag = $("disco-live-tag");
@@ -2994,14 +2906,6 @@ function renderDisco(data) {
     let ages = dongles.map(d => Number(d && d.last_frame_age_ms))
                       .filter(n => Number.isFinite(n) && n >= 0);
     frameEl.textContent = ages.length ? `${Math.min.apply(null, ages)} ms ago` : "—";
-  }
-  // Composite spectrum.
-  if (Array.isArray(data.bins) && data.bins.length && !wsBinsFresh(WS_PANE_DISCO)) {
-    const intensity = normalizeBins(data.bins, -95, -25);
-    pushWaterfallRow("disco-canvas", intensity);
-    if (haveRange) {
-      specSubmitFrame($("disco-spec"), data.bins, start, end, "disco-spec");
-    }
   }
   // Detections — surface both classified and pending rows from
   // /api/disco. Pending rows are sweep peaks the classifier hasn't
@@ -3391,17 +3295,18 @@ function wireDiscoRangeControls() {
   seedDiscoInputsFromState();
 }
 function seedDiscoInputsFromState() {
-  // Best-effort: pollDisco fires every POLL_DISCO_MS and updates
-  // disco-axis-{min,max}. Read those once at boot; if the poll hasn't
-  // landed yet, retry briefly so the inputs aren't stuck at placeholder.
+  // Best-effort: pollDisco fires every POLL_DISCO_MS and stashes the
+  // current range in DISCO_LAST_RANGE.  Read that once at boot; if the
+  // poll hasn't landed yet, retry briefly so the inputs aren't stuck at
+  // the placeholder.
   const lo = $("disco-low-input");
   const hi = $("disco-high-input");
   if (!lo || !hi) return;
   let tries = 0;
   function attempt() {
     tries += 1;
-    const s = parseFloat(($("disco-axis-min").textContent || ""));
-    const e = parseFloat(($("disco-axis-max").textContent || ""));
+    const s = DISCO_LAST_RANGE.start;
+    const e = DISCO_LAST_RANGE.end;
     if (Number.isFinite(s) && Number.isFinite(e) && e > s) {
       if (!lo.value) lo.value = String(Math.round(s));
       if (!hi.value) hi.value = String(Math.round(e));
@@ -3963,18 +3868,6 @@ function _wsDispatch(paneId, centerMhz, spanMhz, bins) {
     const intensity = autoStretchIntensity(bins, "wf-canvas");
     pushWaterfallRow("wf-canvas", intensity, wfColormap);
     specSubmitFrame($("wf-spec"), bins, min, max, "wf-canvas");
-  } else if (paneId === WS_PANE_VFO) {
-    const lo = centerMhz - spanMhz / 2;
-    const hi = centerMhz + spanMhz / 2;
-    const intensity = normalizeBins(bins, -95, -25);
-    pushWaterfallRow("vfo-wf", intensity);
-    specSubmitFrame($("vfo-spec"), bins, lo, hi, "vfo-spec");
-  } else if (paneId === WS_PANE_DISCO) {
-    const start = centerMhz - spanMhz / 2;
-    const end = centerMhz + spanMhz / 2;
-    const intensity = normalizeBins(bins, -95, -25);
-    pushWaterfallRow("disco-canvas", intensity);
-    specSubmitFrame($("disco-spec"), bins, start, end, "disco-spec");
   }
 }
 
@@ -4093,18 +3986,6 @@ function postDiscoRange(startMhz, endMhz) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ start_mhz: s, end_mhz: e }),
   }).catch(()=>{});
-}
-function postDiscoRangeFromCenter(centerMhz) {
-  // Preserve the current bandwidth, shift the range to be centered
-  // on centerMhz.  Clamp into [24, 1700].
-  const lo = parseFloat(($("disco-axis-min").textContent || "117")) || 117;
-  const hi = parseFloat(($("disco-axis-max").textContent || "470")) || 470;
-  const bw = Math.max(1, hi - lo);
-  let s = centerMhz - bw/2, e = centerMhz + bw/2;
-  if (s < 24) { s = 24; e = s + bw; }
-  if (e > 1700) { e = 1700; s = e - bw; }
-  if (s < 24) s = 24;
-  postDiscoRange(s, e);
 }
 async function pollDisco() {
   try {
@@ -4282,13 +4163,6 @@ function wireSounding() {
 function boot() {
   // Live IQ: drag the waterfall body to pan center freq (SDR#/GQRX-style).
   wireWfPan();
-  // Phase 6c — drag the disco window to recenter the WHOLE range
-  // (preserves bandwidth).  POSTs on release.
-  attachDrag("disco-window", "disco-window-label",
-    () => parseFloat(($("disco-axis-min").textContent || "117")) || 117,
-    () => parseFloat(($("disco-axis-max").textContent || "470")) || 470,
-    null,
-    (centerMhz) => { postDiscoRangeFromCenter(centerMhz); });
 
   wireVFOControls();
   wireAudioBar();

@@ -12,7 +12,7 @@ to accept bare-serial tuner-ids) pick up the range via mtime poll, sweep
 their slice, and write /run/scannerproject/disco/spectrum_<serial>.json.
 
 The coordinator polls each per-tuner spectrum file, stitches the
-composite bins into a unified array, looks up recent classified
+detections into a single coord_state.json, looks up recent classified
 detections from the disco SQLite DB, and writes
 /run/scannerproject/disco/coord_state.json atomically.
 
@@ -46,10 +46,6 @@ DISCO_DB_PATH = os.environ.get(
 # Watchdog thresholds (seconds of staleness on spectrum_<serial>.json).
 DEGRADED_AFTER_SEC = 5.0
 DOWN_AFTER_SEC = 30.0
-
-# Composite stitch resolution.  We rebin into a single unified array
-# spanning the full user-set range so the frontend just renders bins[].
-N_COMPOSITE_BINS = 1024
 
 # Loop cadence.
 TICK_S = 0.5
@@ -229,50 +225,6 @@ def _read_spectrum(serial: str) -> tuple[dict | None, float]:
         return data, age
     except (OSError, json.JSONDecodeError):
         return None, age
-
-
-# ---------------------------------------------------------------------
-# Stitching — composite bins are interpolated/copied from each per-tuner
-# spectrum's composite block into the unified output array spanning the
-# full coordinator range.
-# ---------------------------------------------------------------------
-def _stitch_composite(
-    spectra: list[tuple[str, dict | None, tuple[float, float]]],
-    coord_start_mhz: float,
-    coord_end_mhz: float,
-    n_out: int,
-) -> list[float]:
-    """Stitch per-tuner composite arrays into a single unified N_OUT-bin
-    array spanning [coord_start_mhz, coord_end_mhz].  Each unified bin
-    samples the per-tuner composite whose sub-range covers that bin's
-    centre frequency.  Bins with no covering tuner stay at -120 dBFS."""
-    out = [-120.0] * n_out
-    width_hz = (coord_end_mhz - coord_start_mhz) * 1e6 / n_out
-    base_hz = coord_start_mhz * 1e6
-    for i in range(n_out):
-        bin_centre_hz = base_hz + (i + 0.5) * width_hz
-        for _serial, state, (sub_start_mhz, sub_end_mhz) in spectra:
-            sub_start_hz = sub_start_mhz * 1e6
-            sub_end_hz = sub_end_mhz * 1e6
-            if not (sub_start_hz <= bin_centre_hz < sub_end_hz):
-                continue
-            if state is None:
-                continue
-            comp = state.get("composite") or {}
-            bins = comp.get("bins_dbfs") or []
-            t_start = float(comp.get("band_min_hz", sub_start_hz))
-            t_end = float(comp.get("band_max_hz", sub_end_hz))
-            n_in = len(bins)
-            if n_in == 0 or t_end <= t_start:
-                continue
-            idx = int((bin_centre_hz - t_start) / (t_end - t_start) * n_in)
-            if 0 <= idx < n_in:
-                try:
-                    out[i] = float(bins[idx])
-                except (TypeError, ValueError):
-                    pass
-            break
-    return [round(v, 1) for v in out]
 
 
 # ---------------------------------------------------------------------
@@ -469,10 +421,7 @@ def _tick(prev_serials: list[str]) -> list[str]:
             "bus": _bus_for_serial(serial),
         })
 
-    # 3. Stitch composite.
-    bins = _stitch_composite(spectra, coord_start, coord_end, N_COMPOSITE_BINS)
-
-    # 4. Top-level state.
+    # 3. Top-level state.
     n_total = len(serials)
     n_ok = sum(1 for d in dongles_view if d["state"] == "ok")
     if n_total == 0:
@@ -484,7 +433,7 @@ def _tick(prev_serials: list[str]) -> list[str]:
     else:
         top_state = "degraded"
 
-    # 5. Cycle age — coarse proxy: time since the *youngest* per-dongle
+    # 4. Cycle age — coarse proxy: time since the *youngest* per-dongle
     # state's cycle_complete_ts changed.  We just look at "ok" dongles.
     now = time.time()
     cycle_ages = []
@@ -499,14 +448,13 @@ def _tick(prev_serials: list[str]) -> list[str]:
             pass
     last_full_cycle_age_sec = round(min(cycle_ages), 1) if cycle_ages else None
 
-    # 6. Classifier-pipeline detections.
+    # 5. Classifier-pipeline detections.
     detections = _read_detections(coord_start, coord_end)
 
     out = {
         "updated_ts": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "state": top_state,
         "range": {"start_mhz": coord_start, "end_mhz": coord_end},
-        "bins": bins,
         "last_full_cycle_age_sec": last_full_cycle_age_sec,
         "dongles": dongles_view,
         "detections": detections,
