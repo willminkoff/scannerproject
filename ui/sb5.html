@@ -667,11 +667,19 @@
     margin-top: 6px;
     font-family: ui-monospace, monospace;
     font-size: var(--type-meta); color: var(--text-1);
+    font-variant-numeric: tabular-nums;
   }
+  /* Live IQ readout pills update at WS frame rate (~20-30 Hz).  Without
+     tabular-nums + reserved widths the digit-count flips ("peak -25.7"
+     vs "peak -36.1", "14ms" vs "154ms") reflow this row each frame and
+     bounce every control below it on mobile.  Min-widths cover the
+     widest realistic value of each pill so the row never shrinks under
+     the layout that already fits the longest string. */
   .wf-meta {
     margin-top: 10px;
     display: flex; gap: 8px; flex-wrap: wrap;
     font-size: var(--type-body-sm); color: var(--text-2);
+    font-variant-numeric: tabular-nums;
   }
   .wf-meta .pill {
     padding: 3px 9px;
@@ -679,8 +687,16 @@
     border: 1px solid var(--line);
     border-radius: 999px;
     color: var(--text-2);
+    display: inline-block;
+    text-align: left;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
   .wf-meta .pill.peak { color: var(--sky-2); }
+  .wf-meta #wf-pill-center { min-width: 19ch; }
+  .wf-meta #wf-pill-bw     { min-width: 11ch; }
+  .wf-meta #wf-pill-peak   { min-width: 27ch; }
+  .wf-meta #wf-pill-age    { min-width: 17ch; }
 
   /* ============ Live IQ tunability row ============ */
   .wf-tune-row {
