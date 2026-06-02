@@ -4744,6 +4744,21 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_redirect("/hp3")
         
         # Serve SB3 UI
+        #
+        # SB3 is the previous-generation UI, kept alive alongside the SB5
+        # production UI because SB3 still hosts features SB5 has not yet
+        # absorbed:
+        #   * Favorites wizard (hp-wizard-*) — multi-stage create / edit
+        #     flow that drives /api/profile/create, /api/profile/delete,
+        #     /api/profile-editor/analog/{save,validate}, and
+        #     /api/profile-editor/digital/{save,validate}.  SB5's Phase 7b
+        #     "Favorite picker" modal only SWITCHES the active favorite;
+        #     it does not create or edit one.
+        #   * Band Scan tile — the airband/marine/CB/mil-air/rail
+        #     quick-scan shortcuts that POST scan ranges (#band-scan, the
+        #     btn-bandscan-* controls).  No SB5 equivalent.
+        # When SB5 grows a real profile editor + band-scan tile, this
+        # route can be retired and ui/sb3.html moved to archive/.
         if p == "/sb3" or p == "/sb3.html":
             ui_dir = os.path.dirname(os.path.abspath(__file__))
             mockup_path = os.path.join(ui_dir, "sb3.html")
@@ -4752,16 +4767,6 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, f.read())
             except FileNotFoundError:
                 return self._send(404, "SB3 UI not found", "text/plain; charset=utf-8")
-
-        # Serve SB4 UI (Phase 3a -- tabbed single-page scaffold)
-        if p == "/sb4" or p == "/sb4.html":
-            ui_dir = os.path.dirname(os.path.abspath(__file__))
-            mockup_path = os.path.join(ui_dir, "sb4.html")
-            try:
-                with open(mockup_path, "r", encoding="utf-8") as f:
-                    return self._send(200, f.read())
-            except FileNotFoundError:
-                return self._send(404, "SB4 UI not found", "text/plain; charset=utf-8")
 
         # Serve SB5 UI (Phase 4 -- iOS-native consumer design)
         if p == "/sb5" or p == "/sb5.html":
