@@ -6678,6 +6678,84 @@ class Handler(BaseHTTPRequestHandler):
                 "application/json; charset=utf-8",
             )
 
+        if p == "/api/hp/state/activate":
+            # Per-band favorite activation (Phase 7g).
+            # POST body: fav_id=<id>, band=air|ground|both
+            #
+            # Sets enabled_air and/or enabled_ground to True for the
+            # named favorite and False for ALL others (mutex enforcement).
+            # Also keeps legacy `enabled = enabled_air OR enabled_ground`
+            # consistent so tools that don't know about per-band still
+            # behave.  Persists state + enqueues runtime sync, but does
+            # NOT restart rtl-airband (that happens via Sitrep → Reset
+            # Radios so Will controls when the radio bounces).
+            try:
+                fav_id = str((form.get("fav_id") or form.get("id") or "")).strip()
+                band = str((form.get("band") or "")).strip().lower()
+                if not fav_id:
+                    raise ValueError("missing fav_id")
+                if band not in ("air", "ground", "both"):
+                    raise ValueError("band must be 'air', 'ground', or 'both'")
+            except ValueError as e:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            try:
+                state = HPState.load()
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            favorites = list(state.favorites or [])
+            target_found = False
+            for f in favorites:
+                if not isinstance(f, dict):
+                    continue
+                is_target = (str(f.get("id") or "").strip() == fav_id)
+                if is_target:
+                    target_found = True
+                if band in ("air", "both"):
+                    f["enabled_air"] = bool(is_target)
+                if band in ("ground", "both"):
+                    f["enabled_ground"] = bool(is_target)
+                # Keep legacy `enabled` consistent.
+                f["enabled"] = bool(f.get("enabled_air") or f.get("enabled_ground"))
+            if not target_found:
+                return self._send(
+                    404,
+                    json.dumps({"ok": False, "error": f"favorite not found: {fav_id}"}),
+                    "application/json; charset=utf-8",
+                )
+            state.favorites = favorites
+            # Keep favorites_name pointing at the AIR favorite when AIR
+            # was just switched (or to the new target on band=both) — that
+            # keeps the legacy display-name field aligned with the user's
+            # most-recent explicit pick.
+            try:
+                if band in ("air", "both"):
+                    for f in favorites:
+                        if isinstance(f, dict) and str(f.get("id") or "").strip() == fav_id:
+                            label = str(f.get("label") or "").strip()
+                            if label:
+                                state.favorites_name = label
+                            break
+            except Exception:
+                logger.debug("activate: favorites_name update failed", exc_info=True)
+            try:
+                payload = _save_hp_state_with_sync(state)
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}),
+                    "application/json; charset=utf-8",
+                )
+            payload["activated"] = {"fav_id": fav_id, "band": band}
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
         if p == "/api/hp/state":
             try:
                 state = HPState.load()

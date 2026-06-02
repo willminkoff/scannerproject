@@ -735,21 +735,27 @@ def _desired_analog_profile_for_empty_result(
 
 
 def _normalize_conventional_pool(pool: dict[str, Any]) -> tuple[list[float], list[str], list[float], list[str]]:
-    rows = pool.get("conventional")
-    if not isinstance(rows, list):
-        rows = []
+    # Per-band favorites: if the pool provides conventional_air /
+    # conventional_ground (the scan_mode_controller fills these when an
+    # AIR-favorite and a GROUND-favorite are activated independently),
+    # each side is routed only from its band's rows.  Falling back to the
+    # combined "conventional" list keeps the old behavior for callers
+    # that haven't been upgraded (pool synthesis from non-favorites
+    # modes, tests, etc.).
+    air_rows = pool.get("conventional_air") if isinstance(pool.get("conventional_air"), list) else None
+    ground_rows = pool.get("conventional_ground") if isinstance(pool.get("conventional_ground"), list) else None
+    has_per_band = air_rows is not None or ground_rows is not None
+    if not has_per_band:
+        rows = pool.get("conventional")
+        if not isinstance(rows, list):
+            rows = []
+        air_rows = rows
+        ground_rows = rows
 
     air_labels_by_freq: dict[float, str] = {}
     ground_labels_by_freq: dict[float, str] = {}
 
-    for item in rows:
-        if not isinstance(item, dict):
-            continue
-        freq = _coerce_float(item.get("frequency"))
-        if freq is None:
-            continue
-        mhz = round(freq, 6)
-        label = _normalize_label(item, f"{mhz:.4f}")
+    def _classify(item: dict, mhz: float) -> str:
         # Route by modulation, not raw frequency band. Each rtl-airband
         # instance is single-modulation (airband=AM, ground=NFM in scan
         # mode), so an AM-mode favorite must land in the airband conf
@@ -758,13 +764,45 @@ def _normalize_conventional_pool(pool: dict[str, Any]) -> tuple[list[float], lis
         # garbage audio.
         explicit_mod = str(item.get("modulation") or "").strip().lower()
         if explicit_mod in ("am", "nfm"):
-            mod = explicit_mod
+            return explicit_mod
+        mod, _bw = _modulation_for_freq(mhz)
+        return mod
+
+    for item in (air_rows or []):
+        if not isinstance(item, dict):
+            continue
+        freq = _coerce_float(item.get("frequency"))
+        if freq is None:
+            continue
+        mhz = round(freq, 6)
+        label = _normalize_label(item, f"{mhz:.4f}")
+        if has_per_band:
+            # Per-band path: every row in conventional_air is destined for
+            # the airband config IFF its modulation is AM (we still skip
+            # NFM rows so the airband conf doesn't get garbled).
+            if _classify(item, mhz) == "am":
+                air_labels_by_freq.setdefault(mhz, label)
         else:
-            mod, _bw = _modulation_for_freq(mhz)
-        if mod == "am":
-            air_labels_by_freq.setdefault(mhz, label)
-        else:
-            ground_labels_by_freq.setdefault(mhz, label)
+            # Legacy path: split single 'conventional' list by modulation.
+            if _classify(item, mhz) == "am":
+                air_labels_by_freq.setdefault(mhz, label)
+            else:
+                ground_labels_by_freq.setdefault(mhz, label)
+
+    if has_per_band:
+        for item in (ground_rows or []):
+            if not isinstance(item, dict):
+                continue
+            freq = _coerce_float(item.get("frequency"))
+            if freq is None:
+                continue
+            mhz = round(freq, 6)
+            label = _normalize_label(item, f"{mhz:.4f}")
+            # Ground-favorite rows go to the ground config only when they
+            # are NFM-routed; AM rows are dropped (avoids polluting the
+            # NFM-only ground demod).
+            if _classify(item, mhz) == "nfm":
+                ground_labels_by_freq.setdefault(mhz, label)
 
     air_freqs = sorted(air_labels_by_freq.keys())[:_MAX_FREQS_PER_BAND]
     ground_freqs = sorted(ground_labels_by_freq.keys())[:_MAX_FREQS_PER_BAND]

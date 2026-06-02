@@ -87,6 +87,45 @@ def _migrate_legacy_service_tags(tags: list[int], legacy_version: int) -> list[i
     return out
 
 
+# Per-band classification helpers.  A favorite "has air" channels if any of
+# its conventional rows fall in the AM/airband regions used by rtl-airband's
+# airband instance (108-137 MHz civilian airband or 225-400 MHz mil-air).
+# A favorite "has ground" channels if any conventional row falls outside
+# those AM regions (137-225 MHz / 400+ MHz NFM).  Trunked rows do not
+# contribute to either band classification — they route through OP25
+# regardless of the per-band analog activation flags.
+def _favorite_has_air_channels(custom_favorites: list[dict]) -> bool:
+    for c in custom_favorites or []:
+        if not isinstance(c, dict):
+            continue
+        if str(c.get("kind") or "").strip().lower() != "conventional":
+            continue
+        try:
+            f = float(c.get("frequency") or 0)
+        except Exception:
+            continue
+        if (108.0 <= f < 137.0) or (225.0 <= f < 400.0):
+            return True
+    return False
+
+
+def _favorite_has_ground_channels(custom_favorites: list[dict]) -> bool:
+    for c in custom_favorites or []:
+        if not isinstance(c, dict):
+            continue
+        if str(c.get("kind") or "").strip().lower() != "conventional":
+            continue
+        try:
+            f = float(c.get("frequency") or 0)
+        except Exception:
+            continue
+        # Ground band = anything NFM-routed (i.e. non-airband).  Treat
+        # 30-108 MHz as ground too (rare but legal).
+        if 30.0 <= f and not ((108.0 <= f < 137.0) or (225.0 <= f < 400.0)):
+            return True
+    return False
+
+
 def _coerce_favorites(value) -> list[dict]:
     out: list[dict] = []
     if not isinstance(value, list):
@@ -96,6 +135,31 @@ def _coerce_favorites(value) -> list[dict]:
             continue
         label = str(item.get("label") or item.get("name") or "").strip()
         custom_favorites = _coerce_custom_favorites(item.get("custom_favorites"))
+        enabled = _coerce_bool(item.get("enabled"), default=False)
+        # ---- Per-band migration (idempotent) -----------------------------
+        # New schema: each favorite has independent enabled_air /
+        # enabled_ground flags so AIR + GROUND cards can pick different
+        # favorites.  Legacy state has only `enabled` (a single flag that
+        # toggled both bands at once).  On first read, derive the per-band
+        # flags from the legacy `enabled` plus the favorite's channel
+        # composition; persisted state will then carry the per-band flags
+        # forward verbatim (so this branch becomes a no-op on subsequent
+        # reads).  `enabled` itself is kept in sync as OR(enabled_air,
+        # enabled_ground) so older tooling that only knows about `enabled`
+        # keeps working.
+        has_air_field = "enabled_air" in item
+        has_ground_field = "enabled_ground" in item
+        if has_air_field:
+            enabled_air = _coerce_bool(item.get("enabled_air"), default=False)
+        else:
+            enabled_air = bool(enabled and _favorite_has_air_channels(custom_favorites))
+        if has_ground_field:
+            enabled_ground = _coerce_bool(item.get("enabled_ground"), default=False)
+        else:
+            enabled_ground = bool(enabled and _favorite_has_ground_channels(custom_favorites))
+        # Keep legacy `enabled` consistent: any per-band activation implies
+        # the favorite is "enabled" for tools that ignore the per-band split.
+        enabled = bool(enabled_air or enabled_ground)
         out.append(
             {
                 "id": str(item.get("id") or "").strip(),
@@ -103,10 +167,30 @@ def _coerce_favorites(value) -> list[dict]:
                 "target": str(item.get("target") or "").strip().lower(),
                 "profile_id": str(item.get("profile_id") or item.get("profileId") or "").strip(),
                 "label": label,
-                "enabled": _coerce_bool(item.get("enabled"), default=False),
+                "enabled": enabled,
+                "enabled_air": enabled_air,
+                "enabled_ground": enabled_ground,
                 "custom_favorites": custom_favorites,
             }
         )
+    # Enforce mutex: only one favorite may hold enabled_air=True (same for
+    # ground).  Migration of a state that historically had multiple
+    # `enabled=true` rows (shouldn't happen but we defend anyway) leaves
+    # the first as the active per-band fav and clears the rest.
+    air_seen = False
+    ground_seen = False
+    for row in out:
+        if row.get("enabled_air"):
+            if air_seen:
+                row["enabled_air"] = False
+            else:
+                air_seen = True
+        if row.get("enabled_ground"):
+            if ground_seen:
+                row["enabled_ground"] = False
+            else:
+                ground_seen = True
+        row["enabled"] = bool(row.get("enabled_air") or row.get("enabled_ground"))
     return out
 
 

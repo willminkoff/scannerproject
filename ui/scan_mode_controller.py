@@ -945,9 +945,33 @@ class ScanModeController:
         return pool
 
     @classmethod
-    def _resolve_active_favorites_entries(cls, state) -> list[dict]:
+    def _resolve_active_favorites_entries(cls, state, band: str | None = None) -> list[dict]:
+        """Resolve the favorite-channel entries that should drive the scan pool.
+
+        When ``band`` is None the legacy behavior applies — find the first
+        favorite with ``enabled=True`` and return its custom_favorites.
+
+        When ``band`` is ``'air'`` or ``'ground'`` we look for the favorite
+        flagged ``enabled_air=True`` / ``enabled_ground=True`` respectively
+        and return its custom_favorites — supporting independent AIR vs
+        GROUND favorite selection.
+        """
         favorites = list(getattr(state, "favorites", []) or [])
         active_name = str(getattr(state, "favorites_name", "") or "").strip().lower()
+
+        band_token = (band or "").strip().lower()
+        if band_token in ("air", "ground"):
+            flag_key = "enabled_air" if band_token == "air" else "enabled_ground"
+            for item in favorites:
+                if not isinstance(item, dict):
+                    continue
+                if bool(item.get(flag_key)):
+                    custom = item.get("custom_favorites")
+                    if isinstance(custom, list):
+                        return list(custom)
+                    return []
+            # No per-band activation; nothing to feed this band.
+            return []
 
         selected: dict[str, Any] | None = None
         for item in favorites:
@@ -1029,10 +1053,74 @@ class ScanModeController:
         if not service_tags:
             return _empty_pool()
         if state_mode == "favorites":
-            entries = self._resolve_active_favorites_entries(state)
-            filtered_entries, _stripped_by_tag = self._split_favorites_by_service_tag(entries, service_tags)
-            self._last_stripped_custom_favorites = _stripped_by_tag
-            pool = self._build_custom_favorites_pool(filtered_entries)
+            # Per-band favorites (Phase 7g): AIR + GROUND may point at
+            # different favorites.  Build the merged pool from BOTH active
+            # favorites, then tag the conventional rows so favorites_runtime
+            # can split them back into the rtl-airband-airband vs
+            # rtl-airband-ground configs.  Trunked sites are unioned —
+            # they don't belong to either analog band.
+            air_entries = self._resolve_active_favorites_entries(state, band="air")
+            ground_entries = self._resolve_active_favorites_entries(state, band="ground")
+            # Backwards-compat: if no per-band activation exists yet (e.g.
+            # legacy state mid-migration that for some reason didn't
+            # populate enabled_air/enabled_ground), fall through to the
+            # combined-favorite path so behavior degrades gracefully.
+            if not air_entries and not ground_entries:
+                entries = self._resolve_active_favorites_entries(state)
+                filtered_entries, _stripped_by_tag = self._split_favorites_by_service_tag(entries, service_tags)
+                self._last_stripped_custom_favorites = _stripped_by_tag
+                pool = self._build_custom_favorites_pool(filtered_entries)
+                pool["conventional_air"] = list(pool.get("conventional") or [])
+                pool["conventional_ground"] = list(pool.get("conventional") or [])
+            else:
+                filtered_air, _stripped_air = self._split_favorites_by_service_tag(air_entries, service_tags)
+                filtered_ground, _stripped_ground = self._split_favorites_by_service_tag(ground_entries, service_tags)
+                # Track stripped-by-tag from the union for the existing
+                # /api/hp telemetry path.
+                _merged_stripped: dict = {}
+                for k, v in (_stripped_air or {}).items():
+                    _merged_stripped[k] = list(v)
+                for k, v in (_stripped_ground or {}).items():
+                    _merged_stripped.setdefault(k, []).extend(v)
+                self._last_stripped_custom_favorites = _merged_stripped
+                air_pool = self._build_custom_favorites_pool(filtered_air)
+                ground_pool = self._build_custom_favorites_pool(filtered_ground)
+                # Union trunked sites (dedupe by system_id + control set).
+                trunk_seen: set[tuple] = set()
+                trunked_sites: list[dict] = []
+                for row in (air_pool.get("trunked_sites") or []) + (ground_pool.get("trunked_sites") or []):
+                    if not isinstance(row, dict):
+                        continue
+                    key = (
+                        int(row.get("system_id") or 0),
+                        str(row.get("system_name") or "").lower(),
+                        tuple(row.get("control_channels") or []),
+                    )
+                    if key in trunk_seen:
+                        continue
+                    trunk_seen.add(key)
+                    trunked_sites.append(row)
+                # Conventional rows are kept band-tagged.  The combined
+                # 'conventional' field is the union (used by code paths that
+                # don't yet know about per-band).
+                conv_air = list(air_pool.get("conventional") or [])
+                conv_ground = list(ground_pool.get("conventional") or [])
+                conv_combined_seen: set[tuple] = set()
+                conv_combined: list[dict] = []
+                for row in conv_air + conv_ground:
+                    if not isinstance(row, dict):
+                        continue
+                    key = (round(float(row.get("frequency") or 0), 6), str(row.get("alpha_tag") or "").lower())
+                    if key in conv_combined_seen:
+                        continue
+                    conv_combined_seen.add(key)
+                    conv_combined.append(row)
+                pool = {
+                    "trunked_sites": trunked_sites,
+                    "conventional": conv_combined,
+                    "conventional_air": conv_air,
+                    "conventional_ground": conv_ground,
+                }
             pool = self._trim_favorites_pool_to_nearest_sites(pool, state)
         elif state_mode == "full_database":
             if not bool(state.use_location):

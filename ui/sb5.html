@@ -1902,6 +1902,71 @@
     background: rgba(90, 184, 255, 0.18);
     border-color: rgba(90, 184, 255, 0.50);
   }
+  /* "Sync to Ground" button: same shape as the picker button but tinted
+     amber to match GROUND's eyebrow accent — visually telegraphs that
+     clicking copies AIR's favorite onto the GROUND card. */
+  .profile-sync-btn {
+    background: rgba(255, 178, 90, 0.10);
+    border: 1px solid rgba(255, 178, 90, 0.30);
+    color: var(--amber, #ffb25a);
+    padding: 5px 10px;
+    border-radius: 8px;
+    font-size: var(--type-meta); font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    margin-left: 6px;
+  }
+  .profile-sync-btn:hover:not([disabled]) {
+    background: rgba(255, 178, 90, 0.18);
+    border-color: rgba(255, 178, 90, 0.50);
+  }
+  .profile-sync-btn[disabled] {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  /* GROUND card mirrors AIR's analog-profile block but tints amber so
+     the two pickers are visually distinct at a glance. */
+  .ground-profile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid rgba(255, 178, 90, 0.22);
+    border-radius: 10px;
+    margin-top: 6px;
+    background: rgba(255, 178, 90, 0.05);
+  }
+  .ground-profile .glyph {
+    width: 28px; height: 28px; display: flex;
+    align-items: center; justify-content: center;
+    border-radius: 6px; background: rgba(255, 178, 90, 0.12);
+    color: var(--amber, #ffb25a); font-weight: 700;
+  }
+  .ground-profile .pname { font-size: var(--type-body-sm); font-weight: 600; color: var(--text); }
+  .ground-profile .psub { font-size: var(--type-body-sm); color: var(--text-2); margin-top: 1px; font-family: ui-monospace, monospace; }
+  .ground-profile .profile-build-btn {
+    background: rgba(255, 178, 90, 0.10);
+    border-color: rgba(255, 178, 90, 0.30);
+    color: var(--amber, #ffb25a);
+  }
+  .ground-profile .profile-build-btn:hover {
+    background: rgba(255, 178, 90, 0.18);
+    border-color: rgba(255, 178, 90, 0.50);
+  }
+  /* Active row highlight inside the per-band picker modal. */
+  .fp-row.active-air { box-shadow: inset 3px 0 0 var(--sky-2, #5ab8ff); }
+  .fp-row.active-ground { box-shadow: inset 3px 0 0 var(--amber, #ffb25a); }
+  .fp-row.active-both { box-shadow: inset 3px 0 0 var(--sky-2, #5ab8ff), inset 6px 0 0 var(--amber, #ffb25a); }
+  .fp-row .fp-band-tags { display: inline-flex; gap: 4px; margin-left: 6px; }
+  .fp-row .fp-band-tag {
+    font-size: var(--type-meta);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .fp-row .fp-band-tag.air { background: rgba(90, 184, 255, 0.18); color: var(--sky-2, #5ab8ff); }
+  .fp-row .fp-band-tag.ground { background: rgba(255, 178, 90, 0.18); color: var(--amber, #ffb25a); }
   .modal-profile-builder .pb-placeholder {
     padding: 14px 16px;
     background: rgba(8, 14, 28, 0.40);
@@ -2159,6 +2224,12 @@
           <div class="psub" id="ana-psub">—</div>
         </div>
         <button class="profile-build-btn" id="ana-profile-build-btn" type="button">Build / Edit</button>
+        <!-- Phase 7g: copy AIR's active favorite to ALSO be GROUND's
+             active favorite.  POSTs /api/hp/state/activate with
+             band='both' so a single click syncs both bands.  Disabled
+             when AIR has no active favorite. -->
+        <button class="profile-sync-btn" id="ana-profile-sync-btn" type="button"
+                title="Copy AIR's favorite to GROUND" disabled>Sync to Ground</button>
       </div>
       <div class="analog-chips" id="ana-chips"></div>
       <div class="hits-list" id="air-hits">
@@ -2234,6 +2305,18 @@
           <div class="now-line dim">Loading…</div>
         </div>
         <div class="chev">›</div>
+      </div>
+      <!-- Phase 7g: independent GROUND favorite picker (mirrors AIR).
+           Shows the favorite currently flagged enabled_ground=true; the
+           Build / Edit button opens the picker filtered to favorites
+           with NFM/ground channels and POSTs activate with band='ground'. -->
+      <div class="ground-profile">
+        <div class="glyph" id="ground-glyph">—</div>
+        <div>
+          <div class="pname" id="ground-pname">Loading…</div>
+          <div class="psub" id="ground-psub">—</div>
+        </div>
+        <button class="profile-build-btn" id="ground-profile-build-btn" type="button">Build / Edit</button>
       </div>
       <div class="hits-list" id="ground-hits">
         <div class="hits-empty">Loading hits…</div>
@@ -3903,9 +3986,42 @@ function favHasKind(f, kind) {
 function favIsAnalog(f)  { return favHasKind(f, "conventional"); }
 function favIsDigital(f) { return favHasKind(f, "trunked"); }
 
-// Paint one pane's favorites widget (prefix "dig" or "ana") from a filtered list.
-function paintProfile(prefix, list, zip, mode) {
-  const active = list.find(f => f.enabled) || list[0] || null;
+// Per-band channel classifier (mirrors hp_state.py:_favorite_has_*_channels).
+// AIR  = conventional rows in 108-137 MHz (civ airband, AM) OR 225-400 MHz
+//        (mil-air UHF, AM).
+// GROUND = conventional rows in 30-108 MHz or 137-225 MHz or 400+ MHz
+//        (everything NFM-routed).  Trunked rows don't contribute.
+function _favConventionalRows(f) {
+  const cf = (f && Array.isArray(f.custom_favorites)) ? f.custom_favorites : [];
+  return cf.filter(c => String(c.kind || "").toLowerCase() === "conventional");
+}
+function _favAirCount(f) {
+  return _favConventionalRows(f).filter(c => {
+    const x = Number(c.frequency || 0);
+    return (x >= 108 && x < 137) || (x >= 225 && x < 400);
+  }).length;
+}
+function _favGroundCount(f) {
+  return _favConventionalRows(f).filter(c => {
+    const x = Number(c.frequency || 0);
+    return x >= 30 && !((x >= 108 && x < 137) || (x >= 225 && x < 400));
+  }).length;
+}
+function favIsAir(f)    { return _favAirCount(f) > 0; }
+function favIsGround(f) { return _favGroundCount(f) > 0; }
+
+// Paint a band-specific favorites widget.  prefix selects the DOM card
+// ("ana" = AIR, "ground" = GROUND, "dig" = digital).  band is 'air',
+// 'ground', or null (digital).  enabledFlag is the favorite-row field
+// that marks the active fav for this band ('enabled_air'/'enabled_ground'/
+// 'enabled').  countFn returns the band-specific freq count shown in the
+// sub-text ("20 freqs").
+function paintBandProfile(prefix, list, zip, mode, opts) {
+  const enabledFlag = (opts && opts.enabledFlag) || "enabled";
+  const countFn = (opts && opts.countFn) || null;
+  const bandLabel = (opts && opts.bandLabel) || "";
+
+  const active = list.find(f => f && f[enabledFlag]) || null;
   const label = active ? (active.label || active.id || "fav") : "—";
   const glyph = String(label || "—").replace(/[^A-Za-z0-9]/g, "").slice(0, 3).toUpperCase() || "—";
 
@@ -3914,18 +4030,33 @@ function paintProfile(prefix, list, zip, mode) {
   const sEl = $(prefix + "-psub");
   const cEl = $(prefix + "-chips");
   if (nEl) nEl.textContent = label;
-  if (sEl) sEl.textContent = `${list.length} favorite${list.length === 1 ? "" : "s"}` +
-    (zip ? ` · ZIP ${zip}` : "") +
-    (mode ? ` · ${mode} mode` : "");
+  if (sEl) {
+    let sub;
+    if (active && countFn) {
+      const n = countFn(active);
+      sub = `${n} ${bandLabel || "freq"}${n === 1 ? "" : "s"}`;
+    } else {
+      sub = `${list.length} favorite${list.length === 1 ? "" : "s"}`;
+    }
+    if (zip) sub += ` · ZIP ${zip}`;
+    if (mode) sub += ` · ${mode} mode`;
+    sEl.textContent = sub;
+  }
   if (gEl) gEl.textContent = glyph;
 
   if (cEl) {
     const top = list.slice(0, 5);
     cEl.innerHTML = top.map(f => {
-      const cls = f.enabled ? "chip on" : "chip";
+      const cls = (f && f[enabledFlag]) ? "chip on" : "chip";
       return `<span class="${cls}">${escapeHtml(f.label || f.id || "fav")}</span>`;
     }).join("") + (list.length > 5 ? `<span class="chip">+${list.length - 5}</span>` : "");
   }
+}
+
+// Legacy alias kept in case other call sites reference it. Internal calls
+// now go through paintBandProfile with explicit per-band flags.
+function paintProfile(prefix, list, zip, mode) {
+  paintBandProfile(prefix, list, zip, mode, { enabledFlag: "enabled" });
 }
 
 function renderProfile(hpState, profiles) {
@@ -3936,9 +4067,44 @@ function renderProfile(hpState, profiles) {
   const zip = (hpState && hpState.state && hpState.state.zip) || "";
   const mode = (hpState && hpState.mode) || "";
 
-  // Digital pane: P25 / trunked favorites. Analog pane: conventional favorites.
-  paintProfile("dig", favList.filter(favIsDigital), zip, mode);
-  paintProfile("ana", favList.filter(favIsAnalog), zip, mode);
+  // Digital pane uses the legacy `enabled` flag.  AIR + GROUND each have
+  // their own active favorite via `enabled_air` / `enabled_ground` —
+  // independently selectable.  AIR shows AIR-routed channel count;
+  // GROUND shows ground-routed channel count.
+  paintBandProfile("dig", favList.filter(favIsDigital), zip, mode, {
+    enabledFlag: "enabled",
+  });
+  paintBandProfile("ana", favList.filter(favIsAir), zip, mode, {
+    enabledFlag: "enabled_air",
+    countFn: _favAirCount,
+    bandLabel: "freq",
+  });
+  paintBandProfile("ground", favList.filter(favIsGround), zip, mode, {
+    enabledFlag: "enabled_ground",
+    countFn: _favGroundCount,
+    bandLabel: "freq",
+  });
+
+  // Update the Sync-to-Ground button state: enabled only when AIR has
+  // an active favorite different from GROUND's active favorite (so a
+  // sync would actually change something).
+  try {
+    const airActive = favList.find(f => f && f.enabled_air) || null;
+    const groundActive = favList.find(f => f && f.enabled_ground) || null;
+    const syncBtn = $("ana-profile-sync-btn");
+    if (syncBtn) {
+      const sameAlready = airActive && groundActive
+        && String(airActive.id || "") === String(groundActive.id || "");
+      const ok = !!airActive && !sameAlready;
+      if (ok) syncBtn.removeAttribute("disabled");
+      else syncBtn.setAttribute("disabled", "");
+      syncBtn.title = !airActive
+        ? "No AIR favorite active"
+        : sameAlready
+          ? "GROUND is already on the AIR favorite"
+          : `Copy "${airActive.label || airActive.id}" to GROUND`;
+    }
+  } catch (_e) {}
 
   const active = favList.find(f => f.enabled) || favList[0] || null;
   const label = active ? (active.label || active.id || "fav") : "—";
@@ -5796,28 +5962,63 @@ function _favPickerChannelCount(fav, kind) {
   return fav.custom_favorites.filter(c => String(c.kind || "").toLowerCase() === kind).length;
 }
 
+// Phase 7g: per-band favorites picker.  pane is 'air' | 'ground' | 'dig'.
+// 'air' and 'ground' filter to favorites that carry channels routable to
+// that band and POST /api/hp/state/activate with band=<pane>.
+// 'dig' keeps the legacy trunked-favorites flow that targets the OP25
+// profile and posts the whole favorites array through /api/hp/state.
 function _favPickerRenderRows(pane) {
   const wrap = $("fp-rows");
   if (!wrap) return;
   const hp = STATE.hpState;
   const all = (hp && hp.state && Array.isArray(hp.state.favorites)) ? hp.state.favorites : [];
-  const kind = pane === "dig" ? "trunked" : "conventional";
-  const list = all.filter(_favKind(kind));
+  let list, kindLabelSingular, kindLabelPlural, activeFlag, emptyMsg;
+  if (pane === "dig") {
+    list = all.filter(favIsDigital);
+    kindLabelSingular = "talkgroup";
+    kindLabelPlural = "talkgroups";
+    activeFlag = "enabled";
+    emptyMsg = "No favorites with trunked channels.";
+  } else if (pane === "ground") {
+    list = all.filter(favIsGround);
+    kindLabelSingular = "ground freq";
+    kindLabelPlural = "ground freqs";
+    activeFlag = "enabled_ground";
+    emptyMsg = "No favorites with ground (NFM) channels.";
+  } else {
+    // 'air' (or anything else — default).
+    list = all.filter(favIsAir);
+    kindLabelSingular = "airband freq";
+    kindLabelPlural = "airband freqs";
+    activeFlag = "enabled_air";
+    emptyMsg = "No favorites with airband (AM) channels.";
+  }
   if (!list.length) {
-    wrap.innerHTML = `<div class="fp-empty">No favorites with ${escapeHtml(kind)} channels.</div>`;
+    wrap.innerHTML = `<div class="fp-empty">${escapeHtml(emptyMsg)}</div>`;
     return;
   }
   wrap.innerHTML = list.map(f => {
     const id = escapeHtml(f.id || "");
     const label = escapeHtml(f.label || f.id || "fav");
-    const ch = _favPickerChannelCount(f, kind);
+    let ch = 0;
+    if (pane === "dig") ch = _favPickerChannelCount(f, "trunked");
+    else if (pane === "ground") ch = _favGroundCount(f);
+    else ch = _favAirCount(f);
     const total = (Array.isArray(f.custom_favorites) ? f.custom_favorites.length : 0);
-    const meta = `${ch} ${kind === "trunked" ? "talkgroup" : "channel"}${ch === 1 ? "" : "s"} · ${total} total`;
-    const stateTxt = f.enabled ? "active" : "switch";
-    const cls = f.enabled ? "fp-row active" : "fp-row";
+    const meta = `${ch} ${ch === 1 ? kindLabelSingular : kindLabelPlural} · ${total} total`;
+    const isActive = !!f[activeFlag];
+    const stateTxt = isActive ? "active" : "switch";
+    // Show small band tags so the user sees which other bands the
+    // favorite is currently active on.
+    const tags = [];
+    if (f.enabled_air) tags.push('<span class="fp-band-tag air">AIR</span>');
+    if (f.enabled_ground) tags.push('<span class="fp-band-tag ground">GROUND</span>');
+    const tagHtml = tags.length ? `<span class="fp-band-tags">${tags.join("")}</span>` : "";
+    let cls = "fp-row";
+    if (isActive) cls += " active active-" + (pane === "dig" ? "both" : pane);
     return `<div class="${cls}" data-id="${id}" role="button" tabindex="0">
       <div>
-        <div class="fp-name">${label}</div>
+        <div class="fp-name">${label}${tagHtml}</div>
         <div class="fp-meta">${meta}</div>
       </div>
       <span class="fp-state">${stateTxt}</span>
@@ -5825,7 +6026,7 @@ function _favPickerRenderRows(pane) {
   }).join("");
   wrap.querySelectorAll(".fp-row").forEach(row => {
     const id = row.getAttribute("data-id") || "";
-    const fire = () => _favPickerSwitch(id);
+    const fire = () => _favPickerSwitch(id, pane);
     row.addEventListener("click", fire);
     row.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fire(); }
@@ -5833,27 +6034,39 @@ function _favPickerRenderRows(pane) {
   });
 }
 
-async function _favPickerSwitch(targetId) {
+async function _favPickerSwitch(targetId, pane) {
   if (!targetId) return;
   const hp = STATE.hpState;
   const all = (hp && hp.state && Array.isArray(hp.state.favorites)) ? hp.state.favorites : [];
   if (!all.length) return;
-  // Build the updated favorites list: only the clicked id is enabled.
-  const updated = all.map(f => Object.assign({}, f, { enabled: String(f.id || "") === String(targetId) }));
   const busy = $("fp-busy");
   if (busy) busy.removeAttribute("hidden");
   try {
-    const body = new URLSearchParams();
-    body.set("favorites", JSON.stringify(updated));
-    const enabledRow = updated.find(f => f.enabled);
-    if (enabledRow && enabledRow.label) body.set("favorites_name", String(enabledRow.label));
-    const r = await fetch("/api/hp/state", { method: "POST", body, cache: "no-store" });
-    if (!r.ok) throw new Error("hp/state " + r.status);
-    // Refresh local state from server so the picker + pane widgets re-render
-    // off the canonical truth (and show the cross-pipeline sync result).
+    let r;
+    if (pane === "dig") {
+      // Digital favorite: keep the legacy whole-favorites POST since
+      // OP25 routing still keys off the singular `enabled` flag.  Mirror
+      // it into both per-band flags so AIR/GROUND don't end up orphaned
+      // when the user switches digital favs.
+      const updated = all.map(f => {
+        const on = String(f.id || "") === String(targetId);
+        return Object.assign({}, f, { enabled: on, enabled_air: on, enabled_ground: on });
+      });
+      const body = new URLSearchParams();
+      body.set("favorites", JSON.stringify(updated));
+      const enabledRow = updated.find(f => f.enabled);
+      if (enabledRow && enabledRow.label) body.set("favorites_name", String(enabledRow.label));
+      r = await fetch("/api/hp/state", { method: "POST", body, cache: "no-store" });
+    } else {
+      // Per-band activation — POST to the new endpoint with band=air|ground.
+      const body = new URLSearchParams();
+      body.set("fav_id", String(targetId));
+      body.set("band", pane === "ground" ? "ground" : "air");
+      r = await fetch("/api/hp/state/activate", { method: "POST", body, cache: "no-store" });
+    }
+    if (!r.ok) throw new Error("activate " + r.status);
     const next = await fetch("/api/hp/state", { cache: "no-store" }).then(rr => rr.json());
     STATE.hpState = next;
-    const pane = ($("pb-modal") || {}).dataset && $("pb-modal").dataset.pane || "ana";
     _favPickerRenderRows(pane);
     try { renderProfile(next, STATE.profiles ? { profiles: STATE.profiles } : { profiles: [] }); } catch (_e) {}
     closeModal("pb-modal");
@@ -5870,26 +6083,64 @@ function _favPickerOpen(pane) {
   const modal = $("pb-modal");
   if (modal) modal.dataset.pane = pane;
   const title = $("pb-modal-title");
-  if (title) title.textContent = pane === "dig" ? "Pick a digital favorite" : "Pick an analog favorite";
+  if (title) {
+    title.textContent = pane === "dig"
+      ? "Pick a digital favorite"
+      : pane === "ground"
+        ? "Pick a GROUND favorite (NFM)"
+        : "Pick an AIR favorite (AM / airband)";
+  }
   _favPickerRenderRows(pane);
   openModal("pb-modal");
+}
+
+// Phase 7g: Sync to Ground — copy AIR's active favorite to GROUND's slot
+// so both bands run off the same favorite without two clicks.  Disabled
+// when AIR has no active favorite (or already matches GROUND).
+async function _favSyncAirToGround() {
+  const hp = STATE.hpState;
+  const all = (hp && hp.state && Array.isArray(hp.state.favorites)) ? hp.state.favorites : [];
+  const airActive = all.find(f => f && f.enabled_air);
+  if (!airActive) return;
+  const btn = $("ana-profile-sync-btn");
+  const prevTxt = btn ? btn.textContent : "";
+  if (btn) { btn.setAttribute("disabled", ""); btn.textContent = "Syncing…"; }
+  try {
+    const body = new URLSearchParams();
+    body.set("fav_id", String(airActive.id || ""));
+    body.set("band", "both");
+    const r = await fetch("/api/hp/state/activate", { method: "POST", body, cache: "no-store" });
+    if (!r.ok) throw new Error("activate " + r.status);
+    const next = await fetch("/api/hp/state", { cache: "no-store" }).then(rr => rr.json());
+    STATE.hpState = next;
+    try { renderProfile(next, STATE.profiles ? { profiles: STATE.profiles } : { profiles: [] }); } catch (_e) {}
+  } catch (e) {
+    if (btn) btn.textContent = "Sync failed";
+    setTimeout(() => { if (btn) btn.textContent = prevTxt || "Sync to Ground"; }, 1500);
+    return;
+  }
+  if (btn) btn.textContent = prevTxt || "Sync to Ground";
 }
 
 function wireProfileBuilder() {
   const digBtn = $("profile-build-btn");
   const anaBtn = $("ana-profile-build-btn");
+  const groundBtn = $("ground-profile-build-btn");
+  const syncBtn = $("ana-profile-sync-btn");
   const closeBtn = $("pb-modal-close");
   const overlay = $("pb-modal");
   if (digBtn) digBtn.addEventListener("click", () => _favPickerOpen("dig"));
-  if (anaBtn) anaBtn.addEventListener("click", () => _favPickerOpen("ana"));
+  if (anaBtn) anaBtn.addEventListener("click", () => _favPickerOpen("air"));
+  if (groundBtn) groundBtn.addEventListener("click", () => _favPickerOpen("ground"));
+  if (syncBtn) syncBtn.addEventListener("click", _favSyncAirToGround);
   // Also let users open the picker by clicking the favorite badge itself.
-  // The fav-picker badge lives on the AIR card (analog favorite, shared
-  // with GROUND). Digital still hangs off the DIGITAL card.
-  document.querySelectorAll(".pane-air .analog-profile, .pane-digital .digital-profile").forEach(row => {
+  document.querySelectorAll(".pane-air .analog-profile, .pane-ground .ground-profile, .pane-digital .digital-profile").forEach(row => {
     row.style.cursor = "pointer";
     row.addEventListener("click", (e) => {
       if (e.target.closest("button")) return;
-      const pane = row.closest(".pane-digital") ? "dig" : "ana";
+      const pane = row.closest(".pane-digital") ? "dig"
+                 : row.closest(".pane-ground") ? "ground"
+                 : "air";
       _favPickerOpen(pane);
     });
   });
