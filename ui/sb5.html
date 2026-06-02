@@ -828,16 +828,19 @@
   .disco-detect-row .conf.hi { color: #c8f3d3; }
   .disco-detect-row .conf.lo { color: #ffd58a; }
 
-  /* ============ DESKTOP — 5-pane grid layout ============ */
+  /* ============ DESKTOP — 6-pane grid layout (Phase 7c) ============
+     Row 3 was added in Phase 7c to host the consolidated Recent Hits
+     panel — all bands, chronological. */
   @media (min-width: 1100px) {
     .panes {
       padding: 16px;
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
-      grid-template-rows: auto auto;
+      grid-template-rows: auto auto auto;
       grid-template-areas:
         "analog      digital     vfo"
-        "waterfall   waterfall   disco";
+        "waterfall   waterfall   disco"
+        "hits        hits        hits";
       gap: 16px;
       align-items: stretch;
     }
@@ -846,6 +849,7 @@
     .pane-vfo       { grid-area: vfo; }
     .pane-waterfall { grid-area: waterfall; }
     .pane-disco     { grid-area: disco; }
+    .pane-hits      { grid-area: hits; }
     .pane { min-height: 0; }
     .wf-canvas-wrap { height: 240px; }
     .disco-canvas-wrap { height: 180px; }
@@ -855,7 +859,8 @@
       grid-template-columns: 1fr 1fr 1fr 1fr;
       grid-template-areas:
         "analog      digital     vfo         vfo"
-        "waterfall   waterfall   disco       disco";
+        "waterfall   waterfall   disco       disco"
+        "hits        hits        hits        hits";
     }
   }
 
@@ -1230,6 +1235,74 @@
     font-family: inherit;
   }
   .modal-profile-builder .pb-btn:hover { background: var(--sky-2); }
+
+  /* ============ Recent Hits pane (Phase 7c — consolidated cross-band) ============ */
+  .pane-hits .hits-stream {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 280px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .pane-hits .hits-stream::-webkit-scrollbar { width: 6px; }
+  .pane-hits .hits-stream::-webkit-scrollbar-thumb {
+    background: rgba(138,155,181,0.20); border-radius: 4px;
+  }
+  .pane-hits .stream-row {
+    display: grid;
+    grid-template-columns: 52px 1fr 90px 60px;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 10px;
+    background: rgba(8, 14, 28, 0.45);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: var(--type-meta);
+    cursor: pointer;
+    transition: background 90ms ease, border-color 90ms ease;
+  }
+  .pane-hits .stream-row:hover {
+    background: rgba(20, 36, 60, 0.65);
+    border-color: rgba(90,184,255,0.45);
+  }
+  .pane-hits .stream-row .band {
+    font-family: ui-monospace, monospace;
+    font-size: var(--type-micro);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-align: center;
+    padding: 3px 5px;
+    border-radius: 4px;
+  }
+  .pane-hits .stream-row .band.air { color: var(--sky-2); background: rgba(90,184,255,0.12); }
+  .pane-hits .stream-row .band.gnd { color: var(--amber); background: rgba(255,159,10,0.12); }
+  .pane-hits .stream-row .band.dig { color: var(--green); background: rgba(52,199,89,0.12); }
+  .pane-hits .stream-row .band.vfo { color: var(--text-2); background: rgba(138,155,181,0.18); }
+  .pane-hits .stream-row .lbl {
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .pane-hits .stream-row .freq {
+    font-family: ui-monospace, monospace;
+    color: var(--text-3);
+    text-align: right;
+  }
+  .pane-hits .stream-row .ago {
+    font-family: ui-monospace, monospace;
+    color: var(--text-4);
+    font-size: var(--type-micro);
+    text-align: right;
+  }
+  .pane-hits .stream-empty {
+    padding: 20px 14px;
+    color: var(--text-4);
+    font-style: italic;
+    text-align: center;
+    font-size: var(--type-meta);
+  }
 
   /* ============ Favorite picker (Phase 7b) ============
      Single shared modal used by both Analog and Digital "Build / Edit"
@@ -1673,9 +1746,24 @@
     </div>
   </section>
 
+  <!-- ============ Recent Hits (Phase 7c — consolidated, all bands) ============ -->
+  <section class="pane pane-hits" id="pane-hits">
+    <div class="pane-hd">
+      <div class="pane-hd-titles">
+        <div class="title">Recent Hits</div>
+        <div class="subtitle" id="hits-subtitle">All bands · loading…</div>
+      </div>
+    </div>
+    <div class="pane-body">
+      <div class="hits-stream" id="hits-stream">
+        <div class="stream-empty">Loading hits…</div>
+      </div>
+    </div>
+  </section>
+
 </main>
 
-<div class="footer" id="footer-meta">sb5 · 5-pane dense dashboard · loading…</div>
+<div class="footer" id="footer-meta">sb5 · 6-pane dense dashboard · loading…</div>
 
 <!-- ============ Sitrep modal (Phase 7a — full operator situation report) ============ -->
 <div class="modal-overlay modal-sitrep" id="sitrep-modal" role="dialog" aria-modal="true" aria-labelledby="sitrep-modal-title">
@@ -2276,7 +2364,68 @@ function renderHits(payload) {
   renderInto("analog-hits", analogItems);
   renderInto("digital-hits", digitalItems);
 
+  // Phase 7c — consolidated cross-band hits panel.
+  renderConsolidatedHits(items);
+
   if (STATE.heartbeat) renderNowListeningFromHeartbeat(STATE.heartbeat);
+}
+
+// Phase 7c — render last N hits across ALL bands chronologically into the
+// dedicated /sb5 Recent Hits pane.  Click jumps the VFO to the hit freq.
+function _hitsBandTag(src) {
+  const s = String(src || "").toLowerCase();
+  if (s.includes("ground") || s === "gnd") return ["GND", "gnd"];
+  if (s.includes("digital") || s.includes("p25") || s === "dig") return ["DIG", "dig"];
+  if (s.includes("vfo")) return ["VFO", "vfo"];
+  if (s.includes("airband") || s === "air") return ["AIR", "air"];
+  return [String(src || "—").slice(0, 3).toUpperCase(), "air"];
+}
+
+function _hitsAgeStr(ts) {
+  const now = Date.now() / 1000;
+  const dt = now - Number(ts || 0);
+  if (!Number.isFinite(dt) || dt < 0) return "—";
+  if (dt < 60) return `${Math.max(0, Math.round(dt))}s`;
+  if (dt < 3600) return `${Math.round(dt / 60)}m`;
+  return `${Math.round(dt / 3600)}h`;
+}
+
+function renderConsolidatedHits(items) {
+  const el = $("hits-stream");
+  const sub = $("hits-subtitle");
+  if (!el) return;
+  if (!items || !items.length) {
+    el.innerHTML = `<div class="stream-empty">No hits yet across any band.</div>`;
+    if (sub) sub.textContent = "All bands · 0 hits";
+    return;
+  }
+  const top = items.slice(0, 30);
+  if (sub) sub.textContent = `All bands · last ${top.length} of ${items.length}`;
+  el.innerHTML = top.map(h => {
+    const [tag, cls] = _hitsBandTag(h.type || h.source);
+    const lbl = h.label_full || h.label || (h.freq != null ? String(h.freq) : "—");
+    const freq = (typeof h.freq === "number")
+      ? h.freq.toFixed(3)
+      : (typeof h.freq === "string" && /^\d+(\.\d+)?$/.test(h.freq) ? parseFloat(h.freq).toFixed(3) : String(h.freq || ""));
+    const ago = _hitsAgeStr(h.ts);
+    const f = freq || "—";
+    return `<div class="stream-row" data-freq="${escapeHtml(f)}" role="button" tabindex="0">
+      <span class="band ${cls}">${tag}</span>
+      <span class="lbl">${escapeHtml(lbl)}</span>
+      <span class="freq">${escapeHtml(f)}</span>
+      <span class="ago">${escapeHtml(ago)}</span>
+    </div>`;
+  }).join("");
+  // Click handler — jump the VFO to this freq.
+  el.querySelectorAll(".stream-row").forEach(row => {
+    const f = parseFloat(row.getAttribute("data-freq") || "");
+    if (!Number.isFinite(f) || f <= 0) return;
+    const jump = () => { try { postVFO({ freq_mhz: f }); } catch (_e) {} };
+    row.addEventListener("click", jump);
+    row.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); jump(); }
+    });
+  });
 }
 
 // Classify a favorite by the kind of channels it carries. A favorite can be
