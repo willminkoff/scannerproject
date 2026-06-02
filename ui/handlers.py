@@ -3149,12 +3149,12 @@ def _compute_heartbeat_payload() -> dict:
                 "status": "warn",
             })
 
-    # Phase 6a — live evidence rows for the two waterfall RTL-SDRs.
-    # Backed by /run/scannerproject/waterfall/state.json which the
-    # scanner-waterfall.service writes once a frame is in hand.
-    for row in _waterfall_dongle_evidence_rows():
-        evidence.append(row)
-    # Phase 6b — live VFO row.
+    # OWRX+ pilot — the Live IQ pane is now served by OpenWebRX+ (Docker,
+    # :8073, RTL-SDR 83241970) instead of the retired scanner-waterfall.
+    # Surface a single health row (reachable on localhost) rather than the
+    # old per-dongle stitched-waterfall rows.
+    evidence.append(_owrx_health_row())
+    # Phase 6b — live VFO row (unchanged; /VFO.mp3 still served by vfo.py).
     evidence.append(_vfo_dongle_evidence_row())
     # Phase 6c — per-Disco-dongle live evidence rows backed by
     # /run/scannerproject/disco/coord_state.json.
@@ -3270,6 +3270,40 @@ def _waterfall_read_state() -> dict | None:
     if not isinstance(data, dict):
         return None
     return data
+
+
+# OWRX+ pilot — Live IQ health.  OpenWebRX+ runs in Docker bound to :8073 on
+# the box; airband-ui reaches it on localhost.  Unreachable is surfaced as a
+# warn (the Live IQ pane is an auxiliary view, not the core RF pipeline), so a
+# stopped OWRX never flips the whole heartbeat badge to "bad".
+OWRX_HEALTH_URL = os.getenv("OWRX_HEALTH_URL", "http://127.0.0.1:8073/")
+OWRX_HEALTH_TIMEOUT_SEC = 2.0
+
+
+def _owrx_health_row() -> dict:
+    """Single heartbeat evidence row for the OpenWebRX+ Live IQ engine."""
+    try:
+        req = Request(OWRX_HEALTH_URL, method="GET",
+                      headers={"User-Agent": "sb5-heartbeat/1.0"})
+        with urlopen(req, timeout=OWRX_HEALTH_TIMEOUT_SEC) as resp:
+            code = getattr(resp, "status", None) or resp.getcode()
+        if 200 <= int(code) < 500:
+            return {
+                "label": "Live IQ (OpenWebRX+)",
+                "value": "serving :8073 · RTL-SDR 83241970",
+                "status": "ok",
+            }
+        return {
+            "label": "Live IQ (OpenWebRX+)",
+            "value": f"HTTP {code} on :8073",
+            "status": "warn",
+        }
+    except Exception as exc:  # URLError, socket timeout, refused, etc.
+        return {
+            "label": "Live IQ (OpenWebRX+)",
+            "value": f"unreachable on :8073 ({type(exc).__name__})",
+            "status": "warn",
+        }
 
 
 def _waterfall_dongle_evidence_rows() -> list[dict]:

@@ -1,0 +1,68 @@
+{
+    "version": 8,
+    "receiver_name": "scannerproject OWRX+",
+    "receiver_admins": ["admin"],
+    "waterfall_scheme": "GoogleTurboWaterfall",
+    "waterfall_auto_level_default_mode": "continuous",
+    "tuning_precision": 2,
+    "sdrs": {
+        "rtlsdr-owrx": {
+            "name": "RTL-SDR Blog V4 (drag-to-tune)",
+            "type": "rtl_sdr",
+            "enabled": true,
+            "device": "83241970",
+            "rf_gain": "auto",
+            "waterfall_auto_level_default_mode": "continuous",
+            "profiles": {
+                "airband-124": {
+                    "name": "Airband 118-130 AM",
+                    "center_freq": 124000000,
+                    "samp_rate": 2400000,
+                    "start_freq": 124000000,
+                    "start_mod": "am",
+                    "tuning_step": 8333
+                },
+                "airband-1335": {
+                    "name": "Airband 133.5 AM",
+                    "center_freq": 133500000,
+                    "samp_rate": 2400000,
+                    "start_freq": 133500000,
+                    "start_mod": "am",
+                    "tuning_step": 8333
+                },
+                "vhf-marine": {
+                    "name": "VHF Marine 156-162 NFM",
+                    "center_freq": 157000000,
+                    "samp_rate": 2400000,
+                    "start_freq": 156800000,
+                    "start_mod": "nfm",
+                    "tuning_step": 25000
+                },
+                "vhf-public": {
+                    "name": "VHF Public 152-158 NFM",
+                    "center_freq": 155000000,
+                    "samp_rate": 2400000,
+                    "start_freq": 155000000,
+                    "start_mod": "nfm",
+                    "tuning_step": 12500
+                },
+                "fm-broadcast": {
+                    "name": "FM Broadcast 88-108 WFM",
+                    "center_freq": 98000000,
+                    "samp_rate": 2400000,
+                    "start_freq": 98100000,
+                    "start_mod": "wfm",
+                    "tuning_step": 100000
+                },
+                "uhf-800": {
+                    "name": "800 MHz NFM",
+                    "center_freq": 855000000,
+                    "samp_rate": 2400000,
+                    "start_freq": 855000000,
+                    "start_mod": "nfm",
+                    "tuning_step": 12500
+                }
+            }
+        }
+    }
+}
