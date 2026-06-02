@@ -4177,6 +4177,155 @@ def _sitrep_dongles() -> list[dict]:
     return rows
 
 
+def _tail_jsonl_line(path: str, max_bytes: int = 8192) -> dict | None:
+    """Return the last JSON object written to ``path`` (one-line-per-record).
+
+    dumpvdl2 and acarsdec both append one JSON object per decoded message.
+    To stay bounded on long-running files we seek to ``max_bytes`` from end
+    and parse the final line.  Returns None on any error / empty file.
+    """
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    if st.st_size <= 0:
+        return None
+    try:
+        with open(path, "rb") as fh:
+            read_from = max(0, st.st_size - int(max_bytes))
+            fh.seek(read_from)
+            tail = fh.read()
+    except OSError:
+        return None
+    # Drop a partial first line if we started mid-record.
+    lines = tail.splitlines()
+    while lines and lines[-1].strip() == b"":
+        lines.pop()
+    if not lines:
+        return None
+    raw = lines[-1].decode("utf-8", errors="replace").strip()
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _count_jsonl_recent(path: str, window_sec: float) -> int:
+    """Count lines in ``path`` whose mtime/atime falls within ``window_sec``.
+
+    For acarsdec / dumpvdl2 we use line count over the recent tail as a
+    proxy for decode rate — exact per-message timestamps require parsing
+    each row which is too expensive for the UI poll.  The tail size is
+    capped at 64KB so heavy decoders don't stall the request.
+    """
+    try:
+        st = os.stat(path)
+    except OSError:
+        return 0
+    if st.st_size <= 0:
+        return 0
+    age = max(0.0, time.time() - st.st_mtime)
+    if age > float(window_sec):
+        return 0
+    try:
+        with open(path, "rb") as fh:
+            tail_size = min(65536, st.st_size)
+            fh.seek(max(0, st.st_size - tail_size))
+            return sum(1 for line in fh if line.strip())
+    except OSError:
+        return 0
+
+
+def _vdl2_summarize_message(msg: dict | None) -> str:
+    """Produce a one-line operator-readable summary of a dumpvdl2 record."""
+    if not isinstance(msg, dict):
+        return ""
+    vdl2 = msg.get("vdl2") if isinstance(msg.get("vdl2"), dict) else msg
+    avlc = vdl2.get("avlc") if isinstance(vdl2.get("avlc"), dict) else {}
+    src = (avlc.get("src") or {}) if isinstance(avlc, dict) else {}
+    dst = (avlc.get("dst") or {}) if isinstance(avlc, dict) else {}
+    parts = []
+    if src.get("addr"):
+        parts.append(f"src {src.get('addr')}")
+    if dst.get("addr"):
+        parts.append(f"dst {dst.get('addr')}")
+    acars = avlc.get("acars") if isinstance(avlc.get("acars"), dict) else None
+    if isinstance(acars, dict):
+        if acars.get("reg"):
+            parts.append(f"reg {acars.get('reg')}")
+        if acars.get("flight"):
+            parts.append(f"flt {acars.get('flight')}")
+        text = acars.get("msg_text") or acars.get("text")
+        if text:
+            parts.append(f"text {str(text)[:60]}")
+    return " · ".join(parts) if parts else "VDL2 frame"
+
+
+def _acars_summarize_message(msg: dict | None) -> str:
+    """Produce a one-line operator-readable summary of an acarsdec record."""
+    if not isinstance(msg, dict):
+        return ""
+    parts = []
+    if msg.get("freq"):
+        parts.append(f"{msg.get('freq')} MHz")
+    if msg.get("regno") or msg.get("tail"):
+        parts.append(f"reg {msg.get('regno') or msg.get('tail')}")
+    if msg.get("flight"):
+        parts.append(f"flt {msg.get('flight')}")
+    text = msg.get("text") or msg.get("message")
+    if text:
+        parts.append(f"text {str(text)[:60]}")
+    return " · ".join(parts) if parts else "ACARS frame"
+
+
+def _compute_sounding_detail_payload() -> dict:
+    """Live state for the Sounding pane: VDL2 + ACARS decoders.
+
+    Returns active/inactive, recent decode count, last decoded message
+    summary, and dedicated-vs-shared dongle role.  Cheap to compute —
+    bounded tail read + cached unit-active probe.
+    """
+    broker = _broker_read_state() or {}
+    sounding_on = bool(broker.get("sounding", False))
+
+    try:
+        vdl2_active = _unit_active_cached("dumpvdl2.service")
+    except Exception:
+        vdl2_active = False
+    try:
+        acars_active = _unit_active_cached("acarsdec.service")
+    except Exception:
+        acars_active = False
+
+    vdl2_last = _tail_jsonl_line(_VDL2_OUTPUT_PATH)
+    acars_last = _tail_jsonl_line(_ACARS_OUTPUT_PATH)
+    vdl2_age_ms = _file_age_ms(_VDL2_OUTPUT_PATH)
+    acars_age_ms = _file_age_ms(_ACARS_OUTPUT_PATH)
+
+    return {
+        "sounding_on": sounding_on,
+        "vdl2": {
+            "active": bool(vdl2_active),
+            "dongle": "dedicated",
+            "recent_count": _count_jsonl_recent(_VDL2_OUTPUT_PATH, window_sec=60.0),
+            "last_age_ms": vdl2_age_ms,
+            "last_summary": _vdl2_summarize_message(vdl2_last),
+            "last_raw": vdl2_last if isinstance(vdl2_last, dict) else None,
+        },
+        "acars": {
+            "active": bool(acars_active),
+            "dongle": "shared via broker",
+            "recent_count": _count_jsonl_recent(_ACARS_OUTPUT_PATH, window_sec=60.0),
+            "last_age_ms": acars_age_ms,
+            "last_summary": _acars_summarize_message(acars_last),
+            "last_raw": acars_last if isinstance(acars_last, dict) else None,
+        },
+        "server_time": time.time(),
+    }
+
+
 def _compute_sitrep_payload() -> dict:
     """Aggregate everything the Sitrep modal renders into one payload."""
     hb = _compute_heartbeat_payload()
@@ -5866,6 +6015,29 @@ class Handler(BaseHTTPRequestHandler):
                 json.dumps(payload),
                 "application/json; charset=utf-8",
             )
+
+        if p == "/api/sounding/detail":
+            # Phase 7d — live state for the /sb5 Sounding pane: VDL2 +
+            # ACARS active/inactive, recent decode counts, last decoded
+            # message summary.  Reads dumpvdl2 / acarsdec output files.
+            try:
+                payload = _compute_sounding_detail_payload()
+            except Exception as exc:
+                logger.exception("/api/sounding/detail failed")
+                payload = {
+                    "sounding_on": False,
+                    "vdl2": {"active": False, "error": str(exc),
+                             "recent_count": 0, "last_age_ms": None,
+                             "last_summary": "", "last_raw": None,
+                             "dongle": "dedicated"},
+                    "acars": {"active": False, "error": str(exc),
+                              "recent_count": 0, "last_age_ms": None,
+                              "last_summary": "", "last_raw": None,
+                              "dongle": "shared via broker"},
+                    "server_time": time.time(),
+                }
+                return self._send(500, json.dumps(payload), "application/json; charset=utf-8")
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         return self._send(404, "Not found", "text/plain; charset=utf-8")
 

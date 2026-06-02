@@ -828,9 +828,10 @@
   .disco-detect-row .conf.hi { color: #c8f3d3; }
   .disco-detect-row .conf.lo { color: #ffd58a; }
 
-  /* ============ DESKTOP — 6-pane grid layout (Phase 7c) ============
+  /* ============ DESKTOP — 7-pane grid layout (Phase 7c/7d) ============
      Row 3 was added in Phase 7c to host the consolidated Recent Hits
-     panel — all bands, chronological. */
+     panel (all bands, chronological) and the Sounding panel (VDL2 +
+     ACARS live decode state). */
   @media (min-width: 1100px) {
     .panes {
       padding: 16px;
@@ -840,7 +841,7 @@
       grid-template-areas:
         "analog      digital     vfo"
         "waterfall   waterfall   disco"
-        "hits        hits        hits";
+        "hits        hits        sounding";
       gap: 16px;
       align-items: stretch;
     }
@@ -850,6 +851,7 @@
     .pane-waterfall { grid-area: waterfall; }
     .pane-disco     { grid-area: disco; }
     .pane-hits      { grid-area: hits; }
+    .pane-sounding  { grid-area: sounding; }
     .pane { min-height: 0; }
     .wf-canvas-wrap { height: 240px; }
     .disco-canvas-wrap { height: 180px; }
@@ -860,7 +862,7 @@
       grid-template-areas:
         "analog      digital     vfo         vfo"
         "waterfall   waterfall   disco       disco"
-        "hits        hits        hits        hits";
+        "hits        hits        hits        sounding";
     }
   }
 
@@ -1303,6 +1305,76 @@
     text-align: center;
     font-size: var(--type-meta);
   }
+
+  /* ============ Sounding pane (Phase 7d — VDL2 + ACARS) ============ */
+  .pane-sounding .snd-row {
+    display: grid;
+    grid-template-columns: 64px 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    background: rgba(8, 14, 28, 0.45);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    margin-bottom: 8px;
+  }
+  .pane-sounding .snd-row.inactive { opacity: 0.55; }
+  .pane-sounding .snd-row .glyph {
+    font-family: ui-monospace, monospace;
+    font-size: var(--type-micro);
+    font-weight: 700;
+    letter-spacing: 0.10em;
+    color: var(--sky-2);
+    text-align: center;
+    padding: 4px 6px;
+    background: rgba(90,184,255,0.12);
+    border-radius: 4px;
+  }
+  .pane-sounding .snd-row.inactive .glyph {
+    color: var(--text-4);
+    background: rgba(138,155,181,0.10);
+  }
+  .pane-sounding .snd-row .title {
+    font-weight: 700;
+    color: var(--text);
+    font-size: var(--type-body-sm);
+  }
+  .pane-sounding .snd-row .meta {
+    font-family: ui-monospace, monospace;
+    font-size: var(--type-meta);
+    color: var(--text-3);
+    margin-top: 2px;
+  }
+  .pane-sounding .snd-row .state-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--text-4);
+    box-shadow: 0 0 8px rgba(138,155,181,0.20);
+  }
+  .pane-sounding .snd-row.ok .state-dot {
+    background: var(--green);
+    box-shadow: 0 0 10px rgba(52,199,89,0.42);
+  }
+  .pane-sounding .snd-row.warn .state-dot {
+    background: var(--amber);
+    box-shadow: 0 0 10px rgba(255,159,10,0.42);
+  }
+  .pane-sounding .snd-row.bad .state-dot {
+    background: var(--red);
+    box-shadow: 0 0 10px rgba(255,69,58,0.42);
+  }
+  .pane-sounding .snd-msg {
+    padding: 8px 10px;
+    background: rgba(2, 6, 14, 0.50);
+    border-radius: 6px;
+    margin-top: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: var(--type-micro);
+    color: var(--text-2);
+    line-height: 1.4;
+    word-break: break-word;
+    border: 1px solid rgba(138,155,181,0.10);
+  }
+  .pane-sounding .snd-msg.empty { color: var(--text-4); font-style: italic; }
 
   /* ============ Favorite picker (Phase 7b) ============
      Single shared modal used by both Analog and Digital "Build / Edit"
@@ -1761,9 +1833,40 @@
     </div>
   </section>
 
+  <!-- ============ Sounding (Phase 7d — VDL2 + ACARS live state) ============ -->
+  <section class="pane pane-sounding" id="pane-sounding">
+    <div class="pane-hd">
+      <div class="pane-hd-titles">
+        <div class="title">Sounding</div>
+        <div class="subtitle" id="sounding-subtitle">VDL2 + ACARS · loading…</div>
+      </div>
+    </div>
+    <div class="pane-body">
+      <div class="snd-row inactive" id="snd-row-vdl2">
+        <div class="glyph">VDL2</div>
+        <div>
+          <div class="title">VDL2</div>
+          <div class="meta" id="snd-vdl2-meta">— · waiting</div>
+        </div>
+        <span class="state-dot"></span>
+      </div>
+      <div class="snd-msg empty" id="snd-vdl2-msg">No VDL2 decode yet.</div>
+
+      <div class="snd-row inactive" id="snd-row-acars" style="margin-top: 10px;">
+        <div class="glyph">ACARS</div>
+        <div>
+          <div class="title">ACARS</div>
+          <div class="meta" id="snd-acars-meta">— · waiting</div>
+        </div>
+        <span class="state-dot"></span>
+      </div>
+      <div class="snd-msg empty" id="snd-acars-msg">No ACARS decode yet.</div>
+    </div>
+  </section>
+
 </main>
 
-<div class="footer" id="footer-meta">sb5 · 6-pane dense dashboard · loading…</div>
+<div class="footer" id="footer-meta">sb5 · 7-pane dense dashboard · loading…</div>
 
 <!-- ============ Sitrep modal (Phase 7a — full operator situation report) ============ -->
 <div class="modal-overlay modal-sitrep" id="sitrep-modal" role="dialog" aria-modal="true" aria-labelledby="sitrep-modal-title">
@@ -3817,6 +3920,83 @@ async function pollSounding() {
     setTimeout(pollSounding, POLL_SOUNDING_MS);
   }
 }
+
+// Phase 7d — populate the Sounding pane from /api/sounding/detail.
+function _soundingFmtAge(ageMs) {
+  if (ageMs == null) return "no output yet";
+  const n = Number(ageMs);
+  if (!Number.isFinite(n) || n < 0) return "no output yet";
+  if (n < 5000) return `${Math.max(0, Math.round(n))}ms`;
+  if (n < 60_000) return `${Math.round(n / 1000)}s ago`;
+  if (n < 3_600_000) return `${Math.round(n / 60_000)}m ago`;
+  return `${Math.round(n / 3_600_000)}h ago`;
+}
+
+function _renderSoundingRow(prefix, item, soundingOn) {
+  const row = $(`snd-row-${prefix}`);
+  const meta = $(`snd-${prefix}-meta`);
+  const msg = $(`snd-${prefix}-msg`);
+  if (!row || !meta || !msg) return;
+  const active = item && item.active;
+  // Status mapping:
+  //  - active + recent decode  → ok
+  //  - active + nothing in 60s → warn
+  //  - inactive                → bad (red) when sounding is on for ACARS,
+  //                              muted otherwise (ACARS rides on sounding;
+  //                              VDL2 should always be on).
+  let cls = "inactive";
+  if (active) {
+    cls = (item.recent_count > 0) ? "ok" : "warn";
+  } else if (prefix === "vdl2") {
+    cls = "bad";
+  } else if (prefix === "acars" && soundingOn) {
+    cls = "warn";
+  } else {
+    cls = "inactive";
+  }
+  row.classList.remove("ok", "warn", "bad", "inactive");
+  row.classList.add(cls);
+  const stateTxt = active ? "active" : (prefix === "acars" && !soundingOn ? "idle · sounding off" : "inactive");
+  const dongleTxt = item && item.dongle ? item.dongle : "—";
+  const rate = item ? Number(item.recent_count || 0) : 0;
+  const age = _soundingFmtAge(item ? item.last_age_ms : null);
+  meta.textContent = `${stateTxt} · dongle ${dongleTxt} · ${rate}/min · last ${age}`;
+  const summary = (item && item.last_summary) ? String(item.last_summary) : "";
+  if (summary) {
+    msg.classList.remove("empty");
+    msg.textContent = summary;
+  } else {
+    msg.classList.add("empty");
+    msg.textContent = active
+      ? "Decoder is alive — waiting for next frame."
+      : (prefix === "acars" && !soundingOn ? "ACARS comes online when Sounding is toggled on." : "Decoder is not running.");
+  }
+}
+
+function renderSoundingDetail(data) {
+  const sub = $("sounding-subtitle");
+  if (!data) {
+    if (sub) sub.textContent = "VDL2 + ACARS · unreachable";
+    return;
+  }
+  const on = !!data.sounding_on;
+  _renderSoundingRow("vdl2",  data.vdl2,  on);
+  _renderSoundingRow("acars", data.acars, on);
+  if (sub) {
+    const v = data.vdl2 || {}, a = data.acars || {};
+    sub.textContent = `VDL2 ${(v.active && v.recent_count > 0) ? "live" : (v.active ? "armed" : "off")} · ACARS ${(a.active && a.recent_count > 0) ? "live" : (a.active ? "armed" : "off")}`;
+  }
+}
+
+const POLL_SOUNDING_DETAIL_MS = 5000;
+async function pollSoundingDetail() {
+  try {
+    const data = await fetchJSON("/api/sounding/detail");
+    renderSoundingDetail(data);
+  } catch (e) {} finally {
+    setTimeout(pollSoundingDetail, POLL_SOUNDING_DETAIL_MS);
+  }
+}
 async function postSounding(desired) {
   const btn = $("tb-sounding");
   const label = $("tb-sounding-label");
@@ -3887,6 +4067,7 @@ function boot() {
   pollVFO();
   pollDisco();
   pollSounding();
+  pollSoundingDetail();
 }
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", boot);
