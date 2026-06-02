@@ -1,0 +1,87 @@
+/* =========================================================================
+ * sb5_override.css — warm-dark navy/cyan skin for OpenWebRX+ inside /sb5.
+ *
+ * Loaded last (after openwebrx.css / themes.css) by the receiver plugin
+ * (config/owrx/plugins/receiver/init.js), so it wins the cascade.
+ *
+ * Palette mirrors ui/sb5.html (the dashboard's source of truth).  The
+ * var(--type-*) / var(--space-*) tokens come from sb5_theme.css, which init.js
+ * links cross-origin off airband-ui (:5050) — CSS vars don't cross the iframe
+ * boundary, so each var() carries a literal fallback in case that link is
+ * unavailable (e.g. airband-ui down).
+ * ========================================================================= */
+
+/* ---- sb5 navy palette fed into OWRX's own theme engine (themes.css) -------
+ * themes.css paints `body.has-theme .openwebrx-panel` etc. from these four
+ * vars; init.js adds the `has-theme theme-sb5` classes that activate them. */
+body.theme-sb5 {
+    --theme-color1: #0a1220;          /* deep base — buttons, inputs, digimode */
+    --theme-color2: #14233c;          /* panel / freq-container surface (navy)  */
+    --theme-gradient-color1: #0c1a36; /* sb5 body-gradient top                  */
+    --theme-gradient-color2: #06101f; /* sb5 body-gradient bottom               */
+}
+
+/* ---- page background: the same layered gradient /sb5 uses ----------------- */
+body,
+#webrx-page-container {
+    background:
+        radial-gradient(700px 380px at 80% -20%, rgba(90, 184, 255, 0.18), transparent 65%),
+        radial-gradient(600px 400px at -10% 12%, rgba(126, 211, 255, 0.10), transparent 60%),
+        linear-gradient(180deg, #0c1a36 0%, #06101f 50%, #04091a 100%);
+    background-attachment: fixed;
+    color: #f0f4fa; /* --text */
+}
+
+/* panels: translucent navy card with a hairline border, like /sb5 cards */
+body.has-theme .openwebrx-panel,
+body.has-theme .openwebrx-dialog {
+    border: 1px solid rgba(138, 155, 181, 0.14); /* --line */
+    border-radius: 10px;
+    color: #f0f4fa;
+}
+
+/* ---- typography: inherit the /sb5 scale linked by init.js ----------------- */
+body,
+.openwebrx-panel,
+.openwebrx-dialog {
+    font-size: var(--type-body-sm, 14px); /* controls / secondary body */
+}
+
+.openwebrx-section-divider { /* OWRX's pane-section titles (Modes/Controls/…) */
+    font-size: var(--type-title, 18px);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: #b9c5d8; /* --text-2 */
+}
+
+/* frequency numerics → /sb5 monospace token (OWRX already uses roboto-mono) */
+.webrx-actual-freq,
+.webrx-actual-freq input,
+.webrx-mouse-freq {
+    font-size: var(--type-mono, 14px);
+}
+
+.webrx-rx-title { /* receiver name in the top bar → pane-title scale */
+    font-size: var(--type-display, 22px);
+    font-weight: 600;
+    color: #f0f4fa;
+}
+
+/* ---- cyan accent to match /sb5's --sky ----------------------------------- */
+body.has-theme .openwebrx-button.highlighted,
+body.has-theme .openwebrx-demodulator-button.highlighted {
+    box-shadow: inset 0 0 0 1px rgba(90, 184, 255, 0.55); /* --sky */
+}
+
+/* ---- chrome: drop foreign OpenWebRX.de branding, slim + tint the top bar -- */
+.webrx-top-logo,                 /* the OpenWebRX.de wordmark/logo  */
+.webrx-rx-avatar,                /* stock receiver avatar image     */
+.openwebrx-description-container /* photo title/description band    */ {
+    display: none !important;
+}
+
+.webrx-top-container,
+.webrx-top-bar {
+    background: rgba(8, 14, 28, 0.82); /* sb5 toolbar bg */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}

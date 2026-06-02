@@ -3276,34 +3276,147 @@ def _waterfall_read_state() -> dict | None:
 # the box; airband-ui reaches it on localhost.  Unreachable is surfaced as a
 # warn (the Live IQ pane is an auxiliary view, not the core RF pipeline), so a
 # stopped OWRX never flips the whole heartbeat badge to "bad".
-OWRX_HEALTH_URL = os.getenv("OWRX_HEALTH_URL", "http://127.0.0.1:8073/")
+OWRX_BASE_URL = os.getenv("OWRX_BASE_URL", "http://127.0.0.1:8073").rstrip("/")
+OWRX_HEALTH_URL = os.getenv("OWRX_HEALTH_URL", OWRX_BASE_URL + "/")
 OWRX_HEALTH_TIMEOUT_SEC = 2.0
+
+# Source of truth for which dongle OWRX drives — mirrored in the repo at
+# config/owrx/settings.json (deployed to the container's volume).  Resolved
+# relative to this file so it works regardless of the process CWD.
+OWRX_SETTINGS_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "config", "owrx", "settings.json")
+
+
+def _owrx_fetch(path: str, timeout: float = OWRX_HEALTH_TIMEOUT_SEC) -> tuple[int | None, str]:
+    """GET a path off the OWRX base URL.  Returns (http_status, body_text).
+
+    On any transport error returns (None, "<ExcType>") so callers can degrade
+    gracefully — OWRX is auxiliary and must never raise into the heartbeat.
+    """
+    url = OWRX_BASE_URL + path
+    try:
+        req = Request(url, method="GET", headers={"User-Agent": "sb5-owrx/1.0"})
+        with urlopen(req, timeout=timeout) as resp:
+            code = int(getattr(resp, "status", None) or resp.getcode())
+            body = resp.read(65536).decode("utf-8", "replace")
+        return code, body
+    except HTTPError as exc:
+        return int(exc.code), ""
+    except Exception as exc:  # URLError, socket timeout, refused, etc.
+        return None, type(exc).__name__
+
+
+def _owrx_configured_serial() -> str | None:
+    """RTL-SDR serial OWRX is configured to drive, read from settings.json."""
+    try:
+        with open(OWRX_SETTINGS_PATH, encoding="utf-8") as fh:
+            sdrs = (json.load(fh) or {}).get("sdrs") or {}
+        for sdr in sdrs.values():
+            if isinstance(sdr, dict) and sdr.get("device"):
+                return str(sdr["device"])
+    except Exception:
+        pass
+    return None
+
+
+def _owrx_listener_count() -> int | None:
+    """Connected-client count from OWRX's Prometheus-style /metrics gauge."""
+    code, body = _owrx_fetch("/metrics")
+    if code != 200 or not body:
+        return None
+    for line in body.splitlines():
+        if line.startswith("openwebrx_users"):
+            try:
+                return int(float(line.split()[-1]))
+            except (ValueError, IndexError):
+                return None
+    return None
+
+
+def _owrx_diag() -> dict:
+    """Diagnostic snapshot of the OpenWebRX+ Live IQ engine.
+
+    Built entirely from privilege-free localhost probes (OWRX's own
+    /status.json + /metrics) plus the repo's settings.json, so it works as the
+    unprivileged airband-ui user with no Docker socket access.  `container_status`
+    is therefore derived from reachability rather than `docker inspect` — if OWRX
+    answers on :8073 the container is up and serving.
+    """
+    serial = _owrx_configured_serial()
+    diag: dict[str, Any] = {
+        "ok": False,
+        "base_url": OWRX_BASE_URL,
+        "profile_name": None,
+        "sdr_serial": serial,
+        "sdr_name": None,
+        "center_mhz": None,
+        "listener_count": None,
+        "version": None,
+        "max_clients": None,
+        "container_status": {"reachable": False, "http_status": None},
+    }
+
+    code, body = _owrx_fetch("/status.json")
+    diag["container_status"] = {"reachable": code is not None, "http_status": code}
+    if code == 200 and body:
+        try:
+            status = json.loads(body)
+        except json.JSONDecodeError:
+            status = {}
+        diag["version"] = status.get("version")
+        diag["max_clients"] = status.get("max_clients")
+        sdrs = status.get("sdrs") or []
+        if sdrs:
+            sdr0 = sdrs[0]
+            diag["sdr_name"] = sdr0.get("name")
+            # OWRX selects a profile per-client; with no global "current" profile
+            # the start profile (first in the list) is the steady-state default.
+            profiles = sdr0.get("profiles") or []
+            if profiles:
+                diag["profile_name"] = profiles[0].get("name")
+                cf = profiles[0].get("center_freq")
+                if isinstance(cf, (int, float)):
+                    diag["center_mhz"] = round(cf / 1_000_000, 4)
+        diag["ok"] = True
+
+    diag["listener_count"] = _owrx_listener_count()
+    return diag
 
 
 def _owrx_health_row() -> dict:
-    """Single heartbeat evidence row for the OpenWebRX+ Live IQ engine."""
-    try:
-        req = Request(OWRX_HEALTH_URL, method="GET",
-                      headers={"User-Agent": "sb5-heartbeat/1.0"})
-        with urlopen(req, timeout=OWRX_HEALTH_TIMEOUT_SEC) as resp:
-            code = getattr(resp, "status", None) or resp.getcode()
-        if 200 <= int(code) < 500:
-            return {
-                "label": "Live IQ (OpenWebRX+)",
-                "value": "serving :8073 · RTL-SDR 83241970",
-                "status": "ok",
-            }
+    """Single heartbeat evidence row for the OpenWebRX+ Live IQ engine.
+
+    Enriched with the active profile name + listener count so the dashboard row
+    is informative when OWRX is up, and degrades to a plain reachability note
+    (warn, never bad) when it is down.
+    """
+    diag = _owrx_diag()
+    if diag["ok"]:
+        serial = diag.get("sdr_serial") or "?"
+        bits = [f"serving :8073 · RTL-SDR {serial}"]
+        if diag.get("profile_name"):
+            bits.append(str(diag["profile_name"]))
+        listeners = diag.get("listener_count")
+        if isinstance(listeners, int):
+            bits.append(f"{listeners} listener" + ("" if listeners == 1 else "s"))
         return {
             "label": "Live IQ (OpenWebRX+)",
-            "value": f"HTTP {code} on :8073",
-            "status": "warn",
+            "value": " · ".join(bits),
+            "status": "ok",
         }
-    except Exception as exc:  # URLError, socket timeout, refused, etc.
+
+    http_status = diag["container_status"].get("http_status")
+    if http_status is not None:
         return {
             "label": "Live IQ (OpenWebRX+)",
-            "value": f"unreachable on :8073 ({type(exc).__name__})",
+            "value": f"HTTP {http_status} on :8073",
             "status": "warn",
         }
+    return {
+        "label": "Live IQ (OpenWebRX+)",
+        "value": "unreachable on :8073",
+        "status": "warn",
+    }
 
 
 def _waterfall_dongle_evidence_rows() -> list[dict]:
@@ -4484,6 +4597,17 @@ class Handler(BaseHTTPRequestHandler):
                     "cached": False,
                 }
                 return self._send(500, json.dumps(fallback), "application/json; charset=utf-8")
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/owrx/diag":
+            # OpenWebRX+ Live IQ diagnostics — profile, dongle, center freq,
+            # listeners, container reachability.  See `_owrx_diag`.
+            try:
+                payload = _owrx_diag()
+            except Exception as e:
+                logger.exception("/api/owrx/diag probe failed")
+                payload = {"ok": False, "error": str(e)}
+                return self._send(500, json.dumps(payload), "application/json; charset=utf-8")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/hp/location/ip":
