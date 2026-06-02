@@ -1230,6 +1230,65 @@
     font-family: inherit;
   }
   .modal-profile-builder .pb-btn:hover { background: var(--sky-2); }
+
+  /* ============ Favorite picker (Phase 7b) ============
+     Single shared modal used by both Analog and Digital "Build / Edit"
+     buttons.  The list is filtered by `kind` so analog sees conventional
+     favorites and digital sees trunked. */
+  .fp-rows { display: flex; flex-direction: column; gap: 6px; }
+  .fp-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(8, 14, 28, 0.45);
+    border: 1px solid var(--line);
+    cursor: pointer;
+    transition: background 90ms ease, border-color 90ms ease;
+    align-items: center;
+  }
+  .fp-row:hover { background: rgba(8, 14, 28, 0.72); border-color: rgba(90,184,255,0.35); }
+  .fp-row.active {
+    border-color: rgba(90,184,255,0.65);
+    background: rgba(20, 40, 70, 0.55);
+  }
+  .fp-row .fp-name {
+    font-weight: 600;
+    color: var(--text);
+    font-size: var(--type-body-sm);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .fp-row .fp-meta {
+    font-family: ui-monospace, monospace;
+    color: var(--text-3);
+    font-size: var(--type-meta);
+    margin-top: 2px;
+  }
+  .fp-row .fp-state {
+    font-size: var(--type-micro);
+    text-transform: uppercase;
+    letter-spacing: 0.10em;
+    color: var(--text-4);
+    font-weight: 700;
+  }
+  .fp-row.active .fp-state { color: var(--sky-2); }
+  .fp-empty {
+    padding: 12px 14px;
+    color: var(--text-4);
+    font-style: italic;
+    font-size: var(--type-meta);
+    text-align: center;
+  }
+  .fp-busy {
+    text-align: center;
+    color: var(--text-3);
+    font-size: var(--type-meta);
+    padding: 10px;
+    font-family: ui-monospace, monospace;
+  }
 </style>
 </head>
 <body class="state-loading">
@@ -1670,19 +1729,21 @@
   </div>
 </div>
 
-<!-- ============ Profile Builder modal (Phase 5b) ============ -->
-<div class="modal-overlay modal-profile-builder" id="pb-modal" role="dialog" aria-modal="true" aria-labelledby="pb-modal-title">
+<!-- ============ Favorite picker modal (Phase 7b) ============
+     One modal serves both Analog and Digital "Build / Edit" buttons.
+     The title and the `kind` filter swap when the modal opens so the
+     analog widget only sees conventional-channel favorites and the
+     digital widget only sees trunked-channel favorites. -->
+<div class="modal-overlay modal-profile-builder" id="pb-modal" role="dialog" aria-modal="true" aria-labelledby="pb-modal-title" data-pane="ana">
   <div class="modal-card">
     <div class="modal-hd">
-      <span class="title" id="pb-modal-title">Profile Builder</span>
+      <span class="title" id="pb-modal-title">Pick a favorite</span>
       <button class="modal-close" id="pb-modal-close" type="button" aria-label="Close">×</button>
     </div>
     <div class="modal-body">
-      <div class="pb-placeholder">
-        Profile Builder — coming in Phase 5c. For now, use /sb3 Favorites widget.
-      </div>
-      <div class="pb-actions">
-        <button class="pb-btn" id="pb-open-sb3" type="button">Open /sb3</button>
+      <div class="fp-busy" id="fp-busy" hidden>Switching…</div>
+      <div class="fp-rows" id="fp-rows">
+        <div class="fp-empty">Loading favorites…</div>
       </div>
     </div>
   </div>
@@ -3242,17 +3303,118 @@ function wireHbEvidenceToggle() {
     else panel.setAttribute("hidden", "");
   });
 }
+// Phase 7b — favorite picker.  The "Build / Edit" button on each pane
+// opens a modal listing the favorites that match the pane's channel
+// kind (analog → conventional, digital → trunked).  Clicking a row
+// posts the updated favorites list to /api/hp/state, which is the
+// canonical switch path (`_apply_hp_state_form` merges the incoming
+// rows preserving custom_favorites).
+function _favKind(kind) {
+  return (f) => Array.isArray(f && f.custom_favorites)
+    && f.custom_favorites.some(c => String(c.kind || "").toLowerCase() === kind);
+}
+
+function _favPickerChannelCount(fav, kind) {
+  if (!fav || !Array.isArray(fav.custom_favorites)) return 0;
+  return fav.custom_favorites.filter(c => String(c.kind || "").toLowerCase() === kind).length;
+}
+
+function _favPickerRenderRows(pane) {
+  const wrap = $("fp-rows");
+  if (!wrap) return;
+  const hp = STATE.hpState;
+  const all = (hp && hp.state && Array.isArray(hp.state.favorites)) ? hp.state.favorites : [];
+  const kind = pane === "dig" ? "trunked" : "conventional";
+  const list = all.filter(_favKind(kind));
+  if (!list.length) {
+    wrap.innerHTML = `<div class="fp-empty">No favorites with ${escapeHtml(kind)} channels.</div>`;
+    return;
+  }
+  wrap.innerHTML = list.map(f => {
+    const id = escapeHtml(f.id || "");
+    const label = escapeHtml(f.label || f.id || "fav");
+    const ch = _favPickerChannelCount(f, kind);
+    const total = (Array.isArray(f.custom_favorites) ? f.custom_favorites.length : 0);
+    const meta = `${ch} ${kind === "trunked" ? "talkgroup" : "channel"}${ch === 1 ? "" : "s"} · ${total} total`;
+    const stateTxt = f.enabled ? "active" : "switch";
+    const cls = f.enabled ? "fp-row active" : "fp-row";
+    return `<div class="${cls}" data-id="${id}" role="button" tabindex="0">
+      <div>
+        <div class="fp-name">${label}</div>
+        <div class="fp-meta">${meta}</div>
+      </div>
+      <span class="fp-state">${stateTxt}</span>
+    </div>`;
+  }).join("");
+  wrap.querySelectorAll(".fp-row").forEach(row => {
+    const id = row.getAttribute("data-id") || "";
+    const fire = () => _favPickerSwitch(id);
+    row.addEventListener("click", fire);
+    row.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fire(); }
+    });
+  });
+}
+
+async function _favPickerSwitch(targetId) {
+  if (!targetId) return;
+  const hp = STATE.hpState;
+  const all = (hp && hp.state && Array.isArray(hp.state.favorites)) ? hp.state.favorites : [];
+  if (!all.length) return;
+  // Build the updated favorites list: only the clicked id is enabled.
+  const updated = all.map(f => Object.assign({}, f, { enabled: String(f.id || "") === String(targetId) }));
+  const busy = $("fp-busy");
+  if (busy) busy.removeAttribute("hidden");
+  try {
+    const body = new URLSearchParams();
+    body.set("favorites", JSON.stringify(updated));
+    const enabledRow = updated.find(f => f.enabled);
+    if (enabledRow && enabledRow.label) body.set("favorites_name", String(enabledRow.label));
+    const r = await fetch("/api/hp/state", { method: "POST", body, cache: "no-store" });
+    if (!r.ok) throw new Error("hp/state " + r.status);
+    // Refresh local state from server so the picker + pane widgets re-render
+    // off the canonical truth (and show the cross-pipeline sync result).
+    const next = await fetch("/api/hp/state", { cache: "no-store" }).then(rr => rr.json());
+    STATE.hpState = next;
+    const pane = ($("pb-modal") || {}).dataset && $("pb-modal").dataset.pane || "ana";
+    _favPickerRenderRows(pane);
+    try { renderProfile(next, STATE.profiles ? { profiles: STATE.profiles } : { profiles: [] }); } catch (_e) {}
+    closeModal("pb-modal");
+  } catch (e) {
+    const wrap = $("fp-rows");
+    if (wrap) wrap.insertAdjacentHTML("afterbegin",
+      `<div class="fp-empty">Switch failed: ${escapeHtml(String(e && e.message || e))}</div>`);
+  } finally {
+    if (busy) busy.setAttribute("hidden", "");
+  }
+}
+
+function _favPickerOpen(pane) {
+  const modal = $("pb-modal");
+  if (modal) modal.dataset.pane = pane;
+  const title = $("pb-modal-title");
+  if (title) title.textContent = pane === "dig" ? "Pick a digital favorite" : "Pick an analog favorite";
+  _favPickerRenderRows(pane);
+  openModal("pb-modal");
+}
+
 function wireProfileBuilder() {
-  const open = () => openModal("pb-modal");
-  const btn = $("profile-build-btn");
+  const digBtn = $("profile-build-btn");
   const anaBtn = $("ana-profile-build-btn");
   const closeBtn = $("pb-modal-close");
-  const openSb3 = $("pb-open-sb3");
   const overlay = $("pb-modal");
-  if (btn) btn.addEventListener("click", open);
-  if (anaBtn) anaBtn.addEventListener("click", open);
+  if (digBtn) digBtn.addEventListener("click", () => _favPickerOpen("dig"));
+  if (anaBtn) anaBtn.addEventListener("click", () => _favPickerOpen("ana"));
+  // Also let users open the picker by clicking the favorite badge itself.
+  document.querySelectorAll(".pane-analog .analog-profile, .pane-digital .digital-profile").forEach(row => {
+    row.style.cursor = "pointer";
+    row.addEventListener("click", (e) => {
+      if (e.target.closest("button")) return;
+      const pane = row.closest(".pane-digital") ? "dig" : "ana";
+      _favPickerOpen(pane);
+    });
+  });
   if (closeBtn) closeBtn.addEventListener("click", () => closeModal("pb-modal"));
-  if (openSb3) openSb3.addEventListener("click", () => { window.location.href = "/sb3"; });
   if (overlay) {
     overlay.addEventListener("click", (e) => {
       if (e.target === overlay) closeModal("pb-modal");
