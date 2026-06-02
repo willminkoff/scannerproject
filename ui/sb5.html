@@ -499,6 +499,26 @@
     border-top-right-radius: 12px;
   }
   .spec-canvas-wrap canvas { display: block; width: 100%; height: 100%; }
+  /* Top-3 peak labels (WebGL path): floated DOM overlays so the WebGL
+     trace shader stays text-free.  The 2D fallback still draws text on
+     the canvas — these only appear when WebGL is active. */
+  .spec-peak-label {
+    position: absolute;
+    font: 600 var(--type-meta)/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color: var(--text-2);
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 6;
+    transform: translate(-50%, calc(-100% - 5px));
+    text-shadow: 0 0 3px rgba(4, 6, 13, 0.95);
+  }
+  .spec-peak-label::after {
+    content: ""; position: absolute; left: 50%; bottom: -5px;
+    width: 1px; height: 4px; background: var(--text-2);
+    transform: translateX(-50%);
+  }
+  .spec-peak-label.below { transform: translate(-50%, 5px); }
+  .spec-peak-label.below::after { top: -5px; bottom: auto; }
   /* When a spec sits directly above a waterfall wrap, square the top of
      the waterfall so the two read as one block instead of two cards. */
   .spec-canvas-wrap + .wf-canvas-wrap {
@@ -2215,6 +2235,386 @@ function _specUpdatePeakHold(key, bins, freqLo, freqHi) {
     if (v > p[i]) p[i] = v;
   }
 }
+
+// ============================================================
+// WebGL renderer for the Live IQ pane (T-WebGL) ---------------
+// The two Canvas-2D paint functions further down (renderSpectrum,
+// pushWaterfallRow) delegate to the helpers below when a WebGL
+// context is alive on the target canvas.  Init failure, headless
+// GPUs, and webglcontextlost all transparently fall through to
+// the original 2D code paths so behaviour never regresses.
+//
+// Same color palette as the 2D path (turbo-style ramp computed
+// once from wfColormap into a 256-entry RGBA LUT).  All trace
+// and peak-hold colours come from CSS vars read at init, so an
+// sb5_theme cascade still drives the visual.
+// ============================================================
+const SPEC_GL = new Map();   // HTMLCanvasElement -> SpecGL state
+const WF_GL   = new Map();   // HTMLCanvasElement -> WaterfallGL state
+let _WF_PALETTE_LUT = null;  // 256x1 RGBA Uint8Array, built lazily
+
+// --- Shader sources -----------------------------------------
+// Spec trace: two attributes (static X across [0,1], dynamic Y
+// in [0,1] from dBFS-normalized bins).  Mapped to clip space
+// with a 1px inset so 1.0-thick lines don't clip at the edges.
+const _GL_SPEC_VS = `
+  attribute float aX;
+  attribute float aY;
+  uniform float uYInset;
+  void main() {
+    float yWithInset = uYInset + aY * (1.0 - 2.0 * uYInset);
+    gl_Position = vec4(aX * 2.0 - 1.0, yWithInset * 2.0 - 1.0, 0.0, 1.0);
+  }
+`;
+const _GL_SPEC_FS = `
+  precision mediump float;
+  uniform vec4 uColor;
+  void main() { gl_FragColor = uColor; }
+`;
+// Waterfall: textured quad over the scrolling history texture.
+// uTopRowNorm = writeRow / histH places the oldest row at the
+// top of the display.  NEAREST filter on the history texture
+// keeps row edges crisp; LINEAR on the palette LUT smooths the
+// dBFS->color ramp.
+const _GL_WF_VS = `
+  attribute vec2 aPos;
+  attribute vec2 aUV;
+  varying vec2 vUV;
+  void main() { vUV = aUV; gl_Position = vec4(aPos, 0.0, 1.0); }
+`;
+const _GL_WF_FS = `
+  precision mediump float;
+  varying vec2 vUV;
+  uniform sampler2D uHist;
+  uniform sampler2D uPal;
+  uniform float uTopRowNorm;
+  void main() {
+    float ty = fract(vUV.y + uTopRowNorm);
+    float v  = texture2D(uHist, vec2(vUV.x, ty)).r;
+    gl_FragColor = texture2D(uPal, vec2(v, 0.5));
+  }
+`;
+
+function _glCompile(gl, type, src) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    gl.deleteShader(sh);
+    return null;
+  }
+  return sh;
+}
+function _glLink(gl, vsSrc, fsSrc) {
+  const vs = _glCompile(gl, gl.VERTEX_SHADER, vsSrc);
+  const fs = _glCompile(gl, gl.FRAGMENT_SHADER, fsSrc);
+  if (!vs || !fs) return null;
+  const p = gl.createProgram();
+  gl.attachShader(p, vs); gl.attachShader(p, fs);
+  gl.linkProgram(p);
+  gl.deleteShader(vs); gl.deleteShader(fs);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+    gl.deleteProgram(p);
+    return null;
+  }
+  return p;
+}
+// Parse "#rgb" / "#rrggbb" / "rgb(...)" / "rgba(...)" to [r,g,b,a] in 0..1.
+function _parseCssColor(str) {
+  const s = String(str || "").trim();
+  if (s[0] === '#') {
+    let hex = s.slice(1);
+    if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+    if (hex.length !== 6 && hex.length !== 8) return [1, 1, 1, 1];
+    const r = parseInt(hex.slice(0, 2), 16) / 255;
+    const g = parseInt(hex.slice(2, 4), 16) / 255;
+    const b = parseInt(hex.slice(4, 6), 16) / 255;
+    const a = hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1;
+    return [r, g, b, a];
+  }
+  const m = s.match(/rgba?\(([^)]+)\)/i);
+  if (m) {
+    const parts = m[1].split(',').map(t => parseFloat(t.trim()));
+    return [(parts[0]||0)/255, (parts[1]||0)/255, (parts[2]||0)/255,
+            parts.length > 3 ? (parts[3]||0) : 1];
+  }
+  return [1, 1, 1, 1];
+}
+function _glGetContext(canvas) {
+  const opts = { antialias: true, alpha: true, premultipliedAlpha: false,
+                 preserveDrawingBuffer: false, powerPreference: 'low-power' };
+  let gl = null;
+  try { gl = canvas.getContext('webgl2', opts); } catch (_) {}
+  if (gl) return { gl, isGL2: true };
+  try {
+    gl = canvas.getContext('webgl', opts) ||
+         canvas.getContext('experimental-webgl', opts);
+  } catch (_) {}
+  return gl ? { gl, isGL2: false } : null;
+}
+function _glBuildPaletteLUT() {
+  const data = new Uint8Array(256 * 4);
+  for (let i = 0; i < 256; i++) {
+    const [r, g, b] = wfColormap(i / 255);
+    data[i*4] = r; data[i*4+1] = g; data[i*4+2] = b; data[i*4+3] = 255;
+  }
+  return data;
+}
+
+// --- Spec WebGL --------------------------------------------------------
+function _initSpecGL(canvas) {
+  const ctx = _glGetContext(canvas);
+  if (!ctx) return null;
+  const gl = ctx.gl;
+  const program = _glLink(gl, _GL_SPEC_VS, _GL_SPEC_FS);
+  if (!program) return null;
+  const cs = getComputedStyle(canvas);
+  const tc = _parseCssColor(cs.getPropertyValue('--sky-2'));
+  const pc = _parseCssColor(cs.getPropertyValue('--amber'));
+  const state = {
+    canvas, gl, isGL2: ctx.isGL2, program, lost: false,
+    aX:      gl.getAttribLocation(program, 'aX'),
+    aY:      gl.getAttribLocation(program, 'aY'),
+    uColor:  gl.getUniformLocation(program, 'uColor'),
+    uYInset: gl.getUniformLocation(program, 'uYInset'),
+    bufX:      gl.createBuffer(),
+    bufYTrace: gl.createBuffer(),
+    bufYPeak:  gl.createBuffer(),
+    nBins: 0,
+    traceColor: [tc[0], tc[1], tc[2], 1.0],
+    peakColor:  [pc[0], pc[1], pc[2], 0.55],
+    scratchLive: null,
+    scratchPeak: null,
+  };
+  canvas.addEventListener('webglcontextlost', (ev) => {
+    ev.preventDefault();
+    const s = SPEC_GL.get(canvas);
+    if (s) s.lost = true;
+  }, false);
+  canvas.addEventListener('webglcontextrestored', () => {
+    SPEC_GL.delete(canvas);
+    const fresh = _initSpecGL(canvas);
+    if (fresh) SPEC_GL.set(canvas, fresh);
+  }, false);
+  return state;
+}
+function _specEnsureBuffers(state, N) {
+  if (state.nBins === N) return;
+  const gl = state.gl;
+  const xs = new Float32Array(N);
+  for (let i = 0; i < N; i++) xs[i] = (N === 1) ? 0.5 : (i / (N - 1));
+  gl.bindBuffer(gl.ARRAY_BUFFER, state.bufX);
+  gl.bufferData(gl.ARRAY_BUFFER, xs, gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, state.bufYTrace);
+  gl.bufferData(gl.ARRAY_BUFFER, N * 4, gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, state.bufYPeak);
+  gl.bufferData(gl.ARRAY_BUFFER, N * 4, gl.DYNAMIC_DRAW);
+  state.scratchLive = new Float32Array(N);
+  state.scratchPeak = new Float32Array(N);
+  state.nBins = N;
+}
+function _paintSpecGL(state, bins, peakBins, lo, hi, cssW, cssH) {
+  const gl = state.gl;
+  const canvas = state.canvas;
+  if (canvas.width !== cssW || canvas.height !== cssH) {
+    canvas.width = cssW; canvas.height = cssH;
+  }
+  const N = bins.length;
+  _specEnsureBuffers(state, N);
+  const span = (hi - lo) || 1;
+  const lA = state.scratchLive, pA = state.scratchPeak;
+  for (let i = 0; i < N; i++) {
+    lA[i] = Math.max(0, Math.min(1, (bins[i] - lo) / span));
+    pA[i] = Math.max(0, Math.min(1, (peakBins[i] - lo) / span));
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER, state.bufYTrace);
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, lA);
+  gl.bindBuffer(gl.ARRAY_BUFFER, state.bufYPeak);
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, pA);
+
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(0, 0, 0, 0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.useProgram(state.program);
+  gl.uniform1f(state.uYInset, 1 / Math.max(1, canvas.height));
+  gl.bindBuffer(gl.ARRAY_BUFFER, state.bufX);
+  gl.enableVertexAttribArray(state.aX);
+  gl.vertexAttribPointer(state.aX, 1, gl.FLOAT, false, 0, 0);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  // Peak-hold (back layer, translucent)
+  gl.bindBuffer(gl.ARRAY_BUFFER, state.bufYPeak);
+  gl.enableVertexAttribArray(state.aY);
+  gl.vertexAttribPointer(state.aY, 1, gl.FLOAT, false, 0, 0);
+  gl.uniform4fv(state.uColor, state.peakColor);
+  gl.drawArrays(gl.LINE_STRIP, 0, N);
+  // Live trace (front layer)
+  gl.bindBuffer(gl.ARRAY_BUFFER, state.bufYTrace);
+  gl.enableVertexAttribArray(state.aY);
+  gl.vertexAttribPointer(state.aY, 1, gl.FLOAT, false, 0, 0);
+  gl.uniform4fv(state.uColor, state.traceColor);
+  gl.drawArrays(gl.LINE_STRIP, 0, N);
+}
+// Top-3 peak labels as DOM overlays (WebGL can't draw text cheaply).
+// Reused across frames; surplus divs are hidden, not destroyed.
+function _updateSpecPeakLabelsDOM(canvas, chosen, freqLo, fSpan, N, yOf) {
+  const wrap = canvas.parentElement;
+  if (!wrap) return;
+  let labels = wrap._specPeakLabels;
+  if (!labels) labels = wrap._specPeakLabels = [];
+  while (labels.length < chosen.length) {
+    const d = document.createElement('div');
+    d.className = 'spec-peak-label';
+    wrap.appendChild(d);
+    labels.push(d);
+  }
+  for (let i = 0; i < chosen.length; i++) {
+    const c = chosen[i];
+    const d = labels[i];
+    const freq = freqLo + (c.idx / Math.max(1, N - 1)) * fSpan;
+    const y = yOf(c.val);
+    d.textContent = `${c.val.toFixed(0)} dBFS @ ${freq.toFixed(3)}`;
+    d.style.display = 'block';
+    d.style.left = `${c.x}px`;
+    d.style.top  = `${y}px`;
+    d.classList.toggle('below', y < 18);
+  }
+  for (let i = chosen.length; i < labels.length; i++) {
+    labels[i].style.display = 'none';
+  }
+}
+
+// --- Waterfall WebGL ---------------------------------------------------
+function _initWfGL(canvas) {
+  const ctx = _glGetContext(canvas);
+  if (!ctx) return null;
+  const gl = ctx.gl;
+  const program = _glLink(gl, _GL_WF_VS, _GL_WF_FS);
+  if (!program) return null;
+  if (!_WF_PALETTE_LUT) _WF_PALETTE_LUT = _glBuildPaletteLUT();
+  const state = {
+    canvas, gl, isGL2: ctx.isGL2, program, lost: false,
+    aPos:        gl.getAttribLocation(program, 'aPos'),
+    aUV:         gl.getAttribLocation(program, 'aUV'),
+    uHist:       gl.getUniformLocation(program, 'uHist'),
+    uPal:        gl.getUniformLocation(program, 'uPal'),
+    uTopRowNorm: gl.getUniformLocation(program, 'uTopRowNorm'),
+    bufQuad: gl.createBuffer(),
+    histTex: gl.createTexture(),
+    palTex:  gl.createTexture(),
+    histW: 0, histH: 0, writeRow: 0,
+    scratchRow: null,
+  };
+  // Full-screen quad: interleaved (pos.xy, uv.xy).  UV y=0 at top.
+  gl.bindBuffer(gl.ARRAY_BUFFER, state.bufQuad);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+    -1,-1, 0,1,   1,-1, 1,1,
+    -1, 1, 0,0,   1, 1, 1,0,
+  ]), gl.STATIC_DRAW);
+  // Palette LUT (256x1 RGBA).
+  gl.bindTexture(gl.TEXTURE_2D, state.palTex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0,
+                gl.RGBA, gl.UNSIGNED_BYTE, _WF_PALETTE_LUT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S,     gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T,     gl.CLAMP_TO_EDGE);
+  // History texture params (data allocated on first paint when W,H known).
+  gl.bindTexture(gl.TEXTURE_2D, state.histTex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S,     gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T,     gl.REPEAT);
+  canvas.addEventListener('webglcontextlost', (ev) => {
+    ev.preventDefault();
+    const s = WF_GL.get(canvas);
+    if (s) s.lost = true;
+  }, false);
+  canvas.addEventListener('webglcontextrestored', () => {
+    WF_GL.delete(canvas);
+    const fresh = _initWfGL(canvas);
+    if (fresh) WF_GL.set(canvas, fresh);
+  }, false);
+  return state;
+}
+function _wfEnsureHistTex(state, W, H) {
+  if (state.histW === W && state.histH === H) return;
+  const gl = state.gl;
+  gl.bindTexture(gl.TEXTURE_2D, state.histTex);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, W, H, 0,
+                gl.LUMINANCE, gl.UNSIGNED_BYTE, new Uint8Array(W * H));
+  state.histW = W; state.histH = H; state.writeRow = 0;
+  state.scratchRow = new Uint8Array(W);
+}
+function _paintWfGL(state, intensity) {
+  const gl = state.gl;
+  const canvas = state.canvas;
+  const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
+  if (cssW < 4 || cssH < 4) return;
+  if (canvas.width !== cssW || canvas.height !== cssH) {
+    canvas.width = cssW; canvas.height = cssH;
+  }
+  _wfEnsureHistTex(state, cssW, cssH);
+  // Resample raw intensity to canvas-pixel width for the texSubImage2D row.
+  const row = state.scratchRow;
+  const N = intensity.length;
+  for (let x = 0; x < cssW; x++) {
+    const xi = Math.floor((x / cssW) * N);
+    const v = intensity[Math.min(N - 1, xi)];
+    row[x] = Math.max(0, Math.min(255, Math.round(v * 255)));
+  }
+  // Ring buffer: write newest row at writeRow, advance the pointer so the
+  // shader's uTopRowNorm shifts the oldest row to display Y=0.
+  gl.bindTexture(gl.TEXTURE_2D, state.histTex);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, state.writeRow, cssW, 1,
+                   gl.LUMINANCE, gl.UNSIGNED_BYTE, row);
+  state.writeRow = (state.writeRow + 1) % cssH;
+  // Draw the textured quad.
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(0, 0, 0, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.useProgram(state.program);
+  gl.bindBuffer(gl.ARRAY_BUFFER, state.bufQuad);
+  gl.enableVertexAttribArray(state.aPos);
+  gl.enableVertexAttribArray(state.aUV);
+  gl.vertexAttribPointer(state.aPos, 2, gl.FLOAT, false, 16, 0);
+  gl.vertexAttribPointer(state.aUV,  2, gl.FLOAT, false, 16, 8);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, state.histTex);
+  gl.uniform1i(state.uHist, 0);
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, state.palTex);
+  gl.uniform1i(state.uPal, 1);
+  // uTopRowNorm advances each frame so the just-written row appears at
+  // display Y=1 (bottom) and the oldest row appears at Y=0 (top).
+  gl.uniform1f(state.uTopRowNorm, state.writeRow / cssH);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+// --- Boot hook ---------------------------------------------------------
+// Called from boot() BEFORE wireSpecPeakClicks so the click listeners
+// attach to the same canvas element we've bound a WebGL context to.
+// (Once a canvas has any context type, that type is permanent.)
+function _initLiveIQGL() {
+  try {
+    const specCanvas = document.getElementById('wf-spec');
+    if (specCanvas) {
+      const s = _initSpecGL(specCanvas);
+      if (s) SPEC_GL.set(specCanvas, s);
+    }
+    const wfCanvas = document.getElementById('wf-canvas');
+    if (wfCanvas) {
+      const w = _initWfGL(wfCanvas);
+      if (w) WF_GL.set(wfCanvas, w);
+    }
+  } catch (_) {
+    // Any unexpected error here just leaves SPEC_GL / WF_GL empty, and
+    // renderSpectrum / pushWaterfallRow take the 2D fallback path.
+  }
+}
+
 function renderSpectrum(canvas, bins, freqLo, freqHi, scaleKey) {
   if (!canvas) return;
   if (!Array.isArray(bins) && !ArrayBuffer.isView(bins)) return;
@@ -2222,31 +2622,84 @@ function renderSpectrum(canvas, bins, freqLo, freqHi, scaleKey) {
   if (!Number.isFinite(freqLo) || !Number.isFinite(freqHi) || freqHi <= freqLo) return;
   const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
   if (cssW < 4 || cssH < 4) return;
-  if (canvas.width !== cssW || canvas.height !== cssH) {
-    canvas.width = cssW; canvas.height = cssH;
-  }
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, cssW, cssH);
 
   const key = scaleKey || canvas.id;
   const N = bins.length;
   const { floor, lo, hi } = _specScale(bins, key);
   const span = hi - lo;
-  // Map dBFS -> y. Top of canvas is strong, bottom is the noise floor.
-  // A 1px inset keeps the stroke from clipping at the edges.
+  // Map dBFS -> y (CSS-pixel coords).  Same formula used by both the
+  // WebGL DOM-overlay labels and the 2D fallback canvas text.
   const yOf = (db) => {
     const t = Math.max(0, Math.min(1, (db - lo) / span));
     return (cssH - 1) - t * (cssH - 2);
   };
 
   // Peak-hold buffer is maintained by _specUpdatePeakHold (called from
-  // specSubmitFrame whenever new FFT data arrives).  Here we just read.
-  // Seed defensively if a pane hasn't been submitted yet.
+  // specSubmitFrame whenever new FFT data arrives).  Seed defensively if
+  // a pane hasn't been submitted yet.
   let ph = SPEC_PEAK_HOLD.get(key);
   if (!ph || ph.lo !== freqLo || ph.hi !== freqHi || ph.peak.length !== N) {
     _specUpdatePeakHold(key, bins, freqLo, freqHi);
     ph = SPEC_PEAK_HOLD.get(key);
   }
+
+  // Top-3 peaks — local maxima >= floor + 10 dB.  Computed once and used
+  // by both the WebGL path (DOM-overlay labels) and the 2D fallback path
+  // (canvas-drawn labels).  SPEC_PEAK_HITS is consumed by wireSpecPeakClicks.
+  const threshold = floor + 10;
+  const peaks = [];
+  for (let i = 2; i < N - 2; i++) {
+    const v = bins[i];
+    if (v < threshold) continue;
+    if (v >= bins[i-1] && v >= bins[i-2] && v >= bins[i+1] && v >= bins[i+2]) {
+      peaks.push({ idx: i, val: v });
+    }
+  }
+  peaks.sort((a, b) => b.val - a.val);
+  const minSepPx = 92;
+  const fSpan = freqHi - freqLo;
+  const chosen = [];
+  for (const p of peaks) {
+    const px = (p.idx / Math.max(1, N - 1)) * (cssW - 1);
+    let ok = true;
+    for (const c of chosen) {
+      if (Math.abs(px - c.x) < minSepPx) { ok = false; break; }
+    }
+    if (ok) {
+      chosen.push({ x: px, idx: p.idx, val: p.val });
+      if (chosen.length === 3) break;
+    }
+  }
+  const hits = [];
+  for (const c of chosen) {
+    const freq = freqLo + (c.idx / Math.max(1, N - 1)) * fSpan;
+    hits.push({ x: c.x, freq });
+  }
+  SPEC_PEAK_HITS.set(key, { hits, cssW });
+
+  // --- WebGL path -----------------------------------------------------
+  const glState = SPEC_GL.get(canvas);
+  if (glState && !glState.lost && !glState.gl.isContextLost()) {
+    _paintSpecGL(glState, bins, ph.peak, lo, hi, cssW, cssH);
+    _updateSpecPeakLabelsDOM(canvas, chosen, freqLo, fSpan, N, yOf);
+    return;
+  }
+  // If WebGL is unavailable on this canvas, clear any DOM overlays we
+  // might have left behind from a prior WebGL session.
+  const wrap = canvas.parentElement;
+  if (wrap && wrap._specPeakLabels) {
+    for (const d of wrap._specPeakLabels) d.style.display = 'none';
+  }
+
+  // --- 2D fallback path ----------------------------------------------
+  // Reached when WebGL is unavailable on this canvas (init failed,
+  // context lost without restore, headless GPU).  Identical visual
+  // result to the WebGL path; only the painting primitives differ.
+  if (canvas.width !== cssW || canvas.height !== cssH) {
+    canvas.width = cssW; canvas.height = cssH;
+  }
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, cssW, cssH);
 
   // All colors + typography come from CSS vars on the canvas element so a
   // theme change in sb5_theme.css cascades through.
@@ -2292,40 +2745,7 @@ function renderSpectrum(canvas, bins, freqLo, freqHi, scaleKey) {
   ctx.stroke();
   ctx.restore();
 
-  // 3) Peak markers — top 3 local maxima >= floor + 10 dB.
-  const threshold = floor + 10;
-  const peaks = [];
-  for (let i = 2; i < N - 2; i++) {
-    const v = bins[i];
-    if (v < threshold) continue;
-    if (v >= bins[i-1] && v >= bins[i-2] && v >= bins[i+1] && v >= bins[i+2]) {
-      peaks.push({ idx: i, val: v });
-    }
-  }
-  peaks.sort((a, b) => b.val - a.val);
-  const minSepPx = 92;     // label-rejection radius
-  const fSpan = freqHi - freqLo;
-  const chosen = [];
-  for (const p of peaks) {
-    const px = (p.idx / Math.max(1, N - 1)) * (cssW - 1);
-    let ok = true;
-    for (const c of chosen) {
-      if (Math.abs(px - c.x) < minSepPx) { ok = false; break; }
-    }
-    if (ok) {
-      chosen.push({ x: px, idx: p.idx, val: p.val });
-      if (chosen.length === 3) break;
-    }
-  }
-  // Record the drawn peak x/freq positions so the spec-canvas click handler
-  // (wireSpecPeakClicks) can hit-test against them.  Keyed by scaleKey so
-  // each pane keeps its own list and DPR scaling stays canvas-local.
-  const hits = [];
-  for (const c of chosen) {
-    const freq = freqLo + (c.idx / Math.max(1, N - 1)) * fSpan;
-    hits.push({ x: c.x, freq });
-  }
-  SPEC_PEAK_HITS.set(key, { hits, cssW });
+  // 3) Peak markers — canvas-text labels for the chosen set computed above.
   if (chosen.length) {
     const fontPx = parseInt(labelFont, 10) || 12;
     ctx.save();
@@ -2456,6 +2876,18 @@ function pushWaterfallRow(canvasId, intensity, cmap) {
   if (!canvas) return;
   const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
   if (cssW < 4 || cssH < 4) return;
+
+  // --- WebGL path: scrolling-texture waterfall ----------------------
+  // Pushes one new row into the history ring buffer; the shader handles
+  // the scroll by offsetting the texture read each frame.  Palette LUT
+  // was baked from wfColormap at init so colours match the 2D path.
+  const wfState = WF_GL.get(canvas);
+  if (wfState && !wfState.lost && !wfState.gl.isContextLost()) {
+    _paintWfGL(wfState, intensity);
+    return;
+  }
+
+  // --- 2D fallback path ---------------------------------------------
   if (canvas.width !== cssW || canvas.height !== cssH) {
     canvas.width = cssW; canvas.height = cssH;
     WF_HIST.delete(canvasId);
@@ -4707,6 +5139,12 @@ function wireSounding() {
 }
 
 function boot() {
+  // WebGL for the Live IQ spec + waterfall canvases.  MUST run before
+  // wireSpecPeakClicks (which attaches mouse listeners to #wf-spec) so
+  // both code paths see the same canvas element — a canvas's first
+  // requested context type becomes permanent.
+  _initLiveIQGL();
+
   // Live IQ: drag the waterfall body to pan center freq (SDR#/GQRX-style).
   wireWfPan();
 
