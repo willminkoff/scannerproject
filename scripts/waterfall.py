@@ -194,6 +194,29 @@ def _plan_band(bw_mhz: float) -> tuple[float, float, float]:
     return bw, rate_hz, half_spacing_hz
 
 
+def _seam_offset_hz(rate_hz: float) -> float:
+    """Hz to pull BOTH dongle centers down so the stitch seam misses the tune freq.
+
+    The two dongles meet at the midpoint of their centers.  With symmetric
+    placement (A = center - half_spacing, B = center + half_spacing) that
+    midpoint IS the user's tune freq — so the one frequency the user cares
+    about lands squarely on the stitch seam (and on A's upper / B's lower band
+    edge), exactly where signal gets mangled.
+
+    We instead pull BOTH centers down by rate/4.  That moves the seam to
+    (center - rate/4) and parks the tune freq dead-center in dongle B's lower
+    clean half-band: rate/4 above the seam and rate/4 below B's DC spike (the
+    two artifacts that bracket that sub-band), i.e. the maximum possible
+    clearance from both.  We pull *down* (not up) on purpose so the tune freq
+    lands on dongle B — the RTL-SDR Blog V4, our best-dynamic-range radio.
+
+    The resulting A/B placement is asymmetric ON PURPOSE.  Do not "tidy" it
+    back to symmetric center +/- half_spacing or the seam returns to the tune
+    freq and this whole fix is undone.
+    """
+    return rate_hz / 4.0
+
+
 def _load_persisted_band() -> tuple[float, float]:
     """Read the last-applied band, or fall back to the defaults."""
     try:
@@ -383,13 +406,19 @@ class DongleWorker:
                 self._sdr.setBandwidth(SOAPY_SDR_RX, 0, rate * 0.8)
             except Exception:
                 pass
-            # Fixed gain — auto-gain on RTL-SDR is hit-or-miss.  40 dB sits
-            # high in the R820T2's range (~0-49.6 dB) so airband bursts land
-            # ~10 dB hotter and punch clearly above the noise floor in the
-            # waterfall; the adaptive color-stretch in the UI rides the floor.
+            # Fixed gain — auto-gain on RTL-SDR is hit-or-miss.  44 dB sits
+            # high in the R820T2's range (~0-49.6 dB) so weak bursts punch
+            # clearly above the noise floor in the waterfall; the adaptive
+            # color-stretch in the UI rides the floor from here.  We measured
+            # the curve live against the strong 160-161 MHz emitter: noise
+            # floor tracks gain ~linearly up to 44 (≈-59 dBFS @36 -> ≈-52 @44)
+            # then PLATEAUS — 48 dB added no floor/peak improvement (within
+            # frame noise) while sitting in the front-end's compression region
+            # with that strong in-band signal present.  44 is the knee: maximum
+            # useful sensitivity, no upside past it, lower overload risk.
             try:
                 self._sdr.setGainMode(SOAPY_SDR_RX, 0, False)
-                self._sdr.setGain(SOAPY_SDR_RX, 0, 40.0)
+                self._sdr.setGain(SOAPY_SDR_RX, 0, 44.0)
             except Exception:
                 pass
             self._sdr.setFrequency(SOAPY_SDR_RX, 0, center)
@@ -707,12 +736,15 @@ def main() -> int:
     current_center_mhz, current_bw_mhz = _load_persisted_band()
     current_bw_mhz, rate_hz, half_spacing_hz = _plan_band(current_bw_mhz)
     current_center_hz = current_center_mhz * 1e6
+    seam_offset_hz = _seam_offset_hz(rate_hz)
 
     a = DongleWorker(
-        "A", SERIAL_A, current_center_hz - half_spacing_hz, rate_hz,
+        "A", SERIAL_A,
+        current_center_hz - half_spacing_hz - seam_offset_hz, rate_hz,
     )
     b = DongleWorker(
-        "B", SERIAL_B, current_center_hz + half_spacing_hz, rate_hz,
+        "B", SERIAL_B,
+        current_center_hz + half_spacing_hz - seam_offset_hz, rate_hz,
     )
     a.start()
     b.start()
@@ -726,11 +758,13 @@ def main() -> int:
 
     LOG.info(
         "waterfall up: A=%s @ %.3f MHz, B=%s @ %.3f MHz; center=%.3f MHz "
-        "bw=%.3f MHz (rate=%.3f MS/s, half-spacing=%.3f MHz)",
-        SERIAL_A, (current_center_hz - half_spacing_hz) / 1e6,
-        SERIAL_B, (current_center_hz + half_spacing_hz) / 1e6,
+        "bw=%.3f MHz (rate=%.3f MS/s, half-spacing=%.3f MHz, "
+        "seam-offset=%.3f MHz -> seam @ %.3f MHz)",
+        SERIAL_A, (current_center_hz - half_spacing_hz - seam_offset_hz) / 1e6,
+        SERIAL_B, (current_center_hz + half_spacing_hz - seam_offset_hz) / 1e6,
         current_center_mhz, current_bw_mhz,
         rate_hz / 1e6, half_spacing_hz / 1e6,
+        seam_offset_hz / 1e6, (current_center_hz - seam_offset_hz) / 1e6,
     )
 
     last_state_write = 0.0
@@ -751,20 +785,26 @@ def main() -> int:
                     current_bw_mhz, rate_hz, half_spacing_hz = _plan_band(
                         new_bw_mhz
                     )
+                    seam_offset_hz = _seam_offset_hz(rate_hz)
                     a.request_band(
-                        current_center_hz - half_spacing_hz, rate_hz
+                        current_center_hz - half_spacing_hz - seam_offset_hz,
+                        rate_hz,
                     )
                     b.request_band(
-                        current_center_hz + half_spacing_hz, rate_hz
+                        current_center_hz + half_spacing_hz - seam_offset_hz,
+                        rate_hz,
                     )
                     _persist_band(current_center_mhz, current_bw_mhz)
                     LOG.info(
                         "config retune: center=%.3f MHz bw=%.3f MHz "
-                        "(A=%.3f, B=%.3f, rate=%.3f MS/s)",
+                        "(A=%.3f, B=%.3f, rate=%.3f MS/s, seam @ %.3f)",
                         new_center_mhz, current_bw_mhz,
-                        (current_center_hz - half_spacing_hz) / 1e6,
-                        (current_center_hz + half_spacing_hz) / 1e6,
+                        (current_center_hz - half_spacing_hz - seam_offset_hz)
+                        / 1e6,
+                        (current_center_hz + half_spacing_hz - seam_offset_hz)
+                        / 1e6,
                         rate_hz / 1e6,
+                        (current_center_hz - seam_offset_hz) / 1e6,
                     )
                 else:
                     LOG.warning(
@@ -797,7 +837,12 @@ def main() -> int:
         else:
             top_state = "down"
 
-        center_mhz = (f_min_hz + f_max_hz) / 2.0 / 1e6
+        # center_mhz is the user's COMMANDED tune freq, not the geometric
+        # midpoint of the stitched window.  The seam offset deliberately
+        # parks the geometric midpoint on the (signal-free) seam, so the
+        # midpoint is the wrong thing to advertise — the UI uses center_mhz
+        # for the tune marker / drag baseline and freq_{min,max}_mhz for the
+        # actual displayed span.
         bw_mhz = (f_max_hz - f_min_hz) / 1e6
 
         ages_present = [v for v in (age_a_ms, age_b_ms) if v is not None]
@@ -808,7 +853,7 @@ def main() -> int:
                 "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
             ),
             "state": top_state,
-            "center_mhz": round(center_mhz, 4),
+            "center_mhz": round(current_center_mhz, 4),
             "bw_mhz": round(bw_mhz, 4),
             "bins": [round(float(v), 1) for v in bins.tolist()],
             "freq_min_mhz": round(f_min_hz / 1e6, 4),

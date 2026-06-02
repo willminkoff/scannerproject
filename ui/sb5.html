@@ -482,6 +482,31 @@
   /* brief edge glow when a pan soft-clamps at the RTL-SDR band edge */
   .wf-canvas-wrap.wf-edge-lo { box-shadow: inset 7px 0 18px -4px rgba(255,176,64,0.9); }
   .wf-canvas-wrap.wf-edge-hi { box-shadow: inset -7px 0 18px -4px rgba(255,176,64,0.9); }
+  /* re-tune glow — brief cyan-green border pulse confirming a POST landed */
+  @keyframes wfRetunePulse {
+    0%   { box-shadow: 0 0 0 0 rgba(80,230,170,0); }
+    25%  { box-shadow: 0 0 0 2px rgba(80,230,170,0.9), 0 0 16px 2px rgba(80,230,170,0.55); }
+    100% { box-shadow: 0 0 0 0 rgba(80,230,170,0); }
+  }
+  .wf-canvas-wrap.wf-retune-glow { animation: wfRetunePulse 0.4s ease-out; }
+  /* cursor-pinned freq readout — floats at the cursor column during a drag */
+  .wf-cursor-chip {
+    position: absolute; top: 6px;
+    transform: translateX(-50%);
+    padding: 2px 7px;
+    background: rgba(8, 14, 28, 0.88);
+    border: 1px solid rgba(126, 211, 255, 0.55);
+    border-radius: 6px;
+    color: var(--sky-2);
+    font-size: var(--type-meta);
+    font-weight: 600;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 8;
+    opacity: 0;
+    transition: opacity 0.1s;
+  }
+  .wf-cursor-chip.show { opacity: 1; }
   .wf-canvas-wrap canvas { display: block; width: 100%; height: 100%; }
   .wf-axis {
     display: flex; justify-content: space-between;
@@ -1315,6 +1340,7 @@
           <div class="center-mark"></div>
           <div class="label mono" id="wf-window-label">127.500 MHz</div>
         </div>
+        <div class="wf-cursor-chip mono" id="wf-cursor-chip">—</div>
       </div>
       <div class="wf-axis mono">
         <span id="wf-axis-min">—</span>
@@ -1525,31 +1551,44 @@ function normalizeBins(bins, lo, hi) {
 // Phase R3: adaptive color-stretch for the Live IQ waterfall.  The old
 // fixed -95..-25 dBFS map left the ~-66 dBFS airband noise floor sitting
 // at ~40% color, so real bursts only a few dB hotter barely changed hue
-// and "looked like noise".  Instead we track the per-frame noise floor (a
-// low percentile, smoothed) and map [floor-4 .. floor+SPAN] -> [0..1] so
-// noise stays dark and anything ~10 dB above it jumps to a clearly
-// different, bright color.
-const WF_DISPLAY_SPAN_DB = 30;   // dB above the noise floor that saturates
-const WF_RANGE = new Map();      // canvasId -> smoothed noise-floor dBFS
+// and "looked like noise".  Instead we anchor BOTH ends of the stretch on
+// per-frame percentiles (smoothed):
+//   floor = 30th pct  -> mapped to ~0 (noise stays dark)
+//   ceil  = 95th pct  -> mapped to 1  (saturates)
+// Using the 95th percentile (not the max) for the ceiling is the key fix:
+// a single very strong signal (e.g. the 160-161 MHz hotspot) is an outlier
+// ABOVE the 95th pct, so it just pins to white instead of stretching the
+// ceiling out and crushing every weaker signal (NWS 162.55) into a faint
+// smear.  A minimum span guards a quiet band where the 95th pct sits right
+// on the floor — without it, pure noise variance would blow up to full color.
+const WF_MIN_SPAN_DB = 12;       // floor->ceil span when the band is ~all noise
+const WF_RANGE = new Map();      // canvasId -> smoothed noise-floor (30th pct) dBFS
+const WF_CEIL = new Map();       // canvasId -> smoothed ceiling (95th pct) dBFS
 function _wfPercentile(sorted, p) {
   if (!sorted.length) return -100;
   const idx = Math.max(0, Math.min(sorted.length - 1, Math.floor(p * sorted.length)));
   return sorted[idx];
 }
 function autoStretchIntensity(bins, key) {
-  // Estimate the noise floor from a low percentile so a handful of hot
-  // signal bins don't drag it up.  Skip the gap-fill sentinel (-120) the
-  // stitcher writes for bins no dongle covered.
+  // Estimate floor + ceiling from percentiles so neither a handful of hot
+  // signal bins nor a single strong outlier distorts the scale.  Skip the
+  // gap-fill sentinel (-120) the stitcher writes for bins no dongle covered.
   const real = [];
   for (let i = 0; i < bins.length; i++) {
     if (bins[i] > -119) real.push(bins[i]);
   }
   const sorted = real.slice().sort((a, b) => a - b);
   const floorNow = _wfPercentile(sorted, 0.30);
+  const ceilNow = _wfPercentile(sorted, 0.95);
   let floor = WF_RANGE.get(key);
   floor = (typeof floor === "number") ? (floor * 0.8 + floorNow * 0.2) : floorNow;
   WF_RANGE.set(key, floor);
-  return normalizeBins(bins, floor - 4, floor + WF_DISPLAY_SPAN_DB);
+  let ceil = WF_CEIL.get(key);
+  ceil = (typeof ceil === "number") ? (ceil * 0.8 + ceilNow * 0.2) : ceilNow;
+  WF_CEIL.set(key, ceil);
+  const lo = floor - 4;
+  const hi = Math.max(ceil, floor + WF_MIN_SPAN_DB);
+  return normalizeBins(bins, lo, hi);
 }
 // High-contrast "turbo"-style palette: noise = dark navy, signal sweeps
 // blue -> cyan -> green -> yellow -> orange -> red so a 10 dB-over-noise
@@ -1900,22 +1939,39 @@ function renderWaterfall(data) {
     if (tag) tag.textContent = topState === "down" ? "DOWN" : "Degraded";
     return;
   }
-  // Prefer the explicit freq_min/freq_max from the backend (covers retune
-  // edge cases), fall back to center +/- bw/2.
-  let min, max, center, bw;
+  // freq_min/freq_max are the ACTUAL displayed span; center_mhz is the
+  // user's commanded tune freq, which the seam-offset stitch parks off the
+  // geometric middle (see waterfall.py).  Axis labels reflect the displayed
+  // span (gmid = its middle); the center pill / tune marker / drag baseline
+  // track center_mhz so they follow the tuned freq, not the seam.
+  let min, max, bw, gmid, center;
   if (typeof data.freq_min_mhz === "number" && typeof data.freq_max_mhz === "number") {
     min = data.freq_min_mhz;
     max = data.freq_max_mhz;
-    center = (min + max) / 2;
-    bw = max - min;
   } else {
-    center = Number(data.center_mhz || 123.7);
-    bw = Number(data.bw_mhz || 4.8);
-    min = center - bw/2; max = center + bw/2;
+    const c0 = Number(data.center_mhz || 123.7);
+    const b0 = Number(data.bw_mhz || 4.8);
+    min = c0 - b0/2; max = c0 + b0/2;
   }
+  bw = max - min;
+  gmid = (min + max) / 2;
+  center = Number(data.center_mhz);
+  if (!Number.isFinite(center)) center = gmid;
+  WF_VIEW.min = min; WF_VIEW.max = max;
   $("wf-axis-min").textContent = min.toFixed(2);
-  $("wf-axis-mid").textContent = center.toFixed(2);
+  $("wf-axis-mid").textContent = gmid.toFixed(2);
   $("wf-axis-max").textContent = max.toFixed(2);
+  slideAxis(gmid);
+  // Park the center marker on the tuned freq within the displayed span (not
+  // mid-drag — the drag handler owns the marker label then).
+  const wfWin = $("wf-window");
+  if (wfWin && !WF_DRAGGING) {
+    const frac = bw > 0 ? (center - min) / bw : 0.5;
+    const leftPct = Math.max(0, Math.min(78, frac * 100 - 11));
+    wfWin.style.left = leftPct.toFixed(2) + "%";
+    const lab = $("wf-window-label");
+    if (lab) lab.textContent = center.toFixed(3) + " MHz";
+  }
   // Phase 6a.1: pane subtitle reflects the live stitched window —
   // Phase 5c promoted "LIVE IQ" to the primary header and added this
   // subtitle, but it was static.  Drive it from the same min/max we
@@ -1978,8 +2034,6 @@ function renderWaterfall(data) {
     }
   }
   $("ev-wf-frame").textContent = `${data.last_frame_age_ms || 0} ms ago`;
-
-  if (!WF_DRAGGING) updateFreqWindowLabel("wf-window", "wf-window-label", min, max);
 
   const intensity = autoStretchIntensity(data.bins, "wf-canvas");
   pushWaterfallRow("wf-canvas", intensity, wfColormap);
@@ -2282,7 +2336,7 @@ function postWaterfallCenter(mhz, bw) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-  }).catch(()=>{});
+  }).then((r) => { if (r && r.ok) wfRetuneGlow(); }).catch(()=>{});
 }
 // Highlight the quick-jump chip whose (center,bw) matches the live band.
 function syncWfJumpActive(centerMhz, bwMhz) {
@@ -2318,6 +2372,45 @@ const WF_TUNE_MIN_MHZ = 24.0;
 const WF_TUNE_MAX_MHZ = 1700.0;
 const WF_SNAP_MHZ = 0.05;   // 50 kHz
 function wfSnap(mhz) { return Math.round(mhz / WF_SNAP_MHZ) * WF_SNAP_MHZ; }
+
+// Last rendered displayed span — maps a cursor pixel-column to a frequency
+// for the drag readout chip; kept in sync by updateWaterfall().
+const WF_VIEW = { min: 121.3, max: 126.1 };
+
+// Axis tick slide: when the displayed midpoint shifts, nudge the freq labels
+// in the pan direction and ease them back over ~200ms so a retune reads as
+// motion, not a jump-cut.  Higher center => spectrum scrolls left => labels
+// enter from the right (+x).
+let WF_LAST_AXIS_MID = null;
+function slideAxis(midMhz) {
+  const axis = document.querySelector(".wf-axis");
+  if (!axis) return;
+  if (WF_LAST_AXIS_MID !== null && Math.abs(midMhz - WF_LAST_AXIS_MID) > 0.001) {
+    const dir = midMhz > WF_LAST_AXIS_MID ? 1 : -1;
+    axis.style.transition = "none";
+    axis.style.transform = `translateX(${dir * 10}px)`;
+    axis.style.opacity = "0.55";
+    requestAnimationFrame(() => {
+      axis.style.transition = "transform 0.2s ease-out, opacity 0.2s ease-out";
+      axis.style.transform = "translateX(0)";
+      axis.style.opacity = "1";
+    });
+  }
+  WF_LAST_AXIS_MID = midMhz;
+}
+
+// Re-tune glow: brief cyan-green border pulse when a /api/waterfall POST is
+// accepted (HTTP 200), so the user gets confirmation a retune landed.
+let _wfGlowTimer = null;
+function wfRetuneGlow() {
+  const wrap = document.querySelector(".wf-canvas-wrap");
+  if (!wrap) return;
+  wrap.classList.remove("wf-retune-glow");
+  void wrap.offsetWidth;   // restart the animation on rapid back-to-back retunes
+  wrap.classList.add("wf-retune-glow");
+  if (_wfGlowTimer) clearTimeout(_wfGlowTimer);
+  _wfGlowTimer = setTimeout(() => wrap.classList.remove("wf-retune-glow"), 450);
+}
 let _wfEdgeTimer = null;
 function wfEdgeHint(side) {
   const wrap = document.querySelector(".wf-canvas-wrap");
@@ -2333,12 +2426,26 @@ function wireWfPan() {
   const wrap = document.querySelector(".wf-canvas-wrap");
   if (!wrap) return;
   let startX = 0, startCenter = 0, postTimer = null;
+  const chip = $("wf-cursor-chip");
   function liveBand() {
     const c = parseFloat(($("wf-pill-center").textContent || "").replace(/[^0-9.\-]/g, "")) ||
               WF_CENTER_LOCAL.mhz || 133.5;
     const bw = parseFloat(($("wf-pill-bw").textContent || "").replace(/[^0-9.\-]/g, "")) ||
                WF_CENTER_LOCAL.bw || 4.8;
     return { c, bw };
+  }
+  // Position the freq readout chip at the cursor column, labelled with the
+  // freq that column maps to in the currently-displayed span (WF_VIEW).
+  function updateChip(clientX) {
+    if (!chip) return;
+    const rect = wrap.getBoundingClientRect();
+    const w = rect.width || 1;
+    let x = clientX - rect.left;
+    const fracRaw = x / w;
+    const f = WF_VIEW.min + Math.max(0, Math.min(1, fracRaw)) * (WF_VIEW.max - WF_VIEW.min);
+    x = Math.max(0, Math.min(w, x));
+    chip.style.left = x.toFixed(0) + "px";
+    chip.textContent = f.toFixed(3) + " MHz";
   }
   function schedulePost() {
     // leading-edge ~100ms throttle: continuous retune while dragging
@@ -2364,6 +2471,7 @@ function wireWfPan() {
     if (input && document.activeElement !== input) input.value = c.toFixed(3);
     const lab = $("wf-window-label");
     if (lab) lab.textContent = c.toFixed(3) + " MHz";
+    updateChip(clientX);
     schedulePost();
     if (e.cancelable) e.preventDefault();
   }
@@ -2371,6 +2479,7 @@ function wireWfPan() {
     if (!WF_DRAGGING) return;
     WF_DRAGGING = false;
     wrap.classList.remove("dragging");
+    if (chip) chip.classList.remove("show");
     document.removeEventListener("mousemove", onMove);
     document.removeEventListener("mouseup", onUp);
     document.removeEventListener("touchmove", onMove);
@@ -2382,6 +2491,7 @@ function wireWfPan() {
     WF_DRAGGING = true;
     startX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
     startCenter = liveBand().c;
+    if (chip) { chip.classList.add("show"); updateChip(startX); }
     wrap.classList.add("dragging");
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
