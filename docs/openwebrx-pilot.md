@@ -81,10 +81,16 @@ an auxiliary view). The VFO row is unchanged.
 
 ## Revert (known-good restore)
 
+See **`docs/OWRX_OPS.md` → "Revert to the old waterfall + VFO system"** for the
+authoritative, verified sequence. Note `scripts/waterfall.py` was archived, so
+restoring the service requires copying it back **before** starting the unit —
+unmasking alone is not enough:
+
 ```bash
 # Mac repo: revert the pilot commit, push; on Micro git pull + restart airband-ui.
 # On Micro, restore the waterfall service + free OWRX off the dongle:
-sudo docker stop owrxp && sudo docker rm owrxp        # release 83241970
+sudo docker stop owrxp                                 # release 83241970
+cp ~/scannerproject/archive/waterfall.py ~/scannerproject/scripts/waterfall.py
 sudo systemctl unmask scanner-waterfall.service
 sudo mv /etc/systemd/system/scanner-waterfall.service.owrx-pilot-bak \
         /etc/systemd/system/scanner-waterfall.service
