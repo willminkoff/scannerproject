@@ -796,6 +796,16 @@
     max-height: 130px;
     overflow-y: auto;
   }
+  .disco-detect-row.pending { opacity: 0.62; }
+  .disco-detect-row.pending .cls { color: var(--text-3); font-style: italic; }
+  .disco-detect-row .meta {
+    margin-left: auto;
+    color: var(--text-3);
+    font-size: var(--type-meta);
+    white-space: nowrap;
+  }
+  .disco-detect-row .last-seen { color: var(--text-4); }
+  .disco-detect-row .snr { color: var(--sky-2); }
   .disco-detect-row {
     display: grid; grid-template-columns: 90px 1fr auto;
     gap: 10px;
@@ -1464,7 +1474,29 @@
         <span id="disco-axis-max">—</span>
       </div>
       <div class="wf-tune-row">
-        <div class="wf-tune-caption">Sweep 24 MHz – 1.7 GHz · drag range or recenter sweep</div>
+        <div class="wf-tune-caption">Sweep 24 MHz – 1.7 GHz · set low/high or jump to a band</div>
+        <div class="wf-tune-input-wrap">
+          <label class="wf-tune-label" for="disco-low-input">Low</label>
+          <input type="number" id="disco-low-input" class="wf-tune-input mono"
+                 step="1" min="24" max="1700" placeholder="MHz" inputmode="decimal">
+          <span class="wf-tune-unit">MHz</span>
+        </div>
+        <div class="wf-tune-input-wrap">
+          <label class="wf-tune-label" for="disco-high-input">High</label>
+          <input type="number" id="disco-high-input" class="wf-tune-input mono"
+                 step="1" min="24" max="1700" placeholder="MHz" inputmode="decimal">
+          <span class="wf-tune-unit">MHz</span>
+        </div>
+        <button type="button" id="disco-apply-btn" class="wf-apply-btn">Apply</button>
+      </div>
+      <div class="wf-jump-row" id="disco-jump-row">
+        <button type="button" class="wf-jump" data-low="24" data-high="30">HF 24–30</button>
+        <button type="button" class="wf-jump" data-low="50" data-high="148">VHF Lo 50–148</button>
+        <button type="button" class="wf-jump" data-low="118" data-high="174">VHF Air+Land</button>
+        <button type="button" class="wf-jump" data-low="225" data-high="400">UHF Mil-air</button>
+        <button type="button" class="wf-jump" data-low="400" data-high="470">UHF LMR 400–470</button>
+        <button type="button" class="wf-jump" data-low="769" data-high="869">P25 700/800</button>
+        <button type="button" class="wf-jump" data-low="117" data-high="470">Default 117–470</button>
       </div>
       <div class="disco-detections" id="disco-detections">
         <div class="hits-empty">Loading detections…</div>
@@ -2434,7 +2466,10 @@ function renderDisco(data) {
       renderSpectrum($("disco-spec"), data.bins, start, end, "disco-spec");
     }
   }
-  // Detections — replace mock with live classifier output.
+  // Detections — surface both classified and pending rows from
+  // /api/disco. Pending rows are sweep peaks the classifier hasn't
+  // labelled yet; they render dim so the operator can see disco is
+  // working even before the ONNX pass catches up.
   const dets = Array.isArray(data.detections) ? data.detections : [];
   if (!dets.length) {
     $("disco-detections").innerHTML = '<div class="hits-empty">Scanning — no detections yet.</div>';
@@ -2442,14 +2477,32 @@ function renderDisco(data) {
     $("disco-detections").innerHTML = dets.slice(0, 8).map(d => {
       const c = Number(d.confidence || 0);
       const ccls = c >= 0.8 ? "hi" : (c < 0.5 ? "lo" : "");
+      const pending = d.classified === false;
+      const rowCls = pending ? "disco-detect-row pending" : "disco-detect-row";
+      const snr = Number(d.snr_db);
+      const seen = Number(d.last_seen_s_ago);
+      const snrTxt = Number.isFinite(snr) ? `${snr.toFixed(0)} dB` : "";
+      const seenTxt = Number.isFinite(seen) ? formatLastSeen(seen) : "";
+      const confTxt = pending ? "—" : `${(c * 100).toFixed(0)}%`;
       return `
-        <div class="disco-detect-row">
+        <div class="${rowCls}">
           <span class="freq">${Number(d.freq_mhz || 0).toFixed(3)}</span>
           <span class="cls">${escapeHtml(d.classification || "—")}</span>
-          <span class="conf ${ccls}">${(c * 100).toFixed(0)}%</span>
+          <span class="conf ${ccls}">${confTxt}</span>
+          <span class="meta"><span class="snr">${snrTxt}</span> · <span class="last-seen">${seenTxt}</span></span>
         </div>`;
     }).join("");
   }
+}
+
+// Compact "last seen" formatter — Discovery rows need to fit in a tight
+// column so we collapse to single-letter units (s/m/h).  Matches the
+// formatter style used by the heartbeat "DOWN since" string above.
+function formatLastSeen(seconds) {
+  const s = Math.max(0, Math.floor(seconds));
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  return `${Math.floor(s / 3600)}h ago`;
 }
 
 function updateFreqWindowLabel(elId, labelId, fLo, fHi) {
@@ -2756,6 +2809,82 @@ function wireWfCenterInput() {
       syncWfJumpActive(c, bw === undefined ? WF_CENTER_LOCAL.bw : bw);
     });
   }
+}
+
+// Phase 6c — disco range tuning. Reads the low/high inputs (or jump-chip
+// data-attrs), validates, and POSTs to /api/disco/range. The coordinator
+// re-reads coord_config.json on its next tick and republishes per-tuner
+// sweep_config_<serial>.json files; sweep workers retune at the start of
+// their next pass. End-to-end retune latency is ~1 sweep cycle (~40 s
+// for the default 117-470 MHz cut) since workers poll cfg by mtime.
+function wireDiscoRangeControls() {
+  const lo = $("disco-low-input");
+  const hi = $("disco-high-input");
+  const apply = $("disco-apply-btn");
+  const jumpRow = $("disco-jump-row");
+  function commitFromInputs() {
+    const s = parseFloat(lo && lo.value);
+    const e = parseFloat(hi && hi.value);
+    if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s) return;
+    postDiscoRange(s, e);
+    syncDiscoJumpActive(s, e);
+  }
+  if (apply) apply.addEventListener("click", commitFromInputs);
+  for (const inp of [lo, hi]) {
+    if (!inp) continue;
+    inp.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") { commitFromInputs(); inp.blur(); }
+    });
+  }
+  if (jumpRow) {
+    jumpRow.addEventListener("click", (ev) => {
+      const btn = ev.target.closest(".wf-jump");
+      if (!btn) return;
+      const s = parseFloat(btn.dataset.low);
+      const e = parseFloat(btn.dataset.high);
+      if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s) return;
+      if (lo) lo.value = String(s);
+      if (hi) hi.value = String(e);
+      postDiscoRange(s, e);
+      syncDiscoJumpActive(s, e);
+    });
+  }
+  // Seed inputs from /api/disco's current range on first render so the
+  // user sees what disco is sweeping right now, not blank placeholders.
+  seedDiscoInputsFromState();
+}
+function seedDiscoInputsFromState() {
+  // Best-effort: pollDisco fires every POLL_DISCO_MS and updates
+  // disco-axis-{min,max}. Read those once at boot; if the poll hasn't
+  // landed yet, retry briefly so the inputs aren't stuck at placeholder.
+  const lo = $("disco-low-input");
+  const hi = $("disco-high-input");
+  if (!lo || !hi) return;
+  let tries = 0;
+  function attempt() {
+    tries += 1;
+    const s = parseFloat(($("disco-axis-min").textContent || ""));
+    const e = parseFloat(($("disco-axis-max").textContent || ""));
+    if (Number.isFinite(s) && Number.isFinite(e) && e > s) {
+      if (!lo.value) lo.value = String(Math.round(s));
+      if (!hi.value) hi.value = String(Math.round(e));
+      syncDiscoJumpActive(s, e);
+      return;
+    }
+    if (tries < 20) setTimeout(attempt, 250);
+  }
+  attempt();
+}
+function syncDiscoJumpActive(startMhz, endMhz) {
+  const row = $("disco-jump-row");
+  if (!row) return;
+  row.querySelectorAll(".wf-jump").forEach((btn) => {
+    const bs = parseFloat(btn.dataset.low);
+    const be = parseFloat(btn.dataset.high);
+    const match = Number.isFinite(bs) && Number.isFinite(be) &&
+                  Math.abs(bs - startMhz) < 0.5 && Math.abs(be - endMhz) < 0.5;
+    btn.classList.toggle("active", match);
+  });
 }
 
 function postVFO(patch) {
@@ -3201,6 +3330,7 @@ function boot() {
   wireVFOControls();
   wireAudioBar();
   wireWfCenterInput();
+  wireDiscoRangeControls();
   wireSitrep();
   wireHbEvidenceToggle();
   wireProfileBuilder();
