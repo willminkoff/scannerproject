@@ -8,20 +8,6 @@
  * var(--type-*) / var(--space-*) token defined here. There are no hard-coded
  * font sizes left in sb5.html — change a value here and the whole dashboard
  * (and any document that links this file) re-scales.
- *
- * ----- OpenWebRX iframe consumption -------------------------------------
- * CSS custom properties do NOT cross the iframe document boundary, so an
- * OpenWebRX waterfall iframed into the Live IQ pane will NOT inherit these
- * tokens automatically. To make the OWRX document match the /sb5 scale, link
- * this same stylesheet from the OWRX side. Because the iframe is a separate
- * origin (OWRX serves its own port), use an absolute URL pointing at the
- * scanner host's airband-ui port (5050):
- *
- *     <link rel="stylesheet" href="http://<scanner-host>:5050/static/sb5_theme.css">
- *
- * then style OWRX chrome with the var(--type-*) / var(--space-*) tokens below.
- * The static handler serves this file with `Content-Type: text/css`, so a
- * cross-origin <link> works without extra CORS headers.
  * ========================================================================= */
 
 :root {
