@@ -137,7 +137,7 @@ signatures:
 
   # ============================================================
   # AM broadcast — 530–1700 kHz (out of disco's tuning range
-  # for RSPduo, but listed for completeness)
+  # on the current RTL-SDR layout, listed for completeness)
   # ============================================================
   - name: "AM Broadcast"
     freq_min_hz: 530000
@@ -147,7 +147,7 @@ signatures:
     shape: narrow_carrier
     duty_cycle: continuous
     confidence_weight: 0.7
-    notes: "Commercial AM broadcast. Outside RSPduo's normal tuning range — listed for completeness."
+    notes: "Commercial AM broadcast. Outside the disco RTL-SDR layout's tuning range — listed for completeness."
 
   # ============================================================
   # ATSC TV — 6 MHz wide 8VSB, channels 2–69
@@ -301,7 +301,7 @@ signatures:
     confidence_weight: 0.9
     allowed_bands:
       - ISM_2_4
-    notes: "20 MHz OFDM channels. Beacons every 102.4 ms. Out of RSPduo tuning range but listed for reference."
+    notes: "20 MHz OFDM channels. Beacons every 102.4 ms. Out of the disco RTL-SDR layout's tuning range but listed for reference."
 
   # ============================================================
   # Wireless mics — 470–700 MHz narrow FM (per FCC Part 74)

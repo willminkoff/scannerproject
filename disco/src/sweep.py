@@ -25,6 +25,15 @@ LOG = logging.getLogger("disco.sweep")
 _STOP = False
 _FORCE_EXIT_ARMED = False
 
+# NOTE (2026-06): The SDRplay/RSPduo bounded-shutdown + bounded-startup
+# watchdogs below only fire when sweep is invoked with an SDRplay tuner-id
+# (legacy A-T1/A-T2/B-T1/B-T2 paths).  The current production layout uses
+# bare RTL-SDR serials (Phase 6c, see _read_sweep_cfg block further down)
+# and the SoapySDR.Device() path for `driver=rtlsdr,serial=...` does not
+# hit either of the SDRplay-daemon deadlocks these watchdogs guard.  The
+# watchdogs are still active on every codepath for defence-in-depth and
+# cost ~0 when SDR open/close return promptly.
+#
 # Bounded graceful shutdown: SoapySDR's RSPduo Master/Slave teardown can hang
 # indefinitely inside closeStream() when the SDRplay daemon is still draining
 # internal state, holding the systemd unit in stop-sigterm until the 90 s
