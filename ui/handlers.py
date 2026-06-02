@@ -3654,6 +3654,185 @@ def _disco_pass_through_payload() -> dict:
     return state
 
 
+# ---------------------------------------------------------------------
+# GET /api/disco/recent — operator hits-history feed.
+#
+# Backs the sb5 Discovery card's "Fullscreen" mode (table of the last
+# N unique hits).  Reads disco-coordinator's SQLite DB directly in
+# read-only mode and returns either:
+#   - unique=true (default): deduped per 25-kHz bin within a 24h
+#     window, sorted newest-first; each row carries occurrence count
+#     + the most-recent classified label.
+#   - unique=false: raw rows, newest first, capped at limit.
+#
+# Query params (validated, all optional):
+#   limit  int 1..500   default 100
+#   unique bool          default true
+# Backend is fully decoupled from the active sweep range so the table
+# shows everything the classifier has seen, not just what's in view.
+# ---------------------------------------------------------------------
+DISCO_DB_PATH = os.environ.get(
+    "DISCO_DB", "/home/ubuntu/scannerproject/disco/state/disco.sqlite",
+)
+DISCO_RECENT_WINDOW_S = 24 * 3600.0     # 24 hours of history
+DISCO_RECENT_LIMIT_MAX = 500
+DISCO_RECENT_BIN_HZ = 25_000            # dedupe granularity
+
+
+def _disco_recent_hits(limit: int = 100, unique: bool = True) -> dict:
+    """Return recent disco detections from the SQLite DB.
+
+    Schema (see scripts/disco_coordinator.py / disco/src/*):
+      detections(id, ts, tuner_id, freq_hz, bandwidth_hz, power_dbfs,
+                 snr_db, modulation_class, modulation_confidence,
+                 protocol_tag, slice_path, classified_ts, interpretation,
+                 ...)
+
+    Returns dict with keys: rows (list of normalised hit dicts),
+    window_s, server_time, source ("db"|"down"), error (optional).
+    """
+    import sqlite3
+    limit = max(1, min(int(limit or 100), DISCO_RECENT_LIMIT_MAX))
+    now = time.time()
+    cutoff = now - DISCO_RECENT_WINDOW_S
+    out: dict = {
+        "rows": [],
+        "window_s": DISCO_RECENT_WINDOW_S,
+        "server_time": now,
+        "source": "db",
+        "unique": bool(unique),
+        "limit": limit,
+    }
+    try:
+        conn = sqlite3.connect(
+            f"file:{DISCO_DB_PATH}?mode=ro", uri=True, timeout=2.0,
+        )
+    except Exception as exc:
+        out["source"] = "down"
+        out["error"] = f"db open failed: {exc}"
+        return out
+    try:
+        # Pull a larger working set so dedupe doesn't starve narrower
+        # neighbours (an FM broadcast row spans many bins otherwise).
+        fetch_limit = limit * 12 if unique else limit
+        try:
+            rows = conn.execute(
+                "SELECT ts, freq_hz, bandwidth_hz, power_dbfs, snr_db, "
+                "modulation_class, modulation_confidence, protocol_tag, "
+                "interpretation, classified_ts "
+                "FROM detections "
+                "WHERE ts >= ? "
+                "ORDER BY ts DESC LIMIT ?",
+                (cutoff, fetch_limit),
+            ).fetchall()
+        except Exception as exc:
+            out["source"] = "down"
+            out["error"] = f"query failed: {exc}"
+            return out
+    finally:
+        try: conn.close()
+        except Exception: pass
+
+    def _row_to_label(mod_cls, conf, proto, interp, has_class):
+        if not has_class:
+            return "pending"
+        bits = [str(mod_cls)]
+        if proto and proto != mod_cls:
+            bits.append(f"[{proto}]")
+        s = " ".join(bits)
+        if interp:
+            s = f"{s} - {str(interp)[:80]}"
+        return s
+
+    if not unique:
+        for r in rows[:limit]:
+            (ts, freq_hz, bw_hz, p_db, snr, mod_cls, conf,
+             proto, interp, classified_ts) = r
+            has_class = (classified_ts is not None and mod_cls
+                         and mod_cls != "unclassified")
+            out["rows"].append({
+                "ts": float(ts or 0.0),
+                "freq_mhz": round(float(freq_hz or 0.0) / 1e6, 4),
+                "classification": _row_to_label(
+                    mod_cls, conf, proto, interp, has_class),
+                "classified": bool(has_class),
+                "confidence": round(float(conf or 0.0), 3) if has_class else 0.0,
+                "snr_db": round(float(snr or 0.0), 1),
+                "power_dbfs": round(float(p_db or 0.0), 1),
+                "bandwidth_khz": round(float(bw_hz or 0.0) / 1e3, 2),
+                "last_seen_s_ago": int(max(0.0, now - float(ts or now))),
+                "count": 1,
+            })
+        return out
+
+    # Dedupe by 25-kHz bin while keeping most-recent ts, best SNR, and
+    # the first classified sighting we see (rows are DESC ts so that's
+    # the most-recent classified label).
+    by_bin: dict = {}
+    order: list = []
+    for r in rows:
+        (ts, freq_hz, bw_hz, p_db, snr, mod_cls, conf,
+         proto, interp, classified_ts) = r
+        if freq_hz is None or ts is None:
+            continue
+        key = int(float(freq_hz) // DISCO_RECENT_BIN_HZ)
+        slot = by_bin.get(key)
+        has_class = (classified_ts is not None and mod_cls
+                     and mod_cls != "unclassified")
+        if slot is None:
+            slot = {
+                "ts": float(ts),
+                "freq_hz": float(freq_hz),
+                "bandwidth_hz": float(bw_hz or 0.0),
+                "power_dbfs": float(p_db or 0.0),
+                "snr_db": float(snr or 0.0),
+                "mod_cls": mod_cls if has_class else None,
+                "confidence": float(conf or 0.0) if has_class else 0.0,
+                "proto": proto if has_class else None,
+                "interp": str(interp)[:80] if interp else None,
+                "count": 1,
+            }
+            by_bin[key] = slot
+            order.append(key)
+            continue
+        slot["count"] += 1
+        if float(ts) > slot["ts"]:
+            slot["ts"] = float(ts)
+        s = float(snr or 0.0)
+        if s > slot["snr_db"]:
+            slot["snr_db"] = s
+            slot["power_dbfs"] = float(p_db or slot["power_dbfs"])
+            slot["bandwidth_hz"] = float(bw_hz or slot["bandwidth_hz"])
+        if has_class and slot["mod_cls"] is None:
+            slot["mod_cls"] = mod_cls
+            slot["confidence"] = float(conf or 0.0)
+            slot["proto"] = proto
+            if interp:
+                slot["interp"] = str(interp)[:80]
+
+    uniq_rows = []
+    for slot in by_bin.values():
+        is_classified = slot["mod_cls"] is not None
+        uniq_rows.append({
+            "ts": slot["ts"],
+            "freq_mhz": round(slot["freq_hz"] / 1e6, 4),
+            "classification": _row_to_label(
+                slot["mod_cls"], slot["confidence"], slot["proto"],
+                slot["interp"], is_classified),
+            "classified": bool(is_classified),
+            "confidence": round(slot["confidence"], 3),
+            "snr_db": round(slot["snr_db"], 1),
+            "power_dbfs": round(slot["power_dbfs"], 1),
+            "bandwidth_khz": round(slot["bandwidth_hz"] / 1e3, 2),
+            "last_seen_s_ago": int(max(0.0, now - slot["ts"])),
+            "count": int(slot["count"]),
+        })
+    uniq_rows.sort(key=lambda d: d["last_seen_s_ago"])
+    out["rows"] = uniq_rows[:limit]
+    return out
+
+
+
 def _disco_write_range(start_mhz: float, end_mhz: float) -> tuple[bool, str]:
     """POST /api/disco/range — validate and atomically merge into config."""
     if not (DISCO_FREQ_MIN_MHZ <= start_mhz <= DISCO_FREQ_MAX_MHZ):
@@ -6029,6 +6208,31 @@ class Handler(BaseHTTPRequestHandler):
                 json.dumps(payload),
                 "application/json; charset=utf-8",
             )
+
+        if p == "/api/disco/recent":
+            # Operator hits-history feed for the Discovery fullscreen
+            # table. Reads disco-coordinator's SQLite DB directly. Query
+            # params: limit (1..500, default 100), unique (default true).
+            try:
+                qs = parse_qs(urlparse(self.path).query)
+                try:
+                    limit = int((qs.get("limit") or ["100"])[0])
+                except (TypeError, ValueError):
+                    limit = 100
+                uval = (qs.get("unique") or ["true"])[0].lower()
+                unique = uval not in ("0", "false", "no")
+                payload = _disco_recent_hits(limit=limit, unique=unique)
+            except Exception as exc:
+                logger.exception("/api/disco/recent failed")
+                payload = {"rows": [], "error": str(exc),
+                           "source": "down", "server_time": time.time()}
+                return self._send(500, json.dumps(payload),
+                                  "application/json; charset=utf-8")
+            return self._send(
+                200, json.dumps(payload),
+                "application/json; charset=utf-8",
+            )
+
 
         if p == "/api/sounding":
             # Phase 6d: file-backed pass-through. Returns broker state.json

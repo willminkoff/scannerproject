@@ -1043,6 +1043,146 @@
   .disco-detect-row .conf.hi { color: #c8f3d3; }
   .disco-detect-row .conf.lo { color: #ffd58a; }
 
+  /* ============ Disco header Fullscreen action + recent-hits modal ============
+     The Discovery card carries a small "Fullscreen" button on the header that
+     opens a wider modal-card overlay listing the last 100 unique hits in
+     table form (sortable, filterable).  Styling reuses --line/--sky-* and
+     the type-* scale; no hardcoded sizes or hexes. */
+  .pane-disco .pane-hd { position: relative; }
+  .disco-fs-btn {
+    margin-left: auto;
+    background: rgba(138, 155, 181, 0.10);
+    border: 1px solid var(--line-2);
+    color: var(--text-2);
+    font-size: var(--type-micro);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 4px 9px;
+    border-radius: 7px;
+    cursor: pointer;
+    line-height: 1;
+    flex-shrink: 0;
+    align-self: flex-start;
+  }
+  .disco-fs-btn:hover  { background: rgba(138, 155, 181, 0.20); color: var(--text); }
+  .disco-fs-btn:focus-visible {
+    outline: 2px solid rgba(90, 184, 255, 0.55);
+    outline-offset: 2px;
+  }
+  .disco-fs-btn .ico { margin-right: 5px; opacity: 0.85; }
+
+  /* Wider, table-friendly variant of .modal-card. */
+  .modal-disco-recent .modal-card { max-width: 1100px; }
+  .modal-disco-recent .modal-body { padding: 12px 16px 18px; }
+
+  .disco-recent-toolbar {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 10px; flex-wrap: wrap;
+  }
+  .disco-recent-toolbar input.filter {
+    flex: 1; min-width: 180px;
+    background: rgba(8, 14, 28, 0.55);
+    border: 1px solid var(--line-2);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: var(--type-body-sm);
+    padding: 7px 10px;
+    font-family: inherit;
+  }
+  .disco-recent-toolbar input.filter:focus-visible {
+    outline: 2px solid rgba(90, 184, 255, 0.55);
+    outline-offset: 1px;
+  }
+  .disco-recent-toolbar .recent-meta {
+    color: var(--text-3); font-size: var(--type-meta);
+    font-family: ui-monospace, monospace;
+    flex-shrink: 0;
+  }
+  .disco-recent-toolbar .recent-refresh {
+    background: rgba(90, 184, 255, 0.16);
+    border: 1px solid rgba(90, 184, 255, 0.36);
+    color: var(--sky-2);
+    font-size: var(--type-meta); font-weight: 600;
+    padding: 6px 12px; border-radius: 8px;
+    cursor: pointer;
+  }
+  .disco-recent-toolbar .recent-refresh:hover { background: rgba(90, 184, 255, 0.28); color: var(--text); }
+
+  .disco-recent-table-wrap {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: auto;
+    max-height: 68vh;
+    background: rgba(8, 14, 28, 0.45);
+  }
+  .disco-recent-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--type-body-sm);
+    color: var(--text);
+  }
+  .disco-recent-table thead th {
+    position: sticky; top: 0;
+    background: rgba(20, 32, 54, 0.96);
+    color: var(--text-2);
+    font-size: var(--type-micro);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--line-2);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  .disco-recent-table thead th:hover { color: var(--text); }
+  .disco-recent-table thead th .arrow {
+    color: var(--sky-2);
+    margin-left: 4px;
+    opacity: 0.85;
+    font-size: var(--type-micro);
+  }
+  .disco-recent-table tbody td {
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  .disco-recent-table tbody tr:last-child td { border-bottom: none; }
+  .disco-recent-table tbody tr.pending td.cls { color: var(--text-3); font-style: italic; }
+  .disco-recent-table td.freq,
+  .disco-recent-table td.snr,
+  .disco-recent-table td.cnt,
+  .disco-recent-table td.time {
+    font-family: ui-monospace, monospace;
+    font-size: var(--type-mono);
+  }
+  .disco-recent-table td.freq { color: var(--sky-2); }
+  .disco-recent-table td.snr  { color: var(--text-2); }
+  .disco-recent-table td.last { color: var(--text-3); }
+  .disco-recent-table .empty {
+    padding: 18px 12px;
+    color: var(--text-3);
+    text-align: center;
+    font-size: var(--type-body-sm);
+  }
+
+  /* Mobile: collapse less-critical columns; let table scroll horizontally
+     within the wrap so the operator always sees freq + label. */
+  @media (max-width: 700px) {
+    .disco-recent-table { font-size: var(--type-meta); }
+    .disco-recent-table thead th,
+    .disco-recent-table tbody td { padding: 6px 8px; }
+    .disco-recent-table .hide-mobile { display: none; }
+    .disco-recent-table-wrap { max-height: calc(100vh - 200px); }
+  }
+
+  /* Inline 30-min list — bumped from 130px now that we want every hit
+     in the last 30 minutes visible (scrollable). */
+  .pane-disco .disco-detections { max-height: 220px; }
+
   /* ============ AIR / GROUND band-tinted accents (Phase 7f) ============
      The split ANALOG card needs a one-glance distinction between AIR
      and GROUND. We tint the eyebrow + live-tag using existing palette
@@ -2323,6 +2463,10 @@
       </div>
       <span class="live-tag" id="disco-live-tag">Live · 2 dongles · 353 MHz</span>
       <span class="sub" id="disco-sub">2 × RTL-SDR · unified sweep</span>
+      <button type="button" class="disco-fs-btn" id="disco-fs-btn"
+              aria-label="Open Discovery hits history (fullscreen)">
+        <span class="ico" aria-hidden="true">⛶</span>Fullscreen
+      </button>
     </div>
     <div class="pane-body">
       <div class="wf-tune-row">
@@ -2542,6 +2686,46 @@
      The title and the `kind` filter swap when the modal opens so the
      analog widget only sees conventional-channel favorites and the
      digital widget only sees trunked-channel favorites. -->
+<!-- Discovery fullscreen modal — last 100 unique hits, sortable + filterable.
+     Mirrors the Sitrep modal pattern (modal-overlay / modal-card / modal-hd
+     with Back + Close, modal-body scrollable). -->
+<div class="modal-overlay modal-disco-recent" id="disco-recent-modal"
+     role="dialog" aria-modal="true" aria-labelledby="disco-recent-title">
+  <div class="modal-card">
+    <div class="modal-hd">
+      <button class="modal-back" id="disco-recent-back" type="button" aria-label="Back to dashboard">← Back</button>
+      <span class="title" id="disco-recent-title">Discovery · Recent hits (last 100 unique)</span>
+      <button class="modal-close" id="disco-recent-close" type="button" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="disco-recent-toolbar">
+        <input type="search" id="disco-recent-filter" class="filter"
+               placeholder="Filter freq, modulation, label…"
+               aria-label="Filter recent hits">
+        <button type="button" class="recent-refresh" id="disco-recent-refresh">Refresh</button>
+        <span class="recent-meta" id="disco-recent-meta">—</span>
+      </div>
+      <div class="disco-recent-table-wrap" id="disco-recent-table-wrap">
+        <table class="disco-recent-table" id="disco-recent-table">
+          <thead>
+            <tr>
+              <th data-key="last_seen_s_ago" data-dir="asc">Time<span class="arrow" data-arrow="last_seen_s_ago">↑</span></th>
+              <th data-key="freq_mhz">Freq (MHz)<span class="arrow" data-arrow="freq_mhz"></span></th>
+              <th data-key="classification" class="hide-mobile">Modulation<span class="arrow" data-arrow="classification"></span></th>
+              <th data-key="snr_db">SNR/Pwr<span class="arrow" data-arrow="snr_db"></span></th>
+              <th data-key="count" class="hide-mobile">Count<span class="arrow" data-arrow="count"></span></th>
+              <th data-key="last_seen_s_ago" data-dir="asc" class="hide-mobile">Last seen<span class="arrow" data-arrow="last_seen_age"></span></th>
+            </tr>
+          </thead>
+          <tbody id="disco-recent-tbody">
+            <tr><td colspan="6" class="empty">Loading recent hits…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay modal-profile-builder" id="pb-modal" role="dialog" aria-modal="true" aria-labelledby="pb-modal-title" data-pane="ana">
   <div class="modal-card">
     <div class="modal-hd">
@@ -3958,7 +4142,10 @@ function renderDisco(data) {
   if (!dets.length) {
     $("disco-detections").innerHTML = '<div class="hits-empty">Scanning — no detections yet.</div>';
   } else {
-    $("disco-detections").innerHTML = dets.slice(0, 8).map(d => {
+    // Render every detection in /api/disco's last-30-min window —
+    // the .disco-detections container is height-capped + scrollable so
+    // the full list is reachable without crowding the card.
+    $("disco-detections").innerHTML = dets.map(d => {
       const c = Number(d.confidence || 0);
       const ccls = c >= 0.8 ? "hi" : (c < 0.5 ? "lo" : "");
       const pending = d.classified === false;
@@ -5124,6 +5311,179 @@ async function resetAskClaude() {
   askClaudeSetStatus("", "");
 }
 
+// =========================================================================
+// Discovery — Fullscreen recent-hits modal.
+//
+// Reads /api/disco/recent?limit=100&unique=true and renders a sortable,
+// filterable table.  Polls while open so newly classified rows surface
+// without a manual refresh, but stops polling on close to keep the
+// dashboard cheap.  Sort + filter operate client-side on the cached
+// rowset so they're instant.
+// =========================================================================
+var _discoRecentState = {
+  rows: [],           // last fetched payload, normalised
+  sortKey: "last_seen_s_ago",
+  sortDir: "asc",     // ascending = most recent first (low s_ago)
+  filter: "",
+  pollId: null,
+  fetching: false,
+};
+
+function _fmtLastSeen(s) {
+  s = Math.max(0, Math.floor(Number(s) || 0));
+  if (s < 60) return s + "s";
+  if (s < 3600) return Math.floor(s / 60) + "m";
+  if (s < 86400) return Math.floor(s / 3600) + "h";
+  return Math.floor(s / 86400) + "d";
+}
+
+function _fmtRecentTime(ts) {
+  if (!ts) return "—";
+  var d = new Date(Number(ts) * 1000);
+  if (isNaN(d.getTime())) return "—";
+  var hh = String(d.getHours()).padStart(2, "0");
+  var mm = String(d.getMinutes()).padStart(2, "0");
+  var ss = String(d.getSeconds()).padStart(2, "0");
+  return hh + ":" + mm + ":" + ss;
+}
+
+function _discoRecentSortRows(rows) {
+  var key = _discoRecentState.sortKey;
+  var dir = _discoRecentState.sortDir === "asc" ? 1 : -1;
+  return rows.slice().sort(function(a, b) {
+    var va = a[key], vb = b[key];
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    if (typeof va === "string" || typeof vb === "string") {
+      return String(va).localeCompare(String(vb)) * dir;
+    }
+    return (va - vb) * dir;
+  });
+}
+
+function _discoRecentFilterRows(rows) {
+  var q = _discoRecentState.filter.trim().toLowerCase();
+  if (!q) return rows;
+  return rows.filter(function(r) {
+    return (
+      String(r.freq_mhz || "").toLowerCase().indexOf(q) !== -1 ||
+      String(r.classification || "").toLowerCase().indexOf(q) !== -1
+    );
+  });
+}
+
+function _discoRecentRenderTable() {
+  var tbody = $("disco-recent-tbody");
+  if (!tbody) return;
+  var rows = _discoRecentSortRows(_discoRecentFilterRows(_discoRecentState.rows));
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">No hits match.</td></tr>';
+  } else {
+    tbody.innerHTML = rows.map(function(r) {
+      var pending = r.classified === false;
+      var snrTxt = Number.isFinite(r.snr_db) ? (r.snr_db.toFixed(0) + " dB") : "—";
+      var pwrTxt = Number.isFinite(r.power_dbfs) ? (r.power_dbfs.toFixed(0) + " dBFS") : "";
+      var snrPwr = pwrTxt ? (snrTxt + " · " + pwrTxt) : snrTxt;
+      return '<tr class="' + (pending ? "pending" : "") + '">' +
+        '<td class="time">' + escapeHtml(_fmtRecentTime(r.ts)) + '</td>' +
+        '<td class="freq">' + Number(r.freq_mhz || 0).toFixed(3) + '</td>' +
+        '<td class="cls hide-mobile">' + escapeHtml(r.classification || "—") + '</td>' +
+        '<td class="snr">' + escapeHtml(snrPwr) + '</td>' +
+        '<td class="cnt hide-mobile">' + Number(r.count || 1) + '</td>' +
+        '<td class="last hide-mobile">' + escapeHtml(_fmtLastSeen(r.last_seen_s_ago)) + ' ago</td>' +
+        '</tr>';
+    }).join("");
+  }
+  // Update header arrows.
+  var arrows = document.querySelectorAll('#disco-recent-table thead .arrow');
+  for (var i = 0; i < arrows.length; i++) arrows[i].textContent = "";
+  var active = document.querySelector('#disco-recent-table thead .arrow[data-arrow="' +
+    _discoRecentState.sortKey + '"]');
+  if (active) active.textContent = (_discoRecentState.sortDir === "asc") ? "↑" : "↓";
+  // Meta line.
+  var meta = $("disco-recent-meta");
+  if (meta) {
+    meta.textContent = rows.length + " of " + _discoRecentState.rows.length + " hits";
+  }
+}
+
+async function _discoRecentFetch() {
+  if (_discoRecentState.fetching) return;
+  _discoRecentState.fetching = true;
+  try {
+    var data = await fetchJSON("/api/disco/recent?limit=100&unique=true");
+    var rows = (data && Array.isArray(data.rows)) ? data.rows : [];
+    _discoRecentState.rows = rows;
+    _discoRecentRenderTable();
+  } catch (err) {
+    var tbody = $("disco-recent-tbody");
+    if (tbody) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">Fetch failed: ' +
+        escapeHtml(String(err && err.message || err)) + '</td></tr>';
+    }
+  } finally {
+    _discoRecentState.fetching = false;
+  }
+}
+
+function _discoRecentOpen() {
+  openModal("disco-recent-modal");
+  _discoRecentFetch();
+  if (_discoRecentState.pollId == null) {
+    _discoRecentState.pollId = setInterval(_discoRecentFetch, 5000);
+  }
+}
+
+function _discoRecentClose() {
+  closeModal("disco-recent-modal");
+  if (_discoRecentState.pollId != null) {
+    clearInterval(_discoRecentState.pollId);
+    _discoRecentState.pollId = null;
+  }
+}
+
+function wireDiscoRecent() {
+  var btn = $("disco-fs-btn");
+  if (btn) btn.addEventListener("click", _discoRecentOpen);
+  var closeBtn = $("disco-recent-close");
+  if (closeBtn) closeBtn.addEventListener("click", _discoRecentClose);
+  var backBtn = $("disco-recent-back");
+  if (backBtn) backBtn.addEventListener("click", _discoRecentClose);
+  var refresh = $("disco-recent-refresh");
+  if (refresh) refresh.addEventListener("click", _discoRecentFetch);
+  var overlay = $("disco-recent-modal");
+  if (overlay) {
+    overlay.addEventListener("click", function(e) {
+      if (e.target === overlay) _discoRecentClose();
+    });
+  }
+  var filter = $("disco-recent-filter");
+  if (filter) {
+    filter.addEventListener("input", function() {
+      _discoRecentState.filter = filter.value || "";
+      _discoRecentRenderTable();
+    });
+  }
+  // Column header sorting — click toggles direction; clicking a different
+  // column resets direction to asc (so first click on Freq shows lowest).
+  var ths = document.querySelectorAll('#disco-recent-table thead th[data-key]');
+  for (var i = 0; i < ths.length; i++) {
+    (function(th) {
+      th.addEventListener("click", function() {
+        var key = th.getAttribute("data-key");
+        if (_discoRecentState.sortKey === key) {
+          _discoRecentState.sortDir = (_discoRecentState.sortDir === "asc") ? "desc" : "asc";
+        } else {
+          _discoRecentState.sortKey = key;
+          _discoRecentState.sortDir = th.getAttribute("data-dir") || "asc";
+        }
+        _discoRecentRenderTable();
+      });
+    })(ths[i]);
+  }
+}
+
 function wireSitrep() {
   const open = () => { renderSitrepModal(); openModal("sitrep-modal"); };
   const closeBtn = $("sitrep-modal-close");
@@ -5163,9 +5523,15 @@ function wireSitrep() {
   }
   _wireSitrepCtrls();
   setupAskClaude();
-  // Global ESC dismisses any open modal (Sitrep, Profile Builder, Picker).
+  // Global ESC dismisses any open modal (Sitrep, Profile Builder, Picker,
+  // Discovery recent-hits).  We also stop the recent-hits poll so it
+  // doesn't keep ticking after the overlay is gone.
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") { _hideSitrepConfirm(); closeAnyOpenModal(); }
+    if (e.key === "Escape") {
+      _hideSitrepConfirm();
+      _discoRecentClose();
+      closeAnyOpenModal();
+    }
   });
 }
 
@@ -5967,6 +6333,7 @@ function boot() {
   wireSpecPeakClicks();
   wireDiscoRangeControls();
   wireSitrep();
+  wireDiscoRecent();
   wireHbEvidenceToggle();
   wireProfileBuilder();
   wireStatusDisclosure();
