@@ -1008,6 +1008,98 @@
     color: var(--text-2);
   }
   .modal-sitrep .summary .headline { font-weight: 600; color: var(--text); margin-bottom: 2px; }
+  .modal-sitrep .modal-card { max-width: 680px; }
+  .sitrep-section { margin-top: 16px; }
+  .sitrep-section:first-of-type { margin-top: 4px; }
+  .sitrep-section-hd {
+    font-size: var(--type-micro);
+    text-transform: uppercase;
+    letter-spacing: 0.10em;
+    color: var(--text-3);
+    font-weight: 600;
+    margin-bottom: 8px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid var(--line);
+  }
+  .sitrep-fav, .sitrep-disco {
+    padding: 10px 12px;
+    background: rgba(8, 14, 28, 0.45);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font-size: var(--type-body-sm);
+    color: var(--text-2);
+  }
+  .sitrep-fav .fav-label {
+    font-weight: 700;
+    color: var(--text);
+    font-size: var(--type-body);
+    margin-bottom: 4px;
+  }
+  .sitrep-fav .fav-counts {
+    font-family: ui-monospace, monospace;
+    font-size: var(--type-meta);
+    color: var(--text-3);
+  }
+  .sitrep-fav .fav-counts .seg { margin-right: 14px; }
+  .sitrep-fav .fav-counts .seg .num { color: var(--sky-2); font-weight: 700; }
+  .sitrep-hits { display: flex; flex-direction: column; gap: 6px; }
+  .sitrep-hit-row {
+    display: grid;
+    grid-template-columns: 56px 1fr auto;
+    gap: 8px;
+    padding: 7px 10px;
+    background: rgba(8, 14, 28, 0.45);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: var(--type-meta);
+    align-items: center;
+  }
+  .sitrep-hit-row .band {
+    font-family: ui-monospace, monospace;
+    font-size: var(--type-micro);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--sky-2);
+    text-align: center;
+    padding: 2px 4px;
+    border-radius: 4px;
+    background: rgba(90,184,255,0.10);
+  }
+  .sitrep-hit-row .lbl {
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sitrep-hit-row .freq {
+    font-family: ui-monospace, monospace;
+    color: var(--text-3);
+  }
+  .sitrep-hits .sitrep-empty {
+    padding: 10px 12px;
+    color: var(--text-4);
+    font-size: var(--type-meta);
+    font-style: italic;
+    text-align: center;
+  }
+  .sitrep-disco .disco-counts {
+    font-family: ui-monospace, monospace;
+    font-size: var(--type-meta);
+    color: var(--text-3);
+  }
+  .sitrep-disco .disco-counts .seg { margin-right: 14px; }
+  .sitrep-disco .disco-counts .num { color: var(--sky-2); font-weight: 700; }
+  .sitrep-disco .top-list { margin-top: 6px; }
+  .sitrep-disco .top-row {
+    font-family: ui-monospace, monospace;
+    font-size: var(--type-meta);
+    color: var(--text-2);
+    padding: 2px 0;
+  }
+  .sitrep-disco .top-row .conf {
+    color: var(--text-4);
+    margin-left: 8px;
+  }
 
   /* Mobile: full-screen modal */
   @media (max-width: 700px) {
@@ -1526,11 +1618,11 @@
 
 <div class="footer" id="footer-meta">sb5 · 5-pane dense dashboard · loading…</div>
 
-<!-- ============ Sitrep modal (Phase 5b) ============ -->
+<!-- ============ Sitrep modal (Phase 7a — full operator situation report) ============ -->
 <div class="modal-overlay modal-sitrep" id="sitrep-modal" role="dialog" aria-modal="true" aria-labelledby="sitrep-modal-title">
   <div class="modal-card">
     <div class="modal-hd">
-      <span class="title" id="sitrep-modal-title">Sitrep · Service health</span>
+      <span class="title" id="sitrep-modal-title">Sitrep · Operator situation report</span>
       <button class="modal-close" id="sitrep-modal-close" type="button" aria-label="Close">×</button>
     </div>
     <div class="modal-body">
@@ -1538,13 +1630,40 @@
         <div class="headline" id="sitrep-headline">—</div>
         <div id="sitrep-explain">—</div>
       </div>
-      <div class="sitrep-service-list" id="sitrep-service-list">
-        <div class="sitrep-service-item">
-          <div>
-            <div class="name">Loading…</div>
-            <div class="meta">Reading /api/heartbeat</div>
-          </div>
-          <span class="svc-dot"></span>
+
+      <div class="sitrep-section">
+        <div class="sitrep-section-hd">Active favorite</div>
+        <div class="sitrep-fav" id="sitrep-fav">—</div>
+      </div>
+
+      <div class="sitrep-section">
+        <div class="sitrep-section-hd">Recent activity · last 15 min</div>
+        <div class="sitrep-hits" id="sitrep-hits">—</div>
+      </div>
+
+      <div class="sitrep-section">
+        <div class="sitrep-section-hd">Discovery</div>
+        <div class="sitrep-disco" id="sitrep-disco">—</div>
+      </div>
+
+      <div class="sitrep-section">
+        <div class="sitrep-section-hd">Service health</div>
+        <div class="sitrep-service-list" id="sitrep-service-list">
+          <div class="sitrep-service-item"><div><div class="name">Loading…</div><div class="meta">Reading /api/sitrep</div></div><span class="svc-dot"></span></div>
+        </div>
+      </div>
+
+      <div class="sitrep-section">
+        <div class="sitrep-section-hd">Dongle assignments</div>
+        <div class="sitrep-service-list" id="sitrep-dongle-list">
+          <div class="sitrep-service-item"><div><div class="name">Loading…</div><div class="meta">Reading /api/sitrep</div></div><span class="svc-dot"></span></div>
+        </div>
+      </div>
+
+      <div class="sitrep-section">
+        <div class="sitrep-section-hd">Heartbeat evidence</div>
+        <div class="sitrep-service-list" id="sitrep-evidence-list">
+          <div class="sitrep-service-item"><div><div class="name">Loading…</div><div class="meta">Reading /api/sitrep</div></div><span class="svc-dot"></span></div>
         </div>
       </div>
     </div>
@@ -2925,7 +3044,9 @@ function wireVFOControls() {
 }
 
 // =========================================================================
-// Phase 5b: Sitrep modal — uses /api/heartbeat evidence array.
+// Phase 7a: Sitrep modal — aggregated operator situation report.
+// Fetches /api/sitrep and renders: active favorite, recent activity,
+// Disco summary, service health, dongle assignments, heartbeat evidence.
 // =========================================================================
 function openModal(modalId) {
   const m = $(modalId);
@@ -2935,38 +3056,144 @@ function closeModal(modalId) {
   const m = $(modalId);
   if (m) m.classList.remove("show");
 }
-function renderSitrepModal() {
-  const hb = STATE.heartbeat;
-  const headlineEl = $("sitrep-headline");
-  const explainEl = $("sitrep-explain");
-  const listEl = $("sitrep-service-list");
-  if (!hb) {
-    if (headlineEl) headlineEl.textContent = "Reading scanner state…";
-    if (explainEl) explainEl.textContent = "Awaiting /api/heartbeat";
-    if (listEl) listEl.innerHTML = '<div class="sitrep-service-item"><div><div class="name">Loading…</div><div class="meta">Reading /api/heartbeat</div></div><span class="svc-dot"></span></div>';
+function closeAnyOpenModal() {
+  document.querySelectorAll(".modal-overlay.show").forEach(el => el.classList.remove("show"));
+}
+
+function _sitrepServiceRowHTML(label, value, status) {
+  const cls = ["ok","warn","bad","info"].includes(status) ? status : "ok";
+  return `<div class="sitrep-service-item ${cls}">
+    <div>
+      <div class="name">${escapeHtml(String(label || ""))}</div>
+      <div class="meta">${escapeHtml(String(value || ""))}</div>
+    </div>
+    <span class="svc-dot"></span>
+  </div>`;
+}
+
+function _sitrepRenderFavorite(fav) {
+  const el = $("sitrep-fav");
+  if (!el) return;
+  if (!fav || fav.error) {
+    el.innerHTML = `<div class="fav-label">—</div><div class="fav-counts">${escapeHtml(fav && fav.error ? fav.error : "no favorite loaded")}</div>`;
     return;
   }
-  if (headlineEl) headlineEl.textContent = hb.headline || "—";
-  if (explainEl) explainEl.textContent = hb.explanation || "";
-  const evid = Array.isArray(hb.evidence) ? hb.evidence : [];
-  if (!listEl) return;
-  if (!evid.length) {
-    listEl.innerHTML = '<div class="sitrep-service-item"><div><div class="name">No evidence rows</div><div class="meta">heartbeat returned empty list</div></div><span class="svc-dot"></span></div>';
+  const lbl = escapeHtml(fav.label || "—");
+  const air = Number(fav.airband_n || 0);
+  const gnd = Number(fav.ground_n || 0);
+  const dig = Number(fav.digital_n || 0);
+  const tot = Number(fav.favorites_total || 0);
+  el.innerHTML = `
+    <div class="fav-label">${lbl}</div>
+    <div class="fav-counts">
+      <span class="seg"><span class="num">${air}</span> airband</span>
+      <span class="seg"><span class="num">${gnd}</span> ground</span>
+      <span class="seg"><span class="num">${dig}</span> digital</span>
+      <span class="seg">${tot} total favorite${tot === 1 ? "" : "s"}</span>
+    </div>`;
+}
+
+function _sitrepBandBadge(source) {
+  const s = String(source || "").toLowerCase();
+  if (s === "ground" || s === "gnd")     return "GND";
+  if (s === "digital" || s === "dig" || s === "p25") return "DIG";
+  if (s === "vfo")                       return "VFO";
+  if (s === "airband" || s === "air")    return "AIR";
+  return s.slice(0, 3).toUpperCase() || "—";
+}
+
+function _sitrepRenderHits(rh) {
+  const el = $("sitrep-hits");
+  if (!el) return;
+  const items = (rh && Array.isArray(rh.items)) ? rh.items : [];
+  if (!items.length) {
+    el.innerHTML = `<div class="sitrep-empty">No hits in the last 15 minutes.</div>`;
     return;
   }
-  listEl.innerHTML = evid.map(row => {
-    const label = escapeHtml(String(row.label || ""));
-    const value = escapeHtml(String(row.value || ""));
-    const status = String(row.status || "ok").toLowerCase();
-    const cls = ["ok","warn","bad","info"].includes(status) ? status : "ok";
-    return `<div class="sitrep-service-item ${cls}">
-      <div>
-        <div class="name">${label}</div>
-        <div class="meta">${value}</div>
-      </div>
-      <span class="svc-dot"></span>
+  el.innerHTML = items.map(it => {
+    const band = _sitrepBandBadge(it.source);
+    const lbl = escapeHtml(it.label || it.freq || "—");
+    const freq = escapeHtml(it.freq || "");
+    return `<div class="sitrep-hit-row">
+      <span class="band">${band}</span>
+      <span class="lbl">${lbl}</span>
+      <span class="freq">${freq}</span>
     </div>`;
   }).join("");
+}
+
+function _sitrepRenderDisco(d) {
+  const el = $("sitrep-disco");
+  if (!el) return;
+  if (!d) { el.textContent = "—"; return; }
+  const pending = Number(d.pending || 0);
+  const classified = Number(d.classified || 0);
+  const top = Array.isArray(d.top_classified) ? d.top_classified : [];
+  const range = d.range || {};
+  const rangeTxt = (range.start_mhz && range.end_mhz)
+    ? `${Number(range.start_mhz).toFixed(0)}–${Number(range.end_mhz).toFixed(0)} MHz`
+    : "—";
+  const topHtml = top.length
+    ? `<div class="top-list">${top.map(t => {
+        const fm = (t.freq_mhz != null) ? Number(t.freq_mhz).toFixed(4) : "?";
+        const cls = escapeHtml(String(t.classification || "").split(" — ")[0] || "—");
+        const conf = (t.confidence != null) ? `${(Number(t.confidence) * 100).toFixed(0)}%` : "—";
+        return `<div class="top-row">${fm} MHz · ${cls}<span class="conf">${conf}</span></div>`;
+      }).join("")}</div>`
+    : "";
+  el.innerHTML = `
+    <div class="disco-counts">
+      <span class="seg">range <span class="num">${rangeTxt}</span></span>
+      <span class="seg"><span class="num">${classified}</span> classified</span>
+      <span class="seg"><span class="num">${pending}</span> pending</span>
+    </div>${topHtml}`;
+}
+
+function _sitrepRenderServiceList(elId, items, valueFn) {
+  const el = $(elId);
+  if (!el) return;
+  if (!items || !items.length) {
+    el.innerHTML = _sitrepServiceRowHTML("no data", "", "info");
+    return;
+  }
+  el.innerHTML = items.map(row => {
+    const value = valueFn ? valueFn(row) : (row.value || "");
+    return _sitrepServiceRowHTML(row.label, value, row.status);
+  }).join("");
+}
+
+let _sitrepInFlight = false;
+async function renderSitrepModal() {
+  // Fall back to last heartbeat so the modal isn't blank while /api/sitrep loads.
+  const hb = STATE.heartbeat;
+  if (hb) {
+    const headlineEl = $("sitrep-headline");
+    const explainEl = $("sitrep-explain");
+    if (headlineEl) headlineEl.textContent = hb.headline || "—";
+    if (explainEl) explainEl.textContent = hb.explanation || "";
+  }
+  if (_sitrepInFlight) return;
+  _sitrepInFlight = true;
+  try {
+    const r = await fetch("/api/sitrep", { cache: "no-store" });
+    if (!r.ok) throw new Error("sitrep " + r.status);
+    const data = await r.json();
+    if ($("sitrep-headline")) $("sitrep-headline").textContent = data.headline || "—";
+    if ($("sitrep-explain"))  $("sitrep-explain").textContent  = data.explanation || "";
+    _sitrepRenderFavorite(data.favorite);
+    _sitrepRenderHits(data.recent_hits);
+    _sitrepRenderDisco(data.disco);
+    _sitrepRenderServiceList("sitrep-service-list", data.services, row =>
+      row.active ? "active" : "inactive");
+    _sitrepRenderServiceList("sitrep-dongle-list", data.dongles, row =>
+      `${row.role || "?"}${row.detail ? " · " + row.detail : ""}`);
+    _sitrepRenderServiceList("sitrep-evidence-list", data.evidence, row => row.value);
+  } catch (e) {
+    const el = $("sitrep-evidence-list");
+    if (el) el.innerHTML = _sitrepServiceRowHTML("error", String(e && e.message || e), "bad");
+  } finally {
+    _sitrepInFlight = false;
+  }
 }
 function wireSitrep() {
   const open = () => { renderSitrepModal(); openModal("sitrep-modal"); };
@@ -2996,6 +3223,10 @@ function wireSitrep() {
       if (e.target === overlay) closeModal("sitrep-modal");
     });
   }
+  // Global ESC dismisses any open modal (Sitrep, Profile Builder, Picker).
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeAnyOpenModal();
+  });
 }
 
 // Phase 5c: hide-by-default expander for the heartbeat evidence grid.

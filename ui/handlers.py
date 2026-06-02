@@ -3946,6 +3946,257 @@ def _broker_aware_dongle_rows() -> list[dict]:
 
 
 # =====================================================================
+# Phase 7a — /api/sitrep: aggregated operator situation report.
+#
+# The Sitrep button in the /sb5 topbar opens a modal that needs more
+# context than the raw heartbeat evidence rows.  This endpoint
+# aggregates the data the modal renders so the client only does one
+# fetch and a single render pass.  All sub-sources are read-only and
+# already cached upstream, so the cost is bounded.
+# =====================================================================
+
+# Services the operator cares about for "is the scanner alive" — these
+# are the units whose state lights up the service-health grid in the
+# Sitrep modal.  Order matters: it's the painting order in the modal.
+_SITREP_SERVICE_UNITS: tuple[tuple[str, str], ...] = (
+    ("airband-ui",           "airband-ui.service"),
+    ("rtl-airband-airband",  "rtl-airband-airband.service"),
+    ("rtl-airband-ground",   "rtl-airband-ground.service"),
+    ("scanner-digital-op25", "scanner-digital-op25.service"),
+    ("scanner-waterfall",    "scanner-waterfall.service"),
+    ("scanner-vfo",          "scanner-vfo.service"),
+    ("disco-coordinator",    "disco-coordinator.service"),
+    ("dumpvdl2",             "dumpvdl2.service"),
+    ("acarsdec",             "acarsdec.service"),
+    ("icecast2",             "icecast2.service"),
+)
+
+
+def _sitrep_favorite_snapshot() -> dict:
+    """Active favorite + per-band channel counts (analog vs digital)."""
+    try:
+        hp = HPState.load()
+    except Exception as exc:
+        return {"error": f"hp_state load failed: {exc}"}
+    favs = list(getattr(hp, "favorites", None) or [])
+    active = None
+    for f in favs:
+        if isinstance(f, dict) and bool(f.get("enabled")):
+            active = f
+            break
+    if active is None and favs:
+        active = favs[0] if isinstance(favs[0], dict) else None
+    label = ""
+    analog_n = 0
+    digital_n = 0
+    ground_n = 0
+    if isinstance(active, dict):
+        label = str(active.get("label") or active.get("id") or "").strip()
+        for ch in (active.get("custom_favorites") or []):
+            if not isinstance(ch, dict):
+                continue
+            kind = str(ch.get("kind") or "").lower()
+            if kind == "trunked":
+                digital_n += 1
+            elif kind == "conventional":
+                analog_n += 1
+                # Ground band ~ 225–400 MHz milair UHF AM.
+                try:
+                    fmhz = float(ch.get("frequency") or 0.0)
+                except (TypeError, ValueError):
+                    fmhz = 0.0
+                if 225.0 <= fmhz <= 400.0:
+                    ground_n += 1
+    return {
+        "label": label,
+        "airband_n": max(0, analog_n - ground_n),
+        "ground_n": ground_n,
+        "digital_n": digital_n,
+        "favorites_total": len(favs),
+    }
+
+
+def _sitrep_recent_hits(window_sec: float = 900.0, limit: int = 8) -> dict:
+    """Top hits in the last `window_sec` (default 15min), by recency."""
+    try:
+        payload = _get_hits_payload_cached(limit=200)
+    except Exception:
+        return {"window_sec": window_sec, "items": [], "total": 0}
+    cutoff = time.time() - max(60.0, float(window_sec))
+    items = []
+    for it in (payload.get("items") or []):
+        try:
+            ts = float(it.get("ts") or 0.0)
+        except (TypeError, ValueError):
+            ts = 0.0
+        if ts <= 0.0 or ts < cutoff:
+            continue
+        items.append({
+            "ts": ts,
+            "freq": str(it.get("freq") or "").strip(),
+            "label": str(it.get("label") or it.get("tgid") or "").strip(),
+            "source": str(it.get("source") or it.get("type") or "").strip(),
+        })
+    items.sort(key=lambda r: r["ts"], reverse=True)
+    return {"window_sec": window_sec, "items": items[:limit], "total": len(items)}
+
+
+def _sitrep_disco_summary() -> dict:
+    """Count of pending vs classified Disco detections, plus top-3 classified."""
+    payload = _disco_pass_through_payload()
+    detections = payload.get("detections") or []
+    pending = 0
+    classified = []
+    for d in detections:
+        if not isinstance(d, dict):
+            continue
+        if bool(d.get("classified")):
+            classified.append({
+                "freq_mhz": d.get("freq_mhz"),
+                "classification": str(d.get("classification") or "")[:80],
+                "confidence": d.get("confidence"),
+                "snr_db": d.get("snr_db"),
+            })
+        else:
+            pending += 1
+    classified.sort(key=lambda r: float(r.get("confidence") or 0.0), reverse=True)
+    return {
+        "pending": pending,
+        "classified": len(classified),
+        "top_classified": classified[:3],
+        "range": payload.get("range") or {},
+        "state": payload.get("state") or "down",
+    }
+
+
+def _sitrep_services() -> list[dict]:
+    """Active-state for each operator-relevant service."""
+    rows = []
+    for label, unit in _SITREP_SERVICE_UNITS:
+        try:
+            active = _unit_active_cached(unit)
+        except Exception:
+            active = False
+        rows.append({
+            "label": label,
+            "unit": unit,
+            "active": bool(active),
+            "status": "ok" if active else "bad",
+        })
+    return rows
+
+
+def _sitrep_dongles() -> list[dict]:
+    """Per-dongle serial + role + live state.
+
+    Sources: tuner broker (Disco/Sounding owners), waterfall state,
+    VFO state, and rtl-airband combined-config (analog + ground)."""
+    rows: list[dict] = []
+    seen: set[str] = set()
+
+    def _push(serial: str, role: str, status: str, detail: str = "") -> None:
+        s = str(serial or "").strip()
+        if not s or s in seen:
+            return
+        seen.add(s)
+        rows.append({
+            "serial": s,
+            "role": role,
+            "status": status,
+            "detail": detail,
+        })
+
+    # Broker — disco/sounding owners.
+    broker = _broker_read_state()
+    if isinstance(broker, dict):
+        for bd in (broker.get("dongles") or []):
+            if not isinstance(bd, dict):
+                continue
+            serial = str(bd.get("serial") or "")
+            role = str(bd.get("current_role") or "").lower() or "disco"
+            _push(serial, role, "ok", str(bd.get("current_service") or ""))
+
+    # Waterfall A / B and VFO via the broker-aware/heartbeat rows.
+    wf_rows = _waterfall_dongle_evidence_rows()
+    for wr in wf_rows:
+        val = str(wr.get("value") or "")
+        # Format: "live · <serial> · ..." or "DOWN since ..."
+        serial = ""
+        for tok in val.replace("·", ".").split("."):
+            tok = tok.strip()
+            if tok.isdigit() and len(tok) >= 6:
+                serial = tok
+                break
+        role = "waterfall-a" if "A" in str(wr.get("label") or "") else "waterfall-b"
+        _push(serial, role, str(wr.get("status") or "ok"), val)
+
+    vfo_row = _vfo_dongle_evidence_row()
+    if isinstance(vfo_row, dict):
+        val = str(vfo_row.get("value") or "")
+        serial = ""
+        for tok in val.replace("·", ".").split("."):
+            tok = tok.strip()
+            if tok.isdigit() and len(tok) >= 6:
+                serial = tok
+                break
+        _push(serial, "vfo", str(vfo_row.get("status") or "ok"), val)
+
+    # rtl-airband combined config — analog + ground share the chain.
+    try:
+        combined = combined_device_summary()
+    except Exception:
+        combined = {}
+    airband = combined.get("airband") if isinstance(combined, dict) else None
+    ground = combined.get("ground") if isinstance(combined, dict) else None
+    if isinstance(airband, dict):
+        _push(str(airband.get("serial") or ""), "airband",
+              "ok" if airband.get("active") else "bad", "rtl-airband-airband")
+    if isinstance(ground, dict):
+        _push(str(ground.get("serial") or ""), "ground",
+              "ok" if ground.get("active") else "bad", "rtl-airband-ground")
+
+    # VDL2 dedicated dongle from env (does not flow through broker).
+    vdl2_serial = ""
+    try:
+        with open("/etc/airband-ui.conf", "r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if line.startswith("VDL2_RTL_SERIAL="):
+                    vdl2_serial = line.split("=", 1)[1].strip().strip('"').strip("'")
+                    break
+    except OSError:
+        vdl2_serial = ""
+    if vdl2_serial:
+        try:
+            vdl2_active = _unit_active_cached("dumpvdl2.service")
+        except Exception:
+            vdl2_active = False
+        _push(vdl2_serial, "vdl2",
+              "ok" if vdl2_active else "bad",
+              "dumpvdl2.service")
+    return rows
+
+
+def _compute_sitrep_payload() -> dict:
+    """Aggregate everything the Sitrep modal renders into one payload."""
+    hb = _compute_heartbeat_payload()
+    return {
+        "state": hb.get("state"),
+        "headline": hb.get("headline"),
+        "explanation": hb.get("explanation"),
+        "evidence": hb.get("evidence") or [],
+        "since": hb.get("since"),
+        "favorite": _sitrep_favorite_snapshot(),
+        "recent_hits": _sitrep_recent_hits(),
+        "disco": _sitrep_disco_summary(),
+        "services": _sitrep_services(),
+        "dongles": _sitrep_dongles(),
+        "server_time": time.time(),
+    }
+
+
+
+# =====================================================================
 # Phase 5a — mock-data builders for the new dongle panes.
 #
 # These return realistic-looking JSON for /api/waterfall, /api/vfo,
@@ -4450,6 +4701,30 @@ class Handler(BaseHTTPRequestHandler):
                     "cached": False,
                 }
                 return self._send(500, json.dumps(fallback), "application/json; charset=utf-8")
+            return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
+
+        if p == "/api/sitrep":
+            # Phase 7a — aggregated situation report.  Combines heartbeat
+            # evidence with active-favorite metadata, recent hits, Disco
+            # detection counts, service health, and per-dongle role/state
+            # so the Sitrep modal renders from a single fetch.
+            try:
+                payload = _compute_sitrep_payload()
+            except Exception as exc:
+                logger.exception("/api/sitrep failed")
+                payload = {
+                    "state": "wedged",
+                    "headline": "Sitrep computation failed",
+                    "explanation": str(exc),
+                    "evidence": [],
+                    "favorite": {},
+                    "recent_hits": {"items": [], "total": 0},
+                    "disco": {"pending": 0, "classified": 0, "top_classified": []},
+                    "services": [],
+                    "dongles": [],
+                    "server_time": time.time(),
+                }
+                return self._send(500, json.dumps(payload), "application/json; charset=utf-8")
             return self._send(200, json.dumps(payload), "application/json; charset=utf-8")
 
         if p == "/api/hp/location/ip":
