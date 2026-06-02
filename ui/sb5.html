@@ -8,6 +8,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- Typography + spacing scale (design tokens). Single source of truth for
+     every font-size / spacing value below — see ui/static/sb5_theme.css. The
+     same file is linkable from the OpenWebRX iframe so it inherits this scale. -->
+<link rel="stylesheet" href="/static/sb5_theme.css">
 <style>
   :root {
     --bg-1: #050a16;
@@ -35,7 +39,7 @@
     background: #04081a;
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Helvetica Neue", system-ui, sans-serif;
-    font-size: 14px;
+    font-size: var(--type-body);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     letter-spacing: -0.005em;
@@ -62,8 +66,8 @@
     padding: 0 18px;
     gap: 14px;
   }
-  .tb-time { font-family: ui-monospace, monospace; font-size: 14px; color: var(--text); font-weight: 600; min-width: 50px; }
-  .tb-title { font-size: 14px; color: var(--text-2); font-weight: 600; letter-spacing: -0.01em; }
+  .tb-time { font-family: ui-monospace, monospace; font-size: var(--type-mono); color: var(--text); font-weight: 600; min-width: 50px; }
+  .tb-title { font-size: var(--type-body-sm); color: var(--text-2); font-weight: 600; letter-spacing: -0.01em; }
   .tb-title .sub { color: var(--text-4); font-weight: 500; margin-left: 6px; }
   .tb-spacer { flex: 1; }
   .tb-pill {
@@ -72,7 +76,7 @@
     background: rgba(52, 199, 89, 0.14);
     border: 1px solid rgba(52, 199, 89, 0.32);
     border-radius: 999px;
-    font-size: 12px; font-weight: 600;
+    font-size: var(--type-meta); font-weight: 600;
     color: #c8f3d3;
     text-transform: capitalize;
   }
@@ -88,7 +92,7 @@
     background: rgba(232, 240, 250, 0.06);
     border: 1px solid rgba(232, 240, 250, 0.14);
     border-radius: 999px;
-    font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+    font-size: var(--type-micro); font-weight: 600; letter-spacing: 0.02em;
     color: var(--text-2); text-transform: uppercase;
     cursor: pointer; user-select: none;
     transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
@@ -115,12 +119,12 @@
     position: absolute; inset: 0;
     display: none; align-items: center; justify-content: center;
     background: rgba(8, 12, 20, 0.74); backdrop-filter: blur(2px);
-    color: #ffd58a; font-weight: 600; font-size: 13px; letter-spacing: 0.04em;
+    color: #ffd58a; font-weight: 600; font-size: var(--type-meta); letter-spacing: 0.04em;
     text-transform: uppercase; pointer-events: none; z-index: 5;
     border-radius: 8px;
   }
   .sounding-overlay .label { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-  .sounding-overlay .label .sub { font-weight: 500; font-size: 11px; color: rgba(255, 213, 138, 0.78); text-transform: none; letter-spacing: 0; }
+  .sounding-overlay .label .sub { font-weight: 500; font-size: var(--type-micro); color: rgba(255, 213, 138, 0.78); text-transform: none; letter-spacing: 0; }
   body.sounding-on .sounding-overlay { display: flex; }
   body.sounding-on .pane-disco .disco-canvas-wrap { opacity: 0.35; filter: saturate(0.4); }
   body.sounding-on .pane-disco .disco-detections { opacity: 0.45; }
@@ -137,7 +141,7 @@
     border: 1px solid rgba(138, 155, 181, 0.32);
     border-radius: 10px;
     color: var(--text-2);
-    font-size: 11px; font-weight: 700; letter-spacing: 0.10em;
+    font-size: var(--type-micro); font-weight: 700; letter-spacing: 0.10em;
     text-transform: uppercase;
     cursor: pointer;
     font-family: inherit;
@@ -180,24 +184,74 @@
     border: 1px solid var(--line-2);
     border-radius: 999px;
     color: var(--text-2);
-    font-size: 11px; font-weight: 600;
+    font-size: var(--type-micro); font-weight: 600;
     cursor: pointer;
     font-family: inherit;
     transition: background 0.15s, border-color 0.15s;
   }
   .hb-evidence-toggle:hover { background: rgba(138, 155, 181, 0.20); color: var(--text); }
-  .hb-evidence-toggle .chev { transition: transform 0.15s; font-size: 11px; line-height: 1; }
+  .hb-evidence-toggle .chev { transition: transform 0.15s; font-size: var(--type-micro); line-height: 1; }
   .hb-evidence-toggle[aria-expanded="true"] .chev { transform: rotate(90deg); }
   .hb-evidence[hidden] { display: none !important; }
 
   /* ============ Phase 5c — pane header title/subtitle stack ============ */
   .pane-hd-titles { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
-  .pane-hd-titles .title { font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: -0.012em; line-height: 1.1; }
-  .pane-hd-titles .subtitle { font-size: 11.5px; color: var(--text-3); font-family: ui-monospace, monospace; line-height: 1.2; }
+  .pane-hd-titles .title { font-size: var(--type-display); font-weight: 700; color: var(--text); letter-spacing: -0.012em; line-height: 1.1; }
+  .pane-hd-titles .subtitle { font-size: var(--type-meta); color: var(--text-3); font-family: ui-monospace, monospace; line-height: 1.2; }
+
+  /* ============ audio toolbar — persistent multi-mount player ============
+     Replaces the old per-pane <audio> embed. A single shared <audio> element
+     plus compact mount buttons sit in one sticky row under the topbar, so
+     stream selection + scrubber stay visible while scrolling. Fixed 46px
+     height + horizontal overflow (never wraps) keeps the sticky stack below
+     it (.hb-strip top: 98px) aligned. */
+  .audio-bar {
+    position: sticky; top: 52px; z-index: 48;
+    height: 46px;
+    display: flex; align-items: center; gap: var(--space-md);
+    padding: 0 var(--space-lg);
+    background: rgba(8, 14, 28, 0.82);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    overflow-x: auto; overflow-y: hidden; white-space: nowrap;
+  }
+  .audio-bar::-webkit-scrollbar { height: 0; }
+  .audio-bar .ab-label {
+    font-size: var(--type-micro); font-weight: 700; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--text-4); flex-shrink: 0;
+  }
+  .audio-bar .ab-mounts { display: flex; gap: var(--space-sm); flex-shrink: 0; }
+  .audio-bar .ab-mount {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 12px;
+    background: rgba(138, 155, 181, 0.10);
+    border: 1px solid var(--line-2);
+    border-radius: 999px;
+    color: var(--text-2);
+    font-size: var(--type-body-sm); font-weight: 600;
+    font-family: inherit; cursor: pointer; white-space: nowrap;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+  }
+  .audio-bar .ab-mount::before {
+    content: "▶"; font-size: var(--type-micro); color: var(--text-4);
+  }
+  .audio-bar .ab-mount:hover { background: rgba(90, 184, 255, 0.12); color: var(--text); }
+  .audio-bar .ab-mount.active {
+    background: rgba(90, 184, 255, 0.20);
+    border-color: rgba(90, 184, 255, 0.55);
+    color: var(--sky-2);
+  }
+  .audio-bar .ab-mount.active::before { color: var(--sky-2); }
+  .audio-bar .ab-audio { height: 32px; flex: 1 1 180px; min-width: 150px; max-width: 440px; }
+  .audio-bar .ab-now {
+    font-size: var(--type-meta); color: var(--text-3);
+    font-family: ui-monospace, monospace; flex-shrink: 0; margin-left: auto;
+  }
 
   /* ============ heartbeat strip pinned under topbar ============ */
   .hb-strip {
-    position: sticky; top: 52px; z-index: 49;
+    position: sticky; top: 98px; z-index: 49;
     background: rgba(8, 14, 28, 0.72);
     backdrop-filter: blur(20px) saturate(160%);
     -webkit-backdrop-filter: blur(20px) saturate(160%);
@@ -209,7 +263,7 @@
   }
   .hb-row {
     display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-    font-size: 13px;
+    font-size: var(--type-meta);
   }
   .hb-headline { color: var(--text); font-weight: 600; }
   .hb-explain { color: var(--text-3); }
@@ -217,11 +271,11 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 8px 14px;
-    font-size: 11.5px;
+    font-size: var(--type-meta);
   }
   .ev-cell { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
-  .ev-cell .lbl { color: var(--text-4); text-transform: uppercase; letter-spacing: 0.05em; font-size: 10px; font-weight: 600; white-space: nowrap; }
-  .ev-cell .val { color: var(--text-2); font-weight: 500; font-family: ui-monospace, monospace; font-size: 11.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ev-cell .lbl { color: var(--text-4); text-transform: uppercase; letter-spacing: 0.05em; font-size: var(--type-micro); font-weight: 600; white-space: nowrap; }
+  .ev-cell .val { color: var(--text-2); font-weight: 500; font-family: ui-monospace, monospace; font-size: var(--type-meta); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ev-cell .val.warn { color: #ffd58a; }
   .ev-cell .val.bad { color: #ffb3ad; }
   .ev-cell .val.info { color: var(--sky-2); opacity: 0.75; }
@@ -252,14 +306,14 @@
     flex-wrap: wrap;
   }
   .pane-hd .eyebrow {
-    font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em;
+    font-size: var(--type-micro); font-weight: 600; letter-spacing: 0.1em;
     text-transform: uppercase; color: var(--sky);
   }
   .pane-hd .title {
-    font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: -0.012em;
+    font-size: var(--type-display); font-weight: 700; color: var(--text); letter-spacing: -0.012em;
   }
   .pane-hd .sub {
-    font-size: 11.5px; color: var(--text-3); margin-left: auto;
+    font-size: var(--type-meta); color: var(--text-3); margin-left: auto;
     font-family: ui-monospace, monospace;
   }
   .demo-tag {
@@ -268,7 +322,7 @@
     background: rgba(255, 159, 10, 0.16);
     border: 1px solid rgba(255, 159, 10, 0.35);
     border-radius: 999px;
-    font-size: 10px; color: #ffd58a;
+    font-size: var(--type-micro); color: #ffd58a;
     font-weight: 600; letter-spacing: 0.03em;
     margin-left: 6px;
   }
@@ -278,20 +332,20 @@
     background: rgba(52, 199, 89, 0.14);
     border: 1px solid rgba(52, 199, 89, 0.32);
     border-radius: 999px;
-    font-size: 10px; color: #c8f3d3;
+    font-size: var(--type-micro); color: #c8f3d3;
     font-weight: 600; letter-spacing: 0.03em;
     margin-left: 6px;
   }
   .pane-body { padding: 12px 16px; flex: 1; min-height: 0; }
   .pane-evidence {
-    padding: 10px 16px 12px;
+    padding: var(--space-sm) var(--space-lg);
     border-top: 1px solid var(--line);
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 6px 12px;
-    font-size: 11px;
+    display: flex; flex-wrap: wrap;
+    column-gap: var(--space-lg); row-gap: 2px;
+    font-size: var(--type-meta);
   }
-  .pane-evidence .ev-cell .lbl { font-size: 9.5px; }
+  .pane-evidence .ev-cell { gap: 5px; }
+  .pane-evidence .ev-cell .lbl { font-size: var(--type-micro); }
 
   /* ============ dongle-lost overlay ============ */
   .dongle-overlay {
@@ -309,22 +363,22 @@
   }
   .dongle-overlay.show { display: flex; }
   .dongle-overlay .icon {
-    font-size: 38px; color: var(--red);
+    font-size: var(--type-hero); color: var(--red);
     text-shadow: 0 0 18px rgba(255,69,58,0.6);
     margin-bottom: 6px;
   }
   .dongle-overlay .label {
-    font-size: 18px; color: #ffd0cc; font-weight: 700;
+    font-size: var(--type-title); color: #ffd0cc; font-weight: 700;
     letter-spacing: 0.02em;
   }
   .dongle-overlay .sub {
     margin-top: 6px;
-    font-size: 13px; color: #f7c3bd;
+    font-size: var(--type-meta); color: #f7c3bd;
   }
   .dongle-overlay .countdown {
     margin-top: 12px;
     font-family: ui-monospace, monospace;
-    font-size: 12px; color: #ffaa9f;
+    font-size: var(--type-meta); color: #ffaa9f;
     padding: 5px 12px;
     background: rgba(255, 69, 58, 0.16);
     border: 1px solid rgba(255, 69, 58, 0.36);
@@ -335,12 +389,12 @@
   .now-row {
     display: grid; grid-template-columns: 40px 1fr auto; gap: 12px;
     align-items: center;
-    padding: 4px 0 12px;
+    padding: 2px 0 var(--space-md);
   }
   .now-row .icon {
     width: 40px; height: 40px; border-radius: 12px;
     display: flex; align-items: center; justify-content: center;
-    font-size: 16px;
+    font-size: var(--type-body);
     background: linear-gradient(160deg, rgba(52, 199, 89, 0.32), rgba(52, 199, 89, 0.12));
     color: #d2f5dc;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.10);
@@ -357,11 +411,11 @@
     background: linear-gradient(160deg, rgba(90, 184, 255, 0.34), rgba(90, 184, 255, 0.10));
     color: #e0f2ff;
   }
-  .now-row .band { font-size: 10.5px; color: var(--text-3); font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; }
-  .now-row .now-line { font-size: 13.5px; color: var(--text); margin-top: 2px; line-height: 1.35; word-break: break-word; }
-  .now-row .now-line .freq { font-family: ui-monospace, monospace; color: var(--sky-2); margin-right: 6px; font-size: 13px; }
+  .now-row .band { font-size: var(--type-micro); color: var(--text-3); font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; }
+  .now-row .now-line { font-size: var(--type-body-sm); color: var(--text); margin-top: 2px; line-height: 1.35; word-break: break-word; }
+  .now-row .now-line .freq { font-family: ui-monospace, monospace; color: var(--sky-2); margin-right: 6px; font-size: var(--type-mono); }
   .now-row .now-line.dim { color: var(--text-3); }
-  .now-row .chev { color: var(--text-4); font-size: 16px; }
+  .now-row .chev { color: var(--text-4); font-size: var(--type-body); }
 
   .hits-list {
     border-top: 1px solid var(--line);
@@ -372,15 +426,15 @@
   .hits-list .hit-row {
     display: grid; grid-template-columns: 50px 1fr auto;
     gap: 10px; align-items: center;
-    padding: 8px 0;
+    padding: var(--space-sm) 0;
     border-top: 1px solid var(--line);
   }
   .hits-list .hit-row:first-of-type { border-top: none; }
-  .hits-list .hit-row .t { font-family: ui-monospace, monospace; font-size: 11px; color: var(--text-3); }
-  .hits-list .hit-row .label { font-size: 12.5px; color: var(--text); line-height: 1.3; word-break: break-word; }
-  .hits-list .hit-row .label .sub { display: block; color: var(--text-4); font-size: 10.5px; font-family: ui-monospace, monospace; margin-top: 1px; }
+  .hits-list .hit-row .t { font-family: ui-monospace, monospace; font-size: var(--type-meta); color: var(--text-3); }
+  .hits-list .hit-row .label { font-size: var(--type-body-sm); color: var(--text); line-height: 1.3; word-break: break-word; }
+  .hits-list .hit-row .label .sub { display: block; color: var(--text-4); font-size: var(--type-meta); font-family: ui-monospace, monospace; margin-top: 1px; }
   .hits-list .hit-row .badge {
-    font-family: ui-monospace, monospace; font-size: 9.5px;
+    font-family: ui-monospace, monospace; font-size: var(--type-micro);
     padding: 2px 6px;
     background: rgba(90, 184, 255, 0.13);
     color: var(--sky);
@@ -389,7 +443,7 @@
   }
   .hits-list .hit-row .badge.gnd { background: rgba(138, 155, 181, 0.13); color: var(--text-2); }
   .hits-list .hit-row .badge.dig { background: rgba(126, 211, 255, 0.13); color: var(--sky-2); }
-  .hits-empty { padding: 12px 0; color: var(--text-3); text-align: center; font-size: 11.5px; }
+  .hits-empty { padding: var(--space-md) 0; color: var(--text-3); text-align: center; font-size: var(--type-meta); }
 
   /* digital profile block */
   .digital-profile, .analog-profile {
@@ -403,11 +457,11 @@
     background: linear-gradient(160deg, var(--sky), var(--sky-dim));
     border-radius: 10px;
     display: flex; align-items: center; justify-content: center;
-    color: #04101e; font-weight: 700; font-size: 11px;
+    color: #04101e; font-weight: 700; font-size: var(--type-micro);
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
   }
-  .digital-profile .pname, .analog-profile .pname { font-size: 13.5px; font-weight: 600; color: var(--text); }
-  .digital-profile .psub, .analog-profile .psub { font-size: 11px; color: var(--text-3); margin-top: 1px; font-family: ui-monospace, monospace; }
+  .digital-profile .pname, .analog-profile .pname { font-size: var(--type-body-sm); font-weight: 600; color: var(--text); }
+  .digital-profile .psub, .analog-profile .psub { font-size: var(--type-meta); color: var(--text-3); margin-top: 1px; font-family: ui-monospace, monospace; }
   .digital-chips, .analog-chips {
     padding-top: 8px;
     display: flex; flex-wrap: wrap; gap: 5px;
@@ -419,7 +473,7 @@
     background: rgba(138, 155, 181, 0.10);
     color: var(--text-2);
     border-radius: 999px;
-    font-size: 11px;
+    font-size: var(--type-meta);
   }
   .digital-chips .chip.on, .analog-chips .chip.on { background: var(--sky); color: #04101e; font-weight: 600; }
 
@@ -444,12 +498,12 @@
     display: flex; justify-content: space-between;
     margin-top: 6px;
     font-family: ui-monospace, monospace;
-    font-size: 10px; color: var(--text-4);
+    font-size: var(--type-meta); color: var(--text-4);
   }
   .wf-meta {
     margin-top: 10px;
     display: flex; gap: 8px; flex-wrap: wrap;
-    font-size: 11px; color: var(--text-3);
+    font-size: var(--type-meta); color: var(--text-3);
   }
   .wf-meta .pill {
     padding: 3px 9px;
@@ -477,7 +531,7 @@
     margin-top: 10px;
     display: flex; flex-wrap: wrap;
     align-items: center; gap: 10px 14px;
-    font-size: 11.5px;
+    font-size: var(--type-meta);
   }
   .wf-tune-caption {
     color: var(--text-3);
@@ -492,7 +546,7 @@
     padding: 4px 8px 4px 10px;
   }
   .wf-tune-label {
-    font-size: 10px; text-transform: uppercase;
+    font-size: var(--type-micro); text-transform: uppercase;
     letter-spacing: 0.05em; color: var(--text-4); font-weight: 600;
   }
   .wf-tune-input {
@@ -500,7 +554,7 @@
     border: none;
     color: var(--text);
     font-family: ui-monospace, monospace;
-    font-size: 12px;
+    font-size: var(--type-mono);
     width: 80px;
     outline: none;
     padding: 2px 0;
@@ -509,7 +563,7 @@
   .wf-tune-input::-webkit-outer-spin-button,
   .wf-tune-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .wf-tune-unit {
-    font-size: 10px; color: var(--text-4); font-weight: 500;
+    font-size: var(--type-micro); color: var(--text-4); font-weight: 500;
   }
   .wf-apply-btn {
     background: rgba(126, 211, 255, 0.14);
@@ -517,7 +571,7 @@
     color: var(--sky-2);
     border-radius: 8px;
     padding: 5px 14px;
-    font-size: 11.5px; font-weight: 600;
+    font-size: var(--type-body-sm); font-weight: 600;
     cursor: pointer;
     transition: background 0.12s;
   }
@@ -533,7 +587,7 @@
     color: var(--text-2);
     border-radius: 999px;
     padding: 4px 11px;
-    font-size: 10.5px; font-weight: 500;
+    font-size: var(--type-meta); font-weight: 500;
     cursor: pointer;
     white-space: nowrap;
     transition: background 0.12s, border-color 0.12s, color 0.12s;
@@ -576,7 +630,7 @@
     position: absolute; left: 50%; bottom: -22px;
     transform: translateX(-50%);
     font-family: ui-monospace, monospace;
-    font-size: 10px;
+    font-size: var(--type-meta);
     color: var(--sky-2);
     white-space: nowrap;
     padding: 1px 6px;
@@ -594,7 +648,7 @@
     padding: 6px 0;
   }
   .vfo-row .label {
-    font-size: 11.5px; color: var(--text-3); font-weight: 500;
+    font-size: var(--type-micro); color: var(--text-3); font-weight: 500;
     text-transform: uppercase; letter-spacing: 0.04em;
   }
   .vfo-input {
@@ -604,7 +658,7 @@
     border-radius: 8px;
     padding: 8px 12px;
     font-family: ui-monospace, monospace;
-    font-size: 14px;
+    font-size: var(--type-mono);
     width: 100%;
     outline: none;
     transition: border 0.15s;
@@ -616,7 +670,7 @@
     color: var(--text);
     border-radius: 8px;
     padding: 8px 12px;
-    font-size: 13px;
+    font-size: var(--type-body-sm);
     width: 100%;
     outline: none;
     appearance: none;
@@ -636,7 +690,7 @@
     border-radius: 12px;
   }
   .vfo-toggle-card .lab {
-    flex: 1; font-size: 12px; color: var(--text-2); font-weight: 500;
+    flex: 1; font-size: var(--type-body-sm); color: var(--text-2); font-weight: 500;
   }
   .toggle {
     width: 42px; height: 26px;
@@ -670,7 +724,7 @@
     position: absolute; left: 8px; right: 8px; bottom: 4px;
     display: flex; justify-content: space-between;
     font-family: ui-monospace, monospace;
-    font-size: 9.5px;
+    font-size: var(--type-meta);
     color: rgba(255,255,255,0.55);
     text-shadow: 0 1px 2px rgba(0,0,0,0.7);
   }
@@ -693,7 +747,7 @@
     display: flex; justify-content: space-between;
     margin-top: 6px;
     font-family: ui-monospace, monospace;
-    font-size: 10px; color: var(--text-4);
+    font-size: var(--type-meta); color: var(--text-4);
   }
   .disco-detections {
     margin-top: 10px;
@@ -710,16 +764,16 @@
     background: rgba(8, 14, 28, 0.45);
     border: 1px solid var(--line);
     border-radius: 8px;
-    font-size: 12px;
+    font-size: var(--type-body-sm);
   }
   .disco-detect-row .freq {
     font-family: ui-monospace, monospace;
-    color: var(--sky-2); font-size: 12px;
+    color: var(--sky-2); font-size: var(--type-mono);
   }
   .disco-detect-row .cls { color: var(--text); font-weight: 500; }
   .disco-detect-row .conf {
     font-family: ui-monospace, monospace;
-    color: var(--text-3); font-size: 11px;
+    color: var(--text-3); font-size: var(--type-meta);
   }
   .disco-detect-row .conf.hi { color: #c8f3d3; }
   .disco-detect-row .conf.lo { color: #ffd58a; }
@@ -758,7 +812,7 @@
   .footer {
     text-align: center;
     padding: 18px 0 6px;
-    font-family: ui-monospace, monospace; font-size: 10.5px;
+    font-family: ui-monospace, monospace; font-size: var(--type-micro);
     color: var(--text-4); letter-spacing: 0.04em;
   }
 
@@ -770,7 +824,7 @@
     color: #e0f2ff;
     padding: 6px 14px;
     border-radius: 999px;
-    font-size: 12px; font-weight: 700;
+    font-size: var(--type-body-sm); font-weight: 700;
     cursor: pointer;
     letter-spacing: 0.04em;
     font-family: inherit;
@@ -786,7 +840,7 @@
   .tb-sitrep-btn .icon {
     display: inline-flex; align-items: center; justify-content: center;
     width: 14px; height: 14px;
-    font-size: 13px; line-height: 1;
+    font-size: var(--type-body-sm); line-height: 1;
   }
 
   .modal-overlay {
@@ -820,7 +874,7 @@
   }
   .modal-hd .title {
     flex: 1;
-    font-size: 14px; font-weight: 700;
+    font-size: var(--type-body); font-weight: 700;
     color: var(--text); letter-spacing: -0.01em;
   }
   .modal-close {
@@ -829,7 +883,7 @@
     color: var(--text-2);
     width: 28px; height: 28px;
     border-radius: 8px;
-    font-size: 16px; line-height: 1;
+    font-size: var(--type-body); line-height: 1;
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
   }
@@ -856,14 +910,14 @@
     background: rgba(8, 14, 28, 0.45);
   }
   .sitrep-service-item .name {
-    font-size: 11.5px;
+    font-size: var(--type-micro);
     color: var(--text);
     text-transform: uppercase;
     letter-spacing: 0.08em;
     font-weight: 600;
   }
   .sitrep-service-item .meta {
-    font-size: 11px;
+    font-size: var(--type-meta);
     color: var(--text-3);
     font-family: ui-monospace, monospace;
     margin-top: 2px;
@@ -900,7 +954,7 @@
     background: rgba(8, 14, 28, 0.50);
     border: 1px solid var(--line);
     border-radius: 10px;
-    font-size: 12px;
+    font-size: var(--type-body-sm);
     color: var(--text-2);
   }
   .modal-sitrep .summary .headline { font-weight: 600; color: var(--text); margin-bottom: 2px; }
@@ -920,13 +974,18 @@
   @media (max-width: 600px) {
     .topbar { padding: 0 10px; gap: 8px; }
     .tb-title .sub { display: none; }
-    .tb-sounding { font-size: 10px; padding: 4px 8px; }
+    .tb-sounding { font-size: var(--type-micro); padding: 4px 8px; }
     .tb-sounding .sw { width: 26px; height: 14px; }
     .tb-sounding .sw::after { width: 10px; height: 10px; }
     .tb-sounding.on .sw::after { transform: translateX(12px); }
-    .state-badge { min-width: 64px; padding: 5px 8px; font-size: 10px; letter-spacing: 0.08em; }
-    .tb-sitrep-btn { padding: 5px 10px; font-size: 11px; }
-    .hb-evidence-toggle { font-size: 10.5px; padding: 4px 9px; }
+    .state-badge { min-width: 64px; padding: 5px 8px; font-size: var(--type-micro); letter-spacing: 0.08em; }
+    .tb-sitrep-btn { padding: 5px 10px; font-size: var(--type-meta); }
+    .hb-evidence-toggle { font-size: var(--type-micro); padding: 4px 9px; }
+    /* Audio bar: drop the static label + now-playing caption so the mounts
+       and scrubber get the full narrow width. */
+    .audio-bar { padding: 0 var(--space-md); gap: var(--space-sm); }
+    .audio-bar .ab-label, .audio-bar .ab-now { display: none; }
+    .audio-bar .ab-mount { padding: 5px 10px; }
   }
 
   /* ============ Status disclosure (per-pane) ============ */
@@ -936,7 +995,7 @@
     background: rgba(8, 14, 28, 0.40);
     border: 1px solid var(--line);
     border-radius: 8px;
-    font-size: 11.5px;
+    font-size: var(--type-meta);
     color: var(--text-2);
     cursor: pointer;
     user-select: none;
@@ -946,7 +1005,7 @@
     display: flex; align-items: center; gap: 8px;
   }
   .pane-disclosure .chev {
-    color: var(--text-4); font-size: 12px;
+    color: var(--text-4); font-size: var(--type-meta);
     transition: transform 0.15s;
     flex-shrink: 0;
   }
@@ -960,7 +1019,7 @@
     border-top: 1px dashed var(--line);
     display: none;
     font-family: ui-monospace, monospace;
-    font-size: 11px;
+    font-size: var(--type-meta);
     color: var(--text-3);
     max-height: 200px;
     overflow-y: auto;
@@ -983,7 +1042,7 @@
     color: var(--sky-2);
     padding: 5px 12px;
     border-radius: 8px;
-    font-size: 11px; font-weight: 600;
+    font-size: var(--type-meta); font-weight: 600;
     cursor: pointer;
     font-family: inherit;
     margin-left: auto;
@@ -997,7 +1056,7 @@
     background: rgba(8, 14, 28, 0.40);
     border: 1px solid var(--line);
     border-radius: 10px;
-    font-size: 13px;
+    font-size: var(--type-body-sm);
     color: var(--text-2);
     line-height: 1.5;
   }
@@ -1011,7 +1070,7 @@
     border: none;
     padding: 8px 14px;
     border-radius: 8px;
-    font-size: 12px; font-weight: 600;
+    font-size: var(--type-body-sm); font-weight: 600;
     cursor: pointer;
     font-family: inherit;
   }
@@ -1064,6 +1123,21 @@
   <div class="hb-evidence" id="hb-evidence" hidden>
     <div class="ev-cell"><span class="lbl">Status</span><span class="val">—</span></div>
   </div>
+</div>
+
+<!-- ============ audio toolbar: one shared player, compact mount buttons ============
+     Relocated here from the old VFO "Audio" embed. Each button loads its icecast
+     mount into the single #ab-audio element (host:8000) and plays. -->
+<div class="audio-bar" id="audio-bar" role="group" aria-label="Live audio streams">
+  <span class="ab-label">Audio</span>
+  <div class="ab-mounts" id="ab-mounts">
+    <button class="ab-mount" type="button" data-mount="ANALOG.mp3">Airband</button>
+    <button class="ab-mount" type="button" data-mount="GND.mp3">Ground</button>
+    <button class="ab-mount" type="button" data-mount="DIGITAL.mp3">Digital</button>
+    <button class="ab-mount" type="button" data-mount="VFO.mp3">VFO</button>
+  </div>
+  <audio class="ab-audio" id="ab-audio" controls preload="none"></audio>
+  <span class="ab-now" id="ab-now">Pick a stream</span>
 </div>
 
 <!-- ============ 5 panes ============ -->
@@ -1209,12 +1283,6 @@
             <span id="vfo-center">—</span>
             <span id="vfo-high">—</span>
           </div>
-        </div>
-        <div class="vfo-row">
-          <span class="label">Audio</span>
-          <audio id="vfo-audio" controls preload="none" style="width:100%;max-width:280px;">
-            <source id="vfo-audio-src" src="" type="audio/mpeg">
-          </audio>
         </div>
       </div>
       <div class="dongle-overlay" id="vfo-down-overlay">
@@ -1661,7 +1729,7 @@ function renderNowListeningFromHeartbeat(hb) {
         prefix = `<span class="freq">${parseFloat(bandHit.freq).toFixed(3)}</span>`;
       }
       now.className = "now-line";
-      now.innerHTML = `${prefix}${escapeHtml(txt)} <span style="color:var(--text-4); font-size:11px;">· ${ageS}s ago</span>`;
+      now.innerHTML = `${prefix}${escapeHtml(txt)} <span style="color:var(--text-4); font-size: var(--type-meta);">· ${ageS}s ago</span>`;
     } else {
       icon.className = "icon muted"; icon.textContent = "❚❚";
       now.className = "now-line dim";
@@ -1887,22 +1955,29 @@ function renderWaterfall(data) {
 }
 
 let VFO_LOCAL = { freq_mhz: 127.700, mod: "am", muted: false, bt_routed: false };
-let VFO_AUDIO_WIRED = false;
-function _wireVFOAudioSrcOnce() {
-  if (VFO_AUDIO_WIRED) return;
-  VFO_AUDIO_WIRED = true;
-  // Point the audio element at the icecast mount.  Same host:8000 the
-  // analog/digital players use; no host introspection needed.
-  const src = $("vfo-audio-src");
-  const aud = $("vfo-audio");
-  if (src && aud) {
-    src.src = `${location.protocol}//${location.hostname}:8000/VFO.mp3`;
-    try { aud.load(); } catch (_e) {}
-  }
+// Audio toolbar: one shared <audio> element, one button per icecast mount.
+// Clicking a mount loads host:8000/<mount> into #ab-audio and plays it. This
+// replaces the old per-pane VFO audio embed — VFO.mp3 is just another mount.
+function wireAudioBar() {
+  const bar = $("audio-bar");
+  const audio = $("ab-audio");
+  if (!bar || !audio) return;
+  const host = `${location.protocol}//${location.hostname}:8000/`;
+  const nowEl = $("ab-now");
+  bar.querySelectorAll(".ab-mount").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const mount = btn.dataset.mount;
+      if (!mount) return;
+      bar.querySelectorAll(".ab-mount").forEach((b) => b.classList.toggle("active", b === btn));
+      audio.src = host + mount;
+      if (nowEl) nowEl.textContent = `${btn.textContent.trim()} · /${mount}`;
+      try { audio.load(); } catch (_e) {}
+      audio.play().catch(() => {});
+    });
+  });
 }
 function renderVFO(data) {
   if (!data) return;
-  _wireVFOAudioSrcOnce();
 
   // Phase 6b: honor top-level state="down"/"degraded" for the dropped-
   // dongle overlay (mirrors renderWaterfall).
@@ -2787,6 +2862,7 @@ function boot() {
     (centerMhz) => { postDiscoRangeFromCenter(centerMhz); });
 
   wireVFOControls();
+  wireAudioBar();
   wireSitrep();
   wireHbEvidenceToggle();
   wireProfileBuilder();

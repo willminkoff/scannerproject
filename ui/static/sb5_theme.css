@@ -1,0 +1,58 @@
+/* =========================================================================
+ * sb5_theme.css — shared typography + spacing scale for the /sb5 dashboard.
+ *
+ * This is the single source of truth for the /sb5 type scale. The /sb5 page
+ * links it as:
+ *     <link rel="stylesheet" href="/static/sb5_theme.css">
+ * and every font-size / spacing value in sb5.html is expressed as a
+ * var(--type-*) / var(--space-*) token defined here. There are no hard-coded
+ * font sizes left in sb5.html — change a value here and the whole dashboard
+ * (and any document that links this file) re-scales.
+ *
+ * ----- OpenWebRX iframe consumption -------------------------------------
+ * CSS custom properties do NOT cross the iframe document boundary, so an
+ * OpenWebRX waterfall iframed into the Live IQ pane will NOT inherit these
+ * tokens automatically. To make the OWRX document match the /sb5 scale, link
+ * this same stylesheet from the OWRX side. Because the iframe is a separate
+ * origin (OWRX serves its own port), use an absolute URL pointing at the
+ * scanner host's airband-ui port (5050):
+ *
+ *     <link rel="stylesheet" href="http://<scanner-host>:5050/static/sb5_theme.css">
+ *
+ * then style OWRX chrome with the var(--type-*) / var(--space-*) tokens below.
+ * The static handler serves this file with `Content-Type: text/css`, so a
+ * cross-origin <link> works without extra CORS headers.
+ * ========================================================================= */
+
+:root {
+  /* ----- type scale (desktop) ----- */
+  --type-hero:    34px;  /* overlay hero glyphs (dongle-lost ⚠)         */
+  --type-display: 22px;  /* pane titles — "ANALOG · Airband"            */
+  --type-title:   18px;  /* secondary headings / overlay labels         */
+  --type-body:    16px;  /* default body text, inline glyphs            */
+  --type-body-sm: 14px;  /* hit entries, secondary text, controls       */
+  --type-meta:    13px;  /* status rows, captions, freq labels          */
+  --type-micro:   11px;  /* uppercase eyebrows + tracked labels (floor) */
+  --type-mono:    14px;  /* monospace numerics — freqs, MHz values      */
+
+  /* ----- spacing scale ----- */
+  --space-sm:      6px;
+  --space-md:     10px;
+  --space-lg:     16px;
+}
+
+/* Narrow viewports (phones ~380px): nudge the scale down a step so the dense
+ * stacked layout stays readable without horizontal overflow. The 11px micro
+ * floor holds — uppercase tracked labels stay legible at that size. */
+@media (max-width: 600px) {
+  :root {
+    --type-hero:    30px;
+    --type-display: 20px;
+    --type-title:   17px;
+    --type-body:    15px;
+    --type-body-sm: 13px;
+    --type-meta:    12px;
+    --type-micro:   11px;
+    --type-mono:    13px;
+  }
+}
