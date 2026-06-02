@@ -666,10 +666,57 @@
     color: var(--sky-2);
   }
   .wf-step:active { transform: translateY(1px); }
+  /* Variant: the "→ VFO" action — sky-accented to read as the live retune. */
+  .wf-vfo-btn {
+    margin-left: auto;
+    background: rgba(90, 184, 255, 0.16);
+    border-color: rgba(126, 211, 255, 0.45);
+    color: var(--sky-2);
+  }
+  .wf-vfo-btn:hover {
+    background: rgba(126, 211, 255, 0.26);
+    border-color: var(--sky-2);
+    color: var(--text);
+  }
+  /* When the cursor is near a top-3 peak label on the spec canvas, signal
+     that a click will tune the VFO to that peak (set by the hit-test). */
+  .spec-canvas-wrap.peak-hover { cursor: pointer; }
   .pane-waterfall:focus { outline: none; }
   .pane-waterfall:focus-visible {
     outline: 2px solid rgba(126, 211, 255, 0.45);
     outline-offset: 2px;
+  }
+  /* ============ Live-action toast (VFO tune confirmation) ============ */
+  .live-toast-root {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    pointer-events: none;
+  }
+  .live-toast {
+    background: rgba(8, 14, 28, 0.92);
+    border: 1px solid var(--sky-2);
+    color: var(--sky-2);
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-family: ui-monospace, monospace;
+    font-size: var(--type-meta);
+    font-weight: 600;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5),
+                0 0 0 2px rgba(126, 211, 255, 0.18);
+    opacity: 0;
+    transform: translateY(-6px);
+    transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+    pointer-events: auto;
+  }
+  .live-toast.show {
+    opacity: 1;
+    transform: translateY(0);
   }
   /* ============ Live IQ center-freq marker (vertical line + label) ============ */
   .wf-marker {
@@ -1747,6 +1794,8 @@
         <button type="button" class="wf-step" data-step-mhz="0.1">+100 kHz</button>
         <button type="button" class="wf-step" data-step-mhz="1">+1 MHz</button>
         <button type="button" class="wf-step" data-step-mhz="10">+10 MHz</button>
+        <button type="button" class="wf-step wf-vfo-btn" id="wf-to-vfo-btn"
+                title="Tune VFO to current Live IQ center, auto-pick mode by band">&rarr; VFO</button>
       </div>
       <div class="dongle-overlay" id="wf-down-overlay">
         <div class="icon">⚠</div>
@@ -1872,6 +1921,9 @@
 </main>
 
 <div class="footer" id="footer-meta">sb5 · 7-pane dense dashboard · loading…</div>
+
+<!-- ============ Live-action toast root (VFO tune confirmation) ============ -->
+<div class="live-toast-root" id="live-toast-root" aria-live="polite" aria-atomic="true"></div>
 
 <!-- ============ Sitrep modal (Phase 7a — full operator situation report) ============ -->
 <div class="modal-overlay modal-sitrep" id="sitrep-modal" role="dialog" aria-modal="true" aria-labelledby="sitrep-modal-title">
@@ -2069,6 +2121,10 @@ function autoStretchIntensity(bins, key) {
 // the same range the heatmap stretches to.  All colors + the label font
 // size are pulled from CSS vars — no hardcoded hex or px sizes.
 const SPEC_PEAK_HOLD = new Map();
+// Last-drawn top-3 peak positions per pane, recorded at the end of the
+// peaks-draw block in renderSpectrum so a click on the spec canvas can
+// hit-test against them.  Key = scaleKey (canvas id); value = { hits, cssW }.
+const SPEC_PEAK_HITS = new Map();
 // Peak-hold update is split out of renderSpectrum so it only runs when
 // fresh FFT data lands (in specSubmitFrame), not on every rAF interpolation
 // frame.  Otherwise the running-max would be polled against lerped values
@@ -2190,6 +2246,15 @@ function renderSpectrum(canvas, bins, freqLo, freqHi, scaleKey) {
       if (chosen.length === 3) break;
     }
   }
+  // Record the drawn peak x/freq positions so the spec-canvas click handler
+  // (wireSpecPeakClicks) can hit-test against them.  Keyed by scaleKey so
+  // each pane keeps its own list and DPR scaling stays canvas-local.
+  const hits = [];
+  for (const c of chosen) {
+    const freq = freqLo + (c.idx / Math.max(1, N - 1)) * fSpan;
+    hits.push({ x: c.x, freq });
+  }
+  SPEC_PEAK_HITS.set(key, { hits, cssW });
   if (chosen.length) {
     const fontPx = parseInt(labelFont, 10) || 12;
     ctx.save();
@@ -3158,6 +3223,19 @@ const CLICK_DRAG_THRESHOLD_PX = 5;
 const FREQ_MIN_MHZ = WF_TUNE_MIN_MHZ;
 const FREQ_MAX_MHZ = WF_TUNE_MAX_MHZ;
 
+// ----- VFO-mode auto-pick band edges (shared by → VFO + peak-click) -----
+// Mirrors VFO_VALID_MODS in handlers.py — lowercase, AM/NFM/WFM only here.
+const AIRBAND_MIN_MHZ = 118;
+const AIRBAND_MAX_MHZ = 137;
+const FM_BCAST_MIN_MHZ = 88;
+const FM_BCAST_MAX_MHZ = 108;
+const VHF_MIN_MHZ = 30;
+const VHF_MAX_MHZ = 300;
+
+// ----- Live-action toast + peak-click tuning -----
+const TOAST_DURATION_MS = 1800;
+const PEAK_CLICK_PROXIMITY_PX = 10;
+
 // ----- Center-freq marker (vertical line on both wf-spec + wf-canvas) -----
 // Maps the current center freq to a pixel-column inside the displayed span
 // (WF_VIEW), then positions twin overlay divs (one over the spec canvas,
@@ -3410,6 +3488,72 @@ function wireWfKeyboard() {
     applyWfStep(sign * step);
   });
 }
+function wireWfVFOButton() {
+  // "→ VFO" — copy the current Live IQ center to the VFO, auto-picking
+  // mode by band.  Reads WF_CENTER_LOCAL.mhz (same state the step
+  // buttons mutate), routes through tuneVFOToMhz so peak-clicks share it.
+  const btn = $("wf-to-vfo-btn");
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    const cur = Number(WF_CENTER_LOCAL.mhz);
+    if (!Number.isFinite(cur)) return;
+    tuneVFOToMhz(cur);
+  });
+}
+function wireSpecPeakClicks() {
+  // Top-3 peak markers are canvas-drawn (renderSpectrum stores their
+  // positions in SPEC_PEAK_HITS).  Three panes have a spec canvas:
+  // wf-spec, vfo-spec, disco-spec.  For each, we hit-test mouse events
+  // against the recorded peak x-positions (within PEAK_CLICK_PROXIMITY_PX)
+  // and tune the VFO to the matched peak's freq.
+  //
+  // The Live IQ heatmap drag-to-tune (wireWfPan) attaches to
+  // .wf-canvas-wrap, NOT the spec canvas above it, so peak clicks here
+  // do not collide with click-to-tune on the heatmap.
+  const PANES = [
+    { canvasId: "wf-spec",    key: "wf-canvas" },
+    { canvasId: "vfo-spec",   key: "vfo-spec" },
+    { canvasId: "disco-spec", key: "disco-spec" },
+  ];
+  PANES.forEach(({ canvasId, key }) => {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const wrap = canvas.parentElement;
+    function hitTest(clientX) {
+      const entry = SPEC_PEAK_HITS.get(key);
+      if (!entry || !entry.hits || !entry.hits.length) return null;
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width || 1;
+      const cursorX = Math.max(0, Math.min(w, clientX - rect.left));
+      // The recorded hit.x is in canvas-CSS pixels too (cssW at draw
+      // time).  If the canvas has been resized since, scale x.
+      const scale = (entry.cssW > 0) ? (w / entry.cssW) : 1;
+      let best = null;
+      let bestDist = PEAK_CLICK_PROXIMITY_PX + 1;
+      for (const h of entry.hits) {
+        const d = Math.abs((h.x * scale) - cursorX);
+        if (d < bestDist) { bestDist = d; best = h; }
+      }
+      return best;
+    }
+    canvas.addEventListener("mousemove", (e) => {
+      const hit = hitTest(e.clientX);
+      if (wrap) wrap.classList.toggle("peak-hover", !!hit);
+    });
+    canvas.addEventListener("mouseleave", () => {
+      if (wrap) wrap.classList.remove("peak-hover");
+    });
+    canvas.addEventListener("click", (e) => {
+      const hit = hitTest(e.clientX);
+      if (!hit) return;
+      // Stop propagation so the click does not bubble to the heatmap
+      // drag-to-tune (defensive — the spec canvas is a sibling, not a
+      // child of .wf-canvas-wrap, so this is belt-and-suspenders).
+      e.stopPropagation();
+      tuneVFOToMhz(hit.freq);
+    });
+  });
+}
 function wireWfCenterInput() {
   const input = $("wf-center-input");
   const bwInput = $("wf-bw-input");
@@ -3541,6 +3685,48 @@ function postVFO(patch) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(VFO_LOCAL),
   }).catch(()=>{});
+}
+
+// Auto-pick a VFO mod from the freq.  Mirrors VFO_VALID_MODS in
+// handlers.py (lowercase am/nfm/wfm). Airband wins over the generic
+// VHF window so 124 MHz stays AM rather than falling through to NFM.
+function pickVfoMode(freqMhz) {
+  const f = Number(freqMhz);
+  if (!Number.isFinite(f)) return "nfm";
+  if (f >= AIRBAND_MIN_MHZ && f <= AIRBAND_MAX_MHZ) return "am";
+  if (f >= FM_BCAST_MIN_MHZ && f <= FM_BCAST_MAX_MHZ) return "wfm";
+  if (f >= VHF_MIN_MHZ && f <= VHF_MAX_MHZ) return "nfm";
+  return "nfm";
+}
+
+// Shared VFO retune action: pick a mode, POST to /api/vfo, flash a toast.
+// Called from both the "→ VFO" button and the spec-canvas peak-click.
+function tuneVFOToMhz(freqMhz) {
+  const f = Number(freqMhz);
+  if (!Number.isFinite(f)) return;
+  const mod = pickVfoMode(f);
+  postVFO({ freq_mhz: f, mod });
+  showLiveToast(`VFO tuned to ${f.toFixed(3)} MHz (${mod.toUpperCase()})`);
+}
+
+// Minimal toast helper — single-line confirmation, auto-dismisses after
+// TOAST_DURATION_MS.  Reuses the .live-toast-root container in the body.
+let _liveToastTimer = null;
+function showLiveToast(text) {
+  const root = document.getElementById("live-toast-root");
+  if (!root) return;
+  root.innerHTML = "";
+  const el = document.createElement("div");
+  el.className = "live-toast";
+  el.textContent = text;
+  root.appendChild(el);
+  // rAF -> add .show on the next frame so the transition catches.
+  requestAnimationFrame(() => { el.classList.add("show"); });
+  if (_liveToastTimer) clearTimeout(_liveToastTimer);
+  _liveToastTimer = setTimeout(() => {
+    el.classList.remove("show");
+    setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 220);
+  }, TOAST_DURATION_MS);
 }
 function wireVFOControls() {
   const freq = $("vfo-freq");
@@ -4374,6 +4560,8 @@ function boot() {
   wireWfCenterInput();
   wireWfStepButtons();
   wireWfKeyboard();
+  wireWfVFOButton();
+  wireSpecPeakClicks();
   wireDiscoRangeControls();
   wireSitrep();
   wireHbEvidenceToggle();
