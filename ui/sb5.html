@@ -3947,6 +3947,53 @@ function renderProfile(hpState, profiles) {
   try { renderPaneDisclosure(); } catch (_e) {}
 }
 
+// Live IQ readout throttling.  WS frames arrive ~30 Hz which makes the
+// numeric peak / last-frame-age pills bounce too fast to read.  We buffer
+// the latest values, keep a sliding window of recent peaks, and flush to
+// the DOM at PEAK_READOUT_PERIOD_MS — using the max peak over the window
+// so a single quiet frame doesn't undersample real transient peaks.
+const PEAK_READOUT_PERIOD_MS = 400;
+const PEAK_WINDOW_MS = 1000;
+const LIVE_IQ_READOUT = {
+  peakSamples: [],   // {t, val, freq}
+  lastAgeMs: 0,
+  hasData: false,
+  tickerStarted: false,
+};
+function pushLiveIqReadout(peakVal, peakFreq, ageMs) {
+  const now = performance.now();
+  const w = LIVE_IQ_READOUT;
+  w.peakSamples.push({ t: now, val: peakVal, freq: peakFreq });
+  const cutoff = now - PEAK_WINDOW_MS;
+  while (w.peakSamples.length && w.peakSamples[0].t < cutoff) {
+    w.peakSamples.shift();
+  }
+  w.lastAgeMs = ageMs;
+  w.hasData = true;
+  if (!w.tickerStarted) {
+    w.tickerStarted = true;
+    setInterval(flushLiveIqReadout, PEAK_READOUT_PERIOD_MS);
+  }
+}
+function flushLiveIqReadout() {
+  const w = LIVE_IQ_READOUT;
+  if (!w.hasData) return;
+  const now = performance.now();
+  const cutoff = now - PEAK_WINDOW_MS;
+  while (w.peakSamples.length && w.peakSamples[0].t < cutoff) {
+    w.peakSamples.shift();
+  }
+  if (!w.peakSamples.length) return;
+  let best = w.peakSamples[0];
+  for (let i = 1; i < w.peakSamples.length; i++) {
+    if (w.peakSamples[i].val > best.val) best = w.peakSamples[i];
+  }
+  const peakEl = $("wf-pill-peak");
+  const ageEl = $("wf-pill-age");
+  if (peakEl) peakEl.textContent = `peak ${best.val.toFixed(1)} dBFS @ ${best.freq.toFixed(3)}`;
+  if (ageEl) ageEl.textContent = `last frame ${w.lastAgeMs}ms`;
+}
+
 function renderWaterfall(data) {
   if (!data) return;
   // Phase 6a: live state from /run/scannerproject/waterfall/state.json.
@@ -4024,8 +4071,10 @@ function renderWaterfall(data) {
     if (data.bins[i] > peakVal) { peakVal = data.bins[i]; peakIdx = i; }
   }
   const peakF = min + (peakIdx / data.bins.length) * bw;
-  $("wf-pill-peak").textContent = `peak ${peakVal.toFixed(1)} dBFS @ ${peakF.toFixed(3)}`;
-  $("wf-pill-age").textContent = `last frame ${data.last_frame_age_ms || 0}ms`;
+  // Throttled readouts: buffer the latest peak/age values; a paced ticker
+  // (started below) flushes them to the DOM at PEAK_READOUT_PERIOD_MS and
+  // shows the max-over-PEAK_WINDOW_MS so the displayed peak is stable.
+  pushLiveIqReadout(peakVal, peakF, data.last_frame_age_ms || 0);
 
   // Live tag: dongle count + bw — driven by the actual dongle array the
   // backend ships (was hardcoded "2", which could drift from reality).
