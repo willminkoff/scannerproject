@@ -466,6 +466,44 @@
   }
   .digital-chips .chip.on, .analog-chips .chip.on { background: var(--sky); color: #04101e; font-weight: 600; }
 
+  /* ============ Spectrum (FFT trace) plot — HDSDR/SDR#-style ============
+     A small canvas that sits directly above each waterfall and shares its
+     x-axis (frequency range).  Renders a real-time line graph of power vs.
+     freq (live trace + translucent peak-hold + top-3 peak markers).  The
+     spec wrap squares its bottom corners and the waterfall wrap below it
+     squares its top corners so the two visually fuse into a single
+     analyzer block — the standard layout SDR receivers use. */
+  .spec-canvas-wrap {
+    position: relative;
+    height: 80px;
+    background: #04060d;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.04);
+    border-bottom: none;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+  }
+  .spec-canvas-wrap canvas { display: block; width: 100%; height: 100%; }
+  /* VFO pane is smaller — match its mini-waterfall's tighter radius and
+     give the spec a shorter height so the pane stays balanced. */
+  .pane-vfo .spec-canvas-wrap {
+    height: 60px;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+  }
+  /* When a spec sits directly above a waterfall wrap, square the top of
+     the waterfall so the two read as one block instead of two cards. */
+  .spec-canvas-wrap + .wf-canvas-wrap,
+  .spec-canvas-wrap + .disco-canvas-wrap,
+  .spec-canvas-wrap + .vfo-mini-wf {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+  @media (max-width: 600px) {
+    .spec-canvas-wrap { height: 60px; }
+    .pane-vfo .spec-canvas-wrap { height: 50px; }
+  }
+
   /* ============ Waterfall pane internals ============ */
   .wf-canvas-wrap {
     position: relative;
@@ -1298,6 +1336,9 @@
             <span class="toggle off" id="vfo-bt" data-key="bt_routed"></span>
           </div>
         </div>
+        <div class="spec-canvas-wrap">
+          <canvas id="vfo-spec" class="spec-canvas"></canvas>
+        </div>
         <div class="vfo-mini-wf">
           <canvas id="vfo-wf"></canvas>
           <div class="center-line"></div>
@@ -1334,6 +1375,9 @@
       <span class="sub" id="wf-sub">2 × RTL-SDR</span>
     </div>
     <div class="pane-body">
+      <div class="spec-canvas-wrap">
+        <canvas id="wf-spec" class="spec-canvas"></canvas>
+      </div>
       <div class="wf-canvas-wrap">
         <canvas id="wf-canvas"></canvas>
         <div class="freq-window" id="wf-window" style="left: 39%;">
@@ -1404,6 +1448,9 @@
       <span class="sub" id="disco-sub">2 × RTL-SDR · unified sweep</span>
     </div>
     <div class="pane-body">
+      <div class="spec-canvas-wrap">
+        <canvas id="disco-spec" class="spec-canvas"></canvas>
+      </div>
       <div class="disco-canvas-wrap">
         <canvas id="disco-canvas"></canvas>
         <div class="freq-window" id="disco-window" style="left: 18%;">
@@ -1569,10 +1616,13 @@ function _wfPercentile(sorted, p) {
   const idx = Math.max(0, Math.min(sorted.length - 1, Math.floor(p * sorted.length)));
   return sorted[idx];
 }
-function autoStretchIntensity(bins, key) {
-  // Estimate floor + ceiling from percentiles so neither a handful of hot
-  // signal bins nor a single strong outlier distorts the scale.  Skip the
-  // gap-fill sentinel (-120) the stitcher writes for bins no dongle covered.
+// Shared scale computation: 30th-pct floor + 95th-pct ceiling, EMA-smoothed
+// across frames.  Both the waterfall heatmap stretch (autoStretchIntensity)
+// and the spectrum plot trace (renderSpectrum) call this, keyed by pane, so
+// the two readouts always agree on what "noise" and "saturation" mean.
+// Skips the gap-fill sentinel (-120) the stitcher writes where no dongle
+// covered the bin.
+function _specScale(bins, key) {
   const real = [];
   for (let i = 0; i < bins.length; i++) {
     if (bins[i] > -119) real.push(bins[i]);
@@ -1588,7 +1638,162 @@ function autoStretchIntensity(bins, key) {
   WF_CEIL.set(key, ceil);
   const lo = floor - 4;
   const hi = Math.max(ceil, floor + WF_MIN_SPAN_DB);
+  return { floor, ceil, lo, hi };
+}
+function autoStretchIntensity(bins, key) {
+  const { lo, hi } = _specScale(bins, key);
   return normalizeBins(bins, lo, hi);
+}
+
+// ----- Spectrum (FFT trace) plot — HDSDR/SDR#-style line graph -----
+// One shared renderer drives all three panes (Live IQ, VFO, Discovery).
+// Three layers, drawn back-to-front:
+//   1. Peak hold — translucent line, per-bin running max. Reset whenever
+//      the freq window changes (center/bw retune) so it tracks what the
+//      user is actually looking at.
+//   2. Live trace — anti-aliased line graph of the current FFT row,
+//      stroked in the theme sky accent.
+//   3. Top-3 peak markers — local maxima at least 10 dB above the noise
+//      floor.  Labels "-XX dBFS @ FFF.FFF" with simple horizontal-distance
+//      rejection so labels never overlap.  No labels when nothing clears
+//      the threshold.
+// Y-axis range comes from _specScale (30th-pct floor / 95th-pct ceiling),
+// the same range the heatmap stretches to.  All colors + the label font
+// size are pulled from CSS vars — no hardcoded hex or px sizes.
+const SPEC_PEAK_HOLD = new Map();
+function renderSpectrum(canvas, bins, freqLo, freqHi, scaleKey) {
+  if (!canvas) return;
+  if (!Array.isArray(bins) || bins.length === 0) return;
+  if (!Number.isFinite(freqLo) || !Number.isFinite(freqHi) || freqHi <= freqLo) return;
+  const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
+  if (cssW < 4 || cssH < 4) return;
+  if (canvas.width !== cssW || canvas.height !== cssH) {
+    canvas.width = cssW; canvas.height = cssH;
+  }
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  const key = scaleKey || canvas.id;
+  const N = bins.length;
+  const { floor, lo, hi } = _specScale(bins, key);
+  const span = hi - lo;
+  // Map dBFS -> y. Top of canvas is strong, bottom is the noise floor.
+  // A 1px inset keeps the stroke from clipping at the edges.
+  const yOf = (db) => {
+    const t = Math.max(0, Math.min(1, (db - lo) / span));
+    return (cssH - 1) - t * (cssH - 2);
+  };
+
+  // Peak-hold buffer: reset on freq-window change or bin-count change.
+  let ph = SPEC_PEAK_HOLD.get(key);
+  if (!ph || ph.lo !== freqLo || ph.hi !== freqHi || ph.peak.length !== N) {
+    ph = { lo: freqLo, hi: freqHi, peak: new Float32Array(N) };
+    for (let i = 0; i < N; i++) ph.peak[i] = bins[i];
+    SPEC_PEAK_HOLD.set(key, ph);
+  } else {
+    const p = ph.peak;
+    for (let i = 0; i < N; i++) {
+      const v = bins[i];
+      if (v > p[i]) p[i] = v;
+    }
+  }
+
+  // All colors + typography come from CSS vars on the canvas element so a
+  // theme change in sb5_theme.css cascades through.
+  const cs = getComputedStyle(canvas);
+  const traceColor = cs.getPropertyValue('--sky-2').trim();
+  const peakColor  = cs.getPropertyValue('--amber').trim();
+  const labelColor = cs.getPropertyValue('--text-2').trim();
+  const labelFont  = cs.getPropertyValue('--type-meta').trim();
+
+  // Per-pixel linear interpolation between bins gives a smoother trace
+  // than nearest-neighbour when N < cssW (typical for SDR FFT rows).
+  const sampleAt = (arr, x) => {
+    const t = (x / Math.max(1, cssW - 1)) * (N - 1);
+    const i0 = Math.floor(t), i1 = Math.min(N - 1, i0 + 1);
+    const f = t - i0;
+    return arr[i0] * (1 - f) + arr[i1] * f;
+  };
+
+  // 1) Peak-hold — translucent back layer.
+  ctx.save();
+  ctx.globalAlpha = 0.45;
+  ctx.strokeStyle = peakColor;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = 0; x < cssW; x++) {
+    const y = yOf(sampleAt(ph.peak, x));
+    if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.restore();
+
+  // 2) Live trace — front layer, AA stroke.
+  ctx.save();
+  ctx.strokeStyle = traceColor;
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let x = 0; x < cssW; x++) {
+    const y = yOf(sampleAt(bins, x));
+    if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.restore();
+
+  // 3) Peak markers — top 3 local maxima >= floor + 10 dB.
+  const threshold = floor + 10;
+  const peaks = [];
+  for (let i = 2; i < N - 2; i++) {
+    const v = bins[i];
+    if (v < threshold) continue;
+    if (v >= bins[i-1] && v >= bins[i-2] && v >= bins[i+1] && v >= bins[i+2]) {
+      peaks.push({ idx: i, val: v });
+    }
+  }
+  peaks.sort((a, b) => b.val - a.val);
+  const minSepPx = 92;     // label-rejection radius
+  const fSpan = freqHi - freqLo;
+  const chosen = [];
+  for (const p of peaks) {
+    const px = (p.idx / Math.max(1, N - 1)) * (cssW - 1);
+    let ok = true;
+    for (const c of chosen) {
+      if (Math.abs(px - c.x) < minSepPx) { ok = false; break; }
+    }
+    if (ok) {
+      chosen.push({ x: px, idx: p.idx, val: p.val });
+      if (chosen.length === 3) break;
+    }
+  }
+  if (chosen.length) {
+    const fontPx = parseInt(labelFont, 10) || 12;
+    ctx.save();
+    ctx.font = `${fontPx}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`;
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = labelColor;
+    ctx.strokeStyle = labelColor;
+    ctx.lineWidth = 1;
+    for (const c of chosen) {
+      const freq = freqLo + (c.idx / Math.max(1, N - 1)) * fSpan;
+      const y = yOf(c.val);
+      const txt = `${c.val.toFixed(0)} dBFS @ ${freq.toFixed(3)}`;
+      const w = ctx.measureText(txt).width;
+      let lx = c.x - w / 2;
+      if (lx < 2) lx = 2;
+      if (lx + w > cssW - 2) lx = cssW - w - 2;
+      let ly = y - fontPx - 5;
+      if (ly < 1) ly = Math.min(cssH - fontPx - 1, y + 5);  // flip below the spike on top overflow
+      // 4px tick from the peak so the label clearly belongs to that spike
+      ctx.beginPath();
+      ctx.moveTo(c.x, y);
+      ctx.lineTo(c.x, Math.max(0, y - 4));
+      ctx.stroke();
+      ctx.fillText(txt, lx, ly);
+    }
+    ctx.restore();
+  }
 }
 // High-contrast "turbo"-style palette: noise = dark navy, signal sweeps
 // blue -> cyan -> green -> yellow -> orange -> red so a 10 dB-over-noise
@@ -2037,6 +2242,7 @@ function renderWaterfall(data) {
 
   const intensity = autoStretchIntensity(data.bins, "wf-canvas");
   pushWaterfallRow("wf-canvas", intensity, wfColormap);
+  renderSpectrum($("wf-spec"), data.bins, min, max, "wf-canvas");
 }
 
 let VFO_LOCAL = { freq_mhz: 127.700, mod: "am", muted: false, bt_routed: false };
@@ -2100,15 +2306,15 @@ function renderVFO(data) {
     const t = $("vfo-bt");
     if (t && !t.dataset.userEdited) t.classList.toggle("off", !data.bt_routed);
   }
-  if (Array.isArray(data.bins) && data.bins.length) {
-    const intensity = normalizeBins(data.bins, -95, -25);
-    pushWaterfallRow("vfo-wf", intensity);
-  }
-
   // Axis labels — prefer backend-provided window, fall back to +/-1.2.
   const f = (typeof data.freq_mhz === "number") ? data.freq_mhz : VFO_LOCAL.freq_mhz;
   const lo = (typeof data.freq_min_mhz === "number") ? data.freq_min_mhz : (f - 1.2);
   const hi = (typeof data.freq_max_mhz === "number") ? data.freq_max_mhz : (f + 1.2);
+  if (Array.isArray(data.bins) && data.bins.length) {
+    const intensity = normalizeBins(data.bins, -95, -25);
+    pushWaterfallRow("vfo-wf", intensity);
+    renderSpectrum($("vfo-spec"), data.bins, lo, hi, "vfo-spec");
+  }
   $("vfo-low").textContent = lo.toFixed(2);
   $("vfo-center").textContent = f.toFixed(3);
   $("vfo-high").textContent = hi.toFixed(2);
@@ -2224,6 +2430,9 @@ function renderDisco(data) {
   if (Array.isArray(data.bins) && data.bins.length) {
     const intensity = normalizeBins(data.bins, -95, -25);
     pushWaterfallRow("disco-canvas", intensity);
+    if (haveRange) {
+      renderSpectrum($("disco-spec"), data.bins, start, end, "disco-spec");
+    }
   }
   // Detections — replace mock with live classifier output.
   const dets = Array.isArray(data.detections) ? data.detections : [];
