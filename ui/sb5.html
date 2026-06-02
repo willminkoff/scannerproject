@@ -351,6 +351,43 @@
   .pane-evidence .ev-cell { gap: 5px; }
   .pane-evidence .ev-cell .lbl { font-size: var(--type-micro); }
 
+  /* ============ compact dongle indicator ============
+     Replaces the verbose per-field evidence grid in each pane footer.
+     Detail (serials, modes, sample rates, ages) lives in the Sitrep modal;
+     the pane footer just needs to say "is this pane's hardware up?" at a
+     glance. Format: "N/M  DONGLES" — green when N==M, amber when partial,
+     red when N==0. Click opens Sitrep where the detail belongs. */
+  .dongle-badge {
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--line-2);
+    border-radius: 999px;
+    padding: 2px 10px;
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: var(--type-meta);
+    color: var(--text-3);
+    cursor: pointer;
+    line-height: 1.4;
+    transition: border-color 120ms ease, color 120ms ease;
+  }
+  .dongle-badge:hover, .dongle-badge:focus-visible {
+    border-color: var(--text-3);
+    outline: none;
+  }
+  .dongle-badge .db-num { font-weight: 600; }
+  .dongle-badge .db-lbl {
+    color: var(--text-4);
+    text-transform: uppercase;
+    font-size: var(--type-micro);
+    letter-spacing: 0.05em;
+    font-family: inherit;
+  }
+  .dongle-badge.db-ok      { color: var(--green); border-color: rgba(52, 199, 89, 0.38); }
+  .dongle-badge.db-partial { color: var(--amber); border-color: rgba(255, 159, 10, 0.42); }
+  .dongle-badge.db-down    { color: var(--red);   border-color: rgba(255, 69, 58, 0.48); background: rgba(255, 69, 58, 0.08); }
+  .dongle-badge.db-down .db-lbl { color: var(--red); opacity: 0.85; }
+
   /* ============ dongle-lost overlay ============ */
   .dongle-overlay {
     position: absolute; inset: 0;
@@ -1639,10 +1676,11 @@
       </div>
     </div>
     <div class="pane-evidence" id="analog-evidence">
-      <div class="ev-cell"><span class="lbl">DONGLE</span><span class="val">RSPduo Tuner 1</span></div>
-      <div class="ev-cell"><span class="lbl">MODE</span><span class="val">MA · 2.4 MSPS</span></div>
-      <div class="ev-cell"><span class="lbl">RTL-AIRBAND</span><span class="val" id="ev-analog-svc">—</span></div>
-      <div class="ev-cell"><span class="lbl">STATS</span><span class="val" id="ev-analog-stats">—</span></div>
+      <button type="button" class="dongle-badge" id="ev-analog-badge"
+              data-sitrep="open" aria-label="Open Sitrep for dongle detail">
+        <span class="db-num" id="ev-analog-badge-num">—/1</span>
+        <span class="db-lbl">dongles</span>
+      </button>
     </div>
   </section>
 
@@ -1684,10 +1722,11 @@
       </div>
     </div>
     <div class="pane-evidence" id="digital-evidence">
-      <div class="ev-cell"><span class="lbl">DONGLE</span><span class="val">RSPduo Tuner 2</span></div>
-      <div class="ev-cell"><span class="lbl">MODE</span><span class="val">SL · CQPSK</span></div>
-      <div class="ev-cell"><span class="lbl">OP25 SVC</span><span class="val" id="ev-digital-svc">—</span></div>
-      <div class="ev-cell"><span class="lbl">VLC BRIDGE</span><span class="val" id="ev-digital-vlc">—</span></div>
+      <button type="button" class="dongle-badge" id="ev-digital-badge"
+              data-sitrep="open" aria-label="Open Sitrep for dongle detail">
+        <span class="db-num" id="ev-digital-badge-num">—/1</span>
+        <span class="db-lbl">dongles</span>
+      </button>
     </div>
   </section>
 
@@ -1734,10 +1773,11 @@
       </div>
     </div>
     <div class="pane-evidence" id="vfo-evidence">
-      <div class="ev-cell"><span class="lbl">DONGLE C</span><span class="val" id="ev-vfo-state">—</span></div>
-      <div class="ev-cell"><span class="lbl">SAMPLE</span><span class="val" id="ev-vfo-rate">2.4 MSPS</span></div>
-      <div class="ev-cell"><span class="lbl">LAST FRAME</span><span class="val" id="ev-vfo-frame">— ms ago</span></div>
-      <div class="ev-cell"><span class="lbl">SERIAL</span><span class="val mono" id="ev-vfo-serial">—</span></div>
+      <button type="button" class="dongle-badge" id="ev-vfo-badge"
+              data-sitrep="open" aria-label="Open Sitrep for dongle detail">
+        <span class="db-num" id="ev-vfo-badge-num">—/1</span>
+        <span class="db-lbl">dongles</span>
+      </button>
     </div>
   </section>
 
@@ -1820,10 +1860,11 @@
       </div>
     </div>
     <div class="pane-evidence" id="wf-evidence">
-      <div class="ev-cell"><span class="lbl">DONGLE A</span><span class="val info" id="ev-wf-a">not deployed</span></div>
-      <div class="ev-cell"><span class="lbl">DONGLE B</span><span class="val info" id="ev-wf-b">not deployed</span></div>
-      <div class="ev-cell"><span class="lbl">SAMPLE</span><span class="val" id="ev-wf-rate">2.4 MSPS</span></div>
-      <div class="ev-cell"><span class="lbl">LAST FRAME</span><span class="val" id="ev-wf-frame">— ms ago</span></div>
+      <button type="button" class="dongle-badge" id="ev-wf-badge"
+              data-sitrep="open" aria-label="Open Sitrep for dongle detail">
+        <span class="db-num" id="ev-wf-badge-num">—/2</span>
+        <span class="db-lbl">dongles</span>
+      </button>
     </div>
   </section>
 
@@ -1880,10 +1921,11 @@
       </div>
     </div>
     <div class="pane-evidence" id="disco-evidence">
-      <div class="ev-cell"><span class="lbl">DONGLE 1</span><span class="val info" id="ev-disco-1">…</span></div>
-      <div class="ev-cell"><span class="lbl">DONGLE 2</span><span class="val info" id="ev-disco-2">…</span></div>
-      <div class="ev-cell"><span class="lbl">CYCLE</span><span class="val" id="ev-disco-cycle">—</span></div>
-      <div class="ev-cell"><span class="lbl">LAST FRAME</span><span class="val" id="ev-disco-frame">— ms ago</span></div>
+      <button type="button" class="dongle-badge" id="ev-disco-badge"
+              data-sitrep="open" aria-label="Open Sitrep for dongle detail">
+        <span class="db-num" id="ev-disco-badge-num">—/2</span>
+        <span class="db-lbl">dongles</span>
+      </button>
     </div>
   </section>
 
@@ -2010,6 +2052,29 @@ function escapeHtml(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   })[c]);
+}
+
+// Pane-footer dongle indicator. Writes "N/M" into the badge and toggles
+// db-ok / db-partial / db-down so the color matches state. Full dongle
+// detail (serials, modes, sample rates, ages) lives in the Sitrep modal;
+// the pane footer just answers "is this pane's hardware up?".
+function setDongleBadge(badgeId, alive, total) {
+  const btn = $(badgeId);
+  if (!btn) return;
+  const a = Math.max(0, alive | 0);
+  const t = Math.max(0, total | 0);
+  const numEl = btn.querySelector(".db-num");
+  if (numEl) numEl.textContent = `${a}/${t}`;
+  btn.classList.remove("db-ok", "db-partial", "db-down");
+  if (t === 0) {
+    btn.classList.add("db-down");
+  } else if (a === 0) {
+    btn.classList.add("db-down");
+  } else if (a < t) {
+    btn.classList.add("db-partial");
+  } else {
+    btn.classList.add("db-ok");
+  }
 }
 async function fetchJSON(url, ms) {
   const ctrl = new AbortController();
@@ -2915,16 +2980,17 @@ function renderHeartbeat(hb) {
       : "Details";
   }
 
+  // Pane-footer dongle badges (compact "N/M dongles"). Analog + Digital each
+  // own one SDRplay tuner; we read service health from the heartbeat
+  // evidence to decide alive (1) vs missing (0). Detail lives in Sitrep.
   const find = (needle) => evid.find(e => String(e.label||"").toLowerCase().includes(needle));
-  const analogSvc = find("rtl-airband-airband");
-  if (analogSvc) $("ev-analog-svc").textContent = analogSvc.value || "—";
-  const analogStats = find("stats file");
-  if (analogStats) $("ev-analog-stats").textContent = analogStats.value || "—";
-  const digSvc = find("scanner-vlc-digital");
-  if (digSvc) {
-    $("ev-digital-svc").textContent = digSvc.value || "—";
-    $("ev-digital-vlc").textContent = digSvc.value || "—";
-  }
+  const svcAliveFromEvid = (row) => {
+    if (!row) return 0;
+    const st = String(row.status || "ok").toLowerCase();
+    return (st === "ok" || st === "warn") ? 1 : 0;
+  };
+  setDongleBadge("ev-analog-badge", svcAliveFromEvid(find("rtl-airband-airband")), 1);
+  setDongleBadge("ev-digital-badge", svcAliveFromEvid(find("scanner-vlc-digital")), 1);
 
   renderNowListeningFromHeartbeat(hb);
 
@@ -3190,32 +3256,11 @@ function renderWaterfall(data) {
   const wfSub = $("wf-sub");
   if (wfSub) wfSub.textContent = `${nTotal} × RTL-SDR`;
 
-  // Per-dongle evidence rows.  Backend ships an array of {serial,state,
-  // last_frame_age_ms,center_mhz} dongle dicts.
-  const dongles = Array.isArray(data.dongles) ? data.dongles : [];
-  const dA = dongles[0] || {};
-  const dB = dongles[1] || {};
-  const evA = $("ev-wf-a");
-  const evB = $("ev-wf-b");
-  if (evA) {
-    if (dA.state === "ok") {
-      evA.textContent = `live · ${dA.serial || "?"} · ${dA.last_frame_age_ms|0}ms`;
-      evA.className = "val";
-    } else {
-      evA.textContent = `DOWN · ${dA.serial || "?"}`;
-      evA.className = "val bad";
-    }
-  }
-  if (evB) {
-    if (dB.state === "ok") {
-      evB.textContent = `live · ${dB.serial || "?"} · ${dB.last_frame_age_ms|0}ms`;
-      evB.className = "val";
-    } else {
-      evB.textContent = `DOWN · ${dB.serial || "?"}`;
-      evB.className = "val bad";
-    }
-  }
-  $("ev-wf-frame").textContent = `${data.last_frame_age_ms || 0} ms ago`;
+  // Compact "N/M dongles" badge — detail lives in Sitrep.
+  const wfDongles = Array.isArray(data.dongles) ? data.dongles : [];
+  const wfTotal = wfDongles.length || 2;
+  const wfAlive = wfDongles.filter(d => d && d.state === "ok").length;
+  setDongleBadge("ev-wf-badge", wfAlive, wfTotal);
 
   if (!wsBinsFresh(WS_PANE_WATERFALL)) {
     const intensity = autoStretchIntensity(data.bins, "wf-canvas");
@@ -3295,31 +3340,8 @@ function renderVFO(data) {
     else liveTag.textContent = `DOWN · ${serial}`;
   }
 
-  // Evidence cells.
-  const stateEl = $("ev-vfo-state");
-  if (stateEl) {
-    if (topState === "ok") {
-      stateEl.textContent = "live";
-      stateEl.className = "val";
-    } else if (topState === "degraded") {
-      stateEl.textContent = "degraded";
-      stateEl.className = "val";
-    } else {
-      stateEl.textContent = "DOWN";
-      stateEl.className = "val bad";
-    }
-  }
-  $("ev-vfo-serial").textContent = serial;
-  const ageMs = (typeof dongle.last_frame_age_ms === "number") ? dongle.last_frame_age_ms
-                : (typeof data.last_frame_age_ms === "number") ? data.last_frame_age_ms
-                : null;
-  if (ageMs !== null && ageMs >= 0) {
-    $("ev-vfo-frame").textContent = `${ageMs} ms ago`;
-  } else if (topState === "down") {
-    $("ev-vfo-frame").textContent = "— · service down";
-  } else {
-    $("ev-vfo-frame").textContent = "— ms ago";
-  }
+  // Compact "N/1 dongles" badge — serial/age/etc live in Sitrep.
+  setDongleBadge("ev-vfo-badge", (topState === "down") ? 0 : 1, 1);
 }
 
 // Last range the backend reported for Disco. Used to seed range inputs
@@ -3361,39 +3383,8 @@ function renderDisco(data) {
   }
   const sub = $("disco-sub");
   if (sub) sub.textContent = `${dongles.length} × RTL-SDR · unified sweep`;
-  // Per-dongle evidence cells (up to 2 visible).
-  for (let i = 0; i < 2; i++) {
-    const el = $("ev-disco-" + (i + 1));
-    if (!el) continue;
-    const d = dongles[i];
-    if (!d) {
-      el.textContent = "not configured";
-      el.className = "val info";
-      continue;
-    }
-    const sr = Array.isArray(d.sub_range_mhz) ? d.sub_range_mhz : [];
-    const lo = Number(sr[0]) || 0, hi = Number(sr[1]) || 0;
-    if (d.state === "ok") {
-      el.textContent = `live · ${d.serial || "?"} · ${lo.toFixed(0)}-${hi.toFixed(0)}MHz · ${d.last_frame_age_ms|0}ms`;
-      el.className = "val";
-    } else {
-      el.textContent = `${(d.state || "down").toUpperCase()} · ${d.serial || "?"}`;
-      el.className = "val bad";
-    }
-  }
-  // Cycle + frame age cells.
-  const cycleEl = $("ev-disco-cycle");
-  if (cycleEl) {
-    const ca = data.last_full_cycle_age_sec;
-    cycleEl.textContent = (typeof ca === "number") ? `${ca.toFixed(1)}s ago` : "—";
-  }
-  const frameEl = $("ev-disco-frame");
-  if (frameEl) {
-    // Pick the freshest per-dongle frame age.
-    let ages = dongles.map(d => Number(d && d.last_frame_age_ms))
-                      .filter(n => Number.isFinite(n) && n >= 0);
-    frameEl.textContent = ages.length ? `${Math.min.apply(null, ages)} ms ago` : "—";
-  }
+  // Compact "N/M dongles" badge — per-dongle detail lives in Sitrep.
+  setDongleBadge("ev-disco-badge", okN, dongles.length || 2);
   // Detections — surface both classified and pending rows from
   // /api/disco. Pending rows are sweep peaks the classifier hasn't
   // labelled yet; they render dim so the operator can see disco is
@@ -4369,6 +4360,12 @@ function wireSitrep() {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); }
     });
   }
+  // Pane-footer dongle badges (Analog/Digital/VFO/Live IQ/Disco) open
+  // Sitrep — that's where the per-dongle detail (serials, modes, ages)
+  // lives now that the pane footers are compact.
+  document.querySelectorAll('.dongle-badge[data-sitrep="open"]').forEach(btn => {
+    btn.addEventListener("click", open);
+  });
   const closeAndClear = () => { _hideSitrepConfirm(); closeModal("sitrep-modal"); };
   if (closeBtn) closeBtn.addEventListener("click", closeAndClear);
   if (overlay) {
