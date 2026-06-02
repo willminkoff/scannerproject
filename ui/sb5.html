@@ -1407,6 +1407,20 @@
     min-height: 14px;
   }
   .sitrep-ask-claude .ac-status.busy { color: var(--sky-2); }
+  /* Reuse the sitrep-spin keyframes (defined above) for the Ask Claude
+     "Thinking…" indicator. Inline spinner sits flush before the text. */
+  .sitrep-ask-claude .ac-status.busy::before {
+    content: "";
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    margin-right: 6px;
+    border-radius: 50%;
+    border: 2px solid var(--sky-2);
+    border-top-color: transparent;
+    animation: sitrep-spin 0.7s linear infinite;
+    vertical-align: -1px;
+  }
   .sitrep-ask-claude .ac-status.error { color: var(--red); }
 
   /* Mobile: full-screen modal */
@@ -4474,8 +4488,12 @@ function _wireSitrepCtrls() {
 //          POST /api/ask-claude/reset      { session_id }
 // Shared with /sb3 — handler lives in ui/handlers.py / ui/claude_ask.py.
 const ASK_CLAUDE_SESSION_KEY = "sb5.askClaude.sessionId";
-const ASK_CLAUDE_TIMEOUT_MS = 200000;
+// Slightly longer than the backend's CLAUDE_TIMEOUT_SEC (240s) so the
+// server gets to return its own user-friendly timeout error before the
+// AbortController fires.
+const ASK_CLAUDE_TIMEOUT_MS = 260000;
 let askClaudeBusy = false;
+let askClaudeTickHandle = null;
 
 function setupAskClaude() {
   const sendBtn = $("ac-send");
@@ -4556,10 +4574,20 @@ async function submitAskClaude() {
 
   askClaudeBusy = true;
   sendBtn.disabled = true;
+  input.disabled = true;
   sendBtn.textContent = "…";
-  askClaudeSetStatus("Asking Claude… (can take 30-120s for complex questions)", "busy");
 
   const startedAt = Date.now();
+  // Thinking… indicator: ticks the elapsed seconds every 1s so the
+  // operator can see the request is still in flight. Cleared in the
+  // finally below regardless of how the fetch ends.
+  const renderThinking = () => {
+    const secs = Math.floor((Date.now() - startedAt) / 1000);
+    askClaudeSetStatus(`Thinking… ${secs}s`, "busy");
+  };
+  renderThinking();
+  askClaudeTickHandle = setInterval(renderThinking, 1000);
+
   const ctl = new AbortController();
   const timeout = setTimeout(() => ctl.abort(), ASK_CLAUDE_TIMEOUT_MS);
   try {
@@ -4593,9 +4621,15 @@ async function submitAskClaude() {
     askClaudeSetStatus(err, "error");
   } finally {
     clearTimeout(timeout);
+    if (askClaudeTickHandle !== null) {
+      clearInterval(askClaudeTickHandle);
+      askClaudeTickHandle = null;
+    }
     askClaudeBusy = false;
     sendBtn.disabled = false;
+    input.disabled = false;
     sendBtn.textContent = "Ask Claude";
+    input.focus();
   }
 }
 

@@ -16,7 +16,7 @@ Invariants
 - Each invocation embeds the full conversation history + a fresh
   status snapshot.  Token usage grows linearly with turns; we cap at
   ``CLAUDE_ASK_MAX_HISTORY`` turns (default 10).
-- Subprocesses are bounded by ``CLAUDE_TIMEOUT_SEC`` (default 180s).
+- Subprocesses are bounded by ``CLAUDE_TIMEOUT_SEC`` (default 240s).
 - Session storage is in-process memory; restart of airband-ui wipes
   history.  That is acceptable for the SB3 use case.
 """
@@ -34,7 +34,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 CLAUDE_BIN = os.getenv("CLAUDE_BIN", "/usr/local/bin/claude")
-CLAUDE_TIMEOUT_SEC = int(os.getenv("CLAUDE_TIMEOUT_SEC", "180"))
+CLAUDE_TIMEOUT_SEC = int(os.getenv("CLAUDE_TIMEOUT_SEC", "240"))
 MAX_HISTORY_TURNS = int(os.getenv("CLAUDE_ASK_MAX_HISTORY", "10"))
 STATUS_SNAPSHOT_MAX_CHARS = int(os.getenv("CLAUDE_ASK_STATUS_MAX_CHARS", "10000"))
 PROJECT_DIR = os.getenv(
