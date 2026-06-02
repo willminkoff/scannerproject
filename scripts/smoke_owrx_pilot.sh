@@ -96,9 +96,9 @@ section "icecast mounts"
 for m in "${ICECAST_MOUNTS[@]}"; do
     # Stream up to MOUNT_DATA_TIMEOUT s; curl exits 28 on the cap, which is the
     # expected outcome for an endless mp3 stream — what matters is bytes flowed.
-    read -r mcode msize < <(curl -s -o /dev/null \
-        --max-time "$MOUNT_DATA_TIMEOUT" \
+    out=$(curl -s -o /dev/null --max-time "$MOUNT_DATA_TIMEOUT" \
         -w '%{http_code} %{size_download}' "$ICECAST_BASE$m" || true)
+    mcode=${out%% *}; msize=${out##* }
     if [ "$mcode" = "200" ] && [ "${msize:-0}" -gt 0 ]; then
         pass "$m → 200, ${msize}B in ${MOUNT_DATA_TIMEOUT}s"
     else
