@@ -37,6 +37,12 @@ CLAUDE_BIN = os.getenv("CLAUDE_BIN", "/usr/local/bin/claude")
 CLAUDE_TIMEOUT_SEC = int(os.getenv("CLAUDE_TIMEOUT_SEC", "240"))
 MAX_HISTORY_TURNS = int(os.getenv("CLAUDE_ASK_MAX_HISTORY", "10"))
 STATUS_SNAPSHOT_MAX_CHARS = int(os.getenv("CLAUDE_ASK_STATUS_MAX_CHARS", "10000"))
+# Per-turn answer truncation when embedding history into the next prompt.
+# Past long answers (with tool-use output, code blocks, big tables) can blow
+# the prompt budget by turn 3–4, which presented to the operator as
+# "claude exited with code 1" on follow-up turns.  Truncating embedded
+# history keeps the prompt sized predictably.
+HISTORY_ANSWER_MAX_CHARS = int(os.getenv("CLAUDE_ASK_HISTORY_ANSWER_MAX_CHARS", "4000"))
 PROJECT_DIR = os.getenv(
     "CLAUDE_ASK_PROJECT_DIR",
     "/home/ubuntu/scannerproject",
@@ -117,9 +123,13 @@ def _build_prompt(
             history_lines.append(
                 f"\n## Operator asked\n{turn.get('question', '').strip()}"
             )
-            history_lines.append(
-                f"\n## You answered\n{turn.get('answer', '').strip()}"
-            )
+            ans = (turn.get("answer", "") or "").strip()
+            if len(ans) > HISTORY_ANSWER_MAX_CHARS:
+                ans = (
+                    ans[:HISTORY_ANSWER_MAX_CHARS]
+                    + f"\n... [truncated, {len(ans) - HISTORY_ANSWER_MAX_CHARS} more chars]"
+                )
+            history_lines.append(f"\n## You answered\n{ans}")
         sections.append("\n".join(history_lines))
     sections.append(f"# Current operator question\n{question.strip()}")
     return "\n\n".join(sections)
@@ -168,8 +178,28 @@ def _run_claude_subprocess(prompt: str) -> tuple[bool, str]:
         logger.exception("claude_ask: subprocess failed")
         return False, f"claude subprocess error: {exc}"
     if result.returncode != 0:
+        # Surface BOTH stderr and stdout — the CLI sometimes prints the
+        # actionable error (auth lapsed, context overflow, mid-stream
+        # tool-use failure) to stdout when run with --output-format text.
+        # Previously we only returned stderr, which is often empty, and
+        # the operator saw the unhelpful "claude exited with code 1".
         stderr_tail = (result.stderr or "").strip()[-1500:]
-        return False, stderr_tail or f"claude exited with code {result.returncode}"
+        stdout_tail = (result.stdout or "").strip()[-1500:]
+        # Log the full picture for post-mortem debugging.
+        logger.warning(
+            "claude_ask: claude exited rc=%d (prompt_len=%d, stderr=%r, stdout=%r)",
+            result.returncode,
+            len(prompt or ""),
+            stderr_tail[:400],
+            stdout_tail[:400],
+        )
+        parts = []
+        if stderr_tail:
+            parts.append(f"stderr: {stderr_tail}")
+        if stdout_tail:
+            parts.append(f"stdout: {stdout_tail}")
+        detail = " | ".join(parts) if parts else f"exit code {result.returncode}"
+        return False, f"claude exited (rc={result.returncode}) — {detail}"
     return True, (result.stdout or "").strip()
 
 

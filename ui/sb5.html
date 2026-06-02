@@ -206,6 +206,13 @@
      visible indicator. */
   .tb-pill { display: none !important; }
 
+  /* sb5 topbar cleanup — the state-badge IS the Sitrep launcher, so the
+     standalone Sitrep button and the inline heartbeat headline group are
+     removed from the visible bar. We force display:none even when the
+     element's [hidden] attribute is set, because some layout code may
+     re-add the .hb-group class. */
+  .tb-sitrep-btn[hidden], .hb-group[hidden] { display: none !important; }
+
   /* ============ Phase 5c — hb-evidence expander (hide-by-default) ============ */
   .hb-evidence-toggle {
     display: inline-flex; align-items: center; gap: 6px;
@@ -351,11 +358,11 @@
   .pane-evidence .ev-cell { gap: 5px; }
   .pane-evidence .ev-cell .lbl { font-size: var(--type-micro); }
 
-  /* ============ compact dongle indicator ============
+  /* ============ compact tuner indicator ============
      Replaces the verbose per-field evidence grid in each pane footer.
      Detail (serials, modes, sample rates, ages) lives in the Sitrep modal;
      the pane footer just needs to say "is this pane's hardware up?" at a
-     glance. Format: "N/M  DONGLES" — green when N==M, amber when partial,
+     glance. Format: "N/M  TUNER" — green when N==M, amber when partial,
      red when N==0. Click opens Sitrep where the detail belongs. */
   .dongle-badge {
     appearance: none;
@@ -849,6 +856,42 @@
     gap: 10px;
     align-items: center;
     padding: 6px 0;
+  }
+  /* Frequency row gets a third column for the explicit Tune button.
+     The button POSTs /api/vfo with the current freq+mode (same path
+     Enter takes); Enter on the input still works as before. After a
+     successful tune the input flashes a green ring so the operator
+     gets a visual confirmation the action took. */
+  .vfo-row.vfo-row-freq {
+    grid-template-columns: 110px 1fr auto;
+  }
+  .vfo-tune-btn {
+    appearance: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--sky);
+    background: rgba(90, 184, 255, 0.16);
+    color: var(--sky-2);
+    font-family: inherit;
+    font-size: var(--type-body-sm);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    min-height: 36px;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  }
+  .vfo-tune-btn:hover, .vfo-tune-btn:focus-visible {
+    background: rgba(90, 184, 255, 0.28);
+    outline: none;
+  }
+  .vfo-tune-btn:active { transform: translateY(1px); }
+  @keyframes vfo-tune-flash {
+    0%   { box-shadow: 0 0 0 0 rgba(52, 199, 89, 0.65); border-color: var(--green); }
+    60%  { box-shadow: 0 0 0 8px rgba(52, 199, 89, 0.0);  border-color: var(--green); }
+    100% { box-shadow: 0 0 0 0 rgba(52, 199, 89, 0.0); }
+  }
+  .vfo-input.flash-tuned {
+    animation: vfo-tune-flash 700ms ease-out;
   }
   .vfo-row .label {
     font-size: var(--type-micro); color: var(--text-3); font-weight: 500;
@@ -1364,6 +1407,36 @@
     margin-top: 2px;
   }
   .sitrep-ask-claude .ac-turn.error .a .body { color: var(--red); }
+  /* Preset prompt chips row — sits above the input, gives the operator
+     one-tap access to the most common health questions. Each chip fills
+     the input with a detailed, system-aware prompt; the operator reviews
+     and presses Ask Claude (no auto-submit). */
+  .sitrep-ask-claude .ac-presets {
+    display: flex; flex-wrap: wrap; gap: var(--space-xs, 6px);
+    margin-bottom: var(--space-sm);
+  }
+  .sitrep-ask-claude .ac-preset {
+    appearance: none;
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--line-2);
+    background: rgba(138, 155, 181, 0.10);
+    color: var(--text-2);
+    font-family: inherit;
+    font-size: var(--type-micro);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    min-height: 28px;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  }
+  .sitrep-ask-claude .ac-preset:hover,
+  .sitrep-ask-claude .ac-preset:focus-visible {
+    background: rgba(90, 184, 255, 0.12);
+    border-color: rgba(90, 184, 255, 0.45);
+    color: var(--sky-2);
+    outline: none;
+  }
   .sitrep-ask-claude .ac-input-row {
     display: grid;
     grid-template-columns: 1fr auto auto;
@@ -1700,10 +1773,11 @@
     <span class="tb-time mono" id="tb-time">—:—</span>
     <span class="tb-title">Scanner<span class="sub" id="tb-sub">sb5 · 5-pane</span></span>
 
-    <!-- heartbeat headline + Details: one group that fills the row on desktop
-         and drops to its own row (together) on mobile. The headline ellipsizes
-         when tight. -->
-    <div class="hb-group">
+    <!-- heartbeat headline + Details are now hidden in the topbar — the
+         state-badge on the left carries the health signal (color) and the
+         headline is shown on hover. Full detail lives in Sitrep. The DOM
+         nodes are kept (hidden) because rendering code writes to them. -->
+    <div class="hb-group" hidden aria-hidden="true">
       <span class="hb-line">
         <span class="hb-headline" id="hb-headline">Reading scanner state…</span>
         <span class="hb-explain" id="hb-explain"></span>
@@ -1735,7 +1809,11 @@
       <span id="tb-sounding-label">Sounding off</span>
     </span>
     <span class="ws-ind" id="wsIndicator" title="Spectrum push channel">●</span>
-    <button class="tb-sitrep-btn" id="tb-sitrep-btn" type="button" title="Open Sitrep">
+    <!-- Standalone Sitrep button removed — the upper-left state-badge IS the
+         Sitrep launcher now (its background reflects overall health). The
+         button element is kept (hidden) so the existing wire-up code that
+         attaches a click handler to #tb-sitrep-btn is harmless. -->
+    <button class="tb-sitrep-btn" id="tb-sitrep-btn" type="button" hidden aria-hidden="true">
       <span class="icon" aria-hidden="true">ⓘ</span>
       <span>Sitrep</span>
     </button>
@@ -1805,9 +1883,11 @@
     </div>
     <div class="pane-evidence" id="analog-evidence">
       <button type="button" class="dongle-badge" id="ev-analog-badge"
-              data-sitrep="open" aria-label="Open Sitrep for dongle detail">
+              data-sitrep="open"
+              title="Tuner status — click to open Sitrep for detail"
+              aria-label="Open Sitrep for tuner detail">
         <span class="db-num" id="ev-analog-badge-num">—/1</span>
-        <span class="db-lbl">dongles</span>
+        <span class="db-lbl">tuner</span>
       </button>
     </div>
   </section>
@@ -1851,9 +1931,11 @@
     </div>
     <div class="pane-evidence" id="digital-evidence">
       <button type="button" class="dongle-badge" id="ev-digital-badge"
-              data-sitrep="open" aria-label="Open Sitrep for dongle detail">
+              data-sitrep="open"
+              title="Tuner status — click to open Sitrep for detail"
+              aria-label="Open Sitrep for tuner detail">
         <span class="db-num" id="ev-digital-badge-num">—/1</span>
-        <span class="db-lbl">dongles</span>
+        <span class="db-lbl">tuner</span>
       </button>
     </div>
   </section>
@@ -1868,9 +1950,11 @@
     </div>
     <div class="pane-body">
       <div class="vfo-grid">
-        <div class="vfo-row">
+        <div class="vfo-row vfo-row-freq">
           <span class="label">Frequency</span>
           <input type="text" class="vfo-input mono" id="vfo-freq" value="127.700" inputmode="decimal">
+          <button type="button" class="vfo-tune-btn" id="vfo-tune"
+                  title="Tune the VFO to the entered frequency">Tune</button>
         </div>
         <div class="vfo-row">
           <span class="label">Mode</span>
@@ -1902,9 +1986,11 @@
     </div>
     <div class="pane-evidence" id="vfo-evidence">
       <button type="button" class="dongle-badge" id="ev-vfo-badge"
-              data-sitrep="open" aria-label="Open Sitrep for dongle detail">
+              data-sitrep="open"
+              title="Tuner status — click to open Sitrep for detail"
+              aria-label="Open Sitrep for tuner detail">
         <span class="db-num" id="ev-vfo-badge-num">—/1</span>
-        <span class="db-lbl">dongles</span>
+        <span class="db-lbl">tuner</span>
       </button>
     </div>
   </section>
@@ -1989,9 +2075,11 @@
     </div>
     <div class="pane-evidence" id="wf-evidence">
       <button type="button" class="dongle-badge" id="ev-wf-badge"
-              data-sitrep="open" aria-label="Open Sitrep for dongle detail">
+              data-sitrep="open"
+              title="Tuner status — click to open Sitrep for detail"
+              aria-label="Open Sitrep for tuner detail">
         <span class="db-num" id="ev-wf-badge-num">—/2</span>
-        <span class="db-lbl">dongles</span>
+        <span class="db-lbl">tuner</span>
       </button>
     </div>
   </section>
@@ -2050,9 +2138,11 @@
     </div>
     <div class="pane-evidence" id="disco-evidence">
       <button type="button" class="dongle-badge" id="ev-disco-badge"
-              data-sitrep="open" aria-label="Open Sitrep for dongle detail">
+              data-sitrep="open"
+              title="Tuner status — click to open Sitrep for detail"
+              aria-label="Open Sitrep for tuner detail">
         <span class="db-num" id="ev-disco-badge-num">—/2</span>
-        <span class="db-lbl">dongles</span>
+        <span class="db-lbl">tuner</span>
       </button>
     </div>
   </section>
@@ -2113,6 +2203,19 @@
         <div class="sitrep-section-hd">Ask Claude</div>
         <div class="sitrep-ask-claude">
           <div class="ac-history" id="ac-history" aria-live="polite"></div>
+          <!-- Preset prompt chips. data-prompt holds the detailed prompt
+               body that gets dropped into the input on click. Operator
+               reviews then hits Ask Claude. No auto-submit. -->
+          <div class="ac-presets" id="ac-presets" role="group" aria-label="Preset prompts">
+            <button type="button" class="ac-preset" data-preset="health"
+                    data-prompt="Read the current /api/heartbeat and /api/sitrep responses. Summarize which services are alive vs degraded, which dongles are present, and call out any anomalies. Recommend specific actions for any RED items.">Health check</button>
+            <button type="button" class="ac-preset" data-preset="rf"
+                    data-prompt="Read /api/waterfall and /api/disco state. Are the SDR receivers actively producing FFT data? What's the current noise floor and peak signal level on the Live IQ band? Is the Discovery sweep producing classified detections? If anything is silent, identify why.">Check RF</button>
+            <button type="button" class="ac-preset" data-preset="audio"
+                    data-prompt="Check the icecast mounts (/ANALOG.mp3, /ANALOG_GROUND.mp3, /DIGITAL.mp3, /VFO.mp3) by hitting http://localhost:8000/status-json.xsl. Are all 4 mounts publishing live audio? If any are silent, identify the broken link in the chain (rtl-airband demod, op25 voice, vfo demod, vlc bridge, pipewire sink).">Check audio stream</button>
+            <button type="button" class="ac-preset" data-preset="disco"
+                    data-prompt="Read /api/disco. Is the sweep range active? How many classified detections in the last 30 minutes? What's the average confidence? Which frequencies have been most active? Recommend whether the sweep range or thresholds should be tuned.">Check Discovery</button>
+          </div>
           <div class="ac-input-row">
             <input type="text" id="ac-input"
                    placeholder="Ask anything about scanner state, config, or behaviour."
@@ -3096,6 +3199,19 @@ function renderHeartbeat(hb) {
   // Phase 5c: upper-LEFT state badge is the primary visible indicator.
   const badgeWord = $("state-badge-word");
   if (badgeWord) badgeWord.textContent = STATE_BADGE_WORD[category] || "…";
+
+  // sb5 topbar cleanup: the badge IS the Sitrep button now and the inline
+  // headline span is hidden, so surface the headline + explanation as a
+  // tooltip on the badge for at-a-glance "why".
+  const badgeEl = $("state-badge");
+  if (badgeEl) {
+    const headline = (hb && hb.headline) || "";
+    const explain  = (hb && hb.explanation) || "";
+    const reason = [headline, explain].filter(Boolean).join(" — ");
+    badgeEl.title = reason
+      ? `${reason} — click to open Sitrep`
+      : "Open Sitrep — scanner health detail";
+  }
 
   // Legacy compat — these nodes are hidden in Phase 5c but kept in the DOM
   // so any code (or tests) that reads them still works.
@@ -4220,14 +4336,47 @@ function showLiveToast(text) {
     setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 220);
   }, TOAST_DURATION_MS);
 }
+// Explicit commit path for the VFO freq input. Called by the Tune button
+// click handler and by the Enter-key handler on the freq input. Parses the
+// current input value, POSTs /api/vfo, and flashes a green ring around the
+// input so the operator sees the action took. Returns true on commit, false
+// if the input value is invalid (NaN, empty).
+function commitVFOFreq() {
+  const freq = document.getElementById("vfo-freq");
+  if (!freq) return false;
+  const v = parseFloat(freq.value);
+  if (!Number.isFinite(v)) return false;
+  postVFO({ freq_mhz: v });
+  // Visual confirmation: green flash ring. Drop the class first in case
+  // the animation is replayed within the 700ms window.
+  freq.classList.remove("flash-tuned");
+  // Force reflow so the animation restarts on rapid re-tunes.
+  void freq.offsetWidth;
+  freq.classList.add("flash-tuned");
+  setTimeout(() => freq.classList.remove("flash-tuned"), 800);
+  return true;
+}
+
 function wireVFOControls() {
   const freq = $("vfo-freq");
   if (freq) {
     freq.addEventListener("input", () => { freq.dataset.userEdited = "1"; });
     freq.addEventListener("change", () => {
-      const v = parseFloat(freq.value);
-      if (Number.isFinite(v)) postVFO({ freq_mhz: v });
+      // Native change fires on blur or Enter — commit then.
+      commitVFOFreq();
     });
+    freq.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        commitVFOFreq();
+      }
+    });
+  }
+  // Explicit Tune button — same commit path as Enter/blur, but a deliberate
+  // click. Additive: Enter on the freq input still commits.
+  const tuneBtn = $("vfo-tune");
+  if (tuneBtn) {
+    tuneBtn.addEventListener("click", () => { commitVFOFreq(); });
   }
   const mod = $("vfo-mod");
   if (mod) {
@@ -4505,6 +4654,22 @@ function setupAskClaude() {
   input.addEventListener("keydown", (ev) => {
     if (ev.key === "Enter") { ev.preventDefault(); submitAskClaude(); }
   });
+  // Preset prompt chips — click a chip to drop the detailed prompt into
+  // the input. We do NOT auto-submit; the operator reviews then hits
+  // Ask Claude (or edits). Focus the input afterwards for fast typing.
+  const presets = document.getElementById("ac-presets");
+  if (presets) {
+    presets.addEventListener("click", (ev) => {
+      const btn = ev.target.closest(".ac-preset");
+      if (!btn) return;
+      const prompt = btn.getAttribute("data-prompt") || "";
+      if (!prompt) return;
+      input.value = prompt;
+      input.focus();
+      // Move caret to end so the operator can append context if they want.
+      try { input.setSelectionRange(prompt.length, prompt.length); } catch (_) {}
+    });
+  }
 }
 
 function askClaudeSessionId() {
