@@ -54,10 +54,10 @@
   .mono { font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; letter-spacing: 0; }
 
   /* ============ consolidated sticky top bar ============
-     One bar holds everything that used to live in three stacked strips:
-     state badge · clock · scan label · heartbeat headline · Details ·
-     audio toolbar · sounding · sitrep. The expandable evidence grid drops
-     below the bar. Frees ~80px of vertical space above the panes. */
+     One bar holds: state badge · clock · scan label · sounding · sitrep.
+     (Heartbeat/Details still rendered hidden for legacy JS hooks.) The
+     audio toolbar was lifted out of the topbar into a dedicated Player
+     card on the dashboard grid — see #pane-player. */
   .topbar-consolidated {
     position: sticky; top: 0; z-index: 50;
     background: rgba(8, 14, 28, 0.82);
@@ -237,40 +237,87 @@
   .pane-hd-titles .title { font-size: var(--type-display); font-weight: 700; color: var(--text); letter-spacing: -0.012em; line-height: 1.1; }
   .pane-hd-titles .subtitle { font-size: var(--type-body-sm); color: var(--text-2); font-family: ui-monospace, monospace; line-height: 1.2; }
 
-  /* ============ audio toolbar — compact inline player in the top bar ============
-     One shared <audio> element + one button per icecast mount, sitting inline
-     in the consolidated bar. On narrow viewports it drops to its own second
-     row (see the mobile block below). */
-  .audio-bar {
-    display: flex; align-items: center; gap: var(--space-sm);
-    flex-shrink: 0;
+  /* ============ Player card — dedicated dashboard pane ============
+     Replaces the old topbar audio toolbar. One shared <audio> element
+     drives 4 icecast mounts (Airband, Ground, Digital, VFO). Minimalist
+     row-per-mount layout, slightly opaque background, --sky-2 highlight
+     on the active stream. wireAudioBar() in the JS picks this up via
+     #audio-bar / #ab-audio (same IDs the toolbar had). */
+  .pane-player {
+    background: rgba(0, 0, 0, 0.40);
+    /* slightly opaque — sits on the grid like the other panes but with
+       a darker, quieter ground tone so it reads as "controls", not data. */
   }
-  .audio-bar .ab-mounts { display: flex; gap: var(--space-sm); flex-shrink: 0; }
-  .audio-bar .ab-mount {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 5px 12px;
-    background: rgba(138, 155, 181, 0.10);
+  .pane-player .pane-body {
+    display: flex; flex-direction: column;
+    gap: var(--space-xs);
+    padding-top: var(--space-sm);
+  }
+  /* Hidden shared audio element — wired by JS. preload="none" keeps it
+     silent until a mount button is pressed. */
+  .pane-player .ab-audio {
+    width: 100%; height: 28px;
+    margin-top: var(--space-xs);
+    display: none; /* surfaces only when a stream is loaded */
+  }
+  .pane-player.has-stream .ab-audio { display: block; }
+  .pane-player .ab-now { display: none; } /* kept in DOM for JS */
+  /* One row per mount: play/pause button + label + thin scrubber slot. */
+  .pane-player .ab-mounts {
+    display: flex; flex-direction: column;
+    gap: var(--space-xs);
+  }
+  .pane-player .ab-mount {
+    display: flex; align-items: center;
+    gap: var(--space-sm);
+    width: 100%;
+    min-height: 44px;          /* mobile-friendly tap target */
+    padding: 6px 10px;
+    background: rgba(138, 155, 181, 0.06);
     border: 1px solid var(--line-2);
-    border-radius: 999px;
+    border-radius: 10px;
     color: var(--text-2);
-    font-size: var(--type-body-sm); font-weight: 600;
-    font-family: inherit; cursor: pointer; white-space: nowrap;
+    font-family: inherit;
+    font-size: var(--type-meta);
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
     transition: background 0.12s, border-color 0.12s, color 0.12s;
   }
-  .audio-bar .ab-mount::before {
-    content: "▶"; font-size: var(--type-micro); color: var(--text-4);
+  .pane-player .ab-mount::before {
+    /* Triangle = idle, pause-bar = active. Swapped via .active. */
+    content: "▶";
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px;
+    border-radius: 999px;
+    background: rgba(138, 155, 181, 0.10);
+    color: var(--text-3);
+    font-size: var(--type-micro);
+    flex-shrink: 0;
   }
-  .audio-bar .ab-mount:hover { background: rgba(90, 184, 255, 0.12); color: var(--text); }
-  .audio-bar .ab-mount.active {
-    background: rgba(90, 184, 255, 0.20);
+  .pane-player .ab-mount .mount-path {
+    margin-left: auto;
+    color: var(--text-4);
+    font-family: ui-monospace, monospace;
+    font-size: var(--type-micro);
+    letter-spacing: 0.02em;
+  }
+  .pane-player .ab-mount:hover {
+    background: rgba(90, 184, 255, 0.10);
+    color: var(--text);
+    border-color: rgba(90, 184, 255, 0.30);
+  }
+  .pane-player .ab-mount.active {
+    background: rgba(90, 184, 255, 0.18);
     border-color: rgba(90, 184, 255, 0.55);
     color: var(--sky-2);
   }
-  .audio-bar .ab-mount.active::before { color: var(--sky-2); }
-  .audio-bar .ab-audio { height: 30px; flex: 0 1 220px; min-width: 130px; max-width: 260px; }
-  /* now-playing caption is redundant with the highlighted mount button in the
-     tight consolidated bar — kept in the DOM for JS, hidden visually. */
-  .audio-bar .ab-now { display: none; }
+  .pane-player .ab-mount.active::before {
+    content: "❚❚";
+    background: rgba(90, 184, 255, 0.32);
+    color: var(--sky-2);
+  }
+  .pane-player .ab-mount.active .mount-path { color: var(--sky-2); }
 
   /* ============ heartbeat headline (inline in top bar) ============ */
   .hb-headline { color: var(--text); font-weight: 600; }
@@ -996,8 +1043,11 @@
   .disco-detect-row .conf.hi { color: #c8f3d3; }
   .disco-detect-row .conf.lo { color: #ffd58a; }
 
-  /* ============ DESKTOP — 6-pane grid layout (Phase 7d) ============
-     Row 3 hosts the Sounding panel (VDL2 + ACARS live decode state). */
+  /* ============ DESKTOP — 7-pane grid layout (Phase 7e) ============
+     Row 3 now SHARES space between Sounding (left ~2/3) and the new
+     Player card (right ~1/3). On <1100px viewports the panes drop to
+     a single stacked column (default block flow), so the Player card
+     naturally lands below Sounding on mobile. */
   @media (min-width: 1100px) {
     .panes {
       padding: 16px;
@@ -1007,7 +1057,7 @@
       grid-template-areas:
         "analog      digital     vfo"
         "waterfall   waterfall   disco"
-        "sounding    sounding    sounding";
+        "sounding    sounding    player";
       gap: 16px;
       align-items: stretch;
     }
@@ -1017,6 +1067,7 @@
     .pane-waterfall { grid-area: waterfall; }
     .pane-disco     { grid-area: disco; }
     .pane-sounding  { grid-area: sounding; }
+    .pane-player    { grid-area: player; }
     .pane { min-height: 0; }
     .wf-canvas-wrap { height: 240px; }
   }
@@ -1026,7 +1077,7 @@
       grid-template-areas:
         "analog      digital     vfo         vfo"
         "waterfall   waterfall   disco       disco"
-        "sounding    sounding    sounding    sounding";
+        "sounding    sounding    sounding    player";
     }
   }
 
@@ -1507,15 +1558,15 @@
     }
   }
 
-  /* Mobile: keep state badge / clock / scan label / heartbeat / sounding /
-     sitrep on the first row and drop the audio toolbar to a full-width second
-     row (the single sanctioned exception to the one-bar target). */
+  /* Mobile: keep state badge / clock / scan label / sounding / sitrep on
+     a single row. The audio toolbar that used to wrap to a second row is
+     gone — audio now lives in the dedicated Player card on the grid. */
   @media (max-width: 600px) {
     .tb-row { flex-wrap: wrap; padding: 6px var(--space-md); gap: var(--space-sm); }
     .tb-title .sub { display: none; }
     .hb-explain { display: none; }
-    /* Row 1 keeps badge · clock · label · sounding · sitrep. The sounding
-       toggle drops its word label — the switch colour/position shows state. */
+    /* The sounding toggle drops its word label — switch colour/position
+       shows state. */
     .tb-sounding { padding: 4px; gap: 0; }
     #tb-sounding-label { display: none; }
     .tb-sounding .sw { width: 26px; height: 14px; }
@@ -1524,18 +1575,8 @@
     .state-badge { min-width: 64px; padding: 5px 8px; font-size: var(--type-micro); letter-spacing: 0.08em; }
     .tb-sitrep-btn { padding: 5px 10px; font-size: var(--type-meta); }
     .hb-evidence-toggle { font-size: var(--type-micro); padding: 4px 9px; }
-    /* Row 2: heartbeat headline + Details, together. */
+    /* Heartbeat group is hidden but kept in DOM for legacy JS writes. */
     .hb-group { order: 1; flex: 1 1 100%; }
-    /* Row 3: audio toolbar, full width. min-width:0 lets it shrink to the
-       viewport instead of forcing horizontal page overflow; overflow-x lets
-       the mounts + scrubber scroll within the row if tight. */
-    .audio-bar {
-      order: 2; flex: 1 1 100%; min-width: 0;
-      gap: var(--space-sm); overflow-x: auto; overflow-y: hidden;
-    }
-    .audio-bar::-webkit-scrollbar { height: 0; }
-    .audio-bar .ab-mount { padding: 5px 10px; }
-    .audio-bar .ab-audio { flex: 1 1 120px; min-width: 110px; max-width: none; }
   }
 
   /* ============ Status disclosure (per-pane) ============ */
@@ -1759,8 +1800,9 @@
 <body class="state-loading">
 
 <!-- ============ consolidated top bar ============
-     One sticky bar: state badge · clock · scan label · heartbeat headline ·
-     Details · audio toolbar · sounding · sitrep. The evidence grid drops below
+     One sticky bar: state badge · clock · scan label · sounding · sitrep.
+     Audio mounts moved out of the topbar and into the Player card on the
+     dashboard grid (see #pane-player). The evidence grid still drops below
      the bar when Details is expanded. -->
 <header class="topbar-consolidated">
   <div class="tb-row">
@@ -1790,18 +1832,9 @@
       </button>
     </div>
 
-    <!-- audio toolbar: one shared player, compact mount buttons. Each button
-         loads its icecast mount into #ab-audio (host:8000) and plays. -->
-    <div class="audio-bar" id="audio-bar" role="group" aria-label="Live audio streams">
-      <div class="ab-mounts" id="ab-mounts">
-        <button class="ab-mount" type="button" data-mount="ANALOG.mp3">Airband</button>
-        <button class="ab-mount" type="button" data-mount="GND.mp3">Ground</button>
-        <button class="ab-mount" type="button" data-mount="DIGITAL.mp3">Digital</button>
-        <button class="ab-mount" type="button" data-mount="VFO.mp3">VFO</button>
-      </div>
-      <audio class="ab-audio" id="ab-audio" controls preload="none"></audio>
-      <span class="ab-now" id="ab-now">Pick a stream</span>
-    </div>
+    <!-- audio toolbar removed from the topbar — it's now the dedicated
+         Player card on the dashboard (#pane-player). Topbar reserves room
+         only for state · time · scanner label · Sounding toggle · sitrep. -->
 
     <span class="tb-sounding" id="tb-sounding" role="button" tabindex="0"
           title="Sounding mode — swap Disco's B dongle to ACARS/VDL2 decoder">
@@ -2175,6 +2208,41 @@
         <span class="state-dot"></span>
       </div>
       <div class="snd-msg empty" id="snd-acars-msg">No ACARS decode yet.</div>
+    </div>
+  </section>
+
+  <!-- ============ Player card (Phase 7e — relocated from topbar) ============
+       One shared <audio> drives 4 icecast mounts. The container keeps the
+       legacy IDs (audio-bar / ab-audio / ab-mount) so wireAudioBar() in
+       the JS picks it up unchanged. -->
+  <section class="pane pane-player" id="pane-player">
+    <div class="pane-hd">
+      <div class="pane-hd-titles">
+        <div class="title">Player</div>
+        <div class="subtitle">Live icecast mounts</div>
+      </div>
+    </div>
+    <div class="pane-body" id="audio-bar" role="group" aria-label="Live audio streams">
+      <div class="ab-mounts" id="ab-mounts">
+        <button class="ab-mount" type="button" data-mount="ANALOG.mp3" aria-label="Play Airband (ANALOG.mp3)">
+          <span class="mount-label">Airband</span>
+          <span class="mount-path">/ANALOG.mp3</span>
+        </button>
+        <button class="ab-mount" type="button" data-mount="ANALOG_GROUND.mp3" aria-label="Play Ground (ANALOG_GROUND.mp3)">
+          <span class="mount-label">Ground</span>
+          <span class="mount-path">/ANALOG_GROUND.mp3</span>
+        </button>
+        <button class="ab-mount" type="button" data-mount="DIGITAL.mp3" aria-label="Play Digital (DIGITAL.mp3)">
+          <span class="mount-label">Digital</span>
+          <span class="mount-path">/DIGITAL.mp3</span>
+        </button>
+        <button class="ab-mount" type="button" data-mount="VFO.mp3" aria-label="Play VFO (VFO.mp3)">
+          <span class="mount-label">VFO</span>
+          <span class="mount-path">/VFO.mp3</span>
+        </button>
+      </div>
+      <audio class="ab-audio" id="ab-audio" controls preload="none"></audio>
+      <span class="ab-now" id="ab-now">Pick a stream</span>
     </div>
   </section>
 
@@ -3531,22 +3599,39 @@ function renderWaterfall(data) {
 }
 
 let VFO_LOCAL = { freq_mhz: 127.700, mod: "am", muted: false, bt_routed: false };
-// Audio toolbar: one shared <audio> element, one button per icecast mount.
-// Clicking a mount loads host:8000/<mount> into #ab-audio and plays it. This
-// replaces the old per-pane VFO audio embed — VFO.mp3 is just another mount.
+// Player card: one shared <audio> element, one button per icecast mount.
+// Clicking a mount loads host:8000/<mount> into #ab-audio and plays it.
+// Clicking the SAME (already-active) mount pauses + clears. wireAudioBar()
+// is now wired against the dashboard Player card (#pane-player) rather
+// than the old topbar toolbar — same IDs, same shared <audio> element.
 function wireAudioBar() {
   const bar = $("audio-bar");
   const audio = $("ab-audio");
   if (!bar || !audio) return;
+  const card = bar.closest(".pane-player");
   const host = `${location.protocol}//${location.hostname}:8000/`;
   const nowEl = $("ab-now");
   bar.querySelectorAll(".ab-mount").forEach((btn) => {
     btn.addEventListener("click", () => {
       const mount = btn.dataset.mount;
       if (!mount) return;
+      const wasActive = btn.classList.contains("active");
+      if (wasActive) {
+        // Toggle off: pause + drop highlight + hide <audio>.
+        try { audio.pause(); } catch (_e) {}
+        audio.removeAttribute("src");
+        try { audio.load(); } catch (_e) {}
+        btn.classList.remove("active");
+        if (card) card.classList.remove("has-stream");
+        if (nowEl) nowEl.textContent = "Pick a stream";
+        return;
+      }
       bar.querySelectorAll(".ab-mount").forEach((b) => b.classList.toggle("active", b === btn));
+      if (card) card.classList.add("has-stream");
       audio.src = host + mount;
-      if (nowEl) nowEl.textContent = `${btn.textContent.trim()} · /${mount}`;
+      const label = btn.querySelector(".mount-label");
+      const name = (label ? label.textContent : btn.textContent).trim();
+      if (nowEl) nowEl.textContent = `${name} · /${mount}`;
       try { audio.load(); } catch (_e) {}
       audio.play().catch(() => {});
     });
