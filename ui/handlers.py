@@ -3977,103 +3977,6 @@ _SITREP_SERVICE_UNITS: tuple[tuple[str, str], ...] = (
 )
 
 
-def _sitrep_favorite_snapshot() -> dict:
-    """Active favorite + per-band channel counts (analog vs digital)."""
-    try:
-        hp = HPState.load()
-    except Exception as exc:
-        return {"error": f"hp_state load failed: {exc}"}
-    favs = list(getattr(hp, "favorites", None) or [])
-    active = None
-    for f in favs:
-        if isinstance(f, dict) and bool(f.get("enabled")):
-            active = f
-            break
-    if active is None and favs:
-        active = favs[0] if isinstance(favs[0], dict) else None
-    label = ""
-    analog_n = 0
-    digital_n = 0
-    ground_n = 0
-    if isinstance(active, dict):
-        label = str(active.get("label") or active.get("id") or "").strip()
-        for ch in (active.get("custom_favorites") or []):
-            if not isinstance(ch, dict):
-                continue
-            kind = str(ch.get("kind") or "").lower()
-            if kind == "trunked":
-                digital_n += 1
-            elif kind == "conventional":
-                analog_n += 1
-                # Ground band ~ 225–400 MHz milair UHF AM.
-                try:
-                    fmhz = float(ch.get("frequency") or 0.0)
-                except (TypeError, ValueError):
-                    fmhz = 0.0
-                if 225.0 <= fmhz <= 400.0:
-                    ground_n += 1
-    return {
-        "label": label,
-        "airband_n": max(0, analog_n - ground_n),
-        "ground_n": ground_n,
-        "digital_n": digital_n,
-        "favorites_total": len(favs),
-    }
-
-
-def _sitrep_recent_hits(window_sec: float = 900.0, limit: int = 8) -> dict:
-    """Top hits in the last `window_sec` (default 15min), by recency."""
-    try:
-        payload = _get_hits_payload_cached(limit=200)
-    except Exception:
-        return {"window_sec": window_sec, "items": [], "total": 0}
-    cutoff = time.time() - max(60.0, float(window_sec))
-    items = []
-    for it in (payload.get("items") or []):
-        try:
-            ts = float(it.get("ts") or 0.0)
-        except (TypeError, ValueError):
-            ts = 0.0
-        if ts <= 0.0 or ts < cutoff:
-            continue
-        items.append({
-            "ts": ts,
-            "freq": str(it.get("freq") or "").strip(),
-            "label": str(it.get("label") or it.get("tgid") or "").strip(),
-            "source": str(it.get("source") or it.get("type") or "").strip(),
-        })
-    items.sort(key=lambda r: r["ts"], reverse=True)
-    return {"window_sec": window_sec, "items": items[:limit], "total": len(items)}
-
-
-def _sitrep_disco_summary() -> dict:
-    """Count of pending vs classified Disco detections, plus top-3 classified."""
-    payload = _disco_pass_through_payload()
-    detections = payload.get("detections") or []
-    pending = 0
-    classified = []
-    for d in detections:
-        if not isinstance(d, dict):
-            continue
-        if bool(d.get("classified")):
-            classified.append({
-                "freq_mhz": d.get("freq_mhz"),
-                "classification": str(d.get("classification") or "")[:80],
-                "confidence": d.get("confidence"),
-                "snr_db": d.get("snr_db"),
-            })
-        else:
-            pending += 1
-    classified.sort(key=lambda r: float(r.get("confidence") or 0.0), reverse=True)
-    return {
-        "pending": pending,
-        "classified": len(classified),
-        "top_classified": classified[:3],
-        "range": payload.get("range") or {},
-        "state": payload.get("state") or "down",
-    }
-
-
 def _sitrep_services() -> list[dict]:
     """Active-state for each operator-relevant service."""
     rows = []
@@ -4332,7 +4235,14 @@ def _compute_sounding_detail_payload() -> dict:
 
 
 def _compute_sitrep_payload() -> dict:
-    """Aggregate everything the Sitrep modal renders into one payload."""
+    """Aggregate everything the Sitrep modal renders into one payload.
+
+    Active-favorite counts, recent-hits, and Discovery summaries were
+    removed when the Sitrep modal grew the Controls section — that
+    data is surfaced in the dedicated panes already and the modal
+    only needs heartbeat headline, service health, dongle assignments,
+    and the evidence rows.
+    """
     hb = _compute_heartbeat_payload()
     return {
         "state": hb.get("state"),
@@ -4340,13 +4250,95 @@ def _compute_sitrep_payload() -> dict:
         "explanation": hb.get("explanation"),
         "evidence": hb.get("evidence") or [],
         "since": hb.get("since"),
-        "favorite": _sitrep_favorite_snapshot(),
-        "recent_hits": _sitrep_recent_hits(),
-        "disco": _sitrep_disco_summary(),
         "services": _sitrep_services(),
         "dongles": _sitrep_dongles(),
         "server_time": time.time(),
     }
+
+
+# Sitrep Controls — one-button-per-action recovery levers exposed in the
+# Sitrep modal.  Each action maps to a single fully-qualified command
+# vector; we deliberately do not accept arbitrary args from the client.
+# The matching NOPASSWD sudoers entries live in
+# /etc/sudoers.d/scanner-controls (see commit message for the line).
+_SITREP_ACTIONS: dict[str, dict] = {
+    "reboot": {
+        "label": "Reboot Micro",
+        "cmd": ["sudo", "-n", "/sbin/reboot"],
+    },
+    "reset_radios": {
+        "label": "Reset Radios",
+        "cmd": [
+            "sudo", "-n", "/bin/systemctl", "restart",
+            "rtl-airband-airband.service",
+            "rtl-airband-ground.service",
+            "scanner-digital-op25.service",
+            "scanner-vfo.service",
+        ],
+    },
+    "reset_live_iq": {
+        "label": "Reset Live IQ",
+        "cmd": ["sudo", "-n", "/bin/systemctl", "restart",
+                "scanner-waterfall.service"],
+    },
+    "reset_disco": {
+        "label": "Reset Discovery",
+        "cmd": ["sudo", "-n", "/bin/systemctl", "restart",
+                "disco-coordinator.service"],
+    },
+    "reset_ui": {
+        "label": "Reset UI",
+        "cmd": ["sudo", "-n", "/bin/systemctl", "restart",
+                "airband-ui.service"],
+    },
+}
+
+_SITREP_ACTION_SUDOERS_HINT = (
+    "sudo NOPASSWD entries missing — add via "
+    "`sudo visudo -f /etc/sudoers.d/scanner-controls`:\n"
+    "ubuntu ALL=(ALL) NOPASSWD: /sbin/reboot, "
+    "/bin/systemctl restart rtl-airband-airband.service, "
+    "/bin/systemctl restart rtl-airband-ground.service, "
+    "/bin/systemctl restart scanner-digital-op25.service, "
+    "/bin/systemctl restart scanner-vfo.service, "
+    "/bin/systemctl restart scanner-waterfall.service, "
+    "/bin/systemctl restart disco-coordinator.service, "
+    "/bin/systemctl restart airband-ui.service"
+)
+
+
+def _run_sitrep_action(action: str) -> tuple[bool, str, str]:
+    """Execute the command vector mapped to ``action`` and return
+    (ok, message, error).  Sudo-password failures are surfaced with a
+    visudo hint so the operator can self-serve the fix."""
+    spec = _SITREP_ACTIONS.get(action)
+    if not spec:
+        return False, "", f"unknown action: {action}"
+    cmd = list(spec["cmd"])
+    label = spec["label"]
+    try:
+        # 20s is enough for `systemctl restart` of any of these units;
+        # reboot returns immediately (the actual reboot is async).
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+    except subprocess.TimeoutExpired:
+        return False, "", f"{label}: command timed out after 20s"
+    except FileNotFoundError as exc:
+        return False, "", f"{label}: binary not found ({exc})"
+    if proc.returncode == 0:
+        return True, f"{label} triggered", ""
+    stderr = (proc.stderr or "").strip() or (proc.stdout or "").strip()
+    # `sudo -n` with no NOPASSWD entry exits 1 and writes "a password
+    # is required" or "sorry" to stderr.  Surface the visudo hint so
+    # Will can paste the fix without leaving the modal.
+    sudo_blocked = (
+        "password is required" in stderr.lower()
+        or "sorry" in stderr.lower()
+        or proc.returncode in (1, 100, 126, 127)
+        and "sudo:" in stderr.lower()
+    )
+    if sudo_blocked:
+        return False, "", f"{label}: {stderr}\n\n{_SITREP_ACTION_SUDOERS_HINT}"
+    return False, "", f"{label}: rc={proc.returncode} {stderr}"
 
 
 
@@ -4885,9 +4877,6 @@ class Handler(BaseHTTPRequestHandler):
                     "headline": "Sitrep computation failed",
                     "explanation": str(exc),
                     "evidence": [],
-                    "favorite": {},
-                    "recent_hits": {"items": [], "total": 0},
-                    "disco": {"pending": 0, "classified": 0, "top_classified": []},
                     "services": [],
                     "dongles": [],
                     "server_time": time.time(),
@@ -6292,6 +6281,34 @@ class Handler(BaseHTTPRequestHandler):
 
         def parse_json_like_list(raw_value) -> list:
             return _parse_json_like_list(raw_value)
+
+        if p == "/api/sitrep/action":
+            # Sitrep Controls — Reboot Micro + targeted service restarts.
+            # The client confirms with the operator and POSTs
+            # {"action": "<key>"}; we map the key to a fixed argv and run
+            # it.  Arbitrary commands are NOT accepted.
+            action = get_str("action", "").strip().lower()
+            if action not in _SITREP_ACTIONS:
+                return self._send(
+                    400,
+                    json.dumps({
+                        "ok": False,
+                        "error": f"unknown action: {action!r}",
+                        "actions": list(_SITREP_ACTIONS.keys()),
+                    }),
+                    "application/json; charset=utf-8",
+                )
+            ok, msg, err = _run_sitrep_action(action)
+            body = {"ok": bool(ok)}
+            if ok:
+                body["message"] = msg
+            else:
+                body["error"] = err
+            return self._send(
+                200 if ok else 500,
+                json.dumps(body),
+                "application/json; charset=utf-8",
+            )
 
         if p == "/api/latency/tone":
             action = get_str("action", "status").strip().lower() or "status"

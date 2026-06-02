@@ -1095,84 +1095,150 @@
     padding-bottom: 5px;
     border-bottom: 1px solid var(--line);
   }
-  .sitrep-fav, .sitrep-disco {
-    padding: 10px 12px;
-    background: rgba(8, 14, 28, 0.45);
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    font-size: var(--type-body-sm);
-    color: var(--text-2);
-  }
-  .sitrep-fav .fav-label {
-    font-weight: 700;
-    color: var(--text);
-    font-size: var(--type-body);
-    margin-bottom: 4px;
-  }
-  .sitrep-fav .fav-counts {
-    font-family: ui-monospace, monospace;
-    font-size: var(--type-meta);
-    color: var(--text-3);
-  }
-  .sitrep-fav .fav-counts .seg { margin-right: 14px; }
-  .sitrep-fav .fav-counts .seg .num { color: var(--sky-2); font-weight: 700; }
-  .sitrep-hits { display: flex; flex-direction: column; gap: 6px; }
-  .sitrep-hit-row {
+  /* Sitrep Controls — Reboot / Reset buttons.  All colours pulled from
+     existing CSS vars so the destructive variant stays in sync with the
+     wedged-state styling elsewhere. */
+  .sitrep-ctrl-grid {
     display: grid;
-    grid-template-columns: 56px 1fr auto;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 8px;
-    padding: 7px 10px;
-    background: rgba(8, 14, 28, 0.45);
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    font-size: var(--type-meta);
-    align-items: center;
   }
-  .sitrep-hit-row .band {
-    font-family: ui-monospace, monospace;
-    font-size: var(--type-micro);
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    color: var(--sky-2);
-    text-align: center;
-    padding: 2px 4px;
-    border-radius: 4px;
-    background: rgba(90,184,255,0.10);
-  }
-  .sitrep-hit-row .lbl {
-    color: var(--text);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .sitrep-hit-row .freq {
-    font-family: ui-monospace, monospace;
-    color: var(--text-3);
-  }
-  .sitrep-hits .sitrep-empty {
+  .sitrep-ctrl-btn {
     padding: 10px 12px;
-    color: var(--text-4);
-    font-size: var(--type-meta);
-    font-style: italic;
-    text-align: center;
+    border-radius: 10px;
+    border: 1px solid var(--line-2);
+    background: rgba(8, 14, 28, 0.55);
+    color: var(--text);
+    font-family: inherit;
+    font-size: var(--type-body-sm);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
   }
-  .sitrep-disco .disco-counts {
-    font-family: ui-monospace, monospace;
-    font-size: var(--type-meta);
-    color: var(--text-3);
+  .sitrep-ctrl-btn:hover {
+    background: rgba(90, 184, 255, 0.16);
+    border-color: var(--sky);
+    color: var(--sky-2);
   }
-  .sitrep-disco .disco-counts .seg { margin-right: 14px; }
-  .sitrep-disco .disco-counts .num { color: var(--sky-2); font-weight: 700; }
-  .sitrep-disco .top-list { margin-top: 6px; }
-  .sitrep-disco .top-row {
-    font-family: ui-monospace, monospace;
-    font-size: var(--type-meta);
+  .sitrep-ctrl-btn:focus-visible {
+    outline: 2px solid var(--sky);
+    outline-offset: 2px;
+  }
+  .sitrep-ctrl-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .sitrep-ctrl-btn.ctrl-destructive {
+    border-color: var(--red);
+    color: var(--red);
+    background: rgba(255, 69, 58, 0.10);
+  }
+  .sitrep-ctrl-btn.ctrl-destructive:hover {
+    background: var(--red);
+    color: var(--text);
+    border-color: var(--red);
+  }
+  .sitrep-ctrl-btn.armed {
+    background: var(--amber);
+    color: var(--bg-1);
+    border-color: var(--amber);
+  }
+  .sitrep-ctrl-btn.ctrl-destructive.armed {
+    background: var(--red);
+    color: var(--text);
+    border-color: var(--red);
+  }
+  .sitrep-ctrl-confirm {
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: rgba(8, 14, 28, 0.55);
+    border: 1px solid var(--line-2);
+    border-radius: 10px;
     color: var(--text-2);
-    padding: 2px 0;
+    font-size: var(--type-body-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
-  .sitrep-disco .top-row .conf {
-    color: var(--text-4);
-    margin-left: 8px;
+  .sitrep-ctrl-confirm .prompt {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .sitrep-ctrl-confirm .hint {
+    color: var(--text-3);
+    font-size: var(--type-meta);
+  }
+  .sitrep-ctrl-confirm input[type="text"] {
+    background: rgba(2, 6, 14, 0.55);
+    border: 1px solid var(--line-2);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: ui-monospace, monospace;
+    font-size: var(--type-body);
+    padding: 8px 10px;
+    width: 100%;
+  }
+  .sitrep-ctrl-confirm .row {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .sitrep-ctrl-confirm button {
+    padding: 7px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--line-2);
+    background: rgba(8, 14, 28, 0.55);
+    color: var(--text-2);
+    font-family: inherit;
+    font-size: var(--type-body-sm);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .sitrep-ctrl-confirm button.go {
+    border-color: var(--sky);
+    color: var(--sky-2);
+  }
+  .sitrep-ctrl-confirm button.go.destructive {
+    border-color: var(--red);
+    color: var(--red);
+    background: rgba(255, 69, 58, 0.10);
+  }
+  .sitrep-ctrl-confirm button.go.destructive:hover {
+    background: var(--red);
+    color: var(--text);
+  }
+  .sitrep-ctrl-confirm button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  /* Toast variants for action feedback.  Reuses .live-toast layout and
+     overrides border/text to signal success vs failure vs in-flight. */
+  .live-toast.toast-ok {
+    border-color: var(--green);
+    color: var(--green);
+  }
+  .live-toast.toast-err {
+    border-color: var(--red);
+    color: var(--red);
+    white-space: pre-wrap;
+    max-width: 540px;
+    text-align: left;
+  }
+  .live-toast.toast-busy::before {
+    content: "";
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 8px;
+    border-radius: 50%;
+    border: 2px solid var(--sky-2);
+    border-top-color: transparent;
+    animation: sitrep-spin 0.7s linear infinite;
+    vertical-align: -1px;
+  }
+  @keyframes sitrep-spin {
+    to { transform: rotate(360deg); }
   }
 
   /* Mobile: full-screen modal */
@@ -1939,21 +2005,6 @@
       </div>
 
       <div class="sitrep-section">
-        <div class="sitrep-section-hd">Active favorite</div>
-        <div class="sitrep-fav" id="sitrep-fav">—</div>
-      </div>
-
-      <div class="sitrep-section">
-        <div class="sitrep-section-hd">Recent activity · last 15 min</div>
-        <div class="sitrep-hits" id="sitrep-hits">—</div>
-      </div>
-
-      <div class="sitrep-section">
-        <div class="sitrep-section-hd">Discovery</div>
-        <div class="sitrep-disco" id="sitrep-disco">—</div>
-      </div>
-
-      <div class="sitrep-section">
         <div class="sitrep-section-hd">Service health</div>
         <div class="sitrep-service-list" id="sitrep-service-list">
           <div class="sitrep-service-item"><div><div class="name">Loading…</div><div class="meta">Reading /api/sitrep</div></div><span class="svc-dot"></span></div>
@@ -1972,6 +2023,26 @@
         <div class="sitrep-service-list" id="sitrep-evidence-list">
           <div class="sitrep-service-item"><div><div class="name">Loading…</div><div class="meta">Reading /api/sitrep</div></div><span class="svc-dot"></span></div>
         </div>
+      </div>
+
+      <!-- Controls — operator recovery actions.  Each button confirms
+           before POSTing /api/sitrep/action.  Reboot Micro uses the
+           .ctrl-destructive variant + a typed-confirmation gate. -->
+      <div class="sitrep-section">
+        <div class="sitrep-section-hd">Controls</div>
+        <div class="sitrep-ctrl-grid" id="sitrep-ctrl-grid">
+          <button class="sitrep-ctrl-btn" type="button"
+                  data-action="reset_radios">Reset Radios</button>
+          <button class="sitrep-ctrl-btn" type="button"
+                  data-action="reset_live_iq">Reset Live IQ</button>
+          <button class="sitrep-ctrl-btn" type="button"
+                  data-action="reset_disco">Reset Discovery</button>
+          <button class="sitrep-ctrl-btn" type="button"
+                  data-action="reset_ui">Reset UI</button>
+          <button class="sitrep-ctrl-btn ctrl-destructive" type="button"
+                  data-action="reboot">Reboot Micro</button>
+        </div>
+        <div class="sitrep-ctrl-confirm" id="sitrep-ctrl-confirm" hidden></div>
       </div>
     </div>
   </div>
@@ -3758,9 +3829,11 @@ function wireVFOControls() {
 }
 
 // =========================================================================
-// Phase 7a: Sitrep modal — aggregated operator situation report.
-// Fetches /api/sitrep and renders: active favorite, recent activity,
-// Disco summary, service health, dongle assignments, heartbeat evidence.
+// Sitrep modal — operator situation report.  Renders heartbeat headline,
+// service health, dongle assignments, heartbeat evidence, plus a
+// Controls section that POSTs /api/sitrep/action.  The favorites /
+// recent-hits / Discovery summaries were dropped — that data lives in
+// the dedicated panes and was duplicate noise here.
 // =========================================================================
 function openModal(modalId) {
   const m = $(modalId);
@@ -3783,84 +3856,6 @@ function _sitrepServiceRowHTML(label, value, status) {
     </div>
     <span class="svc-dot"></span>
   </div>`;
-}
-
-function _sitrepRenderFavorite(fav) {
-  const el = $("sitrep-fav");
-  if (!el) return;
-  if (!fav || fav.error) {
-    el.innerHTML = `<div class="fav-label">—</div><div class="fav-counts">${escapeHtml(fav && fav.error ? fav.error : "no favorite loaded")}</div>`;
-    return;
-  }
-  const lbl = escapeHtml(fav.label || "—");
-  const air = Number(fav.airband_n || 0);
-  const gnd = Number(fav.ground_n || 0);
-  const dig = Number(fav.digital_n || 0);
-  const tot = Number(fav.favorites_total || 0);
-  el.innerHTML = `
-    <div class="fav-label">${lbl}</div>
-    <div class="fav-counts">
-      <span class="seg"><span class="num">${air}</span> airband</span>
-      <span class="seg"><span class="num">${gnd}</span> ground</span>
-      <span class="seg"><span class="num">${dig}</span> digital</span>
-      <span class="seg">${tot} total favorite${tot === 1 ? "" : "s"}</span>
-    </div>`;
-}
-
-function _sitrepBandBadge(source) {
-  const s = String(source || "").toLowerCase();
-  if (s === "ground" || s === "gnd")     return "GND";
-  if (s === "digital" || s === "dig" || s === "p25") return "DIG";
-  if (s === "vfo")                       return "VFO";
-  if (s === "airband" || s === "air")    return "AIR";
-  return s.slice(0, 3).toUpperCase() || "—";
-}
-
-function _sitrepRenderHits(rh) {
-  const el = $("sitrep-hits");
-  if (!el) return;
-  const items = (rh && Array.isArray(rh.items)) ? rh.items : [];
-  if (!items.length) {
-    el.innerHTML = `<div class="sitrep-empty">No hits in the last 15 minutes.</div>`;
-    return;
-  }
-  el.innerHTML = items.map(it => {
-    const band = _sitrepBandBadge(it.source);
-    const lbl = escapeHtml(it.label || it.freq || "—");
-    const freq = escapeHtml(it.freq || "");
-    return `<div class="sitrep-hit-row">
-      <span class="band">${band}</span>
-      <span class="lbl">${lbl}</span>
-      <span class="freq">${freq}</span>
-    </div>`;
-  }).join("");
-}
-
-function _sitrepRenderDisco(d) {
-  const el = $("sitrep-disco");
-  if (!el) return;
-  if (!d) { el.textContent = "—"; return; }
-  const pending = Number(d.pending || 0);
-  const classified = Number(d.classified || 0);
-  const top = Array.isArray(d.top_classified) ? d.top_classified : [];
-  const range = d.range || {};
-  const rangeTxt = (range.start_mhz && range.end_mhz)
-    ? `${Number(range.start_mhz).toFixed(0)}–${Number(range.end_mhz).toFixed(0)} MHz`
-    : "—";
-  const topHtml = top.length
-    ? `<div class="top-list">${top.map(t => {
-        const fm = (t.freq_mhz != null) ? Number(t.freq_mhz).toFixed(4) : "?";
-        const cls = escapeHtml(String(t.classification || "").split(" — ")[0] || "—");
-        const conf = (t.confidence != null) ? `${(Number(t.confidence) * 100).toFixed(0)}%` : "—";
-        return `<div class="top-row">${fm} MHz · ${cls}<span class="conf">${conf}</span></div>`;
-      }).join("")}</div>`
-    : "";
-  el.innerHTML = `
-    <div class="disco-counts">
-      <span class="seg">range <span class="num">${rangeTxt}</span></span>
-      <span class="seg"><span class="num">${classified}</span> classified</span>
-      <span class="seg"><span class="num">${pending}</span> pending</span>
-    </div>${topHtml}`;
 }
 
 function _sitrepRenderServiceList(elId, items, valueFn) {
@@ -3894,9 +3889,6 @@ async function renderSitrepModal() {
     const data = await r.json();
     if ($("sitrep-headline")) $("sitrep-headline").textContent = data.headline || "—";
     if ($("sitrep-explain"))  $("sitrep-explain").textContent  = data.explanation || "";
-    _sitrepRenderFavorite(data.favorite);
-    _sitrepRenderHits(data.recent_hits);
-    _sitrepRenderDisco(data.disco);
     _sitrepRenderServiceList("sitrep-service-list", data.services, row =>
       row.active ? "active" : "inactive");
     _sitrepRenderServiceList("sitrep-dongle-list", data.dongles, row =>
@@ -3909,6 +3901,167 @@ async function renderSitrepModal() {
     _sitrepInFlight = false;
   }
 }
+
+// -------------------------------------------------------------------------
+// Sitrep Controls — confirmation flow + POST /api/sitrep/action.
+// Reset UI explicitly tolerates the request being killed mid-flight
+// (the server restarts itself); a follow-up poll waits for the server
+// to come back so we can flip the toast from "Restarting" to "ok".
+// -------------------------------------------------------------------------
+const SITREP_ACTION_LABELS = {
+  reboot:        "Reboot Micro",
+  reset_radios:  "Reset Radios",
+  reset_live_iq: "Reset Live IQ",
+  reset_disco:   "Reset Discovery",
+  reset_ui:      "Reset UI",
+};
+
+function showSitrepToast(text, variant /* "busy" | "ok" | "err" */, duration_ms) {
+  const root = document.getElementById("live-toast-root");
+  if (!root) return null;
+  root.innerHTML = "";
+  const el = document.createElement("div");
+  el.className = "live-toast toast-" + (variant || "ok");
+  el.textContent = text;
+  root.appendChild(el);
+  requestAnimationFrame(() => { el.classList.add("show"); });
+  if (_liveToastTimer) clearTimeout(_liveToastTimer);
+  if (duration_ms && duration_ms > 0) {
+    _liveToastTimer = setTimeout(() => {
+      el.classList.remove("show");
+      setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 220);
+    }, duration_ms);
+  }
+  return el;
+}
+
+async function _waitForUIBack(maxAttempts) {
+  // Polls /api/heartbeat until the restarted server answers again.
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const r = await fetch("/api/heartbeat", { cache: "no-store" });
+      if (r.ok) return true;
+    } catch (_e) { /* server still down */ }
+    await new Promise(res => setTimeout(res, 600));
+  }
+  return false;
+}
+
+async function _postSitrepAction(action) {
+  const label = SITREP_ACTION_LABELS[action] || action;
+  const busy = showSitrepToast(`Restarting ${label}…`, "busy", 0);
+  const isResetUI = (action === "reset_ui");
+  const isReboot  = (action === "reboot");
+  try {
+    const r = await fetch("/api/sitrep/action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({ action }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data.ok) {
+      const err = data && data.error ? String(data.error) : ("HTTP " + r.status);
+      showSitrepToast(`${label} failed:\n${err}`, "err", 8000);
+      return;
+    }
+    if (isReboot) {
+      showSitrepToast(`${label} triggered — connection will drop`, "ok", 6000);
+      return;
+    }
+    showSitrepToast(`${label} restarted ✓`, "ok", 3000);
+  } catch (e) {
+    if (isResetUI) {
+      // The request was cut mid-flight by our own restart.  That's the
+      // success signal — poll for the server coming back, then flip
+      // the toast to ok.
+      showSitrepToast(`${label} — waiting for server…`, "busy", 0);
+      const back = await _waitForUIBack(40);
+      if (back) showSitrepToast(`${label} restarted ✓`, "ok", 3000);
+      else      showSitrepToast(`${label}: server did not come back in time`, "err", 8000);
+      return;
+    }
+    showSitrepToast(`${label} failed: ${String(e && e.message || e)}`, "err", 8000);
+  }
+}
+
+function _hideSitrepConfirm() {
+  const box = $("sitrep-ctrl-confirm");
+  if (box) { box.hidden = true; box.innerHTML = ""; }
+  document.querySelectorAll(".sitrep-ctrl-btn.armed").forEach(b => b.classList.remove("armed"));
+}
+
+function _renderSitrepConfirm(action, btn) {
+  const box = $("sitrep-ctrl-confirm");
+  if (!box) return;
+  const label = SITREP_ACTION_LABELS[action] || action;
+  const isReboot = (action === "reboot");
+  const destClass = isReboot ? " destructive" : "";
+
+  if (isReboot) {
+    box.hidden = false;
+    box.innerHTML = `
+      <div class="prompt">Reboot Micro?</div>
+      <div class="hint">Type <strong>REBOOT</strong> to confirm. The host will go offline for ~60s.</div>
+      <input type="text" id="sitrep-reboot-input" autocomplete="off" spellcheck="false" placeholder="REBOOT">
+      <div class="row">
+        <button type="button" id="sitrep-confirm-cancel">Cancel</button>
+        <button type="button" id="sitrep-confirm-go" class="go destructive" disabled>Reboot Micro</button>
+      </div>`;
+    const input = $("sitrep-reboot-input");
+    const go    = $("sitrep-confirm-go");
+    const cancel= $("sitrep-confirm-cancel");
+    if (input) {
+      input.addEventListener("input", () => {
+        go.disabled = (input.value.trim().toUpperCase() !== "REBOOT");
+      });
+      input.focus();
+    }
+    if (cancel) cancel.addEventListener("click", _hideSitrepConfirm);
+    if (go) go.addEventListener("click", () => {
+      _hideSitrepConfirm();
+      _postSitrepAction(action);
+    });
+    return;
+  }
+
+  // Yes/No confirm for the other 4 actions.
+  box.hidden = false;
+  box.innerHTML = `
+    <div class="prompt">${escapeHtml(label)}?</div>
+    <div class="hint">The matching service will be restarted via systemctl.</div>
+    <div class="row">
+      <button type="button" id="sitrep-confirm-cancel">No</button>
+      <button type="button" id="sitrep-confirm-go" class="go${destClass}">Yes, restart</button>
+    </div>`;
+  const go     = $("sitrep-confirm-go");
+  const cancel = $("sitrep-confirm-cancel");
+  if (cancel) cancel.addEventListener("click", _hideSitrepConfirm);
+  if (go) {
+    go.addEventListener("click", () => {
+      _hideSitrepConfirm();
+      _postSitrepAction(action);
+    });
+    go.focus();
+  }
+}
+
+function _wireSitrepCtrls() {
+  const grid = $("sitrep-ctrl-grid");
+  if (!grid) return;
+  grid.addEventListener("click", (e) => {
+    const btn = e.target.closest(".sitrep-ctrl-btn");
+    if (!btn) return;
+    const action = btn.getAttribute("data-action") || "";
+    if (!SITREP_ACTION_LABELS[action]) return;
+    document.querySelectorAll(".sitrep-ctrl-btn.armed").forEach(b => {
+      if (b !== btn) b.classList.remove("armed");
+    });
+    btn.classList.add("armed");
+    _renderSitrepConfirm(action, btn);
+  });
+}
+
 function wireSitrep() {
   const open = () => { renderSitrepModal(); openModal("sitrep-modal"); };
   const closeBtn = $("sitrep-modal-close");
@@ -3931,15 +4084,17 @@ function wireSitrep() {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); }
     });
   }
-  if (closeBtn) closeBtn.addEventListener("click", () => closeModal("sitrep-modal"));
+  const closeAndClear = () => { _hideSitrepConfirm(); closeModal("sitrep-modal"); };
+  if (closeBtn) closeBtn.addEventListener("click", closeAndClear);
   if (overlay) {
     overlay.addEventListener("click", (e) => {
-      if (e.target === overlay) closeModal("sitrep-modal");
+      if (e.target === overlay) closeAndClear();
     });
   }
+  _wireSitrepCtrls();
   // Global ESC dismisses any open modal (Sitrep, Profile Builder, Picker).
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeAnyOpenModal();
+    if (e.key === "Escape") { _hideSitrepConfirm(); closeAnyOpenModal(); }
   });
 }
 
