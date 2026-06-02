@@ -54,8 +54,19 @@ N_COMPOSITE_BINS = 1024
 # Loop cadence.
 TICK_S = 0.5
 
-# How many recent classified detections to surface.
-DETECTIONS_WINDOW_S = 300.0
+# How many recent detections to surface in coord_state.json.
+#
+# We deliberately surface BOTH classified and not-yet-classified rows so the
+# Discovery pane lights up the moment the sweep finds peaks — the ML pass
+# can lag behind on a backlog of slices, but the operator still wants to see
+# the sweep is doing its job.  Each row carries `classified: true|false` so
+# the UI can dim pending entries until the classifier catches up.
+#
+# Window widened from 300s to 1800s after observing intermittent NFM voice
+# (the dominant traffic in this 117-470 MHz cut) goes silent for minutes at
+# a time — a 5-minute window made the pane flicker empty during quiet
+# stretches.
+DETECTIONS_WINDOW_S = 1800.0
 DETECTIONS_LIMIT = 50
 
 # Default config used until /api/disco/range POSTs override it.
@@ -286,54 +297,107 @@ def _classifier_conn() -> sqlite3.Connection | None:
 
 
 def _read_detections(start_mhz: float, end_mhz: float) -> list[dict]:
+    """Surface recent detections (classified and pending) within the sweep
+    range.  Rows are deduped per 25-kHz bin: we keep the most recent ts and
+    fold in the best-SNR sighting + the latest classification, so a freq
+    that's been hit repeatedly shows as a single row with a recent
+    `last_seen_s_ago` and a stable mod-class label.
+
+    Pending rows (sweep wrote, classifier hasn't caught up) carry
+    `classified: false` and `classification: "pending"` so the UI can dim
+    them; classified rows carry the protocol tag + confidence the
+    classifier wrote.
+    """
     conn = _classifier_conn()
     if conn is None:
         return []
-    cutoff = time.time() - DETECTIONS_WINDOW_S
+    now = time.time()
+    cutoff = now - DETECTIONS_WINDOW_S
     start_hz, end_hz = start_mhz * 1e6, end_mhz * 1e6
+    # Pull a larger working set since we'll dedupe by 25-kHz bin — without
+    # this an FM-broadcast-style row that spans many bins would crowd out
+    # narrower neighbours from the LIMIT.
+    fetch_limit = DETECTIONS_LIMIT * 8
     try:
         rows = conn.execute(
-            "SELECT freq_hz, modulation_class, protocol_tag, "
-            "modulation_confidence, interpretation, snr_db "
+            "SELECT ts, freq_hz, bandwidth_hz, power_dbfs, snr_db, "
+            "modulation_class, modulation_confidence, protocol_tag, "
+            "interpretation, classified_ts "
             "FROM detections "
-            "WHERE classified_ts IS NOT NULL "
-            "AND ts >= ? AND freq_hz BETWEEN ? AND ? "
+            "WHERE ts >= ? AND freq_hz BETWEEN ? AND ? "
             "ORDER BY ts DESC LIMIT ?",
-            (cutoff, start_hz, end_hz, DETECTIONS_LIMIT),
+            (cutoff, start_hz, end_hz, fetch_limit),
         ).fetchall()
     except sqlite3.Error as e:
         LOG.warning("detections query failed: %s", e)
         return []
-    # Dedupe by freq bin (25 kHz) to avoid spammy near-duplicates.
-    seen = set()
-    out = []
+    # Dedupe by 25-kHz bin while keeping the most recent ts and best SNR.
+    # Classification fields prefer any classified sighting over a pending
+    # one — so a freq that was classified an hour ago and just got hit
+    # again still surfaces with its known label.
+    by_bin: dict[int, dict] = {}
     for r in rows:
-        freq_hz, mod_cls, proto, conf, interp, snr = r
-        if freq_hz is None:
+        ts, freq_hz, bw_hz, power_dbfs, snr_db, mod_cls, conf, proto, interp, classified_ts = r
+        if freq_hz is None or ts is None:
             continue
-        bin_key = int(freq_hz // 25_000)
-        if bin_key in seen:
+        bin_key = int(float(freq_hz) // 25_000)
+        slot = by_bin.get(bin_key)
+        has_class = classified_ts is not None and mod_cls and mod_cls != "unclassified"
+        if slot is None:
+            slot = {
+                "ts": float(ts),
+                "freq_hz": float(freq_hz),
+                "bandwidth_hz": float(bw_hz or 0.0),
+                "power_dbfs": float(power_dbfs or 0.0),
+                "snr_db": float(snr_db or 0.0),
+                "mod_cls": mod_cls if has_class else None,
+                "confidence": float(conf or 0.0) if has_class else 0.0,
+                "proto": proto if has_class else None,
+                "interp": str(interp)[:80] if interp else None,
+            }
+            by_bin[bin_key] = slot
             continue
-        seen.add(bin_key)
-        label_bits = []
-        if mod_cls:
-            label_bits.append(str(mod_cls))
-        if proto:
-            label_bits.append(f"[{proto}]")
-        label = " ".join(label_bits) or "unclassified"
-        if interp:
-            label = f"{label} - {str(interp)[:80]}"
-        try:
-            confidence = float(conf) if conf is not None else 0.0
-        except (TypeError, ValueError):
-            confidence = 0.0
+        # Most-recent wins for ts; best-SNR wins for the SNR field.
+        if float(ts) > slot["ts"]:
+            slot["ts"] = float(ts)
+        s = float(snr_db or 0.0)
+        if s > slot["snr_db"]:
+            slot["snr_db"] = s
+            slot["power_dbfs"] = float(power_dbfs or slot["power_dbfs"])
+            slot["bandwidth_hz"] = float(bw_hz or slot["bandwidth_hz"])
+        # Prefer the first classified sighting we see (rows are DESC by ts,
+        # so this is the most-recent successful classification).
+        if has_class and slot["mod_cls"] is None:
+            slot["mod_cls"] = mod_cls
+            slot["confidence"] = float(conf or 0.0)
+            slot["proto"] = proto
+            if interp:
+                slot["interp"] = str(interp)[:80]
+    out: list[dict] = []
+    for slot in by_bin.values():
+        is_classified = slot["mod_cls"] is not None
+        if is_classified:
+            label_bits = [str(slot["mod_cls"])]
+            if slot["proto"] and slot["proto"] != slot["mod_cls"]:
+                label_bits.append(f"[{slot['proto']}]")
+            label = " ".join(label_bits)
+            if slot["interp"]:
+                label = f"{label} - {slot['interp']}"
+        else:
+            label = "pending"
         out.append({
-            "freq_mhz": round(float(freq_hz) / 1e6, 4),
+            "freq_mhz": round(slot["freq_hz"] / 1e6, 4),
             "classification": label,
-            "confidence": round(confidence, 3),
-            "snr_db": round(float(snr or 0.0), 1),
+            "classified": is_classified,
+            "confidence": round(slot["confidence"], 3),
+            "snr_db": round(slot["snr_db"], 1),
+            "power_dbfs": round(slot["power_dbfs"], 1),
+            "bandwidth_khz": round(slot["bandwidth_hz"] / 1e3, 2),
+            "last_seen_s_ago": int(max(0.0, now - slot["ts"])),
         })
-    return out
+    # Most recent first; cap at DETECTIONS_LIMIT post-dedupe.
+    out.sort(key=lambda d: d["last_seen_s_ago"])
+    return out[:DETECTIONS_LIMIT]
 
 
 # ---------------------------------------------------------------------
