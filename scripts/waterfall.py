@@ -34,6 +34,8 @@ import json
 import logging
 import os
 import signal
+import socket
+import struct
 import sys
 import threading
 import time
@@ -119,6 +121,38 @@ LOG = logging.getLogger("scanner.waterfall")
 _STOP = threading.Event()
 _FORCE_EXIT_ARMED = False
 
+# ---------------------------------------------------------------------
+# Direct IPC: SOCK_DGRAM publish channel to ws_spectrum (and any other
+# in-process consumer that wants live frames without mtime-polling
+# state.json).  state.json keeps being written — it is still the
+# /api/waterfall payload and the heartbeat freshness probe — so this
+# socket is an *additive* low-latency path, not a replacement.
+#
+# Wire layout per datagram (matches ws_spectrum's WS binary frame):
+#   offset  size  field
+#   ------  ----  --------------------------------
+#   0       1     u8   pane_id (0 = waterfall)
+#   1       4     f32  center_mhz   (little-endian)
+#   5       4     f32  span_mhz     (little-endian)
+#   9       2     u16  n_bins       (little-endian)
+#   11      4*N   f32[] bins (dBFS, little-endian)
+#
+# 2048 bins -> 8203 bytes; well under the kernel's default AF_UNIX
+# datagram cap, so SOCK_DGRAM (one frame == one message) is the right
+# choice here.
+SPEC_SOCKET_PATH = os.path.join(STATE_DIR, "spec.sock")
+SPEC_PANE_WATERFALL = 0
+# Subscribers must heartbeat at least once inside this window or they
+# get pruned (so we don't pile sendto() retries onto a dead socket).
+SUBSCRIBER_IDLE_TIMEOUT_S = 5.0
+# Single-byte register/heartbeat magic. Any well-formed packet from a
+# bound subscriber renews liveness, but the magic lets us drop random
+# UDP-style noise without trying to interpret it.
+SUBSCRIBER_HELLO_BYTES = b"SUB\x01"
+# Subscriber control frames are tiny by design (4 bytes today). 64
+# is the defence-in-depth cap.
+PUBLISHER_RECV_BUFSIZE = 64
+
 
 def _setup_logging() -> None:
     logging.basicConfig(
@@ -172,6 +206,101 @@ def _write_state_atomic(state: dict, path: str) -> None:
             pass
         raise
     os.replace(tmp, path)
+
+
+# ---------------------------------------------------------------------
+# Direct-IPC spectrum publisher
+# ---------------------------------------------------------------------
+class SpectrumPublisher:
+    """SOCK_DGRAM fan-out to ws_spectrum (and any other live consumer).
+
+    Subscribers register by sending ``SUBSCRIBER_HELLO_BYTES`` from a
+    bound AF_UNIX address; we recvfrom() to harvest the address and
+    keep them in ``self.subscribers`` with a monotonic last-seen.
+    Anyone who goes quiet for ``SUBSCRIBER_IDLE_TIMEOUT_S`` is dropped.
+
+    The bind is best-effort: if it fails (e.g. /run not writable yet,
+    or a stale socket file can't be unlinked) we log and continue
+    without publishing.  state.json keeps working, so the UI degrades
+    cleanly to its existing mtime-poll path.
+    """
+
+    def __init__(self, path: str):
+        self.path = path
+        self.sock: Optional[socket.socket] = None
+        self.subscribers: dict = {}  # peer_addr -> last_seen monotonic
+        self._open()
+
+    def _open(self) -> None:
+        try:
+            os.makedirs(os.path.dirname(self.path), exist_ok=True)
+            try:
+                os.unlink(self.path)
+            except FileNotFoundError:
+                pass
+            s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+            s.setblocking(False)
+            s.bind(self.path)
+            os.chmod(self.path, 0o666)
+            self.sock = s
+            LOG.info("spectrum publisher bound to %s", self.path)
+        except OSError as e:
+            LOG.warning("spectrum publisher bind failed: %s", e)
+            self.sock = None
+
+    def poll(self) -> None:
+        """Drain pending hellos/heartbeats and prune idle subscribers."""
+        if self.sock is None:
+            return
+        while True:
+            try:
+                data, peer = self.sock.recvfrom(PUBLISHER_RECV_BUFSIZE)
+            except BlockingIOError:
+                break
+            except OSError:
+                break
+            if not peer or not data.startswith(SUBSCRIBER_HELLO_BYTES[:3]):
+                continue
+            self.subscribers[peer] = time.monotonic()
+        now = time.monotonic()
+        stale = [p for p, ts in self.subscribers.items()
+                 if (now - ts) > SUBSCRIBER_IDLE_TIMEOUT_S]
+        for p in stale:
+            self.subscribers.pop(p, None)
+
+    def publish(self, frame: bytes) -> None:
+        if self.sock is None or not self.subscribers:
+            return
+        for peer in list(self.subscribers):
+            try:
+                self.sock.sendto(frame, peer)
+            except OSError:
+                # Peer's bound path vanished (their process died). Drop
+                # it now so we don't churn sendto() failures every frame
+                # until the idle prune catches up.
+                self.subscribers.pop(peer, None)
+
+    def close(self) -> None:
+        if self.sock is not None:
+            try:
+                self.sock.close()
+            except OSError:
+                pass
+            self.sock = None
+        try:
+            os.unlink(self.path)
+        except OSError:
+            pass
+
+
+def _build_spectrum_datagram(pane_id: int, center_mhz: float, span_mhz: float,
+                             bins: np.ndarray) -> bytes:
+    """Pack one FFT frame into the wire format ws_spectrum expects."""
+    arr = np.ascontiguousarray(bins, dtype=np.float32)
+    n = int(arr.size)
+    header = struct.pack("<BffH", pane_id & 0xFF,
+                         float(center_mhz), float(span_mhz), n)
+    return header + arr.tobytes()
 
 
 # ---------------------------------------------------------------------
@@ -756,6 +885,8 @@ def main() -> int:
     config_poller.prime()
     _persist_band(current_center_mhz, current_bw_mhz)
 
+    publisher = SpectrumPublisher(SPEC_SOCKET_PATH)
+
     LOG.info(
         "waterfall up: A=%s @ %.3f MHz, B=%s @ %.3f MHz; center=%.3f MHz "
         "bw=%.3f MHz (rate=%.3f MS/s, half-spacing=%.3f MHz, "
@@ -902,6 +1033,22 @@ def main() -> int:
                 last_state_write = now
             except Exception as e:
                 LOG.warning("state write failed: %s", e)
+            # Same cadence on the direct-IPC channel as on disk: 30 Hz
+            # cap. poll() drains subscriber hellos/heartbeats and prunes
+            # the idle ones; publish() is a no-op when no one is
+            # subscribed, so this stays cheap on a headless box.
+            publisher.poll()
+            if publisher.subscribers:
+                try:
+                    datagram = _build_spectrum_datagram(
+                        SPEC_PANE_WATERFALL,
+                        current_center_mhz,
+                        bw_mhz,
+                        bins,
+                    )
+                    publisher.publish(datagram)
+                except (OSError, ValueError) as e:
+                    LOG.warning("spectrum publish failed: %s", e)
 
         # Pace the outer loop — workers are doing the heavy lifting; the
         # stitch/write loop just needs to be faster than the UI's poll.
@@ -911,6 +1058,7 @@ def main() -> int:
     LOG.info("main loop exiting; stopping workers")
     a.stop_and_join(timeout=3.0)
     b.stop_and_join(timeout=3.0)
+    publisher.close()
     LOG.info("waterfall shut down cleanly")
     return 0
 

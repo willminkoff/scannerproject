@@ -15,15 +15,30 @@ Binary frame layout (sent on each pane update, little-endian throughout)::
     9       2     u16  n_bins
     11      4*N   f32[]  bins  (dBFS)
 
-The handler mtime-polls the waterfall state file at ``WS_MTIME_POLL_INTERVAL_S``
-and emits a frame to the client whenever the file is newer than the last
-one sent.  VFO and Discovery panes are data-only on /sb5 — their spectrum
-plot + waterfall were dropped in favour of Live IQ as the single spectrum
-view, so the WS push only carries pane_id=0 (waterfall).  pane_id slots
-1 (VFO) and 2 (Disco) stay reserved in the wire protocol for future use.
-No data fan-out: each connected client owns its own poller thread and its
-own copy of the state.  At our scale (~1 operator, maybe 2 tabs) this is
-cheaper than a shared broadcaster.
+Transport: waterfall.py publishes each FFT frame to a SOCK_DGRAM unix
+socket (``SPEC_PUBLISHER_PATH``).  We subscribe by binding our own
+AF_UNIX path and sending a tiny hello packet; waterfall.py then
+``sendto()`` each frame to us as it is computed, eliminating the old
+state.json mtime-poll round-trip and dropping end-to-end latency from
+20-50 ms to roughly a single context switch.  We heartbeat every
+``SUBSCRIBER_HEARTBEAT_S`` so the publisher knows we are still alive.
+
+Fallback: if the socket can't be opened (waterfall.py down or socket
+not bound yet) or it stops delivering frames for ``WS_SOCKET_STALE_S``,
+we fall back to the legacy mtime-poll of ``WATERFALL_STATE_PATH`` at
+``WS_MTIME_POLL_INTERVAL_S``.  state.json keeps being written by
+waterfall.py — it is still the /api/waterfall HTTP payload and the
+heartbeat freshness probe — so the fallback is genuinely a fallback and
+never silently broken.  Reconnects to the socket use exponential backoff
+capped at ``WS_BACKOFF_CAP_S``.
+
+VFO and Discovery panes are data-only on /sb5 — their spectrum plot +
+waterfall were dropped in favour of Live IQ as the single spectrum view,
+so the WS push only carries pane_id=0 (waterfall).  pane_id slots 1
+(VFO) and 2 (Disco) stay reserved in the wire protocol for future use.
+No data fan-out: each connected client owns its own subscriber socket
+and its own copy of the state.  At our scale (~1 operator, maybe 2 tabs)
+this is cheaper than a shared broadcaster.
 
 Read path: inbound client frames are read directly from the raw socket
 (handler.connection) rather than handler.rfile, because BufferedReader
@@ -40,6 +55,7 @@ import os
 import select
 import socket
 import struct
+import threading
 import time
 
 logger = logging.getLogger(__name__)
@@ -92,9 +108,28 @@ WS_LEN_16BIT_MAX = 65535
 # so the role is obvious at the call site.
 WS_SELECT_TIMEOUT_S = WS_MTIME_POLL_INTERVAL_S
 
+# Direct-IPC subscription to waterfall.py's spectrum publisher.
+WATERFALL_RUN_DIR = "/run/scannerproject/waterfall"
+SPEC_PUBLISHER_PATH = WATERFALL_RUN_DIR + "/spec.sock"
+# Matches waterfall.py SUBSCRIBER_HELLO_BYTES — see that file for the
+# protocol notes.  Doubles as the keepalive packet.
+SUBSCRIBER_HELLO_BYTES = b"SUB\x01"
+# Heartbeat cadence.  Publisher drops subscribers idle for >5 s, so
+# anything well under that is fine; 2 s keeps us in the green even if
+# a few datagrams get dropped.
+SUBSCRIBER_HEARTBEAT_S = 2.0
+# Datagram recv buffer: 2048 bins -> 8203 bytes, with headroom.
+SUBSCRIBER_RECV_BUFSIZE = 65536
+# Inactivity window before we consider the socket "stale" and re-enable
+# the state.json mtime-poll fallback path.  ~6x the producer's 33 ms
+# frame period: long enough to ride out single dropped packets, short
+# enough that a real outage flips to the fallback within a tenth of a
+# second.
+WS_SOCKET_STALE_S = 0.2
+
 # Pane registry.  Slot indices match the wire pane_id.  VFO (1) and
 # Disco (2) are reserved but no longer broadcast — see module docstring.
-WATERFALL_STATE_PATH = "/run/scannerproject/waterfall/state.json"
+WATERFALL_STATE_PATH = WATERFALL_RUN_DIR + "/state.json"
 
 PANE_WATERFALL = 0
 PANE_VFO = 1
@@ -244,6 +279,117 @@ def build_spectrum_frame(pane_id, state):
 
 
 # ---------------------------------------------------------------------------
+# Direct-IPC subscriber to waterfall.py.
+# ---------------------------------------------------------------------------
+
+class SpectrumSubscriber:
+    """SOCK_DGRAM subscriber to waterfall.py's frame publisher.
+
+    Each WS client owns one of these.  We bind our own AF_UNIX path
+    (unique per-pid + thread so concurrent clients don't collide) and
+    send ``SUBSCRIBER_HELLO_BYTES`` to the publisher; the publisher
+    harvests our address via recvfrom() and starts sendto()-ing frames.
+
+    Failure modes are all best-effort: bind failures, send failures and
+    publisher restarts all just drop us back to "not connected" so the
+    caller can fall back to the mtime-poll path while we retry on the
+    documented exponential-backoff schedule.
+    """
+
+    def __init__(self):
+        self.pub_path = SPEC_PUBLISHER_PATH
+        self.sock = None
+        self.local_path = None
+        self._backoff = WS_BACKOFF_BASE_S
+        self._next_attempt_at = 0.0
+        self._last_heartbeat_at = 0.0
+        self.connect()
+
+    @property
+    def connected(self) -> bool:
+        return self.sock is not None
+
+    def connect(self) -> None:
+        """Open the subscriber socket and send a hello to the publisher."""
+        if self.sock is not None:
+            return
+        try:
+            self.local_path = os.path.join(
+                WATERFALL_RUN_DIR,
+                "ws-client.%d-%d.sock" % (os.getpid(), threading.get_ident()),
+            )
+            try:
+                os.unlink(self.local_path)
+            except FileNotFoundError:
+                pass
+            s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+            s.setblocking(False)
+            s.bind(self.local_path)
+            os.chmod(self.local_path, 0o666)
+            s.sendto(SUBSCRIBER_HELLO_BYTES, self.pub_path)
+            self.sock = s
+            self._last_heartbeat_at = time.monotonic()
+            self._backoff = WS_BACKOFF_BASE_S
+        except OSError as e:
+            logger.debug("subscriber connect failed: %s", e)
+            self._teardown_socket()
+            self._schedule_reconnect()
+
+    def maybe_heartbeat(self, now: float) -> None:
+        if self.sock is None:
+            return
+        if (now - self._last_heartbeat_at) < SUBSCRIBER_HEARTBEAT_S:
+            return
+        try:
+            self.sock.sendto(SUBSCRIBER_HELLO_BYTES, self.pub_path)
+            self._last_heartbeat_at = now
+        except OSError as e:
+            logger.debug("subscriber heartbeat failed: %s", e)
+            self._teardown_socket()
+            self._schedule_reconnect()
+
+    def maybe_reconnect(self, now: float) -> None:
+        if self.sock is not None:
+            return
+        if now >= self._next_attempt_at:
+            self.connect()
+
+    def recv_frame(self) -> bytes | None:
+        if self.sock is None:
+            return None
+        try:
+            return self.sock.recv(SUBSCRIBER_RECV_BUFSIZE)
+        except (BlockingIOError, InterruptedError):
+            return None
+        except OSError as e:
+            logger.debug("subscriber recv failed: %s", e)
+            self._teardown_socket()
+            self._schedule_reconnect()
+            return None
+
+    def _schedule_reconnect(self) -> None:
+        self._next_attempt_at = time.monotonic() + self._backoff
+        self._backoff = min(WS_BACKOFF_CAP_S, self._backoff * 2.0)
+
+    def _teardown_socket(self) -> None:
+        if self.sock is not None:
+            try:
+                self.sock.close()
+            except OSError:
+                pass
+            self.sock = None
+        if self.local_path:
+            try:
+                os.unlink(self.local_path)
+            except OSError:
+                pass
+            self.local_path = None
+
+    def close(self) -> None:
+        self._teardown_socket()
+
+
+# ---------------------------------------------------------------------------
 # Per-client loop.
 # ---------------------------------------------------------------------------
 
@@ -254,71 +400,112 @@ def serve_client(wfile, conn):
     responsible for the handshake; we just push frames and process inbound
     control frames.  Inbound frames are read from the raw socket via select;
     outbound frames go through wfile so http.server's buffering applies.
+
+    Primary delivery path is the SOCK_DGRAM subscription to waterfall.py
+    (``SpectrumSubscriber``).  When that goes quiet for ``WS_SOCKET_STALE_S``
+    we fall back to the state.json mtime poll so the UI keeps updating
+    while the publisher reconnects.
     """
     last_mtimes = {pid: -1.0 for pid, _ in WS_PANES}
     last_ping_at = time.monotonic()
+    sub = SpectrumSubscriber()
+    last_socket_frame_at = time.monotonic()
     # The raw socket has whatever timeout the HTTP server set; we drive
     # readiness via select() with WS_SELECT_TIMEOUT_S so we can interleave
     # the mtime poll without blocking inbound reads.
     conn.setblocking(True)
     conn.settimeout(None)
-    while True:
-        # 1) Drain any pending inbound frame (close/ping/pong).
-        try:
-            ready, _, _ = select.select([conn], [], [], WS_SELECT_TIMEOUT_S)
-        except (OSError, ValueError):
-            return
-        if ready:
+    try:
+        while True:
+            # 1) Wait for either the client (control frames) or the
+            # subscriber socket (live spectrum frames) to be readable.
+            fds = [conn]
+            if sub.connected:
+                fds.append(sub.sock)
             try:
-                opcode, payload = read_frame(conn)
-            except (ConnectionError, OSError):
+                ready, _, _ = select.select(fds, [], [], WS_SELECT_TIMEOUT_S)
+            except (OSError, ValueError):
                 return
-            if opcode == WS_OP_CLOSE:
+
+            if conn in ready:
                 try:
-                    wfile.write(encode_frame(WS_OP_CLOSE, payload[:WS_MAX_CONTROL_LEN]))
-                    wfile.flush()
-                except OSError:
-                    pass
-                return
-            if opcode == WS_OP_PING:
+                    opcode, payload = read_frame(conn)
+                except (ConnectionError, OSError):
+                    return
+                if opcode == WS_OP_CLOSE:
+                    try:
+                        wfile.write(encode_frame(
+                            WS_OP_CLOSE, payload[:WS_MAX_CONTROL_LEN]))
+                        wfile.flush()
+                    except OSError:
+                        pass
+                    return
+                if opcode == WS_OP_PING:
+                    try:
+                        wfile.write(encode_frame(
+                            WS_OP_PONG, payload[:WS_MAX_CONTROL_LEN]))
+                        wfile.flush()
+                    except OSError:
+                        return
+                # PONG and any unsolicited TEXT/BINARY we silently drop.
+
+            # 2) Live spectrum frames from waterfall.py.  Drain everything
+            # the kernel has queued so we don't lag behind under load.
+            if sub.connected and sub.sock in ready:
+                while True:
+                    frame = sub.recv_frame()
+                    if frame is None or len(frame) < WS_FRAME_HEADER_BYTES:
+                        break
+                    try:
+                        wfile.write(encode_frame(WS_OP_BINARY, frame))
+                        wfile.flush()
+                    except OSError:
+                        return
+                    last_socket_frame_at = time.monotonic()
+
+            now = time.monotonic()
+            sub.maybe_heartbeat(now)
+            sub.maybe_reconnect(now)
+
+            # 3) Fallback: when the subscriber path is quiet, poll
+            # state.json mtime so the UI keeps updating during a
+            # publisher outage or reconnect window.
+            socket_stale = (
+                (not sub.connected)
+                or (now - last_socket_frame_at) > WS_SOCKET_STALE_S
+            )
+            if socket_stale:
+                for pane_id, path in WS_PANES:
+                    try:
+                        mt = os.stat(path).st_mtime
+                    except OSError:
+                        continue
+                    if mt <= last_mtimes[pane_id]:
+                        continue
+                    state = _read_state(path)
+                    if state is None:
+                        continue
+                    frame = build_spectrum_frame(pane_id, state)
+                    if frame is None:
+                        last_mtimes[pane_id] = mt
+                        continue
+                    try:
+                        wfile.write(encode_frame(WS_OP_BINARY, frame))
+                        wfile.flush()
+                    except OSError:
+                        return
+                    last_mtimes[pane_id] = mt
+
+            # 4) Periodic ping to keep intermediaries from idling us out.
+            if (now - last_ping_at) >= WS_PING_INTERVAL_S:
                 try:
-                    wfile.write(encode_frame(WS_OP_PONG, payload[:WS_MAX_CONTROL_LEN]))
+                    wfile.write(encode_frame(WS_OP_PING, b""))
                     wfile.flush()
                 except OSError:
                     return
-            # PONG and any unsolicited TEXT/BINARY we silently drop.
-
-        # 2) Push spectrum frames for any pane whose state.json has changed.
-        for pane_id, path in WS_PANES:
-            try:
-                mt = os.stat(path).st_mtime
-            except OSError:
-                continue
-            if mt <= last_mtimes[pane_id]:
-                continue
-            state = _read_state(path)
-            if state is None:
-                continue
-            frame = build_spectrum_frame(pane_id, state)
-            if frame is None:
-                last_mtimes[pane_id] = mt
-                continue
-            try:
-                wfile.write(encode_frame(WS_OP_BINARY, frame))
-                wfile.flush()
-            except OSError:
-                return
-            last_mtimes[pane_id] = mt
-
-        # 3) Periodic ping to keep intermediaries from idling us out.
-        now = time.monotonic()
-        if (now - last_ping_at) >= WS_PING_INTERVAL_S:
-            try:
-                wfile.write(encode_frame(WS_OP_PING, b""))
-                wfile.flush()
-            except OSError:
-                return
-            last_ping_at = now
+                last_ping_at = now
+    finally:
+        sub.close()
 
 
 def handle_spectrum_upgrade(handler):
