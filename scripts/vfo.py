@@ -36,6 +36,7 @@ import time
 from typing import Optional
 
 import numpy as np
+import scipy.signal as _sig
 import SoapySDR
 from SoapySDR import SOAPY_SDR_RX, SOAPY_SDR_CF32
 
@@ -65,10 +66,19 @@ SAMPLE_RATE_HZ = 2_400_000        # 2.4 MS/s — matches waterfall pattern
 AUDIO_SR = 48_000                 # output audio sample rate
 DECIMATION = SAMPLE_RATE_HZ // AUDIO_SR   # = 50 (clean integer)
 
-# IQ block size feeding the demod chain.  1 ms of audio = 50 ms of IQ
-# per block (50:1 dec).  No FFT here — the operator-facing spectrum view
-# lives on Live IQ; VFO is data-only (controls, status).
-FFT_SIZE_AUDIO = 2400
+# FFT for mini-waterfall.  We splat each block into a 256
+# bin FFT covering the full 2.4 MHz window.
+#
+# Block size: 24000 IQ samples = 10 ms of IQ at 2.4 MS/s = 480 audio
+# samples per block at 48 kHz (50:1 decimation, clean integer).  We
+# used to run 2400-sample blocks (1 ms) but that meant the demod loop
+# fired 1000x/sec and the per-call ufunc dispatch overhead on
+# np.angle / np.abs / lfilter dominated CPU (~80% on one core for
+# NFM).  10 ms blocks add negligible audio latency but cut the loop
+# overhead ~10x.
+FFT_SIZE_AUDIO = 24000            # 10 ms of IQ per block (50:1 dec -> 480 audio samples)
+MINI_FFT_BINS = 256
+MINI_FFT_PERIOD_SEC = 0.5         # ~2 Hz waterfall refresh
 
 # Watchdog: 3 consecutive bad reads -> close + reopen with exponential
 # backoff (5s -> 60s).  Matches Phase 6a waterfall.
@@ -191,24 +201,29 @@ class ConfigPoller:
 class AMDemod:
     """Envelope detector + DC block + decimate."""
 
+    # 1st-order DC block: y[n] = x[n] - x[n-1] + 0.995*y[n-1]
+    # As b/a coefficients for scipy.signal.lfilter:
+    #   a[0]*y[n] = b[0]*x[n] + b[1]*x[n-1] - a[1]*y[n-1]
+    # so b=[1, -1], a=[1, -0.995].
+    _DC_B = np.array([1.0, -1.0], dtype=np.float32)
+    _DC_A = np.array([1.0, -0.995], dtype=np.float32)
+
     def __init__(self):
-        self._dc_prev_in = 0.0 + 0j
-        self._dc_prev_out = 0.0
+        # Filter state: max(len(a), len(b))-1 = 1 sample.  Persists
+        # across blocks so the DC block is continuous.
+        self._dc_zi = np.zeros(1, dtype=np.float32)
 
     def __call__(self, iq: np.ndarray) -> np.ndarray:
         mag = np.abs(iq).astype(np.float32)
-        # Simple 1st-order DC block: y[n] = x[n] - x[n-1] + 0.995*y[n-1]
-        out = np.empty_like(mag)
-        prev_in = float(self._dc_prev_in.real)
-        prev_out = self._dc_prev_out
-        for i in range(mag.shape[0]):
-            v = mag[i] - prev_in + 0.995 * prev_out
-            out[i] = v
-            prev_in = mag[i]
-            prev_out = v
-        self._dc_prev_in = complex(prev_in)
-        self._dc_prev_out = prev_out
-        return _decimate(out, DECIMATION)
+        # Vectorized DC block via lfilter — same math as the per-sample
+        # Python loop we used to run, but the inner work is in C.  At
+        # 24000 samples/block this is the difference between ~0.5 ms
+        # per block and ~12 ms per block (i.e. it would single-handedly
+        # peg a core if left in Python).
+        out, self._dc_zi = _sig.lfilter(
+            self._DC_B, self._DC_A, mag, zi=self._dc_zi,
+        )
+        return _decimate(out.astype(np.float32, copy=False), DECIMATION)
 
 
 class FMDemod:
@@ -219,34 +234,49 @@ class FMDemod:
     """
 
     def __init__(self, deemph_us: Optional[float] = None):
-        self._last_sample = 1.0 + 0j
+        self._last_sample = np.complex64(1.0 + 0j)
         if deemph_us:
             # 1-pole IIR at corner f = 1/(2 pi tau); use AUDIO_SR.
+            #   y[n] = (1-a)*x[n] + a*y[n-1]
+            # => b = [1-a], a_coef = [1, -a]
             tau = deemph_us * 1e-6
-            self._deemph_a = float(np.exp(-1.0 / (AUDIO_SR * tau)))
+            a = float(np.exp(-1.0 / (AUDIO_SR * tau)))
+            self._deemph_b = np.array([1.0 - a], dtype=np.float32)
+            self._deemph_a = np.array([1.0, -a], dtype=np.float32)
+            self._deemph_zi = np.zeros(1, dtype=np.float32)
         else:
-            self._deemph_a = 0.0
-        self._deemph_y = 0.0
+            self._deemph_b = None
+            self._deemph_a = None
+            self._deemph_zi = None
 
     def __call__(self, iq: np.ndarray) -> np.ndarray:
+        if iq.size == 0:
+            return np.zeros(0, dtype=np.float32)
         prev = self._last_sample
-        # stitch with previous final sample for continuous phase diff
-        z = np.concatenate(([prev], iq))
-        phase = np.angle(z[1:] * np.conj(z[:-1])).astype(np.float32)
-        self._last_sample = iq[-1] if iq.size else prev
+        # Polar discriminator: phase of z[n]*conj(z[n-1]).  We stitch
+        # against the last sample from the prior block so the phase
+        # diff is continuous across block boundaries — but avoid the
+        # np.concatenate (which allocates+copies a fresh 24k-sample
+        # buffer every block) by computing the first sample's diff
+        # against `prev` directly and the rest as a vectorized slice.
+        phase = np.empty(iq.shape[0], dtype=np.float32)
+        first_prod = iq[0] * np.conj(prev)
+        phase[0] = np.arctan2(float(first_prod.imag), float(first_prod.real))
+        if iq.shape[0] > 1:
+            # vectorized polar discriminator for the rest of the block
+            phase[1:] = np.angle(iq[1:] * np.conj(iq[:-1]))
+        self._last_sample = iq[-1]
         # Decimate AFTER the phase calc — at 2.4 MS/s -> 48 kHz this is
         # a 50:1 box filter.  Simple, low-CPU, good enough for scanner
         # use; ringing is masked by the loudness of typical traffic.
         audio = _decimate(phase, DECIMATION)
         # Gentle gain so AM and FM perceive similar.
         audio *= 6.0
-        if self._deemph_a:
-            a = self._deemph_a
-            y = self._deemph_y
-            for i in range(audio.shape[0]):
-                y = (1.0 - a) * audio[i] + a * y
-                audio[i] = y
-            self._deemph_y = y
+        if self._deemph_b is not None:
+            audio, self._deemph_zi = _sig.lfilter(
+                self._deemph_b, self._deemph_a, audio, zi=self._deemph_zi,
+            )
+            audio = audio.astype(np.float32, copy=False)
         return audio
 
 
@@ -507,6 +537,35 @@ def _resolve_bus_path(serial: str) -> str:
 
 
 # ---------------------------------------------------------------------
+# Mini-waterfall FFT helper.
+# ---------------------------------------------------------------------
+def _compute_mini_bins(iq: np.ndarray) -> np.ndarray:
+    """Return MINI_FFT_BINS dBFS values covering the 2.4 MHz window.
+
+    We FFT the first MINI_FFT_BINS samples (or the whole block, taking
+    the dominant magnitude per bin via reshaping).  Keep it cheap —
+    this is a visual aid, not an analyzer.
+    """
+    n = MINI_FFT_BINS
+    if iq.shape[0] < n:
+        return np.full(n, -120.0, dtype=np.float32)
+    # Take a centered slice equal to a power-of-two multiple of n so the
+    # reshape + mean averages noisy bins down toward the noise floor.
+    take = n
+    while take * 2 <= iq.shape[0]:
+        take *= 2
+    blk = iq[:take]
+    win = np.hanning(take).astype(np.float32)
+    spec = np.fft.fftshift(np.fft.fft(blk * win))
+    mag2 = (spec.real * spec.real + spec.imag * spec.imag).astype(np.float32)
+    # Group every (take/n) consecutive bins down to n bins via mean.
+    group = take // n
+    mag2 = mag2[: group * n].reshape(n, group).mean(axis=1)
+    mag_db = 10.0 * np.log10(mag2 + 1e-30) - 20.0 * np.log10(take)
+    return mag_db.astype(np.float32)
+
+
+# ---------------------------------------------------------------------
 # DongleWorker — owns the SoapySDR device + demod + audio publish chain.
 # ---------------------------------------------------------------------
 class VFOWorker:
@@ -547,6 +606,10 @@ class VFOWorker:
         self._demod_am = AMDemod()
         self._demod_nfm = FMDemod(deemph_us=None)
         self._demod_wfm = FMDemod(deemph_us=75.0)
+
+        # Mini-waterfall throttle.
+        self._mini_last_ts = 0.0
+        self.mini_bins: list[float] = [-120.0] * MINI_FFT_BINS
 
     # ---- public config surface --------------------------------------
     def apply_config(self, cfg: dict) -> None:
@@ -781,6 +844,16 @@ class VFOWorker:
             self.icecast.write(pcm)
             self.bt_pipe.write(pcm)
 
+            # Mini-waterfall throttle.
+            now = time.time()
+            if now - self._mini_last_ts >= MINI_FFT_PERIOD_SEC:
+                try:
+                    bins = _compute_mini_bins(iq)
+                    self.mini_bins = [round(float(v), 1) for v in bins.tolist()]
+                except Exception as e:
+                    LOG.warning("mini fft failed: %s", e)
+                self._mini_last_ts = now
+
         self._safe_close()
         LOG.info("worker exiting serial=%s", self.serial)
 
@@ -835,7 +908,7 @@ def main() -> int:
         SERIAL, DEFAULT_FREQ_MHZ, DEFAULT_MOD,
     )
 
-    STATE_WRITE_PERIOD = 0.05  # Phase 6a.2: 20 Hz (30 Hz pegged a core; was 0.25 / 4 Hz)
+    STATE_WRITE_PERIOD = 0.25
     last_state_write = 0.0
 
     while not _STOP.is_set():
@@ -876,6 +949,7 @@ def main() -> int:
             "bt_routed": bool(snap["bt_routed"]),
             "bt_active": bool(bt_pipe.active),
             "bt_last_error": bt_pipe.last_error,
+            "bins": worker.mini_bins,
             "freq_min_mhz": round(f - bw / 2, 4),
             "freq_max_mhz": round(f + bw / 2, 4),
             "dongle": {
@@ -902,7 +976,7 @@ def main() -> int:
             except Exception as e:
                 LOG.warning("state write failed: %s", e)
 
-        if _STOP.wait(0.02):  # Phase 6a.2: 50 Hz outer loop, lets STATE_WRITE_PERIOD set the cap
+        if _STOP.wait(0.1):
             break
 
     LOG.info("main loop exiting; stopping worker + audio chain")
