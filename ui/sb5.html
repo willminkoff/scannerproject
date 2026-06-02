@@ -2064,9 +2064,29 @@ function autoStretchIntensity(bins, key) {
 // the same range the heatmap stretches to.  All colors + the label font
 // size are pulled from CSS vars — no hardcoded hex or px sizes.
 const SPEC_PEAK_HOLD = new Map();
+// Peak-hold update is split out of renderSpectrum so it only runs when
+// fresh FFT data lands (in specSubmitFrame), not on every rAF interpolation
+// frame.  Otherwise the running-max would be polled against lerped values
+// and could understate brief spikes.
+function _specUpdatePeakHold(key, bins, freqLo, freqHi) {
+  const N = bins.length;
+  let ph = SPEC_PEAK_HOLD.get(key);
+  if (!ph || ph.lo !== freqLo || ph.hi !== freqHi || ph.peak.length !== N) {
+    ph = { lo: freqLo, hi: freqHi, peak: new Float32Array(N) };
+    for (let i = 0; i < N; i++) ph.peak[i] = bins[i];
+    SPEC_PEAK_HOLD.set(key, ph);
+    return;
+  }
+  const p = ph.peak;
+  for (let i = 0; i < N; i++) {
+    const v = bins[i];
+    if (v > p[i]) p[i] = v;
+  }
+}
 function renderSpectrum(canvas, bins, freqLo, freqHi, scaleKey) {
   if (!canvas) return;
-  if (!Array.isArray(bins) || bins.length === 0) return;
+  if (!Array.isArray(bins) && !ArrayBuffer.isView(bins)) return;
+  if (bins.length === 0) return;
   if (!Number.isFinite(freqLo) || !Number.isFinite(freqHi) || freqHi <= freqLo) return;
   const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
   if (cssW < 4 || cssH < 4) return;
@@ -2087,18 +2107,13 @@ function renderSpectrum(canvas, bins, freqLo, freqHi, scaleKey) {
     return (cssH - 1) - t * (cssH - 2);
   };
 
-  // Peak-hold buffer: reset on freq-window change or bin-count change.
+  // Peak-hold buffer is maintained by _specUpdatePeakHold (called from
+  // specSubmitFrame whenever new FFT data arrives).  Here we just read.
+  // Seed defensively if a pane hasn't been submitted yet.
   let ph = SPEC_PEAK_HOLD.get(key);
   if (!ph || ph.lo !== freqLo || ph.hi !== freqHi || ph.peak.length !== N) {
-    ph = { lo: freqLo, hi: freqHi, peak: new Float32Array(N) };
-    for (let i = 0; i < N; i++) ph.peak[i] = bins[i];
-    SPEC_PEAK_HOLD.set(key, ph);
-  } else {
-    const p = ph.peak;
-    for (let i = 0; i < N; i++) {
-      const v = bins[i];
-      if (v > p[i]) p[i] = v;
-    }
+    _specUpdatePeakHold(key, bins, freqLo, freqHi);
+    ph = SPEC_PEAK_HOLD.get(key);
   }
 
   // All colors + typography come from CSS vars on the canvas element so a
@@ -2198,6 +2213,77 @@ function renderSpectrum(canvas, bins, freqLo, freqHi, scaleKey) {
     ctx.restore();
   }
 }
+
+// ----- rAF-driven spec render loop ---------------------------------------
+// Data polls (pollWaterfall/pollVFO/pollDisco) run at their own cadences;
+// the FFT trace itself paints on every animation frame, EMA-lerping the
+// displayed bins toward the latest received bins.  This decouples visual
+// smoothness from poll rate, so a 200ms VFO poll still feels real-time.
+// Peak-hold is updated only when new data arrives (inside specSubmitFrame),
+// not on interpolation frames — see _specUpdatePeakHold above.
+const SPEC_LERP_TC_MS = 80;    // EMA time constant (display -> target)
+const SPEC_LERP_EPS_DB = 0.02; // skip paint when display ~= target
+const SPEC_PANE = new Map();   // key -> { canvas, target, display, freqLo, freqHi, dirty }
+
+function specSubmitFrame(canvas, bins, freqLo, freqHi, scaleKey) {
+  if (!canvas) return;
+  if (!Array.isArray(bins) || bins.length === 0) return;
+  if (!Number.isFinite(freqLo) || !Number.isFinite(freqHi) || freqHi <= freqLo) return;
+  const key = scaleKey || canvas.id;
+  const N = bins.length;
+  let p = SPEC_PANE.get(key);
+  if (!p || p.target.length !== N || p.freqLo !== freqLo || p.freqHi !== freqHi) {
+    // First frame, or freq-window / bin-count changed — snap display
+    // to target so we don't lerp across an unrelated spectrum.
+    p = {
+      canvas,
+      target:  Float32Array.from(bins),
+      display: Float32Array.from(bins),
+      freqLo, freqHi,
+      dirty: true,
+    };
+    SPEC_PANE.set(key, p);
+  } else {
+    p.canvas = canvas;
+    const t = p.target;
+    for (let i = 0; i < N; i++) t[i] = bins[i];
+    p.dirty = true;
+  }
+  // Peak-hold tracks ACTUAL incoming bins, not the lerped display, so a
+  // brief spike that lasts a single data frame is still captured.
+  _specUpdatePeakHold(key, bins, freqLo, freqHi);
+}
+
+let _specRafPrev = 0;
+function _specRafLoop(now) {
+  requestAnimationFrame(_specRafLoop);
+  // Clamp dt so an inactive tab returning to focus doesn't snap-converge
+  // (which would defeat the lerp on the very first frame back).
+  const dt = _specRafPrev ? Math.min(50, now - _specRafPrev) : 16;
+  _specRafPrev = now;
+  // Per-frame alpha for a true exponential approach with time constant
+  // SPEC_LERP_TC_MS: alpha = 1 - exp(-dt / tc).
+  const alpha = 1 - Math.exp(-dt / SPEC_LERP_TC_MS);
+  for (const [key, p] of SPEC_PANE) {
+    const N = p.target.length;
+    const t = p.target, d = p.display;
+    let needPaint = p.dirty;
+    let maxDelta = 0;
+    for (let i = 0; i < N; i++) {
+      const next = d[i] + (t[i] - d[i]) * alpha;
+      const delta = Math.abs(next - d[i]);
+      if (delta > maxDelta) maxDelta = delta;
+      d[i] = next;
+    }
+    if (maxDelta > SPEC_LERP_EPS_DB) needPaint = true;
+    if (needPaint) {
+      renderSpectrum(p.canvas, d, p.freqLo, p.freqHi, key);
+      p.dirty = false;
+    }
+  }
+}
+requestAnimationFrame(_specRafLoop);
+
 // High-contrast "turbo"-style palette: noise = dark navy, signal sweeps
 // blue -> cyan -> green -> yellow -> orange -> red so a 10 dB-over-noise
 // burst is an obvious hue change, not just "a touch lighter".
@@ -2706,7 +2792,7 @@ function renderWaterfall(data) {
 
   const intensity = autoStretchIntensity(data.bins, "wf-canvas");
   pushWaterfallRow("wf-canvas", intensity, wfColormap);
-  renderSpectrum($("wf-spec"), data.bins, min, max, "wf-canvas");
+  specSubmitFrame($("wf-spec"), data.bins, min, max, "wf-canvas");
 }
 
 let VFO_LOCAL = { freq_mhz: 127.700, mod: "am", muted: false, bt_routed: false };
@@ -2777,7 +2863,7 @@ function renderVFO(data) {
   if (Array.isArray(data.bins) && data.bins.length) {
     const intensity = normalizeBins(data.bins, -95, -25);
     pushWaterfallRow("vfo-wf", intensity);
-    renderSpectrum($("vfo-spec"), data.bins, lo, hi, "vfo-spec");
+    specSubmitFrame($("vfo-spec"), data.bins, lo, hi, "vfo-spec");
   }
   $("vfo-low").textContent = lo.toFixed(2);
   $("vfo-center").textContent = f.toFixed(3);
@@ -2895,7 +2981,7 @@ function renderDisco(data) {
     const intensity = normalizeBins(data.bins, -95, -25);
     pushWaterfallRow("disco-canvas", intensity);
     if (haveRange) {
-      renderSpectrum($("disco-spec"), data.bins, start, end, "disco-spec");
+      specSubmitFrame($("disco-spec"), data.bins, start, end, "disco-spec");
     }
   }
   // Detections — surface both classified and pending rows from
@@ -3788,8 +3874,14 @@ const POLL_PROFILE_MS = 60000;
 // setTimeout, so a slow fetch can't pile up overlapping requests — the
 // effective cadence floor is fetch_duration + 100ms.
 const POLL_WATERFALL_MS = 100;
-const POLL_VFO_MS = 3500;
-const POLL_DISCO_MS = 3500;
+// Spec-smoothing pass: VFO + Disco were 3500ms (~0.3 Hz) which made the
+// FFT trace plots feel choppy.  Backend cadence is 250ms (vfo.py
+// STATE_WRITE_PERIOD) and 500ms (disco_coordinator TICK_S); polling at
+// 200ms gets fresh data each backend tick.  Visual smoothness is now
+// driven by a requestAnimationFrame lerp (see SPEC_LERP_TC_MS) instead
+// of the poll rate, so the trace paints at ~60 fps regardless.
+const POLL_VFO_MS = 200;
+const POLL_DISCO_MS = 200;
 
 async function pollHeartbeat() {
   try {
