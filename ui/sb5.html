@@ -2346,6 +2346,43 @@
             <span class="toggle off" id="vfo-bt" data-key="bt_routed"></span>
           </div>
         </div>
+        <!-- Phase 6b.2 — per-VFO squelch + gain. Reuses the
+             .band-controls component pattern shipped in d536928 for
+             AIR/GROUND so the visual language stays consistent. The
+             VFO demod is a single-process loop, so changes apply
+             live (no service restart) — values POST to:
+               POST /api/vfo/squelch  {threshold_dbfs, auto}
+               POST /api/vfo/gain     {gain_db}
+             which merge into config.json and are picked up by
+             scripts/vfo.py via mtime poll within ~250ms. -->
+        <div class="band-controls" data-band="vfo" id="ctl-vfo">
+          <div class="band-ctl">
+            <span class="ctl-lbl">Squelch</span>
+            <div class="band-ctl-row">
+              <input type="range" min="-80" max="0" step="1" value="-60"
+                     class="ctl-squelch" data-band="vfo"
+                     aria-label="VFO squelch threshold in dBFS">
+              <button type="button" class="band-ctl-btn ctl-auto"
+                      data-band="vfo"
+                      aria-pressed="false"
+                      title="Toggle automatic squelch (noise-floor follower)">Auto</button>
+            </div>
+            <span class="ctl-val" data-role="squelch-val">—</span>
+          </div>
+          <div class="band-ctl">
+            <span class="ctl-lbl">Gain</span>
+            <div class="band-ctl-row">
+              <input type="range" min="0" max="49" step="1" value="40"
+                     class="ctl-gain" data-band="vfo"
+                     aria-label="VFO dongle gain in dB">
+              <button type="button" class="band-ctl-btn ctl-default"
+                      data-band="vfo"
+                      title="Reset gain to 40 dB (R820T2 design intent for the VFO dongle)">Default</button>
+            </div>
+            <span class="ctl-val" data-role="gain-val">—</span>
+            <span class="band-ctl-hint" data-role="ctl-hint"></span>
+          </div>
+        </div>
       </div>
       <div class="dongle-overlay" id="vfo-down-overlay">
         <div class="icon">⚠</div>
@@ -4001,7 +4038,15 @@ function renderWaterfall(data) {
   }
 }
 
-let VFO_LOCAL = { freq_mhz: 127.700, mod: "am", muted: false, bt_routed: false };
+let VFO_LOCAL = {
+  freq_mhz: 127.700, mod: "am", muted: false, bt_routed: false,
+  // Phase 6b.2 — squelch + gain. Defaults match scripts/vfo.py.
+  squelch_dbfs: -60, squelch_auto: false, gain_db: 40,
+};
+// Local cache of the latest live squelch state from /api/vfo so we
+// can show "open" / "closed" hints without re-polling on every UI tick.
+const VFO_CTL_STATE = { squelch_open: true, rms_dbfs: null };
+const VFO_CTL_DEFAULTS = { gain_db: 40, squelch_dbfs: -60, squelch_auto: false };
 // Player card: one shared <audio> element, one button per icecast mount.
 // Clicking a mount loads host:8000/<mount> into #ab-audio and plays it.
 // Clicking the SAME (already-active) mount pauses + clears. wireAudioBar()
@@ -4088,6 +4133,15 @@ function renderVFO(data) {
     else if (topState === "degraded") liveTag.textContent = `Degraded · ${serial}`;
     else liveTag.textContent = `DOWN · ${serial}`;
   }
+
+  // Phase 6b.2 — pull live squelch + gain values into the cached
+  // VFO_LOCAL so the new sliders reflect what vfo.py actually applied.
+  if (typeof data.squelch_dbfs === "number") VFO_LOCAL.squelch_dbfs = data.squelch_dbfs;
+  if (typeof data.squelch_auto === "boolean") VFO_LOCAL.squelch_auto = data.squelch_auto;
+  if (typeof data.gain_db === "number") VFO_LOCAL.gain_db = data.gain_db;
+  if (typeof data.squelch_open === "boolean") VFO_CTL_STATE.squelch_open = data.squelch_open;
+  if (typeof data.rms_dbfs === "number") VFO_CTL_STATE.rms_dbfs = data.rms_dbfs;
+  renderVFOControls();
 
   // Compact "N/1 dongles" badge — serial/age/etc live in Sitrep.
   setDongleBadge("ev-vfo-badge", (topState === "down") ? 0 : 1, 1);
@@ -4846,6 +4900,119 @@ function commitVFOFreq() {
   freq.classList.add("flash-tuned");
   setTimeout(() => freq.classList.remove("flash-tuned"), 800);
   return true;
+}
+
+// Phase 6b.2 — Render the VFO squelch + gain sliders from the
+// cached VFO_LOCAL. Mirrors renderBandControls(band) for AIR/GROUND.
+function renderVFOControls() {
+  const card = document.getElementById("ctl-vfo");
+  if (!card) return;
+  const sql = card.querySelector(".ctl-squelch");
+  const gain = card.querySelector(".ctl-gain");
+  const autoBtn = card.querySelector(".ctl-auto");
+  const sqlVal = card.querySelector('[data-role="squelch-val"]');
+  const gainVal = card.querySelector('[data-role="gain-val"]');
+  const hint = card.querySelector('[data-role="ctl-hint"]');
+  if (sql) {
+    sql.disabled = !!VFO_LOCAL.squelch_auto;
+    if (!sql.matches(":active")) sql.value = String(Math.round(VFO_LOCAL.squelch_dbfs));
+  }
+  if (gain && !gain.matches(":active")) gain.value = String(Math.round(VFO_LOCAL.gain_db));
+  if (autoBtn) {
+    autoBtn.classList.toggle("on", !!VFO_LOCAL.squelch_auto);
+    autoBtn.setAttribute("aria-pressed", VFO_LOCAL.squelch_auto ? "true" : "false");
+  }
+  if (sqlVal) {
+    sqlVal.textContent = VFO_LOCAL.squelch_auto
+      ? "AUTO"
+      : `${Math.round(VFO_LOCAL.squelch_dbfs)} dBFS`;
+    sqlVal.classList.toggle("auto", !!VFO_LOCAL.squelch_auto);
+  }
+  if (gainVal) gainVal.textContent = `${Math.round(VFO_LOCAL.gain_db)} dB`;
+  if (hint) {
+    // Surface the live squelch open/closed + current RMS so the
+    // operator can see why audio is silent when it is.
+    const rms = VFO_CTL_STATE.rms_dbfs;
+    const open = VFO_CTL_STATE.squelch_open;
+    if (typeof rms === "number") {
+      hint.textContent = `signal ${rms.toFixed(0)} dBFS · ${open ? "open" : "closed"}`;
+    } else {
+      hint.textContent = "";
+    }
+    hint.classList.remove("pending");
+  }
+}
+
+// Phase 6b.2 — Wire the VFO squelch + gain sliders. Same 120ms
+// debounced-on-change pattern as wireBandControls for AIR/GROUND.
+const _vfoCommitTimers = { sql: null, gain: null };
+function _vfoCommitSquelch() {
+  clearTimeout(_vfoCommitTimers.sql);
+  _vfoCommitTimers.sql = setTimeout(() => {
+    fetch("/api/vfo/squelch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        threshold_dbfs: Math.round(VFO_LOCAL.squelch_dbfs),
+        auto: !!VFO_LOCAL.squelch_auto,
+      }),
+    }).catch(()=>{});
+  }, 120);
+}
+function _vfoCommitGain() {
+  clearTimeout(_vfoCommitTimers.gain);
+  _vfoCommitTimers.gain = setTimeout(() => {
+    fetch("/api/vfo/gain", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gain_db: Math.round(VFO_LOCAL.gain_db) }),
+    }).catch(()=>{});
+  }, 120);
+}
+function wireVFOSliders() {
+  const card = document.getElementById("ctl-vfo");
+  if (!card) return;
+  const sql = card.querySelector(".ctl-squelch");
+  const gain = card.querySelector(".ctl-gain");
+  const autoBtn = card.querySelector(".ctl-auto");
+  const defBtn = card.querySelector(".ctl-default");
+  if (sql) {
+    sql.addEventListener("input", () => {
+      VFO_LOCAL.squelch_dbfs = Number(sql.value);
+      const v = card.querySelector('[data-role="squelch-val"]');
+      if (v && !VFO_LOCAL.squelch_auto) v.textContent = `${Math.round(VFO_LOCAL.squelch_dbfs)} dBFS`;
+    });
+    sql.addEventListener("change", () => {
+      VFO_LOCAL.squelch_dbfs = Number(sql.value);
+      _vfoCommitSquelch();
+    });
+  }
+  if (gain) {
+    gain.addEventListener("input", () => {
+      VFO_LOCAL.gain_db = Number(gain.value);
+      const v = card.querySelector('[data-role="gain-val"]');
+      if (v) v.textContent = `${Math.round(VFO_LOCAL.gain_db)} dB`;
+    });
+    gain.addEventListener("change", () => {
+      VFO_LOCAL.gain_db = Number(gain.value);
+      _vfoCommitGain();
+    });
+  }
+  if (autoBtn) {
+    autoBtn.addEventListener("click", () => {
+      VFO_LOCAL.squelch_auto = !VFO_LOCAL.squelch_auto;
+      renderVFOControls();
+      _vfoCommitSquelch();
+    });
+  }
+  if (defBtn) {
+    defBtn.addEventListener("click", () => {
+      VFO_LOCAL.gain_db = VFO_CTL_DEFAULTS.gain_db;
+      renderVFOControls();
+      _vfoCommitGain();
+    });
+  }
+  renderVFOControls();
 }
 
 function wireVFOControls() {
@@ -6325,6 +6492,7 @@ function boot() {
   wireWfPan();
 
   wireVFOControls();
+  wireVFOSliders();
   wireAudioBar();
   wireWfCenterInput();
   wireWfStepButtons();

@@ -3410,6 +3410,11 @@ VFO_STALE_SEC = 5.0
 VFO_FREQ_MIN_MHZ = 24.0
 VFO_FREQ_MAX_MHZ = 1700.0
 VFO_VALID_MODS = ("am", "nfm", "wfm", "usb", "lsb")
+# Phase 6b.2 — squelch + gain ranges (mirror scripts/vfo.py).
+VFO_SQUELCH_MIN_DBFS = -80.0
+VFO_SQUELCH_MAX_DBFS = 0.0
+VFO_GAIN_MIN_DB = 0.0
+VFO_GAIN_MAX_DB = 49.0
 
 
 def _vfo_read_state() -> dict | None:
@@ -3526,6 +3531,7 @@ def _vfo_write_config(patch: dict) -> tuple[bool, str, dict]:
     """
     existing = _vfo_read_config() or {
         "freq_mhz": 127.700, "mod": "am", "muted": False, "bt_routed": False,
+        "squelch_dbfs": -60.0, "squelch_auto": False, "gain_db": 40.0,
     }
 
     merged = dict(existing)
@@ -3548,6 +3554,31 @@ def _vfo_write_config(patch: dict) -> tuple[bool, str, dict]:
         merged["muted"] = bool(patch["muted"])
     if "bt_routed" in patch:
         merged["bt_routed"] = bool(patch["bt_routed"])
+    # Phase 6b.2 — squelch + gain.  Range-validated; out-of-range
+    # values are 400'd rather than silently clamped, so the UI can
+    # surface the mistake to the operator.
+    if "squelch_dbfs" in patch:
+        try:
+            v = float(patch["squelch_dbfs"])
+        except (TypeError, ValueError) as e:
+            return False, f"invalid squelch_dbfs: {e}", {}
+        if not (VFO_SQUELCH_MIN_DBFS <= v <= VFO_SQUELCH_MAX_DBFS):
+            return False, (
+                f"squelch_dbfs {v} out of range ({VFO_SQUELCH_MIN_DBFS}-{VFO_SQUELCH_MAX_DBFS})"
+            ), {}
+        merged["squelch_dbfs"] = v
+    if "squelch_auto" in patch:
+        merged["squelch_auto"] = bool(patch["squelch_auto"])
+    if "gain_db" in patch:
+        try:
+            v = float(patch["gain_db"])
+        except (TypeError, ValueError) as e:
+            return False, f"invalid gain_db: {e}", {}
+        if not (VFO_GAIN_MIN_DB <= v <= VFO_GAIN_MAX_DB):
+            return False, (
+                f"gain_db {v} out of range ({VFO_GAIN_MIN_DB}-{VFO_GAIN_MAX_DB})"
+            ), {}
+        merged["gain_db"] = v
 
     try:
         os.makedirs(VFO_STATE_DIR, exist_ok=True)
@@ -8229,6 +8260,72 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(
                 200,
                 json.dumps({"ok": True, "applied": applied}),
+                "application/json; charset=utf-8",
+            )
+
+        # ============================================================
+        # Phase 6b.2 — VFO per-knob endpoints powering the new sliders
+        # on the VFO card.  Each commit POSTs one of:
+        #   POST /api/vfo/squelch  {threshold_dbfs, auto}
+        #   POST /api/vfo/gain     {gain_db}
+        # Both merge into /run/scannerproject/vfo/config.json which
+        # scripts/vfo.py picks up via mtime-poll within ~250ms.
+        # Unlike rtl-airband, the VFO is a single-process demod loop
+        # — changes apply live, no service restart required.
+        # ============================================================
+        if p == "/api/vfo/squelch":
+            payload_in = form if isinstance(form, dict) else {}
+            patch = {}
+            if "threshold_dbfs" in payload_in:
+                patch["squelch_dbfs"] = payload_in["threshold_dbfs"]
+            if "auto" in payload_in:
+                patch["squelch_auto"] = bool(payload_in["auto"])
+            if not patch:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "need threshold_dbfs and/or auto"}),
+                    "application/json; charset=utf-8",
+                )
+            ok, msg, applied = _vfo_write_config(patch)
+            if not ok:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": msg}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(
+                200,
+                json.dumps({
+                    "ok": True,
+                    "threshold_dbfs": applied.get("squelch_dbfs"),
+                    "auto": applied.get("squelch_auto"),
+                    "live_apply": True,
+                }),
+                "application/json; charset=utf-8",
+            )
+
+        if p == "/api/vfo/gain":
+            payload_in = form if isinstance(form, dict) else {}
+            if "gain_db" not in payload_in:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "need gain_db"}),
+                    "application/json; charset=utf-8",
+                )
+            ok, msg, applied = _vfo_write_config({"gain_db": payload_in["gain_db"]})
+            if not ok:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": msg}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(
+                200,
+                json.dumps({
+                    "ok": True,
+                    "gain_db": applied.get("gain_db"),
+                    "live_apply": True,
+                }),
                 "application/json; charset=utf-8",
             )
 

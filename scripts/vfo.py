@@ -61,6 +61,27 @@ DEFAULT_FREQ_MHZ = 127.700
 DEFAULT_MOD = "am"
 DEFAULT_MUTED = False
 DEFAULT_BT_ROUTED = False
+# Phase 6b.2 — per-VFO squelch + gain knobs.
+# Squelch metric: full-window IQ RMS in dBFS (cheap; one np.mean per
+# block).  Below the threshold, audio output for the block is zeroed.
+# Auto mode tracks a slow noise-floor follower (EMA of the lowest
+# observed dBFS in the recent past) and gates when the current block
+# is less than AUTO_SQUELCH_MARGIN_DB above that floor.
+DEFAULT_SQUELCH_DBFS = -60.0          # one-glance default (open enough to hear most traffic)
+DEFAULT_SQUELCH_AUTO = False
+SQUELCH_MIN_DBFS = -80.0
+SQUELCH_MAX_DBFS = 0.0
+AUTO_SQUELCH_MARGIN_DB = 6.0          # how far above the floor we need to be to open
+AUTO_SQUELCH_FLOOR_TC_S = 5.0         # floor follower time constant
+
+# Gain: R820T2 valid steps go 0..49.6 dB in SoapySDR.  We expose a
+# 0..49 integer dB UI range; setGain() snaps to the nearest valid
+# step.  Default of 40 dB matches the design intent for the VFO
+# dongle (a hot-but-not-overloaded floor for unknown-amplitude
+# traffic).
+DEFAULT_GAIN_DB = 40.0
+GAIN_MIN_DB = 0.0
+GAIN_MAX_DB = 49.0
 
 SAMPLE_RATE_HZ = 2_400_000        # 2.4 MS/s — matches waterfall pattern
 AUDIO_SR = 48_000                 # output audio sample rate
@@ -585,11 +606,21 @@ class VFOWorker:
         self._mod = DEFAULT_MOD
         self._muted = DEFAULT_MUTED
         self._bt_routed = DEFAULT_BT_ROUTED
+        self._squelch_dbfs = DEFAULT_SQUELCH_DBFS
+        self._squelch_auto = DEFAULT_SQUELCH_AUTO
+        self._gain_db = DEFAULT_GAIN_DB
 
         # Applied state (so the outer loop can see what's actually on).
         self.applied_freq_mhz = DEFAULT_FREQ_MHZ
         self.applied_mod = DEFAULT_MOD
         self.applied_muted = DEFAULT_MUTED
+        self.applied_gain_db = DEFAULT_GAIN_DB
+
+        # Squelch runtime state — current block RMS dBFS and the
+        # auto-squelch noise-floor follower.
+        self.last_rms_dbfs = -120.0
+        self.last_squelch_open = True
+        self._floor_dbfs = -60.0           # EMA-tracked noise floor for auto squelch
 
         # Health.
         self.state = "down"
@@ -631,6 +662,27 @@ class VFOWorker:
             if "bt_routed" in cfg:
                 self._bt_routed = bool(cfg["bt_routed"])
                 self.bt_pipe.set_requested(self._bt_routed)
+            # Phase 6b.2 — squelch + gain pickup.  Both apply live
+            # without a restart: gain via setGain() in the runtime
+            # tick, squelch via the per-block compare in run().
+            if "squelch_dbfs" in cfg:
+                try:
+                    v = float(cfg["squelch_dbfs"])
+                    if v < SQUELCH_MIN_DBFS: v = SQUELCH_MIN_DBFS
+                    if v > SQUELCH_MAX_DBFS: v = SQUELCH_MAX_DBFS
+                    self._squelch_dbfs = v
+                except (TypeError, ValueError):
+                    pass
+            if "squelch_auto" in cfg:
+                self._squelch_auto = bool(cfg["squelch_auto"])
+            if "gain_db" in cfg:
+                try:
+                    v = float(cfg["gain_db"])
+                    if v < GAIN_MIN_DB: v = GAIN_MIN_DB
+                    if v > GAIN_MAX_DB: v = GAIN_MAX_DB
+                    self._gain_db = v
+                except (TypeError, ValueError):
+                    pass
 
     def snapshot(self) -> dict:
         with self._cfg_lock:
@@ -639,6 +691,9 @@ class VFOWorker:
                 "mod": self._mod,
                 "muted": self._muted,
                 "bt_routed": self._bt_routed,
+                "squelch_dbfs": self._squelch_dbfs,
+                "squelch_auto": self._squelch_auto,
+                "gain_db": self._gain_db,
             }
 
     # ---- device lifecycle -------------------------------------------
@@ -655,7 +710,11 @@ class VFOWorker:
                 pass
             try:
                 self._sdr.setGainMode(SOAPY_SDR_RX, 0, False)
-                self._sdr.setGain(SOAPY_SDR_RX, 0, 30.0)
+                # Apply the configured gain (snaps to nearest R820T2 step).
+                with self._cfg_lock:
+                    g = float(self._gain_db)
+                self._sdr.setGain(SOAPY_SDR_RX, 0, g)
+                self.applied_gain_db = g
             except Exception:
                 pass
             with self._cfg_lock:
@@ -713,11 +772,12 @@ class VFOWorker:
             )
 
     def _maybe_apply_runtime_changes(self) -> None:
-        """Apply freq/mod changes to a live, open device."""
+        """Apply freq/mod/gain changes to a live, open device."""
         with self._cfg_lock:
             want_freq = self._freq_mhz
             want_mod = self._mod
             want_muted = self._muted
+            want_gain = self._gain_db
         if want_freq != self.applied_freq_mhz and self._sdr is not None:
             try:
                 self._sdr.setFrequency(SOAPY_SDR_RX, 0, want_freq * 1e6)
@@ -743,6 +803,22 @@ class VFOWorker:
             self.applied_mod = want_mod
         if want_muted != self.applied_muted:
             self.applied_muted = want_muted
+        # Phase 6b.2 — live gain retune.  R820T2's setGain() snaps
+        # to nearest valid step; we still update applied_gain_db to
+        # the requested value (the snap is transparent to the UI).
+        if abs(want_gain - self.applied_gain_db) >= 0.5 and self._sdr is not None:
+            try:
+                self._sdr.setGain(SOAPY_SDR_RX, 0, float(want_gain))
+                LOG.info(
+                    "gain change serial=%s %.1f -> %.1f dB",
+                    self.serial, self.applied_gain_db, want_gain,
+                )
+                self.applied_gain_db = float(want_gain)
+            except Exception as e:
+                LOG.warning(
+                    "gain retune failed serial=%s -> %.1f dB: %s",
+                    self.serial, want_gain, e,
+                )
 
     # ---- read + demod -----------------------------------------------
     def _read_block(self, n: int) -> Optional[np.ndarray]:
@@ -840,7 +916,38 @@ class VFOWorker:
             self.state = "ok"
 
             audio = self._demod(iq)
-            pcm = self._f32_to_s16_bytes(audio, self.applied_muted)
+
+            # ---- Squelch gate (Phase 6b.2) ----
+            # Cheap power metric — mean |z|^2 of the IQ block in
+            # dBFS (re: full-scale complex magnitude of 1.0).  This
+            # is the whole-window RMS, not per-bin; for VFO use the
+            # selected channel dominates the window so it's a fine
+            # proxy without an extra FFT.
+            power = float(np.mean(iq.real * iq.real + iq.imag * iq.imag))
+            rms_dbfs = 10.0 * np.log10(power + 1e-30)
+            self.last_rms_dbfs = rms_dbfs
+            # EMA noise-floor follower for auto squelch.  ~5s TC at
+            # 10 ms blocks => alpha = 1 - exp(-dt/tau).
+            alpha = 1.0 - 2.71828 ** (-0.01 / AUTO_SQUELCH_FLOOR_TC_S)
+            if rms_dbfs < self._floor_dbfs:
+                # Track the floor *down* fast so we converge on quiet.
+                self._floor_dbfs = (1.0 - alpha) * self._floor_dbfs + alpha * rms_dbfs
+            else:
+                # Track *up* slowly so a brief peak doesn't move the floor.
+                self._floor_dbfs = (1.0 - alpha * 0.1) * self._floor_dbfs + (alpha * 0.1) * rms_dbfs
+            with self._cfg_lock:
+                want_auto = self._squelch_auto
+                want_thresh = self._squelch_dbfs
+            if want_auto:
+                open_now = rms_dbfs >= (self._floor_dbfs + AUTO_SQUELCH_MARGIN_DB)
+            else:
+                open_now = rms_dbfs >= want_thresh
+            self.last_squelch_open = bool(open_now)
+            # Squelched blocks emit silence so the icecast/BT pipes
+            # keep running (clients don't disconnect) but the user
+            # hears nothing — same UX as the manual `muted` flag.
+            audio_for_out = audio if open_now else np.zeros_like(audio)
+            pcm = self._f32_to_s16_bytes(audio_for_out, self.applied_muted)
             self.icecast.write(pcm)
             self.bt_pipe.write(pcm)
 
@@ -871,6 +978,9 @@ def _maybe_seed_default_config() -> None:
         "mod": DEFAULT_MOD,
         "muted": DEFAULT_MUTED,
         "bt_routed": DEFAULT_BT_ROUTED,
+        "squelch_dbfs": DEFAULT_SQUELCH_DBFS,
+        "squelch_auto": DEFAULT_SQUELCH_AUTO,
+        "gain_db": DEFAULT_GAIN_DB,
     }
     try:
         _write_state_atomic(payload, CONFIG_PATH)
@@ -949,6 +1059,11 @@ def main() -> int:
             "bt_routed": bool(snap["bt_routed"]),
             "bt_active": bool(bt_pipe.active),
             "bt_last_error": bt_pipe.last_error,
+            "squelch_dbfs": float(snap.get("squelch_dbfs", DEFAULT_SQUELCH_DBFS)),
+            "squelch_auto": bool(snap.get("squelch_auto", DEFAULT_SQUELCH_AUTO)),
+            "gain_db": float(worker.applied_gain_db),
+            "squelch_open": bool(worker.last_squelch_open),
+            "rms_dbfs": round(float(worker.last_rms_dbfs), 1),
             "bins": worker.mini_bins,
             "freq_min_mhz": round(f - bw / 2, 4),
             "freq_max_mhz": round(f + bw / 2, 4),
