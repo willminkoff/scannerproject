@@ -101,6 +101,22 @@
   body.state-wedged .tb-pill { background: rgba(255, 69, 58, 0.16); border-color: rgba(255, 69, 58, 0.4); color: #ffd0cc; }
   body.state-wedged .tb-pill .dot { background: var(--red); animation: pulse 1.4s ease-in-out infinite; }
 
+  /* WebSocket push status indicator (topbar).  Green when WS is open and
+     we have received a frame within WS_INDICATOR_GREEN_MS; amber when WS is
+     down and the HTTP poller is keeping the panes fresh; red when neither
+     WS nor HTTP has produced data inside WS_INDICATOR_RED_MS. */
+  .ws-ind {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px;
+    font-size: 14px; line-height: 1;
+    color: rgba(232, 240, 250, 0.28);
+    transition: color 160ms ease, text-shadow 160ms ease;
+    user-select: none;
+  }
+  .ws-ind.ws-ok    { color: #34d399; text-shadow: 0 0 6px rgba(52, 211, 153, 0.55); }
+  .ws-ind.ws-fall  { color: #fbbf24; text-shadow: 0 0 6px rgba(251, 191, 36, 0.45); }
+  .ws-ind.ws-dead  { color: #ef4444; text-shadow: 0 0 6px rgba(239, 68, 68, 0.55); }
+
   /* Phase 6d — Sounding mode toggle (topbar). */
   .tb-sounding {
     display: inline-flex; align-items: center; gap: 8px;
@@ -1487,6 +1503,7 @@
       <span class="sw" aria-hidden="true"></span>
       <span id="tb-sounding-label">Sounding off</span>
     </span>
+    <span class="ws-ind" id="wsIndicator" title="Spectrum push channel">●</span>
     <button class="tb-sitrep-btn" id="tb-sitrep-btn" type="button" title="Open Sitrep">
       <span class="icon" aria-hidden="true">ⓘ</span>
       <span>Sitrep</span>
@@ -2790,9 +2807,11 @@ function renderWaterfall(data) {
   }
   $("ev-wf-frame").textContent = `${data.last_frame_age_ms || 0} ms ago`;
 
-  const intensity = autoStretchIntensity(data.bins, "wf-canvas");
-  pushWaterfallRow("wf-canvas", intensity, wfColormap);
-  specSubmitFrame($("wf-spec"), data.bins, min, max, "wf-canvas");
+  if (!wsBinsFresh(WS_PANE_WATERFALL)) {
+    const intensity = autoStretchIntensity(data.bins, "wf-canvas");
+    pushWaterfallRow("wf-canvas", intensity, wfColormap);
+    specSubmitFrame($("wf-spec"), data.bins, min, max, "wf-canvas");
+  }
 }
 
 let VFO_LOCAL = { freq_mhz: 127.700, mod: "am", muted: false, bt_routed: false };
@@ -2860,7 +2879,7 @@ function renderVFO(data) {
   const f = (typeof data.freq_mhz === "number") ? data.freq_mhz : VFO_LOCAL.freq_mhz;
   const lo = (typeof data.freq_min_mhz === "number") ? data.freq_min_mhz : (f - 1.2);
   const hi = (typeof data.freq_max_mhz === "number") ? data.freq_max_mhz : (f + 1.2);
-  if (Array.isArray(data.bins) && data.bins.length) {
+  if (Array.isArray(data.bins) && data.bins.length && !wsBinsFresh(WS_PANE_VFO)) {
     const intensity = normalizeBins(data.bins, -95, -25);
     pushWaterfallRow("vfo-wf", intensity);
     specSubmitFrame($("vfo-spec"), data.bins, lo, hi, "vfo-spec");
@@ -2977,7 +2996,7 @@ function renderDisco(data) {
     frameEl.textContent = ages.length ? `${Math.min.apply(null, ages)} ms ago` : "—";
   }
   // Composite spectrum.
-  if (Array.isArray(data.bins) && data.bins.length) {
+  if (Array.isArray(data.bins) && data.bins.length && !wsBinsFresh(WS_PANE_DISCO)) {
     const intensity = normalizeBins(data.bins, -95, -25);
     pushWaterfallRow("disco-canvas", intensity);
     if (haveRange) {
@@ -3866,6 +3885,136 @@ setInterval(() => {
   });
 }, 1000);
 
+// =====================================================================
+// WebSocket push client for FFT spectrum bins.
+//
+// Server endpoint: /ws/spectrum.  Each binary frame is:
+//   u8  pane_id (0=waterfall, 1=vfo, 2=disco)
+//   f32 center_mhz (little-endian)
+//   f32 span_mhz   (little-endian)
+//   u16 n_bins     (little-endian)
+//   f32 bins[n_bins] (little-endian, dBFS)
+// Header = 11 bytes.
+//
+// While WS is open and recent (lastWsFrameAt within FALLBACK_THRESHOLD_MS)
+// the HTTP pollers skip the bin-rendering branch of each render function;
+// they keep updating non-bin state (dongles, ages, peaks).  On WS drop the
+// pollers naturally take over again on the next tick.
+// =====================================================================
+const WS_PANE_WATERFALL = 0;
+const WS_PANE_VFO = 1;
+const WS_PANE_DISCO = 2;
+const WS_HEADER_BYTES = 11;
+const WS_BACKOFF_BASE_MS = 1000;
+const WS_BACKOFF_CAP_MS = 10000;
+// If a pane's last WS frame is older than this, the HTTP poller's bin path
+// re-engages.  Producers run at >=2 Hz, so 2 s is well past worst-case
+// inter-frame gap on a healthy WS.
+const FALLBACK_THRESHOLD_MS = 2000;
+// Topbar indicator color thresholds (ms since last WS frame across all panes).
+const WS_INDICATOR_GREEN_MS = 1500;
+const WS_INDICATOR_RED_MS = 4000;
+
+const lastWsFrameAt = {
+  [WS_PANE_WATERFALL]: 0,
+  [WS_PANE_VFO]: 0,
+  [WS_PANE_DISCO]: 0,
+};
+let wsAlive = false;
+let wsBackoffMs = WS_BACKOFF_BASE_MS;
+let wsHandle = null;
+
+function wsBinsFresh(paneId) {
+  return wsAlive && (Date.now() - lastWsFrameAt[paneId]) < FALLBACK_THRESHOLD_MS;
+}
+
+function _wsLastAnyFrameAge() {
+  const t = Math.max(
+    lastWsFrameAt[WS_PANE_WATERFALL],
+    lastWsFrameAt[WS_PANE_VFO],
+    lastWsFrameAt[WS_PANE_DISCO],
+  );
+  return t === 0 ? Infinity : (Date.now() - t);
+}
+
+function _wsRefreshIndicator() {
+  const el = document.getElementById("wsIndicator");
+  if (!el) return;
+  const age = _wsLastAnyFrameAge();
+  el.classList.remove("ws-ok", "ws-fall", "ws-dead");
+  if (wsAlive && age < WS_INDICATOR_GREEN_MS) {
+    el.classList.add("ws-ok");
+    el.title = "Spectrum push: live (WebSocket)";
+  } else if (age < WS_INDICATOR_RED_MS) {
+    el.classList.add("ws-fall");
+    el.title = "Spectrum push: HTTP fallback";
+  } else {
+    el.classList.add("ws-dead");
+    el.title = "Spectrum push: no data";
+  }
+}
+setInterval(_wsRefreshIndicator, 500);
+
+function _wsDispatch(paneId, centerMhz, spanMhz, bins) {
+  lastWsFrameAt[paneId] = Date.now();
+  if (paneId === WS_PANE_WATERFALL) {
+    const min = centerMhz - spanMhz / 2;
+    const max = centerMhz + spanMhz / 2;
+    const intensity = autoStretchIntensity(bins, "wf-canvas");
+    pushWaterfallRow("wf-canvas", intensity, wfColormap);
+    specSubmitFrame($("wf-spec"), bins, min, max, "wf-canvas");
+  } else if (paneId === WS_PANE_VFO) {
+    const lo = centerMhz - spanMhz / 2;
+    const hi = centerMhz + spanMhz / 2;
+    const intensity = normalizeBins(bins, -95, -25);
+    pushWaterfallRow("vfo-wf", intensity);
+    specSubmitFrame($("vfo-spec"), bins, lo, hi, "vfo-spec");
+  } else if (paneId === WS_PANE_DISCO) {
+    const start = centerMhz - spanMhz / 2;
+    const end = centerMhz + spanMhz / 2;
+    const intensity = normalizeBins(bins, -95, -25);
+    pushWaterfallRow("disco-canvas", intensity);
+    specSubmitFrame($("disco-spec"), bins, start, end, "disco-spec");
+  }
+}
+
+function _wsOnMessage(ev) {
+  const buf = ev.data;
+  if (!(buf instanceof ArrayBuffer) || buf.byteLength < WS_HEADER_BYTES) return;
+  const dv = new DataView(buf);
+  const paneId = dv.getUint8(0);
+  const centerMhz = dv.getFloat32(1, true);
+  const spanMhz = dv.getFloat32(5, true);
+  const nBins = dv.getUint16(9, true);
+  const expected = WS_HEADER_BYTES + 4 * nBins;
+  if (buf.byteLength !== expected) return;
+  const bins = new Float32Array(buf, WS_HEADER_BYTES, nBins);
+  _wsDispatch(paneId, centerMhz, spanMhz, bins);
+}
+
+function _wsConnect() {
+  const scheme = (location.protocol === "https:") ? "wss://" : "ws://";
+  const ws = new WebSocket(scheme + location.host + "/ws/spectrum");
+  ws.binaryType = "arraybuffer";
+  wsHandle = ws;
+  ws.addEventListener("open", () => {
+    wsAlive = true;
+    wsBackoffMs = WS_BACKOFF_BASE_MS;
+    _wsRefreshIndicator();
+  });
+  ws.addEventListener("message", _wsOnMessage);
+  ws.addEventListener("close", () => {
+    wsAlive = false;
+    wsHandle = null;
+    _wsRefreshIndicator();
+    setTimeout(_wsConnect, wsBackoffMs);
+    wsBackoffMs = Math.min(WS_BACKOFF_CAP_MS, wsBackoffMs * 2);
+  });
+  ws.addEventListener("error", () => {
+    try { ws.close(); } catch (e) { /* close handler runs the reconnect */ }
+  });
+}
+
 const POLL_HEARTBEAT_MS = 5000;
 const POLL_HITS_MS = 7000;
 const POLL_PROFILE_MS = 60000;
@@ -4152,6 +4301,7 @@ function boot() {
   wireSounding();
   applyHashOverlays();
 
+  _wsConnect();
   pollHeartbeat();
   pollHits();
   pollProfile();

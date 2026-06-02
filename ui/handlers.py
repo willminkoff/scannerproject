@@ -19,6 +19,11 @@ from pathlib import Path
 from typing import Any
 from http.server import BaseHTTPRequestHandler
 
+try:
+    from . import ws_spectrum
+except ImportError:
+    from ui import ws_spectrum
+
 logger = logging.getLogger(__name__)
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, unquote, urlparse
@@ -4734,6 +4739,15 @@ class Handler(BaseHTTPRequestHandler):
         p = _canonical_scan_api_path(u.path)
         q = parse_qs(u.query or "")
         transcode = self._parse_optional_bool_query(q, "transcode")
+        # WebSocket push for FFT spectrum bins.  Hand-rolled RFC 6455
+        # server inside the existing http.server handler; on a successful
+        # upgrade the call blocks until the client disconnects and we
+        # must NOT fall through to any further HTTP processing on this
+        # connection.
+        if p == "/ws/spectrum":
+            if ws_spectrum.handle_spectrum_upgrade(self):
+                return
+            return self._send(400, "Expected WebSocket upgrade", "text/plain; charset=utf-8")
         if p == "/":
             return self._send_redirect("/sb3")
 
