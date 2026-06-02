@@ -905,7 +905,7 @@ def main() -> int:
 
         # Pace the outer loop — workers are doing the heavy lifting; the
         # stitch/write loop just needs to be faster than the UI's poll.
-        if _STOP.wait(0.1):
+        if _STOP.wait(0.02):  # Phase 6a.2: 50 Hz outer loop, lets STATE_WRITE_PERIOD set the cap
             break
 
     LOG.info("main loop exiting; stopping workers")
