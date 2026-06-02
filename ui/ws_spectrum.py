@@ -47,9 +47,9 @@ logger = logging.getLogger(__name__)
 # RFC 6455 fixed handshake GUID.
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
-# mtime-poll cadence.  Fastest producer is waterfall.py at ~10 Hz, so 50 ms
-# (20 Hz) is well above Nyquist and keeps end-to-end latency under 100 ms.
-WS_MTIME_POLL_INTERVAL_S = 0.05
+# mtime-poll cadence.  Fastest producer is waterfall.py at ~30 Hz, so 20 ms
+# (50 Hz) is well above Nyquist and keeps end-to-end latency under 50 ms.
+WS_MTIME_POLL_INTERVAL_S = 0.02
 
 # Keepalive ping cadence.  Tailscale + nginx idle timeouts are >60s; 20s
 # is comfortably under that and well above the 50 ms poller granularity.

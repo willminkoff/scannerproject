@@ -69,7 +69,7 @@ DECIMATION = SAMPLE_RATE_HZ // AUDIO_SR   # = 50 (clean integer)
 # bin FFT covering the full 2.4 MHz window.
 FFT_SIZE_AUDIO = 2400             # 1 ms of audio = 50ms of IQ per block (50:1 dec)
 MINI_FFT_BINS = 256
-MINI_FFT_PERIOD_SEC = 0.5         # ~2 Hz waterfall refresh
+MINI_FFT_PERIOD_SEC = 0.033       # Phase 6a.2: 30 Hz mini-waterfall (was 0.5 / 2 Hz)
 
 # Watchdog: 3 consecutive bad reads -> close + reopen with exponential
 # backoff (5s -> 60s).  Matches Phase 6a waterfall.
@@ -879,7 +879,7 @@ def main() -> int:
         SERIAL, DEFAULT_FREQ_MHZ, DEFAULT_MOD,
     )
 
-    STATE_WRITE_PERIOD = 0.25
+    STATE_WRITE_PERIOD = 0.033  # Phase 6a.2: 30 Hz (was 0.25 / 4 Hz)
     last_state_write = 0.0
 
     while not _STOP.is_set():

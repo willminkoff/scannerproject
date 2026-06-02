@@ -91,7 +91,7 @@ FFT_SIZE = 1024
 # back off to 0.15 / 0.2.  Retunes are still idempotent in _maybe_retune
 # (a no-op when wanted == self.center_hz), so faster pacing only causes
 # more setFrequency calls when the commanded center actually changes.
-FRAME_PERIOD_SEC = 0.1
+FRAME_PERIOD_SEC = 0.033  # Phase 6a.2: 30 Hz (was 0.1 / 10 Hz)
 # 1024 bins per dongle stitched edge-to-edge with the 2.4 MHz spacing
 # gives ~2048 bins of unique spectrum.  The overlap region is averaged
 # (see _stitch_bins) — see comment in _stitch_bins for the rationale.
@@ -768,7 +768,7 @@ def main() -> int:
     )
 
     last_state_write = 0.0
-    STATE_WRITE_PERIOD = 0.1    # Phase 6a.1: 10 Hz cap (was 0.25 / 4 Hz)
+    STATE_WRITE_PERIOD = 0.033  # Phase 6a.2: 30 Hz cap (was 0.1 / 10 Hz)
 
     while not _STOP.is_set():
         # Retune?  Accepts {center_mhz} and/or {bw_mhz}; missing keys keep
