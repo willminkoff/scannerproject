@@ -1,0 +1,21 @@
+[Unit]
+Description=Scanner VLC VFO Playback (icecast /VFO.mp3 -> BT speaker)
+After=icecast2.service scanner-vfo.service
+BindsTo=icecast2.service
+
+[Service]
+Type=simple
+User=ubuntu
+EnvironmentFile=-/etc/airband-ui.conf
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+Environment=PULSE_SERVER=unix:/run/user/1000/pulse/native
+Environment=PULSE_SINK=bluez_output.C0_28_8D_34_6E_67.1
+ExecStart=/usr/bin/cvlc --intf dummy --aout=pulse --quiet --no-video --clock-jitter=0 --clock-synchro=0 --http-reconnect --network-caching 150 --live-caching 100 http://127.0.0.1:8000/VFO.mp3
+Restart=always
+RestartSec=2
+TimeoutStopSec=5
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target

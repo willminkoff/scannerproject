@@ -79,6 +79,7 @@ DIGITAL_MUTE_FLAG = Path(os.getenv("OP25_AUDIO_MUTE_FLAG", "/run/scannerproject/
 _VLC_SYSTEMD_SERVICES: dict[str, str] = {
     "analog": os.getenv("VLC_SYSTEMD_SERVICE_ANALOG", "scanner-vlc-analog.service").strip(),
     "digital": os.getenv("VLC_SYSTEMD_SERVICE_DIGITAL", "scanner-vlc-digital.service").strip(),
+    "vfo": os.getenv("VLC_SYSTEMD_SERVICE_VFO", "scanner-vlc-vfo.service").strip(),
 }
 
 

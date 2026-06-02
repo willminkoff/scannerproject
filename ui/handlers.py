@@ -2876,7 +2876,8 @@ def _filter_sounding_levels(levels, max_age_sec=5400):
 _HEARTBEAT_CACHE_TTL_SEC = max(2.0, float(os.getenv("HEARTBEAT_CACHE_TTL_SEC", "5.0")))
 _HEARTBEAT_STATS_STALE_SEC = max(5.0, float(os.getenv("HEARTBEAT_STATS_STALE_SEC", "60.0")))
 _HEARTBEAT_MP3_SAMPLE_DURATION_SEC = max(0.3, float(os.getenv("HEARTBEAT_MP3_SAMPLE_DURATION_SEC", "1.5")))
-_HEARTBEAT_MP3_SAMPLE_TIMEOUT_SEC = max(0.5, float(os.getenv("HEARTBEAT_MP3_SAMPLE_TIMEOUT_SEC", "2.0")))
+_HEARTBEAT_MP3_SAMPLE_TIMEOUT_SEC = max(0.5, float(os.getenv("HEARTBEAT_MP3_SAMPLE_TIMEOUT_SEC", "7.0")))
+_HEARTBEAT_MP3_CONNECT_TIMEOUT_SEC = max(0.3, float(os.getenv("HEARTBEAT_MP3_CONNECT_TIMEOUT_SEC", "5.0")))
 _HEARTBEAT_LOCK = threading.Lock()
 _HEARTBEAT_CACHE: dict[str, Any] = {
     "ts": 0.0,
@@ -3567,6 +3568,22 @@ def _vfo_write_config(patch: dict) -> tuple[bool, str, dict]:
         except OSError:
             pass
         return False, f"write failed: {e}", {}
+
+    # Phase 6b.2 — if bt_routed flipped, start/stop scanner-vlc-vfo.service
+    # which pulls /VFO.mp3 from icecast and plays to the BT speaker.
+    # vfo.py also has an in-process pw-cat side-pipe (BTSidePipe) but that
+    # only reaches the default sink; the VLC bridge is what reaches the
+    # bluez_output target (mirrors the analog/digital/ground pattern).
+    if "bt_routed" in patch:
+        try:
+            from ui import vlc as _vlc_mod
+            unit = _vlc_mod._VLC_SYSTEMD_SERVICES.get("vfo", "scanner-vlc-vfo.service")
+            action = "start" if merged.get("bt_routed") else "stop"
+            ok2, err2 = _vlc_mod._systemd_service_ctl(unit, action)
+            if not ok2:
+                logger.warning("scanner-vlc-vfo %s failed: %s", action, err2)
+        except Exception as exc:
+            logger.warning("scanner-vlc-vfo wire-up error: %s", exc)
     return True, "ok", merged
 
 
