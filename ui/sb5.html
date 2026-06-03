@@ -557,20 +557,6 @@
   }
   .digital-profile .pname, .analog-profile .pname { font-size: var(--type-body-sm); font-weight: 600; color: var(--text); }
   .digital-profile .psub, .analog-profile .psub { font-size: var(--type-body-sm); color: var(--text-2); margin-top: 1px; font-family: ui-monospace, monospace; }
-  .digital-chips, .analog-chips {
-    padding-top: 8px;
-    display: flex; flex-wrap: wrap; gap: 5px;
-    border-top: 1px dashed var(--line);
-    margin-top: 6px;
-  }
-  .digital-chips .chip, .analog-chips .chip {
-    padding: 4px 10px;
-    background: rgba(138, 155, 181, 0.10);
-    color: var(--text-2);
-    border-radius: 999px;
-    font-size: var(--type-meta);
-  }
-  .digital-chips .chip.on, .analog-chips .chip.on { background: var(--sky); color: #04101e; font-weight: 600; }
 
   /* ============ Spectrum (FFT trace) plot — HDSDR/SDR#-style ============
      A small canvas that sits directly above each waterfall and shares its
@@ -1999,8 +1985,8 @@
     cursor: not-allowed;
   }
   /* Secondary action row below the AIR picker — keeps "Sync to Ground"
-     visible and clickable without crowding the picker's Build/Edit
-     button or the chip list. Right-aligned on desktop; on narrow
+     visible and clickable without crowding the picker's Profile
+     button. Right-aligned on desktop; on narrow
      viewports the button stretches edge-to-edge so it stays tappable. */
   .profile-actions {
     display: flex;
@@ -2155,7 +2141,7 @@
   .pane-sounding .snd-msg.empty { color: var(--text-4); font-style: italic; }
 
   /* ============ Favorite picker (Phase 7b) ============
-     Single shared modal used by both Analog and Digital "Build / Edit"
+     Single shared modal used by both Analog and Digital "Profile"
      buttons.  The list is filtered by `kind` so analog sees conventional
      favorites and digital sees trunked. */
   .fp-rows { display: flex; flex-direction: column; gap: 6px; }
@@ -2314,18 +2300,17 @@
           <div class="pname" id="ana-pname">Loading…</div>
           <div class="psub" id="ana-psub">—</div>
         </div>
-        <button class="profile-build-btn" id="ana-profile-build-btn" type="button">Build / Edit</button>
+        <button class="profile-build-btn" id="ana-profile-build-btn" type="button">Profile</button>
       </div>
       <!-- Phase 7g (relocated): the "Sync to Ground" action lives in its own
            secondary row below the AIR picker so it never crowds the picker's
-           Build/Edit button or the chip list on narrower viewports.  POSTs
+           Profile button on narrower viewports.  POSTs
            /api/hp/state/activate with band='both' so a single click syncs
            both bands.  Disabled when AIR has no active favorite. -->
       <div class="profile-actions" id="ana-profile-actions">
         <button class="profile-sync-btn" id="ana-profile-sync-btn" type="button"
                 title="Copy AIR's favorite to GROUND" disabled>Sync to Ground</button>
       </div>
-      <div class="analog-chips" id="ana-chips"></div>
       <div class="hits-list" id="air-hits">
         <div class="hits-empty">Loading hits…</div>
       </div>
@@ -2408,7 +2393,7 @@
       </div>
       <!-- Phase 7g: independent GROUND favorite picker (mirrors AIR).
            Shows the favorite currently flagged enabled_ground=true; the
-           Build / Edit button opens the picker filtered to favorites
+           Profile button opens the picker filtered to favorites
            with NFM/ground channels and POSTs activate with band='ground'. -->
       <div class="ground-profile">
         <div class="glyph" id="ground-glyph">—</div>
@@ -2416,7 +2401,7 @@
           <div class="pname" id="ground-pname">Loading…</div>
           <div class="psub" id="ground-psub">—</div>
         </div>
-        <button class="profile-build-btn" id="ground-profile-build-btn" type="button">Build / Edit</button>
+        <button class="profile-build-btn" id="ground-profile-build-btn" type="button">Profile</button>
       </div>
       <div class="hits-list" id="ground-hits">
         <div class="hits-empty">Loading hits…</div>
@@ -2489,9 +2474,8 @@
           <div class="pname" id="dig-pname">Loading…</div>
           <div class="psub" id="dig-psub">—</div>
         </div>
-        <button class="profile-build-btn" id="profile-build-btn" type="button">Build / Edit</button>
+        <button class="profile-build-btn" id="profile-build-btn" type="button">Profile</button>
       </div>
-      <div class="digital-chips" id="dig-chips"></div>
       <div class="hits-list" id="digital-hits">
         <div class="hits-empty">Loading hits…</div>
       </div>
@@ -2922,7 +2906,7 @@
 </div>
 
 <!-- ============ Favorite picker modal (Phase 7b) ============
-     One modal serves both Analog and Digital "Build / Edit" buttons.
+     One modal serves both Analog and Digital "Profile" buttons.
      The title and the `kind` filter swap when the modal opens so the
      analog widget only sees conventional-channel favorites and the
      digital widget only sees trunked-channel favorites. -->
@@ -4246,7 +4230,6 @@ function paintBandProfile(prefix, list, zip, mode, opts) {
   const gEl = $(prefix + "-glyph");
   const nEl = $(prefix + "-pname");
   const sEl = $(prefix + "-psub");
-  const cEl = $(prefix + "-chips");
   if (nEl) nEl.textContent = label;
   if (sEl) {
     let sub;
@@ -4262,13 +4245,6 @@ function paintBandProfile(prefix, list, zip, mode, opts) {
   }
   if (gEl) gEl.textContent = glyph;
 
-  if (cEl) {
-    const top = list.slice(0, 5);
-    cEl.innerHTML = top.map(f => {
-      const cls = (f && f[enabledFlag]) ? "chip on" : "chip";
-      return `<span class="${cls}">${escapeHtml(f.label || f.id || "fav")}</span>`;
-    }).join("") + (list.length > 5 ? `<span class="chip">+${list.length - 5}</span>` : "");
-  }
 }
 
 // Legacy alias kept in case other call sites reference it. Internal calls
@@ -6212,7 +6188,7 @@ function wireHbEvidenceToggle() {
     else panel.setAttribute("hidden", "");
   });
 }
-// Phase 7b — favorite picker.  The "Build / Edit" button on each pane
+// Phase 7b — favorite picker.  The "Profile" button on each pane
 // opens a modal listing the favorites that match the pane's channel
 // kind (analog → conventional, digital → trunked).  Clicking a row
 // posts the updated favorites list to /api/hp/state, which is the
