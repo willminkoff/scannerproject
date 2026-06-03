@@ -1289,16 +1289,18 @@
      base .band-ctl-btn look; .ctl-preset.on (set via aria-checked
      mirroring in JS) highlights the active preset. */
   .band-ctl-preset-row {
-    gap: 4px;
-    flex-wrap: wrap;
+    gap: 2px;
+    flex-wrap: nowrap;
   }
   .band-ctl-btn.ctl-preset {
-    flex: 1 1 auto;
-    min-width: 64px;
-    padding: 4px 6px;
-    font-size: 12px;
-    line-height: 1.1;
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 3px 8px;
+    font-size: 11px;
+    line-height: 1.15;
     text-transform: none;
+    letter-spacing: 0;
+    border-radius: 5px;
   }
   .ctl-preset-readout {
     font-size: 11px;
@@ -2557,7 +2559,7 @@
     <div class="pane-hd">
       <span class="title">Digital Trunked</span>
       <span class="live-tag">LIVE</span>
-      <span class="sub">RSPduo 2 · OP25</span>
+      <span class="sub">OP25</span>
     </div>
     <div class="pane-body">
       <div class="now-row" id="digital-now">
@@ -2603,7 +2605,7 @@
     <div class="pane-hd">
       <span class="title">Manual Tune</span>
       <span class="live-tag" id="vfo-live-tag">Live · 80000003</span>
-      <span class="sub">RTL-SDR · 2.4 MS/s</span>
+      <span class="sub">2.4 MS/s</span>
     </div>
     <div class="pane-body">
       <div class="vfo-grid">
@@ -6633,10 +6635,10 @@ function renderBandControls(band) {
     let txt;
     if (noise !== null && isFinite(noise)) {
       const th = Math.round(noise + margin);
-      txt = `→ ${th} dBFS (noise ${Math.round(noise)} + margin ${margin} dB)`;
+      txt = `→ ${th} dBFS`;
       readout.classList.remove("stale");
     } else if (typeof st.squelch_dbfs === "number" && isFinite(st.squelch_dbfs)) {
-      txt = `→ ${Math.round(st.squelch_dbfs)} dBFS (noise — + margin ${margin} dB)`;
+      txt = `→ ${Math.round(st.squelch_dbfs)} dBFS`;
       readout.classList.add("stale");
     } else {
       txt = `(margin ${margin} dB · waiting on noise sample)`;
