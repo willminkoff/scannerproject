@@ -457,7 +457,17 @@ def enforce_profile_index(conf_path: str) -> None:
 
 
 def parse_controls(conf_path: str):
-    """Parse gain and squelch from configuration."""
+    """Parse gain and squelch from configuration.
+
+    SB5 squelch preset note: when the preset path (squelch_preset.py)
+    writes a per-channel list form ``squelch_threshold = ( -68, -68, ... );``,
+    the legacy single-value regex RE_SQL_DBFS does not match.  Rather
+    than report 0.0 dBFS (which would render as "0 dBFS" in the UI and
+    look like the band is wide open), we fall back to a multi-line regex
+    that grabs the list contents and returns its median.  Mode stays
+    "dbfs" — the runtime semantics are the same; only the syntactic
+    form changed.
+    """
     enforce_profile_index(conf_path)
     gain = 32.8
     squelch_snr = 10.0
@@ -465,19 +475,46 @@ def parse_controls(conf_path: str):
     has_dbfs = False
     try:
         with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
-            for line in f:
-                m = RE_GAIN.match(line)
-                if m:
-                    gain = float(m.group(2))
-                m = RE_SQL.match(line)
-                if m:
-                    squelch_snr = max(0.0, float(m.group(2)))
-                m = RE_SQL_DBFS.match(line)
-                if m:
-                    squelch_dbfs = float(m.group(2))
-                    has_dbfs = True
+            content = f.read()
     except FileNotFoundError:
-        pass
+        content = ""
+
+    for line in content.splitlines():
+        m = RE_GAIN.match(line)
+        if m:
+            gain = float(m.group(2))
+        m = RE_SQL.match(line)
+        if m:
+            squelch_snr = max(0.0, float(m.group(2)))
+        m = RE_SQL_DBFS.match(line)
+        if m:
+            squelch_dbfs = float(m.group(2))
+            has_dbfs = True
+
+    if not has_dbfs and content:
+        # SB5 preset path may have written a multi-line per-channel list.
+        # Pull out the parenthesized block, parse the values, return the
+        # median.  Returns 0.0 (fallthrough) when no squelch_threshold
+        # line exists at all.
+        list_match = re.search(
+            r'(?ms)^\s*squelch_threshold\s*=\s*\((.*?)\)\s*;',
+            content,
+        )
+        if list_match:
+            values = []
+            for tok in re.findall(r'-?\d+(?:\.\d+)?', list_match.group(1)):
+                try:
+                    values.append(float(tok))
+                except ValueError:
+                    continue
+            if values:
+                values.sort()
+                mid = len(values) // 2
+                if len(values) % 2:
+                    squelch_dbfs = float(values[mid])
+                else:
+                    squelch_dbfs = float((values[mid - 1] + values[mid]) / 2.0)
+                has_dbfs = True
 
     mode = "dbfs" if has_dbfs else "dbfs"
 

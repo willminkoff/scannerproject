@@ -1285,6 +1285,33 @@
     background: rgba(138, 155, 181, 0.20);
     color: var(--text);
   }
+  /* Phase 1 squelch preset chips.  The three buttons share the
+     base .band-ctl-btn look; .ctl-preset.on (set via aria-checked
+     mirroring in JS) highlights the active preset. */
+  .band-ctl-preset-row {
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .band-ctl-btn.ctl-preset {
+    flex: 1 1 auto;
+    min-width: 64px;
+    padding: 4px 6px;
+    font-size: 12px;
+    line-height: 1.1;
+    text-transform: none;
+  }
+  .ctl-preset-readout {
+    font-size: 11px;
+    color: var(--sb5-fg-muted, #9aa);
+    line-height: 1.3;
+    display: block;
+    margin-top: 2px;
+    white-space: normal;
+  }
+  .ctl-preset-readout.stale {
+    color: var(--sb5-warn, #cc9);
+  }
+
   .band-ctl-btn.on {
     background: rgba(90, 184, 255, 0.20);
     border-color: rgba(90, 184, 255, 0.55);
@@ -2322,18 +2349,24 @@
            runtime .conf; rtl-airband is NOT auto-restarted (changes
            apply on next manual restart via Sitrep → Reset Radios). -->
       <div class="band-controls" data-band="air" id="ctl-air">
-        <div class="band-ctl">
+        <!-- SB5 Phase 1 squelch preset.  Three pill chips replace the
+             legacy dBFS slider.  On click we POST /api/airband/squelch_preset
+             {band:'air',preset} and the existing 6s auto-apply countdown
+             fires reset_radios to restart rtl-airband. -->
+        <div class="band-ctl band-ctl-preset" data-band="air">
           <span class="ctl-lbl">Squelch</span>
-          <div class="band-ctl-row">
-            <input type="range" min="-80" max="0" step="1" value="-38"
-                   class="ctl-squelch" data-band="air"
-                   aria-label="AIR squelch threshold in dBFS">
-            <button type="button" class="band-ctl-btn ctl-auto"
-                    data-band="air"
-                    aria-pressed="false"
-                    title="Toggle automatic squelch (rtl-airband SNR floor detector)">Auto</button>
+          <div class="band-ctl-row band-ctl-preset-row" role="radiogroup" aria-label="AIR squelch preset">
+            <button type="button" class="band-ctl-btn ctl-preset" data-band="air" data-preset="sensitive"
+                    role="radio" aria-checked="false"
+                    title="Sensitive — opens at 3 dB above per-channel noise floor">Sensitive</button>
+            <button type="button" class="band-ctl-btn ctl-preset" data-band="air" data-preset="balanced"
+                    role="radio" aria-checked="true"
+                    title="Balanced — opens at 6 dB above per-channel noise floor (default)">Balanced</button>
+            <button type="button" class="band-ctl-btn ctl-preset" data-band="air" data-preset="selective"
+                    role="radio" aria-checked="false"
+                    title="Selective — opens at 12 dB above per-channel noise floor">Selective</button>
           </div>
-          <span class="ctl-val" data-role="squelch-val">—</span>
+          <span class="ctl-val ctl-preset-readout" data-role="preset-readout">—</span>
         </div>
         <div class="band-ctl">
           <span class="ctl-lbl">Gain</span>
@@ -2407,18 +2440,21 @@
         <div class="hits-empty">Loading hits…</div>
       </div>
       <div class="band-controls" data-band="ground" id="ctl-ground">
-        <div class="band-ctl">
+        <!-- SB5 Phase 1 squelch preset.  See AIR card above. -->
+        <div class="band-ctl band-ctl-preset" data-band="ground">
           <span class="ctl-lbl">Squelch</span>
-          <div class="band-ctl-row">
-            <input type="range" min="-80" max="0" step="1" value="-38"
-                   class="ctl-squelch" data-band="ground"
-                   aria-label="GROUND squelch threshold in dBFS">
-            <button type="button" class="band-ctl-btn ctl-auto"
-                    data-band="ground"
-                    aria-pressed="false"
-                    title="Toggle automatic squelch (rtl-airband SNR floor detector)">Auto</button>
+          <div class="band-ctl-row band-ctl-preset-row" role="radiogroup" aria-label="GROUND squelch preset">
+            <button type="button" class="band-ctl-btn ctl-preset" data-band="ground" data-preset="sensitive"
+                    role="radio" aria-checked="false"
+                    title="Sensitive — opens at 3 dB above per-channel noise floor">Sensitive</button>
+            <button type="button" class="band-ctl-btn ctl-preset" data-band="ground" data-preset="balanced"
+                    role="radio" aria-checked="true"
+                    title="Balanced — opens at 6 dB above per-channel noise floor (default)">Balanced</button>
+            <button type="button" class="band-ctl-btn ctl-preset" data-band="ground" data-preset="selective"
+                    role="radio" aria-checked="false"
+                    title="Selective — opens at 12 dB above per-channel noise floor">Selective</button>
           </div>
-          <span class="ctl-val" data-role="squelch-val">—</span>
+          <span class="ctl-val ctl-preset-readout" data-role="preset-readout">—</span>
         </div>
         <div class="band-ctl">
           <span class="ctl-lbl">Gain</span>
@@ -6430,13 +6466,25 @@ function wireStatusDisclosure() {
 // auto-restart rtl-airband (TimeoutStopSec=5 is risky to bounce on every
 // slider commit). Changes apply on next manual restart via Sitrep →
 // Reset Radios; the UI shows a small "pending restart" hint when set.
+// SB5 Phase 1 — preset (sensitive/balanced/selective) replaces the
+// dBFS slider.  Margin map mirrors ui/squelch_preset.py.  Default
+// preset is balanced for both bands; legacy persisted squelch_dbfs
+// values migrate to "balanced" server-side via managed_analog_controls.
+const SQUELCH_PRESET_MARGIN_DB = { sensitive: 3, balanced: 6, selective: 12 };
+const SQUELCH_PRESET_DEFAULT = "balanced";
+const SQUELCH_PRESETS = ["sensitive", "balanced", "selective"];
+
 const BAND_DEFAULTS = {
-  air:    { gain: 32.8, squelch_dbfs: -17, squelch_mode: "dbfs", gain_min: 0, gain_max: 59 },
-  ground: { gain: 32.8, squelch_dbfs: -38, squelch_mode: "dbfs", gain_min: 0, gain_max: 59 }
+  air:    { gain: 32.8, squelch_dbfs: -17, squelch_mode: "dbfs", gain_min: 0, gain_max: 59, squelch_preset: SQUELCH_PRESET_DEFAULT },
+  ground: { gain: 32.8, squelch_dbfs: -38, squelch_mode: "dbfs", gain_min: 0, gain_max: 59, squelch_preset: SQUELCH_PRESET_DEFAULT }
 };
 const BAND_STATE = {
-  air:    { gain: 32.8, squelch_dbfs: -17, auto: false, pending: false },
-  ground: { gain: 32.8, squelch_dbfs: -38, auto: false, pending: false }
+  air:    { gain: 32.8, squelch_dbfs: -17, auto: false, pending: false,
+            squelch_preset: SQUELCH_PRESET_DEFAULT, squelch_margin_db: 6,
+            squelch_noise_floor_dbfs: null },
+  ground: { gain: 32.8, squelch_dbfs: -38, auto: false, pending: false,
+            squelch_preset: SQUELCH_PRESET_DEFAULT, squelch_margin_db: 6,
+            squelch_noise_floor_dbfs: null }
 };
 const BAND_API_NAME = { air: "airband", ground: "ground" };
 
@@ -6457,21 +6505,39 @@ function _bandSetHint(band, text, pending) {
 function renderBandControls(band) {
   const card = _bandCard(band); if (!card) return;
   const st = BAND_STATE[band];
-  const sql = card.querySelector(".ctl-squelch");
   const gain = card.querySelector(".ctl-gain");
-  const autoBtn = card.querySelector(".ctl-auto");
-  if (sql) {
-    sql.disabled = !!st.auto;
-    if (!sql.matches(":active")) sql.value = String(Math.round(st.squelch_dbfs));
-  }
   if (gain && !gain.matches(":active")) gain.value = String(Math.round(st.gain));
-  if (autoBtn) {
-    autoBtn.classList.toggle("on", !!st.auto);
-    autoBtn.setAttribute("aria-pressed", st.auto ? "true" : "false");
+  // Phase 1 preset chips — paint the active one and write the
+  // readout from live noise floor + chosen margin.
+  const presetButtons = card.querySelectorAll(".ctl-preset");
+  if (presetButtons && presetButtons.length) {
+    const active = String(st.squelch_preset || SQUELCH_PRESET_DEFAULT).toLowerCase();
+    presetButtons.forEach(btn => {
+      const isOn = (btn.getAttribute("data-preset") || "").toLowerCase() === active;
+      btn.classList.toggle("on", isOn);
+      btn.setAttribute("aria-checked", isOn ? "true" : "false");
+    });
   }
-  _bandSetVal(band, "squelch-val",
-    st.auto ? "AUTO" : `${Math.round(st.squelch_dbfs)} dBFS`,
-    st.auto ? "auto" : "");
+  // Readout: noise + margin -> threshold dBFS
+  const readout = card.querySelector('[data-role="preset-readout"]');
+  if (readout) {
+    const margin = Number(st.squelch_margin_db) || SQUELCH_PRESET_MARGIN_DB[st.squelch_preset] || 6;
+    const noise = (typeof st.squelch_noise_floor_dbfs === "number")
+      ? st.squelch_noise_floor_dbfs : null;
+    let txt;
+    if (noise !== null && isFinite(noise)) {
+      const th = Math.round(noise + margin);
+      txt = `→ ${th} dBFS (noise ${Math.round(noise)} + margin ${margin} dB)`;
+      readout.classList.remove("stale");
+    } else if (typeof st.squelch_dbfs === "number" && isFinite(st.squelch_dbfs)) {
+      txt = `→ ${Math.round(st.squelch_dbfs)} dBFS (noise — + margin ${margin} dB)`;
+      readout.classList.add("stale");
+    } else {
+      txt = `(margin ${margin} dB · waiting on noise sample)`;
+      readout.classList.add("stale");
+    }
+    readout.textContent = txt;
+  }
   _bandSetVal(band, "gain-val", `${Math.round(st.gain)} dB`);
   _bandSetHint(band, st.pending ? "pending · applies on next rtl-airband restart" : "", st.pending);
 }
@@ -6479,8 +6545,18 @@ function renderBandControls(band) {
 function updateBandStateFromStatus(status) {
   if (!status || typeof status !== "object") return;
   const map = {
-    air:    { gain: "airband_gain", dbfs: "airband_squelch_dbfs", mode: "airband_squelch_mode" },
-    ground: { gain: "ground_gain",  dbfs: "ground_squelch_dbfs",  mode: "ground_squelch_mode"  }
+    air:    {
+      gain: "airband_gain", dbfs: "airband_squelch_dbfs", mode: "airband_squelch_mode",
+      preset: "airband_squelch_preset",
+      margin: "airband_squelch_margin_db",
+      noise:  "airband_squelch_noise_floor_dbfs",
+    },
+    ground: {
+      gain: "ground_gain",  dbfs: "ground_squelch_dbfs",  mode: "ground_squelch_mode",
+      preset: "ground_squelch_preset",
+      margin: "ground_squelch_margin_db",
+      noise:  "ground_squelch_noise_floor_dbfs",
+    }
   };
   for (const band of ["air", "ground"]) {
     const k = map[band];
@@ -6488,6 +6564,12 @@ function updateBandStateFromStatus(status) {
     if (typeof status[k.gain] === "number") st.gain = status[k.gain];
     if (typeof status[k.dbfs] === "number") st.squelch_dbfs = status[k.dbfs];
     if (typeof status[k.mode] === "string") st.auto = (status[k.mode].toLowerCase() === "snr");
+    if (typeof status[k.preset] === "string"
+        && SQUELCH_PRESETS.indexOf(status[k.preset].toLowerCase()) >= 0) {
+      st.squelch_preset = status[k.preset].toLowerCase();
+    }
+    if (typeof status[k.margin] === "number") st.squelch_margin_db = status[k.margin];
+    if (typeof status[k.noise]  === "number") st.squelch_noise_floor_dbfs = status[k.noise];
     renderBandControls(band);
   }
 }
@@ -6523,11 +6605,23 @@ function _bandCommit(band, kind) {
     const st = BAND_STATE[band];
     const apiBand = BAND_API_NAME[band];
     if (kind === "sql") {
-      _postJSON("/api/airband/squelch", {
+      // Phase 1 — chip click commits a preset, server computes the
+      // per-channel threshold list from live noise floor + margin.
+      _postJSON("/api/airband/squelch_preset", {
         band: apiBand,
-        threshold_dbfs: Math.round(st.squelch_dbfs),
-        auto: !!st.auto
-      }).then(r => _bandCommitAfter(r, band)).catch(() => {});
+        preset: st.squelch_preset || SQUELCH_PRESET_DEFAULT
+      }).then(r => {
+        // Hydrate the readout immediately from the server response so
+        // the UI doesn't need to wait for the next status tick.
+        if (r && r.ok && r.json && r.json.ok !== false) {
+          if (typeof r.json.margin_db === "number") st.squelch_margin_db = r.json.margin_db;
+          if (typeof r.json.noise_floor_median === "number") st.squelch_noise_floor_dbfs = r.json.noise_floor_median;
+          if (typeof r.json.threshold_median === "number") st.squelch_dbfs = r.json.threshold_median;
+          if (typeof r.json.preset === "string") st.squelch_preset = r.json.preset;
+          renderBandControls(band);
+        }
+        _bandCommitAfter(r, band);
+      }).catch(() => {});
     } else {
       _postJSON("/api/airband/gain", {
         band: apiBand,
@@ -6657,24 +6751,35 @@ function _scheduleAutoApply() {
 }
 
 function wireBandControls() {
+  // SB5 Phase 1 — preset chips replaced the squelch slider + Auto button
+  // for AIR/GROUND.  The gain slider + Default button are unchanged.
   ["air", "ground"].forEach(band => {
     const card = _bandCard(band); if (!card) return;
     const st = BAND_STATE[band];
-    const sql = card.querySelector(".ctl-squelch");
     const gain = card.querySelector(".ctl-gain");
-    const autoBtn = card.querySelector(".ctl-auto");
     const defBtn  = card.querySelector(".ctl-default");
-    if (sql) {
-      sql.addEventListener("input", () => {
-        st.squelch_dbfs = Number(sql.value);
-        _bandSetVal(band, "squelch-val", `${Math.round(st.squelch_dbfs)} dBFS`);
-      });
-      sql.addEventListener("change", () => {
-        st.squelch_dbfs = Number(sql.value);
+    // Three preset chips: clicking one updates state, paints the chip
+    // active, posts to the preset endpoint, and arms the 6s auto-apply
+    // countdown (same path the slider used).
+    const presetBtns = card.querySelectorAll(".ctl-preset");
+    presetBtns.forEach(btn => {
+      btn.addEventListener("click", () => {
+        const preset = String(btn.getAttribute("data-preset") || "").toLowerCase();
+        if (SQUELCH_PRESETS.indexOf(preset) < 0) return;
+        if (st.squelch_preset === preset) {
+          // Re-clicking the active preset still re-applies — useful when
+          // noise floor has drifted and the user wants to re-sample.
+        }
+        st.squelch_preset = preset;
+        // Optimistic margin update so the readout updates before the
+        // server roundtrips.  Noise floor + final threshold come back
+        // in the response (see _bandCommit's .then() handler).
+        st.squelch_margin_db = SQUELCH_PRESET_MARGIN_DB[preset] || 6;
+        renderBandControls(band);
         _bandCommit(band, "sql");
         _scheduleAutoApply();
       });
-    }
+    });
     if (gain) {
       gain.addEventListener("input", () => {
         st.gain = Number(gain.value);
@@ -6683,14 +6788,6 @@ function wireBandControls() {
       gain.addEventListener("change", () => {
         st.gain = Number(gain.value);
         _bandCommit(band, "gain");
-        _scheduleAutoApply();
-      });
-    }
-    if (autoBtn) {
-      autoBtn.addEventListener("click", () => {
-        st.auto = !st.auto;
-        renderBandControls(band);
-        _bandCommit(band, "sql");
         _scheduleAutoApply();
       });
     }

@@ -15,6 +15,11 @@ try:
         MANAGED_ANALOG_DEFAULT_GROUND_DBFS,
     )
     from .profile_config import managed_controls_profile_path, parse_controls, write_controls
+    from .squelch_preset import (
+        DEFAULT_PRESET as _DEFAULT_SQUELCH_PRESET,
+        normalize_preset as _normalize_squelch_preset,
+        margin_for as _squelch_preset_margin_for,
+    )
 except ImportError:
     from ui.config import (
         MANAGED_ANALOG_CONTROLS_PATH,
@@ -22,6 +27,11 @@ except ImportError:
         MANAGED_ANALOG_DEFAULT_GROUND_DBFS,
     )
     from ui.profile_config import managed_controls_profile_path, parse_controls, write_controls
+    from ui.squelch_preset import (
+        DEFAULT_PRESET as _DEFAULT_SQUELCH_PRESET,
+        normalize_preset as _normalize_squelch_preset,
+        margin_for as _squelch_preset_margin_for,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -115,12 +125,36 @@ def _controls_payload(
     squelch_mode: str,
     squelch_snr: float,
     squelch_dbfs: float,
+    squelch_preset: str | None = None,
+    squelch_preset_margin_db: float | None = None,
+    squelch_preset_noise_floor_dbfs: float | None = None,
+    squelch_preset_computed_at_ms: int | None = None,
 ) -> dict[str, Any]:
+    # SB5 squelch preset (Phase 1).  Old records that predate the preset
+    # field migrate to the default ("balanced") on first load; that's
+    # how an existing -20 dBFS Air override gets coerced to a sensible
+    # default the next time recommended_managed_controls() is called.
+    preset = _normalize_squelch_preset(squelch_preset)
+    margin = squelch_preset_margin_db
+    if margin is None or not isinstance(margin, (int, float)):
+        margin = _squelch_preset_margin_for(preset)
     return {
         "gain": _normalize_float(gain, _DEFAULT_GAIN),
         "squelch_mode": "dbfs" if str(squelch_mode or "").strip().lower() != "snr" else "snr",
         "squelch_snr": max(0.0, _normalize_float(squelch_snr, _DEFAULT_SQUELCH_SNR)),
         "squelch_dbfs": _normalize_float(squelch_dbfs, -70.0),
+        "squelch_preset": preset,
+        "squelch_preset_margin_db": float(margin),
+        "squelch_preset_noise_floor_dbfs": (
+            float(squelch_preset_noise_floor_dbfs)
+            if isinstance(squelch_preset_noise_floor_dbfs, (int, float))
+            else None
+        ),
+        "squelch_preset_computed_at_ms": (
+            int(squelch_preset_computed_at_ms)
+            if isinstance(squelch_preset_computed_at_ms, (int, float))
+            else None
+        ),
     }
 
 
@@ -156,6 +190,10 @@ def recommended_managed_controls(target: str, conf_path: str) -> dict[str, Any]:
         squelch_mode=override.get("squelch_mode"),
         squelch_snr=override.get("squelch_snr"),
         squelch_dbfs=override.get("squelch_dbfs"),
+        squelch_preset=override.get("squelch_preset"),
+        squelch_preset_margin_db=override.get("squelch_preset_margin_db"),
+        squelch_preset_noise_floor_dbfs=override.get("squelch_preset_noise_floor_dbfs"),
+        squelch_preset_computed_at_ms=override.get("squelch_preset_computed_at_ms"),
     )
     payload["source"] = "override"
     return payload
@@ -195,12 +233,30 @@ def persist_managed_controls_override(
     squelch_mode: str,
     squelch_snr: float,
     squelch_dbfs: float,
+    squelch_preset: str | None = None,
+    squelch_preset_margin_db: float | None = None,
+    squelch_preset_noise_floor_dbfs: float | None = None,
+    squelch_preset_computed_at_ms: int | None = None,
 ) -> bool:
     normalized = _normalize_target(target)
     if not is_managed_controls_profile(normalized, conf_path):
         return False
     state = _load_state()
     targets = state.setdefault("targets", {})
+    # Preserve any existing preset fields when the caller (e.g. the
+    # legacy slider path) doesn't supply them — that's how a slider
+    # commit avoids stomping the user's last preset choice.
+    prior = targets.get(normalized) or {}
+    prior_override = prior.get("override") if isinstance(prior, dict) else None
+    if isinstance(prior_override, dict):
+        if squelch_preset is None:
+            squelch_preset = prior_override.get("squelch_preset")
+        if squelch_preset_margin_db is None:
+            squelch_preset_margin_db = prior_override.get("squelch_preset_margin_db")
+        if squelch_preset_noise_floor_dbfs is None:
+            squelch_preset_noise_floor_dbfs = prior_override.get("squelch_preset_noise_floor_dbfs")
+        if squelch_preset_computed_at_ms is None:
+            squelch_preset_computed_at_ms = prior_override.get("squelch_preset_computed_at_ms")
     targets[normalized] = {
         "profile_path": os.path.realpath(conf_path),
         "updated_at_ms": int(time.time() * 1000),
@@ -209,6 +265,10 @@ def persist_managed_controls_override(
             squelch_mode=squelch_mode,
             squelch_snr=squelch_snr,
             squelch_dbfs=squelch_dbfs,
+            squelch_preset=squelch_preset,
+            squelch_preset_margin_db=squelch_preset_margin_db,
+            squelch_preset_noise_floor_dbfs=squelch_preset_noise_floor_dbfs,
+            squelch_preset_computed_at_ms=squelch_preset_computed_at_ms,
         ),
     }
     _save_state(state)

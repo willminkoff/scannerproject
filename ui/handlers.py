@@ -171,6 +171,15 @@ try:
         enforce_profile_index, set_profile, save_profiles_registry, write_airband_flag,
         parse_freqs_labels, parse_freqs_text, write_freqs_labels, write_combined_config
     )
+    from .managed_analog_controls import recommended_managed_controls
+    from .squelch_preset import (
+        apply_preset as squelch_apply_preset,
+        compute_preset_plan as squelch_compute_preset_plan,
+        normalize_preset as squelch_normalize_preset,
+        margin_for as squelch_margin_for,
+        VALID_PRESETS as SQUELCH_VALID_PRESETS,
+        DEFAULT_PRESET as SQUELCH_DEFAULT_PRESET,
+    )
     from .combined_status import combined_device_summary, combined_config_stale
     from .scanner import (
         get_analog_scan_health, read_last_hit_airband, read_last_hit_ground, read_hit_list_cached
@@ -291,6 +300,15 @@ except ImportError:
         load_profiles_registry, find_profile, validate_profile_id, safe_profile_path,
         enforce_profile_index, set_profile, save_profiles_registry, write_airband_flag,
         parse_freqs_labels, parse_freqs_text, write_freqs_labels, write_combined_config
+    )
+    from ui.managed_analog_controls import recommended_managed_controls
+    from ui.squelch_preset import (
+        apply_preset as squelch_apply_preset,
+        compute_preset_plan as squelch_compute_preset_plan,
+        normalize_preset as squelch_normalize_preset,
+        margin_for as squelch_margin_for,
+        VALID_PRESETS as SQUELCH_VALID_PRESETS,
+        DEFAULT_PRESET as SQUELCH_DEFAULT_PRESET,
     )
     from ui.combined_status import combined_device_summary, combined_config_stale
     from ui.scanner import (
@@ -5916,10 +5934,32 @@ class Handler(BaseHTTPRequestHandler):
                 "airband_gain": float(airband_gain),
                 "airband_squelch_mode": airband_mode,
                 "airband_squelch_dbfs": float(airband_dbfs),
+                "airband_squelch_preset": (
+                    (recommended_managed_controls("airband", controls_airband_path) or {}).get("squelch_preset")
+                    or SQUELCH_DEFAULT_PRESET
+                ),
+                "airband_squelch_margin_db": (
+                    (recommended_managed_controls("airband", controls_airband_path) or {}).get("squelch_preset_margin_db")
+                    or squelch_margin_for(SQUELCH_DEFAULT_PRESET)
+                ),
+                "airband_squelch_noise_floor_dbfs": (
+                    (recommended_managed_controls("airband", controls_airband_path) or {}).get("squelch_preset_noise_floor_dbfs")
+                ),
                 "airband_filter": float(airband_filter),
                 "ground_gain": float(ground_gain),
                 "ground_squelch_mode": ground_mode,
                 "ground_squelch_dbfs": float(ground_dbfs),
+                "ground_squelch_preset": (
+                    (recommended_managed_controls("ground", controls_ground_path) or {}).get("squelch_preset")
+                    or SQUELCH_DEFAULT_PRESET
+                ),
+                "ground_squelch_margin_db": (
+                    (recommended_managed_controls("ground", controls_ground_path) or {}).get("squelch_preset_margin_db")
+                    or squelch_margin_for(SQUELCH_DEFAULT_PRESET)
+                ),
+                "ground_squelch_noise_floor_dbfs": (
+                    (recommended_managed_controls("ground", controls_ground_path) or {}).get("squelch_preset_noise_floor_dbfs")
+                ),
                 "ground_filter": float(ground_filter),
                 "airband_applied_gain": airband_device.get("gain") if airband_device else None,
                 "airband_applied_squelch_dbfs": airband_device.get("squelch_dbfs") if airband_device else None,
@@ -6653,6 +6693,33 @@ class Handler(BaseHTTPRequestHandler):
                     "gain": float(airband_gain),
                     "squelch_mode": airband_mode,
                     "squelch_dbfs": float(airband_dbfs),
+                    "airband_squelch_dbfs": float(airband_dbfs),
+                    "airband_squelch_mode": airband_mode,
+                    "airband_squelch_preset": (
+                        (recommended_managed_controls("airband", resolve_controls_path("airband")) or {}).get("squelch_preset")
+                        or SQUELCH_DEFAULT_PRESET
+                    ),
+                    "airband_squelch_margin_db": (
+                        (recommended_managed_controls("airband", resolve_controls_path("airband")) or {}).get("squelch_preset_margin_db")
+                        or squelch_margin_for(SQUELCH_DEFAULT_PRESET)
+                    ),
+                    "airband_squelch_noise_floor_dbfs": (
+                        (recommended_managed_controls("airband", resolve_controls_path("airband")) or {}).get("squelch_preset_noise_floor_dbfs")
+                    ),
+                    "ground_gain": float(ground_gain),
+                    "ground_squelch_mode": ground_mode,
+                    "ground_squelch_dbfs": float(ground_dbfs),
+                    "ground_squelch_preset": (
+                        (recommended_managed_controls("ground", resolve_controls_path("ground")) or {}).get("squelch_preset")
+                        or SQUELCH_DEFAULT_PRESET
+                    ),
+                    "ground_squelch_margin_db": (
+                        (recommended_managed_controls("ground", resolve_controls_path("ground")) or {}).get("squelch_preset_margin_db")
+                        or squelch_margin_for(SQUELCH_DEFAULT_PRESET)
+                    ),
+                    "ground_squelch_noise_floor_dbfs": (
+                        (recommended_managed_controls("ground", resolve_controls_path("ground")) or {}).get("squelch_preset_noise_floor_dbfs")
+                    ),
                     "last_hit": last_hit,
                     "last_hit_airband_label": _short_label(last_hit_airband_label, max_len=48),
                     "last_hit_ground_label": _short_label(last_hit_ground_label, max_len=48),
@@ -8028,6 +8095,115 @@ class Handler(BaseHTTPRequestHandler):
                     # Hot reload of rtl-airband is intentionally NOT done
                     # here. The operator restarts manually via Sitrep.
                     "pending_restart": bool(changed),
+                }),
+                "application/json; charset=utf-8",
+            )
+
+        # ============ /api/airband/squelch_preset — Phase 1 SB5 ============
+        # Replaces the legacy per-band squelch dBFS slider with a 3-state
+        # preset (Sensitive / Balanced / Selective).  See ui/squelch_preset.py
+        # for the rationale: the legacy scalar threshold landed many dB above
+        # the per-channel noise floor, so channel_squelch_counter never
+        # incremented.  This endpoint reads the live noise floor from
+        # /run/rtl_airband_<svc>_stats.txt, computes per-channel
+        # threshold = noise + margin, and writes a list form into the
+        # resolved controls profile.  rtl-airband does NOT hot-reload; the
+        # operator (or the 6s sb5 auto-apply countdown) restarts via
+        # /api/sitrep/action reset_radios.  We respond with
+        # pending_restart=true so the countdown fires the same way the
+        # legacy slider commit did.
+        if p == "/api/airband/squelch_preset":
+            band_raw = str(form.get("band", "")).strip().lower()
+            band_map = {"air": "airband", "airband": "airband", "ground": "ground", "gnd": "ground"}
+            target = band_map.get(band_raw)
+            if not target:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "unknown band (expected 'air' or 'ground')"}),
+                    "application/json; charset=utf-8",
+                )
+            preset_in = str(form.get("preset", "")).strip().lower()
+            if preset_in and preset_in not in SQUELCH_VALID_PRESETS:
+                return self._send(
+                    400,
+                    json.dumps({
+                        "ok": False,
+                        "error": f"unknown preset '{preset_in}' (expected one of {list(SQUELCH_VALID_PRESETS)})",
+                    }),
+                    "application/json; charset=utf-8",
+                )
+            preset = squelch_normalize_preset(preset_in)
+            try:
+                conf_path = resolve_controls_path(target)
+            except Exception as e:
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": f"controls path failed: {e}"}),
+                    "application/json; charset=utf-8",
+                )
+            try:
+                plan = squelch_apply_preset(target, preset, conf_path)
+            except Exception as e:
+                logger.exception("squelch_preset apply failed")
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": f"apply_preset failed: {e}"}),
+                    "application/json; charset=utf-8",
+                )
+            if plan.get("error"):
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": plan.get("error"), "plan": {
+                        "target": plan.get("target"),
+                        "preset": plan.get("preset"),
+                        "margin_db": plan.get("margin_db"),
+                        "stats_available": plan.get("stats_available"),
+                        "freqs_count": len(plan.get("freqs") or []),
+                    }}),
+                    "application/json; charset=utf-8",
+                )
+            # Persist the preset + computed metadata into the managed
+            # override store.  We also update squelch_dbfs to the median
+            # computed threshold so the SSE airband_squelch_dbfs field
+            # carries a useful value (used by the readout fallback).
+            try:
+                try:
+                    from .managed_analog_controls import persist_managed_controls_override
+                except ImportError:
+                    from ui.managed_analog_controls import persist_managed_controls_override
+                # Read current gain/snr to preserve them.
+                try:
+                    cur_gain, cur_snr, _cur_dbfs, _cur_mode = parse_controls(conf_path)
+                except Exception:
+                    cur_gain, cur_snr = 32.8, 10.0
+                persist_managed_controls_override(
+                    target,
+                    conf_path,
+                    gain=float(cur_gain),
+                    squelch_mode="dbfs",
+                    squelch_snr=float(cur_snr),
+                    squelch_dbfs=float(plan.get("threshold_median") or -60.0),
+                    squelch_preset=plan.get("preset"),
+                    squelch_preset_margin_db=plan.get("margin_db"),
+                    squelch_preset_noise_floor_dbfs=plan.get("noise_floor_median"),
+                    squelch_preset_computed_at_ms=plan.get("written_at_ms") or int(time.time() * 1000),
+                )
+            except Exception:
+                logger.debug("managed override persist for preset skipped", exc_info=True)
+            return self._send(
+                200,
+                json.dumps({
+                    "ok": True,
+                    "band": "air" if target == "airband" else "ground",
+                    "target": target,
+                    "preset": plan.get("preset"),
+                    "margin_db": plan.get("margin_db"),
+                    "threshold_median": plan.get("threshold_median"),
+                    "noise_floor_median": plan.get("noise_floor_median"),
+                    "freqs_count": len(plan.get("freqs") or []),
+                    "stats_available": plan.get("stats_available"),
+                    "changed": bool(plan.get("changed")),
+                    "pending_restart": bool(plan.get("changed")),
                 }),
                 "application/json; charset=utf-8",
             )
