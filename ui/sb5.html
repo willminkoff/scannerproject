@@ -1312,6 +1312,52 @@
     color: var(--sb5-warn, #cc9);
   }
 
+  /* SB5 Phase 2 — AUTO/MANUAL pill above the preset chips.  Active
+     state highlights the same way .band-ctl-btn.on does so the visual
+     vocabulary stays consistent with the preset row.  The auto-row
+     hangs above the preset row inside .band-ctl-preset; layout-wise it
+     reads like a label modifier ("which thing is choosing the preset"). */
+  .band-ctl-auto-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+    font-size: 11px;
+  }
+  .band-ctl-auto-row .auto-status {
+    color: var(--sb5-fg-muted, #9aa);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: -0.01em;
+  }
+  .band-ctl-auto-pill {
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--line-2, rgba(138, 155, 181, 0.30));
+    color: var(--text-2, #c8d2e0);
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  }
+  .band-ctl-auto-pill:hover {
+    background: rgba(138, 155, 181, 0.18);
+  }
+  .band-ctl-auto-pill.on {
+    background: rgba(90, 184, 255, 0.20);
+    border-color: rgba(90, 184, 255, 0.55);
+    color: #e0f2ff;
+  }
+  /* When MANUAL, fade the chip row slightly so the operator notices
+     the chips are frozen until they re-engage AUTO or click one. */
+  .band-ctl-preset.manual .band-ctl-preset-row {
+    opacity: 0.85;
+  }
+
   .band-ctl-btn.on {
     background: rgba(90, 184, 255, 0.20);
     border-color: rgba(90, 184, 255, 0.55);
@@ -2355,6 +2401,17 @@
              fires reset_radios to restart rtl-airband. -->
         <div class="band-ctl band-ctl-preset" data-band="air">
           <span class="ctl-lbl">Squelch</span>
+          <!-- SB5 Phase 2 — AUTO/MANUAL pill.  ON = continuous noise
+               tracker re-applies the preset margin every 30 s with
+               5 dB hysteresis.  OFF = chip thresholds stay frozen
+               until operator picks a preset again. -->
+          <div class="band-ctl-auto-row" data-role="auto-row">
+            <button type="button" class="band-ctl-auto-pill on"
+                    data-band="air" data-role="auto-toggle"
+                    aria-pressed="true"
+                    title="When AUTO is on, the tracker re-samples noise every 30 s and re-applies the preset margin if any channel drifts >= 5 dB.">AUTO</button>
+            <span class="auto-status" data-role="auto-status">Auto · waiting for first sync</span>
+          </div>
           <div class="band-ctl-row band-ctl-preset-row" role="radiogroup" aria-label="AIR squelch preset">
             <button type="button" class="band-ctl-btn ctl-preset" data-band="air" data-preset="sensitive"
                     role="radio" aria-checked="false"
@@ -2443,6 +2500,13 @@
         <!-- SB5 Phase 1 squelch preset.  See AIR card above. -->
         <div class="band-ctl band-ctl-preset" data-band="ground">
           <span class="ctl-lbl">Squelch</span>
+          <div class="band-ctl-auto-row" data-role="auto-row">
+            <button type="button" class="band-ctl-auto-pill on"
+                    data-band="ground" data-role="auto-toggle"
+                    aria-pressed="true"
+                    title="When AUTO is on, the tracker re-samples noise every 30 s and re-applies the preset margin if any channel drifts >= 5 dB.">AUTO</button>
+            <span class="auto-status" data-role="auto-status">Auto · waiting for first sync</span>
+          </div>
           <div class="band-ctl-row band-ctl-preset-row" role="radiogroup" aria-label="GROUND squelch preset">
             <button type="button" class="band-ctl-btn ctl-preset" data-band="ground" data-preset="sensitive"
                     role="radio" aria-checked="false"
@@ -6478,13 +6542,18 @@ const BAND_DEFAULTS = {
   air:    { gain: 32.8, squelch_dbfs: -17, squelch_mode: "dbfs", gain_min: 0, gain_max: 59, squelch_preset: SQUELCH_PRESET_DEFAULT },
   ground: { gain: 32.8, squelch_dbfs: -38, squelch_mode: "dbfs", gain_min: 0, gain_max: 59, squelch_preset: SQUELCH_PRESET_DEFAULT }
 };
+// SB5 Phase 2 — per-band state now carries the AUTO toggle and the
+// tracker's last-applied timestamp so the readout can render
+// "Auto · last sync Xs ago" vs "Manual · pinned at ...".
 const BAND_STATE = {
   air:    { gain: 32.8, squelch_dbfs: -17, auto: false, pending: false,
             squelch_preset: SQUELCH_PRESET_DEFAULT, squelch_margin_db: 6,
-            squelch_noise_floor_dbfs: null },
+            squelch_noise_floor_dbfs: null,
+            squelch_auto: true, squelch_tracker_applied_at_ms: null },
   ground: { gain: 32.8, squelch_dbfs: -38, auto: false, pending: false,
             squelch_preset: SQUELCH_PRESET_DEFAULT, squelch_margin_db: 6,
-            squelch_noise_floor_dbfs: null }
+            squelch_noise_floor_dbfs: null,
+            squelch_auto: true, squelch_tracker_applied_at_ms: null }
 };
 const BAND_API_NAME = { air: "airband", ground: "ground" };
 
@@ -6518,6 +6587,43 @@ function renderBandControls(band) {
       btn.setAttribute("aria-checked", isOn ? "true" : "false");
     });
   }
+  // SB5 Phase 2 — AUTO pill + status line.
+  const autoBtn = card.querySelector('[data-role="auto-toggle"]');
+  const autoStatus = card.querySelector('[data-role="auto-status"]');
+  const presetBlock = card.querySelector(".band-ctl-preset");
+  const isAuto = (st.squelch_auto !== false);
+  if (autoBtn) {
+    autoBtn.classList.toggle("on", isAuto);
+    autoBtn.setAttribute("aria-pressed", isAuto ? "true" : "false");
+    autoBtn.textContent = isAuto ? "AUTO" : "MANUAL";
+  }
+  if (presetBlock) presetBlock.classList.toggle("manual", !isAuto);
+  if (autoStatus) {
+    const margin = Number(st.squelch_margin_db) || SQUELCH_PRESET_MARGIN_DB[st.squelch_preset] || 6;
+    if (isAuto) {
+      const ts = Number(st.squelch_tracker_applied_at_ms || 0);
+      if (ts > 0) {
+        const ageSec = Math.max(0, Math.round((Date.now() - ts) / 1000));
+        const ageTxt = ageSec < 60 ? `${ageSec}s ago`
+          : ageSec < 3600 ? `${Math.round(ageSec/60)}m ago`
+          : `${Math.round(ageSec/3600)}h ago`;
+        autoStatus.textContent = `Auto · last sync ${ageTxt}`;
+      } else {
+        autoStatus.textContent = "Auto · waiting for first sync";
+      }
+    } else {
+      // MANUAL — show what the operator pinned.  Prefer the live
+      // noise+margin readout; fall back to the persisted dBFS.
+      const noise = (typeof st.squelch_noise_floor_dbfs === "number") ? st.squelch_noise_floor_dbfs : null;
+      let pinned = "—";
+      if (noise !== null && isFinite(noise)) {
+        pinned = `${Math.round(noise + margin)} dBFS`;
+      } else if (typeof st.squelch_dbfs === "number" && isFinite(st.squelch_dbfs)) {
+        pinned = `${Math.round(st.squelch_dbfs)} dBFS`;
+      }
+      autoStatus.textContent = `Manual · pinned at ${pinned} @ ${margin} dB margin`;
+    }
+  }
   // Readout: noise + margin -> threshold dBFS
   const readout = card.querySelector('[data-role="preset-readout"]');
   if (readout) {
@@ -6550,12 +6656,16 @@ function updateBandStateFromStatus(status) {
       preset: "airband_squelch_preset",
       margin: "airband_squelch_margin_db",
       noise:  "airband_squelch_noise_floor_dbfs",
+      sqlAuto: "airband_squelch_auto",
+      trackerAppliedAt: "airband_squelch_tracker_applied_at_ms",
     },
     ground: {
       gain: "ground_gain",  dbfs: "ground_squelch_dbfs",  mode: "ground_squelch_mode",
       preset: "ground_squelch_preset",
       margin: "ground_squelch_margin_db",
       noise:  "ground_squelch_noise_floor_dbfs",
+      sqlAuto: "ground_squelch_auto",
+      trackerAppliedAt: "ground_squelch_tracker_applied_at_ms",
     }
   };
   for (const band of ["air", "ground"]) {
@@ -6570,9 +6680,37 @@ function updateBandStateFromStatus(status) {
     }
     if (typeof status[k.margin] === "number") st.squelch_margin_db = status[k.margin];
     if (typeof status[k.noise]  === "number") st.squelch_noise_floor_dbfs = status[k.noise];
+    // SB5 Phase 2 — AUTO toggle + last tracker apply timestamp.
+    if (typeof status[k.sqlAuto] === "boolean") st.squelch_auto = status[k.sqlAuto];
+    if (typeof status[k.trackerAppliedAt] === "number" && status[k.trackerAppliedAt] > 0) {
+      st.squelch_tracker_applied_at_ms = status[k.trackerAppliedAt];
+    }
     renderBandControls(band);
   }
 }
+
+// SB5 Phase 2 — refresh the "Auto · last sync Xs ago" age display once
+// per second so the operator sees the counter tick even between SSE
+// status payloads.  No network cost; pure local re-render.
+setInterval(() => {
+  try {
+    ["air", "ground"].forEach(band => {
+      const st = BAND_STATE[band];
+      if (st && st.squelch_auto !== false && st.squelch_tracker_applied_at_ms) {
+        // Only re-render the autoStatus span to avoid disrupting any
+        // interaction on chips / gain slider.
+        const card = _bandCard(band); if (!card) return;
+        const statusEl = card.querySelector('[data-role="auto-status"]');
+        if (!statusEl) return;
+        const ageSec = Math.max(0, Math.round((Date.now() - st.squelch_tracker_applied_at_ms) / 1000));
+        const ageTxt = ageSec < 60 ? `${ageSec}s ago`
+          : ageSec < 3600 ? `${Math.round(ageSec/60)}m ago`
+          : `${Math.round(ageSec/3600)}h ago`;
+        statusEl.textContent = `Auto · last sync ${ageTxt}`;
+      }
+    });
+  } catch (_) {}
+}, 1000);
 
 function _postJSON(url, body) {
   return fetch(url, {
@@ -6802,6 +6940,34 @@ function wireBandControls() {
     const cancelBtn = card.querySelector('[data-role="apply-cancel"]');
     if (cancelBtn) {
       cancelBtn.addEventListener("click", _autoApplyCancel);
+    }
+    // SB5 Phase 2 — AUTO/MANUAL toggle.  Click flips the state and
+    // POSTs the new value.  No 6 s auto-apply countdown here: turning
+    // AUTO off only freezes future tracker cycles, it does not write
+    // a new profile or restart rtl-airband.  Turning AUTO on does NOT
+    // immediately re-apply either — the tracker will pick it up on its
+    // next 30 s tick.  This keeps the toggle a cheap state flip.
+    const autoBtn = card.querySelector('[data-role="auto-toggle"]');
+    if (autoBtn) {
+      autoBtn.addEventListener("click", () => {
+        const st = BAND_STATE[band];
+        const next = !(st.squelch_auto !== false);
+        st.squelch_auto = next;
+        renderBandControls(band);
+        const apiBand = BAND_API_NAME[band];
+        _postJSON("/api/airband/squelch_auto", { band: apiBand, enabled: next })
+          .then(r => {
+            if (!r || !r.ok || !r.json || r.json.ok === false) {
+              // Rollback on server failure so the UI doesn't lie.
+              st.squelch_auto = !next;
+              renderBandControls(band);
+            }
+          })
+          .catch(() => {
+            st.squelch_auto = !next;
+            renderBandControls(band);
+          });
+      });
     }
     renderBandControls(band);
   });

@@ -40,6 +40,11 @@ _DEFAULT_GAIN = 32.8
 _DEFAULT_SQUELCH_SNR = 10.0
 _DEFAULT_STATE = {"version": 1, "targets": {}}
 
+# SB5 Phase 2: per-band squelch AUTO/MANUAL toggle.  Default ON so the
+# tracker engages on first boot; the operator opts out per band via the
+# UI pill or POST /api/airband/squelch_auto.
+_DEFAULT_SQUELCH_AUTO = True
+
 
 def _normalize_target(target: str) -> str:
     token = str(target or "").strip().lower()
@@ -129,6 +134,8 @@ def _controls_payload(
     squelch_preset_margin_db: float | None = None,
     squelch_preset_noise_floor_dbfs: float | None = None,
     squelch_preset_computed_at_ms: int | None = None,
+    squelch_auto: bool | None = None,
+    squelch_tracker_applied_at_ms: int | None = None,
 ) -> dict[str, Any]:
     # SB5 squelch preset (Phase 1).  Old records that predate the preset
     # field migrate to the default ("balanced") on first load; that's
@@ -138,6 +145,15 @@ def _controls_payload(
     margin = squelch_preset_margin_db
     if margin is None or not isinstance(margin, (int, float)):
         margin = _squelch_preset_margin_for(preset)
+    # SB5 Phase 2: persist the per-band AUTO/MANUAL toggle.  ``None``
+    # means "caller didn't say" and falls through to the default; the
+    # callers that DO care (the /api/airband/squelch_auto endpoint and
+    # _toggle_band_auto below) pass an explicit bool.
+    auto_normalized = (
+        bool(squelch_auto)
+        if isinstance(squelch_auto, bool)
+        else _DEFAULT_SQUELCH_AUTO
+    )
     return {
         "gain": _normalize_float(gain, _DEFAULT_GAIN),
         "squelch_mode": "dbfs" if str(squelch_mode or "").strip().lower() != "snr" else "snr",
@@ -153,6 +169,12 @@ def _controls_payload(
         "squelch_preset_computed_at_ms": (
             int(squelch_preset_computed_at_ms)
             if isinstance(squelch_preset_computed_at_ms, (int, float))
+            else None
+        ),
+        "squelch_auto": auto_normalized,
+        "squelch_tracker_applied_at_ms": (
+            int(squelch_tracker_applied_at_ms)
+            if isinstance(squelch_tracker_applied_at_ms, (int, float))
             else None
         ),
     }
@@ -194,6 +216,12 @@ def recommended_managed_controls(target: str, conf_path: str) -> dict[str, Any]:
         squelch_preset_margin_db=override.get("squelch_preset_margin_db"),
         squelch_preset_noise_floor_dbfs=override.get("squelch_preset_noise_floor_dbfs"),
         squelch_preset_computed_at_ms=override.get("squelch_preset_computed_at_ms"),
+        squelch_auto=(
+            bool(override.get("squelch_auto"))
+            if isinstance(override.get("squelch_auto"), bool)
+            else _DEFAULT_SQUELCH_AUTO
+        ),
+        squelch_tracker_applied_at_ms=override.get("squelch_tracker_applied_at_ms"),
     )
     payload["source"] = "override"
     return payload
@@ -237,6 +265,8 @@ def persist_managed_controls_override(
     squelch_preset_margin_db: float | None = None,
     squelch_preset_noise_floor_dbfs: float | None = None,
     squelch_preset_computed_at_ms: int | None = None,
+    squelch_auto: bool | None = None,
+    squelch_tracker_applied_at_ms: int | None = None,
 ) -> bool:
     normalized = _normalize_target(target)
     if not is_managed_controls_profile(normalized, conf_path):
@@ -257,6 +287,13 @@ def persist_managed_controls_override(
             squelch_preset_noise_floor_dbfs = prior_override.get("squelch_preset_noise_floor_dbfs")
         if squelch_preset_computed_at_ms is None:
             squelch_preset_computed_at_ms = prior_override.get("squelch_preset_computed_at_ms")
+        # SB5 Phase 2: same preservation discipline for the AUTO toggle
+        # and tracker-applied timestamp — the chip-click path doesn't
+        # know about either and must not stomp them.
+        if squelch_auto is None and isinstance(prior_override.get("squelch_auto"), bool):
+            squelch_auto = prior_override.get("squelch_auto")
+        if squelch_tracker_applied_at_ms is None:
+            squelch_tracker_applied_at_ms = prior_override.get("squelch_tracker_applied_at_ms")
     targets[normalized] = {
         "profile_path": os.path.realpath(conf_path),
         "updated_at_ms": int(time.time() * 1000),
@@ -269,7 +306,97 @@ def persist_managed_controls_override(
             squelch_preset_margin_db=squelch_preset_margin_db,
             squelch_preset_noise_floor_dbfs=squelch_preset_noise_floor_dbfs,
             squelch_preset_computed_at_ms=squelch_preset_computed_at_ms,
+            squelch_auto=squelch_auto,
+            squelch_tracker_applied_at_ms=squelch_tracker_applied_at_ms,
         ),
     }
+    _save_state(state)
+    return True
+
+
+# --- SB5 Phase 2 helpers ----------------------------------------------------
+# The tracker (ui/squelch_tracker.py) and the /api/airband/squelch_auto
+# endpoint share the same state file; these accessors keep the JSON
+# schema details in one place.
+
+def get_band_squelch_auto(target: str) -> bool:
+    """Return True if AUTO is enabled for this band.  Default ON for
+    bands that have no persisted override record yet (first boot).
+    """
+    try:
+        normalized = _normalize_target(target)
+    except ValueError:
+        return _DEFAULT_SQUELCH_AUTO
+    state = _load_state()
+    record = (state.get("targets") or {}).get(normalized) or {}
+    override = record.get("override") if isinstance(record, dict) else None
+    if not isinstance(override, dict):
+        return _DEFAULT_SQUELCH_AUTO
+    val = override.get("squelch_auto")
+    if isinstance(val, bool):
+        return val
+    return _DEFAULT_SQUELCH_AUTO
+
+
+def set_band_squelch_auto(target: str, enabled: bool) -> bool:
+    """Flip the AUTO toggle for a band, preserving every other field.
+
+    Returns True on persisted change, False if the state file isn't
+    addressable or the band record can't be found yet.
+    """
+    normalized = _normalize_target(target)
+    state = _load_state()
+    targets = state.setdefault("targets", {})
+    record = targets.get(normalized)
+    if not isinstance(record, dict):
+        # No record yet — synthesize a minimal one so the toggle
+        # survives even before the operator has clicked a preset chip.
+        record = {
+            "profile_path": "",
+            "updated_at_ms": int(time.time() * 1000),
+            "override": _controls_payload(
+                gain=_DEFAULT_GAIN,
+                squelch_mode="dbfs",
+                squelch_snr=_DEFAULT_SQUELCH_SNR,
+                squelch_dbfs=-70.0,
+                squelch_auto=bool(enabled),
+            ),
+        }
+        targets[normalized] = record
+        _save_state(state)
+        return True
+    override = record.get("override") or {}
+    if not isinstance(override, dict):
+        override = {}
+    override["squelch_auto"] = bool(enabled)
+    record["override"] = override
+    record["updated_at_ms"] = int(time.time() * 1000)
+    targets[normalized] = record
+    _save_state(state)
+    return True
+
+
+def record_tracker_apply(target: str, ts_ms: int) -> bool:
+    """Stamp ``squelch_tracker_applied_at_ms`` on a band's override.
+
+    Idempotent.  The tracker calls this after a successful apply so
+    the SSE/UI readout can show "Auto · last sync Xs ago".
+    """
+    try:
+        normalized = _normalize_target(target)
+    except ValueError:
+        return False
+    state = _load_state()
+    targets = state.setdefault("targets", {})
+    record = targets.get(normalized)
+    if not isinstance(record, dict):
+        return False
+    override = record.get("override") or {}
+    if not isinstance(override, dict):
+        override = {}
+    override["squelch_tracker_applied_at_ms"] = int(ts_ms)
+    record["override"] = override
+    record["updated_at_ms"] = int(time.time() * 1000)
+    targets[normalized] = record
     _save_state(state)
     return True

@@ -290,6 +290,45 @@ def _format_list_line(indent: str, thresholds) -> str:
     )
 
 
+def read_current_thresholds(conf_path: str) -> list:
+    """Return the on-disk squelch_threshold list as ints.
+
+    Used by the Phase 2 tracker to compute hysteresis vs the values
+    rtl-airband is currently running against, without having to keep
+    its own shadow copy.  Returns the FIRST squelch_threshold block
+    (whether scalar or list form) because the Phase 1 writer collapses
+    all blocks into a single list and channels share one block in our
+    profile template.  An empty list signals "no readable threshold"
+    and callers should treat that as "always apply" (no hysteresis).
+    """
+    try:
+        with open(conf_path, "r", encoding="utf-8", errors="ignore") as fh:
+            text = fh.read()
+    except (FileNotFoundError, OSError):
+        return []
+    spans = _find_squelch_lines(text)
+    if not spans:
+        return []
+    s, e, _ind = spans[0]
+    block = text[s:e]
+    # Strip the leading "squelch_threshold =" and the trailing ";"
+    # We then accept either a single scalar or a parenthesised list.
+    m_list = re.search(r'\(([^()]*)\)', block)
+    raw_values: list[str]
+    if m_list:
+        raw_values = re.findall(r'-?\d+(?:\.\d+)?', m_list.group(1))
+    else:
+        m_scalar = re.search(r'=\s*(-?\d+(?:\.\d+)?)\s*;', block)
+        raw_values = [m_scalar.group(1)] if m_scalar else []
+    out: list[int] = []
+    for tok in raw_values:
+        try:
+            out.append(int(round(float(tok))))
+        except ValueError:
+            continue
+    return out
+
+
 def write_per_channel_squelch_list(conf_path: str, thresholds) -> bool:
     """Replace every squelch_threshold line in ``conf_path`` with a
     single per-channel list line.  Idempotent — returns False when the

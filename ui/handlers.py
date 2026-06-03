@@ -171,7 +171,12 @@ try:
         enforce_profile_index, set_profile, save_profiles_registry, write_airband_flag,
         parse_freqs_labels, parse_freqs_text, write_freqs_labels, write_combined_config
     )
-    from .managed_analog_controls import recommended_managed_controls
+    from .managed_analog_controls import (
+        recommended_managed_controls,
+        get_band_squelch_auto as _get_band_squelch_auto,
+        set_band_squelch_auto as _set_band_squelch_auto,
+    )
+    from .squelch_tracker import get_tracker_status as _tracker_status
     from .squelch_preset import (
         apply_preset as squelch_apply_preset,
         compute_preset_plan as squelch_compute_preset_plan,
@@ -301,7 +306,12 @@ except ImportError:
         enforce_profile_index, set_profile, save_profiles_registry, write_airband_flag,
         parse_freqs_labels, parse_freqs_text, write_freqs_labels, write_combined_config
     )
-    from ui.managed_analog_controls import recommended_managed_controls
+    from ui.managed_analog_controls import (
+        recommended_managed_controls,
+        get_band_squelch_auto as _get_band_squelch_auto,
+        set_band_squelch_auto as _set_band_squelch_auto,
+    )
+    from ui.squelch_tracker import get_tracker_status as _tracker_status
     from ui.squelch_preset import (
         apply_preset as squelch_apply_preset,
         compute_preset_plan as squelch_compute_preset_plan,
@@ -5945,6 +5955,17 @@ class Handler(BaseHTTPRequestHandler):
                 "airband_squelch_noise_floor_dbfs": (
                     (recommended_managed_controls("airband", controls_airband_path) or {}).get("squelch_preset_noise_floor_dbfs")
                 ),
+                # SB5 Phase 2: AUTO/MANUAL toggle + tracker bookkeeping.
+                # The UI uses these to paint the AUTO pill state and
+                # render the "Auto · last sync Xs ago" timestamp under
+                # the chip row.
+                "airband_squelch_auto": bool(_get_band_squelch_auto("airband")),
+                "airband_squelch_tracker_applied_at_ms": (
+                    (recommended_managed_controls("airband", controls_airband_path) or {}).get("squelch_tracker_applied_at_ms")
+                ),
+                "airband_squelch_tracker_last_cycle_ms": int(
+                    _tracker_status("airband").get("last_cycle_ms") or 0
+                ),
                 "airband_filter": float(airband_filter),
                 "ground_gain": float(ground_gain),
                 "ground_squelch_mode": ground_mode,
@@ -5959,6 +5980,13 @@ class Handler(BaseHTTPRequestHandler):
                 ),
                 "ground_squelch_noise_floor_dbfs": (
                     (recommended_managed_controls("ground", controls_ground_path) or {}).get("squelch_preset_noise_floor_dbfs")
+                ),
+                "ground_squelch_auto": bool(_get_band_squelch_auto("ground")),
+                "ground_squelch_tracker_applied_at_ms": (
+                    (recommended_managed_controls("ground", controls_ground_path) or {}).get("squelch_tracker_applied_at_ms")
+                ),
+                "ground_squelch_tracker_last_cycle_ms": int(
+                    _tracker_status("ground").get("last_cycle_ms") or 0
                 ),
                 "ground_filter": float(ground_filter),
                 "airband_applied_gain": airband_device.get("gain") if airband_device else None,
@@ -6706,6 +6734,13 @@ class Handler(BaseHTTPRequestHandler):
                     "airband_squelch_noise_floor_dbfs": (
                         (recommended_managed_controls("airband", resolve_controls_path("airband")) or {}).get("squelch_preset_noise_floor_dbfs")
                     ),
+                    "airband_squelch_auto": bool(_get_band_squelch_auto("airband")),
+                    "airband_squelch_tracker_applied_at_ms": (
+                        (recommended_managed_controls("airband", resolve_controls_path("airband")) or {}).get("squelch_tracker_applied_at_ms")
+                    ),
+                    "airband_squelch_tracker_last_cycle_ms": int(
+                        _tracker_status("airband").get("last_cycle_ms") or 0
+                    ),
                     "ground_gain": float(ground_gain),
                     "ground_squelch_mode": ground_mode,
                     "ground_squelch_dbfs": float(ground_dbfs),
@@ -6719,6 +6754,13 @@ class Handler(BaseHTTPRequestHandler):
                     ),
                     "ground_squelch_noise_floor_dbfs": (
                         (recommended_managed_controls("ground", resolve_controls_path("ground")) or {}).get("squelch_preset_noise_floor_dbfs")
+                    ),
+                    "ground_squelch_auto": bool(_get_band_squelch_auto("ground")),
+                    "ground_squelch_tracker_applied_at_ms": (
+                        (recommended_managed_controls("ground", resolve_controls_path("ground")) or {}).get("squelch_tracker_applied_at_ms")
+                    ),
+                    "ground_squelch_tracker_last_cycle_ms": int(
+                        _tracker_status("ground").get("last_cycle_ms") or 0
                     ),
                     "last_hit": last_hit,
                     "last_hit_airband_label": _short_label(last_hit_airband_label, max_len=48),
@@ -8204,6 +8246,58 @@ class Handler(BaseHTTPRequestHandler):
                     "stats_available": plan.get("stats_available"),
                     "changed": bool(plan.get("changed")),
                     "pending_restart": bool(plan.get("changed")),
+                }),
+                "application/json; charset=utf-8",
+            )
+
+        # ============ /api/airband/squelch_auto — Phase 2 SB5 ============
+        # Per-band AUTO/MANUAL toggle for the continuous noise-floor
+        # tracker (ui/squelch_tracker.py).  When AUTO is off, the
+        # tracker leaves that band's thresholds frozen at whatever the
+        # last preset apply wrote.  No auth — solo-user phase.
+        if p == "/api/airband/squelch_auto":
+            band_raw = str(form.get("band", "")).strip().lower()
+            band_map = {"air": "airband", "airband": "airband",
+                        "ground": "ground", "gnd": "ground"}
+            target = band_map.get(band_raw)
+            if not target:
+                return self._send(
+                    400,
+                    json.dumps({"ok": False, "error": "unknown band (expected 'air' or 'ground')"}),
+                    "application/json; charset=utf-8",
+                )
+            enabled_raw = form.get("enabled")
+            if isinstance(enabled_raw, bool):
+                enabled = enabled_raw
+            else:
+                token = str(enabled_raw or "").strip().lower()
+                if token in ("1", "true", "on", "yes", "auto"):
+                    enabled = True
+                elif token in ("0", "false", "off", "no", "manual"):
+                    enabled = False
+                else:
+                    return self._send(
+                        400,
+                        json.dumps({"ok": False, "error": "missing/unparseable 'enabled' (expected bool)"}),
+                        "application/json; charset=utf-8",
+                    )
+            try:
+                changed = _set_band_squelch_auto(target, enabled)
+            except Exception as exc:
+                logger.exception("squelch_auto toggle failed")
+                return self._send(
+                    500,
+                    json.dumps({"ok": False, "error": f"persist failed: {exc}"}),
+                    "application/json; charset=utf-8",
+                )
+            return self._send(
+                200,
+                json.dumps({
+                    "ok": True,
+                    "band": "air" if target == "airband" else "ground",
+                    "target": target,
+                    "enabled": bool(enabled),
+                    "changed": bool(changed),
                 }),
                 "application/json; charset=utf-8",
             )

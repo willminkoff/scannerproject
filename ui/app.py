@@ -11,6 +11,7 @@ try:
     from .server_workers import start_config_worker, start_icecast_monitor
     from .favorites_runtime import sync_scan_pool_to_runtime
     from .v3_runtime import bootstrap_runtime
+    from .squelch_tracker import start_squelch_tracker
 except ImportError:
     # Support direct execution (`python ui/app.py`) by adding repo root.
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -22,6 +23,7 @@ except ImportError:
     from ui.server_workers import start_config_worker, start_icecast_monitor
     from ui.favorites_runtime import sync_scan_pool_to_runtime
     from ui.v3_runtime import bootstrap_runtime
+    from ui.squelch_tracker import start_squelch_tracker
 
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
@@ -116,6 +118,14 @@ def main():
     start_icecast_monitor()
     _rehydrate_wx_reader()
     _start_runtime_sync_thread()
+    # SB5 Phase 2: continuous noise-floor tracker.  Background thread
+    # with built-in 30s cadence + 5 dB hysteresis; per-band AUTO toggle
+    # lives in managed_analog_controls.json (default AUTO on).
+    try:
+        start_squelch_tracker()
+        logging.info("squelch_tracker thread started")
+    except Exception:
+        logging.exception("squelch_tracker failed to start")
     server = ThreadedHTTPServer(("0.0.0.0", UI_PORT), Handler)
     logging.info(f"UI listening on 0.0.0.0:{UI_PORT}")
     server.serve_forever()
