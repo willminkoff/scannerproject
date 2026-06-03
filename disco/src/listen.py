@@ -95,10 +95,16 @@ _VALID_MODULATIONS = {"am", "nfm"}
 ICECAST_HOST_PUBLIC = os.environ.get("DISCO_ICECAST_HOST", "100.67.20.40")
 ICECAST_PORT_PUBLIC = int(os.environ.get("DISCO_ICECAST_PORT", "8000"))
 
-# Disco-decoded freqs are routed to a dedicated icecast mount via the
-# disco_mixer block emitted by combined_config.py. The combined ANALOG.mp3
-# mount keeps carrying the user's regular airband + ground scans, untouched.
-DEFAULT_STREAM_MOUNT = os.environ.get("DISCO_STREAM_MOUNT", "disco.mp3")
+# H3 (2026-06-03 audit): the dedicated /disco.mp3 icecast mount has been
+# removed from /etc/icecast2/icecast.xml because in MA/SL split mode there
+# is no publisher to it (the disco_mixer block in combined_config.py only
+# emits for the single-combined-mixer architecture). The mount sat orphan
+# and listeners got the silent keepalive fallback. The publisher path
+# stays in combined_config.py but is gated off at the script callers
+# (scripts/build-service-config.py, scripts/build-combined-config.py); if
+# the disco listen feature needs an audio surface later the env override
+# below can repoint it at a freshly-added mount.
+DEFAULT_STREAM_MOUNT = os.environ.get("DISCO_STREAM_MOUNT", "")
 
 PROFILES_DIR = os.environ.get("DISCO_PROFILES_DIR", "/home/ubuntu/scannerproject/profiles")
 RUNTIME_DIR = os.environ.get("DISCO_RUNTIME_DIR", "/home/ubuntu/scannerproject/runtime")
@@ -423,6 +429,11 @@ def _classify_supported(modulation_class: str) -> dict[str, Any] | None:
 
 
 def _stream_url() -> str:
+    # H3 (2026-06-03): return empty when no mount is configured, so the
+    # dashboard doesn't hand listeners a URL that 404s. See the
+    # DEFAULT_STREAM_MOUNT comment above for context.
+    if not DEFAULT_STREAM_MOUNT:
+        return ""
     return f"http://{ICECAST_HOST_PUBLIC}:{ICECAST_PORT_PUBLIC}/{DEFAULT_STREAM_MOUNT}"
 
 

@@ -3338,7 +3338,7 @@ def _compute_heartbeat_payload() -> dict:
     #     mount isn't listed as `publishing` in icecast status — a
     #     no-source mount surfaces as a warn row instead of being
     #     silently skipped.  Mounts intentionally NOT probed here:
-    #       * disco.mp3 — followed up separately (separate FU task)
+    #       * disco.mp3 — removed 2026-06-03 (H3 audit, orphan mount)
     #       * GND.mp3   — removed; do not probe
     #
     #     Severity: `warn` on dead/empty (under ~64 bytes in the window),

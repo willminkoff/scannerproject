@@ -26,7 +26,11 @@ except Exception:
     logger.debug("build_combined_config: invalid ANALOG_STREAM_BITRATE_KBPS; falling back to 24", exc_info=True)
     ANALOG_STREAM_BITRATE_KBPS = 24
 ANALOG_STREAM_BITRATE_KBPS = max(8, min(320, ANALOG_STREAM_BITRATE_KBPS))
-DISCO_MOUNT_NAME = os.getenv("DISCO_MOUNT_NAME", "disco.mp3").strip() or "disco.mp3"
+# H3 (2026-06-03 audit): the dedicated /disco.mp3 icecast mount has
+# been removed (see disco/src/listen.py for rationale). Default to empty
+# so build_combined_config skips disco_mixer emission unless an operator
+# explicitly re-points DISCO_MOUNT_NAME at a freshly-added mount.
+DISCO_MOUNT_NAME = os.getenv("DISCO_MOUNT_NAME", "").strip()
 try:
     DISCO_STREAM_BITRATE_KBPS = int(os.getenv("DISCO_STREAM_BITRATE_KBPS", "32"))
 except Exception:

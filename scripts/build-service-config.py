@@ -223,9 +223,15 @@ def main(argv: list[str] | None = None) -> int:
         mixer_output_continuous=os.getenv("MIXER_OUTPUT_CONTINUOUS", "1")
                                 .strip().lower() in ("1", "true", "yes", "on"),
         analog_bitrate_kbps=_bitrate_from_env(),
-        include_disco_mixer=(args.service == "airband"),  # Listen feature is airband-only for v1
-        disco_mount_name=os.getenv("DISCO_MOUNT_NAME", "disco.mp3").strip()
-                          or "disco.mp3",
+        # H3 (2026-06-03 audit): the /disco.mp3 icecast mount has been
+        # removed because in MA/SL split mode there is no publisher to
+        # it (this gate USED to be `args.service == "airband"`, which
+        # rendered the disco_mixer output even though the dedicated
+        # mount was orphaned). Force off until the disco card needs an
+        # audio surface again; the disco_mixer rendering code in
+        # combined_config.py stays in place ready for re-enable.
+        include_disco_mixer=False,
+        disco_mount_name=os.getenv("DISCO_MOUNT_NAME", "").strip(),
         disco_bitrate_kbps=_disco_bitrate_from_env(),
     )
 
