@@ -6425,6 +6425,22 @@ function _postJSON(url, body) {
 }
 
 const _bandCommitTimers = { air: { sql: null, gain: null }, ground: { sql: null, gain: null } };
+// Helper: re-arm the 6s auto-apply countdown from inside _bandCommit's
+// .then() callback whenever the server confirms a pending restart.  The
+// slider's 'change' handler also calls _scheduleAutoApply() directly, but
+// tying it to the SUCCESSFUL POST closes the gap where the slider commit
+// fires but the schedule call somehow misses (e.g. the change event
+// arrives during a re-render that swaps the slider DOM, or the function
+// throws between _bandCommit and _scheduleAutoApply).  Calling twice is
+// a no-op: _scheduleAutoApply stops any prior timer and starts fresh.
+function _bandCommitAfter(r, band) {
+  const st = BAND_STATE[band];
+  st.pending = !!(r.ok && r.json && r.json.pending_restart);
+  renderBandControls(band);
+  if (st.pending && typeof _scheduleAutoApply === "function") {
+    try { _scheduleAutoApply(); } catch (_) {}
+  }
+}
 function _bandCommit(band, kind) {
   clearTimeout(_bandCommitTimers[band][kind]);
   _bandCommitTimers[band][kind] = setTimeout(() => {
@@ -6435,18 +6451,12 @@ function _bandCommit(band, kind) {
         band: apiBand,
         threshold_dbfs: Math.round(st.squelch_dbfs),
         auto: !!st.auto
-      }).then(r => {
-        st.pending = !!(r.ok && r.json && r.json.pending_restart);
-        renderBandControls(band);
-      }).catch(() => {});
+      }).then(r => _bandCommitAfter(r, band)).catch(() => {});
     } else {
       _postJSON("/api/airband/gain", {
         band: apiBand,
         gain_db: Math.round(st.gain)
-      }).then(r => {
-        st.pending = !!(r.ok && r.json && r.json.pending_restart);
-        renderBandControls(band);
-      }).catch(() => {});
+      }).then(r => _bandCommitAfter(r, band)).catch(() => {});
     }
   }, 120);
 }
