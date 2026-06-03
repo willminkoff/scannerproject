@@ -2028,6 +2028,7 @@
   }
   .fp-row .fp-band-tag.air { background: rgba(90, 184, 255, 0.18); color: var(--sky-2, #5ab8ff); }
   .fp-row .fp-band-tag.ground { background: rgba(255, 178, 90, 0.18); color: var(--amber, #ffb25a); }
+.fp-band-tag.digital { background: var(--accent-digital, var(--accent, #4cf)); color: var(--bg, #000); }
   .modal-profile-builder .pb-placeholder {
     padding: 14px 16px;
     background: rgba(8, 14, 28, 0.40);
@@ -4251,12 +4252,12 @@ function renderProfile(hpState, profiles) {
   const zip = (hpState && hpState.state && hpState.state.zip) || "";
   const mode = (hpState && hpState.mode) || "";
 
-  // Digital pane uses the legacy `enabled` flag.  AIR + GROUND each have
-  // their own active favorite via `enabled_air` / `enabled_ground` —
-  // independently selectable.  AIR shows AIR-routed channel count;
-  // GROUND shows ground-routed channel count.
+  // Each pane has its own active favorite: AIR -> enabled_air,
+  // GROUND -> enabled_ground, Digital -> enabled_digital.  Independently
+  // selectable.  AIR shows AIR-routed channel count; GROUND shows
+  // ground-routed channel count.
   paintBandProfile("dig", favList.filter(favIsDigital), zip, mode, {
-    enabledFlag: "enabled",
+    enabledFlag: "enabled_digital",
   });
   paintBandProfile("ana", favList.filter(favIsAir), zip, mode, {
     enabledFlag: "enabled_air",
@@ -6161,7 +6162,7 @@ function _favPickerRenderRows(pane) {
     list = all.filter(favIsDigital);
     kindLabelSingular = "talkgroup";
     kindLabelPlural = "talkgroups";
-    activeFlag = "enabled";
+    activeFlag = "enabled_digital";
     emptyMsg = "No favorites with trunked channels.";
   } else if (pane === "ground") {
     list = all.filter(favIsGround);
@@ -6197,6 +6198,7 @@ function _favPickerRenderRows(pane) {
     const tags = [];
     if (f.enabled_air) tags.push('<span class="fp-band-tag air">AIR</span>');
     if (f.enabled_ground) tags.push('<span class="fp-band-tag ground">GROUND</span>');
+    if (f.enabled_digital) tags.push('<span class="fp-band-tag digital">DIGITAL</span>');
     const tagHtml = tags.length ? `<span class="fp-band-tags">${tags.join("")}</span>` : "";
     let cls = "fp-row";
     if (isActive) cls += " active active-" + (pane === "dig" ? "both" : pane);
@@ -6227,27 +6229,13 @@ async function _favPickerSwitch(targetId, pane) {
   if (busy) busy.removeAttribute("hidden");
   try {
     let r;
-    if (pane === "dig") {
-      // Digital favorite: keep the legacy whole-favorites POST since
-      // OP25 routing still keys off the singular `enabled` flag.  Mirror
-      // it into both per-band flags so AIR/GROUND don't end up orphaned
-      // when the user switches digital favs.
-      const updated = all.map(f => {
-        const on = String(f.id || "") === String(targetId);
-        return Object.assign({}, f, { enabled: on, enabled_air: on, enabled_ground: on });
-      });
-      const body = new URLSearchParams();
-      body.set("favorites", JSON.stringify(updated));
-      const enabledRow = updated.find(f => f.enabled);
-      if (enabledRow && enabledRow.label) body.set("favorites_name", String(enabledRow.label));
-      r = await fetch("/api/hp/state", { method: "POST", body, cache: "no-store" });
-    } else {
-      // Per-band activation — POST to the new endpoint with band=air|ground.
-      const body = new URLSearchParams();
-      body.set("fav_id", String(targetId));
-      body.set("band", pane === "ground" ? "ground" : "air");
-      r = await fetch("/api/hp/state/activate", { method: "POST", body, cache: "no-store" });
-    }
+    // All three panes (AIR / GROUND / Digital) post to the activate
+    // endpoint with their own band token.  The server enforces mutex
+    // (one active fav per band) and keeps legacy `enabled` consistent.
+    const body = new URLSearchParams();
+    body.set("fav_id", String(targetId));
+    body.set("band", pane === "dig" ? "digital" : (pane === "ground" ? "ground" : "air"));
+    r = await fetch("/api/hp/state/activate", { method: "POST", body, cache: "no-store" });
     if (!r.ok) throw new Error("activate " + r.status);
     const next = await fetch("/api/hp/state", { cache: "no-store" }).then(rr => rr.json());
     STATE.hpState = next;

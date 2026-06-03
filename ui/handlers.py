@@ -6680,22 +6680,29 @@ class Handler(BaseHTTPRequestHandler):
 
         if p == "/api/hp/state/activate":
             # Per-band favorite activation (Phase 7g).
-            # POST body: fav_id=<id>, band=air|ground|both
+            # POST body: fav_id=<id>, band=air|ground|digital|all
             #
-            # Sets enabled_air and/or enabled_ground to True for the
-            # named favorite and False for ALL others (mutex enforcement).
-            # Also keeps legacy `enabled = enabled_air OR enabled_ground`
-            # consistent so tools that don't know about per-band still
-            # behave.  Persists state + enqueues runtime sync, but does
-            # NOT restart rtl-airband (that happens via Sitrep → Reset
-            # Radios so Will controls when the radio bounces).
+            # Sets enabled_air / enabled_ground / enabled_digital to True
+            # for the named favorite and False for ALL others (mutex
+            # enforcement, one fav per band).  band='all' touches all
+            # three flags; 'both' is kept as a backward-compat alias for
+            # 'all' (the AIR card's Sync-to-Ground button still posts
+            # 'both' and gets the same 3-flag behavior).  Legacy
+            # `enabled = enabled_air OR enabled_ground OR enabled_digital`
+            # is kept consistent so tools that don't know about per-band
+            # still behave.  Persists state + enqueues runtime sync, but
+            # does NOT restart rtl-airband / op25 (those happen via
+            # Sitrep -> Reset Radios so Will controls when the radio
+            # bounces).
             try:
                 fav_id = str((form.get("fav_id") or form.get("id") or "")).strip()
                 band = str((form.get("band") or "")).strip().lower()
                 if not fav_id:
                     raise ValueError("missing fav_id")
-                if band not in ("air", "ground", "both"):
-                    raise ValueError("band must be 'air', 'ground', or 'both'")
+                if band not in ("air", "ground", "digital", "both", "all"):
+                    raise ValueError(
+                        "band must be 'air', 'ground', 'digital', or 'all'"
+                    )
             except ValueError as e:
                 return self._send(
                     400,
@@ -6718,12 +6725,18 @@ class Handler(BaseHTTPRequestHandler):
                 is_target = (str(f.get("id") or "").strip() == fav_id)
                 if is_target:
                     target_found = True
-                if band in ("air", "both"):
+                if band in ("air", "both", "all"):
                     f["enabled_air"] = bool(is_target)
-                if band in ("ground", "both"):
+                if band in ("ground", "both", "all"):
                     f["enabled_ground"] = bool(is_target)
+                if band in ("digital", "both", "all"):
+                    f["enabled_digital"] = bool(is_target)
                 # Keep legacy `enabled` consistent.
-                f["enabled"] = bool(f.get("enabled_air") or f.get("enabled_ground"))
+                f["enabled"] = bool(
+                    f.get("enabled_air")
+                    or f.get("enabled_ground")
+                    or f.get("enabled_digital")
+                )
             if not target_found:
                 return self._send(
                     404,
@@ -6736,7 +6749,7 @@ class Handler(BaseHTTPRequestHandler):
             # keeps the legacy display-name field aligned with the user's
             # most-recent explicit pick.
             try:
-                if band in ("air", "both"):
+                if band in ("air", "both", "all"):
                     for f in favorites:
                         if isinstance(f, dict) and str(f.get("id") or "").strip() == fav_id:
                             label = str(f.get("label") or "").strip()

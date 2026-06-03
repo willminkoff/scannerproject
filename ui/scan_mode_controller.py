@@ -960,8 +960,12 @@ class ScanModeController:
         active_name = str(getattr(state, "favorites_name", "") or "").strip().lower()
 
         band_token = (band or "").strip().lower()
-        if band_token in ("air", "ground"):
-            flag_key = "enabled_air" if band_token == "air" else "enabled_ground"
+        if band_token in ("air", "ground", "digital"):
+            flag_key = {
+                "air": "enabled_air",
+                "ground": "enabled_ground",
+                "digital": "enabled_digital",
+            }[band_token]
             for item in favorites:
                 if not isinstance(item, dict):
                     continue
@@ -1085,10 +1089,30 @@ class ScanModeController:
                 self._last_stripped_custom_favorites = _merged_stripped
                 air_pool = self._build_custom_favorites_pool(filtered_air)
                 ground_pool = self._build_custom_favorites_pool(filtered_ground)
-                # Union trunked sites (dedupe by system_id + control set).
+                # Trunked sites: when a digital favorite is active
+                # (enabled_digital=true), its trunked systems are the
+                # sole source — AIR/GROUND only contribute conventional
+                # rows.  Falls back to the union of AIR+GROUND trunked
+                # rows for backward compat when no digital favorite has
+                # been activated yet.
+                digital_entries = self._resolve_active_favorites_entries(state, band="digital")
+                if digital_entries:
+                    filtered_digital, _stripped_digital = self._split_favorites_by_service_tag(
+                        digital_entries, service_tags
+                    )
+                    for k, v in (_stripped_digital or {}).items():
+                        _merged_stripped.setdefault(k, []).extend(v)
+                    self._last_stripped_custom_favorites = _merged_stripped
+                    digital_pool = self._build_custom_favorites_pool(filtered_digital)
+                    trunk_source = list(digital_pool.get("trunked_sites") or [])
+                else:
+                    trunk_source = (
+                        list(air_pool.get("trunked_sites") or [])
+                        + list(ground_pool.get("trunked_sites") or [])
+                    )
                 trunk_seen: set[tuple] = set()
                 trunked_sites: list[dict] = []
-                for row in (air_pool.get("trunked_sites") or []) + (ground_pool.get("trunked_sites") or []):
+                for row in trunk_source:
                     if not isinstance(row, dict):
                         continue
                     key = (

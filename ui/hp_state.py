@@ -126,6 +126,21 @@ def _favorite_has_ground_channels(custom_favorites: list[dict]) -> bool:
     return False
 
 
+def _favorite_has_digital_channels(custom_favorites: list[dict]) -> bool:
+    """True if the favorite carries any P25 / trunked channels.
+
+    Digital activation (enabled_digital) is independent of the analog
+    AIR / GROUND bands and gates which favorite's trunked systems feed
+    the OP25 scan pool.
+    """
+    for c in custom_favorites or []:
+        if not isinstance(c, dict):
+            continue
+        if str(c.get("kind") or "").strip().lower() == "trunked":
+            return True
+    return False
+
+
 def _coerce_favorites(value) -> list[dict]:
     out: list[dict] = []
     if not isinstance(value, list):
@@ -149,6 +164,7 @@ def _coerce_favorites(value) -> list[dict]:
         # keeps working.
         has_air_field = "enabled_air" in item
         has_ground_field = "enabled_ground" in item
+        has_digital_field = "enabled_digital" in item
         if has_air_field:
             enabled_air = _coerce_bool(item.get("enabled_air"), default=False)
         else:
@@ -157,9 +173,17 @@ def _coerce_favorites(value) -> list[dict]:
             enabled_ground = _coerce_bool(item.get("enabled_ground"), default=False)
         else:
             enabled_ground = bool(enabled and _favorite_has_ground_channels(custom_favorites))
+        # Phase 7g (digital): each favorite carries its own enabled_digital
+        # flag that gates whether its trunked / P25 systems feed the OP25
+        # scan pool.  Derive from legacy `enabled` AND presence of trunked
+        # channels on first read; persist verbatim thereafter.
+        if has_digital_field:
+            enabled_digital = _coerce_bool(item.get("enabled_digital"), default=False)
+        else:
+            enabled_digital = bool(enabled and _favorite_has_digital_channels(custom_favorites))
         # Keep legacy `enabled` consistent: any per-band activation implies
         # the favorite is "enabled" for tools that ignore the per-band split.
-        enabled = bool(enabled_air or enabled_ground)
+        enabled = bool(enabled_air or enabled_ground or enabled_digital)
         out.append(
             {
                 "id": str(item.get("id") or "").strip(),
@@ -170,6 +194,7 @@ def _coerce_favorites(value) -> list[dict]:
                 "enabled": enabled,
                 "enabled_air": enabled_air,
                 "enabled_ground": enabled_ground,
+                "enabled_digital": enabled_digital,
                 "custom_favorites": custom_favorites,
             }
         )
@@ -179,6 +204,7 @@ def _coerce_favorites(value) -> list[dict]:
     # the first as the active per-band fav and clears the rest.
     air_seen = False
     ground_seen = False
+    digital_seen = False
     for row in out:
         if row.get("enabled_air"):
             if air_seen:
@@ -190,7 +216,16 @@ def _coerce_favorites(value) -> list[dict]:
                 row["enabled_ground"] = False
             else:
                 ground_seen = True
-        row["enabled"] = bool(row.get("enabled_air") or row.get("enabled_ground"))
+        if row.get("enabled_digital"):
+            if digital_seen:
+                row["enabled_digital"] = False
+            else:
+                digital_seen = True
+        row["enabled"] = bool(
+            row.get("enabled_air")
+            or row.get("enabled_ground")
+            or row.get("enabled_digital")
+        )
     return out
 
 
