@@ -2903,7 +2903,7 @@ def _filter_sounding_levels(levels, max_age_sec=5400):
 # foreground sample is wall-time capped via `_HEARTBEAT_MP3_SAMPLE_*`).
 _HEARTBEAT_CACHE_TTL_SEC = max(2.0, float(os.getenv("HEARTBEAT_CACHE_TTL_SEC", "5.0")))
 _HEARTBEAT_STATS_STALE_SEC = max(5.0, float(os.getenv("HEARTBEAT_STATS_STALE_SEC", "60.0")))
-_HEARTBEAT_MP3_SAMPLE_DURATION_SEC = max(0.3, float(os.getenv("HEARTBEAT_MP3_SAMPLE_DURATION_SEC", "1.5")))
+_HEARTBEAT_MP3_SAMPLE_DURATION_SEC = max(0.3, float(os.getenv("HEARTBEAT_MP3_SAMPLE_DURATION_SEC", "3.0")))
 _HEARTBEAT_MP3_SAMPLE_TIMEOUT_SEC = max(0.5, float(os.getenv("HEARTBEAT_MP3_SAMPLE_TIMEOUT_SEC", "7.0")))
 _HEARTBEAT_MP3_CONNECT_TIMEOUT_SEC = max(0.3, float(os.getenv("HEARTBEAT_MP3_CONNECT_TIMEOUT_SEC", "5.0")))
 _HEARTBEAT_LOCK = threading.Lock()
@@ -2937,12 +2937,34 @@ def _heartbeat_sample_mount_bytes(mount: str,
     Bounded by `duration_sec` (read window) and `total_timeout_sec` (hard
     cap on wall-time spent in this call). Read-only — opens a listener
     socket, drains a few KB, closes.
+
+    H1 fix (2026-06-03): the previous implementation used a 0.25 s per-read
+    socket timeout and broke the loop on the first ``socket.timeout``. At
+    low MP3 bitrates (e.g. the 8 kbps keepalive-silence stream, or any
+    mount serving sparse audio) an MP3 frame is several KB and only
+    arrives every few seconds — so the 0.25 s timeout always fired before
+    a frame arrived, returned 0 bytes, and falsely flagged healthy mounts
+    as "frame gap". Verified empirically against curl: 8 s of /VFO.mp3
+    yielded ~29 KB while heartbeat reported "0 B in 0.7 s". Three of four
+    mounts showed permanent warn yellows even when audio was flowing.
+
+    New behavior:
+      * Per-read socket timeout is sized to the remaining wall window
+        (capped at 1.5 s) so a single arriving frame is enough to declare
+        the stream alive.
+      * ``socket.timeout`` no longer exits the loop — it costs one read,
+        not the whole sample. Only a real EOF / hard error or the wall
+        deadline ends the loop.
+      * Early-exit once we have ≥ 1024 B in hand: that's plenty of signal
+        that the mount is publishing, and it keeps healthy probes fast
+        (well under 1 s for typical-bitrate mounts).
     """
     import socket as _socket
     url = f"http://127.0.0.1:{ICECAST_PORT}/{str(mount or '').lstrip('/')}"
     start = time.monotonic()
     bytes_read = 0
     err = ""
+    EARLY_EXIT_BYTES = 1024  # enough signal that the mount is alive
     try:
         req = Request(url, headers={"User-Agent": "sb3-heartbeat/1.0"})
         # Halve the connect timeout so the total stays under the cap even
@@ -2950,24 +2972,34 @@ def _heartbeat_sample_mount_bytes(mount: str,
         connect_timeout = max(0.3, total_timeout_sec / 2.0)
         with urlopen(req, timeout=connect_timeout) as resp:
             deadline = start + min(duration_sec, total_timeout_sec)
-            # Best-effort: tighten the underlying socket read timeout so
-            # we never block past the deadline waiting for the next chunk.
             raw = getattr(resp.fp, "raw", None)
             sock = getattr(raw, "_sock", None) if raw is not None else None
-            if sock is not None:
-                try:
-                    sock.settimeout(0.25)
-                except Exception:
-                    pass
             while time.monotonic() < deadline:
+                if bytes_read >= EARLY_EXIT_BYTES:
+                    break
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                # Size the per-read timeout so one stall doesn't kill the
+                # whole sample, but we still respect the wall deadline.
+                if sock is not None:
+                    try:
+                        sock.settimeout(min(1.5, max(0.25, remaining)))
+                    except Exception:
+                        pass
                 try:
                     chunk = resp.read(4096)
                 except (_socket.timeout, TimeoutError):
-                    break
+                    # Partial-window stall — keep waiting until the wall
+                    # deadline. The old code broke here, which is why
+                    # low-bitrate mounts (8 kbps keepalive, sparse VFO)
+                    # always reported 0 B even though they were healthy.
+                    continue
                 except Exception as e:
                     err = str(e)[:200]
                     break
                 if not chunk:
+                    # Real EOF / mount closed.
                     break
                 bytes_read += len(chunk)
     except Exception as e:
@@ -3233,10 +3265,20 @@ def _compute_heartbeat_payload() -> dict:
     #       * disco.mp3 — followed up separately (separate FU task)
     #       * GND.mp3   — removed; do not probe
     #
-    #     Severity: `warn` on dead/empty (under ~256 bytes in the window),
+    #     Severity: `warn` on dead/empty (under ~64 bytes in the window),
     #     consistent with the ANALOG.mp3 frame-gap policy.  Not `bad`,
     #     because the core ANALOG.mp3 path is the wedge signal of record.
-    _HEARTBEAT_MOUNT_MIN_BYTES = 256
+    #
+    #     H1 fix (2026-06-03): floor dropped 256 -> 64. At 8 kbps the
+    #     keepalive-silence mount delivers ~3 KB across the 3 s window,
+    #     so 256 B was still safely above the actual floor for healthy
+    #     low-bitrate mounts, but the probe was bottoming out at 0 B
+    #     because of the 0.25 s read-timeout bug (see
+    #     `_heartbeat_sample_mount_bytes`). With that fixed we want the
+    #     floor as low as possible so a genuinely-thin frame still
+    #     reports `ok`; 64 B is "one sniff of a frame" and is plenty
+    #     to distinguish a publishing mount from a dead one.
+    _HEARTBEAT_MOUNT_MIN_BYTES = 64
     extra_mount_probes = [
         ("/ANALOG_GROUND.mp3", "ANALOG_GROUND.mp3"),
         ("/DIGITAL.mp3",       "DIGITAL.mp3"),
