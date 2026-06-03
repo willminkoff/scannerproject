@@ -1,0 +1,13 @@
+# /etc/sudoers.d/scanner-vfo-bt
+# Phase 6b.3 — VFO "Route to BT speaker" toggle wire-up.
+#
+# The UI's _vfo_write_config() shells out to systemctl when the BT
+# toggle flips, to start/stop the icecast→bluez VLC bridge service.
+# bluetoothctl itself does NOT need sudo on this host — the ubuntu
+# user reaches the bluez D-Bus via the system bluetooth socket.
+#
+# Install with:
+#   sudo install -m 0440 scripts/scanner-vfo-bt.sudoers \
+#       /etc/sudoers.d/scanner-vfo-bt
+#
+ubuntu ALL=(root) NOPASSWD: /usr/bin/systemctl start scanner-vlc-vfo.service, /usr/bin/systemctl stop scanner-vlc-vfo.service

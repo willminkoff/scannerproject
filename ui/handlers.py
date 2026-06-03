@@ -3416,6 +3416,15 @@ VFO_SQUELCH_MAX_DBFS = 0.0
 VFO_GAIN_MIN_DB = 0.0
 VFO_GAIN_MAX_DB = 49.0
 
+# Phase 6b.3 — BT routing.  Flipping the "Route to BT speaker" toggle ON
+# triggers a bluetoothctl connect to VFO_BT_SPEAKER_MAC followed by
+# starting scanner-vlc-vfo.service (the icecast→bluez VLC bridge).
+# Flipping OFF stops the service but leaves the BT connection intact —
+# other targets may be using it.
+VFO_BT_SPEAKER_MAC = os.getenv("VFO_BT_SPEAKER_MAC", "C0:28:8D:34:6E:67").strip()
+VFO_BT_CONNECT_TIMEOUT_SEC = 8.0
+VFO_BT_POST_START_WAIT_SEC = 1.2
+
 
 def _vfo_read_state() -> dict | None:
     """Best-effort read of /run/scannerproject/vfo/state.json.
@@ -3522,6 +3531,48 @@ def _vfo_pass_through_payload() -> dict:
     return state
 
 
+def _vfo_bt_connect(mac: str = VFO_BT_SPEAKER_MAC) -> tuple[bool, str]:
+    """Connect to the configured BT speaker via ``bluetoothctl connect``.
+
+    Returns (ok, err).  ``bluetoothctl`` runs as the ``ubuntu`` user
+    without sudo on this host (the user is in the bluetooth-capable
+    groups).  Calling connect on an already-connected device is a
+    no-op — bluetoothctl returns success quickly.  We additionally
+    verify ``Connected: yes`` via ``bluetoothctl info`` because some
+    bluetoothctl versions return rc 0 on a transient connect failure.
+    """
+    if not mac:
+        return False, "no MAC configured (VFO_BT_SPEAKER_MAC)"
+    try:
+        res = subprocess.run(
+            ["bluetoothctl", "connect", mac],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, timeout=VFO_BT_CONNECT_TIMEOUT_SEC, check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return False, (
+            f"connect timed out after {VFO_BT_CONNECT_TIMEOUT_SEC:.0f}s "
+            f"(speaker off?)"
+        )
+    except FileNotFoundError:
+        return False, "bluetoothctl not installed"
+    except Exception as exc:  # noqa: BLE001
+        return False, f"connect exec error: {exc}"
+    out = (res.stdout or "").strip()
+    try:
+        chk = subprocess.run(
+            ["bluetoothctl", "info", mac],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            text=True, timeout=3.0, check=False,
+        )
+        if "Connected: yes" in (chk.stdout or ""):
+            return True, ""
+    except Exception:  # noqa: BLE001
+        pass
+    snippet = out.splitlines()[-1] if out else f"rc={res.returncode}"
+    return False, snippet[:200]
+
+
 def _vfo_write_config(patch: dict) -> tuple[bool, str, dict]:
     """POST /api/vfo body handler — merge patch into config.json atomically.
 
@@ -3580,6 +3631,45 @@ def _vfo_write_config(patch: dict) -> tuple[bool, str, dict]:
             ), {}
         merged["gain_db"] = v
 
+    # Phase 6b.3 — if bt_routed flipped, do the BT + VLC bridge side
+    # effects BEFORE persisting config.  Going ON requires both
+    # bluetoothctl-connect AND scanner-vlc-vfo.service-start to succeed;
+    # if either fails we return an error WITHOUT writing config so the
+    # UI doesn't lie about bt_routed=True.  Going OFF stops the bridge
+    # (best-effort) but leaves the BT connection intact — other targets
+    # may still be using the speaker.
+    bt_was = bool(existing.get("bt_routed"))
+    bt_now = bool(merged.get("bt_routed"))
+    bt_flipped = ("bt_routed" in patch) and (bt_was != bt_now)
+    if bt_flipped and bt_now:
+        bt_ok, bt_err = _vfo_bt_connect()
+        if not bt_ok:
+            return False, f"bluetooth connect failed: {bt_err}", {}
+        try:
+            from ui import vlc as _vlc_mod
+            unit = _vlc_mod._VLC_SYSTEMD_SERVICES.get(
+                "vfo", "scanner-vlc-vfo.service",
+            )
+            svc_ok, svc_err = _vlc_mod._systemd_service_ctl(unit, "start")
+            if not svc_ok:
+                return False, f"vlc-vfo service start failed: {svc_err}", {}
+        except Exception as exc:  # noqa: BLE001
+            return False, f"vlc-vfo wire-up error: {exc}", {}
+        # Give the bridge a beat to attach to the bluez sink before we
+        # acknowledge success — gives the UI a stable handover.
+        time.sleep(VFO_BT_POST_START_WAIT_SEC)
+    elif bt_flipped and not bt_now:
+        try:
+            from ui import vlc as _vlc_mod
+            unit = _vlc_mod._VLC_SYSTEMD_SERVICES.get(
+                "vfo", "scanner-vlc-vfo.service",
+            )
+            svc_ok, svc_err = _vlc_mod._systemd_service_ctl(unit, "stop")
+            if not svc_ok:
+                logger.warning("scanner-vlc-vfo stop failed: %s", svc_err)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("scanner-vlc-vfo stop error: %s", exc)
+
     try:
         os.makedirs(VFO_STATE_DIR, exist_ok=True)
     except OSError as e:
@@ -3600,21 +3690,6 @@ def _vfo_write_config(patch: dict) -> tuple[bool, str, dict]:
             pass
         return False, f"write failed: {e}", {}
 
-    # Phase 6b.2 — if bt_routed flipped, start/stop scanner-vlc-vfo.service
-    # which pulls /VFO.mp3 from icecast and plays to the BT speaker.
-    # vfo.py also has an in-process pw-cat side-pipe (BTSidePipe) but that
-    # only reaches the default sink; the VLC bridge is what reaches the
-    # bluez_output target (mirrors the analog/digital/ground pattern).
-    if "bt_routed" in patch:
-        try:
-            from ui import vlc as _vlc_mod
-            unit = _vlc_mod._VLC_SYSTEMD_SERVICES.get("vfo", "scanner-vlc-vfo.service")
-            action = "start" if merged.get("bt_routed") else "stop"
-            ok2, err2 = _vlc_mod._systemd_service_ctl(unit, action)
-            if not ok2:
-                logger.warning("scanner-vlc-vfo %s failed: %s", action, err2)
-        except Exception as exc:
-            logger.warning("scanner-vlc-vfo wire-up error: %s", exc)
     return True, "ok", merged
 
 

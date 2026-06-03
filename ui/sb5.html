@@ -1018,6 +1018,20 @@
   }
   .toggle.off { background: rgba(138, 155, 181, 0.22); }
   .toggle.off::after { left: 2px; }
+  /* Phase 6b.3 — VFO BT toggle in-flight state.  Pulses the knob while
+     the server is connecting the BT speaker + starting the VLC bridge.
+     Pointer is disabled so the operator can't double-fire the action. */
+  .toggle.connecting {
+    pointer-events: none;
+    opacity: 0.72;
+  }
+  .toggle.connecting::after {
+    animation: vfo-bt-pulse 0.9s ease-in-out infinite;
+  }
+  @keyframes vfo-bt-pulse {
+    0%, 100% { box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35); }
+    50%      { box-shadow: 0 0 0 6px var(--sky-2, rgba(80, 160, 240, 0.35)); }
+  }
 
   /* ============ Disco pane internals ============ */
   .disco-detections {
@@ -5461,11 +5475,59 @@ function wireVFOControls() {
   }
   function wireToggle(id, key) {
     const t = $(id); if (!t) return;
-    t.addEventListener("click", () => {
+    t.addEventListener("click", async () => {
+      if (t.dataset.busy === "1") return;
       t.dataset.userEdited = "1";
-      const on = t.classList.contains("off");
+      const wasOff = t.classList.contains("off");
+      const on = wasOff;
+      // Optimistic UI flip — bounce back below if the server says no.
       t.classList.toggle("off", !on);
-      postVFO({ [key]: on });
+      // BT toggle is the only one that does heavy lifting server-side
+      // (bluetoothctl connect + scanner-vlc-vfo start).  Give the
+      // operator immediate "Connecting…" feedback while we wait.
+      const isBT = (key === "bt_routed");
+      let toast = null;
+      if (isBT && on) {
+        t.dataset.busy = "1";
+        t.classList.add("connecting");
+        toast = showSitrepToast("Connecting to BT speaker…", "busy", 0);
+      }
+      let ok = false;
+      let errMsg = "";
+      try {
+        const next = { ...VFO_LOCAL, [key]: on };
+        const resp = await fetch("/api/vfo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(next),
+        });
+        const body = await resp.json().catch(() => ({}));
+        if (resp.ok && body.ok !== false) {
+          ok = true;
+          Object.assign(VFO_LOCAL, next);
+        } else {
+          errMsg = (body && body.error) || `HTTP ${resp.status}`;
+        }
+      } catch (exc) {
+        errMsg = String((exc && exc.message) || exc);
+      }
+      if (isBT) {
+        t.dataset.busy = "";
+        t.classList.remove("connecting");
+      }
+      if (!ok) {
+        // Revert toggle to its pre-click state.
+        t.classList.toggle("off", on);
+        if (toast && toast.parentNode) toast.parentNode.removeChild(toast);
+        showSitrepToast(
+          `${isBT ? "BT speaker" : key}: ${errMsg}`,
+          "err",
+          5000,
+        );
+      } else if (isBT && on) {
+        if (toast && toast.parentNode) toast.parentNode.removeChild(toast);
+        showSitrepToast("BT speaker connected", "ok", 1800);
+      }
     });
   }
   wireToggle("vfo-mute", "muted");
