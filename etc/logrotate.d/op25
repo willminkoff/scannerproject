@@ -1,0 +1,10 @@
+/var/log/op25/op25.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    notifempty
+    copytruncate
+    missingok
+    size 50M
+}
